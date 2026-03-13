@@ -1,0 +1,7 @@
+@startuml
+class Red #FF0000
+class Green #00FF00
+class Blue #0000FF
+Red --> Green
+Green --> Blue
+@enduml

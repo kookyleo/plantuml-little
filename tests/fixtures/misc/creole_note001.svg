@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 327 172" width="327" height="172" font-family="monospace" font-size="13">
+<defs>
+<marker id="act-arrow" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 Z" fill="#A80036" stroke="none"/></marker>
+</defs>
+<polygon points="150.0,20.0 298.8,20.0 306.8,28.0 306.8,152.0 150.0,152.0" fill="#FBFB77" stroke="#A80036"/>
+<line x1="298.8" y1="20.0" x2="298.8" y2="28.0" stroke="#A80036"/>
+<line x1="298.8" y1="28.0" x2="306.8" y2="28.0" stroke="#A80036"/>
+<text x="156.0" y="41.0" fill="#000000"><tspan x="156.0" dy="0.0"><tspan font-weight="bold">Bold</tspan><tspan> text</tspan></tspan><tspan x="156.0" dy="16.0"><tspan font-style="italic">Italic</tspan><tspan> text</tspan></tspan><tspan x="156.0" dy="16.0"><tspan>- </tspan><tspan>bullet 1</tspan></tspan><tspan x="156.0" dy="16.0"><tspan>- </tspan><tspan>bullet 2</tspan></tspan><tspan x="156.0" dy="16.0">----</tspan><tspan x="156.0" dy="16.0"><tspan>Header</tspan><tspan> | </tspan><tspan>Col2</tspan></tspan><tspan x="156.0" dy="16.0"><tspan>cell1</tspan><tspan> | </tspan><tspan>cell2</tspan></tspan></text>
+</svg>

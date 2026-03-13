@@ -1,0 +1,14 @@
+@startuml
+actor User
+actor Admin
+
+usecase "Login" as UC1
+usecase "Manage Users" as UC2
+usecase "View Dashboard" as UC3
+
+User --> UC1
+User --> UC3
+Admin --> UC1
+Admin --> UC2
+Admin --> UC3
+@enduml

@@ -1,0 +1,8 @@
+@startuml
+Alice -> Bob : request
+par thread 1
+  Bob -> Charlie : task1
+else thread 2
+  Bob -> Dave : task2
+end
+@enduml

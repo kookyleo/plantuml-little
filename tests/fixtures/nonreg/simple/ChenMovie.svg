@@ -1,0 +1,56 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 421 708" width="421" height="708" font-family="monospace" font-size="12">
+<defs>
+</defs>
+<rect x="156.0" y="40.0" width="89.6" height="36.0" fill="#FEFECE" stroke="#A80036" stroke-width="1.5"/>
+<text x="200.8" y="62.2" text-anchor="middle" font-weight="bold" fill="#000000">DIRECTOR</text>
+<rect x="156.0" y="236.0" width="89.6" height="36.0" fill="#FEFECE" stroke="#A80036" stroke-width="1.5"/>
+<text x="200.8" y="258.2" text-anchor="middle" font-weight="bold" fill="#000000">CUSTOMER</text>
+<rect x="156.0" y="432.0" width="80.0" height="36.0" fill="#FEFECE" stroke="#A80036" stroke-width="1.5"/>
+<text x="196.0" y="454.2" text-anchor="middle" font-weight="bold" fill="#000000">MOVIE</text>
+<polygon points="208.4,628.0 260.8,648.0 208.4,668.0 156.0,648.0" fill="#FEFECE" stroke="#A80036" stroke-width="1.5"/>
+<text x="208.4" y="652.2" text-anchor="middle" fill="#000000">RENTED_TO</text>
+<ellipse cx="60.8" cy="-22.0" rx="40.0" ry="16.0" fill="#FEFECE" stroke="#A80036" stroke-width="1"/>
+<text x="60.8" y="-17.8" text-anchor="middle" fill="#000000" text-decoration="underline">Number</text>
+<ellipse cx="130.8" cy="-22.0" rx="40.0" ry="16.0" fill="#FEFECE" stroke="#A80036" stroke-width="1"/>
+<text x="130.8" y="-17.8" text-anchor="middle" fill="#000000">Name</text>
+<ellipse cx="106.3" cy="-70.0" rx="32.0" ry="12.8" fill="#FEFECE" stroke="#A80036" stroke-width="1"/>
+<text x="106.3" y="-65.8" text-anchor="middle" fill="#000000">Fname</text>
+<line x1="130.8" y1="-38.0" x2="106.3" y2="-57.2" stroke="#A80036" stroke-width="1"/>
+<ellipse cx="155.3" cy="-70.0" rx="32.0" ry="12.8" fill="#FEFECE" stroke="#A80036" stroke-width="1"/>
+<text x="155.3" y="-65.8" text-anchor="middle" fill="#000000">Lname</text>
+<line x1="130.8" y1="-38.0" x2="155.3" y2="-57.2" stroke="#A80036" stroke-width="1"/>
+<ellipse cx="200.8" cy="-22.0" rx="40.0" ry="16.0" fill="#FEFECE" stroke="#A80036" stroke-width="1"/>
+<text x="200.8" y="-17.8" text-anchor="middle" fill="#000000">Born</text>
+<text x="200.8" y="-3.8" text-anchor="middle" font-size="10" font-style="italic" fill="#000000">DATE</text>
+<ellipse cx="270.8" cy="-22.0" rx="40.0" ry="16.0" fill="#FEFECE" stroke="#A80036" stroke-width="1"/>
+<text x="270.8" y="-17.8" text-anchor="middle" fill="#000000">Died</text>
+<ellipse cx="340.8" cy="-22.0" rx="40.0" ry="16.0" fill="#FEFECE" stroke="#A80036" stroke-width="1"/>
+<text x="340.8" y="-17.8" text-anchor="middle" fill="#000000">Age</text>
+<ellipse cx="130.8" cy="174.0" rx="40.0" ry="16.0" fill="#FEFECE" stroke="#A80036" stroke-width="1"/>
+<text x="130.8" y="178.2" text-anchor="middle" fill="#000000" text-decoration="underline">Number</text>
+<ellipse cx="200.8" cy="174.0" rx="40.0" ry="16.0" fill="#FEFECE" stroke="#A80036" stroke-width="1" stroke-dasharray="5,3"/>
+<text x="200.8" y="178.2" text-anchor="middle" fill="#000000">Bonus</text>
+<ellipse cx="270.8" cy="174.0" rx="40.0" ry="16.0" fill="#FEFECE" stroke="#A80036" stroke-width="1.5"/>
+<ellipse cx="270.8" cy="174.0" rx="37.0" ry="14.0" fill="none" stroke="#A80036" stroke-width="1"/>
+<text x="270.8" y="178.2" text-anchor="middle" fill="#000000">Name</text>
+<ellipse cx="196.0" cy="370.0" rx="40.0" ry="16.0" fill="#FEFECE" stroke="#A80036" stroke-width="1"/>
+<text x="196.0" y="374.2" text-anchor="middle" fill="#000000">Code</text>
+<ellipse cx="208.4" cy="568.0" rx="40.0" ry="16.0" fill="#FEFECE" stroke="#A80036" stroke-width="1"/>
+<text x="208.4" y="572.2" text-anchor="middle" fill="#000000">Date</text>
+<line x1="200.8" y1="58.0" x2="60.8" y2="-22.0" stroke="#A80036" stroke-width="1"/>
+<line x1="200.8" y1="58.0" x2="130.8" y2="-22.0" stroke="#A80036" stroke-width="1"/>
+<line x1="200.8" y1="58.0" x2="200.8" y2="-22.0" stroke="#A80036" stroke-width="1"/>
+<line x1="200.8" y1="58.0" x2="270.8" y2="-22.0" stroke="#A80036" stroke-width="1"/>
+<line x1="200.8" y1="58.0" x2="340.8" y2="-22.0" stroke="#A80036" stroke-width="1"/>
+<line x1="200.8" y1="254.0" x2="130.8" y2="174.0" stroke="#A80036" stroke-width="1"/>
+<line x1="200.8" y1="254.0" x2="200.8" y2="174.0" stroke="#A80036" stroke-width="1"/>
+<line x1="200.8" y1="254.0" x2="270.8" y2="174.0" stroke="#A80036" stroke-width="1"/>
+<line x1="196.0" y1="450.0" x2="196.0" y2="370.0" stroke="#A80036" stroke-width="1"/>
+<line x1="208.4" y1="648.0" x2="208.4" y2="568.0" stroke="#A80036" stroke-width="1"/>
+<line x1="208.0" y1="628.0" x2="201.1" y2="272.0" stroke="#A80036" stroke-width="1"/>
+<text x="204.6" y="444.0" text-anchor="middle" font-size="12" fill="#000000">1</text>
+<line x1="207.1" y1="628.0" x2="197.1" y2="468.0" stroke="#A80036" stroke-width="1"/>
+<text x="202.1" y="542.0" text-anchor="middle" font-size="12" fill="#000000">N</text>
+<line x1="208.1" y1="628.0" x2="201.0" y2="76.0" stroke="#A80036" stroke-width="1"/>
+<text x="204.6" y="346.0" text-anchor="middle" font-size="12" fill="#000000">(N,M)</text>
+</svg>

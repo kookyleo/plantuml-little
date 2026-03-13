@@ -1,0 +1,9 @@
+@startuml
+skinparam backgroundColor #EEEEEE
+skinparam classBackgroundColor #FEFECE
+skinparam classBorderColor #A80036
+skinparam arrowColor #333333
+class Foo
+class Bar
+Foo --> Bar
+@enduml

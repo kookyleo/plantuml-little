@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 440 170" width="440" height="170" font-family="monospace" font-size="12">
+<defs>
+<marker id="comp-arrow" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 Z" fill="#A80036" stroke="none"/></marker>
+</defs>
+<rect x="20.0" y="20.0" width="100.0" height="40.0" rx="6" ry="6" fill="#FEFECE" stroke="#A80036" stroke-width="1.5"/>
+<rect x="15.0" y="26.0" width="10" height="8" rx="1" ry="1" fill="#FEFECE" stroke="#A80036" stroke-width="1"/>
+<rect x="15.0" y="40.0" width="10" height="8" rx="1" ry="1" fill="#FEFECE" stroke="#A80036" stroke-width="1"/>
+<text x="70.0" y="44.2" text-anchor="middle" font-weight="bold" fill="#000000">Bob</text>
+<rect x="170.0" y="20.0" width="100.0" height="40.0" rx="6" ry="6" fill="#FEFECE" stroke="#A80036" stroke-width="1.5"/>
+<rect x="165.0" y="26.0" width="10" height="8" rx="1" ry="1" fill="#FEFECE" stroke="#A80036" stroke-width="1"/>
+<rect x="165.0" y="40.0" width="10" height="8" rx="1" ry="1" fill="#FEFECE" stroke="#A80036" stroke-width="1"/>
+<text x="220.0" y="44.2" text-anchor="middle" font-weight="bold" fill="#000000">Charlie</text>
+<rect x="320.0" y="20.0" width="100.0" height="40.0" rx="6" ry="6" fill="#FEFECE" stroke="#A80036" stroke-width="1.5"/>
+<rect x="315.0" y="26.0" width="10" height="8" rx="1" ry="1" fill="#FEFECE" stroke="#A80036" stroke-width="1"/>
+<rect x="315.0" y="40.0" width="10" height="8" rx="1" ry="1" fill="#FEFECE" stroke="#A80036" stroke-width="1"/>
+<text x="370.0" y="44.2" text-anchor="middle" font-weight="bold" fill="#000000">Alice</text>
+<rect x="20.0" y="110.0" width="100.0" height="40.0" rx="6" ry="6" fill="#FEFECE" stroke="#A80036" stroke-width="1.5"/>
+<rect x="15.0" y="116.0" width="10" height="8" rx="1" ry="1" fill="#FEFECE" stroke="#A80036" stroke-width="1"/>
+<rect x="15.0" y="130.0" width="10" height="8" rx="1" ry="1" fill="#FEFECE" stroke="#A80036" stroke-width="1"/>
+<text x="70.0" y="134.2" text-anchor="middle" font-weight="bold" fill="#000000">foo</text>
+<line x1="120.0" y1="40.0" x2="170.0" y2="40.0" stroke="#A80036" stroke-width="1" marker-end="url(#comp-arrow)"/>
+<line x1="320.0" y1="40.0" x2="120.0" y2="40.0" stroke="#A80036" stroke-width="1" marker-end="url(#comp-arrow)"/>
+<text x="220.0" y="34.0" text-anchor="middle" font-size="12" fill="#000000">Authentication Request</text>
+<line x1="120.0" y1="130.0" x2="320.0" y2="40.0" stroke="#A80036" stroke-width="1" marker-end="url(#comp-arrow)"/>
+<text x="220.0" y="79.0" text-anchor="middle" font-size="12" fill="#000000">test</text>
+</svg>

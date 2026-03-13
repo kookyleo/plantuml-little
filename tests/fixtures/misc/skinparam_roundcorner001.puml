@@ -1,0 +1,10 @@
+@startuml
+skinparam roundcorner 15
+class Foo {
+  +method()
+}
+class Bar {
+  +other()
+}
+Foo --> Bar
+@enduml

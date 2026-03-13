@@ -1,0 +1,6 @@
+@startuml
+Alice -> Bob : request
+loop 1000 times
+  Bob -> Alice : data chunk
+end
+@enduml

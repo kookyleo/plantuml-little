@@ -1,0 +1,4 @@
+@startuml
+Alice -> Bob : <back:yellow>important</back> message
+Bob -> Alice : normal text
+@enduml

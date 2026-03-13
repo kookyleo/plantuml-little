@@ -1,0 +1,3 @@
+@startuml
+:1 %n() fprintf( hello%n() , %s);
+@enduml

@@ -1,0 +1,7 @@
+@startuml
+Alice -> Bob : request
+opt extra processing
+  Bob -> Charlie : delegate
+  Charlie -> Bob : result
+end
+@enduml

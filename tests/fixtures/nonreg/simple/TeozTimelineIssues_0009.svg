@@ -1,0 +1,100 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 805.6 1624.0" width="805.6" height="1624.0" font-family="monospace" font-size="13">
+<defs>
+<marker id="seq-arrow-filled" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 Z" fill="#A80036" stroke="none"/></marker>
+<marker id="seq-arrow-open" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10" fill="none" stroke="#A80036" stroke-width="1.2"/></marker>
+</defs>
+<line x1="79.2" y1="56.0" x2="79.2" y2="1528.0" stroke="#A80036" stroke-width="1" stroke-dasharray="5,5"/>
+<line x1="179.2" y1="56.0" x2="179.2" y2="1528.0" stroke="#A80036" stroke-width="1" stroke-dasharray="5,5"/>
+<line x1="279.2" y1="56.0" x2="279.2" y2="1528.0" stroke="#A80036" stroke-width="1" stroke-dasharray="5,5"/>
+<line x1="379.2" y1="56.0" x2="379.2" y2="1528.0" stroke="#A80036" stroke-width="1" stroke-dasharray="5,5"/>
+<line x1="479.2" y1="56.0" x2="479.2" y2="1528.0" stroke="#A80036" stroke-width="1" stroke-dasharray="5,5"/>
+<line x1="579.2" y1="56.0" x2="579.2" y2="1528.0" stroke="#A80036" stroke-width="1" stroke-dasharray="5,5"/>
+<line x1="679.2" y1="56.0" x2="679.2" y2="1528.0" stroke="#A80036" stroke-width="1" stroke-dasharray="5,5"/>
+<rect x="10.0" y="76.0" width="745.6" height="114.0" fill="#FEFECE" fill-opacity="0.1" stroke="#A80036" stroke-width="1.5" rx="2"/>
+<path d="M 10.0,76.0 L 155.6,76.0 L 155.6,91.0 L 149.6,97.0 L 10.0,97.0 Z" fill="#FEFECE" stroke="#A80036" stroke-width="1.5"/>
+<text x="16.0" y="91.0" font-weight="bold" fill="#000000">group #ffa Group 1</text>
+<rect x="10.0" y="190.0" width="745.6" height="114.0" fill="#FEFECE" fill-opacity="0.1" stroke="#A80036" stroke-width="1.5" rx="2"/>
+<path d="M 10.0,190.0 L 155.6,190.0 L 155.6,205.0 L 149.6,211.0 L 10.0,211.0 Z" fill="#FEFECE" stroke="#A80036" stroke-width="1.5"/>
+<text x="16.0" y="205.0" font-weight="bold" fill="#000000">group #ffa Group 2</text>
+<rect x="10.0" y="304.0" width="745.6" height="114.0" fill="#FEFECE" fill-opacity="0.1" stroke="#A80036" stroke-width="1.5" rx="2"/>
+<path d="M 10.0,304.0 L 155.6,304.0 L 155.6,319.0 L 149.6,325.0 L 10.0,325.0 Z" fill="#FEFECE" stroke="#A80036" stroke-width="1.5"/>
+<text x="16.0" y="319.0" font-weight="bold" fill="#000000">group #ffa Group 3</text>
+<rect x="10.0" y="418.0" width="745.6" height="354.0" fill="#FEFECE" fill-opacity="0.1" stroke="#A80036" stroke-width="1.5" rx="2"/>
+<path d="M 10.0,418.0 L 162.8,418.0 L 162.8,433.0 L 156.8,439.0 L 10.0,439.0 Z" fill="#FEFECE" stroke="#A80036" stroke-width="1.5"/>
+<text x="16.0" y="433.0" font-weight="bold" fill="#000000">group #ffa Group 3b</text>
+<rect x="10.0" y="772.0" width="745.6" height="154.0" fill="#FEFECE" fill-opacity="0.1" stroke="#A80036" stroke-width="1.5" rx="2"/>
+<path d="M 10.0,772.0 L 170.0,772.0 L 170.0,787.0 L 164.0,793.0 L 10.0,793.0 Z" fill="#FEFECE" stroke="#A80036" stroke-width="1.5"/>
+<text x="16.0" y="787.0" font-weight="bold" fill="#000000">group #ffa Group 3b2</text>
+<rect x="10.0" y="926.0" width="745.6" height="114.0" fill="#FEFECE" fill-opacity="0.1" stroke="#A80036" stroke-width="1.5" rx="2"/>
+<path d="M 10.0,926.0 L 170.0,926.0 L 170.0,941.0 L 164.0,947.0 L 10.0,947.0 Z" fill="#FEFECE" stroke="#A80036" stroke-width="1.5"/>
+<text x="16.0" y="941.0" font-weight="bold" fill="#000000">group #ffa Group 3b3</text>
+<rect x="10.0" y="1040.0" width="745.6" height="354.0" fill="#FEFECE" fill-opacity="0.1" stroke="#A80036" stroke-width="1.5" rx="2"/>
+<path d="M 10.0,1040.0 L 162.8,1040.0 L 162.8,1055.0 L 156.8,1061.0 L 10.0,1061.0 Z" fill="#FEFECE" stroke="#A80036" stroke-width="1.5"/>
+<text x="16.0" y="1055.0" font-weight="bold" fill="#000000">group #ffa Group 3c</text>
+<rect x="10.0" y="1394.0" width="745.6" height="114.0" fill="#FEFECE" fill-opacity="0.1" stroke="#A80036" stroke-width="1.5" rx="2"/>
+<path d="M 10.0,1394.0 L 155.6,1394.0 L 155.6,1409.0 L 149.6,1415.0 L 10.0,1415.0 Z" fill="#FEFECE" stroke="#A80036" stroke-width="1.5"/>
+<text x="16.0" y="1409.0" font-weight="bold" fill="#000000">group #ffa Group 4</text>
+<rect x="74.2" y="140.0" width="10.0" height="40.0" fill="#FEFECE" stroke="#A80036" stroke-width="1"/>
+<rect x="74.2" y="368.0" width="10.0" height="40.0" fill="#FEFECE" stroke="#A80036" stroke-width="1"/>
+<rect x="74.2" y="482.0" width="10.0" height="280.0" fill="#FEFECE" stroke="#A80036" stroke-width="1"/>
+<rect x="74.2" y="836.0" width="10.0" height="80.0" fill="#FEFECE" stroke="#A80036" stroke-width="1"/>
+<rect x="74.2" y="1104.0" width="10.0" height="280.0" fill="#FEFECE" stroke="#A80036" stroke-width="1"/>
+<rect x="74.2" y="990.0" width="10.0" height="518.0" fill="#FEFECE" stroke="#A80036" stroke-width="1"/>
+<line x1="79.2" y1="100.0" x2="179.2" y2="100.0" stroke="#A80036" stroke-width="1" marker-end="url(#seq-arrow-filled)"/>
+<line x1="79.2" y1="140.0" x2="179.2" y2="140.0" stroke="#A80036" stroke-width="1" marker-start="url(#seq-arrow-filled)"/>
+<line x1="79.2" y1="214.0" x2="279.2" y2="214.0" stroke="#A80036" stroke-width="1" marker-end="url(#seq-arrow-filled)"/>
+<line x1="79.2" y1="254.0" x2="379.2" y2="254.0" stroke="#A80036" stroke-width="1" marker-start="url(#seq-arrow-filled)"/>
+<line x1="79.2" y1="328.0" x2="279.2" y2="328.0" stroke="#A80036" stroke-width="1" marker-end="url(#seq-arrow-filled)"/>
+<line x1="79.2" y1="368.0" x2="379.2" y2="368.0" stroke="#A80036" stroke-width="1" marker-start="url(#seq-arrow-filled)"/>
+<line x1="79.2" y1="442.0" x2="279.2" y2="442.0" stroke="#A80036" stroke-width="1" marker-end="url(#seq-arrow-filled)"/>
+<line x1="79.2" y1="482.0" x2="279.2" y2="482.0" stroke="#A80036" stroke-width="1" marker-end="url(#seq-arrow-filled)"/>
+<line x1="79.2" y1="522.0" x2="279.2" y2="522.0" stroke="#A80036" stroke-width="1" marker-end="url(#seq-arrow-filled)"/>
+<line x1="79.2" y1="562.0" x2="279.2" y2="562.0" stroke="#A80036" stroke-width="1" marker-end="url(#seq-arrow-filled)"/>
+<line x1="79.2" y1="602.0" x2="379.2" y2="602.0" stroke="#A80036" stroke-width="1" marker-start="url(#seq-arrow-filled)"/>
+<line x1="79.2" y1="642.0" x2="379.2" y2="642.0" stroke="#A80036" stroke-width="1" marker-start="url(#seq-arrow-filled)"/>
+<line x1="79.2" y1="682.0" x2="379.2" y2="682.0" stroke="#A80036" stroke-width="1" marker-start="url(#seq-arrow-filled)"/>
+<line x1="79.2" y1="722.0" x2="379.2" y2="722.0" stroke="#A80036" stroke-width="1" marker-start="url(#seq-arrow-filled)"/>
+<line x1="79.2" y1="796.0" x2="279.2" y2="796.0" stroke="#A80036" stroke-width="1" marker-end="url(#seq-arrow-filled)"/>
+<line x1="79.2" y1="836.0" x2="179.2" y2="836.0" stroke="#A80036" stroke-width="1" marker-start="url(#seq-arrow-filled)"/>
+<line x1="79.2" y1="876.0" x2="479.2" y2="876.0" stroke="#A80036" stroke-width="1" marker-end="url(#seq-arrow-filled)"/>
+<line x1="79.2" y1="950.0" x2="279.2" y2="950.0" stroke="#A80036" stroke-width="1" marker-end="url(#seq-arrow-filled)"/>
+<line x1="79.2" y1="990.0" x2="479.2" y2="990.0" stroke="#A80036" stroke-width="1" marker-start="url(#seq-arrow-filled)"/>
+<line x1="79.2" y1="1064.0" x2="279.2" y2="1064.0" stroke="#A80036" stroke-width="1" marker-end="url(#seq-arrow-filled)"/>
+<line x1="179.2" y1="1104.0" x2="579.2" y2="1104.0" stroke="#A80036" stroke-width="1" marker-end="url(#seq-arrow-filled)"/>
+<line x1="179.2" y1="1144.0" x2="579.2" y2="1144.0" stroke="#A80036" stroke-width="1" marker-end="url(#seq-arrow-filled)"/>
+<line x1="179.2" y1="1184.0" x2="579.2" y2="1184.0" stroke="#A80036" stroke-width="1" marker-end="url(#seq-arrow-filled)"/>
+<line x1="179.2" y1="1224.0" x2="679.2" y2="1224.0" stroke="#A80036" stroke-width="1" marker-start="url(#seq-arrow-filled)"/>
+<line x1="179.2" y1="1264.0" x2="679.2" y2="1264.0" stroke="#A80036" stroke-width="1" marker-start="url(#seq-arrow-filled)"/>
+<line x1="179.2" y1="1304.0" x2="679.2" y2="1304.0" stroke="#A80036" stroke-width="1" marker-start="url(#seq-arrow-filled)"/>
+<line x1="79.2" y1="1344.0" x2="379.2" y2="1344.0" stroke="#A80036" stroke-width="1" marker-start="url(#seq-arrow-filled)"/>
+<line x1="79.2" y1="1418.0" x2="179.2" y2="1418.0" stroke="#A80036" stroke-width="1" marker-end="url(#seq-arrow-filled)"/>
+<line x1="79.2" y1="1458.0" x2="179.2" y2="1458.0" stroke="#A80036" stroke-width="1" marker-start="url(#seq-arrow-filled)"/>
+<rect x="20.0" y="20.0" width="118.4" height="36.0" fill="#FEFECE" stroke="#A80036" stroke-width="1.5"/>
+<text x="79.2" y="42.5" text-anchor="middle" font-weight="bold" fill="#000000">Particpant_A</text>
+<rect x="120.0" y="20.0" width="118.4" height="36.0" fill="#FEFECE" stroke="#A80036" stroke-width="1.5"/>
+<text x="179.2" y="42.5" text-anchor="middle" font-weight="bold" fill="#000000">Particpant_B</text>
+<rect x="212.8" y="20.0" width="132.8" height="36.0" fill="#FEFECE" stroke="#A80036" stroke-width="1.5"/>
+<text x="279.2" y="42.5" text-anchor="middle" font-weight="bold" fill="#000000">Particpant_B++</text>
+<rect x="312.8" y="20.0" width="132.8" height="36.0" fill="#FEFECE" stroke="#A80036" stroke-width="1.5"/>
+<text x="379.2" y="42.5" text-anchor="middle" font-weight="bold" fill="#000000">Particpant_B--</text>
+<rect x="409.2" y="20.0" width="140.0" height="36.0" fill="#FEFECE" stroke="#A80036" stroke-width="1.5"/>
+<text x="479.2" y="42.5" text-anchor="middle" font-weight="bold" fill="#000000">Particpant_B !!</text>
+<rect x="512.8" y="20.0" width="132.8" height="36.0" fill="#FEFECE" stroke="#A80036" stroke-width="1.5"/>
+<text x="579.2" y="42.5" text-anchor="middle" font-weight="bold" fill="#000000">Particpant_A++</text>
+<rect x="612.8" y="20.0" width="132.8" height="36.0" fill="#FEFECE" stroke="#A80036" stroke-width="1.5"/>
+<text x="679.2" y="42.5" text-anchor="middle" font-weight="bold" fill="#000000">Particpant_A--</text>
+<rect x="20.0" y="1528.0" width="118.4" height="36.0" fill="#FEFECE" stroke="#A80036" stroke-width="1.5"/>
+<text x="79.2" y="1550.5" text-anchor="middle" font-weight="bold" fill="#000000">Particpant_A</text>
+<rect x="120.0" y="1528.0" width="118.4" height="36.0" fill="#FEFECE" stroke="#A80036" stroke-width="1.5"/>
+<text x="179.2" y="1550.5" text-anchor="middle" font-weight="bold" fill="#000000">Particpant_B</text>
+<rect x="212.8" y="1528.0" width="132.8" height="36.0" fill="#FEFECE" stroke="#A80036" stroke-width="1.5"/>
+<text x="279.2" y="1550.5" text-anchor="middle" font-weight="bold" fill="#000000">Particpant_B++</text>
+<rect x="312.8" y="1528.0" width="132.8" height="36.0" fill="#FEFECE" stroke="#A80036" stroke-width="1.5"/>
+<text x="379.2" y="1550.5" text-anchor="middle" font-weight="bold" fill="#000000">Particpant_B--</text>
+<rect x="409.2" y="1528.0" width="140.0" height="36.0" fill="#FEFECE" stroke="#A80036" stroke-width="1.5"/>
+<text x="479.2" y="1550.5" text-anchor="middle" font-weight="bold" fill="#000000">Particpant_B !!</text>
+<rect x="512.8" y="1528.0" width="132.8" height="36.0" fill="#FEFECE" stroke="#A80036" stroke-width="1.5"/>
+<text x="579.2" y="1550.5" text-anchor="middle" font-weight="bold" fill="#000000">Particpant_A++</text>
+<rect x="612.8" y="1528.0" width="132.8" height="36.0" fill="#FEFECE" stroke="#A80036" stroke-width="1.5"/>
+<text x="679.2" y="1550.5" text-anchor="middle" font-weight="bold" fill="#000000">Particpant_A--</text>
+</svg>

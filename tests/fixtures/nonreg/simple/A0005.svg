@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100.0 310.0" width="100.0" height="310.0" font-family="monospace" font-size="12">
+<text x="50.0" y="18.0" text-anchor="middle" font-size="12" fill="#000000">{</text>
+<text x="50.0" y="40.0" text-anchor="middle" font-size="14" font-weight="bold" fill="#000000">{</text>
+<g transform="translate(0.0,48.0)">
+
+<defs>
+<marker id="arrow-open" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10" fill="none" stroke="#A80036" stroke-width="1.2"/></marker>
+<marker id="triangle" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="10" markerHeight="10" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 Z" fill="#FEFECE" stroke="#A80036" stroke-width="1"/></marker>
+<marker id="diamond" viewBox="0 0 14 10" refX="14" refY="5" markerWidth="12" markerHeight="10" orient="auto-start-reverse"><path d="M 0 5 L 7 0 L 14 5 L 7 10 Z" fill="#A80036" stroke="#A80036" stroke-width="1"/></marker>
+<marker id="diamond-hollow" viewBox="0 0 14 10" refX="14" refY="5" markerWidth="12" markerHeight="10" orient="auto-start-reverse"><path d="M 0 5 L 7 0 L 14 5 L 7 10 Z" fill="#FFFFFF" stroke="#A80036" stroke-width="1"/></marker>
+<marker id="plus" viewBox="0 0 12 12" refX="12" refY="6" markerWidth="10" markerHeight="10" orient="auto-start-reverse"><circle cx="6" cy="6" r="5" fill="#FFFFFF" stroke="#A80036" stroke-width="1"/><line x1="6" y1="2" x2="6" y2="10" stroke="#A80036" stroke-width="1"/><line x1="2" y1="6" x2="10" y2="6" stroke="#A80036" stroke-width="1"/></marker>
+</defs>
+<rect x="20.0" y="94.0" width="60.0" height="54.0" rx="4" fill="#FEFECE" stroke="#A80036" stroke-width="1"/>
+<text x="50.0" y="113.0" text-anchor="middle" font-weight="bold" font-size="12" fill="#000000">Bob</text>
+<line x1="20.0" y1="122.0" x2="80.0" y2="122.0" stroke="#A80036" stroke-width="1"/>
+<text x="30.0" y="134.0" font-size="12" fill="#000000">hello</text>
+<rect x="20.0" y="20.0" width="60.0" height="38.0" rx="4" fill="#FEFECE" stroke="#A80036" stroke-width="1"/>
+<text x="50.0" y="39.0" text-anchor="middle" font-weight="bold" font-size="12" fill="#000000">Sally</text>
+<line x1="20.0" y1="48.0" x2="80.0" y2="48.0" stroke="#A80036" stroke-width="1"/>
+<path d="M 50.0,58.2 L 50.0,65.7 L 50.0,74.8 L 50.0,83.6" fill="none" stroke="#A80036" stroke-width="1" marker-end="url(#arrow-open)"/>
+</g>
+<text x="50.0" y="242.0" text-anchor="middle" font-size="12" font-style="italic" fill="#000000">{</text>
+<text x="50.0" y="268.0" text-anchor="middle" font-size="12" fill="#000000">{</text>
+<rect x="20.8" y="276.0" width="59.2" height="34.0" fill="#FBFB77" stroke="#000000" stroke-width="1"/>
+<text x="28.8" y="302.0" font-size="12" fill="#000000">{</text>
+</svg>

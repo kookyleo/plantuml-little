@@ -1,0 +1,8 @@
+@startuml
+skinparam sequenceArrowThickness 2
+skinparam sequenceArrowColor DarkBlue
+skinparam sequenceLifeLineBorderColor blue
+skinparam participantFontSize 16
+Alice -> Bob : hello
+Bob -> Alice : hi
+@enduml

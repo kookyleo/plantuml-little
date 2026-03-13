@@ -1,0 +1,4 @@
+@startuml
+Alice -> Bob : <font:courier>code</font> and normal
+Bob -> Alice : <font:Arial>sans</font> text
+@enduml

@@ -1,0 +1,5 @@
+@startuml
+Alice -> Bob : hello
+ref over Alice, Bob : init phase
+Alice -> Bob : request
+@enduml

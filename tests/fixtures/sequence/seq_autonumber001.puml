@@ -1,0 +1,6 @@
+@startuml
+autonumber
+Alice -> Bob : hello
+Alice -> Bob : request
+Bob -> Alice : response
+@enduml

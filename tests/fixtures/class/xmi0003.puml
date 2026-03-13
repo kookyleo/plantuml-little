@@ -1,0 +1,11 @@
+@startuml
+class A {
+  {method}{abstract}{static} + method
+}
+
+abstract class B{
+}
+
+static class C{
+}
+@enduml

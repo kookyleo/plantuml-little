@@ -1,0 +1,13 @@
+@startuml
+hide stereotype
+
+class C <<foo>> <<bar>>
+
+rectangle foo <<foo>> <<boo>> {
+    class B
+}
+
+package bar <<boo>> {
+    class A
+}
+@enduml

@@ -1,0 +1,3 @@
+@startuml
+alice -> bob : 123%newline()456
+@enduml

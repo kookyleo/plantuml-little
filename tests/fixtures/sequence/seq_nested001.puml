@@ -1,0 +1,16 @@
+@startuml
+Alice -> Bob : request
+alt case1
+  Bob -> Alice : ok
+  loop retry
+    Alice -> Bob : again
+    alt inner
+      Bob -> Alice : inner ok
+    else inner fail
+      Bob -> Alice : inner error
+    end
+  end
+else case2
+  Bob -> Alice : error
+end
+@enduml

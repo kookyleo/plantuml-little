@@ -1,0 +1,23 @@
+@startuml
+node "Web Server" as web {
+  artifact "webapp.war" as war
+}
+node "App Server" as app {
+  artifact "app.jar" as jar
+  agent "Monitoring" as mon
+}
+database "MySQL" as db
+storage "File Storage" as fs
+folder "Shared Docs" as docs
+frame "DMZ" {
+  component proxy
+}
+queue "Message Queue" as mq
+stack "Docker" as docker
+
+web --> app
+app --> db
+app --> fs
+app --> mq
+mq --> docker
+@enduml

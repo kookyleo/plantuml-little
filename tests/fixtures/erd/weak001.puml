@@ -1,0 +1,15 @@
+@startchen
+entity CUSTOMER {
+  name
+}
+entity ORDER_ITEM <<weak>> {
+  quantity
+}
+relationship PLACES {
+}
+relationship CONTAINS <<identifying>> {
+}
+CUSTOMER -1- PLACES
+PLACES -N- ORDER_ITEM
+ORDER_ITEM -1- CONTAINS
+@endchen

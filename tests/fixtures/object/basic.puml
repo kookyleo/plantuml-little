@@ -1,0 +1,8 @@
+@startuml
+object London
+object Washington
+object Berlin
+
+London --> Washington
+London --> Berlin
+@enduml

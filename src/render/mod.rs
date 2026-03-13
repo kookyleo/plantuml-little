@@ -1,0 +1,17 @@
+pub mod svg;
+pub mod svg_activity;
+pub mod svg_component;
+pub mod svg_ditaa;
+pub mod svg_erd;
+pub mod svg_gantt;
+pub mod svg_hyperlink;
+pub mod svg_json;
+pub mod svg_mindmap;
+pub mod svg_nwdiag;
+pub mod svg_richtext;
+pub mod svg_salt;
+pub mod svg_sequence;
+pub mod svg_state;
+pub mod svg_timing;
+pub mod svg_usecase;
+pub mod svg_wbs;

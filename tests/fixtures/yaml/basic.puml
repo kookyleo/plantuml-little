@@ -1,0 +1,16 @@
+@startyaml
+name: Project Config
+version: 1.0
+database:
+  host: localhost
+  port: 5432
+  credentials:
+    username: admin
+    password: secret
+features:
+  - authentication
+  - logging
+  - monitoring
+debug: false
+tags: [web, api, v2]
+@endyaml

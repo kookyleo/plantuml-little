@@ -1,0 +1,9 @@
+@startuml
+skinparam classFontSize 16
+skinparam classFontColor blue
+skinparam classAttributeFontSize 12
+class Foo {
+  -name: String
+  +getName(): String
+}
+@enduml

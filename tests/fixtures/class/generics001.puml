@@ -1,0 +1,11 @@
+@startuml
+class ArrayList<E> {
+  +add(e: E): boolean
+  +get(i: int): E
+}
+class HashMap<K,V> {
+  +put(k: K, v: V): V
+  +get(k: K): V
+}
+ArrayList --> HashMap
+@enduml

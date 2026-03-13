@@ -1,0 +1,224 @@
+use std::fmt::Write;
+
+use crate::layout::ditaa::{DitaaBox, DitaaLayout, DitaaLine, DitaaText};
+use crate::model::ditaa::DitaaDiagram;
+use crate::render::svg_richtext::{count_creole_lines, render_creole_text};
+use crate::style::SkinParams;
+use crate::Result;
+
+const FONT_SIZE: f64 = 12.0;
+const FONT_FAMILY: &str = "monospace";
+const LINE_HEIGHT: f64 = 16.0;
+const BACKGROUND: &str = "#FFFFFF";
+const BOX_FILL: &str = "#FEFECE";
+const BOX_BORDER: &str = "#333333";
+const TEXT_FILL: &str = "#000000";
+const SHADOW_FILL: &str = "#000000";
+const SHADOW_OPACITY: f64 = 0.15;
+const SHADOW_OFFSET: f64 = 4.0;
+
+pub fn render_ditaa(
+    diagram: &DitaaDiagram,
+    layout: &DitaaLayout,
+    skin: &SkinParams,
+) -> Result<String> {
+    let mut buf = String::with_capacity(4096);
+    let border = skin.border_color("ditaa", BOX_BORDER);
+    let font = skin.font_color("ditaa", TEXT_FILL);
+    let background = skin.background_color("ditaabg", BACKGROUND);
+
+    write!(
+        buf,
+        r#"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {w:.0} {h:.0}" width="{w:.0}" height="{h:.0}" font-family="{FONT_FAMILY}" font-size="{FONT_SIZE}">"#,
+        w = layout.width,
+        h = layout.height,
+    )
+    .unwrap();
+    buf.push('\n');
+    write!(
+        buf,
+        r#"<defs><marker id="ditaa-arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto-start-reverse"><path d="M 0 0 L 8 4 L 0 8 z" fill="{border}"/></marker></defs>"#
+    )
+    .unwrap();
+    buf.push('\n');
+    write!(
+        buf,
+        r#"<rect x="0" y="0" width="{w:.0}" height="{h:.0}" fill="{background}"/>"#,
+        w = layout.width,
+        h = layout.height,
+    )
+    .unwrap();
+    buf.push('\n');
+
+    for ditaa_box in &layout.boxes {
+        render_box(&mut buf, ditaa_box, diagram, border, font);
+    }
+    for line in &layout.lines {
+        render_line(&mut buf, line, border);
+    }
+    for text in &layout.texts {
+        render_text(&mut buf, text, font);
+    }
+
+    buf.push_str("</svg>\n");
+    Ok(buf)
+}
+
+fn render_box(
+    buf: &mut String,
+    ditaa_box: &DitaaBox,
+    diagram: &DitaaDiagram,
+    border: &str,
+    font: &str,
+) {
+    let fill = ditaa_box.color.as_deref().unwrap_or(BOX_FILL);
+    let radius = if ditaa_box.round { 8.0 } else { 0.0 };
+    let shadow_offset = diagram.options.scale.unwrap_or(1.0) * SHADOW_OFFSET;
+
+    if !diagram.options.no_shadows {
+        write!(
+            buf,
+            r#"<rect x="{x:.1}" y="{y:.1}" width="{w:.1}" height="{h:.1}" rx="{r:.1}" ry="{r:.1}" fill="{SHADOW_FILL}" opacity="{SHADOW_OPACITY:.2}" stroke="none"/>"#,
+            x = ditaa_box.x + shadow_offset,
+            y = ditaa_box.y + shadow_offset,
+            w = ditaa_box.width,
+            h = ditaa_box.height,
+            r = radius,
+        )
+        .unwrap();
+        buf.push('\n');
+    }
+
+    write!(
+        buf,
+        r#"<rect x="{x:.1}" y="{y:.1}" width="{w:.1}" height="{h:.1}" rx="{r:.1}" ry="{r:.1}" fill="{fill}" stroke="{border}" stroke-width="1.5"/>"#,
+        x = ditaa_box.x,
+        y = ditaa_box.y,
+        w = ditaa_box.width,
+        h = ditaa_box.height,
+        r = radius,
+    )
+    .unwrap();
+    buf.push('\n');
+
+    if let Some(text) = &ditaa_box.text {
+        let lines = count_creole_lines(text) as f64;
+        let text_height = lines * LINE_HEIGHT;
+        let start_y = ditaa_box.y + (ditaa_box.height - text_height).max(0.0) / 2.0 + FONT_SIZE;
+        render_creole_text(
+            buf,
+            text,
+            ditaa_box.x + ditaa_box.width / 2.0,
+            start_y,
+            LINE_HEIGHT,
+            font,
+            Some("middle"),
+            "",
+        );
+    }
+}
+
+fn render_line(buf: &mut String, line: &DitaaLine, border: &str) {
+    if line.points.is_empty() {
+        return;
+    }
+
+    let mut points = String::new();
+    for (idx, (x, y)) in line.points.iter().enumerate() {
+        if idx > 0 {
+            points.push(' ');
+        }
+        write!(points, "{x:.1},{y:.1}").unwrap();
+    }
+
+    write!(
+        buf,
+        r#"<polyline points="{points}" fill="none" stroke="{border}" stroke-width="1.5""#
+    )
+    .unwrap();
+    if line.dashed {
+        buf.push_str(r#" stroke-dasharray="6,4""#);
+    }
+    if line.arrow_start {
+        buf.push_str(r#" marker-start="url(#ditaa-arrow)""#);
+    }
+    if line.arrow_end {
+        buf.push_str(r#" marker-end="url(#ditaa-arrow)""#);
+    }
+    buf.push_str("/>\n");
+}
+
+fn render_text(buf: &mut String, text: &DitaaText, font: &str) {
+    render_creole_text(buf, &text.text, text.x, text.y, LINE_HEIGHT, font, None, "");
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::layout::ditaa::{DitaaBox, DitaaLayout, DitaaLine, DitaaText};
+    use crate::model::ditaa::{DitaaDiagram, DitaaOptions};
+
+    fn sample_layout() -> (DitaaDiagram, DitaaLayout) {
+        let diagram = DitaaDiagram {
+            source: "+--+  +--+\n|A |->|B |\n+--+  +--+\nlegend".to_string(),
+            options: DitaaOptions {
+                round_corners: true,
+                ..DitaaOptions::default()
+            },
+        };
+        let layout = DitaaLayout {
+            boxes: vec![
+                DitaaBox {
+                    x: 0.0,
+                    y: 0.0,
+                    width: 40.0,
+                    height: 28.0,
+                    round: true,
+                    color: Some("#66CC66".to_string()),
+                    text: Some("A".to_string()),
+                },
+                DitaaBox {
+                    x: 56.0,
+                    y: 0.0,
+                    width: 40.0,
+                    height: 28.0,
+                    round: true,
+                    color: None,
+                    text: Some("B".to_string()),
+                },
+            ],
+            lines: vec![DitaaLine {
+                points: vec![(40.0, 14.0), (56.0, 14.0)],
+                dashed: false,
+                arrow_start: false,
+                arrow_end: true,
+            }],
+            texts: vec![DitaaText {
+                x: 0.0,
+                y: 54.0,
+                text: "legend".to_string(),
+            }],
+            width: 120.0,
+            height: 72.0,
+        };
+        (diagram, layout)
+    }
+
+    #[test]
+    fn render_contains_boxes_and_arrow_marker() {
+        let (diagram, layout) = sample_layout();
+        let svg = render_ditaa(&diagram, &layout, &SkinParams::default()).unwrap();
+        assert!(svg.contains("<svg"));
+        assert!(svg.contains("marker-end=\"url(#ditaa-arrow)\""));
+        assert!(svg.contains("#66CC66"));
+        assert!(svg.contains(">legend<"));
+    }
+
+    #[test]
+    fn render_skips_shadow_when_disabled() {
+        let (mut diagram, layout) = sample_layout();
+        diagram.options.no_shadows = true;
+        let svg = render_ditaa(&diagram, &layout, &SkinParams::default()).unwrap();
+        assert!(!svg.contains(&format!(r#"opacity="{SHADOW_OPACITY:.2}""#)));
+    }
+}

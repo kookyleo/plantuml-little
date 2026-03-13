@@ -1,0 +1,4 @@
+@startuml
+Alice -> Bob : H<sub>2</sub>O
+Bob -> Alice : E = mc<sup>2</sup>
+@enduml

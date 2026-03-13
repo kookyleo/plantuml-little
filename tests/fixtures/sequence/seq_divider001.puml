@@ -1,0 +1,11 @@
+@startuml
+participant Alice
+participant Bob
+Alice -> Bob : hello
+== Initialization ==
+Alice -> Bob : init
+...waiting...
+Alice -> Bob : continue
+|| 50 ||
+Alice -> Bob : final
+@enduml

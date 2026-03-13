@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 132.0 184.0" width="132.0" height="184.0" font-family="monospace" font-size="12">
+<defs>
+<marker id="arrow-open" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10" fill="none" stroke="#A80036" stroke-width="1.2"/></marker>
+<marker id="triangle" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="10" markerHeight="10" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 Z" fill="#FEFECE" stroke="#A80036" stroke-width="1"/></marker>
+<marker id="diamond" viewBox="0 0 14 10" refX="14" refY="5" markerWidth="12" markerHeight="10" orient="auto-start-reverse"><path d="M 0 5 L 7 0 L 14 5 L 7 10 Z" fill="#A80036" stroke="#A80036" stroke-width="1"/></marker>
+<marker id="diamond-hollow" viewBox="0 0 14 10" refX="14" refY="5" markerWidth="12" markerHeight="10" orient="auto-start-reverse"><path d="M 0 5 L 7 0 L 14 5 L 7 10 Z" fill="#FFFFFF" stroke="#A80036" stroke-width="1"/></marker>
+<marker id="plus" viewBox="0 0 12 12" refX="12" refY="6" markerWidth="10" markerHeight="10" orient="auto-start-reverse"><circle cx="6" cy="6" r="5" fill="#FFFFFF" stroke="#A80036" stroke-width="1"/><line x1="6" y1="2" x2="6" y2="10" stroke="#A80036" stroke-width="1"/><line x1="2" y1="6" x2="10" y2="6" stroke="#A80036" stroke-width="1"/></marker>
+</defs>
+<rect x="20.0" y="20.0" width="92.0" height="54.0" rx="15" fill="#FEFECE" stroke="#A80036" stroke-width="1"/>
+<text x="66.0" y="39.0" text-anchor="middle" font-weight="bold" font-size="12" fill="#000000">Foo</text>
+<line x1="20.0" y1="48.0" x2="112.0" y2="48.0" stroke="#A80036" stroke-width="1"/>
+<text x="30.0" y="60.0" font-size="12" fill="#000000">+ method()</text>
+<rect x="23.5" y="110.0" width="85.0" height="54.0" rx="15" fill="#FEFECE" stroke="#A80036" stroke-width="1"/>
+<text x="66.0" y="129.0" text-anchor="middle" font-weight="bold" font-size="12" fill="#000000">Bar</text>
+<line x1="23.5" y1="138.0" x2="108.5" y2="138.0" stroke="#A80036" stroke-width="1"/>
+<text x="33.5" y="150.0" font-size="12" fill="#000000">+ other()</text>
+<path d="M 66.0,74.4 L 66.0,82.4 L 66.0,91.3 L 66.0,99.8" fill="none" stroke="#A80036" stroke-width="1" marker-end="url(#arrow-open)"/>
+</svg>

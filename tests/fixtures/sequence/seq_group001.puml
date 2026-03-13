@@ -1,0 +1,7 @@
+@startuml
+Alice -> Bob : hello
+group My own label
+  Alice -> Bob : request
+  Bob -> Alice : response
+end
+@enduml

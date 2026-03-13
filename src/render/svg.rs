@@ -1,0 +1,1287 @@
+use std::collections::HashMap;
+use std::fmt::Write;
+
+use crate::layout::graphviz::{ClassNoteLayout, EdgeLayout, GraphLayout, NodeLayout};
+use crate::layout::DiagramLayout;
+use crate::model::{
+    ArrowHead, Diagram, DiagramMeta, Entity, EntityKind, LineStyle, Link, Member, Visibility,
+};
+use crate::style::SkinParams;
+use crate::Result;
+
+use super::svg_richtext::{count_creole_lines, max_creole_plain_line_len, render_creole_text};
+use super::svg_sequence;
+
+// ── Style constants ──────────────────────────────────────────────────
+
+const FONT_SIZE: f64 = 12.0;
+const CHAR_WIDTH: f64 = 7.2;
+const LINE_HEIGHT: f64 = 16.0;
+const PADDING: f64 = 10.0;
+const HEADER_HEIGHT: f64 = 28.0;
+const MARGIN: f64 = 20.0;
+
+const CLASS_BG: &str = "#FEFECE";
+const CLASS_BORDER: &str = "#A80036";
+const IFACE_BG: &str = "#FEFECE";
+const IFACE_BORDER: &str = "#A80036";
+const ENUM_BG: &str = "#FEFECE";
+const ENUM_BORDER: &str = "#A80036";
+const ABSTRACT_BG: &str = "#FEFECE";
+const ABSTRACT_BORDER: &str = "#A80036";
+
+const NOTE_BG: &str = "#FBFB77";
+const NOTE_BORDER: &str = "#A80036";
+const NOTE_FOLD: f64 = 8.0;
+const NOTE_TEXT_PADDING: f64 = 6.0;
+
+const LINK_COLOR: &str = "#A80036";
+const LABEL_COLOR: &str = "#000000";
+const FONT_FAMILY: &str = "monospace";
+
+// ── Meta rendering constants ────────────────────────────────────────
+
+const META_TITLE_FONT_SIZE: f64 = 14.0;
+const META_LINE_HEIGHT: f64 = 18.0;
+const META_GAP: f64 = 8.0;
+const LEGEND_PADDING: f64 = 8.0;
+const LEGEND_BORDER_COLOR: &str = "#000000";
+const LEGEND_BG: &str = "#FBFB77";
+
+// ── Helpers ─────────────────────────────────────────────────────────
+
+/// Resolve the effective font family from skinparam overrides.
+fn resolve_font_family<'a>(skin: &'a SkinParams, default: &'a str) -> &'a str {
+    if let Some(hw) = skin.handwritten_font_family() {
+        return hw;
+    }
+    skin.effective_font_family(default)
+}
+
+fn sanitize_id(name: &str) -> String {
+    name.replace('<', "_LT_")
+        .replace('>', "_GT_")
+        .replace(',', "_COMMA_")
+        .replace(' ', "_")
+}
+
+pub(crate) fn xml_escape(s: &str) -> String {
+    let mut out = String::with_capacity(s.len());
+    for ch in s.chars() {
+        match ch {
+            '&' => out.push_str("&amp;"),
+            '<' => out.push_str("&lt;"),
+            '>' => out.push_str("&gt;"),
+            '"' => out.push_str("&quot;"),
+            _ => out.push(ch),
+        }
+    }
+    out
+}
+
+// ── Public entry point ───────────────────────────────────────────────
+
+/// Render a Diagram + DiagramLayout into an SVG string.
+pub fn render(
+    diagram: &Diagram,
+    layout: &DiagramLayout,
+    skin: &SkinParams,
+    meta: &DiagramMeta,
+) -> Result<String> {
+    let body_svg = render_body(diagram, layout, skin)?;
+    if meta.is_empty() {
+        return Ok(body_svg);
+    }
+    wrap_with_meta(&body_svg, meta)
+}
+
+fn render_body(diagram: &Diagram, layout: &DiagramLayout, skin: &SkinParams) -> Result<String> {
+    match (diagram, layout) {
+        (Diagram::Class(cd), DiagramLayout::Class(gl)) => render_class(cd, gl, skin),
+        (Diagram::Sequence(sd), DiagramLayout::Sequence(sl)) => {
+            svg_sequence::render_sequence(sd, sl, skin)
+        }
+        (Diagram::Activity(ad), DiagramLayout::Activity(al)) => {
+            super::svg_activity::render_activity(ad, al, skin)
+        }
+        (Diagram::State(sd), DiagramLayout::State(sl)) => {
+            super::svg_state::render_state(sd, sl, skin)
+        }
+        (Diagram::Component(cd), DiagramLayout::Component(cl)) => {
+            super::svg_component::render_component(cd, cl, skin)
+        }
+        (Diagram::Ditaa(dd), DiagramLayout::Ditaa(dl)) => {
+            super::svg_ditaa::render_ditaa(dd, dl, skin)
+        }
+        (Diagram::Erd(ed), DiagramLayout::Erd(el)) => super::svg_erd::render_erd(ed, el, skin),
+        (Diagram::Gantt(gd), DiagramLayout::Gantt(gl)) => {
+            super::svg_gantt::render_gantt(gd, gl, skin)
+        }
+        (Diagram::Json(jd), DiagramLayout::Json(jl)) => super::svg_json::render_json(jd, jl, skin),
+        (Diagram::Mindmap(md), DiagramLayout::Mindmap(ml)) => {
+            super::svg_mindmap::render_mindmap(md, ml, skin)
+        }
+        (Diagram::Nwdiag(nd), DiagramLayout::Nwdiag(nl)) => {
+            super::svg_nwdiag::render_nwdiag(nd, nl, skin)
+        }
+        (Diagram::Salt(sd), DiagramLayout::Salt(sl)) => super::svg_salt::render_salt(sd, sl, skin),
+        (Diagram::Timing(td), DiagramLayout::Timing(tl)) => {
+            super::svg_timing::render_timing(td, tl, skin)
+        }
+        (Diagram::Wbs(wd), DiagramLayout::Wbs(wl)) => super::svg_wbs::render_wbs(wd, wl, skin),
+        (Diagram::Yaml(yd), DiagramLayout::Yaml(yl)) => super::svg_json::render_json(yd, yl, skin),
+        (Diagram::UseCase(ud), DiagramLayout::UseCase(ul)) => {
+            super::svg_usecase::render_usecase(ud, ul, skin)
+        }
+        (Diagram::Dot(dd), DiagramLayout::Dot(_gl)) => {
+            // DOT passthrough: render using vizoxide directly
+            render_dot_passthrough(&dd.source)
+        }
+        _ => Err(crate::Error::Render("diagram/layout type mismatch".into())),
+    }
+}
+
+/// Render a DOT passthrough diagram using the Graphviz `dot` command.
+///
+/// Pipes the raw DOT source through `dot -Tsvg` and returns the resulting SVG.
+fn render_dot_passthrough(dot_source: &str) -> Result<String> {
+    use std::io::Write as IoWrite;
+    use std::process::{Command, Stdio};
+
+    log::debug!(
+        "render_dot_passthrough: {} bytes of DOT source",
+        dot_source.len()
+    );
+
+    let mut child = Command::new("dot")
+        .arg("-Tsvg")
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .map_err(|e| {
+            crate::Error::Render(format!("failed to spawn dot: {e} (is graphviz installed?)"))
+        })?;
+
+    child
+        .stdin
+        .take()
+        .unwrap()
+        .write_all(dot_source.as_bytes())
+        .map_err(|e| crate::Error::Render(format!("failed to write to dot stdin: {e}")))?;
+
+    let output = child
+        .wait_with_output()
+        .map_err(|e| crate::Error::Render(format!("dot process error: {e}")))?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        return Err(crate::Error::Render(format!(
+            "dot exited with error: {stderr}"
+        )));
+    }
+
+    let svg = String::from_utf8(output.stdout)
+        .map_err(|e| crate::Error::Render(format!("dot output is not valid UTF-8: {e}")))?;
+
+    log::debug!(
+        "render_dot_passthrough: produced {} bytes of SVG",
+        svg.len()
+    );
+    Ok(svg)
+}
+
+// ── Meta wrapping ───────────────────────────────────────────────────
+
+fn meta_top_height(meta: &DiagramMeta) -> f64 {
+    let mut h = 0.0;
+    if let Some(ref hdr) = meta.header {
+        h += count_creole_lines(hdr) as f64 * META_LINE_HEIGHT + META_GAP;
+    }
+    if let Some(ref title) = meta.title {
+        h += count_creole_lines(title) as f64 * META_TITLE_FONT_SIZE + META_GAP;
+    }
+    h
+}
+
+fn meta_bottom_height(meta: &DiagramMeta) -> f64 {
+    let mut h = 0.0;
+    if let Some(ref caption) = meta.caption {
+        h += count_creole_lines(caption) as f64 * META_LINE_HEIGHT + META_GAP;
+    }
+    if let Some(ref ftr) = meta.footer {
+        h += count_creole_lines(ftr) as f64 * META_LINE_HEIGHT + META_GAP;
+    }
+    if let Some(ref leg) = meta.legend {
+        let lc = count_creole_lines(leg) as f64;
+        h += lc * META_LINE_HEIGHT + LEGEND_PADDING * 2.0 + META_GAP;
+    }
+    h
+}
+
+fn estimate_creole_width(text: &str, font_size: f64) -> f64 {
+    let scale = font_size / FONT_SIZE;
+    max_creole_plain_line_len(text) as f64 * CHAR_WIDTH * scale
+}
+
+fn meta_required_width(meta: &DiagramMeta) -> f64 {
+    let mut width = 2.0 * MARGIN;
+
+    if let Some(ref hdr) = meta.header {
+        width = width.max(estimate_creole_width(hdr, FONT_SIZE) + 2.0 * MARGIN);
+    }
+    if let Some(ref title) = meta.title {
+        width = width.max(estimate_creole_width(title, META_TITLE_FONT_SIZE) + 2.0 * MARGIN);
+    }
+    if let Some(ref caption) = meta.caption {
+        width = width.max(estimate_creole_width(caption, FONT_SIZE) + 2.0 * MARGIN);
+    }
+    if let Some(ref ftr) = meta.footer {
+        width = width.max(estimate_creole_width(ftr, FONT_SIZE) + 2.0 * MARGIN);
+    }
+    if let Some(ref leg) = meta.legend {
+        let legend_w = max_creole_plain_line_len(leg).max(6) as f64 * CHAR_WIDTH
+            + LEGEND_PADDING * 2.0
+            + 2.0 * MARGIN;
+        width = width.max(legend_w);
+    }
+
+    width
+}
+
+fn extract_dimensions(svg: &str) -> (f64, f64) {
+    if let Some(vb_start) = svg.find("viewBox=\"") {
+        let after = &svg[vb_start + 9..];
+        if let Some(vb_end) = after.find('"') {
+            let parts: Vec<&str> = after[..vb_end].split_whitespace().collect();
+            if parts.len() == 4 {
+                let w = parts[2].parse::<f64>().unwrap_or(400.0);
+                let h = parts[3].parse::<f64>().unwrap_or(300.0);
+                return (w, h);
+            }
+        }
+    }
+    let w = extract_attr(svg, "width").unwrap_or(400.0);
+    let h = extract_attr(svg, "height").unwrap_or(300.0);
+    (w, h)
+}
+
+fn extract_attr(svg: &str, attr: &str) -> Option<f64> {
+    let needle = format!("{attr}=\"");
+    if let Some(pos) = svg.find(&needle) {
+        let after = &svg[pos + needle.len()..];
+        if let Some(end) = after.find('"') {
+            return after[..end].parse::<f64>().ok();
+        }
+    }
+    None
+}
+
+fn extract_svg_content(svg: &str) -> String {
+    if let Some(tag_end) = svg.find('>') {
+        let after_open = &svg[tag_end + 1..];
+        if let Some(close_pos) = after_open.rfind("</svg>") {
+            return after_open[..close_pos].to_string();
+        }
+        return after_open.to_string();
+    }
+    svg.to_string()
+}
+
+fn wrap_with_meta(body_svg: &str, meta: &DiagramMeta) -> Result<String> {
+    let (body_w, body_h) = extract_dimensions(body_svg);
+    let body_content = extract_svg_content(body_svg);
+    let top_h = meta_top_height(meta);
+    let bottom_h = meta_bottom_height(meta);
+    let total_w = body_w.max(meta_required_width(meta));
+    let total_h = top_h + body_h + bottom_h;
+    let body_x = ((total_w - body_w) / 2.0).max(0.0);
+
+    let mut buf = String::with_capacity(body_svg.len() + 1024);
+    write!(buf,
+        r#"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {total_w:.1} {total_h:.1}" width="{total_w:.1}" height="{total_h:.1}" font-family="{FONT_FAMILY}" font-size="{FONT_SIZE}">"#,
+    ).unwrap();
+    buf.push('\n');
+
+    let cx = total_w / 2.0;
+    let mut y_cursor = 0.0;
+
+    // Header
+    if let Some(ref hdr) = meta.header {
+        let start_y = y_cursor + META_LINE_HEIGHT;
+        let lines = render_creole_text(
+            &mut buf,
+            hdr,
+            cx,
+            start_y,
+            META_LINE_HEIGHT,
+            LABEL_COLOR,
+            Some("middle"),
+            &format!(r#"font-size="{FONT_SIZE}""#),
+        );
+        y_cursor += lines as f64 * META_LINE_HEIGHT + META_GAP;
+    }
+
+    // Title
+    if let Some(ref title) = meta.title {
+        y_cursor += META_TITLE_FONT_SIZE;
+        let lines = render_creole_text(
+            &mut buf,
+            title,
+            cx,
+            y_cursor,
+            META_TITLE_FONT_SIZE,
+            LABEL_COLOR,
+            Some("middle"),
+            &format!(r#"font-size="{META_TITLE_FONT_SIZE}" font-weight="bold""#),
+        );
+        let _ = lines;
+    }
+
+    // Body
+    write!(buf, r#"<g transform="translate({body_x:.1},{top_h:.1})">"#).unwrap();
+    buf.push('\n');
+    buf.push_str(&body_content);
+    buf.push_str("</g>\n");
+
+    let mut y_bottom = top_h + body_h + META_GAP;
+
+    // Caption
+    if let Some(ref cap) = meta.caption {
+        y_bottom += META_LINE_HEIGHT;
+        let lines = render_creole_text(
+            &mut buf,
+            cap,
+            cx,
+            y_bottom,
+            META_LINE_HEIGHT,
+            LABEL_COLOR,
+            Some("middle"),
+            &format!(r#"font-size="{FONT_SIZE}" font-style="italic""#),
+        );
+        y_bottom += (lines.saturating_sub(1)) as f64 * META_LINE_HEIGHT;
+    }
+
+    // Footer
+    if let Some(ref ftr) = meta.footer {
+        y_bottom += META_GAP;
+        let start_y = y_bottom + META_LINE_HEIGHT;
+        let lines = render_creole_text(
+            &mut buf,
+            ftr,
+            cx,
+            start_y,
+            META_LINE_HEIGHT,
+            LABEL_COLOR,
+            Some("middle"),
+            &format!(r#"font-size="{FONT_SIZE}""#),
+        );
+        y_bottom += lines as f64 * META_LINE_HEIGHT;
+    }
+
+    // Legend
+    if let Some(ref leg) = meta.legend {
+        y_bottom += META_GAP;
+        let line_count = count_creole_lines(leg) as f64;
+        let leg_text_h = line_count * META_LINE_HEIGHT;
+        let leg_h = leg_text_h + LEGEND_PADDING * 2.0;
+        let leg_w = {
+            let max_len = max_creole_plain_line_len(leg).max(6) as f64;
+            max_len * CHAR_WIDTH + LEGEND_PADDING * 2.0
+        };
+        let leg_x = total_w - leg_w - MARGIN;
+        let leg_y = y_bottom;
+        write!(buf,
+            r#"<rect x="{leg_x:.1}" y="{leg_y:.1}" width="{leg_w:.1}" height="{leg_h:.1}" fill="{LEGEND_BG}" stroke="{LEGEND_BORDER_COLOR}" stroke-width="1"/>"#,
+        ).unwrap();
+        buf.push('\n');
+        let lx = leg_x + LEGEND_PADDING;
+        let ly = leg_y + LEGEND_PADDING + META_LINE_HEIGHT;
+        render_creole_text(
+            &mut buf,
+            leg,
+            lx,
+            ly,
+            META_LINE_HEIGHT,
+            LABEL_COLOR,
+            None,
+            &format!(r#"font-size="{FONT_SIZE}""#),
+        );
+    }
+
+    buf.push_str("</svg>\n");
+    Ok(buf)
+}
+
+// ── Class diagram rendering ─────────────────────────────────────────
+
+fn render_class(
+    cd: &crate::model::ClassDiagram,
+    layout: &GraphLayout,
+    skin: &SkinParams,
+) -> Result<String> {
+    let svg_w = layout.total_width + MARGIN * 2.0;
+    let svg_h = layout.total_height + MARGIN * 2.0;
+    let font_family = resolve_font_family(skin, FONT_FAMILY);
+    let font_size = skin.font_size("class", FONT_SIZE);
+    let mut buf = String::with_capacity(4096);
+    write!(buf,
+        r#"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {svg_w:.1} {svg_h:.1}" width="{svg_w:.1}" height="{svg_h:.1}" font-family="{font_family}" font-size="{font_size}">"#,
+    ).unwrap();
+    buf.push('\n');
+
+    let arrow_color = skin.arrow_color(LINK_COLOR);
+    write_defs(&mut buf, arrow_color);
+
+    let node_map: HashMap<&str, &NodeLayout> =
+        layout.nodes.iter().map(|n| (n.id.as_str(), n)).collect();
+
+    for entity in &cd.entities {
+        let sid = sanitize_id(&entity.name);
+        if let Some(nl) = node_map.get(sid.as_str()) {
+            draw_entity_box(&mut buf, entity, nl, skin);
+        }
+    }
+
+    for link in &cd.links {
+        let from_id = sanitize_id(&link.from);
+        let to_id = sanitize_id(&link.to);
+        if let Some(el) = layout
+            .edges
+            .iter()
+            .find(|e| e.from == from_id && e.to == to_id)
+        {
+            draw_edge(&mut buf, link, el, arrow_color);
+        }
+    }
+
+    // Notes
+    for note in &layout.notes {
+        draw_class_note(&mut buf, note);
+    }
+
+    buf.push_str("</svg>\n");
+    Ok(buf)
+}
+
+fn write_defs(buf: &mut String, link_color: &str) {
+    buf.push_str("<defs>\n");
+    let lc = link_color;
+    write!(
+        buf,
+        concat!(
+            r##"<marker id="arrow-open" viewBox="0 0 10 10" refX="10" refY="5""##,
+            r##" markerWidth="8" markerHeight="8" orient="auto-start-reverse">"##,
+            r##"<path d="M 0 0 L 10 5 L 0 10" fill="none" stroke="{}" stroke-width="1.2"/>"##,
+            r##"</marker>"##,
+        ),
+        lc
+    )
+    .unwrap();
+    buf.push('\n');
+    write!(
+        buf,
+        concat!(
+            r##"<marker id="triangle" viewBox="0 0 10 10" refX="10" refY="5""##,
+            r##" markerWidth="10" markerHeight="10" orient="auto-start-reverse">"##,
+            r##"<path d="M 0 0 L 10 5 L 0 10 Z" fill="#FEFECE" stroke="{}" stroke-width="1"/>"##,
+            r##"</marker>"##,
+        ),
+        lc
+    )
+    .unwrap();
+    buf.push('\n');
+    write!(
+        buf,
+        concat!(
+            r##"<marker id="diamond" viewBox="0 0 14 10" refX="14" refY="5""##,
+            r##" markerWidth="12" markerHeight="10" orient="auto-start-reverse">"##,
+            r##"<path d="M 0 5 L 7 0 L 14 5 L 7 10 Z" fill="{0}" stroke="{0}" stroke-width="1"/>"##,
+            r##"</marker>"##,
+        ),
+        lc
+    )
+    .unwrap();
+    buf.push('\n');
+    write!(buf, concat!(
+        r##"<marker id="diamond-hollow" viewBox="0 0 14 10" refX="14" refY="5""##,
+        r##" markerWidth="12" markerHeight="10" orient="auto-start-reverse">"##,
+        r##"<path d="M 0 5 L 7 0 L 14 5 L 7 10 Z" fill="#FFFFFF" stroke="{}" stroke-width="1"/>"##,
+        r##"</marker>"##,
+    ), lc).unwrap();
+    buf.push('\n');
+    write!(
+        buf,
+        concat!(
+            r##"<marker id="plus" viewBox="0 0 12 12" refX="12" refY="6""##,
+            r##" markerWidth="10" markerHeight="10" orient="auto-start-reverse">"##,
+            r##"<circle cx="6" cy="6" r="5" fill="#FFFFFF" stroke="{0}" stroke-width="1"/>"##,
+            r##"<line x1="6" y1="2" x2="6" y2="10" stroke="{0}" stroke-width="1"/>"##,
+            r##"<line x1="2" y1="6" x2="10" y2="6" stroke="{0}" stroke-width="1"/>"##,
+            r##"</marker>"##,
+        ),
+        lc
+    )
+    .unwrap();
+    buf.push('\n');
+    buf.push_str("</defs>\n");
+}
+
+fn draw_entity_box(buf: &mut String, entity: &Entity, nl: &NodeLayout, skin: &SkinParams) {
+    let x = nl.cx - nl.width / 2.0 + MARGIN;
+    let y = nl.cy - nl.height / 2.0 + MARGIN;
+    let w = nl.width;
+    let h = nl.height;
+
+    let (default_bg, default_border, element_type) = match entity.kind {
+        EntityKind::Class => (CLASS_BG, CLASS_BORDER, "class"),
+        EntityKind::Interface => (IFACE_BG, IFACE_BORDER, "interface"),
+        EntityKind::Enum => (ENUM_BG, ENUM_BORDER, "enum"),
+        EntityKind::Abstract => (ABSTRACT_BG, ABSTRACT_BORDER, "abstract"),
+        EntityKind::Annotation => (CLASS_BG, CLASS_BORDER, "annotation"),
+        EntityKind::Object => (CLASS_BG, CLASS_BORDER, "object"),
+    };
+    let default_fill = skin.background_color(element_type, default_bg);
+    let fill = entity.color.as_deref().unwrap_or(default_fill);
+    let stroke = skin.border_color(element_type, default_border);
+    let font_color = skin.font_color(element_type, LABEL_COLOR);
+
+    let rx = skin.round_corner().unwrap_or(4.0);
+
+    write!(buf,
+        r#"<rect x="{x:.1}" y="{y:.1}" width="{w:.1}" height="{h:.1}" rx="{rx:.0}" fill="{fill}" stroke="{stroke}" stroke-width="1"/>"#,
+    ).unwrap();
+    buf.push('\n');
+
+    let class_font_size = skin.font_size("class", FONT_SIZE);
+    let attr_font_size = skin.font_size("classattribute", class_font_size);
+
+    let name_display = if let Some(ref g) = entity.generic {
+        format!("{}<{}>", entity.name, g)
+    } else {
+        entity.name.clone()
+    };
+    let name_escaped = xml_escape(&name_display);
+    let has_kind_label = matches!(
+        entity.kind,
+        EntityKind::Interface | EntityKind::Enum | EntityKind::Annotation
+    );
+
+    if has_kind_label {
+        let kind_text = match entity.kind {
+            EntityKind::Interface => "\u{00AB}interface\u{00BB}",
+            EntityKind::Enum => "\u{00AB}enumeration\u{00BB}",
+            EntityKind::Annotation => "\u{00AB}annotation\u{00BB}",
+            _ => "",
+        };
+        let kind_y = y + HEADER_HEIGHT * 0.38;
+        let name_y = y + HEADER_HEIGHT * 0.82;
+        let cx = x + w / 2.0;
+        write!(buf,
+            r#"<text x="{cx:.1}" y="{kind_y:.1}" text-anchor="middle" font-size="{fs:.0}" font-style="italic" fill="{font_color}">{kind_text}</text>"#,
+            fs = class_font_size - 2.0,
+        ).unwrap();
+        buf.push('\n');
+        write!(buf,
+            r#"<text x="{cx:.1}" y="{name_y:.1}" text-anchor="middle" font-weight="bold" font-size="{class_font_size:.0}" fill="{font_color}">{name_escaped}</text>"#,
+        ).unwrap();
+        buf.push('\n');
+    } else {
+        let name_y = y + HEADER_HEIGHT * 0.68;
+        let cx = x + w / 2.0;
+        let mut extra_attrs = String::new();
+        if entity.kind == EntityKind::Abstract {
+            extra_attrs.push_str(r#" font-style="italic""#);
+        }
+        if entity.kind == EntityKind::Object {
+            extra_attrs.push_str(r#" text-decoration="underline""#);
+        }
+        write!(buf,
+            r#"<text x="{cx:.1}" y="{name_y:.1}" text-anchor="middle" font-weight="bold" font-size="{class_font_size:.0}"{extra_attrs} fill="{font_color}">{name_escaped}</text>"#,
+        ).unwrap();
+        buf.push('\n');
+    }
+
+    let sep_y = y + HEADER_HEIGHT;
+    write!(buf,
+        r#"<line x1="{x:.1}" y1="{sep_y:.1}" x2="{x2:.1}" y2="{sep_y:.1}" stroke="{stroke}" stroke-width="1"/>"#,
+        x2 = x + w,
+    ).unwrap();
+    buf.push('\n');
+
+    let members_x = x + PADDING;
+    for (i, member) in entity.members.iter().enumerate() {
+        let my = sep_y + LINE_HEIGHT * (i as f64 + 0.75);
+        let text = format_member(member);
+        let text_escaped = xml_escape(&text);
+        let mut style = String::new();
+        if member.modifiers.is_static {
+            style.push_str(r#" text-decoration="underline""#);
+        }
+        if member.modifiers.is_abstract {
+            style.push_str(r#" font-style="italic""#);
+        }
+        write!(buf,
+            r#"<text x="{members_x:.1}" y="{my:.1}" font-size="{attr_font_size:.0}"{style} fill="{font_color}">{text_escaped}</text>"#,
+        ).unwrap();
+        buf.push('\n');
+    }
+}
+
+fn format_member(m: &Member) -> String {
+    let vis = match &m.visibility {
+        Some(Visibility::Public) => "+ ",
+        Some(Visibility::Private) => "- ",
+        Some(Visibility::Protected) => "# ",
+        Some(Visibility::Package) => "~ ",
+        None => "",
+    };
+    match &m.return_type {
+        Some(rt) => format!("{vis}{} : {rt}", m.name),
+        None => format!("{vis}{}", m.name),
+    }
+}
+
+fn draw_edge(buf: &mut String, link: &Link, el: &EdgeLayout, link_color: &str) {
+    if el.points.is_empty() {
+        return;
+    }
+    let mut d = String::new();
+    for (i, &(px, py)) in el.points.iter().enumerate() {
+        let ox = px + MARGIN;
+        let oy = py + MARGIN;
+        if i == 0 {
+            write!(d, "M {ox:.1},{oy:.1}").unwrap();
+        } else {
+            write!(d, " L {ox:.1},{oy:.1}").unwrap();
+        }
+    }
+    let dash = if link.line_style == LineStyle::Dashed {
+        r#" stroke-dasharray="7,5""#
+    } else {
+        ""
+    };
+    let marker_start = marker_attr_for(&link.left_head, "marker-start");
+    let marker_end = marker_attr_for(&link.right_head, "marker-end");
+    write!(buf,
+        r#"<path d="{d}" fill="none" stroke="{link_color}" stroke-width="1"{dash}{marker_start}{marker_end}/>"#,
+    ).unwrap();
+    buf.push('\n');
+    if let Some(label) = &link.label {
+        let mid_idx = el.points.len() / 2;
+        let (mx, my) = el.points[mid_idx];
+        draw_label(buf, label, mx + MARGIN, my + MARGIN - 6.0);
+    }
+}
+
+fn marker_attr_for(head: &ArrowHead, attr: &str) -> String {
+    let id = match head {
+        ArrowHead::None => return String::new(),
+        ArrowHead::Arrow => "arrow-open",
+        ArrowHead::Triangle => "triangle",
+        ArrowHead::Diamond => "diamond",
+        ArrowHead::DiamondHollow => "diamond-hollow",
+        ArrowHead::Plus => "plus",
+    };
+    format!(r#" {attr}="url(#{id})""#)
+}
+
+fn draw_label(buf: &mut String, text: &str, x: f64, y: f64) {
+    let escaped = xml_escape(text);
+    write!(buf,
+        r#"<text x="{x:.1}" y="{y:.1}" text-anchor="middle" font-size="{FONT_SIZE}" fill="{LABEL_COLOR}">{escaped}</text>"#,
+    ).unwrap();
+    buf.push('\n');
+}
+
+/// Draw a note in class diagrams (yellow sticky box with folded corner)
+fn draw_class_note(buf: &mut String, note: &ClassNoteLayout) {
+    let x = note.x + MARGIN;
+    let y = note.y + MARGIN;
+    let w = note.width;
+    let h = note.height;
+
+    // body shape (use polygon instead of rect to clip the top-right fold area)
+    let fold = NOTE_FOLD;
+    // pentagon path: top-left -> top-right(minus fold) -> fold inner corner -> bottom-right -> bottom-left
+    write!(buf,
+        r#"<polygon points="{x:.1},{y:.1} {x1:.1},{y:.1} {x2:.1},{y1:.1} {x2:.1},{y2:.1} {x:.1},{y2:.1}" fill="{bg}" stroke="{border}" stroke-width="1"/>"#,
+        x1 = x + w - fold,
+        y1 = y + fold,
+        x2 = x + w,
+        y2 = y + h,
+        bg = NOTE_BG,
+        border = NOTE_BORDER,
+    ).unwrap();
+    buf.push('\n');
+
+    // fold corner triangle
+    write!(buf,
+        r#"<path d="M {cx:.1},{cy:.1} L {cx:.1},{cy2:.1} L {cx2:.1},{cy:.1} Z" fill="{bg}" stroke="{border}" stroke-width="1"/>"#,
+        cx = x + w - fold,
+        cy = y,
+        cy2 = y + fold,
+        cx2 = x + w,
+        bg = NOTE_BG,
+        border = NOTE_BORDER,
+    ).unwrap();
+    buf.push('\n');
+
+    // text content
+    let text_x = x + NOTE_TEXT_PADDING;
+    let text_y = y + LINE_HEIGHT;
+    render_creole_text(
+        buf,
+        &note.text,
+        text_x,
+        text_y,
+        LINE_HEIGHT,
+        LABEL_COLOR,
+        None,
+        &format!(r#"font-size="{FONT_SIZE}""#),
+    );
+
+    // connector line (dashed)
+    if let Some((from_x, from_y, to_x, to_y)) = note.connector {
+        write!(buf,
+            r#"<line x1="{fx:.1}" y1="{fy:.1}" x2="{tx:.1}" y2="{ty:.1}" stroke="{border}" stroke-width="1" stroke-dasharray="5,3"/>"#,
+            fx = from_x + MARGIN,
+            fy = from_y + MARGIN,
+            tx = to_x + MARGIN,
+            ty = to_y + MARGIN,
+            border = NOTE_BORDER,
+        ).unwrap();
+        buf.push('\n');
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::layout::graphviz::{EdgeLayout, GraphLayout, NodeLayout};
+    use crate::layout::DiagramLayout;
+    use crate::model::{
+        ArrowHead, ClassDiagram, Diagram, Direction, Entity, EntityKind, LineStyle, Link, Member,
+        MemberModifiers, Visibility,
+    };
+
+    fn simple_diagram() -> (Diagram, DiagramLayout) {
+        let entity = Entity {
+            name: "Foo".into(),
+            kind: EntityKind::Class,
+            stereotypes: vec![],
+            members: vec![
+                Member {
+                    visibility: Some(Visibility::Public),
+                    name: "bar".into(),
+                    return_type: Some("String".into()),
+                    is_method: false,
+                    modifiers: MemberModifiers::default(),
+                },
+                Member {
+                    visibility: Some(Visibility::Private),
+                    name: "baz".into(),
+                    return_type: None,
+                    is_method: true,
+                    modifiers: MemberModifiers {
+                        is_static: true,
+                        is_abstract: false,
+                    },
+                },
+            ],
+            color: None,
+            generic: None,
+        };
+        let entity2 = Entity {
+            name: "Bar".into(),
+            kind: EntityKind::Interface,
+            stereotypes: vec![],
+            members: vec![],
+            color: None,
+            generic: None,
+        };
+        let link = Link {
+            from: "Foo".into(),
+            to: "Bar".into(),
+            left_head: ArrowHead::None,
+            right_head: ArrowHead::Triangle,
+            line_style: LineStyle::Dashed,
+            label: Some("implements".into()),
+            from_label: None,
+            to_label: None,
+        };
+        let cd = ClassDiagram {
+            entities: vec![entity, entity2],
+            links: vec![link],
+            groups: vec![],
+            direction: Direction::TopToBottom,
+            notes: vec![],
+        };
+        let gl = GraphLayout {
+            nodes: vec![
+                NodeLayout {
+                    id: "Foo".into(),
+                    cx: 100.0,
+                    cy: 50.0,
+                    width: 120.0,
+                    height: 80.0,
+                },
+                NodeLayout {
+                    id: "Bar".into(),
+                    cx: 100.0,
+                    cy: 180.0,
+                    width: 120.0,
+                    height: 40.0,
+                },
+            ],
+            edges: vec![EdgeLayout {
+                from: "Foo".into(),
+                to: "Bar".into(),
+                points: vec![(100.0, 90.0), (100.0, 160.0)],
+                arrow_tip: None,
+            }],
+            notes: vec![],
+            total_width: 240.0,
+            total_height: 220.0,
+        };
+        (Diagram::Class(cd), DiagramLayout::Class(gl))
+    }
+
+    fn default_skin() -> SkinParams {
+        SkinParams::default()
+    }
+    fn default_meta() -> DiagramMeta {
+        DiagramMeta::default()
+    }
+
+    #[test]
+    fn test_basic_render_produces_valid_svg() {
+        let (d, l) = simple_diagram();
+        let svg = render(&d, &l, &default_skin(), &default_meta()).unwrap();
+        assert!(svg.contains("<svg"));
+        assert!(svg.contains("</svg>"));
+        assert!(svg.contains("xmlns=\"http://www.w3.org/2000/svg\""));
+    }
+
+    #[test]
+    fn test_entity_box_contains_name() {
+        let (d, l) = simple_diagram();
+        let svg = render(&d, &l, &default_skin(), &default_meta()).unwrap();
+        assert!(svg.contains("Foo"));
+        assert!(svg.contains("Bar"));
+        assert!(svg.contains("interface"));
+    }
+
+    #[test]
+    fn test_edge_rendering_produces_path() {
+        let (d, l) = simple_diagram();
+        let svg = render(&d, &l, &default_skin(), &default_meta()).unwrap();
+        assert!(svg.contains("<path"));
+        assert!(svg.contains("stroke-dasharray"));
+        assert!(svg.contains("url(#triangle)"));
+    }
+
+    #[test]
+    fn test_xml_escaping() {
+        assert_eq!(xml_escape("A & B"), "A &amp; B");
+        assert_eq!(xml_escape("<T>"), "&lt;T&gt;");
+        assert_eq!(xml_escape(r#"a"b"#), "a&quot;b");
+        assert_eq!(xml_escape("plain"), "plain");
+    }
+
+    #[test]
+    fn test_member_formatting() {
+        let m = Member {
+            visibility: Some(Visibility::Protected),
+            name: "calc()".into(),
+            return_type: Some("int".into()),
+            is_method: true,
+            modifiers: MemberModifiers::default(),
+        };
+        assert_eq!(format_member(&m), "# calc() : int");
+    }
+
+    #[test]
+    fn test_entity_with_special_chars() {
+        let entity = Entity {
+            name: "Map<K, V>".into(),
+            kind: EntityKind::Class,
+            stereotypes: vec![],
+            members: vec![],
+            color: None,
+            generic: None,
+        };
+        let cd = ClassDiagram {
+            entities: vec![entity],
+            links: vec![],
+            groups: vec![],
+            direction: Direction::TopToBottom,
+            notes: vec![],
+        };
+        let gl = GraphLayout {
+            nodes: vec![NodeLayout {
+                id: sanitize_id("Map<K, V>"),
+                cx: 80.0,
+                cy: 40.0,
+                width: 100.0,
+                height: 40.0,
+            }],
+            edges: vec![],
+            notes: vec![],
+            total_width: 200.0,
+            total_height: 100.0,
+        };
+        let svg = render(
+            &Diagram::Class(cd),
+            &DiagramLayout::Class(gl),
+            &default_skin(),
+            &default_meta(),
+        )
+        .unwrap();
+        assert!(svg.contains("Map&lt;K, V&gt;"));
+    }
+
+    #[test]
+    fn test_object_entity_renders_underlined_name() {
+        let entity = Entity {
+            name: "myObj".into(),
+            kind: EntityKind::Object,
+            stereotypes: vec![],
+            members: vec![],
+            color: None,
+            generic: None,
+        };
+        let cd = ClassDiagram {
+            entities: vec![entity],
+            links: vec![],
+            groups: vec![],
+            direction: Direction::TopToBottom,
+            notes: vec![],
+        };
+        let gl = GraphLayout {
+            nodes: vec![NodeLayout {
+                id: "myObj".into(),
+                cx: 80.0,
+                cy: 40.0,
+                width: 100.0,
+                height: 40.0,
+            }],
+            edges: vec![],
+            notes: vec![],
+            total_width: 200.0,
+            total_height: 100.0,
+        };
+        let svg = render(
+            &Diagram::Class(cd),
+            &DiagramLayout::Class(gl),
+            &default_skin(),
+            &default_meta(),
+        )
+        .expect("render failed");
+        assert!(svg.contains("myObj"), "SVG must contain object name");
+        assert!(
+            svg.contains(r#"text-decoration="underline""#),
+            "object name must have underline text-decoration"
+        );
+    }
+
+    // ── SkinParams tests ────────────────────────────────────────────
+
+    #[test]
+    fn test_skinparam_class_bg() {
+        let (d, l) = simple_diagram();
+        let mut skin = SkinParams::default();
+        skin.set("ClassBackgroundColor", "#AABBCC");
+        let svg = render(&d, &l, &skin, &default_meta()).unwrap();
+        assert!(svg.contains(r##"fill="#AABBCC""##));
+    }
+
+    #[test]
+    fn test_skinparam_class_border() {
+        let (d, l) = simple_diagram();
+        let mut skin = SkinParams::default();
+        skin.set("ClassBorderColor", "#112233");
+        let svg = render(&d, &l, &skin, &default_meta()).unwrap();
+        assert!(svg.contains(r##"stroke="#112233""##));
+    }
+
+    #[test]
+    fn test_skinparam_arrow_color() {
+        let (d, l) = simple_diagram();
+        let mut skin = SkinParams::default();
+        skin.set("ArrowColor", "#00FF00");
+        let svg = render(&d, &l, &skin, &default_meta()).unwrap();
+        assert!(svg.contains(r##"stroke="#00FF00""##));
+    }
+
+    #[test]
+    fn test_skinparam_font_color() {
+        let (d, l) = simple_diagram();
+        let mut skin = SkinParams::default();
+        skin.set("ClassFontColor", "#FF0000");
+        let svg = render(&d, &l, &skin, &default_meta()).unwrap();
+        assert!(svg.contains(r##"fill="#FF0000""##));
+    }
+
+    #[test]
+    fn test_default_colors() {
+        let (d, l) = simple_diagram();
+        let svg = render(&d, &l, &default_skin(), &default_meta()).unwrap();
+        assert!(svg.contains(&format!(r#"fill="{CLASS_BG}""#)));
+        assert!(svg.contains(&format!(r#"stroke="{CLASS_BORDER}""#)));
+    }
+
+    // ── Meta rendering tests ────────────────────────────────────────
+
+    #[test]
+    fn test_meta_empty_passthrough() {
+        let (d, l) = simple_diagram();
+        let svg = render(&d, &l, &default_skin(), &default_meta()).unwrap();
+        assert!(!svg.contains("translate(0,"));
+    }
+
+    #[test]
+    fn test_meta_title() {
+        let (d, l) = simple_diagram();
+        let meta = DiagramMeta {
+            title: Some("My Title".into()),
+            ..Default::default()
+        };
+        let svg = render(&d, &l, &default_skin(), &meta).unwrap();
+        assert!(svg.contains("My Title"));
+        assert!(svg.contains("font-weight=\"bold\""));
+        assert!(svg.contains("font-size=\"14\""));
+        assert!(svg.contains("translate("));
+    }
+
+    #[test]
+    fn test_meta_title_can_expand_canvas_width() {
+        let (d, l) = simple_diagram();
+        let body_svg = render_body(&d, &l, &default_skin()).unwrap();
+        let (body_w, _) = extract_dimensions(&body_svg);
+        let meta = DiagramMeta {
+            title: Some(
+                "This is a deliberately very long title with [[https://example.com Link]]".into(),
+            ),
+            ..Default::default()
+        };
+        let svg = render(&d, &l, &default_skin(), &meta).unwrap();
+        let (svg_w, _) = extract_dimensions(&svg);
+        assert!(svg_w > body_w);
+        assert!(svg.contains("translate("));
+        assert!(!svg.contains("translate(0.0,"));
+    }
+
+    #[test]
+    fn test_meta_title_renders_creole_and_link() {
+        let (d, l) = simple_diagram();
+        let meta = DiagramMeta {
+            title: Some("**Bold** [[https://example.com{hover} Link]]".into()),
+            ..Default::default()
+        };
+        let svg = render(&d, &l, &default_skin(), &meta).unwrap();
+        assert!(svg.contains(r#"font-weight="bold""#));
+        assert!(svg.contains(r#"href="https://example.com""#));
+        assert!(svg.contains("<title>hover</title>"));
+        assert!(svg.contains("Link"));
+    }
+
+    #[test]
+    fn test_meta_header() {
+        let (d, l) = simple_diagram();
+        let meta = DiagramMeta {
+            header: Some("Page Header".into()),
+            ..Default::default()
+        };
+        let svg = render(&d, &l, &default_skin(), &meta).unwrap();
+        assert!(svg.contains("Page Header"));
+    }
+
+    #[test]
+    fn test_meta_footer() {
+        let (d, l) = simple_diagram();
+        let meta = DiagramMeta {
+            footer: Some("Page Footer".into()),
+            ..Default::default()
+        };
+        let svg = render(&d, &l, &default_skin(), &meta).unwrap();
+        assert!(svg.contains("Page Footer"));
+    }
+
+    #[test]
+    fn test_meta_caption() {
+        let (d, l) = simple_diagram();
+        let meta = DiagramMeta {
+            caption: Some("Figure 1".into()),
+            ..Default::default()
+        };
+        let svg = render(&d, &l, &default_skin(), &meta).unwrap();
+        assert!(svg.contains("Figure 1"));
+        assert!(svg.contains("font-style=\"italic\""));
+    }
+
+    #[test]
+    fn test_meta_legend() {
+        let (d, l) = simple_diagram();
+        let meta = DiagramMeta {
+            legend: Some("Legend text".into()),
+            ..Default::default()
+        };
+        let svg = render(&d, &l, &default_skin(), &meta).unwrap();
+        assert!(svg.contains("Legend text"));
+        assert!(svg.contains(LEGEND_BG));
+        assert!(svg.contains(LEGEND_BORDER_COLOR));
+    }
+
+    #[test]
+    fn test_meta_all() {
+        let (d, l) = simple_diagram();
+        let meta = DiagramMeta {
+            title: Some("T".into()),
+            header: Some("H".into()),
+            footer: Some("F".into()),
+            caption: Some("C".into()),
+            legend: Some("L".into()),
+        };
+        let svg = render(&d, &l, &default_skin(), &meta).unwrap();
+        for s in &["T", "H", "F", "C", "L"] {
+            assert!(svg.contains(s));
+        }
+    }
+
+    #[test]
+    fn test_extract_dimensions() {
+        let svg = r#"<svg viewBox="0 0 200.5 300.0" width="200.5" height="300.0">x</svg>"#;
+        let (w, h) = extract_dimensions(svg);
+        assert!((w - 200.5).abs() < 0.1);
+        assert!((h - 300.0).abs() < 0.1);
+    }
+
+    #[test]
+    fn test_extract_svg_content() {
+        let svg = r#"<svg xmlns="http://www.w3.org/2000/svg"><rect/></svg>"#;
+        assert_eq!(extract_svg_content(svg), "<rect/>");
+    }
+
+    #[test]
+    fn test_dot_passthrough_produces_valid_svg() {
+        let dot_src = "digraph G { A -> B; B -> C; }";
+        let svg = render_dot_passthrough(dot_src).expect("dot passthrough failed");
+        assert!(svg.contains("<svg"), "must contain <svg tag");
+        assert!(svg.contains("</svg>"), "must contain </svg> tag");
+        assert!(svg.contains("A"), "must contain node A");
+        assert!(svg.contains("B"), "must contain node B");
+        assert!(svg.contains("C"), "must contain node C");
+    }
+
+    // ── Note rendering tests ────────────────────────────────────────
+
+    #[test]
+    fn test_note_renders_polygon_and_text() {
+        use crate::layout::graphviz::ClassNoteLayout;
+
+        let entity = Entity {
+            name: "Foo".into(),
+            kind: EntityKind::Class,
+            stereotypes: vec![],
+            members: vec![],
+            color: None,
+            generic: None,
+        };
+        let cd = ClassDiagram {
+            entities: vec![entity],
+            links: vec![],
+            groups: vec![],
+            direction: Direction::TopToBottom,
+            notes: vec![crate::model::ClassNote {
+                text: "test note".into(),
+                position: "right".into(),
+                target: Some("Foo".into()),
+            }],
+        };
+        let gl = GraphLayout {
+            nodes: vec![NodeLayout {
+                id: "Foo".into(),
+                cx: 100.0,
+                cy: 50.0,
+                width: 120.0,
+                height: 80.0,
+            }],
+            edges: vec![],
+            notes: vec![ClassNoteLayout {
+                text: "test note".into(),
+                x: 180.0,
+                y: 30.0,
+                width: 90.0,
+                height: 36.0,
+                lines: vec!["test note".into()],
+                connector: Some((180.0, 50.0, 160.0, 50.0)),
+            }],
+            total_width: 300.0,
+            total_height: 120.0,
+        };
+        let svg = render(
+            &Diagram::Class(cd),
+            &DiagramLayout::Class(gl),
+            &default_skin(),
+            &default_meta(),
+        )
+        .unwrap();
+
+        assert!(svg.contains(NOTE_BG), "note should use yellow background");
+        assert!(svg.contains("test note"), "note text must appear in SVG");
+        assert!(
+            svg.contains("<polygon"),
+            "note should render as polygon (folded corner)"
+        );
+        assert!(
+            svg.contains("stroke-dasharray"),
+            "connector should be dashed"
+        );
+    }
+
+    #[test]
+    fn test_note_without_connector() {
+        use crate::layout::graphviz::ClassNoteLayout;
+
+        let cd = ClassDiagram {
+            entities: vec![],
+            links: vec![],
+            groups: vec![],
+            direction: Direction::TopToBottom,
+            notes: vec![crate::model::ClassNote {
+                text: "floating".into(),
+                position: "right".into(),
+                target: None,
+            }],
+        };
+        let gl = GraphLayout {
+            nodes: vec![],
+            edges: vec![],
+            notes: vec![ClassNoteLayout {
+                text: "floating".into(),
+                x: 10.0,
+                y: 10.0,
+                width: 80.0,
+                height: 36.0,
+                lines: vec!["floating".into()],
+                connector: None,
+            }],
+            total_width: 100.0,
+            total_height: 60.0,
+        };
+        let svg = render(
+            &Diagram::Class(cd),
+            &DiagramLayout::Class(gl),
+            &default_skin(),
+            &default_meta(),
+        )
+        .unwrap();
+
+        assert!(svg.contains("floating"), "note text must appear");
+        assert!(svg.contains(NOTE_BG), "note background must appear");
+        // No connector line - count dashed lines (only note polygon, no connector dash)
+        let dash_count = svg.matches("stroke-dasharray=\"5,3\"").count();
+        assert_eq!(dash_count, 0, "floating note should have no connector line");
+    }
+}

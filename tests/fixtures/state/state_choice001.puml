@@ -1,0 +1,8 @@
+@startuml
+state "Start" as s1
+state choice1 <<choice>>
+[*] --> s1
+s1 --> choice1
+choice1 --> State2 : [condition A]
+choice1 --> State3 : [condition B]
+@enduml

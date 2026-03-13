@@ -1,0 +1,5 @@
+@startuml
+Alice -> Bob : **bold** and //italic// and __underline__
+Bob -> Alice : ~~strike~~ and ""mono""
+Alice -> Bob : <color:red>red</color> <size:18>big</size>
+@enduml

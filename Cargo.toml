@@ -1,0 +1,24 @@
+[package]
+name = "plantuml-little"
+version = "0.1.0"
+edition = "2021"
+license = "GPL-3.0-or-later OR LGPL-3.0-or-later OR Apache-2.0 OR EPL-2.0 OR MIT"
+authors = ["kookyleo <kookyleo@gmail.com>"]
+description = "Lightweight .puml to .svg converter"
+
+[[bin]]
+name = "plantuml-little"
+path = "src/main.rs"
+
+[dependencies]
+clap = { version = "4", features = ["derive"] }
+thiserror = "1"
+log = "0.4"
+env_logger = "0.11"
+regex = "1"
+vizoxide = "1.0.5"
+zip = { version = "0.6.6", default-features = false, features = ["deflate"] }
+reqwest = { version = "0.12", default-features = false, features = ["blocking", "rustls-tls"] }
+
+[patch.crates-io]
+vizoxide = { git = "https://github.com/kookyleo/vizoxide.git", branch = "fix/lifetime-elision-warnings" }

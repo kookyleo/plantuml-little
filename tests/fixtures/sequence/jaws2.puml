@@ -1,0 +1,3 @@
+@startuml
+alice -> bob : 123\n456
+@enduml

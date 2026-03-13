@@ -1,0 +1,8 @@
+@startuml
+Alice -> Bob : request
+alt successful
+  Bob -> Alice : ok
+else failure
+  Bob -> Alice : error
+end
+@enduml

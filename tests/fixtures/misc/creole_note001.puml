@@ -1,0 +1,12 @@
+@startuml
+Alice -> Bob : hello
+note right
+  **Bold** text
+  //Italic// text
+  * bullet 1
+  * bullet 2
+  ----
+  |= Header |= Col2 |
+  | cell1 | cell2 |
+end note
+@enduml

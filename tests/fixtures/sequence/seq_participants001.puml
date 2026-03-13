@@ -1,0 +1,17 @@
+@startuml
+actor Alice
+boundary Bob
+control Charlie
+entity Dave
+database DB
+collections Logs
+queue MQ
+participant Default
+Alice -> Bob : hello
+Bob -> Charlie : process
+Charlie -> Dave : store
+Dave -> DB : write
+DB -> Logs : log
+Logs -> MQ : queue
+MQ -> Default : done
+@enduml

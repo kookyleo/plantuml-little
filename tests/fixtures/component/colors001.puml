@@ -1,0 +1,5 @@
+@startuml
+component Web #LightBlue
+component DB #Yellow
+Web --> DB
+@enduml

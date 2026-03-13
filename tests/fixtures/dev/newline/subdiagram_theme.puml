@@ -1,0 +1,22 @@
+@startuml
+
+component a {
+}
+
+note top of a
+==theme don't fail==
+{{
+!theme crt-amber
+User->System: test
+}}
+end note
+@enduml
+
+@startuml
+
+component a {
+}
+
+note top of a: \n==theme fail==\n{{\n!theme crt-amber\nUser->System: test\n}}\n
+
+@enduml

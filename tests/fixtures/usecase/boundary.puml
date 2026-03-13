@@ -1,0 +1,22 @@
+@startuml
+actor Customer
+actor Staff
+
+rectangle "Web Store" {
+    usecase "Browse Products" as UC1
+    usecase "Place Order" as UC2
+    usecase "Track Order" as UC3
+}
+
+rectangle "Back Office" {
+    usecase "Process Order" as UC4
+    usecase "Update Inventory" as UC5
+}
+
+Customer --> UC1
+Customer --> UC2
+Customer --> UC3
+Staff --> UC4
+Staff --> UC5
+UC2 ..> UC4 : <<include>>
+@enduml

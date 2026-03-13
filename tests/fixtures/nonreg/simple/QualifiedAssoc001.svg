@@ -1,0 +1,43 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 568.0 152.0" width="568.0" height="152.0" font-family="monospace" font-size="12">
+<defs>
+<marker id="arrow-open" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10" fill="none" stroke="#A80036" stroke-width="1.2"/></marker>
+<marker id="triangle" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="10" markerHeight="10" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 Z" fill="#FEFECE" stroke="#A80036" stroke-width="1"/></marker>
+<marker id="diamond" viewBox="0 0 14 10" refX="14" refY="5" markerWidth="12" markerHeight="10" orient="auto-start-reverse"><path d="M 0 5 L 7 0 L 14 5 L 7 10 Z" fill="#A80036" stroke="#A80036" stroke-width="1"/></marker>
+<marker id="diamond-hollow" viewBox="0 0 14 10" refX="14" refY="5" markerWidth="12" markerHeight="10" orient="auto-start-reverse"><path d="M 0 5 L 7 0 L 14 5 L 7 10 Z" fill="#FFFFFF" stroke="#A80036" stroke-width="1"/></marker>
+<marker id="plus" viewBox="0 0 12 12" refX="12" refY="6" markerWidth="10" markerHeight="10" orient="auto-start-reverse"><circle cx="6" cy="6" r="5" fill="#FFFFFF" stroke="#A80036" stroke-width="1"/><line x1="6" y1="2" x2="6" y2="10" stroke="#A80036" stroke-width="1"/><line x1="2" y1="6" x2="10" y2="6" stroke="#A80036" stroke-width="1"/></marker>
+</defs>
+<rect x="114.0" y="20.0" width="106.0" height="38.0" rx="4" fill="#FEFECE" stroke="#A80036" stroke-width="1"/>
+<text x="167.0" y="39.0" text-anchor="middle" font-weight="bold" font-size="12" fill="#000000">HashMap</text>
+<line x1="114.0" y1="48.0" x2="220.0" y2="48.0" stroke="#A80036" stroke-width="1"/>
+<rect x="20.0" y="94.0" width="60.0" height="38.0" rx="4" fill="#FEFECE" stroke="#A80036" stroke-width="1"/>
+<text x="50.0" y="113.0" text-anchor="middle" font-weight="bold" font-size="12" fill="#000000">V1</text>
+<line x1="20.0" y1="122.0" x2="80.0" y2="122.0" stroke="#A80036" stroke-width="1"/>
+<rect x="98.0" y="94.0" width="60.0" height="38.0" rx="4" fill="#FEFECE" stroke="#A80036" stroke-width="1"/>
+<text x="128.0" y="113.0" text-anchor="middle" font-weight="bold" font-size="12" fill="#000000">V2</text>
+<line x1="98.0" y1="122.0" x2="158.0" y2="122.0" stroke="#A80036" stroke-width="1"/>
+<rect x="176.0" y="94.0" width="60.0" height="38.0" rx="4" fill="#FEFECE" stroke="#A80036" stroke-width="1"/>
+<text x="206.0" y="113.0" text-anchor="middle" font-weight="bold" font-size="12" fill="#000000">V3</text>
+<line x1="176.0" y1="122.0" x2="236.0" y2="122.0" stroke="#A80036" stroke-width="1"/>
+<rect x="254.0" y="94.0" width="60.0" height="38.0" rx="4" fill="#FEFECE" stroke="#A80036" stroke-width="1"/>
+<text x="284.0" y="113.0" text-anchor="middle" font-weight="bold" font-size="12" fill="#000000">V4</text>
+<line x1="254.0" y1="122.0" x2="314.0" y2="122.0" stroke="#A80036" stroke-width="1"/>
+<rect x="390.5" y="20.0" width="99.0" height="38.0" rx="4" fill="#FEFECE" stroke="#A80036" stroke-width="1"/>
+<text x="440.0" y="39.0" text-anchor="middle" font-weight="bold" font-size="12" fill="#000000">MoreComplex</text>
+<line x1="390.5" y1="48.0" x2="489.5" y2="48.0" stroke="#A80036" stroke-width="1"/>
+<rect x="332.0" y="94.0" width="60.0" height="38.0" rx="4" fill="#FEFECE" stroke="#A80036" stroke-width="1"/>
+<text x="362.0" y="113.0" text-anchor="middle" font-weight="bold" font-size="12" fill="#000000">X</text>
+<line x1="332.0" y1="122.0" x2="392.0" y2="122.0" stroke="#A80036" stroke-width="1"/>
+<rect x="410.0" y="94.0" width="60.0" height="38.0" rx="4" fill="#FEFECE" stroke="#A80036" stroke-width="1"/>
+<text x="440.0" y="113.0" text-anchor="middle" font-weight="bold" font-size="12" fill="#000000">Y</text>
+<line x1="410.0" y1="122.0" x2="470.0" y2="122.0" stroke="#A80036" stroke-width="1"/>
+<rect x="488.0" y="94.0" width="60.0" height="38.0" rx="4" fill="#FEFECE" stroke="#A80036" stroke-width="1"/>
+<text x="518.0" y="113.0" text-anchor="middle" font-weight="bold" font-size="12" fill="#000000">Z</text>
+<line x1="488.0" y1="122.0" x2="548.0" y2="122.0" stroke="#A80036" stroke-width="1"/>
+<path d="M 141.3,55.8 L 123.1,67.0 L 98.6,82.1 L 79.5,93.8" fill="none" stroke="#A80036" stroke-width="1" marker-start="url(#triangle)" marker-end="url(#arrow-open)"/>
+<path d="M 157.4,57.8 L 152.8,66.3 L 147.2,76.6 L 142.1,86.0" fill="none" stroke="#A80036" stroke-width="1" stroke-dasharray="7,5" marker-start="url(#diamond)" marker-end="url(#arrow-open)"/>
+<path d="M 176.6,57.8 L 181.2,66.3 L 186.8,76.6 L 191.9,86.0" fill="none" stroke="#A80036" stroke-width="1" stroke-dasharray="7,5" marker-start="url(#diamond-hollow)" marker-end="url(#arrow-open)"/>
+<path d="M 192.7,55.8 L 210.9,67.0 L 235.4,82.1 L 254.5,93.8" fill="none" stroke="#A80036" stroke-width="1" marker-start="url(#plus)" marker-end="url(#arrow-open)"/>
+<path d="M 421.9,56.7 L 411.2,66.6 L 397.6,79.2 L 386.0,89.8" fill="none" stroke="#A80036" stroke-width="1" stroke-dasharray="7,5" marker-end="url(#arrow-open)"/>
+<path d="M 440.0,58.2 L 440.0,65.9 L 440.0,75.0 L 440.0,83.6" fill="none" stroke="#A80036" stroke-width="1" marker-end="url(#arrow-open)"/>
+<path d="M 458.1,56.7 L 468.8,66.6 L 482.4,79.2 L 494.0,89.8" fill="none" stroke="#A80036" stroke-width="1" stroke-dasharray="7,5" marker-end="url(#arrow-open)"/>
+</svg>

@@ -1,0 +1,6 @@
+@startuml
+skinparam defaultFontName Arial
+skinparam defaultFontSize 14
+Alice -> Bob : hello
+Bob -> Alice : hi
+@enduml

@@ -1,0 +1,9 @@
+@startuml
+:First Actor:
+:Second Actor: as SA
+(First Use Case)
+(Second Use Case) as SUC
+
+:First Actor: --> (First Use Case)
+SA --> SUC
+@enduml

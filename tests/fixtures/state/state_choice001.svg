@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 472" width="120" height="472" font-family="monospace" font-size="13">
+<defs>
+<marker id="state-arrow" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 Z" fill="#A80036" stroke="none"/></marker>
+</defs>
+<rect x="20.0" y="20.0" width="80.0" height="40.0" rx="10" ry="10" fill="#FEFECE" stroke="#A80036" stroke-width="1.5"/>
+<text x="60.0" y="44.5" text-anchor="middle" font-weight="bold" fill="#000000">Start</text>
+<rect x="20.0" y="100.0" width="80.0" height="52.0" rx="10" ry="10" fill="#FEFECE" stroke="#A80036" stroke-width="1.5"/>
+<text x="60.0" y="117.0" text-anchor="middle" font-size="11" font-style="italic" fill="#000000">«choice»</text>
+<text x="60.0" y="146.6" text-anchor="middle" font-weight="bold" fill="#000000">choice1</text>
+<circle cx="60.0" cy="202.0" r="10" fill="#000000"/>
+<rect x="20.0" y="252.0" width="80.0" height="40.0" rx="10" ry="10" fill="#FEFECE" stroke="#A80036" stroke-width="1.5"/>
+<text x="60.0" y="276.6" text-anchor="middle" font-weight="bold" fill="#000000">s1</text>
+<rect x="20.0" y="332.0" width="80.0" height="40.0" rx="10" ry="10" fill="#FEFECE" stroke="#A80036" stroke-width="1.5"/>
+<text x="60.0" y="356.6" text-anchor="middle" font-weight="bold" fill="#000000">State2</text>
+<rect x="20.0" y="412.0" width="80.0" height="40.0" rx="10" ry="10" fill="#FEFECE" stroke="#A80036" stroke-width="1.5"/>
+<text x="60.0" y="436.6" text-anchor="middle" font-weight="bold" fill="#000000">State3</text>
+<line x1="60.0" y1="212.0" x2="60.0" y2="252.0" stroke="#A80036" stroke-width="1" marker-end="url(#state-arrow)"/>
+<line x1="60.0" y1="252.0" x2="60.0" y2="152.0" stroke="#A80036" stroke-width="1" marker-end="url(#state-arrow)"/>
+<line x1="60.0" y1="152.0" x2="60.0" y2="332.0" stroke="#A80036" stroke-width="1" marker-end="url(#state-arrow)"/>
+<text x="60.0" y="332.0" text-anchor="middle" font-size="13" fill="#000000">[condition A]</text>
+<line x1="60.0" y1="152.0" x2="60.0" y2="412.0" stroke="#A80036" stroke-width="1" marker-end="url(#state-arrow)"/>
+<text x="60.0" y="412.0" text-anchor="middle" font-size="13" fill="#000000">[condition B]</text>
+</svg>

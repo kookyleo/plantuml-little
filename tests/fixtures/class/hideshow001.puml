@@ -1,0 +1,4 @@
+@startuml
+    hide <<focus>> stereotype
+    class Access <<Entity>> <<focus>>
+@enduml

@@ -1,0 +1,13 @@
+@startsalt
+{
+Title
+[X] Feature A
+( ) Choice B
+"input text"
+[Save] | [Cancel]
+{#
+| Name | Role |
+| Alice | Admin |
+}
+}
+@endsalt
