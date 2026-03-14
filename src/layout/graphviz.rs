@@ -100,15 +100,16 @@ pub struct GraphLayout {
     pub total_height: f64,
 }
 
-/// Java PlantUML default Graphviz parameters (from AbstractEntityDiagram.java)
+/// AbstractEntityDiagram.java:61 — default nodesep = 0.35 inches.
 const DEFAULT_NODESEP_IN: f64 = 0.35;
+/// AbstractEntityDiagram.java:61 — default ranksep = 0.8 inches.
 const DEFAULT_RANKSEP_IN: f64 = 0.8;
-
-/// Minimum separation values in pixels (from DotStringFactory.java:238-253)
-const MIN_RANK_SEP_PX: f64 = 60.0; // class/state/component
+/// DotStringFactory.java:238-245 — getMinRankSep: class/state/component = 60px.
+const MIN_RANK_SEP_PX: f64 = 60.0;
+/// DotStringFactory.java:248-253 — getMinNodeSep: default = 35px.
 const MIN_NODE_SEP_PX: f64 = 35.0;
 
-/// Convert pixels to Graphviz inches (72 DPI, from SvekUtils.java:99)
+/// SvekUtils.java:99-102 — pixelToInches: 72 DPI.
 fn px_to_inches(px: f64) -> f64 {
     px / 72.0
 }

@@ -23,47 +23,89 @@ use super::svg_sequence;
 
 // ── Style constants ──────────────────────────────────────────────────
 
+// ── Class diagram constants — all sourced from Java PlantUML code ────
+//
+// FontParam.java: CLASS = 14pt (name), CLASS_ATTRIBUTE = 10pt,
+//   CLASS_STEREOTYPE = 12pt italic, CIRCLED_CHARACTER = 17pt Monospaced Bold.
+// SkinParam.java:526: circledCharacterRadius = fontSize/3 + 6 = 17/3+6 = 11 (int).
+// EntityImageClassHeader.java:150: withMargin(circledChar, 4, 0, 5, 5)
+//   → block width = diameter(22) + marginLeft(4) + marginRight(0) = 26
+//   → block height = diameter(22) + marginTop(5) + marginBottom(5) = 32
+// EntityImageClassHeader.java:105: withMargin(name, 3, 3, 0, 0)
+//   → name margin left=3, right=3
+// HeaderLayout.java:74-77: width = circleDim.w + max(stereoDim.w, nameDim.w) + genericDim.w
+//   height = max(circleDim.h, stereoDim.h + nameDim.h + 10, genericDim.h)
+
+/// FontParam.CLASS = 12, but class name renders at 14 in SVG (EntityImageClassHeader uses 14pt).
 const FONT_SIZE: f64 = 14.0;
+/// MethodsOrFieldsArea: empty compartment margin_top(4) + margin_bottom(4) = 8.
 const LINE_HEIGHT: f64 = 8.0;
+/// EntityImageClassHeader name margin: withMargin(name, 3, 3, 0, 0) → right padding = 3.
 const PADDING: f64 = 3.0;
+/// HeaderLayout height when no stereotype: max(circleDim.h(32), nameDim.h(16.3)+10=26.3) = 32.
 const HEADER_HEIGHT: f64 = 32.0;
-/// Java PlantUML: moveDelta(6 - minX, 6 - minY) — SvekResult.java:133
-/// Entity rects start at x=7 (MARGIN + 1px border inset in draw_entity_box).
+/// SvekResult.java:133 — moveDelta(6 - minMax.getMinX(), 6 - minMax.getMinY()).
 const MARGIN: f64 = 6.0;
+/// Entity rect drawn at MARGIN + 1px border inset (LimitFinder rect x-1 convention).
 const EDGE_OFFSET: f64 = MARGIN + 1.0;
-/// Java PlantUML SvekResult: delta(15, 15) added to content bounding box.
+/// SvekResult.java:135 — minMax.getDimension().delta(15, 15).
 const CANVAS_DELTA: f64 = 15.0;
-/// Java PlantUML: default document margin right=5, bottom=5 (from plantuml.skin style).
+/// TextBlockExporter12026.java:196 — margin from plantuml.skin root.document style: right=5.
 const DOC_MARGIN_RIGHT: f64 = 5.0;
+/// TextBlockExporter12026.java:197 — margin from plantuml.skin root.document style: bottom=5.
 const DOC_MARGIN_BOTTOM: f64 = 5.0;
+/// EntityImageClassHeader.java:150 — withMargin(circledChar, left=4, right=0, top=5, bottom=5).
 const CIRCLE_LEFT_PAD: f64 = 4.0;
+/// SkinParam.circledCharacterRadius = 17/3+6 = 11. Diameter = 22.
 const CIRCLE_DIAMETER: f64 = 22.0;
+/// MethodsOrFieldsArea: empty compartment = margin_top(4) + margin_bottom(4).
 const EMPTY_COMPARTMENT: f64 = 8.0;
+/// Circled character block: diameter(22) + marginLeft(4) + marginRight(0) = 26.
 const HEADER_CIRCLE_BLOCK_WIDTH: f64 = 26.0;
+/// Circled character block: diameter(22) + marginTop(5) + marginBottom(5) = 32.
 const HEADER_CIRCLE_BLOCK_HEIGHT: f64 = 32.0;
-const HEADER_NAME_BLOCK_HEIGHT: f64 = 16.296875;   // ascent(12.995117) + descent(3.301758)
-const HEADER_NAME_BASELINE: f64 = 12.995117;       // SansSerif 14pt ascent
+/// SansSerif 14pt plain: ascent(12.995117) + descent(3.301758) from Java AWT FontMetrics.
+const HEADER_NAME_BLOCK_HEIGHT: f64 = 16.296875;
+/// SansSerif 14pt plain ascent from Java AWT FontMetrics.
+const HEADER_NAME_BASELINE: f64 = 12.995117;
+/// EntityImageClassHeader.java:105 — withMargin(name, 3, 3, 0, 0): left(3) + right(3) = 6.
 const HEADER_NAME_BLOCK_MARGIN_X: f64 = 6.0;
+/// FontParam.CLASS_STEREOTYPE = 12pt.
 const HEADER_STEREO_FONT_SIZE: f64 = 12.0;
-const HEADER_STEREO_LINE_HEIGHT: f64 = 13.96875;    // SansSerif 12pt italic height
-const HEADER_STEREO_BASELINE: f64 = 11.138672;      // SansSerif 12pt italic ascent
+/// SansSerif 12pt italic: ascent(11.138672) + descent(2.830078) from Java AWT FontMetrics.
+const HEADER_STEREO_LINE_HEIGHT: f64 = 13.96875;
+/// SansSerif 12pt italic ascent from Java AWT FontMetrics.
+const HEADER_STEREO_BASELINE: f64 = 11.138672;
+/// HeaderLayout.java:77 — max(..., stereoDim.h + nameDim.h + 10, ...) → gap = 10.
 const HEADER_STEREO_NAME_GAP: f64 = 10.0;
-// Java MethodsOrFieldsArea/PlacementStrategyVisibility/VisibilityModifier constants:
-const MEMBER_ROW_HEIGHT: f64 = 16.296875;      // SansSerif 14pt height (ascent + descent)
-const MEMBER_BLOCK_HEIGHT_ONE_ROW: f64 = 24.296875; // margin(4) + row(16.296875) + margin(4)
-// Icon position relative to member section separator line:
-//   margin_top(4) + PlacementStrategy_nudge(2) + vertical_center((16.2969-11)/2=2.6484) = 8.6484
-//   Then drawCircle adds translate(+2, +2), and DriverEllipseSvg adds (rx=3, ry=3)
-const MEMBER_ICON_Y_FROM_SEP: f64 = 8.6484375; // margin(4) + nudge(2) + center(2.6484375)
-const MEMBER_ICON_DRAW_OFFSET: f64 = 2.0;   // VisibilityModifier.drawCircle translate
-const MEMBER_ICON_RADIUS: f64 = 3.0;         // UEllipse(6,6).rx = 3
-// Icon x: margin_left(6) + icon_column_x(0) + drawCircle(+2) + rx(3) = 11
-const MEMBER_ICON_X_OFFSET: f64 = 6.0;       // MethodsOrFieldsArea margin left
-// Text x: margin_left(6) + col2(circledCharRadius(11) + 3 = 14) = 20
+
+// ── Member area (fields/methods) constants ──────────────────────────
+//
+// MethodsOrFieldsArea.java:85 — asBlockMemberImpl: TextBlockUtils.withMargin(this, 6, 4)
+//   → margin left=6, right=6, top=4, bottom=4.
+// PlacementStrategyVisibility.java:67 — icon y: 2 + y + (maxHeight - iconHeight) / 2.
+// VisibilityModifier.java:101 — getUBlock: dimension = (size+1, size+1) = (11, 11).
+// VisibilityModifier.java:182 — drawCircle: UTranslate(x+2, y+2), UEllipse(size-4, size-4) = (6, 6).
+// DriverEllipseSvg: cx = x + width/2, cy = y + height/2.
+
+/// SansSerif 14pt height from Java AWT FontMetrics. Used as row height in member area.
+const MEMBER_ROW_HEIGHT: f64 = 16.296875;
+/// margin_top(4) + MEMBER_ROW_HEIGHT + margin_bottom(4).
+const MEMBER_BLOCK_HEIGHT_ONE_ROW: f64 = 24.296875;
+/// Icon y from section separator: margin_top(4) + nudge(2) + (16.296875 - 11) / 2 = 8.6484375.
+const MEMBER_ICON_Y_FROM_SEP: f64 = 8.6484375;
+/// VisibilityModifier.drawCircle: UTranslate offset (+2, +2).
+const MEMBER_ICON_DRAW_OFFSET: f64 = 2.0;
+/// UEllipse(6, 6): rx = ry = 3.
+const MEMBER_ICON_RADIUS: f64 = 3.0;
+/// MethodsOrFieldsArea margin left = 6.
+const MEMBER_ICON_X_OFFSET: f64 = 6.0;
+/// margin_left(6) + col2(circledCharRadius(11) + 3) = 20.
 const MEMBER_TEXT_X_WITH_ICON: f64 = 20.0;
-const MEMBER_TEXT_X_NO_ICON: f64 = 6.0;      // margin left only (no icon column)
-// Text y: margin_top(4) + vertical_center(0) + text_ascent(12.9951) = 16.9951
-const MEMBER_TEXT_Y_OFFSET: f64 = 16.995117;  // margin(4) + ascent(12.995117)
+/// margin_left(6) when no visibility icon column.
+const MEMBER_TEXT_X_NO_ICON: f64 = 6.0;
+/// margin_top(4) + SansSerif 14pt ascent(12.995117) = 16.995117.
+const MEMBER_TEXT_Y_OFFSET: f64 = 16.995117;
 
 const CLASS_BG: &str = "#F1F1F1";
 const CLASS_BORDER: &str = "#181818";

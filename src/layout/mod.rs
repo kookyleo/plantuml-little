@@ -50,33 +50,50 @@ pub enum DiagramLayout {
     UseCase(usecase::UseCaseLayout),
 }
 
-/// Font size for class diagram name text (Java FontParam: CLASS = 12, but rendered at 14 in SVG)
+// ── Class entity sizing constants — sourced from Java PlantUML ───────
+//
+// All font metric values from Java AWT FontMetrics at full f64 precision.
+// See tests/tools/ExtractFontMetrics.java for extraction method.
+
+/// FontParam.CLASS = 12pt but EntityImageClassHeader renders name at 14pt.
 const CLASS_FONT_SIZE: f64 = 14.0;
-/// Font size for class attributes (Java FontParam: CLASS_ATTRIBUTE = 10)
+/// FontParam.CLASS_ATTRIBUTE = 10pt.
 const CLASS_ATTR_FONT_SIZE: f64 = 10.0;
-/// Line height for member rows (pt)
+/// MethodsOrFieldsArea: empty compartment = margin_top(4) + margin_bottom(4).
 const LINE_HEIGHT_PT: f64 = 8.0;
-/// Circle icon: left padding from entity edge
+/// EntityImageClassHeader.java:150 — withMargin(circledChar, left=4, ...).
 const CIRCLE_LEFT_PAD: f64 = 4.0;
-/// Circle icon: diameter
+/// SkinParam.circledCharacterRadius = 17/3+6 = 11. Diameter = 2 * 11 = 22.
 const CIRCLE_DIAMETER: f64 = 22.0;
-/// Gap between circle and text
+/// Gap between circle block right edge and name text left edge.
+/// HeaderLayout: name block starts right after circle block (no explicit gap).
+/// But EntityImageClassHeader name margin left=3, and circleBlock right margin=0.
+/// So effective gap = name_margin_left(3). This 3 is the same as RIGHT_PAD.
 const CIRCLE_TEXT_GAP: f64 = 3.0;
-/// Right padding after text to entity edge
+/// EntityImageClassHeader.java:105 — withMargin(name, 3, 3, 0, 0): right=3.
 const RIGHT_PAD: f64 = 3.0;
-/// Header height (circle area + padding below)
+/// HeaderLayout height = max(circleDim.h=32, ...) = 32.
 const HEADER_HEIGHT_PT: f64 = 32.0;
-/// Empty compartment height (fields or methods with no members)
+/// MethodsOrFieldsArea: empty section = margin_top(4) + margin_bottom(4) = 8.
 const EMPTY_COMPARTMENT: f64 = 8.0;
+/// CircledChar block: diameter(22) + marginLeft(4) + marginRight(0) = 26.
 const HEADER_CIRCLE_BLOCK_WIDTH: f64 = 26.0;
+/// CircledChar block: diameter(22) + marginTop(5) + marginBottom(5) = 32.
 const HEADER_CIRCLE_BLOCK_HEIGHT: f64 = 32.0;
-const HEADER_NAME_BLOCK_HEIGHT: f64 = 16.2969;
+/// SansSerif 14pt: ascent(12.995117) + descent(3.301758) = 16.296875.
+const HEADER_NAME_BLOCK_HEIGHT: f64 = 16.296875;
+/// Name margin: withMargin(name, 3, 3, 0, 0) → left(3) + right(3) = 6.
 const HEADER_NAME_BLOCK_MARGIN_X: f64 = 6.0;
+/// FontParam.CLASS_STEREOTYPE = 12pt.
 const HEADER_STEREO_FONT_SIZE: f64 = 12.0;
-const HEADER_STEREO_LINE_HEIGHT: f64 = 13.9688;
+/// SansSerif 12pt italic: ascent(11.138672) + descent(2.830078) = 13.96875.
+const HEADER_STEREO_LINE_HEIGHT: f64 = 13.96875;
+/// HeaderLayout.java:77 — height includes stereoDim.h + nameDim.h + 10 (gap).
 const HEADER_STEREO_NAME_GAP: f64 = 10.0;
-const MEMBER_ROW_HEIGHT: f64 = 16.2969;
-const MEMBER_BLOCK_HEIGHT_ONE_ROW: f64 = 24.2969;
+/// SansSerif 14pt height = 16.296875 (used for member row layout).
+const MEMBER_ROW_HEIGHT: f64 = 16.296875;
+/// margin_top(4) + MEMBER_ROW_HEIGHT(16.296875) + margin_bottom(4) = 24.296875.
+const MEMBER_BLOCK_HEIGHT_ONE_ROW: f64 = 24.296875;
 const MEMBER_TEXT_LEFT_WITH_ICON: f64 = 26.0;
 const MEMBER_TEXT_LEFT_NO_ICON: f64 = 6.0;
 
