@@ -111,7 +111,7 @@ fn to_dot(graph: &LayoutGraph) -> String {
     let nodesep = DEFAULT_NODESEP_IN.max(px_to_inches(MIN_NODE_SEP_PX));
     let ranksep = DEFAULT_RANKSEP_IN.max(px_to_inches(MIN_RANK_SEP_PX));
     let mut dot = format!(
-        "digraph G {{\n  rankdir={};\n  nodesep={nodesep:.4};\n  ranksep={ranksep:.4};\n  node [fixedsize=true];\n",
+        "digraph G {{\n  rankdir={};\n  nodesep={nodesep:.4};\n  ranksep={ranksep:.4};\n  node [fixedsize=true, shape=rect];\n",
         graph.rankdir.as_str()
     );
     for node in &graph.nodes {
@@ -333,49 +333,49 @@ fn parse_svg_node(g: &str, tx: f64, ty: f64, graph: &LayoutGraph) -> Option<Node
     let id = parse_title(g)?;
     log::trace!("parse_svg_node: id={id}");
 
-    // Try <ellipse cx="..." cy="..."> first (default node shape)
-    let (cx, cy) = if let Some(ellipse_pos) = g.find("<ellipse") {
+    // Java PlantUML algorithm (DotStringFactory.solve):
+    // 1. Extract polygon points from Graphviz SVG
+    // 2. Apply YDelta transform (flip Y axis)
+    // 3. Take min(x), min(y) as node top-left corner (moveDelta)
+    //
+    // For rectangles: read polygon points, compute bounding box min corner
+    // For circles/ovals: read cx,cy,rx,ry, compute (cx-rx, cy-ry)
+    let (gviz_min_x, gviz_min_y) = if let Some(polygon_pos) = g.find("<polygon") {
+        let polygon = &g[polygon_pos..];
+        let points_str = parse_xml_attr_str(polygon, "points")?;
+        let (min_x, min_y, _max_x, _max_y) = polygon_bounding_box(&points_str)?;
+        (min_x, min_y)
+    } else if let Some(ellipse_pos) = g.find("<ellipse") {
         let ellipse = &g[ellipse_pos..];
         let ecx = parse_xml_attr(ellipse, "cx")?;
         let ecy = parse_xml_attr(ellipse, "cy")?;
-        (ecx, ecy)
-    } else if let Some(polygon_pos) = g.find("<polygon") {
-        // Box shape: compute center from polygon points bounding box
-        let polygon = &g[polygon_pos..];
-        let points_str = parse_xml_attr_str(polygon, "points")?;
-        let (min_x, min_y, max_x, max_y) = polygon_bounding_box(&points_str)?;
-        ((min_x + max_x) / 2.0, (min_y + max_y) / 2.0)
+        let rx = parse_xml_attr(ellipse, "rx").unwrap_or(18.0);
+        let ry = parse_xml_attr(ellipse, "ry").unwrap_or(18.0);
+        (ecx - rx, ecy - ry)
     } else {
-        log::warn!("node {id}: no ellipse or polygon found");
+        log::warn!("node {id}: no polygon or ellipse found");
         return None;
     };
 
-    // Apply transform to get SVG viewport coordinates
-    let svg_cx = tx + cx;
-    let svg_cy = ty + cy;
+    // Apply translate transform: Graphviz SVG coords → viewport coords
+    let min_x = tx + gviz_min_x;
+    let min_y = ty + gviz_min_y;
 
-    // Use original precise size from the input graph
+    // Use original precise size from the input graph (not Graphviz's rounded values)
     let orig_size = graph.nodes.iter().find(|n| n.id == id);
     let (w, h) = match orig_size {
         Some(n) => (n.width_pt, n.height_pt),
         None => {
             log::warn!("node {id}: not found in input graph, using graphviz size");
-            // Fallback: try to derive size from the SVG element
-            if let Some(ellipse_pos) = g.find("<ellipse") {
-                let ellipse = &g[ellipse_pos..];
-                let rx = parse_xml_attr(ellipse, "rx").unwrap_or(18.0);
-                let ry = parse_xml_attr(ellipse, "ry").unwrap_or(18.0);
-                (rx * 2.0, ry * 2.0)
-            } else {
-                (36.0, 36.0)
-            }
+            (36.0, 36.0)
         }
     };
 
+    // Store as center point (NodeLayout uses cx/cy convention)
     Some(NodeLayout {
         id,
-        cx: svg_cx,
-        cy: svg_cy,
+        cx: min_x + w / 2.0,
+        cy: min_y + h / 2.0,
         width: w,
         height: h,
     })
