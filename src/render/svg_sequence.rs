@@ -607,7 +607,7 @@ fn draw_message(buf: &mut String, msg: &MessageLayout, arrow_color: &str, arrow_
 
     write!(
         buf,
-        r#"<line style="stroke:{color};stroke-width:{sw};" x1="{x1:.1}" x2="{x2:.1}" y1="{y:.1}" y2="{y:.1}"{dash}{marker}/>"#,
+        r#"<line stroke="{color}" stroke-width="{sw}" x1="{x1:.1}" x2="{x2:.1}" y1="{y:.1}" y2="{y:.1}"{dash}{marker}/>"#,
         y = msg.y,
         color = arrow_color,
         sw = arrow_thickness as u32,
@@ -659,7 +659,7 @@ fn draw_self_message(
     // Cubic bezier loop: goes right and comes back
     write!(
         buf,
-        r#"<path d="M {x:.1},{y:.1} C {cx1:.1},{y:.1} {cx1:.1},{y2:.1} {x:.1},{y2:.1}" fill="none" marker-end="url(#{marker})" style="stroke:{color};stroke-width:{sw};"{dash}/>"#,
+        r#"<path d="M {x:.1},{y:.1} C {cx1:.1},{y:.1} {cx1:.1},{y2:.1} {x:.1},{y2:.1}" fill="none" marker-end="url(#{marker})" stroke="{color}" stroke-width="{sw}"{dash}/>"#,
         cx1 = x + loop_width,
         y2 = y + loop_height,
         color = arrow_color,

@@ -448,76 +448,96 @@ fn try_parse_html_tag(chars: &[char], start: usize, end: usize) -> Option<(TextS
         }
     }
 
-    // <back:COLOR>...</back>
+    // <back:COLOR>...</back>  (unclosed → rest of scope becomes content)
     if matches_at_ci(chars, start, "<back:") {
         let attr_start = start + 6; // length of "<back:"
         if let Some(gt_pos) = find_char(chars, attr_start, end, '>') {
             let color: String = chars[attr_start..gt_pos].iter().collect();
             let content_start = gt_pos + 1;
-            if let Some(close_pos) = find_tag_close_ci(chars, content_start, end, "</back>") {
-                let mut inner = Vec::new();
-                parse_inline_chars(chars, content_start, close_pos, &mut inner, None);
-                let span = TextSpan::BackHighlight {
-                    color,
-                    content: merge_plains(inner),
-                };
-                return Some((span, close_pos + 7 - start)); // 7 = "</back>".len()
-            }
+            let close_pos = find_tag_close_ci(chars, content_start, end, "</back>")
+                .unwrap_or(end);
+            let consumed_end = if close_pos == end {
+                end
+            } else {
+                close_pos + 7 // 7 = "</back>".len()
+            };
+            let mut inner = Vec::new();
+            parse_inline_chars(chars, content_start, close_pos, &mut inner, None);
+            let span = TextSpan::BackHighlight {
+                color,
+                content: merge_plains(inner),
+            };
+            return Some((span, consumed_end - start));
         }
     }
 
-    // <font:NAME>...</font>
+    // <font:NAME>...</font>  (unclosed → rest of scope becomes content)
     if matches_at_ci(chars, start, "<font:") {
         let attr_start = start + 6; // length of "<font:"
         if let Some(gt_pos) = find_char(chars, attr_start, end, '>') {
             let family: String = chars[attr_start..gt_pos].iter().collect();
             let content_start = gt_pos + 1;
-            if let Some(close_pos) = find_tag_close_ci(chars, content_start, end, "</font>") {
-                let mut inner = Vec::new();
-                parse_inline_chars(chars, content_start, close_pos, &mut inner, None);
-                let span = TextSpan::FontFamily {
-                    family,
-                    content: merge_plains(inner),
-                };
-                return Some((span, close_pos + 7 - start)); // 7 = "</font>".len()
-            }
+            let close_pos = find_tag_close_ci(chars, content_start, end, "</font>")
+                .unwrap_or(end);
+            let consumed_end = if close_pos == end {
+                end
+            } else {
+                close_pos + 7 // 7 = "</font>".len()
+            };
+            let mut inner = Vec::new();
+            parse_inline_chars(chars, content_start, close_pos, &mut inner, None);
+            let span = TextSpan::FontFamily {
+                family,
+                content: merge_plains(inner),
+            };
+            return Some((span, consumed_end - start));
         }
     }
 
-    // <color:NAME>...</color>
+    // <color:NAME>...</color>  (unclosed → rest of scope becomes content)
     if matches_at_ci(chars, start, "<color:") {
         let attr_start = start + 7; // length of "<color:"
         if let Some(gt_pos) = find_char(chars, attr_start, end, '>') {
             let color: String = chars[attr_start..gt_pos].iter().collect();
             let content_start = gt_pos + 1;
-            if let Some(close_pos) = find_tag_close_ci(chars, content_start, end, "</color>") {
-                let mut inner = Vec::new();
-                parse_inline_chars(chars, content_start, close_pos, &mut inner, None);
-                let span = TextSpan::Colored {
-                    color,
-                    content: merge_plains(inner),
-                };
-                return Some((span, close_pos + 8 - start)); // 8 = "</color>".len()
-            }
+            let close_pos = find_tag_close_ci(chars, content_start, end, "</color>")
+                .unwrap_or(end);
+            let consumed_end = if close_pos == end {
+                end
+            } else {
+                close_pos + 8 // 8 = "</color>".len()
+            };
+            let mut inner = Vec::new();
+            parse_inline_chars(chars, content_start, close_pos, &mut inner, None);
+            let span = TextSpan::Colored {
+                color,
+                content: merge_plains(inner),
+            };
+            return Some((span, consumed_end - start));
         }
     }
 
-    // <size:N>...</size>
+    // <size:N>...</size>  (unclosed → rest of scope becomes content)
     if matches_at_ci(chars, start, "<size:") {
         let attr_start = start + 6; // length of "<size:"
         if let Some(gt_pos) = find_char(chars, attr_start, end, '>') {
             let size_str: String = chars[attr_start..gt_pos].iter().collect();
             if let Ok(size) = size_str.trim().parse::<f64>() {
                 let content_start = gt_pos + 1;
-                if let Some(close_pos) = find_tag_close_ci(chars, content_start, end, "</size>") {
-                    let mut inner = Vec::new();
-                    parse_inline_chars(chars, content_start, close_pos, &mut inner, None);
-                    let span = TextSpan::Sized {
-                        size,
-                        content: merge_plains(inner),
-                    };
-                    return Some((span, close_pos + 7 - start)); // 7 = "</size>".len()
-                }
+                let close_pos = find_tag_close_ci(chars, content_start, end, "</size>")
+                    .unwrap_or(end);
+                let consumed_end = if close_pos == end {
+                    end
+                } else {
+                    close_pos + 7 // 7 = "</size>".len()
+                };
+                let mut inner = Vec::new();
+                parse_inline_chars(chars, content_start, close_pos, &mut inner, None);
+                let span = TextSpan::Sized {
+                    size,
+                    content: merge_plains(inner),
+                };
+                return Some((span, consumed_end - start));
             }
         }
     }

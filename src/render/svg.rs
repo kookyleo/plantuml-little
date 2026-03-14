@@ -11,7 +11,9 @@ use crate::Result;
 
 use crate::font_metrics;
 
-use super::svg_richtext::{count_creole_lines, max_creole_plain_line_len, render_creole_text};
+use super::svg_richtext::{
+    count_creole_lines, max_creole_plain_line_len, render_creole_text, set_default_font_family,
+};
 use super::svg_sequence;
 
 // ── Style constants ──────────────────────────────────────────────────
@@ -133,7 +135,10 @@ pub fn render(
     skin: &SkinParams,
     meta: &DiagramMeta,
 ) -> Result<String> {
+    // Apply handwritten font override if enabled
+    set_default_font_family(skin.handwritten_font_family().map(|s| s.to_string()));
     let body_svg = render_body(diagram, layout, skin)?;
+    set_default_font_family(None);
     if meta.is_empty() {
         return Ok(body_svg);
     }

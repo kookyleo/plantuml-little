@@ -10,6 +10,7 @@ use crate::render::svg_hyperlink::wrap_with_link;
 
 thread_local! {
     static SVG_SPRITES: RefCell<HashMap<String, String>> = RefCell::new(HashMap::new());
+    static DEFAULT_FONT_FAMILY: RefCell<Option<String>> = const { RefCell::new(None) };
 }
 
 /// Set the sprite registry for the current rendering pass.
@@ -20,6 +21,20 @@ pub fn set_sprites(sprites: HashMap<String, String>) {
 /// Clear the sprite registry after rendering.
 pub fn clear_sprites() {
     SVG_SPRITES.with(|s| s.borrow_mut().clear());
+}
+
+/// Override the default font family for all subsequent `render_creole_text` calls.
+pub fn set_default_font_family(family: Option<String>) {
+    DEFAULT_FONT_FAMILY.with(|f| *f.borrow_mut() = family);
+}
+
+/// Get the current default font family (or "sans-serif").
+fn get_default_font_family() -> String {
+    DEFAULT_FONT_FAMILY.with(|f| {
+        f.borrow()
+            .clone()
+            .unwrap_or_else(|| "sans-serif".to_string())
+    })
 }
 
 fn get_sprite(name: &str) -> Option<String> {
@@ -176,7 +191,8 @@ fn write_text_open(
     // Alphabetical order: fill, font-family, font-size, font-style, font-weight,
     // text-anchor, text-decoration, x, y
     write!(buf, r#"<text fill="{}""#, xml_escape(fill)).unwrap();
-    buf.push_str(r#" font-family="sans-serif""#);
+    let default_font = get_default_font_family();
+    write!(buf, r#" font-family="{}""#, xml_escape(&default_font)).unwrap();
     if let Some(fs) = font_size_attr {
         write!(buf, r#" font-size={fs}"#).unwrap();
     }
