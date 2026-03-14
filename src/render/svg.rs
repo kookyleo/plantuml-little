@@ -22,7 +22,10 @@ const FONT_SIZE: f64 = 14.0;
 const LINE_HEIGHT: f64 = 8.0;
 const PADDING: f64 = 3.0;
 const HEADER_HEIGHT: f64 = 32.0;
+/// Java PlantUML: entities start at (7, 7) from the SVG edge.
 const MARGIN: f64 = 7.0;
+/// Java PlantUML: delta(15, 15) added to final canvas dimensions.
+const CANVAS_PADDING: f64 = 15.0;
 const CIRCLE_LEFT_PAD: f64 = 4.0;
 const CIRCLE_DIAMETER: f64 = 22.0;
 const EMPTY_COMPARTMENT: f64 = 8.0;
@@ -479,8 +482,10 @@ fn render_class(
     layout: &GraphLayout,
     skin: &SkinParams,
 ) -> Result<String> {
-    let svg_w = layout.total_width + MARGIN * 2.0;
-    let svg_h = layout.total_height + MARGIN * 2.0;
+    // Java: margin(7) on left + content + delta(15) padding
+    // But total_width is now normalized (0-based), so add margin + padding
+    let svg_w = layout.total_width + MARGIN + CANVAS_PADDING;
+    let svg_h = layout.total_height + MARGIN + CANVAS_PADDING;
     let mut buf = String::with_capacity(4096);
     write_svg_root(&mut buf, svg_w, svg_h, "CLASS");
 

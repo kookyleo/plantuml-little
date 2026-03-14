@@ -92,10 +92,26 @@ pub struct GraphLayout {
     pub total_height: f64,
 }
 
+/// Java PlantUML default Graphviz parameters (from AbstractEntityDiagram.java)
+const DEFAULT_NODESEP_IN: f64 = 0.35;
+const DEFAULT_RANKSEP_IN: f64 = 0.8;
+
+/// Minimum separation values in pixels (from DotStringFactory.java:238-253)
+const MIN_RANK_SEP_PX: f64 = 60.0; // class/state/component
+const MIN_NODE_SEP_PX: f64 = 35.0;
+
+/// Convert pixels to Graphviz inches (72 DPI, from SvekUtils.java:99)
+fn px_to_inches(px: f64) -> f64 {
+    px / 72.0
+}
+
 /// Serialize a LayoutGraph into a DOT format string
 fn to_dot(graph: &LayoutGraph) -> String {
+    // Java: clamp to max(default, minSep/72) — DotStringFactory.java
+    let nodesep = DEFAULT_NODESEP_IN.max(px_to_inches(MIN_NODE_SEP_PX));
+    let ranksep = DEFAULT_RANKSEP_IN.max(px_to_inches(MIN_RANK_SEP_PX));
     let mut dot = format!(
-        "digraph G {{\n  rankdir={};\n  pad=0.5;\n  node [fixedsize=true];\n",
+        "digraph G {{\n  rankdir={};\n  nodesep={nodesep:.4};\n  ranksep={ranksep:.4};\n  node [fixedsize=true];\n",
         graph.rankdir.as_str()
     );
     for node in &graph.nodes {
@@ -216,14 +232,21 @@ fn parse_plain_output(plain: &str, graph: &LayoutGraph) -> Result<GraphLayout, E
                     let gy: f64 = tokens[3].parse().unwrap_or(0.0);
                     let w: f64 = tokens[4].parse().unwrap_or(0.0);
                     let h: f64 = tokens[5].parse().unwrap_or(0.0);
+                    // Use our original precise size instead of Graphviz's
+                    // rounded inches→pt conversion to avoid precision loss.
+                    let orig_size = graph.nodes.iter().find(|n| n.id == id);
+                    let (precise_w, precise_h) = match orig_size {
+                        Some(n) => (n.width_pt, n.height_pt),
+                        None => (w * 72.0, h * 72.0),
+                    };
                     node_map.insert(
                         id.clone(),
                         NodeLayout {
                             id,
                             cx: gx * 72.0,
                             cy: total_height - gy * 72.0, // flip Y-axis
-                            width: w * 72.0,
-                            height: h * 72.0,
+                            width: precise_w,
+                            height: precise_h,
                         },
                     );
                 }
@@ -271,6 +294,41 @@ fn parse_plain_output(plain: &str, graph: &LayoutGraph) -> Result<GraphLayout, E
             nodes.len()
         );
     }
+
+    // Java PlantUML: moveDelta(6 - minX, 6 - minY) normalizes coordinates
+    // so the top-left entity corner starts near (7, 7) after adding the
+    // render-time MARGIN offset.  We normalize to (0, 0) here; the renderer
+    // adds its own MARGIN.
+    let min_x = nodes
+        .iter()
+        .map(|n| n.cx - n.width / 2.0)
+        .fold(f64::INFINITY, f64::min);
+    let min_y = nodes
+        .iter()
+        .map(|n| n.cy - n.height / 2.0)
+        .fold(f64::INFINITY, f64::min);
+    let mut nodes = nodes;
+    for n in &mut nodes {
+        n.cx -= min_x;
+        n.cy -= min_y;
+    }
+    for e in &mut edge_layouts {
+        for p in &mut e.points {
+            p.0 -= min_x;
+            p.1 -= min_y;
+        }
+    }
+    // Recompute bounding box after normalization
+    let max_x = nodes
+        .iter()
+        .map(|n| n.cx + n.width / 2.0)
+        .fold(0.0_f64, f64::max);
+    let max_y = nodes
+        .iter()
+        .map(|n| n.cy + n.height / 2.0)
+        .fold(0.0_f64, f64::max);
+    let total_width = max_x;
+    let total_height = max_y;
 
     Ok(GraphLayout {
         nodes,

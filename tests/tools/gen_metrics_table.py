@@ -96,7 +96,7 @@ def main():
         table_name = f"ADV_{family.upper()}_{size}_{style.upper()}"
         print(f"const {table_name}: &[(char, f64)] = &[")
         for cp, width in entries:
-            print(f"    ({rust_char_literal(cp)}, {width:.6}),")
+            print(f"    ({rust_char_literal(cp)}, {width:.6f}),")
         print("];")
         print()
 
@@ -113,10 +113,10 @@ def main():
     for family, size, style, _, vertical in configs:
         name = f"VERT_{family.upper()}_{size}_{style.upper()}"
         print(f"const {name}: VerticalMetrics = VerticalMetrics {{")
-        print(f"    ascent: {vertical['ascent']:.6},")
-        print(f"    descent: {vertical['descent']:.6},")
-        print(f"    leading: {vertical['leading']:.6},")
-        print(f"    height: {vertical['height']:.6},")
+        print(f"    ascent: {vertical['ascent']:.6f},")
+        print(f"    descent: {vertical['descent']:.6f},")
+        print(f"    leading: {vertical['leading']:.6f},")
+        print(f"    height: {vertical['height']:.6f},")
         print("};")
         print()
 

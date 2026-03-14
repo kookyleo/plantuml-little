@@ -240,7 +240,7 @@ fn estimate_entity_size(entity: &Entity) -> (f64, f64) {
     let height = HEADER_HEIGHT_PT + fields_height + methods_height;
 
     log::debug!(
-        "estimate_entity_size: {} -> ({:.1}, {:.1})",
+        "estimate_entity_size: {} -> ({}, {})",
         entity.name,
         width,
         height
