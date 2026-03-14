@@ -2,10 +2,11 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 use std::fmt::Write;
 
+use crate::font_metrics;
 use crate::model::hyperlink::Hyperlink;
 use crate::model::richtext::{RichText, TextSpan};
 use crate::parser::creole::parse_creole;
-use crate::render::svg::xml_escape;
+use crate::render::svg::{fmt_coord, xml_escape};
 use crate::render::svg_hyperlink::wrap_with_link;
 
 thread_local! {
@@ -108,8 +109,18 @@ pub fn render_creole_text(
         })
         .collect();
 
+    // Compute textLength for the <text> element.
+    let plain = lines
+        .iter()
+        .map(|line| plain_text_spans(line))
+        .collect::<Vec<_>>()
+        .join("");
+    let (font_family, font_size, bold, italic) = parse_font_props(outer_attrs);
+    let text_length =
+        font_metrics::text_width(&plain, &font_family, font_size, bold, italic);
+
     if lines.len() == 1 {
-        write_text_open(buf, x, y, fill, text_anchor, outer_attrs);
+        write_text_open(buf, x, y, fill, text_anchor, outer_attrs, text_length);
         if let Some(text) = simple_plain_line(&lines[0]) {
             buf.push_str(&xml_escape(text));
         } else {
@@ -120,7 +131,7 @@ pub fn render_creole_text(
         return 1;
     }
 
-    write_text_open(buf, x, y, fill, text_anchor, outer_attrs);
+    write_text_open(buf, x, y, fill, text_anchor, outer_attrs, text_length);
     for (idx, line) in lines.iter().enumerate() {
         let dy = if idx == 0 { 0.0 } else { line_height };
         write!(buf, r#"<tspan x="{x:.1}" dy="{dy:.1}">"#).unwrap();
@@ -137,6 +148,48 @@ pub fn render_creole_text(
     lines.len()
 }
 
+/// Parse font properties from `outer_attrs` for `textLength` computation.
+///
+/// Returns `(font_family, font_size, bold, italic)`.
+fn parse_font_props(outer_attrs: &str) -> (String, f64, bool, bool) {
+    let mut font_family = get_default_font_family();
+    let mut font_size = 14.0_f64;
+    let mut bold = false;
+    let mut italic = false;
+
+    let mut remaining = outer_attrs.trim();
+    while !remaining.is_empty() {
+        if let Some(eq_pos) = remaining.find('=') {
+            let attr_name = remaining[..eq_pos].trim();
+            let after_eq = &remaining[eq_pos + 1..];
+            if let Some(stripped) = after_eq.strip_prefix('"') {
+                if let Some(end_quote) = stripped.find('"') {
+                    let value = &stripped[..end_quote];
+                    match attr_name {
+                        "font-size" => {
+                            font_size = value.parse::<f64>().unwrap_or(14.0);
+                        }
+                        "font-weight" => {
+                            bold = value == "bold";
+                        }
+                        "font-style" => {
+                            italic = value == "italic";
+                        }
+                        "font-family" => {
+                            font_family = value.to_string();
+                        }
+                        _ => {}
+                    }
+                    remaining = remaining[eq_pos + 1 + end_quote + 2..].trim_start();
+                    continue;
+                }
+            }
+        }
+        break;
+    }
+    (font_family, font_size, bold, italic)
+}
+
 /// Write the opening `<text ...>` tag with attributes in Java PlantUML
 /// alphabetical order: fill, font-family, font-size, font-style, font-weight,
 /// lengthAdjust, text-anchor, text-decoration, textLength, x, y.
@@ -151,6 +204,7 @@ fn write_text_open(
     fill: &str,
     text_anchor: Option<&str>,
     outer_attrs: &str,
+    text_length: f64,
 ) {
     // Parse outer_attrs into key=value pairs for ordered insertion
     let mut font_size_attr: Option<&str> = None;
@@ -202,12 +256,14 @@ fn write_text_open(
     if let Some(fw) = font_weight_attr {
         write!(buf, r#" font-weight={fw}"#).unwrap();
     }
+    write!(buf, r#" lengthAdjust="spacing""#).unwrap();
     if let Some(anchor) = text_anchor {
         write!(buf, r#" text-anchor="{}""#, xml_escape(anchor)).unwrap();
     }
     if let Some(td) = text_decoration_attr {
         write!(buf, r#" text-decoration={td}"#).unwrap();
     }
+    write!(buf, r#" textLength="{}""#, fmt_coord(text_length)).unwrap();
     // Any unknown extra attrs
     for (name, value) in &extra_attrs {
         if value.is_empty() {
