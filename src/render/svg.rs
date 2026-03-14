@@ -483,13 +483,27 @@ fn render_class(
     let node_map: HashMap<&str, &NodeLayout> =
         layout.nodes.iter().map(|n| (n.id.as_str(), n)).collect();
 
+    // Build entity id map for link references
+    let mut entity_ids: HashMap<String, String> = HashMap::new();
+    let mut ent_counter = 2u32; // Java starts entity IDs at ent0002
+    for entity in &cd.entities {
+        let ent_id = format!("ent{:04}", ent_counter);
+        entity_ids.insert(sanitize_id(&entity.name), ent_id);
+        ent_counter += 1;
+    }
+
     for entity in &cd.entities {
         let sid = sanitize_id(&entity.name);
         if let Some(nl) = node_map.get(sid.as_str()) {
+            let ent_id = entity_ids.get(&sid).map(|s| s.as_str()).unwrap_or("ent0000");
+            write!(buf, "<!--class {}--><g class=\"entity\" data-qualified-name=\"{}\" id=\"{}\">",
+                xml_escape(&entity.name), xml_escape(&entity.name), ent_id).unwrap();
             draw_entity_box(&mut buf, entity, nl, skin);
+            buf.push_str("</g>");
         }
     }
 
+    let mut link_counter = ent_counter + 1;
     for link in &cd.links {
         let from_id = sanitize_id(&link.from);
         let to_id = sanitize_id(&link.to);
@@ -498,7 +512,13 @@ fn render_class(
             .iter()
             .find(|e| e.from == from_id && e.to == to_id)
         {
+            let from_ent = entity_ids.get(&from_id).map(|s| s.as_str()).unwrap_or("");
+            let to_ent = entity_ids.get(&to_id).map(|s| s.as_str()).unwrap_or("");
+            write!(buf, "<!--link {} to {}--><g class=\"link\" data-entity-1=\"{}\" data-entity-2=\"{}\" id=\"lnk{}\">",
+                xml_escape(&link.from), xml_escape(&link.to), from_ent, to_ent, link_counter).unwrap();
             draw_edge(&mut buf, link, el, arrow_color);
+            buf.push_str("</g>");
+            link_counter += 1;
         }
     }
 
