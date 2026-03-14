@@ -288,17 +288,21 @@ fn parse_svg_output(svg: &str, graph: &LayoutGraph) -> Result<GraphLayout, Error
             tip.1 -= min_y;
         }
     }
-    // Recompute bounding box after normalization
-    let max_x = nodes
+    // Java SvekResult: canvas dimension = (original_max - original_min) + 15
+    // Computed BEFORE moveDelta (minMax is never recalculated after shift).
+    // We need the original bounding box span, not the normalized one.
+    let orig_max_x = nodes
         .iter()
         .map(|n| n.cx + n.width / 2.0)
         .fold(0.0_f64, f64::max);
-    let max_y = nodes
+    let orig_max_y = nodes
         .iter()
         .map(|n| n.cy + n.height / 2.0)
         .fold(0.0_f64, f64::max);
-    let total_width = max_x;
-    let total_height = max_y;
+    // After normalization, min is 0, so span = orig_max - orig_min = orig_max - 0 = same
+    // But the total_width/total_height is used by the renderer as content bounds
+    let total_width = orig_max_x - min_x;
+    let total_height = orig_max_y - min_y;
 
     Ok(GraphLayout {
         nodes,
