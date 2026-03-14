@@ -1,5 +1,6 @@
 use std::fmt::Write;
 
+use crate::font_metrics;
 use crate::layout::json_diagram::{JsonLayout, JsonRowLayout};
 use crate::model::json_diagram::JsonDiagram;
 use crate::render::svg::fmt_coord;
@@ -113,9 +114,10 @@ fn render_row(
         }
         label.push_str(&row.value);
         let escaped = xml_escape(&label);
+        let tl = fmt_coord(font_metrics::text_width(&label, "SansSerif", 12.0, true, false));
         write!(
             buf,
-            r#"<text fill="{font_color}" font-family="sans-serif" font-size="12" font-weight="bold" x="{}" y="{}">{escaped}</text>"#,
+            r#"<text fill="{font_color}" font-family="sans-serif" font-size="12" font-weight="bold" lengthAdjust="spacing" textLength="{tl}" x="{}" y="{}">{escaped}</text>"#,
             fmt_coord(text_x), fmt_coord(text_y),
         )
         .unwrap();
@@ -126,9 +128,10 @@ fn render_row(
 
         if let Some(ref key) = row.key {
             let key_escaped = xml_escape(key);
+            let key_tl = fmt_coord(font_metrics::text_width(key, "SansSerif", 12.0, true, false));
             write!(
                 buf,
-                r#"<text fill="{font_color}" font-family="sans-serif" font-size="12" font-weight="bold" x="{}" y="{}">{key_escaped}</text>"#,
+                r#"<text fill="{font_color}" font-family="sans-serif" font-size="12" font-weight="bold" lengthAdjust="spacing" textLength="{key_tl}" x="{}" y="{}">{key_escaped}</text>"#,
                 fmt_coord(key_x), fmt_coord(text_y),
             )
             .unwrap();
@@ -139,9 +142,10 @@ fn render_row(
         // Use a fixed offset based on key column width
         let val_x = x + w * 0.5 + PADDING_H;
         let val_escaped = xml_escape(&row.value);
+        let val_tl = fmt_coord(font_metrics::text_width(&row.value, "SansSerif", 12.0, false, false));
         write!(
             buf,
-            r#"<text fill="{font_color}" font-family="sans-serif" font-size="12" x="{}" y="{}">{val_escaped}</text>"#,
+            r#"<text fill="{font_color}" font-family="sans-serif" font-size="12" lengthAdjust="spacing" textLength="{val_tl}" x="{}" y="{}">{val_escaped}</text>"#,
             fmt_coord(val_x), fmt_coord(text_y),
         )
         .unwrap();

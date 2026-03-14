@@ -1,5 +1,6 @@
 use std::fmt::Write;
 
+use crate::font_metrics;
 use crate::layout::salt::{LayoutBox, SaltLayout, SaltWidgetLayout};
 use crate::model::salt::SaltDiagram;
 use crate::render::svg::fmt_coord;
@@ -338,9 +339,10 @@ fn render_table(
 }
 
 fn render_text(buf: &mut String, x: f64, y: f64, text: &str, font: &str, anchor: Option<&str>) {
+    let tl = fmt_coord(font_metrics::text_width(text, "SansSerif", 12.0, false, false));
     write!(
         buf,
-        r#"<text fill="{}" font-family="sans-serif" font-size="12""#,
+        r#"<text fill="{}" font-family="sans-serif" font-size="12" lengthAdjust="spacing""#,
         font
     )
     .unwrap();
@@ -349,7 +351,8 @@ fn render_text(buf: &mut String, x: f64, y: f64, text: &str, font: &str, anchor:
     }
     write!(
         buf,
-        r#" x="{}" y="{}">{}"#,
+        r#" textLength="{}" x="{}" y="{}">{}"#,
+        tl,
         fmt_coord(x),
         fmt_coord(y),
         xml_escape(text)

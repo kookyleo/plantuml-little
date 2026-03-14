@@ -4,6 +4,7 @@ use crate::layout::activity::{
     ActivityEdgeLayout, ActivityLayout, ActivityNodeKindLayout, ActivityNodeLayout,
     NotePositionLayout, SwimlaneLayout,
 };
+use crate::font_metrics;
 use crate::model::activity::ActivityDiagram;
 use crate::render::svg::fmt_coord;
 use crate::render::svg::write_svg_root;
@@ -340,9 +341,10 @@ fn render_edge(buf: &mut String, edge: &ActivityEdgeLayout, arrow_color: &str, t
         let mid = edge.points.len() / 2;
         let (mx, my) = edge.points[mid];
         let escaped = xml_escape(&edge.label);
+        let tl = fmt_coord(font_metrics::text_width(&edge.label, "SansSerif", FONT_SIZE, false, false));
         write!(
             buf,
-            r#"<text fill="{text_color}" font-family="sans-serif" font-size="{FONT_SIZE}" text-anchor="middle" x="{}" y="{}">{escaped}</text>"#,
+            r#"<text fill="{text_color}" font-family="sans-serif" font-size="{FONT_SIZE}" lengthAdjust="spacing" text-anchor="middle" textLength="{tl}" x="{}" y="{}">{escaped}</text>"#,
             fmt_coord(mx), fmt_coord(my),
         )
         .unwrap();
@@ -408,9 +410,10 @@ fn render_swimlane(
     // Header label text (font-size 18 to match Java PlantUML)
     let label_x = sw.x + sw.width / 2.0;
     let escaped = xml_escape(&sw.name);
+    let tl = fmt_coord(font_metrics::text_width(&sw.name, "SansSerif", 18.0, false, false));
     write!(
         buf,
-        r#"<text fill="{font_color}" font-family="sans-serif" font-size="18" lengthAdjust="spacing" text-anchor="middle" x="{}" y="{}">{escaped}</text>"#,
+        r#"<text fill="{font_color}" font-family="sans-serif" font-size="18" lengthAdjust="spacing" text-anchor="middle" textLength="{tl}" x="{}" y="{}">{escaped}</text>"#,
         fmt_coord(label_x),
         fmt_coord(16.0),
     )

@@ -1,5 +1,6 @@
 use std::fmt::Write;
 
+use crate::font_metrics;
 use crate::layout::state::{StateLayout, StateNodeLayout, StateNoteLayout, TransitionLayout};
 use crate::model::state::{StateDiagram, StateKind};
 use crate::render::svg::write_svg_root;
@@ -188,9 +189,10 @@ fn render_history(
     )
     .unwrap();
     let label = if deep { "H*" } else { "H" };
+    let tl = fmt_coord(font_metrics::text_width(label, "SansSerif", FONT_SIZE, true, false));
     write!(
         buf,
-        r#"<text fill="{font_color}" font-family="sans-serif" font-size="{FONT_SIZE}" font-weight="bold" text-anchor="middle" x="{}" y="{}">{label}</text>"#,
+        r#"<text fill="{font_color}" font-family="sans-serif" font-size="{FONT_SIZE}" font-weight="bold" lengthAdjust="spacing" text-anchor="middle" textLength="{tl}" x="{}" y="{}">{label}</text>"#,
         fmt_coord(cx),
         fmt_coord(cy + FONT_SIZE * 0.35),
     )
@@ -271,10 +273,12 @@ fn render_simple(
         let stereo_text = format!("\u{00AB}{stereotype}\u{00BB}");
         let escaped = xml_escape(&stereo_text);
         let stereo_y = node.y + FONT_SIZE + 4.0;
+        let stereo_fs = FONT_SIZE - 2.0;
+        let tl = fmt_coord(font_metrics::text_width(&stereo_text, "SansSerif", stereo_fs, false, true));
         write!(
             buf,
-            r#"<text fill="{font_color}" font-family="sans-serif" font-size="{}" font-style="italic" text-anchor="middle" x="{}" y="{}">{escaped}</text>"#,
-            fmt_coord(FONT_SIZE - 2.0),
+            r#"<text fill="{font_color}" font-family="sans-serif" font-size="{}" font-style="italic" lengthAdjust="spacing" text-anchor="middle" textLength="{tl}" x="{}" y="{}">{escaped}</text>"#,
+            fmt_coord(stereo_fs),
             fmt_coord(cx),
             fmt_coord(stereo_y),
         )
@@ -304,9 +308,10 @@ fn render_simple(
     .unwrap();
 
     // State name text
+    let name_tl = fmt_coord(font_metrics::text_width(&node.name, "SansSerif", 14.0, false, false));
     write!(
         buf,
-        r#"<text fill="{font_color}" font-family="sans-serif" font-size="14" lengthAdjust="spacing" x="{}" y="{}">{name_escaped}</text>"#,
+        r#"<text fill="{font_color}" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="{name_tl}" x="{}" y="{}">{name_escaped}</text>"#,
         fmt_coord(cx),
         fmt_coord(name_y),
     )
@@ -363,9 +368,10 @@ fn render_composite(
     // Composite state name at the top
     let cx = node.x + node.width / 2.0;
     let name_y = node.y + FONT_SIZE + 4.0;
+    let name_tl = fmt_coord(font_metrics::text_width(&node.name, "SansSerif", 14.0, false, false));
     write!(
         buf,
-        r#"<text fill="{font_color}" font-family="sans-serif" font-size="14" lengthAdjust="spacing" x="{}" y="{}">{name_escaped}</text>"#,
+        r#"<text fill="{font_color}" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="{name_tl}" x="{}" y="{}">{name_escaped}</text>"#,
         fmt_coord(cx),
         fmt_coord(name_y),
     )
@@ -490,9 +496,10 @@ fn render_transition(buf: &mut String, transition: &TransitionLayout) {
         let mid = transition.points.len() / 2;
         let (mx, my) = transition.points[mid];
         let escaped = xml_escape(&transition.label);
+        let tl = fmt_coord(font_metrics::text_width(&transition.label, "SansSerif", FONT_SIZE, false, false));
         write!(
             buf,
-            r#"<text fill="{TEXT_FILL}" font-family="sans-serif" font-size="{FONT_SIZE}" lengthAdjust="spacing" x="{}" y="{}">{escaped}</text>"#,
+            r#"<text fill="{TEXT_FILL}" font-family="sans-serif" font-size="{FONT_SIZE}" lengthAdjust="spacing" textLength="{tl}" x="{}" y="{}">{escaped}</text>"#,
             fmt_coord(mx),
             fmt_coord(my),
         )

@@ -1212,12 +1212,15 @@ fn draw_entity_box(
         let kind_y = y + HEADER_HEIGHT * 0.38;
         let name_y = y + HEADER_HEIGHT * 0.82;
         let cx = x + w / 2.0;
+        let kind_fs = class_font_size - 2.0;
+        let kind_tl = fmt_coord(font_metrics::text_width(kind_text, "SansSerif", kind_fs, false, true));
         write!(buf,
-            r#"<text fill="{font_color}" font-family="sans-serif" font-size="{fs:.0}" font-style="italic" text-anchor="middle" x="{}" y="{}">{kind_text}</text>"#,
-            fmt_coord(cx), fmt_coord(kind_y), fs = class_font_size - 2.0,
+            r#"<text fill="{font_color}" font-family="sans-serif" font-size="{fs:.0}" font-style="italic" lengthAdjust="spacing" text-anchor="middle" textLength="{kind_tl}" x="{}" y="{}">{kind_text}</text>"#,
+            fmt_coord(cx), fmt_coord(kind_y), fs = kind_fs,
         ).unwrap();
+        let name_tl = fmt_coord(font_metrics::text_width(&name_display, "SansSerif", class_font_size, true, false));
         write!(buf,
-            r#"<text fill="{font_color}" font-family="sans-serif" font-size="{class_font_size:.0}" font-weight="bold" text-anchor="middle" x="{}" y="{}">{name_escaped}</text>"#,
+            r#"<text fill="{font_color}" font-family="sans-serif" font-size="{class_font_size:.0}" font-weight="bold" lengthAdjust="spacing" text-anchor="middle" textLength="{name_tl}" x="{}" y="{}">{name_escaped}</text>"#,
             fmt_coord(cx), fmt_coord(name_y),
         ).unwrap();
     } else {

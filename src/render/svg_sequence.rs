@@ -251,9 +251,10 @@ fn draw_participant_actor(
     // Name below figure
     let name_y = body_bot + leg_drop + FONT_SIZE + 4.0;
     let escaped = xml_escape(name);
+    let tl = fmt_coord(font_metrics::text_width(name, "SansSerif", 14.0, true, false));
     write!(
         buf,
-        r#"<text fill="{text_color}" font-family="sans-serif" font-size="14" font-weight="bold" text-anchor="middle" x="{}" y="{}">{escaped}</text>"#,
+        r#"<text fill="{text_color}" font-family="sans-serif" font-size="14" font-weight="bold" lengthAdjust="spacing" text-anchor="middle" textLength="{tl}" x="{}" y="{}">{escaped}</text>"#,
         fmt_coord(cx), fmt_coord(name_y),
     )
     .unwrap();
@@ -312,9 +313,10 @@ fn draw_participant_boundary(
     // Name below
     let name_y = icon_y + 2.0 * icon_r + FONT_SIZE + 6.0;
     let escaped = xml_escape(name);
+    let tl = fmt_coord(font_metrics::text_width(name, "SansSerif", 14.0, true, false));
     write!(
         buf,
-        r#"<text fill="{text_color}" font-family="sans-serif" font-size="14" font-weight="bold" text-anchor="middle" x="{}" y="{}">{escaped}</text>"#,
+        r#"<text fill="{text_color}" font-family="sans-serif" font-size="14" font-weight="bold" lengthAdjust="spacing" text-anchor="middle" textLength="{tl}" x="{}" y="{}">{escaped}</text>"#,
         fmt_coord(cx), fmt_coord(name_y),
     )
     .unwrap();
@@ -360,9 +362,10 @@ fn draw_participant_control(
     // Name below
     let name_y = icon_cy + icon_r + FONT_SIZE + 6.0;
     let escaped = xml_escape(name);
+    let tl = fmt_coord(font_metrics::text_width(name, "SansSerif", 14.0, true, false));
     write!(
         buf,
-        r#"<text fill="{text_color}" font-family="sans-serif" font-size="14" font-weight="bold" text-anchor="middle" x="{}" y="{}">{escaped}</text>"#,
+        r#"<text fill="{text_color}" font-family="sans-serif" font-size="14" font-weight="bold" lengthAdjust="spacing" text-anchor="middle" textLength="{tl}" x="{}" y="{}">{escaped}</text>"#,
         fmt_coord(cx), fmt_coord(name_y),
     )
     .unwrap();
@@ -409,9 +412,10 @@ fn draw_participant_entity(
     // Name below
     let name_y = line_y + FONT_SIZE + 6.0;
     let escaped = xml_escape(name);
+    let tl = fmt_coord(font_metrics::text_width(name, "SansSerif", 14.0, true, false));
     write!(
         buf,
-        r#"<text fill="{text_color}" font-family="sans-serif" font-size="14" font-weight="bold" text-anchor="middle" x="{}" y="{}">{escaped}</text>"#,
+        r#"<text fill="{text_color}" font-family="sans-serif" font-size="14" font-weight="bold" lengthAdjust="spacing" text-anchor="middle" textLength="{tl}" x="{}" y="{}">{escaped}</text>"#,
         fmt_coord(cx), fmt_coord(name_y),
     )
     .unwrap();
@@ -465,9 +469,10 @@ fn draw_participant_database(
     // Name below cylinder
     let name_y = cyl_y + cyl_h + arc_h + FONT_SIZE + 4.0;
     let escaped = xml_escape(name);
+    let tl = fmt_coord(font_metrics::text_width(name, "SansSerif", 14.0, true, false));
     write!(
         buf,
-        r#"<text fill="{text_color}" font-family="sans-serif" font-size="14" font-weight="bold" text-anchor="middle" x="{}" y="{}">{escaped}</text>"#,
+        r#"<text fill="{text_color}" font-family="sans-serif" font-size="14" font-weight="bold" lengthAdjust="spacing" text-anchor="middle" textLength="{tl}" x="{}" y="{}">{escaped}</text>"#,
         fmt_coord(cx), fmt_coord(name_y),
     )
     .unwrap();
@@ -513,9 +518,10 @@ fn draw_participant_collections(
     // Name below
     let name_y = ry + rect_h + FONT_SIZE + 6.0;
     let escaped = xml_escape(name);
+    let tl = fmt_coord(font_metrics::text_width(name, "SansSerif", 14.0, true, false));
     write!(
         buf,
-        r#"<text fill="{text_color}" font-family="sans-serif" font-size="14" font-weight="bold" text-anchor="middle" x="{}" y="{}">{escaped}</text>"#,
+        r#"<text fill="{text_color}" font-family="sans-serif" font-size="14" font-weight="bold" lengthAdjust="spacing" text-anchor="middle" textLength="{tl}" x="{}" y="{}">{escaped}</text>"#,
         fmt_coord(cx), fmt_coord(name_y),
     )
     .unwrap();
@@ -569,9 +575,10 @@ fn draw_participant_queue(
     // Name below
     let name_y = cyl_y + cyl_h + FONT_SIZE + 6.0;
     let escaped = xml_escape(name);
+    let tl = fmt_coord(font_metrics::text_width(name, "SansSerif", 14.0, true, false));
     write!(
         buf,
-        r#"<text fill="{text_color}" font-family="sans-serif" font-size="14" font-weight="bold" text-anchor="middle" x="{}" y="{}">{escaped}</text>"#,
+        r#"<text fill="{text_color}" font-family="sans-serif" font-size="14" font-weight="bold" lengthAdjust="spacing" text-anchor="middle" textLength="{tl}" x="{}" y="{}">{escaped}</text>"#,
         fmt_coord(cx), fmt_coord(name_y),
     )
     .unwrap();
@@ -927,7 +934,7 @@ fn draw_group(buf: &mut String, group: &GroupLayout) {
     // Frame rectangle
     write!(
         buf,
-        r#"<rect fill="{bg}" fill-opacity="0.3" height="{}" style="stroke:{border};stroke-width:1;" width="{}" x="{}" y="{}"/>"#,
+        r#"<rect fill="{bg}" fill-opacity="0.30000" height="{}" style="stroke:{border};stroke-width:1;" width="{}" x="{}" y="{}"/>"#,
         fmt_coord(height), fmt_coord(group.width), fmt_coord(group.x), fmt_coord(group.y_start),
         bg = GROUP_BG,
         border = GROUP_BORDER,
@@ -955,9 +962,10 @@ fn draw_group(buf: &mut String, group: &GroupLayout) {
         .unwrap();
         buf.push('\n');
 
+        let tl = fmt_coord(font_metrics::text_width(label, "SansSerif", FONT_SIZE, true, false));
         write!(
             buf,
-            r#"<text fill="{TEXT_COLOR}" font-family="sans-serif" font-size="{FONT_SIZE}" font-weight="bold" x="{}" y="{}">{escaped}</text>"#,
+            r#"<text fill="{TEXT_COLOR}" font-family="sans-serif" font-size="{FONT_SIZE}" font-weight="bold" lengthAdjust="spacing" textLength="{tl}" x="{}" y="{}">{escaped}</text>"#,
             fmt_coord(label_x), fmt_coord(label_y),
         )
         .unwrap();
@@ -971,7 +979,7 @@ fn draw_fragment(buf: &mut String, frag: &FragmentLayout) {
     // Frame rectangle with semi-transparent fill
     write!(
         buf,
-        r#"<rect fill="{bg}" fill-opacity="0.1" height="{}" rx="2" style="stroke:{border};stroke-width:1.5;" width="{}" x="{}" y="{}"/>"#,
+        r#"<rect fill="{bg}" fill-opacity="0.10000" height="{}" rx="2" style="stroke:{border};stroke-width:1.5;" width="{}" x="{}" y="{}"/>"#,
         fmt_coord(frag.height), fmt_coord(frag.width), fmt_coord(frag.x), fmt_coord(frag.y),
         bg = FRAGMENT_BG,
         border = FRAGMENT_BORDER,
@@ -1012,9 +1020,10 @@ fn draw_fragment(buf: &mut String, frag: &FragmentLayout) {
     let text_x = frag.x + 6.0;
     let text_y = frag.y + FONT_SIZE + 2.0;
     let escaped = xml_escape(&tab_text);
+    let frag_tl = fmt_coord(font_metrics::text_width(&tab_text, "SansSerif", FONT_SIZE, true, false));
     write!(
         buf,
-        r#"<text fill="{TEXT_COLOR}" font-family="sans-serif" font-size="{FONT_SIZE}" font-weight="bold" x="{}" y="{}">{escaped}</text>"#,
+        r#"<text fill="{TEXT_COLOR}" font-family="sans-serif" font-size="{FONT_SIZE}" font-weight="bold" lengthAdjust="spacing" textLength="{frag_tl}" x="{}" y="{}">{escaped}</text>"#,
         fmt_coord(text_x), fmt_coord(text_y),
     )
     .unwrap();
@@ -1040,9 +1049,11 @@ fn draw_fragment(buf: &mut String, frag: &FragmentLayout) {
             let label_x = frag.x + 10.0;
             let label_y = sep_y + FONT_SIZE + 2.0;
             let escaped_label = xml_escape(sep_label);
+            let bracket_text = format!("[{}]", sep_label);
+            let sep_tl = fmt_coord(font_metrics::text_width(&bracket_text, "SansSerif", FONT_SIZE, false, true));
             write!(
                 buf,
-                r#"<text fill="{TEXT_COLOR}" font-family="sans-serif" font-size="{FONT_SIZE}" font-style="italic" x="{}" y="{}">[{escaped_label}]</text>"#,
+                r#"<text fill="{TEXT_COLOR}" font-family="sans-serif" font-size="{FONT_SIZE}" font-style="italic" lengthAdjust="spacing" textLength="{sep_tl}" x="{}" y="{}">[{escaped_label}]</text>"#,
                 fmt_coord(label_x), fmt_coord(label_y),
             )
             .unwrap();
@@ -1059,7 +1070,7 @@ fn draw_divider(buf: &mut String, divider: &DividerLayout) {
     // Background stripe
     write!(
         buf,
-        r#"<rect fill="{color}" fill-opacity="0.2" height="5" width="{}" x="{}" y="{}"/>"#,
+        r#"<rect fill="{color}" fill-opacity="0.20000" height="5" width="{}" x="{}" y="{}"/>"#,
         fmt_coord(divider.width), fmt_coord(divider.x), fmt_coord(center_y - 2.5),
         color = DIVIDER_COLOR,
     )
@@ -1108,9 +1119,10 @@ fn draw_divider(buf: &mut String, divider: &DividerLayout) {
         .unwrap();
         buf.push('\n');
 
+        let div_tl = fmt_coord(font_metrics::text_width(text, "SansSerif", FONT_SIZE, true, false));
         write!(
             buf,
-            r#"<text fill="{TEXT_COLOR}" font-family="sans-serif" font-size="{FONT_SIZE}" font-weight="bold" text-anchor="middle" x="{}" y="{}">{escaped}</text>"#,
+            r#"<text fill="{TEXT_COLOR}" font-family="sans-serif" font-size="{FONT_SIZE}" font-weight="bold" lengthAdjust="spacing" text-anchor="middle" textLength="{div_tl}" x="{}" y="{}">{escaped}</text>"#,
             fmt_coord(mid_x), fmt_coord(text_y),
         )
         .unwrap();
@@ -1141,9 +1153,10 @@ fn draw_delay(buf: &mut String, delay: &DelayLayout) {
         let text_x = mid_x + 12.0;
         let text_y = center_y + FONT_SIZE * 0.35;
         let escaped = xml_escape(text);
+        let tl = fmt_coord(font_metrics::text_width(text, "SansSerif", FONT_SIZE, false, false));
         write!(
             buf,
-            r#"<text fill="{TEXT_COLOR}" font-family="sans-serif" font-size="{FONT_SIZE}" x="{}" y="{}">{escaped}</text>"#,
+            r#"<text fill="{TEXT_COLOR}" font-family="sans-serif" font-size="{FONT_SIZE}" lengthAdjust="spacing" textLength="{tl}" x="{}" y="{}">{escaped}</text>"#,
             fmt_coord(text_x), fmt_coord(text_y),
         )
         .unwrap();
@@ -1186,9 +1199,10 @@ fn draw_ref(buf: &mut String, r: &RefLayout) {
     }
     buf.push('\n');
 
+    let ref_tl = fmt_coord(font_metrics::text_width("ref", "SansSerif", FONT_SIZE, true, false));
     write!(
         buf,
-        r#"<text fill="{color}" font-family="sans-serif" font-size="{FONT_SIZE}" font-weight="bold" x="{}" y="{}">ref</text>"#,
+        r#"<text fill="{color}" font-family="sans-serif" font-size="{FONT_SIZE}" font-weight="bold" lengthAdjust="spacing" textLength="{ref_tl}" x="{}" y="{}">ref</text>"#,
         fmt_coord(r.x + 5.0), fmt_coord(r.y + FONT_SIZE + 1.0),
         color = TEXT_COLOR,
     )
@@ -1199,9 +1213,10 @@ fn draw_ref(buf: &mut String, r: &RefLayout) {
     let mid_x = r.x + r.width / 2.0;
     let mid_y = r.y + r.height / 2.0 + FONT_SIZE * 0.35;
     let escaped = xml_escape(&r.label);
+    let label_tl = fmt_coord(font_metrics::text_width(&r.label, "SansSerif", FONT_SIZE, false, false));
     write!(
         buf,
-        r#"<text fill="{TEXT_COLOR}" font-family="sans-serif" font-size="{FONT_SIZE}" text-anchor="middle" x="{}" y="{}">{escaped}</text>"#,
+        r#"<text fill="{TEXT_COLOR}" font-family="sans-serif" font-size="{FONT_SIZE}" lengthAdjust="spacing" text-anchor="middle" textLength="{label_tl}" x="{}" y="{}">{escaped}</text>"#,
         fmt_coord(mid_x), fmt_coord(mid_y),
     )
     .unwrap();

@@ -128,7 +128,7 @@ fn render_track(
 
         write!(
             buf,
-            r#"<rect fill="{bg}" height="{}" opacity="0.3" style="stroke:{border};stroke-width:0.5;" width="{}" x="{}" y="{}"/>"#,
+            r#"<rect fill="{bg}" height="{}" opacity="0.30000" style="stroke:{border};stroke-width:0.5;" width="{}" x="{}" y="{}"/>"#,
             fmt_coord(track.height), fmt_coord(w), fmt_coord(x_min), fmt_coord(track.y),
         )
         .unwrap();
@@ -822,7 +822,7 @@ mod tests {
         let svg = render_timing(&model, &layout, &SkinParams::default()).expect("render failed");
         // Should have a background rect with opacity
         assert!(
-            svg.contains("opacity=\"0.3\""),
+            svg.contains("opacity=\"0.30000\""),
             "track background should have opacity"
         );
     }

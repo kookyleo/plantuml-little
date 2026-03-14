@@ -72,7 +72,7 @@ fn render_box(
     if !diagram.options.no_shadows {
         write!(
             buf,
-            r#"<rect fill="{SHADOW_FILL}" height="{}" opacity="{SHADOW_OPACITY:.2}" rx="{}" ry="{}" stroke="none" width="{}" x="{}" y="{}"/>"#,
+            r#"<rect fill="{SHADOW_FILL}" height="{}" opacity="{SHADOW_OPACITY:.5}" rx="{}" ry="{}" stroke="none" width="{}" x="{}" y="{}"/>"#,
             fmt_coord(ditaa_box.height), fmt_coord(radius), fmt_coord(radius),
             fmt_coord(ditaa_box.width),
             fmt_coord(ditaa_box.x + shadow_offset), fmt_coord(ditaa_box.y + shadow_offset),
@@ -224,6 +224,6 @@ mod tests {
         let (mut diagram, layout) = sample_layout();
         diagram.options.no_shadows = true;
         let svg = render_ditaa(&diagram, &layout, &SkinParams::default()).unwrap();
-        assert!(!svg.contains(&format!(r#"opacity="{SHADOW_OPACITY:.2}""#)));
+        assert!(!svg.contains(&format!(r#"opacity="{SHADOW_OPACITY:.5}""#)));
     }
 }

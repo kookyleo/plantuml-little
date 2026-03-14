@@ -1,5 +1,6 @@
 use std::fmt::Write;
 
+use crate::font_metrics;
 use crate::layout::usecase::{
     ActorLayout, BoundaryLayout, UseCaseEdgeLayout, UseCaseLayout, UseCaseNodeLayout,
 };
@@ -187,9 +188,10 @@ fn render_actor(buf: &mut String, actor: &ActorLayout, stroke: &str, font_color:
 
     // Name label centered below
     let name_escaped = xml_escape(&actor.name);
+    let tl = fmt_coord(font_metrics::text_width(&actor.name, "SansSerif", FONT_SIZE, false, false));
     write!(
         buf,
-        r#"<text fill="{font_color}" font-family="sans-serif" font-size="{FONT_SIZE}" text-anchor="middle" x="{}" y="{}">{name_escaped}</text>"#,
+        r#"<text fill="{font_color}" font-family="sans-serif" font-size="{FONT_SIZE}" lengthAdjust="spacing" text-anchor="middle" textLength="{tl}" x="{}" y="{}">{name_escaped}</text>"#,
         fmt_coord(cx), fmt_coord(name_y),
     )
     .unwrap();
@@ -217,9 +219,10 @@ fn render_usecase_oval(
 
     let name_escaped = xml_escape(&uc.name);
     let text_y = uc.cy + FONT_SIZE * 0.35;
+    let tl = fmt_coord(font_metrics::text_width(&uc.name, "SansSerif", FONT_SIZE, false, false));
     write!(
         buf,
-        r#"<text fill="{font_color}" font-family="sans-serif" font-size="{FONT_SIZE}" text-anchor="middle" x="{}" y="{}">{name_escaped}</text>"#,
+        r#"<text fill="{font_color}" font-family="sans-serif" font-size="{FONT_SIZE}" lengthAdjust="spacing" text-anchor="middle" textLength="{tl}" x="{}" y="{}">{name_escaped}</text>"#,
         fmt_coord(uc.cx), fmt_coord(text_y),
     )
     .unwrap();
@@ -250,9 +253,10 @@ fn render_boundary(buf: &mut String, boundary: &BoundaryLayout, border: &str, fo
     let name_escaped = xml_escape(&boundary.name);
     let name_x = boundary.x + 8.0;
     let name_y = boundary.y + FONT_SIZE + 4.0;
+    let tl = fmt_coord(font_metrics::text_width(&boundary.name, "SansSerif", FONT_SIZE, true, false));
     write!(
         buf,
-        r#"<text fill="{font_color}" font-family="sans-serif" font-size="{FONT_SIZE}" font-weight="bold" x="{}" y="{}">{name_escaped}</text>"#,
+        r#"<text fill="{font_color}" font-family="sans-serif" font-size="{FONT_SIZE}" font-weight="bold" lengthAdjust="spacing" textLength="{tl}" x="{}" y="{}">{name_escaped}</text>"#,
         fmt_coord(name_x), fmt_coord(name_y),
     )
     .unwrap();
@@ -316,11 +320,13 @@ fn render_edge(buf: &mut String, edge: &UseCaseEdgeLayout, arrow_color: &str, fo
         if !stereo.is_empty() {
             let stereo_text = format!("\u{00AB}{stereo}\u{00BB}");
             let escaped = xml_escape(&stereo_text);
+            let stereo_fs = FONT_SIZE - 1.0;
+            let tl = fmt_coord(font_metrics::text_width(&stereo_text, "SansSerif", stereo_fs, false, true));
             write!(
                 buf,
-                r#"<text fill="{font_color}" font-family="sans-serif" font-size="{fs:.0}" font-style="italic" text-anchor="middle" x="{}" y="{}">{escaped}</text>"#,
+                r#"<text fill="{font_color}" font-family="sans-serif" font-size="{fs:.0}" font-style="italic" lengthAdjust="spacing" text-anchor="middle" textLength="{tl}" x="{}" y="{}">{escaped}</text>"#,
                 fmt_coord(mid_x), fmt_coord(mid_y - FONT_SIZE - 2.0),
-                fs = FONT_SIZE - 1.0,
+                fs = stereo_fs,
             )
             .unwrap();
             buf.push('\n');
@@ -330,9 +336,10 @@ fn render_edge(buf: &mut String, edge: &UseCaseEdgeLayout, arrow_color: &str, fo
     // Edge label at midpoint
     if !edge.label.is_empty() {
         let label_escaped = xml_escape(&edge.label);
+        let tl = fmt_coord(font_metrics::text_width(&edge.label, "SansSerif", FONT_SIZE, false, false));
         write!(
             buf,
-            r#"<text fill="{font_color}" font-family="sans-serif" font-size="{FONT_SIZE}" text-anchor="middle" x="{}" y="{}">{label_escaped}</text>"#,
+            r#"<text fill="{font_color}" font-family="sans-serif" font-size="{FONT_SIZE}" lengthAdjust="spacing" text-anchor="middle" textLength="{tl}" x="{}" y="{}">{label_escaped}</text>"#,
             fmt_coord(mid_x), fmt_coord(mid_y + FONT_SIZE),
         )
         .unwrap();

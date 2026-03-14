@@ -1,5 +1,6 @@
 use std::fmt::Write;
 
+use crate::font_metrics;
 use crate::layout::gantt::{
     GanttBarLayout, GanttDepLayout, GanttLayout, GanttNoteLayout, GanttTimeAxis,
 };
@@ -92,13 +93,15 @@ fn render_grid(buf: &mut String, layout: &GanttLayout) {
 // ---------------------------------------------------------------------------
 
 fn render_time_axis(buf: &mut String, axis: &GanttTimeAxis) {
+    let axis_fs = FONT_SIZE - 1.0;
     for label in &axis.labels {
         let escaped = xml_escape(&label.text);
+        let tl = fmt_coord(font_metrics::text_width(&label.text, "SansSerif", axis_fs, false, false));
         write!(
             buf,
-            r#"<text fill="{AXIS_TEXT_COLOR}" font-family="sans-serif" font-size="{fs:.0}" text-anchor="middle" x="{}" y="{}">{escaped}</text>"#,
+            r#"<text fill="{AXIS_TEXT_COLOR}" font-family="sans-serif" font-size="{fs:.0}" lengthAdjust="spacing" text-anchor="middle" textLength="{tl}" x="{}" y="{}">{escaped}</text>"#,
             fmt_coord(label.x), fmt_coord(axis.y + FONT_SIZE + 2.0),
-            fs = FONT_SIZE - 1.0,
+            fs = axis_fs,
         )
         .unwrap();
         buf.push('\n');
