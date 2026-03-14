@@ -215,6 +215,8 @@ fn sanitize_id(name: &str) -> String {
         .replace(' ', "_")
 }
 
+/// XML-escape text content matching Java's DOM serializer (us-ascii encoding).
+/// Non-ASCII characters are encoded as &#NNN; decimal entities.
 pub(crate) fn xml_escape(s: &str) -> String {
     let mut out = String::with_capacity(s.len());
     for ch in s.chars() {
@@ -223,7 +225,11 @@ pub(crate) fn xml_escape(s: &str) -> String {
             '<' => out.push_str("&lt;"),
             '>' => out.push_str("&gt;"),
             '"' => out.push_str("&quot;"),
-            _ => out.push(ch),
+            c if !c.is_ascii() => {
+                // Java DOM serializer: us-ascii encoding → &#NNN; for non-ASCII
+                write!(out, "&#{};", c as u32).unwrap();
+            }
+            c => out.push(c),
         }
     }
     out
@@ -856,10 +862,35 @@ fn render_class(
         draw_class_note(&mut body, &mut tracker, note);
     }
 
-    // Compute canvas size from tracked bounds
-    let (span_w, span_h) = tracker.span();
-    let svg_w = (span_w + CANVAS_DELTA + DOC_MARGIN_RIGHT + 1.0).floor();
-    let svg_h = (span_h + CANVAS_DELTA + DOC_MARGIN_BOTTOM + 1.0).floor();
+    // Canvas size calculation depends on diagram complexity.
+    //
+    // Java uses two different paths:
+    // 1. Multi-entity with links (SvekResult): LimitFinder_span + delta(15, 15) + doc_margin(5, 5)
+    // 2. Single entity, no links (EntityImageDegenerated): entity_dim + delta(14, 14) + doc_margin(5, 5)
+    //    EntityImageDegenerated.java: delta = 7, calculateDimension = orig.dim + delta*2 = orig.dim + 14
+    //
+    // We detect the case by checking layout structure.
+    let is_degenerated = layout.nodes.len() <= 1 && layout.edges.is_empty();
+
+    let (svg_w, svg_h) = if is_degenerated {
+        // EntityImageDegenerated path: no LimitFinder, just entity_dim + 14 + 5 + ensureVisible(+1)
+        let entity_w = if layout.nodes.is_empty() { 0.0 } else { layout.nodes[0].width };
+        let entity_h = if layout.nodes.is_empty() { 0.0 } else { layout.nodes[0].height };
+        // EntityImageDegenerated.java: delta = 7, calculateDimension = entity_dim + 14
+        const DEGENERATED_DELTA: f64 = 7.0;
+        let calc_w = entity_w + DEGENERATED_DELTA * 2.0;
+        let calc_h = entity_h + DEGENERATED_DELTA * 2.0;
+        // SvgGraphics.ensureVisible: maxX = (int)(minDim + 1)
+        let w = (calc_w + DOC_MARGIN_RIGHT + 1.0).floor();
+        let h = (calc_h + DOC_MARGIN_BOTTOM + 1.0).floor();
+        (w, h)
+    } else {
+        // SvekResult path: LimitFinder tracked bounds + delta(15) + doc_margin(5)
+        let (span_w, span_h) = tracker.span();
+        let w = (span_w + CANVAS_DELTA + DOC_MARGIN_RIGHT + 1.0).floor();
+        let h = (span_h + CANVAS_DELTA + DOC_MARGIN_BOTTOM + 1.0).floor();
+        (w, h)
+    };
 
     let mut buf = String::with_capacity(body.len() + 512);
     write_svg_root(&mut buf, svg_w, svg_h, "CLASS");
