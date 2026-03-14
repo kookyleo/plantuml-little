@@ -47,14 +47,24 @@ pub enum DiagramLayout {
     UseCase(usecase::UseCaseLayout),
 }
 
-/// Font size for class diagram text
-const CLASS_FONT_SIZE: f64 = 12.0;
-/// Line height (pt)
-const LINE_HEIGHT_PT: f64 = 16.0;
-/// Padding (pt)
-const PADDING_PT: f64 = 10.0;
-/// Header area height (pt)
-const HEADER_HEIGHT_PT: f64 = 28.0;
+/// Font size for class diagram name text (Java FontParam: CLASS = 12, but rendered at 14 in SVG)
+const CLASS_FONT_SIZE: f64 = 14.0;
+/// Font size for class attributes (Java FontParam: CLASS_ATTRIBUTE = 10)
+const CLASS_ATTR_FONT_SIZE: f64 = 10.0;
+/// Line height for member rows (pt)
+const LINE_HEIGHT_PT: f64 = 8.0;
+/// Circle icon: left padding from entity edge
+const CIRCLE_LEFT_PAD: f64 = 4.0;
+/// Circle icon: diameter
+const CIRCLE_DIAMETER: f64 = 22.0;
+/// Gap between circle and text
+const CIRCLE_TEXT_GAP: f64 = 3.0;
+/// Right padding after text to entity edge
+const RIGHT_PAD: f64 = 3.0;
+/// Header height (circle area + padding below)
+const HEADER_HEIGHT_PT: f64 = 32.0;
+/// Empty compartment height (fields or methods with no members)
+const EMPTY_COMPARTMENT: f64 = 8.0;
 
 /// Perform layout on a Diagram
 pub fn layout(diagram: &Diagram) -> Result<DiagramLayout> {
@@ -206,24 +216,28 @@ fn estimate_entity_size(entity: &Entity) -> (f64, f64) {
         })
         .fold(0.0_f64, f64::max);
 
-    // width = widest text line + padding on both sides
+    // Width: Java formula = circle_left_pad + circle_dia + gap + text_width + right_pad
     let name_width = font_metrics::text_width(&name_display, "SansSerif", CLASS_FONT_SIZE, false, false);
-    let max_text_width = name_width
-        .max(stereotype_text_width)
-        .max(max_member_width);
-    let width = (max_text_width + 2.0 * PADDING_PT).max(60.0);
+    let circle_plus_name = CIRCLE_LEFT_PAD + CIRCLE_DIAMETER + CIRCLE_TEXT_GAP + name_width + RIGHT_PAD;
+    let max_text_width = circle_plus_name
+        .max(stereotype_text_width + CIRCLE_LEFT_PAD + RIGHT_PAD)
+        .max(max_member_width + 2.0 * RIGHT_PAD);
+    let width = max_text_width;
 
-    // height = header + stereotype line (optional) + member lines * line height + bottom padding
-    let stereotype_extra = if has_stereotype_line {
+    // Height: Java formula = header(32) + fields_compartment + methods_compartment
+    // Each compartment: empty=8, with N members = N * line_height + padding
+    let _stereotype_extra = if has_stereotype_line {
         LINE_HEIGHT_PT
     } else {
         0.0
     };
-    let height = (HEADER_HEIGHT_PT
-        + stereotype_extra
-        + entity.members.len() as f64 * LINE_HEIGHT_PT
-        + PADDING_PT)
-        .max(36.0);
+    let fields_height = EMPTY_COMPARTMENT; // no field/method separation in our model yet
+    let methods_height = if entity.members.is_empty() {
+        EMPTY_COMPARTMENT
+    } else {
+        entity.members.len() as f64 * LINE_HEIGHT_PT + EMPTY_COMPARTMENT
+    };
+    let height = HEADER_HEIGHT_PT + fields_height + methods_height;
 
     log::debug!(
         "estimate_entity_size: {} -> ({:.1}, {:.1})",
@@ -501,8 +515,10 @@ mod tests {
     fn estimate_size_empty_class_returns_minimum() {
         let e = empty_entity("Foo");
         let (w, h) = estimate_entity_size(&e);
-        assert!(w >= 60.0, "width should be >= 60, got {w}");
-        assert!(h >= 36.0, "height should be >= 36, got {h}");
+        // Width = circle(4+22) + gap(3) + text_width("Foo",14) + pad(3) ≈ 57
+        assert!(w >= 40.0, "width should be >= 40, got {w}");
+        // Height = header(32) + fields(8) + methods(8) = 48
+        assert!(h >= 48.0, "height should be >= 48, got {h}");
     }
 
     #[test]
@@ -524,14 +540,15 @@ mod tests {
         };
         let (w, h) = estimate_entity_size(&e);
 
-        let expected_min_height = HEADER_HEIGHT_PT + 2.0 * LINE_HEIGHT_PT + PADDING_PT;
+        // height = header(32) + fields(8) + members(2*8+8) = 64
+        let expected_min_height = HEADER_HEIGHT_PT + EMPTY_COMPARTMENT + 2.0 * LINE_HEIGHT_PT + EMPTY_COMPARTMENT;
         assert!(
             h >= expected_min_height,
             "height {h} should be >= {expected_min_height}"
         );
 
         let member_text = "- longFieldNameHere : String";
-        let expected_min_width = crate::font_metrics::text_width(member_text, "SansSerif", CLASS_FONT_SIZE, false, false) + 2.0 * PADDING_PT;
+        let expected_min_width = crate::font_metrics::text_width(member_text, "SansSerif", CLASS_ATTR_FONT_SIZE, false, false) + 2.0 * RIGHT_PAD;
         assert!(
             w >= expected_min_width,
             "width {w} should be >= {expected_min_width}"
@@ -550,7 +567,7 @@ mod tests {
         };
         let (_, h) = estimate_entity_size(&e);
 
-        let expected_min = HEADER_HEIGHT_PT + LINE_HEIGHT_PT + PADDING_PT;
+        let expected_min = HEADER_HEIGHT_PT + 2.0 * EMPTY_COMPARTMENT;
         assert!(
             h >= expected_min,
             "interface height {h} should be >= {expected_min}"

@@ -19,10 +19,13 @@ use super::svg_sequence;
 // ── Style constants ──────────────────────────────────────────────────
 
 const FONT_SIZE: f64 = 14.0;
-const LINE_HEIGHT: f64 = 16.0;
-const PADDING: f64 = 10.0;
-const HEADER_HEIGHT: f64 = 28.0;
-const MARGIN: f64 = 20.0;
+const LINE_HEIGHT: f64 = 8.0;
+const PADDING: f64 = 3.0;
+const HEADER_HEIGHT: f64 = 32.0;
+const MARGIN: f64 = 7.0;
+const CIRCLE_LEFT_PAD: f64 = 4.0;
+const CIRCLE_DIAMETER: f64 = 22.0;
+const EMPTY_COMPARTMENT: f64 = 8.0;
 
 const CLASS_BG: &str = "#F1F1F1";
 const CLASS_BORDER: &str = "#181818";
@@ -612,7 +615,7 @@ fn draw_entity_box(buf: &mut String, entity: &Entity, nl: &NodeLayout, skin: &Sk
     } else {
         // Stereotype circle icon (ellipse)
         let circle_color = stereotype_circle_color(&entity.kind);
-        let ecx = x + 15.0;
+        let ecx = x + CIRCLE_LEFT_PAD + CIRCLE_DIAMETER / 2.0; // x + 15
         let ecy = y + 16.0;
         write!(buf,
             r#"<ellipse cx="{}" cy="{}" fill="{circle_color}" rx="11" ry="11" style="stroke:#181818;stroke-width:1;"/>"#,
@@ -620,9 +623,14 @@ fn draw_entity_box(buf: &mut String, entity: &Entity, nl: &NodeLayout, skin: &Sk
         ).unwrap();
         buf.push('\n');
 
-        // Class name text positioned to the right of the circle
-        let name_y = y + HEADER_HEIGHT * 0.68;
-        let name_x = x + 29.0;
+        // Class name text: vertically centered in header, right of circle
+        let text_w = font_metrics::text_width(&name_display, "SansSerif", class_font_size, false, false);
+        let ascent = font_metrics::ascent("SansSerif", class_font_size, false, false);
+        let descent = font_metrics::descent("SansSerif", class_font_size, false, false);
+        let text_h = ascent + descent;
+        let vert_offset = (HEADER_HEIGHT - text_h) / 2.0;
+        let name_y = y + vert_offset + ascent;
+        let name_x = x + CIRCLE_LEFT_PAD + CIRCLE_DIAMETER + 3.0; // right of circle + gap
         let font_style_attr = if entity.kind == EntityKind::Abstract {
             r#" font-style="italic""#
         } else {
@@ -633,8 +641,9 @@ fn draw_entity_box(buf: &mut String, entity: &Entity, nl: &NodeLayout, skin: &Sk
         } else {
             ""
         };
+        let tl = fmt_coord(text_w);
         write!(buf,
-            r#"<text fill="{font_color}" font-family="sans-serif" font-size="{class_font_size:.0}"{font_style_attr}{text_deco_attr} x="{}" y="{}">{name_escaped}</text>"#,
+            r#"<text fill="{font_color}" font-family="sans-serif" font-size="{class_font_size:.0}"{font_style_attr} lengthAdjust="spacing" textLength="{tl}"{text_deco_attr} x="{}" y="{}">{name_escaped}</text>"#,
             fmt_coord(name_x), fmt_coord(name_y),
         ).unwrap();
         buf.push('\n');
