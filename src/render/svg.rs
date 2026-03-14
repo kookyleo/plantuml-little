@@ -486,16 +486,18 @@ fn render_class(
     layout: &GraphLayout,
     skin: &SkinParams,
 ) -> Result<String> {
-    // Java computes viewBox via ensureVisible during rendering:
-    // maxX = (int)(x + 1) for the rightmost rendered coordinate.
-    // The minDim passed to SvgGraphics = calculateDimension + doc_margin(R=5,B=5)
-    // calculateDimension = (LimitFinder_span + delta(15,15))
-    // LimitFinder_span includes -1 adjustment on rect left edges.
+    // Java viewBox calculation (traced from SvgGraphics.ensureVisible):
+    //   ensureVisible(minDim.width, minDim.height) where
+    //   minDim = calculateDimension() + doc_margin(R=5, B=5)
+    //   calculateDimension() = LimitFinder_span + delta(15, 15)
+    //   LimitFinder_span = entity_span + 1 (rect x-1/y-1 + UEmpty correction)
+    //   ensureVisible: maxX = (int)(x + 1)
     //
-    // We approximate: svg_size = total_content_span + delta(15) + doc_margin(5) + border_adjust(1)
-    // Then apply ensureVisible: (int)(svg_size + 1)
-    let svg_w = ((layout.total_width + CANVAS_DELTA + DOC_MARGIN_RIGHT).ceil() + 1.0) as f64;
-    let svg_h = ((layout.total_height + CANVAS_DELTA + DOC_MARGIN_BOTTOM).ceil() + 1.0) as f64;
+    // Full formula: (int)(entity_span + 1 + 15 + 5 + 1)
+    //   = (int)(entity_span + 22)
+    let limitfinder_adjust = 1.0; // LimitFinder rect (x-1) + UEmpty (+1 to maxX/maxY)
+    let svg_w = (layout.total_width + limitfinder_adjust + CANVAS_DELTA + DOC_MARGIN_RIGHT + 1.0).floor();
+    let svg_h = (layout.total_height + limitfinder_adjust + CANVAS_DELTA + DOC_MARGIN_BOTTOM + 1.0).floor();
     let mut buf = String::with_capacity(4096);
     write_svg_root(&mut buf, svg_w, svg_h, "CLASS");
 
