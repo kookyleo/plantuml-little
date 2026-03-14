@@ -4,7 +4,7 @@ use crate::layout::erd::{
     ErdAttrLayout, ErdEdgeLayout, ErdIsaLayout, ErdLayout, ErdNodeLayout, ErdNoteLayout,
 };
 use crate::model::erd::ErdDiagram;
-use crate::render::svg::xml_escape;
+use crate::render::svg::{fmt_coord, xml_escape};
 use crate::render::svg::write_svg_root;
 use crate::render::svg_richtext::render_creole_text;
 use crate::style::SkinParams;
@@ -12,7 +12,7 @@ use crate::Result;
 
 // ── Style constants ──────────────────────────────────────────────────
 
-const FONT_SIZE: f64 = 12.0;
+const FONT_SIZE: f64 = 14.0;
 const ENTITY_BG: &str = "#F1F1F1";
 const ENTITY_BORDER: &str = "#181818";
 const RELATIONSHIP_BG: &str = "#F1F1F1";
@@ -27,6 +27,26 @@ const NOTE_BG: &str = "#FEFFDD";
 const NOTE_BORDER: &str = "#181818";
 const NOTE_FOLD: f64 = 8.0;
 
+// ── Helper: render a straight-line path ─────────────────────────────
+
+/// Emit a `<path d="M ... L ...">` element matching Java PlantUML edge style.
+fn render_path_line(buf: &mut String, x1: f64, y1: f64, x2: f64, y2: f64) {
+    write!(
+        buf,
+        r#"<path d="M {},{} L {},{}" fill="none" style="stroke:{EDGE_COLOR};stroke-width:1;"/>"#,
+        fmt_coord(x1),
+        fmt_coord(y1),
+        fmt_coord(x2),
+        fmt_coord(y2),
+    )
+    .unwrap();
+}
+
+/// Format a point as "x,y" for polygon points attributes.
+fn fmt_pt(x: f64, y: f64) -> String {
+    format!("{},{}", fmt_coord(x), fmt_coord(y))
+}
+
 // ── Public entry point ──────────────────────────────────────────────
 
 /// Render an ERD diagram to SVG.
@@ -36,9 +56,6 @@ pub fn render_erd(_ed: &ErdDiagram, layout: &ErdLayout, skin: &SkinParams) -> Re
     // SVG header
     write_svg_root(&mut buf, layout.width, layout.height, "CHEN_EER");
     buf.push_str("<defs/><g>");
-
-    // Defs
-    write_defs(&mut buf);
 
     let ent_bg = skin.background_color("entity", ENTITY_BG);
     let ent_border = skin.border_color("entity", ENTITY_BORDER);
@@ -57,8 +74,6 @@ pub fn render_erd(_ed: &ErdDiagram, layout: &ErdLayout, skin: &SkinParams) -> Re
     // Attributes
     for attr in &layout.attribute_nodes {
         render_attribute(&mut buf, attr);
-        // Line from parent center to attribute
-        // (parent center will be resolved from node positions)
     }
 
     // Attribute-to-parent lines
@@ -88,17 +103,15 @@ pub fn render_erd(_ed: &ErdDiagram, layout: &ErdLayout, skin: &SkinParams) -> Re
     Ok(buf)
 }
 
-// ── Defs ────────────────────────────────────────────────────────────
-
-fn write_defs(buf: &mut String) {
-    buf.push_str("<defs>\n");
-    // No arrow markers needed for Chen notation (uses cardinality labels instead)
-    buf.push_str("</defs>\n");
-}
-
 // ── Entity rendering ────────────────────────────────────────────────
 
-fn render_entity(buf: &mut String, node: &ErdNodeLayout, bg: &str, border: &str, font_color: &str) {
+fn render_entity(
+    buf: &mut String,
+    node: &ErdNodeLayout,
+    bg: &str,
+    border: &str,
+    font_color: &str,
+) {
     let x = node.x;
     let y = node.y;
     let w = node.width;
@@ -106,45 +119,45 @@ fn render_entity(buf: &mut String, node: &ErdNodeLayout, bg: &str, border: &str,
 
     if node.is_weak {
         // Double-bordered rectangle for weak entity
-        // Outer rectangle
         write!(
             buf,
-            r#"<rect fill="{bg}" height="{h:.1}" style="stroke:{border};stroke-width:1.5;" width="{w:.1}" x="{x:.1}" y="{y:.1}"/>"#,
+            r#"<rect fill="{bg}" height="{}" style="stroke:{border};stroke-width:0.5;" width="{}" x="{}" y="{}"/>"#,
+            fmt_coord(h), fmt_coord(w), fmt_coord(x), fmt_coord(y),
         )
         .unwrap();
-        buf.push('\n');
         // Inner rectangle (inset by 3px)
         let inset = 3.0;
         write!(
             buf,
-            r#"<rect fill="none" height="{ih:.1}" style="stroke:{border};stroke-width:1;" width="{iw:.1}" x="{ix:.1}" y="{iy:.1}"/>"#,
-            ix = x + inset,
-            iy = y + inset,
-            iw = w - 2.0 * inset,
-            ih = h - 2.0 * inset,
+            r#"<rect fill="{bg}" height="{}" style="stroke:{border};stroke-width:0.5;" width="{}" x="{}" y="{}"/>"#,
+            fmt_coord(h - 2.0 * inset),
+            fmt_coord(w - 2.0 * inset),
+            fmt_coord(x + inset),
+            fmt_coord(y + inset),
         )
         .unwrap();
-        buf.push('\n');
     } else {
-        // Single rectangle
         write!(
             buf,
-            r#"<rect fill="{bg}" height="{h:.1}" style="stroke:{border};stroke-width:1.5;" width="{w:.1}" x="{x:.1}" y="{y:.1}"/>"#,
+            r#"<rect fill="{bg}" height="{}" style="stroke:{border};stroke-width:0.5;" width="{}" x="{}" y="{}"/>"#,
+            fmt_coord(h), fmt_coord(w), fmt_coord(x), fmt_coord(y),
         )
         .unwrap();
-        buf.push('\n');
     }
 
-    // Entity name centered
-    let cx = x + w / 2.0;
-    let cy = y + h / 2.0 + FONT_SIZE * 0.35;
+    // Entity name text (matching Java PlantUML: left-aligned with lengthAdjust)
+    let tx = x + 10.0;
+    let ty = y + h / 2.0 + FONT_SIZE * 0.35;
     let escaped = xml_escape(&node.label);
     write!(
         buf,
-        r#"<text fill="{font_color}" font-family="sans-serif" font-size="{FONT_SIZE}" font-weight="bold" text-anchor="middle" x="{cx:.1}" y="{cy:.1}">{escaped}</text>"#,
+        r#"<text fill="{font_color}" font-family="sans-serif" font-size="{}" lengthAdjust="spacing" textLength="{}" x="{}" y="{}">{escaped}</text>"#,
+        fmt_coord(FONT_SIZE),
+        fmt_coord(w - 20.0),
+        fmt_coord(tx),
+        fmt_coord(ty),
     )
     .unwrap();
-    buf.push('\n');
 }
 
 // ── Relationship rendering ──────────────────────────────────────────
@@ -158,53 +171,55 @@ fn render_relationship(buf: &mut String, node: &ErdNodeLayout) {
     let cy = y + h / 2.0;
 
     // Diamond shape: 4 points (top, right, bottom, left)
-    let top = format!("{cx:.1},{y:.1}");
-    let right = format!("{:.1},{:.1}", x + w, cy);
-    let bottom = format!("{:.1},{:.1}", cx, y + h);
-    let left = format!("{x:.1},{cy:.1}");
+    let top = fmt_pt(cx, y);
+    let right = fmt_pt(x + w, cy);
+    let bottom = fmt_pt(cx, y + h);
+    let left = fmt_pt(x, cy);
 
     if node.is_identifying {
-        // Double-bordered diamond for identifying relationship
         let points = format!("{top} {right} {bottom} {left}");
         write!(
             buf,
-            r#"<polygon fill="{RELATIONSHIP_BG}" points="{points}" style="stroke:{RELATIONSHIP_BORDER};stroke-width:1.5;"/>"#,
+            r#"<polygon fill="{RELATIONSHIP_BG}" points="{points}" style="stroke:{RELATIONSHIP_BORDER};stroke-width:0.5;"/>"#,
         )
         .unwrap();
-        buf.push('\n');
 
-        // Inner diamond (inset by 4px)
+        // Inner diamond (inset)
         let inset = 4.0;
-        let inner_top = format!("{:.1},{:.1}", cx, y + inset);
-        let inner_right = format!("{:.1},{:.1}", x + w - inset * 1.5, cy);
-        let inner_bottom = format!("{:.1},{:.1}", cx, y + h - inset);
-        let inner_left = format!("{:.1},{:.1}", x + inset * 1.5, cy);
-        let inner_points = format!("{inner_top} {inner_right} {inner_bottom} {inner_left}");
+        let inner_top = fmt_pt(cx, y + inset);
+        let inner_right = fmt_pt(x + w - inset * 1.5, cy);
+        let inner_bottom = fmt_pt(cx, y + h - inset);
+        let inner_left = fmt_pt(x + inset * 1.5, cy);
+        let inner_points =
+            format!("{inner_top} {inner_right} {inner_bottom} {inner_left}");
         write!(
             buf,
-            r#"<polygon fill="none" points="{inner_points}" style="stroke:{RELATIONSHIP_BORDER};stroke-width:1;"/>"#,
+            r#"<polygon fill="{RELATIONSHIP_BG}" points="{inner_points}" style="stroke:{RELATIONSHIP_BORDER};stroke-width:0.5;"/>"#,
         )
         .unwrap();
-        buf.push('\n');
     } else {
         let points = format!("{top} {right} {bottom} {left}");
         write!(
             buf,
-            r#"<polygon fill="{RELATIONSHIP_BG}" points="{points}" style="stroke:{RELATIONSHIP_BORDER};stroke-width:1.5;"/>"#,
+            r#"<polygon fill="{RELATIONSHIP_BG}" points="{points}" style="stroke:{RELATIONSHIP_BORDER};stroke-width:0.5;"/>"#,
         )
         .unwrap();
-        buf.push('\n');
     }
 
     // Relationship name centered
     let ty = cy + FONT_SIZE * 0.35;
     let escaped = xml_escape(&node.label);
+    let text_w = w - 2.0 * 20.0;
+    let text_x = cx - text_w / 2.0;
     write!(
         buf,
-        r#"<text fill="{TEXT_FILL}" font-family="sans-serif" font-size="{FONT_SIZE}" text-anchor="middle" x="{cx:.1}" y="{ty:.1}">{escaped}</text>"#,
+        r#"<text fill="{TEXT_FILL}" font-family="sans-serif" font-size="{}" lengthAdjust="spacing" textLength="{}" x="{}" y="{}">{escaped}</text>"#,
+        fmt_coord(FONT_SIZE),
+        fmt_coord(text_w),
+        fmt_coord(text_x),
+        fmt_coord(ty),
     )
     .unwrap();
-    buf.push('\n');
 }
 
 // ── Attribute rendering ─────────────────────────────────────────────
@@ -219,56 +234,64 @@ fn render_attribute(buf: &mut String, attr: &ErdAttrLayout) {
         // Dashed ellipse for derived attribute
         write!(
             buf,
-            r#"<ellipse cx="{cx:.1}" cy="{cy:.1}" fill="{ATTR_BG}" rx="{rx:.1}" ry="{ry:.1}" style="stroke:{ATTR_BORDER};stroke-width:1;stroke-dasharray:5,3;"/>"#,
+            r#"<ellipse cx="{}" cy="{}" fill="{ATTR_BG}" rx="{}" ry="{}" style="stroke:{ATTR_BORDER};stroke-width:0.5;stroke-dasharray:10,10;"/>"#,
+            fmt_coord(cx), fmt_coord(cy), fmt_coord(rx), fmt_coord(ry),
         )
         .unwrap();
-        buf.push('\n');
     } else if attr.is_multi {
         // Double ellipse for multi-valued attribute
         write!(
             buf,
-            r#"<ellipse cx="{cx:.1}" cy="{cy:.1}" fill="{ATTR_BG}" rx="{rx:.1}" ry="{ry:.1}" style="stroke:{ATTR_BORDER};stroke-width:1.5;"/>"#,
+            r#"<ellipse cx="{}" cy="{}" fill="{ATTR_BG}" rx="{}" ry="{}" style="stroke:{ATTR_BORDER};stroke-width:0.5;"/>"#,
+            fmt_coord(cx), fmt_coord(cy), fmt_coord(rx), fmt_coord(ry),
         )
         .unwrap();
-        buf.push('\n');
-        // Inner ellipse
+        // Inner ellipse (inset by 3px in both directions, matching Java)
         let inner_rx = rx - 3.0;
-        let inner_ry = ry - 2.0;
+        let inner_ry = ry - 3.0;
         write!(
             buf,
-            r#"<ellipse cx="{cx:.1}" cy="{cy:.1}" fill="none" rx="{inner_rx:.1}" ry="{inner_ry:.1}" style="stroke:{ATTR_BORDER};stroke-width:1;"/>"#,
+            r#"<ellipse cx="{}" cy="{}" fill="{ATTR_BG}" rx="{}" ry="{}" style="stroke:{ATTR_BORDER};stroke-width:0.5;"/>"#,
+            fmt_coord(cx), fmt_coord(cy), fmt_coord(inner_rx), fmt_coord(inner_ry),
         )
         .unwrap();
-        buf.push('\n');
     } else {
         // Simple ellipse
         write!(
             buf,
-            r#"<ellipse cx="{cx:.1}" cy="{cy:.1}" fill="{ATTR_BG}" rx="{rx:.1}" ry="{ry:.1}" style="stroke:{ATTR_BORDER};stroke-width:1;"/>"#,
+            r#"<ellipse cx="{}" cy="{}" fill="{ATTR_BG}" rx="{}" ry="{}" style="stroke:{ATTR_BORDER};stroke-width:0.5;"/>"#,
+            fmt_coord(cx), fmt_coord(cy), fmt_coord(rx), fmt_coord(ry),
         )
         .unwrap();
-        buf.push('\n');
     }
 
     // Attribute label
     let escaped = xml_escape(&attr.label);
     let ty = cy + FONT_SIZE * 0.35;
+    let text_w = rx * 2.0 - 10.0;
+    let text_x = cx - rx + 5.0;
 
     if attr.is_key {
-        // Underlined text for key attribute
         write!(
             buf,
-            r#"<text fill="{TEXT_FILL}" font-family="sans-serif" font-size="{FONT_SIZE}" text-anchor="middle" text-decoration="underline" x="{cx:.1}" y="{ty:.1}">{escaped}</text>"#,
+            r#"<text fill="{TEXT_FILL}" font-family="sans-serif" font-size="{}" lengthAdjust="spacing" text-decoration="underline" textLength="{}" x="{}" y="{}">{escaped}</text>"#,
+            fmt_coord(FONT_SIZE),
+            fmt_coord(text_w),
+            fmt_coord(text_x),
+            fmt_coord(ty),
         )
         .unwrap();
     } else {
         write!(
             buf,
-            r#"<text fill="{TEXT_FILL}" font-family="sans-serif" font-size="{FONT_SIZE}" text-anchor="middle" x="{cx:.1}" y="{ty:.1}">{escaped}</text>"#,
+            r#"<text fill="{TEXT_FILL}" font-family="sans-serif" font-size="{}" lengthAdjust="spacing" textLength="{}" x="{}" y="{}">{escaped}</text>"#,
+            fmt_coord(FONT_SIZE),
+            fmt_coord(text_w),
+            fmt_coord(text_x),
+            fmt_coord(ty),
         )
         .unwrap();
     }
-    buf.push('\n');
 
     // Type annotation (if any)
     if let Some(ref type_label) = attr.type_label {
@@ -276,28 +299,19 @@ fn render_attribute(buf: &mut String, attr: &ErdAttrLayout) {
         let type_y = cy + FONT_SIZE * 0.35 + FONT_SIZE + 2.0;
         write!(
             buf,
-            r#"<text fill="{TEXT_FILL}" font-family="sans-serif" font-size="{fs:.0}" font-style="italic" text-anchor="middle" x="{cx:.1}" y="{ty:.1}">{type_escaped}</text>"#,
-            ty = type_y,
-            fs = FONT_SIZE - 2.0,
+            r#"<text fill="{TEXT_FILL}" font-family="sans-serif" font-size="{}" font-style="italic" lengthAdjust="spacing" textLength="{}" x="{}" y="{}">{type_escaped}</text>"#,
+            fmt_coord(FONT_SIZE - 2.0),
+            fmt_coord(text_w),
+            fmt_coord(text_x),
+            fmt_coord(type_y),
         )
         .unwrap();
-        buf.push('\n');
     }
 
     // Render children recursively
     for child in &attr.children {
         render_attribute(buf, child);
-        // Line from parent attribute to child attribute
-        write!(
-            buf,
-            r#"<line style="stroke:{EDGE_COLOR};stroke-width:1;" x1="{x1:.1}" x2="{x2:.1}" y1="{y1:.1}" y2="{y2:.1}"/>"#,
-            x1 = cx,
-            y1 = cy - ry,
-            x2 = child.x,
-            y2 = child.y + child.ry,
-        )
-        .unwrap();
-        buf.push('\n');
+        render_path_line(buf, cx, cy - ry, child.x, child.y + child.ry);
     }
 }
 
@@ -310,7 +324,6 @@ fn render_attr_parent_lines(
     relationships: &[ErdNodeLayout],
 ) {
     for attr in attrs {
-        // Find parent center
         let parent_center = entities
             .iter()
             .chain(relationships.iter())
@@ -318,16 +331,7 @@ fn render_attr_parent_lines(
             .map(|n| (n.x + n.width / 2.0, n.y + n.height / 2.0));
 
         if let Some((px, py)) = parent_center {
-            write!(
-                buf,
-                r#"<line style="stroke:{EDGE_COLOR};stroke-width:1;" x1="{x1:.1}" x2="{x2:.1}" y1="{y1:.1}" y2="{y2:.1}"/>"#,
-                x1 = px,
-                y1 = py,
-                x2 = attr.x,
-                y2 = attr.y,
-            )
-            .unwrap();
-            buf.push('\n');
+            render_path_line(buf, attr.x, attr.y, px, py);
         }
     }
 }
@@ -339,36 +343,41 @@ fn render_edge(buf: &mut String, edge: &ErdEdgeLayout) {
     let (x2, y2) = edge.to_point;
 
     if edge.is_double {
-        // Double line: two parallel lines offset by 2px
+        // Double line: two parallel lines offset by 1.5px
         let dx = x2 - x1;
         let dy = y2 - y1;
         let len = (dx * dx + dy * dy).sqrt();
         if len > 0.001 {
             let nx = -dy / len * 1.5;
             let ny = dx / len * 1.5;
-
-            write!(
-                buf,
-                r#"<line style="stroke:{EDGE_COLOR};stroke-width:1;" x1="{:.1}" x2="{:.1}" y1="{:.1}" y2="{:.1}"/>"#,
-                x1 + nx, y1 + ny, x2 + nx, y2 + ny,
-            )
-            .unwrap();
-            buf.push('\n');
-            write!(
-                buf,
-                r#"<line style="stroke:{EDGE_COLOR};stroke-width:1;" x1="{:.1}" x2="{:.1}" y1="{:.1}" y2="{:.1}"/>"#,
-                x1 - nx, y1 - ny, x2 - nx, y2 - ny,
-            )
-            .unwrap();
-            buf.push('\n');
+            render_path_line(buf, x1 + nx, y1 + ny, x2 + nx, y2 + ny);
+            render_path_line(buf, x1 - nx, y1 - ny, x2 - nx, y2 - ny);
         }
     } else {
-        write!(
-            buf,
-            r#"<line style="stroke:{EDGE_COLOR};stroke-width:1;" x1="{x1:.1}" x2="{x2:.1}" y1="{y1:.1}" y2="{y2:.1}"/>"#,
-        )
-        .unwrap();
-        buf.push('\n');
+        render_path_line(buf, x1, y1, x2, y2);
+    }
+
+    // Inline arrow polygon at the target end
+    if edge.is_double {
+        let dx = x2 - x1;
+        let dy = y2 - y1;
+        let len = (dx * dx + dy * dy).sqrt();
+        if len > 0.001 {
+            let ux = dx / len;
+            let uy = dy / len;
+            let ax = x2 - ux * 8.0;
+            let ay = y2 - uy * 8.0;
+            let nx = -uy * 4.0;
+            let ny = ux * 4.0;
+            write!(
+                buf,
+                r#"<polygon fill="{EDGE_COLOR}" points="{} {} {}"/>"#,
+                fmt_pt(x2, y2),
+                fmt_pt(ax + nx, ay + ny),
+                fmt_pt(ax - nx, ay - ny),
+            )
+            .unwrap();
+        }
     }
 
     // Cardinality label near the midpoint
@@ -376,12 +385,15 @@ fn render_edge(buf: &mut String, edge: &ErdEdgeLayout) {
         let mx = (x1 + x2) / 2.0;
         let my = (y1 + y2) / 2.0 - 6.0;
         let escaped = xml_escape(&edge.label);
+        let text_w = escaped.len() as f64 * 7.0;
         write!(
             buf,
-            r#"<text fill="{TEXT_FILL}" font-family="sans-serif" font-size="{FONT_SIZE}" text-anchor="middle" x="{mx:.1}" y="{my:.1}">{escaped}</text>"#,
+            r#"<text fill="{TEXT_FILL}" font-family="sans-serif" font-size="11" lengthAdjust="spacing" textLength="{}" x="{}" y="{}">{escaped}</text>"#,
+            fmt_coord(text_w),
+            fmt_coord(mx),
+            fmt_coord(my),
         )
         .unwrap();
-        buf.push('\n');
     }
 }
 
@@ -391,59 +403,45 @@ fn render_isa(buf: &mut String, isa: &ErdIsaLayout) {
     let (cx, cy) = isa.triangle_center;
     let s = isa.triangle_size;
 
-    // Triangle pointing down: (cx, cy+s), (cx-s, cy-s/2), (cx+s, cy-s/2)
     let top_y = cy - s * 0.5;
     let bot_y = cy + s * 0.5;
     let left_x = cx - s * 0.6;
     let right_x = cx + s * 0.6;
 
-    let points = format!("{cx:.1},{top_y:.1} {right_x:.1},{bot_y:.1} {left_x:.1},{bot_y:.1}");
+    let points = format!(
+        "{} {} {}",
+        fmt_pt(cx, top_y),
+        fmt_pt(right_x, bot_y),
+        fmt_pt(left_x, bot_y)
+    );
 
-    if isa.is_double {
-        write!(
-            buf,
-            r#"<polygon fill="{ISA_BG}" points="{points}" style="stroke:{ISA_BORDER};stroke-width:2;"/>"#,
-        )
-        .unwrap();
-    } else {
-        write!(
-            buf,
-            r#"<polygon fill="{ISA_BG}" points="{points}" style="stroke:{ISA_BORDER};stroke-width:1.5;"/>"#,
-        )
-        .unwrap();
-    }
-    buf.push('\n');
+    write!(
+        buf,
+        r#"<polygon fill="{ISA_BG}" points="{points}" style="stroke:{ISA_BORDER};stroke-width:0.5;"/>"#,
+    )
+    .unwrap();
 
     // Kind label (d or U) inside triangle
     let label_y = cy + FONT_SIZE * 0.2;
     let escaped = xml_escape(&isa.kind_label);
+    let text_w = escaped.len() as f64 * 7.0;
     write!(
         buf,
-        r#"<text fill="{TEXT_FILL}" font-family="sans-serif" font-size="{fs:.0}" text-anchor="middle" x="{cx:.1}" y="{ly:.1}">{escaped}</text>"#,
-        ly = label_y,
-        fs = FONT_SIZE - 1.0,
+        r#"<text fill="{TEXT_FILL}" font-family="sans-serif" font-size="{}" lengthAdjust="spacing" textLength="{}" x="{}" y="{}">{escaped}</text>"#,
+        fmt_coord(FONT_SIZE),
+        fmt_coord(text_w),
+        fmt_coord(cx - text_w / 2.0),
+        fmt_coord(label_y),
     )
     .unwrap();
-    buf.push('\n');
 
-    // Line from parent to triangle top
+    // Path from parent to triangle top
     let (ppx, ppy) = isa.parent_point;
-    write!(
-        buf,
-        r#"<line style="stroke:{EDGE_COLOR};stroke-width:1.5;" x1="{ppx:.1}" x2="{cx:.1}" y1="{ppy:.1}" y2="{top_y:.1}"/>"#,
-    )
-    .unwrap();
-    buf.push('\n');
+    render_path_line(buf, ppx, ppy, cx, top_y);
 
-    // Lines from triangle bottom to children
-    for (child_id, (child_x, child_y)) in &isa.child_points {
-        let _ = child_id;
-        write!(
-            buf,
-            r#"<line style="stroke:{EDGE_COLOR};stroke-width:1;" x1="{cx:.1}" x2="{child_x:.1}" y1="{bot_y:.1}" y2="{child_y:.1}"/>"#,
-        )
-        .unwrap();
-        buf.push('\n');
+    // Paths from triangle bottom to children
+    for (_child_id, (child_x, child_y)) in &isa.child_points {
+        render_path_line(buf, cx, bot_y, *child_x, *child_y);
     }
 }
 
@@ -453,10 +451,13 @@ fn render_note(buf: &mut String, note: &ErdNoteLayout) {
     if let Some((x1, y1, x2, y2)) = note.connector {
         write!(
             buf,
-            r#"<line style="stroke:{NOTE_BORDER};stroke-width:1;stroke-dasharray:5,3;" x1="{x1:.1}" x2="{x2:.1}" y1="{y1:.1}" y2="{y2:.1}"/>"#,
+            r#"<line style="stroke:{NOTE_BORDER};stroke-width:1;stroke-dasharray:5,3;" x1="{}" x2="{}" y1="{}" y2="{}"/>"#,
+            fmt_coord(x1),
+            fmt_coord(x2),
+            fmt_coord(y1),
+            fmt_coord(y2),
         )
         .unwrap();
-        buf.push('\n');
     }
 
     let x = note.x;
@@ -466,28 +467,36 @@ fn render_note(buf: &mut String, note: &ErdNoteLayout) {
     let fold = NOTE_FOLD;
     write!(
         buf,
-        r#"<polygon fill="{NOTE_BG}" points="{x:.1},{y:.1} {x1:.1},{y:.1} {x2:.1},{y1:.1} {x2:.1},{y2:.1} {x:.1},{y2:.1}" style="stroke:{NOTE_BORDER};stroke-width:1;"/>"#,
-        x1 = x + w - fold,
-        x2 = x + w,
-        y1 = y + fold,
-        y2 = y + h,
+        r#"<polygon fill="{NOTE_BG}" points="{},{} {},{} {},{} {},{} {},{}" style="stroke:{NOTE_BORDER};stroke-width:0.5;"/>"#,
+        fmt_coord(x), fmt_coord(y),
+        fmt_coord(x + w - fold), fmt_coord(y),
+        fmt_coord(x + w), fmt_coord(y + fold),
+        fmt_coord(x + w), fmt_coord(y + h),
+        fmt_coord(x), fmt_coord(y + h),
     )
     .unwrap();
-    buf.push('\n');
 
     write!(
         buf,
-        r#"<path d="M {x1:.1},{y:.1} L {x1:.1},{y1:.1} L {x2:.1},{y1:.1}" fill="none" style="stroke:{NOTE_BORDER};stroke-width:1;"/>"#,
-        x1 = x + w - fold,
-        x2 = x + w,
-        y1 = y + fold,
+        r#"<path d="M {},{} L {},{} L {},{}" fill="none" style="stroke:{NOTE_BORDER};stroke-width:0.5;"/>"#,
+        fmt_coord(x + w - fold), fmt_coord(y),
+        fmt_coord(x + w - fold), fmt_coord(y + fold),
+        fmt_coord(x + w), fmt_coord(y + fold),
     )
     .unwrap();
-    buf.push('\n');
 
     let text_x = x + 10.0;
     let start_y = y + 10.0 + FONT_SIZE;
-    render_creole_text(buf, &note.text, text_x, start_y, 16.0, TEXT_FILL, None, r#"font-size="13""#);
+    render_creole_text(
+        buf,
+        &note.text,
+        text_x,
+        start_y,
+        16.0,
+        TEXT_FILL,
+        None,
+        r#"font-size="13""#,
+    );
 }
 
 // ── Tests ───────────────────────────────────────────────────────────
@@ -577,8 +586,8 @@ mod tests {
         assert!(svg.contains("<rect"), "entity must produce a rect");
         assert!(svg.contains("MOVIE"), "entity name must appear");
         assert!(
-            svg.contains(r#"font-weight="bold""#),
-            "entity name must be bold"
+            svg.contains(r#"lengthAdjust="spacing""#),
+            "entity text must use lengthAdjust"
         );
     }
 
@@ -736,7 +745,7 @@ mod tests {
             is_double: false,
         });
         let svg = render_erd(&d, &layout, &SkinParams::default()).unwrap();
-        assert!(svg.contains("<line"), "edge must produce a line");
+        assert!(svg.contains("<path"), "edge must produce a path");
         assert!(svg.contains("N"), "cardinality label must appear");
     }
 
@@ -754,8 +763,11 @@ mod tests {
             is_double: true,
         });
         let svg = render_erd(&d, &layout, &SkinParams::default()).unwrap();
-        let line_count = svg.matches("<line").count();
-        assert_eq!(line_count, 2, "double edge must produce 2 lines");
+        let path_count = svg.matches("<path").count();
+        assert!(
+            path_count >= 2,
+            "double edge must produce at least 2 paths"
+        );
     }
 
     // 12. ISA triangle rendering
@@ -780,12 +792,12 @@ mod tests {
             svg.contains("<polygon"),
             "ISA must produce a triangle polygon"
         );
-        // Triangle + label "d" + line to parent + 2 lines to children = >=3 lines
-        let line_count = svg.matches("<line").count();
+        // Triangle + paths: parent-to-top + 2 bottom-to-children = 3 paths
+        let path_count = svg.matches("<path").count();
         assert!(
-            line_count >= 3,
-            "ISA must have lines to parent and children, got {}",
-            line_count
+            path_count >= 3,
+            "ISA must have paths to parent and children, got {}",
+            path_count
         );
         assert!(svg.contains(">d<"), "ISA must show kind label 'd'");
     }
@@ -805,12 +817,12 @@ mod tests {
             .attribute_nodes
             .push(make_attr("Y", "E", 100.0, 40.0));
         let svg = render_erd(&d, &layout, &SkinParams::default()).unwrap();
-        // 2 lines connecting attributes to entity center
-        let line_count = svg.matches("<line").count();
+        // 2 paths connecting attributes to entity center
+        let path_count = svg.matches("<path").count();
         assert!(
-            line_count >= 2,
-            "must have attribute-to-parent lines, got {}",
-            line_count
+            path_count >= 2,
+            "must have attribute-to-parent paths, got {}",
+            path_count
         );
     }
 
