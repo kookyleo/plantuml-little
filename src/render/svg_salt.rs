@@ -343,11 +343,11 @@ fn render_table(
 }
 
 fn render_text(buf: &mut String, x: f64, y: f64, text: &str, font: &str, anchor: Option<&str>) {
-    write!(buf, r#"<text x="{x:.1}" y="{y:.1}""#).unwrap();
+    write!(buf, r#"<text fill="{}" font-family="sans-serif" font-size="12""#, font).unwrap();
     if let Some(anchor) = anchor {
         write!(buf, r#" text-anchor="{}""#, xml_escape(anchor)).unwrap();
     }
-    write!(buf, r#" fill="{}">{}"#, font, xml_escape(text)).unwrap();
+    write!(buf, r#" x="{x:.1}" y="{y:.1}">{}"#, xml_escape(text)).unwrap();
     buf.push_str("</text>\n");
 }
 

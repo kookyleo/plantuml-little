@@ -202,7 +202,7 @@ fn render_actor(buf: &mut String, actor: &ActorLayout, stroke: &str, font_color:
     let name_escaped = xml_escape(&actor.name);
     write!(
         buf,
-        r#"<text x="{cx:.1}" y="{name_y:.1}" text-anchor="middle" fill="{font_color}">{name_escaped}</text>"#,
+        r#"<text fill="{font_color}" font-family="sans-serif" font-size="{FONT_SIZE}" text-anchor="middle" x="{cx:.1}" y="{name_y:.1}">{name_escaped}</text>"#,
     )
     .unwrap();
     buf.push('\n');
@@ -234,7 +234,7 @@ fn render_usecase_oval(
     let text_y = uc.cy + FONT_SIZE * 0.35;
     write!(
         buf,
-        r#"<text x="{cx:.1}" y="{ty:.1}" text-anchor="middle" fill="{font_color}">{name_escaped}</text>"#,
+        r#"<text fill="{font_color}" font-family="sans-serif" font-size="{FONT_SIZE}" text-anchor="middle" x="{cx:.1}" y="{ty:.1}">{name_escaped}</text>"#,
         cx = uc.cx,
         ty = text_y,
     )
@@ -271,7 +271,7 @@ fn render_boundary(buf: &mut String, boundary: &BoundaryLayout, border: &str, fo
     let name_y = boundary.y + FONT_SIZE + 4.0;
     write!(
         buf,
-        r#"<text x="{name_x:.1}" y="{name_y:.1}" font-weight="bold" fill="{font_color}">{name_escaped}</text>"#,
+        r#"<text fill="{font_color}" font-family="sans-serif" font-size="{FONT_SIZE}" font-weight="bold" x="{name_x:.1}" y="{name_y:.1}">{name_escaped}</text>"#,
     )
     .unwrap();
     buf.push('\n');
@@ -315,7 +315,7 @@ fn render_edge(buf: &mut String, edge: &UseCaseEdgeLayout, arrow_color: &str, fo
             let escaped = xml_escape(&stereo_text);
             write!(
                 buf,
-                r#"<text x="{mx:.1}" y="{my:.1}" text-anchor="middle" font-size="{fs:.0}" font-style="italic" fill="{font_color}">{escaped}</text>"#,
+                r#"<text fill="{font_color}" font-family="sans-serif" font-size="{fs:.0}" font-style="italic" text-anchor="middle" x="{mx:.1}" y="{my:.1}">{escaped}</text>"#,
                 mx = mid_x,
                 my = mid_y - FONT_SIZE - 2.0,
                 fs = FONT_SIZE - 1.0,
@@ -330,7 +330,7 @@ fn render_edge(buf: &mut String, edge: &UseCaseEdgeLayout, arrow_color: &str, fo
         let label_escaped = xml_escape(&edge.label);
         write!(
             buf,
-            r#"<text x="{mx:.1}" y="{my:.1}" text-anchor="middle" font-size="{FONT_SIZE}" fill="{font_color}">{label_escaped}</text>"#,
+            r#"<text fill="{font_color}" font-family="sans-serif" font-size="{FONT_SIZE}" text-anchor="middle" x="{mx:.1}" y="{my:.1}">{label_escaped}</text>"#,
             mx = mid_x,
             my = mid_y + FONT_SIZE,
         )

@@ -58,7 +58,7 @@ pub fn render_linked_text(
 ) -> String {
     let escaped_text = xml_escape(text);
     let text_elem = format!(
-        r#"<text x="{x:.1}" y="{y:.1}"{extra}>{text}</text>"#,
+        r#"<text font-family="sans-serif" x="{x:.1}" y="{y:.1}"{extra}>{text}</text>"#,
         extra = if extra_attrs.is_empty() {
             String::new()
         } else {
@@ -111,7 +111,7 @@ mod tests {
         };
         let result = render_linked_text("Click", 10.0, 20.0, &link, "");
         assert!(result.contains(r#"<a href="https://example.com""#));
-        assert!(result.contains(r#"<text x="10.0" y="20.0">Click</text>"#));
+        assert!(result.contains(r#"<text font-family="sans-serif" x="10.0" y="20.0">Click</text>"#));
         assert!(result.contains("</a>"));
     }
 

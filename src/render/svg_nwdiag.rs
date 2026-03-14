@@ -36,7 +36,7 @@ pub fn render_nwdiag(
             LINE_HEIGHT,
             skin.font_color("nwdiag", TEXT_FILL),
             Some("middle"),
-            r#"font-weight="bold""#,
+            r#"font-size="14" font-weight="bold""#,
         );
     }
 
@@ -93,7 +93,7 @@ fn render_network(buf: &mut String, network: &NwdiagNetworkLayout, skin: &SkinPa
         LINE_HEIGHT,
         font,
         None,
-        r#"font-weight="bold""#,
+        r#"font-size="14" font-weight="bold""#,
     );
     if let Some(address) = &network.address {
         render_creole_text(
@@ -133,7 +133,7 @@ fn render_server(buf: &mut String, server: &NwdiagServerLayout, skin: &SkinParam
         LINE_HEIGHT,
         font,
         Some("middle"),
-        "",
+        r#"font-size="12""#,
     );
 }
 

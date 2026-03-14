@@ -94,14 +94,7 @@ pub fn render_creole_text(
         .collect();
 
     if lines.len() == 1 {
-        write!(buf, r#"<text x="{x:.1}" y="{y:.1}""#).unwrap();
-        if let Some(anchor) = text_anchor {
-            write!(buf, r#" text-anchor="{}""#, xml_escape(anchor)).unwrap();
-        }
-        if !outer_attrs.is_empty() {
-            write!(buf, " {outer_attrs}").unwrap();
-        }
-        write!(buf, r#" fill="{}">"#, xml_escape(fill)).unwrap();
+        write_text_open(buf, x, y, fill, text_anchor, outer_attrs);
         if let Some(text) = simple_plain_line(&lines[0]) {
             buf.push_str(&xml_escape(text));
         } else {
@@ -112,14 +105,7 @@ pub fn render_creole_text(
         return 1;
     }
 
-    write!(buf, r#"<text x="{x:.1}" y="{y:.1}""#).unwrap();
-    if let Some(anchor) = text_anchor {
-        write!(buf, r#" text-anchor="{}""#, xml_escape(anchor)).unwrap();
-    }
-    if !outer_attrs.is_empty() {
-        write!(buf, " {outer_attrs}").unwrap();
-    }
-    write!(buf, r#" fill="{}">"#, xml_escape(fill)).unwrap();
+    write_text_open(buf, x, y, fill, text_anchor, outer_attrs);
     for (idx, line) in lines.iter().enumerate() {
         let dy = if idx == 0 { 0.0 } else { line_height };
         write!(buf, r#"<tspan x="{x:.1}" dy="{dy:.1}">"#).unwrap();
@@ -134,6 +120,87 @@ pub fn render_creole_text(
     render_deferred_sprites(buf, &sprite_refs, x, y);
 
     lines.len()
+}
+
+/// Write the opening `<text ...>` tag with attributes in Java PlantUML
+/// alphabetical order: fill, font-family, font-size, font-style, font-weight,
+/// lengthAdjust, text-anchor, text-decoration, textLength, x, y.
+///
+/// `outer_attrs` may contain additional attributes such as `font-size="14"`,
+/// `font-weight="bold"`, or `font-style="italic"`.  They are parsed and merged
+/// into the correct positions.
+fn write_text_open(
+    buf: &mut String,
+    x: f64,
+    y: f64,
+    fill: &str,
+    text_anchor: Option<&str>,
+    outer_attrs: &str,
+) {
+    // Parse outer_attrs into key=value pairs for ordered insertion
+    let mut font_size_attr: Option<&str> = None;
+    let mut font_style_attr: Option<&str> = None;
+    let mut font_weight_attr: Option<&str> = None;
+    let mut text_decoration_attr: Option<&str> = None;
+    let mut extra_attrs = Vec::new();
+
+    if !outer_attrs.is_empty() {
+        // Simple attribute parser: split on space before attr names
+        let mut remaining = outer_attrs.trim();
+        while !remaining.is_empty() {
+            if let Some(eq_pos) = remaining.find('=') {
+                let attr_name = remaining[..eq_pos].trim();
+                let after_eq = &remaining[eq_pos + 1..];
+                // Find the quoted value
+                if let Some(stripped) = after_eq.strip_prefix('"') {
+                    if let Some(end_quote) = stripped.find('"') {
+                        let value_with_quotes = &remaining[eq_pos + 1..eq_pos + 1 + end_quote + 2];
+                        match attr_name {
+                            "font-size" => font_size_attr = Some(value_with_quotes),
+                            "font-style" => font_style_attr = Some(value_with_quotes),
+                            "font-weight" => font_weight_attr = Some(value_with_quotes),
+                            "text-decoration" => text_decoration_attr = Some(value_with_quotes),
+                            _ => extra_attrs.push((attr_name, value_with_quotes)),
+                        }
+                        remaining = remaining[eq_pos + 1 + end_quote + 2..].trim_start();
+                        continue;
+                    }
+                }
+            }
+            // If parsing fails, just append as-is and break
+            extra_attrs.push((outer_attrs, ""));
+            break;
+        }
+    }
+
+    // Alphabetical order: fill, font-family, font-size, font-style, font-weight,
+    // text-anchor, text-decoration, x, y
+    write!(buf, r#"<text fill="{}""#, xml_escape(fill)).unwrap();
+    buf.push_str(r#" font-family="sans-serif""#);
+    if let Some(fs) = font_size_attr {
+        write!(buf, r#" font-size={fs}"#).unwrap();
+    }
+    if let Some(fst) = font_style_attr {
+        write!(buf, r#" font-style={fst}"#).unwrap();
+    }
+    if let Some(fw) = font_weight_attr {
+        write!(buf, r#" font-weight={fw}"#).unwrap();
+    }
+    if let Some(anchor) = text_anchor {
+        write!(buf, r#" text-anchor="{}""#, xml_escape(anchor)).unwrap();
+    }
+    if let Some(td) = text_decoration_attr {
+        write!(buf, r#" text-decoration={td}"#).unwrap();
+    }
+    // Any unknown extra attrs
+    for (name, value) in &extra_attrs {
+        if value.is_empty() {
+            write!(buf, " {name}").unwrap();
+        } else {
+            write!(buf, " {name}={value}").unwrap();
+        }
+    }
+    write!(buf, r#" x="{x:.1}" y="{y:.1}">"#).unwrap();
 }
 
 fn flatten_rich_lines(rich: &RichText) -> Vec<Vec<TextSpan>> {

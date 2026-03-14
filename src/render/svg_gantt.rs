@@ -120,7 +120,7 @@ fn render_time_axis(buf: &mut String, axis: &GanttTimeAxis) {
         let escaped = xml_escape(&label.text);
         write!(
             buf,
-            r#"<text x="{x:.1}" y="{y:.1}" text-anchor="middle" font-size="{fs:.0}" fill="{AXIS_TEXT_COLOR}">{escaped}</text>"#,
+            r#"<text fill="{AXIS_TEXT_COLOR}" font-family="sans-serif" font-size="{fs:.0}" text-anchor="middle" x="{x:.1}" y="{y:.1}">{escaped}</text>"#,
             x = label.x,
             y = axis.y + FONT_SIZE + 2.0,
             fs = FONT_SIZE - 1.0,
@@ -177,7 +177,7 @@ fn render_bar(buf: &mut String, bar: &GanttBarLayout, font_color: &str) {
         FONT_SIZE + 4.0,
         font_color,
         Some("end"),
-        "",
+        r#"font-size="12""#,
     );
 }
 
@@ -259,7 +259,7 @@ fn render_note(buf: &mut String, note: &GanttNoteLayout, font_color: &str) {
         FONT_SIZE + 4.0,
         font_color,
         None,
-        "",
+        r#"font-size="13""#,
     );
 }
 

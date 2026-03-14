@@ -618,26 +618,29 @@ fn draw_entity_box(buf: &mut String, entity: &Entity, nl: &NodeLayout, skin: &Sk
         let name_y = y + HEADER_HEIGHT * 0.82;
         let cx = x + w / 2.0;
         write!(buf,
-            r#"<text x="{cx:.1}" y="{kind_y:.1}" text-anchor="middle" font-size="{fs:.0}" font-style="italic" fill="{font_color}">{kind_text}</text>"#,
+            r#"<text fill="{font_color}" font-family="sans-serif" font-size="{fs:.0}" font-style="italic" text-anchor="middle" x="{cx:.1}" y="{kind_y:.1}">{kind_text}</text>"#,
             fs = class_font_size - 2.0,
         ).unwrap();
         buf.push('\n');
         write!(buf,
-            r#"<text x="{cx:.1}" y="{name_y:.1}" text-anchor="middle" font-weight="bold" font-size="{class_font_size:.0}" fill="{font_color}">{name_escaped}</text>"#,
+            r#"<text fill="{font_color}" font-family="sans-serif" font-size="{class_font_size:.0}" font-weight="bold" text-anchor="middle" x="{cx:.1}" y="{name_y:.1}">{name_escaped}</text>"#,
         ).unwrap();
         buf.push('\n');
     } else {
         let name_y = y + HEADER_HEIGHT * 0.68;
         let cx = x + w / 2.0;
-        let mut extra_attrs = String::new();
-        if entity.kind == EntityKind::Abstract {
-            extra_attrs.push_str(r#" font-style="italic""#);
-        }
-        if entity.kind == EntityKind::Object {
-            extra_attrs.push_str(r#" text-decoration="underline""#);
-        }
+        let font_style_attr = if entity.kind == EntityKind::Abstract {
+            r#" font-style="italic""#
+        } else {
+            ""
+        };
+        let text_deco_attr = if entity.kind == EntityKind::Object {
+            r#" text-decoration="underline""#
+        } else {
+            ""
+        };
         write!(buf,
-            r#"<text x="{cx:.1}" y="{name_y:.1}" text-anchor="middle" font-weight="bold" font-size="{class_font_size:.0}"{extra_attrs} fill="{font_color}">{name_escaped}</text>"#,
+            r#"<text fill="{font_color}" font-family="sans-serif" font-size="{class_font_size:.0}"{font_style_attr} font-weight="bold" text-anchor="middle"{text_deco_attr} x="{cx:.1}" y="{name_y:.1}">{name_escaped}</text>"#,
         ).unwrap();
         buf.push('\n');
     }
@@ -654,15 +657,18 @@ fn draw_entity_box(buf: &mut String, entity: &Entity, nl: &NodeLayout, skin: &Sk
         let my = sep_y + LINE_HEIGHT * (i as f64 + 0.75);
         let text = format_member(member);
         let text_escaped = xml_escape(&text);
-        let mut style = String::new();
-        if member.modifiers.is_static {
-            style.push_str(r#" text-decoration="underline""#);
-        }
-        if member.modifiers.is_abstract {
-            style.push_str(r#" font-style="italic""#);
-        }
+        let font_style_attr = if member.modifiers.is_abstract {
+            r#" font-style="italic""#
+        } else {
+            ""
+        };
+        let text_deco_attr = if member.modifiers.is_static {
+            r#" text-decoration="underline""#
+        } else {
+            ""
+        };
         write!(buf,
-            r#"<text x="{members_x:.1}" y="{my:.1}" font-size="{attr_font_size:.0}"{style} fill="{font_color}">{text_escaped}</text>"#,
+            r#"<text fill="{font_color}" font-family="sans-serif" font-size="{attr_font_size:.0}"{font_style_attr}{text_deco_attr} x="{members_x:.1}" y="{my:.1}">{text_escaped}</text>"#,
         ).unwrap();
         buf.push('\n');
     }
@@ -729,7 +735,7 @@ fn marker_attr_for(head: &ArrowHead, attr: &str) -> String {
 fn draw_label(buf: &mut String, text: &str, x: f64, y: f64) {
     let escaped = xml_escape(text);
     write!(buf,
-        r#"<text x="{x:.1}" y="{y:.1}" text-anchor="middle" font-size="{FONT_SIZE}" fill="{LABEL_COLOR}">{escaped}</text>"#,
+        r#"<text fill="{LABEL_COLOR}" font-family="sans-serif" font-size="{FONT_SIZE}" text-anchor="middle" x="{x:.1}" y="{y:.1}">{escaped}</text>"#,
     ).unwrap();
     buf.push('\n');
 }

@@ -116,9 +116,9 @@ fn render_node(
     let text_start_y = node.y + (node.height - total_text_height) / 2.0 + LINE_HEIGHT * 0.75;
     let cx = node.x + node.width / 2.0;
     let outer_attrs = if node.level == 1 {
-        r#"font-weight="bold""#
+        r#"font-size="14" font-weight="bold""#
     } else {
-        ""
+        r#"font-size="12""#
     };
     render_creole_text(
         buf,
@@ -176,7 +176,7 @@ fn render_note(buf: &mut String, note: &MindmapNoteLayout, font_color: &str) {
         LINE_HEIGHT,
         font_color,
         None,
-        "",
+        r#"font-size="13""#,
     );
 }
 

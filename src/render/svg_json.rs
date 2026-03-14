@@ -99,7 +99,7 @@ fn render_row(
         let escaped = xml_escape(&label);
         write!(
             buf,
-            r#"<text x="{text_x:.1}" y="{text_y:.1}" font-weight="bold" fill="{font_color}">{escaped}</text>"#,
+            r#"<text fill="{font_color}" font-family="sans-serif" font-size="12" font-weight="bold" x="{text_x:.1}" y="{text_y:.1}">{escaped}</text>"#,
         )
         .unwrap();
         buf.push('\n');
@@ -111,7 +111,7 @@ fn render_row(
             let key_escaped = xml_escape(key);
             write!(
                 buf,
-                r#"<text x="{key_x:.1}" y="{text_y:.1}" font-weight="bold" fill="{font_color}">{key_escaped}</text>"#,
+                r#"<text fill="{font_color}" font-family="sans-serif" font-size="12" font-weight="bold" x="{key_x:.1}" y="{text_y:.1}">{key_escaped}</text>"#,
             )
             .unwrap();
             buf.push('\n');
@@ -123,7 +123,7 @@ fn render_row(
         let val_escaped = xml_escape(&row.value);
         write!(
             buf,
-            r#"<text x="{val_x:.1}" y="{text_y:.1}" fill="{font_color}">{val_escaped}</text>"#,
+            r#"<text fill="{font_color}" font-family="sans-serif" font-size="12" x="{val_x:.1}" y="{text_y:.1}">{val_escaped}</text>"#,
         )
         .unwrap();
         buf.push('\n');

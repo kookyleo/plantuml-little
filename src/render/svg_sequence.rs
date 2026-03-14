@@ -159,7 +159,7 @@ fn draw_participant_rect(
     let escaped = xml_escape(name);
     write!(
         buf,
-        r#"<text x="{cx:.1}" y="{ty:.1}" text-anchor="middle" font-weight="bold" fill="{color}">{text}</text>"#,
+        r#"<text fill="{color}" font-family="sans-serif" font-size="14" font-weight="bold" text-anchor="middle" x="{cx:.1}" y="{ty:.1}">{text}</text>"#,
         cx = p.x,
         ty = text_y,
         color = text_color,
@@ -253,7 +253,7 @@ fn draw_participant_actor(
     let escaped = xml_escape(name);
     write!(
         buf,
-        r#"<text x="{cx:.1}" y="{name_y:.1}" text-anchor="middle" font-weight="bold" fill="{text_color}">{escaped}</text>"#,
+        r#"<text fill="{text_color}" font-family="sans-serif" font-size="14" font-weight="bold" text-anchor="middle" x="{cx:.1}" y="{name_y:.1}">{escaped}</text>"#,
     )
     .unwrap();
     buf.push('\n');
@@ -313,7 +313,7 @@ fn draw_participant_boundary(
     let escaped = xml_escape(name);
     write!(
         buf,
-        r#"<text x="{cx:.1}" y="{name_y:.1}" text-anchor="middle" font-weight="bold" fill="{text_color}">{escaped}</text>"#,
+        r#"<text fill="{text_color}" font-family="sans-serif" font-size="14" font-weight="bold" text-anchor="middle" x="{cx:.1}" y="{name_y:.1}">{escaped}</text>"#,
     )
     .unwrap();
     buf.push('\n');
@@ -362,7 +362,7 @@ fn draw_participant_control(
     let escaped = xml_escape(name);
     write!(
         buf,
-        r#"<text x="{cx:.1}" y="{name_y:.1}" text-anchor="middle" font-weight="bold" fill="{text_color}">{escaped}</text>"#,
+        r#"<text fill="{text_color}" font-family="sans-serif" font-size="14" font-weight="bold" text-anchor="middle" x="{cx:.1}" y="{name_y:.1}">{escaped}</text>"#,
     )
     .unwrap();
     buf.push('\n');
@@ -408,7 +408,7 @@ fn draw_participant_entity(
     let escaped = xml_escape(name);
     write!(
         buf,
-        r#"<text x="{cx:.1}" y="{name_y:.1}" text-anchor="middle" font-weight="bold" fill="{text_color}">{escaped}</text>"#,
+        r#"<text fill="{text_color}" font-family="sans-serif" font-size="14" font-weight="bold" text-anchor="middle" x="{cx:.1}" y="{name_y:.1}">{escaped}</text>"#,
     )
     .unwrap();
     buf.push('\n');
@@ -462,7 +462,7 @@ fn draw_participant_database(
     let escaped = xml_escape(name);
     write!(
         buf,
-        r#"<text x="{cx:.1}" y="{name_y:.1}" text-anchor="middle" font-weight="bold" fill="{text_color}">{escaped}</text>"#,
+        r#"<text fill="{text_color}" font-family="sans-serif" font-size="14" font-weight="bold" text-anchor="middle" x="{cx:.1}" y="{name_y:.1}">{escaped}</text>"#,
     )
     .unwrap();
     buf.push('\n');
@@ -511,7 +511,7 @@ fn draw_participant_collections(
     let escaped = xml_escape(name);
     write!(
         buf,
-        r#"<text x="{cx:.1}" y="{name_y:.1}" text-anchor="middle" font-weight="bold" fill="{text_color}">{escaped}</text>"#,
+        r#"<text fill="{text_color}" font-family="sans-serif" font-size="14" font-weight="bold" text-anchor="middle" x="{cx:.1}" y="{name_y:.1}">{escaped}</text>"#,
     )
     .unwrap();
     buf.push('\n');
@@ -566,7 +566,7 @@ fn draw_participant_queue(
     let escaped = xml_escape(name);
     write!(
         buf,
-        r#"<text x="{cx:.1}" y="{name_y:.1}" text-anchor="middle" font-weight="bold" fill="{text_color}">{escaped}</text>"#,
+        r#"<text fill="{text_color}" font-family="sans-serif" font-size="14" font-weight="bold" text-anchor="middle" x="{cx:.1}" y="{name_y:.1}">{escaped}</text>"#,
     )
     .unwrap();
     buf.push('\n');
@@ -627,7 +627,7 @@ fn draw_message(buf: &mut String, msg: &MessageLayout, arrow_color: &str, arrow_
             LINE_HEIGHT,
             TEXT_COLOR,
             Some("middle"),
-            "",
+            &format!(r#"font-size="{FONT_SIZE}""#),
         );
     }
 }
@@ -680,7 +680,7 @@ fn draw_self_message(
             LINE_HEIGHT,
             TEXT_COLOR,
             None,
-            "",
+            &format!(r#"font-size="{FONT_SIZE}""#),
         );
     }
 }
@@ -778,7 +778,7 @@ fn draw_note(buf: &mut String, note: &NoteLayout) {
         LINE_HEIGHT,
         TEXT_COLOR,
         None,
-        "",
+        &format!(r#"font-size="{FONT_SIZE}""#),
     );
 }
 
@@ -825,7 +825,7 @@ fn draw_group(buf: &mut String, group: &GroupLayout) {
 
         write!(
             buf,
-            r#"<text x="{label_x:.1}" y="{label_y:.1}" font-weight="bold" fill="{TEXT_COLOR}">{escaped}</text>"#,
+            r#"<text fill="{TEXT_COLOR}" font-family="sans-serif" font-size="{FONT_SIZE}" font-weight="bold" x="{label_x:.1}" y="{label_y:.1}">{escaped}</text>"#,
         )
         .unwrap();
         buf.push('\n');
@@ -882,7 +882,7 @@ fn draw_fragment(buf: &mut String, frag: &FragmentLayout) {
     let escaped = xml_escape(&tab_text);
     write!(
         buf,
-        r#"<text x="{text_x:.1}" y="{text_y:.1}" font-weight="bold" fill="{TEXT_COLOR}">{escaped}</text>"#,
+        r#"<text fill="{TEXT_COLOR}" font-family="sans-serif" font-size="{FONT_SIZE}" font-weight="bold" x="{text_x:.1}" y="{text_y:.1}">{escaped}</text>"#,
     )
     .unwrap();
     buf.push('\n');
@@ -908,7 +908,7 @@ fn draw_fragment(buf: &mut String, frag: &FragmentLayout) {
             let escaped_label = xml_escape(sep_label);
             write!(
                 buf,
-                r#"<text x="{label_x:.1}" y="{label_y:.1}" fill="{TEXT_COLOR}" font-style="italic">[{escaped_label}]</text>"#,
+                r#"<text fill="{TEXT_COLOR}" font-family="sans-serif" font-size="{FONT_SIZE}" font-style="italic" x="{label_x:.1}" y="{label_y:.1}">[{escaped_label}]</text>"#,
             )
             .unwrap();
             buf.push('\n');
@@ -976,7 +976,7 @@ fn draw_divider(buf: &mut String, divider: &DividerLayout) {
 
         write!(
             buf,
-            r#"<text x="{mid_x:.1}" y="{text_y:.1}" text-anchor="middle" font-weight="bold" fill="{TEXT_COLOR}">{escaped}</text>"#,
+            r#"<text fill="{TEXT_COLOR}" font-family="sans-serif" font-size="{FONT_SIZE}" font-weight="bold" text-anchor="middle" x="{mid_x:.1}" y="{text_y:.1}">{escaped}</text>"#,
         )
         .unwrap();
         buf.push('\n');
@@ -1009,7 +1009,7 @@ fn draw_delay(buf: &mut String, delay: &DelayLayout) {
         let escaped = xml_escape(text);
         write!(
             buf,
-            r#"<text x="{text_x:.1}" y="{text_y:.1}" fill="{TEXT_COLOR}">{escaped}</text>"#,
+            r#"<text fill="{TEXT_COLOR}" font-family="sans-serif" font-size="{FONT_SIZE}" x="{text_x:.1}" y="{text_y:.1}">{escaped}</text>"#,
         )
         .unwrap();
         buf.push('\n');
@@ -1054,7 +1054,7 @@ fn draw_ref(buf: &mut String, r: &RefLayout) {
 
     write!(
         buf,
-        r#"<text x="{tx:.1}" y="{ty:.1}" font-weight="bold" fill="{color}">ref</text>"#,
+        r#"<text fill="{color}" font-family="sans-serif" font-size="{FONT_SIZE}" font-weight="bold" x="{tx:.1}" y="{ty:.1}">ref</text>"#,
         tx = r.x + 5.0,
         ty = r.y + FONT_SIZE + 1.0,
         color = TEXT_COLOR,
@@ -1068,7 +1068,7 @@ fn draw_ref(buf: &mut String, r: &RefLayout) {
     let escaped = xml_escape(&r.label);
     write!(
         buf,
-        r#"<text x="{mid_x:.1}" y="{mid_y:.1}" text-anchor="middle" fill="{TEXT_COLOR}">{escaped}</text>"#,
+        r#"<text fill="{TEXT_COLOR}" font-family="sans-serif" font-size="{FONT_SIZE}" text-anchor="middle" x="{mid_x:.1}" y="{mid_y:.1}">{escaped}</text>"#,
     )
     .unwrap();
     buf.push('\n');

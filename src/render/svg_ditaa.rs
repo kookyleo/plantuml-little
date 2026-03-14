@@ -107,7 +107,7 @@ fn render_box(
             LINE_HEIGHT,
             font,
             Some("middle"),
-            "",
+            r#"font-size="12""#,
         );
     }
 }
@@ -149,7 +149,7 @@ fn render_line(buf: &mut String, line: &DitaaLine, border: &str) {
 }
 
 fn render_text(buf: &mut String, text: &DitaaText, font: &str) {
-    render_creole_text(buf, &text.text, text.x, text.y, LINE_HEIGHT, font, None, "");
+    render_creole_text(buf, &text.text, text.x, text.y, LINE_HEIGHT, font, None, r#"font-size="12""#);
 }
 
 #[cfg(test)]

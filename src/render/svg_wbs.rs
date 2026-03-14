@@ -111,7 +111,7 @@ fn render_node(buf: &mut String, node: &WbsNodeLayout, bg: &str, border: &str, f
         LINE_HEIGHT,
         font_color,
         Some("middle"),
-        "",
+        r#"font-size="14""#,
     );
 }
 
@@ -159,7 +159,7 @@ fn render_note(buf: &mut String, note: &WbsNoteLayout, font_color: &str) {
         LINE_HEIGHT,
         font_color,
         None,
-        "",
+        r#"font-size="13""#,
     );
 }
 

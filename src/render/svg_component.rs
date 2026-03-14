@@ -204,7 +204,7 @@ fn render_group(
     let name_y = group.y + FONT_SIZE + 6.0;
     write!(
         buf,
-        r#"<text x="{name_x:.1}" y="{name_y:.1}" font-weight="bold" fill="{font_color}">{name_escaped}</text>"#,
+        r#"<text fill="{font_color}" font-family="sans-serif" font-size="14" font-weight="bold" x="{name_x:.1}" y="{name_y:.1}">{name_escaped}</text>"#,
     )
     .unwrap();
     buf.push('\n');
@@ -469,7 +469,7 @@ fn render_interface_node(
     let name_y = cy + 20.0;
     write!(
         buf,
-        r#"<text x="{cx:.1}" y="{name_y:.1}" text-anchor="middle" fill="{font_color}">{name_escaped}</text>"#,
+        r#"<text fill="{font_color}" font-family="sans-serif" font-size="14" text-anchor="middle" x="{cx:.1}" y="{name_y:.1}">{name_escaped}</text>"#,
     )
     .unwrap();
     buf.push('\n');
@@ -636,7 +636,7 @@ fn render_frame_node(
     let label_cy = y + tab_h / 2.0 + FONT_SIZE * 0.35;
     write!(
         buf,
-        "<text x=\"{label_cx:.1}\" y=\"{label_cy:.1}\" text-anchor=\"middle\" font-weight=\"bold\" fill=\"#FFFFFF\" font-size=\"{fs:.0}\">{name_escaped}</text>",
+        "<text fill=\"#FFFFFF\" font-family=\"sans-serif\" font-size=\"{fs:.0}\" font-weight=\"bold\" text-anchor=\"middle\" x=\"{label_cx:.1}\" y=\"{label_cy:.1}\">{name_escaped}</text>",
         fs = FONT_SIZE - 1.0,
     )
     .unwrap();
@@ -768,7 +768,7 @@ fn render_node_text(buf: &mut String, node: &ComponentNodeLayout, font_color: &s
         let sy = node.y + FONT_SIZE + 4.0;
         write!(
             buf,
-            r#"<text x="{cx:.1}" y="{sy:.1}" text-anchor="middle" font-size="{fs:.0}" font-style="italic" fill="{font_color}">{escaped}</text>"#,
+            r#"<text fill="{font_color}" font-family="sans-serif" font-size="{fs:.0}" font-style="italic" text-anchor="middle" x="{cx:.1}" y="{sy:.1}">{escaped}</text>"#,
             fs = FONT_SIZE - 2.0,
         )
         .unwrap();
@@ -785,7 +785,7 @@ fn render_node_text(buf: &mut String, node: &ComponentNodeLayout, font_color: &s
     };
     write!(
         buf,
-        r#"<text x="{cx:.1}" y="{name_y:.1}" text-anchor="middle" font-weight="bold" fill="{font_color}">{name_escaped}</text>"#,
+        r#"<text fill="{font_color}" font-family="sans-serif" font-size="14" font-weight="bold" text-anchor="middle" x="{cx:.1}" y="{name_y:.1}">{name_escaped}</text>"#,
     )
     .unwrap();
     buf.push('\n');
@@ -813,7 +813,7 @@ fn render_node_text(buf: &mut String, node: &ComponentNodeLayout, font_color: &s
             LINE_HEIGHT,
             font_color,
             None,
-            "",
+            r#"font-size="12""#,
         );
     }
 }
@@ -871,7 +871,7 @@ fn render_edge(buf: &mut String, edge: &ComponentEdgeLayout, arrow_color: &str, 
         let escaped = xml_escape(&edge.label);
         write!(
             buf,
-            r#"<text x="{mx:.1}" y="{my:.1}" text-anchor="middle" font-size="{FONT_SIZE}" fill="{font_color}">{escaped}</text>"#,
+            r#"<text fill="{font_color}" font-family="sans-serif" font-size="{FONT_SIZE}" text-anchor="middle" x="{mx:.1}" y="{my:.1}">{escaped}</text>"#,
         )
         .unwrap();
         buf.push('\n');
@@ -936,7 +936,7 @@ fn render_note(
         LINE_HEIGHT,
         font_color,
         None,
-        "",
+        r#"font-size="13""#,
     );
 }
 

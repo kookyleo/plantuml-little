@@ -141,7 +141,7 @@ fn render_entity(buf: &mut String, node: &ErdNodeLayout, bg: &str, border: &str,
     let escaped = xml_escape(&node.label);
     write!(
         buf,
-        r#"<text x="{cx:.1}" y="{cy:.1}" text-anchor="middle" font-weight="bold" fill="{font_color}">{escaped}</text>"#,
+        r#"<text fill="{font_color}" font-family="sans-serif" font-size="{FONT_SIZE}" font-weight="bold" text-anchor="middle" x="{cx:.1}" y="{cy:.1}">{escaped}</text>"#,
     )
     .unwrap();
     buf.push('\n');
@@ -201,7 +201,7 @@ fn render_relationship(buf: &mut String, node: &ErdNodeLayout) {
     let escaped = xml_escape(&node.label);
     write!(
         buf,
-        r#"<text x="{cx:.1}" y="{ty:.1}" text-anchor="middle" fill="{TEXT_FILL}">{escaped}</text>"#,
+        r#"<text fill="{TEXT_FILL}" font-family="sans-serif" font-size="{FONT_SIZE}" text-anchor="middle" x="{cx:.1}" y="{ty:.1}">{escaped}</text>"#,
     )
     .unwrap();
     buf.push('\n');
@@ -258,13 +258,13 @@ fn render_attribute(buf: &mut String, attr: &ErdAttrLayout) {
         // Underlined text for key attribute
         write!(
             buf,
-            r#"<text x="{cx:.1}" y="{ty:.1}" text-anchor="middle" fill="{TEXT_FILL}" text-decoration="underline">{escaped}</text>"#,
+            r#"<text fill="{TEXT_FILL}" font-family="sans-serif" font-size="{FONT_SIZE}" text-anchor="middle" text-decoration="underline" x="{cx:.1}" y="{ty:.1}">{escaped}</text>"#,
         )
         .unwrap();
     } else {
         write!(
             buf,
-            r#"<text x="{cx:.1}" y="{ty:.1}" text-anchor="middle" fill="{TEXT_FILL}">{escaped}</text>"#,
+            r#"<text fill="{TEXT_FILL}" font-family="sans-serif" font-size="{FONT_SIZE}" text-anchor="middle" x="{cx:.1}" y="{ty:.1}">{escaped}</text>"#,
         )
         .unwrap();
     }
@@ -276,7 +276,7 @@ fn render_attribute(buf: &mut String, attr: &ErdAttrLayout) {
         let type_y = cy + FONT_SIZE * 0.35 + FONT_SIZE + 2.0;
         write!(
             buf,
-            r#"<text x="{cx:.1}" y="{ty:.1}" text-anchor="middle" font-size="{fs:.0}" font-style="italic" fill="{TEXT_FILL}">{type_escaped}</text>"#,
+            r#"<text fill="{TEXT_FILL}" font-family="sans-serif" font-size="{fs:.0}" font-style="italic" text-anchor="middle" x="{cx:.1}" y="{ty:.1}">{type_escaped}</text>"#,
             ty = type_y,
             fs = FONT_SIZE - 2.0,
         )
@@ -378,7 +378,7 @@ fn render_edge(buf: &mut String, edge: &ErdEdgeLayout) {
         let escaped = xml_escape(&edge.label);
         write!(
             buf,
-            r#"<text x="{mx:.1}" y="{my:.1}" text-anchor="middle" font-size="{FONT_SIZE}" fill="{TEXT_FILL}">{escaped}</text>"#,
+            r#"<text fill="{TEXT_FILL}" font-family="sans-serif" font-size="{FONT_SIZE}" text-anchor="middle" x="{mx:.1}" y="{my:.1}">{escaped}</text>"#,
         )
         .unwrap();
         buf.push('\n');
@@ -419,7 +419,7 @@ fn render_isa(buf: &mut String, isa: &ErdIsaLayout) {
     let escaped = xml_escape(&isa.kind_label);
     write!(
         buf,
-        r#"<text x="{cx:.1}" y="{ly:.1}" text-anchor="middle" font-size="{fs:.0}" fill="{TEXT_FILL}">{escaped}</text>"#,
+        r#"<text fill="{TEXT_FILL}" font-family="sans-serif" font-size="{fs:.0}" text-anchor="middle" x="{cx:.1}" y="{ly:.1}">{escaped}</text>"#,
         ly = label_y,
         fs = FONT_SIZE - 1.0,
     )
@@ -487,7 +487,7 @@ fn render_note(buf: &mut String, note: &ErdNoteLayout) {
 
     let text_x = x + 10.0;
     let start_y = y + 10.0 + FONT_SIZE;
-    render_creole_text(buf, &note.text, text_x, start_y, 16.0, TEXT_FILL, None, "");
+    render_creole_text(buf, &note.text, text_x, start_y, 16.0, TEXT_FILL, None, r#"font-size="13""#);
 }
 
 // ── Tests ───────────────────────────────────────────────────────────

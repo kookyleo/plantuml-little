@@ -188,7 +188,7 @@ fn render_track(
         FONT_SIZE + 4.0,
         font_color,
         Some("end"),
-        r#"font-weight="bold""#,
+        r#"font-size="14" font-weight="bold""#,
     );
 
     // Segments with state level lines and transitions
@@ -473,7 +473,7 @@ fn render_note(buf: &mut String, note: &TimingNoteLayout, font_color: &str) {
         FONT_SIZE + 4.0,
         font_color,
         None,
-        "",
+        r#"font-size="13""#,
     );
 }
 

@@ -214,7 +214,7 @@ fn render_action(
         LINE_HEIGHT,
         font_color,
         Some("middle"),
-        "",
+        r#"font-size="12""#,
     );
 }
 
@@ -322,7 +322,7 @@ fn render_note(buf: &mut String, node: &ActivityNodeLayout, _position: &NotePosi
         LINE_HEIGHT,
         TEXT_FILL,
         None,
-        "",
+        r#"font-size="13""#,
     );
 }
 
@@ -366,7 +366,7 @@ fn render_edge(buf: &mut String, edge: &ActivityEdgeLayout, arrow_color: &str, t
         let escaped = xml_escape(&edge.label);
         write!(
             buf,
-            r#"<text x="{mx:.1}" y="{my:.1}" text-anchor="middle" font-size="{FONT_SIZE}" fill="{text_color}">{escaped}</text>"#,
+            r#"<text fill="{text_color}" font-family="sans-serif" font-size="{FONT_SIZE}" text-anchor="middle" x="{mx:.1}" y="{my:.1}">{escaped}</text>"#,
         )
         .unwrap();
         buf.push('\n');
@@ -408,7 +408,7 @@ fn render_swimlane(
     let escaped = xml_escape(&sw.name);
     write!(
         buf,
-        r#"<text x="{label_x:.1}" y="16" text-anchor="middle" font-weight="bold" fill="{font_color}">{escaped}</text>"#,
+        r#"<text fill="{font_color}" font-family="sans-serif" font-size="{FONT_SIZE}" font-weight="bold" text-anchor="middle" x="{label_x:.1}" y="16">{escaped}</text>"#,
     )
     .unwrap();
     buf.push('\n');
