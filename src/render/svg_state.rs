@@ -2,7 +2,7 @@ use std::fmt::Write;
 
 use crate::layout::state::{StateLayout, StateNodeLayout, StateNoteLayout, TransitionLayout};
 use crate::model::state::{StateDiagram, StateKind};
-use crate::render::svg::xml_escape;
+use crate::render::svg::{fmt_coord, xml_escape};
 use crate::render::svg::write_svg_root;
 use crate::render::svg_richtext::render_creole_text;
 use crate::style::SkinParams;
@@ -14,7 +14,7 @@ const FONT_SIZE: f64 = 13.0;
 const LINE_HEIGHT: f64 = 16.0;
 const STATE_BG: &str = "#F1F1F1";
 const STATE_BORDER: &str = "#181818";
-const INITIAL_FILL: &str = "#000000";
+const INITIAL_FILL: &str = "#222222";
 const FINAL_OUTER: &str = "#000000";
 const FINAL_INNER: &str = "#000000";
 const EDGE_COLOR: &str = "#181818";
@@ -35,9 +35,6 @@ pub fn render_state(
     // SVG header
     write_svg_root(&mut buf, layout.width, layout.height, "STATE");
     buf.push_str("<defs/><g>");
-
-    // Defs: arrow marker
-    write_defs(&mut buf);
 
     let state_bg = skin.background_color("state", STATE_BG);
     let state_border = skin.border_color("state", STATE_BORDER);
@@ -60,25 +57,6 @@ pub fn render_state(
 
     buf.push_str("</g></svg>");
     Ok(buf)
-}
-
-// ── Defs ────────────────────────────────────────────────────────────
-
-fn write_defs(buf: &mut String) {
-    buf.push_str("<defs>\n");
-    write!(
-        buf,
-        concat!(
-            r#"<marker id="state-arrow" viewBox="0 0 10 10" refX="10" refY="5""#,
-            r#" markerWidth="8" markerHeight="8" orient="auto-start-reverse">"#,
-            r#"<path d="M 0 0 L 10 5 L 0 10 Z" fill="{}" stroke="none"/>"#,
-            r#"</marker>"#,
-        ),
-        EDGE_COLOR,
-    )
-    .unwrap();
-    buf.push('\n');
-    buf.push_str("</defs>\n");
 }
 
 // ── State node rendering ────────────────────────────────────────────
@@ -127,16 +105,17 @@ fn render_state_node(
     }
 }
 
-/// Initial state: filled black circle, r=10
+/// Initial state: filled ellipse, rx=10 ry=10 (matches Java PlantUML)
 fn render_initial(buf: &mut String, node: &StateNodeLayout) {
     let cx = node.x + node.width / 2.0;
     let cy = node.y + node.height / 2.0;
     write!(
         buf,
-        r#"<circle cx="{cx:.1}" cy="{cy:.1}" fill="{INITIAL_FILL}" r="10"/>"#,
+        r#"<g class="start_entity"><ellipse cx="{}" cy="{}" fill="{INITIAL_FILL}" rx="10" ry="10" style="stroke:{INITIAL_FILL};stroke-width:1;"/></g>"#,
+        fmt_coord(cx),
+        fmt_coord(cy),
     )
     .unwrap();
-    buf.push('\n');
 }
 
 /// Final state: double circle (outer ring + inner filled)
@@ -145,30 +124,31 @@ fn render_final(buf: &mut String, node: &StateNodeLayout) {
     let cy = node.y + node.height / 2.0;
     write!(
         buf,
-        r#"<circle cx="{cx:.1}" cy="{cy:.1}" fill="none" r="11" style="stroke:{FINAL_OUTER};stroke-width:2;"/>"#,
+        r#"<circle cx="{}" cy="{}" fill="none" r="11" style="stroke:{FINAL_OUTER};stroke-width:2;"/>"#,
+        fmt_coord(cx),
+        fmt_coord(cy),
     )
     .unwrap();
-    buf.push('\n');
     write!(
         buf,
-        r#"<circle cx="{cx:.1}" cy="{cy:.1}" fill="{FINAL_INNER}" r="7"/>"#,
+        r#"<circle cx="{}" cy="{}" fill="{FINAL_INNER}" r="7"/>"#,
+        fmt_coord(cx),
+        fmt_coord(cy),
     )
     .unwrap();
-    buf.push('\n');
 }
 
 /// Fork/Join bar: filled black horizontal rectangle
 fn render_fork_join(buf: &mut String, node: &StateNodeLayout) {
     write!(
         buf,
-        r#"<rect fill="{INITIAL_FILL}" height="{h:.1}" rx="2" ry="2" stroke="none" width="{w:.1}" x="{x:.1}" y="{y:.1}"/>"#,
-        x = node.x,
-        y = node.y,
-        w = node.width,
-        h = node.height,
+        r#"<rect fill="{INITIAL_FILL}" height="{}" rx="2" ry="2" stroke="none" width="{}" x="{}" y="{}"/>"#,
+        fmt_coord(node.height),
+        fmt_coord(node.width),
+        fmt_coord(node.x),
+        fmt_coord(node.y),
     )
     .unwrap();
-    buf.push('\n');
 }
 
 /// Choice diamond: small rotated square
@@ -179,14 +159,13 @@ fn render_choice(buf: &mut String, node: &StateNodeLayout, border: &str) {
     // Diamond points: top, right, bottom, left
     write!(
         buf,
-        r##"<polygon fill="#F1F1F1" points="{cx:.1},{top:.1} {right:.1},{cy:.1} {cx:.1},{bottom:.1} {left:.1},{cy:.1}" style="stroke:{border};stroke-width:1.5;"/>"##,
-        top = cy - half,
-        right = cx + half,
-        bottom = cy + half,
-        left = cx - half,
+        r##"<polygon fill="#F1F1F1" points="{},{} {},{} {},{} {},{}" style="stroke:{border};stroke-width:1.5;"/>"##,
+        fmt_coord(cx), fmt_coord(cy - half),
+        fmt_coord(cx + half), fmt_coord(cy),
+        fmt_coord(cx), fmt_coord(cy + half),
+        fmt_coord(cx - half), fmt_coord(cy),
     )
     .unwrap();
-    buf.push('\n');
 }
 
 /// History circle: small circle with "H" (or "H*") text inside
@@ -202,18 +181,20 @@ fn render_history(
     let r = node.width / 2.0;
     write!(
         buf,
-        r#"<circle cx="{cx:.1}" cy="{cy:.1}" fill="none" r="{r:.1}" style="stroke:{border};stroke-width:1.5;"/>"#,
+        r#"<circle cx="{}" cy="{}" fill="none" r="{}" style="stroke:{border};stroke-width:1.5;"/>"#,
+        fmt_coord(cx),
+        fmt_coord(cy),
+        fmt_coord(r),
     )
     .unwrap();
-    buf.push('\n');
     let label = if deep { "H*" } else { "H" };
     write!(
         buf,
-        r#"<text fill="{font_color}" font-family="sans-serif" font-size="{FONT_SIZE}" font-weight="bold" text-anchor="middle" x="{cx:.1}" y="{ty:.1}">{label}</text>"#,
-        ty = cy + FONT_SIZE * 0.35,
+        r#"<text fill="{font_color}" font-family="sans-serif" font-size="{FONT_SIZE}" font-weight="bold" text-anchor="middle" x="{}" y="{}">{label}</text>"#,
+        fmt_coord(cx),
+        fmt_coord(cy + FONT_SIZE * 0.35),
     )
     .unwrap();
-    buf.push('\n');
 }
 
 /// Exit point: circle with X inside
@@ -223,32 +204,32 @@ fn render_exit_point(buf: &mut String, node: &StateNodeLayout, border: &str) {
     let r = node.width / 2.0;
     write!(
         buf,
-        r#"<circle cx="{cx:.1}" cy="{cy:.1}" fill="none" r="{r:.1}" style="stroke:{border};stroke-width:1.5;"/>"#,
+        r#"<circle cx="{}" cy="{}" fill="none" r="{}" style="stroke:{border};stroke-width:1.5;"/>"#,
+        fmt_coord(cx),
+        fmt_coord(cy),
+        fmt_coord(r),
     )
     .unwrap();
-    buf.push('\n');
     // X cross inside
     let d = r * 0.5;
     write!(
         buf,
-        r#"<line style="stroke:{border};stroke-width:1.5;" x1="{x1:.1}" x2="{x2:.1}" y1="{y1:.1}" y2="{y2:.1}"/>"#,
-        x1 = cx - d,
-        y1 = cy - d,
-        x2 = cx + d,
-        y2 = cy + d,
+        r#"<line style="stroke:{border};stroke-width:1.5;" x1="{}" x2="{}" y1="{}" y2="{}"/>"#,
+        fmt_coord(cx - d),
+        fmt_coord(cx + d),
+        fmt_coord(cy - d),
+        fmt_coord(cy + d),
     )
     .unwrap();
-    buf.push('\n');
     write!(
         buf,
-        r#"<line style="stroke:{border};stroke-width:1.5;" x1="{x1:.1}" x2="{x2:.1}" y1="{y1:.1}" y2="{y2:.1}"/>"#,
-        x1 = cx + d,
-        y1 = cy - d,
-        x2 = cx - d,
-        y2 = cy + d,
+        r#"<line style="stroke:{border};stroke-width:1.5;" x1="{}" x2="{}" y1="{}" y2="{}"/>"#,
+        fmt_coord(cx + d),
+        fmt_coord(cx - d),
+        fmt_coord(cy - d),
+        fmt_coord(cy + d),
     )
     .unwrap();
-    buf.push('\n');
 }
 
 /// Simple state: rounded rectangle with name + optional description
@@ -259,19 +240,30 @@ fn render_simple(
     border: &str,
     font_color: &str,
 ) {
+    // Open semantic <g> wrapper
+    let name_escaped = xml_escape(&node.name);
+    write!(
+        buf,
+        r#"<g class="entity" data-qualified-name="{}">"#,
+        name_escaped,
+    )
+    .unwrap();
+
     // Background rounded rectangle
     write!(
         buf,
-        r#"<rect fill="{bg}" height="{h:.1}" rx="10" ry="10" style="stroke:{border};stroke-width:1.5;" width="{w:.1}" x="{x:.1}" y="{y:.1}"/>"#,
-        x = node.x,
-        y = node.y,
-        w = node.width,
-        h = node.height,
+        r#"<rect fill="{bg}" height="{}" rx="12.5" ry="12.5" style="stroke:{border};stroke-width:0.5;" width="{}" x="{}" y="{}"/>"#,
+        fmt_coord(node.height),
+        fmt_coord(node.width),
+        fmt_coord(node.x),
+        fmt_coord(node.y),
     )
     .unwrap();
-    buf.push('\n');
 
     let cx = node.x + node.width / 2.0;
+
+    // Separator line (always present in Java PlantUML for simple states)
+    let has_desc = !node.description.is_empty();
 
     // Stereotype (shown above the name in smaller text)
     let mut name_y_offset = 0.0;
@@ -281,17 +273,16 @@ fn render_simple(
         let stereo_y = node.y + FONT_SIZE + 4.0;
         write!(
             buf,
-            r#"<text fill="{font_color}" font-family="sans-serif" font-size="{fs:.0}" font-style="italic" text-anchor="middle" x="{cx:.1}" y="{sy:.1}">{escaped}</text>"#,
-            sy = stereo_y,
-            fs = FONT_SIZE - 2.0,
+            r#"<text fill="{font_color}" font-family="sans-serif" font-size="{}" font-style="italic" text-anchor="middle" x="{}" y="{}">{escaped}</text>"#,
+            fmt_coord(FONT_SIZE - 2.0),
+            fmt_coord(cx),
+            fmt_coord(stereo_y),
         )
         .unwrap();
-        buf.push('\n');
         name_y_offset = LINE_HEIGHT;
     }
 
     // State name centered in header area
-    let has_desc = !node.description.is_empty();
     let name_y = if has_desc {
         // Name in the upper portion when there is a description
         node.y + FONT_SIZE + 4.0 + name_y_offset
@@ -299,27 +290,30 @@ fn render_simple(
         // Name vertically centered when no description
         node.y + node.height / 2.0 + FONT_SIZE * 0.35 + name_y_offset
     };
-    let name_escaped = xml_escape(&node.name);
+
+    // Separator line between name area and body
+    let sep_y = name_y + 6.0;
     write!(
         buf,
-        r#"<text fill="{font_color}" font-family="sans-serif" font-size="14" font-weight="bold" text-anchor="middle" x="{cx:.1}" y="{name_y:.1}">{name_escaped}</text>"#,
+        r#"<line style="stroke:{border};stroke-width:0.5;" x1="{}" x2="{}" y1="{}" y2="{}"/>"#,
+        fmt_coord(node.x),
+        fmt_coord(node.x + node.width),
+        fmt_coord(sep_y),
+        fmt_coord(sep_y),
     )
     .unwrap();
-    buf.push('\n');
 
-    // Separator line + description lines
+    // State name text
+    write!(
+        buf,
+        r#"<text fill="{font_color}" font-family="sans-serif" font-size="14" lengthAdjust="spacing" x="{}" y="{}">{name_escaped}</text>"#,
+        fmt_coord(cx),
+        fmt_coord(name_y),
+    )
+    .unwrap();
+
+    // Description lines
     if has_desc {
-        let sep_y = name_y + 6.0;
-        write!(
-            buf,
-            r#"<line style="stroke:{border};" x1="{x1:.1}" x2="{x2:.1}" y1="{sy:.1}" y2="{sy:.1}"/>"#,
-            x1 = node.x,
-            sy = sep_y,
-            x2 = node.x + node.width,
-        )
-        .unwrap();
-        buf.push('\n');
-
         let text_x = node.x + 8.0;
         let desc_text = node.description.join("\n");
         render_creole_text(
@@ -333,6 +327,9 @@ fn render_simple(
             r#"font-size="12""#,
         );
     }
+
+    // Close <g>
+    buf.push_str("</g>");
 }
 
 /// Composite state: rounded rectangle containing child states
@@ -343,40 +340,51 @@ fn render_composite(
     border: &str,
     font_color: &str,
 ) {
+    // Open semantic <g> wrapper
+    let name_escaped = xml_escape(&node.name);
+    write!(
+        buf,
+        r#"<g class="entity" data-qualified-name="{}">"#,
+        name_escaped,
+    )
+    .unwrap();
+
     // Outer rounded rectangle
     write!(
         buf,
-        r#"<rect fill="{bg}" height="{h:.1}" rx="10" ry="10" style="stroke:{border};stroke-width:1.5;" width="{w:.1}" x="{x:.1}" y="{y:.1}"/>"#,
-        x = node.x,
-        y = node.y,
-        w = node.width,
-        h = node.height,
+        r#"<rect fill="{bg}" height="{}" rx="12.5" ry="12.5" style="stroke:{border};stroke-width:0.5;" width="{}" x="{}" y="{}"/>"#,
+        fmt_coord(node.height),
+        fmt_coord(node.width),
+        fmt_coord(node.x),
+        fmt_coord(node.y),
     )
     .unwrap();
-    buf.push('\n');
 
     // Composite state name at the top
     let cx = node.x + node.width / 2.0;
     let name_y = node.y + FONT_SIZE + 4.0;
-    let name_escaped = xml_escape(&node.name);
     write!(
         buf,
-        r#"<text fill="{font_color}" font-family="sans-serif" font-size="14" font-weight="bold" text-anchor="middle" x="{cx:.1}" y="{name_y:.1}">{name_escaped}</text>"#,
+        r#"<text fill="{font_color}" font-family="sans-serif" font-size="14" lengthAdjust="spacing" x="{}" y="{}">{name_escaped}</text>"#,
+        fmt_coord(cx),
+        fmt_coord(name_y),
     )
     .unwrap();
-    buf.push('\n');
 
     // Separator line below the header
     let sep_y = name_y + 6.0;
     write!(
         buf,
-        r#"<line style="stroke:{border};" x1="{x1:.1}" x2="{x2:.1}" y1="{sy:.1}" y2="{sy:.1}"/>"#,
-        x1 = node.x,
-        sy = sep_y,
-        x2 = node.x + node.width,
+        r#"<line style="stroke:{border};stroke-width:0.5;" x1="{}" x2="{}" y1="{}" y2="{}"/>"#,
+        fmt_coord(node.x),
+        fmt_coord(node.x + node.width),
+        fmt_coord(sep_y),
+        fmt_coord(sep_y),
     )
     .unwrap();
-    buf.push('\n');
+
+    // Close the entity <g> before rendering children
+    buf.push_str("</g>");
 
     // Recursively render children
     for child in &node.children {
@@ -387,13 +395,13 @@ fn render_composite(
     for &sep_y in &node.region_separators {
         write!(
             buf,
-            r#"<line style="stroke:{border};stroke-dasharray:6,4;" x1="{x1:.1}" x2="{x2:.1}" y1="{sy:.1}" y2="{sy:.1}"/>"#,
-            x1 = node.x + 4.0,
-            sy = sep_y,
-            x2 = node.x + node.width - 4.0,
+            r#"<line style="stroke:{border};stroke-dasharray:6,4;" x1="{}" x2="{}" y1="{}" y2="{}"/>"#,
+            fmt_coord(node.x + 4.0),
+            fmt_coord(node.x + node.width - 4.0),
+            fmt_coord(sep_y),
+            fmt_coord(sep_y),
         )
         .unwrap();
-        buf.push('\n');
     }
 }
 
@@ -404,28 +412,77 @@ fn render_transition(buf: &mut String, transition: &TransitionLayout) {
         return;
     }
 
-    if transition.points.len() == 2 {
-        let (x1, y1) = transition.points[0];
-        let (x2, y2) = transition.points[1];
-        write!(
-            buf,
-            r#"<line marker-end="url(#state-arrow)" style="stroke:{EDGE_COLOR};stroke-width:1;" x1="{x1:.1}" x2="{x2:.1}" y1="{y1:.1}" y2="{y2:.1}"/>"#,
-        )
-        .unwrap();
-        buf.push('\n');
-    } else {
-        let points_str: String = transition
-            .points
-            .iter()
-            .map(|(px, py)| format!("{px:.1},{py:.1}"))
-            .collect::<Vec<_>>()
-            .join(" ");
-        write!(
-            buf,
-            r#"<polyline fill="none" marker-end="url(#state-arrow)" points="{points_str}" style="stroke:{EDGE_COLOR};stroke-width:1;"/>"#,
-        )
-        .unwrap();
-        buf.push('\n');
+    // Open semantic <g> wrapper
+    let from_escaped = xml_escape(&transition.from_id);
+    let to_escaped = xml_escape(&transition.to_id);
+    write!(
+        buf,
+        r#"<!--link {} to {}--><g class="link">"#,
+        from_escaped, to_escaped,
+    )
+    .unwrap();
+
+    // Build path data
+    let mut d = String::new();
+    for (i, &(px, py)) in transition.points.iter().enumerate() {
+        if i == 0 {
+            write!(d, "M{},{}", fmt_coord(px), fmt_coord(py)).unwrap();
+        } else {
+            write!(d, " L{},{}", fmt_coord(px), fmt_coord(py)).unwrap();
+        }
+    }
+
+    write!(
+        buf,
+        r#"<path d="{d}" fill="none" style="stroke:{EDGE_COLOR};stroke-width:1;"/>"#,
+    )
+    .unwrap();
+
+    // Inline polygon arrowhead at the last segment
+    if transition.points.len() >= 2 {
+        let n = transition.points.len();
+        let (tx, ty) = transition.points[n - 1]; // tip
+        let (fx, fy) = transition.points[n - 2]; // from
+
+        // Compute arrow direction
+        let dx = tx - fx;
+        let dy = ty - fy;
+        let len = (dx * dx + dy * dy).sqrt();
+        if len > 0.0 {
+            // Unit vector along the arrow direction
+            let ux = dx / len;
+            let uy = dy / len;
+            // Perpendicular
+            let px = -uy;
+            let py = ux;
+            // Arrow points: tip, left-back, mid-back, right-back
+            let back = 9.0;
+            let side = 4.0;
+            let mid_back = 5.0;
+            // p1 = tip
+            let p1x = tx;
+            let p1y = ty;
+            // p2 = left back
+            let p2x = tx - ux * back + px * side;
+            let p2y = ty - uy * back + py * side;
+            // p3 = mid back (indent)
+            let p3x = tx - ux * mid_back;
+            let p3y = ty - uy * mid_back;
+            // p4 = right back
+            let p4x = tx - ux * back - px * side;
+            let p4y = ty - uy * back - py * side;
+
+            write!(
+                buf,
+                r#"<polygon fill="{EDGE_COLOR}" points="{},{},{},{},{},{},{},{},{},{}" style="stroke:{EDGE_COLOR};stroke-width:1;"/>"#,
+                fmt_coord(p1x), fmt_coord(p1y),
+                fmt_coord(p2x), fmt_coord(p2y),
+                fmt_coord(p3x), fmt_coord(p3y),
+                fmt_coord(p4x), fmt_coord(p4y),
+                fmt_coord(p1x), fmt_coord(p1y),
+            )
+            .unwrap();
+        }
     }
 
     // Label centered near midpoint
@@ -435,11 +492,15 @@ fn render_transition(buf: &mut String, transition: &TransitionLayout) {
         let escaped = xml_escape(&transition.label);
         write!(
             buf,
-            r#"<text fill="{TEXT_FILL}" font-family="sans-serif" font-size="{FONT_SIZE}" text-anchor="middle" x="{mx:.1}" y="{my:.1}">{escaped}</text>"#,
+            r#"<text fill="{TEXT_FILL}" font-family="sans-serif" font-size="{FONT_SIZE}" lengthAdjust="spacing" x="{}" y="{}">{escaped}</text>"#,
+            fmt_coord(mx),
+            fmt_coord(my),
         )
         .unwrap();
-        buf.push('\n');
     }
+
+    // Close <g>
+    buf.push_str("</g>");
 }
 
 // ── Note rendering ──────────────────────────────────────────────────
@@ -454,33 +515,34 @@ fn render_note(buf: &mut String, note: &StateNoteLayout) {
     // Note body polygon (top-left, pre-fold top-right, fold corner, bottom-right, bottom-left)
     write!(
         buf,
-        r#"<polygon fill="{NOTE_BG}" points="{x:.1},{y:.1} {xf:.1},{y:.1} {xw:.1},{yf:.1} {xw:.1},{yh:.1} {x:.1},{yh:.1}" style="stroke:{NOTE_BORDER};"/>"#,
-        xf = x + w - fold,
-        xw = x + w,
-        yf = y + fold,
-        yh = y + h,
+        r#"<polygon fill="{NOTE_BG}" points="{},{} {},{} {},{} {},{} {},{}" style="stroke:{NOTE_BORDER};"/>"#,
+        fmt_coord(x), fmt_coord(y),
+        fmt_coord(x + w - fold), fmt_coord(y),
+        fmt_coord(x + w), fmt_coord(y + fold),
+        fmt_coord(x + w), fmt_coord(y + h),
+        fmt_coord(x), fmt_coord(y + h),
     )
     .unwrap();
-    buf.push('\n');
 
     // Fold lines (vertical + horizontal)
     write!(
         buf,
-        r#"<line style="stroke:{NOTE_BORDER};" x1="{xf:.1}" x2="{xf:.1}" y1="{y:.1}" y2="{yf:.1}"/>"#,
-        xf = x + w - fold,
-        yf = y + fold,
+        r#"<line style="stroke:{NOTE_BORDER};" x1="{}" x2="{}" y1="{}" y2="{}"/>"#,
+        fmt_coord(x + w - fold),
+        fmt_coord(x + w - fold),
+        fmt_coord(y),
+        fmt_coord(y + fold),
     )
     .unwrap();
-    buf.push('\n');
     write!(
         buf,
-        r#"<line style="stroke:{NOTE_BORDER};" x1="{xf:.1}" x2="{xw:.1}" y1="{yf:.1}" y2="{yf:.1}"/>"#,
-        xf = x + w - fold,
-        yf = y + fold,
-        xw = x + w,
+        r#"<line style="stroke:{NOTE_BORDER};" x1="{}" x2="{}" y1="{}" y2="{}"/>"#,
+        fmt_coord(x + w - fold),
+        fmt_coord(x + w),
+        fmt_coord(y + fold),
+        fmt_coord(y + fold),
     )
     .unwrap();
-    buf.push('\n');
 
     let text_x = x + 6.0;
     let text_y = y + fold + FONT_SIZE;
@@ -591,12 +653,9 @@ mod tests {
         assert!(svg.contains("<svg"), "must contain <svg");
         assert!(svg.contains("</svg>"), "must contain </svg>");
         assert!(svg.contains("xmlns=\"http://www.w3.org/2000/svg\""));
-        assert!(
-            svg.contains("state-arrow"),
-            "must define state-arrow marker"
-        );
+        assert!(svg.contains("<defs/>"), "must contain <defs/>");
         // No nodes or edges
-        assert!(!svg.contains("<circle"), "empty diagram has no circles");
+        assert!(!svg.contains("<ellipse"), "empty diagram has no ellipses");
         assert!(!svg.contains("<rect"), "empty diagram has no rects");
     }
 
@@ -608,15 +667,20 @@ mod tests {
         let mut layout = empty_layout();
         layout.state_layouts.push(make_initial(90.0, 10.0));
         let svg = render_state(&diagram, &layout, &SkinParams::default()).expect("render failed");
-        assert!(svg.contains(r#"r="10""#), "initial circle must have r=10");
+        assert!(svg.contains(r#"rx="10""#), "initial ellipse must have rx=10");
+        assert!(svg.contains(r#"ry="10""#), "initial ellipse must have ry=10");
         assert!(
             svg.contains(&format!(r#"fill="{INITIAL_FILL}""#)),
-            "initial circle must be black filled"
+            "initial ellipse must be filled"
         );
         assert_eq!(
-            svg.matches("<circle").count(),
+            svg.matches("<ellipse").count(),
             1,
-            "initial state must produce exactly one circle"
+            "initial state must produce exactly one ellipse"
+        );
+        assert!(
+            svg.contains(r#"class="start_entity""#),
+            "initial state must be wrapped in start_entity group"
         );
     }
 
@@ -652,12 +716,12 @@ mod tests {
             .push(make_simple("Idle", "Idle", 30.0, 40.0, 100.0, 40.0));
         let svg = render_state(&diagram, &layout, &SkinParams::default()).expect("render failed");
         assert!(
-            svg.contains(r#"rx="10""#),
-            "state must have rounded corners"
+            svg.contains(r#"rx="12.5""#),
+            "state must have rounded corners rx=12.5"
         );
         assert!(
-            svg.contains(r#"ry="10""#),
-            "state must have rounded corners"
+            svg.contains(r#"ry="12.5""#),
+            "state must have rounded corners ry=12.5"
         );
         assert!(
             svg.contains(r##"fill="#F1F1F1""##),
@@ -665,8 +729,12 @@ mod tests {
         );
         assert!(svg.contains("Idle"), "state name must appear in SVG");
         assert!(
-            svg.contains(r#"text-anchor="middle""#),
-            "name must be centered"
+            svg.contains(r#"class="entity""#),
+            "state must be wrapped in entity group"
+        );
+        assert!(
+            svg.contains("stroke-width:0.5;"),
+            "state border must have stroke-width:0.5"
         );
     }
 
@@ -774,16 +842,20 @@ mod tests {
         });
         let svg = render_state(&diagram, &layout, &SkinParams::default()).expect("render failed");
         assert!(
-            svg.contains(r#"marker-end="url(#state-arrow)""#),
-            "transition must reference state-arrow marker"
+            svg.contains("<polygon"),
+            "transition must have inline polygon arrowhead"
         );
         assert!(
             svg.contains("stroke:#181818"),
             "transition must use EDGE_COLOR in style"
         );
         assert!(
-            svg.contains("<line "),
-            "2-point transition must use <line>"
+            svg.contains("<path "),
+            "transition must use <path>"
+        );
+        assert!(
+            svg.contains(r#"class="link""#),
+            "transition must be in link group"
         );
     }
 
@@ -802,8 +874,8 @@ mod tests {
         let svg = render_state(&diagram, &layout, &SkinParams::default()).expect("render failed");
         assert!(svg.contains("start"), "transition label must appear in SVG");
         assert!(
-            svg.contains(r#"text-anchor="middle""#),
-            "label must be centered"
+            svg.contains(r#"lengthAdjust="spacing""#),
+            "label must have lengthAdjust"
         );
     }
 
@@ -821,12 +893,12 @@ mod tests {
         });
         let svg = render_state(&diagram, &layout, &SkinParams::default()).expect("render failed");
         assert!(
-            svg.contains("<polyline"),
-            "multi-point transition must use <polyline>"
+            svg.contains("<path"),
+            "multi-point transition must use <path>"
         );
         assert!(
-            svg.contains(r#"marker-end="url(#state-arrow)""#),
-            "polyline must also have arrow marker"
+            svg.contains("<polygon"),
+            "multi-point transition must have inline polygon arrowhead"
         );
     }
 
@@ -944,22 +1016,18 @@ mod tests {
         assert!(svg.contains("height=\"300px\""), "height must match layout");
 
         // Defs
-        assert!(svg.contains("<defs>"), "must have <defs>");
-        assert!(svg.contains("</defs>"), "must have </defs>");
-        assert!(
-            svg.contains("state-arrow"),
-            "must define state-arrow marker"
-        );
+        assert!(svg.contains("<defs/>"), "must have <defs/>");
 
-        // Nodes: 1 initial (1 circle) + 1 simple (1 rect) + 1 final (2 circles) = 3 circles, 1 rect
-        assert_eq!(svg.matches("<circle").count(), 3, "3 circles expected");
+        // Nodes: 1 initial (1 ellipse) + 1 simple (1 rect) + 1 final (2 circles) = 1 ellipse, 2 circles, 1 rect
+        assert_eq!(svg.matches("<ellipse").count(), 1, "1 ellipse expected");
+        assert_eq!(svg.matches("<circle").count(), 2, "2 circles expected");
         assert_eq!(svg.matches("<rect").count(), 1, "1 rect expected");
 
-        // Transitions
+        // Transitions use inline polygon arrowheads
         assert_eq!(
-            svg.matches(r#"marker-end="url(#state-arrow)""#).count(),
+            svg.matches(r#"class="link""#).count(),
             2,
-            "2 transitions with arrows expected"
+            "2 transitions with link groups expected"
         );
 
         // Label
@@ -979,14 +1047,10 @@ mod tests {
             points: vec![],
         });
         let svg = render_state(&diagram, &layout, &SkinParams::default()).expect("render failed");
-        // Empty points should produce no line/polyline and no label
+        // Empty points should produce no path and no label
         assert!(
-            !svg.contains("<line x1="),
-            "empty points should not produce a line"
-        );
-        assert!(
-            !svg.contains("<polyline"),
-            "empty points should not produce a polyline"
+            !svg.contains("<path"),
+            "empty points should not produce a path"
         );
         assert!(
             !svg.contains("skip"),
@@ -1017,13 +1081,13 @@ mod tests {
             region_separators: Vec::new(),
         });
         let svg = render_state(&diagram, &layout, &SkinParams::default()).expect("render failed");
-        // Fork bar must produce a filled black rect
+        // Fork bar must produce a filled rect
         assert!(svg.contains("<rect"), "fork bar must produce a rect");
         assert!(
             svg.contains(&format!(r#"fill="{INITIAL_FILL}""#)),
-            "fork bar must be black filled"
+            "fork bar must be filled"
         );
-        // Should NOT have rounded corners with rx="10"
+        // Should NOT have rounded corners with rx="12.5"
         assert!(
             svg.contains(r#"rx="2""#),
             "fork bar must have minimal rounding"
