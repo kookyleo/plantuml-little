@@ -5,6 +5,7 @@ use crate::layout::usecase::{
 };
 use crate::model::usecase::UseCaseDiagram;
 use crate::render::svg::xml_escape;
+use crate::render::svg::write_svg_root;
 use crate::style::SkinParams;
 use crate::Result;
 
@@ -13,12 +14,11 @@ use crate::Result;
 // ---------------------------------------------------------------------------
 
 const FONT_SIZE: f64 = 12.0;
-const FONT_FAMILY: &str = "monospace";
-const ACTOR_STROKE: &str = "#A80036";
-const UC_BG: &str = "#FEFECE";
-const UC_BORDER: &str = "#A80036";
+const ACTOR_STROKE: &str = "#181818";
+const UC_BG: &str = "#F1F1F1";
+const UC_BORDER: &str = "#181818";
 const BOUNDARY_BORDER: &str = "#444444";
-const EDGE_COLOR: &str = "#A80036";
+const EDGE_COLOR: &str = "#181818";
 const TEXT_FILL: &str = "#000000";
 
 // Stick-figure proportions (relative to actor center / top of head circle).
@@ -57,14 +57,8 @@ pub fn render_usecase(
     let boundary_font = skin.font_color("boundary", TEXT_FILL);
     let arrow_color = skin.arrow_color(EDGE_COLOR);
 
-    write!(
-        buf,
-        r#"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {w:.0} {h:.0}" width="{w:.0}" height="{h:.0}" font-family="{FONT_FAMILY}" font-size="{FONT_SIZE}">"#,
-        w = layout.total_width,
-        h = layout.total_height,
-    )
-    .unwrap();
-    buf.push('\n');
+    write_svg_root(&mut buf, layout.total_width, layout.total_height);
+    buf.push_str("<defs/><g>");
 
     write_defs(&mut buf, arrow_color);
 
@@ -88,7 +82,7 @@ pub fn render_usecase(
         render_edge(&mut buf, edge, arrow_color, TEXT_FILL);
     }
 
-    buf.push_str("</svg>\n");
+    buf.push_str("</g></svg>");
     Ok(buf)
 }
 
@@ -147,7 +141,7 @@ fn render_actor(buf: &mut String, actor: &ActorLayout, stroke: &str, font_color:
     // Head circle
     write!(
         buf,
-        r#"<circle cx="{cx:.1}" cy="{head_cy:.1}" r="{HEAD_R}" fill="none" stroke="{stroke}" stroke-width="1.5"/>"#,
+        r#"<circle cx="{cx:.1}" cy="{head_cy:.1}" fill="none" r="{HEAD_R}" style="stroke:{stroke};stroke-width:1.5;"/>"#,
     )
     .unwrap();
     buf.push('\n');
@@ -155,7 +149,7 @@ fn render_actor(buf: &mut String, actor: &ActorLayout, stroke: &str, font_color:
     // Body
     write!(
         buf,
-        r#"<line x1="{cx:.1}" y1="{body_top_y:.1}" x2="{cx:.1}" y2="{body_bot_y:.1}" stroke="{stroke}" stroke-width="1.5"/>"#,
+        r#"<line style="stroke:{stroke};stroke-width:1.5;" x1="{cx:.1}" x2="{cx:.1}" y1="{body_top_y:.1}" y2="{body_bot_y:.1}"/>"#,
     )
     .unwrap();
     buf.push('\n');
@@ -163,7 +157,7 @@ fn render_actor(buf: &mut String, actor: &ActorLayout, stroke: &str, font_color:
     // Left arm
     write!(
         buf,
-        r#"<line x1="{cx:.1}" y1="{ay:.1}" x2="{lx:.1}" y2="{lay:.1}" stroke="{stroke}" stroke-width="1.5"/>"#,
+        r#"<line style="stroke:{stroke};stroke-width:1.5;" x1="{cx:.1}" x2="{lx:.1}" y1="{ay:.1}" y2="{lay:.1}"/>"#,
         ay = arm_y,
         lx = cx - ARM_SPREAD,
         lay = arm_y - ARM_RAISE,
@@ -174,7 +168,7 @@ fn render_actor(buf: &mut String, actor: &ActorLayout, stroke: &str, font_color:
     // Right arm
     write!(
         buf,
-        r#"<line x1="{cx:.1}" y1="{ay:.1}" x2="{rx:.1}" y2="{ray:.1}" stroke="{stroke}" stroke-width="1.5"/>"#,
+        r#"<line style="stroke:{stroke};stroke-width:1.5;" x1="{cx:.1}" x2="{rx:.1}" y1="{ay:.1}" y2="{ray:.1}"/>"#,
         ay = arm_y,
         rx = cx + ARM_SPREAD,
         ray = arm_y - ARM_RAISE,
@@ -185,7 +179,7 @@ fn render_actor(buf: &mut String, actor: &ActorLayout, stroke: &str, font_color:
     // Left leg
     write!(
         buf,
-        r#"<line x1="{cx:.1}" y1="{ly:.1}" x2="{lx:.1}" y2="{lby:.1}" stroke="{stroke}" stroke-width="1.5"/>"#,
+        r#"<line style="stroke:{stroke};stroke-width:1.5;" x1="{cx:.1}" x2="{lx:.1}" y1="{ly:.1}" y2="{lby:.1}"/>"#,
         ly = leg_y,
         lx = cx - LEG_SPREAD,
         lby = leg_y + LEG_DROP,
@@ -196,7 +190,7 @@ fn render_actor(buf: &mut String, actor: &ActorLayout, stroke: &str, font_color:
     // Right leg
     write!(
         buf,
-        r#"<line x1="{cx:.1}" y1="{ly:.1}" x2="{rx:.1}" y2="{lby:.1}" stroke="{stroke}" stroke-width="1.5"/>"#,
+        r#"<line style="stroke:{stroke};stroke-width:1.5;" x1="{cx:.1}" x2="{rx:.1}" y1="{ly:.1}" y2="{lby:.1}"/>"#,
         ly = leg_y,
         rx = cx + LEG_SPREAD,
         lby = leg_y + LEG_DROP,
@@ -227,7 +221,7 @@ fn render_usecase_oval(
 ) {
     write!(
         buf,
-        r#"<ellipse cx="{cx:.1}" cy="{cy:.1}" rx="{rx:.1}" ry="{ry:.1}" fill="{bg}" stroke="{border}" stroke-width="1.5"/>"#,
+        r#"<ellipse cx="{cx:.1}" cy="{cy:.1}" fill="{bg}" rx="{rx:.1}" ry="{ry:.1}" style="stroke:{border};stroke-width:1.5;"/>"#,
         cx = uc.cx,
         cy = uc.cy,
         rx = uc.rx,
@@ -263,7 +257,7 @@ fn render_boundary(buf: &mut String, boundary: &BoundaryLayout, border: &str, fo
 
     write!(
         buf,
-        r#"<rect x="{x:.1}" y="{y:.1}" width="{w:.1}" height="{h:.1}" fill="{fill}" stroke="{border}" stroke-width="{stroke_width}" {dash} rx="4" ry="4"/>"#,
+        r#"<rect fill="{fill}" height="{h:.1}" rx="4" ry="4" style="stroke:{border};stroke-width:{stroke_width};" width="{w:.1}" x="{x:.1}" y="{y:.1}"{dash}/>"#,
         x = boundary.x,
         y = boundary.y,
         w = boundary.width,
@@ -302,7 +296,7 @@ fn render_edge(buf: &mut String, edge: &UseCaseEdgeLayout, arrow_color: &str, fo
 
     write!(
         buf,
-        r#"<line x1="{x1:.1}" y1="{y1:.1}" x2="{x2:.1}" y2="{y2:.1}" stroke="{arrow_color}" stroke-width="1"{dash}{marker}/>"#,
+        r#"<line style="stroke:{arrow_color};stroke-width:1;" x1="{x1:.1}" x2="{x2:.1}" y1="{y1:.1}" y2="{y2:.1}"{dash}{marker}/>"#,
         x1 = edge.from_x,
         y1 = edge.from_y,
         x2 = edge.to_x,
@@ -408,8 +402,8 @@ mod tests {
         layout.total_height = 400.0;
 
         let svg = render_usecase(&diagram, &layout, &SkinParams::default()).expect("render failed");
-        assert!(svg.contains(r#"width="600""#), "width must match");
-        assert!(svg.contains(r#"height="400""#), "height must match");
+        assert!(svg.contains(r#"width="600px""#), "width must match");
+        assert!(svg.contains(r#"height="400px""#), "height must match");
         assert!(
             svg.contains(r#"viewBox="0 0 600 400""#),
             "viewBox must match"
@@ -482,7 +476,7 @@ mod tests {
         assert!(svg.contains("<ellipse"), "use case must produce an ellipse");
         assert!(svg.contains("Login"), "use case name must appear");
         assert!(
-            svg.contains("fill=\"#FEFECE\""),
+            svg.contains("fill=\"#F1F1F1\""),
             "use case must use default fill"
         );
         assert!(

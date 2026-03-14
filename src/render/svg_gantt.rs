@@ -5,6 +5,7 @@ use crate::layout::gantt::{
 };
 use crate::model::gantt::GanttDiagram;
 use crate::render::svg::xml_escape;
+use crate::render::svg::write_svg_root;
 use crate::render::svg_richtext::render_creole_text;
 use crate::style::SkinParams;
 use crate::Result;
@@ -14,7 +15,6 @@ use crate::Result;
 // ---------------------------------------------------------------------------
 
 const FONT_SIZE: f64 = 12.0;
-const FONT_FAMILY: &str = "monospace";
 const DEFAULT_BAR_FILL: &str = "#A4C2F4";
 const DEFAULT_BAR_STROKE: &str = "#3D85C6";
 const ARROW_COLOR: &str = "#555555";
@@ -22,8 +22,8 @@ const TEXT_FILL: &str = "#000000";
 const GRID_COLOR: &str = "#DDDDDD";
 const AXIS_TEXT_COLOR: &str = "#333333";
 const LABEL_PADDING: f64 = 8.0;
-const NOTE_BG: &str = "#FBFB77";
-const NOTE_BORDER: &str = "#A80036";
+const NOTE_BG: &str = "#FEFFDD";
+const NOTE_BORDER: &str = "#181818";
 const NOTE_FOLD: f64 = 8.0;
 
 // ---------------------------------------------------------------------------
@@ -39,14 +39,8 @@ pub fn render_gantt(
     let mut buf = String::with_capacity(4096);
 
     // SVG header
-    write!(
-        buf,
-        r#"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {w:.0} {h:.0}" width="{w:.0}" height="{h:.0}" font-family="{FONT_FAMILY}" font-size="{FONT_SIZE}">"#,
-        w = layout.width,
-        h = layout.height,
-    )
-    .unwrap();
-    buf.push('\n');
+    write_svg_root(&mut buf, layout.width, layout.height);
+    buf.push_str("<defs/><g>");
 
     // Defs: arrow marker
     write_defs(&mut buf);
@@ -73,7 +67,7 @@ pub fn render_gantt(
         render_note(&mut buf, note, gantt_font);
     }
 
-    buf.push_str("</svg>\n");
+    buf.push_str("</g></svg>");
     Ok(buf)
 }
 
@@ -107,7 +101,7 @@ fn render_grid(buf: &mut String, layout: &GanttLayout) {
     for label in &layout.time_axis.labels {
         write!(
             buf,
-            r#"<line x1="{x:.1}" y1="{y1:.1}" x2="{x:.1}" y2="{y2:.1}" stroke="{GRID_COLOR}" stroke-width="0.5"/>"#,
+            r#"<line style="stroke:{GRID_COLOR};stroke-width:0.5;" x1="{x:.1}" x2="{x:.1}" y1="{y1:.1}" y2="{y2:.1}"/>"#,
             x = label.x,
             y1 = layout.time_axis.y,
             y2 = layout.height,
@@ -163,7 +157,7 @@ fn render_bar(buf: &mut String, bar: &GanttBarLayout, font_color: &str) {
     // Bar rectangle
     write!(
         buf,
-        r#"<rect x="{x:.1}" y="{y:.1}" width="{w:.1}" height="{h:.1}" rx="3" ry="3" fill="{fill}" stroke="{stroke}" stroke-width="1"/>"#,
+        r#"<rect fill="{fill}" height="{h:.1}" rx="3" ry="3" style="stroke:{stroke};stroke-width:1;" width="{w:.1}" x="{x:.1}" y="{y:.1}"/>"#,
         x = bar.x,
         y = bar.y,
         w = bar.width,
@@ -201,7 +195,7 @@ fn render_dependency(buf: &mut String, dep: &GanttDepLayout) {
         let (x2, y2) = dep.points[1];
         write!(
             buf,
-            r#"<line x1="{x1:.1}" y1="{y1:.1}" x2="{x2:.1}" y2="{y2:.1}" stroke="{ARROW_COLOR}" stroke-width="1" marker-end="url(#gantt-arrow)"/>"#,
+            r#"<line marker-end="url(#gantt-arrow)" style="stroke:{ARROW_COLOR};stroke-width:1;" x1="{x1:.1}" x2="{x2:.1}" y1="{y1:.1}" y2="{y2:.1}"/>"#,
         )
         .unwrap();
         buf.push('\n');
@@ -214,7 +208,7 @@ fn render_dependency(buf: &mut String, dep: &GanttDepLayout) {
             .join(" ");
         write!(
             buf,
-            r#"<polyline points="{points_str}" fill="none" stroke="{ARROW_COLOR}" stroke-width="1" marker-end="url(#gantt-arrow)"/>"#,
+            r#"<polyline fill="none" marker-end="url(#gantt-arrow)" points="{points_str}" style="stroke:{ARROW_COLOR};stroke-width:1;"/>"#,
         )
         .unwrap();
         buf.push('\n');
@@ -225,7 +219,7 @@ fn render_note(buf: &mut String, note: &GanttNoteLayout, font_color: &str) {
     if let Some((x1, y1, x2, y2)) = note.connector {
         write!(
             buf,
-            r#"<line x1="{x1:.1}" y1="{y1:.1}" x2="{x2:.1}" y2="{y2:.1}" stroke="{NOTE_BORDER}" stroke-width="1" stroke-dasharray="4,4"/>"#,
+            r#"<line style="stroke:{NOTE_BORDER};stroke-width:1;stroke-dasharray:4,4;" x1="{x1:.1}" x2="{x2:.1}" y1="{y1:.1}" y2="{y2:.1}"/>"#,
         )
         .unwrap();
         buf.push('\n');
@@ -235,7 +229,7 @@ fn render_note(buf: &mut String, note: &GanttNoteLayout, font_color: &str) {
     let fold_y = note.y + NOTE_FOLD;
     write!(
         buf,
-        r#"<polygon points="{x:.1},{y:.1} {fx:.1},{y:.1} {x2:.1},{fy:.1} {x2:.1},{y2:.1} {x:.1},{y2:.1}" fill="{NOTE_BG}" stroke="{NOTE_BORDER}" stroke-width="1"/>"#,
+        r#"<polygon fill="{NOTE_BG}" points="{x:.1},{y:.1} {fx:.1},{y:.1} {x2:.1},{fy:.1} {x2:.1},{y2:.1} {x:.1},{y2:.1}" style="stroke:{NOTE_BORDER};stroke-width:1;"/>"#,
         x = note.x,
         y = note.y,
         fx = fold_x,
@@ -248,7 +242,7 @@ fn render_note(buf: &mut String, note: &GanttNoteLayout, font_color: &str) {
 
     write!(
         buf,
-        r#"<path d="M {fx:.1},{y:.1} L {fx:.1},{fy:.1} L {x2:.1},{fy:.1}" fill="none" stroke="{NOTE_BORDER}" stroke-width="1"/>"#,
+        r#"<path d="M {fx:.1},{y:.1} L {fx:.1},{fy:.1} L {x2:.1},{fy:.1}" fill="none" style="stroke:{NOTE_BORDER};stroke-width:1;"/>"#,
         fx = fold_x,
         fy = fold_y,
         x2 = note.x + note.width,
@@ -355,11 +349,11 @@ mod tests {
         assert!(svg.contains("<rect"), "must contain bar rect");
         assert!(svg.contains("Design"), "must contain task label");
         assert!(
-            svg.contains(&format!(r#"fill="{DEFAULT_BAR_FILL}""#)),
+            svg.contains(r##"fill="#A4C2F4""##),
             "default fill color"
         );
         assert!(
-            svg.contains(&format!(r#"stroke="{DEFAULT_BAR_STROKE}""#)),
+            svg.contains("stroke:#3D85C6"),
             "default stroke color"
         );
     }
@@ -375,7 +369,7 @@ mod tests {
         let svg = render_gantt(&model, &layout, &SkinParams::default()).expect("render failed");
         assert!(svg.contains(r#"fill="Lavender""#), "first color as fill");
         assert!(
-            svg.contains(r#"stroke="LightBlue""#),
+            svg.contains("stroke:LightBlue"),
             "second color as stroke"
         );
     }
@@ -421,7 +415,7 @@ mod tests {
         });
         let svg = render_gantt(&model, &layout, &SkinParams::default()).expect("render failed");
         assert!(
-            svg.contains(&format!(r#"stroke="{GRID_COLOR}""#)),
+            svg.contains("stroke:#DDDDDD"),
             "grid lines must use GRID_COLOR"
         );
     }
@@ -437,7 +431,7 @@ mod tests {
             points: vec![(100.0, 60.0), (200.0, 90.0)],
         });
         let svg = render_gantt(&model, &layout, &SkinParams::default()).expect("render failed");
-        assert!(svg.contains("<line x1="), "2-point dep should use <line>");
+        assert!(svg.contains("<line "), "2-point dep should use <line>");
         assert!(
             svg.contains(r#"marker-end="url(#gantt-arrow)""#),
             "must have arrow marker"
@@ -504,8 +498,8 @@ mod tests {
         layout.width = 600.0;
         layout.height = 300.0;
         let svg = render_gantt(&model, &layout, &SkinParams::default()).expect("render failed");
-        assert!(svg.contains(r#"width="600""#));
-        assert!(svg.contains(r#"height="300""#));
+        assert!(svg.contains(r#"width="600px""#));
+        assert!(svg.contains(r#"height="300px""#));
         assert!(svg.contains(r#"viewBox="0 0 600 300""#));
     }
 
@@ -589,7 +583,7 @@ mod tests {
         });
         let svg = render_gantt(&model, &layout, &SkinParams::default()).expect("render failed");
         assert!(svg.contains("<polygon"), "note body must be rendered");
-        assert!(svg.contains("stroke-dasharray=\"4,4\""));
+        assert!(svg.contains("stroke-dasharray:4,4;"));
         assert!(
             svg.contains("font-weight=\"bold\""),
             "creole note text should be rendered"

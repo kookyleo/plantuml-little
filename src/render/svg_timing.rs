@@ -8,16 +8,16 @@ use crate::model::timing::TimingDiagram;
 use crate::render::svg_richtext::{count_creole_lines, render_creole_text};
 use crate::style::SkinParams;
 use crate::Result;
+use super::svg::write_svg_root;
 
 // ---------------------------------------------------------------------------
 // Style constants
 // ---------------------------------------------------------------------------
 
 const FONT_SIZE: f64 = 12.0;
-const FONT_FAMILY: &str = "monospace";
-const TRACK_BG_FILL: &str = "#FEFECE";
-const TRACK_BORDER: &str = "#A80036";
-const SIGNAL_STROKE: &str = "#A80036";
+const TRACK_BG_FILL: &str = "#F1F1F1";
+const TRACK_BORDER: &str = "#181818";
+const SIGNAL_STROKE: &str = "#181818";
 const CONCISE_STROKE: &str = "#2E8B57";
 const ARROW_COLOR: &str = "#555555";
 const CONSTRAINT_COLOR: &str = "#FF6600";
@@ -27,8 +27,8 @@ const AXIS_TEXT_COLOR: &str = "#333333";
 const TICK_COLOR: &str = "#CCCCCC";
 const LABEL_PADDING: f64 = 8.0;
 const ROBUST_BAND_HEIGHT: f64 = 16.0;
-const NOTE_BG: &str = "#FBFB77";
-const NOTE_BORDER: &str = "#A80036";
+const NOTE_BG: &str = "#FEFFDD";
+const NOTE_BORDER: &str = "#181818";
 const NOTE_FOLD: f64 = 8.0;
 
 // ---------------------------------------------------------------------------
@@ -51,14 +51,8 @@ pub fn render_timing(
     let arrow_color = skin.arrow_color(ARROW_COLOR);
 
     // SVG header
-    write!(
-        buf,
-        r#"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {w:.0} {h:.0}" width="{w:.0}" height="{h:.0}" font-family="{FONT_FAMILY}" font-size="{FONT_SIZE}">"#,
-        w = layout.width,
-        h = layout.height,
-    )
-    .unwrap();
-    buf.push('\n');
+    write_svg_root(&mut buf, layout.width, layout.height);
+    buf.push_str("<defs/><g>");
 
     // Defs
     write_defs(&mut buf, arrow_color, constraint_color);
@@ -88,7 +82,7 @@ pub fn render_timing(
     // Time axis
     render_time_axis(&mut buf, &layout.time_axis);
 
-    buf.push_str("</svg>\n");
+    buf.push_str("</g></svg>");
     Ok(buf)
 }
 
@@ -135,7 +129,7 @@ fn render_tick_grid(buf: &mut String, layout: &TimingLayout) {
     for tick in &layout.time_axis.ticks {
         write!(
             buf,
-            r#"<line x1="{x:.1}" y1="0" x2="{x:.1}" y2="{y2:.1}" stroke="{TICK_COLOR}" stroke-width="0.5" stroke-dasharray="4,4"/>"#,
+            r#"<line style="stroke:{TICK_COLOR};stroke-width:0.5;stroke-dasharray:4,4;" x1="{x:.1}" x2="{x:.1}" y1="0" y2="{y2:.1}"/>"#,
             x = tick.x,
             y2 = layout.time_axis.y,
         )
@@ -171,7 +165,7 @@ fn render_track(
 
         write!(
             buf,
-            r#"<rect x="{x:.1}" y="{y:.1}" width="{w:.1}" height="{h:.1}" fill="{bg}" stroke="{border}" stroke-width="0.5" opacity="0.3"/>"#,
+            r#"<rect fill="{bg}" height="{h:.1}" opacity="0.3" style="stroke:{border};stroke-width:0.5;" width="{w:.1}" x="{x:.1}" y="{y:.1}"/>"#,
             x = x_min,
             y = track.y,
             h = track.height,
@@ -222,7 +216,7 @@ fn render_segment(
         if w > 0.0 {
             write!(
                 buf,
-                r#"<rect x="{x:.1}" y="{y:.1}" width="{w:.1}" height="{bh:.0}" fill="{TRACK_BG_FILL}" stroke="{stroke}" stroke-width="1"/>"#,
+                r#"<rect fill="{TRACK_BG_FILL}" height="{bh:.0}" style="stroke:{stroke};stroke-width:1;" width="{w:.1}" x="{x:.1}" y="{y:.1}"/>"#,
                 x = seg.x_start,
                 y = band_top,
                 bh = ROBUST_BAND_HEIGHT,
@@ -268,7 +262,7 @@ fn render_segment(
             };
             write!(
                 buf,
-                r#"<line x1="{trans_x:.1}" y1="{step_y_from:.1}" x2="{trans_x:.1}" y2="{step_y_to:.1}" stroke="{stroke}" stroke-width="1.5"/>"#,
+                r#"<line style="stroke:{stroke};stroke-width:1.5;" x1="{trans_x:.1}" x2="{trans_x:.1}" y1="{step_y_from:.1}" y2="{step_y_to:.1}"/>"#,
             )
             .unwrap();
             buf.push('\n');
@@ -278,7 +272,7 @@ fn render_segment(
         if seg.x_end > seg.x_start {
             write!(
                 buf,
-                r#"<line x1="{x1:.1}" y1="{y:.1}" x2="{x2:.1}" y2="{y:.1}" stroke="{stroke}" stroke-width="1.5"/>"#,
+                r#"<line style="stroke:{stroke};stroke-width:1.5;" x1="{x1:.1}" x2="{x2:.1}" y1="{y:.1}" y2="{y:.1}"/>"#,
                 x1 = seg.x_start,
                 y = seg.y,
                 x2 = seg.x_end,
@@ -309,7 +303,7 @@ fn render_segment(
             let trans_x = seg.x_start;
             write!(
                 buf,
-                r#"<line x1="{x:.1}" y1="{y1:.1}" x2="{x:.1}" y2="{y2:.1}" stroke="{stroke}" stroke-width="1"/>"#,
+                r#"<line style="stroke:{stroke};stroke-width:1;" x1="{x:.1}" x2="{x:.1}" y1="{y1:.1}" y2="{y2:.1}"/>"#,
                 x = trans_x,
                 y1 = prev.y,
                 y2 = seg.y,
@@ -327,7 +321,7 @@ fn render_segment(
 fn render_message(buf: &mut String, msg: &TimingMsgLayout, arrow_color: &str, font_color: &str) {
     write!(
         buf,
-        r#"<line x1="{x1:.1}" y1="{y1:.1}" x2="{x2:.1}" y2="{y2:.1}" stroke="{arrow_color}" stroke-width="1" marker-end="url(#timing-arrow)"/>"#,
+        r#"<line marker-end="url(#timing-arrow)" style="stroke:{arrow_color};stroke-width:1;" x1="{x1:.1}" x2="{x2:.1}" y1="{y1:.1}" y2="{y2:.1}"/>"#,
         x1 = msg.from_x,
         y1 = msg.from_y,
         x2 = msg.to_x,
@@ -361,7 +355,7 @@ fn render_constraint(buf: &mut String, c: &TimingConstraintLayout, constraint_co
     // Double-ended arrow line
     write!(
         buf,
-        r#"<line x1="{x1:.1}" y1="{y:.1}" x2="{x2:.1}" y2="{y:.1}" stroke="{constraint_color}" stroke-width="1" marker-start="url(#timing-constraint-arrow)" marker-end="url(#timing-constraint-arrow)"/>"#,
+        r#"<line marker-end="url(#timing-constraint-arrow)" marker-start="url(#timing-constraint-arrow)" style="stroke:{constraint_color};stroke-width:1;" x1="{x1:.1}" x2="{x2:.1}" y1="{y:.1}" y2="{y:.1}"/>"#,
         x1 = c.x_start,
         y = c.y,
         x2 = c.x_end,
@@ -393,7 +387,7 @@ fn render_time_axis(buf: &mut String, axis: &TimingTimeAxis) {
     if let (Some(first), Some(last)) = (axis.ticks.first(), axis.ticks.last()) {
         write!(
             buf,
-            r#"<line x1="{x1:.1}" y1="{y:.1}" x2="{x2:.1}" y2="{y:.1}" stroke="{AXIS_LINE_COLOR}" stroke-width="1"/>"#,
+            r#"<line style="stroke:{AXIS_LINE_COLOR};stroke-width:1;" x1="{x1:.1}" x2="{x2:.1}" y1="{y:.1}" y2="{y:.1}"/>"#,
             x1 = first.x,
             y = axis.y,
             x2 = last.x,
@@ -407,7 +401,7 @@ fn render_time_axis(buf: &mut String, axis: &TimingTimeAxis) {
         // Small vertical tick mark
         write!(
             buf,
-            r#"<line x1="{x:.1}" y1="{y1:.1}" x2="{x:.1}" y2="{y2:.1}" stroke="{AXIS_LINE_COLOR}" stroke-width="1"/>"#,
+            r#"<line style="stroke:{AXIS_LINE_COLOR};stroke-width:1;" x1="{x:.1}" x2="{x:.1}" y1="{y1:.1}" y2="{y2:.1}"/>"#,
             x = tick.x,
             y1 = axis.y,
             y2 = axis.y + 6.0,
@@ -434,7 +428,7 @@ fn render_note(buf: &mut String, note: &TimingNoteLayout, font_color: &str) {
     if let Some((x1, y1, x2, y2)) = note.connector {
         write!(
             buf,
-            r#"<line x1="{x1:.1}" y1="{y1:.1}" x2="{x2:.1}" y2="{y2:.1}" stroke="{NOTE_BORDER}" stroke-width="1" stroke-dasharray="4,4"/>"#,
+            r#"<line style="stroke:{NOTE_BORDER};stroke-width:1;stroke-dasharray:4,4;" x1="{x1:.1}" x2="{x2:.1}" y1="{y1:.1}" y2="{y2:.1}"/>"#,
         )
         .unwrap();
         buf.push('\n');
@@ -444,7 +438,7 @@ fn render_note(buf: &mut String, note: &TimingNoteLayout, font_color: &str) {
     let fold_y = note.y + NOTE_FOLD;
     write!(
         buf,
-        r#"<polygon points="{x:.1},{y:.1} {fx:.1},{y:.1} {x2:.1},{fy:.1} {x2:.1},{y2:.1} {x:.1},{y2:.1}" fill="{NOTE_BG}" stroke="{NOTE_BORDER}" stroke-width="1"/>"#,
+        r#"<polygon fill="{NOTE_BG}" points="{x:.1},{y:.1} {fx:.1},{y:.1} {x2:.1},{fy:.1} {x2:.1},{y2:.1} {x:.1},{y2:.1}" style="stroke:{NOTE_BORDER};stroke-width:1;"/>"#,
         x = note.x,
         y = note.y,
         fx = fold_x,
@@ -457,7 +451,7 @@ fn render_note(buf: &mut String, note: &TimingNoteLayout, font_color: &str) {
 
     write!(
         buf,
-        r#"<path d="M {fx:.1},{y:.1} L {fx:.1},{fy:.1} L {x2:.1},{fy:.1}" fill="none" stroke="{NOTE_BORDER}" stroke-width="1"/>"#,
+        r#"<path d="M {fx:.1},{y:.1} L {fx:.1},{fy:.1} L {x2:.1},{fy:.1}" fill="none" style="stroke:{NOTE_BORDER};stroke-width:1;"/>"#,
         fx = fold_x,
         fy = fold_y,
         x2 = note.x + note.width,
@@ -582,8 +576,8 @@ mod tests {
         layout.width = 600.0;
         layout.height = 300.0;
         let svg = render_timing(&model, &layout, &SkinParams::default()).expect("render failed");
-        assert!(svg.contains(r#"width="600""#));
-        assert!(svg.contains(r#"height="300""#));
+        assert!(svg.contains(r#"width="600px""#));
+        assert!(svg.contains(r#"height="300px""#));
         assert!(svg.contains(r#"viewBox="0 0 600 300""#));
     }
 
@@ -709,7 +703,7 @@ mod tests {
         assert!(svg.contains("0"), "tick label '0' must appear");
         assert!(svg.contains("100"), "tick label '100' must appear");
         assert!(
-            svg.contains(&format!(r#"stroke="{AXIS_LINE_COLOR}""#)),
+            svg.contains(&format!("stroke:{AXIS_LINE_COLOR}")),
             "axis line must use AXIS_LINE_COLOR"
         );
     }
@@ -978,7 +972,7 @@ DNS is Idle
         });
         let svg = render_timing(&model, &layout, &SkinParams::default()).expect("render failed");
         assert!(svg.contains("<polygon"), "note body must render");
-        assert!(svg.contains("stroke-dasharray=\"4,4\""));
+        assert!(svg.contains("stroke-dasharray:4,4;"));
         assert!(
             svg.contains("font-weight=\"bold\""),
             "creole note text should render"

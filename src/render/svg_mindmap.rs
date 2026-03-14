@@ -7,21 +7,21 @@ use crate::model::mindmap::MindmapDiagram;
 use crate::render::svg_richtext::{count_creole_lines, render_creole_text};
 use crate::style::SkinParams;
 use crate::Result;
+use super::svg::write_svg_root;
 
 // ── Style constants ──────────────────────────────────────────────────
 
 const FONT_SIZE: f64 = 12.0;
-const FONT_FAMILY: &str = "monospace";
 const LINE_HEIGHT: f64 = 16.0;
-const NODE_FILL: &str = "#FEFECE";
+const NODE_FILL: &str = "#F1F1F1";
 const ROOT_FILL: &str = "#FFD700";
-const NODE_BORDER: &str = "#A80036";
-const EDGE_COLOR: &str = "#A80036";
+const NODE_BORDER: &str = "#181818";
+const EDGE_COLOR: &str = "#181818";
 const TEXT_COLOR: &str = "#000000";
 const BORDER_WIDTH: f64 = 1.5;
 const CORNER_RADIUS: f64 = 10.0;
-const NOTE_BG: &str = "#FBFB77";
-const NOTE_BORDER: &str = "#A80036";
+const NOTE_BG: &str = "#FEFFDD";
+const NOTE_BORDER: &str = "#181818";
 const NOTE_FOLD: f64 = 8.0;
 
 // ── Public entry point ──────────────────────────────────────────────
@@ -35,14 +35,8 @@ pub fn render_mindmap(
     let mut buf = String::with_capacity(4096);
 
     // SVG header
-    write!(
-        buf,
-        r#"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {w:.0} {h:.0}" width="{w:.0}" height="{h:.0}" font-family="{FONT_FAMILY}" font-size="{FONT_SIZE}">"#,
-        w = layout.width,
-        h = layout.height,
-    )
-    .unwrap();
-    buf.push('\n');
+    write_svg_root(&mut buf, layout.width, layout.height);
+    buf.push_str("<defs/><g>");
 
     let mm_bg = skin.background_color("mindmap", NODE_FILL);
     let mm_border = skin.border_color("mindmap", NODE_BORDER);
@@ -63,7 +57,7 @@ pub fn render_mindmap(
         render_note(&mut buf, note, mm_font);
     }
 
-    buf.push_str("</svg>\n");
+    buf.push_str("</g></svg>");
     Ok(buf)
 }
 
@@ -79,7 +73,7 @@ fn render_edge(buf: &mut String, edge: &MindmapEdgeLayout, color: &str) {
 
     write!(
         buf,
-        r#"<path d="M {fx:.1},{fy:.1} C {cx1:.1},{cy1:.1} {cx2:.1},{cy2:.1} {tx:.1},{ty:.1}" fill="none" stroke="{color}" stroke-width="{BORDER_WIDTH}"/>"#,
+        r#"<path d="M {fx:.1},{fy:.1} C {cx1:.1},{cy1:.1} {cx2:.1},{cy2:.1} {tx:.1},{ty:.1}" fill="none" style="stroke:{color};stroke-width:{BORDER_WIDTH};"/>"#,
         fx = edge.from_x,
         fy = edge.from_y,
         cx1 = cx1,
@@ -107,7 +101,7 @@ fn render_node(
     // Rounded rectangle
     write!(
         buf,
-        r#"<rect x="{x:.1}" y="{y:.1}" width="{w:.1}" height="{h:.1}" rx="{rx:.0}" fill="{fill}" stroke="{border}" stroke-width="{BORDER_WIDTH}"/>"#,
+        r#"<rect fill="{fill}" height="{h:.1}" rx="{rx:.0}" style="stroke:{border};stroke-width:{BORDER_WIDTH};" width="{w:.1}" x="{x:.1}" y="{y:.1}"/>"#,
         x = node.x,
         y = node.y,
         w = node.width,
@@ -142,7 +136,7 @@ fn render_note(buf: &mut String, note: &MindmapNoteLayout, font_color: &str) {
     if let Some((x1, y1, x2, y2)) = note.connector {
         write!(
             buf,
-            r#"<line x1="{x1:.1}" y1="{y1:.1}" x2="{x2:.1}" y2="{y2:.1}" stroke="{NOTE_BORDER}" stroke-width="1" stroke-dasharray="4,4"/>"#,
+            r#"<line style="stroke:{NOTE_BORDER};stroke-width:1;stroke-dasharray:4,4;" x1="{x1:.1}" x2="{x2:.1}" y1="{y1:.1}" y2="{y2:.1}"/>"#,
         )
         .unwrap();
         buf.push('\n');
@@ -152,7 +146,7 @@ fn render_note(buf: &mut String, note: &MindmapNoteLayout, font_color: &str) {
     let fold_y = note.y + NOTE_FOLD;
     write!(
         buf,
-        r#"<polygon points="{x:.1},{y:.1} {fx:.1},{y:.1} {x2:.1},{fy:.1} {x2:.1},{y2:.1} {x:.1},{y2:.1}" fill="{NOTE_BG}" stroke="{NOTE_BORDER}" stroke-width="1"/>"#,
+        r#"<polygon fill="{NOTE_BG}" points="{x:.1},{y:.1} {fx:.1},{y:.1} {x2:.1},{fy:.1} {x2:.1},{y2:.1} {x:.1},{y2:.1}" style="stroke:{NOTE_BORDER};stroke-width:1;"/>"#,
         x = note.x,
         y = note.y,
         fx = fold_x,
@@ -165,7 +159,7 @@ fn render_note(buf: &mut String, note: &MindmapNoteLayout, font_color: &str) {
 
     write!(
         buf,
-        r#"<path d="M {fx:.1},{y:.1} L {fx:.1},{fy:.1} L {x2:.1},{fy:.1}" fill="none" stroke="{NOTE_BORDER}" stroke-width="1"/>"#,
+        r#"<path d="M {fx:.1},{y:.1} L {fx:.1},{fy:.1} L {x2:.1},{fy:.1}" fill="none" style="stroke:{NOTE_BORDER};stroke-width:1;"/>"#,
         fx = fold_x,
         fy = fold_y,
         x2 = note.x + note.width,
@@ -428,8 +422,8 @@ mod tests {
         let (diagram, layout) = simple_layout();
         let svg = render_mindmap(&diagram, &layout, &SkinParams::default()).unwrap();
         assert!(svg.contains("viewBox=\"0 0 320 120\""));
-        assert!(svg.contains("width=\"320\""));
-        assert!(svg.contains("height=\"120\""));
+        assert!(svg.contains("width=\"320px\""));
+        assert!(svg.contains("height=\"120px\""));
     }
 
     #[test]
@@ -437,7 +431,7 @@ mod tests {
         let (diagram, layout) = simple_layout();
         let svg = render_mindmap(&diagram, &layout, &SkinParams::default()).unwrap();
         assert!(
-            svg.contains(&format!("stroke=\"{}\"", EDGE_COLOR)),
+            svg.contains(&format!("stroke:{}", EDGE_COLOR)),
             "edges should use edge color"
         );
     }
@@ -473,7 +467,7 @@ mod tests {
         let svg = render_mindmap(&diagram, &layout, &SkinParams::default()).unwrap();
         assert!(svg.contains("<polygon"), "note body should be rendered");
         assert!(
-            svg.contains("stroke-dasharray=\"4,4\""),
+            svg.contains("stroke-dasharray:4,4;"),
             "connector should be dashed"
         );
         assert!(

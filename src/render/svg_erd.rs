@@ -5,6 +5,7 @@ use crate::layout::erd::{
 };
 use crate::model::erd::ErdDiagram;
 use crate::render::svg::xml_escape;
+use crate::render::svg::write_svg_root;
 use crate::render::svg_richtext::render_creole_text;
 use crate::style::SkinParams;
 use crate::Result;
@@ -12,19 +13,18 @@ use crate::Result;
 // ── Style constants ──────────────────────────────────────────────────
 
 const FONT_SIZE: f64 = 12.0;
-const FONT_FAMILY: &str = "monospace";
-const ENTITY_BG: &str = "#FEFECE";
-const ENTITY_BORDER: &str = "#A80036";
-const RELATIONSHIP_BG: &str = "#FEFECE";
-const RELATIONSHIP_BORDER: &str = "#A80036";
-const ATTR_BG: &str = "#FEFECE";
-const ATTR_BORDER: &str = "#A80036";
-const EDGE_COLOR: &str = "#A80036";
+const ENTITY_BG: &str = "#F1F1F1";
+const ENTITY_BORDER: &str = "#181818";
+const RELATIONSHIP_BG: &str = "#F1F1F1";
+const RELATIONSHIP_BORDER: &str = "#181818";
+const ATTR_BG: &str = "#F1F1F1";
+const ATTR_BORDER: &str = "#181818";
+const EDGE_COLOR: &str = "#181818";
 const TEXT_FILL: &str = "#000000";
-const ISA_BG: &str = "#FEFECE";
-const ISA_BORDER: &str = "#A80036";
-const NOTE_BG: &str = "#FBFB77";
-const NOTE_BORDER: &str = "#A80036";
+const ISA_BG: &str = "#F1F1F1";
+const ISA_BORDER: &str = "#181818";
+const NOTE_BG: &str = "#FEFFDD";
+const NOTE_BORDER: &str = "#181818";
 const NOTE_FOLD: f64 = 8.0;
 
 // ── Public entry point ──────────────────────────────────────────────
@@ -34,14 +34,8 @@ pub fn render_erd(_ed: &ErdDiagram, layout: &ErdLayout, skin: &SkinParams) -> Re
     let mut buf = String::with_capacity(4096);
 
     // SVG header
-    write!(
-        buf,
-        r#"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {w:.0} {h:.0}" width="{w:.0}" height="{h:.0}" font-family="{FONT_FAMILY}" font-size="{FONT_SIZE}">"#,
-        w = layout.width,
-        h = layout.height,
-    )
-    .unwrap();
-    buf.push('\n');
+    write_svg_root(&mut buf, layout.width, layout.height);
+    buf.push_str("<defs/><g>");
 
     // Defs
     write_defs(&mut buf);
@@ -90,7 +84,7 @@ pub fn render_erd(_ed: &ErdDiagram, layout: &ErdLayout, skin: &SkinParams) -> Re
         render_note(&mut buf, note);
     }
 
-    buf.push_str("</svg>\n");
+    buf.push_str("</g></svg>");
     Ok(buf)
 }
 
@@ -115,7 +109,7 @@ fn render_entity(buf: &mut String, node: &ErdNodeLayout, bg: &str, border: &str,
         // Outer rectangle
         write!(
             buf,
-            r#"<rect x="{x:.1}" y="{y:.1}" width="{w:.1}" height="{h:.1}" fill="{bg}" stroke="{border}" stroke-width="1.5"/>"#,
+            r#"<rect fill="{bg}" height="{h:.1}" style="stroke:{border};stroke-width:1.5;" width="{w:.1}" x="{x:.1}" y="{y:.1}"/>"#,
         )
         .unwrap();
         buf.push('\n');
@@ -123,7 +117,7 @@ fn render_entity(buf: &mut String, node: &ErdNodeLayout, bg: &str, border: &str,
         let inset = 3.0;
         write!(
             buf,
-            r#"<rect x="{ix:.1}" y="{iy:.1}" width="{iw:.1}" height="{ih:.1}" fill="none" stroke="{border}" stroke-width="1"/>"#,
+            r#"<rect fill="none" height="{ih:.1}" style="stroke:{border};stroke-width:1;" width="{iw:.1}" x="{ix:.1}" y="{iy:.1}"/>"#,
             ix = x + inset,
             iy = y + inset,
             iw = w - 2.0 * inset,
@@ -135,7 +129,7 @@ fn render_entity(buf: &mut String, node: &ErdNodeLayout, bg: &str, border: &str,
         // Single rectangle
         write!(
             buf,
-            r#"<rect x="{x:.1}" y="{y:.1}" width="{w:.1}" height="{h:.1}" fill="{bg}" stroke="{border}" stroke-width="1.5"/>"#,
+            r#"<rect fill="{bg}" height="{h:.1}" style="stroke:{border};stroke-width:1.5;" width="{w:.1}" x="{x:.1}" y="{y:.1}"/>"#,
         )
         .unwrap();
         buf.push('\n');
@@ -174,7 +168,7 @@ fn render_relationship(buf: &mut String, node: &ErdNodeLayout) {
         let points = format!("{top} {right} {bottom} {left}");
         write!(
             buf,
-            r#"<polygon points="{points}" fill="{RELATIONSHIP_BG}" stroke="{RELATIONSHIP_BORDER}" stroke-width="1.5"/>"#,
+            r#"<polygon fill="{RELATIONSHIP_BG}" points="{points}" style="stroke:{RELATIONSHIP_BORDER};stroke-width:1.5;"/>"#,
         )
         .unwrap();
         buf.push('\n');
@@ -188,7 +182,7 @@ fn render_relationship(buf: &mut String, node: &ErdNodeLayout) {
         let inner_points = format!("{inner_top} {inner_right} {inner_bottom} {inner_left}");
         write!(
             buf,
-            r#"<polygon points="{inner_points}" fill="none" stroke="{RELATIONSHIP_BORDER}" stroke-width="1"/>"#,
+            r#"<polygon fill="none" points="{inner_points}" style="stroke:{RELATIONSHIP_BORDER};stroke-width:1;"/>"#,
         )
         .unwrap();
         buf.push('\n');
@@ -196,7 +190,7 @@ fn render_relationship(buf: &mut String, node: &ErdNodeLayout) {
         let points = format!("{top} {right} {bottom} {left}");
         write!(
             buf,
-            r#"<polygon points="{points}" fill="{RELATIONSHIP_BG}" stroke="{RELATIONSHIP_BORDER}" stroke-width="1.5"/>"#,
+            r#"<polygon fill="{RELATIONSHIP_BG}" points="{points}" style="stroke:{RELATIONSHIP_BORDER};stroke-width:1.5;"/>"#,
         )
         .unwrap();
         buf.push('\n');
@@ -225,7 +219,7 @@ fn render_attribute(buf: &mut String, attr: &ErdAttrLayout) {
         // Dashed ellipse for derived attribute
         write!(
             buf,
-            r#"<ellipse cx="{cx:.1}" cy="{cy:.1}" rx="{rx:.1}" ry="{ry:.1}" fill="{ATTR_BG}" stroke="{ATTR_BORDER}" stroke-width="1" stroke-dasharray="5,3"/>"#,
+            r#"<ellipse cx="{cx:.1}" cy="{cy:.1}" fill="{ATTR_BG}" rx="{rx:.1}" ry="{ry:.1}" style="stroke:{ATTR_BORDER};stroke-width:1;stroke-dasharray:5,3;"/>"#,
         )
         .unwrap();
         buf.push('\n');
@@ -233,7 +227,7 @@ fn render_attribute(buf: &mut String, attr: &ErdAttrLayout) {
         // Double ellipse for multi-valued attribute
         write!(
             buf,
-            r#"<ellipse cx="{cx:.1}" cy="{cy:.1}" rx="{rx:.1}" ry="{ry:.1}" fill="{ATTR_BG}" stroke="{ATTR_BORDER}" stroke-width="1.5"/>"#,
+            r#"<ellipse cx="{cx:.1}" cy="{cy:.1}" fill="{ATTR_BG}" rx="{rx:.1}" ry="{ry:.1}" style="stroke:{ATTR_BORDER};stroke-width:1.5;"/>"#,
         )
         .unwrap();
         buf.push('\n');
@@ -242,7 +236,7 @@ fn render_attribute(buf: &mut String, attr: &ErdAttrLayout) {
         let inner_ry = ry - 2.0;
         write!(
             buf,
-            r#"<ellipse cx="{cx:.1}" cy="{cy:.1}" rx="{inner_rx:.1}" ry="{inner_ry:.1}" fill="none" stroke="{ATTR_BORDER}" stroke-width="1"/>"#,
+            r#"<ellipse cx="{cx:.1}" cy="{cy:.1}" fill="none" rx="{inner_rx:.1}" ry="{inner_ry:.1}" style="stroke:{ATTR_BORDER};stroke-width:1;"/>"#,
         )
         .unwrap();
         buf.push('\n');
@@ -250,7 +244,7 @@ fn render_attribute(buf: &mut String, attr: &ErdAttrLayout) {
         // Simple ellipse
         write!(
             buf,
-            r#"<ellipse cx="{cx:.1}" cy="{cy:.1}" rx="{rx:.1}" ry="{ry:.1}" fill="{ATTR_BG}" stroke="{ATTR_BORDER}" stroke-width="1"/>"#,
+            r#"<ellipse cx="{cx:.1}" cy="{cy:.1}" fill="{ATTR_BG}" rx="{rx:.1}" ry="{ry:.1}" style="stroke:{ATTR_BORDER};stroke-width:1;"/>"#,
         )
         .unwrap();
         buf.push('\n');
@@ -296,7 +290,7 @@ fn render_attribute(buf: &mut String, attr: &ErdAttrLayout) {
         // Line from parent attribute to child attribute
         write!(
             buf,
-            r#"<line x1="{x1:.1}" y1="{y1:.1}" x2="{x2:.1}" y2="{y2:.1}" stroke="{EDGE_COLOR}" stroke-width="1"/>"#,
+            r#"<line style="stroke:{EDGE_COLOR};stroke-width:1;" x1="{x1:.1}" x2="{x2:.1}" y1="{y1:.1}" y2="{y2:.1}"/>"#,
             x1 = cx,
             y1 = cy - ry,
             x2 = child.x,
@@ -326,7 +320,7 @@ fn render_attr_parent_lines(
         if let Some((px, py)) = parent_center {
             write!(
                 buf,
-                r#"<line x1="{x1:.1}" y1="{y1:.1}" x2="{x2:.1}" y2="{y2:.1}" stroke="{EDGE_COLOR}" stroke-width="1"/>"#,
+                r#"<line style="stroke:{EDGE_COLOR};stroke-width:1;" x1="{x1:.1}" x2="{x2:.1}" y1="{y1:.1}" y2="{y2:.1}"/>"#,
                 x1 = px,
                 y1 = py,
                 x2 = attr.x,
@@ -355,14 +349,14 @@ fn render_edge(buf: &mut String, edge: &ErdEdgeLayout) {
 
             write!(
                 buf,
-                r#"<line x1="{:.1}" y1="{:.1}" x2="{:.1}" y2="{:.1}" stroke="{EDGE_COLOR}" stroke-width="1"/>"#,
+                r#"<line style="stroke:{EDGE_COLOR};stroke-width:1;" x1="{:.1}" x2="{:.1}" y1="{:.1}" y2="{:.1}"/>"#,
                 x1 + nx, y1 + ny, x2 + nx, y2 + ny,
             )
             .unwrap();
             buf.push('\n');
             write!(
                 buf,
-                r#"<line x1="{:.1}" y1="{:.1}" x2="{:.1}" y2="{:.1}" stroke="{EDGE_COLOR}" stroke-width="1"/>"#,
+                r#"<line style="stroke:{EDGE_COLOR};stroke-width:1;" x1="{:.1}" x2="{:.1}" y1="{:.1}" y2="{:.1}"/>"#,
                 x1 - nx, y1 - ny, x2 - nx, y2 - ny,
             )
             .unwrap();
@@ -371,7 +365,7 @@ fn render_edge(buf: &mut String, edge: &ErdEdgeLayout) {
     } else {
         write!(
             buf,
-            r#"<line x1="{x1:.1}" y1="{y1:.1}" x2="{x2:.1}" y2="{y2:.1}" stroke="{EDGE_COLOR}" stroke-width="1"/>"#,
+            r#"<line style="stroke:{EDGE_COLOR};stroke-width:1;" x1="{x1:.1}" x2="{x2:.1}" y1="{y1:.1}" y2="{y2:.1}"/>"#,
         )
         .unwrap();
         buf.push('\n');
@@ -408,13 +402,13 @@ fn render_isa(buf: &mut String, isa: &ErdIsaLayout) {
     if isa.is_double {
         write!(
             buf,
-            r#"<polygon points="{points}" fill="{ISA_BG}" stroke="{ISA_BORDER}" stroke-width="2"/>"#,
+            r#"<polygon fill="{ISA_BG}" points="{points}" style="stroke:{ISA_BORDER};stroke-width:2;"/>"#,
         )
         .unwrap();
     } else {
         write!(
             buf,
-            r#"<polygon points="{points}" fill="{ISA_BG}" stroke="{ISA_BORDER}" stroke-width="1.5"/>"#,
+            r#"<polygon fill="{ISA_BG}" points="{points}" style="stroke:{ISA_BORDER};stroke-width:1.5;"/>"#,
         )
         .unwrap();
     }
@@ -436,7 +430,7 @@ fn render_isa(buf: &mut String, isa: &ErdIsaLayout) {
     let (ppx, ppy) = isa.parent_point;
     write!(
         buf,
-        r#"<line x1="{ppx:.1}" y1="{ppy:.1}" x2="{cx:.1}" y2="{top_y:.1}" stroke="{EDGE_COLOR}" stroke-width="1.5"/>"#,
+        r#"<line style="stroke:{EDGE_COLOR};stroke-width:1.5;" x1="{ppx:.1}" x2="{cx:.1}" y1="{ppy:.1}" y2="{top_y:.1}"/>"#,
     )
     .unwrap();
     buf.push('\n');
@@ -446,7 +440,7 @@ fn render_isa(buf: &mut String, isa: &ErdIsaLayout) {
         let _ = child_id;
         write!(
             buf,
-            r#"<line x1="{cx:.1}" y1="{bot_y:.1}" x2="{child_x:.1}" y2="{child_y:.1}" stroke="{EDGE_COLOR}" stroke-width="1"/>"#,
+            r#"<line style="stroke:{EDGE_COLOR};stroke-width:1;" x1="{cx:.1}" x2="{child_x:.1}" y1="{bot_y:.1}" y2="{child_y:.1}"/>"#,
         )
         .unwrap();
         buf.push('\n');
@@ -459,7 +453,7 @@ fn render_note(buf: &mut String, note: &ErdNoteLayout) {
     if let Some((x1, y1, x2, y2)) = note.connector {
         write!(
             buf,
-            r#"<line x1="{x1:.1}" y1="{y1:.1}" x2="{x2:.1}" y2="{y2:.1}" stroke="{NOTE_BORDER}" stroke-width="1" stroke-dasharray="5,3"/>"#,
+            r#"<line style="stroke:{NOTE_BORDER};stroke-width:1;stroke-dasharray:5,3;" x1="{x1:.1}" x2="{x2:.1}" y1="{y1:.1}" y2="{y2:.1}"/>"#,
         )
         .unwrap();
         buf.push('\n');
@@ -472,7 +466,7 @@ fn render_note(buf: &mut String, note: &ErdNoteLayout) {
     let fold = NOTE_FOLD;
     write!(
         buf,
-        r#"<polygon points="{x:.1},{y:.1} {x1:.1},{y:.1} {x2:.1},{y1:.1} {x2:.1},{y2:.1} {x:.1},{y2:.1}" fill="{NOTE_BG}" stroke="{NOTE_BORDER}" stroke-width="1"/>"#,
+        r#"<polygon fill="{NOTE_BG}" points="{x:.1},{y:.1} {x1:.1},{y:.1} {x2:.1},{y1:.1} {x2:.1},{y2:.1} {x:.1},{y2:.1}" style="stroke:{NOTE_BORDER};stroke-width:1;"/>"#,
         x1 = x + w - fold,
         x2 = x + w,
         y1 = y + fold,
@@ -483,7 +477,7 @@ fn render_note(buf: &mut String, note: &ErdNoteLayout) {
 
     write!(
         buf,
-        r#"<path d="M {x1:.1},{y:.1} L {x1:.1},{y1:.1} L {x2:.1},{y1:.1}" fill="none" stroke="{NOTE_BORDER}" stroke-width="1"/>"#,
+        r#"<path d="M {x1:.1},{y:.1} L {x1:.1},{y1:.1} L {x2:.1},{y1:.1}" fill="none" style="stroke:{NOTE_BORDER};stroke-width:1;"/>"#,
         x1 = x + w - fold,
         x2 = x + w,
         y1 = y + fold,
@@ -867,8 +861,8 @@ mod tests {
             ..empty_layout()
         };
         let svg = render_erd(&d, &layout, &SkinParams::default()).unwrap();
-        assert!(svg.contains("width=\"500\""), "width must match");
-        assert!(svg.contains("height=\"400\""), "height must match");
+        assert!(svg.contains("width=\"500px\""), "width must match");
+        assert!(svg.contains("height=\"400px\""), "height must match");
         assert!(
             svg.contains("viewBox=\"0 0 500 400\""),
             "viewBox must match"

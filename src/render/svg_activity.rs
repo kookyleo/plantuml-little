@@ -6,6 +6,7 @@ use crate::layout::activity::{
 };
 use crate::model::activity::ActivityDiagram;
 use crate::render::svg::xml_escape;
+use crate::render::svg::write_svg_root;
 use crate::render::svg_richtext::render_creole_text;
 use crate::style::SkinParams;
 use crate::Result;
@@ -13,23 +14,22 @@ use crate::Result;
 // ── Style constants (PlantUML rose theme) ───────────────────────────
 
 const FONT_SIZE: f64 = 13.0;
-const FONT_FAMILY: &str = "monospace";
 const LINE_HEIGHT: f64 = 16.0;
 
-const ACTION_BG: &str = "#FEFECE";
-const ACTION_BORDER: &str = "#A80036";
+const ACTION_BG: &str = "#F1F1F1";
+const ACTION_BORDER: &str = "#181818";
 const START_FILL: &str = "#000000";
 const STOP_FILL: &str = "#000000";
 const STOP_OUTER: &str = "#000000";
-const DIAMOND_BG: &str = "#FEFECE";
-const DIAMOND_BORDER: &str = "#A80036";
+const DIAMOND_BG: &str = "#F1F1F1";
+const DIAMOND_BORDER: &str = "#181818";
 const FORK_FILL: &str = "#000000";
-const NOTE_BG: &str = "#FBFB77";
-const NOTE_BORDER: &str = "#A80036";
-const EDGE_COLOR: &str = "#A80036";
+const NOTE_BG: &str = "#FEFFDD";
+const NOTE_BORDER: &str = "#181818";
+const EDGE_COLOR: &str = "#181818";
 const TEXT_FILL: &str = "#000000";
-const SWIMLANE_BORDER: &str = "#A80036";
-const SWIMLANE_HEADER_BG: &str = "#FEFECE";
+const SWIMLANE_BORDER: &str = "#181818";
+const SWIMLANE_HEADER_BG: &str = "#F1F1F1";
 
 // ── Public entry point ──────────────────────────────────────────────
 
@@ -42,14 +42,8 @@ pub fn render_activity(
     let mut buf = String::with_capacity(4096);
 
     // SVG header
-    write!(
-        buf,
-        r#"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {w:.0} {h:.0}" width="{w:.0}" height="{h:.0}" font-family="{FONT_FAMILY}" font-size="{FONT_SIZE}">"#,
-        w = layout.width,
-        h = layout.height,
-    )
-    .unwrap();
-    buf.push('\n');
+    write_svg_root(&mut buf, layout.width, layout.height);
+    buf.push_str("<defs/><g>");
 
     // Skin color lookups
     let act_bg = skin.background_color("activity", ACTION_BG);
@@ -81,7 +75,7 @@ pub fn render_activity(
         let right_x = last.x + last.width;
         write!(
             buf,
-            r#"<line x1="{rx:.1}" y1="0" x2="{rx:.1}" y2="{h:.1}" stroke="{swimlane_border}" stroke-width="1"/>"#,
+            r#"<line style="stroke:{swimlane_border};stroke-width:1;" x1="{rx:.1}" x2="{rx:.1}" y1="0" y2="{h:.1}"/>"#,
             rx = right_x,
             h = layout.height,
         )
@@ -108,7 +102,7 @@ pub fn render_activity(
         );
     }
 
-    buf.push_str("</svg>\n");
+    buf.push_str("</g></svg>");
     Ok(buf)
 }
 
@@ -163,7 +157,7 @@ fn render_start(buf: &mut String, node: &ActivityNodeLayout) {
     let cy = node.y + node.height / 2.0;
     write!(
         buf,
-        r#"<circle cx="{cx:.1}" cy="{cy:.1}" r="10" fill="{START_FILL}" stroke="{START_FILL}"/>"#,
+        r#"<circle cx="{cx:.1}" cy="{cy:.1}" fill="{START_FILL}" r="10" style="stroke:{START_FILL};"/>"#,
     )
     .unwrap();
     buf.push('\n');
@@ -175,13 +169,13 @@ fn render_stop(buf: &mut String, node: &ActivityNodeLayout) {
     let cy = node.y + node.height / 2.0;
     write!(
         buf,
-        r#"<circle cx="{cx:.1}" cy="{cy:.1}" r="11" fill="none" stroke="{STOP_OUTER}" stroke-width="2"/>"#,
+        r#"<circle cx="{cx:.1}" cy="{cy:.1}" fill="none" r="11" style="stroke:{STOP_OUTER};stroke-width:2;"/>"#,
     )
     .unwrap();
     buf.push('\n');
     write!(
         buf,
-        r#"<circle cx="{cx:.1}" cy="{cy:.1}" r="7" fill="{STOP_FILL}" stroke="none"/>"#,
+        r#"<circle cx="{cx:.1}" cy="{cy:.1}" fill="{STOP_FILL}" r="7" stroke="none"/>"#,
     )
     .unwrap();
     buf.push('\n');
@@ -197,7 +191,7 @@ fn render_action(
 ) {
     write!(
         buf,
-        r#"<rect x="{x:.1}" y="{y:.1}" width="{w:.1}" height="{h:.1}" rx="10" ry="10" fill="{bg}" stroke="{border}" stroke-width="1.5"/>"#,
+        r#"<rect fill="{bg}" height="{h:.1}" rx="10" ry="10" style="stroke:{border};stroke-width:1.5;" width="{w:.1}" x="{x:.1}" y="{y:.1}"/>"#,
         x = node.x,
         y = node.y,
         w = node.width,
@@ -234,7 +228,7 @@ fn render_diamond(buf: &mut String, node: &ActivityNodeLayout, bg: &str, border:
     let cy = y + h / 2.0;
     write!(
         buf,
-        r#"<polygon points="{cx:.1},{y:.1} {r:.1},{cy:.1} {cx:.1},{b:.1} {l:.1},{cy:.1}" fill="{bg}" stroke="{border}" stroke-width="1.5"/>"#,
+        r#"<polygon fill="{bg}" points="{cx:.1},{y:.1} {r:.1},{cy:.1} {cx:.1},{b:.1} {l:.1},{cy:.1}" style="stroke:{border};stroke-width:1.5;"/>"#,
         r = x + w,
         b = y + h,
         l = x,
@@ -247,7 +241,7 @@ fn render_diamond(buf: &mut String, node: &ActivityNodeLayout, bg: &str, border:
 fn render_fork_bar(buf: &mut String, node: &ActivityNodeLayout) {
     write!(
         buf,
-        r#"<rect x="{x:.1}" y="{y:.1}" width="{w:.1}" height="{h:.1}" fill="{FORK_FILL}" stroke="none"/>"#,
+        r#"<rect fill="{FORK_FILL}" height="{h:.1}" stroke="none" width="{w:.1}" x="{x:.1}" y="{y:.1}"/>"#,
         x = node.x,
         y = node.y,
         w = node.width,
@@ -265,14 +259,14 @@ fn render_detach(buf: &mut String, node: &ActivityNodeLayout, arrow_color: &str)
     // Draw an X
     write!(
         buf,
-        r#"<line x1="{x1:.1}" y1="{y1:.1}" x2="{x2:.1}" y2="{y2:.1}" stroke="{arrow_color}" stroke-width="2"/>"#,
+        r#"<line style="stroke:{arrow_color};stroke-width:2;" x1="{x1:.1}" x2="{x2:.1}" y1="{y1:.1}" y2="{y2:.1}"/>"#,
         x1 = cx - r, y1 = cy - r, x2 = cx + r, y2 = cy + r,
     )
     .unwrap();
     buf.push('\n');
     write!(
         buf,
-        r#"<line x1="{x1:.1}" y1="{y1:.1}" x2="{x2:.1}" y2="{y2:.1}" stroke="{arrow_color}" stroke-width="2"/>"#,
+        r#"<line style="stroke:{arrow_color};stroke-width:2;" x1="{x1:.1}" x2="{x2:.1}" y1="{y1:.1}" y2="{y2:.1}"/>"#,
         x1 = cx + r, y1 = cy - r, x2 = cx - r, y2 = cy + r,
     )
     .unwrap();
@@ -290,7 +284,7 @@ fn render_note(buf: &mut String, node: &ActivityNodeLayout, _position: &NotePosi
     // Note body polygon (top-left, pre-fold top-right, fold corner, bottom-right, bottom-left)
     write!(
         buf,
-        r#"<polygon points="{x:.1},{y:.1} {xf:.1},{y:.1} {xw:.1},{yf:.1} {xw:.1},{yh:.1} {x:.1},{yh:.1}" fill="{NOTE_BG}" stroke="{NOTE_BORDER}"/>"#,
+        r#"<polygon fill="{NOTE_BG}" points="{x:.1},{y:.1} {xf:.1},{y:.1} {xw:.1},{yf:.1} {xw:.1},{yh:.1} {x:.1},{yh:.1}" style="stroke:{NOTE_BORDER};"/>"#,
         xf = x + w - fold,
         xw = x + w,
         yf = y + fold,
@@ -302,7 +296,7 @@ fn render_note(buf: &mut String, node: &ActivityNodeLayout, _position: &NotePosi
     // Fold lines (vertical + horizontal)
     write!(
         buf,
-        r#"<line x1="{xf:.1}" y1="{y:.1}" x2="{xf:.1}" y2="{yf:.1}" stroke="{NOTE_BORDER}"/>"#,
+        r#"<line style="stroke:{NOTE_BORDER};" x1="{xf:.1}" x2="{xf:.1}" y1="{y:.1}" y2="{yf:.1}"/>"#,
         xf = x + w - fold,
         yf = y + fold,
     )
@@ -310,7 +304,7 @@ fn render_note(buf: &mut String, node: &ActivityNodeLayout, _position: &NotePosi
     buf.push('\n');
     write!(
         buf,
-        r#"<line x1="{xf:.1}" y1="{yf:.1}" x2="{xw:.1}" y2="{yf:.1}" stroke="{NOTE_BORDER}"/>"#,
+        r#"<line style="stroke:{NOTE_BORDER};" x1="{xf:.1}" x2="{xw:.1}" y1="{yf:.1}" y2="{yf:.1}"/>"#,
         xf = x + w - fold,
         yf = y + fold,
         xw = x + w,
@@ -345,7 +339,7 @@ fn render_edge(buf: &mut String, edge: &ActivityEdgeLayout, arrow_color: &str, t
         let (x2, y2) = edge.points[1];
         write!(
             buf,
-            r#"<line x1="{x1:.1}" y1="{y1:.1}" x2="{x2:.1}" y2="{y2:.1}" stroke="{arrow_color}" stroke-width="1" marker-end="url(#act-arrow)"/>"#,
+            r#"<line marker-end="url(#act-arrow)" style="stroke:{arrow_color};stroke-width:1;" x1="{x1:.1}" x2="{x2:.1}" y1="{y1:.1}" y2="{y2:.1}"/>"#,
         )
         .unwrap();
         buf.push('\n');
@@ -359,7 +353,7 @@ fn render_edge(buf: &mut String, edge: &ActivityEdgeLayout, arrow_color: &str, t
             .join(" ");
         write!(
             buf,
-            r#"<polyline points="{points_str}" fill="none" stroke="{arrow_color}" stroke-width="1" marker-end="url(#act-arrow)"/>"#,
+            r#"<polyline fill="none" marker-end="url(#act-arrow)" points="{points_str}" style="stroke:{arrow_color};stroke-width:1;"/>"#,
         )
         .unwrap();
         buf.push('\n');
@@ -392,7 +386,7 @@ fn render_swimlane(
     // Vertical divider line
     write!(
         buf,
-        r#"<line x1="{x:.1}" y1="0" x2="{x:.1}" y2="{h:.1}" stroke="{border}" stroke-width="1"/>"#,
+        r#"<line style="stroke:{border};stroke-width:1;" x1="{x:.1}" x2="{x:.1}" y1="0" y2="{h:.1}"/>"#,
         x = sw.x,
         h = total_height,
     )
@@ -402,7 +396,7 @@ fn render_swimlane(
     // Header background
     write!(
         buf,
-        r#"<rect x="{x:.1}" y="0" width="{w:.1}" height="24" fill="{header_bg}" stroke="{border}"/>"#,
+        r#"<rect fill="{header_bg}" height="24" style="stroke:{border};" width="{w:.1}" x="{x:.1}" y="0"/>"#,
         x = sw.x,
         w = sw.width,
     )
@@ -538,7 +532,7 @@ mod tests {
         assert!(svg.contains(r#"r="11""#), "stop outer ring must have r=11");
         assert!(svg.contains(r#"r="7""#), "stop inner circle must have r=7");
         assert!(
-            svg.contains(r#"stroke-width="2""#),
+            svg.contains(r#"stroke-width:2;"#),
             "outer ring must have stroke-width=2"
         );
     }
@@ -567,8 +561,8 @@ mod tests {
             "action must have rounded corners"
         );
         assert!(
-            svg.contains(&format!(r#"fill="{ACTION_BG}""#)),
-            "action must use ACTION_BG fill"
+            svg.contains(r##"fill="#FEFECE""##),
+            "action must use rose theme activity_bg fill"
         );
         assert!(
             svg.contains("Do something"),
@@ -628,11 +622,11 @@ mod tests {
             "diamond must be rendered as polygon"
         );
         assert!(
-            svg.contains(&format!(r#"fill="{DIAMOND_BG}""#)),
+            svg.contains(r##"fill="#F1F1F1""##),
             "diamond must use DIAMOND_BG"
         );
         assert!(
-            svg.contains(&format!(r#"stroke="{DIAMOND_BORDER}""#)),
+            svg.contains("stroke:#181818"),
             "diamond must use DIAMOND_BORDER"
         );
         // Check that 4 coordinate pairs exist in points attribute
@@ -717,11 +711,11 @@ mod tests {
             "edge must reference act-arrow marker"
         );
         assert!(
-            svg.contains(&format!(r#"stroke="{EDGE_COLOR}""#)),
+            svg.contains("stroke:#181818"),
             "edge must use EDGE_COLOR"
         );
         // Simple 2-point edge uses <line>
-        assert!(svg.contains("<line x1="), "2-point edge must use <line>");
+        assert!(svg.contains("<line "), "2-point edge must use <line>");
     }
 
     #[test]
@@ -782,11 +776,11 @@ mod tests {
         assert!(svg.contains("Lane A"), "swimlane A header must appear");
         assert!(svg.contains("Lane B"), "swimlane B header must appear");
         assert!(
-            svg.contains(&format!(r#"fill="{SWIMLANE_HEADER_BG}""#)),
+            svg.contains(r##"fill="#F1F1F1""##),
             "swimlane header must have background"
         );
         assert!(
-            svg.contains(&format!(r#"stroke="{SWIMLANE_BORDER}""#)),
+            svg.contains("stroke:#181818"),
             "swimlane must have border"
         );
         // Check divider lines extend full height

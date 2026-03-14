@@ -21,32 +21,31 @@ const PADDING: f64 = 10.0;
 const HEADER_HEIGHT: f64 = 28.0;
 const MARGIN: f64 = 20.0;
 
-const CLASS_BG: &str = "#FEFECE";
-const CLASS_BORDER: &str = "#A80036";
-const IFACE_BG: &str = "#FEFECE";
-const IFACE_BORDER: &str = "#A80036";
-const ENUM_BG: &str = "#FEFECE";
-const ENUM_BORDER: &str = "#A80036";
-const ABSTRACT_BG: &str = "#FEFECE";
-const ABSTRACT_BORDER: &str = "#A80036";
+const CLASS_BG: &str = "#F1F1F1";
+const CLASS_BORDER: &str = "#181818";
+const IFACE_BG: &str = "#F1F1F1";
+const IFACE_BORDER: &str = "#181818";
+const ENUM_BG: &str = "#F1F1F1";
+const ENUM_BORDER: &str = "#181818";
+const ABSTRACT_BG: &str = "#F1F1F1";
+const ABSTRACT_BORDER: &str = "#181818";
 
-const NOTE_BG: &str = "#FBFB77";
-const NOTE_BORDER: &str = "#A80036";
+const NOTE_BG: &str = "#FEFFDD";
+const NOTE_BORDER: &str = "#181818";
 const NOTE_FOLD: f64 = 8.0;
 const NOTE_TEXT_PADDING: f64 = 6.0;
 
-const LINK_COLOR: &str = "#A80036";
+const LINK_COLOR: &str = "#181818";
 const LABEL_COLOR: &str = "#000000";
-const FONT_FAMILY: &str = "monospace";
 
 // ── Meta rendering constants ────────────────────────────────────────
 
-const META_TITLE_FONT_SIZE: f64 = 14.0;
+const META_TITLE_FONT_SIZE: f64 = 18.0;
 const META_LINE_HEIGHT: f64 = 18.0;
 const META_GAP: f64 = 8.0;
 const LEGEND_PADDING: f64 = 8.0;
 const LEGEND_BORDER_COLOR: &str = "#000000";
-const LEGEND_BG: &str = "#FBFB77";
+const LEGEND_BG: &str = "#FEFFDD";
 
 // ── Helpers ─────────────────────────────────────────────────────────
 
@@ -74,12 +73,33 @@ pub(crate) fn fmt_coord(value: f64) -> String {
     s[..end].to_string()
 }
 
-/// Resolve the effective font family from skinparam overrides.
-fn resolve_font_family<'a>(skin: &'a SkinParams, default: &'a str) -> &'a str {
-    if let Some(hw) = skin.handwritten_font_family() {
-        return hw;
-    }
-    skin.effective_font_family(default)
+/// Write a Java PlantUML-compatible SVG root element and open a `<g>` wrapper.
+pub(crate) fn write_svg_root(buf: &mut String, w: f64, h: f64) {
+    let wi = w as i32;
+    let hi = h as i32;
+    let vw = fmt_coord(w);
+    let vh = fmt_coord(h);
+    write!(
+        buf,
+        concat!(
+            r#"<svg xmlns="http://www.w3.org/2000/svg""#,
+            r#" xmlns:xlink="http://www.w3.org/1999/xlink""#,
+            r#" contentStyleType="text/css""#,
+            r#" height="{hi}px""#,
+            r#" preserveAspectRatio="none""#,
+            r#" style="width:{wi}px;height:{hi}px;background:#FFFFFF;""#,
+            r#" version="1.1""#,
+            r#" viewBox="0 0 {vw} {vh}""#,
+            r#" width="{wi}px""#,
+            r#" zoomAndPan="magnify">"#,
+        ),
+        hi = hi,
+        wi = wi,
+        vw = vw,
+        vh = vh,
+    )
+    .unwrap();
+    buf.push_str("\n<g>\n");
 }
 
 fn sanitize_id(name: &str) -> String {
@@ -104,6 +124,8 @@ pub(crate) fn xml_escape(s: &str) -> String {
 }
 
 // ── Public entry point ───────────────────────────────────────────────
+
+/// Return the `data-diagram-type` string for a `Diagram` variant.
 
 /// Render a Diagram + DiagramLayout into an SVG string.
 pub fn render(
@@ -322,10 +344,8 @@ fn wrap_with_meta(body_svg: &str, meta: &DiagramMeta) -> Result<String> {
     let body_x = ((total_w - body_w) / 2.0).max(0.0);
 
     let mut buf = String::with_capacity(body_svg.len() + 1024);
-    write!(buf,
-        r#"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {total_w:.1} {total_h:.1}" width="{total_w:.1}" height="{total_h:.1}" font-family="{FONT_FAMILY}" font-size="{FONT_SIZE}">"#,
-    ).unwrap();
-    buf.push('\n');
+    write_svg_root(&mut buf, total_w, total_h);
+    buf.push_str("<defs/><g>");
 
     let cx = total_w / 2.0;
     let mut y_cursor = 0.0;
@@ -416,7 +436,7 @@ fn wrap_with_meta(body_svg: &str, meta: &DiagramMeta) -> Result<String> {
         let leg_x = total_w - leg_w - MARGIN;
         let leg_y = y_bottom;
         write!(buf,
-            r#"<rect x="{leg_x:.1}" y="{leg_y:.1}" width="{leg_w:.1}" height="{leg_h:.1}" fill="{LEGEND_BG}" stroke="{LEGEND_BORDER_COLOR}" stroke-width="1"/>"#,
+            r#"<rect fill="{LEGEND_BG}" height="{leg_h:.1}" style="stroke:{LEGEND_BORDER_COLOR};stroke-width:1;" width="{leg_w:.1}" x="{leg_x:.1}" y="{leg_y:.1}"/>"#,
         ).unwrap();
         buf.push('\n');
         let lx = leg_x + LEGEND_PADDING;
@@ -433,7 +453,7 @@ fn wrap_with_meta(body_svg: &str, meta: &DiagramMeta) -> Result<String> {
         );
     }
 
-    buf.push_str("</svg>\n");
+    buf.push_str("</g></svg>");
     Ok(buf)
 }
 
@@ -446,16 +466,12 @@ fn render_class(
 ) -> Result<String> {
     let svg_w = layout.total_width + MARGIN * 2.0;
     let svg_h = layout.total_height + MARGIN * 2.0;
-    let font_family = resolve_font_family(skin, FONT_FAMILY);
-    let font_size = skin.font_size("class", FONT_SIZE);
     let mut buf = String::with_capacity(4096);
-    write!(buf,
-        r#"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {svg_w:.1} {svg_h:.1}" width="{svg_w:.1}" height="{svg_h:.1}" font-family="{font_family}" font-size="{font_size}">"#,
-    ).unwrap();
-    buf.push('\n');
+    write_svg_root(&mut buf, svg_w, svg_h);
 
     let arrow_color = skin.arrow_color(LINK_COLOR);
     write_defs(&mut buf, arrow_color);
+    buf.push_str("<g>");
 
     let node_map: HashMap<&str, &NodeLayout> =
         layout.nodes.iter().map(|n| (n.id.as_str(), n)).collect();
@@ -484,7 +500,7 @@ fn render_class(
         draw_class_note(&mut buf, note);
     }
 
-    buf.push_str("</svg>\n");
+    buf.push_str("</g></svg>");
     Ok(buf)
 }
 
@@ -508,7 +524,7 @@ fn write_defs(buf: &mut String, link_color: &str) {
         concat!(
             r##"<marker id="triangle" viewBox="0 0 10 10" refX="10" refY="5""##,
             r##" markerWidth="10" markerHeight="10" orient="auto-start-reverse">"##,
-            r##"<path d="M 0 0 L 10 5 L 0 10 Z" fill="#FEFECE" stroke="{}" stroke-width="1"/>"##,
+            r##"<path d="M 0 0 L 10 5 L 0 10 Z" fill="#F1F1F1" stroke="{}" stroke-width="1"/>"##,
             r##"</marker>"##,
         ),
         lc
@@ -573,7 +589,7 @@ fn draw_entity_box(buf: &mut String, entity: &Entity, nl: &NodeLayout, skin: &Sk
     let rx = skin.round_corner().unwrap_or(4.0);
 
     write!(buf,
-        r#"<rect x="{x:.1}" y="{y:.1}" width="{w:.1}" height="{h:.1}" rx="{rx:.0}" fill="{fill}" stroke="{stroke}" stroke-width="1"/>"#,
+        r#"<rect fill="{fill}" height="{h:.1}" rx="{rx:.0}" style="stroke:{stroke};stroke-width:0.5;" width="{w:.1}" x="{x:.1}" y="{y:.1}"/>"#,
     ).unwrap();
     buf.push('\n');
 
@@ -628,7 +644,7 @@ fn draw_entity_box(buf: &mut String, entity: &Entity, nl: &NodeLayout, skin: &Sk
 
     let sep_y = y + HEADER_HEIGHT;
     write!(buf,
-        r#"<line x1="{x:.1}" y1="{sep_y:.1}" x2="{x2:.1}" y2="{sep_y:.1}" stroke="{stroke}" stroke-width="1"/>"#,
+        r#"<line style="stroke:{stroke};stroke-width:0.5;" x1="{x:.1}" x2="{x2:.1}" y1="{sep_y:.1}" y2="{sep_y:.1}"/>"#,
         x2 = x + w,
     ).unwrap();
     buf.push('\n');
@@ -688,7 +704,7 @@ fn draw_edge(buf: &mut String, link: &Link, el: &EdgeLayout, link_color: &str) {
     let marker_start = marker_attr_for(&link.left_head, "marker-start");
     let marker_end = marker_attr_for(&link.right_head, "marker-end");
     write!(buf,
-        r#"<path d="{d}" fill="none" stroke="{link_color}" stroke-width="1"{dash}{marker_start}{marker_end}/>"#,
+        r#"<path d="{d}" fill="none" style="stroke:{link_color};stroke-width:1;"{dash}{marker_start}{marker_end}/>"#,
     ).unwrap();
     buf.push('\n');
     if let Some(label) = &link.label {
@@ -729,7 +745,7 @@ fn draw_class_note(buf: &mut String, note: &ClassNoteLayout) {
     let fold = NOTE_FOLD;
     // pentagon path: top-left -> top-right(minus fold) -> fold inner corner -> bottom-right -> bottom-left
     write!(buf,
-        r#"<polygon points="{x:.1},{y:.1} {x1:.1},{y:.1} {x2:.1},{y1:.1} {x2:.1},{y2:.1} {x:.1},{y2:.1}" fill="{bg}" stroke="{border}" stroke-width="1"/>"#,
+        r#"<polygon fill="{bg}" points="{x:.1},{y:.1} {x1:.1},{y:.1} {x2:.1},{y1:.1} {x2:.1},{y2:.1} {x:.1},{y2:.1}" style="stroke:{border};stroke-width:1;"/>"#,
         x1 = x + w - fold,
         y1 = y + fold,
         x2 = x + w,
@@ -741,7 +757,7 @@ fn draw_class_note(buf: &mut String, note: &ClassNoteLayout) {
 
     // fold corner triangle
     write!(buf,
-        r#"<path d="M {cx:.1},{cy:.1} L {cx:.1},{cy2:.1} L {cx2:.1},{cy:.1} Z" fill="{bg}" stroke="{border}" stroke-width="1"/>"#,
+        r#"<path d="M {cx:.1},{cy:.1} L {cx:.1},{cy2:.1} L {cx2:.1},{cy:.1} Z" fill="{bg}" style="stroke:{border};stroke-width:1;"/>"#,
         cx = x + w - fold,
         cy = y,
         cy2 = y + fold,
@@ -768,7 +784,7 @@ fn draw_class_note(buf: &mut String, note: &ClassNoteLayout) {
     // connector line (dashed)
     if let Some((from_x, from_y, to_x, to_y)) = note.connector {
         write!(buf,
-            r#"<line x1="{fx:.1}" y1="{fy:.1}" x2="{tx:.1}" y2="{ty:.1}" stroke="{border}" stroke-width="1" stroke-dasharray="5,3"/>"#,
+            r#"<line style="stroke:{border};stroke-width:1;stroke-dasharray:5,3;" x1="{fx:.1}" x2="{tx:.1}" y1="{fy:.1}" y2="{ty:.1}"/>"#,
             fx = from_x + MARGIN,
             fy = from_y + MARGIN,
             tx = to_x + MARGIN,
@@ -1044,7 +1060,7 @@ mod tests {
         let mut skin = SkinParams::default();
         skin.set("ClassBorderColor", "#112233");
         let svg = render(&d, &l, &skin, &default_meta()).unwrap();
-        assert!(svg.contains(r##"stroke="#112233""##));
+        assert!(svg.contains(r##"stroke:#112233"##));
     }
 
     #[test]
@@ -1092,7 +1108,7 @@ mod tests {
         let svg = render(&d, &l, &default_skin(), &meta).unwrap();
         assert!(svg.contains("My Title"));
         assert!(svg.contains("font-weight=\"bold\""));
-        assert!(svg.contains("font-size=\"14\""));
+        assert!(svg.contains("font-size=\"18\""));
         assert!(svg.contains("translate("));
     }
 

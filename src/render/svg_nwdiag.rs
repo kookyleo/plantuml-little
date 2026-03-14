@@ -7,14 +7,13 @@ use crate::model::nwdiag::NwdiagDiagram;
 use crate::render::svg_richtext::render_creole_text;
 use crate::style::SkinParams;
 use crate::Result;
+use super::svg::write_svg_root;
 
-const FONT_SIZE: f64 = 12.0;
-const FONT_FAMILY: &str = "monospace";
 const LINE_HEIGHT: f64 = 16.0;
 const NETWORK_FILL: &str = "#F5F5F5";
 const NETWORK_BORDER: &str = "#A0A0A0";
-const SERVER_FILL: &str = "#FEFECE";
-const SERVER_BORDER: &str = "#A80036";
+const SERVER_FILL: &str = "#F1F1F1";
+const SERVER_BORDER: &str = "#181818";
 const TEXT_FILL: &str = "#000000";
 const CONNECTOR_COLOR: &str = "#888888";
 
@@ -25,14 +24,8 @@ pub fn render_nwdiag(
 ) -> Result<String> {
     let mut buf = String::with_capacity(4096);
 
-    write!(
-        buf,
-        r#"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {w:.0} {h:.0}" width="{w:.0}" height="{h:.0}" font-family="{FONT_FAMILY}" font-size="{FONT_SIZE}">"#,
-        w = layout.width,
-        h = layout.height,
-    )
-    .unwrap();
-    buf.push('\n');
+    write_svg_root(&mut buf, layout.width, layout.height);
+    buf.push_str("<defs/><g>");
 
     if let Some(title) = &diagram.title {
         render_creole_text(
@@ -57,14 +50,14 @@ pub fn render_nwdiag(
         render_server(&mut buf, server, skin);
     }
 
-    buf.push_str("</svg>\n");
+    buf.push_str("</g></svg>");
     Ok(buf)
 }
 
 fn render_connector(buf: &mut String, connector: &NwdiagConnectorLayout) {
     write!(
         buf,
-        r#"<line x1="{x:.1}" y1="{y1:.1}" x2="{x:.1}" y2="{y2:.1}" stroke="{CONNECTOR_COLOR}" stroke-width="1" stroke-dasharray="4,4"/>"#,
+        r#"<line style="stroke:{CONNECTOR_COLOR};stroke-width:1;stroke-dasharray:4,4;" x1="{x:.1}" x2="{x:.1}" y1="{y1:.1}" y2="{y2:.1}"/>"#,
         x = connector.x,
         y1 = connector.y1,
         y2 = connector.y2,
@@ -83,7 +76,7 @@ fn render_network(buf: &mut String, network: &NwdiagNetworkLayout, skin: &SkinPa
 
     write!(
         buf,
-        r#"<rect x="{x:.1}" y="{y:.1}" width="{w:.1}" height="{h:.1}" rx="8" ry="8" fill="{fill}" stroke="{border}" stroke-width="1"/>"#,
+        r#"<rect fill="{fill}" height="{h:.1}" rx="8" ry="8" style="stroke:{border};stroke-width:1;" width="{w:.1}" x="{x:.1}" y="{y:.1}"/>"#,
         x = network.x,
         y = network.y,
         w = network.width,
@@ -123,7 +116,7 @@ fn render_server(buf: &mut String, server: &NwdiagServerLayout, skin: &SkinParam
 
     write!(
         buf,
-        r#"<rect x="{x:.1}" y="{y:.1}" width="{w:.1}" height="{h:.1}" rx="4" ry="4" fill="{fill}" stroke="{border}" stroke-width="1"/>"#,
+        r#"<rect fill="{fill}" height="{h:.1}" rx="4" ry="4" style="stroke:{border};stroke-width:1;" width="{w:.1}" x="{x:.1}" y="{y:.1}"/>"#,
         x = server.x,
         y = server.y,
         w = server.width,
@@ -201,6 +194,6 @@ mod tests {
     fn render_contains_connector() {
         let (diagram, layout) = sample_layout();
         let svg = render_nwdiag(&diagram, &layout, &SkinParams::default()).unwrap();
-        assert!(svg.contains("stroke-dasharray=\"4,4\""));
+        assert!(svg.contains("stroke-dasharray:4,4;"));
     }
 }

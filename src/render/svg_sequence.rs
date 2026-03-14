@@ -10,40 +10,32 @@ use crate::style::SkinParams;
 use crate::Result;
 
 use super::svg::xml_escape;
+use super::svg::write_svg_root;
 use super::svg_richtext::render_creole_text;
 
 // ── Style constants ─────────────────────────────────────────────────
 
 const FONT_SIZE: f64 = 13.0;
-const FONT_FAMILY: &str = "monospace";
 const CHAR_WIDTH: f64 = 7.2;
 const LINE_HEIGHT: f64 = 16.0;
-const PARTICIPANT_BG: &str = "#FEFECE";
-const PARTICIPANT_BORDER: &str = "#A80036";
-const LIFELINE_COLOR: &str = "#A80036";
-const ARROW_COLOR: &str = "#A80036";
-const NOTE_BG: &str = "#FBFB77";
-const NOTE_BORDER: &str = "#A80036";
+const PARTICIPANT_BG: &str = "#F1F1F1";
+const PARTICIPANT_BORDER: &str = "#181818";
+const LIFELINE_COLOR: &str = "#181818";
+const ARROW_COLOR: &str = "#181818";
+const NOTE_BG: &str = "#FEFFDD";
+const NOTE_BORDER: &str = "#181818";
 const GROUP_BG: &str = "#EEEEEE";
 const GROUP_BORDER: &str = "#000000";
-const ACTIVATION_BG: &str = "#FEFECE";
-const ACTIVATION_BORDER: &str = "#A80036";
-const FRAGMENT_BG: &str = "#FEFECE";
-const FRAGMENT_BORDER: &str = "#A80036";
-const REF_BG: &str = "#FEFECE";
-const REF_BORDER: &str = "#A80036";
+const ACTIVATION_BG: &str = "#F1F1F1";
+const ACTIVATION_BORDER: &str = "#181818";
+const FRAGMENT_BG: &str = "#F1F1F1";
+const FRAGMENT_BORDER: &str = "#181818";
+const REF_BG: &str = "#F1F1F1";
+const REF_BORDER: &str = "#181818";
 const DIVIDER_COLOR: &str = "#888888";
 const TEXT_COLOR: &str = "#000000";
 
 const MARGIN: f64 = 20.0;
-
-/// Resolve font family for sequence diagram from skin params.
-fn resolve_seq_font_family(skin: &SkinParams) -> &str {
-    if let Some(hw) = skin.handwritten_font_family() {
-        return hw;
-    }
-    skin.effective_font_family(FONT_FAMILY)
-}
 
 // ── Arrow marker defs ───────────────────────────────────────────────
 
@@ -88,7 +80,7 @@ fn draw_lifelines(buf: &mut String, layout: &SeqLayout, skin: &SkinParams) {
     for p in &layout.participants {
         write!(
             buf,
-            r#"<line x1="{x:.1}" y1="{y1:.1}" x2="{x:.1}" y2="{y2:.1}" stroke="{color}" stroke-width="1" stroke-dasharray="5,5"/>"#,
+            r#"<line style="stroke:{color};stroke-width:1;stroke-dasharray:5,5;" x1="{x:.1}" x2="{x:.1}" y1="{y1:.1}" y2="{y2:.1}"/>"#,
             x = p.x,
             y1 = layout.lifeline_top,
             y2 = layout.lifeline_bottom,
@@ -156,7 +148,7 @@ fn draw_participant_rect(
 
     write!(
         buf,
-        r#"<rect x="{x:.1}" y="{y:.1}" width="{w:.1}" height="{h:.1}" fill="{bg}" stroke="{border}" stroke-width="1.5"/>"#,
+        r#"<rect fill="{bg}" height="{h:.1}" style="stroke:{border};stroke-width:1.5;" width="{w:.1}" x="{x:.1}" y="{y:.1}"/>"#,
         w = p.box_width,
         h = rect_h,
     )
@@ -201,7 +193,7 @@ fn draw_participant_actor(
     // Head
     write!(
         buf,
-        r#"<circle cx="{cx:.1}" cy="{head_cy:.1}" r="{head_r}" fill="none" stroke="{border}" stroke-width="1.5"/>"#,
+        r#"<circle cx="{cx:.1}" cy="{head_cy:.1}" fill="none" r="{head_r}" style="stroke:{border};stroke-width:1.5;"/>"#,
     )
     .unwrap();
     buf.push('\n');
@@ -209,7 +201,7 @@ fn draw_participant_actor(
     // Body
     write!(
         buf,
-        r#"<line x1="{cx:.1}" y1="{body_top:.1}" x2="{cx:.1}" y2="{body_bot:.1}" stroke="{border}" stroke-width="1.5"/>"#,
+        r#"<line style="stroke:{border};stroke-width:1.5;" x1="{cx:.1}" x2="{cx:.1}" y1="{body_top:.1}" y2="{body_bot:.1}"/>"#,
     )
     .unwrap();
     buf.push('\n');
@@ -217,7 +209,7 @@ fn draw_participant_actor(
     // Left arm
     write!(
         buf,
-        r#"<line x1="{cx:.1}" y1="{ay:.1}" x2="{lx:.1}" y2="{ay:.1}" stroke="{border}" stroke-width="1.5"/>"#,
+        r#"<line style="stroke:{border};stroke-width:1.5;" x1="{cx:.1}" x2="{lx:.1}" y1="{ay:.1}" y2="{ay:.1}"/>"#,
         ay = arm_y,
         lx = cx - arm_spread,
     )
@@ -227,7 +219,7 @@ fn draw_participant_actor(
     // Right arm
     write!(
         buf,
-        r#"<line x1="{cx:.1}" y1="{ay:.1}" x2="{rx:.1}" y2="{ay:.1}" stroke="{border}" stroke-width="1.5"/>"#,
+        r#"<line style="stroke:{border};stroke-width:1.5;" x1="{cx:.1}" x2="{rx:.1}" y1="{ay:.1}" y2="{ay:.1}"/>"#,
         ay = arm_y,
         rx = cx + arm_spread,
     )
@@ -237,7 +229,7 @@ fn draw_participant_actor(
     // Left leg
     write!(
         buf,
-        r#"<line x1="{cx:.1}" y1="{ly:.1}" x2="{lx:.1}" y2="{lby:.1}" stroke="{border}" stroke-width="1.5"/>"#,
+        r#"<line style="stroke:{border};stroke-width:1.5;" x1="{cx:.1}" x2="{lx:.1}" y1="{ly:.1}" y2="{lby:.1}"/>"#,
         ly = body_bot,
         lx = cx - leg_spread,
         lby = body_bot + leg_drop,
@@ -248,7 +240,7 @@ fn draw_participant_actor(
     // Right leg
     write!(
         buf,
-        r#"<line x1="{cx:.1}" y1="{ly:.1}" x2="{rx:.1}" y2="{lby:.1}" stroke="{border}" stroke-width="1.5"/>"#,
+        r#"<line style="stroke:{border};stroke-width:1.5;" x1="{cx:.1}" x2="{rx:.1}" y1="{ly:.1}" y2="{lby:.1}"/>"#,
         ly = body_bot,
         rx = cx + leg_spread,
         lby = body_bot + leg_drop,
@@ -286,7 +278,7 @@ fn draw_participant_boundary(
     // Circle on the right side
     write!(
         buf,
-        r#"<circle cx="{icx:.1}" cy="{icy:.1}" r="{r}" fill="{bg}" stroke="{border}" stroke-width="1.5"/>"#,
+        r#"<circle cx="{icx:.1}" cy="{icy:.1}" fill="{bg}" r="{r}" style="stroke:{border};stroke-width:1.5;"/>"#,
         icx = icon_cx,
         icy = icon_y + icon_r,
         r = icon_r,
@@ -297,7 +289,7 @@ fn draw_participant_boundary(
     // Vertical line to the left of circle
     write!(
         buf,
-        r#"<line x1="{lx:.1}" y1="{ly1:.1}" x2="{lx:.1}" y2="{ly2:.1}" stroke="{border}" stroke-width="1.5"/>"#,
+        r#"<line style="stroke:{border};stroke-width:1.5;" x1="{lx:.1}" x2="{lx:.1}" y1="{ly1:.1}" y2="{ly2:.1}"/>"#,
         lx = icon_cx - icon_r - 4.0,
         ly1 = icon_y,
         ly2 = icon_y + 2.0 * icon_r,
@@ -308,7 +300,7 @@ fn draw_participant_boundary(
     // Horizontal connector from vertical bar to circle
     write!(
         buf,
-        r#"<line x1="{lx:.1}" y1="{ly:.1}" x2="{rx:.1}" y2="{ly:.1}" stroke="{border}" stroke-width="1.5"/>"#,
+        r#"<line style="stroke:{border};stroke-width:1.5;" x1="{lx:.1}" x2="{rx:.1}" y1="{ly:.1}" y2="{ly:.1}"/>"#,
         lx = icon_cx - icon_r - 4.0,
         ly = icon_y + icon_r,
         rx = icon_cx - icon_r,
@@ -345,7 +337,7 @@ fn draw_participant_control(
     // Circle
     write!(
         buf,
-        r#"<circle cx="{cx:.1}" cy="{icon_cy:.1}" r="{icon_r}" fill="{bg}" stroke="{border}" stroke-width="1.5"/>"#,
+        r#"<circle cx="{cx:.1}" cy="{icon_cy:.1}" fill="{bg}" r="{icon_r}" style="stroke:{border};stroke-width:1.5;"/>"#,
     )
     .unwrap();
     buf.push('\n');
@@ -354,7 +346,7 @@ fn draw_participant_control(
     let arrow_y = icon_cy - icon_r;
     write!(
         buf,
-        r#"<path d="M {x1:.1},{y1:.1} L {x2:.1},{y2:.1} L {x3:.1},{y3:.1}" fill="none" stroke="{border}" stroke-width="1.5"/>"#,
+        r#"<path d="M {x1:.1},{y1:.1} L {x2:.1},{y2:.1} L {x3:.1},{y3:.1}" fill="none" style="stroke:{border};stroke-width:1.5;"/>"#,
         x1 = cx - 5.0,
         y1 = arrow_y - 6.0,
         x2 = cx + 2.0,
@@ -394,7 +386,7 @@ fn draw_participant_entity(
     // Circle
     write!(
         buf,
-        r#"<circle cx="{cx:.1}" cy="{icon_cy:.1}" r="{icon_r}" fill="{bg}" stroke="{border}" stroke-width="1.5"/>"#,
+        r#"<circle cx="{cx:.1}" cy="{icon_cy:.1}" fill="{bg}" r="{icon_r}" style="stroke:{border};stroke-width:1.5;"/>"#,
     )
     .unwrap();
     buf.push('\n');
@@ -403,7 +395,7 @@ fn draw_participant_entity(
     let line_y = icon_cy + icon_r + 2.0;
     write!(
         buf,
-        r#"<line x1="{x1:.1}" y1="{ly:.1}" x2="{x2:.1}" y2="{ly:.1}" stroke="{border}" stroke-width="1.5"/>"#,
+        r#"<line style="stroke:{border};stroke-width:1.5;" x1="{x1:.1}" x2="{x2:.1}" y1="{ly:.1}" y2="{ly:.1}"/>"#,
         x1 = cx - icon_r,
         ly = line_y,
         x2 = cx + icon_r,
@@ -443,7 +435,7 @@ fn draw_participant_database(
     // Cylinder body
     write!(
         buf,
-        r#"<path d="M {x:.1},{ty:.1} A {rx:.1},{ry:.1} 0 0,0 {x2:.1},{ty:.1} L {x2:.1},{by:.1} A {rx:.1},{ry:.1} 0 0,0 {x:.1},{by:.1} Z" fill="{bg}" stroke="{border}" stroke-width="1.5"/>"#,
+        r#"<path d="M {x:.1},{ty:.1} A {rx:.1},{ry:.1} 0 0,0 {x2:.1},{ty:.1} L {x2:.1},{by:.1} A {rx:.1},{ry:.1} 0 0,0 {x:.1},{by:.1} Z" fill="{bg}" style="stroke:{border};stroke-width:1.5;"/>"#,
         x = cyl_x,
         ty = cyl_y + arc_h,
         rx = cyl_w / 2.0,
@@ -457,7 +449,7 @@ fn draw_participant_database(
     // Top ellipse
     write!(
         buf,
-        r#"<ellipse cx="{cx:.1}" cy="{ey:.1}" rx="{rx:.1}" ry="{ry:.1}" fill="{bg}" stroke="{border}" stroke-width="1.5"/>"#,
+        r#"<ellipse cx="{cx:.1}" cy="{ey:.1}" fill="{bg}" rx="{rx:.1}" ry="{ry:.1}" style="stroke:{border};stroke-width:1.5;"/>"#,
         ey = cyl_y + arc_h,
         rx = cyl_w / 2.0,
         ry = arc_h,
@@ -497,7 +489,7 @@ fn draw_participant_collections(
     // Back (shadow) rectangle
     write!(
         buf,
-        r#"<rect x="{x:.1}" y="{y:.1}" width="{w:.1}" height="{h:.1}" fill="{bg}" stroke="{border}" stroke-width="1.5"/>"#,
+        r#"<rect fill="{bg}" height="{h:.1}" style="stroke:{border};stroke-width:1.5;" width="{w:.1}" x="{x:.1}" y="{y:.1}"/>"#,
         x = rx + offset,
         y = ry - offset,
         w = rect_w,
@@ -509,7 +501,7 @@ fn draw_participant_collections(
     // Front (main) rectangle
     write!(
         buf,
-        r#"<rect x="{rx:.1}" y="{ry:.1}" width="{rect_w:.1}" height="{rect_h:.1}" fill="{bg}" stroke="{border}" stroke-width="1.5"/>"#,
+        r#"<rect fill="{bg}" height="{rect_h:.1}" style="stroke:{border};stroke-width:1.5;" width="{rect_w:.1}" x="{rx:.1}" y="{ry:.1}"/>"#,
     )
     .unwrap();
     buf.push('\n');
@@ -546,7 +538,7 @@ fn draw_participant_queue(
     // Cylinder body (horizontal)
     write!(
         buf,
-        r#"<path d="M {lx:.1},{ty:.1} L {rx:.1},{ty:.1} A {aw:.1},{ah:.1} 0 0,1 {rx:.1},{by:.1} L {lx:.1},{by:.1} A {aw:.1},{ah:.1} 0 0,1 {lx:.1},{ty:.1} Z" fill="{bg}" stroke="{border}" stroke-width="1.5"/>"#,
+        r#"<path d="M {lx:.1},{ty:.1} L {rx:.1},{ty:.1} A {aw:.1},{ah:.1} 0 0,1 {rx:.1},{by:.1} L {lx:.1},{by:.1} A {aw:.1},{ah:.1} 0 0,1 {lx:.1},{ty:.1} Z" fill="{bg}" style="stroke:{border};stroke-width:1.5;"/>"#,
         lx = cyl_x,
         ty = cyl_y,
         rx = cyl_x + cyl_w - arc_w,
@@ -560,7 +552,7 @@ fn draw_participant_queue(
     // Right end cap ellipse
     write!(
         buf,
-        r#"<ellipse cx="{ecx:.1}" cy="{ecy:.1}" rx="{erx:.1}" ry="{ery:.1}" fill="{bg}" stroke="{border}" stroke-width="1.5"/>"#,
+        r#"<ellipse cx="{ecx:.1}" cy="{ecy:.1}" fill="{bg}" rx="{erx:.1}" ry="{ery:.1}" style="stroke:{border};stroke-width:1.5;"/>"#,
         ecx = cyl_x + cyl_w - arc_w,
         ecy = cyl_y + cyl_h / 2.0,
         erx = arc_w,
@@ -614,7 +606,7 @@ fn draw_message(buf: &mut String, msg: &MessageLayout, arrow_color: &str, arrow_
 
     write!(
         buf,
-        r#"<line x1="{x1:.1}" y1="{y:.1}" x2="{x2:.1}" y2="{y:.1}" stroke="{color}" stroke-width="{sw}"{dash}{marker}/>"#,
+        r#"<line style="stroke:{color};stroke-width:{sw};" x1="{x1:.1}" x2="{x2:.1}" y1="{y:.1}" y2="{y:.1}"{dash}{marker}/>"#,
         y = msg.y,
         color = arrow_color,
         sw = arrow_thickness as u32,
@@ -666,7 +658,7 @@ fn draw_self_message(
     // Cubic bezier loop: goes right and comes back
     write!(
         buf,
-        r#"<path d="M {x:.1},{y:.1} C {cx1:.1},{y:.1} {cx1:.1},{y2:.1} {x:.1},{y2:.1}" fill="none" stroke="{color}" stroke-width="{sw}"{dash} marker-end="url(#{marker})"/>"#,
+        r#"<path d="M {x:.1},{y:.1} C {cx1:.1},{y:.1} {cx1:.1},{y2:.1} {x:.1},{y2:.1}" fill="none" marker-end="url(#{marker})" style="stroke:{color};stroke-width:{sw};"{dash}/>"#,
         cx1 = x + loop_width,
         y2 = y + loop_height,
         color = arrow_color,
@@ -701,7 +693,7 @@ fn draw_activation(buf: &mut String, act: &ActivationLayout) {
 
     write!(
         buf,
-        r#"<rect x="{x:.1}" y="{y:.1}" width="{w:.1}" height="{h:.1}" fill="{bg}" stroke="{border}" stroke-width="1"/>"#,
+        r#"<rect fill="{bg}" height="{h:.1}" style="stroke:{border};stroke-width:1;" width="{w:.1}" x="{x:.1}" y="{y:.1}"/>"#,
         x = act.x,
         y = act.y_start,
         w = width,
@@ -720,7 +712,7 @@ fn draw_destroy(buf: &mut String, d: &DestroyLayout) {
     // First diagonal: top-left to bottom-right
     write!(
         buf,
-        r#"<line x1="{x1:.1}" y1="{y1:.1}" x2="{x2:.1}" y2="{y2:.1}" stroke="{color}" stroke-width="2"/>"#,
+        r#"<line style="stroke:{color};stroke-width:2;" x1="{x1:.1}" x2="{x2:.1}" y1="{y1:.1}" y2="{y2:.1}"/>"#,
         x1 = d.x - size,
         y1 = d.y - size,
         x2 = d.x + size,
@@ -733,7 +725,7 @@ fn draw_destroy(buf: &mut String, d: &DestroyLayout) {
     // Second diagonal: top-right to bottom-left
     write!(
         buf,
-        r#"<line x1="{x1:.1}" y1="{y1:.1}" x2="{x2:.1}" y2="{y2:.1}" stroke="{color}" stroke-width="2"/>"#,
+        r#"<line style="stroke:{color};stroke-width:2;" x1="{x1:.1}" x2="{x2:.1}" y1="{y1:.1}" y2="{y2:.1}"/>"#,
         x1 = d.x + size,
         y1 = d.y - size,
         x2 = d.x - size,
@@ -752,7 +744,7 @@ fn draw_note(buf: &mut String, note: &NoteLayout) {
     // Background rect
     write!(
         buf,
-        r#"<rect x="{x:.1}" y="{y:.1}" width="{w:.1}" height="{h:.1}" fill="{bg}" stroke="{border}" stroke-width="1"/>"#,
+        r#"<rect fill="{bg}" height="{h:.1}" style="stroke:{border};stroke-width:1;" width="{w:.1}" x="{x:.1}" y="{y:.1}"/>"#,
         x = note.x,
         y = note.y,
         w = note.width,
@@ -768,7 +760,7 @@ fn draw_note(buf: &mut String, note: &NoteLayout) {
     let cy = note.y;
     write!(
         buf,
-        r#"<path d="M {cx:.1},{cy:.1} L {cx:.1},{cy2:.1} L {cx2:.1},{cy:.1} Z" fill="{bg}" stroke="{border}" stroke-width="1"/>"#,
+        r#"<path d="M {cx:.1},{cy:.1} L {cx:.1},{cy2:.1} L {cx2:.1},{cy:.1} Z" fill="{bg}" style="stroke:{border};stroke-width:1;"/>"#,
         cy2 = cy + fold,
         cx2 = note.x + note.width,
         bg = NOTE_BG,
@@ -798,7 +790,7 @@ fn draw_group(buf: &mut String, group: &GroupLayout) {
     // Frame rectangle
     write!(
         buf,
-        r#"<rect x="{x:.1}" y="{y:.1}" width="{w:.1}" height="{h:.1}" fill="{bg}" stroke="{border}" stroke-width="1" fill-opacity="0.3"/>"#,
+        r#"<rect fill="{bg}" fill-opacity="0.3" height="{h:.1}" style="stroke:{border};stroke-width:1;" width="{w:.1}" x="{x:.1}" y="{y:.1}"/>"#,
         x = group.x,
         y = group.y_start,
         w = group.width,
@@ -820,7 +812,7 @@ fn draw_group(buf: &mut String, group: &GroupLayout) {
         let label_height = FONT_SIZE + 6.0;
         write!(
             buf,
-            r#"<rect x="{x:.1}" y="{y:.1}" width="{w:.1}" height="{h:.1}" fill="{bg}" stroke="{border}" stroke-width="1"/>"#,
+            r#"<rect fill="{bg}" height="{h:.1}" style="stroke:{border};stroke-width:1;" width="{w:.1}" x="{x:.1}" y="{y:.1}"/>"#,
             x = group.x,
             y = group.y_start,
             w = label_width,
@@ -846,7 +838,7 @@ fn draw_fragment(buf: &mut String, frag: &FragmentLayout) {
     // Frame rectangle with semi-transparent fill
     write!(
         buf,
-        r#"<rect x="{x:.1}" y="{y:.1}" width="{w:.1}" height="{h:.1}" fill="{bg}" fill-opacity="0.1" stroke="{border}" stroke-width="1.5" rx="2"/>"#,
+        r#"<rect fill="{bg}" fill-opacity="0.1" height="{h:.1}" rx="2" style="stroke:{border};stroke-width:1.5;" width="{w:.1}" x="{x:.1}" y="{y:.1}"/>"#,
         x = frag.x,
         y = frag.y,
         w = frag.width,
@@ -871,7 +863,7 @@ fn draw_fragment(buf: &mut String, frag: &FragmentLayout) {
     // Pentagon path: top-left corner with a notch at bottom-right
     write!(
         buf,
-        r#"<path d="M {x:.1},{y:.1} L {x2:.1},{y:.1} L {x2:.1},{y2:.1} L {x3:.1},{y3:.1} L {x:.1},{y3:.1} Z" fill="{bg}" stroke="{border}" stroke-width="1.5"/>"#,
+        r#"<path d="M {x:.1},{y:.1} L {x2:.1},{y:.1} L {x2:.1},{y2:.1} L {x3:.1},{y3:.1} L {x:.1},{y3:.1} Z" fill="{bg}" style="stroke:{border};stroke-width:1.5;"/>"#,
         x = frag.x,
         y = frag.y,
         x2 = frag.x + tab_width,
@@ -900,7 +892,7 @@ fn draw_fragment(buf: &mut String, frag: &FragmentLayout) {
         // Dashed horizontal line
         write!(
             buf,
-            r#"<line x1="{x1:.1}" y1="{y:.1}" x2="{x2:.1}" y2="{y:.1}" stroke="{border}" stroke-width="1" stroke-dasharray="5,5"/>"#,
+            r#"<line style="stroke:{border};stroke-width:1;stroke-dasharray:5,5;" x1="{x1:.1}" x2="{x2:.1}" y1="{y:.1}" y2="{y:.1}"/>"#,
             x1 = frag.x,
             y = sep_y,
             x2 = frag.x + frag.width,
@@ -932,7 +924,7 @@ fn draw_divider(buf: &mut String, divider: &DividerLayout) {
     // Background stripe
     write!(
         buf,
-        r#"<rect x="{x:.1}" y="{y:.1}" width="{w:.1}" height="5" fill="{color}" fill-opacity="0.2"/>"#,
+        r#"<rect fill="{color}" fill-opacity="0.2" height="5" width="{w:.1}" x="{x:.1}" y="{y:.1}"/>"#,
         x = divider.x,
         y = center_y - 2.5,
         w = divider.width,
@@ -944,7 +936,7 @@ fn draw_divider(buf: &mut String, divider: &DividerLayout) {
     // Horizontal lines
     write!(
         buf,
-        r#"<line x1="{x1:.1}" y1="{y:.1}" x2="{x2:.1}" y2="{y:.1}" stroke="{color}" stroke-width="1"/>"#,
+        r#"<line style="stroke:{color};stroke-width:1;" x1="{x1:.1}" x2="{x2:.1}" y1="{y:.1}" y2="{y:.1}"/>"#,
         x1 = divider.x,
         y = center_y - 2.5,
         x2 = divider.x + divider.width,
@@ -954,7 +946,7 @@ fn draw_divider(buf: &mut String, divider: &DividerLayout) {
     buf.push('\n');
     write!(
         buf,
-        r#"<line x1="{x1:.1}" y1="{y:.1}" x2="{x2:.1}" y2="{y:.1}" stroke="{color}" stroke-width="1"/>"#,
+        r#"<line style="stroke:{color};stroke-width:1;" x1="{x1:.1}" x2="{x2:.1}" y1="{y:.1}" y2="{y:.1}"/>"#,
         x1 = divider.x,
         y = center_y + 2.5,
         x2 = divider.x + divider.width,
@@ -973,7 +965,7 @@ fn draw_divider(buf: &mut String, divider: &DividerLayout) {
         let text_width = text.len() as f64 * CHAR_WIDTH + 16.0;
         write!(
             buf,
-            r#"<rect x="{x:.1}" y="{y:.1}" width="{w:.1}" height="{h:.1}" fill="white"/>"#,
+            r#"<rect fill="white" height="{h:.1}" width="{w:.1}" x="{x:.1}" y="{y:.1}"/>"#,
             x = mid_x - text_width / 2.0,
             y = center_y - FONT_SIZE * 0.6,
             w = text_width,
@@ -1001,7 +993,7 @@ fn draw_delay(buf: &mut String, delay: &DelayLayout) {
     for dy in [-4.0, 0.0, 4.0] {
         write!(
             buf,
-            r#"<circle cx="{cx:.1}" cy="{cy:.1}" r="1.5" fill="{color}"/>"#,
+            r#"<circle cx="{cx:.1}" cy="{cy:.1}" fill="{color}" r="1.5"/>"#,
             cx = mid_x,
             cy = center_y + dy,
             color = DIVIDER_COLOR,
@@ -1030,7 +1022,7 @@ fn draw_ref(buf: &mut String, r: &RefLayout) {
     // Filled rectangle
     write!(
         buf,
-        r#"<rect x="{x:.1}" y="{y:.1}" width="{w:.1}" height="{h:.1}" fill="{bg}" stroke="{border}" stroke-width="1.5" rx="2"/>"#,
+        r#"<rect fill="{bg}" height="{h:.1}" rx="2" style="stroke:{border};stroke-width:1.5;" width="{w:.1}" x="{x:.1}" y="{y:.1}"/>"#,
         x = r.x,
         y = r.y,
         w = r.width,
@@ -1047,7 +1039,7 @@ fn draw_ref(buf: &mut String, r: &RefLayout) {
     let notch = 5.0;
     write!(
         buf,
-        r#"<path d="M {x:.1},{y:.1} L {x2:.1},{y:.1} L {x2:.1},{y2:.1} L {x3:.1},{y3:.1} L {x:.1},{y3:.1} Z" fill="{bg}" stroke="{border}" stroke-width="1"/>"#,
+        r#"<path d="M {x:.1},{y:.1} L {x2:.1},{y:.1} L {x2:.1},{y2:.1} L {x3:.1},{y3:.1} L {x:.1},{y3:.1} Z" fill="{bg}" style="stroke:{border};stroke-width:1;"/>"#,
         x = r.x,
         y = r.y,
         x2 = r.x + tab_width,
@@ -1092,21 +1084,15 @@ pub fn render_sequence(
 ) -> Result<String> {
     let svg_w = layout.total_width + MARGIN * 2.0;
     let svg_h = layout.total_height + MARGIN * 2.0;
-    let font_family = resolve_seq_font_family(skin);
-    let font_size = skin.font_size("participant", FONT_SIZE);
 
     let mut buf = String::with_capacity(4096);
 
     // 1. SVG header
-    write!(
-        buf,
-        r#"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {svg_w:.1} {svg_h:.1}" width="{svg_w:.1}" height="{svg_h:.1}" font-family="{font_family}" font-size="{font_size}">"#,
-    )
-    .unwrap();
-    buf.push('\n');
+    write_svg_root(&mut buf, svg_w, svg_h);
 
     // 2. Defs: arrow markers
     write_seq_defs(&mut buf);
+    buf.push_str("<g>");
 
     // 3. Lifelines (dashed vertical lines)
     draw_lifelines(&mut buf, layout, skin);
@@ -1215,7 +1201,7 @@ pub fn render_sequence(
         draw_participant_box(&mut buf, p, bottom_y, dn, part_bg, part_border, part_font);
     }
 
-    buf.push_str("</svg>\n");
+    buf.push_str("</g></svg>");
     Ok(buf)
 }
 
@@ -1267,7 +1253,7 @@ mod tests {
         assert!(svg.contains("<svg"), "output must contain <svg");
         assert!(svg.contains("</svg>"), "output must contain </svg>");
         assert!(svg.contains("xmlns=\"http://www.w3.org/2000/svg\""));
-        assert!(svg.contains("font-family=\"monospace\""));
+        assert!(svg.contains("contentStyleType=\"text/css\""));
     }
 
     #[test]
@@ -1345,11 +1331,11 @@ mod tests {
         };
         let layout = crate::layout::sequence::layout_sequence(&sd).unwrap();
         let svg = render_sequence(&sd, &layout, &SkinParams::default()).expect("render failed");
-        // Destroy marker is an X made of two <line> elements with stroke-width="2"
-        let cross_count = svg.matches("stroke-width=\"2\"").count();
+        // Destroy marker is an X made of two <line> elements with stroke-width:2 in style
+        let cross_count = svg.matches("stroke-width:2;").count();
         assert!(
             cross_count >= 2,
-            "destroy marker should produce 2 lines with stroke-width=2, found {cross_count}"
+            "destroy marker should produce 2 lines with stroke-width:2, found {cross_count}"
         );
     }
 

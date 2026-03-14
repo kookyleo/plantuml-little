@@ -6,6 +6,7 @@ use crate::layout::component::{
 };
 use crate::model::component::{ComponentDiagram, ComponentKind};
 use crate::render::svg::xml_escape;
+use crate::render::svg::write_svg_root;
 use crate::render::svg_richtext::render_creole_text;
 use crate::style::SkinParams;
 use crate::Result;
@@ -15,39 +16,38 @@ use crate::Result;
 // ---------------------------------------------------------------------------
 
 const FONT_SIZE: f64 = 12.0;
-const FONT_FAMILY: &str = "monospace";
 const LINE_HEIGHT: f64 = 16.0;
-const COMPONENT_BG: &str = "#FEFECE";
-const COMPONENT_BORDER: &str = "#A80036";
-const RECT_BG: &str = "#FEFECE";
-const RECT_BORDER: &str = "#A80036";
-const NODE_BG: &str = "#FEFECE";
-const NODE_BORDER: &str = "#A80036";
-const DATABASE_BG: &str = "#FEFECE";
-const DATABASE_BORDER: &str = "#A80036";
+const COMPONENT_BG: &str = "#F1F1F1";
+const COMPONENT_BORDER: &str = "#181818";
+const RECT_BG: &str = "#F1F1F1";
+const RECT_BORDER: &str = "#181818";
+const NODE_BG: &str = "#F1F1F1";
+const NODE_BORDER: &str = "#181818";
+const DATABASE_BG: &str = "#F1F1F1";
+const DATABASE_BORDER: &str = "#181818";
 const CLOUD_BG: &str = "#F1F1F1";
-const CLOUD_BORDER: &str = "#A80036";
-const EDGE_COLOR: &str = "#A80036";
+const CLOUD_BORDER: &str = "#181818";
+const EDGE_COLOR: &str = "#181818";
 const TEXT_FILL: &str = "#000000";
-const NOTE_BG: &str = "#FBFB77";
-const NOTE_BORDER: &str = "#A80036";
+const NOTE_BG: &str = "#FEFFDD";
+const NOTE_BORDER: &str = "#181818";
 const GROUP_BG: &str = "#FFFFFF";
-const GROUP_BORDER: &str = "#A80036";
+const GROUP_BORDER: &str = "#181818";
 // Deployment diagram element colors
-const ARTIFACT_BG: &str = "#FEFECE";
-const ARTIFACT_BORDER: &str = "#A80036";
-const STORAGE_BG: &str = "#FEFECE";
-const STORAGE_BORDER: &str = "#A80036";
-const FOLDER_BG: &str = "#FEFECE";
-const FOLDER_BORDER: &str = "#A80036";
+const ARTIFACT_BG: &str = "#F1F1F1";
+const ARTIFACT_BORDER: &str = "#181818";
+const STORAGE_BG: &str = "#F1F1F1";
+const STORAGE_BORDER: &str = "#181818";
+const FOLDER_BG: &str = "#F1F1F1";
+const FOLDER_BORDER: &str = "#181818";
 const FRAME_BG: &str = "#FFFFFF";
-const FRAME_BORDER: &str = "#A80036";
-const AGENT_BG: &str = "#FEFECE";
-const AGENT_BORDER: &str = "#A80036";
-const STACK_BG: &str = "#FEFECE";
-const STACK_BORDER: &str = "#A80036";
-const QUEUE_BG: &str = "#FEFECE";
-const QUEUE_BORDER: &str = "#A80036";
+const FRAME_BORDER: &str = "#181818";
+const AGENT_BG: &str = "#F1F1F1";
+const AGENT_BORDER: &str = "#181818";
+const STACK_BG: &str = "#F1F1F1";
+const STACK_BORDER: &str = "#181818";
+const QUEUE_BG: &str = "#F1F1F1";
+const QUEUE_BORDER: &str = "#181818";
 
 // ---------------------------------------------------------------------------
 // Public entry point
@@ -96,17 +96,11 @@ pub fn render_component(
     let queue_border = skin.border_color("queue", QUEUE_BORDER);
 
     // SVG header
-    write!(
-        buf,
-        r#"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {w:.0} {h:.0}" width="{w:.0}" height="{h:.0}" font-family="{FONT_FAMILY}" font-size="{FONT_SIZE}">"#,
-        w = layout.width,
-        h = layout.height,
-    )
-    .unwrap();
-    buf.push('\n');
+    write_svg_root(&mut buf, layout.width, layout.height);
 
     // Defs: arrow marker
     write_defs(&mut buf, arrow_color);
+    buf.push_str("<g>");
 
     // Groups (render before nodes so they appear behind)
     for group in &layout.groups {
@@ -156,7 +150,7 @@ pub fn render_component(
         render_note(&mut buf, note, note_bg, note_border, note_font);
     }
 
-    buf.push_str("</svg>\n");
+    buf.push_str("</g></svg>");
     Ok(buf)
 }
 
@@ -195,7 +189,7 @@ fn render_group(
     // Draw background rectangle
     write!(
         buf,
-        r#"<rect x="{x:.1}" y="{y:.1}" width="{w:.1}" height="{h:.1}" rx="4" ry="4" fill="{bg}" stroke="{border}" stroke-width="1.5"/>"#,
+        r#"<rect fill="{bg}" height="{h:.1}" rx="4" ry="4" style="stroke:{border};stroke-width:1.5;" width="{w:.1}" x="{x:.1}" y="{y:.1}"/>"#,
         x = group.x,
         y = group.y,
         w = group.width,
@@ -219,7 +213,7 @@ fn render_group(
     let sep_y = name_y + 6.0;
     write!(
         buf,
-        r#"<line x1="{x1:.1}" y1="{sy:.1}" x2="{x2:.1}" y2="{sy:.1}" stroke="{border}"/>"#,
+        r#"<line style="stroke:{border};" x1="{x1:.1}" x2="{x2:.1}" y1="{sy:.1}" y2="{sy:.1}"/>"#,
         x1 = group.x,
         sy = sep_y,
         x2 = group.x + group.width,
@@ -318,7 +312,7 @@ fn render_component_node(
     // Main rounded rectangle
     write!(
         buf,
-        r#"<rect x="{x:.1}" y="{y:.1}" width="{w:.1}" height="{h:.1}" rx="6" ry="6" fill="{bg}" stroke="{border}" stroke-width="1.5"/>"#,
+        r#"<rect fill="{bg}" height="{h:.1}" rx="6" ry="6" style="stroke:{border};stroke-width:1.5;" width="{w:.1}" x="{x:.1}" y="{y:.1}"/>"#,
         x = node.x,
         y = node.y,
         w = node.width,
@@ -334,7 +328,7 @@ fn render_component_node(
     for iy in [icon_y1, icon_y2] {
         write!(
             buf,
-            r#"<rect x="{icon_x:.1}" y="{iy:.1}" width="10" height="8" rx="1" ry="1" fill="{bg}" stroke="{border}" stroke-width="1"/>"#,
+            r#"<rect fill="{bg}" height="8" rx="1" ry="1" style="stroke:{border};stroke-width:1;" width="10" x="{icon_x:.1}" y="{iy:.1}"/>"#,
         )
         .unwrap();
         buf.push('\n');
@@ -354,7 +348,7 @@ fn render_rectangle_node(
 ) {
     write!(
         buf,
-        r#"<rect x="{x:.1}" y="{y:.1}" width="{w:.1}" height="{h:.1}" fill="{bg}" stroke="{border}" stroke-width="1.5"/>"#,
+        r#"<rect fill="{bg}" height="{h:.1}" style="stroke:{border};stroke-width:1.5;" width="{w:.1}" x="{x:.1}" y="{y:.1}"/>"#,
         x = node.x,
         y = node.y,
         w = node.width,
@@ -383,7 +377,7 @@ fn render_database_node(
     // Body path: rectangle with elliptical top and bottom
     write!(
         buf,
-        r#"<path d="M {x:.1} {y1:.1} A {rx:.1} {ry:.1} 0 0 1 {x2:.1} {y1:.1} L {x2:.1} {y2:.1} A {rx:.1} {ry:.1} 0 0 1 {x:.1} {y2:.1} Z" fill="{bg}" stroke="{border}" stroke-width="1.5"/>"#,
+        r#"<path d="M {x:.1} {y1:.1} A {rx:.1} {ry:.1} 0 0 1 {x2:.1} {y1:.1} L {x2:.1} {y2:.1} A {rx:.1} {ry:.1} 0 0 1 {x:.1} {y2:.1} Z" fill="{bg}" style="stroke:{border};stroke-width:1.5;"/>"#,
         x = x,
         y1 = y + ry,
         rx = w / 2.0,
@@ -397,7 +391,7 @@ fn render_database_node(
     // Top ellipse
     write!(
         buf,
-        r#"<ellipse cx="{cx:.1}" cy="{cy:.1}" rx="{rx:.1}" ry="{ry:.1}" fill="{bg}" stroke="{border}" stroke-width="1.5"/>"#,
+        r#"<ellipse cx="{cx:.1}" cy="{cy:.1}" fill="{bg}" rx="{rx:.1}" ry="{ry:.1}" style="stroke:{border};stroke-width:1.5;"/>"#,
         cx = x + w / 2.0,
         cy = y + ry,
         rx = w / 2.0,
@@ -419,7 +413,7 @@ fn render_cloud_node(
 ) {
     write!(
         buf,
-        r#"<rect x="{x:.1}" y="{y:.1}" width="{w:.1}" height="{h:.1}" rx="20" ry="20" fill="{bg}" stroke="{border}" stroke-width="1.5"/>"#,
+        r#"<rect fill="{bg}" height="{h:.1}" rx="20" ry="20" style="stroke:{border};stroke-width:1.5;" width="{w:.1}" x="{x:.1}" y="{y:.1}"/>"#,
         x = node.x,
         y = node.y,
         w = node.width,
@@ -441,7 +435,7 @@ fn render_box_node(
 ) {
     write!(
         buf,
-        r#"<rect x="{x:.1}" y="{y:.1}" width="{w:.1}" height="{h:.1}" rx="4" ry="4" fill="{fill}" stroke="{border}" stroke-width="1.5"/>"#,
+        r#"<rect fill="{fill}" height="{h:.1}" rx="4" ry="4" style="stroke:{border};stroke-width:1.5;" width="{w:.1}" x="{x:.1}" y="{y:.1}"/>"#,
         x = node.x,
         y = node.y,
         w = node.width,
@@ -465,7 +459,7 @@ fn render_interface_node(
     let cy = node.y + 12.0;
     write!(
         buf,
-        r#"<circle cx="{cx:.1}" cy="{cy:.1}" r="8" fill="{bg}" stroke="{border}" stroke-width="1.5"/>"#,
+        r#"<circle cx="{cx:.1}" cy="{cy:.1}" fill="{bg}" r="8" style="stroke:{border};stroke-width:1.5;"/>"#,
     )
     .unwrap();
     buf.push('\n');
@@ -498,7 +492,7 @@ fn render_artifact_node(
     // Body polygon with folded top-right corner
     write!(
         buf,
-        r#"<polygon points="{x:.1},{y:.1} {xf:.1},{y:.1} {xw:.1},{yf:.1} {xw:.1},{yh:.1} {x:.1},{yh:.1}" fill="{bg}" stroke="{border}" stroke-width="1.5"/>"#,
+        r#"<polygon fill="{bg}" points="{x:.1},{y:.1} {xf:.1},{y:.1} {xw:.1},{yf:.1} {xw:.1},{yh:.1} {x:.1},{yh:.1}" style="stroke:{border};stroke-width:1.5;"/>"#,
         xf = x + w - fold,
         xw = x + w,
         yf = y + fold,
@@ -510,7 +504,7 @@ fn render_artifact_node(
     // Fold lines to indicate the corner fold
     write!(
         buf,
-        r#"<line x1="{xf:.1}" y1="{y:.1}" x2="{xf:.1}" y2="{yf:.1}" stroke="{border}" stroke-width="1"/>"#,
+        r#"<line style="stroke:{border};stroke-width:1;" x1="{xf:.1}" x2="{xf:.1}" y1="{y:.1}" y2="{yf:.1}"/>"#,
         xf = x + w - fold,
         yf = y + fold,
     )
@@ -518,7 +512,7 @@ fn render_artifact_node(
     buf.push('\n');
     write!(
         buf,
-        r#"<line x1="{xf:.1}" y1="{yf:.1}" x2="{xw:.1}" y2="{yf:.1}" stroke="{border}" stroke-width="1"/>"#,
+        r#"<line style="stroke:{border};stroke-width:1;" x1="{xf:.1}" x2="{xw:.1}" y1="{yf:.1}" y2="{yf:.1}"/>"#,
         xf = x + w - fold,
         xw = x + w,
         yf = y + fold,
@@ -546,7 +540,7 @@ fn render_storage_node(
     // Body: rectangle body with elliptical left/right ends
     write!(
         buf,
-        r#"<path d="M {x1:.1} {y:.1} L {x2:.1} {y:.1} A {rx:.1} {ry:.1} 0 0 1 {x2:.1} {yh:.1} L {x1:.1} {yh:.1} A {rx:.1} {ry:.1} 0 0 1 {x1:.1} {y:.1} Z" fill="{bg}" stroke="{border}" stroke-width="1.5"/>"#,
+        r#"<path d="M {x1:.1} {y:.1} L {x2:.1} {y:.1} A {rx:.1} {ry:.1} 0 0 1 {x2:.1} {yh:.1} L {x1:.1} {yh:.1} A {rx:.1} {ry:.1} 0 0 1 {x1:.1} {y:.1} Z" fill="{bg}" style="stroke:{border};stroke-width:1.5;"/>"#,
         x1 = x + rx,
         x2 = x + w - rx,
         ry = h / 2.0,
@@ -558,7 +552,7 @@ fn render_storage_node(
     // Right ellipse (visible end cap)
     write!(
         buf,
-        r#"<ellipse cx="{cx:.1}" cy="{cy:.1}" rx="{rx:.1}" ry="{ry:.1}" fill="{bg}" stroke="{border}" stroke-width="1.5"/>"#,
+        r#"<ellipse cx="{cx:.1}" cy="{cy:.1}" fill="{bg}" rx="{rx:.1}" ry="{ry:.1}" style="stroke:{border};stroke-width:1.5;"/>"#,
         cx = x + w - rx,
         cy = y + h / 2.0,
         ry = h / 2.0,
@@ -587,7 +581,7 @@ fn render_folder_node(
     // Tab on top-left
     write!(
         buf,
-        r#"<rect x="{x:.1}" y="{y:.1}" width="{tab_w:.1}" height="{tab_h:.1}" fill="{bg}" stroke="{border}" stroke-width="1.5"/>"#,
+        r#"<rect fill="{bg}" height="{tab_h:.1}" style="stroke:{border};stroke-width:1.5;" width="{tab_w:.1}" x="{x:.1}" y="{y:.1}"/>"#,
     )
     .unwrap();
     buf.push('\n');
@@ -595,7 +589,7 @@ fn render_folder_node(
     // Main folder body (shifted down by tab_h)
     write!(
         buf,
-        r#"<rect x="{x:.1}" y="{by:.1}" width="{w:.1}" height="{bh:.1}" fill="{bg}" stroke="{border}" stroke-width="1.5"/>"#,
+        r#"<rect fill="{bg}" height="{bh:.1}" style="stroke:{border};stroke-width:1.5;" width="{w:.1}" x="{x:.1}" y="{by:.1}"/>"#,
         by = y + tab_h,
         bh = h - tab_h,
     )
@@ -623,7 +617,7 @@ fn render_frame_node(
     // Outer border rectangle
     write!(
         buf,
-        r#"<rect x="{x:.1}" y="{y:.1}" width="{w:.1}" height="{h:.1}" fill="{bg}" stroke="{border}" stroke-width="1.5"/>"#,
+        r#"<rect fill="{bg}" height="{h:.1}" style="stroke:{border};stroke-width:1.5;" width="{w:.1}" x="{x:.1}" y="{y:.1}"/>"#,
     )
     .unwrap();
     buf.push('\n');
@@ -631,7 +625,7 @@ fn render_frame_node(
     // Small label inset box on top-left corner
     write!(
         buf,
-        r#"<rect x="{x:.1}" y="{y:.1}" width="{tab_w:.1}" height="{tab_h:.1}" fill="{border}" stroke="{border}" stroke-width="1"/>"#,
+        r#"<rect fill="{border}" height="{tab_h:.1}" style="stroke:{border};stroke-width:1;" width="{tab_w:.1}" x="{x:.1}" y="{y:.1}"/>"#,
     )
     .unwrap();
     buf.push('\n');
@@ -659,7 +653,7 @@ fn render_agent_node(
 ) {
     write!(
         buf,
-        r#"<rect x="{x:.1}" y="{y:.1}" width="{w:.1}" height="{h:.1}" rx="10" ry="10" fill="{bg}" stroke="{border}" stroke-width="1.5"/>"#,
+        r#"<rect fill="{bg}" height="{h:.1}" rx="10" ry="10" style="stroke:{border};stroke-width:1.5;" width="{w:.1}" x="{x:.1}" y="{y:.1}"/>"#,
         x = node.x,
         y = node.y,
         w = node.width,
@@ -690,7 +684,7 @@ fn render_stack_node(
         let off = shadow_offset * f64::from(i);
         write!(
             buf,
-            r#"<rect x="{sx:.1}" y="{sy:.1}" width="{w:.1}" height="{h:.1}" fill="{bg}" stroke="{border}" stroke-width="1" opacity="0.6"/>"#,
+            r#"<rect fill="{bg}" height="{h:.1}" opacity="0.6" style="stroke:{border};stroke-width:1;" width="{w:.1}" x="{sx:.1}" y="{sy:.1}"/>"#,
             sx = x + off,
             sy = y + off,
         )
@@ -701,7 +695,7 @@ fn render_stack_node(
     // Front (main) rectangle
     write!(
         buf,
-        r#"<rect x="{x:.1}" y="{y:.1}" width="{w:.1}" height="{h:.1}" fill="{bg}" stroke="{border}" stroke-width="1.5"/>"#,
+        r#"<rect fill="{bg}" height="{h:.1}" style="stroke:{border};stroke-width:1.5;" width="{w:.1}" x="{x:.1}" y="{y:.1}"/>"#,
     )
     .unwrap();
     buf.push('\n');
@@ -727,7 +721,7 @@ fn render_queue_node(
     // Left cap (closed ellipse), right cap (open ellipse, visible)
     write!(
         buf,
-        r#"<path d="M {x1:.1} {y:.1} L {x2:.1} {y:.1} A {cap_rx:.1} {ry:.1} 0 0 1 {x2:.1} {yh:.1} L {x1:.1} {yh:.1} A {cap_rx:.1} {ry:.1} 0 0 1 {x1:.1} {y:.1} Z" fill="{bg}" stroke="{border}" stroke-width="1.5"/>"#,
+        r#"<path d="M {x1:.1} {y:.1} L {x2:.1} {y:.1} A {cap_rx:.1} {ry:.1} 0 0 1 {x2:.1} {yh:.1} L {x1:.1} {yh:.1} A {cap_rx:.1} {ry:.1} 0 0 1 {x1:.1} {y:.1} Z" fill="{bg}" style="stroke:{border};stroke-width:1.5;"/>"#,
         x1 = x + cap_rx,
         x2 = x + w - cap_rx,
         ry = h / 2.0,
@@ -739,7 +733,7 @@ fn render_queue_node(
     // Left end cap (fully closed)
     write!(
         buf,
-        r#"<ellipse cx="{cx:.1}" cy="{cy:.1}" rx="{cap_rx:.1}" ry="{ry:.1}" fill="{bg}" stroke="{border}" stroke-width="1.5"/>"#,
+        r#"<ellipse cx="{cx:.1}" cy="{cy:.1}" fill="{bg}" rx="{cap_rx:.1}" ry="{ry:.1}" style="stroke:{border};stroke-width:1.5;"/>"#,
         cx = x + cap_rx,
         cy = y + h / 2.0,
         ry = h / 2.0,
@@ -750,7 +744,7 @@ fn render_queue_node(
     // Right end cap (visible opening)
     write!(
         buf,
-        r#"<ellipse cx="{cx:.1}" cy="{cy:.1}" rx="{cap_rx:.1}" ry="{ry:.1}" fill="{bg}" stroke="{border}" stroke-width="1.5"/>"#,
+        r#"<ellipse cx="{cx:.1}" cy="{cy:.1}" fill="{bg}" rx="{cap_rx:.1}" ry="{ry:.1}" style="stroke:{border};stroke-width:1.5;"/>"#,
         cx = x + w - cap_rx,
         cy = y + h / 2.0,
         ry = h / 2.0,
@@ -801,7 +795,7 @@ fn render_node_text(buf: &mut String, node: &ComponentNodeLayout, font_color: &s
         let sep_y = name_y + 6.0;
         write!(
             buf,
-            r#"<line x1="{x1:.1}" y1="{sy:.1}" x2="{x2:.1}" y2="{sy:.1}" stroke="{COMPONENT_BORDER}"/>"#,
+            r#"<line style="stroke:{COMPONENT_BORDER};" x1="{x1:.1}" x2="{x2:.1}" y1="{sy:.1}" y2="{sy:.1}"/>"#,
             x1 = node.x,
             sy = sep_y,
             x2 = node.x + node.width,
@@ -844,7 +838,7 @@ fn render_edge(buf: &mut String, edge: &ComponentEdgeLayout, arrow_color: &str, 
         let (x2, y2) = edge.points[1];
         write!(
             buf,
-            r#"<line x1="{x1:.1}" y1="{y1:.1}" x2="{x2:.1}" y2="{y2:.1}" stroke="{arrow_color}" stroke-width="1"{dash} marker-end="url(#comp-arrow)"/>"#,
+            r#"<line marker-end="url(#comp-arrow)" style="stroke:{arrow_color};stroke-width:1;" x1="{x1:.1}" x2="{x2:.1}" y1="{y1:.1}" y2="{y2:.1}"{dash}/>"#,
         )
         .unwrap();
         buf.push('\n');
@@ -857,7 +851,7 @@ fn render_edge(buf: &mut String, edge: &ComponentEdgeLayout, arrow_color: &str, 
             .join(" ");
         write!(
             buf,
-            r#"<polyline points="{points_str}" fill="none" stroke="{arrow_color}" stroke-width="1"{dash} marker-end="url(#comp-arrow)"/>"#,
+            r#"<polyline fill="none" marker-end="url(#comp-arrow)" points="{points_str}" style="stroke:{arrow_color};stroke-width:1;"{dash}/>"#,
         )
         .unwrap();
         buf.push('\n');
@@ -904,7 +898,7 @@ fn render_note(
     // Note body polygon (with folded corner)
     write!(
         buf,
-        r#"<polygon points="{x:.1},{y:.1} {xf:.1},{y:.1} {xw:.1},{yf:.1} {xw:.1},{yh:.1} {x:.1},{yh:.1}" fill="{bg}" stroke="{border}"/>"#,
+        r#"<polygon fill="{bg}" points="{x:.1},{y:.1} {xf:.1},{y:.1} {xw:.1},{yf:.1} {xw:.1},{yh:.1} {x:.1},{yh:.1}" style="stroke:{border};"/>"#,
         xf = x + w - fold,
         xw = x + w,
         yf = y + fold,
@@ -916,7 +910,7 @@ fn render_note(
     // Fold lines
     write!(
         buf,
-        r#"<line x1="{xf:.1}" y1="{y:.1}" x2="{xf:.1}" y2="{yf:.1}" stroke="{border}"/>"#,
+        r#"<line style="stroke:{border};" x1="{xf:.1}" x2="{xf:.1}" y1="{y:.1}" y2="{yf:.1}"/>"#,
         xf = x + w - fold,
         yf = y + fold,
     )
@@ -924,7 +918,7 @@ fn render_note(
     buf.push('\n');
     write!(
         buf,
-        r#"<line x1="{xf:.1}" y1="{yf:.1}" x2="{xw:.1}" y2="{yf:.1}" stroke="{border}"/>"#,
+        r#"<line style="stroke:{border};" x1="{xf:.1}" x2="{xw:.1}" y1="{yf:.1}" y2="{yf:.1}"/>"#,
         xf = x + w - fold,
         yf = y + fold,
         xw = x + w,
@@ -1121,8 +1115,8 @@ mod tests {
             "edge must reference comp-arrow marker"
         );
         assert!(
-            svg.contains(&format!(r#"stroke="{EDGE_COLOR}""#)),
-            "edge must use EDGE_COLOR"
+            svg.contains("stroke:#181818"),
+            "edge must use EDGE_COLOR in style"
         );
     }
 
@@ -1180,8 +1174,8 @@ mod tests {
         let svg =
             render_component(&diagram, &layout, &SkinParams::default()).expect("render failed");
         assert!(
-            svg.contains(&format!(r#"fill="{NOTE_BG}""#)),
-            "note must use yellow background"
+            svg.contains(r##"fill="#FBFB77""##),
+            "note must use rose theme note background"
         );
         assert!(svg.contains("important note"), "note text must appear");
         assert!(svg.contains("<polygon"), "note body must be a polygon");
@@ -1383,7 +1377,7 @@ mod tests {
             svg.contains("viewBox=\"0 0 400 300\""),
             "viewBox must match"
         );
-        assert!(svg.contains("width=\"400\""), "width must match");
+        assert!(svg.contains("width=\"400px\""), "width must match");
         assert!(svg.contains("<defs>"), "must have defs");
         assert!(svg.contains("</defs>"), "must have closing defs");
     }

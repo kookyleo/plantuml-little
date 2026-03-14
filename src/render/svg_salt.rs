@@ -3,14 +3,13 @@ use std::fmt::Write;
 use crate::layout::salt::{LayoutBox, SaltLayout, SaltWidgetLayout};
 use crate::model::salt::SaltDiagram;
 use crate::render::svg::xml_escape;
+use crate::render::svg::write_svg_root;
 use crate::style::SkinParams;
 use crate::Result;
 
-const FONT_SIZE: f64 = 12.0;
-const FONT_FAMILY: &str = "monospace";
 const BG: &str = "#FFFFFF";
-const BORDER: &str = "#A80036";
-const FILL: &str = "#FEFECE";
+const BORDER: &str = "#181818";
+const FILL: &str = "#F1F1F1";
 const TEXT: &str = "#000000";
 
 pub fn render_salt(
@@ -19,21 +18,15 @@ pub fn render_salt(
     skin: &SkinParams,
 ) -> Result<String> {
     let mut buf = String::with_capacity(4096);
-    write!(
-        buf,
-        r#"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {w:.0} {h:.0}" width="{w:.0}" height="{h:.0}" font-family="{FONT_FAMILY}" font-size="{FONT_SIZE}">"#,
-        w = layout.width,
-        h = layout.height,
-    )
-    .unwrap();
-    buf.push('\n');
+    write_svg_root(&mut buf, layout.width, layout.height);
+    buf.push_str("<defs/><g>");
 
     let border = skin.border_color("salt", BORDER);
     let fill = skin.background_color("salt", FILL);
     let font = skin.font_color("salt", TEXT);
     write!(
         buf,
-        r#"<rect x="0" y="0" width="{:.0}" height="{:.0}" fill="{}"/>"#,
+        r#"<rect fill="{}" height="{:.0}" width="{:.0}" x="0" y="0"/>"#,
         layout.width,
         layout.height,
         skin.background_color("saltbg", BG)
@@ -43,7 +36,7 @@ pub fn render_salt(
 
     render_widget(&mut buf, &layout.root, fill, border, font);
 
-    buf.push_str("</svg>\n");
+    buf.push_str("</g></svg>");
     Ok(buf)
 }
 
@@ -65,7 +58,7 @@ fn render_widget(
         } => {
             write!(
                 buf,
-                r#"<rect x="{x:.1}" y="{y:.1}" width="{width:.1}" height="{height:.1}" rx="6" ry="6" fill="none" stroke="{border}" stroke-width="1"/>"#,
+                r#"<rect fill="none" height="{height:.1}" rx="6" ry="6" style="stroke:{border};stroke-width:1;" width="{width:.1}" x="{x:.1}" y="{y:.1}"/>"#,
             )
             .unwrap();
             buf.push('\n');
@@ -77,7 +70,7 @@ fn render_widget(
                     let y = child_bounds(child).y + child_bounds(child).height + 5.0;
                     write!(
                         buf,
-                        r#"<line x1="{x1:.1}" y1="{y:.1}" x2="{x2:.1}" y2="{y:.1}" stroke="{border}" stroke-width="1"/>"#,
+                        r#"<line style="stroke:{border};stroke-width:1;" x1="{x1:.1}" x2="{x2:.1}" y1="{y:.1}" y2="{y:.1}"/>"#,
                         x1 = x + 8.0,
                         x2 = x + width - 8.0,
                     )
@@ -112,7 +105,7 @@ fn render_widget(
         SaltWidgetLayout::TreeNode(rect, label, _) => {
             write!(
                 buf,
-                r#"<circle cx="{:.1}" cy="{:.1}" r="3" fill="{}"/>"#,
+                r#"<circle cx="{:.1}" cy="{:.1}" fill="{}" r="3"/>"#,
                 rect.x + 6.0,
                 rect.y + rect.height / 2.0,
                 border
@@ -124,7 +117,7 @@ fn render_widget(
         SaltWidgetLayout::Separator(rect) => {
             write!(
                 buf,
-                r#"<line x1="{x1:.1}" y1="{y:.1}" x2="{x2:.1}" y2="{y:.1}" stroke="{border}" stroke-width="1"/>"#,
+                r#"<line style="stroke:{border};stroke-width:1;" x1="{x1:.1}" x2="{x2:.1}" y1="{y:.1}" y2="{y:.1}"/>"#,
                 x1 = rect.x,
                 x2 = rect.x + rect.width,
                 y = rect.y + rect.height / 2.0,
@@ -163,7 +156,7 @@ fn render_boxed_text(
 ) {
     write!(
         buf,
-        r#"<rect x="{x:.1}" y="{y:.1}" width="{w:.1}" height="{h:.1}" rx="{r:.1}" ry="{r:.1}" fill="{fill}" stroke="{border}" stroke-width="1"/>"#,
+        r#"<rect fill="{fill}" height="{h:.1}" rx="{r:.1}" ry="{r:.1}" style="stroke:{border};stroke-width:1;" width="{w:.1}" x="{x:.1}" y="{y:.1}"/>"#,
         x = rect.x,
         y = rect.y,
         w = rect.width,
@@ -192,17 +185,17 @@ fn render_checkbox(
 ) {
     write!(
         buf,
-        r##"<rect x="{:.1}" y="{:.1}" width="14" height="14" fill="#FFFFFF" stroke="{}" stroke-width="1"/>"##,
+        r##"<rect fill="#FFFFFF" height="14" style="stroke:{};stroke-width:1;" width="14" x="{:.1}" y="{:.1}"/>"##,
+        border,
         rect.x,
         rect.y + 7.0,
-        border,
     )
     .unwrap();
     buf.push('\n');
     if checked {
         write!(
             buf,
-            r#"<path d="M {:.1} {:.1} L {:.1} {:.1} L {:.1} {:.1}" fill="none" stroke="{}" stroke-width="1.5"/>"#,
+            r#"<path d="M {:.1} {:.1} L {:.1} {:.1} L {:.1} {:.1}" fill="none" style="stroke:{};stroke-width:1.5;"/>"#,
             rect.x + 3.0,
             rect.y + 14.0,
             rect.x + 6.0,
@@ -227,7 +220,7 @@ fn render_radio(
 ) {
     write!(
         buf,
-        r##"<circle cx="{:.1}" cy="{:.1}" r="7" fill="#FFFFFF" stroke="{}" stroke-width="1"/>"##,
+        r##"<circle cx="{:.1}" cy="{:.1}" fill="#FFFFFF" r="7" style="stroke:{};stroke-width:1;"/>"##,
         rect.x + 7.0,
         rect.y + 14.0,
         border,
@@ -237,7 +230,7 @@ fn render_radio(
     if selected {
         write!(
             buf,
-            r#"<circle cx="{:.1}" cy="{:.1}" r="3" fill="{}"/>"#,
+            r#"<circle cx="{:.1}" cy="{:.1}" fill="{}" r="3"/>"#,
             rect.x + 7.0,
             rect.y + 14.0,
             border,
@@ -287,7 +280,7 @@ fn render_table(
 ) {
     write!(
         buf,
-        r#"<rect x="{x:.1}" y="{y:.1}" width="{w:.1}" height="{h:.1}" fill="{fill}" stroke="{border}" stroke-width="1"/>"#,
+        r#"<rect fill="{fill}" height="{h:.1}" style="stroke:{border};stroke-width:1;" width="{w:.1}" x="{x:.1}" y="{y:.1}"/>"#,
         x = rect.x,
         y = rect.y,
         w = rect.width,
@@ -301,7 +294,7 @@ fn render_table(
         x_cursor += *width;
         write!(
             buf,
-            r#"<line x1="{x:.1}" y1="{y1:.1}" x2="{x:.1}" y2="{y2:.1}" stroke="{border}" stroke-width="1"/>"#,
+            r#"<line style="stroke:{border};stroke-width:1;" x1="{x:.1}" x2="{x:.1}" y1="{y1:.1}" y2="{y2:.1}"/>"#,
             x = x_cursor,
             y1 = rect.y,
             y2 = rect.y + rect.height,
@@ -313,7 +306,7 @@ fn render_table(
         let y = rect.y + row as f64 * row_height;
         write!(
             buf,
-            r#"<line x1="{x1:.1}" y1="{y:.1}" x2="{x2:.1}" y2="{y:.1}" stroke="{border}" stroke-width="1"/>"#,
+            r#"<line style="stroke:{border};stroke-width:1;" x1="{x1:.1}" x2="{x2:.1}" y1="{y:.1}" y2="{y:.1}"/>"#,
             x1 = rect.x,
             x2 = rect.x + rect.width,
         )

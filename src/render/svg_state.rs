@@ -3,6 +3,7 @@ use std::fmt::Write;
 use crate::layout::state::{StateLayout, StateNodeLayout, StateNoteLayout, TransitionLayout};
 use crate::model::state::{StateDiagram, StateKind};
 use crate::render::svg::xml_escape;
+use crate::render::svg::write_svg_root;
 use crate::render::svg_richtext::render_creole_text;
 use crate::style::SkinParams;
 use crate::Result;
@@ -10,17 +11,16 @@ use crate::Result;
 // ── Style constants (PlantUML rose theme) ───────────────────────────
 
 const FONT_SIZE: f64 = 13.0;
-const FONT_FAMILY: &str = "monospace";
 const LINE_HEIGHT: f64 = 16.0;
-const STATE_BG: &str = "#FEFECE";
-const STATE_BORDER: &str = "#A80036";
+const STATE_BG: &str = "#F1F1F1";
+const STATE_BORDER: &str = "#181818";
 const INITIAL_FILL: &str = "#000000";
 const FINAL_OUTER: &str = "#000000";
 const FINAL_INNER: &str = "#000000";
-const EDGE_COLOR: &str = "#A80036";
+const EDGE_COLOR: &str = "#181818";
 const TEXT_FILL: &str = "#000000";
-const NOTE_BG: &str = "#FBFB77";
-const NOTE_BORDER: &str = "#A80036";
+const NOTE_BG: &str = "#FEFFDD";
+const NOTE_BORDER: &str = "#181818";
 
 // ── Public entry point ──────────────────────────────────────────────
 
@@ -33,14 +33,8 @@ pub fn render_state(
     let mut buf = String::with_capacity(4096);
 
     // SVG header
-    write!(
-        buf,
-        r#"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {w:.0} {h:.0}" width="{w:.0}" height="{h:.0}" font-family="{FONT_FAMILY}" font-size="{FONT_SIZE}">"#,
-        w = layout.width,
-        h = layout.height,
-    )
-    .unwrap();
-    buf.push('\n');
+    write_svg_root(&mut buf, layout.width, layout.height);
+    buf.push_str("<defs/><g>");
 
     // Defs: arrow marker
     write_defs(&mut buf);
@@ -64,7 +58,7 @@ pub fn render_state(
         render_note(&mut buf, note);
     }
 
-    buf.push_str("</svg>\n");
+    buf.push_str("</g></svg>");
     Ok(buf)
 }
 
@@ -139,7 +133,7 @@ fn render_initial(buf: &mut String, node: &StateNodeLayout) {
     let cy = node.y + node.height / 2.0;
     write!(
         buf,
-        r#"<circle cx="{cx:.1}" cy="{cy:.1}" r="10" fill="{INITIAL_FILL}"/>"#,
+        r#"<circle cx="{cx:.1}" cy="{cy:.1}" fill="{INITIAL_FILL}" r="10"/>"#,
     )
     .unwrap();
     buf.push('\n');
@@ -151,13 +145,13 @@ fn render_final(buf: &mut String, node: &StateNodeLayout) {
     let cy = node.y + node.height / 2.0;
     write!(
         buf,
-        r#"<circle cx="{cx:.1}" cy="{cy:.1}" r="11" fill="none" stroke="{FINAL_OUTER}" stroke-width="2"/>"#,
+        r#"<circle cx="{cx:.1}" cy="{cy:.1}" fill="none" r="11" style="stroke:{FINAL_OUTER};stroke-width:2;"/>"#,
     )
     .unwrap();
     buf.push('\n');
     write!(
         buf,
-        r#"<circle cx="{cx:.1}" cy="{cy:.1}" r="7" fill="{FINAL_INNER}"/>"#,
+        r#"<circle cx="{cx:.1}" cy="{cy:.1}" fill="{FINAL_INNER}" r="7"/>"#,
     )
     .unwrap();
     buf.push('\n');
@@ -167,7 +161,7 @@ fn render_final(buf: &mut String, node: &StateNodeLayout) {
 fn render_fork_join(buf: &mut String, node: &StateNodeLayout) {
     write!(
         buf,
-        r#"<rect x="{x:.1}" y="{y:.1}" width="{w:.1}" height="{h:.1}" rx="2" ry="2" fill="{INITIAL_FILL}" stroke="none"/>"#,
+        r#"<rect fill="{INITIAL_FILL}" height="{h:.1}" rx="2" ry="2" stroke="none" width="{w:.1}" x="{x:.1}" y="{y:.1}"/>"#,
         x = node.x,
         y = node.y,
         w = node.width,
@@ -185,7 +179,7 @@ fn render_choice(buf: &mut String, node: &StateNodeLayout, border: &str) {
     // Diamond points: top, right, bottom, left
     write!(
         buf,
-        r##"<polygon points="{cx:.1},{top:.1} {right:.1},{cy:.1} {cx:.1},{bottom:.1} {left:.1},{cy:.1}" fill="#FEFECE" stroke="{border}" stroke-width="1.5"/>"##,
+        r##"<polygon fill="#F1F1F1" points="{cx:.1},{top:.1} {right:.1},{cy:.1} {cx:.1},{bottom:.1} {left:.1},{cy:.1}" style="stroke:{border};stroke-width:1.5;"/>"##,
         top = cy - half,
         right = cx + half,
         bottom = cy + half,
@@ -208,7 +202,7 @@ fn render_history(
     let r = node.width / 2.0;
     write!(
         buf,
-        r#"<circle cx="{cx:.1}" cy="{cy:.1}" r="{r:.1}" fill="none" stroke="{border}" stroke-width="1.5"/>"#,
+        r#"<circle cx="{cx:.1}" cy="{cy:.1}" fill="none" r="{r:.1}" style="stroke:{border};stroke-width:1.5;"/>"#,
     )
     .unwrap();
     buf.push('\n');
@@ -229,7 +223,7 @@ fn render_exit_point(buf: &mut String, node: &StateNodeLayout, border: &str) {
     let r = node.width / 2.0;
     write!(
         buf,
-        r#"<circle cx="{cx:.1}" cy="{cy:.1}" r="{r:.1}" fill="none" stroke="{border}" stroke-width="1.5"/>"#,
+        r#"<circle cx="{cx:.1}" cy="{cy:.1}" fill="none" r="{r:.1}" style="stroke:{border};stroke-width:1.5;"/>"#,
     )
     .unwrap();
     buf.push('\n');
@@ -237,7 +231,7 @@ fn render_exit_point(buf: &mut String, node: &StateNodeLayout, border: &str) {
     let d = r * 0.5;
     write!(
         buf,
-        r#"<line x1="{x1:.1}" y1="{y1:.1}" x2="{x2:.1}" y2="{y2:.1}" stroke="{border}" stroke-width="1.5"/>"#,
+        r#"<line style="stroke:{border};stroke-width:1.5;" x1="{x1:.1}" x2="{x2:.1}" y1="{y1:.1}" y2="{y2:.1}"/>"#,
         x1 = cx - d,
         y1 = cy - d,
         x2 = cx + d,
@@ -247,7 +241,7 @@ fn render_exit_point(buf: &mut String, node: &StateNodeLayout, border: &str) {
     buf.push('\n');
     write!(
         buf,
-        r#"<line x1="{x1:.1}" y1="{y1:.1}" x2="{x2:.1}" y2="{y2:.1}" stroke="{border}" stroke-width="1.5"/>"#,
+        r#"<line style="stroke:{border};stroke-width:1.5;" x1="{x1:.1}" x2="{x2:.1}" y1="{y1:.1}" y2="{y2:.1}"/>"#,
         x1 = cx + d,
         y1 = cy - d,
         x2 = cx - d,
@@ -268,7 +262,7 @@ fn render_simple(
     // Background rounded rectangle
     write!(
         buf,
-        r#"<rect x="{x:.1}" y="{y:.1}" width="{w:.1}" height="{h:.1}" rx="10" ry="10" fill="{bg}" stroke="{border}" stroke-width="1.5"/>"#,
+        r#"<rect fill="{bg}" height="{h:.1}" rx="10" ry="10" style="stroke:{border};stroke-width:1.5;" width="{w:.1}" x="{x:.1}" y="{y:.1}"/>"#,
         x = node.x,
         y = node.y,
         w = node.width,
@@ -318,7 +312,7 @@ fn render_simple(
         let sep_y = name_y + 6.0;
         write!(
             buf,
-            r#"<line x1="{x1:.1}" y1="{sy:.1}" x2="{x2:.1}" y2="{sy:.1}" stroke="{border}"/>"#,
+            r#"<line style="stroke:{border};" x1="{x1:.1}" x2="{x2:.1}" y1="{sy:.1}" y2="{sy:.1}"/>"#,
             x1 = node.x,
             sy = sep_y,
             x2 = node.x + node.width,
@@ -351,7 +345,7 @@ fn render_composite(
     // Outer rounded rectangle
     write!(
         buf,
-        r#"<rect x="{x:.1}" y="{y:.1}" width="{w:.1}" height="{h:.1}" rx="10" ry="10" fill="{bg}" stroke="{border}" stroke-width="1.5"/>"#,
+        r#"<rect fill="{bg}" height="{h:.1}" rx="10" ry="10" style="stroke:{border};stroke-width:1.5;" width="{w:.1}" x="{x:.1}" y="{y:.1}"/>"#,
         x = node.x,
         y = node.y,
         w = node.width,
@@ -375,7 +369,7 @@ fn render_composite(
     let sep_y = name_y + 6.0;
     write!(
         buf,
-        r#"<line x1="{x1:.1}" y1="{sy:.1}" x2="{x2:.1}" y2="{sy:.1}" stroke="{border}"/>"#,
+        r#"<line style="stroke:{border};" x1="{x1:.1}" x2="{x2:.1}" y1="{sy:.1}" y2="{sy:.1}"/>"#,
         x1 = node.x,
         sy = sep_y,
         x2 = node.x + node.width,
@@ -392,7 +386,7 @@ fn render_composite(
     for &sep_y in &node.region_separators {
         write!(
             buf,
-            r#"<line x1="{x1:.1}" y1="{sy:.1}" x2="{x2:.1}" y2="{sy:.1}" stroke="{border}" stroke-dasharray="6,4"/>"#,
+            r#"<line style="stroke:{border};stroke-dasharray:6,4;" x1="{x1:.1}" x2="{x2:.1}" y1="{sy:.1}" y2="{sy:.1}"/>"#,
             x1 = node.x + 4.0,
             sy = sep_y,
             x2 = node.x + node.width - 4.0,
@@ -414,7 +408,7 @@ fn render_transition(buf: &mut String, transition: &TransitionLayout) {
         let (x2, y2) = transition.points[1];
         write!(
             buf,
-            r#"<line x1="{x1:.1}" y1="{y1:.1}" x2="{x2:.1}" y2="{y2:.1}" stroke="{EDGE_COLOR}" stroke-width="1" marker-end="url(#state-arrow)"/>"#,
+            r#"<line marker-end="url(#state-arrow)" style="stroke:{EDGE_COLOR};stroke-width:1;" x1="{x1:.1}" x2="{x2:.1}" y1="{y1:.1}" y2="{y2:.1}"/>"#,
         )
         .unwrap();
         buf.push('\n');
@@ -427,7 +421,7 @@ fn render_transition(buf: &mut String, transition: &TransitionLayout) {
             .join(" ");
         write!(
             buf,
-            r#"<polyline points="{points_str}" fill="none" stroke="{EDGE_COLOR}" stroke-width="1" marker-end="url(#state-arrow)"/>"#,
+            r#"<polyline fill="none" marker-end="url(#state-arrow)" points="{points_str}" style="stroke:{EDGE_COLOR};stroke-width:1;"/>"#,
         )
         .unwrap();
         buf.push('\n');
@@ -459,7 +453,7 @@ fn render_note(buf: &mut String, note: &StateNoteLayout) {
     // Note body polygon (top-left, pre-fold top-right, fold corner, bottom-right, bottom-left)
     write!(
         buf,
-        r#"<polygon points="{x:.1},{y:.1} {xf:.1},{y:.1} {xw:.1},{yf:.1} {xw:.1},{yh:.1} {x:.1},{yh:.1}" fill="{NOTE_BG}" stroke="{NOTE_BORDER}"/>"#,
+        r#"<polygon fill="{NOTE_BG}" points="{x:.1},{y:.1} {xf:.1},{y:.1} {xw:.1},{yf:.1} {xw:.1},{yh:.1} {x:.1},{yh:.1}" style="stroke:{NOTE_BORDER};"/>"#,
         xf = x + w - fold,
         xw = x + w,
         yf = y + fold,
@@ -471,7 +465,7 @@ fn render_note(buf: &mut String, note: &StateNoteLayout) {
     // Fold lines (vertical + horizontal)
     write!(
         buf,
-        r#"<line x1="{xf:.1}" y1="{y:.1}" x2="{xf:.1}" y2="{yf:.1}" stroke="{NOTE_BORDER}"/>"#,
+        r#"<line style="stroke:{NOTE_BORDER};" x1="{xf:.1}" x2="{xf:.1}" y1="{y:.1}" y2="{yf:.1}"/>"#,
         xf = x + w - fold,
         yf = y + fold,
     )
@@ -479,7 +473,7 @@ fn render_note(buf: &mut String, note: &StateNoteLayout) {
     buf.push('\n');
     write!(
         buf,
-        r#"<line x1="{xf:.1}" y1="{yf:.1}" x2="{xw:.1}" y2="{yf:.1}" stroke="{NOTE_BORDER}"/>"#,
+        r#"<line style="stroke:{NOTE_BORDER};" x1="{xf:.1}" x2="{xw:.1}" y1="{yf:.1}" y2="{yf:.1}"/>"#,
         xf = x + w - fold,
         yf = y + fold,
         xw = x + w,
@@ -641,7 +635,7 @@ mod tests {
         assert!(svg.contains(r#"r="11""#), "final outer ring must have r=11");
         assert!(svg.contains(r#"r="7""#), "final inner circle must have r=7");
         assert!(
-            svg.contains(r#"stroke-width="2""#),
+            svg.contains("stroke-width:2;"),
             "outer ring must have stroke-width=2"
         );
     }
@@ -665,8 +659,8 @@ mod tests {
             "state must have rounded corners"
         );
         assert!(
-            svg.contains(&format!(r#"fill="{STATE_BG}""#)),
-            "state must use STATE_BG fill"
+            svg.contains(r##"fill="#FEFECE""##),
+            "state must use rose theme state_bg fill"
         );
         assert!(svg.contains("Idle"), "state name must appear in SVG");
         assert!(
@@ -783,11 +777,11 @@ mod tests {
             "transition must reference state-arrow marker"
         );
         assert!(
-            svg.contains(&format!(r#"stroke="{EDGE_COLOR}""#)),
-            "transition must use EDGE_COLOR"
+            svg.contains("stroke:#181818"),
+            "transition must use EDGE_COLOR in style"
         );
         assert!(
-            svg.contains("<line x1="),
+            svg.contains("<line "),
             "2-point transition must use <line>"
         );
     }
@@ -945,8 +939,8 @@ mod tests {
             svg.contains("viewBox=\"0 0 400 300\""),
             "viewBox must match layout dimensions"
         );
-        assert!(svg.contains("width=\"400\""), "width must match layout");
-        assert!(svg.contains("height=\"300\""), "height must match layout");
+        assert!(svg.contains("width=\"400px\""), "width must match layout");
+        assert!(svg.contains("height=\"300px\""), "height must match layout");
 
         // Defs
         assert!(svg.contains("<defs>"), "must have <defs>");

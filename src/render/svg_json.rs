@@ -3,6 +3,7 @@ use std::fmt::Write;
 use crate::layout::json_diagram::{JsonLayout, JsonRowLayout};
 use crate::model::json_diagram::JsonDiagram;
 use crate::render::svg::xml_escape;
+use crate::render::svg::write_svg_root;
 use crate::style::SkinParams;
 use crate::Result;
 
@@ -10,14 +11,12 @@ use crate::Result;
 // Style constants (PlantUML JSON theme)
 // ---------------------------------------------------------------------------
 
-const FONT_SIZE: f64 = 12.0;
-const FONT_FAMILY: &str = "monospace";
-const CELL_FILL: &str = "#FEFECE";
+const CELL_FILL: &str = "#F1F1F1";
 const CELL_FILL_ALT: &str = "#F5F5DC";
 const HEADER_FILL: &str = "#E2E2F0";
-const BORDER_COLOR: &str = "#A80036";
+const BORDER_COLOR: &str = "#181818";
 const TEXT_COLOR: &str = "#000000";
-const CONNECTOR_COLOR: &str = "#A80036";
+const CONNECTOR_COLOR: &str = "#181818";
 const INDENT_PX: f64 = 20.0;
 const PADDING_H: f64 = 10.0;
 const TEXT_BASELINE_OFFSET: f64 = 16.0;
@@ -36,14 +35,8 @@ pub fn render_json(_jd: &JsonDiagram, layout: &JsonLayout, skin: &SkinParams) ->
     let header_fill = skin.background_color("jsonHeader", HEADER_FILL);
 
     // SVG header
-    write!(
-        buf,
-        r#"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {w:.0} {h:.0}" width="{w:.0}" height="{h:.0}" font-family="{FONT_FAMILY}" font-size="{FONT_SIZE}">"#,
-        w = layout.width,
-        h = layout.height,
-    )
-    .unwrap();
-    buf.push('\n');
+    write_svg_root(&mut buf, layout.width, layout.height);
+    buf.push_str("<defs/><g>");
 
     // Render rows
     for (i, row) in layout.rows.iter().enumerate() {
@@ -53,7 +46,7 @@ pub fn render_json(_jd: &JsonDiagram, layout: &JsonLayout, skin: &SkinParams) ->
     // Render connector lines (from parent headers to child rows)
     render_connectors(&mut buf, layout);
 
-    buf.push_str("</svg>\n");
+    buf.push_str("</g></svg>");
     Ok(buf)
 }
 
@@ -86,7 +79,7 @@ fn render_row(
     // Background rectangle
     write!(
         buf,
-        r#"<rect x="{x:.1}" y="{y:.1}" width="{w:.1}" height="{h:.1}" fill="{fill}" stroke="{border_color}" stroke-width="0.5"/>"#,
+        r#"<rect fill="{fill}" height="{h:.1}" style="stroke:{border_color};stroke-width:0.5;" width="{w:.1}" x="{x:.1}" y="{y:.1}"/>"#,
     )
     .unwrap();
     buf.push('\n');
@@ -153,7 +146,7 @@ fn render_connectors(buf: &mut String, layout: &JsonLayout) {
                 let y2 = cy + 4.0;
                 write!(
                     buf,
-                    r#"<line x1="{cx:.1}" y1="{cy:.1}" x2="{cx:.1}" y2="{y2:.1}" stroke="{CONNECTOR_COLOR}" stroke-width="1"/>"#,
+                    r#"<line style="stroke:{CONNECTOR_COLOR};stroke-width:1;" x1="{cx:.1}" x2="{cx:.1}" y1="{cy:.1}" y2="{y2:.1}"/>"#,
                 )
                 .unwrap();
                 buf.push('\n');
@@ -227,8 +220,8 @@ mod tests {
         let jd = empty_diagram();
         let layout = make_layout(vec![], 320.0, 240.0);
         let svg = render_json(&jd, &layout, &SkinParams::default()).expect("render failed");
-        assert!(svg.contains("width=\"320\""));
-        assert!(svg.contains("height=\"240\""));
+        assert!(svg.contains("width=\"320px\""));
+        assert!(svg.contains("height=\"240px\""));
         assert!(svg.contains("viewBox=\"0 0 320 240\""));
     }
 
@@ -368,7 +361,7 @@ mod tests {
             "connector line must be present for container headers"
         );
         assert!(
-            svg.contains(&format!("stroke=\"{}\"", CONNECTOR_COLOR)),
+            svg.contains(&format!("stroke:{}", CONNECTOR_COLOR)),
             "connector must use CONNECTOR_COLOR"
         );
     }
@@ -414,25 +407,28 @@ mod tests {
         assert!(svg.contains("]"), "must show closing bracket");
     }
 
-    // 13. Font family is monospace
+    // 13. SVG root uses new format (no font-family/font-size on root)
     #[test]
     fn test_font_family() {
         let jd = empty_diagram();
         let layout = make_layout(vec![], 100.0, 50.0);
         let svg = render_json(&jd, &layout, &SkinParams::default()).expect("render failed");
         assert!(
-            svg.contains("font-family=\"monospace\""),
-            "must use monospace font"
+            svg.contains("contentStyleType=\"text/css\""),
+            "must have contentStyleType attribute"
         );
     }
 
-    // 14. Font size is 12
+    // 14. SVG root uses new format (no font-size on root, uses style attribute)
     #[test]
     fn test_font_size() {
         let jd = empty_diagram();
         let layout = make_layout(vec![], 100.0, 50.0);
         let svg = render_json(&jd, &layout, &SkinParams::default()).expect("render failed");
-        assert!(svg.contains("font-size=\"12\""), "must use 12px font size");
+        assert!(
+            svg.contains("zoomAndPan=\"magnify\""),
+            "must have zoomAndPan attribute"
+        );
     }
 
     // 15. Border color on rects
@@ -442,7 +438,7 @@ mod tests {
         let layout = make_layout(vec![make_row(0, None, "{", 10.0, 200.0, true)], 220.0, 50.0);
         let svg = render_json(&jd, &layout, &SkinParams::default()).expect("render failed");
         assert!(
-            svg.contains(&format!("stroke=\"{}\"", BORDER_COLOR)),
+            svg.contains(&format!("stroke:{}", BORDER_COLOR)),
             "rects must have BORDER_COLOR stroke"
         );
     }

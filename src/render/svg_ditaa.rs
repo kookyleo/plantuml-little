@@ -5,12 +5,12 @@ use crate::model::ditaa::DitaaDiagram;
 use crate::render::svg_richtext::{count_creole_lines, render_creole_text};
 use crate::style::SkinParams;
 use crate::Result;
+use super::svg::write_svg_root;
 
 const FONT_SIZE: f64 = 12.0;
-const FONT_FAMILY: &str = "monospace";
 const LINE_HEIGHT: f64 = 16.0;
 const BACKGROUND: &str = "#FFFFFF";
-const BOX_FILL: &str = "#FEFECE";
+const BOX_FILL: &str = "#F1F1F1";
 const BOX_BORDER: &str = "#333333";
 const TEXT_FILL: &str = "#000000";
 const SHADOW_FILL: &str = "#000000";
@@ -27,14 +27,8 @@ pub fn render_ditaa(
     let font = skin.font_color("ditaa", TEXT_FILL);
     let background = skin.background_color("ditaabg", BACKGROUND);
 
-    write!(
-        buf,
-        r#"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {w:.0} {h:.0}" width="{w:.0}" height="{h:.0}" font-family="{FONT_FAMILY}" font-size="{FONT_SIZE}">"#,
-        w = layout.width,
-        h = layout.height,
-    )
-    .unwrap();
-    buf.push('\n');
+    write_svg_root(&mut buf, layout.width, layout.height);
+    buf.push_str("<defs/><g>");
     write!(
         buf,
         r#"<defs><marker id="ditaa-arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto-start-reverse"><path d="M 0 0 L 8 4 L 0 8 z" fill="{border}"/></marker></defs>"#
@@ -43,7 +37,7 @@ pub fn render_ditaa(
     buf.push('\n');
     write!(
         buf,
-        r#"<rect x="0" y="0" width="{w:.0}" height="{h:.0}" fill="{background}"/>"#,
+        r#"<rect fill="{background}" height="{h:.0}" width="{w:.0}" x="0" y="0"/>"#,
         w = layout.width,
         h = layout.height,
     )
@@ -60,7 +54,7 @@ pub fn render_ditaa(
         render_text(&mut buf, text, font);
     }
 
-    buf.push_str("</svg>\n");
+    buf.push_str("</g></svg>");
     Ok(buf)
 }
 
@@ -78,7 +72,7 @@ fn render_box(
     if !diagram.options.no_shadows {
         write!(
             buf,
-            r#"<rect x="{x:.1}" y="{y:.1}" width="{w:.1}" height="{h:.1}" rx="{r:.1}" ry="{r:.1}" fill="{SHADOW_FILL}" opacity="{SHADOW_OPACITY:.2}" stroke="none"/>"#,
+            r#"<rect fill="{SHADOW_FILL}" height="{h:.1}" opacity="{SHADOW_OPACITY:.2}" rx="{r:.1}" ry="{r:.1}" stroke="none" width="{w:.1}" x="{x:.1}" y="{y:.1}"/>"#,
             x = ditaa_box.x + shadow_offset,
             y = ditaa_box.y + shadow_offset,
             w = ditaa_box.width,
@@ -91,7 +85,7 @@ fn render_box(
 
     write!(
         buf,
-        r#"<rect x="{x:.1}" y="{y:.1}" width="{w:.1}" height="{h:.1}" rx="{r:.1}" ry="{r:.1}" fill="{fill}" stroke="{border}" stroke-width="1.5"/>"#,
+        r#"<rect fill="{fill}" height="{h:.1}" rx="{r:.1}" ry="{r:.1}" style="stroke:{border};stroke-width:1.5;" width="{w:.1}" x="{x:.1}" y="{y:.1}"/>"#,
         x = ditaa_box.x,
         y = ditaa_box.y,
         w = ditaa_box.width,
@@ -131,21 +125,27 @@ fn render_line(buf: &mut String, line: &DitaaLine, border: &str) {
         write!(points, "{x:.1},{y:.1}").unwrap();
     }
 
+    let dash = if line.dashed {
+        "stroke-dasharray:6,4;"
+    } else {
+        ""
+    };
+    let marker_start = if line.arrow_start {
+        r#" marker-start="url(#ditaa-arrow)""#
+    } else {
+        ""
+    };
+    let marker_end = if line.arrow_end {
+        r#" marker-end="url(#ditaa-arrow)""#
+    } else {
+        ""
+    };
     write!(
         buf,
-        r#"<polyline points="{points}" fill="none" stroke="{border}" stroke-width="1.5""#
+        r#"<polyline fill="none"{marker_start}{marker_end} points="{points}" style="stroke:{border};stroke-width:1.5;{dash}"/>"#
     )
     .unwrap();
-    if line.dashed {
-        buf.push_str(r#" stroke-dasharray="6,4""#);
-    }
-    if line.arrow_start {
-        buf.push_str(r#" marker-start="url(#ditaa-arrow)""#);
-    }
-    if line.arrow_end {
-        buf.push_str(r#" marker-end="url(#ditaa-arrow)""#);
-    }
-    buf.push_str("/>\n");
+    buf.push('\n');
 }
 
 fn render_text(buf: &mut String, text: &DitaaText, font: &str) {

@@ -5,20 +5,20 @@ use crate::model::wbs::WbsDiagram;
 use crate::render::svg_richtext::{count_creole_lines, render_creole_text};
 use crate::style::SkinParams;
 use crate::Result;
+use super::svg::write_svg_root;
 
 // ── Style constants ─────────────────────────────────────────────────
 
-const FONT_SIZE: f64 = 12.0;
-const FONT_FAMILY: &str = "monospace";
+const FONT_SIZE: f64 = 14.0;
 const LINE_HEIGHT: f64 = 16.0;
-const NODE_BG: &str = "#FEFECE";
+const NODE_BG: &str = "#F1F1F1";
 const ROOT_BG: &str = "#FFD700";
-const NODE_BORDER: &str = "#A80036";
-const EDGE_COLOR: &str = "#A80036";
+const NODE_BORDER: &str = "#181818";
+const EDGE_COLOR: &str = "#181818";
 const TEXT_FILL: &str = "#000000";
 const RX: f64 = 4.0;
-const NOTE_BG: &str = "#FBFB77";
-const NOTE_BORDER: &str = "#A80036";
+const NOTE_BG: &str = "#FEFFDD";
+const NOTE_BORDER: &str = "#181818";
 const NOTE_FOLD: f64 = 8.0;
 
 // ── XML escaping (test helper) ──────────────────────────────────────
@@ -45,14 +45,8 @@ pub fn render_wbs(_wd: &WbsDiagram, layout: &WbsLayout, skin: &SkinParams) -> Re
     let mut buf = String::with_capacity(4096);
 
     // SVG header
-    write!(
-        buf,
-        r#"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {w:.0} {h:.0}" width="{w:.0}" height="{h:.0}" font-family="{FONT_FAMILY}" font-size="{FONT_SIZE}">"#,
-        w = layout.width,
-        h = layout.height,
-    )
-    .unwrap();
-    buf.push('\n');
+    write_svg_root(&mut buf, layout.width, layout.height);
+    buf.push_str("<defs/><g>");
 
     let wbs_bg = skin.background_color("wbs", NODE_BG);
     let wbs_border = skin.border_color("wbs", NODE_BORDER);
@@ -78,7 +72,7 @@ pub fn render_wbs(_wd: &WbsDiagram, layout: &WbsLayout, skin: &SkinParams) -> Re
         render_note(&mut buf, note, wbs_font);
     }
 
-    buf.push_str("</svg>\n");
+    buf.push_str("</g></svg>");
     Ok(buf)
 }
 
@@ -90,7 +84,7 @@ fn render_node(buf: &mut String, node: &WbsNodeLayout, bg: &str, border: &str, f
     // Rectangle
     write!(
         buf,
-        r#"<rect x="{x:.1}" y="{y:.1}" width="{w:.1}" height="{h:.1}" rx="{RX}" ry="{RX}" fill="{fill}" stroke="{border}" stroke-width="1"/>"#,
+        r#"<rect fill="{fill}" height="{h:.1}" rx="{RX}" ry="{RX}" style="stroke:{border};stroke-width:1;" width="{w:.1}" x="{x:.1}" y="{y:.1}"/>"#,
         x = node.x,
         y = node.y,
         w = node.width,
@@ -125,7 +119,7 @@ fn render_note(buf: &mut String, note: &WbsNoteLayout, font_color: &str) {
     if let Some((x1, y1, x2, y2)) = note.connector {
         write!(
             buf,
-            r#"<line x1="{x1:.1}" y1="{y1:.1}" x2="{x2:.1}" y2="{y2:.1}" stroke="{NOTE_BORDER}" stroke-width="1" stroke-dasharray="4,4"/>"#,
+            r#"<line style="stroke:{NOTE_BORDER};stroke-width:1;stroke-dasharray:4,4;" x1="{x1:.1}" x2="{x2:.1}" y1="{y1:.1}" y2="{y2:.1}"/>"#,
         )
         .unwrap();
         buf.push('\n');
@@ -135,7 +129,7 @@ fn render_note(buf: &mut String, note: &WbsNoteLayout, font_color: &str) {
     let fold_y = note.y + NOTE_FOLD;
     write!(
         buf,
-        r#"<polygon points="{x:.1},{y:.1} {fx:.1},{y:.1} {x2:.1},{fy:.1} {x2:.1},{y2:.1} {x:.1},{y2:.1}" fill="{NOTE_BG}" stroke="{NOTE_BORDER}" stroke-width="1"/>"#,
+        r#"<polygon fill="{NOTE_BG}" points="{x:.1},{y:.1} {fx:.1},{y:.1} {x2:.1},{fy:.1} {x2:.1},{y2:.1} {x:.1},{y2:.1}" style="stroke:{NOTE_BORDER};stroke-width:1;"/>"#,
         x = note.x,
         y = note.y,
         fx = fold_x,
@@ -148,7 +142,7 @@ fn render_note(buf: &mut String, note: &WbsNoteLayout, font_color: &str) {
 
     write!(
         buf,
-        r#"<path d="M {fx:.1},{y:.1} L {fx:.1},{fy:.1} L {x2:.1},{fy:.1}" fill="none" stroke="{NOTE_BORDER}" stroke-width="1"/>"#,
+        r#"<path d="M {fx:.1},{y:.1} L {fx:.1},{fy:.1} L {x2:.1},{fy:.1}" fill="none" style="stroke:{NOTE_BORDER};stroke-width:1;"/>"#,
         fx = fold_x,
         fy = fold_y,
         x2 = note.x + note.width,
@@ -178,7 +172,7 @@ fn render_edge(buf: &mut String, edge: &WbsEdgeLayout, color: &str) {
 
     write!(
         buf,
-        r#"<path d="M {fx:.1} {fy:.1} L {fx:.1} {my:.1} L {tx:.1} {my:.1} L {tx:.1} {ty:.1}" fill="none" stroke="{color}" stroke-width="1"/>"#,
+        r#"<path d="M {fx:.1} {fy:.1} L {fx:.1} {my:.1} L {tx:.1} {my:.1} L {tx:.1} {ty:.1}" fill="none" style="stroke:{color};stroke-width:1;"/>"#,
         fx = edge.from_x,
         fy = edge.from_y,
         my = mid_y,
@@ -193,7 +187,7 @@ fn render_edge(buf: &mut String, edge: &WbsEdgeLayout, color: &str) {
 fn render_extra_link(buf: &mut String, link: &WbsEdgeLayout, color: &str) {
     write!(
         buf,
-        r#"<line x1="{x1:.1}" y1="{y1:.1}" x2="{x2:.1}" y2="{y2:.1}" stroke="{color}" stroke-width="1" stroke-dasharray="4,4"/>"#,
+        r#"<line style="stroke:{color};stroke-width:1;stroke-dasharray:4,4;" x1="{x1:.1}" x2="{x2:.1}" y1="{y1:.1}" y2="{y2:.1}"/>"#,
         x1 = link.from_x,
         y1 = link.from_y,
         x2 = link.to_x,
@@ -266,8 +260,8 @@ mod tests {
         layout.width = 400.0;
         layout.height = 300.0;
         let svg = render_wbs(&wd, &layout, &SkinParams::default()).unwrap();
-        assert!(svg.contains("width=\"400\""), "width must match layout");
-        assert!(svg.contains("height=\"300\""), "height must match layout");
+        assert!(svg.contains("width=\"400px\""), "width must match layout");
+        assert!(svg.contains("height=\"300px\""), "height must match layout");
         assert!(
             svg.contains("viewBox=\"0 0 400 300\""),
             "viewBox must match"
@@ -310,7 +304,7 @@ mod tests {
         layout.nodes.push(make_node("N", 1, 10.0, 10.0, 40.0, 24.0));
         let svg = render_wbs(&wd, &layout, &SkinParams::default()).unwrap();
         assert!(
-            svg.contains(&format!(r#"stroke="{NODE_BORDER}""#)),
+            svg.contains(&format!("stroke:{NODE_BORDER}")),
             "node must have border stroke"
         );
         assert!(
@@ -369,7 +363,7 @@ mod tests {
         let svg = render_wbs(&wd, &layout, &SkinParams::default()).unwrap();
         assert!(svg.contains("<path"), "edge must use <path>");
         assert!(
-            svg.contains(&format!(r#"stroke="{EDGE_COLOR}""#)),
+            svg.contains(&format!("stroke:{EDGE_COLOR}")),
             "edge must use edge color"
         );
         assert!(
@@ -450,12 +444,12 @@ mod tests {
         let layout = empty_layout();
         let svg = render_wbs(&wd, &layout, &SkinParams::default()).unwrap();
         assert!(
-            svg.contains(&format!(r#"font-family="{FONT_FAMILY}""#)),
-            "must specify monospace font"
+            svg.contains("contentStyleType=\"text/css\""),
+            "must have contentStyleType attribute"
         );
         assert!(
-            svg.contains(&format!(r#"font-size="{FONT_SIZE}""#)),
-            "must specify font size"
+            svg.contains("zoomAndPan=\"magnify\""),
+            "must have zoomAndPan attribute"
         );
     }
 
@@ -512,7 +506,7 @@ mod tests {
         });
         let svg = render_wbs(&wd, &layout, &SkinParams::default()).unwrap();
         assert!(svg.contains("<polygon"), "note body must be rendered");
-        assert!(svg.contains("stroke-dasharray=\"4,4\""));
+        assert!(svg.contains("stroke-dasharray:4,4;"));
         assert!(
             svg.contains("font-weight=\"bold\""),
             "creole note text should be rendered"
