@@ -18,7 +18,7 @@ use super::svg_sequence;
 
 // ── Style constants ──────────────────────────────────────────────────
 
-const FONT_SIZE: f64 = 12.0;
+const FONT_SIZE: f64 = 14.0;
 const LINE_HEIGHT: f64 = 16.0;
 const PADDING: f64 = 10.0;
 const HEADER_HEIGHT: f64 = 28.0;
@@ -482,8 +482,7 @@ fn render_class(
     write_svg_root(&mut buf, svg_w, svg_h, "CLASS");
 
     let arrow_color = skin.arrow_color(LINK_COLOR);
-    write_defs(&mut buf, arrow_color);
-    buf.push_str("<g>");
+    buf.push_str("<defs/><g>");
 
     let node_map: HashMap<&str, &NodeLayout> =
         layout.nodes.iter().map(|n| (n.id.as_str(), n)).collect();
@@ -536,67 +535,16 @@ fn render_class(
     Ok(buf)
 }
 
-fn write_defs(buf: &mut String, link_color: &str) {
-    buf.push_str("<defs>\n");
-    let lc = link_color;
-    write!(
-        buf,
-        concat!(
-            r##"<marker id="arrow-open" viewBox="0 0 10 10" refX="10" refY="5""##,
-            r##" markerWidth="8" markerHeight="8" orient="auto-start-reverse">"##,
-            r##"<path d="M 0 0 L 10 5 L 0 10" fill="none" stroke="{}" stroke-width="1.2"/>"##,
-            r##"</marker>"##,
-        ),
-        lc
-    )
-    .unwrap();
-    buf.push('\n');
-    write!(
-        buf,
-        concat!(
-            r##"<marker id="triangle" viewBox="0 0 10 10" refX="10" refY="5""##,
-            r##" markerWidth="10" markerHeight="10" orient="auto-start-reverse">"##,
-            r##"<path d="M 0 0 L 10 5 L 0 10 Z" fill="#F1F1F1" stroke="{}" stroke-width="1"/>"##,
-            r##"</marker>"##,
-        ),
-        lc
-    )
-    .unwrap();
-    buf.push('\n');
-    write!(
-        buf,
-        concat!(
-            r##"<marker id="diamond" viewBox="0 0 14 10" refX="14" refY="5""##,
-            r##" markerWidth="12" markerHeight="10" orient="auto-start-reverse">"##,
-            r##"<path d="M 0 5 L 7 0 L 14 5 L 7 10 Z" fill="{0}" stroke="{0}" stroke-width="1"/>"##,
-            r##"</marker>"##,
-        ),
-        lc
-    )
-    .unwrap();
-    buf.push('\n');
-    write!(buf, concat!(
-        r##"<marker id="diamond-hollow" viewBox="0 0 14 10" refX="14" refY="5""##,
-        r##" markerWidth="12" markerHeight="10" orient="auto-start-reverse">"##,
-        r##"<path d="M 0 5 L 7 0 L 14 5 L 7 10 Z" fill="#FFFFFF" stroke="{}" stroke-width="1"/>"##,
-        r##"</marker>"##,
-    ), lc).unwrap();
-    buf.push('\n');
-    write!(
-        buf,
-        concat!(
-            r##"<marker id="plus" viewBox="0 0 12 12" refX="12" refY="6""##,
-            r##" markerWidth="10" markerHeight="10" orient="auto-start-reverse">"##,
-            r##"<circle cx="6" cy="6" r="5" fill="#FFFFFF" stroke="{0}" stroke-width="1"/>"##,
-            r##"<line x1="6" y1="2" x2="6" y2="10" stroke="{0}" stroke-width="1"/>"##,
-            r##"<line x1="2" y1="6" x2="10" y2="6" stroke="{0}" stroke-width="1"/>"##,
-            r##"</marker>"##,
-        ),
-        lc
-    )
-    .unwrap();
-    buf.push('\n');
-    buf.push_str("</defs>\n");
+
+fn stereotype_circle_color(kind: &EntityKind) -> &'static str {
+    match kind {
+        EntityKind::Class => "#ADD1B2",
+        EntityKind::Interface => "#A9DCDF",
+        EntityKind::Enum => "#EB937F",
+        EntityKind::Abstract => "#A9DCDF",
+        EntityKind::Annotation => "#A9DCDF",
+        EntityKind::Object => "#ADD1B2",
+    }
 }
 
 fn draw_entity_box(buf: &mut String, entity: &Entity, nl: &NodeLayout, skin: &SkinParams) {
@@ -618,10 +566,12 @@ fn draw_entity_box(buf: &mut String, entity: &Entity, nl: &NodeLayout, skin: &Sk
     let stroke = skin.border_color(element_type, default_border);
     let font_color = skin.font_color(element_type, LABEL_COLOR);
 
-    let rx = skin.round_corner().unwrap_or(4.0);
+    let rx = skin.round_corner().unwrap_or(2.5);
 
+    // Rect with rx="2.5" ry="2.5" to match Java PlantUML
     write!(buf,
-        r#"<rect fill="{fill}" height="{h:.1}" rx="{rx:.0}" style="stroke:{stroke};stroke-width:0.5;" width="{w:.1}" x="{x:.1}" y="{y:.1}"/>"#,
+        r#"<rect fill="{fill}" height="{}" rx="{}" ry="{}" style="stroke:{stroke};stroke-width:0.5;" width="{}" x="{}" y="{}"/>"#,
+        fmt_coord(h), fmt_coord(rx), fmt_coord(rx), fmt_coord(w), fmt_coord(x), fmt_coord(y),
     ).unwrap();
     buf.push('\n');
 
@@ -650,17 +600,29 @@ fn draw_entity_box(buf: &mut String, entity: &Entity, nl: &NodeLayout, skin: &Sk
         let name_y = y + HEADER_HEIGHT * 0.82;
         let cx = x + w / 2.0;
         write!(buf,
-            r#"<text fill="{font_color}" font-family="sans-serif" font-size="{fs:.0}" font-style="italic" text-anchor="middle" x="{cx:.1}" y="{kind_y:.1}">{kind_text}</text>"#,
-            fs = class_font_size - 2.0,
+            r#"<text fill="{font_color}" font-family="sans-serif" font-size="{fs:.0}" font-style="italic" text-anchor="middle" x="{}" y="{}">{kind_text}</text>"#,
+            fmt_coord(cx), fmt_coord(kind_y), fs = class_font_size - 2.0,
         ).unwrap();
         buf.push('\n');
         write!(buf,
-            r#"<text fill="{font_color}" font-family="sans-serif" font-size="{class_font_size:.0}" font-weight="bold" text-anchor="middle" x="{cx:.1}" y="{name_y:.1}">{name_escaped}</text>"#,
+            r#"<text fill="{font_color}" font-family="sans-serif" font-size="{class_font_size:.0}" font-weight="bold" text-anchor="middle" x="{}" y="{}">{name_escaped}</text>"#,
+            fmt_coord(cx), fmt_coord(name_y),
         ).unwrap();
         buf.push('\n');
     } else {
+        // Stereotype circle icon (ellipse)
+        let circle_color = stereotype_circle_color(&entity.kind);
+        let ecx = x + 15.0;
+        let ecy = y + 16.0;
+        write!(buf,
+            r#"<ellipse cx="{}" cy="{}" fill="{circle_color}" rx="11" ry="11" style="stroke:#181818;stroke-width:1;"/>"#,
+            fmt_coord(ecx), fmt_coord(ecy),
+        ).unwrap();
+        buf.push('\n');
+
+        // Class name text positioned to the right of the circle
         let name_y = y + HEADER_HEIGHT * 0.68;
-        let cx = x + w / 2.0;
+        let name_x = x + 29.0;
         let font_style_attr = if entity.kind == EntityKind::Abstract {
             r#" font-style="italic""#
         } else {
@@ -672,19 +634,25 @@ fn draw_entity_box(buf: &mut String, entity: &Entity, nl: &NodeLayout, skin: &Sk
             ""
         };
         write!(buf,
-            r#"<text fill="{font_color}" font-family="sans-serif" font-size="{class_font_size:.0}"{font_style_attr} font-weight="bold" text-anchor="middle"{text_deco_attr} x="{cx:.1}" y="{name_y:.1}">{name_escaped}</text>"#,
+            r#"<text fill="{font_color}" font-family="sans-serif" font-size="{class_font_size:.0}"{font_style_attr}{text_deco_attr} x="{}" y="{}">{name_escaped}</text>"#,
+            fmt_coord(name_x), fmt_coord(name_y),
         ).unwrap();
         buf.push('\n');
     }
 
+    // First separator line (fields)
     let sep_y = y + HEADER_HEIGHT;
+    let x1_val = fmt_coord(x + 1.0);
+    let x2_val = fmt_coord(x + w - 1.0);
+    let sep_y_str = fmt_coord(sep_y);
     write!(buf,
-        r#"<line style="stroke:{stroke};stroke-width:0.5;" x1="{x:.1}" x2="{x2:.1}" y1="{sep_y:.1}" y2="{sep_y:.1}"/>"#,
-        x2 = x + w,
+        r#"<line style="stroke:{stroke};stroke-width:0.5;" x1="{x1_val}" x2="{x2_val}" y1="{sep_y_str}" y2="{sep_y_str}"/>"#,
     ).unwrap();
     buf.push('\n');
 
+    // Members section
     let members_x = x + PADDING;
+    let mut members_end_y = sep_y;
     for (i, member) in entity.members.iter().enumerate() {
         let my = sep_y + LINE_HEIGHT * (i as f64 + 0.75);
         let text = format_member(member);
@@ -700,10 +668,24 @@ fn draw_entity_box(buf: &mut String, entity: &Entity, nl: &NodeLayout, skin: &Sk
             ""
         };
         write!(buf,
-            r#"<text fill="{font_color}" font-family="sans-serif" font-size="{attr_font_size:.0}"{font_style_attr}{text_deco_attr} x="{members_x:.1}" y="{my:.1}">{text_escaped}</text>"#,
+            r#"<text fill="{font_color}" font-family="sans-serif" font-size="{attr_font_size:.0}"{font_style_attr}{text_deco_attr} x="{}" y="{}">{text_escaped}</text>"#,
+            fmt_coord(members_x), fmt_coord(my),
         ).unwrap();
         buf.push('\n');
+        members_end_y = sep_y + LINE_HEIGHT * (i as f64 + 1.0);
     }
+
+    // Second separator line (methods)
+    let sep2_y = if entity.members.is_empty() {
+        sep_y + 8.0
+    } else {
+        members_end_y
+    };
+    let sep2_y_str = fmt_coord(sep2_y);
+    write!(buf,
+        r#"<line style="stroke:{stroke};stroke-width:0.5;" x1="{x1_val}" x2="{x2_val}" y1="{sep2_y_str}" y2="{sep2_y_str}"/>"#,
+    ).unwrap();
+    buf.push('\n');
 }
 
 fn format_member(m: &Member) -> String {
@@ -729,9 +711,9 @@ fn draw_edge(buf: &mut String, link: &Link, el: &EdgeLayout, link_color: &str) {
         let ox = px + MARGIN;
         let oy = py + MARGIN;
         if i == 0 {
-            write!(d, "M {ox:.1},{oy:.1}").unwrap();
+            write!(d, "M{},{}", fmt_coord(ox), fmt_coord(oy)).unwrap();
         } else {
-            write!(d, " L {ox:.1},{oy:.1}").unwrap();
+            write!(d, " L{},{}", fmt_coord(ox), fmt_coord(oy)).unwrap();
         }
     }
     let dash = if link.line_style == LineStyle::Dashed {
@@ -739,12 +721,26 @@ fn draw_edge(buf: &mut String, link: &Link, el: &EdgeLayout, link_color: &str) {
     } else {
         ""
     };
-    let marker_start = marker_attr_for(&link.left_head, "marker-start");
-    let marker_end = marker_attr_for(&link.right_head, "marker-end");
+    let path_id = format!("{}-to-{}", link.from, link.to);
     write!(buf,
-        r#"<path d="{d}" fill="none" style="stroke:{link_color};stroke-width:1;"{dash}{marker_start}{marker_end}/>"#,
+        r#"<path d="{d}" fill="none" id="{path_id}" style="stroke:{link_color};stroke-width:1;"{dash}/>"#,
     ).unwrap();
     buf.push('\n');
+
+    // Emit inline polygon arrowheads (matching Java PlantUML output)
+    if link.left_head != ArrowHead::None {
+        let &(px, py) = &el.points[0];
+        let tip_x = px + MARGIN;
+        let tip_y = py + MARGIN;
+        emit_arrowhead_polygon(buf, &link.left_head, tip_x, tip_y, el, true, link_color);
+    }
+    if link.right_head != ArrowHead::None {
+        let &(px, py) = el.points.last().unwrap();
+        let tip_x = px + MARGIN;
+        let tip_y = py + MARGIN;
+        emit_arrowhead_polygon(buf, &link.right_head, tip_x, tip_y, el, false, link_color);
+    }
+
     if let Some(label) = &link.label {
         let mid_idx = el.points.len() / 2;
         let (mx, my) = el.points[mid_idx];
@@ -752,16 +748,128 @@ fn draw_edge(buf: &mut String, link: &Link, el: &EdgeLayout, link_color: &str) {
     }
 }
 
-fn marker_attr_for(head: &ArrowHead, attr: &str) -> String {
-    let id = match head {
-        ArrowHead::None => return String::new(),
-        ArrowHead::Arrow => "arrow-open",
-        ArrowHead::Triangle => "triangle",
-        ArrowHead::Diamond => "diamond",
-        ArrowHead::DiamondHollow => "diamond-hollow",
-        ArrowHead::Plus => "plus",
+/// Emit an inline `<polygon>` for an arrowhead at the given tip position.
+/// `is_start` indicates whether this is the start (left) or end (right) arrow.
+fn emit_arrowhead_polygon(
+    buf: &mut String,
+    head: &ArrowHead,
+    tip_x: f64,
+    tip_y: f64,
+    el: &EdgeLayout,
+    is_start: bool,
+    link_color: &str,
+) {
+    // Compute direction vector from prev point to tip (or tip to next for start arrows)
+    let (dx, dy) = if is_start && el.points.len() >= 2 {
+        let (nx, ny) = el.points[1];
+        (el.points[0].0 - nx, el.points[0].1 - ny)
+    } else if !is_start && el.points.len() >= 2 {
+        let n = el.points.len();
+        let (px, py) = el.points[n - 1];
+        let (prev_x, prev_y) = el.points[n - 2];
+        (px - prev_x, py - prev_y)
+    } else {
+        (0.0, -1.0)
     };
-    format!(r#" {attr}="url(#{id})""#)
+
+    let len = (dx * dx + dy * dy).sqrt().max(0.001);
+    let ux = dx / len;
+    let uy = dy / len;
+    // Perpendicular
+    let px = -uy;
+    let py = ux;
+
+    match head {
+        ArrowHead::None => {}
+        ArrowHead::Arrow => {
+            // Open arrowhead: two lines forming a V
+            // Java format: px,py, px+4,py-10, px,py-6, px-4,py-10, px,py
+            let p1x = tip_x;
+            let p1y = tip_y;
+            let p2x = tip_x - ux * 10.0 + px * 4.0;
+            let p2y = tip_y - uy * 10.0 + py * 4.0;
+            let p3x = tip_x - ux * 6.0;
+            let p3y = tip_y - uy * 6.0;
+            let p4x = tip_x - ux * 10.0 - px * 4.0;
+            let p4y = tip_y - uy * 10.0 - py * 4.0;
+            write!(buf,
+                r#"<polygon fill="{link_color}" points="{},{},{},{},{},{},{},{},{},{}" style="stroke:{link_color};stroke-width:1;"/>"#,
+                fmt_coord(p1x), fmt_coord(p1y),
+                fmt_coord(p2x), fmt_coord(p2y),
+                fmt_coord(p3x), fmt_coord(p3y),
+                fmt_coord(p4x), fmt_coord(p4y),
+                fmt_coord(p1x), fmt_coord(p1y),
+            ).unwrap();
+            buf.push('\n');
+        }
+        ArrowHead::Triangle => {
+            // Filled/hollow triangle arrowhead
+            let p1x = tip_x;
+            let p1y = tip_y;
+            let p2x = tip_x - ux * 10.0 + px * 5.0;
+            let p2y = tip_y - uy * 10.0 + py * 5.0;
+            let p3x = tip_x - ux * 10.0 - px * 5.0;
+            let p3y = tip_y - uy * 10.0 - py * 5.0;
+            write!(buf,
+                r##"<polygon fill="#F1F1F1" points="{},{},{},{},{},{},{},{}" style="stroke:{link_color};stroke-width:1;"/>"##,
+                fmt_coord(p1x), fmt_coord(p1y),
+                fmt_coord(p2x), fmt_coord(p2y),
+                fmt_coord(p3x), fmt_coord(p3y),
+                fmt_coord(p1x), fmt_coord(p1y),
+            ).unwrap();
+            buf.push('\n');
+        }
+        ArrowHead::Diamond => {
+            // Filled diamond
+            let p1x = tip_x;
+            let p1y = tip_y;
+            let p2x = tip_x - ux * 7.0 + px * 5.0;
+            let p2y = tip_y - uy * 7.0 + py * 5.0;
+            let p3x = tip_x - ux * 14.0;
+            let p3y = tip_y - uy * 14.0;
+            let p4x = tip_x - ux * 7.0 - px * 5.0;
+            let p4y = tip_y - uy * 7.0 - py * 5.0;
+            write!(buf,
+                r#"<polygon fill="{link_color}" points="{},{},{},{},{},{},{},{},{},{}" style="stroke:{link_color};stroke-width:1;"/>"#,
+                fmt_coord(p1x), fmt_coord(p1y),
+                fmt_coord(p2x), fmt_coord(p2y),
+                fmt_coord(p3x), fmt_coord(p3y),
+                fmt_coord(p4x), fmt_coord(p4y),
+                fmt_coord(p1x), fmt_coord(p1y),
+            ).unwrap();
+            buf.push('\n');
+        }
+        ArrowHead::DiamondHollow => {
+            // Hollow diamond
+            let p1x = tip_x;
+            let p1y = tip_y;
+            let p2x = tip_x - ux * 7.0 + px * 5.0;
+            let p2y = tip_y - uy * 7.0 + py * 5.0;
+            let p3x = tip_x - ux * 14.0;
+            let p3y = tip_y - uy * 14.0;
+            let p4x = tip_x - ux * 7.0 - px * 5.0;
+            let p4y = tip_y - uy * 7.0 - py * 5.0;
+            write!(buf,
+                r##"<polygon fill="#FFFFFF" points="{},{},{},{},{},{},{},{},{},{}" style="stroke:{link_color};stroke-width:1;"/>"##,
+                fmt_coord(p1x), fmt_coord(p1y),
+                fmt_coord(p2x), fmt_coord(p2y),
+                fmt_coord(p3x), fmt_coord(p3y),
+                fmt_coord(p4x), fmt_coord(p4y),
+                fmt_coord(p1x), fmt_coord(p1y),
+            ).unwrap();
+            buf.push('\n');
+        }
+        ArrowHead::Plus => {
+            // Circle with plus sign - approximate with a filled polygon
+            let cx = tip_x - ux * 6.0;
+            let cy = tip_y - uy * 6.0;
+            write!(buf,
+                r##"<circle cx="{}" cy="{}" fill="#FFFFFF" r="5" style="stroke:{link_color};stroke-width:1;"/>"##,
+                fmt_coord(cx), fmt_coord(cy),
+            ).unwrap();
+            buf.push('\n');
+        }
+    }
 }
 
 fn draw_label(buf: &mut String, text: &str, x: f64, y: f64) {
@@ -979,7 +1087,7 @@ mod tests {
         let svg = render(&d, &l, &default_skin(), &default_meta()).unwrap();
         assert!(svg.contains("<path"));
         assert!(svg.contains("stroke-dasharray"));
-        assert!(svg.contains("url(#triangle)"));
+        assert!(svg.contains("<polygon"), "arrow should render as inline polygon");
     }
 
     #[test]
@@ -1112,7 +1220,7 @@ mod tests {
         let mut skin = SkinParams::default();
         skin.set("ArrowColor", "#00FF00");
         let svg = render(&d, &l, &skin, &default_meta()).unwrap();
-        assert!(svg.contains(r##"stroke="#00FF00""##));
+        assert!(svg.contains(r##"stroke:#00FF00"##));
     }
 
     #[test]
@@ -1129,7 +1237,7 @@ mod tests {
         let (d, l) = simple_diagram();
         let svg = render(&d, &l, &default_skin(), &default_meta()).unwrap();
         assert!(svg.contains(&format!(r#"fill="{CLASS_BG}""#)));
-        assert!(svg.contains(&format!(r#"stroke="{CLASS_BORDER}""#)));
+        assert!(svg.contains(&format!(r#"stroke:{CLASS_BORDER}"#)));
     }
 
     // ── Meta rendering tests ────────────────────────────────────────
