@@ -110,7 +110,7 @@ pub(crate) fn write_svg_root(buf: &mut String, w: f64, h: f64, diagram_type: &st
         wi = wi,
     )
     .unwrap();
-    buf.push('\n');
+    buf.push_str("<?plantuml plantuml-little?>");
 }
 
 fn sanitize_id(name: &str) -> String {
@@ -527,7 +527,7 @@ fn render_class(
         }
     }
 
-    let mut link_counter = ent_counter + 1;
+    let mut link_counter = ent_counter;
     for link in &cd.links {
         let from_id = sanitize_id(&link.from);
         let to_id = sanitize_id(&link.to);
@@ -538,8 +538,9 @@ fn render_class(
         {
             let from_ent = entity_ids.get(&from_id).map(|s| s.as_str()).unwrap_or("");
             let to_ent = entity_ids.get(&to_id).map(|s| s.as_str()).unwrap_or("");
-            write!(buf, "<!--link {} to {}--><g class=\"link\" data-entity-1=\"{}\" data-entity-2=\"{}\" id=\"lnk{}\">",
-                xml_escape(&link.from), xml_escape(&link.to), from_ent, to_ent, link_counter).unwrap();
+            let link_type = derive_link_type(link);
+            write!(buf, "<!--link {} to {}--><g class=\"link\" data-entity-1=\"{}\" data-entity-2=\"{}\" data-link-type=\"{}\" id=\"lnk{}\">",
+                xml_escape(&link.from), xml_escape(&link.to), from_ent, to_ent, link_type, link_counter).unwrap();
             draw_edge(&mut buf, link, el, arrow_color);
             buf.push_str("</g>");
             link_counter += 1;
@@ -555,6 +556,113 @@ fn render_class(
     Ok(buf)
 }
 
+
+// ── Stereotype circle glyph paths ───────────────────────────────────
+// These are the SVG path data for letters drawn inside the stereotype circle
+// at FontParam.CIRCLED_CHARACTER size (17pt). Coordinates are absolute for
+// an entity at rect y=0. At render time, all Y coordinates are offset by
+// the actual entity y position.
+//
+// Base glyph coordinates assume entity rect y = 0 (subtract 7 from reference values).
+
+/// Letter "C" glyph path data. Each tuple: (command, [(x, y_relative_to_entity_y0), ...])
+/// Extracted from Java PlantUML reference output with entity y=7, so base Y = Y - 7.
+const GLYPH_C_PATH: &str = "M24.9688,21.6406 Q24.3906,21.9375 23.75,22.0781 Q23.1094,22.2344 22.4063,22.2344 Q19.9063,22.2344 18.5781,20.5938 Q17.2656,18.9375 17.2656,15.8125 Q17.2656,12.6875 18.5781,11.0313 Q19.9063,9.375 22.4063,9.375 Q23.1094,9.375 23.75,9.5313 Q24.4063,9.6875 24.9688,9.9844 L24.9688,12.7031 Q24.3438,12.125 23.75,11.8594 Q23.1563,11.5781 22.5313,11.5781 Q21.1875,11.5781 20.5,12.6563 Q19.8125,13.7188 19.8125,15.8125 Q19.8125,17.9063 20.5,18.9844 Q21.1875,20.0469 22.5313,20.0469 Q23.1563,20.0469 23.75,19.7813 Q24.3438,19.5 24.9688,18.9219 L24.9688,21.6406 Z ";
+
+/// Letter "A" glyph path data (for Abstract classes).
+const GLYPH_A_PATH: &str = "M27.2656,21.4063 L25.75,16.5781 L19.4844,16.5781 L17.9688,21.4063 L15.3125,21.4063 L21.1875,4.5 L24.0938,4.5 L29.9688,21.4063 L27.2656,21.4063 Z M20.2344,14.3594 L25,14.3594 L22.6094,6.9063 L20.2344,14.3594 Z ";
+
+/// Letter "I" glyph path data (for Interface).
+const GLYPH_I_PATH: &str = "M24.6719,3.4688 L24.6719,5.625 L22.2813,5.625 L22.2813,18.5 L24.6719,18.5 L24.6719,20.6563 L17.2344,20.6563 L17.2344,18.5 L19.6094,18.5 L19.6094,5.625 L17.2344,5.625 L17.2344,3.4688 L24.6719,3.4688 Z ";
+
+/// Letter "E" glyph path data (for Enum).
+const GLYPH_E_PATH: &str = "M17.7656,3.4688 L27.0469,3.4688 L27.0469,5.625 L20.4375,5.625 L20.4375,10.8438 L26.4531,10.8438 L26.4531,13 L20.4375,13 L20.4375,18.5 L27.2656,18.5 L27.2656,20.6563 L17.7656,20.6563 L17.7656,3.4688 Z ";
+
+/// Emit a stereotype circle glyph path element for the given character.
+/// `entity_y` is the top-left Y coordinate of the entity rect.
+fn emit_circle_glyph(buf: &mut String, kind: &EntityKind, entity_y: f64) {
+    let glyph_path = match kind {
+        EntityKind::Class | EntityKind::Object => GLYPH_C_PATH,
+        EntityKind::Abstract => GLYPH_A_PATH,
+        EntityKind::Interface => GLYPH_I_PATH,
+        EntityKind::Enum => GLYPH_E_PATH,
+        EntityKind::Annotation => return, // no glyph for annotation
+    };
+
+    // Offset all Y coordinates in the path by entity_y
+    let offset_path = offset_glyph_path_y(glyph_path, entity_y);
+    write!(buf, r##"<path d="{}" fill="#000000"/>"##, offset_path).unwrap();
+}
+
+/// Offset all Y coordinates in a glyph path string by dy.
+/// The path uses M, Q, L, Z commands with absolute coordinates.
+/// Format: "Mx,y Qx,y x,y Lx,y Z"
+fn offset_glyph_path_y(path: &str, dy: f64) -> String {
+    if dy == 0.0 {
+        return path.to_string();
+    }
+    let mut result = String::with_capacity(path.len() + 64);
+    let mut chars = path.chars().peekable();
+    let mut is_x = true; // alternates: first number is X, second is Y
+
+    while let Some(&c) = chars.peek() {
+        match c {
+            'M' | 'Q' | 'L' | 'C' | 'Z' => {
+                result.push(c);
+                chars.next();
+                is_x = true; // reset after command
+            }
+            '-' | '0'..='9' | '.' => {
+                // Parse number
+                let mut s = String::new();
+                while let Some(&nc) = chars.peek() {
+                    if nc.is_ascii_digit() || nc == '.' || nc == '-' {
+                        s.push(nc);
+                        chars.next();
+                    } else {
+                        break;
+                    }
+                }
+                if let Ok(val) = s.parse::<f64>() {
+                    if is_x {
+                        // X coordinate: keep as is
+                        result.push_str(&format_glyph_coord(val));
+                    } else {
+                        // Y coordinate: offset
+                        result.push_str(&format_glyph_coord(val + dy));
+                    }
+                    is_x = !is_x;
+                } else {
+                    result.push_str(&s);
+                }
+            }
+            ',' => {
+                result.push(',');
+                chars.next();
+            }
+            ' ' => {
+                result.push(' ');
+                chars.next();
+            }
+            _ => {
+                result.push(c);
+                chars.next();
+            }
+        }
+    }
+    result
+}
+
+/// Format glyph coordinate: up to 4 decimal places, trailing zeros stripped.
+fn format_glyph_coord(v: f64) -> String {
+    if v == v.round() && v.fract() == 0.0 {
+        return format!("{}", v as i64);
+    }
+    let s = format!("{:.4}", v);
+    let s = s.trim_end_matches('0');
+    let s = s.trim_end_matches('.');
+    s.to_string()
+}
 
 fn stereotype_circle_color(kind: &EntityKind) -> &'static str {
     match kind {
@@ -595,7 +703,6 @@ fn draw_entity_box(buf: &mut String, entity: &Entity, nl: &NodeLayout, skin: &Sk
         r#"<rect fill="{fill}" height="{}" rx="{}" ry="{}" style="stroke:{stroke};stroke-width:0.5;" width="{}" x="{}" y="{}"/>"#,
         fmt_coord(h), fmt_coord(rx), fmt_coord(rx), fmt_coord(w), fmt_coord(x), fmt_coord(y),
     ).unwrap();
-    buf.push('\n');
 
     let class_font_size = skin.font_size("class", FONT_SIZE);
     let attr_font_size = skin.font_size("classattribute", class_font_size);
@@ -625,12 +732,10 @@ fn draw_entity_box(buf: &mut String, entity: &Entity, nl: &NodeLayout, skin: &Sk
             r#"<text fill="{font_color}" font-family="sans-serif" font-size="{fs:.0}" font-style="italic" text-anchor="middle" x="{}" y="{}">{kind_text}</text>"#,
             fmt_coord(cx), fmt_coord(kind_y), fs = class_font_size - 2.0,
         ).unwrap();
-        buf.push('\n');
         write!(buf,
             r#"<text fill="{font_color}" font-family="sans-serif" font-size="{class_font_size:.0}" font-weight="bold" text-anchor="middle" x="{}" y="{}">{name_escaped}</text>"#,
             fmt_coord(cx), fmt_coord(name_y),
         ).unwrap();
-        buf.push('\n');
     } else {
         // Stereotype circle icon (ellipse)
         let circle_color = stereotype_circle_color(&entity.kind);
@@ -640,7 +745,8 @@ fn draw_entity_box(buf: &mut String, entity: &Entity, nl: &NodeLayout, skin: &Sk
             r#"<ellipse cx="{}" cy="{}" fill="{circle_color}" rx="11" ry="11" style="stroke:#181818;stroke-width:1;"/>"#,
             fmt_coord(ecx), fmt_coord(ecy),
         ).unwrap();
-        buf.push('\n');
+        // Emit the glyph letter inside the stereotype circle
+        emit_circle_glyph(buf, &entity.kind, y);
 
         // Class name text: vertically centered in header, right of circle
         let text_w = font_metrics::text_width(&name_display, "SansSerif", class_font_size, false, false);
@@ -665,7 +771,6 @@ fn draw_entity_box(buf: &mut String, entity: &Entity, nl: &NodeLayout, skin: &Sk
             r#"<text fill="{font_color}" font-family="sans-serif" font-size="{class_font_size:.0}"{font_style_attr} lengthAdjust="spacing" textLength="{tl}"{text_deco_attr} x="{}" y="{}">{name_escaped}</text>"#,
             fmt_coord(name_x), fmt_coord(name_y),
         ).unwrap();
-        buf.push('\n');
     }
 
     // First separator line (fields)
@@ -676,7 +781,6 @@ fn draw_entity_box(buf: &mut String, entity: &Entity, nl: &NodeLayout, skin: &Sk
     write!(buf,
         r#"<line style="stroke:{stroke};stroke-width:0.5;" x1="{x1_val}" x2="{x2_val}" y1="{sep_y_str}" y2="{sep_y_str}"/>"#,
     ).unwrap();
-    buf.push('\n');
 
     // Members section
     let members_x = x + PADDING;
@@ -699,7 +803,6 @@ fn draw_entity_box(buf: &mut String, entity: &Entity, nl: &NodeLayout, skin: &Sk
             r#"<text fill="{font_color}" font-family="sans-serif" font-size="{attr_font_size:.0}"{font_style_attr}{text_deco_attr} x="{}" y="{}">{text_escaped}</text>"#,
             fmt_coord(members_x), fmt_coord(my),
         ).unwrap();
-        buf.push('\n');
         members_end_y = sep_y + LINE_HEIGHT * (i as f64 + 1.0);
     }
 
@@ -713,7 +816,6 @@ fn draw_entity_box(buf: &mut String, entity: &Entity, nl: &NodeLayout, skin: &Sk
     write!(buf,
         r#"<line style="stroke:{stroke};stroke-width:0.5;" x1="{x1_val}" x2="{x2_val}" y1="{sep2_y_str}" y2="{sep2_y_str}"/>"#,
     ).unwrap();
-    buf.push('\n');
 }
 
 fn format_member(m: &Member) -> String {
@@ -730,20 +832,54 @@ fn format_member(m: &Member) -> String {
     }
 }
 
+/// Derive the `data-link-type` attribute value from the link's arrow and line style.
+fn derive_link_type(link: &Link) -> &'static str {
+    // Check the "dominant" arrowhead (right_head for A-->B, left_head for B<--A)
+    let head = if link.right_head != ArrowHead::None {
+        &link.right_head
+    } else {
+        &link.left_head
+    };
+    match head {
+        ArrowHead::Triangle => {
+            if link.line_style == LineStyle::Dashed {
+                "realisation"
+            } else {
+                "extension"
+            }
+        }
+        ArrowHead::Diamond => "composition",
+        ArrowHead::DiamondHollow => "aggregation",
+        ArrowHead::Arrow => "dependency",
+        ArrowHead::Plus => "innerclass",
+        ArrowHead::None => "association",
+    }
+}
+
 fn draw_edge(buf: &mut String, link: &Link, el: &EdgeLayout, link_color: &str) {
     if el.points.is_empty() {
         return;
     }
-    let mut d = String::new();
-    for (i, &(px, py)) in el.points.iter().enumerate() {
-        let ox = px + MARGIN;
-        let oy = py + MARGIN;
-        if i == 0 {
-            write!(d, "M{},{}", fmt_coord(ox), fmt_coord(oy)).unwrap();
-        } else {
-            write!(d, " L{},{}", fmt_coord(ox), fmt_coord(oy)).unwrap();
+
+    // Use the raw Graphviz path d-string (with M/C commands preserved) if available,
+    // otherwise fall back to reconstructing from discrete points.
+    let d = if let Some(ref raw_d) = el.raw_path_d {
+        // Apply MARGIN offset to the raw path
+        crate::layout::graphviz::transform_path_d(raw_d, MARGIN, MARGIN)
+    } else {
+        let mut d = String::new();
+        for (i, &(px, py)) in el.points.iter().enumerate() {
+            let ox = px + MARGIN;
+            let oy = py + MARGIN;
+            if i == 0 {
+                write!(d, "M{},{}", fmt_coord(ox), fmt_coord(oy)).unwrap();
+            } else {
+                write!(d, " L{},{}", fmt_coord(ox), fmt_coord(oy)).unwrap();
+            }
         }
-    }
+        d
+    };
+
     let dash = if link.line_style == LineStyle::Dashed {
         r#" stroke-dasharray="7,5""#
     } else {
@@ -753,20 +889,46 @@ fn draw_edge(buf: &mut String, link: &Link, el: &EdgeLayout, link_color: &str) {
     write!(buf,
         r#"<path d="{d}" fill="none" id="{path_id}" style="stroke:{link_color};stroke-width:1;"{dash}/>"#,
     ).unwrap();
-    buf.push('\n');
 
-    // Emit inline polygon arrowheads (matching Java PlantUML output)
-    if link.left_head != ArrowHead::None {
-        let &(px, py) = &el.points[0];
-        let tip_x = px + MARGIN;
-        let tip_y = py + MARGIN;
-        emit_arrowhead_polygon(buf, &link.left_head, tip_x, tip_y, el, true, link_color);
-    }
-    if link.right_head != ArrowHead::None {
-        let &(px, py) = el.points.last().unwrap();
-        let tip_x = px + MARGIN;
-        let tip_y = py + MARGIN;
-        emit_arrowhead_polygon(buf, &link.right_head, tip_x, tip_y, el, false, link_color);
+    // Emit arrowhead polygon: prefer original Graphviz polygon points if available,
+    // otherwise compute from edge direction vectors.
+    if el.arrow_polygon_points.is_some() {
+        // Use the original Graphviz arrowhead polygon (applies to right/end head)
+        if link.right_head != ArrowHead::None || link.left_head != ArrowHead::None {
+            if let Some(ref poly_pts) = el.arrow_polygon_points {
+                let fill = match (&link.right_head, &link.left_head) {
+                    (ArrowHead::Triangle, _) | (_, ArrowHead::Triangle) => "#F1F1F1",
+                    (ArrowHead::DiamondHollow, _) | (_, ArrowHead::DiamondHollow) => "#FFFFFF",
+                    _ => link_color,
+                };
+                let mut pts_str = String::new();
+                for (i, &(px, py)) in poly_pts.iter().enumerate() {
+                    let ox = px + MARGIN;
+                    let oy = py + MARGIN;
+                    if i > 0 {
+                        pts_str.push(',');
+                    }
+                    write!(pts_str, "{},{}", fmt_coord(ox), fmt_coord(oy)).unwrap();
+                }
+                write!(buf,
+                    r#"<polygon fill="{fill}" points="{pts_str}" style="stroke:{link_color};stroke-width:1;"/>"#,
+                ).unwrap();
+            }
+        }
+    } else {
+        // Fallback: compute arrowhead polygons from direction vectors
+        if link.left_head != ArrowHead::None {
+            let &(px, py) = &el.points[0];
+            let tip_x = px + MARGIN;
+            let tip_y = py + MARGIN;
+            emit_arrowhead_polygon(buf, &link.left_head, tip_x, tip_y, el, true, link_color);
+        }
+        if link.right_head != ArrowHead::None {
+            let &(px, py) = el.points.last().unwrap();
+            let tip_x = px + MARGIN;
+            let tip_y = py + MARGIN;
+            emit_arrowhead_polygon(buf, &link.right_head, tip_x, tip_y, el, false, link_color);
+        }
     }
 
     if let Some(label) = &link.label {
@@ -828,7 +990,6 @@ fn emit_arrowhead_polygon(
                 fmt_coord(p4x), fmt_coord(p4y),
                 fmt_coord(p1x), fmt_coord(p1y),
             ).unwrap();
-            buf.push('\n');
         }
         ArrowHead::Triangle => {
             // Filled/hollow triangle arrowhead
@@ -845,7 +1006,6 @@ fn emit_arrowhead_polygon(
                 fmt_coord(p3x), fmt_coord(p3y),
                 fmt_coord(p1x), fmt_coord(p1y),
             ).unwrap();
-            buf.push('\n');
         }
         ArrowHead::Diamond => {
             // Filled diamond
@@ -865,7 +1025,6 @@ fn emit_arrowhead_polygon(
                 fmt_coord(p4x), fmt_coord(p4y),
                 fmt_coord(p1x), fmt_coord(p1y),
             ).unwrap();
-            buf.push('\n');
         }
         ArrowHead::DiamondHollow => {
             // Hollow diamond
@@ -885,7 +1044,6 @@ fn emit_arrowhead_polygon(
                 fmt_coord(p4x), fmt_coord(p4y),
                 fmt_coord(p1x), fmt_coord(p1y),
             ).unwrap();
-            buf.push('\n');
         }
         ArrowHead::Plus => {
             // Circle with plus sign - approximate with a filled polygon
@@ -895,7 +1053,6 @@ fn emit_arrowhead_polygon(
                 r##"<circle cx="{}" cy="{}" fill="#FFFFFF" r="5" style="stroke:{link_color};stroke-width:1;"/>"##,
                 fmt_coord(cx), fmt_coord(cy),
             ).unwrap();
-            buf.push('\n');
         }
     }
 }
@@ -932,7 +1089,6 @@ fn draw_class_note(buf: &mut String, note: &ClassNoteLayout) {
         bg = NOTE_BG,
         border = NOTE_BORDER,
     ).unwrap();
-    buf.push('\n');
 
     // fold corner triangle
     write!(buf,
@@ -944,7 +1100,6 @@ fn draw_class_note(buf: &mut String, note: &ClassNoteLayout) {
         bg = NOTE_BG,
         border = NOTE_BORDER,
     ).unwrap();
-    buf.push('\n');
 
     // text content
     let text_x = x + NOTE_TEXT_PADDING;
@@ -970,7 +1125,6 @@ fn draw_class_note(buf: &mut String, note: &ClassNoteLayout) {
             ty = to_y + MARGIN,
             border = NOTE_BORDER,
         ).unwrap();
-        buf.push('\n');
     }
 }
 
@@ -1076,6 +1230,8 @@ mod tests {
                 to: "Bar".into(),
                 points: vec![(100.0, 90.0), (100.0, 160.0)],
                 arrow_tip: None,
+                raw_path_d: None,
+                arrow_polygon_points: None,
             }],
             notes: vec![],
             total_width: 240.0,

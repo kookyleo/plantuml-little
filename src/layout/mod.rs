@@ -362,6 +362,15 @@ fn layout_class_diagram(cd: &ClassDiagram) -> Result<GraphLayout> {
                 tip.0 += shift_x;
                 tip.1 += shift_y;
             }
+            if let Some(ref raw_d) = e.raw_path_d {
+                e.raw_path_d = Some(graphviz::transform_path_d(raw_d, shift_x, shift_y));
+            }
+            if let Some(ref mut pts) = e.arrow_polygon_points {
+                for p in pts.iter_mut() {
+                    p.0 += shift_x;
+                    p.1 += shift_y;
+                }
+            }
         }
         for n in &mut layout.notes {
             n.x += shift_x;

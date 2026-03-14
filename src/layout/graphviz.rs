@@ -67,6 +67,11 @@ pub struct EdgeLayout {
     pub points: Vec<(f64, f64)>,
     /// Arrow tip (SVG coordinates), parsed from "e,x,y ..."
     pub arrow_tip: Option<(f64, f64)>,
+    /// Raw SVG path d-string from Graphviz (with transform applied),
+    /// preserving original M/C/L commands for faithful reproduction.
+    pub raw_path_d: Option<String>,
+    /// Arrowhead polygon points from Graphviz SVG (with transform applied).
+    pub arrow_polygon_points: Option<Vec<(f64, f64)>>,
 }
 
 /// Note layout info (used for class diagrams, etc.)
@@ -301,6 +306,16 @@ fn parse_svg_output(svg: &str, graph: &LayoutGraph) -> Result<GraphLayout, Error
             tip.0 -= min_x;
             tip.1 -= min_y;
         }
+        // Shift raw_path_d by re-transforming with the offset
+        if let Some(ref raw_d) = e.raw_path_d {
+            e.raw_path_d = Some(transform_path_d(raw_d, -min_x, -min_y));
+        }
+        if let Some(ref mut pts) = e.arrow_polygon_points {
+            for p in pts.iter_mut() {
+                p.0 -= min_x;
+                p.1 -= min_y;
+            }
+        }
     }
 
     Ok(GraphLayout {
@@ -393,37 +408,35 @@ fn parse_svg_edge(g: &str, tx: f64, ty: f64) -> Option<EdgeLayout> {
 
     // Parse <path d="M... C..."/> for Bezier control points
     let mut points = Vec::new();
+    let mut raw_path_d = None;
     if let Some(path_pos) = g.find("<path") {
         let path_elem = &g[path_pos..];
         if let Some(d_str) = parse_xml_attr_str(path_elem, "d") {
-            points = parse_svg_path_d(&d_str, tx, ty);
+            points = parse_svg_path_d(d_str, tx, ty);
+            raw_path_d = Some(transform_path_d(d_str, tx, ty));
         }
     }
 
-    // Parse arrowhead <polygon> for arrow tip.
-    // The edge group may have a <path> followed by a <polygon> for the arrowhead.
-    // We find the polygon AFTER the path element.
-    let arrow_tip = {
-        let path_end = g.find("<path").and_then(|p| g[p..].find("/>").map(|e| p + e + 2));
-        let polygon_search_start = path_end.unwrap_or(0);
-        if let Some(poly_pos) = g[polygon_search_start..].find("<polygon") {
-            let polygon = &g[polygon_search_start + poly_pos..];
-            if let Some(pts_str) = parse_xml_attr_str(polygon, "points") {
-                // The arrowhead polygon tip is the point closest to the target node.
-                // For a standard arrowhead, the second point (index 1) is the tip.
-                // We use the second point from the parsed polygon points.
-                let poly_pts = parse_polygon_points(&pts_str, tx, ty);
-                if poly_pts.len() >= 2 {
-                    Some(poly_pts[1])
-                } else {
-                    poly_pts.first().copied()
-                }
+    // Parse arrowhead <polygon> for arrow tip and full polygon points.
+    let path_end = g.find("<path").and_then(|p| g[p..].find("/>").map(|e| p + e + 2));
+    let polygon_search_start = path_end.unwrap_or(0);
+    let (arrow_tip, arrow_polygon_points) = if let Some(poly_pos) =
+        g[polygon_search_start..].find("<polygon")
+    {
+        let polygon = &g[polygon_search_start + poly_pos..];
+        if let Some(pts_str) = parse_xml_attr_str(polygon, "points") {
+            let poly_pts = parse_polygon_points(pts_str, tx, ty);
+            let tip = if poly_pts.len() >= 2 {
+                Some(poly_pts[1])
             } else {
-                None
-            }
+                poly_pts.first().copied()
+            };
+            (tip, Some(poly_pts))
         } else {
-            None
+            (None, None)
         }
+    } else {
+        (None, None)
     };
 
     Some(EdgeLayout {
@@ -431,6 +444,8 @@ fn parse_svg_edge(g: &str, tx: f64, ty: f64) -> Option<EdgeLayout> {
         to,
         points,
         arrow_tip,
+        raw_path_d,
+        arrow_polygon_points,
     })
 }
 
@@ -517,6 +532,76 @@ fn parse_polygon_points(points_str: &str, tx: f64, ty: f64) -> Vec<(f64, f64)> {
         }
     }
     result
+}
+
+/// Transform an SVG path `d` attribute string by applying translate(tx, ty),
+/// preserving the original M/C/L command structure.
+///
+/// Returns a new d-string with all coordinates offset by (tx, ty),
+/// formatted to match Java PlantUML coordinate style.
+pub fn transform_path_d(d: &str, tx: f64, ty: f64) -> String {
+    let mut result = String::new();
+    let mut chars = d.chars().peekable();
+    let mut had_coords = false; // track if we just emitted coordinates
+
+    while let Some(&c) = chars.peek() {
+        match c {
+            'M' | 'C' | 'L' | 'Z' => {
+                // Add space before command if preceded by coordinates
+                if had_coords && !result.is_empty() && !result.ends_with(' ') {
+                    result.push(' ');
+                }
+                result.push(c);
+                chars.next();
+                had_coords = false;
+            }
+            '-' | '0'..='9' | '.' => {
+                let x = parse_next_number(&mut chars);
+                skip_separators(&mut chars);
+                let y = parse_next_number(&mut chars);
+                if let (Some(x), Some(y)) = (x, y) {
+                    let nx = tx + x;
+                    let ny = ty + y;
+                    result.push_str(&format_path_coord(nx));
+                    result.push(',');
+                    result.push_str(&format_path_coord(ny));
+                    had_coords = true;
+                }
+                // Consume trailing separators and add space if more data follows
+                if let Some(&next) = chars.peek() {
+                    if next == ' ' || next == ',' {
+                        skip_separators(&mut chars);
+                        // Add space only if more data follows (not end, not another separator)
+                        if let Some(&next2) = chars.peek() {
+                            if next2 != ' ' && next2 != ',' {
+                                result.push(' ');
+                            }
+                        }
+                    }
+                }
+            }
+            ' ' | ',' | '\t' | '\n' | '\r' => {
+                chars.next();
+                // Skip, spaces are managed above
+            }
+            _ => {
+                chars.next();
+            }
+        }
+    }
+    result
+}
+
+/// Format a path coordinate value to match Java PlantUML's style.
+/// Uses up to 2 decimal places, strips trailing zeros.
+fn format_path_coord(v: f64) -> String {
+    if v == v.round() {
+        return format!("{}", v as i64);
+    }
+    let s = format!("{:.2}", v);
+    let s = s.trim_end_matches('0');
+    let s = s.trim_end_matches('.');
+    s.to_string()
 }
 
 /// Parse SVG path `d` attribute (M/C/L commands) and apply transform.
