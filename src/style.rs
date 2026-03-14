@@ -615,13 +615,17 @@ pub fn normalize_color(color: &str) -> String {
         return "none".to_string();
     }
 
-    // Handle hex colors
+    // Handle hex colors — Java normalizes to uppercase #RRGGBB
     if let Some(hex) = trimmed.strip_prefix('#') {
-        let hex_clean: String = hex.chars().filter(char::is_ascii_hexdigit).collect();
+        let hex_clean: String = hex
+            .chars()
+            .filter(char::is_ascii_hexdigit)
+            .map(|c| c.to_ascii_uppercase())
+            .collect();
 
         return match hex_clean.len() {
             3 => {
-                // #RGB -> #RRGGBB
+                // #RGB -> #RRGGBB (uppercase)
                 let mut expanded = String::with_capacity(7);
                 expanded.push('#');
                 for c in hex_clean.chars() {
@@ -631,15 +635,13 @@ pub fn normalize_color(color: &str) -> String {
                 expanded
             }
             6 => {
-                // #RRGGBB -> as-is
                 format!("#{hex_clean}")
             }
             8 => {
-                // #AARRGGBB -> #RRGGBB (drop alpha)
+                // #AARRGGBB -> #RRGGBB (drop alpha, uppercase)
                 format!("#{}", &hex_clean[2..])
             }
             _ => {
-                // Unknown format, pass through
                 trimmed.to_string()
             }
         };
