@@ -41,20 +41,29 @@ const CIRCLE_DIAMETER: f64 = 22.0;
 const EMPTY_COMPARTMENT: f64 = 8.0;
 const HEADER_CIRCLE_BLOCK_WIDTH: f64 = 26.0;
 const HEADER_CIRCLE_BLOCK_HEIGHT: f64 = 32.0;
-const HEADER_NAME_BLOCK_HEIGHT: f64 = 16.2969;
-const HEADER_NAME_BASELINE: f64 = 12.9951;
+const HEADER_NAME_BLOCK_HEIGHT: f64 = 16.296875;   // ascent(12.995117) + descent(3.301758)
+const HEADER_NAME_BASELINE: f64 = 12.995117;       // SansSerif 14pt ascent
 const HEADER_NAME_BLOCK_MARGIN_X: f64 = 6.0;
 const HEADER_STEREO_FONT_SIZE: f64 = 12.0;
-const HEADER_STEREO_LINE_HEIGHT: f64 = 13.9688;
-const HEADER_STEREO_BASELINE: f64 = 11.1387;
+const HEADER_STEREO_LINE_HEIGHT: f64 = 13.96875;    // SansSerif 12pt italic height
+const HEADER_STEREO_BASELINE: f64 = 11.138672;      // SansSerif 12pt italic ascent
 const HEADER_STEREO_NAME_GAP: f64 = 10.0;
-const MEMBER_ROW_HEIGHT: f64 = 16.2969;
-const MEMBER_BLOCK_HEIGHT_ONE_ROW: f64 = 24.2969;
-const MEMBER_ICON_X_OFFSET: f64 = 6.0;
-const MEMBER_ICON_Y_OFFSET: f64 = 8.6484;
+// Java MethodsOrFieldsArea/PlacementStrategyVisibility/VisibilityModifier constants:
+const MEMBER_ROW_HEIGHT: f64 = 16.296875;      // SansSerif 14pt height (ascent + descent)
+const MEMBER_BLOCK_HEIGHT_ONE_ROW: f64 = 24.296875; // margin(4) + row(16.296875) + margin(4)
+// Icon position relative to member section separator line:
+//   margin_top(4) + PlacementStrategy_nudge(2) + vertical_center((16.2969-11)/2=2.6484) = 8.6484
+//   Then drawCircle adds translate(+2, +2), and DriverEllipseSvg adds (rx=3, ry=3)
+const MEMBER_ICON_Y_FROM_SEP: f64 = 8.6484375; // margin(4) + nudge(2) + center(2.6484375)
+const MEMBER_ICON_DRAW_OFFSET: f64 = 2.0;   // VisibilityModifier.drawCircle translate
+const MEMBER_ICON_RADIUS: f64 = 3.0;         // UEllipse(6,6).rx = 3
+// Icon x: margin_left(6) + icon_column_x(0) + drawCircle(+2) + rx(3) = 11
+const MEMBER_ICON_X_OFFSET: f64 = 6.0;       // MethodsOrFieldsArea margin left
+// Text x: margin_left(6) + col2(circledCharRadius(11) + 3 = 14) = 20
 const MEMBER_TEXT_X_WITH_ICON: f64 = 20.0;
-const MEMBER_TEXT_X_NO_ICON: f64 = 6.0;
-const MEMBER_TEXT_Y_OFFSET: f64 = 16.9951;
+const MEMBER_TEXT_X_NO_ICON: f64 = 6.0;      // margin left only (no icon column)
+// Text y: margin_top(4) + vertical_center(0) + text_ascent(12.9951) = 16.9951
+const MEMBER_TEXT_Y_OFFSET: f64 = 16.995117;  // margin(4) + ascent(12.995117)
 
 const CLASS_BG: &str = "#F1F1F1";
 const CLASS_BORDER: &str = "#181818";
@@ -1306,7 +1315,7 @@ fn draw_entity_box(
         };
         let tl = fmt_coord(name_width);
         write!(buf,
-            r#"<text fill="{font_color}" font-family="sans-serif" font-size="{class_font_size:.0}"{font_style_attr} lengthAdjust="spacing" textLength="{tl}"{text_deco_attr} x="{}" y="{}">{name_escaped}</text>"#,
+            r#"<text fill="{font_color}" font-family="sans-serif" font-size="{class_font_size:.0}"{font_style_attr} lengthAdjust="spacing"{text_deco_attr} textLength="{tl}" x="{}" y="{}">{name_escaped}</text>"#,
             fmt_coord(name_x), fmt_coord(name_y),
         ).unwrap();
     }
@@ -1367,7 +1376,7 @@ fn draw_member_section(
     )
     .unwrap();
     for (i, member) in members.iter().enumerate() {
-        let icon_y = section_y + MEMBER_ICON_Y_OFFSET + i as f64 * MEMBER_ROW_HEIGHT;
+        let icon_y = section_y + MEMBER_ICON_Y_FROM_SEP + i as f64 * MEMBER_ROW_HEIGHT;
         let text_y = section_y + MEMBER_TEXT_Y_OFFSET + i as f64 * MEMBER_ROW_HEIGHT;
         let text = member_text(member);
         let text_escaped = xml_escape(&text);
@@ -1397,7 +1406,7 @@ fn draw_member_section(
         };
         write!(
             buf,
-            r#"<text fill="{font_color}" font-family="sans-serif" font-size="{attr_font_size:.0}"{font_style_attr}{text_deco_attr} lengthAdjust="spacing" textLength="{}" x="{}" y="{}">{text_escaped}</text>"#,
+            r#"<text fill="{font_color}" font-family="sans-serif" font-size="{attr_font_size:.0}"{font_style_attr} lengthAdjust="spacing"{text_deco_attr} textLength="{}" x="{}" y="{}">{text_escaped}</text>"#,
             fmt_coord(font_metrics::text_width(&text, "SansSerif", attr_font_size, false, member.modifiers.is_abstract)),
             fmt_coord(text_x),
             fmt_coord(text_y),
@@ -1434,26 +1443,33 @@ fn draw_visibility_icon(
         _ => return,
     };
     write!(buf, r#"<g data-visibility-modifier="{modifier}">"#).unwrap();
+    // Java VisibilityModifier.drawCircle: UTranslate(x+2, y+2) then UEllipse(6,6)
+    // DriverEllipseSvg: cx = translate_x + width/2, cy = translate_y + height/2
+    // So: cx = x + 2 + 3 = x + 5, cy = y + 2 + 3 = y + 5
+    let draw_x = x + MEMBER_ICON_DRAW_OFFSET;
+    let draw_y = y + MEMBER_ICON_DRAW_OFFSET;
     match modifier {
         "PUBLIC_METHOD" => {
             write!(
                 buf,
                 r##"<ellipse cx="{}" cy="{}" fill="#84BE84" rx="3" ry="3" style="stroke:#038048;stroke-width:1;"/>"##,
-                fmt_coord(x + 3.0),
-                fmt_coord(y + 3.0),
+                fmt_coord(draw_x + MEMBER_ICON_RADIUS),
+                fmt_coord(draw_y + MEMBER_ICON_RADIUS),
             )
             .unwrap();
         }
         "PACKAGE_PRIVATE_METHOD" => {
+            // Java VisibilityModifier.drawTriangle: UTranslate(x+1, y+0) then UPolygon
+            // Points: (size/2, 1), (0, size-1), (size, size-1) where size=10
             write!(
                 buf,
                 r##"<polygon fill="#4177AF" points="{},{},{},{},{},{}" style="stroke:#1963A0;stroke-width:1;"/>"##,
-                fmt_coord(x + 5.0),
-                fmt_coord(y + 1.0),
-                fmt_coord(x + 1.0),
-                fmt_coord(y + 7.0),
-                fmt_coord(x + 9.0),
-                fmt_coord(y + 7.0),
+                fmt_coord(x + 1.0 + 5.0),  // x + translate(1) + size/2
+                fmt_coord(y + 1.0),          // y + translate(0) + 1
+                fmt_coord(x + 1.0),          // x + translate(1) + 0
+                fmt_coord(y + 9.0),          // y + translate(0) + size-1
+                fmt_coord(x + 1.0 + 10.0),   // x + translate(1) + size
+                fmt_coord(y + 9.0),          // y + translate(0) + size-1
             )
             .unwrap();
         }
