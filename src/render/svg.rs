@@ -121,8 +121,8 @@ fn format_path_coord(v: f64) -> String {
 
 /// Write a Java PlantUML-compatible SVG root element and open a `<g>` wrapper.
 pub(crate) fn write_svg_root(buf: &mut String, w: f64, h: f64, diagram_type: &str) {
-    let wi = w.ceil() as i32;
-    let hi = h.ceil() as i32;
+    let wi = if w.is_finite() && w > 0.0 { w.ceil() as i32 } else { 100 };
+    let hi = if h.is_finite() && h > 0.0 { h.ceil() as i32 } else { 100 };
     write!(
         buf,
         concat!(
