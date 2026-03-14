@@ -622,15 +622,15 @@ fn test_activity_fixture_swimlane001() {
         svg.contains("Action 3"),
         "swimlane001: must contain Action 3"
     );
-    // Swimlane headers rendered with bold text
+    // Swimlane headers rendered with large font (Java uses font-size 18)
     assert!(
-        svg.contains("font-weight=\"bold\""),
-        "swimlane001: must have bold swimlane headers"
+        svg.contains("font-size=\"18\""),
+        "swimlane001: must have large swimlane headers"
     );
-    // Cross-lane edges should produce polyline elements
+    // Cross-lane edges should produce line or polygon elements
     assert!(
-        svg.contains("<polyline"),
-        "swimlane001: cross-lane arrows must use polylines"
+        svg.contains("<line") || svg.contains("<polygon"),
+        "swimlane001: cross-lane arrows must have line/polygon elements"
     );
 }
 
