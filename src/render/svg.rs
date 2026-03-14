@@ -96,7 +96,11 @@ pub(crate) fn fmt_coord(value: f64) -> String {
     if value == 0.0 {
         return "0".into();
     }
-    let s = format!("{:.4}", value);
+    // Java's String.format("%.4f", x) uses half-up rounding (0.5 rounds away from zero).
+    // Rust's format!("{:.4}", x) uses banker's rounding (0.5 rounds to even).
+    // We must match Java's behavior exactly.
+    let rounded = java_round_4(value);
+    let s = format!("{:.4}", rounded);
     let bytes = s.as_bytes();
     let dot = s.find('.').unwrap();
     let mut end = s.len();
@@ -107,6 +111,20 @@ pub(crate) fn fmt_coord(value: f64) -> String {
         end = dot;
     }
     s[..end].to_string()
+}
+
+/// Round a f64 to 4 decimal places using Java's half-up rounding.
+/// Java: Math.round(x * 10000) / 10000.0 (effectively)
+fn java_round_4(v: f64) -> f64 {
+    let factor = 10000.0_f64;
+    let scaled = v * factor;
+    // Java half-up: if fractional part is exactly 0.5, round away from zero
+    let rounded = if scaled >= 0.0 {
+        (scaled + 0.5).floor()
+    } else {
+        (scaled - 0.5).ceil()
+    };
+    rounded / factor
 }
 
 fn format_path_coord(v: f64) -> String {
@@ -924,42 +942,137 @@ fn render_class(
 }
 
 // ── Stereotype circle glyph paths ───────────────────────────────────
-// These are the SVG path data for letters drawn inside the stereotype circle
-// at FontParam.CIRCLED_CHARACTER size (17pt). Coordinates are absolute for
-// an entity at rect y=0. At render time, all Y coordinates are offset by
-// the actual entity y position.
+// Raw glyph outline coordinates from Java AWT TextLayout.getOutline().
+// Font: Monospaced Bold 17pt (PlantUML FontParam.CIRCLED_CHARACTER).
+// Coordinates are relative to the text draw position (0, 0).
 //
-// Base glyph coordinates assume entity rect y = 0 (subtract 7 from reference values).
+// UnusedSpace center offsets from PlantUML's UnusedSpace algorithm,
+// extracted via Java instrumentation on the reference generation machine.
+//
+// At render time:
+//   offset_x = circle_abs_cx - CENTER_X - 0.5
+//   offset_y = circle_abs_cy - CENTER_Y - 0.5
+//   final_coord = raw_coord + offset
 
-/// Letter "C" glyph path data. Each tuple: (command, [(x, y_relative_to_entity_y0), ...])
-/// Extracted from Java PlantUML reference output with entity y=7, so base Y = Y - 7.
-const GLYPH_C_PATH: &str = "M24.9688,21.6406 Q24.3906,21.9375 23.75,22.0781 Q23.1094,22.2344 22.4063,22.2344 Q19.9063,22.2344 18.5781,20.5938 Q17.2656,18.9375 17.2656,15.8125 Q17.2656,12.6875 18.5781,11.0313 Q19.9063,9.375 22.4063,9.375 Q23.1094,9.375 23.75,9.5313 Q24.4063,9.6875 24.9688,9.9844 L24.9688,12.7031 Q24.3438,12.125 23.75,11.8594 Q23.1563,11.5781 22.5313,11.5781 Q21.1875,11.5781 20.5,12.6563 Q19.8125,13.7188 19.8125,15.8125 Q19.8125,17.9063 20.5,18.9844 Q21.1875,20.0469 22.5313,20.0469 Q23.1563,20.0469 23.75,19.7813 Q24.3438,19.5 24.9688,18.9219 L24.9688,21.6406 Z ";
+// UnusedSpace centers from PlantUML's actual runtime values.
+// Extracted via Java instrumentation: char='X' centerX=... centerY=...
+// These depend on font rendering and MUST match the reference generation machine.
+const GLYPH_C_CENTER: (f64, f64) = (5.5, -6.5);
+const GLYPH_I_CENTER: (f64, f64) = (5.0, -6.5);
+const GLYPH_E_CENTER: (f64, f64) = (4.5, -6.5);
+const GLYPH_A_CENTER: (f64, f64) = (4.5, -6.0);
 
-/// Letter "A" glyph path data (for Abstract classes).
-const GLYPH_A_PATH: &str = "M27.2656,21.4063 L25.75,16.5781 L19.4844,16.5781 L17.9688,21.4063 L15.3125,21.4063 L21.1875,4.5 L24.0938,4.5 L29.9688,21.4063 L27.2656,21.4063 Z M20.2344,14.3594 L25,14.3594 L22.6094,6.9063 L20.2344,14.3594 Z ";
+// Raw glyph path segments from Java AWT TextLayout.getOutline().
+// Coordinates at full f64 precision (all are exact binary fractions from TrueType hinting).
+const GLYPH_C_RAW: &[(char, &[(f64, f64)])] = &[
+    ('M', &[(8.96875, -0.359375)]),
+    ('Q', &[(8.390625, -0.0625), (7.75, 0.078125)]),
+    ('Q', &[(7.109375, 0.234375), (6.40625, 0.234375)]),
+    ('Q', &[(3.90625, 0.234375), (2.578125, -1.40625)]),
+    ('Q', &[(1.265625, -3.0625), (1.265625, -6.1875)]),
+    ('Q', &[(1.265625, -9.3125), (2.578125, -10.96875)]),
+    ('Q', &[(3.90625, -12.625), (6.40625, -12.625)]),
+    ('Q', &[(7.109375, -12.625), (7.75, -12.46875)]),
+    ('Q', &[(8.40625, -12.3125), (8.96875, -12.015625)]),
+    ('L', &[(8.96875, -9.296875)]),
+    ('Q', &[(8.34375, -9.875), (7.75, -10.140625)]),
+    ('Q', &[(7.15625, -10.421875), (6.53125, -10.421875)]),
+    ('Q', &[(5.1875, -10.421875), (4.5, -9.34375)]),
+    ('Q', &[(3.8125, -8.28125), (3.8125, -6.1875)]),
+    ('Q', &[(3.8125, -4.09375), (4.5, -3.015625)]),
+    ('Q', &[(5.1875, -1.953125), (6.53125, -1.953125)]),
+    ('Q', &[(7.15625, -1.953125), (7.75, -2.21875)]),
+    ('Q', &[(8.34375, -2.5), (8.96875, -3.078125)]),
+    ('L', &[(8.96875, -0.359375)]),
+    ('Z', &[]),
+];
 
-/// Letter "I" glyph path data (for Interface).
-const GLYPH_I_PATH: &str = "M24.6719,3.4688 L24.6719,5.625 L22.2813,5.625 L22.2813,18.5 L24.6719,18.5 L24.6719,20.6563 L17.2344,20.6563 L17.2344,18.5 L19.6094,18.5 L19.6094,5.625 L17.2344,5.625 L17.2344,3.4688 L24.6719,3.4688 Z ";
+const GLYPH_I_RAW: &[(char, &[(f64, f64)])] = &[
+    ('M', &[(1.421875, -10.234375)]),
+    ('L', &[(1.421875, -12.390625)]),
+    ('L', &[(8.8125, -12.390625)]),
+    ('L', &[(8.8125, -10.234375)]),
+    ('L', &[(6.34375, -10.234375)]),
+    ('L', &[(6.34375, -2.15625)]),
+    ('L', &[(8.8125, -2.15625)]),
+    ('L', &[(8.8125, 0.0)]),
+    ('L', &[(1.421875, 0.0)]),
+    ('L', &[(1.421875, -2.15625)]),
+    ('L', &[(3.890625, -2.15625)]),
+    ('L', &[(3.890625, -10.234375)]),
+    ('L', &[(1.421875, -10.234375)]),
+    ('Z', &[]),
+];
 
-/// Letter "E" glyph path data (for Enum).
-const GLYPH_E_PATH: &str = "M17.7656,3.4688 L27.0469,3.4688 L27.0469,5.625 L20.4375,5.625 L20.4375,10.8438 L26.4531,10.8438 L26.4531,13 L20.4375,13 L20.4375,18.5 L27.2656,18.5 L27.2656,20.6563 L17.7656,20.6563 L17.7656,3.4688 Z ";
+const GLYPH_E_RAW: &[(char, &[(f64, f64)])] = &[
+    ('M', &[(9.109375, 0.0)]),
+    ('L', &[(1.390625, 0.0)]),
+    ('L', &[(1.390625, -12.390625)]),
+    ('L', &[(9.109375, -12.390625)]),
+    ('L', &[(9.109375, -10.234375)]),
+    ('L', &[(3.84375, -10.234375)]),
+    ('L', &[(3.84375, -7.5625)]),
+    ('L', &[(8.609375, -7.5625)]),
+    ('L', &[(8.609375, -5.40625)]),
+    ('L', &[(3.84375, -5.40625)]),
+    ('L', &[(3.84375, -2.15625)]),
+    ('L', &[(9.109375, -2.15625)]),
+    ('L', &[(9.109375, 0.0)]),
+    ('Z', &[]),
+];
 
-/// Emit a stereotype circle glyph path element for the given character.
-/// `entity_y` is the top-left Y coordinate of the entity rect.
-fn emit_circle_glyph(buf: &mut String, kind: &EntityKind, entity_y: f64, circle_cx: f64) {
-    let glyph_path = match kind {
-        EntityKind::Class | EntityKind::Object => GLYPH_C_PATH,
-        EntityKind::Abstract => GLYPH_A_PATH,
-        EntityKind::Interface => GLYPH_I_PATH,
-        EntityKind::Enum => GLYPH_E_PATH,
-        EntityKind::Annotation => return, // no glyph for annotation
+const GLYPH_A_RAW: &[(char, &[(f64, f64)])] = &[
+    ('M', &[(5.109375, -10.15625)]),
+    ('L', &[(3.953125, -5.078125)]),
+    ('L', &[(6.28125, -5.078125)]),
+    ('L', &[(5.109375, -10.15625)]),
+    ('Z', &[]),
+    ('M', &[(3.625, -12.390625)]),
+    ('L', &[(6.609375, -12.390625)]),
+    ('L', &[(9.96875, 0.0)]),
+    ('L', &[(7.515625, 0.0)]),
+    ('L', &[(6.75, -3.0625)]),
+    ('L', &[(3.46875, -3.0625)]),
+    ('L', &[(2.71875, 0.0)]),
+    ('L', &[(0.28125, 0.0)]),
+    ('L', &[(3.625, -12.390625)]),
+    ('Z', &[]),
+];
+
+/// Emit a stereotype circle glyph path element.
+/// `circle_cx` and `circle_cy` are the absolute SVG coordinates of the circle center.
+fn emit_circle_glyph(buf: &mut String, kind: &EntityKind, circle_cx: f64, circle_cy: f64) {
+    let (glyph_raw, center) = match kind {
+        EntityKind::Class | EntityKind::Object => (GLYPH_C_RAW, GLYPH_C_CENTER),
+        EntityKind::Abstract => (GLYPH_A_RAW, GLYPH_A_CENTER),
+        EntityKind::Interface => (GLYPH_I_RAW, GLYPH_I_CENTER),
+        EntityKind::Enum => (GLYPH_E_RAW, GLYPH_E_CENTER),
+        EntityKind::Annotation => return,
     };
 
-    // Glyph paths are defined relative to a reference circle at cx=22.
-    // Offset X by (actual_cx - 22) and Y by entity_y.
-    let dx = circle_cx - 22.0;
-    let offset_path = offset_glyph_path_xy(glyph_path, dx, entity_y);
-    write!(buf, r##"<path d="{}" fill="#000000"/>"##, offset_path).unwrap();
+    // Java DriverCenteredCharacterSvg algorithm:
+    //   xpos = circle_center_in_ug - centerX - 0.5
+    //   ypos = circle_center_in_ug - centerY - 0.5
+    //   final = path_coord + (xpos, ypos)
+    let dx = circle_cx - center.0 - 0.5;
+    let dy = circle_cy - center.1 - 0.5;
+
+    let mut d = String::with_capacity(512);
+    for (cmd, points) in glyph_raw {
+        d.push(*cmd);
+        for (i, &(px, py)) in points.iter().enumerate() {
+            if i > 0 {
+                d.push(' ');
+            }
+            d.push_str(&fmt_coord(px + dx));
+            d.push(',');
+            d.push_str(&fmt_coord(py + dy));
+        }
+        // Java SvgGraphics: every command (including Z) has a trailing space
+        d.push(' ');
+    }
+
+    write!(buf, r##"<path d="{d}" fill="#000000"/>"##).unwrap();
 }
 
 /// Offset all coordinates in a glyph path string by (dx, dy).
@@ -1162,12 +1275,7 @@ fn draw_entity_box(
             r#"<ellipse cx="{}" cy="{}" fill="{circle_color}" rx="11" ry="11" style="stroke:#181818;stroke-width:1;"/>"#,
             fmt_coord(ecx), fmt_coord(ecy),
         ).unwrap();
-        emit_circle_glyph(
-            buf,
-            &entity.kind,
-            y + (header_height - HEADER_CIRCLE_BLOCK_HEIGHT) / 2.0,
-            ecx,
-        );
+        emit_circle_glyph(buf, &entity.kind, ecx, ecy);
 
         let header_top_offset = (header_height - stereo_height - HEADER_NAME_BLOCK_HEIGHT) / 2.0;
         for (idx, label) in visible_stereotypes.iter().enumerate() {
