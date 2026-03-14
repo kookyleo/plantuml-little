@@ -74,9 +74,9 @@ pub(crate) fn fmt_coord(value: f64) -> String {
 }
 
 /// Write a Java PlantUML-compatible SVG root element and open a `<g>` wrapper.
-pub(crate) fn write_svg_root(buf: &mut String, w: f64, h: f64) {
-    let wi = w as i32;
-    let hi = h as i32;
+pub(crate) fn write_svg_root(buf: &mut String, w: f64, h: f64, diagram_type: &str) {
+    let wi = w.ceil() as i32;
+    let hi = h.ceil() as i32;
     let vw = fmt_coord(w);
     let vh = fmt_coord(h);
     write!(
@@ -85,6 +85,7 @@ pub(crate) fn write_svg_root(buf: &mut String, w: f64, h: f64) {
             r#"<svg xmlns="http://www.w3.org/2000/svg""#,
             r#" xmlns:xlink="http://www.w3.org/1999/xlink""#,
             r#" contentStyleType="text/css""#,
+            r#" data-diagram-type="{dtype}""#,
             r#" height="{hi}px""#,
             r#" preserveAspectRatio="none""#,
             r#" style="width:{wi}px;height:{hi}px;background:#FFFFFF;""#,
@@ -93,6 +94,7 @@ pub(crate) fn write_svg_root(buf: &mut String, w: f64, h: f64) {
             r#" width="{wi}px""#,
             r#" zoomAndPan="magnify">"#,
         ),
+        dtype = diagram_type,
         hi = hi,
         wi = wi,
         vw = vw,
@@ -138,7 +140,15 @@ pub fn render(
     if meta.is_empty() {
         return Ok(body_svg);
     }
-    wrap_with_meta(&body_svg, meta)
+    // Extract diagram type from body SVG's data-diagram-type attribute
+    let dtype = body_svg
+        .find("data-diagram-type=\"")
+        .and_then(|pos| {
+            let start = pos + 19;
+            body_svg[start..].find('"').map(|end| &body_svg[start..start + end])
+        })
+        .unwrap_or("CLASS");
+    wrap_with_meta(&body_svg, meta, dtype)
 }
 
 fn render_body(diagram: &Diagram, layout: &DiagramLayout, skin: &SkinParams) -> Result<String> {
@@ -334,7 +344,7 @@ fn extract_svg_content(svg: &str) -> String {
     svg.to_string()
 }
 
-fn wrap_with_meta(body_svg: &str, meta: &DiagramMeta) -> Result<String> {
+fn wrap_with_meta(body_svg: &str, meta: &DiagramMeta, diagram_type: &str) -> Result<String> {
     let (body_w, body_h) = extract_dimensions(body_svg);
     let body_content = extract_svg_content(body_svg);
     let top_h = meta_top_height(meta);
@@ -344,7 +354,7 @@ fn wrap_with_meta(body_svg: &str, meta: &DiagramMeta) -> Result<String> {
     let body_x = ((total_w - body_w) / 2.0).max(0.0);
 
     let mut buf = String::with_capacity(body_svg.len() + 1024);
-    write_svg_root(&mut buf, total_w, total_h);
+    write_svg_root(&mut buf, total_w, total_h, diagram_type);
     buf.push_str("<defs/><g>");
 
     let cx = total_w / 2.0;
@@ -467,7 +477,7 @@ fn render_class(
     let svg_w = layout.total_width + MARGIN * 2.0;
     let svg_h = layout.total_height + MARGIN * 2.0;
     let mut buf = String::with_capacity(4096);
-    write_svg_root(&mut buf, svg_w, svg_h);
+    write_svg_root(&mut buf, svg_w, svg_h, "CLASS");
 
     let arrow_color = skin.arrow_color(LINK_COLOR);
     write_defs(&mut buf, arrow_color);

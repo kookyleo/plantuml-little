@@ -27,7 +27,7 @@ pub fn render_ditaa(
     let font = skin.font_color("ditaa", TEXT_FILL);
     let background = skin.background_color("ditaabg", BACKGROUND);
 
-    write_svg_root(&mut buf, layout.width, layout.height);
+    write_svg_root(&mut buf, layout.width, layout.height, "DITAA");
     buf.push_str("<defs/><g>");
     write!(
         buf,

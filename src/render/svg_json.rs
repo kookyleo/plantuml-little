@@ -35,7 +35,7 @@ pub fn render_json(_jd: &JsonDiagram, layout: &JsonLayout, skin: &SkinParams) ->
     let header_fill = skin.background_color("jsonHeader", HEADER_FILL);
 
     // SVG header
-    write_svg_root(&mut buf, layout.width, layout.height);
+    write_svg_root(&mut buf, layout.width, layout.height, "JSON");
     buf.push_str("<defs/><g>");
 
     // Render rows

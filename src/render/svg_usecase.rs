@@ -57,7 +57,7 @@ pub fn render_usecase(
     let boundary_font = skin.font_color("boundary", TEXT_FILL);
     let arrow_color = skin.arrow_color(EDGE_COLOR);
 
-    write_svg_root(&mut buf, layout.total_width, layout.total_height);
+    write_svg_root(&mut buf, layout.total_width, layout.total_height, "DESCRIPTION");
     buf.push_str("<defs/><g>");
 
     write_defs(&mut buf, arrow_color);

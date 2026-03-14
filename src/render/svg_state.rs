@@ -33,7 +33,7 @@ pub fn render_state(
     let mut buf = String::with_capacity(4096);
 
     // SVG header
-    write_svg_root(&mut buf, layout.width, layout.height);
+    write_svg_root(&mut buf, layout.width, layout.height, "STATE");
     buf.push_str("<defs/><g>");
 
     // Defs: arrow marker

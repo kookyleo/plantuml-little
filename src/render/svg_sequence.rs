@@ -1088,7 +1088,7 @@ pub fn render_sequence(
     let mut buf = String::with_capacity(4096);
 
     // 1. SVG header
-    write_svg_root(&mut buf, svg_w, svg_h);
+    write_svg_root(&mut buf, svg_w, svg_h, "SEQUENCE");
 
     // 2. Defs: arrow markers
     write_seq_defs(&mut buf);

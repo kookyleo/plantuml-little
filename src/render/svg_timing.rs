@@ -51,7 +51,7 @@ pub fn render_timing(
     let arrow_color = skin.arrow_color(ARROW_COLOR);
 
     // SVG header
-    write_svg_root(&mut buf, layout.width, layout.height);
+    write_svg_root(&mut buf, layout.width, layout.height, "TIMING");
     buf.push_str("<defs/><g>");
 
     // Defs

@@ -45,7 +45,7 @@ pub fn render_wbs(_wd: &WbsDiagram, layout: &WbsLayout, skin: &SkinParams) -> Re
     let mut buf = String::with_capacity(4096);
 
     // SVG header
-    write_svg_root(&mut buf, layout.width, layout.height);
+    write_svg_root(&mut buf, layout.width, layout.height, "WBS");
     buf.push_str("<defs/><g>");
 
     let wbs_bg = skin.background_color("wbs", NODE_BG);

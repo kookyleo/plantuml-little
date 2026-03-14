@@ -42,7 +42,7 @@ pub fn render_activity(
     let mut buf = String::with_capacity(4096);
 
     // SVG header
-    write_svg_root(&mut buf, layout.width, layout.height);
+    write_svg_root(&mut buf, layout.width, layout.height, "ACTIVITY");
     buf.push_str("<defs/><g>");
 
     // Skin color lookups

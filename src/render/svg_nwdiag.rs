@@ -24,7 +24,7 @@ pub fn render_nwdiag(
 ) -> Result<String> {
     let mut buf = String::with_capacity(4096);
 
-    write_svg_root(&mut buf, layout.width, layout.height);
+    write_svg_root(&mut buf, layout.width, layout.height, "NWDIAG");
     buf.push_str("<defs/><g>");
 
     if let Some(title) = &diagram.title {

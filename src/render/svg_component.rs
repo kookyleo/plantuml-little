@@ -96,7 +96,7 @@ pub fn render_component(
     let queue_border = skin.border_color("queue", QUEUE_BORDER);
 
     // SVG header
-    write_svg_root(&mut buf, layout.width, layout.height);
+    write_svg_root(&mut buf, layout.width, layout.height, "DESCRIPTION");
 
     // Defs: arrow marker
     write_defs(&mut buf, arrow_color);

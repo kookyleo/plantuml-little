@@ -18,7 +18,7 @@ pub fn render_salt(
     skin: &SkinParams,
 ) -> Result<String> {
     let mut buf = String::with_capacity(4096);
-    write_svg_root(&mut buf, layout.width, layout.height);
+    write_svg_root(&mut buf, layout.width, layout.height, "SALT");
     buf.push_str("<defs/><g>");
 
     let border = skin.border_color("salt", BORDER);
