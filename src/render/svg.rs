@@ -459,149 +459,82 @@ fn extract_attr(svg: &str, attr: &str) -> Option<f64> {
     None
 }
 
-/// Bounding box of rendered SVG content, simulating Java's LimitFinder.
-struct SvgBounds {
+/// Inline bounding-box tracker mirroring Java's LimitFinder.
+/// Intercepts every draw call during rendering to compute the exact canvas size.
+pub(crate) struct BoundsTracker {
     min_x: f64,
     min_y: f64,
     max_x: f64,
     max_y: f64,
 }
 
-/// Compute the bounding box of all rendered elements in an SVG body string,
-/// matching Java's LimitFinder behavior:
-/// - rect: (x-1, y-1) to (x+w-1, y+h-1)
-/// - ellipse: (cx-rx, cy-ry) to (cx+rx, cy+ry)
-/// - line: (x1,y1) to (x2,y2)
-/// - text: (x, y-ascent) to (x+textLength, y)
-/// - polygon: (min_point_x - HACK_X(10), min_point_y) to (max_point_x + HACK_X(10), max_point_y)
-fn compute_svg_bounds(svg_body: &str) -> SvgBounds {
-    let mut min_x = f64::INFINITY;
-    let mut min_y = f64::INFINITY;
-    let mut max_x = f64::NEG_INFINITY;
-    let mut max_y = f64::NEG_INFINITY;
-
-    let mut add_point = |x: f64, y: f64| {
-        if x < min_x { min_x = x; }
-        if y < min_y { min_y = y; }
-        if x > max_x { max_x = x; }
-        if y > max_y { max_y = y; }
-    };
-
-    // Helper to parse a numeric attribute value from an element string
-    let parse_attr = |elem: &str, attr: &str| -> Option<f64> {
-        let needle = format!("{attr}=\"");
-        let pos = elem.find(&needle)? + needle.len();
-        let end = elem[pos..].find('"')? + pos;
-        elem[pos..end].parse::<f64>().ok()
-    };
-
-    // Process each SVG element
-    let mut pos = 0;
-    while pos < svg_body.len() {
-        if let Some(start) = svg_body[pos..].find('<') {
-            let abs_start = pos + start;
-            if let Some(end) = svg_body[abs_start..].find('>') {
-                let elem = &svg_body[abs_start..abs_start + end + 1];
-                pos = abs_start + end + 1;
-
-                if elem.starts_with("<rect ") {
-                    // LimitFinder: (x-1, y-1) to (x+w-1, y+h-1)
-                    if let (Some(x), Some(y), Some(w), Some(h)) = (
-                        parse_attr(elem, "x"),
-                        parse_attr(elem, "y"),
-                        parse_attr(elem, "width"),
-                        parse_attr(elem, "height"),
-                    ) {
-                        add_point(x - 1.0, y - 1.0);
-                        add_point(x + w - 1.0, y + h - 1.0);
-                        // UEmpty correction: entity body adds +1 to max
-                        add_point(x + w, y + h);
-                    }
-                } else if elem.starts_with("<ellipse ") {
-                    if let (Some(cx), Some(cy), Some(rx), Some(ry)) = (
-                        parse_attr(elem, "cx"),
-                        parse_attr(elem, "cy"),
-                        parse_attr(elem, "rx"),
-                        parse_attr(elem, "ry"),
-                    ) {
-                        add_point(cx - rx, cy - ry);
-                        add_point(cx + rx - 1.0, cy + ry - 1.0);
-                    }
-                } else if elem.starts_with("<line ") {
-                    if let (Some(x1), Some(y1), Some(x2), Some(y2)) = (
-                        parse_attr(elem, "x1"),
-                        parse_attr(elem, "y1"),
-                        parse_attr(elem, "x2"),
-                        parse_attr(elem, "y2"),
-                    ) {
-                        add_point(x1, y1);
-                        add_point(x2, y2);
-                    }
-                } else if elem.starts_with("<text ") {
-                    if let (Some(x), Some(y)) = (parse_attr(elem, "x"), parse_attr(elem, "y")) {
-                        let tl = parse_attr(elem, "textLength").unwrap_or(0.0);
-                        add_point(x, y);
-                        add_point(x + tl, y);
-                    }
-                } else if elem.starts_with("<polygon ") {
-                    // HACK_X_FOR_POLYGON = 10 in Java LimitFinder
-                    if let Some(pts_start) = elem.find("points=\"") {
-                        let after = &elem[pts_start + 8..];
-                        if let Some(pts_end) = after.find('"') {
-                            let pts_str = &after[..pts_end];
-                            let mut poly_min_x = f64::INFINITY;
-                            let mut poly_min_y = f64::INFINITY;
-                            let mut poly_max_x = f64::NEG_INFINITY;
-                            let mut poly_max_y = f64::NEG_INFINITY;
-                            for pair in pts_str.split(' ') {
-                                let coords: Vec<&str> = pair.split(',').collect();
-                                if coords.len() == 2 {
-                                    if let (Ok(px), Ok(py)) =
-                                        (coords[0].parse::<f64>(), coords[1].parse::<f64>())
-                                    {
-                                        if px < poly_min_x { poly_min_x = px; }
-                                        if py < poly_min_y { poly_min_y = py; }
-                                        if px > poly_max_x { poly_max_x = px; }
-                                        if py > poly_max_y { poly_max_y = py; }
-                                    }
-                                }
-                            }
-                            if poly_min_x.is_finite() {
-                                add_point(poly_min_x - 10.0, poly_min_y); // HACK_X_FOR_POLYGON
-                                add_point(poly_max_x + 10.0, poly_max_y);
-                            }
-                        }
-                    }
-                } else if elem.starts_with("<path ") {
-                    // Parse path d attribute for min/max coordinates
-                    if let Some(d_start) = elem.find("d=\"") {
-                        let after = &elem[d_start + 3..];
-                        if let Some(d_end) = after.find('"') {
-                            let d = &after[..d_end];
-                            for token in d.split(|c: char| c == 'M' || c == 'C' || c == 'L' || c == 'Q' || c == 'Z' || c == ' ') {
-                                let coords: Vec<&str> = token.split(',').collect();
-                                if coords.len() == 2 {
-                                    if let (Ok(px), Ok(py)) =
-                                        (coords[0].parse::<f64>(), coords[1].parse::<f64>())
-                                    {
-                                        add_point(px, py);
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-                continue;
-            }
+impl BoundsTracker {
+    pub fn new() -> Self {
+        Self {
+            min_x: f64::INFINITY,
+            min_y: f64::INFINITY,
+            max_x: f64::NEG_INFINITY,
+            max_y: f64::NEG_INFINITY,
         }
-        break;
     }
 
-    SvgBounds {
-        min_x: if min_x.is_finite() { min_x } else { 0.0 },
-        min_y: if min_y.is_finite() { min_y } else { 0.0 },
-        max_x: if max_x.is_finite() { max_x } else { 0.0 },
-        max_y: if max_y.is_finite() { max_y } else { 0.0 },
+    fn add_point(&mut self, x: f64, y: f64) {
+        if x < self.min_x { self.min_x = x; }
+        if y < self.min_y { self.min_y = y; }
+        if x > self.max_x { self.max_x = x; }
+        if y > self.max_y { self.max_y = y; }
+    }
+
+    /// Java LimitFinder.drawRectangle: (x-1, y-1) to (x+w-1, y+h-1)
+    pub fn track_rect(&mut self, x: f64, y: f64, w: f64, h: f64) {
+        self.add_point(x - 1.0, y - 1.0);
+        self.add_point(x + w - 1.0, y + h - 1.0);
+    }
+
+    /// Java LimitFinder.drawEmpty: (x, y) to (x+w, y+h) — NO -1 adjustment
+    pub fn track_empty(&mut self, x: f64, y: f64, w: f64, h: f64) {
+        self.add_point(x, y);
+        self.add_point(x + w, y + h);
+    }
+
+    /// Java LimitFinder.drawEllipse: (x, y) to (x+w-1, y+h-1)
+    /// Note: Java passes top-left (x,y) and size (w,h). We accept SVG center+radii form.
+    pub fn track_ellipse(&mut self, cx: f64, cy: f64, rx: f64, ry: f64) {
+        self.add_point(cx - rx, cy - ry);
+        self.add_point(cx + rx - 1.0, cy + ry - 1.0);
+    }
+
+    /// Java LimitFinder.drawUPolygon: HACK_X_FOR_POLYGON = 10
+    pub fn track_polygon(&mut self, points: &[(f64, f64)]) {
+        if points.is_empty() {
+            return;
+        }
+        let min_x = points.iter().map(|p| p.0).fold(f64::INFINITY, f64::min);
+        let max_x = points.iter().map(|p| p.0).fold(f64::NEG_INFINITY, f64::max);
+        let min_y = points.iter().map(|p| p.1).fold(f64::INFINITY, f64::min);
+        let max_y = points.iter().map(|p| p.1).fold(f64::NEG_INFINITY, f64::max);
+        self.add_point(min_x - 10.0, min_y);
+        self.add_point(max_x + 10.0, max_y);
+    }
+
+    /// Java LimitFinder.drawULine
+    pub fn track_line(&mut self, x1: f64, y1: f64, x2: f64, y2: f64) {
+        self.add_point(x1, y1);
+        self.add_point(x2, y2);
+    }
+
+    /// Java LimitFinder.drawUPath — just adds path bounding box
+    pub fn track_path_bounds(&mut self, min_x: f64, min_y: f64, max_x: f64, max_y: f64) {
+        self.add_point(min_x, min_y);
+        self.add_point(max_x, max_y);
+    }
+
+    pub fn span(&self) -> (f64, f64) {
+        if self.max_x.is_finite() && self.min_x.is_finite() {
+            (self.max_x - self.min_x, self.max_y - self.min_y)
+        } else {
+            (0.0, 0.0)
+        }
     }
 }
 
@@ -845,70 +778,11 @@ fn render_class(
     layout: &GraphLayout,
     skin: &SkinParams,
 ) -> Result<String> {
-    // Java viewBox calculation (traced from SvgGraphics.ensureVisible):
-    //   ensureVisible(minDim.width, minDim.height) where
-    //   minDim = calculateDimension() + doc_margin(R=5, B=5)
-    //   calculateDimension() = LimitFinder_span + delta(15, 15)
-    //   LimitFinder_span = entity_span + 1 (rect x-1/y-1 + UEmpty correction)
-    //   ensureVisible: maxX = (int)(x + 1)
-    //
-    // Full formula: (int)(entity_span + 1 + 15 + 5 + 1) = (int)(entity_span + 22)
-    // Java viewBox = (int)(minDim + 1) where minDim = calculateDimension + doc_margin(5).
-    // calculateDimension = LimitFinder_span + delta(15).
-    // LimitFinder_span = (rect_max_x - rect_min_x) where:
-    //   rect_min_x = entity_left - 1 (LimitFinder drawRectangle adds x-1)
-    //   rect_max_x = entity_right - 1 (LimitFinder drawRectangle adds x+w-1)
-    //   So span = (entity_right - 1) - (entity_left - 1) = entity_right - entity_left = entity_span
-    //
-    // But if there are multiple entities with UEmpty, the max_x gets corrected to entity_right.
-    // And if there are arrow polygons, HACK_X_FOR_POLYGON(10) extends the bounding box.
-    //
-    // For now, use entity_span directly (rect terms cancel out) plus polygon hack contribution.
-    let mut lf_min_x = f64::INFINITY;
-    let mut lf_max_x = f64::NEG_INFINITY;
-    let mut lf_min_y = f64::INFINITY;
-    let mut lf_max_y = f64::NEG_INFINITY;
-    // Entity rect bounds: LimitFinder adds (x-1) for min and (x+w-1) for max
-    for node in &layout.nodes {
-        let x = node.cx - node.width / 2.0 + EDGE_OFFSET;
-        let y = node.cy - node.height / 2.0 + EDGE_OFFSET;
-        lf_min_x = lf_min_x.min(x - 1.0);
-        lf_min_y = lf_min_y.min(y - 1.0);
-        lf_max_x = lf_max_x.max(x + node.width - 1.0);
-        lf_max_y = lf_max_y.max(y + node.height - 1.0);
-    }
-    // UEmpty correction: for entities with body content, max is pushed to x+w, y+h
-    // This happens when body.drawU triggers a UEmpty at the bottom/right
-    // For multi-entity diagrams, this +1 is typically present
-    if layout.nodes.len() > 1 {
-        for node in &layout.nodes {
-            let x = node.cx - node.width / 2.0 + EDGE_OFFSET;
-            let y = node.cy - node.height / 2.0 + EDGE_OFFSET;
-            lf_max_x = lf_max_x.max(x + node.width);
-            lf_max_y = lf_max_y.max(y + node.height);
-        }
-    }
-    // Edge arrow polygons: HACK_X_FOR_POLYGON = 10
-    for edge in &layout.edges {
-        if let Some(ref pts) = edge.arrow_polygon_points {
-            for &(px, py) in pts {
-                let ax = px + EDGE_OFFSET;
-                let ay = py + EDGE_OFFSET;
-                lf_min_x = lf_min_x.min(ax - 10.0);
-                lf_max_x = lf_max_x.max(ax + 10.0);
-                lf_min_y = lf_min_y.min(ay);
-                lf_max_y = lf_max_y.max(ay);
-            }
-        }
-    }
-    let span_w = if lf_max_x.is_finite() { lf_max_x - lf_min_x } else { layout.total_width };
-    let span_h = if lf_max_y.is_finite() { lf_max_y - lf_min_y } else { layout.total_height };
-    let svg_w = (span_w + CANVAS_DELTA + DOC_MARGIN_RIGHT + 1.0).floor();
-    let svg_h = (span_h + CANVAS_DELTA + DOC_MARGIN_BOTTOM + 1.0).floor();
-    let mut buf = String::with_capacity(4096);
-    write_svg_root(&mut buf, svg_w, svg_h, "CLASS");
+    // Two-pass approach: render body to buffer first, tracking bounds inline,
+    // then wrap with SVG root using computed dimensions.
+    let mut tracker = BoundsTracker::new();
+    let mut body = String::with_capacity(4096);
     let arrow_color = skin.arrow_color(LINK_COLOR);
-    buf.push_str("<defs/><g>");
 
     let node_map: HashMap<&str, &NodeLayout> =
         layout.nodes.iter().map(|n| (n.id.as_str(), n)).collect();
@@ -930,18 +804,18 @@ fn render_class(
                 .map(|s| s.as_str())
                 .unwrap_or("ent0000");
             write!(
-                buf,
+                body,
                 "<!--class {}--><g class=\"entity\" data-qualified-name=\"{}\"",
                 xml_escape(&entity.name),
                 xml_escape(&entity.name),
             )
             .unwrap();
             if let Some(source_line) = entity.source_line {
-                write!(buf, " data-source-line=\"{source_line}\"").unwrap();
+                write!(body, " data-source-line=\"{source_line}\"").unwrap();
             }
-            write!(buf, " id=\"{ent_id}\">").unwrap();
-            draw_entity_box(&mut buf, cd, entity, nl, skin);
-            buf.push_str("</g>");
+            write!(body, " id=\"{ent_id}\">").unwrap();
+            draw_entity_box(&mut body, &mut tracker, cd, entity, nl, skin);
+            body.push_str("</g>");
         }
     }
 
@@ -958,7 +832,7 @@ fn render_class(
             let to_ent = entity_ids.get(&to_id).map(|s| s.as_str()).unwrap_or("");
             let link_type = derive_link_type(link);
             write!(
-                buf,
+                body,
                 "<!--link {} to {}--><g class=\"link\" data-entity-1=\"{}\" data-entity-2=\"{}\" data-link-type=\"{}\"",
                 xml_escape(&link.from),
                 xml_escape(&link.to),
@@ -968,20 +842,29 @@ fn render_class(
             )
             .unwrap();
             if let Some(source_line) = link.source_line {
-                write!(buf, " data-source-line=\"{source_line}\"").unwrap();
+                write!(body, " data-source-line=\"{source_line}\"").unwrap();
             }
-            write!(buf, " id=\"lnk{link_counter}\">").unwrap();
-            draw_edge(&mut buf, link, el, arrow_color);
-            buf.push_str("</g>");
+            write!(body, " id=\"lnk{link_counter}\">").unwrap();
+            draw_edge(&mut body, &mut tracker, link, el, arrow_color);
+            body.push_str("</g>");
             link_counter += 1;
         }
     }
 
     // Notes
     for note in &layout.notes {
-        draw_class_note(&mut buf, note);
+        draw_class_note(&mut body, &mut tracker, note);
     }
 
+    // Compute canvas size from tracked bounds
+    let (span_w, span_h) = tracker.span();
+    let svg_w = (span_w + CANVAS_DELTA + DOC_MARGIN_RIGHT + 1.0).floor();
+    let svg_h = (span_h + CANVAS_DELTA + DOC_MARGIN_BOTTOM + 1.0).floor();
+
+    let mut buf = String::with_capacity(body.len() + 512);
+    write_svg_root(&mut buf, svg_w, svg_h, "CLASS");
+    buf.push_str("<defs/><g>");
+    buf.push_str(&body);
     buf.push_str("</g></svg>");
     Ok(buf)
 }
@@ -1086,7 +969,7 @@ const GLYPH_A_RAW: &[(char, &[(f64, f64)])] = &[
 
 /// Emit a stereotype circle glyph path element.
 /// `circle_cx` and `circle_cy` are the absolute SVG coordinates of the circle center.
-fn emit_circle_glyph(buf: &mut String, kind: &EntityKind, circle_cx: f64, circle_cy: f64) {
+fn emit_circle_glyph(buf: &mut String, tracker: &mut BoundsTracker, kind: &EntityKind, circle_cx: f64, circle_cy: f64) {
     let (glyph_raw, center) = match kind {
         EntityKind::Class | EntityKind::Object => (GLYPH_C_RAW, GLYPH_C_CENTER),
         EntityKind::Abstract => (GLYPH_A_RAW, GLYPH_A_CENTER),
@@ -1103,21 +986,34 @@ fn emit_circle_glyph(buf: &mut String, kind: &EntityKind, circle_cx: f64, circle
     let dy = circle_cy - center.1 - 0.5;
 
     let mut d = String::with_capacity(512);
+    let mut path_min_x = f64::INFINITY;
+    let mut path_min_y = f64::INFINITY;
+    let mut path_max_x = f64::NEG_INFINITY;
+    let mut path_max_y = f64::NEG_INFINITY;
     for (cmd, points) in glyph_raw {
         d.push(*cmd);
         for (i, &(px, py)) in points.iter().enumerate() {
             if i > 0 {
                 d.push(' ');
             }
-            d.push_str(&fmt_coord(px + dx));
+            let final_x = px + dx;
+            let final_y = py + dy;
+            d.push_str(&fmt_coord(final_x));
             d.push(',');
-            d.push_str(&fmt_coord(py + dy));
+            d.push_str(&fmt_coord(final_y));
+            if final_x < path_min_x { path_min_x = final_x; }
+            if final_y < path_min_y { path_min_y = final_y; }
+            if final_x > path_max_x { path_max_x = final_x; }
+            if final_y > path_max_y { path_max_y = final_y; }
         }
         // Java SvgGraphics: every command (including Z) has a trailing space
         d.push(' ');
     }
 
     write!(buf, r##"<path d="{d}" fill="#000000"/>"##).unwrap();
+    if path_min_x.is_finite() {
+        tracker.track_path_bounds(path_min_x, path_min_y, path_max_x, path_max_y);
+    }
 }
 
 /// Offset all coordinates in a glyph path string by (dx, dy).
@@ -1191,6 +1087,7 @@ fn stereotype_circle_color(kind: &EntityKind) -> &'static str {
 
 fn draw_entity_box(
     buf: &mut String,
+    tracker: &mut BoundsTracker,
     cd: &ClassDiagram,
     entity: &Entity,
     nl: &NodeLayout,
@@ -1223,6 +1120,7 @@ fn draw_entity_box(
         r#"<rect fill="{fill}" height="{}" rx="{}" ry="{}" style="stroke:{stroke};stroke-width:0.5;" width="{}" x="{}" y="{}"/>"#,
         fmt_coord(h), fmt_coord(rx), fmt_coord(rx), fmt_coord(w), fmt_coord(x), fmt_coord(y),
     ).unwrap();
+    tracker.track_rect(x, y, w, h);
 
     let class_font_size = skin.font_size("class", FONT_SIZE);
     let attr_font_size = skin.font_size("classattribute", class_font_size);
@@ -1264,16 +1162,28 @@ fn draw_entity_box(
         let name_y = y + HEADER_HEIGHT * 0.82;
         let cx = x + w / 2.0;
         let kind_fs = class_font_size - 2.0;
-        let kind_tl = fmt_coord(font_metrics::text_width(kind_text, "SansSerif", kind_fs, false, true));
+        let kind_tl_val = font_metrics::text_width(kind_text, "SansSerif", kind_fs, false, true);
+        let kind_tl = fmt_coord(kind_tl_val);
         write!(buf,
             r#"<text fill="{font_color}" font-family="sans-serif" font-size="{fs:.0}" font-style="italic" lengthAdjust="spacing" text-anchor="middle" textLength="{kind_tl}" x="{}" y="{}">{kind_text}</text>"#,
             fmt_coord(cx), fmt_coord(kind_y), fs = kind_fs,
         ).unwrap();
-        let name_tl = fmt_coord(font_metrics::text_width(&name_display, "SansSerif", class_font_size, true, false));
+        {
+            let kind_ascent = font_metrics::ascent("SansSerif", kind_fs, false, true);
+            let kind_descent = font_metrics::descent("SansSerif", kind_fs, false, true);
+            tracker.track_rect(cx, kind_y - kind_ascent, kind_tl_val, kind_ascent + kind_descent);
+        }
+        let name_tl_val = font_metrics::text_width(&name_display, "SansSerif", class_font_size, true, false);
+        let name_tl = fmt_coord(name_tl_val);
         write!(buf,
             r#"<text fill="{font_color}" font-family="sans-serif" font-size="{class_font_size:.0}" font-weight="bold" lengthAdjust="spacing" text-anchor="middle" textLength="{name_tl}" x="{}" y="{}">{name_escaped}</text>"#,
             fmt_coord(cx), fmt_coord(name_y),
         ).unwrap();
+        {
+            let name_ascent = font_metrics::ascent("SansSerif", class_font_size, true, false);
+            let name_descent = font_metrics::descent("SansSerif", class_font_size, true, false);
+            tracker.track_rect(cx, name_y - name_ascent, name_tl_val, name_ascent + name_descent);
+        }
     } else {
         let italic_name = entity.kind == EntityKind::Abstract;
         let name_width = font_metrics::text_width(
@@ -1313,7 +1223,8 @@ fn draw_entity_box(
             r#"<ellipse cx="{}" cy="{}" fill="{circle_color}" rx="11" ry="11" style="stroke:#181818;stroke-width:1;"/>"#,
             fmt_coord(ecx), fmt_coord(ecy),
         ).unwrap();
-        emit_circle_glyph(buf, &entity.kind, ecx, ecy);
+        tracker.track_ellipse(ecx, ecy, 11.0, 11.0);
+        emit_circle_glyph(buf, tracker, &entity.kind, ecx, ecy);
 
         let header_top_offset = (header_height - stereo_height - HEADER_NAME_BLOCK_HEIGHT) / 2.0;
         for (idx, label) in visible_stereotypes.iter().enumerate() {
@@ -1336,6 +1247,7 @@ fn draw_entity_box(
                 xml_escape(&stereo_text),
             )
             .unwrap();
+            tracker.track_rect(stereo_x, stereo_y - HEADER_STEREO_BASELINE, stereo_widths[idx], HEADER_STEREO_LINE_HEIGHT);
         }
 
         let name_x = x
@@ -1360,6 +1272,7 @@ fn draw_entity_box(
             r#"<text fill="{font_color}" font-family="sans-serif" font-size="{class_font_size:.0}"{font_style_attr} lengthAdjust="spacing"{text_deco_attr} textLength="{tl}" x="{}" y="{}">{name_escaped}</text>"#,
             fmt_coord(name_x), fmt_coord(name_y),
         ).unwrap();
+        tracker.track_rect(name_x, name_y - HEADER_NAME_BASELINE, name_width, HEADER_NAME_BLOCK_HEIGHT);
     }
 
     let x1_val = fmt_coord(x + 1.0);
@@ -1377,6 +1290,7 @@ fn draw_entity_box(
     if show_fields {
         draw_member_section(
             buf,
+            tracker,
             &visible_fields,
             section_y,
             x,
@@ -1390,6 +1304,7 @@ fn draw_entity_box(
     if show_methods {
         draw_member_section(
             buf,
+            tracker,
             &visible_methods,
             section_y,
             x,
@@ -1399,10 +1314,15 @@ fn draw_entity_box(
             attr_font_size,
         );
     }
+    // UEmpty: Java body.drawU emits an empty shape at the bottom-right of each entity.
+    // drawEmpty(x, y, 1, 1) adds (x, y) to (x+1, y+1), but since the entity rect
+    // already covers (x-1,y-1) to (x+w-1,y+h-1), this just extends max to (x+w, y+h).
+    tracker.track_empty(x + w, y + h, 0.0, 0.0);
 }
 
 fn draw_member_section(
     buf: &mut String,
+    tracker: &mut BoundsTracker,
     members: &[&Member],
     section_y: f64,
     x: f64,
@@ -1412,11 +1332,15 @@ fn draw_member_section(
     attr_font_size: f64,
 ) {
     let sep_y_str = fmt_coord(section_y);
+    // Parse x1/x2 for line tracking
+    let x1_f: f64 = x1_val.parse().unwrap_or(x + 1.0);
+    let x2_f: f64 = x2_val.parse().unwrap_or(x);
     write!(
         buf,
         r#"<line style="stroke:#181818;stroke-width:0.5;" x1="{x1_val}" x2="{x2_val}" y1="{sep_y_str}" y2="{sep_y_str}"/>"#,
     )
     .unwrap();
+    tracker.track_line(x1_f, section_y, x2_f, section_y);
     for (i, member) in members.iter().enumerate() {
         let icon_y = section_y + MEMBER_ICON_Y_FROM_SEP + i as f64 * MEMBER_ROW_HEIGHT;
         let text_y = section_y + MEMBER_TEXT_Y_OFFSET + i as f64 * MEMBER_ROW_HEIGHT;
@@ -1425,6 +1349,7 @@ fn draw_member_section(
         if let Some(visibility) = &member.visibility {
             draw_visibility_icon(
                 buf,
+                tracker,
                 visibility,
                 member.is_method,
                 x + MEMBER_ICON_X_OFFSET,
@@ -1446,14 +1371,20 @@ fn draw_member_section(
         } else {
             MEMBER_TEXT_X_NO_ICON
         };
+        let text_width_val = font_metrics::text_width(&text, "SansSerif", attr_font_size, false, member.modifiers.is_abstract);
         write!(
             buf,
             r#"<text fill="{font_color}" font-family="sans-serif" font-size="{attr_font_size:.0}"{font_style_attr} lengthAdjust="spacing"{text_deco_attr} textLength="{}" x="{}" y="{}">{text_escaped}</text>"#,
-            fmt_coord(font_metrics::text_width(&text, "SansSerif", attr_font_size, false, member.modifiers.is_abstract)),
+            fmt_coord(text_width_val),
             fmt_coord(text_x),
             fmt_coord(text_y),
         )
         .unwrap();
+        {
+            let text_ascent = font_metrics::ascent("SansSerif", attr_font_size, false, member.modifiers.is_abstract);
+            let text_descent = font_metrics::descent("SansSerif", attr_font_size, false, member.modifiers.is_abstract);
+            tracker.track_rect(text_x, text_y - text_ascent, text_width_val, text_ascent + text_descent);
+        }
     }
 }
 
@@ -1482,6 +1413,7 @@ fn member_text(m: &Member) -> String {
 ///   PACKAGE:   triangle, fill=#4177AF(method)/none(field), stroke=#1963A0
 fn draw_visibility_icon(
     buf: &mut String,
+    tracker: &mut BoundsTracker,
     visibility: &Visibility,
     is_method: bool,
     x: f64,
@@ -1501,21 +1433,27 @@ fn draw_visibility_icon(
     match visibility {
         Visibility::Public => {
             // VisibilityModifier.drawCircle: translate(x+2,y+2), UEllipse(6,6)
-            let cx = fmt_coord(x + 2.0 + 3.0);
-            let cy = fmt_coord(y + 2.0 + 3.0);
+            let ecx = x + 2.0 + 3.0;
+            let ecy = y + 2.0 + 3.0;
+            let cx = fmt_coord(ecx);
+            let cy = fmt_coord(ecy);
             let fill = if is_method { "#84BE84" } else { "none" };
             write!(buf,
                 r##"<ellipse cx="{cx}" cy="{cy}" fill="{fill}" rx="3" ry="3" style="stroke:#038048;stroke-width:1;"/>"##,
             ).unwrap();
+            tracker.track_ellipse(ecx, ecy, 3.0, 3.0);
         }
         Visibility::Private => {
             // VisibilityModifier.drawSquare: translate(x+2,y+2), URectangle(6,6)
-            let rx = fmt_coord(x + 2.0);
-            let ry = fmt_coord(y + 2.0);
+            let rect_x = x + 2.0;
+            let rect_y = y + 2.0;
+            let rx = fmt_coord(rect_x);
+            let ry = fmt_coord(rect_y);
             let fill = if is_method { "#F24D5C" } else { "none" };
             write!(buf,
                 r##"<rect fill="{fill}" height="6" style="stroke:#C82930;stroke-width:1;" width="6" x="{rx}" y="{ry}"/>"##,
             ).unwrap();
+            tracker.track_rect(rect_x, rect_y, 6.0, 6.0);
         }
         Visibility::Protected => {
             // VisibilityModifier.drawDiamond: translate(x+1,y+0), UPolygon
@@ -1523,13 +1461,20 @@ fn draw_visibility_icon(
             let ox = x + 1.0;
             let oy = y;
             let fill = if is_method { "#B38D22" } else { "none" };
+            let poly_pts = [
+                (ox + 5.0, oy),
+                (ox + 10.0, oy + 5.0),
+                (ox + 5.0, oy + 10.0),
+                (ox, oy + 5.0),
+            ];
             write!(buf,
                 r##"<polygon fill="{fill}" points="{},{},{},{},{},{},{},{}" style="stroke:#B38D22;stroke-width:1;"/>"##,
-                fmt_coord(ox + 5.0), fmt_coord(oy),
-                fmt_coord(ox + 10.0), fmt_coord(oy + 5.0),
-                fmt_coord(ox + 5.0), fmt_coord(oy + 10.0),
-                fmt_coord(ox), fmt_coord(oy + 5.0),
+                fmt_coord(poly_pts[0].0), fmt_coord(poly_pts[0].1),
+                fmt_coord(poly_pts[1].0), fmt_coord(poly_pts[1].1),
+                fmt_coord(poly_pts[2].0), fmt_coord(poly_pts[2].1),
+                fmt_coord(poly_pts[3].0), fmt_coord(poly_pts[3].1),
             ).unwrap();
+            tracker.track_polygon(&poly_pts);
         }
         Visibility::Package => {
             // VisibilityModifier.drawTriangle: translate(x+1,y+0), UPolygon
@@ -1537,12 +1482,18 @@ fn draw_visibility_icon(
             let ox = x + 1.0;
             let oy = y;
             let fill = if is_method { "#4177AF" } else { "none" };
+            let poly_pts = [
+                (ox + 5.0, oy + 1.0),
+                (ox, oy + 9.0),
+                (ox + 10.0, oy + 9.0),
+            ];
             write!(buf,
                 r##"<polygon fill="{fill}" points="{},{},{},{},{},{}" style="stroke:#1963A0;stroke-width:1;"/>"##,
-                fmt_coord(ox + 5.0), fmt_coord(oy + 1.0),
-                fmt_coord(ox), fmt_coord(oy + 9.0),
-                fmt_coord(ox + 10.0), fmt_coord(oy + 9.0),
+                fmt_coord(poly_pts[0].0), fmt_coord(poly_pts[0].1),
+                fmt_coord(poly_pts[1].0), fmt_coord(poly_pts[1].1),
+                fmt_coord(poly_pts[2].0), fmt_coord(poly_pts[2].1),
             ).unwrap();
+            tracker.track_polygon(&poly_pts);
         }
     }
     buf.push_str("</g>");
@@ -1625,7 +1576,7 @@ fn derive_link_type(link: &Link) -> &'static str {
     }
 }
 
-fn draw_edge(buf: &mut String, link: &Link, el: &EdgeLayout, link_color: &str) {
+fn draw_edge(buf: &mut String, tracker: &mut BoundsTracker, link: &Link, el: &EdgeLayout, link_color: &str) {
     if el.points.is_empty() {
         return;
     }
@@ -1639,6 +1590,25 @@ fn draw_edge(buf: &mut String, link: &Link, el: &EdgeLayout, link_color: &str) {
     }
 
     let d = build_edge_path_d(&path_points, EDGE_OFFSET);
+
+    // Track the edge path bounds (UPath style)
+    {
+        let mut p_min_x = f64::INFINITY;
+        let mut p_min_y = f64::INFINITY;
+        let mut p_max_x = f64::NEG_INFINITY;
+        let mut p_max_y = f64::NEG_INFINITY;
+        for &(px, py) in &path_points {
+            let ax = px + EDGE_OFFSET;
+            let ay = py + EDGE_OFFSET;
+            if ax < p_min_x { p_min_x = ax; }
+            if ay < p_min_y { p_min_y = ay; }
+            if ax > p_max_x { p_max_x = ax; }
+            if ay > p_max_y { p_max_y = ay; }
+        }
+        if p_min_x.is_finite() {
+            tracker.track_path_bounds(p_min_x, p_min_y, p_max_x, p_max_y);
+        }
+    }
 
     let dash = if link.line_style == LineStyle::Dashed {
         r#" stroke-dasharray="7,5""#
@@ -1657,10 +1627,10 @@ fn draw_edge(buf: &mut String, link: &Link, el: &EdgeLayout, link_color: &str) {
     .unwrap();
 
     if link.left_head != ArrowHead::None {
-        emit_arrowhead(buf, &link.left_head, &el.points, true, link_color);
+        emit_arrowhead(buf, tracker, &link.left_head, &el.points, true, link_color);
     }
     if link.right_head != ArrowHead::None {
-        emit_arrowhead(buf, &link.right_head, &el.points, false, link_color);
+        emit_arrowhead(buf, tracker, &link.right_head, &el.points, false, link_color);
     }
 
     if let Some(label) = &link.label {
@@ -1828,6 +1798,7 @@ fn move_edge_end_point(points: &mut [(f64, f64)], dx: f64, dy: f64) {
 
 fn emit_arrowhead(
     buf: &mut String,
+    tracker: &mut BoundsTracker,
     head: &ArrowHead,
     points: &[(f64, f64)],
     is_start: bool,
@@ -1853,6 +1824,7 @@ fn emit_arrowhead(
     match head {
         ArrowHead::Arrow => emit_rotated_polygon(
             buf,
+            tracker,
             &[
                 (0.0, 0.0),
                 (-9.0, -4.0),
@@ -1868,6 +1840,7 @@ fn emit_arrowhead(
         ),
         ArrowHead::Triangle => emit_rotated_polygon(
             buf,
+            tracker,
             &[(0.0, 0.0), (-19.0, -7.0), (-19.0, 7.0), (0.0, 0.0)],
             base_angle + std::f64::consts::FRAC_PI_2,
             tip_x,
@@ -1877,6 +1850,7 @@ fn emit_arrowhead(
         ),
         ArrowHead::Diamond => emit_rotated_polygon(
             buf,
+            tracker,
             &[
                 (0.0, 0.0),
                 (-6.0, -4.0),
@@ -1892,6 +1866,7 @@ fn emit_arrowhead(
         ),
         ArrowHead::DiamondHollow => emit_rotated_polygon(
             buf,
+            tracker,
             &[
                 (0.0, 0.0),
                 (-6.0, -4.0),
@@ -1905,13 +1880,14 @@ fn emit_arrowhead(
             "#FFFFFF",
             link_color,
         ),
-        ArrowHead::Plus => emit_plus_head(buf, tip_x, tip_y, base_angle, link_color),
+        ArrowHead::Plus => emit_plus_head(buf, tracker, tip_x, tip_y, base_angle, link_color),
         ArrowHead::None => {}
     }
 }
 
 fn emit_rotated_polygon(
     buf: &mut String,
+    tracker: &mut BoundsTracker,
     points: &[(f64, f64)],
     angle: f64,
     tx: f64,
@@ -1922,6 +1898,7 @@ fn emit_rotated_polygon(
     let cos = angle.cos();
     let sin = angle.sin();
     let mut pts = String::new();
+    let mut rotated_points = Vec::with_capacity(points.len());
     for (idx, &(x, y)) in points.iter().enumerate() {
         if idx > 0 {
             pts.push(',');
@@ -1929,15 +1906,17 @@ fn emit_rotated_polygon(
         let rx = x * cos - y * sin + tx;
         let ry = x * sin + y * cos + ty;
         write!(pts, "{},{}", fmt_coord(rx), fmt_coord(ry)).unwrap();
+        rotated_points.push((rx, ry));
     }
     write!(
         buf,
         r#"<polygon fill="{fill}" points="{pts}" style="stroke:{stroke};stroke-width:1;"/>"#,
     )
     .unwrap();
+    tracker.track_polygon(&rotated_points);
 }
 
-fn emit_plus_head(buf: &mut String, tip_x: f64, tip_y: f64, angle: f64, link_color: &str) {
+fn emit_plus_head(buf: &mut String, tracker: &mut BoundsTracker, tip_x: f64, tip_y: f64, angle: f64, link_color: &str) {
     let radius = 8.0;
     let center_x = tip_x + radius * angle.sin();
     let center_y = tip_y - radius * angle.cos();
@@ -1948,6 +1927,7 @@ fn emit_plus_head(buf: &mut String, tip_x: f64, tip_y: f64, angle: f64, link_col
         fmt_coord(center_y),
     )
     .unwrap();
+    tracker.track_ellipse(center_x, center_y, radius, radius);
 
     let p1 = point_on_circle(
         center_x,
@@ -1972,6 +1952,7 @@ fn emit_plus_head(buf: &mut String, tip_x: f64, tip_y: f64, angle: f64, link_col
         fmt_coord(p2.1),
     )
     .unwrap();
+    tracker.track_line(p1.0, p1.1, p2.0, p2.1);
     write!(
         buf,
         r#"<line style="stroke:{link_color};stroke-width:1;" x1="{}" x2="{}" y1="{}" y2="{}"/>"#,
@@ -1981,6 +1962,7 @@ fn emit_plus_head(buf: &mut String, tip_x: f64, tip_y: f64, angle: f64, link_col
         fmt_coord(p4.1),
     )
     .unwrap();
+    tracker.track_line(p3.0, p3.1, p4.0, p4.1);
 }
 
 fn point_on_circle(cx: f64, cy: f64, radius: f64, angle: f64) -> (f64, f64) {
@@ -2001,7 +1983,7 @@ fn draw_label(buf: &mut String, text: &str, x: f64, y: f64) {
 }
 
 /// Draw a note in class diagrams (yellow sticky box with folded corner)
-fn draw_class_note(buf: &mut String, note: &ClassNoteLayout) {
+fn draw_class_note(buf: &mut String, tracker: &mut BoundsTracker, note: &ClassNoteLayout) {
     let x = note.x + MARGIN;
     let y = note.y + MARGIN;
     let w = note.width;
@@ -2010,28 +1992,47 @@ fn draw_class_note(buf: &mut String, note: &ClassNoteLayout) {
     // body shape (use polygon instead of rect to clip the top-right fold area)
     let fold = NOTE_FOLD;
     // pentagon path: top-left -> top-right(minus fold) -> fold inner corner -> bottom-right -> bottom-left
+    let note_poly = [
+        (x, y),
+        (x + w - fold, y),
+        (x + w, y + fold),
+        (x + w, y + h),
+        (x, y + h),
+    ];
     write!(buf,
         r#"<polygon fill="{bg}" points="{},{} {},{} {},{} {},{} {},{}" style="stroke:{border};stroke-width:1;"/>"#,
-        fmt_coord(x), fmt_coord(y),
-        fmt_coord(x + w - fold), fmt_coord(y),
-        fmt_coord(x + w), fmt_coord(y + fold),
-        fmt_coord(x + w), fmt_coord(y + h),
-        fmt_coord(x), fmt_coord(y + h),
+        fmt_coord(note_poly[0].0), fmt_coord(note_poly[0].1),
+        fmt_coord(note_poly[1].0), fmt_coord(note_poly[1].1),
+        fmt_coord(note_poly[2].0), fmt_coord(note_poly[2].1),
+        fmt_coord(note_poly[3].0), fmt_coord(note_poly[3].1),
+        fmt_coord(note_poly[4].0), fmt_coord(note_poly[4].1),
         bg = NOTE_BG,
         border = NOTE_BORDER,
     ).unwrap();
+    tracker.track_polygon(&note_poly);
 
     // fold corner triangle
     {
-        let cx = fmt_coord(x + w - fold);
-        let cy = fmt_coord(y);
-        let cy2 = fmt_coord(y + fold);
-        let cx2 = fmt_coord(x + w);
+        let fold_pts = [
+            (x + w - fold, y),
+            (x + w - fold, y + fold),
+            (x + w, y),
+        ];
+        let cx = fmt_coord(fold_pts[0].0);
+        let cy = fmt_coord(fold_pts[0].1);
+        let cy2 = fmt_coord(fold_pts[1].1);
+        let cx2 = fmt_coord(fold_pts[2].0);
         write!(buf,
             r#"<path d="M{cx},{cy} L{cx},{cy2} L{cx2},{cy} Z " fill="{bg}" style="stroke:{border};stroke-width:1;"/>"#,
             bg = NOTE_BG,
             border = NOTE_BORDER,
         ).unwrap();
+        tracker.track_path_bounds(
+            fold_pts[0].0.min(fold_pts[2].0),
+            fold_pts[0].1.min(fold_pts[1].1),
+            fold_pts[0].0.max(fold_pts[2].0),
+            fold_pts[0].1.max(fold_pts[1].1),
+        );
     }
 
     // text content
@@ -2050,14 +2051,19 @@ fn draw_class_note(buf: &mut String, note: &ClassNoteLayout) {
 
     // connector line (dashed)
     if let Some((from_x, from_y, to_x, to_y)) = note.connector {
+        let lx1 = from_x + MARGIN;
+        let ly1 = from_y + MARGIN;
+        let lx2 = to_x + MARGIN;
+        let ly2 = to_y + MARGIN;
         write!(buf,
             r#"<line style="stroke:{border};stroke-width:1;stroke-dasharray:5,3;" x1="{}" x2="{}" y1="{}" y2="{}"/>"#,
-            fmt_coord(from_x + MARGIN),
-            fmt_coord(to_x + MARGIN),
-            fmt_coord(from_y + MARGIN),
-            fmt_coord(to_y + MARGIN),
+            fmt_coord(lx1),
+            fmt_coord(lx2),
+            fmt_coord(ly1),
+            fmt_coord(ly2),
             border = NOTE_BORDER,
         ).unwrap();
+        tracker.track_line(lx1, ly1, lx2, ly2);
     }
 }
 
