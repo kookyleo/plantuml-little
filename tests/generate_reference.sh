@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Generate golden SVG reference files from the original Java PlantUML.
+# Generate reference SVG reference files from the original Java PlantUML.
 #
 # Prerequisites:
 #   - java on PATH
@@ -7,14 +7,14 @@
 #   - dot (graphviz) on PATH (same version used by plantuml-little)
 #
 # Usage:
-#   bash tests/generate_golden.sh [plantuml.jar]
+#   bash tests/generate_reference.sh [plantuml.jar]
 
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 FIXTURES_DIR="$SCRIPT_DIR/fixtures"
-GOLDEN_DIR="$SCRIPT_DIR/golden"
+GOLDEN_DIR="$SCRIPT_DIR/reference"
 
 # Resolve plantuml.jar location
 if [[ $# -ge 1 ]]; then
@@ -27,14 +27,14 @@ else
         echo "ERROR: plantuml.jar not found. Build it first:" >&2
         echo "  cd /ext/plantuml/plantuml && ./gradlew shadowJar" >&2
         echo "Or pass the path as argument:" >&2
-        echo "  bash tests/generate_golden.sh /path/to/plantuml.jar" >&2
+        echo "  bash tests/generate_reference.sh /path/to/plantuml.jar" >&2
         exit 1
     fi
 fi
 
 echo "Using plantuml.jar: $PLANTUML_JAR"
 echo "Fixtures dir: $FIXTURES_DIR"
-echo "Golden dir: $GOLDEN_DIR"
+echo "Reference dir: $GOLDEN_DIR"
 
 # Record environment versions
 mkdir -p "$GOLDEN_DIR"
@@ -56,7 +56,7 @@ success=0
 failed=0
 skipped=0
 
-# Generate golden SVGs
+# Generate reference SVGs
 find "$FIXTURES_DIR" -name '*.puml' -type f | sort | while read -r puml; do
     # Compute relative path: fixtures/class/foo.puml -> class/foo
     rel="${puml#$FIXTURES_DIR/}"
@@ -89,5 +89,5 @@ find "$FIXTURES_DIR" -name '*.puml' -type f | sort | while read -r puml; do
 done
 
 echo ""
-echo "Done. Generated golden SVGs in: $GOLDEN_DIR"
+echo "Done. Generated reference SVGs in: $GOLDEN_DIR"
 echo "Check $GOLDEN_DIR/VERSION for environment details."
