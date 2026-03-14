@@ -133,7 +133,7 @@ pub fn render_creole_text(
     write_text_open(buf, x, y, fill, text_anchor, outer_attrs, text_length);
     for (idx, line) in lines.iter().enumerate() {
         let dy = if idx == 0 { 0.0 } else { line_height };
-        write!(buf, r#"<tspan x="{x:.1}" dy="{dy:.1}">"#).unwrap();
+        write!(buf, r#"<tspan x="{}" dy="{}">"#, fmt_coord(x), fmt_coord(dy)).unwrap();
         if let Some(text) = simple_plain_line(line) {
             buf.push_str(&xml_escape(text));
         } else {
@@ -271,7 +271,7 @@ fn write_text_open(
             write!(buf, " {name}={value}").unwrap();
         }
     }
-    write!(buf, r#" x="{x:.1}" y="{y:.1}">"#).unwrap();
+    write!(buf, r#" x="{}" y="{}">"#, fmt_coord(x), fmt_coord(y)).unwrap();
 }
 
 fn flatten_rich_lines(rich: &RichText) -> Vec<Vec<TextSpan>> {
@@ -518,7 +518,7 @@ fn style_attrs(style: &SpanStyle, default_fill: &str) -> String {
     if let Some(font_size_em) = style.font_size_em {
         write!(attrs, r#" font-size="{font_size_em}""#).unwrap();
     } else if let Some(font_size) = style.font_size {
-        write!(attrs, r#" font-size="{font_size:.1}""#).unwrap();
+        write!(attrs, r#" font-size="{}""#, fmt_coord(font_size)).unwrap();
     }
     if let Some(baseline_shift) = style.baseline_shift {
         write!(attrs, r#" baseline-shift="{baseline_shift}""#).unwrap();
@@ -564,7 +564,8 @@ fn render_deferred_sprites(
             let sprite_y = y - display_h;
             writeln!(
                 buf,
-                r#"<g transform="translate({sprite_x:.1},{sprite_y:.1}) scale({scale:.4})">{svg}</g>"#
+                r#"<g transform="translate({},{}) scale({scale:.4})">{svg}</g>"#,
+                fmt_coord(sprite_x), fmt_coord(sprite_y),
             )
             .unwrap();
             offset_x += display_w + 4.0;

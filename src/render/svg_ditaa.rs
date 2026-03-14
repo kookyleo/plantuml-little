@@ -1,6 +1,6 @@
 use std::fmt::Write;
 
-use super::svg::write_svg_root;
+use super::svg::{fmt_coord, write_svg_root};
 use crate::layout::ditaa::{DitaaBox, DitaaLayout, DitaaLine, DitaaText};
 use crate::model::ditaa::DitaaDiagram;
 use crate::render::svg_richtext::{count_creole_lines, render_creole_text};
@@ -72,12 +72,10 @@ fn render_box(
     if !diagram.options.no_shadows {
         write!(
             buf,
-            r#"<rect fill="{SHADOW_FILL}" height="{h:.1}" opacity="{SHADOW_OPACITY:.2}" rx="{r:.1}" ry="{r:.1}" stroke="none" width="{w:.1}" x="{x:.1}" y="{y:.1}"/>"#,
-            x = ditaa_box.x + shadow_offset,
-            y = ditaa_box.y + shadow_offset,
-            w = ditaa_box.width,
-            h = ditaa_box.height,
-            r = radius,
+            r#"<rect fill="{SHADOW_FILL}" height="{}" opacity="{SHADOW_OPACITY:.2}" rx="{}" ry="{}" stroke="none" width="{}" x="{}" y="{}"/>"#,
+            fmt_coord(ditaa_box.height), fmt_coord(radius), fmt_coord(radius),
+            fmt_coord(ditaa_box.width),
+            fmt_coord(ditaa_box.x + shadow_offset), fmt_coord(ditaa_box.y + shadow_offset),
         )
         .unwrap();
         buf.push('\n');
@@ -85,12 +83,10 @@ fn render_box(
 
     write!(
         buf,
-        r#"<rect fill="{fill}" height="{h:.1}" rx="{r:.1}" ry="{r:.1}" style="stroke:{border};stroke-width:1.5;" width="{w:.1}" x="{x:.1}" y="{y:.1}"/>"#,
-        x = ditaa_box.x,
-        y = ditaa_box.y,
-        w = ditaa_box.width,
-        h = ditaa_box.height,
-        r = radius,
+        r#"<rect fill="{fill}" height="{}" rx="{}" ry="{}" style="stroke:{border};stroke-width:1.5;" width="{}" x="{}" y="{}"/>"#,
+        fmt_coord(ditaa_box.height), fmt_coord(radius), fmt_coord(radius),
+        fmt_coord(ditaa_box.width),
+        fmt_coord(ditaa_box.x), fmt_coord(ditaa_box.y),
     )
     .unwrap();
     buf.push('\n');
@@ -122,7 +118,7 @@ fn render_line(buf: &mut String, line: &DitaaLine, border: &str) {
         if idx > 0 {
             points.push(' ');
         }
-        write!(points, "{x:.1},{y:.1}").unwrap();
+        write!(points, "{},{}", fmt_coord(*x), fmt_coord(*y)).unwrap();
     }
 
     let dash = if line.dashed {

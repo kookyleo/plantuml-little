@@ -197,7 +197,8 @@ fn draw_participant_actor(
     // Head
     write!(
         buf,
-        r#"<circle cx="{cx:.1}" cy="{head_cy:.1}" fill="none" r="{head_r}" style="stroke:{border};stroke-width:1.5;"/>"#,
+        r#"<circle cx="{}" cy="{}" fill="none" r="{head_r}" style="stroke:{border};stroke-width:1.5;"/>"#,
+        fmt_coord(cx), fmt_coord(head_cy),
     )
     .unwrap();
     buf.push('\n');
@@ -205,7 +206,8 @@ fn draw_participant_actor(
     // Body
     write!(
         buf,
-        r#"<line style="stroke:{border};stroke-width:1.5;" x1="{cx:.1}" x2="{cx:.1}" y1="{body_top:.1}" y2="{body_bot:.1}"/>"#,
+        r#"<line style="stroke:{border};stroke-width:1.5;" x1="{}" x2="{}" y1="{}" y2="{}"/>"#,
+        fmt_coord(cx), fmt_coord(cx), fmt_coord(body_top), fmt_coord(body_bot),
     )
     .unwrap();
     buf.push('\n');
@@ -213,9 +215,8 @@ fn draw_participant_actor(
     // Left arm
     write!(
         buf,
-        r#"<line style="stroke:{border};stroke-width:1.5;" x1="{cx:.1}" x2="{lx:.1}" y1="{ay:.1}" y2="{ay:.1}"/>"#,
-        ay = arm_y,
-        lx = cx - arm_spread,
+        r#"<line style="stroke:{border};stroke-width:1.5;" x1="{}" x2="{}" y1="{}" y2="{}"/>"#,
+        fmt_coord(cx), fmt_coord(cx - arm_spread), fmt_coord(arm_y), fmt_coord(arm_y),
     )
     .unwrap();
     buf.push('\n');
@@ -223,9 +224,8 @@ fn draw_participant_actor(
     // Right arm
     write!(
         buf,
-        r#"<line style="stroke:{border};stroke-width:1.5;" x1="{cx:.1}" x2="{rx:.1}" y1="{ay:.1}" y2="{ay:.1}"/>"#,
-        ay = arm_y,
-        rx = cx + arm_spread,
+        r#"<line style="stroke:{border};stroke-width:1.5;" x1="{}" x2="{}" y1="{}" y2="{}"/>"#,
+        fmt_coord(cx), fmt_coord(cx + arm_spread), fmt_coord(arm_y), fmt_coord(arm_y),
     )
     .unwrap();
     buf.push('\n');
@@ -233,10 +233,8 @@ fn draw_participant_actor(
     // Left leg
     write!(
         buf,
-        r#"<line style="stroke:{border};stroke-width:1.5;" x1="{cx:.1}" x2="{lx:.1}" y1="{ly:.1}" y2="{lby:.1}"/>"#,
-        ly = body_bot,
-        lx = cx - leg_spread,
-        lby = body_bot + leg_drop,
+        r#"<line style="stroke:{border};stroke-width:1.5;" x1="{}" x2="{}" y1="{}" y2="{}"/>"#,
+        fmt_coord(cx), fmt_coord(cx - leg_spread), fmt_coord(body_bot), fmt_coord(body_bot + leg_drop),
     )
     .unwrap();
     buf.push('\n');
@@ -244,10 +242,8 @@ fn draw_participant_actor(
     // Right leg
     write!(
         buf,
-        r#"<line style="stroke:{border};stroke-width:1.5;" x1="{cx:.1}" x2="{rx:.1}" y1="{ly:.1}" y2="{lby:.1}"/>"#,
-        ly = body_bot,
-        rx = cx + leg_spread,
-        lby = body_bot + leg_drop,
+        r#"<line style="stroke:{border};stroke-width:1.5;" x1="{}" x2="{}" y1="{}" y2="{}"/>"#,
+        fmt_coord(cx), fmt_coord(cx + leg_spread), fmt_coord(body_bot), fmt_coord(body_bot + leg_drop),
     )
     .unwrap();
     buf.push('\n');
@@ -257,7 +253,8 @@ fn draw_participant_actor(
     let escaped = xml_escape(name);
     write!(
         buf,
-        r#"<text fill="{text_color}" font-family="sans-serif" font-size="14" font-weight="bold" text-anchor="middle" x="{cx:.1}" y="{name_y:.1}">{escaped}</text>"#,
+        r#"<text fill="{text_color}" font-family="sans-serif" font-size="14" font-weight="bold" text-anchor="middle" x="{}" y="{}">{escaped}</text>"#,
+        fmt_coord(cx), fmt_coord(name_y),
     )
     .unwrap();
     buf.push('\n');
@@ -282,34 +279,34 @@ fn draw_participant_boundary(
     // Circle on the right side
     write!(
         buf,
-        r#"<circle cx="{icx:.1}" cy="{icy:.1}" fill="{bg}" r="{r}" style="stroke:{border};stroke-width:1.5;"/>"#,
-        icx = icon_cx,
-        icy = icon_y + icon_r,
-        r = icon_r,
+        r#"<circle cx="{}" cy="{}" fill="{bg}" r="{icon_r}" style="stroke:{border};stroke-width:1.5;"/>"#,
+        fmt_coord(icon_cx), fmt_coord(icon_y + icon_r),
     )
     .unwrap();
     buf.push('\n');
 
     // Vertical line to the left of circle
-    write!(
-        buf,
-        r#"<line style="stroke:{border};stroke-width:1.5;" x1="{lx:.1}" x2="{lx:.1}" y1="{ly1:.1}" y2="{ly2:.1}"/>"#,
-        lx = icon_cx - icon_r - 4.0,
-        ly1 = icon_y,
-        ly2 = icon_y + 2.0 * icon_r,
-    )
-    .unwrap();
+    {
+        let lx = fmt_coord(icon_cx - icon_r - 4.0);
+        write!(
+            buf,
+            r#"<line style="stroke:{border};stroke-width:1.5;" x1="{lx}" x2="{lx}" y1="{}" y2="{}"/>"#,
+            fmt_coord(icon_y), fmt_coord(icon_y + 2.0 * icon_r),
+        )
+        .unwrap();
+    }
     buf.push('\n');
 
     // Horizontal connector from vertical bar to circle
-    write!(
-        buf,
-        r#"<line style="stroke:{border};stroke-width:1.5;" x1="{lx:.1}" x2="{rx:.1}" y1="{ly:.1}" y2="{ly:.1}"/>"#,
-        lx = icon_cx - icon_r - 4.0,
-        ly = icon_y + icon_r,
-        rx = icon_cx - icon_r,
-    )
-    .unwrap();
+    {
+        let ly = fmt_coord(icon_y + icon_r);
+        write!(
+            buf,
+            r#"<line style="stroke:{border};stroke-width:1.5;" x1="{}" x2="{}" y1="{ly}" y2="{ly}"/>"#,
+            fmt_coord(icon_cx - icon_r - 4.0), fmt_coord(icon_cx - icon_r),
+        )
+        .unwrap();
+    }
     buf.push('\n');
 
     // Name below
@@ -317,7 +314,8 @@ fn draw_participant_boundary(
     let escaped = xml_escape(name);
     write!(
         buf,
-        r#"<text fill="{text_color}" font-family="sans-serif" font-size="14" font-weight="bold" text-anchor="middle" x="{cx:.1}" y="{name_y:.1}">{escaped}</text>"#,
+        r#"<text fill="{text_color}" font-family="sans-serif" font-size="14" font-weight="bold" text-anchor="middle" x="{}" y="{}">{escaped}</text>"#,
+        fmt_coord(cx), fmt_coord(name_y),
     )
     .unwrap();
     buf.push('\n');
@@ -341,7 +339,8 @@ fn draw_participant_control(
     // Circle
     write!(
         buf,
-        r#"<circle cx="{cx:.1}" cy="{icon_cy:.1}" fill="{bg}" r="{icon_r}" style="stroke:{border};stroke-width:1.5;"/>"#,
+        r#"<circle cx="{}" cy="{}" fill="{bg}" r="{icon_r}" style="stroke:{border};stroke-width:1.5;"/>"#,
+        fmt_coord(cx), fmt_coord(icon_cy),
     )
     .unwrap();
     buf.push('\n');
@@ -350,13 +349,10 @@ fn draw_participant_control(
     let arrow_y = icon_cy - icon_r;
     write!(
         buf,
-        r#"<path d="M {x1:.1},{y1:.1} L {x2:.1},{y2:.1} L {x3:.1},{y3:.1}" fill="none" style="stroke:{border};stroke-width:1.5;"/>"#,
-        x1 = cx - 5.0,
-        y1 = arrow_y - 6.0,
-        x2 = cx + 2.0,
-        y2 = arrow_y - 1.0,
-        x3 = cx - 5.0,
-        y3 = arrow_y + 3.0,
+        r#"<path d="M {},{} L {},{} L {},{}" fill="none" style="stroke:{border};stroke-width:1.5;"/>"#,
+        fmt_coord(cx - 5.0), fmt_coord(arrow_y - 6.0),
+        fmt_coord(cx + 2.0), fmt_coord(arrow_y - 1.0),
+        fmt_coord(cx - 5.0), fmt_coord(arrow_y + 3.0),
     )
     .unwrap();
     buf.push('\n');
@@ -366,7 +362,8 @@ fn draw_participant_control(
     let escaped = xml_escape(name);
     write!(
         buf,
-        r#"<text fill="{text_color}" font-family="sans-serif" font-size="14" font-weight="bold" text-anchor="middle" x="{cx:.1}" y="{name_y:.1}">{escaped}</text>"#,
+        r#"<text fill="{text_color}" font-family="sans-serif" font-size="14" font-weight="bold" text-anchor="middle" x="{}" y="{}">{escaped}</text>"#,
+        fmt_coord(cx), fmt_coord(name_y),
     )
     .unwrap();
     buf.push('\n');
@@ -390,21 +387,23 @@ fn draw_participant_entity(
     // Circle
     write!(
         buf,
-        r#"<circle cx="{cx:.1}" cy="{icon_cy:.1}" fill="{bg}" r="{icon_r}" style="stroke:{border};stroke-width:1.5;"/>"#,
+        r#"<circle cx="{}" cy="{}" fill="{bg}" r="{icon_r}" style="stroke:{border};stroke-width:1.5;"/>"#,
+        fmt_coord(cx), fmt_coord(icon_cy),
     )
     .unwrap();
     buf.push('\n');
 
     // Horizontal underline
     let line_y = icon_cy + icon_r + 2.0;
-    write!(
-        buf,
-        r#"<line style="stroke:{border};stroke-width:1.5;" x1="{x1:.1}" x2="{x2:.1}" y1="{ly:.1}" y2="{ly:.1}"/>"#,
-        x1 = cx - icon_r,
-        ly = line_y,
-        x2 = cx + icon_r,
-    )
-    .unwrap();
+    {
+        let ly = fmt_coord(line_y);
+        write!(
+            buf,
+            r#"<line style="stroke:{border};stroke-width:1.5;" x1="{}" x2="{}" y1="{ly}" y2="{ly}"/>"#,
+            fmt_coord(cx - icon_r), fmt_coord(cx + icon_r),
+        )
+        .unwrap();
+    }
     buf.push('\n');
 
     // Name below
@@ -412,7 +411,8 @@ fn draw_participant_entity(
     let escaped = xml_escape(name);
     write!(
         buf,
-        r#"<text fill="{text_color}" font-family="sans-serif" font-size="14" font-weight="bold" text-anchor="middle" x="{cx:.1}" y="{name_y:.1}">{escaped}</text>"#,
+        r#"<text fill="{text_color}" font-family="sans-serif" font-size="14" font-weight="bold" text-anchor="middle" x="{}" y="{}">{escaped}</text>"#,
+        fmt_coord(cx), fmt_coord(name_y),
     )
     .unwrap();
     buf.push('\n');
@@ -437,26 +437,27 @@ fn draw_participant_database(
     let cyl_y = y + 4.0;
 
     // Cylinder body
-    write!(
-        buf,
-        r#"<path d="M {x:.1},{ty:.1} A {rx:.1},{ry:.1} 0 0,0 {x2:.1},{ty:.1} L {x2:.1},{by:.1} A {rx:.1},{ry:.1} 0 0,0 {x:.1},{by:.1} Z" fill="{bg}" style="stroke:{border};stroke-width:1.5;"/>"#,
-        x = cyl_x,
-        ty = cyl_y + arc_h,
-        rx = cyl_w / 2.0,
-        ry = arc_h,
-        x2 = cyl_x + cyl_w,
-        by = cyl_y + cyl_h,
-    )
-    .unwrap();
+    {
+        let rx_s = fmt_coord(cyl_w / 2.0);
+        let ry_s = fmt_coord(arc_h);
+        write!(
+            buf,
+            r#"<path d="M {},{} A {rx_s},{ry_s} 0 0,0 {},{} L {},{} A {rx_s},{ry_s} 0 0,0 {},{} Z" fill="{bg}" style="stroke:{border};stroke-width:1.5;"/>"#,
+            fmt_coord(cyl_x), fmt_coord(cyl_y + arc_h),
+            fmt_coord(cyl_x + cyl_w), fmt_coord(cyl_y + arc_h),
+            fmt_coord(cyl_x + cyl_w), fmt_coord(cyl_y + cyl_h),
+            fmt_coord(cyl_x), fmt_coord(cyl_y + cyl_h),
+        )
+        .unwrap();
+    }
     buf.push('\n');
 
     // Top ellipse
     write!(
         buf,
-        r#"<ellipse cx="{cx:.1}" cy="{ey:.1}" fill="{bg}" rx="{rx:.1}" ry="{ry:.1}" style="stroke:{border};stroke-width:1.5;"/>"#,
-        ey = cyl_y + arc_h,
-        rx = cyl_w / 2.0,
-        ry = arc_h,
+        r#"<ellipse cx="{}" cy="{}" fill="{bg}" rx="{}" ry="{}" style="stroke:{border};stroke-width:1.5;"/>"#,
+        fmt_coord(cx), fmt_coord(cyl_y + arc_h),
+        fmt_coord(cyl_w / 2.0), fmt_coord(arc_h),
     )
     .unwrap();
     buf.push('\n');
@@ -466,7 +467,8 @@ fn draw_participant_database(
     let escaped = xml_escape(name);
     write!(
         buf,
-        r#"<text fill="{text_color}" font-family="sans-serif" font-size="14" font-weight="bold" text-anchor="middle" x="{cx:.1}" y="{name_y:.1}">{escaped}</text>"#,
+        r#"<text fill="{text_color}" font-family="sans-serif" font-size="14" font-weight="bold" text-anchor="middle" x="{}" y="{}">{escaped}</text>"#,
+        fmt_coord(cx), fmt_coord(name_y),
     )
     .unwrap();
     buf.push('\n');
@@ -493,11 +495,8 @@ fn draw_participant_collections(
     // Back (shadow) rectangle
     write!(
         buf,
-        r#"<rect fill="{bg}" height="{h:.1}" style="stroke:{border};stroke-width:1.5;" width="{w:.1}" x="{x:.1}" y="{y:.1}"/>"#,
-        x = rx + offset,
-        y = ry - offset,
-        w = rect_w,
-        h = rect_h,
+        r#"<rect fill="{bg}" height="{}" style="stroke:{border};stroke-width:1.5;" width="{}" x="{}" y="{}"/>"#,
+        fmt_coord(rect_h), fmt_coord(rect_w), fmt_coord(rx + offset), fmt_coord(ry - offset),
     )
     .unwrap();
     buf.push('\n');
@@ -505,7 +504,8 @@ fn draw_participant_collections(
     // Front (main) rectangle
     write!(
         buf,
-        r#"<rect fill="{bg}" height="{rect_h:.1}" style="stroke:{border};stroke-width:1.5;" width="{rect_w:.1}" x="{rx:.1}" y="{ry:.1}"/>"#,
+        r#"<rect fill="{bg}" height="{}" style="stroke:{border};stroke-width:1.5;" width="{}" x="{}" y="{}"/>"#,
+        fmt_coord(rect_h), fmt_coord(rect_w), fmt_coord(rx), fmt_coord(ry),
     )
     .unwrap();
     buf.push('\n');
@@ -515,7 +515,8 @@ fn draw_participant_collections(
     let escaped = xml_escape(name);
     write!(
         buf,
-        r#"<text fill="{text_color}" font-family="sans-serif" font-size="14" font-weight="bold" text-anchor="middle" x="{cx:.1}" y="{name_y:.1}">{escaped}</text>"#,
+        r#"<text fill="{text_color}" font-family="sans-serif" font-size="14" font-weight="bold" text-anchor="middle" x="{}" y="{}">{escaped}</text>"#,
+        fmt_coord(cx), fmt_coord(name_y),
     )
     .unwrap();
     buf.push('\n');
@@ -540,27 +541,27 @@ fn draw_participant_queue(
     let cyl_y = y + 6.0;
 
     // Cylinder body (horizontal)
-    write!(
-        buf,
-        r#"<path d="M {lx:.1},{ty:.1} L {rx:.1},{ty:.1} A {aw:.1},{ah:.1} 0 0,1 {rx:.1},{by:.1} L {lx:.1},{by:.1} A {aw:.1},{ah:.1} 0 0,1 {lx:.1},{ty:.1} Z" fill="{bg}" style="stroke:{border};stroke-width:1.5;"/>"#,
-        lx = cyl_x,
-        ty = cyl_y,
-        rx = cyl_x + cyl_w - arc_w,
-        aw = arc_w,
-        ah = cyl_h / 2.0,
-        by = cyl_y + cyl_h,
-    )
-    .unwrap();
+    {
+        let lx = fmt_coord(cyl_x);
+        let ty_s = fmt_coord(cyl_y);
+        let rx_s = fmt_coord(cyl_x + cyl_w - arc_w);
+        let aw = fmt_coord(arc_w);
+        let ah = fmt_coord(cyl_h / 2.0);
+        let by = fmt_coord(cyl_y + cyl_h);
+        write!(
+            buf,
+            r#"<path d="M {lx},{ty_s} L {rx_s},{ty_s} A {aw},{ah} 0 0,1 {rx_s},{by} L {lx},{by} A {aw},{ah} 0 0,1 {lx},{ty_s} Z" fill="{bg}" style="stroke:{border};stroke-width:1.5;"/>"#,
+        )
+        .unwrap();
+    }
     buf.push('\n');
 
     // Right end cap ellipse
     write!(
         buf,
-        r#"<ellipse cx="{ecx:.1}" cy="{ecy:.1}" fill="{bg}" rx="{erx:.1}" ry="{ery:.1}" style="stroke:{border};stroke-width:1.5;"/>"#,
-        ecx = cyl_x + cyl_w - arc_w,
-        ecy = cyl_y + cyl_h / 2.0,
-        erx = arc_w,
-        ery = cyl_h / 2.0,
+        r#"<ellipse cx="{}" cy="{}" fill="{bg}" rx="{}" ry="{}" style="stroke:{border};stroke-width:1.5;"/>"#,
+        fmt_coord(cyl_x + cyl_w - arc_w), fmt_coord(cyl_y + cyl_h / 2.0),
+        fmt_coord(arc_w), fmt_coord(cyl_h / 2.0),
     )
     .unwrap();
     buf.push('\n');
@@ -570,7 +571,8 @@ fn draw_participant_queue(
     let escaped = xml_escape(name);
     write!(
         buf,
-        r#"<text fill="{text_color}" font-family="sans-serif" font-size="14" font-weight="bold" text-anchor="middle" x="{cx:.1}" y="{name_y:.1}">{escaped}</text>"#,
+        r#"<text fill="{text_color}" font-family="sans-serif" font-size="14" font-weight="bold" text-anchor="middle" x="{}" y="{}">{escaped}</text>"#,
+        fmt_coord(cx), fmt_coord(name_y),
     )
     .unwrap();
     buf.push('\n');
@@ -834,11 +836,8 @@ fn draw_activation(buf: &mut String, act: &ActivationLayout) {
 
     write!(
         buf,
-        r#"<rect fill="{bg}" height="{h:.1}" style="stroke:{border};stroke-width:1;" width="{w:.1}" x="{x:.1}" y="{y:.1}"/>"#,
-        x = act.x,
-        y = act.y_start,
-        w = width,
-        h = height,
+        r#"<rect fill="{bg}" height="{}" style="stroke:{border};stroke-width:1;" width="{}" x="{}" y="{}"/>"#,
+        fmt_coord(height), fmt_coord(width), fmt_coord(act.x), fmt_coord(act.y_start),
         bg = ACTIVATION_BG,
         border = ACTIVATION_BORDER,
     )
@@ -853,11 +852,9 @@ fn draw_destroy(buf: &mut String, d: &DestroyLayout) {
     // First diagonal: top-left to bottom-right
     write!(
         buf,
-        r#"<line style="stroke:{color};stroke-width:2;" x1="{x1:.1}" x2="{x2:.1}" y1="{y1:.1}" y2="{y2:.1}"/>"#,
-        x1 = d.x - size,
-        y1 = d.y - size,
-        x2 = d.x + size,
-        y2 = d.y + size,
+        r#"<line style="stroke:{color};stroke-width:2;" x1="{}" x2="{}" y1="{}" y2="{}"/>"#,
+        fmt_coord(d.x - size), fmt_coord(d.x + size),
+        fmt_coord(d.y - size), fmt_coord(d.y + size),
         color = ARROW_COLOR,
     )
     .unwrap();
@@ -866,11 +863,9 @@ fn draw_destroy(buf: &mut String, d: &DestroyLayout) {
     // Second diagonal: top-right to bottom-left
     write!(
         buf,
-        r#"<line style="stroke:{color};stroke-width:2;" x1="{x1:.1}" x2="{x2:.1}" y1="{y1:.1}" y2="{y2:.1}"/>"#,
-        x1 = d.x + size,
-        y1 = d.y - size,
-        x2 = d.x - size,
-        y2 = d.y + size,
+        r#"<line style="stroke:{color};stroke-width:2;" x1="{}" x2="{}" y1="{}" y2="{}"/>"#,
+        fmt_coord(d.x + size), fmt_coord(d.x - size),
+        fmt_coord(d.y - size), fmt_coord(d.y + size),
         color = ARROW_COLOR,
     )
     .unwrap();
@@ -885,11 +880,8 @@ fn draw_note(buf: &mut String, note: &NoteLayout) {
     // Background rect
     write!(
         buf,
-        r#"<rect fill="{bg}" height="{h:.1}" style="stroke:{border};stroke-width:1;" width="{w:.1}" x="{x:.1}" y="{y:.1}"/>"#,
-        x = note.x,
-        y = note.y,
-        w = note.width,
-        h = note.height,
+        r#"<rect fill="{bg}" height="{}" style="stroke:{border};stroke-width:1;" width="{}" x="{}" y="{}"/>"#,
+        fmt_coord(note.height), fmt_coord(note.width), fmt_coord(note.x), fmt_coord(note.y),
         bg = NOTE_BG,
         border = NOTE_BORDER,
     )
@@ -899,15 +891,19 @@ fn draw_note(buf: &mut String, note: &NoteLayout) {
     // Folded corner triangle in top-right
     let cx = note.x + note.width - fold;
     let cy = note.y;
-    write!(
-        buf,
-        r#"<path d="M {cx:.1},{cy:.1} L {cx:.1},{cy2:.1} L {cx2:.1},{cy:.1} Z" fill="{bg}" style="stroke:{border};stroke-width:1;"/>"#,
-        cy2 = cy + fold,
-        cx2 = note.x + note.width,
-        bg = NOTE_BG,
-        border = NOTE_BORDER,
-    )
-    .unwrap();
+    {
+        let cx_s = fmt_coord(cx);
+        let cy_s = fmt_coord(cy);
+        let cy2 = fmt_coord(cy + fold);
+        let cx2 = fmt_coord(note.x + note.width);
+        write!(
+            buf,
+            r#"<path d="M {cx_s},{cy_s} L {cx_s},{cy2} L {cx2},{cy_s} Z" fill="{bg}" style="stroke:{border};stroke-width:1;"/>"#,
+            bg = NOTE_BG,
+            border = NOTE_BORDER,
+        )
+        .unwrap();
+    }
     buf.push('\n');
 
     let text_x = note.x + 6.0;
@@ -931,11 +927,8 @@ fn draw_group(buf: &mut String, group: &GroupLayout) {
     // Frame rectangle
     write!(
         buf,
-        r#"<rect fill="{bg}" fill-opacity="0.3" height="{h:.1}" style="stroke:{border};stroke-width:1;" width="{w:.1}" x="{x:.1}" y="{y:.1}"/>"#,
-        x = group.x,
-        y = group.y_start,
-        w = group.width,
-        h = height,
+        r#"<rect fill="{bg}" fill-opacity="0.3" height="{}" style="stroke:{border};stroke-width:1;" width="{}" x="{}" y="{}"/>"#,
+        fmt_coord(height), fmt_coord(group.width), fmt_coord(group.x), fmt_coord(group.y_start),
         bg = GROUP_BG,
         border = GROUP_BORDER,
     )
@@ -954,11 +947,8 @@ fn draw_group(buf: &mut String, group: &GroupLayout) {
         let label_height = FONT_SIZE + 6.0;
         write!(
             buf,
-            r#"<rect fill="{bg}" height="{h:.1}" style="stroke:{border};stroke-width:1;" width="{w:.1}" x="{x:.1}" y="{y:.1}"/>"#,
-            x = group.x,
-            y = group.y_start,
-            w = label_width,
-            h = label_height,
+            r#"<rect fill="{bg}" height="{}" style="stroke:{border};stroke-width:1;" width="{}" x="{}" y="{}"/>"#,
+            fmt_coord(label_height), fmt_coord(label_width), fmt_coord(group.x), fmt_coord(group.y_start),
             bg = GROUP_BG,
             border = GROUP_BORDER,
         )
@@ -967,7 +957,8 @@ fn draw_group(buf: &mut String, group: &GroupLayout) {
 
         write!(
             buf,
-            r#"<text fill="{TEXT_COLOR}" font-family="sans-serif" font-size="{FONT_SIZE}" font-weight="bold" x="{label_x:.1}" y="{label_y:.1}">{escaped}</text>"#,
+            r#"<text fill="{TEXT_COLOR}" font-family="sans-serif" font-size="{FONT_SIZE}" font-weight="bold" x="{}" y="{}">{escaped}</text>"#,
+            fmt_coord(label_x), fmt_coord(label_y),
         )
         .unwrap();
         buf.push('\n');
@@ -980,11 +971,8 @@ fn draw_fragment(buf: &mut String, frag: &FragmentLayout) {
     // Frame rectangle with semi-transparent fill
     write!(
         buf,
-        r#"<rect fill="{bg}" fill-opacity="0.1" height="{h:.1}" rx="2" style="stroke:{border};stroke-width:1.5;" width="{w:.1}" x="{x:.1}" y="{y:.1}"/>"#,
-        x = frag.x,
-        y = frag.y,
-        w = frag.width,
-        h = frag.height,
+        r#"<rect fill="{bg}" fill-opacity="0.1" height="{}" rx="2" style="stroke:{border};stroke-width:1.5;" width="{}" x="{}" y="{}"/>"#,
+        fmt_coord(frag.height), fmt_coord(frag.width), fmt_coord(frag.x), fmt_coord(frag.y),
         bg = FRAGMENT_BG,
         border = FRAGMENT_BORDER,
     )
@@ -1003,19 +991,21 @@ fn draw_fragment(buf: &mut String, frag: &FragmentLayout) {
     let notch = 6.0;
 
     // Pentagon path: top-left corner with a notch at bottom-right
-    write!(
-        buf,
-        r#"<path d="M {x:.1},{y:.1} L {x2:.1},{y:.1} L {x2:.1},{y2:.1} L {x3:.1},{y3:.1} L {x:.1},{y3:.1} Z" fill="{bg}" style="stroke:{border};stroke-width:1.5;"/>"#,
-        x = frag.x,
-        y = frag.y,
-        x2 = frag.x + tab_width,
-        y2 = frag.y + tab_height - notch,
-        x3 = frag.x + tab_width - notch,
-        y3 = frag.y + tab_height,
-        bg = FRAGMENT_BG,
-        border = FRAGMENT_BORDER,
-    )
-    .unwrap();
+    {
+        let fx = fmt_coord(frag.x);
+        let fy = fmt_coord(frag.y);
+        write!(
+            buf,
+            r#"<path d="M {fx},{fy} L {},{fy} L {},{} L {},{} L {fx},{} Z" fill="{bg}" style="stroke:{border};stroke-width:1.5;"/>"#,
+            fmt_coord(frag.x + tab_width),
+            fmt_coord(frag.x + tab_width), fmt_coord(frag.y + tab_height - notch),
+            fmt_coord(frag.x + tab_width - notch), fmt_coord(frag.y + tab_height),
+            fmt_coord(frag.y + tab_height),
+            bg = FRAGMENT_BG,
+            border = FRAGMENT_BORDER,
+        )
+        .unwrap();
+    }
     buf.push('\n');
 
     // Kind label text
@@ -1024,7 +1014,8 @@ fn draw_fragment(buf: &mut String, frag: &FragmentLayout) {
     let escaped = xml_escape(&tab_text);
     write!(
         buf,
-        r#"<text fill="{TEXT_COLOR}" font-family="sans-serif" font-size="{FONT_SIZE}" font-weight="bold" x="{text_x:.1}" y="{text_y:.1}">{escaped}</text>"#,
+        r#"<text fill="{TEXT_COLOR}" font-family="sans-serif" font-size="{FONT_SIZE}" font-weight="bold" x="{}" y="{}">{escaped}</text>"#,
+        fmt_coord(text_x), fmt_coord(text_y),
     )
     .unwrap();
     buf.push('\n');
@@ -1032,15 +1023,16 @@ fn draw_fragment(buf: &mut String, frag: &FragmentLayout) {
     // Separator lines (else)
     for (sep_y, sep_label) in &frag.separators {
         // Dashed horizontal line
-        write!(
-            buf,
-            r#"<line style="stroke:{border};stroke-width:1;stroke-dasharray:5,5;" x1="{x1:.1}" x2="{x2:.1}" y1="{y:.1}" y2="{y:.1}"/>"#,
-            x1 = frag.x,
-            y = sep_y,
-            x2 = frag.x + frag.width,
-            border = FRAGMENT_BORDER,
-        )
-        .unwrap();
+        {
+            let y_s = fmt_coord(*sep_y);
+            write!(
+                buf,
+                r#"<line style="stroke:{border};stroke-width:1;stroke-dasharray:5,5;" x1="{}" x2="{}" y1="{y_s}" y2="{y_s}"/>"#,
+                fmt_coord(frag.x), fmt_coord(frag.x + frag.width),
+                border = FRAGMENT_BORDER,
+            )
+            .unwrap();
+        }
         buf.push('\n');
 
         // Separator label
@@ -1050,7 +1042,8 @@ fn draw_fragment(buf: &mut String, frag: &FragmentLayout) {
             let escaped_label = xml_escape(sep_label);
             write!(
                 buf,
-                r#"<text fill="{TEXT_COLOR}" font-family="sans-serif" font-size="{FONT_SIZE}" font-style="italic" x="{label_x:.1}" y="{label_y:.1}">[{escaped_label}]</text>"#,
+                r#"<text fill="{TEXT_COLOR}" font-family="sans-serif" font-size="{FONT_SIZE}" font-style="italic" x="{}" y="{}">[{escaped_label}]</text>"#,
+                fmt_coord(label_x), fmt_coord(label_y),
             )
             .unwrap();
             buf.push('\n');
@@ -1066,35 +1059,35 @@ fn draw_divider(buf: &mut String, divider: &DividerLayout) {
     // Background stripe
     write!(
         buf,
-        r#"<rect fill="{color}" fill-opacity="0.2" height="5" width="{w:.1}" x="{x:.1}" y="{y:.1}"/>"#,
-        x = divider.x,
-        y = center_y - 2.5,
-        w = divider.width,
+        r#"<rect fill="{color}" fill-opacity="0.2" height="5" width="{}" x="{}" y="{}"/>"#,
+        fmt_coord(divider.width), fmt_coord(divider.x), fmt_coord(center_y - 2.5),
         color = DIVIDER_COLOR,
     )
     .unwrap();
     buf.push('\n');
 
     // Horizontal lines
-    write!(
-        buf,
-        r#"<line style="stroke:{color};stroke-width:1;" x1="{x1:.1}" x2="{x2:.1}" y1="{y:.1}" y2="{y:.1}"/>"#,
-        x1 = divider.x,
-        y = center_y - 2.5,
-        x2 = divider.x + divider.width,
-        color = DIVIDER_COLOR,
-    )
-    .unwrap();
+    {
+        let y1 = fmt_coord(center_y - 2.5);
+        write!(
+            buf,
+            r#"<line style="stroke:{color};stroke-width:1;" x1="{}" x2="{}" y1="{y1}" y2="{y1}"/>"#,
+            fmt_coord(divider.x), fmt_coord(divider.x + divider.width),
+            color = DIVIDER_COLOR,
+        )
+        .unwrap();
+    }
     buf.push('\n');
-    write!(
-        buf,
-        r#"<line style="stroke:{color};stroke-width:1;" x1="{x1:.1}" x2="{x2:.1}" y1="{y:.1}" y2="{y:.1}"/>"#,
-        x1 = divider.x,
-        y = center_y + 2.5,
-        x2 = divider.x + divider.width,
-        color = DIVIDER_COLOR,
-    )
-    .unwrap();
+    {
+        let y2 = fmt_coord(center_y + 2.5);
+        write!(
+            buf,
+            r#"<line style="stroke:{color};stroke-width:1;" x1="{}" x2="{}" y1="{y2}" y2="{y2}"/>"#,
+            fmt_coord(divider.x), fmt_coord(divider.x + divider.width),
+            color = DIVIDER_COLOR,
+        )
+        .unwrap();
+    }
     buf.push('\n');
 
     // Centered label text
@@ -1108,18 +1101,17 @@ fn draw_divider(buf: &mut String, divider: &DividerLayout) {
             font_metrics::text_width(text, "SansSerif", FONT_SIZE, false, false) + 16.0;
         write!(
             buf,
-            r#"<rect fill="white" height="{h:.1}" width="{w:.1}" x="{x:.1}" y="{y:.1}"/>"#,
-            x = mid_x - text_width / 2.0,
-            y = center_y - FONT_SIZE * 0.6,
-            w = text_width,
-            h = FONT_SIZE * 1.2,
+            r#"<rect fill="white" height="{}" width="{}" x="{}" y="{}"/>"#,
+            fmt_coord(FONT_SIZE * 1.2), fmt_coord(text_width),
+            fmt_coord(mid_x - text_width / 2.0), fmt_coord(center_y - FONT_SIZE * 0.6),
         )
         .unwrap();
         buf.push('\n');
 
         write!(
             buf,
-            r#"<text fill="{TEXT_COLOR}" font-family="sans-serif" font-size="{FONT_SIZE}" font-weight="bold" text-anchor="middle" x="{mid_x:.1}" y="{text_y:.1}">{escaped}</text>"#,
+            r#"<text fill="{TEXT_COLOR}" font-family="sans-serif" font-size="{FONT_SIZE}" font-weight="bold" text-anchor="middle" x="{}" y="{}">{escaped}</text>"#,
+            fmt_coord(mid_x), fmt_coord(text_y),
         )
         .unwrap();
         buf.push('\n');
@@ -1136,9 +1128,8 @@ fn draw_delay(buf: &mut String, delay: &DelayLayout) {
     for dy in [-4.0, 0.0, 4.0] {
         write!(
             buf,
-            r#"<circle cx="{cx:.1}" cy="{cy:.1}" fill="{color}" r="1.5"/>"#,
-            cx = mid_x,
-            cy = center_y + dy,
+            r#"<circle cx="{}" cy="{}" fill="{color}" r="1.5"/>"#,
+            fmt_coord(mid_x), fmt_coord(center_y + dy),
             color = DIVIDER_COLOR,
         )
         .unwrap();
@@ -1152,7 +1143,8 @@ fn draw_delay(buf: &mut String, delay: &DelayLayout) {
         let escaped = xml_escape(text);
         write!(
             buf,
-            r#"<text fill="{TEXT_COLOR}" font-family="sans-serif" font-size="{FONT_SIZE}" x="{text_x:.1}" y="{text_y:.1}">{escaped}</text>"#,
+            r#"<text fill="{TEXT_COLOR}" font-family="sans-serif" font-size="{FONT_SIZE}" x="{}" y="{}">{escaped}</text>"#,
+            fmt_coord(text_x), fmt_coord(text_y),
         )
         .unwrap();
         buf.push('\n');
@@ -1165,11 +1157,8 @@ fn draw_ref(buf: &mut String, r: &RefLayout) {
     // Filled rectangle
     write!(
         buf,
-        r#"<rect fill="{bg}" height="{h:.1}" rx="2" style="stroke:{border};stroke-width:1.5;" width="{w:.1}" x="{x:.1}" y="{y:.1}"/>"#,
-        x = r.x,
-        y = r.y,
-        w = r.width,
-        h = r.height,
+        r#"<rect fill="{bg}" height="{}" rx="2" style="stroke:{border};stroke-width:1.5;" width="{}" x="{}" y="{}"/>"#,
+        fmt_coord(r.height), fmt_coord(r.width), fmt_coord(r.x), fmt_coord(r.y),
         bg = REF_BG,
         border = REF_BORDER,
     )
@@ -1180,26 +1169,27 @@ fn draw_ref(buf: &mut String, r: &RefLayout) {
     let tab_width = font_metrics::text_width("ref", "SansSerif", FONT_SIZE, true, false) + 12.0;
     let tab_height = FONT_SIZE + 6.0;
     let notch = 5.0;
-    write!(
-        buf,
-        r#"<path d="M {x:.1},{y:.1} L {x2:.1},{y:.1} L {x2:.1},{y2:.1} L {x3:.1},{y3:.1} L {x:.1},{y3:.1} Z" fill="{bg}" style="stroke:{border};stroke-width:1;"/>"#,
-        x = r.x,
-        y = r.y,
-        x2 = r.x + tab_width,
-        y2 = r.y + tab_height - notch,
-        x3 = r.x + tab_width - notch,
-        y3 = r.y + tab_height,
-        bg = REF_BG,
-        border = REF_BORDER,
-    )
-    .unwrap();
+    {
+        let rx_s = fmt_coord(r.x);
+        let ry_s = fmt_coord(r.y);
+        write!(
+            buf,
+            r#"<path d="M {rx_s},{ry_s} L {},{ry_s} L {},{} L {},{} L {rx_s},{} Z" fill="{bg}" style="stroke:{border};stroke-width:1;"/>"#,
+            fmt_coord(r.x + tab_width),
+            fmt_coord(r.x + tab_width), fmt_coord(r.y + tab_height - notch),
+            fmt_coord(r.x + tab_width - notch), fmt_coord(r.y + tab_height),
+            fmt_coord(r.y + tab_height),
+            bg = REF_BG,
+            border = REF_BORDER,
+        )
+        .unwrap();
+    }
     buf.push('\n');
 
     write!(
         buf,
-        r#"<text fill="{color}" font-family="sans-serif" font-size="{FONT_SIZE}" font-weight="bold" x="{tx:.1}" y="{ty:.1}">ref</text>"#,
-        tx = r.x + 5.0,
-        ty = r.y + FONT_SIZE + 1.0,
+        r#"<text fill="{color}" font-family="sans-serif" font-size="{FONT_SIZE}" font-weight="bold" x="{}" y="{}">ref</text>"#,
+        fmt_coord(r.x + 5.0), fmt_coord(r.y + FONT_SIZE + 1.0),
         color = TEXT_COLOR,
     )
     .unwrap();
@@ -1211,7 +1201,8 @@ fn draw_ref(buf: &mut String, r: &RefLayout) {
     let escaped = xml_escape(&r.label);
     write!(
         buf,
-        r#"<text fill="{TEXT_COLOR}" font-family="sans-serif" font-size="{FONT_SIZE}" text-anchor="middle" x="{mid_x:.1}" y="{mid_y:.1}">{escaped}</text>"#,
+        r#"<text fill="{TEXT_COLOR}" font-family="sans-serif" font-size="{FONT_SIZE}" text-anchor="middle" x="{}" y="{}">{escaped}</text>"#,
+        fmt_coord(mid_x), fmt_coord(mid_y),
     )
     .unwrap();
     buf.push('\n');

@@ -216,7 +216,7 @@ fn render_group(
             let text_y = y + 13.9951;
             write!(
                 buf,
-                r#"<text fill="{font_color}" font-family="sans-serif" font-size="14" font-weight="700" lengthAdjust="spacing" textLength="{tl}" x="{}" y="{}">{name_escaped}</text>"#,
+                r#"<text fill="{font_color}" font-family="sans-serif" font-size="14" font-weight="bold" lengthAdjust="spacing" textLength="{tl}" x="{}" y="{}">{name_escaped}</text>"#,
                 fmt_coord(text_x), fmt_coord(text_y),
             )
             .unwrap();
@@ -271,7 +271,7 @@ fn render_group(
             let text_y = y + depth + 15.9951;
             write!(
                 buf,
-                r#"<text fill="{font_color}" font-family="sans-serif" font-size="14" font-weight="700" lengthAdjust="spacing" textLength="{tl}" x="{}" y="{}">{name_escaped}</text>"#,
+                r#"<text fill="{font_color}" font-family="sans-serif" font-size="14" font-weight="bold" lengthAdjust="spacing" textLength="{tl}" x="{}" y="{}">{name_escaped}</text>"#,
                 fmt_coord(text_x), fmt_coord(text_y),
             )
             .unwrap();
@@ -292,7 +292,7 @@ fn render_group(
             let text_y = y + 15.9951;
             write!(
                 buf,
-                r#"<text fill="{font_color}" font-family="sans-serif" font-size="14" font-weight="700" lengthAdjust="spacing" textLength="{tl}" x="{}" y="{}">{name_escaped}</text>"#,
+                r#"<text fill="{font_color}" font-family="sans-serif" font-size="14" font-weight="bold" lengthAdjust="spacing" textLength="{tl}" x="{}" y="{}">{name_escaped}</text>"#,
                 fmt_coord(text_x), fmt_coord(text_y),
             )
             .unwrap();

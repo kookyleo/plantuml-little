@@ -1,4 +1,5 @@
 use crate::error::Error;
+use crate::render::svg::fmt_coord;
 use std::io::Write;
 use std::process::{Command, Stdio};
 
@@ -577,9 +578,9 @@ pub fn transform_path_d(d: &str, tx: f64, ty: f64) -> String {
                 if let (Some(x), Some(y)) = (x, y) {
                     let nx = tx + x;
                     let ny = ty + y;
-                    result.push_str(&format_path_coord(nx));
+                    result.push_str(&fmt_coord(nx));
                     result.push(',');
-                    result.push_str(&format_path_coord(ny));
+                    result.push_str(&fmt_coord(ny));
                     had_coords = true;
                 }
                 // Consume trailing separators and add space if more data follows
@@ -607,17 +608,6 @@ pub fn transform_path_d(d: &str, tx: f64, ty: f64) -> String {
     result
 }
 
-/// Format a path coordinate value to match Java PlantUML's style.
-/// Uses up to 2 decimal places, strips trailing zeros.
-fn format_path_coord(v: f64) -> String {
-    if v == v.round() {
-        return format!("{}", v as i64);
-    }
-    let s = format!("{:.2}", v);
-    let s = s.trim_end_matches('0');
-    let s = s.trim_end_matches('.');
-    s.to_string()
-}
 
 /// Parse SVG path `d` attribute (M/C/L commands) and apply transform.
 ///

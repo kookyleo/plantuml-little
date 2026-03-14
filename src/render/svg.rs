@@ -93,13 +93,16 @@ const LEGEND_BG: &str = "#FEFFDD";
 ///
 /// Reference: SvgGraphics.java:944
 pub(crate) fn fmt_coord(value: f64) -> String {
+    // Java's SvgGraphics.format(): "%.4f" with half-up rounding, trailing zero stripping.
+    // Handles negative zero: -0.00004 → "0" not "-0".
     if value == 0.0 {
         return "0".into();
     }
-    // Java's String.format("%.4f", x) uses half-up rounding (0.5 rounds away from zero).
-    // Rust's format!("{:.4}", x) uses banker's rounding (0.5 rounds to even).
-    // We must match Java's behavior exactly.
     let rounded = java_round_4(value);
+    // Guard against negative zero after rounding
+    if rounded == 0.0 {
+        return "0".into();
+    }
     let s = format!("{:.4}", rounded);
     let bytes = s.as_bytes();
     let dot = s.find('.').unwrap();
@@ -125,16 +128,6 @@ fn java_round_4(v: f64) -> f64 {
         (scaled - 0.5).ceil()
     };
     rounded / factor
-}
-
-fn format_path_coord(v: f64) -> String {
-    if v == v.round() {
-        return format!("{}", v as i64);
-    }
-    let s = format!("{:.2}", v);
-    let s = s.trim_end_matches('0');
-    let s = s.trim_end_matches('.');
-    s.to_string()
 }
 
 /// Write a Java PlantUML-compatible SVG root element and open a `<g>` wrapper.
@@ -718,7 +711,7 @@ fn wrap_with_meta(body_svg: &str, meta: &DiagramMeta, diagram_type: &str) -> Res
     }
 
     // Body
-    write!(buf, r#"<g transform="translate({body_x:.1},{top_h:.1})">"#).unwrap();
+    write!(buf, r#"<g transform="translate({},{})">"#, fmt_coord(body_x), fmt_coord(top_h)).unwrap();
     buf.push('\n');
     buf.push_str(&body_content);
     buf.push_str("</g>\n");
@@ -772,7 +765,8 @@ fn wrap_with_meta(body_svg: &str, meta: &DiagramMeta, diagram_type: &str) -> Res
         let leg_x = total_w - leg_w - MARGIN;
         let leg_y = y_bottom;
         write!(buf,
-            r#"<rect fill="{LEGEND_BG}" height="{leg_h:.1}" style="stroke:{LEGEND_BORDER_COLOR};stroke-width:1;" width="{leg_w:.1}" x="{leg_x:.1}" y="{leg_y:.1}"/>"#,
+            r#"<rect fill="{LEGEND_BG}" height="{}" style="stroke:{LEGEND_BORDER_COLOR};stroke-width:1;" width="{}" x="{}" y="{}"/>"#,
+            fmt_coord(leg_h), fmt_coord(leg_w), fmt_coord(leg_x), fmt_coord(leg_y),
         ).unwrap();
         buf.push('\n');
         let lx = leg_x + LEGEND_PADDING;
@@ -1106,9 +1100,9 @@ fn offset_glyph_path_xy(path: &str, dx: f64, dy: f64) -> String {
                 }
                 if let Ok(val) = s.parse::<f64>() {
                     if is_x {
-                        result.push_str(&format_glyph_coord(val + dx));
+                        result.push_str(&fmt_coord(val + dx));
                     } else {
-                        result.push_str(&format_glyph_coord(val + dy));
+                        result.push_str(&fmt_coord(val + dy));
                     }
                     is_x = !is_x;
                 } else {
@@ -1132,16 +1126,6 @@ fn offset_glyph_path_xy(path: &str, dx: f64, dy: f64) -> String {
     result
 }
 
-/// Format glyph coordinate: up to 4 decimal places, trailing zeros stripped.
-fn format_glyph_coord(v: f64) -> String {
-    if v == v.round() && v.fract() == 0.0 {
-        return format!("{}", v as i64);
-    }
-    let s = format!("{:.4}", v);
-    let s = s.trim_end_matches('0');
-    let s = s.trim_end_matches('.');
-    s.to_string()
-}
 
 fn stereotype_circle_color(kind: &EntityKind) -> &'static str {
     match kind {
@@ -1639,8 +1623,8 @@ fn build_edge_path_d(points: &[(f64, f64)], offset: f64) -> String {
     write!(
         d,
         "M{},{}",
-        format_path_coord(points[0].0 + offset),
-        format_path_coord(points[0].1 + offset),
+        fmt_coord(points[0].0 + offset),
+        fmt_coord(points[0].1 + offset),
     )
     .unwrap();
 
@@ -1650,12 +1634,12 @@ fn build_edge_path_d(points: &[(f64, f64)], offset: f64) -> String {
             write!(
                 d,
                 " C{},{} {},{} {},{}",
-                format_path_coord(chunk[0].0 + offset),
-                format_path_coord(chunk[0].1 + offset),
-                format_path_coord(chunk[1].0 + offset),
-                format_path_coord(chunk[1].1 + offset),
-                format_path_coord(chunk[2].0 + offset),
-                format_path_coord(chunk[2].1 + offset),
+                fmt_coord(chunk[0].0 + offset),
+                fmt_coord(chunk[0].1 + offset),
+                fmt_coord(chunk[1].0 + offset),
+                fmt_coord(chunk[1].1 + offset),
+                fmt_coord(chunk[2].0 + offset),
+                fmt_coord(chunk[2].1 + offset),
             )
             .unwrap();
         }
@@ -1664,8 +1648,8 @@ fn build_edge_path_d(points: &[(f64, f64)], offset: f64) -> String {
             write!(
                 d,
                 " L{},{}",
-                format_path_coord(x + offset),
-                format_path_coord(y + offset),
+                fmt_coord(x + offset),
+                fmt_coord(y + offset),
             )
             .unwrap();
         }
@@ -1852,7 +1836,7 @@ fn emit_rotated_polygon(
         }
         let rx = x * cos - y * sin + tx;
         let ry = x * sin + y * cos + ty;
-        write!(pts, "{},{}", format_path_coord(rx), format_path_coord(ry)).unwrap();
+        write!(pts, "{},{}", fmt_coord(rx), fmt_coord(ry)).unwrap();
     }
     write!(
         buf,
@@ -1868,8 +1852,8 @@ fn emit_plus_head(buf: &mut String, tip_x: f64, tip_y: f64, angle: f64, link_col
     write!(
         buf,
         r##"<circle cx="{}" cy="{}" fill="#FFFFFF" r="8" style="stroke:{link_color};stroke-width:1;"/>"##,
-        format_path_coord(center_x),
-        format_path_coord(center_y),
+        fmt_coord(center_x),
+        fmt_coord(center_y),
     )
     .unwrap();
 
@@ -1890,19 +1874,19 @@ fn emit_plus_head(buf: &mut String, tip_x: f64, tip_y: f64, angle: f64, link_col
     write!(
         buf,
         r#"<line style="stroke:{link_color};stroke-width:1;" x1="{}" x2="{}" y1="{}" y2="{}"/>"#,
-        format_path_coord(p1.0),
-        format_path_coord(p2.0),
-        format_path_coord(p1.1),
-        format_path_coord(p2.1),
+        fmt_coord(p1.0),
+        fmt_coord(p2.0),
+        fmt_coord(p1.1),
+        fmt_coord(p2.1),
     )
     .unwrap();
     write!(
         buf,
         r#"<line style="stroke:{link_color};stroke-width:1;" x1="{}" x2="{}" y1="{}" y2="{}"/>"#,
-        format_path_coord(p3.0),
-        format_path_coord(p4.0),
-        format_path_coord(p3.1),
-        format_path_coord(p4.1),
+        fmt_coord(p3.0),
+        fmt_coord(p4.0),
+        fmt_coord(p3.1),
+        fmt_coord(p4.1),
     )
     .unwrap();
 }
@@ -1935,25 +1919,28 @@ fn draw_class_note(buf: &mut String, note: &ClassNoteLayout) {
     let fold = NOTE_FOLD;
     // pentagon path: top-left -> top-right(minus fold) -> fold inner corner -> bottom-right -> bottom-left
     write!(buf,
-        r#"<polygon fill="{bg}" points="{x:.1},{y:.1} {x1:.1},{y:.1} {x2:.1},{y1:.1} {x2:.1},{y2:.1} {x:.1},{y2:.1}" style="stroke:{border};stroke-width:1;"/>"#,
-        x1 = x + w - fold,
-        y1 = y + fold,
-        x2 = x + w,
-        y2 = y + h,
+        r#"<polygon fill="{bg}" points="{},{} {},{} {},{} {},{} {},{}" style="stroke:{border};stroke-width:1;"/>"#,
+        fmt_coord(x), fmt_coord(y),
+        fmt_coord(x + w - fold), fmt_coord(y),
+        fmt_coord(x + w), fmt_coord(y + fold),
+        fmt_coord(x + w), fmt_coord(y + h),
+        fmt_coord(x), fmt_coord(y + h),
         bg = NOTE_BG,
         border = NOTE_BORDER,
     ).unwrap();
 
     // fold corner triangle
-    write!(buf,
-        r#"<path d="M {cx:.1},{cy:.1} L {cx:.1},{cy2:.1} L {cx2:.1},{cy:.1} Z" fill="{bg}" style="stroke:{border};stroke-width:1;"/>"#,
-        cx = x + w - fold,
-        cy = y,
-        cy2 = y + fold,
-        cx2 = x + w,
-        bg = NOTE_BG,
-        border = NOTE_BORDER,
-    ).unwrap();
+    {
+        let cx = fmt_coord(x + w - fold);
+        let cy = fmt_coord(y);
+        let cy2 = fmt_coord(y + fold);
+        let cx2 = fmt_coord(x + w);
+        write!(buf,
+            r#"<path d="M {cx},{cy} L {cx},{cy2} L {cx2},{cy} Z" fill="{bg}" style="stroke:{border};stroke-width:1;"/>"#,
+            bg = NOTE_BG,
+            border = NOTE_BORDER,
+        ).unwrap();
+    }
 
     // text content
     let text_x = x + NOTE_TEXT_PADDING;
@@ -1972,11 +1959,11 @@ fn draw_class_note(buf: &mut String, note: &ClassNoteLayout) {
     // connector line (dashed)
     if let Some((from_x, from_y, to_x, to_y)) = note.connector {
         write!(buf,
-            r#"<line style="stroke:{border};stroke-width:1;stroke-dasharray:5,3;" x1="{fx:.1}" x2="{tx:.1}" y1="{fy:.1}" y2="{ty:.1}"/>"#,
-            fx = from_x + MARGIN,
-            fy = from_y + MARGIN,
-            tx = to_x + MARGIN,
-            ty = to_y + MARGIN,
+            r#"<line style="stroke:{border};stroke-width:1;stroke-dasharray:5,3;" x1="{}" x2="{}" y1="{}" y2="{}"/>"#,
+            fmt_coord(from_x + MARGIN),
+            fmt_coord(to_x + MARGIN),
+            fmt_coord(from_y + MARGIN),
+            fmt_coord(to_y + MARGIN),
             border = NOTE_BORDER,
         ).unwrap();
     }
