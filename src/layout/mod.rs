@@ -409,9 +409,10 @@ fn section_height(show: bool, members: &[&Member]) -> f64 {
     MEMBER_BLOCK_HEIGHT_ONE_ROW + (members.len().saturating_sub(1)) as f64 * MEMBER_ROW_HEIGHT
 }
 
+/// Java MemberImpl format: "name : type" (space-colon-space).
 fn member_text(m: &Member) -> String {
     if let Some(ref t) = m.return_type {
-        format!("{}: {}", m.name, t)
+        format!("{} : {}", m.name, t)
     } else {
         m.name.clone()
     }
