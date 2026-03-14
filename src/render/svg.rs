@@ -946,7 +946,7 @@ const GLYPH_E_PATH: &str = "M17.7656,3.4688 L27.0469,3.4688 L27.0469,5.625 L20.4
 
 /// Emit a stereotype circle glyph path element for the given character.
 /// `entity_y` is the top-left Y coordinate of the entity rect.
-fn emit_circle_glyph(buf: &mut String, kind: &EntityKind, entity_y: f64) {
+fn emit_circle_glyph(buf: &mut String, kind: &EntityKind, entity_y: f64, circle_cx: f64) {
     let glyph_path = match kind {
         EntityKind::Class | EntityKind::Object => GLYPH_C_PATH,
         EntityKind::Abstract => GLYPH_A_PATH,
@@ -955,16 +955,18 @@ fn emit_circle_glyph(buf: &mut String, kind: &EntityKind, entity_y: f64) {
         EntityKind::Annotation => return, // no glyph for annotation
     };
 
-    // Offset all Y coordinates in the path by entity_y
-    let offset_path = offset_glyph_path_y(glyph_path, entity_y);
+    // Glyph paths are defined relative to a reference circle at cx=22.
+    // Offset X by (actual_cx - 22) and Y by entity_y.
+    let dx = circle_cx - 22.0;
+    let offset_path = offset_glyph_path_xy(glyph_path, dx, entity_y);
     write!(buf, r##"<path d="{}" fill="#000000"/>"##, offset_path).unwrap();
 }
 
-/// Offset all Y coordinates in a glyph path string by dy.
+/// Offset all coordinates in a glyph path string by (dx, dy).
 /// The path uses M, Q, L, Z commands with absolute coordinates.
 /// Format: "Mx,y Qx,y x,y Lx,y Z"
-fn offset_glyph_path_y(path: &str, dy: f64) -> String {
-    if dy == 0.0 {
+fn offset_glyph_path_xy(path: &str, dx: f64, dy: f64) -> String {
+    if dx == 0.0 && dy == 0.0 {
         return path.to_string();
     }
     let mut result = String::with_capacity(path.len() + 64);
@@ -991,10 +993,8 @@ fn offset_glyph_path_y(path: &str, dy: f64) -> String {
                 }
                 if let Ok(val) = s.parse::<f64>() {
                     if is_x {
-                        // X coordinate: keep as is
-                        result.push_str(&format_glyph_coord(val));
+                        result.push_str(&format_glyph_coord(val + dx));
                     } else {
-                        // Y coordinate: offset
                         result.push_str(&format_glyph_coord(val + dy));
                     }
                     is_x = !is_x;
@@ -1166,6 +1166,7 @@ fn draw_entity_box(
             buf,
             &entity.kind,
             y + (header_height - HEADER_CIRCLE_BLOCK_HEIGHT) / 2.0,
+            ecx,
         );
 
         let header_top_offset = (header_height - stereo_height - HEADER_NAME_BLOCK_HEIGHT) / 2.0;
