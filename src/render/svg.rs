@@ -25,8 +25,11 @@ const HEADER_HEIGHT: f64 = 32.0;
 /// Java PlantUML: moveDelta(6 - minX, 6 - minY) — SvekResult.java:133
 /// Entity rects start at x=7 (MARGIN + 1px border inset in draw_entity_box).
 const MARGIN: f64 = 6.0;
-/// Java PlantUML: delta(15, 15) added to final canvas dimensions.
-const CANVAS_PADDING: f64 = 15.0;
+/// Java PlantUML SvekResult: delta(15, 15) added to content bounding box.
+const CANVAS_DELTA: f64 = 15.0;
+/// Java PlantUML: default document margin right=5, bottom=5 (from plantuml.skin style).
+const DOC_MARGIN_RIGHT: f64 = 5.0;
+const DOC_MARGIN_BOTTOM: f64 = 5.0;
 const CIRCLE_LEFT_PAD: f64 = 4.0;
 const CIRCLE_DIAMETER: f64 = 22.0;
 const EMPTY_COMPARTMENT: f64 = 8.0;
@@ -483,9 +486,16 @@ fn render_class(
     layout: &GraphLayout,
     skin: &SkinParams,
 ) -> Result<String> {
-    // Java SvekResult: moveDelta(6,..) + 1px border inset + content + delta(15,15)
-    let svg_w = layout.total_width + MARGIN + 1.0 + CANVAS_PADDING;
-    let svg_h = layout.total_height + MARGIN + 1.0 + CANVAS_PADDING;
+    // Java computes viewBox via ensureVisible during rendering:
+    // maxX = (int)(x + 1) for the rightmost rendered coordinate.
+    // The minDim passed to SvgGraphics = calculateDimension + doc_margin(R=5,B=5)
+    // calculateDimension = (LimitFinder_span + delta(15,15))
+    // LimitFinder_span includes -1 adjustment on rect left edges.
+    //
+    // We approximate: svg_size = total_content_span + delta(15) + doc_margin(5) + border_adjust(1)
+    // Then apply ensureVisible: (int)(svg_size + 1)
+    let svg_w = ((layout.total_width + CANVAS_DELTA + DOC_MARGIN_RIGHT).ceil() + 1.0) as f64;
+    let svg_h = ((layout.total_height + CANVAS_DELTA + DOC_MARGIN_BOTTOM).ceil() + 1.0) as f64;
     let mut buf = String::with_capacity(4096);
     write_svg_root(&mut buf, svg_w, svg_h, "CLASS");
 
