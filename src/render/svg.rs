@@ -78,8 +78,6 @@ pub(crate) fn fmt_coord(value: f64) -> String {
 pub(crate) fn write_svg_root(buf: &mut String, w: f64, h: f64, diagram_type: &str) {
     let wi = w.ceil() as i32;
     let hi = h.ceil() as i32;
-    let vw = fmt_coord(w);
-    let vh = fmt_coord(h);
     write!(
         buf,
         concat!(
@@ -91,18 +89,16 @@ pub(crate) fn write_svg_root(buf: &mut String, w: f64, h: f64, diagram_type: &st
             r#" preserveAspectRatio="none""#,
             r#" style="width:{wi}px;height:{hi}px;background:#FFFFFF;""#,
             r#" version="1.1""#,
-            r#" viewBox="0 0 {vw} {vh}""#,
+            r#" viewBox="0 0 {wi} {hi}""#,
             r#" width="{wi}px""#,
             r#" zoomAndPan="magnify">"#,
         ),
         dtype = diagram_type,
         hi = hi,
         wi = wi,
-        vw = vw,
-        vh = vh,
     )
     .unwrap();
-    buf.push_str("\n<g>\n");
+    buf.push('\n');
 }
 
 fn sanitize_id(name: &str) -> String {
