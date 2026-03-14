@@ -721,7 +721,8 @@ fn layout_top_bottom(diagram: &UseCaseDiagram) -> Result<UseCaseLayout> {
 
 /// Compute the horizontal semi-axis for a use case oval based on text width.
 fn uc_rx_for_name(name: &str) -> f64 {
-    let text_half = font_metrics::text_width(name, "SansSerif", FONT_SIZE, false, false) / 2.0 + 12.0;
+    let text_half =
+        font_metrics::text_width(name, "SansSerif", FONT_SIZE, false, false) / 2.0 + 12.0;
     text_half.max(UC_RX_MIN)
 }
 

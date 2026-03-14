@@ -1176,8 +1176,13 @@ mod tests {
         let node = &layout.state_layouts[0];
 
         // Width should accommodate the longest description line
-        let expected_min_w =
-            crate::font_metrics::text_width("a much longer description line", "SansSerif", FONT_SIZE, false, false) + 2.0 * PADDING;
+        let expected_min_w = crate::font_metrics::text_width(
+            "a much longer description line",
+            "SansSerif",
+            FONT_SIZE,
+            false,
+            false,
+        ) + 2.0 * PADDING;
         assert!(
             node.width >= expected_min_w,
             "width {} should be >= {}",

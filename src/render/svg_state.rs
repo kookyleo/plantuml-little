@@ -2,8 +2,8 @@ use std::fmt::Write;
 
 use crate::layout::state::{StateLayout, StateNodeLayout, StateNoteLayout, TransitionLayout};
 use crate::model::state::{StateDiagram, StateKind};
-use crate::render::svg::{fmt_coord, xml_escape};
 use crate::render::svg::write_svg_root;
+use crate::render::svg::{fmt_coord, xml_escape};
 use crate::render::svg_richtext::render_creole_text;
 use crate::style::SkinParams;
 use crate::Result;
@@ -667,8 +667,14 @@ mod tests {
         let mut layout = empty_layout();
         layout.state_layouts.push(make_initial(90.0, 10.0));
         let svg = render_state(&diagram, &layout, &SkinParams::default()).expect("render failed");
-        assert!(svg.contains(r#"rx="10""#), "initial ellipse must have rx=10");
-        assert!(svg.contains(r#"ry="10""#), "initial ellipse must have ry=10");
+        assert!(
+            svg.contains(r#"rx="10""#),
+            "initial ellipse must have rx=10"
+        );
+        assert!(
+            svg.contains(r#"ry="10""#),
+            "initial ellipse must have ry=10"
+        );
         assert!(
             svg.contains(&format!(r#"fill="{INITIAL_FILL}""#)),
             "initial ellipse must be filled"
@@ -849,10 +855,7 @@ mod tests {
             svg.contains("stroke:#181818"),
             "transition must use EDGE_COLOR in style"
         );
-        assert!(
-            svg.contains("<path "),
-            "transition must use <path>"
-        );
+        assert!(svg.contains("<path "), "transition must use <path>");
         assert!(
             svg.contains(r#"class="link""#),
             "transition must be in link group"

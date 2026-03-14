@@ -183,12 +183,7 @@ fn render_group(
     write!(buf, "<!--cluster {}-->", xml_escape(&group.id)).unwrap();
 
     // Open semantic <g>
-    write!(
-        buf,
-        r#"<g class="cluster" id="{}">"#,
-        xml_escape(&group.id),
-    )
-    .unwrap();
+    write!(buf, r#"<g class="cluster" id="{}">"#, xml_escape(&group.id),).unwrap();
 
     match group.kind {
         ComponentKind::Frame => {
@@ -387,12 +382,7 @@ fn render_node(
 /// Emit HTML comment + open `<g class="entity">` for a node.
 fn open_entity_g(buf: &mut String, node: &ComponentNodeLayout) {
     write!(buf, "<!--entity {}-->", xml_escape(&node.id)).unwrap();
-    write!(
-        buf,
-        r#"<g class="entity" id="{}">"#,
-        xml_escape(&node.id),
-    )
-    .unwrap();
+    write!(buf, r#"<g class="entity" id="{}">"#, xml_escape(&node.id),).unwrap();
 }
 
 /// Component: rounded rect with component icon (two small rects on right side)
@@ -580,7 +570,8 @@ fn render_interface_node(
     write!(
         buf,
         r#"<circle cx="{}" cy="{}" fill="{bg}" r="8" style="stroke:{border};stroke-width:0.5;"/>"#,
-        fmt_coord(cx), fmt_coord(cy),
+        fmt_coord(cx),
+        fmt_coord(cy),
     )
     .unwrap();
 
@@ -638,15 +629,19 @@ fn render_artifact_node(
     write!(
         buf,
         r#"<line style="stroke:{border};stroke-width:0.5;" x1="{}" x2="{}" y1="{}" y2="{}"/>"#,
-        fmt_coord(ix + fold), fmt_coord(ix + fold),
-        fmt_coord(iy), fmt_coord(iy + fold),
+        fmt_coord(ix + fold),
+        fmt_coord(ix + fold),
+        fmt_coord(iy),
+        fmt_coord(iy + fold),
     )
     .unwrap();
     write!(
         buf,
         r#"<line style="stroke:{border};stroke-width:0.5;" x1="{}" x2="{}" y1="{}" y2="{}"/>"#,
-        fmt_coord(ix + 12.0), fmt_coord(ix + fold),
-        fmt_coord(iy + fold), fmt_coord(iy + fold),
+        fmt_coord(ix + 12.0),
+        fmt_coord(ix + fold),
+        fmt_coord(iy + fold),
+        fmt_coord(iy + fold),
     )
     .unwrap();
 
@@ -709,30 +704,48 @@ fn render_folder_node(
             r#" A{},{} 0 0 1 {},{}"#,
             r#" L{},{}" fill="{}" style="stroke:{};stroke-width:0.5;"/>"#,
         ),
-        fmt_coord(x + r), fmt_coord(y),
-        fmt_coord(x + tab_w), fmt_coord(y),
-        fmt_coord(r), fmt_coord(r),
-        fmt_coord(x + tab_w + r), fmt_coord(y + r),
-        fmt_coord(x + tab_w + r + 7.0), fmt_coord(y + tab_h),
-        fmt_coord(x + w - r), fmt_coord(y + tab_h),
-        fmt_coord(r), fmt_coord(r),
-        fmt_coord(x + w), fmt_coord(y + tab_h + r),
-        fmt_coord(x + w), fmt_coord(y + h - r),
-        fmt_coord(r), fmt_coord(r),
-        fmt_coord(x + w - r), fmt_coord(y + h),
-        fmt_coord(x + r), fmt_coord(y + h),
-        fmt_coord(r), fmt_coord(r),
-        fmt_coord(x), fmt_coord(y + h - r),
-        fmt_coord(x), fmt_coord(y + r),
-        bg, border,
+        fmt_coord(x + r),
+        fmt_coord(y),
+        fmt_coord(x + tab_w),
+        fmt_coord(y),
+        fmt_coord(r),
+        fmt_coord(r),
+        fmt_coord(x + tab_w + r),
+        fmt_coord(y + r),
+        fmt_coord(x + tab_w + r + 7.0),
+        fmt_coord(y + tab_h),
+        fmt_coord(x + w - r),
+        fmt_coord(y + tab_h),
+        fmt_coord(r),
+        fmt_coord(r),
+        fmt_coord(x + w),
+        fmt_coord(y + tab_h + r),
+        fmt_coord(x + w),
+        fmt_coord(y + h - r),
+        fmt_coord(r),
+        fmt_coord(r),
+        fmt_coord(x + w - r),
+        fmt_coord(y + h),
+        fmt_coord(x + r),
+        fmt_coord(y + h),
+        fmt_coord(r),
+        fmt_coord(r),
+        fmt_coord(x),
+        fmt_coord(y + h - r),
+        fmt_coord(x),
+        fmt_coord(y + r),
+        bg,
+        border,
     )
     .unwrap();
 
     write!(
         buf,
         r#"<line style="stroke:{border};stroke-width:0.5;" x1="{}" x2="{}" y1="{}" y2="{}"/>"#,
-        fmt_coord(x), fmt_coord(x + w),
-        fmt_coord(y + tab_h), fmt_coord(y + tab_h),
+        fmt_coord(x),
+        fmt_coord(x + w),
+        fmt_coord(y + tab_h),
+        fmt_coord(y + tab_h),
     )
     .unwrap();
 
@@ -913,13 +926,7 @@ fn render_node_text(buf: &mut String, node: &ComponentNodeLayout, font_color: &s
         let stereo_text = format!("\u{00AB}{stereotype}\u{00BB}");
         let escaped = xml_escape(&stereo_text);
         let sy = node.y + FONT_SIZE + 4.0;
-        let tl = font_metrics::text_width(
-            &stereo_text,
-            "sans-serif",
-            FONT_SIZE - 2.0,
-            false,
-            true,
-        );
+        let tl = font_metrics::text_width(&stereo_text, "sans-serif", FONT_SIZE - 2.0, false, true);
         write!(
             buf,
             r#"<text fill="{font_color}" font-family="sans-serif" font-size="{fs:.0}" font-style="italic" lengthAdjust="spacing" textLength="{}" x="{}" y="{}">{escaped}</text>"#,
@@ -981,12 +988,7 @@ fn render_node_text(buf: &mut String, node: &ComponentNodeLayout, font_color: &s
 // Edge rendering
 // ---------------------------------------------------------------------------
 
-fn render_edge(
-    buf: &mut String,
-    edge: &ComponentEdgeLayout,
-    arrow_color: &str,
-    font_color: &str,
-) {
+fn render_edge(buf: &mut String, edge: &ComponentEdgeLayout, arrow_color: &str, font_color: &str) {
     if edge.points.is_empty() {
         return;
     }
@@ -1118,26 +1120,35 @@ fn render_note(
     write!(
         buf,
         r#"<polygon fill="{bg}" points="{},{},{},{},{},{},{},{},{},{}" style="stroke:{border};"/>"#,
-        fmt_coord(x), fmt_coord(y),
-        fmt_coord(x + w - fold), fmt_coord(y),
-        fmt_coord(x + w), fmt_coord(y + fold),
-        fmt_coord(x + w), fmt_coord(y + h),
-        fmt_coord(x), fmt_coord(y + h),
+        fmt_coord(x),
+        fmt_coord(y),
+        fmt_coord(x + w - fold),
+        fmt_coord(y),
+        fmt_coord(x + w),
+        fmt_coord(y + fold),
+        fmt_coord(x + w),
+        fmt_coord(y + h),
+        fmt_coord(x),
+        fmt_coord(y + h),
     )
     .unwrap();
 
     write!(
         buf,
         r#"<line style="stroke:{border};" x1="{}" x2="{}" y1="{}" y2="{}"/>"#,
-        fmt_coord(x + w - fold), fmt_coord(x + w - fold),
-        fmt_coord(y), fmt_coord(y + fold),
+        fmt_coord(x + w - fold),
+        fmt_coord(x + w - fold),
+        fmt_coord(y),
+        fmt_coord(y + fold),
     )
     .unwrap();
     write!(
         buf,
         r#"<line style="stroke:{border};" x1="{}" x2="{}" y1="{}" y2="{}"/>"#,
-        fmt_coord(x + w - fold), fmt_coord(x + w),
-        fmt_coord(y + fold), fmt_coord(y + fold),
+        fmt_coord(x + w - fold),
+        fmt_coord(x + w),
+        fmt_coord(y + fold),
+        fmt_coord(y + fold),
     )
     .unwrap();
 

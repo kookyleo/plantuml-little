@@ -47007,76 +47007,412 @@ struct FontConfig {
 }
 
 const ALL_CONFIGS: &[FontConfig] = &[
-    FontConfig { family: "SansSerif", size: 10, style: "plain", advances: ADV_SANSSERIF_10_PLAIN, vertical: &VERT_SANSSERIF_10_PLAIN },
-    FontConfig { family: "SansSerif", size: 10, style: "bold", advances: ADV_SANSSERIF_10_BOLD, vertical: &VERT_SANSSERIF_10_BOLD },
-    FontConfig { family: "SansSerif", size: 10, style: "italic", advances: ADV_SANSSERIF_10_ITALIC, vertical: &VERT_SANSSERIF_10_ITALIC },
-    FontConfig { family: "SansSerif", size: 10, style: "bold_italic", advances: ADV_SANSSERIF_10_BOLD_ITALIC, vertical: &VERT_SANSSERIF_10_BOLD_ITALIC },
-    FontConfig { family: "SansSerif", size: 11, style: "plain", advances: ADV_SANSSERIF_11_PLAIN, vertical: &VERT_SANSSERIF_11_PLAIN },
-    FontConfig { family: "SansSerif", size: 11, style: "bold", advances: ADV_SANSSERIF_11_BOLD, vertical: &VERT_SANSSERIF_11_BOLD },
-    FontConfig { family: "SansSerif", size: 11, style: "italic", advances: ADV_SANSSERIF_11_ITALIC, vertical: &VERT_SANSSERIF_11_ITALIC },
-    FontConfig { family: "SansSerif", size: 11, style: "bold_italic", advances: ADV_SANSSERIF_11_BOLD_ITALIC, vertical: &VERT_SANSSERIF_11_BOLD_ITALIC },
-    FontConfig { family: "SansSerif", size: 12, style: "plain", advances: ADV_SANSSERIF_12_PLAIN, vertical: &VERT_SANSSERIF_12_PLAIN },
-    FontConfig { family: "SansSerif", size: 12, style: "bold", advances: ADV_SANSSERIF_12_BOLD, vertical: &VERT_SANSSERIF_12_BOLD },
-    FontConfig { family: "SansSerif", size: 12, style: "italic", advances: ADV_SANSSERIF_12_ITALIC, vertical: &VERT_SANSSERIF_12_ITALIC },
-    FontConfig { family: "SansSerif", size: 12, style: "bold_italic", advances: ADV_SANSSERIF_12_BOLD_ITALIC, vertical: &VERT_SANSSERIF_12_BOLD_ITALIC },
-    FontConfig { family: "SansSerif", size: 13, style: "plain", advances: ADV_SANSSERIF_13_PLAIN, vertical: &VERT_SANSSERIF_13_PLAIN },
-    FontConfig { family: "SansSerif", size: 13, style: "bold", advances: ADV_SANSSERIF_13_BOLD, vertical: &VERT_SANSSERIF_13_BOLD },
-    FontConfig { family: "SansSerif", size: 13, style: "italic", advances: ADV_SANSSERIF_13_ITALIC, vertical: &VERT_SANSSERIF_13_ITALIC },
-    FontConfig { family: "SansSerif", size: 13, style: "bold_italic", advances: ADV_SANSSERIF_13_BOLD_ITALIC, vertical: &VERT_SANSSERIF_13_BOLD_ITALIC },
-    FontConfig { family: "SansSerif", size: 14, style: "plain", advances: ADV_SANSSERIF_14_PLAIN, vertical: &VERT_SANSSERIF_14_PLAIN },
-    FontConfig { family: "SansSerif", size: 14, style: "bold", advances: ADV_SANSSERIF_14_BOLD, vertical: &VERT_SANSSERIF_14_BOLD },
-    FontConfig { family: "SansSerif", size: 14, style: "italic", advances: ADV_SANSSERIF_14_ITALIC, vertical: &VERT_SANSSERIF_14_ITALIC },
-    FontConfig { family: "SansSerif", size: 14, style: "bold_italic", advances: ADV_SANSSERIF_14_BOLD_ITALIC, vertical: &VERT_SANSSERIF_14_BOLD_ITALIC },
-    FontConfig { family: "SansSerif", size: 17, style: "plain", advances: ADV_SANSSERIF_17_PLAIN, vertical: &VERT_SANSSERIF_17_PLAIN },
-    FontConfig { family: "SansSerif", size: 17, style: "bold", advances: ADV_SANSSERIF_17_BOLD, vertical: &VERT_SANSSERIF_17_BOLD },
-    FontConfig { family: "SansSerif", size: 17, style: "italic", advances: ADV_SANSSERIF_17_ITALIC, vertical: &VERT_SANSSERIF_17_ITALIC },
-    FontConfig { family: "SansSerif", size: 17, style: "bold_italic", advances: ADV_SANSSERIF_17_BOLD_ITALIC, vertical: &VERT_SANSSERIF_17_BOLD_ITALIC },
-    FontConfig { family: "SansSerif", size: 18, style: "plain", advances: ADV_SANSSERIF_18_PLAIN, vertical: &VERT_SANSSERIF_18_PLAIN },
-    FontConfig { family: "SansSerif", size: 18, style: "bold", advances: ADV_SANSSERIF_18_BOLD, vertical: &VERT_SANSSERIF_18_BOLD },
-    FontConfig { family: "SansSerif", size: 18, style: "italic", advances: ADV_SANSSERIF_18_ITALIC, vertical: &VERT_SANSSERIF_18_ITALIC },
-    FontConfig { family: "SansSerif", size: 18, style: "bold_italic", advances: ADV_SANSSERIF_18_BOLD_ITALIC, vertical: &VERT_SANSSERIF_18_BOLD_ITALIC },
-    FontConfig { family: "Monospaced", size: 10, style: "plain", advances: ADV_MONOSPACED_10_PLAIN, vertical: &VERT_MONOSPACED_10_PLAIN },
-    FontConfig { family: "Monospaced", size: 10, style: "bold", advances: ADV_MONOSPACED_10_BOLD, vertical: &VERT_MONOSPACED_10_BOLD },
-    FontConfig { family: "Monospaced", size: 10, style: "italic", advances: ADV_MONOSPACED_10_ITALIC, vertical: &VERT_MONOSPACED_10_ITALIC },
-    FontConfig { family: "Monospaced", size: 10, style: "bold_italic", advances: ADV_MONOSPACED_10_BOLD_ITALIC, vertical: &VERT_MONOSPACED_10_BOLD_ITALIC },
-    FontConfig { family: "Monospaced", size: 11, style: "plain", advances: ADV_MONOSPACED_11_PLAIN, vertical: &VERT_MONOSPACED_11_PLAIN },
-    FontConfig { family: "Monospaced", size: 11, style: "bold", advances: ADV_MONOSPACED_11_BOLD, vertical: &VERT_MONOSPACED_11_BOLD },
-    FontConfig { family: "Monospaced", size: 11, style: "italic", advances: ADV_MONOSPACED_11_ITALIC, vertical: &VERT_MONOSPACED_11_ITALIC },
-    FontConfig { family: "Monospaced", size: 11, style: "bold_italic", advances: ADV_MONOSPACED_11_BOLD_ITALIC, vertical: &VERT_MONOSPACED_11_BOLD_ITALIC },
-    FontConfig { family: "Monospaced", size: 12, style: "plain", advances: ADV_MONOSPACED_12_PLAIN, vertical: &VERT_MONOSPACED_12_PLAIN },
-    FontConfig { family: "Monospaced", size: 12, style: "bold", advances: ADV_MONOSPACED_12_BOLD, vertical: &VERT_MONOSPACED_12_BOLD },
-    FontConfig { family: "Monospaced", size: 12, style: "italic", advances: ADV_MONOSPACED_12_ITALIC, vertical: &VERT_MONOSPACED_12_ITALIC },
-    FontConfig { family: "Monospaced", size: 12, style: "bold_italic", advances: ADV_MONOSPACED_12_BOLD_ITALIC, vertical: &VERT_MONOSPACED_12_BOLD_ITALIC },
-    FontConfig { family: "Monospaced", size: 13, style: "plain", advances: ADV_MONOSPACED_13_PLAIN, vertical: &VERT_MONOSPACED_13_PLAIN },
-    FontConfig { family: "Monospaced", size: 13, style: "bold", advances: ADV_MONOSPACED_13_BOLD, vertical: &VERT_MONOSPACED_13_BOLD },
-    FontConfig { family: "Monospaced", size: 13, style: "italic", advances: ADV_MONOSPACED_13_ITALIC, vertical: &VERT_MONOSPACED_13_ITALIC },
-    FontConfig { family: "Monospaced", size: 13, style: "bold_italic", advances: ADV_MONOSPACED_13_BOLD_ITALIC, vertical: &VERT_MONOSPACED_13_BOLD_ITALIC },
-    FontConfig { family: "Monospaced", size: 14, style: "plain", advances: ADV_MONOSPACED_14_PLAIN, vertical: &VERT_MONOSPACED_14_PLAIN },
-    FontConfig { family: "Monospaced", size: 14, style: "bold", advances: ADV_MONOSPACED_14_BOLD, vertical: &VERT_MONOSPACED_14_BOLD },
-    FontConfig { family: "Monospaced", size: 14, style: "italic", advances: ADV_MONOSPACED_14_ITALIC, vertical: &VERT_MONOSPACED_14_ITALIC },
-    FontConfig { family: "Monospaced", size: 14, style: "bold_italic", advances: ADV_MONOSPACED_14_BOLD_ITALIC, vertical: &VERT_MONOSPACED_14_BOLD_ITALIC },
-    FontConfig { family: "Monospaced", size: 17, style: "plain", advances: ADV_MONOSPACED_17_PLAIN, vertical: &VERT_MONOSPACED_17_PLAIN },
-    FontConfig { family: "Monospaced", size: 17, style: "bold", advances: ADV_MONOSPACED_17_BOLD, vertical: &VERT_MONOSPACED_17_BOLD },
-    FontConfig { family: "Monospaced", size: 17, style: "italic", advances: ADV_MONOSPACED_17_ITALIC, vertical: &VERT_MONOSPACED_17_ITALIC },
-    FontConfig { family: "Monospaced", size: 17, style: "bold_italic", advances: ADV_MONOSPACED_17_BOLD_ITALIC, vertical: &VERT_MONOSPACED_17_BOLD_ITALIC },
-    FontConfig { family: "Monospaced", size: 18, style: "plain", advances: ADV_MONOSPACED_18_PLAIN, vertical: &VERT_MONOSPACED_18_PLAIN },
-    FontConfig { family: "Monospaced", size: 18, style: "bold", advances: ADV_MONOSPACED_18_BOLD, vertical: &VERT_MONOSPACED_18_BOLD },
-    FontConfig { family: "Monospaced", size: 18, style: "italic", advances: ADV_MONOSPACED_18_ITALIC, vertical: &VERT_MONOSPACED_18_ITALIC },
-    FontConfig { family: "Monospaced", size: 18, style: "bold_italic", advances: ADV_MONOSPACED_18_BOLD_ITALIC, vertical: &VERT_MONOSPACED_18_BOLD_ITALIC },
+    FontConfig {
+        family: "SansSerif",
+        size: 10,
+        style: "plain",
+        advances: ADV_SANSSERIF_10_PLAIN,
+        vertical: &VERT_SANSSERIF_10_PLAIN,
+    },
+    FontConfig {
+        family: "SansSerif",
+        size: 10,
+        style: "bold",
+        advances: ADV_SANSSERIF_10_BOLD,
+        vertical: &VERT_SANSSERIF_10_BOLD,
+    },
+    FontConfig {
+        family: "SansSerif",
+        size: 10,
+        style: "italic",
+        advances: ADV_SANSSERIF_10_ITALIC,
+        vertical: &VERT_SANSSERIF_10_ITALIC,
+    },
+    FontConfig {
+        family: "SansSerif",
+        size: 10,
+        style: "bold_italic",
+        advances: ADV_SANSSERIF_10_BOLD_ITALIC,
+        vertical: &VERT_SANSSERIF_10_BOLD_ITALIC,
+    },
+    FontConfig {
+        family: "SansSerif",
+        size: 11,
+        style: "plain",
+        advances: ADV_SANSSERIF_11_PLAIN,
+        vertical: &VERT_SANSSERIF_11_PLAIN,
+    },
+    FontConfig {
+        family: "SansSerif",
+        size: 11,
+        style: "bold",
+        advances: ADV_SANSSERIF_11_BOLD,
+        vertical: &VERT_SANSSERIF_11_BOLD,
+    },
+    FontConfig {
+        family: "SansSerif",
+        size: 11,
+        style: "italic",
+        advances: ADV_SANSSERIF_11_ITALIC,
+        vertical: &VERT_SANSSERIF_11_ITALIC,
+    },
+    FontConfig {
+        family: "SansSerif",
+        size: 11,
+        style: "bold_italic",
+        advances: ADV_SANSSERIF_11_BOLD_ITALIC,
+        vertical: &VERT_SANSSERIF_11_BOLD_ITALIC,
+    },
+    FontConfig {
+        family: "SansSerif",
+        size: 12,
+        style: "plain",
+        advances: ADV_SANSSERIF_12_PLAIN,
+        vertical: &VERT_SANSSERIF_12_PLAIN,
+    },
+    FontConfig {
+        family: "SansSerif",
+        size: 12,
+        style: "bold",
+        advances: ADV_SANSSERIF_12_BOLD,
+        vertical: &VERT_SANSSERIF_12_BOLD,
+    },
+    FontConfig {
+        family: "SansSerif",
+        size: 12,
+        style: "italic",
+        advances: ADV_SANSSERIF_12_ITALIC,
+        vertical: &VERT_SANSSERIF_12_ITALIC,
+    },
+    FontConfig {
+        family: "SansSerif",
+        size: 12,
+        style: "bold_italic",
+        advances: ADV_SANSSERIF_12_BOLD_ITALIC,
+        vertical: &VERT_SANSSERIF_12_BOLD_ITALIC,
+    },
+    FontConfig {
+        family: "SansSerif",
+        size: 13,
+        style: "plain",
+        advances: ADV_SANSSERIF_13_PLAIN,
+        vertical: &VERT_SANSSERIF_13_PLAIN,
+    },
+    FontConfig {
+        family: "SansSerif",
+        size: 13,
+        style: "bold",
+        advances: ADV_SANSSERIF_13_BOLD,
+        vertical: &VERT_SANSSERIF_13_BOLD,
+    },
+    FontConfig {
+        family: "SansSerif",
+        size: 13,
+        style: "italic",
+        advances: ADV_SANSSERIF_13_ITALIC,
+        vertical: &VERT_SANSSERIF_13_ITALIC,
+    },
+    FontConfig {
+        family: "SansSerif",
+        size: 13,
+        style: "bold_italic",
+        advances: ADV_SANSSERIF_13_BOLD_ITALIC,
+        vertical: &VERT_SANSSERIF_13_BOLD_ITALIC,
+    },
+    FontConfig {
+        family: "SansSerif",
+        size: 14,
+        style: "plain",
+        advances: ADV_SANSSERIF_14_PLAIN,
+        vertical: &VERT_SANSSERIF_14_PLAIN,
+    },
+    FontConfig {
+        family: "SansSerif",
+        size: 14,
+        style: "bold",
+        advances: ADV_SANSSERIF_14_BOLD,
+        vertical: &VERT_SANSSERIF_14_BOLD,
+    },
+    FontConfig {
+        family: "SansSerif",
+        size: 14,
+        style: "italic",
+        advances: ADV_SANSSERIF_14_ITALIC,
+        vertical: &VERT_SANSSERIF_14_ITALIC,
+    },
+    FontConfig {
+        family: "SansSerif",
+        size: 14,
+        style: "bold_italic",
+        advances: ADV_SANSSERIF_14_BOLD_ITALIC,
+        vertical: &VERT_SANSSERIF_14_BOLD_ITALIC,
+    },
+    FontConfig {
+        family: "SansSerif",
+        size: 17,
+        style: "plain",
+        advances: ADV_SANSSERIF_17_PLAIN,
+        vertical: &VERT_SANSSERIF_17_PLAIN,
+    },
+    FontConfig {
+        family: "SansSerif",
+        size: 17,
+        style: "bold",
+        advances: ADV_SANSSERIF_17_BOLD,
+        vertical: &VERT_SANSSERIF_17_BOLD,
+    },
+    FontConfig {
+        family: "SansSerif",
+        size: 17,
+        style: "italic",
+        advances: ADV_SANSSERIF_17_ITALIC,
+        vertical: &VERT_SANSSERIF_17_ITALIC,
+    },
+    FontConfig {
+        family: "SansSerif",
+        size: 17,
+        style: "bold_italic",
+        advances: ADV_SANSSERIF_17_BOLD_ITALIC,
+        vertical: &VERT_SANSSERIF_17_BOLD_ITALIC,
+    },
+    FontConfig {
+        family: "SansSerif",
+        size: 18,
+        style: "plain",
+        advances: ADV_SANSSERIF_18_PLAIN,
+        vertical: &VERT_SANSSERIF_18_PLAIN,
+    },
+    FontConfig {
+        family: "SansSerif",
+        size: 18,
+        style: "bold",
+        advances: ADV_SANSSERIF_18_BOLD,
+        vertical: &VERT_SANSSERIF_18_BOLD,
+    },
+    FontConfig {
+        family: "SansSerif",
+        size: 18,
+        style: "italic",
+        advances: ADV_SANSSERIF_18_ITALIC,
+        vertical: &VERT_SANSSERIF_18_ITALIC,
+    },
+    FontConfig {
+        family: "SansSerif",
+        size: 18,
+        style: "bold_italic",
+        advances: ADV_SANSSERIF_18_BOLD_ITALIC,
+        vertical: &VERT_SANSSERIF_18_BOLD_ITALIC,
+    },
+    FontConfig {
+        family: "Monospaced",
+        size: 10,
+        style: "plain",
+        advances: ADV_MONOSPACED_10_PLAIN,
+        vertical: &VERT_MONOSPACED_10_PLAIN,
+    },
+    FontConfig {
+        family: "Monospaced",
+        size: 10,
+        style: "bold",
+        advances: ADV_MONOSPACED_10_BOLD,
+        vertical: &VERT_MONOSPACED_10_BOLD,
+    },
+    FontConfig {
+        family: "Monospaced",
+        size: 10,
+        style: "italic",
+        advances: ADV_MONOSPACED_10_ITALIC,
+        vertical: &VERT_MONOSPACED_10_ITALIC,
+    },
+    FontConfig {
+        family: "Monospaced",
+        size: 10,
+        style: "bold_italic",
+        advances: ADV_MONOSPACED_10_BOLD_ITALIC,
+        vertical: &VERT_MONOSPACED_10_BOLD_ITALIC,
+    },
+    FontConfig {
+        family: "Monospaced",
+        size: 11,
+        style: "plain",
+        advances: ADV_MONOSPACED_11_PLAIN,
+        vertical: &VERT_MONOSPACED_11_PLAIN,
+    },
+    FontConfig {
+        family: "Monospaced",
+        size: 11,
+        style: "bold",
+        advances: ADV_MONOSPACED_11_BOLD,
+        vertical: &VERT_MONOSPACED_11_BOLD,
+    },
+    FontConfig {
+        family: "Monospaced",
+        size: 11,
+        style: "italic",
+        advances: ADV_MONOSPACED_11_ITALIC,
+        vertical: &VERT_MONOSPACED_11_ITALIC,
+    },
+    FontConfig {
+        family: "Monospaced",
+        size: 11,
+        style: "bold_italic",
+        advances: ADV_MONOSPACED_11_BOLD_ITALIC,
+        vertical: &VERT_MONOSPACED_11_BOLD_ITALIC,
+    },
+    FontConfig {
+        family: "Monospaced",
+        size: 12,
+        style: "plain",
+        advances: ADV_MONOSPACED_12_PLAIN,
+        vertical: &VERT_MONOSPACED_12_PLAIN,
+    },
+    FontConfig {
+        family: "Monospaced",
+        size: 12,
+        style: "bold",
+        advances: ADV_MONOSPACED_12_BOLD,
+        vertical: &VERT_MONOSPACED_12_BOLD,
+    },
+    FontConfig {
+        family: "Monospaced",
+        size: 12,
+        style: "italic",
+        advances: ADV_MONOSPACED_12_ITALIC,
+        vertical: &VERT_MONOSPACED_12_ITALIC,
+    },
+    FontConfig {
+        family: "Monospaced",
+        size: 12,
+        style: "bold_italic",
+        advances: ADV_MONOSPACED_12_BOLD_ITALIC,
+        vertical: &VERT_MONOSPACED_12_BOLD_ITALIC,
+    },
+    FontConfig {
+        family: "Monospaced",
+        size: 13,
+        style: "plain",
+        advances: ADV_MONOSPACED_13_PLAIN,
+        vertical: &VERT_MONOSPACED_13_PLAIN,
+    },
+    FontConfig {
+        family: "Monospaced",
+        size: 13,
+        style: "bold",
+        advances: ADV_MONOSPACED_13_BOLD,
+        vertical: &VERT_MONOSPACED_13_BOLD,
+    },
+    FontConfig {
+        family: "Monospaced",
+        size: 13,
+        style: "italic",
+        advances: ADV_MONOSPACED_13_ITALIC,
+        vertical: &VERT_MONOSPACED_13_ITALIC,
+    },
+    FontConfig {
+        family: "Monospaced",
+        size: 13,
+        style: "bold_italic",
+        advances: ADV_MONOSPACED_13_BOLD_ITALIC,
+        vertical: &VERT_MONOSPACED_13_BOLD_ITALIC,
+    },
+    FontConfig {
+        family: "Monospaced",
+        size: 14,
+        style: "plain",
+        advances: ADV_MONOSPACED_14_PLAIN,
+        vertical: &VERT_MONOSPACED_14_PLAIN,
+    },
+    FontConfig {
+        family: "Monospaced",
+        size: 14,
+        style: "bold",
+        advances: ADV_MONOSPACED_14_BOLD,
+        vertical: &VERT_MONOSPACED_14_BOLD,
+    },
+    FontConfig {
+        family: "Monospaced",
+        size: 14,
+        style: "italic",
+        advances: ADV_MONOSPACED_14_ITALIC,
+        vertical: &VERT_MONOSPACED_14_ITALIC,
+    },
+    FontConfig {
+        family: "Monospaced",
+        size: 14,
+        style: "bold_italic",
+        advances: ADV_MONOSPACED_14_BOLD_ITALIC,
+        vertical: &VERT_MONOSPACED_14_BOLD_ITALIC,
+    },
+    FontConfig {
+        family: "Monospaced",
+        size: 17,
+        style: "plain",
+        advances: ADV_MONOSPACED_17_PLAIN,
+        vertical: &VERT_MONOSPACED_17_PLAIN,
+    },
+    FontConfig {
+        family: "Monospaced",
+        size: 17,
+        style: "bold",
+        advances: ADV_MONOSPACED_17_BOLD,
+        vertical: &VERT_MONOSPACED_17_BOLD,
+    },
+    FontConfig {
+        family: "Monospaced",
+        size: 17,
+        style: "italic",
+        advances: ADV_MONOSPACED_17_ITALIC,
+        vertical: &VERT_MONOSPACED_17_ITALIC,
+    },
+    FontConfig {
+        family: "Monospaced",
+        size: 17,
+        style: "bold_italic",
+        advances: ADV_MONOSPACED_17_BOLD_ITALIC,
+        vertical: &VERT_MONOSPACED_17_BOLD_ITALIC,
+    },
+    FontConfig {
+        family: "Monospaced",
+        size: 18,
+        style: "plain",
+        advances: ADV_MONOSPACED_18_PLAIN,
+        vertical: &VERT_MONOSPACED_18_PLAIN,
+    },
+    FontConfig {
+        family: "Monospaced",
+        size: 18,
+        style: "bold",
+        advances: ADV_MONOSPACED_18_BOLD,
+        vertical: &VERT_MONOSPACED_18_BOLD,
+    },
+    FontConfig {
+        family: "Monospaced",
+        size: 18,
+        style: "italic",
+        advances: ADV_MONOSPACED_18_ITALIC,
+        vertical: &VERT_MONOSPACED_18_ITALIC,
+    },
+    FontConfig {
+        family: "Monospaced",
+        size: 18,
+        style: "bold_italic",
+        advances: ADV_MONOSPACED_18_BOLD_ITALIC,
+        vertical: &VERT_MONOSPACED_18_BOLD_ITALIC,
+    },
 ];
-
 
 /// HashMap for O(1) character width lookup.
 /// Key: (family, size, style, char) -> advance width
-static ADVANCE_MAP: LazyLock<HashMap<(&'static str, u32, &'static str, char), f64>> = LazyLock::new(|| {
-    let mut map = HashMap::new();
-    for cfg in ALL_CONFIGS {
-        for &(ch, width) in cfg.advances {
-            map.insert((cfg.family, cfg.size, cfg.style, ch), width);
+static ADVANCE_MAP: LazyLock<HashMap<(&'static str, u32, &'static str, char), f64>> =
+    LazyLock::new(|| {
+        let mut map = HashMap::new();
+        for cfg in ALL_CONFIGS {
+            for &(ch, width) in cfg.advances {
+                map.insert((cfg.family, cfg.size, cfg.style, ch), width);
+            }
         }
-    }
-    map
-});
+        map
+    });
 
 fn style_name(bold: bool, italic: bool) -> &'static str {
     match (bold, italic) {
@@ -47099,7 +47435,10 @@ fn family_name(family: &str) -> &'static str {
 fn nearest_size(size: f64) -> u32 {
     const SIZES: [u32; 7] = [10, 11, 12, 13, 14, 17, 18];
     let target = size.round() as u32;
-    *SIZES.iter().min_by_key(|&&s| (s as i32 - target as i32).unsigned_abs()).unwrap()
+    *SIZES
+        .iter()
+        .min_by_key(|&&s| (s as i32 - target as i32).unsigned_abs())
+        .unwrap()
 }
 
 /// Get the advance width of a single character.
@@ -47114,7 +47453,8 @@ pub fn char_width(ch: char, family: &str, size: f64, bold: bool, italic: bool) -
         w * size / (sz as f64)
     } else {
         // Fallback: use space width as approximation
-        let space_w = ADVANCE_MAP.get(&(fam, sz, sty, ' '))
+        let space_w = ADVANCE_MAP
+            .get(&(fam, sz, sty, ' '))
             .copied()
             .unwrap_or(size * 0.6);
         space_w * size / (sz as f64)
@@ -47123,14 +47463,22 @@ pub fn char_width(ch: char, family: &str, size: f64, bold: bool, italic: bool) -
 
 /// Measure the total advance width of a string.
 pub fn text_width(text: &str, family: &str, size: f64, bold: bool, italic: bool) -> f64 {
-    text.chars().map(|c| char_width(c, family, size, bold, italic)).sum()
+    text.chars()
+        .map(|c| char_width(c, family, size, bold, italic))
+        .sum()
 }
 
-fn get_vertical(family: &str, size: f64, bold: bool, italic: bool) -> Option<&'static VerticalMetrics> {
+fn get_vertical(
+    family: &str,
+    size: f64,
+    bold: bool,
+    italic: bool,
+) -> Option<&'static VerticalMetrics> {
     let fam = family_name(family);
     let sz = nearest_size(size);
     let sty = style_name(bold, italic);
-    ALL_CONFIGS.iter()
+    ALL_CONFIGS
+        .iter()
         .find(|c| c.family == fam && c.size == sz && c.style == sty)
         .map(|c| c.vertical)
 }
@@ -47161,4 +47509,3 @@ pub fn descent(family: &str, size: f64, bold: bool, italic: bool) -> f64 {
         size * 0.2
     }
 }
-

@@ -1,6 +1,9 @@
+use std::collections::HashMap;
+
 use crate::model::{
-    ArrowHead, ClassDiagram, ClassNote, Direction, Entity, EntityKind, Group, GroupKind, LineStyle,
-    Link, Member, MemberModifiers, Stereotype, Visibility,
+    ArrowHead, ClassDiagram, ClassHideShowRule, ClassNote, ClassPortion, ClassRuleTarget,
+    Direction, Entity, EntityKind, Group, GroupKind, LineStyle, Link, Member, MemberModifiers,
+    Stereotype, Visibility,
 };
 use crate::Result;
 use log::{debug, warn};
@@ -18,6 +21,9 @@ pub fn parse_class_diagram(source: &str) -> Result<ClassDiagram> {
     let mut links: Vec<Link> = Vec::new();
     let mut groups: Vec<Group> = Vec::new();
     let mut direction = Direction::TopToBottom;
+    let mut hide_show_rules = Vec::new();
+    let mut stereotype_backgrounds = HashMap::new();
+    let mut entity_order: Vec<String> = Vec::new();
 
     let mut notes: Vec<ClassNote> = Vec::new();
 
@@ -31,6 +37,7 @@ pub fn parse_class_diagram(source: &str) -> Result<ClassDiagram> {
     let mut note_block_lines: Vec<String> = Vec::new();
     let mut group_stack: Vec<Group> = Vec::new();
     let mut brace_depth: usize = 0;
+    let mut active_style_stereotype: Option<String> = None;
 
     // Entity: class/interface/abstract class/abstract/enum/annotation/static class Name <<stereo>> #color {
     let re_entity = Regex::new(concat!(
@@ -63,7 +70,8 @@ pub fn parse_class_diagram(source: &str) -> Result<ClassDiagram> {
     let re_direction_lr = Regex::new(r"^left\s+to\s+right\s+direction$").unwrap();
     let re_direction_tb = Regex::new(r"^top\s+to\s+bottom\s+direction$").unwrap();
 
-    for line in merged.lines() {
+    for (line_idx, line) in merged.lines().enumerate() {
+        let source_line = line_idx + 1;
         let trimmed = line.trim();
 
         // Handle style blocks
@@ -73,8 +81,24 @@ pub fn parse_class_diagram(source: &str) -> Result<ClassDiagram> {
             continue;
         }
         if in_style_block {
+            if let Some(stereo) = trimmed
+                .strip_prefix('.')
+                .and_then(|s| s.strip_suffix('{'))
+                .map(str::trim)
+                .filter(|s| !s.is_empty())
+            {
+                active_style_stereotype = Some(stereo.to_string());
+            } else if let Some(stereo) = active_style_stereotype.as_deref() {
+                if let Some(color) = parse_style_background_color(trimmed) {
+                    stereotype_backgrounds.insert(stereo.to_string(), color.to_string());
+                }
+                if trimmed == "}" {
+                    active_style_stereotype = None;
+                }
+            }
             if trimmed.starts_with("</style>") {
                 in_style_block = false;
+                active_style_stereotype = None;
                 debug!("leaving <style> block");
             }
             continue;
@@ -114,6 +138,16 @@ pub fn parse_class_diagram(source: &str) -> Result<ClassDiagram> {
 
         // Skip empty and comment lines
         if trimmed.is_empty() || trimmed.starts_with('\'') {
+            continue;
+        }
+
+        if let Some(rule) = parse_hide_show_rule(trimmed) {
+            for r in &rule {
+                if let ClassRuleTarget::Entity(name) = &r.target {
+                    reserve_entity_order(&mut entity_order, name);
+                }
+            }
+            hide_show_rules.extend(rule);
             continue;
         }
 
@@ -165,17 +199,25 @@ pub fn parse_class_diagram(source: &str) -> Result<ClassDiagram> {
         if let Some(caps) = re_group.captures(trimmed) {
             let kind_str = caps.get(1).unwrap().as_str();
             let name = caps.get(2).unwrap().as_str().trim_matches('"').to_string();
+            let rest = trimmed[caps.get(2).unwrap().end()..]
+                .trim_end_matches('{')
+                .trim();
             let kind = match kind_str {
                 "package" => GroupKind::Package,
                 "namespace" => GroupKind::Namespace,
                 "rectangle" => GroupKind::Rectangle,
                 _ => GroupKind::Package,
             };
+            let stereotypes = parse_stereotypes_from_tail(rest);
+            let color = parse_color_from_tail(rest);
             debug!("opening group: {name} ({kind_str})");
             group_stack.push(Group {
                 kind,
                 name,
                 entities: Vec::new(),
+                stereotypes,
+                color,
+                source_line: Some(source_line),
             });
             brace_depth += 1;
             continue;
@@ -212,6 +254,7 @@ pub fn parse_class_diagram(source: &str) -> Result<ClassDiagram> {
             }
 
             debug!("entity declaration: {name} ({kind:?})");
+            reserve_entity_order(&mut entity_order, &name);
 
             let entity = Entity {
                 name: name.clone(),
@@ -220,6 +263,7 @@ pub fn parse_class_diagram(source: &str) -> Result<ClassDiagram> {
                 members: Vec::new(),
                 color,
                 generic,
+                source_line: Some(source_line),
             };
 
             if has_open_brace && !has_close_brace {
@@ -237,7 +281,7 @@ pub fn parse_class_diagram(source: &str) -> Result<ClassDiagram> {
         }
 
         // Relationship parsing
-        if let Some(link) = parse_link(trimmed) {
+        if let Some(link) = parse_link(trimmed, source_line) {
             debug!("link: {} -> {} ({:?})", link.from, link.to, link.line_style);
             links.push(link);
             continue;
@@ -277,7 +321,8 @@ pub fn parse_class_diagram(source: &str) -> Result<ClassDiagram> {
     }
 
     // Auto-create entities referenced in links but not declared
-    auto_create_entities(&mut entities, &links);
+    auto_create_entities(&mut entities, &links, &mut entity_order);
+    sort_entities_by_order(&mut entities, &entity_order);
 
     Ok(ClassDiagram {
         entities,
@@ -285,7 +330,29 @@ pub fn parse_class_diagram(source: &str) -> Result<ClassDiagram> {
         groups,
         direction,
         notes,
+        hide_show_rules,
+        stereotype_backgrounds,
     })
+}
+
+fn reserve_entity_order(entity_order: &mut Vec<String>, name: &str) {
+    if !entity_order.iter().any(|existing| existing == name) {
+        entity_order.push(name.to_string());
+    }
+}
+
+fn sort_entities_by_order(entities: &mut [Entity], entity_order: &[String]) {
+    let order_index: HashMap<&str, usize> = entity_order
+        .iter()
+        .enumerate()
+        .map(|(idx, name)| (name.as_str(), idx))
+        .collect();
+    entities.sort_by_key(|entity| {
+        order_index
+            .get(entity.name.as_str())
+            .copied()
+            .unwrap_or(usize::MAX)
+    });
 }
 
 /// Merge continuation lines: a line ending with `\` (backslash at end) joins with the next line.
@@ -314,8 +381,6 @@ fn merge_continuation_lines(content: &str) -> String {
 fn should_skip_line(trimmed: &str) -> bool {
     let skip_prefixes = [
         "skinparam",
-        "hide ",
-        "show ",
         "title ",
         "title\t",
         "footer ",
@@ -343,6 +408,104 @@ fn should_skip_line(trimmed: &str) -> bool {
         return true;
     }
     false
+}
+
+fn parse_hide_show_rule(trimmed: &str) -> Option<Vec<ClassHideShowRule>> {
+    let mut parts = trimmed.split_whitespace();
+    let command = parts.next()?;
+    let show = match command {
+        "hide" => false,
+        "show" => true,
+        _ => return None,
+    };
+
+    let rest: Vec<&str> = parts.collect();
+    if rest.is_empty() {
+        return None;
+    }
+
+    if rest.len() == 1 && rest[0] == "stereotype" {
+        return Some(vec![ClassHideShowRule {
+            target: ClassRuleTarget::Any,
+            portion: ClassPortion::Stereotype,
+            show,
+        }]);
+    }
+
+    if rest.len() == 2
+        && rest[0].starts_with("<<")
+        && rest[0].ends_with(">>")
+        && rest[1] == "stereotype"
+    {
+        return Some(vec![ClassHideShowRule {
+            target: ClassRuleTarget::Stereotype(rest[0][2..rest[0].len() - 2].trim().to_string()),
+            portion: ClassPortion::Stereotype,
+            show,
+        }]);
+    }
+
+    if rest.len() == 1 && rest[0] == "members" {
+        return Some(vec![
+            ClassHideShowRule {
+                target: ClassRuleTarget::Any,
+                portion: ClassPortion::Field,
+                show,
+            },
+            ClassHideShowRule {
+                target: ClassRuleTarget::Any,
+                portion: ClassPortion::Method,
+                show,
+            },
+        ]);
+    }
+
+    if rest.len() == 2 {
+        let target = ClassRuleTarget::Entity(rest[0].to_string());
+        let portion = match rest[1] {
+            "fields" => Some(ClassPortion::Field),
+            "methods" => Some(ClassPortion::Method),
+            "stereotype" => Some(ClassPortion::Stereotype),
+            _ => None,
+        }?;
+        return Some(vec![ClassHideShowRule {
+            target,
+            portion,
+            show,
+        }]);
+    }
+
+    None
+}
+
+fn parse_stereotypes_from_tail(s: &str) -> Vec<Stereotype> {
+    let mut result = Vec::new();
+    let mut rest = s.trim();
+    while let Some(start) = rest.find("<<") {
+        let after = &rest[start + 2..];
+        let Some(end) = after.find(">>") else {
+            break;
+        };
+        let stereo = after[..end].trim();
+        if !stereo.is_empty() {
+            result.push(Stereotype(stereo.to_string()));
+        }
+        rest = &after[end + 2..];
+    }
+    result
+}
+
+fn parse_color_from_tail(s: &str) -> Option<String> {
+    s.split_whitespace()
+        .find(|token| token.starts_with('#'))
+        .map(ToString::to_string)
+}
+
+fn parse_style_background_color(trimmed: &str) -> Option<&str> {
+    trimmed
+        .split_once(' ')
+        .filter(|(key, _)| key.eq_ignore_ascii_case("BackGroundColor"))
+        .map(|(_, value)| value.trim())
+        .filter(|value| !value.is_empty())
 }
 
 fn parse_entity_kind(s: &str) -> EntityKind {
@@ -475,7 +638,7 @@ fn parse_member(line: &str) -> Option<Member> {
 ///   left heads: `<|`, `<`, `*`, `o`, `+`, or none
 ///   line: `--` (solid) or `..` (dashed), with optional direction hint letters
 ///   right heads: `|>`, `>`, `*`, `o`, `+`, or none
-fn parse_link(line: &str) -> Option<Link> {
+fn parse_link(line: &str, source_line: usize) -> Option<Link> {
     // Build pattern for the arrow itself
     // Left heads: <|, <, *, o, +, or nothing
     // Line: --..variations with optional direction letters
@@ -543,6 +706,7 @@ fn parse_link(line: &str) -> Option<Link> {
             label,
             from_label: None,
             to_label,
+            source_line: Some(source_line),
         });
     }
 
@@ -599,6 +763,7 @@ fn parse_link(line: &str) -> Option<Link> {
             label,
             from_label: None,
             to_label,
+            source_line: Some(source_line),
         });
     }
 
@@ -727,7 +892,11 @@ fn try_parse_class_note(line: &str) -> Option<ClassNoteParseResult> {
 }
 
 /// Auto-create entities that appear in links but were not declared
-fn auto_create_entities(entities: &mut Vec<Entity>, links: &[Link]) {
+fn auto_create_entities(
+    entities: &mut Vec<Entity>,
+    links: &[Link],
+    entity_order: &mut Vec<String>,
+) {
     let known: std::collections::HashSet<String> =
         entities.iter().map(|e| e.name.clone()).collect();
 
@@ -742,6 +911,7 @@ fn auto_create_entities(entities: &mut Vec<Entity>, links: &[Link]) {
     }
 
     for name in to_add {
+        reserve_entity_order(entity_order, &name);
         entities.push(Entity {
             name,
             kind: EntityKind::Class,
@@ -749,6 +919,7 @@ fn auto_create_entities(entities: &mut Vec<Entity>, links: &[Link]) {
             members: Vec::new(),
             color: None,
             generic: None,
+            source_line: None,
         });
     }
 }
@@ -839,6 +1010,19 @@ mod tests {
         assert_eq!(link.left_head, ArrowHead::None);
         assert_eq!(link.right_head, ArrowHead::Triangle);
         assert_eq!(link.line_style, LineStyle::Solid);
+    }
+
+    #[test]
+    fn specific_show_rule_reserves_entity_order() {
+        let cd = parse(
+            "hide members\nshow B methods\nclass A\nclass B {\n  ~run(): boolean\n}\nclass C\nclass D",
+        );
+        let names: Vec<&str> = cd
+            .entities
+            .iter()
+            .map(|entity| entity.name.as_str())
+            .collect();
+        assert_eq!(names, vec!["B", "A", "C", "D"]);
     }
 
     // 7. Parse implementation arrow: A ..|> B

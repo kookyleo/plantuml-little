@@ -27,4 +27,5 @@ pub struct Link {
     pub label: Option<String>,
     pub from_label: Option<String>,
     pub to_label: Option<String>,
+    pub source_line: Option<usize>,
 }

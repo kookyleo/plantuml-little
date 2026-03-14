@@ -99,10 +99,11 @@ pub fn detect_diagram_type(content: &str) -> DiagramHint {
     // "actor " is also a valid use-case keyword.  These are handled as
     // ambiguous keywords below, not as definitive sequence markers.
     let sequence_keywords_definitive = ["participant ", "boundary ", "control ", "collections "];
-    // Ambiguous: sequence diagrams use these, but so do other diagram types.
+    // Ambiguous: sequence diagrams use these, but so do component/deployment diagrams.
     let sequence_keywords_ambiguous = ["database ", "queue "];
     // "actor " is shared between sequence and use-case diagrams
     let mut has_seq_actor = false;
+    let mut has_seq_ambiguous_role = false;
 
     // Sequence fragment keywords — unambiguously identify sequence diagrams
     let seq_fragment_keywords = [
@@ -120,7 +121,8 @@ pub fn detect_diagram_type(content: &str) -> DiagramHint {
     let mut has_activity_start_stop = false; // "start" or "stop" (not bare "end")
     let mut has_activity_swimlane = false;
     let mut has_state_keyword = false;
-    let mut has_component_keyword = false;
+    let mut has_component_keyword_definitive = false;
+    let mut has_component_keyword_ambiguous = false;
     let mut has_usecase_keyword = false;
     let mut has_salt_keyword = false;
     let mut has_timing_keyword = false;
@@ -128,6 +130,7 @@ pub fn detect_diagram_type(content: &str) -> DiagramHint {
     let mut has_seq_arrow = false; // "A -> B" or "A -> B : label" pattern
     let mut has_seq_fragment = false;
     let mut has_class_kw = false;
+    let mut has_class_relation = false;
 
     for line in content.lines() {
         let trimmed = line.trim();
@@ -162,10 +165,6 @@ pub fn detect_diagram_type(content: &str) -> DiagramHint {
         if trimmed.starts_with("component ")
             || trimmed.starts_with("node ")
             || trimmed.starts_with("cloud ")
-            || trimmed.starts_with("rectangle ")
-            || trimmed.starts_with("database ")
-            || trimmed.starts_with("package ")
-            || trimmed.starts_with("interface ")
             || trimmed.starts_with("card ")
             || trimmed.starts_with("file ")
             || trimmed.starts_with("artifact ")
@@ -174,10 +173,15 @@ pub fn detect_diagram_type(content: &str) -> DiagramHint {
             || trimmed.starts_with("frame ")
             || trimmed.starts_with("agent ")
             || trimmed.starts_with("stack ")
-            || trimmed.starts_with("queue ")
             || trimmed.starts_with('[')
         {
-            has_component_keyword = true;
+            has_component_keyword_definitive = true;
+        }
+        if trimmed.starts_with("rectangle ")
+            || trimmed.starts_with("package ")
+            || trimmed.starts_with("interface ")
+        {
+            has_component_keyword_ambiguous = true;
         }
 
         if trimmed == "salt" {
@@ -210,10 +214,10 @@ pub fn detect_diagram_type(content: &str) -> DiagramHint {
         if trimmed.starts_with("actor ") {
             has_seq_actor = true;
         }
-        // Ambiguous keywords: only classify as Sequence if no component keyword seen yet.
+        // Ambiguous keywords: used by both sequence and component diagrams.
         for kw in &sequence_keywords_ambiguous {
-            if trimmed.starts_with(kw) && !has_component_keyword {
-                return DiagramHint::Sequence;
+            if trimmed.starts_with(kw) {
+                has_seq_ambiguous_role = true;
             }
         }
         if !has_arrow && (trimmed.contains("->") || trimmed.contains("<-")) {
@@ -235,6 +239,30 @@ pub fn detect_diagram_type(content: &str) -> DiagramHint {
                 }
             }
         }
+
+        if trimmed.contains("<|")
+            || trimmed.contains("|>")
+            || trimmed.contains(" o--")
+            || trimmed.contains("--o")
+            || trimmed.contains(" *--")
+            || trimmed.contains("--*")
+            || trimmed.contains(" +--")
+            || trimmed.contains("--+")
+            || trimmed.contains(" o..")
+            || trimmed.contains("..o")
+            || trimmed.contains(" *..")
+            || trimmed.contains("..*")
+            || trimmed.contains(" +..")
+            || trimmed.contains("..+")
+        {
+            has_class_relation = true;
+        }
+        if trimmed.contains('[')
+            && trimmed.contains(']')
+            && (trimmed.contains("--") || trimmed.contains("..") || trimmed.contains("->"))
+        {
+            has_class_relation = true;
+        }
     }
 
     if has_timing_keyword {
@@ -250,19 +278,16 @@ pub fn detect_diagram_type(content: &str) -> DiagramHint {
         return DiagramHint::UseCase;
     }
     // Sequence fragments unambiguously identify sequence diagrams
-    if has_seq_fragment && !has_state_keyword && !has_component_keyword {
+    if has_seq_fragment && !has_state_keyword && !has_component_keyword_definitive {
         return DiagramHint::Sequence;
-    }
-    if has_component_keyword && !has_activity_action {
-        return DiagramHint::Component;
     }
     if has_activity_action || has_activity_start_stop || has_activity_swimlane {
         return DiagramHint::Activity;
     }
-    if has_component_keyword {
+    if has_component_keyword_definitive {
         return DiagramHint::Component;
     }
-    if has_class_kw {
+    if has_class_kw || has_class_relation {
         return DiagramHint::Class;
     }
     // "actor" without use-case keywords implies sequence diagram
@@ -272,6 +297,12 @@ pub fn detect_diagram_type(content: &str) -> DiagramHint {
     // Sequence-style arrows (A -> B : label) strongly suggest sequence diagram
     if has_seq_arrow {
         return DiagramHint::Sequence;
+    }
+    if has_seq_ambiguous_role {
+        return DiagramHint::Sequence;
+    }
+    if has_component_keyword_ambiguous {
+        return DiagramHint::Component;
     }
     if has_arrow {
         return DiagramHint::Sequence;
@@ -689,6 +720,18 @@ mod tests {
             detect_diagram_type(content),
             DiagramHint::Component
         ));
+    }
+
+    #[test]
+    fn detect_class_with_rectangle_group() {
+        let content = "rectangle Foo {\n  class A\n}\npackage Bar {\n  class B\n}\n";
+        assert!(matches!(detect_diagram_type(content), DiagramHint::Class));
+    }
+
+    #[test]
+    fn detect_class_with_interface_and_qualified_assoc() {
+        let content = "interface Map<K,V>\nclass HashMap\nHashMap [id: Long] --> Customer\n";
+        assert!(matches!(detect_diagram_type(content), DiagramHint::Class));
     }
 
     #[test]

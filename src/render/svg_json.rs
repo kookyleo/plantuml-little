@@ -3,8 +3,8 @@ use std::fmt::Write;
 use crate::layout::json_diagram::{JsonLayout, JsonRowLayout};
 use crate::model::json_diagram::JsonDiagram;
 use crate::render::svg::fmt_coord;
-use crate::render::svg::xml_escape;
 use crate::render::svg::write_svg_root;
+use crate::render::svg::xml_escape;
 use crate::style::SkinParams;
 use crate::Result;
 
@@ -26,8 +26,12 @@ const TEXT_BASELINE_OFFSET: f64 = 16.0;
 // Public entry point
 // ---------------------------------------------------------------------------
 
-/// Render a JSON diagram to SVG.
-pub fn render_json(_jd: &JsonDiagram, layout: &JsonLayout, skin: &SkinParams) -> Result<String> {
+fn render_with_type(
+    _jd: &JsonDiagram,
+    layout: &JsonLayout,
+    skin: &SkinParams,
+    diagram_type: &str,
+) -> Result<String> {
     let mut buf = String::with_capacity(4096);
 
     // Skin color lookups
@@ -36,7 +40,7 @@ pub fn render_json(_jd: &JsonDiagram, layout: &JsonLayout, skin: &SkinParams) ->
     let header_fill = skin.background_color("jsonHeader", HEADER_FILL);
 
     // SVG header
-    write_svg_root(&mut buf, layout.width, layout.height, "JSON");
+    write_svg_root(&mut buf, layout.width, layout.height, diagram_type);
     buf.push_str("<defs/><g>");
 
     // Render rows
@@ -49,6 +53,16 @@ pub fn render_json(_jd: &JsonDiagram, layout: &JsonLayout, skin: &SkinParams) ->
 
     buf.push_str("</g></svg>");
     Ok(buf)
+}
+
+/// Render a JSON diagram to SVG.
+pub fn render_json(jd: &JsonDiagram, layout: &JsonLayout, skin: &SkinParams) -> Result<String> {
+    render_with_type(jd, layout, skin, "JSON")
+}
+
+/// Render a YAML diagram to SVG.
+pub fn render_yaml(jd: &JsonDiagram, layout: &JsonLayout, skin: &SkinParams) -> Result<String> {
+    render_with_type(jd, layout, skin, "YAML")
 }
 
 // ---------------------------------------------------------------------------

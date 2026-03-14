@@ -1018,7 +1018,15 @@ mod tests {
         let (w2, h2) = estimate_text_size("Line one\nLine two\nLine three");
         assert!(h2 > h, "more lines should be taller");
         // Width driven by longest line.
-        assert!(w2 >= crate::font_metrics::text_width("Line three", "SansSerif", FONT_SIZE, false, false)); // "Line three" = 10 chars
+        assert!(
+            w2 >= crate::font_metrics::text_width(
+                "Line three",
+                "SansSerif",
+                FONT_SIZE,
+                false,
+                false
+            )
+        ); // "Line three" = 10 chars
 
         // Very long line.
         let long_text = "A".repeat(100);

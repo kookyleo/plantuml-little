@@ -1,5 +1,6 @@
 use std::fmt::Write;
 
+use super::svg::write_svg_root;
 use crate::layout::nwdiag::{
     NwdiagConnectorLayout, NwdiagLayout, NwdiagNetworkLayout, NwdiagServerLayout,
 };
@@ -8,7 +9,6 @@ use crate::render::svg::fmt_coord;
 use crate::render::svg_richtext::render_creole_text;
 use crate::style::SkinParams;
 use crate::Result;
-use super::svg::write_svg_root;
 
 const LINE_HEIGHT: f64 = 16.0;
 const NETWORK_FILL: &str = "#F5F5F5";

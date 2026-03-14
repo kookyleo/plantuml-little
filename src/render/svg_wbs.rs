@@ -1,12 +1,12 @@
 use std::fmt::Write;
 
+use super::svg::write_svg_root;
 use crate::layout::wbs::{WbsEdgeLayout, WbsLayout, WbsNodeLayout, WbsNoteLayout};
 use crate::model::wbs::WbsDiagram;
 use crate::render::svg::fmt_coord;
 use crate::render::svg_richtext::{count_creole_lines, render_creole_text};
 use crate::style::SkinParams;
 use crate::Result;
-use super::svg::write_svg_root;
 
 // ── Style constants ─────────────────────────────────────────────────
 

@@ -1,5 +1,6 @@
 use std::fmt::Write;
 
+use super::svg::write_svg_root;
 use crate::layout::timing::{
     TimingConstraintLayout, TimingLayout, TimingMsgLayout, TimingNoteLayout, TimingSegmentLayout,
     TimingTimeAxis, TimingTrackLayout,
@@ -9,7 +10,6 @@ use crate::render::svg::fmt_coord;
 use crate::render::svg_richtext::{count_creole_lines, render_creole_text};
 use crate::style::SkinParams;
 use crate::Result;
-use super::svg::write_svg_root;
 
 // ---------------------------------------------------------------------------
 // Style constants
@@ -282,7 +282,10 @@ fn render_message(buf: &mut String, msg: &TimingMsgLayout, arrow_color: &str, fo
     write!(
         buf,
         r#"<line style="stroke:{arrow_color};stroke-width:1;" x1="{}" x2="{}" y1="{}" y2="{}"/>"#,
-        fmt_coord(msg.from_x), fmt_coord(msg.to_x), fmt_coord(msg.from_y), fmt_coord(msg.to_y),
+        fmt_coord(msg.from_x),
+        fmt_coord(msg.to_x),
+        fmt_coord(msg.from_y),
+        fmt_coord(msg.to_y),
     )
     .unwrap();
     buf.push('\n');
@@ -675,7 +678,10 @@ mod tests {
         let svg = render_timing(&model, &layout, &SkinParams::default()).expect("render failed");
         // There should be no text element for the message label
         // (only defs text, track labels etc might exist, but no empty-label text)
-        assert!(svg.contains("<polygon"), "must have inline polygon arrowhead");
+        assert!(
+            svg.contains("<polygon"),
+            "must have inline polygon arrowhead"
+        );
         // Count text elements: should not have a message-label text
         let text_count = svg.matches("<text").count();
         // Just the defs, no extra text for empty label

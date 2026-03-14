@@ -454,8 +454,7 @@ fn try_parse_html_tag(chars: &[char], start: usize, end: usize) -> Option<(TextS
         if let Some(gt_pos) = find_char(chars, attr_start, end, '>') {
             let color: String = chars[attr_start..gt_pos].iter().collect();
             let content_start = gt_pos + 1;
-            let close_pos = find_tag_close_ci(chars, content_start, end, "</back>")
-                .unwrap_or(end);
+            let close_pos = find_tag_close_ci(chars, content_start, end, "</back>").unwrap_or(end);
             let consumed_end = if close_pos == end {
                 end
             } else {
@@ -477,8 +476,7 @@ fn try_parse_html_tag(chars: &[char], start: usize, end: usize) -> Option<(TextS
         if let Some(gt_pos) = find_char(chars, attr_start, end, '>') {
             let family: String = chars[attr_start..gt_pos].iter().collect();
             let content_start = gt_pos + 1;
-            let close_pos = find_tag_close_ci(chars, content_start, end, "</font>")
-                .unwrap_or(end);
+            let close_pos = find_tag_close_ci(chars, content_start, end, "</font>").unwrap_or(end);
             let consumed_end = if close_pos == end {
                 end
             } else {
@@ -500,8 +498,7 @@ fn try_parse_html_tag(chars: &[char], start: usize, end: usize) -> Option<(TextS
         if let Some(gt_pos) = find_char(chars, attr_start, end, '>') {
             let color: String = chars[attr_start..gt_pos].iter().collect();
             let content_start = gt_pos + 1;
-            let close_pos = find_tag_close_ci(chars, content_start, end, "</color>")
-                .unwrap_or(end);
+            let close_pos = find_tag_close_ci(chars, content_start, end, "</color>").unwrap_or(end);
             let consumed_end = if close_pos == end {
                 end
             } else {
@@ -524,8 +521,8 @@ fn try_parse_html_tag(chars: &[char], start: usize, end: usize) -> Option<(TextS
             let size_str: String = chars[attr_start..gt_pos].iter().collect();
             if let Ok(size) = size_str.trim().parse::<f64>() {
                 let content_start = gt_pos + 1;
-                let close_pos = find_tag_close_ci(chars, content_start, end, "</size>")
-                    .unwrap_or(end);
+                let close_pos =
+                    find_tag_close_ci(chars, content_start, end, "</size>").unwrap_or(end);
                 let consumed_end = if close_pos == end {
                     end
                 } else {

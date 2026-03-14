@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use super::entity::Entity;
 use super::link::Link;
 
@@ -37,6 +39,9 @@ pub struct Group {
     pub kind: GroupKind,
     pub name: String,
     pub entities: Vec<String>,
+    pub stereotypes: Vec<super::entity::Stereotype>,
+    pub color: Option<String>,
+    pub source_line: Option<usize>,
 }
 
 /// Group kind
@@ -55,6 +60,27 @@ pub struct ClassNote {
     pub target: Option<String>,
 }
 
+#[derive(Debug, Clone, PartialEq)]
+pub enum ClassPortion {
+    Field,
+    Method,
+    Stereotype,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum ClassRuleTarget {
+    Any,
+    Entity(String),
+    Stereotype(String),
+}
+
+#[derive(Debug, Clone)]
+pub struct ClassHideShowRule {
+    pub target: ClassRuleTarget,
+    pub portion: ClassPortion,
+    pub show: bool,
+}
+
 /// Class diagram IR
 #[derive(Debug, Clone)]
 pub struct ClassDiagram {
@@ -63,6 +89,8 @@ pub struct ClassDiagram {
     pub groups: Vec<Group>,
     pub direction: Direction,
     pub notes: Vec<ClassNote>,
+    pub hide_show_rules: Vec<ClassHideShowRule>,
+    pub stereotype_backgrounds: HashMap<String, String>,
 }
 
 /// Diagram type enum

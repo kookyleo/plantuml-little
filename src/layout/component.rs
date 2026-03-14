@@ -904,7 +904,8 @@ mod tests {
         assert_eq!(text_width(""), 0.0);
         let expected_a = crate::font_metrics::text_width("a", "SansSerif", FONT_SIZE, false, false);
         assert!((text_width("a") - expected_a).abs() < 0.001);
-        let expected_abc = crate::font_metrics::text_width("abc", "SansSerif", FONT_SIZE, false, false);
+        let expected_abc =
+            crate::font_metrics::text_width("abc", "SansSerif", FONT_SIZE, false, false);
         assert!((text_width("abc") - expected_abc).abs() < 0.001);
     }
 

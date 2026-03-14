@@ -5,8 +5,8 @@ use crate::layout::gantt::{
 };
 use crate::model::gantt::GanttDiagram;
 use crate::render::svg::fmt_coord;
-use crate::render::svg::xml_escape;
 use crate::render::svg::write_svg_root;
+use crate::render::svg::xml_escape;
 use crate::render::svg_richtext::render_creole_text;
 use crate::style::SkinParams;
 use crate::Result;
@@ -352,14 +352,8 @@ mod tests {
         let svg = render_gantt(&model, &layout, &SkinParams::default()).expect("render failed");
         assert!(svg.contains("<rect"), "must contain bar rect");
         assert!(svg.contains("Design"), "must contain task label");
-        assert!(
-            svg.contains(r##"fill="#A4C2F4""##),
-            "default fill color"
-        );
-        assert!(
-            svg.contains("stroke:#3D85C6"),
-            "default stroke color"
-        );
+        assert!(svg.contains(r##"fill="#A4C2F4""##), "default fill color");
+        assert!(svg.contains("stroke:#3D85C6"), "default stroke color");
     }
 
     // 4. Bar with custom color
@@ -372,10 +366,7 @@ mod tests {
         layout.bars.push(bar);
         let svg = render_gantt(&model, &layout, &SkinParams::default()).expect("render failed");
         assert!(svg.contains(r#"fill="Lavender""#), "first color as fill");
-        assert!(
-            svg.contains("stroke:LightBlue"),
-            "second color as stroke"
-        );
+        assert!(svg.contains("stroke:LightBlue"), "second color as stroke");
     }
 
     // 5. Bar with single color (no slash)

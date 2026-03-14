@@ -1,11 +1,11 @@
 use std::fmt::Write;
 
+use super::svg::write_svg_root;
 use crate::layout::ditaa::{DitaaBox, DitaaLayout, DitaaLine, DitaaText};
 use crate::model::ditaa::DitaaDiagram;
 use crate::render::svg_richtext::{count_creole_lines, render_creole_text};
 use crate::style::SkinParams;
 use crate::Result;
-use super::svg::write_svg_root;
 
 const FONT_SIZE: f64 = 12.0;
 const LINE_HEIGHT: f64 = 16.0;
@@ -149,7 +149,16 @@ fn render_line(buf: &mut String, line: &DitaaLine, border: &str) {
 }
 
 fn render_text(buf: &mut String, text: &DitaaText, font: &str) {
-    render_creole_text(buf, &text.text, text.x, text.y, LINE_HEIGHT, font, None, r#"font-size="12""#);
+    render_creole_text(
+        buf,
+        &text.text,
+        text.x,
+        text.y,
+        LINE_HEIGHT,
+        font,
+        None,
+        r#"font-size="12""#,
+    );
 }
 
 #[cfg(test)]

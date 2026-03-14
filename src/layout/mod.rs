@@ -22,7 +22,10 @@ pub use graphviz::{
 use std::collections::HashMap;
 
 use crate::font_metrics;
-use crate::model::{ClassDiagram, Diagram, Direction, Entity, EntityKind};
+use crate::model::{
+    ClassDiagram, ClassHideShowRule, ClassPortion, ClassRuleTarget, Diagram, Direction, Entity,
+    EntityKind, Member, Stereotype,
+};
 use crate::Result;
 
 /// Unified layout result
@@ -65,6 +68,17 @@ const RIGHT_PAD: f64 = 3.0;
 const HEADER_HEIGHT_PT: f64 = 32.0;
 /// Empty compartment height (fields or methods with no members)
 const EMPTY_COMPARTMENT: f64 = 8.0;
+const HEADER_CIRCLE_BLOCK_WIDTH: f64 = 26.0;
+const HEADER_CIRCLE_BLOCK_HEIGHT: f64 = 32.0;
+const HEADER_NAME_BLOCK_HEIGHT: f64 = 16.2969;
+const HEADER_NAME_BLOCK_MARGIN_X: f64 = 6.0;
+const HEADER_STEREO_FONT_SIZE: f64 = 12.0;
+const HEADER_STEREO_LINE_HEIGHT: f64 = 13.9688;
+const HEADER_STEREO_NAME_GAP: f64 = 10.0;
+const MEMBER_ROW_HEIGHT: f64 = 16.2969;
+const MEMBER_BLOCK_HEIGHT_ONE_ROW: f64 = 24.2969;
+const MEMBER_TEXT_LEFT_WITH_ICON: f64 = 26.0;
+const MEMBER_TEXT_LEFT_NO_ICON: f64 = 6.0;
 
 /// Perform layout on a Diagram
 pub fn layout(diagram: &Diagram) -> Result<DiagramLayout> {
@@ -161,7 +175,84 @@ fn sanitize_id(name: &str) -> String {
 }
 
 /// Estimate entity rendering size (width_pt, height_pt)
-fn estimate_entity_size(entity: &Entity) -> (f64, f64) {
+fn estimate_entity_size(cd: &ClassDiagram, entity: &Entity) -> (f64, f64) {
+    if matches!(
+        entity.kind,
+        EntityKind::Interface | EntityKind::Enum | EntityKind::Annotation
+    ) {
+        return estimate_entity_size_legacy(entity);
+    }
+
+    let mut name_display = entity.name.clone();
+    if let Some(ref g) = entity.generic {
+        name_display.push('<');
+        name_display.push_str(g);
+        name_display.push('>');
+    }
+
+    let visible_stereotypes = visible_stereotype_labels(&cd.hide_show_rules, &entity.stereotypes);
+    let italic_name = entity.kind == EntityKind::Abstract;
+    let name_width = font_metrics::text_width(
+        &name_display,
+        "SansSerif",
+        CLASS_FONT_SIZE,
+        false,
+        italic_name,
+    );
+    let name_block_width = name_width + HEADER_NAME_BLOCK_MARGIN_X;
+    let stereo_block_width = visible_stereotypes
+        .iter()
+        .map(|label| {
+            let stereo_text = format!("\u{00AB}{label}\u{00BB}");
+            font_metrics::text_width(
+                &stereo_text,
+                "SansSerif",
+                HEADER_STEREO_FONT_SIZE,
+                false,
+                true,
+            )
+        })
+        .fold(0.0_f64, f64::max);
+    let header_width = HEADER_CIRCLE_BLOCK_WIDTH + name_block_width.max(stereo_block_width);
+    let stereo_height = visible_stereotypes.len() as f64 * HEADER_STEREO_LINE_HEIGHT;
+    let header_height = HEADER_CIRCLE_BLOCK_HEIGHT
+        .max(stereo_height + HEADER_NAME_BLOCK_HEIGHT + HEADER_STEREO_NAME_GAP);
+
+    let visible_fields: Vec<&Member> = entity
+        .members
+        .iter()
+        .filter(|m| !m.is_method)
+        .filter(|_| show_portion(&cd.hide_show_rules, ClassPortion::Field, &entity.name))
+        .collect();
+    let visible_methods: Vec<&Member> = entity
+        .members
+        .iter()
+        .filter(|m| m.is_method)
+        .filter(|_| show_portion(&cd.hide_show_rules, ClassPortion::Method, &entity.name))
+        .collect();
+
+    let show_fields = show_portion(&cd.hide_show_rules, ClassPortion::Field, &entity.name);
+    let show_methods = show_portion(&cd.hide_show_rules, ClassPortion::Method, &entity.name);
+
+    let body_width =
+        estimate_members_width(&visible_fields).max(estimate_members_width(&visible_methods));
+    let body_height = section_height(show_fields, &visible_fields)
+        + section_height(show_methods, &visible_methods);
+
+    let width = header_width.max(body_width);
+    let height = header_height + body_height;
+
+    log::debug!(
+        "estimate_entity_size: {} -> ({}, {})",
+        entity.name,
+        width,
+        height
+    );
+
+    (width, height)
+}
+
+fn estimate_entity_size_legacy(entity: &Entity) -> (f64, f64) {
     // entity display name (including generic parameters)
     let mut name_display = entity.name.clone();
     if let Some(ref g) = entity.generic {
@@ -180,16 +271,34 @@ fn estimate_entity_size(entity: &Entity) -> (f64, f64) {
     // max stereotype text width (for width calculation)
     let stereotype_text_width = if has_stereotype_line {
         let kind_stereo_w = match entity.kind {
-            EntityKind::Interface => font_metrics::text_width("<<interface>>", "SansSerif", CLASS_FONT_SIZE, false, false),
-            EntityKind::Enum => font_metrics::text_width("<<enum>>", "SansSerif", CLASS_FONT_SIZE, false, false),
-            EntityKind::Abstract => font_metrics::text_width("<<abstract>>", "SansSerif", CLASS_FONT_SIZE, false, false),
+            EntityKind::Interface => font_metrics::text_width(
+                "\u{00AB}interface\u{00BB}",
+                "SansSerif",
+                CLASS_FONT_SIZE,
+                false,
+                false,
+            ),
+            EntityKind::Enum => font_metrics::text_width(
+                "\u{00AB}enum\u{00BB}",
+                "SansSerif",
+                CLASS_FONT_SIZE,
+                false,
+                false,
+            ),
+            EntityKind::Abstract => font_metrics::text_width(
+                "\u{00AB}abstract\u{00BB}",
+                "SansSerif",
+                CLASS_FONT_SIZE,
+                false,
+                false,
+            ),
             _ => 0.0,
         };
         let custom_stereo_w = entity
             .stereotypes
             .iter()
             .map(|s| {
-                let stereo_text = format!("<<{}>>", s.0);
+                let stereo_text = format!("\u{00AB}{}\u{00BB}", s.0);
                 font_metrics::text_width(&stereo_text, "SansSerif", CLASS_FONT_SIZE, false, false)
             })
             .fold(0.0_f64, f64::max);
@@ -217,8 +326,10 @@ fn estimate_entity_size(entity: &Entity) -> (f64, f64) {
         .fold(0.0_f64, f64::max);
 
     // Width: Java formula = circle_left_pad + circle_dia + gap + text_width + right_pad
-    let name_width = font_metrics::text_width(&name_display, "SansSerif", CLASS_FONT_SIZE, false, false);
-    let circle_plus_name = CIRCLE_LEFT_PAD + CIRCLE_DIAMETER + CIRCLE_TEXT_GAP + name_width + RIGHT_PAD;
+    let name_width =
+        font_metrics::text_width(&name_display, "SansSerif", CLASS_FONT_SIZE, false, false);
+    let circle_plus_name =
+        CIRCLE_LEFT_PAD + CIRCLE_DIAMETER + CIRCLE_TEXT_GAP + name_width + RIGHT_PAD;
     let max_text_width = circle_plus_name
         .max(stereotype_text_width + CIRCLE_LEFT_PAD + RIGHT_PAD)
         .max(max_member_width + 2.0 * RIGHT_PAD);
@@ -247,6 +358,87 @@ fn estimate_entity_size(entity: &Entity) -> (f64, f64) {
     );
 
     (width, height)
+}
+
+fn estimate_members_width(members: &[&Member]) -> f64 {
+    members
+        .iter()
+        .map(|m| {
+            let member_text = member_text(m);
+            let text_width = font_metrics::text_width(
+                &member_text,
+                "SansSerif",
+                CLASS_FONT_SIZE,
+                false,
+                m.modifiers.is_abstract,
+            );
+            text_width
+                + if m.visibility.is_some() {
+                    MEMBER_TEXT_LEFT_WITH_ICON
+                } else {
+                    MEMBER_TEXT_LEFT_NO_ICON
+                }
+        })
+        .fold(0.0_f64, f64::max)
+}
+
+fn section_height(show: bool, members: &[&Member]) -> f64 {
+    if !show {
+        return 0.0;
+    }
+    if members.is_empty() {
+        return EMPTY_COMPARTMENT;
+    }
+    MEMBER_BLOCK_HEIGHT_ONE_ROW + (members.len().saturating_sub(1)) as f64 * MEMBER_ROW_HEIGHT
+}
+
+fn member_text(m: &Member) -> String {
+    if let Some(ref t) = m.return_type {
+        format!("{}: {}", m.name, t)
+    } else {
+        m.name.clone()
+    }
+}
+
+fn show_portion(rules: &[ClassHideShowRule], portion: ClassPortion, entity_name: &str) -> bool {
+    let mut result = true;
+    for rule in rules {
+        if rule.portion != portion {
+            continue;
+        }
+        match &rule.target {
+            ClassRuleTarget::Any => result = rule.show,
+            ClassRuleTarget::Entity(name) if name == entity_name => result = rule.show,
+            _ => {}
+        }
+    }
+    result
+}
+
+fn visible_stereotype_labels(
+    rules: &[ClassHideShowRule],
+    stereotypes: &[Stereotype],
+) -> Vec<String> {
+    stereotypes
+        .iter()
+        .map(|st| st.0.clone())
+        .filter(|label| stereotype_label_visible(rules, label))
+        .collect()
+}
+
+fn stereotype_label_visible(rules: &[ClassHideShowRule], label: &str) -> bool {
+    let mut result = true;
+    for rule in rules {
+        if rule.portion != ClassPortion::Stereotype {
+            continue;
+        }
+        match &rule.target {
+            ClassRuleTarget::Any => result = rule.show,
+            ClassRuleTarget::Stereotype(name) if name == label => result = rule.show,
+            _ => {}
+        }
+    }
+    result
 }
 
 /// Direction -> RankDir mapping
@@ -287,7 +479,7 @@ fn layout_class_diagram(cd: &ClassDiagram) -> Result<GraphLayout> {
         .entities
         .iter()
         .map(|e| {
-            let (w, h) = estimate_entity_size(e);
+            let (w, h) = estimate_entity_size(cd, e);
             LayoutNode {
                 id: name_to_id
                     .get(&e.name)
@@ -301,7 +493,7 @@ fn layout_class_diagram(cd: &ClassDiagram) -> Result<GraphLayout> {
         .collect();
 
     // build LayoutEdge list
-    let edges: Vec<LayoutEdge> = cd
+    let mut edges: Vec<LayoutEdge> = cd
         .links
         .iter()
         .map(|link| {
@@ -317,9 +509,14 @@ fn layout_class_diagram(cd: &ClassDiagram) -> Result<GraphLayout> {
                 from: from_id,
                 to: to_id,
                 label: link.label.clone(),
+                minlen: 1,
+                invisible: false,
             }
         })
         .collect();
+
+    let standalone_by_container = collect_standalone_square_edges(cd, &name_to_id);
+    edges.extend(standalone_by_container);
 
     let graph = LayoutGraph {
         nodes,
@@ -387,6 +584,101 @@ fn layout_class_diagram(cd: &ClassDiagram) -> Result<GraphLayout> {
     }
 
     Ok(layout)
+}
+
+fn collect_standalone_square_edges(
+    cd: &ClassDiagram,
+    name_to_id: &HashMap<String, String>,
+) -> Vec<LayoutEdge> {
+    let mut result = Vec::new();
+
+    let linked_entities: std::collections::HashSet<&str> = cd
+        .links
+        .iter()
+        .flat_map(|link| [link.from.as_str(), link.to.as_str()])
+        .collect();
+
+    let grouped_entities: std::collections::HashSet<&str> = cd
+        .groups
+        .iter()
+        .flat_map(|group| group.entities.iter().map(String::as_str))
+        .collect();
+
+    let root_standalones: Vec<&str> = cd
+        .entities
+        .iter()
+        .map(|entity| entity.name.as_str())
+        .filter(|name| !linked_entities.contains(name))
+        .filter(|name| !grouped_entities.contains(name))
+        .collect();
+    result.extend(square_edges_for_entities(&root_standalones, name_to_id));
+
+    for group in &cd.groups {
+        let standalones: Vec<&str> = group
+            .entities
+            .iter()
+            .map(String::as_str)
+            .filter(|name| !linked_entities.contains(name))
+            .collect();
+        result.extend(square_edges_for_entities(&standalones, name_to_id));
+    }
+
+    result
+}
+
+fn square_edges_for_entities(
+    entity_names: &[&str],
+    name_to_id: &HashMap<String, String>,
+) -> Vec<LayoutEdge> {
+    if entity_names.len() < 3 {
+        return Vec::new();
+    }
+
+    let branch = compute_square_branch(entity_names.len());
+    let ids: Vec<String> = entity_names
+        .iter()
+        .map(|name| {
+            name_to_id
+                .get(*name)
+                .cloned()
+                .unwrap_or_else(|| sanitize_id(name))
+        })
+        .collect();
+
+    let mut result = Vec::new();
+    let mut head_branch = 0usize;
+    for i in 1..ids.len() {
+        let dist = i - head_branch;
+        if dist == branch {
+            result.push(LayoutEdge {
+                from: ids[head_branch].clone(),
+                to: ids[i].clone(),
+                label: None,
+                minlen: 1,
+                invisible: true,
+            });
+            head_branch = i;
+        } else {
+            result.push(LayoutEdge {
+                from: ids[i - 1].clone(),
+                to: ids[i].clone(),
+                label: None,
+                minlen: 0,
+                invisible: true,
+            });
+        }
+    }
+
+    result
+}
+
+fn compute_square_branch(size: usize) -> usize {
+    let sqrt = (size as f64).sqrt() as usize;
+    if sqrt * sqrt == size {
+        sqrt
+    } else {
+        sqrt + 1
+    }
 }
 
 /// Compute note layout positions
@@ -498,6 +790,7 @@ fn compute_note_layouts(
 mod tests {
     use super::*;
     use crate::model::{Entity, EntityKind, Member, MemberModifiers, Visibility};
+    use std::collections::HashMap;
 
     fn empty_entity(name: &str) -> Entity {
         Entity {
@@ -507,6 +800,7 @@ mod tests {
             members: vec![],
             color: None,
             generic: None,
+            source_line: None,
         }
     }
 
@@ -520,10 +814,22 @@ mod tests {
         }
     }
 
+    fn empty_diagram() -> ClassDiagram {
+        ClassDiagram {
+            entities: vec![],
+            links: vec![],
+            groups: vec![],
+            direction: Direction::TopToBottom,
+            notes: vec![],
+            hide_show_rules: vec![],
+            stereotype_backgrounds: HashMap::new(),
+        }
+    }
+
     #[test]
     fn estimate_size_empty_class_returns_minimum() {
         let e = empty_entity("Foo");
-        let (w, h) = estimate_entity_size(&e);
+        let (w, h) = estimate_entity_size(&empty_diagram(), &e);
         // Width = circle(4+22) + gap(3) + text_width("Foo",14) + pad(3) ≈ 57
         assert!(w >= 40.0, "width should be >= 40, got {w}");
         // Height = header(32) + fields(8) + methods(8) = 48
@@ -546,18 +852,26 @@ mod tests {
             ],
             color: None,
             generic: None,
+            source_line: None,
         };
-        let (w, h) = estimate_entity_size(&e);
+        let (w, h) = estimate_entity_size(&empty_diagram(), &e);
 
         // height = header(32) + fields(8) + members(2*8+8) = 64
-        let expected_min_height = HEADER_HEIGHT_PT + EMPTY_COMPARTMENT + 2.0 * LINE_HEIGHT_PT + EMPTY_COMPARTMENT;
+        let expected_min_height =
+            HEADER_HEIGHT_PT + EMPTY_COMPARTMENT + 2.0 * LINE_HEIGHT_PT + EMPTY_COMPARTMENT;
         assert!(
             h >= expected_min_height,
             "height {h} should be >= {expected_min_height}"
         );
 
-        let member_text = "- longFieldNameHere : String";
-        let expected_min_width = crate::font_metrics::text_width(member_text, "SansSerif", CLASS_ATTR_FONT_SIZE, false, false) + 2.0 * RIGHT_PAD;
+        let member_text = "- longFieldNameHere: String";
+        let expected_min_width = crate::font_metrics::text_width(
+            member_text,
+            "SansSerif",
+            CLASS_ATTR_FONT_SIZE,
+            false,
+            false,
+        ) + 2.0 * RIGHT_PAD;
         assert!(
             w >= expected_min_width,
             "width {w} should be >= {expected_min_width}"
@@ -573,8 +887,9 @@ mod tests {
             members: vec![],
             color: None,
             generic: None,
+            source_line: None,
         };
-        let (_, h) = estimate_entity_size(&e);
+        let (_, h) = estimate_entity_size(&empty_diagram(), &e);
 
         let expected_min = HEADER_HEIGHT_PT + 2.0 * EMPTY_COMPARTMENT;
         assert!(
@@ -590,8 +905,9 @@ mod tests {
             generic: Some("K, V".to_string()),
             ..plain.clone()
         };
-        let (w_plain, _) = estimate_entity_size(&plain);
-        let (w_generic, _) = estimate_entity_size(&generic);
+        let diagram = empty_diagram();
+        let (w_plain, _) = estimate_entity_size(&diagram, &plain);
+        let (w_generic, _) = estimate_entity_size(&diagram, &generic);
         assert!(
             w_generic > w_plain,
             "generic entity should be wider: {w_generic} > {w_plain}"

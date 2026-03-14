@@ -21,7 +21,10 @@ pub mod wbs;
 
 pub use activity::{ActivityDiagram, ActivityEvent, NotePosition};
 pub use component::{ComponentDiagram, ComponentEntity, ComponentKind, ComponentLink};
-pub use diagram::{ClassDiagram, ClassNote, Diagram, DiagramMeta, Direction, Group, GroupKind};
+pub use diagram::{
+    ClassDiagram, ClassHideShowRule, ClassNote, ClassPortion, ClassRuleTarget, Diagram,
+    DiagramMeta, Direction, Group, GroupKind,
+};
 pub use ditaa::{DitaaDiagram, DitaaOptions};
 pub use entity::{Entity, EntityKind, Member, MemberModifiers, Stereotype, Visibility};
 pub use erd::{ErdDiagram, ErdEntity, ErdIsa, ErdRelationship, IsaKind};

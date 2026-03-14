@@ -17,6 +17,8 @@ pub struct LayoutEdge {
     pub from: String,
     pub to: String,
     pub label: Option<String>,
+    pub minlen: u32,
+    pub invisible: bool,
 }
 
 /// Layout direction
@@ -130,17 +132,29 @@ fn to_dot(graph: &LayoutGraph) -> String {
         ));
     }
     for edge in &graph.edges {
+        let style = if edge.invisible { ", style=invis" } else { "" };
         match &edge.label {
             Some(lbl) => {
                 let lbl = lbl.replace('"', "\\\"");
                 dot.push_str(&format!(
-                    "  \"{}\" -> \"{}\" [label=\"{}\"];\n",
-                    edge.from, edge.to, lbl
+                    "  \"{}\" -> \"{}\" [label=\"{}\", arrowtail=none, arrowhead=none, minlen={}{}];\n",
+                    edge.from, edge.to, lbl, edge.minlen, style
                 ));
             }
             None => {
-                dot.push_str(&format!("  \"{}\" -> \"{}\";\n", edge.from, edge.to));
+                dot.push_str(&format!(
+                    "  \"{}\" -> \"{}\" [arrowtail=none, arrowhead=none, minlen={}{}];\n",
+                    edge.from, edge.to, edge.minlen, style
+                ));
             }
+        }
+    }
+    for edge in &graph.edges {
+        if edge.invisible && edge.minlen == 0 {
+            dot.push_str(&format!(
+                "  {{rank=same; \"{}\"; \"{}\";}}\n",
+                edge.from, edge.to
+            ));
         }
     }
     dot.push_str("}\n");
@@ -418,26 +432,27 @@ fn parse_svg_edge(g: &str, tx: f64, ty: f64) -> Option<EdgeLayout> {
     }
 
     // Parse arrowhead <polygon> for arrow tip and full polygon points.
-    let path_end = g.find("<path").and_then(|p| g[p..].find("/>").map(|e| p + e + 2));
+    let path_end = g
+        .find("<path")
+        .and_then(|p| g[p..].find("/>").map(|e| p + e + 2));
     let polygon_search_start = path_end.unwrap_or(0);
-    let (arrow_tip, arrow_polygon_points) = if let Some(poly_pos) =
-        g[polygon_search_start..].find("<polygon")
-    {
-        let polygon = &g[polygon_search_start + poly_pos..];
-        if let Some(pts_str) = parse_xml_attr_str(polygon, "points") {
-            let poly_pts = parse_polygon_points(pts_str, tx, ty);
-            let tip = if poly_pts.len() >= 2 {
-                Some(poly_pts[1])
+    let (arrow_tip, arrow_polygon_points) =
+        if let Some(poly_pos) = g[polygon_search_start..].find("<polygon") {
+            let polygon = &g[polygon_search_start + poly_pos..];
+            if let Some(pts_str) = parse_xml_attr_str(polygon, "points") {
+                let poly_pts = parse_polygon_points(pts_str, tx, ty);
+                let tip = if poly_pts.len() >= 2 {
+                    Some(poly_pts[1])
+                } else {
+                    poly_pts.first().copied()
+                };
+                (tip, Some(poly_pts))
             } else {
-                poly_pts.first().copied()
-            };
-            (tip, Some(poly_pts))
+                (None, None)
+            }
         } else {
             (None, None)
-        }
-    } else {
-        (None, None)
-    };
+        };
 
     Some(EdgeLayout {
         from,
@@ -708,6 +723,8 @@ mod tests {
                 from: "A".into(),
                 to: "B".into(),
                 label: None,
+                minlen: 1,
+                invisible: false,
             }],
             rankdir: RankDir::TopToBottom,
         }

@@ -11,8 +11,8 @@ use crate::Result;
 
 use crate::font_metrics;
 
-use super::svg::{fmt_coord, xml_escape};
 use super::svg::write_svg_root;
+use super::svg::{fmt_coord, xml_escape};
 use super::svg_richtext::render_creole_text;
 
 // ── Style constants ─────────────────────────────────────────────────
@@ -636,19 +636,9 @@ fn draw_message(
     } else {
         // Filled arrowhead polygon: 4-point diamond shape like Java
         let (p1x, p2x, p3x, p4x) = if msg.is_left {
-            (
-                tip_x + 10.0,
-                tip_x,
-                tip_x + 10.0,
-                tip_x + 6.0,
-            )
+            (tip_x + 10.0, tip_x, tip_x + 10.0, tip_x + 6.0)
         } else {
-            (
-                tip_x - 10.0,
-                tip_x,
-                tip_x - 10.0,
-                tip_x - 4.0,
-            )
+            (tip_x - 10.0, tip_x, tip_x - 10.0, tip_x - 4.0)
         };
         write!(
             buf,
@@ -959,7 +949,8 @@ fn draw_group(buf: &mut String, group: &GroupLayout) {
         let escaped = xml_escape(label);
 
         // Label background tab
-        let label_width = font_metrics::text_width(label, "SansSerif", FONT_SIZE, true, false) + 12.0;
+        let label_width =
+            font_metrics::text_width(label, "SansSerif", FONT_SIZE, true, false) + 12.0;
         let label_height = FONT_SIZE + 6.0;
         write!(
             buf,
@@ -1113,7 +1104,8 @@ fn draw_divider(buf: &mut String, divider: &DividerLayout) {
         let escaped = xml_escape(text);
 
         // Text background
-        let text_width = font_metrics::text_width(text, "SansSerif", FONT_SIZE, false, false) + 16.0;
+        let text_width =
+            font_metrics::text_width(text, "SansSerif", FONT_SIZE, false, false) + 16.0;
         write!(
             buf,
             r#"<rect fill="white" height="{h:.1}" width="{w:.1}" x="{x:.1}" y="{y:.1}"/>"#,

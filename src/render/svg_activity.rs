@@ -6,8 +6,8 @@ use crate::layout::activity::{
 };
 use crate::model::activity::ActivityDiagram;
 use crate::render::svg::fmt_coord;
-use crate::render::svg::xml_escape;
 use crate::render::svg::write_svg_root;
+use crate::render::svg::xml_escape;
 use crate::render::svg_richtext::render_creole_text;
 use crate::style::SkinParams;
 use crate::Result;
@@ -58,13 +58,7 @@ pub fn render_activity(
 
     // Swimlanes (behind everything)
     for sw in &layout.swimlane_layouts {
-        render_swimlane(
-            &mut buf,
-            sw,
-            layout.height,
-            swimlane_border,
-            swimlane_font,
-        );
+        render_swimlane(&mut buf, sw, layout.height, swimlane_border, swimlane_font);
     }
     // Right border line for the last swimlane
     if let Some(last) = layout.swimlane_layouts.last() {
@@ -239,13 +233,19 @@ fn render_detach(buf: &mut String, node: &ActivityNodeLayout, arrow_color: &str)
     write!(
         buf,
         r#"<line style="stroke:{arrow_color};stroke-width:2;" x1="{}" x2="{}" y1="{}" y2="{}"/>"#,
-        fmt_coord(cx - r), fmt_coord(cx + r), fmt_coord(cy - r), fmt_coord(cy + r),
+        fmt_coord(cx - r),
+        fmt_coord(cx + r),
+        fmt_coord(cy - r),
+        fmt_coord(cy + r),
     )
     .unwrap();
     write!(
         buf,
         r#"<line style="stroke:{arrow_color};stroke-width:2;" x1="{}" x2="{}" y1="{}" y2="{}"/>"#,
-        fmt_coord(cx + r), fmt_coord(cx - r), fmt_coord(cy - r), fmt_coord(cy + r),
+        fmt_coord(cx + r),
+        fmt_coord(cx - r),
+        fmt_coord(cy - r),
+        fmt_coord(cy + r),
     )
     .unwrap();
 }
@@ -533,8 +533,14 @@ mod tests {
             2,
             "stop node must produce two ellipses"
         );
-        assert!(svg.contains(r#"rx="11""#), "stop outer ring must have rx=11");
-        assert!(svg.contains(r#"rx="6""#), "stop inner ellipse must have rx=6");
+        assert!(
+            svg.contains(r#"rx="11""#),
+            "stop outer ring must have rx=11"
+        );
+        assert!(
+            svg.contains(r#"rx="6""#),
+            "stop inner ellipse must have rx=6"
+        );
         assert!(
             svg.contains(r#"stroke-width:1;"#),
             "ellipses must have stroke-width=1"
@@ -716,10 +722,7 @@ mod tests {
             svg.contains("<polygon"),
             "edge must have inline polygon arrowhead"
         );
-        assert!(
-            svg.contains("stroke:#181818"),
-            "edge must use EDGE_COLOR"
-        );
+        assert!(svg.contains("stroke:#181818"), "edge must use EDGE_COLOR");
         // Simple 2-point edge uses <line>
         assert!(svg.contains("<line "), "2-point edge must use <line>");
         // Must NOT use marker-end

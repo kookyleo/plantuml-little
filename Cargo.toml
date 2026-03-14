@@ -19,6 +19,7 @@ regex = "1"
 vizoxide = "1.0.5"
 zip = { version = "0.6.6", default-features = false, features = ["deflate"] }
 reqwest = { version = "0.12", default-features = false, features = ["blocking", "rustls-tls"] }
+flate2 = "1"
 
 [patch.crates-io]
 vizoxide = { git = "https://github.com/kookyleo/vizoxide.git", branch = "fix/lifetime-elision-warnings" }

@@ -4,8 +4,8 @@ use crate::layout::erd::{
     ErdAttrLayout, ErdEdgeLayout, ErdIsaLayout, ErdLayout, ErdNodeLayout, ErdNoteLayout,
 };
 use crate::model::erd::ErdDiagram;
-use crate::render::svg::{fmt_coord, xml_escape};
 use crate::render::svg::write_svg_root;
+use crate::render::svg::{fmt_coord, xml_escape};
 use crate::render::svg_richtext::render_creole_text;
 use crate::style::SkinParams;
 use crate::Result;
@@ -105,13 +105,7 @@ pub fn render_erd(_ed: &ErdDiagram, layout: &ErdLayout, skin: &SkinParams) -> Re
 
 // ── Entity rendering ────────────────────────────────────────────────
 
-fn render_entity(
-    buf: &mut String,
-    node: &ErdNodeLayout,
-    bg: &str,
-    border: &str,
-    font_color: &str,
-) {
+fn render_entity(buf: &mut String, node: &ErdNodeLayout, bg: &str, border: &str, font_color: &str) {
     let x = node.x;
     let y = node.y;
     let w = node.width;
@@ -190,8 +184,7 @@ fn render_relationship(buf: &mut String, node: &ErdNodeLayout) {
         let inner_right = fmt_pt(x + w - inset * 1.5, cy);
         let inner_bottom = fmt_pt(cx, y + h - inset);
         let inner_left = fmt_pt(x + inset * 1.5, cy);
-        let inner_points =
-            format!("{inner_top} {inner_right} {inner_bottom} {inner_left}");
+        let inner_points = format!("{inner_top} {inner_right} {inner_bottom} {inner_left}");
         write!(
             buf,
             r#"<polygon fill="{RELATIONSHIP_BG}" points="{inner_points}" style="stroke:{RELATIONSHIP_BORDER};stroke-width:0.5;"/>"#,
@@ -764,10 +757,7 @@ mod tests {
         });
         let svg = render_erd(&d, &layout, &SkinParams::default()).unwrap();
         let path_count = svg.matches("<path").count();
-        assert!(
-            path_count >= 2,
-            "double edge must produce at least 2 paths"
-        );
+        assert!(path_count >= 2, "double edge must produce at least 2 paths");
     }
 
     // 12. ISA triangle rendering

@@ -116,8 +116,7 @@ pub fn render_creole_text(
         .collect::<Vec<_>>()
         .join("");
     let (font_family, font_size, bold, italic) = parse_font_props(outer_attrs);
-    let text_length =
-        font_metrics::text_width(&plain, &font_family, font_size, bold, italic);
+    let text_length = font_metrics::text_width(&plain, &font_family, font_size, bold, italic);
 
     if lines.len() == 1 {
         write_text_open(buf, x, y, fill, text_anchor, outer_attrs, text_length);

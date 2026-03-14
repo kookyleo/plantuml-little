@@ -3,8 +3,8 @@ use std::fmt::Write;
 use crate::layout::salt::{LayoutBox, SaltLayout, SaltWidgetLayout};
 use crate::model::salt::SaltDiagram;
 use crate::render::svg::fmt_coord;
-use crate::render::svg::xml_escape;
 use crate::render::svg::write_svg_root;
+use crate::render::svg::xml_escape;
 use crate::style::SkinParams;
 use crate::Result;
 
@@ -338,11 +338,23 @@ fn render_table(
 }
 
 fn render_text(buf: &mut String, x: f64, y: f64, text: &str, font: &str, anchor: Option<&str>) {
-    write!(buf, r#"<text fill="{}" font-family="sans-serif" font-size="12""#, font).unwrap();
+    write!(
+        buf,
+        r#"<text fill="{}" font-family="sans-serif" font-size="12""#,
+        font
+    )
+    .unwrap();
     if let Some(anchor) = anchor {
         write!(buf, r#" text-anchor="{}""#, xml_escape(anchor)).unwrap();
     }
-    write!(buf, r#" x="{}" y="{}">{}"#, fmt_coord(x), fmt_coord(y), xml_escape(text)).unwrap();
+    write!(
+        buf,
+        r#" x="{}" y="{}">{}"#,
+        fmt_coord(x),
+        fmt_coord(y),
+        xml_escape(text)
+    )
+    .unwrap();
     buf.push_str("</text>\n");
 }
 

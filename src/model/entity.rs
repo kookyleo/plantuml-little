@@ -48,4 +48,5 @@ pub struct Entity {
     pub members: Vec<Member>,
     pub color: Option<String>,
     pub generic: Option<String>,
+    pub source_line: Option<usize>,
 }

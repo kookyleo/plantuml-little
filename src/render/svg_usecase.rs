@@ -5,8 +5,8 @@ use crate::layout::usecase::{
 };
 use crate::model::usecase::UseCaseDiagram;
 use crate::render::svg::fmt_coord;
-use crate::render::svg::xml_escape;
 use crate::render::svg::write_svg_root;
+use crate::render::svg::xml_escape;
 use crate::style::SkinParams;
 use crate::Result;
 
@@ -58,7 +58,12 @@ pub fn render_usecase(
     let boundary_font = skin.font_color("boundary", TEXT_FILL);
     let arrow_color = skin.arrow_color(EDGE_COLOR);
 
-    write_svg_root(&mut buf, layout.total_width, layout.total_height, "DESCRIPTION");
+    write_svg_root(
+        &mut buf,
+        layout.total_width,
+        layout.total_height,
+        "DESCRIPTION",
+    );
     buf.push_str("<defs/><g>");
 
     // Boundaries first (behind everything)
@@ -116,7 +121,10 @@ fn render_actor(buf: &mut String, actor: &ActorLayout, stroke: &str, font_color:
     write!(
         buf,
         r#"<line style="stroke:{stroke};stroke-width:0.5;" x1="{}" x2="{}" y1="{}" y2="{}"/>"#,
-        fmt_coord(cx), fmt_coord(cx), fmt_coord(body_top_y), fmt_coord(body_bot_y),
+        fmt_coord(cx),
+        fmt_coord(cx),
+        fmt_coord(body_top_y),
+        fmt_coord(body_bot_y),
     )
     .unwrap();
     buf.push('\n');
@@ -127,7 +135,10 @@ fn render_actor(buf: &mut String, actor: &ActorLayout, stroke: &str, font_color:
     write!(
         buf,
         r#"<line style="stroke:{stroke};stroke-width:0.5;" x1="{}" x2="{}" y1="{}" y2="{}"/>"#,
-        fmt_coord(cx), fmt_coord(la_x), fmt_coord(arm_y), fmt_coord(la_y),
+        fmt_coord(cx),
+        fmt_coord(la_x),
+        fmt_coord(arm_y),
+        fmt_coord(la_y),
     )
     .unwrap();
     buf.push('\n');
@@ -138,7 +149,10 @@ fn render_actor(buf: &mut String, actor: &ActorLayout, stroke: &str, font_color:
     write!(
         buf,
         r#"<line style="stroke:{stroke};stroke-width:0.5;" x1="{}" x2="{}" y1="{}" y2="{}"/>"#,
-        fmt_coord(cx), fmt_coord(ra_x), fmt_coord(arm_y), fmt_coord(ra_y),
+        fmt_coord(cx),
+        fmt_coord(ra_x),
+        fmt_coord(arm_y),
+        fmt_coord(ra_y),
     )
     .unwrap();
     buf.push('\n');
@@ -149,7 +163,10 @@ fn render_actor(buf: &mut String, actor: &ActorLayout, stroke: &str, font_color:
     write!(
         buf,
         r#"<line style="stroke:{stroke};stroke-width:0.5;" x1="{}" x2="{}" y1="{}" y2="{}"/>"#,
-        fmt_coord(cx), fmt_coord(ll_x), fmt_coord(leg_y), fmt_coord(ll_y),
+        fmt_coord(cx),
+        fmt_coord(ll_x),
+        fmt_coord(leg_y),
+        fmt_coord(ll_y),
     )
     .unwrap();
     buf.push('\n');
@@ -160,7 +177,10 @@ fn render_actor(buf: &mut String, actor: &ActorLayout, stroke: &str, font_color:
     write!(
         buf,
         r#"<line style="stroke:{stroke};stroke-width:0.5;" x1="{}" x2="{}" y1="{}" y2="{}"/>"#,
-        fmt_coord(cx), fmt_coord(rl_x), fmt_coord(leg_y), fmt_coord(rl_y),
+        fmt_coord(cx),
+        fmt_coord(rl_x),
+        fmt_coord(leg_y),
+        fmt_coord(rl_y),
     )
     .unwrap();
     buf.push('\n');
@@ -542,7 +562,10 @@ mod tests {
 
         let svg = render_usecase(&diagram, &layout, &SkinParams::default()).expect("render failed");
         assert!(svg.contains("<line"), "edge must produce a line");
-        assert!(svg.contains("<polygon"), "edge must have inline polygon arrowhead");
+        assert!(
+            svg.contains("<polygon"),
+            "edge must have inline polygon arrowhead"
+        );
         assert!(
             !svg.contains("stroke-dasharray"),
             "association must not be dashed"
