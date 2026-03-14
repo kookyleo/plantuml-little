@@ -144,10 +144,9 @@ fn to_dot(graph: &LayoutGraph) -> String {
 
 /// Run Graphviz dot layout, returning node coordinates and edge paths.
 ///
-/// Strategy: serialize the graph to DOT format, run layout via `dot -Tplain`
-/// subprocess, and parse the plain format output to obtain node coordinates
-/// and edge paths.
-/// Plain format spec: <https://graphviz.org/docs/outputs/plain/>
+/// Strategy: serialize the graph to DOT format, run layout via `dot -Tsvg`
+/// subprocess, and parse the SVG output to obtain node coordinates and edge
+/// paths with full pt precision (no inches→pt rounding).
 pub fn layout(graph: &LayoutGraph) -> Result<GraphLayout, Error> {
     log::debug!(
         "layout: {} nodes, {} edges",
@@ -158,9 +157,9 @@ pub fn layout(graph: &LayoutGraph) -> Result<GraphLayout, Error> {
     let dot_src = to_dot(graph);
     log::debug!("dot input:\n{dot_src}");
 
-    // invoke dot -Tplain, pipe DOT via stdin, read plain format from stdout
+    // invoke dot -Tsvg, pipe DOT via stdin, read SVG from stdout
     let mut child = Command::new("dot")
-        .arg("-Tplain")
+        .arg("-Tsvg")
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
@@ -183,104 +182,73 @@ pub fn layout(graph: &LayoutGraph) -> Result<GraphLayout, Error> {
         return Err(Error::Layout(format!("dot exited with error: {stderr}")));
     }
 
-    let plain = String::from_utf8_lossy(&output.stdout);
-    log::debug!("dot plain output:\n{plain}");
+    let svg = String::from_utf8_lossy(&output.stdout);
+    log::debug!("dot svg output:\n{svg}");
 
-    parse_plain_output(&plain, graph)
+    parse_svg_output(&svg, graph)
 }
 
-/// Parse `dot -Tplain` output.
+/// Parse `dot -Tsvg` output to extract node positions and edge paths.
 ///
-/// Plain format line types:
-/// - `graph scale width height`
-/// - `node name x y width height label style shape color fillcolor`
-/// - `edge tail head n x1 y1 [x2 y2 ...] [label xl yl] style color`
-/// - `stop`
-///
-/// Origin is at bottom-left, units are inches (already multiplied by scale).
-/// Y-axis must be flipped for SVG coordinates.
-fn parse_plain_output(plain: &str, graph: &LayoutGraph) -> Result<GraphLayout, Error> {
-    let mut total_width = 0.0_f64;
-    let mut total_height = 0.0_f64;
+/// Graphviz SVG coordinate system:
+/// - The `<svg>` element has width/height in pt (e.g., `width="116pt"`)
+/// - The top-level `<g>` has `transform="scale(s s) rotate(0) translate(tx ty)"`
+/// - Internal element coordinates use Y=0 at bottom (PostScript convention),
+///   with negative Y values. Applying the translate converts to SVG Y-down coords.
+/// - Node positions come from `<ellipse cx= cy=>` or `<polygon points=>`
+/// - Edge paths come from `<path d="M... C...">` and arrowhead `<polygon>`
+fn parse_svg_output(svg: &str, graph: &LayoutGraph) -> Result<GraphLayout, Error> {
+    // Extract translate(tx, ty) from the top-level <g> transform.
+    // This converts Graphviz internal coords to SVG viewport coords.
+    let (tx, ty) = parse_transform_translate(svg);
+    log::debug!("svg transform translate: tx={tx}, ty={ty}");
+
     let mut node_map: std::collections::HashMap<String, NodeLayout> =
         std::collections::HashMap::new();
     let mut edge_layouts: Vec<EdgeLayout> = Vec::new();
 
-    for line in plain.lines() {
-        let tokens: Vec<&str> = line.split_whitespace().collect();
-        if tokens.is_empty() {
+    // Find node and edge <g> groups. Graphviz SVG uses:
+    //   <g id="node1" class="node"> ... </g>
+    //   <g id="edge1" class="edge"> ... </g>
+    // These are leaf groups (no nested <g>), so the first </g> closes them.
+    let mut search_from = 0;
+    while let Some(rel_pos) = svg[search_from..].find("<g id=") {
+        let g_start = search_from + rel_pos;
+        // Extract the opening <g ...> tag to check class
+        let tag_end = match svg[g_start..].find('>') {
+            Some(pos) => g_start + pos + 1,
+            None => break,
+        };
+        let open_tag = &svg[g_start..tag_end];
+
+        // Only process node and edge groups, skip the outer graph group
+        let is_node = open_tag.contains("class=\"node\"");
+        let is_edge = open_tag.contains("class=\"edge\"");
+        if !is_node && !is_edge {
+            search_from = tag_end;
             continue;
         }
 
-        match tokens[0] {
-            "graph" => {
-                // graph scale width height
-                if tokens.len() >= 4 {
-                    let scale: f64 = tokens[1].parse().unwrap_or(1.0);
-                    let w: f64 = tokens[2].parse().unwrap_or(0.0);
-                    let h: f64 = tokens[3].parse().unwrap_or(0.0);
-                    // plain units are inches, multiply by 72 to convert to pt
-                    total_width = w * scale * 72.0;
-                    total_height = h * scale * 72.0;
-                }
+        // Find the closing </g> for this leaf group
+        let g_end = match svg[tag_end..].find("</g>") {
+            Some(pos) => tag_end + pos + 4,
+            None => break,
+        };
+        let g_content = &svg[g_start..g_end];
+        search_from = g_end;
+
+        if is_node {
+            if let Some(nl) = parse_svg_node(g_content, tx, ty, graph) {
+                node_map.insert(nl.id.clone(), nl);
             }
-            "node" => {
-                // node name x y width height label style shape color fillcolor
-                if tokens.len() >= 6 {
-                    let id = unquote(tokens[1]);
-                    let gx: f64 = tokens[2].parse().unwrap_or(0.0);
-                    let gy: f64 = tokens[3].parse().unwrap_or(0.0);
-                    let w: f64 = tokens[4].parse().unwrap_or(0.0);
-                    let h: f64 = tokens[5].parse().unwrap_or(0.0);
-                    // Use our original precise size instead of Graphviz's
-                    // rounded inches→pt conversion to avoid precision loss.
-                    let orig_size = graph.nodes.iter().find(|n| n.id == id);
-                    let (precise_w, precise_h) = match orig_size {
-                        Some(n) => (n.width_pt, n.height_pt),
-                        None => (w * 72.0, h * 72.0),
-                    };
-                    node_map.insert(
-                        id.clone(),
-                        NodeLayout {
-                            id,
-                            cx: gx * 72.0,
-                            cy: total_height - gy * 72.0, // flip Y-axis
-                            width: precise_w,
-                            height: precise_h,
-                        },
-                    );
-                }
+        } else if is_edge {
+            if let Some(el) = parse_svg_edge(g_content, tx, ty) {
+                edge_layouts.push(el);
             }
-            "edge" => {
-                // edge tail head n x1 y1 x2 y2 ... [label xl yl] style color
-                if tokens.len() >= 5 {
-                    let from = unquote(tokens[1]);
-                    let to = unquote(tokens[2]);
-                    let n: usize = tokens[3].parse().unwrap_or(0);
-                    let mut points = Vec::with_capacity(n);
-                    for i in 0..n {
-                        let xi = 4 + i * 2;
-                        let yi = xi + 1;
-                        if yi < tokens.len() {
-                            let x: f64 = tokens[xi].parse().unwrap_or(0.0);
-                            let y: f64 = tokens[yi].parse().unwrap_or(0.0);
-                            points.push((x * 72.0, total_height - y * 72.0));
-                        }
-                    }
-                    edge_layouts.push(EdgeLayout {
-                        from,
-                        to,
-                        points,
-                        arrow_tip: None,
-                    });
-                }
-            }
-            "stop" => break,
-            _ => {}
         }
     }
 
-    // order output nodes according to LayoutGraph node order
+    // Order output nodes according to LayoutGraph node order
     let nodes: Vec<NodeLayout> = graph
         .nodes
         .iter()
@@ -289,16 +257,14 @@ fn parse_plain_output(plain: &str, graph: &LayoutGraph) -> Result<GraphLayout, E
 
     if nodes.len() != graph.nodes.len() {
         log::warn!(
-            "layout: expected {} nodes, got {} from dot output",
+            "layout: expected {} nodes, got {} from dot svg output",
             graph.nodes.len(),
             nodes.len()
         );
     }
 
-    // Java PlantUML: moveDelta(6 - minX, 6 - minY) normalizes coordinates
-    // so the top-left entity corner starts near (7, 7) after adding the
-    // render-time MARGIN offset.  We normalize to (0, 0) here; the renderer
-    // adds its own MARGIN.
+    // Normalize coordinates so top-left entity corner starts at (0, 0).
+    // The renderer adds its own MARGIN.
     let min_x = nodes
         .iter()
         .map(|n| n.cx - n.width / 2.0)
@@ -316,6 +282,10 @@ fn parse_plain_output(plain: &str, graph: &LayoutGraph) -> Result<GraphLayout, E
         for p in &mut e.points {
             p.0 -= min_x;
             p.1 -= min_y;
+        }
+        if let Some(ref mut tip) = e.arrow_tip {
+            tip.0 -= min_x;
+            tip.1 -= min_y;
         }
     }
     // Recompute bounding box after normalization
@@ -339,13 +309,291 @@ fn parse_plain_output(plain: &str, graph: &LayoutGraph) -> Result<GraphLayout, E
     })
 }
 
-/// Remove surrounding quotes from node names in dot plain output, if present
-fn unquote(s: &str) -> String {
-    if s.starts_with('"') && s.ends_with('"') && s.len() >= 2 {
-        s[1..s.len() - 1].to_string()
-    } else {
-        s.to_string()
+/// Extract `translate(tx, ty)` from the top-level `<g>` transform attribute.
+fn parse_transform_translate(svg: &str) -> (f64, f64) {
+    // Look for transform="... translate(tx ty) ..." or translate(tx,ty)
+    if let Some(pos) = svg.find("translate(") {
+        let after = &svg[pos + 10..];
+        if let Some(end) = after.find(')') {
+            let inner = &after[..end];
+            // May be separated by space or comma
+            let parts: Vec<&str> = inner.split(|c: char| c == ' ' || c == ',').collect();
+            if parts.len() >= 2 {
+                let tx: f64 = parts[0].trim().parse().unwrap_or(0.0);
+                let ty: f64 = parts[1].trim().parse().unwrap_or(0.0);
+                return (tx, ty);
+            }
+        }
     }
+    (0.0, 0.0)
+}
+
+/// Parse a `<g class="node">` group to extract node ID and center position.
+fn parse_svg_node(g: &str, tx: f64, ty: f64, graph: &LayoutGraph) -> Option<NodeLayout> {
+    let id = parse_title(g)?;
+    log::trace!("parse_svg_node: id={id}");
+
+    // Try <ellipse cx="..." cy="..."> first (default node shape)
+    let (cx, cy) = if let Some(ellipse_pos) = g.find("<ellipse") {
+        let ellipse = &g[ellipse_pos..];
+        let ecx = parse_xml_attr(ellipse, "cx")?;
+        let ecy = parse_xml_attr(ellipse, "cy")?;
+        (ecx, ecy)
+    } else if let Some(polygon_pos) = g.find("<polygon") {
+        // Box shape: compute center from polygon points bounding box
+        let polygon = &g[polygon_pos..];
+        let points_str = parse_xml_attr_str(polygon, "points")?;
+        let (min_x, min_y, max_x, max_y) = polygon_bounding_box(&points_str)?;
+        ((min_x + max_x) / 2.0, (min_y + max_y) / 2.0)
+    } else {
+        log::warn!("node {id}: no ellipse or polygon found");
+        return None;
+    };
+
+    // Apply transform to get SVG viewport coordinates
+    let svg_cx = tx + cx;
+    let svg_cy = ty + cy;
+
+    // Use original precise size from the input graph
+    let orig_size = graph.nodes.iter().find(|n| n.id == id);
+    let (w, h) = match orig_size {
+        Some(n) => (n.width_pt, n.height_pt),
+        None => {
+            log::warn!("node {id}: not found in input graph, using graphviz size");
+            // Fallback: try to derive size from the SVG element
+            if let Some(ellipse_pos) = g.find("<ellipse") {
+                let ellipse = &g[ellipse_pos..];
+                let rx = parse_xml_attr(ellipse, "rx").unwrap_or(18.0);
+                let ry = parse_xml_attr(ellipse, "ry").unwrap_or(18.0);
+                (rx * 2.0, ry * 2.0)
+            } else {
+                (36.0, 36.0)
+            }
+        }
+    };
+
+    Some(NodeLayout {
+        id,
+        cx: svg_cx,
+        cy: svg_cy,
+        width: w,
+        height: h,
+    })
+}
+
+/// Parse a `<g class="edge">` group to extract edge endpoints and path.
+fn parse_svg_edge(g: &str, tx: f64, ty: f64) -> Option<EdgeLayout> {
+    let title = parse_title(g)?;
+    // Edge title format: "FROM&#45;&gt;TO" (XML-decoded: "FROM->TO")
+    let (from, to) = parse_edge_title(&title)?;
+    log::trace!("parse_svg_edge: {from} -> {to}");
+
+    // Parse <path d="M... C..."/> for Bezier control points
+    let mut points = Vec::new();
+    if let Some(path_pos) = g.find("<path") {
+        let path_elem = &g[path_pos..];
+        if let Some(d_str) = parse_xml_attr_str(path_elem, "d") {
+            points = parse_svg_path_d(&d_str, tx, ty);
+        }
+    }
+
+    // Parse arrowhead <polygon> for arrow tip.
+    // The edge group may have a <path> followed by a <polygon> for the arrowhead.
+    // We find the polygon AFTER the path element.
+    let arrow_tip = {
+        let path_end = g.find("<path").and_then(|p| g[p..].find("/>").map(|e| p + e + 2));
+        let polygon_search_start = path_end.unwrap_or(0);
+        if let Some(poly_pos) = g[polygon_search_start..].find("<polygon") {
+            let polygon = &g[polygon_search_start + poly_pos..];
+            if let Some(pts_str) = parse_xml_attr_str(polygon, "points") {
+                // The arrowhead polygon tip is the point closest to the target node.
+                // For a standard arrowhead, the second point (index 1) is the tip.
+                // We use the second point from the parsed polygon points.
+                let poly_pts = parse_polygon_points(&pts_str, tx, ty);
+                if poly_pts.len() >= 2 {
+                    Some(poly_pts[1])
+                } else {
+                    poly_pts.first().copied()
+                }
+            } else {
+                None
+            }
+        } else {
+            None
+        }
+    };
+
+    Some(EdgeLayout {
+        from,
+        to,
+        points,
+        arrow_tip,
+    })
+}
+
+/// Extract text content from the first `<title>` element in a string.
+/// Decodes basic XML entities.
+fn parse_title(s: &str) -> Option<String> {
+    let start_tag = "<title>";
+    let end_tag = "</title>";
+    let start = s.find(start_tag)? + start_tag.len();
+    let end = s[start..].find(end_tag)? + start;
+    let raw = &s[start..end];
+    Some(decode_xml_entities(raw))
+}
+
+/// Parse edge title "FROM->TO" (after XML entity decoding).
+fn parse_edge_title(title: &str) -> Option<(String, String)> {
+    // The arrow separator is "->" in the decoded title
+    let arrow_pos = title.find("->")?;
+    let from = title[..arrow_pos].to_string();
+    let to = title[arrow_pos + 2..].to_string();
+    if from.is_empty() || to.is_empty() {
+        return None;
+    }
+    Some((from, to))
+}
+
+/// Parse a numeric XML attribute value, e.g., `cx="54"` -> 54.0
+fn parse_xml_attr(elem: &str, attr_name: &str) -> Option<f64> {
+    let pattern = format!("{}=\"", attr_name);
+    let pos = elem.find(&pattern)?;
+    let after = &elem[pos + pattern.len()..];
+    let end = after.find('"')?;
+    after[..end].parse::<f64>().ok()
+}
+
+/// Parse a string XML attribute value, e.g., `points="1,2 3,4"` -> "1,2 3,4"
+fn parse_xml_attr_str<'a>(elem: &'a str, attr_name: &str) -> Option<&'a str> {
+    let pattern = format!("{}=\"", attr_name);
+    let pos = elem.find(&pattern)?;
+    let after = &elem[pos + pattern.len()..];
+    let end = after.find('"')?;
+    Some(&after[..end])
+}
+
+/// Compute bounding box from a polygon `points` attribute string.
+/// Points format: "x1,y1 x2,y2 x3,y3 ..."
+fn polygon_bounding_box(points_str: &str) -> Option<(f64, f64, f64, f64)> {
+    let mut min_x = f64::INFINITY;
+    let mut min_y = f64::INFINITY;
+    let mut max_x = f64::NEG_INFINITY;
+    let mut max_y = f64::NEG_INFINITY;
+    let mut count = 0;
+
+    for pair in points_str.split_whitespace() {
+        let coords: Vec<&str> = pair.split(',').collect();
+        if coords.len() == 2 {
+            if let (Ok(x), Ok(y)) = (coords[0].parse::<f64>(), coords[1].parse::<f64>()) {
+                min_x = min_x.min(x);
+                min_y = min_y.min(y);
+                max_x = max_x.max(x);
+                max_y = max_y.max(y);
+                count += 1;
+            }
+        }
+    }
+
+    if count > 0 {
+        Some((min_x, min_y, max_x, max_y))
+    } else {
+        None
+    }
+}
+
+/// Parse polygon points attribute and apply transform.
+/// Returns list of (x, y) points in SVG viewport coordinates.
+fn parse_polygon_points(points_str: &str, tx: f64, ty: f64) -> Vec<(f64, f64)> {
+    let mut result = Vec::new();
+    for pair in points_str.split_whitespace() {
+        let coords: Vec<&str> = pair.split(',').collect();
+        if coords.len() == 2 {
+            if let (Ok(x), Ok(y)) = (coords[0].parse::<f64>(), coords[1].parse::<f64>()) {
+                result.push((tx + x, ty + y));
+            }
+        }
+    }
+    result
+}
+
+/// Parse SVG path `d` attribute (M/C/L commands) and apply transform.
+///
+/// Graphviz edge paths typically use:
+/// - `M x,y` — move to start
+/// - `C x1,y1 x2,y2 x3,y3` — cubic Bezier (may have multiple triplets)
+/// - `L x,y` — line to (less common)
+///
+/// Returns all control points in SVG viewport coordinates.
+fn parse_svg_path_d(d: &str, tx: f64, ty: f64) -> Vec<(f64, f64)> {
+    let mut points = Vec::new();
+    // Tokenize: split by command letters, keeping numbers together
+    // Strategy: iterate character by character, collecting coordinate pairs
+    let mut chars = d.chars().peekable();
+    while let Some(&c) = chars.peek() {
+        match c {
+            'M' | 'C' | 'L' => {
+                chars.next(); // consume command letter
+            }
+            '-' | '0'..='9' | '.' => {
+                // Parse a coordinate pair: x,y or x y (separated by comma or space)
+                let x = parse_next_number(&mut chars);
+                skip_separators(&mut chars);
+                let y = parse_next_number(&mut chars);
+                if let (Some(x), Some(y)) = (x, y) {
+                    points.push((tx + x, ty + y));
+                }
+            }
+            _ => {
+                chars.next(); // skip whitespace and other chars
+            }
+        }
+    }
+    points
+}
+
+/// Parse the next floating-point number from the character iterator.
+fn parse_next_number(chars: &mut std::iter::Peekable<std::str::Chars>) -> Option<f64> {
+    let mut s = String::new();
+    // Optional leading minus sign
+    if let Some(&'-') = chars.peek() {
+        s.push('-');
+        chars.next();
+    }
+    // Digits and decimal point
+    while let Some(&c) = chars.peek() {
+        if c.is_ascii_digit() || c == '.' {
+            s.push(c);
+            chars.next();
+        } else {
+            break;
+        }
+    }
+    if s.is_empty() || s == "-" {
+        None
+    } else {
+        s.parse::<f64>().ok()
+    }
+}
+
+/// Skip commas and whitespace between coordinates.
+fn skip_separators(chars: &mut std::iter::Peekable<std::str::Chars>) {
+    while let Some(&c) = chars.peek() {
+        if c == ',' || c == ' ' || c == '\t' || c == '\n' || c == '\r' {
+            chars.next();
+        } else {
+            break;
+        }
+    }
+}
+
+/// Decode basic XML entities used in Graphviz SVG output.
+fn decode_xml_entities(s: &str) -> String {
+    s.replace("&amp;", "&")
+        .replace("&lt;", "<")
+        .replace("&gt;", ">")
+        .replace("&quot;", "\"")
+        .replace("&#45;", "-")
+        .replace("&#39;", "'")
 }
 
 #[cfg(test)]
