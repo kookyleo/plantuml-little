@@ -1,6 +1,7 @@
 use std::path::Path;
 
 pub mod error;
+pub mod font_metrics;
 pub mod layout;
 pub mod model;
 pub mod parser;

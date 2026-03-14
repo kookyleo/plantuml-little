@@ -1,0 +1,2 @@
+tests/tools/*.class
+tests/tools/font_metrics.json

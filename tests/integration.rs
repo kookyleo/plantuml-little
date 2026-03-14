@@ -48,6 +48,48 @@ fn assert_valid_svg(svg: &str, path: &str) {
     .iter()
     .any(|tag| svg.contains(tag));
     assert!(has_graphics, "{path}: missing drawable SVG content");
+
+    assert_no_raw_markup(svg, path);
+}
+
+fn assert_no_raw_markup(svg: &str, path: &str) {
+    // Check both raw and XML-escaped forms of Creole/PlantUML markup.
+    // Markup that was not processed leaks into SVG text content in
+    // either raw form (<size:12>) or escaped form (&lt;size:12&gt;).
+    let raw_patterns = [
+        ("<$", "raw sprite reference <$...>"),
+        ("<size:", "raw <size:N> markup"),
+        ("<color:", "raw <color:X> markup"),
+        ("<back:", "raw <back:X> markup"),
+        ("<font:", "raw <font:X> markup"),
+    ];
+    let escaped_patterns = [
+        ("&lt;size:", "escaped <size:N> markup"),
+        ("&lt;color:", "escaped <color:X> markup"),
+        ("&lt;back:", "escaped <back:X> markup"),
+        ("&lt;font:", "escaped <font:X> markup"),
+        ("&lt;$", "escaped sprite reference <$...>"),
+    ];
+
+    for (pat, desc) in raw_patterns {
+        assert!(!svg.contains(pat), "{path}: {desc} in SVG output");
+    }
+    for (pat, desc) in escaped_patterns {
+        assert!(!svg.contains(pat), "{path}: {desc} in SVG output");
+    }
+
+    // Check for unprocessed Creole bold/italic inside <text> elements.
+    // Pattern: **text** or //text// appearing literally in text content.
+    for line in svg.lines() {
+        if let Some(start) = line.find('>') {
+            if let Some(end) = line.rfind("</text>") {
+                let text_content = &line[start + 1..end];
+                if text_content.contains("**") {
+                    panic!("{path}: unprocessed Creole bold **...** in text: {text_content}");
+                }
+            }
+        }
+    }
 }
 
 fn extract_numeric_attr(svg: &str, attr: &str) -> Option<f64> {

@@ -50,6 +50,30 @@ const LEGEND_BG: &str = "#FBFB77";
 
 // ── Helpers ─────────────────────────────────────────────────────────
 
+/// Format a coordinate value matching Java PlantUML's `SvgGraphics.format()`:
+/// - Up to 4 decimal places
+/// - Trailing zeros stripped
+/// - Integer values without decimal point
+/// - "0" for zero
+///
+/// Reference: SvgGraphics.java:944
+pub(crate) fn fmt_coord(value: f64) -> String {
+    if value == 0.0 {
+        return "0".into();
+    }
+    let s = format!("{:.4}", value);
+    let bytes = s.as_bytes();
+    let dot = s.find('.').unwrap();
+    let mut end = s.len();
+    while end > dot + 1 && bytes[end - 1] == b'0' {
+        end -= 1;
+    }
+    if end == dot + 1 {
+        end = dot;
+    }
+    s[..end].to_string()
+}
+
 /// Resolve the effective font family from skinparam overrides.
 fn resolve_font_family<'a>(skin: &'a SkinParams, default: &'a str) -> &'a str {
     if let Some(hw) = skin.handwritten_font_family() {
@@ -764,6 +788,24 @@ mod tests {
         ArrowHead, ClassDiagram, Diagram, Direction, Entity, EntityKind, LineStyle, Link, Member,
         MemberModifiers, Visibility,
     };
+
+    #[test]
+    fn test_fmt_coord_matches_java() {
+        // Matches Java SvgGraphics.format() behavior exactly
+        assert_eq!(fmt_coord(0.0), "0");
+        assert_eq!(fmt_coord(1.0), "1");
+        assert_eq!(fmt_coord(42.0), "42");
+        assert_eq!(fmt_coord(3.5), "3.5");
+        assert_eq!(fmt_coord(3.50), "3.5");
+        assert_eq!(fmt_coord(3.1234), "3.1234");
+        assert_eq!(fmt_coord(3.12340), "3.1234");
+        assert_eq!(fmt_coord(3.1200), "3.12");
+        assert_eq!(fmt_coord(3.1000), "3.1");
+        assert_eq!(fmt_coord(100.0), "100");
+        assert_eq!(fmt_coord(-5.25), "-5.25");
+        assert_eq!(fmt_coord(0.0001), "0.0001");
+        assert_eq!(fmt_coord(0.00001), "0"); // rounds to 0.0000
+    }
 
     fn simple_diagram() -> (Diagram, DiagramLayout) {
         let entity = Entity {

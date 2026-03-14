@@ -1,0 +1,5 @@
+plantuml_jar: /ext/plantuml/plantuml/build/libs/plantuml-1.2026.3beta4.jar
+plantuml_git: 8ca7bfe28d49f2f6711f76183cd1a248d44317c6
+java_version: openjdk version "17.0.18" 2026-01-20
+dot_version: dot - graphviz version 2.43.0 (0)
+generated_at: 2026-03-14T04:52:48Z
