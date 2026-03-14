@@ -561,8 +561,8 @@ mod tests {
             "action must have rounded corners"
         );
         assert!(
-            svg.contains(r##"fill="#FEFECE""##),
-            "action must use rose theme activity_bg fill"
+            svg.contains(r##"fill="#F1F1F1""##),
+            "action must use default theme activity_bg fill"
         );
         assert!(
             svg.contains("Do something"),

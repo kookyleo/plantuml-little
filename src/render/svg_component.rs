@@ -199,15 +199,18 @@ fn render_group(
     buf.push('\n');
 
     // Group name at top
-    let name_escaped = xml_escape(&group.name);
     let name_x = group.x + 10.0;
     let name_y = group.y + FONT_SIZE + 6.0;
-    write!(
+    render_creole_text(
         buf,
-        r#"<text fill="{font_color}" font-family="sans-serif" font-size="14" font-weight="bold" x="{name_x:.1}" y="{name_y:.1}">{name_escaped}</text>"#,
-    )
-    .unwrap();
-    buf.push('\n');
+        &group.name,
+        name_x,
+        name_y,
+        LINE_HEIGHT,
+        font_color,
+        None,
+        r#"font-size="14" font-weight="bold""#,
+    );
 
     // Separator line below header
     let sep_y = name_y + 6.0;
@@ -777,18 +780,21 @@ fn render_node_text(buf: &mut String, node: &ComponentNodeLayout, font_color: &s
     }
 
     // Name
-    let name_escaped = xml_escape(&node.name);
     let name_y = if has_desc {
         node.y + FONT_SIZE + 4.0 + y_offset
     } else {
         node.y + node.height / 2.0 + FONT_SIZE * 0.35 + y_offset
     };
-    write!(
+    render_creole_text(
         buf,
-        r#"<text fill="{font_color}" font-family="sans-serif" font-size="14" font-weight="bold" text-anchor="middle" x="{cx:.1}" y="{name_y:.1}">{name_escaped}</text>"#,
-    )
-    .unwrap();
-    buf.push('\n');
+        &node.name,
+        cx,
+        name_y,
+        LINE_HEIGHT,
+        font_color,
+        Some("middle"),
+        r#"font-size="14" font-weight="bold""#,
+    );
 
     // Description
     if has_desc {
@@ -868,13 +874,16 @@ fn render_edge(buf: &mut String, edge: &ComponentEdgeLayout, arrow_color: &str, 
             edge.points[mid]
         };
 
-        let escaped = xml_escape(&edge.label);
-        write!(
+        render_creole_text(
             buf,
-            r#"<text fill="{font_color}" font-family="sans-serif" font-size="{FONT_SIZE}" text-anchor="middle" x="{mx:.1}" y="{my:.1}">{escaped}</text>"#,
-        )
-        .unwrap();
-        buf.push('\n');
+            &edge.label,
+            mx,
+            my,
+            LINE_HEIGHT,
+            font_color,
+            Some("middle"),
+            &format!(r#"font-size="{FONT_SIZE}""#),
+        );
     }
 }
 
@@ -1174,8 +1183,8 @@ mod tests {
         let svg =
             render_component(&diagram, &layout, &SkinParams::default()).expect("render failed");
         assert!(
-            svg.contains(r##"fill="#FBFB77""##),
-            "note must use rose theme note background"
+            svg.contains(r##"fill="#FEFFDD""##),
+            "note must use default theme note background"
         );
         assert!(svg.contains("important note"), "note text must appear");
         assert!(svg.contains("<polygon"), "note body must be a polygon");

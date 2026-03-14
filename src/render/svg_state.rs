@@ -321,16 +321,17 @@ fn render_simple(
         buf.push('\n');
 
         let text_x = node.x + 8.0;
-        for (i, desc_line) in node.description.iter().enumerate() {
-            let dy = sep_y + LINE_HEIGHT * (i as f64 + 1.0);
-            let escaped = xml_escape(desc_line);
-            write!(
-                buf,
-                r#"<text fill="{font_color}" font-family="sans-serif" font-size="12" x="{text_x:.1}" y="{dy:.1}">{escaped}</text>"#,
-            )
-            .unwrap();
-            buf.push('\n');
-        }
+        let desc_text = node.description.join("\n");
+        render_creole_text(
+            buf,
+            &desc_text,
+            text_x,
+            sep_y + LINE_HEIGHT,
+            LINE_HEIGHT,
+            font_color,
+            None,
+            r#"font-size="12""#,
+        );
     }
 }
 
@@ -659,8 +660,8 @@ mod tests {
             "state must have rounded corners"
         );
         assert!(
-            svg.contains(r##"fill="#FEFECE""##),
-            "state must use rose theme state_bg fill"
+            svg.contains(r##"fill="#F1F1F1""##),
+            "state must use default theme state_bg fill"
         );
         assert!(svg.contains("Idle"), "state name must appear in SVG");
         assert!(

@@ -73,70 +73,70 @@ pub struct Theme {
 }
 
 impl Theme {
-    /// Construct the built-in "rose" theme, matching PlantUML's defaults.
+    /// Construct the default theme, matching Java PlantUML's current defaults.
     pub fn rose() -> Self {
         Self {
             // Global
             background_color: "#FFFFFF".into(),
             font_color: "#000000".into(),
-            arrow_color: "#A80036".into(),
-            border_color: "#A80036".into(),
+            arrow_color: "#181818".into(),
+            border_color: "#181818".into(),
 
             // Class / Object
-            class_bg: "#FEFECE".into(),
-            class_border: "#A80036".into(),
+            class_bg: "#F1F1F1".into(),
+            class_border: "#181818".into(),
             class_font: "#000000".into(),
 
             // Sequence
-            participant_bg: "#FEFECE".into(),
-            participant_border: "#A80036".into(),
-            lifeline_color: "#A80036".into(),
-            activation_bg: "#FEFECE".into(),
-            activation_border: "#A80036".into(),
+            participant_bg: "#E2E2F0".into(),
+            participant_border: "#181818".into(),
+            lifeline_color: "#181818".into(),
+            activation_bg: "#F1F1F1".into(),
+            activation_border: "#181818".into(),
             group_bg: "#EEEEEE".into(),
             group_border: "#000000".into(),
 
             // Note
-            note_bg: "#FBFB77".into(),
-            note_border: "#A80036".into(),
+            note_bg: "#FEFFDD".into(),
+            note_border: "#181818".into(),
 
             // Activity
-            activity_bg: "#FEFECE".into(),
-            activity_border: "#A80036".into(),
-            diamond_bg: "#FEFECE".into(),
-            diamond_border: "#A80036".into(),
-            swimlane_border: "#A80036".into(),
-            swimlane_header_bg: "#FEFECE".into(),
+            activity_bg: "#F1F1F1".into(),
+            activity_border: "#181818".into(),
+            diamond_bg: "#F1F1F1".into(),
+            diamond_border: "#181818".into(),
+            swimlane_border: "#181818".into(),
+            swimlane_header_bg: "#F1F1F1".into(),
 
             // State
-            state_bg: "#FEFECE".into(),
-            state_border: "#A80036".into(),
-            composite_bg: "#FEFECE".into(),
-            composite_border: "#A80036".into(),
+            state_bg: "#F1F1F1".into(),
+            state_border: "#181818".into(),
+            composite_bg: "#F1F1F1".into(),
+            composite_border: "#181818".into(),
 
             // Component
-            component_bg: "#FEFECE".into(),
-            component_border: "#A80036".into(),
-            node_bg: "#FEFECE".into(),
-            node_border: "#A80036".into(),
-            database_bg: "#FEFECE".into(),
-            database_border: "#A80036".into(),
+            component_bg: "#F1F1F1".into(),
+            component_border: "#181818".into(),
+            node_bg: "#F1F1F1".into(),
+            node_border: "#181818".into(),
+            database_bg: "#F1F1F1".into(),
+            database_border: "#181818".into(),
             cloud_bg: "#F1F1F1".into(),
-            cloud_border: "#A80036".into(),
+            cloud_border: "#181818".into(),
 
             // ERD
-            entity_bg: "#FEFECE".into(),
-            entity_border: "#A80036".into(),
-            relationship_bg: "#FEFECE".into(),
-            relationship_border: "#A80036".into(),
+            entity_bg: "#F1F1F1".into(),
+            entity_border: "#181818".into(),
+            relationship_bg: "#F1F1F1".into(),
+            relationship_border: "#181818".into(),
 
             // Mindmap / WBS
-            mindmap_node_bg: "#FEFECE".into(),
-            mindmap_node_border: "#A80036".into(),
+            mindmap_node_bg: "#F1F1F1".into(),
+            mindmap_node_border: "#181818".into(),
             wbs_root_bg: "#FFD700".into(),
 
             // Legend
-            legend_bg: "#FBFB77".into(),
+            legend_bg: "#FEFFDD".into(),
             legend_border: "#000000".into(),
         }
     }
@@ -825,7 +825,7 @@ mod tests {
     #[test]
     fn background_color_default_fallback() {
         let params = SkinParams::new();
-        assert_eq!(params.background_color("class", "#FEFECE"), "#FEFECE");
+        assert_eq!(params.background_color("class", "#FEFECE"), "#F1F1F1");
     }
 
     #[test]
@@ -875,26 +875,26 @@ mod tests {
         let t = Theme::rose();
         assert_eq!(t.background_color, "#FFFFFF");
         assert_eq!(t.font_color, "#000000");
-        assert_eq!(t.arrow_color, "#A80036");
-        assert_eq!(t.border_color, "#A80036");
+        assert_eq!(t.arrow_color, "#181818");
+        assert_eq!(t.border_color, "#181818");
     }
 
     #[test]
     fn theme_rose_class_colors() {
         let t = Theme::rose();
-        assert_eq!(t.class_bg, "#FEFECE");
-        assert_eq!(t.class_border, "#A80036");
+        assert_eq!(t.class_bg, "#F1F1F1");
+        assert_eq!(t.class_border, "#181818");
         assert_eq!(t.class_font, "#000000");
     }
 
     #[test]
     fn theme_rose_sequence_colors() {
         let t = Theme::rose();
-        assert_eq!(t.participant_bg, "#FEFECE");
-        assert_eq!(t.participant_border, "#A80036");
-        assert_eq!(t.lifeline_color, "#A80036");
-        assert_eq!(t.activation_bg, "#FEFECE");
-        assert_eq!(t.activation_border, "#A80036");
+        assert_eq!(t.participant_bg, "#E2E2F0");
+        assert_eq!(t.participant_border, "#181818");
+        assert_eq!(t.lifeline_color, "#181818");
+        assert_eq!(t.activation_bg, "#F1F1F1");
+        assert_eq!(t.activation_border, "#181818");
         assert_eq!(t.group_bg, "#EEEEEE");
         assert_eq!(t.group_border, "#000000");
     }
@@ -902,64 +902,64 @@ mod tests {
     #[test]
     fn theme_rose_note_colors() {
         let t = Theme::rose();
-        assert_eq!(t.note_bg, "#FBFB77");
-        assert_eq!(t.note_border, "#A80036");
+        assert_eq!(t.note_bg, "#FEFFDD");
+        assert_eq!(t.note_border, "#181818");
     }
 
     #[test]
     fn theme_rose_activity_colors() {
         let t = Theme::rose();
-        assert_eq!(t.activity_bg, "#FEFECE");
-        assert_eq!(t.activity_border, "#A80036");
-        assert_eq!(t.diamond_bg, "#FEFECE");
-        assert_eq!(t.diamond_border, "#A80036");
-        assert_eq!(t.swimlane_border, "#A80036");
-        assert_eq!(t.swimlane_header_bg, "#FEFECE");
+        assert_eq!(t.activity_bg, "#F1F1F1");
+        assert_eq!(t.activity_border, "#181818");
+        assert_eq!(t.diamond_bg, "#F1F1F1");
+        assert_eq!(t.diamond_border, "#181818");
+        assert_eq!(t.swimlane_border, "#181818");
+        assert_eq!(t.swimlane_header_bg, "#F1F1F1");
     }
 
     #[test]
     fn theme_rose_state_colors() {
         let t = Theme::rose();
-        assert_eq!(t.state_bg, "#FEFECE");
-        assert_eq!(t.state_border, "#A80036");
-        assert_eq!(t.composite_bg, "#FEFECE");
-        assert_eq!(t.composite_border, "#A80036");
+        assert_eq!(t.state_bg, "#F1F1F1");
+        assert_eq!(t.state_border, "#181818");
+        assert_eq!(t.composite_bg, "#F1F1F1");
+        assert_eq!(t.composite_border, "#181818");
     }
 
     #[test]
     fn theme_rose_component_colors() {
         let t = Theme::rose();
-        assert_eq!(t.component_bg, "#FEFECE");
-        assert_eq!(t.component_border, "#A80036");
-        assert_eq!(t.node_bg, "#FEFECE");
-        assert_eq!(t.node_border, "#A80036");
-        assert_eq!(t.database_bg, "#FEFECE");
-        assert_eq!(t.database_border, "#A80036");
+        assert_eq!(t.component_bg, "#F1F1F1");
+        assert_eq!(t.component_border, "#181818");
+        assert_eq!(t.node_bg, "#F1F1F1");
+        assert_eq!(t.node_border, "#181818");
+        assert_eq!(t.database_bg, "#F1F1F1");
+        assert_eq!(t.database_border, "#181818");
         assert_eq!(t.cloud_bg, "#F1F1F1");
-        assert_eq!(t.cloud_border, "#A80036");
+        assert_eq!(t.cloud_border, "#181818");
     }
 
     #[test]
     fn theme_rose_erd_colors() {
         let t = Theme::rose();
-        assert_eq!(t.entity_bg, "#FEFECE");
-        assert_eq!(t.entity_border, "#A80036");
-        assert_eq!(t.relationship_bg, "#FEFECE");
-        assert_eq!(t.relationship_border, "#A80036");
+        assert_eq!(t.entity_bg, "#F1F1F1");
+        assert_eq!(t.entity_border, "#181818");
+        assert_eq!(t.relationship_bg, "#F1F1F1");
+        assert_eq!(t.relationship_border, "#181818");
     }
 
     #[test]
     fn theme_rose_mindmap_wbs_colors() {
         let t = Theme::rose();
-        assert_eq!(t.mindmap_node_bg, "#FEFECE");
-        assert_eq!(t.mindmap_node_border, "#A80036");
+        assert_eq!(t.mindmap_node_bg, "#F1F1F1");
+        assert_eq!(t.mindmap_node_border, "#181818");
         assert_eq!(t.wbs_root_bg, "#FFD700");
     }
 
     #[test]
     fn theme_rose_legend_colors() {
         let t = Theme::rose();
-        assert_eq!(t.legend_bg, "#FBFB77");
+        assert_eq!(t.legend_bg, "#FEFFDD");
         assert_eq!(t.legend_border, "#000000");
     }
 
@@ -980,27 +980,27 @@ mod tests {
     #[test]
     fn skinparams_default_has_rose_theme() {
         let sp = SkinParams::default();
-        assert_eq!(sp.theme.class_bg, "#FEFECE");
-        assert_eq!(sp.theme.arrow_color, "#A80036");
+        assert_eq!(sp.theme.class_bg, "#F1F1F1");
+        assert_eq!(sp.theme.arrow_color, "#181818");
     }
 
     #[test]
     fn skinparams_theme_fallback_bg() {
         let sp = SkinParams::new();
         // No explicit skinparam set: should fall back to theme for known elements
-        assert_eq!(sp.background_color("class", "#IGNORED"), "#FEFECE");
-        assert_eq!(sp.background_color("component", "#IGNORED"), "#FEFECE");
-        assert_eq!(sp.background_color("entity", "#IGNORED"), "#FEFECE");
-        assert_eq!(sp.background_color("note", "#IGNORED"), "#FBFB77");
+        assert_eq!(sp.background_color("class", "#IGNORED"), "#F1F1F1");
+        assert_eq!(sp.background_color("component", "#IGNORED"), "#F1F1F1");
+        assert_eq!(sp.background_color("entity", "#IGNORED"), "#F1F1F1");
+        assert_eq!(sp.background_color("note", "#IGNORED"), "#FEFFDD");
         assert_eq!(sp.background_color("cloud", "#IGNORED"), "#F1F1F1");
     }
 
     #[test]
     fn skinparams_theme_fallback_border() {
         let sp = SkinParams::new();
-        assert_eq!(sp.border_color("class", "#IGNORED"), "#A80036");
-        assert_eq!(sp.border_color("state", "#IGNORED"), "#A80036");
-        assert_eq!(sp.border_color("note", "#IGNORED"), "#A80036");
+        assert_eq!(sp.border_color("class", "#IGNORED"), "#181818");
+        assert_eq!(sp.border_color("state", "#IGNORED"), "#181818");
+        assert_eq!(sp.border_color("note", "#IGNORED"), "#181818");
     }
 
     #[test]
@@ -1358,7 +1358,7 @@ skinparam participant {
 
         // Level 3: theme fallback when nothing is set
         let sp3 = SkinParams::new();
-        assert_eq!(sp3.background_color("component", "#default"), "#FEFECE");
+        assert_eq!(sp3.background_color("component", "#default"), "#F1F1F1");
     }
 
     // Ported from upstream: font color resolution chain

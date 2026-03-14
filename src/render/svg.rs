@@ -760,11 +760,16 @@ fn marker_attr_for(head: &ArrowHead, attr: &str) -> String {
 }
 
 fn draw_label(buf: &mut String, text: &str, x: f64, y: f64) {
-    let escaped = xml_escape(text);
-    write!(buf,
-        r#"<text fill="{LABEL_COLOR}" font-family="sans-serif" font-size="{FONT_SIZE}" text-anchor="middle" x="{x:.1}" y="{y:.1}">{escaped}</text>"#,
-    ).unwrap();
-    buf.push('\n');
+    render_creole_text(
+        buf,
+        text,
+        x,
+        y,
+        LINE_HEIGHT,
+        LABEL_COLOR,
+        Some("middle"),
+        &format!(r#"font-size="{FONT_SIZE}""#),
+    );
 }
 
 /// Draw a note in class diagrams (yellow sticky box with folded corner)
