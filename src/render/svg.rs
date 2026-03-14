@@ -1622,7 +1622,7 @@ fn build_edge_path_d(points: &[(f64, f64)], offset: f64) -> String {
 
     write!(
         d,
-        "M{},{}",
+        "M{},{} ",
         fmt_coord(points[0].0 + offset),
         fmt_coord(points[0].1 + offset),
     )
@@ -1633,7 +1633,7 @@ fn build_edge_path_d(points: &[(f64, f64)], offset: f64) -> String {
         for chunk in rest.chunks(3) {
             write!(
                 d,
-                " C{},{} {},{} {},{}",
+                "C{},{} {},{} {},{} ",
                 fmt_coord(chunk[0].0 + offset),
                 fmt_coord(chunk[0].1 + offset),
                 fmt_coord(chunk[1].0 + offset),
@@ -1647,13 +1647,16 @@ fn build_edge_path_d(points: &[(f64, f64)], offset: f64) -> String {
         for &(x, y) in rest {
             write!(
                 d,
-                " L{},{}",
+                "L{},{} ",
                 fmt_coord(x + offset),
                 fmt_coord(y + offset),
             )
             .unwrap();
         }
     }
+    // Edge paths come from Graphviz SVG which doesn't add trailing space
+    // (unlike SvgGraphics glyph paths which do). Trim to match.
+    let d = d.trim_end().to_string();
     d
 }
 
@@ -1936,7 +1939,7 @@ fn draw_class_note(buf: &mut String, note: &ClassNoteLayout) {
         let cy2 = fmt_coord(y + fold);
         let cx2 = fmt_coord(x + w);
         write!(buf,
-            r#"<path d="M {cx},{cy} L {cx},{cy2} L {cx2},{cy} Z" fill="{bg}" style="stroke:{border};stroke-width:1;"/>"#,
+            r#"<path d="M{cx},{cy} L{cx},{cy2} L{cx2},{cy} Z " fill="{bg}" style="stroke:{border};stroke-width:1;"/>"#,
             bg = NOTE_BG,
             border = NOTE_BORDER,
         ).unwrap();

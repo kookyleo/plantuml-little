@@ -33,7 +33,7 @@ const NOTE_FOLD: f64 = 8.0;
 fn render_path_line(buf: &mut String, x1: f64, y1: f64, x2: f64, y2: f64) {
     write!(
         buf,
-        r#"<path d="M {},{} L {},{}" fill="none" style="stroke:{EDGE_COLOR};stroke-width:1;"/>"#,
+        r#"<path d="M{},{} L{},{} " fill="none" style="stroke:{EDGE_COLOR};stroke-width:1;"/>"#,
         fmt_coord(x1),
         fmt_coord(y1),
         fmt_coord(x2),
@@ -471,7 +471,7 @@ fn render_note(buf: &mut String, note: &ErdNoteLayout) {
 
     write!(
         buf,
-        r#"<path d="M {},{} L {},{} L {},{}" fill="none" style="stroke:{NOTE_BORDER};stroke-width:0.5;"/>"#,
+        r#"<path d="M{},{} L{},{} L{},{} " fill="none" style="stroke:{NOTE_BORDER};stroke-width:0.5;"/>"#,
         fmt_coord(x + w - fold), fmt_coord(y),
         fmt_coord(x + w - fold), fmt_coord(y + fold),
         fmt_coord(x + w), fmt_coord(y + fold),

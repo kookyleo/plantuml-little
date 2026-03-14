@@ -74,7 +74,7 @@ fn render_edge(buf: &mut String, edge: &MindmapEdgeLayout, color: &str) {
 
     write!(
         buf,
-        r#"<path d="M {},{} C {},{} {},{} {},{}" fill="none" style="stroke:{color};stroke-width:{BORDER_WIDTH};"/>"#,
+        r#"<path d="M{},{} C{},{} {},{} {},{} " fill="none" style="stroke:{color};stroke-width:{BORDER_WIDTH};"/>"#,
         fmt_coord(edge.from_x), fmt_coord(edge.from_y),
         fmt_coord(cx1), fmt_coord(cy1),
         fmt_coord(cx2), fmt_coord(cy2),
@@ -155,7 +155,7 @@ fn render_note(buf: &mut String, note: &MindmapNoteLayout, font_color: &str) {
 
     write!(
         buf,
-        r#"<path d="M {},{} L {},{} L {},{}" fill="none" style="stroke:{NOTE_BORDER};stroke-width:0.5;"/>"#,
+        r#"<path d="M{},{} L{},{} L{},{} " fill="none" style="stroke:{NOTE_BORDER};stroke-width:0.5;"/>"#,
         fmt_coord(fold_x), fmt_coord(note.y),
         fmt_coord(fold_x), fmt_coord(fold_y),
         fmt_coord(x2), fmt_coord(fold_y),
@@ -299,7 +299,7 @@ mod tests {
     fn render_edges_use_cubic_bezier() {
         let (diagram, layout) = simple_layout();
         let svg = render_mindmap(&diagram, &layout, &SkinParams::default()).unwrap();
-        assert!(svg.contains(" C "), "edges should use cubic bezier (C)");
+        assert!(svg.contains("C"), "edges should use cubic bezier (C)");
     }
 
     #[test]

@@ -480,7 +480,7 @@ fn render_note(buf: &mut String, note: &TimingNoteLayout, font_color: &str) {
 
     write!(
         buf,
-        r#"<path d="M {},{} L {},{} L {},{}" fill="none" style="stroke:{NOTE_BORDER};stroke-width:0.5;"/>"#,
+        r#"<path d="M{},{} L{},{} L{},{} " fill="none" style="stroke:{NOTE_BORDER};stroke-width:0.5;"/>"#,
         fmt_coord(fold_x), fmt_coord(note.y),
         fmt_coord(fold_x), fmt_coord(fold_y),
         fmt_coord(x2), fmt_coord(fold_y),

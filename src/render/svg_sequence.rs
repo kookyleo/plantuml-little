@@ -349,7 +349,7 @@ fn draw_participant_control(
     let arrow_y = icon_cy - icon_r;
     write!(
         buf,
-        r#"<path d="M {},{} L {},{} L {},{}" fill="none" style="stroke:{border};stroke-width:1.5;"/>"#,
+        r#"<path d="M{},{} L{},{} L{},{} " fill="none" style="stroke:{border};stroke-width:1.5;"/>"#,
         fmt_coord(cx - 5.0), fmt_coord(arrow_y - 6.0),
         fmt_coord(cx + 2.0), fmt_coord(arrow_y - 1.0),
         fmt_coord(cx - 5.0), fmt_coord(arrow_y + 3.0),
@@ -442,7 +442,7 @@ fn draw_participant_database(
         let ry_s = fmt_coord(arc_h);
         write!(
             buf,
-            r#"<path d="M {},{} A {rx_s},{ry_s} 0 0,0 {},{} L {},{} A {rx_s},{ry_s} 0 0,0 {},{} Z" fill="{bg}" style="stroke:{border};stroke-width:1.5;"/>"#,
+            r#"<path d="M{},{} A{rx_s},{ry_s} 0 0,0 {},{} L{},{} A{rx_s},{ry_s} 0 0,0 {},{} Z " fill="{bg}" style="stroke:{border};stroke-width:1.5;"/>"#,
             fmt_coord(cyl_x), fmt_coord(cyl_y + arc_h),
             fmt_coord(cyl_x + cyl_w), fmt_coord(cyl_y + arc_h),
             fmt_coord(cyl_x + cyl_w), fmt_coord(cyl_y + cyl_h),
@@ -550,7 +550,7 @@ fn draw_participant_queue(
         let by = fmt_coord(cyl_y + cyl_h);
         write!(
             buf,
-            r#"<path d="M {lx},{ty_s} L {rx_s},{ty_s} A {aw},{ah} 0 0,1 {rx_s},{by} L {lx},{by} A {aw},{ah} 0 0,1 {lx},{ty_s} Z" fill="{bg}" style="stroke:{border};stroke-width:1.5;"/>"#,
+            r#"<path d="M{lx},{ty_s} L{rx_s},{ty_s} A{aw},{ah} 0 0,1 {rx_s},{by} L{lx},{by} A{aw},{ah} 0 0,1 {lx},{ty_s} Z " fill="{bg}" style="stroke:{border};stroke-width:1.5;"/>"#,
         )
         .unwrap();
     }
@@ -898,7 +898,7 @@ fn draw_note(buf: &mut String, note: &NoteLayout) {
         let cx2 = fmt_coord(note.x + note.width);
         write!(
             buf,
-            r#"<path d="M {cx_s},{cy_s} L {cx_s},{cy2} L {cx2},{cy_s} Z" fill="{bg}" style="stroke:{border};stroke-width:1;"/>"#,
+            r#"<path d="M{cx_s},{cy_s} L{cx_s},{cy2} L{cx2},{cy_s} Z " fill="{bg}" style="stroke:{border};stroke-width:1;"/>"#,
             bg = NOTE_BG,
             border = NOTE_BORDER,
         )
@@ -996,7 +996,7 @@ fn draw_fragment(buf: &mut String, frag: &FragmentLayout) {
         let fy = fmt_coord(frag.y);
         write!(
             buf,
-            r#"<path d="M {fx},{fy} L {},{fy} L {},{} L {},{} L {fx},{} Z" fill="{bg}" style="stroke:{border};stroke-width:1.5;"/>"#,
+            r#"<path d="M{fx},{fy} L{},{fy} L{},{} L{},{} L{fx},{} Z " fill="{bg}" style="stroke:{border};stroke-width:1.5;"/>"#,
             fmt_coord(frag.x + tab_width),
             fmt_coord(frag.x + tab_width), fmt_coord(frag.y + tab_height - notch),
             fmt_coord(frag.x + tab_width - notch), fmt_coord(frag.y + tab_height),
@@ -1174,7 +1174,7 @@ fn draw_ref(buf: &mut String, r: &RefLayout) {
         let ry_s = fmt_coord(r.y);
         write!(
             buf,
-            r#"<path d="M {rx_s},{ry_s} L {},{ry_s} L {},{} L {},{} L {rx_s},{} Z" fill="{bg}" style="stroke:{border};stroke-width:1;"/>"#,
+            r#"<path d="M{rx_s},{ry_s} L{},{ry_s} L{},{} L{},{} L{rx_s},{} Z " fill="{bg}" style="stroke:{border};stroke-width:1;"/>"#,
             fmt_coord(r.x + tab_width),
             fmt_coord(r.x + tab_width), fmt_coord(r.y + tab_height - notch),
             fmt_coord(r.x + tab_width - notch), fmt_coord(r.y + tab_height),

@@ -31,7 +31,7 @@ pub fn render_ditaa(
     buf.push_str("<defs/><g>");
     write!(
         buf,
-        r#"<defs><marker id="ditaa-arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto-start-reverse"><path d="M 0 0 L 8 4 L 0 8 z" fill="{border}"/></marker></defs>"#
+        r#"<defs><marker id="ditaa-arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto-start-reverse"><path d="M0,0 L8,4 L0,8 Z " fill="{border}"/></marker></defs>"#
     )
     .unwrap();
     buf.push('\n');

@@ -262,7 +262,7 @@ fn render_note(buf: &mut String, node: &ActivityNodeLayout, _position: &NotePosi
     // Shape: top-left -> bottom-left -> bottom-right -> pre-fold top-right -> fold corner -> top-left
     write!(
         buf,
-        r#"<path d="M{},{} L{},{} L{},{} L{},{} L{},{} L{},{}" fill="{NOTE_BG}" style="stroke:{NOTE_BORDER};stroke-width:0.5;"/>"#,
+        r#"<path d="M{},{} L{},{} L{},{} L{},{} L{},{} L{},{} " fill="{NOTE_BG}" style="stroke:{NOTE_BORDER};stroke-width:0.5;"/>"#,
         fmt_coord(x), fmt_coord(y),
         fmt_coord(x), fmt_coord(y + h),
         fmt_coord(x + w), fmt_coord(y + h),
@@ -275,7 +275,7 @@ fn render_note(buf: &mut String, node: &ActivityNodeLayout, _position: &NotePosi
     // Fold triangle as <path>
     write!(
         buf,
-        r#"<path d="M{},{} L{},{} L{},{} L{},{}" fill="{NOTE_BG}" style="stroke:{NOTE_BORDER};stroke-width:0.5;"/>"#,
+        r#"<path d="M{},{} L{},{} L{},{} L{},{} " fill="{NOTE_BG}" style="stroke:{NOTE_BORDER};stroke-width:0.5;"/>"#,
         fmt_coord(x + w - fold), fmt_coord(y),
         fmt_coord(x + w - fold), fmt_coord(y + fold),
         fmt_coord(x + w), fmt_coord(y + fold),

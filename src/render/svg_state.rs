@@ -426,9 +426,9 @@ fn render_transition(buf: &mut String, transition: &TransitionLayout) {
     let mut d = String::new();
     for (i, &(px, py)) in transition.points.iter().enumerate() {
         if i == 0 {
-            write!(d, "M{},{}", fmt_coord(px), fmt_coord(py)).unwrap();
+            write!(d, "M{},{} ", fmt_coord(px), fmt_coord(py)).unwrap();
         } else {
-            write!(d, " L{},{}", fmt_coord(px), fmt_coord(py)).unwrap();
+            write!(d, "L{},{} ", fmt_coord(px), fmt_coord(py)).unwrap();
         }
     }
 

@@ -204,7 +204,7 @@ fn render_group(
             let tab_y2 = y + tab_h;
             write!(
                 buf,
-                r#"<path d="M{},{} L{},{} L{},{} L{},{}" fill="none" style="stroke:{border};stroke-width:1;"/>"#,
+                r#"<path d="M{},{} L{},{} L{},{} L{},{} " fill="none" style="stroke:{border};stroke-width:1;"/>"#,
                 fmt_coord(tab_x2), fmt_coord(y),
                 fmt_coord(tab_x2), fmt_coord(tab_y2 - 10.0),
                 fmt_coord(tab_x2 - 10.0), fmt_coord(tab_y2),
@@ -476,7 +476,7 @@ fn render_database_node(
     // Body
     write!(
         buf,
-        r#"<path d="M{},{} C{},{} {},{} {},{} C{},{} {},{} {},{} L{},{} C{},{} {},{} {},{} C{},{} {},{} {},{} L{},{}" fill="{bg}" style="stroke:{border};stroke-width:0.5;"/>"#,
+        r#"<path d="M{},{} C{},{} {},{} {},{} C{},{} {},{} {},{} L{},{} C{},{} {},{} {},{} C{},{} {},{} {},{} L{},{} " fill="{bg}" style="stroke:{border};stroke-width:0.5;"/>"#,
         fmt_coord(x), fmt_coord(y + ry),
         fmt_coord(x), fmt_coord(y),
         fmt_coord(cx), fmt_coord(y),
@@ -498,7 +498,7 @@ fn render_database_node(
     // Top ellipse
     write!(
         buf,
-        r#"<path d="M{},{} C{},{} {},{} {},{} C{},{} {},{} {},{}" fill="none" style="stroke:{border};stroke-width:0.5;"/>"#,
+        r#"<path d="M{},{} C{},{} {},{} {},{} C{},{} {},{} {},{} " fill="none" style="stroke:{border};stroke-width:0.5;"/>"#,
         fmt_coord(x), fmt_coord(y + ry),
         fmt_coord(x), fmt_coord(y + ry + ry),
         fmt_coord(cx), fmt_coord(y + ry + ry),
@@ -702,7 +702,7 @@ fn render_folder_node(
             r#" A{},{} 0 0 1 {},{}"#,
             r#" L{},{}"#,
             r#" A{},{} 0 0 1 {},{}"#,
-            r#" L{},{}" fill="{}" style="stroke:{};stroke-width:0.5;"/>"#,
+            r#" L{},{} " fill="{}" style="stroke:{};stroke-width:0.5;"/>"#,
         ),
         fmt_coord(x + r),
         fmt_coord(y),
@@ -848,7 +848,7 @@ fn render_stack_node(
     let bar_left = x - 15.0;
     write!(
         buf,
-        r#"<path d="M{},{} L{},{} A2.5,2.5 0 0 1 {},{} L{},{} A2.5,2.5 0 0 0 {},{} L{},{} A2.5,2.5 0 0 0 {},{} L{},{} A2.5,2.5 0 0 1 {},{} L{},{}" fill="none" style="stroke:{border};stroke-width:0.5;"/>"#,
+        r#"<path d="M{},{} L{},{} A2.5,2.5 0 0 1 {},{} L{},{} A2.5,2.5 0 0 0 {},{} L{},{} A2.5,2.5 0 0 0 {},{} L{},{} A2.5,2.5 0 0 1 {},{} L{},{} " fill="none" style="stroke:{border};stroke-width:0.5;"/>"#,
         fmt_coord(bar_left), fmt_coord(y),
         fmt_coord(bar_left + 12.5), fmt_coord(y),
         fmt_coord(x), fmt_coord(y + 2.5),
@@ -886,7 +886,7 @@ fn render_queue_node(
     // Left side curve (filled)
     write!(
         buf,
-        r#"<path d="M{},{} C{},{} {},{} {},{} C{},{} {},{} {},{}" fill="{bg}" style="stroke:{border};stroke-width:0.5;"/>"#,
+        r#"<path d="M{},{} C{},{} {},{} {},{} C{},{} {},{} {},{} " fill="{bg}" style="stroke:{border};stroke-width:0.5;"/>"#,
         fmt_coord(x + cap), fmt_coord(y),
         fmt_coord(x + cap + cap), fmt_coord(y),
         fmt_coord(x + cap + cap), fmt_coord(mid_y),
@@ -900,7 +900,7 @@ fn render_queue_node(
     // Right endcap (open)
     write!(
         buf,
-        r#"<path d="M{},{} C{},{} {},{} {},{} C{},{} {},{} {},{}" fill="none" style="stroke:{border};stroke-width:0.5;"/>"#,
+        r#"<path d="M{},{} C{},{} {},{} {},{} C{},{} {},{} {},{} " fill="none" style="stroke:{border};stroke-width:0.5;"/>"#,
         fmt_coord(x + w - cap), fmt_coord(y),
         fmt_coord(x + w - cap - cap), fmt_coord(y),
         fmt_coord(x + w - cap - cap), fmt_coord(mid_y),
@@ -1019,11 +1019,11 @@ fn render_edge(buf: &mut String, edge: &ComponentEdgeLayout, arrow_color: &str, 
     let mut d = String::new();
     for (i, (px, py)) in edge.points.iter().enumerate() {
         if i == 0 {
-            write!(d, "M{},{}", fmt_coord(*px), fmt_coord(*py)).unwrap();
+            write!(d, "M{},{} ", fmt_coord(*px), fmt_coord(*py)).unwrap();
         } else {
             write!(
                 d,
-                " C{},{} {},{} {},{}",
+                "C{},{} {},{} {},{} ",
                 fmt_coord(*px),
                 fmt_coord(*py),
                 fmt_coord(*px),

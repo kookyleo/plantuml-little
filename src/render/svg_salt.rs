@@ -194,7 +194,7 @@ fn render_checkbox(
     if checked {
         write!(
             buf,
-            r#"<path d="M {} {} L {} {} L {} {}" fill="none" style="stroke:{};stroke-width:0.5;"/>"#,
+            r#"<path d="M{},{} L{},{} L{},{} " fill="none" style="stroke:{};stroke-width:0.5;"/>"#,
             fmt_coord(rect.x + 3.0),
             fmt_coord(rect.y + 14.0),
             fmt_coord(rect.x + 6.0),
@@ -252,7 +252,7 @@ fn render_dropdown(
     render_boxed_text(buf, rect, &text, fill, border, font, 4.0);
     write!(
         buf,
-        r#"<path d="M {} {} L {} {} L {} {} Z" fill="{}"/>"#,
+        r#"<path d="M{},{} L{},{} L{},{} Z " fill="{}"/>"#,
         fmt_coord(rect.x + rect.width - 16.0),
         fmt_coord(rect.y + rect.height / 2.0 - 3.0),
         fmt_coord(rect.x + rect.width - 8.0),
