@@ -11,7 +11,7 @@ use crate::Result;
 
 use crate::font_metrics;
 
-use super::svg::xml_escape;
+use super::svg::{fmt_coord, xml_escape};
 use super::svg::write_svg_root;
 use super::svg_richtext::render_creole_text;
 
@@ -19,7 +19,7 @@ use super::svg_richtext::render_creole_text;
 
 const FONT_SIZE: f64 = 13.0;
 const LINE_HEIGHT: f64 = 16.0;
-const PARTICIPANT_BG: &str = "#F1F1F1";
+const PARTICIPANT_BG: &str = "#E2E2F0";
 const PARTICIPANT_BORDER: &str = "#181818";
 const LIFELINE_COLOR: &str = "#181818";
 const ARROW_COLOR: &str = "#181818";
@@ -41,54 +41,52 @@ const MARGIN: f64 = 20.0;
 // ── Arrow marker defs ───────────────────────────────────────────────
 
 fn write_seq_defs(buf: &mut String) {
-    buf.push_str("<defs>\n");
-
-    // Filled triangle arrow marker (for solid arrowheads)
-    write!(
-        buf,
-        concat!(
-            r##"<marker id="seq-arrow-filled" viewBox="0 0 10 10" refX="10" refY="5""##,
-            r##" markerWidth="8" markerHeight="8" orient="auto-start-reverse">"##,
-            r##"<path d="M 0 0 L 10 5 L 0 10 Z" fill="{}" stroke="none"/>"##,
-            r##"</marker>"##,
-        ),
-        ARROW_COLOR
-    )
-    .unwrap();
-    buf.push('\n');
-
-    // Open arrow marker (for open arrowheads)
-    write!(
-        buf,
-        concat!(
-            r##"<marker id="seq-arrow-open" viewBox="0 0 10 10" refX="10" refY="5""##,
-            r##" markerWidth="8" markerHeight="8" orient="auto-start-reverse">"##,
-            r##"<path d="M 0 0 L 10 5 L 0 10" fill="none" stroke="{}" stroke-width="1.2"/>"##,
-            r##"</marker>"##,
-        ),
-        ARROW_COLOR
-    )
-    .unwrap();
-    buf.push('\n');
-
-    buf.push_str("</defs>\n");
+    buf.push_str("<defs/>");
 }
 
 // ── Lifelines ───────────────────────────────────────────────────────
 
-fn draw_lifelines(buf: &mut String, layout: &SeqLayout, skin: &SkinParams) {
+fn draw_lifelines(buf: &mut String, layout: &SeqLayout, skin: &SkinParams, sd: &SequenceDiagram) {
     let ll_color = skin.sequence_lifeline_border_color(LIFELINE_COLOR);
-    for p in &layout.participants {
+    for (i, p) in layout.participants.iter().enumerate() {
+        let part_idx = i + 1;
+        let display = sd
+            .participants
+            .get(i)
+            .and_then(|pp| pp.display_name.as_deref())
+            .unwrap_or(&p.name);
+        let escaped_name = xml_escape(display);
+        let ll_height = layout.lifeline_bottom - layout.lifeline_top;
+
         write!(
             buf,
-            r#"<line style="stroke:{color};stroke-width:1;stroke-dasharray:5,5;" x1="{x:.1}" x2="{x:.1}" y1="{y1:.1}" y2="{y2:.1}"/>"#,
-            x = p.x,
-            y1 = layout.lifeline_top,
-            y2 = layout.lifeline_bottom,
+            r#"<g class="participant-lifeline" data-entity-uid="part{idx}" data-qualified-name="{name}" id="part{idx}-lifeline"><g><title>{name}</title>"#,
+            idx = part_idx,
+            name = escaped_name,
+        )
+        .unwrap();
+
+        // Transparent click-target rect over lifeline
+        let _ = write!(
+            buf,
+            "<rect fill=\"#000000\" fill-opacity=\"0.00000\" height=\"{h}\" width=\"8\" x=\"{x}\" y=\"{y}\"/>",
+            h = fmt_coord(ll_height),
+            x = fmt_coord(p.x - 4.0),
+            y = fmt_coord(layout.lifeline_top),
+        );
+
+        // Dashed lifeline
+        write!(
+            buf,
+            r#"<line style="stroke:{color};stroke-width:0.5;stroke-dasharray:5,5;" x1="{x}" x2="{x}" y1="{y1}" y2="{y2}"/>"#,
+            x = fmt_coord(p.x),
+            y1 = fmt_coord(layout.lifeline_top),
+            y2 = fmt_coord(layout.lifeline_bottom),
             color = ll_color,
         )
         .unwrap();
-        buf.push('\n');
+
+        buf.push_str("</g></g>");
     }
 }
 
@@ -144,30 +142,35 @@ fn draw_participant_rect(
     text_color: &str,
 ) {
     let name = display_name.unwrap_or(&p.name);
-    let x = p.x - p.box_width / 2.0;
-    let rect_h = 36.0;
+    let text_width = font_metrics::text_width(name, "SansSerif", 14.0, false, false);
+    let padding = 7.0;
+    let box_width = text_width + 2.0 * padding;
+    let box_height = 30.2969;
+    let x = p.x - box_width / 2.0;
+    let text_x = x + padding;
+    let text_y = y + 19.9951;
 
     write!(
         buf,
-        r#"<rect fill="{bg}" height="{h:.1}" style="stroke:{border};stroke-width:1.5;" width="{w:.1}" x="{x:.1}" y="{y:.1}"/>"#,
-        w = p.box_width,
-        h = rect_h,
+        r#"<rect fill="{bg}" height="{h}" rx="2.5" ry="2.5" style="stroke:{border};stroke-width:0.5;" width="{w}" x="{x}" y="{y}"/>"#,
+        h = fmt_coord(box_height),
+        w = fmt_coord(box_width),
+        x = fmt_coord(x),
+        y = fmt_coord(y),
     )
     .unwrap();
-    buf.push('\n');
 
-    let text_y = y + rect_h / 2.0 + FONT_SIZE * 0.35;
     let escaped = xml_escape(name);
     write!(
         buf,
-        r#"<text fill="{color}" font-family="sans-serif" font-size="14" font-weight="bold" text-anchor="middle" x="{cx:.1}" y="{ty:.1}">{text}</text>"#,
-        cx = p.x,
-        ty = text_y,
+        r#"<text fill="{color}" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="{tl}" x="{tx}" y="{ty}">{text}</text>"#,
+        tl = fmt_coord(text_width),
+        tx = fmt_coord(text_x),
+        ty = fmt_coord(text_y),
         color = text_color,
         text = escaped,
     )
     .unwrap();
-    buf.push('\n');
 }
 
 /// Actor: stick figure (circle head + body + arms + legs) with name below
@@ -575,104 +578,127 @@ fn draw_participant_queue(
 
 // ── Messages ────────────────────────────────────────────────────────
 
-fn draw_message(buf: &mut String, msg: &MessageLayout, arrow_color: &str, arrow_thickness: f64) {
-    let marker_id = if msg.has_open_head {
-        "seq-arrow-open"
-    } else {
-        "seq-arrow-filled"
-    };
-
-    let dash = if msg.is_dashed {
-        r#" stroke-dasharray="7,5""#
-    } else {
-        ""
-    };
-
-    // Determine marker placement based on direction
-    let (marker_attr, x1, x2) = if msg.is_left {
-        // Right-to-left: marker on the start (left end)
-        (
-            format!(r#" marker-start="url(#{marker_id})""#),
-            msg.to_x,
-            msg.from_x,
-        )
-    } else {
-        // Left-to-right: marker on the end (right end)
-        (
-            format!(r#" marker-end="url(#{marker_id})""#),
-            msg.from_x,
-            msg.to_x,
-        )
-    };
-
-    write!(
-        buf,
-        r#"<line stroke="{color}" stroke-width="{sw}" x1="{x1:.1}" x2="{x2:.1}" y1="{y:.1}" y2="{y:.1}"{dash}{marker}/>"#,
-        y = msg.y,
-        color = arrow_color,
-        sw = arrow_thickness as u32,
-        marker = marker_attr,
-    )
-    .unwrap();
-    buf.push('\n');
-
-    // Label text centered above the line
-    if !msg.text.is_empty() {
-        let mid_x = (msg.from_x + msg.to_x) / 2.0;
-        let text_y = msg.y - 6.0;
-        render_creole_text(
-            buf,
-            &msg.text,
-            mid_x,
-            text_y,
-            LINE_HEIGHT,
-            TEXT_COLOR,
-            Some("middle"),
-            &format!(r#"font-size="{FONT_SIZE}""#),
-        );
-    }
-}
-
-fn draw_self_message(
+fn draw_message(
     buf: &mut String,
     msg: &MessageLayout,
     arrow_color: &str,
     arrow_thickness: f64,
+    from_idx: usize,
+    to_idx: usize,
+    msg_idx: usize,
 ) {
-    let dash = if msg.is_dashed {
-        r#" stroke-dasharray="7,5""#
+    write!(
+        buf,
+        r#"<g class="message" data-entity-1="part{}" data-entity-2="part{}" id="msg{}">"#,
+        from_idx, to_idx, msg_idx,
+    )
+    .unwrap();
+
+    let sw = arrow_thickness as u32;
+
+    // Determine arrow tip position and line endpoints
+    let (tip_x, line_x1, line_x2) = if msg.is_left {
+        // Right-to-left: arrow points left
+        (msg.to_x, msg.from_x, msg.to_x)
+    } else {
+        // Left-to-right: arrow points right
+        (msg.to_x, msg.from_x, msg.to_x)
+    };
+
+    // Draw inline polygon arrowhead
+    if msg.has_open_head {
+        // Open arrowhead: just two lines forming a V
+        let (ax1, ax2) = if msg.is_left {
+            (tip_x + 10.0, tip_x + 10.0)
+        } else {
+            (tip_x - 10.0, tip_x - 10.0)
+        };
+        write!(
+            buf,
+            r#"<line style="stroke:{color};stroke-width:{sw};" x1="{ax}" x2="{tx}" y1="{y1}" y2="{y}"/>"#,
+            color = arrow_color,
+            ax = fmt_coord(ax1),
+            tx = fmt_coord(tip_x),
+            y1 = fmt_coord(msg.y - 4.0),
+            y = fmt_coord(msg.y),
+        )
+        .unwrap();
+        write!(
+            buf,
+            r#"<line style="stroke:{color};stroke-width:{sw};" x1="{ax}" x2="{tx}" y1="{y1}" y2="{y}"/>"#,
+            color = arrow_color,
+            ax = fmt_coord(ax2),
+            tx = fmt_coord(tip_x),
+            y1 = fmt_coord(msg.y + 4.0),
+            y = fmt_coord(msg.y),
+        )
+        .unwrap();
+    } else {
+        // Filled arrowhead polygon: 4-point diamond shape like Java
+        let (p1x, p2x, p3x, p4x) = if msg.is_left {
+            (
+                tip_x + 10.0,
+                tip_x,
+                tip_x + 10.0,
+                tip_x + 6.0,
+            )
+        } else {
+            (
+                tip_x - 10.0,
+                tip_x,
+                tip_x - 10.0,
+                tip_x - 4.0,
+            )
+        };
+        write!(
+            buf,
+            r#"<polygon fill="{color}" points="{p1x},{p1y},{p2x},{p2y},{p3x},{p3y},{p4x},{p4y}" style="stroke:{color};stroke-width:{sw};"/>"#,
+            color = arrow_color,
+            p1x = fmt_coord(p1x),
+            p1y = fmt_coord(msg.y - 4.0),
+            p2x = fmt_coord(p2x),
+            p2y = fmt_coord(msg.y),
+            p3x = fmt_coord(p3x),
+            p3y = fmt_coord(msg.y + 4.0),
+            p4x = fmt_coord(p4x),
+            p4y = fmt_coord(msg.y),
+        )
+        .unwrap();
+    }
+
+    // Message line
+    let dash_style = if msg.is_dashed {
+        "stroke-dasharray:2,2;"
     } else {
         ""
     };
-
-    let marker_id = if msg.has_open_head {
-        "seq-arrow-open"
+    // Line stops at polygon edge, not at tip
+    let adjusted_x2 = if msg.has_open_head {
+        line_x2
+    } else if msg.is_left {
+        line_x2 + 4.0
     } else {
-        "seq-arrow-filled"
+        line_x2 - 4.0
     };
-
-    let x = msg.from_x;
-    let y = msg.y;
-    let loop_width = 30.0;
-    let loop_height = 24.0;
-
-    // Cubic bezier loop: goes right and comes back
     write!(
         buf,
-        r#"<path d="M {x:.1},{y:.1} C {cx1:.1},{y:.1} {cx1:.1},{y2:.1} {x:.1},{y2:.1}" fill="none" marker-end="url(#{marker})" stroke="{color}" stroke-width="{sw}"{dash}/>"#,
-        cx1 = x + loop_width,
-        y2 = y + loop_height,
+        r#"<line style="stroke:{color};stroke-width:{sw};{dash}" x1="{x1}" x2="{x2}" y1="{y}" y2="{y}"/>"#,
         color = arrow_color,
-        sw = arrow_thickness as u32,
-        marker = marker_id,
+        dash = dash_style,
+        x1 = fmt_coord(line_x1),
+        x2 = fmt_coord(adjusted_x2),
+        y = fmt_coord(msg.y),
     )
     .unwrap();
-    buf.push('\n');
 
-    // Label to the right of the loop
+    // Label text above the line
     if !msg.text.is_empty() {
-        let text_x = x + loop_width + 4.0;
-        let text_y = y + loop_height / 2.0 + FONT_SIZE * 0.35;
+        let text_x = if msg.from_x < msg.to_x {
+            msg.from_x + 7.0
+        } else {
+            msg.to_x + 7.0
+        };
+        let text_y = msg.y - 5.0662;
         render_creole_text(
             buf,
             &msg.text,
@@ -684,6 +710,130 @@ fn draw_self_message(
             &format!(r#"font-size="{FONT_SIZE}""#),
         );
     }
+
+    buf.push_str("</g>");
+}
+
+fn draw_self_message(
+    buf: &mut String,
+    msg: &MessageLayout,
+    arrow_color: &str,
+    arrow_thickness: f64,
+    from_idx: usize,
+    msg_idx: usize,
+) {
+    let sw = arrow_thickness as u32;
+    let x = msg.from_x;
+    let y = msg.y;
+    let loop_width = 47.0;
+    let loop_height = 13.0;
+
+    write!(
+        buf,
+        r#"<g class="message" data-entity-1="part{}" data-entity-2="part{}" id="msg{}">"#,
+        from_idx, from_idx, msg_idx,
+    )
+    .unwrap();
+
+    let dash_style = if msg.is_dashed {
+        "stroke-dasharray:2,2;"
+    } else {
+        ""
+    };
+
+    // 3-line self-message: horizontal right, vertical down, horizontal left
+    write!(
+        buf,
+        r#"<line style="stroke:{color};stroke-width:{sw};{dash}" x1="{x1}" x2="{x2}" y1="{y1}" y2="{y1}"/>"#,
+        color = arrow_color,
+        dash = dash_style,
+        x1 = fmt_coord(x),
+        x2 = fmt_coord(x + loop_width),
+        y1 = fmt_coord(y),
+    )
+    .unwrap();
+
+    write!(
+        buf,
+        r#"<line style="stroke:{color};stroke-width:{sw};{dash}" x1="{x}" x2="{x}" y1="{y1}" y2="{y2}"/>"#,
+        color = arrow_color,
+        dash = dash_style,
+        x = fmt_coord(x + loop_width),
+        y1 = fmt_coord(y),
+        y2 = fmt_coord(y + loop_height),
+    )
+    .unwrap();
+
+    write!(
+        buf,
+        r#"<line style="stroke:{color};stroke-width:{sw};{dash}" x1="{x1}" x2="{x2}" y1="{y}" y2="{y}"/>"#,
+        color = arrow_color,
+        dash = dash_style,
+        x1 = fmt_coord(x + 1.0),
+        x2 = fmt_coord(x + loop_width),
+        y = fmt_coord(y + loop_height),
+    )
+    .unwrap();
+
+    // Polygon arrowhead pointing left at return
+    if msg.has_open_head {
+        let tip_x = x;
+        write!(
+            buf,
+            r#"<line style="stroke:{color};stroke-width:{sw};" x1="{ax}" x2="{tx}" y1="{y1}" y2="{y}"/>"#,
+            color = arrow_color,
+            ax = fmt_coord(tip_x + 10.0),
+            tx = fmt_coord(tip_x),
+            y1 = fmt_coord(y + loop_height - 4.0),
+            y = fmt_coord(y + loop_height),
+        )
+        .unwrap();
+        write!(
+            buf,
+            r#"<line style="stroke:{color};stroke-width:{sw};" x1="{ax}" x2="{tx}" y1="{y1}" y2="{y}"/>"#,
+            color = arrow_color,
+            ax = fmt_coord(tip_x + 10.0),
+            tx = fmt_coord(tip_x),
+            y1 = fmt_coord(y + loop_height + 4.0),
+            y = fmt_coord(y + loop_height),
+        )
+        .unwrap();
+    } else {
+        let tip_x = x + 1.0;
+        let ret_y = y + loop_height;
+        write!(
+            buf,
+            r#"<polygon fill="{color}" points="{p1x},{p1y},{p2x},{p2y},{p3x},{p3y},{p4x},{p4y}" style="stroke:{color};stroke-width:{sw};"/>"#,
+            color = arrow_color,
+            p1x = fmt_coord(tip_x + 10.0),
+            p1y = fmt_coord(ret_y - 4.0),
+            p2x = fmt_coord(tip_x),
+            p2y = fmt_coord(ret_y),
+            p3x = fmt_coord(tip_x + 10.0),
+            p3y = fmt_coord(ret_y + 4.0),
+            p4x = fmt_coord(tip_x + 6.0),
+            p4y = fmt_coord(ret_y),
+        )
+        .unwrap();
+    }
+
+    // Label text above the first horizontal line
+    if !msg.text.is_empty() {
+        let text_x = x + 7.0;
+        let text_y = y - 5.0662;
+        render_creole_text(
+            buf,
+            &msg.text,
+            text_x,
+            text_y,
+            LINE_HEIGHT,
+            TEXT_COLOR,
+            None,
+            &format!(r#"font-size="{FONT_SIZE}""#),
+        );
+    }
+
+    buf.push_str("</g>");
 }
 
 // ── Activation bars ─────────────────────────────────────────────────
@@ -1077,6 +1227,15 @@ fn draw_ref(buf: &mut String, r: &RefLayout) {
 
 // ── Public entry point ──────────────────────────────────────────────
 
+/// Build a mapping from participant name -> 1-based index for data-entity-uid.
+fn build_participant_index(sd: &SequenceDiagram) -> std::collections::HashMap<String, usize> {
+    sd.participants
+        .iter()
+        .enumerate()
+        .map(|(i, p)| (p.name.clone(), i + 1))
+        .collect()
+}
+
 /// Render a SequenceDiagram + SeqLayout into an SVG string.
 pub fn render_sequence(
     sd: &SequenceDiagram,
@@ -1091,12 +1250,15 @@ pub fn render_sequence(
     // 1. SVG header
     write_svg_root(&mut buf, svg_w, svg_h, "SEQUENCE");
 
-    // 2. Defs: arrow markers
+    // 2. Defs (empty)
     write_seq_defs(&mut buf);
     buf.push_str("<g>");
 
-    // 3. Lifelines (dashed vertical lines)
-    draw_lifelines(&mut buf, layout, skin);
+    // Build participant name -> index mapping
+    let part_index = build_participant_index(sd);
+
+    // 3. Lifelines (dashed vertical lines with semantic grouping)
+    draw_lifelines(&mut buf, layout, skin, sd);
 
     // 4. Fragment frames (drawn before groups so they appear behind)
     for frag in &layout.fragments {
@@ -1128,13 +1290,65 @@ pub fn render_sequence(
         draw_ref(&mut buf, r);
     }
 
-    // 6. Messages (with optional autonumber)
+    // Build a name -> display_name lookup from the diagram
+    let display_names: std::collections::HashMap<&str, &str> = sd
+        .participants
+        .iter()
+        .filter_map(|p| p.display_name.as_deref().map(|dn| (p.name.as_str(), dn)))
+        .collect();
+
+    let part_bg = skin.background_color("participant", PARTICIPANT_BG);
+    let part_border = skin.border_color("participant", PARTICIPANT_BORDER);
+    let part_font = skin.font_color("participant", TEXT_COLOR);
+
+    // 6. Participant head + tail boxes (interleaved per participant, matching Java order)
+    let top_y = MARGIN;
+    let bottom_y = layout.lifeline_bottom;
+    for (i, p) in layout.participants.iter().enumerate() {
+        let part_idx = i + 1;
+        let dn = display_names.get(p.name.as_str()).copied();
+        let display = dn.unwrap_or(&p.name);
+        let escaped_name = xml_escape(display);
+
+        // Head
+        write!(
+            buf,
+            r#"<g class="participant participant-head" data-entity-uid="part{idx}" data-qualified-name="{name}" id="part{idx}-head">"#,
+            idx = part_idx,
+            name = escaped_name,
+        )
+        .unwrap();
+        draw_participant_box(&mut buf, p, top_y, dn, part_bg, part_border, part_font);
+        buf.push_str("</g>");
+
+        // Tail
+        write!(
+            buf,
+            r#"<g class="participant participant-tail" data-entity-uid="part{idx}" data-qualified-name="{name}" id="part{idx}-tail">"#,
+            idx = part_idx,
+            name = escaped_name,
+        )
+        .unwrap();
+        draw_participant_box(&mut buf, p, bottom_y, dn, part_bg, part_border, part_font);
+        buf.push_str("</g>");
+    }
+
+    // 8. Messages (with optional autonumber)
     let seq_arrow_color = skin.sequence_arrow_color(ARROW_COLOR);
     let seq_arrow_thickness = skin.sequence_arrow_thickness().unwrap_or(1.0);
     let mut msg_counter: u32 = layout.autonumber_start;
+    let mut msg_seq_counter: usize = 0;
     for msg in &layout.messages {
+        msg_seq_counter += 1;
+        // Find participant indices for from/to
+        let from_idx = find_participant_idx_by_x(&layout.participants, msg.from_x, &part_index);
+        let to_idx = if msg.is_self {
+            from_idx
+        } else {
+            find_participant_idx_by_x(&layout.participants, msg.to_x, &part_index)
+        };
+
         if layout.autonumber_enabled {
-            // Create a message copy with autonumber prefix
             let numbered_text = if msg.text.is_empty() {
                 format!("{msg_counter}")
             } else {
@@ -1150,6 +1364,8 @@ pub fn render_sequence(
                     &numbered_msg,
                     seq_arrow_color,
                     seq_arrow_thickness,
+                    from_idx,
+                    msg_seq_counter,
                 );
             } else {
                 draw_message(
@@ -1157,53 +1373,66 @@ pub fn render_sequence(
                     &numbered_msg,
                     seq_arrow_color,
                     seq_arrow_thickness,
+                    from_idx,
+                    to_idx,
+                    msg_seq_counter,
                 );
             }
             msg_counter += 1;
         } else if msg.is_self {
-            draw_self_message(&mut buf, msg, seq_arrow_color, seq_arrow_thickness);
+            draw_self_message(
+                &mut buf,
+                msg,
+                seq_arrow_color,
+                seq_arrow_thickness,
+                from_idx,
+                msg_seq_counter,
+            );
         } else {
-            draw_message(&mut buf, msg, seq_arrow_color, seq_arrow_thickness);
+            draw_message(
+                &mut buf,
+                msg,
+                seq_arrow_color,
+                seq_arrow_thickness,
+                from_idx,
+                to_idx,
+                msg_seq_counter,
+            );
         }
     }
 
-    // 7. Notes
+    // 9. Notes
     for note in &layout.notes {
         draw_note(&mut buf, note);
     }
 
-    // 8. Destroy markers
+    // 10. Destroy markers
     for d in &layout.destroys {
         draw_destroy(&mut buf, d);
     }
 
-    // 9. Participant boxes (top)
-    // Build a name -> display_name lookup from the diagram
-    let display_names: std::collections::HashMap<&str, &str> = sd
-        .participants
-        .iter()
-        .filter_map(|p| p.display_name.as_deref().map(|dn| (p.name.as_str(), dn)))
-        .collect();
-
-    let part_bg = skin.background_color("participant", PARTICIPANT_BG);
-    let part_border = skin.border_color("participant", PARTICIPANT_BORDER);
-    let part_font = skin.font_color("participant", TEXT_COLOR);
-
-    let top_y = MARGIN;
-    for p in &layout.participants {
-        let dn = display_names.get(p.name.as_str()).copied();
-        draw_participant_box(&mut buf, p, top_y, dn, part_bg, part_border, part_font);
-    }
-
-    // Bottom participant boxes (below lifeline)
-    let bottom_y = layout.lifeline_bottom;
-    for p in &layout.participants {
-        let dn = display_names.get(p.name.as_str()).copied();
-        draw_participant_box(&mut buf, p, bottom_y, dn, part_bg, part_border, part_font);
-    }
-
     buf.push_str("</g></svg>");
     Ok(buf)
+}
+
+/// Find the 1-based participant index whose center x is closest to the given x.
+fn find_participant_idx_by_x(
+    participants: &[ParticipantLayout],
+    x: f64,
+    part_index: &std::collections::HashMap<String, usize>,
+) -> usize {
+    let mut best_idx = 1;
+    let mut best_dist = f64::MAX;
+    for p in participants {
+        let dist = (p.x - x).abs();
+        if dist < best_dist {
+            best_dist = dist;
+            if let Some(&idx) = part_index.get(&p.name) {
+                best_idx = idx;
+            }
+        }
+    }
+    best_idx
 }
 
 // ── Tests ───────────────────────────────────────────────────────────
@@ -1278,21 +1507,25 @@ mod tests {
     }
 
     #[test]
-    fn self_message_renders_path_element() {
+    fn self_message_renders_lines_and_polygon() {
         let sd = SequenceDiagram {
             participants: vec![make_participant("A")],
             events: vec![SeqEvent::Message(make_message("A", "A", "self call"))],
         };
         let layout = crate::layout::sequence::layout_sequence(&sd).unwrap();
         let svg = render_sequence(&sd, &layout, &SkinParams::default()).expect("render failed");
-        // Self-message produces a <path> element (cubic bezier)
+        // Self-message uses 3 lines + polygon (Java PlantUML style)
         assert!(
-            svg.contains("<path"),
-            "SVG must contain <path for self-message"
+            svg.contains("<polygon"),
+            "SVG must contain <polygon for self-message arrow"
         );
         assert!(
             svg.contains("self call"),
             "SVG must contain self-message text"
+        );
+        assert!(
+            svg.contains(r#"class="message""#),
+            "SVG must contain message group"
         );
     }
 
@@ -1315,9 +1548,11 @@ mod tests {
             svg.contains("stroke-dasharray"),
             "dashed message must have stroke-dasharray"
         );
+        // Open-head message now uses inline lines (not SVG markers)
+        // Verify the message group wrapper exists
         assert!(
-            svg.contains("seq-arrow-open"),
-            "open-head message must reference seq-arrow-open marker"
+            svg.contains(r#"class="message""#),
+            "open-head message must be wrapped in message group"
         );
     }
 

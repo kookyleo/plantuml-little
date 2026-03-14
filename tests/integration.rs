@@ -1618,7 +1618,7 @@ fn test_skinparam_sequence001() {
     assert!(svg.contains("Alice"), "must contain Alice");
     assert!(svg.contains("Bob"), "must contain Bob");
     assert!(
-        svg.contains("stroke-width=\"2\""),
+        svg.contains("stroke-width:2;") || svg.contains("stroke-width=\"2\""),
         "sequenceArrowThickness 2 should appear"
     );
 }
