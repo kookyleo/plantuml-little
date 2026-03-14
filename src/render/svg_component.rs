@@ -1,12 +1,14 @@
 use std::fmt::Write;
 
+use crate::font_metrics;
 use crate::layout::component::{
     ComponentEdgeLayout, ComponentGroupLayout, ComponentLayout, ComponentNodeLayout,
     ComponentNoteLayout,
 };
 use crate::model::component::{ComponentDiagram, ComponentKind};
-use crate::render::svg::xml_escape;
+use crate::render::svg::fmt_coord;
 use crate::render::svg::write_svg_root;
+use crate::render::svg::xml_escape;
 use crate::render::svg_richtext::render_creole_text;
 use crate::style::SkinParams;
 use crate::Result;
@@ -48,6 +50,13 @@ const STACK_BG: &str = "#F1F1F1";
 const STACK_BORDER: &str = "#181818";
 const QUEUE_BG: &str = "#F1F1F1";
 const QUEUE_BORDER: &str = "#181818";
+
+/// Compute the `textLength` attribute value for a text string at the given
+/// font-size using the font-metrics table.
+fn text_len(text: &str, size: f64, bold: bool) -> String {
+    let w = font_metrics::text_width(text, "sans-serif", size, bold, false);
+    fmt_coord(w)
+}
 
 // ---------------------------------------------------------------------------
 // Public entry point
@@ -98,8 +107,8 @@ pub fn render_component(
     // SVG header
     write_svg_root(&mut buf, layout.width, layout.height, "DESCRIPTION");
 
-    // Defs: arrow marker
-    write_defs(&mut buf, arrow_color);
+    // Empty defs to match Java PlantUML
+    buf.push_str("<defs/>");
     buf.push_str("<g>");
 
     // Groups (render before nodes so they appear behind)
@@ -155,74 +164,147 @@ pub fn render_component(
 }
 
 // ---------------------------------------------------------------------------
-// Defs
-// ---------------------------------------------------------------------------
-
-fn write_defs(buf: &mut String, arrow_color: &str) {
-    buf.push_str("<defs>\n");
-    write!(
-        buf,
-        concat!(
-            r#"<marker id="comp-arrow" viewBox="0 0 10 10" refX="10" refY="5""#,
-            r#" markerWidth="8" markerHeight="8" orient="auto-start-reverse">"#,
-            r#"<path d="M 0 0 L 10 5 L 0 10 Z" fill="{}" stroke="none"/>"#,
-            r#"</marker>"#,
-        ),
-        arrow_color,
-    )
-    .unwrap();
-    buf.push('\n');
-    buf.push_str("</defs>\n");
-}
-
-// ---------------------------------------------------------------------------
-// Group rendering
+// Group rendering (cluster)
 // ---------------------------------------------------------------------------
 
 fn render_group(
     buf: &mut String,
     group: &ComponentGroupLayout,
-    bg: &str,
+    _bg: &str,
     border: &str,
     font_color: &str,
 ) {
-    // Draw background rectangle
+    let x = group.x;
+    let y = group.y;
+    let w = group.width;
+    let h = group.height;
+
+    // HTML comment
+    write!(buf, "<!--cluster {}-->", xml_escape(&group.id)).unwrap();
+
+    // Open semantic <g>
     write!(
         buf,
-        r#"<rect fill="{bg}" height="{h:.1}" rx="4" ry="4" style="stroke:{border};stroke-width:1.5;" width="{w:.1}" x="{x:.1}" y="{y:.1}"/>"#,
-        x = group.x,
-        y = group.y,
-        w = group.width,
-        h = group.height,
+        r#"<g class="cluster" id="{}">"#,
+        xml_escape(&group.id),
     )
     .unwrap();
-    buf.push('\n');
 
-    // Group name at top
-    let name_x = group.x + 10.0;
-    let name_y = group.y + FONT_SIZE + 6.0;
-    render_creole_text(
-        buf,
-        &group.name,
-        name_x,
-        name_y,
-        LINE_HEIGHT,
-        font_color,
-        None,
-        r#"font-size="14" font-weight="bold""#,
-    );
+    match group.kind {
+        ComponentKind::Frame => {
+            // Frame: rect with rx/ry 2.5, path-based label tab
+            write!(
+                buf,
+                r#"<rect fill="none" height="{}" rx="2.5" ry="2.5" style="stroke:{border};stroke-width:1;" width="{}" x="{}" y="{}"/>"#,
+                fmt_coord(h), fmt_coord(w), fmt_coord(x), fmt_coord(y),
+            )
+            .unwrap();
 
-    // Separator line below header
-    let sep_y = name_y + 6.0;
-    write!(
-        buf,
-        r#"<line style="stroke:{border};" x1="{x1:.1}" x2="{x2:.1}" y1="{sy:.1}" y2="{sy:.1}"/>"#,
-        x1 = group.x,
-        sy = sep_y,
-        x2 = group.x + group.width,
-    )
-    .unwrap();
-    buf.push('\n');
+            let name_escaped = xml_escape(&group.name);
+            let tl = text_len(&group.name, 14.0, true);
+            let tl_f: f64 = tl.parse().unwrap_or(40.0);
+            let tab_w = tl_f + 9.7041;
+            let tab_h = 19.2969;
+            let tab_x2 = x + tab_w;
+            let tab_y2 = y + tab_h;
+            write!(
+                buf,
+                r#"<path d="M{},{} L{},{} L{},{} L{},{}" fill="none" style="stroke:{border};stroke-width:1;"/>"#,
+                fmt_coord(tab_x2), fmt_coord(y),
+                fmt_coord(tab_x2), fmt_coord(tab_y2 - 10.0),
+                fmt_coord(tab_x2 - 10.0), fmt_coord(tab_y2),
+                fmt_coord(x), fmt_coord(tab_y2),
+            )
+            .unwrap();
+
+            let text_x = x + 3.0;
+            let text_y = y + 13.9951;
+            write!(
+                buf,
+                r#"<text fill="{font_color}" font-family="sans-serif" font-size="14" font-weight="700" lengthAdjust="spacing" textLength="{tl}" x="{}" y="{}">{name_escaped}</text>"#,
+                fmt_coord(text_x), fmt_coord(text_y),
+            )
+            .unwrap();
+        }
+        ComponentKind::Node => {
+            // Node: 3D polygon box with depth lines
+            let depth = 10.0;
+            let p_tl = (x, y + depth);
+            let p_tlb = (x + depth, y);
+            let p_trb = (x + w, y);
+            let p_tr = (x + w, y + depth);
+            let p_br = (x + w - depth, y + h);
+            let p_bl = (x, y + h);
+            write!(
+                buf,
+                r#"<polygon fill="none" points="{},{},{},{},{},{},{},{},{},{},{},{}" style="stroke:{border};stroke-width:1;"/>"#,
+                fmt_coord(p_tl.0), fmt_coord(p_tl.1),
+                fmt_coord(p_tlb.0), fmt_coord(p_tlb.1),
+                fmt_coord(p_trb.0), fmt_coord(p_trb.1),
+                fmt_coord(p_trb.0), fmt_coord(p_tr.1),
+                fmt_coord(p_br.0), fmt_coord(p_br.1),
+                fmt_coord(p_bl.0), fmt_coord(p_bl.1),
+            )
+            .unwrap();
+
+            write!(
+                buf,
+                r#"<line style="stroke:{border};stroke-width:1;" x1="{}" x2="{}" y1="{}" y2="{}"/>"#,
+                fmt_coord(p_br.0), fmt_coord(p_trb.0),
+                fmt_coord(p_tl.1), fmt_coord(p_tlb.1),
+            )
+            .unwrap();
+            write!(
+                buf,
+                r#"<line style="stroke:{border};stroke-width:1;" x1="{}" x2="{}" y1="{}" y2="{}"/>"#,
+                fmt_coord(p_tl.0), fmt_coord(p_br.0),
+                fmt_coord(p_tl.1), fmt_coord(p_tl.1),
+            )
+            .unwrap();
+            write!(
+                buf,
+                r#"<line style="stroke:{border};stroke-width:1;" x1="{}" x2="{}" y1="{}" y2="{}"/>"#,
+                fmt_coord(p_br.0), fmt_coord(p_br.0),
+                fmt_coord(p_tl.1), fmt_coord(p_br.1),
+            )
+            .unwrap();
+
+            let name_escaped = xml_escape(&group.name);
+            let tl = text_len(&group.name, 14.0, true);
+            let tl_f: f64 = tl.parse().unwrap_or(40.0);
+            let text_x = x + (w - depth) / 2.0 - tl_f / 2.0;
+            let text_y = y + depth + 15.9951;
+            write!(
+                buf,
+                r#"<text fill="{font_color}" font-family="sans-serif" font-size="14" font-weight="700" lengthAdjust="spacing" textLength="{tl}" x="{}" y="{}">{name_escaped}</text>"#,
+                fmt_coord(text_x), fmt_coord(text_y),
+            )
+            .unwrap();
+        }
+        _ => {
+            // Default package/rectangle: simple rect
+            write!(
+                buf,
+                r#"<rect fill="none" height="{}" rx="2.5" ry="2.5" style="stroke:{border};stroke-width:1;" width="{}" x="{}" y="{}"/>"#,
+                fmt_coord(h), fmt_coord(w), fmt_coord(x), fmt_coord(y),
+            )
+            .unwrap();
+
+            let name_escaped = xml_escape(&group.name);
+            let tl = text_len(&group.name, 14.0, true);
+            let tl_f: f64 = tl.parse().unwrap_or(40.0);
+            let text_x = x + (w - tl_f) / 2.0;
+            let text_y = y + 15.9951;
+            write!(
+                buf,
+                r#"<text fill="{font_color}" font-family="sans-serif" font-size="14" font-weight="700" lengthAdjust="spacing" textLength="{tl}" x="{}" y="{}">{name_escaped}</text>"#,
+                fmt_coord(text_x), fmt_coord(text_y),
+            )
+            .unwrap();
+        }
+    }
+
+    buf.push_str("</g>");
 }
 
 // ---------------------------------------------------------------------------
@@ -259,7 +341,6 @@ fn render_node(
     queue_bg: &str,
     queue_border: &str,
 ) {
-    // If node has an explicit color, use it as the background fill override
     let color_ref = node.color.as_deref();
     let comp_bg = color_ref.unwrap_or(comp_bg);
     let rect_bg = color_ref.unwrap_or(rect_bg);
@@ -289,7 +370,6 @@ fn render_node(
             render_interface_node(buf, node, comp_bg, comp_border, comp_font);
         }
         ComponentKind::Card => render_rectangle_node(buf, node, rect_bg, rect_border, comp_font),
-        // Deployment diagram kinds with distinct shapes
         ComponentKind::Artifact => {
             render_artifact_node(buf, node, artifact_bg, artifact_border, comp_font);
         }
@@ -304,7 +384,18 @@ fn render_node(
     }
 }
 
-/// Component: rounded rect with a small "component icon" (two small rectangles on the left)
+/// Emit HTML comment + open `<g class="entity">` for a node.
+fn open_entity_g(buf: &mut String, node: &ComponentNodeLayout) {
+    write!(buf, "<!--entity {}-->", xml_escape(&node.id)).unwrap();
+    write!(
+        buf,
+        r#"<g class="entity" id="{}">"#,
+        xml_escape(&node.id),
+    )
+    .unwrap();
+}
+
+/// Component: rounded rect with component icon (two small rects on right side)
 fn render_component_node(
     buf: &mut String,
     node: &ComponentNodeLayout,
@@ -312,36 +403,49 @@ fn render_component_node(
     border: &str,
     font_color: &str,
 ) {
-    // Main rounded rectangle
+    open_entity_g(buf, node);
+
+    let x = node.x;
+    let y = node.y;
+    let w = node.width;
+    let h = node.height;
+
     write!(
         buf,
-        r#"<rect fill="{bg}" height="{h:.1}" rx="6" ry="6" style="stroke:{border};stroke-width:1.5;" width="{w:.1}" x="{x:.1}" y="{y:.1}"/>"#,
-        x = node.x,
-        y = node.y,
-        w = node.width,
-        h = node.height,
+        r#"<rect fill="{bg}" height="{}" rx="2.5" ry="2.5" style="stroke:{border};stroke-width:0.5;" width="{}" x="{}" y="{}"/>"#,
+        fmt_coord(h), fmt_coord(w), fmt_coord(x), fmt_coord(y),
     )
     .unwrap();
-    buf.push('\n');
 
-    // Component icon: two small rectangles on the left border
-    let icon_x = node.x - 5.0;
-    let icon_y1 = node.y + node.height * 0.25 - 4.0;
-    let icon_y2 = node.y + node.height * 0.60 - 4.0;
-    for iy in [icon_y1, icon_y2] {
-        write!(
-            buf,
-            r#"<rect fill="{bg}" height="8" rx="1" ry="1" style="stroke:{border};stroke-width:1;" width="10" x="{icon_x:.1}" y="{iy:.1}"/>"#,
-        )
-        .unwrap();
-        buf.push('\n');
-    }
+    // Component icon on right side
+    let icon_w: f64 = 15.0;
+    let icon_h: f64 = 10.0;
+    let icon_x = x + w - 5.0;
+    let icon_y1 = y + 5.0;
+    write!(
+        buf,
+        r#"<rect fill="{bg}" height="{}" style="stroke:{border};stroke-width:0.5;" width="{}" x="{}" y="{}"/>"#,
+        fmt_coord(icon_h), fmt_coord(icon_w), fmt_coord(icon_x), fmt_coord(icon_y1),
+    )
+    .unwrap();
+    write!(
+        buf,
+        r#"<rect fill="{bg}" height="2" style="stroke:{border};stroke-width:0.5;" width="4" x="{}" y="{}"/>"#,
+        fmt_coord(icon_x - 2.0), fmt_coord(icon_y1 + 2.0),
+    )
+    .unwrap();
+    write!(
+        buf,
+        r#"<rect fill="{bg}" height="2" style="stroke:{border};stroke-width:0.5;" width="4" x="{}" y="{}"/>"#,
+        fmt_coord(icon_x - 2.0), fmt_coord(icon_y1 + 6.0),
+    )
+    .unwrap();
 
-    // Text content
     render_node_text(buf, node, font_color);
+    buf.push_str("</g>");
 }
 
-/// Rectangle: simple rectangle with optional description
+/// Rectangle: simple rectangle
 fn render_rectangle_node(
     buf: &mut String,
     node: &ComponentNodeLayout,
@@ -349,21 +453,20 @@ fn render_rectangle_node(
     border: &str,
     font_color: &str,
 ) {
+    open_entity_g(buf, node);
+
     write!(
         buf,
-        r#"<rect fill="{bg}" height="{h:.1}" style="stroke:{border};stroke-width:1.5;" width="{w:.1}" x="{x:.1}" y="{y:.1}"/>"#,
-        x = node.x,
-        y = node.y,
-        w = node.width,
-        h = node.height,
+        r#"<rect fill="{bg}" height="{}" rx="2.5" ry="2.5" style="stroke:{border};stroke-width:0.5;" width="{}" x="{}" y="{}"/>"#,
+        fmt_coord(node.height), fmt_coord(node.width), fmt_coord(node.x), fmt_coord(node.y),
     )
     .unwrap();
-    buf.push('\n');
 
     render_node_text(buf, node, font_color);
+    buf.push_str("</g>");
 }
 
-/// Database: cylinder shape (ellipses at top and bottom)
+/// Database: cylinder shape via cubic path curves
 fn render_database_node(
     buf: &mut String,
     node: &ComponentNodeLayout,
@@ -371,42 +474,56 @@ fn render_database_node(
     border: &str,
     font_color: &str,
 ) {
+    open_entity_g(buf, node);
+
     let x = node.x;
     let y = node.y;
     let w = node.width;
     let h = node.height;
-    let ry = 8.0; // ellipse radius for cylinder top/bottom
+    let ry: f64 = 10.0;
+    let cx = x + w / 2.0;
 
-    // Body path: rectangle with elliptical top and bottom
+    // Body
     write!(
         buf,
-        r#"<path d="M {x:.1} {y1:.1} A {rx:.1} {ry:.1} 0 0 1 {x2:.1} {y1:.1} L {x2:.1} {y2:.1} A {rx:.1} {ry:.1} 0 0 1 {x:.1} {y2:.1} Z" fill="{bg}" style="stroke:{border};stroke-width:1.5;"/>"#,
-        x = x,
-        y1 = y + ry,
-        rx = w / 2.0,
-        ry = ry,
-        x2 = x + w,
-        y2 = y + h - ry,
+        r#"<path d="M{},{} C{},{} {},{} {},{} C{},{} {},{} {},{} L{},{} C{},{} {},{} {},{} C{},{} {},{} {},{} L{},{}" fill="{bg}" style="stroke:{border};stroke-width:0.5;"/>"#,
+        fmt_coord(x), fmt_coord(y + ry),
+        fmt_coord(x), fmt_coord(y),
+        fmt_coord(cx), fmt_coord(y),
+        fmt_coord(cx), fmt_coord(y),
+        fmt_coord(cx), fmt_coord(y),
+        fmt_coord(x + w), fmt_coord(y),
+        fmt_coord(x + w), fmt_coord(y + ry),
+        fmt_coord(x + w), fmt_coord(y + h - ry),
+        fmt_coord(x + w), fmt_coord(y + h),
+        fmt_coord(cx), fmt_coord(y + h),
+        fmt_coord(cx), fmt_coord(y + h),
+        fmt_coord(cx), fmt_coord(y + h),
+        fmt_coord(x), fmt_coord(y + h),
+        fmt_coord(x), fmt_coord(y + h - ry),
+        fmt_coord(x), fmt_coord(y + ry),
     )
     .unwrap();
-    buf.push('\n');
 
     // Top ellipse
     write!(
         buf,
-        r#"<ellipse cx="{cx:.1}" cy="{cy:.1}" fill="{bg}" rx="{rx:.1}" ry="{ry:.1}" style="stroke:{border};stroke-width:1.5;"/>"#,
-        cx = x + w / 2.0,
-        cy = y + ry,
-        rx = w / 2.0,
-        ry = ry,
+        r#"<path d="M{},{} C{},{} {},{} {},{} C{},{} {},{} {},{}" fill="none" style="stroke:{border};stroke-width:0.5;"/>"#,
+        fmt_coord(x), fmt_coord(y + ry),
+        fmt_coord(x), fmt_coord(y + ry + ry),
+        fmt_coord(cx), fmt_coord(y + ry + ry),
+        fmt_coord(cx), fmt_coord(y + ry + ry),
+        fmt_coord(cx), fmt_coord(y + ry + ry),
+        fmt_coord(x + w), fmt_coord(y + ry + ry),
+        fmt_coord(x + w), fmt_coord(y + ry),
     )
     .unwrap();
-    buf.push('\n');
 
     render_node_text(buf, node, font_color);
+    buf.push_str("</g>");
 }
 
-/// Cloud: rendered as a rounded rect with large radius (simplified)
+/// Cloud: rounded rect with large radius
 fn render_cloud_node(
     buf: &mut String,
     node: &ComponentNodeLayout,
@@ -414,18 +531,17 @@ fn render_cloud_node(
     border: &str,
     font_color: &str,
 ) {
+    open_entity_g(buf, node);
+
     write!(
         buf,
-        r#"<rect fill="{bg}" height="{h:.1}" rx="20" ry="20" style="stroke:{border};stroke-width:1.5;" width="{w:.1}" x="{x:.1}" y="{y:.1}"/>"#,
-        x = node.x,
-        y = node.y,
-        w = node.width,
-        h = node.height,
+        r#"<rect fill="{bg}" height="{}" rx="20" ry="20" style="stroke:{border};stroke-width:0.5;" width="{}" x="{}" y="{}"/>"#,
+        fmt_coord(node.height), fmt_coord(node.width), fmt_coord(node.x), fmt_coord(node.y),
     )
     .unwrap();
-    buf.push('\n');
 
     render_node_text(buf, node, font_color);
+    buf.push_str("</g>");
 }
 
 /// Generic box (used for Node, Package)
@@ -436,18 +552,17 @@ fn render_box_node(
     border: &str,
     font_color: &str,
 ) {
+    open_entity_g(buf, node);
+
     write!(
         buf,
-        r#"<rect fill="{fill}" height="{h:.1}" rx="4" ry="4" style="stroke:{border};stroke-width:1.5;" width="{w:.1}" x="{x:.1}" y="{y:.1}"/>"#,
-        x = node.x,
-        y = node.y,
-        w = node.width,
-        h = node.height,
+        r#"<rect fill="{fill}" height="{}" rx="2.5" ry="2.5" style="stroke:{border};stroke-width:0.5;" width="{}" x="{}" y="{}"/>"#,
+        fmt_coord(node.height), fmt_coord(node.width), fmt_coord(node.x), fmt_coord(node.y),
     )
     .unwrap();
-    buf.push('\n');
 
     render_node_text(buf, node, font_color);
+    buf.push_str("</g>");
 }
 
 /// Interface: small circle with name below
@@ -458,27 +573,32 @@ fn render_interface_node(
     border: &str,
     font_color: &str,
 ) {
+    open_entity_g(buf, node);
+
     let cx = node.x + node.width / 2.0;
     let cy = node.y + 12.0;
     write!(
         buf,
-        r#"<circle cx="{cx:.1}" cy="{cy:.1}" fill="{bg}" r="8" style="stroke:{border};stroke-width:1.5;"/>"#,
+        r#"<circle cx="{}" cy="{}" fill="{bg}" r="8" style="stroke:{border};stroke-width:0.5;"/>"#,
+        fmt_coord(cx), fmt_coord(cy),
     )
     .unwrap();
-    buf.push('\n');
 
-    // Name below the circle
     let name_escaped = xml_escape(&node.name);
     let name_y = cy + 20.0;
+    let tl = text_len(&node.name, 14.0, false);
+    let tl_f: f64 = tl.parse().unwrap_or(0.0);
     write!(
         buf,
-        r#"<text fill="{font_color}" font-family="sans-serif" font-size="14" text-anchor="middle" x="{cx:.1}" y="{name_y:.1}">{name_escaped}</text>"#,
+        r#"<text fill="{font_color}" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="{tl}" x="{}" y="{}">{name_escaped}</text>"#,
+        fmt_coord(cx - tl_f / 2.0), fmt_coord(name_y),
     )
     .unwrap();
-    buf.push('\n');
+
+    buf.push_str("</g>");
 }
 
-/// Artifact: rectangle with a folded corner (document icon)
+/// Artifact: rect with folded-corner icon
 fn render_artifact_node(
     buf: &mut String,
     node: &ComponentNodeLayout,
@@ -486,47 +606,55 @@ fn render_artifact_node(
     border: &str,
     font_color: &str,
 ) {
+    open_entity_g(buf, node);
+
     let x = node.x;
     let y = node.y;
     let w = node.width;
     let h = node.height;
-    let fold = 10.0; // size of the folded corner
 
-    // Body polygon with folded top-right corner
     write!(
         buf,
-        r#"<polygon fill="{bg}" points="{x:.1},{y:.1} {xf:.1},{y:.1} {xw:.1},{yf:.1} {xw:.1},{yh:.1} {x:.1},{yh:.1}" style="stroke:{border};stroke-width:1.5;"/>"#,
-        xf = x + w - fold,
-        xw = x + w,
-        yf = y + fold,
-        yh = y + h,
+        r#"<rect fill="{bg}" height="{}" rx="2.5" ry="2.5" style="stroke:{border};stroke-width:0.5;" width="{}" x="{}" y="{}"/>"#,
+        fmt_coord(h), fmt_coord(w), fmt_coord(x), fmt_coord(y),
     )
     .unwrap();
-    buf.push('\n');
 
-    // Fold lines to indicate the corner fold
+    // Folded corner icon (small polygon at top right)
+    let fold: f64 = 6.0;
+    let ix = x + w - 17.0;
+    let iy = y + 5.0;
     write!(
         buf,
-        r#"<line style="stroke:{border};stroke-width:1;" x1="{xf:.1}" x2="{xf:.1}" y1="{y:.1}" y2="{yf:.1}"/>"#,
-        xf = x + w - fold,
-        yf = y + fold,
+        r#"<polygon fill="{bg}" points="{},{},{},{},{},{},{},{},{},{}" style="stroke:{border};stroke-width:0.5;"/>"#,
+        fmt_coord(ix), fmt_coord(iy),
+        fmt_coord(ix), fmt_coord(iy + 14.0),
+        fmt_coord(ix + 12.0), fmt_coord(iy + 14.0),
+        fmt_coord(ix + 12.0), fmt_coord(iy + fold),
+        fmt_coord(ix + fold), fmt_coord(iy),
     )
     .unwrap();
-    buf.push('\n');
+
     write!(
         buf,
-        r#"<line style="stroke:{border};stroke-width:1;" x1="{xf:.1}" x2="{xw:.1}" y1="{yf:.1}" y2="{yf:.1}"/>"#,
-        xf = x + w - fold,
-        xw = x + w,
-        yf = y + fold,
+        r#"<line style="stroke:{border};stroke-width:0.5;" x1="{}" x2="{}" y1="{}" y2="{}"/>"#,
+        fmt_coord(ix + fold), fmt_coord(ix + fold),
+        fmt_coord(iy), fmt_coord(iy + fold),
     )
     .unwrap();
-    buf.push('\n');
+    write!(
+        buf,
+        r#"<line style="stroke:{border};stroke-width:0.5;" x1="{}" x2="{}" y1="{}" y2="{}"/>"#,
+        fmt_coord(ix + 12.0), fmt_coord(ix + fold),
+        fmt_coord(iy + fold), fmt_coord(iy + fold),
+    )
+    .unwrap();
 
     render_node_text(buf, node, font_color);
+    buf.push_str("</g>");
 }
 
-/// Storage: horizontal cylinder shape (ellipses on left and right sides)
+/// Storage: rounded rect with large rx/ry
 fn render_storage_node(
     buf: &mut String,
     node: &ComponentNodeLayout,
@@ -534,39 +662,22 @@ fn render_storage_node(
     border: &str,
     font_color: &str,
 ) {
-    let x = node.x;
-    let y = node.y;
-    let w = node.width;
-    let h = node.height;
-    let rx = 8.0; // ellipse x-radius for horizontal cylinder
+    open_entity_g(buf, node);
 
-    // Body: rectangle body with elliptical left/right ends
+    let rx = 35.0_f64.min(node.width / 4.0);
     write!(
         buf,
-        r#"<path d="M {x1:.1} {y:.1} L {x2:.1} {y:.1} A {rx:.1} {ry:.1} 0 0 1 {x2:.1} {yh:.1} L {x1:.1} {yh:.1} A {rx:.1} {ry:.1} 0 0 1 {x1:.1} {y:.1} Z" fill="{bg}" style="stroke:{border};stroke-width:1.5;"/>"#,
-        x1 = x + rx,
-        x2 = x + w - rx,
-        ry = h / 2.0,
-        yh = y + h,
+        r#"<rect fill="{bg}" height="{}" rx="{}" ry="{}" style="stroke:{border};stroke-width:0.5;" width="{}" x="{}" y="{}"/>"#,
+        fmt_coord(node.height), fmt_coord(rx), fmt_coord(rx),
+        fmt_coord(node.width), fmt_coord(node.x), fmt_coord(node.y),
     )
     .unwrap();
-    buf.push('\n');
-
-    // Right ellipse (visible end cap)
-    write!(
-        buf,
-        r#"<ellipse cx="{cx:.1}" cy="{cy:.1}" fill="{bg}" rx="{rx:.1}" ry="{ry:.1}" style="stroke:{border};stroke-width:1.5;"/>"#,
-        cx = x + w - rx,
-        cy = y + h / 2.0,
-        ry = h / 2.0,
-    )
-    .unwrap();
-    buf.push('\n');
 
     render_node_text(buf, node, font_color);
+    buf.push_str("</g>");
 }
 
-/// Folder: rectangle with a small tab on the top-left
+/// Folder: path with tab, body rect, separator line
 fn render_folder_node(
     buf: &mut String,
     node: &ComponentNodeLayout,
@@ -574,35 +685,62 @@ fn render_folder_node(
     border: &str,
     font_color: &str,
 ) {
+    open_entity_g(buf, node);
+
     let x = node.x;
     let y = node.y;
     let w = node.width;
     let h = node.height;
-    let tab_w = (w * 0.35).min(60.0); // tab width
-    let tab_h = 8.0; // tab height above the main body
+    let tab_w = 41.0_f64.min(w * 0.4);
+    let tab_h: f64 = 21.0;
+    let r: f64 = 2.5;
 
-    // Tab on top-left
     write!(
         buf,
-        r#"<rect fill="{bg}" height="{tab_h:.1}" style="stroke:{border};stroke-width:1.5;" width="{tab_w:.1}" x="{x:.1}" y="{y:.1}"/>"#,
+        concat!(
+            r#"<path d="M{},{} L{},{}"#,
+            r#" A{},{} 0 0 1 {},{}"#,
+            r#" L{},{}"#,
+            r#" L{},{}"#,
+            r#" A{},{} 0 0 1 {},{}"#,
+            r#" L{},{}"#,
+            r#" A{},{} 0 0 1 {},{}"#,
+            r#" L{},{}"#,
+            r#" A{},{} 0 0 1 {},{}"#,
+            r#" L{},{}" fill="{}" style="stroke:{};stroke-width:0.5;"/>"#,
+        ),
+        fmt_coord(x + r), fmt_coord(y),
+        fmt_coord(x + tab_w), fmt_coord(y),
+        fmt_coord(r), fmt_coord(r),
+        fmt_coord(x + tab_w + r), fmt_coord(y + r),
+        fmt_coord(x + tab_w + r + 7.0), fmt_coord(y + tab_h),
+        fmt_coord(x + w - r), fmt_coord(y + tab_h),
+        fmt_coord(r), fmt_coord(r),
+        fmt_coord(x + w), fmt_coord(y + tab_h + r),
+        fmt_coord(x + w), fmt_coord(y + h - r),
+        fmt_coord(r), fmt_coord(r),
+        fmt_coord(x + w - r), fmt_coord(y + h),
+        fmt_coord(x + r), fmt_coord(y + h),
+        fmt_coord(r), fmt_coord(r),
+        fmt_coord(x), fmt_coord(y + h - r),
+        fmt_coord(x), fmt_coord(y + r),
+        bg, border,
     )
     .unwrap();
-    buf.push('\n');
 
-    // Main folder body (shifted down by tab_h)
     write!(
         buf,
-        r#"<rect fill="{bg}" height="{bh:.1}" style="stroke:{border};stroke-width:1.5;" width="{w:.1}" x="{x:.1}" y="{by:.1}"/>"#,
-        by = y + tab_h,
-        bh = h - tab_h,
+        r#"<line style="stroke:{border};stroke-width:0.5;" x1="{}" x2="{}" y1="{}" y2="{}"/>"#,
+        fmt_coord(x), fmt_coord(x + w),
+        fmt_coord(y + tab_h), fmt_coord(y + tab_h),
     )
     .unwrap();
-    buf.push('\n');
 
     render_node_text(buf, node, font_color);
+    buf.push_str("</g>");
 }
 
-/// Frame: rectangle with a small label tab on the top-left corner
+/// Frame: rect with label tab
 fn render_frame_node(
     buf: &mut String,
     node: &ComponentNodeLayout,
@@ -610,6 +748,8 @@ fn render_frame_node(
     border: &str,
     _font_color: &str,
 ) {
+    open_entity_g(buf, node);
+
     let x = node.x;
     let y = node.y;
     let w = node.width;
@@ -617,36 +757,37 @@ fn render_frame_node(
     let tab_w = (w * 0.4).min(70.0);
     let tab_h = FONT_SIZE + 6.0;
 
-    // Outer border rectangle
     write!(
         buf,
-        r#"<rect fill="{bg}" height="{h:.1}" style="stroke:{border};stroke-width:1.5;" width="{w:.1}" x="{x:.1}" y="{y:.1}"/>"#,
+        r#"<rect fill="{bg}" height="{}" rx="2.5" ry="2.5" style="stroke:{border};stroke-width:0.5;" width="{}" x="{}" y="{}"/>"#,
+        fmt_coord(h), fmt_coord(w), fmt_coord(x), fmt_coord(y),
     )
     .unwrap();
-    buf.push('\n');
 
-    // Small label inset box on top-left corner
     write!(
         buf,
-        r#"<rect fill="{border}" height="{tab_h:.1}" style="stroke:{border};stroke-width:1;" width="{tab_w:.1}" x="{x:.1}" y="{y:.1}"/>"#,
+        r#"<rect fill="{border}" height="{}" style="stroke:{border};stroke-width:0.5;" width="{}" x="{}" y="{}"/>"#,
+        fmt_coord(tab_h), fmt_coord(tab_w), fmt_coord(x), fmt_coord(y),
     )
     .unwrap();
-    buf.push('\n');
 
-    // Name inside the label tab (white text for contrast)
     let name_escaped = xml_escape(&node.name);
     let label_cx = x + tab_w / 2.0;
     let label_cy = y + tab_h / 2.0 + FONT_SIZE * 0.35;
+    let tl = text_len(&node.name, FONT_SIZE - 1.0, true);
     write!(
         buf,
-        "<text fill=\"#FFFFFF\" font-family=\"sans-serif\" font-size=\"{fs:.0}\" font-weight=\"bold\" text-anchor=\"middle\" x=\"{label_cx:.1}\" y=\"{label_cy:.1}\">{name_escaped}</text>",
-        fs = FONT_SIZE - 1.0,
+        "<text fill=\"#FFFFFF\" font-family=\"sans-serif\" font-size=\"{}\" font-weight=\"700\" lengthAdjust=\"spacing\" text-anchor=\"middle\" textLength=\"{tl}\" x=\"{}\" y=\"{}\">{name_escaped}</text>",
+        fmt_coord(FONT_SIZE - 1.0),
+        fmt_coord(label_cx),
+        fmt_coord(label_cy),
     )
     .unwrap();
-    buf.push('\n');
+
+    buf.push_str("</g>");
 }
 
-/// Agent: rounded rectangle (rx=10) — deployment monitoring/process shape
+/// Agent: rounded rect with rx 2.5
 fn render_agent_node(
     buf: &mut String,
     node: &ComponentNodeLayout,
@@ -654,21 +795,20 @@ fn render_agent_node(
     border: &str,
     font_color: &str,
 ) {
+    open_entity_g(buf, node);
+
     write!(
         buf,
-        r#"<rect fill="{bg}" height="{h:.1}" rx="10" ry="10" style="stroke:{border};stroke-width:1.5;" width="{w:.1}" x="{x:.1}" y="{y:.1}"/>"#,
-        x = node.x,
-        y = node.y,
-        w = node.width,
-        h = node.height,
+        r#"<rect fill="{bg}" height="{}" rx="2.5" ry="2.5" style="stroke:{border};stroke-width:0.5;" width="{}" x="{}" y="{}"/>"#,
+        fmt_coord(node.height), fmt_coord(node.width), fmt_coord(node.x), fmt_coord(node.y),
     )
     .unwrap();
-    buf.push('\n');
 
     render_node_text(buf, node, font_color);
+    buf.push_str("</g>");
 }
 
-/// Stack: three stacked rectangles to suggest layering
+/// Stack: rect with frame path
 fn render_stack_node(
     buf: &mut String,
     node: &ComponentNodeLayout,
@@ -676,37 +816,44 @@ fn render_stack_node(
     border: &str,
     font_color: &str,
 ) {
+    open_entity_g(buf, node);
+
     let x = node.x;
     let y = node.y;
     let w = node.width;
     let h = node.height;
-    let shadow_offset = 4.0;
 
-    // Render two shadow layers behind (bottom-most first)
-    for i in [2u32, 1] {
-        let off = shadow_offset * f64::from(i);
-        write!(
-            buf,
-            r#"<rect fill="{bg}" height="{h:.1}" opacity="0.6" style="stroke:{border};stroke-width:1;" width="{w:.1}" x="{sx:.1}" y="{sy:.1}"/>"#,
-            sx = x + off,
-            sy = y + off,
-        )
-        .unwrap();
-        buf.push('\n');
-    }
-
-    // Front (main) rectangle
+    // Main body rect (stroke:none)
     write!(
         buf,
-        r#"<rect fill="{bg}" height="{h:.1}" style="stroke:{border};stroke-width:1.5;" width="{w:.1}" x="{x:.1}" y="{y:.1}"/>"#,
+        r#"<rect fill="{bg}" height="{}" rx="2.5" ry="2.5" style="stroke:none;stroke-width:0.5;" width="{}" x="{}" y="{}"/>"#,
+        fmt_coord(h), fmt_coord(w), fmt_coord(x), fmt_coord(y),
     )
     .unwrap();
-    buf.push('\n');
+
+    // Frame path
+    let bar_left = x - 15.0;
+    write!(
+        buf,
+        r#"<path d="M{},{} L{},{} A2.5,2.5 0 0 1 {},{} L{},{} A2.5,2.5 0 0 0 {},{} L{},{} A2.5,2.5 0 0 0 {},{} L{},{} A2.5,2.5 0 0 1 {},{} L{},{}" fill="none" style="stroke:{border};stroke-width:0.5;"/>"#,
+        fmt_coord(bar_left), fmt_coord(y),
+        fmt_coord(bar_left + 12.5), fmt_coord(y),
+        fmt_coord(x), fmt_coord(y + 2.5),
+        fmt_coord(x), fmt_coord(y + h - 2.5),
+        fmt_coord(x + 2.5), fmt_coord(y + h),
+        fmt_coord(x + w - 2.5), fmt_coord(y + h),
+        fmt_coord(x + w), fmt_coord(y + h - 2.5),
+        fmt_coord(x + w), fmt_coord(y + 2.5),
+        fmt_coord(x + w + 2.5), fmt_coord(y),
+        fmt_coord(x + w + 15.0), fmt_coord(y),
+    )
+    .unwrap();
 
     render_node_text(buf, node, font_color);
+    buf.push_str("</g>");
 }
 
-/// Queue: rectangle with a wavy/elliptical right end to suggest FIFO
+/// Queue: path body with double-curved right edge
 fn render_queue_node(
     buf: &mut String,
     node: &ComponentNodeLayout,
@@ -714,48 +861,45 @@ fn render_queue_node(
     border: &str,
     font_color: &str,
 ) {
+    open_entity_g(buf, node);
+
     let x = node.x;
     let y = node.y;
     let w = node.width;
     let h = node.height;
-    let cap_rx = 8.0; // ellipse x-radius for end caps
+    let cap: f64 = 5.0;
+    let mid_y = y + h / 2.0;
 
-    // Main body as a rounded rect with ellipse at each end
-    // Left cap (closed ellipse), right cap (open ellipse, visible)
+    // Left side curve (filled)
     write!(
         buf,
-        r#"<path d="M {x1:.1} {y:.1} L {x2:.1} {y:.1} A {cap_rx:.1} {ry:.1} 0 0 1 {x2:.1} {yh:.1} L {x1:.1} {yh:.1} A {cap_rx:.1} {ry:.1} 0 0 1 {x1:.1} {y:.1} Z" fill="{bg}" style="stroke:{border};stroke-width:1.5;"/>"#,
-        x1 = x + cap_rx,
-        x2 = x + w - cap_rx,
-        ry = h / 2.0,
-        yh = y + h,
+        r#"<path d="M{},{} C{},{} {},{} {},{} C{},{} {},{} {},{}" fill="{bg}" style="stroke:{border};stroke-width:0.5;"/>"#,
+        fmt_coord(x + cap), fmt_coord(y),
+        fmt_coord(x + cap + cap), fmt_coord(y),
+        fmt_coord(x + cap + cap), fmt_coord(mid_y),
+        fmt_coord(x + cap + cap), fmt_coord(mid_y),
+        fmt_coord(x + cap + cap), fmt_coord(mid_y),
+        fmt_coord(x + cap + cap), fmt_coord(y + h),
+        fmt_coord(x + cap), fmt_coord(y + h),
     )
     .unwrap();
-    buf.push('\n');
 
-    // Left end cap (fully closed)
+    // Right endcap (open)
     write!(
         buf,
-        r#"<ellipse cx="{cx:.1}" cy="{cy:.1}" fill="{bg}" rx="{cap_rx:.1}" ry="{ry:.1}" style="stroke:{border};stroke-width:1.5;"/>"#,
-        cx = x + cap_rx,
-        cy = y + h / 2.0,
-        ry = h / 2.0,
+        r#"<path d="M{},{} C{},{} {},{} {},{} C{},{} {},{} {},{}" fill="none" style="stroke:{border};stroke-width:0.5;"/>"#,
+        fmt_coord(x + w - cap), fmt_coord(y),
+        fmt_coord(x + w - cap - cap), fmt_coord(y),
+        fmt_coord(x + w - cap - cap), fmt_coord(mid_y),
+        fmt_coord(x + w - cap - cap), fmt_coord(mid_y),
+        fmt_coord(x + w - cap - cap), fmt_coord(mid_y),
+        fmt_coord(x + w - cap - cap), fmt_coord(y + h),
+        fmt_coord(x + w - cap), fmt_coord(y + h),
     )
     .unwrap();
-    buf.push('\n');
-
-    // Right end cap (visible opening)
-    write!(
-        buf,
-        r#"<ellipse cx="{cx:.1}" cy="{cy:.1}" fill="{bg}" rx="{cap_rx:.1}" ry="{ry:.1}" style="stroke:{border};stroke-width:1.5;"/>"#,
-        cx = x + w - cap_rx,
-        cy = y + h / 2.0,
-        ry = h / 2.0,
-    )
-    .unwrap();
-    buf.push('\n');
 
     render_node_text(buf, node, font_color);
+    buf.push_str("</g>");
 }
 
 /// Render name, stereotype, and description text for a node
@@ -769,13 +913,22 @@ fn render_node_text(buf: &mut String, node: &ComponentNodeLayout, font_color: &s
         let stereo_text = format!("\u{00AB}{stereotype}\u{00BB}");
         let escaped = xml_escape(&stereo_text);
         let sy = node.y + FONT_SIZE + 4.0;
+        let tl = font_metrics::text_width(
+            &stereo_text,
+            "sans-serif",
+            FONT_SIZE - 2.0,
+            false,
+            true,
+        );
         write!(
             buf,
-            r#"<text fill="{font_color}" font-family="sans-serif" font-size="{fs:.0}" font-style="italic" text-anchor="middle" x="{cx:.1}" y="{sy:.1}">{escaped}</text>"#,
+            r#"<text fill="{font_color}" font-family="sans-serif" font-size="{fs:.0}" font-style="italic" lengthAdjust="spacing" textLength="{}" x="{}" y="{}">{escaped}</text>"#,
+            fmt_coord(tl),
+            fmt_coord(cx - tl / 2.0),
+            fmt_coord(sy),
             fs = FONT_SIZE - 2.0,
         )
         .unwrap();
-        buf.push('\n');
         y_offset = LINE_HEIGHT;
     }
 
@@ -801,13 +954,13 @@ fn render_node_text(buf: &mut String, node: &ComponentNodeLayout, font_color: &s
         let sep_y = name_y + 6.0;
         write!(
             buf,
-            r#"<line style="stroke:{COMPONENT_BORDER};" x1="{x1:.1}" x2="{x2:.1}" y1="{sy:.1}" y2="{sy:.1}"/>"#,
-            x1 = node.x,
-            sy = sep_y,
-            x2 = node.x + node.width,
+            r#"<line style="stroke:{COMPONENT_BORDER};" x1="{}" x2="{}" y1="{}" y2="{}"/>"#,
+            fmt_coord(node.x),
+            fmt_coord(node.x + node.width),
+            fmt_coord(sep_y),
+            fmt_coord(sep_y),
         )
         .unwrap();
-        buf.push('\n');
 
         let text_x = node.x + 8.0;
         let desc_text = node.description.join("\n");
@@ -828,10 +981,31 @@ fn render_node_text(buf: &mut String, node: &ComponentNodeLayout, font_color: &s
 // Edge rendering
 // ---------------------------------------------------------------------------
 
-fn render_edge(buf: &mut String, edge: &ComponentEdgeLayout, arrow_color: &str, font_color: &str) {
+fn render_edge(
+    buf: &mut String,
+    edge: &ComponentEdgeLayout,
+    arrow_color: &str,
+    font_color: &str,
+) {
     if edge.points.is_empty() {
         return;
     }
+
+    // HTML comment + semantic group
+    write!(
+        buf,
+        "<!--link {} to {}-->",
+        xml_escape(&edge.from),
+        xml_escape(&edge.to),
+    )
+    .unwrap();
+    write!(
+        buf,
+        r#"<g class="link" id="{}-to-{}">"#,
+        xml_escape(&edge.from),
+        xml_escape(&edge.to),
+    )
+    .unwrap();
 
     let dash = if edge.dashed {
         r#" stroke-dasharray="7,5""#
@@ -839,28 +1013,63 @@ fn render_edge(buf: &mut String, edge: &ComponentEdgeLayout, arrow_color: &str, 
         ""
     };
 
-    if edge.points.len() == 2 {
-        let (x1, y1) = edge.points[0];
-        let (x2, y2) = edge.points[1];
-        write!(
-            buf,
-            r#"<line marker-end="url(#comp-arrow)" style="stroke:{arrow_color};stroke-width:1;" x1="{x1:.1}" x2="{x2:.1}" y1="{y1:.1}" y2="{y2:.1}"{dash}/>"#,
-        )
-        .unwrap();
-        buf.push('\n');
-    } else {
-        let points_str: String = edge
-            .points
-            .iter()
-            .map(|(px, py)| format!("{px:.1},{py:.1}"))
-            .collect::<Vec<_>>()
-            .join(" ");
-        write!(
-            buf,
-            r#"<polyline fill="none" marker-end="url(#comp-arrow)" points="{points_str}" style="stroke:{arrow_color};stroke-width:1;"{dash}/>"#,
-        )
-        .unwrap();
-        buf.push('\n');
+    // Build path data
+    let mut d = String::new();
+    for (i, (px, py)) in edge.points.iter().enumerate() {
+        if i == 0 {
+            write!(d, "M{},{}", fmt_coord(*px), fmt_coord(*py)).unwrap();
+        } else {
+            write!(
+                d,
+                " C{},{} {},{} {},{}",
+                fmt_coord(*px),
+                fmt_coord(*py),
+                fmt_coord(*px),
+                fmt_coord(*py),
+                fmt_coord(*px),
+                fmt_coord(*py),
+            )
+            .unwrap();
+        }
+    }
+
+    write!(
+        buf,
+        r#"<path d="{d}" fill="none" id="{from}-to-{to}" style="stroke:{arrow_color};stroke-width:1;"{dash}/>"#,
+        from = xml_escape(&edge.from),
+        to = xml_escape(&edge.to),
+    )
+    .unwrap();
+
+    // Inline polygon arrowhead at the last point
+    if edge.points.len() >= 2 {
+        let (tx, ty) = edge.points[edge.points.len() - 1];
+        let (fx, fy) = edge.points[edge.points.len() - 2];
+        let dx = tx - fx;
+        let dy = ty - fy;
+        let len = (dx * dx + dy * dy).sqrt();
+        if len > 0.0 {
+            let ux = dx / len;
+            let uy = dy / len;
+            let px = -uy;
+            let py = ux;
+            let p1x = tx - ux * 9.0 + px * 4.0;
+            let p1y = ty - uy * 9.0 + py * 4.0;
+            let p2x = tx;
+            let p2y = ty;
+            let p3x = tx - ux * 9.0 - px * 4.0;
+            let p3y = ty - uy * 9.0 - py * 4.0;
+
+            write!(
+                buf,
+                r#"<polygon fill="{arrow_color}" points="{},{},{},{},{},{},{},{}" style="stroke:{arrow_color};stroke-width:1;"/>"#,
+                fmt_coord(p1x), fmt_coord(p1y),
+                fmt_coord(p2x), fmt_coord(p2y),
+                fmt_coord(p3x), fmt_coord(p3y),
+                fmt_coord(p1x), fmt_coord(p1y),
+            )
+            .unwrap();
+        }
     }
 
     // Label at midpoint
@@ -885,6 +1094,8 @@ fn render_edge(buf: &mut String, edge: &ComponentEdgeLayout, arrow_color: &str, 
             &format!(r#"font-size="{FONT_SIZE}""#),
         );
     }
+
+    buf.push_str("</g>");
 }
 
 // ---------------------------------------------------------------------------
@@ -904,36 +1115,31 @@ fn render_note(
     let h = note.height;
     let fold = 8.0;
 
-    // Note body polygon (with folded corner)
     write!(
         buf,
-        r#"<polygon fill="{bg}" points="{x:.1},{y:.1} {xf:.1},{y:.1} {xw:.1},{yf:.1} {xw:.1},{yh:.1} {x:.1},{yh:.1}" style="stroke:{border};"/>"#,
-        xf = x + w - fold,
-        xw = x + w,
-        yf = y + fold,
-        yh = y + h,
+        r#"<polygon fill="{bg}" points="{},{},{},{},{},{},{},{},{},{}" style="stroke:{border};"/>"#,
+        fmt_coord(x), fmt_coord(y),
+        fmt_coord(x + w - fold), fmt_coord(y),
+        fmt_coord(x + w), fmt_coord(y + fold),
+        fmt_coord(x + w), fmt_coord(y + h),
+        fmt_coord(x), fmt_coord(y + h),
     )
     .unwrap();
-    buf.push('\n');
 
-    // Fold lines
     write!(
         buf,
-        r#"<line style="stroke:{border};" x1="{xf:.1}" x2="{xf:.1}" y1="{y:.1}" y2="{yf:.1}"/>"#,
-        xf = x + w - fold,
-        yf = y + fold,
+        r#"<line style="stroke:{border};" x1="{}" x2="{}" y1="{}" y2="{}"/>"#,
+        fmt_coord(x + w - fold), fmt_coord(x + w - fold),
+        fmt_coord(y), fmt_coord(y + fold),
     )
     .unwrap();
-    buf.push('\n');
     write!(
         buf,
-        r#"<line style="stroke:{border};" x1="{xf:.1}" x2="{xw:.1}" y1="{yf:.1}" y2="{yf:.1}"/>"#,
-        xf = x + w - fold,
-        yf = y + fold,
-        xw = x + w,
+        r#"<line style="stroke:{border};" x1="{}" x2="{}" y1="{}" y2="{}"/>"#,
+        fmt_coord(x + w - fold), fmt_coord(x + w),
+        fmt_coord(y + fold), fmt_coord(y + fold),
     )
     .unwrap();
-    buf.push('\n');
 
     let text_x = x + 6.0;
     let text_y = y + fold + FONT_SIZE;
@@ -1009,7 +1215,7 @@ mod tests {
         assert!(svg.contains("<svg"), "must contain <svg");
         assert!(svg.contains("</svg>"), "must contain </svg>");
         assert!(svg.contains("xmlns=\"http://www.w3.org/2000/svg\""));
-        assert!(svg.contains("comp-arrow"), "must define comp-arrow marker");
+        assert!(svg.contains("<defs/>"), "must have empty defs");
     }
 
     // 2. Component node rendering
@@ -1023,11 +1229,10 @@ mod tests {
         let svg =
             render_component(&diagram, &layout, &SkinParams::default()).expect("render failed");
         assert!(svg.contains("comp1"), "component name must appear");
-        // Component has 3 rects: main + 2 icon pieces
         let rect_count = svg.matches("<rect").count();
         assert!(
             rect_count >= 3,
-            "component must have 3 rects, got {}",
+            "component must have at least 3 rects, got {}",
             rect_count
         );
     }
@@ -1076,7 +1281,6 @@ mod tests {
             render_component(&diagram, &layout, &SkinParams::default()).expect("render failed");
         assert!(svg.contains("MyDB"), "database name must appear");
         assert!(svg.contains("<path"), "database uses path for cylinder");
-        assert!(svg.contains("<ellipse"), "database uses ellipse for top");
     }
 
     // 5. Cloud node rendering
@@ -1120,8 +1324,8 @@ mod tests {
         let svg =
             render_component(&diagram, &layout, &SkinParams::default()).expect("render failed");
         assert!(
-            svg.contains(r#"marker-end="url(#comp-arrow)""#),
-            "edge must reference comp-arrow marker"
+            svg.contains("<polygon"),
+            "edge must have inline polygon arrowhead"
         );
         assert!(
             svg.contains("stroke:#181818"),
@@ -1351,8 +1555,8 @@ mod tests {
         let svg =
             render_component(&diagram, &layout, &SkinParams::default()).expect("render failed");
         assert!(
-            !svg.contains("marker-end"),
-            "no edges should mean no arrow markers on elements"
+            !svg.contains(r#"class="link""#),
+            "no edges should mean no link groups"
         );
     }
 
@@ -1387,8 +1591,7 @@ mod tests {
             "viewBox must match"
         );
         assert!(svg.contains("width=\"400px\""), "width must match");
-        assert!(svg.contains("<defs>"), "must have defs");
-        assert!(svg.contains("</defs>"), "must have closing defs");
+        assert!(svg.contains("<defs/>"), "must have empty defs");
     }
 
     // 17. Interface node rendering
@@ -1414,7 +1617,7 @@ mod tests {
         assert!(svg.contains("<circle"), "interface uses circle icon");
     }
 
-    // 18. Polyline edge (multiple points)
+    // 18. Polyline edge (multiple points) - now uses <path>
     #[test]
     fn test_polyline_edge() {
         let diagram = empty_diagram();
@@ -1428,9 +1631,6 @@ mod tests {
         });
         let svg =
             render_component(&diagram, &layout, &SkinParams::default()).expect("render failed");
-        assert!(
-            svg.contains("<polyline"),
-            "multi-point edge must use polyline"
-        );
+        assert!(svg.contains("<path"), "multi-point edge must use path");
     }
 }
