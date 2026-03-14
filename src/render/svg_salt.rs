@@ -2,6 +2,7 @@ use std::fmt::Write;
 
 use crate::layout::salt::{LayoutBox, SaltLayout, SaltWidgetLayout};
 use crate::model::salt::SaltDiagram;
+use crate::render::svg::fmt_coord;
 use crate::render::svg::xml_escape;
 use crate::render::svg::write_svg_root;
 use crate::style::SkinParams;
@@ -26,10 +27,10 @@ pub fn render_salt(
     let font = skin.font_color("salt", TEXT);
     write!(
         buf,
-        r#"<rect fill="{}" height="{:.0}" width="{:.0}" x="0" y="0"/>"#,
-        layout.width,
-        layout.height,
-        skin.background_color("saltbg", BG)
+        r#"<rect fill="{}" height="{}" width="{}" x="0" y="0"/>"#,
+        skin.background_color("saltbg", BG),
+        fmt_coord(layout.height),
+        fmt_coord(layout.width),
     )
     .unwrap();
     buf.push('\n');
@@ -58,7 +59,8 @@ fn render_widget(
         } => {
             write!(
                 buf,
-                r#"<rect fill="none" height="{height:.1}" rx="6" ry="6" style="stroke:{border};stroke-width:1;" width="{width:.1}" x="{x:.1}" y="{y:.1}"/>"#,
+                r#"<rect fill="none" height="{}" rx="6" ry="6" style="stroke:{border};stroke-width:0.5;" width="{}" x="{}" y="{}"/>"#,
+                fmt_coord(*height), fmt_coord(*width), fmt_coord(*x), fmt_coord(*y),
             )
             .unwrap();
             buf.push('\n');
@@ -67,12 +69,12 @@ fn render_widget(
             }
             if *separator && children.len() > 1 {
                 for child in children.iter().take(children.len() - 1) {
-                    let y = child_bounds(child).y + child_bounds(child).height + 5.0;
+                    let sep_y = child_bounds(child).y + child_bounds(child).height + 5.0;
                     write!(
                         buf,
-                        r#"<line style="stroke:{border};stroke-width:1;" x1="{x1:.1}" x2="{x2:.1}" y1="{y:.1}" y2="{y:.1}"/>"#,
-                        x1 = x + 8.0,
-                        x2 = x + width - 8.0,
+                        r#"<line style="stroke:{border};stroke-width:0.5;" x1="{}" x2="{}" y1="{sy}" y2="{sy}"/>"#,
+                        fmt_coord(x + 8.0), fmt_coord(x + width - 8.0),
+                        sy = fmt_coord(sep_y),
                     )
                     .unwrap();
                     buf.push('\n');
@@ -105,9 +107,9 @@ fn render_widget(
         SaltWidgetLayout::TreeNode(rect, label, _) => {
             write!(
                 buf,
-                r#"<circle cx="{:.1}" cy="{:.1}" fill="{}" r="3"/>"#,
-                rect.x + 6.0,
-                rect.y + rect.height / 2.0,
+                r#"<circle cx="{}" cy="{}" fill="{}" r="3"/>"#,
+                fmt_coord(rect.x + 6.0),
+                fmt_coord(rect.y + rect.height / 2.0),
                 border
             )
             .unwrap();
@@ -115,12 +117,12 @@ fn render_widget(
             render_text(buf, rect.x + 14.0, rect.y + 12.0, label, font, None);
         }
         SaltWidgetLayout::Separator(rect) => {
+            let sep_y = rect.y + rect.height / 2.0;
             write!(
                 buf,
-                r#"<line style="stroke:{border};stroke-width:1;" x1="{x1:.1}" x2="{x2:.1}" y1="{y:.1}" y2="{y:.1}"/>"#,
-                x1 = rect.x,
-                x2 = rect.x + rect.width,
-                y = rect.y + rect.height / 2.0,
+                r#"<line style="stroke:{border};stroke-width:0.5;" x1="{}" x2="{}" y1="{sy}" y2="{sy}"/>"#,
+                fmt_coord(rect.x), fmt_coord(rect.x + rect.width),
+                sy = fmt_coord(sep_y),
             )
             .unwrap();
             buf.push('\n');
@@ -156,12 +158,9 @@ fn render_boxed_text(
 ) {
     write!(
         buf,
-        r#"<rect fill="{fill}" height="{h:.1}" rx="{r:.1}" ry="{r:.1}" style="stroke:{border};stroke-width:1;" width="{w:.1}" x="{x:.1}" y="{y:.1}"/>"#,
-        x = rect.x,
-        y = rect.y,
-        w = rect.width,
-        h = rect.height,
-        r = radius,
+        r#"<rect fill="{fill}" height="{}" rx="{}" ry="{}" style="stroke:{border};stroke-width:0.5;" width="{}" x="{}" y="{}"/>"#,
+        fmt_coord(rect.height), fmt_coord(radius), fmt_coord(radius),
+        fmt_coord(rect.width), fmt_coord(rect.x), fmt_coord(rect.y),
     )
     .unwrap();
     buf.push('\n');
@@ -185,23 +184,23 @@ fn render_checkbox(
 ) {
     write!(
         buf,
-        r##"<rect fill="#FFFFFF" height="14" style="stroke:{};stroke-width:1;" width="14" x="{:.1}" y="{:.1}"/>"##,
+        r##"<rect fill="#FFFFFF" height="14" style="stroke:{};stroke-width:0.5;" width="14" x="{}" y="{}"/>"##,
         border,
-        rect.x,
-        rect.y + 7.0,
+        fmt_coord(rect.x),
+        fmt_coord(rect.y + 7.0),
     )
     .unwrap();
     buf.push('\n');
     if checked {
         write!(
             buf,
-            r#"<path d="M {:.1} {:.1} L {:.1} {:.1} L {:.1} {:.1}" fill="none" style="stroke:{};stroke-width:1.5;"/>"#,
-            rect.x + 3.0,
-            rect.y + 14.0,
-            rect.x + 6.0,
-            rect.y + 18.0,
-            rect.x + 11.0,
-            rect.y + 9.0,
+            r#"<path d="M {} {} L {} {} L {} {}" fill="none" style="stroke:{};stroke-width:0.5;"/>"#,
+            fmt_coord(rect.x + 3.0),
+            fmt_coord(rect.y + 14.0),
+            fmt_coord(rect.x + 6.0),
+            fmt_coord(rect.y + 18.0),
+            fmt_coord(rect.x + 11.0),
+            fmt_coord(rect.y + 9.0),
             border,
         )
         .unwrap();
@@ -220,9 +219,9 @@ fn render_radio(
 ) {
     write!(
         buf,
-        r##"<circle cx="{:.1}" cy="{:.1}" fill="#FFFFFF" r="7" style="stroke:{};stroke-width:1;"/>"##,
-        rect.x + 7.0,
-        rect.y + 14.0,
+        r##"<circle cx="{}" cy="{}" fill="#FFFFFF" r="7" style="stroke:{};stroke-width:0.5;"/>"##,
+        fmt_coord(rect.x + 7.0),
+        fmt_coord(rect.y + 14.0),
         border,
     )
     .unwrap();
@@ -230,9 +229,9 @@ fn render_radio(
     if selected {
         write!(
             buf,
-            r#"<circle cx="{:.1}" cy="{:.1}" fill="{}" r="3"/>"#,
-            rect.x + 7.0,
-            rect.y + 14.0,
+            r#"<circle cx="{}" cy="{}" fill="{}" r="3"/>"#,
+            fmt_coord(rect.x + 7.0),
+            fmt_coord(rect.y + 14.0),
             border,
         )
         .unwrap();
@@ -253,13 +252,13 @@ fn render_dropdown(
     render_boxed_text(buf, rect, &text, fill, border, font, 4.0);
     write!(
         buf,
-        r#"<path d="M {:.1} {:.1} L {:.1} {:.1} L {:.1} {:.1} Z" fill="{}"/>"#,
-        rect.x + rect.width - 16.0,
-        rect.y + rect.height / 2.0 - 3.0,
-        rect.x + rect.width - 8.0,
-        rect.y + rect.height / 2.0 - 3.0,
-        rect.x + rect.width - 12.0,
-        rect.y + rect.height / 2.0 + 3.0,
+        r#"<path d="M {} {} L {} {} L {} {} Z" fill="{}"/>"#,
+        fmt_coord(rect.x + rect.width - 16.0),
+        fmt_coord(rect.y + rect.height / 2.0 - 3.0),
+        fmt_coord(rect.x + rect.width - 8.0),
+        fmt_coord(rect.y + rect.height / 2.0 - 3.0),
+        fmt_coord(rect.x + rect.width - 12.0),
+        fmt_coord(rect.y + rect.height / 2.0 + 3.0),
         border,
     )
     .unwrap();
@@ -280,11 +279,8 @@ fn render_table(
 ) {
     write!(
         buf,
-        r#"<rect fill="{fill}" height="{h:.1}" style="stroke:{border};stroke-width:1;" width="{w:.1}" x="{x:.1}" y="{y:.1}"/>"#,
-        x = rect.x,
-        y = rect.y,
-        w = rect.width,
-        h = rect.height,
+        r#"<rect fill="{fill}" height="{}" style="stroke:{border};stroke-width:0.5;" width="{}" x="{}" y="{}"/>"#,
+        fmt_coord(rect.height), fmt_coord(rect.width), fmt_coord(rect.x), fmt_coord(rect.y),
     )
     .unwrap();
     buf.push('\n');
@@ -294,21 +290,20 @@ fn render_table(
         x_cursor += *width;
         write!(
             buf,
-            r#"<line style="stroke:{border};stroke-width:1;" x1="{x:.1}" x2="{x:.1}" y1="{y1:.1}" y2="{y2:.1}"/>"#,
-            x = x_cursor,
-            y1 = rect.y,
-            y2 = rect.y + rect.height,
+            r#"<line style="stroke:{border};stroke-width:0.5;" x1="{xc}" x2="{xc}" y1="{}" y2="{}"/>"#,
+            fmt_coord(rect.y), fmt_coord(rect.y + rect.height),
+            xc = fmt_coord(x_cursor),
         )
         .unwrap();
         buf.push('\n');
     }
-    for row in 1..=rows.len() {
-        let y = rect.y + row as f64 * row_height;
+    for row_idx in 1..=rows.len() {
+        let line_y = rect.y + row_idx as f64 * row_height;
         write!(
             buf,
-            r#"<line style="stroke:{border};stroke-width:1;" x1="{x1:.1}" x2="{x2:.1}" y1="{y:.1}" y2="{y:.1}"/>"#,
-            x1 = rect.x,
-            x2 = rect.x + rect.width,
+            r#"<line style="stroke:{border};stroke-width:0.5;" x1="{}" x2="{}" y1="{ly}" y2="{ly}"/>"#,
+            fmt_coord(rect.x), fmt_coord(rect.x + rect.width),
+            ly = fmt_coord(line_y),
         )
         .unwrap();
         buf.push('\n');
@@ -347,7 +342,7 @@ fn render_text(buf: &mut String, x: f64, y: f64, text: &str, font: &str, anchor:
     if let Some(anchor) = anchor {
         write!(buf, r#" text-anchor="{}""#, xml_escape(anchor)).unwrap();
     }
-    write!(buf, r#" x="{x:.1}" y="{y:.1}">{}"#, xml_escape(text)).unwrap();
+    write!(buf, r#" x="{}" y="{}">{}"#, fmt_coord(x), fmt_coord(y), xml_escape(text)).unwrap();
     buf.push_str("</text>\n");
 }
 

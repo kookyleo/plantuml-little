@@ -2,6 +2,7 @@ use std::fmt::Write;
 
 use crate::layout::json_diagram::{JsonLayout, JsonRowLayout};
 use crate::model::json_diagram::JsonDiagram;
+use crate::render::svg::fmt_coord;
 use crate::render::svg::xml_escape;
 use crate::render::svg::write_svg_root;
 use crate::style::SkinParams;
@@ -79,7 +80,8 @@ fn render_row(
     // Background rectangle
     write!(
         buf,
-        r#"<rect fill="{fill}" height="{h:.1}" style="stroke:{border_color};stroke-width:0.5;" width="{w:.1}" x="{x:.1}" y="{y:.1}"/>"#,
+        r#"<rect fill="{fill}" height="{}" style="stroke:{border_color};stroke-width:0.5;" width="{}" x="{}" y="{}"/>"#,
+        fmt_coord(h), fmt_coord(w), fmt_coord(x), fmt_coord(y),
     )
     .unwrap();
     buf.push('\n');
@@ -99,7 +101,8 @@ fn render_row(
         let escaped = xml_escape(&label);
         write!(
             buf,
-            r#"<text fill="{font_color}" font-family="sans-serif" font-size="12" font-weight="bold" x="{text_x:.1}" y="{text_y:.1}">{escaped}</text>"#,
+            r#"<text fill="{font_color}" font-family="sans-serif" font-size="12" font-weight="bold" x="{}" y="{}">{escaped}</text>"#,
+            fmt_coord(text_x), fmt_coord(text_y),
         )
         .unwrap();
         buf.push('\n');
@@ -111,7 +114,8 @@ fn render_row(
             let key_escaped = xml_escape(key);
             write!(
                 buf,
-                r#"<text fill="{font_color}" font-family="sans-serif" font-size="12" font-weight="bold" x="{key_x:.1}" y="{text_y:.1}">{key_escaped}</text>"#,
+                r#"<text fill="{font_color}" font-family="sans-serif" font-size="12" font-weight="bold" x="{}" y="{}">{key_escaped}</text>"#,
+                fmt_coord(key_x), fmt_coord(text_y),
             )
             .unwrap();
             buf.push('\n');
@@ -123,7 +127,8 @@ fn render_row(
         let val_escaped = xml_escape(&row.value);
         write!(
             buf,
-            r#"<text fill="{font_color}" font-family="sans-serif" font-size="12" x="{val_x:.1}" y="{text_y:.1}">{val_escaped}</text>"#,
+            r#"<text fill="{font_color}" font-family="sans-serif" font-size="12" x="{}" y="{}">{val_escaped}</text>"#,
+            fmt_coord(val_x), fmt_coord(text_y),
         )
         .unwrap();
         buf.push('\n');
@@ -146,7 +151,9 @@ fn render_connectors(buf: &mut String, layout: &JsonLayout) {
                 let y2 = cy + 4.0;
                 write!(
                     buf,
-                    r#"<line style="stroke:{CONNECTOR_COLOR};stroke-width:1;" x1="{cx:.1}" x2="{cx:.1}" y1="{cy:.1}" y2="{y2:.1}"/>"#,
+                    r#"<line style="stroke:{CONNECTOR_COLOR};stroke-width:0.5;" x1="{cxf}" x2="{cxf}" y1="{}" y2="{}"/>"#,
+                    fmt_coord(cy), fmt_coord(y2),
+                    cxf = fmt_coord(cx),
                 )
                 .unwrap();
                 buf.push('\n');

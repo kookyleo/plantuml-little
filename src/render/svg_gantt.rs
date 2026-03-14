@@ -4,6 +4,7 @@ use crate::layout::gantt::{
     GanttBarLayout, GanttDepLayout, GanttLayout, GanttNoteLayout, GanttTimeAxis,
 };
 use crate::model::gantt::GanttDiagram;
+use crate::render::svg::fmt_coord;
 use crate::render::svg::xml_escape;
 use crate::render::svg::write_svg_root;
 use crate::render::svg_richtext::render_creole_text;
@@ -42,9 +43,6 @@ pub fn render_gantt(
     write_svg_root(&mut buf, layout.width, layout.height, "GANTT");
     buf.push_str("<defs/><g>");
 
-    // Defs: arrow marker
-    write_defs(&mut buf);
-
     // Grid lines
     render_grid(&mut buf, layout);
 
@@ -72,27 +70,6 @@ pub fn render_gantt(
 }
 
 // ---------------------------------------------------------------------------
-// Defs
-// ---------------------------------------------------------------------------
-
-fn write_defs(buf: &mut String) {
-    buf.push_str("<defs>\n");
-    write!(
-        buf,
-        concat!(
-            r#"<marker id="gantt-arrow" viewBox="0 0 10 10" refX="10" refY="5""#,
-            r#" markerWidth="8" markerHeight="8" orient="auto-start-reverse">"#,
-            r#"<path d="M 0 0 L 10 5 L 0 10 Z" fill="{}" stroke="none"/>"#,
-            r#"</marker>"#,
-        ),
-        ARROW_COLOR,
-    )
-    .unwrap();
-    buf.push('\n');
-    buf.push_str("</defs>\n");
-}
-
-// ---------------------------------------------------------------------------
 // Grid lines
 // ---------------------------------------------------------------------------
 
@@ -101,10 +78,9 @@ fn render_grid(buf: &mut String, layout: &GanttLayout) {
     for label in &layout.time_axis.labels {
         write!(
             buf,
-            r#"<line style="stroke:{GRID_COLOR};stroke-width:0.5;" x1="{x:.1}" x2="{x:.1}" y1="{y1:.1}" y2="{y2:.1}"/>"#,
-            x = label.x,
-            y1 = layout.time_axis.y,
-            y2 = layout.height,
+            r#"<line style="stroke:{GRID_COLOR};stroke-width:0.5;" x1="{x}" x2="{x}" y1="{}" y2="{}"/>"#,
+            fmt_coord(layout.time_axis.y), fmt_coord(layout.height),
+            x = fmt_coord(label.x),
         )
         .unwrap();
         buf.push('\n');
@@ -120,9 +96,8 @@ fn render_time_axis(buf: &mut String, axis: &GanttTimeAxis) {
         let escaped = xml_escape(&label.text);
         write!(
             buf,
-            r#"<text fill="{AXIS_TEXT_COLOR}" font-family="sans-serif" font-size="{fs:.0}" text-anchor="middle" x="{x:.1}" y="{y:.1}">{escaped}</text>"#,
-            x = label.x,
-            y = axis.y + FONT_SIZE + 2.0,
+            r#"<text fill="{AXIS_TEXT_COLOR}" font-family="sans-serif" font-size="{fs:.0}" text-anchor="middle" x="{}" y="{}">{escaped}</text>"#,
+            fmt_coord(label.x), fmt_coord(axis.y + FONT_SIZE + 2.0),
             fs = FONT_SIZE - 1.0,
         )
         .unwrap();
@@ -157,11 +132,8 @@ fn render_bar(buf: &mut String, bar: &GanttBarLayout, font_color: &str) {
     // Bar rectangle
     write!(
         buf,
-        r#"<rect fill="{fill}" height="{h:.1}" rx="3" ry="3" style="stroke:{stroke};stroke-width:1;" width="{w:.1}" x="{x:.1}" y="{y:.1}"/>"#,
-        x = bar.x,
-        y = bar.y,
-        w = bar.width,
-        h = bar.height,
+        r#"<rect fill="{fill}" height="{}" rx="3" ry="3" style="stroke:{stroke};stroke-width:0.5;" width="{}" x="{}" y="{}"/>"#,
+        fmt_coord(bar.height), fmt_coord(bar.width), fmt_coord(bar.x), fmt_coord(bar.y),
     )
     .unwrap();
     buf.push('\n');
@@ -195,7 +167,8 @@ fn render_dependency(buf: &mut String, dep: &GanttDepLayout) {
         let (x2, y2) = dep.points[1];
         write!(
             buf,
-            r#"<line marker-end="url(#gantt-arrow)" style="stroke:{ARROW_COLOR};stroke-width:1;" x1="{x1:.1}" x2="{x2:.1}" y1="{y1:.1}" y2="{y2:.1}"/>"#,
+            r#"<line style="stroke:{ARROW_COLOR};stroke-width:1;" x1="{}" x2="{}" y1="{}" y2="{}"/>"#,
+            fmt_coord(x1), fmt_coord(x2), fmt_coord(y1), fmt_coord(y2),
         )
         .unwrap();
         buf.push('\n');
@@ -203,15 +176,47 @@ fn render_dependency(buf: &mut String, dep: &GanttDepLayout) {
         let points_str: String = dep
             .points
             .iter()
-            .map(|(px, py)| format!("{px:.1},{py:.1}"))
+            .map(|(px, py)| format!("{},{}", fmt_coord(*px), fmt_coord(*py)))
             .collect::<Vec<_>>()
             .join(" ");
         write!(
             buf,
-            r#"<polyline fill="none" marker-end="url(#gantt-arrow)" points="{points_str}" style="stroke:{ARROW_COLOR};stroke-width:1;"/>"#,
+            r#"<polyline fill="none" points="{points_str}" style="stroke:{ARROW_COLOR};stroke-width:1;"/>"#,
         )
         .unwrap();
         buf.push('\n');
+    }
+
+    // Inline polygon arrowhead at the last point
+    if dep.points.len() >= 2 {
+        let (tx, ty) = dep.points[dep.points.len() - 1];
+        let (fx, fy) = dep.points[dep.points.len() - 2];
+        let dx = tx - fx;
+        let dy = ty - fy;
+        let len = (dx * dx + dy * dy).sqrt();
+        if len > 0.0 {
+            let ux = dx / len;
+            let uy = dy / len;
+            let px = -uy;
+            let py = ux;
+            let p1x = tx - ux * 9.0 + px * 4.0;
+            let p1y = ty - uy * 9.0 + py * 4.0;
+            let p2x = tx;
+            let p2y = ty;
+            let p3x = tx - ux * 9.0 - px * 4.0;
+            let p3y = ty - uy * 9.0 - py * 4.0;
+
+            write!(
+                buf,
+                r#"<polygon fill="{ARROW_COLOR}" points="{},{},{},{},{},{},{},{}" style="stroke:{ARROW_COLOR};stroke-width:1;"/>"#,
+                fmt_coord(p1x), fmt_coord(p1y),
+                fmt_coord(p2x), fmt_coord(p2y),
+                fmt_coord(p3x), fmt_coord(p3y),
+                fmt_coord(p1x), fmt_coord(p1y),
+            )
+            .unwrap();
+            buf.push('\n');
+        }
     }
 }
 
@@ -219,7 +224,8 @@ fn render_note(buf: &mut String, note: &GanttNoteLayout, font_color: &str) {
     if let Some((x1, y1, x2, y2)) = note.connector {
         write!(
             buf,
-            r#"<line style="stroke:{NOTE_BORDER};stroke-width:1;stroke-dasharray:4,4;" x1="{x1:.1}" x2="{x2:.1}" y1="{y1:.1}" y2="{y2:.1}"/>"#,
+            r#"<line style="stroke:{NOTE_BORDER};stroke-width:0.5;stroke-dasharray:4,4;" x1="{}" x2="{}" y1="{}" y2="{}"/>"#,
+            fmt_coord(x1), fmt_coord(x2), fmt_coord(y1), fmt_coord(y2),
         )
         .unwrap();
         buf.push('\n');
@@ -227,26 +233,26 @@ fn render_note(buf: &mut String, note: &GanttNoteLayout, font_color: &str) {
 
     let fold_x = note.x + note.width - NOTE_FOLD;
     let fold_y = note.y + NOTE_FOLD;
+    let x2 = note.x + note.width;
+    let y2 = note.y + note.height;
     write!(
         buf,
-        r#"<polygon fill="{NOTE_BG}" points="{x:.1},{y:.1} {fx:.1},{y:.1} {x2:.1},{fy:.1} {x2:.1},{y2:.1} {x:.1},{y2:.1}" style="stroke:{NOTE_BORDER};stroke-width:1;"/>"#,
-        x = note.x,
-        y = note.y,
-        fx = fold_x,
-        fy = fold_y,
-        x2 = note.x + note.width,
-        y2 = note.y + note.height,
+        r#"<polygon fill="{NOTE_BG}" points="{},{} {},{} {},{} {},{} {},{}" style="stroke:{NOTE_BORDER};stroke-width:0.5;"/>"#,
+        fmt_coord(note.x), fmt_coord(note.y),
+        fmt_coord(fold_x), fmt_coord(note.y),
+        fmt_coord(x2), fmt_coord(fold_y),
+        fmt_coord(x2), fmt_coord(y2),
+        fmt_coord(note.x), fmt_coord(y2),
     )
     .unwrap();
     buf.push('\n');
 
     write!(
         buf,
-        r#"<path d="M {fx:.1},{y:.1} L {fx:.1},{fy:.1} L {x2:.1},{fy:.1}" fill="none" style="stroke:{NOTE_BORDER};stroke-width:1;"/>"#,
-        fx = fold_x,
-        fy = fold_y,
-        x2 = note.x + note.width,
-        y = note.y,
+        r#"<path d="M {},{} L {},{} L {},{}" fill="none" style="stroke:{NOTE_BORDER};stroke-width:0.5;"/>"#,
+        fmt_coord(fold_x), fmt_coord(note.y),
+        fmt_coord(fold_x), fmt_coord(fold_y),
+        fmt_coord(x2), fmt_coord(fold_y),
     )
     .unwrap();
     buf.push('\n');
@@ -326,15 +332,13 @@ mod tests {
         assert!(svg.contains("xmlns=\"http://www.w3.org/2000/svg\""));
     }
 
-    // 2. SVG contains defs with marker
+    // 2. SVG contains empty defs
     #[test]
-    fn test_defs_marker() {
+    fn test_defs_empty() {
         let model = empty_model();
         let layout = empty_layout();
         let svg = render_gantt(&model, &layout, &SkinParams::default()).expect("render failed");
-        assert!(svg.contains("<defs>"));
-        assert!(svg.contains("gantt-arrow"));
-        assert!(svg.contains("</defs>"));
+        assert!(svg.contains("<defs/>"), "must have empty defs");
     }
 
     // 3. Single bar renders rect and label
@@ -433,8 +437,8 @@ mod tests {
         let svg = render_gantt(&model, &layout, &SkinParams::default()).expect("render failed");
         assert!(svg.contains("<line "), "2-point dep should use <line>");
         assert!(
-            svg.contains(r#"marker-end="url(#gantt-arrow)""#),
-            "must have arrow marker"
+            svg.contains("<polygon"),
+            "must have inline polygon arrowhead"
         );
     }
 
@@ -454,8 +458,8 @@ mod tests {
             "multi-point dep should use <polyline>"
         );
         assert!(
-            svg.contains(r#"marker-end="url(#gantt-arrow)""#),
-            "polyline must also have arrow marker"
+            svg.contains("<polygon"),
+            "polyline must also have inline polygon arrowhead"
         );
     }
 
@@ -547,8 +551,8 @@ mod tests {
         assert!(svg.contains("Build"));
         assert!(svg.contains("D1"));
         assert!(
-            svg.matches(r#"marker-end="url(#gantt-arrow)""#).count() >= 1,
-            "at least 1 dep arrow"
+            svg.matches("<polygon").count() >= 1,
+            "at least 1 dep arrow polygon"
         );
     }
 
@@ -583,6 +587,7 @@ mod tests {
         });
         let svg = render_gantt(&model, &layout, &SkinParams::default()).expect("render failed");
         assert!(svg.contains("<polygon"), "note body must be rendered");
+        // Note connector line is dashed
         assert!(svg.contains("stroke-dasharray:4,4;"));
         assert!(
             svg.contains("font-weight=\"bold\""),

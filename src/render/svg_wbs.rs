@@ -2,6 +2,7 @@ use std::fmt::Write;
 
 use crate::layout::wbs::{WbsEdgeLayout, WbsLayout, WbsNodeLayout, WbsNoteLayout};
 use crate::model::wbs::WbsDiagram;
+use crate::render::svg::fmt_coord;
 use crate::render::svg_richtext::{count_creole_lines, render_creole_text};
 use crate::style::SkinParams;
 use crate::Result;
@@ -84,11 +85,8 @@ fn render_node(buf: &mut String, node: &WbsNodeLayout, bg: &str, border: &str, f
     // Rectangle
     write!(
         buf,
-        r#"<rect fill="{fill}" height="{h:.1}" rx="{RX}" ry="{RX}" style="stroke:{border};stroke-width:1;" width="{w:.1}" x="{x:.1}" y="{y:.1}"/>"#,
-        x = node.x,
-        y = node.y,
-        w = node.width,
-        h = node.height,
+        r#"<rect fill="{fill}" height="{}" rx="{RX}" ry="{RX}" style="stroke:{border};stroke-width:0.5;" width="{}" x="{}" y="{}"/>"#,
+        fmt_coord(node.height), fmt_coord(node.width), fmt_coord(node.x), fmt_coord(node.y),
     )
     .unwrap();
     buf.push('\n');
@@ -119,7 +117,8 @@ fn render_note(buf: &mut String, note: &WbsNoteLayout, font_color: &str) {
     if let Some((x1, y1, x2, y2)) = note.connector {
         write!(
             buf,
-            r#"<line style="stroke:{NOTE_BORDER};stroke-width:1;stroke-dasharray:4,4;" x1="{x1:.1}" x2="{x2:.1}" y1="{y1:.1}" y2="{y2:.1}"/>"#,
+            r#"<line style="stroke:{NOTE_BORDER};stroke-width:0.5;stroke-dasharray:4,4;" x1="{}" x2="{}" y1="{}" y2="{}"/>"#,
+            fmt_coord(x1), fmt_coord(x2), fmt_coord(y1), fmt_coord(y2),
         )
         .unwrap();
         buf.push('\n');
@@ -127,26 +126,26 @@ fn render_note(buf: &mut String, note: &WbsNoteLayout, font_color: &str) {
 
     let fold_x = note.x + note.width - NOTE_FOLD;
     let fold_y = note.y + NOTE_FOLD;
+    let x2 = note.x + note.width;
+    let y2 = note.y + note.height;
     write!(
         buf,
-        r#"<polygon fill="{NOTE_BG}" points="{x:.1},{y:.1} {fx:.1},{y:.1} {x2:.1},{fy:.1} {x2:.1},{y2:.1} {x:.1},{y2:.1}" style="stroke:{NOTE_BORDER};stroke-width:1;"/>"#,
-        x = note.x,
-        y = note.y,
-        fx = fold_x,
-        fy = fold_y,
-        x2 = note.x + note.width,
-        y2 = note.y + note.height,
+        r#"<polygon fill="{NOTE_BG}" points="{},{} {},{} {},{} {},{} {},{}" style="stroke:{NOTE_BORDER};stroke-width:0.5;"/>"#,
+        fmt_coord(note.x), fmt_coord(note.y),
+        fmt_coord(fold_x), fmt_coord(note.y),
+        fmt_coord(x2), fmt_coord(fold_y),
+        fmt_coord(x2), fmt_coord(y2),
+        fmt_coord(note.x), fmt_coord(y2),
     )
     .unwrap();
     buf.push('\n');
 
     write!(
         buf,
-        r#"<path d="M {fx:.1},{y:.1} L {fx:.1},{fy:.1} L {x2:.1},{fy:.1}" fill="none" style="stroke:{NOTE_BORDER};stroke-width:1;"/>"#,
-        fx = fold_x,
-        fy = fold_y,
-        x2 = note.x + note.width,
-        y = note.y,
+        r#"<path d="M {},{} L {},{} L {},{}" fill="none" style="stroke:{NOTE_BORDER};stroke-width:0.5;"/>"#,
+        fmt_coord(fold_x), fmt_coord(note.y),
+        fmt_coord(fold_x), fmt_coord(fold_y),
+        fmt_coord(x2), fmt_coord(fold_y),
     )
     .unwrap();
     buf.push('\n');
@@ -172,12 +171,11 @@ fn render_edge(buf: &mut String, edge: &WbsEdgeLayout, color: &str) {
 
     write!(
         buf,
-        r#"<path d="M {fx:.1} {fy:.1} L {fx:.1} {my:.1} L {tx:.1} {my:.1} L {tx:.1} {ty:.1}" fill="none" style="stroke:{color};stroke-width:1;"/>"#,
-        fx = edge.from_x,
-        fy = edge.from_y,
-        my = mid_y,
-        tx = edge.to_x,
-        ty = edge.to_y,
+        r#"<path d="M {} {} L {} {} L {} {} L {} {}" fill="none" style="stroke:{color};stroke-width:0.5;"/>"#,
+        fmt_coord(edge.from_x), fmt_coord(edge.from_y),
+        fmt_coord(edge.from_x), fmt_coord(mid_y),
+        fmt_coord(edge.to_x), fmt_coord(mid_y),
+        fmt_coord(edge.to_x), fmt_coord(edge.to_y),
     )
     .unwrap();
     buf.push('\n');
@@ -187,11 +185,8 @@ fn render_edge(buf: &mut String, edge: &WbsEdgeLayout, color: &str) {
 fn render_extra_link(buf: &mut String, link: &WbsEdgeLayout, color: &str) {
     write!(
         buf,
-        r#"<line style="stroke:{color};stroke-width:1;stroke-dasharray:4,4;" x1="{x1:.1}" x2="{x2:.1}" y1="{y1:.1}" y2="{y2:.1}"/>"#,
-        x1 = link.from_x,
-        y1 = link.from_y,
-        x2 = link.to_x,
-        y2 = link.to_y,
+        r#"<line style="stroke:{color};stroke-width:0.5;stroke-dasharray:4,4;" x1="{}" x2="{}" y1="{}" y2="{}"/>"#,
+        fmt_coord(link.from_x), fmt_coord(link.to_x), fmt_coord(link.from_y), fmt_coord(link.to_y),
     )
     .unwrap();
     buf.push('\n');

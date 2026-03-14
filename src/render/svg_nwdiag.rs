@@ -4,6 +4,7 @@ use crate::layout::nwdiag::{
     NwdiagConnectorLayout, NwdiagLayout, NwdiagNetworkLayout, NwdiagServerLayout,
 };
 use crate::model::nwdiag::NwdiagDiagram;
+use crate::render::svg::fmt_coord;
 use crate::render::svg_richtext::render_creole_text;
 use crate::style::SkinParams;
 use crate::Result;
@@ -57,10 +58,9 @@ pub fn render_nwdiag(
 fn render_connector(buf: &mut String, connector: &NwdiagConnectorLayout) {
     write!(
         buf,
-        r#"<line style="stroke:{CONNECTOR_COLOR};stroke-width:1;stroke-dasharray:4,4;" x1="{x:.1}" x2="{x:.1}" y1="{y1:.1}" y2="{y2:.1}"/>"#,
-        x = connector.x,
-        y1 = connector.y1,
-        y2 = connector.y2,
+        r#"<line style="stroke:{CONNECTOR_COLOR};stroke-width:0.5;stroke-dasharray:4,4;" x1="{cx}" x2="{cx}" y1="{}" y2="{}"/>"#,
+        fmt_coord(connector.y1), fmt_coord(connector.y2),
+        cx = fmt_coord(connector.x),
     )
     .unwrap();
     buf.push('\n');
@@ -76,11 +76,8 @@ fn render_network(buf: &mut String, network: &NwdiagNetworkLayout, skin: &SkinPa
 
     write!(
         buf,
-        r#"<rect fill="{fill}" height="{h:.1}" rx="8" ry="8" style="stroke:{border};stroke-width:1;" width="{w:.1}" x="{x:.1}" y="{y:.1}"/>"#,
-        x = network.x,
-        y = network.y,
-        w = network.width,
-        h = network.height,
+        r#"<rect fill="{fill}" height="{}" rx="8" ry="8" style="stroke:{border};stroke-width:0.5;" width="{}" x="{}" y="{}"/>"#,
+        fmt_coord(network.height), fmt_coord(network.width), fmt_coord(network.x), fmt_coord(network.y),
     )
     .unwrap();
     buf.push('\n');
@@ -116,11 +113,8 @@ fn render_server(buf: &mut String, server: &NwdiagServerLayout, skin: &SkinParam
 
     write!(
         buf,
-        r#"<rect fill="{fill}" height="{h:.1}" rx="4" ry="4" style="stroke:{border};stroke-width:1;" width="{w:.1}" x="{x:.1}" y="{y:.1}"/>"#,
-        x = server.x,
-        y = server.y,
-        w = server.width,
-        h = server.height,
+        r#"<rect fill="{fill}" height="{}" rx="4" ry="4" style="stroke:{border};stroke-width:0.5;" width="{}" x="{}" y="{}"/>"#,
+        fmt_coord(server.height), fmt_coord(server.width), fmt_coord(server.x), fmt_coord(server.y),
     )
     .unwrap();
     buf.push('\n');

@@ -4,6 +4,7 @@ use crate::layout::usecase::{
     ActorLayout, BoundaryLayout, UseCaseEdgeLayout, UseCaseLayout, UseCaseNodeLayout,
 };
 use crate::model::usecase::UseCaseDiagram;
+use crate::render::svg::fmt_coord;
 use crate::render::svg::xml_escape;
 use crate::render::svg::write_svg_root;
 use crate::style::SkinParams;
@@ -60,8 +61,6 @@ pub fn render_usecase(
     write_svg_root(&mut buf, layout.total_width, layout.total_height, "DESCRIPTION");
     buf.push_str("<defs/><g>");
 
-    write_defs(&mut buf, arrow_color);
-
     // Boundaries first (behind everything)
     for boundary in &layout.boundaries {
         render_boundary(&mut buf, boundary, boundary_border, boundary_font);
@@ -87,40 +86,6 @@ pub fn render_usecase(
 }
 
 // ---------------------------------------------------------------------------
-// Defs: arrow marker
-// ---------------------------------------------------------------------------
-
-fn write_defs(buf: &mut String, arrow_color: &str) {
-    buf.push_str("<defs>\n");
-    write!(
-        buf,
-        concat!(
-            r#"<marker id="uc-arrow" viewBox="0 0 10 10" refX="10" refY="5""#,
-            r#" markerWidth="8" markerHeight="8" orient="auto-start-reverse">"#,
-            r#"<path d="M 0 0 L 10 5 L 0 10 Z" fill="{c}" stroke="none"/>"#,
-            r#"</marker>"#,
-        ),
-        c = arrow_color,
-    )
-    .unwrap();
-    buf.push('\n');
-    // Open-arrow (non-filled) for inheritance / dashed links
-    write!(
-        buf,
-        concat!(
-            r#"<marker id="uc-open-arrow" viewBox="0 0 10 10" refX="10" refY="5""#,
-            r#" markerWidth="8" markerHeight="8" orient="auto-start-reverse">"#,
-            r#"<path d="M 0 0 L 10 5 L 0 10" fill="none" stroke="{c}" stroke-width="1.5"/>"#,
-            r#"</marker>"#,
-        ),
-        c = arrow_color,
-    )
-    .unwrap();
-    buf.push('\n');
-    buf.push_str("</defs>\n");
-}
-
-// ---------------------------------------------------------------------------
 // Actor (stick figure)
 // ---------------------------------------------------------------------------
 
@@ -141,7 +106,8 @@ fn render_actor(buf: &mut String, actor: &ActorLayout, stroke: &str, font_color:
     // Head circle
     write!(
         buf,
-        r#"<circle cx="{cx:.1}" cy="{head_cy:.1}" fill="none" r="{HEAD_R}" style="stroke:{stroke};stroke-width:1.5;"/>"#,
+        r#"<circle cx="{}" cy="{}" fill="none" r="{HEAD_R}" style="stroke:{stroke};stroke-width:0.5;"/>"#,
+        fmt_coord(cx), fmt_coord(head_cy),
     )
     .unwrap();
     buf.push('\n');
@@ -149,51 +115,52 @@ fn render_actor(buf: &mut String, actor: &ActorLayout, stroke: &str, font_color:
     // Body
     write!(
         buf,
-        r#"<line style="stroke:{stroke};stroke-width:1.5;" x1="{cx:.1}" x2="{cx:.1}" y1="{body_top_y:.1}" y2="{body_bot_y:.1}"/>"#,
+        r#"<line style="stroke:{stroke};stroke-width:0.5;" x1="{}" x2="{}" y1="{}" y2="{}"/>"#,
+        fmt_coord(cx), fmt_coord(cx), fmt_coord(body_top_y), fmt_coord(body_bot_y),
     )
     .unwrap();
     buf.push('\n');
 
     // Left arm
+    let la_x = cx - ARM_SPREAD;
+    let la_y = arm_y - ARM_RAISE;
     write!(
         buf,
-        r#"<line style="stroke:{stroke};stroke-width:1.5;" x1="{cx:.1}" x2="{lx:.1}" y1="{ay:.1}" y2="{lay:.1}"/>"#,
-        ay = arm_y,
-        lx = cx - ARM_SPREAD,
-        lay = arm_y - ARM_RAISE,
+        r#"<line style="stroke:{stroke};stroke-width:0.5;" x1="{}" x2="{}" y1="{}" y2="{}"/>"#,
+        fmt_coord(cx), fmt_coord(la_x), fmt_coord(arm_y), fmt_coord(la_y),
     )
     .unwrap();
     buf.push('\n');
 
     // Right arm
+    let ra_x = cx + ARM_SPREAD;
+    let ra_y = arm_y - ARM_RAISE;
     write!(
         buf,
-        r#"<line style="stroke:{stroke};stroke-width:1.5;" x1="{cx:.1}" x2="{rx:.1}" y1="{ay:.1}" y2="{ray:.1}"/>"#,
-        ay = arm_y,
-        rx = cx + ARM_SPREAD,
-        ray = arm_y - ARM_RAISE,
+        r#"<line style="stroke:{stroke};stroke-width:0.5;" x1="{}" x2="{}" y1="{}" y2="{}"/>"#,
+        fmt_coord(cx), fmt_coord(ra_x), fmt_coord(arm_y), fmt_coord(ra_y),
     )
     .unwrap();
     buf.push('\n');
 
     // Left leg
+    let ll_x = cx - LEG_SPREAD;
+    let ll_y = leg_y + LEG_DROP;
     write!(
         buf,
-        r#"<line style="stroke:{stroke};stroke-width:1.5;" x1="{cx:.1}" x2="{lx:.1}" y1="{ly:.1}" y2="{lby:.1}"/>"#,
-        ly = leg_y,
-        lx = cx - LEG_SPREAD,
-        lby = leg_y + LEG_DROP,
+        r#"<line style="stroke:{stroke};stroke-width:0.5;" x1="{}" x2="{}" y1="{}" y2="{}"/>"#,
+        fmt_coord(cx), fmt_coord(ll_x), fmt_coord(leg_y), fmt_coord(ll_y),
     )
     .unwrap();
     buf.push('\n');
 
     // Right leg
+    let rl_x = cx + LEG_SPREAD;
+    let rl_y = leg_y + LEG_DROP;
     write!(
         buf,
-        r#"<line style="stroke:{stroke};stroke-width:1.5;" x1="{cx:.1}" x2="{rx:.1}" y1="{ly:.1}" y2="{lby:.1}"/>"#,
-        ly = leg_y,
-        rx = cx + LEG_SPREAD,
-        lby = leg_y + LEG_DROP,
+        r#"<line style="stroke:{stroke};stroke-width:0.5;" x1="{}" x2="{}" y1="{}" y2="{}"/>"#,
+        fmt_coord(cx), fmt_coord(rl_x), fmt_coord(leg_y), fmt_coord(rl_y),
     )
     .unwrap();
     buf.push('\n');
@@ -202,7 +169,8 @@ fn render_actor(buf: &mut String, actor: &ActorLayout, stroke: &str, font_color:
     let name_escaped = xml_escape(&actor.name);
     write!(
         buf,
-        r#"<text fill="{font_color}" font-family="sans-serif" font-size="{FONT_SIZE}" text-anchor="middle" x="{cx:.1}" y="{name_y:.1}">{name_escaped}</text>"#,
+        r#"<text fill="{font_color}" font-family="sans-serif" font-size="{FONT_SIZE}" text-anchor="middle" x="{}" y="{}">{name_escaped}</text>"#,
+        fmt_coord(cx), fmt_coord(name_y),
     )
     .unwrap();
     buf.push('\n');
@@ -221,11 +189,8 @@ fn render_usecase_oval(
 ) {
     write!(
         buf,
-        r#"<ellipse cx="{cx:.1}" cy="{cy:.1}" fill="{bg}" rx="{rx:.1}" ry="{ry:.1}" style="stroke:{border};stroke-width:1.5;"/>"#,
-        cx = uc.cx,
-        cy = uc.cy,
-        rx = uc.rx,
-        ry = uc.ry,
+        r#"<ellipse cx="{}" cy="{}" fill="{bg}" rx="{}" ry="{}" style="stroke:{border};stroke-width:0.5;"/>"#,
+        fmt_coord(uc.cx), fmt_coord(uc.cy), fmt_coord(uc.rx), fmt_coord(uc.ry),
     )
     .unwrap();
     buf.push('\n');
@@ -234,9 +199,8 @@ fn render_usecase_oval(
     let text_y = uc.cy + FONT_SIZE * 0.35;
     write!(
         buf,
-        r#"<text fill="{font_color}" font-family="sans-serif" font-size="{FONT_SIZE}" text-anchor="middle" x="{cx:.1}" y="{ty:.1}">{name_escaped}</text>"#,
-        cx = uc.cx,
-        ty = text_y,
+        r#"<text fill="{font_color}" font-family="sans-serif" font-size="{FONT_SIZE}" text-anchor="middle" x="{}" y="{}">{name_escaped}</text>"#,
+        fmt_coord(uc.cx), fmt_coord(text_y),
     )
     .unwrap();
     buf.push('\n');
@@ -247,21 +211,18 @@ fn render_usecase_oval(
 // ---------------------------------------------------------------------------
 
 fn render_boundary(buf: &mut String, boundary: &BoundaryLayout, border: &str, font_color: &str) {
-    // Nested boundaries use a thinner stroke and a light background fill
+    // Nested boundaries use a light background fill
     // to visually distinguish inner rectangles from outer ones.
-    let (stroke_width, fill, dash) = if boundary.nesting_depth > 0 {
-        ("1.0", "#F8F8FF", r#"stroke-dasharray="6,3""#)
+    let (fill, dash) = if boundary.nesting_depth > 0 {
+        ("#F8F8FF", r#"stroke-dasharray="6,3""#)
     } else {
-        ("1.5", "none", r#"stroke-dasharray="8,4""#)
+        ("none", r#"stroke-dasharray="8,4""#)
     };
 
     write!(
         buf,
-        r#"<rect fill="{fill}" height="{h:.1}" rx="4" ry="4" style="stroke:{border};stroke-width:{stroke_width};" width="{w:.1}" x="{x:.1}" y="{y:.1}"{dash}/>"#,
-        x = boundary.x,
-        y = boundary.y,
-        w = boundary.width,
-        h = boundary.height,
+        r#"<rect fill="{fill}" height="{}" rx="4" ry="4" style="stroke:{border};stroke-width:0.5;" width="{}" x="{}" y="{}"{dash}/>"#,
+        fmt_coord(boundary.height), fmt_coord(boundary.width), fmt_coord(boundary.x), fmt_coord(boundary.y),
     )
     .unwrap();
     buf.push('\n');
@@ -271,7 +232,8 @@ fn render_boundary(buf: &mut String, boundary: &BoundaryLayout, border: &str, fo
     let name_y = boundary.y + FONT_SIZE + 4.0;
     write!(
         buf,
-        r#"<text fill="{font_color}" font-family="sans-serif" font-size="{FONT_SIZE}" font-weight="bold" x="{name_x:.1}" y="{name_y:.1}">{name_escaped}</text>"#,
+        r#"<text fill="{font_color}" font-family="sans-serif" font-size="{FONT_SIZE}" font-weight="bold" x="{}" y="{}">{name_escaped}</text>"#,
+        fmt_coord(name_x), fmt_coord(name_y),
     )
     .unwrap();
     buf.push('\n');
@@ -288,22 +250,43 @@ fn render_edge(buf: &mut String, edge: &UseCaseEdgeLayout, arrow_color: &str, fo
         ""
     };
 
-    let marker = if edge.has_arrow {
-        r#" marker-end="url(#uc-open-arrow)""#
-    } else {
-        ""
-    };
-
     write!(
         buf,
-        r#"<line style="stroke:{arrow_color};stroke-width:1;" x1="{x1:.1}" x2="{x2:.1}" y1="{y1:.1}" y2="{y2:.1}"{dash}{marker}/>"#,
-        x1 = edge.from_x,
-        y1 = edge.from_y,
-        x2 = edge.to_x,
-        y2 = edge.to_y,
+        r#"<line style="stroke:{arrow_color};stroke-width:1;" x1="{}" x2="{}" y1="{}" y2="{}"{dash}/>"#,
+        fmt_coord(edge.from_x), fmt_coord(edge.to_x), fmt_coord(edge.from_y), fmt_coord(edge.to_y),
     )
     .unwrap();
     buf.push('\n');
+
+    // Inline polygon arrowhead
+    if edge.has_arrow {
+        let dx = edge.to_x - edge.from_x;
+        let dy = edge.to_y - edge.from_y;
+        let len = (dx * dx + dy * dy).sqrt();
+        if len > 0.0 {
+            let ux = dx / len;
+            let uy = dy / len;
+            let px = -uy;
+            let py = ux;
+            let p1x = edge.to_x - ux * 9.0 + px * 4.0;
+            let p1y = edge.to_y - uy * 9.0 + py * 4.0;
+            let p2x = edge.to_x;
+            let p2y = edge.to_y;
+            let p3x = edge.to_x - ux * 9.0 - px * 4.0;
+            let p3y = edge.to_y - uy * 9.0 - py * 4.0;
+
+            write!(
+                buf,
+                r#"<polygon fill="{arrow_color}" points="{},{},{},{},{},{},{},{}" style="stroke:{arrow_color};stroke-width:1;"/>"#,
+                fmt_coord(p1x), fmt_coord(p1y),
+                fmt_coord(p2x), fmt_coord(p2y),
+                fmt_coord(p3x), fmt_coord(p3y),
+                fmt_coord(p1x), fmt_coord(p1y),
+            )
+            .unwrap();
+            buf.push('\n');
+        }
+    }
 
     let mid_x = (edge.from_x + edge.to_x) / 2.0;
     let mid_y = (edge.from_y + edge.to_y) / 2.0;
@@ -315,9 +298,8 @@ fn render_edge(buf: &mut String, edge: &UseCaseEdgeLayout, arrow_color: &str, fo
             let escaped = xml_escape(&stereo_text);
             write!(
                 buf,
-                r#"<text fill="{font_color}" font-family="sans-serif" font-size="{fs:.0}" font-style="italic" text-anchor="middle" x="{mx:.1}" y="{my:.1}">{escaped}</text>"#,
-                mx = mid_x,
-                my = mid_y - FONT_SIZE - 2.0,
+                r#"<text fill="{font_color}" font-family="sans-serif" font-size="{fs:.0}" font-style="italic" text-anchor="middle" x="{}" y="{}">{escaped}</text>"#,
+                fmt_coord(mid_x), fmt_coord(mid_y - FONT_SIZE - 2.0),
                 fs = FONT_SIZE - 1.0,
             )
             .unwrap();
@@ -330,9 +312,8 @@ fn render_edge(buf: &mut String, edge: &UseCaseEdgeLayout, arrow_color: &str, fo
         let label_escaped = xml_escape(&edge.label);
         write!(
             buf,
-            r#"<text fill="{font_color}" font-family="sans-serif" font-size="{FONT_SIZE}" text-anchor="middle" x="{mx:.1}" y="{my:.1}">{label_escaped}</text>"#,
-            mx = mid_x,
-            my = mid_y + FONT_SIZE,
+            r#"<text fill="{font_color}" font-family="sans-serif" font-size="{FONT_SIZE}" text-anchor="middle" x="{}" y="{}">{label_escaped}</text>"#,
+            fmt_coord(mid_x), fmt_coord(mid_y + FONT_SIZE),
         )
         .unwrap();
         buf.push('\n');
@@ -385,12 +366,7 @@ mod tests {
         assert!(svg.contains("<svg"), "must contain <svg");
         assert!(svg.contains("</svg>"), "must contain </svg>");
         assert!(svg.contains(r#"xmlns="http://www.w3.org/2000/svg""#));
-        assert!(svg.contains("<defs>"), "must contain defs");
-        assert!(svg.contains("uc-arrow"), "must define uc-arrow marker");
-        assert!(
-            svg.contains("uc-open-arrow"),
-            "must define uc-open-arrow marker"
-        );
+        assert!(svg.contains("<defs/>"), "must have empty defs");
     }
 
     // 2. SVG dimensions match layout
@@ -566,7 +542,7 @@ mod tests {
 
         let svg = render_usecase(&diagram, &layout, &SkinParams::default()).expect("render failed");
         assert!(svg.contains("<line"), "edge must produce a line");
-        assert!(svg.contains("marker-end"), "edge must have an arrow marker");
+        assert!(svg.contains("<polygon"), "edge must have inline polygon arrowhead");
         assert!(
             !svg.contains("stroke-dasharray"),
             "association must not be dashed"

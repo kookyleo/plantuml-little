@@ -5,6 +5,7 @@ use crate::layout::timing::{
     TimingTimeAxis, TimingTrackLayout,
 };
 use crate::model::timing::TimingDiagram;
+use crate::render::svg::fmt_coord;
 use crate::render::svg_richtext::{count_creole_lines, render_creole_text};
 use crate::style::SkinParams;
 use crate::Result;
@@ -54,9 +55,6 @@ pub fn render_timing(
     write_svg_root(&mut buf, layout.width, layout.height, "TIMING");
     buf.push_str("<defs/><g>");
 
-    // Defs
-    write_defs(&mut buf, arrow_color, constraint_color);
-
     // Tick grid lines (vertical)
     render_tick_grid(&mut buf, layout);
 
@@ -87,41 +85,6 @@ pub fn render_timing(
 }
 
 // ---------------------------------------------------------------------------
-// Defs
-// ---------------------------------------------------------------------------
-
-fn write_defs(buf: &mut String, arrow_color: &str, constraint_color: &str) {
-    buf.push_str("<defs>\n");
-    // Arrow marker for messages
-    write!(
-        buf,
-        concat!(
-            r#"<marker id="timing-arrow" viewBox="0 0 10 10" refX="10" refY="5""#,
-            r#" markerWidth="8" markerHeight="8" orient="auto-start-reverse">"#,
-            r#"<path d="M 0 0 L 10 5 L 0 10 Z" fill="{}" stroke="none"/>"#,
-            r#"</marker>"#,
-        ),
-        arrow_color,
-    )
-    .unwrap();
-    buf.push('\n');
-    // Constraint arrow (double-ended)
-    write!(
-        buf,
-        concat!(
-            r#"<marker id="timing-constraint-arrow" viewBox="0 0 10 10" refX="10" refY="5""#,
-            r#" markerWidth="6" markerHeight="6" orient="auto-start-reverse">"#,
-            r#"<path d="M 0 0 L 10 5 L 0 10 Z" fill="{}" stroke="none"/>"#,
-            r#"</marker>"#,
-        ),
-        constraint_color,
-    )
-    .unwrap();
-    buf.push('\n');
-    buf.push_str("</defs>\n");
-}
-
-// ---------------------------------------------------------------------------
 // Tick grid
 // ---------------------------------------------------------------------------
 
@@ -129,9 +92,9 @@ fn render_tick_grid(buf: &mut String, layout: &TimingLayout) {
     for tick in &layout.time_axis.ticks {
         write!(
             buf,
-            r#"<line style="stroke:{TICK_COLOR};stroke-width:0.5;stroke-dasharray:4,4;" x1="{x:.1}" x2="{x:.1}" y1="0" y2="{y2:.1}"/>"#,
-            x = tick.x,
-            y2 = layout.time_axis.y,
+            r#"<line style="stroke:{TICK_COLOR};stroke-width:0.5;stroke-dasharray:4,4;" x1="{x}" x2="{x}" y1="0" y2="{}"/>"#,
+            fmt_coord(layout.time_axis.y),
+            x = fmt_coord(tick.x),
         )
         .unwrap();
         buf.push('\n');
@@ -165,10 +128,8 @@ fn render_track(
 
         write!(
             buf,
-            r#"<rect fill="{bg}" height="{h:.1}" opacity="0.3" style="stroke:{border};stroke-width:0.5;" width="{w:.1}" x="{x:.1}" y="{y:.1}"/>"#,
-            x = x_min,
-            y = track.y,
-            h = track.height,
+            r#"<rect fill="{bg}" height="{}" opacity="0.3" style="stroke:{border};stroke-width:0.5;" width="{}" x="{}" y="{}"/>"#,
+            fmt_coord(track.height), fmt_coord(w), fmt_coord(x_min), fmt_coord(track.y),
         )
         .unwrap();
         buf.push('\n');
@@ -216,9 +177,8 @@ fn render_segment(
         if w > 0.0 {
             write!(
                 buf,
-                r#"<rect fill="{TRACK_BG_FILL}" height="{bh:.0}" style="stroke:{stroke};stroke-width:1;" width="{w:.1}" x="{x:.1}" y="{y:.1}"/>"#,
-                x = seg.x_start,
-                y = band_top,
+                r#"<rect fill="{TRACK_BG_FILL}" height="{bh:.0}" style="stroke:{stroke};stroke-width:0.5;" width="{}" x="{}" y="{}"/>"#,
+                fmt_coord(w), fmt_coord(seg.x_start), fmt_coord(band_top),
                 bh = ROBUST_BAND_HEIGHT,
             )
             .unwrap();
@@ -262,7 +222,9 @@ fn render_segment(
             };
             write!(
                 buf,
-                r#"<line style="stroke:{stroke};stroke-width:1.5;" x1="{trans_x:.1}" x2="{trans_x:.1}" y1="{step_y_from:.1}" y2="{step_y_to:.1}"/>"#,
+                r#"<line style="stroke:{stroke};stroke-width:0.5;" x1="{tx}" x2="{tx}" y1="{}" y2="{}"/>"#,
+                fmt_coord(step_y_from), fmt_coord(step_y_to),
+                tx = fmt_coord(trans_x),
             )
             .unwrap();
             buf.push('\n');
@@ -272,10 +234,9 @@ fn render_segment(
         if seg.x_end > seg.x_start {
             write!(
                 buf,
-                r#"<line style="stroke:{stroke};stroke-width:1.5;" x1="{x1:.1}" x2="{x2:.1}" y1="{y:.1}" y2="{y:.1}"/>"#,
-                x1 = seg.x_start,
-                y = seg.y,
-                x2 = seg.x_end,
+                r#"<line style="stroke:{stroke};stroke-width:0.5;" x1="{}" x2="{}" y1="{sy}" y2="{sy}"/>"#,
+                fmt_coord(seg.x_start), fmt_coord(seg.x_end),
+                sy = fmt_coord(seg.y),
             )
             .unwrap();
             buf.push('\n');
@@ -303,10 +264,9 @@ fn render_segment(
             let trans_x = seg.x_start;
             write!(
                 buf,
-                r#"<line style="stroke:{stroke};stroke-width:1;" x1="{x:.1}" x2="{x:.1}" y1="{y1:.1}" y2="{y2:.1}"/>"#,
-                x = trans_x,
-                y1 = prev.y,
-                y2 = seg.y,
+                r#"<line style="stroke:{stroke};stroke-width:0.5;" x1="{tx}" x2="{tx}" y1="{}" y2="{}"/>"#,
+                fmt_coord(prev.y), fmt_coord(seg.y),
+                tx = fmt_coord(trans_x),
             )
             .unwrap();
             buf.push('\n');
@@ -321,14 +281,41 @@ fn render_segment(
 fn render_message(buf: &mut String, msg: &TimingMsgLayout, arrow_color: &str, font_color: &str) {
     write!(
         buf,
-        r#"<line marker-end="url(#timing-arrow)" style="stroke:{arrow_color};stroke-width:1;" x1="{x1:.1}" x2="{x2:.1}" y1="{y1:.1}" y2="{y2:.1}"/>"#,
-        x1 = msg.from_x,
-        y1 = msg.from_y,
-        x2 = msg.to_x,
-        y2 = msg.to_y,
+        r#"<line style="stroke:{arrow_color};stroke-width:1;" x1="{}" x2="{}" y1="{}" y2="{}"/>"#,
+        fmt_coord(msg.from_x), fmt_coord(msg.to_x), fmt_coord(msg.from_y), fmt_coord(msg.to_y),
     )
     .unwrap();
     buf.push('\n');
+
+    // Inline polygon arrowhead
+    {
+        let dx = msg.to_x - msg.from_x;
+        let dy = msg.to_y - msg.from_y;
+        let len = (dx * dx + dy * dy).sqrt();
+        if len > 0.0 {
+            let ux = dx / len;
+            let uy = dy / len;
+            let px = -uy;
+            let py = ux;
+            let p1x = msg.to_x - ux * 9.0 + px * 4.0;
+            let p1y = msg.to_y - uy * 9.0 + py * 4.0;
+            let p2x = msg.to_x;
+            let p2y = msg.to_y;
+            let p3x = msg.to_x - ux * 9.0 - px * 4.0;
+            let p3y = msg.to_y - uy * 9.0 - py * 4.0;
+
+            write!(
+                buf,
+                r#"<polygon fill="{arrow_color}" points="{},{},{},{},{},{},{},{}" style="stroke:{arrow_color};stroke-width:1;"/>"#,
+                fmt_coord(p1x), fmt_coord(p1y),
+                fmt_coord(p2x), fmt_coord(p2y),
+                fmt_coord(p3x), fmt_coord(p3y),
+                fmt_coord(p1x), fmt_coord(p1y),
+            )
+            .unwrap();
+            buf.push('\n');
+        }
+    }
 
     // Label at midpoint
     if !msg.label.is_empty() {
@@ -355,13 +342,52 @@ fn render_constraint(buf: &mut String, c: &TimingConstraintLayout, constraint_co
     // Double-ended arrow line
     write!(
         buf,
-        r#"<line marker-end="url(#timing-constraint-arrow)" marker-start="url(#timing-constraint-arrow)" style="stroke:{constraint_color};stroke-width:1;" x1="{x1:.1}" x2="{x2:.1}" y1="{y:.1}" y2="{y:.1}"/>"#,
-        x1 = c.x_start,
-        y = c.y,
-        x2 = c.x_end,
+        r#"<line style="stroke:{constraint_color};stroke-width:1;" x1="{}" x2="{}" y1="{cy}" y2="{cy}"/>"#,
+        fmt_coord(c.x_start), fmt_coord(c.x_end),
+        cy = fmt_coord(c.y),
     )
     .unwrap();
     buf.push('\n');
+
+    // Inline polygon arrowheads at both ends (double-ended)
+    // Left arrowhead (pointing left)
+    {
+        let p1x = c.x_start + 7.0;
+        let p1y = c.y - 4.0;
+        let p2x = c.x_start;
+        let p2y = c.y;
+        let p3x = c.x_start + 7.0;
+        let p3y = c.y + 4.0;
+        write!(
+            buf,
+            r#"<polygon fill="{constraint_color}" points="{},{},{},{},{},{},{},{}" style="stroke:{constraint_color};stroke-width:1;"/>"#,
+            fmt_coord(p1x), fmt_coord(p1y),
+            fmt_coord(p2x), fmt_coord(p2y),
+            fmt_coord(p3x), fmt_coord(p3y),
+            fmt_coord(p1x), fmt_coord(p1y),
+        )
+        .unwrap();
+        buf.push('\n');
+    }
+    // Right arrowhead (pointing right)
+    {
+        let p1x = c.x_end - 7.0;
+        let p1y = c.y - 4.0;
+        let p2x = c.x_end;
+        let p2y = c.y;
+        let p3x = c.x_end - 7.0;
+        let p3y = c.y + 4.0;
+        write!(
+            buf,
+            r#"<polygon fill="{constraint_color}" points="{},{},{},{},{},{},{},{}" style="stroke:{constraint_color};stroke-width:1;"/>"#,
+            fmt_coord(p1x), fmt_coord(p1y),
+            fmt_coord(p2x), fmt_coord(p2y),
+            fmt_coord(p3x), fmt_coord(p3y),
+            fmt_coord(p1x), fmt_coord(p1y),
+        )
+        .unwrap();
+        buf.push('\n');
+    }
 
     // Label above the line
     let mx = (c.x_start + c.x_end) * 0.5;
@@ -387,10 +413,9 @@ fn render_time_axis(buf: &mut String, axis: &TimingTimeAxis) {
     if let (Some(first), Some(last)) = (axis.ticks.first(), axis.ticks.last()) {
         write!(
             buf,
-            r#"<line style="stroke:{AXIS_LINE_COLOR};stroke-width:1;" x1="{x1:.1}" x2="{x2:.1}" y1="{y:.1}" y2="{y:.1}"/>"#,
-            x1 = first.x,
-            y = axis.y,
-            x2 = last.x,
+            r#"<line style="stroke:{AXIS_LINE_COLOR};stroke-width:0.5;" x1="{}" x2="{}" y1="{ay}" y2="{ay}"/>"#,
+            fmt_coord(first.x), fmt_coord(last.x),
+            ay = fmt_coord(axis.y),
         )
         .unwrap();
         buf.push('\n');
@@ -401,10 +426,9 @@ fn render_time_axis(buf: &mut String, axis: &TimingTimeAxis) {
         // Small vertical tick mark
         write!(
             buf,
-            r#"<line style="stroke:{AXIS_LINE_COLOR};stroke-width:1;" x1="{x:.1}" x2="{x:.1}" y1="{y1:.1}" y2="{y2:.1}"/>"#,
-            x = tick.x,
-            y1 = axis.y,
-            y2 = axis.y + 6.0,
+            r#"<line style="stroke:{AXIS_LINE_COLOR};stroke-width:0.5;" x1="{tx}" x2="{tx}" y1="{}" y2="{}"/>"#,
+            fmt_coord(axis.y), fmt_coord(axis.y + 6.0),
+            tx = fmt_coord(tick.x),
         )
         .unwrap();
         buf.push('\n');
@@ -428,7 +452,8 @@ fn render_note(buf: &mut String, note: &TimingNoteLayout, font_color: &str) {
     if let Some((x1, y1, x2, y2)) = note.connector {
         write!(
             buf,
-            r#"<line style="stroke:{NOTE_BORDER};stroke-width:1;stroke-dasharray:4,4;" x1="{x1:.1}" x2="{x2:.1}" y1="{y1:.1}" y2="{y2:.1}"/>"#,
+            r#"<line style="stroke:{NOTE_BORDER};stroke-width:0.5;stroke-dasharray:4,4;" x1="{}" x2="{}" y1="{}" y2="{}"/>"#,
+            fmt_coord(x1), fmt_coord(x2), fmt_coord(y1), fmt_coord(y2),
         )
         .unwrap();
         buf.push('\n');
@@ -436,26 +461,26 @@ fn render_note(buf: &mut String, note: &TimingNoteLayout, font_color: &str) {
 
     let fold_x = note.x + note.width - NOTE_FOLD;
     let fold_y = note.y + NOTE_FOLD;
+    let x2 = note.x + note.width;
+    let y2 = note.y + note.height;
     write!(
         buf,
-        r#"<polygon fill="{NOTE_BG}" points="{x:.1},{y:.1} {fx:.1},{y:.1} {x2:.1},{fy:.1} {x2:.1},{y2:.1} {x:.1},{y2:.1}" style="stroke:{NOTE_BORDER};stroke-width:1;"/>"#,
-        x = note.x,
-        y = note.y,
-        fx = fold_x,
-        fy = fold_y,
-        x2 = note.x + note.width,
-        y2 = note.y + note.height,
+        r#"<polygon fill="{NOTE_BG}" points="{},{} {},{} {},{} {},{} {},{}" style="stroke:{NOTE_BORDER};stroke-width:0.5;"/>"#,
+        fmt_coord(note.x), fmt_coord(note.y),
+        fmt_coord(fold_x), fmt_coord(note.y),
+        fmt_coord(x2), fmt_coord(fold_y),
+        fmt_coord(x2), fmt_coord(y2),
+        fmt_coord(note.x), fmt_coord(y2),
     )
     .unwrap();
     buf.push('\n');
 
     write!(
         buf,
-        r#"<path d="M {fx:.1},{y:.1} L {fx:.1},{fy:.1} L {x2:.1},{fy:.1}" fill="none" style="stroke:{NOTE_BORDER};stroke-width:1;"/>"#,
-        fx = fold_x,
-        fy = fold_y,
-        x2 = note.x + note.width,
-        y = note.y,
+        r#"<path d="M {},{} L {},{} L {},{}" fill="none" style="stroke:{NOTE_BORDER};stroke-width:0.5;"/>"#,
+        fmt_coord(fold_x), fmt_coord(note.y),
+        fmt_coord(fold_x), fmt_coord(fold_y),
+        fmt_coord(x2), fmt_coord(fold_y),
     )
     .unwrap();
     buf.push('\n');
@@ -556,16 +581,13 @@ mod tests {
         assert!(svg.contains("xmlns=\"http://www.w3.org/2000/svg\""));
     }
 
-    // 2. SVG contains defs with markers
+    // 2. SVG contains empty defs
     #[test]
-    fn test_defs_markers() {
+    fn test_defs_empty() {
         let model = empty_model();
         let layout = empty_layout();
         let svg = render_timing(&model, &layout, &SkinParams::default()).expect("render failed");
-        assert!(svg.contains("<defs>"));
-        assert!(svg.contains("timing-arrow"));
-        assert!(svg.contains("timing-constraint-arrow"));
-        assert!(svg.contains("</defs>"));
+        assert!(svg.contains("<defs/>"), "must have empty defs");
     }
 
     // 3. SVG dimensions match layout
@@ -632,8 +654,8 @@ mod tests {
         });
         let svg = render_timing(&model, &layout, &SkinParams::default()).expect("render failed");
         assert!(
-            svg.contains(r#"marker-end="url(#timing-arrow)""#),
-            "message must have arrow marker"
+            svg.contains("<polygon"),
+            "message must have inline polygon arrowhead"
         );
         assert!(svg.contains("URL"), "message label must appear");
     }
@@ -653,7 +675,7 @@ mod tests {
         let svg = render_timing(&model, &layout, &SkinParams::default()).expect("render failed");
         // There should be no text element for the message label
         // (only defs text, track labels etc might exist, but no empty-label text)
-        assert!(svg.contains(r#"marker-end="url(#timing-arrow)""#));
+        assert!(svg.contains("<polygon"), "must have inline polygon arrowhead");
         // Count text elements: should not have a message-label text
         let text_count = svg.matches("<text").count();
         // Just the defs, no extra text for empty label
@@ -675,13 +697,11 @@ mod tests {
             label: "{150 ms}".into(),
         });
         let svg = render_timing(&model, &layout, &SkinParams::default()).expect("render failed");
+        // Constraint uses inline polygon arrowheads at both ends
+        let polygon_count = svg.matches("<polygon").count();
         assert!(
-            svg.contains("marker-start"),
-            "constraint must have start marker"
-        );
-        assert!(
-            svg.contains("marker-end"),
-            "constraint must have end marker"
+            polygon_count >= 2,
+            "constraint must have two inline polygon arrowheads, got {polygon_count}"
         );
         assert!(svg.contains("{150 ms}"), "constraint label must appear");
     }
