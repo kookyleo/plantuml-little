@@ -22,8 +22,9 @@ const FONT_SIZE: f64 = 14.0;
 const LINE_HEIGHT: f64 = 8.0;
 const PADDING: f64 = 3.0;
 const HEADER_HEIGHT: f64 = 32.0;
-/// Java PlantUML: entities start at (7, 7) from the SVG edge.
-const MARGIN: f64 = 7.0;
+/// Java PlantUML: moveDelta(6 - minX, 6 - minY) — SvekResult.java:133
+/// Entity rects start at x=7 (MARGIN + 1px border inset in draw_entity_box).
+const MARGIN: f64 = 6.0;
 /// Java PlantUML: delta(15, 15) added to final canvas dimensions.
 const CANVAS_PADDING: f64 = 15.0;
 const CIRCLE_LEFT_PAD: f64 = 4.0;
@@ -482,10 +483,9 @@ fn render_class(
     layout: &GraphLayout,
     skin: &SkinParams,
 ) -> Result<String> {
-    // Java: margin(7) on left + content + delta(15) padding
-    // But total_width is now normalized (0-based), so add margin + padding
-    let svg_w = layout.total_width + MARGIN + CANVAS_PADDING;
-    let svg_h = layout.total_height + MARGIN + CANVAS_PADDING;
+    // Java SvekResult: moveDelta(6,..) + 1px border inset + content + delta(15,15)
+    let svg_w = layout.total_width + MARGIN + 1.0 + CANVAS_PADDING;
+    let svg_h = layout.total_height + MARGIN + 1.0 + CANVAS_PADDING;
     let mut buf = String::with_capacity(4096);
     write_svg_root(&mut buf, svg_w, svg_h, "CLASS");
 
@@ -556,8 +556,10 @@ fn stereotype_circle_color(kind: &EntityKind) -> &'static str {
 }
 
 fn draw_entity_box(buf: &mut String, entity: &Entity, nl: &NodeLayout, skin: &SkinParams) {
-    let x = nl.cx - nl.width / 2.0 + MARGIN;
-    let y = nl.cy - nl.height / 2.0 + MARGIN;
+    // Java: entity rect starts at (moveDelta_offset + 1, moveDelta_offset + 1)
+    // where the +1 is the border inset (rect drawn 1px inside the Graphviz node boundary)
+    let x = nl.cx - nl.width / 2.0 + MARGIN + 1.0;
+    let y = nl.cy - nl.height / 2.0 + MARGIN + 1.0;
     let w = nl.width;
     let h = nl.height;
 
