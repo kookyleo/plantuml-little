@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 
+use crate::font_metrics;
 use crate::model::diagram::Direction;
 use crate::model::usecase::{UseCaseDiagram, UseCaseLinkStyle};
 use crate::Result;
@@ -66,8 +67,8 @@ const ACTOR_WIDTH: f64 = 50.0;
 const ACTOR_HEIGHT: f64 = 80.0;
 const UC_RY: f64 = 25.0;
 const UC_RX_MIN: f64 = 60.0;
-/// Approximate monospace character width in pixels at 12pt.
-const CHAR_WIDTH: f64 = 7.2;
+/// Font size for use case labels.
+const FONT_SIZE: f64 = 14.0;
 /// Spacing between items in the same column/row.
 const ITEM_SPACING: f64 = 40.0;
 /// Padding around the diagram border.
@@ -718,9 +719,9 @@ fn layout_top_bottom(diagram: &UseCaseDiagram) -> Result<UseCaseLayout> {
 // Shared helpers
 // ---------------------------------------------------------------------------
 
-/// Compute the horizontal semi-axis for a use case oval based on text length.
+/// Compute the horizontal semi-axis for a use case oval based on text width.
 fn uc_rx_for_name(name: &str) -> f64 {
-    let text_half = name.len() as f64 * CHAR_WIDTH / 2.0 + 12.0;
+    let text_half = font_metrics::text_width(name, "SansSerif", FONT_SIZE, false, false) / 2.0 + 12.0;
     text_half.max(UC_RX_MIN)
 }
 

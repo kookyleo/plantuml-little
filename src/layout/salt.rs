@@ -1,3 +1,4 @@
+use crate::font_metrics;
 use crate::model::salt::{SaltDiagram, SaltWidget};
 use crate::Result;
 
@@ -54,7 +55,7 @@ const MARGIN: f64 = 20.0;
 const PAD_H: f64 = 10.0;
 const PAD_V: f64 = 8.0;
 const GAP: f64 = 10.0;
-const CHAR_WIDTH: f64 = 7.2;
+const FONT_SIZE: f64 = 12.0;
 const LINE_HEIGHT: f64 = 16.0;
 const CONTROL_HEIGHT: f64 = 28.0;
 
@@ -252,7 +253,7 @@ where
 
 fn text_width(text: &str) -> f64 {
     text.lines()
-        .map(|line| line.chars().count() as f64 * CHAR_WIDTH)
+        .map(|line| font_metrics::text_width(line, "SansSerif", FONT_SIZE, false, false))
         .fold(0.0_f64, f64::max)
 }
 

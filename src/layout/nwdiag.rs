@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 
+use crate::font_metrics;
 use crate::model::nwdiag::{NwdiagDiagram, ServerRef};
 use crate::Result;
 
@@ -50,7 +51,7 @@ const BAND_HEIGHT: f64 = 76.0;
 const BAND_GAP: f64 = 18.0;
 const SERVER_MIN_WIDTH: f64 = 92.0;
 const SERVER_MIN_HEIGHT: f64 = 34.0;
-const CHAR_WIDTH: f64 = 7.2;
+const FONT_SIZE: f64 = 14.0;
 const LINE_HEIGHT: f64 = 15.0;
 const PAD_H: f64 = 8.0;
 const PAD_V: f64 = 6.0;
@@ -71,7 +72,7 @@ fn server_size(server: &ServerRef) -> (f64, f64) {
     let lines: Vec<&str> = label.lines().collect();
     let max_line = lines
         .iter()
-        .map(|line| line.chars().count() as f64 * CHAR_WIDTH)
+        .map(|line| font_metrics::text_width(line, "SansSerif", FONT_SIZE, false, false))
         .fold(0.0_f64, f64::max);
     let width = (max_line + 2.0 * PAD_H).max(SERVER_MIN_WIDTH);
     let height = (lines.len().max(1) as f64 * LINE_HEIGHT + 2.0 * PAD_V).max(SERVER_MIN_HEIGHT);

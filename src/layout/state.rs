@@ -7,6 +7,7 @@
 
 use std::collections::{HashMap, HashSet};
 
+use crate::font_metrics;
 use crate::model::state::{State, StateDiagram, StateKind, Transition};
 use crate::Result;
 
@@ -68,7 +69,7 @@ pub struct StateNoteLayout {
 // Constants
 // ---------------------------------------------------------------------------
 
-const CHAR_WIDTH: f64 = 7.2;
+const FONT_SIZE: f64 = 14.0;
 const LINE_HEIGHT: f64 = 16.0;
 const PADDING: f64 = 10.0;
 const STATE_MIN_WIDTH: f64 = 80.0;
@@ -91,7 +92,7 @@ const MARGIN: f64 = 20.0;
 
 /// Estimate the pixel width of a single line of text.
 fn text_width(text: &str) -> f64 {
-    text.len() as f64 * CHAR_WIDTH
+    font_metrics::text_width(text, "SansSerif", FONT_SIZE, false, false)
 }
 
 /// Estimate the size of a simple (non-composite, non-special) state.
@@ -124,8 +125,11 @@ fn estimate_state_size(state: &State) -> (f64, f64) {
 /// Estimate the size of a note, clamped to `NOTE_MAX_WIDTH`.
 fn estimate_note_size(text: &str) -> (f64, f64) {
     let lines: Vec<&str> = text.lines().collect();
-    let max_line_len = lines.iter().map(|l| l.len()).max().unwrap_or(0);
-    let width = (max_line_len as f64 * CHAR_WIDTH + 2.0 * PADDING).min(NOTE_MAX_WIDTH);
+    let max_line_width = lines
+        .iter()
+        .map(|l| font_metrics::text_width(l, "SansSerif", FONT_SIZE, false, false))
+        .fold(0.0_f64, f64::max);
+    let width = (max_line_width + 2.0 * PADDING).min(NOTE_MAX_WIDTH);
     let width = width.max(60.0);
     let height = (lines.len().max(1) as f64 * LINE_HEIGHT + 2.0 * PADDING).max(STATE_MIN_HEIGHT);
     (width, height)
@@ -1173,7 +1177,7 @@ mod tests {
 
         // Width should accommodate the longest description line
         let expected_min_w =
-            "a much longer description line".len() as f64 * CHAR_WIDTH + 2.0 * PADDING;
+            crate::font_metrics::text_width("a much longer description line", "SansSerif", FONT_SIZE, false, false) + 2.0 * PADDING;
         assert!(
             node.width >= expected_min_w,
             "width {} should be >= {}",

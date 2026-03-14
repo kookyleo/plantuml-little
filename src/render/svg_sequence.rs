@@ -9,6 +9,8 @@ use crate::model::SequenceDiagram;
 use crate::style::SkinParams;
 use crate::Result;
 
+use crate::font_metrics;
+
 use super::svg::xml_escape;
 use super::svg::write_svg_root;
 use super::svg_richtext::render_creole_text;
@@ -16,7 +18,6 @@ use super::svg_richtext::render_creole_text;
 // ── Style constants ─────────────────────────────────────────────────
 
 const FONT_SIZE: f64 = 13.0;
-const CHAR_WIDTH: f64 = 7.2;
 const LINE_HEIGHT: f64 = 16.0;
 const PARTICIPANT_BG: &str = "#F1F1F1";
 const PARTICIPANT_BORDER: &str = "#181818";
@@ -808,7 +809,7 @@ fn draw_group(buf: &mut String, group: &GroupLayout) {
         let escaped = xml_escape(label);
 
         // Label background tab
-        let label_width = label.len() as f64 * CHAR_WIDTH + 12.0;
+        let label_width = font_metrics::text_width(label, "SansSerif", FONT_SIZE, true, false) + 12.0;
         let label_height = FONT_SIZE + 6.0;
         write!(
             buf,
@@ -856,7 +857,7 @@ fn draw_fragment(buf: &mut String, frag: &FragmentLayout) {
     } else {
         format!("{} {}", kind_label, frag.label)
     };
-    let tab_width = tab_text.len() as f64 * CHAR_WIDTH + 16.0;
+    let tab_width = font_metrics::text_width(&tab_text, "SansSerif", FONT_SIZE, true, false) + 16.0;
     let tab_height = FONT_SIZE + 8.0;
     let notch = 6.0;
 
@@ -962,7 +963,7 @@ fn draw_divider(buf: &mut String, divider: &DividerLayout) {
         let escaped = xml_escape(text);
 
         // Text background
-        let text_width = text.len() as f64 * CHAR_WIDTH + 16.0;
+        let text_width = font_metrics::text_width(text, "SansSerif", FONT_SIZE, false, false) + 16.0;
         write!(
             buf,
             r#"<rect fill="white" height="{h:.1}" width="{w:.1}" x="{x:.1}" y="{y:.1}"/>"#,
@@ -1034,7 +1035,7 @@ fn draw_ref(buf: &mut String, r: &RefLayout) {
     buf.push('\n');
 
     // "ref" label tab in top-left
-    let tab_width = 3.0 * CHAR_WIDTH + 12.0;
+    let tab_width = font_metrics::text_width("ref", "SansSerif", FONT_SIZE, true, false) + 12.0;
     let tab_height = FONT_SIZE + 6.0;
     let notch = 5.0;
     write!(

@@ -9,13 +9,14 @@ use crate::model::{
 use crate::style::SkinParams;
 use crate::Result;
 
+use crate::font_metrics;
+
 use super::svg_richtext::{count_creole_lines, max_creole_plain_line_len, render_creole_text};
 use super::svg_sequence;
 
 // ── Style constants ──────────────────────────────────────────────────
 
 const FONT_SIZE: f64 = 12.0;
-const CHAR_WIDTH: f64 = 7.2;
 const LINE_HEIGHT: f64 = 16.0;
 const PADDING: f64 = 10.0;
 const HEADER_HEIGHT: f64 = 28.0;
@@ -276,8 +277,7 @@ fn meta_bottom_height(meta: &DiagramMeta) -> f64 {
 }
 
 fn estimate_creole_width(text: &str, font_size: f64) -> f64 {
-    let scale = font_size / FONT_SIZE;
-    max_creole_plain_line_len(text) as f64 * CHAR_WIDTH * scale
+    max_creole_plain_line_len(text) as f64 * font_metrics::char_width('a', "SansSerif", font_size, false, false)
 }
 
 fn meta_required_width(meta: &DiagramMeta) -> f64 {
@@ -296,7 +296,8 @@ fn meta_required_width(meta: &DiagramMeta) -> f64 {
         width = width.max(estimate_creole_width(ftr, FONT_SIZE) + 2.0 * MARGIN);
     }
     if let Some(ref leg) = meta.legend {
-        let legend_w = max_creole_plain_line_len(leg).max(6) as f64 * CHAR_WIDTH
+        let legend_w = max_creole_plain_line_len(leg).max(6) as f64
+            * font_metrics::char_width('a', "SansSerif", FONT_SIZE, false, false)
             + LEGEND_PADDING * 2.0
             + 2.0 * MARGIN;
         width = width.max(legend_w);
@@ -441,7 +442,7 @@ fn wrap_with_meta(body_svg: &str, meta: &DiagramMeta, diagram_type: &str) -> Res
         let leg_h = leg_text_h + LEGEND_PADDING * 2.0;
         let leg_w = {
             let max_len = max_creole_plain_line_len(leg).max(6) as f64;
-            max_len * CHAR_WIDTH + LEGEND_PADDING * 2.0
+            max_len * font_metrics::char_width('a', "SansSerif", FONT_SIZE, false, false) + LEGEND_PADDING * 2.0
         };
         let leg_x = total_w - leg_w - MARGIN;
         let leg_y = y_bottom;

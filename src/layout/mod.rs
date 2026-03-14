@@ -21,6 +21,7 @@ pub use graphviz::{
 
 use std::collections::HashMap;
 
+use crate::font_metrics;
 use crate::model::{ClassDiagram, Diagram, Direction, Entity, EntityKind};
 use crate::Result;
 
@@ -46,8 +47,8 @@ pub enum DiagramLayout {
     UseCase(usecase::UseCaseLayout),
 }
 
-/// Estimated character width (pt)
-const CHAR_WIDTH_PT: f64 = 7.2;
+/// Font size for class diagram text
+const CLASS_FONT_SIZE: f64 = 12.0;
 /// Line height (pt)
 const LINE_HEIGHT_PT: f64 = 16.0;
 /// Padding (pt)
@@ -166,46 +167,51 @@ fn estimate_entity_size(entity: &Entity) -> (f64, f64) {
             EntityKind::Interface | EntityKind::Enum | EntityKind::Abstract
         );
 
-    // max stereotype text length (for width calculation)
-    let stereotype_text_len = if has_stereotype_line {
-        let kind_stereo_len = match entity.kind {
-            EntityKind::Interface => "<<interface>>".len(),
-            EntityKind::Enum => "<<enum>>".len(),
-            EntityKind::Abstract => "<<abstract>>".len(),
-            _ => 0,
+    // max stereotype text width (for width calculation)
+    let stereotype_text_width = if has_stereotype_line {
+        let kind_stereo_w = match entity.kind {
+            EntityKind::Interface => font_metrics::text_width("<<interface>>", "SansSerif", CLASS_FONT_SIZE, false, false),
+            EntityKind::Enum => font_metrics::text_width("<<enum>>", "SansSerif", CLASS_FONT_SIZE, false, false),
+            EntityKind::Abstract => font_metrics::text_width("<<abstract>>", "SansSerif", CLASS_FONT_SIZE, false, false),
+            _ => 0.0,
         };
-        let custom_stereo_len = entity
+        let custom_stereo_w = entity
             .stereotypes
             .iter()
-            .map(|s| s.0.len() + 4) // "<<" + text + ">>"
-            .max()
-            .unwrap_or(0);
-        kind_stereo_len.max(custom_stereo_len)
+            .map(|s| {
+                let stereo_text = format!("<<{}>>", s.0);
+                font_metrics::text_width(&stereo_text, "SansSerif", CLASS_FONT_SIZE, false, false)
+            })
+            .fold(0.0_f64, f64::max);
+        kind_stereo_w.max(custom_stereo_w)
     } else {
-        0
+        0.0
     };
 
-    // display text length for each member
-    let max_member_len = entity
+    // display text width for each member
+    let max_member_width = entity
         .members
         .iter()
         .map(|m| {
-            let vis_len = if m.visibility.is_some() { 2 } else { 0 }; // symbol + space
-            let type_len = match &m.return_type {
-                Some(t) => 2 + t.len(), // ": " + type
-                None => 0,
-            };
-            vis_len + m.name.len() + type_len
+            let mut member_text = String::new();
+            if m.visibility.is_some() {
+                member_text.push_str("+ "); // approximate visibility prefix
+            }
+            member_text.push_str(&m.name);
+            if let Some(ref t) = m.return_type {
+                member_text.push_str(": ");
+                member_text.push_str(t);
+            }
+            font_metrics::text_width(&member_text, "SansSerif", CLASS_FONT_SIZE, false, false)
         })
-        .max()
-        .unwrap_or(0);
+        .fold(0.0_f64, f64::max);
 
-    // width = longest text line * char width + padding on both sides
-    let max_text_len = name_display
-        .len()
-        .max(stereotype_text_len)
-        .max(max_member_len);
-    let width = (max_text_len as f64 * CHAR_WIDTH_PT + 2.0 * PADDING_PT).max(60.0);
+    // width = widest text line + padding on both sides
+    let name_width = font_metrics::text_width(&name_display, "SansSerif", CLASS_FONT_SIZE, false, false);
+    let max_text_width = name_width
+        .max(stereotype_text_width)
+        .max(max_member_width);
+    let width = (max_text_width + 2.0 * PADDING_PT).max(60.0);
 
     // height = header + stereotype line (optional) + member lines * line height + bottom padding
     let stereotype_extra = if has_stereotype_line {
@@ -239,8 +245,8 @@ fn direction_to_rankdir(dir: &Direction) -> RankDir {
     }
 }
 
-/// Note size estimation constants
-const NOTE_CHAR_WIDTH: f64 = 7.2;
+/// Note font size
+const NOTE_FONT_SIZE: f64 = 13.0;
 const NOTE_LINE_HEIGHT: f64 = 16.0;
 const NOTE_PADDING: f64 = 10.0;
 /// Gap between note and target entity
@@ -377,12 +383,11 @@ fn compute_note_layouts(
                 .lines()
                 .map(std::string::ToString::to_string)
                 .collect();
-            let max_line_len = lines
+            let max_line_width = lines
                 .iter()
-                .map(std::string::String::len)
-                .max()
-                .unwrap_or(0);
-            let note_width = (max_line_len as f64 * NOTE_CHAR_WIDTH + NOTE_PADDING * 2.0).max(60.0);
+                .map(|l| font_metrics::text_width(l, "SansSerif", NOTE_FONT_SIZE, false, false))
+                .fold(0.0_f64, f64::max);
+            let note_width = (max_line_width + NOTE_PADDING * 2.0).max(60.0);
             let note_height =
                 (lines.len() as f64 * NOTE_LINE_HEIGHT + NOTE_PADDING * 2.0).max(30.0);
 
@@ -525,8 +530,8 @@ mod tests {
             "height {h} should be >= {expected_min_height}"
         );
 
-        let member_text_len = 2 + "longFieldNameHere".len() + 2 + "String".len();
-        let expected_min_width = member_text_len as f64 * CHAR_WIDTH_PT + 2.0 * PADDING_PT;
+        let member_text = "- longFieldNameHere : String";
+        let expected_min_width = crate::font_metrics::text_width(member_text, "SansSerif", CLASS_FONT_SIZE, false, false) + 2.0 * PADDING_PT;
         assert!(
             w >= expected_min_width,
             "width {w} should be >= {expected_min_width}"

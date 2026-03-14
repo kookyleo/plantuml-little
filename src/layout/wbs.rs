@@ -8,6 +8,7 @@ use std::collections::HashMap;
 
 use log::debug;
 
+use crate::font_metrics;
 use crate::model::hyperlink::extract_hyperlinks;
 use crate::model::richtext::plain_text;
 use crate::model::wbs::{WbsDiagram, WbsNode, WbsNote};
@@ -65,7 +66,7 @@ pub struct WbsNoteLayout {
 // Constants
 // ---------------------------------------------------------------------------
 
-const CHAR_WIDTH: f64 = 7.2;
+const FONT_SIZE: f64 = 14.0;
 const LINE_HEIGHT: f64 = 16.0;
 const PAD_H: f64 = 8.0;
 const PAD_V: f64 = 4.0;
@@ -85,7 +86,7 @@ fn text_width(text: &str) -> f64 {
     extract_hyperlinks(text)
         .0
         .lines()
-        .map(|l| l.len() as f64 * CHAR_WIDTH)
+        .map(|l| font_metrics::text_width(l, "SansSerif", FONT_SIZE, false, false))
         .fold(0.0_f64, f64::max)
 }
 
@@ -105,7 +106,7 @@ fn note_size(text: &str) -> (f64, f64) {
     let lines: Vec<&str> = plain.lines().collect();
     let max_width = lines
         .iter()
-        .map(|line| line.chars().count() as f64 * CHAR_WIDTH)
+        .map(|line| font_metrics::text_width(line, "SansSerif", FONT_SIZE, false, false))
         .fold(0.0_f64, f64::max);
     let width = (max_width + 2.0 * PAD_H).max(MIN_NOTE_WIDTH);
     let height = (lines.len().max(1) as f64 * LINE_HEIGHT + 2.0 * PAD_V).max(MIN_NOTE_HEIGHT);

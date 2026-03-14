@@ -2,6 +2,7 @@ use std::collections::{BTreeSet, HashMap};
 
 use log::debug;
 
+use crate::font_metrics;
 use crate::model::richtext::plain_text;
 use crate::model::timing::{TimingDiagram, TimingParticipantKind};
 use crate::parser::creole::parse_creole;
@@ -92,7 +93,7 @@ pub struct TimingTick {
 
 const MARGIN: f64 = 20.0;
 const LABEL_AREA_WIDTH: f64 = 140.0;
-const CHAR_WIDTH: f64 = 7.2;
+const FONT_SIZE: f64 = 12.0;
 const ROBUST_TRACK_HEIGHT: f64 = 40.0;
 const CONCISE_TRACK_HEIGHT: f64 = 24.0;
 const TRACK_GAP: f64 = 16.0;
@@ -123,13 +124,12 @@ pub fn layout_timing(td: &TimingDiagram) -> Result<TimingLayout> {
     let (time_min, time_max) = time_range(&all_times);
 
     // Compute label area width based on longest participant name
-    let max_label_len = td
+    let max_label_width = td
         .participants
         .iter()
-        .map(|p| p.name.len())
-        .max()
-        .unwrap_or(0);
-    let label_area = (max_label_len as f64 * CHAR_WIDTH + 2.0 * MARGIN).max(LABEL_AREA_WIDTH);
+        .map(|p| font_metrics::text_width(&p.name, "SansSerif", FONT_SIZE, false, false))
+        .fold(0.0_f64, f64::max);
+    let label_area = (max_label_width + 2.0 * MARGIN).max(LABEL_AREA_WIDTH);
 
     let chart_x = MARGIN + label_area;
 
@@ -379,7 +379,7 @@ fn note_size(text: &str) -> (f64, f64) {
     let lines: Vec<&str> = plain.lines().collect();
     let max_width = lines
         .iter()
-        .map(|line| line.chars().count() as f64 * CHAR_WIDTH)
+        .map(|line| font_metrics::text_width(line, "SansSerif", FONT_SIZE, false, false))
         .fold(0.0_f64, f64::max);
     let width = (max_width + 2.0 * NOTE_PAD_H).max(MIN_NOTE_WIDTH);
     let height = (lines.len().max(1) as f64 * 16.0 + 2.0 * NOTE_PAD_V).max(MIN_NOTE_HEIGHT);

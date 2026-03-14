@@ -6,6 +6,7 @@
 
 use std::collections::HashMap;
 
+use crate::font_metrics;
 use crate::model::mindmap::{MindmapDiagram, MindmapNode, MindmapNote};
 use crate::model::richtext::plain_text;
 use crate::parser::creole::parse_creole;
@@ -72,8 +73,8 @@ pub struct MindmapNoteLayout {
 // Constants
 // ---------------------------------------------------------------------------
 
-/// Approximate character width in pixels (monospace 12px).
-const CHAR_WIDTH: f64 = 7.2;
+/// Font size for mindmap nodes.
+const FONT_SIZE: f64 = 14.0;
 /// Line height in pixels.
 const LINE_HEIGHT: f64 = 16.0;
 /// Horizontal padding inside nodes.
@@ -109,13 +110,12 @@ fn split_text_lines(text: &str) -> Vec<String> {
 /// Estimate the rendered size of a node based on its text.
 fn estimate_node_size(text: &str, is_root: bool) -> (f64, f64, Vec<String>) {
     let lines = split_text_lines(text);
-    let max_line_len = lines
+    let max_line_width = lines
         .iter()
-        .map(std::string::String::len)
-        .max()
-        .unwrap_or(0);
+        .map(|l| font_metrics::text_width(l, "SansSerif", FONT_SIZE, false, false))
+        .fold(0.0_f64, f64::max);
 
-    let base_width = max_line_len as f64 * CHAR_WIDTH + 2.0 * H_PADDING;
+    let base_width = max_line_width + 2.0 * H_PADDING;
     let base_height = lines.len() as f64 * LINE_HEIGHT + 2.0 * V_PADDING;
 
     let width = if is_root {
@@ -149,12 +149,11 @@ fn plain_text_lines(text: &str) -> Vec<String> {
 
 fn estimate_note_size(text: &str) -> (f64, f64) {
     let lines = plain_text_lines(text);
-    let max_line_len = lines
+    let max_line_width = lines
         .iter()
-        .map(|line| line.chars().count())
-        .max()
-        .unwrap_or(0);
-    let width = (max_line_len as f64 * CHAR_WIDTH + 2.0 * H_PADDING).max(MIN_NOTE_WIDTH);
+        .map(|line| font_metrics::text_width(line, "SansSerif", FONT_SIZE, false, false))
+        .fold(0.0_f64, f64::max);
+    let width = (max_line_width + 2.0 * H_PADDING).max(MIN_NOTE_WIDTH);
     let height = (lines.len().max(1) as f64 * LINE_HEIGHT + 2.0 * V_PADDING).max(MIN_NOTE_HEIGHT);
     (width, height)
 }

@@ -5,6 +5,7 @@
 //! a single top-to-bottom pass with a y-cursor, similar to how the sequence
 //! diagram layout works with column-based placement.
 
+use crate::font_metrics;
 use crate::model::activity::{ActivityDiagram, ActivityEvent, NotePosition};
 use crate::Result;
 
@@ -76,7 +77,7 @@ pub struct SwimlaneLayout {
 // Constants
 // ---------------------------------------------------------------------------
 
-const CHAR_WIDTH: f64 = 7.2;
+const FONT_SIZE: f64 = 12.0;
 const LINE_HEIGHT: f64 = 16.0;
 const PADDING: f64 = 10.0;
 const NODE_SPACING: f64 = 30.0;
@@ -96,12 +97,15 @@ const MARGIN: f64 = 20.0;
 // Text measurement helpers
 // ---------------------------------------------------------------------------
 
-/// Estimate the bounding-box size of a block of text rendered in a monospace
-/// font at `CHAR_WIDTH` / `LINE_HEIGHT`.  Returns `(width, height)`.
+/// Estimate the bounding-box size of a block of text rendered at the
+/// diagram font size.  Returns `(width, height)`.
 fn estimate_text_size(text: &str) -> (f64, f64) {
     let lines: Vec<&str> = text.split('\n').collect();
-    let max_line_len = lines.iter().map(|l| l.len()).max().unwrap_or(0);
-    let width = (max_line_len as f64 * CHAR_WIDTH + 2.0 * PADDING).max(ACTION_MIN_WIDTH);
+    let max_line_width = lines
+        .iter()
+        .map(|l| font_metrics::text_width(l, "SansSerif", FONT_SIZE, false, false))
+        .fold(0.0_f64, f64::max);
+    let width = (max_line_width + 2.0 * PADDING).max(ACTION_MIN_WIDTH);
     let height = (lines.len() as f64 * LINE_HEIGHT + 2.0 * PADDING).max(ACTION_MIN_HEIGHT);
     (width, height)
 }
@@ -1014,7 +1018,7 @@ mod tests {
         let (w2, h2) = estimate_text_size("Line one\nLine two\nLine three");
         assert!(h2 > h, "more lines should be taller");
         // Width driven by longest line.
-        assert!(w2 >= 9.0 * CHAR_WIDTH); // "Line three" = 10 chars
+        assert!(w2 >= crate::font_metrics::text_width("Line three", "SansSerif", FONT_SIZE, false, false)); // "Line three" = 10 chars
 
         // Very long line.
         let long_text = "A".repeat(100);

@@ -9,6 +9,7 @@ use std::collections::HashMap;
 
 use log::debug;
 
+use crate::font_metrics;
 use crate::model::erd::{ErdAttribute, ErdDiagram, ErdDirection, ErdIsa};
 use crate::Result;
 
@@ -100,7 +101,7 @@ pub struct ErdIsaLayout {
 // Constants
 // ---------------------------------------------------------------------------
 
-const CHAR_WIDTH: f64 = 7.2;
+const FONT_SIZE: f64 = 14.0;
 const ENTITY_PADDING: f64 = 16.0;
 const ENTITY_MIN_WIDTH: f64 = 80.0;
 const ENTITY_HEIGHT: f64 = 36.0;
@@ -125,7 +126,7 @@ const NOTE_GAP: f64 = 16.0;
 // ---------------------------------------------------------------------------
 
 fn text_width(text: &str) -> f64 {
-    text.len() as f64 * CHAR_WIDTH
+    font_metrics::text_width(text, "SansSerif", FONT_SIZE, false, false)
 }
 
 fn entity_width(name: &str) -> f64 {

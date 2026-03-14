@@ -1,5 +1,6 @@
 use log::{debug, trace};
 
+use crate::font_metrics;
 use crate::model::json_diagram::{JsonDiagram, JsonValue};
 use crate::Result;
 
@@ -45,7 +46,7 @@ pub struct JsonRowLayout {
 // ---------------------------------------------------------------------------
 
 const ROW_HEIGHT: f64 = 24.0;
-const CHAR_WIDTH: f64 = 7.2;
+const FONT_SIZE: f64 = 12.0;
 const INDENT_PX: f64 = 20.0;
 const PADDING_H: f64 = 10.0;
 const MIN_KEY_WIDTH: f64 = 40.0;
@@ -57,7 +58,7 @@ const MARGIN: f64 = 10.0;
 // ---------------------------------------------------------------------------
 
 fn text_width(text: &str) -> f64 {
-    text.len() as f64 * CHAR_WIDTH
+    font_metrics::text_width(text, "SansSerif", FONT_SIZE, false, false)
 }
 
 // ---------------------------------------------------------------------------

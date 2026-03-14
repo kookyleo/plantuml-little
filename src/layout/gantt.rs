@@ -2,6 +2,7 @@ use std::collections::HashMap;
 
 use log::debug;
 
+use crate::font_metrics;
 use crate::model::gantt::GanttDiagram;
 use crate::model::richtext::plain_text;
 use crate::parser::creole::parse_creole;
@@ -77,7 +78,7 @@ const ROW_HEIGHT: f64 = 30.0;
 const LABEL_AREA_WIDTH: f64 = 160.0;
 const MARGIN: f64 = 20.0;
 const TIME_AXIS_HEIGHT: f64 = 30.0;
-const CHAR_WIDTH: f64 = 7.2;
+const FONT_SIZE: f64 = 12.0;
 const NOTE_GAP: f64 = 16.0;
 const NOTE_PAD_H: f64 = 8.0;
 const NOTE_PAD_V: f64 = 6.0;
@@ -172,7 +173,7 @@ fn note_size(text: &str) -> (f64, f64) {
     let lines: Vec<&str> = plain.lines().collect();
     let max_width = lines
         .iter()
-        .map(|line| line.chars().count() as f64 * CHAR_WIDTH)
+        .map(|line| font_metrics::text_width(line, "SansSerif", FONT_SIZE, false, false))
         .fold(0.0_f64, f64::max);
     let width = (max_width + 2.0 * NOTE_PAD_H).max(MIN_NOTE_WIDTH);
     let height = (lines.len().max(1) as f64 * 16.0 + 2.0 * NOTE_PAD_V).max(MIN_NOTE_HEIGHT);
@@ -286,13 +287,12 @@ pub fn layout_gantt(diagram: &GanttDiagram) -> Result<GanttLayout> {
     let day_w = DAY_WIDTH * scale_factor;
 
     // Compute label area width based on longest task name
-    let max_label_len = diagram
+    let max_label_width = diagram
         .tasks
         .iter()
-        .map(|t| t.name.len())
-        .max()
-        .unwrap_or(0);
-    let label_area = (max_label_len as f64 * CHAR_WIDTH + 2.0 * MARGIN).max(LABEL_AREA_WIDTH);
+        .map(|t| font_metrics::text_width(&t.name, "SansSerif", FONT_SIZE, false, false))
+        .fold(0.0_f64, f64::max);
+    let label_area = (max_label_width + 2.0 * MARGIN).max(LABEL_AREA_WIDTH);
 
     let chart_x = MARGIN + label_area;
     let chart_y = MARGIN + TIME_AXIS_HEIGHT;

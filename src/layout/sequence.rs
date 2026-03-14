@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 
+use crate::font_metrics;
 use crate::model::sequence::{
     FragmentKind, ParticipantKind, SeqArrowHead, SeqArrowStyle, SeqDirection, SeqEvent,
 };
@@ -8,7 +9,7 @@ use crate::Result;
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
-const CHAR_WIDTH: f64 = 7.2;
+const FONT_SIZE: f64 = 14.0;
 const LINE_HEIGHT: f64 = 16.0;
 const PARTICIPANT_PADDING: f64 = 16.0;
 const PARTICIPANT_HEIGHT: f64 = 36.0;
@@ -189,7 +190,7 @@ pub fn layout_sequence(sd: &SequenceDiagram) -> Result<SeqLayout> {
     let mut prev_center: Option<f64> = None;
     for p in &sd.participants {
         let display = p.display_name.as_deref().unwrap_or(&p.name);
-        let box_width = (display.len() as f64 * CHAR_WIDTH + 2.0 * PARTICIPANT_PADDING).max(60.0);
+        let box_width = (font_metrics::text_width(display, "SansSerif", FONT_SIZE, false, false) + 2.0 * PARTICIPANT_PADDING).max(60.0);
 
         // Icon-based shapes need extra height for the figure + label below
         let box_height = match p.kind {
@@ -604,8 +605,7 @@ mod tests {
         assert_eq!(p.name, "Alice");
         assert_eq!(p.box_height, PARTICIPANT_HEIGHT);
 
-        // box_width = max(5 * 7.2 + 2 * 16.0, 60.0) = max(68.0, 60.0) = 68.0
-        let expected_bw = (5.0_f64 * CHAR_WIDTH + 2.0 * PARTICIPANT_PADDING).max(60.0);
+        let expected_bw = (crate::font_metrics::text_width("Alice", "SansSerif", FONT_SIZE, false, false) + 2.0 * PARTICIPANT_PADDING).max(60.0);
         assert!(
             (p.box_width - expected_bw).abs() < 0.01,
             "box_width {}, expected {}",

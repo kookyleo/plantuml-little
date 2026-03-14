@@ -6,6 +6,7 @@
 
 use std::collections::HashMap;
 
+use crate::font_metrics;
 use crate::model::component::{ComponentDiagram, ComponentEntity, ComponentKind, ComponentLink};
 use crate::Result;
 
@@ -77,7 +78,7 @@ pub struct ComponentGroupLayout {
 // Constants
 // ---------------------------------------------------------------------------
 
-const CHAR_WIDTH: f64 = 7.2;
+const FONT_SIZE: f64 = 14.0;
 const LINE_HEIGHT: f64 = 16.0;
 const PADDING: f64 = 10.0;
 const NODE_MIN_WIDTH: f64 = 100.0;
@@ -96,7 +97,7 @@ const GRID_COLS: usize = 3;
 // ---------------------------------------------------------------------------
 
 fn text_width(text: &str) -> f64 {
-    text.len() as f64 * CHAR_WIDTH
+    font_metrics::text_width(text, "SansSerif", FONT_SIZE, false, false)
 }
 
 /// Estimate the size of a component entity.
@@ -130,8 +131,11 @@ fn estimate_entity_size(entity: &ComponentEntity) -> (f64, f64) {
 
 fn estimate_note_size(text: &str) -> (f64, f64) {
     let lines: Vec<&str> = text.lines().collect();
-    let max_line_len = lines.iter().map(|l| l.len()).max().unwrap_or(0);
-    let width = (max_line_len as f64 * CHAR_WIDTH + 2.0 * PADDING).min(NOTE_MAX_WIDTH);
+    let max_line_width = lines
+        .iter()
+        .map(|l| font_metrics::text_width(l, "SansSerif", FONT_SIZE, false, false))
+        .fold(0.0_f64, f64::max);
+    let width = (max_line_width + 2.0 * PADDING).min(NOTE_MAX_WIDTH);
     let width = width.max(60.0);
     let height = (lines.len().max(1) as f64 * LINE_HEIGHT + 2.0 * PADDING).max(NODE_MIN_HEIGHT);
     (width, height)
@@ -898,8 +902,10 @@ mod tests {
     #[test]
     fn test_text_width() {
         assert_eq!(text_width(""), 0.0);
-        assert!((text_width("a") - CHAR_WIDTH).abs() < 0.001);
-        assert!((text_width("abc") - 3.0 * CHAR_WIDTH).abs() < 0.001);
+        let expected_a = crate::font_metrics::text_width("a", "SansSerif", FONT_SIZE, false, false);
+        assert!((text_width("a") - expected_a).abs() < 0.001);
+        let expected_abc = crate::font_metrics::text_width("abc", "SansSerif", FONT_SIZE, false, false);
+        assert!((text_width("abc") - expected_abc).abs() < 0.001);
     }
 
     // 14. Missing edge target
