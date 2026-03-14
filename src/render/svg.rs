@@ -1465,13 +1465,21 @@ fn section_height(members: &[&Member]) -> f64 {
     }
 }
 
+/// Java PlantUML formats member text as "name : type" (space-colon-space).
+/// Visibility prefix (like +/-/#/~) is NOT included here — it's rendered as an icon.
 fn member_text(m: &Member) -> String {
     match &m.return_type {
-        Some(rt) => format!("{}: {rt}", m.name),
+        Some(rt) => format!("{} : {rt}", m.name),
         None => m.name.clone(),
     }
 }
 
+/// Draw visibility modifier icon matching Java VisibilityModifier.java.
+/// Colors and shapes from VisibilityModifier.java:
+///   PUBLIC:    circle, fill=#84BE84(method)/none(field), stroke=#038048
+///   PRIVATE:   square, fill=#F24D5C(method)/none(field), stroke=#C82930
+///   PROTECTED: diamond, fill=#B38D22(method)/none(field), stroke=#B38D22
+///   PACKAGE:   triangle, fill=#4177AF(method)/none(field), stroke=#1963A0
 fn draw_visibility_icon(
     buf: &mut String,
     visibility: &Visibility,
@@ -1481,41 +1489,61 @@ fn draw_visibility_icon(
 ) {
     let modifier = match (visibility, is_method) {
         (Visibility::Public, true) => "PUBLIC_METHOD",
+        (Visibility::Public, false) => "PUBLIC_FIELD",
+        (Visibility::Private, true) => "PRIVATE_METHOD",
+        (Visibility::Private, false) => "PRIVATE_FIELD",
+        (Visibility::Protected, true) => "PROTECTED_METHOD",
+        (Visibility::Protected, false) => "PROTECTED_FIELD",
         (Visibility::Package, true) => "PACKAGE_PRIVATE_METHOD",
-        _ => return,
+        (Visibility::Package, false) => "PACKAGE_PRIVATE_FIELD",
     };
     write!(buf, r#"<g data-visibility-modifier="{modifier}">"#).unwrap();
-    // Java VisibilityModifier.drawCircle: UTranslate(x+2, y+2) then UEllipse(6,6)
-    // DriverEllipseSvg: cx = translate_x + width/2, cy = translate_y + height/2
-    // So: cx = x + 2 + 3 = x + 5, cy = y + 2 + 3 = y + 5
-    let draw_x = x + MEMBER_ICON_DRAW_OFFSET;
-    let draw_y = y + MEMBER_ICON_DRAW_OFFSET;
-    match modifier {
-        "PUBLIC_METHOD" => {
-            write!(
-                buf,
-                r##"<ellipse cx="{}" cy="{}" fill="#84BE84" rx="3" ry="3" style="stroke:#038048;stroke-width:1;"/>"##,
-                fmt_coord(draw_x + MEMBER_ICON_RADIUS),
-                fmt_coord(draw_y + MEMBER_ICON_RADIUS),
-            )
-            .unwrap();
+    match visibility {
+        Visibility::Public => {
+            // VisibilityModifier.drawCircle: translate(x+2,y+2), UEllipse(6,6)
+            let cx = fmt_coord(x + 2.0 + 3.0);
+            let cy = fmt_coord(y + 2.0 + 3.0);
+            let fill = if is_method { "#84BE84" } else { "none" };
+            write!(buf,
+                r##"<ellipse cx="{cx}" cy="{cy}" fill="{fill}" rx="3" ry="3" style="stroke:#038048;stroke-width:1;"/>"##,
+            ).unwrap();
         }
-        "PACKAGE_PRIVATE_METHOD" => {
-            // Java VisibilityModifier.drawTriangle: UTranslate(x+1, y+0) then UPolygon
-            // Points: (size/2, 1), (0, size-1), (size, size-1) where size=10
-            write!(
-                buf,
-                r##"<polygon fill="#4177AF" points="{},{},{},{},{},{}" style="stroke:#1963A0;stroke-width:1;"/>"##,
-                fmt_coord(x + 1.0 + 5.0),  // x + translate(1) + size/2
-                fmt_coord(y + 1.0),          // y + translate(0) + 1
-                fmt_coord(x + 1.0),          // x + translate(1) + 0
-                fmt_coord(y + 9.0),          // y + translate(0) + size-1
-                fmt_coord(x + 1.0 + 10.0),   // x + translate(1) + size
-                fmt_coord(y + 9.0),          // y + translate(0) + size-1
-            )
-            .unwrap();
+        Visibility::Private => {
+            // VisibilityModifier.drawSquare: translate(x+2,y+2), URectangle(6,6)
+            let rx = fmt_coord(x + 2.0);
+            let ry = fmt_coord(y + 2.0);
+            let fill = if is_method { "#F24D5C" } else { "none" };
+            write!(buf,
+                r##"<rect fill="{fill}" height="6" style="stroke:#C82930;stroke-width:1;" width="6" x="{rx}" y="{ry}"/>"##,
+            ).unwrap();
         }
-        _ => {}
+        Visibility::Protected => {
+            // VisibilityModifier.drawDiamond: translate(x+1,y+0), UPolygon
+            // Points: (size/2,0),(size,size/2),(size/2,size),(0,size/2) size=10
+            let ox = x + 1.0;
+            let oy = y;
+            let fill = if is_method { "#B38D22" } else { "none" };
+            write!(buf,
+                r##"<polygon fill="{fill}" points="{},{},{},{},{},{},{},{}" style="stroke:#B38D22;stroke-width:1;"/>"##,
+                fmt_coord(ox + 5.0), fmt_coord(oy),
+                fmt_coord(ox + 10.0), fmt_coord(oy + 5.0),
+                fmt_coord(ox + 5.0), fmt_coord(oy + 10.0),
+                fmt_coord(ox), fmt_coord(oy + 5.0),
+            ).unwrap();
+        }
+        Visibility::Package => {
+            // VisibilityModifier.drawTriangle: translate(x+1,y+0), UPolygon
+            // Points: (size/2,1),(0,size-1),(size,size-1) size=10
+            let ox = x + 1.0;
+            let oy = y;
+            let fill = if is_method { "#4177AF" } else { "none" };
+            write!(buf,
+                r##"<polygon fill="{fill}" points="{},{},{},{},{},{}" style="stroke:#1963A0;stroke-width:1;"/>"##,
+                fmt_coord(ox + 5.0), fmt_coord(oy + 1.0),
+                fmt_coord(ox), fmt_coord(oy + 9.0),
+                fmt_coord(ox + 10.0), fmt_coord(oy + 9.0),
+            ).unwrap();
+        }
     }
     buf.push_str("</g>");
 }
