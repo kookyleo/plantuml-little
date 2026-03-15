@@ -1112,7 +1112,10 @@ pub fn render_sequence(
     draw_lifelines(&mut buf, layout, skin);
 
     // 4. Fragment frames (drawn before groups so they appear behind)
-    for frag in &layout.fragments {
+    // Reverse iteration: inner fragments complete first during layout,
+    // so they appear first in the vec; reversing emits outer-first to
+    // match Java PlantUML's SVG element ordering.
+    for frag in layout.fragments.iter().rev() {
         draw_fragment(&mut buf, frag);
     }
 
