@@ -381,20 +381,31 @@ fn estimate_members_width(members: &[&Member]) -> f64 {
     members
         .iter()
         .map(|m| {
-            let member_text = member_text(m);
-            let text_width = font_metrics::text_width(
-                &member_text,
-                "SansSerif",
-                CLASS_FONT_SIZE,
-                false,
-                m.modifiers.is_abstract,
-            );
-            text_width
-                + if m.visibility.is_some() {
-                    MEMBER_TEXT_LEFT_WITH_ICON
-                } else {
-                    MEMBER_TEXT_LEFT_NO_ICON
-                }
+            let text = member_text(m);
+            let lines = split_member_lines(&text);
+            let base_left = if m.visibility.is_some() {
+                MEMBER_TEXT_LEFT_WITH_ICON
+            } else {
+                MEMBER_TEXT_LEFT_NO_ICON
+            };
+            lines
+                .iter()
+                .enumerate()
+                .map(|(i, (line_text, indent))| {
+                    let w = font_metrics::text_width(
+                        line_text,
+                        "SansSerif",
+                        CLASS_FONT_SIZE,
+                        false,
+                        m.modifiers.is_abstract,
+                    );
+                    if i == 0 {
+                        base_left + w
+                    } else {
+                        base_left + indent + w
+                    }
+                })
+                .fold(0.0_f64, f64::max)
         })
         .fold(0.0_f64, f64::max)
 }
@@ -406,7 +417,9 @@ fn section_height(show: bool, members: &[&Member]) -> f64 {
     if members.is_empty() {
         return EMPTY_COMPARTMENT;
     }
-    MEMBER_BLOCK_HEIGHT_ONE_ROW + (members.len().saturating_sub(1)) as f64 * MEMBER_ROW_HEIGHT
+    let total_visual_lines: usize = members.iter().map(|m| member_visual_lines(m)).sum();
+    MEMBER_BLOCK_HEIGHT_ONE_ROW
+        + (total_visual_lines.saturating_sub(1)) as f64 * MEMBER_ROW_HEIGHT
 }
 
 /// Java MemberImpl.getDisplay() format:
@@ -418,6 +431,38 @@ fn member_text(m: &Member) -> String {
         Some(t) => format!("{} : {t}", m.name),
         None => m.name.clone(),
     }
+}
+
+/// Count the number of visual lines a member occupies.
+fn member_visual_lines(m: &Member) -> usize {
+    let text = member_text(m);
+    split_member_lines(&text).len()
+}
+
+/// Split member display text by literal `\n` sequences.
+/// Returns a vec of (trimmed_text, leading_space_width_at_14pt).
+/// The first line always has indent=0; continuation lines use the width
+/// of the leading whitespace as an indent offset from the first line.
+pub(crate) fn split_member_lines(text: &str) -> Vec<(String, f64)> {
+    let parts: Vec<&str> = text.split("\\n").collect();
+    let mut result = Vec::with_capacity(parts.len());
+    for (i, part) in parts.iter().enumerate() {
+        if i == 0 {
+            result.push((part.to_string(), 0.0));
+        } else {
+            let trimmed = part.trim_start();
+            let leading = &part[..part.len() - trimmed.len()];
+            let indent = font_metrics::text_width(
+                leading,
+                "SansSerif",
+                CLASS_FONT_SIZE,
+                false,
+                false,
+            );
+            result.push((trimmed.to_string(), indent));
+        }
+    }
+    result
 }
 
 fn show_portion(rules: &[ClassHideShowRule], portion: ClassPortion, entity_name: &str) -> bool {
@@ -513,6 +558,9 @@ fn layout_class_diagram(cd: &ClassDiagram) -> Result<GraphLayout> {
         .collect();
 
     // build LayoutEdge list
+    // Java: DotStringFactory uses minlen = link.getLength() - 1.
+    // arrow_len=1 (single dash/dot) -> minlen=0 (same rank = horizontal).
+    // arrow_len=2+ (double dash/dot) -> minlen=1+ (different ranks = vertical).
     let mut edges: Vec<LayoutEdge> = cd
         .links
         .iter()
@@ -529,7 +577,7 @@ fn layout_class_diagram(cd: &ClassDiagram) -> Result<GraphLayout> {
                 from: from_id,
                 to: to_id,
                 label: link.label.clone(),
-                minlen: 1,
+                minlen: link.arrow_len.saturating_sub(1) as u32,
                 invisible: false,
             }
         })
@@ -538,10 +586,19 @@ fn layout_class_diagram(cd: &ClassDiagram) -> Result<GraphLayout> {
     let standalone_by_container = collect_standalone_square_edges(cd, &name_to_id);
     edges.extend(standalone_by_container);
 
+    // Java: rankdir=LR is only emitted when `left to right direction` was explicitly written.
+    // When direction is inferred from arrow length, rankdir stays TB (default) and
+    // layout is controlled via edge minlen values.
+    let rankdir = if cd.direction_explicit {
+        direction_to_rankdir(&cd.direction)
+    } else {
+        RankDir::TopToBottom
+    };
+
     let graph = LayoutGraph {
         nodes,
         edges,
-        rankdir: direction_to_rankdir(&cd.direction),
+        rankdir,
     };
 
     let mut layout = layout_graph(&graph)?;
@@ -821,6 +878,7 @@ mod tests {
             color: None,
             generic: None,
             source_line: None,
+            visibility: None,
         }
     }
 
@@ -840,6 +898,7 @@ mod tests {
             links: vec![],
             groups: vec![],
             direction: Direction::TopToBottom,
+            direction_explicit: false,
             notes: vec![],
             hide_show_rules: vec![],
             stereotype_backgrounds: HashMap::new(),
@@ -873,6 +932,7 @@ mod tests {
             color: None,
             generic: None,
             source_line: None,
+            visibility: None,
         };
         let (w, h) = estimate_entity_size(&empty_diagram(), &e);
 
@@ -908,6 +968,7 @@ mod tests {
             color: None,
             generic: None,
             source_line: None,
+            visibility: None,
         };
         let (_, h) = estimate_entity_size(&empty_diagram(), &e);
 

@@ -28,4 +28,7 @@ pub struct Link {
     pub from_label: Option<String>,
     pub to_label: Option<String>,
     pub source_line: Option<usize>,
+    /// Number of dashes/dots in the arrow.  1 = horizontal (LR), >=2 = vertical (TB).
+    /// Java: Link.getLength()
+    pub arrow_len: usize,
 }

@@ -21,6 +21,7 @@ pub fn parse_class_diagram(source: &str) -> Result<ClassDiagram> {
     let mut links: Vec<Link> = Vec::new();
     let mut groups: Vec<Group> = Vec::new();
     let mut direction = Direction::TopToBottom;
+    let mut direction_explicit = false;
     let mut hide_show_rules = Vec::new();
     let mut stereotype_backgrounds = HashMap::new();
     let mut entity_order: Vec<String> = Vec::new();
@@ -39,10 +40,11 @@ pub fn parse_class_diagram(source: &str) -> Result<ClassDiagram> {
     let mut brace_depth: usize = 0;
     let mut active_style_stereotype: Option<String> = None;
 
-    // Entity: class/interface/abstract class/abstract/enum/annotation/static class Name <<stereo>> #color {
+    // Entity: [visibility]class/interface/abstract class/abstract/enum/annotation/static class Name <<stereo>> #color {
+    // Visibility prefix: +/-/#/~ before the keyword (e.g. -class foo)
     let re_entity = Regex::new(concat!(
         r#"(?x)"#,
-        r#"^-?(class|interface|abstract\s+class|abstract|enum|annotation|static\s+class|object)"#,
+        r#"^([+\-\#~])?(class|interface|abstract\s+class|abstract|enum|annotation|static\s+class|object)"#,
         r#"\s+"#,
         r#"("(?:[^"]+)"|[\w.<>,\s]+?)"#,
         r#"\s*"#,
@@ -159,12 +161,14 @@ pub fn parse_class_diagram(source: &str) -> Result<ClassDiagram> {
         // Direction
         if re_direction_lr.is_match(trimmed) {
             direction = Direction::LeftToRight;
-            debug!("direction set to LeftToRight");
+            direction_explicit = true;
+            debug!("direction set to LeftToRight (explicit)");
             continue;
         }
         if re_direction_tb.is_match(trimmed) {
             direction = Direction::TopToBottom;
-            debug!("direction set to TopToBottom");
+            direction_explicit = true;
+            debug!("direction set to TopToBottom (explicit)");
             continue;
         }
 
@@ -235,14 +239,21 @@ pub fn parse_class_diagram(source: &str) -> Result<ClassDiagram> {
 
         // Entity declaration
         if let Some(caps) = re_entity.captures(trimmed) {
-            let kind_str = caps.get(1).unwrap().as_str().trim();
-            let raw_name = caps.get(2).unwrap().as_str().trim().trim_matches('"');
-            let stereo1 = caps.get(3).map(|m| m.as_str().to_string());
-            let stereo2 = caps.get(4).map(|m| m.as_str().to_string());
-            let stereo3 = caps.get(5).map(|m| m.as_str().to_string());
-            let color = caps.get(6).map(|m| m.as_str().to_string());
-            let has_open_brace = caps.get(7).is_some();
-            let has_close_brace = caps.get(8).is_some();
+            let entity_visibility = caps.get(1).and_then(|m| match m.as_str() {
+                "+" => Some(Visibility::Public),
+                "-" => Some(Visibility::Private),
+                "#" => Some(Visibility::Protected),
+                "~" => Some(Visibility::Package),
+                _ => None,
+            });
+            let kind_str = caps.get(2).unwrap().as_str().trim();
+            let raw_name = caps.get(3).unwrap().as_str().trim().trim_matches('"');
+            let stereo1 = caps.get(4).map(|m| m.as_str().to_string());
+            let stereo2 = caps.get(5).map(|m| m.as_str().to_string());
+            let stereo3 = caps.get(6).map(|m| m.as_str().to_string());
+            let color = caps.get(7).map(|m| m.as_str().to_string());
+            let has_open_brace = caps.get(8).is_some();
+            let has_close_brace = caps.get(9).is_some();
 
             let kind = parse_entity_kind(kind_str);
 
@@ -264,6 +275,7 @@ pub fn parse_class_diagram(source: &str) -> Result<ClassDiagram> {
                 color,
                 generic,
                 source_line: Some(source_line),
+                visibility: entity_visibility,
             };
 
             if has_open_brace && !has_close_brace {
@@ -338,6 +350,7 @@ pub fn parse_class_diagram(source: &str) -> Result<ClassDiagram> {
         links,
         groups,
         direction,
+        direction_explicit,
         notes,
         hide_show_rules,
         stereotype_backgrounds,
@@ -605,8 +618,13 @@ fn parse_member(line: &str) -> Option<Member> {
                     method_part.trim().to_string(),
                     Some(stripped.trim().to_string()),
                 )
-            } else {
+            } else if after.is_empty() {
                 (method_part.trim().to_string(), None)
+            } else {
+                // Text after closing paren that's not a return type (e.g. ";")
+                // is kept as part of the member name for display purposes.
+                let full = format!("{}{}", method_part, &rest[paren_close + 1..]);
+                (full.trim().to_string(), None)
             }
         } else {
             // {method} modifier but no parens
@@ -720,6 +738,7 @@ fn parse_link(line: &str, source_line: usize) -> Option<(Link, usize)> {
             from_label: None,
             to_label,
             source_line: Some(source_line),
+            arrow_len,
         }, arrow_len));
     }
 
@@ -779,6 +798,7 @@ fn parse_link(line: &str, source_line: usize) -> Option<(Link, usize)> {
             from_label: None,
             to_label,
             source_line: Some(source_line),
+            arrow_len,
         }, arrow_len));
     }
 
@@ -935,6 +955,7 @@ fn auto_create_entities(
             color: None,
             generic: None,
             source_line: None,
+            visibility: None,
         });
     }
 }

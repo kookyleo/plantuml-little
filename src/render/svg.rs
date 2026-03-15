@@ -6,6 +6,7 @@ use flate2::write::DeflateEncoder;
 use flate2::Compression;
 
 use crate::layout::graphviz::{ClassNoteLayout, EdgeLayout, GraphLayout, NodeLayout};
+use crate::layout::split_member_lines;
 use crate::layout::DiagramLayout;
 use crate::model::{
     ArrowHead, ClassDiagram, ClassHideShowRule, ClassPortion, ClassRuleTarget, Diagram,
@@ -104,6 +105,9 @@ const MEMBER_TEXT_X_WITH_ICON: f64 = 20.0;
 const MEMBER_TEXT_X_NO_ICON: f64 = 6.0;
 /// margin_top(4) + SansSerif 14pt ascent(12.995117) = 16.995117.
 const MEMBER_TEXT_Y_OFFSET: f64 = 16.995117;
+
+/// Entity-level visibility icon block size (SkinParam.circledCharacterRadius = 11).
+const ENTITY_VIS_ICON_BLOCK_SIZE: f64 = 11.0;
 
 const CLASS_BG: &str = "#F1F1F1";
 const CLASS_BORDER: &str = "#181818";
@@ -799,12 +803,18 @@ fn render_class(
     //   moveDelta_x = 6 - min(rect_minX, polygon_minX)
     // Y axis: rect_minY = -1. No polygon HACK on Y (HACK only extends X).
     //   moveDelta_y = 6 - (-1) = 7
-    let has_polygon_icon = cd.entities.iter().any(|e| {
+    // Java SvekResult: moveDelta(6 - minMax.getMinX(), 6 - minMax.getMinY())
+    // X and Y offsets computed independently from LimitFinder bounds.
+    // X: rect_minX = -1. With protected/package member icons (UPolygon),
+    //    HACK_X_FOR_POLYGON pushes minX to -3, so moveDelta_x = 9.
+    //    Entity-level visibility PRIVATE/PUBLIC use rect/ellipse (no HACK).
+    // Y: rect_minY = -1. No polygon HACK on Y axis. moveDelta_y = 7.
+    let has_member_polygon_icon = cd.entities.iter().any(|e| {
         e.members.iter().any(|m| {
             matches!(m.visibility, Some(Visibility::Protected) | Some(Visibility::Package))
         })
     });
-    let edge_offset_x = if has_polygon_icon { 9.0 } else { 7.0 };
+    let edge_offset_x = if has_member_polygon_icon { 9.0 } else { 7.0 };
     let edge_offset_y = 7.0;
     let mut tracker = BoundsTracker::new();
     let mut body = String::with_capacity(4096);
@@ -1267,7 +1277,8 @@ fn draw_entity_box(
         let stereo_height = visible_stereotypes.len() as f64 * HEADER_STEREO_LINE_HEIGHT;
         let header_height = HEADER_CIRCLE_BLOCK_HEIGHT
             .max(stereo_height + HEADER_NAME_BLOCK_HEIGHT + HEADER_STEREO_NAME_GAP);
-        let supp_width = (w - HEADER_CIRCLE_BLOCK_WIDTH - width_stereo_and_name).max(0.0);
+        let vis_icon_w = if entity.visibility.is_some() { ENTITY_VIS_ICON_BLOCK_SIZE } else { 0.0 };
+        let supp_width = (w - HEADER_CIRCLE_BLOCK_WIDTH - vis_icon_w - width_stereo_and_name).max(0.0);
         let h2 = (HEADER_CIRCLE_BLOCK_WIDTH / 4.0).min(supp_width * 0.1);
         let h1 = (supp_width - h2) / 2.0;
 
@@ -1283,17 +1294,18 @@ fn draw_entity_box(
         emit_circle_glyph(buf, tracker, &entity.kind, ecx, ecy);
 
         let header_top_offset = (header_height - stereo_height - HEADER_NAME_BLOCK_HEIGHT) / 2.0;
+        let name_x = x + HEADER_CIRCLE_BLOCK_WIDTH + vis_icon_w + (width_stereo_and_name - name_block_width) / 2.0 + h1 + h2 + 3.0;
+
+        if let Some(ref vis) = entity.visibility {
+            let icon_x = name_x - ENTITY_VIS_ICON_BLOCK_SIZE;
+            let icon_y = y + (header_height - ENTITY_VIS_ICON_BLOCK_SIZE) / 2.0;
+            draw_visibility_icon(buf, tracker, vis, true, icon_x, icon_y);
+        }
+
         for (idx, label) in visible_stereotypes.iter().enumerate() {
             let stereo_text = format!("\u{00AB}{label}\u{00BB}");
-            let stereo_x = x
-                + HEADER_CIRCLE_BLOCK_WIDTH
-                + (width_stereo_and_name - stereo_widths[idx]) / 2.0
-                + h1
-                + h2;
-            let stereo_y = y
-                + header_top_offset
-                + HEADER_STEREO_BASELINE
-                + idx as f64 * HEADER_STEREO_LINE_HEIGHT;
+            let stereo_x = x + HEADER_CIRCLE_BLOCK_WIDTH + vis_icon_w + (width_stereo_and_name - stereo_widths[idx]) / 2.0 + h1 + h2;
+            let stereo_y = y + header_top_offset + HEADER_STEREO_BASELINE + idx as f64 * HEADER_STEREO_LINE_HEIGHT;
             write!(
                 buf,
                 r#"<text fill="{font_color}" font-family="sans-serif" font-size="12" font-style="italic" lengthAdjust="spacing" textLength="{}" x="{}" y="{}">{}</text>"#,
@@ -1306,12 +1318,6 @@ fn draw_entity_box(
             tracker.track_rect(stereo_x, stereo_y - HEADER_STEREO_BASELINE, stereo_widths[idx], HEADER_STEREO_LINE_HEIGHT);
         }
 
-        let name_x = x
-            + HEADER_CIRCLE_BLOCK_WIDTH
-            + (width_stereo_and_name - name_block_width) / 2.0
-            + h1
-            + h2
-            + 3.0;
         let name_y = y + header_top_offset + stereo_height + HEADER_NAME_BASELINE;
         let font_style_attr = if entity.kind == EntityKind::Abstract {
             r#" font-style="italic""#
@@ -1397,12 +1403,21 @@ fn draw_member_section(
     )
     .unwrap();
     tracker.track_line(x1_f, section_y, x2_f, section_y);
-    for (i, member) in members.iter().enumerate() {
-        let icon_y = section_y + MEMBER_ICON_Y_FROM_SEP + i as f64 * MEMBER_ROW_HEIGHT;
-        let text_y = section_y + MEMBER_TEXT_Y_OFFSET + i as f64 * MEMBER_ROW_HEIGHT;
+
+    // visual_row tracks the current visual line index across all members
+    let mut visual_row: usize = 0;
+
+    for member in members.iter() {
         let text = member_text(member);
-        let text_escaped = xml_escape(&text);
+        let lines = split_member_lines(&text);
+        let num_lines = lines.len();
+
+        // Visibility icon: centered vertically across all visual lines of this member
         if let Some(visibility) = &member.visibility {
+            let icon_y = section_y
+                + MEMBER_ICON_Y_FROM_SEP
+                + visual_row as f64 * MEMBER_ROW_HEIGHT
+                + (num_lines.saturating_sub(1)) as f64 * MEMBER_ROW_HEIGHT / 2.0;
             draw_visibility_icon(
                 buf,
                 tracker,
@@ -1412,6 +1427,7 @@ fn draw_member_section(
                 icon_y,
             );
         }
+
         let font_style_attr = if member.modifiers.is_abstract {
             r#" font-style="italic""#
         } else {
@@ -1422,25 +1438,62 @@ fn draw_member_section(
         } else {
             ""
         };
-        let text_x = x + if member.visibility.is_some() {
-            MEMBER_TEXT_X_WITH_ICON
-        } else {
-            MEMBER_TEXT_X_NO_ICON
-        };
-        let text_width_val = font_metrics::text_width(&text, "SansSerif", attr_font_size, false, member.modifiers.is_abstract);
-        write!(
-            buf,
-            r#"<text fill="{font_color}" font-family="sans-serif" font-size="{attr_font_size:.0}"{font_style_attr} lengthAdjust="spacing"{text_deco_attr} textLength="{}" x="{}" y="{}">{text_escaped}</text>"#,
-            fmt_coord(text_width_val),
-            fmt_coord(text_x),
-            fmt_coord(text_y),
-        )
-        .unwrap();
-        {
-            let text_ascent = font_metrics::ascent("SansSerif", attr_font_size, false, member.modifiers.is_abstract);
-            let text_descent = font_metrics::descent("SansSerif", attr_font_size, false, member.modifiers.is_abstract);
-            tracker.track_rect(text_x, text_y - text_ascent, text_width_val, text_ascent + text_descent);
+
+        let base_text_x = x
+            + if member.visibility.is_some() {
+                MEMBER_TEXT_X_WITH_ICON
+            } else {
+                MEMBER_TEXT_X_NO_ICON
+            };
+
+        for (line_idx, (line_text, indent)) in lines.iter().enumerate() {
+            let text_y = section_y
+                + MEMBER_TEXT_Y_OFFSET
+                + (visual_row + line_idx) as f64 * MEMBER_ROW_HEIGHT;
+            let text_x = if line_idx == 0 {
+                base_text_x
+            } else {
+                base_text_x + indent
+            };
+            let text_escaped = xml_escape(line_text);
+            let text_width_val = font_metrics::text_width(
+                line_text,
+                "SansSerif",
+                attr_font_size,
+                false,
+                member.modifiers.is_abstract,
+            );
+            write!(
+                buf,
+                r#"<text fill="{font_color}" font-family="sans-serif" font-size="{attr_font_size:.0}"{font_style_attr} lengthAdjust="spacing"{text_deco_attr} textLength="{}" x="{}" y="{}">{text_escaped}</text>"#,
+                fmt_coord(text_width_val),
+                fmt_coord(text_x),
+                fmt_coord(text_y),
+            )
+            .unwrap();
+            {
+                let text_ascent = font_metrics::ascent(
+                    "SansSerif",
+                    attr_font_size,
+                    false,
+                    member.modifiers.is_abstract,
+                );
+                let text_descent = font_metrics::descent(
+                    "SansSerif",
+                    attr_font_size,
+                    false,
+                    member.modifiers.is_abstract,
+                );
+                tracker.track_rect(
+                    text_x,
+                    text_y - text_ascent,
+                    text_width_val,
+                    text_ascent + text_descent,
+                );
+            }
         }
+
+        visual_row += num_lines;
     }
 }
 
@@ -1448,7 +1501,15 @@ fn section_height(members: &[&Member]) -> f64 {
     if members.is_empty() {
         EMPTY_COMPARTMENT
     } else {
-        MEMBER_BLOCK_HEIGHT_ONE_ROW + (members.len().saturating_sub(1)) as f64 * MEMBER_ROW_HEIGHT
+        let total_visual_lines: usize = members
+            .iter()
+            .map(|m| {
+                let text = member_text(m);
+                split_member_lines(&text).len()
+            })
+            .sum();
+        MEMBER_BLOCK_HEIGHT_ONE_ROW
+            + (total_visual_lines.saturating_sub(1)) as f64 * MEMBER_ROW_HEIGHT
     }
 }
 
@@ -1516,16 +1577,16 @@ fn draw_visibility_icon(
             tracker.track_rect(rect_x, rect_y, 6.0, 6.0);
         }
         Visibility::Protected => {
-            // VisibilityModifier.drawDiamond: translate(x+1,y+0), UPolygon
-            // Points: (size/2,0),(size,size/2),(size/2,size),(0,size/2) size=10
+            // VisibilityModifier.drawDiamond: size -= 2 (10→8), translate(x+1,y+0), UPolygon
+            // Points: (size/2,0),(size,size/2),(size/2,size),(0,size/2) where size=8
             let ox = x + 1.0;
             let oy = y;
             let fill = if is_method { "#B38D22" } else { "none" };
             let poly_pts = [
-                (ox + 5.0, oy),
-                (ox + 10.0, oy + 5.0),
-                (ox + 5.0, oy + 10.0),
-                (ox, oy + 5.0),
+                (ox + 4.0, oy),
+                (ox + 8.0, oy + 4.0),
+                (ox + 4.0, oy + 8.0),
+                (ox, oy + 4.0),
             ];
             write!(buf,
                 r##"<polygon fill="{fill}" points="{},{},{},{},{},{},{},{}" style="stroke:#B38D22;stroke-width:1;"/>"##,
@@ -2147,6 +2208,7 @@ mod tests {
             links: vec![],
             groups: vec![],
             direction: Direction::TopToBottom,
+            direction_explicit: false,
             notes: vec![],
             hide_show_rules: vec![],
             stereotype_backgrounds: HashMap::new(),
@@ -2198,6 +2260,7 @@ mod tests {
             color: None,
             generic: None,
             source_line: None,
+            visibility: None,
         };
         let entity2 = Entity {
             name: "Bar".into(),
@@ -2207,6 +2270,7 @@ mod tests {
             color: None,
             generic: None,
             source_line: None,
+            visibility: None,
         };
         let link = Link {
             from: "Foo".into(),
@@ -2218,6 +2282,7 @@ mod tests {
             from_label: None,
             to_label: None,
             source_line: None,
+            arrow_len: 2,
         };
         let mut cd = empty_class_diagram();
         cd.entities = vec![entity, entity2];
@@ -2321,6 +2386,7 @@ mod tests {
             color: None,
             generic: None,
             source_line: None,
+            visibility: None,
         };
         let mut cd = empty_class_diagram();
         cd.entities = vec![entity];
@@ -2357,6 +2423,7 @@ mod tests {
             color: None,
             generic: None,
             source_line: None,
+            visibility: None,
         };
         let mut cd = empty_class_diagram();
         cd.entities = vec![entity];
@@ -2605,6 +2672,7 @@ mod tests {
             color: None,
             generic: None,
             source_line: None,
+            visibility: None,
         };
         let mut cd = empty_class_diagram();
         cd.entities = vec![entity];

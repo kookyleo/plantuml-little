@@ -88,6 +88,9 @@ pub struct ClassDiagram {
     pub links: Vec<Link>,
     pub groups: Vec<Group>,
     pub direction: Direction,
+    /// True when `left to right direction` was explicitly written (sets rankdir=LR in DOT).
+    /// False when direction was inferred from arrow length (keeps rankdir=TB, controls via minlen).
+    pub direction_explicit: bool,
     pub notes: Vec<ClassNote>,
     pub hide_show_rules: Vec<ClassHideShowRule>,
     pub stereotype_backgrounds: HashMap<String, String>,

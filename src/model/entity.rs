@@ -49,4 +49,6 @@ pub struct Entity {
     pub color: Option<String>,
     pub generic: Option<String>,
     pub source_line: Option<usize>,
+    /// Entity-level visibility modifier (e.g. `-class foo` -> Private)
+    pub visibility: Option<Visibility>,
 }
