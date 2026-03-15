@@ -18,8 +18,8 @@ use crate::Result;
 use crate::font_metrics;
 
 use super::svg_richtext::{
-    count_creole_lines, creole_plain_text, max_creole_plain_line_len, render_creole_text,
-    set_default_font_family,
+    count_creole_lines, creole_plain_text, get_default_font_family_pub,
+    max_creole_plain_line_len, render_creole_text, set_default_font_family,
 };
 use super::svg_sequence;
 
@@ -142,6 +142,8 @@ const NOTE_TEXT_PADDING: f64 = 6.0;
 
 const LINK_COLOR: &str = "#181818";
 const LABEL_COLOR: &str = "#000000";
+/// Java PlantUML renders link labels at font-size 13 (not 14).
+const LINK_LABEL_FONT_SIZE: f64 = 13.0;
 const PLANTUML_VERSION: &str = "1.2026.3beta4";
 
 // ── Meta rendering constants ────────────────────────────────────────
@@ -2332,17 +2334,114 @@ fn point_on_circle(cx: f64, cy: f64, radius: f64, angle: f64) -> (f64, f64) {
     (cx + radius * angle.cos(), cy + radius * angle.sin())
 }
 
+/// Alignment type for a link label line segment.
+#[derive(Clone, Copy, PartialEq)]
+enum LabelAlign {
+    Center,
+    Left,
+    Right,
+}
+
+/// Split a link label on `\n`, `\l`, `\r` break sequences.
+///
+/// Returns `(line_text, alignment)` pairs.  The alignment is determined by the
+/// break character that *follows* the text: `\n` → center, `\l` → left,
+/// `\r` → right.  The last segment (with no trailing break) defaults to center.
+fn split_label_lines(text: &str) -> Vec<(String, LabelAlign)> {
+    let mut result = Vec::new();
+    let chars: Vec<char> = text.chars().collect();
+    let mut buf = String::new();
+    let mut i = 0;
+
+    while i < chars.len() {
+        if chars[i] == '\\' && i + 1 < chars.len() {
+            match chars[i + 1] {
+                'n' => {
+                    result.push((buf.clone(), LabelAlign::Center));
+                    buf.clear();
+                    i += 2;
+                    continue;
+                }
+                'l' => {
+                    result.push((buf.clone(), LabelAlign::Left));
+                    buf.clear();
+                    i += 2;
+                    continue;
+                }
+                'r' => {
+                    result.push((buf.clone(), LabelAlign::Right));
+                    buf.clear();
+                    i += 2;
+                    continue;
+                }
+                _ => {}
+            }
+        }
+        buf.push(chars[i]);
+        i += 1;
+    }
+    if !buf.is_empty() || result.is_empty() {
+        // Last segment: inherit alignment from previous segments, default center
+        let align = result.last().map(|(_, a)| *a).unwrap_or(LabelAlign::Center);
+        result.push((buf, align));
+    }
+    result
+}
+
+/// Render a link label.
+///
+/// Java PlantUML renders multiline labels (`\n`, `\l`, `\r`) as separate
+/// `<text>` elements with font-size 13.  Alignment is per-line:
+/// - `\n` = center-aligned (each line centered relative to the widest)
+/// - `\l` = left-aligned   (all lines at the same left x)
+/// - `\r` = right-aligned  (all lines right-aligned to the widest)
 fn draw_label(buf: &mut String, text: &str, x: f64, y: f64) {
-    render_creole_text(
-        buf,
-        text,
-        x,
-        y,
-        LINE_HEIGHT,
-        LABEL_COLOR,
-        Some("middle"),
-        &format!(r#"font-size="{FONT_SIZE}""#),
-    );
+    let lines = split_label_lines(text);
+    let font_family = "SansSerif";
+    let font_size = LINK_LABEL_FONT_SIZE;
+    let line_height = font_metrics::line_height(font_family, font_size, false, false);
+
+    // Compute text widths for each line
+    let widths: Vec<f64> = lines
+        .iter()
+        .map(|(t, _)| font_metrics::text_width(t, font_family, font_size, false, false))
+        .collect();
+    let max_width = widths.iter().cloned().fold(0.0_f64, f64::max);
+
+    // Total block height
+    let total_height = lines.len() as f64 * line_height;
+
+    // Base x: left edge of the label block, positioned so the block center is at x
+    let base_x = x + 1.0; // Java PlantUML offsets label 1px to the right of edge midpoint
+
+    // Base y: center the label block vertically at y, then add ascent for first baseline
+    let ascent = font_metrics::ascent(font_family, font_size, false, false);
+    let base_y = y - total_height / 2.0 + ascent;
+
+    let default_font = get_default_font_family_pub();
+
+    for (idx, (line_text, align)) in lines.iter().enumerate() {
+        let text_w = widths[idx];
+        let line_x = match align {
+            LabelAlign::Left => base_x,
+            LabelAlign::Center => base_x + (max_width - text_w) / 2.0,
+            LabelAlign::Right => base_x + (max_width - text_w),
+        };
+        let line_y = base_y + idx as f64 * line_height;
+
+        write!(
+            buf,
+            r#"<text fill="{}" font-family="{}" font-size="{}" lengthAdjust="spacing" textLength="{}" x="{}" y="{}">{}</text>"#,
+            LABEL_COLOR,
+            xml_escape(&default_font),
+            font_size as i32,
+            fmt_coord(text_w),
+            fmt_coord(line_x),
+            fmt_coord(line_y),
+            xml_escape(line_text),
+        )
+        .unwrap();
+    }
 }
 
 /// Draw a note in class diagrams (yellow sticky box with folded corner)

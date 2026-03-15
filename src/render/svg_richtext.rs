@@ -29,6 +29,11 @@ pub fn set_default_font_family(family: Option<String>) {
     DEFAULT_FONT_FAMILY.with(|f| *f.borrow_mut() = family);
 }
 
+/// Get the current default font family (or "sans-serif") — public accessor for sibling modules.
+pub fn get_default_font_family_pub() -> String {
+    get_default_font_family()
+}
+
 /// Get the current default font family (or "sans-serif").
 fn get_default_font_family() -> String {
     DEFAULT_FONT_FAMILY.with(|f| {
