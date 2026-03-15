@@ -461,6 +461,27 @@ fn ensure_participant(
     });
 }
 
+/// Strip `[[url text]]` markup from a display name, returning just the display text.
+/// E.g. `"[[http://example.com Line 1 Line 2]]"` → `"Line 1 Line 2"`
+fn strip_url_markup(s: &str) -> String {
+    let mut result = s.to_string();
+    while let Some(start) = result.find("[[") {
+        if let Some(end) = result[start..].find("]]") {
+            let inner = &result[start + 2..start + end];
+            // Extract text after URL (URL is the first token)
+            let display = if let Some(space_pos) = inner.find(' ') {
+                inner[space_pos + 1..].to_string()
+            } else {
+                String::new()
+            };
+            result.replace_range(start..start + end + 2, &display);
+        } else {
+            break;
+        }
+    }
+    result
+}
+
 /// Parse participant declaration details: name, display name, and color
 fn parse_participant_details(rest: &str) -> (String, Option<String>, Option<String>) {
     // Patterns:
@@ -479,7 +500,9 @@ fn parse_participant_details(rest: &str) -> (String, Option<String>, Option<Stri
         if let Some(end_quote) = remaining[1..].find('"') {
             let quoted = remaining[1..=end_quote].to_string();
             remaining = remaining[end_quote + 2..].trim();
-            display_name = Some(quoted);
+            // Strip [[url text]] patterns — extract just the display text
+            let cleaned = strip_url_markup(&quoted);
+            display_name = Some(cleaned);
 
             // Expect "as Name" next
             let lower = remaining.to_lowercase();
