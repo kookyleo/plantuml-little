@@ -825,9 +825,14 @@ pub fn layout_sequence(sd: &SequenceDiagram) -> Result<SeqLayout> {
         }
     }
 
-    // Close any remaining activations (unmatched)
-    for (name, stack) in &activation_stack {
+    // Close any remaining activations (unmatched).
+    // Iterate in participant declaration order for deterministic output.
+    for p in &participants {
+        let Some(stack) = activation_stack.get(&p.name) else {
+            continue;
+        };
         for &y_start in stack {
+            let name = &p.name;
             let px = find_participant_x(&participants, name);
             activations.push(ActivationLayout {
                 x: px - ACTIVATION_WIDTH / 2.0,
@@ -859,6 +864,16 @@ pub fn layout_sequence(sd: &SequenceDiagram) -> Result<SeqLayout> {
         if frag_right > total_width {
             total_width = frag_right;
         }
+    }
+
+    // Account for self-message loops extending to the right
+    let self_msg_right = messages
+        .iter()
+        .filter(|m| m.is_self)
+        .map(|m| m.from_x + SELF_MSG_WIDTH + MARGIN)
+        .fold(0.0_f64, f64::max);
+    if self_msg_right > total_width {
+        total_width = self_msg_right;
     }
 
     // Tail box at lifeline_bottom - 1, then add box height + bottom margin (~7)
