@@ -1259,12 +1259,8 @@ fn draw_entity_box(
     let class_font_size = skin.font_size("class", FONT_SIZE);
     let attr_font_size = skin.font_size("classattribute", class_font_size);
 
-    // Entity name WITH generic parameter in display text (e.g. "ArrayList<E>")
-    let name_display = if let Some(ref g) = entity.generic {
-        format!("{}<{}>", entity.name, g)
-    } else {
-        entity.name.clone()
-    };
+    // Entity name WITHOUT generic parameter — generic is rendered separately in draw_generic_box
+    let name_display = entity.name.clone();
     let name_escaped = xml_escape(&name_display);
     let visible_stereotypes = visible_stereotype_labels(&cd.hide_show_rules, entity);
     let show_fields = show_portion(&cd.hide_show_rules, ClassPortion::Field, &entity.name);

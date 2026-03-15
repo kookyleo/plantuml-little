@@ -222,14 +222,11 @@ fn test_fixture_qualifiedassoc002() {
 fn test_fixture_generics001() {
     let svg = convert_fixture("tests/fixtures/class/generics001.puml");
     assert_valid_svg(&svg, "generics001");
-    assert!(
-        svg.contains("ArrayList&lt;E&gt;"),
-        "generics001: must display ArrayList<E> (escaped)"
-    );
-    assert!(
-        svg.contains("HashMap&lt;K,V&gt;"),
-        "generics001: must display HashMap<K,V> (escaped)"
-    );
+    // Generic parameters are rendered in a separate dashed box, not in the class name
+    assert!(svg.contains("ArrayList"), "generics001: must display ArrayList");
+    assert!(svg.contains(">E<"), "generics001: must display generic parameter E");
+    assert!(svg.contains("HashMap"), "generics001: must display HashMap");
+    assert!(svg.contains(">K,V<"), "generics001: must display generic parameter K,V");
 }
 
 #[test]
