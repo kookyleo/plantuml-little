@@ -831,13 +831,13 @@ mod tests {
     #[test]
     fn detect_class_with_rectangle_group() {
         let content = "rectangle Foo {\n  class A\n}\npackage Bar {\n  class B\n}\n";
-        assert!(matches!(detect_diagram_type(content), DiagramHint::Component));
+        assert!(matches!(detect_diagram_type(content), DiagramHint::Class));
     }
 
     #[test]
     fn detect_class_with_interface_and_qualified_assoc() {
         let content = "interface Map<K,V>\nclass HashMap\nHashMap [id: Long] --> Customer\n";
-        assert!(matches!(detect_diagram_type(content), DiagramHint::Component));
+        assert!(matches!(detect_diagram_type(content), DiagramHint::Class));
     }
 
     #[test]
