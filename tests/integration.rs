@@ -1598,8 +1598,8 @@ fn test_skinparam_class001() {
     assert_valid_svg(&svg, "skinparam_class001");
     assert!(svg.contains("Foo"), "must contain Foo");
     assert!(
-        svg.contains(r#"fill="blue""#),
-        "classFontColor blue should appear"
+        svg.contains("fill=\"blue\"") || svg.contains("fill=\"#0000FF\""),
+        "classFontColor blue should appear (as name or hex)"
     );
     assert!(
         svg.contains(r#"font-size="16""#),

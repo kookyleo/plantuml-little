@@ -1,0 +1,22 @@
+@startmindmap
+
+
+<style>
+node {
+    Padding 0
+    HorizontalAlignment center
+    LineColor blue
+    LineThickness 3.0
+    BackgroundColor gold
+    RoundCorner 40
+}
+
+</style>
+
+* New style
+** New features
+** Template Files
+*** They are \ngreat and \n should have them!
+
+caption caption
+@endmindmap

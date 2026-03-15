@@ -5015,7 +5015,7 @@ mod tests {
     #[test]
     fn upstream_color_trie_darkblue_normalize() {
         let normalized = crate::style::normalize_color("darkblue");
-        assert_eq!(normalized, "darkblue", "named color kept as SVG name");
+        assert_eq!(normalized, "#00008B", "named color converted to hex");
     }
 
     // ── Ported from upstream: HSL color tests ────────────────────

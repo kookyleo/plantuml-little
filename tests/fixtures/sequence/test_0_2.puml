@@ -1,0 +1,3 @@
+@startuml
+alice->bob: this is a test
+@enduml

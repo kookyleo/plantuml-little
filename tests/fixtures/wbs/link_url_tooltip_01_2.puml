@@ -1,0 +1,4 @@
+@startwbs
++ raw string literals \
+ [["Example:\n\nconst char* msg1 = <U+0022><U+005C>nHello,world!<U+0022>;" TP]]
+@endwbs
