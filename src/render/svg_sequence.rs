@@ -1352,10 +1352,8 @@ pub fn render_sequence(
     let part_index = build_participant_index(sd);
 
     // 3. Fragment frame rects (first outline, before lifelines).
-    // Java PlantUML emits inner (deepest-nested) fragments first.  Our fragment
-    // list naturally stores inner fragments first because they complete (hit
-    // `end`) before their parents.
-    for frag in &layout.fragments {
+    // Reverse: outer fragments first to match Java's SVG element ordering.
+    for frag in layout.fragments.iter().rev() {
         draw_fragment_frame(&mut buf, frag);
     }
 
