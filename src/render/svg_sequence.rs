@@ -782,22 +782,22 @@ fn draw_message(
             .unwrap();
         }
 
-        // Draw message text lines
+        // Draw message text lines (with Creole markup support)
         for (i, line) in msg.text_lines.iter().enumerate() {
             if line.is_empty() {
                 continue;
             }
             let line_y = first_text_y + i as f64 * msg_line_spacing;
-            let tl = font_metrics::text_width(line, "SansSerif", FONT_SIZE, false, false);
-            write!(
+            render_creole_text(
                 buf,
-                r#"<text fill="{TEXT_COLOR}" font-family="sans-serif" font-size="{FONT_SIZE}" lengthAdjust="spacing" textLength="{}" x="{}" y="{}">{}</text>"#,
-                fmt_coord(tl),
-                fmt_coord(text_x),
-                fmt_coord(line_y),
-                xml_escape(line),
-            )
-            .unwrap();
+                line,
+                text_x,
+                line_y,
+                msg_line_spacing,
+                TEXT_COLOR,
+                None,
+                &format!(r#"font-size="{FONT_SIZE}""#),
+            );
         }
     }
 
@@ -922,16 +922,16 @@ fn draw_self_message(
                 continue;
             }
             let line_y = first_text_y + i as f64 * msg_line_spacing;
-            let tl = font_metrics::text_width(line, "SansSerif", FONT_SIZE, false, false);
-            write!(
+            render_creole_text(
                 buf,
-                r#"<text fill="{TEXT_COLOR}" font-family="sans-serif" font-size="{FONT_SIZE}" lengthAdjust="spacing" textLength="{}" x="{}" y="{}">{}</text>"#,
-                fmt_coord(tl),
-                fmt_coord(text_x),
-                fmt_coord(line_y),
-                xml_escape(line),
-            )
-            .unwrap();
+                line,
+                text_x,
+                line_y,
+                msg_line_spacing,
+                TEXT_COLOR,
+                None,
+                &format!(r#"font-size="{FONT_SIZE}""#),
+            );
         }
     }
 
