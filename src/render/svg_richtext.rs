@@ -129,7 +129,7 @@ pub fn render_creole_text(
         } else {
             render_spans(buf, &lines[0], &SpanStyle::default(), fill);
         }
-        buf.push_str("</text>\n");
+        buf.push_str("</text>");
         render_deferred_sprites(buf, &sprite_refs, x, y);
         return 1;
     }
@@ -145,7 +145,7 @@ pub fn render_creole_text(
         }
         buf.push_str("</tspan>");
     }
-    buf.push_str("</text>\n");
+    buf.push_str("</text>");
     render_deferred_sprites(buf, &sprite_refs, x, y);
 
     lines.len()

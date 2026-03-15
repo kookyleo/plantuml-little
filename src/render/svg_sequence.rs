@@ -66,6 +66,11 @@ fn draw_lifelines(buf: &mut String, layout: &SeqLayout, skin: &SkinParams, sd: &
         )
         .unwrap();
 
+        // Java lifeline position: box_x + (int)(box_width) / 2 (Java integer division)
+        // This differs from exact center (box_x + box_width/2.0) due to truncation
+        let box_x = p.x - p.box_width / 2.0;
+        let lifeline_x = box_x + (p.box_width as i32 / 2) as f64;
+
         // Transparent click-target rect over lifeline
         let _ = write!(
             buf,
@@ -79,7 +84,7 @@ fn draw_lifelines(buf: &mut String, layout: &SeqLayout, skin: &SkinParams, sd: &
         write!(
             buf,
             r#"<line style="stroke:{color};stroke-width:0.5;stroke-dasharray:5,5;" x1="{x}" x2="{x}" y1="{y1}" y2="{y2}"/>"#,
-            x = fmt_coord(p.x),
+            x = fmt_coord(lifeline_x),
             y1 = fmt_coord(layout.lifeline_top),
             y2 = fmt_coord(layout.lifeline_bottom),
             color = ll_color,
@@ -606,12 +611,13 @@ fn draw_message(
     let sw = arrow_thickness as u32;
 
     // Determine arrow tip position and line endpoints
+    // Java insets the arrow tip 2px from the participant center
     let (tip_x, line_x1, line_x2) = if msg.is_left {
         // Right-to-left: arrow points left
-        (msg.to_x, msg.from_x, msg.to_x)
+        (msg.to_x + 2.0, msg.from_x, msg.to_x)
     } else {
         // Left-to-right: arrow points right
-        (msg.to_x, msg.from_x, msg.to_x)
+        (msg.to_x - 2.0, msg.from_x, msg.to_x)
     };
 
     // Draw inline polygon arrowhead
@@ -643,11 +649,11 @@ fn draw_message(
         )
         .unwrap();
     } else {
-        // Filled arrowhead polygon: 4-point diamond shape like Java
+        // Filled arrowhead polygon: 4-point diamond with inner point 6px from tip
         let (p1x, p2x, p3x, p4x) = if msg.is_left {
-            (tip_x + 10.0, tip_x, tip_x + 10.0, tip_x + 4.0)
+            (tip_x + 10.0, tip_x, tip_x + 10.0, tip_x + 6.0)
         } else {
-            (tip_x - 10.0, tip_x, tip_x - 10.0, tip_x - 4.0)
+            (tip_x - 10.0, tip_x, tip_x - 10.0, tip_x - 6.0)
         };
         write!(
             buf,
@@ -671,13 +677,13 @@ fn draw_message(
     } else {
         ""
     };
-    // Line stops at polygon edge, not at tip
+    // Line stops at polygon inner edge (4px from tip)
     let adjusted_x2 = if msg.has_open_head {
-        line_x2
+        tip_x
     } else if msg.is_left {
-        line_x2 + 4.0
+        tip_x + 4.0
     } else {
-        line_x2 - 4.0
+        tip_x - 4.0
     };
     write!(
         buf,

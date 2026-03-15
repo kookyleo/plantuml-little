@@ -232,7 +232,7 @@ pub fn layout_sequence(sd: &SequenceDiagram) -> Result<SeqLayout> {
                 let (lo, hi) = if fi < ti { (fi, ti) } else { (ti, fi) };
                 let text_w =
                     font_metrics::text_width(&msg.text, "SansSerif", MSG_FONT_SIZE, false, false);
-                let needed = text_w + 20.0; // 10px padding each side
+                let needed = text_w + 24.0; // 7px text-margin + 7px gap + 10px arrow
                 let span = hi - lo; // number of gaps this message spans
                 if span > 0 {
                     let per_gap = needed / span as f64;
@@ -565,7 +565,7 @@ pub fn layout_sequence(sd: &SequenceDiagram) -> Result<SeqLayout> {
 
     let total_width = participants
         .last()
-        .map_or(2.0 * MARGIN, |p| p.x + p.box_width / 2.0 + MARGIN);
+        .map_or(2.0 * MARGIN, |p| p.x + p.box_width / 2.0 + 2.0 * MARGIN);
 
     // Tail box at lifeline_bottom - 1, then add box height + bottom margin (~7)
     let total_height = (lifeline_bottom - 1.0) + max_participant_height + 7.0;
