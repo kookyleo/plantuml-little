@@ -243,7 +243,7 @@ pub fn layout_sequence(sd: &SequenceDiagram) -> Result<SeqLayout> {
             + 2.0 * PARTICIPANT_PADDING)
             .max(40.0);
         let bh = match p.kind {
-            ParticipantKind::Actor => PARTICIPANT_HEIGHT + 40.0,
+            ParticipantKind::Actor => PARTICIPANT_HEIGHT + 45.0,
             ParticipantKind::Boundary
             | ParticipantKind::Control
             | ParticipantKind::Entity
