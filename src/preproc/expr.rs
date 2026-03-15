@@ -37,12 +37,14 @@ pub(super) fn requires_round_trip_quotes(value: &str) -> bool {
 
 /// Expand built-in functions in normal lines.
 ///
-/// NOTE: `%newline()` and `%n()` are rendering-level constructs that produce
-/// line breaks in displayed text — they are NOT expanded here.  They are only
-/// meaningful inside `!function`/`!procedure` string concatenation and are
-/// handled by the renderer.
+/// `%newline()` and `%n()` produce the literal escape `\n` which downstream
+/// parsers / renderers interpret as a line break in displayed text.
 pub(super) fn expand_builtins(line: &str) -> String {
     let mut result = line.to_string();
+
+    // %newline() / %n() → literal \n (two-char escape understood by renderers)
+    result = result.replace("%newline()", "\\n");
+    result = result.replace("%n()", "\\n");
 
     // %chr(N) — e.g. %chr(65) -> 'A'
     while let Some(start) = result.find("%chr(") {

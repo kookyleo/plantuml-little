@@ -3136,19 +3136,19 @@ mod tests {
     }
 
     #[test]
-    fn test_builtin_newline_passthrough() {
-        // %newline() is a rendering-level construct, not expanded by preprocessor
+    fn test_builtin_newline_expanded() {
+        // %newline() is expanded to literal \n escape for downstream renderers
         let src = "text%newline()more";
         let out = preprocess(src).unwrap();
-        assert_eq!(out, "text%newline()more");
+        assert_eq!(out, "text\\nmore");
     }
 
     #[test]
-    fn test_builtin_n_passthrough() {
-        // %n() is a rendering-level construct, not expanded by preprocessor
+    fn test_builtin_n_expanded() {
+        // %n() is expanded to literal \n escape for downstream renderers
         let src = "text%n()more";
         let out = preprocess(src).unwrap();
-        assert_eq!(out, "text%n()more");
+        assert_eq!(out, "text\\nmore");
     }
 
     #[test]
