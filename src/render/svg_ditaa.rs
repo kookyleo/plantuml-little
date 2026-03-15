@@ -1,6 +1,6 @@
 use std::fmt::Write;
 
-use super::svg::{fmt_coord, write_svg_root};
+use super::svg::{fmt_coord, write_svg_root_bg, write_bg_rect};
 use crate::layout::ditaa::{DitaaBox, DitaaLayout, DitaaLine, DitaaText};
 use crate::model::ditaa::DitaaDiagram;
 use crate::render::svg_richtext::{count_creole_lines, render_creole_text};
@@ -27,8 +27,10 @@ pub fn render_ditaa(
     let font = skin.font_color("ditaa", TEXT_FILL);
     let background = skin.background_color("ditaabg", BACKGROUND);
 
-    write_svg_root(&mut buf, layout.width, layout.height, "DITAA");
+    let bg = skin.get_or("backgroundcolor", "#FFFFFF");
+    write_svg_root_bg(&mut buf, layout.width, layout.height, "DITAA", bg);
     buf.push_str("<defs/><g>");
+    write_bg_rect(&mut buf, layout.width, layout.height, bg);
     write!(
         buf,
         r#"<defs><marker id="ditaa-arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto-start-reverse"><path d="M0,0 L8,4 L0,8 Z " fill="{border}"/></marker></defs>"#

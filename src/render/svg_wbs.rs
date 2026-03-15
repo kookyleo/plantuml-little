@@ -1,6 +1,6 @@
 use std::fmt::Write;
 
-use super::svg::write_svg_root;
+use super::svg::{write_svg_root_bg, write_bg_rect};
 use crate::layout::wbs::{WbsEdgeLayout, WbsLayout, WbsNodeLayout, WbsNoteLayout};
 use crate::model::wbs::WbsDiagram;
 use crate::render::svg::fmt_coord;
@@ -46,8 +46,10 @@ pub fn render_wbs(_wd: &WbsDiagram, layout: &WbsLayout, skin: &SkinParams) -> Re
     let mut buf = String::with_capacity(4096);
 
     // SVG header
-    write_svg_root(&mut buf, layout.width, layout.height, "WBS");
+    let bg = skin.get_or("backgroundcolor", "#FFFFFF");
+    write_svg_root_bg(&mut buf, layout.width, layout.height, "WBS", bg);
     buf.push_str("<defs/><g>");
+    write_bg_rect(&mut buf, layout.width, layout.height, bg);
 
     let wbs_bg = skin.background_color("wbs", NODE_BG);
     let wbs_border = skin.border_color("wbs", NODE_BORDER);

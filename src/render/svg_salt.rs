@@ -4,7 +4,7 @@ use crate::font_metrics;
 use crate::layout::salt::{LayoutBox, SaltLayout, SaltWidgetLayout};
 use crate::model::salt::SaltDiagram;
 use crate::render::svg::fmt_coord;
-use crate::render::svg::write_svg_root;
+use crate::render::svg::{write_svg_root_bg, write_bg_rect};
 use crate::render::svg::xml_escape;
 use crate::style::SkinParams;
 use crate::Result;
@@ -20,8 +20,10 @@ pub fn render_salt(
     skin: &SkinParams,
 ) -> Result<String> {
     let mut buf = String::with_capacity(4096);
-    write_svg_root(&mut buf, layout.width, layout.height, "SALT");
+    let bg = skin.get_or("backgroundcolor", "#FFFFFF");
+    write_svg_root_bg(&mut buf, layout.width, layout.height, "SALT", bg);
     buf.push_str("<defs/><g>");
+    write_bg_rect(&mut buf, layout.width, layout.height, bg);
 
     let border = skin.border_color("salt", BORDER);
     let fill = skin.background_color("salt", FILL);

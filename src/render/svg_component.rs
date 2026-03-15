@@ -7,7 +7,7 @@ use crate::layout::component::{
 };
 use crate::model::component::{ComponentDiagram, ComponentKind};
 use crate::render::svg::fmt_coord;
-use crate::render::svg::write_svg_root;
+use crate::render::svg::{write_svg_root_bg, write_bg_rect};
 use crate::render::svg::xml_escape;
 use crate::render::svg_richtext::render_creole_text;
 use crate::style::SkinParams;
@@ -105,11 +105,13 @@ pub fn render_component(
     let queue_border = skin.border_color("queue", QUEUE_BORDER);
 
     // SVG header
-    write_svg_root(&mut buf, layout.width, layout.height, "DESCRIPTION");
+    let bg = skin.get_or("backgroundcolor", "#FFFFFF");
+    write_svg_root_bg(&mut buf, layout.width, layout.height, "DESCRIPTION", bg);
 
     // Empty defs to match Java PlantUML
     buf.push_str("<defs/>");
     buf.push_str("<g>");
+    write_bg_rect(&mut buf, layout.width, layout.height, bg);
 
     // Groups (render before nodes so they appear behind)
     for group in &layout.groups {

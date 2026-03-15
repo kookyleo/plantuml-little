@@ -1,6 +1,6 @@
 use std::fmt::Write;
 
-use super::svg::write_svg_root;
+use super::svg::{write_svg_root_bg, write_bg_rect};
 use crate::layout::timing::{
     TimingConstraintLayout, TimingLayout, TimingMsgLayout, TimingNoteLayout, TimingSegmentLayout,
     TimingTimeAxis, TimingTrackLayout,
@@ -52,8 +52,10 @@ pub fn render_timing(
     let arrow_color = skin.arrow_color(ARROW_COLOR);
 
     // SVG header
-    write_svg_root(&mut buf, layout.width, layout.height, "TIMING");
+    let bg = skin.get_or("backgroundcolor", "#FFFFFF");
+    write_svg_root_bg(&mut buf, layout.width, layout.height, "TIMING", bg);
     buf.push_str("<defs/><g>");
+    write_bg_rect(&mut buf, layout.width, layout.height, bg);
 
     // Tick grid lines (vertical)
     render_tick_grid(&mut buf, layout);

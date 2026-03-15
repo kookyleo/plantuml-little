@@ -6,7 +6,7 @@ use crate::layout::usecase::{
 };
 use crate::model::usecase::UseCaseDiagram;
 use crate::render::svg::fmt_coord;
-use crate::render::svg::write_svg_root;
+use crate::render::svg::{write_svg_root_bg, write_bg_rect};
 use crate::render::svg::xml_escape;
 use crate::style::SkinParams;
 use crate::Result;
@@ -59,13 +59,16 @@ pub fn render_usecase(
     let boundary_font = skin.font_color("boundary", TEXT_FILL);
     let arrow_color = skin.arrow_color(EDGE_COLOR);
 
-    write_svg_root(
+    let bg = skin.get_or("backgroundcolor", "#FFFFFF");
+    write_svg_root_bg(
         &mut buf,
         layout.total_width,
         layout.total_height,
         "DESCRIPTION",
+        bg,
     );
     buf.push_str("<defs/><g>");
+    write_bg_rect(&mut buf, layout.total_width, layout.total_height, bg);
 
     // Boundaries first (behind everything)
     for boundary in &layout.boundaries {

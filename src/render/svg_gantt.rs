@@ -6,7 +6,7 @@ use crate::layout::gantt::{
 };
 use crate::model::gantt::GanttDiagram;
 use crate::render::svg::fmt_coord;
-use crate::render::svg::write_svg_root;
+use crate::render::svg::{write_svg_root_bg, write_bg_rect};
 use crate::render::svg::xml_escape;
 use crate::render::svg_richtext::render_creole_text;
 use crate::style::SkinParams;
@@ -41,8 +41,10 @@ pub fn render_gantt(
     let mut buf = String::with_capacity(4096);
 
     // SVG header
-    write_svg_root(&mut buf, layout.width, layout.height, "GANTT");
+    let bg = skin.get_or("backgroundcolor", "#FFFFFF");
+    write_svg_root_bg(&mut buf, layout.width, layout.height, "GANTT", bg);
     buf.push_str("<defs/><g>");
+    write_bg_rect(&mut buf, layout.width, layout.height, bg);
 
     // Grid lines
     render_grid(&mut buf, layout);

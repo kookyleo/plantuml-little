@@ -1,6 +1,6 @@
 use std::fmt::Write;
 
-use super::svg::write_svg_root;
+use super::svg::{write_svg_root_bg, write_bg_rect};
 use crate::layout::mindmap::{
     MindmapEdgeLayout, MindmapLayout, MindmapNodeLayout, MindmapNoteLayout,
 };
@@ -36,8 +36,10 @@ pub fn render_mindmap(
     let mut buf = String::with_capacity(4096);
 
     // SVG header
-    write_svg_root(&mut buf, layout.width, layout.height, "MINDMAP");
+    let bg = skin.get_or("backgroundcolor", "#FFFFFF");
+    write_svg_root_bg(&mut buf, layout.width, layout.height, "MINDMAP", bg);
     buf.push_str("<defs/><g>");
+    write_bg_rect(&mut buf, layout.width, layout.height, bg);
 
     let mm_bg = skin.background_color("mindmap", NODE_FILL);
     let mm_border = skin.border_color("mindmap", NODE_BORDER);

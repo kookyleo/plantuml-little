@@ -211,6 +211,10 @@ fn java_round_4(v: f64) -> f64 {
 
 /// Write a Java PlantUML-compatible SVG root element and open a `<g>` wrapper.
 pub(crate) fn write_svg_root(buf: &mut String, w: f64, h: f64, diagram_type: &str) {
+    write_svg_root_bg(buf, w, h, diagram_type, "#FFFFFF");
+}
+
+pub(crate) fn write_svg_root_bg(buf: &mut String, w: f64, h: f64, diagram_type: &str, bg: &str) {
     let wi = if w.is_finite() && w > 0.0 { w.ceil() as i32 } else { 100 };
     let hi = if h.is_finite() && h > 0.0 { h.ceil() as i32 } else { 100 };
     write!(
@@ -222,7 +226,7 @@ pub(crate) fn write_svg_root(buf: &mut String, w: f64, h: f64, diagram_type: &st
             r#" data-diagram-type="{dtype}""#,
             r#" height="{hi}px""#,
             r#" preserveAspectRatio="none""#,
-            r#" style="width:{wi}px;height:{hi}px;background:#FFFFFF;""#,
+            r#" style="width:{wi}px;height:{hi}px;background:{bg};""#,
             r#" version="1.1""#,
             r#" viewBox="0 0 {wi} {hi}""#,
             r#" width="{wi}px""#,
@@ -231,6 +235,7 @@ pub(crate) fn write_svg_root(buf: &mut String, w: f64, h: f64, diagram_type: &st
         dtype = diagram_type,
         hi = hi,
         wi = wi,
+        bg = bg,
     )
     .unwrap();
     write!(buf, "<?plantuml {PLANTUML_VERSION}?>").unwrap();
@@ -261,6 +266,21 @@ pub(crate) fn xml_escape(s: &str) -> String {
         }
     }
     out
+}
+
+/// Write a background `<rect>` covering the entire canvas when the background
+/// color differs from the default #FFFFFF. Java PlantUML emits this rect as the
+/// first child of `<g>` when `skinparam backgroundColor` is set.
+pub(crate) fn write_bg_rect(buf: &mut String, w: f64, h: f64, bg: &str) {
+    if !bg.eq_ignore_ascii_case("#FFFFFF") {
+        let wi = if w.is_finite() && w > 0.0 { w.ceil() as i32 } else { 100 };
+        let hi = if h.is_finite() && h > 0.0 { h.ceil() as i32 } else { 100 };
+        write!(
+            buf,
+            r#"<rect fill="{bg}" height="{hi}" style="stroke:none;stroke-width:1;" width="{wi}" x="0" y="0"/>"#,
+        )
+        .unwrap();
+    }
 }
 
 // ── Public entry point ───────────────────────────────────────────────
@@ -301,7 +321,8 @@ pub fn render_with_source(
                     .map(|end| &body_svg[start..start + end])
             })
             .unwrap_or("CLASS");
-        wrap_with_meta(&body_svg, meta, dtype)?
+        let bg = skin.get_or("backgroundcolor", "#FFFFFF");
+        wrap_with_meta(&body_svg, meta, dtype, bg)?
     };
 
     if let Some(source) = source {
@@ -642,7 +663,7 @@ fn encode6bit(b: u8) -> char {
     }
 }
 
-fn wrap_with_meta(body_svg: &str, meta: &DiagramMeta, diagram_type: &str) -> Result<String> {
+fn wrap_with_meta(body_svg: &str, meta: &DiagramMeta, diagram_type: &str, bg: &str) -> Result<String> {
     let (svg_w, svg_h) = extract_dimensions(body_svg);
     let body_content = extract_svg_content(body_svg);
     // Body SVG includes DOC_MARGIN + 1: recover raw textBlock dimensions.
@@ -695,8 +716,9 @@ fn wrap_with_meta(body_svg: &str, meta: &DiagramMeta, diagram_type: &str) -> Res
 
     // ── 4. Render SVG ──────────────────────────────────────────────
     let mut buf = String::with_capacity(body_svg.len() + 2048);
-    write_svg_root(&mut buf, canvas_w, canvas_h, diagram_type);
+    write_svg_root_bg(&mut buf, canvas_w, canvas_h, diagram_type, bg);
     buf.push_str("<defs/><g>");
+    write_bg_rect(&mut buf, canvas_w, canvas_h, bg);
 
     // Header (RIGHT-aligned)
     if let Some(ref hdr) = meta.header {
@@ -986,8 +1008,10 @@ fn render_class(
     };
 
     let mut buf = String::with_capacity(body.len() + 512);
-    write_svg_root(&mut buf, svg_w, svg_h, "CLASS");
+    let bg = skin.get_or("backgroundcolor", "#FFFFFF");
+    write_svg_root_bg(&mut buf, svg_w, svg_h, "CLASS", bg);
     buf.push_str("<defs/><g>");
+    write_bg_rect(&mut buf, svg_w, svg_h, bg);
     buf.push_str(&body);
     buf.push_str("</g></svg>");
     Ok(buf)
@@ -1431,6 +1455,7 @@ fn draw_entity_box(
             &x2_val,
             font_color,
             attr_font_size,
+            stroke,
         );
         section_y += section_height(&visible_fields);
     }
@@ -1445,6 +1470,7 @@ fn draw_entity_box(
             &x2_val,
             font_color,
             attr_font_size,
+            stroke,
         );
     }
     // UEmpty: Java body.drawU emits an empty shape at the bottom-right of each entity.
@@ -1564,7 +1590,7 @@ fn draw_object_box(
     let x1 = x + 1.0;
     let x2 = x + w - 1.0;
     write!(buf,
-        r#"<line style="stroke:#181818;stroke-width:0.5;" x1="{}" x2="{}" y1="{}" y2="{}"/>"#,
+        r#"<line style="stroke:{stroke_color};stroke-width:0.5;" x1="{}" x2="{}" y1="{}" y2="{}"/>"#,
         fmt_coord(x1), fmt_coord(x2), fmt_coord(sep_y), fmt_coord(sep_y),
     ).unwrap();
     tracker.track_line(x1, sep_y, x2, sep_y);
@@ -1589,6 +1615,7 @@ fn draw_object_box(
             &x2_val,
             font_color,
             attr_font_size,
+            stroke_color,
         );
     }
 }
@@ -1603,6 +1630,7 @@ fn draw_member_section(
     x2_val: &str,
     font_color: &str,
     attr_font_size: f64,
+    sep_color: &str,
 ) {
     let sep_y_str = fmt_coord(section_y);
     // Parse x1/x2 for line tracking
@@ -1610,7 +1638,7 @@ fn draw_member_section(
     let x2_f: f64 = x2_val.parse().unwrap_or(x);
     write!(
         buf,
-        r#"<line style="stroke:#181818;stroke-width:0.5;" x1="{x1_val}" x2="{x2_val}" y1="{sep_y_str}" y2="{sep_y_str}"/>"#,
+        r#"<line style="stroke:{sep_color};stroke-width:0.5;" x1="{x1_val}" x2="{x2_val}" y1="{sep_y_str}" y2="{sep_y_str}"/>"#,
     )
     .unwrap();
     tracker.track_line(x1_f, section_y, x2_f, section_y);

@@ -11,7 +11,7 @@ use crate::Result;
 
 use crate::font_metrics;
 
-use super::svg::write_svg_root;
+use super::svg::{write_svg_root_bg, write_bg_rect};
 use super::svg::{fmt_coord, xml_escape};
 use super::svg_richtext::render_creole_text;
 
@@ -1247,11 +1247,13 @@ pub fn render_sequence(
     let mut buf = String::with_capacity(4096);
 
     // 1. SVG header
-    write_svg_root(&mut buf, svg_w, svg_h, "SEQUENCE");
+    let bg = skin.get_or("backgroundcolor", "#FFFFFF");
+    write_svg_root_bg(&mut buf, svg_w, svg_h, "SEQUENCE", bg);
 
     // 2. Defs (empty)
     write_seq_defs(&mut buf);
     buf.push_str("<g>");
+    write_bg_rect(&mut buf, svg_w, svg_h, bg);
 
     // Build participant name -> index mapping
     let part_index = build_participant_index(sd);

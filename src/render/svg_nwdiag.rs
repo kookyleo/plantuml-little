@@ -1,6 +1,6 @@
 use std::fmt::Write;
 
-use super::svg::write_svg_root;
+use super::svg::{write_svg_root_bg, write_bg_rect};
 use crate::layout::nwdiag::{
     NwdiagConnectorLayout, NwdiagLayout, NwdiagNetworkLayout, NwdiagServerLayout,
 };
@@ -25,8 +25,10 @@ pub fn render_nwdiag(
 ) -> Result<String> {
     let mut buf = String::with_capacity(4096);
 
-    write_svg_root(&mut buf, layout.width, layout.height, "NWDIAG");
+    let bg = skin.get_or("backgroundcolor", "#FFFFFF");
+    write_svg_root_bg(&mut buf, layout.width, layout.height, "NWDIAG", bg);
     buf.push_str("<defs/><g>");
+    write_bg_rect(&mut buf, layout.width, layout.height, bg);
 
     if let Some(title) = &diagram.title {
         render_creole_text(
