@@ -250,7 +250,7 @@ pub fn layout_sequence(sd: &SequenceDiagram) -> Result<SeqLayout> {
                 let autonumber_extra_w = if gap_autonumber_enabled {
                     let num_str = format!("{gap_autonumber_counter}");
                     let num_w = font_metrics::text_width(
-                        &num_str, "SansSerif", MSG_FONT_SIZE, false, false,
+                        &num_str, "SansSerif", MSG_FONT_SIZE, true, false,
                     );
                     gap_autonumber_counter += 1;
                     num_w + 4.0 // 4px gap between number and text

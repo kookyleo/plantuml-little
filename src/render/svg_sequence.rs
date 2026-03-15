@@ -739,9 +739,9 @@ fn draw_message(
             msg.from_x + 7.0
         };
 
-        // If autonumber, compute the offset for message text
+        // If autonumber, compute the offset for message text (number is bold)
         let text_x = if let Some(ref num_str) = msg.autonumber {
-            let num_w = font_metrics::text_width(num_str, "SansSerif", FONT_SIZE, false, false);
+            let num_w = font_metrics::text_width(num_str, "SansSerif", FONT_SIZE, true, false);
             base_text_x + num_w + 4.0
         } else {
             base_text_x
@@ -751,12 +751,12 @@ fn draw_message(
         let num_lines = msg.text_lines.len().max(1);
         let first_text_y = msg.y - 5.0659 - (num_lines as f64 - 1.0) * msg_line_spacing;
 
-        // Draw autonumber as separate text element
+        // Draw autonumber as separate bold text element
         if let Some(ref num_str) = msg.autonumber {
-            let num_tl = font_metrics::text_width(num_str, "SansSerif", FONT_SIZE, false, false);
+            let num_tl = font_metrics::text_width(num_str, "SansSerif", FONT_SIZE, true, false);
             write!(
                 buf,
-                r#"<text fill="{TEXT_COLOR}" font-family="sans-serif" font-size="{FONT_SIZE}" lengthAdjust="spacing" textLength="{}" x="{}" y="{}">{}</text>"#,
+                r#"<text fill="{TEXT_COLOR}" font-family="sans-serif" font-size="{FONT_SIZE}" font-weight="700" lengthAdjust="spacing" textLength="{}" x="{}" y="{}">{}</text>"#,
                 fmt_coord(num_tl),
                 fmt_coord(base_text_x),
                 fmt_coord(first_text_y),
