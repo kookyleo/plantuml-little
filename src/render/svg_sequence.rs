@@ -1113,32 +1113,35 @@ fn draw_fragment_details(buf: &mut String, frag: &FragmentLayout) {
         let guard_w = font_metrics::text_width(&guard_text, "SansSerif", 11.0, true, false);
         let guard_tl = fmt_coord(guard_w);
         let guard_x = tab_right + 15.0;
-        let guard_y = frag.y + 12.2105;
+        let guard_y = frag.y + 12.2104;
         buf.push_str(&format!(
             "<text fill=\"#000000\" font-family=\"sans-serif\" font-size=\"11\" font-weight=\"700\" lengthAdjust=\"spacing\" textLength=\"{guard_tl}\" x=\"{}\" y=\"{}\">{guard_escaped}</text>",
             fmt_coord(guard_x), fmt_coord(guard_y),
         ));
     }
 
-    // Separator lines (else)
-    for (sep_y, sep_label) in &frag.separators {
-        let y_s = fmt_coord(*sep_y);
-        buf.push_str(&format!(
-            "<line style=\"stroke:#000000;stroke-width:1;stroke-dasharray:2,2;\" x1=\"{fx}\" x2=\"{}\" y1=\"{y_s}\" y2=\"{y_s}\"/>",
-            fmt_coord(frag.x + frag.width),
-        ));
+    // Note: separators are rendered inline with messages via draw_fragment_separator
+}
 
-        if !sep_label.is_empty() {
-            let bracket_text = format!("[{sep_label}]");
-            let sep_escaped = xml_escape(&bracket_text);
-            let sep_tl = font_metrics::text_width(&bracket_text, "SansSerif", 11.0, true, false);
-            let label_x = frag.x + 5.0;
-            let label_y = sep_y + 10.2105;
-            buf.push_str(&format!(
-                "<text fill=\"#000000\" font-family=\"sans-serif\" font-size=\"11\" font-weight=\"700\" lengthAdjust=\"spacing\" textLength=\"{}\" x=\"{}\" y=\"{}\">{sep_escaped}</text>",
-                fmt_coord(sep_tl), fmt_coord(label_x), fmt_coord(label_y),
-            ));
-        }
+/// Draw a single separator line + label within a fragment
+fn draw_fragment_separator(buf: &mut String, frag: &FragmentLayout, sep_y: f64, sep_label: &str) {
+    let fx = fmt_coord(frag.x);
+    let y_s = fmt_coord(sep_y);
+    buf.push_str(&format!(
+        "<line style=\"stroke:#000000;stroke-width:1;stroke-dasharray:2,2;\" x1=\"{fx}\" x2=\"{}\" y1=\"{y_s}\" y2=\"{y_s}\"/>",
+        fmt_coord(frag.x + frag.width),
+    ));
+
+    if !sep_label.is_empty() {
+        let bracket_text = format!("[{sep_label}]");
+        let sep_escaped = xml_escape(&bracket_text);
+        let sep_tl = font_metrics::text_width(&bracket_text, "SansSerif", 11.0, true, false);
+        let label_x = frag.x + 5.0;
+        let label_y = sep_y + 10.2105;
+        buf.push_str(&format!(
+            "<text fill=\"#000000\" font-family=\"sans-serif\" font-size=\"11\" font-weight=\"700\" lengthAdjust=\"spacing\" textLength=\"{}\" x=\"{}\" y=\"{}\">{sep_escaped}</text>",
+            fmt_coord(sep_tl), fmt_coord(label_x), fmt_coord(label_y),
+        ));
     }
 }
 
@@ -1419,13 +1422,38 @@ pub fn render_sequence(
         buf.push_str("</g>");
     }
 
-    // 8. Messages (with optional autonumber)
+    // 8. Messages interleaved with fragment details (matching Java rendering order)
+    // Fragment details (pentagon, second rect, labels) are emitted when the next
+    // message's y >= fragment.y, ensuring they appear between messages.
     let seq_arrow_color = skin.sequence_arrow_color(ARROW_COLOR);
     let seq_arrow_thickness = skin.sequence_arrow_thickness().unwrap_or(1.0);
     let mut msg_seq_counter: usize = 0;
+    let mut frag_detail_idx: usize = 0;
+    // Also track separator rendering within fragments
+    let mut frag_sep_idx: Vec<usize> = vec![0; layout.fragments.len()];
     for msg in &layout.messages {
         msg_seq_counter += 1;
-        // Find participant indices for from/to
+
+        // Emit fragment details for any fragments that start before this message
+        while frag_detail_idx < layout.fragments.len()
+            && layout.fragments[frag_detail_idx].y < msg.y
+        {
+            draw_fragment_details(&mut buf, &layout.fragments[frag_detail_idx]);
+            frag_detail_idx += 1;
+        }
+
+        // Emit separator lines for any separators that come before this message
+        for (fi, frag) in layout.fragments.iter().enumerate() {
+            while frag_sep_idx[fi] < frag.separators.len()
+                && frag.separators[frag_sep_idx[fi]].0 < msg.y
+            {
+                let (sep_y, ref sep_label) = &frag.separators[frag_sep_idx[fi]];
+                draw_fragment_separator(&mut buf, frag, *sep_y, sep_label);
+                frag_sep_idx[fi] += 1;
+            }
+        }
+
+        // Draw the message
         let from_idx = find_participant_idx_by_x(&layout.participants, msg.from_x, &part_index);
         let to_idx = if msg.is_self {
             from_idx
@@ -1454,10 +1482,10 @@ pub fn render_sequence(
             );
         }
     }
-
-    // 8b. Fragment details (pentagon, labels, separators — after messages)
-    for frag in &layout.fragments {
-        draw_fragment_details(&mut buf, frag);
+    // Emit any remaining fragment details
+    while frag_detail_idx < layout.fragments.len() {
+        draw_fragment_details(&mut buf, &layout.fragments[frag_detail_idx]);
+        frag_detail_idx += 1;
     }
 
     // 9. Notes
