@@ -39,6 +39,17 @@ const TEXT_COLOR: &str = "#000000";
 
 const MARGIN: f64 = 5.0;
 
+// Fragment tab geometry (from Java AWT font metrics)
+const FRAG_TAB_LEFT_PAD: f64 = 15.0;
+const FRAG_TAB_RIGHT_PAD: f64 = 30.0;
+const FRAG_TAB_HEIGHT: f64 = 17.1328;
+const FRAG_TAB_NOTCH: f64 = 10.0;
+const FRAG_KIND_LABEL_Y_OFFSET: f64 = 13.0669;
+const FRAG_GUARD_FONT_SIZE: f64 = 11.0;
+const FRAG_GUARD_GAP: f64 = 15.0;
+const FRAG_GUARD_LABEL_Y_OFFSET: f64 = 12.2104;
+const FRAG_SEP_LABEL_Y_OFFSET: f64 = 10.2104;
+
 // ── Arrow marker defs ───────────────────────────────────────────────
 
 fn write_seq_defs(buf: &mut String) {
@@ -1086,19 +1097,23 @@ fn draw_fragment_details(buf: &mut String, frag: &FragmentLayout) {
     let fh = fmt_coord(frag.height);
 
     // Label tab (pentagon in top-left)
-    let kind_label = frag.kind.label();
-    let kind_text_w = font_metrics::text_width(kind_label, "SansSerif", FONT_SIZE, true, false);
-    let tab_right = frag.x + kind_text_w + 45.0;
-    let tab_height = 17.1328;
-    let notch = 10.0;
+    // For Group, the tab shows the label directly; for others, tab shows the keyword
+    let is_group = frag.kind == FragmentKind::Group;
+    let tab_text = if is_group && !frag.label.is_empty() {
+        frag.label.clone()
+    } else {
+        frag.kind.label().to_string()
+    };
+    let tab_text_w = font_metrics::text_width(&tab_text, "SansSerif", FONT_SIZE, true, false);
+    let tab_right = frag.x + FRAG_TAB_LEFT_PAD + tab_text_w + FRAG_TAB_RIGHT_PAD;
 
     // Pentagon path
     buf.push_str(&format!(
         "<path d=\"M{fx},{fy} L{},{fy} L{},{} L{},{} L{fx},{} L{fx},{fy}\" fill=\"#EEEEEE\" style=\"stroke:#000000;stroke-width:1.5;\"/>",
         fmt_coord(tab_right),
-        fmt_coord(tab_right), fmt_coord(frag.y + tab_height - notch),
-        fmt_coord(tab_right - notch), fmt_coord(frag.y + tab_height),
-        fmt_coord(frag.y + tab_height),
+        fmt_coord(tab_right), fmt_coord(frag.y + FRAG_TAB_HEIGHT - FRAG_TAB_NOTCH),
+        fmt_coord(tab_right - FRAG_TAB_NOTCH), fmt_coord(frag.y + FRAG_TAB_HEIGHT),
+        fmt_coord(frag.y + FRAG_TAB_HEIGHT),
     ));
 
     // Second frame rect (Java emits two)
@@ -1106,26 +1121,26 @@ fn draw_fragment_details(buf: &mut String, frag: &FragmentLayout) {
         "<rect fill=\"none\" height=\"{fh}\" style=\"stroke:#000000;stroke-width:1.5;\" width=\"{fw}\" x=\"{fx}\" y=\"{fy}\"/>"
     ));
 
-    // Kind label text (font-size 13, bold)
-    let kind_escaped = xml_escape(kind_label);
-    let kind_tl = fmt_coord(kind_text_w);
-    let text_x = frag.x + 15.0;
-    let text_y = frag.y + 13.0669;
+    // Tab label text (font-size 13, bold)
+    let tab_escaped = xml_escape(&tab_text);
+    let tab_tl = fmt_coord(tab_text_w);
+    let text_x = frag.x + FRAG_TAB_LEFT_PAD;
+    let text_y = frag.y + FRAG_KIND_LABEL_Y_OFFSET;
     buf.push_str(&format!(
-        "<text fill=\"#000000\" font-family=\"sans-serif\" font-size=\"13\" font-weight=\"700\" lengthAdjust=\"spacing\" textLength=\"{kind_tl}\" x=\"{}\" y=\"{}\">{kind_escaped}</text>",
+        "<text fill=\"#000000\" font-family=\"sans-serif\" font-size=\"13\" font-weight=\"700\" lengthAdjust=\"spacing\" textLength=\"{tab_tl}\" x=\"{}\" y=\"{}\">{tab_escaped}</text>",
         fmt_coord(text_x), fmt_coord(text_y),
     ));
 
-    // Guard text (font-size 11, bold)
-    if !frag.label.is_empty() {
+    // Guard text (font-size 11, bold) — only for non-Group fragments
+    if !is_group && !frag.label.is_empty() {
         let guard_text = format!("[{}]", frag.label);
         let guard_escaped = xml_escape(&guard_text);
-        let guard_w = font_metrics::text_width(&guard_text, "SansSerif", 11.0, true, false);
+        let guard_w = font_metrics::text_width(&guard_text, "SansSerif", FRAG_GUARD_FONT_SIZE, true, false);
         let guard_tl = fmt_coord(guard_w);
-        let guard_x = tab_right + 15.0;
-        let guard_y = frag.y + 12.2104;
+        let guard_x = tab_right + FRAG_GUARD_GAP;
+        let guard_y = frag.y + FRAG_GUARD_LABEL_Y_OFFSET;
         buf.push_str(&format!(
-            "<text fill=\"#000000\" font-family=\"sans-serif\" font-size=\"11\" font-weight=\"700\" lengthAdjust=\"spacing\" textLength=\"{guard_tl}\" x=\"{}\" y=\"{}\">{guard_escaped}</text>",
+            "<text fill=\"#000000\" font-family=\"sans-serif\" font-size=\"{FRAG_GUARD_FONT_SIZE}\" font-weight=\"700\" lengthAdjust=\"spacing\" textLength=\"{guard_tl}\" x=\"{}\" y=\"{}\">{guard_escaped}</text>",
             fmt_coord(guard_x), fmt_coord(guard_y),
         ));
     }

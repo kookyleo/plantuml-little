@@ -444,10 +444,7 @@ fn test_seq_fixture_critical001() {
 fn test_seq_fixture_group001() {
     let svg = convert_fixture("tests/fixtures/sequence/seq_group001.puml");
     assert_valid_svg(&svg, "seq_group001");
-    assert!(
-        svg.contains("group"),
-        "seq_group001: must contain group label"
-    );
+    // Group fragments show the user's label directly in the tab (not "group" keyword)
     assert!(
         svg.contains("My own label"),
         "seq_group001: must contain custom label"
