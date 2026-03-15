@@ -1058,88 +1058,74 @@ fn draw_group(buf: &mut String, group: &GroupLayout) {
 // ── Fragment frames ──────────────────────────────────────────────────
 
 fn draw_fragment(buf: &mut String, frag: &FragmentLayout) {
-    // Frame rectangle with semi-transparent fill
-    write!(
-        buf,
-        r#"<rect fill="{bg}" fill-opacity="0.10000" height="{}" rx="2" style="stroke:{border};stroke-width:1.5;" width="{}" x="{}" y="{}"/>"#,
-        fmt_coord(frag.height), fmt_coord(frag.width), fmt_coord(frag.x), fmt_coord(frag.y),
-        bg = FRAGMENT_BG,
-        border = FRAGMENT_BORDER,
-    )
-    .unwrap();
-    buf.push('\n');
+    let fx = fmt_coord(frag.x);
+    let fy = fmt_coord(frag.y);
+    let fw = fmt_coord(frag.width);
+    let fh = fmt_coord(frag.height);
 
-    // Label tab (pentagon-like shape in top-left)
+    // Frame rectangle
+    buf.push_str(&format!(
+        "<rect fill=\"none\" height=\"{fh}\" style=\"stroke:#000000;stroke-width:1.5;\" width=\"{fw}\" x=\"{fx}\" y=\"{fy}\"/>"
+    ));
+
+    // Label tab (pentagon in top-left)
     let kind_label = frag.kind.label();
-    let tab_text = if frag.label.is_empty() {
-        kind_label.to_string()
-    } else {
-        format!("{} {}", kind_label, frag.label)
-    };
-    let tab_width = font_metrics::text_width(&tab_text, "SansSerif", FONT_SIZE, true, false) + 16.0;
-    let tab_height = FONT_SIZE + 8.0;
-    let notch = 6.0;
+    let kind_text_w = font_metrics::text_width(kind_label, "SansSerif", FONT_SIZE, true, false);
+    let tab_right = frag.x + kind_text_w + 45.0;
+    let tab_height = 17.1328;
+    let notch = 10.0;
 
-    // Pentagon path: top-left corner with a notch at bottom-right
-    {
-        let fx = fmt_coord(frag.x);
-        let fy = fmt_coord(frag.y);
-        write!(
-            buf,
-            r#"<path d="M{fx},{fy} L{},{fy} L{},{} L{},{} L{fx},{} Z " fill="{bg}" style="stroke:{border};stroke-width:1.5;"/>"#,
-            fmt_coord(frag.x + tab_width),
-            fmt_coord(frag.x + tab_width), fmt_coord(frag.y + tab_height - notch),
-            fmt_coord(frag.x + tab_width - notch), fmt_coord(frag.y + tab_height),
-            fmt_coord(frag.y + tab_height),
-            bg = FRAGMENT_BG,
-            border = FRAGMENT_BORDER,
-        )
-        .unwrap();
-    }
-    buf.push('\n');
+    // Pentagon path
+    buf.push_str(&format!(
+        "<path d=\"M{fx},{fy} L{},{fy} L{},{} L{},{} L{fx},{} L{fx},{fy}\" fill=\"#EEEEEE\" style=\"stroke:#000000;stroke-width:1.5;\"/>",
+        fmt_coord(tab_right),
+        fmt_coord(tab_right), fmt_coord(frag.y + tab_height - notch),
+        fmt_coord(tab_right - notch), fmt_coord(frag.y + tab_height),
+        fmt_coord(frag.y + tab_height),
+    ));
 
-    // Kind label text
-    let text_x = frag.x + 6.0;
-    let text_y = frag.y + FONT_SIZE + 2.0;
-    let escaped = xml_escape(&tab_text);
-    let frag_tl = fmt_coord(font_metrics::text_width(&tab_text, "SansSerif", FONT_SIZE, true, false));
-    write!(
-        buf,
-        r#"<text fill="{TEXT_COLOR}" font-family="sans-serif" font-size="{FONT_SIZE}" font-weight="bold" lengthAdjust="spacing" textLength="{frag_tl}" x="{}" y="{}">{escaped}</text>"#,
+    // Kind label text (font-size 13, bold)
+    let kind_escaped = xml_escape(kind_label);
+    let kind_tl = fmt_coord(kind_text_w);
+    let text_x = frag.x + 15.0;
+    let text_y = frag.y + 13.0669;
+    buf.push_str(&format!(
+        "<text fill=\"#000000\" font-family=\"sans-serif\" font-size=\"13\" font-weight=\"700\" lengthAdjust=\"spacing\" textLength=\"{kind_tl}\" x=\"{}\" y=\"{}\">{kind_escaped}</text>",
         fmt_coord(text_x), fmt_coord(text_y),
-    )
-    .unwrap();
-    buf.push('\n');
+    ));
+
+    // Guard text (font-size 11, bold)
+    if !frag.label.is_empty() {
+        let guard_text = format!("[{}]", frag.label);
+        let guard_escaped = xml_escape(&guard_text);
+        let guard_w = font_metrics::text_width(&guard_text, "SansSerif", 11.0, true, false);
+        let guard_tl = fmt_coord(guard_w);
+        let guard_x = tab_right + 15.0;
+        let guard_y = frag.y + 12.2105;
+        buf.push_str(&format!(
+            "<text fill=\"#000000\" font-family=\"sans-serif\" font-size=\"11\" font-weight=\"700\" lengthAdjust=\"spacing\" textLength=\"{guard_tl}\" x=\"{}\" y=\"{}\">{guard_escaped}</text>",
+            fmt_coord(guard_x), fmt_coord(guard_y),
+        ));
+    }
 
     // Separator lines (else)
     for (sep_y, sep_label) in &frag.separators {
-        // Dashed horizontal line
-        {
-            let y_s = fmt_coord(*sep_y);
-            write!(
-                buf,
-                r#"<line style="stroke:{border};stroke-width:1;stroke-dasharray:5,5;" x1="{}" x2="{}" y1="{y_s}" y2="{y_s}"/>"#,
-                fmt_coord(frag.x), fmt_coord(frag.x + frag.width),
-                border = FRAGMENT_BORDER,
-            )
-            .unwrap();
-        }
-        buf.push('\n');
+        let y_s = fmt_coord(*sep_y);
+        buf.push_str(&format!(
+            "<line style=\"stroke:#000000;stroke-width:1;stroke-dasharray:2,2;\" x1=\"{fx}\" x2=\"{}\" y1=\"{y_s}\" y2=\"{y_s}\"/>",
+            fmt_coord(frag.x + frag.width),
+        ));
 
-        // Separator label
         if !sep_label.is_empty() {
-            let label_x = frag.x + 10.0;
-            let label_y = sep_y + FONT_SIZE + 2.0;
-            let escaped_label = xml_escape(sep_label);
-            let bracket_text = format!("[{}]", sep_label);
-            let sep_tl = fmt_coord(font_metrics::text_width(&bracket_text, "SansSerif", FONT_SIZE, false, true));
-            write!(
-                buf,
-                r#"<text fill="{TEXT_COLOR}" font-family="sans-serif" font-size="{FONT_SIZE}" font-style="italic" lengthAdjust="spacing" textLength="{sep_tl}" x="{}" y="{}">[{escaped_label}]</text>"#,
-                fmt_coord(label_x), fmt_coord(label_y),
-            )
-            .unwrap();
-            buf.push('\n');
+            let bracket_text = format!("[{sep_label}]");
+            let sep_escaped = xml_escape(&bracket_text);
+            let sep_tl = font_metrics::text_width(&bracket_text, "SansSerif", 11.0, true, false);
+            let label_x = frag.x + 5.0;
+            let label_y = sep_y + 10.2105;
+            buf.push_str(&format!(
+                "<text fill=\"#000000\" font-family=\"sans-serif\" font-size=\"11\" font-weight=\"700\" lengthAdjust=\"spacing\" textLength=\"{}\" x=\"{}\" y=\"{}\">{sep_escaped}</text>",
+                fmt_coord(sep_tl), fmt_coord(label_x), fmt_coord(label_y),
+            ));
         }
     }
 }
@@ -1340,13 +1326,13 @@ pub fn render_sequence(
     // Build participant name -> index mapping
     let part_index = build_participant_index(sd);
 
-    // 3. Lifelines (dashed vertical lines with semantic grouping)
-    draw_lifelines(&mut buf, layout, skin, sd);
-
-    // 4. Fragment frames (drawn before groups so they appear behind)
+    // 3. Fragment frames (drawn first, before lifelines)
     for frag in &layout.fragments {
         draw_fragment(&mut buf, frag);
     }
+
+    // 4. Lifelines (dashed vertical lines with semantic grouping)
+    draw_lifelines(&mut buf, layout, skin, sd);
 
     // 4b. Group frames (legacy)
     for group in &layout.groups {
