@@ -1551,7 +1551,7 @@ fn draw_object_box(
     let name_escaped = xml_escape(&entity.name);
     let tl = fmt_coord(name_width);
     write!(buf,
-        r#"<text fill="{font_color}" font-family="sans-serif" font-size="{class_font_size:.0}" lengthAdjust="spacing" text-decoration="underline" textLength="{tl}" x="{}" y="{}">{name_escaped}</text>"#,
+        r#"<text fill="{font_color}" font-family="sans-serif" font-size="{class_font_size:.0}" lengthAdjust="spacing" textLength="{tl}" x="{}" y="{}">{name_escaped}</text>"#,
         fmt_coord(text_x), fmt_coord(text_y),
     ).unwrap();
     tracker.track_rect(text_x, text_y - HEADER_NAME_BASELINE, name_width, HEADER_NAME_BLOCK_HEIGHT);
@@ -2658,10 +2658,10 @@ mod tests {
         )
         .expect("render failed");
         assert!(svg.contains("myObj"), "SVG must contain object name");
-        // Object names must be underlined per UML convention
+        // EntityImageObject: no underline by default (only in strict UML mode)
         assert!(
             !svg.contains(r#"text-decoration="underline""#),
-            "object name must have underline text-decoration"
+            "object name must NOT have underline text-decoration by default"
         );
         // EntityImageObject: no stereotype circle icon
         assert!(
