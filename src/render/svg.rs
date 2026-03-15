@@ -1171,7 +1171,9 @@ fn draw_entity_box(
     let stroke = skin.border_color(element_type, default_border);
     let font_color = skin.font_color(element_type, LABEL_COLOR);
 
-    let rx = skin.round_corner().unwrap_or(2.5);
+    // Java URectangle.rounded(roundCorner): rx = roundCorner / 2.
+    // Default roundCorner from style = 5 → rx = 2.5.
+    let rx = skin.round_corner().map(|rc| rc / 2.0).unwrap_or(2.5);
 
     // Rect with rx="2.5" ry="2.5" to match Java PlantUML
     write!(buf,
