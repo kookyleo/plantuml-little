@@ -18,7 +18,8 @@ const SELF_MSG_WIDTH: f64 = 42.0;
 const SELF_MSG_HEIGHT: f64 = 13.0;
 const ACTIVATION_WIDTH: f64 = 10.0;
 const NOTE_PADDING: f64 = 6.0;
-const NOTE_WIDTH: f64 = 120.0;
+const NOTE_FOLD: f64 = 10.0;
+const NOTE_FONT_SIZE: f64 = 13.0;
 const GROUP_PADDING: f64 = 10.0;
 const FRAGMENT_HEADER_HEIGHT: f64 = 17.1328;
 const FRAGMENT_PADDING: f64 = 10.0;
@@ -207,6 +208,18 @@ fn update_fragment_participant_range(
 fn estimate_note_height(text: &str) -> f64 {
     let lines = text.lines().count().max(1) as f64;
     (lines * LINE_HEIGHT + 2.0 * NOTE_PADDING).max(25.0)
+}
+
+/// Compute note width based on text content using font metrics.
+/// Width = left_pad + max_line_width + right_pad (includes fold corner).
+fn estimate_note_width(text: &str) -> f64 {
+    let max_line_w = text
+        .lines()
+        .map(|line| font_metrics::text_width(line, "SansSerif", NOTE_FONT_SIZE, false, false))
+        .fold(0.0_f64, f64::max);
+    // left pad (6) + text + right pad (4) + fold (10) = text + 20
+    let w = max_line_w + NOTE_PADDING + NOTE_PADDING / 2.0 + NOTE_FOLD + 2.0;
+    w.max(30.0)
 }
 
 // ── Main layout function ─────────────────────────────────────────────────────
@@ -609,10 +622,11 @@ pub fn layout_sequence(sd: &SequenceDiagram) -> Result<SeqLayout> {
             SeqEvent::NoteRight { participant, text } => {
                 let px = find_participant_x(&participants, participant);
                 let note_height = estimate_note_height(text);
+                let note_width = estimate_note_width(text);
                 notes.push(NoteLayout {
                     x: px + ACTIVATION_WIDTH,
                     y: y_cursor,
-                    width: NOTE_WIDTH,
+                    width: note_width,
                     height: note_height,
                     text: text.clone(),
                     is_left: false,
@@ -623,10 +637,11 @@ pub fn layout_sequence(sd: &SequenceDiagram) -> Result<SeqLayout> {
             SeqEvent::NoteLeft { participant, text } => {
                 let px = find_participant_x(&participants, participant);
                 let note_height = estimate_note_height(text);
+                let note_width = estimate_note_width(text);
                 notes.push(NoteLayout {
-                    x: px - ACTIVATION_WIDTH - NOTE_WIDTH,
+                    x: px - ACTIVATION_WIDTH - note_width,
                     y: y_cursor,
-                    width: NOTE_WIDTH,
+                    width: note_width,
                     height: note_height,
                     text: text.clone(),
                     is_left: true,
@@ -644,7 +659,8 @@ pub fn layout_sequence(sd: &SequenceDiagram) -> Result<SeqLayout> {
                     let x2 = find_participant_x(&participants, last);
                     let center = (x1 + x2) / 2.0;
                     let note_height = estimate_note_height(text);
-                    let width = (x2 - x1).abs().max(NOTE_WIDTH);
+                    let note_w = estimate_note_width(text);
+                    let width = (x2 - x1).abs().max(note_w);
                     notes.push(NoteLayout {
                         x: center - width / 2.0,
                         y: y_cursor,
@@ -857,6 +873,17 @@ pub fn layout_sequence(sd: &SequenceDiagram) -> Result<SeqLayout> {
     let mut total_width = participants
         .last()
         .map_or(2.0 * MARGIN, |p| p.x + p.box_width / 2.0 + right_margin);
+
+    // Expand total_width if any note extends beyond the participant area
+    for note in &notes {
+        let note_right = note.x + note.width + MARGIN;
+        if note_right > total_width {
+            log::debug!(
+                "note extends beyond participants: note_right={note_right:.1}, expanding total_width from {total_width:.1}"
+            );
+            total_width = note_right;
+        }
+    }
 
     // Expand total_width if any fragment extends beyond participants
     for frag in &fragments {
@@ -1269,5 +1296,54 @@ mod tests {
             gap,
             MESSAGE_SPACING + 50.0
         );
+    }
+
+    #[test]
+    fn note_right_expands_total_width() {
+        // A single participant with a right note: the note should expand total_width
+        let sd = SequenceDiagram {
+            participants: vec![make_participant("A")],
+            events: vec![SeqEvent::NoteRight {
+                participant: "A".to_string(),
+                text: "a note".to_string(),
+            }],
+        };
+        let layout = layout_sequence(&sd).unwrap();
+
+        let note = &layout.notes[0];
+        let note_right = note.x + note.width + MARGIN;
+        // total_width must be at least as large as note_right
+        assert!(
+            layout.total_width >= note_right - 0.01,
+            "total_width {:.1} should be >= note_right {:.1}",
+            layout.total_width,
+            note_right
+        );
+
+        // Also verify it's wider than participant-only width
+        let participant_only_width = layout.participants[0].x
+            + layout.participants[0].box_width / 2.0
+            + 2.0 * MARGIN;
+        assert!(
+            layout.total_width > participant_only_width,
+            "total_width {:.1} should exceed participant-only {:.1} due to note",
+            layout.total_width,
+            participant_only_width
+        );
+    }
+
+    #[test]
+    fn note_width_matches_text() {
+        // Verify note width is computed based on text, not a fixed constant
+        let short_text = "Hi";
+        let long_text = "the location of the Comment is correct";
+        let w_short = estimate_note_width(short_text);
+        let w_long = estimate_note_width(long_text);
+        assert!(
+            w_long > w_short,
+            "long note ({w_long:.1}) should be wider than short note ({w_short:.1})"
+        );
+        // minimum note width should be at least 30
+        assert!(w_short >= 30.0, "short note width {w_short:.1} should be >= 30");
     }
 }
