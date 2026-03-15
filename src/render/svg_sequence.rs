@@ -1449,34 +1449,43 @@ pub fn render_sequence(
     }
 
     // 8. Messages interleaved with fragment details (matching Java rendering order)
-    // Fragment details (pentagon, second rect, labels) are emitted when the next
-    // message's y >= fragment.y, ensuring they appear between messages.
+    // Build a y-sorted list of interstitial events (fragment details + separators)
+    // that should be emitted between messages at the appropriate y positions.
     let seq_arrow_color = skin.sequence_arrow_color(ARROW_COLOR);
     let seq_arrow_thickness = skin.sequence_arrow_thickness().unwrap_or(1.0);
     let mut msg_seq_counter: usize = 0;
-    let mut frag_detail_idx: usize = 0;
-    // Also track separator rendering within fragments
-    let mut frag_sep_idx: Vec<usize> = vec![0; layout.fragments.len()];
+
+    // Collect all interstitial events: (y, type) sorted by y
+    enum InterstitialEvent<'a> {
+        FragmentDetail(&'a FragmentLayout),
+        Separator(&'a FragmentLayout, f64, &'a str),
+    }
+    let mut interstitials: Vec<(f64, InterstitialEvent)> = Vec::new();
+    for frag in &layout.fragments {
+        interstitials.push((frag.y, InterstitialEvent::FragmentDetail(frag)));
+        for (sep_y, sep_label) in &frag.separators {
+            interstitials.push((*sep_y, InterstitialEvent::Separator(frag, *sep_y, sep_label)));
+        }
+    }
+    interstitials.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap());
+    let mut interstitial_idx = 0;
+
     for msg in &layout.messages {
         msg_seq_counter += 1;
 
-        // Emit fragment details for any fragments that start before this message
-        while frag_detail_idx < layout.fragments.len()
-            && layout.fragments[frag_detail_idx].y < msg.y
+        // Emit interstitial events that come before this message's y
+        while interstitial_idx < interstitials.len()
+            && interstitials[interstitial_idx].0 < msg.y
         {
-            draw_fragment_details(&mut buf, &layout.fragments[frag_detail_idx]);
-            frag_detail_idx += 1;
-        }
-
-        // Emit separator lines for any separators that come before this message
-        for (fi, frag) in layout.fragments.iter().enumerate() {
-            while frag_sep_idx[fi] < frag.separators.len()
-                && frag.separators[frag_sep_idx[fi]].0 < msg.y
-            {
-                let (sep_y, ref sep_label) = &frag.separators[frag_sep_idx[fi]];
-                draw_fragment_separator(&mut buf, frag, *sep_y, sep_label);
-                frag_sep_idx[fi] += 1;
+            match &interstitials[interstitial_idx].1 {
+                InterstitialEvent::FragmentDetail(frag) => {
+                    draw_fragment_details(&mut buf, frag);
+                }
+                InterstitialEvent::Separator(frag, sep_y, sep_label) => {
+                    draw_fragment_separator(&mut buf, frag, *sep_y, sep_label);
+                }
             }
+            interstitial_idx += 1;
         }
 
         // Draw the message
@@ -1508,10 +1517,17 @@ pub fn render_sequence(
             );
         }
     }
-    // Emit any remaining fragment details
-    while frag_detail_idx < layout.fragments.len() {
-        draw_fragment_details(&mut buf, &layout.fragments[frag_detail_idx]);
-        frag_detail_idx += 1;
+    // Emit any remaining interstitial events
+    while interstitial_idx < interstitials.len() {
+        match &interstitials[interstitial_idx].1 {
+            InterstitialEvent::FragmentDetail(frag) => {
+                draw_fragment_details(&mut buf, frag);
+            }
+            InterstitialEvent::Separator(frag, sep_y, sep_label) => {
+                draw_fragment_separator(&mut buf, frag, *sep_y, sep_label);
+            }
+        }
+        interstitial_idx += 1;
     }
 
     // 9. Notes
