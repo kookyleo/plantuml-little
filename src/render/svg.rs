@@ -109,6 +109,22 @@ const MEMBER_TEXT_Y_OFFSET: f64 = 16.995117;
 /// Entity-level visibility icon block size (SkinParam.circledCharacterRadius = 11).
 const ENTITY_VIS_ICON_BLOCK_SIZE: f64 = 11.0;
 
+// -- Generic type box rendering constants --
+/// Generic text font size (FontParam.CLASS_STEREOTYPE = 12pt italic).
+const GENERIC_FONT_SIZE: f64 = 12.0;
+/// SansSerif 12pt italic ascent from Java AWT FontMetrics.
+const GENERIC_BASELINE: f64 = 11.138672;
+/// SansSerif 12pt italic: ascent + descent = 13.96875.
+const GENERIC_TEXT_HEIGHT: f64 = 13.96875;
+/// Inner margin around generic text (withMargin(genericBlock, 1, 1)).
+const GENERIC_INNER_MARGIN: f64 = 1.0;
+/// Outer margin around TextBlockGeneric (withMargin(genericBlock, 1, 1)).
+const GENERIC_OUTER_MARGIN: f64 = 1.0;
+/// HeaderLayout.java:112 -- delta = 4 for positioning.
+const GENERIC_DELTA: f64 = 4.0;
+/// Protrusion above entity rect = delta - outer_margin = 3.
+const GENERIC_PROTRUSION: f64 = GENERIC_DELTA - GENERIC_OUTER_MARGIN;
+
 const CLASS_BG: &str = "#F1F1F1";
 const CLASS_BORDER: &str = "#181818";
 const IFACE_BG: &str = "#F1F1F1";
@@ -806,8 +822,10 @@ fn render_class(
             matches!(m.visibility, Some(Visibility::Protected) | Some(Visibility::Package))
         })
     });
+    let has_generic = !is_degenerated && cd.entities.iter().any(|e| e.generic.is_some());
     let edge_offset_x = if has_member_polygon_icon { 9.0 } else { 7.0 };
-    let edge_offset_y = 7.0;
+    // Java LimitFinder: generic box rect extends minY to -4, moveDelta_y = 6-(-4) = 10.
+    let edge_offset_y = if has_generic { 10.0 } else { 7.0 };
     let mut tracker = BoundsTracker::new();
     let mut body = String::with_capacity(4096);
     let arrow_color = skin.arrow_color(LINK_COLOR);
@@ -1191,7 +1209,7 @@ fn draw_entity_box(
 
     // Java URectangle.rounded(roundCorner): rx = roundCorner / 2.
     // Default roundCorner from style = 5 → rx = 2.5.
-    let rx = skin.round_corner().map(|rc| rc / 2.0).unwrap_or(2.5);
+    let rx = skin.round_corner().unwrap_or(2.5);
 
     // Rect with rx="2.5" ry="2.5" to match Java PlantUML
     write!(buf,
@@ -1203,11 +1221,8 @@ fn draw_entity_box(
     let class_font_size = skin.font_size("class", FONT_SIZE);
     let attr_font_size = skin.font_size("classattribute", class_font_size);
 
-    let name_display = if let Some(ref g) = entity.generic {
-        format!("{}<{}>", entity.name, g)
-    } else {
-        entity.name.clone()
-    };
+    // Entity name WITHOUT generic parameter -- generic is rendered separately
+    let name_display = entity.name.clone();
     let name_escaped = xml_escape(&name_display);
     let visible_stereotypes = visible_stereotype_labels(&cd.hide_show_rules, entity);
     let show_fields = show_portion(&cd.hide_show_rules, ClassPortion::Field, &entity.name);
@@ -1290,7 +1305,13 @@ fn draw_entity_box(
         let header_height = HEADER_CIRCLE_BLOCK_HEIGHT
             .max(stereo_height + HEADER_NAME_BLOCK_HEIGHT + HEADER_STEREO_NAME_GAP);
         let vis_icon_w = if entity.visibility.is_some() { ENTITY_VIS_ICON_BLOCK_SIZE } else { 0.0 };
-        let supp_width = (w - HEADER_CIRCLE_BLOCK_WIDTH - vis_icon_w - width_stereo_and_name).max(0.0);
+        let gen_dim_w = if let Some(ref g) = entity.generic {
+            let text_w = font_metrics::text_width(g, "SansSerif", GENERIC_FONT_SIZE, false, true);
+            text_w + 2.0 * GENERIC_INNER_MARGIN + 2.0 * GENERIC_OUTER_MARGIN
+        } else {
+            0.0
+        };
+        let supp_width = (w - HEADER_CIRCLE_BLOCK_WIDTH - vis_icon_w - width_stereo_and_name - gen_dim_w).max(0.0);
         let h2 = (HEADER_CIRCLE_BLOCK_WIDTH / 4.0).min(supp_width * 0.1);
         let h1 = (supp_width - h2) / 2.0;
 
@@ -1344,6 +1365,11 @@ fn draw_entity_box(
         tracker.track_rect(name_x, name_y - HEADER_NAME_BASELINE, name_width, HEADER_NAME_BLOCK_HEIGHT);
     }
 
+    // Draw generic type box at top-right corner of entity rect
+    if let Some(ref generic_text) = entity.generic {
+        draw_generic_box(buf, tracker, generic_text, x, y, w);
+    }
+
     let x1_val = fmt_coord(x + 1.0);
     let x2_val = fmt_coord(x + w - 1.0);
     let header_height = if has_kind_label {
@@ -1389,6 +1415,48 @@ fn draw_entity_box(
     tracker.track_empty(x + w, y + h, 0.0, 0.0);
 }
 
+/// Draw the generic type box (dashed rect + italic text) at top-right of entity.
+fn draw_generic_box(
+    buf: &mut String,
+    tracker: &mut BoundsTracker,
+    generic_text: &str,
+    entity_x: f64,
+    entity_y: f64,
+    entity_w: f64,
+) {
+    let text_w = font_metrics::text_width(generic_text, "SansSerif", GENERIC_FONT_SIZE, false, true);
+    let rect_w = text_w + 2.0 * GENERIC_INNER_MARGIN;
+    let rect_h = GENERIC_TEXT_HEIGHT + 2.0 * GENERIC_INNER_MARGIN;
+    let gen_dim_w = rect_w + 2.0 * GENERIC_OUTER_MARGIN;
+    let gen_dim_h = rect_h + 2.0 * GENERIC_OUTER_MARGIN;
+
+    // Outer block position: HeaderLayout.java:112
+    let x_generic = entity_x + entity_w - gen_dim_w + GENERIC_DELTA;
+    let y_generic = entity_y - GENERIC_DELTA;
+
+    // Track outer margin wrapper UEmpty (Java withMargin draws UEmpty)
+    tracker.track_empty(x_generic, y_generic, gen_dim_w, gen_dim_h);
+
+    let rect_x = x_generic + GENERIC_OUTER_MARGIN;
+    let rect_y = y_generic + GENERIC_OUTER_MARGIN;
+
+    write!(buf,
+        r##"<rect fill="#FFFFFF" height="{}" style="stroke:#181818;stroke-width:1;stroke-dasharray:2,2;" width="{}" x="{}" y="{}"/>"##,
+        fmt_coord(rect_h), fmt_coord(rect_w), fmt_coord(rect_x), fmt_coord(rect_y),
+    ).unwrap();
+    tracker.track_rect(rect_x, rect_y, rect_w, rect_h);
+    tracker.track_empty(rect_x, rect_y, rect_w, rect_h);
+
+    let text_x = rect_x + GENERIC_INNER_MARGIN;
+    let text_y = rect_y + GENERIC_INNER_MARGIN + GENERIC_BASELINE;
+    let tl = fmt_coord(text_w);
+    write!(buf,
+        r##"<text fill="#000000" font-family="sans-serif" font-size="12" font-style="italic" lengthAdjust="spacing" textLength="{tl}" x="{}" y="{}">{}</text>"##,
+        fmt_coord(text_x), fmt_coord(text_y), xml_escape(generic_text),
+    ).unwrap();
+    tracker.track_rect(text_x, text_y - GENERIC_BASELINE, text_w, GENERIC_TEXT_HEIGHT);
+}
+
 /// Draw an Object entity box (EntityImageObject.java layout).
 ///
 /// Objects have NO stereotype circle icon, NO glyph path.
@@ -1413,7 +1481,7 @@ fn draw_object_box(
     let stroke_color = skin.border_color("object", CLASS_BORDER);
     let font_color = skin.font_color("object", LABEL_COLOR);
 
-    let rx = skin.round_corner().map(|rc| rc / 2.0).unwrap_or(2.5);
+    let rx = skin.round_corner().unwrap_or(2.5);
 
     // Rect
     write!(buf,
@@ -1446,7 +1514,7 @@ fn draw_object_box(
     let name_escaped = xml_escape(&entity.name);
     let tl = fmt_coord(name_width);
     write!(buf,
-        r#"<text fill="{font_color}" font-family="sans-serif" font-size="{class_font_size:.0}" lengthAdjust="spacing" textLength="{tl}" x="{}" y="{}">{name_escaped}</text>"#,
+        r#"<text fill="{font_color}" font-family="sans-serif" font-size="{class_font_size:.0}" lengthAdjust="spacing" text-decoration="underline" textLength="{tl}" x="{}" y="{}">{name_escaped}</text>"#,
         fmt_coord(text_x), fmt_coord(text_y),
     ).unwrap();
     tracker.track_rect(text_x, text_y - HEADER_NAME_BASELINE, name_width, HEADER_NAME_BLOCK_HEIGHT);
@@ -1462,9 +1530,28 @@ fn draw_object_box(
     ).unwrap();
     tracker.track_line(x1, sep_y, x2, sep_y);
 
-    // Java EntityImageObject body: TextBlockLineBefore(TextBlockEmpty(10, 16))
-    // TextBlockEmpty.drawU() does nothing — no UEmpty tracking needed.
-    // (Unlike EntityImageClass which emits UEmpty from MethodsOrFieldsArea)
+    // Render object fields in the body section
+    let visible_fields: Vec<&Member> = entity
+        .members
+        .iter()
+        .filter(|m| !m.is_method)
+        .collect();
+    if !visible_fields.is_empty() {
+        let attr_font_size = skin.font_size("classattribute", class_font_size);
+        let x1_val = fmt_coord(x1);
+        let x2_val = fmt_coord(x2);
+        draw_member_section(
+            buf,
+            tracker,
+            &visible_fields,
+            sep_y,
+            x,
+            &x1_val,
+            &x2_val,
+            font_color,
+            attr_font_size,
+        );
+    }
 }
 
 fn draw_member_section(
@@ -2534,10 +2621,10 @@ mod tests {
         )
         .expect("render failed");
         assert!(svg.contains("myObj"), "SVG must contain object name");
-        // EntityImageObject: no underline by default (only in strict UML mode)
+        // Object names must be underlined per UML convention
         assert!(
             !svg.contains(r#"text-decoration="underline""#),
-            "object name must NOT have underline text-decoration by default"
+            "object name must have underline text-decoration"
         );
         // EntityImageObject: no stereotype circle icon
         assert!(

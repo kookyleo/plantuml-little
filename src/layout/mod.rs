@@ -100,6 +100,19 @@ const MEMBER_TEXT_LEFT_NO_ICON: f64 = 6.0;
 /// Block width = 11. Used when entity has a visibility modifier (e.g. -class foo).
 const ENTITY_VIS_ICON_BLOCK_WIDTH: f64 = 11.0;
 
+// -- Generic type box constants -- sourced from EntityImageClassHeader.java --
+//
+// EntityImageClassHeader.java:136-145: generic block =
+//   text(12pt italic) + innerMargin(1,1) + TextBlockGeneric(dashed rect) + outerMargin(1,1)
+// HeaderLayout.java:112: delta=4, xGeneric=width-genericDim.w+4, yGeneric=-4
+
+/// Generic type text font size (FontParam.CLASS_STEREOTYPE = 12pt italic).
+const GENERIC_FONT_SIZE: f64 = 12.0;
+/// Inner margin around generic text (withMargin(genericBlock, 1, 1), line 139).
+const GENERIC_INNER_MARGIN: f64 = 1.0;
+/// Outer margin around TextBlockGeneric (withMargin(genericBlock, 1, 1), line 145).
+const GENERIC_OUTER_MARGIN: f64 = 1.0;
+
 // ── Object entity sizing constants — sourced from EntityImageObject.java ──
 //
 // EntityImageObject.java:98 — withMargin(tmp, 2, 2) → margin(top=2, right=2, bottom=2, left=2).
@@ -210,6 +223,18 @@ fn sanitize_id(name: &str) -> String {
         .replace(' ', "_")
 }
 
+/// Compute generic block outer dimension width (genericDim.width in Java).
+/// Returns 0 when entity has no generic parameter.
+fn generic_dim_width(entity: &Entity) -> f64 {
+    match entity.generic {
+        Some(ref g) => {
+            let text_w = font_metrics::text_width(g, "SansSerif", GENERIC_FONT_SIZE, false, true);
+            text_w + 2.0 * GENERIC_INNER_MARGIN + 2.0 * GENERIC_OUTER_MARGIN
+        }
+        None => 0.0,
+    }
+}
+
 /// Estimate entity rendering size (width_pt, height_pt)
 fn estimate_entity_size(cd: &ClassDiagram, entity: &Entity) -> (f64, f64) {
     if matches!(
@@ -223,12 +248,8 @@ fn estimate_entity_size(cd: &ClassDiagram, entity: &Entity) -> (f64, f64) {
         return estimate_object_size(entity);
     }
 
-    let mut name_display = entity.name.clone();
-    if let Some(ref g) = entity.generic {
-        name_display.push('<');
-        name_display.push_str(g);
-        name_display.push('>');
-    }
+    // Entity name WITHOUT generic parameter -- generic is rendered separately
+    let name_display = entity.name.clone();
 
     let visible_stereotypes = visible_stereotype_labels(&cd.hide_show_rules, &entity.stereotypes);
     let italic_name = entity.kind == EntityKind::Abstract;
@@ -254,7 +275,9 @@ fn estimate_entity_size(cd: &ClassDiagram, entity: &Entity) -> (f64, f64) {
         })
         .fold(0.0_f64, f64::max);
     let vis_icon_w = if entity.visibility.is_some() { ENTITY_VIS_ICON_BLOCK_WIDTH } else { 0.0 };
-    let header_width = HEADER_CIRCLE_BLOCK_WIDTH + vis_icon_w + name_block_width.max(stereo_block_width);
+    // HeaderLayout.java:74 -- width = circleDim.w + max(stereoDim.w, nameDim.w) + genericDim.w
+    let gen_w = generic_dim_width(entity);
+    let header_width = HEADER_CIRCLE_BLOCK_WIDTH + vis_icon_w + name_block_width.max(stereo_block_width) + gen_w;
     let stereo_height = visible_stereotypes.len() as f64 * HEADER_STEREO_LINE_HEIGHT;
     let header_height = HEADER_CIRCLE_BLOCK_HEIGHT
         .max(stereo_height + HEADER_NAME_BLOCK_HEIGHT + HEADER_STEREO_NAME_GAP);
@@ -333,13 +356,8 @@ fn estimate_object_size(entity: &Entity) -> (f64, f64) {
 }
 
 fn estimate_entity_size_legacy(entity: &Entity) -> (f64, f64) {
-    // entity display name (including generic parameters)
-    let mut name_display = entity.name.clone();
-    if let Some(ref g) = entity.generic {
-        name_display.push('<');
-        name_display.push_str(g);
-        name_display.push('>');
-    }
+    // Entity name WITHOUT generic parameter -- generic is rendered separately
+    let name_display = entity.name.clone();
 
     // check if a stereotype line is needed (interface / enum / abstract / custom stereotype)
     let has_stereotype_line = !entity.stereotypes.is_empty()
@@ -405,11 +423,12 @@ fn estimate_entity_size_legacy(entity: &Entity) -> (f64, f64) {
         })
         .fold(0.0_f64, f64::max);
 
-    // Width: Java formula = circle_left_pad + circle_dia + gap + text_width + right_pad
+    // Width: Java formula = circle_left_pad + circle_dia + gap + text_width + right_pad + generic
     let name_width =
         font_metrics::text_width(&name_display, "SansSerif", CLASS_FONT_SIZE, false, false);
+    let gen_w = generic_dim_width(entity);
     let circle_plus_name =
-        CIRCLE_LEFT_PAD + CIRCLE_DIAMETER + CIRCLE_TEXT_GAP + name_width + RIGHT_PAD;
+        CIRCLE_LEFT_PAD + CIRCLE_DIAMETER + CIRCLE_TEXT_GAP + name_width + RIGHT_PAD + gen_w;
     let max_text_width = circle_plus_name
         .max(stereotype_text_width + CIRCLE_LEFT_PAD + RIGHT_PAD)
         .max(max_member_width + 2.0 * RIGHT_PAD);
