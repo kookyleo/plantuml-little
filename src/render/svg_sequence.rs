@@ -33,6 +33,7 @@ const FRAGMENT_BG: &str = "#F1F1F1";
 const FRAGMENT_BORDER: &str = "#181818";
 const REF_BG: &str = "#F1F1F1";
 const REF_BORDER: &str = "#181818";
+const DESTROY_COLOR: &str = "#A80036";
 const DIVIDER_COLOR: &str = "#888888";
 const TEXT_COLOR: &str = "#000000";
 
@@ -941,25 +942,25 @@ fn draw_activation(buf: &mut String, act: &ActivationLayout) {
 // ── Destroy marker ──────────────────────────────────────────────────
 
 fn draw_destroy(buf: &mut String, d: &DestroyLayout) {
-    let size = 10.0;
+    let size = 9.0;
     // First diagonal: top-left to bottom-right
     write!(
         buf,
         r#"<line style="stroke:{color};stroke-width:2;" x1="{}" x2="{}" y1="{}" y2="{}"/>"#,
         fmt_coord(d.x - size), fmt_coord(d.x + size),
         fmt_coord(d.y - size), fmt_coord(d.y + size),
-        color = ARROW_COLOR,
+        color = DESTROY_COLOR,
     )
     .unwrap();
     buf.push('\n');
 
-    // Second diagonal: top-right to bottom-left
+    // Second diagonal: bottom-left to top-right (matching Java PlantUML order)
     write!(
         buf,
         r#"<line style="stroke:{color};stroke-width:2;" x1="{}" x2="{}" y1="{}" y2="{}"/>"#,
-        fmt_coord(d.x + size), fmt_coord(d.x - size),
-        fmt_coord(d.y - size), fmt_coord(d.y + size),
-        color = ARROW_COLOR,
+        fmt_coord(d.x - size), fmt_coord(d.x + size),
+        fmt_coord(d.y + size), fmt_coord(d.y - size),
+        color = DESTROY_COLOR,
     )
     .unwrap();
     buf.push('\n');

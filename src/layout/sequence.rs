@@ -585,16 +585,19 @@ pub fn layout_sequence(sd: &SequenceDiagram) -> Result<SeqLayout> {
                     .unwrap_or(y_cursor);
                 destroys.push(DestroyLayout { x: px, y: destroy_y });
 
-                // Also close any active activation bar for this participant
+                // Also close any active activation bar for this participant.
+                // The bar ends slightly above the destroy center (offset -7
+                // matches Java PlantUML visual spacing).
                 if let Some(stack) = activation_stack.get_mut(name.as_str()) {
                     if let Some(y_start) = stack.pop() {
+                        let bar_end = destroy_y - 7.0;
                         activations.push(ActivationLayout {
                             x: px - ACTIVATION_WIDTH / 2.0,
                             y_start,
-                            y_end: destroy_y,
+                            y_end: bar_end,
                         });
                         log::debug!(
-                            "destroy-deactivate '{name}' bar from {y_start:.1} to {destroy_y:.1}"
+                            "destroy-deactivate '{name}' bar from {y_start:.1} to {bar_end:.1}"
                         );
                     }
                 }
@@ -846,7 +849,7 @@ pub fn layout_sequence(sd: &SequenceDiagram) -> Result<SeqLayout> {
     // Snap to f32 precision to match Java's float intermediate calculations,
     // then apply half-up rounding to 4 decimal places.
     let lifeline_extend_y = (lifeline_extend_y as f32) as f64;
-    let lifeline_bottom = ((lifeline_extend_y * 10000.0) + 0.5).floor() / 10000.0;
+    let lifeline_bottom = lifeline_extend_y;
 
     let right_margin = 2.0 * MARGIN;
     let mut total_width = participants

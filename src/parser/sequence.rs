@@ -334,6 +334,39 @@ pub fn parse_sequence_diagram(source: &str) -> Result<SequenceDiagram> {
             }
         }
 
+        // Parse message arrows: try spaced version first, then no-space version.
+        // Arrow check must come before participant declarations so that lines
+        // like "Database -> Bob : ack" are parsed as messages, not as a
+        // database participant declaration with rest "-> Bob : ack".
+        let arrow_caps = arrow_re
+            .captures(trimmed)
+            .or_else(|| arrow_nospace_re.captures(trimmed));
+        if let Some(caps) = arrow_caps {
+            let left = caps.get(1).unwrap().as_str().trim();
+            let arrow = caps.get(2).unwrap().as_str();
+            let right = caps.get(3).unwrap().as_str().trim();
+            let text = caps
+                .get(4)
+                .map(|m| m.as_str().trim().to_string())
+                .unwrap_or_default();
+
+            if let Some(msg) = parse_arrow(left, arrow, right, &text) {
+                debug!("parsed message: {} -> {} : {}", msg.from, msg.to, msg.text);
+
+                // Auto-create participants
+                ensure_participant(
+                    &mut declared_participants,
+                    &mut auto_participants,
+                    &msg.from,
+                );
+                ensure_participant(&mut declared_participants, &mut auto_participants, &msg.to);
+
+                last_to_participant = Some(msg.to.clone());
+                events.push(SeqEvent::Message(msg));
+                continue;
+            }
+        }
+
         // Parse participant declarations
         if let Some(caps) = participant_re.captures(trimmed) {
             let kind_str = caps.get(1).unwrap().as_str().to_lowercase();
@@ -369,36 +402,6 @@ pub fn parse_sequence_diagram(source: &str) -> Result<SequenceDiagram> {
                 });
             }
             continue;
-        }
-
-        // Parse message arrows: try spaced version first, then no-space version
-        let arrow_caps = arrow_re
-            .captures(trimmed)
-            .or_else(|| arrow_nospace_re.captures(trimmed));
-        if let Some(caps) = arrow_caps {
-            let left = caps.get(1).unwrap().as_str().trim();
-            let arrow = caps.get(2).unwrap().as_str();
-            let right = caps.get(3).unwrap().as_str().trim();
-            let text = caps
-                .get(4)
-                .map(|m| m.as_str().trim().to_string())
-                .unwrap_or_default();
-
-            if let Some(msg) = parse_arrow(left, arrow, right, &text) {
-                debug!("parsed message: {} -> {} : {}", msg.from, msg.to, msg.text);
-
-                // Auto-create participants
-                ensure_participant(
-                    &mut declared_participants,
-                    &mut auto_participants,
-                    &msg.from,
-                );
-                ensure_participant(&mut declared_participants, &mut auto_participants, &msg.to);
-
-                last_to_participant = Some(msg.to.clone());
-                events.push(SeqEvent::Message(msg));
-                continue;
-            }
         }
 
         warn!("unrecognized sequence diagram line: {trimmed}");
@@ -1197,7 +1200,86 @@ Sally --> Bob
         assert!(matches!(&diagram.events[2], SeqEvent::AutoNumber { start } if *start == Some(10)));
     }
 
-    /// 33. Parse nested fragments
+    /// 33. Parse colored arrow [#blue]->
+    #[test]
+    fn parse_colored_arrow_prefix() {
+        let src = "@startuml\na[#blue]->b: hello\n@enduml";
+        let diagram = parse_sequence_diagram(src).unwrap();
+
+        assert_eq!(diagram.events.len(), 1);
+        if let SeqEvent::Message(msg) = &diagram.events[0] {
+            assert_eq!(msg.from, "a");
+            assert_eq!(msg.to, "b");
+            assert_eq!(msg.text, "hello");
+            assert_eq!(msg.arrow_style, SeqArrowStyle::Solid);
+            assert_eq!(msg.arrow_head, SeqArrowHead::Filled);
+            assert_eq!(msg.direction, SeqDirection::LeftToRight);
+            assert_eq!(msg.color.as_deref(), Some("blue"));
+        } else {
+            panic!("expected Message event");
+        }
+    }
+
+    /// 34. Parse colored arrow -[#green]>
+    #[test]
+    fn parse_colored_arrow_infix() {
+        let src = "@startuml\na-[#green]>b: world\n@enduml";
+        let diagram = parse_sequence_diagram(src).unwrap();
+
+        assert_eq!(diagram.events.len(), 1);
+        if let SeqEvent::Message(msg) = &diagram.events[0] {
+            assert_eq!(msg.from, "a");
+            assert_eq!(msg.to, "b");
+            assert_eq!(msg.text, "world");
+            assert_eq!(msg.arrow_style, SeqArrowStyle::Solid);
+            assert_eq!(msg.arrow_head, SeqArrowHead::Filled);
+            assert_eq!(msg.direction, SeqDirection::LeftToRight);
+            assert_eq!(msg.color.as_deref(), Some("green"));
+        } else {
+            panic!("expected Message event");
+        }
+    }
+
+    /// 35. Parse colored dashed arrow --[#red]>>
+    #[test]
+    fn parse_colored_dashed_open_arrow() {
+        let src = "@startuml\nA --[#red]>> B : msg\n@enduml";
+        let diagram = parse_sequence_diagram(src).unwrap();
+
+        assert_eq!(diagram.events.len(), 1);
+        if let SeqEvent::Message(msg) = &diagram.events[0] {
+            assert_eq!(msg.from, "A");
+            assert_eq!(msg.to, "B");
+            assert_eq!(msg.text, "msg");
+            assert_eq!(msg.arrow_style, SeqArrowStyle::Dashed);
+            assert_eq!(msg.arrow_head, SeqArrowHead::Open);
+            assert_eq!(msg.direction, SeqDirection::LeftToRight);
+            assert_eq!(msg.color.as_deref(), Some("red"));
+        } else {
+            panic!("expected Message event");
+        }
+    }
+
+    /// 36. Parse colored left arrow <[#FF0000]--
+    #[test]
+    fn parse_colored_left_arrow() {
+        let src = "@startuml\nA <[#FF0000]-- B : back\n@enduml";
+        let diagram = parse_sequence_diagram(src).unwrap();
+
+        assert_eq!(diagram.events.len(), 1);
+        if let SeqEvent::Message(msg) = &diagram.events[0] {
+            assert_eq!(msg.from, "B");
+            assert_eq!(msg.to, "A");
+            assert_eq!(msg.text, "back");
+            assert_eq!(msg.arrow_style, SeqArrowStyle::Dashed);
+            assert_eq!(msg.direction, SeqDirection::RightToLeft);
+            assert_eq!(msg.color.as_deref(), Some("FF0000"));
+        } else {
+            panic!("expected Message event");
+        }
+    }
+
+    /// 37. Parse nested fragments (was #33)
     #[test]
     fn parse_nested_fragments() {
         let src = "@startuml\nalt case1\nloop retry\nalt inner\nA -> B : x\nend\nend\nelse case2\nA -> B : y\nend\n@enduml";
