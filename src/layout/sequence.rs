@@ -846,8 +846,7 @@ pub fn layout_sequence(sd: &SequenceDiagram) -> Result<SeqLayout> {
         .map(|pp| pp.box_height)
         .fold(PARTICIPANT_HEIGHT, f64::max);
     let lifeline_top = MARGIN + max_participant_height + 1.0;
-    // Apply half-up rounding to 4 decimal places to match Java coordinate precision.
-    let lifeline_bottom = ((lifeline_extend_y * 10000.0) + 0.5).floor() / 10000.0;
+    let lifeline_bottom = lifeline_extend_y;
 
     let right_margin = 2.0 * MARGIN;
     let mut total_width = participants

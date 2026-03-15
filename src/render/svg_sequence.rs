@@ -52,25 +52,9 @@ fn write_seq_defs(buf: &mut String) {
 /// Java's `LivingParticipantBox` accumulates its preferred-size dimension
 /// through multiple `addDim()` calls.  When the diagram contains a `group`
 /// fragment, the grouping header's dimension causes an additional f32
-/// rounding step that pushes the accumulated height 0.0001 past the
-/// boundary.  We replicate that by detecting the pattern (fractional
-/// ending `.5312` from `group` diagrams) and applying the same +0.0001.
-fn java_lifeline_height(bottom: f64, top: f64, has_group: bool) -> f64 {
-    let h = bottom - top;
-    if has_group {
-        let h_int = (h * 10000.0 + 0.5).floor() as i64;
-        let frac = ((h_int % 10000) + 10000) % 10000;
-        if frac == 5312 {
-            return h + 0.0001;
-        }
-    }
-    h
-}
-
 fn draw_lifelines(buf: &mut String, layout: &SeqLayout, skin: &SkinParams, sd: &SequenceDiagram) {
     let ll_color = skin.sequence_lifeline_border_color(LIFELINE_COLOR);
-    let has_group = layout.fragments.iter().any(|f| f.kind == FragmentKind::Group);
-    let ll_height = java_lifeline_height(layout.lifeline_bottom, layout.lifeline_top, has_group);
+    let ll_height = layout.lifeline_bottom - layout.lifeline_top;
     for (i, p) in layout.participants.iter().enumerate() {
         let part_idx = i + 1;
         let display = sd
