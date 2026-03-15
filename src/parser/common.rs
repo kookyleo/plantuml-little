@@ -82,6 +82,12 @@ pub fn extract_block(source: &str) -> Option<String> {
     }
 }
 
+/// Case-insensitive prefix check.
+fn starts_with_ci(line: &str, keyword: &str) -> bool {
+    line.len() >= keyword.len()
+        && line.as_bytes()[..keyword.len()].eq_ignore_ascii_case(keyword.as_bytes())
+}
+
 /// Detect diagram type (heuristic detection for @startuml)
 pub fn detect_diagram_type(content: &str) -> DiagramHint {
     let class_keywords = [
@@ -94,32 +100,20 @@ pub fn detect_diagram_type(content: &str) -> DiagramHint {
         "object ",
     ];
 
-    // Keywords that unambiguously identify a sequence diagram.
-    // Note: "database ", "queue " are also valid deployment keywords;
-    // "actor " is also a valid use-case keyword.  These are handled as
-    // ambiguous keywords below, not as definitive sequence markers.
     let sequence_keywords_definitive = ["participant ", "boundary ", "control ", "collections "];
-    // Ambiguous: sequence diagrams use these, but so do component/deployment diagrams.
     let sequence_keywords_ambiguous = ["database ", "queue "];
-    // "actor " is shared between sequence and use-case diagrams
-    let mut has_seq_actor = false;
-    let mut has_seq_ambiguous_role = false;
 
-    // Sequence fragment keywords — unambiguously identify sequence diagrams
     let seq_fragment_keywords = [
-        "alt ",
-        "else ",
-        "loop ",
-        "opt ",
-        "par ",
-        "break",
-        "critical",
-        "ref over ",
+        "alt ", "else ", "loop ", "opt ", "par ", "break", "critical",
+        "ref over ", "group ",
     ];
 
+    let mut has_seq_actor = false;
+    let mut has_seq_ambiguous_role = false;
     let mut has_activity_action = false;
-    let mut has_activity_start_stop = false; // "start" or "stop" (not bare "end")
+    let mut has_activity_start_stop = false;
     let mut has_activity_swimlane = false;
+    let mut has_activity_old = false;
     let mut has_state_keyword = false;
     let mut has_component_keyword_definitive = false;
     let mut has_component_keyword_ambiguous = false;
@@ -127,10 +121,12 @@ pub fn detect_diagram_type(content: &str) -> DiagramHint {
     let mut has_salt_keyword = false;
     let mut has_timing_keyword = false;
     let mut has_arrow = false;
-    let mut has_seq_arrow = false; // "A -> B" or "A -> B : label" pattern
+    let mut has_seq_arrow = false;
     let mut has_seq_fragment = false;
+    let mut has_seq_lifecycle = false;
     let mut has_class_kw = false;
     let mut has_class_relation = false;
+    let mut in_bracket_display = false;
 
     for line in content.lines() {
         let trimmed = line.trim();
@@ -138,23 +134,77 @@ pub fn detect_diagram_type(content: &str) -> DiagramHint {
             continue;
         }
 
-        if trimmed.starts_with(':') && trimmed.ends_with(';') {
+        // Skip content inside bracket-display blocks: `name [\n...\n]`
+        if in_bracket_display {
+            if trimmed == "]" || trimmed.ends_with(']') {
+                in_bracket_display = false;
+            }
+            continue;
+        }
+        // Detect bracket-display opener (e.g. `rectangle A [`, `file f [`)
+        if (trimmed.ends_with(" [") || trimmed.ends_with('['))
+            && !trimmed.starts_with('[')
+        {
+            let before = trimmed[..trimmed.len() - 1].trim();
+            if !before.is_empty() && !before.ends_with('-') && !before.ends_with('<') {
+                in_bracket_display = true;
+            }
+        }
+
+        // Activity: `:action;`
+        if trimmed.starts_with(':') && trimmed.ends_with(';') && trimmed.len() > 2 {
             has_activity_action = true;
         }
         if matches!(trimmed, "start" | "stop") {
             has_activity_start_stop = true;
         }
+        // Activity swimlane: `|Name|` (no internal `|` -- Creole tables have them)
         if trimmed.starts_with('|') && trimmed.ends_with('|') && trimmed.len() > 2 {
-            has_activity_swimlane = true;
+            let inner = &trimmed[1..trimmed.len() - 1];
+            if !inner.contains('|') {
+                has_activity_swimlane = true;
+            }
+        }
+        // Old activity: `(*)` start/end
+        if trimmed.contains("(*)") {
+            has_activity_old = true;
+        }
+        // Old activity: `if "..." then` / `endif`
+        if (trimmed.starts_with("if ") && trimmed.contains(" then")) || trimmed == "endif" {
+            has_activity_old = true;
+        }
+        // Old activity synchbar: `===NAME===`
+        if trimmed.starts_with("===") && trimmed.ends_with("===") && trimmed.len() > 6 {
+            has_activity_old = true;
         }
 
-        // Detect sequence fragment keywords
+        // Sequence fragment keywords
         for kw in &seq_fragment_keywords {
             if trimmed.starts_with(kw) || trimmed == kw.trim() {
                 has_seq_fragment = true;
             }
         }
 
+        // Sequence lifecycle (case-insensitive)
+        if starts_with_ci(trimmed, "activate ")
+            || starts_with_ci(trimmed, "deactivate ")
+            || starts_with_ci(trimmed, "destroy ")
+            || starts_with_ci(trimmed, "create ")
+            || starts_with_ci(trimmed, "autoactivate ")
+            || trimmed == "activate"
+            || trimmed == "deactivate"
+        {
+            has_seq_lifecycle = true;
+        }
+
+        // Sequence gate: `[-> target` or `[<- target`
+        if trimmed.starts_with("[->") || trimmed.starts_with("[<-") {
+            has_seq_arrow = true;
+            has_arrow = true;
+            continue;
+        }
+
+        // State
         if trimmed.starts_with("state ") {
             has_state_keyword = true;
         }
@@ -162,25 +212,30 @@ pub fn detect_diagram_type(content: &str) -> DiagramHint {
             has_state_keyword = true;
         }
 
+        // Component / deployment keywords
+        let is_bracket_opener = in_bracket_display;
         if trimmed.starts_with("component ")
             || trimmed.starts_with("node ")
             || trimmed.starts_with("cloud ")
             || trimmed.starts_with("card ")
-            || trimmed.starts_with("file ")
+            || (trimmed.starts_with("file ") && !is_bracket_opener)
             || trimmed.starts_with("artifact ")
             || trimmed.starts_with("storage ")
             || trimmed.starts_with("folder ")
             || trimmed.starts_with("frame ")
             || trimmed.starts_with("agent ")
             || trimmed.starts_with("stack ")
-            || trimmed.starts_with('[')
         {
             has_component_keyword_definitive = true;
         }
-        if trimmed.starts_with("rectangle ")
-            || trimmed.starts_with("package ")
-            || trimmed.starts_with("interface ")
+        if trimmed.starts_with('[')
+            && !trimmed.starts_with("[->")
+            && !trimmed.starts_with("[<-")
+            && !is_bracket_opener
         {
+            has_component_keyword_definitive = true;
+        }
+        if trimmed.starts_with("rectangle ") || trimmed.starts_with("package ") {
             has_component_keyword_ambiguous = true;
         }
 
@@ -188,58 +243,73 @@ pub fn detect_diagram_type(content: &str) -> DiagramHint {
             has_salt_keyword = true;
         }
 
+        // Use case
         if trimmed.starts_with("usecase ") || trimmed.starts_with("usecase\"") {
             has_usecase_keyword = true;
         }
-        // (Name) round-bracket syntax for use cases
-        if trimmed.starts_with('(') && trimmed.contains(')') && !trimmed.starts_with("()") {
+        if trimmed.starts_with('(')
+            && trimmed.contains(')')
+            && !trimmed.starts_with("()")
+            && !trimmed.contains("(*)")
+        {
             has_usecase_keyword = true;
         }
 
+        // Timing
         if trimmed.starts_with("robust ") || trimmed.starts_with("concise ") {
             has_timing_keyword = true;
         }
 
+        // Class keywords
         for kw in &class_keywords {
             let check = trimmed.strip_prefix('-').unwrap_or(trimmed);
             if check.starts_with(kw) || trimmed.contains(&format!(" {}", kw.trim())) {
                 has_class_kw = true;
             }
         }
+
+        // Definitive sequence keywords (case-insensitive)
         for kw in &sequence_keywords_definitive {
-            if trimmed.starts_with(kw) {
+            if starts_with_ci(trimmed, kw) {
                 return DiagramHint::Sequence;
             }
         }
-        if trimmed.starts_with("actor ") {
+        if starts_with_ci(trimmed, "actor ") {
             has_seq_actor = true;
         }
-        // Ambiguous keywords: used by both sequence and component diagrams.
         for kw in &sequence_keywords_ambiguous {
             if trimmed.starts_with(kw) {
                 has_seq_ambiguous_role = true;
             }
         }
-        if !has_arrow && (trimmed.contains("->") || trimmed.contains("<-")) {
+
+        // Arrow detection
+        if trimmed.contains("->") || trimmed.contains("<-") {
             has_arrow = true;
-            // Sequence-style arrow: "Word -> Word" or "Word -> Word : label"
-            // Activity arrows look like: "-> label;" or bare "->"
             if let Some(pos) = trimmed.find("->").or_else(|| trimmed.find("<-")) {
                 let before = trimmed[..pos].trim();
                 let after_arrow = &trimmed[pos + 2..];
                 let after = after_arrow.trim_start_matches(['>', '-']);
                 let after = after.trim();
-                // If there's a non-empty word before AND after the arrow, it's sequence-style
+                let before_is_dashes = !before.is_empty() && before.chars().all(|c| c == '-');
+                let after_is_label = after.starts_with('[') && after.contains(']');
                 if !before.is_empty()
+                    && !before_is_dashes
                     && !before.starts_with(':')
+                    && !before.starts_with("(*")
+                    && !before.starts_with("===")
                     && !after.is_empty()
                     && !after.starts_with(';')
+                    && !after.starts_with("(*")
+                    && !after.starts_with("===")
+                    && !after_is_label
                 {
                     has_seq_arrow = true;
                 }
             }
         }
 
+        // Class relations
         if trimmed.contains("<|")
             || trimmed.contains("|>")
             || trimmed.contains(" o--")
@@ -265,6 +335,8 @@ pub fn detect_diagram_type(content: &str) -> DiagramHint {
         }
     }
 
+    // Priority resolution
+
     if has_timing_keyword {
         return DiagramHint::Timing;
     }
@@ -274,35 +346,55 @@ pub fn detect_diagram_type(content: &str) -> DiagramHint {
     if has_state_keyword {
         return DiagramHint::State;
     }
-    if has_usecase_keyword {
-        return DiagramHint::UseCase;
-    }
-    // Sequence fragments unambiguously identify sequence diagrams
-    if has_seq_fragment && !has_state_keyword && !has_component_keyword_definitive {
+
+    // Sequence: lifecycle (activate/deactivate) is unambiguous
+    if has_seq_lifecycle {
         return DiagramHint::Sequence;
     }
+    if has_seq_fragment && !has_component_keyword_definitive {
+        return DiagramHint::Sequence;
+    }
+
+    // Use case -- but (*) is old-activity, not use-case
+    if has_usecase_keyword && !has_activity_old {
+        return DiagramHint::UseCase;
+    }
+
+    // Activity (new syntax)
     if has_activity_action || has_activity_start_stop || has_activity_swimlane {
         return DiagramHint::Activity;
     }
-    if has_component_keyword_definitive {
+    // Activity (old syntax)
+    if has_activity_old {
+        return DiagramHint::Activity;
+    }
+
+    // Component: only when no class keywords override
+    if has_component_keyword_definitive && !has_class_kw {
         return DiagramHint::Component;
+    }
+    // Sequence arrows override class relations when no class keywords present
+    if has_seq_arrow && !has_class_kw {
+        return DiagramHint::Sequence;
     }
     if has_class_kw || has_class_relation {
         return DiagramHint::Class;
     }
-    // "actor" without use-case keywords implies sequence diagram
     if has_seq_actor {
         return DiagramHint::Sequence;
     }
-    // Sequence-style arrows (A -> B : label) strongly suggest sequence diagram
     if has_seq_arrow {
         return DiagramHint::Sequence;
     }
     if has_seq_ambiguous_role {
         return DiagramHint::Sequence;
     }
-    if has_component_keyword_ambiguous {
+    if has_component_keyword_definitive {
         return DiagramHint::Component;
+    }
+    // Ambiguous keywords (rectangle, package) alone -> Class
+    if has_component_keyword_ambiguous {
+        return DiagramHint::Class;
     }
     if has_arrow {
         return DiagramHint::Sequence;
@@ -529,7 +621,7 @@ fn collect_block(
 /// Extract SVG sprite definitions from source text.
 ///
 /// Parses `sprite NAME <svg ...>...</svg>` blocks (single- or multi-line)
-/// and returns a map of sprite name → SVG content, plus the cleaned source
+/// and returns a map of sprite name -> SVG content, plus the cleaned source
 /// with sprite definitions removed.
 pub fn extract_sprites(source: &str) -> (String, HashMap<String, String>) {
     let mut sprites = HashMap::new();
@@ -793,7 +885,7 @@ mod tests {
         assert!(detect_start_tag("@startuml\nclass Foo\n@enduml").is_none());
     }
 
-    // ── parse_meta tests ────────────────────────────────────────────
+    // -- parse_meta tests --
 
     #[test]
     fn parse_meta_empty_source() {

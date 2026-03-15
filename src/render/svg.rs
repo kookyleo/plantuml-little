@@ -713,6 +713,8 @@ fn wrap_with_meta(body_svg: &str, meta: &DiagramMeta, diagram_type: &str) -> Res
             META_HF_COLOR, None,
             &format!(r#"font-size="{}""#, META_HF_FONT_SIZE as i32),
         );
+        // Strip trailing newline from render_creole_text
+        if buf.ends_with('\n') { buf.pop(); }
         buf.push_str("</g>");
     }
 
@@ -734,6 +736,8 @@ fn wrap_with_meta(body_svg: &str, meta: &DiagramMeta, diagram_type: &str) -> Res
             LABEL_COLOR, None,
             &format!(r#"font-size="{}" font-weight="700""#, META_TITLE_FONT_SIZE as i32),
         );
+        // Strip trailing newline from render_creole_text
+        if buf.ends_with('\n') { buf.pop(); }
         buf.push_str("</g>");
     }
 
@@ -773,6 +777,8 @@ fn wrap_with_meta(body_svg: &str, meta: &DiagramMeta, diagram_type: &str) -> Res
             LABEL_COLOR, None,
             &format!(r#"font-size="{}""#, META_LEGEND_FONT_SIZE as i32),
         );
+        // Strip trailing newline from render_creole_text
+        if buf.ends_with('\n') { buf.pop(); }
         buf.push_str("</g>");
     }
 
@@ -795,6 +801,8 @@ fn wrap_with_meta(body_svg: &str, meta: &DiagramMeta, diagram_type: &str) -> Res
             LABEL_COLOR, None,
             &format!(r#"font-size="{}""#, META_CAPTION_FONT_SIZE as i32),
         );
+        // Strip trailing newline from render_creole_text
+        if buf.ends_with('\n') { buf.pop(); }
         buf.push_str("</g>");
     }
 
@@ -815,6 +823,8 @@ fn wrap_with_meta(body_svg: &str, meta: &DiagramMeta, diagram_type: &str) -> Res
             META_HF_COLOR, None,
             &format!(r#"font-size="{}""#, META_HF_FONT_SIZE as i32),
         );
+        // Strip trailing newline from render_creole_text
+        if buf.ends_with('\n') { buf.pop(); }
         buf.push_str("</g>");
     }
 
