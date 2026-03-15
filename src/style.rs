@@ -647,8 +647,70 @@ pub fn normalize_color(color: &str) -> String {
         };
     }
 
-    // Named color or other value: pass through as-is
-    trimmed.to_string()
+    // Named colors: convert to uppercase hex matching Java HColors.
+    // Java DOM serializer outputs us-ascii, so named colors become #RRGGBB.
+    let lower = trimmed.to_lowercase();
+    match lower.as_str() {
+        "black" => "#000000".into(),
+        "white" => "#FFFFFF".into(),
+        "red" => "#FF0000".into(),
+        "green" => "#008000".into(),
+        "blue" => "#0000FF".into(),
+        "yellow" => "#FFFF00".into(),
+        "cyan" | "aqua" => "#00FFFF".into(),
+        "magenta" | "fuchsia" => "#FF00FF".into(),
+        "gray" | "grey" => "#808080".into(),
+        "darkgray" | "darkgrey" => "#A9A9A9".into(),
+        "lightgray" | "lightgrey" => "#D3D3D3".into(),
+        "orange" => "#FFA500".into(),
+        "pink" => "#FFC0CB".into(),
+        "purple" => "#800080".into(),
+        "brown" => "#A52A2A".into(),
+        "navy" => "#000080".into(),
+        "teal" => "#008080".into(),
+        "olive" => "#808000".into(),
+        "maroon" => "#800000".into(),
+        "lime" => "#00FF00".into(),
+        "silver" => "#C0C0C0".into(),
+        "gold" => "#FFD700".into(),
+        "indigo" => "#4B0082".into(),
+        "violet" => "#EE82EE".into(),
+        "coral" => "#FF7F50".into(),
+        "salmon" => "#FA8072".into(),
+        "tomato" => "#FF6347".into(),
+        "crimson" => "#DC143C".into(),
+        "darkblue" => "#00008B".into(),
+        "darkgreen" => "#006400".into(),
+        "darkred" => "#8B0000".into(),
+        "lightblue" => "#ADD8E6".into(),
+        "lightgreen" => "#90EE90".into(),
+        "lightyellow" => "#FFFFE0".into(),
+        "skyblue" => "#87CEEB".into(),
+        "steelblue" => "#4682B4".into(),
+        "royalblue" => "#4169E1".into(),
+        "forestgreen" => "#228B22".into(),
+        "seagreen" => "#2E8B57".into(),
+        "limegreen" => "#32CD32".into(),
+        "chocolate" => "#D2691E".into(),
+        "sienna" => "#A0522D".into(),
+        "tan" => "#D2B48C".into(),
+        "wheat" => "#F5DEB3".into(),
+        "khaki" => "#F0E68C".into(),
+        "plum" => "#DDA0DD".into(),
+        "orchid" => "#DA70D6".into(),
+        "turquoise" => "#40E0D0".into(),
+        "slategray" | "slategrey" => "#708090".into(),
+        "dimgray" | "dimgrey" => "#696969".into(),
+        "ivory" => "#FFFFF0".into(),
+        "beige" => "#F5F5DC".into(),
+        "linen" => "#FAF0E6".into(),
+        "honeydew" => "#F0FFF0".into(),
+        "mintcream" => "#F5FFFA".into(),
+        "lavender" => "#E6E6FA".into(),
+        "mistyrose" => "#FFE4E1".into(),
+        "cornsilk" => "#FFF8DC".into(),
+        _ => trimmed.to_string(), // pass through unknown names
+    }
 }
 
 #[cfg(test)]
@@ -685,15 +747,15 @@ mod tests {
 
     #[test]
     fn normalize_named_color_passthrough() {
-        assert_eq!(normalize_color("red"), "red");
-        assert_eq!(normalize_color("LightBlue"), "LightBlue");
-        assert_eq!(normalize_color("DarkGreen"), "DarkGreen");
+        assert_eq!(normalize_color("red"), "#FF0000");
+        assert_eq!(normalize_color("LightBlue"), "#ADD8E6");
+        assert_eq!(normalize_color("DarkGreen"), "#006400");
     }
 
     #[test]
     fn normalize_whitespace_trimmed() {
         assert_eq!(normalize_color("  #FFF  "), "#FFFFFF");
-        assert_eq!(normalize_color("  red  "), "red");
+        assert_eq!(normalize_color("  red  "), "#FF0000");
     }
 
     // ── Skinparam parsing tests ────────────────────────────────────
@@ -742,7 +804,7 @@ mod tests {
         let params = parse_skinparams(src);
         assert_eq!(params.get("backgroundcolor"), Some("#FEFECE"));
         assert_eq!(params.get("arrowcolor"), Some("#A80036"));
-        assert_eq!(params.get("fontcolor"), Some("black"));
+        assert_eq!(params.get("fontcolor"), Some("#000000"));
     }
 
     #[test]
@@ -759,7 +821,7 @@ mod tests {
         let src = "class Foo\ninterface Bar\nskinparam ArrowColor red\nFoo --> Bar";
         let params = parse_skinparams(src);
         assert_eq!(params.len(), 1);
-        assert_eq!(params.get("arrowcolor"), Some("red"));
+        assert_eq!(params.get("arrowcolor"), Some("#FF0000"));
     }
 
     #[test]
@@ -767,7 +829,7 @@ mod tests {
         let src = "<style>\nskinparam Foo bar\n</style>\nskinparam ArrowColor red";
         let params = parse_skinparams(src);
         assert_eq!(params.len(), 1);
-        assert_eq!(params.get("arrowcolor"), Some("red"));
+        assert_eq!(params.get("arrowcolor"), Some("#FF0000"));
     }
 
     #[test]
@@ -848,7 +910,7 @@ mod tests {
     fn arrow_color_lookup() {
         let src = "skinparam ArrowColor blue";
         let params = parse_skinparams(src);
-        assert_eq!(params.arrow_color("#A80036"), "blue");
+        assert_eq!(params.arrow_color("#A80036"), "#0000FF");
     }
 
     #[test]
@@ -1146,7 +1208,7 @@ mod tests {
     fn sequence_arrow_color_returns_value() {
         let src = "skinparam sequenceArrowColor DarkBlue";
         let sp = parse_skinparams(src);
-        assert_eq!(sp.sequence_arrow_color("#A80036"), "DarkBlue");
+        assert_eq!(sp.sequence_arrow_color("#A80036"), "#00008B");
     }
 
     #[test]
@@ -1159,7 +1221,7 @@ mod tests {
     fn sequence_lifeline_border_color_returns_value() {
         let src = "skinparam sequenceLifeLineBorderColor blue";
         let sp = parse_skinparams(src);
-        assert_eq!(sp.sequence_lifeline_border_color("#A80036"), "blue");
+        assert_eq!(sp.sequence_lifeline_border_color("#A80036"), "#0000FF");
     }
 
     #[test]
@@ -1247,7 +1309,7 @@ mod tests {
     // Ported from upstream: ColorTrieNodeTest.testInvalidCharacterIgnoredOnPut
     #[test]
     fn upstream_color_normalize_named_darkblue() {
-        assert_eq!(normalize_color("darkblue"), "darkblue");
+        assert_eq!(normalize_color("darkblue"), "#00008B");
     }
 
     // ── Ported from upstream: ColorHSBTest — hex color normalization ─
@@ -1292,7 +1354,7 @@ skinparam participant {
 }";
         let sp = parse_skinparams(src);
         assert_eq!(sp.get("participant.fontname"), Some("Roboto"));
-        assert_eq!(sp.get("participant.fontcolor"), Some("green"));
+        assert_eq!(sp.get("participant.fontcolor"), Some("#008000"));
         assert_eq!(sp.get("participant.fontsize"), Some("26"));
         assert_eq!(sp.get("participant.linecolor"), Some("#EE0000"));
     }
