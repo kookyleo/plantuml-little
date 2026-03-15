@@ -238,6 +238,11 @@ pub fn detect_diagram_type(content: &str) -> DiagramHint {
         if trimmed.starts_with("rectangle ") || trimmed.starts_with("package ") {
             has_component_keyword_ambiguous = true;
         }
+        // `rectangle ... as <alias>` is unambiguously component/deployment
+        // (e.g. C4 macro expansion).
+        if trimmed.starts_with("rectangle ") && trimmed.contains(" as ") {
+            has_component_keyword_definitive = true;
+        }
 
         if trimmed == "salt" {
             has_salt_keyword = true;
@@ -359,11 +364,19 @@ pub fn detect_diagram_type(content: &str) -> DiagramHint {
     if has_usecase_keyword && !has_activity_old {
         return DiagramHint::UseCase;
     }
-
-    // Activity (new syntax)
-    if has_activity_action || has_activity_start_stop || has_activity_swimlane {
+    // Activity (new syntax).  Swimlane-like lines are ambiguous: single-cell
+    // Creole table rows inside bracket-display bodies look identical.  When
+    // component keywords are present, do not let swimlane alone claim Activity.
+    if has_activity_action || has_activity_start_stop {
         return DiagramHint::Activity;
     }
+    if has_activity_swimlane
+        && !has_component_keyword_definitive
+        && !has_component_keyword_ambiguous
+    {
+        return DiagramHint::Activity;
+    }
+
     // Activity (old syntax)
     if has_activity_old {
         return DiagramHint::Activity;
