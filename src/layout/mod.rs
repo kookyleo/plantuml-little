@@ -96,6 +96,9 @@ const MEMBER_ROW_HEIGHT: f64 = 16.296875;
 const MEMBER_BLOCK_HEIGHT_ONE_ROW: f64 = 24.296875;
 const MEMBER_TEXT_LEFT_WITH_ICON: f64 = 26.0;
 const MEMBER_TEXT_LEFT_NO_ICON: f64 = 6.0;
+/// VisibilityModifier.getUBlock: (size+1, size+1) where size = circledCharacterRadius - 1 = 10.
+/// Block width = 11. Used when entity has a visibility modifier (e.g. -class foo).
+const ENTITY_VIS_ICON_BLOCK_WIDTH: f64 = 11.0;
 
 /// Perform layout on a Diagram
 pub fn layout(diagram: &Diagram) -> Result<DiagramLayout> {
@@ -230,7 +233,8 @@ fn estimate_entity_size(cd: &ClassDiagram, entity: &Entity) -> (f64, f64) {
             )
         })
         .fold(0.0_f64, f64::max);
-    let header_width = HEADER_CIRCLE_BLOCK_WIDTH + name_block_width.max(stereo_block_width);
+    let vis_icon_w = if entity.visibility.is_some() { ENTITY_VIS_ICON_BLOCK_WIDTH } else { 0.0 };
+    let header_width = HEADER_CIRCLE_BLOCK_WIDTH + vis_icon_w + name_block_width.max(stereo_block_width);
     let stereo_height = visible_stereotypes.len() as f64 * HEADER_STEREO_LINE_HEIGHT;
     let header_height = HEADER_CIRCLE_BLOCK_HEIGHT
         .max(stereo_height + HEADER_NAME_BLOCK_HEIGHT + HEADER_STEREO_NAME_GAP);

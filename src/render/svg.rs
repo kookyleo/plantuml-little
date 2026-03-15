@@ -1723,8 +1723,9 @@ fn draw_edge(buf: &mut String, tracker: &mut BoundsTracker, link: &Link, el: &Ed
         }
     }
 
-    let dash = if link.line_style == LineStyle::Dashed {
-        r#" stroke-dasharray="7,5""#
+    // Java: dashed lines use stroke-dasharray:7,7; INSIDE the style attribute.
+    let dash_style = if link.line_style == LineStyle::Dashed {
+        "stroke-dasharray:7,7;"
     } else {
         ""
     };
@@ -1735,7 +1736,7 @@ fn draw_edge(buf: &mut String, tracker: &mut BoundsTracker, link: &Link, el: &Ed
     }
     write!(
         buf,
-        r#" d="{d}" fill="none" id="{path_id}" style="stroke:{link_color};stroke-width:1;"{dash}/>"#,
+        r#" d="{d}" fill="none" id="{path_id}" style="stroke:{link_color};stroke-width:1;{dash_style}"/>"#,
     )
     .unwrap();
 
