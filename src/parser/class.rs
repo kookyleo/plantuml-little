@@ -281,8 +281,17 @@ pub fn parse_class_diagram(source: &str) -> Result<ClassDiagram> {
         }
 
         // Relationship parsing
-        if let Some(link) = parse_link(trimmed, source_line) {
-            debug!("link: {} -> {} ({:?})", link.from, link.to, link.line_style);
+        if let Some((link, arrow_len)) = parse_link(trimmed, source_line) {
+            debug!("link: {} -> {} ({:?}, len={})", link.from, link.to, link.line_style, arrow_len);
+            // Java: first link's arrow length determines rankdir.
+            // Single dash/dot (len=1) = horizontal (LR).
+            // Double+ dash/dot (len>=2) = vertical (TB).
+            if links.is_empty() && direction == Direction::TopToBottom {
+                if arrow_len == 1 {
+                    direction = Direction::LeftToRight;
+                    debug!("direction inferred from arrow: LeftToRight");
+                }
+            }
             links.push(link);
             continue;
         }
@@ -638,7 +647,9 @@ fn parse_member(line: &str) -> Option<Member> {
 ///   left heads: `<|`, `<`, `*`, `o`, `+`, or none
 ///   line: `--` (solid) or `..` (dashed), with optional direction hint letters
 ///   right heads: `|>`, `>`, `*`, `o`, `+`, or none
-fn parse_link(line: &str, source_line: usize) -> Option<Link> {
+/// Returns (Link, arrow_length) where arrow_length is the number of dashes/dots.
+/// length=1 means horizontal (LR), length>=2 means vertical (TB).
+fn parse_link(line: &str, source_line: usize) -> Option<(Link, usize)> {
     // Build pattern for the arrow itself
     // Left heads: <|, <, *, o, +, or nothing
     // Line: --..variations with optional direction letters
@@ -696,8 +707,10 @@ fn parse_link(line: &str, source_line: usize) -> Option<Link> {
         let label = caps.get(5).map(|m| m.as_str().trim().to_string());
 
         let (left_head, line_style, right_head) = parse_arrow(arrow);
+        // Arrow length: count dashes/dots. 1=horizontal(LR), 2+=vertical(TB).
+        let arrow_len = arrow.chars().filter(|c| *c == '-' || *c == '.').count();
 
-        return Some(Link {
+        return Some((Link {
             from,
             to,
             left_head,
@@ -707,7 +720,7 @@ fn parse_link(line: &str, source_line: usize) -> Option<Link> {
             from_label: None,
             to_label,
             source_line: Some(source_line),
-        });
+        }, arrow_len));
     }
 
     // Also try with qualifier brackets between arrow and entity
@@ -753,8 +766,10 @@ fn parse_link(line: &str, source_line: usize) -> Option<Link> {
         let label = caps.get(5).map(|m| m.as_str().trim().to_string());
 
         let (left_head, line_style, right_head) = parse_arrow(arrow);
+        // Arrow length: count dashes/dots. 1=horizontal(LR), 2+=vertical(TB).
+        let arrow_len = arrow.chars().filter(|c| *c == '-' || *c == '.').count();
 
-        return Some(Link {
+        return Some((Link {
             from,
             to,
             left_head,
@@ -764,7 +779,7 @@ fn parse_link(line: &str, source_line: usize) -> Option<Link> {
             from_label: None,
             to_label,
             source_line: Some(source_line),
-        });
+        }, arrow_len));
     }
 
     None
