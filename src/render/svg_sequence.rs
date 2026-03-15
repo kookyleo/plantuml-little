@@ -696,24 +696,32 @@ fn draw_message(
     )
     .unwrap();
 
-    // Label text above the line
+    // Label text above the line — each line as a separate <text> element
     if !msg.text.is_empty() {
         let text_x = if msg.from_x < msg.to_x {
             msg.from_x + 7.0
         } else {
             msg.to_x + 7.0
         };
-        let text_y = msg.y - 5.0659;
-        render_creole_text(
-            buf,
-            &msg.text,
-            text_x,
-            text_y,
-            LINE_HEIGHT,
-            TEXT_COLOR,
-            None,
-            &format!(r#"font-size="{FONT_SIZE}""#),
-        );
+        let msg_line_spacing = 15.1328; // ascent + descent at font-size 13
+        let num_lines = msg.text_lines.len();
+        let first_text_y = msg.y - 5.0659 - (num_lines as f64 - 1.0) * msg_line_spacing;
+        for (i, line) in msg.text_lines.iter().enumerate() {
+            if line.is_empty() {
+                continue;
+            }
+            let line_y = first_text_y + i as f64 * msg_line_spacing;
+            let tl = font_metrics::text_width(line, "SansSerif", FONT_SIZE, false, false);
+            write!(
+                buf,
+                r#"<text fill="{TEXT_COLOR}" font-family="sans-serif" font-size="{FONT_SIZE}" lengthAdjust="spacing" textLength="{}" x="{}" y="{}">{}</text>"#,
+                fmt_coord(tl),
+                fmt_coord(text_x),
+                fmt_coord(line_y),
+                xml_escape(line),
+            )
+            .unwrap();
+        }
     }
 
     buf.push_str("</g>");
@@ -822,20 +830,28 @@ fn draw_self_message(
         .unwrap();
     }
 
-    // Label text above the first horizontal line
+    // Label text above the first horizontal line — each line as separate <text>
     if !msg.text.is_empty() {
         let text_x = x + 7.0;
-        let text_y = y - 5.0659;
-        render_creole_text(
-            buf,
-            &msg.text,
-            text_x,
-            text_y,
-            LINE_HEIGHT,
-            TEXT_COLOR,
-            None,
-            &format!(r#"font-size="{FONT_SIZE}""#),
-        );
+        let msg_line_spacing = 15.1328;
+        let num_lines = msg.text_lines.len();
+        let first_text_y = y - 5.0659 - (num_lines as f64 - 1.0) * msg_line_spacing;
+        for (i, line) in msg.text_lines.iter().enumerate() {
+            if line.is_empty() {
+                continue;
+            }
+            let line_y = first_text_y + i as f64 * msg_line_spacing;
+            let tl = font_metrics::text_width(line, "SansSerif", FONT_SIZE, false, false);
+            write!(
+                buf,
+                r#"<text fill="{TEXT_COLOR}" font-family="sans-serif" font-size="{FONT_SIZE}" lengthAdjust="spacing" textLength="{}" x="{}" y="{}">{}</text>"#,
+                fmt_coord(tl),
+                fmt_coord(text_x),
+                fmt_coord(line_y),
+                xml_escape(line),
+            )
+            .unwrap();
+        }
     }
 
     buf.push_str("</g>");
@@ -1361,8 +1377,20 @@ pub fn render_sequence(
             } else {
                 format!("{} {}", msg_counter, msg.text)
             };
+            let numbered_lines: Vec<String> = if msg.text_lines.is_empty() {
+                vec![numbered_text.clone()]
+            } else {
+                let mut lines = msg.text_lines.clone();
+                lines[0] = if lines[0].is_empty() {
+                    format!("{msg_counter}")
+                } else {
+                    format!("{} {}", msg_counter, lines[0])
+                };
+                lines
+            };
             let numbered_msg = MessageLayout {
                 text: numbered_text,
+                text_lines: numbered_lines,
                 ..msg.clone()
             };
             if numbered_msg.is_self {

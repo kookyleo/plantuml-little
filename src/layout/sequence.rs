@@ -51,6 +51,7 @@ pub struct MessageLayout {
     pub to_x: f64,
     pub y: f64,
     pub text: String,
+    pub text_lines: Vec<String>,
     pub is_self: bool,
     pub is_dashed: bool,
     pub is_left: bool,
@@ -230,8 +231,14 @@ pub fn layout_sequence(sd: &SequenceDiagram) -> Result<SeqLayout> {
                 (part_name_to_idx.get(&msg.from), part_name_to_idx.get(&msg.to))
             {
                 let (lo, hi) = if fi < ti { (fi, ti) } else { (ti, fi) };
-                let text_w =
-                    font_metrics::text_width(&msg.text, "SansSerif", MSG_FONT_SIZE, false, false);
+                // Use the longest single line for gap calculation (multiline \n)
+                let text_w = msg
+                    .text
+                    .split('\n')
+                    .map(|line| {
+                        font_metrics::text_width(line, "SansSerif", MSG_FONT_SIZE, false, false)
+                    })
+                    .fold(0.0_f64, f64::max);
                 let needed = text_w + 24.0; // 7px text-margin + 7px gap + 10px arrow
                 let span = hi - lo; // number of gaps this message spans
                 if span > 0 {
@@ -315,6 +322,18 @@ pub fn layout_sequence(sd: &SequenceDiagram) -> Result<SeqLayout> {
                 let is_left = msg.direction == SeqDirection::RightToLeft;
                 let has_open_head = msg.arrow_head == SeqArrowHead::Open;
 
+                let text_lines: Vec<String> =
+                    msg.text.split('\n').map(|s| s.to_string()).collect();
+                let num_extra_lines = if text_lines.len() > 1 {
+                    text_lines.len() - 1
+                } else {
+                    0
+                };
+                // Multiline message text: extra lines push the arrow down
+                let msg_line_spacing = 15.1328; // ascent + descent at font-size 13
+                let extra_height = num_extra_lines as f64 * msg_line_spacing;
+                let msg_y = y_cursor + extra_height;
+
                 messages.push(MessageLayout {
                     from_x,
                     to_x: if is_self {
@@ -322,8 +341,9 @@ pub fn layout_sequence(sd: &SequenceDiagram) -> Result<SeqLayout> {
                     } else {
                         to_x
                     },
-                    y: y_cursor,
+                    y: msg_y,
                     text: msg.text.clone(),
+                    text_lines,
                     is_self,
                     is_dashed,
                     is_left,
@@ -331,11 +351,11 @@ pub fn layout_sequence(sd: &SequenceDiagram) -> Result<SeqLayout> {
                 });
 
                 if is_self {
-                    last_event_bottom_y = y_cursor + SELF_MSG_HEIGHT;
-                    y_cursor += SELF_MSG_HEIGHT + 14.0;
+                    last_event_bottom_y = msg_y + SELF_MSG_HEIGHT;
+                    y_cursor = msg_y + SELF_MSG_HEIGHT + 14.0;
                 } else {
-                    last_event_bottom_y = y_cursor;
-                    y_cursor += MESSAGE_SPACING;
+                    last_event_bottom_y = msg_y;
+                    y_cursor = msg_y + MESSAGE_SPACING;
                 }
             }
 
