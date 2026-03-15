@@ -2739,8 +2739,8 @@ mod tests {
         };
         let svg = render(&d, &l, &default_skin(), &meta).unwrap();
         assert!(svg.contains("My Title"));
-        assert!(svg.contains("font-weight=\"bold\""));
-        assert!(svg.contains("font-size=\"18\""));
+        assert!(svg.contains("font-weight=\"700\""));
+        assert!(svg.contains("font-size=\"14\""));
         assert!(svg.contains("translate("));
     }
 
