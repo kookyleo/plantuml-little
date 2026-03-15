@@ -813,10 +813,13 @@ fn render_class(
     let node_map: HashMap<&str, &NodeLayout> =
         layout.nodes.iter().map(|n| (n.id.as_str(), n)).collect();
 
-    // Build entity id map for link references
+    // Build entity id map — IDs assigned by DEFINITION order (source_line),
+    // not rendering order. Java assigns entity UIDs at parse time.
     let mut entity_ids: HashMap<String, String> = HashMap::new();
+    let mut entities_by_def_order: Vec<&Entity> = cd.entities.iter().collect();
+    entities_by_def_order.sort_by_key(|e| e.source_line.unwrap_or(usize::MAX));
     let mut ent_counter = 2u32; // Java starts entity IDs at ent0002
-    for entity in &cd.entities {
+    for entity in &entities_by_def_order {
         let ent_id = format!("ent{:04}", ent_counter);
         entity_ids.insert(sanitize_id(&entity.name), ent_id);
         ent_counter += 1;
@@ -1534,15 +1537,15 @@ fn draw_visibility_icon(
             tracker.track_polygon(&poly_pts);
         }
         Visibility::Package => {
-            // VisibilityModifier.drawTriangle: translate(x+1,y+0), UPolygon
-            // Points: (size/2,1),(0,size-1),(size,size-1) size=10
+            // VisibilityModifier.drawTriangle: size -= 2 (10→8), translate(x+1,y+0)
+            // Points: (size/2,1),(0,size-1),(size,size-1) where size=8
             let ox = x + 1.0;
             let oy = y;
             let fill = if is_method { "#4177AF" } else { "none" };
             let poly_pts = [
-                (ox + 5.0, oy + 1.0),
-                (ox, oy + 9.0),
-                (ox + 10.0, oy + 9.0),
+                (ox + 4.0, oy + 1.0),   // (size/2=4, 1)
+                (ox, oy + 7.0),          // (0, size-1=7)
+                (ox + 8.0, oy + 7.0),   // (size=8, size-1=7)
             ];
             write!(buf,
                 r##"<polygon fill="{fill}" points="{},{},{},{},{},{}" style="stroke:#1963A0;stroke-width:1;"/>"##,
