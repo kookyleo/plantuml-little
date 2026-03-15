@@ -100,6 +100,22 @@ const MEMBER_TEXT_LEFT_NO_ICON: f64 = 6.0;
 /// Block width = 11. Used when entity has a visibility modifier (e.g. -class foo).
 const ENTITY_VIS_ICON_BLOCK_WIDTH: f64 = 11.0;
 
+// ── Object entity sizing constants — sourced from EntityImageObject.java ──
+//
+// EntityImageObject.java:98 — withMargin(tmp, 2, 2) → margin(top=2, right=2, bottom=2, left=2).
+// EntityImageObject.java:228 — xMarginCircle = 5.
+// EntityImageObject.java:110-112 — empty fields = TextBlockLineBefore(lineThickness,
+//   TextBlockEmpty(10, 16)) → dim = (10, 16).
+
+/// EntityImageObject.java:98 — name block margin (all sides).
+const OBJ_NAME_MARGIN: f64 = 2.0;
+/// EntityImageObject.java:228 — xMarginCircle = 5.
+const OBJ_X_MARGIN_CIRCLE: f64 = 5.0;
+/// EntityImageObject.java:112 — TextBlockEmpty(10, 16).height = 16.
+const OBJ_EMPTY_BODY_HEIGHT: f64 = 16.0;
+/// EntityImageObject.java:112 — TextBlockEmpty(10, 16).width = 10.
+const OBJ_EMPTY_BODY_WIDTH: f64 = 10.0;
+
 /// Perform layout on a Diagram
 pub fn layout(diagram: &Diagram) -> Result<DiagramLayout> {
     match diagram {
@@ -203,6 +219,10 @@ fn estimate_entity_size(cd: &ClassDiagram, entity: &Entity) -> (f64, f64) {
         return estimate_entity_size_legacy(entity);
     }
 
+    if entity.kind == EntityKind::Object {
+        return estimate_object_size(entity);
+    }
+
     let mut name_display = entity.name.clone();
     if let Some(ref g) = entity.generic {
         name_display.push('<');
@@ -268,6 +288,45 @@ fn estimate_entity_size(cd: &ClassDiagram, entity: &Entity) -> (f64, f64) {
         entity.name,
         width,
         height
+    );
+
+    (width, height)
+}
+
+/// Estimate size for Object entities (EntityImageObject.java layout).
+///
+/// Object header: name with margin(2,2,2,2) centered, no circle icon.
+/// Body: TextBlockLineBefore(lineThickness, TextBlockEmpty(10, 16)) for empty fields.
+/// Width = max(bodyWidth, titleWidth + 2 * xMarginCircle).
+/// Height = titleHeight + bodyHeight.
+fn estimate_object_size(entity: &Entity) -> (f64, f64) {
+    let name_width = font_metrics::text_width(
+        &entity.name,
+        "SansSerif",
+        CLASS_FONT_SIZE,
+        false,
+        false,
+    );
+    // name block: text + margin(2, 2, 2, 2)
+    let name_block_width = name_width + 2.0 * OBJ_NAME_MARGIN;
+    let name_block_height = HEADER_NAME_BLOCK_HEIGHT + 2.0 * OBJ_NAME_MARGIN;
+
+    // title dim = name dim (no stereotype)
+    let title_width = name_block_width;
+    let title_height = name_block_height;
+
+    // body: empty fields = TextBlockEmpty(10, 16)
+    let body_width = OBJ_EMPTY_BODY_WIDTH;
+    let body_height = OBJ_EMPTY_BODY_HEIGHT;
+
+    let width = body_width.max(title_width + 2.0 * OBJ_X_MARGIN_CIRCLE);
+    let height = title_height + body_height;
+
+    log::debug!(
+        "estimate_object_size: {} -> ({}, {})",
+        entity.name,
+        width,
+        height,
     );
 
     (width, height)

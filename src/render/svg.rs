@@ -827,6 +827,10 @@ fn render_class(
         ent_counter += 1;
     }
 
+    // Java: object diagrams do NOT emit <!--class X--> comments for entities,
+    // only class diagrams do.
+    let is_object_diagram = cd.entities.iter().all(|e| e.kind == EntityKind::Object);
+
     for entity in &cd.entities {
         let sid = sanitize_id(&entity.name);
         if let Some(nl) = node_map.get(sid.as_str()) {
@@ -834,13 +838,22 @@ fn render_class(
                 .get(&sid)
                 .map(|s| s.as_str())
                 .unwrap_or("ent0000");
-            write!(
-                body,
-                "<!--class {}--><g class=\"entity\" data-qualified-name=\"{}\"",
-                xml_escape(&entity.name),
-                xml_escape(&entity.name),
-            )
-            .unwrap();
+            if is_object_diagram {
+                write!(
+                    body,
+                    "<g class=\"entity\" data-qualified-name=\"{}\"",
+                    xml_escape(&entity.name),
+                )
+                .unwrap();
+            } else {
+                write!(
+                    body,
+                    "<!--class {}--><g class=\"entity\" data-qualified-name=\"{}\"",
+                    xml_escape(&entity.name),
+                    xml_escape(&entity.name),
+                )
+                .unwrap();
+            }
             if let Some(source_line) = entity.source_line {
                 write!(body, " data-source-line=\"{source_line}\"").unwrap();
             }
@@ -1151,6 +1164,11 @@ fn draw_entity_box(
     edge_offset_x: f64,
     edge_offset_y: f64,
 ) {
+    if entity.kind == EntityKind::Object {
+        draw_object_box(buf, tracker, entity, nl, skin, edge_offset_x, edge_offset_y);
+        return;
+    }
+
     // Java: entity rect starts at (moveDelta_offset + 1, moveDelta_offset + 1)
     // where the +1 is the border inset (rect drawn 1px inside the Graphviz node boundary)
     let x = nl.cx - nl.width / 2.0 + edge_offset_x;
@@ -1164,7 +1182,7 @@ fn draw_entity_box(
         EntityKind::Enum => (ENUM_BG, ENUM_BORDER, "enum"),
         EntityKind::Abstract => (ABSTRACT_BG, ABSTRACT_BORDER, "abstract"),
         EntityKind::Annotation => (CLASS_BG, CLASS_BORDER, "annotation"),
-        EntityKind::Object => (CLASS_BG, CLASS_BORDER, "object"),
+        EntityKind::Object => unreachable!(),
     };
     let default_fill = skin.background_color(element_type, default_bg);
     let fill = entity.color.as_deref().unwrap_or(default_fill);
@@ -1318,14 +1336,9 @@ fn draw_entity_box(
         } else {
             ""
         };
-        let text_deco_attr = if entity.kind == EntityKind::Object {
-            r#" text-decoration="underline""#
-        } else {
-            ""
-        };
         let tl = fmt_coord(name_width);
         write!(buf,
-            r#"<text fill="{font_color}" font-family="sans-serif" font-size="{class_font_size:.0}"{font_style_attr} lengthAdjust="spacing"{text_deco_attr} textLength="{tl}" x="{}" y="{}">{name_escaped}</text>"#,
+            r#"<text fill="{font_color}" font-family="sans-serif" font-size="{class_font_size:.0}"{font_style_attr} lengthAdjust="spacing" textLength="{tl}" x="{}" y="{}">{name_escaped}</text>"#,
             fmt_coord(name_x), fmt_coord(name_y),
         ).unwrap();
         tracker.track_rect(name_x, name_y - HEADER_NAME_BASELINE, name_width, HEADER_NAME_BLOCK_HEIGHT);
@@ -1374,6 +1387,84 @@ fn draw_entity_box(
     // drawEmpty(x, y, 1, 1) adds (x, y) to (x+1, y+1), but since the entity rect
     // already covers (x-1,y-1) to (x+w-1,y+h-1), this just extends max to (x+w, y+h).
     tracker.track_empty(x + w, y + h, 0.0, 0.0);
+}
+
+/// Draw an Object entity box (EntityImageObject.java layout).
+///
+/// Objects have NO stereotype circle icon, NO glyph path.
+/// Name is centered with margin(2,2,2,2), no underline (default, non-strict UML).
+/// Body is a single separator line followed by empty space (TextBlockEmpty(10, 16)).
+fn draw_object_box(
+    buf: &mut String,
+    tracker: &mut BoundsTracker,
+    entity: &Entity,
+    nl: &NodeLayout,
+    skin: &SkinParams,
+    edge_offset_x: f64,
+    edge_offset_y: f64,
+) {
+    let x = nl.cx - nl.width / 2.0 + edge_offset_x;
+    let y = nl.cy - nl.height / 2.0 + edge_offset_y;
+    let w = nl.width;
+    let h = nl.height;
+
+    let default_fill = skin.background_color("object", CLASS_BG);
+    let fill = entity.color.as_deref().unwrap_or(default_fill);
+    let stroke_color = skin.border_color("object", CLASS_BORDER);
+    let font_color = skin.font_color("object", LABEL_COLOR);
+
+    let rx = skin.round_corner().map(|rc| rc / 2.0).unwrap_or(2.5);
+
+    // Rect
+    write!(buf,
+        r#"<rect fill="{fill}" height="{}" rx="{}" ry="{}" style="stroke:{stroke_color};stroke-width:0.5;" width="{}" x="{}" y="{}"/>"#,
+        fmt_coord(h), fmt_coord(rx), fmt_coord(rx), fmt_coord(w), fmt_coord(x), fmt_coord(y),
+    ).unwrap();
+    tracker.track_rect(x, y, w, h);
+
+    // Object name constants — EntityImageObject.java
+    // withMargin(tmp, 2, 2) → margin(top=2, right=2, bottom=2, left=2)
+    const OBJ_NAME_MARGIN: f64 = 2.0;
+
+    let class_font_size = skin.font_size("class", FONT_SIZE);
+    let name_width = font_metrics::text_width(
+        &entity.name,
+        "SansSerif",
+        class_font_size,
+        false,
+        false,
+    );
+    let name_block_width = name_width + 2.0 * OBJ_NAME_MARGIN;
+    let name_block_height = HEADER_NAME_BLOCK_HEIGHT + 2.0 * OBJ_NAME_MARGIN;
+
+    // PlacementStrategyY1Y2 with 1 element: x = (totalWidth - blockWidth) / 2
+    // height = titleHeight = name_block_height, so space = 0, y = 0
+    let name_offset_x = (w - name_block_width) / 2.0;
+    let text_x = x + name_offset_x + OBJ_NAME_MARGIN;
+    let text_y = y + OBJ_NAME_MARGIN + HEADER_NAME_BASELINE;
+
+    let name_escaped = xml_escape(&entity.name);
+    let tl = fmt_coord(name_width);
+    write!(buf,
+        r#"<text fill="{font_color}" font-family="sans-serif" font-size="{class_font_size:.0}" lengthAdjust="spacing" textLength="{tl}" x="{}" y="{}">{name_escaped}</text>"#,
+        fmt_coord(text_x), fmt_coord(text_y),
+    ).unwrap();
+    tracker.track_rect(text_x, text_y - HEADER_NAME_BASELINE, name_width, HEADER_NAME_BLOCK_HEIGHT);
+
+    // Separator line at y + titleHeight
+    let title_height = name_block_height;
+    let sep_y = y + title_height;
+    let x1 = x + 1.0;
+    let x2 = x + w - 1.0;
+    write!(buf,
+        r#"<line style="stroke:#181818;stroke-width:0.5;" x1="{}" x2="{}" y1="{}" y2="{}"/>"#,
+        fmt_coord(x1), fmt_coord(x2), fmt_coord(sep_y), fmt_coord(sep_y),
+    ).unwrap();
+    tracker.track_line(x1, sep_y, x2, sep_y);
+
+    // Java EntityImageObject body: TextBlockLineBefore(TextBlockEmpty(10, 16))
+    // TextBlockEmpty.drawU() does nothing — no UEmpty tracking needed.
+    // (Unlike EntityImageClass which emits UEmpty from MethodsOrFieldsArea)
 }
 
 fn draw_member_section(
@@ -2409,7 +2500,7 @@ mod tests {
     }
 
     #[test]
-    fn test_object_entity_renders_underlined_name() {
+    fn test_object_entity_renders_without_circle_icon() {
         let entity = Entity {
             name: "myObj".into(),
             kind: EntityKind::Object,
@@ -2443,9 +2534,20 @@ mod tests {
         )
         .expect("render failed");
         assert!(svg.contains("myObj"), "SVG must contain object name");
+        // EntityImageObject: no underline by default (only in strict UML mode)
         assert!(
-            svg.contains(r#"text-decoration="underline""#),
-            "object name must have underline text-decoration"
+            !svg.contains(r#"text-decoration="underline""#),
+            "object name must NOT have underline text-decoration by default"
+        );
+        // EntityImageObject: no stereotype circle icon
+        assert!(
+            !svg.contains("ellipse"),
+            "object entity must NOT have stereotype circle"
+        );
+        // Must have exactly one separator line
+        assert!(
+            svg.contains("<line"),
+            "object entity must have a separator line"
         );
     }
 
