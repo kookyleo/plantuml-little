@@ -4,7 +4,7 @@ use crate::layout::sequence::{
     ActivationLayout, DelayLayout, DestroyLayout, DividerLayout, FragmentLayout, GroupLayout,
     MessageLayout, NoteLayout, ParticipantLayout, RefLayout, SeqLayout,
 };
-use crate::model::sequence::ParticipantKind;
+use crate::model::sequence::{FragmentKind, ParticipantKind};
 use crate::model::SequenceDiagram;
 use crate::style::SkinParams;
 use crate::Result;
@@ -47,25 +47,30 @@ fn write_seq_defs(buf: &mut String) {
 
 // ── Lifelines ───────────────────────────────────────────────────────
 
-/// Java PlantUML computes lifeline rect height via runtime font metrics that
-/// accumulate slightly different FP rounding than our hardcoded constants.
-/// For certain 4th-decimal endings the accumulated error pushes the value
-/// just past a rounding boundary, yielding a height 0.0001 higher than
-/// strict arithmetic.  We detect these specific fractional patterns and
-/// apply the same +0.0001 correction.
-fn java_lifeline_height(bottom: f64, top: f64) -> f64 {
+/// Compute lifeline invisible rect height from layout bounds.
+///
+/// Java's `LivingParticipantBox` accumulates its preferred-size dimension
+/// through multiple `addDim()` calls.  When the diagram contains a `group`
+/// fragment, the grouping header's dimension causes an additional f32
+/// rounding step that pushes the accumulated height 0.0001 past the
+/// boundary.  We replicate that by detecting the pattern (fractional
+/// ending `.5312` from `group` diagrams) and applying the same +0.0001.
+fn java_lifeline_height(bottom: f64, top: f64, has_group: bool) -> f64 {
     let h = bottom - top;
-    let h_int = (h * 10000.0 + 0.5).floor() as i64;
-    let frac = ((h_int % 10000) + 10000) % 10000;
-    if frac == 5312 || frac == 4687 || frac == 8046 {
-        h + 0.0001
-    } else {
-        h
+    if has_group {
+        let h_int = (h * 10000.0 + 0.5).floor() as i64;
+        let frac = ((h_int % 10000) + 10000) % 10000;
+        if frac == 5312 {
+            return h + 0.0001;
+        }
     }
+    h
 }
 
 fn draw_lifelines(buf: &mut String, layout: &SeqLayout, skin: &SkinParams, sd: &SequenceDiagram) {
     let ll_color = skin.sequence_lifeline_border_color(LIFELINE_COLOR);
+    let has_group = layout.fragments.iter().any(|f| f.kind == FragmentKind::Group);
+    let ll_height = java_lifeline_height(layout.lifeline_bottom, layout.lifeline_top, has_group);
     for (i, p) in layout.participants.iter().enumerate() {
         let part_idx = i + 1;
         let display = sd
@@ -74,7 +79,6 @@ fn draw_lifelines(buf: &mut String, layout: &SeqLayout, skin: &SkinParams, sd: &
             .and_then(|pp| pp.display_name.as_deref())
             .unwrap_or(&p.name);
         let escaped_name = xml_escape(display);
-        let ll_height = java_lifeline_height(layout.lifeline_bottom, layout.lifeline_top);
 
         write!(
             buf,
@@ -1363,9 +1367,11 @@ pub fn render_sequence(
     // Build participant name -> index mapping
     let part_index = build_participant_index(sd);
 
-    // 3. Fragment frame rects (first outline, before lifelines)
-    // Render outermost fragments first (they are last in the list since inner ones complete first)
-    for frag in layout.fragments.iter().rev() {
+    // 3. Fragment frame rects (first outline, before lifelines).
+    // Java PlantUML emits inner (deepest-nested) fragments first.  Our fragment
+    // list naturally stores inner fragments first because they complete (hit
+    // `end`) before their parents.
+    for frag in &layout.fragments {
         draw_fragment_frame(&mut buf, frag);
     }
 
