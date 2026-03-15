@@ -95,6 +95,32 @@ fn draw_lifelines(buf: &mut String, layout: &SeqLayout, skin: &SkinParams, sd: &
     }
 }
 
+// ── Color utilities ─────────────────────────────────────────────────
+
+/// Resolve a color string into SVG fill + optional fill-opacity attributes.
+/// Handles: "transparent", "#RRGGBBAA" (8-digit hex), "#RRGGBB", named colors.
+fn resolve_fill_attrs(color: &str) -> String {
+    let c = color.trim();
+    if c.eq_ignore_ascii_case("transparent") || c.eq_ignore_ascii_case("#transparent") {
+        return r#"fill="none""#.to_string();
+    }
+    // 8-digit hex: #RRGGBBAA
+    if c.starts_with('#') && c.len() == 9 {
+        let rgb = &c[..7];
+        if let Ok(alpha) = u8::from_str_radix(&c[7..9], 16) {
+            if alpha == 0 {
+                return r#"fill="none""#.to_string();
+            } else if alpha == 255 {
+                return format!(r#"fill="{rgb}""#);
+            } else {
+                let opacity = alpha as f64 / 255.0;
+                return format!(r#"fill="{rgb}" fill-opacity="{opacity:.5}""#);
+            }
+        }
+    }
+    format!(r#"fill="{c}""#)
+}
+
 // ── Participant box ─────────────────────────────────────────────────
 
 fn draw_participant_box(
@@ -155,9 +181,10 @@ fn draw_participant_rect(
     let text_x = x + padding;
     let text_y = y + 19.9951;
 
+    let fill_attrs = resolve_fill_attrs(bg);
     write!(
         buf,
-        r#"<rect fill="{bg}" height="{h}" rx="2.5" ry="2.5" style="stroke:{border};stroke-width:0.5;" width="{w}" x="{x}" y="{y}"/>"#,
+        r#"<rect {fill_attrs} height="{h}" rx="2.5" ry="2.5" style="stroke:{border};stroke-width:0.5;" width="{w}" x="{x}" y="{y}"/>"#,
         h = fmt_coord(box_height),
         w = fmt_coord(box_width),
         x = fmt_coord(x),
@@ -612,11 +639,11 @@ fn draw_message(
 
     // Determine arrow tip position and line endpoints
     // Java insets the arrow tip 2px from the participant center
-    let (tip_x, line_x1, line_x2) = if msg.is_left {
-        // Right-to-left: arrow points left
-        (msg.to_x + 2.0, msg.from_x, msg.to_x)
+    let (tip_x, line_x1, _line_x2) = if msg.is_left {
+        // Right-to-left: arrow points left, tip 1px inset from target center
+        (msg.to_x + 1.0, msg.from_x - 1.0, msg.to_x)
     } else {
-        // Left-to-right: arrow points right
+        // Left-to-right: arrow points right, tip 2px inset from target center
         (msg.to_x - 2.0, msg.from_x, msg.to_x)
     };
 
@@ -685,23 +712,30 @@ fn draw_message(
     } else {
         tip_x - 4.0
     };
+    // For left-pointing arrows, swap x1/x2 so smaller x comes first
+    let (lx1, lx2) = if msg.is_left {
+        (adjusted_x2, line_x1)
+    } else {
+        (line_x1, adjusted_x2)
+    };
     write!(
         buf,
         r#"<line style="stroke:{color};stroke-width:{sw};{dash}" x1="{x1}" x2="{x2}" y1="{y}" y2="{y}"/>"#,
         color = arrow_color,
         dash = dash_style,
-        x1 = fmt_coord(line_x1),
-        x2 = fmt_coord(adjusted_x2),
+        x1 = fmt_coord(lx1),
+        x2 = fmt_coord(lx2),
         y = fmt_coord(msg.y),
     )
     .unwrap();
 
     // Label text above the line — each line as a separate <text> element
     if !msg.text.is_empty() {
-        let text_x = if msg.from_x < msg.to_x {
-            msg.from_x + 7.0
+        let text_x = if msg.is_left {
+            // Left arrow: text starts after arrowhead polygon (tip + polygon_width + gap)
+            tip_x + 16.0
         } else {
-            msg.to_x + 7.0
+            msg.from_x + 7.0
         };
         let msg_line_spacing = 15.1328; // ascent + descent at font-size 13
         let num_lines = msg.text_lines.len();
@@ -1320,7 +1354,12 @@ pub fn render_sequence(
         .filter_map(|p| p.display_name.as_deref().map(|dn| (p.name.as_str(), dn)))
         .collect();
 
-    let part_bg = skin.background_color("participant", PARTICIPANT_BG);
+    let monochrome = skin.is_monochrome();
+    let part_bg = if monochrome {
+        "#E3E3E3"
+    } else {
+        skin.background_color("participant", PARTICIPANT_BG)
+    };
     let part_border = skin.border_color("participant", PARTICIPANT_BORDER);
     let part_font = skin.font_color("participant", TEXT_COLOR);
 

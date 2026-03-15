@@ -222,43 +222,80 @@ pub fn layout_sequence(sd: &SequenceDiagram) -> Result<SeqLayout> {
     };
 
     // Scan messages to widen gaps based on text width
+    let mut gap_autonumber_enabled = false;
+    let mut gap_autonumber_counter: u32 = 1;
     for event in &sd.events {
-        if let SeqEvent::Message(msg) = event {
-            if msg.from == msg.to {
-                continue; // self-messages don't affect gap
+        match event {
+            SeqEvent::AutoNumber { start } => {
+                gap_autonumber_enabled = true;
+                if let Some(n) = start {
+                    gap_autonumber_counter = *n;
+                }
             }
-            if let (Some(&fi), Some(&ti)) =
-                (part_name_to_idx.get(&msg.from), part_name_to_idx.get(&msg.to))
-            {
-                let (lo, hi) = if fi < ti { (fi, ti) } else { (ti, fi) };
-                // Use the longest single line for gap calculation (multiline \n)
-                let text_w = msg
-                    .text
-                    .split('\n')
-                    .map(|line| {
-                        font_metrics::text_width(line, "SansSerif", MSG_FONT_SIZE, false, false)
-                    })
-                    .fold(0.0_f64, f64::max);
-                let needed = text_w + 24.0; // 7px text-margin + 7px gap + 10px arrow
-                let span = hi - lo; // number of gaps this message spans
-                if span > 0 {
-                    let per_gap = needed / span as f64;
-                    for g in lo..hi {
-                        if per_gap > min_gaps[g] {
-                            min_gaps[g] = per_gap;
+            SeqEvent::Message(msg) => {
+                // Compute effective text (with autonumber prefix if enabled)
+                let effective_text = if gap_autonumber_enabled {
+                    let numbered = if msg.text.is_empty() {
+                        format!("{gap_autonumber_counter}")
+                    } else {
+                        format!("{} {}", gap_autonumber_counter, msg.text)
+                    };
+                    gap_autonumber_counter += 1;
+                    numbered
+                } else {
+                    msg.text.clone()
+                };
+
+                if msg.from == msg.to {
+                    continue; // self-messages don't affect gap
+                }
+                if let (Some(&fi), Some(&ti)) =
+                    (part_name_to_idx.get(&msg.from), part_name_to_idx.get(&msg.to))
+                {
+                    let (lo, hi) = if fi < ti { (fi, ti) } else { (ti, fi) };
+                    // Use the longest single line for gap calculation (multiline \n)
+                    let text_w = effective_text
+                        .split('\n')
+                        .map(|line| {
+                            font_metrics::text_width(
+                                line,
+                                "SansSerif",
+                                MSG_FONT_SIZE,
+                                false,
+                                false,
+                            )
+                        })
+                        .fold(0.0_f64, f64::max);
+                    let needed = text_w + 24.0; // 7px text-margin + 7px gap + 10px arrow
+                    let span = hi - lo; // number of gaps this message spans
+                    if span > 0 {
+                        let per_gap = needed / span as f64;
+                        for g in lo..hi {
+                            if per_gap > min_gaps[g] {
+                                min_gaps[g] = per_gap;
+                            }
                         }
                     }
                 }
             }
+            _ => {}
         }
     }
+
+    // Pre-scan: check if any fragments exist to adjust left margin
+    let has_fragments = sd.events.iter().any(|e| matches!(e, SeqEvent::FragmentStart { .. }));
+    let left_margin = if has_fragments {
+        2.0 * MARGIN + FRAGMENT_PADDING
+    } else {
+        MARGIN
+    };
 
     // 3. Position participants left-to-right using computed gaps
     let mut participants: Vec<ParticipantLayout> = Vec::with_capacity(n);
     let mut prev_center: Option<f64> = None;
     for (i, p) in sd.participants.iter().enumerate() {
         let center_x = match prev_center {
-            None => MARGIN + box_widths[i] / 2.0,
+            None => left_margin + box_widths[i] / 2.0,
             Some(pc) => pc + min_gaps[i - 1],
         };
 
@@ -319,7 +356,7 @@ pub fn layout_sequence(sd: &SequenceDiagram) -> Result<SeqLayout> {
                 let is_self = msg.from == msg.to;
                 let is_dashed = msg.arrow_style == SeqArrowStyle::Dashed
                     || msg.arrow_style == SeqArrowStyle::Dotted;
-                let is_left = msg.direction == SeqDirection::RightToLeft;
+                let is_left = from_x > to_x;
                 let has_open_head = msg.arrow_head == SeqArrowHead::Open;
 
                 let text_lines: Vec<String> =
@@ -583,9 +620,14 @@ pub fn layout_sequence(sd: &SequenceDiagram) -> Result<SeqLayout> {
     // Lifeline ends 18px below the last event's bottom position
     let lifeline_bottom = last_event_bottom_y + 18.0;
 
+    let right_margin = if has_fragments {
+        2.0 * MARGIN + FRAGMENT_PADDING
+    } else {
+        2.0 * MARGIN
+    };
     let total_width = participants
         .last()
-        .map_or(2.0 * MARGIN, |p| p.x + p.box_width / 2.0 + 2.0 * MARGIN);
+        .map_or(2.0 * MARGIN, |p| p.x + p.box_width / 2.0 + right_margin);
 
     // Tail box at lifeline_bottom - 1, then add box height + bottom margin (~7)
     let total_height = (lifeline_bottom - 1.0) + max_participant_height + 7.0;
