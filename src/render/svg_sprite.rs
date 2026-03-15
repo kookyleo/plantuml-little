@@ -177,8 +177,8 @@ fn convert_elements(
     let mut iterations = 0;
     while pos < content.len() {
         iterations += 1;
-        if iterations > 10000 {
-            log::warn!("svg_sprite: exceeded 10000 iterations at pos={}/{}, aborting", pos, content.len());
+        if iterations > 500 {
+            log::warn!("svg_sprite: exceeded 500 iterations at pos={}/{}, aborting", pos, content.len());
             break;
         }
         // Skip whitespace, comments, and non-element text
@@ -251,12 +251,10 @@ fn parse_element(s: &str) -> Option<(String, usize)> {
         .map(|i| i + 1)?;
     let tag_name = &s[1..tag_name_end];
 
-    // Self-closing tag
-    if let Some(end) = s.find("/>") {
-        let gt = s.find('>')?;
-        if end < gt || end + 1 == gt {
-            return Some((s[..end + 2].to_string(), end + 2));
-        }
+    // Self-closing tag: only check for /> before the first >
+    let gt = s.find('>')?;
+    if gt >= 2 && &s[gt - 1..gt + 1] == "/>" {
+        return Some((s[..gt + 1].to_string(), gt + 1));
     }
 
     // Find end of opening tag
@@ -271,7 +269,10 @@ fn parse_element(s: &str) -> Option<(String, usize)> {
     let close_tag = format!("</{tag_name}>");
     let mut depth = 1;
     let mut search_pos = gt + 1;
+    let mut guard = 0;
     while depth > 0 && search_pos < s.len() {
+        guard += 1;
+        if guard > 1000 { break; }
         let open_tag = format!("<{tag_name}");
         let next_open = s[search_pos..].find(open_tag.as_str());
         let next_close = s[search_pos..].find(close_tag.as_str());

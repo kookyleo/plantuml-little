@@ -95,8 +95,9 @@ fn assert_exact_match(actual: &str, reference: &str, path: &str) {
         if let (Some((_, a_end, a_val)), Some((_, r_end, r_val))) = (a_num, r_num) {
             if (a_val - r_val).abs() < 0.01 {
                 // Skip past both numbers — they're close enough
-                ai = ai.max(a_end);
-                ri = ri.max(r_end);
+                // Ensure we advance at least 1 to avoid infinite loop
+                ai = ai.max(a_end).max(ai + 1);
+                ri = ri.max(r_end).max(ri + 1);
                 continue;
             }
         }

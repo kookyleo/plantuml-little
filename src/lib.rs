@@ -40,9 +40,15 @@ fn render_expanded(original_source: &str, expanded: &str) -> Result<String> {
     // Extract SVG sprite definitions before parsing (sprite lines would confuse parsers)
     let (cleaned, sprites) = parser::common::extract_sprites(expanded);
     render::svg_richtext::set_sprites(sprites);
-    let result = render_cleaned(original_source, &cleaned);
-    render::svg_richtext::clear_sprites();
-    result
+    // Use a guard to ensure sprites are cleared even if rendering panics
+    struct SpriteGuard;
+    impl Drop for SpriteGuard {
+        fn drop(&mut self) {
+            crate::render::svg_richtext::clear_sprites();
+        }
+    }
+    let _guard = SpriteGuard;
+    render_cleaned(original_source, &cleaned)
 }
 
 fn render_cleaned(original_source: &str, source: &str) -> Result<String> {
