@@ -1258,8 +1258,12 @@ fn draw_entity_box(
     let class_font_size = skin.font_size("class", FONT_SIZE);
     let attr_font_size = skin.font_size("classattribute", class_font_size);
 
-    // Entity name WITHOUT generic parameter -- generic is rendered separately
-    let name_display = entity.name.clone();
+    // Entity name WITH generic parameter in display text (e.g. "ArrayList<E>")
+    let name_display = if let Some(ref g) = entity.generic {
+        format!("{}<{}>", entity.name, g)
+    } else {
+        entity.name.clone()
+    };
     let name_escaped = xml_escape(&name_display);
     let visible_stereotypes = visible_stereotype_labels(&cd.hide_show_rules, entity);
     let show_fields = show_portion(&cd.hide_show_rules, ClassPortion::Field, &entity.name);
@@ -1551,7 +1555,7 @@ fn draw_object_box(
     let name_escaped = xml_escape(&entity.name);
     let tl = fmt_coord(name_width);
     write!(buf,
-        r#"<text fill="{font_color}" font-family="sans-serif" font-size="{class_font_size:.0}" lengthAdjust="spacing" textLength="{tl}" x="{}" y="{}">{name_escaped}</text>"#,
+        r#"<text fill="{font_color}" font-family="sans-serif" font-size="{class_font_size:.0}" lengthAdjust="spacing" text-decoration="underline" textLength="{tl}" x="{}" y="{}">{name_escaped}</text>"#,
         fmt_coord(text_x), fmt_coord(text_y),
     ).unwrap();
     tracker.track_rect(text_x, text_y - HEADER_NAME_BASELINE, name_width, HEADER_NAME_BLOCK_HEIGHT);
@@ -2658,10 +2662,10 @@ mod tests {
         )
         .expect("render failed");
         assert!(svg.contains("myObj"), "SVG must contain object name");
-        // EntityImageObject: no underline by default (only in strict UML mode)
+        // EntityImageObject: object names are underlined in PlantUML
         assert!(
-            !svg.contains(r#"text-decoration="underline""#),
-            "object name must NOT have underline text-decoration by default"
+            svg.contains(r#"text-decoration="underline""#),
+            "object name must have underline text-decoration"
         );
         // EntityImageObject: no stereotype circle icon
         assert!(

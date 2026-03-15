@@ -1073,4 +1073,11 @@ mod tests {
         assert!(sprites.is_empty());
         assert_eq!(cleaned, "Alice -> Bob : hello");
     }
+
+    #[test]
+    fn detect_component_by_rectangle_bracket_display() {
+        // Bracket-display body syntax is a component/deployment feature
+        let content = "rectangle A [\ntest 1\ntest 2\n]\n";
+        assert!(matches!(detect_diagram_type(content), DiagramHint::Component));
+    }
 }

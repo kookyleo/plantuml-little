@@ -18,6 +18,12 @@ pub fn parse_sequence_diagram(source: &str) -> Result<SequenceDiagram> {
     let mut last_to_participant: Option<String> = None;
     let mut in_style_block = false;
     let mut in_skinparam_block = false;
+    // Multiline note collection
+    let mut in_note_block = false;
+    let mut note_kind: Option<&str> = None; // "right", "left", "over"
+    let mut note_participant: Option<String> = None;
+    let mut note_participants: Vec<String> = Vec::new();
+    let mut note_lines: Vec<String> = Vec::new();
     // Track fragment nesting depth so "end" emits FragmentEnd when inside fragments
     let mut fragment_depth: usize = 0;
 
@@ -85,6 +91,35 @@ pub fn parse_sequence_diagram(source: &str) -> Result<SequenceDiagram> {
             if trimmed.contains('}') {
                 in_skinparam_block = false;
                 debug!("leaving skinparam block");
+            }
+            continue;
+        }
+
+        // Collect multiline note content
+        if in_note_block {
+            if trimmed.eq_ignore_ascii_case("end note") {
+                let text = note_lines.join("\n");
+                let evt = match note_kind {
+                    Some("right") => SeqEvent::NoteRight {
+                        participant: note_participant.take().unwrap_or_default(),
+                        text,
+                    },
+                    Some("left") => SeqEvent::NoteLeft {
+                        participant: note_participant.take().unwrap_or_default(),
+                        text,
+                    },
+                    _ => SeqEvent::NoteOver {
+                        participants: std::mem::take(&mut note_participants),
+                        text,
+                    },
+                };
+                debug!("parsed multiline note event");
+                events.push(evt);
+                in_note_block = false;
+                note_kind = None;
+                note_lines.clear();
+            } else {
+                note_lines.push(trimmed.to_string());
             }
             continue;
         }
@@ -191,14 +226,48 @@ pub fn parse_sequence_diagram(source: &str) -> Result<SequenceDiagram> {
             }
         }
 
-        // Parse note right/left/over
+        // Parse note right/left/over (single-line or start multiline block)
         {
             let lower = trimmed.to_lowercase();
             if lower.starts_with("note ") {
-                if let Some(evt) = parse_note(trimmed, &last_to_participant) {
-                    debug!("parsed note event");
-                    events.push(evt);
-                    continue;
+                match parse_note(trimmed, &last_to_participant) {
+                    Some(evt) => {
+                        debug!("parsed note event");
+                        events.push(evt);
+                        continue;
+                    }
+                    None => {
+                        // Check if this starts a multiline note block
+                        let rest = trimmed[5..].trim();
+                        let rest_lower = rest.to_lowercase();
+                        if rest_lower.starts_with("right") {
+                            in_note_block = true;
+                            note_kind = Some("right");
+                            note_participant = last_to_participant.clone();
+                            note_lines.clear();
+                            debug!("starting multiline note right");
+                            continue;
+                        } else if rest_lower.starts_with("left") {
+                            in_note_block = true;
+                            note_kind = Some("left");
+                            note_participant = last_to_participant.clone();
+                            note_lines.clear();
+                            debug!("starting multiline note left");
+                            continue;
+                        } else if rest_lower.starts_with("over") {
+                            in_note_block = true;
+                            note_kind = Some("over");
+                            let after = rest[4..].trim();
+                            note_participants = after
+                                .split(',')
+                                .map(|s| s.trim().to_string())
+                                .filter(|s| !s.is_empty())
+                                .collect();
+                            note_lines.clear();
+                            debug!("starting multiline note over");
+                            continue;
+                        }
+                    }
                 }
             }
         }
@@ -532,37 +601,46 @@ fn parse_arrow(left: &str, arrow: &str, right: &str, text: &str) -> Option<Messa
     })
 }
 
-/// Parse a note line
+/// Parse a single-line note (with `:` inline text).
+/// Returns None if the note has no inline text (multiline note handled by caller).
 fn parse_note(line: &str, last_to: &Option<String>) -> Option<SeqEvent> {
     let rest = line.trim().strip_prefix("note ")?.trim_start();
     let lower = rest.to_lowercase();
 
     if lower.starts_with("right") {
         let after = rest[5..].trim();
-        let text = after.strip_prefix(':').unwrap_or(after).trim().to_string();
-        let participant = last_to.clone().unwrap_or_default();
-        Some(SeqEvent::NoteRight { participant, text })
+        if let Some(text) = after.strip_prefix(':') {
+            let text = text.trim().to_string();
+            let participant = last_to.clone().unwrap_or_default();
+            Some(SeqEvent::NoteRight { participant, text })
+        } else {
+            // No inline text — will be handled as multiline note
+            None
+        }
     } else if lower.starts_with("left") {
         let after = rest[4..].trim();
-        let text = after.strip_prefix(':').unwrap_or(after).trim().to_string();
-        let participant = last_to.clone().unwrap_or_default();
-        Some(SeqEvent::NoteLeft { participant, text })
+        if let Some(text) = after.strip_prefix(':') {
+            let text = text.trim().to_string();
+            let participant = last_to.clone().unwrap_or_default();
+            Some(SeqEvent::NoteLeft { participant, text })
+        } else {
+            None
+        }
     } else if lower.starts_with("over") {
         let after = rest[4..].trim();
         // note over A,B : text  or  note over A : text
-        let (participants_str, text) = if let Some(colon_pos) = after.find(':') {
-            (
-                after[..colon_pos].trim(),
-                after[colon_pos + 1..].trim().to_string(),
-            )
+        if let Some(colon_pos) = after.find(':') {
+            let participants_str = after[..colon_pos].trim();
+            let text = after[colon_pos + 1..].trim().to_string();
+            let participants: Vec<String> = participants_str
+                .split(',')
+                .map(|s| s.trim().to_string())
+                .collect();
+            Some(SeqEvent::NoteOver { participants, text })
         } else {
-            (after, String::new())
-        };
-        let participants: Vec<String> = participants_str
-            .split(',')
-            .map(|s| s.trim().to_string())
-            .collect();
-        Some(SeqEvent::NoteOver { participants, text })
+            // No inline text — multiline
+            None
+        }
     } else {
         None
     }
