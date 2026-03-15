@@ -85,14 +85,18 @@ fn assert_exact_match(actual: &str, reference: &str, path: &str) {
             ri += 1;
             continue;
         }
-        // Mismatch — check if both sides are inside a number
-        if let (Some((a_start, a_end, a_val)), Some((r_start, r_end, r_val))) =
-            (extract_number_at(&a, ai), extract_number_at(&r, ri))
-        {
+        // Mismatch — check if both sides are inside or at the boundary of a number.
+        // When numbers have different decimal lengths (e.g., "267.164" vs "267.1641"),
+        // one side may be past the number while the other is still inside it.
+        let a_num = extract_number_at(&a, ai)
+            .or_else(|| if ai > 0 { extract_number_at(&a, ai - 1) } else { None });
+        let r_num = extract_number_at(&r, ri)
+            .or_else(|| if ri > 0 { extract_number_at(&r, ri - 1) } else { None });
+        if let (Some((_, a_end, a_val)), Some((_, r_end, r_val))) = (a_num, r_num) {
             if (a_val - r_val).abs() < 0.01 {
-                // Skip past both numbers
-                ai = a_end;
-                ri = r_end;
+                // Skip past both numbers — they're close enough
+                ai = ai.max(a_end);
+                ri = ri.max(r_end);
                 continue;
             }
         }
