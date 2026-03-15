@@ -1165,7 +1165,7 @@ mod tests {
     fn sequence_arrow_color_returns_value() {
         let src = "skinparam sequenceArrowColor DarkBlue";
         let sp = parse_skinparams(src);
-        assert_eq!(sp.sequence_arrow_color("#A80036"), "#00008B");
+        assert_eq!(sp.sequence_arrow_color("#A80036"), "darkblue");
     }
 
     #[test]
@@ -1178,7 +1178,7 @@ mod tests {
     fn sequence_lifeline_border_color_returns_value() {
         let src = "skinparam sequenceLifeLineBorderColor blue";
         let sp = parse_skinparams(src);
-        assert_eq!(sp.sequence_lifeline_border_color("#A80036"), "#0000FF");
+        assert_eq!(sp.sequence_lifeline_border_color("#A80036"), "blue");
     }
 
     #[test]
@@ -1311,7 +1311,7 @@ skinparam participant {
 }";
         let sp = parse_skinparams(src);
         assert_eq!(sp.get("participant.fontname"), Some("Roboto"));
-        assert_eq!(sp.get("participant.fontcolor"), Some("#008000"));
+        assert_eq!(sp.get("participant.fontcolor"), Some("green"));
         assert_eq!(sp.get("participant.fontsize"), Some("26"));
         assert_eq!(sp.get("participant.linecolor"), Some("#EE0000"));
     }
