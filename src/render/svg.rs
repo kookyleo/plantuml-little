@@ -46,8 +46,6 @@ const PADDING: f64 = 3.0;
 const HEADER_HEIGHT: f64 = 32.0;
 /// SvekResult.java:133 — moveDelta(6 - minMax.getMinX(), 6 - minMax.getMinY()).
 const MARGIN: f64 = 6.0;
-/// Entity rect drawn at MARGIN + 1px border inset (LimitFinder rect x-1 convention).
-const EDGE_OFFSET: f64 = MARGIN + 1.0;
 /// SvekResult.java:135 — minMax.getDimension().delta(15, 15).
 const CANVAS_DELTA: f64 = 15.0;
 /// TextBlockExporter12026.java:196 — margin from plantuml.skin root.document style: right=5.
@@ -794,19 +792,20 @@ fn render_class(
     // moveDelta = 6 - min(-3, -1) = 6 - (-3) = 9.
     //
     // Without polygon icons: moveDelta = 6 - (-1) = 7.
+    // Java SvekResult: moveDelta(6 - minMax.getMinX(), 6 - minMax.getMinY())
+    // X and Y offsets are computed INDEPENDENTLY from LimitFinder bounds.
+    //
+    // X axis: rect_minX = -1. Polygon HACK: -3 if any protected/package icons.
+    //   moveDelta_x = 6 - min(rect_minX, polygon_minX)
+    // Y axis: rect_minY = -1. No polygon HACK on Y (HACK only extends X).
+    //   moveDelta_y = 6 - (-1) = 7
     let has_polygon_icon = cd.entities.iter().any(|e| {
         e.members.iter().any(|m| {
             matches!(m.visibility, Some(Visibility::Protected) | Some(Visibility::Package))
         })
     });
-    // Java: EDGE_OFFSET = moveDelta = 6 - LimitFinder_minX
-    // LimitFinder_minX = min(normalized_entity_x - 1, polygon_hack)
-    // After normalization: entity_x = 0, so rect_minX = -1, polygon_minX = -3.
-    let edge_offset = if has_polygon_icon {
-        6.0 - (-3.0) // = 9: entity rects start at x=9
-    } else {
-        6.0 - (-1.0) // = 7: entity rects start at x=7
-    };
+    let edge_offset_x = if has_polygon_icon { 9.0 } else { 7.0 };
+    let edge_offset_y = 7.0;
     let mut tracker = BoundsTracker::new();
     let mut body = String::with_capacity(4096);
     let arrow_color = skin.arrow_color(LINK_COLOR);
@@ -841,7 +840,7 @@ fn render_class(
                 write!(body, " data-source-line=\"{source_line}\"").unwrap();
             }
             write!(body, " id=\"{ent_id}\">").unwrap();
-            draw_entity_box(&mut body, &mut tracker, cd, entity, nl, skin, edge_offset);
+            draw_entity_box(&mut body, &mut tracker, cd, entity, nl, skin, edge_offset_x, edge_offset_y);
             body.push_str("</g>");
         }
     }
@@ -872,7 +871,7 @@ fn render_class(
                 write!(body, " data-source-line=\"{source_line}\"").unwrap();
             }
             write!(body, " id=\"lnk{link_counter}\">").unwrap();
-            draw_edge(&mut body, &mut tracker, link, el, arrow_color, edge_offset);
+            draw_edge(&mut body, &mut tracker, link, el, arrow_color, edge_offset_x, edge_offset_y);
             body.push_str("</g>");
             link_counter += 1;
         }
@@ -1144,12 +1143,13 @@ fn draw_entity_box(
     entity: &Entity,
     nl: &NodeLayout,
     skin: &SkinParams,
-    edge_offset: f64,
+    edge_offset_x: f64,
+    edge_offset_y: f64,
 ) {
     // Java: entity rect starts at (moveDelta_offset + 1, moveDelta_offset + 1)
     // where the +1 is the border inset (rect drawn 1px inside the Graphviz node boundary)
-    let x = nl.cx - nl.width / 2.0 + edge_offset;
-    let y = nl.cy - nl.height / 2.0 + edge_offset;
+    let x = nl.cx - nl.width / 2.0 + edge_offset_x;
+    let y = nl.cy - nl.height / 2.0 + edge_offset_y;
     let w = nl.width;
     let h = nl.height;
 
@@ -1451,8 +1451,12 @@ fn section_height(members: &[&Member]) -> f64 {
 
 /// Java PlantUML formats member text as "name : type" (space-colon-space).
 /// Visibility prefix (like +/-/#/~) is NOT included here — it's rendered as an icon.
+/// Java MemberImpl.getDisplay() format:
+/// - Methods: "name(): type" (colon directly after parenthesis)
+/// - Fields:  "name : type" (space-colon-space)
 fn member_text(m: &Member) -> String {
     match &m.return_type {
+        Some(rt) if m.name.ends_with(')') => format!("{}: {rt}", m.name),
         Some(rt) => format!("{} : {rt}", m.name),
         None => m.name.clone(),
     }
@@ -1629,7 +1633,7 @@ fn derive_link_type(link: &Link) -> &'static str {
     }
 }
 
-fn draw_edge(buf: &mut String, tracker: &mut BoundsTracker, link: &Link, el: &EdgeLayout, link_color: &str, edge_offset: f64) {
+fn draw_edge(buf: &mut String, tracker: &mut BoundsTracker, link: &Link, el: &EdgeLayout, link_color: &str, edge_offset_x: f64, edge_offset_y: f64) {
     if el.points.is_empty() {
         return;
     }
@@ -1642,7 +1646,7 @@ fn draw_edge(buf: &mut String, tracker: &mut BoundsTracker, link: &Link, el: &Ed
         shorten_edge_for_head(&mut path_points, &link.right_head, false);
     }
 
-    let d = build_edge_path_d(&path_points, edge_offset);
+    let d = build_edge_path_d(&path_points, edge_offset_x, edge_offset_y);
 
     // Track the edge path bounds (UPath style)
     {
@@ -1651,8 +1655,8 @@ fn draw_edge(buf: &mut String, tracker: &mut BoundsTracker, link: &Link, el: &Ed
         let mut p_max_x = f64::NEG_INFINITY;
         let mut p_max_y = f64::NEG_INFINITY;
         for &(px, py) in &path_points {
-            let ax = px + edge_offset;
-            let ay = py + edge_offset;
+            let ax = px + edge_offset_x;
+            let ay = py + edge_offset_y;
             if ax < p_min_x { p_min_x = ax; }
             if ay < p_min_y { p_min_y = ay; }
             if ax > p_max_x { p_max_x = ax; }
@@ -1680,16 +1684,16 @@ fn draw_edge(buf: &mut String, tracker: &mut BoundsTracker, link: &Link, el: &Ed
     .unwrap();
 
     if link.left_head != ArrowHead::None {
-        emit_arrowhead(buf, tracker, &link.left_head, &el.points, true, link_color, edge_offset);
+        emit_arrowhead(buf, tracker, &link.left_head, &el.points, true, link_color, edge_offset_x, edge_offset_y);
     }
     if link.right_head != ArrowHead::None {
-        emit_arrowhead(buf, tracker, &link.right_head, &el.points, false, link_color, edge_offset);
+        emit_arrowhead(buf, tracker, &link.right_head, &el.points, false, link_color, edge_offset_x, edge_offset_y);
     }
 
     if let Some(label) = &link.label {
         let mid_idx = path_points.len() / 2;
         let (mx, my) = path_points[mid_idx];
-        draw_label(buf, label, mx + edge_offset, my + edge_offset - 6.0);
+        draw_label(buf, label, mx + edge_offset_x, my + edge_offset_y - 6.0);
     }
 }
 
@@ -1726,7 +1730,7 @@ fn decoration_length(head: &ArrowHead) -> f64 {
     }
 }
 
-fn build_edge_path_d(points: &[(f64, f64)], offset: f64) -> String {
+fn build_edge_path_d(points: &[(f64, f64)], offset_x: f64, offset_y: f64) -> String {
     let mut d = String::new();
     if points.is_empty() {
         return d;
@@ -1735,8 +1739,8 @@ fn build_edge_path_d(points: &[(f64, f64)], offset: f64) -> String {
     write!(
         d,
         "M{},{} ",
-        fmt_coord(points[0].0 + offset),
-        fmt_coord(points[0].1 + offset),
+        fmt_coord(points[0].0 + offset_x),
+        fmt_coord(points[0].1 + offset_y),
     )
     .unwrap();
 
@@ -1746,12 +1750,12 @@ fn build_edge_path_d(points: &[(f64, f64)], offset: f64) -> String {
             write!(
                 d,
                 "C{},{} {},{} {},{} ",
-                fmt_coord(chunk[0].0 + offset),
-                fmt_coord(chunk[0].1 + offset),
-                fmt_coord(chunk[1].0 + offset),
-                fmt_coord(chunk[1].1 + offset),
-                fmt_coord(chunk[2].0 + offset),
-                fmt_coord(chunk[2].1 + offset),
+                fmt_coord(chunk[0].0 + offset_x),
+                fmt_coord(chunk[0].1 + offset_y),
+                fmt_coord(chunk[1].0 + offset_x),
+                fmt_coord(chunk[1].1 + offset_y),
+                fmt_coord(chunk[2].0 + offset_x),
+                fmt_coord(chunk[2].1 + offset_y),
             )
             .unwrap();
         }
@@ -1760,8 +1764,8 @@ fn build_edge_path_d(points: &[(f64, f64)], offset: f64) -> String {
             write!(
                 d,
                 "L{},{} ",
-                fmt_coord(x + offset),
-                fmt_coord(y + offset),
+                fmt_coord(x + offset_x),
+                fmt_coord(y + offset_y),
             )
             .unwrap();
         }
@@ -1856,17 +1860,18 @@ fn emit_arrowhead(
     points: &[(f64, f64)],
     is_start: bool,
     link_color: &str,
-    edge_offset: f64,
+    edge_offset_x: f64,
+    edge_offset_y: f64,
 ) {
     if points.is_empty() || *head == ArrowHead::None {
         return;
     }
 
     let (tip_x, tip_y) = if is_start {
-        (points[0].0 + edge_offset, points[0].1 + edge_offset)
+        (points[0].0 + edge_offset_x, points[0].1 + edge_offset_y)
     } else {
         let (x, y) = points[points.len() - 1];
-        (x + edge_offset, y + edge_offset)
+        (x + edge_offset_x, y + edge_offset_y)
     };
 
     let base_angle = if is_start {
