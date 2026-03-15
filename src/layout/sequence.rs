@@ -274,6 +274,9 @@ pub fn layout_sequence(sd: &SequenceDiagram) -> Result<SeqLayout> {
         .fold(PARTICIPANT_HEIGHT, f64::max);
     let mut y_cursor = MARGIN + max_ph + 32.1328;
 
+    // Track the bottom y of the last rendered event for lifeline sizing
+    let mut last_event_bottom_y: f64 = y_cursor;
+
     let mut messages: Vec<MessageLayout> = Vec::new();
     let mut activations: Vec<ActivationLayout> = Vec::new();
     let mut destroys: Vec<DestroyLayout> = Vec::new();
@@ -328,8 +331,10 @@ pub fn layout_sequence(sd: &SequenceDiagram) -> Result<SeqLayout> {
                 });
 
                 if is_self {
+                    last_event_bottom_y = y_cursor + SELF_MSG_HEIGHT;
                     y_cursor += SELF_MSG_HEIGHT + 14.0;
                 } else {
+                    last_event_bottom_y = y_cursor;
                     y_cursor += MESSAGE_SPACING;
                 }
             }
@@ -555,13 +560,15 @@ pub fn layout_sequence(sd: &SequenceDiagram) -> Result<SeqLayout> {
         .map(|pp| pp.box_height)
         .fold(PARTICIPANT_HEIGHT, f64::max);
     let lifeline_top = MARGIN + max_participant_height + 1.0;
-    let lifeline_bottom = y_cursor + 17.0;
+    // Lifeline ends 18px below the last event's bottom position
+    let lifeline_bottom = last_event_bottom_y + 18.0;
 
     let total_width = participants
         .last()
         .map_or(2.0 * MARGIN, |p| p.x + p.box_width / 2.0 + MARGIN);
 
-    let total_height = lifeline_bottom + max_participant_height + MARGIN + 2.0;
+    // Tail box at lifeline_bottom - 1, then add box height + bottom margin (~7)
+    let total_height = (lifeline_bottom - 1.0) + max_participant_height + 7.0;
 
     // Close any remaining fragments (unmatched)
     for (y_start, kind, label, separators) in fragment_stack.drain(..) {

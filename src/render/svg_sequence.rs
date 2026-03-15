@@ -697,7 +697,7 @@ fn draw_message(
         } else {
             msg.to_x + 7.0
         };
-        let text_y = msg.y - 5.07;
+        let text_y = msg.y - 5.0659;
         render_creole_text(
             buf,
             &msg.text,
@@ -819,7 +819,7 @@ fn draw_self_message(
     // Label text above the first horizontal line
     if !msg.text.is_empty() {
         let text_x = x + 7.0;
-        let text_y = y - 5.07;
+        let text_y = y - 5.0659;
         render_creole_text(
             buf,
             &msg.text,
@@ -1240,8 +1240,9 @@ pub fn render_sequence(
     layout: &SeqLayout,
     skin: &SkinParams,
 ) -> Result<String> {
-    let svg_w = layout.total_width + MARGIN * 2.0;
-    let svg_h = layout.total_height + MARGIN * 2.0;
+    // Layout already includes margins in total dimensions
+    let svg_w = layout.total_width;
+    let svg_h = layout.total_height;
 
     let mut buf = String::with_capacity(4096);
 
@@ -1301,7 +1302,7 @@ pub fn render_sequence(
 
     // 6. Participant head + tail boxes (interleaved per participant, matching Java order)
     let top_y = MARGIN;
-    let bottom_y = layout.lifeline_bottom;
+    let bottom_y = layout.lifeline_bottom - 1.0;
     for (i, p) in layout.participants.iter().enumerate() {
         let part_idx = i + 1;
         let dn = display_names.get(p.name.as_str()).copied();
