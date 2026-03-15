@@ -796,9 +796,10 @@ fn draw_self_message(
     msg_idx: usize,
 ) {
     let sw = arrow_thickness as u32;
-    let x = msg.from_x;
+    let from_x = msg.from_x;
+    let to_x = msg.to_x;
+    let return_x = msg.self_return_x;
     let y = msg.y;
-    let loop_width = 47.0;
     let loop_height = 13.0;
 
     write!(
@@ -815,50 +816,54 @@ fn draw_self_message(
     };
 
     // 3-line self-message: horizontal right, vertical down, horizontal left
+    // Line 1: outgoing horizontal (from lifeline/activation edge to right)
     write!(
         buf,
         r#"<line style="stroke:{color};stroke-width:{sw};{dash}" x1="{x1}" x2="{x2}" y1="{y1}" y2="{y1}"/>"#,
         color = arrow_color,
         dash = dash_style,
-        x1 = fmt_coord(x),
-        x2 = fmt_coord(x + loop_width),
+        x1 = fmt_coord(from_x),
+        x2 = fmt_coord(to_x),
         y1 = fmt_coord(y),
     )
     .unwrap();
 
+    // Line 2: vertical down
     write!(
         buf,
         r#"<line style="stroke:{color};stroke-width:{sw};{dash}" x1="{x}" x2="{x}" y1="{y1}" y2="{y2}"/>"#,
         color = arrow_color,
         dash = dash_style,
-        x = fmt_coord(x + loop_width),
+        x = fmt_coord(to_x),
         y1 = fmt_coord(y),
         y2 = fmt_coord(y + loop_height),
     )
     .unwrap();
 
+    // Line 3: return horizontal (from return_x to right edge)
     write!(
         buf,
         r#"<line style="stroke:{color};stroke-width:{sw};{dash}" x1="{x1}" x2="{x2}" y1="{y}" y2="{y}"/>"#,
         color = arrow_color,
         dash = dash_style,
-        x1 = fmt_coord(x + 1.0),
-        x2 = fmt_coord(x + loop_width),
+        x1 = fmt_coord(return_x),
+        x2 = fmt_coord(to_x),
         y = fmt_coord(y + loop_height),
     )
     .unwrap();
 
-    // Polygon arrowhead pointing left at return
+    // Arrowhead pointing left at return
+    let ret_y = y + loop_height;
     if msg.has_open_head {
-        let tip_x = x;
+        let tip_x = return_x;
         write!(
             buf,
             r#"<line style="stroke:{color};stroke-width:{sw};" x1="{ax}" x2="{tx}" y1="{y1}" y2="{y}"/>"#,
             color = arrow_color,
             ax = fmt_coord(tip_x + 10.0),
             tx = fmt_coord(tip_x),
-            y1 = fmt_coord(y + loop_height - 4.0),
-            y = fmt_coord(y + loop_height),
+            y1 = fmt_coord(ret_y - 4.0),
+            y = fmt_coord(ret_y),
         )
         .unwrap();
         write!(
@@ -867,13 +872,12 @@ fn draw_self_message(
             color = arrow_color,
             ax = fmt_coord(tip_x + 10.0),
             tx = fmt_coord(tip_x),
-            y1 = fmt_coord(y + loop_height + 4.0),
-            y = fmt_coord(y + loop_height),
+            y1 = fmt_coord(ret_y + 4.0),
+            y = fmt_coord(ret_y),
         )
         .unwrap();
     } else {
-        let tip_x = x + 1.0;
-        let ret_y = y + loop_height;
+        let tip_x = return_x;
         write!(
             buf,
             r#"<polygon fill="{color}" points="{p1x},{p1y},{p2x},{p2y},{p3x},{p3y},{p4x},{p4y}" style="stroke:{color};stroke-width:{sw};"/>"#,
@@ -884,7 +888,7 @@ fn draw_self_message(
             p2y = fmt_coord(ret_y),
             p3x = fmt_coord(tip_x + 10.0),
             p3y = fmt_coord(ret_y + 4.0),
-            p4x = fmt_coord(tip_x + 4.0),
+            p4x = fmt_coord(tip_x + 6.0),
             p4y = fmt_coord(ret_y),
         )
         .unwrap();
@@ -892,7 +896,7 @@ fn draw_self_message(
 
     // Label text above the first horizontal line — each line as separate <text>
     if !msg.text.is_empty() {
-        let text_x = x + 7.0;
+        let text_x = return_x + 6.0;
         let msg_line_spacing = 15.1328;
         let num_lines = msg.text_lines.len();
         let first_text_y = y - 5.0659 - (num_lines as f64 - 1.0) * msg_line_spacing;

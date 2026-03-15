@@ -39,8 +39,8 @@ const REF_HEIGHT: f64 = 32.0;
 const MARGIN: f64 = 5.0;
 const MSG_FONT_SIZE: f64 = 13.0;
 
-/// Fragment stack entry: (y_start, kind, label, separators, min_part_idx, max_part_idx)
-type FragmentStackEntry = (f64, FragmentKind, String, Vec<(f64, String)>, Option<usize>, Option<usize>);
+/// Fragment stack entry: (y_start, kind, label, separators, min_part_idx, max_part_idx, depth_at_push)
+type FragmentStackEntry = (f64, FragmentKind, String, Vec<(f64, String)>, Option<usize>, Option<usize>, usize);
 
 // ── Layout output types ──────────────────────────────────────────────────────
 
@@ -316,19 +316,18 @@ pub fn layout_sequence(sd: &SequenceDiagram) -> Result<SeqLayout> {
         }
     }
 
-    // Pre-scan: compute fragment nesting depth for the leftmost participant.
-    // This determines the left margin needed so that fragment boxes have room.
-    let left_margin = {
-        let mut frag_depth: usize = 0;
-        let mut max_depth_for_leftmost: usize = 0;
-        // Track (min_idx, max_idx) per open fragment level
-        let mut prescan_stack: Vec<(Option<usize>, Option<usize>)> = Vec::new();
+    // Pre-scan: compute fragment nesting depth per participant and determine left margin.
+    // max_frag_depth_per_participant[i] = max nesting depth (1-based) of fragments involving participant i.
+    let mut max_frag_depth: Vec<usize> = vec![0; n];
+    {
+        // Track (min_idx, max_idx, depth_at_push) per open fragment level
+        let mut prescan_stack: Vec<(Option<usize>, Option<usize>, usize)> = Vec::new();
 
         for event in &sd.events {
             match event {
                 SeqEvent::FragmentStart { .. } => {
-                    prescan_stack.push((None, None));
-                    frag_depth += 1;
+                    let depth = prescan_stack.len();
+                    prescan_stack.push((None, None, depth));
                 }
                 SeqEvent::Message(msg) => {
                     if !prescan_stack.is_empty() {
@@ -347,25 +346,27 @@ pub fn layout_sequence(sd: &SequenceDiagram) -> Result<SeqLayout> {
                     }
                 }
                 SeqEvent::FragmentEnd => {
-                    if let Some((min_idx, _max_idx)) = prescan_stack.pop() {
-                        // If the leftmost participant (index 0) is inside this fragment
-                        if min_idx == Some(0) {
-                            if frag_depth > max_depth_for_leftmost {
-                                max_depth_for_leftmost = frag_depth;
+                    if let Some((min_idx, max_idx, _depth)) = prescan_stack.pop() {
+                        let frag_depth = prescan_stack.len() + 1; // 1-based depth
+                        if let (Some(lo), Some(hi)) = (min_idx, max_idx) {
+                            for pidx in lo..=hi {
+                                if frag_depth > max_frag_depth[pidx] {
+                                    max_frag_depth[pidx] = frag_depth;
+                                }
                             }
                         }
-                        frag_depth = frag_depth.saturating_sub(1);
                     }
                 }
                 _ => {}
             }
         }
+    }
 
-        if max_depth_for_leftmost > 0 {
-            2.0 * MARGIN + max_depth_for_leftmost as f64 * FRAGMENT_PADDING
-        } else {
-            MARGIN
-        }
+    let max_depth_for_leftmost = if n > 0 { max_frag_depth[0] } else { 0 };
+    let left_margin = if max_depth_for_leftmost > 0 {
+        2.0 * MARGIN + max_depth_for_leftmost as f64 * FRAGMENT_PADDING
+    } else {
+        MARGIN
     };
 
     // 3. Position participants left-to-right using computed gaps
@@ -433,7 +434,7 @@ pub fn layout_sequence(sd: &SequenceDiagram) -> Result<SeqLayout> {
         .map_or(MARGIN, |p| p.x + p.box_width / 2.0);
     let full_width = (rightmost - leftmost).max(60.0) + 2.0 * FRAGMENT_PADDING;
 
-    for event in &sd.events {
+    for (event_idx, event) in sd.events.iter().enumerate() {
         match event {
             SeqEvent::Message(msg) => {
                 let from_x = find_participant_x(&participants, &msg.from);
@@ -475,12 +476,33 @@ pub fn layout_sequence(sd: &SequenceDiagram) -> Result<SeqLayout> {
                 };
 
                 // For self-messages, compute activation-aware positions.
-                // The return arrow must clear any activation bar at the return y.
-                let (self_from_x, self_return_x, self_to_x) = if is_self {
-                    let is_activated = activation_stack
+                // The return arrow and loop width must clear any activation bar
+                // at the return y. This includes look-ahead: if the next event
+                // is Activate for this participant, the activation bar will start
+                // at the self-message return y.
+                let is_activated = is_self
+                    && activation_stack
                         .get(&msg.from)
                         .is_some_and(|s| !s.is_empty());
-                    let act_right = if is_activated {
+                // Check if activation is about to start (next event is Activate)
+                let will_activate = is_self
+                    && sd
+                        .events
+                        .get(event_idx + 1)
+                        .is_some_and(|e| matches!(e, SeqEvent::Activate(n) if n == &msg.from));
+
+                // When a non-activated self-message triggers an upcoming activate,
+                // shift the outgoing y up by ACTIVATION_WIDTH/2 so the return y
+                // aligns with the activation bar start position.
+                let msg_y = if is_self && will_activate && !is_activated {
+                    msg_y - ACTIVATION_WIDTH / 2.0
+                } else {
+                    msg_y
+                };
+
+                let (self_from_x, self_return_x, self_to_x) = if is_self {
+                    let has_bar = is_activated || will_activate;
+                    let act_right = if has_bar {
                         from_x + ACTIVATION_WIDTH / 2.0
                     } else {
                         from_x
@@ -679,7 +701,8 @@ pub fn layout_sequence(sd: &SequenceDiagram) -> Result<SeqLayout> {
 
             SeqEvent::FragmentStart { kind, label } => {
                 let frag_y = y_cursor - FRAG_Y_BACKOFF;
-                fragment_stack.push((frag_y, kind.clone(), label.clone(), Vec::new(), None, None));
+                let depth = fragment_stack.len();
+                fragment_stack.push((frag_y, kind.clone(), label.clone(), Vec::new(), None, None, depth));
                 y_cursor = frag_y + FRAG_AFTER_HEADER;
             }
 
@@ -694,16 +717,20 @@ pub fn layout_sequence(sd: &SequenceDiagram) -> Result<SeqLayout> {
             }
 
             SeqEvent::FragmentEnd => {
-                if let Some((y_start, kind, label, separators, min_idx, max_idx)) = fragment_stack.pop() {
+                if let Some((y_start, kind, label, separators, min_idx, max_idx, depth_at_push)) = fragment_stack.pop() {
                     let frag_end_y = y_cursor - FRAG_END_BACKOFF;
                     let frag_height = frag_end_y - y_start;
 
-                    // Compute fragment x and width based on involved participants
+                    // Compute fragment x and width based on involved participants.
+                    // Nested fragments get increasing padding: innermost uses
+                    // FRAGMENT_PADDING, each outer layer adds another FRAGMENT_PADDING.
                     let (frag_left, frag_right) = if let (Some(lo), Some(hi)) = (min_idx, max_idx) {
                         let p_lo = &participants[lo];
                         let p_hi = &participants[hi];
-                        let fl = p_lo.x - p_lo.box_width / 2.0 - FRAGMENT_PADDING;
-                        let fr = p_hi.x + p_hi.box_width / 2.0 + FRAGMENT_PADDING;
+                        let left_pad = FRAGMENT_PADDING * (max_frag_depth[lo] - depth_at_push) as f64;
+                        let right_pad = FRAGMENT_PADDING * (max_frag_depth[hi] - depth_at_push) as f64;
+                        let fl = p_lo.x - p_lo.box_width / 2.0 - left_pad;
+                        let fr = p_hi.x + p_hi.box_width / 2.0 + right_pad;
                         (fl, fr)
                     } else {
                         // Fallback: span all participants
@@ -813,7 +840,8 @@ pub fn layout_sequence(sd: &SequenceDiagram) -> Result<SeqLayout> {
         .map(|pp| pp.box_height)
         .fold(PARTICIPANT_HEIGHT, f64::max);
     let lifeline_top = MARGIN + max_participant_height + 1.0;
-    let lifeline_bottom = lifeline_extend_y;
+    // Round to match Java's intermediate coordinate precision (half-up 4dp)
+    let lifeline_bottom = ((lifeline_extend_y * 10000.0) + 0.5).floor() / 10000.0;
 
     let right_margin = 2.0 * MARGIN;
     let mut total_width = participants
@@ -832,12 +860,14 @@ pub fn layout_sequence(sd: &SequenceDiagram) -> Result<SeqLayout> {
     let total_height = (lifeline_bottom - 1.0) + max_participant_height + 7.0;
 
     // Close any remaining fragments (unmatched)
-    for (y_start, kind, label, separators, min_idx, max_idx) in fragment_stack.drain(..) {
+    for (y_start, kind, label, separators, min_idx, max_idx, depth_at_push) in fragment_stack.drain(..) {
         let (frag_x, frag_w) = if let (Some(lo), Some(hi)) = (min_idx, max_idx) {
             let p_lo = &participants[lo];
             let p_hi = &participants[hi];
-            let fl = p_lo.x - p_lo.box_width / 2.0 - FRAGMENT_PADDING;
-            let fr = p_hi.x + p_hi.box_width / 2.0 + FRAGMENT_PADDING;
+            let left_pad = FRAGMENT_PADDING * (max_frag_depth[lo] - depth_at_push) as f64;
+            let right_pad = FRAGMENT_PADDING * (max_frag_depth[hi] - depth_at_push) as f64;
+            let fl = p_lo.x - p_lo.box_width / 2.0 - left_pad;
+            let fr = p_hi.x + p_hi.box_width / 2.0 + right_pad;
             (fl, fr - fl)
         } else {
             (leftmost - FRAGMENT_PADDING, full_width)
