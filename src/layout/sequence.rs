@@ -36,7 +36,10 @@ const FRAG_END_BACKOFF: f64 = 21.1328; // frag_bottom = y_cursor - FRAG_END_BACK
 const FRAG_AFTER_END: f64 = 28.1328; // y_cursor = frag_bottom + FRAG_AFTER_END
 const DIVIDER_HEIGHT: f64 = 30.0;
 const DELAY_HEIGHT: f64 = 30.0;
-const REF_HEIGHT: f64 = 32.0;
+const REF_HEIGHT: f64 = 39.1016;
+const REF_Y_BACKOFF: f64 = 21.1328;
+const REF_AFTER_END: f64 = 26.1328;
+const REF_EDGE_PAD: f64 = 3.0;
 const MARGIN: f64 = 5.0;
 const MSG_FONT_SIZE: f64 = 13.0;
 
@@ -919,18 +922,31 @@ pub fn layout_sequence(sd: &SequenceDiagram) -> Result<SeqLayout> {
                 label,
             } => {
                 if let (Some(first), Some(last)) = (parts.first(), parts.last()) {
-                    let x1 = find_participant_x(&participants, first);
-                    let x2 = find_participant_x(&participants, last);
-                    let left_x = x1.min(x2) - 30.0;
-                    let right_x = x1.max(x2) + 30.0;
+                    let ref_y = y_cursor - REF_Y_BACKOFF;
+                    let first_idx = part_name_to_idx.get(first.as_str()).copied();
+                    let last_idx = part_name_to_idx.get(last.as_str()).copied();
+                    let (left_x, right_x) = if let (Some(fi), Some(li)) = (first_idx, last_idx) {
+                        let lo = fi.min(li);
+                        let hi = fi.max(li);
+                        let p_lo = &participants[lo];
+                        let p_hi = &participants[hi];
+                        (p_lo.x - p_lo.box_width / 2.0 - REF_EDGE_PAD,
+                         p_hi.x + p_hi.box_width / 2.0 + REF_EDGE_PAD)
+                    } else {
+                        let x1 = find_participant_x(&participants, first);
+                        let x2 = find_participant_x(&participants, last);
+                        (x1.min(x2) - 30.0, x1.max(x2) + 30.0)
+                    };
                     refs.push(RefLayout {
                         x: left_x,
-                        y: y_cursor,
+                        y: ref_y,
                         width: right_x - left_x,
                         height: REF_HEIGHT,
                         label: label.clone(),
                     });
-                    y_cursor += REF_HEIGHT + FRAGMENT_PADDING;
+                    lifeline_extend_y = ref_y + REF_HEIGHT + 17.0;
+                    y_cursor = ref_y + REF_HEIGHT + REF_AFTER_END;
+                    last_message_y = None;
                 }
             }
 

@@ -50,6 +50,14 @@ const FRAG_GUARD_GAP: f64 = 15.0;
 const FRAG_GUARD_LABEL_Y_OFFSET: f64 = 12.2104;
 const FRAG_SEP_LABEL_Y_OFFSET: f64 = 10.2104;
 
+const REF_TAB_HEIGHT: f64 = 17.0;
+const REF_TAB_NOTCH: f64 = 10.0;
+const REF_TAB_LEFT_PAD: f64 = 13.0;
+const REF_KIND_LABEL_Y_OFFSET: f64 = 14.0669;
+const REF_LABEL_FONT_SIZE: f64 = 12.0;
+const REF_FRAME_STROKE: &str = "#000000";
+const REF_TAB_FILL: &str = "#EEEEEE";
+
 // ── Arrow marker defs ───────────────────────────────────────────────
 
 fn write_seq_defs(buf: &mut String) {
@@ -1275,60 +1283,42 @@ fn draw_delay(buf: &mut String, delay: &DelayLayout) {
 // ── Ref ──────────────────────────────────────────────────────────────
 
 fn draw_ref(buf: &mut String, r: &RefLayout) {
-    // Filled rectangle
-    write!(
-        buf,
-        r#"<rect fill="{bg}" height="{}" rx="2" style="stroke:{border};stroke-width:1.5;" width="{}" x="{}" y="{}"/>"#,
-        fmt_coord(r.height), fmt_coord(r.width), fmt_coord(r.x), fmt_coord(r.y),
-        bg = REF_BG,
-        border = REF_BORDER,
-    )
-    .unwrap();
-    buf.push('\n');
-
-    // "ref" label tab in top-left
-    let tab_width = font_metrics::text_width("ref", "SansSerif", FONT_SIZE, true, false) + 12.0;
-    let tab_height = FONT_SIZE + 6.0;
-    let notch = 5.0;
-    {
-        let rx_s = fmt_coord(r.x);
-        let ry_s = fmt_coord(r.y);
-        write!(
-            buf,
-            r#"<path d="M{rx_s},{ry_s} L{},{ry_s} L{},{} L{},{} L{rx_s},{} Z " fill="{bg}" style="stroke:{border};stroke-width:1;"/>"#,
-            fmt_coord(r.x + tab_width),
-            fmt_coord(r.x + tab_width), fmt_coord(r.y + tab_height - notch),
-            fmt_coord(r.x + tab_width - notch), fmt_coord(r.y + tab_height),
-            fmt_coord(r.y + tab_height),
-            bg = REF_BG,
-            border = REF_BORDER,
-        )
-        .unwrap();
-    }
-    buf.push('\n');
-
-    let ref_tl = fmt_coord(font_metrics::text_width("ref", "SansSerif", FONT_SIZE, true, false));
-    write!(
-        buf,
-        r#"<text fill="{color}" font-family="sans-serif" font-size="{FONT_SIZE}" font-weight="bold" lengthAdjust="spacing" textLength="{ref_tl}" x="{}" y="{}">ref</text>"#,
-        fmt_coord(r.x + 5.0), fmt_coord(r.y + FONT_SIZE + 1.0),
-        color = TEXT_COLOR,
-    )
-    .unwrap();
-    buf.push('\n');
-
-    // Centered label text
-    let mid_x = r.x + r.width / 2.0;
-    let mid_y = r.y + r.height / 2.0 + FONT_SIZE * 0.35;
+    let ref_text_w = font_metrics::text_width("ref", "SansSerif", FONT_SIZE, true, false);
+    let tab_text_w_int = ref_text_w.floor();
+    let tab_right = r.x + FRAG_TAB_LEFT_PAD + tab_text_w_int + FRAG_TAB_RIGHT_PAD;
+    let rx_s = fmt_coord(r.x);
+    let ry_s = fmt_coord(r.y);
+    buf.push_str(&format!(
+        "<rect fill=\"none\" height=\"{}\" style=\"stroke:{REF_FRAME_STROKE};stroke-width:1.5;\" width=\"{}\" x=\"{rx_s}\" y=\"{ry_s}\"/>",
+        fmt_coord(r.height), fmt_coord(r.width),
+    ));
+    buf.push_str(&format!(
+        "<path d=\"M{rx_s},{ry_s} L{},{ry_s} L{},{} L{},{} L{rx_s},{} L{rx_s},{ry_s}\" fill=\"{REF_TAB_FILL}\" style=\"stroke:{REF_FRAME_STROKE};stroke-width:2;\"/>",
+        fmt_coord(tab_right),
+        fmt_coord(tab_right), fmt_coord(r.y + REF_TAB_HEIGHT - REF_TAB_NOTCH),
+        fmt_coord(tab_right - REF_TAB_NOTCH), fmt_coord(r.y + REF_TAB_HEIGHT),
+        fmt_coord(r.y + REF_TAB_HEIGHT),
+    ));
+    let ref_tl = fmt_coord(ref_text_w);
+    buf.push_str(&format!(
+        "<text fill=\"{TEXT_COLOR}\" font-family=\"sans-serif\" font-size=\"{FONT_SIZE}\" font-weight=\"700\" lengthAdjust=\"spacing\" textLength=\"{ref_tl}\" x=\"{}\" y=\"{}\">ref</text>",
+        fmt_coord(r.x + REF_TAB_LEFT_PAD), fmt_coord(r.y + REF_KIND_LABEL_Y_OFFSET),
+    ));
+    let label_w = font_metrics::text_width(&r.label, "SansSerif", REF_LABEL_FONT_SIZE, false, false);
+    let label_tl = fmt_coord(label_w);
+    let center_x = r.x + r.width / 2.0;
+    let label_x = center_x - label_w / 2.0;
+    let body_top = r.y + REF_TAB_HEIGHT;
+    let body_height = r.height - REF_TAB_HEIGHT;
+    let line_h = font_metrics::line_height("SansSerif", REF_LABEL_FONT_SIZE, false, false);
+    let asc = font_metrics::ascent("SansSerif", REF_LABEL_FONT_SIZE, false, false);
+    let top_margin = ((body_height - line_h) / 2.0).floor();
+    let label_y = body_top + top_margin + asc;
     let escaped = xml_escape(&r.label);
-    let label_tl = fmt_coord(font_metrics::text_width(&r.label, "SansSerif", FONT_SIZE, false, false));
-    write!(
-        buf,
-        r#"<text fill="{TEXT_COLOR}" font-family="sans-serif" font-size="{FONT_SIZE}" lengthAdjust="spacing" text-anchor="middle" textLength="{label_tl}" x="{}" y="{}">{escaped}</text>"#,
-        fmt_coord(mid_x), fmt_coord(mid_y),
-    )
-    .unwrap();
-    buf.push('\n');
+    buf.push_str(&format!(
+        "<text fill=\"{TEXT_COLOR}\" font-family=\"sans-serif\" font-size=\"{REF_LABEL_FONT_SIZE}\" lengthAdjust=\"spacing\" textLength=\"{label_tl}\" x=\"{}\" y=\"{}\">{escaped}</text>",
+        fmt_coord(label_x), fmt_coord(label_y),
+    ));
 }
 
 // ── Public entry point ──────────────────────────────────────────────
@@ -1395,10 +1385,7 @@ pub fn render_sequence(
         draw_delay(&mut buf, delay);
     }
 
-    // 5d. Refs
-    for r in &layout.refs {
-        draw_ref(&mut buf, r);
-    }
+    // 5d. Refs are interleaved with messages (see step 8)
 
     // Build a name -> display_name lookup from the diagram
     let display_names: std::collections::HashMap<&str, &str> = sd
@@ -1459,6 +1446,7 @@ pub fn render_sequence(
     enum InterstitialEvent<'a> {
         FragmentDetail(&'a FragmentLayout),
         Separator(&'a FragmentLayout, f64, &'a str),
+        Ref(&'a RefLayout),
     }
     let mut interstitials: Vec<(f64, InterstitialEvent)> = Vec::new();
     for frag in &layout.fragments {
@@ -1466,6 +1454,9 @@ pub fn render_sequence(
         for (sep_y, sep_label) in &frag.separators {
             interstitials.push((*sep_y, InterstitialEvent::Separator(frag, *sep_y, sep_label)));
         }
+    }
+    for r in &layout.refs {
+        interstitials.push((r.y, InterstitialEvent::Ref(r)));
     }
     interstitials.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap());
     let mut interstitial_idx = 0;
@@ -1483,6 +1474,9 @@ pub fn render_sequence(
                 }
                 InterstitialEvent::Separator(frag, sep_y, sep_label) => {
                     draw_fragment_separator(&mut buf, frag, *sep_y, sep_label);
+                }
+                InterstitialEvent::Ref(r) => {
+                    draw_ref(&mut buf, r);
                 }
             }
             interstitial_idx += 1;
@@ -1525,6 +1519,9 @@ pub fn render_sequence(
             }
             InterstitialEvent::Separator(frag, sep_y, sep_label) => {
                 draw_fragment_separator(&mut buf, frag, *sep_y, sep_label);
+            }
+            InterstitialEvent::Ref(r) => {
+                draw_ref(&mut buf, r);
             }
         }
         interstitial_idx += 1;
