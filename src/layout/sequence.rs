@@ -22,6 +22,17 @@ const NOTE_WIDTH: f64 = 120.0;
 const GROUP_PADDING: f64 = 10.0;
 const FRAGMENT_HEADER_HEIGHT: f64 = 17.1328;
 const FRAGMENT_PADDING: f64 = 10.0;
+
+// Fragment y-spacing constants reverse-engineered from Java PlantUML SVG output.
+// The model: y_cursor tracks the arrow-center y of the next message.  Fragment
+// boundaries are placed by *backing off* from that cursor, then y_cursor is
+// reset to the position of the next expected message.
+const FRAG_Y_BACKOFF: f64 = 14.1328; // frag_y  = y_cursor - FRAG_Y_BACKOFF
+const FRAG_AFTER_HEADER: f64 = 38.2656; // next msg y = frag_y + FRAG_AFTER_HEADER
+const FRAG_SEP_BACKOFF: f64 = 20.1328; // sep_y   = y_cursor - FRAG_SEP_BACKOFF
+const FRAG_AFTER_SEP: f64 = 34.9375; // next msg y = sep_y  + FRAG_AFTER_SEP
+const FRAG_END_BACKOFF: f64 = 21.1328; // frag_bottom = y_cursor - FRAG_END_BACKOFF
+const FRAG_AFTER_END: f64 = 28.1328; // y_cursor = frag_bottom + FRAG_AFTER_END
 const DIVIDER_HEIGHT: f64 = 30.0;
 const DELAY_HEIGHT: f64 = 30.0;
 const REF_HEIGHT: f64 = 32.0;
@@ -321,8 +332,9 @@ pub fn layout_sequence(sd: &SequenceDiagram) -> Result<SeqLayout> {
         .fold(PARTICIPANT_HEIGHT, f64::max);
     let mut y_cursor = MARGIN + max_ph + 32.1328;
 
-    // Track the bottom y of the last rendered event for lifeline sizing
-    let mut last_event_bottom_y: f64 = y_cursor;
+    // Track the bottom y of the last rendered event for lifeline sizing.
+    // This stores the lifeline_bottom directly (not an intermediate value).
+    let mut lifeline_extend_y: f64 = y_cursor;
 
     let mut messages: Vec<MessageLayout> = Vec::new();
     let mut activations: Vec<ActivationLayout> = Vec::new();
@@ -401,10 +413,10 @@ pub fn layout_sequence(sd: &SequenceDiagram) -> Result<SeqLayout> {
                 });
 
                 if is_self {
-                    last_event_bottom_y = msg_y + SELF_MSG_HEIGHT;
+                    lifeline_extend_y = msg_y + SELF_MSG_HEIGHT + 18.0;
                     y_cursor = msg_y + SELF_MSG_HEIGHT + 14.0;
                 } else {
-                    last_event_bottom_y = msg_y;
+                    lifeline_extend_y = msg_y + 18.0;
                     y_cursor = msg_y + MESSAGE_SPACING;
                 }
             }
@@ -544,14 +556,16 @@ pub fn layout_sequence(sd: &SequenceDiagram) -> Result<SeqLayout> {
             }
 
             SeqEvent::FragmentStart { kind, label } => {
-                fragment_stack.push((y_cursor, kind.clone(), label.clone(), Vec::new()));
-                y_cursor += FRAGMENT_HEADER_HEIGHT;
+                let frag_y = y_cursor - FRAG_Y_BACKOFF;
+                fragment_stack.push((frag_y, kind.clone(), label.clone(), Vec::new()));
+                y_cursor = frag_y + FRAG_AFTER_HEADER;
             }
 
             SeqEvent::FragmentSeparator { label } => {
                 if let Some(entry) = fragment_stack.last_mut() {
-                    entry.3.push((y_cursor, label.clone()));
-                    y_cursor += FRAGMENT_PADDING;
+                    let sep_y = y_cursor - FRAG_SEP_BACKOFF;
+                    entry.3.push((sep_y, label.clone()));
+                    y_cursor = sep_y + FRAG_AFTER_SEP;
                 } else {
                     log::warn!("FragmentSeparator without matching FragmentStart");
                 }
@@ -559,9 +573,9 @@ pub fn layout_sequence(sd: &SequenceDiagram) -> Result<SeqLayout> {
 
             SeqEvent::FragmentEnd => {
                 if let Some((y_start, kind, label, separators)) = fragment_stack.pop() {
-                    y_cursor += FRAGMENT_PADDING;
+                    let frag_end_y = y_cursor - FRAG_END_BACKOFF;
                     let frag_x = leftmost - FRAGMENT_PADDING;
-                    let frag_height = y_cursor - y_start;
+                    let frag_height = frag_end_y - y_start;
                     fragments.push(FragmentLayout {
                         kind,
                         label,
@@ -571,6 +585,8 @@ pub fn layout_sequence(sd: &SequenceDiagram) -> Result<SeqLayout> {
                         height: frag_height,
                         separators,
                     });
+                    lifeline_extend_y = frag_end_y + 17.0;
+                    y_cursor = frag_end_y + FRAG_AFTER_END;
                 } else {
                     log::warn!("FragmentEnd without matching FragmentStart");
                 }
@@ -631,8 +647,7 @@ pub fn layout_sequence(sd: &SequenceDiagram) -> Result<SeqLayout> {
         .map(|pp| pp.box_height)
         .fold(PARTICIPANT_HEIGHT, f64::max);
     let lifeline_top = MARGIN + max_participant_height + 1.0;
-    // Lifeline ends 18px below the last event's bottom position
-    let lifeline_bottom = last_event_bottom_y + 18.0;
+    let lifeline_bottom = lifeline_extend_y;
 
     let right_margin = if has_fragments {
         2.0 * MARGIN + FRAGMENT_PADDING
