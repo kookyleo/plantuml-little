@@ -268,7 +268,7 @@ pub fn layout_sequence(sd: &SequenceDiagram) -> Result<SeqLayout> {
                     // Use the longest single line for gap calculation (multiline \n)
                     let text_w = msg
                         .text
-                        .split('\n')
+                        .split("\\n")
                         .map(|line| {
                             font_metrics::text_width(
                                 line,
@@ -376,7 +376,7 @@ pub fn layout_sequence(sd: &SequenceDiagram) -> Result<SeqLayout> {
                 let has_open_head = msg.arrow_head == SeqArrowHead::Open;
 
                 let text_lines: Vec<String> =
-                    msg.text.split('\n').map(|s| s.to_string()).collect();
+                    msg.text.split("\\n").map(|s| s.to_string()).collect();
                 let num_extra_lines = if text_lines.len() > 1 {
                     text_lines.len() - 1
                 } else {
