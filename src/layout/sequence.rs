@@ -226,6 +226,86 @@ fn estimate_note_width(text: &str) -> f64 {
     w.max(30.0)
 }
 
+// -- Sprite width/height helpers --
+
+const SPRITE_TEXT_GAP: f64 = 4.1323;
+const SPRITE_HEIGHT_THRESHOLD: f64 = 15.1328;
+
+fn message_line_width(line: &str) -> f64 {
+    if !line.contains("<$") {
+        return font_metrics::text_width(line, "SansSerif", MSG_FONT_SIZE, false, false);
+    }
+    let gap = SPRITE_TEXT_GAP;
+    let mut total = 0.0_f64;
+    let mut first = true;
+    let mut pos = 0;
+    let mut had_sprite = false;
+    while let Some(start) = line[pos..].find("<$") {
+        let abs_start = pos + start;
+        if abs_start > pos {
+            let text = &line[pos..abs_start];
+            let text = if had_sprite { text.strip_prefix(' ').unwrap_or(text) } else { text };
+            let text = text.strip_suffix(' ').unwrap_or(text);
+            if !text.is_empty() {
+                let w = font_metrics::text_width(text, "SansSerif", MSG_FONT_SIZE, false, false);
+                if w > 0.0 { if !first { total += gap; } total += w; first = false; }
+            }
+        }
+        let name_start = abs_start + 2;
+        if let Some(end) = line[name_start..].find('>') {
+            let name_part = &line[name_start..name_start + end];
+            let name = name_part.split(',').next().unwrap_or(name_part).trim();
+            if let Some(svg) = crate::render::svg_richtext::get_sprite_svg(name) {
+                let (w, _) = parse_sprite_viewbox(&svg);
+                if !first { total += gap; } total += w; first = false;
+            }
+            pos = name_start + end + 1; had_sprite = true;
+        } else { break; }
+    }
+    if pos < line.len() {
+        let text = &line[pos..];
+        let text = if had_sprite { text.strip_prefix(' ').unwrap_or(text) } else { text };
+        if !text.is_empty() {
+            let w = font_metrics::text_width(text, "SansSerif", MSG_FONT_SIZE, false, false);
+            if w > 0.0 { if !first { total += gap; } total += w; }
+        }
+    }
+    total
+}
+
+fn message_sprite_extra_height(line: &str) -> f64 {
+    if !line.contains("<$") { return 0.0; }
+    let mut max_extra = 0.0_f64;
+    let mut pos = 0;
+    while let Some(start) = line[pos..].find("<$") {
+        let abs_start = pos + start + 2;
+        if let Some(end) = line[abs_start..].find('>') {
+            let name_part = &line[abs_start..abs_start + end];
+            let name = name_part.split(',').next().unwrap_or(name_part).trim();
+            if let Some(svg) = crate::render::svg_richtext::get_sprite_svg(name) {
+                let (_, h) = parse_sprite_viewbox(&svg);
+                let extra = (h - SPRITE_HEIGHT_THRESHOLD).max(0.0);
+                max_extra = max_extra.max(extra);
+            }
+            pos = abs_start + end + 1;
+        } else { break; }
+    }
+    max_extra
+}
+
+fn parse_sprite_viewbox(svg: &str) -> (f64, f64) {
+    if let Some(vb_start) = svg.find("viewBox=\"") {
+        let rest = &svg[vb_start + 9..];
+        if let Some(vb_end) = rest.find('"') {
+            let parts: Vec<&str> = rest[..vb_end].split_whitespace().collect();
+            if parts.len() == 4 {
+                return (parts[2].parse().unwrap_or(100.0), parts[3].parse().unwrap_or(50.0));
+            }
+        }
+    }
+    (100.0, 50.0)
+}
+
 // ── Main layout function ─────────────────────────────────────────────────────
 
 /// Perform columnar layout on a SequenceDiagram
@@ -306,15 +386,7 @@ pub fn layout_sequence(sd: &SequenceDiagram) -> Result<SeqLayout> {
                     let text_w = msg
                         .text
                         .split("\\n")
-                        .map(|line| {
-                            font_metrics::text_width(
-                                line,
-                                "SansSerif",
-                                MSG_FONT_SIZE,
-                                false,
-                                false,
-                            )
-                        })
+                        .map(|line| message_line_width(line))
                         .fold(0.0_f64, f64::max)
                         + autonumber_extra_w;
                     let needed = text_w + 24.0; // 7px text-margin + 7px gap + 10px arrow
@@ -509,7 +581,11 @@ pub fn layout_sequence(sd: &SequenceDiagram) -> Result<SeqLayout> {
                 };
                 // Multiline message text: extra lines push the arrow down
                 let msg_line_spacing = 15.1328; // ascent + descent at font-size 13
-                let extra_height = num_extra_lines as f64 * msg_line_spacing;
+                let multiline_extra = num_extra_lines as f64 * msg_line_spacing;
+                let sprite_extra = msg.text.split("\\n")
+                    .map(|line| message_sprite_extra_height(line))
+                    .fold(0.0_f64, f64::max);
+                let extra_height = multiline_extra + sprite_extra;
                 let msg_y = y_cursor + extra_height;
 
                 let msg_autonumber = if autonumber_enabled {

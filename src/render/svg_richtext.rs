@@ -12,6 +12,7 @@ use crate::render::svg_hyperlink::wrap_with_link;
 thread_local! {
     static SVG_SPRITES: RefCell<HashMap<String, String>> = RefCell::new(HashMap::new());
     static DEFAULT_FONT_FAMILY: RefCell<Option<String>> = const { RefCell::new(None) };
+    static PATH_BASED_SPRITES: RefCell<bool> = const { RefCell::new(false) };
 }
 
 /// Set the sprite registry for the current rendering pass.
@@ -22,6 +23,19 @@ pub fn set_sprites(sprites: HashMap<String, String>) {
 /// Clear the sprite registry after rendering.
 pub fn clear_sprites() {
     SVG_SPRITES.with(|s| s.borrow_mut().clear());
+    PATH_BASED_SPRITES.with(|p| *p.borrow_mut() = false);
+}
+
+pub fn enable_path_sprites() {
+    PATH_BASED_SPRITES.with(|p| *p.borrow_mut() = true);
+}
+
+pub fn disable_path_sprites() {
+    PATH_BASED_SPRITES.with(|p| *p.borrow_mut() = false);
+}
+
+fn is_path_sprites_enabled() -> bool {
+    PATH_BASED_SPRITES.with(|p| *p.borrow())
 }
 
 /// Override the default font family for all subsequent `render_creole_text` calls.
@@ -45,6 +59,10 @@ fn get_default_font_family() -> String {
 
 fn get_sprite(name: &str) -> Option<String> {
     SVG_SPRITES.with(|s| s.borrow().get(name).cloned())
+}
+
+pub fn get_sprite_svg(name: &str) -> Option<String> {
+    get_sprite(name)
 }
 
 #[derive(Clone, Default)]
@@ -104,19 +122,24 @@ pub fn render_creole_text(
         lines
     };
 
-    // Collect sprite references from all lines for deferred rendering.
-    let sprite_refs: Vec<(String, Option<String>)> = lines
-        .iter()
-        .flat_map(|line| {
+    // Check if any line contains sprites
+    let has_sprites = lines.iter().any(|line| line.iter().any(|span| matches!(span, TextSpan::InlineSvg { .. })));
+
+    // Path-based sprite rendering for sequence diagrams
+    if has_sprites && is_path_sprites_enabled() && lines.len() == 1 {
+        return render_line_with_sprites(buf, &lines[0], x, y, fill, outer_attrs);
+    }
+
+    // Legacy sprite rendering: collect for deferred rendering after text
+    let sprite_refs: Vec<(String, Option<String>)> = if has_sprites {
+        lines.iter().flat_map(|line| {
             line.iter().filter_map(|span| {
                 if let TextSpan::InlineSvg { name } = span {
                     Some((name.clone(), get_sprite(name)))
-                } else {
-                    None
-                }
+                } else { None }
             })
-        })
-        .collect();
+        }).collect()
+    } else { Vec::new() };
 
     // Compute textLength for the <text> element.
     let plain = lines
@@ -154,6 +177,70 @@ pub fn render_creole_text(
     render_deferred_sprites(buf, &sprite_refs, x, y);
 
     lines.len()
+}
+
+
+fn render_line_with_sprites(buf: &mut String, spans: &[TextSpan], x: f64, y: f64, fill: &str, outer_attrs: &str) -> usize {
+    use crate::render::svg_sprite::{self, SPRITE_TEXT_GAP};
+    let (font_family, font_size, bold, italic) = parse_font_props(outer_attrs);
+    let arrow_y = y + 5.0659;
+    let mut cursor_x = x;
+    let mut in_sprite = false;
+    let mut text_buf: Vec<TextSpan> = Vec::new();
+    for span in spans {
+        match span {
+            TextSpan::InlineSvg { name } => {
+                if !text_buf.is_empty() {
+                    if let Some(TextSpan::Plain(t)) = text_buf.last_mut() { *t = t.trim_end().to_string(); }
+                    let plain = plain_text_spans(&text_buf);
+                    let text_w = font_metrics::text_width(&plain, &font_family, font_size, bold, italic);
+                    if !plain.is_empty() {
+                        write_text_open(buf, cursor_x, y, fill, None, outer_attrs, text_w);
+                        if text_buf.len() == 1 {
+                            if let Some(t) = simple_plain_line(&text_buf) { buf.push_str(&xml_escape(t)); }
+                            else { render_spans(buf, &text_buf, &SpanStyle::default(), fill); }
+                        } else { render_spans(buf, &text_buf, &SpanStyle::default(), fill); }
+                        buf.push_str("</text>");
+                        cursor_x += text_w + SPRITE_TEXT_GAP;
+                    }
+                    text_buf.clear();
+                }
+                if let Some(svg_content) = get_sprite(name) {
+                    let info = svg_sprite::sprite_info(&svg_content);
+                    let sprite_y_offset = arrow_y - 2.0 - info.vb_height;
+                    let converted = svg_sprite::convert_svg_elements(&svg_content, cursor_x, sprite_y_offset);
+                    buf.push_str(&converted);
+                    cursor_x += info.vb_width + SPRITE_TEXT_GAP;
+                }
+                in_sprite = true;
+            }
+            _ => {
+                if in_sprite && text_buf.is_empty() {
+                    if let TextSpan::Plain(t) = span {
+                        let trimmed = t.trim_start().to_string();
+                        if !trimmed.is_empty() { text_buf.push(TextSpan::Plain(trimmed)); }
+                        in_sprite = false;
+                        continue;
+                    }
+                }
+                text_buf.push(span.clone());
+                in_sprite = false;
+            }
+        }
+    }
+    if !text_buf.is_empty() {
+        let plain = plain_text_spans(&text_buf);
+        let text_w = font_metrics::text_width(&plain, &font_family, font_size, bold, italic);
+        if !plain.is_empty() {
+            write_text_open(buf, cursor_x, y, fill, None, outer_attrs, text_w);
+            if text_buf.len() == 1 {
+                if let Some(t) = simple_plain_line(&text_buf) { buf.push_str(&xml_escape(t)); }
+                else { render_spans(buf, &text_buf, &SpanStyle::default(), fill); }
+            } else { render_spans(buf, &text_buf, &SpanStyle::default(), fill); }
+            buf.push_str("</text>");
+        }
+    }
+    1
 }
 
 /// Parse font properties from `outer_attrs` for `textLength` computation.

@@ -13,7 +13,7 @@ use crate::font_metrics;
 
 use super::svg::{write_svg_root_bg, write_bg_rect};
 use super::svg::{fmt_coord, xml_escape};
-use super::svg_richtext::render_creole_text;
+use super::svg_richtext::{disable_path_sprites, enable_path_sprites, render_creole_text};
 
 // ── Style constants ─────────────────────────────────────────────────
 
@@ -1334,6 +1334,17 @@ fn build_participant_index(sd: &SequenceDiagram) -> std::collections::HashMap<St
 
 /// Render a SequenceDiagram + SeqLayout into an SVG string.
 pub fn render_sequence(
+    sd: &SequenceDiagram,
+    layout: &SeqLayout,
+    skin: &SkinParams,
+) -> Result<String> {
+    enable_path_sprites();
+    let result = render_sequence_inner(sd, layout, skin);
+    disable_path_sprites();
+    result
+}
+
+fn render_sequence_inner(
     sd: &SequenceDiagram,
     layout: &SeqLayout,
     skin: &SkinParams,
