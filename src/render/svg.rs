@@ -1246,7 +1246,8 @@ fn draw_entity_box(
 
     // Java URectangle.rounded(roundCorner): rx = roundCorner / 2.
     // Default roundCorner from style = 5 → rx = 2.5.
-    let rx = skin.round_corner().unwrap_or(2.5);
+    // Java URectangle.rounded(roundCorner): SVG rx = roundCorner / 2.
+    let rx = skin.round_corner().map(|rc| rc / 2.0).unwrap_or(2.5);
 
     // Rect with rx="2.5" ry="2.5" to match Java PlantUML
     write!(buf,
@@ -1522,7 +1523,8 @@ fn draw_object_box(
     let stroke_color = skin.border_color("object", CLASS_BORDER);
     let font_color = skin.font_color("object", LABEL_COLOR);
 
-    let rx = skin.round_corner().unwrap_or(2.5);
+    // Java URectangle.rounded(roundCorner): SVG rx = roundCorner / 2.
+    let rx = skin.round_corner().map(|rc| rc / 2.0).unwrap_or(2.5);
 
     // Rect
     write!(buf,
