@@ -204,10 +204,11 @@ fn update_fragment_participant_range(
     }
 }
 
-/// Estimate note height: line count * LINE_HEIGHT + top/bottom padding
+/// Estimate note height: line count * NOTE_FONT_SIZE + top/bottom padding.
+/// Uses NOTE_FONT_SIZE (13) rather than LINE_HEIGHT (16) to match Java PlantUML.
 fn estimate_note_height(text: &str) -> f64 {
     let lines = text.lines().count().max(1) as f64;
-    (lines * LINE_HEIGHT + 2.0 * NOTE_PADDING).max(25.0)
+    (lines * NOTE_FONT_SIZE + 2.0 * NOTE_PADDING).max(25.0)
 }
 
 /// Compute note width based on text content using font metrics.
@@ -408,7 +409,25 @@ pub fn layout_sequence(sd: &SequenceDiagram) -> Result<SeqLayout> {
         .iter()
         .map(|pp| pp.box_height)
         .fold(PARTICIPANT_HEIGHT, f64::max);
-    let mut y_cursor = MARGIN + max_ph + 32.1328;
+
+    // Pre-scan: check if any note immediately follows a non-self message.
+    // Java PlantUML adds ~3px extra initial spacing when notes overlay
+    // regular (non-self) messages.
+    let has_regular_msg_note = sd.events.windows(2).any(|w| {
+        if let SeqEvent::Message(msg) = &w[0] {
+            msg.from != msg.to
+                && matches!(
+                    &w[1],
+                    SeqEvent::NoteRight { .. }
+                        | SeqEvent::NoteLeft { .. }
+                        | SeqEvent::NoteOver { .. }
+                )
+        } else {
+            false
+        }
+    });
+    let note_extra = if has_regular_msg_note { 3.0 } else { 0.0 };
+    let mut y_cursor = MARGIN + max_ph + 32.1328 + note_extra;
 
     // Track the bottom y of the last rendered event for lifeline sizing.
     // This stores the lifeline_bottom directly (not an intermediate value).
@@ -418,6 +437,16 @@ pub fn layout_sequence(sd: &SequenceDiagram) -> Result<SeqLayout> {
     // at the self-message return y, not at y_cursor (which has already advanced
     // to the next message position).  Keyed by participant name.
     let mut pending_self_return_y: HashMap<String, f64> = HashMap::new();
+
+    // Track the y of the most recent message for note back-offset positioning.
+    // In Java PlantUML, notes following a message are placed alongside it
+    // (overlapping vertically) rather than below it.
+    let mut last_message_y: Option<f64> = None;
+    let mut last_message_was_self: bool = false;
+
+    // When a note is placed alongside a message (back-offset), the next
+    // activate should start at the message's y, not at y_cursor.
+    let mut pending_note_activate_y: Option<f64> = None;
 
     let mut messages: Vec<MessageLayout> = Vec::new();
     let mut activations: Vec<ActivationLayout> = Vec::new();
@@ -542,6 +571,16 @@ pub fn layout_sequence(sd: &SequenceDiagram) -> Result<SeqLayout> {
                     self_return_x,
                 });
 
+                // Only enable note back-offset for single-line messages.
+                // Multi-line messages have complex text layout and the note
+                // positioning follows different rules in Java PlantUML.
+                if num_extra_lines == 0 {
+                    last_message_y = Some(msg_y);
+                    last_message_was_self = is_self;
+                } else {
+                    last_message_y = None;
+                }
+
                 if is_self {
                     let return_y = msg_y + SELF_MSG_HEIGHT;
                     lifeline_extend_y = return_y + 18.0;
@@ -558,11 +597,17 @@ pub fn layout_sequence(sd: &SequenceDiagram) -> Result<SeqLayout> {
             }
 
             SeqEvent::Activate(name) => {
-                // For self-messages, the activation bar should start at the
-                // return y of the self-message, not at y_cursor.
-                let act_y = pending_self_return_y
-                    .remove(name.as_str())
-                    .unwrap_or(y_cursor);
+                // Priority: 1) self-message return y, 2) note-attached message y, 3) y_cursor
+                let act_y = if let Some(y) = pending_self_return_y.remove(name.as_str()) {
+                    y
+                } else if let Some(y) = pending_note_activate_y.take() {
+                    // When activation follows a note attached to a message,
+                    // add extra spacing for subsequent messages to match Java.
+                    y_cursor += 3.0;
+                    y
+                } else {
+                    y_cursor
+                };
                 log::debug!("activate '{name}' at y={act_y:.1}");
                 activation_stack
                     .entry(name.clone())
@@ -616,6 +661,7 @@ pub fn layout_sequence(sd: &SequenceDiagram) -> Result<SeqLayout> {
                 }
 
                 y_cursor = destroy_y + MESSAGE_SPACING;
+                last_message_y = None;
                 log::debug!("destroy '{name}' at y={destroy_y:.1}");
             }
 
@@ -623,30 +669,70 @@ pub fn layout_sequence(sd: &SequenceDiagram) -> Result<SeqLayout> {
                 let px = find_participant_x(&participants, participant);
                 let note_height = estimate_note_height(text);
                 let note_width = estimate_note_width(text);
+                // In Java PlantUML, notes following a message are placed alongside
+                // the message (with a back-offset) rather than below it.
+                // The note doesn't advance y_cursor when it fits within the
+                // message spacing already consumed.
+                let note_y = if let Some(msg_y) = last_message_y {
+                    // Place note with back-offset from message position
+                    let back_offset = if last_message_was_self {
+                        (note_height - 1.0) / 2.0
+                    } else {
+                        MESSAGE_SPACING - NOTE_FOLD
+                    };
+                    (msg_y - back_offset).max(MARGIN + max_ph)
+                } else {
+                    y_cursor
+                };
                 notes.push(NoteLayout {
                     x: px + ACTIVATION_WIDTH,
-                    y: y_cursor,
+                    y: note_y,
                     width: note_width,
                     height: note_height,
                     text: text.clone(),
                     is_left: false,
                 });
-                y_cursor += note_height;
+                // Only advance y_cursor if the note bottom extends below current position
+                let note_bottom = note_y + note_height;
+                if note_bottom > y_cursor {
+                    y_cursor = note_bottom;
+                }
+                if last_message_y.is_some() {
+                    pending_note_activate_y = last_message_y;
+                }
+                last_message_y = None;
             }
 
             SeqEvent::NoteLeft { participant, text } => {
                 let px = find_participant_x(&participants, participant);
                 let note_height = estimate_note_height(text);
                 let note_width = estimate_note_width(text);
+                let note_y = if let Some(msg_y) = last_message_y {
+                    let back_offset = if last_message_was_self {
+                        (note_height - 1.0) / 2.0
+                    } else {
+                        MESSAGE_SPACING - NOTE_FOLD
+                    };
+                    (msg_y - back_offset).max(MARGIN + max_ph)
+                } else {
+                    y_cursor
+                };
                 notes.push(NoteLayout {
                     x: px - ACTIVATION_WIDTH - note_width,
-                    y: y_cursor,
+                    y: note_y,
                     width: note_width,
                     height: note_height,
                     text: text.clone(),
                     is_left: true,
                 });
-                y_cursor += note_height;
+                let note_bottom = note_y + note_height;
+                if note_bottom > y_cursor {
+                    y_cursor = note_bottom;
+                }
+                if last_message_y.is_some() {
+                    pending_note_activate_y = last_message_y;
+                }
+                last_message_y = None;
             }
 
             SeqEvent::NoteOver {
@@ -661,21 +747,39 @@ pub fn layout_sequence(sd: &SequenceDiagram) -> Result<SeqLayout> {
                     let note_height = estimate_note_height(text);
                     let note_w = estimate_note_width(text);
                     let width = (x2 - x1).abs().max(note_w);
+                    let note_y = if let Some(msg_y) = last_message_y {
+                        let back_offset = if last_message_was_self {
+                            (note_height - 1.0) / 2.0
+                        } else {
+                            MESSAGE_SPACING - NOTE_FOLD
+                        };
+                        (msg_y - back_offset).max(MARGIN + max_ph)
+                    } else {
+                        y_cursor
+                    };
                     notes.push(NoteLayout {
                         x: center - width / 2.0,
-                        y: y_cursor,
+                        y: note_y,
                         width,
                         height: note_height,
                         text: text.clone(),
                         is_left: false,
                     });
-                    y_cursor += note_height;
+                    let note_bottom = note_y + note_height;
+                    if note_bottom > y_cursor {
+                        y_cursor = note_bottom;
+                    }
+                    if last_message_y.is_some() {
+                        pending_note_activate_y = last_message_y;
+                    }
+                    last_message_y = None;
                 }
             }
 
             SeqEvent::GroupStart { label } => {
                 group_stack.push((y_cursor, label.clone()));
                 y_cursor += GROUP_PADDING;
+                last_message_y = None;
             }
 
             SeqEvent::GroupEnd => {
@@ -708,6 +812,7 @@ pub fn layout_sequence(sd: &SequenceDiagram) -> Result<SeqLayout> {
                     text: text.clone(),
                 });
                 y_cursor += DIVIDER_HEIGHT;
+                last_message_y = None;
             }
 
             SeqEvent::Delay { text } => {
@@ -719,6 +824,7 @@ pub fn layout_sequence(sd: &SequenceDiagram) -> Result<SeqLayout> {
                     text: text.clone(),
                 });
                 y_cursor += DELAY_HEIGHT;
+                last_message_y = None;
             }
 
             SeqEvent::FragmentStart { kind, label } => {
@@ -726,6 +832,7 @@ pub fn layout_sequence(sd: &SequenceDiagram) -> Result<SeqLayout> {
                 let depth = fragment_stack.len();
                 fragment_stack.push((frag_y, kind.clone(), label.clone(), Vec::new(), None, None, depth));
                 y_cursor = frag_y + FRAG_AFTER_HEADER;
+                last_message_y = None;
             }
 
             SeqEvent::FragmentSeparator { label } => {
@@ -829,6 +936,7 @@ pub fn layout_sequence(sd: &SequenceDiagram) -> Result<SeqLayout> {
 
             SeqEvent::Spacing { pixels } => {
                 y_cursor += *pixels as f64;
+                last_message_y = None;
             }
 
             SeqEvent::AutoNumber { start } => {
