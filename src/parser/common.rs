@@ -148,6 +148,8 @@ pub fn detect_diagram_type(content: &str) -> DiagramHint {
             let before = trimmed[..trimmed.len() - 1].trim();
             if !before.is_empty() && !before.ends_with('-') && !before.ends_with('<') {
                 in_bracket_display = true;
+                // Bracket-display body is a component/deployment feature
+                has_component_keyword_definitive = true;
             }
         }
 
@@ -356,7 +358,7 @@ pub fn detect_diagram_type(content: &str) -> DiagramHint {
     if has_seq_lifecycle {
         return DiagramHint::Sequence;
     }
-    if has_seq_fragment && !has_component_keyword_definitive {
+    if has_seq_fragment && !has_component_keyword_definitive && !has_activity_old {
         return DiagramHint::Sequence;
     }
 

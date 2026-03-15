@@ -18,7 +18,7 @@ pub mod usecase;
 pub mod wbs;
 pub mod yaml;
 
-use crate::model::component::ComponentDiagram;
+use crate::model::diagram::ClassDiagram;
 use crate::model::Diagram;
 use crate::Result;
 
@@ -111,13 +111,18 @@ pub fn parse(source: &str) -> Result<Diagram> {
             Ok(Diagram::Salt(sd))
         }
         DiagramHint::Unknown(t) => {
+            // Meta-only diagrams default to empty class diagram, matching Java
+            // PlantUML which produces data-diagram-type="CLASS" for these.
             if !common::has_meaningful_uml_content(body) && !common::parse_meta(source).is_empty() {
-                return Ok(Diagram::Component(ComponentDiagram {
+                return Ok(Diagram::Class(ClassDiagram {
                     entities: Vec::new(),
                     links: Vec::new(),
                     groups: Vec::new(),
-                    notes: Vec::new(),
                     direction: Default::default(),
+                    direction_explicit: false,
+                    notes: Vec::new(),
+                    hide_show_rules: Vec::new(),
+                    stereotype_backgrounds: Default::default(),
                 }));
             }
             Err(crate::Error::UnsupportedDiagram(t))
@@ -163,16 +168,16 @@ mod tests {
     use super::*;
 
     #[test]
-    fn parse_meta_only_uml_as_empty_component_diagram() {
+    fn parse_meta_only_uml_as_empty_class_diagram() {
         let src = "@startuml\ntitle\nOnly meta\nend title\n@enduml\n";
         let diagram = parse(src).expect("parse failed");
         match diagram {
-            Diagram::Component(cd) => {
+            Diagram::Class(cd) => {
                 assert!(cd.entities.is_empty());
                 assert!(cd.links.is_empty());
                 assert!(cd.notes.is_empty());
             }
-            other => panic!("expected empty component fallback, got {:?}", other),
+            other => panic!("expected empty class fallback, got {:?}", other),
         }
     }
 }
