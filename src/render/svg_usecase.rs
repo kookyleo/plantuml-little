@@ -605,7 +605,7 @@ mod tests {
             "dashed edge must have dasharray"
         );
         assert!(
-            svg.contains("\u{00AB}include\u{00BB}"),
+            svg.contains("&#171;include&#187;"),
             "stereotype must appear with guillemets"
         );
         assert!(

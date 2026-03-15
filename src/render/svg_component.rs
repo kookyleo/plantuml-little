@@ -1489,7 +1489,7 @@ mod tests {
         let svg =
             render_component(&diagram, &layout, &SkinParams::default()).expect("render failed");
         assert!(
-            svg.contains("\u{00AB}service\u{00BB}"),
+            svg.contains("&#171;service&#187;"),
             "stereotype must appear with guillemets"
         );
         assert!(

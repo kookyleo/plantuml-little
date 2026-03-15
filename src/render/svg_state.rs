@@ -792,7 +792,7 @@ mod tests {
         let svg = render_state(&diagram, &layout, &SkinParams::default()).expect("render failed");
         assert!(svg.contains("InputPin"), "state name must appear");
         assert!(
-            svg.contains("\u{00AB}inputPin\u{00BB}"),
+            svg.contains("&#171;inputPin&#187;"),
             "stereotype must appear with guillemets"
         );
         assert!(

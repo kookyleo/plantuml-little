@@ -784,8 +784,29 @@ fn render_class(
     layout: &GraphLayout,
     skin: &SkinParams,
 ) -> Result<String> {
-    // Two-pass approach: render body to buffer first, tracking bounds inline,
-    // then wrap with SVG root using computed dimensions.
+    // Java SvekResult: moveDelta(6 - minMax.getMinX(), 6 - minMax.getMinY())
+    // minX depends on elements: rect gives (x-1), polygon HACK gives (x + local_minX - 10).
+    // For class diagrams with protected/package visibility icons (UPolygon):
+    //   icon at entity_x + margin(6) + translate(1) = entity_x + 7
+    //   polygon local_minX = 0 → HACK min = entity_x + 7 - 10 = entity_x - 3
+    //   vs rect: entity_x - 1
+    // After normalization entity_x = 0: HACK min = -3, rect min = -1.
+    // moveDelta = 6 - min(-3, -1) = 6 - (-3) = 9.
+    //
+    // Without polygon icons: moveDelta = 6 - (-1) = 7.
+    let has_polygon_icon = cd.entities.iter().any(|e| {
+        e.members.iter().any(|m| {
+            matches!(m.visibility, Some(Visibility::Protected) | Some(Visibility::Package))
+        })
+    });
+    // Java: EDGE_OFFSET = moveDelta = 6 - LimitFinder_minX
+    // LimitFinder_minX = min(normalized_entity_x - 1, polygon_hack)
+    // After normalization: entity_x = 0, so rect_minX = -1, polygon_minX = -3.
+    let edge_offset = if has_polygon_icon {
+        6.0 - (-3.0) // = 9: entity rects start at x=9
+    } else {
+        6.0 - (-1.0) // = 7: entity rects start at x=7
+    };
     let mut tracker = BoundsTracker::new();
     let mut body = String::with_capacity(4096);
     let arrow_color = skin.arrow_color(LINK_COLOR);
@@ -820,7 +841,7 @@ fn render_class(
                 write!(body, " data-source-line=\"{source_line}\"").unwrap();
             }
             write!(body, " id=\"{ent_id}\">").unwrap();
-            draw_entity_box(&mut body, &mut tracker, cd, entity, nl, skin);
+            draw_entity_box(&mut body, &mut tracker, cd, entity, nl, skin, edge_offset);
             body.push_str("</g>");
         }
     }
@@ -851,7 +872,7 @@ fn render_class(
                 write!(body, " data-source-line=\"{source_line}\"").unwrap();
             }
             write!(body, " id=\"lnk{link_counter}\">").unwrap();
-            draw_edge(&mut body, &mut tracker, link, el, arrow_color);
+            draw_edge(&mut body, &mut tracker, link, el, arrow_color, edge_offset);
             body.push_str("</g>");
             link_counter += 1;
         }
@@ -1123,11 +1144,12 @@ fn draw_entity_box(
     entity: &Entity,
     nl: &NodeLayout,
     skin: &SkinParams,
+    edge_offset: f64,
 ) {
     // Java: entity rect starts at (moveDelta_offset + 1, moveDelta_offset + 1)
     // where the +1 is the border inset (rect drawn 1px inside the Graphviz node boundary)
-    let x = nl.cx - nl.width / 2.0 + MARGIN + 1.0;
-    let y = nl.cy - nl.height / 2.0 + MARGIN + 1.0;
+    let x = nl.cx - nl.width / 2.0 + edge_offset;
+    let y = nl.cy - nl.height / 2.0 + edge_offset;
     let w = nl.width;
     let h = nl.height;
 
@@ -1607,7 +1629,7 @@ fn derive_link_type(link: &Link) -> &'static str {
     }
 }
 
-fn draw_edge(buf: &mut String, tracker: &mut BoundsTracker, link: &Link, el: &EdgeLayout, link_color: &str) {
+fn draw_edge(buf: &mut String, tracker: &mut BoundsTracker, link: &Link, el: &EdgeLayout, link_color: &str, edge_offset: f64) {
     if el.points.is_empty() {
         return;
     }
@@ -1620,7 +1642,7 @@ fn draw_edge(buf: &mut String, tracker: &mut BoundsTracker, link: &Link, el: &Ed
         shorten_edge_for_head(&mut path_points, &link.right_head, false);
     }
 
-    let d = build_edge_path_d(&path_points, EDGE_OFFSET);
+    let d = build_edge_path_d(&path_points, edge_offset);
 
     // Track the edge path bounds (UPath style)
     {
@@ -1629,8 +1651,8 @@ fn draw_edge(buf: &mut String, tracker: &mut BoundsTracker, link: &Link, el: &Ed
         let mut p_max_x = f64::NEG_INFINITY;
         let mut p_max_y = f64::NEG_INFINITY;
         for &(px, py) in &path_points {
-            let ax = px + EDGE_OFFSET;
-            let ay = py + EDGE_OFFSET;
+            let ax = px + edge_offset;
+            let ay = py + edge_offset;
             if ax < p_min_x { p_min_x = ax; }
             if ay < p_min_y { p_min_y = ay; }
             if ax > p_max_x { p_max_x = ax; }
@@ -1658,16 +1680,16 @@ fn draw_edge(buf: &mut String, tracker: &mut BoundsTracker, link: &Link, el: &Ed
     .unwrap();
 
     if link.left_head != ArrowHead::None {
-        emit_arrowhead(buf, tracker, &link.left_head, &el.points, true, link_color);
+        emit_arrowhead(buf, tracker, &link.left_head, &el.points, true, link_color, edge_offset);
     }
     if link.right_head != ArrowHead::None {
-        emit_arrowhead(buf, tracker, &link.right_head, &el.points, false, link_color);
+        emit_arrowhead(buf, tracker, &link.right_head, &el.points, false, link_color, edge_offset);
     }
 
     if let Some(label) = &link.label {
         let mid_idx = path_points.len() / 2;
         let (mx, my) = path_points[mid_idx];
-        draw_label(buf, label, mx + EDGE_OFFSET, my + EDGE_OFFSET - 6.0);
+        draw_label(buf, label, mx + edge_offset, my + edge_offset - 6.0);
     }
 }
 
@@ -1834,16 +1856,17 @@ fn emit_arrowhead(
     points: &[(f64, f64)],
     is_start: bool,
     link_color: &str,
+    edge_offset: f64,
 ) {
     if points.is_empty() || *head == ArrowHead::None {
         return;
     }
 
     let (tip_x, tip_y) = if is_start {
-        (points[0].0 + EDGE_OFFSET, points[0].1 + EDGE_OFFSET)
+        (points[0].0 + edge_offset, points[0].1 + edge_offset)
     } else {
         let (x, y) = points[points.len() - 1];
-        (x + EDGE_OFFSET, y + EDGE_OFFSET)
+        (x + edge_offset, y + edge_offset)
     };
 
     let base_angle = if is_start {
