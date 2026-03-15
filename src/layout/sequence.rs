@@ -400,6 +400,11 @@ pub fn layout_sequence(sd: &SequenceDiagram) -> Result<SeqLayout> {
     // This stores the lifeline_bottom directly (not an intermediate value).
     let mut lifeline_extend_y: f64 = y_cursor;
 
+    // For self-messages followed by activate: the activation bar should start
+    // at the self-message return y, not at y_cursor (which has already advanced
+    // to the next message position).  Keyed by participant name.
+    let mut pending_self_return_y: HashMap<String, f64> = HashMap::new();
+
     let mut messages: Vec<MessageLayout> = Vec::new();
     let mut activations: Vec<ActivationLayout> = Vec::new();
     let mut destroys: Vec<DestroyLayout> = Vec::new();
@@ -469,13 +474,28 @@ pub fn layout_sequence(sd: &SequenceDiagram) -> Result<SeqLayout> {
                     None
                 };
 
-                messages.push(MessageLayout {
-                    from_x,
-                    to_x: if is_self {
-                        from_x + SELF_MSG_WIDTH
+                // For self-messages, compute activation-aware positions.
+                // The return arrow must clear any activation bar at the return y.
+                let (self_from_x, self_return_x, self_to_x) = if is_self {
+                    let is_activated = activation_stack
+                        .get(&msg.from)
+                        .is_some_and(|s| !s.is_empty());
+                    let act_right = if is_activated {
+                        from_x + ACTIVATION_WIDTH / 2.0
                     } else {
-                        to_x
-                    },
+                        from_x
+                    };
+                    let outgoing_x = if is_activated { act_right } else { from_x };
+                    let ret_x = act_right + 1.0;
+                    let to = act_right + SELF_MSG_WIDTH;
+                    (outgoing_x, ret_x, to)
+                } else {
+                    (from_x, from_x, to_x)
+                };
+
+                messages.push(MessageLayout {
+                    from_x: if is_self { self_from_x } else { from_x },
+                    to_x: if is_self { self_to_x } else { to_x },
                     y: msg_y,
                     text: msg.text.clone(),
                     text_lines,
@@ -484,23 +504,32 @@ pub fn layout_sequence(sd: &SequenceDiagram) -> Result<SeqLayout> {
                     is_left,
                     has_open_head,
                     autonumber: msg_autonumber,
+                    self_return_x,
                 });
 
                 if is_self {
-                    lifeline_extend_y = msg_y + SELF_MSG_HEIGHT + 18.0;
-                    y_cursor = msg_y + SELF_MSG_HEIGHT + 14.0;
+                    let return_y = msg_y + SELF_MSG_HEIGHT;
+                    lifeline_extend_y = return_y + 18.0;
+                    y_cursor = return_y + MESSAGE_SPACING;
+                    pending_self_return_y.insert(msg.from.clone(), return_y);
                 } else {
                     lifeline_extend_y = msg_y + 18.0;
                     y_cursor = msg_y + MESSAGE_SPACING;
+                    pending_self_return_y.clear();
                 }
             }
 
             SeqEvent::Activate(name) => {
-                log::debug!("activate '{name}' at y={y_cursor:.1}");
+                // For self-messages, the activation bar should start at the
+                // return y of the self-message, not at y_cursor.
+                let act_y = pending_self_return_y
+                    .remove(name.as_str())
+                    .unwrap_or(y_cursor);
+                log::debug!("activate '{name}' at y={act_y:.1}");
                 activation_stack
                     .entry(name.clone())
                     .or_default()
-                    .push(y_cursor);
+                    .push(act_y);
             }
 
             SeqEvent::Deactivate(name) => {
@@ -525,9 +554,28 @@ pub fn layout_sequence(sd: &SequenceDiagram) -> Result<SeqLayout> {
 
             SeqEvent::Destroy(name) => {
                 let px = find_participant_x(&participants, name);
-                destroys.push(DestroyLayout { x: px, y: y_cursor });
-                y_cursor += MESSAGE_SPACING;
-                log::debug!("destroy '{name}' at y={y_cursor:.1}");
+                // For self-messages, the destroy should be at the return y
+                let destroy_y = pending_self_return_y
+                    .remove(name.as_str())
+                    .unwrap_or(y_cursor);
+                destroys.push(DestroyLayout { x: px, y: destroy_y });
+
+                // Also close any active activation bar for this participant
+                if let Some(stack) = activation_stack.get_mut(name.as_str()) {
+                    if let Some(y_start) = stack.pop() {
+                        activations.push(ActivationLayout {
+                            x: px - ACTIVATION_WIDTH / 2.0,
+                            y_start,
+                            y_end: destroy_y,
+                        });
+                        log::debug!(
+                            "destroy-deactivate '{name}' bar from {y_start:.1} to {destroy_y:.1}"
+                        );
+                    }
+                }
+
+                y_cursor = destroy_y + MESSAGE_SPACING;
+                log::debug!("destroy '{name}' at y={destroy_y:.1}");
             }
 
             SeqEvent::NoteRight { participant, text } => {
