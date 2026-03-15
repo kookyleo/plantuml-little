@@ -490,10 +490,10 @@ fn test_seq_fixture_divider001() {
 fn test_seq_fixture_autonumber001() {
     let svg = convert_fixture("tests/fixtures/sequence/seq_autonumber001.puml");
     assert_valid_svg(&svg, "seq_autonumber001");
-    // Autonumber should prepend numbers to messages
+    // Autonumber should render number as separate text element
     assert!(
-        svg.contains("1 "),
-        "seq_autonumber001: must contain numbered message"
+        svg.contains(">1<") || svg.contains(">1</text>"),
+        "seq_autonumber001: must contain autonumber text element"
     );
 }
 

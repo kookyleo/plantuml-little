@@ -56,6 +56,8 @@ pub struct MessageLayout {
     pub is_dashed: bool,
     pub is_left: bool,
     pub has_open_head: bool,
+    /// Autonumber string (e.g. "1", "2") — rendered as separate text element
+    pub autonumber: Option<String>,
 }
 
 /// Activation bar layout
@@ -233,17 +235,16 @@ pub fn layout_sequence(sd: &SequenceDiagram) -> Result<SeqLayout> {
                 }
             }
             SeqEvent::Message(msg) => {
-                // Compute effective text (with autonumber prefix if enabled)
-                let effective_text = if gap_autonumber_enabled {
-                    let numbered = if msg.text.is_empty() {
-                        format!("{gap_autonumber_counter}")
-                    } else {
-                        format!("{} {}", gap_autonumber_counter, msg.text)
-                    };
+                // Compute autonumber extra width
+                let autonumber_extra_w = if gap_autonumber_enabled {
+                    let num_str = format!("{gap_autonumber_counter}");
+                    let num_w = font_metrics::text_width(
+                        &num_str, "SansSerif", MSG_FONT_SIZE, false, false,
+                    );
                     gap_autonumber_counter += 1;
-                    numbered
+                    num_w + 4.0 // 4px gap between number and text
                 } else {
-                    msg.text.clone()
+                    0.0
                 };
 
                 if msg.from == msg.to {
@@ -254,7 +255,8 @@ pub fn layout_sequence(sd: &SequenceDiagram) -> Result<SeqLayout> {
                 {
                     let (lo, hi) = if fi < ti { (fi, ti) } else { (ti, fi) };
                     // Use the longest single line for gap calculation (multiline \n)
-                    let text_w = effective_text
+                    let text_w = msg
+                        .text
                         .split('\n')
                         .map(|line| {
                             font_metrics::text_width(
@@ -265,7 +267,8 @@ pub fn layout_sequence(sd: &SequenceDiagram) -> Result<SeqLayout> {
                                 false,
                             )
                         })
-                        .fold(0.0_f64, f64::max);
+                        .fold(0.0_f64, f64::max)
+                        + autonumber_extra_w;
                     let needed = text_w + 24.0; // 7px text-margin + 7px gap + 10px arrow
                     let span = hi - lo; // number of gaps this message spans
                     if span > 0 {
@@ -332,6 +335,7 @@ pub fn layout_sequence(sd: &SequenceDiagram) -> Result<SeqLayout> {
     let mut refs: Vec<RefLayout> = Vec::new();
     let mut autonumber_enabled = false;
     let mut autonumber_start: u32 = 1;
+    let mut autonumber_counter: u32 = 1;
 
     // Activation stack: participant name -> Vec<y_start>
     let mut activation_stack: HashMap<String, Vec<f64>> = HashMap::new();
@@ -371,6 +375,14 @@ pub fn layout_sequence(sd: &SequenceDiagram) -> Result<SeqLayout> {
                 let extra_height = num_extra_lines as f64 * msg_line_spacing;
                 let msg_y = y_cursor + extra_height;
 
+                let msg_autonumber = if autonumber_enabled {
+                    let num = format!("{autonumber_counter}");
+                    autonumber_counter += 1;
+                    Some(num)
+                } else {
+                    None
+                };
+
                 messages.push(MessageLayout {
                     from_x,
                     to_x: if is_self {
@@ -385,6 +397,7 @@ pub fn layout_sequence(sd: &SequenceDiagram) -> Result<SeqLayout> {
                     is_dashed,
                     is_left,
                     has_open_head,
+                    autonumber: msg_autonumber,
                 });
 
                 if is_self {
@@ -591,6 +604,7 @@ pub fn layout_sequence(sd: &SequenceDiagram) -> Result<SeqLayout> {
                 autonumber_enabled = true;
                 if let Some(n) = start {
                     autonumber_start = *n;
+                    autonumber_counter = *n;
                 }
             }
         }

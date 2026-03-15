@@ -730,16 +730,42 @@ fn draw_message(
     .unwrap();
 
     // Label text above the line — each line as a separate <text> element
-    if !msg.text.is_empty() {
-        let text_x = if msg.is_left {
+    let has_text = !msg.text.is_empty() || msg.autonumber.is_some();
+    if has_text {
+        let base_text_x = if msg.is_left {
             // Left arrow: text starts after arrowhead polygon (tip + polygon_width + gap)
             tip_x + 16.0
         } else {
             msg.from_x + 7.0
         };
+
+        // If autonumber, compute the offset for message text
+        let text_x = if let Some(ref num_str) = msg.autonumber {
+            let num_w = font_metrics::text_width(num_str, "SansSerif", FONT_SIZE, false, false);
+            base_text_x + num_w + 4.0
+        } else {
+            base_text_x
+        };
+
         let msg_line_spacing = 15.1328; // ascent + descent at font-size 13
-        let num_lines = msg.text_lines.len();
+        let num_lines = msg.text_lines.len().max(1);
         let first_text_y = msg.y - 5.0659 - (num_lines as f64 - 1.0) * msg_line_spacing;
+
+        // Draw autonumber as separate text element
+        if let Some(ref num_str) = msg.autonumber {
+            let num_tl = font_metrics::text_width(num_str, "SansSerif", FONT_SIZE, false, false);
+            write!(
+                buf,
+                r#"<text fill="{TEXT_COLOR}" font-family="sans-serif" font-size="{FONT_SIZE}" lengthAdjust="spacing" textLength="{}" x="{}" y="{}">{}</text>"#,
+                fmt_coord(num_tl),
+                fmt_coord(base_text_x),
+                fmt_coord(first_text_y),
+                xml_escape(num_str),
+            )
+            .unwrap();
+        }
+
+        // Draw message text lines
         for (i, line) in msg.text_lines.iter().enumerate() {
             if line.is_empty() {
                 continue;
@@ -1398,7 +1424,6 @@ pub fn render_sequence(
     // 8. Messages (with optional autonumber)
     let seq_arrow_color = skin.sequence_arrow_color(ARROW_COLOR);
     let seq_arrow_thickness = skin.sequence_arrow_thickness().unwrap_or(1.0);
-    let mut msg_counter: u32 = layout.autonumber_start;
     let mut msg_seq_counter: usize = 0;
     for msg in &layout.messages {
         msg_seq_counter += 1;
@@ -1410,50 +1435,7 @@ pub fn render_sequence(
             find_participant_idx_by_x(&layout.participants, msg.to_x, &part_index)
         };
 
-        if layout.autonumber_enabled {
-            let numbered_text = if msg.text.is_empty() {
-                format!("{msg_counter}")
-            } else {
-                format!("{} {}", msg_counter, msg.text)
-            };
-            let numbered_lines: Vec<String> = if msg.text_lines.is_empty() {
-                vec![numbered_text.clone()]
-            } else {
-                let mut lines = msg.text_lines.clone();
-                lines[0] = if lines[0].is_empty() {
-                    format!("{msg_counter}")
-                } else {
-                    format!("{} {}", msg_counter, lines[0])
-                };
-                lines
-            };
-            let numbered_msg = MessageLayout {
-                text: numbered_text,
-                text_lines: numbered_lines,
-                ..msg.clone()
-            };
-            if numbered_msg.is_self {
-                draw_self_message(
-                    &mut buf,
-                    &numbered_msg,
-                    seq_arrow_color,
-                    seq_arrow_thickness,
-                    from_idx,
-                    msg_seq_counter,
-                );
-            } else {
-                draw_message(
-                    &mut buf,
-                    &numbered_msg,
-                    seq_arrow_color,
-                    seq_arrow_thickness,
-                    from_idx,
-                    to_idx,
-                    msg_seq_counter,
-                );
-            }
-            msg_counter += 1;
-        } else if msg.is_self {
+        if msg.is_self {
             draw_self_message(
                 &mut buf,
                 msg,
