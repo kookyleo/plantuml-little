@@ -1169,9 +1169,10 @@ fn test_convert_basic_object() {
     assert!(svg.contains("<svg"));
     assert!(svg.contains("London"));
     assert!(svg.contains("Washington"));
+    // Java PlantUML does not underline object names by default
     assert!(
-        svg.contains(r#"text-decoration="underline""#),
-        "object name must be underlined"
+        !svg.contains(r#"text-decoration="underline""#),
+        "object name must NOT be underlined by default"
     );
 }
 
