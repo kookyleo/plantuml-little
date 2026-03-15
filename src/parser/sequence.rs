@@ -34,11 +34,17 @@ pub fn parse_sequence_diagram(source: &str) -> Result<SequenceDiagram> {
 
     // Arrow regex: match participant names and arrows like ->, -->, ->>, <-, <--, <<-
     // The arrow must contain at least one dash and at least one arrowhead (< or >)
+    // Also supports colored arrows: [#color] can appear in the arrow, e.g. [#blue]->, -[#green]>
     // Allow optional spaces around the arrow
-    let arrow_re = Regex::new(r"^(.+?)\s*(<?<?-+>?>?)\s+(.+?)(?:\s*:\s*(.*))?$").unwrap();
-    // Variant without spaces (e.g., alice->bob: text)
-    let arrow_nospace_re =
-        Regex::new(r"^([A-Za-z_]\w*)(<?<?-+>?>?)([A-Za-z_]\w*)(?:\s*:\s*(.*))?$").unwrap();
+    let arrow_re = Regex::new(
+        r"^(.+?)\s*(<?<?(?:\[#[^\]]+\])?-+(?:\[#[^\]]+\])?-*>?>?)\s+(.+?)(?:\s*:\s*(.*))?$",
+    )
+    .unwrap();
+    // Variant without spaces (e.g., alice->bob: text, alice[#blue]->bob: text)
+    let arrow_nospace_re = Regex::new(
+        r"^([A-Za-z_]\w*)(<?<?(?:\[#[^\]]+\])?-+(?:\[#[^\]]+\])?-*>?>?)([A-Za-z_]\w*)(?:\s*:\s*(.*))?$",
+    )
+    .unwrap();
 
     let divider_re = Regex::new(r"^==\s*(.*?)\s*==$").unwrap();
     let delay_re = Regex::new(r"^\|\|\|$|^\|\|(\d+)\|\|$").unwrap();
@@ -565,6 +571,19 @@ fn take_token(s: &str) -> (String, &str) {
     }
 }
 
+/// Extract `[#color]` from an arrow string, returning (color, cleaned_arrow).
+/// E.g. `"[#blue]->"` → `(Some("blue"), "->")`, `"-[#green]>"` → `(Some("green"), "->")`
+fn extract_arrow_color(arrow: &str) -> (Option<String>, String) {
+    if let Some(start) = arrow.find("[#") {
+        if let Some(end) = arrow[start..].find(']') {
+            let color = arrow[start + 2..start + end].to_string();
+            let cleaned = format!("{}{}", &arrow[..start], &arrow[start + end + 1..]);
+            return (Some(color), cleaned);
+        }
+    }
+    (None, arrow.to_string())
+}
+
 /// Parse arrow syntax and return a Message
 fn parse_arrow(left: &str, arrow: &str, right: &str, text: &str) -> Option<Message> {
     // Arrow patterns:
@@ -576,9 +595,13 @@ fn parse_arrow(left: &str, arrow: &str, right: &str, text: &str) -> Option<Messa
     //   <--  dashed, filled, right-to-left
     //   <<-  open, solid, right-to-left
     //   <<-- open, dashed, right-to-left
+    // Also supports [#color] in the arrow, e.g. [#blue]->, -[#green]>
 
-    let has_left_arrow = arrow.starts_with('<');
-    let has_right_arrow = arrow.ends_with('>');
+    // Extract optional color and get a clean arrow string for analysis
+    let (color, clean_arrow) = extract_arrow_color(arrow);
+
+    let has_left_arrow = clean_arrow.starts_with('<');
+    let has_right_arrow = clean_arrow.ends_with('>');
 
     if !has_left_arrow && !has_right_arrow {
         // No arrowhead at all, not a valid arrow for our purposes
@@ -593,7 +616,7 @@ fn parse_arrow(left: &str, arrow: &str, right: &str, text: &str) -> Option<Messa
     };
 
     // Determine arrow head (open vs filled)
-    let arrow_head = if arrow.starts_with("<<") || arrow.ends_with(">>") {
+    let arrow_head = if clean_arrow.starts_with("<<") || clean_arrow.ends_with(">>") {
         SeqArrowHead::Open
     } else {
         SeqArrowHead::Filled
@@ -601,7 +624,9 @@ fn parse_arrow(left: &str, arrow: &str, right: &str, text: &str) -> Option<Messa
 
     // Determine style: count dashes in the middle part
     // Strip < from left, > from right, then check if -- (dashed) or - (solid)
-    let middle = arrow.trim_start_matches('<').trim_end_matches('>');
+    let middle = clean_arrow
+        .trim_start_matches('<')
+        .trim_end_matches('>');
     let arrow_style = if middle.contains("--") {
         SeqArrowStyle::Dashed
     } else {
@@ -621,6 +646,7 @@ fn parse_arrow(left: &str, arrow: &str, right: &str, text: &str) -> Option<Messa
         arrow_style,
         arrow_head,
         direction,
+        color,
     })
 }
 

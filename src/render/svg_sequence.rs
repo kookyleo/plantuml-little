@@ -1346,7 +1346,8 @@ pub fn render_sequence(
     let part_index = build_participant_index(sd);
 
     // 3. Fragment frame rects (first outline, before lifelines)
-    for frag in &layout.fragments {
+    // Render outermost fragments first (they are last in the list since inner ones complete first)
+    for frag in layout.fragments.iter().rev() {
         draw_fragment_frame(&mut buf, frag);
     }
 
@@ -1555,6 +1556,7 @@ mod tests {
             arrow_style: SeqArrowStyle::Solid,
             arrow_head: SeqArrowHead::Filled,
             direction: SeqDirection::LeftToRight,
+            color: None,
         }
     }
 
@@ -1631,6 +1633,7 @@ mod tests {
                 arrow_style: SeqArrowStyle::Dashed,
                 arrow_head: SeqArrowHead::Open,
                 direction: SeqDirection::LeftToRight,
+                color: None,
             })],
         };
         let layout = crate::layout::sequence::layout_sequence(&sd).unwrap();

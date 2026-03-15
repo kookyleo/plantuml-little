@@ -54,6 +54,8 @@ pub struct Message {
     pub arrow_style: SeqArrowStyle,
     pub arrow_head: SeqArrowHead,
     pub direction: SeqDirection,
+    /// Optional arrow color, e.g. `[#blue]->` stores `"blue"`
+    pub color: Option<String>,
 }
 
 /// Combined fragment kind

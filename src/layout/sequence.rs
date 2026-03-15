@@ -532,7 +532,10 @@ pub fn layout_sequence(sd: &SequenceDiagram) -> Result<SeqLayout> {
                 if is_self {
                     let return_y = msg_y + SELF_MSG_HEIGHT;
                     lifeline_extend_y = return_y + 18.0;
-                    y_cursor = return_y + MESSAGE_SPACING;
+                    // Cursor advances based on the unadjusted position to
+                    // maintain consistent spacing for subsequent messages.
+                    let unadjusted_return = y_cursor + extra_height + SELF_MSG_HEIGHT;
+                    y_cursor = unadjusted_return + MESSAGE_SPACING;
                     pending_self_return_y.insert(msg.from.clone(), return_y);
                 } else {
                     lifeline_extend_y = msg_y + 18.0;
@@ -840,7 +843,9 @@ pub fn layout_sequence(sd: &SequenceDiagram) -> Result<SeqLayout> {
         .map(|pp| pp.box_height)
         .fold(PARTICIPANT_HEIGHT, f64::max);
     let lifeline_top = MARGIN + max_participant_height + 1.0;
-    // Round to match Java's intermediate coordinate precision (half-up 4dp)
+    // Snap to f32 precision to match Java's float intermediate calculations,
+    // then apply half-up rounding to 4 decimal places.
+    let lifeline_extend_y = (lifeline_extend_y as f32) as f64;
     let lifeline_bottom = ((lifeline_extend_y * 10000.0) + 0.5).floor() / 10000.0;
 
     let right_margin = 2.0 * MARGIN;
@@ -941,6 +946,7 @@ mod tests {
             arrow_style: SeqArrowStyle::Solid,
             arrow_head: SeqArrowHead::Filled,
             direction: SeqDirection::LeftToRight,
+            color: None,
         }
     }
 
@@ -1125,6 +1131,7 @@ mod tests {
                 arrow_style: SeqArrowStyle::Dashed,
                 arrow_head: SeqArrowHead::Open,
                 direction: SeqDirection::LeftToRight,
+                color: None,
             })],
         };
         let layout = layout_sequence(&sd).unwrap();
