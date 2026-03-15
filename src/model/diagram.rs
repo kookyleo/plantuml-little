@@ -11,6 +11,11 @@ pub struct DiagramMeta {
     pub footer: Option<String>,
     pub legend: Option<String>,
     pub caption: Option<String>,
+    pub title_line: Option<usize>,
+    pub header_line: Option<usize>,
+    pub footer_line: Option<usize>,
+    pub legend_line: Option<usize>,
+    pub caption_line: Option<usize>,
 }
 
 impl DiagramMeta {

@@ -18,7 +18,8 @@ use crate::Result;
 use crate::font_metrics;
 
 use super::svg_richtext::{
-    count_creole_lines, max_creole_plain_line_len, render_creole_text, set_default_font_family,
+    count_creole_lines, creole_plain_text, max_creole_plain_line_len, render_creole_text,
+    set_default_font_family,
 };
 use super::svg_sequence;
 
@@ -109,6 +110,22 @@ const MEMBER_TEXT_Y_OFFSET: f64 = 16.995117;
 /// Entity-level visibility icon block size (SkinParam.circledCharacterRadius = 11).
 const ENTITY_VIS_ICON_BLOCK_SIZE: f64 = 11.0;
 
+// -- Generic type box rendering constants --
+/// Generic text font size (FontParam.CLASS_STEREOTYPE = 12pt italic).
+const GENERIC_FONT_SIZE: f64 = 12.0;
+/// SansSerif 12pt italic ascent from Java AWT FontMetrics.
+const GENERIC_BASELINE: f64 = 11.138672;
+/// SansSerif 12pt italic: ascent + descent = 13.96875.
+const GENERIC_TEXT_HEIGHT: f64 = 13.96875;
+/// Inner margin around generic text (withMargin(genericBlock, 1, 1)).
+const GENERIC_INNER_MARGIN: f64 = 1.0;
+/// Outer margin around TextBlockGeneric (withMargin(genericBlock, 1, 1)).
+const GENERIC_OUTER_MARGIN: f64 = 1.0;
+/// HeaderLayout.java:112 -- delta = 4 for positioning.
+const GENERIC_DELTA: f64 = 4.0;
+/// Protrusion above entity rect = delta - outer_margin = 3.
+const GENERIC_PROTRUSION: f64 = GENERIC_DELTA - GENERIC_OUTER_MARGIN;
+
 const CLASS_BG: &str = "#F1F1F1";
 const CLASS_BORDER: &str = "#181818";
 const IFACE_BG: &str = "#F1F1F1";
@@ -129,12 +146,21 @@ const PLANTUML_VERSION: &str = "1.2026.3beta4";
 
 // ── Meta rendering constants ────────────────────────────────────────
 
-const META_TITLE_FONT_SIZE: f64 = 18.0;
-const META_LINE_HEIGHT: f64 = 18.0;
-const META_GAP: f64 = 8.0;
-const LEGEND_PADDING: f64 = 8.0;
+const META_TITLE_FONT_SIZE: f64 = 14.0;
+const META_HF_FONT_SIZE: f64 = 10.0;
+const META_HF_COLOR: &str = "#888888";
+const META_CAPTION_FONT_SIZE: f64 = 14.0;
+const META_LEGEND_FONT_SIZE: f64 = 14.0;
+const BORDERED_EXTRA: f64 = 1.0;
+const TITLE_PADDING: f64 = 5.0;
+const TITLE_MARGIN: f64 = 5.0;
+const CAPTION_PADDING: f64 = 0.0;
+const CAPTION_MARGIN: f64 = 1.0;
+const LEGEND_PADDING: f64 = 5.0;
+const LEGEND_MARGIN: f64 = 12.0;
+const LEGEND_ROUND_CORNER: f64 = 15.0;
 const LEGEND_BORDER_COLOR: &str = "#000000";
-const LEGEND_BG: &str = "#FEFFDD";
+const LEGEND_BG: &str = "#DDDDDD";
 
 // ── Helpers ─────────────────────────────────────────────────────────
 
@@ -382,61 +408,23 @@ fn render_dot_passthrough(dot_source: &str) -> Result<String> {
 
 // ── Meta wrapping ───────────────────────────────────────────────────
 
-fn meta_top_height(meta: &DiagramMeta) -> f64 {
-    let mut h = 0.0;
-    if let Some(ref hdr) = meta.header {
-        h += count_creole_lines(hdr) as f64 * META_LINE_HEIGHT + META_GAP;
-    }
-    if let Some(ref title) = meta.title {
-        h += count_creole_lines(title) as f64 * META_TITLE_FONT_SIZE + META_GAP;
-    }
-    h
+fn creole_text_w(text: &str, font_size: f64, bold: bool) -> f64 {
+    let plain = creole_plain_text(text);
+    font_metrics::text_width(&plain, "SansSerif", font_size, bold, false)
 }
-
-fn meta_bottom_height(meta: &DiagramMeta) -> f64 {
-    let mut h = 0.0;
-    if let Some(ref caption) = meta.caption {
-        h += count_creole_lines(caption) as f64 * META_LINE_HEIGHT + META_GAP;
-    }
-    if let Some(ref ftr) = meta.footer {
-        h += count_creole_lines(ftr) as f64 * META_LINE_HEIGHT + META_GAP;
-    }
-    if let Some(ref leg) = meta.legend {
-        let lc = count_creole_lines(leg) as f64;
-        h += lc * META_LINE_HEIGHT + LEGEND_PADDING * 2.0 + META_GAP;
-    }
-    h
+fn text_block_h(font_size: f64, bold: bool) -> f64 {
+    font_metrics::ascent("SansSerif", font_size, bold, false)
+        + font_metrics::descent("SansSerif", font_size, bold, false)
 }
-
-fn estimate_creole_width(text: &str, font_size: f64) -> f64 {
-    max_creole_plain_line_len(text) as f64
-        * font_metrics::char_width('a', "SansSerif", font_size, false, false)
+fn bordered_dim(text_w: f64, text_h: f64, padding: f64) -> (f64, f64) {
+    (text_w + 2.0 * padding + BORDERED_EXTRA, text_h + 2.0 * padding + BORDERED_EXTRA)
 }
-
-fn meta_required_width(meta: &DiagramMeta) -> f64 {
-    let mut width = 2.0 * MARGIN;
-
-    if let Some(ref hdr) = meta.header {
-        width = width.max(estimate_creole_width(hdr, FONT_SIZE) + 2.0 * MARGIN);
-    }
-    if let Some(ref title) = meta.title {
-        width = width.max(estimate_creole_width(title, META_TITLE_FONT_SIZE) + 2.0 * MARGIN);
-    }
-    if let Some(ref caption) = meta.caption {
-        width = width.max(estimate_creole_width(caption, FONT_SIZE) + 2.0 * MARGIN);
-    }
-    if let Some(ref ftr) = meta.footer {
-        width = width.max(estimate_creole_width(ftr, FONT_SIZE) + 2.0 * MARGIN);
-    }
-    if let Some(ref leg) = meta.legend {
-        let legend_w = max_creole_plain_line_len(leg).max(6) as f64
-            * font_metrics::char_width('a', "SansSerif", FONT_SIZE, false, false)
-            + LEGEND_PADDING * 2.0
-            + 2.0 * MARGIN;
-        width = width.max(legend_w);
-    }
-
-    width
+fn block_dim(text_w: f64, text_h: f64, padding: f64, margin: f64) -> (f64, f64) {
+    let (bw, bh) = bordered_dim(text_w, text_h, padding);
+    (bw + 2.0 * margin, bh + 2.0 * margin)
+}
+fn merge_tb(a: (f64, f64), b: (f64, f64)) -> (f64, f64) {
+    (a.0.max(b.0), a.1 + b.1)
 }
 
 fn extract_dimensions(svg: &str) -> (f64, f64) {
@@ -655,124 +643,179 @@ fn encode6bit(b: u8) -> char {
 }
 
 fn wrap_with_meta(body_svg: &str, meta: &DiagramMeta, diagram_type: &str) -> Result<String> {
-    let (body_w, body_h) = extract_dimensions(body_svg);
+    let (svg_w, svg_h) = extract_dimensions(body_svg);
     let body_content = extract_svg_content(body_svg);
-    let top_h = meta_top_height(meta);
-    let bottom_h = meta_bottom_height(meta);
-    let total_w = body_w.max(meta_required_width(meta));
-    let total_h = top_h + body_h + bottom_h;
-    let body_x = ((total_w - body_w) / 2.0).max(0.0);
+    // Body SVG includes DOC_MARGIN + 1: recover raw textBlock dimensions.
+    let body_w = svg_w - DOC_MARGIN_RIGHT - 1.0;
+    let body_h = svg_h - DOC_MARGIN_BOTTOM - 1.0;
 
-    let mut buf = String::with_capacity(body_svg.len() + 1024);
-    write_svg_root(&mut buf, total_w, total_h, diagram_type);
+    // ── 1. Compute block dimensions for each meta element ───────────
+    let hdr_text_w = meta.header.as_ref().map(|t| creole_text_w(t, META_HF_FONT_SIZE, false)).unwrap_or(0.0);
+    let hdr_text_h = if meta.header.is_some() { text_block_h(META_HF_FONT_SIZE, false) } else { 0.0 };
+    let hdr_dim = if meta.header.is_some() { block_dim(hdr_text_w, hdr_text_h, 0.0, 0.0) } else { (0.0, 0.0) };
+
+    let ftr_text_w = meta.footer.as_ref().map(|t| creole_text_w(t, META_HF_FONT_SIZE, false)).unwrap_or(0.0);
+    let ftr_text_h = if meta.footer.is_some() { text_block_h(META_HF_FONT_SIZE, false) } else { 0.0 };
+    let ftr_dim = if meta.footer.is_some() { block_dim(ftr_text_w, ftr_text_h, 0.0, 0.0) } else { (0.0, 0.0) };
+
+    let title_text_w = meta.title.as_ref().map(|t| creole_text_w(t, META_TITLE_FONT_SIZE, true)).unwrap_or(0.0);
+    let title_text_h = if meta.title.is_some() { text_block_h(META_TITLE_FONT_SIZE, true) } else { 0.0 };
+    let title_dim = if meta.title.is_some() { block_dim(title_text_w, title_text_h, TITLE_PADDING, TITLE_MARGIN) } else { (0.0, 0.0) };
+
+    let cap_text_w = meta.caption.as_ref().map(|t| creole_text_w(t, META_CAPTION_FONT_SIZE, false)).unwrap_or(0.0);
+    let cap_text_h = if meta.caption.is_some() { text_block_h(META_CAPTION_FONT_SIZE, false) } else { 0.0 };
+    let cap_dim = if meta.caption.is_some() { block_dim(cap_text_w, cap_text_h, CAPTION_PADDING, CAPTION_MARGIN) } else { (0.0, 0.0) };
+
+    let leg_text_w = meta.legend.as_ref().map(|t| creole_text_w(t, META_LEGEND_FONT_SIZE, false)).unwrap_or(0.0);
+    let leg_text_h = if meta.legend.is_some() { text_block_h(META_LEGEND_FONT_SIZE, false) } else { 0.0 };
+    let leg_dim = if meta.legend.is_some() { block_dim(leg_text_w, leg_text_h, LEGEND_PADDING, LEGEND_MARGIN) } else { (0.0, 0.0) };
+
+    // ── 2. Compute total dimensions (inside-out stacking) ──────────
+    let body_dim = (body_w, body_h);
+    let after_legend = merge_tb(body_dim, leg_dim);
+    let after_title = merge_tb(title_dim, after_legend);
+    let after_caption = merge_tb(after_title, cap_dim);
+    let hf_dim = merge_tb(hdr_dim, ftr_dim);
+    let total_dim = merge_tb(after_caption, hf_dim);
+    // textBlock dimensions for positioning
+    let tb_w = total_dim.0;
+    let tb_h = total_dim.1;
+    // Canvas: floor(textBlock + DOC_MARGIN + 1), matching Java ensureVisible.
+    let canvas_w = (tb_w + DOC_MARGIN_RIGHT + 1.0).floor();
+    let canvas_h = (tb_h + DOC_MARGIN_BOTTOM + 1.0).floor();
+
+    // ── 3. Compute absolute drawing positions ──────────────────────
+    let outer_inner_x = ((tb_w - after_caption.0) / 2.0).max(0.0);
+    let cap_inner_x = ((after_caption.0 - after_title.0) / 2.0).max(0.0);
+    let title_inner_x = ((after_title.0 - after_legend.0) / 2.0).max(0.0);
+    let leg_inner_x = ((after_legend.0 - body_w) / 2.0).max(0.0);
+
+    let body_abs_x = outer_inner_x + cap_inner_x + title_inner_x + leg_inner_x;
+    let body_abs_y = hdr_dim.1 + title_dim.1;
+
+    // ── 4. Render SVG ──────────────────────────────────────────────
+    let mut buf = String::with_capacity(body_svg.len() + 2048);
+    write_svg_root(&mut buf, canvas_w, canvas_h, diagram_type);
     buf.push_str("<defs/><g>");
 
-    let cx = total_w / 2.0;
-    let mut y_cursor = 0.0;
-
-    // Header
+    // Header (RIGHT-aligned)
     if let Some(ref hdr) = meta.header {
-        let start_y = y_cursor + META_LINE_HEIGHT;
-        let lines = render_creole_text(
-            &mut buf,
-            hdr,
-            cx,
-            start_y,
-            META_LINE_HEIGHT,
-            LABEL_COLOR,
-            Some("middle"),
-            &format!(r#"font-size="{FONT_SIZE}""#),
+        let hdr_x = tb_w - hdr_dim.0;
+        let text_y = font_metrics::ascent("SansSerif", META_HF_FONT_SIZE, false, false);
+        write!(buf, r#"<g class="header""#).unwrap();
+        if let Some(sl) = meta.header_line {
+            write!(buf, r#" data-source-line="{sl}""#).unwrap();
+        }
+        buf.push('>');
+        render_creole_text(
+            &mut buf, hdr, hdr_x, text_y,
+            text_block_h(META_HF_FONT_SIZE, false),
+            META_HF_COLOR, None,
+            &format!(r#"font-size="{}""#, META_HF_FONT_SIZE as i32),
         );
-        y_cursor += lines as f64 * META_LINE_HEIGHT + META_GAP;
+        buf.push_str("</g>");
     }
 
-    // Title
+    // Title (CENTER-aligned)
     if let Some(ref title) = meta.title {
-        y_cursor += META_TITLE_FONT_SIZE;
-        let lines = render_creole_text(
-            &mut buf,
-            title,
-            cx,
-            y_cursor,
-            META_TITLE_FONT_SIZE,
-            LABEL_COLOR,
-            Some("middle"),
-            &format!(r#"font-size="{META_TITLE_FONT_SIZE}" font-weight="bold""#),
+        let title_block_x = outer_inner_x + cap_inner_x
+            + ((after_title.0 - title_dim.0) / 2.0).max(0.0);
+        let text_x = title_block_x + TITLE_MARGIN + TITLE_PADDING;
+        let text_y = hdr_dim.1 + TITLE_MARGIN + TITLE_PADDING
+            + font_metrics::ascent("SansSerif", META_TITLE_FONT_SIZE, true, false);
+        write!(buf, r#"<g class="title""#).unwrap();
+        if let Some(sl) = meta.title_line {
+            write!(buf, r#" data-source-line="{sl}""#).unwrap();
+        }
+        buf.push('>');
+        render_creole_text(
+            &mut buf, title, text_x, text_y,
+            text_block_h(META_TITLE_FONT_SIZE, true),
+            LABEL_COLOR, None,
+            &format!(r#"font-size="{}" font-weight="700""#, META_TITLE_FONT_SIZE as i32),
         );
-        let _ = lines;
+        buf.push_str("</g>");
     }
 
     // Body
-    write!(buf, r#"<g transform="translate({},{})">"#, fmt_coord(body_x), fmt_coord(top_h)).unwrap();
-    buf.push('\n');
+    write!(buf, r#"<g transform="translate({},{})">"#,
+        fmt_coord(body_abs_x), fmt_coord(body_abs_y)).unwrap();
     buf.push_str(&body_content);
-    buf.push_str("</g>\n");
+    buf.push_str("</g>");
 
-    let mut y_bottom = top_h + body_h + META_GAP;
-
-    // Caption
-    if let Some(ref cap) = meta.caption {
-        y_bottom += META_LINE_HEIGHT;
-        let lines = render_creole_text(
-            &mut buf,
-            cap,
-            cx,
-            y_bottom,
-            META_LINE_HEIGHT,
-            LABEL_COLOR,
-            Some("middle"),
-            &format!(r#"font-size="{FONT_SIZE}" font-style="italic""#),
-        );
-        y_bottom += (lines.saturating_sub(1)) as f64 * META_LINE_HEIGHT;
-    }
-
-    // Footer
-    if let Some(ref ftr) = meta.footer {
-        y_bottom += META_GAP;
-        let start_y = y_bottom + META_LINE_HEIGHT;
-        let lines = render_creole_text(
-            &mut buf,
-            ftr,
-            cx,
-            start_y,
-            META_LINE_HEIGHT,
-            LABEL_COLOR,
-            Some("middle"),
-            &format!(r#"font-size="{FONT_SIZE}""#),
-        );
-        y_bottom += lines as f64 * META_LINE_HEIGHT;
-    }
-
-    // Legend
+    // Legend (CENTER-aligned)
     if let Some(ref leg) = meta.legend {
-        y_bottom += META_GAP;
-        let line_count = count_creole_lines(leg) as f64;
-        let leg_text_h = line_count * META_LINE_HEIGHT;
-        let leg_h = leg_text_h + LEGEND_PADDING * 2.0;
-        let leg_w = {
-            let max_len = max_creole_plain_line_len(leg).max(6) as f64;
-            max_len * font_metrics::char_width('a', "SansSerif", FONT_SIZE, false, false)
-                + LEGEND_PADDING * 2.0
-        };
-        let leg_x = total_w - leg_w - MARGIN;
-        let leg_y = y_bottom;
+        let leg_wrapper_x = outer_inner_x + cap_inner_x + title_inner_x;
+        let leg_wrapper_y = hdr_dim.1 + title_dim.1 + body_h;
+        let leg_block_x = ((after_legend.0 - leg_dim.0) / 2.0).max(0.0);
+        let rect_x = leg_wrapper_x + leg_block_x + LEGEND_MARGIN;
+        let rect_y = leg_wrapper_y + LEGEND_MARGIN;
+        let draw_w = leg_text_w + 2.0 * LEGEND_PADDING;
+        let draw_h = leg_text_h + 2.0 * LEGEND_PADDING;
+        let half_rc = LEGEND_ROUND_CORNER / 2.0;
+
+        write!(buf, r#"<g class="legend""#).unwrap();
+        if let Some(sl) = meta.legend_line {
+            write!(buf, r#" data-source-line="{sl}""#).unwrap();
+        }
+        buf.push('>');
         write!(buf,
-            r#"<rect fill="{LEGEND_BG}" height="{}" style="stroke:{LEGEND_BORDER_COLOR};stroke-width:1;" width="{}" x="{}" y="{}"/>"#,
-            fmt_coord(leg_h), fmt_coord(leg_w), fmt_coord(leg_x), fmt_coord(leg_y),
+            r#"<rect fill="{LEGEND_BG}" height="{}" rx="{}" ry="{}" style="stroke:{LEGEND_BORDER_COLOR};stroke-width:1;" width="{}" x="{}" y="{}"/>"#,
+            fmt_coord(draw_h), fmt_coord(half_rc), fmt_coord(half_rc),
+            fmt_coord(draw_w), fmt_coord(rect_x), fmt_coord(rect_y),
         ).unwrap();
-        buf.push('\n');
-        let lx = leg_x + LEGEND_PADDING;
-        let ly = leg_y + LEGEND_PADDING + META_LINE_HEIGHT;
+        let text_x = rect_x + LEGEND_PADDING;
+        let text_y = rect_y + LEGEND_PADDING
+            + font_metrics::ascent("SansSerif", META_LEGEND_FONT_SIZE, false, false);
         render_creole_text(
-            &mut buf,
-            leg,
-            lx,
-            ly,
-            META_LINE_HEIGHT,
-            LABEL_COLOR,
-            None,
-            &format!(r#"font-size="{FONT_SIZE}""#),
+            &mut buf, leg, text_x, text_y,
+            text_block_h(META_LEGEND_FONT_SIZE, false),
+            LABEL_COLOR, None,
+            &format!(r#"font-size="{}""#, META_LEGEND_FONT_SIZE as i32),
         );
+        buf.push_str("</g>");
+    }
+
+    // Caption (CENTER-aligned)
+    if let Some(ref cap) = meta.caption {
+        let cap_y_start = hdr_dim.1 + after_title.1;
+        let cap_block_x = outer_inner_x
+            + ((after_caption.0 - cap_dim.0) / 2.0).max(0.0);
+        let text_x = cap_block_x + CAPTION_MARGIN + CAPTION_PADDING;
+        let text_y = cap_y_start + CAPTION_MARGIN + CAPTION_PADDING
+            + font_metrics::ascent("SansSerif", META_CAPTION_FONT_SIZE, false, false);
+        write!(buf, r#"<g class="caption""#).unwrap();
+        if let Some(sl) = meta.caption_line {
+            write!(buf, r#" data-source-line="{sl}""#).unwrap();
+        }
+        buf.push('>');
+        render_creole_text(
+            &mut buf, cap, text_x, text_y,
+            text_block_h(META_CAPTION_FONT_SIZE, false),
+            LABEL_COLOR, None,
+            &format!(r#"font-size="{}""#, META_CAPTION_FONT_SIZE as i32),
+        );
+        buf.push_str("</g>");
+    }
+
+    // Footer (CENTER-aligned)
+    if let Some(ref ftr) = meta.footer {
+        let ftr_y_start = hdr_dim.1 + after_caption.1;
+        let ftr_x = ((tb_w - ftr_dim.0) / 2.0).max(0.0);
+        let text_y = ftr_y_start
+            + font_metrics::ascent("SansSerif", META_HF_FONT_SIZE, false, false);
+        write!(buf, r#"<g class="footer""#).unwrap();
+        if let Some(sl) = meta.footer_line {
+            write!(buf, r#" data-source-line="{sl}""#).unwrap();
+        }
+        buf.push('>');
+        render_creole_text(
+            &mut buf, ftr, ftr_x, text_y,
+            text_block_h(META_HF_FONT_SIZE, false),
+            META_HF_COLOR, None,
+            &format!(r#"font-size="{}""#, META_HF_FONT_SIZE as i32),
+        );
+        buf.push_str("</g>");
     }
 
     buf.push_str("</g></svg>");
@@ -806,8 +849,10 @@ fn render_class(
             matches!(m.visibility, Some(Visibility::Protected) | Some(Visibility::Package))
         })
     });
+    let has_generic = !is_degenerated && cd.entities.iter().any(|e| e.generic.is_some());
     let edge_offset_x = if has_member_polygon_icon { 9.0 } else { 7.0 };
-    let edge_offset_y = 7.0;
+    // Java LimitFinder: generic box rect extends minY to -4, moveDelta_y = 6-(-4) = 10.
+    let edge_offset_y = if has_generic { 10.0 } else { 7.0 };
     let mut tracker = BoundsTracker::new();
     let mut body = String::with_capacity(4096);
     let arrow_color = skin.arrow_color(LINK_COLOR);
@@ -1191,7 +1236,7 @@ fn draw_entity_box(
 
     // Java URectangle.rounded(roundCorner): rx = roundCorner / 2.
     // Default roundCorner from style = 5 → rx = 2.5.
-    let rx = skin.round_corner().map(|rc| rc / 2.0).unwrap_or(2.5);
+    let rx = skin.round_corner().unwrap_or(2.5);
 
     // Rect with rx="2.5" ry="2.5" to match Java PlantUML
     write!(buf,
@@ -1203,11 +1248,8 @@ fn draw_entity_box(
     let class_font_size = skin.font_size("class", FONT_SIZE);
     let attr_font_size = skin.font_size("classattribute", class_font_size);
 
-    let name_display = if let Some(ref g) = entity.generic {
-        format!("{}<{}>", entity.name, g)
-    } else {
-        entity.name.clone()
-    };
+    // Entity name WITHOUT generic parameter -- generic is rendered separately
+    let name_display = entity.name.clone();
     let name_escaped = xml_escape(&name_display);
     let visible_stereotypes = visible_stereotype_labels(&cd.hide_show_rules, entity);
     let show_fields = show_portion(&cd.hide_show_rules, ClassPortion::Field, &entity.name);
@@ -1290,7 +1332,13 @@ fn draw_entity_box(
         let header_height = HEADER_CIRCLE_BLOCK_HEIGHT
             .max(stereo_height + HEADER_NAME_BLOCK_HEIGHT + HEADER_STEREO_NAME_GAP);
         let vis_icon_w = if entity.visibility.is_some() { ENTITY_VIS_ICON_BLOCK_SIZE } else { 0.0 };
-        let supp_width = (w - HEADER_CIRCLE_BLOCK_WIDTH - vis_icon_w - width_stereo_and_name).max(0.0);
+        let gen_dim_w = if let Some(ref g) = entity.generic {
+            let text_w = font_metrics::text_width(g, "SansSerif", GENERIC_FONT_SIZE, false, true);
+            text_w + 2.0 * GENERIC_INNER_MARGIN + 2.0 * GENERIC_OUTER_MARGIN
+        } else {
+            0.0
+        };
+        let supp_width = (w - HEADER_CIRCLE_BLOCK_WIDTH - vis_icon_w - width_stereo_and_name - gen_dim_w).max(0.0);
         let h2 = (HEADER_CIRCLE_BLOCK_WIDTH / 4.0).min(supp_width * 0.1);
         let h1 = (supp_width - h2) / 2.0;
 
@@ -1344,6 +1392,11 @@ fn draw_entity_box(
         tracker.track_rect(name_x, name_y - HEADER_NAME_BASELINE, name_width, HEADER_NAME_BLOCK_HEIGHT);
     }
 
+    // Draw generic type box at top-right corner of entity rect
+    if let Some(ref generic_text) = entity.generic {
+        draw_generic_box(buf, tracker, generic_text, x, y, w);
+    }
+
     let x1_val = fmt_coord(x + 1.0);
     let x2_val = fmt_coord(x + w - 1.0);
     let header_height = if has_kind_label {
@@ -1389,6 +1442,48 @@ fn draw_entity_box(
     tracker.track_empty(x + w, y + h, 0.0, 0.0);
 }
 
+/// Draw the generic type box (dashed rect + italic text) at top-right of entity.
+fn draw_generic_box(
+    buf: &mut String,
+    tracker: &mut BoundsTracker,
+    generic_text: &str,
+    entity_x: f64,
+    entity_y: f64,
+    entity_w: f64,
+) {
+    let text_w = font_metrics::text_width(generic_text, "SansSerif", GENERIC_FONT_SIZE, false, true);
+    let rect_w = text_w + 2.0 * GENERIC_INNER_MARGIN;
+    let rect_h = GENERIC_TEXT_HEIGHT + 2.0 * GENERIC_INNER_MARGIN;
+    let gen_dim_w = rect_w + 2.0 * GENERIC_OUTER_MARGIN;
+    let gen_dim_h = rect_h + 2.0 * GENERIC_OUTER_MARGIN;
+
+    // Outer block position: HeaderLayout.java:112
+    let x_generic = entity_x + entity_w - gen_dim_w + GENERIC_DELTA;
+    let y_generic = entity_y - GENERIC_DELTA;
+
+    // Track outer margin wrapper UEmpty (Java withMargin draws UEmpty)
+    tracker.track_empty(x_generic, y_generic, gen_dim_w, gen_dim_h);
+
+    let rect_x = x_generic + GENERIC_OUTER_MARGIN;
+    let rect_y = y_generic + GENERIC_OUTER_MARGIN;
+
+    write!(buf,
+        r##"<rect fill="#FFFFFF" height="{}" style="stroke:#181818;stroke-width:1;stroke-dasharray:2,2;" width="{}" x="{}" y="{}"/>"##,
+        fmt_coord(rect_h), fmt_coord(rect_w), fmt_coord(rect_x), fmt_coord(rect_y),
+    ).unwrap();
+    tracker.track_rect(rect_x, rect_y, rect_w, rect_h);
+    tracker.track_empty(rect_x, rect_y, rect_w, rect_h);
+
+    let text_x = rect_x + GENERIC_INNER_MARGIN;
+    let text_y = rect_y + GENERIC_INNER_MARGIN + GENERIC_BASELINE;
+    let tl = fmt_coord(text_w);
+    write!(buf,
+        r##"<text fill="#000000" font-family="sans-serif" font-size="12" font-style="italic" lengthAdjust="spacing" textLength="{tl}" x="{}" y="{}">{}</text>"##,
+        fmt_coord(text_x), fmt_coord(text_y), xml_escape(generic_text),
+    ).unwrap();
+    tracker.track_rect(text_x, text_y - GENERIC_BASELINE, text_w, GENERIC_TEXT_HEIGHT);
+}
+
 /// Draw an Object entity box (EntityImageObject.java layout).
 ///
 /// Objects have NO stereotype circle icon, NO glyph path.
@@ -1413,7 +1508,7 @@ fn draw_object_box(
     let stroke_color = skin.border_color("object", CLASS_BORDER);
     let font_color = skin.font_color("object", LABEL_COLOR);
 
-    let rx = skin.round_corner().map(|rc| rc / 2.0).unwrap_or(2.5);
+    let rx = skin.round_corner().unwrap_or(2.5);
 
     // Rect
     write!(buf,
@@ -1446,7 +1541,7 @@ fn draw_object_box(
     let name_escaped = xml_escape(&entity.name);
     let tl = fmt_coord(name_width);
     write!(buf,
-        r#"<text fill="{font_color}" font-family="sans-serif" font-size="{class_font_size:.0}" lengthAdjust="spacing" textLength="{tl}" x="{}" y="{}">{name_escaped}</text>"#,
+        r#"<text fill="{font_color}" font-family="sans-serif" font-size="{class_font_size:.0}" lengthAdjust="spacing" text-decoration="underline" textLength="{tl}" x="{}" y="{}">{name_escaped}</text>"#,
         fmt_coord(text_x), fmt_coord(text_y),
     ).unwrap();
     tracker.track_rect(text_x, text_y - HEADER_NAME_BASELINE, name_width, HEADER_NAME_BLOCK_HEIGHT);
@@ -1462,9 +1557,28 @@ fn draw_object_box(
     ).unwrap();
     tracker.track_line(x1, sep_y, x2, sep_y);
 
-    // Java EntityImageObject body: TextBlockLineBefore(TextBlockEmpty(10, 16))
-    // TextBlockEmpty.drawU() does nothing — no UEmpty tracking needed.
-    // (Unlike EntityImageClass which emits UEmpty from MethodsOrFieldsArea)
+    // Render object fields in the body section
+    let visible_fields: Vec<&Member> = entity
+        .members
+        .iter()
+        .filter(|m| !m.is_method)
+        .collect();
+    if !visible_fields.is_empty() {
+        let attr_font_size = skin.font_size("classattribute", class_font_size);
+        let x1_val = fmt_coord(x1);
+        let x2_val = fmt_coord(x2);
+        draw_member_section(
+            buf,
+            tracker,
+            &visible_fields,
+            sep_y,
+            x,
+            &x1_val,
+            &x2_val,
+            font_color,
+            attr_font_size,
+        );
+    }
 }
 
 fn draw_member_section(
@@ -2534,10 +2648,10 @@ mod tests {
         )
         .expect("render failed");
         assert!(svg.contains("myObj"), "SVG must contain object name");
-        // EntityImageObject: no underline by default (only in strict UML mode)
+        // Object names must be underlined per UML convention
         assert!(
             !svg.contains(r#"text-decoration="underline""#),
-            "object name must NOT have underline text-decoration by default"
+            "object name must have underline text-decoration"
         );
         // EntityImageObject: no stereotype circle icon
         assert!(

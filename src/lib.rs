@@ -49,7 +49,8 @@ fn render_cleaned(original_source: &str, source: &str) -> Result<String> {
     let diagram = parser::parse(source)?;
     let diagram_layout = layout::layout(&diagram)?;
     let skin = style::parse_skinparams(source);
-    let meta = parser::common::parse_meta(source);
+    let mut meta = parser::common::parse_meta(source);
+    enrich_meta_source_lines(&mut meta, source);
     let svg = render::svg::render_with_source(
         &diagram,
         &diagram_layout,
@@ -58,4 +59,14 @@ fn render_cleaned(original_source: &str, source: &str) -> Result<String> {
         Some(original_source),
     )?;
     Ok(svg)
+}
+fn enrich_meta_source_lines(meta: &mut model::DiagramMeta, source: &str) {
+    for (i, line) in source.lines().enumerate() {
+        let t = line.trim();
+        if meta.header.is_some() && meta.header_line.is_none() && (t.starts_with("header ") || t == "header") { meta.header_line = Some(i); }
+        if meta.title.is_some() && meta.title_line.is_none() && (t.starts_with("title ") || t == "title") { meta.title_line = Some(i); }
+        if meta.footer.is_some() && meta.footer_line.is_none() && (t.starts_with("footer ") || t == "footer") { meta.footer_line = Some(i); }
+        if meta.caption.is_some() && meta.caption_line.is_none() && t.starts_with("caption ") { meta.caption_line = Some(i); }
+        if meta.legend.is_some() && meta.legend_line.is_none() && t.starts_with("legend") && (t.len() == 6 || t.as_bytes().get(6) == Some(&b' ')) { meta.legend_line = Some(i); }
+    }
 }

@@ -77,6 +77,10 @@ pub fn max_creole_plain_line_len(text: &str) -> usize {
         .unwrap_or(0)
 }
 
+pub fn creole_plain_text(text: &str) -> String {
+    flatten_plain_lines(&parse_creole(text)).join("")
+}
+
 #[allow(clippy::too_many_arguments)]
 pub fn render_creole_text(
     buf: &mut String,
