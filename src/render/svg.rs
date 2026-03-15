@@ -2832,6 +2832,7 @@ mod tests {
             footer: Some("F".into()),
             caption: Some("C".into()),
             legend: Some("L".into()),
+            ..Default::default()
         };
         let svg = render(&d, &l, &default_skin(), &meta).unwrap();
         for s in &["T", "H", "F", "C", "L"] {
