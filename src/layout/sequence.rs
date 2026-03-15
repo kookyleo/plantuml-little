@@ -11,22 +11,22 @@ use crate::Result;
 
 const FONT_SIZE: f64 = 14.0;
 const LINE_HEIGHT: f64 = 16.0;
-const PARTICIPANT_PADDING: f64 = 16.0;
-const PARTICIPANT_HEIGHT: f64 = 36.0;
-const PARTICIPANT_GAP: f64 = 100.0;
-const MESSAGE_SPACING: f64 = 40.0;
-const SELF_MSG_WIDTH: f64 = 30.0;
-const SELF_MSG_HEIGHT: f64 = 24.0;
+const PARTICIPANT_PADDING: f64 = 7.0;
+const PARTICIPANT_HEIGHT: f64 = 30.2969;
+const MESSAGE_SPACING: f64 = 29.1328;
+const SELF_MSG_WIDTH: f64 = 41.0;
+const SELF_MSG_HEIGHT: f64 = 13.0;
 const ACTIVATION_WIDTH: f64 = 10.0;
-const NOTE_PADDING: f64 = 8.0;
+const NOTE_PADDING: f64 = 6.0;
 const NOTE_WIDTH: f64 = 120.0;
 const GROUP_PADDING: f64 = 10.0;
-const FRAGMENT_HEADER_HEIGHT: f64 = 24.0;
+const FRAGMENT_HEADER_HEIGHT: f64 = 17.1328;
 const FRAGMENT_PADDING: f64 = 10.0;
 const DIVIDER_HEIGHT: f64 = 30.0;
 const DELAY_HEIGHT: f64 = 30.0;
 const REF_HEIGHT: f64 = 32.0;
-const MARGIN: f64 = 20.0;
+const MARGIN: f64 = 5.0;
+const MSG_FONT_SIZE: f64 = 13.0;
 
 /// Fragment stack entry: (y_start, kind, label, separators)
 type FragmentStackEntry = (f64, FragmentKind, String, Vec<(f64, String)>);
@@ -172,7 +172,7 @@ fn find_participant_x(participants: &[ParticipantLayout], name: &str) -> f64 {
 /// Estimate note height: line count * LINE_HEIGHT + top/bottom padding
 fn estimate_note_height(text: &str) -> f64 {
     let lines = text.lines().count().max(1) as f64;
-    lines * LINE_HEIGHT + 2.0 * NOTE_PADDING
+    (lines * LINE_HEIGHT + 2.0 * NOTE_PADDING).max(25.0)
 }
 
 // ── Main layout function ─────────────────────────────────────────────────────
@@ -185,17 +185,17 @@ pub fn layout_sequence(sd: &SequenceDiagram) -> Result<SeqLayout> {
         sd.events.len()
     );
 
-    // 1. Participant positioning (center-to-center is PARTICIPANT_GAP)
-    let mut participants: Vec<ParticipantLayout> = Vec::with_capacity(sd.participants.len());
-    let mut prev_center: Option<f64> = None;
-    for p in &sd.participants {
-        let display = p.display_name.as_deref().unwrap_or(&p.name);
-        let box_width = (font_metrics::text_width(display, "SansSerif", FONT_SIZE, false, false)
-            + 2.0 * PARTICIPANT_PADDING)
-            .max(60.0);
+    // 1. Compute participant box widths first
+    let mut box_widths: Vec<f64> = Vec::with_capacity(sd.participants.len());
+    let mut box_heights: Vec<f64> = Vec::with_capacity(sd.participants.len());
+    let mut part_name_to_idx: HashMap<String, usize> = HashMap::new();
 
-        // Icon-based shapes need extra height for the figure + label below
-        let box_height = match p.kind {
+    for (i, p) in sd.participants.iter().enumerate() {
+        let display = p.display_name.as_deref().unwrap_or(&p.name);
+        let bw = (font_metrics::text_width(display, "SansSerif", FONT_SIZE, false, false)
+            + 2.0 * PARTICIPANT_PADDING)
+            .max(40.0);
+        let bh = match p.kind {
             ParticipantKind::Actor => PARTICIPANT_HEIGHT + 40.0,
             ParticipantKind::Boundary
             | ParticipantKind::Control
@@ -205,17 +205,61 @@ pub fn layout_sequence(sd: &SequenceDiagram) -> Result<SeqLayout> {
             | ParticipantKind::Queue => PARTICIPANT_HEIGHT + 20.0,
             ParticipantKind::Default => PARTICIPANT_HEIGHT,
         };
+        box_widths.push(bw);
+        box_heights.push(bh);
+        part_name_to_idx.insert(p.name.clone(), i);
+    }
 
+    // 2. Compute minimum gaps between adjacent participant centers
+    let n = sd.participants.len();
+    let mut min_gaps: Vec<f64> = if n > 1 {
+        (0..n - 1)
+            .map(|i| box_widths[i] / 2.0 + box_widths[i + 1] / 2.0 + 10.0)
+            .collect()
+    } else {
+        Vec::new()
+    };
+
+    // Scan messages to widen gaps based on text width
+    for event in &sd.events {
+        if let SeqEvent::Message(msg) = event {
+            if msg.from == msg.to {
+                continue; // self-messages don't affect gap
+            }
+            if let (Some(&fi), Some(&ti)) =
+                (part_name_to_idx.get(&msg.from), part_name_to_idx.get(&msg.to))
+            {
+                let (lo, hi) = if fi < ti { (fi, ti) } else { (ti, fi) };
+                let text_w =
+                    font_metrics::text_width(&msg.text, "SansSerif", MSG_FONT_SIZE, false, false);
+                let needed = text_w + 20.0; // 10px padding each side
+                let span = hi - lo; // number of gaps this message spans
+                if span > 0 {
+                    let per_gap = needed / span as f64;
+                    for g in lo..hi {
+                        if per_gap > min_gaps[g] {
+                            min_gaps[g] = per_gap;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // 3. Position participants left-to-right using computed gaps
+    let mut participants: Vec<ParticipantLayout> = Vec::with_capacity(n);
+    let mut prev_center: Option<f64> = None;
+    for (i, p) in sd.participants.iter().enumerate() {
         let center_x = match prev_center {
-            None => MARGIN + box_width / 2.0,
-            Some(pc) => pc + PARTICIPANT_GAP,
+            None => MARGIN + box_widths[i] / 2.0,
+            Some(pc) => pc + min_gaps[i - 1],
         };
 
         participants.push(ParticipantLayout {
             name: p.name.clone(),
             x: center_x,
-            box_width,
-            box_height,
+            box_width: box_widths[i],
+            box_height: box_heights[i],
             kind: p.kind.clone(),
             color: p.color.clone(),
         });
@@ -228,7 +272,7 @@ pub fn layout_sequence(sd: &SequenceDiagram) -> Result<SeqLayout> {
         .iter()
         .map(|pp| pp.box_height)
         .fold(PARTICIPANT_HEIGHT, f64::max);
-    let mut y_cursor = MARGIN + max_ph + 20.0;
+    let mut y_cursor = MARGIN + max_ph + 32.1328;
 
     let mut messages: Vec<MessageLayout> = Vec::new();
     let mut activations: Vec<ActivationLayout> = Vec::new();
@@ -284,7 +328,7 @@ pub fn layout_sequence(sd: &SequenceDiagram) -> Result<SeqLayout> {
                 });
 
                 if is_self {
-                    y_cursor += MESSAGE_SPACING + SELF_MSG_HEIGHT;
+                    y_cursor += SELF_MSG_HEIGHT + 14.0;
                 } else {
                     y_cursor += MESSAGE_SPACING;
                 }
@@ -510,14 +554,14 @@ pub fn layout_sequence(sd: &SequenceDiagram) -> Result<SeqLayout> {
         .iter()
         .map(|pp| pp.box_height)
         .fold(PARTICIPANT_HEIGHT, f64::max);
-    let lifeline_top = MARGIN + max_participant_height;
-    let lifeline_bottom = y_cursor + 20.0;
+    let lifeline_top = MARGIN + max_participant_height + 1.0;
+    let lifeline_bottom = y_cursor + 17.0;
 
     let total_width = participants
         .last()
         .map_or(2.0 * MARGIN, |p| p.x + p.box_width / 2.0 + MARGIN);
 
-    let total_height = lifeline_bottom + max_participant_height + MARGIN;
+    let total_height = lifeline_bottom + max_participant_height + MARGIN + 2.0;
 
     // Close any remaining fragments (unmatched)
     for (y_start, kind, label, separators) in fragment_stack.drain(..) {
@@ -610,7 +654,7 @@ mod tests {
         let expected_bw =
             (crate::font_metrics::text_width("Alice", "SansSerif", FONT_SIZE, false, false)
                 + 2.0 * PARTICIPANT_PADDING)
-                .max(60.0);
+                .max(40.0);
         assert!(
             (p.box_width - expected_bw).abs() < 0.01,
             "box_width {}, expected {}",
@@ -645,9 +689,10 @@ mod tests {
 
         let alice_x = layout.participants[0].x;
         let bob_x = layout.participants[1].x;
+        // Gap is now content-adaptive; just verify Bob is to the right of Alice
         assert!(
-            (bob_x - alice_x - PARTICIPANT_GAP).abs() < 0.01,
-            "gap between centers should be PARTICIPANT_GAP"
+            bob_x > alice_x,
+            "Bob center {bob_x} should be right of Alice center {alice_x}"
         );
 
         let msg = &layout.messages[0];
@@ -659,29 +704,24 @@ mod tests {
     }
 
     #[test]
-    fn self_message_increases_height() {
+    fn self_message_layout() {
         let sd_self = SequenceDiagram {
             participants: vec![make_participant("A")],
             events: vec![SeqEvent::Message(make_message("A", "A", "self"))],
         };
-        let sd_normal = SequenceDiagram {
-            participants: vec![make_participant("A"), make_participant("B")],
-            events: vec![SeqEvent::Message(make_message("A", "B", "normal"))],
-        };
 
         let layout_self = layout_sequence(&sd_self).unwrap();
-        let layout_normal = layout_sequence(&sd_normal).unwrap();
-
-        // Self-message should produce a taller layout (more y consumed)
-        assert!(
-            layout_self.lifeline_bottom > layout_normal.lifeline_bottom,
-            "self-msg lifeline_bottom {} should exceed normal {}",
-            layout_self.lifeline_bottom,
-            layout_normal.lifeline_bottom
-        );
 
         let msg = &layout_self.messages[0];
         assert!(msg.is_self);
+        // Self-message to_x should be offset by SELF_MSG_WIDTH from from_x
+        assert!(
+            (msg.to_x - msg.from_x - SELF_MSG_WIDTH).abs() < 0.01,
+            "self-msg width {} should be SELF_MSG_WIDTH={}",
+            msg.to_x - msg.from_x,
+            SELF_MSG_WIDTH
+        );
+        assert!(layout_self.lifeline_bottom > layout_self.lifeline_top);
     }
 
     #[test]

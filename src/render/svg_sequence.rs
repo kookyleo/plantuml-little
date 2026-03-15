@@ -27,7 +27,7 @@ const NOTE_BG: &str = "#FEFFDD";
 const NOTE_BORDER: &str = "#181818";
 const GROUP_BG: &str = "#EEEEEE";
 const GROUP_BORDER: &str = "#000000";
-const ACTIVATION_BG: &str = "#F1F1F1";
+const ACTIVATION_BG: &str = "#FFFFFF";
 const ACTIVATION_BORDER: &str = "#181818";
 const FRAGMENT_BG: &str = "#F1F1F1";
 const FRAGMENT_BORDER: &str = "#181818";
@@ -36,7 +36,7 @@ const REF_BORDER: &str = "#181818";
 const DIVIDER_COLOR: &str = "#888888";
 const TEXT_COLOR: &str = "#000000";
 
-const MARGIN: f64 = 20.0;
+const MARGIN: f64 = 5.0;
 
 // ── Arrow marker defs ───────────────────────────────────────────────
 
@@ -645,7 +645,7 @@ fn draw_message(
     } else {
         // Filled arrowhead polygon: 4-point diamond shape like Java
         let (p1x, p2x, p3x, p4x) = if msg.is_left {
-            (tip_x + 10.0, tip_x, tip_x + 10.0, tip_x + 6.0)
+            (tip_x + 10.0, tip_x, tip_x + 10.0, tip_x + 4.0)
         } else {
             (tip_x - 10.0, tip_x, tip_x - 10.0, tip_x - 4.0)
         };
@@ -697,7 +697,7 @@ fn draw_message(
         } else {
             msg.to_x + 7.0
         };
-        let text_y = msg.y - 5.0662;
+        let text_y = msg.y - 5.07;
         render_creole_text(
             buf,
             &msg.text,
@@ -810,7 +810,7 @@ fn draw_self_message(
             p2y = fmt_coord(ret_y),
             p3x = fmt_coord(tip_x + 10.0),
             p3y = fmt_coord(ret_y + 4.0),
-            p4x = fmt_coord(tip_x + 6.0),
+            p4x = fmt_coord(tip_x + 4.0),
             p4y = fmt_coord(ret_y),
         )
         .unwrap();
@@ -819,7 +819,7 @@ fn draw_self_message(
     // Label text above the first horizontal line
     if !msg.text.is_empty() {
         let text_x = x + 7.0;
-        let text_y = y - 5.0662;
+        let text_y = y - 5.07;
         render_creole_text(
             buf,
             &msg.text,
@@ -882,7 +882,7 @@ fn draw_destroy(buf: &mut String, d: &DestroyLayout) {
 // ── Notes ───────────────────────────────────────────────────────────
 
 fn draw_note(buf: &mut String, note: &NoteLayout) {
-    let fold = 8.0; // folded corner size
+    let fold = 10.0; // folded corner size
 
     // Background rect
     write!(

@@ -1590,9 +1590,10 @@ fn test_skinparam_roundcorner001() {
     assert_valid_svg(&svg, "skinparam_roundcorner001");
     assert!(svg.contains("Foo"), "must contain Foo");
     assert!(svg.contains("Bar"), "must contain Bar");
+    // Java URectangle.rounded(roundCorner): SVG rx = roundCorner / 2 = 7.5
     assert!(
-        svg.contains(r#"rx="15""#),
-        "roundcorner should set rx=15 on class rects"
+        svg.contains(r#"rx="7.5""#),
+        "roundcorner 15 should set rx=7.5 on class rects"
     );
 }
 
