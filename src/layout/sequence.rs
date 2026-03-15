@@ -849,7 +849,7 @@ pub fn layout_sequence(sd: &SequenceDiagram) -> Result<SeqLayout> {
     // Snap to f32 precision to match Java's float intermediate calculations,
     // then apply half-up rounding to 4 decimal places.
     let lifeline_extend_y = (lifeline_extend_y as f32) as f64;
-    let lifeline_bottom = lifeline_extend_y;
+    let lifeline_bottom = ((lifeline_extend_y * 10000.0) + 0.5).floor() / 10000.0;
 
     let right_margin = 2.0 * MARGIN;
     let mut total_width = participants
