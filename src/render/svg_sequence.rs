@@ -1057,16 +1057,23 @@ fn draw_group(buf: &mut String, group: &GroupLayout) {
 
 // ── Fragment frames ──────────────────────────────────────────────────
 
-fn draw_fragment(buf: &mut String, frag: &FragmentLayout) {
+/// Phase 1: Draw just the frame outline rect (before lifelines)
+fn draw_fragment_frame(buf: &mut String, frag: &FragmentLayout) {
     let fx = fmt_coord(frag.x);
     let fy = fmt_coord(frag.y);
     let fw = fmt_coord(frag.width);
     let fh = fmt_coord(frag.height);
-
-    // Frame rectangle
     buf.push_str(&format!(
         "<rect fill=\"none\" height=\"{fh}\" style=\"stroke:#000000;stroke-width:1.5;\" width=\"{fw}\" x=\"{fx}\" y=\"{fy}\"/>"
     ));
+}
+
+/// Phase 2: Draw pentagon tab, labels, separators (after messages)
+fn draw_fragment_details(buf: &mut String, frag: &FragmentLayout) {
+    let fx = fmt_coord(frag.x);
+    let fy = fmt_coord(frag.y);
+    let fw = fmt_coord(frag.width);
+    let fh = fmt_coord(frag.height);
 
     // Label tab (pentagon in top-left)
     let kind_label = frag.kind.label();
@@ -1082,6 +1089,11 @@ fn draw_fragment(buf: &mut String, frag: &FragmentLayout) {
         fmt_coord(tab_right), fmt_coord(frag.y + tab_height - notch),
         fmt_coord(tab_right - notch), fmt_coord(frag.y + tab_height),
         fmt_coord(frag.y + tab_height),
+    ));
+
+    // Second frame rect (Java emits two)
+    buf.push_str(&format!(
+        "<rect fill=\"none\" height=\"{fh}\" style=\"stroke:#000000;stroke-width:1.5;\" width=\"{fw}\" x=\"{fx}\" y=\"{fy}\"/>"
     ));
 
     // Kind label text (font-size 13, bold)
@@ -1326,9 +1338,9 @@ pub fn render_sequence(
     // Build participant name -> index mapping
     let part_index = build_participant_index(sd);
 
-    // 3. Fragment frames (drawn first, before lifelines)
+    // 3. Fragment frame rects (first outline, before lifelines)
     for frag in &layout.fragments {
-        draw_fragment(&mut buf, frag);
+        draw_fragment_frame(&mut buf, frag);
     }
 
     // 4. Lifelines (dashed vertical lines with semantic grouping)
@@ -1441,6 +1453,11 @@ pub fn render_sequence(
                 msg_seq_counter,
             );
         }
+    }
+
+    // 8b. Fragment details (pentagon, labels, separators — after messages)
+    for frag in &layout.fragments {
+        draw_fragment_details(&mut buf, frag);
     }
 
     // 9. Notes
