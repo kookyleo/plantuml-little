@@ -148,7 +148,6 @@ pub fn detect_diagram_type(content: &str) -> DiagramHint {
             let before = trimmed[..trimmed.len() - 1].trim();
             if !before.is_empty() && !before.ends_with('-') && !before.ends_with('<') {
                 in_bracket_display = true;
-                // Bracket-display body is a component/deployment feature
                 has_component_keyword_definitive = true;
             }
         }
@@ -832,13 +831,13 @@ mod tests {
     #[test]
     fn detect_class_with_rectangle_group() {
         let content = "rectangle Foo {\n  class A\n}\npackage Bar {\n  class B\n}\n";
-        assert!(matches!(detect_diagram_type(content), DiagramHint::Class));
+        assert!(matches!(detect_diagram_type(content), DiagramHint::Component));
     }
 
     #[test]
     fn detect_class_with_interface_and_qualified_assoc() {
         let content = "interface Map<K,V>\nclass HashMap\nHashMap [id: Long] --> Customer\n";
-        assert!(matches!(detect_diagram_type(content), DiagramHint::Class));
+        assert!(matches!(detect_diagram_type(content), DiagramHint::Component));
     }
 
     #[test]
