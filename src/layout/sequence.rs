@@ -576,12 +576,45 @@ pub fn layout_sequence(sd: &SequenceDiagram) -> Result<SeqLayout> {
                     let frag_end_y = y_cursor - FRAG_END_BACKOFF;
                     let frag_x = leftmost - FRAGMENT_PADDING;
                     let frag_height = frag_end_y - y_start;
+
+                    // Compute min width for label tab + guard text.
+                    // For Group, the tab displays the label directly (no keyword).
+                    // For others, the tab shows the keyword and the guard text
+                    // "[label]" is rendered separately to its right.
+                    let label_min_w = if kind == FragmentKind::Group {
+                        let tab_text = if label.is_empty() {
+                            kind.label().to_string()
+                        } else {
+                            label.clone()
+                        };
+                        let tab_text_w = font_metrics::text_width(
+                            &tab_text, "SansSerif", 13.0, true, false,
+                        );
+                        tab_text_w + 50.0 // 15(left) + text + 30(right+notch) + 5(margin)
+                    } else {
+                        let kind_text_w = font_metrics::text_width(
+                            kind.label(), "SansSerif", 13.0, true, false,
+                        );
+                        // Tab: 15(left) + kind_text_w + 30(right+notch)
+                        let tab_right = kind_text_w + 45.0;
+                        if !label.is_empty() {
+                            let guard_text = format!("[{label}]");
+                            let guard_w = font_metrics::text_width(
+                                &guard_text, "SansSerif", 11.0, true, false,
+                            );
+                            tab_right + 15.0 + guard_w + 5.0
+                        } else {
+                            tab_right + 5.0
+                        }
+                    };
+                    let frag_w = full_width.max(label_min_w);
+
                     fragments.push(FragmentLayout {
                         kind,
                         label,
                         x: frag_x,
                         y: y_start,
-                        width: full_width,
+                        width: frag_w,
                         height: frag_height,
                         separators,
                     });
@@ -654,9 +687,17 @@ pub fn layout_sequence(sd: &SequenceDiagram) -> Result<SeqLayout> {
     } else {
         2.0 * MARGIN
     };
-    let total_width = participants
+    let mut total_width = participants
         .last()
         .map_or(2.0 * MARGIN, |p| p.x + p.box_width / 2.0 + right_margin);
+
+    // Expand total_width if any fragment extends beyond participants
+    for frag in &fragments {
+        let frag_right = frag.x + frag.width + MARGIN + FRAGMENT_PADDING;
+        if frag_right > total_width {
+            total_width = frag_right;
+        }
+    }
 
     // Tail box at lifeline_bottom - 1, then add box height + bottom margin (~7)
     let total_height = (lifeline_bottom - 1.0) + max_participant_height + 7.0;
