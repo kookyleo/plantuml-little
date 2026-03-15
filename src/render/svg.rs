@@ -796,20 +796,12 @@ fn render_class(
     // moveDelta = 6 - min(-3, -1) = 6 - (-3) = 9.
     //
     // Without polygon icons: moveDelta = 6 - (-1) = 7.
-    // Java SvekResult: moveDelta(6 - minMax.getMinX(), 6 - minMax.getMinY())
-    // X and Y offsets are computed INDEPENDENTLY from LimitFinder bounds.
-    //
-    // X axis: rect_minX = -1. Polygon HACK: -3 if any protected/package icons.
-    //   moveDelta_x = 6 - min(rect_minX, polygon_minX)
-    // Y axis: rect_minY = -1. No polygon HACK on Y (HACK only extends X).
-    //   moveDelta_y = 6 - (-1) = 7
-    // Java SvekResult: moveDelta(6 - minMax.getMinX(), 6 - minMax.getMinY())
-    // X and Y offsets computed independently from LimitFinder bounds.
-    // X: rect_minX = -1. With protected/package member icons (UPolygon),
-    //    HACK_X_FOR_POLYGON pushes minX to -3, so moveDelta_x = 9.
-    //    Entity-level visibility PRIVATE/PUBLIC use rect/ellipse (no HACK).
-    // Y: rect_minY = -1. No polygon HACK on Y axis. moveDelta_y = 7.
-    let has_member_polygon_icon = cd.entities.iter().any(|e| {
+    // Java has two paths:
+    // 1. EntityImageDegenerated (single entity, no links): delta=7, always offset=7.
+    // 2. SvekResult (multi-entity): moveDelta(6 - minX, 6 - minY).
+    //    minX = -1 (rect) or -3 (polygon HACK for protected/package member icons).
+    let is_degenerated = layout.nodes.len() <= 1 && layout.edges.is_empty();
+    let has_member_polygon_icon = !is_degenerated && cd.entities.iter().any(|e| {
         e.members.iter().any(|m| {
             matches!(m.visibility, Some(Visibility::Protected) | Some(Visibility::Package))
         })
