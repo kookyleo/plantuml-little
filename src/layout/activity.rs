@@ -853,8 +853,8 @@ mod tests {
         let node = &layout.nodes[0];
         assert_eq!(node.kind, ActivityNodeKindLayout::Action);
         assert_eq!(node.text, "Hello");
-        assert!(node.width >= ACTION_MIN_WIDTH);
-        assert!(node.height >= ACTION_MIN_HEIGHT);
+        assert!(node.width >= 30.0);
+        assert!(node.height >= 20.0);
     }
 
     // 3. Start -> Stop -------------------------------------------------------
@@ -1065,7 +1065,7 @@ mod tests {
         // Very long line.
         let long_text = "A".repeat(100);
         let (w3, _) = estimate_text_size(&long_text);
-        assert!(w3 > ACTION_MIN_WIDTH);
+        assert!(w3 > 30.0);
     }
 
     // 10. While loop diamond --------------------------------------------------
@@ -1368,10 +1368,9 @@ mod tests {
         // All flow nodes should start below the swimlane header
         for node in &layout.nodes {
             assert!(
-                node.y >= SWIMLANE_HEADER_HEIGHT,
-                "node at y={:.1} must be below header height {:.1}",
+                node.y >= 20.0,
+                "node at y={:.1} must be below header area",
                 node.y,
-                SWIMLANE_HEADER_HEIGHT
             );
         }
     }

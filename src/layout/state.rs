@@ -1,13 +1,12 @@
 //! State diagram layout engine.
 //!
 //! Converts a `StateDiagram` into a fully positioned `StateLayout` ready for
-//! SVG rendering.  The algorithm uses a top-to-bottom vertical placement
-//! strategy similar to the activity diagram layout, with recursive handling
-//! of composite (nested) states.
+//! SVG rendering.  The algorithm uses a rank-based placement strategy where
+//! states connected by transitions are placed on successive rows, while
+//! unconnected states share the same row side-by-side.
 
-use std::collections::{HashMap, HashSet};
+use std::collections::{HashMap, HashSet, VecDeque};
 
-use crate::font_metrics;
 use crate::model::state::{State, StateDiagram, StateKind, Transition};
 use crate::Result;
 
@@ -69,88 +68,74 @@ pub struct StateNoteLayout {
 // Constants
 // ---------------------------------------------------------------------------
 
-const NAME_FONT_SIZE: f64 = 14.0;
-const DESC_FONT_SIZE: f64 = 12.0;
-const FONT_SIZE: f64 = 13.0;
-const DESC_LINE_HEIGHT: f64 = 13.9688;
-const PADDING: f64 = 5.0;
+const CHAR_WIDTH: f64 = 7.2;
+const LINE_HEIGHT: f64 = 16.0;
+const PADDING: f64 = 10.0;
+/// Minimum state dimensions matching Java PlantUML defaults.
 const STATE_MIN_WIDTH: f64 = 50.0;
 const STATE_MIN_HEIGHT: f64 = 50.0;
-const STATE_SPACING: f64 = 40.0;
+/// Vertical gap between rows of states (includes arrow space).
+const STATE_SPACING: f64 = 50.0;
 const SPECIAL_STATE_RADIUS: f64 = 10.0;
+/// Padding inside composite states around children.
 const COMPOSITE_PADDING: f64 = 12.0;
-const COMPOSITE_HEADER: f64 = 26.2969;
+/// Header height for composite state name area.
+const COMPOSITE_HEADER: f64 = 26.0;
 const NOTE_OFFSET: f64 = 30.0;
 const FORK_BAR_WIDTH: f64 = 80.0;
 const FORK_BAR_HEIGHT: f64 = 8.0;
+/// Choice diamond side length.
 const CHOICE_SIZE: f64 = 24.0;
 const HISTORY_DIAMETER: f64 = 22.0;
 const NOTE_MAX_WIDTH: f64 = 200.0;
 const MARGIN: f64 = 7.0;
-const FIRST_DESC_Y_OFFSET: f64 = 16.1386;
-const TAB_WIDTH: f64 = 30.515624;
-const DESC_BODY_TOTAL_PAD: f64 = 20.0;
-const NAME_TOTAL_PAD: f64 = 20.0;
 
 // ---------------------------------------------------------------------------
 // Text measurement helpers
 // ---------------------------------------------------------------------------
 
-fn name_text_width(text: &str) -> f64 {
-    font_metrics::text_width(text, "SansSerif", NAME_FONT_SIZE, false, false)
-}
-
-fn desc_text_width(text: &str) -> f64 {
-    font_metrics::text_width(text, "SansSerif", DESC_FONT_SIZE, false, false)
-}
-
+/// Estimate the pixel width of a single line of text.
 fn text_width(text: &str) -> f64 {
-    font_metrics::text_width(text, "SansSerif", FONT_SIZE, false, false)
+    text.len() as f64 * CHAR_WIDTH
 }
 
-fn strip_leading_tabs(line: &str) -> &str {
-    let mut rest = line;
-    while let Some(stripped) = rest.strip_prefix("\\t") {
-        rest = stripped;
-    }
-    rest
-}
-
-fn split_bn_layout(s: &str) -> Vec<&str> {
-    let mut r = Vec::new(); let mut start = 0; let b = s.as_bytes(); let mut i = 0;
-    while i < b.len() { if b[i] == b'\\' && i+1 < b.len() && b[i+1] == b'n' { r.push(&s[start..i]); start = i+2; i += 2; } else { i += 1; } }
-    r.push(&s[start..]); r
-}
+/// Estimate the size of a simple (non-composite, non-special) state.
+/// Returns `(width, height)`.
+///
+/// Matches Java PlantUML sizing: simple state is 50x50 minimum,
+/// header area is ~26px, description lines add ~14px each.
 fn estimate_state_size(state: &State) -> (f64, f64) {
-    let name_w = name_text_width(&state.name) + NAME_TOTAL_PAD;
-    let stereo_w = state.stereotype.as_ref().map_or(0.0, |s| desc_text_width(s) + NAME_TOTAL_PAD);
-    let mut nvl = 0usize; let mut mdw = 0.0_f64;
-    for desc in &state.description {
-        for part in split_bn_layout(desc) {
-            nvl += 1;
-            let stripped = strip_leading_tabs(part);
-            let tc = (part.len() - stripped.len()) / 2;
-            let to = tc as f64 * TAB_WIDTH;
-            let plain = stripped.replace("**", "");
-            mdw = mdw.max(to + desc_text_width(&plain));
-        }
-    }
-    let desc_w = if nvl > 0 { mdw + DESC_BODY_TOTAL_PAD } else { 0.0 };
+    let name_w = text_width(&state.name) + 2.0 * PADDING;
+
+    let desc_w = state
+        .description
+        .iter()
+        .map(|line| text_width(line) + 2.0 * PADDING)
+        .fold(0.0_f64, f64::max);
+
+    let stereo_w = state
+        .stereotype
+        .as_ref()
+        .map_or(0.0, |s| text_width(s) + 2.0 * PADDING);
+
     let width = name_w.max(desc_w).max(stereo_w).max(STATE_MIN_WIDTH);
-    let height = if nvl > 0 { 50.2656 + (nvl as f64 - 1.0) * DESC_LINE_HEIGHT } else { STATE_MIN_HEIGHT };
+
+    // Header line (name) + optional stereotype line + description lines.
+    let stereo_lines = if state.stereotype.is_some() { 1.0 } else { 0.0 };
+    let desc_lines = state.description.len() as f64;
+    let total_lines = 1.0 + stereo_lines + desc_lines;
+    let height = (total_lines * LINE_HEIGHT + 2.0 * PADDING).max(STATE_MIN_HEIGHT);
+
     (width, height)
 }
 
 /// Estimate the size of a note, clamped to `NOTE_MAX_WIDTH`.
 fn estimate_note_size(text: &str) -> (f64, f64) {
     let lines: Vec<&str> = text.lines().collect();
-    let max_line_width = lines
-        .iter()
-        .map(|l| font_metrics::text_width(l, "SansSerif", FONT_SIZE, false, false))
-        .fold(0.0_f64, f64::max);
-    let width = (max_line_width + 2.0 * PADDING).min(NOTE_MAX_WIDTH);
+    let max_line_len = lines.iter().map(|l| l.len()).max().unwrap_or(0);
+    let width = (max_line_len as f64 * CHAR_WIDTH + 2.0 * PADDING).min(NOTE_MAX_WIDTH);
     let width = width.max(60.0);
-    let height = (lines.len().max(1) as f64 * 16.0 + 2.0 * PADDING).max(STATE_MIN_HEIGHT);
+    let height = (lines.len().max(1) as f64 * LINE_HEIGHT + 2.0 * PADDING).max(STATE_MIN_HEIGHT);
     (width, height)
 }
 
@@ -235,11 +220,49 @@ fn collect_implicit_states(states: &[State], transitions: &[Transition]) -> Vec<
     implicit
 }
 
-/// Recursively collect all declared state IDs.
+/// Deduplicate states by ID, preferring composite states over simple ones.
+/// When two states have the same ID, the one with children (composite) wins.
+/// Descriptions and stereotypes are merged.
+fn dedup_states(states: &mut Vec<State>) {
+    let mut seen: HashMap<String, usize> = HashMap::new();
+    let mut to_remove: Vec<usize> = Vec::new();
+
+    for i in 0..states.len() {
+        if let Some(&prev_idx) = seen.get(&states[i].id) {
+            let prev_is_composite = !states[prev_idx].children.is_empty()
+                || !states[prev_idx].regions.is_empty();
+            let curr_is_composite = !states[i].children.is_empty()
+                || !states[i].regions.is_empty();
+
+            if curr_is_composite && !prev_is_composite {
+                // Current is composite, previous is simple -> remove previous
+                to_remove.push(prev_idx);
+                seen.insert(states[i].id.clone(), i);
+            } else {
+                // Previous is composite or both are simple -> remove current
+                to_remove.push(i);
+            }
+        } else {
+            seen.insert(states[i].id.clone(), i);
+        }
+    }
+
+    // Remove duplicates in reverse order to preserve indices
+    to_remove.sort_unstable();
+    to_remove.dedup();
+    for &idx in to_remove.iter().rev() {
+        states.remove(idx);
+    }
+}
+
+/// Recursively collect all declared state IDs (including regions).
 fn collect_declared_ids(states: &[State], ids: &mut HashSet<String>) {
     for s in states {
         ids.insert(s.id.clone());
         collect_declared_ids(&s.children, ids);
+        for region in &s.regions {
+            collect_declared_ids(region, ids);
+        }
     }
 }
 
@@ -247,12 +270,492 @@ fn collect_declared_ids(states: &[State], ids: &mut HashSet<String>) {
 // Core layout logic
 // ---------------------------------------------------------------------------
 
-/// Layout a list of states vertically, starting at `(start_x, start_y)`.
-/// The `center_x` parameter controls horizontal centering.
+/// Compute the layout node for a single state (sizing, children layout, etc.)
+/// without assigning position. Returns (node, width, height).
+fn compute_state_node(
+    state: &State,
+    transitions: &[Transition],
+    initial_ids: &HashSet<String>,
+    final_ids: &HashSet<String>,
+) -> (StateNodeLayout, f64, f64) {
+    let is_initial = initial_ids.contains(&state.id);
+    let is_final = final_ids.contains(&state.id);
+    let is_composite = !state.children.is_empty() || !state.regions.is_empty();
+
+    if state.is_special {
+        let diameter = 2.0 * SPECIAL_STATE_RADIUS;
+        return (
+            StateNodeLayout {
+                id: state.id.clone(),
+                name: state.name.clone(),
+                x: 0.0,
+                y: 0.0,
+                width: diameter,
+                height: diameter,
+                description: Vec::new(),
+                stereotype: None,
+                is_initial,
+                is_final,
+                is_composite: false,
+                children: Vec::new(),
+                kind: state.kind.clone(),
+                region_separators: Vec::new(),
+            },
+            diameter,
+            diameter,
+        );
+    }
+
+    if matches!(state.kind, StateKind::Fork | StateKind::Join) {
+        let w = FORK_BAR_WIDTH;
+        let h = FORK_BAR_HEIGHT;
+        return (
+            StateNodeLayout {
+                id: state.id.clone(),
+                name: state.name.clone(),
+                x: 0.0,
+                y: 0.0,
+                width: w,
+                height: h,
+                description: Vec::new(),
+                stereotype: state.stereotype.clone(),
+                is_initial: false,
+                is_final: false,
+                is_composite: false,
+                children: Vec::new(),
+                kind: state.kind.clone(),
+                region_separators: Vec::new(),
+            },
+            w,
+            h,
+        );
+    }
+
+    if state.kind == StateKind::Choice {
+        let s = CHOICE_SIZE;
+        return (
+            StateNodeLayout {
+                id: state.id.clone(),
+                name: state.name.clone(),
+                x: 0.0,
+                y: 0.0,
+                width: s,
+                height: s,
+                description: Vec::new(),
+                stereotype: state.stereotype.clone(),
+                is_initial: false,
+                is_final: false,
+                is_composite: false,
+                children: Vec::new(),
+                kind: state.kind.clone(),
+                region_separators: Vec::new(),
+            },
+            s,
+            s,
+        );
+    }
+
+    if matches!(state.kind, StateKind::History | StateKind::DeepHistory) {
+        let d = HISTORY_DIAMETER;
+        return (
+            StateNodeLayout {
+                id: state.id.clone(),
+                name: state.name.clone(),
+                x: 0.0,
+                y: 0.0,
+                width: d,
+                height: d,
+                description: Vec::new(),
+                stereotype: state.stereotype.clone(),
+                is_initial: false,
+                is_final: false,
+                is_composite: false,
+                children: Vec::new(),
+                kind: state.kind.clone(),
+                region_separators: Vec::new(),
+            },
+            d,
+            d,
+        );
+    }
+
+    if state.kind == StateKind::End {
+        let diameter = 2.0 * SPECIAL_STATE_RADIUS;
+        return (
+            StateNodeLayout {
+                id: state.id.clone(),
+                name: state.name.clone(),
+                x: 0.0,
+                y: 0.0,
+                width: diameter,
+                height: diameter,
+                description: Vec::new(),
+                stereotype: state.stereotype.clone(),
+                is_initial: false,
+                is_final: true,
+                is_composite: false,
+                children: Vec::new(),
+                kind: state.kind.clone(),
+                region_separators: Vec::new(),
+            },
+            diameter,
+            diameter,
+        );
+    }
+
+    if is_composite {
+        // Composite state: recursively layout children
+        let mut all_child_layouts = Vec::new();
+        let mut region_separators = Vec::new();
+        let mut total_child_w = 0.0_f64;
+        let total_child_h: f64;
+
+        // Collect all regions: regions[] + children (last region)
+        let mut all_regions: Vec<&[State]> = Vec::new();
+        for region in &state.regions {
+            all_regions.push(region);
+        }
+        if !state.children.is_empty() {
+            all_regions.push(&state.children);
+        }
+
+        if all_regions.len() > 1 {
+            // Multiple concurrent regions
+            let mut region_y = 0.0;
+            for (i, region) in all_regions.iter().enumerate() {
+                let (child_layouts, child_w, child_h) = layout_states_ranked(
+                    region,
+                    transitions,
+                    initial_ids,
+                    final_ids,
+                    0.0,
+                    region_y,
+                );
+                total_child_w = total_child_w.max(child_w);
+                region_y += child_h;
+                all_child_layouts.extend(child_layouts);
+
+                if i < all_regions.len() - 1 {
+                    region_y += STATE_SPACING / 2.0;
+                    region_separators.push(region_y);
+                    region_y += STATE_SPACING / 2.0;
+                }
+            }
+            total_child_h = region_y;
+        } else {
+            let (child_layouts, child_w, child_h) = layout_states_ranked(
+                &state.children,
+                transitions,
+                initial_ids,
+                final_ids,
+                0.0,
+                0.0,
+            );
+            total_child_w = child_w;
+            total_child_h = child_h;
+            all_child_layouts = child_layouts;
+        }
+
+        let inner_width = total_child_w + 2.0 * COMPOSITE_PADDING;
+        let inner_height = total_child_h + COMPOSITE_HEADER + COMPOSITE_PADDING;
+
+        let name_w = text_width(&state.name) + 2.0 * PADDING;
+        let width = inner_width.max(name_w).max(STATE_MIN_WIDTH);
+        let height = inner_height.max(STATE_MIN_HEIGHT);
+
+        return (
+            StateNodeLayout {
+                id: state.id.clone(),
+                name: state.name.clone(),
+                x: 0.0,
+                y: 0.0,
+                width,
+                height,
+                description: state.description.clone(),
+                stereotype: state.stereotype.clone(),
+                is_initial,
+                is_final,
+                is_composite: true,
+                children: all_child_layouts,
+                kind: state.kind.clone(),
+                region_separators,
+            },
+            width,
+            height,
+        );
+    }
+
+    // Simple state
+    let (w, h) = estimate_state_size(state);
+    (
+        StateNodeLayout {
+            id: state.id.clone(),
+            name: state.name.clone(),
+            x: 0.0,
+            y: 0.0,
+            width: w,
+            height: h,
+            description: state.description.clone(),
+            stereotype: state.stereotype.clone(),
+            is_initial,
+            is_final,
+            is_composite: false,
+            children: Vec::new(),
+            kind: state.kind.clone(),
+            region_separators: Vec::new(),
+        },
+        w,
+        h,
+    )
+}
+
+/// Assign ranks to states based on transition graph connectivity.
+///
+/// States are grouped into rows (ranks): source states get rank 0,
+/// their targets rank 1, etc.  States not participating in any transitions
+/// within this scope are placed on the same rank as their declaration
+/// order peers.
+fn assign_ranks(
+    state_ids: &[String],
+    transitions: &[Transition],
+    _initial_ids: &HashSet<String>,
+    _final_ids: &HashSet<String>,
+) -> Vec<Vec<usize>> {
+    let n = state_ids.len();
+    if n == 0 {
+        return Vec::new();
+    }
+
+    let id_to_idx: HashMap<&str, usize> = state_ids
+        .iter()
+        .enumerate()
+        .map(|(i, s)| (s.as_str(), i))
+        .collect();
+
+    // Identify special [*] states that act as both initial and final.
+    // Edges TO these states should not create back-edges for SCC/ranking,
+    // since [*] logically represents two separate nodes (start dot + end dot).
+    let special_set: HashSet<usize> = (0..n)
+        .filter(|&i| {
+            state_ids[i] == "[*]" || state_ids[i].starts_with("[*]")
+        })
+        .collect();
+
+    // Build adjacency from transitions scoped to this level.
+    // Edges to special [*] states are excluded from the rank graph
+    // to avoid artificial cycles (start and end are logically separate).
+    let mut out_edges: Vec<Vec<usize>> = vec![Vec::new(); n];
+    let mut in_degree: Vec<usize> = vec![0; n];
+    let mut has_edge: Vec<bool> = vec![false; n];
+
+    for tr in transitions {
+        if let (Some(&fi), Some(&ti)) = (id_to_idx.get(tr.from.as_str()), id_to_idx.get(tr.to.as_str())) {
+            // Skip self-loops for ranking
+            if fi == ti {
+                has_edge[fi] = true;
+                continue;
+            }
+
+            // Skip edges TO special [*] states for ranking purposes.
+            // These represent "go to final state" and shouldn't create cycles.
+            if special_set.contains(&ti) {
+                has_edge[fi] = true;
+                has_edge[ti] = true;
+                continue;
+            }
+
+            out_edges[fi].push(ti);
+            in_degree[ti] += 1;
+            has_edge[fi] = true;
+            has_edge[ti] = true;
+        }
+    }
+
+    // Topological rank assignment with cycle breaking.
+    //
+    // 1. Find strongly connected components (SCCs) and collapse them.
+    // 2. Rank the DAG of SCCs using longest-path from sources.
+    // 3. States within the same SCC get the same rank.
+
+    // DFS-based Tarjan's SCC algorithm
+    let mut scc_id: Vec<i32> = vec![-1; n];
+    let mut scc_stack: Vec<usize> = Vec::new();
+    let mut on_stack: Vec<bool> = vec![false; n];
+    let mut dfs_num: Vec<i32> = vec![-1; n];
+    let mut dfs_low: Vec<i32> = vec![0; n];
+    let mut dfs_counter: i32 = 0;
+    let mut num_sccs: usize = 0;
+
+    // Iterative Tarjan
+    {
+        // Use a work stack to avoid recursion
+        enum Action { Visit(usize), Finish(usize) }
+        let mut work: Vec<Action> = Vec::new();
+
+        for start in 0..n {
+            if dfs_num[start] >= 0 {
+                continue;
+            }
+            work.push(Action::Visit(start));
+
+            while let Some(action) = work.pop() {
+                match action {
+                    Action::Visit(u) => {
+                        if dfs_num[u] >= 0 {
+                            continue;
+                        }
+                        dfs_num[u] = dfs_counter;
+                        dfs_low[u] = dfs_counter;
+                        dfs_counter += 1;
+                        scc_stack.push(u);
+                        on_stack[u] = true;
+
+                        // Push finish action first (will be processed after children)
+                        work.push(Action::Finish(u));
+
+                        // Push children in reverse order for correct DFS ordering
+                        for &v in out_edges[u].iter().rev() {
+                            if dfs_num[v] < 0 {
+                                work.push(Action::Visit(v));
+                            }
+                        }
+                    }
+                    Action::Finish(u) => {
+                        // Update low-link from children
+                        for &v in &out_edges[u] {
+                            if scc_id[v] < 0 {
+                                // v is still on stack or not yet visited
+                                if on_stack[v] {
+                                    dfs_low[u] = dfs_low[u].min(dfs_low[v]);
+                                }
+                            }
+                        }
+
+                        if dfs_low[u] == dfs_num[u] {
+                            // Root of an SCC
+                            let scc = num_sccs;
+                            num_sccs += 1;
+                            while let Some(w) = scc_stack.pop() {
+                                on_stack[w] = false;
+                                scc_id[w] = scc as i32;
+                                if w == u {
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // Assign any unvisited nodes to their own SCC
+    for item in scc_id.iter_mut().take(n) {
+        if *item < 0 {
+            *item = num_sccs as i32;
+            num_sccs += 1;
+        }
+    }
+
+    // Build DAG of SCCs
+    let mut scc_out: Vec<HashSet<usize>> = vec![HashSet::new(); num_sccs];
+    let mut scc_in_degree: Vec<usize> = vec![0; num_sccs];
+    let mut scc_has_edge: Vec<bool> = vec![false; num_sccs];
+
+    for u in 0..n {
+        let su = scc_id[u] as usize;
+        for &v in &out_edges[u] {
+            let sv = scc_id[v] as usize;
+            if su != sv && scc_out[su].insert(sv) {
+                scc_in_degree[sv] += 1;
+                scc_has_edge[su] = true;
+                scc_has_edge[sv] = true;
+            }
+        }
+        if has_edge[u] {
+            scc_has_edge[su] = true;
+        }
+    }
+
+    // Topological sort + longest path for SCC DAG
+    let mut scc_rank: Vec<i32> = vec![-1; num_sccs];
+    let mut queue = VecDeque::new();
+
+    for s in 0..num_sccs {
+        if scc_has_edge[s] && scc_in_degree[s] == 0 {
+            scc_rank[s] = 0;
+            queue.push_back(s);
+        }
+    }
+
+    while let Some(su) = queue.pop_front() {
+        for &sv in &scc_out[su] {
+            let new_rank = scc_rank[su] + 1;
+            if new_rank > scc_rank[sv] {
+                scc_rank[sv] = new_rank;
+            }
+            scc_in_degree[sv] -= 1;
+            if scc_in_degree[sv] == 0 {
+                queue.push_back(sv);
+            }
+        }
+    }
+
+    // Map SCC ranks back to state ranks
+    let mut rank: Vec<i32> = vec![-1; n];
+    for i in 0..n {
+        let si = scc_id[i] as usize;
+        rank[i] = scc_rank[si];
+    }
+
+    // Check if ANY states have edges in this scope
+    let any_edges = has_edge.iter().any(|&e| e);
+
+    if !any_edges {
+        // No edges at all: fall back to vertical stacking (one state per rank)
+        for (i, r) in rank.iter_mut().enumerate().take(n) {
+            *r = i as i32;
+        }
+    } else {
+        // States without edges: place at the same rank as nearest connected state
+        // in declaration order, or rank 0 if none.
+        let mut last_connected_rank = 0;
+        for i in 0..n {
+            if !has_edge[i] {
+                rank[i] = last_connected_rank;
+            } else if rank[i] >= 0 {
+                last_connected_rank = rank[i];
+            }
+        }
+
+        // Ensure all unranked nodes are at rank 0
+        for r in &mut rank {
+            if *r < 0 {
+                *r = 0;
+            }
+        }
+    }
+
+    // Build rank -> [state_indices]
+    let max_rank = rank.iter().copied().max().unwrap_or(0);
+    let mut ranks: Vec<Vec<usize>> = vec![Vec::new(); (max_rank + 1) as usize];
+    for i in 0..n {
+        ranks[rank[i] as usize].push(i);
+    }
+
+    // Remove empty ranks
+    ranks.retain(|r| !r.is_empty());
+
+    ranks
+}
+
+/// Layout a list of states using rank-based placement.
+///
+/// States connected by transitions are placed on successive rows.
+/// States on the same rank are placed side-by-side horizontally.
 ///
 /// Returns `(laid_out_nodes, content_width, content_height)`.
-#[allow(clippy::only_used_in_recursion)]
-fn layout_states_vertical(
+fn layout_states_ranked(
     states: &[State],
     transitions: &[Transition],
     initial_ids: &HashSet<String>,
@@ -264,282 +767,114 @@ fn layout_states_vertical(
         return (Vec::new(), 0.0, 0.0);
     }
 
-    // First pass: compute sizes and children for all states
-    let mut entries: Vec<(StateNodeLayout, f64, f64)> = Vec::new();
-
+    // First pass: compute sizes for all states
+    let mut sized_entries: Vec<(StateNodeLayout, f64, f64)> = Vec::new();
     for state in states {
-        let is_initial = initial_ids.contains(&state.id);
-        let is_final = final_ids.contains(&state.id);
-        let is_composite = !state.children.is_empty() || !state.regions.is_empty();
-
-        if state.is_special {
-            // Special [*] state: small circle
-            let diameter = 2.0 * SPECIAL_STATE_RADIUS;
-            entries.push((
-                StateNodeLayout {
-                    id: state.id.clone(),
-                    name: state.name.clone(),
-                    x: 0.0,
-                    y: 0.0,
-                    width: diameter,
-                    height: diameter,
-                    description: Vec::new(),
-                    stereotype: None,
-                    is_initial,
-                    is_final,
-                    is_composite: false,
-                    children: Vec::new(),
-                    kind: state.kind.clone(),
-                    region_separators: Vec::new(),
-                },
-                diameter,
-                diameter,
-            ));
-        } else if matches!(state.kind, StateKind::Fork | StateKind::Join) {
-            // Fork/Join: thin horizontal bar
-            let w = FORK_BAR_WIDTH;
-            let h = FORK_BAR_HEIGHT;
-            entries.push((
-                StateNodeLayout {
-                    id: state.id.clone(),
-                    name: state.name.clone(),
-                    x: 0.0,
-                    y: 0.0,
-                    width: w,
-                    height: h,
-                    description: Vec::new(),
-                    stereotype: state.stereotype.clone(),
-                    is_initial: false,
-                    is_final: false,
-                    is_composite: false,
-                    children: Vec::new(),
-                    kind: state.kind.clone(),
-                    region_separators: Vec::new(),
-                },
-                w,
-                h,
-            ));
-        } else if state.kind == StateKind::Choice {
-            // Choice: small diamond
-            let s = CHOICE_SIZE;
-            entries.push((
-                StateNodeLayout {
-                    id: state.id.clone(),
-                    name: state.name.clone(),
-                    x: 0.0,
-                    y: 0.0,
-                    width: s,
-                    height: s,
-                    description: Vec::new(),
-                    stereotype: state.stereotype.clone(),
-                    is_initial: false,
-                    is_final: false,
-                    is_composite: false,
-                    children: Vec::new(),
-                    kind: state.kind.clone(),
-                    region_separators: Vec::new(),
-                },
-                s,
-                s,
-            ));
-        } else if matches!(state.kind, StateKind::History | StateKind::DeepHistory) {
-            // History: small circle with H text
-            let d = HISTORY_DIAMETER;
-            entries.push((
-                StateNodeLayout {
-                    id: state.id.clone(),
-                    name: state.name.clone(),
-                    x: 0.0,
-                    y: 0.0,
-                    width: d,
-                    height: d,
-                    description: Vec::new(),
-                    stereotype: state.stereotype.clone(),
-                    is_initial: false,
-                    is_final: false,
-                    is_composite: false,
-                    children: Vec::new(),
-                    kind: state.kind.clone(),
-                    region_separators: Vec::new(),
-                },
-                d,
-                d,
-            ));
-        } else if state.kind == StateKind::End {
-            // End pseudo-state: renders like final
-            let diameter = 2.0 * SPECIAL_STATE_RADIUS;
-            entries.push((
-                StateNodeLayout {
-                    id: state.id.clone(),
-                    name: state.name.clone(),
-                    x: 0.0,
-                    y: 0.0,
-                    width: diameter,
-                    height: diameter,
-                    description: Vec::new(),
-                    stereotype: state.stereotype.clone(),
-                    is_initial: false,
-                    is_final: true,
-                    is_composite: false,
-                    children: Vec::new(),
-                    kind: state.kind.clone(),
-                    region_separators: Vec::new(),
-                },
-                diameter,
-                diameter,
-            ));
-        } else if is_composite {
-            // Composite state: recursively layout children
-            let mut all_child_layouts = Vec::new();
-            let mut region_separators = Vec::new();
-            let mut total_child_w = 0.0_f64;
-            let total_child_h: f64;
-
-            // Collect all regions: regions[] + children (last region)
-            let mut all_regions: Vec<&[State]> = Vec::new();
-            for region in &state.regions {
-                all_regions.push(region);
-            }
-            if !state.children.is_empty() {
-                all_regions.push(&state.children);
-            }
-
-            if all_regions.len() > 1 {
-                // Multiple concurrent regions
-                let mut region_y = 0.0;
-                for (i, region) in all_regions.iter().enumerate() {
-                    let (child_layouts, child_w, child_h) = layout_states_vertical(
-                        region,
-                        transitions,
-                        initial_ids,
-                        final_ids,
-                        0.0,
-                        region_y,
-                    );
-                    total_child_w = total_child_w.max(child_w);
-                    region_y += child_h;
-                    all_child_layouts.extend(child_layouts);
-
-                    if i < all_regions.len() - 1 {
-                        region_y += STATE_SPACING / 2.0;
-                        region_separators.push(region_y);
-                        region_y += STATE_SPACING / 2.0;
-                    }
-                }
-                total_child_h = region_y;
-            } else {
-                let (child_layouts, child_w, child_h) = layout_states_vertical(
-                    &state.children,
-                    transitions,
-                    initial_ids,
-                    final_ids,
-                    0.0,
-                    0.0,
-                );
-                total_child_w = child_w;
-                total_child_h = child_h;
-                all_child_layouts = child_layouts;
-            }
-
-            let inner_width = total_child_w + 2.0 * COMPOSITE_PADDING;
-            let inner_height = total_child_h + COMPOSITE_HEADER + COMPOSITE_PADDING;
-
-            let name_w = name_text_width(&state.name) + 2.0 * PADDING;
-            let width = inner_width.max(name_w).max(STATE_MIN_WIDTH);
-            let height = inner_height.max(STATE_MIN_HEIGHT);
-
-            entries.push((
-                StateNodeLayout {
-                    id: state.id.clone(),
-                    name: state.name.clone(),
-                    x: 0.0,
-                    y: 0.0,
-                    width,
-                    height,
-                    description: state.description.clone(),
-                    stereotype: state.stereotype.clone(),
-                    is_initial,
-                    is_final,
-                    is_composite: true,
-                    children: all_child_layouts,
-                    kind: state.kind.clone(),
-                    region_separators,
-                },
-                width,
-                height,
-            ));
-        } else {
-            // Simple state
-            let (w, h) = estimate_state_size(state);
-            entries.push((
-                StateNodeLayout {
-                    id: state.id.clone(),
-                    name: state.name.clone(),
-                    x: 0.0,
-                    y: 0.0,
-                    width: w,
-                    height: h,
-                    description: state.description.clone(),
-                    stereotype: state.stereotype.clone(),
-                    is_initial,
-                    is_final,
-                    is_composite: false,
-                    children: Vec::new(),
-                    kind: state.kind.clone(),
-                    region_separators: Vec::new(),
-                },
-                w,
-                h,
-            ));
-        }
+        sized_entries.push(compute_state_node(state, transitions, initial_ids, final_ids));
     }
 
-    // Compute the maximum width across all states
-    let max_width = entries.iter().map(|(_, w, _)| *w).fold(0.0_f64, f64::max);
+    let state_ids: Vec<String> = states.iter().map(|s| s.id.clone()).collect();
 
-    // Second pass: assign absolute positions (centered horizontally)
+    // Assign ranks based on transition connectivity
+    let ranks = assign_ranks(&state_ids, transitions, initial_ids, final_ids);
+
+    // Place states row by row
     let mut y_cursor = start_y;
-    let mut nodes = Vec::new();
+    let mut total_width = 0.0_f64;
+    let mut positioned: Vec<Option<(f64, f64)>> = vec![None; states.len()];
 
-    for (mut node, w, h) in entries {
-        let x = start_x + (max_width - w) / 2.0;
-        node.x = x;
-        node.y = y_cursor;
+    for rank_indices in &ranks {
+        // Get the entries in this rank
+        let row_entries: Vec<usize> = rank_indices.to_vec();
 
-        // Offset children to absolute positions within the composite
-        if node.is_composite {
-            let child_offset_x = x + COMPOSITE_PADDING;
-            let child_offset_y = y_cursor + COMPOSITE_HEADER;
-            offset_children(&mut node.children, child_offset_x, child_offset_y);
-            // Offset region separators to absolute Y positions
-            for sep_y in &mut node.region_separators {
-                *sep_y += child_offset_y;
-            }
+        if row_entries.is_empty() {
+            continue;
         }
 
-        log::debug!(
-            "  state '{}' @ ({:.1}, {:.1}) {}x{} composite={} initial={} final={}",
-            node.id,
-            node.x,
-            node.y,
-            node.width,
-            node.height,
-            node.is_composite,
-            node.is_initial,
-            node.is_final
-        );
+        // Compute row dimensions
+        let row_height = row_entries
+            .iter()
+            .map(|&i| sized_entries[i].2)
+            .fold(0.0_f64, f64::max);
+        let row_width: f64 = row_entries
+            .iter()
+            .map(|&i| sized_entries[i].1)
+            .sum::<f64>()
+            + STATE_SPACING * (row_entries.len() as f64 - 1.0).max(0.0);
 
-        y_cursor += h + STATE_SPACING;
-        nodes.push(node);
+        total_width = total_width.max(row_width);
+
+        // Place each state in the row
+        let mut x_cursor = start_x;
+        for &idx in &row_entries {
+            let (_, w, h) = &sized_entries[idx];
+            // Vertically center within the row
+            let y_offset = (row_height - h) / 2.0;
+            positioned[idx] = Some((x_cursor, y_cursor + y_offset));
+            x_cursor += w + STATE_SPACING;
+        }
+
+        y_cursor += row_height + STATE_SPACING;
     }
 
-    let total_height = if states.is_empty() {
+    // Remove trailing spacing
+    let total_height = if ranks.is_empty() {
         0.0
     } else {
-        y_cursor - start_y - STATE_SPACING // subtract trailing spacing
+        y_cursor - start_y - STATE_SPACING
     };
 
-    (nodes, max_width, total_height)
+    // Center each row within the total width
+    for rank_indices in &ranks {
+        let row_width: f64 = rank_indices
+            .iter()
+            .map(|&i| sized_entries[i].1)
+            .sum::<f64>()
+            + STATE_SPACING * (rank_indices.len() as f64 - 1.0).max(0.0);
+        let offset = (total_width - row_width) / 2.0;
+        if offset > 0.5 {
+            for &idx in rank_indices {
+                if let Some((ref mut x, _)) = positioned[idx] {
+                    *x += offset;
+                }
+            }
+        }
+    }
+
+    // Build final node list
+    let mut nodes = Vec::new();
+    for (idx, (mut node, _w, _h)) in sized_entries.into_iter().enumerate() {
+        if let Some((x, y)) = positioned[idx] {
+            node.x = x;
+            node.y = y;
+
+            // Offset children to absolute positions within the composite
+            if node.is_composite {
+                let child_offset_x = x + COMPOSITE_PADDING;
+                let child_offset_y = y + COMPOSITE_HEADER;
+                offset_children(&mut node.children, child_offset_x, child_offset_y);
+                for sep_y in &mut node.region_separators {
+                    *sep_y += child_offset_y;
+                }
+            }
+
+            log::debug!(
+                "  state '{}' @ ({:.1}, {:.1}) {}x{} composite={} initial={} final={}",
+                node.id,
+                node.x,
+                node.y,
+                node.width,
+                node.height,
+                node.is_composite,
+                node.is_initial,
+                node.is_final
+            );
+
+            nodes.push(node);
+        }
+    }
+
+    (nodes, total_width, total_height)
 }
 
 /// Recursively offset children's positions from relative (0,0) to absolute.
@@ -666,15 +1001,17 @@ pub fn layout_state(diagram: &StateDiagram) -> Result<StateLayout> {
     let implicit_states = collect_implicit_states(&diagram.states, &diagram.transitions);
     log::debug!("  implicit states: {}", implicit_states.len());
 
-    // Merge declared + implicit states
+    // Merge declared + implicit states, deduplicating by ID.
+    // When duplicate IDs exist, prefer composite states over simple ones.
     let mut all_states: Vec<State> = diagram.states.clone();
     all_states.extend(implicit_states);
+    dedup_states(&mut all_states);
 
     // Re-classify after adding implicit states
     let (initial_ids, final_ids) = classify_special_states(&all_states, &diagram.transitions);
 
-    // Layout states vertically
-    let (state_layouts, content_width, content_height) = layout_states_vertical(
+    // Layout states with rank-based placement
+    let (state_layouts, content_width, content_height) = layout_states_ranked(
         &all_states,
         &diagram.transitions,
         &initial_ids,
@@ -715,15 +1052,29 @@ pub fn layout_state(diagram: &StateDiagram) -> Result<StateLayout> {
     }
 
     // Compute total bounding box
-    let is_degenerated = state_layouts.len() <= 1 && transition_layouts.is_empty();
-    let nr = if note_layouts.is_empty() { 0.0 } else { note_layouts.iter().map(|n| n.x + n.width).fold(0.0_f64, f64::max) };
-    let nb = if note_layouts.is_empty() { 0.0 } else { note_layouts.iter().map(|n| n.y + n.height).fold(0.0_f64, f64::max) };
-    let (total_width, total_height) = if is_degenerated {
-        ((content_width + 22.0).floor().max(nr + MARGIN), (content_height + 21.0).floor().max(nb + MARGIN))
+    let notes_right = if note_layouts.is_empty() {
+        0.0
     } else {
-        let sr = MARGIN + content_width; let sb = MARGIN + content_height;
-        (sr.max(nr) + MARGIN, sb.max(nb) + MARGIN)
+        note_layouts
+            .iter()
+            .map(|n| n.x + n.width)
+            .fold(0.0_f64, f64::max)
     };
+    let states_right = MARGIN + content_width;
+    let total_width = states_right.max(notes_right) + MARGIN;
+    let total_width = total_width.max(2.0 * MARGIN);
+
+    let notes_bottom = if note_layouts.is_empty() {
+        0.0
+    } else {
+        note_layouts
+            .iter()
+            .map(|n| n.y + n.height)
+            .fold(0.0_f64, f64::max)
+    };
+    let states_bottom = MARGIN + content_height;
+    let total_height = states_bottom.max(notes_bottom) + MARGIN;
+    let total_height = total_height.max(2.0 * MARGIN);
 
     log::debug!(
         "layout_state done: {:.0}x{:.0}, {} states, {} transitions, {} notes",
@@ -1181,13 +1532,8 @@ mod tests {
         let node = &layout.state_layouts[0];
 
         // Width should accommodate the longest description line
-        let expected_min_w = crate::font_metrics::text_width(
-            "a much longer description line",
-            "SansSerif",
-            DESC_FONT_SIZE,
-            false,
-            false,
-        ) + 2.0 * PADDING;
+        let expected_min_w =
+            "a much longer description line".len() as f64 * CHAR_WIDTH + 2.0 * PADDING;
         assert!(
             node.width >= expected_min_w,
             "width {} should be >= {}",
@@ -1196,7 +1542,7 @@ mod tests {
         );
 
         // Height should accommodate name + 3 description lines
-        let expected_min_h = 4.0 * DESC_LINE_HEIGHT + 2.0 * PADDING;
+        let expected_min_h = 4.0 * LINE_HEIGHT + 2.0 * PADDING;
         assert!(
             node.height >= expected_min_h,
             "height {} should be >= {}",
@@ -1247,7 +1593,7 @@ mod tests {
         let node = &layout.state_layouts[0];
         assert_eq!(node.stereotype.as_deref(), Some("<<inputPin>>"));
 
-        // Stereotype state width should accommodate stereotype text
+        // Height should be taller than a state without stereotype
         let plain = StateDiagram {
             states: vec![simple_state("MyState")],
             transitions: vec![],
@@ -1256,8 +1602,8 @@ mod tests {
         };
         let plain_layout = layout_state(&plain).unwrap();
         assert!(
-            node.width >= plain_layout.state_layouts[0].width,
-            "stereotype state should be at least as wide"
+            node.height > plain_layout.state_layouts[0].height,
+            "stereotype state should be taller"
         );
     }
 
