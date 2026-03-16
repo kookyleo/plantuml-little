@@ -378,18 +378,30 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
 
     for (i, p) in sd.participants.iter().enumerate() {
         let display = p.display_name.as_deref().unwrap_or(&p.name);
-        let bw = (font_metrics::text_width(display, "SansSerif", participant_font_size, false, false)
-            + 2.0 * PARTICIPANT_PADDING)
-            .max(40.0);
+        // Split display name by literal \n for multiline participants
+        let display_lines: Vec<&str> = display.split("\\n").collect();
+        let num_lines = display_lines.len();
+        let max_line_w = display_lines
+            .iter()
+            .map(|line| font_metrics::text_width(line, "SansSerif", participant_font_size, false, false))
+            .fold(0.0_f64, f64::max);
+        let bw = (max_line_w + 2.0 * PARTICIPANT_PADDING).max(40.0);
+        let participant_line_height =
+            font_metrics::line_height("SansSerif", participant_font_size, false, false);
+        let multiline_extra = if num_lines > 1 {
+            participant_line_height * (num_lines - 1) as f64
+        } else {
+            0.0
+        };
         let bh = match p.kind {
-            ParticipantKind::Actor => base_participant_height + 45.0,
+            ParticipantKind::Actor => base_participant_height + 45.0 + multiline_extra,
             ParticipantKind::Boundary
             | ParticipantKind::Control
             | ParticipantKind::Entity
             | ParticipantKind::Database
             | ParticipantKind::Collections
-            | ParticipantKind::Queue => base_participant_height + 20.0,
-            ParticipantKind::Default => base_participant_height,
+            | ParticipantKind::Queue => base_participant_height + 20.0 + multiline_extra,
+            ParticipantKind::Default => base_participant_height + multiline_extra,
         };
         box_widths.push(bw);
         box_heights.push(bh);
@@ -560,8 +572,9 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
     let mut y_cursor = MARGIN + max_ph + 32.1328 + note_extra;
 
     // Track the bottom y of the last rendered event for lifeline sizing.
-    // This stores the lifeline_bottom directly (not an intermediate value).
-    let mut lifeline_extend_y: f64 = y_cursor;
+    // Minimum lifeline height matches Java ComponentRoseLine.getPreferredHeight (20px).
+    let lifeline_min_bottom = MARGIN + max_ph + 1.0 + 20.0;
+    let mut lifeline_extend_y: f64 = lifeline_min_bottom;
 
     // For self-messages followed by activate: the activation bar should start
     // at the self-message return y, not at y_cursor (which has already advanced
