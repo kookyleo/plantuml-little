@@ -88,6 +88,9 @@ const HISTORY_DIAMETER: f64 = 22.0;
 const NOTE_MAX_WIDTH: f64 = 200.0;
 const MARGIN: f64 = 7.0;
 const FIRST_DESC_Y_OFFSET: f64 = 16.1386;
+const TAB_WIDTH: f64 = 30.515624;
+const DESC_BODY_TOTAL_PAD: f64 = 20.0;
+const NAME_TOTAL_PAD: f64 = 20.0;
 
 // ---------------------------------------------------------------------------
 // Text measurement helpers
@@ -113,34 +116,28 @@ fn strip_leading_tabs(line: &str) -> &str {
     rest
 }
 
-/// Estimate the size of a simple (non-composite, non-special) state.
-/// Returns `(width, height)`.
+fn split_bn_layout(s: &str) -> Vec<&str> {
+    let mut r = Vec::new(); let mut start = 0; let b = s.as_bytes(); let mut i = 0;
+    while i < b.len() { if b[i] == b'\\' && i+1 < b.len() && b[i+1] == b'n' { r.push(&s[start..i]); start = i+2; i += 2; } else { i += 1; } }
+    r.push(&s[start..]); r
+}
 fn estimate_state_size(state: &State) -> (f64, f64) {
-    let name_w = name_text_width(&state.name) + 2.0 * PADDING;
-
-    let desc_w = state
-        .description
-        .iter()
-        .map(|line| {
-            let stripped = strip_leading_tabs(line);
-            desc_text_width(stripped) + 2.0 * PADDING
-        })
-        .fold(0.0_f64, f64::max);
-
-    let stereo_w = state
-        .stereotype
-        .as_ref()
-        .map_or(0.0, |s| desc_text_width(s) + 2.0 * PADDING);
-
+    let name_w = name_text_width(&state.name) + NAME_TOTAL_PAD;
+    let stereo_w = state.stereotype.as_ref().map_or(0.0, |s| desc_text_width(s) + NAME_TOTAL_PAD);
+    let mut nvl = 0usize; let mut mdw = 0.0_f64;
+    for desc in &state.description {
+        for part in split_bn_layout(desc) {
+            nvl += 1;
+            let stripped = strip_leading_tabs(part);
+            let tc = (part.len() - stripped.len()) / 2;
+            let to = tc as f64 * TAB_WIDTH;
+            let plain = stripped.replace("**", "");
+            mdw = mdw.max(to + desc_text_width(&plain));
+        }
+    }
+    let desc_w = if nvl > 0 { mdw + DESC_BODY_TOTAL_PAD } else { 0.0 };
     let width = name_w.max(desc_w).max(stereo_w).max(STATE_MIN_WIDTH);
-
-    let desc_lines = state.description.len() as f64;
-    let height = if desc_lines > 0.0 {
-        COMPOSITE_HEADER + FIRST_DESC_Y_OFFSET + (desc_lines - 1.0) * DESC_LINE_HEIGHT + PADDING
-    } else {
-        STATE_MIN_HEIGHT
-    };
-
+    let height = if nvl > 0 { 50.2656 + (nvl as f64 - 1.0) * DESC_LINE_HEIGHT } else { STATE_MIN_HEIGHT };
     (width, height)
 }
 
@@ -718,29 +715,15 @@ pub fn layout_state(diagram: &StateDiagram) -> Result<StateLayout> {
     }
 
     // Compute total bounding box
-    let notes_right = if note_layouts.is_empty() {
-        0.0
+    let is_degenerated = state_layouts.len() <= 1 && transition_layouts.is_empty();
+    let nr = if note_layouts.is_empty() { 0.0 } else { note_layouts.iter().map(|n| n.x + n.width).fold(0.0_f64, f64::max) };
+    let nb = if note_layouts.is_empty() { 0.0 } else { note_layouts.iter().map(|n| n.y + n.height).fold(0.0_f64, f64::max) };
+    let (total_width, total_height) = if is_degenerated {
+        ((content_width + 22.0).floor().max(nr + MARGIN), (content_height + 21.0).floor().max(nb + MARGIN))
     } else {
-        note_layouts
-            .iter()
-            .map(|n| n.x + n.width)
-            .fold(0.0_f64, f64::max)
+        let sr = MARGIN + content_width; let sb = MARGIN + content_height;
+        (sr.max(nr) + MARGIN, sb.max(nb) + MARGIN)
     };
-    let states_right = MARGIN + content_width;
-    let total_width = states_right.max(notes_right) + MARGIN;
-    let total_width = total_width.max(2.0 * MARGIN);
-
-    let notes_bottom = if note_layouts.is_empty() {
-        0.0
-    } else {
-        note_layouts
-            .iter()
-            .map(|n| n.y + n.height)
-            .fold(0.0_f64, f64::max)
-    };
-    let states_bottom = MARGIN + content_height;
-    let total_height = states_bottom.max(notes_bottom) + MARGIN;
-    let total_height = total_height.max(2.0 * MARGIN);
 
     log::debug!(
         "layout_state done: {:.0}x{:.0}, {} states, {} transitions, {} notes",

@@ -1,3 +1,4 @@
+use std::cell::Cell;
 use std::fmt::Write;
 
 use crate::font_metrics;
@@ -9,10 +10,17 @@ use crate::render::svg_richtext::render_creole_text;
 use crate::style::SkinParams;
 use crate::Result;
 
+thread_local! { static ENT_COUNTER: Cell<u32> = const { Cell::new(2) }; }
+fn next_ent_id() -> String { ENT_COUNTER.with(|c| { let id = c.get(); c.set(id + 1); format!("ent{:04}", id) }) }
+fn reset_ent_counter() { ENT_COUNTER.with(|c| c.set(2)); }
+
 // ── Style constants (PlantUML rose theme) ───────────────────────────
 
 const FONT_SIZE: f64 = 13.0;
+const DESC_FONT_SIZE: f64 = 12.0;
+const DESC_LINE_HEIGHT: f64 = 13.9688;
 const LINE_HEIGHT: f64 = 16.0;
+const TAB_WIDTH: f64 = 30.515624;
 const STATE_BG: &str = "#F1F1F1";
 const STATE_BORDER: &str = "#181818";
 const INITIAL_FILL: &str = "#222222";
@@ -32,6 +40,7 @@ pub fn render_state(
     skin: &SkinParams,
 ) -> Result<String> {
     let mut buf = String::with_capacity(4096);
+    reset_ent_counter();
 
     // SVG header
     let bg = skin.get_or("backgroundcolor", "#FFFFFF");
@@ -244,12 +253,13 @@ fn render_simple(
     border: &str,
     font_color: &str,
 ) {
-    // Open semantic <g> wrapper
+    // Open semantic <g> wrapper with entity ID
     let name_escaped = xml_escape(&node.name);
+    let ent_id = next_ent_id();
     write!(
         buf,
-        r#"<g class="entity" data-qualified-name="{}">"#,
-        name_escaped,
+        r#"<g class="entity" data-qualified-name="{}" id="{}">"#,
+        name_escaped, ent_id,
     )
     .unwrap();
 
@@ -264,16 +274,12 @@ fn render_simple(
     )
     .unwrap();
 
-    let cx = node.x + node.width / 2.0;
-
-    // Separator line (always present in Java PlantUML for simple states)
-    let has_desc = !node.description.is_empty();
-
     // Stereotype (shown above the name in smaller text)
     let mut name_y_offset = 0.0;
     if let Some(ref stereotype) = node.stereotype {
         let stereo_text = format!("\u{00AB}{stereotype}\u{00BB}");
         let escaped = xml_escape(&stereo_text);
+        let cx_s = node.x + node.width / 2.0;
         let stereo_y = node.y + FONT_SIZE + 4.0;
         let stereo_fs = FONT_SIZE - 2.0;
         let tl = fmt_coord(font_metrics::text_width(&stereo_text, "SansSerif", stereo_fs, false, true));
@@ -281,7 +287,7 @@ fn render_simple(
             buf,
             r#"<text fill="{font_color}" font-family="sans-serif" font-size="{}" font-style="italic" lengthAdjust="spacing" text-anchor="middle" textLength="{tl}" x="{}" y="{}">{escaped}</text>"#,
             fmt_coord(stereo_fs),
-            fmt_coord(cx),
+            fmt_coord(cx_s),
             fmt_coord(stereo_y),
         )
         .unwrap();
@@ -301,30 +307,28 @@ fn render_simple(
     )
     .unwrap();
 
-    // State name text
-    let name_tl = fmt_coord(font_metrics::text_width(&node.name, "SansSerif", 14.0, false, false));
+    // State name text (centered)
+    let name_width = font_metrics::text_width(&node.name, "SansSerif", 14.0, false, false);
+    let name_tl = fmt_coord(name_width);
+    let name_x = node.x + (node.width - name_width) / 2.0;
     write!(
         buf,
         r#"<text fill="{font_color}" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="{name_tl}" x="{}" y="{}">{name_escaped}</text>"#,
-        fmt_coord(cx),
+        fmt_coord(name_x),
         fmt_coord(name_y),
     )
     .unwrap();
 
-    // Description lines
-    if has_desc {
-        let text_x = node.x + 8.0;
-        let desc_text = node.description.join("\n");
-        render_creole_text(
-            buf,
-            &desc_text,
-            text_x,
-            sep_y + LINE_HEIGHT,
-            LINE_HEIGHT,
-            font_color,
-            None,
-            r#"font-size="12""#,
-        );
+    // Description lines: each visual line is a separate <text> element
+    if !node.description.is_empty() {
+        let base_x = node.x + 5.0;
+        let first_y = sep_y + 16.1386;
+        let visual_lines = expand_description_lines(&node.description);
+        for (i, vline) in visual_lines.iter().enumerate() {
+            let x = base_x + vline.tab_count as f64 * TAB_WIDTH;
+            let y = first_y + i as f64 * DESC_LINE_HEIGHT;
+            render_desc_line(buf, &vline.text, x, y, font_color);
+        }
     }
 
     // Close <g>
@@ -339,12 +343,13 @@ fn render_composite(
     border: &str,
     font_color: &str,
 ) {
-    // Open semantic <g> wrapper
+    // Open semantic <g> wrapper with entity ID
     let name_escaped = xml_escape(&node.name);
+    let ent_id = next_ent_id();
     write!(
         buf,
-        r#"<g class="entity" data-qualified-name="{}">"#,
-        name_escaped,
+        r#"<g class="entity" data-qualified-name="{}" id="{}">"#,
+        name_escaped, ent_id,
     )
     .unwrap();
 
@@ -569,6 +574,46 @@ fn count_leading_tabs(line: &str) -> (usize, &str) {
         rest = stripped;
     }
     (count, rest)
+}
+
+struct VisualLine { tab_count: usize, text: String }
+fn expand_description_lines(descriptions: &[String]) -> Vec<VisualLine> {
+    let mut vl = Vec::new();
+    for desc in descriptions {
+        for part in split_backslash_n(desc) {
+            let (tabs, text) = count_leading_tabs(part);
+            let text = if text.is_empty() { "\u{00A0}".to_string() } else { text.to_string() };
+            vl.push(VisualLine { tab_count: tabs, text });
+        }
+    }
+    vl
+}
+fn split_backslash_n(s: &str) -> Vec<&str> {
+    let mut r = Vec::new(); let mut start = 0; let b = s.as_bytes(); let mut i = 0;
+    while i < b.len() {
+        if b[i] == b'\\' && i + 1 < b.len() && b[i + 1] == b'n' { r.push(&s[start..i]); start = i + 2; i += 2; }
+        else { i += 1; }
+    }
+    r.push(&s[start..]); r
+}
+fn render_desc_line(buf: &mut String, text: &str, x: f64, y: f64, fc: &str) {
+    if text.contains("**") { render_desc_line_bold(buf, text, x, y, fc); return; }
+    let (d, tl) = if text == "\u{00A0}" {
+        ("&#160;".to_string(), font_metrics::text_width("\u{00A0}", "SansSerif", DESC_FONT_SIZE, false, false))
+    } else { (xml_escape(text), font_metrics::text_width(text, "SansSerif", DESC_FONT_SIZE, false, false)) };
+    write!(buf, r#"<text fill="{fc}" font-family="sans-serif" font-size="12" lengthAdjust="spacing" textLength="{}" x="{}" y="{}">{d}</text>"#,
+        fmt_coord(tl), fmt_coord(x), fmt_coord(y)).unwrap();
+}
+fn render_desc_line_bold(buf: &mut String, text: &str, x: f64, y: f64, fc: &str) {
+    let mut cx = x; let mut ib = false;
+    for part in text.split("**") {
+        if part.is_empty() { ib = !ib; continue; }
+        let e = xml_escape(part);
+        let tl = font_metrics::text_width(part, "SansSerif", DESC_FONT_SIZE, ib, false);
+        if ib { write!(buf, r#"<text fill="{fc}" font-family="sans-serif" font-size="12" font-weight="700" lengthAdjust="spacing" textLength="{}" x="{}" y="{}">{e}</text>"#, fmt_coord(tl), fmt_coord(cx), fmt_coord(y)).unwrap(); }
+        else { write!(buf, r#"<text fill="{fc}" font-family="sans-serif" font-size="12" lengthAdjust="spacing" textLength="{}" x="{}" y="{}">{e}</text>"#, fmt_coord(tl), fmt_coord(cx), fmt_coord(y)).unwrap(); }
+        cx += tl; ib = !ib;
+    }
 }
 
 // ── Tests ───────────────────────────────────────────────────────────
