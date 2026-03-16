@@ -17,7 +17,7 @@ pub mod svg;
 /// Java: `klimt.UChange` (empty interface)
 ///
 /// Implementors: UStroke, UTranslate, HColor (foreground), UBackground, UPattern
-pub trait UChange {}
+pub trait UChange: std::any::Any {}
 
 // ── UStroke ──────────────────────────────────────────────────────────
 
