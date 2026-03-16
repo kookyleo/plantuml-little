@@ -76,18 +76,20 @@ fn draw_lifelines(buf: &mut String, layout: &SeqLayout, skin: &SkinParams, sd: &
     let ll_height = layout.lifeline_bottom - layout.lifeline_top;
     for (i, p) in layout.participants.iter().enumerate() {
         let part_idx = i + 1;
+        let qualified_name = xml_escape(&p.name);
         let display = sd
             .participants
             .get(i)
             .and_then(|pp| pp.display_name.as_deref())
             .unwrap_or(&p.name);
-        let escaped_name = xml_escape(display);
+        let escaped_display = xml_escape(display);
 
         write!(
             buf,
-            r#"<g class="participant-lifeline" data-entity-uid="part{idx}" data-qualified-name="{name}" id="part{idx}-lifeline"><g><title>{name}</title>"#,
+            r#"<g class="participant-lifeline" data-entity-uid="part{idx}" data-qualified-name="{qname}" id="part{idx}-lifeline"><g><title>{dname}</title>"#,
             idx = part_idx,
-            name = escaped_name,
+            qname = qualified_name,
+            dname = escaped_display,
         )
         .unwrap();
 
@@ -224,15 +226,18 @@ fn draw_participant_rect_with_font(
     font_size: f64,
 ) {
     let name = display_name.unwrap_or(&p.name);
-    let text_width = font_metrics::text_width(name, "SansSerif", font_size, false, false);
+    let lines: Vec<&str> = name.split("\\n").collect();
+    let max_line_w = lines
+        .iter()
+        .map(|line| font_metrics::text_width(line, "SansSerif", font_size, false, false))
+        .fold(0.0_f64, f64::max);
     let padding = 7.0;
-    let box_width = text_width + 2.0 * padding;
+    let box_width = max_line_w + 2.0 * padding;
     let box_height = p.box_height;
     let x = p.x - box_width / 2.0;
     let text_x = x + padding;
-    // text_y baseline: scales with font size
-    // For font-size 14: offset = 19.9951, for font-size 16: offset = 21.8516
-    let text_y = y + 19.9951 + (font_size - 14.0) * 0.92825;
+    let text_y_base = y + 19.9951 + (font_size - 14.0) * 0.92825;
+    let line_h = font_metrics::line_height("SansSerif", font_size, false, false);
 
     let fill_attrs = resolve_fill_attrs(bg);
     write!(
@@ -246,17 +251,21 @@ fn draw_participant_rect_with_font(
     .unwrap();
 
     let fs = font_size as u32;
-    let escaped = xml_escape(name);
-    write!(
-        buf,
-        r#"<text fill="{color}" font-family="sans-serif" font-size="{fs}" lengthAdjust="spacing" textLength="{tl}" x="{tx}" y="{ty}">{text}</text>"#,
-        tl = fmt_coord(text_width),
-        tx = fmt_coord(text_x),
-        ty = fmt_coord(text_y),
-        color = text_color,
-        text = escaped,
-    )
-    .unwrap();
+    for (line_idx, line) in lines.iter().enumerate() {
+        let text_y = text_y_base + line_idx as f64 * line_h;
+        let line_w = font_metrics::text_width(line, "SansSerif", font_size, false, false);
+        let escaped = xml_escape(line);
+        write!(
+            buf,
+            r#"<text fill="{color}" font-family="sans-serif" font-size="{fs}" lengthAdjust="spacing" textLength="{tl}" x="{tx}" y="{ty}">{text}</text>"#,
+            tl = fmt_coord(line_w),
+            tx = fmt_coord(text_x),
+            ty = fmt_coord(text_y),
+            color = text_color,
+            text = escaped,
+        )
+        .unwrap();
+    }
 }
 
 /// Actor: stick figure (circle head + body + arms + legs) with name below
@@ -1455,20 +1464,20 @@ fn render_sequence_inner(
         .unwrap_or(14.0);
 
     // 6. Participant head + tail boxes (interleaved per participant, matching Java order)
-    let top_y = MARGIN;
+    let max_ph = layout.participants.iter().map(|pp| pp.box_height).fold(0.0_f64, f64::max);
     let bottom_y = layout.lifeline_bottom - 1.0;
     for (i, p) in layout.participants.iter().enumerate() {
         let part_idx = i + 1;
         let dn = display_names.get(p.name.as_str()).copied();
-        let display = dn.unwrap_or(&p.name);
-        let escaped_name = xml_escape(display);
+        let qualified_name = xml_escape(&p.name);
 
-        // Head
+        // Head (bottom-aligned within head band)
+        let top_y = MARGIN + max_ph - p.box_height;
         write!(
             buf,
             r#"<g class="participant participant-head" data-entity-uid="part{idx}" data-qualified-name="{name}" id="part{idx}-head">"#,
             idx = part_idx,
-            name = escaped_name,
+            name = qualified_name,
         )
         .unwrap();
         draw_participant_box_with_font(&mut buf, p, top_y, dn, part_bg, part_border, part_font, part_font_size);
@@ -1479,7 +1488,7 @@ fn render_sequence_inner(
             buf,
             r#"<g class="participant participant-tail" data-entity-uid="part{idx}" data-qualified-name="{name}" id="part{idx}-tail">"#,
             idx = part_idx,
-            name = escaped_name,
+            name = qualified_name,
         )
         .unwrap();
         draw_participant_box_with_font(&mut buf, p, bottom_y, dn, part_bg, part_border, part_font, part_font_size);
