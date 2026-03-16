@@ -372,61 +372,24 @@ fn render_body(diagram: &Diagram, layout: &DiagramLayout, skin: &SkinParams) -> 
         (Diagram::UseCase(ud), DiagramLayout::UseCase(ul)) => {
             super::svg_usecase::render_usecase(ud, ul, skin)
         }
-        (Diagram::Dot(dd), DiagramLayout::Dot(_gl)) => {
-            // DOT passthrough: render using vizoxide directly
-            render_dot_passthrough(&dd.source)
+        (Diagram::Dot(_dd), DiagramLayout::Dot(_gl)) => {
+            // Java PlantUML suppresses DOT rendering
+            Ok(render_dot_suppressed())
         }
         _ => Err(crate::Error::Render("diagram/layout type mismatch".into())),
     }
 }
 
-/// Render a DOT passthrough diagram using the Graphviz `dot` command.
-///
-/// Pipes the raw DOT source through `dot -Tsvg` and returns the resulting SVG.
-fn render_dot_passthrough(dot_source: &str) -> Result<String> {
-    use std::process::{Command, Stdio};
-
-    log::debug!(
-        "render_dot_passthrough: {} bytes of DOT source",
-        dot_source.len()
-    );
-
-    let mut child = Command::new("dot")
-        .arg("-Tsvg")
-        .stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .spawn()
-        .map_err(|e| {
-            crate::Error::Render(format!("failed to spawn dot: {e} (is graphviz installed?)"))
-        })?;
-
-    child
-        .stdin
-        .take()
-        .unwrap()
-        .write_all(dot_source.as_bytes())
-        .map_err(|e| crate::Error::Render(format!("failed to write to dot stdin: {e}")))?;
-
-    let output = child
-        .wait_with_output()
-        .map_err(|e| crate::Error::Render(format!("dot process error: {e}")))?;
-
-    if !output.status.success() {
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        return Err(crate::Error::Render(format!(
-            "dot exited with error: {stderr}"
-        )));
-    }
-
-    let svg = String::from_utf8(output.stdout)
-        .map_err(|e| crate::Error::Render(format!("dot output is not valid UTF-8: {e}")))?;
-
-    log::debug!(
-        "render_dot_passthrough: produced {} bytes of SVG",
-        svg.len()
-    );
-    Ok(svg)
+/// Render a suppressed-feature notice for DOT diagrams, matching Java PlantUML.
+fn render_dot_suppressed() -> String {
+    let mut s = String::new();
+    s.push_str("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n");
+    s.push_str("<svg xmlns=\"http://www.w3.org/2000/svg\" xmlns:xlink=\"http://www.w3.org/1999/xlink\">\n");
+    s.push_str("<a xlink:href=\"https://github.com/plantuml/plantuml/issues/2495\">\n");
+    s.push_str("<text x=\"10\" y=\"30\" font-family=\"sans-serif\" font-size=\"14\" fill=\"blue\" text-decoration=\"underline\">This feature has been suppressed</text>\n");
+    s.push_str("</a>\n");
+    s.push_str("</svg>");
+    s
 }
 
 // ── Meta wrapping ───────────────────────────────────────────────────
@@ -2999,14 +2962,12 @@ mod tests {
     }
 
     #[test]
-    fn test_dot_passthrough_produces_valid_svg() {
-        let dot_src = "digraph G { A -> B; B -> C; }";
-        let svg = render_dot_passthrough(dot_src).expect("dot passthrough failed");
+    fn test_dot_suppressed_produces_valid_svg() {
+        let svg = render_dot_suppressed();
         assert!(svg.contains("<svg"), "must contain <svg tag");
         assert!(svg.contains("</svg>"), "must contain </svg> tag");
-        assert!(svg.contains("A"), "must contain node A");
-        assert!(svg.contains("B"), "must contain node B");
-        assert!(svg.contains("C"), "must contain node C");
+        assert!(svg.contains("suppressed"), "must contain suppressed message");
+        assert!(svg.contains("2495"), "must reference issue 2495");
     }
 
     // ── Note rendering tests ────────────────────────────────────────

@@ -1,540 +1,343 @@
-use log::{debug, trace};
+use log::debug;
 
 use crate::font_metrics;
 use crate::model::json_diagram::{JsonDiagram, JsonValue};
 use crate::Result;
 
 // ---------------------------------------------------------------------------
-// Layout output types
+// Layout output types — tree-table style matching Java PlantUML
 // ---------------------------------------------------------------------------
 
-/// Fully positioned JSON tree-table, ready for SVG rendering.
-#[derive(Debug)]
-pub struct JsonLayout {
-    pub rows: Vec<JsonRowLayout>,
+/// A positioned box in the JSON tree-table layout.
+#[derive(Debug, Clone)]
+pub struct JsonBox {
+    pub x: f64,
+    pub y: f64,
     pub width: f64,
+    pub height: f64,
+    pub rows: Vec<JsonBoxRow>,
+    /// x coordinate of the vertical key/value separator line (absolute).
+    pub separator_x: f64,
+}
+
+/// A single row inside a JsonBox.
+#[derive(Debug, Clone)]
+pub struct JsonBoxRow {
+    pub key: Option<String>,
+    pub value_lines: Vec<String>,
+    pub has_child: bool,
+    pub child_box_idx: Option<usize>,
+    pub y_top: f64,
     pub height: f64,
 }
 
-/// One visual row in the flattened JSON tree-table.
+/// An arrow connector between a parent box row and a child box.
+#[derive(Debug, Clone)]
+pub struct JsonArrow {
+    pub from_x: f64,
+    pub from_y: f64,
+    pub to_x: f64,
+    pub to_y: f64,
+}
+
+/// Fully positioned JSON/YAML tree-table layout.
+#[derive(Debug)]
+pub struct JsonLayout {
+    pub boxes: Vec<JsonBox>,
+    pub arrows: Vec<JsonArrow>,
+    pub width: f64,
+    pub height: f64,
+    /// Legacy field (kept for backward compat).
+    pub rows: Vec<JsonRowLayout>,
+}
+
+/// Legacy row layout (kept for backward compat).
 #[derive(Debug)]
 pub struct JsonRowLayout {
-    /// Nesting depth (0 = root level).
     pub depth: usize,
-    /// Key label (None for array items and structural rows like `{`, `}`).
     pub key: Option<String>,
-    /// Value text to display.
     pub value: String,
-    /// Absolute x position.
     pub x: f64,
-    /// Absolute y position.
     pub y: f64,
-    /// Row width.
     pub width: f64,
-    /// Row height.
     pub height: f64,
-    /// Whether this row represents a container that has children.
     pub has_children: bool,
-    /// Connection points for parent-to-child lines: (x, y) pairs.
     pub connector_points: Vec<(f64, f64)>,
-    /// True if this row is a structural bracket/header (e.g., `{`, `}`, `[`, `]`).
     pub is_header: bool,
 }
 
 // ---------------------------------------------------------------------------
-// Constants
+// Constants — matching Java PlantUML JSON renderer
 // ---------------------------------------------------------------------------
 
-const ROW_HEIGHT: f64 = 24.0;
-const FONT_SIZE: f64 = 12.0;
-const INDENT_PX: f64 = 20.0;
-const PADDING_H: f64 = 10.0;
-const MIN_KEY_WIDTH: f64 = 40.0;
-const MIN_VAL_WIDTH: f64 = 60.0;
+const FONT_SIZE: f64 = 14.0;
+const PADDING: f64 = 5.0;
+const ROW_V_PAD: f64 = 2.0;
 const MARGIN: f64 = 10.0;
+const CHILD_GAP: f64 = 60.0;
 
-// ---------------------------------------------------------------------------
-// Text measurement helpers
-// ---------------------------------------------------------------------------
+fn text_w(text: &str, bold: bool) -> f64 {
+    font_metrics::text_width(text, "SansSerif", FONT_SIZE, bold, false)
+}
 
-fn text_width(text: &str) -> f64 {
-    font_metrics::text_width(text, "SansSerif", FONT_SIZE, false, false)
+fn row_height() -> f64 {
+    let asc = font_metrics::ascent("SansSerif", FONT_SIZE, false, false);
+    let desc = font_metrics::descent("SansSerif", FONT_SIZE, false, false);
+    asc + desc + 2.0 * ROW_V_PAD
+}
+
+fn line_height() -> f64 {
+    font_metrics::line_height("SansSerif", FONT_SIZE, false, false)
+}
+
+fn baseline_offset() -> f64 {
+    font_metrics::ascent("SansSerif", FONT_SIZE, false, false) + ROW_V_PAD
 }
 
 // ---------------------------------------------------------------------------
-// Flattening: recursive JSON -> flat row list
+// Intermediate structures
 // ---------------------------------------------------------------------------
 
-/// Intermediate row before position assignment.
-#[derive(Debug)]
-struct FlatRow {
-    depth: usize,
+struct BoxRowSpec {
     key: Option<String>,
-    value: String,
-    has_children: bool,
-    is_header: bool,
+    value_lines: Vec<String>,
+    has_child: bool,
+    child_spec_idx: Option<usize>,
 }
 
-/// Recursively flatten a JsonValue into display rows.
-fn flatten_value(value: &JsonValue, key: Option<&str>, depth: usize, rows: &mut Vec<FlatRow>) {
+struct BoxSpec {
+    rows: Vec<BoxRowSpec>,
+    max_key_w: f64,
+    max_val_w: f64,
+}
+
+fn build_box_spec(value: &JsonValue, specs: &mut Vec<BoxSpec>) -> usize {
+    let idx = specs.len();
+    specs.push(BoxSpec { rows: vec![], max_key_w: 0.0, max_val_w: 0.0 });
+
     match value {
         JsonValue::Object(entries) => {
-            // Opening header row
-            let label = match key {
-                Some(k) => k.to_string(),
-                None => String::new(),
-            };
-            rows.push(FlatRow {
-                depth,
-                key: if label.is_empty() { None } else { Some(label) },
-                value: "{".to_string(),
-                has_children: !entries.is_empty(),
-                is_header: true,
-            });
-
-            for (k, v) in entries {
-                if v.is_container() {
-                    flatten_value(v, Some(k), depth + 1, rows);
+            for (key, val) in entries {
+                let key_w = text_w(key, true);
+                specs[idx].max_key_w = specs[idx].max_key_w.max(key_w);
+                if val.is_container() {
+                    let child_idx = build_box_spec(val, specs);
+                    let placeholder = "\u{00A0}\u{00A0}\u{00A0}";
+                    specs[idx].max_val_w = specs[idx].max_val_w.max(text_w(placeholder, false));
+                    specs[idx].rows.push(BoxRowSpec {
+                        key: Some(key.clone()), value_lines: vec![placeholder.to_string()],
+                        has_child: true, child_spec_idx: Some(child_idx),
+                    });
                 } else {
-                    rows.push(FlatRow {
-                        depth: depth + 1,
-                        key: Some(k.clone()),
-                        value: v.display_value(),
-                        has_children: false,
-                        is_header: false,
+                    let (display, lines) = format_leaf_value(val);
+                    for line in &lines { specs[idx].max_val_w = specs[idx].max_val_w.max(text_w(line, false)); }
+                    if lines.is_empty() { specs[idx].max_val_w = specs[idx].max_val_w.max(text_w(&display, false)); }
+                    specs[idx].rows.push(BoxRowSpec {
+                        key: Some(key.clone()),
+                        value_lines: if lines.is_empty() { vec![display] } else { lines },
+                        has_child: false, child_spec_idx: None,
                     });
                 }
             }
-
-            // Closing brace row
-            rows.push(FlatRow {
-                depth,
-                key: None,
-                value: "}".to_string(),
-                has_children: false,
-                is_header: true,
-            });
         }
         JsonValue::Array(items) => {
-            let label = match key {
-                Some(k) => k.to_string(),
-                None => String::new(),
-            };
-            rows.push(FlatRow {
-                depth,
-                key: if label.is_empty() { None } else { Some(label) },
-                value: "[".to_string(),
-                has_children: !items.is_empty(),
-                is_header: true,
-            });
-
-            for (i, item) in items.iter().enumerate() {
-                let idx_key = format!("{i}");
+            for item in items {
                 if item.is_container() {
-                    flatten_value(item, Some(&idx_key), depth + 1, rows);
+                    let child_idx = build_box_spec(item, specs);
+                    let placeholder = "\u{00A0}\u{00A0}\u{00A0}";
+                    specs[idx].max_val_w = specs[idx].max_val_w.max(text_w(placeholder, false));
+                    specs[idx].rows.push(BoxRowSpec {
+                        key: None, value_lines: vec![placeholder.to_string()],
+                        has_child: true, child_spec_idx: Some(child_idx),
+                    });
                 } else {
-                    rows.push(FlatRow {
-                        depth: depth + 1,
-                        key: Some(idx_key),
-                        value: item.display_value(),
-                        has_children: false,
-                        is_header: false,
+                    let (display, _) = format_leaf_value(item);
+                    specs[idx].max_val_w = specs[idx].max_val_w.max(text_w(&display, false));
+                    specs[idx].rows.push(BoxRowSpec {
+                        key: None, value_lines: vec![display],
+                        has_child: false, child_spec_idx: None,
                     });
                 }
             }
-
-            rows.push(FlatRow {
-                depth,
-                key: None,
-                value: "]".to_string(),
-                has_children: false,
-                is_header: true,
-            });
         }
-        // Leaf values at root level (unusual but valid)
         _ => {
-            rows.push(FlatRow {
-                depth,
-                key: key.map(std::string::ToString::to_string),
-                value: value.display_value(),
-                has_children: false,
-                is_header: false,
+            let (display, _) = format_leaf_value(value);
+            specs[idx].max_val_w = specs[idx].max_val_w.max(text_w(&display, false));
+            specs[idx].rows.push(BoxRowSpec {
+                key: None, value_lines: vec![display],
+                has_child: false, child_spec_idx: None,
             });
         }
     }
+    idx
+}
+
+fn format_leaf_value(val: &JsonValue) -> (String, Vec<String>) {
+    match val {
+        JsonValue::Bool(true) => ("\u{2611} true".to_string(), vec![]),
+        JsonValue::Bool(false) => ("\u{2610} false".to_string(), vec![]),
+        JsonValue::Null => ("null".to_string(), vec![]),
+        JsonValue::Number(n) => {
+            if *n == (*n as i64) as f64 && n.is_finite() { (format!("{}", *n as i64), vec![]) }
+            else { (format!("{n}"), vec![]) }
+        }
+        JsonValue::Str(s) => {
+            if s.contains("\\n") {
+                let lines: Vec<String> = s.split("\\n").map(|l| l.to_string()).collect();
+                (s.clone(), lines)
+            } else { (s.clone(), vec![]) }
+        }
+        _ => (val.display_value(), vec![]),
+    }
+}
+
+fn row_spec_height(row: &BoxRowSpec) -> f64 {
+    let rh = row_height();
+    let lh = line_height();
+    let n = row.value_lines.len().max(1);
+    if n <= 1 { rh } else { baseline_offset() + (n as f64 - 1.0) * lh + (rh - baseline_offset()) }
+}
+
+fn box_spec_height(spec: &BoxSpec) -> f64 { spec.rows.iter().map(row_spec_height).sum() }
+
+fn box_spec_width(spec: &BoxSpec) -> f64 {
+    let has_keys = spec.rows.iter().any(|r| r.key.is_some());
+    if has_keys { PADDING + spec.max_key_w + PADDING + PADDING + spec.max_val_w + PADDING }
+    else { PADDING + spec.max_val_w + PADDING }
+}
+
+// ---------------------------------------------------------------------------
+// Positioning
+// ---------------------------------------------------------------------------
+
+fn position_boxes(
+    spec_idx: usize, specs: &[BoxSpec], x: f64, y: f64,
+    boxes: &mut Vec<JsonBox>, arrows: &mut Vec<JsonArrow>,
+) -> (f64, f64) {
+    let spec = &specs[spec_idx];
+    let box_w = box_spec_width(spec);
+    let box_h = box_spec_height(spec);
+    let has_keys = spec.rows.iter().any(|r| r.key.is_some());
+    let sep_x = if has_keys { x + PADDING + spec.max_key_w + PADDING } else { x };
+
+    let box_idx = boxes.len();
+    let mut jbox = JsonBox { x, y, width: box_w, height: box_h, rows: vec![], separator_x: sep_x };
+
+    let mut row_y = y;
+    for row_spec in &spec.rows {
+        let rh = row_spec_height(row_spec);
+        jbox.rows.push(JsonBoxRow {
+            key: row_spec.key.clone(), value_lines: row_spec.value_lines.clone(),
+            has_child: row_spec.has_child, child_box_idx: None, y_top: row_y, height: rh,
+        });
+        row_y += rh;
+    }
+    boxes.push(jbox);
+
+    let mut max_right = x + box_w;
+    let mut max_bottom = y + box_h;
+    let mut child_y_cursor = y;
+
+    for (i, row_spec) in spec.rows.iter().enumerate() {
+        let rh = row_spec_height(row_spec);
+        if let Some(child_spec_idx) = row_spec.child_spec_idx {
+            let child_x = x + box_w + CHILD_GAP;
+            let row_center_y = child_y_cursor + rh / 2.0;
+
+            let child_h = box_spec_height(&specs[child_spec_idx]);
+            let child_y = (row_center_y - child_h / 2.0).max(child_y_cursor);
+
+            let (cr, cb) = position_boxes(child_spec_idx, specs, child_x, child_y, boxes, arrows);
+
+            let child_box = &boxes[boxes.len() - count_subtree_boxes(child_spec_idx, specs)];
+            let child_center_y = child_box.y + child_box.height / 2.0;
+            arrows.push(JsonArrow { from_x: x + box_w, from_y: row_center_y, to_x: child_x, to_y: child_center_y });
+
+            max_right = max_right.max(cr);
+            max_bottom = max_bottom.max(cb);
+        }
+        child_y_cursor += rh;
+    }
+
+    (max_right, max_bottom)
+}
+
+fn count_subtree_boxes(spec_idx: usize, specs: &[BoxSpec]) -> usize {
+    let mut count = 1;
+    for row in &specs[spec_idx].rows {
+        if let Some(ci) = row.child_spec_idx { count += count_subtree_boxes(ci, specs); }
+    }
+    count
 }
 
 // ---------------------------------------------------------------------------
 // Public entry point
 // ---------------------------------------------------------------------------
 
-/// Compute the tree-table layout for a JSON diagram.
 pub fn layout_json(jd: &JsonDiagram) -> Result<JsonLayout> {
     debug!("layout_json: root type = {}", jd.root.type_label());
 
-    // Step 1: flatten the JSON tree into rows
-    let mut flat_rows: Vec<FlatRow> = Vec::new();
-    flatten_value(&jd.root, None, 0, &mut flat_rows);
-
-    debug!("layout_json: {} flat rows", flat_rows.len());
-
-    if flat_rows.is_empty() {
+    if !jd.root.is_container() {
+        let (display, _) = format_leaf_value(&jd.root);
+        let w = text_w(&display, false) + 2.0 * PADDING + 2.0 * MARGIN;
+        let h = row_height() + 2.0 * MARGIN;
         return Ok(JsonLayout {
-            rows: Vec::new(),
-            width: 2.0 * MARGIN,
-            height: 2.0 * MARGIN,
+            boxes: vec![JsonBox {
+                x: MARGIN, y: MARGIN, width: w - 2.0 * MARGIN, height: h - 2.0 * MARGIN,
+                rows: vec![JsonBoxRow {
+                    key: None, value_lines: vec![display], has_child: false,
+                    child_box_idx: None, y_top: MARGIN, height: row_height(),
+                }],
+                separator_x: MARGIN,
+            }],
+            arrows: vec![], width: w, height: h, rows: vec![],
         });
     }
 
-    // Step 2: compute column widths
-    let mut max_key_width: f64 = MIN_KEY_WIDTH;
-    let mut max_val_width: f64 = MIN_VAL_WIDTH;
+    let mut specs: Vec<BoxSpec> = Vec::new();
+    build_box_spec(&jd.root, &mut specs);
 
-    for row in &flat_rows {
-        let key_w = match &row.key {
-            Some(k) => text_width(k) + row.depth as f64 * INDENT_PX + 2.0 * PADDING_H,
-            None => row.depth as f64 * INDENT_PX + 2.0 * PADDING_H,
-        };
-        max_key_width = max_key_width.max(key_w);
+    let mut boxes: Vec<JsonBox> = Vec::new();
+    let mut arrows: Vec<JsonArrow> = Vec::new();
+    let (max_right, max_bottom) = position_boxes(0, &specs, MARGIN, MARGIN, &mut boxes, &mut arrows);
 
-        let val_w = text_width(&row.value) + 2.0 * PADDING_H;
-        max_val_width = max_val_width.max(val_w);
-    }
+    let width = max_right + MARGIN;
+    let height = max_bottom + MARGIN;
 
-    let total_width = max_key_width + max_val_width;
-
-    // Step 3: assign positions to each row
-    let mut layout_rows: Vec<JsonRowLayout> = Vec::new();
-    let mut y_cursor = MARGIN;
-
-    for (i, flat) in flat_rows.iter().enumerate() {
-        let x = MARGIN;
-        let y = y_cursor;
-        let w = total_width;
-        let h = ROW_HEIGHT;
-
-        // Build connector points: from the indented key area to the row below (if applicable)
-        let mut connectors = Vec::new();
-        if flat.has_children {
-            let cx = x + flat.depth as f64 * INDENT_PX + PADDING_H;
-            let cy = y + h;
-            connectors.push((cx, cy));
-        }
-
-        trace!(
-            "layout_json: row[{}] depth={} key={:?} value={:?} @ ({:.1}, {:.1})",
-            i,
-            flat.depth,
-            flat.key,
-            flat.value,
-            x,
-            y,
-        );
-
-        layout_rows.push(JsonRowLayout {
-            depth: flat.depth,
-            key: flat.key.clone(),
-            value: flat.value.clone(),
-            x,
-            y,
-            width: w,
-            height: h,
-            has_children: flat.has_children,
-            connector_points: connectors,
-            is_header: flat.is_header,
-        });
-
-        y_cursor += ROW_HEIGHT;
-    }
-
-    let total_height = y_cursor + MARGIN;
-    let total_width = total_width + 2.0 * MARGIN;
-
-    debug!(
-        "layout_json done: {:.0}x{:.0}, {} rows",
-        total_width,
-        total_height,
-        layout_rows.len()
-    );
-
-    Ok(JsonLayout {
-        rows: layout_rows,
-        width: total_width,
-        height: total_height,
-    })
+    debug!("layout_json: {} boxes, {} arrows, {:.0}x{:.0}", boxes.len(), arrows.len(), width, height);
+    Ok(JsonLayout { boxes, arrows, width, height, rows: vec![] })
 }
-
-// ---------------------------------------------------------------------------
-// Tests
-// ---------------------------------------------------------------------------
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::model::json_diagram::{JsonDiagram, JsonValue};
 
-    fn make_diagram(root: JsonValue) -> JsonDiagram {
-        JsonDiagram { root }
-    }
-
-    // 1. Empty object produces header rows
     #[test]
-    fn test_empty_object_layout() {
-        let jd = make_diagram(JsonValue::Object(vec![]));
-        let layout = layout_json(&jd).unwrap();
-        // "{" and "}" rows
-        assert_eq!(layout.rows.len(), 2);
-        assert!(layout.rows[0].is_header);
-        assert_eq!(layout.rows[0].value, "{");
-        assert_eq!(layout.rows[1].value, "}");
-        assert!(layout.width > 0.0);
-        assert!(layout.height > 0.0);
-    }
-
-    // 2. Simple key-value produces correct row count
-    #[test]
-    fn test_simple_kv() {
-        let jd = make_diagram(JsonValue::Object(vec![(
-            "name".into(),
-            JsonValue::Str("Alice".into()),
-        )]));
-        let layout = layout_json(&jd).unwrap();
-        // "{", "name: Alice", "}"
-        assert_eq!(layout.rows.len(), 3);
-        assert_eq!(layout.rows[1].key, Some("name".into()));
-        assert_eq!(layout.rows[1].depth, 1);
-        assert!(!layout.rows[1].is_header);
-    }
-
-    // 3. Multiple keys
-    #[test]
-    fn test_multiple_keys() {
-        let jd = make_diagram(JsonValue::Object(vec![
+    fn test_simple_object() {
+        let jd = JsonDiagram { root: JsonValue::Object(vec![
             ("a".into(), JsonValue::Bool(true)),
             ("b".into(), JsonValue::Number(42.0)),
-            ("c".into(), JsonValue::Null),
-        ]));
+        ]) };
         let layout = layout_json(&jd).unwrap();
-        // "{", a, b, c, "}"
-        assert_eq!(layout.rows.len(), 5);
-        assert_eq!(layout.rows[1].key, Some("a".into()));
-        assert_eq!(layout.rows[2].key, Some("b".into()));
-        assert_eq!(layout.rows[3].key, Some("c".into()));
+        assert!(!layout.boxes.is_empty());
+        assert_eq!(layout.boxes[0].rows.len(), 2);
     }
 
-    // 4. Nested object indentation
     #[test]
-    fn test_nested_object_depth() {
-        let jd = make_diagram(JsonValue::Object(vec![(
-            "outer".into(),
-            JsonValue::Object(vec![("inner".into(), JsonValue::Str("val".into()))]),
-        )]));
+    fn test_nested_creates_child_boxes() {
+        let jd = JsonDiagram { root: JsonValue::Object(vec![
+            ("items".into(), JsonValue::Array(vec![JsonValue::Str("x".into())])),
+        ]) };
         let layout = layout_json(&jd).unwrap();
-
-        // Root "{", outer "{", inner val, outer "}", root "}"
-        assert_eq!(layout.rows.len(), 5);
-        assert_eq!(layout.rows[0].depth, 0); // root {
-        assert_eq!(layout.rows[1].depth, 1); // outer {
-        assert_eq!(layout.rows[2].depth, 2); // inner: val
-        assert_eq!(layout.rows[3].depth, 1); // outer }
-        assert_eq!(layout.rows[4].depth, 0); // root }
+        assert!(layout.boxes.len() >= 2);
+        assert!(!layout.arrows.is_empty());
     }
 
-    // 5. Array items get index keys
-    #[test]
-    fn test_array_index_keys() {
-        let jd = make_diagram(JsonValue::Array(vec![
-            JsonValue::Str("a".into()),
-            JsonValue::Str("b".into()),
-            JsonValue::Str("c".into()),
-        ]));
-        let layout = layout_json(&jd).unwrap();
-
-        // "[", 0: "a", 1: "b", 2: "c", "]"
-        assert_eq!(layout.rows.len(), 5);
-        assert_eq!(layout.rows[1].key, Some("0".into()));
-        assert_eq!(layout.rows[2].key, Some("1".into()));
-        assert_eq!(layout.rows[3].key, Some("2".into()));
-    }
-
-    // 6. Row height is consistent
-    #[test]
-    fn test_row_heights() {
-        let jd = make_diagram(JsonValue::Object(vec![
-            ("a".into(), JsonValue::Number(1.0)),
-            ("b".into(), JsonValue::Number(2.0)),
-        ]));
-        let layout = layout_json(&jd).unwrap();
-        for row in &layout.rows {
-            assert_eq!(row.height, ROW_HEIGHT);
-        }
-    }
-
-    // 7. Y positions increment correctly
-    #[test]
-    fn test_y_positions_sequential() {
-        let jd = make_diagram(JsonValue::Object(vec![
-            ("a".into(), JsonValue::Bool(true)),
-            ("b".into(), JsonValue::Bool(false)),
-        ]));
-        let layout = layout_json(&jd).unwrap();
-        for i in 1..layout.rows.len() {
-            let expected_y = layout.rows[i - 1].y + ROW_HEIGHT;
-            assert!(
-                (layout.rows[i].y - expected_y).abs() < 0.01,
-                "row {} y={} expected {}",
-                i,
-                layout.rows[i].y,
-                expected_y,
-            );
-        }
-    }
-
-    // 8. Bounding box contains all rows
-    #[test]
-    fn test_bounding_box() {
-        let jd = make_diagram(JsonValue::Object(vec![(
-            "key".into(),
-            JsonValue::Str("value".into()),
-        )]));
-        let layout = layout_json(&jd).unwrap();
-        for row in &layout.rows {
-            assert!(
-                row.x + row.width <= layout.width,
-                "row right edge {} exceeds layout width {}",
-                row.x + row.width,
-                layout.width,
-            );
-            assert!(
-                row.y + row.height <= layout.height,
-                "row bottom edge {} exceeds layout height {}",
-                row.y + row.height,
-                layout.height,
-            );
-        }
-    }
-
-    // 9. Container rows have has_children flag
-    #[test]
-    fn test_has_children_flag() {
-        let jd = make_diagram(JsonValue::Object(vec![
-            (
-                "items".into(),
-                JsonValue::Array(vec![JsonValue::Number(1.0)]),
-            ),
-            ("leaf".into(), JsonValue::Str("x".into())),
-        ]));
-        let layout = layout_json(&jd).unwrap();
-
-        // The root "{" row has children
-        assert!(layout.rows[0].has_children);
-
-        // The "items" "[" row has children
-        let items_header = layout
-            .rows
-            .iter()
-            .find(|r| r.key == Some("items".into()) && r.value == "[")
-            .unwrap();
-        assert!(items_header.has_children);
-
-        // Leaf rows do not have children
-        let leaf_row = layout
-            .rows
-            .iter()
-            .find(|r| r.key == Some("leaf".into()))
-            .unwrap();
-        assert!(!leaf_row.has_children);
-    }
-
-    // 10. Connector points present for container headers
-    #[test]
-    fn test_connector_points() {
-        let jd = make_diagram(JsonValue::Object(vec![(
-            "k".into(),
-            JsonValue::Str("v".into()),
-        )]));
-        let layout = layout_json(&jd).unwrap();
-
-        let header = &layout.rows[0]; // "{"
-        assert!(header.has_children);
-        assert!(!header.connector_points.is_empty());
-    }
-
-    // 11. Width accommodates long strings
-    #[test]
-    fn test_width_for_long_values() {
-        let long_val = "a".repeat(100);
-        let jd = make_diagram(JsonValue::Object(vec![(
-            "k".into(),
-            JsonValue::Str(long_val.clone()),
-        )]));
-        let layout = layout_json(&jd).unwrap();
-
-        let display_val = format!("\"{}\"", long_val);
-        let expected_min_width = text_width(&display_val) + 2.0 * PADDING_H;
-        assert!(
-            layout.width >= expected_min_width,
-            "layout width {} should be >= {}",
-            layout.width,
-            expected_min_width,
-        );
-    }
-
-    // 12. Leaf value at root level
     #[test]
     fn test_leaf_root() {
-        let jd = make_diagram(JsonValue::Number(42.0));
+        let jd = JsonDiagram { root: JsonValue::Number(42.0) };
         let layout = layout_json(&jd).unwrap();
-        assert_eq!(layout.rows.len(), 1);
-        assert_eq!(layout.rows[0].value, "42");
-        assert_eq!(layout.rows[0].depth, 0);
-    }
-
-    // 13. Complex nested structure row count
-    #[test]
-    fn test_complex_structure_rows() {
-        // { "a": true, "b": { "c": 1 }, "d": [2, 3] }
-        let jd = make_diagram(JsonValue::Object(vec![
-            ("a".into(), JsonValue::Bool(true)),
-            (
-                "b".into(),
-                JsonValue::Object(vec![("c".into(), JsonValue::Number(1.0))]),
-            ),
-            (
-                "d".into(),
-                JsonValue::Array(vec![JsonValue::Number(2.0), JsonValue::Number(3.0)]),
-            ),
-        ]));
-        let layout = layout_json(&jd).unwrap();
-        // root: { a b{ c b} d[ 0 1 d] }
-        // = 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 = 10 rows
-        assert_eq!(layout.rows.len(), 10);
-    }
-
-    // 14. Empty array layout
-    #[test]
-    fn test_empty_array_layout() {
-        let jd = make_diagram(JsonValue::Array(vec![]));
-        let layout = layout_json(&jd).unwrap();
-        assert_eq!(layout.rows.len(), 2);
-        assert_eq!(layout.rows[0].value, "[");
-        assert_eq!(layout.rows[1].value, "]");
-    }
-
-    // 15. Total height = margin + rows * ROW_HEIGHT + margin
-    #[test]
-    fn test_total_height() {
-        let jd = make_diagram(JsonValue::Object(vec![(
-            "a".into(),
-            JsonValue::Number(1.0),
-        )]));
-        let layout = layout_json(&jd).unwrap();
-        let expected = MARGIN + layout.rows.len() as f64 * ROW_HEIGHT + MARGIN;
-        assert!(
-            (layout.height - expected).abs() < 0.01,
-            "height {} expected {}",
-            layout.height,
-            expected,
-        );
+        assert!(!layout.boxes.is_empty());
     }
 }

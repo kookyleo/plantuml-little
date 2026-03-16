@@ -1541,11 +1541,9 @@ fn test_yaml_fixture_basic() {
 #[test]
 fn test_dot_fixture_basic() {
     let svg = convert_fixture("tests/fixtures/dot/basic.puml");
-    assert_valid_svg(&svg, "dot/basic");
-    // Graphviz SVG output contains graph elements as <g> groups with node/edge titles
-    assert!(svg.contains("A"), "dot/basic: must contain node A");
-    assert!(svg.contains("B"), "dot/basic: must contain node B");
-    assert!(svg.contains("C"), "dot/basic: must contain node C");
+    // DOT rendering is suppressed in Java PlantUML (issue #2495)
+    assert!(svg.contains("<svg"), "dot/basic: must contain <svg tag");
+    assert!(svg.contains("suppressed"), "dot/basic: must show suppressed message");
 }
 
 // ── Skinparam integration tests ──
