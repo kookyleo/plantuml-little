@@ -1107,6 +1107,16 @@ impl super::UGraphic for UGraphicSvg {
     }
 }
 
+// ── Test helpers (public for integration tests) ─────────────────────
+
+#[doc(hidden)]
+pub mod test_helpers {
+    /// Format a number at scale 1.0 (for cross-language verification tests)
+    pub fn fmt_at_scale_1(value: f64) -> String {
+        super::fmt(value, 1.0)
+    }
+}
+
 // ── Tests ────────────────────────────────────────────────────────────
 
 #[cfg(test)]
