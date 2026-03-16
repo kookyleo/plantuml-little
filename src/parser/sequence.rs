@@ -621,7 +621,7 @@ fn parse_participant_details(rest: &str) -> (String, Option<String>, Option<Stri
     //   Name
 
     let mut remaining = rest.trim();
-    let name: String;
+    let mut name: String;
     let mut display_name: Option<String> = None;
 
     if remaining.starts_with('"') {
@@ -653,19 +653,23 @@ fn parse_participant_details(rest: &str) -> (String, Option<String>, Option<Stri
         name = n;
         remaining = rest_after.trim();
 
-        // Check for "as"
+        // Check for "as" — "Name as Alias" means alias is the canonical name,
+        // and Name becomes the display name
         let lower = remaining.to_lowercase();
         if lower.starts_with("as ") {
             remaining = remaining[3..].trim();
+            let original_name = name.clone();
             if remaining.starts_with('"') {
-                // as "Display Name" ...
+                // as "Display Name" ... (alias is quoted - unusual but handle it)
                 if let Some(end_quote) = remaining[1..].find('"') {
-                    display_name = Some(remaining[1..=end_quote].to_string());
+                    name = remaining[1..=end_quote].to_string();
+                    display_name = Some(original_name);
                     remaining = remaining[end_quote + 2..].trim();
                 }
             } else {
-                let (dn, rest_after2) = take_token(remaining);
-                display_name = Some(dn);
+                let (alias, rest_after2) = take_token(remaining);
+                name = alias;
+                display_name = Some(original_name);
                 remaining = rest_after2;
             }
         }

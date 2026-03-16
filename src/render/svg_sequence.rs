@@ -231,7 +231,8 @@ fn draw_participant_rect_with_font(
     let x = p.x - box_width / 2.0;
     let text_x = x + padding;
     // text_y baseline: scales with font size
-    let text_y = y + 19.9951 + (font_size - 14.0) * 0.9283;
+    // For font-size 14: offset = 19.9951, for font-size 16: offset = 21.8516
+    let text_y = y + 19.9951 + (font_size - 14.0) * 0.92825;
 
     let fill_attrs = resolve_fill_attrs(bg);
     write!(
