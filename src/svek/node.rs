@@ -44,6 +44,39 @@ impl EntityPosition {
     pub fn is_normal(&self) -> bool {
         matches!(self, Self::Normal)
     }
+
+    /// Whether this position is a port type.
+    /// Java: `EntityPosition.isPort()`
+    pub fn is_port(&self) -> bool {
+        matches!(self, Self::PortIn | Self::PortOut)
+    }
+
+    /// Whether this position uses port-style DOT addressing.
+    /// Java: `EntityPosition.usePortP()`
+    pub fn use_port_p(&self) -> bool {
+        self.is_port() || matches!(self, Self::ExitPoint | Self::EntryPoint)
+    }
+
+    /// Resolve an `EntityPosition` from a stereotype label string.
+    /// Java: `EntityPosition.fromStereotype(String)`
+    pub fn from_stereotype(label: &str) -> Self {
+        let lower = label.to_lowercase();
+        if lower == "<<entrypoint>>" {
+            Self::EntryPoint
+        } else if lower == "<<exitpoint>>" {
+            Self::ExitPoint
+        } else if lower == "<<inputpin>>" {
+            Self::InputPin
+        } else if lower == "<<outputpin>>" {
+            Self::OutputPin
+        } else if lower == "<<expansioninput>>" {
+            Self::ExpansionInput
+        } else if lower == "<<expansionoutput>>" {
+            Self::ExpansionOutput
+        } else {
+            Self::Normal
+        }
+    }
 }
 
 // ── Together ────────────────────────────────────────────────────────
