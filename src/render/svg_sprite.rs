@@ -5,9 +5,23 @@
 //! `<text>` elements are preserved as `<text>` elements.  Gradients and defs
 //! are extracted and re-emitted in the parent SVG `<defs>` block.
 
+use std::cell::RefCell;
+use std::collections::HashMap;
 use std::fmt::Write;
 
 use crate::render::svg::fmt_coord;
+
+thread_local! {
+    static COLLECTED_GRADIENT_DEFS: RefCell<Vec<(String, String)>> = RefCell::new(Vec::new());
+}
+
+pub fn clear_gradient_defs() {
+    COLLECTED_GRADIENT_DEFS.with(|g| g.borrow_mut().clear());
+}
+
+pub fn take_gradient_defs() -> Vec<(String, String)> {
+    COLLECTED_GRADIENT_DEFS.with(|g| std::mem::take(&mut *g.borrow_mut()))
+}
 
 /// Information about a sprite's viewBox dimensions.
 #[derive(Debug, Clone)]
@@ -34,12 +48,20 @@ pub const SPRITE_TEXT_GAP: f64 = 4.1323;
 /// content in the output SVG.  Returns a string containing `<path>`, `<text>`,
 /// and other converted elements.
 pub fn convert_svg_elements(svg: &str, offset_x: f64, offset_y: f64) -> String {
+    let grad_defs = extract_gradient_defs(svg);
+    if !grad_defs.is_empty() {
+        COLLECTED_GRADIENT_DEFS.with(|collected| {
+            let mut collected = collected.borrow_mut();
+            for (id, def_xml) in &grad_defs {
+                if !collected.iter().any(|(eid, _)| eid == id) {
+                    collected.push((id.clone(), def_xml.clone()));
+                }
+            }
+        });
+    }
     let mut buf = String::new();
-
-    // Parse SVG elements and convert each one
     let inner = strip_svg_wrapper(svg);
     convert_elements(&mut buf, inner.trim(), offset_x, offset_y, None);
-
     buf
 }
 

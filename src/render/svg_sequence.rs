@@ -1373,6 +1373,7 @@ pub fn render_sequence(
         .map(|s| s.to_string());
     set_default_font_family(font);
     enable_path_sprites();
+    crate::render::svg_sprite::clear_gradient_defs();
     let result = render_sequence_inner(sd, layout, skin);
     disable_path_sprites();
     set_default_font_family(None);
@@ -1589,10 +1590,12 @@ fn render_sequence_inner(
 
     buf.push_str("</g></svg>");
 
-    // Post-process: inject back-highlight filter definitions into <defs>
+    // Post-process: inject gradient defs and filter definitions
+    let gradient_defs = crate::render::svg_sprite::take_gradient_defs();
     let filters = take_back_filters();
-    if !filters.is_empty() {
+    if !gradient_defs.is_empty() || !filters.is_empty() {
         let mut defs_content = String::new();
+        for (_id, def_xml) in &gradient_defs { defs_content.push_str(def_xml); }
         for (id, hex_color) in &filters {
             write!(
                 defs_content,
