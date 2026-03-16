@@ -2,6 +2,7 @@ use std::path::Path;
 
 pub mod error;
 pub mod font_metrics;
+pub mod decoration;
 pub mod klimt;
 pub mod layout;
 pub mod svek;
