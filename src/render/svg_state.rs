@@ -288,17 +288,9 @@ fn render_simple(
         name_y_offset = LINE_HEIGHT;
     }
 
-    // State name centered in header area
-    let name_y = if has_desc {
-        // Name in the upper portion when there is a description
-        node.y + FONT_SIZE + 4.0 + name_y_offset
-    } else {
-        // Name vertically centered when no description
-        node.y + node.height / 2.0 + FONT_SIZE * 0.35 + name_y_offset
-    };
-
-    // Separator line between name area and body
-    let sep_y = name_y + 6.0;
+    // Fixed header layout matching Java PlantUML
+    let sep_y = node.y + 26.2969 + name_y_offset;
+    let name_y = node.y + 17.9951 + name_y_offset;
     write!(
         buf,
         r#"<line style="stroke:{border};stroke-width:0.5;" x1="{}" x2="{}" y1="{}" y2="{}"/>"#,
@@ -369,7 +361,7 @@ fn render_composite(
 
     // Composite state name at the top
     let cx = node.x + node.width / 2.0;
-    let name_y = node.y + FONT_SIZE + 4.0;
+    let name_y = node.y + 17.9951;
     let name_tl = fmt_coord(font_metrics::text_width(&node.name, "SansSerif", 14.0, false, false));
     write!(
         buf,
@@ -380,7 +372,7 @@ fn render_composite(
     .unwrap();
 
     // Separator line below the header
-    let sep_y = name_y + 6.0;
+    let sep_y = node.y + 26.2969;
     write!(
         buf,
         r#"<line style="stroke:{border};stroke-width:0.5;" x1="{}" x2="{}" y1="{}" y2="{}"/>"#,
@@ -565,6 +557,18 @@ fn render_note(buf: &mut String, note: &StateNoteLayout) {
         None,
         r#"font-size="13""#,
     );
+}
+
+// ── Helper functions ────────────────────────────────────────────────
+
+fn count_leading_tabs(line: &str) -> (usize, &str) {
+    let mut count = 0;
+    let mut rest = line;
+    while let Some(stripped) = rest.strip_prefix("\\t") {
+        count += 1;
+        rest = stripped;
+    }
+    (count, rest)
 }
 
 // ── Tests ───────────────────────────────────────────────────────────

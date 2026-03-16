@@ -69,55 +69,77 @@ pub struct StateNoteLayout {
 // Constants
 // ---------------------------------------------------------------------------
 
-const FONT_SIZE: f64 = 14.0;
-const LINE_HEIGHT: f64 = 16.0;
-const PADDING: f64 = 10.0;
-const STATE_MIN_WIDTH: f64 = 80.0;
-const STATE_MIN_HEIGHT: f64 = 40.0;
+const NAME_FONT_SIZE: f64 = 14.0;
+const DESC_FONT_SIZE: f64 = 12.0;
+const FONT_SIZE: f64 = 13.0;
+const DESC_LINE_HEIGHT: f64 = 13.9688;
+const PADDING: f64 = 5.0;
+const STATE_MIN_WIDTH: f64 = 50.0;
+const STATE_MIN_HEIGHT: f64 = 50.0;
 const STATE_SPACING: f64 = 40.0;
 const SPECIAL_STATE_RADIUS: f64 = 10.0;
-const COMPOSITE_PADDING: f64 = 20.0;
-const COMPOSITE_HEADER: f64 = 30.0;
+const COMPOSITE_PADDING: f64 = 12.0;
+const COMPOSITE_HEADER: f64 = 26.2969;
 const NOTE_OFFSET: f64 = 30.0;
 const FORK_BAR_WIDTH: f64 = 80.0;
-const FORK_BAR_HEIGHT: f64 = 6.0;
-const CHOICE_SIZE: f64 = 20.0;
-const HISTORY_DIAMETER: f64 = 24.0;
+const FORK_BAR_HEIGHT: f64 = 8.0;
+const CHOICE_SIZE: f64 = 24.0;
+const HISTORY_DIAMETER: f64 = 22.0;
 const NOTE_MAX_WIDTH: f64 = 200.0;
-const MARGIN: f64 = 20.0;
+const MARGIN: f64 = 7.0;
+const FIRST_DESC_Y_OFFSET: f64 = 16.1386;
 
 // ---------------------------------------------------------------------------
 // Text measurement helpers
 // ---------------------------------------------------------------------------
 
-/// Estimate the pixel width of a single line of text.
+fn name_text_width(text: &str) -> f64 {
+    font_metrics::text_width(text, "SansSerif", NAME_FONT_SIZE, false, false)
+}
+
+fn desc_text_width(text: &str) -> f64 {
+    font_metrics::text_width(text, "SansSerif", DESC_FONT_SIZE, false, false)
+}
+
 fn text_width(text: &str) -> f64 {
     font_metrics::text_width(text, "SansSerif", FONT_SIZE, false, false)
+}
+
+fn strip_leading_tabs(line: &str) -> &str {
+    let mut rest = line;
+    while let Some(stripped) = rest.strip_prefix("\\t") {
+        rest = stripped;
+    }
+    rest
 }
 
 /// Estimate the size of a simple (non-composite, non-special) state.
 /// Returns `(width, height)`.
 fn estimate_state_size(state: &State) -> (f64, f64) {
-    let name_w = text_width(&state.name) + 2.0 * PADDING;
+    let name_w = name_text_width(&state.name) + 2.0 * PADDING;
 
     let desc_w = state
         .description
         .iter()
-        .map(|line| text_width(line) + 2.0 * PADDING)
+        .map(|line| {
+            let stripped = strip_leading_tabs(line);
+            desc_text_width(stripped) + 2.0 * PADDING
+        })
         .fold(0.0_f64, f64::max);
 
     let stereo_w = state
         .stereotype
         .as_ref()
-        .map_or(0.0, |s| text_width(s) + 2.0 * PADDING);
+        .map_or(0.0, |s| desc_text_width(s) + 2.0 * PADDING);
 
     let width = name_w.max(desc_w).max(stereo_w).max(STATE_MIN_WIDTH);
 
-    // Header line (name) + optional stereotype line + description lines
-    let stereo_lines = if state.stereotype.is_some() { 1.0 } else { 0.0 };
     let desc_lines = state.description.len() as f64;
-    let total_lines = 1.0 + stereo_lines + desc_lines;
-    let height = (total_lines * LINE_HEIGHT + 2.0 * PADDING).max(STATE_MIN_HEIGHT);
+    let height = if desc_lines > 0.0 {
+        COMPOSITE_HEADER + FIRST_DESC_Y_OFFSET + (desc_lines - 1.0) * DESC_LINE_HEIGHT + PADDING
+    } else {
+        STATE_MIN_HEIGHT
+    };
 
     (width, height)
 }
@@ -131,7 +153,7 @@ fn estimate_note_size(text: &str) -> (f64, f64) {
         .fold(0.0_f64, f64::max);
     let width = (max_line_width + 2.0 * PADDING).min(NOTE_MAX_WIDTH);
     let width = width.max(60.0);
-    let height = (lines.len().max(1) as f64 * LINE_HEIGHT + 2.0 * PADDING).max(STATE_MIN_HEIGHT);
+    let height = (lines.len().max(1) as f64 * 16.0 + 2.0 * PADDING).max(STATE_MIN_HEIGHT);
     (width, height)
 }
 
@@ -425,7 +447,7 @@ fn layout_states_vertical(
             let inner_width = total_child_w + 2.0 * COMPOSITE_PADDING;
             let inner_height = total_child_h + COMPOSITE_HEADER + COMPOSITE_PADDING;
 
-            let name_w = text_width(&state.name) + 2.0 * PADDING;
+            let name_w = name_text_width(&state.name) + 2.0 * PADDING;
             let width = inner_width.max(name_w).max(STATE_MIN_WIDTH);
             let height = inner_height.max(STATE_MIN_HEIGHT);
 
