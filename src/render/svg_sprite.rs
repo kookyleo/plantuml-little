@@ -272,7 +272,7 @@ fn parse_element(s: &str) -> Option<(String, usize)> {
     let mut guard = 0;
     while depth > 0 && search_pos < s.len() {
         guard += 1;
-        if guard > 1000 { break; }
+        if guard > 100 || depth > 5 { break; }
         let open_tag = format!("<{tag_name}");
         let next_open = s[search_pos..].find(open_tag.as_str());
         let next_close = s[search_pos..].find(close_tag.as_str());

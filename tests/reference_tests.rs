@@ -79,6 +79,7 @@ fn assert_exact_match(actual: &str, reference: &str, path: &str) {
     let r_bytes = r.as_bytes();
     let mut ai = 0usize;
     let mut ri = 0usize;
+    let mut fuzzy_skips = 0usize;
     while ai < a_bytes.len() && ri < r_bytes.len() {
         if a_bytes[ai] == r_bytes[ri] {
             ai += 1;
@@ -86,18 +87,21 @@ fn assert_exact_match(actual: &str, reference: &str, path: &str) {
             continue;
         }
         // Mismatch — check if both sides are inside or at the boundary of a number.
-        // When numbers have different decimal lengths (e.g., "267.164" vs "267.1641"),
-        // one side may be past the number while the other is still inside it.
+        // For boundary cases (ai past the number), look back one char.
         let a_num = extract_number_at(&a, ai)
             .or_else(|| if ai > 0 { extract_number_at(&a, ai - 1) } else { None });
         let r_num = extract_number_at(&r, ri)
             .or_else(|| if ri > 0 { extract_number_at(&r, ri - 1) } else { None });
-        if let (Some((_, a_end, a_val)), Some((_, r_end, r_val))) = (a_num, r_num) {
+        if let (Some((a_start, a_end, a_val)), Some((r_start, r_end, r_val))) = (a_num, r_num) {
             if (a_val - r_val).abs() < 0.01 {
-                // Skip past both numbers — they're close enough
-                // Ensure we advance at least 1 to avoid infinite loop
-                ai = ai.max(a_end).max(ai + 1);
-                ri = ri.max(r_end).max(ri + 1);
+                ai = if a_end > ai { a_end } else if a_start < ai { ai } else { ai + 1 };
+                ri = if r_end > ri { r_end } else if r_start < ri { ri } else { ri + 1 };
+                fuzzy_skips += 1;
+                if fuzzy_skips > 200 {
+                    // Too many numeric differences — this SVG has structural mismatches
+                    let (line, col, ctx) = find_first_diff(&a, &r);
+                    panic!("{path}: output differs from reference at line {line} col {col}\n{ctx}");
+                }
                 continue;
             }
         }
