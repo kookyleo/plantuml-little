@@ -1,9 +1,8 @@
 //! ERD (Chen notation) layout engine.
 //!
 //! Converts an `ErdDiagram` into a fully positioned `ErdLayout` ready for SVG
-//! rendering.  Uses a self-layout (no Graphviz) approach: entities and
-//! relationships are placed in a grid, attributes are arranged radially around
-//! their parent, and edges connect linked elements.
+//! rendering.  Assigns ranks via BFS over the link graph so that connected
+//! nodes form chains, then spreads each rank along the cross-axis.
 
 use std::collections::HashMap;
 
@@ -98,23 +97,24 @@ pub struct ErdIsaLayout {
 }
 
 // ---------------------------------------------------------------------------
-// Constants
+// Constants – tuned to match Java PlantUML reference output
 // ---------------------------------------------------------------------------
 
 const FONT_SIZE: f64 = 14.0;
-const ENTITY_PADDING: f64 = 16.0;
+const ENTITY_PADDING: f64 = 10.0;
 const ENTITY_MIN_WIDTH: f64 = 80.0;
-const ENTITY_HEIGHT: f64 = 36.0;
+const ENTITY_HEIGHT: f64 = 36.2969;
 const RELATIONSHIP_PADDING: f64 = 20.0;
 const RELATIONSHIP_MIN_WIDTH: f64 = 80.0;
-const RELATIONSHIP_HEIGHT: f64 = 40.0;
-const ATTR_RX: f64 = 40.0;
-const ATTR_RY: f64 = 16.0;
+const ATTR_RY: f64 = 14.5236;
 const ATTR_SPACING: f64 = 70.0;
-const NODE_SPACING_H: f64 = 180.0;
-const NODE_SPACING_V: f64 = 160.0;
+/// Gap between nodes placed side-by-side in the same rank.
+const RANK_NODE_GAP: f64 = 80.0;
+/// Gap between consecutive ranks (edge of one rank to edge of the next).
+const RANK_SEP: f64 = 140.0;
+/// Distance from a parent node center to its attribute ellipse center.
 const ATTR_DISTANCE: f64 = 80.0;
-const MARGIN: f64 = 40.0;
+const MARGIN: f64 = 7.0;
 const ISA_TRIANGLE_SIZE: f64 = 24.0;
 const ISA_CHILD_SPACING: f64 = 140.0;
 const NOTE_PADDING: f64 = 10.0;
@@ -137,6 +137,101 @@ fn relationship_width(name: &str) -> f64 {
     (text_width(name) + 2.0 * RELATIONSHIP_PADDING).max(RELATIONSHIP_MIN_WIDTH)
 }
 
+/// Compute attribute ellipse rx from label text.
+fn attr_rx_for(label: &str) -> f64 {
+    text_width(label) / 2.0 + 10.0
+}
+
+// ---------------------------------------------------------------------------
+// Rank assignment (BFS over link graph)
+// ---------------------------------------------------------------------------
+
+/// Assign each node a rank based on link topology using BFS.
+///
+/// Uses link direction to find root nodes: nodes that appear as `from` in
+/// links but never as `to` (or appear more as `from`) are treated as roots.
+/// This matches Graphviz DOT behaviour where the first-mentioned node in
+/// an edge is placed higher.
+fn assign_ranks(
+    all_ids: &[String],
+    links: &[crate::model::erd::ErdLink],
+    isas: &[ErdIsa],
+) -> HashMap<String, usize> {
+    use std::collections::{HashSet, VecDeque};
+
+    // Build undirected adjacency for BFS traversal
+    let mut adj: HashMap<String, Vec<String>> = HashMap::new();
+    for id in all_ids {
+        adj.entry(id.clone()).or_default();
+    }
+    for link in links {
+        adj.entry(link.from.clone())
+            .or_default()
+            .push(link.to.clone());
+        adj.entry(link.to.clone())
+            .or_default()
+            .push(link.from.clone());
+    }
+    for isa in isas {
+        for child in &isa.children {
+            adj.entry(isa.parent.clone())
+                .or_default()
+                .push(child.clone());
+            adj.entry(child.clone())
+                .or_default()
+                .push(isa.parent.clone());
+        }
+    }
+
+    // Count incoming edges (appear as `to` in links) to find root nodes.
+    // ISA parent is treated as having incoming edges from children.
+    let mut in_degree: HashMap<String, usize> = HashMap::new();
+    for id in all_ids {
+        in_degree.entry(id.clone()).or_insert(0);
+    }
+    for link in links {
+        *in_degree.entry(link.to.clone()).or_insert(0) += 1;
+    }
+    for isa in isas {
+        // ISA children are "below" the parent
+        for child in &isa.children {
+            *in_degree.entry(child.clone()).or_insert(0) += 1;
+        }
+    }
+
+    // Order BFS starting nodes: prefer those with lowest in-degree (roots),
+    // then by declaration order.
+    let mut start_order: Vec<String> = all_ids.to_vec();
+    start_order.sort_by_key(|id| in_degree.get(id).copied().unwrap_or(0));
+
+    let mut ranks: HashMap<String, usize> = HashMap::new();
+    let mut visited: HashSet<String> = HashSet::new();
+
+    for start in &start_order {
+        if visited.contains(start) {
+            continue;
+        }
+        let mut queue = VecDeque::new();
+        queue.push_back((start.clone(), 0usize));
+        visited.insert(start.clone());
+        ranks.insert(start.clone(), 0);
+
+        while let Some((node, rank)) = queue.pop_front() {
+            if let Some(neighbors) = adj.get(&node) {
+                for nb in neighbors {
+                    if !visited.contains(nb) {
+                        visited.insert(nb.clone());
+                        ranks.insert(nb.clone(), rank + 1);
+                        queue.push_back((nb.clone(), rank + 1));
+                    }
+                }
+            }
+        }
+    }
+
+    ranks
+}
+
 // ---------------------------------------------------------------------------
 // Core layout
 // ---------------------------------------------------------------------------
@@ -154,51 +249,91 @@ pub fn layout_erd(diagram: &ErdDiagram) -> Result<ErdLayout> {
 
     let is_lr = diagram.direction == ErdDirection::LeftToRight;
 
-    // Collect all node IDs and compute sizes
+    // Collect all node IDs in declaration order and compute sizes
     let mut node_sizes: HashMap<String, (f64, f64)> = HashMap::new();
+    let mut all_ids: Vec<String> = Vec::new();
 
     for e in &diagram.entities {
         let w = entity_width(&e.name);
         node_sizes.insert(e.id.clone(), (w, ENTITY_HEIGHT));
+        all_ids.push(e.id.clone());
     }
     for r in &diagram.relationships {
         let w = relationship_width(&r.name);
-        node_sizes.insert(r.id.clone(), (w, RELATIONSHIP_HEIGHT));
+        let dh = w * 0.5; // Diamond height roughly half of width
+        node_sizes.insert(r.id.clone(), (w, dh));
+        all_ids.push(r.id.clone());
     }
 
-    // Place nodes in a vertical or horizontal list.
-    // Order: entities first, then relationships (interleaved if linked).
-    // For simplicity, arrange them in declaration order.
+    // Assign ranks using link topology
+    let ranks = assign_ranks(&all_ids, &diagram.links, &diagram.isas);
 
-    let all_ids: Vec<&str> = diagram
-        .entities
-        .iter()
-        .map(|e| e.id.as_str())
-        .chain(diagram.relationships.iter().map(|r| r.id.as_str()))
-        .collect();
-
-    let mut positions: HashMap<String, (f64, f64, f64, f64)> = HashMap::new(); // id -> (x, y, w, h)
-
-    let mut cursor_main = MARGIN;
-    let attr_band = ATTR_DISTANCE + ATTR_RY + 20.0;
-    let cross_offset = MARGIN + attr_band;
-
+    // Group nodes by rank, preserving declaration order within each rank
+    let max_rank = ranks.values().copied().max().unwrap_or(0);
+    let mut rank_groups: Vec<Vec<String>> = vec![vec![]; max_rank + 1];
     for id in &all_ids {
-        let (w, h) = node_sizes
-            .get(*id)
-            .copied()
-            .unwrap_or((ENTITY_MIN_WIDTH, ENTITY_HEIGHT));
-        if is_lr {
-            let x = cursor_main;
-            let y = cross_offset;
-            positions.insert(id.to_string(), (x, y, w, h));
-            cursor_main += w + NODE_SPACING_H;
-        } else {
-            let x = cross_offset;
-            let y = cursor_main;
-            positions.insert(id.to_string(), (x, y, w, h));
-            cursor_main += h + NODE_SPACING_V;
+        if let Some(&r) = ranks.get(id) {
+            rank_groups[r].push(id.clone());
         }
+    }
+
+    // Compute per-rank sizing
+    let mut rank_main_sizes: Vec<f64> = Vec::new();
+    let mut rank_cross_extents: Vec<f64> = Vec::new();
+
+    for rank_nodes in &rank_groups {
+        let mut max_main = 0.0_f64;
+        let mut cross_total = 0.0_f64;
+        for (i, id) in rank_nodes.iter().enumerate() {
+            let (w, h) = node_sizes.get(id).copied().unwrap_or((80.0, 36.0));
+            if is_lr {
+                max_main = max_main.max(w);
+                cross_total += h;
+            } else {
+                max_main = max_main.max(h);
+                cross_total += w;
+            }
+            if i > 0 {
+                cross_total += RANK_NODE_GAP;
+            }
+        }
+        rank_main_sizes.push(max_main);
+        rank_cross_extents.push(cross_total);
+    }
+
+    let max_cross = rank_cross_extents
+        .iter()
+        .copied()
+        .fold(0.0_f64, f64::max);
+
+    // Space above the first rank for attribute ellipses
+    let attr_band = compute_attr_band(diagram);
+
+    // Place nodes rank by rank
+    let mut positions: HashMap<String, (f64, f64, f64, f64)> = HashMap::new();
+    let mut main_cursor = MARGIN + attr_band;
+
+    for (ri, rank_nodes) in rank_groups.iter().enumerate() {
+        if rank_nodes.is_empty() {
+            continue;
+        }
+
+        let cross_extent = rank_cross_extents[ri];
+        let cross_start = MARGIN + (max_cross - cross_extent) / 2.0;
+        let mut cross_cursor = cross_start;
+
+        for id in rank_nodes {
+            let (w, h) = node_sizes.get(id).copied().unwrap_or((80.0, 36.0));
+            if is_lr {
+                positions.insert(id.clone(), (main_cursor, cross_cursor, w, h));
+                cross_cursor += h + RANK_NODE_GAP;
+            } else {
+                positions.insert(id.clone(), (cross_cursor, main_cursor, w, h));
+                cross_cursor += w + RANK_NODE_GAP;
+            }
+        }
+
+        main_cursor += rank_main_sizes[ri] + RANK_SEP;
     }
 
     // Build entity node layouts
@@ -293,6 +428,10 @@ pub fn layout_erd(diagram: &ErdDiagram) -> Result<ErdLayout> {
     for attr in &attribute_nodes {
         max_x = max_x.max(attr.x + attr.rx);
         max_y = max_y.max(attr.y + attr.ry);
+        for child in &attr.children {
+            max_x = max_x.max(child.x + child.rx);
+            max_y = max_y.max(child.y + child.ry);
+        }
     }
 
     for edge in &edges {
@@ -325,15 +464,11 @@ pub fn layout_erd(diagram: &ErdDiagram) -> Result<ErdLayout> {
     let height = max_y + MARGIN;
 
     debug!(
-        "layout_erd done: {:.0}x{:.0}, {} entities, {} relationships, {} attrs, {} edges, {} ISAs, {} notes",
-        width,
-        height,
-        entity_nodes.len(),
-        relationship_nodes.len(),
-        attribute_nodes.len(),
-        edges.len(),
-        isa_layouts.len(),
-        notes.len()
+        "layout_erd done: {:.0}x{:.0}, {} ents, {} rels, {} attrs, {} edges, {} ISAs, {} notes",
+        width, height,
+        entity_nodes.len(), relationship_nodes.len(),
+        attribute_nodes.len(), edges.len(),
+        isa_layouts.len(), notes.len()
     );
 
     Ok(ErdLayout {
@@ -346,6 +481,32 @@ pub fn layout_erd(diagram: &ErdDiagram) -> Result<ErdLayout> {
         width,
         height,
     })
+}
+
+/// Compute the vertical (or horizontal) band needed for attribute ellipses.
+fn compute_attr_band(diagram: &ErdDiagram) -> f64 {
+    let has_attrs = diagram.entities.iter().any(|e| !e.attributes.is_empty())
+        || diagram
+            .relationships
+            .iter()
+            .any(|r| !r.attributes.is_empty());
+
+    let has_nested = diagram
+        .entities
+        .iter()
+        .any(|e| e.attributes.iter().any(|a| !a.children.is_empty()))
+        || diagram
+            .relationships
+            .iter()
+            .any(|r| r.attributes.iter().any(|a| !a.children.is_empty()));
+
+    if has_nested {
+        ATTR_DISTANCE * 2.0 + ATTR_RY * 2.0
+    } else if has_attrs {
+        ATTR_DISTANCE + ATTR_RY * 2.0
+    } else {
+        0.0
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -371,32 +532,34 @@ fn layout_attributes(
         let attr_id = format!("{}__attr_{}", parent_id, *idx);
         *idx += 1;
 
-        // Position attributes above/below (for TB) or left/right (for LR)
+        // Position attributes above (TB) or to the left (LR)
         let (ax, ay) = if is_lr {
-            // Spread vertically above the parent
             let total_span = (count - 1.0) * ATTR_SPACING;
             let start_y = parent_cy - total_span / 2.0;
             let y = start_y + i as f64 * ATTR_SPACING;
-            let x = parent_cx;
-            (x, y - ATTR_DISTANCE)
+            (parent_cx, y - ATTR_DISTANCE)
         } else {
-            // Spread horizontally to the left of the parent
             let total_span = (count - 1.0) * ATTR_SPACING;
             let start_x = parent_cx - total_span / 2.0;
             let x = start_x + i as f64 * ATTR_SPACING;
-            let y = parent_cy;
-            (x, y - ATTR_DISTANCE)
+            (x, parent_cy - ATTR_DISTANCE)
         };
 
         let display = attr.display_name.as_deref().unwrap_or(&attr.name);
-        let label_w = text_width(display);
-        let rx = (label_w / 2.0 + 10.0).max(ATTR_RX);
+        // For attrs with type annotation, combine "name : TYPE"
+        let full_label = if let Some(ref t) = attr.attr_type {
+            format!("{} : {}", display, t)
+        } else {
+            display.to_string()
+        };
+        let rx = attr_rx_for(&full_label);
 
         // Layout children of nested attribute
         let mut child_layouts = Vec::new();
         if !attr.children.is_empty() {
             let child_count = attr.children.len() as f64;
-            let child_span = (child_count - 1.0) * (ATTR_SPACING * 0.7);
+            let child_spacing = ATTR_SPACING * 1.5;
+            let child_span = (child_count - 1.0) * child_spacing;
 
             for (ci, child) in attr.children.iter().enumerate() {
                 let child_id = format!("{}__attr_{}", parent_id, *idx);
@@ -404,12 +567,12 @@ fn layout_attributes(
                 let cx = if is_lr {
                     ax
                 } else {
-                    ax - child_span / 2.0 + ci as f64 * (ATTR_SPACING * 0.7)
+                    ax - child_span / 2.0 + ci as f64 * child_spacing
                 };
-                let cy = ay - ATTR_DISTANCE * 0.6;
+                let cy = ay - ATTR_DISTANCE * 1.4;
 
                 let child_display = child.display_name.as_deref().unwrap_or(&child.name);
-                let child_rx = (text_width(child_display) / 2.0 + 10.0).max(ATTR_RX * 0.8);
+                let child_rx = attr_rx_for(child_display);
 
                 child_layouts.push(ErdAttrLayout {
                     id: child_id,
@@ -418,7 +581,7 @@ fn layout_attributes(
                     x: cx,
                     y: cy,
                     rx: child_rx,
-                    ry: ATTR_RY * 0.8,
+                    ry: ATTR_RY,
                     is_key: child.is_key,
                     is_derived: child.is_derived,
                     is_multi: child.is_multi,
@@ -431,7 +594,7 @@ fn layout_attributes(
 
         out.push(ErdAttrLayout {
             id: attr_id,
-            label: display.to_string(),
+            label: full_label,
             parent: parent_id.to_string(),
             x: ax,
             y: ay,
@@ -458,20 +621,19 @@ fn layout_edges(
     let mut edges = Vec::new();
 
     for link in links {
-        let from_pos = positions.get(&link.from);
-        let to_pos = positions.get(&link.to);
-
-        let (from_x, from_y, from_w, from_h) = if let Some(p) = from_pos {
-            *p
-        } else {
-            log::warn!("link source '{}' not found in layout", link.from);
-            continue;
+        let (from_x, from_y, from_w, from_h) = match positions.get(&link.from) {
+            Some(p) => *p,
+            None => {
+                log::warn!("link source '{}' not found in layout", link.from);
+                continue;
+            }
         };
-        let (to_x, to_y, to_w, to_h) = if let Some(p) = to_pos {
-            *p
-        } else {
-            log::warn!("link target '{}' not found in layout", link.to);
-            continue;
+        let (to_x, to_y, to_w, to_h) = match positions.get(&link.to) {
+            Some(p) => *p,
+            None => {
+                log::warn!("link target '{}' not found in layout", link.to);
+                continue;
+            }
         };
 
         let from_cx = from_x + from_w / 2.0;
@@ -479,7 +641,6 @@ fn layout_edges(
         let to_cx = to_x + to_w / 2.0;
         let to_cy = to_y + to_h / 2.0;
 
-        // Connect centers, clipping to node boundary
         let from_point = clip_to_rect(from_cx, from_cy, from_w, from_h, to_cx, to_cy);
         let to_point = clip_to_rect(to_cx, to_cy, to_w, to_h, from_cx, from_cy);
 
@@ -496,7 +657,7 @@ fn layout_edges(
     edges
 }
 
-/// Clip a line from (cx, cy) to (target_x, target_y) to the rectangle boundary.
+/// Clip a line from (cx, cy) toward (target_x, target_y) to the rectangle.
 fn clip_to_rect(cx: f64, cy: f64, w: f64, h: f64, target_x: f64, target_y: f64) -> (f64, f64) {
     let dx = target_x - cx;
     let dy = target_y - cy;
@@ -507,8 +668,6 @@ fn clip_to_rect(cx: f64, cy: f64, w: f64, h: f64, target_x: f64, target_y: f64) 
 
     let half_w = w / 2.0;
     let half_h = h / 2.0;
-
-    // Calculate intersection with rectangle edges
     let mut t = f64::MAX;
 
     if dx.abs() > 0.001 {
@@ -543,18 +702,17 @@ fn layout_isas(
     let mut result = Vec::new();
 
     for isa in isas {
-        let parent_pos = if let Some(p) = positions.get(&isa.parent) {
-            *p
-        } else {
-            log::warn!("ISA parent '{}' not found", isa.parent);
-            continue;
+        let (px, py, pw, ph) = match positions.get(&isa.parent) {
+            Some(p) => *p,
+            None => {
+                log::warn!("ISA parent '{}' not found", isa.parent);
+                continue;
+            }
         };
 
-        let (px, py, pw, ph) = parent_pos;
         let parent_cx = px + pw / 2.0;
         let parent_cy = py + ph / 2.0;
 
-        // Place ISA triangle below (TB) or to the right (LR) of parent
         let (tri_x, tri_y) = if is_lr {
             (parent_cx + pw / 2.0 + 50.0, parent_cy)
         } else {
@@ -566,7 +724,6 @@ fn layout_isas(
             crate::model::erd::IsaKind::Union => "U".to_string(),
         };
 
-        // Place children spread out below the triangle
         let child_count = isa.children.len() as f64;
         let total_span = (child_count - 1.0) * ISA_CHILD_SPACING;
         let parent_point = if is_lr {
@@ -578,13 +735,15 @@ fn layout_isas(
         let mut child_points = Vec::new();
         for (ci, child_id) in isa.children.iter().enumerate() {
             let (cx, cy) = if is_lr {
-                let x = tri_x + ISA_TRIANGLE_SIZE + 30.0;
-                let y = tri_y - total_span / 2.0 + ci as f64 * ISA_CHILD_SPACING;
-                (x, y)
+                (
+                    tri_x + ISA_TRIANGLE_SIZE + 30.0,
+                    tri_y - total_span / 2.0 + ci as f64 * ISA_CHILD_SPACING,
+                )
             } else {
-                let x = tri_x - total_span / 2.0 + ci as f64 * ISA_CHILD_SPACING;
-                let y = tri_y + ISA_TRIANGLE_SIZE + 30.0;
-                (x, y)
+                (
+                    tri_x - total_span / 2.0 + ci as f64 * ISA_CHILD_SPACING,
+                    tri_y + ISA_TRIANGLE_SIZE + 30.0,
+                )
             };
             child_points.push((child_id.clone(), (cx, cy)));
         }
@@ -761,7 +920,6 @@ mod tests {
         }
     }
 
-    // 1. Empty diagram
     #[test]
     fn test_empty_diagram() {
         let d = empty_diagram();
@@ -774,7 +932,6 @@ mod tests {
         assert!(layout.height > 0.0);
     }
 
-    // 2. Single entity
     #[test]
     fn test_single_entity() {
         let d = ErdDiagram {
@@ -786,10 +943,9 @@ mod tests {
         let node = &layout.entity_nodes[0];
         assert_eq!(node.id, "MOVIE");
         assert!(node.width >= ENTITY_MIN_WIDTH);
-        assert_eq!(node.height, ENTITY_HEIGHT);
+        assert!((node.height - ENTITY_HEIGHT).abs() < 0.01);
     }
 
-    // 3. Entity with attributes
     #[test]
     fn test_entity_with_attributes() {
         let d = ErdDiagram {
@@ -814,7 +970,6 @@ mod tests {
         assert_eq!(layout.attribute_nodes[0].parent, "CUSTOMER");
     }
 
-    // 4. Single relationship
     #[test]
     fn test_single_relationship() {
         let d = ErdDiagram {
@@ -826,7 +981,6 @@ mod tests {
         assert_eq!(layout.relationship_nodes[0].id, "RENTED_TO");
     }
 
-    // 5. Edges between nodes
     #[test]
     fn test_edges() {
         let d = ErdDiagram {
@@ -842,9 +996,8 @@ mod tests {
         assert_eq!(layout.edges[0].label, "1");
     }
 
-    // 6. Multiple entities ordered
     #[test]
-    fn test_multiple_entities_vertical() {
+    fn test_multiple_entities_same_rank() {
         let d = ErdDiagram {
             entities: vec![simple_entity("A"), simple_entity("B"), simple_entity("C")],
             direction: ErdDirection::TopToBottom,
@@ -852,14 +1005,14 @@ mod tests {
         };
         let layout = layout_erd(&d).unwrap();
         assert_eq!(layout.entity_nodes.len(), 3);
-        let y0 = layout.entity_nodes[0].y;
-        let y1 = layout.entity_nodes[1].y;
-        let y2 = layout.entity_nodes[2].y;
-        assert!(y0 < y1, "first should be above second: {} < {}", y0, y1);
-        assert!(y1 < y2, "second should be above third: {} < {}", y1, y2);
+        // Unlinked → same rank → same y, increasing x
+        let x0 = layout.entity_nodes[0].x;
+        let x1 = layout.entity_nodes[1].x;
+        let x2 = layout.entity_nodes[2].x;
+        assert!(x0 < x1, "A.x < B.x: {} < {}", x0, x1);
+        assert!(x1 < x2, "B.x < C.x: {} < {}", x1, x2);
     }
 
-    // 7. Left-to-right direction
     #[test]
     fn test_left_to_right_direction() {
         let d = ErdDiagram {
@@ -868,12 +1021,11 @@ mod tests {
             ..empty_diagram()
         };
         let layout = layout_erd(&d).unwrap();
-        let x0 = layout.entity_nodes[0].x;
-        let x1 = layout.entity_nodes[1].x;
-        assert!(x0 < x1, "first should be left of second: {} < {}", x0, x1);
+        let y0 = layout.entity_nodes[0].y;
+        let y1 = layout.entity_nodes[1].y;
+        assert!(y0 < y1, "A.y < B.y: {} < {}", y0, y1);
     }
 
-    // 8. Weak entity flag preserved
     #[test]
     fn test_weak_entity() {
         let d = ErdDiagram {
@@ -887,7 +1039,6 @@ mod tests {
         assert!(layout.entity_nodes[0].is_weak);
     }
 
-    // 9. Identifying relationship flag preserved
     #[test]
     fn test_identifying_relationship() {
         let d = ErdDiagram {
@@ -901,7 +1052,6 @@ mod tests {
         assert!(layout.relationship_nodes[0].is_identifying);
     }
 
-    // 10. Bounding box includes all elements
     #[test]
     fn test_bounding_box() {
         let d = ErdDiagram {
@@ -911,28 +1061,16 @@ mod tests {
             ..empty_diagram()
         };
         let layout = layout_erd(&d).unwrap();
-
         for node in layout
             .entity_nodes
             .iter()
             .chain(layout.relationship_nodes.iter())
         {
-            assert!(
-                node.x + node.width <= layout.width,
-                "node right {} exceeds width {}",
-                node.x + node.width,
-                layout.width
-            );
-            assert!(
-                node.y + node.height <= layout.height,
-                "node bottom {} exceeds height {}",
-                node.y + node.height,
-                layout.height
-            );
+            assert!(node.x + node.width <= layout.width);
+            assert!(node.y + node.height <= layout.height);
         }
     }
 
-    // 11. Nested attributes have children
     #[test]
     fn test_nested_attributes() {
         let d = ErdDiagram {
@@ -959,7 +1097,6 @@ mod tests {
         assert_eq!(layout.attribute_nodes[0].children.len(), 2);
     }
 
-    // 12. Edge double-line flag
     #[test]
     fn test_double_edge() {
         let d = ErdDiagram {
@@ -978,7 +1115,6 @@ mod tests {
         assert!(layout.edges[0].is_double);
     }
 
-    // 13. Clip to rect - target directly below
     #[test]
     fn test_clip_to_rect_below() {
         let (x, y) = clip_to_rect(100.0, 100.0, 80.0, 40.0, 100.0, 200.0);
@@ -986,7 +1122,6 @@ mod tests {
         assert!((y - 120.0).abs() < 1.0);
     }
 
-    // 14. Clip to rect - target to the right
     #[test]
     fn test_clip_to_rect_right() {
         let (x, y) = clip_to_rect(100.0, 100.0, 80.0, 40.0, 300.0, 100.0);
@@ -994,7 +1129,6 @@ mod tests {
         assert!((y - 100.0).abs() < 1.0);
     }
 
-    // 15. ISA layout
     #[test]
     fn test_isa_layout() {
         let d = ErdDiagram {
@@ -1019,7 +1153,6 @@ mod tests {
         assert!(layout.isa_layouts[0].is_double);
     }
 
-    // 16. Attribute derived flag
     #[test]
     fn test_derived_attribute() {
         let d = ErdDiagram {
@@ -1037,5 +1170,27 @@ mod tests {
         };
         let layout = layout_erd(&d).unwrap();
         assert!(layout.attribute_nodes[0].is_derived);
+    }
+
+    #[test]
+    fn test_topology_ranks() {
+        let d = ErdDiagram {
+            entities: vec![simple_entity("A"), simple_entity("B")],
+            relationships: vec![simple_relationship("R")],
+            links: vec![simple_link("A", "R", "1"), simple_link("R", "B", "N")],
+            direction: ErdDirection::TopToBottom,
+            ..empty_diagram()
+        };
+        let layout = layout_erd(&d).unwrap();
+        let ay = layout.entity_nodes.iter().find(|n| n.id == "A").unwrap().y;
+        let ry = layout
+            .relationship_nodes
+            .iter()
+            .find(|n| n.id == "R")
+            .unwrap()
+            .y;
+        let by = layout.entity_nodes.iter().find(|n| n.id == "B").unwrap().y;
+        assert!(ay < ry, "A.y < R.y: {} < {}", ay, ry);
+        assert!(ry < by, "R.y < B.y: {} < {}", ry, by);
     }
 }
