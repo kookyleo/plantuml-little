@@ -639,10 +639,37 @@ fn convert_image(buf: &mut String, element: &str, ox: f64, oy: f64) {
 }
 
 fn convert_group(buf: &mut String, element: &str, ox: f64, oy: f64) {
-    // Extract group content (between <g ...> and </g>)
     let inner = extract_element_content(element, "g");
-    // Recursively convert children
-    convert_elements(buf, inner.trim(), ox, oy, None);
+    // Apply transform="translate(x,y)" if present
+    let (tx, ty) = if let Some(transform) = get_attr(element, "transform") {
+        parse_translate(&transform)
+    } else {
+        (0.0, 0.0)
+    };
+    convert_elements(buf, inner.trim(), ox + tx, oy + ty, None);
+}
+
+fn parse_translate(transform: &str) -> (f64, f64) {
+    if let Some(start) = transform.find("translate(") {
+        let rest = &transform[start + 10..];
+        if let Some(end) = rest.find(')') {
+            let coords = &rest[..end];
+            let parts: Vec<&str> = coords.split(',').collect();
+            if parts.len() == 2 {
+                let x = parts[0].trim().parse::<f64>().unwrap_or(0.0);
+                let y = parts[1].trim().parse::<f64>().unwrap_or(0.0);
+                return (x, y);
+            }
+            // Try space separator
+            let parts: Vec<&str> = coords.split_whitespace().collect();
+            if parts.len() == 2 {
+                let x = parts[0].parse::<f64>().unwrap_or(0.0);
+                let y = parts[1].parse::<f64>().unwrap_or(0.0);
+                return (x, y);
+            }
+        }
+    }
+    (0.0, 0.0)
 }
 
 // ── Attribute helpers ───────────────────────────────────────────────────────
