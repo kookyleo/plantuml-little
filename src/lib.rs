@@ -5,6 +5,7 @@ pub mod font_metrics;
 pub mod decoration;
 pub mod klimt;
 pub mod layout;
+pub mod skin;
 pub mod svek;
 pub mod model;
 pub mod parser;
