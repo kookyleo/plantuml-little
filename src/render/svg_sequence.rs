@@ -13,7 +13,7 @@ use crate::font_metrics;
 
 use super::svg::{write_svg_root_bg, write_bg_rect};
 use super::svg::{fmt_coord, xml_escape};
-use super::svg_richtext::{disable_path_sprites, enable_path_sprites, render_creole_text, set_default_font_family};
+use super::svg_richtext::{disable_path_sprites, enable_path_sprites, render_creole_text, set_default_font_family, take_back_filters};
 
 // ── Style constants ─────────────────────────────────────────────────
 
@@ -1555,6 +1555,22 @@ fn render_sequence_inner(
     }
 
     buf.push_str("</g></svg>");
+
+    // Post-process: inject back-highlight filter definitions into <defs>
+    let filters = take_back_filters();
+    if !filters.is_empty() {
+        let mut defs_content = String::new();
+        for (id, hex_color) in &filters {
+            write!(
+                defs_content,
+                r#"<filter height="1" id="{}" width="1" x="0" y="0"><feFlood flood-color="{}" result="flood"/><feComposite in="SourceGraphic" in2="flood" operator="over"/></filter>"#,
+                id, hex_color,
+            )
+            .unwrap();
+        }
+        buf = buf.replacen("<defs/>", &format!("<defs>{}</defs>", defs_content), 1);
+    }
+
     Ok(buf)
 }
 

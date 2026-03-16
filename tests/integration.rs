@@ -1652,8 +1652,12 @@ fn test_creole_back001() {
     let svg = convert_fixture("tests/fixtures/misc/creole_back001.puml");
     assert_valid_svg(&svg, "creole_back001");
     assert!(
-        svg.contains(r#"background-color="yellow""#),
-        "back:yellow must produce background-color attribute"
+        svg.contains(r#"filter="url(#"#),
+        "back:yellow must produce SVG filter reference"
+    );
+    assert!(
+        svg.contains(r##"flood-color="#FFFF00""##),
+        "back:yellow must produce feFlood filter with yellow color"
     );
     assert!(svg.contains("important"), "must contain highlighted text");
 }

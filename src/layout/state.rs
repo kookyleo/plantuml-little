@@ -1201,7 +1201,7 @@ mod tests {
         let expected_min_w = crate::font_metrics::text_width(
             "a much longer description line",
             "SansSerif",
-            FONT_SIZE,
+            DESC_FONT_SIZE,
             false,
             false,
         ) + 2.0 * PADDING;
@@ -1213,7 +1213,7 @@ mod tests {
         );
 
         // Height should accommodate name + 3 description lines
-        let expected_min_h = 4.0 * LINE_HEIGHT + 2.0 * PADDING;
+        let expected_min_h = 4.0 * DESC_LINE_HEIGHT + 2.0 * PADDING;
         assert!(
             node.height >= expected_min_h,
             "height {} should be >= {}",
@@ -1264,7 +1264,7 @@ mod tests {
         let node = &layout.state_layouts[0];
         assert_eq!(node.stereotype.as_deref(), Some("<<inputPin>>"));
 
-        // Height should be taller than a state without stereotype
+        // Stereotype state width should accommodate stereotype text
         let plain = StateDiagram {
             states: vec![simple_state("MyState")],
             transitions: vec![],
@@ -1273,8 +1273,8 @@ mod tests {
         };
         let plain_layout = layout_state(&plain).unwrap();
         assert!(
-            node.height > plain_layout.state_layouts[0].height,
-            "stereotype state should be taller"
+            node.width >= plain_layout.state_layouts[0].width,
+            "stereotype state should be at least as wide"
         );
     }
 

@@ -60,18 +60,20 @@ pub fn render_wbs(_wd: &WbsDiagram, layout: &WbsLayout, skin: &SkinParams) -> Re
     }
 
     // Find root node (not a child of any edge)
-    let root_idx = (0..layout.nodes.len()).find(|i| !child_nodes.contains(i)).unwrap_or(0);
+    if !layout.nodes.is_empty() {
+        let root_idx = (0..layout.nodes.len()).find(|i| !child_nodes.contains(i)).unwrap_or(0);
 
-    // Recursive depth-first render matching Java order:
-    // For a parent with children:
-    //   1. For each child: vertical_drop_line, then recurse into child subtree
-    //   2. Horizontal connector bar
-    //   3. Parent rect + text
-    //   4. Parent vertical drop
-    render_subtree(
-        &mut buf, layout, root_idx, &parent_children,
-        wbs_bg, wbs_border, wbs_font, edge_color,
-    );
+        // Recursive depth-first render matching Java order:
+        // For a parent with children:
+        //   1. For each child: vertical_drop_line, then recurse into child subtree
+        //   2. Horizontal connector bar
+        //   3. Parent rect + text
+        //   4. Parent vertical drop
+        render_subtree(
+            &mut buf, layout, root_idx, &parent_children,
+            wbs_bg, wbs_border, wbs_font, edge_color,
+        );
+    }
 
     // Extra links (alias-to-alias arrows)
     for link in &layout.extra_links {
@@ -281,7 +283,7 @@ mod tests {
         let mut l = empty_layout();
         l.nodes.push(make_node("Root", 1, 50.0, 10.0, 80.0, 30.0));
         let svg = render_wbs(&empty_wbs(), &l, &SkinParams::default()).unwrap();
-        assert!(svg.contains(r#"fill="#F1F1F1""#));
+        assert!(svg.contains(r##"fill="#F1F1F1""##));
         assert!(!svg.contains("rx="));
     }
     #[test] fn test_text() {

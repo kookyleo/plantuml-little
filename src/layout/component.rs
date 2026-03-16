@@ -89,7 +89,7 @@ const GROUP_PADDING: f64 = 20.0;
 const GROUP_HEADER: f64 = 30.0;
 const NOTE_OFFSET: f64 = 20.0;
 const NOTE_MAX_WIDTH: f64 = 200.0;
-const MARGIN: f64 = 20.0;
+const MARGIN: f64 = 7.0;
 const GRID_COLS: usize = 3;
 
 // ---------------------------------------------------------------------------

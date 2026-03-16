@@ -67,11 +67,51 @@ fn extract_number_at(s: &str, pos: usize) -> Option<(usize, usize, f64)> {
     s[start..end].parse::<f64>().ok().map(|v| (start, end, v))
 }
 
+/// Normalize SVG filter IDs to canonical sequential form.
+/// Filter definitions use implementation-specific hash IDs; replace them
+/// with sequential `__f0__`, `__f1__`, etc. based on order of appearance.
+fn normalize_filter_ids(s: &str) -> String {
+    use std::collections::HashMap;
+    let mut result = s.to_string();
+    let mut id_map: HashMap<String, String> = HashMap::new();
+    let mut counter = 0usize;
+
+    // Find all filter id="..." in <filter> elements
+    let mut search_from = 0;
+    loop {
+        let filter_pos = match result[search_from..].find("<filter ") {
+            Some(p) => search_from + p,
+            None => break,
+        };
+        let id_pos = match result[filter_pos..].find("id=\"") {
+            Some(p) => filter_pos + p + 4,
+            None => { search_from = filter_pos + 8; continue; }
+        };
+        let id_end = match result[id_pos..].find('"') {
+            Some(p) => id_pos + p,
+            None => { search_from = id_pos; continue; }
+        };
+        let old_id = result[id_pos..id_end].to_string();
+        if !id_map.contains_key(&old_id) {
+            let new_id = format!("__f{}__", counter);
+            id_map.insert(old_id.clone(), new_id);
+            counter += 1;
+        }
+        search_from = id_end + 1;
+    }
+
+    // Replace all occurrences of each old ID with its canonical form
+    for (old_id, new_id) in &id_map {
+        result = result.replace(old_id, new_id);
+    }
+    result
+}
+
 fn assert_exact_match(actual: &str, reference: &str, path: &str) {
     if actual == reference { return; }
     // Allow deflate-encoding differences in <?plantuml-src?> PI
-    let a = strip_plantuml_src_pi(actual);
-    let r = strip_plantuml_src_pi(reference);
+    let a = normalize_filter_ids(&strip_plantuml_src_pi(actual));
+    let r = normalize_filter_ids(&strip_plantuml_src_pi(reference));
     if a == r { return; }
 
     // Fuzzy numeric comparison: tolerate differences < 0.01 in numeric values

@@ -233,9 +233,8 @@ const SPRITE_HEIGHT_THRESHOLD: f64 = 15.1328;
 
 fn message_line_width(line: &str) -> f64 {
     if !line.contains("<$") {
-        // Strip Creole markup (e.g. <back:yellow>text</back>) to get plain text width
-        let plain = crate::render::svg_richtext::creole_plain_text(line);
-        return font_metrics::text_width(&plain, "SansSerif", MSG_FONT_SIZE, false, false);
+        // Compute width respecting font-family changes in creole markup
+        return crate::render::svg_richtext::creole_text_width(line, "SansSerif", MSG_FONT_SIZE, false, false);
     }
     let gap = SPRITE_TEXT_GAP;
     let mut total = 0.0_f64;

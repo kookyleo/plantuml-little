@@ -13,6 +13,7 @@ thread_local! {
     static SVG_SPRITES: RefCell<HashMap<String, String>> = RefCell::new(HashMap::new());
     static DEFAULT_FONT_FAMILY: RefCell<Option<String>> = const { RefCell::new(None) };
     static PATH_BASED_SPRITES: RefCell<bool> = const { RefCell::new(false) };
+    static BACK_FILTERS: RefCell<Vec<(String, String)>> = RefCell::new(Vec::new());
 }
 
 /// Set the sprite registry for the current rendering pass.
@@ -24,6 +25,36 @@ pub fn set_sprites(sprites: HashMap<String, String>) {
 pub fn clear_sprites() {
     SVG_SPRITES.with(|s| s.borrow_mut().clear());
     PATH_BASED_SPRITES.with(|p| *p.borrow_mut() = false);
+    BACK_FILTERS.with(|f| f.borrow_mut().clear());
+}
+
+pub fn take_back_filters() -> Vec<(String, String)> {
+    BACK_FILTERS.with(|f| std::mem::take(&mut *f.borrow_mut()))
+}
+
+fn back_filter_id(color: &str) -> String {
+    let mut h: u64 = 0xcbf2_9ce4_8422_2325;
+    for b in color.bytes() { h ^= b as u64; h = h.wrapping_mul(0x100_0000_01b3); }
+    let mut id = String::with_capacity(16);
+    for _ in 0..16 {
+        let c = (h % 36) as u8;
+        id.push(if c < 10 { (b'0' + c) as char } else { (b'a' + c - 10) as char });
+        h /= 36;
+    }
+    id
+}
+
+fn register_back_filter(color: &str) -> String {
+    use crate::style::normalize_color;
+    let hex_color = normalize_color(color);
+    let id = back_filter_id(&hex_color);
+    BACK_FILTERS.with(|f| {
+        let mut filters = f.borrow_mut();
+        if !filters.iter().any(|(fid, _)| fid == &id) {
+            filters.push((id.clone(), hex_color));
+        }
+    });
+    id
 }
 
 pub fn enable_path_sprites() {
@@ -104,6 +135,39 @@ pub fn creole_plain_text(text: &str) -> String {
     flatten_plain_lines(&parse_creole(text)).join("")
 }
 
+/// Compute the total width of creole text, respecting font-family changes.
+/// For text without font-family markup, this behaves like measuring plain text.
+/// For text with `<font:family>`, each segment is measured in its own font.
+pub fn creole_text_width(text: &str, default_font: &str, font_size: f64, bold: bool, italic: bool) -> f64 {
+    let lines = flatten_rich_lines(&parse_creole(text));
+    if lines.is_empty() {
+        return 0.0;
+    }
+    // For now, handle single-line case (messages are typically single line)
+    let spans = &lines[0];
+    if !line_needs_split_render(spans) {
+        // No font-family or back-highlight changes: measure as plain text
+        let plain = plain_text_spans(spans);
+        return font_metrics::text_width(&plain, default_font, font_size, bold, italic);
+    }
+    // Font-family changes: measure each run in its own font, plus space gaps
+    let runs = flatten_to_runs(spans);
+    let mut total = 0.0;
+    let mut first = true;
+    for run in &runs {
+        let text = if !first { run.text.trim_start() } else { run.text.as_str() };
+        if text.is_empty() { continue; }
+        // Add space gap if we trimmed leading whitespace
+        if !first && text.len() < run.text.len() {
+            total += font_metrics::text_width(" ", default_font, font_size, false, false);
+        }
+        let run_font = run.font_family.as_deref().unwrap_or(default_font);
+        total += font_metrics::text_width(text, run_font, font_size, bold, italic);
+        first = false;
+    }
+    total
+}
+
 #[allow(clippy::too_many_arguments)]
 pub fn render_creole_text(
     buf: &mut String,
@@ -141,13 +205,19 @@ pub fn render_creole_text(
         }).collect()
     } else { Vec::new() };
 
+    let (font_family, font_size, bold, italic) = parse_font_props(outer_attrs);
+
+    if lines.len() == 1 && line_needs_split_render(&lines[0]) {
+        render_split_text_runs(buf, &lines[0], x, y, fill, outer_attrs, &font_family, font_size, bold, italic);
+        return 1;
+    }
+
     // Compute textLength for the <text> element.
     let plain = lines
         .iter()
         .map(|line| plain_text_spans(line))
         .collect::<Vec<_>>()
         .join("");
-    let (font_family, font_size, bold, italic) = parse_font_props(outer_attrs);
     let text_length = font_metrics::text_width(&plain, &font_family, font_size, bold, italic);
 
     if lines.len() == 1 {
@@ -241,6 +311,80 @@ fn render_line_with_sprites(buf: &mut String, spans: &[TextSpan], x: f64, y: f64
         }
     }
     1
+}
+
+
+fn line_needs_split_render(spans: &[TextSpan]) -> bool {
+    spans.iter().any(|span| matches!(span, TextSpan::BackHighlight { .. } | TextSpan::FontFamily { .. }))
+}
+
+struct TextRun { text: String, font_family: Option<String>, filter_id: Option<String> }
+
+fn flatten_to_runs(spans: &[TextSpan]) -> Vec<TextRun> {
+    let mut runs: Vec<TextRun> = Vec::new();
+    flatten_span_runs(spans, &mut runs, None, None);
+    runs
+}
+
+fn flatten_span_runs(spans: &[TextSpan], runs: &mut Vec<TextRun>, current_font: Option<&str>, current_filter: Option<&str>) {
+    for span in spans {
+        match span {
+            TextSpan::Plain(text) => {
+                if let Some(run) = runs.last_mut() {
+                    let sf = match (&run.font_family, current_font) { (None, None) => true, (Some(a), Some(b)) => a == b, _ => false };
+                    let sfl = match (&run.filter_id, current_filter) { (None, None) => true, (Some(a), Some(b)) => a == b, _ => false };
+                    if sf && sfl { run.text.push_str(text); continue; }
+                }
+                runs.push(TextRun { text: text.clone(), font_family: current_font.map(String::from), filter_id: current_filter.map(String::from) });
+            }
+            TextSpan::BackHighlight { color, content } => { let fid = register_back_filter(color); flatten_span_runs(content, runs, current_font, Some(&fid)); }
+            TextSpan::FontFamily { family, content } => { flatten_span_runs(content, runs, Some(family), current_filter); }
+            TextSpan::Bold(inner) | TextSpan::Italic(inner) | TextSpan::Underline(inner) | TextSpan::Strikethrough(inner) | TextSpan::Subscript(inner) | TextSpan::Superscript(inner) => { flatten_span_runs(inner, runs, current_font, current_filter); }
+            TextSpan::Colored { content, .. } | TextSpan::Sized { content, .. } => { flatten_span_runs(content, runs, current_font, current_filter); }
+            TextSpan::Monospace(text) => { runs.push(TextRun { text: text.clone(), font_family: Some("monospace".to_string()), filter_id: current_filter.map(String::from) }); }
+            TextSpan::Link { label, url, .. } => {
+                let visible = label.as_deref().unwrap_or(url);
+                if let Some(run) = runs.last_mut() {
+                    if run.font_family.as_deref() == current_font && run.filter_id.as_deref() == current_filter { run.text.push_str(visible); continue; }
+                }
+                runs.push(TextRun { text: visible.to_string(), font_family: current_font.map(String::from), filter_id: current_filter.map(String::from) });
+            }
+            TextSpan::InlineSvg { .. } => {}
+        }
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+fn render_split_text_runs(buf: &mut String, spans: &[TextSpan], x: f64, y: f64, fill: &str, _outer_attrs: &str, default_font: &str, font_size: f64, bold: bool, italic: bool) {
+    let runs = flatten_to_runs(spans);
+    let mut cursor_x = x;
+    let mut first = true;
+    for run in &runs {
+        let text = run.text.clone();
+        let trimmed = text.trim_start();
+        // If we trimmed leading whitespace, add gap for the space
+        if !first && trimmed.len() < text.len() {
+            let space_w = font_metrics::text_width(" ", default_font, font_size, false, false);
+            cursor_x += space_w;
+        }
+        let text = if !first { trimmed.to_string() } else { text };
+        if text.is_empty() { continue; }
+        let run_font = run.font_family.as_deref().unwrap_or(default_font);
+        let text_w = font_metrics::text_width(&text, run_font, font_size, bold, italic);
+        write!(buf, r#"<text fill="{}""#, xml_escape(fill)).unwrap();
+        if let Some(ref fid) = run.filter_id { write!(buf, r#" filter="url(#{fid})""#).unwrap(); }
+        write!(buf, r#" font-family="{}""#, xml_escape(run_font)).unwrap();
+        write!(buf, r#" font-size="{}""#, fmt_coord(font_size)).unwrap();
+        if italic { buf.push_str(r#" font-style="italic""#); }
+        if bold { buf.push_str(r#" font-weight="bold""#); }
+        write!(buf, r#" lengthAdjust="spacing""#).unwrap();
+        write!(buf, r#" textLength="{}""#, fmt_coord(text_w)).unwrap();
+        write!(buf, r#" x="{}" y="{}">"#, fmt_coord(cursor_x), fmt_coord(y)).unwrap();
+        buf.push_str(&xml_escape(&text));
+        buf.push_str("</text>");
+        cursor_x += text_w;
+        first = false;
+    }
 }
 
 /// Parse font properties from `outer_attrs` for `textLength` computation.
@@ -812,7 +956,7 @@ mod tests {
             None,
             "",
         );
-        assert!(buf.contains(r#"background-color="yellow""#));
+        assert!(buf.contains(r#"filter="url(#"#));
         assert!(buf.contains("important"));
     }
 
