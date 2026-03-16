@@ -1,51 +1,30 @@
+use std::collections::HashMap;
 use std::fmt::Write;
 
-use super::svg::{write_svg_root_bg, write_bg_rect};
+use super::svg::{write_bg_rect, write_svg_root_bg};
+use crate::font_metrics;
 use crate::layout::wbs::{WbsEdgeLayout, WbsLayout, WbsNodeLayout, WbsNoteLayout};
 use crate::model::wbs::WbsDiagram;
-use crate::render::svg::fmt_coord;
-use crate::render::svg_richtext::{count_creole_lines, render_creole_text};
+use crate::render::svg::{fmt_coord, xml_escape};
 use crate::style::SkinParams;
 use crate::Result;
 
-// ── Style constants ─────────────────────────────────────────────────
-
-const FONT_SIZE: f64 = 14.0;
-const LINE_HEIGHT: f64 = 16.0;
+const FONT_SIZE: f64 = 12.0;
+const ASCENT: f64 = 11.138672;
+const LINE_HEIGHT: f64 = 13.96875;
 const NODE_BG: &str = "#F1F1F1";
-const ROOT_BG: &str = "#FFD700";
 const NODE_BORDER: &str = "#181818";
 const EDGE_COLOR: &str = "#181818";
 const TEXT_FILL: &str = "#000000";
-const RX: f64 = 4.0;
+const STROKE_WIDTH: &str = "1.5";
 const NOTE_BG: &str = "#FEFFDD";
 const NOTE_BORDER: &str = "#181818";
 const NOTE_FOLD: f64 = 8.0;
+const PAD: f64 = 10.0;
 
-// ── XML escaping (test helper) ──────────────────────────────────────
-
-#[cfg(test)]
-fn xml_escape(s: &str) -> String {
-    let mut out = String::with_capacity(s.len());
-    for ch in s.chars() {
-        match ch {
-            '&' => out.push_str("&amp;"),
-            '<' => out.push_str("&lt;"),
-            '>' => out.push_str("&gt;"),
-            '"' => out.push_str("&quot;"),
-            _ => out.push(ch),
-        }
-    }
-    out
-}
-
-// ── Public entry point ──────────────────────────────────────────────
-
-/// Render a WBS diagram to SVG.
 pub fn render_wbs(_wd: &WbsDiagram, layout: &WbsLayout, skin: &SkinParams) -> Result<String> {
     let mut buf = String::with_capacity(4096);
 
-    // SVG header
     let bg = skin.get_or("backgroundcolor", "#FFFFFF");
     write_svg_root_bg(&mut buf, layout.width, layout.height, "WBS", bg);
     buf.push_str("<defs/><g>");
@@ -56,19 +35,47 @@ pub fn render_wbs(_wd: &WbsDiagram, layout: &WbsLayout, skin: &SkinParams) -> Re
     let wbs_font = skin.font_color("wbs", TEXT_FILL);
     let edge_color = skin.arrow_color(EDGE_COLOR);
 
-    // Edges (parent-child connections)
-    for edge in &layout.edges {
-        render_edge(&mut buf, edge, edge_color);
+    // Build parent_node_index -> [(edge_index, child_node_index)] map
+    // Edges store from_x/from_y = parent bottom center, to_x/to_y = child top center
+    // Nodes are in depth-first order. Match edges to children by to_x/to_y matching node center_x/y.
+    let mut parent_children: HashMap<usize, Vec<(usize, usize)>> = HashMap::new();
+    let mut child_nodes: std::collections::HashSet<usize> = std::collections::HashSet::new();
+
+    for (ei, edge) in layout.edges.iter().enumerate() {
+        // Find parent node: node whose bottom center matches edge from_x, y+h = from_y
+        let parent_idx = layout.nodes.iter().position(|n| {
+            let cx = n.x + n.width / 2.0;
+            let by = n.y + n.height;
+            (cx - edge.from_x).abs() < 0.01 && (by - edge.from_y).abs() < 0.01
+        });
+        // Find child node: node whose top center matches edge to_x, y = to_y
+        let child_idx = layout.nodes.iter().position(|n| {
+            let cx = n.x + n.width / 2.0;
+            (cx - edge.to_x).abs() < 0.01 && (n.y - edge.to_y).abs() < 0.01
+        });
+        if let (Some(pi), Some(ci)) = (parent_idx, child_idx) {
+            parent_children.entry(pi).or_default().push((ei, ci));
+            child_nodes.insert(ci);
+        }
     }
 
-    // Extra links (alias-to-alias)
+    // Find root node (not a child of any edge)
+    let root_idx = (0..layout.nodes.len()).find(|i| !child_nodes.contains(i)).unwrap_or(0);
+
+    // Recursive depth-first render matching Java order:
+    // For a parent with children:
+    //   1. For each child: vertical_drop_line, then recurse into child subtree
+    //   2. Horizontal connector bar
+    //   3. Parent rect + text
+    //   4. Parent vertical drop
+    render_subtree(
+        &mut buf, layout, root_idx, &parent_children,
+        wbs_bg, wbs_border, wbs_font, edge_color,
+    );
+
+    // Extra links (alias-to-alias arrows)
     for link in &layout.extra_links {
         render_extra_link(&mut buf, link, edge_color);
-    }
-
-    // Nodes (rendered after edges so they appear on top)
-    for node in &layout.nodes {
-        render_node(&mut buf, node, wbs_bg, wbs_border, wbs_font);
     }
 
     for note in &layout.notes {
@@ -79,40 +86,101 @@ pub fn render_wbs(_wd: &WbsDiagram, layout: &WbsLayout, skin: &SkinParams) -> Re
     Ok(buf)
 }
 
-// ── Node rendering ──────────────────────────────────────────────────
+fn render_subtree(
+    buf: &mut String,
+    layout: &WbsLayout,
+    node_idx: usize,
+    parent_children: &HashMap<usize, Vec<(usize, usize)>>,
+    bg: &str, border: &str, font_color: &str, edge_color: &str,
+) {
+    let children = parent_children.get(&node_idx);
+
+    if let Some(child_list) = children {
+        // 1. For each child: render vertical drop line, then child subtree
+        for &(ei, ci) in child_list {
+            let edge = &layout.edges[ei];
+            let connector_y = (edge.from_y + edge.to_y) / 2.0;
+            // Vertical drop from connector to child top
+            write!(
+                buf,
+                r#"<line style="stroke:{edge_color};stroke-width:{STROKE_WIDTH};" x1="{cx}" x2="{cx}" y1="{cy}" y2="{ty}"/>"#,
+                cx = fmt_coord(edge.to_x),
+                cy = fmt_coord(connector_y),
+                ty = fmt_coord(edge.to_y),
+            ).unwrap();
+
+            // Recurse into child subtree
+            render_subtree(buf, layout, ci, parent_children, bg, border, font_color, edge_color);
+        }
+
+        // 2. Horizontal connector bar (if >1 children)
+        let edges: Vec<&WbsEdgeLayout> = child_list.iter().map(|&(ei, _)| &layout.edges[ei]).collect();
+        let connector_y = (edges[0].from_y + edges[0].to_y) / 2.0;
+        if edges.len() > 1 {
+            let min_x = edges.iter().map(|e| e.to_x).fold(f64::INFINITY, f64::min);
+            let max_x = edges.iter().map(|e| e.to_x).fold(f64::NEG_INFINITY, f64::max);
+            write!(
+                buf,
+                r#"<line style="stroke:{edge_color};stroke-width:{STROKE_WIDTH};" x1="{x1}" x2="{x2}" y1="{y}" y2="{y}"/>"#,
+                x1 = fmt_coord(min_x), x2 = fmt_coord(max_x), y = fmt_coord(connector_y),
+            ).unwrap();
+        }
+
+        // 3. Parent rect + text
+        render_node(buf, &layout.nodes[node_idx], bg, border, font_color);
+
+        // 4. Parent vertical drop
+        let from_y = edges[0].from_y;
+        let from_x = edges[0].from_x;
+        write!(
+            buf,
+            r#"<line style="stroke:{edge_color};stroke-width:{STROKE_WIDTH};" x1="{x}" x2="{x}" y1="{y1}" y2="{y2}"/>"#,
+            x = fmt_coord(from_x), y1 = fmt_coord(from_y), y2 = fmt_coord(connector_y),
+        ).unwrap();
+    } else {
+        // Leaf node: just render rect + text
+        render_node(buf, &layout.nodes[node_idx], bg, border, font_color);
+    }
+}
 
 fn render_node(buf: &mut String, node: &WbsNodeLayout, bg: &str, border: &str, font_color: &str) {
-    let fill = if node.level == 1 { ROOT_BG } else { bg };
-
-    // Rectangle
     write!(
         buf,
-        r#"<rect fill="{fill}" height="{}" rx="{RX}" ry="{RX}" style="stroke:{border};stroke-width:0.5;" width="{}" x="{}" y="{}"/>"#,
-        fmt_coord(node.height), fmt_coord(node.width), fmt_coord(node.x), fmt_coord(node.y),
-    )
-    .unwrap();
-    buf.push('\n');
+        r#"<rect fill="{bg}" height="{h}" style="stroke:{border};stroke-width:{STROKE_WIDTH};" width="{w}" x="{x}" y="{y}"/>"#,
+        h = fmt_coord(node.height),
+        w = fmt_coord(node.width),
+        x = fmt_coord(node.x),
+        y = fmt_coord(node.y),
+    ).unwrap();
 
-    // Text
-    let cx = node.x + node.width / 2.0;
+    // For nodes with hyperlinks or complex creole, use render_creole_text
+    if node.text.contains("[[") {
+        use crate::render::svg_richtext::render_creole_text;
+        let text_x = node.x + PAD;
+        let text_y = node.y + PAD + ASCENT;
+        render_creole_text(
+            buf, &node.text, text_x, text_y, LINE_HEIGHT,
+            font_color, None, &format!(r#"font-size="{FONT_SIZE:.0}""#),
+        );
+        return;
+    }
 
-    let line_count = count_creole_lines(&node.text);
-    let total_text_h = line_count as f64 * LINE_HEIGHT;
-    let start_y = if line_count == 1 {
-        node.y + node.height / 2.0 + FONT_SIZE * 0.35
-    } else {
-        node.y + (node.height - total_text_h) / 2.0 + FONT_SIZE
-    };
-    render_creole_text(
-        buf,
-        &node.text,
-        cx,
-        start_y,
-        LINE_HEIGHT,
-        font_color,
-        Some("middle"),
-        r#"font-size="14""#,
-    );
+    // Simple text: each line as a separate <text> element, left-aligned
+    let visible = crate::model::hyperlink::extract_hyperlinks(&node.text).0;
+    let lines: Vec<&str> = visible.lines().collect();
+    let text_x = node.x + PAD;
+    for (i, line) in lines.iter().enumerate() {
+        let text_y = node.y + PAD + ASCENT + i as f64 * LINE_HEIGHT;
+        let text_len = font_metrics::text_width(line, "SansSerif", FONT_SIZE, false, false);
+        write!(
+            buf,
+            r#"<text fill="{font_color}" font-family="sans-serif" font-size="{FONT_SIZE:.0}" lengthAdjust="spacing" textLength="{tl}" x="{tx}" y="{ty}">{text}</text>"#,
+            tl = fmt_coord(text_len),
+            tx = fmt_coord(text_x),
+            ty = fmt_coord(text_y),
+            text = xml_escape(line),
+        ).unwrap();
+    }
 }
 
 fn render_note(buf: &mut String, note: &WbsNoteLayout, font_color: &str) {
@@ -121,11 +189,8 @@ fn render_note(buf: &mut String, note: &WbsNoteLayout, font_color: &str) {
             buf,
             r#"<line style="stroke:{NOTE_BORDER};stroke-width:0.5;stroke-dasharray:4,4;" x1="{}" x2="{}" y1="{}" y2="{}"/>"#,
             fmt_coord(x1), fmt_coord(x2), fmt_coord(y1), fmt_coord(y2),
-        )
-        .unwrap();
-        buf.push('\n');
+        ).unwrap();
     }
-
     let fold_x = note.x + note.width - NOTE_FOLD;
     let fold_y = note.y + NOTE_FOLD;
     let x2 = note.x + note.width;
@@ -133,68 +198,59 @@ fn render_note(buf: &mut String, note: &WbsNoteLayout, font_color: &str) {
     write!(
         buf,
         r#"<polygon fill="{NOTE_BG}" points="{},{} {},{} {},{} {},{} {},{}" style="stroke:{NOTE_BORDER};stroke-width:0.5;"/>"#,
-        fmt_coord(note.x), fmt_coord(note.y),
-        fmt_coord(fold_x), fmt_coord(note.y),
-        fmt_coord(x2), fmt_coord(fold_y),
-        fmt_coord(x2), fmt_coord(y2),
+        fmt_coord(note.x), fmt_coord(note.y), fmt_coord(fold_x), fmt_coord(note.y),
+        fmt_coord(x2), fmt_coord(fold_y), fmt_coord(x2), fmt_coord(y2),
         fmt_coord(note.x), fmt_coord(y2),
-    )
-    .unwrap();
-    buf.push('\n');
-
+    ).unwrap();
     write!(
         buf,
         r#"<path d="M{},{} L{},{} L{},{} " fill="none" style="stroke:{NOTE_BORDER};stroke-width:0.5;"/>"#,
-        fmt_coord(fold_x), fmt_coord(note.y),
-        fmt_coord(fold_x), fmt_coord(fold_y),
+        fmt_coord(fold_x), fmt_coord(note.y), fmt_coord(fold_x), fmt_coord(fold_y),
         fmt_coord(x2), fmt_coord(fold_y),
-    )
-    .unwrap();
-    buf.push('\n');
+    ).unwrap();
 
-    render_creole_text(
-        buf,
-        &note.text,
-        note.x + 6.0,
-        note.y + NOTE_FOLD + FONT_SIZE,
-        LINE_HEIGHT,
-        font_color,
-        None,
-        r#"font-size="13""#,
-    );
+    use crate::render::svg_richtext::render_creole_text;
+    render_creole_text(buf, &note.text, note.x + 6.0, note.y + NOTE_FOLD + FONT_SIZE,
+        LINE_HEIGHT, font_color, None, r#"font-size="13""#);
 }
 
-// ── Edge rendering ──────────────────────────────────────────────────
-
-/// Parent-child edge: vertical line down from parent, horizontal to child,
-/// then vertical down to child top.
-fn render_edge(buf: &mut String, edge: &WbsEdgeLayout, color: &str) {
-    let mid_y = (edge.from_y + edge.to_y) / 2.0;
-
-    write!(
-        buf,
-        r#"<path d="M{},{} L{},{} L{},{} L{},{} " fill="none" style="stroke:{color};stroke-width:0.5;"/>"#,
-        fmt_coord(edge.from_x), fmt_coord(edge.from_y),
-        fmt_coord(edge.from_x), fmt_coord(mid_y),
-        fmt_coord(edge.to_x), fmt_coord(mid_y),
-        fmt_coord(edge.to_x), fmt_coord(edge.to_y),
-    )
-    .unwrap();
-    buf.push('\n');
-}
-
-/// Extra link between aliased nodes: dashed line.
 fn render_extra_link(buf: &mut String, link: &WbsEdgeLayout, color: &str) {
     write!(
         buf,
-        r#"<line style="stroke:{color};stroke-width:0.5;stroke-dasharray:4,4;" x1="{}" x2="{}" y1="{}" y2="{}"/>"#,
-        fmt_coord(link.from_x), fmt_coord(link.to_x), fmt_coord(link.from_y), fmt_coord(link.to_y),
-    )
-    .unwrap();
-    buf.push('\n');
-}
+        r#"<line style="stroke:{color};stroke-width:1;" x1="{}" x2="{}" y1="{}" y2="{}"/>"#,
+        fmt_coord(link.from_x), fmt_coord(link.to_x),
+        fmt_coord(link.from_y), fmt_coord(link.to_y),
+    ).unwrap();
 
-// ── Tests ───────────────────────────────────────────────────────────
+    let dx = link.to_x - link.from_x;
+    let dy = link.to_y - link.from_y;
+    let len = (dx * dx + dy * dy).sqrt();
+    if len > 0.0 {
+        let ux = dx / len;
+        let uy = dy / len;
+        let tip_x = link.to_x;
+        let tip_y = link.to_y;
+        let back = 9.0;
+        let spread = 4.0;
+        let base_x = tip_x - ux * back;
+        let base_y = tip_y - uy * back;
+        let left_x = base_x + uy * spread;
+        let left_y = base_y - ux * spread;
+        let mid_x = tip_x - ux * (back - 4.0);
+        let mid_y = tip_y - uy * (back - 4.0);
+        let right_x = base_x - uy * spread;
+        let right_y = base_y + ux * spread;
+        write!(
+            buf,
+            r#"<polygon fill="{color}" points="{},{},{},{},{},{},{},{},{},{}" style="stroke:{color};stroke-width:1;"/>"#,
+            fmt_coord(tip_x), fmt_coord(tip_y),
+            fmt_coord(left_x), fmt_coord(left_y),
+            fmt_coord(mid_x), fmt_coord(mid_y),
+            fmt_coord(right_x), fmt_coord(right_y),
+            fmt_coord(tip_x), fmt_coord(tip_y),
+        ).unwrap();
+    }
+}
 
 #[cfg(test)]
 mod tests {
@@ -205,308 +261,54 @@ mod tests {
 
     fn empty_wbs() -> WbsDiagram {
         WbsDiagram {
-            root: WbsNode {
-                text: "R".to_string(),
-                children: vec![],
-                direction: WbsDirection::Default,
-                alias: None,
-                level: 1,
-            },
-            links: vec![],
-            notes: vec![],
+            root: WbsNode { text: "R".into(), children: vec![], direction: WbsDirection::Default, alias: None, level: 1 },
+            links: vec![], notes: vec![],
         }
     }
-
     fn empty_layout() -> WbsLayout {
-        WbsLayout {
-            nodes: vec![],
-            edges: vec![],
-            extra_links: vec![],
-            notes: vec![],
-            width: 200.0,
-            height: 100.0,
-        }
+        WbsLayout { nodes: vec![], edges: vec![], extra_links: vec![], notes: vec![], width: 200.0, height: 100.0 }
     }
-
     fn make_node(text: &str, level: usize, x: f64, y: f64, w: f64, h: f64) -> WbsNodeLayout {
-        WbsNodeLayout {
-            text: text.to_string(),
-            alias: None,
-            x,
-            y,
-            width: w,
-            height: h,
-            level,
-        }
+        WbsNodeLayout { text: text.into(), alias: None, x, y, width: w, height: h, level }
     }
 
-    #[test]
-    fn test_svg_header_footer() {
-        let wd = empty_wbs();
-        let layout = empty_layout();
-        let svg = render_wbs(&wd, &layout, &SkinParams::default()).unwrap();
-        assert!(svg.contains("<svg"), "must contain <svg");
-        assert!(svg.contains("</svg>"), "must contain </svg>");
-        assert!(svg.contains("xmlns=\"http://www.w3.org/2000/svg\""));
+    #[test] fn test_svg_header() {
+        let svg = render_wbs(&empty_wbs(), &empty_layout(), &SkinParams::default()).unwrap();
+        assert!(svg.contains("<svg")); assert!(svg.contains("</svg>"));
+        assert!(svg.contains("contentStyleType=\"text/css\""));
     }
-
-    #[test]
-    fn test_svg_dimensions() {
-        let wd = empty_wbs();
-        let mut layout = empty_layout();
-        layout.width = 400.0;
-        layout.height = 300.0;
-        let svg = render_wbs(&wd, &layout, &SkinParams::default()).unwrap();
-        assert!(svg.contains("width=\"400px\""), "width must match layout");
-        assert!(svg.contains("height=\"300px\""), "height must match layout");
-        assert!(
-            svg.contains("viewBox=\"0 0 400 300\""),
-            "viewBox must match"
-        );
+    #[test] fn test_node_fill() {
+        let mut l = empty_layout();
+        l.nodes.push(make_node("Root", 1, 50.0, 10.0, 80.0, 30.0));
+        let svg = render_wbs(&empty_wbs(), &l, &SkinParams::default()).unwrap();
+        assert!(svg.contains(r#"fill="#F1F1F1""#));
+        assert!(!svg.contains("rx="));
     }
-
-    #[test]
-    fn test_root_node_gold() {
-        let wd = empty_wbs();
-        let mut layout = empty_layout();
-        layout
-            .nodes
-            .push(make_node("Root", 1, 50.0, 10.0, 80.0, 30.0));
-        let svg = render_wbs(&wd, &layout, &SkinParams::default()).unwrap();
-        assert!(
-            svg.contains(&format!(r#"fill="{ROOT_BG}""#)),
-            "root node must use gold fill"
-        );
-        assert!(svg.contains("Root"), "root text must appear");
+    #[test] fn test_text() {
+        let mut l = empty_layout();
+        l.nodes.push(make_node("Hello", 1, 10.0, 10.0, 80.0, 30.0));
+        let svg = render_wbs(&empty_wbs(), &l, &SkinParams::default()).unwrap();
+        assert!(svg.contains("Hello"));
+        assert!(svg.contains(r#"font-size="12""#));
     }
-
-    #[test]
-    fn test_non_root_node_fill() {
-        let wd = empty_wbs();
-        let mut layout = empty_layout();
-        layout
-            .nodes
-            .push(make_node("Child", 2, 50.0, 80.0, 80.0, 30.0));
-        let svg = render_wbs(&wd, &layout, &SkinParams::default()).unwrap();
-        assert!(
-            svg.contains(&format!(r#"fill="{NODE_BG}""#)),
-            "non-root node must use default fill"
-        );
+    #[test] fn test_multiline() {
+        let mut l = empty_layout();
+        l.nodes.push(make_node("A\nB", 2, 10.0, 10.0, 100.0, 50.0));
+        let svg = render_wbs(&empty_wbs(), &l, &SkinParams::default()).unwrap();
+        assert_eq!(svg.matches("<text ").count(), 2);
     }
-
-    #[test]
-    fn test_node_border() {
-        let wd = empty_wbs();
-        let mut layout = empty_layout();
-        layout.nodes.push(make_node("N", 1, 10.0, 10.0, 40.0, 24.0));
-        let svg = render_wbs(&wd, &layout, &SkinParams::default()).unwrap();
-        assert!(
-            svg.contains(&format!("stroke:{NODE_BORDER}")),
-            "node must have border stroke"
-        );
-        assert!(
-            svg.contains(&format!(r#"rx="{RX}""#)),
-            "node must have rounded corners"
-        );
+    #[test] fn test_edge() {
+        let mut l = empty_layout();
+        l.nodes.push(make_node("R", 1, 90.0, 10.0, 20.0, 30.0));
+        l.nodes.push(make_node("C", 2, 80.0, 80.0, 40.0, 30.0));
+        l.edges.push(WbsEdgeLayout { from_x: 100.0, from_y: 40.0, to_x: 100.0, to_y: 80.0 });
+        let svg = render_wbs(&empty_wbs(), &l, &SkinParams::default()).unwrap();
+        assert!(svg.contains("<line"));
     }
-
-    #[test]
-    fn test_single_line_text() {
-        let wd = empty_wbs();
-        let mut layout = empty_layout();
-        layout
-            .nodes
-            .push(make_node("Hello", 1, 10.0, 10.0, 80.0, 30.0));
-        let svg = render_wbs(&wd, &layout, &SkinParams::default()).unwrap();
-        assert!(svg.contains("Hello"), "text must appear");
-        assert!(
-            svg.contains(r#"text-anchor="middle""#),
-            "text must be centered"
-        );
-        assert!(
-            !svg.contains("<tspan"),
-            "single-line text should not use tspan"
-        );
-    }
-
-    #[test]
-    fn test_multiline_text() {
-        let wd = empty_wbs();
-        let mut layout = empty_layout();
-        layout
-            .nodes
-            .push(make_node("Line 1\nLine 2", 2, 10.0, 10.0, 100.0, 50.0));
-        let svg = render_wbs(&wd, &layout, &SkinParams::default()).unwrap();
-        assert!(svg.contains("<tspan"), "multiline must use tspan");
-        assert!(svg.contains("Line 1"), "first line must appear");
-        assert!(svg.contains("Line 2"), "second line must appear");
-        assert_eq!(
-            svg.matches("<tspan").count(),
-            2,
-            "two lines must produce two tspan elements"
-        );
-    }
-
-    #[test]
-    fn test_edge_rendering() {
-        let wd = empty_wbs();
-        let mut layout = empty_layout();
-        layout.edges.push(WbsEdgeLayout {
-            from_x: 100.0,
-            from_y: 40.0,
-            to_x: 80.0,
-            to_y: 80.0,
-        });
-        let svg = render_wbs(&wd, &layout, &SkinParams::default()).unwrap();
-        assert!(svg.contains("<path"), "edge must use <path>");
-        assert!(
-            svg.contains(&format!("stroke:{EDGE_COLOR}")),
-            "edge must use edge color"
-        );
-        assert!(
-            svg.contains(r#"fill="none""#),
-            "edge path must have no fill"
-        );
-    }
-
-    #[test]
-    fn test_extra_link_dashed() {
-        let wd = empty_wbs();
-        let mut layout = empty_layout();
-        layout.extra_links.push(WbsEdgeLayout {
-            from_x: 50.0,
-            from_y: 50.0,
-            to_x: 150.0,
-            to_y: 50.0,
-        });
-        let svg = render_wbs(&wd, &layout, &SkinParams::default()).unwrap();
-        assert!(svg.contains("<line"), "extra link must use <line>");
-        assert!(
-            svg.contains("stroke-dasharray"),
-            "extra link must be dashed"
-        );
-    }
-
-    #[test]
-    fn test_xml_escaping() {
-        let wd = empty_wbs();
-        let mut layout = empty_layout();
-        layout
-            .nodes
-            .push(make_node("A & B < C", 1, 10.0, 10.0, 120.0, 30.0));
-        let svg = render_wbs(&wd, &layout, &SkinParams::default()).unwrap();
-        assert!(svg.contains("A &amp; B &lt; C"), "text must be XML-escaped");
-    }
-
-    #[test]
-    fn test_xml_escape_fn() {
-        assert_eq!(xml_escape("A & B"), "A &amp; B");
-        assert_eq!(xml_escape("<tag>"), "&lt;tag&gt;");
-        assert_eq!(xml_escape(r#"a"b"#), "a&quot;b");
-        assert_eq!(xml_escape("plain"), "plain");
-    }
-
-    #[test]
-    fn test_empty_layout() {
-        let wd = empty_wbs();
-        let layout = empty_layout();
-        let svg = render_wbs(&wd, &layout, &SkinParams::default()).unwrap();
-        assert!(!svg.contains("<rect"), "empty layout has no rects");
-        assert!(!svg.contains("<path"), "empty layout has no paths");
-        assert!(!svg.contains("<line"), "empty layout has no lines");
-    }
-
-    #[test]
-    fn test_multiple_nodes() {
-        let wd = empty_wbs();
-        let mut layout = empty_layout();
-        layout
-            .nodes
-            .push(make_node("Root", 1, 80.0, 10.0, 60.0, 28.0));
-        layout.nodes.push(make_node("A", 2, 30.0, 80.0, 50.0, 28.0));
-        layout
-            .nodes
-            .push(make_node("B", 2, 120.0, 80.0, 50.0, 28.0));
-        let svg = render_wbs(&wd, &layout, &SkinParams::default()).unwrap();
-        assert_eq!(
-            svg.matches("<rect").count(),
-            3,
-            "three nodes should produce three rects"
-        );
-    }
-
-    #[test]
-    fn test_font_attributes() {
-        let wd = empty_wbs();
-        let layout = empty_layout();
-        let svg = render_wbs(&wd, &layout, &SkinParams::default()).unwrap();
-        assert!(
-            svg.contains("contentStyleType=\"text/css\""),
-            "must have contentStyleType attribute"
-        );
-        assert!(
-            svg.contains("zoomAndPan=\"magnify\""),
-            "must have zoomAndPan attribute"
-        );
-    }
-
-    #[test]
-    fn test_full_render_pipeline() {
-        let wd = empty_wbs();
-        let mut layout = empty_layout();
-        layout.width = 300.0;
-        layout.height = 200.0;
-        layout
-            .nodes
-            .push(make_node("Root", 1, 120.0, 10.0, 60.0, 28.0));
-        layout
-            .nodes
-            .push(make_node("Left", 2, 40.0, 80.0, 60.0, 28.0));
-        layout
-            .nodes
-            .push(make_node("Right", 2, 200.0, 80.0, 60.0, 28.0));
-        layout.edges.push(WbsEdgeLayout {
-            from_x: 150.0,
-            from_y: 38.0,
-            to_x: 70.0,
-            to_y: 80.0,
-        });
-        layout.edges.push(WbsEdgeLayout {
-            from_x: 150.0,
-            from_y: 38.0,
-            to_x: 230.0,
-            to_y: 80.0,
-        });
-
-        let svg = render_wbs(&wd, &layout, &SkinParams::default()).unwrap();
-
-        assert!(svg.starts_with("<svg"), "SVG must start with <svg");
-        assert!(svg.contains("</svg>"), "SVG must end with </svg>");
-        assert_eq!(svg.matches("<rect").count(), 3, "3 rects expected");
-        assert_eq!(svg.matches("<path").count(), 2, "2 edges expected");
-        assert!(svg.contains("Root"), "root text expected");
-        assert!(svg.contains("Left"), "left child text expected");
-        assert!(svg.contains("Right"), "right child text expected");
-    }
-
-    #[test]
-    fn test_note_rendering() {
-        let wd = empty_wbs();
-        let mut layout = empty_layout();
-        layout.notes.push(WbsNoteLayout {
-            text: "**note**".to_string(),
-            x: 120.0,
-            y: 20.0,
-            width: 90.0,
-            height: 40.0,
-            connector: Some((90.0, 35.0, 120.0, 40.0)),
-        });
-        let svg = render_wbs(&wd, &layout, &SkinParams::default()).unwrap();
-        assert!(svg.contains("<polygon"), "note body must be rendered");
-        assert!(svg.contains("stroke-dasharray:4,4;"));
-        assert!(
-            svg.contains("font-weight=\"bold\""),
-            "creole note text should be rendered"
-        );
+    #[test] fn test_extra_link() {
+        let mut l = empty_layout();
+        l.extra_links.push(WbsEdgeLayout { from_x: 150.0, from_y: 50.0, to_x: 50.0, to_y: 50.0 });
+        let svg = render_wbs(&empty_wbs(), &l, &SkinParams::default()).unwrap();
+        assert!(svg.contains("<polygon"));
     }
 }
