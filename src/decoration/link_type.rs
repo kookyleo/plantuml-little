@@ -17,7 +17,7 @@ pub struct LinkType {
 
 impl LinkType {
     pub fn new(decor1: LinkDecor, decor2: LinkDecor) -> Self {
-        Self { decor1, decor2, middle_decor: LinkMiddleDecor::None, style: LinkStyle::Normal }
+        Self { decor1, decor2, middle_decor: LinkMiddleDecor::None, style: LinkStyle::normal() }
     }
 
     pub fn with_style(mut self, style: LinkStyle) -> Self {
