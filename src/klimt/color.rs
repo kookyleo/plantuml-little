@@ -32,7 +32,9 @@ pub enum HColor {
     LinearGradient(HColorLinearGradient),
 }
 
-impl UChange for HColor {}
+impl UChange for HColor {
+    fn as_any(&self) -> &dyn std::any::Any { self }
+}
 
 impl HColor {
     pub fn none() -> Self {
