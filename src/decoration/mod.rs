@@ -6,6 +6,6 @@ pub mod link_type;
 pub mod link_style;
 pub mod symbol;
 
-pub use link_decor::LinkDecor;
-pub use link_type::LinkType;
-pub use link_style::LinkStyle;
+pub use link_decor::{LinkDecor, LinkMiddleDecor, ExtremityKind};
+pub use link_type::{LinkType, LinkStrategy};
+pub use link_style::{LinkStyle, LinkStyleKind};
