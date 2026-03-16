@@ -2,11 +2,14 @@ use std::path::Path;
 
 pub mod error;
 pub mod font_metrics;
+pub mod abel;
 pub mod decoration;
+pub mod dot;
 pub mod klimt;
 pub mod layout;
 pub mod skin;
 pub mod svek;
+pub mod tim;
 pub mod model;
 pub mod parser;
 pub mod preproc;
