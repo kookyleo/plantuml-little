@@ -13,7 +13,7 @@ use crate::font_metrics;
 
 use super::svg::{write_svg_root_bg, write_bg_rect};
 use super::svg::{fmt_coord, xml_escape};
-use super::svg_richtext::{disable_path_sprites, enable_path_sprites, render_creole_text};
+use super::svg_richtext::{disable_path_sprites, enable_path_sprites, render_creole_text, set_default_font_family};
 
 // ── Style constants ─────────────────────────────────────────────────
 
@@ -1338,9 +1338,15 @@ pub fn render_sequence(
     layout: &SeqLayout,
     skin: &SkinParams,
 ) -> Result<String> {
+    // Apply skinparam font overrides
+    let font = skin.default_font_name()
+        .or_else(|| if skin.is_handwritten() { Some("Comic Sans MS, Segoe Print, cursive") } else { None })
+        .map(|s| s.to_string());
+    set_default_font_family(font);
     enable_path_sprites();
     let result = render_sequence_inner(sd, layout, skin);
     disable_path_sprites();
+    set_default_font_family(None);
     result
 }
 
