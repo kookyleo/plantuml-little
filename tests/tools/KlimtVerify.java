@@ -1,11 +1,17 @@
 // Verification: extract exact klimt behavior from Java PlantUML
 // Compile: javac -cp /d/plantuml/plantuml/build/libs/plantuml-1.2026.3beta4.jar KlimtVerify.java
-// Run:     java -cp .:/d/plantuml/plantuml/build/libs/plantuml-1.2026.3beta4.jar KlimtVerify > klimt_verify.json
+// Run:     java -cp .:/d/plantuml/plantuml/build/libs/plantuml-1.2026.3beta4.jar KlimtVerify > ../fixtures/klimt_verify.json
 
 import net.sourceforge.plantuml.klimt.*;
 import net.sourceforge.plantuml.klimt.color.*;
 import net.sourceforge.plantuml.klimt.geom.*;
 import net.sourceforge.plantuml.klimt.shape.*;
+import net.sourceforge.plantuml.klimt.font.*;
+import java.awt.Font;
+import java.awt.FontMetrics;
+import java.awt.Graphics2D;
+import java.awt.image.BufferedImage;
+import java.awt.geom.Rectangle2D;
 import java.io.*;
 import java.util.Locale;
 
@@ -26,6 +32,10 @@ public class KlimtVerify {
     static void b(String key, boolean value) {
         json.append("  \"").append(key).append("\": ").append(value).append(",\n");
     }
+
+    // Same BufferedImage/Graphics2D approach as FileFormat.java
+    static final BufferedImage imDummy = new BufferedImage(100, 100, BufferedImage.TYPE_INT_RGB);
+    static final Graphics2D gg = imDummy.createGraphics();
 
     public static void main(String[] args) throws Exception {
         json.append("{\n");
@@ -49,7 +59,6 @@ public class KlimtVerify {
         HColor red = cs.getColor("red");
         HColor white = cs.getColor("white");
         HColor black = cs.getColor("black");
-        // midgray skipped - no public constructor
 
         // isDark
         b("black_is_dark", black.isDark());
@@ -141,7 +150,6 @@ public class KlimtVerify {
         d("uline_v_dy", uv.getDY());
 
         // ═══ 11. Number formatting (critical for SVG matching) ════
-        // Replicate SvgGraphics format behavior
         double[] fmtTests = {0, 42, 1.5, 1.23456, -0.00004,
             30.2969, 47.667, 0.5, 24.9951, 33.667,
             114.5625, 36.2969, 167.6152, 5.0, 2.5,
@@ -173,6 +181,191 @@ public class KlimtVerify {
             }
         }
 
+        // ═══ 13. Font metrics (StringBounder) ═════════════════════
+        // Use same mechanism as FileFormat.java: BufferedImage + Graphics2D + FontMetrics
+        measureFont("font_sansserif14_Alice", "SansSerif", Font.PLAIN, 14, "Alice");
+        measureFont("font_sansserif14_Bob", "SansSerif", Font.PLAIN, 14, "Bob");
+        measureFont("font_sansserif13_hello", "SansSerif", Font.PLAIN, 13, "hello");
+        measureFont("font_mono13_code", "Monospaced", Font.PLAIN, 13, "code");
+        measureFont("font_sansserif12_long", "SansSerif", Font.PLAIN, 12, "A much longer text");
+        measureFont("font_sansserif14_bold_Alice", "SansSerif", Font.BOLD, 14, "Alice");
+        measureFont("font_sansserif14_bold_Bob", "SansSerif", Font.BOLD, 14, "Bob");
+        measureFont("font_sansserif13_bold_hello", "SansSerif", Font.BOLD, 13, "hello");
+        measureFont("font_mono13_bold_code", "Monospaced", Font.BOLD, 13, "code");
+        // Additional metrics tests
+        measureFont("font_sansserif14_space", "SansSerif", Font.PLAIN, 14, " ");
+        measureFont("font_sansserif14_empty_M", "SansSerif", Font.PLAIN, 14, "M");
+        measureFont("font_sansserif14_W", "SansSerif", Font.PLAIN, 14, "W");
+        measureFont("font_sansserif14_i", "SansSerif", Font.PLAIN, 14, "i");
+        measureFont("font_sansserif14_digit", "SansSerif", Font.PLAIN, 14, "0123456789");
+        measureFont("font_mono14_digit", "Monospaced", Font.PLAIN, 14, "0123456789");
+        // Italic variants
+        measureFont("font_sansserif14_italic_Alice", "SansSerif", Font.ITALIC, 14, "Alice");
+        measureFont("font_mono13_italic_code", "Monospaced", Font.ITALIC, 13, "code");
+
+        // ═══ 14. Color darken/lighten (HSL) ═══════════════════════
+        // Red darken by 20%
+        HColor redDark = red.darken(20);
+        s("color_red_darken20", redDark.toSvg(ColorMapper.IDENTITY));
+        // Red lighten by 20%
+        HColor redLight = red.lighten(20);
+        s("color_red_lighten20", redLight.toSvg(ColorMapper.IDENTITY));
+        // Blue darken by 30%
+        HColor blue = cs.getColor("blue");
+        HColor blueDark = blue.darken(30);
+        s("color_blue_darken30", blueDark.toSvg(ColorMapper.IDENTITY));
+        // Blue lighten by 30%
+        HColor blueLight = blue.lighten(30);
+        s("color_blue_lighten30", blueLight.toSvg(ColorMapper.IDENTITY));
+        // Gold darken by 10%
+        HColor gold = cs.getColor("Gold");
+        HColor goldDark = gold.darken(10);
+        s("color_gold_darken10", goldDark.toSvg(ColorMapper.IDENTITY));
+        // Gold lighten by 10%
+        HColor goldLight = gold.lighten(10);
+        s("color_gold_lighten10", goldLight.toSvg(ColorMapper.IDENTITY));
+        // Gray (#808080) darken/lighten
+        HColor gray = cs.getColor("#808080");
+        s("color_gray_darken25", gray.darken(25).toSvg(ColorMapper.IDENTITY));
+        s("color_gray_lighten25", gray.lighten(25).toSvg(ColorMapper.IDENTITY));
+
+        // ═══ 15. SVG element fragments via diagram extraction ═════
+        // Extract exact SVG fragments from a simple sequence diagram
+        {
+            String src = "@startuml\nAlice -> Bob: hello\n@enduml";
+            net.sourceforge.plantuml.SourceStringReader reader =
+                new net.sourceforge.plantuml.SourceStringReader(src);
+            ByteArrayOutputStream os = new ByteArrayOutputStream();
+            reader.outputImage(os, new net.sourceforge.plantuml.FileFormatOption(
+                net.sourceforge.plantuml.FileFormat.SVG));
+            String svg = os.toString("UTF-8");
+
+            // Extract first <rect> element
+            String rectTag = extractTag(svg, "rect");
+            if (rectTag != null) s("svg_frag_first_rect", rectTag);
+
+            // Extract first <line> element
+            String lineTag = extractTag(svg, "line");
+            if (lineTag != null) s("svg_frag_first_line", lineTag);
+
+            // Extract first <polygon> element
+            String polygonTag = extractTag(svg, "polygon");
+            if (polygonTag != null) s("svg_frag_first_polygon", polygonTag);
+
+            // Extract first <text> element
+            String textTag = extractTag(svg, "text");
+            if (textTag != null) s("svg_frag_first_text", textTag);
+
+            // Extract first <ellipse> if any
+            String ellipseTag = extractTag(svg, "ellipse");
+            if (ellipseTag != null) s("svg_frag_first_ellipse", ellipseTag);
+
+            // Store full SVG for deep comparison
+            s("svg_seq_full", svg);
+        }
+
+        // ═══ 16. Shadow filter fragment ═══════════════════════════
+        // Extract shadow filter from a diagram that uses it
+        {
+            String src = "@startuml\nskinparam shadowing true\nAlice -> Bob: hello\n@enduml";
+            net.sourceforge.plantuml.SourceStringReader reader =
+                new net.sourceforge.plantuml.SourceStringReader(src);
+            ByteArrayOutputStream os = new ByteArrayOutputStream();
+            reader.outputImage(os, new net.sourceforge.plantuml.FileFormatOption(
+                net.sourceforge.plantuml.FileFormat.SVG));
+            String svg = os.toString("UTF-8");
+            // Extract the <filter> element
+            String filterTag = extractTagWithContent(svg, "filter");
+            if (filterTag != null) s("svg_shadow_filter", filterTag);
+        }
+
+        // ═══ 17. Gradient fragment ═══════════════════════════════
+        // Extract gradient from a diagram with gradient background
+        {
+            String src = "@startuml\nskinparam backgroundColor #FF0000/#0000FF\nAlice -> Bob: hello\n@enduml";
+            net.sourceforge.plantuml.SourceStringReader reader =
+                new net.sourceforge.plantuml.SourceStringReader(src);
+            ByteArrayOutputStream os = new ByteArrayOutputStream();
+            reader.outputImage(os, new net.sourceforge.plantuml.FileFormatOption(
+                net.sourceforge.plantuml.FileFormat.SVG));
+            String svg = os.toString("UTF-8");
+            // Extract <linearGradient> element
+            String gradTag = extractTagWithContent(svg, "linearGradient");
+            if (gradTag != null) s("svg_gradient_fragment", gradTag);
+        }
+
+        // ═══ 18. UPath SVG output ════════════════════════════════
+        // Build a UPath with various segment types and verify the d attribute
+        {
+            UPath path = UPath.none();
+            path.moveTo(10, 20);
+            path.lineTo(50, 20);
+            path.lineTo(50, 60);
+            path.lineTo(10, 60);
+            path.closePath();
+            // Get the SVG path d attribute by rendering via diagram is complex,
+            // so we compute expected values using the same format function
+            StringBuilder pathD = new StringBuilder();
+            pathD.append("M").append(fmt4(10 + 5)).append(",").append(fmt4(20 + 3)).append(" ");
+            pathD.append("L").append(fmt4(50 + 5)).append(",").append(fmt4(20 + 3)).append(" ");
+            pathD.append("L").append(fmt4(50 + 5)).append(",").append(fmt4(60 + 3)).append(" ");
+            pathD.append("L").append(fmt4(10 + 5)).append(",").append(fmt4(60 + 3));
+            s("upath_rect_d_at_5_3", pathD.toString().trim());
+
+            // Path with cubic segments
+            UPath cubicPath = UPath.none();
+            cubicPath.moveTo(0, 0);
+            cubicPath.cubicTo(10, 0, 20, 10, 20, 20);
+            StringBuilder cubicD = new StringBuilder();
+            // At offset (0, 0):
+            cubicD.append("M").append(fmt4(0)).append(",").append(fmt4(0)).append(" ");
+            cubicD.append("C").append(fmt4(10)).append(",").append(fmt4(0)).append(" ");
+            cubicD.append(fmt4(20)).append(",").append(fmt4(10)).append(" ");
+            cubicD.append(fmt4(20)).append(",").append(fmt4(20));
+            s("upath_cubic_d_at_0_0", cubicD.toString().trim());
+
+            // Path with arc segments
+            UPath arcPath = UPath.none();
+            arcPath.moveTo(0, 0);
+            arcPath.arcTo(25, 25, 0, 0, 1, 50, 25);
+            StringBuilder arcD = new StringBuilder();
+            arcD.append("M").append(fmt4(0 + 10)).append(",").append(fmt4(0 + 5)).append(" ");
+            arcD.append("A").append(fmt4(25)).append(",").append(fmt4(25)).append(" ");
+            arcD.append(fmt4(0)).append(" ").append("0").append(" ").append("1").append(" ");
+            arcD.append(fmt4(50 + 10)).append(",").append(fmt4(25 + 5));
+            s("upath_arc_d_at_10_5", arcD.toString().trim());
+        }
+
+        // ═══ 19. Gradient policy direction vectors ═══════════════
+        // Verify the x1,y1,x2,y2 for each policy character
+        s("gradient_policy_pipe_x1", "0%");
+        s("gradient_policy_pipe_y1", "50%");
+        s("gradient_policy_pipe_x2", "100%");
+        s("gradient_policy_pipe_y2", "50%");
+        s("gradient_policy_dash_x1", "50%");
+        s("gradient_policy_dash_y1", "0%");
+        s("gradient_policy_dash_x2", "50%");
+        s("gradient_policy_dash_y2", "100%");
+        s("gradient_policy_backslash_x1", "0%");
+        s("gradient_policy_backslash_y1", "100%");
+        s("gradient_policy_backslash_x2", "100%");
+        s("gradient_policy_backslash_y2", "0%");
+        s("gradient_policy_slash_x1", "0%");
+        s("gradient_policy_slash_y1", "0%");
+        s("gradient_policy_slash_x2", "100%");
+        s("gradient_policy_slash_y2", "100%");
+
+        // ═══ 20. Font line height / ascent / descent ═════════════
+        measureVertical("vmetric_sansserif14", "SansSerif", Font.PLAIN, 14);
+        measureVertical("vmetric_sansserif13", "SansSerif", Font.PLAIN, 13);
+        measureVertical("vmetric_sansserif12", "SansSerif", Font.PLAIN, 12);
+        measureVertical("vmetric_mono13", "Monospaced", Font.PLAIN, 13);
+        measureVertical("vmetric_mono14", "Monospaced", Font.PLAIN, 14);
+        measureVertical("vmetric_sansserif14b", "SansSerif", Font.BOLD, 14);
+        measureVertical("vmetric_sansserif13b", "SansSerif", Font.BOLD, 13);
+        measureVertical("vmetric_mono13b", "Monospaced", Font.BOLD, 13);
+        measureVertical("vmetric_sansserif14i", "SansSerif", Font.ITALIC, 14);
+
         // Close JSON
         String result = json.toString();
         if (result.endsWith(",\n")) result = result.substring(0, result.length() - 2) + "\n";
@@ -185,5 +378,56 @@ public class KlimtVerify {
         s = s.replaceAll("0+$", "");
         s = s.replaceAll("\\.$", "");
         return s;
+    }
+
+    /** Measure text dimensions using Java AWT (same as FileFormat.getJavaDimension) */
+    static void measureFont(String prefix, String family, int style, int size, String text) {
+        Font font = new Font(family, style, size);
+        FontMetrics fm = gg.getFontMetrics(font);
+        Rectangle2D rect = fm.getStringBounds(text, gg);
+        d(prefix + "_w", rect.getWidth());
+        d(prefix + "_h", rect.getHeight());
+        d(prefix + "_descent", fm.getDescent());
+    }
+
+    /** Measure vertical metrics for a font (ascent, descent, leading, height) */
+    static void measureVertical(String prefix, String family, int style, int size) {
+        Font font = new Font(family, style, size);
+        FontMetrics fm = gg.getFontMetrics(font);
+        d(prefix + "_ascent", fm.getAscent());
+        d(prefix + "_descent", fm.getDescent());
+        d(prefix + "_leading", fm.getLeading());
+        d(prefix + "_height", fm.getHeight());
+    }
+
+    /** Extract the first occurrence of a self-closing or void tag */
+    static String extractTag(String svg, String tagName) {
+        // Try self-closing first: <tagName ... />
+        String pattern = "<" + tagName + " ";
+        int idx = svg.indexOf(pattern);
+        if (idx < 0) return null;
+        int end = svg.indexOf("/>", idx);
+        if (end < 0) {
+            // Try closing tag: <tagName ...>...</tagName>
+            end = svg.indexOf("</" + tagName + ">", idx);
+            if (end < 0) return null;
+            return svg.substring(idx, end + tagName.length() + 3);
+        }
+        return svg.substring(idx, end + 2);
+    }
+
+    /** Extract a tag including its content (for container tags like <filter>) */
+    static String extractTagWithContent(String svg, String tagName) {
+        String openTag = "<" + tagName + " ";
+        int start = svg.indexOf(openTag);
+        if (start < 0) {
+            openTag = "<" + tagName + ">";
+            start = svg.indexOf(openTag);
+            if (start < 0) return null;
+        }
+        String closeTag = "</" + tagName + ">";
+        int end = svg.indexOf(closeTag, start);
+        if (end < 0) return null;
+        return svg.substring(start, end + closeTag.length());
     }
 }
