@@ -32,17 +32,33 @@ pub fn parse_sequence_diagram(source: &str) -> Result<SequenceDiagram> {
     )
     .unwrap();
 
-    // Arrow regex: match participant names and arrows like ->, -->, ->>, <-, <--, <<-
-    // The arrow must contain at least one dash and at least one arrowhead (< or >)
-    // Also supports colored arrows: [#color] can appear in the arrow, e.g. [#blue]->, -[#green]>
-    // Allow optional spaces around the arrow
+    // Arrow regex: full PlantUML arrow syntax including half-arrows and decorators.
     let arrow_re = Regex::new(
-        r"^(.+?)\s*(<?<?(?:\[#[^\]]+\])?-+(?:\[#[^\]]+\])?-*>?>?)\s+(.+?)(?:\s*:\s*(.*))?$",
+        r"^(.+?)\s+([oxX]*(?:<<?)?(?:[/\\]{1,2})?(?:\[#[^\]]+\])?-+(?:\[#[^\]]+\])?-*(?:[/\\]{1,2})?(?:>?>?)?[oxX]*)\s+(.+?)(?:\s*:\s*(.*))?$",
     )
     .unwrap();
-    // Variant without spaces (e.g., alice->bob: text, alice[#blue]->bob: text)
     let arrow_nospace_re = Regex::new(
-        r"^([A-Za-z_]\w*)(<?<?(?:\[#[^\]]+\])?-+(?:\[#[^\]]+\])?-*>?>?)([A-Za-z_]\w*)(?:\s*:\s*(.*))?$",
+        r"^([A-Za-z_]\w*)([oxX]*(?:<<?)?(?:[/\\]{1,2})?(?:\[#[^\]]+\])?-+(?:\[#[^\]]+\])?-*(?:[/\\]{1,2})?(?:>?>?)?[oxX]*)([A-Za-z_]\w*)(?:\s*:\s*(.*))?$",
+    )
+    .unwrap();
+    // Boundary arrow from left: [-> or [<-> participant
+    let boundary_left_re = Regex::new(
+        r"^\[([oxX]*(?:<<?)?(?:[/\\]{1,2})?(?:\[#[^\]]+\])?-+(?:\[#[^\]]+\])?-*(?:[/\\]{1,2})?(?:>?>?)?[oxX]*)\s+(.+?)(?:\s*:\s*(.*))?$",
+    )
+    .unwrap();
+    // Boundary arrow to right: participant ->]
+    let boundary_right_re = Regex::new(
+        r"^(.+?)\s+([oxX]*(?:<<?)?(?:[/\\]{1,2})?(?:\[#[^\]]+\])?-+(?:\[#[^\]]+\])?-*(?:[/\\]{1,2})?(?:>?>?)?[oxX]*\])\s*(?:\s*:\s*(.*))?$",
+    )
+    .unwrap();
+
+    // Gate/found message: ?->X or X->?  (? is a gate/lost/found participant)
+    let gate_left_re = Regex::new(
+        r"^\?([ox]*(?:[/\\]{1,2})?-+(?:[/\\]{1,2})?(?:>?>?)?[ox]*)(.+?)(?:\s*:\s*(.*))?$",
+    )
+    .unwrap();
+    let gate_right_re = Regex::new(
+        r"^(.+?)([oxX]*(?:<<?)?(?:[/\\]{1,2})?-+(?:[/\\]{1,2})?(?:>?>?)?[oxX]*)\?\s*(?::\s*(.*))?$",
     )
     .unwrap();
 
@@ -103,7 +119,9 @@ pub fn parse_sequence_diagram(source: &str) -> Result<SequenceDiagram> {
 
         // Collect multiline note content
         if in_note_block {
-            if trimmed.eq_ignore_ascii_case("end note") {
+            if trimmed.eq_ignore_ascii_case("end note")
+                || trimmed.eq_ignore_ascii_case("endnote")
+            {
                 let text = note_lines.join("\n");
                 let evt = match note_kind {
                     Some("right") => SeqEvent::NoteRight {
@@ -142,6 +160,7 @@ pub fn parse_sequence_diagram(source: &str) -> Result<SequenceDiagram> {
                 || lower.starts_with("hide ")
                 || lower.starts_with("show ")
                 || lower.starts_with("!pragma")
+                || lower.starts_with("skin ")
             {
                 debug!("skipping directive: {trimmed}");
                 continue;
@@ -334,23 +353,114 @@ pub fn parse_sequence_diagram(source: &str) -> Result<SequenceDiagram> {
             }
         }
 
-        // Parse message arrows: try spaced version first, then no-space version.
+        // Parse message arrows: boundary arrows first, then regular.
         // Arrow check must come before participant declarations so that lines
         // like "Database -> Bob : ack" are parsed as messages, not as a
         // database participant declaration with rest "-> Bob : ack".
+
+        let trimmed_arrow = trimmed;
+
+        // Gate/found messages: ?->X (incoming) and X->? (outgoing)
+        if let Some(caps) = gate_left_re.captures(trimmed_arrow) {
+            let arrow = caps.get(1).unwrap().as_str();
+            let right = caps.get(2).unwrap().as_str().trim();
+            let text = caps
+                .get(3)
+                .map(|m| m.as_str().trim().to_string())
+                .unwrap_or_default();
+            if let Some(msg) = parse_arrow("[", &format!("[{arrow}"), right, &text) {
+                debug!("parsed gate-left message: ?-> {} : {}", msg.to, msg.text);
+                ensure_participant(&mut declared_participants, &mut auto_participants, &msg.to);
+                last_to_participant = Some(msg.to.clone());
+                events.push(SeqEvent::Message(msg));
+                continue;
+            }
+        }
+        if let Some(caps) = gate_right_re.captures(trimmed_arrow) {
+            let left = caps.get(1).unwrap().as_str().trim();
+            let arrow = caps.get(2).unwrap().as_str();
+            let text = caps
+                .get(3)
+                .map(|m| m.as_str().trim().to_string())
+                .unwrap_or_default();
+            if let Some(msg) = parse_arrow(left, &format!("{arrow}]"), "]", &text) {
+                debug!("parsed gate-right message: {} ->? : {}", msg.from, msg.text);
+                ensure_participant(&mut declared_participants, &mut auto_participants, &msg.from);
+                last_to_participant = Some(msg.from.clone());
+                events.push(SeqEvent::Message(msg));
+                continue;
+            }
+        }
+
+        // Boundary arrow from left: [-> participant : text
+        if let Some(caps) = boundary_left_re.captures(trimmed_arrow) {
+            let arrow = caps.get(1).unwrap().as_str();
+            let right = caps.get(2).unwrap().as_str().trim();
+            let text = caps
+                .get(3)
+                .map(|m| m.as_str().trim().to_string())
+                .unwrap_or_default();
+            if let Some(msg) = parse_arrow("[", &format!("[{arrow}"), right, &text) {
+                debug!("parsed boundary-left message: [-> {} : {}", msg.to, msg.text);
+                ensure_participant(&mut declared_participants, &mut auto_participants, &msg.to);
+                last_to_participant = Some(msg.to.clone());
+                events.push(SeqEvent::Message(msg));
+                continue;
+            }
+        }
+
+        // Boundary arrow to right: participant ->] : text
+        if let Some(caps) = boundary_right_re.captures(trimmed_arrow) {
+            let left = caps.get(1).unwrap().as_str().trim();
+            let arrow = caps.get(2).unwrap().as_str();
+            let text = caps
+                .get(3)
+                .map(|m| m.as_str().trim().to_string())
+                .unwrap_or_default();
+            if let Some(msg) = parse_arrow(left, arrow, "]", &text) {
+                debug!(
+                    "parsed boundary-right message: {} ->] : {}",
+                    msg.from, msg.text
+                );
+                ensure_participant(&mut declared_participants, &mut auto_participants, &msg.from);
+                last_to_participant = Some(msg.from.clone());
+                events.push(SeqEvent::Message(msg));
+                continue;
+            }
+        }
+
+        // Regular arrows (spaced and no-space variants)
         let arrow_caps = arrow_re
-            .captures(trimmed)
-            .or_else(|| arrow_nospace_re.captures(trimmed));
+            .captures(trimmed_arrow)
+            .or_else(|| arrow_nospace_re.captures(trimmed_arrow));
         if let Some(caps) = arrow_caps {
             let left = caps.get(1).unwrap().as_str().trim();
             let arrow = caps.get(2).unwrap().as_str();
-            let right = caps.get(3).unwrap().as_str().trim();
+            let mut right = caps.get(3).unwrap().as_str().trim().to_string();
             let text = caps
                 .get(4)
                 .map(|m| m.as_str().trim().to_string())
                 .unwrap_or_default();
 
-            if let Some(msg) = parse_arrow(left, arrow, right, &text) {
+            // Handle inline activation/deactivation: ++ or -- after participant
+            let mut inline_activate = false;
+            let mut inline_deactivate = false;
+            if right.ends_with("++") {
+                right = right[..right.len() - 2].trim().to_string();
+                inline_activate = true;
+            } else if right.ends_with("--") {
+                right = right[..right.len() - 2].trim().to_string();
+                inline_deactivate = true;
+            }
+            // Strip #color suffix from participant (message color annotation)
+            // e.g. "Testing #red" -> "Testing", color goes on message
+            if let Some(hash_pos) = right.rfind(" #") {
+                right = right[..hash_pos].trim().to_string();
+            } else if right.starts_with('#') {
+                // Entire right is a color - shouldn't happen, skip
+            }
+
+            if let Some(msg) = parse_arrow(left, arrow, &right, &text) {
                 debug!("parsed message: {} -> {} : {}", msg.from, msg.to, msg.text);
 
                 // Auto-create participants
@@ -359,10 +469,20 @@ pub fn parse_sequence_diagram(source: &str) -> Result<SequenceDiagram> {
                     &mut auto_participants,
                     &msg.from,
                 );
-                ensure_participant(&mut declared_participants, &mut auto_participants, &msg.to);
+                ensure_participant(
+                    &mut declared_participants,
+                    &mut auto_participants,
+                    &msg.to,
+                );
 
                 last_to_participant = Some(msg.to.clone());
+                let target = msg.to.clone();
                 events.push(SeqEvent::Message(msg));
+                if inline_activate {
+                    events.push(SeqEvent::Activate(target));
+                } else if inline_deactivate {
+                    events.push(SeqEvent::Deactivate(target));
+                }
                 continue;
             }
         }
@@ -587,59 +707,70 @@ fn extract_arrow_color(arrow: &str) -> (Option<String>, String) {
     (None, arrow.to_string())
 }
 
-/// Parse arrow syntax and return a Message
+/// Parse arrow syntax and return a Message.
+/// Handles full PlantUML syntax: heads (>, >>), half-arrows (/, \),
+/// decorators (o, x), boundary ([, ]), and shaft (-, --).
 fn parse_arrow(left: &str, arrow: &str, right: &str, text: &str) -> Option<Message> {
-    // Arrow patterns:
-    //   ->   solid, filled, left-to-right
-    //   -->  dashed, filled, left-to-right
-    //   ->>  solid, open, left-to-right
-    //   -->> dashed, open, left-to-right
-    //   <-   solid, filled, right-to-left
-    //   <--  dashed, filled, right-to-left
-    //   <<-  open, solid, right-to-left
-    //   <<-- open, dashed, right-to-left
-    // Also supports [#color] in the arrow, e.g. [#blue]->, -[#green]>
-
-    // Extract optional color and get a clean arrow string for analysis
     let (color, clean_arrow) = extract_arrow_color(arrow);
 
-    let has_left_arrow = clean_arrow.starts_with('<');
-    let has_right_arrow = clean_arrow.ends_with('>');
+    // Strip outer decorators (o, x, X)
+    let stripped =
+        clean_arrow.trim_start_matches(|c: char| c == 'o' || c == 'x' || c == 'X');
+    let stripped = stripped.trim_end_matches(|c: char| c == 'o' || c == 'x' || c == 'X');
 
-    if !has_left_arrow && !has_right_arrow {
-        // No arrowhead at all, not a valid arrow for our purposes
+    // Check for boundary markers
+    let has_left_boundary = stripped.starts_with('[');
+    let has_right_boundary = stripped.ends_with(']');
+    let stripped = stripped.trim_start_matches('[').trim_end_matches(']');
+
+    // Check for arrow heads / half-arrows on left and right
+    let has_left_arrow =
+        stripped.starts_with('<') || stripped.starts_with('/') || stripped.starts_with('\\');
+    let has_open_left = stripped.starts_with("<<");
+    let has_right_arrow =
+        stripped.ends_with('>') || stripped.ends_with('/') || stripped.ends_with('\\');
+    let has_open_right = stripped.ends_with(">>");
+
+    // Must have at least one arrowhead, half-arrow, or boundary marker
+    if !has_left_arrow && !has_right_arrow && !has_left_boundary && !has_right_boundary {
         return None;
     }
 
-    // Determine direction
-    let direction = if has_left_arrow {
+    // Direction: left-pointing heads mean right-to-left
+    let direction = if stripped.starts_with('<')
+        || stripped.starts_with('/')
+        || stripped.starts_with('\\')
+    {
         SeqDirection::RightToLeft
     } else {
         SeqDirection::LeftToRight
     };
 
-    // Determine arrow head (open vs filled)
-    let arrow_head = if clean_arrow.starts_with("<<") || clean_arrow.ends_with(">>") {
+    let arrow_head = if has_open_left || has_open_right {
         SeqArrowHead::Open
     } else {
         SeqArrowHead::Filled
     };
 
-    // Determine style: count dashes in the middle part
-    // Strip < from left, > from right, then check if -- (dashed) or - (solid)
-    let middle = clean_arrow
-        .trim_start_matches('<')
-        .trim_end_matches('>');
-    let arrow_style = if middle.contains("--") {
+    // Shaft style: -- is dashed, - is solid
+    let shaft = stripped
+        .trim_start_matches(|c: char| c == '<' || c == '/' || c == '\\')
+        .trim_end_matches(|c: char| c == '>' || c == '/' || c == '\\');
+    let arrow_style = if shaft.contains("--") {
         SeqArrowStyle::Dashed
     } else {
         SeqArrowStyle::Solid
     };
 
-    // Determine from/to based on direction
-    let (from, to) = match direction {
-        SeqDirection::LeftToRight => (left.to_string(), right.to_string()),
-        SeqDirection::RightToLeft => (right.to_string(), left.to_string()),
+    let (from, to) = if has_left_boundary {
+        (left.to_string(), right.to_string())
+    } else if has_right_boundary {
+        (left.to_string(), "]".to_string())
+    } else {
+        match direction {
+            SeqDirection::LeftToRight => (left.to_string(), right.to_string()),
+            SeqDirection::RightToLeft => (right.to_string(), left.to_string()),
+        }
     };
 
     Some(Message {

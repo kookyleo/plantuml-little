@@ -53,8 +53,8 @@ fn render_expanded(original_source: &str, expanded: &str) -> Result<String> {
 
 fn render_cleaned(original_source: &str, source: &str) -> Result<String> {
     let diagram = parser::parse(source)?;
-    let diagram_layout = layout::layout(&diagram)?;
     let skin = style::parse_skinparams(source);
+    let diagram_layout = layout::layout(&diagram, &skin)?;
     let mut meta = parser::common::parse_meta(source);
     enrich_meta_source_lines(&mut meta, source);
     let svg = render::svg::render_with_source(

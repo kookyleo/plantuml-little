@@ -157,6 +157,19 @@ fn draw_participant_box(
     border: &str,
     text_color: &str,
 ) {
+    draw_participant_box_with_font(buf, p, y, display_name, bg, border, text_color, 14.0);
+}
+
+fn draw_participant_box_with_font(
+    buf: &mut String,
+    p: &ParticipantLayout,
+    y: f64,
+    display_name: Option<&str>,
+    bg: &str,
+    border: &str,
+    text_color: &str,
+    part_font_size: f64,
+) {
     let fill = p.color.as_deref().unwrap_or(bg);
 
     match &p.kind {
@@ -182,7 +195,7 @@ fn draw_participant_box(
             draw_participant_queue(buf, p, y, display_name, fill, border, text_color);
         }
         ParticipantKind::Default => {
-            draw_participant_rect(buf, p, y, display_name, fill, border, text_color);
+            draw_participant_rect_with_font(buf, p, y, display_name, fill, border, text_color, part_font_size);
         }
     }
 }
@@ -197,14 +210,28 @@ fn draw_participant_rect(
     border: &str,
     text_color: &str,
 ) {
+    draw_participant_rect_with_font(buf, p, y, display_name, bg, border, text_color, 14.0);
+}
+
+fn draw_participant_rect_with_font(
+    buf: &mut String,
+    p: &ParticipantLayout,
+    y: f64,
+    display_name: Option<&str>,
+    bg: &str,
+    border: &str,
+    text_color: &str,
+    font_size: f64,
+) {
     let name = display_name.unwrap_or(&p.name);
-    let text_width = font_metrics::text_width(name, "SansSerif", 14.0, false, false);
+    let text_width = font_metrics::text_width(name, "SansSerif", font_size, false, false);
     let padding = 7.0;
     let box_width = text_width + 2.0 * padding;
-    let box_height = 30.2969;
+    let box_height = p.box_height;
     let x = p.x - box_width / 2.0;
     let text_x = x + padding;
-    let text_y = y + 19.9951;
+    // text_y baseline: scales with font size
+    let text_y = y + 19.9951 + (font_size - 14.0) * 0.9283;
 
     let fill_attrs = resolve_fill_attrs(bg);
     write!(
@@ -217,10 +244,11 @@ fn draw_participant_rect(
     )
     .unwrap();
 
+    let fs = font_size as u32;
     let escaped = xml_escape(name);
     write!(
         buf,
-        r#"<text fill="{color}" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="{tl}" x="{tx}" y="{ty}">{text}</text>"#,
+        r#"<text fill="{color}" font-family="sans-serif" font-size="{fs}" lengthAdjust="spacing" textLength="{tl}" x="{tx}" y="{ty}">{text}</text>"#,
         tl = fmt_coord(text_width),
         tx = fmt_coord(text_x),
         ty = fmt_coord(text_y),
@@ -1419,6 +1447,10 @@ fn render_sequence_inner(
     };
     let part_border = skin.border_color("participant", PARTICIPANT_BORDER);
     let part_font = skin.font_color("participant", TEXT_COLOR);
+    let part_font_size: f64 = skin
+        .get("participantfontsize")
+        .and_then(|s| s.parse::<f64>().ok())
+        .unwrap_or(14.0);
 
     // 6. Participant head + tail boxes (interleaved per participant, matching Java order)
     let top_y = MARGIN;
@@ -1437,7 +1469,7 @@ fn render_sequence_inner(
             name = escaped_name,
         )
         .unwrap();
-        draw_participant_box(&mut buf, p, top_y, dn, part_bg, part_border, part_font);
+        draw_participant_box_with_font(&mut buf, p, top_y, dn, part_bg, part_border, part_font, part_font_size);
         buf.push_str("</g>");
 
         // Tail
@@ -1448,7 +1480,7 @@ fn render_sequence_inner(
             name = escaped_name,
         )
         .unwrap();
-        draw_participant_box(&mut buf, p, bottom_y, dn, part_bg, part_border, part_font);
+        draw_participant_box_with_font(&mut buf, p, bottom_y, dn, part_bg, part_border, part_font, part_font_size);
         buf.push_str("</g>");
     }
 
@@ -1632,7 +1664,7 @@ mod tests {
             participants: vec![make_participant("Alice"), make_participant("Bob")],
             events: vec![SeqEvent::Message(make_message("Alice", "Bob", "hello"))],
         };
-        let layout = crate::layout::sequence::layout_sequence(&sd).unwrap();
+        let layout = crate::layout::sequence::layout_sequence(&sd, &crate::style::SkinParams::default()).unwrap();
         (sd, layout)
     }
 
@@ -1672,7 +1704,7 @@ mod tests {
             participants: vec![make_participant("A")],
             events: vec![SeqEvent::Message(make_message("A", "A", "self call"))],
         };
-        let layout = crate::layout::sequence::layout_sequence(&sd).unwrap();
+        let layout = crate::layout::sequence::layout_sequence(&sd, &crate::style::SkinParams::default()).unwrap();
         let svg = render_sequence(&sd, &layout, &SkinParams::default()).expect("render failed");
         // Self-message uses 3 lines + polygon (Java PlantUML style)
         assert!(
@@ -1703,7 +1735,7 @@ mod tests {
                 color: None,
             })],
         };
-        let layout = crate::layout::sequence::layout_sequence(&sd).unwrap();
+        let layout = crate::layout::sequence::layout_sequence(&sd, &crate::style::SkinParams::default()).unwrap();
         let svg = render_sequence(&sd, &layout, &SkinParams::default()).expect("render failed");
         assert!(
             svg.contains("stroke-dasharray"),
@@ -1726,7 +1758,7 @@ mod tests {
                 SeqEvent::Destroy("B".to_string()),
             ],
         };
-        let layout = crate::layout::sequence::layout_sequence(&sd).unwrap();
+        let layout = crate::layout::sequence::layout_sequence(&sd, &crate::style::SkinParams::default()).unwrap();
         let svg = render_sequence(&sd, &layout, &SkinParams::default()).expect("render failed");
         // Destroy marker is an X made of two <line> elements with stroke-width:2 in style
         let cross_count = svg.matches("stroke-width:2;").count();
@@ -1745,7 +1777,7 @@ mod tests {
                 text: "important note".to_string(),
             }],
         };
-        let layout = crate::layout::sequence::layout_sequence(&sd).unwrap();
+        let layout = crate::layout::sequence::layout_sequence(&sd, &crate::style::SkinParams::default()).unwrap();
         let svg = render_sequence(&sd, &layout, &SkinParams::default()).expect("render failed");
         assert!(svg.contains(NOTE_BG), "note should use yellow background");
         assert!(
@@ -1760,7 +1792,7 @@ mod tests {
             participants: vec![],
             events: vec![],
         };
-        let layout = crate::layout::sequence::layout_sequence(&sd).unwrap();
+        let layout = crate::layout::sequence::layout_sequence(&sd, &crate::style::SkinParams::default()).unwrap();
         let svg = render_sequence(&sd, &layout, &SkinParams::default()).expect("render failed");
         assert!(svg.contains("<svg"), "empty diagram must produce valid SVG");
         assert!(svg.contains("</svg>"));

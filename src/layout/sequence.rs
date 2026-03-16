@@ -226,6 +226,39 @@ fn estimate_note_width(text: &str) -> f64 {
     w.max(30.0)
 }
 
+/// Word-wrap a line to fit within `max_width` pixels at the given font size.
+/// Returns a vec of wrapped lines.
+fn wrap_text_to_width(text: &str, max_width: f64, font_size: f64) -> Vec<String> {
+    let full_w = font_metrics::text_width(text, "SansSerif", font_size, false, false);
+    if full_w <= max_width {
+        return vec![text.to_string()];
+    }
+    let mut lines = Vec::new();
+    let mut current = String::new();
+    for word in text.split_whitespace() {
+        let candidate = if current.is_empty() {
+            word.to_string()
+        } else {
+            format!("{current} {word}")
+        };
+        let w = font_metrics::text_width(&candidate, "SansSerif", font_size, false, false);
+        if w > max_width && !current.is_empty() {
+            lines.push(current);
+            current = word.to_string();
+        } else {
+            current = candidate;
+        }
+    }
+    if !current.is_empty() {
+        lines.push(current);
+    }
+    if lines.is_empty() {
+        vec![text.to_string()]
+    } else {
+        lines
+    }
+}
+
 // -- Sprite width/height helpers --
 
 const SPRITE_TEXT_GAP: f64 = 4.1323;
@@ -310,12 +343,33 @@ fn parse_sprite_viewbox(svg: &str) -> (f64, f64) {
 // ── Main layout function ─────────────────────────────────────────────────────
 
 /// Perform columnar layout on a SequenceDiagram
-pub fn layout_sequence(sd: &SequenceDiagram) -> Result<SeqLayout> {
+pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) -> Result<SeqLayout> {
     log::debug!(
         "layout_sequence: {} participants, {} events",
         sd.participants.len(),
         sd.events.len()
     );
+
+    // Maxmessagesize skinparam: limits message text width, causing text wrapping
+    let max_message_size: Option<f64> = skin
+        .get("maxmessagesize")
+        .and_then(|s| s.parse::<f64>().ok());
+
+    // participantFontSize skinparam: affects participant box dimensions
+    let participant_font_size: f64 = skin
+        .get("participantfontsize")
+        .and_then(|s| s.parse::<f64>().ok())
+        .unwrap_or(FONT_SIZE);
+    // Participant box height scales with font size.
+    // Java PlantUML uses font metrics to compute this. For SansSerif:
+    //   font_size 14 -> height 30.2969
+    //   font_size 16 -> height 32.625
+    let base_participant_height = if (participant_font_size - FONT_SIZE).abs() > 0.01 {
+        // Linear interpolation based on known reference values
+        PARTICIPANT_HEIGHT + (participant_font_size - FONT_SIZE) * 1.16405
+    } else {
+        PARTICIPANT_HEIGHT
+    };
 
     // 1. Compute participant box widths first
     let mut box_widths: Vec<f64> = Vec::with_capacity(sd.participants.len());
@@ -324,18 +378,18 @@ pub fn layout_sequence(sd: &SequenceDiagram) -> Result<SeqLayout> {
 
     for (i, p) in sd.participants.iter().enumerate() {
         let display = p.display_name.as_deref().unwrap_or(&p.name);
-        let bw = (font_metrics::text_width(display, "SansSerif", FONT_SIZE, false, false)
+        let bw = (font_metrics::text_width(display, "SansSerif", participant_font_size, false, false)
             + 2.0 * PARTICIPANT_PADDING)
             .max(40.0);
         let bh = match p.kind {
-            ParticipantKind::Actor => PARTICIPANT_HEIGHT + 45.0,
+            ParticipantKind::Actor => base_participant_height + 45.0,
             ParticipantKind::Boundary
             | ParticipantKind::Control
             | ParticipantKind::Entity
             | ParticipantKind::Database
             | ParticipantKind::Collections
-            | ParticipantKind::Queue => PARTICIPANT_HEIGHT + 20.0,
-            ParticipantKind::Default => PARTICIPANT_HEIGHT,
+            | ParticipantKind::Queue => base_participant_height + 20.0,
+            ParticipantKind::Default => base_participant_height,
         };
         box_widths.push(bw);
         box_heights.push(bh);
@@ -573,8 +627,15 @@ pub fn layout_sequence(sd: &SequenceDiagram) -> Result<SeqLayout> {
                     }
                 }
 
-                let text_lines: Vec<String> =
+                let mut text_lines: Vec<String> =
                     msg.text.split("\\n").map(|s| s.to_string()).collect();
+                // Apply Maxmessagesize word wrapping
+                if let Some(max_w) = max_message_size {
+                    text_lines = text_lines
+                        .into_iter()
+                        .flat_map(|line| wrap_text_to_width(&line, max_w, MSG_FONT_SIZE))
+                        .collect();
+                }
                 let num_extra_lines = if text_lines.len() > 1 {
                     text_lines.len() - 1
                 } else {
@@ -1097,12 +1158,13 @@ pub fn layout_sequence(sd: &SequenceDiagram) -> Result<SeqLayout> {
     // Account for self-message loops extending to the right
     let self_msg_right = messages
         .iter()
-        .filter(|m| m.is_self)
+        .filter(|m| m.is_self && !m.is_left)
         .map(|m| m.from_x + SELF_MSG_WIDTH + MARGIN)
         .fold(0.0_f64, f64::max);
     if self_msg_right > total_width {
         total_width = self_msg_right;
     }
+
 
     // Tail box at lifeline_bottom - 1, then add box height + bottom margin (~7)
     let total_height = (lifeline_bottom - 1.0) + max_participant_height + 7.0;
@@ -1199,7 +1261,7 @@ mod tests {
             participants: vec![make_participant("Alice")],
             events: vec![],
         };
-        let layout = layout_sequence(&sd).unwrap();
+        let layout = layout_sequence(&sd, &crate::style::SkinParams::default()).unwrap();
 
         assert_eq!(layout.participants.len(), 1);
         let p = &layout.participants[0];
@@ -1237,7 +1299,7 @@ mod tests {
             participants: vec![make_participant("Alice"), make_participant("Bob")],
             events: vec![SeqEvent::Message(make_message("Alice", "Bob", "hello"))],
         };
-        let layout = layout_sequence(&sd).unwrap();
+        let layout = layout_sequence(&sd, &crate::style::SkinParams::default()).unwrap();
 
         assert_eq!(layout.participants.len(), 2);
         assert_eq!(layout.messages.len(), 1);
@@ -1265,7 +1327,7 @@ mod tests {
             events: vec![SeqEvent::Message(make_message("A", "A", "self"))],
         };
 
-        let layout_self = layout_sequence(&sd_self).unwrap();
+        let layout_self = layout_sequence(&sd_self, &crate::style::SkinParams::default()).unwrap();
 
         let msg = &layout_self.messages[0];
         assert!(msg.is_self);
@@ -1290,7 +1352,7 @@ mod tests {
                 SeqEvent::Deactivate("B".to_string()),
             ],
         };
-        let layout = layout_sequence(&sd).unwrap();
+        let layout = layout_sequence(&sd, &crate::style::SkinParams::default()).unwrap();
 
         assert_eq!(layout.activations.len(), 1);
         let act = &layout.activations[0];
@@ -1312,7 +1374,7 @@ mod tests {
             participants: vec![],
             events: vec![],
         };
-        let layout = layout_sequence(&sd).unwrap();
+        let layout = layout_sequence(&sd, &crate::style::SkinParams::default()).unwrap();
 
         assert!(layout.participants.is_empty());
         assert!(layout.messages.is_empty());
@@ -1334,7 +1396,7 @@ mod tests {
                 SeqEvent::Message(make_message("A", "A", "after note")),
             ],
         };
-        let layout = layout_sequence(&sd).unwrap();
+        let layout = layout_sequence(&sd, &crate::style::SkinParams::default()).unwrap();
 
         assert_eq!(layout.notes.len(), 1);
         assert!(!layout.notes[0].is_left);
@@ -1354,7 +1416,7 @@ mod tests {
                 SeqEvent::GroupEnd,
             ],
         };
-        let layout = layout_sequence(&sd).unwrap();
+        let layout = layout_sequence(&sd, &crate::style::SkinParams::default()).unwrap();
 
         assert_eq!(layout.groups.len(), 1);
         let grp = &layout.groups[0];
@@ -1377,7 +1439,7 @@ mod tests {
                 color: None,
             })],
         };
-        let layout = layout_sequence(&sd).unwrap();
+        let layout = layout_sequence(&sd, &crate::style::SkinParams::default()).unwrap();
 
         let msg = &layout.messages[0];
         assert!(msg.is_dashed);
@@ -1393,7 +1455,7 @@ mod tests {
                 SeqEvent::Destroy("B".to_string()),
             ],
         };
-        let layout = layout_sequence(&sd).unwrap();
+        let layout = layout_sequence(&sd, &crate::style::SkinParams::default()).unwrap();
 
         assert_eq!(layout.destroys.len(), 1);
         let d = &layout.destroys[0];
@@ -1420,7 +1482,7 @@ mod tests {
                 SeqEvent::FragmentEnd,
             ],
         };
-        let layout = layout_sequence(&sd).unwrap();
+        let layout = layout_sequence(&sd, &crate::style::SkinParams::default()).unwrap();
 
         assert_eq!(layout.fragments.len(), 1);
         let frag = &layout.fragments[0];
@@ -1440,7 +1502,7 @@ mod tests {
                 text: Some("Phase 1".to_string()),
             }],
         };
-        let layout = layout_sequence(&sd).unwrap();
+        let layout = layout_sequence(&sd, &crate::style::SkinParams::default()).unwrap();
 
         assert_eq!(layout.dividers.len(), 1);
         assert_eq!(layout.dividers[0].text.as_deref(), Some("Phase 1"));
@@ -1454,7 +1516,7 @@ mod tests {
                 text: Some("waiting".to_string()),
             }],
         };
-        let layout = layout_sequence(&sd).unwrap();
+        let layout = layout_sequence(&sd, &crate::style::SkinParams::default()).unwrap();
 
         assert_eq!(layout.delays.len(), 1);
         assert_eq!(layout.delays[0].text.as_deref(), Some("waiting"));
@@ -1469,7 +1531,7 @@ mod tests {
                 label: "init phase".to_string(),
             }],
         };
-        let layout = layout_sequence(&sd).unwrap();
+        let layout = layout_sequence(&sd, &crate::style::SkinParams::default()).unwrap();
 
         assert_eq!(layout.refs.len(), 1);
         assert_eq!(layout.refs[0].label, "init phase");
@@ -1486,7 +1548,7 @@ mod tests {
                 SeqEvent::Message(make_message("A", "B", "after")),
             ],
         };
-        let layout = layout_sequence(&sd).unwrap();
+        let layout = layout_sequence(&sd, &crate::style::SkinParams::default()).unwrap();
 
         assert_eq!(layout.messages.len(), 2);
         let gap = layout.messages[1].y - layout.messages[0].y;
@@ -1509,7 +1571,7 @@ mod tests {
                 text: "a note".to_string(),
             }],
         };
-        let layout = layout_sequence(&sd).unwrap();
+        let layout = layout_sequence(&sd, &crate::style::SkinParams::default()).unwrap();
 
         let note = &layout.notes[0];
         let note_right = note.x + note.width + MARGIN;

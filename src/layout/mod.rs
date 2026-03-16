@@ -130,14 +130,14 @@ const OBJ_EMPTY_BODY_HEIGHT: f64 = 16.0;
 const OBJ_EMPTY_BODY_WIDTH: f64 = 10.0;
 
 /// Perform layout on a Diagram
-pub fn layout(diagram: &Diagram) -> Result<DiagramLayout> {
+pub fn layout(diagram: &Diagram, skin: &crate::style::SkinParams) -> Result<DiagramLayout> {
     match diagram {
         Diagram::Class(cd) => {
             let gl = layout_class_diagram(cd)?;
             Ok(DiagramLayout::Class(gl))
         }
         Diagram::Sequence(sd) => {
-            let sl = sequence::layout_sequence(sd)?;
+            let sl = sequence::layout_sequence(sd, skin)?;
             Ok(DiagramLayout::Sequence(sl))
         }
         Diagram::Activity(ad) => {
