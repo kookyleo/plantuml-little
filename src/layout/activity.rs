@@ -78,42 +78,51 @@ pub struct SwimlaneLayout {
 // ---------------------------------------------------------------------------
 
 const FONT_SIZE: f64 = 12.0;
-const LINE_HEIGHT: f64 = 16.0;
 const PADDING: f64 = 10.0;
-const NODE_SPACING: f64 = 30.0;
+/// Gap between consecutive flow nodes (matches Java PlantUML visual output).
+const NODE_SPACING: f64 = 20.0;
 const START_RADIUS: f64 = 10.0;
-const ACTION_MIN_WIDTH: f64 = 80.0;
-const ACTION_MIN_HEIGHT: f64 = 32.0;
 const DIAMOND_SIZE: f64 = 20.0;
 const FORK_BAR_HEIGHT: f64 = 6.0;
 const FORK_BAR_WIDTH: f64 = 80.0;
-const NOTE_MAX_WIDTH: f64 = 200.0;
+const NOTE_FONT_SIZE: f64 = 13.0;
 const NOTE_OFFSET: f64 = 30.0;
-const SWIMLANE_MIN_WIDTH: f64 = 200.0;
-const SWIMLANE_HEADER_HEIGHT: f64 = 30.0;
-const MARGIN: f64 = 20.0;
+const SWIMLANE_MIN_WIDTH: f64 = 80.0;
+const TOP_MARGIN: f64 = 16.0;
+const BOTTOM_MARGIN: f64 = 16.0;
+const SWIMLANE_HEADER_FONT_SIZE: f64 = 18.0;
 
 // ---------------------------------------------------------------------------
 // Text measurement helpers
 // ---------------------------------------------------------------------------
 
-/// Estimate the bounding-box size of a block of text rendered at the
-/// diagram font size.  Returns `(width, height)`.
+/// Estimate the bounding-box size of an action box.
+/// Uses actual font metrics for precise sizing to match Java PlantUML.
 fn estimate_text_size(text: &str) -> (f64, f64) {
+    let lh = font_metrics::line_height("SansSerif", FONT_SIZE, false, false);
     let lines: Vec<&str> = text.split('\n').collect();
     let max_line_width = lines
         .iter()
         .map(|l| font_metrics::text_width(l, "SansSerif", FONT_SIZE, false, false))
         .fold(0.0_f64, f64::max);
-    let width = (max_line_width + 2.0 * PADDING).max(ACTION_MIN_WIDTH);
-    let height = (lines.len() as f64 * LINE_HEIGHT + 2.0 * PADDING).max(ACTION_MIN_HEIGHT);
+    let width = max_line_width + 2.0 * PADDING;
+    let height = lines.len() as f64 * lh + 2.0 * PADDING;
     (width, height)
 }
 
-/// Estimate the size of a note, clamped to `NOTE_MAX_WIDTH`.
+/// Estimate the size of a note, using note font size.
 fn estimate_note_size(text: &str) -> (f64, f64) {
-    let (w, h) = estimate_text_size(text);
-    (w.min(NOTE_MAX_WIDTH), h)
+    let note_lh = font_metrics::line_height("SansSerif", NOTE_FONT_SIZE, false, false);
+    let note_pad = 6.0;
+    let fold = 10.0;
+    let lines: Vec<&str> = text.split('\n').collect();
+    let max_line_width = lines
+        .iter()
+        .map(|l| font_metrics::text_width(l, "SansSerif", NOTE_FONT_SIZE, false, false))
+        .fold(0.0_f64, f64::max);
+    let width = max_line_width + 2.0 * note_pad + fold;
+    let height = lines.len() as f64 * note_lh + fold + note_pad;
+    (width, height)
 }
 
 // ---------------------------------------------------------------------------
@@ -126,16 +135,22 @@ fn compute_swimlane_layouts(swimlanes: &[String]) -> Vec<SwimlaneLayout> {
     if swimlanes.is_empty() {
         return Vec::new();
     }
-    let lane_width = SWIMLANE_MIN_WIDTH;
-    swimlanes
-        .iter()
-        .enumerate()
-        .map(|(i, name)| SwimlaneLayout {
+    let lane_pad = 10.0;
+    let mut layouts = Vec::new();
+    let mut x = TOP_MARGIN;
+    for name in swimlanes {
+        let text_width = font_metrics::text_width(
+            name, "SansSerif", SWIMLANE_HEADER_FONT_SIZE, false, false,
+        );
+        let lane_width = (text_width + 2.0 * lane_pad).max(SWIMLANE_MIN_WIDTH);
+        layouts.push(SwimlaneLayout {
             name: name.clone(),
-            x: MARGIN + i as f64 * lane_width,
+            x,
             width: lane_width,
-        })
-        .collect()
+        });
+        x += lane_width;
+    }
+    layouts
 }
 
 /// Return the horizontal centre-x for a given swimlane index.  When no
@@ -143,8 +158,8 @@ fn compute_swimlane_layouts(swimlanes: &[String]) -> Vec<SwimlaneLayout> {
 /// `SWIMLANE_MIN_WIDTH`.
 fn swimlane_center_x(lanes: &[SwimlaneLayout], lane_idx: usize) -> f64 {
     if lanes.is_empty() {
-        // single virtual column
-        MARGIN + SWIMLANE_MIN_WIDTH / 2.0
+        // Will be resolved in the centering pass.
+        0.0
     } else {
         let lane = &lanes[lane_idx.min(lanes.len() - 1)];
         lane.x + lane.width / 2.0
@@ -177,10 +192,17 @@ pub fn layout_activity(diagram: &ActivityDiagram) -> Result<ActivityLayout> {
     // --- Pass 2: place nodes ------------------------------------------------
     let mut nodes: Vec<ActivityNodeLayout> = Vec::new();
     // When swimlanes exist, push initial y below the header row.
-    let mut y_cursor = if swimlane_layouts.is_empty() {
-        MARGIN
+    let swimlane_header_height = if swimlane_layouts.is_empty() {
+        0.0
     } else {
-        SWIMLANE_HEADER_HEIGHT + MARGIN
+        let ha = font_metrics::ascent("SansSerif", SWIMLANE_HEADER_FONT_SIZE, false, false);
+        let hd = font_metrics::descent("SansSerif", SWIMLANE_HEADER_FONT_SIZE, false, false);
+        ha + hd + TOP_MARGIN + 5.0
+    };
+    let mut y_cursor = if swimlane_layouts.is_empty() {
+        TOP_MARGIN
+    } else {
+        swimlane_header_height
     };
     let mut current_lane_idx: usize = 0;
     let mut node_index: usize = 0;
@@ -578,6 +600,22 @@ pub fn layout_activity(diagram: &ActivityDiagram) -> Result<ActivityLayout> {
         }
     }
 
+    // --- Pass 2b: centering for non-swimlane diagrams ----------------------
+    if swimlane_layouts.is_empty() && !nodes.is_empty() {
+        let max_half_w = nodes.iter()
+            .filter(|n| is_flow_node(&n.kind))
+            .map(|n| n.width / 2.0)
+            .fold(0.0_f64, f64::max);
+        let cx = TOP_MARGIN + max_half_w;
+        for node in &mut nodes {
+            if is_flow_node(&node.kind) {
+                node.x = cx - node.width / 2.0;
+            } else {
+                node.x += cx;
+            }
+        }
+    }
+
     // --- Pass 3: edges connecting consecutive flow nodes --------------------
     let edges = build_edges(&nodes);
 
@@ -742,11 +780,11 @@ fn compute_bounds(
     y_cursor: f64,
 ) -> (f64, f64) {
     if nodes.is_empty() && swimlane_layouts.is_empty() {
-        return (2.0 * MARGIN, 2.0 * MARGIN);
+        return (2.0 * TOP_MARGIN, 2.0 * TOP_MARGIN);
     }
 
     let mut max_x: f64 = 0.0;
-    let mut max_y: f64 = y_cursor;
+    let mut max_y: f64 = 0.0;
 
     for node in nodes {
         let right = node.x + node.width;
@@ -759,21 +797,17 @@ fn compute_bounds(
         }
     }
 
-    // Ensure the swimlane columns are included.
-    for lane in swimlane_layouts {
-        let right = lane.x + lane.width;
-        if right > max_x {
-            max_x = right;
+    if !swimlane_layouts.is_empty() {
+        for lane in swimlane_layouts {
+            let right = lane.x + lane.width;
+            if right > max_x {
+                max_x = right;
+            }
         }
+        (max_x + BOTTOM_MARGIN + 12.0, max_y + BOTTOM_MARGIN + 4.0)
+    } else {
+        (max_x + BOTTOM_MARGIN + 3.0, max_y + BOTTOM_MARGIN + 3.0)
     }
-
-    // If there are no swimlanes, ensure a minimum width based on a single
-    // virtual column.
-    if swimlane_layouts.is_empty() && max_x < MARGIN + SWIMLANE_MIN_WIDTH {
-        max_x = MARGIN + SWIMLANE_MIN_WIDTH;
-    }
-
-    (max_x + MARGIN, max_y + MARGIN)
 }
 
 // ---------------------------------------------------------------------------
@@ -1011,8 +1045,8 @@ mod tests {
     fn text_sizing() {
         // Single short line.
         let (w, h) = estimate_text_size("Hi");
-        assert!(w >= ACTION_MIN_WIDTH);
-        assert!(h >= ACTION_MIN_HEIGHT);
+        assert!(w >= 20.0);
+        assert!(h >= 20.0);
 
         // Multi-line text.
         let (w2, h2) = estimate_text_size("Line one\nLine two\nLine three");
