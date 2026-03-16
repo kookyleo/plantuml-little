@@ -13,6 +13,11 @@ pub mod actor;
 pub mod rose;
 
 // Re-exports
-pub use arrow::{ArrowConfiguration, ArrowDirection, ArrowHead, ArrowBody, ArrowPart, ArrowDressing};
-pub use component::{ComponentType, ComponentStyle};
-pub use actor::ActorStyle;
+pub use arrow::{
+    ArrowBody, ArrowConfiguration, ArrowDecoration, ArrowDirection, ArrowDressing, ArrowHead,
+    ArrowPart,
+};
+pub use component::{ComponentStyle, ComponentType};
+pub use actor::{
+    ActorAwesome, ActorGeometry, ActorHollow, ActorStickMan, ActorStyle, AwesomePathCmd,
+};
