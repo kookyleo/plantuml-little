@@ -133,7 +133,7 @@ const OBJ_EMPTY_BODY_WIDTH: f64 = 10.0;
 pub fn layout(diagram: &Diagram, skin: &crate::style::SkinParams) -> Result<DiagramLayout> {
     match diagram {
         Diagram::Class(cd) => {
-            let gl = layout_class_diagram(cd)?;
+            let gl = layout_class_diagram(cd, skin)?;
             Ok(DiagramLayout::Class(gl))
         }
         Diagram::Sequence(sd) => {
@@ -236,7 +236,7 @@ fn generic_dim_width(entity: &Entity) -> f64 {
 }
 
 /// Estimate entity rendering size (width_pt, height_pt)
-fn estimate_entity_size(cd: &ClassDiagram, entity: &Entity) -> (f64, f64) {
+fn estimate_entity_size(cd: &ClassDiagram, entity: &Entity, member_row_h: f64) -> (f64, f64) {
     if matches!(
         entity.kind,
         EntityKind::Interface | EntityKind::Enum | EntityKind::Annotation
@@ -300,8 +300,8 @@ fn estimate_entity_size(cd: &ClassDiagram, entity: &Entity) -> (f64, f64) {
 
     let body_width =
         estimate_members_width(&visible_fields).max(estimate_members_width(&visible_methods));
-    let body_height = section_height(show_fields, &visible_fields)
-        + section_height(show_methods, &visible_methods);
+    let body_height = section_height(show_fields, &visible_fields, member_row_h)
+        + section_height(show_methods, &visible_methods, member_row_h);
 
     let width = header_width.max(body_width);
     let height = header_height + body_height;
@@ -492,7 +492,7 @@ fn estimate_members_width(members: &[&Member]) -> f64 {
         .fold(0.0_f64, f64::max)
 }
 
-fn section_height(show: bool, members: &[&Member]) -> f64 {
+fn section_height(show: bool, members: &[&Member], member_row_h: f64) -> f64 {
     if !show {
         return 0.0;
     }
@@ -500,8 +500,9 @@ fn section_height(show: bool, members: &[&Member]) -> f64 {
         return EMPTY_COMPARTMENT;
     }
     let total_visual_lines: usize = members.iter().map(|m| member_visual_lines(m)).sum();
-    MEMBER_BLOCK_HEIGHT_ONE_ROW
-        + (total_visual_lines.saturating_sub(1)) as f64 * MEMBER_ROW_HEIGHT
+    // Java: margin_top(4) + total_lines * member_row_height + margin_bottom(4)
+    let one_row_h = member_row_h + 8.0;
+    one_row_h + (total_visual_lines.saturating_sub(1)) as f64 * member_row_h
 }
 
 /// Java MemberImpl.getDisplay() format:
@@ -606,13 +607,22 @@ const NOTE_PADDING: f64 = 10.0;
 const NOTE_GAP: f64 = 16.0;
 
 /// Perform layout on a class diagram
-fn layout_class_diagram(cd: &ClassDiagram) -> Result<GraphLayout> {
+fn layout_class_diagram(cd: &ClassDiagram, skin: &crate::style::SkinParams) -> Result<GraphLayout> {
     log::debug!(
         "layout_class_diagram: {} entities, {} links, {} notes",
         cd.entities.len(),
         cd.links.len(),
         cd.notes.len()
     );
+
+    // Resolve member row height from skinparams.
+    // Java default: FontParam.CLASS_ATTRIBUTE renders at 14pt (same as CLASS).
+    // When classAttributeFontSize is explicitly set, use its line_height.
+    let member_row_h: f64 = skin
+        .get("classattributefontsize")
+        .and_then(|s| s.parse::<f64>().ok())
+        .map(|sz| font_metrics::line_height("SansSerif", sz, false, false))
+        .unwrap_or(MEMBER_ROW_HEIGHT);
 
     // build name -> sanitized id mapping
     let name_to_id: HashMap<String, String> = cd
@@ -626,7 +636,7 @@ fn layout_class_diagram(cd: &ClassDiagram) -> Result<GraphLayout> {
         .entities
         .iter()
         .map(|e| {
-            let (w, h) = estimate_entity_size(cd, e);
+            let (w, h) = estimate_entity_size(cd, e, member_row_h);
             LayoutNode {
                 id: name_to_id
                     .get(&e.name)
@@ -990,7 +1000,7 @@ mod tests {
     #[test]
     fn estimate_size_empty_class_returns_minimum() {
         let e = empty_entity("Foo");
-        let (w, h) = estimate_entity_size(&empty_diagram(), &e);
+        let (w, h) = estimate_entity_size(&empty_diagram(), &e, MEMBER_ROW_HEIGHT);
         // Width = circle(4+22) + gap(3) + text_width("Foo",14) + pad(3) ≈ 57
         assert!(w >= 40.0, "width should be >= 40, got {w}");
         // Height = header(32) + fields(8) + methods(8) = 48
@@ -1016,7 +1026,7 @@ mod tests {
             source_line: None,
             visibility: None,
         };
-        let (w, h) = estimate_entity_size(&empty_diagram(), &e);
+        let (w, h) = estimate_entity_size(&empty_diagram(), &e, MEMBER_ROW_HEIGHT);
 
         // height = header(32) + fields(8) + members(2*8+8) = 64
         let expected_min_height =
@@ -1052,7 +1062,7 @@ mod tests {
             source_line: None,
             visibility: None,
         };
-        let (_, h) = estimate_entity_size(&empty_diagram(), &e);
+        let (_, h) = estimate_entity_size(&empty_diagram(), &e, MEMBER_ROW_HEIGHT);
 
         let expected_min = HEADER_HEIGHT_PT + 2.0 * EMPTY_COMPARTMENT;
         assert!(
@@ -1069,8 +1079,8 @@ mod tests {
             ..plain.clone()
         };
         let diagram = empty_diagram();
-        let (w_plain, _) = estimate_entity_size(&diagram, &plain);
-        let (w_generic, _) = estimate_entity_size(&diagram, &generic);
+        let (w_plain, _) = estimate_entity_size(&diagram, &plain, MEMBER_ROW_HEIGHT);
+        let (w_generic, _) = estimate_entity_size(&diagram, &generic, MEMBER_ROW_HEIGHT);
         assert!(
             w_generic > w_plain,
             "generic entity should be wider: {w_generic} > {w_plain}"
