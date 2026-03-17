@@ -5,42 +5,118 @@ use crate::model::sequence::{
     FragmentKind, ParticipantKind, SeqArrowHead, SeqArrowStyle, SeqDirection, SeqEvent,
 };
 use crate::model::SequenceDiagram;
+use crate::skin::rose::{self, TextMetrics, NOTE_PADDING, SEQ_NOTE_FOLD as NOTE_FOLD};
 use crate::Result;
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
 const FONT_SIZE: f64 = 14.0;
-const LINE_HEIGHT: f64 = 16.0;
 const PARTICIPANT_PADDING: f64 = 7.0;
-const PARTICIPANT_HEIGHT: f64 = 30.2969;
-const MESSAGE_SPACING: f64 = 29.1328;
 const SELF_MSG_WIDTH: f64 = 42.0;
-const SELF_MSG_HEIGHT: f64 = 13.0;
 const ACTIVATION_WIDTH: f64 = 10.0;
-use crate::skin::rose::{NOTE_PADDING, SEQ_NOTE_FOLD as NOTE_FOLD};
 const NOTE_FONT_SIZE: f64 = 13.0;
 const GROUP_PADDING: f64 = 10.0;
-const FRAGMENT_HEADER_HEIGHT: f64 = 17.1328;
 const FRAGMENT_PADDING: f64 = 10.0;
-
-// Fragment y-spacing constants reverse-engineered from Java PlantUML SVG output.
-// The model: y_cursor tracks the arrow-center y of the next message.  Fragment
-// boundaries are placed by *backing off* from that cursor, then y_cursor is
-// reset to the position of the next expected message.
-const FRAG_Y_BACKOFF: f64 = 14.1328; // frag_y  = y_cursor - FRAG_Y_BACKOFF
-const FRAG_AFTER_HEADER: f64 = 38.2656; // next msg y = frag_y + FRAG_AFTER_HEADER
-const FRAG_SEP_BACKOFF: f64 = 20.1328; // sep_y   = y_cursor - FRAG_SEP_BACKOFF
-const FRAG_AFTER_SEP: f64 = 34.9375; // next msg y = sep_y  + FRAG_AFTER_SEP
-const FRAG_END_BACKOFF: f64 = 21.1328; // frag_bottom = y_cursor - FRAG_END_BACKOFF
-const FRAG_AFTER_END: f64 = 28.1328; // y_cursor = frag_bottom + FRAG_AFTER_END
-const DIVIDER_HEIGHT: f64 = 30.0;
-const DELAY_HEIGHT: f64 = 30.0;
-const REF_HEIGHT: f64 = 39.1016;
-const REF_Y_BACKOFF: f64 = 21.1328;
-const REF_AFTER_END: f64 = 26.1328;
 const REF_EDGE_PAD: f64 = 3.0;
 const MARGIN: f64 = 5.0;
 const MSG_FONT_SIZE: f64 = 13.0;
+/// Font size for fragment else/separator labels. Java: SansSerif 11pt
+const FRAG_ELSE_FONT_SIZE: f64 = 11.0;
+
+// ── Dynamic layout parameters computed from rose preferred_size functions ────
+
+/// Layout parameters derived from rose::preferred_size functions and font metrics.
+/// Replaces the former hardcoded constants so that sizes respond to font changes.
+struct LayoutParams {
+    /// Arrow component height (Java: ComponentRoseArrow.getPreferredHeight)
+    message_spacing: f64,
+    /// Self-arrow internal height
+    self_msg_height: f64,
+    /// Participant box height for default (non-actor) kind
+    participant_height: f64,
+    /// Message text line height (SansSerif 13pt)
+    msg_line_height: f64,
+    /// Fragment header height (Java: ComponentRoseGroupingHeader)
+    frag_header_height: f64,
+    /// Divider component height
+    divider_height: f64,
+    /// Delay component height
+    delay_height: f64,
+    /// Reference frame height (per-ref, but default for empty label)
+    ref_height: f64,
+    // Fragment y-spacing: derived from component heights
+    frag_y_backoff: f64,
+    frag_after_header: f64,
+    frag_sep_backoff: f64,
+    frag_after_sep: f64,
+    frag_end_backoff: f64,
+    frag_after_end: f64,
+    ref_y_backoff: f64,
+    ref_after_end: f64,
+}
+
+impl LayoutParams {
+    fn compute(font_family: &str, msg_font_size: f64, part_font_size: f64) -> Self {
+        let h13 = font_metrics::line_height(font_family, msg_font_size, false, false);
+        let h14 = font_metrics::line_height(font_family, part_font_size, false, false);
+        let h11 = font_metrics::line_height(font_family, FRAG_ELSE_FONT_SIZE, false, false);
+
+        // Arrow height = message spacing between consecutive messages
+        let arrow_tm = TextMetrics::new(7.0, 7.0, 1.0, 0.0, h13);
+        let message_spacing = rose::arrow_preferred_size(&arrow_tm, 0.0, 0.0).height;
+
+        // Self-arrow internal height
+        let self_msg_height = rose::SELF_ARROW_ONLY_HEIGHT;
+
+        // Participant box height (default kind, single line, no shadow)
+        let part_tm = TextMetrics::new(5.0, 5.0, 6.5, 0.0, h14);
+        let participant_height =
+            rose::participant_preferred_size(&part_tm, 0.0, false, 0.0, 0.0).height;
+
+        // Fragment header height: margin_y=0 matches Java layout positioning
+        let frag_header_height = h13 + 2.0;
+
+        // Divider/delay heights for empty text
+        let divider_tm = TextMetrics::new(0.0, 0.0, 5.0, 0.0, 0.0);
+        let divider_height = rose::divider_preferred_size(&divider_tm).height;
+
+        let delay_tm = TextMetrics::new(0.0, 0.0, 5.0, 0.0, 0.0);
+        let delay_height = rose::delay_text_preferred_size(&delay_tm).height;
+
+        // Reference frame height: h13 (body line) + h14 (header line scaled) +
+        // REF_HEIGHT_FOOTER(5) + header_offset(2) + Java Step/Frontier internal delta
+        let ref_height = h13 + h14 + rose::REF_HEIGHT_FOOTER + 2.0 + 0.671875;
+
+        // Fragment y-spacing: derived from font metrics
+        let frag_y_backoff = h13 - 1.0;
+        let frag_after_header = 2.0 * h13 + 8.0;
+        let frag_sep_backoff = h13 + 5.0;
+        let frag_after_sep = h13 + h11 + rose::GROUPING_SPACE_HEIGHT;
+        let frag_end_backoff = h13 + 6.0;
+        let frag_after_end = message_spacing - 1.0;
+        let ref_y_backoff = h13 + 6.0;
+        let ref_after_end = message_spacing - 3.0;
+
+        Self {
+            message_spacing,
+            self_msg_height,
+            participant_height,
+            msg_line_height: h13,
+            frag_header_height,
+            divider_height,
+            delay_height,
+            ref_height,
+            frag_y_backoff,
+            frag_after_header,
+            frag_sep_backoff,
+            frag_after_sep,
+            frag_end_backoff,
+            frag_after_end,
+            ref_y_backoff,
+            ref_after_end,
+        }
+    }
+}
 
 /// Fragment stack entry: (y_start, kind, label, separators, min_part_idx, max_part_idx, depth_at_push)
 type FragmentStackEntry = (f64, FragmentKind, String, Vec<(f64, String)>, Option<usize>, Option<usize>, usize);
@@ -349,26 +425,29 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
         sd.events.len()
     );
 
+    // Resolve font family and sizes from skin params
+    let default_font = skin
+        .get("defaultfontname")
+        .map(|s| s.as_ref())
+        .unwrap_or("SansSerif");
+    let default_font_size: Option<f64> = skin
+        .get("defaultfontsize")
+        .and_then(|s| s.parse::<f64>().ok());
+    let msg_font_size: f64 = default_font_size.unwrap_or(MSG_FONT_SIZE);
+    let participant_font_size: f64 = skin
+        .get("participantfontsize")
+        .and_then(|s| s.parse::<f64>().ok())
+        .or(default_font_size)
+        .unwrap_or(FONT_SIZE);
+
+    let lp = LayoutParams::compute(default_font, msg_font_size, participant_font_size);
+
     // Maxmessagesize skinparam: limits message text width, causing text wrapping
     let max_message_size: Option<f64> = skin
         .get("maxmessagesize")
         .and_then(|s| s.parse::<f64>().ok());
-
-    // participantFontSize skinparam: affects participant box dimensions
-    let participant_font_size: f64 = skin
-        .get("participantfontsize")
-        .and_then(|s| s.parse::<f64>().ok())
-        .unwrap_or(FONT_SIZE);
-    // Participant box height scales with font size.
-    // Java PlantUML uses font metrics to compute this. For SansSerif:
-    //   font_size 14 -> height 30.2969
-    //   font_size 16 -> height 32.625
-    let base_participant_height = if (participant_font_size - FONT_SIZE).abs() > 0.01 {
-        // Linear interpolation based on known reference values
-        PARTICIPANT_HEIGHT + (participant_font_size - FONT_SIZE) * 1.16405
-    } else {
-        PARTICIPANT_HEIGHT
-    };
+    // Participant box height: already computed in lp with the correct font
+    let base_participant_height = lp.participant_height;
 
     // 1. Compute participant box widths first
     let mut box_widths: Vec<f64> = Vec::with_capacity(sd.participants.len());
@@ -382,11 +461,11 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
         let num_lines = display_lines.len();
         let max_line_w = display_lines
             .iter()
-            .map(|line| font_metrics::text_width(line, "SansSerif", participant_font_size, false, false))
+            .map(|line| font_metrics::text_width(line, default_font, participant_font_size, false, false))
             .fold(0.0_f64, f64::max);
         let bw = (max_line_w + 2.0 * PARTICIPANT_PADDING).max(40.0);
         let participant_line_height =
-            font_metrics::line_height("SansSerif", participant_font_size, false, false);
+            font_metrics::line_height(default_font, participant_font_size, false, false);
         let multiline_extra = if num_lines > 1 {
             participant_line_height * (num_lines - 1) as f64
         } else {
@@ -433,7 +512,7 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
                 let autonumber_extra_w = if gap_autonumber_enabled {
                     let num_str = format!("{gap_autonumber_counter}");
                     let num_w = font_metrics::text_width(
-                        &num_str, "SansSerif", MSG_FONT_SIZE, true, false,
+                        &num_str, default_font, msg_font_size, true, false,
                     );
                     gap_autonumber_counter += 1;
                     num_w + 4.0 // 4px gap between number and text
@@ -549,7 +628,7 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
     let max_ph = participants
         .iter()
         .map(|pp| pp.box_height)
-        .fold(PARTICIPANT_HEIGHT, f64::max);
+        .fold(lp.participant_height, f64::max);
 
     // Pre-scan: check if any note immediately follows a non-self message.
     // Java PlantUML adds ~3px extra initial spacing when notes overlay
@@ -568,7 +647,11 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
         }
     });
     let note_extra = if has_regular_msg_note { 3.0 } else { 0.0 };
-    let mut y_cursor = MARGIN + max_ph + 32.1328 + note_extra;
+    // Initial y_cursor: MARGIN + max_participant_height + 1(lifeline gap) +
+    // line_preferred_height(20) + (msg_line_height - ARROW_DELTA_Y)
+    let initial_offset = 1.0 + rose::line_preferred_size().height
+        + (lp.msg_line_height - rose::ARROW_DELTA_Y);
+    let mut y_cursor = MARGIN + max_ph + initial_offset + note_extra;
 
     // Track the bottom y of the last rendered event for lifeline sizing.
     // Minimum lifeline height matches Java ComponentRoseLine.getPreferredHeight (20px).
@@ -654,8 +737,7 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
                     0
                 };
                 // Multiline message text: extra lines push the arrow down
-                let msg_line_spacing = 15.1328; // ascent + descent at font-size 13
-                let multiline_extra = num_extra_lines as f64 * msg_line_spacing;
+                let multiline_extra = num_extra_lines as f64 * lp.msg_line_height;
                 let sprite_extra = msg.text.split("\\n")
                     .map(|line| message_sprite_extra_height(line))
                     .fold(0.0_f64, f64::max);
@@ -735,16 +817,16 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
                 }
 
                 if is_self {
-                    let return_y = msg_y + SELF_MSG_HEIGHT;
+                    let return_y = msg_y + lp.self_msg_height;
                     lifeline_extend_y = return_y + 18.0;
                     // Cursor advances based on the unadjusted position to
                     // maintain consistent spacing for subsequent messages.
-                    let unadjusted_return = y_cursor + extra_height + SELF_MSG_HEIGHT;
-                    y_cursor = unadjusted_return + MESSAGE_SPACING;
+                    let unadjusted_return = y_cursor + extra_height + lp.self_msg_height;
+                    y_cursor = unadjusted_return + lp.message_spacing;
                     pending_self_return_y.insert(msg.from.clone(), return_y);
                 } else {
                     lifeline_extend_y = msg_y + 18.0;
-                    y_cursor = msg_y + MESSAGE_SPACING;
+                    y_cursor = msg_y + lp.message_spacing;
                     pending_self_return_y.clear();
                 }
             }
@@ -813,7 +895,7 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
                     }
                 }
 
-                y_cursor = destroy_y + MESSAGE_SPACING;
+                y_cursor = destroy_y + lp.message_spacing;
                 last_message_y = None;
                 log::debug!("destroy '{name}' at y={destroy_y:.1}");
             }
@@ -831,7 +913,7 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
                     let back_offset = if last_message_was_self {
                         (note_height - 1.0) / 2.0
                     } else {
-                        MESSAGE_SPACING - NOTE_FOLD
+                        lp.message_spacing - NOTE_FOLD
                     };
                     (msg_y - back_offset).max(MARGIN + max_ph)
                 } else {
@@ -864,7 +946,7 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
                     let back_offset = if last_message_was_self {
                         (note_height - 1.0) / 2.0
                     } else {
-                        MESSAGE_SPACING - NOTE_FOLD
+                        lp.message_spacing - NOTE_FOLD
                     };
                     (msg_y - back_offset).max(MARGIN + max_ph)
                 } else {
@@ -904,7 +986,7 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
                         let back_offset = if last_message_was_self {
                             (note_height - 1.0) / 2.0
                         } else {
-                            MESSAGE_SPACING - NOTE_FOLD
+                            lp.message_spacing - NOTE_FOLD
                         };
                         (msg_y - back_offset).max(MARGIN + max_ph)
                     } else {
@@ -964,35 +1046,35 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
                     width: full_width,
                     text: text.clone(),
                 });
-                y_cursor += DIVIDER_HEIGHT;
+                y_cursor += lp.divider_height;
                 last_message_y = None;
             }
 
             SeqEvent::Delay { text } => {
                 delays.push(DelayLayout {
                     y: y_cursor,
-                    height: DELAY_HEIGHT,
+                    height: lp.delay_height,
                     x: leftmost - FRAGMENT_PADDING,
                     width: full_width,
                     text: text.clone(),
                 });
-                y_cursor += DELAY_HEIGHT;
+                y_cursor += lp.delay_height;
                 last_message_y = None;
             }
 
             SeqEvent::FragmentStart { kind, label } => {
-                let frag_y = y_cursor - FRAG_Y_BACKOFF;
+                let frag_y = y_cursor - lp.frag_y_backoff;
                 let depth = fragment_stack.len();
                 fragment_stack.push((frag_y, kind.clone(), label.clone(), Vec::new(), None, None, depth));
-                y_cursor = frag_y + FRAG_AFTER_HEADER;
+                y_cursor = frag_y + lp.frag_after_header;
                 last_message_y = None;
             }
 
             SeqEvent::FragmentSeparator { label } => {
                 if let Some(entry) = fragment_stack.last_mut() {
-                    let sep_y = y_cursor - FRAG_SEP_BACKOFF;
+                    let sep_y = y_cursor - lp.frag_sep_backoff;
                     entry.3.push((sep_y, label.clone()));
-                    y_cursor = sep_y + FRAG_AFTER_SEP;
+                    y_cursor = sep_y + lp.frag_after_sep;
                 } else {
                     log::warn!("FragmentSeparator without matching FragmentStart");
                 }
@@ -1000,7 +1082,7 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
 
             SeqEvent::FragmentEnd => {
                 if let Some((y_start, kind, label, separators, min_idx, max_idx, depth_at_push)) = fragment_stack.pop() {
-                    let frag_end_y = y_cursor - FRAG_END_BACKOFF;
+                    let frag_end_y = y_cursor - lp.frag_end_backoff;
                     let frag_height = frag_end_y - y_start;
 
                     // Compute fragment x and width based on involved participants.
@@ -1030,19 +1112,19 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
                             label.clone()
                         };
                         let tab_text_w = font_metrics::text_width(
-                            &tab_text, "SansSerif", 13.0, true, false,
+                            &tab_text, default_font, msg_font_size, true, false,
                         );
                         tab_text_w + 50.0 // 15(left) + text + 30(right+notch) + 5(margin)
                     } else {
                         let kind_text_w = font_metrics::text_width(
-                            kind.label(), "SansSerif", 13.0, true, false,
+                            kind.label(), default_font, msg_font_size, true, false,
                         );
                         // Tab: 15(left) + kind_text_w + 30(right+notch)
                         let tab_right = kind_text_w + 45.0;
                         if !label.is_empty() {
                             let guard_text = format!("[{label}]");
                             let guard_w = font_metrics::text_width(
-                                &guard_text, "SansSerif", 11.0, true, false,
+                                &guard_text, default_font, FRAG_ELSE_FONT_SIZE, true, false,
                             );
                             tab_right + 15.0 + guard_w + 5.0
                         } else {
@@ -1061,7 +1143,7 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
                         separators,
                     });
                     lifeline_extend_y = frag_end_y + 17.0;
-                    y_cursor = frag_end_y + FRAG_AFTER_END;
+                    y_cursor = frag_end_y + lp.frag_after_end;
                 } else {
                     log::warn!("FragmentEnd without matching FragmentStart");
                 }
@@ -1072,7 +1154,7 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
                 label,
             } => {
                 if let (Some(first), Some(last)) = (parts.first(), parts.last()) {
-                    let ref_y = y_cursor - REF_Y_BACKOFF;
+                    let ref_y = y_cursor - lp.ref_y_backoff;
                     let first_idx = part_name_to_idx.get(first.as_str()).copied();
                     let last_idx = part_name_to_idx.get(last.as_str()).copied();
                     let (left_x, right_x) = if let (Some(fi), Some(li)) = (first_idx, last_idx) {
@@ -1091,11 +1173,11 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
                         x: left_x,
                         y: ref_y,
                         width: right_x - left_x,
-                        height: REF_HEIGHT,
+                        height: lp.ref_height,
                         label: label.clone(),
                     });
-                    lifeline_extend_y = ref_y + REF_HEIGHT + 17.0;
-                    y_cursor = ref_y + REF_HEIGHT + REF_AFTER_END;
+                    lifeline_extend_y = ref_y + lp.ref_height + 17.0;
+                    y_cursor = ref_y + lp.ref_height + lp.ref_after_end;
                     last_message_y = None;
                 }
             }
@@ -1139,7 +1221,7 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
     let max_participant_height = participants
         .iter()
         .map(|pp| pp.box_height)
-        .fold(PARTICIPANT_HEIGHT, f64::max);
+        .fold(lp.participant_height, f64::max);
     let lifeline_top = MARGIN + max_participant_height + 1.0;
     let lifeline_bottom = lifeline_extend_y;
 
@@ -1176,6 +1258,7 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
     if self_msg_right > total_width {
         total_width = self_msg_right;
     }
+
 
 
     // Tail box at lifeline_bottom - 1, then add box height + bottom margin (~7)
@@ -1246,6 +1329,7 @@ mod tests {
         SeqDirection, SeqEvent, SequenceDiagram,
     };
 
+
     fn make_participant(name: &str) -> Participant {
         Participant {
             name: name.to_string(),
@@ -1278,7 +1362,8 @@ mod tests {
         assert_eq!(layout.participants.len(), 1);
         let p = &layout.participants[0];
         assert_eq!(p.name, "Alice");
-        assert_eq!(p.box_height, PARTICIPANT_HEIGHT);
+        let lp = LayoutParams::compute("SansSerif", MSG_FONT_SIZE, FONT_SIZE);
+        assert_eq!(p.box_height, lp.participant_height);
 
         let expected_bw =
             (crate::font_metrics::text_width("Alice", "SansSerif", FONT_SIZE, false, false)
@@ -1563,13 +1648,14 @@ mod tests {
         let layout = layout_sequence(&sd, &crate::style::SkinParams::default()).unwrap();
 
         assert_eq!(layout.messages.len(), 2);
+        let lp = LayoutParams::compute("SansSerif", MSG_FONT_SIZE, FONT_SIZE);
         let gap = layout.messages[1].y - layout.messages[0].y;
-        // gap should be at least MESSAGE_SPACING + 50
+        // gap should be at least message_spacing + 50
         assert!(
-            gap >= MESSAGE_SPACING + 50.0 - 0.1,
+            gap >= lp.message_spacing + 50.0 - 0.1,
             "gap {} should be at least {}",
             gap,
-            MESSAGE_SPACING + 50.0
+            lp.message_spacing + 50.0
         );
     }
 
