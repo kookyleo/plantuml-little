@@ -2371,3 +2371,91 @@ mod tests {
         assert_eq!(lcf.decoration_length(), 8.0);
     }
 }
+
+// ══════════════════════════════════════════════════════════════════════
+//  Bridge: LinkDecoration → ExtremityFactory → draw via UGraphicSvg
+// ══════════════════════════════════════════════════════════════════════
+
+use crate::svek::edge::LinkDecoration;
+
+/// Create an `ExtremityFactory` for a given `LinkDecoration`.
+/// Returns `None` for `LinkDecoration::None`.
+pub fn factory_for_decoration(
+    decor: LinkDecoration,
+    _fill: bool,
+) -> Option<Box<dyn ExtremityFactory>> {
+    match decor {
+        LinkDecoration::None => None,
+        LinkDecoration::Arrow => Some(Box::new(ExtremityFactoryArrow)),
+        LinkDecoration::Extends => Some(Box::new(ExtremityFactoryExtends {
+            background_color: HColor::simple("#FFFFFF"),
+        })),
+        LinkDecoration::Composition => Some(Box::new(ExtremityFactoryDiamond { fill: true })),
+        LinkDecoration::Aggregation => Some(Box::new(ExtremityFactoryDiamond { fill: false })),
+        LinkDecoration::Circle => Some(Box::new(ExtremityFactoryCircle {
+            fill: false,
+            background_color: HColor::None,
+        })),
+        LinkDecoration::CircleFill => Some(Box::new(ExtremityFactoryCircle {
+            fill: true,
+            background_color: HColor::None,
+        })),
+        LinkDecoration::CircleCross => Some(Box::new(ExtremityFactoryCircleCross {
+            background_color: HColor::None,
+        })),
+        LinkDecoration::Plus => Some(Box::new(ExtremityFactoryPlus {
+            background_color: HColor::simple("#FFFFFF"),
+        })),
+        LinkDecoration::HalfArrow => Some(Box::new(ExtremityFactoryHalfArrow { direction: 1 })),
+        LinkDecoration::Crowfoot => Some(Box::new(ExtremityFactoryCrowfoot)),
+        LinkDecoration::NotNavigable => Some(Box::new(ExtremityFactoryNotNavigable)),
+        LinkDecoration::SquareSingle => Some(Box::new(ExtremityFactorySquare {
+            background_color: HColor::simple("#FFFFFF"),
+        })),
+        LinkDecoration::Parenthesis => Some(Box::new(ExtremityFactoryParenthesis)),
+    }
+}
+
+/// Draw an extremity onto an SvgGraphic.
+///
+/// This is the bridge between the svek extremity system and the SvgGraphic
+/// rendering pipeline. Creates a temporary `UGraphicSvg`, draws the extremity,
+/// and pushes the result into the given `SvgGraphic`.
+pub fn draw_extremity_to_svg(
+    sg: &mut crate::klimt::svg::SvgGraphic,
+    decor: LinkDecoration,
+    point: XPoint2D,
+    angle: f64,
+    side: Side,
+    stroke_color: &str,
+) {
+    let factory = match factory_for_decoration(decor, decor.is_fill()) {
+        Some(f) => f,
+        None => return,
+    };
+
+    let extremity = factory.create(point, angle, side);
+
+    // Create a UGraphicSvg wrapping a temporary SvgGraphic
+    let temp_sg = crate::klimt::svg::SvgGraphic::new(0, 1.0);
+    let sb: Box<dyn crate::klimt::font::StringBounder> =
+        Box::new(crate::klimt::font::DefaultStringBounder);
+    let mut ug = crate::klimt::svg::UGraphicSvg::new(
+        temp_sg,
+        sb,
+        crate::klimt::svg::LengthAdjust::Spacing,
+    );
+
+    // Set stroke/fill colors
+    use crate::klimt::UGraphic;
+    ug.apply(&HColor::simple(stroke_color));
+    ug.apply(&UBackground::Color(HColor::simple(stroke_color)));
+    ug.apply(&UStroke::with_thickness(1.0));
+
+    // Draw
+    extremity.draw(&mut ug);
+
+    // Extract rendered SVG and push into the main SvgGraphic
+    let rendered = ug.into_svg();
+    sg.push_raw(rendered.body());
+}
