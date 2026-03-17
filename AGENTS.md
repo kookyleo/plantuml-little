@@ -122,7 +122,27 @@ Font metrics extracted from Java AWT via `tests/tools/ExtractFontMetrics.java` �
 
 A single bit of difference will fail the reference test. "Close enough" is never acceptable.
 
-#### Methodology
+#### Execution Discipline — The Debugging & Fixing Loop
+
+Every fix must follow this strict loop. No skipping steps, no guessing.
+
+1. **Enumerate sub-items.** Run `scripts/analyze_failures.py` to get the full failure taxonomy. Break each root cause into concrete, countable sub-items (e.g., "CLASS height/large: 14 tests, median delta -16px"). Never work from vague categories.
+
+2. **Pick one precise target.** Select a single sub-item (ideally the smallest-delta case in the group — easiest to isolate). State the target: "make `class_funcparam_arrow_01.svg` height match 535px".
+
+3. **Trace the Rust chain.** For the chosen test, trace the full code path from `.puml` input to the differing SVG byte. Record every intermediate value (entity dimensions, DOT graph, Graphviz output, coordinate transform, SVG emission).
+
+4. **Trace the Java chain.** For the same input, trace the equivalent Java code path. Instrument Java with `System.err.println` to capture the same intermediate values.
+
+5. **Diff the two chains.** Compare Rust vs Java intermediate values. The first divergence point is the bug location. If the Rust code is **structurally different** (different call graph, missing component, different algorithm), fix the structure first. If the structure matches but a value differs, binary-search for the exact parameter/constant that's wrong.
+
+6. **Fix at the precise location.** Apply the minimal change that makes the Rust value match Java at the divergence point. Never patch downstream — fix at the source of divergence.
+
+7. **Verify.** Run `cargo test --lib` (no regression) + `cargo test --test reference_tests` (target test passes). Then re-run `scripts/analyze_failures.py` to confirm the fix didn't break other sub-items and to measure how many additional tests now pass.
+
+8. **Repeat.** Pick the next sub-item. The analysis script output is the single source of truth for progress tracking.
+
+#### Methodology — Reference Material
 
 1. **Read source code first.** When output differs, find the exact code path in Java and understand its precise algorithm. Key files:
    - `SvgGraphics.java` — SVG element generation, coordinate formatting (`format()`), `ensureVisible()` mechanism
