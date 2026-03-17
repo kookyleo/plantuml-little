@@ -1,8 +1,9 @@
 use std::fmt::Write;
 
-use super::svg::{fmt_coord, write_svg_root_bg, write_bg_rect};
+use crate::klimt::svg::{fmt_coord, SvgGraphic};
 use crate::layout::ditaa::{DitaaBox, DitaaLayout, DitaaLine, DitaaText};
 use crate::model::ditaa::DitaaDiagram;
+use crate::render::svg::{write_svg_root_bg, write_bg_rect};
 use crate::render::svg_richtext::{count_creole_lines, render_creole_text};
 use crate::style::SkinParams;
 use crate::Result;
@@ -46,22 +47,25 @@ pub fn render_ditaa(
     .unwrap();
     buf.push('\n');
 
+    let mut sg = SvgGraphic::new(0, 1.0);
+
     for ditaa_box in &layout.boxes {
-        render_box(&mut buf, ditaa_box, diagram, border, font);
+        render_box(&mut sg, ditaa_box, diagram, border, font);
     }
     for line in &layout.lines {
-        render_line(&mut buf, line, border);
+        render_line(&mut sg, line, border);
     }
     for text in &layout.texts {
-        render_text(&mut buf, text, font);
+        render_text(&mut sg, text, font);
     }
 
+    buf.push_str(sg.body());
     buf.push_str("</g></svg>");
     Ok(buf)
 }
 
 fn render_box(
-    buf: &mut String,
+    sg: &mut SvgGraphic,
     ditaa_box: &DitaaBox,
     diagram: &DitaaDiagram,
     border: &str,
@@ -71,34 +75,31 @@ fn render_box(
     let radius = if ditaa_box.round { 8.0 } else { 0.0 };
     let shadow_offset = diagram.options.scale.unwrap_or(1.0) * SHADOW_OFFSET;
 
+    // Shadow rect (uses opacity attribute — not supported by SvgGraphic, keep as push_raw)
     if !diagram.options.no_shadows {
-        write!(
-            buf,
+        sg.push_raw(&format!(
             r#"<rect fill="{SHADOW_FILL}" height="{}" opacity="{SHADOW_OPACITY:.5}" rx="{}" ry="{}" stroke="none" width="{}" x="{}" y="{}"/>"#,
             fmt_coord(ditaa_box.height), fmt_coord(radius), fmt_coord(radius),
             fmt_coord(ditaa_box.width),
             fmt_coord(ditaa_box.x + shadow_offset), fmt_coord(ditaa_box.y + shadow_offset),
-        )
-        .unwrap();
-        buf.push('\n');
+        ));
+        sg.push_raw("\n");
     }
 
-    write!(
-        buf,
-        r#"<rect fill="{fill}" height="{}" rx="{}" ry="{}" style="stroke:{border};stroke-width:1.5;" width="{}" x="{}" y="{}"/>"#,
-        fmt_coord(ditaa_box.height), fmt_coord(radius), fmt_coord(radius),
-        fmt_coord(ditaa_box.width),
-        fmt_coord(ditaa_box.x), fmt_coord(ditaa_box.y),
-    )
-    .unwrap();
-    buf.push('\n');
+    // Box rect
+    sg.set_fill_color(fill);
+    sg.set_stroke_color(Some(border));
+    sg.set_stroke_width(1.5, None);
+    sg.svg_rectangle(ditaa_box.x, ditaa_box.y, ditaa_box.width, ditaa_box.height, radius, radius, 0.0);
+    sg.push_raw("\n");
 
     if let Some(text) = &ditaa_box.text {
         let lines = count_creole_lines(text) as f64;
         let text_height = lines * LINE_HEIGHT;
         let start_y = ditaa_box.y + (ditaa_box.height - text_height).max(0.0) / 2.0 + FONT_SIZE;
+        let mut tmp = String::new();
         render_creole_text(
-            buf,
+            &mut tmp,
             text,
             ditaa_box.x + ditaa_box.width / 2.0,
             start_y,
@@ -107,14 +108,16 @@ fn render_box(
             Some("middle"),
             r#"font-size="12""#,
         );
+        sg.push_raw(&tmp);
     }
 }
 
-fn render_line(buf: &mut String, line: &DitaaLine, border: &str) {
+fn render_line(sg: &mut SvgGraphic, line: &DitaaLine, border: &str) {
     if line.points.is_empty() {
         return;
     }
 
+    // Polylines with markers — keep as push_raw (SvgGraphic doesn't support markers)
     let mut points = String::new();
     for (idx, (x, y)) in line.points.iter().enumerate() {
         if idx > 0 {
@@ -138,17 +141,16 @@ fn render_line(buf: &mut String, line: &DitaaLine, border: &str) {
     } else {
         ""
     };
-    write!(
-        buf,
+    sg.push_raw(&format!(
         r#"<polyline fill="none"{marker_start}{marker_end} points="{points}" style="stroke:{border};stroke-width:1.5;{dash}"/>"#
-    )
-    .unwrap();
-    buf.push('\n');
+    ));
+    sg.push_raw("\n");
 }
 
-fn render_text(buf: &mut String, text: &DitaaText, font: &str) {
+fn render_text(sg: &mut SvgGraphic, text: &DitaaText, font: &str) {
+    let mut tmp = String::new();
     render_creole_text(
-        buf,
+        &mut tmp,
         &text.text,
         text.x,
         text.y,
@@ -157,6 +159,7 @@ fn render_text(buf: &mut String, text: &DitaaText, font: &str) {
         None,
         r#"font-size="12""#,
     );
+    sg.push_raw(&tmp);
 }
 
 #[cfg(test)]

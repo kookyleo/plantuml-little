@@ -1,11 +1,8 @@
-use std::fmt::Write;
-
 use crate::font_metrics;
+use crate::klimt::svg::{fmt_coord, LengthAdjust, SvgGraphic};
 use crate::layout::json_diagram::{JsonArrow, JsonBox, JsonLayout};
 use crate::model::json_diagram::JsonDiagram;
-use crate::render::svg::fmt_coord;
-use crate::render::svg::{write_svg_root_bg, write_bg_rect};
-use crate::render::svg::xml_escape;
+use crate::render::svg::write_svg_root_bg;
 use crate::style::SkinParams;
 use crate::Result;
 
@@ -37,19 +34,23 @@ fn render_with_type(_jd: &JsonDiagram, layout: &JsonLayout, skin: &SkinParams, d
     write_svg_root_bg(&mut buf, layout.width, layout.height, dtype, bg);
     buf.push_str("<defs/><g>");
 
-    for jbox in &layout.boxes { render_box(&mut buf, jbox); }
-    for arrow in &layout.arrows { render_arrow(&mut buf, arrow); }
+    let mut sg = SvgGraphic::new(0, 1.0);
+    for jbox in &layout.boxes { render_box(&mut sg, jbox); }
+    for arrow in &layout.arrows { render_arrow(&mut sg, arrow); }
+    buf.push_str(sg.body());
 
     buf.push_str("</g></svg>");
     Ok(buf)
 }
 
-fn render_box(buf: &mut String, jbox: &JsonBox) {
+fn render_box(sg: &mut SvgGraphic, jbox: &JsonBox) {
     let (x, y, w, h) = (jbox.x, jbox.y, jbox.width, jbox.height);
 
     // Background fill
-    write!(buf, r#"<rect fill="{BOX_FILL}" height="{}" rx="5" ry="5" style="stroke:{BOX_FILL};stroke-width:1.5;" width="{}" x="{}" y="{}"/>"#,
-        fmt_coord(h), fmt_coord(w), fmt_coord(x), fmt_coord(y)).unwrap();
+    sg.set_fill_color(BOX_FILL);
+    sg.set_stroke_color(Some(BOX_FILL));
+    sg.set_stroke_width(1.5, None);
+    sg.svg_rectangle(x, y, w, h, 5.0, 5.0, 0.0);
 
     let has_keys = jbox.rows.iter().any(|r| r.key.is_some());
     let bl = baseline_offset();
@@ -60,52 +61,67 @@ fn render_box(buf: &mut String, jbox: &JsonBox) {
 
         if let Some(ref key) = row.key {
             let key_x = x + PADDING;
-            let key_esc = xml_escape(key);
-            let key_tl = fmt_coord(font_metrics::text_width(key, "SansSerif", FONT_SIZE, true, false));
-            write!(buf, r#"<text fill="{TEXT_COLOR}" font-family="sans-serif" font-size="14" font-weight="700" lengthAdjust="spacing" textLength="{key_tl}" x="{}" y="{}">{key_esc}</text>"#,
-                fmt_coord(key_x), fmt_coord(text_y)).unwrap();
+            let key_tl = font_metrics::text_width(key, "SansSerif", FONT_SIZE, true, false);
+            sg.set_fill_color(TEXT_COLOR);
+            sg.svg_text(
+                key, key_x, text_y,
+                Some("sans-serif"), FONT_SIZE,
+                Some("700"), None, None,
+                key_tl, LengthAdjust::Spacing,
+                None, 0, None,
+            );
         }
 
         let val_x = if has_keys { jbox.separator_x + PADDING } else { x + PADDING };
         for (li, line) in row.value_lines.iter().enumerate() {
             let line_y = text_y + li as f64 * lh;
-            let val_esc = xml_escape(line);
-            let val_tl = fmt_coord(font_metrics::text_width(line, "SansSerif", FONT_SIZE, false, false));
-            write!(buf, r#"<text fill="{TEXT_COLOR}" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="{val_tl}" x="{}" y="{}">{val_esc}</text>"#,
-                fmt_coord(val_x), fmt_coord(line_y)).unwrap();
+            let val_tl = font_metrics::text_width(line, "SansSerif", FONT_SIZE, false, false);
+            sg.set_fill_color(TEXT_COLOR);
+            sg.svg_text(
+                line, val_x, line_y,
+                Some("sans-serif"), FONT_SIZE,
+                None, None, None,
+                val_tl, LengthAdjust::Spacing,
+                None, 0, None,
+            );
         }
 
         if has_keys {
-            let sx = fmt_coord(jbox.separator_x);
-            write!(buf, r#"<line style="stroke:{BORDER_COLOR};stroke-width:1;" x1="{sx}" x2="{sx}" y1="{}" y2="{}"/>"#,
-                fmt_coord(row.y_top), fmt_coord(row.y_top + row.height)).unwrap();
+            sg.set_stroke_color(Some(BORDER_COLOR));
+            sg.set_stroke_width(1.0, None);
+            sg.svg_line(jbox.separator_x, row.y_top, jbox.separator_x, row.y_top + row.height, 0.0);
         }
 
         if i < jbox.rows.len() - 1 {
-            let ly = fmt_coord(row.y_top + row.height);
-            write!(buf, r#"<line style="stroke:{BORDER_COLOR};stroke-width:1;" x1="{}" x2="{}" y1="{ly}" y2="{ly}"/>"#,
-                fmt_coord(x), fmt_coord(x + w)).unwrap();
+            let ly = row.y_top + row.height;
+            sg.set_stroke_color(Some(BORDER_COLOR));
+            sg.set_stroke_width(1.0, None);
+            sg.svg_line(x, ly, x + w, ly, 0.0);
         }
     }
 
     // Border rect
-    write!(buf, r#"<rect fill="none" height="{}" rx="5" ry="5" style="stroke:{BORDER_COLOR};stroke-width:1.5;" width="{}" x="{}" y="{}"/>"#,
-        fmt_coord(h), fmt_coord(w), fmt_coord(x), fmt_coord(y)).unwrap();
+    sg.set_fill_color("none");
+    sg.set_stroke_color(Some(BORDER_COLOR));
+    sg.set_stroke_width(1.5, None);
+    sg.svg_rectangle(x, y, w, h, 5.0, 5.0, 0.0);
 }
 
-fn render_arrow(buf: &mut String, arrow: &JsonArrow) {
+fn render_arrow(sg: &mut SvgGraphic, arrow: &JsonArrow) {
     let (fx, fy, tx, ty) = (arrow.from_x, arrow.from_y, arrow.to_x, arrow.to_y);
     let mid_x = (fx + tx) / 2.0;
-    write!(buf, r#"<path d="M{},{} L{},{} C{},{} {},{} {},{}" fill="none" style="stroke:{BORDER_COLOR};stroke-width:1;stroke-dasharray:3,3;"/>"#,
+    sg.push_raw(&format!(
+        r#"<path d="M{},{} L{},{} C{},{} {},{} {},{}" fill="none" style="stroke:{BORDER_COLOR};stroke-width:1;stroke-dasharray:3,3;"/>"#,
         fmt_coord(fx), fmt_coord(fy), fmt_coord(fx + 13.0), fmt_coord(fy),
         fmt_coord(mid_x), fmt_coord(fy), fmt_coord(mid_x), fmt_coord(ty),
-        fmt_coord(tx - 7.0), fmt_coord(ty)).unwrap();
+        fmt_coord(tx - 7.0), fmt_coord(ty)));
 
     let sz = 3.1073;
-    write!(buf, r#"<path d="M{},{} L{},{} L{},{} L{},{} L{},{}" fill="{BORDER_COLOR}"/>"#,
+    sg.push_raw(&format!(
+        r#"<path d="M{},{} L{},{} L{},{} L{},{} L{},{}" fill="{BORDER_COLOR}"/>"#,
         fmt_coord(tx - 7.0), fmt_coord(ty + sz), fmt_coord(tx - 5.0), fmt_coord(ty),
         fmt_coord(tx - 7.0), fmt_coord(ty - sz), fmt_coord(tx), fmt_coord(ty),
-        fmt_coord(tx - 7.0), fmt_coord(ty + sz)).unwrap();
+        fmt_coord(tx - 7.0), fmt_coord(ty + sz)));
 }
 
 #[cfg(test)]

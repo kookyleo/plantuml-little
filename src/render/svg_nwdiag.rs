@@ -1,11 +1,9 @@
-use std::fmt::Write;
-
-use super::svg::{write_svg_root_bg, write_bg_rect};
+use crate::klimt::svg::SvgGraphic;
 use crate::layout::nwdiag::{
     NwdiagConnectorLayout, NwdiagLayout, NwdiagNetworkLayout, NwdiagServerLayout,
 };
 use crate::model::nwdiag::NwdiagDiagram;
-use crate::render::svg::fmt_coord;
+use crate::render::svg::{write_svg_root_bg, write_bg_rect};
 use crate::render::svg_richtext::render_creole_text;
 use crate::style::SkinParams;
 use crate::Result;
@@ -30,9 +28,12 @@ pub fn render_nwdiag(
     buf.push_str("<defs/><g>");
     write_bg_rect(&mut buf, layout.width, layout.height, bg);
 
+    let mut sg = SvgGraphic::new(0, 1.0);
+
     if let Some(title) = &diagram.title {
+        let mut tmp = String::new();
         render_creole_text(
-            &mut buf,
+            &mut tmp,
             title,
             layout.width / 2.0,
             20.0,
@@ -41,34 +42,31 @@ pub fn render_nwdiag(
             Some("middle"),
             r#"font-size="14" font-weight="bold""#,
         );
+        sg.push_raw(&tmp);
     }
 
     for connector in &layout.connectors {
-        render_connector(&mut buf, connector);
+        render_connector(&mut sg, connector);
     }
     for network in &layout.networks {
-        render_network(&mut buf, network, skin);
+        render_network(&mut sg, network, skin);
     }
     for server in &layout.servers {
-        render_server(&mut buf, server, skin);
+        render_server(&mut sg, server, skin);
     }
 
+    buf.push_str(sg.body());
     buf.push_str("</g></svg>");
     Ok(buf)
 }
 
-fn render_connector(buf: &mut String, connector: &NwdiagConnectorLayout) {
-    write!(
-        buf,
-        r#"<line style="stroke:{CONNECTOR_COLOR};stroke-width:0.5;stroke-dasharray:4,4;" x1="{cx}" x2="{cx}" y1="{}" y2="{}"/>"#,
-        fmt_coord(connector.y1), fmt_coord(connector.y2),
-        cx = fmt_coord(connector.x),
-    )
-    .unwrap();
-    buf.push('\n');
+fn render_connector(sg: &mut SvgGraphic, connector: &NwdiagConnectorLayout) {
+    sg.set_stroke_color(Some(CONNECTOR_COLOR));
+    sg.set_stroke_width(0.5, Some((4.0, 4.0)));
+    sg.svg_line(connector.x, connector.y1, connector.x, connector.y2, 0.0);
 }
 
-fn render_network(buf: &mut String, network: &NwdiagNetworkLayout, skin: &SkinParams) {
+fn render_network(sg: &mut SvgGraphic, network: &NwdiagNetworkLayout, skin: &SkinParams) {
     let fill = network
         .color
         .as_deref()
@@ -76,16 +74,14 @@ fn render_network(buf: &mut String, network: &NwdiagNetworkLayout, skin: &SkinPa
     let border = skin.border_color("nwdiag", NETWORK_BORDER);
     let font = skin.font_color("nwdiag", TEXT_FILL);
 
-    write!(
-        buf,
-        r#"<rect fill="{fill}" height="{}" rx="8" ry="8" style="stroke:{border};stroke-width:0.5;" width="{}" x="{}" y="{}"/>"#,
-        fmt_coord(network.height), fmt_coord(network.width), fmt_coord(network.x), fmt_coord(network.y),
-    )
-    .unwrap();
-    buf.push('\n');
+    sg.set_fill_color(fill);
+    sg.set_stroke_color(Some(border));
+    sg.set_stroke_width(0.5, None);
+    sg.svg_rectangle(network.x, network.y, network.width, network.height, 8.0, 8.0, 0.0);
 
+    let mut tmp = String::new();
     render_creole_text(
-        buf,
+        &mut tmp,
         &network.name,
         network.x + 12.0,
         network.y + 22.0,
@@ -94,9 +90,12 @@ fn render_network(buf: &mut String, network: &NwdiagNetworkLayout, skin: &SkinPa
         None,
         r#"font-size="14" font-weight="bold""#,
     );
+    sg.push_raw(&tmp);
+
     if let Some(address) = &network.address {
+        tmp.clear();
         render_creole_text(
-            buf,
+            &mut tmp,
             address,
             network.x + 12.0,
             network.y + 40.0,
@@ -105,24 +104,23 @@ fn render_network(buf: &mut String, network: &NwdiagNetworkLayout, skin: &SkinPa
             None,
             r#"font-size="11""#,
         );
+        sg.push_raw(&tmp);
     }
 }
 
-fn render_server(buf: &mut String, server: &NwdiagServerLayout, skin: &SkinParams) {
+fn render_server(sg: &mut SvgGraphic, server: &NwdiagServerLayout, skin: &SkinParams) {
     let fill = skin.background_color("server", SERVER_FILL);
     let border = skin.border_color("server", SERVER_BORDER);
     let font = skin.font_color("server", TEXT_FILL);
 
-    write!(
-        buf,
-        r#"<rect fill="{fill}" height="{}" rx="4" ry="4" style="stroke:{border};stroke-width:0.5;" width="{}" x="{}" y="{}"/>"#,
-        fmt_coord(server.height), fmt_coord(server.width), fmt_coord(server.x), fmt_coord(server.y),
-    )
-    .unwrap();
-    buf.push('\n');
+    sg.set_fill_color(fill);
+    sg.set_stroke_color(Some(border));
+    sg.set_stroke_width(0.5, None);
+    sg.svg_rectangle(server.x, server.y, server.width, server.height, 4.0, 4.0, 0.0);
 
+    let mut tmp = String::new();
     render_creole_text(
-        buf,
+        &mut tmp,
         &server.label,
         server.x + server.width / 2.0,
         server.y + 18.0,
@@ -131,6 +129,7 @@ fn render_server(buf: &mut String, server: &NwdiagServerLayout, skin: &SkinParam
         Some("middle"),
         r#"font-size="12""#,
     );
+    sg.push_raw(&tmp);
 }
 
 #[cfg(test)]
