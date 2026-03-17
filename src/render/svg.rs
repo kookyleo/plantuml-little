@@ -16,6 +16,7 @@ use crate::style::SkinParams;
 use crate::Result;
 
 use crate::font_metrics;
+use crate::klimt::svg::{LengthAdjust, SvgGraphic};
 
 use super::svg_richtext::{
     count_creole_lines, creole_plain_text, get_default_font_family_pub,
@@ -785,7 +786,7 @@ fn render_class(
     // Java LimitFinder: generic box rect extends minY to -4, moveDelta_y = 6-(-4) = 10.
     let edge_offset_y = if has_generic { 10.0 } else { 7.0 };
     let mut tracker = BoundsTracker::new();
-    let mut body = String::with_capacity(4096);
+    let mut sg = SvgGraphic::new(0, 1.0);
     let arrow_color = skin.arrow_color(LINK_COLOR);
 
     let node_map: HashMap<&str, &NodeLayout> =
@@ -815,27 +816,23 @@ fn render_class(
                 .map(|s| s.as_str())
                 .unwrap_or("ent0000");
             if is_object_diagram {
-                write!(
-                    body,
+                sg.push_raw(&format!(
                     "<g class=\"entity\" data-qualified-name=\"{}\"",
                     xml_escape(&entity.name),
-                )
-                .unwrap();
+                ));
             } else {
-                write!(
-                    body,
+                sg.push_raw(&format!(
                     "<!--class {}--><g class=\"entity\" data-qualified-name=\"{}\"",
                     xml_escape(&entity.name),
                     xml_escape(&entity.name),
-                )
-                .unwrap();
+                ));
             }
             if let Some(source_line) = entity.source_line {
-                write!(body, " data-source-line=\"{source_line}\"").unwrap();
+                sg.push_raw(&format!(" data-source-line=\"{source_line}\""));
             }
-            write!(body, " id=\"{ent_id}\">").unwrap();
-            draw_entity_box(&mut body, &mut tracker, cd, entity, nl, skin, edge_offset_x, edge_offset_y);
-            body.push_str("</g>");
+            sg.push_raw(&format!(" id=\"{ent_id}\">"));
+            draw_entity_box(&mut sg, &mut tracker, cd, entity, nl, skin, edge_offset_x, edge_offset_y);
+            sg.push_raw("</g>");
         }
     }
 
@@ -851,29 +848,27 @@ fn render_class(
             let from_ent = entity_ids.get(&from_id).map(|s| s.as_str()).unwrap_or("");
             let to_ent = entity_ids.get(&to_id).map(|s| s.as_str()).unwrap_or("");
             let link_type = derive_link_type(link);
-            write!(
-                body,
+            sg.push_raw(&format!(
                 "<!--link {} to {}--><g class=\"link\" data-entity-1=\"{}\" data-entity-2=\"{}\" data-link-type=\"{}\"",
                 xml_escape(&link.from),
                 xml_escape(&link.to),
                 from_ent,
                 to_ent,
                 link_type,
-            )
-            .unwrap();
+            ));
             if let Some(source_line) = link.source_line {
-                write!(body, " data-source-line=\"{source_line}\"").unwrap();
+                sg.push_raw(&format!(" data-source-line=\"{source_line}\""));
             }
-            write!(body, " id=\"lnk{link_counter}\">").unwrap();
-            draw_edge(&mut body, &mut tracker, link, el, arrow_color, edge_offset_x, edge_offset_y);
-            body.push_str("</g>");
+            sg.push_raw(&format!(" id=\"lnk{link_counter}\">"));
+            draw_edge(&mut sg, &mut tracker, link, el, arrow_color, edge_offset_x, edge_offset_y);
+            sg.push_raw("</g>");
             link_counter += 1;
         }
     }
 
     // Notes
     for note in &layout.notes {
-        draw_class_note(&mut body, &mut tracker, note);
+        draw_class_note(&mut sg, &mut tracker, note);
     }
 
     // Canvas size calculation depends on diagram complexity.
@@ -906,12 +901,12 @@ fn render_class(
         (w, h)
     };
 
-    let mut buf = String::with_capacity(body.len() + 512);
+    let mut buf = String::with_capacity(sg.body().len() + 512);
     let bg = skin.get_or("backgroundcolor", "#FFFFFF");
     write_svg_root_bg(&mut buf, svg_w, svg_h, "CLASS", bg);
     buf.push_str("<defs/><g>");
     write_bg_rect(&mut buf, svg_w, svg_h, bg);
-    buf.push_str(&body);
+    buf.push_str(sg.body());
     buf.push_str("</g></svg>");
     Ok(buf)
 }
@@ -1016,7 +1011,7 @@ const GLYPH_A_RAW: &[(char, &[(f64, f64)])] = &[
 
 /// Emit a stereotype circle glyph path element.
 /// `circle_cx` and `circle_cy` are the absolute SVG coordinates of the circle center.
-fn emit_circle_glyph(buf: &mut String, tracker: &mut BoundsTracker, kind: &EntityKind, circle_cx: f64, circle_cy: f64) {
+fn emit_circle_glyph(sg: &mut SvgGraphic, tracker: &mut BoundsTracker, kind: &EntityKind, circle_cx: f64, circle_cy: f64) {
     let (glyph_raw, center) = match kind {
         EntityKind::Class | EntityKind::Object => (GLYPH_C_RAW, GLYPH_C_CENTER),
         EntityKind::Abstract => (GLYPH_A_RAW, GLYPH_A_CENTER),
@@ -1057,7 +1052,7 @@ fn emit_circle_glyph(buf: &mut String, tracker: &mut BoundsTracker, kind: &Entit
         d.push(' ');
     }
 
-    write!(buf, r##"<path d="{d}" fill="#000000"/>"##).unwrap();
+    sg.push_raw(&format!(r##"<path d="{d}" fill="#000000"/>"##));
     if path_min_x.is_finite() {
         tracker.track_path_bounds(path_min_x, path_min_y, path_max_x, path_max_y);
     }
@@ -1133,7 +1128,7 @@ fn stereotype_circle_color(kind: &EntityKind) -> &'static str {
 }
 
 fn draw_entity_box(
-    buf: &mut String,
+    sg: &mut SvgGraphic,
     tracker: &mut BoundsTracker,
     cd: &ClassDiagram,
     entity: &Entity,
@@ -1143,7 +1138,7 @@ fn draw_entity_box(
     edge_offset_y: f64,
 ) {
     if entity.kind == EntityKind::Object {
-        draw_object_box(buf, tracker, entity, nl, skin, edge_offset_x, edge_offset_y);
+        draw_object_box(sg, tracker, entity, nl, skin, edge_offset_x, edge_offset_y);
         return;
     }
 
@@ -1173,10 +1168,10 @@ fn draw_entity_box(
     let rx = skin.round_corner().map(|rc| rc / 2.0).unwrap_or(2.5);
 
     // Rect with rx="2.5" ry="2.5" to match Java PlantUML
-    write!(buf,
-        r#"<rect fill="{fill}" height="{}" rx="{}" ry="{}" style="stroke:{stroke};stroke-width:0.5;" width="{}" x="{}" y="{}"/>"#,
-        fmt_coord(h), fmt_coord(rx), fmt_coord(rx), fmt_coord(w), fmt_coord(x), fmt_coord(y),
-    ).unwrap();
+    sg.set_fill_color(fill);
+    sg.set_stroke_color(Some(stroke));
+    sg.set_stroke_width(0.5, None);
+    sg.svg_rectangle(x, y, w, h, rx, rx, 0.0);
     tracker.track_rect(x, y, w, h);
 
     let class_font_size = skin.font_size("class", FONT_SIZE);
@@ -1184,7 +1179,6 @@ fn draw_entity_box(
 
     // Entity name WITHOUT generic parameter — generic is rendered separately in draw_generic_box
     let name_display = entity.name.clone();
-    let name_escaped = xml_escape(&name_display);
     let visible_stereotypes = visible_stereotype_labels(&cd.hide_show_rules, entity);
     let show_fields = show_portion(&cd.hide_show_rules, ClassPortion::Field, &entity.name);
     let show_methods = show_portion(&cd.hide_show_rules, ClassPortion::Method, &entity.name);
@@ -1217,22 +1211,27 @@ fn draw_entity_box(
         let cx = x + w / 2.0;
         let kind_fs = class_font_size - 2.0;
         let kind_tl_val = font_metrics::text_width(kind_text, "SansSerif", kind_fs, false, true);
-        let kind_tl = fmt_coord(kind_tl_val);
-        write!(buf,
-            r#"<text fill="{font_color}" font-family="sans-serif" font-size="{fs:.0}" font-style="italic" lengthAdjust="spacing" text-anchor="middle" textLength="{kind_tl}" x="{}" y="{}">{kind_text}</text>"#,
-            fmt_coord(cx), fmt_coord(kind_y), fs = kind_fs,
-        ).unwrap();
+        {
+            let kind_tl = fmt_coord(kind_tl_val);
+            sg.push_raw(&format!(
+                r#"<text fill="{font_color}" font-family="sans-serif" font-size="{fs:.0}" font-style="italic" lengthAdjust="spacing" text-anchor="middle" textLength="{kind_tl}" x="{}" y="{}">{kind_text}</text>"#,
+                fmt_coord(cx), fmt_coord(kind_y), fs = kind_fs,
+            ));
+        }
         {
             let kind_ascent = font_metrics::ascent("SansSerif", kind_fs, false, true);
             let kind_descent = font_metrics::descent("SansSerif", kind_fs, false, true);
             tracker.track_rect(cx, kind_y - kind_ascent, kind_tl_val, kind_ascent + kind_descent);
         }
         let name_tl_val = font_metrics::text_width(&name_display, "SansSerif", class_font_size, true, false);
-        let name_tl = fmt_coord(name_tl_val);
-        write!(buf,
-            r#"<text fill="{font_color}" font-family="sans-serif" font-size="{class_font_size:.0}" font-weight="bold" lengthAdjust="spacing" text-anchor="middle" textLength="{name_tl}" x="{}" y="{}">{name_escaped}</text>"#,
-            fmt_coord(cx), fmt_coord(name_y),
-        ).unwrap();
+        {
+            let name_tl = fmt_coord(name_tl_val);
+            let name_escaped = xml_escape(&name_display);
+            sg.push_raw(&format!(
+                r#"<text fill="{font_color}" font-family="sans-serif" font-size="{class_font_size:.0}" font-weight="bold" lengthAdjust="spacing" text-anchor="middle" textLength="{name_tl}" x="{}" y="{}">{name_escaped}</text>"#,
+                fmt_coord(cx), fmt_coord(name_y),
+            ));
+        }
         {
             let name_ascent = font_metrics::ascent("SansSerif", class_font_size, true, false);
             let name_descent = font_metrics::descent("SansSerif", class_font_size, true, false);
@@ -1280,12 +1279,12 @@ fn draw_entity_box(
         let circle_block_x = x + h1;
         let ecx = circle_block_x + 15.0;
         let ecy = y + header_height / 2.0;
-        write!(buf,
-            r#"<ellipse cx="{}" cy="{}" fill="{circle_color}" rx="11" ry="11" style="stroke:#181818;stroke-width:1;"/>"#,
-            fmt_coord(ecx), fmt_coord(ecy),
-        ).unwrap();
+        sg.set_fill_color(circle_color);
+        sg.set_stroke_color(Some("#181818"));
+        sg.set_stroke_width(1.0, None);
+        sg.svg_ellipse(ecx, ecy, 11.0, 11.0, 0.0);
         tracker.track_ellipse(ecx, ecy, 11.0, 11.0);
-        emit_circle_glyph(buf, tracker, &entity.kind, ecx, ecy);
+        emit_circle_glyph(sg, tracker, &entity.kind, ecx, ecy);
 
         let header_top_offset = (header_height - stereo_height - HEADER_NAME_BLOCK_HEIGHT) / 2.0;
         let name_x = x + HEADER_CIRCLE_BLOCK_WIDTH + vis_icon_w + (width_stereo_and_name - name_block_width) / 2.0 + h1 + h2 + 3.0;
@@ -1293,42 +1292,43 @@ fn draw_entity_box(
         if let Some(ref vis) = entity.visibility {
             let icon_x = name_x - ENTITY_VIS_ICON_BLOCK_SIZE;
             let icon_y = y + (header_height - ENTITY_VIS_ICON_BLOCK_SIZE) / 2.0;
-            draw_visibility_icon(buf, tracker, vis, true, icon_x, icon_y);
+            draw_visibility_icon(sg, tracker, vis, true, icon_x, icon_y);
         }
 
         for (idx, label) in visible_stereotypes.iter().enumerate() {
             let stereo_text = format!("\u{00AB}{label}\u{00BB}");
             let stereo_x = x + HEADER_CIRCLE_BLOCK_WIDTH + vis_icon_w + (width_stereo_and_name - stereo_widths[idx]) / 2.0 + h1 + h2;
             let stereo_y = y + header_top_offset + HEADER_STEREO_BASELINE + idx as f64 * HEADER_STEREO_LINE_HEIGHT;
-            write!(
-                buf,
+            sg.push_raw(&format!(
                 r#"<text fill="{font_color}" font-family="sans-serif" font-size="12" font-style="italic" lengthAdjust="spacing" textLength="{}" x="{}" y="{}">{}</text>"#,
                 fmt_coord(stereo_widths[idx]),
                 fmt_coord(stereo_x),
                 fmt_coord(stereo_y),
                 xml_escape(&stereo_text),
-            )
-            .unwrap();
+            ));
             tracker.track_rect(stereo_x, stereo_y - HEADER_STEREO_BASELINE, stereo_widths[idx], HEADER_STEREO_LINE_HEIGHT);
         }
 
         let name_y = y + header_top_offset + stereo_height + HEADER_NAME_BASELINE;
-        let font_style_attr = if entity.kind == EntityKind::Abstract {
-            r#" font-style="italic""#
+        let font_style = if entity.kind == EntityKind::Abstract {
+            Some("italic")
         } else {
-            ""
+            None
         };
-        let tl = fmt_coord(name_width);
-        write!(buf,
-            r#"<text fill="{font_color}" font-family="sans-serif" font-size="{class_font_size:.0}"{font_style_attr} lengthAdjust="spacing" textLength="{tl}" x="{}" y="{}">{name_escaped}</text>"#,
-            fmt_coord(name_x), fmt_coord(name_y),
-        ).unwrap();
+        sg.set_fill_color(font_color);
+        sg.svg_text(
+            &name_display, name_x, name_y,
+            Some("sans-serif"), class_font_size,
+            None, font_style, None,
+            name_width, LengthAdjust::Spacing,
+            None, 0, None,
+        );
         tracker.track_rect(name_x, name_y - HEADER_NAME_BASELINE, name_width, HEADER_NAME_BLOCK_HEIGHT);
     }
 
     // Draw generic type box at top-right corner of entity rect
     if let Some(ref generic_text) = entity.generic {
-        draw_generic_box(buf, tracker, generic_text, x, y, w);
+        draw_generic_box(sg, tracker, generic_text, x, y, w);
     }
 
     let x1_val = fmt_coord(x + 1.0);
@@ -1345,7 +1345,7 @@ fn draw_entity_box(
     let mut section_y = y + header_height;
     if show_fields {
         draw_member_section(
-            buf,
+            sg,
             tracker,
             &visible_fields,
             section_y,
@@ -1360,7 +1360,7 @@ fn draw_entity_box(
     }
     if show_methods {
         draw_member_section(
-            buf,
+            sg,
             tracker,
             &visible_methods,
             section_y,
@@ -1380,7 +1380,7 @@ fn draw_entity_box(
 
 /// Draw the generic type box (dashed rect + italic text) at top-right of entity.
 fn draw_generic_box(
-    buf: &mut String,
+    sg: &mut SvgGraphic,
     tracker: &mut BoundsTracker,
     generic_text: &str,
     entity_x: f64,
@@ -1403,20 +1403,23 @@ fn draw_generic_box(
     let rect_x = x_generic + GENERIC_OUTER_MARGIN;
     let rect_y = y_generic + GENERIC_OUTER_MARGIN;
 
-    write!(buf,
-        r##"<rect fill="#FFFFFF" height="{}" style="stroke:#181818;stroke-width:1;stroke-dasharray:2,2;" width="{}" x="{}" y="{}"/>"##,
-        fmt_coord(rect_h), fmt_coord(rect_w), fmt_coord(rect_x), fmt_coord(rect_y),
-    ).unwrap();
+    sg.set_fill_color("#FFFFFF");
+    sg.set_stroke_color(Some("#181818"));
+    sg.set_stroke_width(1.0, Some((2.0, 2.0)));
+    sg.svg_rectangle(rect_x, rect_y, rect_w, rect_h, 0.0, 0.0, 0.0);
     tracker.track_rect(rect_x, rect_y, rect_w, rect_h);
     tracker.track_empty(rect_x, rect_y, rect_w, rect_h);
 
     let text_x = rect_x + GENERIC_INNER_MARGIN;
     let text_y = rect_y + GENERIC_INNER_MARGIN + GENERIC_BASELINE;
-    let tl = fmt_coord(text_w);
-    write!(buf,
-        r##"<text fill="#000000" font-family="sans-serif" font-size="12" font-style="italic" lengthAdjust="spacing" textLength="{tl}" x="{}" y="{}">{}</text>"##,
-        fmt_coord(text_x), fmt_coord(text_y), xml_escape(generic_text),
-    ).unwrap();
+    sg.set_fill_color("#000000");
+    sg.svg_text(
+        generic_text, text_x, text_y,
+        Some("sans-serif"), 12.0,
+        None, Some("italic"), None,
+        text_w, LengthAdjust::Spacing,
+        None, 0, None,
+    );
     tracker.track_rect(text_x, text_y - GENERIC_BASELINE, text_w, GENERIC_TEXT_HEIGHT);
 }
 
@@ -1426,7 +1429,7 @@ fn draw_generic_box(
 /// Name is centered with margin(2,2,2,2), no underline (default, non-strict UML).
 /// Body is a single separator line followed by empty space (TextBlockEmpty(10, 16)).
 fn draw_object_box(
-    buf: &mut String,
+    sg: &mut SvgGraphic,
     tracker: &mut BoundsTracker,
     entity: &Entity,
     nl: &NodeLayout,
@@ -1448,10 +1451,10 @@ fn draw_object_box(
     let rx = skin.round_corner().map(|rc| rc / 2.0).unwrap_or(2.5);
 
     // Rect
-    write!(buf,
-        r#"<rect fill="{fill}" height="{}" rx="{}" ry="{}" style="stroke:{stroke_color};stroke-width:0.5;" width="{}" x="{}" y="{}"/>"#,
-        fmt_coord(h), fmt_coord(rx), fmt_coord(rx), fmt_coord(w), fmt_coord(x), fmt_coord(y),
-    ).unwrap();
+    sg.set_fill_color(fill);
+    sg.set_stroke_color(Some(stroke_color));
+    sg.set_stroke_width(0.5, None);
+    sg.svg_rectangle(x, y, w, h, rx, rx, 0.0);
     tracker.track_rect(x, y, w, h);
 
     // Object name constants — EntityImageObject.java
@@ -1475,12 +1478,14 @@ fn draw_object_box(
     let text_x = x + name_offset_x + OBJ_NAME_MARGIN;
     let text_y = y + OBJ_NAME_MARGIN + HEADER_NAME_BASELINE;
 
-    let name_escaped = xml_escape(&entity.name);
-    let tl = fmt_coord(name_width);
-    write!(buf,
-        r#"<text fill="{font_color}" font-family="sans-serif" font-size="{class_font_size:.0}" lengthAdjust="spacing" textLength="{tl}" x="{}" y="{}">{name_escaped}</text>"#,
-        fmt_coord(text_x), fmt_coord(text_y),
-    ).unwrap();
+    sg.set_fill_color(font_color);
+    sg.svg_text(
+        &entity.name, text_x, text_y,
+        Some("sans-serif"), class_font_size,
+        None, None, None,
+        name_width, LengthAdjust::Spacing,
+        None, 0, None,
+    );
     tracker.track_rect(text_x, text_y - HEADER_NAME_BASELINE, name_width, HEADER_NAME_BLOCK_HEIGHT);
 
     // Separator line at y + titleHeight
@@ -1488,10 +1493,9 @@ fn draw_object_box(
     let sep_y = y + title_height;
     let x1 = x + 1.0;
     let x2 = x + w - 1.0;
-    write!(buf,
-        r#"<line style="stroke:{stroke_color};stroke-width:0.5;" x1="{}" x2="{}" y1="{}" y2="{}"/>"#,
-        fmt_coord(x1), fmt_coord(x2), fmt_coord(sep_y), fmt_coord(sep_y),
-    ).unwrap();
+    sg.set_stroke_color(Some(stroke_color));
+    sg.set_stroke_width(0.5, None);
+    sg.svg_line(x1, sep_y, x2, sep_y, 0.0);
     tracker.track_line(x1, sep_y, x2, sep_y);
 
     // Render object fields in the body section
@@ -1505,7 +1509,7 @@ fn draw_object_box(
         let x1_val = fmt_coord(x1);
         let x2_val = fmt_coord(x2);
         draw_member_section(
-            buf,
+            sg,
             tracker,
             &visible_fields,
             sep_y,
@@ -1520,7 +1524,7 @@ fn draw_object_box(
 }
 
 fn draw_member_section(
-    buf: &mut String,
+    sg: &mut SvgGraphic,
     tracker: &mut BoundsTracker,
     members: &[&Member],
     section_y: f64,
@@ -1535,11 +1539,9 @@ fn draw_member_section(
     // Parse x1/x2 for line tracking
     let x1_f: f64 = x1_val.parse().unwrap_or(x + 1.0);
     let x2_f: f64 = x2_val.parse().unwrap_or(x);
-    write!(
-        buf,
-        r#"<line style="stroke:{sep_color};stroke-width:0.5;" x1="{x1_val}" x2="{x2_val}" y1="{sep_y_str}" y2="{sep_y_str}"/>"#,
-    )
-    .unwrap();
+    sg.set_stroke_color(Some(sep_color));
+    sg.set_stroke_width(0.5, None);
+    sg.svg_line(x1_f, section_y, x2_f, section_y, 0.0);
     tracker.track_line(x1_f, section_y, x2_f, section_y);
 
     // visual_row tracks the current visual line index across all members
@@ -1557,7 +1559,7 @@ fn draw_member_section(
                 + visual_row as f64 * MEMBER_ROW_HEIGHT
                 + (num_lines.saturating_sub(1)) as f64 * MEMBER_ROW_HEIGHT / 2.0;
             draw_visibility_icon(
-                buf,
+                sg,
                 tracker,
                 visibility,
                 member.is_method,
@@ -1566,15 +1568,15 @@ fn draw_member_section(
             );
         }
 
-        let font_style_attr = if member.modifiers.is_abstract {
-            r#" font-style="italic""#
+        let font_style_attr: Option<&str> = if member.modifiers.is_abstract {
+            Some("italic")
         } else {
-            ""
+            None
         };
-        let text_deco_attr = if member.modifiers.is_static {
-            r#" text-decoration="underline""#
+        let text_deco_attr: Option<&str> = if member.modifiers.is_static {
+            Some("underline")
         } else {
-            ""
+            None
         };
 
         let base_text_x = x
@@ -1593,7 +1595,6 @@ fn draw_member_section(
             } else {
                 base_text_x + indent
             };
-            let text_escaped = xml_escape(line_text);
             let text_width_val = font_metrics::text_width(
                 line_text,
                 "SansSerif",
@@ -1601,14 +1602,14 @@ fn draw_member_section(
                 false,
                 member.modifiers.is_abstract,
             );
-            write!(
-                buf,
-                r#"<text fill="{font_color}" font-family="sans-serif" font-size="{attr_font_size:.0}"{font_style_attr} lengthAdjust="spacing"{text_deco_attr} textLength="{}" x="{}" y="{}">{text_escaped}</text>"#,
-                fmt_coord(text_width_val),
-                fmt_coord(text_x),
-                fmt_coord(text_y),
-            )
-            .unwrap();
+            sg.set_fill_color(font_color);
+            sg.svg_text(
+                line_text, text_x, text_y,
+                Some("sans-serif"), attr_font_size,
+                None, font_style_attr, text_deco_attr,
+                text_width_val, LengthAdjust::Spacing,
+                None, 0, None,
+            );
             {
                 let text_ascent = font_metrics::ascent(
                     "SansSerif",
@@ -1671,7 +1672,7 @@ fn member_text(m: &Member) -> String {
 ///   PROTECTED: diamond, fill=#B38D22(method)/none(field), stroke=#B38D22
 ///   PACKAGE:   triangle, fill=#4177AF(method)/none(field), stroke=#1963A0
 fn draw_visibility_icon(
-    buf: &mut String,
+    sg: &mut SvgGraphic,
     tracker: &mut BoundsTracker,
     visibility: &Visibility,
     is_method: bool,
@@ -1688,7 +1689,7 @@ fn draw_visibility_icon(
         (Visibility::Package, true) => "PACKAGE_PRIVATE_METHOD",
         (Visibility::Package, false) => "PACKAGE_PRIVATE_FIELD",
     };
-    write!(buf, r#"<g data-visibility-modifier="{modifier}">"#).unwrap();
+    sg.push_raw(&format!(r#"<g data-visibility-modifier="{modifier}">"#));
     match visibility {
         Visibility::Public => {
             // VisibilityModifier.drawCircle: translate(x+2,y+2), UEllipse(6,6)
@@ -1697,9 +1698,10 @@ fn draw_visibility_icon(
             let cx = fmt_coord(ecx);
             let cy = fmt_coord(ecy);
             let fill = if is_method { "#84BE84" } else { "none" };
-            write!(buf,
-                r##"<ellipse cx="{cx}" cy="{cy}" fill="{fill}" rx="3" ry="3" style="stroke:#038048;stroke-width:1;"/>"##,
-            ).unwrap();
+            sg.set_fill_color(fill);
+            sg.set_stroke_color(Some("#038048"));
+            sg.set_stroke_width(1.0, None);
+            sg.svg_ellipse(ecx, ecy, 3.0, 3.0, 0.0);
             tracker.track_ellipse(ecx, ecy, 3.0, 3.0);
         }
         Visibility::Private => {
@@ -1709,9 +1711,10 @@ fn draw_visibility_icon(
             let rx = fmt_coord(rect_x);
             let ry = fmt_coord(rect_y);
             let fill = if is_method { "#F24D5C" } else { "none" };
-            write!(buf,
-                r##"<rect fill="{fill}" height="6" style="stroke:#C82930;stroke-width:1;" width="6" x="{rx}" y="{ry}"/>"##,
-            ).unwrap();
+            sg.set_fill_color(fill);
+            sg.set_stroke_color(Some("#C82930"));
+            sg.set_stroke_width(1.0, None);
+            sg.svg_rectangle(rect_x, rect_y, 6.0, 6.0, 0.0, 0.0, 0.0);
             tracker.track_rect(rect_x, rect_y, 6.0, 6.0);
         }
         Visibility::Protected => {
@@ -1726,13 +1729,15 @@ fn draw_visibility_icon(
                 (ox + 4.0, oy + 8.0),
                 (ox, oy + 4.0),
             ];
-            write!(buf,
-                r##"<polygon fill="{fill}" points="{},{},{},{},{},{},{},{}" style="stroke:#B38D22;stroke-width:1;"/>"##,
-                fmt_coord(poly_pts[0].0), fmt_coord(poly_pts[0].1),
-                fmt_coord(poly_pts[1].0), fmt_coord(poly_pts[1].1),
-                fmt_coord(poly_pts[2].0), fmt_coord(poly_pts[2].1),
-                fmt_coord(poly_pts[3].0), fmt_coord(poly_pts[3].1),
-            ).unwrap();
+            sg.set_fill_color(fill);
+            sg.set_stroke_color(Some("#B38D22"));
+            sg.set_stroke_width(1.0, None);
+            sg.svg_polygon(0.0, &[
+                poly_pts[0].0, poly_pts[0].1,
+                poly_pts[1].0, poly_pts[1].1,
+                poly_pts[2].0, poly_pts[2].1,
+                poly_pts[3].0, poly_pts[3].1,
+            ]);
             tracker.track_polygon(&poly_pts);
         }
         Visibility::Package => {
@@ -1746,16 +1751,18 @@ fn draw_visibility_icon(
                 (ox, oy + 7.0),          // (0, size-1=7)
                 (ox + 8.0, oy + 7.0),   // (size=8, size-1=7)
             ];
-            write!(buf,
-                r##"<polygon fill="{fill}" points="{},{},{},{},{},{}" style="stroke:#1963A0;stroke-width:1;"/>"##,
-                fmt_coord(poly_pts[0].0), fmt_coord(poly_pts[0].1),
-                fmt_coord(poly_pts[1].0), fmt_coord(poly_pts[1].1),
-                fmt_coord(poly_pts[2].0), fmt_coord(poly_pts[2].1),
-            ).unwrap();
+            sg.set_fill_color(fill);
+            sg.set_stroke_color(Some("#1963A0"));
+            sg.set_stroke_width(1.0, None);
+            sg.svg_polygon(0.0, &[
+                poly_pts[0].0, poly_pts[0].1,
+                poly_pts[1].0, poly_pts[1].1,
+                poly_pts[2].0, poly_pts[2].1,
+            ]);
             tracker.track_polygon(&poly_pts);
         }
     }
-    buf.push_str("</g>");
+    sg.push_raw("</g>");
 }
 
 fn show_portion(rules: &[ClassHideShowRule], portion: ClassPortion, entity_name: &str) -> bool {
@@ -1835,7 +1842,7 @@ fn derive_link_type(link: &Link) -> &'static str {
     }
 }
 
-fn draw_edge(buf: &mut String, tracker: &mut BoundsTracker, link: &Link, el: &EdgeLayout, link_color: &str, edge_offset_x: f64, edge_offset_y: f64) {
+fn draw_edge(sg: &mut SvgGraphic, tracker: &mut BoundsTracker, link: &Link, el: &EdgeLayout, link_color: &str, edge_offset_x: f64, edge_offset_y: f64) {
     if el.points.is_empty() {
         return;
     }
@@ -1876,27 +1883,30 @@ fn draw_edge(buf: &mut String, tracker: &mut BoundsTracker, link: &Link, el: &Ed
         ""
     };
     let path_id = format!("{}-to-{}", link.from, link.to);
-    write!(buf, "<path").unwrap();
-    if let Some(source_line) = link.source_line {
-        write!(buf, r#" codeLine="{source_line}""#).unwrap();
+    {
+        let mut path_elt = String::from("<path");
+        if let Some(source_line) = link.source_line {
+            write!(path_elt, r#" codeLine="{source_line}""#).unwrap();
+        }
+        write!(
+            path_elt,
+            r#" d="{d}" fill="none" id="{path_id}" style="stroke:{link_color};stroke-width:1;{dash_style}"/>"#,
+        )
+        .unwrap();
+        sg.push_raw(&path_elt);
     }
-    write!(
-        buf,
-        r#" d="{d}" fill="none" id="{path_id}" style="stroke:{link_color};stroke-width:1;{dash_style}"/>"#,
-    )
-    .unwrap();
 
     if link.left_head != ArrowHead::None {
-        emit_arrowhead(buf, tracker, &link.left_head, &el.points, true, link_color, edge_offset_x, edge_offset_y);
+        emit_arrowhead(sg, tracker, &link.left_head, &el.points, true, link_color, edge_offset_x, edge_offset_y);
     }
     if link.right_head != ArrowHead::None {
-        emit_arrowhead(buf, tracker, &link.right_head, &el.points, false, link_color, edge_offset_x, edge_offset_y);
+        emit_arrowhead(sg, tracker, &link.right_head, &el.points, false, link_color, edge_offset_x, edge_offset_y);
     }
 
     if let Some(label) = &link.label {
         let mid_idx = path_points.len() / 2;
         let (mx, my) = path_points[mid_idx];
-        draw_label(buf, label, mx + edge_offset_x, my + edge_offset_y - 6.0);
+        draw_label(sg, label, mx + edge_offset_x, my + edge_offset_y - 6.0);
     }
 }
 
@@ -2057,7 +2067,7 @@ fn move_edge_end_point(points: &mut [(f64, f64)], dx: f64, dy: f64) {
 }
 
 fn emit_arrowhead(
-    buf: &mut String,
+    sg: &mut SvgGraphic,
     tracker: &mut BoundsTracker,
     head: &ArrowHead,
     points: &[(f64, f64)],
@@ -2085,7 +2095,7 @@ fn emit_arrowhead(
 
     match head {
         ArrowHead::Arrow => emit_rotated_polygon(
-            buf,
+            sg,
             tracker,
             &[
                 (0.0, 0.0),
@@ -2101,7 +2111,7 @@ fn emit_arrowhead(
             link_color,
         ),
         ArrowHead::Triangle => emit_rotated_polygon(
-            buf,
+            sg,
             tracker,
             &[(0.0, 0.0), (-19.0, -7.0), (-19.0, 7.0), (0.0, 0.0)],
             base_angle + std::f64::consts::FRAC_PI_2,
@@ -2111,7 +2121,7 @@ fn emit_arrowhead(
             link_color,
         ),
         ArrowHead::Diamond => emit_rotated_polygon(
-            buf,
+            sg,
             tracker,
             &[
                 (0.0, 0.0),
@@ -2127,7 +2137,7 @@ fn emit_arrowhead(
             link_color,
         ),
         ArrowHead::DiamondHollow => emit_rotated_polygon(
-            buf,
+            sg,
             tracker,
             &[
                 (0.0, 0.0),
@@ -2142,13 +2152,13 @@ fn emit_arrowhead(
             "#FFFFFF",
             link_color,
         ),
-        ArrowHead::Plus => emit_plus_head(buf, tracker, tip_x, tip_y, base_angle, link_color),
+        ArrowHead::Plus => emit_plus_head(sg, tracker, tip_x, tip_y, base_angle, link_color),
         ArrowHead::None => {}
     }
 }
 
 fn emit_rotated_polygon(
-    buf: &mut String,
+    sg: &mut SvgGraphic,
     tracker: &mut BoundsTracker,
     points: &[(f64, f64)],
     angle: f64,
@@ -2170,25 +2180,28 @@ fn emit_rotated_polygon(
         write!(pts, "{},{}", fmt_coord(rx), fmt_coord(ry)).unwrap();
         rotated_points.push((rx, ry));
     }
-    write!(
-        buf,
-        r#"<polygon fill="{fill}" points="{pts}" style="stroke:{stroke};stroke-width:1;"/>"#,
-    )
-    .unwrap();
+    sg.set_fill_color(fill);
+    sg.set_stroke_color(Some(stroke));
+    sg.set_stroke_width(1.0, None);
+    sg.svg_polygon(0.0, &{
+        let mut flat = Vec::with_capacity(rotated_points.len() * 2);
+        for &(rx, ry) in &rotated_points {
+            flat.push(rx);
+            flat.push(ry);
+        }
+        flat
+    });
     tracker.track_polygon(&rotated_points);
 }
 
-fn emit_plus_head(buf: &mut String, tracker: &mut BoundsTracker, tip_x: f64, tip_y: f64, angle: f64, link_color: &str) {
+fn emit_plus_head(sg: &mut SvgGraphic, tracker: &mut BoundsTracker, tip_x: f64, tip_y: f64, angle: f64, link_color: &str) {
     let radius = 8.0;
     let center_x = tip_x + radius * angle.sin();
     let center_y = tip_y - radius * angle.cos();
-    write!(
-        buf,
-        r##"<circle cx="{}" cy="{}" fill="#FFFFFF" r="8" style="stroke:{link_color};stroke-width:1;"/>"##,
-        fmt_coord(center_x),
-        fmt_coord(center_y),
-    )
-    .unwrap();
+    sg.set_fill_color("#FFFFFF");
+    sg.set_stroke_color(Some(link_color));
+    sg.set_stroke_width(1.0, None);
+    sg.svg_circle(center_x, center_y, 8.0, 0.0);
     tracker.track_ellipse(center_x, center_y, radius, radius);
 
     let p1 = point_on_circle(
@@ -2205,25 +2218,11 @@ fn emit_plus_head(buf: &mut String, tracker: &mut BoundsTracker, tip_x: f64, tip
     );
     let p3 = point_on_circle(center_x, center_y, radius, angle);
     let p4 = point_on_circle(center_x, center_y, radius, angle + std::f64::consts::PI);
-    write!(
-        buf,
-        r#"<line style="stroke:{link_color};stroke-width:1;" x1="{}" x2="{}" y1="{}" y2="{}"/>"#,
-        fmt_coord(p1.0),
-        fmt_coord(p2.0),
-        fmt_coord(p1.1),
-        fmt_coord(p2.1),
-    )
-    .unwrap();
+    sg.set_stroke_color(Some(link_color));
+    sg.set_stroke_width(1.0, None);
+    sg.svg_line(p1.0, p1.1, p2.0, p2.1, 0.0);
     tracker.track_line(p1.0, p1.1, p2.0, p2.1);
-    write!(
-        buf,
-        r#"<line style="stroke:{link_color};stroke-width:1;" x1="{}" x2="{}" y1="{}" y2="{}"/>"#,
-        fmt_coord(p3.0),
-        fmt_coord(p4.0),
-        fmt_coord(p3.1),
-        fmt_coord(p4.1),
-    )
-    .unwrap();
+    sg.svg_line(p3.0, p3.1, p4.0, p4.1, 0.0);
     tracker.track_line(p3.0, p3.1, p4.0, p4.1);
 }
 
@@ -2292,7 +2291,7 @@ fn split_label_lines(text: &str) -> Vec<(String, LabelAlign)> {
 /// - `\n` = center-aligned (each line centered relative to the widest)
 /// - `\l` = left-aligned   (all lines at the same left x)
 /// - `\r` = right-aligned  (all lines right-aligned to the widest)
-fn draw_label(buf: &mut String, text: &str, x: f64, y: f64) {
+fn draw_label(sg: &mut SvgGraphic, text: &str, x: f64, y: f64) {
     let lines = split_label_lines(text);
     let font_family = "SansSerif";
     let font_size = LINK_LABEL_FONT_SIZE;
@@ -2326,23 +2325,19 @@ fn draw_label(buf: &mut String, text: &str, x: f64, y: f64) {
         };
         let line_y = base_y + idx as f64 * line_height;
 
-        write!(
-            buf,
-            r#"<text fill="{}" font-family="{}" font-size="{}" lengthAdjust="spacing" textLength="{}" x="{}" y="{}">{}</text>"#,
-            LABEL_COLOR,
-            xml_escape(&default_font),
-            font_size as i32,
-            fmt_coord(text_w),
-            fmt_coord(line_x),
-            fmt_coord(line_y),
-            xml_escape(line_text),
-        )
-        .unwrap();
+        sg.set_fill_color(LABEL_COLOR);
+        sg.svg_text(
+            line_text, line_x, line_y,
+            Some(&default_font), font_size,
+            None, None, None,
+            text_w, LengthAdjust::Spacing,
+            None, 0, None,
+        );
     }
 }
 
 /// Draw a note in class diagrams (yellow sticky box with folded corner)
-fn draw_class_note(buf: &mut String, tracker: &mut BoundsTracker, note: &ClassNoteLayout) {
+fn draw_class_note(sg: &mut SvgGraphic, tracker: &mut BoundsTracker, note: &ClassNoteLayout) {
     let x = note.x + MARGIN;
     let y = note.y + MARGIN;
     let w = note.width;
@@ -2358,16 +2353,16 @@ fn draw_class_note(buf: &mut String, tracker: &mut BoundsTracker, note: &ClassNo
         (x + w, y + h),
         (x, y + h),
     ];
-    write!(buf,
-        r#"<polygon fill="{bg}" points="{},{} {},{} {},{} {},{} {},{}" style="stroke:{border};stroke-width:1;"/>"#,
-        fmt_coord(note_poly[0].0), fmt_coord(note_poly[0].1),
-        fmt_coord(note_poly[1].0), fmt_coord(note_poly[1].1),
-        fmt_coord(note_poly[2].0), fmt_coord(note_poly[2].1),
-        fmt_coord(note_poly[3].0), fmt_coord(note_poly[3].1),
-        fmt_coord(note_poly[4].0), fmt_coord(note_poly[4].1),
-        bg = NOTE_BG,
-        border = NOTE_BORDER,
-    ).unwrap();
+    sg.set_fill_color(NOTE_BG);
+    sg.set_stroke_color(Some(NOTE_BORDER));
+    sg.set_stroke_width(1.0, None);
+    sg.svg_polygon(0.0, &[
+        note_poly[0].0, note_poly[0].1,
+        note_poly[1].0, note_poly[1].1,
+        note_poly[2].0, note_poly[2].1,
+        note_poly[3].0, note_poly[3].1,
+        note_poly[4].0, note_poly[4].1,
+    ]);
     tracker.track_polygon(&note_poly);
 
     // fold corner triangle
@@ -2381,11 +2376,11 @@ fn draw_class_note(buf: &mut String, tracker: &mut BoundsTracker, note: &ClassNo
         let cy = fmt_coord(fold_pts[0].1);
         let cy2 = fmt_coord(fold_pts[1].1);
         let cx2 = fmt_coord(fold_pts[2].0);
-        write!(buf,
+        sg.push_raw(&format!(
             r#"<path d="M{cx},{cy} L{cx},{cy2} L{cx2},{cy} Z " fill="{bg}" style="stroke:{border};stroke-width:1;"/>"#,
             bg = NOTE_BG,
             border = NOTE_BORDER,
-        ).unwrap();
+        ));
         tracker.track_path_bounds(
             fold_pts[0].0.min(fold_pts[2].0),
             fold_pts[0].1.min(fold_pts[1].1),
@@ -2397,16 +2392,20 @@ fn draw_class_note(buf: &mut String, tracker: &mut BoundsTracker, note: &ClassNo
     // text content
     let text_x = x + NOTE_TEXT_PADDING;
     let text_y = y + LINE_HEIGHT;
-    render_creole_text(
-        buf,
-        &note.text,
+    {
+        let mut tmp = String::new();
+        render_creole_text(
+            &mut tmp,
+            &note.text,
         text_x,
         text_y,
         LINE_HEIGHT,
         LABEL_COLOR,
         None,
-        &format!(r#"font-size="{FONT_SIZE}""#),
-    );
+            &format!(r#"font-size="{FONT_SIZE}""#),
+        );
+        sg.push_raw(&tmp);
+    }
 
     // connector line (dashed)
     if let Some((from_x, from_y, to_x, to_y)) = note.connector {
@@ -2414,14 +2413,9 @@ fn draw_class_note(buf: &mut String, tracker: &mut BoundsTracker, note: &ClassNo
         let ly1 = from_y + MARGIN;
         let lx2 = to_x + MARGIN;
         let ly2 = to_y + MARGIN;
-        write!(buf,
-            r#"<line style="stroke:{border};stroke-width:1;stroke-dasharray:5,3;" x1="{}" x2="{}" y1="{}" y2="{}"/>"#,
-            fmt_coord(lx1),
-            fmt_coord(lx2),
-            fmt_coord(ly1),
-            fmt_coord(ly2),
-            border = NOTE_BORDER,
-        ).unwrap();
+        sg.set_stroke_color(Some(NOTE_BORDER));
+        sg.set_stroke_width(1.0, Some((5.0, 3.0)));
+        sg.svg_line(lx1, ly1, lx2, ly2, 0.0);
         tracker.track_line(lx1, ly1, lx2, ly2);
     }
 }
