@@ -51,7 +51,7 @@ src/svek/         # Graphviz 布局引擎（Java svek 包移植）
   extremity.rs    # 箭头端点
 
 src/skin/         # 主题系统
-  rose.rs         # Rose 默认主题常量 + DrawOp
+  rose.rs         # Rose 默认主题常量 + draw 函数 (直接写入 SvgGraphic)
   arrow.rs        # ArrowConfiguration
 
 src/style/        # CSS 样式系统
@@ -168,7 +168,7 @@ svek 底座已完整实现 Java 的 DOT 生成逻辑。
 | `tests/fixtures/` | 测试用 .puml 输入文件 |
 | `src/klimt/svg.rs` | SvgGraphic 底座（Java 精确属性序） |
 | `src/svek/builder.rs` | GraphvizImageBuilder（Java svek 移植） |
-| `src/skin/rose.rs` | 统一常量 + DrawOp |
+| `src/skin/rose.rs` | 统一常量 + draw 函数 |
 | `src/render/svg.rs:render_class_diagram()` | class 渲染入口 (~line 850) |
 | `src/layout/sequence.rs:layout_sequence()` | sequence 布局入口 |
 

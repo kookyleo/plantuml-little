@@ -8,7 +8,8 @@
 use crate::klimt::color::HColor;
 use crate::klimt::geom::{XDimension2D, XPoint2D};
 use crate::klimt::shape::UPath;
-use crate::klimt::{Fashion, UStroke, UTranslate};
+use crate::klimt::svg::SvgGraphic;
+use crate::klimt::{Fashion, UStroke};
 use crate::skin::arrow::{
     ArrowBody, ArrowConfiguration, ArrowDecoration, ArrowDirection, ArrowHead, ArrowPart,
 };
@@ -58,70 +59,6 @@ pub const DIVIDER_COLOR: &str = "#888888";
 pub const FORK_FILL: &str = "#000000";
 /// Initial/start state fill. Java: `#222222`
 pub const INITIAL_FILL: &str = "#222222";
-
-// ── DrawOp: output-independent drawing instruction ──────────────────
-
-/// A single drawing instruction produced by component rendering.
-/// This is our lightweight alternative to Java's UGraphic visitor pattern.
-/// The SVG/PNG renderer consumes these to produce output.
-#[derive(Debug, Clone)]
-pub enum DrawOp {
-    /// Draw a rectangle at (translate), with given dimensions and rounding.
-    Rect {
-        translate: UTranslate,
-        width: f64,
-        height: f64,
-        rx: f64,
-        stroke: UStroke,
-        color: Option<HColor>,
-        fill: Option<HColor>,
-        shadow: f64,
-    },
-    /// Draw a line from (translate) with relative (dx, dy).
-    Line {
-        translate: UTranslate,
-        dx: f64,
-        dy: f64,
-        stroke: UStroke,
-        color: Option<HColor>,
-    },
-    /// Draw a UPath at (translate).
-    Path {
-        translate: UTranslate,
-        path: UPath,
-        stroke: UStroke,
-        color: Option<HColor>,
-        fill: Option<HColor>,
-        shadow: f64,
-    },
-    /// Draw a polygon (filled) at (translate).
-    Polygon {
-        translate: UTranslate,
-        points: Vec<(f64, f64)>,
-        stroke: UStroke,
-        color: Option<HColor>,
-        fill: Option<HColor>,
-    },
-    /// Draw an ellipse at (translate).
-    Ellipse {
-        translate: UTranslate,
-        width: f64,
-        height: f64,
-        stroke: UStroke,
-        color: Option<HColor>,
-        fill: Option<HColor>,
-    },
-    /// Draw text at (translate).
-    Text {
-        translate: UTranslate,
-        text: String,
-        font_family: String,
-        font_size: f64,
-        bold: bool,
-        italic: bool,
-        color: Option<HColor>,
-    },
-}
 
 // ── Area ────────────────────────────────────────────────────────────
 
@@ -520,7 +457,7 @@ pub fn englober_preferred_size(text: &TextMetrics) -> XDimension2D {
 }
 
 // ══════════════════════════════════════════════════════════════════════
-// Drawing functions - produce Vec<DrawOp>
+// Drawing functions - write directly into SvgGraphic
 // ══════════════════════════════════════════════════════════════════════
 
 /// Build the polygon for a normal arrow head (pointing right).
@@ -609,9 +546,10 @@ pub fn polygon_self(config: &ArrowConfiguration, nice_arrow: bool) -> Vec<(f64, 
     }
 }
 
-/// Generate DrawOps for a normal (non-self) arrow.
+/// Draw a normal (non-self) arrow into an SvgGraphic.
 /// Java: `ComponentRoseArrow.drawInternalU`
 pub fn draw_arrow(
+    sg: &mut SvgGraphic,
     config: &ArrowConfiguration,
     text: &TextMetrics,
     area: &Area,
@@ -622,11 +560,10 @@ pub fn draw_arrow(
     below_for_response: bool,
     inclination1: f64,
     inclination2: f64,
-) -> Vec<DrawOp> {
+) {
     if config.is_hidden() {
-        return vec![];
+        return;
     }
-    let mut ops = Vec::new();
     let dim = area.dimension;
 
     let dressing1 = config.dressing1();
@@ -693,155 +630,94 @@ pub fn draw_arrow(
     };
 
     if inclination1 == 0.0 && inclination2 == 0.0 {
-        ops.push(DrawOp::Line {
-            translate: UTranslate::new(start, pos_arrow),
-            dx: len,
-            dy: 0.0,
-            stroke: line_stroke,
-            color: Some(fg_color.clone()),
-        });
+        sg.set_stroke_color(Some(&fg_color.to_svg()));
+        sg.set_stroke_width(line_stroke.thickness, line_stroke.dasharray_svg());
+        sg.svg_line(start, pos_arrow, start + len, pos_arrow, 0.0);
     }
 
     // Dressing2 (right end) - normal arrow head
     if dressing2.head == ArrowHead::Normal {
         let poly = polygon_normal(ArrowPart::Full, nice_arrow);
-        ops.push(DrawOp::Polygon {
-            translate: UTranslate::new(pos2, pos_arrow + inclination2),
-            points: poly,
-            stroke: stroke.clone(),
-            color: Some(fg_color.clone()),
-            fill: Some(fg_color.clone()),
-        });
+        sg.set_fill_color(&fg_color.to_svg());
+        sg.set_stroke_color(Some(&fg_color.to_svg()));
+        sg.set_stroke_width(stroke.thickness, stroke.dasharray_svg());
+        let flat: Vec<f64> = poly.iter().flat_map(|&(x, y)| [pos2 + x, pos_arrow + inclination2 + y]).collect();
+        sg.svg_polygon(0.0, &flat);
     } else if dressing2.head == ArrowHead::Async {
         if config.part() != ArrowPart::BottomPart {
-            ops.push(DrawOp::Line {
-                translate: UTranslate::new(pos2, pos_arrow + inclination2),
-                dx: -ARROW_DELTA_X,
-                dy: -ARROW_DELTA_Y,
-                stroke: stroke.clone(),
-                color: Some(fg_color.clone()),
-            });
+            sg.set_stroke_color(Some(&fg_color.to_svg()));
+            sg.set_stroke_width(stroke.thickness, stroke.dasharray_svg());
+            sg.svg_line(pos2, pos_arrow + inclination2, pos2 - ARROW_DELTA_X, pos_arrow + inclination2 - ARROW_DELTA_Y, 0.0);
         }
         if config.part() != ArrowPart::TopPart {
-            ops.push(DrawOp::Line {
-                translate: UTranslate::new(pos2, pos_arrow + inclination2),
-                dx: -ARROW_DELTA_X,
-                dy: ARROW_DELTA_Y,
-                stroke: stroke.clone(),
-                color: Some(fg_color.clone()),
-            });
+            sg.set_stroke_color(Some(&fg_color.to_svg()));
+            sg.set_stroke_width(stroke.thickness, stroke.dasharray_svg());
+            sg.svg_line(pos2, pos_arrow + inclination2, pos2 - ARROW_DELTA_X, pos_arrow + inclination2 + ARROW_DELTA_Y, 0.0);
         }
     } else if dressing2.head == ArrowHead::CrossX {
         let x_stroke = UStroke::with_thickness(2.0);
-        ops.push(DrawOp::Line {
-            translate: UTranslate::new(
-                pos2 - SPACE_CROSS_X - ARROW_DELTA_X,
-                pos_arrow + inclination2 - ARROW_DELTA_X / 2.0,
-            ),
-            dx: ARROW_DELTA_X,
-            dy: ARROW_DELTA_X,
-            stroke: x_stroke.clone(),
-            color: Some(fg_color.clone()),
-        });
-        ops.push(DrawOp::Line {
-            translate: UTranslate::new(
-                pos2 - SPACE_CROSS_X - ARROW_DELTA_X,
-                pos_arrow + inclination2 + ARROW_DELTA_X / 2.0,
-            ),
-            dx: ARROW_DELTA_X,
-            dy: -ARROW_DELTA_X,
-            stroke: x_stroke,
-            color: Some(fg_color.clone()),
-        });
+        sg.set_stroke_color(Some(&fg_color.to_svg()));
+        sg.set_stroke_width(x_stroke.thickness, x_stroke.dasharray_svg());
+        let x0 = pos2 - SPACE_CROSS_X - ARROW_DELTA_X;
+        let y0 = pos_arrow + inclination2 - ARROW_DELTA_X / 2.0;
+        sg.svg_line(x0, y0, x0 + ARROW_DELTA_X, y0 + ARROW_DELTA_X, 0.0);
+        let y1 = pos_arrow + inclination2 + ARROW_DELTA_X / 2.0;
+        sg.svg_line(x0, y1, x0 + ARROW_DELTA_X, y1 - ARROW_DELTA_X, 0.0);
     }
 
     // Dressing1 (left end) - reverse arrow head
     if dressing1.head == ArrowHead::Normal {
         let poly = polygon_reverse(ArrowPart::Full, nice_arrow);
-        ops.push(DrawOp::Polygon {
-            translate: UTranslate::new(pos1, pos_arrow + inclination1),
-            points: poly,
-            stroke: stroke.clone(),
-            color: Some(fg_color.clone()),
-            fill: Some(fg_color.clone()),
-        });
+        sg.set_fill_color(&fg_color.to_svg());
+        sg.set_stroke_color(Some(&fg_color.to_svg()));
+        sg.set_stroke_width(stroke.thickness, stroke.dasharray_svg());
+        let flat: Vec<f64> = poly.iter().flat_map(|&(x, y)| [pos1 + x, pos_arrow + inclination1 + y]).collect();
+        sg.svg_polygon(0.0, &flat);
     } else if dressing1.head == ArrowHead::Async {
         if config.part() != ArrowPart::BottomPart {
-            ops.push(DrawOp::Line {
-                translate: UTranslate::new(pos1, pos_arrow + inclination1),
-                dx: ARROW_DELTA_X,
-                dy: -ARROW_DELTA_Y,
-                stroke: stroke.clone(),
-                color: Some(fg_color.clone()),
-            });
+            sg.set_stroke_color(Some(&fg_color.to_svg()));
+            sg.set_stroke_width(stroke.thickness, stroke.dasharray_svg());
+            sg.svg_line(pos1, pos_arrow + inclination1, pos1 + ARROW_DELTA_X, pos_arrow + inclination1 - ARROW_DELTA_Y, 0.0);
         }
         if config.part() != ArrowPart::TopPart {
-            ops.push(DrawOp::Line {
-                translate: UTranslate::new(pos1, pos_arrow + inclination1),
-                dx: ARROW_DELTA_X,
-                dy: ARROW_DELTA_Y,
-                stroke: stroke.clone(),
-                color: Some(fg_color.clone()),
-            });
+            sg.set_stroke_color(Some(&fg_color.to_svg()));
+            sg.set_stroke_width(stroke.thickness, stroke.dasharray_svg());
+            sg.svg_line(pos1, pos_arrow + inclination1, pos1 + ARROW_DELTA_X, pos_arrow + inclination1 + ARROW_DELTA_Y, 0.0);
         }
     } else if dressing1.head == ArrowHead::CrossX {
         let x_stroke = UStroke::with_thickness(2.0);
-        ops.push(DrawOp::Line {
-            translate: UTranslate::new(
-                pos1 + SPACE_CROSS_X,
-                pos_arrow + inclination1 - ARROW_DELTA_X / 2.0,
-            ),
-            dx: ARROW_DELTA_X,
-            dy: ARROW_DELTA_X,
-            stroke: x_stroke.clone(),
-            color: Some(fg_color.clone()),
-        });
-        ops.push(DrawOp::Line {
-            translate: UTranslate::new(
-                pos1 + SPACE_CROSS_X,
-                pos_arrow + inclination1 + ARROW_DELTA_X / 2.0,
-            ),
-            dx: ARROW_DELTA_X,
-            dy: -ARROW_DELTA_X,
-            stroke: x_stroke,
-            color: Some(fg_color.clone()),
-        });
+        sg.set_stroke_color(Some(&fg_color.to_svg()));
+        sg.set_stroke_width(x_stroke.thickness, x_stroke.dasharray_svg());
+        let x0 = pos1 + SPACE_CROSS_X;
+        let y0 = pos_arrow + inclination1 - ARROW_DELTA_X / 2.0;
+        sg.svg_line(x0, y0, x0 + ARROW_DELTA_X, y0 + ARROW_DELTA_X, 0.0);
+        let y1 = pos_arrow + inclination1 + ARROW_DELTA_X / 2.0;
+        sg.svg_line(x0, y1, x0 + ARROW_DELTA_X, y1 - ARROW_DELTA_X, 0.0);
     }
 
     // Decorations (circles)
     if config.decoration1() == ArrowDecoration::Circle {
-        ops.push(DrawOp::Ellipse {
-            translate: UTranslate::new(
-                pos1 - DIAM_CIRCLE / 2.0 - THIN_CIRCLE,
-                pos_arrow + inclination1 - DIAM_CIRCLE / 2.0 - THIN_CIRCLE / 2.0,
-            ),
-            width: DIAM_CIRCLE,
-            height: DIAM_CIRCLE,
-            stroke: UStroke::with_thickness(THIN_CIRCLE),
-            color: Some(fg_color.clone()),
-            fill: Some(bg_color.clone()),
-        });
+        let cx = pos1 - DIAM_CIRCLE / 2.0 - THIN_CIRCLE + DIAM_CIRCLE / 2.0;
+        let cy = pos_arrow + inclination1 - DIAM_CIRCLE / 2.0 - THIN_CIRCLE / 2.0 + DIAM_CIRCLE / 2.0;
+        sg.set_fill_color(&bg_color.to_svg());
+        sg.set_stroke_color(Some(&fg_color.to_svg()));
+        sg.set_stroke_width(THIN_CIRCLE, None);
+        sg.svg_ellipse(cx, cy, DIAM_CIRCLE / 2.0, DIAM_CIRCLE / 2.0, 0.0);
     }
     if config.decoration2() == ArrowDecoration::Circle {
-        ops.push(DrawOp::Ellipse {
-            translate: UTranslate::new(
-                pos2 - DIAM_CIRCLE / 2.0 + THIN_CIRCLE,
-                pos_arrow + inclination2 - DIAM_CIRCLE / 2.0 - THIN_CIRCLE / 2.0,
-            ),
-            width: DIAM_CIRCLE,
-            height: DIAM_CIRCLE,
-            stroke: UStroke::with_thickness(THIN_CIRCLE),
-            color: Some(fg_color.clone()),
-            fill: Some(bg_color.clone()),
-        });
+        let cx = pos2 - DIAM_CIRCLE / 2.0 + THIN_CIRCLE + DIAM_CIRCLE / 2.0;
+        let cy = pos_arrow + inclination2 - DIAM_CIRCLE / 2.0 - THIN_CIRCLE / 2.0 + DIAM_CIRCLE / 2.0;
+        sg.set_fill_color(&bg_color.to_svg());
+        sg.set_stroke_color(Some(&fg_color.to_svg()));
+        sg.set_stroke_width(THIN_CIRCLE, None);
+        sg.svg_ellipse(cx, cy, DIAM_CIRCLE / 2.0, DIAM_CIRCLE / 2.0, 0.0);
     }
-
-    ops
 }
 
-/// Generate DrawOps for a self-arrow (right side).
+/// Draw a self-arrow (right side) into an SvgGraphic.
 /// Java: `ComponentRoseSelfArrow.drawRightSide`
 pub fn draw_self_arrow(
+    sg: &mut SvgGraphic,
     config: &ArrowConfiguration,
     text: &TextMetrics,
     _area: &Area,
@@ -849,11 +725,10 @@ pub fn draw_self_arrow(
     _bg_color: &HColor,
     stroke: &UStroke,
     nice_arrow: bool,
-) -> Vec<DrawOp> {
+) {
     if config.is_hidden() {
-        return vec![];
+        return;
     }
-    let mut ops = Vec::new();
     let text_height = text.text_height();
     let arrow_height = SELF_ARROW_ONLY_HEIGHT;
 
@@ -884,137 +759,78 @@ pub fn draw_self_arrow(
     }
 
     // Three lines forming the self-arrow bracket
+    sg.set_stroke_color(Some(&fg_color.to_svg()));
+    sg.set_stroke_width(line_stroke.thickness, line_stroke.dasharray_svg());
     // Top horizontal
-    ops.push(DrawOp::Line {
-        translate: UTranslate::new(x1, text_height),
-        dx: SELF_ARROW_XRIGHT - x1,
-        dy: 0.0,
-        stroke: line_stroke.clone(),
-        color: Some(fg_color.clone()),
-    });
+    sg.svg_line(x1, text_height, SELF_ARROW_XRIGHT, text_height, 0.0);
     // Vertical
-    ops.push(DrawOp::Line {
-        translate: UTranslate::new(SELF_ARROW_XRIGHT, text_height),
-        dx: 0.0,
-        dy: arrow_height,
-        stroke: line_stroke.clone(),
-        color: Some(fg_color.clone()),
-    });
+    sg.svg_line(SELF_ARROW_XRIGHT, text_height, SELF_ARROW_XRIGHT, text_height + arrow_height, 0.0);
     // Bottom horizontal
-    ops.push(DrawOp::Line {
-        translate: UTranslate::new(x2, text_height + arrow_height),
-        dx: SELF_ARROW_XRIGHT - x2,
-        dy: 0.0,
-        stroke: line_stroke,
-        color: Some(fg_color.clone()),
-    });
+    sg.svg_line(x2, text_height + arrow_height, SELF_ARROW_XRIGHT, text_height + arrow_height, 0.0);
 
     // Arrow head at bottom-left
     if has_final_cross {
         let x_stroke = UStroke::with_thickness(2.0);
-        ops.push(DrawOp::Line {
-            translate: UTranslate::new(
-                SPACE_CROSS_X,
-                text_height - ARROW_DELTA_X / 2.0 + arrow_height,
-            ),
-            dx: ARROW_DELTA_X,
-            dy: ARROW_DELTA_X,
-            stroke: x_stroke.clone(),
-            color: Some(fg_color.clone()),
-        });
-        ops.push(DrawOp::Line {
-            translate: UTranslate::new(
-                SPACE_CROSS_X,
-                text_height + ARROW_DELTA_X / 2.0 + arrow_height,
-            ),
-            dx: ARROW_DELTA_X,
-            dy: -ARROW_DELTA_X,
-            stroke: x_stroke,
-            color: Some(fg_color.clone()),
-        });
+        sg.set_stroke_color(Some(&fg_color.to_svg()));
+        sg.set_stroke_width(x_stroke.thickness, x_stroke.dasharray_svg());
+        let y0 = text_height - ARROW_DELTA_X / 2.0 + arrow_height;
+        sg.svg_line(SPACE_CROSS_X, y0, SPACE_CROSS_X + ARROW_DELTA_X, y0 + ARROW_DELTA_X, 0.0);
+        let y1 = text_height + ARROW_DELTA_X / 2.0 + arrow_height;
+        sg.svg_line(SPACE_CROSS_X, y1, SPACE_CROSS_X + ARROW_DELTA_X, y1 - ARROW_DELTA_X, 0.0);
     } else if config.dressing2().head == ArrowHead::Async {
         if config.part() != ArrowPart::BottomPart {
-            ops.push(DrawOp::Line {
-                translate: UTranslate::new(x2, text_height + arrow_height),
-                dx: ARROW_DELTA_X,
-                dy: -ARROW_DELTA_Y,
-                stroke: stroke.clone(),
-                color: Some(fg_color.clone()),
-            });
+            sg.set_stroke_color(Some(&fg_color.to_svg()));
+            sg.set_stroke_width(stroke.thickness, stroke.dasharray_svg());
+            sg.svg_line(x2, text_height + arrow_height, x2 + ARROW_DELTA_X, text_height + arrow_height - ARROW_DELTA_Y, 0.0);
         }
         if config.part() != ArrowPart::TopPart {
-            ops.push(DrawOp::Line {
-                translate: UTranslate::new(x2, text_height + arrow_height),
-                dx: ARROW_DELTA_X,
-                dy: ARROW_DELTA_Y,
-                stroke: stroke.clone(),
-                color: Some(fg_color.clone()),
-            });
+            sg.set_stroke_color(Some(&fg_color.to_svg()));
+            sg.set_stroke_width(stroke.thickness, stroke.dasharray_svg());
+            sg.svg_line(x2, text_height + arrow_height, x2 + ARROW_DELTA_X, text_height + arrow_height + ARROW_DELTA_Y, 0.0);
         }
     } else if config.dressing2().head == ArrowHead::Normal {
         let poly = polygon_self(config, nice_arrow);
-        ops.push(DrawOp::Polygon {
-            translate: UTranslate::new(x2, text_height + arrow_height),
-            points: poly,
-            stroke: stroke.clone(),
-            color: Some(fg_color.clone()),
-            fill: Some(fg_color.clone()),
-        });
+        sg.set_fill_color(&fg_color.to_svg());
+        sg.set_stroke_color(Some(&fg_color.to_svg()));
+        sg.set_stroke_width(stroke.thickness, stroke.dasharray_svg());
+        let flat: Vec<f64> = poly.iter().flat_map(|&(px, py)| [x2 + px, text_height + arrow_height + py]).collect();
+        sg.svg_polygon(0.0, &flat);
     }
 
     // Starting dressing (top-left)
     if has_starting_cross {
         let x_stroke = UStroke::with_thickness(2.0);
-        ops.push(DrawOp::Line {
-            translate: UTranslate::new(SPACE_CROSS_X, text_height - ARROW_DELTA_X / 2.0),
-            dx: ARROW_DELTA_X,
-            dy: ARROW_DELTA_X,
-            stroke: x_stroke.clone(),
-            color: Some(fg_color.clone()),
-        });
-        ops.push(DrawOp::Line {
-            translate: UTranslate::new(SPACE_CROSS_X, text_height + ARROW_DELTA_X / 2.0),
-            dx: ARROW_DELTA_X,
-            dy: -ARROW_DELTA_X,
-            stroke: x_stroke,
-            color: Some(fg_color.clone()),
-        });
+        sg.set_stroke_color(Some(&fg_color.to_svg()));
+        sg.set_stroke_width(x_stroke.thickness, x_stroke.dasharray_svg());
+        let y0 = text_height - ARROW_DELTA_X / 2.0;
+        sg.svg_line(SPACE_CROSS_X, y0, SPACE_CROSS_X + ARROW_DELTA_X, y0 + ARROW_DELTA_X, 0.0);
+        let y1 = text_height + ARROW_DELTA_X / 2.0;
+        sg.svg_line(SPACE_CROSS_X, y1, SPACE_CROSS_X + ARROW_DELTA_X, y1 - ARROW_DELTA_X, 0.0);
     } else if config.dressing1().head == ArrowHead::Async {
         if config.part() != ArrowPart::BottomPart {
-            ops.push(DrawOp::Line {
-                translate: UTranslate::new(x1, text_height),
-                dx: ARROW_DELTA_X,
-                dy: ARROW_DELTA_Y,
-                stroke: stroke.clone(),
-                color: Some(fg_color.clone()),
-            });
+            sg.set_stroke_color(Some(&fg_color.to_svg()));
+            sg.set_stroke_width(stroke.thickness, stroke.dasharray_svg());
+            sg.svg_line(x1, text_height, x1 + ARROW_DELTA_X, text_height + ARROW_DELTA_Y, 0.0);
         }
         if config.part() != ArrowPart::TopPart {
-            ops.push(DrawOp::Line {
-                translate: UTranslate::new(x1, text_height),
-                dx: ARROW_DELTA_X,
-                dy: -ARROW_DELTA_Y,
-                stroke: stroke.clone(),
-                color: Some(fg_color.clone()),
-            });
+            sg.set_stroke_color(Some(&fg_color.to_svg()));
+            sg.set_stroke_width(stroke.thickness, stroke.dasharray_svg());
+            sg.svg_line(x1, text_height, x1 + ARROW_DELTA_X, text_height - ARROW_DELTA_Y, 0.0);
         }
     } else if config.dressing1().head == ArrowHead::Normal {
         let poly = polygon_self(config, nice_arrow);
-        ops.push(DrawOp::Polygon {
-            translate: UTranslate::new(x1, text_height),
-            points: poly,
-            stroke: stroke.clone(),
-            color: Some(fg_color.clone()),
-            fill: Some(fg_color.clone()),
-        });
+        sg.set_fill_color(&fg_color.to_svg());
+        sg.set_stroke_color(Some(&fg_color.to_svg()));
+        sg.set_stroke_width(stroke.thickness, stroke.dasharray_svg());
+        let flat: Vec<f64> = poly.iter().flat_map(|&(px, py)| [x1 + px, text_height + py]).collect();
+        sg.svg_polygon(0.0, &flat);
     }
-
-    ops
 }
 
-/// Generate DrawOps for a participant box.
+/// Draw a participant box into an SvgGraphic.
 /// Java: `ComponentRoseParticipant.drawInternalU`
 pub fn draw_participant(
+    sg: &mut SvgGraphic,
     text: &TextMetrics,
     _area: &Area,
     fg_color: &HColor,
@@ -1026,69 +842,36 @@ pub fn draw_participant(
     collections: bool,
     padding: f64,
     min_width: f64,
-) -> Vec<DrawOp> {
-    let mut ops = Vec::new();
-
+) {
     let pure = f64::max(text.pure_text_width, min_width);
     let tw = pure + text.margin_x1 + text.margin_x2;
     let th = text.text_height();
     let delta_coll = if collections { COLLECTIONS_DELTA } else { 0.0 };
 
-    let supp_width = pure - text.pure_text_width;
-
     if collections {
-        ops.push(DrawOp::Rect {
-            translate: UTranslate::new(padding + delta_coll, 0.0),
-            width: tw,
-            height: th,
-            rx: round_corner,
-            stroke: stroke.clone(),
-            color: Some(fg_color.clone()),
-            fill: Some(bg_color.clone()),
-            shadow: delta_shadow,
-        });
+        sg.set_fill_color(&bg_color.to_svg());
+        sg.set_stroke_color(Some(&fg_color.to_svg()));
+        sg.set_stroke_width(stroke.thickness, stroke.dasharray_svg());
+        sg.svg_rectangle(padding + delta_coll, 0.0, tw, th, round_corner, round_corner, delta_shadow);
     }
 
-    ops.push(DrawOp::Rect {
-        translate: UTranslate::new(padding, delta_coll),
-        width: tw,
-        height: th,
-        rx: round_corner,
-        stroke: stroke.clone(),
-        color: Some(fg_color.clone()),
-        fill: Some(bg_color.clone()),
-        shadow: delta_shadow,
-    });
-
-    // text position
-    ops.push(DrawOp::Text {
-        translate: UTranslate::new(
-            padding + text.margin_x1 + supp_width / 2.0,
-            delta_coll + text.margin_y,
-        ),
-        text: String::new(), // placeholder: actual text drawn by caller
-        font_family: String::new(),
-        font_size: 0.0,
-        bold: false,
-        italic: false,
-        color: None,
-    });
-
-    ops
+    sg.set_fill_color(&bg_color.to_svg());
+    sg.set_stroke_color(Some(&fg_color.to_svg()));
+    sg.set_stroke_width(stroke.thickness, stroke.dasharray_svg());
+    sg.svg_rectangle(padding, delta_coll, tw, th, round_corner, round_corner, delta_shadow);
 }
 
-/// Generate DrawOps for a note.
+/// Draw a note into an SvgGraphic.
 /// Java: `ComponentRoseNote.drawInternalU`
 pub fn draw_note(
+    sg: &mut SvgGraphic,
     text: &TextMetrics,
     area: &Area,
     fashion: &Fashion,
     padding_x: f64,
     padding_y: f64,
     round_corner: f64,
-) -> Vec<DrawOp> {
-    let mut ops = Vec::new();
-
+) {
     let text_height = text.text_height() as i32;
     let mut x2 = text.text_width() as i32;
 
@@ -1120,35 +903,26 @@ pub fn draw_note(
         path.arc_to(r, r, 0.0, 0.0, 1.0, r, 0.0);
     }
 
-    ops.push(DrawOp::Path {
-        translate: UTranslate::none(),
-        path,
-        stroke: fashion.stroke.clone(),
-        color: fashion.fore_color.clone(),
-        fill: fashion.back_color.clone(),
-        shadow: fashion.delta_shadow,
-    });
+    if let Some(ref f) = fashion.back_color { sg.set_fill_color(&f.to_svg()); }
+    if let Some(ref c) = fashion.fore_color { sg.set_stroke_color(Some(&c.to_svg())); }
+    sg.set_stroke_width(fashion.stroke.thickness, fashion.stroke.dasharray_svg());
+    sg.svg_path(0.0, 0.0, &path, fashion.delta_shadow);
 
     // Corner fold
     let mut corner = UPath::new();
     corner.move_to(x2 as f64 - CORNER_SIZE, 0.0);
     corner.line_to(x2 as f64 - CORNER_SIZE, CORNER_SIZE);
     corner.line_to(x2 as f64, CORNER_SIZE);
-    ops.push(DrawOp::Path {
-        translate: UTranslate::none(),
-        path: corner,
-        stroke: fashion.stroke.clone(),
-        color: fashion.fore_color.clone(),
-        fill: None,
-        shadow: 0.0,
-    });
-
-    ops
+    sg.set_fill_color("none");
+    if let Some(ref c) = fashion.fore_color { sg.set_stroke_color(Some(&c.to_svg())); }
+    sg.set_stroke_width(fashion.stroke.thickness, fashion.stroke.dasharray_svg());
+    sg.svg_path(0.0, 0.0, &corner, 0.0);
 }
 
-/// Generate DrawOps for a divider.
+/// Draw a divider into an SvgGraphic.
 /// Java: `ComponentRoseDivider.drawInternalU`
 pub fn draw_divider(
+    sg: &mut SvgGraphic,
     text: &TextMetrics,
     area: &Area,
     border_color: &HColor,
@@ -1157,13 +931,12 @@ pub fn draw_divider(
     round_corner: f64,
     shadow: f64,
     empty: bool,
-) -> Vec<DrawOp> {
-    let mut ops = Vec::new();
+) {
     let dim = area.dimension;
 
     if empty {
         // Just draw separator lines
-        draw_divider_sep(&mut ops, dim.width, dim.height / 2.0, bg_color, border_color, stroke, round_corner, shadow);
+        draw_divider_sep(sg, dim.width, dim.height / 2.0, bg_color, border_color, stroke, round_corner, shadow);
     } else {
         let text_width = text.text_width();
         let text_height = text.text_height();
@@ -1171,26 +944,18 @@ pub fn draw_divider(
         let xpos = (dim.width - text_width - delta_x) / 2.0;
         let ypos = (dim.height - text_height) / 2.0;
 
-        draw_divider_sep(&mut ops, dim.width, dim.height / 2.0, bg_color, border_color, stroke, round_corner, shadow);
+        draw_divider_sep(sg, dim.width, dim.height / 2.0, bg_color, border_color, stroke, round_corner, shadow);
 
         // Text background rect
-        ops.push(DrawOp::Rect {
-            translate: UTranslate::new(xpos, ypos),
-            width: text_width + delta_x,
-            height: text_height,
-            rx: round_corner,
-            stroke: stroke.clone(),
-            color: Some(border_color.clone()),
-            fill: Some(bg_color.clone()),
-            shadow,
-        });
+        sg.set_fill_color(&bg_color.to_svg());
+        sg.set_stroke_color(Some(&border_color.to_svg()));
+        sg.set_stroke_width(stroke.thickness, stroke.dasharray_svg());
+        sg.svg_rectangle(xpos, ypos, text_width + delta_x, text_height, round_corner, round_corner, shadow);
     }
-
-    ops
 }
 
 fn draw_divider_sep(
-    ops: &mut Vec<DrawOp>,
+    sg: &mut SvgGraphic,
     width: f64,
     y: f64,
     bg_color: &HColor,
@@ -1200,87 +965,53 @@ fn draw_divider_sep(
     shadow: f64,
 ) {
     // Background rect (3px tall)
-    ops.push(DrawOp::Rect {
-        translate: UTranslate::new(0.0, y - 1.0),
-        width,
-        height: 3.0,
-        rx: round_corner,
-        stroke: UStroke::simple(),
-        color: Some(bg_color.clone()),
-        fill: Some(bg_color.clone()),
-        shadow,
-    });
+    let simple = UStroke::simple();
+    sg.set_fill_color(&bg_color.to_svg());
+    sg.set_stroke_color(Some(&bg_color.to_svg()));
+    sg.set_stroke_width(simple.thickness, simple.dasharray_svg());
+    sg.svg_rectangle(0.0, y - 1.0, width, 3.0, round_corner, round_corner, shadow);
 
     // Double lines
     let half_thick = stroke.thickness / 2.0;
-    let line_stroke = UStroke::with_thickness(half_thick);
-    ops.push(DrawOp::Line {
-        translate: UTranslate::new(0.0, y - 1.0),
-        dx: width,
-        dy: 0.0,
-        stroke: line_stroke.clone(),
-        color: Some(border_color.clone()),
-    });
-    ops.push(DrawOp::Line {
-        translate: UTranslate::new(0.0, y + 2.0),
-        dx: width,
-        dy: 0.0,
-        stroke: line_stroke,
-        color: Some(border_color.clone()),
-    });
+    sg.set_stroke_color(Some(&border_color.to_svg()));
+    sg.set_stroke_width(half_thick, None);
+    sg.svg_line(0.0, y - 1.0, width, y - 1.0, 0.0);
+    sg.svg_line(0.0, y + 2.0, width, y + 2.0, 0.0);
 }
 
-/// Generate DrawOps for a grouping header.
+/// Draw a grouping header into an SvgGraphic.
 /// Java: `ComponentRoseGroupingHeader.drawInternalU` + `drawBackgroundInternalU`
 pub fn draw_grouping_header(
+    sg: &mut SvgGraphic,
     text: &TextMetrics,
     area: &Area,
     fashion: &Fashion,
     corner_fashion: &Fashion,
     background: &HColor,
     round_corner: f64,
-) -> Vec<DrawOp> {
-    let mut ops = Vec::new();
+) {
     let dim = area.dimension;
     let text_width = text.text_width();
     let text_height = text.text_height();
 
     // Background rect
-    ops.push(DrawOp::Rect {
-        translate: UTranslate::none(),
-        width: dim.width,
-        height: dim.height,
-        rx: round_corner,
-        stroke: fashion.stroke.clone(),
-        color: fashion.fore_color.clone(),
-        fill: Some(background.clone()),
-        shadow: fashion.delta_shadow,
-    });
+    sg.set_fill_color(&background.to_svg());
+    if let Some(ref c) = fashion.fore_color { sg.set_stroke_color(Some(&c.to_svg())); }
+    sg.set_stroke_width(fashion.stroke.thickness, fashion.stroke.dasharray_svg());
+    sg.svg_rectangle(0.0, 0.0, dim.width, dim.height, round_corner, round_corner, fashion.delta_shadow);
 
     // Corner tab
     let corner_path = grouping_corner_path(text_width, text_height, round_corner);
-    ops.push(DrawOp::Path {
-        translate: UTranslate::none(),
-        path: corner_path,
-        stroke: corner_fashion.stroke.clone(),
-        color: corner_fashion.fore_color.clone(),
-        fill: corner_fashion.back_color.clone(),
-        shadow: 0.0,
-    });
+    if let Some(ref f) = corner_fashion.back_color { sg.set_fill_color(&f.to_svg()); }
+    if let Some(ref c) = corner_fashion.fore_color { sg.set_stroke_color(Some(&c.to_svg())); }
+    sg.set_stroke_width(corner_fashion.stroke.thickness, corner_fashion.stroke.dasharray_svg());
+    sg.svg_path(0.0, 0.0, &corner_path, 0.0);
 
     // Outline rect (no fill)
-    ops.push(DrawOp::Rect {
-        translate: UTranslate::none(),
-        width: dim.width,
-        height: dim.height,
-        rx: round_corner,
-        stroke: fashion.stroke.clone(),
-        color: fashion.fore_color.clone(),
-        fill: None,
-        shadow: 0.0,
-    });
-
-    ops
+    sg.set_fill_color("none");
+    if let Some(ref c) = fashion.fore_color { sg.set_stroke_color(Some(&c.to_svg())); }
+    sg.set_stroke_width(fashion.stroke.thickness, fashion.stroke.dasharray_svg());
+    sg.svg_rectangle(0.0, 0.0, dim.width, dim.height, round_corner, round_corner, 0.0);
 }
 
 /// Build the corner tab path for a grouping header.
@@ -1307,205 +1038,132 @@ pub fn grouping_corner_path(width: f64, height: f64, round_corner: f64) -> UPath
     path
 }
 
-/// Generate DrawOps for a grouping else separator.
+/// Draw a grouping else separator into an SvgGraphic.
 /// Java: `ComponentRoseGroupingElse.drawInternalU`
 pub fn draw_grouping_else(
+    sg: &mut SvgGraphic,
     _text: &TextMetrics,
     area: &Area,
     border_color: &HColor,
-) -> Vec<DrawOp> {
-    let mut ops = Vec::new();
+) {
     let dim = area.dimension;
+    let dash_stroke = UStroke::new(2.0, 2.0, 1.0);
 
     // Dashed line
-    ops.push(DrawOp::Line {
-        translate: UTranslate::new(0.0, 1.0),
-        dx: dim.width,
-        dy: 0.0,
-        stroke: UStroke::new(2.0, 2.0, 1.0),
-        color: Some(border_color.clone()),
-    });
-
-    ops
+    sg.set_stroke_color(Some(&border_color.to_svg()));
+    sg.set_stroke_width(dash_stroke.thickness, dash_stroke.dasharray_svg());
+    sg.svg_line(0.0, 1.0, dim.width, 1.0, 0.0);
 }
 
-/// Generate DrawOps for a lifeline.
+/// Draw a lifeline into an SvgGraphic.
 /// Java: `ComponentRoseLine.drawInternalU`
-pub fn draw_line(area: &Area, color: &HColor, stroke: &UStroke) -> Vec<DrawOp> {
+pub fn draw_line(sg: &mut SvgGraphic, area: &Area, color: &HColor, stroke: &UStroke) {
     let dim = area.dimension;
     let x = (dim.width / 2.0) as i32;
-
-    let mut ops = Vec::new();
 
     // Hover target rect (transparent)
     if dim.height > 0.0 {
         let hover_w = 8.0;
-        ops.push(DrawOp::Rect {
-            translate: UTranslate::new((dim.width - hover_w) / 2.0, 0.0),
-            width: hover_w,
-            height: dim.height,
-            rx: 0.0,
-            stroke: UStroke::with_thickness(0.0),
-            color: Some(HColor::None),
-            fill: Some(HColor::None),
-            shadow: 0.0,
-        });
+        let zero_stroke = UStroke::with_thickness(0.0);
+        sg.set_fill_color(&HColor::None.to_svg());
+        sg.set_stroke_color(Some(&HColor::None.to_svg()));
+        sg.set_stroke_width(zero_stroke.thickness, zero_stroke.dasharray_svg());
+        sg.svg_rectangle((dim.width - hover_w) / 2.0, 0.0, hover_w, dim.height, 0.0, 0.0, 0.0);
     }
 
-    ops.push(DrawOp::Line {
-        translate: UTranslate::new(x as f64, 0.0),
-        dx: 0.0,
-        dy: dim.height,
-        stroke: stroke.clone(),
-        color: Some(color.clone()),
-    });
-
-    ops
+    sg.set_stroke_color(Some(&color.to_svg()));
+    sg.set_stroke_width(stroke.thickness, stroke.dasharray_svg());
+    sg.svg_line(x as f64, 0.0, x as f64, dim.height, 0.0);
 }
 
-/// Generate DrawOps for an activation box.
+/// Draw an activation box into an SvgGraphic.
 /// Java: `ComponentRoseActiveLine.drawInternalU`
 pub fn draw_active_line(
+    sg: &mut SvgGraphic,
     area: &Area,
     fashion: &Fashion,
     close_up: bool,
     close_down: bool,
-) -> Vec<DrawOp> {
-    let mut ops = Vec::new();
+) {
     let dim = area.dimension;
     let x = ((dim.width - ACTIVE_LINE_WIDTH) / 2.0) as i32;
 
     if dim.height == 0.0 {
-        return ops;
+        return;
     }
 
     let shadow = if fashion.is_shadowing() { 1.0 } else { 0.0 };
+    let simple = UStroke::simple();
 
     if close_up && close_down {
-        ops.push(DrawOp::Rect {
-            translate: UTranslate::new(x as f64, 0.0),
-            width: ACTIVE_LINE_WIDTH,
-            height: dim.height,
-            rx: 0.0,
-            stroke: UStroke::simple(),
-            color: fashion.fore_color.clone(),
-            fill: fashion.back_color.clone(),
-            shadow,
-        });
+        if let Some(ref f) = fashion.back_color { sg.set_fill_color(&f.to_svg()); }
+        if let Some(ref c) = fashion.fore_color { sg.set_stroke_color(Some(&c.to_svg())); }
+        sg.set_stroke_width(simple.thickness, simple.dasharray_svg());
+        sg.svg_rectangle(x as f64, 0.0, ACTIVE_LINE_WIDTH, dim.height, 0.0, 0.0, shadow);
     } else {
         // Background rect (no border)
-        ops.push(DrawOp::Rect {
-            translate: UTranslate::new(x as f64, 0.0),
-            width: ACTIVE_LINE_WIDTH,
-            height: dim.height,
-            rx: 0.0,
-            stroke: UStroke::simple(),
-            color: fashion.back_color.clone(),
-            fill: fashion.back_color.clone(),
-            shadow: 0.0,
-        });
+        if let Some(ref f) = fashion.back_color { sg.set_fill_color(&f.to_svg()); }
+        if let Some(ref c) = fashion.back_color { sg.set_stroke_color(Some(&c.to_svg())); }
+        sg.set_stroke_width(simple.thickness, simple.dasharray_svg());
+        sg.svg_rectangle(x as f64, 0.0, ACTIVE_LINE_WIDTH, dim.height, 0.0, 0.0, 0.0);
 
         // Left & right vertical lines
-        ops.push(DrawOp::Line {
-            translate: UTranslate::new(x as f64, 0.0),
-            dx: 0.0,
-            dy: dim.height,
-            stroke: UStroke::simple(),
-            color: fashion.fore_color.clone(),
-        });
-        ops.push(DrawOp::Line {
-            translate: UTranslate::new(x as f64 + ACTIVE_LINE_WIDTH, 0.0),
-            dx: 0.0,
-            dy: dim.height,
-            stroke: UStroke::simple(),
-            color: fashion.fore_color.clone(),
-        });
+        if let Some(ref c) = fashion.fore_color { sg.set_stroke_color(Some(&c.to_svg())); }
+        sg.set_stroke_width(simple.thickness, simple.dasharray_svg());
+        sg.svg_line(x as f64, 0.0, x as f64, dim.height, 0.0);
+        sg.svg_line(x as f64 + ACTIVE_LINE_WIDTH, 0.0, x as f64 + ACTIVE_LINE_WIDTH, dim.height, 0.0);
 
         // Top/bottom lines if closed
         if close_up {
-            ops.push(DrawOp::Line {
-                translate: UTranslate::new(x as f64, 0.0),
-                dx: ACTIVE_LINE_WIDTH,
-                dy: 0.0,
-                stroke: UStroke::simple(),
-                color: fashion.fore_color.clone(),
-            });
+            sg.svg_line(x as f64, 0.0, x as f64 + ACTIVE_LINE_WIDTH, 0.0, 0.0);
         }
         if close_down {
-            ops.push(DrawOp::Line {
-                translate: UTranslate::new(x as f64, dim.height),
-                dx: ACTIVE_LINE_WIDTH,
-                dy: 0.0,
-                stroke: UStroke::simple(),
-                color: fashion.fore_color.clone(),
-            });
+            sg.svg_line(x as f64, dim.height, x as f64 + ACTIVE_LINE_WIDTH, dim.height, 0.0);
         }
     }
-
-    ops
 }
 
-/// Generate DrawOps for a destroy cross.
+/// Draw a destroy cross into an SvgGraphic.
 /// Java: `ComponentRoseDestroy.drawInternalU`
-pub fn draw_destroy(color: &HColor, stroke: &UStroke) -> Vec<DrawOp> {
+pub fn draw_destroy(sg: &mut SvgGraphic, color: &HColor, stroke: &UStroke) {
     let s = DESTROY_CROSS_SIZE;
-    vec![
-        DrawOp::Line {
-            translate: UTranslate::none(),
-            dx: 2.0 * s,
-            dy: 2.0 * s,
-            stroke: stroke.clone(),
-            color: Some(color.clone()),
-        },
-        DrawOp::Line {
-            translate: UTranslate::new(0.0, 2.0 * s),
-            dx: 2.0 * s,
-            dy: -2.0 * s,
-            stroke: stroke.clone(),
-            color: Some(color.clone()),
-        },
-    ]
+    sg.set_stroke_color(Some(&color.to_svg()));
+    sg.set_stroke_width(stroke.thickness, stroke.dasharray_svg());
+    sg.svg_line(0.0, 0.0, 2.0 * s, 2.0 * s, 0.0);
+    sg.svg_line(0.0, 2.0 * s, 2.0 * s, 0.0, 0.0);
 }
 
-/// Generate DrawOps for a delay line.
+/// Draw a delay line into an SvgGraphic.
 /// Java: `ComponentRoseDelayLine.drawInternalU`
-pub fn draw_delay_line(area: &Area, color: &HColor, stroke: &UStroke) -> Vec<DrawOp> {
+pub fn draw_delay_line(sg: &mut SvgGraphic, area: &Area, color: &HColor, stroke: &UStroke) {
     let dim = area.dimension;
     let x = (dim.width / 2.0) as i32;
-    vec![DrawOp::Line {
-        translate: UTranslate::new(x as f64, 0.0),
-        dx: 0.0,
-        dy: dim.height,
-        stroke: stroke.clone(),
-        color: Some(color.clone()),
-    }]
+    sg.set_stroke_color(Some(&color.to_svg()));
+    sg.set_stroke_width(stroke.thickness, stroke.dasharray_svg());
+    sg.svg_line(x as f64, 0.0, x as f64, dim.height, 0.0);
 }
 
-/// Generate DrawOps for a newpage line.
+/// Draw a newpage line into an SvgGraphic.
 /// Java: `ComponentRoseNewpage.drawInternalU`
-pub fn draw_newpage(area: &Area, color: &HColor, stroke: &UStroke) -> Vec<DrawOp> {
+pub fn draw_newpage(sg: &mut SvgGraphic, area: &Area, color: &HColor, stroke: &UStroke) {
     let dim = area.dimension;
-    vec![DrawOp::Line {
-        translate: UTranslate::none(),
-        dx: dim.width,
-        dy: 0.0,
-        stroke: stroke.clone(),
-        color: Some(color.clone()),
-    }]
+    sg.set_stroke_color(Some(&color.to_svg()));
+    sg.set_stroke_width(stroke.thickness, stroke.dasharray_svg());
+    sg.svg_line(0.0, 0.0, dim.width, 0.0, 0.0);
 }
 
-/// Generate DrawOps for a reference frame.
+/// Draw a reference frame into an SvgGraphic.
 /// Java: `ComponentRoseReference.drawInternalU`
 pub fn draw_reference(
-    text: &TextMetrics,
+    sg: &mut SvgGraphic,
+    _text: &TextMetrics,
     area: &Area,
     header_fashion: &Fashion,
     body_fashion: &Fashion,
     header_text_width: f64,
     header_text_height: f64,
     round_corner: f64,
-) -> Vec<DrawOp> {
-    let mut ops = Vec::new();
+) {
     let dim = area.dimension;
 
     let text_header_width = reference_header_width(header_text_width) as i32;
@@ -1514,16 +1172,10 @@ pub fn draw_reference(
     // Body rect
     let body_width = dim.width - REF_X_MARGIN * 2.0 - body_fashion.delta_shadow;
     let body_height = dim.height - REF_HEIGHT_FOOTER;
-    ops.push(DrawOp::Rect {
-        translate: UTranslate::new(REF_X_MARGIN, 0.0),
-        width: body_width,
-        height: body_height,
-        rx: round_corner,
-        stroke: body_fashion.stroke.clone(),
-        color: body_fashion.fore_color.clone(),
-        fill: body_fashion.back_color.clone(),
-        shadow: body_fashion.delta_shadow,
-    });
+    if let Some(ref f) = body_fashion.back_color { sg.set_fill_color(&f.to_svg()); }
+    if let Some(ref c) = body_fashion.fore_color { sg.set_stroke_color(Some(&c.to_svg())); }
+    sg.set_stroke_width(body_fashion.stroke.thickness, body_fashion.stroke.dasharray_svg());
+    sg.svg_rectangle(REF_X_MARGIN, 0.0, body_width, body_height, round_corner, round_corner, body_fashion.delta_shadow);
 
     // Header corner tab
     let header_corner = reference_corner_path(
@@ -1531,16 +1183,10 @@ pub fn draw_reference(
         text_header_height as f64,
         round_corner,
     );
-    ops.push(DrawOp::Path {
-        translate: UTranslate::new(REF_X_MARGIN, 0.0),
-        path: header_corner,
-        stroke: header_fashion.stroke.clone(),
-        color: header_fashion.fore_color.clone(),
-        fill: header_fashion.back_color.clone(),
-        shadow: 0.0,
-    });
-
-    ops
+    if let Some(ref f) = header_fashion.back_color { sg.set_fill_color(&f.to_svg()); }
+    if let Some(ref c) = header_fashion.fore_color { sg.set_stroke_color(Some(&c.to_svg())); }
+    sg.set_stroke_width(header_fashion.stroke.thickness, header_fashion.stroke.dasharray_svg());
+    sg.svg_path(REF_X_MARGIN, 0.0, &header_corner, 0.0);
 }
 
 /// Build the corner tab path for a reference header.
@@ -1567,15 +1213,15 @@ pub fn reference_corner_path(width: f64, height: f64, round_corner: f64) -> UPat
     path
 }
 
-/// Generate DrawOps for a note box.
+/// Draw a note box into an SvgGraphic.
 /// Java: `ComponentRoseNoteBox.drawInternalU`
 pub fn draw_note_box(
+    sg: &mut SvgGraphic,
     text: &TextMetrics,
     area: &Area,
     fashion: &Fashion,
     round_corner: f64,
-) -> Vec<DrawOp> {
-    let mut ops = Vec::new();
+) {
     let px = 5.0;
 
     let text_height = text.text_height() as i32;
@@ -1585,28 +1231,20 @@ pub fn draw_note_box(
         x2 = (area.dimension.width - 2.0 * px) as i32;
     }
 
-    ops.push(DrawOp::Rect {
-        translate: UTranslate::none(),
-        width: x2 as f64,
-        height: text_height as f64,
-        rx: round_corner,
-        stroke: fashion.stroke.clone(),
-        color: fashion.fore_color.clone(),
-        fill: fashion.back_color.clone(),
-        shadow: fashion.delta_shadow,
-    });
-
-    ops
+    if let Some(ref f) = fashion.back_color { sg.set_fill_color(&f.to_svg()); }
+    if let Some(ref c) = fashion.fore_color { sg.set_stroke_color(Some(&c.to_svg())); }
+    sg.set_stroke_width(fashion.stroke.thickness, fashion.stroke.dasharray_svg());
+    sg.svg_rectangle(0.0, 0.0, x2 as f64, text_height as f64, round_corner, round_corner, fashion.delta_shadow);
 }
 
-/// Generate DrawOps for a hexagonal note.
+/// Draw a hexagonal note into an SvgGraphic.
 /// Java: `ComponentRoseNoteHexagonal.drawInternalU`
 pub fn draw_note_hexagonal(
+    sg: &mut SvgGraphic,
     text: &TextMetrics,
     area: &Area,
     fashion: &Fashion,
-) -> Vec<DrawOp> {
-    let mut ops = Vec::new();
+) {
     let px = 5.0;
 
     let text_height = text.text_height() as i32;
@@ -1628,36 +1266,27 @@ pub fn draw_note_hexagonal(
         (cs, 0.0),
     ];
 
-    ops.push(DrawOp::Polygon {
-        translate: UTranslate::none(),
-        points,
-        stroke: fashion.stroke.clone(),
-        color: fashion.fore_color.clone(),
-        fill: fashion.back_color.clone(),
-    });
-
-    ops
+    if let Some(ref f) = fashion.back_color { sg.set_fill_color(&f.to_svg()); }
+    if let Some(ref c) = fashion.fore_color { sg.set_stroke_color(Some(&c.to_svg())); }
+    sg.set_stroke_width(fashion.stroke.thickness, fashion.stroke.dasharray_svg());
+    let flat: Vec<f64> = points.iter().flat_map(|&(x, y)| [x, y]).collect();
+    sg.svg_polygon(0.0, &flat);
 }
 
-/// Generate DrawOps for an englober (box around participants).
+/// Draw an englober (box around participants) into an SvgGraphic.
 /// Java: `ComponentRoseEnglober.drawBackgroundInternalU`
 pub fn draw_englober(
+    sg: &mut SvgGraphic,
     _text: &TextMetrics,
     area: &Area,
     fashion: &Fashion,
     round_corner: f64,
-) -> Vec<DrawOp> {
+) {
     let dim = area.dimension;
-    vec![DrawOp::Rect {
-        translate: UTranslate::none(),
-        width: dim.width,
-        height: dim.height,
-        rx: round_corner,
-        stroke: fashion.stroke.clone(),
-        color: fashion.fore_color.clone(),
-        fill: fashion.back_color.clone(),
-        shadow: fashion.delta_shadow,
-    }]
+    if let Some(ref f) = fashion.back_color { sg.set_fill_color(&f.to_svg()); }
+    if let Some(ref c) = fashion.fore_color { sg.set_stroke_color(Some(&c.to_svg())); }
+    sg.set_stroke_width(fashion.stroke.thickness, fashion.stroke.dasharray_svg());
+    sg.svg_rectangle(0.0, 0.0, dim.width, dim.height, round_corner, round_corner, fashion.delta_shadow);
 }
 
 // ══════════════════════════════════════════════════════════════════════
@@ -2086,7 +1715,11 @@ mod tests {
         assert_eq!(start.x, end.x);
     }
 
-    // ── Drawing functions produce ops ───────────────────────────────
+    // ── Drawing functions produce SVG ─────────────────────────────────
+
+    fn new_sg() -> SvgGraphic {
+        SvgGraphic::new(0, 1.0)
+    }
 
     #[test]
     fn draw_arrow_hidden_produces_empty() {
@@ -2097,8 +1730,9 @@ mod tests {
         let fg = HColor::rgb(0, 0, 0);
         let bg = HColor::rgb(255, 255, 255);
         let stroke = UStroke::simple();
-        let ops = draw_arrow(&hidden_config, &tm, &area, &fg, &bg, &stroke, true, false, 0.0, 0.0);
-        assert!(ops.is_empty());
+        let mut sg = new_sg();
+        draw_arrow(&mut sg, &hidden_config, &tm, &area, &fg, &bg, &stroke, true, false, 0.0, 0.0);
+        assert!(sg.body().is_empty());
     }
 
     #[test]
@@ -2109,13 +1743,13 @@ mod tests {
         let fg = HColor::rgb(0, 0, 0);
         let bg = HColor::rgb(255, 255, 255);
         let stroke = UStroke::simple();
-        let ops = draw_arrow(&config, &tm, &area, &fg, &bg, &stroke, true, false, 0.0, 0.0);
-        assert!(!ops.is_empty());
+        let mut sg = new_sg();
+        draw_arrow(&mut sg, &config, &tm, &area, &fg, &bg, &stroke, true, false, 0.0, 0.0);
+        let body = sg.body();
+        assert!(!body.is_empty());
         // Should have at least a line and a polygon
-        let has_line = ops.iter().any(|op| matches!(op, DrawOp::Line { .. }));
-        let has_poly = ops.iter().any(|op| matches!(op, DrawOp::Polygon { .. }));
-        assert!(has_line);
-        assert!(has_poly);
+        assert!(body.contains("<line"), "should have a line");
+        assert!(body.contains("<polygon"), "should have a polygon");
     }
 
     #[test]
@@ -2127,11 +1761,13 @@ mod tests {
         let fg = HColor::rgb(0, 0, 0);
         let bg = HColor::rgb(255, 255, 255);
         let stroke = UStroke::simple();
-        let ops = draw_arrow(&config, &tm, &area, &fg, &bg, &stroke, true, false, 0.0, 0.0);
-        assert!(!ops.is_empty());
-        // Async arrow: two angled lines instead of polygon
-        let line_count = ops.iter().filter(|op| matches!(op, DrawOp::Line { .. })).count();
-        assert!(line_count >= 3); // main line + 2 async head lines
+        let mut sg = new_sg();
+        draw_arrow(&mut sg, &config, &tm, &area, &fg, &bg, &stroke, true, false, 0.0, 0.0);
+        let body = sg.body();
+        assert!(!body.is_empty());
+        // Async arrow: main line + 2 async head lines
+        let line_count = body.matches("<line").count();
+        assert!(line_count >= 3, "expected >= 3 lines, got {}", line_count);
     }
 
     #[test]
@@ -2143,9 +1779,11 @@ mod tests {
         let fg = HColor::rgb(0, 0, 0);
         let bg = HColor::rgb(255, 255, 255);
         let stroke = UStroke::simple();
-        let ops = draw_arrow(&config, &tm, &area, &fg, &bg, &stroke, true, false, 0.0, 0.0);
-        let line_count = ops.iter().filter(|op| matches!(op, DrawOp::Line { .. })).count();
-        assert!(line_count >= 3); // main line + 2 cross lines
+        let mut sg = new_sg();
+        draw_arrow(&mut sg, &config, &tm, &area, &fg, &bg, &stroke, true, false, 0.0, 0.0);
+        let body = sg.body();
+        let line_count = body.matches("<line").count();
+        assert!(line_count >= 3, "expected >= 3 lines, got {}", line_count);
     }
 
     #[test]
@@ -2158,8 +1796,10 @@ mod tests {
         let fg = HColor::rgb(0, 0, 0);
         let bg = HColor::rgb(255, 255, 255);
         let stroke = UStroke::simple();
-        let ops = draw_arrow(&config, &tm, &area, &fg, &bg, &stroke, true, false, 0.0, 0.0);
-        let ellipse_count = ops.iter().filter(|op| matches!(op, DrawOp::Ellipse { .. })).count();
+        let mut sg = new_sg();
+        draw_arrow(&mut sg, &config, &tm, &area, &fg, &bg, &stroke, true, false, 0.0, 0.0);
+        let body = sg.body();
+        let ellipse_count = body.matches("<ellipse").count();
         assert_eq!(ellipse_count, 2);
     }
 
@@ -2172,8 +1812,9 @@ mod tests {
         let fg = HColor::rgb(0, 0, 0);
         let bg = HColor::rgb(255, 255, 255);
         let stroke = UStroke::simple();
-        let ops = draw_self_arrow(&config, &tm, &area, &fg, &bg, &stroke, true);
-        assert!(ops.is_empty());
+        let mut sg = new_sg();
+        draw_self_arrow(&mut sg, &config, &tm, &area, &fg, &bg, &stroke, true);
+        assert!(sg.body().is_empty());
     }
 
     #[test]
@@ -2184,11 +1825,13 @@ mod tests {
         let fg = HColor::rgb(0, 0, 0);
         let bg = HColor::rgb(255, 255, 255);
         let stroke = UStroke::simple();
-        let ops = draw_self_arrow(&config, &tm, &area, &fg, &bg, &stroke, true);
-        assert!(!ops.is_empty());
+        let mut sg = new_sg();
+        draw_self_arrow(&mut sg, &config, &tm, &area, &fg, &bg, &stroke, true);
+        let body = sg.body();
+        assert!(!body.is_empty());
         // Should have 3 bracket lines + 1 polygon
-        let line_count = ops.iter().filter(|op| matches!(op, DrawOp::Line { .. })).count();
-        assert!(line_count >= 3);
+        let line_count = body.matches("<line").count();
+        assert!(line_count >= 3, "expected >= 3 lines, got {}", line_count);
     }
 
     #[test]
@@ -2198,8 +1841,10 @@ mod tests {
         let fg = HColor::rgb(0, 0, 0);
         let bg = HColor::rgb(255, 255, 200);
         let stroke = UStroke::simple();
-        let ops = draw_participant(&tm, &area, &fg, &bg, &stroke, 5.0, 0.0, 0.0, false, 0.0, 0.0);
-        let rect_count = ops.iter().filter(|op| matches!(op, DrawOp::Rect { .. })).count();
+        let mut sg = new_sg();
+        draw_participant(&mut sg, &tm, &area, &fg, &bg, &stroke, 5.0, 0.0, 0.0, false, 0.0, 0.0);
+        let body = sg.body();
+        let rect_count = body.matches("<rect").count();
         assert_eq!(rect_count, 1);
     }
 
@@ -2210,8 +1855,10 @@ mod tests {
         let fg = HColor::rgb(0, 0, 0);
         let bg = HColor::rgb(255, 255, 200);
         let stroke = UStroke::simple();
-        let ops = draw_participant(&tm, &area, &fg, &bg, &stroke, 5.0, 0.0, 0.0, true, 0.0, 0.0);
-        let rect_count = ops.iter().filter(|op| matches!(op, DrawOp::Rect { .. })).count();
+        let mut sg = new_sg();
+        draw_participant(&mut sg, &tm, &area, &fg, &bg, &stroke, 5.0, 0.0, 0.0, true, 0.0, 0.0);
+        let body = sg.body();
+        let rect_count = body.matches("<rect").count();
         assert_eq!(rect_count, 2); // two rects for collections
     }
 
@@ -2220,8 +1867,10 @@ mod tests {
         let tm = make_text(60.0, 14.0);
         let area = Area::new(100.0, 30.0);
         let fashion = Fashion::new(Some(HColor::rgb(255, 255, 200)), Some(HColor::rgb(0, 0, 0)));
-        let ops = draw_note(&tm, &area, &fashion, 5.0, 5.0, 0.0);
-        let path_count = ops.iter().filter(|op| matches!(op, DrawOp::Path { .. })).count();
+        let mut sg = new_sg();
+        draw_note(&mut sg, &tm, &area, &fashion, 5.0, 5.0, 0.0);
+        let body = sg.body();
+        let path_count = body.matches("<path").count();
         assert_eq!(path_count, 2); // main note shape + corner fold
     }
 
@@ -2232,8 +1881,9 @@ mod tests {
         let border = HColor::rgb(0, 0, 0);
         let bg = HColor::rgb(200, 200, 200);
         let stroke = UStroke::simple();
-        let ops = draw_divider(&tm, &area, &border, &bg, &stroke, 0.0, 0.0, true);
-        assert!(!ops.is_empty());
+        let mut sg = new_sg();
+        draw_divider(&mut sg, &tm, &area, &border, &bg, &stroke, 0.0, 0.0, true);
+        assert!(!sg.body().is_empty());
     }
 
     #[test]
@@ -2243,9 +1893,11 @@ mod tests {
         let border = HColor::rgb(0, 0, 0);
         let bg = HColor::rgb(200, 200, 200);
         let stroke = UStroke::simple();
-        let ops = draw_divider(&tm, &area, &border, &bg, &stroke, 5.0, 0.0, false);
-        let rect_count = ops.iter().filter(|op| matches!(op, DrawOp::Rect { .. })).count();
-        assert!(rect_count >= 2); // sep rect + text rect
+        let mut sg = new_sg();
+        draw_divider(&mut sg, &tm, &area, &border, &bg, &stroke, 5.0, 0.0, false);
+        let body = sg.body();
+        let rect_count = body.matches("<rect").count();
+        assert!(rect_count >= 2, "expected >= 2 rects, got {}", rect_count); // sep rect + text rect
     }
 
     #[test]
@@ -2255,10 +1907,12 @@ mod tests {
         let fashion = Fashion::new(Some(HColor::rgb(200, 200, 200)), Some(HColor::rgb(0, 0, 0)));
         let corner_fashion = Fashion::new(Some(HColor::rgb(180, 180, 180)), Some(HColor::rgb(0, 0, 0)));
         let bg = HColor::rgb(240, 240, 240);
-        let ops = draw_grouping_header(&tm, &area, &fashion, &corner_fashion, &bg, 0.0);
-        assert!(!ops.is_empty());
-        let rect_count = ops.iter().filter(|op| matches!(op, DrawOp::Rect { .. })).count();
-        assert!(rect_count >= 2); // background + outline
+        let mut sg = new_sg();
+        draw_grouping_header(&mut sg, &tm, &area, &fashion, &corner_fashion, &bg, 0.0);
+        let body = sg.body();
+        assert!(!body.is_empty());
+        let rect_count = body.matches("<rect").count();
+        assert!(rect_count >= 2, "expected >= 2 rects, got {}", rect_count); // background + outline
     }
 
     #[test]
@@ -2266,9 +1920,10 @@ mod tests {
         let tm = make_text(30.0, 14.0);
         let area = Area::new(200.0, 20.0);
         let color = HColor::rgb(0, 0, 0);
-        let ops = draw_grouping_else(&tm, &area, &color);
-        assert_eq!(ops.len(), 1);
-        assert!(matches!(ops[0], DrawOp::Line { .. }));
+        let mut sg = new_sg();
+        draw_grouping_else(&mut sg, &tm, &area, &color);
+        let body = sg.body();
+        assert_eq!(body.matches("<line").count(), 1);
     }
 
     #[test]
@@ -2276,16 +1931,22 @@ mod tests {
         let area = Area::new(10.0, 100.0);
         let color = HColor::rgb(0, 0, 0);
         let stroke = UStroke::new(5.0, 5.0, 1.0);
-        let ops = draw_line(&area, &color, &stroke);
-        assert!(ops.len() >= 2); // hover rect + line
+        let mut sg = new_sg();
+        draw_line(&mut sg, &area, &color, &stroke);
+        let body = sg.body();
+        // hover rect + line
+        assert!(body.contains("<rect"), "should have a rect");
+        assert!(body.contains("<line"), "should have a line");
     }
 
     #[test]
     fn draw_active_line_close_both() {
         let area = Area::new(20.0, 50.0);
         let fashion = Fashion::new(Some(HColor::rgb(255, 255, 200)), Some(HColor::rgb(0, 0, 0)));
-        let ops = draw_active_line(&area, &fashion, true, true);
-        let rect_count = ops.iter().filter(|op| matches!(op, DrawOp::Rect { .. })).count();
+        let mut sg = new_sg();
+        draw_active_line(&mut sg, &area, &fashion, true, true);
+        let body = sg.body();
+        let rect_count = body.matches("<rect").count();
         assert_eq!(rect_count, 1);
     }
 
@@ -2293,9 +1954,11 @@ mod tests {
     fn draw_active_line_open_both() {
         let area = Area::new(20.0, 50.0);
         let fashion = Fashion::new(Some(HColor::rgb(255, 255, 200)), Some(HColor::rgb(0, 0, 0)));
-        let ops = draw_active_line(&area, &fashion, false, false);
+        let mut sg = new_sg();
+        draw_active_line(&mut sg, &area, &fashion, false, false);
+        let body = sg.body();
         // background rect + 2 vertical lines, no horizontal
-        let line_count = ops.iter().filter(|op| matches!(op, DrawOp::Line { .. })).count();
+        let line_count = body.matches("<line").count();
         assert_eq!(line_count, 2);
     }
 
@@ -2303,16 +1966,19 @@ mod tests {
     fn draw_active_line_zero_height() {
         let area = Area::new(20.0, 0.0);
         let fashion = Fashion::new(Some(HColor::rgb(255, 255, 200)), Some(HColor::rgb(0, 0, 0)));
-        let ops = draw_active_line(&area, &fashion, true, true);
-        assert!(ops.is_empty());
+        let mut sg = new_sg();
+        draw_active_line(&mut sg, &area, &fashion, true, true);
+        assert!(sg.body().is_empty());
     }
 
     #[test]
     fn draw_destroy_produces_two_lines() {
         let color = HColor::rgb(0, 0, 0);
         let stroke = UStroke::with_thickness(2.0);
-        let ops = draw_destroy(&color, &stroke);
-        assert_eq!(ops.len(), 2);
+        let mut sg = new_sg();
+        draw_destroy(&mut sg, &color, &stroke);
+        let body = sg.body();
+        assert_eq!(body.matches("<line").count(), 2);
     }
 
     #[test]
@@ -2320,8 +1986,10 @@ mod tests {
         let area = Area::new(10.0, 50.0);
         let color = HColor::rgb(0, 0, 0);
         let stroke = UStroke::simple();
-        let ops = draw_delay_line(&area, &color, &stroke);
-        assert_eq!(ops.len(), 1);
+        let mut sg = new_sg();
+        draw_delay_line(&mut sg, &area, &color, &stroke);
+        let body = sg.body();
+        assert_eq!(body.matches("<line").count(), 1);
     }
 
     #[test]
@@ -2329,8 +1997,10 @@ mod tests {
         let area = Area::new(200.0, 1.0);
         let color = HColor::rgb(0, 0, 0);
         let stroke = UStroke::simple();
-        let ops = draw_newpage(&area, &color, &stroke);
-        assert_eq!(ops.len(), 1);
+        let mut sg = new_sg();
+        draw_newpage(&mut sg, &area, &color, &stroke);
+        let body = sg.body();
+        assert_eq!(body.matches("<line").count(), 1);
     }
 
     #[test]
@@ -2339,9 +2009,11 @@ mod tests {
         let area = Area::new(200.0, 60.0);
         let header_fashion = Fashion::new(Some(HColor::rgb(200, 200, 200)), Some(HColor::rgb(0, 0, 0)));
         let body_fashion = Fashion::new(Some(HColor::rgb(255, 255, 255)), Some(HColor::rgb(0, 0, 0)));
-        let ops = draw_reference(&tm, &area, &header_fashion, &body_fashion, 30.0, 14.0, 0.0);
-        let rect_count = ops.iter().filter(|op| matches!(op, DrawOp::Rect { .. })).count();
-        let path_count = ops.iter().filter(|op| matches!(op, DrawOp::Path { .. })).count();
+        let mut sg = new_sg();
+        draw_reference(&mut sg, &tm, &area, &header_fashion, &body_fashion, 30.0, 14.0, 0.0);
+        let body = sg.body();
+        let rect_count = body.matches("<rect").count();
+        let path_count = body.matches("<path").count();
         assert_eq!(rect_count, 1);
         assert_eq!(path_count, 1);
     }
@@ -2351,8 +2023,10 @@ mod tests {
         let tm = make_text(50.0, 14.0);
         let area = Area::new(80.0, 30.0);
         let fashion = Fashion::new(Some(HColor::rgb(255, 255, 200)), Some(HColor::rgb(0, 0, 0)));
-        let ops = draw_note_box(&tm, &area, &fashion, 5.0);
-        let rect_count = ops.iter().filter(|op| matches!(op, DrawOp::Rect { .. })).count();
+        let mut sg = new_sg();
+        draw_note_box(&mut sg, &tm, &area, &fashion, 5.0);
+        let body = sg.body();
+        let rect_count = body.matches("<rect").count();
         assert_eq!(rect_count, 1);
     }
 
@@ -2361,8 +2035,10 @@ mod tests {
         let tm = make_text(50.0, 14.0);
         let area = Area::new(80.0, 30.0);
         let fashion = Fashion::new(Some(HColor::rgb(255, 255, 200)), Some(HColor::rgb(0, 0, 0)));
-        let ops = draw_note_hexagonal(&tm, &area, &fashion);
-        let poly_count = ops.iter().filter(|op| matches!(op, DrawOp::Polygon { .. })).count();
+        let mut sg = new_sg();
+        draw_note_hexagonal(&mut sg, &tm, &area, &fashion);
+        let body = sg.body();
+        let poly_count = body.matches("<polygon").count();
         assert_eq!(poly_count, 1);
     }
 
@@ -2371,9 +2047,10 @@ mod tests {
         let tm = TextMetrics::new(3.0, 3.0, 1.0, 60.0, 14.0);
         let area = Area::new(100.0, 20.0);
         let fashion = Fashion::new(Some(HColor::rgb(240, 240, 240)), Some(HColor::rgb(0, 0, 0)));
-        let ops = draw_englober(&tm, &area, &fashion, 5.0);
-        assert_eq!(ops.len(), 1);
-        assert!(matches!(ops[0], DrawOp::Rect { .. }));
+        let mut sg = new_sg();
+        draw_englober(&mut sg, &tm, &area, &fashion, 5.0);
+        let body = sg.body();
+        assert_eq!(body.matches("<rect").count(), 1);
     }
 
     // ── Corner paths ────────────────────────────────────────────────
@@ -2425,20 +2102,5 @@ mod tests {
         let a = Area::new(100.0, 50.0).with_delta_x1(10.0).with_text_delta_x(5.0);
         assert_eq!(a.delta_x1, 10.0);
         assert_eq!(a.text_delta_x, 5.0);
-    }
-
-    // ── DrawOp variants ─────────────────────────────────────────────
-
-    #[test]
-    fn draw_op_debug() {
-        let op = DrawOp::Line {
-            translate: UTranslate::none(),
-            dx: 100.0,
-            dy: 0.0,
-            stroke: UStroke::simple(),
-            color: Some(HColor::rgb(0, 0, 0)),
-        };
-        let s = format!("{:?}", op);
-        assert!(s.contains("Line"));
     }
 }

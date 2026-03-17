@@ -12,7 +12,7 @@
 | klimt::svg (SvgGraphic)      | 319      | 18         |
 | klimt::color (HColor)        | 182      | 16         |
 | klimt::font (StringBounder)  | 83       | 24         |
-| skin::rose (常量/DrawOp)     | 64       | 14         |
+| skin::rose (常量/draw 函数)   | 64       | 14         |
 | decoration::symbol (形状)    | 10       | 2          |
 | klimt::svg (fmt_coord 重复)  | 2        | 2          |
 | klimt::svg (xml_escape 重复) | 1        | 1          |
