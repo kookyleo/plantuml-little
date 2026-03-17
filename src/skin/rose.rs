@@ -40,6 +40,25 @@ pub const PARTICIPANT_BG: &str = "#E2E2F0";
 /// Java: `ComponentRoseNoteBox.FOLD = 10` (approximate)
 pub const SEQ_NOTE_FOLD: f64 = 10.0;
 
+/// Default text color. Java: `#000000`
+pub const TEXT_COLOR: &str = "#000000";
+/// Legend background. Java: `#DDDDDD`
+pub const LEGEND_BG: &str = "#DDDDDD";
+/// Legend border color. Java: `#000000`
+pub const LEGEND_BORDER: &str = "#000000";
+/// Group background color. Java: `#EEEEEE`
+pub const GROUP_BG: &str = "#EEEEEE";
+/// Activation box background. Java: `#FFFFFF`
+pub const ACTIVATION_BG: &str = "#FFFFFF";
+/// Destroy cross color. Java: `#A80036`
+pub const DESTROY_COLOR: &str = "#A80036";
+/// Divider line color. Java: `#888888`
+pub const DIVIDER_COLOR: &str = "#888888";
+/// Fork/join bar fill. Java: `#000000`
+pub const FORK_FILL: &str = "#000000";
+/// Initial/start state fill. Java: `#222222`
+pub const INITIAL_FILL: &str = "#222222";
+
 // ── DrawOp: output-independent drawing instruction ──────────────────
 
 /// A single drawing instruction produced by component rendering.

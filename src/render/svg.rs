@@ -161,50 +161,7 @@ const LEGEND_BG: &str = "#DDDDDD";
 
 // ── Helpers ─────────────────────────────────────────────────────────
 
-/// Format a coordinate value matching Java PlantUML's `SvgGraphics.format()`:
-/// - Up to 4 decimal places
-/// - Trailing zeros stripped
-/// - Integer values without decimal point
-/// - "0" for zero
-///
-/// Reference: SvgGraphics.java:944
-pub(crate) fn fmt_coord(value: f64) -> String {
-    // Java's SvgGraphics.format(): "%.4f" with half-up rounding, trailing zero stripping.
-    // Handles negative zero: -0.00004 → "0" not "-0".
-    if value == 0.0 {
-        return "0".into();
-    }
-    let rounded = java_round_4(value);
-    // Guard against negative zero after rounding
-    if rounded == 0.0 {
-        return "0".into();
-    }
-    let s = format!("{:.4}", rounded);
-    let bytes = s.as_bytes();
-    let dot = s.find('.').unwrap();
-    let mut end = s.len();
-    while end > dot + 1 && bytes[end - 1] == b'0' {
-        end -= 1;
-    }
-    if end == dot + 1 {
-        end = dot;
-    }
-    s[..end].to_string()
-}
-
-/// Round a f64 to 4 decimal places using Java's half-up rounding.
-/// Java: Math.round(x * 10000) / 10000.0 (effectively)
-fn java_round_4(v: f64) -> f64 {
-    let factor = 10000.0_f64;
-    let scaled = v * factor;
-    // Java half-up: if fractional part is exactly 0.5, round away from zero
-    let rounded = if scaled >= 0.0 {
-        (scaled + 0.5).floor()
-    } else {
-        (scaled - 0.5).ceil()
-    };
-    rounded / factor
-}
+pub(crate) use crate::klimt::svg::fmt_coord;
 
 /// Write a Java PlantUML-compatible SVG root element and open a `<g>` wrapper.
 pub(crate) fn write_svg_root(buf: &mut String, w: f64, h: f64, diagram_type: &str) {
@@ -245,25 +202,7 @@ fn sanitize_id(name: &str) -> String {
         .replace(' ', "_")
 }
 
-/// XML-escape text content matching Java's DOM serializer (us-ascii encoding).
-/// Non-ASCII characters are encoded as &#NNN; decimal entities.
-pub(crate) fn xml_escape(s: &str) -> String {
-    let mut out = String::with_capacity(s.len());
-    for ch in s.chars() {
-        match ch {
-            '&' => out.push_str("&amp;"),
-            '<' => out.push_str("&lt;"),
-            '>' => out.push_str("&gt;"),
-            '"' => out.push_str("&quot;"),
-            c if !c.is_ascii() => {
-                // Java DOM serializer: us-ascii encoding → &#NNN; for non-ASCII
-                write!(out, "&#{};", c as u32).unwrap();
-            }
-            c => out.push(c),
-        }
-    }
-    out
-}
+pub(crate) use crate::klimt::svg::xml_escape;
 
 /// Write a background `<rect>` covering the entire canvas when the background
 /// color differs from the default #FFFFFF. Java PlantUML emits this rect as the

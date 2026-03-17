@@ -553,6 +553,59 @@ impl SvgGraphic {
         }
     }
 
+    /// Emit a `<circle>` element.
+    ///
+    /// Attribute order (alphabetical): cx, cy, fill, [fill-opacity], [filter], r, [style]
+    pub fn svg_circle(
+        &mut self,
+        cx: f64,
+        cy: f64,
+        r: f64,
+        delta_shadow: f64,
+    ) {
+        self.manage_shadow(delta_shadow);
+        if !self.hidden {
+            let mut elt = String::with_capacity(128);
+            elt.push_str("<circle");
+            write!(elt, " cx=\"{}\"", self.f(cx)).unwrap();
+            write!(elt, " cy=\"{}\"", self.f(cy)).unwrap();
+            self.write_fill(&mut elt);
+            self.write_shadow_filter(&mut elt, delta_shadow);
+            write!(elt, " r=\"{}\"", self.f(r)).unwrap();
+            self.write_style(&mut elt);
+            elt.push_str("/>");
+            self.buf.push_str(&elt);
+        }
+        self.ensure_visible(cx + r + delta_shadow * 2.0, cy + r + delta_shadow * 2.0);
+    }
+
+    /// Emit a `<polyline>` element.
+    ///
+    /// Points are given as a flat array [x0,y0,x1,y1,...].
+    /// Attribute order (alphabetical): fill, [fill-opacity], points, [style]
+    pub fn svg_polyline(&mut self, points: &[f64]) {
+        debug_assert!(points.len() % 2 == 0);
+        if !self.hidden {
+            let mut pts = String::with_capacity(points.len() * 8);
+            for (i, coord) in points.iter().enumerate() {
+                if i > 0 {
+                    pts.push(',');
+                }
+                pts.push_str(&self.f(*coord));
+            }
+            let mut elt = String::with_capacity(128);
+            elt.push_str("<polyline");
+            self.write_fill(&mut elt);
+            write!(elt, " points=\"{}\"", pts).unwrap();
+            self.write_style(&mut elt);
+            elt.push_str("/>");
+            self.buf.push_str(&elt);
+        }
+        for i in (0..points.len()).step_by(2) {
+            self.ensure_visible(points[i], points[i + 1]);
+        }
+    }
+
     /// Emit a `<path>` element from a UPath.
     /// Java: SvgGraphics.svgPath()
     ///
@@ -649,8 +702,8 @@ impl SvgGraphic {
     ///
     /// Attribute order (alphabetical):
     /// fill, [fill-opacity], [filter], [font-family], [font-size], [font-style],
-    /// [font-weight], [lengthAdjust], [style], [text-decoration], [textLength],
-    /// [transform], x, y
+    /// [font-weight], [lengthAdjust], [style], [text-anchor], [text-decoration],
+    /// [textLength], [transform], x, y
     #[allow(clippy::too_many_arguments)]
     pub fn svg_text(
         &mut self,
@@ -666,6 +719,7 @@ impl SvgGraphic {
         length_adjust: LengthAdjust,
         text_back_color: Option<&str>,
         orientation: i32,
+        text_anchor: Option<&str>,
     ) {
         log::trace!("svg_text: text={:?}, x={}, y={}, font_size={}, fill={}",
             text, x, y, font_size, self.fill);
@@ -726,6 +780,10 @@ impl SvgGraphic {
                 elt.push_str(" lengthAdjust=\"spacingAndGlyphs\"");
             }
             LengthAdjust::None => {}
+        }
+
+        if let Some(anchor) = text_anchor {
+            write!(elt, " text-anchor=\"{}\"", anchor).unwrap();
         }
 
         if let Some(decoration) = text_decoration {
@@ -1071,6 +1129,7 @@ impl super::UGraphic for UGraphicSvg {
             self.length_adjust,
             Option::None,
             0,
+            None,
         );
     }
 
@@ -1407,6 +1466,7 @@ mod tests {
             LengthAdjust::Spacing,
             None,
             0,
+            None,
         );
         let body = svg.body();
         assert!(body.contains("<text"));
@@ -1437,6 +1497,7 @@ mod tests {
             LengthAdjust::Spacing,
             None,
             0,
+            None,
         );
         let body = svg.body();
         assert!(body.contains("font-style=\"italic\""));
@@ -1460,6 +1521,7 @@ mod tests {
             LengthAdjust::Spacing,
             None,
             0,
+            None,
         );
         let body = svg.body();
         assert!(body.contains("text-decoration=\"underline\""));
@@ -1482,6 +1544,7 @@ mod tests {
             LengthAdjust::Spacing,
             None,
             0,
+            None,
         );
         let body = svg.body();
         assert!(body.contains("font-family=\"monospace\""));
@@ -1504,6 +1567,7 @@ mod tests {
             LengthAdjust::Spacing,
             Some("#FFFF00"),
             0,
+            None,
         );
         let body = svg.body();
         assert!(body.contains("filter=\"url(#"));
@@ -1528,6 +1592,7 @@ mod tests {
             LengthAdjust::None,
             None,
             90,
+            None,
         );
         let body = svg.body();
         assert!(body.contains("transform=\"rotate(-90 100 50)\""));
@@ -1769,6 +1834,7 @@ mod tests {
             LengthAdjust::Spacing,
             None,
             0,
+            None,
         );
         let body = svg.body();
         let fill_pos = body.find("fill=").unwrap();

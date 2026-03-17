@@ -297,7 +297,7 @@ fn svg_text_attribute_order_matches_java() {
     let mut svg = SvgGraphic::new(12345, 1.0);
     svg.set_fill_color("#000000");
     svg.svg_text("Alice", 12.0, 24.9951, Some("sans-serif"), 14.0,
-                 None, None, None, 33.667, LengthAdjust::Spacing, None, 0);
+                 None, None, None, 33.667, LengthAdjust::Spacing, None, 0, None);
     let body = svg.body();
 
     // Java reference: fill, font-family, font-size, lengthAdjust, textLength, x, y
@@ -624,7 +624,7 @@ fn svg_text_fragment_matches_java() {
     let mut svg = SvgGraphic::new(12345, 1.0);
     svg.set_fill_color("#000000");
     svg.svg_text("Alice", 12.0, 24.9951, Some("sans-serif"), 14.0,
-                 None, None, None, 33.667, LengthAdjust::Spacing, None, 0);
+                 None, None, None, 33.667, LengthAdjust::Spacing, None, 0, None);
     let body = svg.body();
 
     assert!(body.contains(r##"fill="#000000""##), "fill: {}", body);
