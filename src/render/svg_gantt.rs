@@ -11,11 +11,10 @@ const FONT_SIZE: f64 = 12.0;
 const DEFAULT_BAR_FILL: &str = "#A4C2F4";
 const DEFAULT_BAR_STROKE: &str = "#3D85C6";
 const ARROW_COLOR: &str = "#555555";
-const TEXT_FILL: &str = "#000000";
 const GRID_COLOR: &str = "#DDDDDD";
 const AXIS_TEXT_COLOR: &str = "#333333";
 const LABEL_PADDING: f64 = 8.0;
-use crate::skin::rose::{NOTE_BG, NOTE_BORDER, NOTE_FOLD};
+use crate::skin::rose::{NOTE_BG, NOTE_BORDER, NOTE_FOLD, TEXT_COLOR};
 
 pub fn render_gantt(_diagram: &GanttDiagram, layout: &GanttLayout, skin: &SkinParams) -> Result<String> {
     let mut buf = String::with_capacity(4096);
@@ -27,7 +26,7 @@ pub fn render_gantt(_diagram: &GanttDiagram, layout: &GanttLayout, skin: &SkinPa
     let mut sg = SvgGraphic::new(0, 1.0);
     render_grid(&mut sg, layout);
     render_time_axis(&mut sg, &layout.time_axis);
-    let gantt_font = skin.font_color("gantt", TEXT_FILL);
+    let gantt_font = skin.font_color("gantt", TEXT_COLOR);
     for bar in &layout.bars { render_bar(&mut sg, bar, gantt_font); }
     for dep in &layout.dependencies { render_dependency(&mut sg, dep); }
     for note in &layout.notes { render_note(&mut sg, note, gantt_font); }

@@ -10,10 +10,8 @@ use crate::Result;
 
 const FONT_SIZE: f64 = 12.0;
 const LINE_HEIGHT: f64 = 16.0;
-const BACKGROUND: &str = "#FFFFFF";
-const BOX_FILL: &str = "#F1F1F1";
+use crate::skin::rose::{ACTIVATION_BG, ENTITY_BG, TEXT_COLOR};
 const BOX_BORDER: &str = "#333333";
-const TEXT_FILL: &str = "#000000";
 const SHADOW_FILL: &str = "#000000";
 const SHADOW_OPACITY: f64 = 0.15;
 const SHADOW_OFFSET: f64 = 4.0;
@@ -25,8 +23,8 @@ pub fn render_ditaa(
 ) -> Result<String> {
     let mut buf = String::with_capacity(4096);
     let border = skin.border_color("ditaa", BOX_BORDER);
-    let font = skin.font_color("ditaa", TEXT_FILL);
-    let background = skin.background_color("ditaabg", BACKGROUND);
+    let font = skin.font_color("ditaa", TEXT_COLOR);
+    let background = skin.background_color("ditaabg", ACTIVATION_BG);
 
     let bg = skin.get_or("backgroundcolor", "#FFFFFF");
     write_svg_root_bg(&mut buf, layout.width, layout.height, "DITAA", bg);
@@ -71,7 +69,7 @@ fn render_box(
     border: &str,
     font: &str,
 ) {
-    let fill = ditaa_box.color.as_deref().unwrap_or(BOX_FILL);
+    let fill = ditaa_box.color.as_deref().unwrap_or(ENTITY_BG);
     let radius = if ditaa_box.round { 8.0 } else { 0.0 };
     let shadow_offset = diagram.options.scale.unwrap_or(1.0) * SHADOW_OFFSET;
 

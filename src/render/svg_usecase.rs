@@ -13,12 +13,8 @@ use crate::Result;
 // ---------------------------------------------------------------------------
 
 const FONT_SIZE: f64 = 12.0;
-const ACTOR_STROKE: &str = "#181818";
-const UC_BG: &str = "#F1F1F1";
-const UC_BORDER: &str = "#181818";
+use crate::skin::rose::{BORDER_COLOR, ENTITY_BG, TEXT_COLOR};
 const BOUNDARY_BORDER: &str = "#444444";
-const EDGE_COLOR: &str = "#181818";
-const TEXT_FILL: &str = "#000000";
 
 // Stick-figure proportions (relative to actor center / top of head circle).
 const HEAD_R: f64 = 10.0;
@@ -47,14 +43,14 @@ pub fn render_usecase(
 ) -> Result<String> {
     let mut buf = String::with_capacity(4096);
 
-    let uc_bg = skin.background_color("usecase", UC_BG);
-    let uc_border = skin.border_color("usecase", UC_BORDER);
-    let uc_font = skin.font_color("usecase", TEXT_FILL);
-    let actor_stroke = skin.border_color("actor", ACTOR_STROKE);
-    let actor_font = skin.font_color("actor", TEXT_FILL);
+    let uc_bg = skin.background_color("usecase", ENTITY_BG);
+    let uc_border = skin.border_color("usecase", BORDER_COLOR);
+    let uc_font = skin.font_color("usecase", TEXT_COLOR);
+    let actor_stroke = skin.border_color("actor", BORDER_COLOR);
+    let actor_font = skin.font_color("actor", TEXT_COLOR);
     let boundary_border = skin.border_color("boundary", BOUNDARY_BORDER);
-    let boundary_font = skin.font_color("boundary", TEXT_FILL);
-    let arrow_color = skin.arrow_color(EDGE_COLOR);
+    let boundary_font = skin.font_color("boundary", TEXT_COLOR);
+    let arrow_color = skin.arrow_color(BORDER_COLOR);
 
     let bg = skin.get_or("backgroundcolor", "#FFFFFF");
     write_svg_root_bg(
@@ -86,7 +82,7 @@ pub fn render_usecase(
 
     // Edges (on top of everything)
     for edge in &layout.edges {
-        render_edge(&mut sg, edge, arrow_color, TEXT_FILL);
+        render_edge(&mut sg, edge, arrow_color, TEXT_COLOR);
     }
 
     buf.push_str(sg.body());

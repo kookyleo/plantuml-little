@@ -8,9 +8,8 @@ use crate::Result;
 
 const FONT_SIZE: f64 = 14.0;
 const PADDING: f64 = 5.0;
-const BOX_FILL: &str = "#F1F1F1";
+use crate::skin::rose::{ENTITY_BG, TEXT_COLOR};
 const BORDER_COLOR: &str = "#000000";
-const TEXT_COLOR: &str = "#000000";
 
 fn baseline_offset() -> f64 {
     font_metrics::ascent("SansSerif", FONT_SIZE, false, false) + 2.0
@@ -47,8 +46,8 @@ fn render_box(sg: &mut SvgGraphic, jbox: &JsonBox) {
     let (x, y, w, h) = (jbox.x, jbox.y, jbox.width, jbox.height);
 
     // Background fill
-    sg.set_fill_color(BOX_FILL);
-    sg.set_stroke_color(Some(BOX_FILL));
+    sg.set_fill_color(ENTITY_BG);
+    sg.set_stroke_color(Some(ENTITY_BG));
     sg.set_stroke_width(1.5, None);
     sg.svg_rectangle(x, y, w, h, 5.0, 5.0, 0.0);
 

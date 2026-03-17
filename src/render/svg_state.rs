@@ -21,14 +21,9 @@ const DESC_FONT_SIZE: f64 = 12.0;
 const DESC_LINE_HEIGHT: f64 = 13.9688;
 const LINE_HEIGHT: f64 = 16.0;
 const TAB_WIDTH: f64 = 30.515624;
-const STATE_BG: &str = "#F1F1F1";
-const STATE_BORDER: &str = "#181818";
-const INITIAL_FILL: &str = "#222222";
+use crate::skin::rose::{BORDER_COLOR, ENTITY_BG, INITIAL_FILL, NOTE_BG, NOTE_BORDER, TEXT_COLOR};
 const FINAL_OUTER: &str = "#000000";
 const FINAL_INNER: &str = "#000000";
-const EDGE_COLOR: &str = "#181818";
-const TEXT_FILL: &str = "#000000";
-use crate::skin::rose::{NOTE_BG, NOTE_BORDER};
 
 // ── Public entry point ──────────────────────────────────────────────
 
@@ -47,9 +42,9 @@ pub fn render_state(
     buf.push_str("<defs/><g>");
     write_bg_rect(&mut buf, layout.width, layout.height, bg);
 
-    let state_bg = skin.background_color("state", STATE_BG);
-    let state_border = skin.border_color("state", STATE_BORDER);
-    let state_font = skin.font_color("state", TEXT_FILL);
+    let state_bg = skin.background_color("state", ENTITY_BG);
+    let state_border = skin.border_color("state", BORDER_COLOR);
+    let state_font = skin.font_color("state", TEXT_COLOR);
 
     let mut sg = SvgGraphic::new(0, 1.0);
 
@@ -366,7 +361,7 @@ fn render_transition(sg: &mut SvgGraphic, transition: &TransitionLayout) {
     }
 
     sg.push_raw(&format!(
-        r#"<path d="{d}" fill="none" style="stroke:{EDGE_COLOR};stroke-width:1;"/>"#,
+        r#"<path d="{d}" fill="none" style="stroke:{BORDER_COLOR};stroke-width:1;"/>"#,
     ));
 
     // Inline polygon arrowhead at the last segment
@@ -395,8 +390,8 @@ fn render_transition(sg: &mut SvgGraphic, transition: &TransitionLayout) {
             let p4x = tx - ux * back - px * side;
             let p4y = ty - uy * back - py * side;
 
-            sg.set_fill_color(EDGE_COLOR);
-            sg.set_stroke_color(Some(EDGE_COLOR));
+            sg.set_fill_color(BORDER_COLOR);
+            sg.set_stroke_color(Some(BORDER_COLOR));
             sg.set_stroke_width(1.0, None);
             sg.svg_polygon(0.0, &[p1x, p1y, p2x, p2y, p3x, p3y, p4x, p4y, p1x, p1y]);
         }
@@ -407,7 +402,7 @@ fn render_transition(sg: &mut SvgGraphic, transition: &TransitionLayout) {
         let mid = transition.points.len() / 2;
         let (mx, my) = transition.points[mid];
         let tl = font_metrics::text_width(&transition.label, "SansSerif", FONT_SIZE, false, false);
-        sg.set_fill_color(TEXT_FILL);
+        sg.set_fill_color(TEXT_COLOR);
         sg.svg_text(
             &transition.label, mx, my,
             Some("sans-serif"), FONT_SIZE,
@@ -456,7 +451,7 @@ fn render_note(sg: &mut SvgGraphic, note: &StateNoteLayout) {
         text_x,
         text_y,
         LINE_HEIGHT,
-        TEXT_FILL,
+        TEXT_COLOR,
         None,
         r#"font-size="13""#,
     );
@@ -667,7 +662,7 @@ mod tests {
         });
         let svg = render_state(&diagram, &layout, &SkinParams::default()).expect("render failed");
         assert!(svg.contains("<polygon"), "transition must have inline polygon arrowhead");
-        assert!(svg.contains("stroke:#181818"), "transition must use EDGE_COLOR in style");
+        assert!(svg.contains("stroke:#181818"), "transition must use BORDER_COLOR in style");
         assert!(svg.contains("<path "), "transition must use <path>");
         assert!(svg.contains(r#"class="link""#), "transition must be in link group");
     }

@@ -127,17 +127,11 @@ const GENERIC_DELTA: f64 = 4.0;
 /// Protrusion above entity rect = delta - outer_margin = 3.
 const GENERIC_PROTRUSION: f64 = GENERIC_DELTA - GENERIC_OUTER_MARGIN;
 
-const CLASS_BG: &str = "#F1F1F1";
-const CLASS_BORDER: &str = "#181818";
-const IFACE_BG: &str = "#F1F1F1";
-const IFACE_BORDER: &str = "#181818";
-const ENUM_BG: &str = "#F1F1F1";
-const ENUM_BORDER: &str = "#181818";
-const ABSTRACT_BG: &str = "#F1F1F1";
-const ABSTRACT_BORDER: &str = "#181818";
-
-use crate::skin::rose::{NOTE_BG, NOTE_BORDER, NOTE_FOLD, NOTE_PADDING as NOTE_TEXT_PADDING, BORDER_COLOR as LINK_COLOR};
-const LABEL_COLOR: &str = "#000000";
+use crate::skin::rose::{
+    BORDER_COLOR, DIVIDER_COLOR, ENTITY_BG, LEGEND_BG, LEGEND_BORDER,
+    NOTE_BG, NOTE_BORDER, NOTE_FOLD, NOTE_PADDING as NOTE_TEXT_PADDING, TEXT_COLOR,
+};
+const LINK_COLOR: &str = BORDER_COLOR;
 /// Java PlantUML renders link labels at font-size 13 (not 14).
 const LINK_LABEL_FONT_SIZE: f64 = 13.0;
 const PLANTUML_VERSION: &str = "1.2026.3beta4";
@@ -146,7 +140,6 @@ const PLANTUML_VERSION: &str = "1.2026.3beta4";
 
 const META_TITLE_FONT_SIZE: f64 = 14.0;
 const META_HF_FONT_SIZE: f64 = 10.0;
-const META_HF_COLOR: &str = "#888888";
 const META_CAPTION_FONT_SIZE: f64 = 14.0;
 const META_LEGEND_FONT_SIZE: f64 = 14.0;
 const BORDERED_EXTRA: f64 = 1.0;
@@ -157,8 +150,6 @@ const CAPTION_MARGIN: f64 = 1.0;
 const LEGEND_PADDING: f64 = 5.0;
 const LEGEND_MARGIN: f64 = 12.0;
 const LEGEND_ROUND_CORNER: f64 = 15.0;
-const LEGEND_BORDER_COLOR: &str = "#000000";
-const LEGEND_BG: &str = "#DDDDDD";
 
 // ── Helpers ─────────────────────────────────────────────────────────
 
@@ -632,7 +623,7 @@ fn wrap_with_meta(body_svg: &str, meta: &DiagramMeta, diagram_type: &str, bg: &s
         render_creole_text(
             &mut buf, hdr, hdr_x, text_y,
             text_block_h(META_HF_FONT_SIZE, false),
-            META_HF_COLOR, None,
+            DIVIDER_COLOR, None,
             &format!(r#"font-size="{}""#, META_HF_FONT_SIZE as i32),
         );
         // Strip trailing newline from render_creole_text
@@ -655,7 +646,7 @@ fn wrap_with_meta(body_svg: &str, meta: &DiagramMeta, diagram_type: &str, bg: &s
         render_creole_text(
             &mut buf, title, text_x, text_y,
             text_block_h(META_TITLE_FONT_SIZE, true),
-            LABEL_COLOR, None,
+            TEXT_COLOR, None,
             &format!(r#"font-size="{}" font-weight="700""#, META_TITLE_FONT_SIZE as i32),
         );
         // Strip trailing newline from render_creole_text
@@ -686,7 +677,7 @@ fn wrap_with_meta(body_svg: &str, meta: &DiagramMeta, diagram_type: &str, bg: &s
         }
         buf.push('>');
         write!(buf,
-            r#"<rect fill="{LEGEND_BG}" height="{}" rx="{}" ry="{}" style="stroke:{LEGEND_BORDER_COLOR};stroke-width:1;" width="{}" x="{}" y="{}"/>"#,
+            r#"<rect fill="{LEGEND_BG}" height="{}" rx="{}" ry="{}" style="stroke:{LEGEND_BORDER};stroke-width:1;" width="{}" x="{}" y="{}"/>"#,
             fmt_coord(draw_h), fmt_coord(half_rc), fmt_coord(half_rc),
             fmt_coord(draw_w), fmt_coord(rect_x), fmt_coord(rect_y),
         ).unwrap();
@@ -696,7 +687,7 @@ fn wrap_with_meta(body_svg: &str, meta: &DiagramMeta, diagram_type: &str, bg: &s
         render_creole_text(
             &mut buf, leg, text_x, text_y,
             text_block_h(META_LEGEND_FONT_SIZE, false),
-            LABEL_COLOR, None,
+            TEXT_COLOR, None,
             &format!(r#"font-size="{}""#, META_LEGEND_FONT_SIZE as i32),
         );
         // Strip trailing newline from render_creole_text
@@ -720,7 +711,7 @@ fn wrap_with_meta(body_svg: &str, meta: &DiagramMeta, diagram_type: &str, bg: &s
         render_creole_text(
             &mut buf, cap, text_x, text_y,
             text_block_h(META_CAPTION_FONT_SIZE, false),
-            LABEL_COLOR, None,
+            TEXT_COLOR, None,
             &format!(r#"font-size="{}""#, META_CAPTION_FONT_SIZE as i32),
         );
         // Strip trailing newline from render_creole_text
@@ -742,7 +733,7 @@ fn wrap_with_meta(body_svg: &str, meta: &DiagramMeta, diagram_type: &str, bg: &s
         render_creole_text(
             &mut buf, ftr, ftr_x, text_y,
             text_block_h(META_HF_FONT_SIZE, false),
-            META_HF_COLOR, None,
+            DIVIDER_COLOR, None,
             &format!(r#"font-size="{}""#, META_HF_FONT_SIZE as i32),
         );
         // Strip trailing newline from render_creole_text
@@ -1150,17 +1141,17 @@ fn draw_entity_box(
     let h = nl.height;
 
     let (default_bg, default_border, element_type) = match entity.kind {
-        EntityKind::Class => (CLASS_BG, CLASS_BORDER, "class"),
-        EntityKind::Interface => (IFACE_BG, IFACE_BORDER, "interface"),
-        EntityKind::Enum => (ENUM_BG, ENUM_BORDER, "enum"),
-        EntityKind::Abstract => (ABSTRACT_BG, ABSTRACT_BORDER, "abstract"),
-        EntityKind::Annotation => (CLASS_BG, CLASS_BORDER, "annotation"),
+        EntityKind::Class => (ENTITY_BG, BORDER_COLOR, "class"),
+        EntityKind::Interface => (ENTITY_BG, BORDER_COLOR, "interface"),
+        EntityKind::Enum => (ENTITY_BG, BORDER_COLOR, "enum"),
+        EntityKind::Abstract => (ENTITY_BG, BORDER_COLOR, "abstract"),
+        EntityKind::Annotation => (ENTITY_BG, BORDER_COLOR, "annotation"),
         EntityKind::Object => unreachable!(),
     };
     let default_fill = skin.background_color(element_type, default_bg);
     let fill = entity.color.as_deref().unwrap_or(default_fill);
     let stroke = skin.border_color(element_type, default_border);
-    let font_color = skin.font_color(element_type, LABEL_COLOR);
+    let font_color = skin.font_color(element_type, TEXT_COLOR);
 
     // Java URectangle.rounded(roundCorner): rx = roundCorner / 2.
     // Default roundCorner from style = 5 → rx = 2.5.
@@ -1442,10 +1433,10 @@ fn draw_object_box(
     let w = nl.width;
     let h = nl.height;
 
-    let default_fill = skin.background_color("object", CLASS_BG);
+    let default_fill = skin.background_color("object", ENTITY_BG);
     let fill = entity.color.as_deref().unwrap_or(default_fill);
-    let stroke_color = skin.border_color("object", CLASS_BORDER);
-    let font_color = skin.font_color("object", LABEL_COLOR);
+    let stroke_color = skin.border_color("object", BORDER_COLOR);
+    let font_color = skin.font_color("object", TEXT_COLOR);
 
     // Java URectangle.rounded(roundCorner): SVG rx = roundCorner / 2.
     let rx = skin.round_corner().map(|rc| rc / 2.0).unwrap_or(2.5);
@@ -2117,7 +2108,7 @@ fn emit_arrowhead(
             base_angle + std::f64::consts::FRAC_PI_2,
             tip_x,
             tip_y,
-            CLASS_BG,
+            ENTITY_BG,
             link_color,
         ),
         ArrowHead::Diamond => emit_rotated_polygon(
@@ -2325,7 +2316,7 @@ fn draw_label(sg: &mut SvgGraphic, text: &str, x: f64, y: f64) {
         };
         let line_y = base_y + idx as f64 * line_height;
 
-        sg.set_fill_color(LABEL_COLOR);
+        sg.set_fill_color(TEXT_COLOR);
         sg.svg_text(
             line_text, line_x, line_y,
             Some(&default_font), font_size,
@@ -2400,7 +2391,7 @@ fn draw_class_note(sg: &mut SvgGraphic, tracker: &mut BoundsTracker, note: &Clas
         text_x,
         text_y,
         LINE_HEIGHT,
-        LABEL_COLOR,
+        TEXT_COLOR,
         None,
             &format!(r#"font-size="{FONT_SIZE}""#),
         );
@@ -2737,8 +2728,8 @@ mod tests {
     fn test_default_colors() {
         let (d, l) = simple_diagram();
         let svg = render(&d, &l, &default_skin(), &default_meta()).unwrap();
-        assert!(svg.contains(&format!(r#"fill="{CLASS_BG}""#)));
-        assert!(svg.contains(&format!(r#"stroke:{CLASS_BORDER}"#)));
+        assert!(svg.contains(&format!(r#"fill="{ENTITY_BG}""#)));
+        assert!(svg.contains(&format!(r#"stroke:{BORDER_COLOR}"#)));
     }
 
     // ── Meta rendering tests ────────────────────────────────────────
@@ -2840,7 +2831,7 @@ mod tests {
         let svg = render(&d, &l, &default_skin(), &meta).unwrap();
         assert!(svg.contains("Legend text"));
         assert!(svg.contains(LEGEND_BG));
-        assert!(svg.contains(LEGEND_BORDER_COLOR));
+        assert!(svg.contains(LEGEND_BORDER));
     }
 
     #[test]

@@ -15,19 +15,7 @@ use crate::Result;
 const FONT_SIZE: f64 = 13.0;
 const LINE_HEIGHT: f64 = 16.0;
 
-const ACTION_BG: &str = "#F1F1F1";
-const ACTION_BORDER: &str = "#181818";
-const START_FILL: &str = "#222222";
-const START_STROKE: &str = "#222222";
-const STOP_FILL: &str = "#222222";
-const STOP_STROKE: &str = "#222222";
-const DIAMOND_BG: &str = "#F1F1F1";
-const DIAMOND_BORDER: &str = "#181818";
-const FORK_FILL: &str = "#000000";
-use crate::skin::rose::{NOTE_BG, NOTE_BORDER};
-const EDGE_COLOR: &str = "#181818";
-const TEXT_FILL: &str = "#000000";
-const SWIMLANE_BORDER: &str = "#000000";
+use crate::skin::rose::{BORDER_COLOR, ENTITY_BG, FORK_FILL, INITIAL_FILL, NOTE_BG, NOTE_BORDER, TEXT_COLOR};
 
 // -- Public entry point -------------------------------------------------------
 
@@ -46,14 +34,14 @@ pub fn render_activity(
     write_bg_rect(&mut buf, layout.width, layout.height, bg);
 
     // Skin color lookups
-    let act_bg = skin.background_color("activity", ACTION_BG);
-    let act_border = skin.border_color("activity", ACTION_BORDER);
-    let act_font = skin.font_color("activity", TEXT_FILL);
-    let diamond_bg = skin.background_color("activityDiamond", DIAMOND_BG);
-    let diamond_border = skin.border_color("activityDiamond", DIAMOND_BORDER);
-    let swimlane_border = skin.border_color("swimlane", SWIMLANE_BORDER);
-    let swimlane_font = skin.font_color("swimlane", TEXT_FILL);
-    let arrow_color = skin.arrow_color(EDGE_COLOR);
+    let act_bg = skin.background_color("activity", ENTITY_BG);
+    let act_border = skin.border_color("activity", BORDER_COLOR);
+    let act_font = skin.font_color("activity", TEXT_COLOR);
+    let diamond_bg = skin.background_color("activityDiamond", ENTITY_BG);
+    let diamond_border = skin.border_color("activityDiamond", BORDER_COLOR);
+    let swimlane_border = skin.border_color("swimlane", TEXT_COLOR);
+    let swimlane_font = skin.font_color("swimlane", TEXT_COLOR);
+    let arrow_color = skin.arrow_color(BORDER_COLOR);
 
     let mut sg = SvgGraphic::new(0, 1.0);
 
@@ -119,8 +107,8 @@ fn render_node(
 fn render_start(sg: &mut SvgGraphic, node: &ActivityNodeLayout) {
     let cx = node.x + node.width / 2.0;
     let cy = node.y + node.height / 2.0;
-    sg.set_fill_color(START_FILL);
-    sg.set_stroke_color(Some(START_STROKE));
+    sg.set_fill_color(INITIAL_FILL);
+    sg.set_stroke_color(Some(INITIAL_FILL));
     sg.set_stroke_width(1.0, None);
     sg.svg_ellipse(cx, cy, 10.0, 10.0, 0.0);
 }
@@ -130,11 +118,11 @@ fn render_stop(sg: &mut SvgGraphic, node: &ActivityNodeLayout) {
     let cx = node.x + node.width / 2.0;
     let cy = node.y + node.height / 2.0;
     sg.set_fill_color("none");
-    sg.set_stroke_color(Some(STOP_STROKE));
+    sg.set_stroke_color(Some(INITIAL_FILL));
     sg.set_stroke_width(1.0, None);
     sg.svg_ellipse(cx, cy, 11.0, 11.0, 0.0);
-    sg.set_fill_color(STOP_FILL);
-    sg.set_stroke_color(Some(STOP_STROKE));
+    sg.set_fill_color(INITIAL_FILL);
+    sg.set_stroke_color(Some(INITIAL_FILL));
     sg.set_stroke_width(1.0, None);
     sg.svg_ellipse(cx, cy, 6.0, 6.0, 0.0);
 }
@@ -243,7 +231,7 @@ fn render_note(sg: &mut SvgGraphic, node: &ActivityNodeLayout, _position: &NoteP
         text_x,
         text_y,
         LINE_HEIGHT,
-        TEXT_FILL,
+        TEXT_COLOR,
         None,
         r#"font-size="13""#,
     );
@@ -397,7 +385,7 @@ mod tests {
         let svg = render_activity(&diagram, &layout, &SkinParams::default()).expect("render failed");
         assert!(svg.contains(r#"rx="10""#), "start ellipse must have rx=10");
         assert!(svg.contains(r#"ry="10""#), "start ellipse must have ry=10");
-        assert!(svg.contains(&format!(r#"fill="{START_FILL}""#)), "start ellipse must be filled");
+        assert!(svg.contains(&format!(r#"fill="{INITIAL_FILL}""#)), "start ellipse must be filled");
         assert_eq!(svg.matches("<ellipse").count(), 1, "start node must produce exactly one ellipse");
     }
 
@@ -446,8 +434,8 @@ mod tests {
         layout.nodes.push(make_node(0, ActivityNodeKindLayout::Diamond, 60.0, 50.0, 40.0, 40.0, ""));
         let svg = render_activity(&diagram, &layout, &SkinParams::default()).expect("render failed");
         assert!(svg.contains("<polygon"), "diamond must be rendered as polygon");
-        assert!(svg.contains(r##"fill="#F1F1F1""##), "diamond must use DIAMOND_BG");
-        assert!(svg.contains("stroke:#181818"), "diamond must use DIAMOND_BORDER");
+        assert!(svg.contains(r##"fill="#F1F1F1""##), "diamond must use ENTITY_BG");
+        assert!(svg.contains("stroke:#181818"), "diamond must use BORDER_COLOR");
         assert!(svg.contains("80,50"), "diamond top vertex");
         assert!(svg.contains("100,70"), "diamond right vertex");
         assert!(svg.contains("80,90"), "diamond bottom vertex");
@@ -486,7 +474,7 @@ mod tests {
         });
         let svg = render_activity(&diagram, &layout, &SkinParams::default()).expect("render failed");
         assert!(svg.contains("<polygon"), "edge must have inline polygon arrowhead");
-        assert!(svg.contains("stroke:#181818"), "edge must use EDGE_COLOR");
+        assert!(svg.contains("stroke:#181818"), "edge must use BORDER_COLOR");
         assert!(svg.contains("<line "), "2-point edge must use <line>");
         assert!(!svg.contains("marker-end"), "edges must use inline polygon, not marker-end");
     }

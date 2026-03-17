@@ -7,20 +7,10 @@ use crate::style::SkinParams;
 use crate::Result;
 
 const FONT_SIZE: f64 = 14.0;
-const ENTITY_BG: &str = "#F1F1F1";
-const ENTITY_BORDER: &str = "#181818";
-const RELATIONSHIP_BG: &str = "#F1F1F1";
-const RELATIONSHIP_BORDER: &str = "#181818";
-const ATTR_BG: &str = "#F1F1F1";
-const ATTR_BORDER: &str = "#181818";
-const EDGE_COLOR: &str = "#181818";
-const TEXT_FILL: &str = "#000000";
-const ISA_BG: &str = "#F1F1F1";
-const ISA_BORDER: &str = "#181818";
-use crate::skin::rose::{NOTE_BG, NOTE_BORDER, NOTE_FOLD};
+use crate::skin::rose::{BORDER_COLOR, ENTITY_BG, NOTE_BG, NOTE_BORDER, NOTE_FOLD, TEXT_COLOR};
 
 fn render_path_line(sg: &mut SvgGraphic, x1: f64, y1: f64, x2: f64, y2: f64) {
-    sg.push_raw(&format!(r#"<path d="M{},{} L{},{} " fill="none" style="stroke:{EDGE_COLOR};stroke-width:1;"/>"#, fmt_coord(x1), fmt_coord(y1), fmt_coord(x2), fmt_coord(y2)));
+    sg.push_raw(&format!(r#"<path d="M{},{} L{},{} " fill="none" style="stroke:{BORDER_COLOR};stroke-width:1;"/>"#, fmt_coord(x1), fmt_coord(y1), fmt_coord(x2), fmt_coord(y2)));
 }
 
 pub fn render_erd(_ed: &ErdDiagram, layout: &ErdLayout, skin: &SkinParams) -> Result<String> {
@@ -31,8 +21,8 @@ pub fn render_erd(_ed: &ErdDiagram, layout: &ErdLayout, skin: &SkinParams) -> Re
     write_bg_rect(&mut buf, layout.width, layout.height, bg);
 
     let ent_bg = skin.background_color("entity", ENTITY_BG);
-    let ent_border = skin.border_color("entity", ENTITY_BORDER);
-    let ent_font = skin.font_color("entity", TEXT_FILL);
+    let ent_border = skin.border_color("entity", BORDER_COLOR);
+    let ent_font = skin.font_color("entity", TEXT_COLOR);
 
     let mut sg = SvgGraphic::new(0, 1.0);
     for node in &layout.entity_nodes { render_entity(&mut sg, node, ent_bg, ent_border, ent_font); }
@@ -69,45 +59,45 @@ fn render_relationship(sg: &mut SvgGraphic, node: &ErdNodeLayout) {
     let (x, y, w, h) = (node.x, node.y, node.width, node.height);
     let cx = x + w / 2.0; let cy = y + h / 2.0;
     if node.is_identifying {
-        sg.set_fill_color(RELATIONSHIP_BG); sg.set_stroke_color(Some(RELATIONSHIP_BORDER)); sg.set_stroke_width(0.5, None);
+        sg.set_fill_color(ENTITY_BG); sg.set_stroke_color(Some(BORDER_COLOR)); sg.set_stroke_width(0.5, None);
         sg.svg_polygon(0.0, &[cx, y, x + w, cy, cx, y + h, x, cy]);
         let inset = 4.0;
-        sg.set_fill_color(RELATIONSHIP_BG); sg.set_stroke_color(Some(RELATIONSHIP_BORDER)); sg.set_stroke_width(0.5, None);
+        sg.set_fill_color(ENTITY_BG); sg.set_stroke_color(Some(BORDER_COLOR)); sg.set_stroke_width(0.5, None);
         sg.svg_polygon(0.0, &[cx, y + inset, x + w - inset * 1.5, cy, cx, y + h - inset, x + inset * 1.5, cy]);
     } else {
-        sg.set_fill_color(RELATIONSHIP_BG); sg.set_stroke_color(Some(RELATIONSHIP_BORDER)); sg.set_stroke_width(0.5, None);
+        sg.set_fill_color(ENTITY_BG); sg.set_stroke_color(Some(BORDER_COLOR)); sg.set_stroke_width(0.5, None);
         sg.svg_polygon(0.0, &[cx, y, x + w, cy, cx, y + h, x, cy]);
     }
     let ty = cy + FONT_SIZE * 0.35; let text_w = w - 40.0; let text_x = cx - text_w / 2.0;
-    sg.set_fill_color(TEXT_FILL);
+    sg.set_fill_color(TEXT_COLOR);
     sg.svg_text(&node.label, text_x, ty, Some("sans-serif"), FONT_SIZE, None, None, None, text_w, LengthAdjust::Spacing, None, 0, None);
 }
 
 fn render_attribute(sg: &mut SvgGraphic, attr: &ErdAttrLayout) {
     let (cx, cy, rx, ry) = (attr.x, attr.y, attr.rx, attr.ry);
     if attr.is_derived {
-        sg.set_fill_color(ATTR_BG); sg.set_stroke_color(Some(ATTR_BORDER)); sg.set_stroke_width(0.5, Some((10.0, 10.0)));
+        sg.set_fill_color(ENTITY_BG); sg.set_stroke_color(Some(BORDER_COLOR)); sg.set_stroke_width(0.5, Some((10.0, 10.0)));
         sg.svg_ellipse(cx, cy, rx, ry, 0.0);
     } else if attr.is_multi {
-        sg.set_fill_color(ATTR_BG); sg.set_stroke_color(Some(ATTR_BORDER)); sg.set_stroke_width(0.5, None);
+        sg.set_fill_color(ENTITY_BG); sg.set_stroke_color(Some(BORDER_COLOR)); sg.set_stroke_width(0.5, None);
         sg.svg_ellipse(cx, cy, rx, ry, 0.0);
-        sg.set_fill_color(ATTR_BG); sg.set_stroke_color(Some(ATTR_BORDER)); sg.set_stroke_width(0.5, None);
+        sg.set_fill_color(ENTITY_BG); sg.set_stroke_color(Some(BORDER_COLOR)); sg.set_stroke_width(0.5, None);
         sg.svg_ellipse(cx, cy, rx - 3.0, ry - 3.0, 0.0);
     } else {
-        sg.set_fill_color(ATTR_BG); sg.set_stroke_color(Some(ATTR_BORDER)); sg.set_stroke_width(0.5, None);
+        sg.set_fill_color(ENTITY_BG); sg.set_stroke_color(Some(BORDER_COLOR)); sg.set_stroke_width(0.5, None);
         sg.svg_ellipse(cx, cy, rx, ry, 0.0);
     }
     let ty = cy + FONT_SIZE * 0.35; let text_w = rx * 2.0 - 10.0; let text_x = cx - rx + 5.0;
     if attr.is_key {
-        sg.set_fill_color(TEXT_FILL);
+        sg.set_fill_color(TEXT_COLOR);
         sg.svg_text(&attr.label, text_x, ty, Some("sans-serif"), FONT_SIZE, None, None, Some("underline"), text_w, LengthAdjust::Spacing, None, 0, None);
     } else {
-        sg.set_fill_color(TEXT_FILL);
+        sg.set_fill_color(TEXT_COLOR);
         sg.svg_text(&attr.label, text_x, ty, Some("sans-serif"), FONT_SIZE, None, None, None, text_w, LengthAdjust::Spacing, None, 0, None);
     }
     if let Some(ref type_label) = attr.type_label {
         let type_y = cy + FONT_SIZE * 0.35 + FONT_SIZE + 2.0;
-        sg.set_fill_color(TEXT_FILL);
+        sg.set_fill_color(TEXT_COLOR);
         sg.svg_text(type_label, text_x, type_y, Some("sans-serif"), FONT_SIZE - 2.0, None, Some("italic"), None, text_w, LengthAdjust::Spacing, None, 0, None);
     }
     for child in &attr.children { render_attribute(sg, child); render_path_line(sg, cx, cy - ry, child.x, child.y + child.ry); }
@@ -131,14 +121,14 @@ fn render_edge(sg: &mut SvgGraphic, edge: &ErdEdgeLayout) {
         let dx = x2 - x1; let dy = y2 - y1; let len = (dx * dx + dy * dy).sqrt();
         if len > 0.001 {
             let ux = dx / len; let uy = dy / len; let ax = x2 - ux * 8.0; let ay = y2 - uy * 8.0; let nx = -uy * 4.0; let ny = ux * 4.0;
-            sg.set_fill_color(EDGE_COLOR); sg.set_stroke_color(None); sg.set_stroke_width(0.0, None);
+            sg.set_fill_color(BORDER_COLOR); sg.set_stroke_color(None); sg.set_stroke_width(0.0, None);
             sg.svg_polygon(0.0, &[x2, y2, ax + nx, ay + ny, ax - nx, ay - ny]);
         }
     }
     if !edge.label.is_empty() {
         let mx = (x1 + x2) / 2.0; let my = (y1 + y2) / 2.0 - 6.0;
         let escaped = xml_escape(&edge.label); let text_w = escaped.len() as f64 * 7.0;
-        sg.set_fill_color(TEXT_FILL);
+        sg.set_fill_color(TEXT_COLOR);
         sg.svg_text(&edge.label, mx, my, Some("sans-serif"), 11.0, None, None, None, text_w, LengthAdjust::Spacing, None, 0, None);
     }
 }
@@ -146,10 +136,10 @@ fn render_edge(sg: &mut SvgGraphic, edge: &ErdEdgeLayout) {
 fn render_isa(sg: &mut SvgGraphic, isa: &ErdIsaLayout) {
     let (cx, cy) = isa.triangle_center; let s = isa.triangle_size;
     let top_y = cy - s * 0.5; let bot_y = cy + s * 0.5; let left_x = cx - s * 0.6; let right_x = cx + s * 0.6;
-    sg.set_fill_color(ISA_BG); sg.set_stroke_color(Some(ISA_BORDER)); sg.set_stroke_width(0.5, None);
+    sg.set_fill_color(ENTITY_BG); sg.set_stroke_color(Some(BORDER_COLOR)); sg.set_stroke_width(0.5, None);
     sg.svg_polygon(0.0, &[cx, top_y, right_x, bot_y, left_x, bot_y]);
     let label_y = cy + FONT_SIZE * 0.2; let escaped = xml_escape(&isa.kind_label); let text_w = escaped.len() as f64 * 7.0;
-    sg.set_fill_color(TEXT_FILL);
+    sg.set_fill_color(TEXT_COLOR);
     sg.svg_text(&isa.kind_label, cx - text_w / 2.0, label_y, Some("sans-serif"), FONT_SIZE, None, None, None, text_w, LengthAdjust::Spacing, None, 0, None);
     let (ppx, ppy) = isa.parent_point; render_path_line(sg, ppx, ppy, cx, top_y);
     for (_child_id, (child_x, child_y)) in &isa.child_points { render_path_line(sg, cx, bot_y, *child_x, *child_y); }
@@ -165,7 +155,7 @@ fn render_note(sg: &mut SvgGraphic, note: &ErdNoteLayout) {
     sg.svg_polygon(0.0, &[x, y, x + w - fold, y, x + w, y + fold, x + w, y + h, x, y + h]);
     sg.push_raw(&format!(r#"<path d="M{},{} L{},{} L{},{} " fill="none" style="stroke:{NOTE_BORDER};stroke-width:0.5;"/>"#, fmt_coord(x + w - fold), fmt_coord(y), fmt_coord(x + w - fold), fmt_coord(y + fold), fmt_coord(x + w), fmt_coord(y + fold)));
     let mut tmp = String::new();
-    render_creole_text(&mut tmp, &note.text, x + 10.0, y + 10.0 + FONT_SIZE, 16.0, TEXT_FILL, None, r#"font-size="13""#);
+    render_creole_text(&mut tmp, &note.text, x + 10.0, y + 10.0 + FONT_SIZE, 16.0, TEXT_COLOR, None, r#"font-size="13""#);
     sg.push_raw(&tmp);
 }
 

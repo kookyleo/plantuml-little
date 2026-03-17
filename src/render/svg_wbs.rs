@@ -6,17 +6,13 @@ use crate::klimt::svg::{fmt_coord, xml_escape, LengthAdjust, SvgGraphic};
 use crate::layout::wbs::{WbsEdgeLayout, WbsLayout, WbsNodeLayout, WbsNoteLayout};
 use crate::model::wbs::WbsDiagram;
 use crate::render::svg::{write_bg_rect, write_svg_root_bg};
-use crate::skin::rose::{NOTE_BG, NOTE_BORDER, NOTE_FOLD};
+use crate::skin::rose::{BORDER_COLOR, ENTITY_BG, NOTE_BG, NOTE_BORDER, NOTE_FOLD, TEXT_COLOR};
 use crate::style::SkinParams;
 use crate::Result;
 
 const FONT_SIZE: f64 = 12.0;
 const ASCENT: f64 = 11.138672;
 const LINE_HEIGHT: f64 = 13.96875;
-const NODE_BG: &str = "#F1F1F1";
-const NODE_BORDER: &str = "#181818";
-const EDGE_COLOR: &str = "#181818";
-const TEXT_FILL: &str = "#000000";
 const STROKE_WIDTH: f64 = 1.5;
 pub const PAD: f64 = 10.0;
 
@@ -28,10 +24,10 @@ pub fn render_wbs(_wd: &WbsDiagram, layout: &WbsLayout, skin: &SkinParams) -> Re
     buf.push_str("<defs/><g>");
     write_bg_rect(&mut buf, layout.width, layout.height, bg);
 
-    let wbs_bg = skin.background_color("wbs", NODE_BG);
-    let wbs_border = skin.border_color("wbs", NODE_BORDER);
-    let wbs_font = skin.font_color("wbs", TEXT_FILL);
-    let edge_color = skin.arrow_color(EDGE_COLOR);
+    let wbs_bg = skin.background_color("wbs", ENTITY_BG);
+    let wbs_border = skin.border_color("wbs", BORDER_COLOR);
+    let wbs_font = skin.font_color("wbs", TEXT_COLOR);
+    let edge_color = skin.arrow_color(BORDER_COLOR);
 
     let mut sg = SvgGraphic::new(0, 1.0);
 

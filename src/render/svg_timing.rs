@@ -10,25 +10,21 @@ use crate::style::SkinParams;
 use crate::Result;
 
 const FONT_SIZE: f64 = 12.0;
-const TRACK_BG_FILL: &str = "#F1F1F1";
-const TRACK_BORDER: &str = "#181818";
-const SIGNAL_STROKE: &str = "#181818";
+use crate::skin::rose::{BORDER_COLOR, ENTITY_BG, NOTE_BG, NOTE_BORDER, NOTE_FOLD, TEXT_COLOR};
 const CONCISE_STROKE: &str = "#2E8B57";
 const ARROW_COLOR: &str = "#555555";
 const CONSTRAINT_COLOR: &str = "#FF6600";
-const TEXT_FILL: &str = "#000000";
 const AXIS_LINE_COLOR: &str = "#888888";
 const AXIS_TEXT_COLOR: &str = "#333333";
 const TICK_COLOR: &str = "#CCCCCC";
 const LABEL_PADDING: f64 = 8.0;
 const ROBUST_BAND_HEIGHT: f64 = 16.0;
-use crate::skin::rose::{NOTE_BG, NOTE_BORDER, NOTE_FOLD};
 
 pub fn render_timing(_td: &TimingDiagram, layout: &TimingLayout, skin: &SkinParams) -> Result<String> {
     let mut buf = String::with_capacity(4096);
-    let timing_bg = skin.background_color("timing", TRACK_BG_FILL);
-    let timing_border = skin.border_color("timing", TRACK_BORDER);
-    let timing_font = skin.font_color("timing", TEXT_FILL);
+    let timing_bg = skin.background_color("timing", ENTITY_BG);
+    let timing_border = skin.border_color("timing", BORDER_COLOR);
+    let timing_font = skin.font_color("timing", TEXT_COLOR);
     let constraint_color = skin.font_color("constraint", CONSTRAINT_COLOR);
     let arrow_color = skin.arrow_color(ARROW_COLOR);
     let bg = skin.get_or("backgroundcolor", "#FFFFFF");
@@ -70,16 +66,16 @@ fn render_track(sg: &mut SvgGraphic, track: &TimingTrackLayout, bg: &str, border
 }
 
 fn render_segment(sg: &mut SvgGraphic, seg: &TimingSegmentLayout, index: usize, all_segments: &[TimingSegmentLayout]) {
-    let stroke = if seg.is_robust { SIGNAL_STROKE } else { CONCISE_STROKE };
+    let stroke = if seg.is_robust { BORDER_COLOR } else { CONCISE_STROKE };
     if seg.is_robust {
         let band_top = seg.y - ROBUST_BAND_HEIGHT * 0.5;
         let w = seg.x_end - seg.x_start;
-        if w > 0.0 { sg.set_fill_color(TRACK_BG_FILL); sg.set_stroke_color(Some(stroke)); sg.set_stroke_width(0.5, None); sg.svg_rectangle(seg.x_start, band_top, w, ROBUST_BAND_HEIGHT, 0.0, 0.0, 0.0); }
-        if w > 10.0 { let cx = seg.x_start + w * 0.5; let cy = seg.y + FONT_SIZE * 0.35; let mut tmp = String::new(); render_creole_text(&mut tmp, &seg.state, cx, cy, FONT_SIZE + 4.0, TEXT_FILL, Some("middle"), &format!(r#"font-size="{:.0}""#, FONT_SIZE - 1.0)); sg.push_raw(&tmp); }
+        if w > 0.0 { sg.set_fill_color(ENTITY_BG); sg.set_stroke_color(Some(stroke)); sg.set_stroke_width(0.5, None); sg.svg_rectangle(seg.x_start, band_top, w, ROBUST_BAND_HEIGHT, 0.0, 0.0, 0.0); }
+        if w > 10.0 { let cx = seg.x_start + w * 0.5; let cy = seg.y + FONT_SIZE * 0.35; let mut tmp = String::new(); render_creole_text(&mut tmp, &seg.state, cx, cy, FONT_SIZE + 4.0, TEXT_COLOR, Some("middle"), &format!(r#"font-size="{:.0}""#, FONT_SIZE - 1.0)); sg.push_raw(&tmp); }
         if index > 0 { let prev = &all_segments[index - 1]; let tx = seg.x_start; let pbt = prev.y - ROBUST_BAND_HEIGHT * 0.5; let pbb = prev.y + ROBUST_BAND_HEIGHT * 0.5; let cbt = seg.y - ROBUST_BAND_HEIGHT * 0.5; let cbb = seg.y + ROBUST_BAND_HEIGHT * 0.5; let yf = if seg.y < prev.y { pbt } else { pbb }; let yt = if seg.y < prev.y { cbb } else { cbt }; sg.set_stroke_color(Some(stroke)); sg.set_stroke_width(0.5, None); sg.svg_line(tx, yf, tx, yt, 0.0); }
     } else {
         if seg.x_end > seg.x_start { sg.set_stroke_color(Some(stroke)); sg.set_stroke_width(0.5, None); sg.svg_line(seg.x_start, seg.y, seg.x_end, seg.y, 0.0); }
-        if (seg.x_end - seg.x_start) > 10.0 { let cx = seg.x_start + (seg.x_end - seg.x_start) * 0.5; let cy = seg.y - 4.0; let mut tmp = String::new(); render_creole_text(&mut tmp, &seg.state, cx, cy, FONT_SIZE + 4.0, TEXT_FILL, Some("middle"), &format!(r#"font-size="{:.0}""#, FONT_SIZE - 1.0)); sg.push_raw(&tmp); }
+        if (seg.x_end - seg.x_start) > 10.0 { let cx = seg.x_start + (seg.x_end - seg.x_start) * 0.5; let cy = seg.y - 4.0; let mut tmp = String::new(); render_creole_text(&mut tmp, &seg.state, cx, cy, FONT_SIZE + 4.0, TEXT_COLOR, Some("middle"), &format!(r#"font-size="{:.0}""#, FONT_SIZE - 1.0)); sg.push_raw(&tmp); }
         if index > 0 { let prev = &all_segments[index - 1]; let tx = seg.x_start; sg.set_stroke_color(Some(stroke)); sg.set_stroke_width(0.5, None); sg.svg_line(tx, prev.y, tx, seg.y, 0.0); }
     }
 }

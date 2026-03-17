@@ -19,22 +19,10 @@ use super::svg_richtext::{disable_path_sprites, enable_path_sprites, render_creo
 
 const FONT_SIZE: f64 = 13.0;
 const LINE_HEIGHT: f64 = 16.0;
-const PARTICIPANT_BG: &str = "#E2E2F0";
-const PARTICIPANT_BORDER: &str = "#181818";
-const LIFELINE_COLOR: &str = "#181818";
-const ARROW_COLOR: &str = "#181818";
-use crate::skin::rose::{NOTE_BG, NOTE_BORDER};
-const GROUP_BG: &str = "#EEEEEE";
-const GROUP_BORDER: &str = "#000000";
-const ACTIVATION_BG: &str = "#FFFFFF";
-const ACTIVATION_BORDER: &str = "#181818";
-const FRAGMENT_BG: &str = "#F1F1F1";
-const FRAGMENT_BORDER: &str = "#181818";
-const REF_BG: &str = "#F1F1F1";
-const REF_BORDER: &str = "#181818";
-const DESTROY_COLOR: &str = "#A80036";
-const DIVIDER_COLOR: &str = "#888888";
-const TEXT_COLOR: &str = "#000000";
+use crate::skin::rose::{
+    ACTIVATION_BG, BORDER_COLOR, DESTROY_COLOR, DIVIDER_COLOR, ENTITY_BG, GROUP_BG,
+    NOTE_BG, NOTE_BORDER, PARTICIPANT_BG, TEXT_COLOR,
+};
 
 const MARGIN: f64 = 5.0;
 
@@ -55,7 +43,6 @@ const REF_TAB_LEFT_PAD: f64 = 13.0;
 const REF_KIND_LABEL_Y_OFFSET: f64 = 14.0669;
 const REF_LABEL_FONT_SIZE: f64 = 12.0;
 const REF_FRAME_STROKE: &str = "#000000";
-const REF_TAB_FILL: &str = "#EEEEEE";
 
 // ── Arrow marker defs ───────────────────────────────────────────────
 
@@ -71,7 +58,7 @@ fn write_seq_defs(sg: &mut SvgGraphic) {
 /// through multiple `addDim()` calls.  When the diagram contains a `group`
 /// fragment, the grouping header's dimension causes an additional f32
 fn draw_lifelines(sg: &mut SvgGraphic, layout: &SeqLayout, skin: &SkinParams, sd: &SequenceDiagram) {
-    let ll_color = skin.sequence_lifeline_border_color(LIFELINE_COLOR);
+    let ll_color = skin.sequence_lifeline_border_color(BORDER_COLOR);
     let ll_height = layout.lifeline_bottom - layout.lifeline_top;
     for (i, p) in layout.participants.iter().enumerate() {
         let part_idx = i + 1;
@@ -1022,7 +1009,7 @@ fn draw_activation(sg: &mut SvgGraphic, act: &ActivationLayout) {
         r#"<rect fill="{bg}" height="{}" style="stroke:{border};stroke-width:1;" width="{}" x="{}" y="{}"/>"#,
         fmt_coord(height), fmt_coord(width), fmt_coord(act.x), fmt_coord(act.y_start),
         bg = ACTIVATION_BG,
-        border = ACTIVATION_BORDER,
+        border = BORDER_COLOR,
     )
     .unwrap();
     sg.push_raw(&tmp);
@@ -1105,7 +1092,7 @@ fn draw_group(sg: &mut SvgGraphic, group: &GroupLayout) {
         r#"<rect fill="{bg}" fill-opacity="0.30000" height="{}" style="stroke:{border};stroke-width:1;" width="{}" x="{}" y="{}"/>"#,
         fmt_coord(height), fmt_coord(group.width), fmt_coord(group.x), fmt_coord(group.y_start),
         bg = GROUP_BG,
-        border = GROUP_BORDER,
+        border = TEXT_COLOR,
     )
     .unwrap();
     sg.push_raw(&tmp);
@@ -1126,7 +1113,7 @@ fn draw_group(sg: &mut SvgGraphic, group: &GroupLayout) {
             r#"<rect fill="{bg}" height="{}" style="stroke:{border};stroke-width:1;" width="{}" x="{}" y="{}"/>"#,
             fmt_coord(label_height), fmt_coord(label_width), fmt_coord(group.x), fmt_coord(group.y_start),
             bg = GROUP_BG,
-            border = GROUP_BORDER,
+            border = TEXT_COLOR,
         )
         .unwrap();
         sg.push_raw(&tmp);
@@ -1421,7 +1408,7 @@ fn draw_ref(sg: &mut SvgGraphic, r: &RefLayout) {
         fmt_coord(r.height), fmt_coord(r.width),
     ));
     sg.push_raw(&format!(
-        "<path d=\"M{rx_s},{ry_s} L{},{ry_s} L{},{} L{},{} L{rx_s},{} L{rx_s},{ry_s}\" fill=\"{REF_TAB_FILL}\" style=\"stroke:{REF_FRAME_STROKE};stroke-width:2;\"/>",
+        "<path d=\"M{rx_s},{ry_s} L{},{ry_s} L{},{} L{},{} L{rx_s},{} L{rx_s},{ry_s}\" fill=\"{GROUP_BG}\" style=\"stroke:{REF_FRAME_STROKE};stroke-width:2;\"/>",
         fmt_coord(tab_right),
         fmt_coord(tab_right), fmt_coord(r.y + REF_TAB_HEIGHT - REF_TAB_NOTCH),
         fmt_coord(tab_right - REF_TAB_NOTCH), fmt_coord(r.y + REF_TAB_HEIGHT),
@@ -1574,7 +1561,7 @@ fn render_sequence_inner(
     } else {
         skin.background_color("participant", PARTICIPANT_BG)
     };
-    let part_border = skin.border_color("participant", PARTICIPANT_BORDER);
+    let part_border = skin.border_color("participant", BORDER_COLOR);
     let part_font = skin.font_color("participant", TEXT_COLOR);
     let part_font_size: f64 = skin
         .get("participantfontsize")
@@ -1620,7 +1607,7 @@ fn render_sequence_inner(
     // 8. Messages interleaved with fragment details (matching Java rendering order)
     // Build a y-sorted list of interstitial events (fragment details + separators)
     // that should be emitted between messages at the appropriate y positions.
-    let seq_arrow_color = skin.sequence_arrow_color(ARROW_COLOR);
+    let seq_arrow_color = skin.sequence_arrow_color(BORDER_COLOR);
     let seq_arrow_thickness = skin.sequence_arrow_thickness().unwrap_or(1.0);
     let mut msg_seq_counter: usize = 0;
 

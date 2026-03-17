@@ -6,10 +6,7 @@ use crate::render::svg::{write_bg_rect, write_svg_root_bg};
 use crate::style::SkinParams;
 use crate::Result;
 
-const BG: &str = "#FFFFFF";
-const BORDER: &str = "#181818";
-const FILL: &str = "#F1F1F1";
-const TEXT: &str = "#000000";
+use crate::skin::rose::{ACTIVATION_BG, BORDER_COLOR, ENTITY_BG, TEXT_COLOR};
 const STROKE_WIDTH: f64 = 0.5;
 
 pub fn render_salt(
@@ -25,12 +22,12 @@ pub fn render_salt(
 
     let mut sg = SvgGraphic::new(0, 1.0);
 
-    let border = skin.border_color("salt", BORDER);
-    let fill = skin.background_color("salt", FILL);
-    let font = skin.font_color("salt", TEXT);
+    let border = skin.border_color("salt", BORDER_COLOR);
+    let fill = skin.background_color("salt", ENTITY_BG);
+    let font = skin.font_color("salt", TEXT_COLOR);
 
     // Background rect (no stroke)
-    sg.set_fill_color(&skin.background_color("saltbg", BG));
+    sg.set_fill_color(&skin.background_color("saltbg", ACTIVATION_BG));
     sg.set_stroke_width(0.0, None);
     sg.svg_rectangle(0.0, 0.0, layout.width, layout.height, 0.0, 0.0, 0.0);
     sg.push_raw("\n");

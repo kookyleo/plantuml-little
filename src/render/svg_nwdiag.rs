@@ -9,12 +9,9 @@ use crate::style::SkinParams;
 use crate::Result;
 
 const LINE_HEIGHT: f64 = 16.0;
+use crate::skin::rose::{BORDER_COLOR, DIVIDER_COLOR, ENTITY_BG, TEXT_COLOR};
 const NETWORK_FILL: &str = "#F5F5F5";
 const NETWORK_BORDER: &str = "#A0A0A0";
-const SERVER_FILL: &str = "#F1F1F1";
-const SERVER_BORDER: &str = "#181818";
-const TEXT_FILL: &str = "#000000";
-const CONNECTOR_COLOR: &str = "#888888";
 
 pub fn render_nwdiag(
     diagram: &NwdiagDiagram,
@@ -38,7 +35,7 @@ pub fn render_nwdiag(
             layout.width / 2.0,
             20.0,
             LINE_HEIGHT,
-            skin.font_color("nwdiag", TEXT_FILL),
+            skin.font_color("nwdiag", TEXT_COLOR),
             Some("middle"),
             r#"font-size="14" font-weight="bold""#,
         );
@@ -61,7 +58,7 @@ pub fn render_nwdiag(
 }
 
 fn render_connector(sg: &mut SvgGraphic, connector: &NwdiagConnectorLayout) {
-    sg.set_stroke_color(Some(CONNECTOR_COLOR));
+    sg.set_stroke_color(Some(DIVIDER_COLOR));
     sg.set_stroke_width(0.5, Some((4.0, 4.0)));
     sg.svg_line(connector.x, connector.y1, connector.x, connector.y2, 0.0);
 }
@@ -72,7 +69,7 @@ fn render_network(sg: &mut SvgGraphic, network: &NwdiagNetworkLayout, skin: &Ski
         .as_deref()
         .unwrap_or_else(|| skin.background_color("nwdiag", NETWORK_FILL));
     let border = skin.border_color("nwdiag", NETWORK_BORDER);
-    let font = skin.font_color("nwdiag", TEXT_FILL);
+    let font = skin.font_color("nwdiag", TEXT_COLOR);
 
     sg.set_fill_color(fill);
     sg.set_stroke_color(Some(border));
@@ -109,9 +106,9 @@ fn render_network(sg: &mut SvgGraphic, network: &NwdiagNetworkLayout, skin: &Ski
 }
 
 fn render_server(sg: &mut SvgGraphic, server: &NwdiagServerLayout, skin: &SkinParams) {
-    let fill = skin.background_color("server", SERVER_FILL);
-    let border = skin.border_color("server", SERVER_BORDER);
-    let font = skin.font_color("server", TEXT_FILL);
+    let fill = skin.background_color("server", ENTITY_BG);
+    let border = skin.border_color("server", BORDER_COLOR);
+    let font = skin.font_color("server", TEXT_COLOR);
 
     sg.set_fill_color(fill);
     sg.set_stroke_color(Some(border));

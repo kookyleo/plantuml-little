@@ -12,14 +12,10 @@ use crate::Result;
 
 const FONT_SIZE: f64 = 12.0;
 const LINE_HEIGHT: f64 = 16.0;
-const NODE_FILL: &str = "#F1F1F1";
+use crate::skin::rose::{BORDER_COLOR, ENTITY_BG, NOTE_BG, NOTE_BORDER, NOTE_FOLD, TEXT_COLOR};
 const ROOT_FILL: &str = "#FFD700";
-const NODE_BORDER: &str = "#181818";
-const EDGE_COLOR: &str = "#181818";
-const TEXT_COLOR: &str = "#000000";
 const BORDER_WIDTH: f64 = 0.5;
 const CORNER_RADIUS: f64 = 10.0;
-use crate::skin::rose::{NOTE_BG, NOTE_BORDER, NOTE_FOLD};
 
 // ── Public entry point ──────────────────────────────────────────────
 
@@ -35,10 +31,10 @@ pub fn render_mindmap(
     buf.push_str("<defs/><g>");
     write_bg_rect(&mut buf, layout.width, layout.height, bg);
 
-    let mm_bg = skin.background_color("mindmap", NODE_FILL);
-    let mm_border = skin.border_color("mindmap", NODE_BORDER);
+    let mm_bg = skin.background_color("mindmap", ENTITY_BG);
+    let mm_border = skin.border_color("mindmap", BORDER_COLOR);
     let mm_font = skin.font_color("mindmap", TEXT_COLOR);
-    let edge_color = skin.arrow_color(EDGE_COLOR);
+    let edge_color = skin.arrow_color(BORDER_COLOR);
 
     let mut sg = SvgGraphic::new(0, 1.0);
 
@@ -165,7 +161,7 @@ mod tests {
     #[test] fn render_produces_valid_svg_wrapper() { let (d, l) = simple_layout(); let svg = render_mindmap(&d, &l, &SkinParams::default()).unwrap(); assert!(svg.contains("<svg")); assert!(svg.contains("</svg>")); assert!(svg.contains("xmlns=\"http://www.w3.org/2000/svg\"")); }
     #[test] fn render_contains_node_rects() { let (d, l) = simple_layout(); let svg = render_mindmap(&d, &l, &SkinParams::default()).unwrap(); assert_eq!(svg.matches("<rect").count(), 3); }
     #[test] fn render_root_has_gold_fill() { let (d, l) = simple_layout(); let svg = render_mindmap(&d, &l, &SkinParams::default()).unwrap(); assert!(svg.contains(ROOT_FILL)); }
-    #[test] fn render_child_has_default_fill() { let (d, l) = simple_layout(); let svg = render_mindmap(&d, &l, &SkinParams::default()).unwrap(); assert!(svg.contains(NODE_FILL)); }
+    #[test] fn render_child_has_default_fill() { let (d, l) = simple_layout(); let svg = render_mindmap(&d, &l, &SkinParams::default()).unwrap(); assert!(svg.contains(ENTITY_BG)); }
     #[test] fn render_contains_text_nodes() { let (d, l) = simple_layout(); let svg = render_mindmap(&d, &l, &SkinParams::default()).unwrap(); assert!(svg.contains("Root")); assert!(svg.contains("Child1")); assert!(svg.contains("Child2")); }
     #[test] fn render_contains_edges() { let (d, l) = simple_layout(); let svg = render_mindmap(&d, &l, &SkinParams::default()).unwrap(); assert_eq!(svg.matches("<path").count(), 2); }
     #[test] fn render_edges_use_cubic_bezier() { let (d, l) = simple_layout(); let svg = render_mindmap(&d, &l, &SkinParams::default()).unwrap(); assert!(svg.contains("C")); }
@@ -197,7 +193,7 @@ mod tests {
     }
 
     #[test] fn render_viewbox_matches_dimensions() { let (d, l) = simple_layout(); let svg = render_mindmap(&d, &l, &SkinParams::default()).unwrap(); assert!(svg.contains("viewBox=\"0 0 320 120\"")); assert!(svg.contains("width=\"320px\"")); assert!(svg.contains("height=\"120px\"")); }
-    #[test] fn render_edge_stroke_color() { let (d, l) = simple_layout(); let svg = render_mindmap(&d, &l, &SkinParams::default()).unwrap(); assert!(svg.contains(&format!("stroke:{}", EDGE_COLOR))); }
+    #[test] fn render_edge_stroke_color() { let (d, l) = simple_layout(); let svg = render_mindmap(&d, &l, &SkinParams::default()).unwrap(); assert!(svg.contains(&format!("stroke:{}", BORDER_COLOR))); }
 
     #[test]
     fn render_note_with_connector() {

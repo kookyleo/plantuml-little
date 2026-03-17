@@ -18,36 +18,7 @@ use crate::Result;
 
 const FONT_SIZE: f64 = 12.0;
 const LINE_HEIGHT: f64 = 16.0;
-const COMPONENT_BG: &str = "#F1F1F1";
-const COMPONENT_BORDER: &str = "#181818";
-const RECT_BG: &str = "#F1F1F1";
-const RECT_BORDER: &str = "#181818";
-const NODE_BG: &str = "#F1F1F1";
-const NODE_BORDER: &str = "#181818";
-const DATABASE_BG: &str = "#F1F1F1";
-const DATABASE_BORDER: &str = "#181818";
-const CLOUD_BG: &str = "#F1F1F1";
-const CLOUD_BORDER: &str = "#181818";
-const EDGE_COLOR: &str = "#181818";
-const TEXT_FILL: &str = "#000000";
-use crate::skin::rose::{NOTE_BG, NOTE_BORDER};
-const GROUP_BG: &str = "#FFFFFF";
-const GROUP_BORDER: &str = "#181818";
-// Deployment diagram element colors
-const ARTIFACT_BG: &str = "#F1F1F1";
-const ARTIFACT_BORDER: &str = "#181818";
-const STORAGE_BG: &str = "#F1F1F1";
-const STORAGE_BORDER: &str = "#181818";
-const FOLDER_BG: &str = "#F1F1F1";
-const FOLDER_BORDER: &str = "#181818";
-const FRAME_BG: &str = "#FFFFFF";
-const FRAME_BORDER: &str = "#181818";
-const AGENT_BG: &str = "#F1F1F1";
-const AGENT_BORDER: &str = "#181818";
-const STACK_BG: &str = "#F1F1F1";
-const STACK_BORDER: &str = "#181818";
-const QUEUE_BG: &str = "#F1F1F1";
-const QUEUE_BORDER: &str = "#181818";
+use crate::skin::rose::{ACTIVATION_BG, BORDER_COLOR, ENTITY_BG, NOTE_BG, NOTE_BORDER, TEXT_COLOR};
 
 /// Compute the `textLength` attribute value for a text string at the given
 /// font-size using the font-metrics table.
@@ -67,39 +38,39 @@ pub fn render_component(
     let mut buf = String::with_capacity(4096);
 
     // Skin color lookups
-    let comp_bg = skin.background_color("component", COMPONENT_BG);
-    let comp_border = skin.border_color("component", COMPONENT_BORDER);
-    let comp_font = skin.font_color("component", TEXT_FILL);
-    let rect_bg = skin.background_color("rectangle", RECT_BG);
-    let rect_border = skin.border_color("rectangle", RECT_BORDER);
-    let db_bg = skin.background_color("database", DATABASE_BG);
-    let db_border = skin.border_color("database", DATABASE_BORDER);
-    let cloud_bg = skin.background_color("cloud", CLOUD_BG);
-    let cloud_border = skin.border_color("cloud", CLOUD_BORDER);
-    let node_bg = skin.background_color("node", NODE_BG);
-    let node_border = skin.border_color("node", NODE_BORDER);
+    let comp_bg = skin.background_color("component", ENTITY_BG);
+    let comp_border = skin.border_color("component", BORDER_COLOR);
+    let comp_font = skin.font_color("component", TEXT_COLOR);
+    let rect_bg = skin.background_color("rectangle", ENTITY_BG);
+    let rect_border = skin.border_color("rectangle", BORDER_COLOR);
+    let db_bg = skin.background_color("database", ENTITY_BG);
+    let db_border = skin.border_color("database", BORDER_COLOR);
+    let cloud_bg = skin.background_color("cloud", ENTITY_BG);
+    let cloud_border = skin.border_color("cloud", BORDER_COLOR);
+    let node_bg = skin.background_color("node", ENTITY_BG);
+    let node_border = skin.border_color("node", BORDER_COLOR);
     let note_bg = skin.background_color("note", NOTE_BG);
     let note_border = skin.border_color("note", NOTE_BORDER);
-    let note_font = skin.font_color("note", TEXT_FILL);
-    let group_bg = skin.background_color("package", GROUP_BG);
-    let group_border = skin.border_color("package", GROUP_BORDER);
-    let group_font = skin.font_color("package", TEXT_FILL);
-    let arrow_color = skin.arrow_color(EDGE_COLOR);
+    let note_font = skin.font_color("note", TEXT_COLOR);
+    let group_bg = skin.background_color("package", ACTIVATION_BG);
+    let group_border = skin.border_color("package", BORDER_COLOR);
+    let group_font = skin.font_color("package", TEXT_COLOR);
+    let arrow_color = skin.arrow_color(BORDER_COLOR);
     // Deployment diagram skin lookups
-    let artifact_bg = skin.background_color("artifact", ARTIFACT_BG);
-    let artifact_border = skin.border_color("artifact", ARTIFACT_BORDER);
-    let storage_bg = skin.background_color("storage", STORAGE_BG);
-    let storage_border = skin.border_color("storage", STORAGE_BORDER);
-    let folder_bg = skin.background_color("folder", FOLDER_BG);
-    let folder_border = skin.border_color("folder", FOLDER_BORDER);
-    let frame_bg = skin.background_color("frame", FRAME_BG);
-    let frame_border = skin.border_color("frame", FRAME_BORDER);
-    let agent_bg = skin.background_color("agent", AGENT_BG);
-    let agent_border = skin.border_color("agent", AGENT_BORDER);
-    let stack_bg = skin.background_color("stack", STACK_BG);
-    let stack_border = skin.border_color("stack", STACK_BORDER);
-    let queue_bg = skin.background_color("queue", QUEUE_BG);
-    let queue_border = skin.border_color("queue", QUEUE_BORDER);
+    let artifact_bg = skin.background_color("artifact", ENTITY_BG);
+    let artifact_border = skin.border_color("artifact", BORDER_COLOR);
+    let storage_bg = skin.background_color("storage", ENTITY_BG);
+    let storage_border = skin.border_color("storage", BORDER_COLOR);
+    let folder_bg = skin.background_color("folder", ENTITY_BG);
+    let folder_border = skin.border_color("folder", BORDER_COLOR);
+    let frame_bg = skin.background_color("frame", ACTIVATION_BG);
+    let frame_border = skin.border_color("frame", BORDER_COLOR);
+    let agent_bg = skin.background_color("agent", ENTITY_BG);
+    let agent_border = skin.border_color("agent", BORDER_COLOR);
+    let stack_bg = skin.background_color("stack", ENTITY_BG);
+    let stack_border = skin.border_color("stack", BORDER_COLOR);
+    let queue_bg = skin.background_color("queue", ENTITY_BG);
+    let queue_border = skin.border_color("queue", BORDER_COLOR);
 
     // SVG header
     let bg = skin.get_or("backgroundcolor", "#FFFFFF");
@@ -801,7 +772,7 @@ fn render_node_text(sg: &mut SvgGraphic, node: &ComponentNodeLayout, font_color:
     // Description
     if has_desc {
         let sep_y = name_y + 6.0;
-        sg.set_stroke_color(Some(COMPONENT_BORDER)); sg.set_stroke_width(1.0, None);
+        sg.set_stroke_color(Some(BORDER_COLOR)); sg.set_stroke_width(1.0, None);
         sg.svg_line(node.x, sep_y, node.x + node.width, sep_y, 0.0);
 
         let text_x = node.x + 8.0;
