@@ -23,6 +23,22 @@ const MSG_FONT_SIZE: f64 = 13.0;
 /// Font size for fragment else/separator labels. Java: SansSerif 11pt
 const FRAG_ELSE_FONT_SIZE: f64 = 11.0;
 
+fn active_left_shift(level: usize) -> f64 {
+    if level == 0 {
+        0.0
+    } else {
+        ACTIVATION_WIDTH / 2.0
+    }
+}
+
+fn active_right_shift(level: usize) -> f64 {
+    level as f64 * (ACTIVATION_WIDTH / 2.0)
+}
+
+fn live_thickness_width(level: usize) -> f64 {
+    active_left_shift(level) + active_right_shift(level)
+}
+
 // ── Dynamic layout parameters computed from rose preferred_size functions ────
 
 /// Layout parameters derived from rose::preferred_size functions and font metrics.
@@ -157,6 +173,7 @@ pub struct MessageLayout {
 /// Activation bar layout
 #[derive(Debug, Clone)]
 pub struct ActivationLayout {
+    pub participant: String,
     pub x: f64,
     pub y_start: f64,
     pub y_end: f64,
@@ -303,8 +320,13 @@ fn estimate_note_width(text: &str) -> f64 {
 
 /// Word-wrap a line to fit within `max_width` pixels at the given font size.
 /// Returns a vec of wrapped lines.
-fn wrap_text_to_width(text: &str, max_width: f64, font_size: f64) -> Vec<String> {
-    let full_w = font_metrics::text_width(text, "SansSerif", font_size, false, false);
+fn wrap_text_to_width(
+    text: &str,
+    max_width: f64,
+    font_family: &str,
+    font_size: f64,
+) -> Vec<String> {
+    let full_w = font_metrics::text_width(text, font_family, font_size, false, false);
     if full_w <= max_width {
         return vec![text.to_string()];
     }
@@ -316,7 +338,7 @@ fn wrap_text_to_width(text: &str, max_width: f64, font_size: f64) -> Vec<String>
         } else {
             format!("{current} {word}")
         };
-        let w = font_metrics::text_width(&candidate, "SansSerif", font_size, false, false);
+        let w = font_metrics::text_width(&candidate, font_family, font_size, false, false);
         if w > max_width && !current.is_empty() {
             lines.push(current);
             current = word.to_string();
@@ -339,10 +361,16 @@ fn wrap_text_to_width(text: &str, max_width: f64, font_size: f64) -> Vec<String>
 const SPRITE_TEXT_GAP: f64 = 4.1323;
 const SPRITE_HEIGHT_THRESHOLD: f64 = 15.1328;
 
-fn message_line_width(line: &str) -> f64 {
+fn message_line_width(line: &str, font_family: &str, font_size: f64) -> f64 {
     if !line.contains("<$") {
         // Compute width respecting font-family changes in creole markup
-        return crate::render::svg_richtext::creole_text_width(line, "SansSerif", MSG_FONT_SIZE, false, false);
+        return crate::render::svg_richtext::creole_text_width(
+            line,
+            font_family,
+            font_size,
+            false,
+            false,
+        );
     }
     let gap = SPRITE_TEXT_GAP;
     let mut total = 0.0_f64;
@@ -356,7 +384,7 @@ fn message_line_width(line: &str) -> f64 {
             let text = if had_sprite { text.strip_prefix(' ').unwrap_or(text) } else { text };
             let text = text.strip_suffix(' ').unwrap_or(text);
             if !text.is_empty() {
-                let w = font_metrics::text_width(text, "SansSerif", MSG_FONT_SIZE, false, false);
+                let w = font_metrics::text_width(text, font_family, font_size, false, false);
                 if w > 0.0 { if !first { total += gap; } total += w; first = false; }
             }
         }
@@ -375,7 +403,7 @@ fn message_line_width(line: &str) -> f64 {
         let text = &line[pos..];
         let text = if had_sprite { text.strip_prefix(' ').unwrap_or(text) } else { text };
         if !text.is_empty() {
-            let w = font_metrics::text_width(text, "SansSerif", MSG_FONT_SIZE, false, false);
+            let w = font_metrics::text_width(text, font_family, font_size, false, false);
             if w > 0.0 { if !first { total += gap; } total += w; }
         }
     }
@@ -496,9 +524,13 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
         Vec::new()
     };
 
-    // Scan messages to widen gaps based on text width
+    // Scan events in order and reproduce Java's sequence constraints:
+    // - normal messages widen the span between participants
+    // - self messages widen the gap before/after the participant
+    // - current activation level contributes extra live-line thickness
     let mut gap_autonumber_enabled = false;
     let mut gap_autonumber_counter: u32 = 1;
+    let mut gap_active_levels: HashMap<&str, usize> = HashMap::new();
     for event in &sd.events {
         match event {
             SeqEvent::AutoNumber { start } => {
@@ -520,21 +552,53 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
                     0.0
                 };
 
+                let mut text_lines: Vec<String> =
+                    msg.text.split("\\n").map(ToString::to_string).collect();
+                if let Some(max_w) = max_message_size {
+                    text_lines = text_lines
+                        .into_iter()
+                        .flat_map(|line| wrap_text_to_width(&line, max_w, default_font, msg_font_size))
+                        .collect();
+                }
+                let text_w = text_lines
+                    .iter()
+                    .map(|line| message_line_width(line, default_font, msg_font_size))
+                    .fold(0.0_f64, f64::max)
+                    + autonumber_extra_w;
+                let text_h = lp.msg_line_height * text_lines.len().max(1) as f64;
+
                 if msg.from == msg.to {
-                    continue; // self-messages don't affect gap
+                    if let Some(&idx) = part_name_to_idx.get(&msg.from) {
+                        let active_level =
+                            gap_active_levels.get(msg.from.as_str()).copied().unwrap_or(0);
+                        let tm = rose::TextMetrics::new(7.0, 7.0, 1.0, text_w, text_h);
+                        let needed = rose::self_arrow_preferred_size(&tm).width
+                            + live_thickness_width(active_level);
+                        match msg.direction {
+                            SeqDirection::LeftToRight => {
+                                if idx < min_gaps.len() && needed > min_gaps[idx] {
+                                    min_gaps[idx] = needed;
+                                }
+                            }
+                            SeqDirection::RightToLeft => {
+                                if idx > 0 && needed > min_gaps[idx - 1] {
+                                    min_gaps[idx - 1] = needed;
+                                }
+                            }
+                        }
+                    }
+                    continue;
                 }
                 if let (Some(&fi), Some(&ti)) =
                     (part_name_to_idx.get(&msg.from), part_name_to_idx.get(&msg.to))
                 {
                     let (lo, hi) = if fi < ti { (fi, ti) } else { (ti, fi) };
-                    // Use the longest single line for gap calculation (multiline \n)
-                    let text_w = msg
-                        .text
-                        .split("\\n")
-                        .map(|line| message_line_width(line))
-                        .fold(0.0_f64, f64::max)
-                        + autonumber_extra_w;
-                    let needed = text_w + 24.0; // 7px text-margin + 7px gap + 10px arrow
+                    let tm = rose::TextMetrics::new(7.0, 7.0, 1.0, text_w, text_h);
+                    let fi_level = gap_active_levels.get(msg.from.as_str()).copied().unwrap_or(0);
+                    let ti_level = gap_active_levels.get(msg.to.as_str()).copied().unwrap_or(0);
+                    let needed = rose::arrow_preferred_size(&tm, 0.0, 0.0).width
+                        + active_right_shift(fi_level)
+                        + active_left_shift(ti_level);
                     let span = hi - lo; // number of gaps this message spans
                     if span > 0 {
                         let per_gap = needed / span as f64;
@@ -545,6 +609,13 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
                         }
                     }
                 }
+            }
+            SeqEvent::Activate(name) => {
+                *gap_active_levels.entry(name.as_str()).or_default() += 1;
+            }
+            SeqEvent::Deactivate(name) | SeqEvent::Destroy(name) => {
+                let level = gap_active_levels.entry(name.as_str()).or_default();
+                *level = level.saturating_sub(1);
             }
             _ => {}
         }
@@ -728,7 +799,9 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
                 if let Some(max_w) = max_message_size {
                     text_lines = text_lines
                         .into_iter()
-                        .flat_map(|line| wrap_text_to_width(&line, max_w, MSG_FONT_SIZE))
+                        .flat_map(|line| {
+                            wrap_text_to_width(&line, max_w, default_font, msg_font_size)
+                        })
                         .collect();
                 }
                 let num_extra_lines = if text_lines.len() > 1 {
@@ -855,6 +928,7 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
                 if let Some(stack) = activation_stack.get_mut(name.as_str()) {
                     if let Some(y_start) = stack.pop() {
                         activations.push(ActivationLayout {
+                            participant: name.clone(),
                             x: px - ACTIVATION_WIDTH / 2.0,
                             y_start,
                             y_end: y_cursor,
@@ -885,6 +959,7 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
                     if let Some(y_start) = stack.pop() {
                         let bar_end = destroy_y - 7.0;
                         activations.push(ActivationLayout {
+                            participant: name.clone(),
                             x: px - ACTIVATION_WIDTH / 2.0,
                             y_start,
                             y_end: bar_end,
@@ -1207,6 +1282,7 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
             let name = &p.name;
             let px = find_participant_x(&participants, name);
             activations.push(ActivationLayout {
+                participant: name.clone(),
                 x: px - ACTIVATION_WIDTH / 2.0,
                 y_start,
                 y_end: y_cursor,

@@ -20,8 +20,8 @@ use super::svg_richtext::{disable_path_sprites, enable_path_sprites, render_creo
 const FONT_SIZE: f64 = 13.0;
 const LINE_HEIGHT: f64 = 16.0;
 use crate::skin::rose::{
-    ACTIVATION_BG, BORDER_COLOR, DESTROY_COLOR, DIVIDER_COLOR, ENTITY_BG, GROUP_BG,
-    NOTE_BG, NOTE_BORDER, PARTICIPANT_BG, TEXT_COLOR,
+    ACTIVATION_BG, BORDER_COLOR, DESTROY_COLOR, DIVIDER_COLOR, GROUP_BG, NOTE_BG,
+    NOTE_BORDER, PARTICIPANT_BG, TEXT_COLOR,
 };
 
 const MARGIN: f64 = 5.0;
@@ -43,6 +43,15 @@ const REF_TAB_LEFT_PAD: f64 = 13.0;
 const REF_KIND_LABEL_Y_OFFSET: f64 = 14.0669;
 const REF_LABEL_FONT_SIZE: f64 = 12.0;
 const REF_FRAME_STROKE: &str = "#000000";
+
+fn svg_font_family_attr(font_family: &str) -> &str {
+    match font_family {
+        "SansSerif" => "sans-serif",
+        "Serif" => "serif",
+        "Monospaced" => "monospace",
+        _ => font_family,
+    }
+}
 
 // ── Arrow marker defs ───────────────────────────────────────────────
 
@@ -142,18 +151,6 @@ fn resolve_fill_attrs(color: &str) -> String {
 
 // ── Participant box ─────────────────────────────────────────────────
 
-fn draw_participant_box(
-    sg: &mut SvgGraphic,
-    p: &ParticipantLayout,
-    y: f64,
-    display_name: Option<&str>,
-    bg: &str,
-    border: &str,
-    text_color: &str,
-) {
-    draw_participant_box_with_font(sg, p, y, display_name, bg, border, text_color, 14.0);
-}
-
 fn draw_participant_box_with_font(
     sg: &mut SvgGraphic,
     p: &ParticipantLayout,
@@ -162,6 +159,7 @@ fn draw_participant_box_with_font(
     bg: &str,
     border: &str,
     text_color: &str,
+    part_font_family: &str,
     part_font_size: f64,
 ) {
     let fill = p.color.as_deref().unwrap_or(bg);
@@ -189,22 +187,19 @@ fn draw_participant_box_with_font(
             draw_participant_queue(sg, p, y, display_name, fill, border, text_color);
         }
         ParticipantKind::Default => {
-            draw_participant_rect_with_font(sg, p, y, display_name, fill, border, text_color, part_font_size);
+            draw_participant_rect_with_font(
+                sg,
+                p,
+                y,
+                display_name,
+                fill,
+                border,
+                text_color,
+                part_font_family,
+                part_font_size,
+            );
         }
     }
-}
-
-/// Default rectangle participant
-fn draw_participant_rect(
-    sg: &mut SvgGraphic,
-    p: &ParticipantLayout,
-    y: f64,
-    display_name: Option<&str>,
-    bg: &str,
-    border: &str,
-    text_color: &str,
-) {
-    draw_participant_rect_with_font(sg, p, y, display_name, bg, border, text_color, 14.0);
 }
 
 fn draw_participant_rect_with_font(
@@ -215,21 +210,19 @@ fn draw_participant_rect_with_font(
     bg: &str,
     border: &str,
     text_color: &str,
+    font_family: &str,
     font_size: f64,
 ) {
     let name = display_name.unwrap_or(&p.name);
     let lines: Vec<&str> = name.split("\\n").collect();
-    let max_line_w = lines
-        .iter()
-        .map(|line| font_metrics::text_width(line, "SansSerif", font_size, false, false))
-        .fold(0.0_f64, f64::max);
     let padding = 7.0;
-    let box_width = max_line_w + 2.0 * padding;
+    let box_width = p.box_width;
     let box_height = p.box_height;
     let x = p.x - box_width / 2.0;
     let text_x = x + padding;
     let text_y_base = y + 19.9951 + (font_size - 14.0) * 0.92825;
-    let line_h = font_metrics::line_height("SansSerif", font_size, false, false);
+    let line_h = font_metrics::line_height(font_family, font_size, false, false);
+    let svg_font_family = svg_font_family_attr(font_family);
 
     let fill_attrs = resolve_fill_attrs(bg);
     let mut tmp = String::new();
@@ -246,13 +239,13 @@ fn draw_participant_rect_with_font(
 
     for (line_idx, line) in lines.iter().enumerate() {
         let text_y = text_y_base + line_idx as f64 * line_h;
-        let line_w = font_metrics::text_width(line, "SansSerif", font_size, false, false);
+        let line_w = font_metrics::text_width(line, font_family, font_size, false, false);
         sg.set_fill_color(text_color);
         sg.svg_text(
             line,
             text_x,
             text_y,
-            Some("sans-serif"),
+            Some(svg_font_family),
             font_size,
             None,
             None,
@@ -685,6 +678,9 @@ fn draw_message(
     msg: &MessageLayout,
     arrow_color: &str,
     arrow_thickness: f64,
+    msg_font_family: &str,
+    msg_svg_family: &str,
+    msg_font_size: f64,
     from_idx: usize,
     to_idx: usize,
     msg_idx: usize,
@@ -806,26 +802,30 @@ fn draw_message(
 
         // If autonumber, compute the offset for message text (number is bold)
         let text_x = if let Some(ref num_str) = msg.autonumber {
-            let num_w = font_metrics::text_width(num_str, "SansSerif", FONT_SIZE, true, false);
+            let num_w = font_metrics::text_width(num_str, msg_font_family, msg_font_size, true, false);
             base_text_x + num_w + 4.0
         } else {
             base_text_x
         };
 
-        let msg_line_spacing = 15.1328; // ascent + descent at font-size 13
+        let msg_line_spacing =
+            font_metrics::line_height(msg_font_family, msg_font_size, false, false);
         let num_lines = msg.text_lines.len().max(1);
-        let first_text_y = msg.y - 5.0659 - (num_lines as f64 - 1.0) * msg_line_spacing;
+        let first_text_y = msg.y
+            - (font_metrics::descent(msg_font_family, msg_font_size, false, false) + 2.0)
+            - (num_lines as f64 - 1.0) * msg_line_spacing;
 
         // Draw autonumber as separate bold text element
         if let Some(ref num_str) = msg.autonumber {
-            let num_tl = font_metrics::text_width(num_str, "SansSerif", FONT_SIZE, true, false);
+            let num_tl =
+                font_metrics::text_width(num_str, msg_font_family, msg_font_size, true, false);
             sg.set_fill_color(TEXT_COLOR);
             sg.svg_text(
                 num_str,
                 base_text_x,
                 first_text_y,
-                Some("sans-serif"),
-                FONT_SIZE,
+                Some(msg_svg_family),
+                msg_font_size,
                 Some("700"),
                 None,
                 None,
@@ -852,7 +852,7 @@ fn draw_message(
                 msg_line_spacing,
                 TEXT_COLOR,
                 None,
-                &format!(r#"font-size="{FONT_SIZE}""#),
+                &format!(r#"font-size="{msg_font_size}""#),
             );
             sg.push_raw(&tmp);
         }
@@ -866,6 +866,8 @@ fn draw_self_message(
     msg: &MessageLayout,
     arrow_color: &str,
     arrow_thickness: f64,
+    msg_font_family: &str,
+    msg_font_size: f64,
     from_idx: usize,
     msg_idx: usize,
 ) {
@@ -971,9 +973,12 @@ fn draw_self_message(
     // Label text above the first horizontal line — each line as separate <text>
     if !msg.text.is_empty() {
         let text_x = return_x + 6.0;
-        let msg_line_spacing = 15.1328;
+        let msg_line_spacing =
+            font_metrics::line_height(msg_font_family, msg_font_size, false, false);
         let num_lines = msg.text_lines.len();
-        let first_text_y = y - 5.0659 - (num_lines as f64 - 1.0) * msg_line_spacing;
+        let first_text_y = y
+            - (font_metrics::descent(msg_font_family, msg_font_size, false, false) + 2.0)
+            - (num_lines as f64 - 1.0) * msg_line_spacing;
         for (i, line) in msg.text_lines.iter().enumerate() {
             if line.is_empty() {
                 continue;
@@ -988,7 +993,7 @@ fn draw_self_message(
                 msg_line_spacing,
                 TEXT_COLOR,
                 None,
-                &format!(r#"font-size="{FONT_SIZE}""#),
+                &format!(r#"font-size="{msg_font_size}""#),
             );
             sg.push_raw(&tmp);
         }
@@ -999,21 +1004,24 @@ fn draw_self_message(
 
 // ── Activation bars ─────────────────────────────────────────────────
 
-fn draw_activation(sg: &mut SvgGraphic, act: &ActivationLayout) {
+fn draw_activation(sg: &mut SvgGraphic, act: &ActivationLayout, title: &str) {
     let width = 10.0;
     let height = act.y_end - act.y_start;
 
     let mut tmp = String::new();
     write!(
         tmp,
-        r#"<rect fill="{bg}" height="{}" style="stroke:{border};stroke-width:1;" width="{}" x="{}" y="{}"/>"#,
-        fmt_coord(height), fmt_coord(width), fmt_coord(act.x), fmt_coord(act.y_start),
+        r#"<g><title>{title}</title><rect fill="{bg}" height="{}" style="stroke:{border};stroke-width:1;" width="{}" x="{}" y="{}"/></g>"#,
+        fmt_coord(height),
+        fmt_coord(width),
+        fmt_coord(act.x),
+        fmt_coord(act.y_start),
+        title = xml_escape(title),
         bg = ACTIVATION_BG,
         border = BORDER_COLOR,
     )
     .unwrap();
     sg.push_raw(&tmp);
-    sg.push_raw("\n");
 }
 
 // ── Destroy marker ──────────────────────────────────────────────────
@@ -1024,11 +1032,9 @@ fn draw_destroy(sg: &mut SvgGraphic, d: &DestroyLayout) {
     sg.set_stroke_color(Some(DESTROY_COLOR));
     sg.set_stroke_width(2.0, None);
     sg.svg_line(d.x - size, d.y - size, d.x + size, d.y + size, 0.0);
-    sg.push_raw("\n");
 
     // Second diagonal: bottom-left to top-right (matching Java PlantUML order)
     sg.svg_line(d.x - size, d.y + size, d.x + size, d.y - size, 0.0);
-    sg.push_raw("\n");
 }
 
 // ── Notes ───────────────────────────────────────────────────────────
@@ -1516,6 +1522,11 @@ fn render_sequence_inner(
 
     // Build participant name -> index mapping
     let part_index = build_participant_index(sd);
+    let display_names: std::collections::HashMap<&str, &str> = sd
+        .participants
+        .iter()
+        .filter_map(|p| p.display_name.as_deref().map(|dn| (p.name.as_str(), dn)))
+        .collect();
 
     // 3. Fragment frame rects (first outline, before lifelines).
     // Reverse: outer fragments first to match Java's SVG element ordering.
@@ -1523,37 +1534,44 @@ fn render_sequence_inner(
         draw_fragment_frame(&mut sg, frag);
     }
 
-    // 4. Lifelines (dashed vertical lines with semantic grouping)
+    // 4. Activation bars background pass.
+    for act in &layout.activations {
+        let title = display_names
+            .get(act.participant.as_str())
+            .copied()
+            .unwrap_or(&act.participant);
+        draw_activation(&mut sg, act, title);
+    }
+
+    // 5. Lifelines (dashed vertical lines with semantic grouping)
     draw_lifelines(&mut sg, layout, skin, sd);
 
-    // 4b. Group frames (legacy)
+    // 5b. Group frames (legacy)
     for group in &layout.groups {
         draw_group(&mut sg, group);
     }
 
-    // 5. Activation bars
-    for act in &layout.activations {
-        draw_activation(&mut sg, act);
-    }
-
-    // 5b. Dividers
+    // 5c. Dividers
     for divider in &layout.dividers {
         draw_divider(&mut sg, divider);
     }
 
-    // 5c. Delays
+    // 5d. Delays
     for delay in &layout.delays {
         draw_delay(&mut sg, delay);
     }
 
-    // 5d. Refs are interleaved with messages (see step 8)
+    // 5e. Refs are interleaved with messages (see step 8)
 
-    // Build a name -> display_name lookup from the diagram
-    let display_names: std::collections::HashMap<&str, &str> = sd
-        .participants
-        .iter()
-        .filter_map(|p| p.display_name.as_deref().map(|dn| (p.name.as_str(), dn)))
-        .collect();
+    let default_font = skin
+        .get("defaultfontname")
+        .map(|s| s.to_string())
+        .unwrap_or_else(|| "SansSerif".to_string());
+    let msg_font_size: f64 = skin
+        .get("defaultfontsize")
+        .and_then(|s| s.parse::<f64>().ok())
+        .unwrap_or(FONT_SIZE);
+    let seq_svg_font_family = svg_font_family_attr(&default_font);
 
     let monochrome = skin.is_monochrome();
     let part_bg = if monochrome {
@@ -1566,6 +1584,7 @@ fn render_sequence_inner(
     let part_font_size: f64 = skin
         .get("participantfontsize")
         .and_then(|s| s.parse::<f64>().ok())
+        .or_else(|| skin.get("defaultfontsize").and_then(|s| s.parse::<f64>().ok()))
         .unwrap_or(14.0);
 
     // 6. Participant head + tail boxes (interleaved per participant, matching Java order)
@@ -1587,7 +1606,17 @@ fn render_sequence_inner(
         )
         .unwrap();
         sg.push_raw(&tmp);
-        draw_participant_box_with_font(&mut sg, p, top_y, dn, part_bg, part_border, part_font, part_font_size);
+        draw_participant_box_with_font(
+            &mut sg,
+            p,
+            top_y,
+            dn,
+            part_bg,
+            part_border,
+            part_font,
+            &default_font,
+            part_font_size,
+        );
         sg.push_raw("</g>");
 
         // Tail
@@ -1600,11 +1629,30 @@ fn render_sequence_inner(
         )
         .unwrap();
         sg.push_raw(&tmp);
-        draw_participant_box_with_font(&mut sg, p, bottom_y, dn, part_bg, part_border, part_font, part_font_size);
+        draw_participant_box_with_font(
+            &mut sg,
+            p,
+            bottom_y,
+            dn,
+            part_bg,
+            part_border,
+            part_font,
+            &default_font,
+            part_font_size,
+        );
         sg.push_raw("</g>");
     }
 
-    // 8. Messages interleaved with fragment details (matching Java rendering order)
+    // 7. Activation bars foreground pass.
+    for act in &layout.activations {
+        let title = display_names
+            .get(act.participant.as_str())
+            .copied()
+            .unwrap_or(&act.participant);
+        draw_activation(&mut sg, act, title);
+    }
+
+    // 8. Messages interleaved with fragment details and destroy markers
     // Build a y-sorted list of interstitial events (fragment details + separators)
     // that should be emitted between messages at the appropriate y positions.
     let seq_arrow_color = skin.sequence_arrow_color(BORDER_COLOR);
@@ -1616,6 +1664,7 @@ fn render_sequence_inner(
         FragmentDetail(&'a FragmentLayout),
         Separator(&'a FragmentLayout, f64, &'a str),
         Ref(&'a RefLayout),
+        Destroy(&'a DestroyLayout),
     }
     let mut interstitials: Vec<(f64, InterstitialEvent)> = Vec::new();
     for frag in &layout.fragments {
@@ -1626,6 +1675,9 @@ fn render_sequence_inner(
     }
     for r in &layout.refs {
         interstitials.push((r.y, InterstitialEvent::Ref(r)));
+    }
+    for d in &layout.destroys {
+        interstitials.push((d.y, InterstitialEvent::Destroy(d)));
     }
     interstitials.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap());
     let mut interstitial_idx = 0;
@@ -1647,6 +1699,9 @@ fn render_sequence_inner(
                 InterstitialEvent::Ref(r) => {
                     draw_ref(&mut sg, r);
                 }
+                InterstitialEvent::Destroy(d) => {
+                    draw_destroy(&mut sg, d);
+                }
             }
             interstitial_idx += 1;
         }
@@ -1665,6 +1720,8 @@ fn render_sequence_inner(
                 msg,
                 seq_arrow_color,
                 seq_arrow_thickness,
+                &default_font,
+                msg_font_size,
                 from_idx,
                 msg_seq_counter,
             );
@@ -1674,6 +1731,9 @@ fn render_sequence_inner(
                 msg,
                 seq_arrow_color,
                 seq_arrow_thickness,
+                &default_font,
+                seq_svg_font_family,
+                msg_font_size,
                 from_idx,
                 to_idx,
                 msg_seq_counter,
@@ -1692,6 +1752,9 @@ fn render_sequence_inner(
             InterstitialEvent::Ref(r) => {
                 draw_ref(&mut sg, r);
             }
+            InterstitialEvent::Destroy(d) => {
+                draw_destroy(&mut sg, d);
+            }
         }
         interstitial_idx += 1;
     }
@@ -1699,11 +1762,6 @@ fn render_sequence_inner(
     // 9. Notes
     for note in &layout.notes {
         draw_note(&mut sg, note);
-    }
-
-    // 10. Destroy markers
-    for d in &layout.destroys {
-        draw_destroy(&mut sg, d);
     }
 
     sg.push_raw("</g></svg>");
