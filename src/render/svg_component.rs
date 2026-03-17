@@ -1,14 +1,13 @@
 use std::fmt::Write;
 
 use crate::font_metrics;
+use crate::klimt::svg::{fmt_coord, xml_escape, SvgGraphic, LengthAdjust};
 use crate::layout::component::{
     ComponentEdgeLayout, ComponentGroupLayout, ComponentLayout, ComponentNodeLayout,
     ComponentNoteLayout,
 };
 use crate::model::component::{ComponentDiagram, ComponentKind};
-use crate::render::svg::fmt_coord;
 use crate::render::svg::{write_svg_root_bg, write_bg_rect};
-use crate::render::svg::xml_escape;
 use crate::render::svg_richtext::render_creole_text;
 use crate::style::SkinParams;
 use crate::Result;
@@ -52,9 +51,8 @@ const QUEUE_BORDER: &str = "#181818";
 
 /// Compute the `textLength` attribute value for a text string at the given
 /// font-size using the font-metrics table.
-fn text_len(text: &str, size: f64, bold: bool) -> String {
-    let w = font_metrics::text_width(text, "sans-serif", size, bold, false);
-    fmt_coord(w)
+fn text_len(text: &str, size: f64, bold: bool) -> f64 {
+    font_metrics::text_width(text, "sans-serif", size, bold, false)
 }
 
 // ---------------------------------------------------------------------------
@@ -112,15 +110,17 @@ pub fn render_component(
     buf.push_str("<g>");
     write_bg_rect(&mut buf, layout.width, layout.height, bg);
 
+    let mut sg = SvgGraphic::new(0, 1.0);
+
     // Groups (render before nodes so they appear behind)
     for group in &layout.groups {
-        render_group(&mut buf, group, group_bg, group_border, group_font);
+        render_group(&mut sg, group, group_bg, group_border, group_font);
     }
 
     // Nodes
     for node in &layout.nodes {
         render_node(
-            &mut buf,
+            &mut sg,
             node,
             comp_bg,
             comp_border,
@@ -152,14 +152,15 @@ pub fn render_component(
 
     // Edges
     for edge in &layout.edges {
-        render_edge(&mut buf, edge, arrow_color, comp_font);
+        render_edge(&mut sg, edge, arrow_color, comp_font);
     }
 
     // Notes
     for note in &layout.notes {
-        render_note(&mut buf, note, note_bg, note_border, note_font);
+        render_note(&mut sg, note, note_bg, note_border, note_font);
     }
 
+    buf.push_str(sg.body());
     buf.push_str("</g></svg>");
     Ok(buf)
 }
@@ -169,7 +170,7 @@ pub fn render_component(
 // ---------------------------------------------------------------------------
 
 fn render_group(
-    buf: &mut String,
+    sg: &mut SvgGraphic,
     group: &ComponentGroupLayout,
     _bg: &str,
     border: &str,
@@ -181,46 +182,34 @@ fn render_group(
     let h = group.height;
 
     // HTML comment
-    write!(buf, "<!--cluster {}-->", xml_escape(&group.id)).unwrap();
+    sg.push_raw(&format!("<!--cluster {}-->", xml_escape(&group.id)));
 
     // Open semantic <g>
-    write!(buf, r#"<g class="cluster" id="{}">"#, xml_escape(&group.id),).unwrap();
+    sg.push_raw(&format!(r#"<g class="cluster" id="{}">"#, xml_escape(&group.id)));
 
     match group.kind {
         ComponentKind::Frame => {
             // Frame: rect with rx/ry 2.5, path-based label tab
-            write!(
-                buf,
-                r#"<rect fill="none" height="{}" rx="2.5" ry="2.5" style="stroke:{border};stroke-width:1;" width="{}" x="{}" y="{}"/>"#,
-                fmt_coord(h), fmt_coord(w), fmt_coord(x), fmt_coord(y),
-            )
-            .unwrap();
+            sg.set_fill_color("none"); sg.set_stroke_color(Some(border)); sg.set_stroke_width(1.0, None);
+            sg.svg_rectangle(x, y, w, h, 2.5, 2.5, 0.0);
 
-            let name_escaped = xml_escape(&group.name);
             let tl = text_len(&group.name, 14.0, true);
-            let tl_f: f64 = tl.parse().unwrap_or(40.0);
-            let tab_w = tl_f + 9.7041;
+            let tab_w = tl + 9.7041;
             let tab_h = 19.2969;
             let tab_x2 = x + tab_w;
             let tab_y2 = y + tab_h;
-            write!(
-                buf,
+            sg.push_raw(&format!(
                 r#"<path d="M{},{} L{},{} L{},{} L{},{} " fill="none" style="stroke:{border};stroke-width:1;"/>"#,
                 fmt_coord(tab_x2), fmt_coord(y),
                 fmt_coord(tab_x2), fmt_coord(tab_y2 - 10.0),
                 fmt_coord(tab_x2 - 10.0), fmt_coord(tab_y2),
                 fmt_coord(x), fmt_coord(tab_y2),
-            )
-            .unwrap();
+            ));
 
             let text_x = x + 3.0;
             let text_y = y + 13.9951;
-            write!(
-                buf,
-                r#"<text fill="{font_color}" font-family="sans-serif" font-size="14" font-weight="bold" lengthAdjust="spacing" textLength="{tl}" x="{}" y="{}">{name_escaped}</text>"#,
-                fmt_coord(text_x), fmt_coord(text_y),
-            )
-            .unwrap();
+            sg.set_fill_color(font_color);
+            sg.svg_text(&group.name, text_x, text_y, Some("sans-serif"), 14.0, Some("bold"), None, None, tl, LengthAdjust::Spacing, None, 0, None);
         }
         ComponentKind::Node => {
             // Node: 3D polygon box with depth lines
@@ -231,76 +220,41 @@ fn render_group(
             let p_tr = (x + w, y + depth);
             let p_br = (x + w - depth, y + h);
             let p_bl = (x, y + h);
-            write!(
-                buf,
-                r#"<polygon fill="none" points="{},{},{},{},{},{},{},{},{},{},{},{}" style="stroke:{border};stroke-width:1;"/>"#,
-                fmt_coord(p_tl.0), fmt_coord(p_tl.1),
-                fmt_coord(p_tlb.0), fmt_coord(p_tlb.1),
-                fmt_coord(p_trb.0), fmt_coord(p_trb.1),
-                fmt_coord(p_trb.0), fmt_coord(p_tr.1),
-                fmt_coord(p_br.0), fmt_coord(p_br.1),
-                fmt_coord(p_bl.0), fmt_coord(p_bl.1),
-            )
-            .unwrap();
+            sg.set_fill_color("none"); sg.set_stroke_color(Some(border)); sg.set_stroke_width(1.0, None);
+            sg.svg_polygon(0.0, &[
+                p_tl.0, p_tl.1,
+                p_tlb.0, p_tlb.1,
+                p_trb.0, p_trb.1,
+                p_trb.0, p_tr.1,
+                p_br.0, p_br.1,
+                p_bl.0, p_bl.1,
+            ]);
 
-            write!(
-                buf,
-                r#"<line style="stroke:{border};stroke-width:1;" x1="{}" x2="{}" y1="{}" y2="{}"/>"#,
-                fmt_coord(p_br.0), fmt_coord(p_trb.0),
-                fmt_coord(p_tl.1), fmt_coord(p_tlb.1),
-            )
-            .unwrap();
-            write!(
-                buf,
-                r#"<line style="stroke:{border};stroke-width:1;" x1="{}" x2="{}" y1="{}" y2="{}"/>"#,
-                fmt_coord(p_tl.0), fmt_coord(p_br.0),
-                fmt_coord(p_tl.1), fmt_coord(p_tl.1),
-            )
-            .unwrap();
-            write!(
-                buf,
-                r#"<line style="stroke:{border};stroke-width:1;" x1="{}" x2="{}" y1="{}" y2="{}"/>"#,
-                fmt_coord(p_br.0), fmt_coord(p_br.0),
-                fmt_coord(p_tl.1), fmt_coord(p_br.1),
-            )
-            .unwrap();
+            sg.set_stroke_color(Some(border)); sg.set_stroke_width(1.0, None);
+            sg.svg_line(p_br.0, p_tl.1, p_trb.0, p_tlb.1, 0.0);
+            sg.svg_line(p_tl.0, p_tl.1, p_br.0, p_tl.1, 0.0);
+            sg.svg_line(p_br.0, p_tl.1, p_br.0, p_br.1, 0.0);
 
-            let name_escaped = xml_escape(&group.name);
             let tl = text_len(&group.name, 14.0, true);
-            let tl_f: f64 = tl.parse().unwrap_or(40.0);
-            let text_x = x + (w - depth) / 2.0 - tl_f / 2.0;
+            let text_x = x + (w - depth) / 2.0 - tl / 2.0;
             let text_y = y + depth + 15.9951;
-            write!(
-                buf,
-                r#"<text fill="{font_color}" font-family="sans-serif" font-size="14" font-weight="bold" lengthAdjust="spacing" textLength="{tl}" x="{}" y="{}">{name_escaped}</text>"#,
-                fmt_coord(text_x), fmt_coord(text_y),
-            )
-            .unwrap();
+            sg.set_fill_color(font_color);
+            sg.svg_text(&group.name, text_x, text_y, Some("sans-serif"), 14.0, Some("bold"), None, None, tl, LengthAdjust::Spacing, None, 0, None);
         }
         _ => {
             // Default package/rectangle: simple rect
-            write!(
-                buf,
-                r#"<rect fill="none" height="{}" rx="2.5" ry="2.5" style="stroke:{border};stroke-width:1;" width="{}" x="{}" y="{}"/>"#,
-                fmt_coord(h), fmt_coord(w), fmt_coord(x), fmt_coord(y),
-            )
-            .unwrap();
+            sg.set_fill_color("none"); sg.set_stroke_color(Some(border)); sg.set_stroke_width(1.0, None);
+            sg.svg_rectangle(x, y, w, h, 2.5, 2.5, 0.0);
 
-            let name_escaped = xml_escape(&group.name);
             let tl = text_len(&group.name, 14.0, true);
-            let tl_f: f64 = tl.parse().unwrap_or(40.0);
-            let text_x = x + (w - tl_f) / 2.0;
+            let text_x = x + (w - tl) / 2.0;
             let text_y = y + 15.9951;
-            write!(
-                buf,
-                r#"<text fill="{font_color}" font-family="sans-serif" font-size="14" font-weight="bold" lengthAdjust="spacing" textLength="{tl}" x="{}" y="{}">{name_escaped}</text>"#,
-                fmt_coord(text_x), fmt_coord(text_y),
-            )
-            .unwrap();
+            sg.set_fill_color(font_color);
+            sg.svg_text(&group.name, text_x, text_y, Some("sans-serif"), 14.0, Some("bold"), None, None, tl, LengthAdjust::Spacing, None, 0, None);
         }
     }
 
-    buf.push_str("</g>");
+    sg.push_raw("</g>");
 }
 
 // ---------------------------------------------------------------------------
@@ -309,7 +263,7 @@ fn render_group(
 
 #[allow(clippy::too_many_arguments)]
 fn render_node(
-    buf: &mut String,
+    sg: &mut SvgGraphic,
     node: &ComponentNodeLayout,
     comp_bg: &str,
     comp_border: &str,
@@ -353,119 +307,99 @@ fn render_node(
 
     match node.kind {
         ComponentKind::Component => {
-            render_component_node(buf, node, comp_bg, comp_border, comp_font);
+            render_component_node(sg, node, comp_bg, comp_border, comp_font);
         }
         ComponentKind::Rectangle => {
-            render_rectangle_node(buf, node, rect_bg, rect_border, comp_font);
+            render_rectangle_node(sg, node, rect_bg, rect_border, comp_font);
         }
-        ComponentKind::Database => render_database_node(buf, node, db_bg, db_border, comp_font),
-        ComponentKind::Cloud => render_cloud_node(buf, node, cloud_bg, cloud_border, comp_font),
-        ComponentKind::Node => render_box_node(buf, node, node_bg, node_border, comp_font),
-        ComponentKind::Package => render_box_node(buf, node, rect_bg, rect_border, comp_font),
+        ComponentKind::Database => render_database_node(sg, node, db_bg, db_border, comp_font),
+        ComponentKind::Cloud => render_cloud_node(sg, node, cloud_bg, cloud_border, comp_font),
+        ComponentKind::Node => render_box_node(sg, node, node_bg, node_border, comp_font),
+        ComponentKind::Package => render_box_node(sg, node, rect_bg, rect_border, comp_font),
         ComponentKind::Interface => {
-            render_interface_node(buf, node, comp_bg, comp_border, comp_font);
+            render_interface_node(sg, node, comp_bg, comp_border, comp_font);
         }
-        ComponentKind::Card => render_rectangle_node(buf, node, rect_bg, rect_border, comp_font),
+        ComponentKind::Card => render_rectangle_node(sg, node, rect_bg, rect_border, comp_font),
         ComponentKind::Artifact => {
-            render_artifact_node(buf, node, artifact_bg, artifact_border, comp_font);
+            render_artifact_node(sg, node, artifact_bg, artifact_border, comp_font);
         }
         ComponentKind::Storage => {
-            render_storage_node(buf, node, storage_bg, storage_border, comp_font);
+            render_storage_node(sg, node, storage_bg, storage_border, comp_font);
         }
-        ComponentKind::Folder => render_folder_node(buf, node, folder_bg, folder_border, comp_font),
-        ComponentKind::Frame => render_frame_node(buf, node, frame_bg, frame_border, comp_font),
-        ComponentKind::Agent => render_agent_node(buf, node, agent_bg, agent_border, comp_font),
-        ComponentKind::Stack => render_stack_node(buf, node, stack_bg, stack_border, comp_font),
-        ComponentKind::Queue => render_queue_node(buf, node, queue_bg, queue_border, comp_font),
+        ComponentKind::Folder => render_folder_node(sg, node, folder_bg, folder_border, comp_font),
+        ComponentKind::Frame => render_frame_node(sg, node, frame_bg, frame_border, comp_font),
+        ComponentKind::Agent => render_agent_node(sg, node, agent_bg, agent_border, comp_font),
+        ComponentKind::Stack => render_stack_node(sg, node, stack_bg, stack_border, comp_font),
+        ComponentKind::Queue => render_queue_node(sg, node, queue_bg, queue_border, comp_font),
     }
 }
 
 /// Emit HTML comment + open `<g class="entity">` for a node.
-fn open_entity_g(buf: &mut String, node: &ComponentNodeLayout) {
-    write!(buf, "<!--entity {}-->", xml_escape(&node.id)).unwrap();
-    write!(buf, r#"<g class="entity" id="{}">"#, xml_escape(&node.id),).unwrap();
+fn open_entity_g(sg: &mut SvgGraphic, node: &ComponentNodeLayout) {
+    sg.push_raw(&format!("<!--entity {}-->", xml_escape(&node.id)));
+    sg.push_raw(&format!(r#"<g class="entity" id="{}">"#, xml_escape(&node.id)));
 }
 
 /// Component: rounded rect with component icon (two small rects on right side)
 fn render_component_node(
-    buf: &mut String,
+    sg: &mut SvgGraphic,
     node: &ComponentNodeLayout,
     bg: &str,
     border: &str,
     font_color: &str,
 ) {
-    open_entity_g(buf, node);
+    open_entity_g(sg, node);
 
     let x = node.x;
     let y = node.y;
     let w = node.width;
     let h = node.height;
 
-    write!(
-        buf,
-        r#"<rect fill="{bg}" height="{}" rx="2.5" ry="2.5" style="stroke:{border};stroke-width:0.5;" width="{}" x="{}" y="{}"/>"#,
-        fmt_coord(h), fmt_coord(w), fmt_coord(x), fmt_coord(y),
-    )
-    .unwrap();
+    sg.set_fill_color(bg); sg.set_stroke_color(Some(border)); sg.set_stroke_width(0.5, None);
+    sg.svg_rectangle(x, y, w, h, 2.5, 2.5, 0.0);
 
     // Component icon on right side
     let icon_w: f64 = 15.0;
     let icon_h: f64 = 10.0;
     let icon_x = x + w - 5.0;
     let icon_y1 = y + 5.0;
-    write!(
-        buf,
-        r#"<rect fill="{bg}" height="{}" style="stroke:{border};stroke-width:0.5;" width="{}" x="{}" y="{}"/>"#,
-        fmt_coord(icon_h), fmt_coord(icon_w), fmt_coord(icon_x), fmt_coord(icon_y1),
-    )
-    .unwrap();
-    write!(
-        buf,
-        r#"<rect fill="{bg}" height="2" style="stroke:{border};stroke-width:0.5;" width="4" x="{}" y="{}"/>"#,
-        fmt_coord(icon_x - 2.0), fmt_coord(icon_y1 + 2.0),
-    )
-    .unwrap();
-    write!(
-        buf,
-        r#"<rect fill="{bg}" height="2" style="stroke:{border};stroke-width:0.5;" width="4" x="{}" y="{}"/>"#,
-        fmt_coord(icon_x - 2.0), fmt_coord(icon_y1 + 6.0),
-    )
-    .unwrap();
+    sg.set_fill_color(bg); sg.set_stroke_color(Some(border)); sg.set_stroke_width(0.5, None);
+    sg.svg_rectangle(icon_x, icon_y1, icon_w, icon_h, 0.0, 0.0, 0.0);
+    sg.set_fill_color(bg); sg.set_stroke_color(Some(border)); sg.set_stroke_width(0.5, None);
+    sg.svg_rectangle(icon_x - 2.0, icon_y1 + 2.0, 4.0, 2.0, 0.0, 0.0, 0.0);
+    sg.set_fill_color(bg); sg.set_stroke_color(Some(border)); sg.set_stroke_width(0.5, None);
+    sg.svg_rectangle(icon_x - 2.0, icon_y1 + 6.0, 4.0, 2.0, 0.0, 0.0, 0.0);
 
-    render_node_text(buf, node, font_color);
-    buf.push_str("</g>");
+    render_node_text(sg, node, font_color);
+    sg.push_raw("</g>");
 }
 
 /// Rectangle: simple rectangle
 fn render_rectangle_node(
-    buf: &mut String,
+    sg: &mut SvgGraphic,
     node: &ComponentNodeLayout,
     bg: &str,
     border: &str,
     font_color: &str,
 ) {
-    open_entity_g(buf, node);
+    open_entity_g(sg, node);
 
-    write!(
-        buf,
-        r#"<rect fill="{bg}" height="{}" rx="2.5" ry="2.5" style="stroke:{border};stroke-width:0.5;" width="{}" x="{}" y="{}"/>"#,
-        fmt_coord(node.height), fmt_coord(node.width), fmt_coord(node.x), fmt_coord(node.y),
-    )
-    .unwrap();
+    sg.set_fill_color(bg); sg.set_stroke_color(Some(border)); sg.set_stroke_width(0.5, None);
+    sg.svg_rectangle(node.x, node.y, node.width, node.height, 2.5, 2.5, 0.0);
 
-    render_node_text(buf, node, font_color);
-    buf.push_str("</g>");
+    render_node_text(sg, node, font_color);
+    sg.push_raw("</g>");
 }
 
 /// Database: cylinder shape via cubic path curves
 fn render_database_node(
-    buf: &mut String,
+    sg: &mut SvgGraphic,
     node: &ComponentNodeLayout,
     bg: &str,
     border: &str,
     font_color: &str,
 ) {
-    open_entity_g(buf, node);
+    open_entity_g(sg, node);
 
     let x = node.x;
     let y = node.y;
@@ -475,8 +409,7 @@ fn render_database_node(
     let cx = x + w / 2.0;
 
     // Body
-    write!(
-        buf,
+    sg.push_raw(&format!(
         r#"<path d="M{},{} C{},{} {},{} {},{} C{},{} {},{} {},{} L{},{} C{},{} {},{} {},{} C{},{} {},{} {},{} L{},{} " fill="{bg}" style="stroke:{border};stroke-width:0.5;"/>"#,
         fmt_coord(x), fmt_coord(y + ry),
         fmt_coord(x), fmt_coord(y),
@@ -493,12 +426,10 @@ fn render_database_node(
         fmt_coord(x), fmt_coord(y + h),
         fmt_coord(x), fmt_coord(y + h - ry),
         fmt_coord(x), fmt_coord(y + ry),
-    )
-    .unwrap();
+    ));
 
     // Top ellipse
-    write!(
-        buf,
+    sg.push_raw(&format!(
         r#"<path d="M{},{} C{},{} {},{} {},{} C{},{} {},{} {},{} " fill="none" style="stroke:{border};stroke-width:0.5;"/>"#,
         fmt_coord(x), fmt_coord(y + ry),
         fmt_coord(x), fmt_coord(y + ry + ry),
@@ -507,181 +438,135 @@ fn render_database_node(
         fmt_coord(cx), fmt_coord(y + ry + ry),
         fmt_coord(x + w), fmt_coord(y + ry + ry),
         fmt_coord(x + w), fmt_coord(y + ry),
-    )
-    .unwrap();
+    ));
 
-    render_node_text(buf, node, font_color);
-    buf.push_str("</g>");
+    render_node_text(sg, node, font_color);
+    sg.push_raw("</g>");
 }
 
 /// Cloud: rounded rect with large radius
 fn render_cloud_node(
-    buf: &mut String,
+    sg: &mut SvgGraphic,
     node: &ComponentNodeLayout,
     bg: &str,
     border: &str,
     font_color: &str,
 ) {
-    open_entity_g(buf, node);
+    open_entity_g(sg, node);
 
-    write!(
-        buf,
-        r#"<rect fill="{bg}" height="{}" rx="20" ry="20" style="stroke:{border};stroke-width:0.5;" width="{}" x="{}" y="{}"/>"#,
-        fmt_coord(node.height), fmt_coord(node.width), fmt_coord(node.x), fmt_coord(node.y),
-    )
-    .unwrap();
+    sg.set_fill_color(bg); sg.set_stroke_color(Some(border)); sg.set_stroke_width(0.5, None);
+    sg.svg_rectangle(node.x, node.y, node.width, node.height, 20.0, 20.0, 0.0);
 
-    render_node_text(buf, node, font_color);
-    buf.push_str("</g>");
+    render_node_text(sg, node, font_color);
+    sg.push_raw("</g>");
 }
 
 /// Generic box (used for Node, Package)
 fn render_box_node(
-    buf: &mut String,
+    sg: &mut SvgGraphic,
     node: &ComponentNodeLayout,
     fill: &str,
     border: &str,
     font_color: &str,
 ) {
-    open_entity_g(buf, node);
+    open_entity_g(sg, node);
 
-    write!(
-        buf,
-        r#"<rect fill="{fill}" height="{}" rx="2.5" ry="2.5" style="stroke:{border};stroke-width:0.5;" width="{}" x="{}" y="{}"/>"#,
-        fmt_coord(node.height), fmt_coord(node.width), fmt_coord(node.x), fmt_coord(node.y),
-    )
-    .unwrap();
+    sg.set_fill_color(fill); sg.set_stroke_color(Some(border)); sg.set_stroke_width(0.5, None);
+    sg.svg_rectangle(node.x, node.y, node.width, node.height, 2.5, 2.5, 0.0);
 
-    render_node_text(buf, node, font_color);
-    buf.push_str("</g>");
+    render_node_text(sg, node, font_color);
+    sg.push_raw("</g>");
 }
 
 /// Interface: small circle with name below
 fn render_interface_node(
-    buf: &mut String,
+    sg: &mut SvgGraphic,
     node: &ComponentNodeLayout,
     bg: &str,
     border: &str,
     font_color: &str,
 ) {
-    open_entity_g(buf, node);
+    open_entity_g(sg, node);
 
     let cx = node.x + node.width / 2.0;
     let cy = node.y + 12.0;
-    write!(
-        buf,
-        r#"<circle cx="{}" cy="{}" fill="{bg}" r="8" style="stroke:{border};stroke-width:0.5;"/>"#,
-        fmt_coord(cx),
-        fmt_coord(cy),
-    )
-    .unwrap();
+    sg.set_fill_color(bg); sg.set_stroke_color(Some(border)); sg.set_stroke_width(0.5, None);
+    sg.svg_circle(cx, cy, 8.0, 0.0);
 
-    let name_escaped = xml_escape(&node.name);
     let name_y = cy + 20.0;
     let tl = text_len(&node.name, 14.0, false);
-    let tl_f: f64 = tl.parse().unwrap_or(0.0);
-    write!(
-        buf,
-        r#"<text fill="{font_color}" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="{tl}" x="{}" y="{}">{name_escaped}</text>"#,
-        fmt_coord(cx - tl_f / 2.0), fmt_coord(name_y),
-    )
-    .unwrap();
+    sg.set_fill_color(font_color);
+    sg.svg_text(&node.name, cx - tl / 2.0, name_y, Some("sans-serif"), 14.0, None, None, None, tl, LengthAdjust::Spacing, None, 0, None);
 
-    buf.push_str("</g>");
+    sg.push_raw("</g>");
 }
 
 /// Artifact: rect with folded-corner icon
 fn render_artifact_node(
-    buf: &mut String,
+    sg: &mut SvgGraphic,
     node: &ComponentNodeLayout,
     bg: &str,
     border: &str,
     font_color: &str,
 ) {
-    open_entity_g(buf, node);
+    open_entity_g(sg, node);
 
     let x = node.x;
     let y = node.y;
     let w = node.width;
     let h = node.height;
 
-    write!(
-        buf,
-        r#"<rect fill="{bg}" height="{}" rx="2.5" ry="2.5" style="stroke:{border};stroke-width:0.5;" width="{}" x="{}" y="{}"/>"#,
-        fmt_coord(h), fmt_coord(w), fmt_coord(x), fmt_coord(y),
-    )
-    .unwrap();
+    sg.set_fill_color(bg); sg.set_stroke_color(Some(border)); sg.set_stroke_width(0.5, None);
+    sg.svg_rectangle(x, y, w, h, 2.5, 2.5, 0.0);
 
     // Folded corner icon (small polygon at top right)
     let fold: f64 = 6.0;
     let ix = x + w - 17.0;
     let iy = y + 5.0;
-    write!(
-        buf,
-        r#"<polygon fill="{bg}" points="{},{},{},{},{},{},{},{},{},{}" style="stroke:{border};stroke-width:0.5;"/>"#,
-        fmt_coord(ix), fmt_coord(iy),
-        fmt_coord(ix), fmt_coord(iy + 14.0),
-        fmt_coord(ix + 12.0), fmt_coord(iy + 14.0),
-        fmt_coord(ix + 12.0), fmt_coord(iy + fold),
-        fmt_coord(ix + fold), fmt_coord(iy),
-    )
-    .unwrap();
+    sg.set_fill_color(bg); sg.set_stroke_color(Some(border)); sg.set_stroke_width(0.5, None);
+    sg.svg_polygon(0.0, &[
+        ix, iy,
+        ix, iy + 14.0,
+        ix + 12.0, iy + 14.0,
+        ix + 12.0, iy + fold,
+        ix + fold, iy,
+    ]);
 
-    write!(
-        buf,
-        r#"<line style="stroke:{border};stroke-width:0.5;" x1="{}" x2="{}" y1="{}" y2="{}"/>"#,
-        fmt_coord(ix + fold),
-        fmt_coord(ix + fold),
-        fmt_coord(iy),
-        fmt_coord(iy + fold),
-    )
-    .unwrap();
-    write!(
-        buf,
-        r#"<line style="stroke:{border};stroke-width:0.5;" x1="{}" x2="{}" y1="{}" y2="{}"/>"#,
-        fmt_coord(ix + 12.0),
-        fmt_coord(ix + fold),
-        fmt_coord(iy + fold),
-        fmt_coord(iy + fold),
-    )
-    .unwrap();
+    sg.set_stroke_color(Some(border)); sg.set_stroke_width(0.5, None);
+    sg.svg_line(ix + fold, iy, ix + fold, iy + fold, 0.0);
+    sg.svg_line(ix + 12.0, iy + fold, ix + fold, iy + fold, 0.0);
 
-    render_node_text(buf, node, font_color);
-    buf.push_str("</g>");
+    render_node_text(sg, node, font_color);
+    sg.push_raw("</g>");
 }
 
 /// Storage: rounded rect with large rx/ry
 fn render_storage_node(
-    buf: &mut String,
+    sg: &mut SvgGraphic,
     node: &ComponentNodeLayout,
     bg: &str,
     border: &str,
     font_color: &str,
 ) {
-    open_entity_g(buf, node);
+    open_entity_g(sg, node);
 
     let rx = 35.0_f64.min(node.width / 4.0);
-    write!(
-        buf,
-        r#"<rect fill="{bg}" height="{}" rx="{}" ry="{}" style="stroke:{border};stroke-width:0.5;" width="{}" x="{}" y="{}"/>"#,
-        fmt_coord(node.height), fmt_coord(rx), fmt_coord(rx),
-        fmt_coord(node.width), fmt_coord(node.x), fmt_coord(node.y),
-    )
-    .unwrap();
+    sg.set_fill_color(bg); sg.set_stroke_color(Some(border)); sg.set_stroke_width(0.5, None);
+    sg.svg_rectangle(node.x, node.y, node.width, node.height, rx, rx, 0.0);
 
-    render_node_text(buf, node, font_color);
-    buf.push_str("</g>");
+    render_node_text(sg, node, font_color);
+    sg.push_raw("</g>");
 }
 
 /// Folder: path with tab, body rect, separator line
 fn render_folder_node(
-    buf: &mut String,
+    sg: &mut SvgGraphic,
     node: &ComponentNodeLayout,
     bg: &str,
     border: &str,
     font_color: &str,
 ) {
-    open_entity_g(buf, node);
+    open_entity_g(sg, node);
 
     let x = node.x;
     let y = node.y;
@@ -691,8 +576,7 @@ fn render_folder_node(
     let tab_h: f64 = 21.0;
     let r: f64 = 2.5;
 
-    write!(
-        buf,
+    sg.push_raw(&format!(
         concat!(
             r#"<path d="M{},{} L{},{}"#,
             r#" A{},{} 0 0 1 {},{}"#,
@@ -737,32 +621,24 @@ fn render_folder_node(
         fmt_coord(y + r),
         bg,
         border,
-    )
-    .unwrap();
+    ));
 
-    write!(
-        buf,
-        r#"<line style="stroke:{border};stroke-width:0.5;" x1="{}" x2="{}" y1="{}" y2="{}"/>"#,
-        fmt_coord(x),
-        fmt_coord(x + w),
-        fmt_coord(y + tab_h),
-        fmt_coord(y + tab_h),
-    )
-    .unwrap();
+    sg.set_stroke_color(Some(border)); sg.set_stroke_width(0.5, None);
+    sg.svg_line(x, y + tab_h, x + w, y + tab_h, 0.0);
 
-    render_node_text(buf, node, font_color);
-    buf.push_str("</g>");
+    render_node_text(sg, node, font_color);
+    sg.push_raw("</g>");
 }
 
 /// Frame: rect with label tab
 fn render_frame_node(
-    buf: &mut String,
+    sg: &mut SvgGraphic,
     node: &ComponentNodeLayout,
     bg: &str,
     border: &str,
     _font_color: &str,
 ) {
-    open_entity_g(buf, node);
+    open_entity_g(sg, node);
 
     let x = node.x;
     let y = node.y;
@@ -771,66 +647,47 @@ fn render_frame_node(
     let tab_w = (w * 0.4).min(70.0);
     let tab_h = FONT_SIZE + 6.0;
 
-    write!(
-        buf,
-        r#"<rect fill="{bg}" height="{}" rx="2.5" ry="2.5" style="stroke:{border};stroke-width:0.5;" width="{}" x="{}" y="{}"/>"#,
-        fmt_coord(h), fmt_coord(w), fmt_coord(x), fmt_coord(y),
-    )
-    .unwrap();
+    sg.set_fill_color(bg); sg.set_stroke_color(Some(border)); sg.set_stroke_width(0.5, None);
+    sg.svg_rectangle(x, y, w, h, 2.5, 2.5, 0.0);
 
-    write!(
-        buf,
-        r#"<rect fill="{border}" height="{}" style="stroke:{border};stroke-width:0.5;" width="{}" x="{}" y="{}"/>"#,
-        fmt_coord(tab_h), fmt_coord(tab_w), fmt_coord(x), fmt_coord(y),
-    )
-    .unwrap();
+    sg.set_fill_color(border); sg.set_stroke_color(Some(border)); sg.set_stroke_width(0.5, None);
+    sg.svg_rectangle(x, y, tab_w, tab_h, 0.0, 0.0, 0.0);
 
-    let name_escaped = xml_escape(&node.name);
     let label_cx = x + tab_w / 2.0;
     let label_cy = y + tab_h / 2.0 + FONT_SIZE * 0.35;
     let tl = text_len(&node.name, FONT_SIZE - 1.0, true);
-    write!(
-        buf,
-        "<text fill=\"#FFFFFF\" font-family=\"sans-serif\" font-size=\"{}\" font-weight=\"700\" lengthAdjust=\"spacing\" text-anchor=\"middle\" textLength=\"{tl}\" x=\"{}\" y=\"{}\">{name_escaped}</text>",
-        fmt_coord(FONT_SIZE - 1.0),
-        fmt_coord(label_cx),
-        fmt_coord(label_cy),
-    )
-    .unwrap();
+    sg.set_fill_color("#FFFFFF");
+    sg.svg_text(&node.name, label_cx, label_cy, Some("sans-serif"), FONT_SIZE - 1.0, Some("700"), None, None, tl, LengthAdjust::Spacing, None, 0, Some("middle"));
 
-    buf.push_str("</g>");
+    sg.push_raw("</g>");
 }
 
 /// Agent: rounded rect with rx 2.5
 fn render_agent_node(
-    buf: &mut String,
+    sg: &mut SvgGraphic,
     node: &ComponentNodeLayout,
     bg: &str,
     border: &str,
     font_color: &str,
 ) {
-    open_entity_g(buf, node);
+    open_entity_g(sg, node);
 
-    write!(
-        buf,
-        r#"<rect fill="{bg}" height="{}" rx="2.5" ry="2.5" style="stroke:{border};stroke-width:0.5;" width="{}" x="{}" y="{}"/>"#,
-        fmt_coord(node.height), fmt_coord(node.width), fmt_coord(node.x), fmt_coord(node.y),
-    )
-    .unwrap();
+    sg.set_fill_color(bg); sg.set_stroke_color(Some(border)); sg.set_stroke_width(0.5, None);
+    sg.svg_rectangle(node.x, node.y, node.width, node.height, 2.5, 2.5, 0.0);
 
-    render_node_text(buf, node, font_color);
-    buf.push_str("</g>");
+    render_node_text(sg, node, font_color);
+    sg.push_raw("</g>");
 }
 
 /// Stack: rect with frame path
 fn render_stack_node(
-    buf: &mut String,
+    sg: &mut SvgGraphic,
     node: &ComponentNodeLayout,
     bg: &str,
     border: &str,
     font_color: &str,
 ) {
-    open_entity_g(buf, node);
+    open_entity_g(sg, node);
 
     let x = node.x;
     let y = node.y;
@@ -838,17 +695,12 @@ fn render_stack_node(
     let h = node.height;
 
     // Main body rect (stroke:none)
-    write!(
-        buf,
-        r#"<rect fill="{bg}" height="{}" rx="2.5" ry="2.5" style="stroke:none;stroke-width:0.5;" width="{}" x="{}" y="{}"/>"#,
-        fmt_coord(h), fmt_coord(w), fmt_coord(x), fmt_coord(y),
-    )
-    .unwrap();
+    sg.set_fill_color(bg); sg.set_stroke_color(Some("none")); sg.set_stroke_width(0.5, None);
+    sg.svg_rectangle(x, y, w, h, 2.5, 2.5, 0.0);
 
     // Frame path
     let bar_left = x - 15.0;
-    write!(
-        buf,
+    sg.push_raw(&format!(
         r#"<path d="M{},{} L{},{} A2.5,2.5 0 0 1 {},{} L{},{} A2.5,2.5 0 0 0 {},{} L{},{} A2.5,2.5 0 0 0 {},{} L{},{} A2.5,2.5 0 0 1 {},{} L{},{} " fill="none" style="stroke:{border};stroke-width:0.5;"/>"#,
         fmt_coord(bar_left), fmt_coord(y),
         fmt_coord(bar_left + 12.5), fmt_coord(y),
@@ -860,22 +712,21 @@ fn render_stack_node(
         fmt_coord(x + w), fmt_coord(y + 2.5),
         fmt_coord(x + w + 2.5), fmt_coord(y),
         fmt_coord(x + w + 15.0), fmt_coord(y),
-    )
-    .unwrap();
+    ));
 
-    render_node_text(buf, node, font_color);
-    buf.push_str("</g>");
+    render_node_text(sg, node, font_color);
+    sg.push_raw("</g>");
 }
 
 /// Queue: path body with double-curved right edge
 fn render_queue_node(
-    buf: &mut String,
+    sg: &mut SvgGraphic,
     node: &ComponentNodeLayout,
     bg: &str,
     border: &str,
     font_color: &str,
 ) {
-    open_entity_g(buf, node);
+    open_entity_g(sg, node);
 
     let x = node.x;
     let y = node.y;
@@ -885,8 +736,7 @@ fn render_queue_node(
     let mid_y = y + h / 2.0;
 
     // Left side curve (filled)
-    write!(
-        buf,
+    sg.push_raw(&format!(
         r#"<path d="M{},{} C{},{} {},{} {},{} C{},{} {},{} {},{} " fill="{bg}" style="stroke:{border};stroke-width:0.5;"/>"#,
         fmt_coord(x + cap), fmt_coord(y),
         fmt_coord(x + cap + cap), fmt_coord(y),
@@ -895,12 +745,10 @@ fn render_queue_node(
         fmt_coord(x + cap + cap), fmt_coord(mid_y),
         fmt_coord(x + cap + cap), fmt_coord(y + h),
         fmt_coord(x + cap), fmt_coord(y + h),
-    )
-    .unwrap();
+    ));
 
     // Right endcap (open)
-    write!(
-        buf,
+    sg.push_raw(&format!(
         r#"<path d="M{},{} C{},{} {},{} {},{} C{},{} {},{} {},{} " fill="none" style="stroke:{border};stroke-width:0.5;"/>"#,
         fmt_coord(x + w - cap), fmt_coord(y),
         fmt_coord(x + w - cap - cap), fmt_coord(y),
@@ -909,15 +757,14 @@ fn render_queue_node(
         fmt_coord(x + w - cap - cap), fmt_coord(mid_y),
         fmt_coord(x + w - cap - cap), fmt_coord(y + h),
         fmt_coord(x + w - cap), fmt_coord(y + h),
-    )
-    .unwrap();
+    ));
 
-    render_node_text(buf, node, font_color);
-    buf.push_str("</g>");
+    render_node_text(sg, node, font_color);
+    sg.push_raw("</g>");
 }
 
 /// Render name, stereotype, and description text for a node
-fn render_node_text(buf: &mut String, node: &ComponentNodeLayout, font_color: &str) {
+fn render_node_text(sg: &mut SvgGraphic, node: &ComponentNodeLayout, font_color: &str) {
     let cx = node.x + node.width / 2.0;
     let has_desc = !node.description.is_empty();
 
@@ -925,18 +772,10 @@ fn render_node_text(buf: &mut String, node: &ComponentNodeLayout, font_color: &s
     let mut y_offset = 0.0;
     if let Some(ref stereotype) = node.stereotype {
         let stereo_text = format!("\u{00AB}{stereotype}\u{00BB}");
-        let escaped = xml_escape(&stereo_text);
         let sy = node.y + FONT_SIZE + 4.0;
         let tl = font_metrics::text_width(&stereo_text, "sans-serif", FONT_SIZE - 2.0, false, true);
-        write!(
-            buf,
-            r#"<text fill="{font_color}" font-family="sans-serif" font-size="{fs:.0}" font-style="italic" lengthAdjust="spacing" textLength="{}" x="{}" y="{}">{escaped}</text>"#,
-            fmt_coord(tl),
-            fmt_coord(cx - tl / 2.0),
-            fmt_coord(sy),
-            fs = FONT_SIZE - 2.0,
-        )
-        .unwrap();
+        sg.set_fill_color(font_color);
+        sg.svg_text(&stereo_text, cx - tl / 2.0, sy, Some("sans-serif"), FONT_SIZE - 2.0, None, Some("italic"), None, tl, LengthAdjust::Spacing, None, 0, None);
         y_offset = LINE_HEIGHT;
     }
 
@@ -946,8 +785,9 @@ fn render_node_text(buf: &mut String, node: &ComponentNodeLayout, font_color: &s
     } else {
         node.y + node.height / 2.0 + FONT_SIZE * 0.35 + y_offset
     };
+    let mut tmp = String::new();
     render_creole_text(
-        buf,
+        &mut tmp,
         &node.name,
         cx,
         name_y,
@@ -956,24 +796,19 @@ fn render_node_text(buf: &mut String, node: &ComponentNodeLayout, font_color: &s
         Some("middle"),
         r#"font-size="14" font-weight="bold""#,
     );
+    sg.push_raw(&tmp);
 
     // Description
     if has_desc {
         let sep_y = name_y + 6.0;
-        write!(
-            buf,
-            r#"<line style="stroke:{COMPONENT_BORDER};" x1="{}" x2="{}" y1="{}" y2="{}"/>"#,
-            fmt_coord(node.x),
-            fmt_coord(node.x + node.width),
-            fmt_coord(sep_y),
-            fmt_coord(sep_y),
-        )
-        .unwrap();
+        sg.set_stroke_color(Some(COMPONENT_BORDER)); sg.set_stroke_width(1.0, None);
+        sg.svg_line(node.x, sep_y, node.x + node.width, sep_y, 0.0);
 
         let text_x = node.x + 8.0;
         let desc_text = node.description.join("\n");
+        let mut tmp = String::new();
         render_creole_text(
-            buf,
+            &mut tmp,
             &desc_text,
             text_x,
             sep_y + LINE_HEIGHT,
@@ -982,6 +817,7 @@ fn render_node_text(buf: &mut String, node: &ComponentNodeLayout, font_color: &s
             None,
             r#"font-size="12""#,
         );
+        sg.push_raw(&tmp);
     }
 }
 
@@ -989,26 +825,22 @@ fn render_node_text(buf: &mut String, node: &ComponentNodeLayout, font_color: &s
 // Edge rendering
 // ---------------------------------------------------------------------------
 
-fn render_edge(buf: &mut String, edge: &ComponentEdgeLayout, arrow_color: &str, font_color: &str) {
+fn render_edge(sg: &mut SvgGraphic, edge: &ComponentEdgeLayout, arrow_color: &str, font_color: &str) {
     if edge.points.is_empty() {
         return;
     }
 
     // HTML comment + semantic group
-    write!(
-        buf,
+    sg.push_raw(&format!(
         "<!--link {} to {}-->",
         xml_escape(&edge.from),
         xml_escape(&edge.to),
-    )
-    .unwrap();
-    write!(
-        buf,
+    ));
+    sg.push_raw(&format!(
         r#"<g class="link" id="{}-to-{}">"#,
         xml_escape(&edge.from),
         xml_escape(&edge.to),
-    )
-    .unwrap();
+    ));
 
     let dash = if edge.dashed {
         r#" stroke-dasharray="7,5""#
@@ -1036,13 +868,11 @@ fn render_edge(buf: &mut String, edge: &ComponentEdgeLayout, arrow_color: &str, 
         }
     }
 
-    write!(
-        buf,
+    sg.push_raw(&format!(
         r#"<path d="{d}" fill="none" id="{from}-to-{to}" style="stroke:{arrow_color};stroke-width:1;"{dash}/>"#,
         from = xml_escape(&edge.from),
         to = xml_escape(&edge.to),
-    )
-    .unwrap();
+    ));
 
     // Inline polygon arrowhead at the last point
     if edge.points.len() >= 2 {
@@ -1063,15 +893,8 @@ fn render_edge(buf: &mut String, edge: &ComponentEdgeLayout, arrow_color: &str, 
             let p3x = tx - ux * 9.0 - px * 4.0;
             let p3y = ty - uy * 9.0 - py * 4.0;
 
-            write!(
-                buf,
-                r#"<polygon fill="{arrow_color}" points="{},{},{},{},{},{},{},{}" style="stroke:{arrow_color};stroke-width:1;"/>"#,
-                fmt_coord(p1x), fmt_coord(p1y),
-                fmt_coord(p2x), fmt_coord(p2y),
-                fmt_coord(p3x), fmt_coord(p3y),
-                fmt_coord(p1x), fmt_coord(p1y),
-            )
-            .unwrap();
+            sg.set_fill_color(arrow_color); sg.set_stroke_color(Some(arrow_color)); sg.set_stroke_width(1.0, None);
+            sg.svg_polygon(0.0, &[p1x, p1y, p2x, p2y, p3x, p3y, p1x, p1y]);
         }
     }
 
@@ -1086,8 +909,9 @@ fn render_edge(buf: &mut String, edge: &ComponentEdgeLayout, arrow_color: &str, 
             edge.points[mid]
         };
 
+        let mut tmp = String::new();
         render_creole_text(
-            buf,
+            &mut tmp,
             &edge.label,
             mx,
             my,
@@ -1096,9 +920,10 @@ fn render_edge(buf: &mut String, edge: &ComponentEdgeLayout, arrow_color: &str, 
             Some("middle"),
             &format!(r#"font-size="{FONT_SIZE}""#),
         );
+        sg.push_raw(&tmp);
     }
 
-    buf.push_str("</g>");
+    sg.push_raw("</g>");
 }
 
 // ---------------------------------------------------------------------------
@@ -1106,7 +931,7 @@ fn render_edge(buf: &mut String, edge: &ComponentEdgeLayout, arrow_color: &str, 
 // ---------------------------------------------------------------------------
 
 fn render_note(
-    buf: &mut String,
+    sg: &mut SvgGraphic,
     note: &ComponentNoteLayout,
     bg: &str,
     border: &str,
@@ -1118,45 +943,18 @@ fn render_note(
     let h = note.height;
     let fold = 8.0;
 
-    write!(
-        buf,
-        r#"<polygon fill="{bg}" points="{},{},{},{},{},{},{},{},{},{}" style="stroke:{border};"/>"#,
-        fmt_coord(x),
-        fmt_coord(y),
-        fmt_coord(x + w - fold),
-        fmt_coord(y),
-        fmt_coord(x + w),
-        fmt_coord(y + fold),
-        fmt_coord(x + w),
-        fmt_coord(y + h),
-        fmt_coord(x),
-        fmt_coord(y + h),
-    )
-    .unwrap();
+    sg.set_fill_color(bg); sg.set_stroke_color(Some(border)); sg.set_stroke_width(1.0, None);
+    sg.svg_polygon(0.0, &[x, y, x + w - fold, y, x + w, y + fold, x + w, y + h, x, y + h]);
 
-    write!(
-        buf,
-        r#"<line style="stroke:{border};" x1="{}" x2="{}" y1="{}" y2="{}"/>"#,
-        fmt_coord(x + w - fold),
-        fmt_coord(x + w - fold),
-        fmt_coord(y),
-        fmt_coord(y + fold),
-    )
-    .unwrap();
-    write!(
-        buf,
-        r#"<line style="stroke:{border};" x1="{}" x2="{}" y1="{}" y2="{}"/>"#,
-        fmt_coord(x + w - fold),
-        fmt_coord(x + w),
-        fmt_coord(y + fold),
-        fmt_coord(y + fold),
-    )
-    .unwrap();
+    sg.set_stroke_color(Some(border)); sg.set_stroke_width(1.0, None);
+    sg.svg_line(x + w - fold, y, x + w - fold, y + fold, 0.0);
+    sg.svg_line(x + w - fold, y + fold, x + w, y + fold, 0.0);
 
     let text_x = x + 6.0;
     let text_y = y + fold + FONT_SIZE;
+    let mut tmp = String::new();
     render_creole_text(
-        buf,
+        &mut tmp,
         &note.text,
         text_x,
         text_y,
@@ -1165,6 +963,7 @@ fn render_note(
         None,
         r#"font-size="13""#,
     );
+    sg.push_raw(&tmp);
 }
 
 // ---------------------------------------------------------------------------
