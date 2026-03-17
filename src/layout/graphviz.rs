@@ -160,6 +160,7 @@ fn to_dot(graph: &LayoutGraph) -> String {
         }
     }
     dot.push_str("}\n");
+    log::trace!("DOT input:\n{}", dot);
     dot
 }
 

@@ -18,6 +18,11 @@ const PLANTUML_VERSION: &str = "1.2026.3beta4";
 
 // ── Number formatting ───────────────────────────────────────────────
 
+/// Format a coordinate value at scale 1.0 (convenience for renderers).
+pub fn fmt_coord(value: f64) -> String {
+    fmt(value, 1.0)
+}
+
 /// Format a coordinate value matching Java PlantUML's `SvgGraphics.format()`:
 /// - `String.format(Locale.US, "%.4f", x * scale)`
 /// - Trailing zeros stripped after decimal point
@@ -63,7 +68,7 @@ fn fmt_bool(x: f64) -> &'static str {
 }
 
 /// XML-escape text content matching Java's DOM serializer (us-ascii encoding).
-fn xml_escape(s: &str) -> String {
+pub fn xml_escape(s: &str) -> String {
     let mut out = String::with_capacity(s.len());
     for ch in s.chars() {
         match ch {
@@ -185,7 +190,7 @@ impl SvgGraphic {
     }
 
     /// Format a number with the current scale applied.
-    fn f(&self, value: f64) -> String {
+    pub fn f(&self, value: f64) -> String {
         fmt(value, self.scale)
     }
 
@@ -400,6 +405,8 @@ impl SvgGraphic {
         if height <= 0.0 || width <= 0.0 {
             return;
         }
+        log::trace!("svg_rectangle: x={}, y={}, w={}, h={}, rx={}, ry={}, fill={}, stroke={}",
+            x, y, width, height, rx, ry, self.fill, self.stroke);
         self.manage_shadow(delta_shadow);
         if !self.hidden {
             let mut elt = String::with_capacity(128);
@@ -495,6 +502,7 @@ impl SvgGraphic {
         y2: f64,
         delta_shadow: f64,
     ) {
+        log::trace!("svg_line: x1={}, y1={}, x2={}, y2={}, stroke={}", x1, y1, x2, y2, self.stroke);
         self.manage_shadow(delta_shadow);
         if !self.hidden {
             let mut elt = String::with_capacity(128);
@@ -659,6 +667,8 @@ impl SvgGraphic {
         text_back_color: Option<&str>,
         orientation: i32,
     ) {
+        log::trace!("svg_text: text={:?}, x={}, y={}, font_size={}, fill={}",
+            text, x, y, font_size, self.fill);
         if self.hidden {
             self.ensure_visible(x, y);
             self.ensure_visible(x + text_length, y);
@@ -871,6 +881,11 @@ impl SvgGraphic {
     /// Push raw SVG markup into the body buffer.
     pub fn push_raw(&mut self, raw: &str) {
         self.buf.push_str(raw);
+    }
+
+    /// Push raw SVG markup into the defs buffer.
+    pub fn push_raw_defs(&mut self, raw: &str) {
+        self.defs.push_str(raw);
     }
 
     /// Get max_x (for layout calculations).
