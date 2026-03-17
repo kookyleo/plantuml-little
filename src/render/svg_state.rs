@@ -2,10 +2,10 @@ use std::cell::Cell;
 use std::fmt::Write;
 
 use crate::font_metrics;
+use crate::klimt::svg::{fmt_coord, xml_escape, LengthAdjust, SvgGraphic};
 use crate::layout::state::{StateLayout, StateNodeLayout, StateNoteLayout, TransitionLayout};
 use crate::model::state::{StateDiagram, StateKind};
 use crate::render::svg::{write_svg_root_bg, write_bg_rect};
-use crate::render::svg::{fmt_coord, xml_escape};
 use crate::render::svg_richtext::render_creole_text;
 use crate::style::SkinParams;
 use crate::Result;
@@ -51,21 +51,24 @@ pub fn render_state(
     let state_border = skin.border_color("state", STATE_BORDER);
     let state_font = skin.font_color("state", TEXT_FILL);
 
+    let mut sg = SvgGraphic::new(0, 1.0);
+
     // States (including composite with children)
     for state in &layout.state_layouts {
-        render_state_node(&mut buf, state, state_bg, state_border, state_font);
+        render_state_node(&mut sg, state, state_bg, state_border, state_font);
     }
 
     // Transitions
     for transition in &layout.transition_layouts {
-        render_transition(&mut buf, transition);
+        render_transition(&mut sg, transition);
     }
 
     // Notes
     for note in &layout.note_layouts {
-        render_note(&mut buf, note);
+        render_note(&mut sg, note);
     }
 
+    buf.push_str(sg.body());
     buf.push_str("</g></svg>");
     Ok(buf)
 }
@@ -73,115 +76,94 @@ pub fn render_state(
 // ── State node rendering ────────────────────────────────────────────
 
 fn render_state_node(
-    buf: &mut String,
+    sg: &mut SvgGraphic,
     node: &StateNodeLayout,
     bg: &str,
     border: &str,
     font_color: &str,
 ) {
-    // Dispatch by pseudo-state kind first, then by initial/final/composite/simple
     match &node.kind {
         StateKind::Fork | StateKind::Join => {
-            render_fork_join(buf, node);
+            render_fork_join(sg, node);
         }
         StateKind::Choice => {
-            render_choice(buf, node, border);
+            render_choice(sg, node, border);
         }
         StateKind::History => {
-            render_history(buf, node, border, font_color, false);
+            render_history(sg, node, border, font_color, false);
         }
         StateKind::DeepHistory => {
-            render_history(buf, node, border, font_color, true);
+            render_history(sg, node, border, font_color, true);
         }
         StateKind::End => {
-            render_final(buf, node);
+            render_final(sg, node);
         }
         StateKind::EntryPoint => {
-            render_initial(buf, node);
+            render_initial(sg, node);
         }
         StateKind::ExitPoint => {
-            render_exit_point(buf, node, border);
+            render_exit_point(sg, node, border);
         }
         StateKind::Normal => {
             if node.is_initial {
-                render_initial(buf, node);
+                render_initial(sg, node);
             } else if node.is_final {
-                render_final(buf, node);
+                render_final(sg, node);
             } else if node.is_composite {
-                render_composite(buf, node, bg, border, font_color);
+                render_composite(sg, node, bg, border, font_color);
             } else {
-                render_simple(buf, node, bg, border, font_color);
+                render_simple(sg, node, bg, border, font_color);
             }
         }
     }
 }
 
 /// Initial state: filled ellipse, rx=10 ry=10 (matches Java PlantUML)
-fn render_initial(buf: &mut String, node: &StateNodeLayout) {
+fn render_initial(sg: &mut SvgGraphic, node: &StateNodeLayout) {
     let cx = node.x + node.width / 2.0;
     let cy = node.y + node.height / 2.0;
-    write!(
-        buf,
+    sg.push_raw(&format!(
         r#"<g class="start_entity"><ellipse cx="{}" cy="{}" fill="{INITIAL_FILL}" rx="10" ry="10" style="stroke:{INITIAL_FILL};stroke-width:1;"/></g>"#,
-        fmt_coord(cx),
-        fmt_coord(cy),
-    )
-    .unwrap();
+        fmt_coord(cx), fmt_coord(cy),
+    ));
 }
 
 /// Final state: double circle (outer ring + inner filled)
-fn render_final(buf: &mut String, node: &StateNodeLayout) {
+fn render_final(sg: &mut SvgGraphic, node: &StateNodeLayout) {
     let cx = node.x + node.width / 2.0;
     let cy = node.y + node.height / 2.0;
-    write!(
-        buf,
-        r#"<circle cx="{}" cy="{}" fill="none" r="11" style="stroke:{FINAL_OUTER};stroke-width:2;"/>"#,
-        fmt_coord(cx),
-        fmt_coord(cy),
-    )
-    .unwrap();
-    write!(
-        buf,
+    sg.set_fill_color("none");
+    sg.set_stroke_color(Some(FINAL_OUTER));
+    sg.set_stroke_width(2.0, None);
+    sg.svg_circle(cx, cy, 11.0, 0.0);
+    sg.push_raw(&format!(
         r#"<circle cx="{}" cy="{}" fill="{FINAL_INNER}" r="7"/>"#,
-        fmt_coord(cx),
-        fmt_coord(cy),
-    )
-    .unwrap();
+        fmt_coord(cx), fmt_coord(cy),
+    ));
 }
 
 /// Fork/Join bar: filled black horizontal rectangle
-fn render_fork_join(buf: &mut String, node: &StateNodeLayout) {
-    write!(
-        buf,
+fn render_fork_join(sg: &mut SvgGraphic, node: &StateNodeLayout) {
+    sg.push_raw(&format!(
         r#"<rect fill="{INITIAL_FILL}" height="{}" rx="2" ry="2" stroke="none" width="{}" x="{}" y="{}"/>"#,
-        fmt_coord(node.height),
-        fmt_coord(node.width),
-        fmt_coord(node.x),
-        fmt_coord(node.y),
-    )
-    .unwrap();
+        fmt_coord(node.height), fmt_coord(node.width), fmt_coord(node.x), fmt_coord(node.y),
+    ));
 }
 
 /// Choice diamond: small rotated square
-fn render_choice(buf: &mut String, node: &StateNodeLayout, border: &str) {
+fn render_choice(sg: &mut SvgGraphic, node: &StateNodeLayout, border: &str) {
     let cx = node.x + node.width / 2.0;
     let cy = node.y + node.height / 2.0;
     let half = node.width / 2.0;
-    // Diamond points: top, right, bottom, left
-    write!(
-        buf,
-        r##"<polygon fill="#F1F1F1" points="{},{} {},{} {},{} {},{}" style="stroke:{border};stroke-width:1.5;"/>"##,
-        fmt_coord(cx), fmt_coord(cy - half),
-        fmt_coord(cx + half), fmt_coord(cy),
-        fmt_coord(cx), fmt_coord(cy + half),
-        fmt_coord(cx - half), fmt_coord(cy),
-    )
-    .unwrap();
+    sg.set_fill_color("#F1F1F1");
+    sg.set_stroke_color(Some(border));
+    sg.set_stroke_width(1.5, None);
+    sg.svg_polygon(0.0, &[cx, cy - half, cx + half, cy, cx, cy + half, cx - half, cy]);
 }
 
 /// History circle: small circle with "H" (or "H*") text inside
 fn render_history(
-    buf: &mut String,
+    sg: &mut SvgGraphic,
     node: &StateNodeLayout,
     border: &str,
     font_color: &str,
@@ -190,63 +172,44 @@ fn render_history(
     let cx = node.x + node.width / 2.0;
     let cy = node.y + node.height / 2.0;
     let r = node.width / 2.0;
-    write!(
-        buf,
-        r#"<circle cx="{}" cy="{}" fill="none" r="{}" style="stroke:{border};stroke-width:1.5;"/>"#,
-        fmt_coord(cx),
-        fmt_coord(cy),
-        fmt_coord(r),
-    )
-    .unwrap();
+    sg.set_fill_color("none");
+    sg.set_stroke_color(Some(border));
+    sg.set_stroke_width(1.5, None);
+    sg.svg_circle(cx, cy, r, 0.0);
     let label = if deep { "H*" } else { "H" };
-    let tl = fmt_coord(font_metrics::text_width(label, "SansSerif", FONT_SIZE, true, false));
-    write!(
-        buf,
-        r#"<text fill="{font_color}" font-family="sans-serif" font-size="{FONT_SIZE}" font-weight="bold" lengthAdjust="spacing" text-anchor="middle" textLength="{tl}" x="{}" y="{}">{label}</text>"#,
-        fmt_coord(cx),
-        fmt_coord(cy + FONT_SIZE * 0.35),
-    )
-    .unwrap();
+    let tl = font_metrics::text_width(label, "SansSerif", FONT_SIZE, true, false);
+    sg.set_fill_color(font_color);
+    sg.svg_text(
+        label, cx, cy + FONT_SIZE * 0.35,
+        Some("sans-serif"), FONT_SIZE,
+        Some("bold"), None, None,
+        tl, LengthAdjust::Spacing,
+        None, 0, Some("middle"),
+    );
 }
 
 /// Exit point: circle with X inside
-fn render_exit_point(buf: &mut String, node: &StateNodeLayout, border: &str) {
+fn render_exit_point(sg: &mut SvgGraphic, node: &StateNodeLayout, border: &str) {
     let cx = node.x + node.width / 2.0;
     let cy = node.y + node.height / 2.0;
     let r = node.width / 2.0;
-    write!(
-        buf,
-        r#"<circle cx="{}" cy="{}" fill="none" r="{}" style="stroke:{border};stroke-width:1.5;"/>"#,
-        fmt_coord(cx),
-        fmt_coord(cy),
-        fmt_coord(r),
-    )
-    .unwrap();
+    sg.set_fill_color("none");
+    sg.set_stroke_color(Some(border));
+    sg.set_stroke_width(1.5, None);
+    sg.svg_circle(cx, cy, r, 0.0);
     // X cross inside
     let d = r * 0.5;
-    write!(
-        buf,
-        r#"<line style="stroke:{border};stroke-width:1.5;" x1="{}" x2="{}" y1="{}" y2="{}"/>"#,
-        fmt_coord(cx - d),
-        fmt_coord(cx + d),
-        fmt_coord(cy - d),
-        fmt_coord(cy + d),
-    )
-    .unwrap();
-    write!(
-        buf,
-        r#"<line style="stroke:{border};stroke-width:1.5;" x1="{}" x2="{}" y1="{}" y2="{}"/>"#,
-        fmt_coord(cx + d),
-        fmt_coord(cx - d),
-        fmt_coord(cy - d),
-        fmt_coord(cy + d),
-    )
-    .unwrap();
+    sg.set_stroke_color(Some(border));
+    sg.set_stroke_width(1.5, None);
+    sg.svg_line(cx - d, cy - d, cx + d, cy + d, 0.0);
+    sg.set_stroke_color(Some(border));
+    sg.set_stroke_width(1.5, None);
+    sg.svg_line(cx + d, cy - d, cx - d, cy + d, 0.0);
 }
 
 /// Simple state: rounded rectangle with name + optional description
 fn render_simple(
-    buf: &mut String,
+    sg: &mut SvgGraphic,
     node: &StateNodeLayout,
     bg: &str,
     border: &str,
@@ -255,68 +218,54 @@ fn render_simple(
     // Open semantic <g> wrapper with entity ID
     let name_escaped = xml_escape(&node.name);
     let ent_id = next_ent_id();
-    write!(
-        buf,
+    sg.push_raw(&format!(
         r#"<g class="entity" data-qualified-name="{}" id="{}">"#,
         name_escaped, ent_id,
-    )
-    .unwrap();
+    ));
 
     // Background rounded rectangle
-    write!(
-        buf,
-        r#"<rect fill="{bg}" height="{}" rx="12.5" ry="12.5" style="stroke:{border};stroke-width:0.5;" width="{}" x="{}" y="{}"/>"#,
-        fmt_coord(node.height),
-        fmt_coord(node.width),
-        fmt_coord(node.x),
-        fmt_coord(node.y),
-    )
-    .unwrap();
+    sg.set_fill_color(bg);
+    sg.set_stroke_color(Some(border));
+    sg.set_stroke_width(0.5, None);
+    sg.svg_rectangle(node.x, node.y, node.width, node.height, 12.5, 12.5, 0.0);
 
     // Stereotype (shown above the name in smaller text)
     let mut name_y_offset = 0.0;
     if let Some(ref stereotype) = node.stereotype {
         let stereo_text = format!("\u{00AB}{stereotype}\u{00BB}");
-        let escaped = xml_escape(&stereo_text);
         let cx_s = node.x + node.width / 2.0;
         let stereo_y = node.y + FONT_SIZE + 4.0;
         let stereo_fs = FONT_SIZE - 2.0;
-        let tl = fmt_coord(font_metrics::text_width(&stereo_text, "SansSerif", stereo_fs, false, true));
-        write!(
-            buf,
-            r#"<text fill="{font_color}" font-family="sans-serif" font-size="{}" font-style="italic" lengthAdjust="spacing" text-anchor="middle" textLength="{tl}" x="{}" y="{}">{escaped}</text>"#,
-            fmt_coord(stereo_fs),
-            fmt_coord(cx_s),
-            fmt_coord(stereo_y),
-        )
-        .unwrap();
+        let tl = font_metrics::text_width(&stereo_text, "SansSerif", stereo_fs, false, true);
+        sg.set_fill_color(font_color);
+        sg.svg_text(
+            &stereo_text, cx_s, stereo_y,
+            Some("sans-serif"), stereo_fs,
+            None, Some("italic"), None,
+            tl, LengthAdjust::Spacing,
+            None, 0, Some("middle"),
+        );
         name_y_offset = LINE_HEIGHT;
     }
 
     // Fixed header layout matching Java PlantUML
     let sep_y = node.y + 26.2969 + name_y_offset;
     let name_y = node.y + 17.9951 + name_y_offset;
-    write!(
-        buf,
-        r#"<line style="stroke:{border};stroke-width:0.5;" x1="{}" x2="{}" y1="{}" y2="{}"/>"#,
-        fmt_coord(node.x),
-        fmt_coord(node.x + node.width),
-        fmt_coord(sep_y),
-        fmt_coord(sep_y),
-    )
-    .unwrap();
+    sg.set_stroke_color(Some(border));
+    sg.set_stroke_width(0.5, None);
+    sg.svg_line(node.x, sep_y, node.x + node.width, sep_y, 0.0);
 
     // State name text (centered)
     let name_width = font_metrics::text_width(&node.name, "SansSerif", 14.0, false, false);
-    let name_tl = fmt_coord(name_width);
     let name_x = node.x + (node.width - name_width) / 2.0;
-    write!(
-        buf,
-        r#"<text fill="{font_color}" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="{name_tl}" x="{}" y="{}">{name_escaped}</text>"#,
-        fmt_coord(name_x),
-        fmt_coord(name_y),
-    )
-    .unwrap();
+    sg.set_fill_color(font_color);
+    sg.svg_text(
+        &node.name, name_x, name_y,
+        Some("sans-serif"), 14.0,
+        None, None, None,
+        name_width, LengthAdjust::Spacing,
+        None, 0, None,
+    );
 
     // Description lines: each visual line is a separate <text> element
     if !node.description.is_empty() {
@@ -326,17 +275,17 @@ fn render_simple(
         for (i, vline) in visual_lines.iter().enumerate() {
             let x = base_x + vline.tab_count as f64 * TAB_WIDTH;
             let y = first_y + i as f64 * DESC_LINE_HEIGHT;
-            render_desc_line(buf, &vline.text, x, y, font_color);
+            render_desc_line(sg, &vline.text, x, y, font_color);
         }
     }
 
     // Close <g>
-    buf.push_str("</g>");
+    sg.push_raw("</g>");
 }
 
 /// Composite state: rounded rectangle containing child states
 fn render_composite(
-    buf: &mut String,
+    sg: &mut SvgGraphic,
     node: &StateNodeLayout,
     bg: &str,
     border: &str,
@@ -345,73 +294,55 @@ fn render_composite(
     // Open semantic <g> wrapper with entity ID
     let name_escaped = xml_escape(&node.name);
     let ent_id = next_ent_id();
-    write!(
-        buf,
+    sg.push_raw(&format!(
         r#"<g class="entity" data-qualified-name="{}" id="{}">"#,
         name_escaped, ent_id,
-    )
-    .unwrap();
+    ));
 
     // Outer rounded rectangle
-    write!(
-        buf,
-        r#"<rect fill="{bg}" height="{}" rx="12.5" ry="12.5" style="stroke:{border};stroke-width:0.5;" width="{}" x="{}" y="{}"/>"#,
-        fmt_coord(node.height),
-        fmt_coord(node.width),
-        fmt_coord(node.x),
-        fmt_coord(node.y),
-    )
-    .unwrap();
+    sg.set_fill_color(bg);
+    sg.set_stroke_color(Some(border));
+    sg.set_stroke_width(0.5, None);
+    sg.svg_rectangle(node.x, node.y, node.width, node.height, 12.5, 12.5, 0.0);
 
     // Composite state name at the top
     let cx = node.x + node.width / 2.0;
     let name_y = node.y + 17.9951;
-    let name_tl = fmt_coord(font_metrics::text_width(&node.name, "SansSerif", 14.0, false, false));
-    write!(
-        buf,
-        r#"<text fill="{font_color}" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="{name_tl}" x="{}" y="{}">{name_escaped}</text>"#,
-        fmt_coord(cx),
-        fmt_coord(name_y),
-    )
-    .unwrap();
+    let name_tl = font_metrics::text_width(&node.name, "SansSerif", 14.0, false, false);
+    sg.set_fill_color(font_color);
+    sg.svg_text(
+        &node.name, cx, name_y,
+        Some("sans-serif"), 14.0,
+        None, None, None,
+        name_tl, LengthAdjust::Spacing,
+        None, 0, None,
+    );
 
     // Separator line below the header
     let sep_y = node.y + 26.2969;
-    write!(
-        buf,
-        r#"<line style="stroke:{border};stroke-width:0.5;" x1="{}" x2="{}" y1="{}" y2="{}"/>"#,
-        fmt_coord(node.x),
-        fmt_coord(node.x + node.width),
-        fmt_coord(sep_y),
-        fmt_coord(sep_y),
-    )
-    .unwrap();
+    sg.set_stroke_color(Some(border));
+    sg.set_stroke_width(0.5, None);
+    sg.svg_line(node.x, sep_y, node.x + node.width, sep_y, 0.0);
 
     // Close the entity <g> before rendering children
-    buf.push_str("</g>");
+    sg.push_raw("</g>");
 
     // Recursively render children
     for child in &node.children {
-        render_state_node(buf, child, bg, border, font_color);
+        render_state_node(sg, child, bg, border, font_color);
     }
 
     // Render concurrent region separators (dashed lines)
     for &sep_y in &node.region_separators {
-        write!(
-            buf,
-            r#"<line style="stroke:{border};stroke-dasharray:6,4;" x1="{}" x2="{}" y1="{}" y2="{}"/>"#,
-            fmt_coord(node.x + 4.0),
-            fmt_coord(node.x + node.width - 4.0),
-            fmt_coord(sep_y),
-            fmt_coord(sep_y),
-        )
-        .unwrap();
+        sg.set_stroke_color(Some(border));
+        sg.set_stroke_width(1.0, Some((6.0, 4.0)));
+        sg.svg_line(node.x + 4.0, sep_y, node.x + node.width - 4.0, sep_y, 0.0);
     }
 }
 
 // ── Transition rendering ────────────────────────────────────────────
 
-fn render_transition(buf: &mut String, transition: &TransitionLayout) {
+fn render_transition(sg: &mut SvgGraphic, transition: &TransitionLayout) {
     if transition.points.is_empty() {
         return;
     }
@@ -419,12 +350,10 @@ fn render_transition(buf: &mut String, transition: &TransitionLayout) {
     // Open semantic <g> wrapper
     let from_escaped = xml_escape(&transition.from_id);
     let to_escaped = xml_escape(&transition.to_id);
-    write!(
-        buf,
+    sg.push_raw(&format!(
         r#"<!--link {} to {}--><g class="link">"#,
         from_escaped, to_escaped,
-    )
-    .unwrap();
+    ));
 
     // Build path data
     let mut d = String::new();
@@ -436,56 +365,40 @@ fn render_transition(buf: &mut String, transition: &TransitionLayout) {
         }
     }
 
-    write!(
-        buf,
+    sg.push_raw(&format!(
         r#"<path d="{d}" fill="none" style="stroke:{EDGE_COLOR};stroke-width:1;"/>"#,
-    )
-    .unwrap();
+    ));
 
     // Inline polygon arrowhead at the last segment
     if transition.points.len() >= 2 {
         let n = transition.points.len();
-        let (tx, ty) = transition.points[n - 1]; // tip
-        let (fx, fy) = transition.points[n - 2]; // from
+        let (tx, ty) = transition.points[n - 1];
+        let (fx, fy) = transition.points[n - 2];
 
-        // Compute arrow direction
         let dx = tx - fx;
         let dy = ty - fy;
         let len = (dx * dx + dy * dy).sqrt();
         if len > 0.0 {
-            // Unit vector along the arrow direction
             let ux = dx / len;
             let uy = dy / len;
-            // Perpendicular
             let px = -uy;
             let py = ux;
-            // Arrow points: tip, left-back, mid-back, right-back
             let back = 9.0;
             let side = 4.0;
             let mid_back = 5.0;
-            // p1 = tip
             let p1x = tx;
             let p1y = ty;
-            // p2 = left back
             let p2x = tx - ux * back + px * side;
             let p2y = ty - uy * back + py * side;
-            // p3 = mid back (indent)
             let p3x = tx - ux * mid_back;
             let p3y = ty - uy * mid_back;
-            // p4 = right back
             let p4x = tx - ux * back - px * side;
             let p4y = ty - uy * back - py * side;
 
-            write!(
-                buf,
-                r#"<polygon fill="{EDGE_COLOR}" points="{},{},{},{},{},{},{},{},{},{}" style="stroke:{EDGE_COLOR};stroke-width:1;"/>"#,
-                fmt_coord(p1x), fmt_coord(p1y),
-                fmt_coord(p2x), fmt_coord(p2y),
-                fmt_coord(p3x), fmt_coord(p3y),
-                fmt_coord(p4x), fmt_coord(p4y),
-                fmt_coord(p1x), fmt_coord(p1y),
-            )
-            .unwrap();
+            sg.set_fill_color(EDGE_COLOR);
+            sg.set_stroke_color(Some(EDGE_COLOR));
+            sg.set_stroke_width(1.0, None);
+            sg.svg_polygon(0.0, &[p1x, p1y, p2x, p2y, p3x, p3y, p4x, p4y, p1x, p1y]);
         }
     }
 
@@ -493,24 +406,24 @@ fn render_transition(buf: &mut String, transition: &TransitionLayout) {
     if !transition.label.is_empty() {
         let mid = transition.points.len() / 2;
         let (mx, my) = transition.points[mid];
-        let escaped = xml_escape(&transition.label);
-        let tl = fmt_coord(font_metrics::text_width(&transition.label, "SansSerif", FONT_SIZE, false, false));
-        write!(
-            buf,
-            r#"<text fill="{TEXT_FILL}" font-family="sans-serif" font-size="{FONT_SIZE}" lengthAdjust="spacing" textLength="{tl}" x="{}" y="{}">{escaped}</text>"#,
-            fmt_coord(mx),
-            fmt_coord(my),
-        )
-        .unwrap();
+        let tl = font_metrics::text_width(&transition.label, "SansSerif", FONT_SIZE, false, false);
+        sg.set_fill_color(TEXT_FILL);
+        sg.svg_text(
+            &transition.label, mx, my,
+            Some("sans-serif"), FONT_SIZE,
+            None, None, None,
+            tl, LengthAdjust::Spacing,
+            None, 0, None,
+        );
     }
 
     // Close <g>
-    buf.push_str("</g>");
+    sg.push_raw("</g>");
 }
 
 // ── Note rendering ──────────────────────────────────────────────────
 
-fn render_note(buf: &mut String, note: &StateNoteLayout) {
+fn render_note(sg: &mut SvgGraphic, note: &StateNoteLayout) {
     let x = note.x;
     let y = note.y;
     let w = note.width;
@@ -518,41 +431,27 @@ fn render_note(buf: &mut String, note: &StateNoteLayout) {
     let fold = 8.0;
 
     // Note body polygon (top-left, pre-fold top-right, fold corner, bottom-right, bottom-left)
-    write!(
-        buf,
-        r#"<polygon fill="{NOTE_BG}" points="{},{} {},{} {},{} {},{} {},{}" style="stroke:{NOTE_BORDER};"/>"#,
-        fmt_coord(x), fmt_coord(y),
-        fmt_coord(x + w - fold), fmt_coord(y),
-        fmt_coord(x + w), fmt_coord(y + fold),
-        fmt_coord(x + w), fmt_coord(y + h),
-        fmt_coord(x), fmt_coord(y + h),
-    )
-    .unwrap();
+    sg.set_fill_color(NOTE_BG);
+    sg.set_stroke_color(Some(NOTE_BORDER));
+    sg.set_stroke_width(1.0, None);
+    sg.svg_polygon(
+        0.0,
+        &[x, y, x + w - fold, y, x + w, y + fold, x + w, y + h, x, y + h],
+    );
 
     // Fold lines (vertical + horizontal)
-    write!(
-        buf,
-        r#"<line style="stroke:{NOTE_BORDER};" x1="{}" x2="{}" y1="{}" y2="{}"/>"#,
-        fmt_coord(x + w - fold),
-        fmt_coord(x + w - fold),
-        fmt_coord(y),
-        fmt_coord(y + fold),
-    )
-    .unwrap();
-    write!(
-        buf,
-        r#"<line style="stroke:{NOTE_BORDER};" x1="{}" x2="{}" y1="{}" y2="{}"/>"#,
-        fmt_coord(x + w - fold),
-        fmt_coord(x + w),
-        fmt_coord(y + fold),
-        fmt_coord(y + fold),
-    )
-    .unwrap();
+    sg.set_stroke_color(Some(NOTE_BORDER));
+    sg.set_stroke_width(1.0, None);
+    sg.svg_line(x + w - fold, y, x + w - fold, y + fold, 0.0);
+    sg.set_stroke_color(Some(NOTE_BORDER));
+    sg.set_stroke_width(1.0, None);
+    sg.svg_line(x + w - fold, y + fold, x + w, y + fold, 0.0);
 
     let text_x = x + 6.0;
     let text_y = y + fold + FONT_SIZE;
+    let mut tmp = String::new();
     render_creole_text(
-        buf,
+        &mut tmp,
         &note.text,
         text_x,
         text_y,
@@ -561,6 +460,7 @@ fn render_note(buf: &mut String, note: &StateNoteLayout) {
         None,
         r#"font-size="13""#,
     );
+    sg.push_raw(&tmp);
 }
 
 // ── Helper functions ────────────────────────────────────────────────
@@ -595,22 +495,22 @@ fn split_backslash_n(s: &str) -> Vec<&str> {
     }
     r.push(&s[start..]); r
 }
-fn render_desc_line(buf: &mut String, text: &str, x: f64, y: f64, fc: &str) {
-    if text.contains("**") { render_desc_line_bold(buf, text, x, y, fc); return; }
+fn render_desc_line(sg: &mut SvgGraphic, text: &str, x: f64, y: f64, fc: &str) {
+    if text.contains("**") { render_desc_line_bold(sg, text, x, y, fc); return; }
     let (d, tl) = if text == "\u{00A0}" {
         ("&#160;".to_string(), font_metrics::text_width("\u{00A0}", "SansSerif", DESC_FONT_SIZE, false, false))
     } else { (xml_escape(text), font_metrics::text_width(text, "SansSerif", DESC_FONT_SIZE, false, false)) };
-    write!(buf, r#"<text fill="{fc}" font-family="sans-serif" font-size="12" lengthAdjust="spacing" textLength="{}" x="{}" y="{}">{d}</text>"#,
-        fmt_coord(tl), fmt_coord(x), fmt_coord(y)).unwrap();
+    sg.push_raw(&format!(r#"<text fill="{fc}" font-family="sans-serif" font-size="12" lengthAdjust="spacing" textLength="{}" x="{}" y="{}">{d}</text>"#,
+        fmt_coord(tl), fmt_coord(x), fmt_coord(y)));
 }
-fn render_desc_line_bold(buf: &mut String, text: &str, x: f64, y: f64, fc: &str) {
+fn render_desc_line_bold(sg: &mut SvgGraphic, text: &str, x: f64, y: f64, fc: &str) {
     let mut cx = x; let mut ib = false;
     for part in text.split("**") {
         if part.is_empty() { ib = !ib; continue; }
         let e = xml_escape(part);
         let tl = font_metrics::text_width(part, "SansSerif", DESC_FONT_SIZE, ib, false);
-        if ib { write!(buf, r#"<text fill="{fc}" font-family="sans-serif" font-size="12" font-weight="700" lengthAdjust="spacing" textLength="{}" x="{}" y="{}">{e}</text>"#, fmt_coord(tl), fmt_coord(cx), fmt_coord(y)).unwrap(); }
-        else { write!(buf, r#"<text fill="{fc}" font-family="sans-serif" font-size="12" lengthAdjust="spacing" textLength="{}" x="{}" y="{}">{e}</text>"#, fmt_coord(tl), fmt_coord(cx), fmt_coord(y)).unwrap(); }
+        if ib { sg.push_raw(&format!(r#"<text fill="{fc}" font-family="sans-serif" font-size="12" font-weight="700" lengthAdjust="spacing" textLength="{}" x="{}" y="{}">{e}</text>"#, fmt_coord(tl), fmt_coord(cx), fmt_coord(y))); }
+        else { sg.push_raw(&format!(r#"<text fill="{fc}" font-family="sans-serif" font-size="12" lengthAdjust="spacing" textLength="{}" x="{}" y="{}">{e}</text>"#, fmt_coord(tl), fmt_coord(cx), fmt_coord(y))); }
         cx += tl; ib = !ib;
     }
 }
@@ -625,82 +525,36 @@ mod tests {
     use crate::style::SkinParams;
 
     fn empty_diagram() -> StateDiagram {
-        StateDiagram {
-            states: vec![],
-            transitions: vec![],
-            notes: vec![],
-            direction: Default::default(),
-        }
+        StateDiagram { states: vec![], transitions: vec![], notes: vec![], direction: Default::default() }
     }
 
     fn empty_layout() -> StateLayout {
-        StateLayout {
-            width: 300.0,
-            height: 200.0,
-            state_layouts: vec![],
-            transition_layouts: vec![],
-            note_layouts: vec![],
-        }
+        StateLayout { width: 300.0, height: 200.0, state_layouts: vec![], transition_layouts: vec![], note_layouts: vec![] }
     }
 
     fn make_initial(x: f64, y: f64) -> StateNodeLayout {
         StateNodeLayout {
-            id: "[*]_initial".to_string(),
-            name: String::new(),
-            x,
-            y,
-            width: 20.0,
-            height: 20.0,
-            description: vec![],
-            stereotype: None,
-            is_initial: true,
-            is_final: false,
-            is_composite: false,
-            children: vec![],
-            kind: crate::model::state::StateKind::default(),
-            region_separators: Vec::new(),
+            id: "[*]_initial".to_string(), name: String::new(), x, y, width: 20.0, height: 20.0,
+            description: vec![], stereotype: None, is_initial: true, is_final: false, is_composite: false,
+            children: vec![], kind: crate::model::state::StateKind::default(), region_separators: Vec::new(),
         }
     }
 
     fn make_final(x: f64, y: f64) -> StateNodeLayout {
         StateNodeLayout {
-            id: "[*]_final".to_string(),
-            name: String::new(),
-            x,
-            y,
-            width: 22.0,
-            height: 22.0,
-            description: vec![],
-            stereotype: None,
-            is_initial: false,
-            is_final: true,
-            is_composite: false,
-            children: vec![],
-            kind: crate::model::state::StateKind::default(),
-            region_separators: Vec::new(),
+            id: "[*]_final".to_string(), name: String::new(), x, y, width: 22.0, height: 22.0,
+            description: vec![], stereotype: None, is_initial: false, is_final: true, is_composite: false,
+            children: vec![], kind: crate::model::state::StateKind::default(), region_separators: Vec::new(),
         }
     }
 
     fn make_simple(id: &str, name: &str, x: f64, y: f64, w: f64, h: f64) -> StateNodeLayout {
         StateNodeLayout {
-            id: id.to_string(),
-            name: name.to_string(),
-            x,
-            y,
-            width: w,
-            height: h,
-            description: vec![],
-            stereotype: None,
-            is_initial: false,
-            is_final: false,
-            is_composite: false,
-            children: vec![],
-            kind: crate::model::state::StateKind::default(),
-            region_separators: Vec::new(),
+            id: id.to_string(), name: name.to_string(), x, y, width: w, height: h,
+            description: vec![], stereotype: None, is_initial: false, is_final: false, is_composite: false,
+            children: vec![], kind: crate::model::state::StateKind::default(), region_separators: Vec::new(),
         }
     }
-
-    // ── Test: empty diagram ─────────────────────────────────────────
 
     #[test]
     fn test_empty_diagram() {
@@ -711,12 +565,9 @@ mod tests {
         assert!(svg.contains("</svg>"), "must contain </svg>");
         assert!(svg.contains("xmlns=\"http://www.w3.org/2000/svg\""));
         assert!(svg.contains("<defs/>"), "must contain <defs/>");
-        // No nodes or edges
         assert!(!svg.contains("<ellipse"), "empty diagram has no ellipses");
         assert!(!svg.contains("<rect"), "empty diagram has no rects");
     }
-
-    // ── Test: initial state ─────────────────────────────────────────
 
     #[test]
     fn test_initial_state() {
@@ -724,30 +575,12 @@ mod tests {
         let mut layout = empty_layout();
         layout.state_layouts.push(make_initial(90.0, 10.0));
         let svg = render_state(&diagram, &layout, &SkinParams::default()).expect("render failed");
-        assert!(
-            svg.contains(r#"rx="10""#),
-            "initial ellipse must have rx=10"
-        );
-        assert!(
-            svg.contains(r#"ry="10""#),
-            "initial ellipse must have ry=10"
-        );
-        assert!(
-            svg.contains(&format!(r#"fill="{INITIAL_FILL}""#)),
-            "initial ellipse must be filled"
-        );
-        assert_eq!(
-            svg.matches("<ellipse").count(),
-            1,
-            "initial state must produce exactly one ellipse"
-        );
-        assert!(
-            svg.contains(r#"class="start_entity""#),
-            "initial state must be wrapped in start_entity group"
-        );
+        assert!(svg.contains(r#"rx="10""#), "initial ellipse must have rx=10");
+        assert!(svg.contains(r#"ry="10""#), "initial ellipse must have ry=10");
+        assert!(svg.contains(&format!(r#"fill="{INITIAL_FILL}""#)), "initial ellipse must be filled");
+        assert_eq!(svg.matches("<ellipse").count(), 1, "initial state must produce exactly one ellipse");
+        assert!(svg.contains(r#"class="start_entity""#), "initial state must be wrapped in start_entity group");
     }
-
-    // ── Test: final state ───────────────────────────────────────────
 
     #[test]
     fn test_final_state() {
@@ -755,82 +588,39 @@ mod tests {
         let mut layout = empty_layout();
         layout.state_layouts.push(make_final(90.0, 80.0));
         let svg = render_state(&diagram, &layout, &SkinParams::default()).expect("render failed");
-        assert_eq!(
-            svg.matches("<circle").count(),
-            2,
-            "final state must produce two circles"
-        );
+        assert_eq!(svg.matches("<circle").count(), 2, "final state must produce two circles");
         assert!(svg.contains(r#"r="11""#), "final outer ring must have r=11");
         assert!(svg.contains(r#"r="7""#), "final inner circle must have r=7");
-        assert!(
-            svg.contains("stroke-width:2;"),
-            "outer ring must have stroke-width=2"
-        );
+        assert!(svg.contains("stroke-width:2;"), "outer ring must have stroke-width=2");
     }
-
-    // ── Test: simple state ──────────────────────────────────────────
 
     #[test]
     fn test_simple_state() {
         let diagram = empty_diagram();
         let mut layout = empty_layout();
-        layout
-            .state_layouts
-            .push(make_simple("Idle", "Idle", 30.0, 40.0, 100.0, 40.0));
+        layout.state_layouts.push(make_simple("Idle", "Idle", 30.0, 40.0, 100.0, 40.0));
         let svg = render_state(&diagram, &layout, &SkinParams::default()).expect("render failed");
-        assert!(
-            svg.contains(r#"rx="12.5""#),
-            "state must have rounded corners rx=12.5"
-        );
-        assert!(
-            svg.contains(r#"ry="12.5""#),
-            "state must have rounded corners ry=12.5"
-        );
-        assert!(
-            svg.contains(r##"fill="#F1F1F1""##),
-            "state must use default theme state_bg fill"
-        );
+        assert!(svg.contains(r#"rx="12.5""#), "state must have rounded corners rx=12.5");
+        assert!(svg.contains(r#"ry="12.5""#), "state must have rounded corners ry=12.5");
+        assert!(svg.contains(r##"fill="#F1F1F1""##), "state must use default theme state_bg fill");
         assert!(svg.contains("Idle"), "state name must appear in SVG");
-        assert!(
-            svg.contains(r#"class="entity""#),
-            "state must be wrapped in entity group"
-        );
-        assert!(
-            svg.contains("stroke-width:0.5;"),
-            "state border must have stroke-width:0.5"
-        );
+        assert!(svg.contains(r#"class="entity""#), "state must be wrapped in entity group");
+        assert!(svg.contains("stroke-width:0.5;"), "state border must have stroke-width:0.5");
     }
-
-    // ── Test: state with description ────────────────────────────────
 
     #[test]
     fn test_state_with_description() {
         let diagram = empty_diagram();
         let mut layout = empty_layout();
         let mut node = make_simple("Active", "Active", 20.0, 30.0, 140.0, 80.0);
-        node.description = vec![
-            "entry / start timer".to_string(),
-            "exit / stop timer".to_string(),
-        ];
+        node.description = vec!["entry / start timer".to_string(), "exit / stop timer".to_string()];
         layout.state_layouts.push(node);
         let svg = render_state(&diagram, &layout, &SkinParams::default()).expect("render failed");
         assert!(svg.contains("Active"), "state name must appear");
-        assert!(
-            svg.contains("entry / start timer"),
-            "first description line must appear"
-        );
-        assert!(
-            svg.contains("exit / stop timer"),
-            "second description line must appear"
-        );
-        // Separator line between name and description
-        assert!(
-            svg.contains("<line"),
-            "separator line must exist between name and description"
-        );
+        assert!(svg.contains("entry / start timer"), "first description line must appear");
+        assert!(svg.contains("exit / stop timer"), "second description line must appear");
+        assert!(svg.contains("<line"), "separator line must exist between name and description");
     }
-
-    // ── Test: state with stereotype ─────────────────────────────────
 
     #[test]
     fn test_state_with_stereotype() {
@@ -841,17 +631,9 @@ mod tests {
         layout.state_layouts.push(node);
         let svg = render_state(&diagram, &layout, &SkinParams::default()).expect("render failed");
         assert!(svg.contains("InputPin"), "state name must appear");
-        assert!(
-            svg.contains("&#171;inputPin&#187;"),
-            "stereotype must appear with guillemets"
-        );
-        assert!(
-            svg.contains("font-style=\"italic\""),
-            "stereotype must be italic"
-        );
+        assert!(svg.contains("&#171;inputPin&#187;"), "stereotype must appear with guillemets");
+        assert!(svg.contains("font-style=\"italic\""), "stereotype must be italic");
     }
-
-    // ── Test: composite state ───────────────────────────────────────
 
     #[test]
     fn test_composite_state() {
@@ -859,165 +641,87 @@ mod tests {
         let mut layout = empty_layout();
         let child = make_simple("Inner", "Inner", 50.0, 80.0, 80.0, 36.0);
         let composite = StateNodeLayout {
-            id: "Outer".to_string(),
-            name: "Outer".to_string(),
-            x: 20.0,
-            y: 30.0,
-            width: 200.0,
-            height: 120.0,
-            description: vec![],
-            stereotype: None,
-            is_initial: false,
-            is_final: false,
-            is_composite: true,
-            children: vec![child],
-            kind: crate::model::state::StateKind::default(),
+            id: "Outer".to_string(), name: "Outer".to_string(),
+            x: 20.0, y: 30.0, width: 200.0, height: 120.0,
+            description: vec![], stereotype: None,
+            is_initial: false, is_final: false, is_composite: true,
+            children: vec![child], kind: crate::model::state::StateKind::default(),
             region_separators: Vec::new(),
         };
         layout.state_layouts.push(composite);
         let svg = render_state(&diagram, &layout, &SkinParams::default()).expect("render failed");
         assert!(svg.contains("Outer"), "composite name must appear");
         assert!(svg.contains("Inner"), "child state name must appear");
-        // At least 2 rects: composite outer + child inner
         let rect_count = svg.matches("<rect").count();
-        assert!(
-            rect_count >= 2,
-            "composite must produce at least 2 rects, got {rect_count}"
-        );
-        // Separator line below composite header
-        assert!(
-            svg.contains("<line"),
-            "composite must have separator line below header"
-        );
+        assert!(rect_count >= 2, "composite must produce at least 2 rects, got {rect_count}");
+        assert!(svg.contains("<line"), "composite must have separator line below header");
     }
-
-    // ── Test: transition with arrow ─────────────────────────────────
 
     #[test]
     fn test_transition_with_arrow() {
         let diagram = empty_diagram();
         let mut layout = empty_layout();
         layout.transition_layouts.push(TransitionLayout {
-            from_id: "A".to_string(),
-            to_id: "B".to_string(),
-            label: String::new(),
+            from_id: "A".to_string(), to_id: "B".to_string(), label: String::new(),
             points: vec![(100.0, 50.0), (100.0, 120.0)],
         });
         let svg = render_state(&diagram, &layout, &SkinParams::default()).expect("render failed");
-        assert!(
-            svg.contains("<polygon"),
-            "transition must have inline polygon arrowhead"
-        );
-        assert!(
-            svg.contains("stroke:#181818"),
-            "transition must use EDGE_COLOR in style"
-        );
+        assert!(svg.contains("<polygon"), "transition must have inline polygon arrowhead");
+        assert!(svg.contains("stroke:#181818"), "transition must use EDGE_COLOR in style");
         assert!(svg.contains("<path "), "transition must use <path>");
-        assert!(
-            svg.contains(r#"class="link""#),
-            "transition must be in link group"
-        );
+        assert!(svg.contains(r#"class="link""#), "transition must be in link group");
     }
-
-    // ── Test: transition with label ─────────────────────────────────
 
     #[test]
     fn test_transition_with_label() {
         let diagram = empty_diagram();
         let mut layout = empty_layout();
         layout.transition_layouts.push(TransitionLayout {
-            from_id: "Idle".to_string(),
-            to_id: "Active".to_string(),
-            label: "start".to_string(),
+            from_id: "Idle".to_string(), to_id: "Active".to_string(), label: "start".to_string(),
             points: vec![(80.0, 40.0), (80.0, 100.0)],
         });
         let svg = render_state(&diagram, &layout, &SkinParams::default()).expect("render failed");
         assert!(svg.contains("start"), "transition label must appear in SVG");
-        assert!(
-            svg.contains(r#"lengthAdjust="spacing""#),
-            "label must have lengthAdjust"
-        );
+        assert!(svg.contains(r#"lengthAdjust="spacing""#), "label must have lengthAdjust");
     }
-
-    // ── Test: polyline transition ───────────────────────────────────
 
     #[test]
     fn test_polyline_transition() {
         let diagram = empty_diagram();
         let mut layout = empty_layout();
         layout.transition_layouts.push(TransitionLayout {
-            from_id: "A".to_string(),
-            to_id: "B".to_string(),
-            label: String::new(),
+            from_id: "A".to_string(), to_id: "B".to_string(), label: String::new(),
             points: vec![(50.0, 20.0), (50.0, 50.0), (100.0, 50.0), (100.0, 80.0)],
         });
         let svg = render_state(&diagram, &layout, &SkinParams::default()).expect("render failed");
-        assert!(
-            svg.contains("<path"),
-            "multi-point transition must use <path>"
-        );
-        assert!(
-            svg.contains("<polygon"),
-            "multi-point transition must have inline polygon arrowhead"
-        );
+        assert!(svg.contains("<path"), "multi-point transition must use <path>");
+        assert!(svg.contains("<polygon"), "multi-point transition must have inline polygon arrowhead");
     }
-
-    // ── Test: note rendering ────────────────────────────────────────
 
     #[test]
     fn test_note_rendering() {
         let diagram = empty_diagram();
         let mut layout = empty_layout();
-        layout.note_layouts.push(StateNoteLayout {
-            x: 10.0,
-            y: 20.0,
-            width: 120.0,
-            height: 40.0,
-            text: "important note".to_string(),
-        });
+        layout.note_layouts.push(StateNoteLayout { x: 10.0, y: 20.0, width: 120.0, height: 40.0, text: "important note".to_string() });
         let svg = render_state(&diagram, &layout, &SkinParams::default()).expect("render failed");
-        assert!(
-            svg.contains(&format!(r#"fill="{NOTE_BG}""#)),
-            "note must use yellow background"
-        );
+        assert!(svg.contains(&format!(r#"fill="{NOTE_BG}""#)), "note must use yellow background");
         assert!(svg.contains("important note"), "note text must appear");
-        assert!(
-            svg.contains("<polygon"),
-            "note body must be a polygon with folded corner"
-        );
-        // Folded corner produces 2 fold lines
+        assert!(svg.contains("<polygon"), "note body must be a polygon with folded corner");
         let line_count = svg.matches("<line").count();
-        assert!(
-            line_count >= 2,
-            "note must have at least 2 fold lines, got {line_count}"
-        );
+        assert!(line_count >= 2, "note must have at least 2 fold lines, got {line_count}");
     }
-
-    // ── Test: multiline note ────────────────────────────────────────
 
     #[test]
     fn test_multiline_note() {
         let diagram = empty_diagram();
         let mut layout = empty_layout();
-        layout.note_layouts.push(StateNoteLayout {
-            x: 10.0,
-            y: 20.0,
-            width: 120.0,
-            height: 60.0,
-            text: "line one\nline two".to_string(),
-        });
+        layout.note_layouts.push(StateNoteLayout { x: 10.0, y: 20.0, width: 120.0, height: 60.0, text: "line one\nline two".to_string() });
         let svg = render_state(&diagram, &layout, &SkinParams::default()).expect("render failed");
         assert!(svg.contains("<tspan"), "multiline note must use tspan");
         assert!(svg.contains("line one"), "first line must appear");
         assert!(svg.contains("line two"), "second line must appear");
-        assert_eq!(
-            svg.matches("<tspan").count(),
-            2,
-            "two lines must produce two tspan elements"
-        );
+        assert_eq!(svg.matches("<tspan").count(), 2, "two lines must produce two tspan elements");
     }
-
-    // ── Test: XML escaping ──────────────────────────────────────────
 
     #[test]
     fn test_xml_escaping() {
@@ -1027,17 +731,9 @@ mod tests {
         node.description = vec!["x > y & z".to_string()];
         layout.state_layouts.push(node);
         let svg = render_state(&diagram, &layout, &SkinParams::default()).expect("render failed");
-        assert!(
-            svg.contains("A &amp; B &lt; C"),
-            "state name must be XML-escaped"
-        );
-        assert!(
-            svg.contains("x &gt; y &amp; z"),
-            "description must be XML-escaped"
-        );
+        assert!(svg.contains("A &amp; B &lt; C"), "state name must be XML-escaped");
+        assert!(svg.contains("x &gt; y &amp; z"), "description must be XML-escaped");
     }
-
-    // ── Test: full SVG validity ─────────────────────────────────────
 
     #[test]
     fn test_full_svg_structure() {
@@ -1046,227 +742,120 @@ mod tests {
         layout.width = 400.0;
         layout.height = 300.0;
         layout.state_layouts.push(make_initial(180.0, 10.0));
-        layout
-            .state_layouts
-            .push(make_simple("Running", "Running", 130.0, 50.0, 120.0, 40.0));
+        layout.state_layouts.push(make_simple("Running", "Running", 130.0, 50.0, 120.0, 40.0));
         layout.state_layouts.push(make_final(180.0, 120.0));
         layout.transition_layouts.push(TransitionLayout {
-            from_id: "[*]_initial".to_string(),
-            to_id: "Running".to_string(),
-            label: String::new(),
+            from_id: "[*]_initial".to_string(), to_id: "Running".to_string(), label: String::new(),
             points: vec![(190.0, 30.0), (190.0, 50.0)],
         });
         layout.transition_layouts.push(TransitionLayout {
-            from_id: "Running".to_string(),
-            to_id: "[*]_final".to_string(),
-            label: "done".to_string(),
+            from_id: "Running".to_string(), to_id: "[*]_final".to_string(), label: "done".to_string(),
             points: vec![(190.0, 90.0), (190.0, 120.0)],
         });
-
         let svg = render_state(&diagram, &layout, &SkinParams::default()).expect("render failed");
-
-        // Basic SVG structure
         assert!(svg.starts_with("<svg"), "SVG must start with <svg");
         assert!(svg.contains("</svg>"), "SVG must end with </svg>");
-        assert!(
-            svg.contains("viewBox=\"0 0 400 300\""),
-            "viewBox must match layout dimensions"
-        );
+        assert!(svg.contains("viewBox=\"0 0 400 300\""), "viewBox must match layout dimensions");
         assert!(svg.contains("width=\"400px\""), "width must match layout");
         assert!(svg.contains("height=\"300px\""), "height must match layout");
-
-        // Defs
         assert!(svg.contains("<defs/>"), "must have <defs/>");
-
-        // Nodes: 1 initial (1 ellipse) + 1 simple (1 rect) + 1 final (2 circles) = 1 ellipse, 2 circles, 1 rect
         assert_eq!(svg.matches("<ellipse").count(), 1, "1 ellipse expected");
         assert_eq!(svg.matches("<circle").count(), 2, "2 circles expected");
         assert_eq!(svg.matches("<rect").count(), 1, "1 rect expected");
-
-        // Transitions use inline polygon arrowheads
-        assert_eq!(
-            svg.matches(r#"class="link""#).count(),
-            2,
-            "2 transitions with link groups expected"
-        );
-
-        // Label
+        assert_eq!(svg.matches(r#"class="link""#).count(), 2, "2 transitions with link groups expected");
         assert!(svg.contains("done"), "transition label 'done' must appear");
     }
-
-    // ── Test: empty transition points ───────────────────────────────
 
     #[test]
     fn test_empty_transition_points() {
         let diagram = empty_diagram();
         let mut layout = empty_layout();
         layout.transition_layouts.push(TransitionLayout {
-            from_id: "A".to_string(),
-            to_id: "B".to_string(),
-            label: "skip".to_string(),
-            points: vec![],
+            from_id: "A".to_string(), to_id: "B".to_string(), label: "skip".to_string(), points: vec![],
         });
         let svg = render_state(&diagram, &layout, &SkinParams::default()).expect("render failed");
-        // Empty points should produce no path and no label
-        assert!(
-            !svg.contains("<path"),
-            "empty points should not produce a path"
-        );
-        assert!(
-            !svg.contains("skip"),
-            "empty points should not produce a label"
-        );
+        assert!(!svg.contains("<path"), "empty points should not produce a path");
+        assert!(!svg.contains("skip"), "empty points should not produce a label");
     }
-
-    // ── Test: fork/join bar ────────────────────────────────────────
 
     #[test]
     fn test_fork_bar() {
         let diagram = empty_diagram();
         let mut layout = empty_layout();
         layout.state_layouts.push(StateNodeLayout {
-            id: "fork1".to_string(),
-            name: "fork1".to_string(),
-            x: 30.0,
-            y: 40.0,
-            width: 80.0,
-            height: 6.0,
-            description: vec![],
-            stereotype: None,
-            is_initial: false,
-            is_final: false,
-            is_composite: false,
-            children: vec![],
-            kind: StateKind::Fork,
-            region_separators: Vec::new(),
+            id: "fork1".to_string(), name: "fork1".to_string(),
+            x: 30.0, y: 40.0, width: 80.0, height: 6.0,
+            description: vec![], stereotype: None,
+            is_initial: false, is_final: false, is_composite: false,
+            children: vec![], kind: StateKind::Fork, region_separators: Vec::new(),
         });
         let svg = render_state(&diagram, &layout, &SkinParams::default()).expect("render failed");
-        // Fork bar must produce a filled rect
         assert!(svg.contains("<rect"), "fork bar must produce a rect");
-        assert!(
-            svg.contains(&format!(r#"fill="{INITIAL_FILL}""#)),
-            "fork bar must be filled"
-        );
-        // Should NOT have rounded corners with rx="12.5"
-        assert!(
-            svg.contains(r#"rx="2""#),
-            "fork bar must have minimal rounding"
-        );
+        assert!(svg.contains(&format!(r#"fill="{INITIAL_FILL}""#)), "fork bar must be filled");
+        assert!(svg.contains(r#"rx="2""#), "fork bar must have minimal rounding");
     }
-
-    // ── Test: join bar ────────────────────────────────────────────
 
     #[test]
     fn test_join_bar() {
         let diagram = empty_diagram();
         let mut layout = empty_layout();
         layout.state_layouts.push(StateNodeLayout {
-            id: "join1".to_string(),
-            name: "join1".to_string(),
-            x: 30.0,
-            y: 40.0,
-            width: 80.0,
-            height: 6.0,
-            description: vec![],
-            stereotype: None,
-            is_initial: false,
-            is_final: false,
-            is_composite: false,
-            children: vec![],
-            kind: StateKind::Join,
-            region_separators: Vec::new(),
+            id: "join1".to_string(), name: "join1".to_string(),
+            x: 30.0, y: 40.0, width: 80.0, height: 6.0,
+            description: vec![], stereotype: None,
+            is_initial: false, is_final: false, is_composite: false,
+            children: vec![], kind: StateKind::Join, region_separators: Vec::new(),
         });
         let svg = render_state(&diagram, &layout, &SkinParams::default()).expect("render failed");
         assert!(svg.contains("<rect"), "join bar must produce a rect");
     }
-
-    // ── Test: choice diamond ──────────────────────────────────────
 
     #[test]
     fn test_choice_diamond() {
         let diagram = empty_diagram();
         let mut layout = empty_layout();
         layout.state_layouts.push(StateNodeLayout {
-            id: "choice1".to_string(),
-            name: "choice1".to_string(),
-            x: 50.0,
-            y: 50.0,
-            width: 20.0,
-            height: 20.0,
-            description: vec![],
-            stereotype: None,
-            is_initial: false,
-            is_final: false,
-            is_composite: false,
-            children: vec![],
-            kind: StateKind::Choice,
-            region_separators: Vec::new(),
+            id: "choice1".to_string(), name: "choice1".to_string(),
+            x: 50.0, y: 50.0, width: 20.0, height: 20.0,
+            description: vec![], stereotype: None,
+            is_initial: false, is_final: false, is_composite: false,
+            children: vec![], kind: StateKind::Choice, region_separators: Vec::new(),
         });
         let svg = render_state(&diagram, &layout, &SkinParams::default()).expect("render failed");
-        assert!(
-            svg.contains("<polygon"),
-            "choice must produce a polygon (diamond)"
-        );
+        assert!(svg.contains("<polygon"), "choice must produce a polygon (diamond)");
     }
-
-    // ── Test: history circle ──────────────────────────────────────
 
     #[test]
     fn test_history_circle() {
         let diagram = empty_diagram();
         let mut layout = empty_layout();
         layout.state_layouts.push(StateNodeLayout {
-            id: "Active[H]".to_string(),
-            name: "Active[H]".to_string(),
-            x: 50.0,
-            y: 50.0,
-            width: 24.0,
-            height: 24.0,
-            description: vec![],
-            stereotype: None,
-            is_initial: false,
-            is_final: false,
-            is_composite: false,
-            children: vec![],
-            kind: StateKind::History,
-            region_separators: Vec::new(),
+            id: "Active[H]".to_string(), name: "Active[H]".to_string(),
+            x: 50.0, y: 50.0, width: 24.0, height: 24.0,
+            description: vec![], stereotype: None,
+            is_initial: false, is_final: false, is_composite: false,
+            children: vec![], kind: StateKind::History, region_separators: Vec::new(),
         });
         let svg = render_state(&diagram, &layout, &SkinParams::default()).expect("render failed");
         assert!(svg.contains("<circle"), "history must produce a circle");
         assert!(svg.contains(">H<"), "history must contain 'H' text");
     }
 
-    // ── Test: deep history circle ─────────────────────────────────
-
     #[test]
     fn test_deep_history_circle() {
         let diagram = empty_diagram();
         let mut layout = empty_layout();
         layout.state_layouts.push(StateNodeLayout {
-            id: "Active[H*]".to_string(),
-            name: "Active[H*]".to_string(),
-            x: 50.0,
-            y: 50.0,
-            width: 24.0,
-            height: 24.0,
-            description: vec![],
-            stereotype: None,
-            is_initial: false,
-            is_final: false,
-            is_composite: false,
-            children: vec![],
-            kind: StateKind::DeepHistory,
-            region_separators: Vec::new(),
+            id: "Active[H*]".to_string(), name: "Active[H*]".to_string(),
+            x: 50.0, y: 50.0, width: 24.0, height: 24.0,
+            description: vec![], stereotype: None,
+            is_initial: false, is_final: false, is_composite: false,
+            children: vec![], kind: StateKind::DeepHistory, region_separators: Vec::new(),
         });
         let svg = render_state(&diagram, &layout, &SkinParams::default()).expect("render failed");
-        assert!(
-            svg.contains("<circle"),
-            "deep history must produce a circle"
-        );
+        assert!(svg.contains("<circle"), "deep history must produce a circle");
         assert!(svg.contains(">H*<"), "deep history must contain 'H*' text");
     }
-
-    // ── Test: concurrent region separator ─────────────────────────
 
     #[test]
     fn test_concurrent_separator() {
@@ -1275,26 +864,15 @@ mod tests {
         let child1 = make_simple("Sub1", "Sub1", 40.0, 60.0, 80.0, 36.0);
         let child2 = make_simple("Sub3", "Sub3", 40.0, 140.0, 80.0, 36.0);
         let composite = StateNodeLayout {
-            id: "Active".to_string(),
-            name: "Active".to_string(),
-            x: 20.0,
-            y: 30.0,
-            width: 200.0,
-            height: 180.0,
-            description: vec![],
-            stereotype: None,
-            is_initial: false,
-            is_final: false,
-            is_composite: true,
-            children: vec![child1, child2],
-            kind: StateKind::Normal,
+            id: "Active".to_string(), name: "Active".to_string(),
+            x: 20.0, y: 30.0, width: 200.0, height: 180.0,
+            description: vec![], stereotype: None,
+            is_initial: false, is_final: false, is_composite: true,
+            children: vec![child1, child2], kind: StateKind::Normal,
             region_separators: vec![110.0],
         };
         layout.state_layouts.push(composite);
         let svg = render_state(&diagram, &layout, &SkinParams::default()).expect("render failed");
-        assert!(
-            svg.contains("stroke-dasharray"),
-            "concurrent separator must be dashed"
-        );
+        assert!(svg.contains("stroke-dasharray"), "concurrent separator must be dashed");
     }
 }
