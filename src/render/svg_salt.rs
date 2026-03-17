@@ -1,11 +1,8 @@
-use std::fmt::Write;
-
 use crate::font_metrics;
+use crate::klimt::svg::{fmt_coord, LengthAdjust, SvgGraphic};
 use crate::layout::salt::{LayoutBox, SaltLayout, SaltWidgetLayout};
 use crate::model::salt::SaltDiagram;
-use crate::render::svg::fmt_coord;
-use crate::render::svg::{write_svg_root_bg, write_bg_rect};
-use crate::render::svg::xml_escape;
+use crate::render::svg::{write_bg_rect, write_svg_root_bg};
 use crate::style::SkinParams;
 use crate::Result;
 
@@ -13,6 +10,7 @@ const BG: &str = "#FFFFFF";
 const BORDER: &str = "#181818";
 const FILL: &str = "#F1F1F1";
 const TEXT: &str = "#000000";
+const STROKE_WIDTH: f64 = 0.5;
 
 pub fn render_salt(
     _diagram: &SaltDiagram,
@@ -25,27 +23,27 @@ pub fn render_salt(
     buf.push_str("<defs/><g>");
     write_bg_rect(&mut buf, layout.width, layout.height, bg);
 
+    let mut sg = SvgGraphic::new(0, 1.0);
+
     let border = skin.border_color("salt", BORDER);
     let fill = skin.background_color("salt", FILL);
     let font = skin.font_color("salt", TEXT);
-    write!(
-        buf,
-        r#"<rect fill="{}" height="{}" width="{}" x="0" y="0"/>"#,
-        skin.background_color("saltbg", BG),
-        fmt_coord(layout.height),
-        fmt_coord(layout.width),
-    )
-    .unwrap();
-    buf.push('\n');
 
-    render_widget(&mut buf, &layout.root, fill, border, font);
+    // Background rect (no stroke)
+    sg.set_fill_color(&skin.background_color("saltbg", BG));
+    sg.set_stroke_width(0.0, None);
+    sg.svg_rectangle(0.0, 0.0, layout.width, layout.height, 0.0, 0.0, 0.0);
+    sg.push_raw("\n");
 
+    render_widget(&mut sg, &layout.root, fill, border, font);
+
+    buf.push_str(sg.body());
     buf.push_str("</g></svg>");
     Ok(buf)
 }
 
 fn render_widget(
-    buf: &mut String,
+    sg: &mut SvgGraphic,
     widget: &SaltWidgetLayout,
     fill: &str,
     border: &str,
@@ -60,75 +58,60 @@ fn render_widget(
             separator,
             children,
         } => {
-            write!(
-                buf,
-                r#"<rect fill="none" height="{}" rx="6" ry="6" style="stroke:{border};stroke-width:0.5;" width="{}" x="{}" y="{}"/>"#,
-                fmt_coord(*height), fmt_coord(*width), fmt_coord(*x), fmt_coord(*y),
-            )
-            .unwrap();
-            buf.push('\n');
+            sg.set_fill_color("none");
+            sg.set_stroke_color(Some(border));
+            sg.set_stroke_width(STROKE_WIDTH, None);
+            sg.svg_rectangle(*x, *y, *width, *height, 6.0, 6.0, 0.0);
+            sg.push_raw("\n");
             for child in children {
-                render_widget(buf, child, fill, border, font);
+                render_widget(sg, child, fill, border, font);
             }
             if *separator && children.len() > 1 {
                 for child in children.iter().take(children.len() - 1) {
                     let sep_y = child_bounds(child).y + child_bounds(child).height + 5.0;
-                    write!(
-                        buf,
-                        r#"<line style="stroke:{border};stroke-width:0.5;" x1="{}" x2="{}" y1="{sy}" y2="{sy}"/>"#,
-                        fmt_coord(x + 8.0), fmt_coord(x + width - 8.0),
-                        sy = fmt_coord(sep_y),
-                    )
-                    .unwrap();
-                    buf.push('\n');
+                    sg.set_stroke_color(Some(border));
+                    sg.set_stroke_width(STROKE_WIDTH, None);
+                    sg.svg_line(x + 8.0, sep_y, x + width - 8.0, sep_y, 0.0);
+                    sg.push_raw("\n");
                 }
             }
         }
         SaltWidgetLayout::Row { children, .. } => {
             for child in children {
-                render_widget(buf, child, fill, border, font);
+                render_widget(sg, child, fill, border, font);
             }
         }
         SaltWidgetLayout::Button(rect, text) => {
-            render_boxed_text(buf, rect, text, fill, border, font, 6.0);
+            render_boxed_text(sg, rect, text, fill, border, font, 6.0);
         }
         SaltWidgetLayout::TextInput(rect, text) => {
-            render_boxed_text(buf, rect, text, "#FFFFFF", border, font, 4.0);
+            render_boxed_text(sg, rect, text, "#FFFFFF", border, font, 4.0);
         }
         SaltWidgetLayout::Label(rect, text) => {
-            render_text(buf, rect.x, rect.y + 12.0, text, font, None);
+            render_text(sg, rect.x, rect.y + 12.0, text, font, None);
         }
         SaltWidgetLayout::Checkbox(rect, label, checked) => {
-            render_checkbox(buf, rect, label, *checked, border, font);
+            render_checkbox(sg, rect, label, *checked, border, font);
         }
         SaltWidgetLayout::Radio(rect, label, selected) => {
-            render_radio(buf, rect, label, *selected, border, font);
+            render_radio(sg, rect, label, *selected, border, font);
         }
         SaltWidgetLayout::Dropdown(rect, items) => {
-            render_dropdown(buf, rect, items, fill, border, font);
+            render_dropdown(sg, rect, items, fill, border, font);
         }
         SaltWidgetLayout::TreeNode(rect, label, _) => {
-            write!(
-                buf,
-                r#"<circle cx="{}" cy="{}" fill="{}" r="3"/>"#,
-                fmt_coord(rect.x + 6.0),
-                fmt_coord(rect.y + rect.height / 2.0),
-                border
-            )
-            .unwrap();
-            buf.push('\n');
-            render_text(buf, rect.x + 14.0, rect.y + 12.0, label, font, None);
+            sg.set_fill_color(border);
+            sg.set_stroke_width(0.0, None);
+            sg.svg_circle(rect.x + 6.0, rect.y + rect.height / 2.0, 3.0, 0.0);
+            sg.push_raw("\n");
+            render_text(sg, rect.x + 14.0, rect.y + 12.0, label, font, None);
         }
         SaltWidgetLayout::Separator(rect) => {
             let sep_y = rect.y + rect.height / 2.0;
-            write!(
-                buf,
-                r#"<line style="stroke:{border};stroke-width:0.5;" x1="{}" x2="{}" y1="{sy}" y2="{sy}"/>"#,
-                fmt_coord(rect.x), fmt_coord(rect.x + rect.width),
-                sy = fmt_coord(sep_y),
-            )
-            .unwrap();
-            buf.push('\n');
+            sg.set_stroke_color(Some(border));
+            sg.set_stroke_width(STROKE_WIDTH, None);
+            sg.svg_line(rect.x, sep_y, rect.x + rect.width, sep_y, 0.0);
+            sg.push_raw("\n");
         }
         SaltWidgetLayout::Table {
             rect,
@@ -137,7 +120,7 @@ fn render_widget(
             col_widths,
             row_height,
         } => render_table(
-            buf,
+            sg,
             rect,
             headers,
             rows,
@@ -151,7 +134,7 @@ fn render_widget(
 }
 
 fn render_boxed_text(
-    buf: &mut String,
+    sg: &mut SvgGraphic,
     rect: &LayoutBox,
     text: &str,
     fill: &str,
@@ -159,16 +142,13 @@ fn render_boxed_text(
     font: &str,
     radius: f64,
 ) {
-    write!(
-        buf,
-        r#"<rect fill="{fill}" height="{}" rx="{}" ry="{}" style="stroke:{border};stroke-width:0.5;" width="{}" x="{}" y="{}"/>"#,
-        fmt_coord(rect.height), fmt_coord(radius), fmt_coord(radius),
-        fmt_coord(rect.width), fmt_coord(rect.x), fmt_coord(rect.y),
-    )
-    .unwrap();
-    buf.push('\n');
+    sg.set_fill_color(fill);
+    sg.set_stroke_color(Some(border));
+    sg.set_stroke_width(STROKE_WIDTH, None);
+    sg.svg_rectangle(rect.x, rect.y, rect.width, rect.height, radius, radius, 0.0);
+    sg.push_raw("\n");
     render_text(
-        buf,
+        sg,
         rect.x + rect.width / 2.0,
         rect.y + rect.height / 2.0 + 4.0,
         text,
@@ -178,25 +158,20 @@ fn render_boxed_text(
 }
 
 fn render_checkbox(
-    buf: &mut String,
+    sg: &mut SvgGraphic,
     rect: &LayoutBox,
     label: &str,
     checked: bool,
     border: &str,
     font: &str,
 ) {
-    write!(
-        buf,
-        r##"<rect fill="#FFFFFF" height="14" style="stroke:{};stroke-width:0.5;" width="14" x="{}" y="{}"/>"##,
-        border,
-        fmt_coord(rect.x),
-        fmt_coord(rect.y + 7.0),
-    )
-    .unwrap();
-    buf.push('\n');
+    sg.set_fill_color("#FFFFFF");
+    sg.set_stroke_color(Some(border));
+    sg.set_stroke_width(STROKE_WIDTH, None);
+    sg.svg_rectangle(rect.x, rect.y + 7.0, 14.0, 14.0, 0.0, 0.0, 0.0);
+    sg.push_raw("\n");
     if checked {
-        write!(
-            buf,
+        sg.push_raw(&format!(
             r#"<path d="M{},{} L{},{} L{},{} " fill="none" style="stroke:{};stroke-width:0.5;"/>"#,
             fmt_coord(rect.x + 3.0),
             fmt_coord(rect.y + 14.0),
@@ -205,46 +180,36 @@ fn render_checkbox(
             fmt_coord(rect.x + 11.0),
             fmt_coord(rect.y + 9.0),
             border,
-        )
-        .unwrap();
-        buf.push('\n');
+        ));
+        sg.push_raw("\n");
     }
-    render_text(buf, rect.x + 22.0, rect.y + 18.0, label, font, None);
+    render_text(sg, rect.x + 22.0, rect.y + 18.0, label, font, None);
 }
 
 fn render_radio(
-    buf: &mut String,
+    sg: &mut SvgGraphic,
     rect: &LayoutBox,
     label: &str,
     selected: bool,
     border: &str,
     font: &str,
 ) {
-    write!(
-        buf,
-        r##"<circle cx="{}" cy="{}" fill="#FFFFFF" r="7" style="stroke:{};stroke-width:0.5;"/>"##,
-        fmt_coord(rect.x + 7.0),
-        fmt_coord(rect.y + 14.0),
-        border,
-    )
-    .unwrap();
-    buf.push('\n');
+    sg.set_fill_color("#FFFFFF");
+    sg.set_stroke_color(Some(border));
+    sg.set_stroke_width(STROKE_WIDTH, None);
+    sg.svg_circle(rect.x + 7.0, rect.y + 14.0, 7.0, 0.0);
+    sg.push_raw("\n");
     if selected {
-        write!(
-            buf,
-            r#"<circle cx="{}" cy="{}" fill="{}" r="3"/>"#,
-            fmt_coord(rect.x + 7.0),
-            fmt_coord(rect.y + 14.0),
-            border,
-        )
-        .unwrap();
-        buf.push('\n');
+        sg.set_fill_color(border);
+        sg.set_stroke_width(0.0, None);
+        sg.svg_circle(rect.x + 7.0, rect.y + 14.0, 3.0, 0.0);
+        sg.push_raw("\n");
     }
-    render_text(buf, rect.x + 22.0, rect.y + 18.0, label, font, None);
+    render_text(sg, rect.x + 22.0, rect.y + 18.0, label, font, None);
 }
 
 fn render_dropdown(
-    buf: &mut String,
+    sg: &mut SvgGraphic,
     rect: &LayoutBox,
     items: &[String],
     fill: &str,
@@ -252,9 +217,8 @@ fn render_dropdown(
     font: &str,
 ) {
     let text = items.first().cloned().unwrap_or_default();
-    render_boxed_text(buf, rect, &text, fill, border, font, 4.0);
-    write!(
-        buf,
+    render_boxed_text(sg, rect, &text, fill, border, font, 4.0);
+    sg.push_raw(&format!(
         r#"<path d="M{},{} L{},{} L{},{} Z " fill="{}"/>"#,
         fmt_coord(rect.x + rect.width - 16.0),
         fmt_coord(rect.y + rect.height / 2.0 - 3.0),
@@ -263,14 +227,13 @@ fn render_dropdown(
         fmt_coord(rect.x + rect.width - 12.0),
         fmt_coord(rect.y + rect.height / 2.0 + 3.0),
         border,
-    )
-    .unwrap();
-    buf.push('\n');
+    ));
+    sg.push_raw("\n");
 }
 
 #[allow(clippy::too_many_arguments)]
 fn render_table(
-    buf: &mut String,
+    sg: &mut SvgGraphic,
     rect: &LayoutBox,
     headers: &[String],
     rows: &[Vec<String>],
@@ -280,42 +243,32 @@ fn render_table(
     border: &str,
     font: &str,
 ) {
-    write!(
-        buf,
-        r#"<rect fill="{fill}" height="{}" style="stroke:{border};stroke-width:0.5;" width="{}" x="{}" y="{}"/>"#,
-        fmt_coord(rect.height), fmt_coord(rect.width), fmt_coord(rect.x), fmt_coord(rect.y),
-    )
-    .unwrap();
-    buf.push('\n');
+    sg.set_fill_color(fill);
+    sg.set_stroke_color(Some(border));
+    sg.set_stroke_width(STROKE_WIDTH, None);
+    sg.svg_rectangle(rect.x, rect.y, rect.width, rect.height, 0.0, 0.0, 0.0);
+    sg.push_raw("\n");
 
     let mut x_cursor = rect.x;
     for width in col_widths.iter().take(col_widths.len().saturating_sub(1)) {
         x_cursor += *width;
-        write!(
-            buf,
-            r#"<line style="stroke:{border};stroke-width:0.5;" x1="{xc}" x2="{xc}" y1="{}" y2="{}"/>"#,
-            fmt_coord(rect.y), fmt_coord(rect.y + rect.height),
-            xc = fmt_coord(x_cursor),
-        )
-        .unwrap();
-        buf.push('\n');
+        sg.set_stroke_color(Some(border));
+        sg.set_stroke_width(STROKE_WIDTH, None);
+        sg.svg_line(x_cursor, rect.y, x_cursor, rect.y + rect.height, 0.0);
+        sg.push_raw("\n");
     }
     for row_idx in 1..=rows.len() {
         let line_y = rect.y + row_idx as f64 * row_height;
-        write!(
-            buf,
-            r#"<line style="stroke:{border};stroke-width:0.5;" x1="{}" x2="{}" y1="{ly}" y2="{ly}"/>"#,
-            fmt_coord(rect.x), fmt_coord(rect.x + rect.width),
-            ly = fmt_coord(line_y),
-        )
-        .unwrap();
-        buf.push('\n');
+        sg.set_stroke_color(Some(border));
+        sg.set_stroke_width(STROKE_WIDTH, None);
+        sg.svg_line(rect.x, line_y, rect.x + rect.width, line_y, 0.0);
+        sg.push_raw("\n");
     }
 
     let mut cell_x = rect.x;
     for (idx, header) in headers.iter().enumerate() {
         render_text(
-            buf,
+            sg,
             cell_x + 8.0,
             rect.y + row_height / 2.0 + 4.0,
             header,
@@ -328,7 +281,7 @@ fn render_table(
         let mut cell_x = rect.x;
         for (col_idx, cell) in row.iter().enumerate() {
             render_text(
-                buf,
+                sg,
                 cell_x + 8.0,
                 rect.y + (row_idx as f64 + 1.5) * row_height + 4.0,
                 cell,
@@ -340,27 +293,26 @@ fn render_table(
     }
 }
 
-fn render_text(buf: &mut String, x: f64, y: f64, text: &str, font: &str, anchor: Option<&str>) {
-    let tl = fmt_coord(font_metrics::text_width(text, "SansSerif", 12.0, false, false));
-    write!(
-        buf,
-        r#"<text fill="{}" font-family="sans-serif" font-size="12" lengthAdjust="spacing""#,
-        font
-    )
-    .unwrap();
-    if let Some(anchor) = anchor {
-        write!(buf, r#" text-anchor="{}""#, xml_escape(anchor)).unwrap();
-    }
-    write!(
-        buf,
-        r#" textLength="{}" x="{}" y="{}">{}"#,
+fn render_text(sg: &mut SvgGraphic, x: f64, y: f64, text: &str, font: &str, anchor: Option<&str>) {
+    let tl = font_metrics::text_width(text, "SansSerif", 12.0, false, false);
+    sg.set_fill_color(font);
+    sg.set_stroke_width(0.0, None);
+    sg.svg_text(
+        text,
+        x,
+        y,
+        Some("sans-serif"),
+        12.0,
+        None,  // font_weight
+        None,  // font_style
+        None,  // text_decoration
         tl,
-        fmt_coord(x),
-        fmt_coord(y),
-        xml_escape(text)
-    )
-    .unwrap();
-    buf.push_str("</text>\n");
+        LengthAdjust::Spacing,
+        None,  // text_back_color
+        0,     // orientation
+        anchor,
+    );
+    sg.push_raw("\n");
 }
 
 fn child_bounds(widget: &SaltWidgetLayout) -> LayoutBox {
