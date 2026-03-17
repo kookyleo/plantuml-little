@@ -20,6 +20,26 @@ pub const ROSE_PADDING_X: f64 = 5.0;
 /// Padding Y used by the Rose factory. Java: `Rose.paddingY = 5`
 pub const ROSE_PADDING_Y: f64 = 5.0;
 
+/// Note fold corner size. Java: `ComponentRoseNote.FOLD = 8`
+pub const NOTE_FOLD: f64 = 8.0;
+/// Note text inner padding. Java: `ComponentRoseNote.marginY1 = 6`
+pub const NOTE_PADDING: f64 = 6.0;
+/// Note background color. Java: Rose default `#FEFFDD`
+pub const NOTE_BG: &str = "#FEFFDD";
+/// Note border color. Java: Rose default `#181818`
+pub const NOTE_BORDER: &str = "#181818";
+
+/// Default border/stroke color. Java: `#181818`
+pub const BORDER_COLOR: &str = "#181818";
+/// Default entity background. Java: `#F1F1F1`
+pub const ENTITY_BG: &str = "#F1F1F1";
+/// Default participant background. Java: `#E2E2F0`
+pub const PARTICIPANT_BG: &str = "#E2E2F0";
+
+/// Sequence diagram: note fold is 10 (not 8) for the sequence note variant.
+/// Java: `ComponentRoseNoteBox.FOLD = 10` (approximate)
+pub const SEQ_NOTE_FOLD: f64 = 10.0;
+
 // ── DrawOp: output-independent drawing instruction ──────────────────
 
 /// A single drawing instruction produced by component rendering.

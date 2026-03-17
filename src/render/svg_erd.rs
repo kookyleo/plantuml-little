@@ -23,9 +23,7 @@ const EDGE_COLOR: &str = "#181818";
 const TEXT_FILL: &str = "#000000";
 const ISA_BG: &str = "#F1F1F1";
 const ISA_BORDER: &str = "#181818";
-const NOTE_BG: &str = "#FEFFDD";
-const NOTE_BORDER: &str = "#181818";
-const NOTE_FOLD: f64 = 8.0;
+use crate::skin::rose::{NOTE_BG, NOTE_BORDER, NOTE_FOLD};
 
 // ── Helper: render a straight-line path ─────────────────────────────
 

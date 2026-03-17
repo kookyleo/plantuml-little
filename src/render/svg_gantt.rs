@@ -24,9 +24,7 @@ const TEXT_FILL: &str = "#000000";
 const GRID_COLOR: &str = "#DDDDDD";
 const AXIS_TEXT_COLOR: &str = "#333333";
 const LABEL_PADDING: f64 = 8.0;
-const NOTE_BG: &str = "#FEFFDD";
-const NOTE_BORDER: &str = "#181818";
-const NOTE_FOLD: f64 = 8.0;
+use crate::skin::rose::{NOTE_BG, NOTE_BORDER, NOTE_FOLD};
 
 // ---------------------------------------------------------------------------
 // Public entry point

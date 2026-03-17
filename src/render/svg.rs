@@ -135,12 +135,7 @@ const ENUM_BORDER: &str = "#181818";
 const ABSTRACT_BG: &str = "#F1F1F1";
 const ABSTRACT_BORDER: &str = "#181818";
 
-const NOTE_BG: &str = "#FEFFDD";
-const NOTE_BORDER: &str = "#181818";
-const NOTE_FOLD: f64 = 8.0;
-const NOTE_TEXT_PADDING: f64 = 6.0;
-
-const LINK_COLOR: &str = "#181818";
+use crate::skin::rose::{NOTE_BG, NOTE_BORDER, NOTE_FOLD, NOTE_PADDING as NOTE_TEXT_PADDING, BORDER_COLOR as LINK_COLOR};
 const LABEL_COLOR: &str = "#000000";
 /// Java PlantUML renders link labels at font-size 13 (not 14).
 const LINK_LABEL_FONT_SIZE: f64 = 13.0;

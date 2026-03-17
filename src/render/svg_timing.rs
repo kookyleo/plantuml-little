@@ -28,9 +28,7 @@ const AXIS_TEXT_COLOR: &str = "#333333";
 const TICK_COLOR: &str = "#CCCCCC";
 const LABEL_PADDING: f64 = 8.0;
 const ROBUST_BAND_HEIGHT: f64 = 16.0;
-const NOTE_BG: &str = "#FEFFDD";
-const NOTE_BORDER: &str = "#181818";
-const NOTE_FOLD: f64 = 8.0;
+use crate::skin::rose::{NOTE_BG, NOTE_BORDER, NOTE_FOLD};
 
 // ---------------------------------------------------------------------------
 // Public entry point

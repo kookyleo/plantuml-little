@@ -21,9 +21,7 @@ const EDGE_COLOR: &str = "#181818";
 const TEXT_COLOR: &str = "#000000";
 const BORDER_WIDTH: f64 = 0.5;
 const CORNER_RADIUS: f64 = 10.0;
-const NOTE_BG: &str = "#FEFFDD";
-const NOTE_BORDER: &str = "#181818";
-const NOTE_FOLD: f64 = 8.0;
+use crate::skin::rose::{NOTE_BG, NOTE_BORDER, NOTE_FOLD};
 
 // ── Public entry point ──────────────────────────────────────────────
 
