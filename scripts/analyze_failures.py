@@ -105,6 +105,59 @@ def get_test_diff(test_name):
         elif line.startswith("actual:"):
             info["actual"] = line
 
+    # Extract full viewport dimensions from reference SVG (not just first-diff context)
+    if info["puml_file"]:
+        ref_path = PROJECT_ROOT / info["puml_file"].replace("fixtures/", "reference/").replace(".puml", ".svg")
+        if ref_path.exists():
+            ref_head = ref_path.read_text(errors="replace")[:3000]
+            wh = re.search(r'width:(\d+)px;height:(\d+)px', ref_head)
+            if wh:
+                info["ref_w"] = int(wh.group(1))
+                info["ref_h"] = int(wh.group(2))
+            else:
+                wh = re.search(r'width="(\d+)px".*?height="(\d+)px"', ref_head)
+                if wh:
+                    info["ref_w"] = int(wh.group(1))
+                    info["ref_h"] = int(wh.group(2))
+
+    # Extract our viewport dimensions from actual SVG output.
+    # The test diff context may not contain the viewport — check the actual: line,
+    # but also look for height="NNpx" in the full output (which includes both expected/actual).
+    for pattern_src in [info["actual"], output]:
+        wh = re.search(r'width:(\d+)px;height:(\d+)px', pattern_src)
+        if wh:
+            info["our_w"] = int(wh.group(1))
+            info["our_h"] = int(wh.group(2))
+            break
+
+    # If viewport wasn't in the diff context, extract from the actual: line height attr
+    if "our_h" not in info:
+        # The test output contains expected/actual lines with SVG snippets
+        act = info.get("actual", "")
+        hm = re.search(r'height="(\d+)px"', act)
+        if hm:
+            info["our_h"] = int(hm.group(1))
+        # Also try to extract from full output (look for actual line's height)
+        for line in output.splitlines():
+            if line.startswith("actual:"):
+                hm = re.search(r'height="(\d+)px"', line)
+                if hm:
+                    info["our_h"] = int(hm.group(1))
+                wm = re.search(r'width="(\d+)px"', line)
+                if wm:
+                    info["our_w"] = int(wm.group(1))
+
+    # If we have ref dimensions and the first diff is at height, infer our height
+    # from the actual line showing the diff
+    if "our_h" not in info and "ref_h" in info:
+        # Parse dh from the classified diff
+        exp = info.get("expected", "")
+        act = info.get("actual", "")
+        exp_hm = re.search(r'height="(\d+)', exp)
+        act_hm = re.search(r'height="(\d+)', act)
+        if exp_hm and act_hm:
+            info["our_h"] = int(act_hm.group(1))
+
     return info
 
 
@@ -228,6 +281,10 @@ def build_report(passed, failed_list, total, diffs):
             "diagram_type": dtype,
             "cause": label,
             "keywords": sorted(keywords),
+            "ref_w": info.get("ref_w"),
+            "ref_h": info.get("ref_h"),
+            "our_w": info.get("our_w"),
+            "our_h": info.get("our_h"),
             **detail,
         })
 
@@ -315,6 +372,45 @@ def print_report(report):
             print(f"  {dw:+5d}px  {d['diagram_type']:12s}  {d['test']}")
             if d["keywords"]:
                 print(f"          keywords: {', '.join(d['keywords'])}")
+
+    # Nearly-passing tests: show tests sorted by "total error" (|dw|+|dh|)
+    # to identify the best targets for the next fix loop
+    print(f"\n{'─'*70}")
+    print(f"  NEARLY PASSING (sorted by total dimensional error)")
+    print(f"{'─'*70}")
+    scored = []
+    for d in report["details"]:
+        rw = d.get("ref_w")
+        rh = d.get("ref_h")
+        ow = d.get("our_w")
+        oh = d.get("our_h")
+        dw = (ow - rw) if (rw is not None and ow is not None) else None
+        dh = (oh - rh) if (rh is not None and oh is not None) else None
+        if dw is not None and dh is not None:
+            total_err = abs(dw) + abs(dh)
+            scored.append((total_err, dw, dh, "both", d))
+        elif dh is not None:
+            scored.append((abs(dh), 0, dh, "h_only", d))
+        # skip tests where we can't extract either dimension
+    scored.sort(key=lambda x: x[0])
+    for total_err, dw, dh, kind, d in scored[:30]:
+        if kind == "both":
+            w_str = f"w{dw:+d}" if dw != 0 else "w=ok"
+            h_str = f"h{dh:+d}" if dh != 0 else "h=ok"
+        else:
+            w_str = "w=?"
+            h_str = f"h{dh:+d}" if dh != 0 else "h=ok"
+        kws = ",".join(d["keywords"][:3]) if d["keywords"] else ""
+        marker = ""
+        if kind == "both":
+            if dw == 0 and dh != 0: marker = " [height-only]"
+            elif dh == 0 and dw != 0: marker = " [width-only]"
+            elif dw == 0 and dh == 0: marker = " [dims-match!]"
+        else:
+            marker = " [width-unknown]"
+        print(f"  {total_err:5d}  {w_str:>7s} {h_str:>7s}  {d['diagram_type']:12s}  {d['test']}{marker}")
+        if kws:
+            print(f"                                          {kws}")
 
 
 # ── Main ──────────────────────────────────────────────────────────────

@@ -126,21 +126,31 @@ A single bit of difference will fail the reference test. "Close enough" is never
 
 Every fix must follow this strict loop. No skipping steps, no guessing.
 
-1. **Enumerate sub-items.** Run `scripts/analyze_failures.py` to get the full failure taxonomy. Break each root cause into concrete, countable sub-items (e.g., "CLASS height/large: 14 tests, median delta -16px"). Never work from vague categories.
+1. **Enumerate sub-items.** Run `scripts/analyze_failures.py` to get the full failure taxonomy. Break each root cause into concrete, countable sub-items. Focus on **common root causes** that affect many tests, not individual test symptoms.
 
-2. **Pick one precise target.** Select a single sub-item (ideally the smallest-delta case in the group — easiest to isolate). State the target: "make `class_funcparam_arrow_01.svg` height match 535px".
+2. **Pick the right target.** Selection criteria (in order):
+   - **Prefer "nearly passing" tests** — fewest total differences (not just smallest first-diff delta). A test with 1px height diff but 50 other differences is a bad target. A test with 10px height-only diff and no other issues is ideal.
+   - **Prefer tests with matching structure** — our SVG has the same elements in roughly the same positions as Java. Completely different layouts indicate a missing layout engine, not a tunable constant.
+   - **Work on shared root causes, not individual tests.** If 20 tests fail because edge labels lack dimensions, fix the label dimension system — verify on one test, expect improvement across all 20.
+   - State the target precisely: "make `foo.svg` match reference — currently differs at height (95 vs 100), root cause: member row height uses 14pt but skinparam sets 12pt."
 
-3. **Trace the Rust chain.** For the chosen test, trace the full code path from `.puml` input to the differing SVG byte. Record every intermediate value (entity dimensions, DOT graph, Graphviz output, coordinate transform, SVG emission).
+3. **Validate constants before using them.** Before trusting any constant in the Rust code, cross-check it against the reference SVG values. Run the target `.puml` through Java (`java -jar plantuml.jar -tsvg`), extract the same value from the output SVG, and confirm the constant matches. Constants with wrong comments are a known hazard.
 
-4. **Trace the Java chain.** For the same input, trace the equivalent Java code path. Instrument Java with `System.err.println` to capture the same intermediate values.
+4. **Trace the Rust chain.** For the chosen test, trace the full code path from `.puml` input to the differing SVG byte. Record every intermediate value (entity dimensions, DOT graph, Graphviz output, coordinate transform, SVG emission).
 
-5. **Diff the two chains.** Compare Rust vs Java intermediate values. The first divergence point is the bug location. If the Rust code is **structurally different** (different call graph, missing component, different algorithm), fix the structure first. If the structure matches but a value differs, binary-search for the exact parameter/constant that's wrong.
+5. **Trace the Java chain.** For the same input, trace the equivalent Java code path. Two approaches, in order of preference:
+   - **Instrument Java** with `System.err.println` to capture precise intermediate values. This is the gold standard. Build: `cd /ext/plantuml/plantuml && ./gradlew jar`. Run: `java -jar build/libs/plantuml-*.jar -tsvg -pipe < input.puml`.
+   - **Decompose from reference SVG** when instrumentation is impractical. Extract coordinates/dimensions from the reference SVG and reverse-compute the formula. Always cross-verify the formula against Java source code.
 
-6. **Fix at the precise location.** Apply the minimal change that makes the Rust value match Java at the divergence point. Never patch downstream — fix at the source of divergence.
+6. **Diff the two chains.** Compare Rust vs Java intermediate values. The first divergence point is the bug location. If the Rust code is **structurally different** (different call graph, missing component, different algorithm), fix the structure first. If the structure matches but a value differs, binary-search for the exact parameter/constant that's wrong.
 
-7. **Verify.** Run `cargo test --lib` (no regression) + `cargo test --test reference_tests` (target test passes). Then re-run `scripts/analyze_failures.py` to confirm the fix didn't break other sub-items and to measure how many additional tests now pass.
+7. **Pre-check the default case.** Before committing, verify the change produces identical output for the DEFAULT skinparams (no skinparam overrides). Most passing tests use defaults — breaking the default case causes mass regression. The new code path should only diverge from the old one when skinparams actually differ from defaults.
 
-8. **Repeat.** Pick the next sub-item. The analysis script output is the single source of truth for progress tracking.
+8. **Fix at the precise location.** Apply the minimal change that makes the Rust value match Java at the divergence point. Never patch downstream — fix at the source of divergence.
+
+9. **Verify.** Run `cargo test --lib` (no regression) + `cargo test --test reference_tests` (pass count must not decrease). Then re-run `scripts/analyze_failures.py` to measure how many additional tests now pass. If the target test still doesn't pass (e.g., height fixed but width still wrong), note the remaining gap — it becomes the next loop's target.
+
+10. **Repeat.** Each loop should either increase pass count or eliminate one dimension of difference for a group of tests. The analysis script output is the single source of truth for progress tracking.
 
 #### Methodology — Reference Material
 
