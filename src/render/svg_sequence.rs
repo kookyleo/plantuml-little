@@ -12,7 +12,7 @@ use crate::Result;
 use crate::font_metrics;
 
 use super::svg::{write_svg_root_bg, write_bg_rect};
-use super::svg::{fmt_coord, xml_escape};
+use crate::klimt::svg::{fmt_coord, xml_escape, SvgGraphic, LengthAdjust};
 use super::svg_richtext::{disable_path_sprites, enable_path_sprites, render_creole_text, set_default_font_family, take_back_filters};
 
 // ── Style constants ─────────────────────────────────────────────────
@@ -59,8 +59,8 @@ const REF_TAB_FILL: &str = "#EEEEEE";
 
 // ── Arrow marker defs ───────────────────────────────────────────────
 
-fn write_seq_defs(buf: &mut String) {
-    buf.push_str("<defs/>");
+fn write_seq_defs(sg: &mut SvgGraphic) {
+    sg.push_raw("<defs/>");
 }
 
 // ── Lifelines ───────────────────────────────────────────────────────
@@ -70,7 +70,7 @@ fn write_seq_defs(buf: &mut String) {
 /// Java's `LivingParticipantBox` accumulates its preferred-size dimension
 /// through multiple `addDim()` calls.  When the diagram contains a `group`
 /// fragment, the grouping header's dimension causes an additional f32
-fn draw_lifelines(buf: &mut String, layout: &SeqLayout, skin: &SkinParams, sd: &SequenceDiagram) {
+fn draw_lifelines(sg: &mut SvgGraphic, layout: &SeqLayout, skin: &SkinParams, sd: &SequenceDiagram) {
     let ll_color = skin.sequence_lifeline_border_color(LIFELINE_COLOR);
     let ll_height = layout.lifeline_bottom - layout.lifeline_top;
     for (i, p) in layout.participants.iter().enumerate() {
@@ -83,14 +83,16 @@ fn draw_lifelines(buf: &mut String, layout: &SeqLayout, skin: &SkinParams, sd: &
             .unwrap_or(&p.name);
         let escaped_display = xml_escape(display);
 
+        let mut tmp = String::new();
         write!(
-            buf,
+            tmp,
             r#"<g class="participant-lifeline" data-entity-uid="part{idx}" data-qualified-name="{qname}" id="part{idx}-lifeline"><g><title>{dname}</title>"#,
             idx = part_idx,
             qname = qualified_name,
             dname = escaped_display,
         )
         .unwrap();
+        sg.push_raw(&tmp);
 
         // Java lifeline position: box_x + (int)(box_width) / 2 (Java integer division)
         // This differs from exact center (box_x + box_width/2.0) due to truncation
@@ -98,17 +100,20 @@ fn draw_lifelines(buf: &mut String, layout: &SeqLayout, skin: &SkinParams, sd: &
         let lifeline_x = box_x + (p.box_width as i32 / 2) as f64;
 
         // Transparent click-target rect over lifeline
+        let mut tmp = String::new();
         let _ = write!(
-            buf,
+            tmp,
             "<rect fill=\"#000000\" fill-opacity=\"0.00000\" height=\"{h}\" width=\"8\" x=\"{x}\" y=\"{y}\"/>",
             h = fmt_coord(ll_height),
             x = fmt_coord(p.x - 4.0),
             y = fmt_coord(layout.lifeline_top),
         );
+        sg.push_raw(&tmp);
 
         // Dashed lifeline
+        let mut tmp = String::new();
         write!(
-            buf,
+            tmp,
             r#"<line style="stroke:{color};stroke-width:0.5;stroke-dasharray:5,5;" x1="{x}" x2="{x}" y1="{y1}" y2="{y2}"/>"#,
             x = fmt_coord(lifeline_x),
             y1 = fmt_coord(layout.lifeline_top),
@@ -116,8 +121,9 @@ fn draw_lifelines(buf: &mut String, layout: &SeqLayout, skin: &SkinParams, sd: &
             color = ll_color,
         )
         .unwrap();
+        sg.push_raw(&tmp);
 
-        buf.push_str("</g></g>");
+        sg.push_raw("</g></g>");
     }
 }
 
@@ -150,7 +156,7 @@ fn resolve_fill_attrs(color: &str) -> String {
 // ── Participant box ─────────────────────────────────────────────────
 
 fn draw_participant_box(
-    buf: &mut String,
+    sg: &mut SvgGraphic,
     p: &ParticipantLayout,
     y: f64,
     display_name: Option<&str>,
@@ -158,11 +164,11 @@ fn draw_participant_box(
     border: &str,
     text_color: &str,
 ) {
-    draw_participant_box_with_font(buf, p, y, display_name, bg, border, text_color, 14.0);
+    draw_participant_box_with_font(sg, p, y, display_name, bg, border, text_color, 14.0);
 }
 
 fn draw_participant_box_with_font(
-    buf: &mut String,
+    sg: &mut SvgGraphic,
     p: &ParticipantLayout,
     y: f64,
     display_name: Option<&str>,
@@ -175,35 +181,35 @@ fn draw_participant_box_with_font(
 
     match &p.kind {
         ParticipantKind::Actor => {
-            draw_participant_actor(buf, p, y, display_name, border, text_color);
+            draw_participant_actor(sg, p, y, display_name, border, text_color);
         }
         ParticipantKind::Boundary => {
-            draw_participant_boundary(buf, p, y, display_name, fill, border, text_color);
+            draw_participant_boundary(sg, p, y, display_name, fill, border, text_color);
         }
         ParticipantKind::Control => {
-            draw_participant_control(buf, p, y, display_name, fill, border, text_color);
+            draw_participant_control(sg, p, y, display_name, fill, border, text_color);
         }
         ParticipantKind::Entity => {
-            draw_participant_entity(buf, p, y, display_name, fill, border, text_color);
+            draw_participant_entity(sg, p, y, display_name, fill, border, text_color);
         }
         ParticipantKind::Database => {
-            draw_participant_database(buf, p, y, display_name, fill, border, text_color);
+            draw_participant_database(sg, p, y, display_name, fill, border, text_color);
         }
         ParticipantKind::Collections => {
-            draw_participant_collections(buf, p, y, display_name, fill, border, text_color);
+            draw_participant_collections(sg, p, y, display_name, fill, border, text_color);
         }
         ParticipantKind::Queue => {
-            draw_participant_queue(buf, p, y, display_name, fill, border, text_color);
+            draw_participant_queue(sg, p, y, display_name, fill, border, text_color);
         }
         ParticipantKind::Default => {
-            draw_participant_rect_with_font(buf, p, y, display_name, fill, border, text_color, part_font_size);
+            draw_participant_rect_with_font(sg, p, y, display_name, fill, border, text_color, part_font_size);
         }
     }
 }
 
 /// Default rectangle participant
 fn draw_participant_rect(
-    buf: &mut String,
+    sg: &mut SvgGraphic,
     p: &ParticipantLayout,
     y: f64,
     display_name: Option<&str>,
@@ -211,11 +217,11 @@ fn draw_participant_rect(
     border: &str,
     text_color: &str,
 ) {
-    draw_participant_rect_with_font(buf, p, y, display_name, bg, border, text_color, 14.0);
+    draw_participant_rect_with_font(sg, p, y, display_name, bg, border, text_color, 14.0);
 }
 
 fn draw_participant_rect_with_font(
-    buf: &mut String,
+    sg: &mut SvgGraphic,
     p: &ParticipantLayout,
     y: f64,
     display_name: Option<&str>,
@@ -239,8 +245,9 @@ fn draw_participant_rect_with_font(
     let line_h = font_metrics::line_height("SansSerif", font_size, false, false);
 
     let fill_attrs = resolve_fill_attrs(bg);
+    let mut tmp = String::new();
     write!(
-        buf,
+        tmp,
         r#"<rect {fill_attrs} height="{h}" rx="2.5" ry="2.5" style="stroke:{border};stroke-width:0.5;" width="{w}" x="{x}" y="{y}"/>"#,
         h = fmt_coord(box_height),
         w = fmt_coord(box_width),
@@ -248,28 +255,33 @@ fn draw_participant_rect_with_font(
         y = fmt_coord(y),
     )
     .unwrap();
+    sg.push_raw(&tmp);
 
-    let fs = font_size as u32;
     for (line_idx, line) in lines.iter().enumerate() {
         let text_y = text_y_base + line_idx as f64 * line_h;
         let line_w = font_metrics::text_width(line, "SansSerif", font_size, false, false);
-        let escaped = xml_escape(line);
-        write!(
-            buf,
-            r#"<text fill="{color}" font-family="sans-serif" font-size="{fs}" lengthAdjust="spacing" textLength="{tl}" x="{tx}" y="{ty}">{text}</text>"#,
-            tl = fmt_coord(line_w),
-            tx = fmt_coord(text_x),
-            ty = fmt_coord(text_y),
-            color = text_color,
-            text = escaped,
-        )
-        .unwrap();
+        sg.set_fill_color(text_color);
+        sg.svg_text(
+            line,
+            text_x,
+            text_y,
+            Some("sans-serif"),
+            font_size,
+            None,
+            None,
+            None,
+            line_w,
+            LengthAdjust::Spacing,
+            None,
+            0,
+            None,
+        );
     }
 }
 
 /// Actor: stick figure (circle head + body + arms + legs) with name below
 fn draw_participant_actor(
-    buf: &mut String,
+    sg: &mut SvgGraphic,
     p: &ParticipantLayout,
     y: f64,
     display_name: Option<&str>,
@@ -289,75 +301,59 @@ fn draw_participant_actor(
     let leg_drop = 16.0;
 
     // Head
-    write!(
-        buf,
-        r#"<circle cx="{}" cy="{}" fill="none" r="{head_r}" style="stroke:{border};stroke-width:1.5;"/>"#,
-        fmt_coord(cx), fmt_coord(head_cy),
-    )
-    .unwrap();
-    buf.push('\n');
+    sg.set_fill_color("none");
+    sg.set_stroke_color(Some(border));
+    sg.set_stroke_width(1.5, None);
+    sg.svg_circle(cx, head_cy, head_r, 0.0);
+    sg.push_raw("\n");
 
     // Body
-    write!(
-        buf,
-        r#"<line style="stroke:{border};stroke-width:1.5;" x1="{}" x2="{}" y1="{}" y2="{}"/>"#,
-        fmt_coord(cx), fmt_coord(cx), fmt_coord(body_top), fmt_coord(body_bot),
-    )
-    .unwrap();
-    buf.push('\n');
+    sg.set_stroke_color(Some(border));
+    sg.set_stroke_width(1.5, None);
+    sg.svg_line(cx, body_top, cx, body_bot, 0.0);
+    sg.push_raw("\n");
 
     // Left arm
-    write!(
-        buf,
-        r#"<line style="stroke:{border};stroke-width:1.5;" x1="{}" x2="{}" y1="{}" y2="{}"/>"#,
-        fmt_coord(cx), fmt_coord(cx - arm_spread), fmt_coord(arm_y), fmt_coord(arm_y),
-    )
-    .unwrap();
-    buf.push('\n');
+    sg.svg_line(cx, arm_y, cx - arm_spread, arm_y, 0.0);
+    sg.push_raw("\n");
 
     // Right arm
-    write!(
-        buf,
-        r#"<line style="stroke:{border};stroke-width:1.5;" x1="{}" x2="{}" y1="{}" y2="{}"/>"#,
-        fmt_coord(cx), fmt_coord(cx + arm_spread), fmt_coord(arm_y), fmt_coord(arm_y),
-    )
-    .unwrap();
-    buf.push('\n');
+    sg.svg_line(cx, arm_y, cx + arm_spread, arm_y, 0.0);
+    sg.push_raw("\n");
 
     // Left leg
-    write!(
-        buf,
-        r#"<line style="stroke:{border};stroke-width:1.5;" x1="{}" x2="{}" y1="{}" y2="{}"/>"#,
-        fmt_coord(cx), fmt_coord(cx - leg_spread), fmt_coord(body_bot), fmt_coord(body_bot + leg_drop),
-    )
-    .unwrap();
-    buf.push('\n');
+    sg.svg_line(cx, body_bot, cx - leg_spread, body_bot + leg_drop, 0.0);
+    sg.push_raw("\n");
 
     // Right leg
-    write!(
-        buf,
-        r#"<line style="stroke:{border};stroke-width:1.5;" x1="{}" x2="{}" y1="{}" y2="{}"/>"#,
-        fmt_coord(cx), fmt_coord(cx + leg_spread), fmt_coord(body_bot), fmt_coord(body_bot + leg_drop),
-    )
-    .unwrap();
-    buf.push('\n');
+    sg.svg_line(cx, body_bot, cx + leg_spread, body_bot + leg_drop, 0.0);
+    sg.push_raw("\n");
 
     // Name below figure
     let name_y = body_bot + leg_drop + FONT_SIZE + 4.0;
-    let escaped = xml_escape(name);
-    let tl = fmt_coord(font_metrics::text_width(name, "SansSerif", 14.0, true, false));
-    write!(
-        buf,
-        r#"<text fill="{text_color}" font-family="sans-serif" font-size="14" font-weight="bold" lengthAdjust="spacing" text-anchor="middle" textLength="{tl}" x="{}" y="{}">{escaped}</text>"#,
-        fmt_coord(cx), fmt_coord(name_y),
-    )
-    .unwrap();
-    buf.push('\n');
+    let tl = font_metrics::text_width(name, "SansSerif", 14.0, true, false);
+    sg.set_fill_color(text_color);
+    sg.svg_text(
+        name,
+        cx,
+        name_y,
+        Some("sans-serif"),
+        14.0,
+        Some("bold"),
+        None,
+        None,
+        tl,
+        LengthAdjust::Spacing,
+        None,
+        0,
+        Some("middle"),
+    );
+    sg.push_raw("\n");
 }
 
 /// Boundary: circle on left + vertical line + horizontal connector
 fn draw_participant_boundary(
-    buf: &mut String,
+    sg: &mut SvgGraphic,
     p: &ParticipantLayout,
     y: f64,
     display_name: Option<&str>,
@@ -372,54 +368,45 @@ fn draw_participant_boundary(
     let icon_cx = cx - 8.0;
 
     // Circle on the right side
-    write!(
-        buf,
-        r#"<circle cx="{}" cy="{}" fill="{bg}" r="{icon_r}" style="stroke:{border};stroke-width:1.5;"/>"#,
-        fmt_coord(icon_cx), fmt_coord(icon_y + icon_r),
-    )
-    .unwrap();
-    buf.push('\n');
+    sg.set_fill_color(bg);
+    sg.set_stroke_color(Some(border));
+    sg.set_stroke_width(1.5, None);
+    sg.svg_circle(icon_cx, icon_y + icon_r, icon_r, 0.0);
+    sg.push_raw("\n");
 
     // Vertical line to the left of circle
-    {
-        let lx = fmt_coord(icon_cx - icon_r - 4.0);
-        write!(
-            buf,
-            r#"<line style="stroke:{border};stroke-width:1.5;" x1="{lx}" x2="{lx}" y1="{}" y2="{}"/>"#,
-            fmt_coord(icon_y), fmt_coord(icon_y + 2.0 * icon_r),
-        )
-        .unwrap();
-    }
-    buf.push('\n');
+    sg.svg_line(icon_cx - icon_r - 4.0, icon_y, icon_cx - icon_r - 4.0, icon_y + 2.0 * icon_r, 0.0);
+    sg.push_raw("\n");
 
     // Horizontal connector from vertical bar to circle
-    {
-        let ly = fmt_coord(icon_y + icon_r);
-        write!(
-            buf,
-            r#"<line style="stroke:{border};stroke-width:1.5;" x1="{}" x2="{}" y1="{ly}" y2="{ly}"/>"#,
-            fmt_coord(icon_cx - icon_r - 4.0), fmt_coord(icon_cx - icon_r),
-        )
-        .unwrap();
-    }
-    buf.push('\n');
+    sg.svg_line(icon_cx - icon_r - 4.0, icon_y + icon_r, icon_cx - icon_r, icon_y + icon_r, 0.0);
+    sg.push_raw("\n");
 
     // Name below
     let name_y = icon_y + 2.0 * icon_r + FONT_SIZE + 6.0;
-    let escaped = xml_escape(name);
-    let tl = fmt_coord(font_metrics::text_width(name, "SansSerif", 14.0, true, false));
-    write!(
-        buf,
-        r#"<text fill="{text_color}" font-family="sans-serif" font-size="14" font-weight="bold" lengthAdjust="spacing" text-anchor="middle" textLength="{tl}" x="{}" y="{}">{escaped}</text>"#,
-        fmt_coord(cx), fmt_coord(name_y),
-    )
-    .unwrap();
-    buf.push('\n');
+    let tl = font_metrics::text_width(name, "SansSerif", 14.0, true, false);
+    sg.set_fill_color(text_color);
+    sg.svg_text(
+        name,
+        cx,
+        name_y,
+        Some("sans-serif"),
+        14.0,
+        Some("bold"),
+        None,
+        None,
+        tl,
+        LengthAdjust::Spacing,
+        None,
+        0,
+        Some("middle"),
+    );
+    sg.push_raw("\n");
 }
 
 /// Control: circle with a small arrow on top
 fn draw_participant_control(
-    buf: &mut String,
+    sg: &mut SvgGraphic,
     p: &ParticipantLayout,
     y: f64,
     display_name: Option<&str>,
@@ -433,42 +420,47 @@ fn draw_participant_control(
     let icon_cy = y + icon_r + 8.0;
 
     // Circle
-    write!(
-        buf,
-        r#"<circle cx="{}" cy="{}" fill="{bg}" r="{icon_r}" style="stroke:{border};stroke-width:1.5;"/>"#,
-        fmt_coord(cx), fmt_coord(icon_cy),
-    )
-    .unwrap();
-    buf.push('\n');
+    sg.set_fill_color(bg);
+    sg.set_stroke_color(Some(border));
+    sg.set_stroke_width(1.5, None);
+    sg.svg_circle(cx, icon_cy, icon_r, 0.0);
+    sg.push_raw("\n");
 
     // Small arrow on top of circle
     let arrow_y = icon_cy - icon_r;
-    write!(
-        buf,
+    sg.push_raw(&format!(
         r#"<path d="M{},{} L{},{} L{},{} " fill="none" style="stroke:{border};stroke-width:1.5;"/>"#,
         fmt_coord(cx - 5.0), fmt_coord(arrow_y - 6.0),
         fmt_coord(cx + 2.0), fmt_coord(arrow_y - 1.0),
         fmt_coord(cx - 5.0), fmt_coord(arrow_y + 3.0),
-    )
-    .unwrap();
-    buf.push('\n');
+    ));
+    sg.push_raw("\n");
 
     // Name below
     let name_y = icon_cy + icon_r + FONT_SIZE + 6.0;
-    let escaped = xml_escape(name);
-    let tl = fmt_coord(font_metrics::text_width(name, "SansSerif", 14.0, true, false));
-    write!(
-        buf,
-        r#"<text fill="{text_color}" font-family="sans-serif" font-size="14" font-weight="bold" lengthAdjust="spacing" text-anchor="middle" textLength="{tl}" x="{}" y="{}">{escaped}</text>"#,
-        fmt_coord(cx), fmt_coord(name_y),
-    )
-    .unwrap();
-    buf.push('\n');
+    let tl = font_metrics::text_width(name, "SansSerif", 14.0, true, false);
+    sg.set_fill_color(text_color);
+    sg.svg_text(
+        name,
+        cx,
+        name_y,
+        Some("sans-serif"),
+        14.0,
+        Some("bold"),
+        None,
+        None,
+        tl,
+        LengthAdjust::Spacing,
+        None,
+        0,
+        Some("middle"),
+    );
+    sg.push_raw("\n");
 }
 
 /// Entity: circle with a horizontal underline
 fn draw_participant_entity(
-    buf: &mut String,
+    sg: &mut SvgGraphic,
     p: &ParticipantLayout,
     y: f64,
     display_name: Option<&str>,
@@ -482,43 +474,42 @@ fn draw_participant_entity(
     let icon_cy = y + icon_r + 4.0;
 
     // Circle
-    write!(
-        buf,
-        r#"<circle cx="{}" cy="{}" fill="{bg}" r="{icon_r}" style="stroke:{border};stroke-width:1.5;"/>"#,
-        fmt_coord(cx), fmt_coord(icon_cy),
-    )
-    .unwrap();
-    buf.push('\n');
+    sg.set_fill_color(bg);
+    sg.set_stroke_color(Some(border));
+    sg.set_stroke_width(1.5, None);
+    sg.svg_circle(cx, icon_cy, icon_r, 0.0);
+    sg.push_raw("\n");
 
     // Horizontal underline
     let line_y = icon_cy + icon_r + 2.0;
-    {
-        let ly = fmt_coord(line_y);
-        write!(
-            buf,
-            r#"<line style="stroke:{border};stroke-width:1.5;" x1="{}" x2="{}" y1="{ly}" y2="{ly}"/>"#,
-            fmt_coord(cx - icon_r), fmt_coord(cx + icon_r),
-        )
-        .unwrap();
-    }
-    buf.push('\n');
+    sg.svg_line(cx - icon_r, line_y, cx + icon_r, line_y, 0.0);
+    sg.push_raw("\n");
 
     // Name below
     let name_y = line_y + FONT_SIZE + 6.0;
-    let escaped = xml_escape(name);
-    let tl = fmt_coord(font_metrics::text_width(name, "SansSerif", 14.0, true, false));
-    write!(
-        buf,
-        r#"<text fill="{text_color}" font-family="sans-serif" font-size="14" font-weight="bold" lengthAdjust="spacing" text-anchor="middle" textLength="{tl}" x="{}" y="{}">{escaped}</text>"#,
-        fmt_coord(cx), fmt_coord(name_y),
-    )
-    .unwrap();
-    buf.push('\n');
+    let tl = font_metrics::text_width(name, "SansSerif", 14.0, true, false);
+    sg.set_fill_color(text_color);
+    sg.svg_text(
+        name,
+        cx,
+        name_y,
+        Some("sans-serif"),
+        14.0,
+        Some("bold"),
+        None,
+        None,
+        tl,
+        LengthAdjust::Spacing,
+        None,
+        0,
+        Some("middle"),
+    );
+    sg.push_raw("\n");
 }
 
 /// Database: cylinder shape (rect with rounded top/bottom arcs)
 fn draw_participant_database(
-    buf: &mut String,
+    sg: &mut SvgGraphic,
     p: &ParticipantLayout,
     y: f64,
     display_name: Option<&str>,
@@ -538,44 +529,48 @@ fn draw_participant_database(
     {
         let rx_s = fmt_coord(cyl_w / 2.0);
         let ry_s = fmt_coord(arc_h);
-        write!(
-            buf,
+        sg.push_raw(&format!(
             r#"<path d="M{},{} A{rx_s},{ry_s} 0 0,0 {},{} L{},{} A{rx_s},{ry_s} 0 0,0 {},{} Z " fill="{bg}" style="stroke:{border};stroke-width:1.5;"/>"#,
             fmt_coord(cyl_x), fmt_coord(cyl_y + arc_h),
             fmt_coord(cyl_x + cyl_w), fmt_coord(cyl_y + arc_h),
             fmt_coord(cyl_x + cyl_w), fmt_coord(cyl_y + cyl_h),
             fmt_coord(cyl_x), fmt_coord(cyl_y + cyl_h),
-        )
-        .unwrap();
+        ));
     }
-    buf.push('\n');
+    sg.push_raw("\n");
 
     // Top ellipse
-    write!(
-        buf,
-        r#"<ellipse cx="{}" cy="{}" fill="{bg}" rx="{}" ry="{}" style="stroke:{border};stroke-width:1.5;"/>"#,
-        fmt_coord(cx), fmt_coord(cyl_y + arc_h),
-        fmt_coord(cyl_w / 2.0), fmt_coord(arc_h),
-    )
-    .unwrap();
-    buf.push('\n');
+    sg.set_fill_color(bg);
+    sg.set_stroke_color(Some(border));
+    sg.set_stroke_width(1.5, None);
+    sg.svg_ellipse(cx, cyl_y + arc_h, cyl_w / 2.0, arc_h, 0.0);
+    sg.push_raw("\n");
 
     // Name below cylinder
     let name_y = cyl_y + cyl_h + arc_h + FONT_SIZE + 4.0;
-    let escaped = xml_escape(name);
-    let tl = fmt_coord(font_metrics::text_width(name, "SansSerif", 14.0, true, false));
-    write!(
-        buf,
-        r#"<text fill="{text_color}" font-family="sans-serif" font-size="14" font-weight="bold" lengthAdjust="spacing" text-anchor="middle" textLength="{tl}" x="{}" y="{}">{escaped}</text>"#,
-        fmt_coord(cx), fmt_coord(name_y),
-    )
-    .unwrap();
-    buf.push('\n');
+    let tl = font_metrics::text_width(name, "SansSerif", 14.0, true, false);
+    sg.set_fill_color(text_color);
+    sg.svg_text(
+        name,
+        cx,
+        name_y,
+        Some("sans-serif"),
+        14.0,
+        Some("bold"),
+        None,
+        None,
+        tl,
+        LengthAdjust::Spacing,
+        None,
+        0,
+        Some("middle"),
+    );
+    sg.push_raw("\n");
 }
 
 /// Collections: stacked rectangles (shadow rect behind main rect)
 fn draw_participant_collections(
-    buf: &mut String,
+    sg: &mut SvgGraphic,
     p: &ParticipantLayout,
     y: f64,
     display_name: Option<&str>,
@@ -592,39 +587,52 @@ fn draw_participant_collections(
     let ry = y + 8.0;
 
     // Back (shadow) rectangle
+    let mut tmp = String::new();
     write!(
-        buf,
+        tmp,
         r#"<rect fill="{bg}" height="{}" style="stroke:{border};stroke-width:1.5;" width="{}" x="{}" y="{}"/>"#,
         fmt_coord(rect_h), fmt_coord(rect_w), fmt_coord(rx + offset), fmt_coord(ry - offset),
     )
     .unwrap();
-    buf.push('\n');
+    sg.push_raw(&tmp);
+    sg.push_raw("\n");
 
     // Front (main) rectangle
+    let mut tmp = String::new();
     write!(
-        buf,
+        tmp,
         r#"<rect fill="{bg}" height="{}" style="stroke:{border};stroke-width:1.5;" width="{}" x="{}" y="{}"/>"#,
         fmt_coord(rect_h), fmt_coord(rect_w), fmt_coord(rx), fmt_coord(ry),
     )
     .unwrap();
-    buf.push('\n');
+    sg.push_raw(&tmp);
+    sg.push_raw("\n");
 
     // Name below
     let name_y = ry + rect_h + FONT_SIZE + 6.0;
-    let escaped = xml_escape(name);
-    let tl = fmt_coord(font_metrics::text_width(name, "SansSerif", 14.0, true, false));
-    write!(
-        buf,
-        r#"<text fill="{text_color}" font-family="sans-serif" font-size="14" font-weight="bold" lengthAdjust="spacing" text-anchor="middle" textLength="{tl}" x="{}" y="{}">{escaped}</text>"#,
-        fmt_coord(cx), fmt_coord(name_y),
-    )
-    .unwrap();
-    buf.push('\n');
+    let tl = font_metrics::text_width(name, "SansSerif", 14.0, true, false);
+    sg.set_fill_color(text_color);
+    sg.svg_text(
+        name,
+        cx,
+        name_y,
+        Some("sans-serif"),
+        14.0,
+        Some("bold"),
+        None,
+        None,
+        tl,
+        LengthAdjust::Spacing,
+        None,
+        0,
+        Some("middle"),
+    );
+    sg.push_raw("\n");
 }
 
 /// Queue: horizontal cylinder (cylinder rotated 90 degrees)
 fn draw_participant_queue(
-    buf: &mut String,
+    sg: &mut SvgGraphic,
     p: &ParticipantLayout,
     y: f64,
     display_name: Option<&str>,
@@ -648,41 +656,45 @@ fn draw_participant_queue(
         let aw = fmt_coord(arc_w);
         let ah = fmt_coord(cyl_h / 2.0);
         let by = fmt_coord(cyl_y + cyl_h);
-        write!(
-            buf,
+        sg.push_raw(&format!(
             r#"<path d="M{lx},{ty_s} L{rx_s},{ty_s} A{aw},{ah} 0 0,1 {rx_s},{by} L{lx},{by} A{aw},{ah} 0 0,1 {lx},{ty_s} Z " fill="{bg}" style="stroke:{border};stroke-width:1.5;"/>"#,
-        )
-        .unwrap();
+        ));
     }
-    buf.push('\n');
+    sg.push_raw("\n");
 
     // Right end cap ellipse
-    write!(
-        buf,
-        r#"<ellipse cx="{}" cy="{}" fill="{bg}" rx="{}" ry="{}" style="stroke:{border};stroke-width:1.5;"/>"#,
-        fmt_coord(cyl_x + cyl_w - arc_w), fmt_coord(cyl_y + cyl_h / 2.0),
-        fmt_coord(arc_w), fmt_coord(cyl_h / 2.0),
-    )
-    .unwrap();
-    buf.push('\n');
+    sg.set_fill_color(bg);
+    sg.set_stroke_color(Some(border));
+    sg.set_stroke_width(1.5, None);
+    sg.svg_ellipse(cyl_x + cyl_w - arc_w, cyl_y + cyl_h / 2.0, arc_w, cyl_h / 2.0, 0.0);
+    sg.push_raw("\n");
 
     // Name below
     let name_y = cyl_y + cyl_h + FONT_SIZE + 6.0;
-    let escaped = xml_escape(name);
-    let tl = fmt_coord(font_metrics::text_width(name, "SansSerif", 14.0, true, false));
-    write!(
-        buf,
-        r#"<text fill="{text_color}" font-family="sans-serif" font-size="14" font-weight="bold" lengthAdjust="spacing" text-anchor="middle" textLength="{tl}" x="{}" y="{}">{escaped}</text>"#,
-        fmt_coord(cx), fmt_coord(name_y),
-    )
-    .unwrap();
-    buf.push('\n');
+    let tl = font_metrics::text_width(name, "SansSerif", 14.0, true, false);
+    sg.set_fill_color(text_color);
+    sg.svg_text(
+        name,
+        cx,
+        name_y,
+        Some("sans-serif"),
+        14.0,
+        Some("bold"),
+        None,
+        None,
+        tl,
+        LengthAdjust::Spacing,
+        None,
+        0,
+        Some("middle"),
+    );
+    sg.push_raw("\n");
 }
 
 // ── Messages ────────────────────────────────────────────────────────
 
 fn draw_message(
-    buf: &mut String,
+    sg: &mut SvgGraphic,
     msg: &MessageLayout,
     arrow_color: &str,
     arrow_thickness: f64,
@@ -690,12 +702,10 @@ fn draw_message(
     to_idx: usize,
     msg_idx: usize,
 ) {
-    write!(
-        buf,
+    sg.push_raw(&format!(
         r#"<g class="message" data-entity-1="part{}" data-entity-2="part{}" id="msg{}">"#,
         from_idx, to_idx, msg_idx,
-    )
-    .unwrap();
+    ));
 
     let sw = arrow_thickness as u32;
 
@@ -717,8 +727,9 @@ fn draw_message(
         } else {
             (tip_x - 10.0, tip_x - 10.0)
         };
+        let mut tmp = String::new();
         write!(
-            buf,
+            tmp,
             r#"<line style="stroke:{color};stroke-width:{sw};" x1="{ax}" x2="{tx}" y1="{y1}" y2="{y}"/>"#,
             color = arrow_color,
             ax = fmt_coord(ax1),
@@ -728,7 +739,7 @@ fn draw_message(
         )
         .unwrap();
         write!(
-            buf,
+            tmp,
             r#"<line style="stroke:{color};stroke-width:{sw};" x1="{ax}" x2="{tx}" y1="{y1}" y2="{y}"/>"#,
             color = arrow_color,
             ax = fmt_coord(ax2),
@@ -737,6 +748,7 @@ fn draw_message(
             y = fmt_coord(msg.y),
         )
         .unwrap();
+        sg.push_raw(&tmp);
     } else {
         // Filled arrowhead polygon: 4-point diamond with inner point 6px from tip
         let (p1x, p2x, p3x, p4x) = if msg.is_left {
@@ -744,8 +756,9 @@ fn draw_message(
         } else {
             (tip_x - 10.0, tip_x, tip_x - 10.0, tip_x - 6.0)
         };
+        let mut tmp = String::new();
         write!(
-            buf,
+            tmp,
             r#"<polygon fill="{color}" points="{p1x},{p1y},{p2x},{p2y},{p3x},{p3y},{p4x},{p4y}" style="stroke:{color};stroke-width:{sw};"/>"#,
             color = arrow_color,
             p1x = fmt_coord(p1x),
@@ -758,6 +771,7 @@ fn draw_message(
             p4y = fmt_coord(msg.y),
         )
         .unwrap();
+        sg.push_raw(&tmp);
     }
 
     // Message line
@@ -780,8 +794,9 @@ fn draw_message(
     } else {
         (line_x1, adjusted_x2)
     };
+    let mut tmp = String::new();
     write!(
-        buf,
+        tmp,
         r#"<line style="stroke:{color};stroke-width:{sw};{dash}" x1="{x1}" x2="{x2}" y1="{y}" y2="{y}"/>"#,
         color = arrow_color,
         dash = dash_style,
@@ -790,6 +805,7 @@ fn draw_message(
         y = fmt_coord(msg.y),
     )
     .unwrap();
+    sg.push_raw(&tmp);
 
     // Label text above the line — each line as a separate <text> element
     let has_text = !msg.text.is_empty() || msg.autonumber.is_some();
@@ -816,15 +832,22 @@ fn draw_message(
         // Draw autonumber as separate bold text element
         if let Some(ref num_str) = msg.autonumber {
             let num_tl = font_metrics::text_width(num_str, "SansSerif", FONT_SIZE, true, false);
-            write!(
-                buf,
-                r#"<text fill="{TEXT_COLOR}" font-family="sans-serif" font-size="{FONT_SIZE}" font-weight="700" lengthAdjust="spacing" textLength="{}" x="{}" y="{}">{}</text>"#,
-                fmt_coord(num_tl),
-                fmt_coord(base_text_x),
-                fmt_coord(first_text_y),
-                xml_escape(num_str),
-            )
-            .unwrap();
+            sg.set_fill_color(TEXT_COLOR);
+            sg.svg_text(
+                num_str,
+                base_text_x,
+                first_text_y,
+                Some("sans-serif"),
+                FONT_SIZE,
+                Some("700"),
+                None,
+                None,
+                num_tl,
+                LengthAdjust::Spacing,
+                None,
+                0,
+                None,
+            );
         }
 
         // Draw message text lines (with Creole markup support)
@@ -833,8 +856,9 @@ fn draw_message(
                 continue;
             }
             let line_y = first_text_y + i as f64 * msg_line_spacing;
+            let mut tmp = String::new();
             render_creole_text(
-                buf,
+                &mut tmp,
                 line,
                 text_x,
                 line_y,
@@ -843,14 +867,15 @@ fn draw_message(
                 None,
                 &format!(r#"font-size="{FONT_SIZE}""#),
             );
+            sg.push_raw(&tmp);
         }
     }
 
-    buf.push_str("</g>");
+    sg.push_raw("</g>");
 }
 
 fn draw_self_message(
-    buf: &mut String,
+    sg: &mut SvgGraphic,
     msg: &MessageLayout,
     arrow_color: &str,
     arrow_thickness: f64,
@@ -864,12 +889,10 @@ fn draw_self_message(
     let y = msg.y;
     let loop_height = 13.0;
 
-    write!(
-        buf,
+    sg.push_raw(&format!(
         r#"<g class="message" data-entity-1="part{}" data-entity-2="part{}" id="msg{}">"#,
         from_idx, from_idx, msg_idx,
-    )
-    .unwrap();
+    ));
 
     let dash_style = if msg.is_dashed {
         "stroke-dasharray:2,2;"
@@ -879,8 +902,9 @@ fn draw_self_message(
 
     // 3-line self-message: horizontal right, vertical down, horizontal left
     // Line 1: outgoing horizontal (from lifeline/activation edge to right)
+    let mut tmp = String::new();
     write!(
-        buf,
+        tmp,
         r#"<line style="stroke:{color};stroke-width:{sw};{dash}" x1="{x1}" x2="{x2}" y1="{y1}" y2="{y1}"/>"#,
         color = arrow_color,
         dash = dash_style,
@@ -892,7 +916,7 @@ fn draw_self_message(
 
     // Line 2: vertical down
     write!(
-        buf,
+        tmp,
         r#"<line style="stroke:{color};stroke-width:{sw};{dash}" x1="{x}" x2="{x}" y1="{y1}" y2="{y2}"/>"#,
         color = arrow_color,
         dash = dash_style,
@@ -904,7 +928,7 @@ fn draw_self_message(
 
     // Line 3: return horizontal (from return_x to right edge)
     write!(
-        buf,
+        tmp,
         r#"<line style="stroke:{color};stroke-width:{sw};{dash}" x1="{x1}" x2="{x2}" y1="{y}" y2="{y}"/>"#,
         color = arrow_color,
         dash = dash_style,
@@ -919,7 +943,7 @@ fn draw_self_message(
     if msg.has_open_head {
         let tip_x = return_x;
         write!(
-            buf,
+            tmp,
             r#"<line style="stroke:{color};stroke-width:{sw};" x1="{ax}" x2="{tx}" y1="{y1}" y2="{y}"/>"#,
             color = arrow_color,
             ax = fmt_coord(tip_x + 10.0),
@@ -929,7 +953,7 @@ fn draw_self_message(
         )
         .unwrap();
         write!(
-            buf,
+            tmp,
             r#"<line style="stroke:{color};stroke-width:{sw};" x1="{ax}" x2="{tx}" y1="{y1}" y2="{y}"/>"#,
             color = arrow_color,
             ax = fmt_coord(tip_x + 10.0),
@@ -941,7 +965,7 @@ fn draw_self_message(
     } else {
         let tip_x = return_x;
         write!(
-            buf,
+            tmp,
             r#"<polygon fill="{color}" points="{p1x},{p1y},{p2x},{p2y},{p3x},{p3y},{p4x},{p4y}" style="stroke:{color};stroke-width:{sw};"/>"#,
             color = arrow_color,
             p1x = fmt_coord(tip_x + 10.0),
@@ -955,6 +979,7 @@ fn draw_self_message(
         )
         .unwrap();
     }
+    sg.push_raw(&tmp);
 
     // Label text above the first horizontal line — each line as separate <text>
     if !msg.text.is_empty() {
@@ -967,8 +992,9 @@ fn draw_self_message(
                 continue;
             }
             let line_y = first_text_y + i as f64 * msg_line_spacing;
+            let mut tmp = String::new();
             render_creole_text(
-                buf,
+                &mut tmp,
                 line,
                 text_x,
                 line_y,
@@ -977,71 +1003,64 @@ fn draw_self_message(
                 None,
                 &format!(r#"font-size="{FONT_SIZE}""#),
             );
+            sg.push_raw(&tmp);
         }
     }
 
-    buf.push_str("</g>");
+    sg.push_raw("</g>");
 }
 
 // ── Activation bars ─────────────────────────────────────────────────
 
-fn draw_activation(buf: &mut String, act: &ActivationLayout) {
+fn draw_activation(sg: &mut SvgGraphic, act: &ActivationLayout) {
     let width = 10.0;
     let height = act.y_end - act.y_start;
 
+    let mut tmp = String::new();
     write!(
-        buf,
+        tmp,
         r#"<rect fill="{bg}" height="{}" style="stroke:{border};stroke-width:1;" width="{}" x="{}" y="{}"/>"#,
         fmt_coord(height), fmt_coord(width), fmt_coord(act.x), fmt_coord(act.y_start),
         bg = ACTIVATION_BG,
         border = ACTIVATION_BORDER,
     )
     .unwrap();
-    buf.push('\n');
+    sg.push_raw(&tmp);
+    sg.push_raw("\n");
 }
 
 // ── Destroy marker ──────────────────────────────────────────────────
 
-fn draw_destroy(buf: &mut String, d: &DestroyLayout) {
+fn draw_destroy(sg: &mut SvgGraphic, d: &DestroyLayout) {
     let size = 9.0;
     // First diagonal: top-left to bottom-right
-    write!(
-        buf,
-        r#"<line style="stroke:{color};stroke-width:2;" x1="{}" x2="{}" y1="{}" y2="{}"/>"#,
-        fmt_coord(d.x - size), fmt_coord(d.x + size),
-        fmt_coord(d.y - size), fmt_coord(d.y + size),
-        color = DESTROY_COLOR,
-    )
-    .unwrap();
-    buf.push('\n');
+    sg.set_stroke_color(Some(DESTROY_COLOR));
+    sg.set_stroke_width(2.0, None);
+    sg.svg_line(d.x - size, d.y - size, d.x + size, d.y + size, 0.0);
+    sg.push_raw("\n");
 
     // Second diagonal: bottom-left to top-right (matching Java PlantUML order)
-    write!(
-        buf,
-        r#"<line style="stroke:{color};stroke-width:2;" x1="{}" x2="{}" y1="{}" y2="{}"/>"#,
-        fmt_coord(d.x - size), fmt_coord(d.x + size),
-        fmt_coord(d.y + size), fmt_coord(d.y - size),
-        color = DESTROY_COLOR,
-    )
-    .unwrap();
-    buf.push('\n');
+    sg.svg_line(d.x - size, d.y + size, d.x + size, d.y - size, 0.0);
+    sg.push_raw("\n");
 }
 
 // ── Notes ───────────────────────────────────────────────────────────
 
-fn draw_note(buf: &mut String, note: &NoteLayout) {
+fn draw_note(sg: &mut SvgGraphic, note: &NoteLayout) {
     let fold = 10.0; // folded corner size
 
     // Background rect
+    let mut tmp = String::new();
     write!(
-        buf,
+        tmp,
         r#"<rect fill="{bg}" height="{}" style="stroke:{border};stroke-width:1;" width="{}" x="{}" y="{}"/>"#,
         fmt_coord(note.height), fmt_coord(note.width), fmt_coord(note.x), fmt_coord(note.y),
         bg = NOTE_BG,
         border = NOTE_BORDER,
     )
     .unwrap();
-    buf.push('\n');
+    sg.push_raw(&tmp);
+    sg.push_raw("\n");
 
     // Folded corner triangle in top-right
     let cx = note.x + note.width - fold;
@@ -1051,19 +1070,18 @@ fn draw_note(buf: &mut String, note: &NoteLayout) {
         let cy_s = fmt_coord(cy);
         let cy2 = fmt_coord(cy + fold);
         let cx2 = fmt_coord(note.x + note.width);
-        write!(
-            buf,
+        sg.push_raw(&format!(
             r#"<path d="M{cx_s},{cy_s} L{cx_s},{cy2} L{cx2},{cy_s} Z " fill="{bg}" style="stroke:{border};stroke-width:1;"/>"#,
             bg = NOTE_BG,
             border = NOTE_BORDER,
-        )
-        .unwrap();
+        ));
     }
-    buf.push('\n');
+    sg.push_raw("\n");
 
     let text_x = note.x + 6.0;
+    let mut tmp = String::new();
     render_creole_text(
-        buf,
+        &mut tmp,
         &note.text,
         text_x,
         note.y + LINE_HEIGHT,
@@ -1072,70 +1090,84 @@ fn draw_note(buf: &mut String, note: &NoteLayout) {
         None,
         &format!(r#"font-size="{FONT_SIZE}""#),
     );
+    sg.push_raw(&tmp);
 }
 
 // ── Group frames ────────────────────────────────────────────────────
 
-fn draw_group(buf: &mut String, group: &GroupLayout) {
+fn draw_group(sg: &mut SvgGraphic, group: &GroupLayout) {
     let height = group.y_end - group.y_start;
 
     // Frame rectangle
+    let mut tmp = String::new();
     write!(
-        buf,
+        tmp,
         r#"<rect fill="{bg}" fill-opacity="0.30000" height="{}" style="stroke:{border};stroke-width:1;" width="{}" x="{}" y="{}"/>"#,
         fmt_coord(height), fmt_coord(group.width), fmt_coord(group.x), fmt_coord(group.y_start),
         bg = GROUP_BG,
         border = GROUP_BORDER,
     )
     .unwrap();
-    buf.push('\n');
+    sg.push_raw(&tmp);
+    sg.push_raw("\n");
 
     // Label in top-left corner
     if let Some(label) = &group.label {
         let label_x = group.x + 6.0;
         let label_y = group.y_start + FONT_SIZE + 2.0;
-        let escaped = xml_escape(label);
 
         // Label background tab
         let label_width =
             font_metrics::text_width(label, "SansSerif", FONT_SIZE, true, false) + 12.0;
         let label_height = FONT_SIZE + 6.0;
+        let mut tmp = String::new();
         write!(
-            buf,
+            tmp,
             r#"<rect fill="{bg}" height="{}" style="stroke:{border};stroke-width:1;" width="{}" x="{}" y="{}"/>"#,
             fmt_coord(label_height), fmt_coord(label_width), fmt_coord(group.x), fmt_coord(group.y_start),
             bg = GROUP_BG,
             border = GROUP_BORDER,
         )
         .unwrap();
-        buf.push('\n');
+        sg.push_raw(&tmp);
+        sg.push_raw("\n");
 
-        let tl = fmt_coord(font_metrics::text_width(label, "SansSerif", FONT_SIZE, true, false));
-        write!(
-            buf,
-            r#"<text fill="{TEXT_COLOR}" font-family="sans-serif" font-size="{FONT_SIZE}" font-weight="bold" lengthAdjust="spacing" textLength="{tl}" x="{}" y="{}">{escaped}</text>"#,
-            fmt_coord(label_x), fmt_coord(label_y),
-        )
-        .unwrap();
-        buf.push('\n');
+        let tl = font_metrics::text_width(label, "SansSerif", FONT_SIZE, true, false);
+        sg.set_fill_color(TEXT_COLOR);
+        sg.svg_text(
+            label,
+            label_x,
+            label_y,
+            Some("sans-serif"),
+            FONT_SIZE,
+            Some("bold"),
+            None,
+            None,
+            tl,
+            LengthAdjust::Spacing,
+            None,
+            0,
+            None,
+        );
+        sg.push_raw("\n");
     }
 }
 
 // ── Fragment frames ──────────────────────────────────────────────────
 
 /// Phase 1: Draw just the frame outline rect (before lifelines)
-fn draw_fragment_frame(buf: &mut String, frag: &FragmentLayout) {
+fn draw_fragment_frame(sg: &mut SvgGraphic, frag: &FragmentLayout) {
     let fx = fmt_coord(frag.x);
     let fy = fmt_coord(frag.y);
     let fw = fmt_coord(frag.width);
     let fh = fmt_coord(frag.height);
-    buf.push_str(&format!(
+    sg.push_raw(&format!(
         "<rect fill=\"none\" height=\"{fh}\" style=\"stroke:#000000;stroke-width:1.5;\" width=\"{fw}\" x=\"{fx}\" y=\"{fy}\"/>"
     ));
 }
 
 /// Phase 2: Draw pentagon tab, labels, separators (after messages)
-fn draw_fragment_details(buf: &mut String, frag: &FragmentLayout) {
+fn draw_fragment_details(sg: &mut SvgGraphic, frag: &FragmentLayout) {
     let fx = fmt_coord(frag.x);
     let fy = fmt_coord(frag.y);
     let fw = fmt_coord(frag.width);
@@ -1153,7 +1185,7 @@ fn draw_fragment_details(buf: &mut String, frag: &FragmentLayout) {
     let tab_right = frag.x + FRAG_TAB_LEFT_PAD + tab_text_w + FRAG_TAB_RIGHT_PAD;
 
     // Pentagon path
-    buf.push_str(&format!(
+    sg.push_raw(&format!(
         "<path d=\"M{fx},{fy} L{},{fy} L{},{} L{},{} L{fx},{} L{fx},{fy}\" fill=\"#EEEEEE\" style=\"stroke:#000000;stroke-width:1.5;\"/>",
         fmt_coord(tab_right),
         fmt_coord(tab_right), fmt_coord(frag.y + FRAG_TAB_HEIGHT - FRAG_TAB_NOTCH),
@@ -1162,187 +1194,256 @@ fn draw_fragment_details(buf: &mut String, frag: &FragmentLayout) {
     ));
 
     // Second frame rect (Java emits two)
-    buf.push_str(&format!(
+    sg.push_raw(&format!(
         "<rect fill=\"none\" height=\"{fh}\" style=\"stroke:#000000;stroke-width:1.5;\" width=\"{fw}\" x=\"{fx}\" y=\"{fy}\"/>"
     ));
 
     // Tab label text (font-size 13, bold)
-    let tab_escaped = xml_escape(&tab_text);
-    let tab_tl = fmt_coord(tab_text_w);
     let text_x = frag.x + FRAG_TAB_LEFT_PAD;
     let text_y = frag.y + FRAG_KIND_LABEL_Y_OFFSET;
-    buf.push_str(&format!(
-        "<text fill=\"#000000\" font-family=\"sans-serif\" font-size=\"13\" font-weight=\"700\" lengthAdjust=\"spacing\" textLength=\"{tab_tl}\" x=\"{}\" y=\"{}\">{tab_escaped}</text>",
-        fmt_coord(text_x), fmt_coord(text_y),
-    ));
+    sg.set_fill_color("#000000");
+    sg.svg_text(
+        &tab_text,
+        text_x,
+        text_y,
+        Some("sans-serif"),
+        13.0,
+        Some("700"),
+        None,
+        None,
+        tab_text_w,
+        LengthAdjust::Spacing,
+        None,
+        0,
+        None,
+    );
 
     // Guard text (font-size 11, bold) — only for non-Group fragments
     if !is_group && !frag.label.is_empty() {
         let guard_text = format!("[{}]", frag.label);
-        let guard_escaped = xml_escape(&guard_text);
         let guard_w = font_metrics::text_width(&guard_text, "SansSerif", FRAG_GUARD_FONT_SIZE, true, false);
-        let guard_tl = fmt_coord(guard_w);
         let guard_x = tab_right + FRAG_GUARD_GAP;
         let guard_y = frag.y + FRAG_GUARD_LABEL_Y_OFFSET;
-        buf.push_str(&format!(
-            "<text fill=\"#000000\" font-family=\"sans-serif\" font-size=\"{FRAG_GUARD_FONT_SIZE}\" font-weight=\"700\" lengthAdjust=\"spacing\" textLength=\"{guard_tl}\" x=\"{}\" y=\"{}\">{guard_escaped}</text>",
-            fmt_coord(guard_x), fmt_coord(guard_y),
-        ));
+        sg.set_fill_color("#000000");
+        sg.svg_text(
+            &guard_text,
+            guard_x,
+            guard_y,
+            Some("sans-serif"),
+            FRAG_GUARD_FONT_SIZE,
+            Some("700"),
+            None,
+            None,
+            guard_w,
+            LengthAdjust::Spacing,
+            None,
+            0,
+            None,
+        );
     }
 
     // Note: separators are rendered inline with messages via draw_fragment_separator
 }
 
 /// Draw a single separator line + label within a fragment
-fn draw_fragment_separator(buf: &mut String, frag: &FragmentLayout, sep_y: f64, sep_label: &str) {
+fn draw_fragment_separator(sg: &mut SvgGraphic, frag: &FragmentLayout, sep_y: f64, sep_label: &str) {
     let fx = fmt_coord(frag.x);
     let y_s = fmt_coord(sep_y);
-    buf.push_str(&format!(
+    sg.push_raw(&format!(
         "<line style=\"stroke:#000000;stroke-width:1;stroke-dasharray:2,2;\" x1=\"{fx}\" x2=\"{}\" y1=\"{y_s}\" y2=\"{y_s}\"/>",
         fmt_coord(frag.x + frag.width),
     ));
 
     if !sep_label.is_empty() {
         let bracket_text = format!("[{sep_label}]");
-        let sep_escaped = xml_escape(&bracket_text);
         let sep_tl = font_metrics::text_width(&bracket_text, "SansSerif", 11.0, true, false);
         let label_x = frag.x + 5.0;
         let label_y = sep_y + 10.2105;
-        buf.push_str(&format!(
-            "<text fill=\"#000000\" font-family=\"sans-serif\" font-size=\"11\" font-weight=\"700\" lengthAdjust=\"spacing\" textLength=\"{}\" x=\"{}\" y=\"{}\">{sep_escaped}</text>",
-            fmt_coord(sep_tl), fmt_coord(label_x), fmt_coord(label_y),
-        ));
+        sg.set_fill_color("#000000");
+        sg.svg_text(
+            &bracket_text,
+            label_x,
+            label_y,
+            Some("sans-serif"),
+            11.0,
+            Some("700"),
+            None,
+            None,
+            sep_tl,
+            LengthAdjust::Spacing,
+            None,
+            0,
+            None,
+        );
     }
 }
 
 // ── Divider ──────────────────────────────────────────────────────────
 
-fn draw_divider(buf: &mut String, divider: &DividerLayout) {
+fn draw_divider(sg: &mut SvgGraphic, divider: &DividerLayout) {
     let center_y = divider.y + 15.0;
 
     // Background stripe
+    let mut tmp = String::new();
     write!(
-        buf,
+        tmp,
         r#"<rect fill="{color}" fill-opacity="0.20000" height="5" width="{}" x="{}" y="{}"/>"#,
         fmt_coord(divider.width), fmt_coord(divider.x), fmt_coord(center_y - 2.5),
         color = DIVIDER_COLOR,
     )
     .unwrap();
-    buf.push('\n');
+    sg.push_raw(&tmp);
+    sg.push_raw("\n");
 
     // Horizontal lines
     {
+        let mut tmp = String::new();
         let y1 = fmt_coord(center_y - 2.5);
         write!(
-            buf,
+            tmp,
             r#"<line style="stroke:{color};stroke-width:1;" x1="{}" x2="{}" y1="{y1}" y2="{y1}"/>"#,
             fmt_coord(divider.x), fmt_coord(divider.x + divider.width),
             color = DIVIDER_COLOR,
         )
         .unwrap();
+        sg.push_raw(&tmp);
     }
-    buf.push('\n');
+    sg.push_raw("\n");
     {
+        let mut tmp = String::new();
         let y2 = fmt_coord(center_y + 2.5);
         write!(
-            buf,
+            tmp,
             r#"<line style="stroke:{color};stroke-width:1;" x1="{}" x2="{}" y1="{y2}" y2="{y2}"/>"#,
             fmt_coord(divider.x), fmt_coord(divider.x + divider.width),
             color = DIVIDER_COLOR,
         )
         .unwrap();
+        sg.push_raw(&tmp);
     }
-    buf.push('\n');
+    sg.push_raw("\n");
 
     // Centered label text
     if let Some(text) = &divider.text {
         let mid_x = divider.x + divider.width / 2.0;
         let text_y = center_y + FONT_SIZE * 0.35;
-        let escaped = xml_escape(text);
 
         // Text background
         let text_width =
             font_metrics::text_width(text, "SansSerif", FONT_SIZE, false, false) + 16.0;
+        let mut tmp = String::new();
         write!(
-            buf,
+            tmp,
             r#"<rect fill="white" height="{}" width="{}" x="{}" y="{}"/>"#,
             fmt_coord(FONT_SIZE * 1.2), fmt_coord(text_width),
             fmt_coord(mid_x - text_width / 2.0), fmt_coord(center_y - FONT_SIZE * 0.6),
         )
         .unwrap();
-        buf.push('\n');
+        sg.push_raw(&tmp);
+        sg.push_raw("\n");
 
-        let div_tl = fmt_coord(font_metrics::text_width(text, "SansSerif", FONT_SIZE, true, false));
-        write!(
-            buf,
-            r#"<text fill="{TEXT_COLOR}" font-family="sans-serif" font-size="{FONT_SIZE}" font-weight="bold" lengthAdjust="spacing" text-anchor="middle" textLength="{div_tl}" x="{}" y="{}">{escaped}</text>"#,
-            fmt_coord(mid_x), fmt_coord(text_y),
-        )
-        .unwrap();
-        buf.push('\n');
+        let div_tl = font_metrics::text_width(text, "SansSerif", FONT_SIZE, true, false);
+        sg.set_fill_color(TEXT_COLOR);
+        sg.svg_text(
+            text,
+            mid_x,
+            text_y,
+            Some("sans-serif"),
+            FONT_SIZE,
+            Some("bold"),
+            None,
+            None,
+            div_tl,
+            LengthAdjust::Spacing,
+            None,
+            0,
+            Some("middle"),
+        );
+        sg.push_raw("\n");
     }
 }
 
 // ── Delay ────────────────────────────────────────────────────────────
 
-fn draw_delay(buf: &mut String, delay: &DelayLayout) {
+fn draw_delay(sg: &mut SvgGraphic, delay: &DelayLayout) {
     let center_y = delay.y + delay.height / 2.0;
     let mid_x = delay.x + delay.width / 2.0;
 
     // Three dots to indicate delay
     for dy in [-4.0, 0.0, 4.0] {
+        let mut tmp = String::new();
         write!(
-            buf,
+            tmp,
             r#"<circle cx="{}" cy="{}" fill="{color}" r="1.5"/>"#,
             fmt_coord(mid_x), fmt_coord(center_y + dy),
             color = DIVIDER_COLOR,
         )
         .unwrap();
-        buf.push('\n');
+        sg.push_raw(&tmp);
+        sg.push_raw("\n");
     }
 
     // Label text
     if let Some(text) = &delay.text {
         let text_x = mid_x + 12.0;
         let text_y = center_y + FONT_SIZE * 0.35;
-        let escaped = xml_escape(text);
-        let tl = fmt_coord(font_metrics::text_width(text, "SansSerif", FONT_SIZE, false, false));
-        write!(
-            buf,
-            r#"<text fill="{TEXT_COLOR}" font-family="sans-serif" font-size="{FONT_SIZE}" lengthAdjust="spacing" textLength="{tl}" x="{}" y="{}">{escaped}</text>"#,
-            fmt_coord(text_x), fmt_coord(text_y),
-        )
-        .unwrap();
-        buf.push('\n');
+        let tl = font_metrics::text_width(text, "SansSerif", FONT_SIZE, false, false);
+        sg.set_fill_color(TEXT_COLOR);
+        sg.svg_text(
+            text,
+            text_x,
+            text_y,
+            Some("sans-serif"),
+            FONT_SIZE,
+            None,
+            None,
+            None,
+            tl,
+            LengthAdjust::Spacing,
+            None,
+            0,
+            None,
+        );
+        sg.push_raw("\n");
     }
 }
 
 // ── Ref ──────────────────────────────────────────────────────────────
 
-fn draw_ref(buf: &mut String, r: &RefLayout) {
+fn draw_ref(sg: &mut SvgGraphic, r: &RefLayout) {
     let ref_text_w = font_metrics::text_width("ref", "SansSerif", FONT_SIZE, true, false);
     let tab_text_w_int = ref_text_w.floor();
     let tab_right = r.x + FRAG_TAB_LEFT_PAD + tab_text_w_int + FRAG_TAB_RIGHT_PAD;
     let rx_s = fmt_coord(r.x);
     let ry_s = fmt_coord(r.y);
-    buf.push_str(&format!(
+    sg.push_raw(&format!(
         "<rect fill=\"none\" height=\"{}\" style=\"stroke:{REF_FRAME_STROKE};stroke-width:1.5;\" width=\"{}\" x=\"{rx_s}\" y=\"{ry_s}\"/>",
         fmt_coord(r.height), fmt_coord(r.width),
     ));
-    buf.push_str(&format!(
+    sg.push_raw(&format!(
         "<path d=\"M{rx_s},{ry_s} L{},{ry_s} L{},{} L{},{} L{rx_s},{} L{rx_s},{ry_s}\" fill=\"{REF_TAB_FILL}\" style=\"stroke:{REF_FRAME_STROKE};stroke-width:2;\"/>",
         fmt_coord(tab_right),
         fmt_coord(tab_right), fmt_coord(r.y + REF_TAB_HEIGHT - REF_TAB_NOTCH),
         fmt_coord(tab_right - REF_TAB_NOTCH), fmt_coord(r.y + REF_TAB_HEIGHT),
         fmt_coord(r.y + REF_TAB_HEIGHT),
     ));
-    let ref_tl = fmt_coord(ref_text_w);
-    buf.push_str(&format!(
-        "<text fill=\"{TEXT_COLOR}\" font-family=\"sans-serif\" font-size=\"{FONT_SIZE}\" font-weight=\"700\" lengthAdjust=\"spacing\" textLength=\"{ref_tl}\" x=\"{}\" y=\"{}\">ref</text>",
-        fmt_coord(r.x + REF_TAB_LEFT_PAD), fmt_coord(r.y + REF_KIND_LABEL_Y_OFFSET),
-    ));
+    sg.set_fill_color(TEXT_COLOR);
+    sg.svg_text(
+        "ref",
+        r.x + REF_TAB_LEFT_PAD,
+        r.y + REF_KIND_LABEL_Y_OFFSET,
+        Some("sans-serif"),
+        FONT_SIZE,
+        Some("700"),
+        None,
+        None,
+        ref_text_w,
+        LengthAdjust::Spacing,
+        None,
+        0,
+        None,
+    );
     let label_w = font_metrics::text_width(&r.label, "SansSerif", REF_LABEL_FONT_SIZE, false, false);
-    let label_tl = fmt_coord(label_w);
     let center_x = r.x + r.width / 2.0;
     let label_x = center_x - label_w / 2.0;
     let body_top = r.y + REF_TAB_HEIGHT;
@@ -1351,11 +1452,22 @@ fn draw_ref(buf: &mut String, r: &RefLayout) {
     let asc = font_metrics::ascent("SansSerif", REF_LABEL_FONT_SIZE, false, false);
     let top_margin = ((body_height - line_h) / 2.0).floor();
     let label_y = body_top + top_margin + asc;
-    let escaped = xml_escape(&r.label);
-    buf.push_str(&format!(
-        "<text fill=\"{TEXT_COLOR}\" font-family=\"sans-serif\" font-size=\"{REF_LABEL_FONT_SIZE}\" lengthAdjust=\"spacing\" textLength=\"{label_tl}\" x=\"{}\" y=\"{}\">{escaped}</text>",
-        fmt_coord(label_x), fmt_coord(label_y),
-    ));
+    sg.set_fill_color(TEXT_COLOR);
+    sg.svg_text(
+        &r.label,
+        label_x,
+        label_y,
+        Some("sans-serif"),
+        REF_LABEL_FONT_SIZE,
+        None,
+        None,
+        None,
+        label_w,
+        LengthAdjust::Spacing,
+        None,
+        0,
+        None,
+    );
 }
 
 // ── Public entry point ──────────────────────────────────────────────
@@ -1403,10 +1515,17 @@ fn render_sequence_inner(
     let bg = skin.get_or("backgroundcolor", "#FFFFFF");
     write_svg_root_bg(&mut buf, svg_w, svg_h, "SEQUENCE", bg);
 
-    // 2. Defs (empty)
-    write_seq_defs(&mut buf);
-    buf.push_str("<g>");
-    write_bg_rect(&mut buf, svg_w, svg_h, bg);
+    // 2. Create SvgGraphic for all rendering helpers
+    let mut sg = SvgGraphic::new(0, 1.0);
+
+    // Write defs placeholder and open group
+    write_seq_defs(&mut sg);
+    sg.push_raw("<g>");
+    {
+        let mut tmp = String::new();
+        write_bg_rect(&mut tmp, svg_w, svg_h, bg);
+        sg.push_raw(&tmp);
+    }
 
     // Build participant name -> index mapping
     let part_index = build_participant_index(sd);
@@ -1414,30 +1533,30 @@ fn render_sequence_inner(
     // 3. Fragment frame rects (first outline, before lifelines).
     // Reverse: outer fragments first to match Java's SVG element ordering.
     for frag in layout.fragments.iter().rev() {
-        draw_fragment_frame(&mut buf, frag);
+        draw_fragment_frame(&mut sg, frag);
     }
 
     // 4. Lifelines (dashed vertical lines with semantic grouping)
-    draw_lifelines(&mut buf, layout, skin, sd);
+    draw_lifelines(&mut sg, layout, skin, sd);
 
     // 4b. Group frames (legacy)
     for group in &layout.groups {
-        draw_group(&mut buf, group);
+        draw_group(&mut sg, group);
     }
 
     // 5. Activation bars
     for act in &layout.activations {
-        draw_activation(&mut buf, act);
+        draw_activation(&mut sg, act);
     }
 
     // 5b. Dividers
     for divider in &layout.dividers {
-        draw_divider(&mut buf, divider);
+        draw_divider(&mut sg, divider);
     }
 
     // 5c. Delays
     for delay in &layout.delays {
-        draw_delay(&mut buf, delay);
+        draw_delay(&mut sg, delay);
     }
 
     // 5d. Refs are interleaved with messages (see step 8)
@@ -1472,26 +1591,30 @@ fn render_sequence_inner(
 
         // Head (bottom-aligned within head band)
         let top_y = MARGIN + max_ph - p.box_height;
+        let mut tmp = String::new();
         write!(
-            buf,
+            tmp,
             r#"<g class="participant participant-head" data-entity-uid="part{idx}" data-qualified-name="{name}" id="part{idx}-head">"#,
             idx = part_idx,
             name = qualified_name,
         )
         .unwrap();
-        draw_participant_box_with_font(&mut buf, p, top_y, dn, part_bg, part_border, part_font, part_font_size);
-        buf.push_str("</g>");
+        sg.push_raw(&tmp);
+        draw_participant_box_with_font(&mut sg, p, top_y, dn, part_bg, part_border, part_font, part_font_size);
+        sg.push_raw("</g>");
 
         // Tail
+        let mut tmp = String::new();
         write!(
-            buf,
+            tmp,
             r#"<g class="participant participant-tail" data-entity-uid="part{idx}" data-qualified-name="{name}" id="part{idx}-tail">"#,
             idx = part_idx,
             name = qualified_name,
         )
         .unwrap();
-        draw_participant_box_with_font(&mut buf, p, bottom_y, dn, part_bg, part_border, part_font, part_font_size);
-        buf.push_str("</g>");
+        sg.push_raw(&tmp);
+        draw_participant_box_with_font(&mut sg, p, bottom_y, dn, part_bg, part_border, part_font, part_font_size);
+        sg.push_raw("</g>");
     }
 
     // 8. Messages interleaved with fragment details (matching Java rendering order)
@@ -1529,13 +1652,13 @@ fn render_sequence_inner(
         {
             match &interstitials[interstitial_idx].1 {
                 InterstitialEvent::FragmentDetail(frag) => {
-                    draw_fragment_details(&mut buf, frag);
+                    draw_fragment_details(&mut sg, frag);
                 }
                 InterstitialEvent::Separator(frag, sep_y, sep_label) => {
-                    draw_fragment_separator(&mut buf, frag, *sep_y, sep_label);
+                    draw_fragment_separator(&mut sg, frag, *sep_y, sep_label);
                 }
                 InterstitialEvent::Ref(r) => {
-                    draw_ref(&mut buf, r);
+                    draw_ref(&mut sg, r);
                 }
             }
             interstitial_idx += 1;
@@ -1551,7 +1674,7 @@ fn render_sequence_inner(
 
         if msg.is_self {
             draw_self_message(
-                &mut buf,
+                &mut sg,
                 msg,
                 seq_arrow_color,
                 seq_arrow_thickness,
@@ -1560,7 +1683,7 @@ fn render_sequence_inner(
             );
         } else {
             draw_message(
-                &mut buf,
+                &mut sg,
                 msg,
                 seq_arrow_color,
                 seq_arrow_thickness,
@@ -1574,13 +1697,13 @@ fn render_sequence_inner(
     while interstitial_idx < interstitials.len() {
         match &interstitials[interstitial_idx].1 {
             InterstitialEvent::FragmentDetail(frag) => {
-                draw_fragment_details(&mut buf, frag);
+                draw_fragment_details(&mut sg, frag);
             }
             InterstitialEvent::Separator(frag, sep_y, sep_label) => {
-                draw_fragment_separator(&mut buf, frag, *sep_y, sep_label);
+                draw_fragment_separator(&mut sg, frag, *sep_y, sep_label);
             }
             InterstitialEvent::Ref(r) => {
-                draw_ref(&mut buf, r);
+                draw_ref(&mut sg, r);
             }
         }
         interstitial_idx += 1;
@@ -1588,15 +1711,18 @@ fn render_sequence_inner(
 
     // 9. Notes
     for note in &layout.notes {
-        draw_note(&mut buf, note);
+        draw_note(&mut sg, note);
     }
 
     // 10. Destroy markers
     for d in &layout.destroys {
-        draw_destroy(&mut buf, d);
+        draw_destroy(&mut sg, d);
     }
 
-    buf.push_str("</g></svg>");
+    sg.push_raw("</g></svg>");
+
+    // Append SvgGraphic body to the buf (which has the SVG root header)
+    buf.push_str(sg.body());
 
     // Post-process: inject gradient defs and filter definitions
     let gradient_defs = crate::render::svg_sprite::take_gradient_defs();
