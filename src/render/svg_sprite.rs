@@ -731,11 +731,23 @@ fn parse_translate(transform: &str) -> (f64, f64) {
 // ── Attribute helpers ───────────────────────────────────────────────────────
 
 /// Normalize hex color to uppercase.  Java DOM serializes all hex colors in
-/// uppercase (#RRGGBB). Pass-through non-hex values like "none" or "url(#id)".
+/// uppercase (#RRGGBB). Expands 3-digit hex to 6-digit. Pass-through non-hex
+/// values like "none" or "url(#id)".
 fn normalize_hex_color(s: &str) -> String {
     if let Some(hex) = s.strip_prefix('#') {
         if hex.chars().all(|c| c.is_ascii_hexdigit()) {
-            return format!("#{}", hex.to_ascii_uppercase());
+            let upper = hex.to_ascii_uppercase();
+            if upper.len() == 3 {
+                // Expand #RGB → #RRGGBB
+                let mut expanded = String::with_capacity(7);
+                expanded.push('#');
+                for c in upper.chars() {
+                    expanded.push(c);
+                    expanded.push(c);
+                }
+                return expanded;
+            }
+            return format!("#{}", upper);
         }
     }
     s.to_string()
