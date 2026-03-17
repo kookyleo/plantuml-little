@@ -252,6 +252,19 @@ pub fn layout_with_svek(graph: &LayoutGraph) -> Result<GraphLayout, Error> {
         let mut ld = LinkDescriptor::new(&edge.from, &edge.to);
         if let Some(ref label) = edge.label {
             ld = ld.with_label(label);
+            // Compute label dimensions from font metrics for DOT sizing.
+            // Java: SvekLine.labelDimension = TextBlock.calculateDimension().
+            // Edge labels use SansSerif 13pt (FontParam.CLASS = 13 for links).
+            // Java TextBlock adds margin_top(4) + margin_bottom(4) via
+            // TextBlockUtils.withMargin(textBlock, 0, 0, 4, 4).
+            let lines: Vec<&str> = label.split("\\n").collect();
+            let max_line_w = lines
+                .iter()
+                .map(|l| crate::font_metrics::text_width(l, "SansSerif", 13.0, false, false))
+                .fold(0.0_f64, f64::max);
+            let line_h = crate::font_metrics::line_height("SansSerif", 13.0, false, false);
+            let label_h = lines.len() as f64 * line_h + 8.0; // +4 top +4 bottom margin
+            ld.label_dimension = Some((max_line_w, label_h));
         }
         if edge.invisible {
             ld.invisible = true;

@@ -7,7 +7,7 @@
 
 use crate::klimt::geom::{Rankdir, XDimension2D};
 use crate::svek::cluster::Cluster;
-use crate::svek::edge::SvekEdge;
+use crate::svek::edge::{LabelDimension, SvekEdge};
 use crate::svek::node::SvekNode;
 use crate::svek::shape_type::ShapeType;
 use crate::svek::{
@@ -66,6 +66,9 @@ pub struct LinkDescriptor {
     pub from: String,
     pub to: String,
     pub label: Option<String>,
+    /// Label dimensions (width, height) for DOT table sizing.
+    /// Java: computed from TextBlock.calculateDimension().
+    pub label_dimension: Option<(f64, f64)>,
     /// Whether this link has been removed
     pub removed: bool,
     /// Whether this link is invisible (used for layout constraint only)
@@ -80,6 +83,7 @@ impl LinkDescriptor {
             from: from.to_string(),
             to: to.to_string(),
             label: None,
+            label_dimension: None,
             removed: false,
             invisible: false,
             minlen: None,
@@ -266,6 +270,11 @@ impl GraphvizImageBuilder {
             let mut edge = SvekEdge::new(&link.from, &link.to);
             edge.color = self.color_seq.next_color();
             edge.label = link.label.clone();
+            if let Some((w, h)) = link.label_dimension {
+                edge.label_dimension = Some(LabelDimension::new(w, h));
+                // Java: SvekLine.labelShield = 7 (default for class/component diagrams)
+                edge.label_shield = 7.0;
+            }
             edge.is_invis = link.invisible;
             if let Some(minlen) = link.minlen {
                 // link_length = minlen + 1 (Java: minlen = link.getLength() - 1)
