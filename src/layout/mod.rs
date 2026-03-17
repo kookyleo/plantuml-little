@@ -683,7 +683,7 @@ fn layout_class_diagram(cd: &ClassDiagram) -> Result<GraphLayout> {
         rankdir,
     };
 
-    let mut layout = layout_graph(&graph)?;
+    let mut layout = layout_with_svek(&graph)?;
 
     // compute note layout
     layout.notes = compute_note_layouts(&cd.notes, &layout.nodes, &name_to_id);

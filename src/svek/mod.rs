@@ -253,6 +253,12 @@ impl DotStringFactory {
         sb.push_str(&format!("nodesep={:.6};\n", nodesep));
         sb.push_str(&format!("ranksep={:.6};\n", ranksep));
 
+        // Java: DotStringFactory.createDotString() — remincross + searchsize
+        if !self.is_activity {
+            sb.push_str("remincross=true;\n");
+        }
+        sb.push_str("searchsize=500;\n");
+
         match self.splines {
             DotSplines::Spline => sb.push_str("splines=spline;\n"),
             DotSplines::Polyline => sb.push_str("splines=polyline;\n"),
@@ -272,29 +278,13 @@ impl DotStringFactory {
 
         for node in &self.bibliotekon.nodes {
             if !clustered.contains(node.uid.as_str()) {
-                sb.push_str(&format!(
-                    "\"{}\" [shape={},label=\"\",width={:.6},height={:.6},color=\"{}\"];\n",
-                    node.uid,
-                    node.shape_type.dot_shape(),
-                    utils::pixel_to_inches(node.width),
-                    utils::pixel_to_inches(node.height),
-                    ColorSequence::color_to_hex(node.color),
-                ));
+                node.append_shape(&mut sb);
             }
         }
 
-        // Edges
+        // Edges — Java: DotStringFactory iterates biblio.allLines()
         for edge in &self.bibliotekon.edges {
-            sb.push_str(&format!("\"{}\" -> \"{}\"", edge.from_uid, edge.to_uid));
-            let mut attrs = Vec::new();
-            attrs.push(format!("color=\"{}\"", ColorSequence::color_to_hex(edge.color)));
-            if let Some(ref label) = edge.label {
-                attrs.push(format!("label=\"{}\"", label));
-            }
-            if !attrs.is_empty() {
-                sb.push_str(&format!(" [{}]", attrs.join(",")));
-            }
-            sb.push_str(";\n");
+            edge.append_line(&mut sb);
         }
 
         sb.push_str("}\n");
@@ -312,14 +302,7 @@ impl DotStringFactory {
         }
         for uid in &cluster.node_uids {
             if let Some(node) = self.bibliotekon.find_node(uid) {
-                sb.push_str(&format!(
-                    "\"{}\" [shape={},label=\"\",width={:.6},height={:.6},color=\"{}\"];\n",
-                    node.uid,
-                    node.shape_type.dot_shape(),
-                    utils::pixel_to_inches(node.width),
-                    utils::pixel_to_inches(node.height),
-                    ColorSequence::color_to_hex(node.color),
-                ));
+                node.append_shape(sb);
             }
         }
         sb.push_str("}\n");
@@ -334,6 +317,10 @@ impl DotStringFactory {
     pub fn solve(&mut self, svg: &str) -> Result<(), String> {
         use crate::svek::svg_result::SvgResult;
 
+        // Parse translate(tx, ty) from Graphviz SVG top-level <g> transform.
+        // Graphviz coordinates are in internal space (Y negative); translate
+        // converts to SVG viewport coordinates.
+        let (tx, ty) = parse_svg_translate(svg);
         let svg_result = SvgResult::new(svg.to_string());
 
         // Position nodes by finding their polygons via color
@@ -341,38 +328,64 @@ impl DotStringFactory {
             if node.hidden {
                 continue;
             }
-            let mut pli = svg_result.get_points_with_this_color(node.color);
-            if let Some(points) = pli.next() {
-                if !points.is_empty() {
-                    let min_x = points.iter().map(|p| p.x).fold(f64::INFINITY, f64::min);
-                    let min_y = points.iter().map(|p| p.y).fold(f64::INFINITY, f64::min);
-                    node.min_x = min_x;
-                    node.min_y = min_y;
-                    node.cx = min_x + node.width / 2.0;
-                    node.cy = min_y + node.height / 2.0;
-                    node.set_polygon(min_x, min_y, &points);
-                }
+            let Some(idx) = svg_result.find_by_color(node.color) else {
+                continue;
+            };
+            // Extract polygon points from SVG and apply translate
+            let raw_points = svg_result.extract_points_at(idx);
+            if !raw_points.is_empty() {
+                let points: Vec<XPoint2D> = raw_points
+                    .iter()
+                    .map(|p| XPoint2D::new(p.x + tx, p.y + ty))
+                    .collect();
+                let min_x = points.iter().map(|p| p.x).fold(f64::INFINITY, f64::min);
+                let min_y = points.iter().map(|p| p.y).fold(f64::INFINITY, f64::min);
+                node.min_x = min_x;
+                node.min_y = min_y;
+                node.cx = min_x + node.width / 2.0;
+                node.cy = min_y + node.height / 2.0;
+                node.set_polygon(min_x, min_y, &points);
             } else {
-                // Try direct color lookup for ellipse nodes
-                if let Some(idx) = svg_result.find_by_color(node.color) {
-                    let svg_str = svg_result.svg();
-                    if let Some(cx) = parse_xml_attr_near(svg_str, idx, "cx") {
-                        if let Some(cy) = parse_xml_attr_near(svg_str, idx, "cy") {
-                            let rx = parse_xml_attr_near(svg_str, idx, "rx").unwrap_or(0.0);
-                            let ry = parse_xml_attr_near(svg_str, idx, "ry").unwrap_or(0.0);
-                            node.min_x = cx - rx;
-                            node.min_y = cy - ry;
-                            node.cx = cx;
-                            node.cy = cy;
-                        }
+                // Try ellipse: cx/cy attributes near the color position
+                let svg_str = svg_result.svg();
+                if let Some(cx) = parse_xml_attr_near(svg_str, idx, "cx") {
+                    if let Some(cy) = parse_xml_attr_near(svg_str, idx, "cy") {
+                        let rx = parse_xml_attr_near(svg_str, idx, "rx").unwrap_or(0.0);
+                        let ry = parse_xml_attr_near(svg_str, idx, "ry").unwrap_or(0.0);
+                        node.min_x = (cx + tx) - rx;
+                        node.min_y = (cy + ty) - ry;
+                        node.cx = cx + tx;
+                        node.cy = cy + ty;
                     }
                 }
             }
         }
 
-        // Position edges
+        // Position edges — extract_dot_path handles raw SVG coords;
+        // apply translate to resulting paths
         for edge in &mut self.bibliotekon.edges {
             edge.solve_line(&svg_result);
+            // Apply translate to extracted path
+            if tx != 0.0 || ty != 0.0 {
+                if let Some(ref mut path) = edge.dot_path {
+                    path.move_delta(tx, ty);
+                }
+                if let Some(ref mut path) = edge.dot_path_init {
+                    path.move_delta(tx, ty);
+                }
+                if let Some(ref mut pt) = edge.label_xy {
+                    pt.x += tx;
+                    pt.y += ty;
+                }
+                if let Some(ref mut pt) = edge.start_tail_label_xy {
+                    pt.x += tx;
+                    pt.y += ty;
+                }
+                if let Some(ref mut pt) = edge.end_head_label_xy {
+                    pt.x += tx;
+                    pt.y += ty;
+                }
+            }
         }
 
         // Normalize: compute bounding box and shift to origin + margin(6)
@@ -412,6 +425,35 @@ impl DotStringFactory {
             edge.move_delta(dx, dy);
         }
     }
+}
+
+/// Coordinate transform that applies translate(tx, ty).
+struct TranslateFunction {
+    tx: f64,
+    ty: f64,
+}
+
+impl Point2DFunction for TranslateFunction {
+    fn apply(&self, pt: XPoint2D) -> XPoint2D {
+        XPoint2D::new(pt.x + self.tx, pt.y + self.ty)
+    }
+}
+
+/// Parse `translate(tx, ty)` from Graphviz SVG top-level `<g>` transform.
+fn parse_svg_translate(svg: &str) -> (f64, f64) {
+    if let Some(pos) = svg.find("translate(") {
+        let after = &svg[pos + 10..];
+        if let Some(end) = after.find(')') {
+            let inner = &after[..end];
+            let parts: Vec<&str> = inner.split(|c: char| c == ' ' || c == ',').collect();
+            if parts.len() >= 2 {
+                let tx: f64 = parts[0].trim().parse().unwrap_or(0.0);
+                let ty: f64 = parts[1].trim().parse().unwrap_or(0.0);
+                return (tx, ty);
+            }
+        }
+    }
+    (0.0, 0.0)
 }
 
 /// Parse a numeric XML attribute value near a given position.

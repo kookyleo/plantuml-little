@@ -357,6 +357,9 @@ fn parse_svg_path_to_dotpath(d: &str) -> Option<crate::klimt::shape::DotPath> {
 
 /// Parse SVG path `d` attribute into a DotPath, applying a coordinate transform.
 /// Java: `SvgResult.toDotPath()` logic
+///
+/// Handles Graphviz SVG format where commands and numbers are concatenated
+/// without spaces (e.g., `M36,-85.7C36,-74.56 36,-61.38 36,-50.24`).
 fn parse_svg_path_to_dotpath_with_fn(
     d: &str,
     function: &dyn Point2DFunction,
@@ -369,62 +372,109 @@ fn parse_svg_path_to_dotpath_with_fn(
     let mut nums = Vec::new();
     let mut cmd = ' ';
 
-    for token in d.split_whitespace() {
-        if token.len() == 1
-            && token
-                .chars()
-                .next()
-                .map_or(false, |c| c.is_ascii_alphabetic())
-        {
-            cmd = token.chars().next().unwrap();
+    // Tokenize: split into commands (single letter) and numbers,
+    // handling concatenated format like "M36,-85.7C36,-74.56"
+    let tokens = tokenize_svg_path(d);
+
+    for tok in &tokens {
+        if tok.len() == 1 && tok.chars().next().map_or(false, |c| c.is_ascii_alphabetic()) {
+            // Process accumulated numbers before switching command
+            process_path_cmd(cmd, &mut nums, &mut beziers, &mut current_x, &mut current_y, function);
+            cmd = tok.chars().next().unwrap();
             continue;
         }
-        // Handle "x,y" format
-        for part in token.split(',') {
-            if let Ok(v) = part.parse::<f64>() {
-                nums.push(v);
-            }
+        if let Ok(v) = tok.parse::<f64>() {
+            nums.push(v);
         }
-
-        match cmd {
-            'M' if nums.len() >= 2 => {
-                let pt = function.apply(XPoint2D::new(nums[0], nums[1]));
-                current_x = pt.x;
-                current_y = pt.y;
-                nums.clear();
-            }
-            'C' if nums.len() >= 6 => {
-                let p1 = function.apply(XPoint2D::new(nums[0], nums[1]));
-                let p2 = function.apply(XPoint2D::new(nums[2], nums[3]));
-                let p3 = function.apply(XPoint2D::new(nums[4], nums[5]));
-                beziers.push(XCubicCurve2D::new(
-                    current_x, current_y, p1.x, p1.y, p2.x, p2.y, p3.x,
-                    p3.y,
-                ));
-                current_x = p3.x;
-                current_y = p3.y;
-                nums.clear();
-            }
-            'L' if nums.len() >= 2 => {
-                let pt = function.apply(XPoint2D::new(nums[0], nums[1]));
-                // Straight line as degenerate cubic
-                beziers.push(XCubicCurve2D::new(
-                    current_x, current_y, current_x, current_y, pt.x,
-                    pt.y, pt.x, pt.y,
-                ));
-                current_x = pt.x;
-                current_y = pt.y;
-                nums.clear();
-            }
-            _ => {}
-        }
+        // Process immediately when enough numbers for current command
+        process_path_cmd(cmd, &mut nums, &mut beziers, &mut current_x, &mut current_y, function);
     }
+    // Process any remaining numbers
+    process_path_cmd(cmd, &mut nums, &mut beziers, &mut current_x, &mut current_y, function);
 
     if beziers.is_empty() {
         None
     } else {
         Some(crate::klimt::shape::DotPath::from_beziers(beziers))
     }
+}
+
+fn process_path_cmd(
+    cmd: char,
+    nums: &mut Vec<f64>,
+    beziers: &mut Vec<crate::klimt::geom::XCubicCurve2D>,
+    current_x: &mut f64,
+    current_y: &mut f64,
+    function: &dyn Point2DFunction,
+) {
+    use crate::klimt::geom::XCubicCurve2D;
+    match cmd {
+        'M' if nums.len() >= 2 => {
+            let pt = function.apply(XPoint2D::new(nums[0], nums[1]));
+            *current_x = pt.x;
+            *current_y = pt.y;
+            nums.drain(..2);
+        }
+        'C' if nums.len() >= 6 => {
+            let p1 = function.apply(XPoint2D::new(nums[0], nums[1]));
+            let p2 = function.apply(XPoint2D::new(nums[2], nums[3]));
+            let p3 = function.apply(XPoint2D::new(nums[4], nums[5]));
+            beziers.push(XCubicCurve2D::new(
+                *current_x, *current_y, p1.x, p1.y, p2.x, p2.y, p3.x, p3.y,
+            ));
+            *current_x = p3.x;
+            *current_y = p3.y;
+            nums.drain(..6);
+        }
+        'L' if nums.len() >= 2 => {
+            let pt = function.apply(XPoint2D::new(nums[0], nums[1]));
+            beziers.push(XCubicCurve2D::new(
+                *current_x, *current_y, *current_x, *current_y, pt.x, pt.y, pt.x, pt.y,
+            ));
+            *current_x = pt.x;
+            *current_y = pt.y;
+            nums.drain(..2);
+        }
+        _ => {}
+    }
+}
+
+/// Tokenize SVG path d-string into commands and numbers.
+/// Handles concatenated format: "M36,-85.7C36,-74.56" → ["M", "36", "-85.7", "C", "36", "-74.56"]
+fn tokenize_svg_path(d: &str) -> Vec<String> {
+    let mut tokens = Vec::new();
+    let mut num_buf = String::new();
+    let mut chars = d.chars().peekable();
+
+    while let Some(&ch) = chars.peek() {
+        if ch.is_ascii_alphabetic() {
+            // Flush number buffer
+            if !num_buf.is_empty() {
+                tokens.push(std::mem::take(&mut num_buf));
+            }
+            tokens.push(ch.to_string());
+            chars.next();
+        } else if ch == '-' && !num_buf.is_empty()
+            && !num_buf.ends_with('e') && !num_buf.ends_with('E')
+        {
+            // Negative sign starts a new number (unless after exponent)
+            tokens.push(std::mem::take(&mut num_buf));
+            num_buf.push(ch);
+            chars.next();
+        } else if ch == ',' || ch == ' ' || ch == '\t' || ch == '\n' || ch == '\r' {
+            if !num_buf.is_empty() {
+                tokens.push(std::mem::take(&mut num_buf));
+            }
+            chars.next();
+        } else {
+            num_buf.push(ch);
+            chars.next();
+        }
+    }
+    if !num_buf.is_empty() {
+        tokens.push(num_buf);
+    }
+    tokens
 }
 
 #[cfg(test)]

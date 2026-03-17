@@ -296,34 +296,32 @@ pub fn layout_with_svek(graph: &LayoutGraph) -> Result<GraphLayout, Error> {
         .solve(&svg)
         .map_err(|e| Error::Layout(format!("svek solve error: {e}")))?;
 
-    // Convert svek results to GraphLayout
+    // Convert svek results to GraphLayout, normalizing to origin (0,0)
+    // since the renderer adds its own MARGIN offset.
     let svek_nodes = builder.nodes();
     let svek_edges = builder.edges();
 
-    let mut nodes_out = Vec::with_capacity(svek_nodes.len());
-    for (i, sn) in svek_nodes.iter().enumerate() {
+    // Build initial node layouts
+    let mut nodes_out: Vec<NodeLayout> = svek_nodes.iter().enumerate().map(|(i, sn)| {
         let id = if i < graph.nodes.len() {
             graph.nodes[i].id.clone()
         } else {
             sn.uid.clone()
         };
-        nodes_out.push(NodeLayout {
-            id,
-            cx: sn.cx,
-            cy: sn.cy,
-            width: sn.width,
-            height: sn.height,
-        });
-    }
+        NodeLayout { id, cx: sn.cx, cy: sn.cy, width: sn.width, height: sn.height }
+    }).collect();
 
-    let mut edges_out = Vec::with_capacity(svek_edges.len());
-    for (i, se) in svek_edges.iter().enumerate() {
-        let (from, to) = if i < graph.edges.len() {
-            (graph.edges[i].from.clone(), graph.edges[i].to.clone())
+    // Build initial edge layouts
+    let active_edges: Vec<&crate::layout::graphviz::LayoutEdge> = graph.edges
+        .iter()
+        .filter(|e| !e.invisible)
+        .collect();
+    let mut edges_out: Vec<EdgeLayout> = svek_edges.iter().enumerate().map(|(i, se)| {
+        let (from, to) = if i < active_edges.len() {
+            (active_edges[i].from.clone(), active_edges[i].to.clone())
         } else {
             (se.from_uid.clone(), se.to_uid.clone())
         };
-
         let mut points = Vec::new();
         let mut raw_path_d = None;
         if let Some(ref dp) = se.get_dot_path() {
@@ -337,28 +335,40 @@ pub fn layout_with_svek(graph: &LayoutGraph) -> Result<GraphLayout, Error> {
             }
             raw_path_d = Some(dp.to_upath().to_svg_path_d());
         }
-
-        edges_out.push(EdgeLayout {
-            from,
-            to,
-            points,
+        EdgeLayout {
+            from, to, points,
             arrow_tip: se.end_contact_point().map(|p| (p.x, p.y)),
             raw_path_d,
             arrow_polygon_points: None,
-        });
-    }
+        }
+    }).collect();
 
     // Compute bounding box
-    let mut total_width = 0.0_f64;
-    let mut total_height = 0.0_f64;
-    for n in &nodes_out {
-        let right = n.cx + n.width / 2.0;
-        let bottom = n.cy + n.height / 2.0;
-        if right > total_width {
-            total_width = right;
+    let min_x = nodes_out.iter().map(|n| n.cx - n.width / 2.0).fold(f64::INFINITY, f64::min);
+    let min_y = nodes_out.iter().map(|n| n.cy - n.height / 2.0).fold(f64::INFINITY, f64::min);
+    let max_x = nodes_out.iter().map(|n| n.cx + n.width / 2.0).fold(0.0_f64, f64::max);
+    let max_y = nodes_out.iter().map(|n| n.cy + n.height / 2.0).fold(0.0_f64, f64::max);
+    let total_width = max_x - min_x;
+    let total_height = max_y - min_y;
+
+    // debug removed
+
+    // Normalize to origin: shift so top-left entity corner is at (0, 0)
+    for n in &mut nodes_out {
+        n.cx -= min_x;
+        n.cy -= min_y;
+    }
+    for e in &mut edges_out {
+        for p in &mut e.points {
+            p.0 -= min_x;
+            p.1 -= min_y;
         }
-        if bottom > total_height {
-            total_height = bottom;
+        if let Some(ref mut tip) = e.arrow_tip {
+            tip.0 -= min_x;
+            tip.1 -= min_y;
+        }
+        if let Some(ref raw_d) = e.raw_path_d {
+            e.raw_path_d = Some(transform_path_d(raw_d, -min_x, -min_y));
         }
     }
 
