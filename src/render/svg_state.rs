@@ -28,8 +28,7 @@ const FINAL_OUTER: &str = "#000000";
 const FINAL_INNER: &str = "#000000";
 const EDGE_COLOR: &str = "#181818";
 const TEXT_FILL: &str = "#000000";
-const NOTE_BG: &str = "#FEFFDD";
-const NOTE_BORDER: &str = "#181818";
+use crate::skin::rose::{NOTE_BG, NOTE_BORDER};
 
 // ── Public entry point ──────────────────────────────────────────────
 

@@ -31,8 +31,7 @@ const CLOUD_BG: &str = "#F1F1F1";
 const CLOUD_BORDER: &str = "#181818";
 const EDGE_COLOR: &str = "#181818";
 const TEXT_FILL: &str = "#000000";
-const NOTE_BG: &str = "#FEFFDD";
-const NOTE_BORDER: &str = "#181818";
+use crate::skin::rose::{NOTE_BG, NOTE_BORDER};
 const GROUP_BG: &str = "#FFFFFF";
 const GROUP_BORDER: &str = "#181818";
 // Deployment diagram element colors

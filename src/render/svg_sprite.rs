@@ -9,7 +9,7 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 use std::fmt::Write;
 
-use crate::render::svg::fmt_coord;
+use crate::render::svg::{fmt_coord, xml_escape};
 
 thread_local! {
     static COLLECTED_GRADIENT_DEFS: RefCell<Vec<(String, String)>> = RefCell::new(Vec::new());
@@ -572,23 +572,36 @@ fn convert_path(buf: &mut String, element: &str, ox: f64, oy: f64) {
     buf.push_str("/>");
 }
 
+/// Get a text attribute from either a direct attribute or the style property.
+fn get_text_attr_or<'a>(element: &'a str, attr: &str, style_prop: &str, default: &'a str) -> &'a str {
+    get_attr(element, attr)
+        .or_else(|| get_attr(element, "style").and_then(|s| get_style_prop(s, style_prop)))
+        .unwrap_or(default)
+}
+
 fn convert_text(buf: &mut String, element: &str, ox: f64, oy: f64) {
     // Extract text content
     let inner = extract_element_content(element, "text");
 
-    // Get attributes
+    // Get attributes (check both attribute and style property)
     let x = get_attr(element, "x")
         .and_then(|v| v.parse::<f64>().ok())
         .unwrap_or(0.0);
     let y = get_attr(element, "y")
         .and_then(|v| v.parse::<f64>().ok())
         .unwrap_or(0.0);
-    let fill = get_attr(element, "fill").unwrap_or("#000000");
-    let font_family = get_attr(element, "font-family").unwrap_or("sans-serif");
-    let font_size = get_attr(element, "font-size").unwrap_or("14");
-    let font_weight = get_attr(element, "font-weight");
-    let font_style_attr = get_attr(element, "font-style");
-    let text_decoration = get_attr(element, "text-decoration");
+    let fill = normalize_hex_color(get_text_attr_or(element, "fill", "fill", "#000000"));
+    let font_family_raw = get_text_attr_or(element, "font-family", "font-family", "sans-serif");
+    // Strip "px" suffix from font-size (CSS style may use "16px")
+    let font_size_raw = get_text_attr_or(element, "font-size", "font-size", "14");
+    let font_size = font_size_raw.trim_end_matches("px");
+    let font_family = font_family_raw;
+    let font_weight_str = get_text_attr_or(element, "font-weight", "font-weight", "");
+    let font_weight: Option<&str> = if font_weight_str.is_empty() { None } else { Some(font_weight_str) };
+    let font_style_str = get_text_attr_or(element, "font-style", "font-style", "");
+    let font_style_attr: Option<&str> = if font_style_str.is_empty() { None } else { Some(font_style_str) };
+    let td_str = get_text_attr_or(element, "text-decoration", "text-decoration", "");
+    let text_decoration: Option<&str> = if td_str.is_empty() { None } else { Some(td_str) };
 
     // Compute text width using font metrics
     let text_content = inner.trim();
@@ -597,25 +610,46 @@ fn convert_text(buf: &mut String, element: &str, ox: f64, oy: f64) {
         .map(|w| w == "bold" || w == "700" || w == "800" || w == "900")
         .unwrap_or(false);
     let italic = font_style_attr
-        .map(|s| s == "italic")
+        .map(|s| s == "italic" || s == "oblique")
         .unwrap_or(false);
+    // Java maps "oblique" to "italic" in SVG output
+    let font_style_output = font_style_attr.map(|s| if s == "oblique" { "italic" } else { s });
     let text_length =
         crate::font_metrics::text_width(text_content, font_family, size, bold, italic);
+
+    // Java: "monospaced" → "monospace"
+    let font_family = if font_family.eq_ignore_ascii_case("monospaced") { "monospace" } else { font_family };
+    // Java: replace spaces with non-breaking space (&#160;) for monospace/courier fonts
+    let text_output: std::borrow::Cow<str> = if font_family.eq_ignore_ascii_case("monospace") || font_family.eq_ignore_ascii_case("courier") {
+        std::borrow::Cow::Owned(text_content.replace(' ', "\u{00A0}"))
+    } else {
+        std::borrow::Cow::Borrowed(text_content)
+    };
 
     write!(
         buf,
         r#"<text fill="{fill}" font-family="{font_family}" font-size="{font_size}""#,
     )
     .unwrap();
-    if let Some(fs) = font_style_attr {
-        write!(buf, r#" font-style="{fs}""#).unwrap();
+    if let Some(fs) = font_style_output {
+        if fs != "normal" {
+            write!(buf, r#" font-style="{fs}""#).unwrap();
+        }
     }
     if let Some(fw) = font_weight {
-        write!(buf, r#" font-weight="{fw}""#).unwrap();
+        // Java does not output font-weight for normal/400 (default)
+        // Java maps "bold" to "700"
+        if fw != "normal" && fw != "400" {
+            let fw_out = if fw == "bold" { "700" } else { fw };
+            write!(buf, r#" font-weight="{fw_out}""#).unwrap();
+        }
     }
     write!(buf, r#" lengthAdjust="spacing""#).unwrap();
     if let Some(td) = text_decoration {
-        write!(buf, r#" text-decoration="{td}""#).unwrap();
+        // Java only supports underline and line-through (not overline or none)
+        if td == "underline" || td == "line-through" {
+            write!(buf, r#" text-decoration="{td}""#).unwrap();
+        }
     }
     write!(
         buf,
@@ -623,7 +657,7 @@ fn convert_text(buf: &mut String, element: &str, ox: f64, oy: f64) {
         fmt_coord(text_length),
         fmt_coord(x + ox),
         fmt_coord(y + oy),
-        text_content,
+        xml_escape(&text_output),
     )
     .unwrap();
 }
@@ -696,6 +730,17 @@ fn parse_translate(transform: &str) -> (f64, f64) {
 
 // ── Attribute helpers ───────────────────────────────────────────────────────
 
+/// Normalize hex color to uppercase.  Java DOM serializes all hex colors in
+/// uppercase (#RRGGBB). Pass-through non-hex values like "none" or "url(#id)".
+fn normalize_hex_color(s: &str) -> String {
+    if let Some(hex) = s.strip_prefix('#') {
+        if hex.chars().all(|c| c.is_ascii_hexdigit()) {
+            return format!("#{}", hex.to_ascii_uppercase());
+        }
+    }
+    s.to_string()
+}
+
 fn get_fill(element: &str) -> String {
     get_fill_or(element, "#000000")
 }
@@ -703,12 +748,12 @@ fn get_fill(element: &str) -> String {
 fn get_fill_or(element: &str, default: &str) -> String {
     // Check fill attribute
     if let Some(fill) = get_attr(element, "fill") {
-        return fill.to_string();
+        return normalize_hex_color(fill);
     }
     // Check style attribute for fill
     if let Some(style) = get_attr(element, "style") {
         if let Some(fill) = get_style_prop(style, "fill") {
-            return fill.to_string();
+            return normalize_hex_color(fill);
         }
     }
     default.to_string()
@@ -735,7 +780,7 @@ fn get_stroke_style(element: &str) -> String {
         });
 
     if let Some(s) = stroke {
-        parts.push(format!("stroke:{s};"));
+        parts.push(format!("stroke:{};", normalize_hex_color(s)));
     }
     if let Some(sw) = stroke_width {
         parts.push(format!("stroke-width:{sw};"));
