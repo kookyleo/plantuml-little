@@ -13,7 +13,7 @@ pub mod signature;
 
 pub use pname::PName;
 pub use sname::SName;
-pub use value::Value;
+pub use value::{Value, ValueImpl, ValueColor, ValueNull, DarkString, LengthAdjust, MergeStrategy};
 pub use skin_param::ISkinParam;
 
 // Backward compatibility: re-export everything from the old style.rs
