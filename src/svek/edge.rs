@@ -1007,44 +1007,6 @@ pub fn get_max_xy(points: &[XPoint2D]) -> XPoint2D {
     XPoint2D::new(max_x, max_y)
 }
 
-// ── SvgResult extension ─────────────────────────────────────────────
-
-impl crate::svek::svg_result::SvgResult {
-    /// Extract points from a `points="..."` attribute near a given index.
-    pub fn extract_points_at(&self, from: usize) -> Vec<XPoint2D> {
-        let svg = self.svg();
-        if from >= svg.len() {
-            return vec![];
-        }
-        let sub = &svg[from..];
-        let needle = "points=\"";
-        if let Some(p_start) = sub.find(needle) {
-            let after = p_start + needle.len();
-            if let Some(p_end) = sub[after..].find('"') {
-                let coords = &sub[after..after + p_end];
-                return parse_points_str(coords);
-            }
-        }
-        vec![]
-    }
-}
-
-/// Parse a coordinate string "x1,y1 x2,y2 ..." into points.
-fn parse_points_str(s: &str) -> Vec<XPoint2D> {
-    let mut points = Vec::new();
-    let clean = s.replace(',', " ");
-    let nums: Vec<f64> = clean
-        .split_whitespace()
-        .filter_map(|t| t.parse::<f64>().ok())
-        .collect();
-    for pair in nums.chunks(2) {
-        if pair.len() == 2 {
-            points.push(XPoint2D::new(pair[0], pair[1]));
-        }
-    }
-    points
-}
-
 // ── Tests ───────────────────────────────────────────────────────────
 
 #[cfg(test)]
@@ -1750,29 +1712,6 @@ mod tests {
         let pts = vec![XPoint2D::new(7.0, 3.0)];
         assert_eq!(get_min_xy(&pts), XPoint2D::new(7.0, 3.0));
         assert_eq!(get_max_xy(&pts), XPoint2D::new(7.0, 3.0));
-    }
-
-    #[test]
-    fn parse_points_str_basic() {
-        let pts = parse_points_str("10,20 30,40 50,60");
-        assert_eq!(pts.len(), 3);
-        assert_eq!(pts[0], XPoint2D::new(10.0, 20.0));
-        assert_eq!(pts[1], XPoint2D::new(30.0, 40.0));
-        assert_eq!(pts[2], XPoint2D::new(50.0, 60.0));
-    }
-
-    #[test]
-    fn parse_points_str_spaces() {
-        let pts = parse_points_str("10 20 30 40");
-        assert_eq!(pts.len(), 2);
-        assert_eq!(pts[0], XPoint2D::new(10.0, 20.0));
-        assert_eq!(pts[1], XPoint2D::new(30.0, 40.0));
-    }
-
-    #[test]
-    fn parse_points_str_empty() {
-        let pts = parse_points_str("");
-        assert!(pts.is_empty());
     }
 
     // ── SVG parsing integration ──

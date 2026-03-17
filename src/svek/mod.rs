@@ -326,12 +326,81 @@ impl DotStringFactory {
     }
 
     /// Parse SVG output and position nodes/edges.
-    pub fn solve(&mut self, _svg: &str) -> Result<(), String> {
-        // TODO: Full SVG parsing implementation
+    /// Java: `DotStringFactory.solve(SvgResult)`
+    ///
+    /// 1. For each node: find polygon/ellipse by color → extract position
+    /// 2. For each edge: call `solve_line()` to extract path + labels
+    /// 3. Normalize coordinates (shift so min position = (6, 6))
+    pub fn solve(&mut self, svg: &str) -> Result<(), String> {
+        use crate::svek::svg_result::SvgResult;
+
+        let svg_result = SvgResult::new(svg.to_string());
+
+        // Position nodes by finding their polygons via color
+        for node in &mut self.bibliotekon.nodes {
+            if node.hidden {
+                continue;
+            }
+            let mut pli = svg_result.get_points_with_this_color(node.color);
+            if let Some(points) = pli.next() {
+                if !points.is_empty() {
+                    let min_x = points.iter().map(|p| p.x).fold(f64::INFINITY, f64::min);
+                    let min_y = points.iter().map(|p| p.y).fold(f64::INFINITY, f64::min);
+                    node.min_x = min_x;
+                    node.min_y = min_y;
+                    node.cx = min_x + node.width / 2.0;
+                    node.cy = min_y + node.height / 2.0;
+                    node.set_polygon(min_x, min_y, &points);
+                }
+            } else {
+                // Try direct color lookup for ellipse nodes
+                if let Some(idx) = svg_result.find_by_color(node.color) {
+                    let svg_str = svg_result.svg();
+                    if let Some(cx) = parse_xml_attr_near(svg_str, idx, "cx") {
+                        if let Some(cy) = parse_xml_attr_near(svg_str, idx, "cy") {
+                            let rx = parse_xml_attr_near(svg_str, idx, "rx").unwrap_or(0.0);
+                            let ry = parse_xml_attr_near(svg_str, idx, "ry").unwrap_or(0.0);
+                            node.min_x = cx - rx;
+                            node.min_y = cy - ry;
+                            node.cx = cx;
+                            node.cy = cy;
+                        }
+                    }
+                }
+            }
+        }
+
+        // Position edges
+        for edge in &mut self.bibliotekon.edges {
+            edge.solve_line(&svg_result);
+        }
+
+        // Normalize: compute bounding box and shift to origin + margin(6)
+        // Java: SvekResult.java:133 — moveDelta(6 - minMax.getMinX(), 6 - minMax.getMinY())
+        let mut min_x = f64::INFINITY;
+        let mut min_y = f64::INFINITY;
+        for node in &self.bibliotekon.nodes {
+            if node.hidden {
+                continue;
+            }
+            if node.min_x < min_x {
+                min_x = node.min_x;
+            }
+            if node.min_y < min_y {
+                min_y = node.min_y;
+            }
+        }
+        if min_x.is_finite() && min_y.is_finite() {
+            let dx = 6.0 - min_x;
+            let dy = 6.0 - min_y;
+            self.move_delta(dx, dy);
+        }
+
         Ok(())
     }
 
     /// Move all positioned elements by delta.
+    /// Java: `SvekResult.moveDelta()` — moves nodes and edges.
     pub fn move_delta(&mut self, dx: f64, dy: f64) {
         for node in &mut self.bibliotekon.nodes {
             node.cx += dx;
@@ -339,7 +408,23 @@ impl DotStringFactory {
             node.min_x += dx;
             node.min_y += dy;
         }
+        for edge in &mut self.bibliotekon.edges {
+            edge.move_delta(dx, dy);
+        }
     }
+}
+
+/// Parse a numeric XML attribute value near a given position.
+/// Searches forward from `from` within a reasonable range for `attr_name="value"`.
+fn parse_xml_attr_near(svg: &str, from: usize, attr_name: &str) -> Option<f64> {
+    // Search within next 200 chars for the element containing this attribute
+    let end = (from + 200).min(svg.len());
+    let search = &svg[from..end];
+    let needle = format!("{}=\"", attr_name);
+    let pos = search.find(&needle)?;
+    let val_start = pos + needle.len();
+    let val_end = search[val_start..].find('"')?;
+    search[val_start..val_start + val_end].parse().ok()
 }
 
 // ── Tests ────────────────────────────────────────────────────────────
@@ -385,5 +470,74 @@ mod tests {
         b.add_node(node::SvekNode::new("n2", 80.0, 40.0));
         assert!(b.find_node("n1").is_some());
         assert!(b.find_node("n3").is_none());
+    }
+
+    #[test]
+    fn parse_xml_attr_near_basic() {
+        let svg = r#"<ellipse cx="54" cy="18" rx="27" ry="18"/>"#;
+        assert_eq!(parse_xml_attr_near(svg, 0, "cx"), Some(54.0));
+        assert_eq!(parse_xml_attr_near(svg, 0, "cy"), Some(18.0));
+        assert_eq!(parse_xml_attr_near(svg, 0, "rx"), Some(27.0));
+        assert_eq!(parse_xml_attr_near(svg, 0, "ry"), Some(18.0));
+        assert_eq!(parse_xml_attr_near(svg, 0, "zz"), None);
+    }
+
+    #[test]
+    fn solve_positions_nodes_from_polygon() {
+        // Simulate Graphviz SVG output with two nodes identified by color
+        let svg = concat!(
+            r##"<svg><g>"##,
+            r##"<polygon fill="none" stroke="#010100" points="100,0 200,0 200,50 100,50 100,0"/>"##,
+            r##"<polygon fill="none" stroke="#020200" points="50,80 150,80 150,130 50,130 50,80"/>"##,
+            r##"<path fill="none" stroke="#030300" d="M 150,25 C 140,50 120,70 100,105"/>"##,
+            r##"</g></svg>"##,
+        );
+
+        let mut bib = Bibliotekon::new();
+        let mut n1 = node::SvekNode::new("n1", 100.0, 50.0);
+        n1.color = 0x010100;
+        let mut n2 = node::SvekNode::new("n2", 100.0, 50.0);
+        n2.color = 0x020200;
+        bib.add_node(n1);
+        bib.add_node(n2);
+
+        let mut e = edge::SvekEdge::new("n1", "n2");
+        e.color = 0x030300;
+        bib.add_edge(e);
+
+        let mut factory = DotStringFactory::new(bib);
+        factory.solve(svg).unwrap();
+
+        // After solve + normalization (min should be at 6.0)
+        let n1 = factory.bibliotekon.find_node("n1").unwrap();
+        let n2 = factory.bibliotekon.find_node("n2").unwrap();
+
+        // Original min was (50, 0), so delta = (6-50, 6-0) = (-44, 6)
+        // n1 polygon min was (100, 0) → min_x = 100 + (-44) = 56
+        assert!((n1.min_x - 56.0).abs() < 0.01, "n1.min_x={}", n1.min_x);
+        assert!((n1.min_y - 6.0).abs() < 0.01, "n1.min_y={}", n1.min_y);
+        // n2 polygon min was (50, 80) → min_x = 50 + (-44) = 6
+        assert!((n2.min_x - 6.0).abs() < 0.01, "n2.min_x={}", n2.min_x);
+        assert!((n2.min_y - 86.0).abs() < 0.01, "n2.min_y={}", n2.min_y);
+
+        // Edge should have a path
+        let edge = &factory.bibliotekon.edges[0];
+        assert!(edge.dot_path.is_some(), "edge should have a dot_path");
+    }
+
+    #[test]
+    fn solve_empty_svg() {
+        let mut bib = Bibliotekon::new();
+        let mut n = node::SvekNode::new("n1", 100.0, 50.0);
+        n.color = 0x010100;
+        bib.add_node(n);
+
+        let mut factory = DotStringFactory::new(bib);
+        // Empty SVG should not crash
+        factory.solve("<svg></svg>").unwrap();
+
+        let n = factory.bibliotekon.find_node("n1").unwrap();
+        // Node not found in SVG, but normalization still shifts to (6, 6)
+        assert_eq!(n.min_x, 6.0);
     }
 }

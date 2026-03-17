@@ -191,6 +191,24 @@ impl SvgResult {
         self.svg.starts_with('M')
     }
 
+    /// Extract point list from a `points="..."` attribute searching from `from`.
+    /// Java: used by `SvekEdge.getLabelXY()` and node position extraction.
+    pub fn extract_points_at(&self, from: usize) -> Vec<XPoint2D> {
+        if from >= self.svg.len() {
+            return Vec::new();
+        }
+        let search_str = &self.svg[from..];
+        let Some(points_pos) = search_str.find(POINTS_EQUALS) else {
+            return Vec::new();
+        };
+        let after = from + points_pos + POINTS_EQUALS.len();
+        let Some(end_quote) = self.svg[after..].find('"') else {
+            return Vec::new();
+        };
+        let sub = self.substring(after, after + end_quote);
+        sub.get_points(" MC")
+    }
+
     /// Extract DotPath from SVG path `d` attribute at given position.
     pub fn extract_dot_path(
         &self,
@@ -222,9 +240,12 @@ pub struct PointListIterator {
 impl PointListIterator {
     /// Create an iterator starting from the position of `line_color` in the SVG.
     /// Java: `PointListIteratorImpl.create(SvgResult, int)`
+    ///
+    /// Java creates a substring from the color position, so we store the
+    /// color index as the starting search position.
     pub fn create(svg_result: &SvgResult, line_color: u32) -> Self {
         let pos = match svg_result.get_index_from_color(line_color) {
-            Some(_) => 0,
+            Some(idx) => idx as i64,
             None => -1,
         };
         Self {
