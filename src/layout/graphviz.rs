@@ -210,6 +210,167 @@ pub fn layout(graph: &LayoutGraph) -> Result<GraphLayout, Error> {
     parse_svg_output(&svg, graph)
 }
 
+/// Alternative layout function using the svek pipeline.
+///
+/// Same interface as `layout()` but uses `DotStringFactory` for DOT generation
+/// and color-based SVG parsing. Converts svek results back to `GraphLayout`.
+pub fn layout_with_svek(graph: &LayoutGraph) -> Result<GraphLayout, Error> {
+    use crate::klimt::geom::Rankdir;
+    use crate::svek::builder::{BuilderConfig, EntityDescriptor, GraphvizImageBuilder, LinkDescriptor};
+    use crate::svek::DotSplines;
+
+    log::debug!(
+        "layout_with_svek: {} nodes, {} edges",
+        graph.nodes.len(),
+        graph.edges.len()
+    );
+
+    let rankdir = match graph.rankdir {
+        RankDir::TopToBottom => Rankdir::TopToBottom,
+        RankDir::LeftToRight => Rankdir::LeftToRight,
+        RankDir::BottomToTop => Rankdir::BottomToTop,
+        RankDir::RightToLeft => Rankdir::RightToLeft,
+    };
+
+    let config = BuilderConfig {
+        rankdir,
+        dot_splines: DotSplines::Spline,
+        nodesep: Some(MIN_NODE_SEP_PX),
+        ranksep: Some(MIN_RANK_SEP_PX),
+        ..Default::default()
+    };
+
+    let mut builder = GraphvizImageBuilder::new(config);
+
+    // Register entities
+    for node in &graph.nodes {
+        builder.add_entity(EntityDescriptor::new(&node.id, node.width_pt, node.height_pt));
+    }
+
+    // Register links
+    for edge in &graph.edges {
+        if edge.invisible {
+            continue; // svek builder doesn't support invisible edges yet
+        }
+        let mut ld = LinkDescriptor::new(&edge.from, &edge.to);
+        if let Some(ref label) = edge.label {
+            ld = ld.with_label(label);
+        }
+        builder.add_link(ld);
+    }
+
+    // Generate DOT
+    let dot = builder.build_dot();
+    log::debug!("svek dot input:\n{dot}");
+
+    // Run Graphviz (same subprocess approach)
+    let mut child = std::process::Command::new("dot")
+        .arg("-Tsvg")
+        .stdin(std::process::Stdio::piped())
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped())
+        .spawn()
+        .map_err(|e| Error::Layout(format!("failed to spawn dot: {e}")))?;
+
+    child
+        .stdin
+        .take()
+        .unwrap()
+        .write_all(dot.as_bytes())
+        .map_err(|e| Error::Layout(format!("failed to write to dot stdin: {e}")))?;
+
+    let output = child
+        .wait_with_output()
+        .map_err(|e| Error::Layout(format!("dot process error: {e}")))?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        return Err(Error::Layout(format!("dot exited with error: {stderr}")));
+    }
+
+    let svg = String::from_utf8_lossy(&output.stdout);
+    log::debug!("svek dot svg output:\n{svg}");
+
+    // Solve: parse SVG and position nodes/edges
+    builder
+        .solve(&svg)
+        .map_err(|e| Error::Layout(format!("svek solve error: {e}")))?;
+
+    // Convert svek results to GraphLayout
+    let svek_nodes = builder.nodes();
+    let svek_edges = builder.edges();
+
+    let mut nodes_out = Vec::with_capacity(svek_nodes.len());
+    for (i, sn) in svek_nodes.iter().enumerate() {
+        let id = if i < graph.nodes.len() {
+            graph.nodes[i].id.clone()
+        } else {
+            sn.uid.clone()
+        };
+        nodes_out.push(NodeLayout {
+            id,
+            cx: sn.cx,
+            cy: sn.cy,
+            width: sn.width,
+            height: sn.height,
+        });
+    }
+
+    let mut edges_out = Vec::with_capacity(svek_edges.len());
+    for (i, se) in svek_edges.iter().enumerate() {
+        let (from, to) = if i < graph.edges.len() {
+            (graph.edges[i].from.clone(), graph.edges[i].to.clone())
+        } else {
+            (se.from_uid.clone(), se.to_uid.clone())
+        };
+
+        let mut points = Vec::new();
+        let mut raw_path_d = None;
+        if let Some(ref dp) = se.get_dot_path() {
+            for bez in &dp.beziers {
+                if points.is_empty() {
+                    points.push((bez.x1, bez.y1));
+                }
+                points.push((bez.ctrlx1, bez.ctrly1));
+                points.push((bez.ctrlx2, bez.ctrly2));
+                points.push((bez.x2, bez.y2));
+            }
+            raw_path_d = Some(dp.to_upath().to_svg_path_d());
+        }
+
+        edges_out.push(EdgeLayout {
+            from,
+            to,
+            points,
+            arrow_tip: se.end_contact_point().map(|p| (p.x, p.y)),
+            raw_path_d,
+            arrow_polygon_points: None,
+        });
+    }
+
+    // Compute bounding box
+    let mut total_width = 0.0_f64;
+    let mut total_height = 0.0_f64;
+    for n in &nodes_out {
+        let right = n.cx + n.width / 2.0;
+        let bottom = n.cy + n.height / 2.0;
+        if right > total_width {
+            total_width = right;
+        }
+        if bottom > total_height {
+            total_height = bottom;
+        }
+    }
+
+    Ok(GraphLayout {
+        nodes: nodes_out,
+        edges: edges_out,
+        notes: Vec::new(),
+        total_width,
+        total_height,
+    })
+}
+
 /// Parse `dot -Tsvg` output to extract node positions and edge paths.
 ///
 /// Graphviz SVG coordinate system:

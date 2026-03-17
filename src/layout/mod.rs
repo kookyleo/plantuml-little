@@ -15,8 +15,8 @@ pub mod usecase;
 pub mod wbs;
 
 pub use graphviz::{
-    layout as layout_graph, ClassNoteLayout, EdgeLayout, GraphLayout, LayoutEdge, LayoutGraph,
-    LayoutNode, NodeLayout, RankDir,
+    layout as layout_graph, layout_with_svek, ClassNoteLayout, EdgeLayout, GraphLayout,
+    LayoutEdge, LayoutGraph, LayoutNode, NodeLayout, RankDir,
 };
 
 use std::collections::HashMap;
