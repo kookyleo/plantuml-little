@@ -247,15 +247,16 @@ pub fn layout_with_svek(graph: &LayoutGraph) -> Result<GraphLayout, Error> {
         builder.add_entity(EntityDescriptor::new(&node.id, node.width_pt, node.height_pt));
     }
 
-    // Register links
+    // Register links (including invisible edges for layout constraint)
     for edge in &graph.edges {
-        if edge.invisible {
-            continue; // svek builder doesn't support invisible edges yet
-        }
         let mut ld = LinkDescriptor::new(&edge.from, &edge.to);
         if let Some(ref label) = edge.label {
             ld = ld.with_label(label);
         }
+        if edge.invisible {
+            ld.invisible = true;
+        }
+        ld.minlen = Some(edge.minlen);
         builder.add_link(ld);
     }
 

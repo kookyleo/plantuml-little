@@ -68,6 +68,10 @@ pub struct LinkDescriptor {
     pub label: Option<String>,
     /// Whether this link has been removed
     pub removed: bool,
+    /// Whether this link is invisible (used for layout constraint only)
+    pub invisible: bool,
+    /// Minimum edge length in DOT (minlen attribute). Default: use SvekEdge default.
+    pub minlen: Option<u32>,
 }
 
 impl LinkDescriptor {
@@ -77,6 +81,8 @@ impl LinkDescriptor {
             to: to.to_string(),
             label: None,
             removed: false,
+            invisible: false,
+            minlen: None,
         }
     }
 
@@ -260,6 +266,11 @@ impl GraphvizImageBuilder {
             let mut edge = SvekEdge::new(&link.from, &link.to);
             edge.color = self.color_seq.next_color();
             edge.label = link.label.clone();
+            edge.is_invis = link.invisible;
+            if let Some(minlen) = link.minlen {
+                // link_length = minlen + 1 (Java: minlen = link.getLength() - 1)
+                edge.link_length = (minlen as i32) + 1;
+            }
             bib.add_edge(edge);
         }
 
