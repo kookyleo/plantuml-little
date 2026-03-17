@@ -1,5 +1,5 @@
 use crate::model::hyperlink::Hyperlink;
-use crate::render::svg::{fmt_coord, xml_escape};
+use crate::klimt::svg::{fmt_coord, xml_escape};
 use std::fmt::Write;
 
 /// Escape a URL for use in an XML/SVG attribute value.

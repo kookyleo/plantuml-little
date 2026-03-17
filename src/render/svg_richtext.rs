@@ -6,7 +6,7 @@ use crate::font_metrics;
 use crate::model::hyperlink::Hyperlink;
 use crate::model::richtext::{RichText, TextSpan};
 use crate::parser::creole::parse_creole;
-use crate::render::svg::{fmt_coord, xml_escape};
+use crate::klimt::svg::{fmt_coord, xml_escape};
 use crate::render::svg_hyperlink::wrap_with_link;
 
 thread_local! {

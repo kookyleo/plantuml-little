@@ -9,7 +9,7 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 use std::fmt::Write;
 
-use crate::render::svg::{fmt_coord, xml_escape};
+use crate::klimt::svg::{fmt_coord, xml_escape};
 
 thread_local! {
     static COLLECTED_GRADIENT_DEFS: RefCell<Vec<(String, String)>> = RefCell::new(Vec::new());
