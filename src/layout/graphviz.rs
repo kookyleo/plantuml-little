@@ -75,6 +75,8 @@ pub struct EdgeLayout {
     pub raw_path_d: Option<String>,
     /// Arrowhead polygon points from Graphviz SVG (with transform applied).
     pub arrow_polygon_points: Option<Vec<(f64, f64)>>,
+    /// Edge label text (if any), carried from input for width expansion.
+    pub label: Option<String>,
 }
 
 /// Note layout info (used for class diagrams, etc.)
@@ -354,6 +356,7 @@ pub fn layout_with_svek(graph: &LayoutGraph) -> Result<GraphLayout, Error> {
             arrow_tip: se.end_contact_point().map(|p| (p.x, p.y)),
             raw_path_d,
             arrow_polygon_points: None,
+            label: se.label.clone(),
         }
     }).collect();
 
@@ -649,6 +652,7 @@ fn parse_svg_edge(g: &str, tx: f64, ty: f64) -> Option<EdgeLayout> {
         arrow_tip,
         raw_path_d,
         arrow_polygon_points,
+        label: None,
     })
 }
 

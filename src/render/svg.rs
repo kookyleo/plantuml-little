@@ -1898,7 +1898,22 @@ fn draw_edge(sg: &mut SvgGraphic, tracker: &mut BoundsTracker, link: &Link, el: 
     if let Some(label) = &link.label {
         let mid_idx = path_points.len() / 2;
         let (mx, my) = path_points[mid_idx];
-        draw_label(sg, label, mx + edge_offset_x, my + edge_offset_y - 6.0);
+        let label_x = mx + edge_offset_x;
+        let label_y = my + edge_offset_y - 6.0;
+        draw_label(sg, label, label_x, label_y);
+        // Track label text extent for bounding box (Java: LimitFinder.ensureVisible)
+        let font_size = LINK_LABEL_FONT_SIZE;
+        let lines = split_label_lines(label);
+        let max_w = lines
+            .iter()
+            .map(|(t, _)| font_metrics::text_width(t, "SansSerif", font_size, false, false))
+            .fold(0.0_f64, f64::max);
+        let line_h = font_metrics::line_height("SansSerif", font_size, false, false);
+        let total_h = lines.len() as f64 * line_h;
+        // Label block starts at (label_x + 1, label_y - total_h/2)
+        let block_x = label_x + 1.0;
+        let block_y = label_y - total_h / 2.0;
+        tracker.track_rect(block_x, block_y, max_w, total_h);
     }
 }
 
@@ -2533,6 +2548,7 @@ mod tests {
                 arrow_tip: None,
                 raw_path_d: None,
                 arrow_polygon_points: None,
+                label: None,
             }],
             notes: vec![],
             total_width: 240.0,

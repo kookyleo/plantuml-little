@@ -695,6 +695,30 @@ fn layout_class_diagram(cd: &ClassDiagram, skin: &crate::style::SkinParams) -> R
 
     let mut layout = layout_with_svek(&graph)?;
 
+    // Expand total_width/total_height to include edge label extents.
+    // Java: LimitFinder.ensureVisible tracks all drawn elements including text.
+    // Edge labels are drawn at the edge midpoint; their text can extend beyond nodes.
+    let link_label_font_size = 13.0_f64; // Java: FontParam.CLASS uses 13pt for link labels
+    for el in &layout.edges {
+        if let Some(ref label) = el.label {
+            if el.points.is_empty() {
+                continue;
+            }
+            let mid_idx = el.points.len() / 2;
+            let (mx, _my) = el.points[mid_idx];
+            // Label is drawn at mx+1 (1px offset in draw_label), extending right
+            let lines: Vec<&str> = label.split("\\n").flat_map(|s| s.split("\\l")).flat_map(|s| s.split("\\r")).collect();
+            let max_line_w = lines
+                .iter()
+                .map(|l| font_metrics::text_width(l, "SansSerif", link_label_font_size, false, false))
+                .fold(0.0_f64, f64::max);
+            let label_right = mx + 1.0 + max_line_w;
+            if label_right > layout.total_width {
+                layout.total_width = label_right;
+            }
+        }
+    }
+
     // compute note layout
     layout.notes = compute_note_layouts(&cd.notes, &layout.nodes, &name_to_id);
 
