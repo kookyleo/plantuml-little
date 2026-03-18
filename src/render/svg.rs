@@ -370,6 +370,15 @@ fn extract_attr(svg: &str, attr: &str) -> Option<f64> {
 
 /// Inline bounding-box tracker mirroring Java's LimitFinder.
 /// Intercepts every draw call during rendering to compute the exact canvas size.
+/// Tracks drawing bounds, mirroring Java `LimitFinder`.
+///
+/// Java uses a two-pass model:
+///   Pass 1: LimitFinder tracks min/max of all draw operations
+///   Pass 2: SvgGraphics ensureVisible uses (int)(x+1)
+///
+/// We use LimitFinder semantics (min/max tracking). The final SVG dimensions
+/// are computed as: `(int)(span + CANVAS_DELTA + DOC_MARGIN + 1)` which is
+/// equivalent to Java's `ensureVisible(span + delta + margin)`.
 pub(crate) struct BoundsTracker {
     min_x: f64,
     min_y: f64,
@@ -406,8 +415,7 @@ impl BoundsTracker {
         self.add_point(x + w, y + h);
     }
 
-    /// Java LimitFinder.drawEllipse: (x, y) to (x+w-1, y+h-1)
-    /// Note: Java passes top-left (x,y) and size (w,h). We accept SVG center+radii form.
+    /// Java LimitFinder.drawEllipse: (cx-rx, cy-ry) to (cx+rx-1, cy+ry-1)
     pub fn track_ellipse(&mut self, cx: f64, cy: f64, rx: f64, ry: f64) {
         self.add_point(cx - rx, cy - ry);
         self.add_point(cx + rx - 1.0, cy + ry - 1.0);
@@ -438,6 +446,14 @@ impl BoundsTracker {
         self.add_point(max_x, max_y);
     }
 
+    /// Java LimitFinder.drawText: (x, y-h+1.5) to (x+w, y+h)
+    pub fn track_text(&mut self, x: f64, y: f64, text_width: f64, text_height: f64) {
+        self.add_point(x, y - text_height + 1.5);
+        self.add_point(x + text_width, y + text_height);
+    }
+
+    /// Span: max - min in each dimension. Used with CANVAS_DELTA + DOC_MARGIN
+    /// to compute final SVG dimensions matching Java's ensureVisible.
     pub fn span(&self) -> (f64, f64) {
         if self.max_x.is_finite() && self.min_x.is_finite() {
             (self.max_x - self.min_x, self.max_y - self.min_y)
@@ -886,11 +902,13 @@ fn render_class(
         let h = (calc_h + DOC_MARGIN_BOTTOM + 1.0).floor();
         (w, h)
     } else {
-        // SvekResult path: LimitFinder tracked bounds + delta(15) + doc_margin(5)
+        // Java two-pass: LimitFinder span + delta(15) + doc_margin(5) →
+        // SvgGraphics.ensureVisible(dim) → maxX = (int)(dim + 1).
+        // So: maxX = (int)(span + 15 + 5) + 1
         let (span_w, span_h) = tracker.span();
-        let w = (span_w + CANVAS_DELTA + DOC_MARGIN_RIGHT + 1.0).floor();
-        let h = (span_h + CANVAS_DELTA + DOC_MARGIN_BOTTOM + 1.0).floor();
-        (w, h)
+        let w = (span_w + CANVAS_DELTA + DOC_MARGIN_RIGHT) as i32 + 1;
+        let h = (span_h + CANVAS_DELTA + DOC_MARGIN_BOTTOM) as i32 + 1;
+        (w as f64, h as f64)
     };
 
     let mut buf = String::with_capacity(sg.body().len() + 512);
@@ -1901,8 +1919,7 @@ fn draw_edge(sg: &mut SvgGraphic, tracker: &mut BoundsTracker, link: &Link, el: 
         let label_x = mx + edge_offset_x;
         let label_y = my + edge_offset_y - 6.0;
         draw_label(sg, label, label_x, label_y);
-        // Track label text extent for bounding box.
-        // Java LimitFinder.drawText: addPoint at 4 corners without -1 adjustment.
+        // Track label text extent for bounding box (Java LimitFinder.drawText).
         let font_size = LINK_LABEL_FONT_SIZE;
         let lines = split_label_lines(label);
         let max_w = lines
@@ -1910,11 +1927,16 @@ fn draw_edge(sg: &mut SvgGraphic, tracker: &mut BoundsTracker, link: &Link, el: 
             .map(|(t, _)| font_metrics::text_width(t, "SansSerif", font_size, false, false))
             .fold(0.0_f64, f64::max);
         let line_h = font_metrics::line_height("SansSerif", font_size, false, false);
-        let total_h = lines.len() as f64 * line_h;
         let block_x = label_x + 1.0;
-        let block_y = label_y - total_h / 2.0;
-        // Use track_empty (no -1 like track_rect) — matches Java drawText
-        tracker.track_empty(block_x, block_y, max_w, total_h);
+        // Each line of the label is tracked as text
+        let ascent = font_metrics::ascent("SansSerif", font_size, false, false);
+        let total_h = lines.len() as f64 * line_h;
+        let base_y = label_y - total_h / 2.0 + ascent;
+        for (idx, (line_text, _)) in lines.iter().enumerate() {
+            let text_w = font_metrics::text_width(line_text, "SansSerif", font_size, false, false);
+            let ly = base_y + idx as f64 * line_h;
+            tracker.track_text(block_x, ly, text_w, line_h);
+        }
     }
 }
 
