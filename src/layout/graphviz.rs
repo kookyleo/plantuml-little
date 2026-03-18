@@ -77,6 +77,10 @@ pub struct EdgeLayout {
     pub arrow_polygon_points: Option<Vec<(f64, f64)>>,
     /// Edge label text (if any), carried from input for width expansion.
     pub label: Option<String>,
+    /// Label center position from svek solve, used for LimitFinder-style tracking.
+    pub label_xy: Option<(f64, f64)>,
+    /// Label block dimension (width, height) from label_dimension + shield.
+    pub label_wh: Option<(f64, f64)>,
 }
 
 /// Note layout info (used for class diagrams, etc.)
@@ -100,6 +104,8 @@ pub struct GraphLayout {
     pub notes: Vec<ClassNoteLayout>,
     pub total_width: f64,
     pub total_height: f64,
+    /// moveDelta applied by svek solve: (dx, dy). Used by renderer for coordinate alignment.
+    pub move_delta: (f64, f64),
 }
 
 /// AbstractEntityDiagram.java:61 — default nodesep = 0.35 inches.
@@ -308,7 +314,7 @@ pub fn layout_with_svek(graph: &LayoutGraph) -> Result<GraphLayout, Error> {
     log::debug!("svek dot svg output:\n{svg}");
 
     // Solve: parse SVG and position nodes/edges
-    builder
+    let move_delta = builder
         .solve(&svg)
         .map_err(|e| Error::Layout(format!("svek solve error: {e}")))?;
 
@@ -357,6 +363,13 @@ pub fn layout_with_svek(graph: &LayoutGraph) -> Result<GraphLayout, Error> {
             raw_path_d,
             arrow_polygon_points: None,
             label: se.label.clone(),
+            label_xy: se.label_xy.map(|p| (p.x, p.y)),
+            label_wh: se.label_dimension.map(|d| {
+                let dim_w = if se.divide_label_width_by_two { d.width / 2.0 } else { d.width };
+                let dim_h = d.height;
+                // Add shield (same as DOT table sizing)
+                (dim_w + 2.0 * se.label_shield, dim_h + 2.0 * se.label_shield)
+            }),
         }
     }).collect();
 
@@ -395,6 +408,7 @@ pub fn layout_with_svek(graph: &LayoutGraph) -> Result<GraphLayout, Error> {
         notes: Vec::new(),
         total_width,
         total_height,
+        move_delta,
     })
 }
 
@@ -529,6 +543,7 @@ fn parse_svg_output(svg: &str, graph: &LayoutGraph) -> Result<GraphLayout, Error
         notes: vec![],
         total_width,
         total_height,
+        move_delta: (0.0, 0.0),
     })
 }
 
@@ -653,6 +668,8 @@ fn parse_svg_edge(g: &str, tx: f64, ty: f64) -> Option<EdgeLayout> {
         raw_path_d,
         arrow_polygon_points,
         label: None,
+        label_xy: None,
+        label_wh: None,
     })
 }
 

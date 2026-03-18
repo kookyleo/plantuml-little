@@ -324,7 +324,8 @@ impl GraphvizImageBuilder {
     /// Java: `DotStringFactory.solve()` + `GraphvizImageBuilder.buildImage()` (solve part)
     ///
     /// Call this after running Graphviz externally and obtaining the SVG output.
-    pub fn solve(&mut self, svg: &str) -> Result<(), String> {
+    /// Returns the moveDelta (dx, dy) applied to normalize coordinates.
+    pub fn solve(&mut self, svg: &str) -> Result<(f64, f64), String> {
         let factory = self
             .factory
             .as_mut()

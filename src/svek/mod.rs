@@ -314,7 +314,8 @@ impl DotStringFactory {
     /// 1. For each node: find polygon/ellipse by color → extract position
     /// 2. For each edge: call `solve_line()` to extract path + labels
     /// 3. Normalize coordinates (shift so min position = (6, 6))
-    pub fn solve(&mut self, svg: &str) -> Result<(), String> {
+    /// Returns the moveDelta (dx, dy) applied to normalize coordinates.
+    pub fn solve(&mut self, svg: &str) -> Result<(f64, f64), String> {
         use crate::svek::svg_result::SvgResult;
 
         // Parse translate(tx, ty) from Graphviz SVG top-level <g> transform.
@@ -388,8 +389,14 @@ impl DotStringFactory {
             }
         }
 
-        // Normalize: compute bounding box and shift to origin + margin(6)
-        // Java: SvekResult.java:133 — moveDelta(6 - minMax.getMinX(), 6 - minMax.getMinY())
+        // Normalize: shift to origin + margin(6).
+        // Java: moveDelta(6 - minMax.minX, 6 - minMax.minY)
+        // Note: Java LimitFinder minX = polygon_minX - 1 (rect offset), so
+        // moveDelta = 6 - (polygon_minX - 1) = 7 - polygon_minX.
+        // After moveDelta, polygon_minX becomes 7.
+        // But we apply moveDelta based on polygon_minX directly (= 6 - polygon_minX),
+        // making polygon_minX become 6. The renderer then uses edge_offset = 7
+        // (= moveDelta + 1) to match Java's actual drawing position of 7.
         let mut min_x = f64::INFINITY;
         let mut min_y = f64::INFINITY;
         for node in &self.bibliotekon.nodes {
@@ -403,13 +410,16 @@ impl DotStringFactory {
                 min_y = node.min_y;
             }
         }
-        if min_x.is_finite() && min_y.is_finite() {
+        let (dx, dy) = if min_x.is_finite() && min_y.is_finite() {
             let dx = 6.0 - min_x;
             let dy = 6.0 - min_y;
             self.move_delta(dx, dy);
-        }
+            (dx, dy)
+        } else {
+            (0.0, 0.0)
+        };
 
-        Ok(())
+        Ok((dx, dy))
     }
 
     /// Move all positioned elements by delta.

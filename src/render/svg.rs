@@ -790,8 +790,11 @@ fn render_class(
         })
     });
     let has_generic = !is_degenerated && cd.entities.iter().any(|e| e.generic.is_some());
+    // Java SvekResult: moveDelta(6 - LimitFinder_minX, 6 - LimitFinder_minY).
+    // LimitFinder_minX = polygon_minX - 1 (rect offset), so moveDelta = 7 default.
+    // Our svek uses moveDelta = 6 - polygon_minX. Entity renders at polygon_minX + moveDelta = 6.
+    // edge_offset = moveDelta + 1 (the LimitFinder rect -1 offset) = 7.
     let edge_offset_x = if has_member_polygon_icon { 9.0 } else { 7.0 };
-    // Java LimitFinder: generic box rect extends minY to -4, moveDelta_y = 6-(-4) = 10.
     let edge_offset_y = if has_generic { 10.0 } else { 7.0 };
     let mut tracker = BoundsTracker::new();
     let mut sg = SvgGraphic::new(0, 1.0);
@@ -902,9 +905,14 @@ fn render_class(
         let h = (calc_h + DOC_MARGIN_BOTTOM + 1.0).floor();
         (w, h)
     } else {
-        // Java two-pass: LimitFinder span + delta(15) + doc_margin(5) →
-        // SvgGraphics.ensureVisible(dim) → maxX = (int)(dim + 1).
-        // So: maxX = (int)(span + 15 + 5) + 1
+        // Java two-pass model:
+        //   Pass 1: LimitFinder tracks drawU → minMax (span)
+        //   dim = span.delta(15, 15) + doc_margin(R=5, B=5) = span + 20
+        //   Pass 2: SvgGraphics ensureVisible(dim) → maxX = (int)(dim.w + 1)
+        //
+        // Our tracker tracks actual draws in shifted coords (after moveDelta).
+        // The span matches Java's LimitFinder span because moveDelta is now
+        // computed with the same LimitFinder rect (x-1) offset.
         let (span_w, span_h) = tracker.span();
         let w = (span_w + CANVAS_DELTA + DOC_MARGIN_RIGHT) as i32 + 1;
         let h = (span_h + CANVAS_DELTA + DOC_MARGIN_BOTTOM) as i32 + 1;
@@ -1928,9 +1936,8 @@ fn draw_edge(sg: &mut SvgGraphic, tracker: &mut BoundsTracker, link: &Link, el: 
             .fold(0.0_f64, f64::max);
         let line_h = font_metrics::line_height("SansSerif", font_size, false, false);
         let block_x = label_x + 1.0;
-        // Each line of the label is tracked as text
-        let ascent = font_metrics::ascent("SansSerif", font_size, false, false);
         let total_h = lines.len() as f64 * line_h;
+        let ascent = font_metrics::ascent("SansSerif", font_size, false, false);
         let base_y = label_y - total_h / 2.0 + ascent;
         for (idx, (line_text, _)) in lines.iter().enumerate() {
             let text_w = font_metrics::text_width(line_text, "SansSerif", font_size, false, false);
@@ -2572,10 +2579,12 @@ mod tests {
                 raw_path_d: None,
                 arrow_polygon_points: None,
                 label: None,
+                label_xy: None,
+                label_wh: None,
             }],
             notes: vec![],
             total_width: 240.0,
-            total_height: 220.0,
+            total_height: 220.0, move_delta: (7.0, 7.0),
         };
         (Diagram::Class(cd), DiagramLayout::Class(gl))
     }
@@ -2662,7 +2671,7 @@ mod tests {
             edges: vec![],
             notes: vec![],
             total_width: 200.0,
-            total_height: 100.0,
+            total_height: 100.0, move_delta: (7.0, 7.0),
         };
         let svg = render(
             &Diagram::Class(cd),
@@ -2699,7 +2708,7 @@ mod tests {
             edges: vec![],
             notes: vec![],
             total_width: 200.0,
-            total_height: 100.0,
+            total_height: 100.0, move_delta: (7.0, 7.0),
         };
         let svg = render(
             &Diagram::Class(cd),
@@ -2971,7 +2980,7 @@ mod tests {
                 connector: Some((180.0, 50.0, 160.0, 50.0)),
             }],
             total_width: 300.0,
-            total_height: 120.0,
+            total_height: 120.0, move_delta: (7.0, 7.0),
         };
         let svg = render(
             &Diagram::Class(cd),
@@ -3016,7 +3025,7 @@ mod tests {
                 connector: None,
             }],
             total_width: 100.0,
-            total_height: 60.0,
+            total_height: 60.0, move_delta: (7.0, 7.0),
         };
         let svg = render(
             &Diagram::Class(cd),
