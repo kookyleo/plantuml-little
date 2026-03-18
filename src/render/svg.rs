@@ -142,7 +142,8 @@ const META_TITLE_FONT_SIZE: f64 = 14.0;
 const META_HF_FONT_SIZE: f64 = 10.0;
 const META_CAPTION_FONT_SIZE: f64 = 14.0;
 const META_LEGEND_FONT_SIZE: f64 = 14.0;
-const BORDERED_EXTRA: f64 = 1.0;
+/// Java TextBlockBordered adds padding only, no extra pixel for the border stroke.
+const BORDERED_EXTRA: f64 = 0.0;
 const TITLE_PADDING: f64 = 5.0;
 const TITLE_MARGIN: f64 = 5.0;
 const CAPTION_PADDING: f64 = 0.0;
