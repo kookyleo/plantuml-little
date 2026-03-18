@@ -7,3 +7,6 @@
 .vscode/
 .claude/worktrees/
 scripts/failures.json
+scripts/__pycache__/
+our_*.svg
+tests/fixtures/**/*.svg
