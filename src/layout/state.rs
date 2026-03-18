@@ -71,6 +71,10 @@ pub struct StateNoteLayout {
 const CHAR_WIDTH: f64 = 7.2;
 const LINE_HEIGHT: f64 = 16.0;
 const PADDING: f64 = 10.0;
+/// Java: state name uses FontParam.STATE = SansSerif 14pt.
+const STATE_NAME_FONT_SIZE: f64 = 14.0;
+/// Java: state body/description uses FontParam.STATE_ATTRIBUTE = SansSerif 12pt.
+const STATE_DESC_FONT_SIZE: f64 = 12.0;
 /// Minimum state dimensions matching Java PlantUML defaults.
 const STATE_MIN_WIDTH: f64 = 50.0;
 const STATE_MIN_HEIGHT: f64 = 50.0;
@@ -120,11 +124,13 @@ fn estimate_state_size(state: &State) -> (f64, f64) {
 
     let width = name_w.max(desc_w).max(stereo_w).max(STATE_MIN_WIDTH);
 
-    // Header line (name) + optional stereotype line + description lines.
-    let stereo_lines = if state.stereotype.is_some() { 1.0 } else { 0.0 };
-    let desc_lines = state.description.len() as f64;
-    let total_lines = 1.0 + stereo_lines + desc_lines;
-    let height = (total_lines * LINE_HEIGHT + 2.0 * PADDING).max(STATE_MIN_HEIGHT);
+    // Header (name at 14pt) + optional stereotype + description (at 12pt).
+    // Java: EntityImageState layout uses different fonts for name vs body.
+    let name_h = crate::font_metrics::line_height("SansSerif", STATE_NAME_FONT_SIZE, false, false);
+    let desc_h = crate::font_metrics::line_height("SansSerif", STATE_DESC_FONT_SIZE, false, false);
+    let stereo_h = if state.stereotype.is_some() { desc_h } else { 0.0 };
+    let desc_total = state.description.len() as f64 * desc_h;
+    let height = (name_h + stereo_h + desc_total + 2.0 * PADDING).max(STATE_MIN_HEIGHT);
 
     (width, height)
 }
@@ -1541,8 +1547,10 @@ mod tests {
             expected_min_w
         );
 
-        // Height should accommodate name + 3 description lines
-        let expected_min_h = 4.0 * LINE_HEIGHT + 2.0 * PADDING;
+        // Height should accommodate name (14pt) + 3 description lines (12pt)
+        let name_h = crate::font_metrics::line_height("SansSerif", STATE_NAME_FONT_SIZE, false, false);
+        let desc_h = crate::font_metrics::line_height("SansSerif", STATE_DESC_FONT_SIZE, false, false);
+        let expected_min_h = name_h + 3.0 * desc_h + 2.0 * PADDING;
         assert!(
             node.height >= expected_min_h,
             "height {} should be >= {}",
