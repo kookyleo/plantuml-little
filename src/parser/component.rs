@@ -869,9 +869,19 @@ fn try_parse_note(line: &str) -> Option<NoteParseResult> {
 // Newline expansion
 // ---------------------------------------------------------------------------
 
+/// Expand all newline markers in inline text (notes, entity names).
+/// Both literal `\n` escape and U+E100 placeholder become real newlines.
 fn expand_newlines(s: &str) -> String {
     s.replace("\\n", "\n")
-        .replace("%newline()", "\n")
+        .replace(crate::NEWLINE_CHAR, "\n")
+        .replace("%chr(10)", "\n")
+}
+
+/// Expand newlines in bracket-display body `[...]` content.
+/// Literal `\n` is preserved as display text (Java compatibility).
+/// Only U+E100 (from `%newline()`) and leftover `%chr(10)` are expanded.
+fn expand_body_newlines(s: &str) -> String {
+    s.replace(crate::NEWLINE_CHAR, "\n")
         .replace("%chr(10)", "\n")
 }
 
@@ -1259,12 +1269,21 @@ end note
         assert_eq!(d.notes[1].text, "first line3\nsecond line4");
     }
 
-    // 25. Expand newlines helper
+    // 25. Expand newlines helpers
     #[test]
     fn test_expand_newlines() {
+        // Inline text: all forms expand to real newlines
         assert_eq!(expand_newlines("a\\nb"), "a\nb");
-        assert_eq!(expand_newlines("a%newline()b"), "a\nb");
+        assert_eq!(expand_newlines("a\u{E100}b"), "a\nb");
         assert_eq!(expand_newlines("a%chr(10)b"), "a\nb");
+    }
+
+    #[test]
+    fn test_expand_body_newlines() {
+        // Bracket-display body: literal `\n` preserved (Java compat)
+        assert_eq!(expand_body_newlines("a\\nb"), "a\\nb");
+        assert_eq!(expand_body_newlines("a\u{E100}b"), "a\nb");
+        assert_eq!(expand_body_newlines("a%chr(10)b"), "a\nb");
     }
 
     // 26. Node kind

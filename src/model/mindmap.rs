@@ -38,7 +38,7 @@ impl MindmapNode {
 
     /// Return the text split by embedded `\n` sequences.
     pub fn text_lines(&self) -> Vec<&str> {
-        self.text.split("\\n").map(str::trim).collect()
+        self.text.split("\\n").flat_map(|s| s.split(crate::NEWLINE_CHAR)).map(str::trim).collect()
     }
 
     /// Total number of descendant nodes (including self).

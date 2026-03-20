@@ -214,7 +214,7 @@ fn draw_participant_rect_with_font(
     font_size: f64,
 ) {
     let name = display_name.unwrap_or(&p.name);
-    let lines: Vec<&str> = name.split("\\n").collect();
+    let lines: Vec<&str> = name.split("\\n").flat_map(|s| s.split(crate::NEWLINE_CHAR)).collect();
     let padding = 7.0;
     let box_width = p.box_width;
     let box_height = p.box_height;

@@ -182,8 +182,8 @@ fn format_leaf_value(val: &JsonValue) -> (String, Vec<String>) {
             else { (format!("{n}"), vec![]) }
         }
         JsonValue::Str(s) => {
-            if s.contains("\\n") {
-                let lines: Vec<String> = s.split("\\n").map(|l| l.to_string()).collect();
+            if s.contains("\\n") || s.contains(crate::NEWLINE_CHAR) {
+                let lines: Vec<String> = s.split("\\n").flat_map(|l| l.split(crate::NEWLINE_CHAR)).map(|l| l.to_string()).collect();
                 (s.clone(), lines)
             } else { (s.clone(), vec![]) }
         }

@@ -484,7 +484,7 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
     for (i, p) in sd.participants.iter().enumerate() {
         let display = p.display_name.as_deref().unwrap_or(&p.name);
         // Split display name by literal \n for multiline participants
-        let display_lines: Vec<&str> = display.split("\\n").collect();
+        let display_lines: Vec<&str> = display.split("\\n").flat_map(|s| s.split(crate::NEWLINE_CHAR)).collect();
         let num_lines = display_lines.len();
         let max_line_w = display_lines
             .iter()
@@ -552,7 +552,7 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
                 };
 
                 let mut text_lines: Vec<String> =
-                    msg.text.split("\\n").map(ToString::to_string).collect();
+                    msg.text.split("\\n").flat_map(|s| s.split(crate::NEWLINE_CHAR)).map(ToString::to_string).collect();
                 if let Some(max_w) = max_message_size {
                     text_lines = text_lines
                         .into_iter()
@@ -834,7 +834,7 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
                 }
 
                 let mut text_lines: Vec<String> =
-                    msg.text.split("\\n").map(|s| s.to_string()).collect();
+                    msg.text.split("\\n").flat_map(|s| s.split(crate::NEWLINE_CHAR)).map(|s| s.to_string()).collect();
                 // Apply Maxmessagesize word wrapping
                 if let Some(max_w) = max_message_size {
                     text_lines = text_lines
@@ -851,7 +851,7 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
                 };
                 // Multiline message text: extra lines push the arrow down
                 let multiline_extra = num_extra_lines as f64 * lp.msg_line_height;
-                let sprite_extra = msg.text.split("\\n")
+                let sprite_extra = msg.text.split("\\n").flat_map(|s| s.split(crate::NEWLINE_CHAR))
                     .map(|line| message_sprite_extra_height(line))
                     .fold(0.0_f64, f64::max);
                 let extra_height = multiline_extra + sprite_extra;

@@ -306,7 +306,7 @@ fn estimate_note_width(text: &str) -> f64 {
 
 #[allow(dead_code)]
 fn message_text_width(text: &str, font_family: &str, font_size: f64) -> f64 {
-	text.split("\\n")
+	text.split("\\n").flat_map(|s| s.split(crate::NEWLINE_CHAR))
 		.map(|line| font_metrics::text_width(line, font_family, font_size, false, false))
 		.fold(0.0_f64, f64::max)
 }
@@ -365,7 +365,7 @@ pub fn build_teoz_layout(
 
 	for (i, p) in sd.participants.iter().enumerate() {
 		let display = p.display_name.as_deref().unwrap_or(&p.name);
-		let display_lines: Vec<&str> = display.split("\\n").collect();
+		let display_lines: Vec<&str> = display.split("\\n").flat_map(|s| s.split(crate::NEWLINE_CHAR)).collect();
 		let num_lines = display_lines.len();
 		let max_line_w = display_lines
 			.iter()
@@ -439,7 +439,7 @@ pub fn build_teoz_layout(
 				});
 
 				let mut text_lines: Vec<String> =
-					msg.text.split("\\n").map(ToString::to_string).collect();
+					msg.text.split("\\n").flat_map(|s| s.split(crate::NEWLINE_CHAR)).map(ToString::to_string).collect();
 				if let Some(max_w) = max_message_size {
 					text_lines = text_lines
 						.into_iter()

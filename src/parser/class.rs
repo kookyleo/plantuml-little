@@ -886,7 +886,7 @@ fn try_parse_class_note(line: &str) -> Option<ClassNoteParseResult> {
 
             if let Some(colon_pos) = after_of.find(':') {
                 let target = after_of[..colon_pos].trim().to_string();
-                let text = after_of[colon_pos + 1..].trim().replace("\\n", "\n");
+                let text = after_of[colon_pos + 1..].trim().replace("\\n", "\n").replace(crate::NEWLINE_CHAR, "\n");
                 return Some(ClassNoteParseResult::SingleLine(ClassNote {
                     text,
                     position: pos.to_string(),
@@ -907,7 +907,7 @@ fn try_parse_class_note(line: &str) -> Option<ClassNoteParseResult> {
 
         // `note <pos> : text` or `note <pos>` (no target)
         if let Some(after_colon) = after_pos.strip_prefix(':') {
-            let text = after_colon.trim().replace("\\n", "\n");
+            let text = after_colon.trim().replace("\\n", "\n").replace(crate::NEWLINE_CHAR, "\n");
             return Some(ClassNoteParseResult::SingleLine(ClassNote {
                 text,
                 position: pos.to_string(),

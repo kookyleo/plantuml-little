@@ -603,7 +603,13 @@ pub fn layout_activity(diagram: &ActivityDiagram) -> Result<ActivityLayout> {
                 });
                 // Notes do NOT update last_flow_node_idx.
                 node_index += 1;
-                // Don't advance y_cursor — notes sit beside the flow.
+                
+                // ADVANCE y_cursor so next elements don't overlap with this note!
+                // We take the max of the current y_cursor and the note's bottom.
+                let note_bottom = ny + nh + NODE_SPACING;
+                if note_bottom > y_cursor {
+                    y_cursor = note_bottom;
+                }
             }
 
             // ---- Floating note (not attached) --------------------------------

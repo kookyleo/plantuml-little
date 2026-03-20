@@ -269,7 +269,7 @@ pub fn layout_with_svek(graph: &LayoutGraph) -> Result<GraphLayout, Error> {
             // Edge labels use SansSerif 13pt (FontParam.CLASS = 13 for links).
             // Java TextBlock adds margin_top(4) + margin_bottom(4) via
             // TextBlockUtils.withMargin(textBlock, 0, 0, 4, 4).
-            let lines: Vec<&str> = label.split("\\n").collect();
+            let lines: Vec<&str> = label.split("\\n").flat_map(|s| s.split(crate::NEWLINE_CHAR)).collect();
             let max_line_w = lines
                 .iter()
                 .map(|l| crate::font_metrics::text_width(l, "SansSerif", 13.0, false, false))

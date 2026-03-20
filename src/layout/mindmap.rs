@@ -104,7 +104,7 @@ const MIN_NOTE_HEIGHT: f64 = 28.0;
 
 /// Split text on `\n` escape sequences and return individual lines.
 fn split_text_lines(text: &str) -> Vec<String> {
-    text.split("\\n").map(|s| s.trim().to_string()).collect()
+    text.split("\\n").flat_map(|s| s.split(crate::NEWLINE_CHAR)).map(|s| s.trim().to_string()).collect()
 }
 
 /// Estimate the rendered size of a node based on its text.
@@ -135,7 +135,7 @@ fn estimate_node_size(text: &str, is_root: bool) -> (f64, f64, Vec<String>) {
 
 fn plain_text_lines(text: &str) -> Vec<String> {
     let plain = plain_text(&parse_creole(text));
-    let normalized = plain.replace("\\n", "\n");
+    let normalized = plain.replace("\\n", "\n").replace(crate::NEWLINE_CHAR, "\n");
     let lines: Vec<String> = normalized
         .lines()
         .map(|line| line.trim().to_string())

@@ -42,9 +42,10 @@ pub(super) fn requires_round_trip_quotes(value: &str) -> bool {
 pub(super) fn expand_builtins(line: &str) -> String {
     let mut result = line.to_string();
 
-    // %newline() / %n() → literal \n (two-char escape understood by renderers)
-    result = result.replace("%newline()", "\\n");
-    result = result.replace("%n()", "\\n");
+    // %newline() / %n() → U+E100 placeholder (matches Java PlantUML)
+    let nl = crate::NEWLINE_CHAR.to_string();
+    result = result.replace("%newline()", &nl);
+    result = result.replace("%n()", &nl);
 
     // %chr(N) — e.g. %chr(65) -> 'A'
     while let Some(start) = result.find("%chr(") {

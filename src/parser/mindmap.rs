@@ -310,7 +310,7 @@ fn try_parse_mindmap_note(line: &str) -> Option<MindmapNoteParseResult> {
         let after_pos = rest[pos.len()..].trim();
 
         if let Some(after_colon) = after_pos.strip_prefix(':') {
-            let text = after_colon.trim().replace("\\n", "\n");
+            let text = after_colon.trim().replace("\\n", "\n").replace(crate::NEWLINE_CHAR, "\n");
             return Some(MindmapNoteParseResult::SingleLine(MindmapNote {
                 text,
                 position: pos.to_string(),

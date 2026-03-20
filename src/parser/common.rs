@@ -142,6 +142,9 @@ pub fn detect_diagram_type(content: &str) -> DiagramHint {
             continue;
         }
         // Detect bracket-display opener (e.g. `rectangle A [`, `file f [`)
+        // NOTE: ideally `rectangle [` should fall back to CLASS (Java compat),
+        // but the class parser does not yet support bracket-display bodies, so
+        // we keep the definitive component flag for now.
         if (trimmed.ends_with(" [") || trimmed.ends_with('['))
             && !trimmed.starts_with('[')
         {
@@ -1075,7 +1078,8 @@ mod tests {
 
     #[test]
     fn detect_component_by_rectangle_bracket_display() {
-        // Bracket-display body syntax is a component/deployment feature
+        // NOTE: Java falls back to CLASS for `rectangle [`, but our class parser
+        // does not yet support bracket-display bodies, so we keep Component.
         let content = "rectangle A [\ntest 1\ntest 2\n]\n";
         assert!(matches!(detect_diagram_type(content), DiagramHint::Component));
     }

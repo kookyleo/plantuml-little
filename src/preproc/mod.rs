@@ -3137,18 +3137,18 @@ mod tests {
 
     #[test]
     fn test_builtin_newline_expanded() {
-        // %newline() is expanded to literal \n escape for downstream renderers
+        // %newline() is expanded to U+E100 placeholder (matches Java PlantUML)
         let src = "text%newline()more";
         let out = preprocess(src).unwrap();
-        assert_eq!(out, "text\\nmore");
+        assert_eq!(out, "text\u{E100}more");
     }
 
     #[test]
     fn test_builtin_n_expanded() {
-        // %n() is expanded to literal \n escape for downstream renderers
+        // %n() is expanded to U+E100 placeholder (matches Java PlantUML)
         let src = "text%n()more";
         let out = preprocess(src).unwrap();
-        assert_eq!(out, "text\\nmore");
+        assert_eq!(out, "text\u{E100}more");
     }
 
     #[test]

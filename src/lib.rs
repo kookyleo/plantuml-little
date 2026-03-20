@@ -18,6 +18,13 @@ pub mod style;
 
 pub use error::{Error, Result};
 
+/// Private-use Unicode character for `%newline()` / `%n()` expansion.
+///
+/// Java PlantUML uses U+E100 to keep the semantic newline from `%newline()`
+/// distinct from the literal `\n` two-char escape in source text.  Downstream
+/// renderers and layout code recognise this character as a line break.
+pub const NEWLINE_CHAR: char = '\u{E100}';
+
 /// Convert PlantUML text to an SVG string
 pub fn convert(puml_source: &str) -> Result<String> {
     let cwd = std::env::current_dir().ok();

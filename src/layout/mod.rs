@@ -527,12 +527,16 @@ fn member_visual_lines(m: &Member) -> usize {
     split_member_lines(&text).len()
 }
 
-/// Split member display text by literal `\n` sequences.
+/// Split member display text into visual lines.
+/// Splits on literal `\n` escape, U+E100 placeholder, and physical newlines.
 /// Returns a vec of (trimmed_text, leading_space_width_at_14pt).
 /// The first line always has indent=0; continuation lines use the width
 /// of the leading whitespace as an indent offset from the first line.
 pub(crate) fn split_member_lines(text: &str) -> Vec<(String, f64)> {
-    let parts: Vec<&str> = text.split("\\n").collect();
+    let parts: Vec<&str> = text.split("\\n")
+        .flat_map(|s| s.split(crate::NEWLINE_CHAR))
+        .flat_map(|s| s.split('\n'))
+        .collect();
     let mut result = Vec::with_capacity(parts.len());
     for (i, part) in parts.iter().enumerate() {
         if i == 0 {
@@ -712,7 +716,7 @@ fn layout_class_diagram(cd: &ClassDiagram, skin: &crate::style::SkinParams) -> R
             let mid_idx = el.points.len() / 2;
             let (mx, _my) = el.points[mid_idx];
             // Label is drawn at mx+1 (1px offset in draw_label), extending right
-            let lines: Vec<&str> = label.split("\\n").flat_map(|s| s.split("\\l")).flat_map(|s| s.split("\\r")).collect();
+            let lines: Vec<&str> = label.split("\\n").flat_map(|s| s.split(crate::NEWLINE_CHAR)).flat_map(|s| s.split("\\l")).flat_map(|s| s.split("\\r")).collect();
             let max_line_w = lines
                 .iter()
                 .map(|l| font_metrics::text_width(l, "SansSerif", link_label_font_size, false, false))

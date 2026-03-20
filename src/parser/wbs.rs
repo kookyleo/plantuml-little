@@ -67,7 +67,7 @@ fn parse_alias_and_text(input: &str) -> (Option<String>, String) {
         if let Some(close_paren) = trimmed.find(')') {
             let alias = trimmed[1..close_paren].trim().to_string();
             let text = trimmed[close_paren + 1..].trim().to_string();
-            let text = text.replace("\\n", "\n");
+            let text = text.replace("\\n", "\n").replace(crate::NEWLINE_CHAR, "\n");
             return (Some(alias), text);
         }
     }
@@ -81,12 +81,12 @@ fn parse_alias_and_text(input: &str) -> (Option<String>, String) {
 
             if let Some(rest) = after_quote_clean.strip_prefix("as ") {
                 let alias = rest.trim().to_string();
-                let text = quoted_text.replace("\\n", "\n");
+                let text = quoted_text.replace("\\n", "\n").replace(crate::NEWLINE_CHAR, "\n");
                 return (Some(alias), text);
             } else {
                 // Quoted text without alias
                 let text = quoted_text;
-                let text = text.replace("\\n", "\n");
+                let text = text.replace("\\n", "\n").replace(crate::NEWLINE_CHAR, "\n");
                 return (None, text);
             }
         }
@@ -94,7 +94,7 @@ fn parse_alias_and_text(input: &str) -> (Option<String>, String) {
 
     // Plain text, preserving inline link markup for the renderer.
     let text = trimmed.to_string();
-    let text = text.replace("\\n", "\n");
+    let text = text.replace("\\n", "\n").replace(crate::NEWLINE_CHAR, "\n");
     (None, text)
 }
 
@@ -361,7 +361,7 @@ fn try_parse_wbs_note(line: &str) -> Option<WbsNoteParseResult> {
         let after_pos = rest[pos.len()..].trim();
 
         if let Some(after_colon) = after_pos.strip_prefix(':') {
-            let text = after_colon.trim().replace("\\n", "\n");
+            let text = after_colon.trim().replace("\\n", "\n").replace(crate::NEWLINE_CHAR, "\n");
             return Some(WbsNoteParseResult::SingleLine(WbsNote {
                 text,
                 position: pos.to_string(),
