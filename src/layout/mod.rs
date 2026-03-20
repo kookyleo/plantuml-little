@@ -9,6 +9,7 @@ pub mod mindmap;
 pub mod nwdiag;
 pub mod salt;
 pub mod sequence;
+pub mod sequence_teoz;
 pub mod state;
 pub mod timing;
 pub mod usecase;
@@ -137,7 +138,11 @@ pub fn layout(diagram: &Diagram, skin: &crate::style::SkinParams) -> Result<Diag
             Ok(DiagramLayout::Class(gl))
         }
         Diagram::Sequence(sd) => {
-            let sl = sequence::layout_sequence(sd, skin)?;
+            let sl = if sd.teoz_mode {
+                sequence_teoz::layout_sequence_teoz(sd, skin)?
+            } else {
+                sequence::layout_sequence(sd, skin)?
+            };
             Ok(DiagramLayout::Sequence(sl))
         }
         Diagram::Activity(ad) => {

@@ -1,84 +1,53 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 855.2 552.0" width="855.2" height="552.0" font-family="monospace" font-size="13">
-<defs>
-<marker id="seq-arrow-filled" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 Z" fill="#A80036" stroke="none"/></marker>
-<marker id="seq-arrow-open" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10" fill="none" stroke="#A80036" stroke-width="1.2"/></marker>
-</defs>
-<line x1="54.0" y1="96.0" x2="54.0" y2="416.0" stroke="#A80036" stroke-width="1" stroke-dasharray="5,5"/>
-<line x1="154.0" y1="96.0" x2="154.0" y2="416.0" stroke="#A80036" stroke-width="1" stroke-dasharray="5,5"/>
-<line x1="254.0" y1="96.0" x2="254.0" y2="416.0" stroke="#A80036" stroke-width="1" stroke-dasharray="5,5"/>
-<line x1="354.0" y1="96.0" x2="354.0" y2="416.0" stroke="#A80036" stroke-width="1" stroke-dasharray="5,5"/>
-<line x1="454.0" y1="96.0" x2="454.0" y2="416.0" stroke="#A80036" stroke-width="1" stroke-dasharray="5,5"/>
-<line x1="554.0" y1="96.0" x2="554.0" y2="416.0" stroke="#A80036" stroke-width="1" stroke-dasharray="5,5"/>
-<line x1="654.0" y1="96.0" x2="654.0" y2="416.0" stroke="#A80036" stroke-width="1" stroke-dasharray="5,5"/>
-<line x1="754.0" y1="96.0" x2="754.0" y2="416.0" stroke="#A80036" stroke-width="1" stroke-dasharray="5,5"/>
-<line x1="54.0" y1="116.0" x2="154.0" y2="116.0" stroke="#A80036" stroke-width="1" marker-end="url(#seq-arrow-filled)"/>
-<text x="104.0" y="110.0" text-anchor="middle" fill="#000000">hello</text>
-<line x1="154.0" y1="156.0" x2="254.0" y2="156.0" stroke="#A80036" stroke-width="1" marker-end="url(#seq-arrow-filled)"/>
-<text x="204.0" y="150.0" text-anchor="middle" fill="#000000">process</text>
-<line x1="254.0" y1="196.0" x2="354.0" y2="196.0" stroke="#A80036" stroke-width="1" marker-end="url(#seq-arrow-filled)"/>
-<text x="304.0" y="190.0" text-anchor="middle" fill="#000000">store</text>
-<line x1="354.0" y1="236.0" x2="454.0" y2="236.0" stroke="#A80036" stroke-width="1" marker-end="url(#seq-arrow-filled)"/>
-<text x="404.0" y="230.0" text-anchor="middle" fill="#000000">write</text>
-<line x1="454.0" y1="276.0" x2="554.0" y2="276.0" stroke="#A80036" stroke-width="1" marker-end="url(#seq-arrow-filled)"/>
-<text x="504.0" y="270.0" text-anchor="middle" fill="#000000">log</text>
-<line x1="554.0" y1="316.0" x2="654.0" y2="316.0" stroke="#A80036" stroke-width="1" marker-end="url(#seq-arrow-filled)"/>
-<text x="604.0" y="310.0" text-anchor="middle" fill="#000000">queue</text>
-<line x1="654.0" y1="356.0" x2="754.0" y2="356.0" stroke="#A80036" stroke-width="1" marker-end="url(#seq-arrow-filled)"/>
-<text x="704.0" y="350.0" text-anchor="middle" fill="#000000">done</text>
-<circle cx="54.0" cy="30.0" r="8" fill="none" stroke="#A80036" stroke-width="1.5"/>
-<line x1="54.0" y1="38.0" x2="54.0" y2="58.0" stroke="#A80036" stroke-width="1.5"/>
-<line x1="54.0" y1="45.0" x2="40.0" y2="45.0" stroke="#A80036" stroke-width="1.5"/>
-<line x1="54.0" y1="45.0" x2="68.0" y2="45.0" stroke="#A80036" stroke-width="1.5"/>
-<line x1="54.0" y1="58.0" x2="44.0" y2="74.0" stroke="#A80036" stroke-width="1.5"/>
-<line x1="54.0" y1="58.0" x2="64.0" y2="74.0" stroke="#A80036" stroke-width="1.5"/>
-<text x="54.0" y="91.0" text-anchor="middle" font-weight="bold" fill="#000000">Alice</text>
-<circle cx="146.0" cy="34.0" r="10" fill="#FEFECE" stroke="#A80036" stroke-width="1.5"/>
-<line x1="132.0" y1="24.0" x2="132.0" y2="44.0" stroke="#A80036" stroke-width="1.5"/>
-<line x1="132.0" y1="34.0" x2="136.0" y2="34.0" stroke="#A80036" stroke-width="1.5"/>
-<text x="154.0" y="63.0" text-anchor="middle" font-weight="bold" fill="#000000">Bob</text>
-<circle cx="254.0" cy="40.0" r="12" fill="#FEFECE" stroke="#A80036" stroke-width="1.5"/>
-<path d="M 249.0,22.0 L 256.0,27.0 L 249.0,31.0" fill="none" stroke="#A80036" stroke-width="1.5"/>
-<text x="254.0" y="71.0" text-anchor="middle" font-weight="bold" fill="#000000">Charlie</text>
-<circle cx="354.0" cy="36.0" r="12" fill="#FEFECE" stroke="#A80036" stroke-width="1.5"/>
-<line x1="342.0" y1="50.0" x2="366.0" y2="50.0" stroke="#A80036" stroke-width="1.5"/>
-<text x="354.0" y="69.0" text-anchor="middle" font-weight="bold" fill="#000000">Dave</text>
-<path d="M 434.0,30.0 A 20.0,6.0 0 0,0 474.0,30.0 L 474.0,54.0 A 20.0,6.0 0 0,0 434.0,54.0 Z" fill="#FEFECE" stroke="#A80036" stroke-width="1.5"/>
-<ellipse cx="454.0" cy="30.0" rx="20.0" ry="6.0" fill="#FEFECE" stroke="#A80036" stroke-width="1.5"/>
-<text x="454.0" y="77.0" text-anchor="middle" font-weight="bold" fill="#000000">DB</text>
-<rect x="528.0" y="24.0" width="60.0" height="28.0" fill="#FEFECE" stroke="#A80036" stroke-width="1.5"/>
-<rect x="524.0" y="28.0" width="60.0" height="28.0" fill="#FEFECE" stroke="#A80036" stroke-width="1.5"/>
-<text x="554.0" y="75.0" text-anchor="middle" font-weight="bold" fill="#000000">Logs</text>
-<path d="M 632.0,26.0 L 670.0,26.0 A 6.0,14.0 0 0,1 670.0,54.0 L 632.0,54.0 A 6.0,14.0 0 0,1 632.0,26.0 Z" fill="#FEFECE" stroke="#A80036" stroke-width="1.5"/>
-<ellipse cx="670.0" cy="40.0" rx="6.0" ry="14.0" fill="#FEFECE" stroke="#A80036" stroke-width="1.5"/>
-<text x="654.0" y="73.0" text-anchor="middle" font-weight="bold" fill="#000000">MQ</text>
-<rect x="712.8" y="20.0" width="82.4" height="36.0" fill="#FEFECE" stroke="#A80036" stroke-width="1.5"/>
-<text x="754.0" y="42.5" text-anchor="middle" font-weight="bold" fill="#000000">Default</text>
-<circle cx="54.0" cy="426.0" r="8" fill="none" stroke="#A80036" stroke-width="1.5"/>
-<line x1="54.0" y1="434.0" x2="54.0" y2="454.0" stroke="#A80036" stroke-width="1.5"/>
-<line x1="54.0" y1="441.0" x2="40.0" y2="441.0" stroke="#A80036" stroke-width="1.5"/>
-<line x1="54.0" y1="441.0" x2="68.0" y2="441.0" stroke="#A80036" stroke-width="1.5"/>
-<line x1="54.0" y1="454.0" x2="44.0" y2="470.0" stroke="#A80036" stroke-width="1.5"/>
-<line x1="54.0" y1="454.0" x2="64.0" y2="470.0" stroke="#A80036" stroke-width="1.5"/>
-<text x="54.0" y="487.0" text-anchor="middle" font-weight="bold" fill="#000000">Alice</text>
-<circle cx="146.0" cy="430.0" r="10" fill="#FEFECE" stroke="#A80036" stroke-width="1.5"/>
-<line x1="132.0" y1="420.0" x2="132.0" y2="440.0" stroke="#A80036" stroke-width="1.5"/>
-<line x1="132.0" y1="430.0" x2="136.0" y2="430.0" stroke="#A80036" stroke-width="1.5"/>
-<text x="154.0" y="459.0" text-anchor="middle" font-weight="bold" fill="#000000">Bob</text>
-<circle cx="254.0" cy="436.0" r="12" fill="#FEFECE" stroke="#A80036" stroke-width="1.5"/>
-<path d="M 249.0,418.0 L 256.0,423.0 L 249.0,427.0" fill="none" stroke="#A80036" stroke-width="1.5"/>
-<text x="254.0" y="467.0" text-anchor="middle" font-weight="bold" fill="#000000">Charlie</text>
-<circle cx="354.0" cy="432.0" r="12" fill="#FEFECE" stroke="#A80036" stroke-width="1.5"/>
-<line x1="342.0" y1="446.0" x2="366.0" y2="446.0" stroke="#A80036" stroke-width="1.5"/>
-<text x="354.0" y="465.0" text-anchor="middle" font-weight="bold" fill="#000000">Dave</text>
-<path d="M 434.0,426.0 A 20.0,6.0 0 0,0 474.0,426.0 L 474.0,450.0 A 20.0,6.0 0 0,0 434.0,450.0 Z" fill="#FEFECE" stroke="#A80036" stroke-width="1.5"/>
-<ellipse cx="454.0" cy="426.0" rx="20.0" ry="6.0" fill="#FEFECE" stroke="#A80036" stroke-width="1.5"/>
-<text x="454.0" y="473.0" text-anchor="middle" font-weight="bold" fill="#000000">DB</text>
-<rect x="528.0" y="420.0" width="60.0" height="28.0" fill="#FEFECE" stroke="#A80036" stroke-width="1.5"/>
-<rect x="524.0" y="424.0" width="60.0" height="28.0" fill="#FEFECE" stroke="#A80036" stroke-width="1.5"/>
-<text x="554.0" y="471.0" text-anchor="middle" font-weight="bold" fill="#000000">Logs</text>
-<path d="M 632.0,422.0 L 670.0,422.0 A 6.0,14.0 0 0,1 670.0,450.0 L 632.0,450.0 A 6.0,14.0 0 0,1 632.0,422.0 Z" fill="#FEFECE" stroke="#A80036" stroke-width="1.5"/>
-<ellipse cx="670.0" cy="436.0" rx="6.0" ry="14.0" fill="#FEFECE" stroke="#A80036" stroke-width="1.5"/>
-<text x="654.0" y="469.0" text-anchor="middle" font-weight="bold" fill="#000000">MQ</text>
-<rect x="712.8" y="416.0" width="82.4" height="36.0" fill="#FEFECE" stroke="#A80036" stroke-width="1.5"/>
-<text x="754.0" y="438.6" text-anchor="middle" font-weight="bold" fill="#000000">Default</text>
-</svg>
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" contentStyleType="text/css" data-diagram-type="SEQUENCE" height="387px" preserveAspectRatio="none" style="width:495px;height:387px;background:#FFFFFF;" version="1.1" viewBox="0 0 495 387" width="495px" zoomAndPan="magnify"><?plantuml 1.2026.3beta4?><defs/><g><g class="participant-lifeline" data-entity-uid="part1" data-qualified-name="Alice" id="part1-lifeline"><g><title>Alice</title><rect fill="#000000" fill-opacity="0.00000" height="223.9297" width="8" x="20.8335" y="81.2969"/><line style="stroke:#181818;stroke-width:0.5;stroke-dasharray:5,5;" x1="24" x2="24" y1="81.2969" y2="305.2266"/></g></g><g class="participant-lifeline" data-entity-uid="part2" data-qualified-name="Bob" id="part2-lifeline"><g><title>Bob</title><rect fill="#000000" fill-opacity="0.00000" height="223.9297" width="8" x="76.248" y="81.2969"/><line style="stroke:#181818;stroke-width:0.5;stroke-dasharray:5,5;" x1="79.748" x2="79.748" y1="81.2969" y2="305.2266"/></g></g><g class="participant-lifeline" data-entity-uid="part3" data-qualified-name="Charlie" id="part3-lifeline"><g><title>Charlie</title><rect fill="#000000" fill-opacity="0.00000" height="223.9297" width="8" x="150.4897" y="81.2969"/><line style="stroke:#181818;stroke-width:0.5;stroke-dasharray:5,5;" x1="153.8018" x2="153.8018" y1="81.2969" y2="305.2266"/></g></g><g class="participant-lifeline" data-entity-uid="part4" data-qualified-name="Dave" id="part4-lifeline"><g><title>Dave</title><rect fill="#000000" fill-opacity="0.00000" height="223.9297" width="8" x="209.3066" y="81.2969"/><line style="stroke:#181818;stroke-width:0.5;stroke-dasharray:5,5;" x1="213.1777" x2="213.1777" y1="81.2969" y2="305.2266"/></g></g><g class="participant-lifeline" data-entity-uid="part5" data-qualified-name="DB" id="part5-lifeline"><g><title>DB</title><rect fill="#000000" fill-opacity="0.00000" height="223.9297" width="8" x="265.9907" y="81.2969"/><line style="stroke:#181818;stroke-width:0.5;stroke-dasharray:5,5;" x1="269.9907" x2="269.9907" y1="81.2969" y2="305.2266"/></g></g><g class="participant-lifeline" data-entity-uid="part6" data-qualified-name="Logs" id="part6-lifeline"><g><title>Logs</title><rect fill="#000000" fill-opacity="0.00000" height="223.9297" width="8" x="319.2637" y="81.2969"/><line style="stroke:#181818;stroke-width:0.5;stroke-dasharray:5,5;" x1="322.9907" x2="322.9907" y1="81.2969" y2="305.2266"/></g></g><g class="participant-lifeline" data-entity-uid="part7" data-qualified-name="MQ" id="part7-lifeline"><g><title>MQ</title><rect fill="#000000" fill-opacity="0.00000" height="223.9297" width="8" x="383.9902" y="81.2969"/><line style="stroke:#181818;stroke-width:0.5;stroke-dasharray:5,5;" x1="387.4409" x2="387.4409" y1="81.2969" y2="305.2266"/></g></g><g class="participant-lifeline" data-entity-uid="part8" data-qualified-name="Default" id="part8-lifeline"><g><title>Default</title><rect fill="#000000" fill-opacity="0.00000" height="223.9297" width="8" x="448.1162" y="81.2969"/><line style="stroke:#181818;stroke-width:0.5;stroke-dasharray:5,5;" x1="451.5395" x2="451.5395" y1="81.2969" y2="305.2266"/></g></g><g class="participant participant-head" data-entity-uid="part1" data-qualified-name="Alice" id="part1-head"><circle cx="24.8335" cy="15" fill="none" r="8" style="stroke:#181818;stroke-width:1.5;"/>
+<line style="stroke:#181818;stroke-width:1.5;" x1="24.8335" x2="24.8335" y1="23" y2="43"/>
+<line style="stroke:#181818;stroke-width:1.5;" x1="24.8335" x2="10.8335" y1="30" y2="30"/>
+<line style="stroke:#181818;stroke-width:1.5;" x1="24.8335" x2="38.8335" y1="30" y2="30"/>
+<line style="stroke:#181818;stroke-width:1.5;" x1="24.8335" x2="14.8335" y1="43" y2="59"/>
+<line style="stroke:#181818;stroke-width:1.5;" x1="24.8335" x2="34.8335" y1="43" y2="59"/>
+<text fill="#000000" font-family="sans-serif" font-size="14" font-weight="bold" lengthAdjust="spacing" text-anchor="middle" textLength="38.2266" x="24.8335" y="76">Alice</text>
+</g><g class="participant participant-tail" data-entity-uid="part1" data-qualified-name="Alice" id="part1-tail"><circle cx="24.8335" cy="314.2266" fill="none" r="8" style="stroke:#181818;stroke-width:1.5;"/>
+<line style="stroke:#181818;stroke-width:1.5;" x1="24.8335" x2="24.8335" y1="322.2266" y2="342.2266"/>
+<line style="stroke:#181818;stroke-width:1.5;" x1="24.8335" x2="10.8335" y1="329.2266" y2="329.2266"/>
+<line style="stroke:#181818;stroke-width:1.5;" x1="24.8335" x2="38.8335" y1="329.2266" y2="329.2266"/>
+<line style="stroke:#181818;stroke-width:1.5;" x1="24.8335" x2="14.8335" y1="342.2266" y2="358.2266"/>
+<line style="stroke:#181818;stroke-width:1.5;" x1="24.8335" x2="34.8335" y1="342.2266" y2="358.2266"/>
+<text fill="#000000" font-family="sans-serif" font-size="14" font-weight="bold" lengthAdjust="spacing" text-anchor="middle" textLength="38.2266" x="24.8335" y="375.2266">Alice</text>
+</g><g class="participant participant-head" data-entity-uid="part2" data-qualified-name="Bob" id="part2-head"><circle cx="72.248" cy="44" fill="#E2E2F0" r="10" style="stroke:#181818;stroke-width:1.5;"/>
+<line style="stroke:#181818;stroke-width:1.5;" x1="58.248" x2="58.248" y1="34" y2="54"/>
+<line style="stroke:#181818;stroke-width:1.5;" x1="58.248" x2="62.248" y1="44" y2="44"/>
+<text fill="#000000" font-family="sans-serif" font-size="14" font-weight="bold" lengthAdjust="spacing" text-anchor="middle" textLength="30.3105" x="80.248" y="73">Bob</text>
+</g><g class="participant participant-tail" data-entity-uid="part2" data-qualified-name="Bob" id="part2-tail"><circle cx="72.248" cy="318.2266" fill="#E2E2F0" r="10" style="stroke:#181818;stroke-width:1.5;"/>
+<line style="stroke:#181818;stroke-width:1.5;" x1="58.248" x2="58.248" y1="308.2266" y2="328.2266"/>
+<line style="stroke:#181818;stroke-width:1.5;" x1="58.248" x2="62.248" y1="318.2266" y2="318.2266"/>
+<text fill="#000000" font-family="sans-serif" font-size="14" font-weight="bold" lengthAdjust="spacing" text-anchor="middle" textLength="30.3105" x="80.248" y="347.2266">Bob</text>
+</g><g class="participant participant-head" data-entity-uid="part3" data-qualified-name="Charlie" id="part3-head"><circle cx="154.4897" cy="50" fill="#E2E2F0" r="12" style="stroke:#181818;stroke-width:1.5;"/>
+<path d="M149.4897,32 L156.4897,37 L149.4897,41 " fill="none" style="stroke:#181818;stroke-width:1.5;"/>
+<text fill="#000000" font-family="sans-serif" font-size="14" font-weight="bold" lengthAdjust="spacing" text-anchor="middle" textLength="55.6855" x="154.4897" y="81">Charlie</text>
+</g><g class="participant participant-tail" data-entity-uid="part3" data-qualified-name="Charlie" id="part3-tail"><circle cx="154.4897" cy="324.2266" fill="#E2E2F0" r="12" style="stroke:#181818;stroke-width:1.5;"/>
+<path d="M149.4897,306.2266 L156.4897,311.2266 L149.4897,315.2266 " fill="none" style="stroke:#181818;stroke-width:1.5;"/>
+<text fill="#000000" font-family="sans-serif" font-size="14" font-weight="bold" lengthAdjust="spacing" text-anchor="middle" textLength="55.6855" x="154.4897" y="355.2266">Charlie</text>
+</g><g class="participant participant-head" data-entity-uid="part4" data-qualified-name="Dave" id="part4-head"><circle cx="213.3066" cy="46" fill="#E2E2F0" r="12" style="stroke:#181818;stroke-width:1.5;"/>
+<line style="stroke:#181818;stroke-width:1.5;" x1="201.3066" x2="225.3066" y1="60" y2="60"/>
+<text fill="#000000" font-family="sans-serif" font-size="14" font-weight="bold" lengthAdjust="spacing" text-anchor="middle" textLength="39.6895" x="213.3066" y="79">Dave</text>
+</g><g class="participant participant-tail" data-entity-uid="part4" data-qualified-name="Dave" id="part4-tail"><circle cx="213.3066" cy="320.2266" fill="#E2E2F0" r="12" style="stroke:#181818;stroke-width:1.5;"/>
+<line style="stroke:#181818;stroke-width:1.5;" x1="201.3066" x2="225.3066" y1="334.2266" y2="334.2266"/>
+<text fill="#000000" font-family="sans-serif" font-size="14" font-weight="bold" lengthAdjust="spacing" text-anchor="middle" textLength="39.6895" x="213.3066" y="353.2266">Dave</text>
+</g><g class="participant participant-head" data-entity-uid="part5" data-qualified-name="DB" id="part5-head"><path d="M249.9907,40 A20,6 0 0,0 289.9907,40 L289.9907,64 A20,6 0 0,0 249.9907,64 Z " fill="#E2E2F0" style="stroke:#181818;stroke-width:1.5;"/>
+<ellipse cx="269.9907" cy="40" fill="#E2E2F0" rx="20" ry="6" style="stroke:#181818;stroke-width:1.5;"/>
+<text fill="#000000" font-family="sans-serif" font-size="14" font-weight="bold" lengthAdjust="spacing" text-anchor="middle" textLength="22.292" x="269.9907" y="87">DB</text>
+</g><g class="participant participant-tail" data-entity-uid="part5" data-qualified-name="DB" id="part5-tail"><path d="M249.9907,314.2266 A20,6 0 0,0 289.9907,314.2266 L289.9907,338.2266 A20,6 0 0,0 249.9907,338.2266 Z " fill="#E2E2F0" style="stroke:#181818;stroke-width:1.5;"/>
+<ellipse cx="269.9907" cy="314.2266" fill="#E2E2F0" rx="20" ry="6" style="stroke:#181818;stroke-width:1.5;"/>
+<text fill="#000000" font-family="sans-serif" font-size="14" font-weight="bold" lengthAdjust="spacing" text-anchor="middle" textLength="22.292" x="269.9907" y="361.2266">DB</text>
+</g><g class="participant participant-head" data-entity-uid="part6" data-qualified-name="Logs" id="part6-head"><rect fill="#E2E2F0" height="28" style="stroke:#181818;stroke-width:1.5;" width="50.5459" x="301.9907" y="34"/>
+<rect fill="#E2E2F0" height="28" style="stroke:#181818;stroke-width:1.5;" width="50.5459" x="297.9907" y="38"/>
+<text fill="#000000" font-family="sans-serif" font-size="14" font-weight="bold" lengthAdjust="spacing" text-anchor="middle" textLength="36.8936" x="323.2637" y="85">Logs</text>
+</g><g class="participant participant-tail" data-entity-uid="part6" data-qualified-name="Logs" id="part6-tail"><rect fill="#E2E2F0" height="28" style="stroke:#181818;stroke-width:1.5;" width="50.5459" x="301.9907" y="308.2266"/>
+<rect fill="#E2E2F0" height="28" style="stroke:#181818;stroke-width:1.5;" width="50.5459" x="297.9907" y="312.2266"/>
+<text fill="#000000" font-family="sans-serif" font-size="14" font-weight="bold" lengthAdjust="spacing" text-anchor="middle" textLength="36.8936" x="323.2637" y="359.2266">Logs</text>
+</g><g class="participant participant-head" data-entity-uid="part7" data-qualified-name="MQ" id="part7-head"><path d="M365.9902,36 L403.9902,36 A6,14 0 0,1 403.9902,64 L365.9902,64 A6,14 0 0,1 365.9902,36 Z " fill="#E2E2F0" style="stroke:#181818;stroke-width:1.5;"/>
+<ellipse cx="403.9902" cy="50" fill="#E2E2F0" rx="6" ry="14" style="stroke:#181818;stroke-width:1.5;"/>
+<text fill="#000000" font-family="sans-serif" font-size="14" font-weight="bold" lengthAdjust="spacing" text-anchor="middle" textLength="25.833" x="387.9902" y="83">MQ</text>
+</g><g class="participant participant-tail" data-entity-uid="part7" data-qualified-name="MQ" id="part7-tail"><path d="M365.9902,310.2266 L403.9902,310.2266 A6,14 0 0,1 403.9902,338.2266 L365.9902,338.2266 A6,14 0 0,1 365.9902,310.2266 Z " fill="#E2E2F0" style="stroke:#181818;stroke-width:1.5;"/>
+<ellipse cx="403.9902" cy="324.2266" fill="#E2E2F0" rx="6" ry="14" style="stroke:#181818;stroke-width:1.5;"/>
+<text fill="#000000" font-family="sans-serif" font-size="14" font-weight="bold" lengthAdjust="spacing" text-anchor="middle" textLength="25.833" x="387.9902" y="357.2266">MQ</text>
+</g><g class="participant participant-head" data-entity-uid="part8" data-qualified-name="Default" id="part8-head"><rect fill="#E2E2F0" height="30.2969" rx="2.5" ry="2.5" style="stroke:#181818;stroke-width:0.5;" width="65.1533" x="419.5395" y="50"/><text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="51.1533" x="426.5395" y="69.9951">Default</text></g><g class="participant participant-tail" data-entity-uid="part8" data-qualified-name="Default" id="part8-tail"><rect fill="#E2E2F0" height="30.2969" rx="2.5" ry="2.5" style="stroke:#181818;stroke-width:0.5;" width="65.1533" x="419.5395" y="304.2266"/><text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="51.1533" x="426.5395" y="324.2217">Default</text></g><g class="message" data-entity-1="part1" data-entity-2="part2" id="msg1"><polygon fill="#181818" points="68.248,108.4297,78.248,112.4297,68.248,116.4297,72.248,112.4297" style="stroke:#181818;stroke-width:1;"/><line style="stroke:#181818;stroke-width:1;" x1="24.8335" x2="74.248" y1="112.4297" y2="112.4297"/><text fill="#000000" font-family="sans-serif" font-size="13" lengthAdjust="spacing" textLength="31.4146" x="31.8335" y="107.3638">hello</text></g><g class="message" data-entity-1="part2" data-entity-2="part3" id="msg2"><polygon fill="#181818" points="142.4897,137.5625,152.4897,141.5625,142.4897,145.5625,146.4897,141.5625" style="stroke:#181818;stroke-width:1;"/><line style="stroke:#181818;stroke-width:1;" x1="80.248" x2="148.4897" y1="141.5625" y2="141.5625"/><text fill="#000000" font-family="sans-serif" font-size="13" lengthAdjust="spacing" textLength="50.2417" x="87.248" y="136.4966">process</text></g><g class="message" data-entity-1="part3" data-entity-2="part4" id="msg3"><polygon fill="#181818" points="201.3066,166.6953,211.3066,170.6953,201.3066,174.6953,205.3066,170.6953" style="stroke:#181818;stroke-width:1;"/><line style="stroke:#181818;stroke-width:1;" x1="154.4897" x2="207.3066" y1="170.6953" y2="170.6953"/><text fill="#000000" font-family="sans-serif" font-size="13" lengthAdjust="spacing" textLength="33.1665" x="161.4897" y="165.6294">store</text></g><g class="message" data-entity-1="part4" data-entity-2="part5" id="msg4"><polygon fill="#181818" points="257.9907,195.8281,267.9907,199.8281,257.9907,203.8281,261.9907,199.8281" style="stroke:#181818;stroke-width:1;"/><line style="stroke:#181818;stroke-width:1;" x1="213.3066" x2="263.9907" y1="199.8281" y2="199.8281"/><text fill="#000000" font-family="sans-serif" font-size="13" lengthAdjust="spacing" textLength="32.6841" x="220.3066" y="194.7622">write</text></g><g class="message" data-entity-1="part5" data-entity-2="part6" id="msg5"><polygon fill="#181818" points="311.2637,224.9609,321.2637,228.9609,311.2637,232.9609,315.2637,228.9609" style="stroke:#181818;stroke-width:1;"/><line style="stroke:#181818;stroke-width:1;" x1="269.9907" x2="317.2637" y1="228.9609" y2="228.9609"/><text fill="#000000" font-family="sans-serif" font-size="13" lengthAdjust="spacing" textLength="19.8174" x="276.9907" y="223.895">log</text></g><g class="message" data-entity-1="part6" data-entity-2="part7" id="msg6"><polygon fill="#181818" points="375.9902,254.0938,385.9902,258.0938,375.9902,262.0938,379.9902,258.0938" style="stroke:#181818;stroke-width:1;"/><line style="stroke:#181818;stroke-width:1;" x1="323.2637" x2="381.9902" y1="258.0938" y2="258.0938"/><text fill="#000000" font-family="sans-serif" font-size="13" lengthAdjust="spacing" textLength="40.7266" x="330.2637" y="253.0278">queue</text></g><g class="message" data-entity-1="part7" data-entity-2="part8" id="msg7"><polygon fill="#181818" points="440.1162,283.2266,450.1162,287.2266,440.1162,291.2266,444.1162,287.2266" style="stroke:#181818;stroke-width:1;"/><line style="stroke:#181818;stroke-width:1;" x1="387.9902" x2="446.1162" y1="287.2266" y2="287.2266"/><text fill="#000000" font-family="sans-serif" font-size="13" lengthAdjust="spacing" textLength="32.4429" x="394.9902" y="282.1606">done</text></g><?plantuml-src DSx13S8m30NGkwVm0Yp00OdI8prq13SrRIGhBeaBwlOu0MxESwp_APXcl4eC39FkQQPyOASJ14sMLV2sKfR8mCcY7TZJYs4ceuaAOz_vFn4E5ZKLlEjIuBdppZYCi56s6E96oR3d1-rYq8BmTAaHUCQLHHJgxFHBSjwo1Yu5_kBBckkRucqPsgDYv_JEqPow2hM0a-W2RNGQHeVM2NoiHzyghhCc_W00?></g></svg>

@@ -609,9 +609,9 @@ fn wrap_with_meta(body_svg: &str, meta: &DiagramMeta, diagram_type: &str, bg: &s
     // textBlock dimensions for positioning
     let tb_w = total_dim.0;
     let tb_h = total_dim.1;
-    // Canvas: floor(textBlock + DOC_MARGIN + 1), matching Java ensureVisible.
-    let canvas_w = (tb_w + DOC_MARGIN_RIGHT + 1.0).floor();
-    let canvas_h = (tb_h + DOC_MARGIN_BOTTOM + 1.0).floor();
+    // Canvas: Java ensureVisible → maxX = (int)(dim + 1)
+    let canvas_w = (tb_w + DOC_MARGIN_RIGHT + 1.0) as i32 as f64;
+    let canvas_h = (tb_h + DOC_MARGIN_BOTTOM + 1.0) as i32 as f64;
 
     // ── 3. Compute absolute drawing positions ──────────────────────
     let outer_inner_x = ((tb_w - after_caption.0) / 2.0).max(0.0);
@@ -900,22 +900,20 @@ fn render_class(
         const DEGENERATED_DELTA: f64 = 7.0;
         let calc_w = entity_w + DEGENERATED_DELTA * 2.0;
         let calc_h = entity_h + DEGENERATED_DELTA * 2.0;
-        // SvgGraphics.ensureVisible: maxX = (int)(minDim + 1)
-        let w = (calc_w + DOC_MARGIN_RIGHT + 1.0).floor();
-        let h = (calc_h + DOC_MARGIN_BOTTOM + 1.0).floor();
-        (w, h)
+        // SvgGraphics.ensureVisible: maxX = (int)(dim + 1)
+        let w = (calc_w + DOC_MARGIN_RIGHT + 1.0) as i32;
+        let h = (calc_h + DOC_MARGIN_BOTTOM + 1.0) as i32;
+        (w as f64, h as f64)
     } else {
-        // Java two-pass model:
-        //   Pass 1: LimitFinder tracks drawU → minMax (span)
-        //   dim = span.delta(15, 15) + doc_margin(R=5, B=5) = span + 20
-        //   Pass 2: SvgGraphics ensureVisible(dim) → maxX = (int)(dim.w + 1)
-        //
-        // Our tracker tracks actual draws in shifted coords (after moveDelta).
-        // The span matches Java's LimitFinder span because moveDelta is now
-        // computed with the same LimitFinder rect (x-1) offset.
+        // Java: SvekResult.calculateDimension() = LimitFinder_span.delta(15, 15)
+        //   → TextBlockExporter adds doc_margin(R=5, B=5) → finalDim
+        //   → SvgGraphics.ensureVisible(finalDim) → maxX = (int)(finalDim.w + 1)
+        // (int) cast on positive doubles = truncate toward zero = floor.
         let (span_w, span_h) = tracker.span();
-        let w = (span_w + CANVAS_DELTA + DOC_MARGIN_RIGHT) as i32 + 1;
-        let h = (span_h + CANVAS_DELTA + DOC_MARGIN_BOTTOM) as i32 + 1;
+        let dim_w = span_w + CANVAS_DELTA + DOC_MARGIN_RIGHT;
+        let dim_h = span_h + CANVAS_DELTA + DOC_MARGIN_BOTTOM;
+        let w = (dim_w + 1.0) as i32;
+        let h = (dim_h + 1.0) as i32;
         (w as f64, h as f64)
     };
 
@@ -2584,7 +2582,7 @@ mod tests {
             }],
             notes: vec![],
             total_width: 240.0,
-            total_height: 220.0, move_delta: (7.0, 7.0),
+            total_height: 220.0, move_delta: (7.0, 7.0), lf_span: (240.0, 220.0),
         };
         (Diagram::Class(cd), DiagramLayout::Class(gl))
     }
@@ -2671,7 +2669,7 @@ mod tests {
             edges: vec![],
             notes: vec![],
             total_width: 200.0,
-            total_height: 100.0, move_delta: (7.0, 7.0),
+            total_height: 100.0, move_delta: (7.0, 7.0), lf_span: (200.0, 100.0),
         };
         let svg = render(
             &Diagram::Class(cd),
@@ -2708,7 +2706,7 @@ mod tests {
             edges: vec![],
             notes: vec![],
             total_width: 200.0,
-            total_height: 100.0, move_delta: (7.0, 7.0),
+            total_height: 100.0, move_delta: (7.0, 7.0), lf_span: (200.0, 100.0),
         };
         let svg = render(
             &Diagram::Class(cd),
@@ -2980,7 +2978,7 @@ mod tests {
                 connector: Some((180.0, 50.0, 160.0, 50.0)),
             }],
             total_width: 300.0,
-            total_height: 120.0, move_delta: (7.0, 7.0),
+            total_height: 120.0, move_delta: (7.0, 7.0), lf_span: (200.0, 100.0),
         };
         let svg = render(
             &Diagram::Class(cd),
@@ -3025,7 +3023,7 @@ mod tests {
                 connector: None,
             }],
             total_width: 100.0,
-            total_height: 60.0, move_delta: (7.0, 7.0),
+            total_height: 60.0, move_delta: (7.0, 7.0), lf_span: (200.0, 100.0),
         };
         let svg = render(
             &Diagram::Class(cd),

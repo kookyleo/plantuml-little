@@ -314,8 +314,8 @@ impl DotStringFactory {
     /// 1. For each node: find polygon/ellipse by color → extract position
     /// 2. For each edge: call `solve_line()` to extract path + labels
     /// 3. Normalize coordinates (shift so min position = (6, 6))
-    /// Returns the moveDelta (dx, dy) applied to normalize coordinates.
-    pub fn solve(&mut self, svg: &str) -> Result<(f64, f64), String> {
+    /// Returns (moveDelta, limitFinder_span) from normalization.
+    pub fn solve(&mut self, svg: &str) -> Result<((f64, f64), (f64, f64)), String> {
         use crate::svek::svg_result::SvgResult;
 
         // Parse translate(tx, ty) from Graphviz SVG top-level <g> transform.
@@ -389,26 +389,60 @@ impl DotStringFactory {
             }
         }
 
-        // Normalize: shift to origin + margin(6).
-        // Java: moveDelta(6 - minMax.minX, 6 - minMax.minY)
-        // Note: Java LimitFinder minX = polygon_minX - 1 (rect offset), so
-        // moveDelta = 6 - (polygon_minX - 1) = 7 - polygon_minX.
-        // After moveDelta, polygon_minX becomes 7.
-        // But we apply moveDelta based on polygon_minX directly (= 6 - polygon_minX),
-        // making polygon_minX become 6. The renderer then uses edge_offset = 7
-        // (= moveDelta + 1) to match Java's actual drawing position of 7.
+        // ── LimitFinder span (before moveDelta) ──
+        // Java Pass 1: LimitFinder.drawRectangle(x, y, w, h) → addPoint(x-1, y-1), addPoint(x+w-1, y+h-1)
+        // Java Pass 1: LimitFinder.drawEmpty for edge labels → addPoint(x, y), addPoint(x+w, y+h)
+        // We simulate this on the unshifted svek coordinates to get the exact span.
+        let mut lf_min_x = f64::INFINITY;
+        let mut lf_min_y = f64::INFINITY;
+        let mut lf_max_x = f64::NEG_INFINITY;
+        let mut lf_max_y = f64::NEG_INFINITY;
+        for node in &self.bibliotekon.nodes {
+            if node.hidden { continue; }
+            // LimitFinder.drawRectangle: (x-1, y-1) to (x+w-1, y+h-1)
+            // Plus entity internal drawEmpty extends bottom by 1 (empty compartment)
+            let rx = node.min_x - 1.0;
+            let ry = node.min_y - 1.0;
+            let rr = node.min_x + node.width - 1.0;
+            let rb = node.min_y + node.height; // +1 for drawEmpty at entity bottom
+            if rx < lf_min_x { lf_min_x = rx; }
+            if ry < lf_min_y { lf_min_y = ry; }
+            if rr > lf_max_x { lf_max_x = rr; }
+            if rb > lf_max_y { lf_max_y = rb; }
+        }
+        for edge in &self.bibliotekon.edges {
+            // LimitFinder.drawEmpty for edge label block
+            if let (Some(ref pt), Some(ref dim)) = (&edge.label_xy, &edge.label_dimension) {
+                let dim_w = if edge.divide_label_width_by_two { dim.width / 2.0 } else { dim.width };
+                let shielded_w = dim_w + 2.0 * edge.label_shield;
+                let shielded_h = dim.height + 2.0 * edge.label_shield;
+                let lx = pt.x - shielded_w / 2.0;
+                let ly = pt.y - shielded_h / 2.0;
+                // drawEmpty: (x, y) to (x+w, y+h) — no -1
+                if lx < lf_min_x { lf_min_x = lx; }
+                if ly < lf_min_y { lf_min_y = ly; }
+                let lr = lx + shielded_w;
+                let lb = ly + shielded_h;
+                if lr > lf_max_x { lf_max_x = lr; }
+                if lb > lf_max_y { lf_max_y = lb; }
+            }
+        }
+        let lf_span = if lf_max_x.is_finite() && lf_min_x.is_finite() {
+            (lf_max_x - lf_min_x, lf_max_y - lf_min_y)
+        } else {
+            (0.0, 0.0)
+        };
+
+        // ── moveDelta ──
+        // Use node polygon min (not LimitFinder min) for moveDelta.
+        // Java: moveDelta(6 - LF_minX, 6 - LF_minY). But our renderer uses
+        // edge_offset = moveDelta + 1 to compensate. So we keep moveDelta = 6 - polygon_min.
         let mut min_x = f64::INFINITY;
         let mut min_y = f64::INFINITY;
         for node in &self.bibliotekon.nodes {
-            if node.hidden {
-                continue;
-            }
-            if node.min_x < min_x {
-                min_x = node.min_x;
-            }
-            if node.min_y < min_y {
-                min_y = node.min_y;
-            }
+            if node.hidden { continue; }
+            if node.min_x < min_x { min_x = node.min_x; }
+            if node.min_y < min_y { min_y = node.min_y; }
         }
         let (dx, dy) = if min_x.is_finite() && min_y.is_finite() {
             let dx = 6.0 - min_x;
@@ -419,7 +453,7 @@ impl DotStringFactory {
             (0.0, 0.0)
         };
 
-        Ok((dx, dy))
+        Ok(((dx, dy), lf_span))
     }
 
     /// Move all positioned elements by delta.

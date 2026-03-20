@@ -11,7 +11,6 @@ use crate::Result;
 // ── Constants ────────────────────────────────────────────────────────────────
 
 const FONT_SIZE: f64 = 14.0;
-const PARTICIPANT_PADDING: f64 = 7.0;
 const SELF_MSG_WIDTH: f64 = 42.0;
 const ACTIVATION_WIDTH: f64 = 10.0;
 const NOTE_FONT_SIZE: f64 = 13.0;
@@ -491,7 +490,7 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
             .iter()
             .map(|line| font_metrics::text_width(line, default_font, participant_font_size, false, false))
             .fold(0.0_f64, f64::max);
-        let bw = (max_line_w + 2.0 * PARTICIPANT_PADDING).max(40.0);
+        let bw = rose::participant_preferred_width(&p.kind, max_line_w, 1.5);
         let participant_line_height =
             font_metrics::line_height(default_font, participant_font_size, false, false);
         let multiline_extra = if num_lines > 1 {
@@ -744,6 +743,12 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
     // activate should start at the message's y, not at y_cursor.
     let mut pending_note_activate_y: Option<f64> = None;
 
+    // Track the y of the most recent message for activation/deactivation.
+    // Unlike `last_message_y` (used for note back-offset, cleared by notes),
+    // this persists across notes so activate/deactivate can bind to the
+    // correct message y — matching Java's tile-based y assignment.
+    let mut last_event_msg_y: Option<f64> = None;
+
     let mut messages: Vec<MessageLayout> = Vec::new();
     let mut activations: Vec<ActivationLayout> = Vec::new();
     let mut destroys: Vec<DestroyLayout> = Vec::new();
@@ -775,12 +780,47 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
     for (event_idx, event) in sd.events.iter().enumerate() {
         match event {
             SeqEvent::Message(msg) => {
-                let from_x = find_participant_x(&participants, &msg.from);
-                let to_x = find_participant_x(&participants, &msg.to);
+                let mut from_x = find_participant_x(&participants, &msg.from);
+                let mut to_x = find_participant_x(&participants, &msg.to);
                 let is_self = msg.from == msg.to;
                 let is_dashed = msg.arrow_style == SeqArrowStyle::Dashed
                     || msg.arrow_style == SeqArrowStyle::Dotted;
                 let is_left = from_x > to_x;
+
+                // Adjust arrow endpoints for activation boxes (Java: LIVE_DELTA_SIZE=5).
+                // Incoming arrows stop at the activation box left/right edge,
+                // outgoing arrows start from the activation box right/left edge.
+                // Java associates LifeEvents with messages, so a message "knows"
+                // about upcoming activations. We look ahead past notes to find
+                // any Activate for from/to before the next message.
+                if !is_self {
+                    let from_active = activation_stack
+                        .get(&msg.from)
+                        .map_or(false, |s| !s.is_empty());
+                    let to_active = activation_stack
+                        .get(&msg.to)
+                        .map_or(false, |s| !s.is_empty());
+                    // Look-ahead: will the target be activated before the next message?
+                    let to_will_activate = !to_active
+                        && sd.events[event_idx + 1..]
+                            .iter()
+                            .take_while(|e| !matches!(e, SeqEvent::Message(_)))
+                            .any(|e| matches!(e, SeqEvent::Activate(n) if n == &msg.to));
+                    if from_active {
+                        if is_left {
+                            from_x -= ACTIVATION_WIDTH / 2.0;
+                        } else {
+                            from_x += ACTIVATION_WIDTH / 2.0;
+                        }
+                    }
+                    if to_active || to_will_activate {
+                        if is_left {
+                            to_x += ACTIVATION_WIDTH / 2.0;
+                        } else {
+                            to_x -= ACTIVATION_WIDTH / 2.0;
+                        }
+                    }
+                }
                 let has_open_head = msg.arrow_head == SeqArrowHead::Open;
 
                 // Track participant indices for fragment spanning
@@ -888,6 +928,7 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
                 } else {
                     last_message_y = None;
                 }
+                last_event_msg_y = Some(msg_y);
 
                 if is_self {
                     let return_y = msg_y + lp.self_msg_height;
@@ -905,7 +946,9 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
             }
 
             SeqEvent::Activate(name) => {
-                // Priority: 1) self-message return y, 2) note-attached message y, 3) y_cursor
+                // Priority: 1) self-message return y, 2) note-attached message y,
+                // 3) last message y, 4) y_cursor.
+                // Java binds activation start to the message y, not y_cursor.
                 let act_y = if let Some(y) = pending_self_return_y.remove(name.as_str()) {
                     y
                 } else if let Some(y) = pending_note_activate_y.take() {
@@ -914,7 +957,7 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
                     y_cursor += 3.0;
                     y
                 } else {
-                    y_cursor
+                    last_event_msg_y.unwrap_or(y_cursor)
                 };
                 log::debug!("activate '{name}' at y={act_y:.1}");
                 activation_stack
@@ -927,14 +970,17 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
                 let px = find_participant_x(&participants, name);
                 if let Some(stack) = activation_stack.get_mut(name.as_str()) {
                     if let Some(y_start) = stack.pop() {
+                        // Java binds activation end to the deactivating message y,
+                        // not y_cursor (which has advanced past the message).
+                        let y_end = last_event_msg_y.unwrap_or(y_cursor);
                         activations.push(ActivationLayout {
                             participant: name.clone(),
                             x: px - ACTIVATION_WIDTH / 2.0,
                             y_start,
-                            y_end: y_cursor,
+                            y_end,
                         });
                         log::debug!(
-                            "deactivate '{name}' at y={y_cursor:.1}, bar from {y_start:.1}"
+                            "deactivate '{name}' at y={y_end:.1}, bar from {y_start:.1}"
                         );
                     } else {
                         log::warn!("deactivate '{name}' with empty stack");
@@ -1432,7 +1478,7 @@ mod tests {
         let sd = SequenceDiagram {
             participants: vec![make_participant("Alice")],
             events: vec![],
-        };
+        teoz_mode: false, hide_footbox: false,};
         let layout = layout_sequence(&sd, &crate::style::SkinParams::default()).unwrap();
 
         assert_eq!(layout.participants.len(), 1);
@@ -1441,10 +1487,11 @@ mod tests {
         let lp = LayoutParams::compute("SansSerif", MSG_FONT_SIZE, FONT_SIZE);
         assert_eq!(p.box_height, lp.participant_height);
 
-        let expected_bw =
-            (crate::font_metrics::text_width("Alice", "SansSerif", FONT_SIZE, false, false)
-                + 2.0 * PARTICIPANT_PADDING)
-                .max(40.0);
+        let expected_bw = rose::participant_preferred_width(
+            &ParticipantKind::Default,
+            crate::font_metrics::text_width("Alice", "SansSerif", FONT_SIZE, false, false),
+            1.5,
+        );
         assert!(
             (p.box_width - expected_bw).abs() < 0.01,
             "box_width {}, expected {}",
@@ -1471,7 +1518,7 @@ mod tests {
         let sd = SequenceDiagram {
             participants: vec![make_participant("Alice"), make_participant("Bob")],
             events: vec![SeqEvent::Message(make_message("Alice", "Bob", "hello"))],
-        };
+        teoz_mode: false, hide_footbox: false,};
         let layout = layout_sequence(&sd, &crate::style::SkinParams::default()).unwrap();
 
         assert_eq!(layout.participants.len(), 2);
@@ -1479,7 +1526,6 @@ mod tests {
 
         let alice_x = layout.participants[0].x;
         let bob_x = layout.participants[1].x;
-        // Gap is now content-adaptive; just verify Bob is to the right of Alice
         assert!(
             bob_x > alice_x,
             "Bob center {bob_x} should be right of Alice center {alice_x}"
@@ -1491,6 +1537,27 @@ mod tests {
         assert!((msg.to_x - bob_x).abs() < 0.01);
         assert_eq!(msg.text, "hello");
         assert!(!msg.is_dashed);
+
+        // Value invariant: first message y must be within the lifeline span
+        // and positioned at a predictable offset from lifeline_top
+        assert!(
+            msg.y > layout.lifeline_top,
+            "msg.y ({:.1}) should be below lifeline_top ({:.1})",
+            msg.y,
+            layout.lifeline_top
+        );
+        assert!(
+            msg.y < layout.lifeline_bottom,
+            "msg.y ({:.1}) should be above lifeline_bottom ({:.1})",
+            msg.y,
+            layout.lifeline_bottom
+        );
+        // First message offset from lifeline_top should be ~31-33px (initial_offset)
+        let offset = msg.y - layout.lifeline_top;
+        assert!(
+            (30.0..=34.0).contains(&offset),
+            "first msg offset from lifeline_top ({offset:.2}) should be ~31-33"
+        );
     }
 
     #[test]
@@ -1498,7 +1565,7 @@ mod tests {
         let sd_self = SequenceDiagram {
             participants: vec![make_participant("A")],
             events: vec![SeqEvent::Message(make_message("A", "A", "self"))],
-        };
+        teoz_mode: false, hide_footbox: false,};
 
         let layout_self = layout_sequence(&sd_self, &crate::style::SkinParams::default()).unwrap();
 
@@ -1524,20 +1591,61 @@ mod tests {
                 SeqEvent::Message(make_message("B", "A", "resp")),
                 SeqEvent::Deactivate("B".to_string()),
             ],
-        };
+        teoz_mode: false, hide_footbox: false,};
         let layout = layout_sequence(&sd, &crate::style::SkinParams::default()).unwrap();
 
         assert_eq!(layout.activations.len(), 1);
         let act = &layout.activations[0];
-        assert!(
-            act.y_end > act.y_start,
-            "activation bar must have positive height"
-        );
 
         let bob_x = layout.participants[1].x;
         assert!(
             (act.x - (bob_x - ACTIVATION_WIDTH / 2.0)).abs() < 0.01,
             "activation x should be centered on participant"
+        );
+
+        // Invariant: activation starts at the triggering message y
+        let msg_req = &layout.messages[0];
+        assert!(
+            (act.y_start - msg_req.y).abs() < 0.01,
+            "activation y_start ({}) should equal triggering message y ({})",
+            act.y_start,
+            msg_req.y,
+        );
+
+        // Invariant: activation ends at the deactivating message y
+        let msg_resp = &layout.messages[1];
+        let lp = LayoutParams::compute("SansSerif", MSG_FONT_SIZE, FONT_SIZE);
+        assert!(
+            (act.y_end - msg_resp.y).abs() < 0.01,
+            "activation y_end ({}) should equal deactivating message y ({})",
+            act.y_end,
+            msg_resp.y,
+        );
+
+        // Invariant: activation height = exactly one message_spacing
+        let expected_height = lp.message_spacing;
+        let actual_height = act.y_end - act.y_start;
+        assert!(
+            (actual_height - expected_height).abs() < 0.01,
+            "activation height ({actual_height:.2}) should equal message_spacing ({expected_height:.2})"
+        );
+
+        // Invariant: response message from activated B goes LEFT,
+        // so from_x = activation box LEFT edge (bob_x - ACTIVATION_WIDTH/2)
+        assert!(
+            (msg_resp.from_x - (bob_x - ACTIVATION_WIDTH / 2.0)).abs() < 0.01,
+            "resp.from_x ({:.2}) should be at activation left edge ({:.2})",
+            msg_resp.from_x,
+            bob_x - ACTIVATION_WIDTH / 2.0
+        );
+
+        // req message: B will be activated right after (look-ahead),
+        // so to_x should be at activation left edge (bob_x - ACTIVATION_WIDTH/2)
+        assert!(
+            (msg_req.to_x - (bob_x - ACTIVATION_WIDTH / 2.0)).abs() < 0.01,
+            "req.to_x ({:.2}) should be at activation left edge ({:.2}) via look-ahead",
+            msg_req.to_x,
+            bob_x - ACTIVATION_WIDTH / 2.0
         );
     }
 
@@ -1546,7 +1654,7 @@ mod tests {
         let sd = SequenceDiagram {
             participants: vec![],
             events: vec![],
-        };
+        teoz_mode: false, hide_footbox: false,};
         let layout = layout_sequence(&sd, &crate::style::SkinParams::default()).unwrap();
 
         assert!(layout.participants.is_empty());
@@ -1568,13 +1676,29 @@ mod tests {
                 },
                 SeqEvent::Message(make_message("A", "A", "after note")),
             ],
-        };
+        teoz_mode: false, hide_footbox: false,};
         let layout = layout_sequence(&sd, &crate::style::SkinParams::default()).unwrap();
 
         assert_eq!(layout.notes.len(), 1);
-        assert!(!layout.notes[0].is_left);
+        let note = &layout.notes[0];
+        assert!(!note.is_left);
         // Message should be positioned below the note
-        assert!(layout.messages[0].y > layout.notes[0].y);
+        assert!(layout.messages[0].y > note.y);
+        // Note bottom should not exceed message y (note fits before message)
+        let note_bottom = note.y + note.height;
+        assert!(
+            note_bottom <= layout.messages[0].y + 0.01,
+            "note bottom ({note_bottom:.1}) should not exceed message y ({:.1})",
+            layout.messages[0].y
+        );
+        // Cross-element: note.x must be to the right of participant center
+        let part_x = layout.participants[0].x;
+        assert!(
+            note.x > part_x,
+            "right note x ({:.1}) should be right of participant center ({:.1})",
+            note.x,
+            part_x
+        );
     }
 
     #[test]
@@ -1588,7 +1712,7 @@ mod tests {
                 SeqEvent::Message(make_message("A", "B", "ping")),
                 SeqEvent::GroupEnd,
             ],
-        };
+        teoz_mode: false, hide_footbox: false,};
         let layout = layout_sequence(&sd, &crate::style::SkinParams::default()).unwrap();
 
         assert_eq!(layout.groups.len(), 1);
@@ -1596,6 +1720,37 @@ mod tests {
         assert_eq!(grp.label.as_deref(), Some("loop"));
         assert!(grp.y_end > grp.y_start);
         assert!(grp.width > 0.0);
+        // Invariant: group frame must enclose the message
+        let msg = &layout.messages[0];
+        assert!(
+            grp.y_start < msg.y,
+            "group y_start ({:.1}) should be above message y ({:.1})",
+            grp.y_start,
+            msg.y
+        );
+        assert!(
+            grp.y_end > msg.y,
+            "group y_end ({:.1}) should be below message y ({:.1})",
+            grp.y_end,
+            msg.y
+        );
+        // Cross-element: group x-span must cover both participants
+        let alice_x = layout.participants[0].x;
+        let bob_x = layout.participants[1].x;
+        let alice_left = alice_x - layout.participants[0].box_width / 2.0;
+        let bob_right = bob_x + layout.participants[1].box_width / 2.0;
+        assert!(
+            grp.x <= alice_left + 0.01,
+            "group x ({:.1}) should be at or left of Alice left edge ({:.1})",
+            grp.x,
+            alice_left
+        );
+        assert!(
+            grp.x + grp.width >= bob_right - 0.01,
+            "group right ({:.1}) should be at or right of Bob right edge ({:.1})",
+            grp.x + grp.width,
+            bob_right
+        );
     }
 
     #[test]
@@ -1611,7 +1766,7 @@ mod tests {
                 direction: SeqDirection::LeftToRight,
                 color: None,
             })],
-        };
+        teoz_mode: false, hide_footbox: false,};
         let layout = layout_sequence(&sd, &crate::style::SkinParams::default()).unwrap();
 
         let msg = &layout.messages[0];
@@ -1627,15 +1782,22 @@ mod tests {
                 SeqEvent::Message(make_message("A", "B", "kill")),
                 SeqEvent::Destroy("B".to_string()),
             ],
-        };
+        teoz_mode: false, hide_footbox: false,};
         let layout = layout_sequence(&sd, &crate::style::SkinParams::default()).unwrap();
 
         assert_eq!(layout.destroys.len(), 1);
         let d = &layout.destroys[0];
         let bob_x = layout.participants[1].x;
         assert!((d.x - bob_x).abs() < 0.01);
-        // destroy y should be after the message
-        assert!(d.y > layout.messages[0].y);
+        // Invariant: destroy y = message y + message_spacing
+        let lp = LayoutParams::compute("SansSerif", MSG_FONT_SIZE, FONT_SIZE);
+        let expected_y = layout.messages[0].y + lp.message_spacing;
+        assert!(
+            (d.y - expected_y).abs() < 0.01,
+            "destroy y ({:.2}) should equal msg.y + spacing ({:.2})",
+            d.y,
+            expected_y
+        );
     }
 
     #[test]
@@ -1654,7 +1816,7 @@ mod tests {
                 SeqEvent::Message(make_message("A", "B", "err")),
                 SeqEvent::FragmentEnd,
             ],
-        };
+        teoz_mode: false, hide_footbox: false,};
         let layout = layout_sequence(&sd, &crate::style::SkinParams::default()).unwrap();
 
         assert_eq!(layout.fragments.len(), 1);
@@ -1665,6 +1827,46 @@ mod tests {
         assert!(frag.width > 0.0);
         assert_eq!(frag.separators.len(), 1);
         assert_eq!(frag.separators[0].1, "failure");
+        // Invariant: fragment encloses both messages
+        let msg_ok = &layout.messages[0];
+        let msg_err = &layout.messages[1];
+        assert!(
+            frag.y < msg_ok.y,
+            "fragment y ({:.1}) should be above first message ({:.1})",
+            frag.y,
+            msg_ok.y
+        );
+        assert!(
+            frag.y + frag.height > msg_err.y,
+            "fragment bottom ({:.1}) should be below second message ({:.1})",
+            frag.y + frag.height,
+            msg_err.y
+        );
+        // Invariant: separator y is between the two messages
+        let sep_y = frag.separators[0].0;
+        assert!(
+            sep_y > msg_ok.y && sep_y < msg_err.y,
+            "separator y ({sep_y:.1}) should be between messages ({:.1}, {:.1})",
+            msg_ok.y,
+            msg_err.y
+        );
+        // Cross-element: fragment x-span must cover both participants
+        let alice_x = layout.participants[0].x;
+        let bob_x = layout.participants[1].x;
+        let alice_left = alice_x - layout.participants[0].box_width / 2.0;
+        let bob_right = bob_x + layout.participants[1].box_width / 2.0;
+        assert!(
+            frag.x <= alice_left + 0.01,
+            "fragment x ({:.1}) should cover Alice left ({:.1})",
+            frag.x,
+            alice_left
+        );
+        assert!(
+            frag.x + frag.width >= bob_right - 0.01,
+            "fragment right ({:.1}) should cover Bob right ({:.1})",
+            frag.x + frag.width,
+            bob_right
+        );
     }
 
     #[test]
@@ -1674,7 +1876,7 @@ mod tests {
             events: vec![SeqEvent::Divider {
                 text: Some("Phase 1".to_string()),
             }],
-        };
+        teoz_mode: false, hide_footbox: false,};
         let layout = layout_sequence(&sd, &crate::style::SkinParams::default()).unwrap();
 
         assert_eq!(layout.dividers.len(), 1);
@@ -1688,7 +1890,7 @@ mod tests {
             events: vec![SeqEvent::Delay {
                 text: Some("waiting".to_string()),
             }],
-        };
+        teoz_mode: false, hide_footbox: false,};
         let layout = layout_sequence(&sd, &crate::style::SkinParams::default()).unwrap();
 
         assert_eq!(layout.delays.len(), 1);
@@ -1703,12 +1905,37 @@ mod tests {
                 participants: vec!["A".to_string(), "B".to_string()],
                 label: "init phase".to_string(),
             }],
+            teoz_mode: false, hide_footbox: false,
         };
         let layout = layout_sequence(&sd, &crate::style::SkinParams::default()).unwrap();
 
         assert_eq!(layout.refs.len(), 1);
-        assert_eq!(layout.refs[0].label, "init phase");
-        assert!(layout.refs[0].width > 0.0);
+        let r = &layout.refs[0];
+        assert_eq!(r.label, "init phase");
+        assert!(r.width > 0.0);
+        assert!(r.height > 0.0);
+        // Cross-element: ref must be within lifeline span
+        assert!(
+            r.y >= layout.lifeline_top,
+            "ref y ({:.1}) should be at or below lifeline_top ({:.1})",
+            r.y,
+            layout.lifeline_top
+        );
+        // Cross-element: ref x-span covers both participants
+        let alice_x = layout.participants[0].x;
+        let bob_x = layout.participants[1].x;
+        assert!(
+            r.x < alice_x,
+            "ref x ({:.1}) should be left of Alice ({:.1})",
+            r.x,
+            alice_x
+        );
+        assert!(
+            r.x + r.width > bob_x,
+            "ref right ({:.1}) should be right of Bob ({:.1})",
+            r.x + r.width,
+            bob_x
+        );
     }
 
     #[test]
@@ -1720,18 +1947,17 @@ mod tests {
                 SeqEvent::Spacing { pixels: 50 },
                 SeqEvent::Message(make_message("A", "B", "after")),
             ],
-        };
+        teoz_mode: false, hide_footbox: false,};
         let layout = layout_sequence(&sd, &crate::style::SkinParams::default()).unwrap();
 
         assert_eq!(layout.messages.len(), 2);
         let lp = LayoutParams::compute("SansSerif", MSG_FONT_SIZE, FONT_SIZE);
         let gap = layout.messages[1].y - layout.messages[0].y;
-        // gap should be at least message_spacing + 50
+        // Invariant: gap = message_spacing + spacing_pixels exactly
+        let expected_gap = lp.message_spacing + 50.0;
         assert!(
-            gap >= lp.message_spacing + 50.0 - 0.1,
-            "gap {} should be at least {}",
-            gap,
-            lp.message_spacing + 50.0
+            (gap - expected_gap).abs() < 0.01,
+            "gap ({gap:.2}) should equal message_spacing + 50 ({expected_gap:.2})"
         );
     }
 
@@ -1744,7 +1970,7 @@ mod tests {
                 participant: "A".to_string(),
                 text: "a note".to_string(),
             }],
-        };
+        teoz_mode: false, hide_footbox: false,};
         let layout = layout_sequence(&sd, &crate::style::SkinParams::default()).unwrap();
 
         let note = &layout.notes[0];
@@ -1782,5 +2008,146 @@ mod tests {
         );
         // minimum note width should be at least 30
         assert!(w_short >= 30.0, "short note width {w_short:.1} should be >= 30");
+    }
+
+    // ── Combination / integration invariants ─────────────────────
+
+    #[test]
+    fn activation_with_note_height_matches_message_span() {
+        // Reproduces SequenceLayout_0006: msg + note + activate + msg + deactivate
+        let sd = SequenceDiagram {
+            participants: vec![make_participant("A"), make_participant("B")],
+            events: vec![
+                SeqEvent::Message(make_message("A", "B", "a")),
+                SeqEvent::NoteRight {
+                    participant: "B".to_string(),
+                    text: "Note".to_string(),
+                },
+                SeqEvent::Activate("B".to_string()),
+                SeqEvent::Message(Message {
+                    from: "B".to_string(),
+                    to: "A".to_string(),
+                    text: "b".to_string(),
+                    arrow_style: SeqArrowStyle::Dashed,
+                    arrow_head: SeqArrowHead::Filled,
+                    direction: SeqDirection::RightToLeft,
+                    color: None,
+                }),
+                SeqEvent::Deactivate("B".to_string()),
+            ],
+        teoz_mode: false, hide_footbox: false,};
+        let layout = layout_sequence(&sd, &crate::style::SkinParams::default()).unwrap();
+
+        assert_eq!(layout.activations.len(), 1);
+        let act = &layout.activations[0];
+        let msg_a = &layout.messages[0];
+        let msg_b = &layout.messages[1];
+
+        // Invariant: activation starts at triggering message
+        assert!(
+            (act.y_start - msg_a.y).abs() < 0.01,
+            "act.y_start ({:.2}) should equal msg_a.y ({:.2})",
+            act.y_start,
+            msg_a.y
+        );
+
+        // Invariant: activation ends at deactivating message, NOT at y_cursor
+        assert!(
+            (act.y_end - msg_b.y).abs() < 0.01,
+            "act.y_end ({:.2}) should equal msg_b.y ({:.2}), not y_cursor",
+            act.y_end,
+            msg_b.y
+        );
+
+        // Invariant: height = message span only
+        let lp = LayoutParams::compute("SansSerif", MSG_FONT_SIZE, FONT_SIZE);
+        let height = act.y_end - act.y_start;
+        assert!(
+            height < 2.0 * lp.message_spacing,
+            "activation height ({height:.2}) should be less than 2 * msg_spacing ({:.2})",
+            2.0 * lp.message_spacing
+        );
+
+        // Cross-element: msg_a to_x adjusted for upcoming activation (look-ahead)
+        let bob_x = layout.participants[1].x;
+        assert!(
+            (msg_a.to_x - (bob_x - ACTIVATION_WIDTH / 2.0)).abs() < 0.01,
+            "msg_a.to_x ({:.2}) should be at activation left edge ({:.2})",
+            msg_a.to_x,
+            bob_x - ACTIVATION_WIDTH / 2.0
+        );
+
+        // Cross-element: msg_b from_x adjusted for active B (leftward message)
+        assert!(
+            (msg_b.from_x - (bob_x - ACTIVATION_WIDTH / 2.0)).abs() < 0.01,
+            "msg_b.from_x ({:.2}) should be at activation left edge ({:.2})",
+            msg_b.from_x,
+            bob_x - ACTIVATION_WIDTH / 2.0
+        );
+
+        // Cross-element: note is to the right of participant B
+        assert_eq!(layout.notes.len(), 1);
+        assert!(
+            layout.notes[0].x > bob_x,
+            "note x ({:.1}) should be right of B center ({:.1})",
+            layout.notes[0].x,
+            bob_x
+        );
+    }
+
+    #[test]
+    fn consecutive_messages_have_exact_spacing() {
+        // Verify message y-gap is exactly message_spacing
+        let sd = SequenceDiagram {
+            participants: vec![make_participant("A"), make_participant("B")],
+            events: vec![
+                SeqEvent::Message(make_message("A", "B", "m1")),
+                SeqEvent::Message(make_message("B", "A", "m2")),
+                SeqEvent::Message(make_message("A", "B", "m3")),
+            ],
+        teoz_mode: false, hide_footbox: false,};
+        let layout = layout_sequence(&sd, &crate::style::SkinParams::default()).unwrap();
+
+        let lp = LayoutParams::compute("SansSerif", MSG_FONT_SIZE, FONT_SIZE);
+        for i in 0..layout.messages.len() - 1 {
+            let gap = layout.messages[i + 1].y - layout.messages[i].y;
+            assert!(
+                (gap - lp.message_spacing).abs() < 0.01,
+                "gap between msg[{i}] and msg[{}] = {gap:.2}, expected {:.2}",
+                i + 1,
+                lp.message_spacing
+            );
+        }
+    }
+
+    #[test]
+    fn multiple_activations_each_match_message_span() {
+        // Two independent activate/deactivate cycles
+        let sd = SequenceDiagram {
+            participants: vec![make_participant("A"), make_participant("B")],
+            events: vec![
+                SeqEvent::Message(make_message("A", "B", "req1")),
+                SeqEvent::Activate("B".to_string()),
+                SeqEvent::Message(make_message("B", "A", "resp1")),
+                SeqEvent::Deactivate("B".to_string()),
+                SeqEvent::Message(make_message("A", "B", "req2")),
+                SeqEvent::Activate("B".to_string()),
+                SeqEvent::Message(make_message("B", "A", "resp2")),
+                SeqEvent::Deactivate("B".to_string()),
+            ],
+        teoz_mode: false, hide_footbox: false,};
+        let layout = layout_sequence(&sd, &crate::style::SkinParams::default()).unwrap();
+
+        assert_eq!(layout.activations.len(), 2);
+        let lp = LayoutParams::compute("SansSerif", MSG_FONT_SIZE, FONT_SIZE);
+        // Each activation should span exactly one message_spacing
+        for (i, act) in layout.activations.iter().enumerate() {
+            let height = act.y_end - act.y_start;
+            assert!(
+                (height - lp.message_spacing).abs() < 0.01,
+                "activation[{i}] height ({height:.2}) should equal message_spacing ({:.2})",
+                lp.message_spacing
+            );
+        }
     }
 }

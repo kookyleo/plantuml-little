@@ -147,4 +147,8 @@ pub enum SeqEvent {
 pub struct SequenceDiagram {
     pub participants: Vec<Participant>,
     pub events: Vec<SeqEvent>,
+    /// Whether `!pragma teoz true` was set (parallel message rendering)
+    pub teoz_mode: bool,
+    /// Whether `hide footbox` was set (hide tail participant boxes)
+    pub hide_footbox: bool,
 }

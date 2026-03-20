@@ -10,6 +10,8 @@ use crate::klimt::geom::{XDimension2D, XPoint2D};
 use crate::klimt::shape::UPath;
 use crate::klimt::svg::SvgGraphic;
 use crate::klimt::{Fashion, UStroke};
+use crate::model::sequence::ParticipantKind;
+use crate::skin::actor::ActorStickMan;
 use crate::skin::arrow::{
     ArrowBody, ArrowConfiguration, ArrowDecoration, ArrowDirection, ArrowHead, ArrowPart,
 };
@@ -207,6 +209,21 @@ pub const ACTIVE_LINE_WIDTH: f64 = 10.0;
 /// Delta for collections offset. Java: `getDeltaCollection() = 4`
 pub const COLLECTIONS_DELTA: f64 = 4.0;
 
+/// Icon width for Boundary kind. Java: 2*radius(12) + left(17) + 2*margin(4)
+const BOUNDARY_ICON_WIDTH: f64 = 49.0;
+/// Icon width for Control kind. Java: 2*radius(12) + 2*margin(4)
+const CONTROL_ICON_WIDTH: f64 = 32.0;
+/// Icon width for Entity kind. Java: 2*radius(12) + 2*margin(4)
+const ENTITY_ICON_WIDTH: f64 = 32.0;
+/// Icon width for Database kind. Java: empty(16) + margin_x(10+10)
+const DATABASE_ICON_WIDTH: f64 = 36.0;
+/// Margin X for non-default participant types. Java: marginX in Component classes
+const ICON_MARGIN_X: f64 = 3.0;
+/// Queue USymbol margin left. Java: x1 = 5
+const QUEUE_MARGIN_LEFT: f64 = 5.0;
+/// Queue USymbol margin right. Java: x2 = 15
+const QUEUE_MARGIN_RIGHT: f64 = 15.0;
+
 // ══════════════════════════════════════════════════════════════════════
 // Size calculation functions
 // ══════════════════════════════════════════════════════════════════════
@@ -302,6 +319,34 @@ pub fn participant_preferred_size(
     let w = tw + delta_shadow + delta_coll + 2.0 * padding;
     let h = text.text_height() + delta_shadow + 1.0 + delta_coll;
     XDimension2D::new(w, h)
+}
+
+/// Compute participant preferred width per kind, matching Java per-Component classes.
+/// Each participant kind has its own `getPreferredWidth()` in Java with different margins
+/// and icon dimensions.
+///
+/// - `kind`: the participant kind
+/// - `pure_text_width`: measured text width (no margins)
+/// - `thickness`: stroke thickness (Java default = 1.5 for sequence participants)
+pub fn participant_preferred_width(
+	kind: &ParticipantKind,
+	pure_text_width: f64,
+	thickness: f64,
+) -> f64 {
+	match kind {
+		ParticipantKind::Default => pure_text_width + 2.0 * 7.0,
+		ParticipantKind::Actor => {
+			let icon_w = ActorStickMan::new(false).preferred_width(thickness);
+			let text_w = pure_text_width + 2.0 * ICON_MARGIN_X;
+			icon_w.max(text_w)
+		}
+		ParticipantKind::Boundary => BOUNDARY_ICON_WIDTH.max(pure_text_width + 2.0 * ICON_MARGIN_X),
+		ParticipantKind::Control => CONTROL_ICON_WIDTH.max(pure_text_width + 2.0 * ICON_MARGIN_X),
+		ParticipantKind::Entity => ENTITY_ICON_WIDTH.max(pure_text_width + 2.0 * ICON_MARGIN_X),
+		ParticipantKind::Database => DATABASE_ICON_WIDTH.max(pure_text_width + 2.0 * ICON_MARGIN_X),
+		ParticipantKind::Collections => pure_text_width + 2.0 * 7.0 + COLLECTIONS_DELTA,
+		ParticipantKind::Queue => pure_text_width + QUEUE_MARGIN_LEFT + QUEUE_MARGIN_RIGHT,
+	}
 }
 
 /// Preferred size for a note.
@@ -1388,6 +1433,64 @@ mod tests {
         let dim = participant_preferred_size(&tm, 0.0, false, 10.0, 0.0);
         let dim_no_pad = participant_preferred_size(&tm, 0.0, false, 0.0, 0.0);
         assert_eq!(dim.width, dim_no_pad.width + 20.0);
+    }
+
+    // ── Participant preferred width (per kind) ────────────────────
+
+    #[test]
+    fn participant_width_default() {
+        // Default: text + 2*7 margin
+        let w = participant_preferred_width(&ParticipantKind::Default, 51.15, 1.5);
+        assert!((w - 65.15).abs() < 0.01, "Default got {w}");
+    }
+
+    #[test]
+    fn participant_width_actor() {
+        // Actor: max(icon_w=29, text+6=39.67) = 39.67
+        let w = participant_preferred_width(&ParticipantKind::Actor, 33.67, 1.5);
+        assert!((w - 39.67).abs() < 0.01, "Actor got {w}");
+    }
+
+    #[test]
+    fn participant_width_boundary() {
+        // Boundary: max(49, text+6) — text 27.06+6=33.06 < 49
+        let w = participant_preferred_width(&ParticipantKind::Boundary, 27.06, 1.5);
+        assert!((w - 49.0).abs() < 0.01, "Boundary got {w}");
+    }
+
+    #[test]
+    fn participant_width_control() {
+        // Control: max(32, text+6) — text 49.38+6=55.38 > 32
+        let w = participant_preferred_width(&ParticipantKind::Control, 49.38, 1.5);
+        assert!((w - 55.38).abs() < 0.01, "Control got {w}");
+    }
+
+    #[test]
+    fn participant_width_entity() {
+        // Entity: max(32, text+6) — text 20+6=26 < 32
+        let w = participant_preferred_width(&ParticipantKind::Entity, 20.0, 1.5);
+        assert!((w - 32.0).abs() < 0.01, "Entity got {w}");
+    }
+
+    #[test]
+    fn participant_width_database() {
+        // Database: max(36, text+6) — text 60+6=66 > 36
+        let w = participant_preferred_width(&ParticipantKind::Database, 60.0, 1.5);
+        assert!((w - 66.0).abs() < 0.01, "Database got {w}");
+    }
+
+    #[test]
+    fn participant_width_collections() {
+        // Collections: text + 14 + 4
+        let w = participant_preferred_width(&ParticipantKind::Collections, 40.0, 1.5);
+        assert!((w - 58.0).abs() < 0.01, "Collections got {w}");
+    }
+
+    #[test]
+    fn participant_width_queue() {
+        // Queue: text + 5 + 15
+        let w = participant_preferred_width(&ParticipantKind::Queue, 40.0, 1.5);
+        assert!((w - 60.0).abs() < 0.01, "Queue got {w}");
     }
 
     // ── Note size ───────────────────────────────────────────────────

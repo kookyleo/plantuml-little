@@ -26,6 +26,10 @@ pub fn parse_sequence_diagram(source: &str) -> Result<SequenceDiagram> {
     let mut note_lines: Vec<String> = Vec::new();
     // Track fragment nesting depth so "end" emits FragmentEnd when inside fragments
     let mut fragment_depth: usize = 0;
+    // Whether `!pragma teoz true` was encountered
+    let mut teoz_mode = false;
+    // Whether `hide footbox` was encountered
+    let mut hide_footbox = false;
 
     let participant_re = Regex::new(
         r"(?i)^(participant|actor|boundary|control|entity|database|collections|queue)\s+(.+)$",
@@ -151,17 +155,35 @@ pub fn parse_sequence_diagram(source: &str) -> Result<SequenceDiagram> {
         // Skip title, legend, footer, header, caption, hide, show, !pragma
         {
             let lower = trimmed.to_lowercase();
+            if lower.starts_with("!pragma") {
+                // Capture `!pragma teoz true`
+                let rest = lower["!pragma".len()..].trim();
+                if rest == "teoz true" {
+                    debug!("pragma teoz true enabled");
+                    teoz_mode = true;
+                } else {
+                    debug!("skipping pragma: {trimmed}");
+                }
+                continue;
+            }
             if lower.starts_with("title ")
                 || lower == "title"
                 || lower.starts_with("legend")
                 || lower.starts_with("footer")
                 || lower.starts_with("header")
                 || lower.starts_with("caption")
-                || lower.starts_with("hide ")
+                || (lower.starts_with("hide ") && !lower.contains("footbox"))
                 || lower.starts_with("show ")
-                || lower.starts_with("!pragma")
-                || lower.starts_with("skin ")
             {
+                debug!("skipping directive: {trimmed}");
+                continue;
+            }
+            if lower == "hide footbox" {
+                hide_footbox = true;
+                debug!("hide footbox enabled");
+                continue;
+            }
+            if lower.starts_with("skin ") {
                 debug!("skipping directive: {trimmed}");
                 continue;
             }
@@ -358,7 +380,15 @@ pub fn parse_sequence_diagram(source: &str) -> Result<SequenceDiagram> {
         // like "Database -> Bob : ack" are parsed as messages, not as a
         // database participant declaration with rest "-> Bob : ack".
 
-        let trimmed_arrow = trimmed;
+        // Teoz parallel message prefix: "& A -> B : msg" means this message
+        // is parallel with the previous one. Strip the "&" prefix and treat
+        // as a normal message (parallel layout is not yet fully implemented,
+        // but this prevents "& foo" from being created as a participant).
+        let trimmed_arrow = if trimmed.starts_with("& ") {
+            trimmed[2..].trim()
+        } else {
+            trimmed
+        };
 
         // Gate/found messages: ?->X (incoming) and X->? (outgoing)
         if let Some(caps) = gate_left_re.captures(trimmed_arrow) {
@@ -534,6 +564,8 @@ pub fn parse_sequence_diagram(source: &str) -> Result<SequenceDiagram> {
     Ok(SequenceDiagram {
         participants,
         events,
+        teoz_mode,
+        hide_footbox,
     })
 }
 
@@ -1437,5 +1469,51 @@ Sally --> Bob
             SeqEvent::FragmentSeparator { .. }
         )); // else case2
         assert!(matches!(&diagram.events[8], SeqEvent::FragmentEnd)); // end outer alt
+    }
+
+    #[test]
+    fn parse_pragma_teoz_true() {
+        let src = "@startuml\n!pragma teoz true\nA -> B : msg\n@enduml";
+        let diagram = parse_sequence_diagram(src).unwrap();
+        assert!(diagram.teoz_mode, "teoz_mode should be true when pragma teoz true is set");
+    }
+
+    #[test]
+    fn parse_no_pragma_teoz_defaults_false() {
+        let src = "@startuml\nA -> B : msg\n@enduml";
+        let diagram = parse_sequence_diagram(src).unwrap();
+        assert!(diagram.teoz_mode == false, "teoz_mode should default to false");
+    }
+
+    #[test]
+    fn parse_other_pragma_ignored() {
+        let src = "@startuml\n!pragma graphviz_dot jdot\nA -> B : msg\n@enduml";
+        let diagram = parse_sequence_diagram(src).unwrap();
+        assert!(diagram.teoz_mode == false, "other pragmas should not enable teoz_mode");
+    }
+
+    #[test]
+    fn hide_footbox_parsed() {
+        let src = "@startuml\nhide footbox\nA -> B : msg\n@enduml";
+        let diagram = parse_sequence_diagram(src).unwrap();
+        assert!(diagram.hide_footbox, "hide footbox should be true");
+    }
+
+    #[test]
+    fn hide_footbox_default_false() {
+        let src = "@startuml\nA -> B : msg\n@enduml";
+        let diagram = parse_sequence_diagram(src).unwrap();
+        assert!(diagram.hide_footbox == false, "hide footbox defaults to false");
+    }
+
+    #[test]
+    fn parallel_ampersand_prefix_not_create_participant() {
+        // "& foo -> foo : test" should NOT create a participant named "& foo".
+        // The "&" is a teoz parallel-message prefix — strip it.
+        let src = "@startuml\n!pragma teoz true\nparticipant foo\nfoo -> foo : first\n& foo -> foo : parallel\n@enduml";
+        let diagram = parse_sequence_diagram(src).unwrap();
+        assert_eq!(diagram.participants.len(), 1, "only 'foo', not '& foo'");
+        assert_eq!(diagram.participants[0].name, "foo");
+        assert_eq!(diagram.events.iter().filter(|e| matches!(e, SeqEvent::Message(_))).count(), 2);
     }
 }

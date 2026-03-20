@@ -106,6 +106,10 @@ pub struct GraphLayout {
     pub total_height: f64,
     /// moveDelta applied by svek solve: (dx, dy). Used by renderer for coordinate alignment.
     pub move_delta: (f64, f64),
+    /// LimitFinder span (width, height) computed before moveDelta.
+    /// Java: `minMax.getDimension()` from `SvekResult.calculateDimension()`.
+    /// Used for viewport calculation: `SVG_size = (int)(span + DELTA(15) + DOC_MARGIN(5) + 1)`.
+    pub lf_span: (f64, f64),
 }
 
 /// AbstractEntityDiagram.java:61 — default nodesep = 0.35 inches.
@@ -314,7 +318,7 @@ pub fn layout_with_svek(graph: &LayoutGraph) -> Result<GraphLayout, Error> {
     log::debug!("svek dot svg output:\n{svg}");
 
     // Solve: parse SVG and position nodes/edges
-    let move_delta = builder
+    let (move_delta, lf_span) = builder
         .solve(&svg)
         .map_err(|e| Error::Layout(format!("svek solve error: {e}")))?;
 
@@ -409,6 +413,7 @@ pub fn layout_with_svek(graph: &LayoutGraph) -> Result<GraphLayout, Error> {
         total_width,
         total_height,
         move_delta,
+        lf_span,
     })
 }
 
@@ -544,6 +549,7 @@ fn parse_svg_output(svg: &str, graph: &LayoutGraph) -> Result<GraphLayout, Error
         total_width,
         total_height,
         move_delta: (0.0, 0.0),
+        lf_span: (total_width, total_height),
     })
 }
 
