@@ -570,15 +570,31 @@ pub fn layout_activity(diagram: &ActivityDiagram) -> Result<ActivityLayout> {
                     NotePosition::Right => NotePositionLayout::Right,
                 };
 
-                // Place the note beside the previous flow node (if any),
-                // vertically aligned with its top.
+                // Java vertically centres the note and its flow node.
+                // When the note is taller than the flow node, both are
+                // shifted so their midpoints align.
                 let (nx, ny) = if let Some(prev_idx) = last_flow_node_idx {
-                    let prev = &nodes[prev_idx];
+                    let prev_x = nodes[prev_idx].x;
+                    let prev_y = nodes[prev_idx].y;
+                    let prev_w = nodes[prev_idx].width;
+                    let prev_h = nodes[prev_idx].height;
                     let x = match pos_layout {
-                        NotePositionLayout::Right => prev.x + prev.width + NOTE_OFFSET,
-                        NotePositionLayout::Left => prev.x - NOTE_OFFSET - nw,
+                        NotePositionLayout::Right => prev_x + prev_w + NOTE_OFFSET,
+                        NotePositionLayout::Left => prev_x - NOTE_OFFSET - nw,
                     };
-                    (x, prev.y)
+
+                    if nh > prev_h {
+                        // Note is taller: push the flow node down so midpoints align
+                        let delta = (nh - prev_h) / 2.0;
+                        nodes[prev_idx].y += delta;
+                        y_cursor += delta;
+                        // Note y = original flow-node y (unshifted)
+                        (x, prev_y)
+                    } else {
+                        // Flow node is taller: centre the note on the flow node
+                        let delta = (prev_h - nh) / 2.0;
+                        (x, prev_y + delta)
+                    }
                 } else {
                     // No previous node — place in the margin area.
                     let cx = swimlane_center_x(&swimlane_layouts, current_lane_idx);
@@ -603,9 +619,8 @@ pub fn layout_activity(diagram: &ActivityDiagram) -> Result<ActivityLayout> {
                 });
                 // Notes do NOT update last_flow_node_idx.
                 node_index += 1;
-                
-                // ADVANCE y_cursor so next elements don't overlap with this note!
-                // We take the max of the current y_cursor and the note's bottom.
+
+                // Advance y_cursor so subsequent elements don't overlap.
                 let note_bottom = ny + nh + NODE_SPACING;
                 if note_bottom > y_cursor {
                     y_cursor = note_bottom;
@@ -1028,8 +1043,13 @@ mod tests {
         // Note should be to the right of the action.
         assert!(note.x > action.x + action.width);
 
-        // Note should be vertically aligned with the action's top.
-        assert!((note.y - action.y).abs() < 0.01);
+        // Note and action should be vertically centred on each other.
+        let action_mid = action.y + action.height / 2.0;
+        let note_mid = note.y + note.height / 2.0;
+        assert!(
+            (action_mid - note_mid).abs() < 1.0,
+            "midpoints should align: action_mid={action_mid:.1}, note_mid={note_mid:.1}"
+        );
 
         // Edge list should NOT include the note.
         assert_eq!(layout.edges.len(), 0);
