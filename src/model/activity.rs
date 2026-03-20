@@ -84,4 +84,6 @@ pub struct ActivityDiagram {
     pub events: Vec<ActivityEvent>,
     pub swimlanes: Vec<String>,
     pub direction: super::diagram::Direction,
+    /// Maximum width for note text wrapping (from `<style>` MaximumWidth).
+    pub note_max_width: Option<f64>,
 }

@@ -222,20 +222,26 @@ fn render_note(sg: &mut SvgGraphic, node: &ActivityNodeLayout, _position: &NoteP
         fmt_coord(x + w - fold), fmt_coord(y),
     ));
 
+    // Render each line as a separate <text> element (matches Java's per-line rendering).
+    // This avoids the multi-line textLength issue where a single <text> with tspans
+    // gets an incorrect total textLength.
     let text_x = x + 6.0;
-    let text_y = y + fold + FONT_SIZE;
-    let mut tmp = String::new();
-    render_creole_text(
-        &mut tmp,
-        &node.text,
-        text_x,
-        text_y,
-        LINE_HEIGHT,
-        TEXT_COLOR,
-        None,
-        r#"font-size="13""#,
-    );
-    sg.push_raw(&tmp);
+    let mut text_y = y + fold + FONT_SIZE;
+    for line in node.text.split('\n') {
+        let mut tmp = String::new();
+        render_creole_text(
+            &mut tmp,
+            line,
+            text_x,
+            text_y,
+            LINE_HEIGHT,
+            TEXT_COLOR,
+            None,
+            r#"font-size="13""#,
+        );
+        sg.push_raw(&tmp);
+        text_y += LINE_HEIGHT;
+    }
 }
 
 // -- Edge rendering -----------------------------------------------------------
@@ -352,7 +358,7 @@ mod tests {
     use crate::style::SkinParams;
 
     fn empty_diagram() -> ActivityDiagram {
-        ActivityDiagram { events: vec![], swimlanes: vec![], direction: Default::default() }
+        ActivityDiagram { events: vec![], swimlanes: vec![], direction: Default::default(), note_max_width: None }
     }
 
     fn empty_layout() -> ActivityLayout {

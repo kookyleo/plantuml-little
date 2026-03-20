@@ -7,6 +7,7 @@
 
 use crate::font_metrics;
 use crate::model::activity::{ActivityDiagram, ActivityEvent, NotePosition};
+use crate::render::svg_richtext::creole_plain_text;
 use crate::Result;
 
 // ---------------------------------------------------------------------------
@@ -107,10 +108,12 @@ fn estimate_text_size(text: &str) -> (f64, f64) {
         .fold(0.0_f64, f64::max);
     let width = max_line_width + 2.0 * PADDING;
     let height = lines.len() as f64 * lh + 2.0 * PADDING;
+    log::debug!("estimate_text_size(\"{}\") -> {}x{} ({} lines, max_w={})", text, width, height, lines.len(), max_line_width);
     (width, height)
 }
 
 /// Estimate the size of a note, using note font size.
+/// Uses `creole_plain_text` to strip markup before measuring width.
 fn estimate_note_size(text: &str) -> (f64, f64) {
     let note_lh = font_metrics::line_height("SansSerif", NOTE_FONT_SIZE, false, false);
     let note_pad = 6.0;
@@ -118,11 +121,66 @@ fn estimate_note_size(text: &str) -> (f64, f64) {
     let lines: Vec<&str> = text.split('\n').collect();
     let max_line_width = lines
         .iter()
-        .map(|l| font_metrics::text_width(l, "SansSerif", NOTE_FONT_SIZE, false, false))
+        .map(|l| {
+            let plain = creole_plain_text(l);
+            font_metrics::text_width(&plain, "SansSerif", NOTE_FONT_SIZE, false, false)
+        })
         .fold(0.0_f64, f64::max);
     let width = max_line_width + 2.0 * note_pad + fold;
     let height = lines.len() as f64 * note_lh + fold + note_pad;
+    log::debug!("estimate_note_size(\"{}\") -> {}x{} ({} lines, max_w={})", text, width, height, lines.len(), max_line_width);
     (width, height)
+}
+
+/// Word-wrap note text to fit within `max_width` pixels.
+///
+/// Splits lines at word boundaries, measuring plain text (creole-stripped)
+/// width while preserving the original creole markup in the output.
+fn wrap_note_text(text: &str, max_width: f64) -> String {
+    let mut result_lines: Vec<String> = Vec::new();
+
+    for line in text.split('\n') {
+        let plain = creole_plain_text(line);
+        let line_w = font_metrics::text_width(&plain, "SansSerif", NOTE_FONT_SIZE, false, false);
+        if line_w <= max_width {
+            result_lines.push(line.to_string());
+            continue;
+        }
+
+        // Need to wrap: split by spaces and accumulate
+        let words: Vec<&str> = line.split(' ').collect();
+        let mut current_line = String::new();
+        for word in &words {
+            if current_line.is_empty() {
+                // First word on this sub-line — always take it
+                current_line = word.to_string();
+                continue;
+            }
+
+            let candidate = format!("{current_line} {word}");
+            let candidate_plain = creole_plain_text(&candidate);
+            let candidate_w = font_metrics::text_width(
+                &candidate_plain,
+                "SansSerif",
+                NOTE_FONT_SIZE,
+                false,
+                false,
+            );
+
+            if candidate_w <= max_width {
+                current_line = candidate;
+            } else {
+                // Current line is full — flush it and start new line with this word
+                result_lines.push(current_line);
+                current_line = word.to_string();
+            }
+        }
+        if !current_line.is_empty() {
+            result_lines.push(current_line);
+        }
+    }
+
+    result_lines.join("\n")
 }
 
 // ---------------------------------------------------------------------------
@@ -501,7 +559,12 @@ pub fn layout_activity(diagram: &ActivityDiagram) -> Result<ActivityLayout> {
 
             // ---- Note (attached to previous flow node) -----------------------
             ActivityEvent::Note { position, text } => {
-                let (nw, nh) = estimate_note_size(text);
+                let wrapped = if let Some(max_w) = diagram.note_max_width {
+                    wrap_note_text(text, max_w)
+                } else {
+                    text.clone()
+                };
+                let (nw, nh) = estimate_note_size(&wrapped);
                 let pos_layout = match position {
                     NotePosition::Left => NotePositionLayout::Left,
                     NotePosition::Right => NotePositionLayout::Right,
@@ -536,7 +599,7 @@ pub fn layout_activity(diagram: &ActivityDiagram) -> Result<ActivityLayout> {
                     y: ny,
                     width: nw,
                     height: nh,
-                    text: text.clone(),
+                    text: wrapped,
                 });
                 // Notes do NOT update last_flow_node_idx.
                 node_index += 1;
@@ -545,7 +608,12 @@ pub fn layout_activity(diagram: &ActivityDiagram) -> Result<ActivityLayout> {
 
             // ---- Floating note (not attached) --------------------------------
             ActivityEvent::FloatingNote { position, text } => {
-                let (nw, nh) = estimate_note_size(text);
+                let wrapped = if let Some(max_w) = diagram.note_max_width {
+                    wrap_note_text(text, max_w)
+                } else {
+                    text.clone()
+                };
+                let (nw, nh) = estimate_note_size(&wrapped);
                 let pos_layout = match position {
                     NotePosition::Left => NotePositionLayout::Left,
                     NotePosition::Right => NotePositionLayout::Right,
@@ -569,7 +637,7 @@ pub fn layout_activity(diagram: &ActivityDiagram) -> Result<ActivityLayout> {
                     y: ny,
                     width: nw,
                     height: nh,
-                    text: text.clone(),
+                    text: wrapped,
                 });
                 node_index += 1;
                 // Floating notes advance the y_cursor slightly so they don't
@@ -824,6 +892,7 @@ mod tests {
             events,
             swimlanes: vec![],
             direction: Default::default(),
+            note_max_width: None,
         }
     }
 
@@ -901,6 +970,7 @@ mod tests {
             ],
             swimlanes: vec!["Lane A".into(), "Lane B".into()],
             direction: Default::default(),
+            note_max_width: None,
         };
         let layout = layout_activity(&d).unwrap();
         assert_eq!(layout.swimlane_layouts.len(), 2);
@@ -1241,6 +1311,7 @@ mod tests {
             ],
             swimlanes: vec![],
             direction: Direction::LeftToRight,
+            note_max_width: None,
         };
         let layout = layout_activity(&d).unwrap();
 
@@ -1288,6 +1359,7 @@ mod tests {
             ],
             swimlanes: vec![],
             direction: Direction::TopToBottom,
+            note_max_width: None,
         };
         let layout = layout_activity(&d).unwrap();
 
@@ -1332,6 +1404,7 @@ mod tests {
             ],
             swimlanes: vec![],
             direction: Direction::BottomToTop,
+            note_max_width: None,
         };
         let layout = layout_activity(&d).unwrap();
 
@@ -1363,6 +1436,7 @@ mod tests {
             ],
             swimlanes: vec!["Lane A".into()],
             direction: Default::default(),
+            note_max_width: None,
         };
         let layout = layout_activity(&d).unwrap();
         // All flow nodes should start below the swimlane header
@@ -1396,6 +1470,7 @@ mod tests {
             ],
             swimlanes: vec!["Lane A".into(), "Lane B".into()],
             direction: Default::default(),
+            note_max_width: None,
         };
         let layout = layout_activity(&d).unwrap();
 
@@ -1445,6 +1520,7 @@ mod tests {
             ],
             swimlanes: vec!["Lane A".into()],
             direction: Default::default(),
+            note_max_width: None,
         };
         let layout = layout_activity(&d).unwrap();
 
@@ -1458,5 +1534,76 @@ mod tests {
                 edge.points.len()
             );
         }
+    }
+
+    #[test]
+    fn estimate_note_size_strips_creole() {
+        // <b>HTML</b> should measure as "HTML" (4 chars), not "<b>HTML</b>" (16 chars)
+        let (w_markup, _) = estimate_note_size("contain <b>HTML</b>");
+        let (w_plain, _) = estimate_note_size("contain HTML");
+        assert!(
+            (w_markup - w_plain).abs() < 1.0,
+            "creole markup should be stripped: markup_w={w_markup}, plain_w={w_plain}"
+        );
+    }
+
+    #[test]
+    fn wrap_note_text_basic() {
+        // With a small max_width, long text should be wrapped into multiple lines
+        let text = "A Long Long Long Long Long Long note";
+        let wrapped = wrap_note_text(text, 80.0);
+        let line_count = wrapped.split('\n').count();
+        assert!(
+            line_count > 1,
+            "should wrap into multiple lines, got {line_count}: {wrapped:?}"
+        );
+    }
+
+    #[test]
+    fn wrap_note_text_short_line_unchanged() {
+        let text = "Short";
+        let wrapped = wrap_note_text(text, 200.0);
+        assert_eq!(wrapped, text);
+    }
+
+    #[test]
+    fn wrap_note_text_preserves_existing_newlines() {
+        let text = "Line one\nLine two";
+        let wrapped = wrap_note_text(text, 200.0);
+        assert_eq!(wrapped, text, "existing newlines should be preserved");
+    }
+
+    #[test]
+    fn wrap_note_text_with_creole_markup() {
+        // Creole markup should be preserved in output but not counted for width
+        let text = "This has //italic// and <b>bold</b> words here";
+        let wrapped = wrap_note_text(text, 100.0);
+        // Should contain the original markup
+        assert!(wrapped.contains("//italic//"));
+        assert!(wrapped.contains("<b>bold</b>"));
+    }
+
+    #[test]
+    fn wrap_with_max_width_integrates_in_layout() {
+        let d = ActivityDiagram {
+            events: vec![
+                ActivityEvent::Action { text: "work".into() },
+                ActivityEvent::Note {
+                    position: NotePosition::Right,
+                    text: "A Long Long Long Long Long Long Long Long Long note".into(),
+                },
+            ],
+            swimlanes: vec![],
+            direction: Default::default(),
+            note_max_width: Some(80.0),
+        };
+        let layout = layout_activity(&d).unwrap();
+        let note = &layout.nodes[1];
+        // The note text should have been wrapped (contains newlines)
+        assert!(
+            note.text.contains('\n'),
+            "note text should be wrapped: {:?}",
+            note.text
+        );
     }
 }

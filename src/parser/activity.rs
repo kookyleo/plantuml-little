@@ -22,10 +22,11 @@ enum ParseState {
         start_line: usize,
         start_column: usize,
     },
-    /// Inside a `<style>...</style>` block (skip all content)
+    /// Inside a `<style>...</style>` block — accumulate lines to extract properties
     StyleBlock {
         start_line: usize,
         start_column: usize,
+        lines: Vec<String>,
     },
     /// Inside a `skinparam { ... }` block (skip all content)
     SkinparamBlock {
@@ -51,18 +52,25 @@ pub fn parse_activity_diagram(source: &str) -> Result<ActivityDiagram> {
     let mut events: Vec<ActivityEvent> = Vec::new();
     let mut swimlanes: Vec<String> = Vec::new();
     let mut direction = Direction::default();
+    let mut note_max_width: Option<f64> = None;
     let mut state = ParseState::Normal;
 
     for (line_num, line) in block.lines().enumerate() {
         let line_num = line_num + 1; // 1-based for diagnostics
 
         match state {
-            ParseState::StyleBlock { .. } => {
+            ParseState::StyleBlock { ref mut lines, .. } => {
                 if line.trim().to_lowercase().starts_with("</style>") {
                     debug!("line {line_num}: leaving <style> block");
+                    // Extract note MaximumWidth from accumulated style lines
+                    if let Some(w) = extract_note_max_width(lines) {
+                        debug!("line {line_num}: extracted note MaximumWidth = {w}");
+                        note_max_width = Some(w);
+                    }
                     state = ParseState::Normal;
                 } else {
-                    trace!("line {line_num}: skipping style content");
+                    lines.push(line.to_string());
+                    trace!("line {line_num}: accumulating style content");
                 }
                 continue;
             }
@@ -175,6 +183,7 @@ pub fn parse_activity_diagram(source: &str) -> Result<ActivityDiagram> {
                 state = ParseState::StyleBlock {
                     start_line: line_num,
                     start_column: line.find("<style>").unwrap_or(0) + 1,
+                    lines: Vec::new(),
                 };
             }
             continue;
@@ -491,6 +500,7 @@ pub fn parse_activity_diagram(source: &str) -> Result<ActivityDiagram> {
         ParseState::StyleBlock {
             start_line,
             start_column,
+            ..
         } => {
             return Err(crate::Error::Parse {
                 line: start_line,
@@ -539,6 +549,7 @@ pub fn parse_activity_diagram(source: &str) -> Result<ActivityDiagram> {
         events,
         swimlanes,
         direction,
+        note_max_width,
     })
 }
 
@@ -610,6 +621,58 @@ fn parse_while_line(line: &str) -> Option<(String, String)> {
     };
 
     Some((condition, label))
+}
+
+/// Extract `MaximumWidth` value from a `note { ... }` block inside `<style>` lines.
+///
+/// Scans for a `note {` line, then looks for `MaximumWidth NNN` inside that block.
+fn extract_note_max_width(style_lines: &[String]) -> Option<f64> {
+    let mut in_note_block = false;
+    let mut brace_depth = 0;
+    for line in style_lines {
+        let trimmed = line.trim().to_lowercase();
+        if !in_note_block {
+            // Look for "note {" — may be nested inside another block
+            if trimmed.contains("note") && trimmed.contains('{') {
+                in_note_block = true;
+                brace_depth = 1;
+            }
+        } else {
+            // Track nested braces
+            for ch in trimmed.chars() {
+                match ch {
+                    '{' => brace_depth += 1,
+                    '}' => {
+                        brace_depth -= 1;
+                        if brace_depth == 0 {
+                            in_note_block = false;
+                            break;
+                        }
+                    }
+                    _ => {}
+                }
+            }
+            // Check for MaximumWidth inside the note block
+            let orig_trimmed = line.trim();
+            if let Some(rest) = orig_trimmed
+                .strip_prefix("MaximumWidth")
+                .or_else(|| orig_trimmed.strip_prefix("maximumwidth"))
+                .or_else(|| {
+                    let lower = orig_trimmed.to_lowercase();
+                    if lower.starts_with("maximumwidth") {
+                        Some(&orig_trimmed[12..])
+                    } else {
+                        None
+                    }
+                })
+            {
+                if let Ok(val) = rest.trim().parse::<f64>() {
+                    return Some(val);
+                }
+            }
+        }
+    }
+    None
 }
 
 #[cfg(test)]
@@ -1124,5 +1187,30 @@ mod tests {
             &diagram.events[2],
             ActivityEvent::EndWhile { label } if label.is_empty()
         ));
+    }
+
+    #[test]
+    fn extract_note_maximum_width() {
+        let src = "@startuml\n<style>\nactivityDiagram {\n  note {\n    MaximumWidth 100\n  }\n}\n</style>\n:action;\n@enduml";
+        let diagram = parse_activity_diagram(src).unwrap();
+        assert_eq!(diagram.note_max_width, Some(100.0));
+    }
+
+    #[test]
+    fn no_style_means_no_max_width() {
+        let src = "@startuml\n:action;\n@enduml";
+        let diagram = parse_activity_diagram(src).unwrap();
+        assert_eq!(diagram.note_max_width, None);
+    }
+
+    #[test]
+    fn fixture_a0002_has_max_width() {
+        let src = std::fs::read_to_string(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/tests/fixtures/activity/a0002.puml"
+        ))
+        .unwrap();
+        let diagram = parse_activity_diagram(&src).unwrap();
+        assert_eq!(diagram.note_max_width, Some(100.0));
     }
 }
