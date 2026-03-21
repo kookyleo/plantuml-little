@@ -1,1 +1,164 @@
-<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" contentStyleType="text/css" data-diagram-type="CLASS" height="215px" preserveAspectRatio="none" style="width:219px;height:215px;background:#FFFFFF;" version="1.1" viewBox="0 0 219 215" width="219px" zoomAndPan="magnify"><?plantuml 1.2026.3beta4?><defs/><g><!--class A--><g class="entity" data-qualified-name="A" data-source-line="2" id="ent0002"><rect fill="#F1F1F1" height="48" rx="2.5" ry="2.5" style="stroke:#181818;stroke-width:0.5;" width="41.5771" x="7" y="7"/><ellipse cx="22" cy="23" fill="#ADD1B2" rx="11" ry="11" style="stroke:#181818;stroke-width:1;"/><path d="M24.9688,28.6406 Q24.3906,28.9375 23.75,29.0781 Q23.1094,29.2344 22.4063,29.2344 Q19.9063,29.2344 18.5781,27.5938 Q17.2656,25.9375 17.2656,22.8125 Q17.2656,19.6875 18.5781,18.0313 Q19.9063,16.375 22.4063,16.375 Q23.1094,16.375 23.75,16.5313 Q24.4063,16.6875 24.9688,16.9844 L24.9688,19.7031 Q24.3438,19.125 23.75,18.8594 Q23.1563,18.5781 22.5313,18.5781 Q21.1875,18.5781 20.5,19.6563 Q19.8125,20.7188 19.8125,22.8125 Q19.8125,24.9063 20.5,25.9844 Q21.1875,27.0469 22.5313,27.0469 Q23.1563,27.0469 23.75,26.7813 Q24.3438,26.5 24.9688,25.9219 L24.9688,28.6406 Z " fill="#000000"/><text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="9.5771" x="36" y="27.8467">A</text><line style="stroke:#181818;stroke-width:0.5;" x1="8" x2="47.5771" y1="39" y2="39"/><line style="stroke:#181818;stroke-width:0.5;" x1="8" x2="47.5771" y1="47" y2="47"/></g><!--class B--><g class="entity" data-qualified-name="B" data-source-line="3" id="ent0003"><rect fill="#F1F1F1" height="48" rx="2.5" ry="2.5" style="stroke:#181818;stroke-width:0.5;" width="41.6045" x="84" y="7"/><ellipse cx="99" cy="23" fill="#ADD1B2" rx="11" ry="11" style="stroke:#181818;stroke-width:1;"/><path d="M101.9688,28.6406 Q101.3906,28.9375 100.75,29.0781 Q100.1094,29.2344 99.4063,29.2344 Q96.9063,29.2344 95.5781,27.5938 Q94.2656,25.9375 94.2656,22.8125 Q94.2656,19.6875 95.5781,18.0313 Q96.9063,16.375 99.4063,16.375 Q100.1094,16.375 100.75,16.5313 Q101.4063,16.6875 101.9688,16.9844 L101.9688,19.7031 Q101.3438,19.125 100.75,18.8594 Q100.1563,18.5781 99.5313,18.5781 Q98.1875,18.5781 97.5,19.6563 Q96.8125,20.7188 96.8125,22.8125 Q96.8125,24.9063 97.5,25.9844 Q98.1875,27.0469 99.5313,27.0469 Q100.1563,27.0469 100.75,26.7813 Q101.3438,26.5 101.9688,25.9219 L101.9688,28.6406 Z " fill="#000000"/><text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="9.6045" x="113" y="27.8467">B</text><line style="stroke:#181818;stroke-width:0.5;" x1="85" x2="124.6045" y1="39" y2="39"/><line style="stroke:#181818;stroke-width:0.5;" x1="85" x2="124.6045" y1="47" y2="47"/></g><!--class C--><g class="entity" data-qualified-name="C" data-source-line="4" id="ent0004"><rect fill="#F1F1F1" height="48" rx="2.5" ry="2.5" style="stroke:#181818;stroke-width:0.5;" width="41.7754" x="84" y="152"/><ellipse cx="99" cy="168" fill="#ADD1B2" rx="11" ry="11" style="stroke:#181818;stroke-width:1;"/><path d="M101.9688,173.6406 Q101.3906,173.9375 100.75,174.0781 Q100.1094,174.2344 99.4063,174.2344 Q96.9063,174.2344 95.5781,172.5938 Q94.2656,170.9375 94.2656,167.8125 Q94.2656,164.6875 95.5781,163.0313 Q96.9063,161.375 99.4063,161.375 Q100.1094,161.375 100.75,161.5313 Q101.4063,161.6875 101.9688,161.9844 L101.9688,164.7031 Q101.3438,164.125 100.75,163.8594 Q100.1563,163.5781 99.5313,163.5781 Q98.1875,163.5781 97.5,164.6563 Q96.8125,165.7188 96.8125,167.8125 Q96.8125,169.9063 97.5,170.9844 Q98.1875,172.0469 99.5313,172.0469 Q100.1563,172.0469 100.75,171.7813 Q101.3438,171.5 101.9688,170.9219 L101.9688,173.6406 Z " fill="#000000"/><text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="9.7754" x="113" y="172.8467">C</text><line style="stroke:#181818;stroke-width:0.5;" x1="85" x2="124.7754" y1="184" y2="184"/><line style="stroke:#181818;stroke-width:0.5;" x1="85" x2="124.7754" y1="192" y2="192"/></g><!--class D--><g class="entity" data-qualified-name="D" data-source-line="5" id="ent0005"><rect fill="#F1F1F1" height="48" rx="2.5" ry="2.5" style="stroke:#181818;stroke-width:0.5;" width="42.7803" x="161.5" y="7"/><ellipse cx="176.5" cy="23" fill="#ADD1B2" rx="11" ry="11" style="stroke:#181818;stroke-width:1;"/><path d="M179.4688,28.6406 Q178.8906,28.9375 178.25,29.0781 Q177.6094,29.2344 176.9063,29.2344 Q174.4063,29.2344 173.0781,27.5938 Q171.7656,25.9375 171.7656,22.8125 Q171.7656,19.6875 173.0781,18.0313 Q174.4063,16.375 176.9063,16.375 Q177.6094,16.375 178.25,16.5313 Q178.9063,16.6875 179.4688,16.9844 L179.4688,19.7031 Q178.8438,19.125 178.25,18.8594 Q177.6563,18.5781 177.0313,18.5781 Q175.6875,18.5781 175,19.6563 Q174.3125,20.7188 174.3125,22.8125 Q174.3125,24.9063 175,25.9844 Q175.6875,27.0469 177.0313,27.0469 Q177.6563,27.0469 178.25,26.7813 Q178.8438,26.5 179.4688,25.9219 L179.4688,28.6406 Z " fill="#000000"/><text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="10.7803" x="190.5" y="27.8467">D</text><line style="stroke:#181818;stroke-width:0.5;" x1="162.5" x2="203.2803" y1="39" y2="39"/><line style="stroke:#181818;stroke-width:0.5;" x1="162.5" x2="203.2803" y1="47" y2="47"/></g><!--link B to C--><g class="link" data-entity-1="ent0003" data-entity-2="ent0004" data-link-type="aggregation" data-source-line="8" id="lnk6"><path codeLine="8" d="M105,67.29 C105,93.89 105,125.13 105,151.72" fill="none" id="B-to-C" style="stroke:#181818;stroke-width:1;"/><polygon fill="#FFFFFF" points="105,55.29,99,51.29,93,55.29,99,59.29,105,55.29" style="stroke:#181818;stroke-width:1;"/><text fill="#000000" font-family="sans-serif" font-size="13" lengthAdjust="spacing" textLength="49.8545" x="106" y="123.6305">holds &gt;</text></g><?plantuml-src JOj12eCm54JtESNKPI4BsrqN1HDlKRBuwaT3JPNyLF3sWWPqzOPvCxSvKXy8ilJ-bpXIc_p2IF7FQl0TWyESLWGE3KTHxKWYg39DfisibQhm-V9QEjmrYhA0mGl3D7Q2jpAxUv33fFMH6mTxMTYzVJeSv_fK6m00?></g></svg>
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" contentStyleType="text/css" data-diagram-type="CLASS" height="253px" preserveAspectRatio="none" style="width:431px;height:253px;background:#FFFFFF;" version="1.1" viewBox="0 0 431 253" width="431px" zoomAndPan="magnify"><?plantuml 1.2026.3beta4?><defs><style type="text/css"><![CDATA[svg .entity {
+    cursor: pointer;
+}
+svg.mouseover-active > g > * {
+	opacity: 0.2 !important;
+}
+svg.mouseover-active > g > g.mouseover-highlighted {
+	opacity: 1.0 !important;
+}
+svg.click-active > g > * {
+    opacity: 0.3;
+}
+svg.click-active > g > g.click-highlighted {
+    opacity: 1.0;
+}
+]]></style><script>(function (){
+    function escapeForCssAttributeSelector(entityName) {
+        return entityName
+            ?.replaceAll('\\', '\\\\')
+            ?.replaceAll('"', '\\"');
+    }
+
+    function getLineEdgesAndNodes(startingNode) {
+        function findNextEdgesAndNodes(startingNode, forwards, elementsEncounteredSoFar = new Set()) {
+            elementsEncounteredSoFar.add(startingNode);
+            const nodeName = startingNode.getAttribute("data-entity");
+            const escapedNodeName = escapeForCssAttributeSelector(nodeName);
+            const thisLinkAttributeIndex = forwards ? 2 : 1;
+            const nextLinkAttributeIndex = forwards ? 1 : 2;
+
+            svg.querySelectorAll(`.link[data-entity-${nextLinkAttributeIndex}="${escapedNodeName}"]`).forEach(link =&gt; {
+                if (! elementsEncounteredSoFar.has(link)) {
+                    elementsEncounteredSoFar.add(link);
+
+                    const linkStartNodeName = link.getAttribute(`data-entity-${thisLinkAttributeIndex}`);
+                    const linkStartNode = svg.querySelector(`[data-entity="${escapeForCssAttributeSelector(linkStartNodeName)}"]`);
+
+                    if (! elementsEncounteredSoFar.has(linkStartNode)) {
+                        elementsEncounteredSoFar.add(linkStartNode);
+                        findNextEdgesAndNodes(linkStartNode, forwards, elementsEncounteredSoFar);
+                    }
+                }
+            });
+
+            return elementsEncounteredSoFar;
+        }
+
+        const ancestors = findNextEdgesAndNodes(startingNode, false);
+        const descendants = findNextEdgesAndNodes(startingNode, true);
+
+        return ancestors.union(descendants);
+    }
+
+	function getEdgesAndDistance1Nodes(startingNode) {
+		const nodeName = startingNode.getAttribute("data-entity");
+		const escapedNodeName = escapeForCssAttributeSelector(nodeName);
+		let results = new Set();
+
+        svg.querySelectorAll(`.link[data-entity-1="${escapedNodeName}"], .link[data-entity-2="${escapedNodeName}"]`).forEach(link =&gt; {
+            const linkStartNodeName = link.getAttribute("data-entity-1");
+            const linkEndNodeName = link.getAttribute("data-entity-2");
+
+            if (linkStartNodeName === nodeName) {
+                results.add(svg.querySelector(`[data-entity="${escapeForCssAttributeSelector(linkEndNodeName)}"]`));
+                results.add(link);
+            } else if (linkEndNodeName === nodeName) {
+                results.add(svg.querySelector(`[data-entity="${escapeForCssAttributeSelector(linkStartNodeName)}"]`));
+                results.add(link);
+			}
+		});
+
+		return results;
+	}
+
+	/**
+	 * @param {SVGElement} elem
+	 * @param tagName in lowercase, e.g. "g" or "svg"
+	 * @return {{SVGElement}} or null if no matching ancestor is found
+	 */
+	function findAncestorWithTagName(elem, tagName) {
+		while (elem &amp;&amp; elem.nodeName.toLowerCase() !== tagName) {
+			elem = elem.parentElement;
+		}
+		return elem;
+	}
+
+    function onClickEntity() {
+        if (svg.classList.contains("click-active") &amp;&amp; this.classList.contains("click-selected")) {
+            handleDeselect("click");
+        } else {
+            handleSelectNeighbors(this, "click");
+        }
+    }
+
+    function onDoubleClickEntity() {
+        if (svg.classList.contains("click-active") &amp;&amp; this.classList.contains("click-selected")) {
+            handleDeselect("click");
+        } else {
+            handleSelectLine(this, "click");
+        }
+    }
+
+	function onMouseOverEntity() {
+	    handleSelectNeighbors(this, "mouseover");
+	}
+
+	function onMouseOutEntity() {
+	    handleDeselect("mouseover");
+	}
+
+    // CSS class descriptions:
+    //   xxx-active: highlight styles will be ignored when this is not added to the the parent &lt;svg&gt;.
+    //   xxx-selected: lets us track which entity `&lt;g&gt;` was clicked/hovered.
+    //   xxx-highlighted: when highlighting is 'active', elements without this class will be dimmed.
+    //
+    // 'xxx' event type will be 'click' or 'mouseover'.
+	function handleSelectNeighbors(selectedEntityElem, eventType) {
+	    svg.querySelectorAll(`.${eventType}-selected, .${eventType}-highlighted`).forEach(elem =&gt; {
+            elem.classList.remove(`${eventType}-selected`, `${eventType}-highlighted`);
+        });
+
+        svg.classList.add(`${eventType}-active`);
+        selectedEntityElem.classList.add(`${eventType}-selected`, `${eventType}-highlighted`);
+
+        getEdgesAndDistance1Nodes(selectedEntityElem).forEach(node =&gt; {
+            node.classList.add(`${eventType}-highlighted`);
+        });
+	}
+	
+    function handleSelectLine(selectedEntityElem, eventType) {
+        svg.querySelectorAll(`.${eventType}-selected, .${eventType}-highlighted`).forEach(elem =&gt; {
+            elem.classList.remove(`${eventType}-selected`, `${eventType}-highlighted`);
+        });
+
+        svg.classList.add(`${eventType}-active`);
+        selectedEntityElem.classList.add(`${eventType}-selected`, `${eventType}-highlighted`);
+
+        getLineEdgesAndNodes(selectedEntityElem).forEach(node =&gt; {
+            node.classList.add(`${eventType}-highlighted`);
+        });
+    }
+
+    function handleDeselect(eventType) {
+		svg.classList.remove(`${eventType}-active`);
+    }
+
+	const svg = findAncestorWithTagName(document.currentScript, "svg");
+
+    document.addEventListener("DOMContentLoaded", () =&gt; {
+        svg.querySelectorAll("g.entity").forEach(entity =&gt; {
+            entity.addEventListener("mouseover", onMouseOverEntity);
+            entity.addEventListener("mouseout", onMouseOutEntity);
+            entity.addEventListener("click", onClickEntity);
+            entity.addEventListener("dblclick", onDoubleClickEntity);
+        });
+
+        svg.addEventListener("keydown", event =&gt; {
+            if (event.code === "Escape") {
+              handleDeselect("click");
+            }
+          });
+    });
+})();
+</script></defs><g><!--class A--><g class="entity" data-qualified-name="A" data-source-line="3" id="ent0002"><rect fill="#F1F1F1" height="32" rx="2.5" ry="2.5" style="stroke:#181818;stroke-width:0.5;" width="41.5771" x="7" y="27.5659"/><ellipse cx="22" cy="43.5659" fill="#ADD1B2" rx="11" ry="11" style="stroke:#181818;stroke-width:1;"/><path d="M24.9688,49.2065 Q24.3906,49.5034 23.75,49.644 Q23.1094,49.8003 22.4063,49.8003 Q19.9063,49.8003 18.5781,48.1597 Q17.2656,46.5034 17.2656,43.3784 Q17.2656,40.2534 18.5781,38.5972 Q19.9063,36.9409 22.4063,36.9409 Q23.1094,36.9409 23.75,37.0972 Q24.4063,37.2534 24.9688,37.5503 L24.9688,40.269 Q24.3438,39.6909 23.75,39.4253 Q23.1563,39.144 22.5313,39.144 Q21.1875,39.144 20.5,40.2222 Q19.8125,41.2847 19.8125,43.3784 Q19.8125,45.4722 20.5,46.5503 Q21.1875,47.6128 22.5313,47.6128 Q23.1563,47.6128 23.75,47.3472 Q24.3438,47.0659 24.9688,46.4878 L24.9688,49.2065 Z " fill="#000000"/><text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="9.5771" x="36" y="48.4126">A</text></g><!--class B--><g class="entity" data-qualified-name="B" data-source-line="4" id="ent0003"><rect fill="#F1F1F1" height="32" rx="2.5" ry="2.5" style="stroke:#181818;stroke-width:0.5;" width="60.4398" x="185" y="18.5659"/><ellipse cx="208.4759" cy="34.5659" fill="#ADD1B2" rx="11" ry="11" style="stroke:#181818;stroke-width:1;"/><path d="M211.4447,40.2065 Q210.8665,40.5034 210.2259,40.644 Q209.5853,40.8003 208.8822,40.8003 Q206.3822,40.8003 205.054,39.1597 Q203.7415,37.5034 203.7415,34.3784 Q203.7415,31.2534 205.054,29.5972 Q206.3822,27.9409 208.8822,27.9409 Q209.5853,27.9409 210.2259,28.0972 Q210.8822,28.2534 211.4447,28.5503 L211.4447,31.269 Q210.8197,30.6909 210.2259,30.4253 Q209.6322,30.144 209.0072,30.144 Q207.6634,30.144 206.9759,31.2222 Q206.2884,32.2847 206.2884,34.3784 Q206.2884,36.4722 206.9759,37.5503 Q207.6634,38.6128 209.0072,38.6128 Q209.6322,38.6128 210.2259,38.3472 Q210.8197,38.0659 211.4447,37.4878 L211.4447,40.2065 Z " fill="#000000"/><text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="9.6045" x="224.3594" y="39.4126">B</text></g><!--class C--><g class="entity" data-qualified-name="C" data-source-line="5" id="ent0004"><rect fill="#F1F1F1" height="32" rx="2.5" ry="2.5" style="stroke:#181818;stroke-width:0.5;" width="60.8397" x="185" y="171.5659"/><ellipse cx="208.579" cy="187.5659" fill="#ADD1B2" rx="11" ry="11" style="stroke:#181818;stroke-width:1;"/><path d="M211.5477,193.2065 Q210.9696,193.5034 210.329,193.644 Q209.6883,193.8003 208.9852,193.8003 Q206.4852,193.8003 205.1571,192.1597 Q203.8446,190.5034 203.8446,187.3784 Q203.8446,184.2534 205.1571,182.5972 Q206.4852,180.9409 208.9852,180.9409 Q209.6883,180.9409 210.329,181.0972 Q210.9852,181.2534 211.5477,181.5503 L211.5477,184.269 Q210.9227,183.6909 210.329,183.4253 Q209.7352,183.144 209.1102,183.144 Q207.7665,183.144 207.079,184.2222 Q206.3915,185.2847 206.3915,187.3784 Q206.3915,189.4722 207.079,190.5503 Q207.7665,191.6128 209.1102,191.6128 Q209.7352,191.6128 210.329,191.3472 Q210.9227,191.0659 211.5477,190.4878 L211.5477,193.2065 Z " fill="#000000"/><text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="9.7754" x="224.4854" y="192.4126">C</text></g><!--class D--><g class="entity" data-qualified-name="D" data-source-line="6" id="ent0005"><rect fill="#F1F1F1" height="32" rx="2.5" ry="2.5" style="stroke:#181818;stroke-width:0.5;" width="42.7803" x="373.5" y="162.5659"/><ellipse cx="388.5" cy="178.5659" fill="#ADD1B2" rx="11" ry="11" style="stroke:#181818;stroke-width:1;"/><path d="M391.4688,184.2065 Q390.8906,184.5034 390.25,184.644 Q389.6094,184.8003 388.9063,184.8003 Q386.4063,184.8003 385.0781,183.1597 Q383.7656,181.5034 383.7656,178.3784 Q383.7656,175.2534 385.0781,173.5972 Q386.4063,171.9409 388.9063,171.9409 Q389.6094,171.9409 390.25,172.0972 Q390.9063,172.2534 391.4688,172.5503 L391.4688,175.269 Q390.8438,174.6909 390.25,174.4253 Q389.6563,174.144 389.0313,174.144 Q387.6875,174.144 387,175.2222 Q386.3125,176.2847 386.3125,178.3784 Q386.3125,180.4722 387,181.5503 Q387.6875,182.6128 389.0313,182.6128 Q389.6563,182.6128 390.25,182.3472 Q390.8438,182.0659 391.4688,181.4878 L391.4688,184.2065 Z " fill="#000000"/><text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="10.7803" x="402.5" y="183.4126">D</text></g><!--reverse link A to B--><g class="link" data-entity-1="ent0002" data-entity-2="ent0003" data-link-type="composition" data-source-line="8" id="lnk6"><path codeLine="8" d="M97.5958,34.376 C114.1658,29.776 88.89,27.0259 110.5,24.5659 C132.14,22.1059 137.81,22.5959 159.5,24.5659 C167.74,25.3159 176.59,26.6959 184.72,28.1859" fill="none" id="A-backto-B" style="stroke:#181818;stroke-width:1;"/><polygon fill="#181818" points="86.0331,37.5859,92.8844,39.8352,97.5958,34.376,90.7445,32.1267,86.0331,37.5859" style="stroke:#181818;stroke-width:1;"/><polygon fill="#000000" points="120.4874,14.778,111.2568,12.4875,111.6734,18.3505,120.4874,14.778" style="stroke:#000000;stroke-width:1;"/><text fill="#000000" font-family="sans-serif" font-size="13" lengthAdjust="spacing" textLength="34.8296" x="124.5" y="19.6328">holds</text><text fill="#000000" font-family="sans-serif" font-size="13" lengthAdjust="spacing" textLength="8.271" x="168.7732" y="22.0584">1</text><rect fill="#F1F1F1" height="18.2969" style="stroke:#181818;stroke-width:0.5;" width="37.9131" x="48.12" y="28.4375"/><text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="33.9131" x="50.12" y="42.4326">key1</text></g><!--reverse link B to C--><g class="link" data-entity-1="ent0003" data-entity-2="ent0004" data-link-type="aggregation" data-source-line="9" id="lnk7"><path codeLine="9" d="M215,80.8928 C215,109.6928 215,142.0559 215,171.1459" fill="none" id="B-backto-C" style="stroke:#181818;stroke-width:1;"/><polygon fill="none" points="215,68.8928,211,74.8928,215,80.8928,219,74.8928,215,68.8928" style="stroke:#181818;stroke-width:1;"/><polygon fill="#000000" points="220,116.1323,222.9389,107.0872,217.0611,107.0872,220,116.1323" style="stroke:#000000;stroke-width:1;"/><text fill="#000000" font-family="sans-serif" font-size="13" lengthAdjust="spacing" textLength="34.8296" x="229" y="115.6328">holds</text><rect fill="#F1F1F1" height="18.2969" style="stroke:#181818;stroke-width:0.5;" width="46.4922" x="191.7539" y="50.5959"/><text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="42.4922" x="193.7539" y="64.591">key2a</text><rect fill="#F1F1F1" height="18.2969" style="stroke:#181818;stroke-width:0.5;" width="46.7998" x="191.6001" y="153.349"/><text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="42.7998" x="193.6001" y="167.3442">key2b</text></g><!--link C to D--><g class="link" data-entity-1="ent0004" data-entity-2="ent0005" data-link-type="association" data-source-line="10" id="lnk8"><path codeLine="10" d="M241.82,203.6159 C270.76,219.3959 318.58,238.8159 356.5,221.5659 C368.58,216.0759 378.29,204.5459 384.8,194.8159" fill="none" id="C-D" style="stroke:#181818;stroke-width:1;"/><polygon fill="#000000" points="317.4906,212.8252,308.282,210.4474,308.6431,216.3142,317.4906,212.8252" style="stroke:#000000;stroke-width:1;"/><text fill="#000000" font-family="sans-serif" font-size="13" lengthAdjust="spacing" textLength="34.8296" x="321.5" y="217.6328">holds</text><text fill="#000000" font-family="sans-serif" font-size="13" lengthAdjust="spacing" textLength="8.271" x="372.1775" y="214.772">1</text><rect fill="#F1F1F1" height="18.2969" style="stroke:#181818;stroke-width:0.5;" width="37.9131" x="241.82" y="194.4675"/><text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="33.9131" x="243.82" y="208.4626">key3</text></g><?plantuml-src JOj12eCm54Jt_nHJbuKiR7Sk2YRUGhBuwaT3JPKa5RnzGGDrzOPvCxSryEWPSHlT9qdWFhbDaC9NQ7A3GFoQTdZndOH8_SmneixKcIQp8QhHlcKlBUuAHLb0eyAqp4F4Y_JX7conA7Ncpi9S5kPednRdkVch7m00?></g></svg>
