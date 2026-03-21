@@ -266,6 +266,22 @@ fn draw_participant_rect_with_font(
 
 /// Actor: Java renders TEXT first (plain), then ELLIPSE (filled head),
 /// then single PATH (body+arms+legs). Stroke-width=0.5.
+///
+/// Java ActorStickMan constants:
+///   headDiam=16, bodyLength=27, armsY=8, armsLength=13, legsX=13, legsY=15
+///   thickness = stroke.thickness = 0.5
+///   startX = max(armsLength,legsX) - headDiam/2 + thickness = 5.5
+///   centerX = startX + headDiam/2 = 13.5
+///   prefWidth = max(armsLength,legsX)*2 + 2*thickness = 27
+///   prefHeight = headDiam + bodyLength + legsY + 2*thickness + deltaShadow + 1 = 60
+///
+/// Java ComponentRoseActor (head=true):
+///   marginX1=3, marginX2=3
+///   textWidth = pureTextWidth + 6
+///   prefWidth = max(stickmanWidth(27), textWidth)
+///   textMiddlePos = (prefWidth - textWidth) / 2
+///   text rendered at: (textMiddlePos, stickmanHeight) relative to component origin
+///   stickman at: (delta, 0) where delta = (prefWidth - stickmanWidth) / 2
 fn draw_participant_actor(
     sg: &mut SvgGraphic,
     p: &ParticipantLayout,
@@ -275,40 +291,74 @@ fn draw_participant_actor(
     text_color: &str,
 ) {
     let name = display_name.unwrap_or(&p.name);
-    let cx = p.x;
-    let head_r = 8.0;
-    let head_cy = y + head_r + 5.5;
-    let body_top = head_cy + head_r;
-    let body_bot = body_top + 27.0;
-    let arm_y = body_top + 8.0;
-    let arm_spread = 13.0;
-    let leg_spread = 13.0;
-    let leg_drop = 15.0;
-    let name_y = body_bot + leg_drop + 14.0 + 4.0;
+    let cx = p.x; // participant center x from layout
 
-    // 1. Text first (Java: plain font, not bold, no text-anchor)
-    let tl = font_metrics::text_width(name, "SansSerif", 14.0, false, false);
-    let text_x = cx - tl / 2.0;
+    // Java ActorStickMan constants
+    let head_diam = 16.0_f64;
+    let head_r = head_diam / 2.0;
+    let body_length = 27.0_f64;
+    let arms_y = 8.0_f64;
+    let arms_length = 13.0_f64;
+    let legs_x = 13.0_f64;
+    let legs_y = 15.0_f64;
+    let thickness = 0.5_f64;
+    let stickman_width = arms_length.max(legs_x) * 2.0 + 2.0 * thickness; // 27
+    let stickman_height = head_diam + body_length + legs_y + 2.0 * thickness + 1.0; // 60
+
+    // Java: startX = max(arms,legs) - headDiam/2 + thickness = 5.5
+    let start_x = arms_length.max(legs_x) - head_diam / 2.0 + thickness;
+    // Java: centerX = startX + headDiam/2 = 13.5
+    let center_x = start_x + head_diam / 2.0;
+
+    // Text metrics
+    let font_size = 14.0;
+    let tl = font_metrics::text_width(name, "SansSerif", font_size, false, false);
+    let margin_x1 = 3.0;
+    let margin_x2 = 3.0;
+    let text_width = tl + margin_x1 + margin_x2;
+    let pref_width = stickman_width.max(text_width);
+    let text_middle_pos = (pref_width - text_width) / 2.0;
+
+    // Java: outMargin = 5, startingX = 0 for first participant
+    // component_x = startingX + outMargin = p.x - pref_width/2 - outMargin + outMargin
+    // Actually, p.x is the CENTER of the participant box from layout.
+    // Java: getCenterX = startingX + prefWidth/2 + outMargin
+    // So: component_x = p.x - pref_width/2
+    // But Java adds outMargin to the drawing position.
+    // Let's derive from known: Java ellipse cx = 24.8335 = component_x + startX + headR
+    //   component_x + 5.5 + 8 = 24.8335 → component_x = 11.3335
+    // But we need component_x from p.x. p.x = getCenterX = startingX + prefWidth/2 + outMargin
+    // For Alice: prefWidth = 39.667, outMargin = 5
+    //   getCenterX = 0 + 39.667/2 + 5 = 24.8335
+    // So p.x = 24.8335. component_x = p.x - prefWidth/2 = 24.8335 - 19.8335 = 5.0
+    // BUT Java drawU applies UTranslate(getMinX, y1) where getMinX = startingX + outMargin = 5
+    // So component origin is at x=5.
+
+    // For general case: component_x = p.x - pref_width / 2.0
+    let component_x = cx - pref_width / 2.0;
+
+    // 1. Text first
+    // Java: textBlock.drawU at (textMiddlePos, stickmanHeight).
+    // marginX1 is already baked into textWidth for centering calculation,
+    // but does NOT add to the SVG x coordinate.
+    let text_x = component_x + text_middle_pos;
+    let text_y = y + stickman_height + font_metrics::ascent("SansSerif", font_size, false, false);
     sg.set_fill_color(text_color);
     sg.svg_text(
-        name,
-        text_x,
-        name_y,
-        Some("sans-serif"),
-        14.0,
-        None,
-        None,
-        None,
+        name, text_x, text_y,
+        Some("sans-serif"), font_size,
+        None, None, None,
         tl,
         LengthAdjust::Spacing,
-        None,
-        0,
-        None,
+        None, 0, None,
     );
-    sg.push_raw("\n");
 
-    // 2. Ellipse head (Java: filled #E2E2F0, stroke 0.5)
-    let hcx = fmt_coord(cx);
+    // 2. Ellipse head
+    // Java: head at (startX, thickness) relative to component + delta
+    let delta = (pref_width - stickman_width) / 2.0;
+    let head_cx = component_x + delta + start_x + head_r;
+    let head_cy = y + thickness + head_r;
+    let hcx = fmt_coord(head_cx);
     let hcy = fmt_coord(head_cy);
     let hr = fmt_coord(head_r);
     let mut el = String::new();
@@ -316,23 +366,27 @@ fn draw_participant_actor(
         "<ellipse cx=\"{hcx}\" cy=\"{hcy}\" fill=\"#E2E2F0\" rx=\"{hr}\" ry=\"{hr}\" style=\"stroke:{border};stroke-width:0.5;\"/>"
     ).unwrap();
     sg.push_raw(&el);
-    sg.push_raw("\n");
 
     // 3. Single path for body+arms+legs (Java: ActorStickMan, stroke 0.5)
-    let bt = fmt_coord(body_top);
-    let bb = fmt_coord(body_bot);
-    let la = fmt_coord(cx - arm_spread);
-    let ra = fmt_coord(cx + arm_spread);
-    let ay = fmt_coord(arm_y);
-    let ll = fmt_coord(cx - leg_spread);
-    let rl = fmt_coord(cx + leg_spread);
-    let lf = fmt_coord(body_bot + leg_drop);
+    // Java path origin at (centerX, headDiam + thickness) relative to component + delta
+    let path_ox = component_x + delta + center_x;
+    let path_oy = y + head_diam + thickness;
+    // Path segments (relative to path origin):
+    //   M(0,0) L(0,bodyLength) M(-arms,armsY) L(arms,armsY) M(0,bodyLength) L(-legsX,bodyLength+legsY) M(0,bodyLength) L(legsX,bodyLength+legsY)
+    let pcx = fmt_coord(path_ox);
+    let bt = fmt_coord(path_oy);
+    let bb = fmt_coord(path_oy + body_length);
+    let la = fmt_coord(path_ox - arms_length);
+    let ra = fmt_coord(path_ox + arms_length);
+    let ay = fmt_coord(path_oy + arms_y);
+    let ll = fmt_coord(path_ox - legs_x);
+    let rl = fmt_coord(path_ox + legs_x);
+    let lf = fmt_coord(path_oy + body_length + legs_y);
     let mut pa = String::new();
     write!(pa,
-        "<path d=\"M{hcx},{bt} L{hcx},{bb} M{la},{ay} L{ra},{ay} M{hcx},{bb} L{ll},{lf} M{hcx},{bb} L{rl},{lf}\" fill=\"none\" style=\"stroke:{border};stroke-width:0.5;\"/>"
+        "<path d=\"M{pcx},{bt} L{pcx},{bb} M{la},{ay} L{ra},{ay} M{pcx},{bb} L{ll},{lf} M{pcx},{bb} L{rl},{lf}\" fill=\"none\" style=\"stroke:{border};stroke-width:0.5;\"/>"
     ).unwrap();
     sg.push_raw(&pa);
-    sg.push_raw("\n");
 }
 
 /// Boundary: circle on left + vertical line + horizontal connector
