@@ -877,10 +877,17 @@ pub fn layout_activity(diagram: &ActivityDiagram) -> Result<ActivityLayout> {
                     }
                 }
             }
-            // Java: LaneDivider is drawn at the boundary between lanes but does
-            // NOT add extra horizontal spacing.  The divider line sits inside
-            // the lane's allocated width. No inter-lane gap.
-            x += needed;
+            // Java: xpos += actualWidth + dividerWidth.
+            // When lane width is header-driven (hw includes divider padding),
+            // the divider is already absorbed. When content-driven (content > hw),
+            // add the divider width explicitly.
+            let hw_i = header_widths.get(i).copied().unwrap_or(0.0) + 2.0 * LANE_DIVIDER_HALF;
+            let extra_div = if needed > hw_i && i + 1 < n_lanes {
+                2.0 * LANE_DIVIDER_HALF // content exceeds header: add divider
+            } else {
+                0.0 // header-driven: divider already in hw
+            };
+            x += needed + extra_div;
         }
     }
 
