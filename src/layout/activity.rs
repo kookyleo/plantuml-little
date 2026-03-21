@@ -100,8 +100,13 @@ const SWIMLANE_HEADER_FONT_SIZE: f64 = 18.0;
 // Text measurement helpers
 // ---------------------------------------------------------------------------
 
+/// Java creole table cell padding (from skinParam.getPadding(), default 2).
+/// Applied as top+bottom padding on SheetBlock1 wrapping each table cell.
+const TABLE_CELL_PADDING: f64 = 2.0;
+
 /// Estimate the bounding-box size of an action box.
 /// Uses actual font metrics for precise sizing to match Java PlantUML.
+/// Detects creole tables (`|...|` rows) and adds cell padding.
 fn estimate_text_size(text: &str) -> (f64, f64) {
     let lh = font_metrics::line_height("SansSerif", FONT_SIZE, false, false);
     let lines: Vec<&str> = text.split('\n').collect();
@@ -110,8 +115,15 @@ fn estimate_text_size(text: &str) -> (f64, f64) {
         .map(|l| font_metrics::text_width(l, "SansSerif", FONT_SIZE, false, false))
         .fold(0.0_f64, f64::max);
     let width = max_line_width + 2.0 * PADDING;
-    let height = lines.len() as f64 * lh + 2.0 * PADDING;
-    log::debug!("estimate_text_size(\"{}\") -> {}x{} ({} lines, max_w={})", text, width, height, lines.len(), max_line_width);
+    // Java: creole table cells get extra padding (skinParam.getPadding() = 2,
+    // applied as top+bottom on each SheetBlock1 cell → +4 total per table).
+    let has_table = lines.iter().any(|l| {
+        let t = l.trim();
+        t.starts_with('|') && t.ends_with('|') && t.len() > 2
+    });
+    let table_extra = if has_table { 2.0 * TABLE_CELL_PADDING } else { 0.0 };
+    let height = lines.len() as f64 * lh + 2.0 * PADDING + table_extra;
+    log::debug!("estimate_text_size -> {}x{} ({} lines)", width, height, lines.len());
     (width, height)
 }
 
@@ -1184,6 +1196,22 @@ mod tests {
         assert!(layout.swimlane_layouts.is_empty());
         assert!(layout.width > 0.0);
         assert!(layout.height > 0.0);
+    }
+
+    // 1b. Creole table height includes cell padding (Java +4px) ---------------
+
+    #[test]
+    fn creole_table_height_includes_cell_padding() {
+        // Java CreoleTableMetricsTest: table row adds 4px total to action height
+        // Plain "text": action_h = 33.97 (line_height + 2*PADDING)
+        // Table "|text|": action_h = 37.97 (+4 from cell padding 2+2)
+        let (_, h_plain) = estimate_text_size("plain text");
+        let (_, h_table) = estimate_text_size("|table cell|");
+        let diff = h_table - h_plain;
+        assert!(
+            (diff - 4.0).abs() < 0.1,
+            "table should be 4px taller than plain: diff={diff:.1} (table={h_table:.1} plain={h_plain:.1})"
+        );
     }
 
     // 2. Single action -------------------------------------------------------
