@@ -1314,7 +1314,19 @@ fn draw_entity_box(
 
         if let Some(ref vis) = entity.visibility {
             let icon_x = name_x - ENTITY_VIS_ICON_BLOCK_SIZE;
-            let icon_y = y + (header_height - ENTITY_VIS_ICON_BLOCK_SIZE) / 2.0;
+            // Java: EntityImageClassHeader wraps visibility UBlock with
+            // withMargin(top=4), then mergeLR(uBlock, name, CENTER).
+            // uBlock dim = (11, 11), with margin: (11, 15).
+            // name dim height = HEADER_NAME_BLOCK_HEIGHT (≈16.3).
+            // merged height = max(15, name_h).
+            // icon in merged: (merged_h - 15) / 2 + 4 (margin top).
+            // merged in header: (header_h - merged_h) / 2.
+            let icon_margin_top = 4.0;
+            let icon_block_h = ENTITY_VIS_ICON_BLOCK_SIZE + icon_margin_top;
+            let merged_h = HEADER_NAME_BLOCK_HEIGHT.max(icon_block_h);
+            let merged_y = (header_height - stereo_height - merged_h) / 2.0;
+            let icon_in_merged = (merged_h - icon_block_h) / 2.0 + icon_margin_top;
+            let icon_y = y + merged_y + icon_in_merged;
             draw_visibility_icon(sg, tracker, vis, true, icon_x, icon_y);
         }
 
