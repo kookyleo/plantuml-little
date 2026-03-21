@@ -14,7 +14,7 @@ use super::geom::USegmentType;
 use super::shape::UPath;
 use super::{UChange, UParam, UStroke, UTranslate};
 
-const PLANTUML_VERSION: &str = "1.2026.3beta4";
+const PLANTUML_VERSION: &str = "1.2026.3beta5";
 
 // ── Number formatting ───────────────────────────────────────────────
 

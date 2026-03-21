@@ -134,7 +134,7 @@ use crate::skin::rose::{
 const LINK_COLOR: &str = BORDER_COLOR;
 /// Java PlantUML renders link labels at font-size 13 (not 14).
 const LINK_LABEL_FONT_SIZE: f64 = 13.0;
-const PLANTUML_VERSION: &str = "1.2026.3beta4";
+const PLANTUML_VERSION: &str = "1.2026.3beta5";
 
 // ── Meta rendering constants ────────────────────────────────────────
 

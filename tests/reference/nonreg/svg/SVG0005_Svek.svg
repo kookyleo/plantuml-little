@@ -1,4 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" contentStyleType="text/css" data-diagram-type="DESCRIPTION" height="295px" preserveAspectRatio="none" style="width:87px;height:295px;background:#FFFFFF;" version="1.1" viewBox="0 0 87 295" width="87px" zoomAndPan="magnify"><?plantuml 1.2026.3beta4?><defs><style type="text/css"><![CDATA[svg .entity {
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" contentStyleType="text/css" data-diagram-type="DESCRIPTION" height="295px" preserveAspectRatio="none" style="width:87px;height:295px;background:#FFFFFF;" version="1.1" viewBox="0 0 87 295" width="87px" zoomAndPan="magnify"><?plantuml 1.2026.3beta5?><defs><style type="text/css"><![CDATA[svg .entity {
     cursor: pointer;
 }
 svg.mouseover-active > g > * {
