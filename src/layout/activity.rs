@@ -662,6 +662,8 @@ pub fn layout_activity(diagram: &ActivityDiagram) -> Result<ActivityLayout> {
             }
 
             // ---- Floating note (not attached) --------------------------------
+            // Java: floating notes sit beside the flow, like attached notes.
+            // They do NOT consume vertical space or advance y_cursor.
             ActivityEvent::FloatingNote { position, text } => {
                 let wrapped = if let Some(max_w) = diagram.note_max_width {
                     wrap_note_text(text, max_w)
@@ -678,7 +680,12 @@ pub fn layout_activity(diagram: &ActivityDiagram) -> Result<ActivityLayout> {
                     NotePositionLayout::Right => cx + NOTE_OFFSET,
                     NotePositionLayout::Left => cx - NOTE_OFFSET - nw,
                 };
-                let ny = y_cursor;
+                // Place at the last flow node's y (like attached note) or y_cursor
+                let ny = if let Some(prev_idx) = last_flow_node_idx {
+                    nodes[prev_idx].y
+                } else {
+                    y_cursor
+                };
 
                 log::debug!(
                     "  node[{node_index}] FloatingNote({pos_layout:?}) @ ({nx:.1}, {ny:.1})"
@@ -695,9 +702,7 @@ pub fn layout_activity(diagram: &ActivityDiagram) -> Result<ActivityLayout> {
                     text: wrapped,
                 });
                 node_index += 1;
-                // Floating notes advance the y_cursor slightly so they don't
-                // overlap subsequent floating notes.
-                y_cursor += nh + NODE_SPACING;
+                // Java: floating notes do NOT advance y_cursor.
             }
 
             // ---- Detach (small marker) ---------------------------------------
@@ -1242,13 +1247,19 @@ mod tests {
         assert_eq!(layout.edges.len(), 2);
     }
 
-    // 12. Floating note advances y_cursor ------------------------------------
+    // 12. Floating note does NOT advance y_cursor (Java compat) ---------------
 
     #[test]
-    fn floating_note_advances_y() {
+    fn floating_note_does_not_advance_y() {
+        // Java: floating notes sit beside the flow without consuming vertical
+        // space, just like attached notes.  The next flow node should be at
+        // the same y_cursor, not pushed below the floating note.
         let d = diagram(vec![
+            ActivityEvent::Action {
+                text: "work".into(),
+            },
             ActivityEvent::FloatingNote {
-                position: NotePosition::Right,
+                position: NotePosition::Left,
                 text: "floating".into(),
             },
             ActivityEvent::Action {
@@ -1256,11 +1267,19 @@ mod tests {
             },
         ]);
         let layout = layout_activity(&d).unwrap();
-        assert_eq!(layout.nodes.len(), 2);
-        let note = &layout.nodes[0];
-        let action = &layout.nodes[1];
-        // Action should be below the floating note.
-        assert!(action.y > note.y + note.height);
+        assert_eq!(layout.nodes.len(), 3);
+        let action1 = &layout.nodes[0];
+        let note = &layout.nodes[1];
+        let action2 = &layout.nodes[2];
+        // Floating note should be placed at the same y as action1's bottom + spacing,
+        // but should NOT push action2 further down.
+        let expected_action2_y = action1.y + action1.height + NODE_SPACING;
+        assert!(
+            (action2.y - expected_action2_y).abs() < 1.0,
+            "action2.y ({:.1}) should be at {:.1} (action1 bottom + spacing), \
+             floating note should not push it down. note.y={:.1} note.h={:.1}",
+            action2.y, expected_action2_y, note.y, note.height
+        );
     }
 
     // 13. Note without preceding flow node -----------------------------------
