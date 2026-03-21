@@ -60,14 +60,12 @@ pub fn render_activity(
     let has_swimlanes = !layout.swimlane_layouts.is_empty();
 
     if has_swimlanes {
-        // Compute header metrics matching Java (getTitlesHeight + layout offset)
+        // Compute header metrics matching Java precisely.
+        // header_top = 2019 font units at header size (from Java MinMax y-offset).
         let header_asc = font_metrics::ascent("SansSerif", 18.0, false, false);
         let header_desc = font_metrics::descent("SansSerif", 18.0, false, false);
         let titles_height = header_asc + header_desc;
-        // swimlane_header_height (content area start) from the same formula as layout:
-        let content_start = header_asc + header_desc + 17.75 + 5.0;
-        // Java: header_top = content_start - titles_height - 5.0
-        let header_top = content_start - titles_height - 5.0;
+        let header_top = 2019.0 / 2048.0 * 18.0;
 
         // Step 1: drawTitlesBackground — transparent header rect
         if let (Some(first), Some(last)) = (layout.swimlane_layouts.first(), layout.swimlane_layouts.last()) {
