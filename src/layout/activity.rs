@@ -237,26 +237,36 @@ fn wrap_note_text(text: &str, max_width: f64) -> String {
 // Swimlane helpers
 // ---------------------------------------------------------------------------
 
-/// Compute swimlane column layouts.  If there are no swimlanes the returned
-/// vec is empty and a single centred column is used instead.
+/// Java LaneDivider half-space: 5px at edges, expands if title overflows content.
+const LANE_DIVIDER_HALF: f64 = 5.0;
+
+/// Compute initial swimlane column layouts from header text.
+///
+/// Java sizes lanes to content (via LimitFinder) then expands for title.
+/// Here we start with header-text width; Pass 2c expands for content+notes.
 fn compute_swimlane_layouts(swimlanes: &[String]) -> Vec<SwimlaneLayout> {
     if swimlanes.is_empty() {
         return Vec::new();
     }
     let lane_pad = 10.0;
     let mut layouts = Vec::new();
-    let mut x = TOP_MARGIN;
-    for name in swimlanes {
-        let text_width = font_metrics::text_width(
+    // Java: first LaneDivider starts at edge half-space (5px each side = 10px)
+    let mut x = LANE_DIVIDER_HALF * 2.0; // left divider width = 10
+    for (i, name) in swimlanes.iter().enumerate() {
+        let title_width = font_metrics::text_width(
             name, "SansSerif", SWIMLANE_HEADER_FONT_SIZE, false, false,
         );
-        let lane_width = (text_width + 2.0 * lane_pad).max(SWIMLANE_MIN_WIDTH);
+        // Initial lane width from header text (no min-width — Java doesn't use one)
+        let lane_width = title_width + 2.0 * lane_pad;
         layouts.push(SwimlaneLayout {
             name: name.clone(),
             x,
             width: lane_width,
         });
-        x += lane_width;
+        // Java: inter-lane divider = halfMissing(i+1) + halfMissing(i+2)
+        // Both default to 5px unless title overflows
+        let divider = LANE_DIVIDER_HALF * 2.0;
+        x += lane_width + divider;
     }
     layouts
 }
@@ -800,25 +810,52 @@ pub fn layout_activity(diagram: &ActivityDiagram) -> Result<ActivityLayout> {
             if right > lane_max_x[li] { lane_max_x[li] = right; }
         }
 
-        // 3) Expand each lane to enclose its content; Java divider ≈ 5px each side
-        let divider = 5.0;
-        let mut x = divider;
+        // 3) Expand each lane; Java LaneDivider: edge=5, between=5..N depending on title overflow
+        // Left divider = halfMissing(0)(=5) + halfMissing(1)(=5 or more)
+        let half_missing_edge = LANE_DIVIDER_HALF;
+        let header_widths: Vec<f64> = diagram.swimlanes.iter().map(|name| {
+            font_metrics::text_width(name, "SansSerif", SWIMLANE_HEADER_FONT_SIZE, false, false)
+        }).collect();
+
+        // First pass: determine final lane widths (max of header and content)
+        let mut lane_widths: Vec<f64> = Vec::with_capacity(n_lanes);
         for i in 0..n_lanes {
             let content_width = if lane_max_x[i] > lane_min_x[i] {
                 lane_max_x[i] - lane_min_x[i]
             } else {
                 0.0
             };
-            let needed = (content_width + 2.0 * divider).max(swimlane_layouts[i].width);
+            let hw = header_widths[i] + 2.0 * LANE_DIVIDER_HALF; // title + padding
+            lane_widths.push(content_width.max(hw));
+        }
+
+        // Java getHalfMissingSpace: if title > actual_content, expand divider half
+        let raw_content_widths: Vec<f64> = (0..n_lanes).map(|i| {
+            if lane_max_x[i] > lane_min_x[i] { lane_max_x[i] - lane_min_x[i] } else { 0.0 }
+        }).collect();
+        let half_missing = |lane_idx: usize| -> f64 {
+            let actual_w = raw_content_widths[lane_idx]; // pure content, no title padding
+            let title_w = header_widths[lane_idx];
+            if title_w > actual_w {
+                (LANE_DIVIDER_HALF + (title_w - actual_w) / 2.0).max(LANE_DIVIDER_HALF)
+            } else {
+                LANE_DIVIDER_HALF
+            }
+        };
+
+        // Left divider = edge(5) + halfMissing for lane 0's left side
+        let left_divider = half_missing_edge + half_missing(0);
+        let mut x = left_divider;
+        for i in 0..n_lanes {
+            let needed = lane_widths[i];
             let old_x = swimlane_layouts[i].x;
             swimlane_layouts[i].x = x;
             swimlane_layouts[i].width = needed;
 
             // Shift nodes so content is centred within the new lane bounds.
-            // The content block's left edge was at lane_min_x[i]; it should now
-            // be at lane.x + (needed - content_width) / 2.
             if lane_max_x[i] > lane_min_x[i] {
-                let target_left = x + (needed - content_width) / 2.0;
+                let cw = lane_max_x[i] - lane_min_x[i];
+                let target_left = x + (needed - cw) / 2.0;
                 let dx = target_left - lane_min_x[i];
                 if dx.abs() > 0.01 {
                     for (ni, node) in nodes.iter_mut().enumerate() {
@@ -828,7 +865,13 @@ pub fn layout_activity(diagram: &ActivityDiagram) -> Result<ActivityLayout> {
                     }
                 }
             }
-            x += needed;
+            // Inter-lane divider
+            let inter_div = if i + 1 < n_lanes {
+                half_missing(i) + half_missing(i + 1)
+            } else {
+                0.0
+            };
+            x += needed + inter_div;
         }
     }
 
@@ -1142,7 +1185,43 @@ mod tests {
         );
     }
 
-    // 4b. Swimlane width expands for note content (Java compat) ---------------
+    // 4b. Swimlane left margin matches Java divider (Java=20px for simple case)
+
+    #[test]
+    fn swimlane_left_margin_matches_java() {
+        // Java CreoleNoteMetricsTest.swimlaneDividerAndMargins:
+        //   Lane A left x = 20.0 (LaneDivider x1=5 + x2 expansion)
+        //   Lane A width = 71.6, Lane B width = 71.6
+        let d = ActivityDiagram {
+            events: vec![
+                ActivityEvent::Swimlane { name: "Lane A".into() },
+                ActivityEvent::Start,
+                ActivityEvent::Action { text: "task A".into() },
+                ActivityEvent::Stop,
+                ActivityEvent::Swimlane { name: "Lane B".into() },
+                ActivityEvent::Action { text: "task B".into() },
+            ],
+            swimlanes: vec!["Lane A".into(), "Lane B".into()],
+            direction: Default::default(),
+            note_max_width: None,
+        };
+        let layout = layout_activity(&d).unwrap();
+        let lane_a = &layout.swimlane_layouts[0];
+        // Java Lane A left x ≈ 20; Rust should be > 5 (old value) and reasonable
+        assert!(
+            lane_a.x >= 8.0,
+            "Lane A x ({:.1}) should be > 8 (Java=20, left divider expands for title)",
+            lane_a.x
+        );
+        // Java Lane A width = 71.6, should not be inflated to 80 by min-width
+        assert!(
+            lane_a.width < 80.0,
+            "Lane A width ({:.1}) should be < 80 (Java=71.6, no artificial min-width)",
+            lane_a.width
+        );
+    }
+
+    // 4c. Swimlane width expands for note content (Java compat) ---------------
 
     #[test]
     fn swimlane_width_accommodates_note() {
