@@ -1669,19 +1669,20 @@ mod tests {
 
     #[test]
     fn wrap_note_text_bullet_list_uses_reduced_width() {
-        // Bullet list items should wrap at (max_width - bullet_indent).
-        // "Calling the method foo is prohibited overlap" at 100px:
-        //   - without indent: wraps into N lines
-        //   - with bullet indent (18px): wraps into N+1 or more lines
-        let bullet = "* Calling the method foo is prohibited overlap";
-        let plain = "Calling the method foo is prohibited overlap";
+        // Java reference data (from CreoleNoteMetricsTest):
+        //   bullet at MaxWidth=100: "Calling the" / "method" / "foo() is" / "prohibited" / "overlap" = 5 lines
+        //   plain  at MaxWidth=100: "Calling the" / "method foo()" / "is prohibited" / "overlap" = 4 lines
+        let bullet = r#"* Calling the method ""foo()"" is prohibited overlap"#;
+        let plain = r#"Calling the method ""foo()"" is prohibited overlap"#;
         let wrapped_bullet = wrap_note_text(bullet, 100.0);
         let wrapped_plain = wrap_note_text(plain, 100.0);
-        let bullet_lines = wrapped_bullet.split('\n').count();
-        let plain_lines = wrapped_plain.split('\n').count();
+        let bullet_lines: Vec<&str> = wrapped_bullet.split('\n').collect();
+        let plain_lines: Vec<&str> = wrapped_plain.split('\n').collect();
+        // Bullet should produce MORE lines than plain due to indent
         assert!(
-            bullet_lines >= plain_lines,
-            "bullet should produce at least as many lines ({bullet_lines}) as plain ({plain_lines})"
+            bullet_lines.len() > plain_lines.len(),
+            "bullet ({}) should produce more lines than plain ({}).\n  bullet: {bullet_lines:?}\n  plain:  {plain_lines:?}",
+            bullet_lines.len(), plain_lines.len()
         );
         // First line should retain the `* ` prefix
         assert!(
@@ -1689,8 +1690,7 @@ mod tests {
             "first line should start with '* ': {wrapped_bullet:?}"
         );
         // Continuation lines should NOT have `* ` prefix
-        let cont_lines: Vec<&str> = wrapped_bullet.split('\n').skip(1).collect();
-        for cl in &cont_lines {
+        for cl in bullet_lines.iter().skip(1) {
             assert!(
                 !cl.starts_with("* "),
                 "continuation line should not start with '* ': {cl:?}"
