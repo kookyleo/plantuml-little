@@ -19,6 +19,8 @@ pub struct Participant {
     pub display_name: Option<String>,
     pub kind: ParticipantKind,
     pub color: Option<String>,
+    /// Source line number (0-based) for data-source-line attribute
+    pub source_line: Option<usize>,
 }
 
 /// Message arrow style
@@ -56,6 +58,8 @@ pub struct Message {
     pub direction: SeqDirection,
     /// Optional arrow color, e.g. `[#blue]->` stores `"blue"`
     pub color: Option<String>,
+    /// Source line number (0-based) for data-source-line attribute
+    pub source_line: Option<usize>,
 }
 
 /// Combined fragment kind

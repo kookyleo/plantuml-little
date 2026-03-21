@@ -815,6 +815,7 @@ pub fn build_teoz_layout(
 					is_left,
 					has_open_head: *has_open_head,
 					autonumber: autonumber.clone(),
+					source_line: None, // TODO: propagate from parser
 					self_return_x: from_x,
 				});
 			}
@@ -841,6 +842,7 @@ pub fn build_teoz_layout(
 					is_left: false,
 					has_open_head: *has_open_head,
 					autonumber: autonumber.clone(),
+					source_line: None, // TODO: propagate from parser
 					self_return_x: cx,
 				});
 			}

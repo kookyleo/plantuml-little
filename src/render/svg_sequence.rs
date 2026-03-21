@@ -79,12 +79,17 @@ fn draw_lifelines(sg: &mut SvgGraphic, layout: &SeqLayout, skin: &SkinParams, sd
             .unwrap_or(&p.name);
         let escaped_display = xml_escape(display);
 
+        let src_line_attr = sd.participants.get(i)
+            .and_then(|pp| pp.source_line)
+            .map(|sl| format!(r#" data-source-line="{sl}""#))
+            .unwrap_or_default();
         let mut tmp = String::new();
         write!(
             tmp,
-            r#"<g class="participant-lifeline" data-entity-uid="part{idx}" data-qualified-name="{qname}" id="part{idx}-lifeline"><g><title>{dname}</title>"#,
+            r#"<g class="participant-lifeline" data-entity-uid="part{idx}" data-qualified-name="{qname}"{src_line} id="part{idx}-lifeline"><g><title>{dname}</title>"#,
             idx = part_idx,
             qname = qualified_name,
+            src_line = src_line_attr,
             dname = escaped_display,
         )
         .unwrap();
@@ -683,10 +688,14 @@ fn draw_message(
     from_idx: usize,
     to_idx: usize,
     msg_idx: usize,
+    source_line: Option<usize>,
 ) {
+    let src_line_attr = source_line
+        .map(|sl| format!(r#" data-source-line="{sl}""#))
+        .unwrap_or_default();
     sg.push_raw(&format!(
-        r#"<g class="message" data-entity-1="part{}" data-entity-2="part{}" id="msg{}">"#,
-        from_idx, to_idx, msg_idx,
+        r#"<g class="message" data-entity-1="part{}" data-entity-2="part{}"{} id="msg{}">"#,
+        from_idx, to_idx, src_line_attr, msg_idx,
     ));
 
     let sw = arrow_thickness as u32;
@@ -877,9 +886,12 @@ fn draw_self_message(
     let y = msg.y;
     let loop_height = 13.0;
 
+    let src_line_attr = msg.source_line
+        .map(|sl| format!(r#" data-source-line="{sl}""#))
+        .unwrap_or_default();
     sg.push_raw(&format!(
-        r#"<g class="message" data-entity-1="part{}" data-entity-2="part{}" id="msg{}">"#,
-        from_idx, from_idx, msg_idx,
+        r#"<g class="message" data-entity-1="part{}" data-entity-2="part{}"{} id="msg{}">"#,
+        from_idx, from_idx, src_line_attr, msg_idx,
     ));
 
     let dash_style = if msg.is_dashed {
@@ -1601,12 +1613,17 @@ fn render_sequence_inner(
 
         // Head (bottom-aligned within head band)
         let top_y = MARGIN + max_ph - p.box_height;
+        let src_line_attr = sd.participants.get(i)
+            .and_then(|pp| pp.source_line)
+            .map(|sl| format!(r#" data-source-line="{sl}""#))
+            .unwrap_or_default();
         let mut tmp = String::new();
         write!(
             tmp,
-            r#"<g class="participant participant-head" data-entity-uid="part{idx}" data-qualified-name="{name}" id="part{idx}-head">"#,
+            r#"<g class="participant participant-head" data-entity-uid="part{idx}" data-qualified-name="{name}"{src_line} id="part{idx}-head">"#,
             idx = part_idx,
             name = qualified_name,
+            src_line = src_line_attr,
         )
         .unwrap();
         sg.push_raw(&tmp);
@@ -1628,9 +1645,10 @@ fn render_sequence_inner(
             let mut tmp = String::new();
             write!(
                 tmp,
-                r#"<g class="participant participant-tail" data-entity-uid="part{idx}" data-qualified-name="{name}" id="part{idx}-tail">"#,
+                r#"<g class="participant participant-tail" data-entity-uid="part{idx}" data-qualified-name="{name}"{src_line} id="part{idx}-tail">"#,
                 idx = part_idx,
                 name = qualified_name,
+                src_line = src_line_attr,
             )
             .unwrap();
             sg.push_raw(&tmp);
@@ -1743,6 +1761,7 @@ fn render_sequence_inner(
                 from_idx,
                 to_idx,
                 msg_seq_counter,
+                msg.source_line,
             );
         }
 

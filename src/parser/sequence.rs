@@ -12,6 +12,16 @@ use crate::Result;
 pub fn parse_sequence_diagram(source: &str) -> Result<SequenceDiagram> {
     let block = super::common::extract_block(source).unwrap_or_else(|| source.to_string());
 
+    // Java data-source-line uses 0-based absolute line numbers.
+    // @startuml is line 0; block content starts on the next line.
+    let start_line_offset: usize = source.lines()
+        .position(|l| {
+            let t = l.trim();
+            t.starts_with("@startuml") || t.starts_with("@start")
+        })
+        .map(|pos| pos + 1)  // block starts after @startuml
+        .unwrap_or(0);
+
     let mut declared_participants: Vec<Participant> = Vec::new();
     let mut auto_participants: Vec<Participant> = Vec::new();
     let mut events: Vec<SeqEvent> = Vec::new();
@@ -77,7 +87,8 @@ pub fn parse_sequence_diagram(source: &str) -> Result<SequenceDiagram> {
     // Autonumber: autonumber or autonumber N
     let autonumber_re = Regex::new(r"(?i)^autonumber(?:\s+(\d+))?$").unwrap();
 
-    for line in block.lines() {
+    for (block_line_idx, line) in block.lines().enumerate() {
+        let source_line = start_line_offset + block_line_idx;
         let trimmed = line.trim();
 
         // Skip empty lines
@@ -255,7 +266,7 @@ pub fn parse_sequence_diagram(source: &str) -> Result<SequenceDiagram> {
             if lower.starts_with("activate ") {
                 let name = trimmed[9..].trim().to_string();
                 debug!("parsed activate: {name}");
-                ensure_participant(&mut declared_participants, &mut auto_participants, &name);
+                ensure_participant(&mut declared_participants, &mut auto_participants, &name, source_line);
                 events.push(SeqEvent::Activate(name));
                 continue;
             }
@@ -398,9 +409,10 @@ pub fn parse_sequence_diagram(source: &str) -> Result<SequenceDiagram> {
                 .get(3)
                 .map(|m| m.as_str().trim().to_string())
                 .unwrap_or_default();
-            if let Some(msg) = parse_arrow("[", &format!("[{arrow}"), right, &text) {
+            if let Some(mut msg) = parse_arrow("[", &format!("[{arrow}"), right, &text) {
+                msg.source_line = Some(source_line);
                 debug!("parsed gate-left message: ?-> {} : {}", msg.to, msg.text);
-                ensure_participant(&mut declared_participants, &mut auto_participants, &msg.to);
+                ensure_participant(&mut declared_participants, &mut auto_participants, &msg.to, source_line);
                 last_to_participant = Some(msg.to.clone());
                 events.push(SeqEvent::Message(msg));
                 continue;
@@ -413,9 +425,10 @@ pub fn parse_sequence_diagram(source: &str) -> Result<SequenceDiagram> {
                 .get(3)
                 .map(|m| m.as_str().trim().to_string())
                 .unwrap_or_default();
-            if let Some(msg) = parse_arrow(left, &format!("{arrow}]"), "]", &text) {
+            if let Some(mut msg) = parse_arrow(left, &format!("{arrow}]"), "]", &text) {
+                msg.source_line = Some(source_line);
                 debug!("parsed gate-right message: {} ->? : {}", msg.from, msg.text);
-                ensure_participant(&mut declared_participants, &mut auto_participants, &msg.from);
+                ensure_participant(&mut declared_participants, &mut auto_participants, &msg.from, source_line);
                 last_to_participant = Some(msg.from.clone());
                 events.push(SeqEvent::Message(msg));
                 continue;
@@ -430,9 +443,10 @@ pub fn parse_sequence_diagram(source: &str) -> Result<SequenceDiagram> {
                 .get(3)
                 .map(|m| m.as_str().trim().to_string())
                 .unwrap_or_default();
-            if let Some(msg) = parse_arrow("[", &format!("[{arrow}"), right, &text) {
+            if let Some(mut msg) = parse_arrow("[", &format!("[{arrow}"), right, &text) {
+                msg.source_line = Some(source_line);
                 debug!("parsed boundary-left message: [-> {} : {}", msg.to, msg.text);
-                ensure_participant(&mut declared_participants, &mut auto_participants, &msg.to);
+                ensure_participant(&mut declared_participants, &mut auto_participants, &msg.to, source_line);
                 last_to_participant = Some(msg.to.clone());
                 events.push(SeqEvent::Message(msg));
                 continue;
@@ -447,12 +461,13 @@ pub fn parse_sequence_diagram(source: &str) -> Result<SequenceDiagram> {
                 .get(3)
                 .map(|m| m.as_str().trim().to_string())
                 .unwrap_or_default();
-            if let Some(msg) = parse_arrow(left, arrow, "]", &text) {
+            if let Some(mut msg) = parse_arrow(left, arrow, "]", &text) {
+                msg.source_line = Some(source_line);
                 debug!(
                     "parsed boundary-right message: {} ->] : {}",
                     msg.from, msg.text
                 );
-                ensure_participant(&mut declared_participants, &mut auto_participants, &msg.from);
+                ensure_participant(&mut declared_participants, &mut auto_participants, &msg.from, source_line);
                 last_to_participant = Some(msg.from.clone());
                 events.push(SeqEvent::Message(msg));
                 continue;
@@ -490,7 +505,8 @@ pub fn parse_sequence_diagram(source: &str) -> Result<SequenceDiagram> {
                 // Entire right is a color - shouldn't happen, skip
             }
 
-            if let Some(msg) = parse_arrow(left, arrow, &right, &text) {
+            if let Some(mut msg) = parse_arrow(left, arrow, &right, &text) {
+                msg.source_line = Some(source_line);
                 debug!("parsed message: {} -> {} : {}", msg.from, msg.to, msg.text);
 
                 // Auto-create participants
@@ -498,11 +514,13 @@ pub fn parse_sequence_diagram(source: &str) -> Result<SequenceDiagram> {
                     &mut declared_participants,
                     &mut auto_participants,
                     &msg.from,
+                    source_line,
                 );
                 ensure_participant(
                     &mut declared_participants,
                     &mut auto_participants,
                     &msg.to,
+                    source_line,
                 );
 
                 last_to_participant = Some(msg.to.clone());
@@ -549,6 +567,7 @@ pub fn parse_sequence_diagram(source: &str) -> Result<SequenceDiagram> {
                     display_name,
                     kind,
                     color,
+                    source_line: Some(source_line),
                 });
             }
             continue;
@@ -606,6 +625,7 @@ fn ensure_participant(
     declared: &mut [Participant],
     auto_created: &mut Vec<Participant>,
     name: &str,
+    source_line: usize,
 ) {
     if declared.iter().any(|p| p.name == name) {
         return;
@@ -619,6 +639,7 @@ fn ensure_participant(
         display_name: None,
         kind: ParticipantKind::Default,
         color: None,
+        source_line: Some(source_line),
     });
 }
 
@@ -817,6 +838,7 @@ fn parse_arrow(left: &str, arrow: &str, right: &str, text: &str) -> Option<Messa
         arrow_head,
         direction,
         color,
+        source_line: None, // set by caller
     })
 }
 

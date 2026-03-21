@@ -163,6 +163,8 @@ pub struct MessageLayout {
     pub has_open_head: bool,
     /// Autonumber string (e.g. "1", "2") — rendered as separate text element
     pub autonumber: Option<String>,
+    /// Source line number (0-based) for data-source-line SVG attribute
+    pub source_line: Option<usize>,
     /// For self-messages: the effective left x for the return arrow, accounting
     /// for any activation bar that overlaps at the return y.
     /// `return_x = max(from_x, activation_bar_right) + 1`
@@ -916,6 +918,7 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
                     is_left,
                     has_open_head,
                     autonumber: msg_autonumber,
+                    source_line: msg.source_line,
                     self_return_x,
                 });
 
@@ -1458,6 +1461,7 @@ mod tests {
             display_name: None,
             kind: ParticipantKind::Default,
             color: None,
+            source_line: None,
         }
     }
 
@@ -1470,6 +1474,7 @@ mod tests {
             arrow_head: SeqArrowHead::Filled,
             direction: SeqDirection::LeftToRight,
             color: None,
+            source_line: None,
         }
     }
 
@@ -1765,6 +1770,7 @@ mod tests {
                 arrow_head: SeqArrowHead::Open,
                 direction: SeqDirection::LeftToRight,
                 color: None,
+                source_line: None,
             })],
         teoz_mode: false, hide_footbox: false,};
         let layout = layout_sequence(&sd, &crate::style::SkinParams::default()).unwrap();
@@ -2032,6 +2038,7 @@ mod tests {
                     arrow_head: SeqArrowHead::Filled,
                     direction: SeqDirection::RightToLeft,
                     color: None,
+                    source_line: None,
                 }),
                 SeqEvent::Deactivate("B".to_string()),
             ],
