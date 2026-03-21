@@ -389,6 +389,92 @@ fn draw_participant_actor(
     sg.push_raw(&pa);
 }
 
+/// Actor tail: Java ComponentRoseActor(head=false).
+/// Text is ABOVE, stickman BELOW. Same constants as head.
+fn draw_participant_actor_tail(
+    sg: &mut SvgGraphic,
+    p: &ParticipantLayout,
+    y: f64,
+    display_name: Option<&str>,
+    border: &str,
+    text_color: &str,
+) {
+    let name = display_name.unwrap_or(&p.name);
+    let cx = p.x;
+
+    // Same constants as draw_participant_actor (head)
+    let head_diam = 16.0_f64;
+    let head_r = head_diam / 2.0;
+    let body_length = 27.0_f64;
+    let arms_y = 8.0_f64;
+    let arms_length = 13.0_f64;
+    let legs_x = 13.0_f64;
+    let legs_y = 15.0_f64;
+    let thickness = 0.5_f64;
+    let stickman_width = arms_length.max(legs_x) * 2.0 + 2.0 * thickness;
+    let stickman_height = head_diam + body_length + legs_y + 2.0 * thickness + 1.0;
+    let start_x = arms_length.max(legs_x) - head_diam / 2.0 + thickness;
+    let center_x = start_x + head_diam / 2.0;
+
+    let font_size = 14.0;
+    let tl = font_metrics::text_width(name, "SansSerif", font_size, false, false);
+    let margin_x1 = 3.0;
+    let margin_x2 = 3.0;
+    let text_width = tl + margin_x1 + margin_x2;
+    let pref_width = stickman_width.max(text_width);
+    let text_middle_pos = (pref_width - text_width) / 2.0;
+    let component_x = cx - pref_width / 2.0;
+
+    // Java (head=false): text at (textMiddlePos, 0), stickman at (delta, textHeight)
+    let text_height = font_metrics::line_height("SansSerif", font_size, false, false);
+    let text_x = component_x + text_middle_pos;
+    let text_y = y + font_metrics::ascent("SansSerif", font_size, false, false);
+
+    // 1. Text first
+    sg.set_fill_color(text_color);
+    sg.svg_text(
+        name, text_x, text_y,
+        Some("sans-serif"), font_size,
+        None, None, None,
+        tl, LengthAdjust::Spacing,
+        None, 0, None,
+    );
+
+    // 2. Stickman below text
+    let delta = (pref_width - stickman_width) / 2.0;
+    let stickman_y = y + text_height;
+
+    // Ellipse head
+    let head_cx = component_x + delta + start_x + head_r;
+    let head_cy = stickman_y + thickness + head_r;
+    let hcx = fmt_coord(head_cx);
+    let hcy = fmt_coord(head_cy);
+    let hr = fmt_coord(head_r);
+    let mut el = String::new();
+    write!(el,
+        "<ellipse cx=\"{hcx}\" cy=\"{hcy}\" fill=\"#E2E2F0\" rx=\"{hr}\" ry=\"{hr}\" style=\"stroke:{border};stroke-width:0.5;\"/>"
+    ).unwrap();
+    sg.push_raw(&el);
+
+    // Body path
+    let path_ox = component_x + delta + center_x;
+    let path_oy = stickman_y + head_diam + thickness;
+    let pcx = fmt_coord(path_ox);
+    let bt = fmt_coord(path_oy);
+    let bb = fmt_coord(path_oy + body_length);
+    let la = fmt_coord(path_ox - arms_length);
+    let ra = fmt_coord(path_ox + arms_length);
+    let ay = fmt_coord(path_oy + arms_y);
+    let ll = fmt_coord(path_ox - legs_x);
+    let rl = fmt_coord(path_ox + legs_x);
+    let lf = fmt_coord(path_oy + body_length + legs_y);
+    let mut pa = String::new();
+    write!(pa,
+        "<path d=\"M{pcx},{bt} L{pcx},{bb} M{la},{ay} L{ra},{ay} M{pcx},{bb} L{ll},{lf} M{pcx},{bb} L{rl},{lf}\" fill=\"none\" style=\"stroke:{border};stroke-width:0.5;\"/>"
+    ).unwrap();
+    sg.push_raw(&pa);
+}
+
 /// Boundary: circle on left + vertical line + horizontal connector
 fn draw_participant_boundary(
     sg: &mut SvgGraphic,
@@ -1671,6 +1757,10 @@ fn render_sequence_inner(
             .and_then(|pp| pp.source_line)
             .map(|sl| format!(r#" data-source-line="{sl}""#))
             .unwrap_or_default();
+        let kind = sd.participants.get(i).map(|pp| &pp.kind);
+        let is_actor = matches!(kind, Some(ParticipantKind::Actor));
+        let part_text_color = skin.font_color("participant", TEXT_COLOR);
+
         let mut tmp = String::new();
         write!(
             tmp,
@@ -1681,17 +1771,14 @@ fn render_sequence_inner(
         )
         .unwrap();
         sg.push_raw(&tmp);
-        draw_participant_box_with_font(
-            &mut sg,
-            p,
-            top_y,
-            dn,
-            part_bg,
-            part_border,
-            part_font,
-            &default_font,
-            part_font_size,
-        );
+        if is_actor {
+            draw_participant_actor(&mut sg, p, top_y, dn, part_border, part_text_color);
+        } else {
+            draw_participant_box_with_font(
+                &mut sg, p, top_y, dn, part_bg, part_border, part_font,
+                &default_font, part_font_size,
+            );
+        }
         sg.push_raw("</g>");
 
         // Tail (skipped when hide footbox is set)
@@ -1706,17 +1793,15 @@ fn render_sequence_inner(
             )
             .unwrap();
             sg.push_raw(&tmp);
-            draw_participant_box_with_font(
-                &mut sg,
-                p,
-                bottom_y,
-                dn,
-                part_bg,
-                part_border,
-                part_font,
-                &default_font,
-                part_font_size,
-            );
+            if is_actor {
+                // Java: actor tail has text ABOVE, stickman BELOW
+                draw_participant_actor_tail(&mut sg, p, bottom_y, dn, part_border, part_text_color);
+            } else {
+                draw_participant_box_with_font(
+                    &mut sg, p, bottom_y, dn, part_bg, part_border, part_font,
+                    &default_font, part_font_size,
+                );
+            }
             sg.push_raw("</g>");
         }
     }
