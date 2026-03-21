@@ -852,7 +852,7 @@ pub fn layout_activity(diagram: &ActivityDiagram) -> Result<ActivityLayout> {
         // Java internal lane lines start at x≈5; SVG renders them at x≈20
         // due to framework-level MinMax offset (~15px).  We apply the combined
         // left_divider + framework offset directly.
-        let global_margin = 11.5;
+        let global_margin = 10.0;
         let mut x = left_divider + global_margin;
         for i in 0..n_lanes {
             let needed = lane_widths[i];
@@ -873,15 +873,10 @@ pub fn layout_activity(diagram: &ActivityDiagram) -> Result<ActivityLayout> {
                     }
                 }
             }
-            // Java: inter-lane divider = LaneDivider(x1, x2).  The title centering
-            // expansion is already accounted for in lane_widths, so the divider is
-            // simply 2 * LANE_DIVIDER_HALF (=10px) between adjacent lanes.
-            let inter_div = if i + 1 < n_lanes {
-                2.0 * LANE_DIVIDER_HALF
-            } else {
-                0.0
-            };
-            x += needed + inter_div;
+            // Java: LaneDivider is drawn at the boundary between lanes but does
+            // NOT add extra horizontal spacing.  The divider line sits inside
+            // the lane's allocated width. No inter-lane gap.
+            x += needed;
         }
     }
 
