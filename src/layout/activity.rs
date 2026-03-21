@@ -145,27 +145,39 @@ fn estimate_note_size(text: &str) -> (f64, f64) {
     (width, height)
 }
 
+/// Bullet list indent width in a note (Java: bullet ellipse + gap ≈ 18px).
+const NOTE_BULLET_INDENT: f64 = 18.0;
+
 /// Word-wrap note text to fit within `max_width` pixels.
 ///
 /// Splits lines at word boundaries, measuring plain text (creole-stripped)
 /// width while preserving the original creole markup in the output.
+/// Bullet list items (`* ...`) reduce available width by the indent.
 fn wrap_note_text(text: &str, max_width: f64) -> String {
     let mut result_lines: Vec<String> = Vec::new();
 
     for line in text.split('\n') {
-        let plain = creole_plain_text(line);
+        // Detect bullet list prefix `* ` and reduce effective wrap width.
+        let (prefix, content, effective_width) = if line.trim_start().starts_with("* ") {
+            let idx = line.find("* ").unwrap();
+            ("* ", &line[idx + 2..], max_width - NOTE_BULLET_INDENT)
+        } else {
+            ("", line, max_width)
+        };
+
+        let plain = creole_plain_text(content);
         let line_w = font_metrics::text_width(&plain, "SansSerif", NOTE_FONT_SIZE, false, false);
-        if line_w <= max_width {
+        if line_w <= effective_width {
             result_lines.push(line.to_string());
             continue;
         }
 
         // Need to wrap: split by spaces and accumulate
-        let words: Vec<&str> = line.split(' ').collect();
+        let words: Vec<&str> = content.split(' ').collect();
         let mut current_line = String::new();
+        let mut is_first = true;
         for word in &words {
             if current_line.is_empty() {
-                // First word on this sub-line — always take it
                 current_line = word.to_string();
                 continue;
             }
@@ -180,16 +192,25 @@ fn wrap_note_text(text: &str, max_width: f64) -> String {
                 false,
             );
 
-            if candidate_w <= max_width {
+            if candidate_w <= effective_width {
                 current_line = candidate;
             } else {
-                // Current line is full — flush it and start new line with this word
-                result_lines.push(current_line);
+                // Flush current line
+                if is_first && !prefix.is_empty() {
+                    result_lines.push(format!("{prefix}{current_line}"));
+                    is_first = false;
+                } else {
+                    result_lines.push(current_line);
+                }
                 current_line = word.to_string();
             }
         }
         if !current_line.is_empty() {
-            result_lines.push(current_line);
+            if is_first && !prefix.is_empty() {
+                result_lines.push(format!("{prefix}{current_line}"));
+            } else {
+                result_lines.push(current_line);
+            }
         }
     }
 
@@ -1644,6 +1665,37 @@ mod tests {
             (w_mono - w_plain).abs() > 0.5 || w_mono >= w_plain,
             "monospace should affect width: mono={w_mono}, plain={w_plain}"
         );
+    }
+
+    #[test]
+    fn wrap_note_text_bullet_list_uses_reduced_width() {
+        // Bullet list items should wrap at (max_width - bullet_indent).
+        // "Calling the method foo is prohibited overlap" at 100px:
+        //   - without indent: wraps into N lines
+        //   - with bullet indent (18px): wraps into N+1 or more lines
+        let bullet = "* Calling the method foo is prohibited overlap";
+        let plain = "Calling the method foo is prohibited overlap";
+        let wrapped_bullet = wrap_note_text(bullet, 100.0);
+        let wrapped_plain = wrap_note_text(plain, 100.0);
+        let bullet_lines = wrapped_bullet.split('\n').count();
+        let plain_lines = wrapped_plain.split('\n').count();
+        assert!(
+            bullet_lines >= plain_lines,
+            "bullet should produce at least as many lines ({bullet_lines}) as plain ({plain_lines})"
+        );
+        // First line should retain the `* ` prefix
+        assert!(
+            wrapped_bullet.starts_with("* "),
+            "first line should start with '* ': {wrapped_bullet:?}"
+        );
+        // Continuation lines should NOT have `* ` prefix
+        let cont_lines: Vec<&str> = wrapped_bullet.split('\n').skip(1).collect();
+        for cl in &cont_lines {
+            assert!(
+                !cl.starts_with("* "),
+                "continuation line should not start with '* ': {cl:?}"
+            );
+        }
     }
 
     #[test]
