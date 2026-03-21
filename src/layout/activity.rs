@@ -310,12 +310,15 @@ pub fn layout_activity(diagram: &ActivityDiagram) -> Result<ActivityLayout> {
     // --- Pass 2: place nodes ------------------------------------------------
     let mut nodes: Vec<ActivityNodeLayout> = Vec::new();
     // When swimlanes exist, push initial y below the header row.
+    // Java a0002: header text baseline y=34.45, first node y=43.7.
+    // header_height = header_top_margin(17.75) + ascent + descent + gap(5.05)
     let swimlane_header_height = if swimlane_layouts.is_empty() {
         0.0
     } else {
         let ha = font_metrics::ascent("SansSerif", SWIMLANE_HEADER_FONT_SIZE, false, false);
         let hd = font_metrics::descent("SansSerif", SWIMLANE_HEADER_FONT_SIZE, false, false);
-        ha + hd + TOP_MARGIN + 5.0
+        // Java: top_pad ≈ 17.75 (slightly more than our TOP_MARGIN=16)
+        ha + hd + 17.75 + 5.0
     };
     let mut y_cursor = if swimlane_layouts.is_empty() {
         TOP_MARGIN
@@ -843,9 +846,18 @@ pub fn layout_activity(diagram: &ActivityDiagram) -> Result<ActivityLayout> {
             }
         };
 
-        // Left divider = edge(5) + halfMissing for lane 0's left side
+        // Java: left lane line consistently at x ≈ 20 (divider(10) + centering offset).
+        // This comes from LaneDivider width + content minX compensation.
+        // We approximate with edge(5) + halfMissing + content centering offset.
         let left_divider = half_missing_edge + half_missing(0);
-        let mut x = left_divider;
+        // Content is centred in each lane; the left half of the widest centred
+        // content determines the minimum left margin.  Java's translate system
+        // naturally produces this; we emulate by ensuring the first lane starts
+        // far enough right that centred content has room.
+        let first_lane_half = lane_widths[0] / 2.0;
+        let content_half = raw_content_widths[0] / 2.0;
+        let centering_extra = if content_half > first_lane_half { 0.0 } else { first_lane_half - content_half };
+        let mut x = (left_divider + centering_extra).max(left_divider);
         for i in 0..n_lanes {
             let needed = lane_widths[i];
             let old_x = swimlane_layouts[i].x;
