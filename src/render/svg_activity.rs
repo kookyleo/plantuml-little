@@ -217,8 +217,15 @@ fn render_action(
     // Stripe/Atom as a separate UText draw call.
     let cx = node.x + node.width / 2.0;
     let lines: Vec<&str> = node.text.split('\n').collect();
-    let total_text_height = lines.len() as f64 * ACTION_LINE_HEIGHT;
-    let first_baseline = node.y + (node.height - total_text_height) / 2.0 + ACTION_FONT_SIZE;
+    // Java FtileBox: first text baseline y = rect_y + fixed offset.
+    // The offset = padding.top(10) + Sea/AtomText baseline contribution.
+    // From Java trace: 2498 font units at the action font size (DejaVu Sans).
+    // This value comes from the interaction of Java's Sea.doAlign,
+    // AtomText.drawU (ypos = ascent), and FtileBox padding.top.
+    // Java: padding.top(10) + Sea/AtomText baseline (2498 font units).
+    let padding_top = 10.0; // Java: activityDiagram.activity.Padding = 10
+    let baseline_offset = 2498.0 / 2048.0 * ACTION_FONT_SIZE;
+    let first_baseline = node.y + padding_top + baseline_offset;
 
     for (i, line) in lines.iter().enumerate() {
         let y = first_baseline + i as f64 * ACTION_LINE_HEIGHT;
