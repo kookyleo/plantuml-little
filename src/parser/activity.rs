@@ -138,7 +138,9 @@ pub fn parse_activity_diagram(source: &str) -> Result<ActivityDiagram> {
                         text.push('\n');
                     }
                     text.push_str(suffix);
-                    let action_text = text.clone();
+                    // Multi-line action: physical newlines already separate lines.
+                    // Java does NOT expand \n within multi-line action text.
+                    let action_text = text.replace(crate::NEWLINE_CHAR, "\n");
                     debug!(
                         "line {}: closing multi-line action, text len={}",
                         line_num,
@@ -269,8 +271,9 @@ pub fn parse_activity_diagram(source: &str) -> Result<ActivityDiagram> {
         // --- Action: `:text;` (may be multi-line) ---
         if let Some(after_colon) = trimmed.strip_prefix(':') {
             if let Some(text) = after_colon.strip_suffix(';') {
-                // Single-line action
-                let text = text.to_string();
+                // Single-line action.
+                // Java Display.create (legacy mode): \n → line break, \\ → literal backslash.
+                let text = expand_backslash_n(text);
                 debug!("line {line_num}: single-line action: {text:?}");
                 events.push(ActivityEvent::Action { text });
             } else {
@@ -602,6 +605,30 @@ fn parse_elseif_line(line: &str) -> Option<(String, String)> {
     let label = extract_parenthesized(after_then).unwrap_or_default();
 
     Some((condition, label))
+}
+
+/// Expand `\n` → newline, `\\` → literal backslash (Java Display.create legacy mode).
+/// Also expands U+E100 (from `%newline()` preprocessor).
+fn expand_backslash_n(s: &str) -> String {
+    let mut result = String::with_capacity(s.len());
+    let chars: Vec<char> = s.chars().collect();
+    let mut i = 0;
+    while i < chars.len() {
+        if chars[i] == '\\' && i + 1 < chars.len() {
+            match chars[i + 1] {
+                'n' => { result.push('\n'); i += 2; }
+                '\\' => { result.push('\\'); i += 2; }
+                other => { result.push('\\'); result.push(other); i += 2; }
+            }
+        } else if chars[i] == crate::NEWLINE_CHAR {
+            result.push('\n');
+            i += 1;
+        } else {
+            result.push(chars[i]);
+            i += 1;
+        }
+    }
+    result
 }
 
 /// Parse a `while (condition) is (label)` line
@@ -990,7 +1017,7 @@ mod tests {
 
         assert_eq!(diagram.events.len(), 1);
         if let ActivityEvent::Action { text } = &diagram.events[0] {
-            assert_eq!(text, r"|Creole Table Line1|\n|Line2|");
+            assert_eq!(text, "|Creole Table Line1|\n|Line2|");
         } else {
             panic!("expected Action event");
         }
@@ -1013,7 +1040,9 @@ mod tests {
 
         // First action is single-line
         if let ActivityEvent::Action { text } = &diagram.events[0] {
-            assert_eq!(text, r"| Creole Table \\n multi-line1| a |\n| Line2| b |");
+            // Java Display.create: \n → line break, \\ → literal backslash
+            // Source has \\n = escaped backslash + n → literal "\n" text, not line break
+            assert_eq!(text, "| Creole Table \\n multi-line1| a |\n| Line2| b |");
         } else {
             panic!("expected Action");
         }
@@ -1047,7 +1076,8 @@ mod tests {
         // 2 actions: one multi-line, one single-line
         assert_eq!(diagram.events.len(), 2);
 
-        // First action: multi-line spanning 2 source lines
+        // First action: multi-line spanning 2 source lines.
+        // Multi-line actions do NOT expand \n — physical newlines already separate.
         if let ActivityEvent::Action { text } = &diagram.events[0] {
             assert_eq!(
                 text,
@@ -1057,11 +1087,11 @@ mod tests {
             panic!("expected Action at index 0");
         }
 
-        // Second action: single-line
+        // Second action: single-line (all \n expanded to real newlines)
         if let ActivityEvent::Action { text } = &diagram.events[1] {
             assert_eq!(
                 text,
-                "Here is the line executed:a  \\n fprintf(\"hello\\n\", %s)"
+                "Here is the line executed:a  \n fprintf(\"hello\n\", %s)"
             );
         } else {
             panic!("expected Action at index 1");
@@ -1109,7 +1139,7 @@ mod tests {
         if let ActivityEvent::Action { text } = &diagram.events[1] {
             assert_eq!(
                 text,
-                "Here is the line executed:a  \\n fprintf(\"hello\\n\", %s)"
+                "Here is the line executed:a  \n fprintf(\"hello\n\", %s)"
             );
         } else {
             panic!("expected Action at index 1");
