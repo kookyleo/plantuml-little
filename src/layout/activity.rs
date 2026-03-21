@@ -82,7 +82,10 @@ const FONT_SIZE: f64 = 12.0;
 const PADDING: f64 = 10.0;
 /// Gap between consecutive flow nodes (matches Java PlantUML visual output).
 const NODE_SPACING: f64 = 20.0;
+/// Java FtileCircleStart: SIZE = 20, so radius = 10.
 const START_RADIUS: f64 = 10.0;
+/// Java FtileCircleStop: SIZE = 22, so radius = 11.
+const STOP_RADIUS: f64 = 11.0;
 const DIAMOND_SIZE: f64 = 20.0;
 const FORK_BAR_HEIGHT: f64 = 6.0;
 const FORK_BAR_WIDTH: f64 = 80.0;
@@ -355,11 +358,11 @@ pub fn layout_activity(diagram: &ActivityDiagram) -> Result<ActivityLayout> {
                 y_cursor += diameter + NODE_SPACING;
             }
 
-            // ---- Stop circle -------------------------------------------------
+            // ---- Stop circle (Java FtileCircleStop: SIZE=22) ------------------
             ActivityEvent::Stop => {
-                let diameter = 2.0 * START_RADIUS;
+                let diameter = 2.0 * STOP_RADIUS;
                 let cx = swimlane_center_x(&swimlane_layouts, current_lane_idx);
-                let x = cx - START_RADIUS;
+                let x = cx - STOP_RADIUS;
                 let y = y_cursor;
                 log::debug!("  node[{node_index}] Stop @ ({x:.1}, {y:.1})");
                 nodes.push(ActivityNodeLayout {
@@ -1127,6 +1130,28 @@ mod tests {
         assert_eq!(node.text, "Hello");
         assert!(node.width >= 30.0);
         assert!(node.height >= 20.0);
+    }
+
+    // 2b. Java circle sizes: start=20, stop=22 (FtileCircleStart/Stop) ------
+
+    #[test]
+    fn stop_circle_size_matches_java() {
+        // Java: FtileCircleStart SIZE=20, FtileCircleStop SIZE=22
+        // start diameter=20, stop diameter=22 (outer ring r=11)
+        let d = diagram(vec![ActivityEvent::Start, ActivityEvent::Stop]);
+        let layout = layout_activity(&d).unwrap();
+        let start = &layout.nodes[0];
+        let stop = &layout.nodes[1];
+        assert!(
+            (start.height - 20.0).abs() < 0.1,
+            "start height should be 20 (Java FtileCircleStart SIZE=20), got {}",
+            start.height
+        );
+        assert!(
+            (stop.height - 22.0).abs() < 0.1,
+            "stop height should be 22 (Java FtileCircleStop SIZE=22), got {}",
+            stop.height
+        );
     }
 
     // 3. Start -> Stop -------------------------------------------------------
