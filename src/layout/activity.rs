@@ -835,18 +835,11 @@ pub fn layout_activity(diagram: &ActivityDiagram) -> Result<ActivityLayout> {
             lane_widths.push(content_width.max(hw));
         }
 
-        // Java getHalfMissingSpace: if title > actual_content, expand divider half
-        let raw_content_widths: Vec<f64> = (0..n_lanes).map(|i| {
-            if lane_max_x[i] > lane_min_x[i] { lane_max_x[i] - lane_min_x[i] } else { 0.0 }
-        }).collect();
-        let half_missing = |lane_idx: usize| -> f64 {
-            let actual_w = raw_content_widths[lane_idx]; // pure content, no title padding
-            let title_w = header_widths[lane_idx];
-            if title_w > actual_w {
-                (LANE_DIVIDER_HALF + (title_w - actual_w) / 2.0).max(LANE_DIVIDER_HALF)
-            } else {
-                LANE_DIVIDER_HALF
-            }
+        // Java getHalfMissingSpace: if title > actualWidth, expand divider.
+        // Since lane_widths already includes max(content, header+pad), title
+        // overflow is already absorbed. half_missing returns the base 5px.
+        let half_missing = |_lane_idx: usize| -> f64 {
+            LANE_DIVIDER_HALF
         };
 
         // Java: left lane line consistently at x ≈ 20 (divider(10) + centering offset).
@@ -880,9 +873,11 @@ pub fn layout_activity(diagram: &ActivityDiagram) -> Result<ActivityLayout> {
                     }
                 }
             }
-            // Inter-lane divider
+            // Java: inter-lane divider = LaneDivider(x1, x2).  The title centering
+            // expansion is already accounted for in lane_widths, so the divider is
+            // simply 2 * LANE_DIVIDER_HALF (=10px) between adjacent lanes.
             let inter_div = if i + 1 < n_lanes {
-                half_missing(i) + half_missing(i + 1)
+                2.0 * LANE_DIVIDER_HALF
             } else {
                 0.0
             };

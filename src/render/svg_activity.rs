@@ -73,6 +73,7 @@ pub fn render_activity(
 
     // --- SVG dimensions from ensureVisible tracking (Java compat) ----------
     let (max_x, max_y) = sg.max_dimensions();
+    log::debug!("ensureVisible: maxX={max_x} maxY={max_y}");
     let svg_w = max_x as f64;
     let svg_h = max_y as f64;
 

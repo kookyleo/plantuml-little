@@ -843,8 +843,24 @@ impl SvgGraphic {
 
         self.buf.push_str(&elt);
 
-        self.ensure_visible(x, y);
-        self.ensure_visible(x + text_length, y);
+        // Track bounds: text-anchor affects which x range the text occupies.
+        // Java handles this via translate-based centering, so ensureVisible
+        // always sees the real left/right edges.
+        match text_anchor {
+            Some("middle") => {
+                let half = text_length / 2.0;
+                self.ensure_visible(x - half, y);
+                self.ensure_visible(x + half, y);
+            }
+            Some("end") => {
+                self.ensure_visible(x - text_length, y);
+                self.ensure_visible(x, y);
+            }
+            _ => {
+                self.ensure_visible(x, y);
+                self.ensure_visible(x + text_length, y);
+            }
+        }
     }
 
     // ── Comment ─────────────────────────────────────────────────────
