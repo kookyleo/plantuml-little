@@ -278,8 +278,8 @@ pub fn layout_activity(diagram: &ActivityDiagram) -> Result<ActivityLayout> {
         diagram.swimlanes.len()
     );
 
-    // --- Pass 1: swimlane columns -------------------------------------------
-    let swimlane_layouts = compute_swimlane_layouts(&diagram.swimlanes);
+    // --- Pass 1: swimlane columns (initial sizing from header text) ---------
+    let mut swimlane_layouts = compute_swimlane_layouts(&diagram.swimlanes);
 
     // --- Pass 2: place nodes ------------------------------------------------
     let mut nodes: Vec<ActivityNodeLayout> = Vec::new();
@@ -744,6 +744,78 @@ pub fn layout_activity(diagram: &ActivityDiagram) -> Result<ActivityLayout> {
         }
     }
 
+    // --- Pass 2c: expand swimlanes to fit content (Java LimitFinder compat) -
+    // Java measures draw-time bounding boxes per-swimlane, then expands each
+    // lane to max(headerWidth, contentWidth).  We replicate this by tracking
+    // which lane each node belongs to and finding content bounds.
+    if !swimlane_layouts.is_empty() {
+        // 1) Build node→lane mapping by replaying event order
+        let mut node_lane: Vec<usize> = Vec::with_capacity(nodes.len());
+        let mut cur_lane: usize = 0;
+        for event in &diagram.events {
+            match event {
+                ActivityEvent::Swimlane { name } => {
+                    cur_lane = resolve_swimlane_index(&diagram.swimlanes, name);
+                }
+                // Every event that emits a node (same order as Pass 2)
+                ActivityEvent::Start | ActivityEvent::Stop
+                | ActivityEvent::Action { .. }
+                | ActivityEvent::If { .. } | ActivityEvent::ElseIf { .. }
+                | ActivityEvent::Else { .. } | ActivityEvent::EndIf
+                | ActivityEvent::While { .. } | ActivityEvent::EndWhile { .. }
+                | ActivityEvent::Repeat | ActivityEvent::RepeatWhile { .. }
+                | ActivityEvent::Fork | ActivityEvent::ForkAgain | ActivityEvent::EndFork
+                | ActivityEvent::Note { .. } | ActivityEvent::FloatingNote { .. }
+                | ActivityEvent::Detach => {
+                    node_lane.push(cur_lane);
+                }
+            }
+        }
+
+        // 2) Compute content bounding box per lane
+        let n_lanes = swimlane_layouts.len();
+        let mut lane_min_x = vec![f64::MAX; n_lanes];
+        let mut lane_max_x = vec![f64::MIN; n_lanes];
+        for (ni, node) in nodes.iter().enumerate() {
+            let li = if ni < node_lane.len() { node_lane[ni] } else { 0 };
+            let left = node.x;
+            let right = node.x + node.width;
+            if left < lane_min_x[li] { lane_min_x[li] = left; }
+            if right > lane_max_x[li] { lane_max_x[li] = right; }
+        }
+
+        // 3) Expand each lane to enclose its content; Java divider ≈ 5px each side
+        let divider = 5.0;
+        let mut x = divider;
+        for i in 0..n_lanes {
+            let content_width = if lane_max_x[i] > lane_min_x[i] {
+                lane_max_x[i] - lane_min_x[i]
+            } else {
+                0.0
+            };
+            let needed = (content_width + 2.0 * divider).max(swimlane_layouts[i].width);
+            let old_x = swimlane_layouts[i].x;
+            swimlane_layouts[i].x = x;
+            swimlane_layouts[i].width = needed;
+
+            // Shift nodes so content is centred within the new lane bounds.
+            // The content block's left edge was at lane_min_x[i]; it should now
+            // be at lane.x + (needed - content_width) / 2.
+            if lane_max_x[i] > lane_min_x[i] {
+                let target_left = x + (needed - content_width) / 2.0;
+                let dx = target_left - lane_min_x[i];
+                if dx.abs() > 0.01 {
+                    for (ni, node) in nodes.iter_mut().enumerate() {
+                        if ni < node_lane.len() && node_lane[ni] == i {
+                            node.x += dx;
+                        }
+                    }
+                }
+            }
+            x += needed;
+        }
+    }
+
     // --- Pass 3: edges connecting consecutive flow nodes --------------------
     let edges = build_edges(&nodes);
 
@@ -1051,6 +1123,50 @@ mod tests {
         assert!(
             layout.swimlane_layouts[1].x > layout.swimlane_layouts[0].x,
             "lane B should be to the right"
+        );
+    }
+
+    // 4b. Swimlane width expands for note content (Java compat) ---------------
+
+    #[test]
+    fn swimlane_width_accommodates_note() {
+        // Java CreoleNoteMetricsTest.swimlaneWidthWithNotes:
+        //   Lane A width = 188px (includes action + note + gap)
+        //   Lane B width = 72px
+        // Swimlane must expand to fit the composite (flow node + note) width.
+        let d = ActivityDiagram {
+            events: vec![
+                ActivityEvent::Swimlane { name: "Lane A".into() },
+                ActivityEvent::Start,
+                ActivityEvent::Action { text: "action".into() },
+                ActivityEvent::Note {
+                    position: NotePosition::Right,
+                    text: "a short note".into(),
+                },
+                ActivityEvent::Swimlane { name: "Lane B".into() },
+                ActivityEvent::Action { text: "task2".into() },
+                ActivityEvent::Stop,
+            ],
+            swimlanes: vec!["Lane A".into(), "Lane B".into()],
+            direction: Default::default(),
+            note_max_width: None,
+        };
+        let layout = layout_activity(&d).unwrap();
+        let lane_a = &layout.swimlane_layouts[0];
+        // Java Lane A ≈ 188px.  Must be wider than the base header-only width.
+        assert!(
+            lane_a.width >= 150.0,
+            "Lane A width ({:.1}) should be >= 150 to fit action + note. Java=188",
+            lane_a.width
+        );
+        // Note must be fully inside Lane A boundary
+        let note = layout.nodes.iter().find(|n| matches!(n.kind, ActivityNodeKindLayout::Note { .. })).unwrap();
+        let note_right = note.x + note.width;
+        let lane_a_right = lane_a.x + lane_a.width;
+        assert!(
+            note_right <= lane_a_right + 1.0,
+            "note right ({:.1}) should be within Lane A right ({:.1})",
+            note_right, lane_a_right
         );
     }
 
