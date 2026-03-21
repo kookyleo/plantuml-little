@@ -16,8 +16,11 @@ use crate::Result;
 const NOTE_FONT_SIZE: f64 = 13.0;
 /// Action/diamond font size (Java: 12px, from activityDiagram.activity.FontSize)
 const ACTION_FONT_SIZE: f64 = 12.0;
-/// Action line height (Java: ~14px for size 12)
-const ACTION_LINE_HEIGHT: f64 = 16.0;
+/// Action text line height – computed from font_metrics, matching
+/// Java's AWT `font.getStringBounds().getHeight()` = ascent + descent.
+fn action_line_height() -> f64 {
+    font_metrics::line_height("SansSerif", ACTION_FONT_SIZE, false, false)
+}
 
 use crate::skin::rose::{BORDER_COLOR, ENTITY_BG, FORK_FILL, INITIAL_FILL, NOTE_BG, NOTE_BORDER, TEXT_COLOR};
 
@@ -217,18 +220,15 @@ fn render_action(
     // Stripe/Atom as a separate UText draw call.
     let cx = node.x + node.width / 2.0;
     let lines: Vec<&str> = node.text.split('\n').collect();
-    // Java FtileBox: first text baseline y = rect_y + fixed offset.
-    // The offset = padding.top(10) + Sea/AtomText baseline contribution.
-    // From Java trace: 2498 font units at the action font size (DejaVu Sans).
-    // This value comes from the interaction of Java's Sea.doAlign,
-    // AtomText.drawU (ypos = ascent), and FtileBox padding.top.
-    // Java: padding.top(10) + Sea/AtomText baseline (2498 font units).
+    // Java FtileBox: first text baseline y = rect_y + padding_top + AWT ascent.
+    // AWT ascent = font.getStringBounds().getY() negated = hhea.ascender / upem * size.
+    // For SansSerif 12: 1901/2048*12 = 11.138671875.
     let padding_top = 10.0; // Java: activityDiagram.activity.Padding = 10
-    let baseline_offset = 2498.0 / 2048.0 * ACTION_FONT_SIZE;
+    let baseline_offset = font_metrics::ascent("SansSerif", ACTION_FONT_SIZE, false, false);
     let first_baseline = node.y + padding_top + baseline_offset;
 
     for (i, line) in lines.iter().enumerate() {
-        let y = first_baseline + i as f64 * ACTION_LINE_HEIGHT;
+        let y = first_baseline + i as f64 * action_line_height();
         // Java: left-aligned text with manually computed centered x.
         // x = action_x + (action_width - text_width) / 2
         let text_w = font_metrics::text_width(line, "SansSerif", ACTION_FONT_SIZE, false, false);
@@ -239,7 +239,7 @@ fn render_action(
             line,
             text_x,
             y,
-            ACTION_LINE_HEIGHT,
+            action_line_height(),
             font_color,
             None, // no text-anchor — Java uses manual centering
             r#"font-size="12""#,
