@@ -750,7 +750,7 @@ fn draw_message(
         let mut tmp = String::new();
         write!(
             tmp,
-            r#"<polygon fill="{color}" points="{p1x},{p1y},{p2x},{p2y},{p3x},{p3y},{p4x},{p4y}" style="stroke:{color};stroke-width:{sw};"/>"#,
+            r#"<polygon fill="{color}" points="{p1x},{p1y},{p2x},{p2y},{p3x},{p3y},{p4x},{p4y}" style="stroke:{color};stroke-width:1;"/>"#,
             color = arrow_color,
             p1x = fmt_coord(p1x),
             p1y = fmt_coord(msg.y - 4.0),
@@ -966,7 +966,7 @@ fn draw_self_message(
         let tip_x = return_x;
         write!(
             tmp,
-            r#"<polygon fill="{color}" points="{p1x},{p1y},{p2x},{p2y},{p3x},{p3y},{p4x},{p4y}" style="stroke:{color};stroke-width:{sw};"/>"#,
+            r#"<polygon fill="{color}" points="{p1x},{p1y},{p2x},{p2y},{p3x},{p3y},{p4x},{p4y}" style="stroke:{color};stroke-width:1;"/>"#,
             color = arrow_color,
             p1x = fmt_coord(tip_x + 10.0),
             p1y = fmt_coord(ret_y - 4.0),

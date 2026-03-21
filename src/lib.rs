@@ -66,7 +66,7 @@ fn render_expanded(original_source: &str, expanded: &str) -> Result<String> {
 }
 
 fn render_cleaned(original_source: &str, source: &str) -> Result<String> {
-    let diagram = parser::parse(source)?;
+    let diagram = parser::parse_with_original(source, Some(original_source))?;
     let skin = style::parse_skinparams(source);
     let diagram_layout = layout::layout(&diagram, &skin)?;
     let mut meta = parser::common::parse_meta(source);

@@ -23,6 +23,10 @@ use crate::model::Diagram;
 use crate::Result;
 
 pub fn parse(source: &str) -> Result<Diagram> {
+    parse_with_original(source, None)
+}
+
+pub fn parse_with_original(source: &str, original_source: Option<&str>) -> Result<Diagram> {
     // First check for specialized @start tags
     let tag_hint = common::detect_start_tag(source);
     if let Some(hint) = tag_hint {
@@ -83,7 +87,7 @@ pub fn parse(source: &str) -> Result<Diagram> {
             Ok(Diagram::Class(cd))
         }
         DiagramHint::Sequence => {
-            let sd = sequence::parse_sequence_diagram(source)?;
+            let sd = sequence::parse_sequence_diagram_with_original(source, original_source)?;
             Ok(Diagram::Sequence(sd))
         }
         DiagramHint::Activity => {

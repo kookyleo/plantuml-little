@@ -8,19 +8,20 @@ use crate::model::{
 };
 use crate::Result;
 
-/// Parse sequence diagram source text into SequenceDiagram IR
+/// Parse sequence diagram source text into SequenceDiagram IR.
+/// `original_source` is the raw .puml text before preprocessing, used to
+/// compute data-source-line attributes that reference original line numbers.
 pub fn parse_sequence_diagram(source: &str) -> Result<SequenceDiagram> {
+    parse_sequence_diagram_with_original(source, None)
+}
+
+pub fn parse_sequence_diagram_with_original(source: &str, original_source: Option<&str>) -> Result<SequenceDiagram> {
     let block = super::common::extract_block(source).unwrap_or_else(|| source.to_string());
 
-    // Java data-source-line uses 0-based absolute line numbers.
-    // @startuml is line 0; block content starts on the next line.
-    let start_line_offset: usize = source.lines()
-        .position(|l| {
-            let t = l.trim();
-            t.starts_with("@startuml") || t.starts_with("@start")
-        })
-        .map(|pos| pos + 1)  // block starts after @startuml
-        .unwrap_or(0);
+    // Java data-source-line uses 0-based absolute line numbers from the
+    // ORIGINAL source file (before preprocessing).  Build a mapping from
+    // cleaned-block line index to original source line number.
+    let line_mapping: Vec<usize> = build_line_mapping(source, original_source, &block);
 
     let mut declared_participants: Vec<Participant> = Vec::new();
     let mut auto_participants: Vec<Participant> = Vec::new();
@@ -88,7 +89,7 @@ pub fn parse_sequence_diagram(source: &str) -> Result<SequenceDiagram> {
     let autonumber_re = Regex::new(r"(?i)^autonumber(?:\s+(\d+))?$").unwrap();
 
     for (block_line_idx, line) in block.lines().enumerate() {
-        let source_line = start_line_offset + block_line_idx;
+        let source_line = line_mapping.get(block_line_idx).copied().unwrap_or(block_line_idx);
         let trimmed = line.trim();
 
         // Skip empty lines
@@ -641,6 +642,50 @@ fn ensure_participant(
         color: None,
         source_line: Some(source_line),
     });
+}
+
+/// Build a mapping from block line index to original source line number.
+///
+/// Java's data-source-line uses the ORIGINAL .puml file line number (0-based).
+/// When preprocessing strips lines (sprite, !pragma, !include, etc.), the
+/// cleaned block has fewer lines and different indices.  This function matches
+/// each cleaned block line to its position in the original source by content.
+fn build_line_mapping(cleaned_source: &str, original_source: Option<&str>, block: &str) -> Vec<usize> {
+    let orig = original_source.unwrap_or(cleaned_source);
+    let orig_lines: Vec<&str> = orig.lines().collect();
+
+    // Find @startuml position in original source
+    let start_pos = orig_lines.iter()
+        .position(|l| {
+            let t = l.trim();
+            t.starts_with("@startuml") || t.starts_with("@start")
+        })
+        .unwrap_or(0);
+
+    let block_lines: Vec<&str> = block.lines().collect();
+    let mut mapping = Vec::with_capacity(block_lines.len());
+
+    // For each block line, find the matching line in original source
+    // searching forward from the last matched position
+    let mut search_from = start_pos + 1;
+    for bl in &block_lines {
+        let trimmed = bl.trim();
+        let mut found = false;
+        for oi in search_from..orig_lines.len() {
+            if orig_lines[oi].trim() == trimmed {
+                mapping.push(oi);
+                search_from = oi + 1;
+                found = true;
+                break;
+            }
+        }
+        if !found {
+            // Fallback: use sequential offset from @startuml
+            mapping.push(start_pos + 1 + mapping.len());
+        }
+    }
+
+    mapping
 }
 
 /// Strip `[[url text]]` markup from a display name, returning just the display text.
