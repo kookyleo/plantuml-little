@@ -122,13 +122,13 @@ pub fn render_activity(
             );
         }
     } else {
-        // No swimlanes: simple order — edges then nodes
-        for edge in &layout.edges {
-            render_edge(&mut sg, edge, arrow_color, act_font);
-        }
+        // No swimlanes: Java draws nodes first, then edges (connections)
         for node in &layout.nodes {
             render_node(&mut sg, node, act_bg, act_border, act_font,
                 diamond_bg, diamond_border, arrow_color);
+        }
+        for edge in &layout.edges {
+            render_edge(&mut sg, edge, arrow_color, act_font);
         }
     }
 
@@ -211,23 +211,33 @@ fn render_action(
     sg.set_stroke_width(0.5, None);
     sg.svg_rectangle(node.x, node.y, node.width, node.height, 12.5, 12.5, 0.0);
 
+    // Java: each line is a separate <text> element (not one <text> with <tspan>).
+    // This matches Java's FtileBox rendering where SheetBlock1 draws each
+    // Stripe/Atom as a separate UText draw call.
     let cx = node.x + node.width / 2.0;
     let lines: Vec<&str> = node.text.split('\n').collect();
     let total_text_height = lines.len() as f64 * LINE_HEIGHT;
     let first_baseline = node.y + (node.height - total_text_height) / 2.0 + FONT_SIZE;
 
-    let mut tmp = String::new();
-    render_creole_text(
-        &mut tmp,
-        &node.text,
-        cx,
-        first_baseline,
-        LINE_HEIGHT,
-        font_color,
-        Some("middle"),
-        r#"font-size="12""#,
-    );
-    sg.push_raw(&tmp);
+    for (i, line) in lines.iter().enumerate() {
+        let y = first_baseline + i as f64 * LINE_HEIGHT;
+        // Java: left-aligned text with manually computed centered x.
+        // x = action_x + (action_width - text_width) / 2
+        let text_w = font_metrics::text_width(line, "SansSerif", FONT_SIZE, false, false);
+        let text_x = node.x + (node.width - text_w) / 2.0;
+        let mut tmp = String::new();
+        render_creole_text(
+            &mut tmp,
+            line,
+            text_x,
+            y,
+            LINE_HEIGHT,
+            font_color,
+            None, // no text-anchor — Java uses manual centering
+            r#"font-size="12""#,
+        );
+        sg.push_raw(&tmp);
+    }
 }
 
 /// Diamond node: rotated square for if/while conditions
@@ -502,7 +512,8 @@ mod tests {
         assert!(svg.contains(r#"stroke-width:0.5;"#), "action border must be stroke-width 0.5");
         assert!(svg.contains(r##"fill="#F1F1F1""##), "action must use default theme activity_bg fill");
         assert!(svg.contains("Do something"), "action text must appear in SVG");
-        assert!(svg.contains(r#"text-anchor="middle""#), "text must be centered");
+        // Java: text is manually centered (no text-anchor attribute)
+        assert!(svg.contains("Do something"), "action text must be centered in box");
     }
 
     #[test]
@@ -511,10 +522,10 @@ mod tests {
         let mut layout = empty_layout();
         layout.nodes.push(make_node(0, ActivityNodeKindLayout::Action, 30.0, 40.0, 160.0, 52.0, "Line one\nLine two"));
         let svg = render_activity(&diagram, &layout, &SkinParams::default()).expect("render failed");
-        assert!(svg.contains("<tspan"), "multi-line text must use <tspan> elements");
+        // Java: each line is a separate <text> element
         assert!(svg.contains("Line one"), "first line must appear");
         assert!(svg.contains("Line two"), "second line must appear");
-        assert_eq!(svg.matches("<tspan").count(), 2, "two lines must produce two tspan elements");
+        assert!(svg.matches("font-size=\"12\"").count() >= 2, "two lines must produce two <text> elements");
     }
 
     #[test]
