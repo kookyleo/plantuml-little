@@ -60,20 +60,23 @@ pub fn render_activity(
     let has_swimlanes = !layout.swimlane_layouts.is_empty();
 
     if has_swimlanes {
+        // Compute header metrics matching Java (getTitlesHeight + layout offset)
+        let header_asc = font_metrics::ascent("SansSerif", 18.0, false, false);
+        let header_desc = font_metrics::descent("SansSerif", 18.0, false, false);
+        let titles_height = header_asc + header_desc;
+        // swimlane_header_height (content area start) from the same formula as layout:
+        let content_start = header_asc + header_desc + 17.75 + 5.0;
+        // Java: header_top = content_start - titles_height - 5.0
+        let header_top = content_start - titles_height - 5.0;
+
         // Step 1: drawTitlesBackground — transparent header rect
-        // Java draws a rect fill="none" spanning all lanes at the header row.
         if let (Some(first), Some(last)) = (layout.swimlane_layouts.first(), layout.swimlane_layouts.last()) {
-            let header_ha = font_metrics::ascent("SansSerif", 18.0, false, false);
-            let header_hd = font_metrics::descent("SansSerif", 18.0, false, false);
-            let header_h = header_ha + header_hd;
-            let header_y = layout.swimlane_layouts[0].x; // approximate header y from lane top area
-            // Java: rect at x=lane0.x, y≈17.75, width=all_lanes, height=header_text_height
             sg.push_raw(&format!(
                 r#"<rect fill="none" height="{}" style="stroke:none;stroke-width:1;" width="{}" x="{}" y="{}"/>"#,
-                fmt_coord(header_h),
+                fmt_coord(titles_height),
                 fmt_coord(last.x + last.width - first.x),
                 fmt_coord(first.x),
-                fmt_coord(17.75), // Java header top y
+                fmt_coord(header_top),
             ));
         }
 
@@ -87,17 +90,17 @@ pub fn render_activity(
                         diamond_bg, diamond_border, arrow_color);
                 }
             }
-            // 2b: Divider line for this lane
+            // 2b: Divider line (Java: y1=header_top, y2=content_bottom)
             sg.set_stroke_color(Some(swimlane_border));
             sg.set_stroke_width(1.5, None);
-            sg.svg_line(sw.x, 0.0, sw.x, layout.height, 0.0);
+            sg.svg_line(sw.x, header_top, sw.x, layout.height, 0.0);
         }
         // Right border line
         if let Some(last) = layout.swimlane_layouts.last() {
             let right_x = last.x + last.width;
             sg.set_stroke_color(Some(swimlane_border));
             sg.set_stroke_width(1.5, None);
-            sg.svg_line(right_x, 0.0, right_x, layout.height, 0.0);
+            sg.svg_line(right_x, header_top, right_x, layout.height, 0.0);
         }
 
         // Step 3: edges (Java: Cross connections)
@@ -105,17 +108,19 @@ pub fn render_activity(
             render_edge(&mut sg, edge, arrow_color, act_font);
         }
 
-        // Step 4: header text (drawn last)
+        // Step 4: header text (drawn last, left-aligned like Java)
+        // Java: x = lane.x + 5, y = header_top + ascent
+        let header_text_y = header_top + header_asc;
         for sw in &layout.swimlane_layouts {
-            let label_x = sw.x + sw.width / 2.0;
+            let label_x = sw.x + 5.0; // Java: lane.x + 5 (LANE_DIVIDER_HALF)
             let tl = font_metrics::text_width(&sw.name, "SansSerif", 18.0, false, false);
             sg.set_fill_color(swimlane_font);
             sg.svg_text(
-                &sw.name, label_x, 16.0,
+                &sw.name, label_x, header_text_y,
                 Some("sans-serif"), 18.0,
                 None, None, None,
                 tl, LengthAdjust::Spacing,
-                None, 0, Some("middle"),
+                None, 0, None, // left-aligned (Java default, no text-anchor)
             );
         }
     } else {
