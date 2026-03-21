@@ -194,6 +194,24 @@ impl SvgGraphic {
         fmt(value, self.scale)
     }
 
+    /// Return the tracked maximum coordinates (Java `SvgGraphics.maxX/maxY`).
+    pub fn max_dimensions(&self) -> (i32, i32) {
+        (self.max_x, self.max_y)
+    }
+
+    /// Manually track a bounding rectangle for elements written via `push_raw`.
+    /// Java: every draw operation calls `ensureVisible`; `push_raw` bypasses
+    /// this, so callers must invoke this for any raw-SVG elements.
+    pub fn track_rect(&mut self, x: f64, y: f64, w: f64, h: f64) {
+        self.ensure_visible(x + w, y + h);
+    }
+
+    /// Track a text element's extent (x, y baseline, textLength).
+    pub fn track_text(&mut self, x: f64, y: f64, text_length: f64) {
+        self.ensure_visible(x, y);
+        self.ensure_visible(x + text_length, y);
+    }
+
     fn ensure_visible(&mut self, x: f64, y: f64) {
         let xi = (x + 1.0) as i32;
         let yi = (y + 1.0) as i32;
@@ -1896,4 +1914,5 @@ mod tests {
         assert!(body.contains("width=\"0.5\""));
         assert!(body.contains("height=\"0.5\""));
     }
+
 }

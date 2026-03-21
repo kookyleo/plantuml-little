@@ -28,15 +28,8 @@ pub fn render_activity(
     layout: &ActivityLayout,
     skin: &SkinParams,
 ) -> Result<String> {
-    let mut buf = String::with_capacity(4096);
-
-    // SVG header
-    let bg = skin.get_or("backgroundcolor", "#FFFFFF");
-    write_svg_root_bg(&mut buf, layout.width, layout.height, "ACTIVITY", bg);
-    buf.push_str("<defs/><g>");
-    write_bg_rect(&mut buf, layout.width, layout.height, bg);
-
     // Skin color lookups
+    let bg = skin.get_or("backgroundcolor", "#FFFFFF");
     let act_bg = skin.background_color("activity", ENTITY_BG);
     let act_border = skin.border_color("activity", BORDER_COLOR);
     let act_font = skin.font_color("activity", TEXT_COLOR);
@@ -46,13 +39,18 @@ pub fn render_activity(
     let swimlane_font = skin.font_color("swimlane", TEXT_COLOR);
     let arrow_color = skin.arrow_color(BORDER_COLOR);
 
+    // --- Render all elements into SvgGraphic (tracks ensureVisible) --------
     let mut sg = SvgGraphic::new(0, 1.0);
+    // Java: SvgGraphics(minDim) calls ensureVisible(minDim.w, minDim.h).
+    // Java's minDim comes from calculateDimension() which does a full dry-run
+    // render via LimitFinder.  We replicate this: layout.width/height is our
+    // pre-calculated content bounding box from compute_bounds().
+    sg.track_rect(0.0, 0.0, layout.width, layout.height);
 
-    // Swimlanes (behind everything)
+    // Swimlanes (behind everything) — use layout.height for lane line length
     for sw in &layout.swimlane_layouts {
         render_swimlane(&mut sg, sw, layout.height, swimlane_border, swimlane_font);
     }
-    // Right border line for the last swimlane
     if let Some(last) = layout.swimlane_layouts.last() {
         let right_x = last.x + last.width;
         sg.set_stroke_color(Some(swimlane_border));
@@ -60,12 +58,10 @@ pub fn render_activity(
         sg.svg_line(right_x, 0.0, right_x, layout.height, 0.0);
     }
 
-    // Edges
     for edge in &layout.edges {
         render_edge(&mut sg, edge, arrow_color, act_font);
     }
 
-    // Nodes (on top)
     for node in &layout.nodes {
         render_node(
             &mut sg, node,
@@ -75,6 +71,16 @@ pub fn render_activity(
         );
     }
 
+    // --- SVG dimensions from ensureVisible tracking (Java compat) ----------
+    let (max_x, max_y) = sg.max_dimensions();
+    let svg_w = max_x as f64;
+    let svg_h = max_y as f64;
+
+    // --- Assemble final SVG: header + body --------------------------------
+    let mut buf = String::with_capacity(4096);
+    write_svg_root_bg(&mut buf, svg_w, svg_h, "ACTIVITY", bg);
+    buf.push_str("<defs/><g>");
+    write_bg_rect(&mut buf, svg_w, svg_h, bg);
     buf.push_str(sg.body());
     buf.push_str("</g></svg>");
     Ok(buf)
@@ -215,6 +221,8 @@ fn render_note(sg: &mut SvgGraphic, node: &ActivityNodeLayout, _position: &NoteP
         fmt_coord(x + w - fold), fmt_coord(y),
         fmt_coord(x), fmt_coord(y),
     ));
+    // Track note bounding box for ensureVisible (push_raw bypasses tracking)
+    sg.track_rect(x, y, w, h);
 
     // Fold triangle as <path>
     sg.push_raw(&format!(
