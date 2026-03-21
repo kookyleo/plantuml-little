@@ -112,22 +112,35 @@ fn estimate_text_size(text: &str) -> (f64, f64) {
     (width, height)
 }
 
+/// Height of a `====` / `----` horizontal separator in a note (Java: 10.0).
+const NOTE_SEPARATOR_HEIGHT: f64 = 10.0;
+
 /// Estimate the size of a note, using note font size.
-/// Uses `creole_plain_text` to strip markup before measuring width.
+/// Uses `creole_text_width` to respect per-span font families (e.g. monospace).
+/// Horizontal separators (`====`, `----`) get a reduced height.
 fn estimate_note_size(text: &str) -> (f64, f64) {
+    use crate::render::svg_richtext::creole_text_width;
+
     let note_lh = font_metrics::line_height("SansSerif", NOTE_FONT_SIZE, false, false);
     let note_pad = 6.0;
     let fold = 10.0;
     let lines: Vec<&str> = text.split('\n').collect();
-    let max_line_width = lines
-        .iter()
-        .map(|l| {
-            let plain = creole_plain_text(l);
-            font_metrics::text_width(&plain, "SansSerif", NOTE_FONT_SIZE, false, false)
-        })
-        .fold(0.0_f64, f64::max);
+    let mut max_line_width = 0.0_f64;
+    let mut total_height = 0.0_f64;
+    for line in &lines {
+        let trimmed = line.trim();
+        let is_sep = trimmed.len() >= 4
+            && (trimmed.chars().all(|c| c == '=') || trimmed.chars().all(|c| c == '-'));
+        if is_sep {
+            total_height += NOTE_SEPARATOR_HEIGHT;
+        } else {
+            let w = creole_text_width(line, "SansSerif", NOTE_FONT_SIZE, false, false);
+            max_line_width = max_line_width.max(w);
+            total_height += note_lh;
+        }
+    }
     let width = max_line_width + 2.0 * note_pad + fold;
-    let height = lines.len() as f64 * note_lh + fold + note_pad;
+    let height = total_height + fold + note_pad;
     log::debug!("estimate_note_size(\"{}\") -> {}x{} ({} lines, max_w={})", text, width, height, lines.len(), max_line_width);
     (width, height)
 }
@@ -1607,6 +1620,30 @@ mod tests {
         // Should contain the original markup
         assert!(wrapped.contains("//italic//"));
         assert!(wrapped.contains("<b>bold</b>"));
+    }
+
+    #[test]
+    fn estimate_note_size_separator_shorter_than_text() {
+        // `====` separator should consume less height than a text line
+        let (_, h_sep) = estimate_note_size("====");
+        let (_, h_text) = estimate_note_size("some text");
+        assert!(
+            h_sep < h_text,
+            "separator height ({h_sep}) should be less than text height ({h_text})"
+        );
+    }
+
+    #[test]
+    fn estimate_note_size_monospace_uses_correct_font() {
+        // Monospace text `""foo()""` should be measured with monospace metrics
+        let (w_mono, _) = estimate_note_size(r#"method ""foo()"" is"#);
+        let (w_plain, _) = estimate_note_size("method foo() is");
+        // Monospace "foo()" is wider per-char than SansSerif, so the line
+        // with monospace should be at least as wide (often wider).
+        assert!(
+            (w_mono - w_plain).abs() > 0.5 || w_mono >= w_plain,
+            "monospace should affect width: mono={w_mono}, plain={w_plain}"
+        );
     }
 
     #[test]

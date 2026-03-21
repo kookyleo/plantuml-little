@@ -145,7 +145,8 @@ fn split_lines(input: &str) -> Vec<String> {
 
 fn is_horizontal_rule(line: &str) -> bool {
     let trimmed = line.trim();
-    trimmed.len() >= 4 && trimmed.chars().all(|c| c == '-')
+    trimmed.len() >= 4
+        && (trimmed.chars().all(|c| c == '-') || trimmed.chars().all(|c| c == '='))
 }
 
 fn is_bullet_line(line: &str) -> bool {
@@ -1316,5 +1317,19 @@ mod tests {
     fn test_sprite_ref_plain_text() {
         let rt = parse_creole("text <$mySprite> more");
         assert_eq!(plain_text(&rt), "text  more");
+    }
+
+    #[test]
+    fn test_equals_horizontal_rule() {
+        // `====` should be parsed as HorizontalRule, same as `----`
+        let rt = parse_creole("above\n====\nbelow");
+        let items = match &rt {
+            RichText::Block(items) => items,
+            _ => panic!("expected Block, got: {rt:?}"),
+        };
+        assert!(
+            items.iter().any(|item| matches!(item, RichText::HorizontalRule)),
+            "==== should produce HorizontalRule, got: {items:?}"
+        );
     }
 }
