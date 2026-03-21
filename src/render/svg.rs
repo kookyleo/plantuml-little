@@ -1033,7 +1033,7 @@ fn emit_circle_glyph(sg: &mut SvgGraphic, tracker: &mut BoundsTracker, kind: &En
         EntityKind::Abstract => (GLYPH_A_RAW, GLYPH_A_CENTER),
         EntityKind::Interface => (GLYPH_I_RAW, GLYPH_I_CENTER),
         EntityKind::Enum => (GLYPH_E_RAW, GLYPH_E_CENTER),
-        EntityKind::Annotation => return,
+        EntityKind::Annotation | EntityKind::Rectangle => return,
     };
 
     // Java DriverCenteredCharacterSvg algorithm:
@@ -1140,6 +1140,7 @@ fn stereotype_circle_color(kind: &EntityKind) -> &'static str {
         EntityKind::Abstract => "#A9DCDF",
         EntityKind::Annotation => "#A9DCDF",
         EntityKind::Object => "#ADD1B2",
+        EntityKind::Rectangle => "#F1F1F1",
     }
 }
 
@@ -1158,6 +1159,11 @@ fn draw_entity_box(
         return;
     }
 
+    if entity.kind == EntityKind::Rectangle {
+        draw_rectangle_entity_box(sg, tracker, entity, nl, skin, edge_offset_x, edge_offset_y);
+        return;
+    }
+
     // Java: entity rect starts at (moveDelta_offset + 1, moveDelta_offset + 1)
     // where the +1 is the border inset (rect drawn 1px inside the Graphviz node boundary)
     let x = nl.cx - nl.width / 2.0 + edge_offset_x;
@@ -1171,6 +1177,7 @@ fn draw_entity_box(
         EntityKind::Enum => (ENTITY_BG, BORDER_COLOR, "enum"),
         EntityKind::Abstract => (ENTITY_BG, BORDER_COLOR, "abstract"),
         EntityKind::Annotation => (ENTITY_BG, BORDER_COLOR, "annotation"),
+        EntityKind::Rectangle => (ENTITY_BG, BORDER_COLOR, "rectangle"),
         EntityKind::Object => unreachable!(),
     };
     let default_fill = skin.background_color(element_type, default_bg);
@@ -1440,6 +1447,61 @@ fn draw_generic_box(
 }
 
 /// Draw an Object entity box (EntityImageObject.java layout).
+/// Render a rectangle entity with bracket-body description.
+///
+/// Java: rectangle entities have NO stereotype circle, NO title text, NO separator.
+/// Only the bracket-body description lines are rendered as left-aligned text
+/// at font-size 14 inside a rounded rect (rx=2.5).
+fn draw_rectangle_entity_box(
+    sg: &mut SvgGraphic,
+    tracker: &mut BoundsTracker,
+    entity: &Entity,
+    nl: &NodeLayout,
+    skin: &SkinParams,
+    edge_offset_x: f64,
+    edge_offset_y: f64,
+) {
+    let x = nl.cx - nl.width / 2.0 + edge_offset_x;
+    let y = nl.cy - nl.height / 2.0 + edge_offset_y;
+    let w = nl.width;
+    let h = nl.height;
+
+    let fill = entity.color.as_deref().unwrap_or(ENTITY_BG);
+    let stroke = skin.border_color("rectangle", BORDER_COLOR);
+    let font_color = skin.font_color("rectangle", TEXT_COLOR);
+    let rx = skin.round_corner().map(|rc| rc / 2.0).unwrap_or(2.5);
+
+    sg.set_fill_color(fill);
+    sg.set_stroke_color(Some(stroke));
+    sg.set_stroke_width(0.5, None);
+    sg.svg_rectangle(x, y, w, h, rx, rx, 0.0);
+    tracker.track_rect(x, y, w, h);
+
+    // Java: description text at font-size 14, left-aligned, padding 10px
+    let desc_font_size = 14.0_f64;
+    let desc_lh = font_metrics::line_height("SansSerif", desc_font_size, false, false);
+    let desc_ascent = font_metrics::ascent("SansSerif", desc_font_size, false, false);
+    let text_x = x + 10.0;
+    // Java: first text y = rect_y + padding(10) + ascent
+    let first_y = y + 10.0 + desc_ascent;
+
+    for (i, line) in entity.description.iter().enumerate() {
+        let text_y = first_y + i as f64 * desc_lh;
+        let tl = font_metrics::text_width(line, "SansSerif", desc_font_size, false, false);
+        sg.set_fill_color(font_color);
+        sg.svg_text(
+            line, text_x, text_y,
+            Some("sans-serif"), desc_font_size,
+            None, None, None,
+            tl,
+            crate::klimt::svg::LengthAdjust::Spacing,
+            None,
+            0, // horizontal
+            None,
+        );
+    }
+}
+
 ///
 /// Objects have NO stereotype circle icon, NO glyph path.
 /// Name is centered with margin(2,2,2,2), no underline (default, non-strict UML).
@@ -2522,6 +2584,7 @@ mod tests {
                     },
                 },
             ],
+            description: vec![],
             color: None,
             generic: None,
             source_line: None,
@@ -2532,6 +2595,7 @@ mod tests {
             kind: EntityKind::Interface,
             stereotypes: vec![],
             members: vec![],
+            description: vec![],
             color: None,
             generic: None,
             source_line: None,
@@ -2651,6 +2715,7 @@ mod tests {
             kind: EntityKind::Class,
             stereotypes: vec![],
             members: vec![],
+            description: vec![],
             color: None,
             generic: None,
             source_line: None,
@@ -2688,6 +2753,7 @@ mod tests {
             kind: EntityKind::Object,
             stereotypes: vec![],
             members: vec![],
+            description: vec![],
             color: None,
             generic: None,
             source_line: None,
@@ -2947,6 +3013,7 @@ mod tests {
             kind: EntityKind::Class,
             stereotypes: vec![],
             members: vec![],
+            description: vec![],
             color: None,
             generic: None,
             source_line: None,

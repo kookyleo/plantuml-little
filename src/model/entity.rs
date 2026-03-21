@@ -7,6 +7,7 @@ pub enum EntityKind {
     Abstract,
     Annotation,
     Object,
+    Rectangle,
 }
 
 /// Member visibility
@@ -46,6 +47,8 @@ pub struct Entity {
     pub kind: EntityKind,
     pub stereotypes: Vec<Stereotype>,
     pub members: Vec<Member>,
+    /// Bracket-body description lines for rectangle entities (Java: [text])
+    pub description: Vec<String>,
     pub color: Option<String>,
     pub generic: Option<String>,
     pub source_line: Option<usize>,

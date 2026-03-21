@@ -141,17 +141,22 @@ pub fn detect_diagram_type(content: &str) -> DiagramHint {
             }
             continue;
         }
-        // Detect bracket-display opener (e.g. `rectangle A [`, `file f [`)
-        // NOTE: ideally `rectangle [` should fall back to CLASS (Java compat),
-        // but the class parser does not yet support bracket-display bodies, so
-        // we keep the definitive component flag for now.
+        // Detect bracket-display opener (e.g. `component C [`, `file f [`)
+        // Java compat: `rectangle [` alone → CLASS diagram (not COMPONENT).
+        // Only non-rectangle bracket-display triggers definitive COMPONENT.
         if (trimmed.ends_with(" [") || trimmed.ends_with('['))
             && !trimmed.starts_with('[')
         {
             let before = trimmed[..trimmed.len() - 1].trim();
             if !before.is_empty() && !before.ends_with('-') && !before.ends_with('<') {
                 in_bracket_display = true;
-                has_component_keyword_definitive = true;
+                // `rectangle ... [` is ambiguous (Java treats as CLASS);
+                // other keywords like `component`, `file` etc. are definitive.
+                let lower_before = before.to_lowercase();
+                let is_rectangle_bracket = lower_before.starts_with("rectangle ");
+                if !is_rectangle_bracket {
+                    has_component_keyword_definitive = true;
+                }
             }
         }
 
@@ -1077,10 +1082,9 @@ mod tests {
     }
 
     #[test]
-    fn detect_component_by_rectangle_bracket_display() {
-        // NOTE: Java falls back to CLASS for `rectangle [`, but our class parser
-        // does not yet support bracket-display bodies, so we keep Component.
+    fn detect_class_by_rectangle_bracket_display() {
+        // Java treats `rectangle [...]` as CLASS, not COMPONENT.
         let content = "rectangle A [\ntest 1\ntest 2\n]\n";
-        assert!(matches!(detect_diagram_type(content), DiagramHint::Component));
+        assert!(matches!(detect_diagram_type(content), DiagramHint::Class));
     }
 }

@@ -253,6 +253,10 @@ fn estimate_entity_size(cd: &ClassDiagram, entity: &Entity, member_row_h: f64) -
         return estimate_object_size(entity);
     }
 
+    if entity.kind == EntityKind::Rectangle && !entity.description.is_empty() {
+        return estimate_rectangle_size(entity);
+    }
+
     // Entity name WITHOUT generic parameter -- generic is rendered separately
     let name_display = entity.name.clone();
 
@@ -327,6 +331,28 @@ fn estimate_entity_size(cd: &ClassDiagram, entity: &Entity, member_row_h: f64) -
 /// Body: TextBlockLineBefore(lineThickness, TextBlockEmpty(10, 16)) for empty fields.
 /// Width = max(bodyWidth, titleWidth + 2 * xMarginCircle).
 /// Height = titleHeight + bodyHeight.
+/// Estimate size for a rectangle entity with bracket-body description.
+/// Java: body text at font-size 14, padding 10px, no header/separator.
+fn estimate_rectangle_size(entity: &Entity) -> (f64, f64) {
+    let desc_font_size = 14.0_f64;
+    let desc_lh = font_metrics::line_height("SansSerif", desc_font_size, false, false);
+    let padding = 10.0;
+
+    let max_line_w = entity.description.iter()
+        .map(|l| font_metrics::text_width(l, "SansSerif", desc_font_size, false, false))
+        .fold(0.0_f64, f64::max);
+
+    let n_lines = entity.description.len().max(1) as f64;
+    let width = max_line_w + 2.0 * padding;
+    let height = n_lines * desc_lh + 2.0 * padding;
+
+    log::debug!(
+        "estimate_rectangle_size: {} -> ({:.2}, {:.2}) [{} lines]",
+        entity.name, width, height, entity.description.len()
+    );
+    (width, height)
+}
+
 fn estimate_object_size(entity: &Entity) -> (f64, f64) {
     let name_width = font_metrics::text_width(
         &entity.name,
@@ -1000,6 +1026,7 @@ mod tests {
             kind: EntityKind::Class,
             stereotypes: vec![],
             members: vec![],
+            description: vec![],
             color: None,
             generic: None,
             source_line: None,
@@ -1054,6 +1081,7 @@ mod tests {
                 ),
                 make_member(Some(Visibility::Public), "id", Some("i32")),
             ],
+            description: vec![],
             color: None,
             generic: None,
             source_line: None,
@@ -1090,6 +1118,7 @@ mod tests {
             kind: EntityKind::Interface,
             stereotypes: vec![],
             members: vec![],
+            description: vec![],
             color: None,
             generic: None,
             source_line: None,

@@ -33,6 +33,8 @@ pub fn parse_class_diagram(source: &str) -> Result<ClassDiagram> {
     let mut in_style_block = false;
     let mut in_legend = false;
     let mut in_note_block = false;
+    let mut in_description_block = false;
+    let mut description_block_lines: Vec<String> = Vec::new();
     let mut note_block_position = String::new();
     let mut note_block_target: Option<String> = None;
     let mut note_block_lines: Vec<String> = Vec::new();
@@ -44,7 +46,7 @@ pub fn parse_class_diagram(source: &str) -> Result<ClassDiagram> {
     // Visibility prefix: +/-/#/~ before the keyword (e.g. -class foo)
     let re_entity = Regex::new(concat!(
         r#"(?x)"#,
-        r#"^([+\-\#~])?(class|interface|abstract\s+class|abstract|enum|annotation|static\s+class|object)"#,
+        r#"^([+\-\#~])?(class|interface|abstract\s+class|abstract|enum|annotation|static\s+class|object|rectangle)"#,
         r#"\s+"#,
         r#"("(?:[^"]+)"|[\w.<>,\s]+?)"#,
         r#"\s*"#,
@@ -52,7 +54,7 @@ pub fn parse_class_diagram(source: &str) -> Result<ClassDiagram> {
         r#"\s*"#,
         r#"(\#\w+)?"#,
         r#"\s*"#,
-        r#"(?:(\{)\s*(\})?)?\s*$"#,
+        r#"(?:(\{)\s*(\})?|(\[))?\s*$"#,
     ))
     .unwrap();
 
@@ -140,6 +142,38 @@ pub fn parse_class_diagram(source: &str) -> Result<ClassDiagram> {
 
         // Skip empty and comment lines
         if trimmed.is_empty() || trimmed.starts_with('\'') {
+            continue;
+        }
+
+        // Handle multi-line description block (rectangle A [...])
+        if in_description_block {
+            if trimmed == "]" {
+                if let Some(ref mut ent) = current_entity {
+                    // Java: each physical line becomes a Display line.
+                    // Within each line, %chr(10) and %newline() (U+E100) expand to newlines,
+                    // but literal \n stays as text (Java Display.create for bracket bodies).
+                    ent.description = description_block_lines
+                        .iter()
+                        .flat_map(|l| {
+                            l.replace(crate::NEWLINE_CHAR, "\n")
+                                .replace("%chr(10)", "\n")
+                                .split('\n')
+                                .map(|s| s.to_string())
+                                .collect::<Vec<_>>()
+                        })
+                        .collect();
+                    let name = ent.name.clone();
+                    entities.push(current_entity.take().unwrap());
+                    if let Some(g) = group_stack.last_mut() {
+                        g.entities.push(name);
+                    }
+                    debug!("finished entity description block");
+                }
+                description_block_lines.clear();
+                in_description_block = false;
+            } else {
+                description_block_lines.push(trimmed.to_string());
+            }
             continue;
         }
 
@@ -254,6 +288,7 @@ pub fn parse_class_diagram(source: &str) -> Result<ClassDiagram> {
             let color = caps.get(7).map(|m| m.as_str().to_string());
             let has_open_brace = caps.get(8).is_some();
             let has_close_brace = caps.get(9).is_some();
+            let has_open_bracket = caps.get(10).is_some();
 
             let kind = parse_entity_kind(kind_str);
 
@@ -272,6 +307,7 @@ pub fn parse_class_diagram(source: &str) -> Result<ClassDiagram> {
                 kind,
                 stereotypes,
                 members: Vec::new(),
+                description: Vec::new(),
                 color,
                 generic,
                 source_line: Some(source_line),
@@ -282,6 +318,11 @@ pub fn parse_class_diagram(source: &str) -> Result<ClassDiagram> {
                 // Opening brace only: enter body mode
                 in_body = true;
                 current_entity = Some(entity);
+            } else if has_open_bracket {
+                // Opening bracket: enter description mode (rectangle [...])
+                in_description_block = true;
+                current_entity = Some(entity);
+                description_block_lines.clear();
             } else {
                 // No brace or inline `{}`: treat as complete entity
                 if let Some(g) = group_stack.last_mut() {
@@ -538,6 +579,7 @@ fn parse_entity_kind(s: &str) -> EntityKind {
         "abstract" | "abstract class" => EntityKind::Abstract,
         "annotation" => EntityKind::Annotation,
         "object" => EntityKind::Object,
+        "rectangle" => EntityKind::Rectangle,
         _ => EntityKind::Class,
     }
 }
@@ -952,6 +994,7 @@ fn auto_create_entities(
             kind: EntityKind::Class,
             stereotypes: Vec::new(),
             members: Vec::new(),
+            description: Vec::new(),
             color: None,
             generic: None,
             source_line: None,
