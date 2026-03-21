@@ -128,7 +128,9 @@ fn estimate_note_size(text: &str) -> (f64, f64) {
     use crate::render::svg_richtext::creole_text_width;
 
     let note_lh = font_metrics::line_height("SansSerif", NOTE_FONT_SIZE, false, false);
-    let note_pad = 6.0;
+    // Java Opale: marginX1 = 6 (left), marginX2 = 15 (right, includes fold area)
+    let margin_x1 = 6.0;
+    let margin_x2 = 15.0;
     let fold = 10.0;
     // Java Opale: first text baseline = fold + inner_pad(≈7.07)
     // Java Opale: last text baseline to note bottom ≈ 8.07
@@ -151,16 +153,16 @@ fn estimate_note_size(text: &str) -> (f64, f64) {
             n_text += 1;
         }
     }
-    let width = max_line_width + 2.0 * note_pad + fold;
+    let width = max_line_width + margin_x1 + margin_x2; // Java Opale: textBlock.w + 6 + 15
     // Java: top_pad + (N-1)*lh + sep + bottom_pad
     let height = if n_text > 0 {
         let text_intervals = (n_text as f64 - 1.0) * note_lh;
         top_pad + text_intervals + sep_height + bottom_pad
     } else {
         // Separator only: minimal note box
-        fold + note_pad + sep_height
+        fold + margin_x1 + sep_height
     };
-    log::debug!("estimate_note_size(\"{}\") -> {}x{} ({} text lines, {}px sep)", text, width, height, n_text, sep_height);
+    log::debug!("estimate_note_size: {:.4}x{:.4} ({} text, max_lw={:.4})", width, height, n_text, max_line_width);
     (width, height)
 }
 
