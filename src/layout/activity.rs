@@ -850,14 +850,14 @@ pub fn layout_activity(diagram: &ActivityDiagram) -> Result<ActivityLayout> {
         // This comes from LaneDivider width + content minX compensation.
         // We approximate with edge(5) + halfMissing + content centering offset.
         let left_divider = half_missing_edge + half_missing(0);
-        // Content is centred in each lane; the left half of the widest centred
-        // content determines the minimum left margin.  Java's translate system
-        // naturally produces this; we emulate by ensuring the first lane starts
-        // far enough right that centred content has room.
-        let first_lane_half = lane_widths[0] / 2.0;
-        let content_half = raw_content_widths[0] / 2.0;
-        let centering_extra = if content_half > first_lane_half { 0.0 } else { first_lane_half - content_half };
-        let mut x = (left_divider + centering_extra).max(left_divider);
+        // Java: internal lane lines start at x≈5, then the entire diagram gets
+        // a global +15 offset from the SVG rendering framework's MinMax margin.
+        // We apply this combined offset directly: first lane starts at x ≈ 20.
+        // Java internal lane lines start at x≈5; SVG renders them at x≈20
+        // due to framework-level MinMax offset (~15px).  We apply the combined
+        // left_divider + framework offset directly.
+        let global_margin = 11.5;
+        let mut x = left_divider + global_margin;
         for i in 0..n_lanes {
             let needed = lane_widths[i];
             let old_x = swimlane_layouts[i].x;
