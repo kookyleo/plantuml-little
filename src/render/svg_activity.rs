@@ -12,11 +12,12 @@ use crate::Result;
 
 // -- Style constants (PlantUML rose theme) ------------------------------------
 
-const FONT_SIZE: f64 = 13.0;
-/// Note line height from font metrics (Java dy=15.1328 at size 13).
-/// Action/diamond text uses 16.0 for legacy compat, but notes use the
-/// precise font-metrics value to match Java's SheetBlock rendering.
-const LINE_HEIGHT: f64 = 16.0;
+/// Note font size (Java: 13px for notes)
+const NOTE_FONT_SIZE: f64 = 13.0;
+/// Action/diamond font size (Java: 12px, from activityDiagram.activity.FontSize)
+const ACTION_FONT_SIZE: f64 = 12.0;
+/// Action line height (Java: ~14px for size 12)
+const ACTION_LINE_HEIGHT: f64 = 16.0;
 
 use crate::skin::rose::{BORDER_COLOR, ENTITY_BG, FORK_FILL, INITIAL_FILL, NOTE_BG, NOTE_BORDER, TEXT_COLOR};
 
@@ -216,14 +217,14 @@ fn render_action(
     // Stripe/Atom as a separate UText draw call.
     let cx = node.x + node.width / 2.0;
     let lines: Vec<&str> = node.text.split('\n').collect();
-    let total_text_height = lines.len() as f64 * LINE_HEIGHT;
-    let first_baseline = node.y + (node.height - total_text_height) / 2.0 + FONT_SIZE;
+    let total_text_height = lines.len() as f64 * ACTION_LINE_HEIGHT;
+    let first_baseline = node.y + (node.height - total_text_height) / 2.0 + ACTION_FONT_SIZE;
 
     for (i, line) in lines.iter().enumerate() {
-        let y = first_baseline + i as f64 * LINE_HEIGHT;
+        let y = first_baseline + i as f64 * ACTION_LINE_HEIGHT;
         // Java: left-aligned text with manually computed centered x.
         // x = action_x + (action_width - text_width) / 2
-        let text_w = font_metrics::text_width(line, "SansSerif", FONT_SIZE, false, false);
+        let text_w = font_metrics::text_width(line, "SansSerif", ACTION_FONT_SIZE, false, false);
         let text_x = node.x + (node.width - text_w) / 2.0;
         let mut tmp = String::new();
         render_creole_text(
@@ -231,7 +232,7 @@ fn render_action(
             line,
             text_x,
             y,
-            LINE_HEIGHT,
+            ACTION_LINE_HEIGHT,
             font_color,
             None, // no text-anchor — Java uses manual centering
             r#"font-size="12""#,
@@ -308,10 +309,10 @@ fn render_note(sg: &mut SvgGraphic, node: &ActivityNodeLayout, _position: &NoteP
     // Render each line as a separate <text> element (matches Java's per-line rendering).
     // This avoids the multi-line textLength issue where a single <text> with tspans
     // gets an incorrect total textLength.
-    let note_lh = crate::font_metrics::line_height("SansSerif", FONT_SIZE, false, false);
+    let note_lh = crate::font_metrics::line_height("SansSerif", NOTE_FONT_SIZE, false, false);
     let text_x = x + 6.0;
     // Java top margin: fold(10) + ascent(~7.07) = first text baseline y
-    let mut text_y = y + fold + FONT_SIZE;
+    let mut text_y = y + fold + NOTE_FONT_SIZE;
     for line in node.text.split('\n') {
         // Horizontal separator gets less vertical space (Java: 10px)
         let trimmed = line.trim();
@@ -374,11 +375,11 @@ fn render_edge(sg: &mut SvgGraphic, edge: &ActivityEdgeLayout, arrow_color: &str
     if !edge.label.is_empty() {
         let mid = edge.points.len() / 2;
         let (mx, my) = edge.points[mid];
-        let tl = font_metrics::text_width(&edge.label, "SansSerif", FONT_SIZE, false, false);
+        let tl = font_metrics::text_width(&edge.label, "SansSerif", ACTION_FONT_SIZE, false, false);
         sg.set_fill_color(text_color);
         sg.svg_text(
             &edge.label, mx, my,
-            Some("sans-serif"), FONT_SIZE,
+            Some("sans-serif"), ACTION_FONT_SIZE,
             None, None, None,
             tl, LengthAdjust::Spacing,
             None, 0, Some("middle"),
