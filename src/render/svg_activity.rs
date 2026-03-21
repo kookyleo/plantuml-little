@@ -24,10 +24,12 @@ use crate::skin::rose::{BORDER_COLOR, ENTITY_BG, FORK_FILL, INITIAL_FILL, NOTE_B
 
 /// Render an activity diagram to SVG.
 pub fn render_activity(
-    _diagram: &ActivityDiagram,
+    diagram: &ActivityDiagram,
     layout: &ActivityLayout,
     skin: &SkinParams,
 ) -> Result<String> {
+    use crate::model::activity::{ActivityEvent, NotePosition};
+
     // Skin color lookups
     let bg = skin.get_or("backgroundcolor", "#FFFFFF");
     let act_bg = skin.background_color("activity", ENTITY_BG);
@@ -39,36 +41,92 @@ pub fn render_activity(
     let swimlane_font = skin.font_color("swimlane", TEXT_COLOR);
     let arrow_color = skin.arrow_color(BORDER_COLOR);
 
-    // --- Render all elements into SvgGraphic (tracks ensureVisible) --------
+    // --- Build node→lane mapping (same logic as layout Pass 2c) -----------
+    let mut node_lane: Vec<usize> = Vec::new();
+    let mut cur_lane: usize = 0;
+    for event in &diagram.events {
+        match event {
+            ActivityEvent::Swimlane { name } => {
+                cur_lane = diagram.swimlanes.iter().position(|n| n == name).unwrap_or(0);
+            }
+            _ => { node_lane.push(cur_lane); }
+        }
+    }
+
+    // --- Render into SvgGraphic (Java drawWhenSwimlanes order) ------------
     let mut sg = SvgGraphic::new(0, 1.0);
-    // Java: SvgGraphics(minDim) calls ensureVisible(minDim.w, minDim.h).
-    // Java's minDim comes from calculateDimension() which does a full dry-run
-    // render via LimitFinder.  We replicate this: layout.width/height is our
-    // pre-calculated content bounding box from compute_bounds().
     sg.track_rect(0.0, 0.0, layout.width, layout.height);
 
-    // Swimlanes (behind everything) — use layout.height for lane line length
-    for sw in &layout.swimlane_layouts {
-        render_swimlane(&mut sg, sw, layout.height, swimlane_border, swimlane_font);
-    }
-    if let Some(last) = layout.swimlane_layouts.last() {
-        let right_x = last.x + last.width;
-        sg.set_stroke_color(Some(swimlane_border));
-        sg.set_stroke_width(1.5, None);
-        sg.svg_line(right_x, 0.0, right_x, layout.height, 0.0);
-    }
+    let has_swimlanes = !layout.swimlane_layouts.is_empty();
 
-    for edge in &layout.edges {
-        render_edge(&mut sg, edge, arrow_color, act_font);
-    }
+    if has_swimlanes {
+        // Step 1: drawTitlesBackground — transparent header rect
+        // Java draws a rect fill="none" spanning all lanes at the header row.
+        if let (Some(first), Some(last)) = (layout.swimlane_layouts.first(), layout.swimlane_layouts.last()) {
+            let header_ha = font_metrics::ascent("SansSerif", 18.0, false, false);
+            let header_hd = font_metrics::descent("SansSerif", 18.0, false, false);
+            let header_h = header_ha + header_hd;
+            let header_y = layout.swimlane_layouts[0].x; // approximate header y from lane top area
+            // Java: rect at x=lane0.x, y≈17.75, width=all_lanes, height=header_text_height
+            sg.push_raw(&format!(
+                r#"<rect fill="none" height="{}" style="stroke:none;stroke-width:1;" width="{}" x="{}" y="{}"/>"#,
+                fmt_coord(header_h),
+                fmt_coord(last.x + last.width - first.x),
+                fmt_coord(first.x),
+                fmt_coord(17.75), // Java header top y
+            ));
+        }
 
-    for node in &layout.nodes {
-        render_node(
-            &mut sg, node,
-            act_bg, act_border, act_font,
-            diamond_bg, diamond_border,
-            arrow_color,
-        );
+        // Step 2: per-lane content + divider line
+        for (lane_idx, sw) in layout.swimlane_layouts.iter().enumerate() {
+            // 2a: Render nodes belonging to this lane
+            for (ni, node) in layout.nodes.iter().enumerate() {
+                let nl = if ni < node_lane.len() { node_lane[ni] } else { 0 };
+                if nl == lane_idx {
+                    render_node(&mut sg, node, act_bg, act_border, act_font,
+                        diamond_bg, diamond_border, arrow_color);
+                }
+            }
+            // 2b: Divider line for this lane
+            sg.set_stroke_color(Some(swimlane_border));
+            sg.set_stroke_width(1.5, None);
+            sg.svg_line(sw.x, 0.0, sw.x, layout.height, 0.0);
+        }
+        // Right border line
+        if let Some(last) = layout.swimlane_layouts.last() {
+            let right_x = last.x + last.width;
+            sg.set_stroke_color(Some(swimlane_border));
+            sg.set_stroke_width(1.5, None);
+            sg.svg_line(right_x, 0.0, right_x, layout.height, 0.0);
+        }
+
+        // Step 3: edges (Java: Cross connections)
+        for edge in &layout.edges {
+            render_edge(&mut sg, edge, arrow_color, act_font);
+        }
+
+        // Step 4: header text (drawn last)
+        for sw in &layout.swimlane_layouts {
+            let label_x = sw.x + sw.width / 2.0;
+            let tl = font_metrics::text_width(&sw.name, "SansSerif", 18.0, false, false);
+            sg.set_fill_color(swimlane_font);
+            sg.svg_text(
+                &sw.name, label_x, 16.0,
+                Some("sans-serif"), 18.0,
+                None, None, None,
+                tl, LengthAdjust::Spacing,
+                None, 0, Some("middle"),
+            );
+        }
+    } else {
+        // No swimlanes: simple order — edges then nodes
+        for edge in &layout.edges {
+            render_edge(&mut sg, edge, arrow_color, act_font);
+        }
+        for node in &layout.nodes {
+            render_node(&mut sg, node, act_bg, act_border, act_font,
+                diamond_bg, diamond_border, arrow_color);
+        }
     }
 
     // --- SVG dimensions from ensureVisible tracking (Java compat) ----------
