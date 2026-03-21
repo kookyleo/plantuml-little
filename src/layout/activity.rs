@@ -810,16 +810,54 @@ pub fn layout_activity(diagram: &ActivityDiagram) -> Result<ActivityLayout> {
             }
         }
 
-        // 2) Compute content bounding box per lane
+        // 2) Compute content width per lane.
+        //    Java FtileWithNotes: width = tile.w + left_notes.w + right_notes.w.
+        //    We simulate this by finding each flow node's composite width
+        //    (including adjacent notes) and tracking the max composite.
         let n_lanes = swimlane_layouts.len();
+        let mut lane_max_composite_w = vec![0.0_f64; n_lanes];
         let mut lane_min_x = vec![f64::MAX; n_lanes];
         let mut lane_max_x = vec![f64::MIN; n_lanes];
+
+        // For each flow node, find adjacent notes and compute composite width
         for (ni, node) in nodes.iter().enumerate() {
             let li = if ni < node_lane.len() { node_lane[ni] } else { 0 };
             let left = node.x;
             let right = node.x + node.width;
             if left < lane_min_x[li] { lane_min_x[li] = left; }
             if right > lane_max_x[li] { lane_max_x[li] = right; }
+
+            if is_flow_node(&node.kind) {
+                // Find adjacent notes (immediately following this flow node)
+                let mut left_note_w = 0.0_f64;
+                let mut right_note_w = 0.0_f64;
+                for j in (ni + 1)..nodes.len() {
+                    match &nodes[j].kind {
+                        ActivityNodeKindLayout::Note { position } => {
+                            match position {
+                                NotePositionLayout::Left => left_note_w += nodes[j].width,
+                                NotePositionLayout::Right => right_note_w += nodes[j].width,
+                            }
+                        }
+                        ActivityNodeKindLayout::FloatingNote { position } => {
+                            match position {
+                                NotePositionLayout::Left => left_note_w += nodes[j].width,
+                                NotePositionLayout::Right => right_note_w += nodes[j].width,
+                            }
+                        }
+                        _ => break, // next flow node — stop looking
+                    }
+                }
+                // Java FtileWithNotes: each note Opale is wrapped with
+                // TextBlockUtils.withMargin(opale, 10, 10) → +20 per note side.
+                let note_margin = 20.0; // Java: withMargin(opale, 10, 10)
+                let left_total = if left_note_w > 0.0 { left_note_w + note_margin } else { 0.0 };
+                let right_total = if right_note_w > 0.0 { right_note_w + note_margin } else { 0.0 };
+                let composite_w = node.width + left_total + right_total;
+                if composite_w > lane_max_composite_w[li] {
+                    lane_max_composite_w[li] = composite_w;
+                }
+            }
         }
 
         // 3) Expand each lane; Java LaneDivider: edge=5, between=5..N depending on title overflow
@@ -832,13 +870,23 @@ pub fn layout_activity(diagram: &ActivityDiagram) -> Result<ActivityLayout> {
         // First pass: determine final lane widths (max of header and content)
         let mut lane_widths: Vec<f64> = Vec::with_capacity(n_lanes);
         for i in 0..n_lanes {
-            let content_width = if lane_max_x[i] > lane_min_x[i] {
+            // Use the max composite width (Java FtileWithNotes model)
+            let content_width = if lane_max_composite_w[i] > 0.0 {
+                lane_max_composite_w[i]
+            } else if lane_max_x[i] > lane_min_x[i] {
                 lane_max_x[i] - lane_min_x[i]
             } else {
                 0.0
             };
-            let hw = header_widths[i] + 2.0 * LANE_DIVIDER_HALF; // title + padding
-            lane_widths.push(content_width.max(hw));
+            let hw = header_widths[i] + 2.0 * LANE_DIVIDER_HALF;
+            // Java: lane visual width = actualWidth + dividerWidth.
+            // When content > header, add divider to the lane width itself.
+            let cw_with_div = if content_width > hw {
+                content_width + 2.0 * LANE_DIVIDER_HALF
+            } else {
+                content_width
+            };
+            lane_widths.push(cw_with_div.max(hw));
         }
 
         // Java getHalfMissingSpace: if title > actualWidth, expand divider.
@@ -883,13 +931,8 @@ pub fn layout_activity(diagram: &ActivityDiagram) -> Result<ActivityLayout> {
             // When lane width is header-driven (hw includes divider padding),
             // the divider is already absorbed. When content-driven (content > hw),
             // add the divider width explicitly.
-            let hw_i = header_widths.get(i).copied().unwrap_or(0.0) + 2.0 * LANE_DIVIDER_HALF;
-            let extra_div = if needed > hw_i && i + 1 < n_lanes {
-                2.0 * LANE_DIVIDER_HALF // content exceeds header: add divider
-            } else {
-                0.0 // header-driven: divider already in hw
-            };
-            x += needed + extra_div;
+            // Divider is already included in lane_widths for content-driven lanes.
+            x += needed;
         }
     }
 
