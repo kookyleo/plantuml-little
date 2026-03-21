@@ -13,6 +13,9 @@ use crate::Result;
 // -- Style constants (PlantUML rose theme) ------------------------------------
 
 const FONT_SIZE: f64 = 13.0;
+/// Note line height from font metrics (Java dy=15.1328 at size 13).
+/// Action/diamond text uses 16.0 for legacy compat, but notes use the
+/// precise font-metrics value to match Java's SheetBlock rendering.
 const LINE_HEIGHT: f64 = 16.0;
 
 use crate::skin::rose::{BORDER_COLOR, ENTITY_BG, FORK_FILL, INITIAL_FILL, NOTE_BG, NOTE_BORDER, TEXT_COLOR};
@@ -225,22 +228,33 @@ fn render_note(sg: &mut SvgGraphic, node: &ActivityNodeLayout, _position: &NoteP
     // Render each line as a separate <text> element (matches Java's per-line rendering).
     // This avoids the multi-line textLength issue where a single <text> with tspans
     // gets an incorrect total textLength.
+    let note_lh = crate::font_metrics::line_height("SansSerif", FONT_SIZE, false, false);
     let text_x = x + 6.0;
+    // Java top margin: fold(10) + ascent(~7.07) = first text baseline y
     let mut text_y = y + fold + FONT_SIZE;
     for line in node.text.split('\n') {
+        // Horizontal separator gets less vertical space (Java: 10px)
+        let trimmed = line.trim();
+        let is_sep = trimmed.len() >= 4
+            && (trimmed.chars().all(|c| c == '=') || trimmed.chars().all(|c| c == '-'));
+        if is_sep {
+            // TODO: render as <line> pair; for now just skip text and add 10px
+            text_y += crate::layout::activity::NOTE_SEPARATOR_HEIGHT;
+            continue;
+        }
         let mut tmp = String::new();
         render_creole_text(
             &mut tmp,
             line,
             text_x,
             text_y,
-            LINE_HEIGHT,
+            note_lh,
             TEXT_COLOR,
             None,
             r#"font-size="13""#,
         );
         sg.push_raw(&tmp);
-        text_y += LINE_HEIGHT;
+        text_y += note_lh;
     }
 }
 

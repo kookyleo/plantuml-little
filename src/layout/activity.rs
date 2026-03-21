@@ -113,35 +113,51 @@ fn estimate_text_size(text: &str) -> (f64, f64) {
 }
 
 /// Height of a `====` / `----` horizontal separator in a note (Java: 10.0).
-const NOTE_SEPARATOR_HEIGHT: f64 = 10.0;
+/// Height of a `====` / `----` horizontal separator in a note (Java: 10.0).
+pub const NOTE_SEPARATOR_HEIGHT: f64 = 10.0;
 
 /// Estimate the size of a note, using note font size.
-/// Uses `creole_text_width` to respect per-span font families (e.g. monospace).
-/// Horizontal separators (`====`, `----`) get a reduced height.
+///
+/// Java height model (SheetBlock1 + CreoleHorizontalLine):
+///   height = fold + ascent + (N_text - 1) × line_height + separator_heights + descent_pad
+/// where N_text = number of non-separator lines, ascent/descent come from font metrics.
 fn estimate_note_size(text: &str) -> (f64, f64) {
     use crate::render::svg_richtext::creole_text_width;
 
     let note_lh = font_metrics::line_height("SansSerif", NOTE_FONT_SIZE, false, false);
     let note_pad = 6.0;
     let fold = 10.0;
+    // Java Opale: first text baseline = fold + inner_pad(≈7.07)
+    // Java Opale: last text baseline to note bottom ≈ 8.07
+    // These match Java's SheetBlock1 rendering at font-size 13.
+    let top_pad = fold + 7.07;
+    let bottom_pad = 8.07;
     let lines: Vec<&str> = text.split('\n').collect();
     let mut max_line_width = 0.0_f64;
-    let mut total_height = 0.0_f64;
+    let mut n_text: usize = 0;
+    let mut sep_height = 0.0_f64;
     for line in &lines {
         let trimmed = line.trim();
         let is_sep = trimmed.len() >= 4
             && (trimmed.chars().all(|c| c == '=') || trimmed.chars().all(|c| c == '-'));
         if is_sep {
-            total_height += NOTE_SEPARATOR_HEIGHT;
+            sep_height += NOTE_SEPARATOR_HEIGHT;
         } else {
             let w = creole_text_width(line, "SansSerif", NOTE_FONT_SIZE, false, false);
             max_line_width = max_line_width.max(w);
-            total_height += note_lh;
+            n_text += 1;
         }
     }
     let width = max_line_width + 2.0 * note_pad + fold;
-    let height = total_height + fold + note_pad;
-    log::debug!("estimate_note_size(\"{}\") -> {}x{} ({} lines, max_w={})", text, width, height, lines.len(), max_line_width);
+    // Java: top_pad + (N-1)*lh + sep + bottom_pad
+    let height = if n_text > 0 {
+        let text_intervals = (n_text as f64 - 1.0) * note_lh;
+        top_pad + text_intervals + sep_height + bottom_pad
+    } else {
+        // Separator only: minimal note box
+        fold + note_pad + sep_height
+    };
+    log::debug!("estimate_note_size(\"{}\") -> {}x{} ({} text lines, {}px sep)", text, width, height, n_text, sep_height);
     (width, height)
 }
 
@@ -1779,13 +1795,36 @@ mod tests {
     }
 
     #[test]
-    fn estimate_note_size_separator_shorter_than_text() {
-        // `====` separator should consume less height than a text line
-        let (_, h_sep) = estimate_note_size("====");
-        let (_, h_text) = estimate_note_size("some text");
+    fn note_font_metrics_match_java() {
+        // Java a0002: line dy = 15.1328, top_margin = 17.0669, bottom_margin = 8.066
+        // ascent_offset = 7.0669, descent_pad = 8.066
+        let lh = font_metrics::line_height("SansSerif", NOTE_FONT_SIZE, false, false);
+        let asc = font_metrics::ascent("SansSerif", NOTE_FONT_SIZE, false, false);
+        let desc = font_metrics::descent("SansSerif", NOTE_FONT_SIZE, false, false);
+        println!("note lh={lh:.4}, asc={asc:.4}, desc={desc:.4}, asc+desc={:.4}", asc + desc);
+        // line_height should be ≈ 15.13
         assert!(
-            h_sep < h_text,
-            "separator height ({h_sep}) should be less than text height ({h_text})"
+            (lh - 15.13).abs() < 0.5,
+            "line_height({lh:.4}) should be ≈ 15.13"
+        );
+    }
+
+    #[test]
+    fn estimate_note_separator_adds_less_height_than_text_line() {
+        // Adding a separator (====) should increase height by 10px,
+        // while adding a text line increases by ~15.13px (line_height).
+        let (_, h_base) = estimate_note_size("line1\nline2");
+        let (_, h_with_sep) = estimate_note_size("line1\n====\nline2");
+        let (_, h_with_text) = estimate_note_size("line1\nline2\nline3");
+        let sep_delta = h_with_sep - h_base;
+        let text_delta = h_with_text - h_base;
+        assert!(
+            sep_delta < text_delta,
+            "separator delta ({sep_delta:.1}) should be < text delta ({text_delta:.1})"
+        );
+        assert!(
+            (sep_delta - 10.0).abs() < 1.0,
+            "separator delta ({sep_delta:.1}) should be ≈ 10.0"
         );
     }
 
