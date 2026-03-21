@@ -870,9 +870,34 @@ pub fn layout_activity(diagram: &ActivityDiagram) -> Result<ActivityLayout> {
         // First pass: determine final lane widths (max of header and content)
         let mut lane_widths: Vec<f64> = Vec::with_capacity(n_lanes);
         for i in 0..n_lanes {
-            // Use the max composite width (Java FtileWithNotes model)
+            // Use the max composite width (Java FtileWithNotes model).
+            // Java LimitFinder tracks 1px wider than FtileWithNoteOpale.
+            // calculateDimension for single-side note lanes (from Opale
+            // stencil rendering offset in SheetBlock). FtileWithNotes
+            // (both-side notes) doesn't have this offset.
+            let has_both_sides = lane_max_composite_w[i] > 0.0 && {
+                // Check if this lane has notes on BOTH sides
+                let mut has_left = false;
+                let mut has_right = false;
+                for (ni2, n2) in nodes.iter().enumerate() {
+                    if ni2 < node_lane.len() && node_lane[ni2] == i {
+                        match &n2.kind {
+                            ActivityNodeKindLayout::Note { position } |
+                            ActivityNodeKindLayout::FloatingNote { position } => {
+                                match position {
+                                    NotePositionLayout::Left => has_left = true,
+                                    NotePositionLayout::Right => has_right = true,
+                                }
+                            }
+                            _ => {}
+                        }
+                    }
+                }
+                has_left && has_right
+            };
+            let stencil_correction = if lane_max_composite_w[i] > 0.0 && !has_both_sides { 1.0 } else { 0.0 };
             let content_width = if lane_max_composite_w[i] > 0.0 {
-                lane_max_composite_w[i]
+                lane_max_composite_w[i] + stencil_correction
             } else if lane_max_x[i] > lane_min_x[i] {
                 lane_max_x[i] - lane_min_x[i]
             } else {
