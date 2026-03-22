@@ -244,7 +244,8 @@ fn convert_elements(
     oy: f64,
     parent_transform: Option<&str>,
 ) {
-    convert_elements_inner(buf, content, ox, oy, ox, oy, parent_transform);
+    let css_props = extract_css_text_props(content);
+    convert_elements_inner(buf, content, ox, oy, ox, oy, parent_transform, &css_props);
 }
 
 /// Like convert_elements but with separate text offset.
@@ -256,8 +257,67 @@ fn convert_elements_with_text_offset(
     oy: f64,
     text_ox: f64,
     text_oy: f64,
+    css_text_props: &[(String, String)],
 ) {
-    convert_elements_inner(buf, content, ox, oy, text_ox, text_oy, None);
+    convert_elements_inner(buf, content, ox, oy, text_ox, text_oy, None, css_text_props);
+}
+
+/// Extract CSS properties for the `text` tag from a `<style>` block.
+/// Returns a simple list of (property, value) pairs.
+fn extract_css_text_props(content: &str) -> Vec<(String, String)> {
+    let mut props = Vec::new();
+    // Find <style>...</style> block
+    let start = match content.find("<style") {
+        Some(s) => s,
+        None => return props,
+    };
+    let close = match content[start..].find("</style>") {
+        Some(c) => c,
+        None => return props,
+    };
+    let style_block = &content[start..start + close];
+    // Extract CSS body (skip CDATA wrapper if present)
+    let css_body = if let Some(cdata) = style_block.find("<![CDATA[") {
+        let body_start = cdata + 9;
+        let body_end = style_block[body_start..].find("]]>").map_or(style_block.len(), |e| body_start + e);
+        &style_block[body_start..body_end]
+    } else if let Some(gt) = style_block.find('>') {
+        &style_block[gt + 1..]
+    } else {
+        return props;
+    };
+    // Find `text {` selector (standalone word, not inside comments or other selectors)
+    // Use regex-like matching: look for "text" preceded by whitespace/newline and followed by whitespace/{
+    let lower = css_body.to_lowercase();
+    let bytes = lower.as_bytes();
+    for (i, _) in lower.match_indices("text") {
+        // Must be at start or after whitespace/newline
+        if i > 0 && !bytes[i - 1].is_ascii_whitespace() && bytes[i - 1] != b'\n' {
+            continue;
+        }
+        // Must be followed by whitespace or {
+        let after_pos = i + 4;
+        if after_pos < bytes.len() && !bytes[after_pos].is_ascii_whitespace() && bytes[after_pos] != b'{' {
+            continue;
+        }
+        // Found "text" selector — extract the rule body
+        let after = &css_body[i..];
+        if let Some(brace) = after.find('{') {
+            if let Some(end_brace) = after[brace..].find('}') {
+                let body = &after[brace + 1..brace + end_brace];
+                for decl in body.split(';') {
+                    let decl = decl.trim();
+                    if let Some(colon) = decl.find(':') {
+                        let prop = decl[..colon].trim().to_string();
+                        let val = decl[colon + 1..].trim().trim_end_matches("px").to_string();
+                        props.push((prop, val));
+                    }
+                }
+                break;
+            }
+        }
+    }
+    props
 }
 
 fn convert_elements_inner(
@@ -268,6 +328,7 @@ fn convert_elements_inner(
     text_ox: f64,
     text_oy: f64,
     parent_transform: Option<&str>,
+    css_text_props: &[(String, String)],
 ) {
     let mut pos = 0;
     let mut iterations = 0;
@@ -326,7 +387,29 @@ fn convert_elements_inner(
                 pos += 1;
                 continue;
             }
-            convert_single_element_ext(buf, &element, ox, oy, text_ox, text_oy, parent_transform);
+            // Inject CSS text{} font-size default into <text> elements that lack it.
+            // Java sprite renderer applies CSS font-size but uses its own defaults
+            // for fill (#000000) and font-family (sans-serif).
+            let element = if element.starts_with("<text ") && !css_text_props.is_empty() {
+                let mut e = element.clone();
+                for (prop, val) in css_text_props {
+                    if prop != "font-size" {
+                        continue; // Only inject font-size from CSS
+                    }
+                    let attr = prop.as_str();
+                    if get_attr(&e, attr).is_none()
+                        && get_attr(&e, "style")
+                            .and_then(|s| get_style_prop(s, attr))
+                            .is_none()
+                    {
+                        e = format!("<text {}=\"{}\" {}", attr, val, &e[6..]);
+                    }
+                }
+                e
+            } else {
+                element
+            };
+            convert_single_element_ext(buf, &element, ox, oy, text_ox, text_oy, parent_transform, css_text_props);
             pos += consumed;
         } else {
             pos += 1;
@@ -410,7 +493,7 @@ fn convert_single_element(
     oy: f64,
     _parent_transform: Option<&str>,
 ) {
-    convert_single_element_ext(buf, element, ox, oy, ox, oy, _parent_transform);
+    convert_single_element_ext(buf, element, ox, oy, ox, oy, _parent_transform, &[]);
 }
 
 fn convert_single_element_ext(
@@ -421,6 +504,7 @@ fn convert_single_element_ext(
     text_ox: f64,
     text_oy: f64,
     _parent_transform: Option<&str>,
+    css_text_props: &[(String, String)],
 ) {
     let tag = element_tag_name(element);
     match tag {
@@ -433,7 +517,7 @@ fn convert_single_element_ext(
         "path" => convert_path(buf, element, ox, oy),
         "text" => convert_text(buf, element, text_ox, text_oy),
         "image" => convert_image(buf, element, ox, oy),
-        "g" => convert_group(buf, element, ox, oy, text_ox, text_oy),
+        "g" => convert_group(buf, element, ox, oy, text_ox, text_oy, css_text_props),
         "use" => { /* TODO: use/defs expansion */ }
         _ => {}
     }
@@ -805,7 +889,7 @@ fn convert_image(buf: &mut String, element: &str, ox: f64, oy: f64) {
     buf.push_str("/>");
 }
 
-fn convert_group(buf: &mut String, element: &str, ox: f64, oy: f64, text_ox: f64, text_oy: f64) {
+fn convert_group(buf: &mut String, element: &str, ox: f64, oy: f64, text_ox: f64, text_oy: f64, css_text_props: &[(String, String)]) {
     let inner = extract_element_content(element, "g");
     // Apply transform="translate(x,y)" if present — for shapes only.
     // Java: group transforms are applied to shape coordinates but NOT to text
@@ -815,7 +899,7 @@ fn convert_group(buf: &mut String, element: &str, ox: f64, oy: f64, text_ox: f64
     } else {
         (0.0, 0.0)
     };
-    convert_elements_with_text_offset(buf, inner.trim(), ox + tx, oy + ty, text_ox, text_oy);
+    convert_elements_with_text_offset(buf, inner.trim(), ox + tx, oy + ty, text_ox, text_oy, css_text_props);
 }
 
 fn parse_translate(transform: &str) -> (f64, f64) {
