@@ -198,6 +198,31 @@ fn convert_elements(
     oy: f64,
     parent_transform: Option<&str>,
 ) {
+    convert_elements_inner(buf, content, ox, oy, ox, oy, parent_transform);
+}
+
+/// Like convert_elements but with separate text offset.
+/// Java: group transforms apply to shapes but NOT to text.
+fn convert_elements_with_text_offset(
+    buf: &mut String,
+    content: &str,
+    ox: f64,
+    oy: f64,
+    text_ox: f64,
+    text_oy: f64,
+) {
+    convert_elements_inner(buf, content, ox, oy, text_ox, text_oy, None);
+}
+
+fn convert_elements_inner(
+    buf: &mut String,
+    content: &str,
+    ox: f64,
+    oy: f64,
+    text_ox: f64,
+    text_oy: f64,
+    parent_transform: Option<&str>,
+) {
     let mut pos = 0;
     let mut iterations = 0;
     while pos < content.len() {
@@ -255,7 +280,7 @@ fn convert_elements(
                 pos += 1;
                 continue;
             }
-            convert_single_element(buf, &element, ox, oy, parent_transform);
+            convert_single_element_ext(buf, &element, ox, oy, text_ox, text_oy, parent_transform);
             pos += consumed;
         } else {
             pos += 1;
@@ -339,7 +364,18 @@ fn convert_single_element(
     oy: f64,
     _parent_transform: Option<&str>,
 ) {
-    // Determine element type
+    convert_single_element_ext(buf, element, ox, oy, ox, oy, _parent_transform);
+}
+
+fn convert_single_element_ext(
+    buf: &mut String,
+    element: &str,
+    ox: f64,
+    oy: f64,
+    text_ox: f64,
+    text_oy: f64,
+    _parent_transform: Option<&str>,
+) {
     let tag = element_tag_name(element);
     match tag {
         "rect" => convert_rect(buf, element, ox, oy),
@@ -349,9 +385,9 @@ fn convert_single_element(
         "polyline" => convert_polyline(buf, element, ox, oy),
         "polygon" => convert_polygon(buf, element, ox, oy),
         "path" => convert_path(buf, element, ox, oy),
-        "text" => convert_text(buf, element, ox, oy),
+        "text" => convert_text(buf, element, text_ox, text_oy),
         "image" => convert_image(buf, element, ox, oy),
-        "g" => convert_group(buf, element, ox, oy),
+        "g" => convert_group(buf, element, ox, oy, text_ox, text_oy),
         "use" => { /* TODO: use/defs expansion */ }
         _ => {}
     }
@@ -706,15 +742,17 @@ fn convert_image(buf: &mut String, element: &str, ox: f64, oy: f64) {
     buf.push_str("/>");
 }
 
-fn convert_group(buf: &mut String, element: &str, ox: f64, oy: f64) {
+fn convert_group(buf: &mut String, element: &str, ox: f64, oy: f64, text_ox: f64, text_oy: f64) {
     let inner = extract_element_content(element, "g");
-    // Apply transform="translate(x,y)" if present
+    // Apply transform="translate(x,y)" if present — for shapes only.
+    // Java: group transforms are applied to shape coordinates but NOT to text
+    // coordinates. Text retains its original SVG position + sprite base offset.
     let (tx, ty) = if let Some(transform) = get_attr(element, "transform") {
         parse_translate(&transform)
     } else {
         (0.0, 0.0)
     };
-    convert_elements(buf, inner.trim(), ox + tx, oy + ty, None);
+    convert_elements_with_text_offset(buf, inner.trim(), ox + tx, oy + ty, text_ox, text_oy);
 }
 
 fn parse_translate(transform: &str) -> (f64, f64) {
