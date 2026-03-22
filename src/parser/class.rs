@@ -697,6 +697,7 @@ fn parse_member(line: &str) -> Option<Member> {
         return_type,
         is_method,
         modifiers,
+        display: Some(rest.to_string()),
     })
 }
 

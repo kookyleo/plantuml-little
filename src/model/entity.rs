@@ -34,6 +34,9 @@ pub struct Member {
     pub return_type: Option<String>,
     pub is_method: bool,
     pub modifiers: MemberModifiers,
+    /// Raw display text (after removing visibility/modifiers), matching Java MemberImpl.getDisplay().
+    /// When set, rendering uses this instead of reconstructing from name + return_type.
+    pub display: Option<String>,
 }
 
 /// Stereotype (e.g. <<Entity>>)

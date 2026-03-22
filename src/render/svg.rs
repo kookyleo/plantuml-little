@@ -1199,8 +1199,13 @@ fn draw_entity_box(
     sg.svg_rectangle(x, y, w, h, rx, rx, 0.0);
     tracker.track_rect(x, y, w, h);
 
-    let class_font_size = skin.font_size("class", FONT_SIZE);
-    let attr_font_size = skin.font_size("classattribute", class_font_size);
+    // Java font resolution: classAttributeFontSize overrides both name and member
+    // font sizes. classFontSize only controls the name when classAttributeFontSize
+    // is absent.
+    let explicit_attr_fs = skin.get("classattributefontsize").and_then(|s| s.parse::<f64>().ok());
+    let explicit_class_fs = skin.get("classfontsize").and_then(|s| s.parse::<f64>().ok());
+    let attr_font_size = explicit_attr_fs.unwrap_or(FONT_SIZE);
+    let class_font_size = explicit_attr_fs.unwrap_or_else(|| explicit_class_fs.unwrap_or(FONT_SIZE));
 
     // Entity name WITHOUT generic parameter — generic is rendered separately in draw_generic_box
     let name_display = entity.name.clone();
@@ -1271,6 +1276,11 @@ fn draw_entity_box(
             false,
             italic_name,
         );
+        // Compute name block height and baseline dynamically from actual font size
+        let name_ascent = font_metrics::ascent("SansSerif", class_font_size, false, italic_name);
+        let name_descent = font_metrics::descent("SansSerif", class_font_size, false, italic_name);
+        let name_block_height = name_ascent + name_descent;
+        let name_baseline = name_ascent;
         let name_block_width = name_width + HEADER_NAME_BLOCK_MARGIN_X;
         let stereo_widths: Vec<f64> = visible_stereotypes
             .iter()
@@ -1288,7 +1298,7 @@ fn draw_entity_box(
         let width_stereo_and_name = name_block_width.max(stereo_block_width);
         let stereo_height = visible_stereotypes.len() as f64 * HEADER_STEREO_LINE_HEIGHT;
         let header_height = HEADER_CIRCLE_BLOCK_HEIGHT
-            .max(stereo_height + HEADER_NAME_BLOCK_HEIGHT + HEADER_STEREO_NAME_GAP);
+            .max(stereo_height + name_block_height + HEADER_STEREO_NAME_GAP);
         let vis_icon_w = if entity.visibility.is_some() { ENTITY_VIS_ICON_BLOCK_SIZE } else { 0.0 };
         let gen_dim_w = if let Some(ref g) = entity.generic {
             let text_w = font_metrics::text_width(g, "SansSerif", GENERIC_FONT_SIZE, false, true);
@@ -1311,7 +1321,7 @@ fn draw_entity_box(
         tracker.track_ellipse(ecx, ecy, 11.0, 11.0);
         emit_circle_glyph(sg, tracker, &entity.kind, ecx, ecy);
 
-        let header_top_offset = (header_height - stereo_height - HEADER_NAME_BLOCK_HEIGHT) / 2.0;
+        let header_top_offset = (header_height - stereo_height - name_block_height) / 2.0;
         let name_x = x + HEADER_CIRCLE_BLOCK_WIDTH + vis_icon_w + (width_stereo_and_name - name_block_width) / 2.0 + h1 + h2 + 3.0;
 
         if let Some(ref vis) = entity.visibility {
@@ -1325,7 +1335,7 @@ fn draw_entity_box(
             // merged in header: (header_h - merged_h) / 2.
             let icon_margin_top = 4.0;
             let icon_block_h = ENTITY_VIS_ICON_BLOCK_SIZE + icon_margin_top;
-            let merged_h = HEADER_NAME_BLOCK_HEIGHT.max(icon_block_h);
+            let merged_h = name_block_height.max(icon_block_h);
             let merged_y = (header_height - stereo_height - merged_h) / 2.0;
             let icon_in_merged = (merged_h - icon_block_h) / 2.0 + icon_margin_top;
             let icon_y = y + merged_y + icon_in_merged;
@@ -1346,7 +1356,7 @@ fn draw_entity_box(
             tracker.track_rect(stereo_x, stereo_y - HEADER_STEREO_BASELINE, stereo_widths[idx], HEADER_STEREO_LINE_HEIGHT);
         }
 
-        let name_y = y + header_top_offset + stereo_height + HEADER_NAME_BASELINE;
+        let name_y = y + header_top_offset + stereo_height + name_baseline;
         let font_style = if entity.kind == EntityKind::Abstract {
             Some("italic")
         } else {
@@ -1360,7 +1370,7 @@ fn draw_entity_box(
             name_width, LengthAdjust::Spacing,
             None, 0, None,
         );
-        tracker.track_rect(name_x, name_y - HEADER_NAME_BASELINE, name_width, HEADER_NAME_BLOCK_HEIGHT);
+        tracker.track_rect(name_x, name_y - name_baseline, name_width, name_block_height);
     }
 
     // Draw generic type box at top-right corner of entity rect
@@ -1373,13 +1383,17 @@ fn draw_entity_box(
     let header_height = if has_kind_label {
         HEADER_HEIGHT
     } else {
+        let dynamic_name_h = font_metrics::ascent("SansSerif", class_font_size, false, false)
+            + font_metrics::descent("SansSerif", class_font_size, false, false);
         HEADER_CIRCLE_BLOCK_HEIGHT.max(
             visible_stereotypes.len() as f64 * HEADER_STEREO_LINE_HEIGHT
-                + HEADER_NAME_BLOCK_HEIGHT
+                + dynamic_name_h
                 + HEADER_STEREO_NAME_GAP,
         )
     };
     let mut section_y = y + header_height;
+    // Java: member text uses classAttributeFontColor (defaults to TEXT_COLOR, not classFontColor)
+    let attr_font_color = skin.font_color("classattribute", TEXT_COLOR);
     if show_fields {
         draw_member_section(
             sg,
@@ -1389,11 +1403,11 @@ fn draw_entity_box(
             x,
             &x1_val,
             &x2_val,
-            font_color,
+            attr_font_color,
             attr_font_size,
             stroke,
         );
-        section_y += section_height(&visible_fields);
+        section_y += section_height_with_fs(&visible_fields, attr_font_size);
     }
     if show_methods {
         draw_member_section(
@@ -1404,7 +1418,7 @@ fn draw_entity_box(
             x,
             &x1_val,
             &x2_val,
-            font_color,
+            attr_font_color,
             attr_font_size,
             stroke,
         );
@@ -1627,7 +1641,14 @@ fn draw_member_section(
     attr_font_size: f64,
     sep_color: &str,
 ) {
-    let sep_y_str = fmt_coord(section_y);
+    // Compute dynamic row metrics from attr_font_size (matches Java FontParam.CLASS_ATTRIBUTE)
+    let row_h = font_metrics::line_height("SansSerif", attr_font_size, false, false);
+    let attr_ascent = font_metrics::ascent("SansSerif", attr_font_size, false, false);
+    let margin_top = 4.0;
+    let text_y_offset = margin_top + attr_ascent;
+    let icon_y_from_sep = margin_top + 2.0 + (row_h - 11.0) / 2.0;
+
+    let _sep_y_str = fmt_coord(section_y);
     // Parse x1/x2 for line tracking
     let x1_f: f64 = x1_val.parse().unwrap_or(x + 1.0);
     let x2_f: f64 = x2_val.parse().unwrap_or(x);
@@ -1647,9 +1668,9 @@ fn draw_member_section(
         // Visibility icon: centered vertically across all visual lines of this member
         if let Some(visibility) = &member.visibility {
             let icon_y = section_y
-                + MEMBER_ICON_Y_FROM_SEP
-                + visual_row as f64 * MEMBER_ROW_HEIGHT
-                + (num_lines.saturating_sub(1)) as f64 * MEMBER_ROW_HEIGHT / 2.0;
+                + icon_y_from_sep
+                + visual_row as f64 * row_h
+                + (num_lines.saturating_sub(1)) as f64 * row_h / 2.0;
             draw_visibility_icon(
                 sg,
                 tracker,
@@ -1680,8 +1701,8 @@ fn draw_member_section(
 
         for (line_idx, (line_text, indent)) in lines.iter().enumerate() {
             let text_y = section_y
-                + MEMBER_TEXT_Y_OFFSET
-                + (visual_row + line_idx) as f64 * MEMBER_ROW_HEIGHT;
+                + text_y_offset
+                + (visual_row + line_idx) as f64 * row_h;
             let text_x = if line_idx == 0 {
                 base_text_x
             } else {
@@ -1728,10 +1749,12 @@ fn draw_member_section(
     }
 }
 
-fn section_height(members: &[&Member]) -> f64 {
+fn section_height_with_fs(members: &[&Member], attr_font_size: f64) -> f64 {
     if members.is_empty() {
         EMPTY_COMPARTMENT
     } else {
+        let row_h = font_metrics::line_height("SansSerif", attr_font_size, false, false);
+        let one_row_h = row_h + 8.0; // margin_top(4) + row_h + margin_bottom(4)
         let total_visual_lines: usize = members
             .iter()
             .map(|m| {
@@ -1739,17 +1762,18 @@ fn section_height(members: &[&Member]) -> f64 {
                 split_member_lines(&text).len()
             })
             .sum();
-        MEMBER_BLOCK_HEIGHT_ONE_ROW
-            + (total_visual_lines.saturating_sub(1)) as f64 * MEMBER_ROW_HEIGHT
+        one_row_h
+            + (total_visual_lines.saturating_sub(1)) as f64 * row_h
     }
 }
 
-/// Java PlantUML formats member text as "name : type" (space-colon-space).
-/// Visibility prefix (like +/-/#/~) is NOT included here — it's rendered as an icon.
 /// Java MemberImpl.getDisplay() format:
-/// - Methods: "name(): type" (colon directly after parenthesis)
-/// - Fields:  "name : type" (space-colon-space)
+/// Uses raw display text when available (preserves original formatting).
+/// Fallback: methods "name(): type", fields "name : type".
 fn member_text(m: &Member) -> String {
+    if let Some(ref display) = m.display {
+        return display.clone();
+    }
     match &m.return_type {
         Some(rt) if m.name.ends_with(')') => format!("{}: {rt}", m.name),
         Some(rt) => format!("{} : {rt}", m.name),
@@ -2586,6 +2610,7 @@ mod tests {
                     return_type: Some("String".into()),
                     is_method: false,
                     modifiers: MemberModifiers::default(),
+                    display: None,
                 },
                 Member {
                     visibility: Some(Visibility::Private),
@@ -2596,6 +2621,7 @@ mod tests {
                         is_static: true,
                         is_abstract: false,
                     },
+                    display: None,
                 },
             ],
             description: vec![],
@@ -2718,6 +2744,7 @@ mod tests {
             return_type: Some("int".into()),
             is_method: true,
             modifiers: MemberModifiers::default(),
+            display: None,
         };
         assert_eq!(format_member(&m), "# calc(): int");
     }

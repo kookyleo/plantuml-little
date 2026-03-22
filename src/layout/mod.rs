@@ -241,7 +241,13 @@ fn generic_dim_width(entity: &Entity) -> f64 {
 }
 
 /// Estimate entity rendering size (width_pt, height_pt)
-fn estimate_entity_size(cd: &ClassDiagram, entity: &Entity, member_row_h: f64) -> (f64, f64) {
+fn estimate_entity_size(
+    cd: &ClassDiagram,
+    entity: &Entity,
+    member_row_h: f64,
+    name_font_size: f64,
+    attr_font_size: f64,
+) -> (f64, f64) {
     if matches!(
         entity.kind,
         EntityKind::Interface | EntityKind::Enum | EntityKind::Annotation
@@ -265,7 +271,7 @@ fn estimate_entity_size(cd: &ClassDiagram, entity: &Entity, member_row_h: f64) -
     let name_width = font_metrics::text_width(
         &name_display,
         "SansSerif",
-        CLASS_FONT_SIZE,
+        name_font_size,
         false,
         italic_name,
     );
@@ -308,7 +314,7 @@ fn estimate_entity_size(cd: &ClassDiagram, entity: &Entity, member_row_h: f64) -
     let show_methods = show_portion(&cd.hide_show_rules, ClassPortion::Method, &entity.name);
 
     let body_width =
-        estimate_members_width(&visible_fields).max(estimate_members_width(&visible_methods));
+        estimate_members_width(&visible_fields, attr_font_size).max(estimate_members_width(&visible_methods, attr_font_size));
     let body_height = section_height(show_fields, &visible_fields, member_row_h)
         + section_height(show_methods, &visible_methods, member_row_h);
 
@@ -490,7 +496,7 @@ fn estimate_entity_size_legacy(entity: &Entity) -> (f64, f64) {
     (width, height)
 }
 
-fn estimate_members_width(members: &[&Member]) -> f64 {
+fn estimate_members_width(members: &[&Member], font_size: f64) -> f64 {
     members
         .iter()
         .map(|m| {
@@ -508,7 +514,7 @@ fn estimate_members_width(members: &[&Member]) -> f64 {
                     let w = font_metrics::text_width(
                         line_text,
                         "SansSerif",
-                        CLASS_FONT_SIZE,
+                        font_size,
                         false,
                         m.modifiers.is_abstract,
                     );
@@ -537,9 +543,12 @@ fn section_height(show: bool, members: &[&Member], member_row_h: f64) -> f64 {
 }
 
 /// Java MemberImpl.getDisplay() format:
-/// - Methods: "name(): type" (colon directly after parenthesis)
-/// - Fields:  "name : type" (space-colon-space)
+/// Uses raw display text when available (preserves original formatting).
+/// Fallback: methods "name(): type", fields "name : type".
 fn member_text(m: &Member) -> String {
+    if let Some(ref display) = m.display {
+        return display.clone();
+    }
     match &m.return_type {
         Some(t) if m.name.ends_with(')') => format!("{}: {t}", m.name),
         Some(t) => format!("{} : {t}", m.name),
@@ -650,12 +659,22 @@ fn layout_class_diagram(cd: &ClassDiagram, skin: &crate::style::SkinParams) -> R
         cd.notes.len()
     );
 
+    // Resolve font sizes from skinparams following Java's resolution order:
+    // - classAttributeFontSize overrides both name and member font sizes
+    // - classFontSize only controls name when classAttributeFontSize is absent
+    let explicit_attr_fs = skin
+        .get("classattributefontsize")
+        .and_then(|s| s.parse::<f64>().ok());
+    let explicit_class_fs = skin
+        .get("classfontsize")
+        .and_then(|s| s.parse::<f64>().ok());
+    let attr_font_size = explicit_attr_fs.unwrap_or(CLASS_FONT_SIZE);
+    let name_font_size = explicit_attr_fs.unwrap_or_else(|| explicit_class_fs.unwrap_or(CLASS_FONT_SIZE));
+
     // Resolve member row height from skinparams.
     // Java default: FontParam.CLASS_ATTRIBUTE renders at 14pt (same as CLASS).
     // When classAttributeFontSize is explicitly set, use its line_height.
-    let member_row_h: f64 = skin
-        .get("classattributefontsize")
-        .and_then(|s| s.parse::<f64>().ok())
+    let member_row_h: f64 = explicit_attr_fs
         .map(|sz| font_metrics::line_height("SansSerif", sz, false, false))
         .unwrap_or(MEMBER_ROW_HEIGHT);
 
@@ -671,7 +690,7 @@ fn layout_class_diagram(cd: &ClassDiagram, skin: &crate::style::SkinParams) -> R
         .entities
         .iter()
         .map(|e| {
-            let (w, h) = estimate_entity_size(cd, e, member_row_h);
+            let (w, h) = estimate_entity_size(cd, e, member_row_h, name_font_size, attr_font_size);
             LayoutNode {
                 id: name_to_id
                     .get(&e.name)
@@ -1041,6 +1060,7 @@ mod tests {
             return_type: ret.map(|s| s.to_string()),
             is_method: false,
             modifiers: MemberModifiers::default(),
+            display: None,
         }
     }
 
@@ -1060,7 +1080,7 @@ mod tests {
     #[test]
     fn estimate_size_empty_class_returns_minimum() {
         let e = empty_entity("Foo");
-        let (w, h) = estimate_entity_size(&empty_diagram(), &e, MEMBER_ROW_HEIGHT);
+        let (w, h) = estimate_entity_size(&empty_diagram(), &e, MEMBER_ROW_HEIGHT, CLASS_FONT_SIZE, CLASS_FONT_SIZE);
         // Width = circle(4+22) + gap(3) + text_width("Foo",14) + pad(3) ≈ 57
         assert!(w >= 40.0, "width should be >= 40, got {w}");
         // Height = header(32) + fields(8) + methods(8) = 48
@@ -1087,7 +1107,7 @@ mod tests {
             source_line: None,
             visibility: None,
         };
-        let (w, h) = estimate_entity_size(&empty_diagram(), &e, MEMBER_ROW_HEIGHT);
+        let (w, h) = estimate_entity_size(&empty_diagram(), &e, MEMBER_ROW_HEIGHT, CLASS_FONT_SIZE, CLASS_FONT_SIZE);
 
         // height = header(32) + fields(8) + members(2*8+8) = 64
         let expected_min_height =
@@ -1124,7 +1144,7 @@ mod tests {
             source_line: None,
             visibility: None,
         };
-        let (_, h) = estimate_entity_size(&empty_diagram(), &e, MEMBER_ROW_HEIGHT);
+        let (_, h) = estimate_entity_size(&empty_diagram(), &e, MEMBER_ROW_HEIGHT, CLASS_FONT_SIZE, CLASS_FONT_SIZE);
 
         let expected_min = HEADER_HEIGHT_PT + 2.0 * EMPTY_COMPARTMENT;
         assert!(
@@ -1141,8 +1161,8 @@ mod tests {
             ..plain.clone()
         };
         let diagram = empty_diagram();
-        let (w_plain, _) = estimate_entity_size(&diagram, &plain, MEMBER_ROW_HEIGHT);
-        let (w_generic, _) = estimate_entity_size(&diagram, &generic, MEMBER_ROW_HEIGHT);
+        let (w_plain, _) = estimate_entity_size(&diagram, &plain, MEMBER_ROW_HEIGHT, CLASS_FONT_SIZE, CLASS_FONT_SIZE);
+        let (w_generic, _) = estimate_entity_size(&diagram, &generic, MEMBER_ROW_HEIGHT, CLASS_FONT_SIZE, CLASS_FONT_SIZE);
         assert!(
             w_generic > w_plain,
             "generic entity should be wider: {w_generic} > {w_plain}"
