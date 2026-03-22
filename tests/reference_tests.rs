@@ -76,28 +76,30 @@ fn normalize_filter_ids(s: &str) -> String {
     let mut id_map: HashMap<String, String> = HashMap::new();
     let mut counter = 0usize;
 
-    // Find all filter id="..." in <filter> elements
-    let mut search_from = 0;
-    loop {
-        let filter_pos = match result[search_from..].find("<filter ") {
-            Some(p) => search_from + p,
-            None => break,
-        };
-        let id_pos = match result[filter_pos..].find("id=\"") {
-            Some(p) => filter_pos + p + 4,
-            None => { search_from = filter_pos + 8; continue; }
-        };
-        let id_end = match result[id_pos..].find('"') {
-            Some(p) => id_pos + p,
-            None => { search_from = id_pos; continue; }
-        };
-        let old_id = result[id_pos..id_end].to_string();
-        if !id_map.contains_key(&old_id) {
-            let new_id = format!("__f{}__", counter);
-            id_map.insert(old_id.clone(), new_id);
-            counter += 1;
+    // Find all id="..." in <filter> and gradient elements
+    for tag_prefix in &["<filter ", "<linearGradient ", "<radialGradient "] {
+        let mut search_from = 0;
+        loop {
+            let tag_pos = match result[search_from..].find(tag_prefix) {
+                Some(p) => search_from + p,
+                None => break,
+            };
+            let id_pos = match result[tag_pos..].find("id=\"") {
+                Some(p) => tag_pos + p + 4,
+                None => { search_from = tag_pos + tag_prefix.len(); continue; }
+            };
+            let id_end = match result[id_pos..].find('"') {
+                Some(p) => id_pos + p,
+                None => { search_from = id_pos; continue; }
+            };
+            let old_id = result[id_pos..id_end].to_string();
+            if !id_map.contains_key(&old_id) {
+                let new_id = format!("__f{}__", counter);
+                id_map.insert(old_id.clone(), new_id);
+                counter += 1;
+            }
+            search_from = id_end + 1;
         }
-        search_from = id_end + 1;
     }
 
     // Replace all occurrences of each old ID with its canonical form

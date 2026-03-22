@@ -170,7 +170,6 @@ fn collect_gradient_defs(content: &str, defs: &mut Vec<(String, String)>) {
 
 /// Extract gradient elements from a <defs> block.
 fn extract_gradients_from_defs(defs_block: &str, out: &mut Vec<(String, String)>) {
-    // Match linearGradient and radialGradient
     for tag in &["linearGradient", "radialGradient"] {
         let open = format!("<{tag}");
         let close = format!("</{tag}>");
@@ -180,7 +179,7 @@ fn extract_gradients_from_defs(defs_block: &str, out: &mut Vec<(String, String)>
             if let Some(end) = defs_block[abs_start..].find(close.as_str()) {
                 let grad = &defs_block[abs_start..abs_start + end + close.len()];
                 if let Some(id) = get_attr(grad, "id") {
-                    out.push((id.to_string(), grad.to_string()));
+                    out.push((id.to_string(), normalize_gradient(grad, tag)));
                 }
                 pos = abs_start + end + close.len();
             } else {
@@ -188,6 +187,44 @@ fn extract_gradients_from_defs(defs_block: &str, out: &mut Vec<(String, String)>
             }
         }
     }
+}
+
+/// Normalize gradient XML to match Java's DOM serializer output:
+/// - Attribute order: id, x1, x2, y1, y2 (for linear) or id, cx, cy, r, fx, fy (for radial)
+/// - Child elements on same line, no extra whitespace
+fn normalize_gradient(raw: &str, tag: &str) -> String {
+    use std::fmt::Write;
+    let mut result = String::new();
+
+    // Build the opening tag with canonical attribute order
+    let id = get_attr(raw, "id").unwrap_or("");
+    write!(result, "<{tag} id=\"{id}\"").unwrap();
+    if tag == "linearGradient" {
+        for attr in &["x1", "x2", "y1", "y2", "gradientUnits", "gradientTransform", "spreadMethod"] {
+            if let Some(v) = get_attr(raw, attr) { write!(result, " {attr}=\"{v}\"").unwrap(); }
+        }
+    } else {
+        for attr in &["cx", "cy", "r", "fx", "fy", "gradientUnits", "gradientTransform", "spreadMethod"] {
+            if let Some(v) = get_attr(raw, attr) { write!(result, " {attr}=\"{v}\"").unwrap(); }
+        }
+    }
+    result.push('>');
+
+    // Extract and append child <stop> elements without extra whitespace
+    let close_tag = format!("</{tag}>");
+    if let Some(inner_start) = raw.find('>') {
+        let inner = &raw[inner_start + 1..raw.len() - close_tag.len()];
+        for stop in inner.split("<stop") {
+            let s = stop.trim();
+            if s.is_empty() || !s.contains("offset") { continue; }
+            result.push_str("<stop ");
+            result.push_str(s.trim_end_matches('>').trim_end_matches('/').trim());
+            result.push_str("/>");
+        }
+    }
+
+    result.push_str(&close_tag);
+    result
 }
 
 /// Recursively convert SVG elements to path-based output.
