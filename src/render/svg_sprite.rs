@@ -199,12 +199,18 @@ fn normalize_gradient(raw: &str, tag: &str) -> String {
     // Build the opening tag with canonical attribute order
     let id = get_attr(raw, "id").unwrap_or("");
     write!(result, "<{tag} id=\"{id}\"").unwrap();
+    // Java: spreadMethod (if not "pad") comes before coordinates
+    if let Some(sm) = get_attr(raw, "spreadMethod") {
+        if sm != "pad" {
+            write!(result, " spreadMethod=\"{sm}\"").unwrap();
+        }
+    }
     if tag == "linearGradient" {
-        for attr in &["x1", "x2", "y1", "y2", "gradientUnits", "gradientTransform", "spreadMethod"] {
+        for attr in &["x1", "x2", "y1", "y2", "gradientUnits", "gradientTransform"] {
             if let Some(v) = get_attr(raw, attr) { write!(result, " {attr}=\"{v}\"").unwrap(); }
         }
     } else {
-        for attr in &["cx", "cy", "r", "fx", "fy", "gradientUnits", "gradientTransform", "spreadMethod"] {
+        for attr in &["cx", "cy", "r", "fx", "fy", "gradientUnits", "gradientTransform"] {
             if let Some(v) = get_attr(raw, attr) { write!(result, " {attr}=\"{v}\"").unwrap(); }
         }
     }
@@ -476,6 +482,13 @@ fn convert_rect(buf: &mut String, element: &str, ox: f64, oy: f64) {
 
     let fill = get_fill(element);
     let style = get_stroke_style(element);
+    // Java: shapes with gradient fill and no explicit stroke get a default
+    // stroke matching the fill gradient (stroke-width:1)
+    let style = if style.is_empty() && fill.starts_with("url(") {
+        format!("stroke:{fill};stroke-width:1;")
+    } else {
+        style
+    };
 
     write!(buf, r#"<path d="{d}" fill="{fill}""#).unwrap();
     if !style.is_empty() {
