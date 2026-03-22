@@ -833,7 +833,9 @@ fn render_class(
                 ));
             } else {
                 sg.push_raw(&format!(
-                    "<!--class {}--><g class=\"entity\" data-qualified-name=\"{}\"",
+                    "<!--{} {}--><g class=\"entity\" data-qualified-name=\"{}\"",
+                    // Java uses "class" for class entities, "entity" for others (rectangle, etc.)
+                    if entity.kind == EntityKind::Rectangle { "entity" } else { "class" },
                     xml_escape(&entity.name),
                     xml_escape(&entity.name),
                 ));

@@ -158,7 +158,7 @@ pub fn parse_class_diagram(source: &str) -> Result<ClassDiagram> {
                             l.replace(crate::NEWLINE_CHAR, "\n")
                                 .replace("%chr(10)", "\n")
                                 .split('\n')
-                                .map(|s| s.to_string())
+                                .map(|s| s.trim_end().to_string())
                                 .collect::<Vec<_>>()
                         })
                         .collect();
