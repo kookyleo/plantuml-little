@@ -224,7 +224,10 @@ fn normalize_gradient(raw: &str, tag: &str) -> String {
             let s = stop.trim();
             if s.is_empty() || !s.contains("offset") { continue; }
             result.push_str("<stop ");
-            result.push_str(s.trim_end_matches('>').trim_end_matches('/').trim());
+            // Normalize whitespace: collapse multiple spaces to single space
+            let attrs = s.trim_end_matches('>').trim_end_matches('/').trim();
+            let normalized: String = attrs.split_whitespace().collect::<Vec<_>>().join(" ");
+            result.push_str(&normalized);
             result.push_str("/>");
         }
     }
