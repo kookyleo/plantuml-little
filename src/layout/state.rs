@@ -132,8 +132,10 @@ fn text_width(text: &str, font_size: f64) -> f64 {
 fn estimate_state_size(state: &State) -> (f64, f64) {
     let name_w = text_width(&state.name, STATE_NAME_FONT_SIZE) + 2.0 * PADDING;
 
-    let desc_w = state
-        .description
+    // Expand \n within descriptions to visual lines (matching render)
+    let visual_lines = expand_visual_lines(&state.description);
+
+    let desc_w = visual_lines
         .iter()
         .map(|line| text_width(line, STATE_DESC_FONT_SIZE) + 2.0 * PADDING)
         .fold(0.0_f64, f64::max);
@@ -150,10 +152,32 @@ fn estimate_state_size(state: &State) -> (f64, f64) {
     let name_h = crate::font_metrics::line_height("SansSerif", STATE_NAME_FONT_SIZE, false, false);
     let desc_h = crate::font_metrics::line_height("SansSerif", STATE_DESC_FONT_SIZE, false, false);
     let stereo_h = if state.stereotype.is_some() { desc_h } else { 0.0 };
-    let desc_total = state.description.len() as f64 * desc_h;
+    let desc_total = visual_lines.len() as f64 * desc_h;
     let height = (name_h + stereo_h + desc_total + 2.0 * PADDING).max(STATE_MIN_HEIGHT);
 
     (width, height)
+}
+
+/// Expand description lines by splitting on literal `\n` sequences.
+/// Each `\n` produces an additional visual line (empty string for spacing).
+fn expand_visual_lines(descriptions: &[String]) -> Vec<String> {
+    let mut lines = Vec::new();
+    for desc in descriptions {
+        let mut start = 0;
+        let b = desc.as_bytes();
+        let mut i = 0;
+        while i < b.len() {
+            if b[i] == b'\\' && i + 1 < b.len() && b[i + 1] == b'n' {
+                lines.push(desc[start..i].to_string());
+                start = i + 2;
+                i += 2;
+            } else {
+                i += 1;
+            }
+        }
+        lines.push(desc[start..].to_string());
+    }
+    lines
 }
 
 /// Estimate the size of a note, clamped to `NOTE_MAX_WIDTH`.

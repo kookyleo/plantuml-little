@@ -18,9 +18,11 @@ fn reset_ent_counter() { ENT_COUNTER.with(|c| c.set(2)); }
 
 const FONT_SIZE: f64 = 13.0;
 const DESC_FONT_SIZE: f64 = 12.0;
-const DESC_LINE_HEIGHT: f64 = 13.9688;
+/// Java SansSerif 12pt: ascent(11.138671875) + descent(2.830078125) = 13.96875
+const DESC_LINE_HEIGHT: f64 = 13.96875;
 const LINE_HEIGHT: f64 = 16.0;
-const TAB_WIDTH: f64 = 30.515624;
+/// 8 spaces at 12pt SansSerif: 8 × (651/2048 × 12) = 30.515625
+const TAB_WIDTH: f64 = 30.515625;
 use crate::skin::rose::{BORDER_COLOR, ENTITY_BG, INITIAL_FILL, NOTE_BG, NOTE_BORDER, TEXT_COLOR};
 const FINAL_OUTER: &str = "#000000";
 const FINAL_INNER: &str = "#000000";
@@ -36,10 +38,12 @@ pub fn render_state(
     let mut buf = String::with_capacity(4096);
     reset_ent_counter();
 
-    // SVG viewport: Java applies TextBlockExporter12026 doc margin (R=5, B=5)
-    // and SvgGraphics.ensureVisible (+1) on top of the layout dimensions.
-    let svg_w = (layout.width + DOC_MARGIN_RIGHT + 1.0) as i32 as f64;
-    let svg_h = (layout.height + DOC_MARGIN_BOTTOM + 1.0) as i32 as f64;
+    // Java svek viewport: (int)(LF_span + delta(15) + docMargin(5) + ensureVisible(1))
+    // Our layout.width = 2*MARGIN(14) + content, but Java's delta(15) + LF_span differs:
+    //   Width: LF_span = content + 1 (line tracking extends 1 past rect's -1) → +2 vs ours
+    //   Height: LF_span = content (no extra in Y) → +1 vs ours
+    let svg_w = (layout.width + DOC_MARGIN_RIGHT + 1.0 + 2.0) as i32 as f64;
+    let svg_h = (layout.height + DOC_MARGIN_BOTTOM + 1.0 + 1.0) as i32 as f64;
     let bg = skin.get_or("backgroundcolor", "#FFFFFF");
     write_svg_root_bg(&mut buf, svg_w, svg_h, "STATE", bg);
     buf.push_str("<defs/><g>");
@@ -753,10 +757,10 @@ mod tests {
         let svg = render_state(&diagram, &layout, &SkinParams::default()).expect("render failed");
         assert!(svg.starts_with("<svg"), "SVG must start with <svg");
         assert!(svg.contains("</svg>"), "SVG must end with </svg>");
-        // SVG viewport = layout dims + DOC_MARGIN(5) + ensureVisible(1)
-        assert!(svg.contains("viewBox=\"0 0 406 306\""), "viewBox must match layout + doc margin");
-        assert!(svg.contains("width=\"406px\""), "width must match layout + doc margin");
-        assert!(svg.contains("height=\"306px\""), "height must match layout + doc margin");
+        // SVG viewport = layout dims + DOC_MARGIN(5) + ensureVisible(1) + svek adjustment(+2w,+1h)
+        assert!(svg.contains("viewBox=\"0 0 408 307\""), "viewBox must match layout + doc margin");
+        assert!(svg.contains("width=\"408px\""), "width must match layout + doc margin");
+        assert!(svg.contains("height=\"307px\""), "height must match layout + doc margin");
         assert!(svg.contains("<defs/>"), "must have <defs/>");
         assert_eq!(svg.matches("<ellipse").count(), 1, "1 ellipse expected");
         assert_eq!(svg.matches("<circle").count(), 2, "2 circles expected");
