@@ -267,16 +267,24 @@ pub fn layout_with_svek(graph: &LayoutGraph) -> Result<GraphLayout, Error> {
             // Compute label dimensions from font metrics for DOT sizing.
             // Java: SvekLine.labelDimension = TextBlock.calculateDimension().
             // Edge labels use SansSerif 13pt (FontParam.CLASS = 13 for links).
-            // Java TextBlock adds margin_top(4) + margin_bottom(4) via
-            // TextBlockUtils.withMargin(textBlock, 0, 0, 4, 4).
-            let lines: Vec<&str> = label.split("\\n").flat_map(|s| s.split(crate::NEWLINE_CHAR)).collect();
+            // Split on all PlantUML line separators: \n (center), \l (left), \r (right).
+            let lines: Vec<&str> = label
+                .split("\\n")
+                .flat_map(|s| s.split("\\l"))
+                .flat_map(|s| s.split("\\r"))
+                .flat_map(|s| s.split(crate::NEWLINE_CHAR))
+                .collect();
             let max_line_w = lines
                 .iter()
                 .map(|l| crate::font_metrics::text_width(l, "SansSerif", 13.0, false, false))
                 .fold(0.0_f64, f64::max);
             let line_h = crate::font_metrics::line_height("SansSerif", 13.0, false, false);
-            let label_h = lines.len() as f64 * line_h + 8.0; // +4 top +4 bottom margin
-            ld.label_dimension = Some((max_line_w, label_h));
+            // Java: Display.create0 → SheetBlock2. Height = lines × line_h (no extra margin).
+            // Java: addVisibilityModifier wraps with TextBlockMarged(marginLabel=1),
+            // adding 1px on all sides. labelText.calculateDimension() = inner + 2*margin.
+            let margin_label = 1.0;
+            let label_h = lines.len() as f64 * line_h + 2.0 * margin_label;
+            ld.label_dimension = Some((max_line_w + 2.0 * margin_label, label_h));
         }
         if edge.invisible {
             ld.invisible = true;

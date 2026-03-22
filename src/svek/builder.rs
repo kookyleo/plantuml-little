@@ -75,6 +75,9 @@ pub struct LinkDescriptor {
     pub invisible: bool,
     /// Minimum edge length in DOT (minlen attribute). Default: use SvekEdge default.
     pub minlen: Option<u32>,
+    /// Whether the link has a middle decoration (circle, diamond, etc.).
+    /// Java: labelShield = 7 when middleDecor != NONE.
+    pub has_middle_decor: bool,
 }
 
 impl LinkDescriptor {
@@ -87,6 +90,7 @@ impl LinkDescriptor {
             removed: false,
             invisible: false,
             minlen: None,
+            has_middle_decor: false,
         }
     }
 
@@ -269,11 +273,16 @@ impl GraphvizImageBuilder {
             }
             let mut edge = SvekEdge::new(&link.from, &link.to);
             edge.color = self.color_seq.next_color();
+            edge.note_label_color = self.color_seq.next_color();
+            edge.start_tail_color = self.color_seq.next_color();
+            edge.end_head_color = self.color_seq.next_color();
             edge.label = link.label.clone();
             if let Some((w, h)) = link.label_dimension {
                 edge.label_dimension = Some(LabelDimension::new(w, h));
-                // Java: SvekLine.labelShield = 7 (default for class/component diagrams)
-                edge.label_shield = 7.0;
+                // Java: SvekLine.labelShield = 7 only when middle decoration is present
+                // (e.g., circle/diamond on link). For plain association links, shield = 0.
+                // middle_decor support: edge.label_shield = 7.0 when link has circle/diamond.
+                edge.label_shield = if link.has_middle_decor { 7.0 } else { 0.0 };
             }
             edge.is_invis = link.invisible;
             if let Some(minlen) = link.minlen {

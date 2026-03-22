@@ -2021,9 +2021,16 @@ fn draw_edge(sg: &mut SvgGraphic, tracker: &mut BoundsTracker, link: &Link, el: 
 
     if let Some(label) = &link.label {
         let mid_idx = path_points.len() / 2;
-        let (mx, my) = path_points[mid_idx];
+        let (mx, _my) = path_points[mid_idx];
         let label_x = mx + edge_offset_x;
-        let label_y = my + edge_offset_y - 6.0;
+        // Java: label positioned at labelXY from Graphviz, not edge midpoint.
+        // labelXY is top-left of the label area. Text center is offset by
+        // wh.h/2 - 4 (SheetBlock internal top margin of 4px).
+        let label_y = if let (Some((_, ly)), Some((_, wh))) = (el.label_xy, el.label_wh) {
+            ly + edge_offset_y + wh / 2.0 - 4.0
+        } else {
+            _my + edge_offset_y - 6.0
+        };
         draw_label(sg, label, label_x, label_y);
         // Track label text extent for bounding box (Java LimitFinder.drawText).
         let font_size = LINK_LABEL_FONT_SIZE;
@@ -2042,6 +2049,11 @@ fn draw_edge(sg: &mut SvgGraphic, tracker: &mut BoundsTracker, link: &Link, el: 
             let ly = base_y + idx as f64 * line_h;
             tracker.track_text(block_x, ly, text_w, line_h);
         }
+        // Java: SvekEdge.addVisibilityModifier wraps the label TextBlock with
+        // TextBlockMarged(marginLabel=1). TextBlockMarged.drawU emits UEmpty with
+        // the full marged dimension (inner_w + 2, inner_h + 2). This extends the
+        // bounding box 1px beyond the widest text line on the right.
+        tracker.track_empty(label_x, base_y, max_w + 2.0, 0.0);
     }
 }
 
