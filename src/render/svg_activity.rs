@@ -218,31 +218,38 @@ fn render_action(
     // Java: each line is a separate <text> element (not one <text> with <tspan>).
     // This matches Java's FtileBox rendering where SheetBlock1 draws each
     // Stripe/Atom as a separate UText draw call.
-    let cx = node.x + node.width / 2.0;
-    // Java: Display.create() trims each line
-    let lines: Vec<String> = node.text.split('\n').map(|l| l.trim().to_string()).collect();
-    // Java FtileBox: first text baseline y = rect_y + padding_top + AWT ascent.
-    // AWT ascent = font.getStringBounds().getY() negated = hhea.ascender / upem * size.
-    // For SansSerif 12: 1901/2048*12 = 11.138671875.
-    let padding_top = 10.0; // Java: activityDiagram.activity.Padding = 10
+    let lines: Vec<&str> = node.text.split('\n').collect();
+    // Java FtileBox: horizontalAlignment = LEFT, translate by (padding, padding).
+    // base_x = rect_x + padding_left.
+    let padding = 10.0; // Java: activityDiagram.activity.Padding = 10
+    let base_x = node.x + padding;
     let baseline_offset = font_metrics::ascent("SansSerif", ACTION_FONT_SIZE, false, false);
-    let first_baseline = node.y + padding_top + baseline_offset;
+    let first_baseline = node.y + padding + baseline_offset;
+    // Java DriverTextSvg: space width for leading-space offset
+    let space_width =
+        font_metrics::text_width(" ", "SansSerif", ACTION_FONT_SIZE, false, false);
 
     for (i, line) in lines.iter().enumerate() {
         let y = first_baseline + i as f64 * action_line_height();
-        // Java: left-aligned text with manually computed centered x.
-        // x = action_x + (action_width - text_width) / 2
-        let text_w = font_metrics::text_width(line, "SansSerif", ACTION_FONT_SIZE, false, false);
-        let text_x = node.x + (node.width - text_w) / 2.0;
+        // Java DriverTextSvg algorithm:
+        // 1. Count leading spaces → add space_width per space to x
+        // 2. StringUtils.trin() the remaining text (strips trailing whitespace)
+        // 3. Render trimmed text at adjusted x
+        let leading_spaces = line.len() - line.trim_start_matches(' ').len();
+        let text_x = base_x + leading_spaces as f64 * space_width;
+        let display_text = line.trim();
+        if display_text.is_empty() {
+            continue;
+        }
         let mut tmp = String::new();
         render_creole_text(
             &mut tmp,
-            line,
+            display_text,
             text_x,
             y,
             action_line_height(),
             font_color,
-            None, // no text-anchor — Java uses manual centering
+            None,
             r#"font-size="12""#,
         );
         sg.push_raw(&tmp);
