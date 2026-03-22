@@ -87,7 +87,8 @@ const PADDING: f64 = 15.0;
 // Java: no explicit minimum width for components; the name + icon determines width
 const NODE_MIN_WIDTH: f64 = 0.0;
 const NODE_MIN_HEIGHT: f64 = 40.0;
-const NODE_SPACING_X: f64 = 50.0;
+// Java Smetana: nodesep ≈ 35px (0.486111 inches * 72)
+const NODE_SPACING_X: f64 = 35.0;
 const NODE_SPACING_Y: f64 = 50.0;
 const GROUP_PADDING: f64 = 20.0;
 const GROUP_HEADER: f64 = 30.0;
@@ -371,9 +372,12 @@ pub fn layout_component(cd: &ComponentDiagram) -> Result<ComponentLayout> {
 
     // Java: TextBlockExporter adds document margins (R=5, B=5) on top of the
     // diagram content area. The content starts at MARGIN from the top-left.
+    // SvgGraphics.ensureVisible uses (int)(x + 1) for the final viewport size.
     const DOC_MARGIN: f64 = 5.0;
-    let total_width = (all_right + MARGIN + DOC_MARGIN).max(2.0 * MARGIN);
-    let total_height = (all_bottom + MARGIN + DOC_MARGIN).max(2.0 * MARGIN);
+    let raw_w = (all_right + MARGIN + DOC_MARGIN).max(2.0 * MARGIN);
+    let raw_h = (all_bottom + MARGIN + DOC_MARGIN).max(2.0 * MARGIN);
+    let total_width = (raw_w + 1.0) as i32 as f64;
+    let total_height = (raw_h + 1.0) as i32 as f64;
 
     log::debug!(
         "layout_component done: {:.0}x{:.0}, {} nodes, {} edges, {} groups, {} notes",
