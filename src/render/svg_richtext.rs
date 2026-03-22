@@ -251,8 +251,9 @@ pub fn render_creole_text(
 
 
 fn render_line_with_sprites(buf: &mut String, spans: &[TextSpan], x: f64, y: f64, fill: &str, outer_attrs: &str) -> usize {
-    use crate::render::svg_sprite::{self, SPRITE_TEXT_GAP};
+    use crate::render::svg_sprite;
     let (font_family, font_size, bold, italic) = parse_font_props(outer_attrs);
+    let gap = svg_sprite::sprite_text_gap(&font_family, font_size, bold, italic);
     let arrow_y = y + 5.0659;
     let mut cursor_x = x;
     let mut in_sprite = false;
@@ -271,7 +272,7 @@ fn render_line_with_sprites(buf: &mut String, spans: &[TextSpan], x: f64, y: f64
                             else { render_spans(buf, &text_buf, &SpanStyle::default(), fill); }
                         } else { render_spans(buf, &text_buf, &SpanStyle::default(), fill); }
                         buf.push_str("</text>");
-                        cursor_x += text_w + SPRITE_TEXT_GAP;
+                        cursor_x += text_w + gap;
                     }
                     text_buf.clear();
                 }
@@ -280,7 +281,7 @@ fn render_line_with_sprites(buf: &mut String, spans: &[TextSpan], x: f64, y: f64
                     let sprite_y_offset = arrow_y - 2.0 - info.vb_height;
                     let converted = svg_sprite::convert_svg_elements(&svg_content, cursor_x, sprite_y_offset);
                     buf.push_str(&converted);
-                    cursor_x += info.vb_width + SPRITE_TEXT_GAP;
+                    cursor_x += info.vb_width + gap;
                 }
                 in_sprite = true;
             }

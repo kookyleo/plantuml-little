@@ -39,8 +39,11 @@ pub fn sprite_info(svg: &str) -> SpriteInfo {
     }
 }
 
-/// The gap between text and sprite in Java PlantUML output (empirically 4.1323).
-pub const SPRITE_TEXT_GAP: f64 = 4.1323;
+/// Compute the gap between text and sprite: the space character width at the given font.
+/// Java: the gap equals the space advance from getStringBounds.
+pub fn sprite_text_gap(font_family: &str, font_size: f64, bold: bool, italic: bool) -> f64 {
+    crate::font_metrics::char_width(' ', font_family, font_size, bold, italic)
+}
 
 /// Convert SVG sprite elements to path-based elements with absolute positioning.
 ///

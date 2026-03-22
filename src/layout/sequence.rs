@@ -359,7 +359,9 @@ fn wrap_text_to_width(
 
 // -- Sprite width/height helpers --
 
-const SPRITE_TEXT_GAP: f64 = 4.1323;
+fn sprite_text_gap() -> f64 {
+    crate::font_metrics::char_width(' ', "SansSerif", 13.0, false, false)
+}
 const SPRITE_HEIGHT_THRESHOLD: f64 = 15.1328;
 
 fn message_line_width(line: &str, font_family: &str, font_size: f64) -> f64 {
@@ -373,7 +375,7 @@ fn message_line_width(line: &str, font_family: &str, font_size: f64) -> f64 {
             false,
         );
     }
-    let gap = SPRITE_TEXT_GAP;
+    let gap = sprite_text_gap();
     let mut total = 0.0_f64;
     let mut first = true;
     let mut pos = 0;
