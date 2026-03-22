@@ -620,6 +620,15 @@ fn convert_text(buf: &mut String, element: &str, ox: f64, oy: f64) {
     let text_length =
         crate::font_metrics::text_width(text_content, font_family, size, bold, italic);
 
+    // SVG text-anchor: adjust x position.
+    // Java converts "middle" → x - textLength/2, "end" → x - textLength.
+    let text_anchor = get_attr(element, "text-anchor").unwrap_or("start");
+    let x = match text_anchor {
+        "middle" => x - text_length / 2.0,
+        "end" => x - text_length,
+        _ => x,
+    };
+
     // Java: "monospaced" → "monospace"
     let font_family = if font_family.eq_ignore_ascii_case("monospaced") { "monospace" } else { font_family };
     // Java: replace spaces with non-breaking space (&#160;) for monospace/courier fonts
