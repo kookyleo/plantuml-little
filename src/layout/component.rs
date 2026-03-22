@@ -307,7 +307,8 @@ pub fn layout_component(cd: &ComponentDiagram) -> Result<ComponentLayout> {
             y_cursor += row_height + NODE_SPACING_Y;
             row_height = 0.0;
         } else {
-            x_cursor += w + NODE_SPACING_X;
+            // Java Smetana rounds node positions to integers
+            x_cursor = (x_cursor + w + NODE_SPACING_X).round();
         }
     }
 
@@ -376,8 +377,11 @@ pub fn layout_component(cd: &ComponentDiagram) -> Result<ComponentLayout> {
     const DOC_MARGIN: f64 = 5.0;
     let raw_w = (all_right + MARGIN + DOC_MARGIN).max(2.0 * MARGIN);
     let raw_h = (all_bottom + MARGIN + DOC_MARGIN).max(2.0 * MARGIN);
-    let total_width = (raw_w + 1.0) as i32 as f64;
-    let total_height = (raw_h + 1.0) as i32 as f64;
+    // Java: single entity uses simple ensureVisible((int)(dim+1)).
+    // Multiple entities use Smetana layout with ceil'd dimensions.
+    let has_layout = nodes.len() > 1 || !group_layouts.is_empty();
+    let total_width = if has_layout { (raw_w.ceil() + 1.0) as i32 as f64 } else { (raw_w + 1.0) as i32 as f64 };
+    let total_height = if has_layout { (raw_h.ceil() + 1.0) as i32 as f64 } else { (raw_h + 1.0) as i32 as f64 };
 
     log::debug!(
         "layout_component done: {:.0}x{:.0}, {} nodes, {} edges, {} groups, {} notes",
