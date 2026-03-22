@@ -808,7 +808,15 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
                             .iter()
                             .take_while(|e| !matches!(e, SeqEvent::Message(_)))
                             .any(|e| matches!(e, SeqEvent::Activate(n) if n == &msg.to));
-                    if from_active {
+                    // Look-ahead: will the sender be deactivated before the next message?
+                    // Java: activation bar ends at the return message y. getLevel(y)
+                    // returns 0 at that point, so no activation offset is applied.
+                    let from_will_deactivate = from_active
+                        && sd.events[event_idx + 1..]
+                            .iter()
+                            .take_while(|e| !matches!(e, SeqEvent::Message(_)))
+                            .any(|e| matches!(e, SeqEvent::Deactivate(n) if n == &msg.from));
+                    if from_active && !from_will_deactivate {
                         if is_left {
                             from_x -= ACTIVATION_WIDTH / 2.0;
                         } else {
@@ -1635,13 +1643,13 @@ mod tests {
             "activation height ({actual_height:.2}) should equal message_spacing ({expected_height:.2})"
         );
 
-        // Invariant: response message from activated B goes LEFT,
-        // so from_x = activation box LEFT edge (bob_x - ACTIVATION_WIDTH/2)
+        // Java: at return message y, activation bar has ended (getLevel(y)=0).
+        // The sender is considered NOT active, so from_x = lifeline center (bob_x).
         assert!(
-            (msg_resp.from_x - (bob_x - ACTIVATION_WIDTH / 2.0)).abs() < 0.01,
-            "resp.from_x ({:.2}) should be at activation left edge ({:.2})",
+            (msg_resp.from_x - bob_x).abs() < 0.01,
+            "resp.from_x ({:.2}) should be at lifeline center ({:.2})",
             msg_resp.from_x,
-            bob_x - ACTIVATION_WIDTH / 2.0
+            bob_x,
         );
 
         // req message: B will be activated right after (look-ahead),
@@ -2084,12 +2092,12 @@ mod tests {
             bob_x - ACTIVATION_WIDTH / 2.0
         );
 
-        // Cross-element: msg_b from_x adjusted for active B (leftward message)
+        // Java: at return message y, activation ends → sender at lifeline center
         assert!(
-            (msg_b.from_x - (bob_x - ACTIVATION_WIDTH / 2.0)).abs() < 0.01,
-            "msg_b.from_x ({:.2}) should be at activation left edge ({:.2})",
+            (msg_b.from_x - bob_x).abs() < 0.01,
+            "msg_b.from_x ({:.2}) should be at lifeline center ({:.2})",
             msg_b.from_x,
-            bob_x - ACTIVATION_WIDTH / 2.0
+            bob_x,
         );
 
         // Cross-element: note is to the right of participant B
