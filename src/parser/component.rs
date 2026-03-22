@@ -227,6 +227,7 @@ pub fn parse_component_diagram(source: &str) -> Result<ComponentDiagram> {
                     description: vec![],
                     parent: parent_id.clone(),
                     color: None,
+                    source_line: Some(line_num),
                 });
                 if let Some(parent) = group_stack.last_mut() {
                     parent.children.push(decl.id.clone());
@@ -252,6 +253,7 @@ pub fn parse_component_diagram(source: &str) -> Result<ComponentDiagram> {
                     description: vec![],
                     parent: parent_id,
                     color: None,
+                    source_line: Some(line_num),
                 });
                 if let Some(parent) = group_stack.last_mut() {
                     parent.children.push(decl.id.clone());
@@ -276,6 +278,7 @@ pub fn parse_component_diagram(source: &str) -> Result<ComponentDiagram> {
                 description: decl.description,
                 parent: parent_id,
                 color: None,
+                source_line: Some(line_num),
             });
             if let Some(parent) = group_stack.last_mut() {
                 parent.children.push(decl.id);
@@ -297,6 +300,7 @@ pub fn parse_component_diagram(source: &str) -> Result<ComponentDiagram> {
                     description: vec![],
                     parent: parent_id,
                     color: None,
+                    source_line: Some(line_num),
                 });
                 if let Some(parent) = group_stack.last_mut() {
                     parent.children.push(id);
@@ -324,6 +328,7 @@ pub fn parse_component_diagram(source: &str) -> Result<ComponentDiagram> {
                         description: vec![],
                         parent: parent_id,
                         color: None,
+                        source_line: Some(line_num),
                     });
                     if let Some(parent) = group_stack.last_mut() {
                         parent.children.push(endpoint_id.clone());

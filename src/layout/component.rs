@@ -36,6 +36,7 @@ pub struct ComponentNodeLayout {
     pub width: f64,
     pub height: f64,
     pub description: Vec<String>,
+    pub source_line: Option<usize>,
     pub stereotype: Option<String>,
     pub color: Option<String>,
 }
@@ -83,7 +84,8 @@ const FONT_SIZE: f64 = 14.0;
 const LINE_HEIGHT: f64 = 16.2969; // (1901 + 483) / 2048 * 14
 // Java: component node padding = 15px top + 15px bottom
 const PADDING: f64 = 15.0;
-const NODE_MIN_WIDTH: f64 = 100.0;
+// Java: no explicit minimum width for components; the name + icon determines width
+const NODE_MIN_WIDTH: f64 = 0.0;
 const NODE_MIN_HEIGHT: f64 = 40.0;
 const NODE_SPACING_X: f64 = 50.0;
 const NODE_SPACING_Y: f64 = 50.0;
@@ -102,9 +104,15 @@ fn text_width(text: &str) -> f64 {
     font_metrics::text_width(text, "SansSerif", FONT_SIZE, false, false)
 }
 
+/// Component icon (the small box at top-right) adds 10px to width:
+/// gap(5) + icon_width(15) + right_pad(5) - right_PADDING(15) = 10
+const COMPONENT_ICON_EXTRA: f64 = 10.0;
+
 /// Estimate the size of a component entity.
 fn estimate_entity_size(entity: &ComponentEntity) -> (f64, f64) {
-    let name_w = text_width(&entity.name) + 2.0 * PADDING;
+    // Java: width = leftPad(15) + text + gap(5) + icon(15) + rightPad(5)
+    //     = text + 40 = text + 2*PADDING + COMPONENT_ICON_EXTRA
+    let name_w = text_width(&entity.name) + 2.0 * PADDING + COMPONENT_ICON_EXTRA;
 
     let desc_w = entity
         .description
@@ -210,6 +218,7 @@ pub fn layout_component(cd: &ComponentDiagram) -> Result<ComponentLayout> {
                 description: child.description.clone(),
                 stereotype: child.stereotype.clone(),
                 color: child.color.clone(),
+                source_line: child.source_line,
             });
 
             inner_max_x = inner_max_x.max(inner_x + w);
@@ -281,6 +290,7 @@ pub fn layout_component(cd: &ComponentDiagram) -> Result<ComponentLayout> {
             description: entity.description.clone(),
             stereotype: entity.stereotype.clone(),
             color: entity.color.clone(),
+            source_line: entity.source_line,
         };
 
         node_positions.insert(nl.id.clone(), (nl.x, nl.y, nl.width, nl.height));
@@ -632,7 +642,7 @@ mod tests {
             stereotype: None,
             description: vec![],
             parent: None,
-            color: None,
+            color: None, source_line: None,
         }
     }
 
@@ -735,7 +745,7 @@ mod tests {
             stereotype: None,
             description: vec![],
             parent: None,
-            color: None,
+            color: None, source_line: None,
         };
         let (w, _) = estimate_entity_size(&e);
         assert!(w > NODE_MIN_WIDTH, "long name should produce wider node");
@@ -755,7 +765,7 @@ mod tests {
                 "line3".to_string(),
             ],
             parent: None,
-            color: None,
+            color: None, source_line: None,
         };
         let (_, h) = estimate_entity_size(&e);
         let expected = (4.0 * LINE_HEIGHT + 2.0 * PADDING).max(NODE_MIN_HEIGHT);
@@ -835,7 +845,7 @@ mod tests {
                     stereotype: None,
                     description: vec![],
                     parent: None,
-                    color: None,
+                    color: None, source_line: None,
                 },
                 ComponentEntity {
                     name: "Inner".to_string(),
@@ -844,7 +854,7 @@ mod tests {
                     stereotype: None,
                     description: vec![],
                     parent: Some("Outer".to_string()),
-                    color: None,
+                    color: None, source_line: None,
                 },
             ],
             links: vec![],
@@ -939,7 +949,7 @@ mod tests {
             stereotype: Some("MyStereotype".to_string()),
             description: vec![],
             parent: None,
-            color: None,
+            color: None, source_line: None,
         };
         let (_, h) = estimate_entity_size(&e);
         let plain_e = simple_entity("A");

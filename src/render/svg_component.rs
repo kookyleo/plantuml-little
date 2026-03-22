@@ -16,7 +16,7 @@ use crate::Result;
 // Style constants (PlantUML defaults)
 // ---------------------------------------------------------------------------
 
-const FONT_SIZE: f64 = 12.0;
+const FONT_SIZE: f64 = 14.0;
 const LINE_HEIGHT: f64 = 16.0;
 use crate::skin::rose::{ACTIVATION_BG, BORDER_COLOR, ENTITY_BG, NOTE_BG, NOTE_BORDER, TEXT_COLOR};
 
@@ -36,6 +36,7 @@ pub fn render_component(
     skin: &SkinParams,
 ) -> Result<String> {
     let mut buf = String::with_capacity(4096);
+    reset_entity_counter();
 
     // Skin color lookups
     let comp_bg = skin.background_color("component", ENTITY_BG);
@@ -305,10 +306,28 @@ fn render_node(
     }
 }
 
-/// Emit HTML comment + open `<g class="entity">` for a node.
+thread_local! {
+    /// Java entity counter — starts at 2 (first two IDs reserved for diagram-level)
+    static ENTITY_COUNTER: std::cell::Cell<usize> = const { std::cell::Cell::new(2) };
+}
+
+/// Reset entity counter (call before rendering a new diagram)
+fn reset_entity_counter() {
+    ENTITY_COUNTER.with(|c| c.set(2));
+}
+
+/// Emit HTML comment + open `<g class="entity">` with Java-matching attributes.
 fn open_entity_g(sg: &mut SvgGraphic, node: &ComponentNodeLayout) {
+    let ent_num = ENTITY_COUNTER.with(|c| { let v = c.get(); c.set(v + 1); v });
+    let ent_id = format!("ent{:04}", ent_num);
     sg.push_raw(&format!("<!--entity {}-->", xml_escape(&node.id)));
-    sg.push_raw(&format!(r#"<g class="entity" id="{}">"#, xml_escape(&node.id)));
+    let source_line = node.source_line.map_or(String::new(), |l| {
+        format!(r#" data-source-line="{}""#, l)
+    });
+    sg.push_raw(&format!(
+        r#"<g class="entity" data-qualified-name="{}"{source_line} id="{ent_id}">"#,
+        xml_escape(&node.name),
+    ));
 }
 
 /// Component: rounded rect with component icon (two small rects on right side)
@@ -332,7 +351,7 @@ fn render_component_node(
     // Component icon on right side
     let icon_w: f64 = 15.0;
     let icon_h: f64 = 10.0;
-    let icon_x = x + w - 5.0;
+    let icon_x = x + w - icon_w - 5.0;
     let icon_y1 = y + 5.0;
     sg.set_fill_color(bg); sg.set_stroke_color(Some(border)); sg.set_stroke_width(0.5, None);
     sg.svg_rectangle(icon_x, icon_y1, icon_w, icon_h, 0.0, 0.0, 0.0);
@@ -750,22 +769,25 @@ fn render_node_text(sg: &mut SvgGraphic, node: &ComponentNodeLayout, font_color:
         y_offset = LINE_HEIGHT;
     }
 
-    // Name
+    // Name — Java: left-aligned, regular weight, x = rect_x + PADDING
     let name_y = if has_desc {
         node.y + FONT_SIZE + 4.0 + y_offset
     } else {
-        node.y + node.height / 2.0 + FONT_SIZE * 0.35 + y_offset
+        // Java: baseline = rect_y + 20 + ascent (15 padding + 5 component internal margin)
+        node.y + 20.0 + font_metrics::ascent("SansSerif", FONT_SIZE, false, false)
     };
+    let name_x = node.x + 15.0;
+    let tl = font_metrics::text_width(&node.name, "SansSerif", FONT_SIZE, false, false);
     let mut tmp = String::new();
     render_creole_text(
         &mut tmp,
         &node.name,
-        cx,
+        name_x,
         name_y,
         LINE_HEIGHT,
         font_color,
-        Some("middle"),
-        r#"font-size="14" font-weight="bold""#,
+        None,
+        r#"font-size="14""#,
     );
     sg.push_raw(&tmp);
 
@@ -983,7 +1005,7 @@ mod tests {
             height: h,
             description: vec![],
             stereotype: None,
-            color: None,
+            color: None, source_line: None,
         }
     }
 
@@ -1034,7 +1056,7 @@ mod tests {
             height: 40.0,
             description: vec![],
             stereotype: None,
-            color: None,
+            color: None, source_line: None,
         });
         let svg =
             render_component(&diagram, &layout, &SkinParams::default()).expect("render failed");
@@ -1057,7 +1079,7 @@ mod tests {
             height: 60.0,
             description: vec![],
             stereotype: None,
-            color: None,
+            color: None, source_line: None,
         });
         let svg =
             render_component(&diagram, &layout, &SkinParams::default()).expect("render failed");
@@ -1080,7 +1102,7 @@ mod tests {
             height: 60.0,
             description: vec![],
             stereotype: None,
-            color: None,
+            color: None, source_line: None,
         });
         let svg =
             render_component(&diagram, &layout, &SkinParams::default()).expect("render failed");
@@ -1232,7 +1254,7 @@ mod tests {
             height: 40.0,
             description: vec!["x > y".to_string()],
             stereotype: None,
-            color: None,
+            color: None, source_line: None,
         });
         let svg =
             render_component(&diagram, &layout, &SkinParams::default()).expect("render failed");
@@ -1255,7 +1277,7 @@ mod tests {
             height: 60.0,
             description: vec![],
             stereotype: Some("service".to_string()),
-            color: None,
+            color: None, source_line: None,
         });
         let svg =
             render_component(&diagram, &layout, &SkinParams::default()).expect("render failed");
@@ -1284,7 +1306,7 @@ mod tests {
             height: 80.0,
             description: vec!["desc line 1".to_string(), "desc line 2".to_string()],
             stereotype: None,
-            color: None,
+            color: None, source_line: None,
         });
         let svg =
             render_component(&diagram, &layout, &SkinParams::default()).expect("render failed");
@@ -1316,7 +1338,7 @@ mod tests {
             height: 90.0,
             description: vec!["**bold** [[https://example.com{hover} label]]".to_string()],
             stereotype: None,
-            color: None,
+            color: None, source_line: None,
         });
         let svg =
             render_component(&diagram, &layout, &SkinParams::default()).expect("render failed");
@@ -1391,7 +1413,7 @@ mod tests {
             height: 50.0,
             description: vec![],
             stereotype: None,
-            color: None,
+            color: None, source_line: None,
         });
         let svg =
             render_component(&diagram, &layout, &SkinParams::default()).expect("render failed");

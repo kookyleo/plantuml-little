@@ -31,6 +31,8 @@ pub struct ComponentEntity {
     pub parent: Option<String>,
     /// Optional background color (e.g. "#FF0000" or "LightBlue")
     pub color: Option<String>,
+    /// Source line number (0-based) for data-source-line attribute
+    pub source_line: Option<usize>,
 }
 
 #[derive(Debug, Clone)]
@@ -86,7 +88,7 @@ mod tests {
             stereotype: None,
             description: vec![],
             parent: None,
-            color: None,
+            color: None, source_line: None,
         };
         assert_eq!(e.name, "test");
         assert_eq!(e.kind, ComponentKind::Component);
@@ -151,7 +153,7 @@ mod tests {
             stereotype: None,
             description: vec!["line 1".to_string(), "line 2".to_string()],
             parent: None,
-            color: None,
+            color: None, source_line: None,
         };
         assert_eq!(e.description.len(), 2);
     }
@@ -165,7 +167,7 @@ mod tests {
             stereotype: None,
             description: vec![],
             parent: Some("outer".to_string()),
-            color: None,
+            color: None, source_line: None,
         };
         assert_eq!(e.parent, Some("outer".to_string()));
     }
