@@ -1998,7 +1998,22 @@ fn draw_edge(sg: &mut SvgGraphic, tracker: &mut BoundsTracker, link: &Link, el: 
     } else {
         ""
     };
-    let path_id = format!("{}-to-{}", link.from, link.to);
+    // Java Link.idCommentForSvg(): separator depends on decorations.
+    // Java decor1 = head decoration (right_head), decor2 = tail decoration (left_head).
+    let path_id = {
+        let head = link.right_head != ArrowHead::None; // Java decor1
+        let tail = link.left_head != ArrowHead::None;  // Java decor2
+        if !head && tail {
+            // looksLikeRevertedForSvg: decor1=NONE, decor2≠NONE
+            format!("{}-backto-{}", link.from, link.to)
+        } else if (!head && !tail) || (head && tail) {
+            // looksLikeNoDecorAtAllSvg: both NONE or both non-NONE
+            format!("{}-{}", link.from, link.to)
+        } else {
+            // default: decor1≠NONE, decor2=NONE → "FROM-to-TO"
+            format!("{}-to-{}", link.from, link.to)
+        }
+    };
     {
         let mut path_elt = String::from("<path");
         if let Some(source_line) = link.source_line {
