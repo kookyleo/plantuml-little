@@ -474,8 +474,13 @@ fn convert_circle(buf: &mut String, element: &str, ox: f64, oy: f64) {
     );
 
     let fill = get_fill(element);
+    let style = get_stroke_style(element);
 
-    write!(buf, r#"<path d="{d}" fill="{fill}"/>"#).unwrap();
+    write!(buf, r#"<path d="{d}" fill="{fill}""#).unwrap();
+    if !style.is_empty() {
+        write!(buf, r#" style="{style}""#).unwrap();
+    }
+    buf.push_str("/>");
 }
 
 fn convert_ellipse(buf: &mut String, element: &str, ox: f64, oy: f64) {
@@ -509,8 +514,13 @@ fn convert_ellipse(buf: &mut String, element: &str, ox: f64, oy: f64) {
     );
 
     let fill = get_fill(element);
+    let style = get_stroke_style(element);
 
-    write!(buf, r#"<path d="{d}" fill="{fill}"/>"#).unwrap();
+    write!(buf, r#"<path d="{d}" fill="{fill}""#).unwrap();
+    if !style.is_empty() {
+        write!(buf, r#" style="{style}""#).unwrap();
+    }
+    buf.push_str("/>");
 }
 
 fn convert_line(buf: &mut String, element: &str, ox: f64, oy: f64) {
