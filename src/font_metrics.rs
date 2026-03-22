@@ -32,13 +32,20 @@ static FONTS: LazyLock<Fonts> = LazyLock::new(|| Fonts {
 // ── Font family resolution ──────────────────────────────────────────────
 
 /// Map a logical font family name to a canonical key.
-/// Java maps: "SansSerif"/"Dialog"→ DejaVu Sans, "Monospaced"/"Courier"→ DejaVu Sans Mono.
+/// Java logical fonts: "SansSerif"/"Dialog"→ DejaVu Sans, "Monospaced"/"Courier"→ DejaVu Sans Mono.
+/// Physical fonts not installed on the reference machine (e.g. "Courier New", "Arial")
+/// fall back to Dialog (sans-serif) in Java AWT.
+/// For CSS `font-family` lists like "Courier New,monospace", we resolve based on
+/// the PRIMARY (first) name — Java AWT uses the first name for font lookup.
 fn resolve_face(family: &str, bold: bool) -> &'static ttf_parser::Face<'static> {
     let fonts = &*FONTS;
-    let is_mono = {
-        let f = family.to_lowercase();
-        f.contains("mono") || f.contains("courier") || f == "monospaced"
-    };
+    // Use the first name in a CSS comma-separated font-family list
+    let primary = family.split(',').next().unwrap_or(family).trim();
+    let p = primary.to_lowercase();
+    // Java logical font "Monospaced" and its alias "Courier" (without "New") map to mono.
+    // CSS generic "monospace" also maps to mono.
+    // "Courier New" is a physical font — uninstalled on reference machine → Dialog fallback.
+    let is_mono = p == "monospaced" || p == "monospace" || p == "courier";
     if is_mono {
         if bold { &fonts.mono_bold } else { &fonts.mono }
     } else {
@@ -171,10 +178,18 @@ mod tests {
 
     #[test]
     fn family_resolution() {
-        // "mono", "courier", "Monospaced" all resolve to mono font
-        let w1 = char_width('a', "Monospaced", 12.0, false, false);
-        let w2 = char_width('a', "Courier", 12.0, false, false);
-        assert!((w1 - w2).abs() < 1e-10);
+        // "Monospaced" (Java logical name) resolves to mono font
+        let w_mono = char_width('a', "Monospaced", 12.0, false, false);
+        let w_monospace = char_width('a', "monospace", 12.0, false, false);
+        assert!((w_mono - w_monospace).abs() < 1e-10);
+        // "Courier" (Java logical font, no "New") maps to Monospaced
+        let w_courier = char_width('a', "Courier", 12.0, false, false);
+        assert!((w_mono - w_courier).abs() < 1e-10, "Courier maps to mono");
+        // "Courier New" is a physical font not installed on reference machine
+        // → Java Dialog fallback → sans-serif
+        let w_courier_new = char_width('a', "Courier New", 12.0, false, false);
+        let w_sans = char_width('a', "SansSerif", 12.0, false, false);
+        assert!((w_courier_new - w_sans).abs() < 1e-10, "Courier New maps to sans (Dialog fallback)");
         // "SansSerif", "Dialog", "Arial" all resolve to sans font
         let w3 = char_width('a', "SansSerif", 12.0, false, false);
         let w4 = char_width('a', "Dialog", 12.0, false, false);
