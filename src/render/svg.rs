@@ -163,15 +163,29 @@ pub(crate) fn write_svg_root(buf: &mut String, w: f64, h: f64, diagram_type: &st
 }
 
 pub(crate) fn write_svg_root_bg(buf: &mut String, w: f64, h: f64, diagram_type: &str, bg: &str) {
+    write_svg_root_bg_opt(buf, w, h, Some(diagram_type), bg);
+}
+
+/// Write SVG root element. `diagram_type` is optional — Java's PSystemSalt and
+/// PSystemDot don't go through TitledDiagram, so they omit `data-diagram-type`.
+pub(crate) fn write_svg_root_bg_opt(
+    buf: &mut String,
+    w: f64,
+    h: f64,
+    diagram_type: Option<&str>,
+    bg: &str,
+) {
     let wi = if w.is_finite() && w > 0.0 { w.ceil() as i32 } else { 100 };
     let hi = if h.is_finite() && h > 0.0 { h.ceil() as i32 } else { 100 };
+    buf.push_str(r#"<svg xmlns="http://www.w3.org/2000/svg""#);
+    buf.push_str(r#" xmlns:xlink="http://www.w3.org/1999/xlink""#);
+    buf.push_str(r#" contentStyleType="text/css""#);
+    if let Some(dtype) = diagram_type {
+        write!(buf, r#" data-diagram-type="{dtype}""#).unwrap();
+    }
     write!(
         buf,
         concat!(
-            r#"<svg xmlns="http://www.w3.org/2000/svg""#,
-            r#" xmlns:xlink="http://www.w3.org/1999/xlink""#,
-            r#" contentStyleType="text/css""#,
-            r#" data-diagram-type="{dtype}""#,
             r#" height="{hi}px""#,
             r#" preserveAspectRatio="none""#,
             r#" style="width:{wi}px;height:{hi}px;background:{bg};""#,
@@ -180,7 +194,6 @@ pub(crate) fn write_svg_root_bg(buf: &mut String, w: f64, h: f64, diagram_type: 
             r#" width="{wi}px""#,
             r#" zoomAndPan="magnify">"#,
         ),
-        dtype = diagram_type,
         hi = hi,
         wi = wi,
         bg = bg,

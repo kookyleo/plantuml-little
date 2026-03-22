@@ -2,7 +2,7 @@ use crate::font_metrics;
 use crate::klimt::svg::{fmt_coord, LengthAdjust, SvgGraphic};
 use crate::layout::salt::{LayoutBox, SaltLayout, SaltWidgetLayout};
 use crate::model::salt::SaltDiagram;
-use crate::render::svg::{write_bg_rect, write_svg_root_bg};
+use crate::render::svg::{write_bg_rect, write_svg_root_bg_opt};
 use crate::style::SkinParams;
 use crate::Result;
 
@@ -16,7 +16,8 @@ pub fn render_salt(
 ) -> Result<String> {
     let mut buf = String::with_capacity(4096);
     let bg = skin.get_or("backgroundcolor", "#FFFFFF");
-    write_svg_root_bg(&mut buf, layout.width, layout.height, "SALT", bg);
+    // Java PSystemSalt doesn't go through TitledDiagram → no data-diagram-type
+    write_svg_root_bg_opt(&mut buf, layout.width, layout.height, None, bg);
     buf.push_str("<defs/><g>");
     write_bg_rect(&mut buf, layout.width, layout.height, bg);
 
