@@ -142,8 +142,9 @@ const META_TITLE_FONT_SIZE: f64 = 14.0;
 const META_HF_FONT_SIZE: f64 = 10.0;
 const META_CAPTION_FONT_SIZE: f64 = 14.0;
 const META_LEGEND_FONT_SIZE: f64 = 14.0;
-/// Java TextBlockBordered adds padding only, no extra pixel for the border stroke.
-const BORDERED_EXTRA: f64 = 0.0;
+/// Java TextBlockBordered.calculateDimension() returns (width+1, height+1).
+/// See TextBlockBordered.java:98.
+const BORDERED_EXTRA: f64 = 1.0;
 const TITLE_PADDING: f64 = 5.0;
 const TITLE_MARGIN: f64 = 5.0;
 const CAPTION_PADDING: f64 = 0.0;
@@ -577,6 +578,7 @@ fn wrap_with_meta(body_svg: &str, meta: &DiagramMeta, diagram_type: &str, bg: &s
     // Body SVG includes DOC_MARGIN + 1: recover raw textBlock dimensions.
     let body_w = svg_w - DOC_MARGIN_RIGHT - 1.0;
     let body_h = svg_h - DOC_MARGIN_BOTTOM - 1.0;
+    eprintln!("[TRACE wrap_with_meta] svg_w={svg_w} svg_h={svg_h} body_w={body_w} body_h={body_h}");
 
     // ── 1. Compute block dimensions for each meta element ───────────
     let hdr_text_w = meta.header.as_ref().map(|t| creole_text_w(t, META_HF_FONT_SIZE, false)).unwrap_or(0.0);
@@ -590,6 +592,7 @@ fn wrap_with_meta(body_svg: &str, meta: &DiagramMeta, diagram_type: &str, bg: &s
     let title_text_w = meta.title.as_ref().map(|t| creole_text_w(t, META_TITLE_FONT_SIZE, true)).unwrap_or(0.0);
     let title_text_h = if meta.title.is_some() { text_block_h(META_TITLE_FONT_SIZE, true) } else { 0.0 };
     let title_dim = if meta.title.is_some() { block_dim(title_text_w, title_text_h, TITLE_PADDING, TITLE_MARGIN) } else { (0.0, 0.0) };
+    eprintln!("[TRACE title] text_w={title_text_w:.10} text_h={title_text_h:.10} title_dim={title_dim:?}");
 
     let cap_text_w = meta.caption.as_ref().map(|t| creole_text_w(t, META_CAPTION_FONT_SIZE, false)).unwrap_or(0.0);
     let cap_text_h = if meta.caption.is_some() { text_block_h(META_CAPTION_FONT_SIZE, false) } else { 0.0 };
@@ -612,6 +615,8 @@ fn wrap_with_meta(body_svg: &str, meta: &DiagramMeta, diagram_type: &str, bg: &s
     // Canvas: Java ensureVisible → maxX = (int)(dim + 1)
     let canvas_w = (tb_w + DOC_MARGIN_RIGHT + 1.0) as i32 as f64;
     let canvas_h = (tb_h + DOC_MARGIN_BOTTOM + 1.0) as i32 as f64;
+    eprintln!("[TRACE canvas] tb_w={tb_w:.6} tb_h={tb_h:.6} canvas_w={canvas_w} canvas_h={canvas_h}");
+    eprintln!("[TRACE stacking] body_dim=({body_w},{body_h}) after_legend={after_legend:?} after_title={after_title:?} after_caption={after_caption:?}");
 
     // ── 3. Compute absolute drawing positions ──────────────────────
     let outer_inner_x = ((tb_w - after_caption.0) / 2.0).max(0.0);
@@ -621,6 +626,7 @@ fn wrap_with_meta(body_svg: &str, meta: &DiagramMeta, diagram_type: &str, bg: &s
 
     let body_abs_x = outer_inner_x + cap_inner_x + title_inner_x + leg_inner_x;
     let body_abs_y = hdr_dim.1 + title_dim.1;
+    eprintln!("[TRACE body_pos] body_abs_x={body_abs_x:.6} body_abs_y={body_abs_y:.6}");
 
     // ── 4. Render SVG ──────────────────────────────────────────────
     let mut buf = String::with_capacity(body_svg.len() + 2048);
@@ -671,11 +677,15 @@ fn wrap_with_meta(body_svg: &str, meta: &DiagramMeta, diagram_type: &str, bg: &s
         buf.push_str("</g>");
     }
 
-    // Body
-    write!(buf, r#"<g transform="translate({},{})">"#,
-        fmt_coord(body_abs_x), fmt_coord(body_abs_y)).unwrap();
-    buf.push_str(&body_content);
-    buf.push_str("</g>");
+    // Body — Java's EntityImageSimpleEmpty.drawU() emits nothing for empty diagrams.
+    // Skip the body wrapper when content is trivially empty (only <defs/><g></g>).
+    let body_trimmed = body_content.replace("<defs/>", "").replace("<g>", "").replace("</g>", "");
+    if !body_trimmed.trim().is_empty() {
+        write!(buf, r#"<g transform="translate({},{})">"#,
+            fmt_coord(body_abs_x), fmt_coord(body_abs_y)).unwrap();
+        buf.push_str(&body_content);
+        buf.push_str("</g>");
+    }
 
     // Legend (CENTER-aligned)
     if let Some(ref leg) = meta.legend {
@@ -895,13 +905,21 @@ fn render_class(
     let is_degenerated = layout.nodes.len() <= 1 && layout.edges.is_empty();
 
     let (svg_w, svg_h) = if is_degenerated {
-        // EntityImageDegenerated path: no LimitFinder, just entity_dim + 14 + 5 + ensureVisible(+1)
+        // Java has two sub-paths for degenerated diagrams:
+        // 1. Zero entities: EntityImageSimpleEmpty → calculateDimension = (10, 10)
+        //    See GraphvizImageBuilder.java:211 isDegeneratedWithFewEntities(0)
+        // 2. One entity, no links: EntityImageDegenerated wraps single entity
+        //    delta = 7, calculateDimension = entity_dim + delta*2 = entity_dim + 14
         let entity_w = if layout.nodes.is_empty() { 0.0 } else { layout.nodes[0].width };
         let entity_h = if layout.nodes.is_empty() { 0.0 } else { layout.nodes[0].height };
-        // EntityImageDegenerated.java: delta = 7, calculateDimension = entity_dim + 14
-        const DEGENERATED_DELTA: f64 = 7.0;
-        let calc_w = entity_w + DEGENERATED_DELTA * 2.0;
-        let calc_h = entity_h + DEGENERATED_DELTA * 2.0;
+        let (calc_w, calc_h) = if layout.nodes.is_empty() {
+            // EntityImageSimpleEmpty: fixed 10×10
+            (10.0, 10.0)
+        } else {
+            // EntityImageDegenerated: entity_dim + 14
+            const DEGENERATED_DELTA: f64 = 7.0;
+            (entity_w + DEGENERATED_DELTA * 2.0, entity_h + DEGENERATED_DELTA * 2.0)
+        };
         // SvgGraphics.ensureVisible: maxX = (int)(dim + 1)
         let w = (calc_w + DOC_MARGIN_RIGHT + 1.0) as i32;
         let h = (calc_h + DOC_MARGIN_BOTTOM + 1.0) as i32;
