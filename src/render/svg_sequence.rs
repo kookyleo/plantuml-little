@@ -1192,9 +1192,13 @@ fn draw_destroy(sg: &mut SvgGraphic, d: &DestroyLayout) {
 
 fn draw_note(sg: &mut SvgGraphic, note: &NoteLayout) {
     let fold = 10.0; // folded corner size
-    let x = note.x;
+    // Java truncates note x to int in NoteBox.getStartingX():
+    //   xStart = (int)(segment.getSegment().getPos2())
+    // Java truncates polygon width to int in ComponentRoseNote.drawInternalU():
+    //   int x2 = (int) getTextWidth(stringBounder)
+    let x = note.x.trunc();
     let y = note.y;
-    let w = note.width;
+    let w = note.width.trunc();
     let h = note.height;
 
     // Body: hexagonal path with folded top-right corner (Java: Opale.getPolygonNormal)
@@ -1211,7 +1215,6 @@ fn draw_note(sg: &mut SvgGraphic, note: &NoteLayout) {
             border = NOTE_BORDER,
         ));
     }
-    sg.push_raw("\n");
 
     // Fold corner triangle (Java: Opale.getCorner)
     {
@@ -1225,15 +1228,18 @@ fn draw_note(sg: &mut SvgGraphic, note: &NoteLayout) {
             border = NOTE_BORDER,
         ));
     }
-    sg.push_raw("\n");
 
-    let text_x = note.x + 6.0;
+    let text_x = x + 6.0;
+    // Java: ComponentRoseNote applies UTranslate(marginX1=6, marginY=5),
+    // then TextBlock renders first line at y = ascent.
+    let note_margin_y = 5.0; // AbstractTextualComponent.marginY for notes
+    let text_y = note.y + note_margin_y + font_metrics::ascent("SansSerif", FONT_SIZE, false, false);
     let mut tmp = String::new();
     render_creole_text(
         &mut tmp,
         &note.text,
         text_x,
-        note.y + LINE_HEIGHT,
+        text_y,
         LINE_HEIGHT,
         TEXT_COLOR,
         None,
@@ -1908,10 +1914,18 @@ fn render_sequence_inner(
         // inline after their associated message, not in a separate pass).
         let next_msg_y = layout.messages.get(msg_seq_counter)
             .map_or(f64::MAX, |m| m.y);
+        let mut has_note = false;
         for note in &layout.notes {
             if note.y >= msg.y - 30.0 && note.y < next_msg_y {
                 draw_note(&mut sg, note);
+                has_note = true;
             }
+        }
+        // In Java, when a message has notes, it's wrapped in ArrowAndNoteBox
+        // which consumes an extra counter value. Advance to match Java's
+        // msg id numbering.
+        if has_note {
+            msg_seq_counter += 1;
         }
     }
 
