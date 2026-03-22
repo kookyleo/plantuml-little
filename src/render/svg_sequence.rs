@@ -187,10 +187,10 @@ fn draw_participant_box_with_font(
             draw_participant_database(sg, p, y, display_name, fill, border, text_color, head);
         }
         ParticipantKind::Collections => {
-            draw_participant_collections(sg, p, y, display_name, fill, border, text_color);
+            draw_participant_collections(sg, p, y, display_name, fill, border, text_color, head);
         }
         ParticipantKind::Queue => {
-            draw_participant_queue(sg, p, y, display_name, fill, border, text_color);
+            draw_participant_queue(sg, p, y, display_name, fill, border, text_color, head);
         }
         ParticipantKind::Default => {
             draw_participant_rect_with_font(
@@ -800,7 +800,9 @@ fn draw_database_cylinder(
     sg.push_raw(&top);
 }
 
-/// Collections: stacked rectangles (shadow rect behind main rect)
+/// Collections: two stacked rectangles + text inside main rect.
+/// Matches Java: ComponentRoseCollections — shadow rect offset by COLLECTIONS_DELTA=4.
+/// Same for both head and tail (text always inside main rect).
 fn draw_participant_collections(
     sg: &mut SvgGraphic,
     p: &ParticipantLayout,
@@ -809,60 +811,49 @@ fn draw_participant_collections(
     bg: &str,
     border: &str,
     text_color: &str,
+    _head: bool,
 ) {
     let name = display_name.unwrap_or(&p.name);
     let cx = p.x;
-    let rect_w = p.box_width.min(60.0);
-    let rect_h = 28.0;
-    let offset = 4.0;
-    let rx = cx - rect_w / 2.0;
-    let ry = y + 8.0;
+    let delta = 4.0_f64; // COLLECTIONS_DELTA
 
-    // Back (shadow) rectangle
+    let font_size = 14.0_f64;
+    let tl = font_metrics::text_width(name, "SansSerif", font_size, false, false);
+    let rect_w = tl + 2.0 * 7.0; // text + padding (like default participant)
+    let rect_h = p.box_height - delta; // base participant height (30.2969)
+    let pref_width = rect_w + delta;
+    let component_x = cx - pref_width / 2.0;
+
+    // Shadow rect at (component_x + delta, y)
     let mut tmp = String::new();
-    write!(
-        tmp,
-        r#"<rect fill="{bg}" height="{}" style="stroke:{border};stroke-width:1.5;" width="{}" x="{}" y="{}"/>"#,
-        fmt_coord(rect_h), fmt_coord(rect_w), fmt_coord(rx + offset), fmt_coord(ry - offset),
-    )
-    .unwrap();
+    write!(tmp,
+        r#"<rect fill="{bg}" height="{}" style="stroke:{border};stroke-width:0.5;" width="{}" x="{}" y="{}"/>"#,
+        fmt_coord(rect_h), fmt_coord(rect_w), fmt_coord(component_x + delta), fmt_coord(y),
+    ).unwrap();
     sg.push_raw(&tmp);
-    sg.push_raw("\n");
 
-    // Front (main) rectangle
+    // Main rect at (component_x, y + delta)
+    let main_y = y + delta;
     let mut tmp = String::new();
-    write!(
-        tmp,
-        r#"<rect fill="{bg}" height="{}" style="stroke:{border};stroke-width:1.5;" width="{}" x="{}" y="{}"/>"#,
-        fmt_coord(rect_h), fmt_coord(rect_w), fmt_coord(rx), fmt_coord(ry),
-    )
-    .unwrap();
+    write!(tmp,
+        r#"<rect fill="{bg}" height="{}" style="stroke:{border};stroke-width:0.5;" width="{}" x="{}" y="{}"/>"#,
+        fmt_coord(rect_h), fmt_coord(rect_w), fmt_coord(component_x), fmt_coord(main_y),
+    ).unwrap();
     sg.push_raw(&tmp);
-    sg.push_raw("\n");
 
-    // Name below
-    let name_y = ry + rect_h + FONT_SIZE + 6.0;
-    let tl = font_metrics::text_width(name, "SansSerif", 14.0, true, false);
+    // Text inside main rect
+    let text_x = component_x + 7.0;
+    let text_y = main_y + 7.0 + font_metrics::ascent("SansSerif", font_size, false, false);
     sg.set_fill_color(text_color);
     sg.svg_text(
-        name,
-        cx,
-        name_y,
-        Some("sans-serif"),
-        14.0,
-        Some("bold"),
-        None,
-        None,
-        tl,
-        LengthAdjust::Spacing,
-        None,
-        0,
-        Some("middle"),
+        name, text_x, text_y, Some("sans-serif"), font_size,
+        None, None, None, tl, LengthAdjust::Spacing, None, 0, None,
     );
-    sg.push_raw("\n");
 }
 
-/// Queue: horizontal cylinder (cylinder rotated 90 degrees)
+/// Queue: rounded-right rectangle with text inside, using cubic-bezier curves.
+/// Matches Java: USymbolQueue.drawQueue (dx=5, margin 5,15,5,5).
+/// Text is inside the shape (no head/tail text separation).
 fn draw_participant_queue(
     sg: &mut SvgGraphic,
     p: &ParticipantLayout,
@@ -871,56 +862,59 @@ fn draw_participant_queue(
     bg: &str,
     border: &str,
     text_color: &str,
+    _head: bool,
 ) {
     let name = display_name.unwrap_or(&p.name);
     let cx = p.x;
-    let cyl_w = 44.0;
-    let cyl_h = 28.0;
-    let arc_w = 6.0;
-    let cyl_x = cx - cyl_w / 2.0;
-    let cyl_y = y + 6.0;
+    let dx = 5.0_f64; // Java USymbolQueue.dx
 
-    // Cylinder body (horizontal)
-    {
-        let lx = fmt_coord(cyl_x);
-        let ty_s = fmt_coord(cyl_y);
-        let rx_s = fmt_coord(cyl_x + cyl_w - arc_w);
-        let aw = fmt_coord(arc_w);
-        let ah = fmt_coord(cyl_h / 2.0);
-        let by = fmt_coord(cyl_y + cyl_h);
-        sg.push_raw(&format!(
-            r#"<path d="M{lx},{ty_s} L{rx_s},{ty_s} A{aw},{ah} 0 0,1 {rx_s},{by} L{lx},{by} A{aw},{ah} 0 0,1 {lx},{ty_s} Z " fill="{bg}" style="stroke:{border};stroke-width:1.5;"/>"#,
-        ));
-    }
-    sg.push_raw("\n");
+    let font_size = 14.0_f64;
+    let tl = font_metrics::text_width(name, "SansSerif", font_size, false, false);
+    let text_height = font_metrics::line_height("SansSerif", font_size, false, false);
 
-    // Right end cap ellipse
-    sg.set_fill_color(bg);
-    sg.set_stroke_color(Some(border));
-    sg.set_stroke_width(1.5, None);
-    sg.svg_ellipse(cyl_x + cyl_w - arc_w, cyl_y + cyl_h / 2.0, arc_w, cyl_h / 2.0, 0.0);
-    sg.push_raw("\n");
+    // Queue margin: x1=5, x2=15, y1=5, y2=5
+    let margin_x1 = 5.0_f64;
+    let margin_x2 = 15.0_f64;
+    let margin_y1 = 5.0_f64;
+    let w = tl + margin_x1 + margin_x2; // shape width
+    let h = text_height + 10.0; // shape height (margin_y1 + margin_y2)
 
-    // Name below
-    let name_y = cyl_y + cyl_h + FONT_SIZE + 6.0;
-    let tl = font_metrics::text_width(name, "SansSerif", 14.0, true, false);
+    let pref_width = w;
+    let component_x = cx - pref_width / 2.0;
+    let mid_y = h / 2.0;
+
+    // Draw body path
+    let x0 = component_x;
+    let y0 = y;
+    let x0s = fmt_coord(x0 + dx);
+    let x1s = fmt_coord(x0 + w - dx);
+    let xws = fmt_coord(x0 + w);
+    let x0f = fmt_coord(x0);
+    let y0s = fmt_coord(y0);
+    let yms = fmt_coord(y0 + mid_y);
+    let yhs = fmt_coord(y0 + h);
+    let mut body = String::new();
+    write!(body,
+        "<path d=\"M{x0s},{y0s} L{x1s},{y0s} C{xws},{y0s} {xws},{yms} {xws},{yms} C{xws},{yms} {xws},{yhs} {x1s},{yhs} L{x0s},{yhs} C{x0f},{yhs} {x0f},{yms} {x0f},{yms} C{x0f},{yms} {x0f},{y0s} {x0s},{y0s}\" fill=\"{bg}\" style=\"stroke:{border};stroke-width:0.5;\"/>"
+    ).unwrap();
+    sg.push_raw(&body);
+
+    // Inner right curve (closing path)
+    let x2s = fmt_coord(x0 + w - dx * 2.0);
+    let mut closing = String::new();
+    write!(closing,
+        "<path d=\"M{x1s},{y0s} C{x2s},{y0s} {x2s},{yms} {x2s},{yms} C{x2s},{yhs} {x1s},{yhs} {x1s},{yhs}\" fill=\"none\" style=\"stroke:{border};stroke-width:0.5;\"/>"
+    ).unwrap();
+    sg.push_raw(&closing);
+
+    // Text inside shape at (margin_x1, vertically centered)
+    let text_x = x0 + margin_x1;
+    let text_y = y0 + (h - text_height) / 2.0 + font_metrics::ascent("SansSerif", font_size, false, false);
     sg.set_fill_color(text_color);
     sg.svg_text(
-        name,
-        cx,
-        name_y,
-        Some("sans-serif"),
-        14.0,
-        Some("bold"),
-        None,
-        None,
-        tl,
-        LengthAdjust::Spacing,
-        None,
-        0,
-        Some("middle"),
+        name, text_x, text_y, Some("sans-serif"), font_size,
+        None, None, None, tl, LengthAdjust::Spacing, None, 0, None,
     );
-    sg.push_raw("\n");
 }
 
 // ── Messages ────────────────────────────────────────────────────────

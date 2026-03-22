@@ -511,8 +511,10 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
             | ParticipantKind::Entity => base_participant_height + 17.0 + multiline_extra,
             // Database: Java dimStickman = (36, 46), actor diff = 60-46 = 14, offset = 45-14 = 31
             ParticipantKind::Database => base_participant_height + 31.0 + multiline_extra,
-            ParticipantKind::Collections
-            | ParticipantKind::Queue => base_participant_height + 20.0 + multiline_extra,
+            // Collections: rect + shadow offset (DELTA=4), total = base + 4
+            ParticipantKind::Collections => base_participant_height + 4.0 + multiline_extra,
+            // Queue: text inside shape, preferredHeight = stickmanDim only
+            ParticipantKind::Queue => base_participant_height - 5.0 + multiline_extra,
             ParticipantKind::Default => base_participant_height + multiline_extra,
         };
         box_widths.push(bw);
