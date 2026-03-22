@@ -219,7 +219,8 @@ fn render_action(
     // This matches Java's FtileBox rendering where SheetBlock1 draws each
     // Stripe/Atom as a separate UText draw call.
     let cx = node.x + node.width / 2.0;
-    let lines: Vec<&str> = node.text.split('\n').collect();
+    // Java: Display.create() trims each line
+    let lines: Vec<String> = node.text.split('\n').map(|l| l.trim().to_string()).collect();
     // Java FtileBox: first text baseline y = rect_y + padding_top + AWT ascent.
     // AWT ascent = font.getStringBounds().getY() negated = hhea.ascender / upem * size.
     // For SansSerif 12: 1901/2048*12 = 11.138671875.

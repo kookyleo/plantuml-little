@@ -109,7 +109,8 @@ const TABLE_CELL_PADDING: f64 = 2.0;
 /// Detects creole tables (`|...|` rows) and adds cell padding.
 fn estimate_text_size(text: &str) -> (f64, f64) {
     let lh = font_metrics::line_height("SansSerif", FONT_SIZE, false, false);
-    let lines: Vec<&str> = text.split('\n').collect();
+    // Java: Display.create() trims each line after splitting on newlines
+    let lines: Vec<&str> = text.split('\n').map(|l| l.trim()).collect();
     let max_line_width = lines
         .iter()
         .map(|l| font_metrics::text_width(l, "SansSerif", FONT_SIZE, false, false))
