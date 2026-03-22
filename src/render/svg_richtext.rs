@@ -410,7 +410,9 @@ fn parse_font_props(outer_attrs: &str) -> (String, f64, bool, bool) {
                             font_size = value.parse::<f64>().unwrap_or(14.0);
                         }
                         "font-weight" => {
-                            bold = value == "bold";
+                            // CSS: bold = 700; Java uses numeric weights >= 700 as bold
+                            bold = value == "bold"
+                                || value.parse::<u32>().map_or(false, |w| w >= 700);
                         }
                         "font-style" => {
                             italic = value == "italic";
