@@ -52,9 +52,9 @@ const MARGIN: f64 = 6.0;
 /// SvekResult.java:135 — minMax.getDimension().delta(15, 15).
 const CANVAS_DELTA: f64 = 15.0;
 /// TextBlockExporter12026.java:196 — margin from plantuml.skin root.document style: right=5.
-const DOC_MARGIN_RIGHT: f64 = 5.0;
+pub(crate) const DOC_MARGIN_RIGHT: f64 = 5.0;
 /// TextBlockExporter12026.java:197 — margin from plantuml.skin root.document style: bottom=5.
-const DOC_MARGIN_BOTTOM: f64 = 5.0;
+pub(crate) const DOC_MARGIN_BOTTOM: f64 = 5.0;
 /// EntityImageClassHeader.java:150 — withMargin(circledChar, left=4, right=0, top=5, bottom=5).
 const CIRCLE_LEFT_PAD: f64 = 4.0;
 /// SkinParam.circledCharacterRadius = 17/3+6 = 11. Diameter = 22.

@@ -5,7 +5,7 @@ use crate::font_metrics;
 use crate::klimt::svg::{fmt_coord, xml_escape, LengthAdjust, SvgGraphic};
 use crate::layout::state::{StateLayout, StateNodeLayout, StateNoteLayout, TransitionLayout};
 use crate::model::state::{StateDiagram, StateKind};
-use crate::render::svg::{write_svg_root_bg, write_bg_rect};
+use crate::render::svg::{write_svg_root_bg, write_bg_rect, DOC_MARGIN_RIGHT, DOC_MARGIN_BOTTOM};
 use crate::render::svg_richtext::render_creole_text;
 use crate::style::SkinParams;
 use crate::Result;
@@ -36,11 +36,14 @@ pub fn render_state(
     let mut buf = String::with_capacity(4096);
     reset_ent_counter();
 
-    // SVG header
+    // SVG viewport: Java applies TextBlockExporter12026 doc margin (R=5, B=5)
+    // and SvgGraphics.ensureVisible (+1) on top of the layout dimensions.
+    let svg_w = (layout.width + DOC_MARGIN_RIGHT + 1.0) as i32 as f64;
+    let svg_h = (layout.height + DOC_MARGIN_BOTTOM + 1.0) as i32 as f64;
     let bg = skin.get_or("backgroundcolor", "#FFFFFF");
-    write_svg_root_bg(&mut buf, layout.width, layout.height, "STATE", bg);
+    write_svg_root_bg(&mut buf, svg_w, svg_h, "STATE", bg);
     buf.push_str("<defs/><g>");
-    write_bg_rect(&mut buf, layout.width, layout.height, bg);
+    write_bg_rect(&mut buf, svg_w, svg_h, bg);
 
     let state_bg = skin.background_color("state", ENTITY_BG);
     let state_border = skin.border_color("state", BORDER_COLOR);
@@ -750,9 +753,10 @@ mod tests {
         let svg = render_state(&diagram, &layout, &SkinParams::default()).expect("render failed");
         assert!(svg.starts_with("<svg"), "SVG must start with <svg");
         assert!(svg.contains("</svg>"), "SVG must end with </svg>");
-        assert!(svg.contains("viewBox=\"0 0 400 300\""), "viewBox must match layout dimensions");
-        assert!(svg.contains("width=\"400px\""), "width must match layout");
-        assert!(svg.contains("height=\"300px\""), "height must match layout");
+        // SVG viewport = layout dims + DOC_MARGIN(5) + ensureVisible(1)
+        assert!(svg.contains("viewBox=\"0 0 406 306\""), "viewBox must match layout + doc margin");
+        assert!(svg.contains("width=\"406px\""), "width must match layout + doc margin");
+        assert!(svg.contains("height=\"306px\""), "height must match layout + doc margin");
         assert!(svg.contains("<defs/>"), "must have <defs/>");
         assert_eq!(svg.matches("<ellipse").count(), 1, "1 ellipse expected");
         assert_eq!(svg.matches("<circle").count(), 2, "2 circles expected");

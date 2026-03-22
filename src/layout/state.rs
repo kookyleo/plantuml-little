@@ -98,9 +98,30 @@ const MARGIN: f64 = 7.0;
 // Text measurement helpers
 // ---------------------------------------------------------------------------
 
-/// Estimate the pixel width of a single line of text.
-fn text_width(text: &str) -> f64 {
-    text.len() as f64 * CHAR_WIDTH
+/// Compute the pixel width of a single line of text using font metrics.
+/// Handles `\t` (literal backslash-t from PlantUML preprocessing) with
+/// Java-compatible tab-stop expansion (default tabSize=8 spaces).
+/// See AtomText.java getWidth() and tabString().
+fn text_width(text: &str, font_size: f64) -> f64 {
+    // Java's default tabSize=8, tabString() returns 8 spaces
+    let tab_pixel_size =
+        crate::font_metrics::text_width("        ", "SansSerif", font_size, false, false);
+    let mut x = 0.0;
+    // Split on literal "\t" sequences (PlantUML preprocessor output)
+    let mut rest = text;
+    while let Some(pos) = rest.find("\\t") {
+        if pos > 0 {
+            x += crate::font_metrics::text_width(&rest[..pos], "SansSerif", font_size, false, false);
+        }
+        // Tab-stop snap: advance to next multiple of tab_pixel_size
+        let remainder = x % tab_pixel_size;
+        x += tab_pixel_size - remainder;
+        rest = &rest[pos + 2..];
+    }
+    if !rest.is_empty() {
+        x += crate::font_metrics::text_width(rest, "SansSerif", font_size, false, false);
+    }
+    x
 }
 
 /// Estimate the size of a simple (non-composite, non-special) state.
@@ -109,18 +130,18 @@ fn text_width(text: &str) -> f64 {
 /// Matches Java PlantUML sizing: simple state is 50x50 minimum,
 /// header area is ~26px, description lines add ~14px each.
 fn estimate_state_size(state: &State) -> (f64, f64) {
-    let name_w = text_width(&state.name) + 2.0 * PADDING;
+    let name_w = text_width(&state.name, STATE_NAME_FONT_SIZE) + 2.0 * PADDING;
 
     let desc_w = state
         .description
         .iter()
-        .map(|line| text_width(line) + 2.0 * PADDING)
+        .map(|line| text_width(line, STATE_DESC_FONT_SIZE) + 2.0 * PADDING)
         .fold(0.0_f64, f64::max);
 
     let stereo_w = state
         .stereotype
         .as_ref()
-        .map_or(0.0, |s| text_width(s) + 2.0 * PADDING);
+        .map_or(0.0, |s| text_width(s, STATE_NAME_FONT_SIZE) + 2.0 * PADDING);
 
     let width = name_w.max(desc_w).max(stereo_w).max(STATE_MIN_WIDTH);
 
@@ -465,7 +486,7 @@ fn compute_state_node(
         let inner_width = total_child_w + 2.0 * COMPOSITE_PADDING;
         let inner_height = total_child_h + COMPOSITE_HEADER + COMPOSITE_PADDING;
 
-        let name_w = text_width(&state.name) + 2.0 * PADDING;
+        let name_w = text_width(&state.name, STATE_NAME_FONT_SIZE) + 2.0 * PADDING;
         let width = inner_width.max(name_w).max(STATE_MIN_WIDTH);
         let height = inner_height.max(STATE_MIN_HEIGHT);
 
@@ -1539,7 +1560,8 @@ mod tests {
 
         // Width should accommodate the longest description line
         let expected_min_w =
-            "a much longer description line".len() as f64 * CHAR_WIDTH + 2.0 * PADDING;
+            crate::font_metrics::text_width("a much longer description line", "SansSerif", STATE_DESC_FONT_SIZE, false, false)
+            + 2.0 * PADDING;
         assert!(
             node.width >= expected_min_w,
             "width {} should be >= {}",

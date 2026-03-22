@@ -188,4 +188,25 @@ mod tests {
         assert!(h > 0.0);
         assert!((h - (1901.0 + 483.0) / 2048.0 * 15.0).abs() < 1e-6);
     }
+
+    #[test]
+    fn debug_title_xxxxddadaok() {
+        let text = "xxxxddadaok";
+        let family = "SansSerif";
+        let size = 14.0;
+        let bold = true;
+
+        let total_w = text_width(text, family, size, bold, false);
+        eprintln!("text_width(\"{text}\", {family}, {size}, bold={bold}) = {total_w:.10}");
+        for ch in text.chars() {
+            let w = char_width(ch, family, size, bold, false);
+            eprintln!("  char_width('{ch}') = {w:.10}");
+        }
+
+        let asc = ascent(family, size, bold, false);
+        let desc = descent(family, size, bold, false);
+        let lh = line_height(family, size, bold, false);
+        eprintln!("ascent={asc:.10} descent={desc:.10} line_height={lh:.10} a+d={:.10}", asc + desc);
+    }
+
 }
