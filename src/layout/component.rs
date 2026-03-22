@@ -79,8 +79,10 @@ pub struct ComponentGroupLayout {
 // ---------------------------------------------------------------------------
 
 const FONT_SIZE: f64 = 14.0;
-const LINE_HEIGHT: f64 = 16.0;
-const PADDING: f64 = 10.0;
+// Java: line_height = (ascent + descent) from AWT FontMetrics for SansSerif 14pt
+const LINE_HEIGHT: f64 = 16.2969; // (1901 + 483) / 2048 * 14
+// Java: component node padding = 15px top + 15px bottom
+const PADDING: f64 = 15.0;
 const NODE_MIN_WIDTH: f64 = 100.0;
 const NODE_MIN_HEIGHT: f64 = 40.0;
 const NODE_SPACING_X: f64 = 50.0;
@@ -357,8 +359,11 @@ pub fn layout_component(cd: &ComponentDiagram) -> Result<ComponentLayout> {
         .chain(note_layouts.iter().map(|n| n.y + n.height))
         .fold(0.0_f64, f64::max);
 
-    let total_width = (all_right + MARGIN).max(2.0 * MARGIN);
-    let total_height = (all_bottom + MARGIN).max(2.0 * MARGIN);
+    // Java: TextBlockExporter adds document margins (R=5, B=5) on top of the
+    // diagram content area. The content starts at MARGIN from the top-left.
+    const DOC_MARGIN: f64 = 5.0;
+    let total_width = (all_right + MARGIN + DOC_MARGIN).max(2.0 * MARGIN);
+    let total_height = (all_bottom + MARGIN + DOC_MARGIN).max(2.0 * MARGIN);
 
     log::debug!(
         "layout_component done: {:.0}x{:.0}, {} nodes, {} edges, {} groups, {} notes",
