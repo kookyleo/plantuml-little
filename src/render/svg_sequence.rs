@@ -166,6 +166,7 @@ fn draw_participant_box_with_font(
     text_color: &str,
     part_font_family: &str,
     part_font_size: f64,
+    head: bool,
 ) {
     let fill = p.color.as_deref().unwrap_or(bg);
 
@@ -174,13 +175,13 @@ fn draw_participant_box_with_font(
             draw_participant_actor(sg, p, y, display_name, border, text_color);
         }
         ParticipantKind::Boundary => {
-            draw_participant_boundary(sg, p, y, display_name, fill, border, text_color);
+            draw_participant_boundary(sg, p, y, display_name, fill, border, text_color, head);
         }
         ParticipantKind::Control => {
-            draw_participant_control(sg, p, y, display_name, fill, border, text_color);
+            draw_participant_control(sg, p, y, display_name, fill, border, text_color, head);
         }
         ParticipantKind::Entity => {
-            draw_participant_entity(sg, p, y, display_name, fill, border, text_color);
+            draw_participant_entity(sg, p, y, display_name, fill, border, text_color, head);
         }
         ParticipantKind::Database => {
             draw_participant_database(sg, p, y, display_name, fill, border, text_color);
@@ -475,7 +476,12 @@ fn draw_participant_actor_tail(
     sg.push_raw(&pa);
 }
 
-/// Boundary: circle on left + vertical line + horizontal connector
+/// Boundary: vertical line + horizontal connector + ellipse, with text below.
+/// Matches Java: Boundary.java (margin=4, radius=12, left=17) +
+/// ComponentRoseBoundary.java (head=true: text at dimStickman.height, icon at delta).
+/// Boundary: vertical line + horizontal connector + ellipse, with text below (head) or above (tail).
+/// Matches Java: Boundary.java (margin=4, radius=12, left=17) +
+/// ComponentRoseBoundary.java (head: text at dimStickman.height; tail: icon at textHeight).
 fn draw_participant_boundary(
     sg: &mut SvgGraphic,
     p: &ParticipantLayout,
@@ -484,51 +490,92 @@ fn draw_participant_boundary(
     bg: &str,
     border: &str,
     text_color: &str,
+    head: bool,
 ) {
     let name = display_name.unwrap_or(&p.name);
     let cx = p.x;
-    let icon_y = y + 4.0;
-    let icon_r = 10.0;
-    let icon_cx = cx - 8.0;
 
-    // Circle on the right side
-    sg.set_fill_color(bg);
-    sg.set_stroke_color(Some(border));
-    sg.set_stroke_width(1.5, None);
-    sg.svg_circle(icon_cx, icon_y + icon_r, icon_r, 0.0);
-    sg.push_raw("\n");
+    // Java Boundary.java constants
+    let margin = 4.0_f64;
+    let radius = 12.0_f64;
+    let left = 17.0_f64;
+    let icon_width = radius * 2.0 + left + 2.0 * margin; // 49
+    let icon_height = radius * 2.0 + 2.0 * margin; // 32
 
-    // Vertical line to the left of circle
-    sg.svg_line(icon_cx - icon_r - 4.0, icon_y, icon_cx - icon_r - 4.0, icon_y + 2.0 * icon_r, 0.0);
-    sg.push_raw("\n");
+    // Text metrics (Java: marginX1=3, marginX2=3)
+    let font_size = 14.0;
+    let margin_x1 = 3.0;
+    let margin_x2 = 3.0;
+    let tl = font_metrics::text_width(name, "SansSerif", font_size, false, false);
+    let text_width = tl + margin_x1 + margin_x2;
+    let pref_width = icon_width.max(text_width);
+    let text_middle_pos = (pref_width - text_width) / 2.0;
+    let component_x = cx - pref_width / 2.0;
+    let delta = (pref_width - icon_width) / 2.0;
+    let text_height = font_metrics::line_height("SansSerif", font_size, false, false);
 
-    // Horizontal connector from vertical bar to circle
-    sg.svg_line(icon_cx - icon_r - 4.0, icon_y + icon_r, icon_cx - icon_r, icon_y + icon_r, 0.0);
-    sg.push_raw("\n");
+    if head {
+        // Head: text below icon
+        // 1. Text at (textMiddlePos, icon_height)
+        let text_x = component_x + text_middle_pos;
+        let text_y = y + icon_height + font_metrics::ascent("SansSerif", font_size, false, false);
+        sg.set_fill_color(text_color);
+        sg.svg_text(
+            name, text_x, text_y, Some("sans-serif"), font_size,
+            None, None, None, tl, LengthAdjust::Spacing, None, 0, None,
+        );
 
-    // Name below
-    let name_y = icon_y + 2.0 * icon_r + FONT_SIZE + 6.0;
-    let tl = font_metrics::text_width(name, "SansSerif", 14.0, true, false);
-    sg.set_fill_color(text_color);
-    sg.svg_text(
-        name,
-        cx,
-        name_y,
-        Some("sans-serif"),
-        14.0,
-        Some("bold"),
-        None,
-        None,
-        tl,
-        LengthAdjust::Spacing,
-        None,
-        0,
-        Some("middle"),
-    );
-    sg.push_raw("\n");
+        // 2. Path at (delta + margin, margin)
+        let px = component_x + delta + margin;
+        let py = y + margin;
+        draw_boundary_icon(sg, px, py, radius, left, bg, border);
+    } else {
+        // Tail: text above icon
+        // 1. Text at (textMiddlePos, 0)
+        let text_x = component_x + text_middle_pos;
+        let text_y = y + font_metrics::ascent("SansSerif", font_size, false, false);
+        sg.set_fill_color(text_color);
+        sg.svg_text(
+            name, text_x, text_y, Some("sans-serif"), font_size,
+            None, None, None, tl, LengthAdjust::Spacing, None, 0, None,
+        );
+
+        // 2. Icon at (delta, textHeight)
+        let px = component_x + delta + margin;
+        let py = y + text_height + margin;
+        draw_boundary_icon(sg, px, py, radius, left, bg, border);
+    }
 }
 
-/// Control: circle with a small arrow on top
+/// Draw the boundary icon (path + ellipse) at the given origin.
+fn draw_boundary_icon(
+    sg: &mut SvgGraphic,
+    px: f64, py: f64,
+    radius: f64, left: f64,
+    bg: &str, border: &str,
+) {
+    let px_s = fmt_coord(px);
+    let py_top = fmt_coord(py);
+    let py_bot = fmt_coord(py + radius * 2.0);
+    let py_mid = fmt_coord(py + radius);
+    let px_right = fmt_coord(px + left);
+    let mut pa = String::new();
+    write!(pa,
+        "<path d=\"M{px_s},{py_top} L{px_s},{py_bot} M{px_s},{py_mid} L{px_right},{py_mid}\" fill=\"none\" style=\"stroke:{border};stroke-width:0.5;\"/>"
+    ).unwrap();
+    sg.push_raw(&pa);
+
+    let ecx = px + left + radius;
+    let ecy = py + radius;
+    let mut el = String::new();
+    write!(el,
+        "<ellipse cx=\"{}\" cy=\"{}\" fill=\"{bg}\" rx=\"{r}\" ry=\"{r}\" style=\"stroke:{border};stroke-width:0.5;\"/>",
+        fmt_coord(ecx), fmt_coord(ecy), r = fmt_coord(radius)
+    ).unwrap();
+    sg.push_raw(&el);
+}
+
+/// Control: ellipse + small arrow polygon. Matches Java Control.java.
 fn draw_participant_control(
     sg: &mut SvgGraphic,
     p: &ParticipantLayout,
@@ -537,52 +584,43 @@ fn draw_participant_control(
     bg: &str,
     border: &str,
     text_color: &str,
+    head: bool,
 ) {
-    let name = display_name.unwrap_or(&p.name);
-    let cx = p.x;
-    let icon_r = 12.0;
-    let icon_cy = y + icon_r + 8.0;
+    draw_iconic_participant(sg, p, y, display_name, bg, border, text_color, head,
+        |sg, px, py, radius, bg, border| {
+            // Ellipse
+            let ecx = px + radius;
+            let ecy = py + radius;
+            let mut el = String::new();
+            write!(el,
+                "<ellipse cx=\"{}\" cy=\"{}\" fill=\"{bg}\" rx=\"{r}\" ry=\"{r}\" style=\"stroke:{border};stroke-width:0.5;\"/>",
+                fmt_coord(ecx), fmt_coord(ecy), r = fmt_coord(radius)
+            ).unwrap();
+            sg.push_raw(&el);
 
-    // Circle
-    sg.set_fill_color(bg);
-    sg.set_stroke_color(Some(border));
-    sg.set_stroke_width(1.5, None);
-    sg.svg_circle(cx, icon_cy, icon_r, 0.0);
-    sg.push_raw("\n");
-
-    // Small arrow on top of circle
-    let arrow_y = icon_cy - icon_r;
-    sg.push_raw(&format!(
-        r#"<path d="M{},{} L{},{} L{},{} " fill="none" style="stroke:{border};stroke-width:1.5;"/>"#,
-        fmt_coord(cx - 5.0), fmt_coord(arrow_y - 6.0),
-        fmt_coord(cx + 2.0), fmt_coord(arrow_y - 1.0),
-        fmt_coord(cx - 5.0), fmt_coord(arrow_y + 3.0),
-    ));
-    sg.push_raw("\n");
-
-    // Name below
-    let name_y = icon_cy + icon_r + FONT_SIZE + 6.0;
-    let tl = font_metrics::text_width(name, "SansSerif", 14.0, true, false);
-    sg.set_fill_color(text_color);
-    sg.svg_text(
-        name,
-        cx,
-        name_y,
-        Some("sans-serif"),
-        14.0,
-        Some("bold"),
-        None,
-        None,
-        tl,
-        LengthAdjust::Spacing,
-        None,
-        0,
-        Some("middle"),
+            // Arrow polygon (Java: Control.java xWing=6, yAperture=5, xContact=4)
+            let x_wing = 6.0_f64;
+            let y_aperture = 5.0_f64;
+            let x_contact = 4.0_f64;
+            let ax = px + radius - x_contact;
+            let ay = py;
+            let pts = format!("{},{},{},{},{},{},{},{},{},{}",
+                fmt_coord(ax), fmt_coord(ay),
+                fmt_coord(ax + x_wing), fmt_coord(ay - y_aperture),
+                fmt_coord(ax + x_contact), fmt_coord(ay),
+                fmt_coord(ax + x_wing), fmt_coord(ay + y_aperture),
+                fmt_coord(ax), fmt_coord(ay),
+            );
+            let mut pg = String::new();
+            write!(pg,
+                "<polygon fill=\"{border}\" points=\"{pts}\" style=\"stroke:{border};stroke-width:1;\"/>"
+            ).unwrap();
+            sg.push_raw(&pg);
+        },
     );
-    sg.push_raw("\n");
 }
 
-/// Entity: circle with a horizontal underline
+/// Entity: ellipse + horizontal underline. Matches Java EntityDomain.java.
 fn draw_participant_entity(
     sg: &mut SvgGraphic,
     p: &ParticipantLayout,
@@ -591,44 +629,89 @@ fn draw_participant_entity(
     bg: &str,
     border: &str,
     text_color: &str,
+    head: bool,
+) {
+    draw_iconic_participant(sg, p, y, display_name, bg, border, text_color, head,
+        |sg, px, py, radius, bg, border| {
+            // Ellipse
+            let ecx = px + radius;
+            let ecy = py + radius;
+            let mut el = String::new();
+            write!(el,
+                "<ellipse cx=\"{}\" cy=\"{}\" fill=\"{bg}\" rx=\"{r}\" ry=\"{r}\" style=\"stroke:{border};stroke-width:0.5;\"/>",
+                fmt_coord(ecx), fmt_coord(ecy), r = fmt_coord(radius)
+            ).unwrap();
+            sg.push_raw(&el);
+
+            // Underline (Java: suppY=2, hline at y + 2*radius + suppY)
+            let supp_y = 2.0;
+            let line_y = py + 2.0 * radius + supp_y;
+            let mut ln = String::new();
+            write!(ln,
+                "<line style=\"stroke:{border};stroke-width:0.5;\" x1=\"{}\" x2=\"{}\" y1=\"{}\" y2=\"{}\"/>",
+                fmt_coord(px), fmt_coord(px + 2.0 * radius),
+                fmt_coord(line_y), fmt_coord(line_y)
+            ).unwrap();
+            sg.push_raw(&ln);
+        },
+    );
+}
+
+/// Generic iconic participant rendering (boundary/control/entity pattern).
+/// Java: ComponentRose{Boundary,Control,Entity} all share the same layout:
+/// head=true: text below icon, head=false (tail): text above icon.
+fn draw_iconic_participant(
+    sg: &mut SvgGraphic,
+    p: &ParticipantLayout,
+    y: f64,
+    display_name: Option<&str>,
+    bg: &str,
+    border: &str,
+    text_color: &str,
+    head: bool,
+    draw_icon: impl FnOnce(&mut SvgGraphic, f64, f64, f64, &str, &str),
 ) {
     let name = display_name.unwrap_or(&p.name);
     let cx = p.x;
-    let icon_r = 12.0;
-    let icon_cy = y + icon_r + 4.0;
+    let margin = 4.0;
+    let radius = 12.0;
+    let icon_width: f64 = radius * 2.0 + 2.0 * margin; // 32
+    let icon_height: f64 = radius * 2.0 + 2.0 * margin; // 32
 
-    // Circle
-    sg.set_fill_color(bg);
-    sg.set_stroke_color(Some(border));
-    sg.set_stroke_width(1.5, None);
-    sg.svg_circle(cx, icon_cy, icon_r, 0.0);
-    sg.push_raw("\n");
+    let font_size = 14.0_f64;
+    let margin_x1 = 3.0_f64;
+    let margin_x2 = 3.0_f64;
+    let tl = font_metrics::text_width(name, "SansSerif", font_size, false, false);
+    let text_width = tl + margin_x1 + margin_x2;
+    let pref_width = icon_width.max(text_width);
+    let text_middle_pos = (pref_width - text_width) / 2.0;
+    let component_x = cx - pref_width / 2.0;
+    let delta = (pref_width - icon_width) / 2.0;
+    let text_height = font_metrics::line_height("SansSerif", font_size, false, false);
 
-    // Horizontal underline
-    let line_y = icon_cy + icon_r + 2.0;
-    sg.svg_line(cx - icon_r, line_y, cx + icon_r, line_y, 0.0);
-    sg.push_raw("\n");
-
-    // Name below
-    let name_y = line_y + FONT_SIZE + 6.0;
-    let tl = font_metrics::text_width(name, "SansSerif", 14.0, true, false);
-    sg.set_fill_color(text_color);
-    sg.svg_text(
-        name,
-        cx,
-        name_y,
-        Some("sans-serif"),
-        14.0,
-        Some("bold"),
-        None,
-        None,
-        tl,
-        LengthAdjust::Spacing,
-        None,
-        0,
-        Some("middle"),
-    );
-    sg.push_raw("\n");
+    if head {
+        // Text at (textMiddlePos, icon_height)
+        let text_x = component_x + text_middle_pos;
+        let text_y = y + icon_height + font_metrics::ascent("SansSerif", font_size, false, false);
+        sg.set_fill_color(text_color);
+        sg.svg_text(
+            name, text_x, text_y, Some("sans-serif"), font_size,
+            None, None, None, tl, LengthAdjust::Spacing, None, 0, None,
+        );
+        // Icon at (delta + margin, margin)
+        draw_icon(sg, component_x + delta + margin, y + margin, radius, bg, border);
+    } else {
+        // Text at (textMiddlePos, 0)
+        let text_x = component_x + text_middle_pos;
+        let text_y = y + font_metrics::ascent("SansSerif", font_size, false, false);
+        sg.set_fill_color(text_color);
+        sg.svg_text(
+            name, text_x, text_y, Some("sans-serif"), font_size,
+            None, None, None, tl, LengthAdjust::Spacing, None, 0, None,
+        );
+        // Icon at (delta + margin, textHeight + margin)
+        draw_icon(sg, component_x + delta + margin, y + text_height + margin, radius, bg, border);
+    }
 }
 
 /// Database: cylinder shape (rect with rounded top/bottom arcs)
@@ -1782,7 +1865,7 @@ fn render_sequence_inner(
         } else {
             draw_participant_box_with_font(
                 &mut sg, p, top_y, dn, part_bg, part_border, part_font,
-                &default_font, part_font_size,
+                &default_font, part_font_size, true,
             );
         }
         sg.push_raw("</g>");
@@ -1805,7 +1888,7 @@ fn render_sequence_inner(
             } else {
                 draw_participant_box_with_font(
                     &mut sg, p, bottom_y, dn, part_bg, part_border, part_font,
-                    &default_font, part_font_size,
+                    &default_font, part_font_size, false,
                 );
             }
             sg.push_raw("</g>");

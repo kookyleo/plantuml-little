@@ -504,10 +504,12 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
         };
         let bh = match p.kind {
             ParticipantKind::Actor => base_participant_height + 45.0 + multiline_extra,
+            // Boundary/Control/Entity: Java icon height = 32 (radius=12, margin=4)
+            // Actor stickman height = 60 → difference = 28, so offset = 45 - 28 = 17
             ParticipantKind::Boundary
             | ParticipantKind::Control
-            | ParticipantKind::Entity
-            | ParticipantKind::Database
+            | ParticipantKind::Entity => base_participant_height + 17.0 + multiline_extra,
+            ParticipantKind::Database
             | ParticipantKind::Collections
             | ParticipantKind::Queue => base_participant_height + 20.0 + multiline_extra,
             ParticipantKind::Default => base_participant_height + multiline_extra,
