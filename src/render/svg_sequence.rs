@@ -184,7 +184,7 @@ fn draw_participant_box_with_font(
             draw_participant_entity(sg, p, y, display_name, fill, border, text_color, head);
         }
         ParticipantKind::Database => {
-            draw_participant_database(sg, p, y, display_name, fill, border, text_color);
+            draw_participant_database(sg, p, y, display_name, fill, border, text_color, head);
         }
         ParticipantKind::Collections => {
             draw_participant_collections(sg, p, y, display_name, fill, border, text_color);
@@ -714,7 +714,9 @@ fn draw_iconic_participant(
     }
 }
 
-/// Database: cylinder shape (rect with rounded top/bottom arcs)
+/// Database: cylinder shape using cubic bezier paths.
+/// Matches Java: USymbolDatabase.drawDatabase + ComponentRoseDatabase.
+/// Stickman = asSmall(empty(16,17)) + Margin(10,10,24,5) → dim=(36, 46).
 fn draw_participant_database(
     sg: &mut SvgGraphic,
     p: &ParticipantLayout,
@@ -723,56 +725,79 @@ fn draw_participant_database(
     bg: &str,
     border: &str,
     text_color: &str,
+    head: bool,
 ) {
     let name = display_name.unwrap_or(&p.name);
     let cx = p.x;
-    let cyl_w = 40.0;
-    let cyl_h = 30.0;
-    let arc_h = 6.0;
-    let cyl_x = cx - cyl_w / 2.0;
-    let cyl_y = y + 4.0;
 
-    // Cylinder body
-    {
-        let rx_s = fmt_coord(cyl_w / 2.0);
-        let ry_s = fmt_coord(arc_h);
-        sg.push_raw(&format!(
-            r#"<path d="M{},{} A{rx_s},{ry_s} 0 0,0 {},{} L{},{} A{rx_s},{ry_s} 0 0,0 {},{} Z " fill="{bg}" style="stroke:{border};stroke-width:1.5;"/>"#,
-            fmt_coord(cyl_x), fmt_coord(cyl_y + arc_h),
-            fmt_coord(cyl_x + cyl_w), fmt_coord(cyl_y + arc_h),
-            fmt_coord(cyl_x + cyl_w), fmt_coord(cyl_y + cyl_h),
-            fmt_coord(cyl_x), fmt_coord(cyl_y + cyl_h),
-        ));
+    let icon_width = 36.0_f64; // DATABASE_ICON_WIDTH
+    let icon_height = 46.0_f64; // dimStickman.height
+    let curve_h = 10.0_f64; // Java drawDatabase hardcoded curve constant
+
+    let font_size = 14.0_f64;
+    let margin_x1 = 3.0_f64;
+    let margin_x2 = 3.0_f64;
+    let tl = font_metrics::text_width(name, "SansSerif", font_size, false, false);
+    let text_width = tl + margin_x1 + margin_x2;
+    let pref_width = icon_width.max(text_width);
+    let text_middle_pos = (pref_width - text_width) / 2.0;
+    let component_x = cx - pref_width / 2.0;
+    let delta = (pref_width - icon_width) / 2.0;
+    let text_height = font_metrics::line_height("SansSerif", font_size, false, false);
+
+    let (text_x, text_y, cyl_x, cyl_y);
+    if head {
+        text_x = component_x + text_middle_pos;
+        text_y = y + icon_height + font_metrics::ascent("SansSerif", font_size, false, false);
+        cyl_x = component_x + delta;
+        cyl_y = y;
+    } else {
+        text_x = component_x + text_middle_pos;
+        text_y = y + font_metrics::ascent("SansSerif", font_size, false, false);
+        cyl_x = component_x + delta;
+        cyl_y = y + text_height;
     }
-    sg.push_raw("\n");
 
-    // Top ellipse
-    sg.set_fill_color(bg);
-    sg.set_stroke_color(Some(border));
-    sg.set_stroke_width(1.5, None);
-    sg.svg_ellipse(cx, cyl_y + arc_h, cyl_w / 2.0, arc_h, 0.0);
-    sg.push_raw("\n");
-
-    // Name below cylinder
-    let name_y = cyl_y + cyl_h + arc_h + FONT_SIZE + 4.0;
-    let tl = font_metrics::text_width(name, "SansSerif", 14.0, true, false);
+    // 1. Text first
     sg.set_fill_color(text_color);
     sg.svg_text(
-        name,
-        cx,
-        name_y,
-        Some("sans-serif"),
-        14.0,
-        Some("bold"),
-        None,
-        None,
-        tl,
-        LengthAdjust::Spacing,
-        None,
-        0,
-        Some("middle"),
+        name, text_x, text_y, Some("sans-serif"), font_size,
+        None, None, None, tl, LengthAdjust::Spacing, None, 0, None,
     );
-    sg.push_raw("\n");
+
+    // 2. Cylinder body path (Java: USymbolDatabase.drawDatabase)
+    draw_database_cylinder(sg, cyl_x, cyl_y, icon_width, icon_height, curve_h, bg, border);
+}
+
+/// Draw the database cylinder using cubic bezier paths matching Java USymbolDatabase.
+fn draw_database_cylinder(
+    sg: &mut SvgGraphic,
+    x: f64, y: f64, w: f64, h: f64, ch: f64,
+    bg: &str, border: &str,
+) {
+    let mid = w / 2.0;
+    // Path 1: cylinder body
+    // M(0,ch) C(0,0, mid,0, mid,0) C(mid,0, w,0, w,ch) L(w,h-ch) C(w,h, mid,h, mid,h) C(mid,h, 0,h, 0,h-ch) L(0,ch)
+    let x0 = fmt_coord(x);
+    let xm = fmt_coord(x + mid);
+    let xw = fmt_coord(x + w);
+    let yt = fmt_coord(y);       // 0
+    let yc = fmt_coord(y + ch);  // ch (top of body)
+    let yb = fmt_coord(y + h - ch); // h-ch (bottom of body)
+    let yh = fmt_coord(y + h);   // h (bottom control)
+    let mut body = String::new();
+    write!(body,
+        "<path d=\"M{x0},{yc} C{x0},{yt} {xm},{yt} {xm},{yt} C{xm},{yt} {xw},{yt} {xw},{yc} L{xw},{yb} C{xw},{yh} {xm},{yh} {xm},{yh} C{xm},{yh} {x0},{yh} {x0},{yb} L{x0},{yc}\" fill=\"{bg}\" style=\"stroke:{border};stroke-width:0.5;\"/>"
+    ).unwrap();
+    sg.push_raw(&body);
+
+    // Path 2: inner top curve (closing/front ellipse)
+    let yc2 = fmt_coord(y + ch * 2.0); // 2*ch
+    let mut top = String::new();
+    write!(top,
+        "<path d=\"M{x0},{yc} C{x0},{yc2} {xm},{yc2} {xm},{yc2} C{xm},{yc2} {xw},{yc2} {xw},{yc}\" fill=\"none\" style=\"stroke:{border};stroke-width:0.5;\"/>"
+    ).unwrap();
+    sg.push_raw(&top);
 }
 
 /// Collections: stacked rectangles (shadow rect behind main rect)
