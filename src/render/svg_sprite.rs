@@ -1088,12 +1088,14 @@ fn convert_use(
         .unwrap_or(0.0);
 
     // Get optional transform (e.g. scale)
+    let mut scale_factor = 1.0_f64;
     let (tx, ty) = if let Some(transform) = get_attr(element, "transform") {
         // Handle scale transform by adjusting positions
         if let Some(scale) = parse_scale(&transform) {
             // For scale, we adjust the position and scale the content
             // Java processes <use> by inlining the referenced content at the
             // scaled position
+            scale_factor = scale;
             (use_x * scale, use_y * scale)
         } else {
             let (ptx, pty) = parse_translate(&transform);
@@ -1109,6 +1111,12 @@ fn convert_use(
     });
 
     if let Some(ref_element) = ref_content {
+        // If there's a scale transform, pre-scale the referenced content
+        let ref_element = if (scale_factor - 1.0).abs() > 0.001 {
+            scale_svg_content(&ref_element, scale_factor)
+        } else {
+            ref_element
+        };
         let tag_name = element_tag_name(&ref_element);
         match tag_name {
             "g" => {
@@ -1164,6 +1172,132 @@ fn parse_translate(transform: &str) -> (f64, f64) {
         }
     }
     (0.0, 0.0)
+}
+
+/// Scale coordinate/size attributes in SVG content by a factor.
+/// Uses regex-based approach to reliably scale attributes within SVG elements.
+fn scale_svg_content(content: &str, scale: f64) -> String {
+    use std::fmt::Write;
+    let mut result = String::with_capacity(content.len() * 2);
+    let bytes = content.as_bytes();
+    let mut i = 0;
+
+    while i < bytes.len() {
+        if bytes[i] == b'<' {
+            // We're at a tag start. Find the end of this tag.
+            let tag_end = content[i..].find('>').map(|e| i + e + 1).unwrap_or(content.len());
+            let tag = &content[i..tag_end];
+
+            // Scale numeric attributes: cx, cy, r, rx, ry, x, y, width, height, x1, y1, x2, y2
+            let scaled_tag = scale_tag_attributes(tag, scale);
+            result.push_str(&scaled_tag);
+            i = tag_end;
+        } else {
+            result.push(bytes[i] as char);
+            i += 1;
+        }
+    }
+    result
+}
+
+fn scale_tag_attributes(tag: &str, scale: f64) -> String {
+    use std::fmt::Write;
+    let coord_attrs = ["cx", "cy", "r", "rx", "ry", "x", "y", "x1", "y1", "x2", "y2", "width", "height", "stroke-width"];
+    let mut result = tag.to_string();
+
+    // Scale coordinate attributes
+    for attr_name in &coord_attrs {
+        let pattern = format!("{}=\"", attr_name);
+        if let Some(pos) = result.find(&pattern) {
+            // Ensure it's a full attribute match (preceded by space or tag start)
+            let before = if pos > 0 { result.as_bytes()[pos - 1] } else { b' ' };
+            if before != b' ' && before != b'\t' && before != b'\n' {
+                continue;
+            }
+            let val_start = pos + pattern.len();
+            if let Some(val_end) = result[val_start..].find('"') {
+                let val_end = val_start + val_end;
+                if let Ok(val) = result[val_start..val_end].parse::<f64>() {
+                    let scaled = val * scale;
+                    let new_val = crate::klimt::svg::fmt_coord(scaled);
+                    let old = result[pos..val_end + 1].to_string();
+                    let new = format!("{}=\"{}\"", attr_name, new_val);
+                    result = result.replacen(&old, &new, 1);
+                }
+            }
+        }
+    }
+
+    // Scale path d= data
+    let d_pattern = "d=\"";
+    if let Some(d_pos) = result.find(d_pattern) {
+        let d_val_start = d_pos + d_pattern.len();
+        if let Some(d_val_end_rel) = result[d_val_start..].find('"') {
+            let d_val_end = d_val_start + d_val_end_rel;
+            let d_str = result[d_val_start..d_val_end].to_string();
+            let scaled_d = scale_path_data(&d_str, scale);
+            result = format!("{}d=\"{}\"{}", &result[..d_pos], scaled_d, &result[d_val_end + 1..]);
+        }
+    }
+
+    // Scale stroke-width in style attribute
+    if let Some(sw_pos) = result.find("stroke-width:") {
+        let val_start = sw_pos + 13;
+        // Find end of value (semicolon or quote)
+        let mut val_end = val_start;
+        while val_end < result.len() {
+            let c = result.as_bytes()[val_end];
+            if c == b';' || c == b'"' || c == b'\'' {
+                break;
+            }
+            val_end += 1;
+        }
+        if let Ok(val) = result[val_start..val_end].parse::<f64>() {
+            let scaled = val * scale;
+            let old_frag = result[sw_pos..val_end].to_string();
+            let new_frag = format!("stroke-width:{}", crate::klimt::svg::fmt_coord(scaled));
+            result = result.replacen(&old_frag, &new_frag, 1);
+        }
+    }
+
+    result
+}
+
+fn scale_path_data(d: &str, scale: f64) -> String {
+    use std::fmt::Write;
+    let mut result = String::with_capacity(d.len() * 2);
+    let mut chars = d.chars().peekable();
+
+    while let Some(&ch) = chars.peek() {
+        if ch.is_ascii_digit() || (ch == '-' && {
+            // Check if this is a negative number sign (not part of a range)
+            let prev = result.chars().last().unwrap_or(' ');
+            prev == ' ' || prev == ',' || prev.is_ascii_alphabetic()
+        }) || (ch == '.' && result.chars().last().map(|c| c == ' ' || c == ',').unwrap_or(true)) {
+            let mut num_str = String::new();
+            if ch == '-' {
+                num_str.push(ch);
+                chars.next();
+            }
+            while let Some(&c) = chars.peek() {
+                if c.is_ascii_digit() || c == '.' {
+                    num_str.push(c);
+                    chars.next();
+                } else {
+                    break;
+                }
+            }
+            if let Ok(val) = num_str.parse::<f64>() {
+                write!(result, "{}", crate::klimt::svg::fmt_coord(val * scale)).unwrap();
+            } else {
+                result.push_str(&num_str);
+            }
+        } else {
+            result.push(ch);
+            chars.next();
+        }
+    }
+    result
 }
 
 // ── Attribute helpers ───────────────────────────────────────────────────────
