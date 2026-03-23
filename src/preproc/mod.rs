@@ -354,6 +354,9 @@ impl Context {
             // ── directive detection ──
             if trimmed.starts_with("!pragma ") {
                 self.handle_pragma(trimmed);
+                // Pass pragma through to output so downstream parsers can see it
+                // (e.g. sequence parser needs `!pragma teoz true` to enable teoz mode)
+                output.push(trimmed.to_string());
                 i += 1;
                 continue;
             }
@@ -2866,10 +2869,11 @@ mod tests {
     }
 
     #[test]
-    fn test_pragma_stripped() {
+    fn test_pragma_passed_through() {
         let src = "@startuml\n!pragma teoz true\nAlice -> Bob\n@enduml";
         let out = preprocess(src).unwrap();
-        assert!(!out.contains("!pragma"));
+        // Pragmas are passed through so downstream parsers can see them
+        assert!(out.contains("!pragma teoz true"), "pragma should be passed through, got: {out}");
         assert!(out.contains("Alice -> Bob"));
     }
 

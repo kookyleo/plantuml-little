@@ -253,19 +253,35 @@ fn normalize_gradient(raw: &str, tag: &str) -> String {
     result
 }
 
-/// Truncate gradient coordinate values to 4 decimal places (matching Java DecimalFormat "0.####").
-/// Percentage values like "58.9717389%" → "58.9717%".
+/// Truncate gradient coordinate values to 4 decimal places matching Java DecimalFormat("0.####").
+/// Trailing zeros are stripped: "58.9717389%" → "58.9717%", "0.0000%" → "0%", "100.0000%" → "100%".
 /// Non-numeric values (gradientUnits, gradientTransform) pass through unchanged.
 fn truncate_gradient_value(v: &str) -> String {
     if let Some(num_str) = v.strip_suffix('%') {
         if let Ok(n) = num_str.parse::<f64>() {
-            return format!("{:.4}%", n);
+            return format!("{}%", format_4dp(n));
         }
     }
     if let Ok(n) = v.parse::<f64>() {
-        return format!("{:.4}", n);
+        return format_4dp(n);
     }
     v.to_string()
+}
+
+/// Format a number with up to 4 decimal places, stripping trailing zeros.
+/// Matches Java's DecimalFormat("0.####"): "58.9717389" → "58.9717", "0.0" → "0".
+fn format_4dp(n: f64) -> String {
+    let s = format!("{:.4}", n);
+    if let Some(dot) = s.find('.') {
+        let trimmed = s.trim_end_matches('0');
+        if trimmed.ends_with('.') {
+            trimmed[..trimmed.len() - 1].to_string()
+        } else {
+            trimmed.to_string()
+        }
+    } else {
+        s
+    }
 }
 
 /// Recursively convert SVG elements to path-based output.

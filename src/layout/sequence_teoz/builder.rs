@@ -249,7 +249,9 @@ impl TeozParams {
 
 		let self_msg_height = rose::SELF_ARROW_ONLY_HEIGHT;
 
-		let part_tm = TextMetrics::new(5.0, 5.0, 6.5, 0.0, h14);
+		// Java: ComponentRoseParticipant(style, stereo, NONE, 7, 7, 7, skinParam, display, false)
+		// marginX1=7, marginX2=7, marginY=7
+		let part_tm = TextMetrics::new(7.0, 7.0, 7.0, 0.0, h14);
 		let participant_height =
 			rose::participant_preferred_size(&part_tm, 0.0, false, 0.0, 0.0).height;
 
@@ -1059,7 +1061,19 @@ pub fn build_teoz_layout(
 	}
 
 	let total_width = diagram_width + 10.0;
-	let total_height = lifeline_bottom + max_box_height + 10.0;
+	// Java height chain:
+	//   getPreferredHeight  = finalY + 10          (PlayingSpace bottom padding)
+	//   bodyHeight          = preferred + factor*headHeight  (footbox adds 2nd head)
+	//   calculateDimension  = bodyHeight + 10       (outer TextBlock wrapper)
+	//   SVG viewport        = dimension + 10        (doc margin: UTranslate(5,5))
+	//
+	// Combined: startingY + sum_tiles + 10 + factor*headHeight + 10 + 10
+	// Our lifeline_bottom already = startingY + headHeight + sum_tiles,
+	// so: total = lifeline_bottom + (factor-1)*headHeight + 30
+	let show_footbox = !sd.hide_footbox;
+	let factor = if show_footbox { 2 } else { 1 };
+	let total_height =
+		lifeline_bottom + (factor - 1) as f64 * max_box_height + 30.0;
 
 	Ok(SeqLayout {
 		participants: part_layouts,
