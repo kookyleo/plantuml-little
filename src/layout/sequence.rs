@@ -1402,11 +1402,20 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
         }
     }
 
-    // Account for self-message loops extending to the right
+    // Account for self-message loops + text extending to the right.
+    // Java: self_msg_preferred_width = max(text_w + marginX1(7) + marginX2(7), arrowWidth(45) + 5)
+    // The diagram right edge must encompass from_x + preferred_width.
     let self_msg_right = messages
         .iter()
         .filter(|m| m.is_self && !m.is_left)
-        .map(|m| m.from_x + SELF_MSG_WIDTH + MARGIN)
+        .map(|m| {
+            let text_w = m.text_lines
+                .iter()
+                .map(|line| message_line_width(line, default_font, msg_font_size))
+                .fold(0.0_f64, f64::max);
+            let preferred = f64::max(text_w + 14.0, rose::SELF_ARROW_WIDTH + 5.0);
+            m.from_x + preferred
+        })
         .fold(0.0_f64, f64::max);
     if self_msg_right > total_width {
         total_width = self_msg_right;
