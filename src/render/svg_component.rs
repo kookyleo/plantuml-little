@@ -324,9 +324,11 @@ fn open_entity_g(sg: &mut SvgGraphic, node: &ComponentNodeLayout) {
     let source_line = node.source_line.map_or(String::new(), |l| {
         format!(r#" data-source-line="{}""#, l)
     });
+    // Java: data-qualified-name uses the entity's qualified ID (e.g. "c1.web_app"),
+    // not the display text (which may contain Creole markup like <size:12>).
     sg.push_raw(&format!(
         r#"<g class="entity" data-qualified-name="{}"{source_line} id="{ent_id}">"#,
-        xml_escape(&node.name),
+        xml_escape(&node.id),
     ));
 }
 
