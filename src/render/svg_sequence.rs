@@ -195,6 +195,7 @@ fn draw_participant_box_with_font(
     part_font_family: &str,
     part_font_size: f64,
     head: bool,
+    link_url: Option<&str>,
 ) {
     let fill = p.color.as_deref().unwrap_or(bg);
 
@@ -231,6 +232,7 @@ fn draw_participant_box_with_font(
                 text_color,
                 part_font_family,
                 part_font_size,
+                link_url,
             );
         }
     }
@@ -246,6 +248,7 @@ fn draw_participant_rect_with_font(
     text_color: &str,
     font_family: &str,
     font_size: f64,
+    link_url: Option<&str>,
 ) {
     let name = display_name.unwrap_or(&p.name);
     let lines: Vec<&str> = name.split("\\n").flat_map(|s| s.split(crate::NEWLINE_CHAR)).collect();
@@ -271,10 +274,20 @@ fn draw_participant_rect_with_font(
     .unwrap();
     sg.push_raw(&tmp);
 
+    // Wrap text in <a> link when participant has a URL
+    if let Some(url) = link_url {
+        sg.push_raw(&format!(
+            r#"<a href="{url}" target="_top" title="{url}" xlink:actuate="onRequest" xlink:href="{url}" xlink:show="new" xlink:title="{url}" xlink:type="simple">"#
+        ));
+    }
+
+    let effective_text_color = if link_url.is_some() { "#0000FF" } else { text_color };
+    let text_decoration = if link_url.is_some() { Some("underline") } else { None };
+
     for (line_idx, line) in lines.iter().enumerate() {
         let text_y = text_y_base + line_idx as f64 * line_h;
         let line_w = font_metrics::text_width(line, font_family, font_size, false, false);
-        sg.set_fill_color(text_color);
+        sg.set_fill_color(effective_text_color);
         sg.svg_text(
             line,
             text_x,
@@ -283,13 +296,17 @@ fn draw_participant_rect_with_font(
             font_size,
             None,
             None,
-            None,
+            text_decoration,
             line_w,
             LengthAdjust::Spacing,
             None,
             0,
             None,
         );
+    }
+
+    if link_url.is_some() {
+        sg.push_raw("</a>");
     }
 }
 
@@ -1924,12 +1941,13 @@ fn render_sequence_inner(
         )
         .unwrap();
         sg.push_raw(&tmp);
+        let part_link_url = sd.participants.get(i).and_then(|pp| pp.link_url.as_deref());
         if is_actor {
             draw_participant_actor(&mut sg, p, top_y, dn, part_border, part_text_color);
         } else {
             draw_participant_box_with_font(
                 &mut sg, p, top_y, dn, part_bg, part_border, part_font,
-                &default_font, part_font_size, true,
+                &default_font, part_font_size, true, part_link_url,
             );
         }
         sg.push_raw("</g>");
@@ -1952,7 +1970,7 @@ fn render_sequence_inner(
             } else {
                 draw_participant_box_with_font(
                     &mut sg, p, bottom_y, dn, part_bg, part_border, part_font,
-                    &default_font, part_font_size, false,
+                    &default_font, part_font_size, false, part_link_url,
                 );
             }
             sg.push_raw("</g>");
