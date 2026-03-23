@@ -190,6 +190,8 @@ pub struct ActivationLayout {
     pub x: f64,
     pub y_start: f64,
     pub y_end: f64,
+    /// Nesting level (1-based). Level 1 = first activation, 2 = nested, etc.
+    pub level: usize,
 }
 
 /// Destroy marker layout
@@ -565,6 +567,7 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
     let mut gap_autonumber_enabled = false;
     let mut gap_autonumber_counter: u32 = 1;
     let mut gap_active_levels: HashMap<&str, usize> = HashMap::new();
+    let mut max_active_levels: HashMap<&str, usize> = HashMap::new();
     for event in &sd.events {
         match event {
             SeqEvent::AutoNumber { start } => {
@@ -645,13 +648,37 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
                 }
             }
             SeqEvent::Activate(name) => {
-                *gap_active_levels.entry(name.as_str()).or_default() += 1;
+                let level = gap_active_levels.entry(name.as_str()).or_default();
+                *level += 1;
+                let max = max_active_levels.entry(name.as_str()).or_default();
+                if *level > *max {
+                    *max = *level;
+                }
             }
             SeqEvent::Deactivate(name) | SeqEvent::Destroy(name) => {
                 let level = gap_active_levels.entry(name.as_str()).or_default();
                 *level = level.saturating_sub(1);
             }
             _ => {}
+        }
+    }
+
+    // Java: LivingSpace.getMaxPosition() — the rightward extent of activation
+    // bars pushes adjacent participants apart even when no messages span the gap.
+    // maxPosition = (width/2) * maxNestingLevel = 5 * maxLevel.
+    // Only add extra gap when nested activation bars extend beyond the participant box.
+    // This ensures deep nesting doesn't overlap adjacent participant boxes.
+    for (i, p) in sd.participants.iter().enumerate() {
+        let max_level = max_active_levels.get(p.name.as_str()).copied().unwrap_or(0);
+        if max_level > 1 && i < min_gaps.len() {
+            // Level L bar right edge = center + L*5 (from nesting shift + bar width)
+            let act_right_extent = max_level as f64 * (ACTIVATION_WIDTH / 2.0);
+            let half_box = box_widths[i] / 2.0;
+            // Only widen gap if activation extends beyond the box
+            let overflow = (act_right_extent - half_box).max(0.0);
+            if overflow > 0.0 {
+                min_gaps[i] += overflow;
+            }
         }
     }
 
@@ -797,8 +824,8 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
     let mut autonumber_start: u32 = 1;
     let mut autonumber_counter: u32 = 1;
 
-    // Activation stack: participant name -> Vec<y_start>
-    let mut activation_stack: HashMap<String, Vec<f64>> = HashMap::new();
+    // Activation stack: participant name -> Vec<(y_start, level)>
+    let mut activation_stack: HashMap<String, Vec<(f64, usize)>> = HashMap::new();
     // Group stack: (y_start, label)
     let mut group_stack: Vec<(f64, Option<String>)> = Vec::new();
     // Fragment stack: (y_start, kind, label, separators)
@@ -1083,28 +1110,33 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
                 } else {
                     last_event_msg_y.unwrap_or(y_cursor)
                 };
-                log::debug!("activate '{name}' at y={act_y:.1}");
-                activation_stack
+                let stack = activation_stack
                     .entry(name.clone())
-                    .or_default()
-                    .push(act_y);
+                    .or_default();
+                let level = stack.len() + 1; // 1-based nesting level
+                log::debug!("activate '{name}' at y={act_y:.1} level={level}");
+                stack.push((act_y, level));
             }
 
             SeqEvent::Deactivate(name) => {
                 let px = find_participant_x(&participants, name);
                 if let Some(stack) = activation_stack.get_mut(name.as_str()) {
-                    if let Some(y_start) = stack.pop() {
+                    if let Some((y_start, level)) = stack.pop() {
                         // Java binds activation end to the deactivating message y,
                         // not y_cursor (which has advanced past the message).
                         let y_end = last_event_msg_y.unwrap_or(y_cursor);
+                        // Java shifts nested activations right by (level-1)*width/2
+                        let x = px - ACTIVATION_WIDTH / 2.0
+                            + (level - 1) as f64 * (ACTIVATION_WIDTH / 2.0);
                         activations.push(ActivationLayout {
                             participant: name.clone(),
-                            x: px - ACTIVATION_WIDTH / 2.0,
+                            x,
                             y_start,
                             y_end,
+                            level,
                         });
                         log::debug!(
-                            "deactivate '{name}' at y={y_end:.1}, bar from {y_start:.1}"
+                            "deactivate '{name}' at y={y_end:.1}, bar from {y_start:.1} level={level}"
                         );
                     } else {
                         log::warn!("deactivate '{name}' with empty stack");
@@ -1126,16 +1158,19 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
                 // The bar ends slightly above the destroy center (offset -7
                 // matches Java PlantUML visual spacing).
                 if let Some(stack) = activation_stack.get_mut(name.as_str()) {
-                    if let Some(y_start) = stack.pop() {
+                    if let Some((y_start, level)) = stack.pop() {
                         let bar_end = destroy_y - 7.0;
+                        let x = px - ACTIVATION_WIDTH / 2.0
+                            + (level - 1) as f64 * (ACTIVATION_WIDTH / 2.0);
                         activations.push(ActivationLayout {
                             participant: name.clone(),
-                            x: px - ACTIVATION_WIDTH / 2.0,
+                            x,
                             y_start,
                             y_end: bar_end,
+                            level,
                         });
                         log::debug!(
-                            "destroy-deactivate '{name}' bar from {y_start:.1} to {bar_end:.1}"
+                            "destroy-deactivate '{name}' bar from {y_start:.1} to {bar_end:.1} level={level}"
                         );
                     }
                 }
@@ -1473,17 +1508,20 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
         let Some(stack) = activation_stack.get(&p.name) else {
             continue;
         };
-        for &y_start in stack {
+        for &(y_start, level) in stack {
             let name = &p.name;
             let px = find_participant_x(&participants, name);
+            let x = px - ACTIVATION_WIDTH / 2.0
+                + (level - 1) as f64 * (ACTIVATION_WIDTH / 2.0);
             activations.push(ActivationLayout {
                 participant: name.clone(),
-                x: px - ACTIVATION_WIDTH / 2.0,
+                x,
                 y_start,
                 y_end: y_cursor,
+                level,
             });
             log::warn!(
-                "unclosed activation for '{name}' from y={y_start:.1}, closing at y={y_cursor:.1}"
+                "unclosed activation for '{name}' from y={y_start:.1}, closing at y={y_cursor:.1} level={level}"
             );
         }
     }
@@ -1543,6 +1581,13 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
         let frag_right = frag.x + frag.width;
         if frag_right > total_width {
             total_width = frag_right;
+        }
+    }
+    // Expand total_width for nested activation bars that shift right
+    for act in &activations {
+        let act_right = act.x + ACTIVATION_WIDTH + MARGIN;
+        if act_right > total_width {
+            total_width = act_right;
         }
     }
     // Note: right-side note extension is handled by Java's constraint solver

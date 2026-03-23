@@ -1008,8 +1008,9 @@ pub fn build_teoz_layout(
 						.get(tile_idx)
 						.and_then(|t| t.get_y())
 						.unwrap_or(0.0);
-					let level = act_state.entry(name.clone()).or_default().len();
-					act_state.entry(name.clone()).or_default().push((ty, level));
+					let stack = act_state.entry(name.clone()).or_default();
+					let level = stack.len() + 1; // 1-based
+					stack.push((ty, level));
 				}
 				SeqEvent::Deactivate(name) => {
 					let ty = tiles
@@ -1017,14 +1018,17 @@ pub fn build_teoz_layout(
 						.and_then(|t| t.get_y())
 						.unwrap_or(0.0);
 					if let Some(stack) = act_state.get_mut(name) {
-						if let Some((y_start, _level)) = stack.pop() {
+						if let Some((y_start, level)) = stack.pop() {
 							let idx = name_to_idx.get(name).copied().unwrap_or(0);
 							let cx = rl.get_value(livings[idx].pos_c);
+							let x = cx - ACTIVATION_WIDTH / 2.0
+								+ (level - 1) as f64 * (ACTIVATION_WIDTH / 2.0);
 							activations.push(ActivationLayout {
 								participant: name.clone(),
-								x: cx,
+								x,
 								y_start,
 								y_end: ty,
+								level,
 							});
 						}
 					}
@@ -1039,12 +1043,15 @@ pub fn build_teoz_layout(
 					destroys.push(DestroyLayout { x: cx, y: ty });
 					// Close any open activations
 					if let Some(stack) = act_state.get_mut(name) {
-						while let Some((y_start, _level)) = stack.pop() {
+						while let Some((y_start, level)) = stack.pop() {
+							let x = cx - ACTIVATION_WIDTH / 2.0
+								+ (level - 1) as f64 * (ACTIVATION_WIDTH / 2.0);
 							activations.push(ActivationLayout {
 								participant: name.clone(),
-								x: cx,
+								x,
 								y_start,
 								y_end: ty,
+								level,
 							});
 						}
 					}
@@ -1057,12 +1064,15 @@ pub fn build_teoz_layout(
 		for (name, stack) in act_state.drain() {
 			let idx = name_to_idx.get(&name).copied().unwrap_or(0);
 			let cx = rl.get_value(livings[idx].pos_c);
-			for (y_start, _level) in stack {
+			for (y_start, level) in stack {
+				let x = cx - ACTIVATION_WIDTH / 2.0
+					+ (level - 1) as f64 * (ACTIVATION_WIDTH / 2.0);
 				activations.push(ActivationLayout {
 					participant: name.clone(),
-					x: cx,
+					x,
 					y_start,
 					y_end: lifeline_bottom,
+					level,
 				});
 			}
 		}
