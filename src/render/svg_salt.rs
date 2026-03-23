@@ -16,8 +16,7 @@ pub fn render_salt(
 ) -> Result<String> {
     let mut buf = String::with_capacity(4096);
     let bg = skin.get_or("backgroundcolor", "#FFFFFF");
-    // Java PSystemSalt doesn't go through TitledDiagram → no data-diagram-type
-    write_svg_root_bg_opt(&mut buf, layout.width, layout.height, None, bg);
+    write_svg_root_bg_opt(&mut buf, layout.width, layout.height, Some("SALT"), bg);
     buf.push_str("<defs/><g>");
     write_bg_rect(&mut buf, layout.width, layout.height, bg);
 
