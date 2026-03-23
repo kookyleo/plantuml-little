@@ -815,6 +815,13 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
                             .iter()
                             .take_while(|e| !matches!(e, SeqEvent::Message(_)))
                             .any(|e| matches!(e, SeqEvent::Activate(n) if n == &msg.to));
+                    // Look-ahead: will the sender be activated before the next message?
+                    // Java: activation bar starts at the message y, so offset applies.
+                    let from_will_activate = !from_active
+                        && sd.events[event_idx + 1..]
+                            .iter()
+                            .take_while(|e| !matches!(e, SeqEvent::Message(_)))
+                            .any(|e| matches!(e, SeqEvent::Activate(n) if n == &msg.from));
                     // Look-ahead: will the sender be deactivated before the next message?
                     // Java: activation bar ends at the return message y. getLevel(y)
                     // returns 0 at that point, so no activation offset is applied.
@@ -823,14 +830,20 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
                             .iter()
                             .take_while(|e| !matches!(e, SeqEvent::Message(_)))
                             .any(|e| matches!(e, SeqEvent::Deactivate(n) if n == &msg.from));
-                    if from_active && !from_will_deactivate {
+                    if (from_active || from_will_activate) && !from_will_deactivate {
                         if is_left {
                             from_x -= ACTIVATION_WIDTH / 2.0;
                         } else {
                             from_x += ACTIVATION_WIDTH / 2.0;
                         }
                     }
-                    if to_active || to_will_activate {
+                    // Check if target will be deactivated after this message
+                    let to_will_deactivate = to_active
+                        && sd.events[event_idx + 1..]
+                            .iter()
+                            .take_while(|e| !matches!(e, SeqEvent::Message(_)))
+                            .any(|e| matches!(e, SeqEvent::Deactivate(n) if n == &msg.to));
+                    if (to_active || to_will_activate) && !to_will_deactivate {
                         if is_left {
                             to_x += ACTIVATION_WIDTH / 2.0;
                         } else {
