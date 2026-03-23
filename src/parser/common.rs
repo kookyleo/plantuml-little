@@ -150,11 +150,17 @@ pub fn detect_diagram_type(content: &str) -> DiagramHint {
             let before = trimmed[..trimmed.len() - 1].trim();
             if !before.is_empty() && !before.ends_with('-') && !before.ends_with('<') {
                 in_bracket_display = true;
-                // `rectangle ... [` is ambiguous (Java treats as CLASS);
-                // other keywords like `component`, `file` etc. are definitive.
+                // `rectangle ... [` and `file ... [` are ambiguous (Java treats as CLASS);
+                // only `component`, `node`, etc. are definitive COMPONENT indicators.
                 let lower_before = before.to_lowercase();
-                let is_rectangle_bracket = lower_before.starts_with("rectangle ");
-                if !is_rectangle_bracket {
+                let is_class_compatible_bracket =
+                    lower_before.starts_with("rectangle ")
+                    || lower_before.starts_with("file ")
+                    || lower_before.starts_with("folder ")
+                    || lower_before.starts_with("frame ")
+                    || lower_before.starts_with("card ")
+                    || lower_before.starts_with("package ");
+                if !is_class_compatible_bracket {
                     has_component_keyword_definitive = true;
                 }
             }
@@ -244,7 +250,10 @@ pub fn detect_diagram_type(content: &str) -> DiagramHint {
         {
             has_component_keyword_definitive = true;
         }
-        if trimmed.starts_with("rectangle ") || trimmed.starts_with("package ") {
+        if trimmed.starts_with("rectangle ") || trimmed.starts_with("package ")
+            || trimmed.starts_with("file ") || trimmed.starts_with("folder ")
+            || trimmed.starts_with("frame ") || trimmed.starts_with("card ")
+        {
             has_component_keyword_ambiguous = true;
         }
         // `rectangle ... as <alias>` is unambiguously component/deployment
