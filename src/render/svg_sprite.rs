@@ -922,17 +922,38 @@ fn convert_image(buf: &mut String, element: &str, ox: f64, oy: f64) {
         .or_else(|| get_attr(element, "href"))
         .unwrap_or("");
 
+    // Java wraps raster images (PNG/JPEG) inside an SVG container and
+    // base64-encodes the whole thing as data:image/svg+xml.
+    let final_href = if href.starts_with("data:image/png;") || href.starts_with("data:image/jpeg;") {
+        // Always include xmlns:xlink since the inner <image> uses xlink:href
+        let svg_header = format!(
+            r#"<svg height="{}" width="{}" xmlns:xlink="http://www.w3.org/1999/xlink" xmlns="http://www.w3.org/2000/svg" >"#,
+            h as u32, w as u32
+        );
+        let inner_image = format!(
+            r#"<image x="0" y="0" width="{}" height="{}" xlink:href="{}"/>"#,
+            w as u32, h as u32, href
+        );
+        let svg_content = format!("{}{}</svg>", svg_header, inner_image);
+        use base64::Engine;
+        let encoded = base64::engine::general_purpose::STANDARD.encode(svg_content.as_bytes());
+        format!("data:image/svg+xml;base64,{}", encoded)
+    } else {
+        href.to_string()
+    };
+
     write!(
         buf,
         r#"<image height="{}" width="{}" x="{}" xlink:href="{}""#,
         h as u32,
         w as u32,
         fmt_coord(x + ox),
-        href,
+        final_href,
     )
     .unwrap();
-    if y != 0.0 {
-        write!(buf, r#" y="{}""#, fmt_coord(y + oy)).unwrap();
+    let final_y = y + oy;
+    if final_y != 0.0 {
+        write!(buf, r#" y="{}""#, fmt_coord(final_y)).unwrap();
     }
     buf.push_str("/>");
 }

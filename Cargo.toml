@@ -22,6 +22,7 @@ ttf-parser = "0.25"
 reqwest = { version = "0.12", default-features = false, features = ["blocking", "rustls-tls"] }
 flate2 = "1"
 serde_json = "1"
+base64 = "0.22"
 
 [patch.crates-io]
 vizoxide = { git = "https://github.com/kookyleo/vizoxide.git", branch = "fix/lifetime-elision-warnings" }
