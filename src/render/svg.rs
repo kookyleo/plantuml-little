@@ -816,6 +816,22 @@ fn wrap_with_meta(body_svg: &str, meta: &DiagramMeta, diagram_type: &str, bg: &s
         .strip_prefix("<defs/><g>").unwrap_or(&body_content);
     let body_inner = body_inner
         .strip_suffix("</g>").unwrap_or(body_inner);
+    // Strip body-level background rect if present (wrap_with_meta provides its own).
+    // Pattern: <rect fill="..." height="N" style="stroke:none;stroke-width:1;" width="N" x="0" y="0"/>
+    let body_inner = if body_inner.starts_with("<rect fill=\"") {
+        if let Some(end) = body_inner.find("/>") {
+            let rect_tag = &body_inner[..end + 2];
+            if rect_tag.contains("stroke:none") && rect_tag.contains("x=\"0\"") && rect_tag.contains("y=\"0\"") {
+                &body_inner[end + 2..]
+            } else {
+                body_inner
+            }
+        } else {
+            body_inner
+        }
+    } else {
+        body_inner
+    };
     if !body_inner.trim().is_empty() {
         if body_abs_x.abs() < 0.001 && body_abs_y.abs() < 0.001 {
             buf.push_str(body_inner);
@@ -839,11 +855,8 @@ fn wrap_with_meta(body_svg: &str, meta: &DiagramMeta, diagram_type: &str, bg: &s
         let legend_fill = leg_bg_color.as_deref().unwrap_or(LEGEND_BG);
         let text_color = leg_font_color.as_deref().unwrap_or(TEXT_COLOR);
 
-        write!(buf, r#"<g class="legend""#).unwrap();
-        if let Some(sl) = meta.legend_line {
-            write!(buf, r#" data-source-line="{sl}""#).unwrap();
-        }
-        buf.push('>');
+        // Java: legend group does not include data-source-line attribute
+        write!(buf, r#"<g class="legend">"#).unwrap();
         write!(buf,
             r#"<rect fill="{}" height="{}" rx="{}" ry="{}" style="stroke:{LEGEND_BORDER};stroke-width:1;" width="{}" x="{}" y="{}"/>"#,
             legend_fill, fmt_coord(draw_h), fmt_coord(half_rc), fmt_coord(half_rc),
