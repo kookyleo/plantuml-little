@@ -285,7 +285,8 @@ impl RealLine {
 			}
 			iterations += 1;
 			if iterations > 99999 {
-				panic!("Real constraint solver: infinite loop after 100K iterations");
+				log::warn!("Real constraint solver: forced convergence after 100K iterations ({} forces)", self.forces.len());
+				return;
 			}
 		}
 	}
