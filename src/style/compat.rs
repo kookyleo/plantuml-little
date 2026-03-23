@@ -442,11 +442,12 @@ pub fn parse_skinparams(content: &str) -> SkinParams {
     let mut params = SkinParams::new();
     let mut lines = content.lines().peekable();
     let mut in_style_block = false;
+    let mut style_content = String::new();
 
     while let Some(line) = lines.next() {
         let trimmed = line.trim();
 
-        // Skip <style> blocks entirely
+        // Collect <style> blocks for post-processing
         if trimmed.starts_with("<style>") {
             in_style_block = true;
             continue;
@@ -454,6 +455,9 @@ pub fn parse_skinparams(content: &str) -> SkinParams {
         if in_style_block {
             if trimmed.starts_with("</style>") {
                 in_style_block = false;
+            } else {
+                style_content.push_str(trimmed);
+                style_content.push('\n');
             }
             continue;
         }
@@ -504,8 +508,71 @@ pub fn parse_skinparams(content: &str) -> SkinParams {
         }
     }
 
+    // Extract document-level styles from <style> CSS blocks.
+    // Java: `document { BackGroundColor orange }` sets the SVG background.
+    if !style_content.is_empty() {
+        extract_document_style(&style_content, &mut params);
+    }
+
     debug!("parsed {} skinparams", params.len());
     params
+}
+
+/// Extract document-level CSS properties from `<style>` content.
+/// Supports the `document { BackGroundColor <color> }` pattern used by Java PlantUML.
+fn extract_document_style(css: &str, params: &mut SkinParams) {
+    // Simple state machine to find `document {` blocks
+    let mut depth = 0;
+    let mut in_document = false;
+    let mut doc_depth = 0;
+
+    for line in css.lines() {
+        let trimmed = line.trim();
+        if trimmed.is_empty() {
+            continue;
+        }
+
+        // Track nesting depth
+        let opens = trimmed.matches('{').count();
+        let closes = trimmed.matches('}').count();
+
+        if !in_document {
+            // Look for `document {` at the current depth
+            let lower = trimmed.to_lowercase();
+            if lower.starts_with("document") && trimmed.contains('{') {
+                in_document = true;
+                doc_depth = depth;
+                depth += opens;
+                depth = depth.saturating_sub(closes);
+                continue;
+            }
+        }
+
+        if in_document && depth > doc_depth {
+            // We're inside the document block -- look for property assignments
+            // But skip nested sub-blocks (title { }, legend { }, etc.)
+            // Only process direct children of `document {`
+            if depth == doc_depth + 1 && !trimmed.contains('{') && !trimmed.starts_with('}') {
+                // Parse property: BackGroundColor orange
+                let parts: Vec<&str> = trimmed.splitn(2, char::is_whitespace).collect();
+                if parts.len() == 2 {
+                    let key = parts[0].trim().to_lowercase();
+                    let value = parts[1].trim();
+                    if key == "backgroundcolor" {
+                        params.set("backgroundcolor", value);
+                        log::debug!("extracted document BackGroundColor: {value}");
+                    }
+                }
+            }
+        }
+
+        depth += opens;
+        depth = depth.saturating_sub(closes);
+
+        if in_document && depth <= doc_depth {
+            in_document = false;
+        }
+    }
 }
 
 /// Parse a nested skinparam block (after `skinparam {`).
