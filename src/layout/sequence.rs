@@ -1517,19 +1517,16 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
     if self_msg_right > total_width {
         total_width = self_msg_right;
     }
-    // Also account for fragment and note right edges extending beyond total_width
+    // Also account for fragment right edges extending beyond total_width
     for frag in &fragments {
         let frag_right = frag.x + frag.width;
         if frag_right > total_width {
             total_width = frag_right;
         }
     }
-    for note in &notes {
-        let note_right = note.x + note.width;
-        if note_right > total_width {
-            total_width = note_right;
-        }
-    }
+    // Note: right-side note extension is handled by Java's constraint solver
+    // during participant positioning, not by prepareMissingSpace. We don't
+    // extend total_width for notes here to avoid overshooting.
 
     // Java: prepareMissingSpace — if graphical elements extend beyond the left
     // boundary (x < 0), shift ALL elements right. This includes both messages
