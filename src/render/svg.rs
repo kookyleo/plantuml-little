@@ -169,9 +169,10 @@ pub(crate) fn write_svg_root_bg(buf: &mut String, w: f64, h: f64, diagram_type: 
 /// Java `SvgGraphics.ensureVisible` truncation: `maxX = (int)(x + 1)`.
 /// Converts a floating-point dimension to the integer viewport value used by
 /// Java PlantUML.  Callers must pass the RAW dimension BEFORE the +1 truncation.
+/// The minimum is 10, matching Java's `SvgGraphics.maxX/maxY` initial value.
 pub(crate) fn ensure_visible_int(x: f64) -> i32 {
     if x.is_finite() && x > 0.0 {
-        (x + 1.0) as i32
+        ((x + 1.0) as i32).max(10)
     } else {
         10 // Java default
     }
