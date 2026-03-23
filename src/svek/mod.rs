@@ -236,13 +236,16 @@ impl DotStringFactory {
         sb.push_str("digraph unix {\n");
 
         // Graph attributes
-        let rd = match self.rankdir {
-            Rankdir::TopToBottom => "TB",
-            Rankdir::LeftToRight => "LR",
-            Rankdir::BottomToTop => "BT",
-            Rankdir::RightToLeft => "RL",
-        };
-        sb.push_str(&format!("rankdir={};\n", rd));
+        // Java: DotStringFactory omits rankdir=TB (the default)
+        if self.rankdir != Rankdir::TopToBottom {
+            let rd = match self.rankdir {
+                Rankdir::TopToBottom => "TB",
+                Rankdir::LeftToRight => "LR",
+                Rankdir::BottomToTop => "BT",
+                Rankdir::RightToLeft => "RL",
+            };
+            sb.push_str(&format!("rankdir={};\n", rd));
+        }
 
         let nodesep = self.nodesep_override
             .map(|px| utils::pixel_to_inches(px))
@@ -259,8 +262,9 @@ impl DotStringFactory {
         }
         sb.push_str("searchsize=500;\n");
 
+        // Java: DotStringFactory omits splines=spline (the default)
         match self.splines {
-            DotSplines::Spline => sb.push_str("splines=spline;\n"),
+            DotSplines::Spline => { /* default, omit */ }
             DotSplines::Polyline => sb.push_str("splines=polyline;\n"),
             DotSplines::Ortho => sb.push_str("splines=ortho;\n"),
             DotSplines::Curved => sb.push_str("splines=curved;\n"),
