@@ -794,7 +794,11 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
                 let is_self = msg.from == msg.to;
                 let is_dashed = msg.arrow_style == SeqArrowStyle::Dashed
                     || msg.arrow_style == SeqArrowStyle::Dotted;
-                let is_left = from_x > to_x;
+                let is_left = if is_self {
+                    msg.direction == SeqDirection::RightToLeft
+                } else {
+                    from_x > to_x
+                };
 
                 // Adjust arrow endpoints for activation boxes (Java: LIVE_DELTA_SIZE=5).
                 // Incoming arrows stop at the activation box left/right edge,
@@ -1422,6 +1426,42 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
     }
 
 
+
+    // Java: prepareMissingSpace — if left self-messages extend beyond the left
+    // boundary (x < 0 in participant-relative coords), shift ALL elements right.
+    let left_overflow = messages
+        .iter()
+        .filter(|m| m.is_self && m.is_left)
+        .map(|m| {
+            let text_w = m.text_lines
+                .iter()
+                .map(|line| message_line_width(line, default_font, msg_font_size))
+                .fold(0.0_f64, f64::max);
+            let preferred = f64::max(text_w + 14.0, rose::SELF_ARROW_WIDTH + 5.0);
+            // The left self-message text starts at (from_x - preferred)
+            // If this is negative (before left edge), we need to shift right.
+            let left_edge = m.from_x - preferred;
+            if left_edge < 0.0 { -left_edge } else { 0.0 }
+        })
+        .fold(0.0_f64, f64::max);
+    if left_overflow > 0.0 {
+        // Shift all participant positions and message coordinates right
+        for p in &mut participants {
+            p.x += left_overflow;
+        }
+        for m in &mut messages {
+            m.from_x += left_overflow;
+            m.to_x += left_overflow;
+            m.self_return_x += left_overflow;
+        }
+        for act in &mut activations {
+            act.x += left_overflow;
+        }
+        for frag in &mut fragments {
+            frag.x += left_overflow;
+        }
+        total_width += left_overflow;
+    }
 
     // Tail box at lifeline_bottom - 1, then add box height + bottom margin (~7)
     let total_height = (lifeline_bottom - 1.0) + max_participant_height + 7.0;
