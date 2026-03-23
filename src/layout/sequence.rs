@@ -926,15 +926,29 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
 
                 let (self_from_x, self_return_x, self_to_x) = if is_self {
                     let has_bar = is_activated || will_activate;
-                    let act_right = if has_bar {
-                        from_x + ACTIVATION_WIDTH / 2.0
+                    if is_left {
+                        // Left self-message: arrow goes to the LEFT
+                        let act_left = if has_bar {
+                            from_x - ACTIVATION_WIDTH / 2.0
+                        } else {
+                            from_x
+                        };
+                        let outgoing_x = if is_activated { act_left } else { from_x };
+                        let ret_x = act_left - 1.0;
+                        let to = act_left - SELF_MSG_WIDTH;
+                        (outgoing_x, ret_x, to)
                     } else {
-                        from_x
-                    };
-                    let outgoing_x = if is_activated { act_right } else { from_x };
-                    let ret_x = act_right + 1.0;
-                    let to = act_right + SELF_MSG_WIDTH;
-                    (outgoing_x, ret_x, to)
+                        // Right self-message: arrow goes to the RIGHT
+                        let act_right = if has_bar {
+                            from_x + ACTIVATION_WIDTH / 2.0
+                        } else {
+                            from_x
+                        };
+                        let outgoing_x = if is_activated { act_right } else { from_x };
+                        let ret_x = act_right + 1.0;
+                        let to = act_right + SELF_MSG_WIDTH;
+                        (outgoing_x, ret_x, to)
+                    }
                 } else {
                     (from_x, from_x, to_x)
                 };

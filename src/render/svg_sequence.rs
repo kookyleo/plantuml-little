@@ -1185,16 +1185,28 @@ fn draw_self_message(
         ""
     };
 
-    // 3-line self-message: horizontal right, vertical down, horizontal left
-    // Line 1: outgoing horizontal (from lifeline/activation edge to right)
+    // 3-line self-message: horizontal out, vertical down, horizontal return
     let mut tmp = String::new();
+
+    // For right self-messages: right→down→left (arrowhead points left)
+    // For left self-messages: left→down→right (arrowhead points right)
+    // `from_x` is the start point (at lifeline/activation edge)
+    // `to_x` is the far end of the horizontal
+    // `return_x` is the return line endpoint (at lifeline/activation edge)
+
+    // Line 1: outgoing horizontal
+    let (line1_x1, line1_x2) = if msg.is_left {
+        (to_x, from_x)
+    } else {
+        (from_x, to_x)
+    };
     write!(
         tmp,
         r#"<line style="stroke:{color};stroke-width:{sw};{dash}" x1="{x1}" x2="{x2}" y1="{y1}" y2="{y1}"/>"#,
         color = arrow_color,
         dash = dash_style,
-        x1 = fmt_coord(from_x),
-        x2 = fmt_coord(to_x),
+        x1 = fmt_coord(line1_x1),
+        x2 = fmt_coord(line1_x2),
         y1 = fmt_coord(y),
     )
     .unwrap();
@@ -1211,64 +1223,117 @@ fn draw_self_message(
     )
     .unwrap();
 
-    // Line 3: return horizontal (from return_x to right edge)
+    // Line 3: return horizontal
+    let (line3_x1, line3_x2) = if msg.is_left {
+        (to_x, return_x)
+    } else {
+        (return_x, to_x)
+    };
     write!(
         tmp,
         r#"<line style="stroke:{color};stroke-width:{sw};{dash}" x1="{x1}" x2="{x2}" y1="{y}" y2="{y}"/>"#,
         color = arrow_color,
         dash = dash_style,
-        x1 = fmt_coord(return_x),
-        x2 = fmt_coord(to_x),
+        x1 = fmt_coord(line3_x1),
+        x2 = fmt_coord(line3_x2),
         y = fmt_coord(y + loop_height),
     )
     .unwrap();
 
-    // Arrowhead pointing left at return
+    // Arrowhead at return
     let ret_y = y + loop_height;
-    if msg.has_open_head {
+    if msg.is_left {
+        // Left self-message: arrowhead points RIGHT at return
         let tip_x = return_x;
-        write!(
-            tmp,
-            r#"<line style="stroke:{color};stroke-width:{sw};" x1="{ax}" x2="{tx}" y1="{y1}" y2="{y}"/>"#,
-            color = arrow_color,
-            ax = fmt_coord(tip_x + 10.0),
-            tx = fmt_coord(tip_x),
-            y1 = fmt_coord(ret_y - 4.0),
-            y = fmt_coord(ret_y),
-        )
-        .unwrap();
-        write!(
-            tmp,
-            r#"<line style="stroke:{color};stroke-width:{sw};" x1="{ax}" x2="{tx}" y1="{y1}" y2="{y}"/>"#,
-            color = arrow_color,
-            ax = fmt_coord(tip_x + 10.0),
-            tx = fmt_coord(tip_x),
-            y1 = fmt_coord(ret_y + 4.0),
-            y = fmt_coord(ret_y),
-        )
-        .unwrap();
+        if msg.has_open_head {
+            write!(
+                tmp,
+                r#"<line style="stroke:{color};stroke-width:{sw};" x1="{ax}" x2="{tx}" y1="{y1}" y2="{y}"/>"#,
+                color = arrow_color,
+                ax = fmt_coord(tip_x - 10.0),
+                tx = fmt_coord(tip_x),
+                y1 = fmt_coord(ret_y - 4.0),
+                y = fmt_coord(ret_y),
+            )
+            .unwrap();
+            write!(
+                tmp,
+                r#"<line style="stroke:{color};stroke-width:{sw};" x1="{ax}" x2="{tx}" y1="{y1}" y2="{y}"/>"#,
+                color = arrow_color,
+                ax = fmt_coord(tip_x - 10.0),
+                tx = fmt_coord(tip_x),
+                y1 = fmt_coord(ret_y + 4.0),
+                y = fmt_coord(ret_y),
+            )
+            .unwrap();
+        } else {
+            write!(
+                tmp,
+                r#"<polygon fill="{color}" points="{p1x},{p1y},{p2x},{p2y},{p3x},{p3y},{p4x},{p4y}" style="stroke:{color};stroke-width:1;"/>"#,
+                color = arrow_color,
+                p1x = fmt_coord(tip_x - 10.0),
+                p1y = fmt_coord(ret_y - 4.0),
+                p2x = fmt_coord(tip_x),
+                p2y = fmt_coord(ret_y),
+                p3x = fmt_coord(tip_x - 10.0),
+                p3y = fmt_coord(ret_y + 4.0),
+                p4x = fmt_coord(tip_x - 6.0),
+                p4y = fmt_coord(ret_y),
+            )
+            .unwrap();
+        }
     } else {
+        // Right self-message: arrowhead points LEFT at return
         let tip_x = return_x;
-        write!(
-            tmp,
-            r#"<polygon fill="{color}" points="{p1x},{p1y},{p2x},{p2y},{p3x},{p3y},{p4x},{p4y}" style="stroke:{color};stroke-width:1;"/>"#,
-            color = arrow_color,
-            p1x = fmt_coord(tip_x + 10.0),
-            p1y = fmt_coord(ret_y - 4.0),
-            p2x = fmt_coord(tip_x),
-            p2y = fmt_coord(ret_y),
-            p3x = fmt_coord(tip_x + 10.0),
-            p3y = fmt_coord(ret_y + 4.0),
-            p4x = fmt_coord(tip_x + 6.0),
-            p4y = fmt_coord(ret_y),
-        )
-        .unwrap();
+        if msg.has_open_head {
+            write!(
+                tmp,
+                r#"<line style="stroke:{color};stroke-width:{sw};" x1="{ax}" x2="{tx}" y1="{y1}" y2="{y}"/>"#,
+                color = arrow_color,
+                ax = fmt_coord(tip_x + 10.0),
+                tx = fmt_coord(tip_x),
+                y1 = fmt_coord(ret_y - 4.0),
+                y = fmt_coord(ret_y),
+            )
+            .unwrap();
+            write!(
+                tmp,
+                r#"<line style="stroke:{color};stroke-width:{sw};" x1="{ax}" x2="{tx}" y1="{y1}" y2="{y}"/>"#,
+                color = arrow_color,
+                ax = fmt_coord(tip_x + 10.0),
+                tx = fmt_coord(tip_x),
+                y1 = fmt_coord(ret_y + 4.0),
+                y = fmt_coord(ret_y),
+            )
+            .unwrap();
+        } else {
+            write!(
+                tmp,
+                r#"<polygon fill="{color}" points="{p1x},{p1y},{p2x},{p2y},{p3x},{p3y},{p4x},{p4y}" style="stroke:{color};stroke-width:1;"/>"#,
+                color = arrow_color,
+                p1x = fmt_coord(tip_x + 10.0),
+                p1y = fmt_coord(ret_y - 4.0),
+                p2x = fmt_coord(tip_x),
+                p2y = fmt_coord(ret_y),
+                p3x = fmt_coord(tip_x + 10.0),
+                p3y = fmt_coord(ret_y + 4.0),
+                p4x = fmt_coord(tip_x + 6.0),
+                p4y = fmt_coord(ret_y),
+            )
+            .unwrap();
+        }
     }
     sg.push_raw(&tmp);
 
     // Label text above the first horizontal line — each line as separate <text>
     if !msg.text.is_empty() {
-        let text_x = return_x + 6.0;
+        let text_x = if msg.is_left {
+            // Left self-message: text goes to the left of the self-message loop
+            // Position at the far left of the text
+            to_x + 6.0
+        } else {
+            return_x + 6.0
+        };
         let msg_line_spacing =
             font_metrics::line_height(msg_font_family, msg_font_size, false, false);
         let num_lines = msg.text_lines.len();
