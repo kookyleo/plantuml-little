@@ -5,7 +5,7 @@ use std::fmt::Write;
 use crate::font_metrics;
 use crate::model::hyperlink::Hyperlink;
 use crate::model::richtext::{RichText, TextSpan};
-use crate::parser::creole::parse_creole;
+use crate::parser::creole::{parse_creole, parse_creole_opts};
 use crate::klimt::svg::{fmt_coord, xml_escape};
 use crate::render::svg_hyperlink::wrap_with_link;
 
@@ -179,7 +179,23 @@ pub fn render_creole_text(
     text_anchor: Option<&str>,
     outer_attrs: &str,
 ) -> usize {
-    let lines = flatten_rich_lines(&parse_creole(text));
+    render_creole_text_opts(buf, text, x, y, line_height, fill, text_anchor, outer_attrs, false)
+}
+
+/// Like `render_creole_text` but with `preserve_backslash_n` option.
+/// When true, literal `\n` in the text is treated as displayable text, not a line break.
+pub fn render_creole_text_opts(
+    buf: &mut String,
+    text: &str,
+    x: f64,
+    y: f64,
+    line_height: f64,
+    fill: &str,
+    text_anchor: Option<&str>,
+    outer_attrs: &str,
+    preserve_backslash_n: bool,
+) -> usize {
+    let lines = flatten_rich_lines(&parse_creole_opts(text, preserve_backslash_n));
     let lines = if lines.is_empty() {
         vec![vec![TextSpan::Plain(String::new())]]
     } else {

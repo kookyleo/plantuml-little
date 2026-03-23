@@ -7,7 +7,18 @@ use crate::model::richtext::{RichText, TextSpan};
 
 /// Parse a Creole-formatted string into a structured `RichText` model.
 pub fn parse_creole(input: &str) -> RichText {
-    let lines = split_lines(input);
+    parse_creole_opts(input, false)
+}
+
+/// Parse Creole markup. If `preserve_backslash_n` is true, literal `\n`
+/// (backslash + n) in the input is treated as text, not a line break.
+/// Java: activity actions use this mode — only real newlines split lines.
+pub fn parse_creole_opts(input: &str, preserve_backslash_n: bool) -> RichText {
+    let lines = if preserve_backslash_n {
+        split_lines_literal(input)
+    } else {
+        split_lines(input)
+    };
 
     if lines.is_empty() {
         return RichText::Line(vec![]);
@@ -137,6 +148,12 @@ fn split_lines(input: &str) -> Vec<String> {
     }
     parts.push(buf);
     parts
+}
+
+/// Like `split_lines` but only splits on real newlines (0x0A), not literal `\n`.
+/// Used for activity actions where Java preserves `\n` as text.
+fn split_lines_literal(input: &str) -> Vec<String> {
+    input.split('\n').map(ToString::to_string).collect()
 }
 
 // ---------------------------------------------------------------------------

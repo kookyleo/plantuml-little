@@ -6,7 +6,7 @@ use crate::font_metrics;
 use crate::klimt::svg::{fmt_coord, LengthAdjust, SvgGraphic};
 use crate::model::activity::ActivityDiagram;
 use crate::render::svg::{write_svg_root_bg, write_bg_rect};
-use crate::render::svg_richtext::render_creole_text;
+use crate::render::svg_richtext::{render_creole_text, render_creole_text_opts};
 use crate::style::SkinParams;
 use crate::Result;
 
@@ -242,7 +242,8 @@ fn render_action(
             continue;
         }
         let mut tmp = String::new();
-        render_creole_text(
+        // Java: activity action text preserves literal \n as displayable text
+        render_creole_text_opts(
             &mut tmp,
             display_text,
             text_x,
@@ -251,6 +252,7 @@ fn render_action(
             font_color,
             None,
             r#"font-size="12""#,
+            true, // preserve_backslash_n
         );
         sg.push_raw(&tmp);
     }

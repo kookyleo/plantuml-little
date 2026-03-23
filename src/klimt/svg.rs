@@ -68,6 +68,8 @@ fn fmt_bool(x: f64) -> &'static str {
 }
 
 /// XML-escape text content matching Java's DOM serializer (us-ascii encoding).
+/// XML-escape text content. Java PlantUML only escapes &, <, > in text content.
+/// Double quotes are NOT escaped (safe inside text elements, unlike attribute values).
 pub fn xml_escape(s: &str) -> String {
     let mut out = String::with_capacity(s.len());
     for ch in s.chars() {
@@ -75,7 +77,6 @@ pub fn xml_escape(s: &str) -> String {
             '&' => out.push_str("&amp;"),
             '<' => out.push_str("&lt;"),
             '>' => out.push_str("&gt;"),
-            '"' => out.push_str("&quot;"),
             c if !c.is_ascii() => {
                 write!(out, "&#{};", c as u32).unwrap();
             }
@@ -1777,7 +1778,7 @@ mod tests {
 
     #[test]
     fn xml_escape_basic() {
-        assert_eq!(xml_escape("a<b>c&d\"e"), "a&lt;b&gt;c&amp;d&quot;e");
+        assert_eq!(xml_escape("a<b>c&d\"e"), "a&lt;b&gt;c&amp;d\"e");
     }
 
     #[test]

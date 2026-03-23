@@ -2790,7 +2790,7 @@ mod tests {
     fn test_xml_escaping() {
         assert_eq!(xml_escape("A & B"), "A &amp; B");
         assert_eq!(xml_escape("<T>"), "&lt;T&gt;");
-        assert_eq!(xml_escape(r#"a"b"#), "a&quot;b");
+        assert_eq!(xml_escape(r#"a"b"#), r#"a"b"#);
         assert_eq!(xml_escape("plain"), "plain");
     }
 
