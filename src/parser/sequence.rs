@@ -500,8 +500,9 @@ pub fn parse_sequence_diagram_with_original(source: &str, original_source: Optio
                 // Entire right is a color - shouldn't happen, skip
             }
             // Handle inline activation/deactivation suffixes on the target participant.
-            // Java: `--++` = deactivate source + activate target, `++` = activate target,
-            // `--` = deactivate target. Must check `--++` before `--` or `++` alone.
+            // Java: `--++` = deactivate source + activate target, `++--` = activate + deactivate,
+            // `++` = activate target, `--` = deactivate target.
+            // Must check 4-char suffixes before 2-char ones.
             let mut inline_activate = false;
             let mut inline_deactivate_source = false;
             let mut inline_deactivate = false;
@@ -509,6 +510,10 @@ pub fn parse_sequence_diagram_with_original(source: &str, original_source: Optio
                 right = right[..right.len() - 4].trim().to_string();
                 inline_deactivate_source = true;
                 inline_activate = true;
+            } else if right.ends_with("++--") {
+                right = right[..right.len() - 4].trim().to_string();
+                inline_activate = true;
+                inline_deactivate = true;
             } else if right.ends_with("++") {
                 right = right[..right.len() - 2].trim().to_string();
                 inline_activate = true;
@@ -544,8 +549,9 @@ pub fn parse_sequence_diagram_with_original(source: &str, original_source: Optio
                     events.push(SeqEvent::Deactivate(source));
                 }
                 if inline_activate {
-                    events.push(SeqEvent::Activate(target));
-                } else if inline_deactivate {
+                    events.push(SeqEvent::Activate(target.clone()));
+                }
+                if inline_deactivate {
                     events.push(SeqEvent::Deactivate(target));
                 }
                 continue;
