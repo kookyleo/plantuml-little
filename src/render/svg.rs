@@ -249,23 +249,23 @@ pub fn render_with_source(
 ) -> Result<String> {
     // Apply handwritten font override if enabled
     set_default_font_family(skin.handwritten_font_family().map(|s| s.to_string()));
-    let body_svg = render_body(diagram, layout, skin)?;
+    let body_result = render_body(diagram, layout, skin)?;
     set_default_font_family(None);
     let mut svg = if meta.is_empty() {
-        body_svg
+        body_result.svg
     } else {
         // Extract diagram type from body SVG's data-diagram-type attribute
-        let dtype = body_svg
+        let dtype = body_result.svg
             .find("data-diagram-type=\"")
             .and_then(|pos| {
                 let start = pos + 19;
-                body_svg[start..]
+                body_result.svg[start..]
                     .find('"')
-                    .map(|end| &body_svg[start..start + end])
+                    .map(|end| &body_result.svg[start..start + end])
             })
             .unwrap_or("CLASS");
         let bg = skin.get_or("backgroundcolor", "#FFFFFF");
-        wrap_with_meta(&body_svg, meta, dtype, bg)?
+        wrap_with_meta(&body_result.svg, meta, dtype, bg, body_result.raw_body_dim)?
     };
 
     if let Some(source) = source {
@@ -275,47 +275,56 @@ pub fn render_with_source(
     Ok(svg)
 }
 
-fn render_body(diagram: &Diagram, layout: &DiagramLayout, skin: &SkinParams) -> Result<String> {
+/// Body rendering result: (svg_string, raw_body_content_dimensions).
+/// The raw dimensions are the precise body content size (Java SvekResult.calculateDimension)
+/// before DOC_MARGIN and ensureVisible integer truncation. When present, wrap_with_meta
+/// uses these instead of extracting lossy integer dimensions from the SVG header.
+struct BodyResult {
+    svg: String,
+    raw_body_dim: Option<(f64, f64)>,
+}
+
+fn render_body(diagram: &Diagram, layout: &DiagramLayout, skin: &SkinParams) -> Result<BodyResult> {
     match (diagram, layout) {
         (Diagram::Class(cd), DiagramLayout::Class(gl)) => render_class(cd, gl, skin),
         (Diagram::Sequence(sd), DiagramLayout::Sequence(sl)) => {
-            svg_sequence::render_sequence(sd, sl, skin)
+            svg_sequence::render_sequence(sd, sl, skin).map(|svg| BodyResult { svg, raw_body_dim: None })
         }
         (Diagram::Activity(ad), DiagramLayout::Activity(al)) => {
-            super::svg_activity::render_activity(ad, al, skin)
+            super::svg_activity::render_activity(ad, al, skin).map(|svg| BodyResult { svg, raw_body_dim: None })
         }
         (Diagram::State(sd), DiagramLayout::State(sl)) => {
-            super::svg_state::render_state(sd, sl, skin)
+            super::svg_state::render_state(sd, sl, skin).map(|svg| BodyResult { svg, raw_body_dim: None })
         }
         (Diagram::Component(cd), DiagramLayout::Component(cl)) => {
-            super::svg_component::render_component(cd, cl, skin)
+            super::svg_component::render_component(cd, cl, skin).map(|svg| BodyResult { svg, raw_body_dim: None })
         }
         (Diagram::Ditaa(dd), DiagramLayout::Ditaa(dl)) => {
-            super::svg_ditaa::render_ditaa(dd, dl, skin)
+            super::svg_ditaa::render_ditaa(dd, dl, skin).map(|svg| BodyResult { svg, raw_body_dim: None })
         }
-        (Diagram::Erd(ed), DiagramLayout::Erd(el)) => super::svg_erd::render_erd(ed, el, skin),
+        (Diagram::Erd(ed), DiagramLayout::Erd(el)) => super::svg_erd::render_erd(ed, el, skin).map(|svg| BodyResult { svg, raw_body_dim: None }),
         (Diagram::Gantt(gd), DiagramLayout::Gantt(gl)) => {
-            super::svg_gantt::render_gantt(gd, gl, skin)
+            super::svg_gantt::render_gantt(gd, gl, skin).map(|svg| BodyResult { svg, raw_body_dim: None })
         }
-        (Diagram::Json(jd), DiagramLayout::Json(jl)) => super::svg_json::render_json(jd, jl, skin),
+        (Diagram::Json(jd), DiagramLayout::Json(jl)) => super::svg_json::render_json(jd, jl, skin).map(|svg| BodyResult { svg, raw_body_dim: None }),
         (Diagram::Mindmap(md), DiagramLayout::Mindmap(ml)) => {
-            super::svg_mindmap::render_mindmap(md, ml, skin)
+            super::svg_mindmap::render_mindmap(md, ml, skin).map(|svg| BodyResult { svg, raw_body_dim: None })
         }
         (Diagram::Nwdiag(nd), DiagramLayout::Nwdiag(nl)) => {
-            super::svg_nwdiag::render_nwdiag(nd, nl, skin)
+            super::svg_nwdiag::render_nwdiag(nd, nl, skin).map(|svg| BodyResult { svg, raw_body_dim: None })
         }
-        (Diagram::Salt(sd), DiagramLayout::Salt(sl)) => super::svg_salt::render_salt(sd, sl, skin),
+        (Diagram::Salt(sd), DiagramLayout::Salt(sl)) => super::svg_salt::render_salt(sd, sl, skin).map(|svg| BodyResult { svg, raw_body_dim: None }),
         (Diagram::Timing(td), DiagramLayout::Timing(tl)) => {
-            super::svg_timing::render_timing(td, tl, skin)
+            super::svg_timing::render_timing(td, tl, skin).map(|svg| BodyResult { svg, raw_body_dim: None })
         }
-        (Diagram::Wbs(wd), DiagramLayout::Wbs(wl)) => super::svg_wbs::render_wbs(wd, wl, skin),
-        (Diagram::Yaml(yd), DiagramLayout::Yaml(yl)) => super::svg_json::render_yaml(yd, yl, skin),
+        (Diagram::Wbs(wd), DiagramLayout::Wbs(wl)) => super::svg_wbs::render_wbs(wd, wl, skin).map(|svg| BodyResult { svg, raw_body_dim: None }),
+        (Diagram::Yaml(yd), DiagramLayout::Yaml(yl)) => super::svg_json::render_yaml(yd, yl, skin).map(|svg| BodyResult { svg, raw_body_dim: None }),
         (Diagram::UseCase(ud), DiagramLayout::UseCase(ul)) => {
-            super::svg_usecase::render_usecase(ud, ul, skin)
+            super::svg_usecase::render_usecase(ud, ul, skin).map(|svg| BodyResult { svg, raw_body_dim: None })
         }
         (Diagram::Dot(_dd), DiagramLayout::Dot(_gl)) => {
             // Java PlantUML suppresses DOT rendering
-            Ok(render_dot_suppressed())
+            Ok(BodyResult { svg: render_dot_suppressed(), raw_body_dim: None })
         }
         _ => Err(crate::Error::Render("diagram/layout type mismatch".into())),
     }
@@ -585,12 +594,17 @@ fn encode6bit(b: u8) -> char {
     }
 }
 
-fn wrap_with_meta(body_svg: &str, meta: &DiagramMeta, diagram_type: &str, bg: &str) -> Result<String> {
+fn wrap_with_meta(body_svg: &str, meta: &DiagramMeta, diagram_type: &str, bg: &str, raw_body_dim: Option<(f64, f64)>) -> Result<String> {
     let (svg_w, svg_h) = extract_dimensions(body_svg);
     let body_content = extract_svg_content(body_svg);
-    // Body SVG includes DOC_MARGIN + 1: recover raw textBlock dimensions.
-    let body_w = svg_w - DOC_MARGIN_RIGHT - 1.0;
-    let body_h = svg_h - DOC_MARGIN_BOTTOM - 1.0;
+    // Use raw body dimensions if available (avoids integer truncation loss).
+    // Otherwise fall back to extracting from SVG header (lossy).
+    let (body_w, body_h) = if let Some((rw, rh)) = raw_body_dim {
+        (rw, rh)
+    } else {
+        // Body SVG includes DOC_MARGIN + 1: recover raw textBlock dimensions.
+        (svg_w - DOC_MARGIN_RIGHT - 1.0, svg_h - DOC_MARGIN_BOTTOM - 1.0)
+    };
     log::trace!("wrap_with_meta: svg_w={svg_w} svg_h={svg_h} body_w={body_w} body_h={body_h}");
 
     // ── 1. Compute block dimensions for each meta element ───────────
@@ -605,7 +619,7 @@ fn wrap_with_meta(body_svg: &str, meta: &DiagramMeta, diagram_type: &str, bg: &s
     let title_text_w = meta.title.as_ref().map(|t| creole_text_w(t, META_TITLE_FONT_SIZE, true)).unwrap_or(0.0);
     let title_text_h = if meta.title.is_some() { text_block_h(META_TITLE_FONT_SIZE, true) } else { 0.0 };
     let title_dim = if meta.title.is_some() { block_dim(title_text_w, title_text_h, TITLE_PADDING, TITLE_MARGIN) } else { (0.0, 0.0) };
-    eprintln!("[TRACE title] text_w={title_text_w:.10} text_h={title_text_h:.10} title_dim={title_dim:?}");
+    log::trace!("wrap_with_meta: title text_w={title_text_w:.10} text_h={title_text_h:.10} title_dim={title_dim:?}");
 
     let cap_text_w = meta.caption.as_ref().map(|t| creole_text_w(t, META_CAPTION_FONT_SIZE, false)).unwrap_or(0.0);
     let cap_text_h = if meta.caption.is_some() { text_block_h(META_CAPTION_FONT_SIZE, false) } else { 0.0 };
@@ -628,8 +642,8 @@ fn wrap_with_meta(body_svg: &str, meta: &DiagramMeta, diagram_type: &str, bg: &s
     // Canvas: Java ensureVisible → maxX = (int)(dim + 1)
     let canvas_w = (tb_w + DOC_MARGIN_RIGHT + 1.0) as i32 as f64;
     let canvas_h = (tb_h + DOC_MARGIN_BOTTOM + 1.0) as i32 as f64;
-    eprintln!("[TRACE canvas] tb_w={tb_w:.6} tb_h={tb_h:.6} canvas_w={canvas_w} canvas_h={canvas_h}");
-    eprintln!("[TRACE stacking] body_dim=({body_w},{body_h}) after_legend={after_legend:?} after_title={after_title:?} after_caption={after_caption:?}");
+    log::trace!("wrap_with_meta: tb_w={tb_w:.6} tb_h={tb_h:.6} canvas_w={canvas_w} canvas_h={canvas_h}");
+    log::trace!("wrap_with_meta: body_dim=({body_w},{body_h}) after_legend={after_legend:?} after_title={after_title:?} after_caption={after_caption:?}");
 
     // ── 3. Compute absolute drawing positions ──────────────────────
     let outer_inner_x = ((tb_w - after_caption.0) / 2.0).max(0.0);
@@ -910,7 +924,7 @@ fn render_class(
     cd: &crate::model::ClassDiagram,
     layout: &GraphLayout,
     skin: &SkinParams,
-) -> Result<String> {
+) -> Result<BodyResult> {
     // Java SvekResult: moveDelta(6 - minMax.getMinX(), 6 - minMax.getMinY())
     // minX depends on elements: rect gives (x-1), polygon HACK gives (x + local_minX - 10).
     // For class diagrams with protected/package visibility icons (UPolygon):
@@ -1036,34 +1050,26 @@ fn render_class(
     // We detect the case by checking layout structure.
     let is_degenerated = layout.nodes.len() <= 1 && layout.edges.is_empty();
 
-    let (svg_w, svg_h) = if is_degenerated {
-        // Java has two sub-paths for degenerated diagrams:
-        // 1. Zero entities: EntityImageSimpleEmpty → calculateDimension = (10, 10)
-        //    See GraphvizImageBuilder.java:211 isDegeneratedWithFewEntities(0)
-        // 2. One entity, no links: EntityImageDegenerated wraps single entity
-        //    delta = 7, calculateDimension = entity_dim + delta*2 = entity_dim + 14
+    // Compute raw body content dimensions (Java SvekResult.calculateDimension).
+    // These preserve full fractional precision for meta-wrapping.
+    let raw_body_dim = if is_degenerated {
         let entity_w = if layout.nodes.is_empty() { 0.0 } else { layout.nodes[0].width };
         let entity_h = if layout.nodes.is_empty() { 0.0 } else { layout.nodes[0].height };
         let (calc_w, calc_h) = if layout.nodes.is_empty() {
-            // EntityImageSimpleEmpty: fixed 10×10
             (10.0, 10.0)
         } else {
-            // EntityImageDegenerated: entity_dim + 14
             const DEGENERATED_DELTA: f64 = 7.0;
             (entity_w + DEGENERATED_DELTA * 2.0, entity_h + DEGENERATED_DELTA * 2.0)
         };
-        // SvgGraphics.ensureVisible: maxX = (int)(dim + 1)
-        let w = (calc_w + DOC_MARGIN_RIGHT + 1.0) as i32;
-        let h = (calc_h + DOC_MARGIN_BOTTOM + 1.0) as i32;
-        (w as f64, h as f64)
+        (calc_w, calc_h)
     } else {
-        // Java: SvekResult.calculateDimension() = LimitFinder_span.delta(15, 15)
-        //   → TextBlockExporter adds doc_margin(R=5, B=5) → finalDim
-        //   → SvgGraphics.ensureVisible(finalDim) → maxX = (int)(finalDim.w + 1)
-        // (int) cast on positive doubles = truncate toward zero = floor.
         let (span_w, span_h) = tracker.span();
-        let dim_w = span_w + CANVAS_DELTA + DOC_MARGIN_RIGHT;
-        let dim_h = span_h + CANVAS_DELTA + DOC_MARGIN_BOTTOM;
+        (span_w + CANVAS_DELTA, span_h + CANVAS_DELTA)
+    };
+
+    let (svg_w, svg_h) = {
+        let dim_w = raw_body_dim.0 + DOC_MARGIN_RIGHT;
+        let dim_h = raw_body_dim.1 + DOC_MARGIN_BOTTOM;
         let w = (dim_w + 1.0) as i32;
         let h = (dim_h + 1.0) as i32;
         (w as f64, h as f64)
@@ -1076,7 +1082,7 @@ fn render_class(
     write_bg_rect(&mut buf, svg_w, svg_h, bg);
     buf.push_str(sg.body());
     buf.push_str("</g></svg>");
-    Ok(buf)
+    Ok(BodyResult { svg: buf, raw_body_dim: Some(raw_body_dim) })
 }
 
 // ── Stereotype circle glyph paths ───────────────────────────────────
@@ -3090,8 +3096,8 @@ mod tests {
     #[test]
     fn test_meta_title_can_expand_canvas_width() {
         let (d, l) = simple_diagram();
-        let body_svg = render_body(&d, &l, &default_skin()).unwrap();
-        let (body_w, _) = extract_dimensions(&body_svg);
+        let body_result = render_body(&d, &l, &default_skin()).unwrap();
+        let (body_w, _) = extract_dimensions(&body_result.svg);
         let meta = DiagramMeta {
             title: Some(
                 "This is a deliberately very long title with [[https://example.com Link]]".into(),
