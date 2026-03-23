@@ -84,15 +84,21 @@ fn draw_lifelines(sg: &mut SvgGraphic, layout: &SeqLayout, skin: &SkinParams, sd
             .map(|sl| format!(r#" data-source-line="{sl}""#))
             .unwrap_or_default();
         let mut tmp = String::new();
-        write!(
-            tmp,
-            r#"<g class="participant-lifeline" data-entity-uid="part{idx}" data-qualified-name="{qname}"{src_line} id="part{idx}-lifeline"><g><title>{dname}</title>"#,
-            idx = part_idx,
-            qname = qualified_name,
-            src_line = src_line_attr,
-            dname = escaped_display,
-        )
-        .unwrap();
+        if sd.teoz_mode {
+            // Teoz: Java renders lifelines without semantic wrapper attributes
+            write!(tmp, "<g><title>{dname}</title>", dname = escaped_display).unwrap();
+        } else {
+            // Puma: full semantic grouping with class/data attributes
+            write!(
+                tmp,
+                r#"<g class="participant-lifeline" data-entity-uid="part{idx}" data-qualified-name="{qname}"{src_line} id="part{idx}-lifeline"><g><title>{dname}</title>"#,
+                idx = part_idx,
+                qname = qualified_name,
+                src_line = src_line_attr,
+                dname = escaped_display,
+            )
+            .unwrap();
+        }
         sg.push_raw(&tmp);
 
         // Java lifeline position: box_x + (int)(box_width) / 2 (Java integer division)
@@ -124,7 +130,11 @@ fn draw_lifelines(sg: &mut SvgGraphic, layout: &SeqLayout, skin: &SkinParams, sd
         .unwrap();
         sg.push_raw(&tmp);
 
-        sg.push_raw("</g></g>");
+        if sd.teoz_mode {
+            sg.push_raw("</g>");
+        } else {
+            sg.push_raw("</g></g>");
+        }
     }
 }
 
@@ -1798,17 +1808,28 @@ fn render_sequence_inner(
         draw_fragment_frame(&mut sg, frag);
     }
 
-    // 4. Activation bars background pass.
-    for act in &layout.activations {
-        let title = display_names
-            .get(act.participant.as_str())
-            .copied()
-            .unwrap_or(&act.participant);
-        draw_activation(&mut sg, act, title);
+    // 4/5. Activation bars and lifelines — order depends on engine:
+    // Teoz: lifelines first, then activations (Java MainTile draw order)
+    // Puma: activations first, then lifelines (Java DrawableSet draw order)
+    if sd.teoz_mode {
+        draw_lifelines(&mut sg, layout, skin, sd);
+        for act in &layout.activations {
+            let title = display_names
+                .get(act.participant.as_str())
+                .copied()
+                .unwrap_or(&act.participant);
+            draw_activation(&mut sg, act, title);
+        }
+    } else {
+        for act in &layout.activations {
+            let title = display_names
+                .get(act.participant.as_str())
+                .copied()
+                .unwrap_or(&act.participant);
+            draw_activation(&mut sg, act, title);
+        }
+        draw_lifelines(&mut sg, layout, skin, sd);
     }
-
-    // 5. Lifelines (dashed vertical lines with semantic grouping)
-    draw_lifelines(&mut sg, layout, skin, sd);
 
     // 5b. Group frames (legacy)
     for group in &layout.groups {
