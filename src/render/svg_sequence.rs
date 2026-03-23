@@ -960,6 +960,67 @@ fn draw_participant_queue(
     );
 }
 
+/// Render a single text line word-by-word (Java beta5 behavior when maxmessagesize is set).
+/// Each word becomes a separate `<text>` element, with `&#160;` elements between words.
+/// `metrics_font` is the internal font name for width calculations (e.g. "SansSerif").
+/// `svg_font` is the SVG font-family attribute value (e.g. "sans-serif").
+fn render_word_by_word(
+    sg: &mut SvgGraphic,
+    line: &str,
+    x: f64,
+    y: f64,
+    metrics_font: &str,
+    svg_font: &str,
+    font_size: f64,
+) {
+    let words: Vec<&str> = line.split(' ').collect();
+    let mut cur_x = x;
+    for (i, word) in words.iter().enumerate() {
+        if i > 0 {
+            // Render &#160; (non-breaking space) between words
+            let space_w = font_metrics::text_width("\u{00a0}", metrics_font, font_size, false, false);
+            sg.set_fill_color(TEXT_COLOR);
+            sg.svg_text(
+                "\u{00a0}",
+                cur_x,
+                y,
+                Some(svg_font),
+                font_size,
+                None,
+                None,
+                None,
+                space_w,
+                LengthAdjust::Spacing,
+                None,
+                0,
+                None,
+            );
+            cur_x += space_w;
+        }
+        if word.is_empty() {
+            continue;
+        }
+        let word_w = font_metrics::text_width(word, metrics_font, font_size, false, false);
+        sg.set_fill_color(TEXT_COLOR);
+        sg.svg_text(
+            word,
+            cur_x,
+            y,
+            Some(svg_font),
+            font_size,
+            None,
+            None,
+            None,
+            word_w,
+            LengthAdjust::Spacing,
+            None,
+            0,
+            None,
+        );
+        cur_x += word_w;
+    }
+}
+
 // ── Messages ────────────────────────────────────────────────────────
 
 fn draw_message(
@@ -974,6 +1035,7 @@ fn draw_message(
     to_idx: usize,
     msg_idx: usize,
     source_line: Option<usize>,
+    word_by_word: bool,
 ) {
     let src_line_attr = source_line
         .map(|sl| format!(r#" data-source-line="{sl}""#))
@@ -1130,24 +1192,28 @@ fn draw_message(
             );
         }
 
-        // Draw message text lines (with Creole markup support)
+        // Draw message text lines
         for (i, line) in msg.text_lines.iter().enumerate() {
             if line.is_empty() {
                 continue;
             }
             let line_y = first_text_y + i as f64 * msg_line_spacing;
-            let mut tmp = String::new();
-            render_creole_text(
-                &mut tmp,
-                line,
-                text_x,
-                line_y,
-                msg_line_spacing,
-                TEXT_COLOR,
-                None,
-                &format!(r#"font-size="{msg_font_size}""#),
-            );
-            sg.push_raw(&tmp);
+            if word_by_word {
+                render_word_by_word(sg, line, text_x, line_y, msg_font_family, msg_svg_family, msg_font_size);
+            } else {
+                let mut tmp = String::new();
+                render_creole_text(
+                    &mut tmp,
+                    line,
+                    text_x,
+                    line_y,
+                    msg_line_spacing,
+                    TEXT_COLOR,
+                    None,
+                    &format!(r#"font-size="{msg_font_size}""#),
+                );
+                sg.push_raw(&tmp);
+            }
         }
     }
 
@@ -1163,6 +1229,7 @@ fn draw_self_message(
     msg_font_size: f64,
     from_idx: usize,
     msg_idx: usize,
+    word_by_word: bool,
 ) {
     let sw = arrow_thickness as u32;
     let from_x = msg.from_x;
@@ -1362,18 +1429,23 @@ fn draw_self_message(
                 continue;
             }
             let line_y = first_text_y + i as f64 * msg_line_spacing;
-            let mut tmp = String::new();
-            render_creole_text(
-                &mut tmp,
-                line,
-                text_x,
-                line_y,
-                msg_line_spacing,
-                TEXT_COLOR,
-                None,
-                &format!(r#"font-size="{msg_font_size}""#),
-            );
-            sg.push_raw(&tmp);
+            if word_by_word {
+                let svg_family = svg_font_family_attr(msg_font_family);
+                render_word_by_word(sg, line, text_x, line_y, msg_font_family, svg_family, msg_font_size);
+            } else {
+                let mut tmp = String::new();
+                render_creole_text(
+                    &mut tmp,
+                    line,
+                    text_x,
+                    line_y,
+                    msg_line_spacing,
+                    TEXT_COLOR,
+                    None,
+                    &format!(r#"font-size="{msg_font_size}""#),
+                );
+                sg.push_raw(&tmp);
+            }
         }
     }
 
@@ -2083,6 +2155,7 @@ fn render_sequence_inner(
     // that should be emitted between messages at the appropriate y positions.
     let seq_arrow_color = skin.sequence_arrow_color(BORDER_COLOR);
     let seq_arrow_thickness = skin.sequence_arrow_thickness().unwrap_or(1.0);
+    let word_by_word = skin.get("maxmessagesize").is_some();
     let mut msg_seq_counter: usize = 0;
 
     // Collect all interstitial events: (y, type) sorted by y
@@ -2150,6 +2223,7 @@ fn render_sequence_inner(
                 msg_font_size,
                 from_idx,
                 msg_seq_counter,
+                word_by_word,
             );
         } else {
             draw_message(
@@ -2164,6 +2238,7 @@ fn render_sequence_inner(
                 to_idx,
                 msg_seq_counter,
                 msg.source_line,
+                word_by_word,
             );
         }
 
