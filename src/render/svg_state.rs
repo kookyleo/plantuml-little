@@ -47,9 +47,26 @@ pub fn render_state(
     let mut sg = SvgGraphic::new(0, 1.0);
     let mut tracker = BoundsTracker::new();
 
-    // States (including composite with children)
+    // States: Java renders regular entities before start/end entities.
+    // Pass 1: regular and composite entities
     for state in &layout.state_layouts {
-        render_state_node(&mut sg, &mut tracker, state, state_bg, state_border, state_font);
+        if !state.is_initial && !state.is_final
+            && !matches!(state.kind, StateKind::EntryPoint | StateKind::ExitPoint
+                | StateKind::End | StateKind::Fork | StateKind::Join
+                | StateKind::Choice | StateKind::History | StateKind::DeepHistory)
+        {
+            render_state_node(&mut sg, &mut tracker, state, state_bg, state_border, state_font);
+        }
+    }
+    // Pass 2: special entities (initial, final, fork, join, choice, history, etc.)
+    for state in &layout.state_layouts {
+        if state.is_initial || state.is_final
+            || matches!(state.kind, StateKind::EntryPoint | StateKind::ExitPoint
+                | StateKind::End | StateKind::Fork | StateKind::Join
+                | StateKind::Choice | StateKind::History | StateKind::DeepHistory)
+        {
+            render_state_node(&mut sg, &mut tracker, state, state_bg, state_border, state_font);
+        }
     }
 
     // Transitions
@@ -448,12 +465,13 @@ fn render_transition(sg: &mut SvgGraphic, tracker: &mut BoundsTracker, transitio
             let mid_back = 5.0;
             let p1x = tx;
             let p1y = ty;
-            let p2x = tx - ux * back + px * side;
-            let p2y = ty - uy * back + py * side;
+            // Java: right wing first (+perp), then left wing (-perp)
+            let p2x = tx - ux * back - px * side;
+            let p2y = ty - uy * back - py * side;
             let p3x = tx - ux * mid_back;
             let p3y = ty - uy * mid_back;
-            let p4x = tx - ux * back - px * side;
-            let p4y = ty - uy * back - py * side;
+            let p4x = tx - ux * back + px * side;
+            let p4y = ty - uy * back + py * side;
 
             sg.set_fill_color(BORDER_COLOR);
             sg.set_stroke_color(Some(BORDER_COLOR));
