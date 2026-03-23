@@ -265,7 +265,11 @@ pub fn parse_sequence_diagram_with_original(source: &str, original_source: Optio
         {
             let lower = trimmed.to_lowercase();
             if lower.starts_with("activate ") {
-                let name = trimmed[9..].trim().to_string();
+                let mut name = trimmed[9..].trim().to_string();
+                // Strip #color suffix (e.g. "activate a #green" → name="a")
+                if let Some(hash_pos) = name.rfind(" #") {
+                    name = name[..hash_pos].trim().to_string();
+                }
                 debug!("parsed activate: {name}");
                 ensure_participant(&mut declared_participants, &mut auto_participants, &name, source_line);
                 events.push(SeqEvent::Activate(name));
@@ -488,22 +492,29 @@ pub fn parse_sequence_diagram_with_original(source: &str, original_source: Optio
                 .map(|m| m.as_str().trim().to_string())
                 .unwrap_or_default();
 
-            // Handle inline activation/deactivation: ++ or -- after participant
+            // Strip #color suffix FIRST (e.g. "a --++ #red" -> "a --++")
+            // Java: color annotation applies to the activation bar, not the participant name
+            if let Some(hash_pos) = right.rfind(" #") {
+                right = right[..hash_pos].trim().to_string();
+            } else if right.starts_with('#') {
+                // Entire right is a color - shouldn't happen, skip
+            }
+            // Handle inline activation/deactivation suffixes on the target participant.
+            // Java: `--++` = deactivate source + activate target, `++` = activate target,
+            // `--` = deactivate target. Must check `--++` before `--` or `++` alone.
             let mut inline_activate = false;
+            let mut inline_deactivate_source = false;
             let mut inline_deactivate = false;
-            if right.ends_with("++") {
+            if right.ends_with("--++") {
+                right = right[..right.len() - 4].trim().to_string();
+                inline_deactivate_source = true;
+                inline_activate = true;
+            } else if right.ends_with("++") {
                 right = right[..right.len() - 2].trim().to_string();
                 inline_activate = true;
             } else if right.ends_with("--") {
                 right = right[..right.len() - 2].trim().to_string();
                 inline_deactivate = true;
-            }
-            // Strip #color suffix from participant (message color annotation)
-            // e.g. "Testing #red" -> "Testing", color goes on message
-            if let Some(hash_pos) = right.rfind(" #") {
-                right = right[..hash_pos].trim().to_string();
-            } else if right.starts_with('#') {
-                // Entire right is a color - shouldn't happen, skip
             }
 
             if let Some(mut msg) = parse_arrow(left, arrow, &right, &text) {
@@ -525,8 +536,13 @@ pub fn parse_sequence_diagram_with_original(source: &str, original_source: Optio
                 );
 
                 last_to_participant = Some(msg.to.clone());
+                let source = msg.from.clone();
                 let target = msg.to.clone();
                 events.push(SeqEvent::Message(msg));
+                // Java: --++ = deactivate source + activate target
+                if inline_deactivate_source {
+                    events.push(SeqEvent::Deactivate(source));
+                }
                 if inline_activate {
                     events.push(SeqEvent::Activate(target));
                 } else if inline_deactivate {
