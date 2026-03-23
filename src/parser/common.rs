@@ -510,7 +510,16 @@ pub fn has_meaningful_uml_content(content: &str) -> bool {
             || trimmed.starts_with("hide ")
             || trimmed.starts_with("show ")
             || trimmed.starts_with("scale ")
+            || trimmed.starts_with('!')  // preprocessor directives (!pragma, !define, !include, etc.)
+            || trimmed.starts_with("sprite ")  // sprite definitions
         {
+            // For multi-line sprites, skip the SVG body
+            if trimmed.starts_with("sprite ") && trimmed.contains("<svg") {
+                // Skip until closing </svg> tag
+                while i < lines.len() && !lines[i].contains("</svg>") {
+                    i += 1;
+                }
+            }
             i += 1;
             continue;
         }
