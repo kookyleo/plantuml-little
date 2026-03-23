@@ -1088,11 +1088,23 @@ pub fn layout_state(diagram: &StateDiagram) -> Result<StateLayout> {
     let mut node_id_order: Vec<String> = Vec::new();
     for state in &all_states {
         let (_, w, h) = sized_map.get(&state.id).unwrap();
+        // Java uses shape=circle for [*] (initial/final) and shape=rect for states.
+        // We use Circle for special states to match Java's DOT and get correct
+        // graphviz node spacing.
+        let shape = if state.is_special || matches!(state.kind,
+            StateKind::History | StateKind::DeepHistory |
+            StateKind::EntryPoint | StateKind::ExitPoint | StateKind::End)
+        {
+            Some(crate::svek::shape_type::ShapeType::Circle)
+        } else {
+            None // Default: ShapeType::Rectangle → shape=rect
+        };
         gv_nodes.push(LayoutNode {
             id: state.id.clone(),
             label: state.name.clone(),
             width_pt: *w,
             height_pt: *h,
+            shape,
         });
         node_id_order.push(state.id.clone());
     }
@@ -1137,13 +1149,37 @@ pub fn layout_state(diagram: &StateDiagram) -> Result<StateLayout> {
 
     // Convert graphviz NodeLayout (center coords) to StateNodeLayout (top-left coords).
     // Graphviz results are already normalized to origin (0,0) by layout_with_svek.
+    //
+    // Compute effective y-margin: Java's moveDelta.y depends on what element is at
+    // the top of the diagram. Rects in LimitFinder draw at (y-1) → margin_y=7.
+    // Circles don't get the -1 offset → margin_y=6. We detect which case applies
+    // by checking if the topmost node is a special (circle) state.
+    let margin_y = {
+        let topmost = gv_layout.nodes.iter().min_by(|a, b| {
+            let a_top = a.cy - a.height / 2.0;
+            let b_top = b.cy - b.height / 2.0;
+            a_top.partial_cmp(&b_top).unwrap()
+        });
+        if let Some(top_node) = topmost {
+            let top_state = all_states.iter().find(|s| s.id == top_node.id);
+            let is_circle = top_state.map_or(false, |s| {
+                s.is_special || matches!(s.kind, StateKind::History | StateKind::DeepHistory
+                    | StateKind::EntryPoint | StateKind::ExitPoint | StateKind::End)
+            });
+            if is_circle { 6.0 } else { 7.0 }
+        } else {
+            7.0
+        }
+    };
+    log::debug!("  margin_y={:.0}", margin_y);
+
     let mut state_layouts: Vec<StateNodeLayout> = Vec::new();
     let mut node_position_map: HashMap<String, (f64, f64, f64, f64)> = HashMap::new();
 
     for gv_node in &gv_layout.nodes {
         if let Some((template, _w, _h)) = sized_map.remove(&gv_node.id) {
             let x = gv_node.cx - gv_node.width / 2.0 + MARGIN;
-            let y = gv_node.cy - gv_node.height / 2.0 + MARGIN;
+            let y = gv_node.cy - gv_node.height / 2.0 + margin_y;
             let w = gv_node.width;
             let h = gv_node.height;
 
@@ -1191,19 +1227,19 @@ pub fn layout_state(diagram: &StateDiagram) -> Result<StateLayout> {
             gv_edge.label.clone().unwrap_or_default()
         };
 
-        // Shift points by MARGIN (x) and MARGIN (y) to match state positions
+        // Shift points by MARGIN (x) and margin_y (y) to match state positions
         let points: Vec<(f64, f64)> = gv_edge.points.iter()
-            .map(|&(x, y)| (x + MARGIN, y + MARGIN))
+            .map(|&(x, y)| (x + MARGIN, y + margin_y))
             .collect();
 
         let raw_path_d = gv_edge.raw_path_d.as_ref()
-            .map(|d| graphviz::transform_path_d(d, MARGIN, MARGIN));
+            .map(|d| graphviz::transform_path_d(d, MARGIN, margin_y));
 
         let arrow_polygon = gv_edge.arrow_polygon_points.as_ref()
-            .map(|pts| pts.iter().map(|&(x, y)| (x + MARGIN, y + MARGIN)).collect());
+            .map(|pts| pts.iter().map(|&(x, y)| (x + MARGIN, y + margin_y)).collect());
 
         let label_xy = gv_edge.label_xy
-            .map(|(x, y)| (x + MARGIN, y + MARGIN));
+            .map(|(x, y)| (x + MARGIN, y + margin_y));
 
         transition_layouts.push(TransitionLayout {
             from_id,
@@ -1233,18 +1269,9 @@ pub fn layout_state(diagram: &StateDiagram) -> Result<StateLayout> {
     }
 
     // Layout notes (placed to the right of the diagram body)
-    // Java LimitFinder tracks rect bottom at y+h-1, so the bounding box height is
-    // 1px less than the raw graphviz bounding box for multi-node diagrams.
-    // For single-node (degenerated), Java uses a different calculation that matches
-    // the raw graphviz height.
-    let is_degenerated = gv_layout.nodes.len() <= 1 && gv_layout.edges.is_empty();
-    let content_height = if is_degenerated {
-        gv_layout.total_height
-    } else {
-        gv_layout.total_height - 1.0
-    };
+    let content_height = gv_layout.total_height;
     let note_x = MARGIN + content_width + NOTE_OFFSET;
-    let mut note_y = MARGIN;
+    let mut note_y = margin_y;
     let mut note_layouts = Vec::new();
 
     for note in &diagram.notes {
@@ -1288,8 +1315,8 @@ pub fn layout_state(diagram: &StateDiagram) -> Result<StateLayout> {
             .map(|n| n.y + n.height)
             .fold(0.0_f64, f64::max)
     };
-    let states_bottom = MARGIN + content_height;
-    let total_height = states_bottom.max(notes_bottom) + MARGIN;
+    let states_bottom = margin_y + content_height;
+    let total_height = states_bottom.max(notes_bottom) + margin_y;
     let total_height = total_height.max(2.0 * MARGIN);
 
     log::debug!(
@@ -1561,7 +1588,7 @@ mod tests {
             .iter()
             .find(|n| n.id == "Active")
             .unwrap();
-        assert!(start.y < active.y);
+        assert!(start.y < active.y, "start.y={} should be < active.y={}", start.y, active.y);
 
         // Transitions should have points
         for tl in &layout.transition_layouts {

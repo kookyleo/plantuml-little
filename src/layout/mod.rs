@@ -209,6 +209,7 @@ pub fn layout(diagram: &Diagram, skin: &crate::style::SkinParams) -> Result<Diag
                     label: "DOT".into(),
                     width_pt: 200.0,
                     height_pt: 100.0,
+                    shape: None,
                 }],
                 edges: vec![],
                 rankdir: RankDir::TopToBottom,
@@ -699,6 +700,7 @@ fn layout_class_diagram(cd: &ClassDiagram, skin: &crate::style::SkinParams) -> R
                 label: e.name.clone(),
                 width_pt: w,
                 height_pt: h,
+                shape: None,
             }
         })
         .collect();

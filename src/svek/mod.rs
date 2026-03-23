@@ -332,23 +332,11 @@ impl DotStringFactory {
             let Some(idx) = svg_result.find_by_color(node.color) else {
                 continue;
             };
-            // Extract polygon points from SVG and apply translate
-            let raw_points = svg_result.extract_points_at(idx);
-            if !raw_points.is_empty() {
-                let points: Vec<XPoint2D> = raw_points
-                    .iter()
-                    .map(|p| XPoint2D::new(p.x + tx, p.y + ty))
-                    .collect();
-                let min_x = points.iter().map(|p| p.x).fold(f64::INFINITY, f64::min);
-                let min_y = points.iter().map(|p| p.y).fold(f64::INFINITY, f64::min);
-                node.min_x = min_x;
-                node.min_y = min_y;
-                node.cx = min_x + node.width / 2.0;
-                node.cy = min_y + node.height / 2.0;
-                node.set_polygon(min_x, min_y, &points);
-            } else {
-                // Try ellipse: cx/cy attributes near the color position
-                let svg_str = svg_result.svg();
+            // Try ellipse first: if cx/cy attributes exist near the color
+            // position, this is a circle node (shape=circle in DOT).
+            let svg_str = svg_result.svg();
+            let is_ellipse = parse_xml_attr_near(svg_str, idx, "cx").is_some();
+            if is_ellipse {
                 if let Some(cx) = parse_xml_attr_near(svg_str, idx, "cx") {
                     if let Some(cy) = parse_xml_attr_near(svg_str, idx, "cy") {
                         let rx = parse_xml_attr_near(svg_str, idx, "rx").unwrap_or(0.0);
@@ -358,6 +346,22 @@ impl DotStringFactory {
                         node.cx = cx + tx;
                         node.cy = cy + ty;
                     }
+                }
+            } else {
+                // Extract polygon points from SVG and apply translate
+                let raw_points = svg_result.extract_points_at(idx);
+                if !raw_points.is_empty() {
+                    let points: Vec<XPoint2D> = raw_points
+                        .iter()
+                        .map(|p| XPoint2D::new(p.x + tx, p.y + ty))
+                        .collect();
+                    let min_x = points.iter().map(|p| p.x).fold(f64::INFINITY, f64::min);
+                    let min_y = points.iter().map(|p| p.y).fold(f64::INFINITY, f64::min);
+                    node.min_x = min_x;
+                    node.min_y = min_y;
+                    node.cx = min_x + node.width / 2.0;
+                    node.cy = min_y + node.height / 2.0;
+                    node.set_polygon(min_x, min_y, &points);
                 }
             }
         }
@@ -426,6 +430,7 @@ impl DotStringFactory {
                 if lb > lf_max_y { lf_max_y = lb; }
             }
         }
+        log::debug!("svek solve LF: min=({:.1},{:.1}) max=({:.1},{:.1})", lf_min_x, lf_min_y, lf_max_x, lf_max_y);
         let lf_span = if lf_max_x.is_finite() && lf_min_x.is_finite() {
             (lf_max_x - lf_min_x, lf_max_y - lf_min_y)
         } else {

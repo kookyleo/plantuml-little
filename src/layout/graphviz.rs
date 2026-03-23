@@ -10,6 +10,8 @@ pub struct LayoutNode {
     pub label: String,
     pub width_pt: f64,  // node width in pt (72pt = 1 inch)
     pub height_pt: f64, // node height in pt
+    /// DOT shape override (default: Rectangle → "rect").
+    pub shape: Option<crate::svek::shape_type::ShapeType>,
 }
 
 /// Input: a graph edge
@@ -256,7 +258,11 @@ pub fn layout_with_svek(graph: &LayoutGraph) -> Result<GraphLayout, Error> {
 
     // Register entities
     for node in &graph.nodes {
-        builder.add_entity(EntityDescriptor::new(&node.id, node.width_pt, node.height_pt));
+        let mut ed = EntityDescriptor::new(&node.id, node.width_pt, node.height_pt);
+        if let Some(shape) = node.shape {
+            ed = ed.with_shape(shape);
+        }
+        builder.add_entity(ed);
     }
 
     // Register links (including invisible edges for layout constraint)
@@ -923,12 +929,14 @@ mod tests {
                     label: "ClassA".into(),
                     width_pt: 108.0,
                     height_pt: 36.0,
+                    shape: None,
                 },
                 LayoutNode {
                     id: "B".into(),
                     label: "ClassB".into(),
                     width_pt: 108.0,
                     height_pt: 36.0,
+                    shape: None,
                 },
             ],
             edges: vec![LayoutEdge {
@@ -969,6 +977,7 @@ mod tests {
                 label: "Only".into(),
                 width_pt: 72.0,
                 height_pt: 36.0,
+                shape: None,
             }],
             edges: vec![],
             rankdir: RankDir::LeftToRight,
