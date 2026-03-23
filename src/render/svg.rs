@@ -855,8 +855,16 @@ fn wrap_with_meta(body_svg: &str, meta: &DiagramMeta, diagram_type: &str, bg: &s
         let legend_fill = leg_bg_color.as_deref().unwrap_or(LEGEND_BG);
         let text_color = leg_font_color.as_deref().unwrap_or(TEXT_COLOR);
 
-        // Java: legend group does not include data-source-line attribute
-        write!(buf, r#"<g class="legend">"#).unwrap();
+        write!(buf, r#"<g class="legend""#).unwrap();
+        // Java: legend includes data-source-line only when no document <style> block is used
+        let has_style = leg_bg_color.is_some() || title_bg_color.is_some()
+            || hdr_bg_color.is_some() || ftr_bg_color.is_some() || cap_bg_color.is_some();
+        if !has_style {
+            if let Some(sl) = meta.legend_line {
+                write!(buf, r#" data-source-line="{sl}""#).unwrap();
+            }
+        }
+        buf.push('>');
         write!(buf,
             r#"<rect fill="{}" height="{}" rx="{}" ry="{}" style="stroke:{LEGEND_BORDER};stroke-width:1;" width="{}" x="{}" y="{}"/>"#,
             legend_fill, fmt_coord(draw_h), fmt_coord(half_rc), fmt_coord(half_rc),
