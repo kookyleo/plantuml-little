@@ -174,11 +174,12 @@ impl EntityPort {
         }
     }
 
-    /// Returns the full DOT string "uid:port" or just "uid".
+    /// Returns the full DOT string `"uid":port` or just `"uid"`.
+    /// UIDs are quoted to handle dots, spaces, and special characters.
     pub fn full_string(&self) -> String {
         match &self.port {
-            Some(p) => format!("{}:{}", self.uid, p),
-            None => self.uid.clone(),
+            Some(p) => format!("\"{}\":{}", self.uid, p),
+            None => format!("\"{}\"", self.uid),
         }
     }
 
@@ -1019,7 +1020,7 @@ mod tests {
     #[test]
     fn entity_port_basic() {
         let ep = EntityPort::new("node1");
-        assert_eq!(ep.full_string(), "node1");
+        assert_eq!(ep.full_string(), "\"node1\"");
         assert_eq!(ep.prefix(), "node1");
         assert!(!ep.starts_with("x"));
         assert!(ep.starts_with("node"));
@@ -1028,7 +1029,7 @@ mod tests {
     #[test]
     fn entity_port_with_port() {
         let ep = EntityPort::with_port("node1", "p0");
-        assert_eq!(ep.full_string(), "node1:p0");
+        assert_eq!(ep.full_string(), "\"node1\":p0");
         assert_eq!(ep.prefix(), "node1");
     }
 
@@ -1044,7 +1045,7 @@ mod tests {
     #[test]
     fn entity_port_display() {
         let ep = EntityPort::with_port("N", "south");
-        assert_eq!(format!("{}", ep), "N:south");
+        assert_eq!(format!("{}", ep), "\"N\":south");
     }
 
     // ── Direction tests ──
@@ -1224,7 +1225,7 @@ mod tests {
         let e = SvekEdge::new("A", "B").with_colors(0x010200, 0, 0, 0);
         let mut sb = String::new();
         e.append_line(&mut sb);
-        assert!(sb.contains("A->B["));
+        assert!(sb.contains("\"A\"->\"B\"["));
         assert!(sb.contains("color=\"#010200\""));
         assert!(sb.ends_with("];\n"));
     }
@@ -1342,7 +1343,7 @@ mod tests {
             .with_colors(0x010200, 0, 0, 0);
         let mut sb = String::new();
         e.append_line(&mut sb);
-        assert!(sb.starts_with("A:south->B:north["), "got: {}", sb);
+        assert!(sb.starts_with("\"A\":south->\"B\":north["), "got: {}", sb);
     }
 
     #[test]
@@ -1769,8 +1770,8 @@ mod tests {
             .with_tail_label("1", LabelDimension::new(10.0, 12.0))
             .with_head_label("*", LabelDimension::new(10.0, 12.0));
 
-        assert_eq!(e.start_uid.full_string(), "Foo:e");
-        assert_eq!(e.end_uid.full_string(), "Bar:w");
+        assert_eq!(e.start_uid.full_string(), "\"Foo\":e");
+        assert_eq!(e.end_uid.full_string(), "\"Bar\":w");
         assert_eq!(e.color, 0x0A0B0C);
         assert_eq!(e.decor1, LinkDecoration::Composition);
         assert_eq!(e.decor2, LinkDecoration::Arrow);
@@ -1799,7 +1800,7 @@ mod tests {
         let mut sb = String::new();
         e.append_line(&mut sb);
 
-        assert!(sb.starts_with("ClassA:south->ClassB:north["));
+        assert!(sb.starts_with("\"ClassA\":south->\"ClassB\":north["));
         assert!(sb.contains("arrowhead=diamond"));
         assert!(sb.contains("arrowtail=open"));
         assert!(sb.contains("dir=both"));

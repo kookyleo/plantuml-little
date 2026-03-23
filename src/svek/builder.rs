@@ -517,9 +517,9 @@ mod tests {
 
         let dot = builder.build_dot();
         assert!(dot.contains("digraph unix"));
-        assert!(dot.contains("A ["));
-        assert!(dot.contains("B ["));
-        assert!(dot.contains("A->B"));
+        assert!(dot.contains("\"A\" ["));
+        assert!(dot.contains("\"B\" ["));
+        assert!(dot.contains("\"A\"->\"B\""));
     }
 
     #[test]
@@ -549,8 +549,8 @@ mod tests {
         builder.add_entity(EntityDescriptor::new("B", 80.0, 40.0));
 
         let dot = builder.build_dot();
-        assert!(!dot.contains("A ["));
-        assert!(dot.contains("B ["));
+        assert!(!dot.contains("\"A\" ["));
+        assert!(dot.contains("\"B\" ["));
     }
 
     #[test]
@@ -563,7 +563,7 @@ mod tests {
         builder.add_link(link);
 
         let dot = builder.build_dot();
-        assert!(!dot.contains("A->B"));
+        assert!(!dot.contains("\"A\"->\"B\""));
     }
 
     #[test]

@@ -337,7 +337,10 @@ impl SvekNode {
             _ => {}
         }
 
+        // Quote node UID to handle dots, spaces, and special characters
+        sb.push('"');
         sb.push_str(&self.uid);
+        sb.push('"');
         sb.push_str(" [");
         self.append_shape_internal(sb);
         sb.push(',');
@@ -716,7 +719,7 @@ mod tests {
         n.shape_type = ShapeType::Rectangle;
         let mut dot = String::new();
         n.append_shape(&mut dot);
-        assert!(dot.contains("sh0001 ["));
+        assert!(dot.contains("\"sh0001\" ["));
         assert!(dot.contains("shape=rect"));
         assert!(dot.contains("label=\"\""));
         assert!(dot.contains("width="));
@@ -1010,7 +1013,7 @@ mod tests {
         n.append_shape(&mut dot);
         assert_eq!(
             dot,
-            "sh0001 [shape=rect,label=\"\",width=1.000000,height=0.500000,color=\"#010100\"];\n"
+            "\"sh0001\" [shape=rect,label=\"\",width=1.000000,height=0.500000,color=\"#010100\"];\n"
         );
     }
 
@@ -1023,7 +1026,7 @@ mod tests {
         n.append_shape(&mut dot);
         assert_eq!(
             dot,
-            "sh0002 [shape=diamond,label=\"\",width=2.000000,height=1.000000,color=\"#020200\"];\n"
+            "\"sh0002\" [shape=diamond,label=\"\",width=2.000000,height=1.000000,color=\"#020200\"];\n"
         );
     }
 
@@ -1036,7 +1039,7 @@ mod tests {
         n.append_shape(&mut dot);
         assert_eq!(
             dot,
-            "sh0003 [shape=rect,style=rounded,label=\"\",width=0.500000,height=0.500000,color=\"#030300\"];\n"
+            "\"sh0003\" [shape=rect,style=rounded,label=\"\",width=0.500000,height=0.500000,color=\"#030300\"];\n"
         );
     }
 
