@@ -281,7 +281,7 @@ pub fn render_with_source(
             })
             .unwrap_or("CLASS");
         let bg = skin.get_or("backgroundcolor", "#FFFFFF");
-        wrap_with_meta(&body_result.svg, meta, dtype, bg, body_result.raw_body_dim)?
+        wrap_with_meta(&body_result.svg, meta, dtype, bg, body_result.raw_body_dim, skin)?
     };
 
     if let Some(source) = source {
@@ -644,7 +644,7 @@ fn encode6bit(b: u8) -> char {
     }
 }
 
-fn wrap_with_meta(body_svg: &str, meta: &DiagramMeta, diagram_type: &str, bg: &str, raw_body_dim: Option<(f64, f64)>) -> Result<String> {
+fn wrap_with_meta(body_svg: &str, meta: &DiagramMeta, diagram_type: &str, bg: &str, raw_body_dim: Option<(f64, f64)>, skin: &crate::style::SkinParams) -> Result<String> {
     let (svg_w, svg_h) = extract_dimensions(body_svg);
     let body_content = extract_svg_content(body_svg);
     // Use raw body dimensions if available (avoids integer truncation loss).
@@ -657,26 +657,64 @@ fn wrap_with_meta(body_svg: &str, meta: &DiagramMeta, diagram_type: &str, bg: &s
     };
     log::trace!("wrap_with_meta: svg_w={svg_w} svg_h={svg_h} body_w={body_w} body_h={body_h}");
 
+    // ── Resolve document section styles ──────────────────────────────
+    let hdr_font_size = skin.get("document.header.fontsize")
+        .and_then(|s| s.parse::<f64>().ok()).unwrap_or(META_HF_FONT_SIZE);
+    let hdr_font_color = skin.get("document.header.fontcolor")
+        .map(|s| s.to_string());
+    let hdr_bg_color = skin.get("document.header.backgroundcolor")
+        .map(|s| s.to_string());
+
+    let ftr_font_size = skin.get("document.footer.fontsize")
+        .and_then(|s| s.parse::<f64>().ok()).unwrap_or(META_HF_FONT_SIZE);
+    let ftr_font_color = skin.get("document.footer.fontcolor")
+        .map(|s| s.to_string());
+    let ftr_bg_color = skin.get("document.footer.backgroundcolor")
+        .map(|s| s.to_string());
+
+    let title_font_size = skin.get("document.title.fontsize")
+        .and_then(|s| s.parse::<f64>().ok()).unwrap_or(META_TITLE_FONT_SIZE);
+    let title_font_color = skin.get("document.title.fontcolor")
+        .map(|s| s.to_string());
+    let title_bg_color = skin.get("document.title.backgroundcolor")
+        .map(|s| s.to_string());
+
+    let leg_font_size = skin.get("document.legend.fontsize")
+        .and_then(|s| s.parse::<f64>().ok()).unwrap_or(META_LEGEND_FONT_SIZE);
+    let leg_font_color = skin.get("document.legend.fontcolor")
+        .map(|s| s.to_string());
+    let leg_bg_color = skin.get("document.legend.backgroundcolor")
+        .map(|s| s.to_string());
+
+    let cap_font_size = skin.get("document.caption.fontsize")
+        .and_then(|s| s.parse::<f64>().ok()).unwrap_or(META_CAPTION_FONT_SIZE);
+    let cap_font_color = skin.get("document.caption.fontcolor")
+        .map(|s| s.to_string());
+    let cap_bg_color = skin.get("document.caption.backgroundcolor")
+        .map(|s| s.to_string());
+
+    let title_bold = title_font_size == META_TITLE_FONT_SIZE; // default title is bold
+
     // ── 1. Compute block dimensions for each meta element ───────────
-    let hdr_text_w = meta.header.as_ref().map(|t| creole_text_w(t, META_HF_FONT_SIZE, false)).unwrap_or(0.0);
-    let hdr_text_h = if meta.header.is_some() { text_block_h(META_HF_FONT_SIZE, false) } else { 0.0 };
+    let hdr_text_w = meta.header.as_ref().map(|t| creole_text_w(t, hdr_font_size, false)).unwrap_or(0.0);
+    let hdr_text_h = if meta.header.is_some() { text_block_h(hdr_font_size, false) } else { 0.0 };
     let hdr_dim = if meta.header.is_some() { block_dim(hdr_text_w, hdr_text_h, 0.0, 0.0) } else { (0.0, 0.0) };
 
-    let ftr_text_w = meta.footer.as_ref().map(|t| creole_text_w(t, META_HF_FONT_SIZE, false)).unwrap_or(0.0);
-    let ftr_text_h = if meta.footer.is_some() { text_block_h(META_HF_FONT_SIZE, false) } else { 0.0 };
+    let ftr_text_w = meta.footer.as_ref().map(|t| creole_text_w(t, ftr_font_size, false)).unwrap_or(0.0);
+    let ftr_text_h = if meta.footer.is_some() { text_block_h(ftr_font_size, false) } else { 0.0 };
     let ftr_dim = if meta.footer.is_some() { block_dim(ftr_text_w, ftr_text_h, 0.0, 0.0) } else { (0.0, 0.0) };
 
-    let title_text_w = meta.title.as_ref().map(|t| creole_text_w(t, META_TITLE_FONT_SIZE, true)).unwrap_or(0.0);
-    let title_text_h = if meta.title.is_some() { text_block_h(META_TITLE_FONT_SIZE, true) } else { 0.0 };
+    let title_text_w = meta.title.as_ref().map(|t| creole_text_w(t, title_font_size, title_bold)).unwrap_or(0.0);
+    let title_text_h = if meta.title.is_some() { text_block_h(title_font_size, title_bold) } else { 0.0 };
     let title_dim = if meta.title.is_some() { block_dim(title_text_w, title_text_h, TITLE_PADDING, TITLE_MARGIN) } else { (0.0, 0.0) };
     log::trace!("wrap_with_meta: title text_w={title_text_w:.10} text_h={title_text_h:.10} title_dim={title_dim:?}");
 
-    let cap_text_w = meta.caption.as_ref().map(|t| creole_text_w(t, META_CAPTION_FONT_SIZE, false)).unwrap_or(0.0);
-    let cap_text_h = if meta.caption.is_some() { text_block_h(META_CAPTION_FONT_SIZE, false) } else { 0.0 };
+    let cap_text_w = meta.caption.as_ref().map(|t| creole_text_w(t, cap_font_size, false)).unwrap_or(0.0);
+    let cap_text_h = if meta.caption.is_some() { text_block_h(cap_font_size, false) } else { 0.0 };
     let cap_dim = if meta.caption.is_some() { block_dim(cap_text_w, cap_text_h, CAPTION_PADDING, CAPTION_MARGIN) } else { (0.0, 0.0) };
 
-    let leg_text_w = meta.legend.as_ref().map(|t| creole_text_w(t, META_LEGEND_FONT_SIZE, false)).unwrap_or(0.0);
-    let leg_text_h = if meta.legend.is_some() { text_block_h(META_LEGEND_FONT_SIZE, false) } else { 0.0 };
+    let leg_text_w = meta.legend.as_ref().map(|t| creole_text_w(t, leg_font_size, false)).unwrap_or(0.0);
+    let leg_text_h = if meta.legend.is_some() { text_block_h(leg_font_size, false) } else { 0.0 };
     let leg_dim = if meta.legend.is_some() { block_dim(leg_text_w, leg_text_h, LEGEND_PADDING, LEGEND_MARGIN) } else { (0.0, 0.0) };
 
     // ── 2. Compute total dimensions (inside-out stacking) ──────────
@@ -714,19 +752,25 @@ fn wrap_with_meta(body_svg: &str, meta: &DiagramMeta, diagram_type: &str, bg: &s
     // Header (RIGHT-aligned)
     if let Some(ref hdr) = meta.header {
         let hdr_x = tb_w - hdr_dim.0;
-        let text_y = font_metrics::ascent("SansSerif", META_HF_FONT_SIZE, false, false);
+        let text_y = font_metrics::ascent("SansSerif", hdr_font_size, false, false);
+        let text_color = hdr_font_color.as_deref().unwrap_or(DIVIDER_COLOR);
         write!(buf, r#"<g class="header""#).unwrap();
         if let Some(sl) = meta.header_line {
             write!(buf, r#" data-source-line="{sl}""#).unwrap();
         }
         buf.push('>');
+        if let Some(ref bg) = hdr_bg_color {
+            write!(buf,
+                r#"<rect fill="{}" height="{}" style="stroke:none;stroke-width:1;" width="{}" x="{}" y="0"/>"#,
+                bg, fmt_coord(hdr_text_h), fmt_coord(hdr_text_w), fmt_coord(hdr_x)
+            ).unwrap();
+        }
         render_creole_text(
             &mut buf, hdr, hdr_x, text_y,
-            text_block_h(META_HF_FONT_SIZE, false),
-            DIVIDER_COLOR, None,
-            &format!(r#"font-size="{}""#, META_HF_FONT_SIZE as i32),
+            text_block_h(hdr_font_size, false),
+            text_color, None,
+            &format!(r#"font-size="{}""#, hdr_font_size as i32),
         );
-        // Strip trailing newline from render_creole_text
         if buf.ends_with('\n') { buf.pop(); }
         buf.push_str("</g>");
     }
@@ -737,19 +781,30 @@ fn wrap_with_meta(body_svg: &str, meta: &DiagramMeta, diagram_type: &str, bg: &s
             + ((after_title.0 - title_dim.0) / 2.0).max(0.0);
         let text_x = title_block_x + TITLE_MARGIN + TITLE_PADDING;
         let text_y = hdr_dim.1 + TITLE_MARGIN + TITLE_PADDING
-            + font_metrics::ascent("SansSerif", META_TITLE_FONT_SIZE, true, false);
+            + font_metrics::ascent("SansSerif", title_font_size, title_bold, false);
+        let text_color = title_font_color.as_deref().unwrap_or(TEXT_COLOR);
         write!(buf, r#"<g class="title""#).unwrap();
         if let Some(sl) = meta.title_line {
             write!(buf, r#" data-source-line="{sl}""#).unwrap();
         }
         buf.push('>');
+        if let Some(ref bg) = title_bg_color {
+            let rect_x = title_block_x + TITLE_MARGIN;
+            let rect_y = hdr_dim.1 + TITLE_MARGIN;
+            let rect_w = title_text_w + 2.0 * TITLE_PADDING;
+            let rect_h = title_text_h + 2.0 * TITLE_PADDING;
+            write!(buf,
+                r#"<rect fill="{}" height="{}" style="stroke:none;stroke-width:1;" width="{}" x="{}" y="{}"/>"#,
+                bg, fmt_coord(rect_h), fmt_coord(rect_w), fmt_coord(rect_x), fmt_coord(rect_y)
+            ).unwrap();
+        }
+        let weight_str = if title_bold { r#" font-weight="700""# } else { "" };
         render_creole_text(
             &mut buf, title, text_x, text_y,
-            text_block_h(META_TITLE_FONT_SIZE, true),
-            TEXT_COLOR, None,
-            &format!(r#"font-size="{}" font-weight="700""#, META_TITLE_FONT_SIZE as i32),
+            text_block_h(title_font_size, title_bold),
+            text_color, None,
+            &format!(r#"font-size="{}"{}"#, title_font_size as i32, weight_str),
         );
-        // Strip trailing newline from render_creole_text
         if buf.ends_with('\n') { buf.pop(); }
         buf.push_str("</g>");
     }
@@ -781,26 +836,28 @@ fn wrap_with_meta(body_svg: &str, meta: &DiagramMeta, diagram_type: &str, bg: &s
         let draw_h = leg_text_h + 2.0 * LEGEND_PADDING;
         let half_rc = LEGEND_ROUND_CORNER / 2.0;
 
+        let legend_fill = leg_bg_color.as_deref().unwrap_or(LEGEND_BG);
+        let text_color = leg_font_color.as_deref().unwrap_or(TEXT_COLOR);
+
         write!(buf, r#"<g class="legend""#).unwrap();
         if let Some(sl) = meta.legend_line {
             write!(buf, r#" data-source-line="{sl}""#).unwrap();
         }
         buf.push('>');
         write!(buf,
-            r#"<rect fill="{LEGEND_BG}" height="{}" rx="{}" ry="{}" style="stroke:{LEGEND_BORDER};stroke-width:1;" width="{}" x="{}" y="{}"/>"#,
-            fmt_coord(draw_h), fmt_coord(half_rc), fmt_coord(half_rc),
+            r#"<rect fill="{}" height="{}" rx="{}" ry="{}" style="stroke:{LEGEND_BORDER};stroke-width:1;" width="{}" x="{}" y="{}"/>"#,
+            legend_fill, fmt_coord(draw_h), fmt_coord(half_rc), fmt_coord(half_rc),
             fmt_coord(draw_w), fmt_coord(rect_x), fmt_coord(rect_y),
         ).unwrap();
         let text_x = rect_x + LEGEND_PADDING;
         let text_y = rect_y + LEGEND_PADDING
-            + font_metrics::ascent("SansSerif", META_LEGEND_FONT_SIZE, false, false);
+            + font_metrics::ascent("SansSerif", leg_font_size, false, false);
         render_creole_text(
             &mut buf, leg, text_x, text_y,
-            text_block_h(META_LEGEND_FONT_SIZE, false),
-            TEXT_COLOR, None,
-            &format!(r#"font-size="{}""#, META_LEGEND_FONT_SIZE as i32),
+            text_block_h(leg_font_size, false),
+            text_color, None,
+            &format!(r#"font-size="{}""#, leg_font_size as i32),
         );
-        // Strip trailing newline from render_creole_text
         if buf.ends_with('\n') { buf.pop(); }
         buf.push_str("</g>");
     }
@@ -812,19 +869,29 @@ fn wrap_with_meta(body_svg: &str, meta: &DiagramMeta, diagram_type: &str, bg: &s
             + ((after_caption.0 - cap_dim.0) / 2.0).max(0.0);
         let text_x = cap_block_x + CAPTION_MARGIN + CAPTION_PADDING;
         let text_y = cap_y_start + CAPTION_MARGIN + CAPTION_PADDING
-            + font_metrics::ascent("SansSerif", META_CAPTION_FONT_SIZE, false, false);
+            + font_metrics::ascent("SansSerif", cap_font_size, false, false);
+        let text_color = cap_font_color.as_deref().unwrap_or(TEXT_COLOR);
         write!(buf, r#"<g class="caption""#).unwrap();
         if let Some(sl) = meta.caption_line {
             write!(buf, r#" data-source-line="{sl}""#).unwrap();
         }
         buf.push('>');
+        if let Some(ref bg) = cap_bg_color {
+            let rect_x = cap_block_x + CAPTION_MARGIN;
+            let rect_y = cap_y_start + CAPTION_MARGIN;
+            let rect_w = cap_text_w + 2.0 * CAPTION_PADDING;
+            let rect_h = cap_text_h + 2.0 * CAPTION_PADDING;
+            write!(buf,
+                r#"<rect fill="{}" height="{}" style="stroke:none;stroke-width:1;" width="{}" x="{}" y="{}"/>"#,
+                bg, fmt_coord(rect_h), fmt_coord(rect_w), fmt_coord(rect_x), fmt_coord(rect_y)
+            ).unwrap();
+        }
         render_creole_text(
             &mut buf, cap, text_x, text_y,
-            text_block_h(META_CAPTION_FONT_SIZE, false),
-            TEXT_COLOR, None,
-            &format!(r#"font-size="{}""#, META_CAPTION_FONT_SIZE as i32),
+            text_block_h(cap_font_size, false),
+            text_color, None,
+            &format!(r#"font-size="{}""#, cap_font_size as i32),
         );
-        // Strip trailing newline from render_creole_text
         if buf.ends_with('\n') { buf.pop(); }
         buf.push_str("</g>");
     }
@@ -834,19 +901,25 @@ fn wrap_with_meta(body_svg: &str, meta: &DiagramMeta, diagram_type: &str, bg: &s
         let ftr_y_start = hdr_dim.1 + after_caption.1;
         let ftr_x = ((tb_w - ftr_dim.0) / 2.0).max(0.0);
         let text_y = ftr_y_start
-            + font_metrics::ascent("SansSerif", META_HF_FONT_SIZE, false, false);
+            + font_metrics::ascent("SansSerif", ftr_font_size, false, false);
+        let text_color = ftr_font_color.as_deref().unwrap_or(DIVIDER_COLOR);
         write!(buf, r#"<g class="footer""#).unwrap();
         if let Some(sl) = meta.footer_line {
             write!(buf, r#" data-source-line="{sl}""#).unwrap();
         }
         buf.push('>');
+        if let Some(ref bg) = ftr_bg_color {
+            write!(buf,
+                r#"<rect fill="{}" height="{}" style="stroke:none;stroke-width:1;" width="{}" x="{}" y="{}"/>"#,
+                bg, fmt_coord(ftr_text_h), fmt_coord(ftr_text_w), fmt_coord(ftr_x), fmt_coord(ftr_y_start)
+            ).unwrap();
+        }
         render_creole_text(
             &mut buf, ftr, ftr_x, text_y,
-            text_block_h(META_HF_FONT_SIZE, false),
-            DIVIDER_COLOR, None,
-            &format!(r#"font-size="{}""#, META_HF_FONT_SIZE as i32),
+            text_block_h(ftr_font_size, false),
+            text_color, None,
+            &format!(r#"font-size="{}""#, ftr_font_size as i32),
         );
-        // Strip trailing newline from render_creole_text
         if buf.ends_with('\n') { buf.pop(); }
         buf.push_str("</g>");
     }

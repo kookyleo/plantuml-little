@@ -519,12 +519,15 @@ pub fn parse_skinparams(content: &str) -> SkinParams {
 }
 
 /// Extract document-level CSS properties from `<style>` content.
-/// Supports the `document { BackGroundColor <color> }` pattern used by Java PlantUML.
+/// Supports `document { BackGroundColor orange }` and nested sub-blocks like
+/// `document { title { BackGroundColor yellow } footer { FontColor red } }`.
 fn extract_document_style(css: &str, params: &mut SkinParams) {
-    // Simple state machine to find `document {` blocks
     let mut depth = 0;
     let mut in_document = false;
     let mut doc_depth = 0;
+    // Track which sub-block we're inside (e.g., "title", "footer", "header", "legend", "caption")
+    let mut current_section: Option<String> = None;
+    let mut section_depth = 0;
 
     for line in css.lines() {
         let trimmed = line.trim();
@@ -532,12 +535,10 @@ fn extract_document_style(css: &str, params: &mut SkinParams) {
             continue;
         }
 
-        // Track nesting depth
         let opens = trimmed.matches('{').count();
         let closes = trimmed.matches('}').count();
 
         if !in_document {
-            // Look for `document {` at the current depth
             let lower = trimmed.to_lowercase();
             if lower.starts_with("document") && trimmed.contains('{') {
                 in_document = true;
@@ -546,14 +547,68 @@ fn extract_document_style(css: &str, params: &mut SkinParams) {
                 depth = depth.saturating_sub(closes);
                 continue;
             }
+
+            // Top-level section blocks (title {, footer {, etc.) — not inside document {}
+            if current_section.is_none() && depth == 0 && trimmed.contains('{') {
+                let brace_pos = trimmed.find('{').unwrap();
+                let name = trimmed[..brace_pos].trim().to_lowercase();
+                if matches!(name.as_str(), "title" | "footer" | "header" | "legend" | "caption") {
+                    current_section = Some(name);
+                    section_depth = depth;
+                    depth += opens;
+                    depth = depth.saturating_sub(closes);
+                    continue;
+                }
+            }
+        }
+
+        // Extract properties from top-level section blocks (not inside document)
+        if !in_document && current_section.is_some() && depth > section_depth {
+            if !trimmed.contains('{') && !trimmed.starts_with('}') {
+                let parts: Vec<&str> = trimmed.splitn(2, char::is_whitespace).collect();
+                if parts.len() == 2 {
+                    let section = current_section.as_ref().unwrap();
+                    let key = parts[0].trim().to_lowercase();
+                    let value = parts[1].trim();
+                    let param_key = format!("document.{section}.{key}");
+                    params.set(&param_key, value);
+                    log::debug!("extracted top-level {section}.{key}: {value}");
+                }
+            }
         }
 
         if in_document && depth > doc_depth {
-            // We're inside the document block -- look for property assignments
-            // But skip nested sub-blocks (title { }, legend { }, etc.)
-            // Only process direct children of `document {`
-            if depth == doc_depth + 1 && !trimmed.contains('{') && !trimmed.starts_with('}') {
-                // Parse property: BackGroundColor orange
+            // Check for sub-block opening (title {, footer {, etc.)
+            if current_section.is_none() && depth == doc_depth + 1 && trimmed.contains('{') {
+                let brace_pos = trimmed.find('{').unwrap();
+                let name = trimmed[..brace_pos].trim().to_lowercase();
+                if matches!(name.as_str(), "title" | "footer" | "header" | "legend" | "caption") {
+                    current_section = Some(name);
+                    section_depth = depth;
+                    depth += opens;
+                    depth = depth.saturating_sub(closes);
+                    continue;
+                }
+            }
+
+            // Inside a sub-block: extract properties
+            if let Some(ref section) = current_section {
+                if depth > section_depth && !trimmed.contains('{') && !trimmed.starts_with('}') {
+                    let parts: Vec<&str> = trimmed.splitn(2, char::is_whitespace).collect();
+                    if parts.len() == 2 {
+                        let key = parts[0].trim().to_lowercase();
+                        let value = parts[1].trim();
+                        let param_key = format!("document.{section}.{key}");
+                        params.set(&param_key, value);
+                        log::debug!("extracted document.{section}.{key}: {value}");
+                    }
+                }
+            }
+
+            // Direct document-level properties (not in sub-block)
+            if current_section.is_none() && depth == doc_depth + 1
+                && !trimmed.contains('{') && !trimmed.starts_with('}')
+            {
                 let parts: Vec<&str> = trimmed.splitn(2, char::is_whitespace).collect();
                 if parts.len() == 2 {
                     let key = parts[0].trim().to_lowercase();
@@ -569,8 +624,17 @@ fn extract_document_style(css: &str, params: &mut SkinParams) {
         depth += opens;
         depth = depth.saturating_sub(closes);
 
+        // Check if we're closing the current section
+        if current_section.is_some() && depth <= section_depth + 1 {
+            // Count closes that happen on this line after the section depth
+            if closes > 0 && depth <= section_depth + 1 {
+                current_section = None;
+            }
+        }
+
         if in_document && depth <= doc_depth {
             in_document = false;
+            current_section = None;
         }
     }
 }
