@@ -1148,7 +1148,7 @@ impl super::UGraphic for UGraphicSvg {
         let dim = self.string_bounder.calculate_dimension(font_family, font_size, bold, italic, text);
         let text_length = dim.width;
 
-        let font_weight = if bold { Some("bold") } else { Option::None };
+        let font_weight = if bold { Some("700") } else { Option::None };
         let font_style = if italic { Some("italic") } else { Option::None };
 
         self.svg.svg_text(
@@ -1525,7 +1525,7 @@ mod tests {
             0.0,
             Some("sans-serif"),
             14.0,
-            Some("bold"),
+            Some("700"),
             Some("italic"),
             None,
             20.0,
@@ -1536,7 +1536,7 @@ mod tests {
         );
         let body = svg.body();
         assert!(body.contains("font-style=\"italic\""));
-        assert!(body.contains("font-weight=\"bold\""));
+        assert!(body.contains("font-weight=\"700\""));
     }
 
     #[test]

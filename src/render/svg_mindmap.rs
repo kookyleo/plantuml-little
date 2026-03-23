@@ -90,7 +90,7 @@ fn render_node(
     let text_start_y = node.y + (node.height - total_text_height) / 2.0 + LINE_HEIGHT * 0.75;
     let cx = node.x + node.width / 2.0;
     let outer_attrs = if node.level == 1 {
-        r#"font-size="14" font-weight="bold""#
+        r#"font-size="14" font-weight="700""#
     } else {
         r#"font-size="12""#
     };
@@ -165,7 +165,7 @@ mod tests {
     #[test] fn render_contains_text_nodes() { let (d, l) = simple_layout(); let svg = render_mindmap(&d, &l, &SkinParams::default()).unwrap(); assert!(svg.contains("Root")); assert!(svg.contains("Child1")); assert!(svg.contains("Child2")); }
     #[test] fn render_contains_edges() { let (d, l) = simple_layout(); let svg = render_mindmap(&d, &l, &SkinParams::default()).unwrap(); assert_eq!(svg.matches("<path").count(), 2); }
     #[test] fn render_edges_use_cubic_bezier() { let (d, l) = simple_layout(); let svg = render_mindmap(&d, &l, &SkinParams::default()).unwrap(); assert!(svg.contains("C")); }
-    #[test] fn render_root_text_is_bold() { let (d, l) = simple_layout(); let svg = render_mindmap(&d, &l, &SkinParams::default()).unwrap(); assert!(svg.contains("font-weight=\"bold\"")); }
+    #[test] fn render_root_text_is_bold() { let (d, l) = simple_layout(); let svg = render_mindmap(&d, &l, &SkinParams::default()).unwrap(); assert!(svg.contains("font-weight=\"700\"")); }
     #[test] fn render_rounded_rects() { let (d, l) = simple_layout(); let svg = render_mindmap(&d, &l, &SkinParams::default()).unwrap(); assert!(svg.contains("rx=\"10\"")); }
 
     #[test]
@@ -205,6 +205,6 @@ mod tests {
             width: 240.0, height: 100.0,
         };
         let svg = render_mindmap(&d, &l, &SkinParams::default()).unwrap();
-        assert!(svg.contains("<polygon")); assert!(svg.contains("stroke-dasharray")); assert!(svg.contains("font-weight=\"bold\""));
+        assert!(svg.contains("<polygon")); assert!(svg.contains("stroke-dasharray")); assert!(svg.contains("font-weight=\"700\""));
     }
 }

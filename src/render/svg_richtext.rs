@@ -393,7 +393,7 @@ fn render_split_text_runs(buf: &mut String, spans: &[TextSpan], x: f64, y: f64, 
         write!(buf, r#" font-family="{}""#, xml_escape(run_font)).unwrap();
         write!(buf, r#" font-size="{}""#, fmt_coord(font_size)).unwrap();
         if italic { buf.push_str(r#" font-style="italic""#); }
-        if bold { buf.push_str(r#" font-weight="bold""#); }
+        if bold { buf.push_str(r#" font-weight="700""#); }
         write!(buf, r#" lengthAdjust="spacing""#).unwrap();
         write!(buf, r#" textLength="{}""#, fmt_coord(text_w)).unwrap();
         write!(buf, r#" x="{}" y="{}">"#, fmt_coord(cursor_x), fmt_coord(y)).unwrap();
@@ -664,7 +664,7 @@ fn render_span(buf: &mut String, span: &TextSpan, style: SpanStyle, default_fill
         }
         TextSpan::Bold(inner) => {
             let mut style = style;
-            style.font_weight = Some("bold");
+            style.font_weight = Some("700");
             render_spans(buf, inner, &style, default_fill);
         }
         TextSpan::Italic(inner) => {
@@ -880,7 +880,7 @@ mod tests {
             Some("middle"),
             "",
         );
-        assert!(buf.contains(r#"font-weight="bold""#));
+        assert!(buf.contains(r#"font-weight="700""#));
         assert!(buf.contains(r#"font-style="italic""#));
         assert!(buf.contains(r#"text-anchor="middle""#));
     }

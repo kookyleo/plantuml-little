@@ -1408,7 +1408,7 @@ fn draw_entity_box(
             let name_tl = fmt_coord(name_tl_val);
             let name_escaped = xml_escape(&name_display);
             sg.push_raw(&format!(
-                r#"<text fill="{font_color}" font-family="sans-serif" font-size="{class_font_size:.0}" font-weight="bold" lengthAdjust="spacing" text-anchor="middle" textLength="{name_tl}" x="{}" y="{}">{name_escaped}</text>"#,
+                r#"<text fill="{font_color}" font-family="sans-serif" font-size="{class_font_size:.0}" font-weight="700" lengthAdjust="spacing" text-anchor="middle" textLength="{name_tl}" x="{}" y="{}">{name_escaped}</text>"#,
                 fmt_coord(cx), fmt_coord(name_y),
             ));
         }
@@ -3112,7 +3112,7 @@ mod tests {
             ..Default::default()
         };
         let svg = render(&d, &l, &default_skin(), &meta).unwrap();
-        assert!(svg.contains(r#"font-weight="bold""#));
+        assert!(svg.contains(r#"font-weight="700""#));
         assert!(svg.contains(r#"href="https://example.com""#));
         assert!(svg.contains("<title>hover</title>"));
         assert!(svg.contains("Link"));
