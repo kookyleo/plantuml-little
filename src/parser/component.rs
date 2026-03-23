@@ -226,7 +226,7 @@ pub fn parse_component_diagram(source: &str) -> Result<ComponentDiagram> {
                     stereotype: decl.stereotype.clone(),
                     description: vec![],
                     parent: parent_id.clone(),
-                    color: None,
+                    color: decl.color.clone(),
                     source_line: Some(line_num),
                 });
                 if let Some(parent) = group_stack.last_mut() {
@@ -252,7 +252,7 @@ pub fn parse_component_diagram(source: &str) -> Result<ComponentDiagram> {
                     stereotype: decl.stereotype,
                     description: vec![],
                     parent: parent_id,
-                    color: None,
+                    color: decl.color,
                     source_line: Some(line_num),
                 });
                 if let Some(parent) = group_stack.last_mut() {
@@ -277,7 +277,7 @@ pub fn parse_component_diagram(source: &str) -> Result<ComponentDiagram> {
                 stereotype: decl.stereotype,
                 description: decl.description,
                 parent: parent_id,
-                color: None,
+                color: decl.color,
                 source_line: Some(line_num),
             });
             if let Some(parent) = group_stack.last_mut() {
@@ -387,6 +387,7 @@ struct EntityDecl {
     opens_group: bool,
     opens_description: bool,
     initial_desc: String,
+    color: Option<String>,
 }
 
 fn try_parse_entity_decl(line: &str) -> Option<EntityDecl> {
@@ -426,6 +427,7 @@ fn parse_entity_rest(rest: &str, kind: ComponentKind) -> EntityDecl {
     let mut name;
     let mut id;
     let mut stereotype = None;
+    let mut color = None;
     let mut opens_group = false;
     let mut opens_description = false;
     let mut initial_desc = String::new();
@@ -437,12 +439,13 @@ fn parse_entity_rest(rest: &str, kind: ComponentKind) -> EntityDecl {
         if let Some(end_quote) = after_open_quote.find('"') {
             name = after_open_quote[..end_quote].to_string();
             id = name.clone();
-            // Parse remaining: `as alias` and one or more `<<stereo>>`
-            // modifiers can be interleaved in either order.
+            // Parse remaining: `as alias`, `<<stereo>>`, `#Color`
+            // modifiers can be interleaved in any order.
             let after = parse_entity_modifiers(
                 after_open_quote[end_quote + 1..].trim(),
                 &mut id,
                 &mut stereotype,
+                &mut color,
             );
             parse_entity_tail(
                 &after,
@@ -456,14 +459,14 @@ fn parse_entity_rest(rest: &str, kind: ComponentKind) -> EntityDecl {
             id = name.clone();
         }
     } else {
-        // Unquoted name: take until whitespace, `{`, `[`, `<`
+        // Unquoted name: take until whitespace, `{`, `[`, `<`, `#`
         let end_pos = trimmed
-            .find(|c: char| c.is_whitespace() || c == '{' || c == '[' || c == '<')
+            .find(|c: char| c.is_whitespace() || c == '{' || c == '[' || c == '<' || c == '#')
             .unwrap_or(trimmed.len());
         name = trimmed[..end_pos].to_string();
         id = name.clone();
 
-        let after = parse_entity_modifiers(trimmed[end_pos..].trim(), &mut id, &mut stereotype);
+        let after = parse_entity_modifiers(trimmed[end_pos..].trim(), &mut id, &mut stereotype, &mut color);
         parse_entity_tail(
             &after,
             &mut opens_group,
@@ -484,6 +487,7 @@ fn parse_entity_rest(rest: &str, kind: ComponentKind) -> EntityDecl {
         opens_group,
         opens_description,
         initial_desc,
+        color,
     }
 }
 
@@ -501,17 +505,42 @@ fn parse_as_alias(after: &str, id: &mut String) -> String {
     }
 }
 
-fn parse_entity_modifiers(after: &str, id: &mut String, stereotype: &mut Option<String>) -> String {
+fn parse_entity_modifiers(after: &str, id: &mut String, stereotype: &mut Option<String>, color: &mut Option<String>) -> String {
     let mut remaining = after.trim().to_string();
 
     loop {
         let after_alias = parse_as_alias(&remaining, id);
         let after_stereotype = parse_stereotypes(&after_alias, stereotype);
-        if after_stereotype == remaining {
+        let after_color = parse_color_spec(&after_stereotype, color);
+        if after_color == remaining {
             return remaining;
         }
-        remaining = after_stereotype;
+        remaining = after_color;
     }
+}
+
+/// Parse `#Color` or `#RRGGBB` specification from entity declaration.
+fn parse_color_spec(after: &str, color: &mut Option<String>) -> String {
+    let trimmed = after.trim();
+    if !trimmed.starts_with('#') {
+        return trimmed.to_string();
+    }
+    // Extract color name/hex: everything up to whitespace, '{', '[', or end
+    let end_pos = trimmed[1..]
+        .find(|c: char| c.is_whitespace() || c == '{' || c == '[' || c == '<')
+        .map(|p| p + 1)
+        .unwrap_or(trimmed.len());
+    let color_str = &trimmed[..end_pos]; // includes the '#'
+    if color.is_none() {
+        // Resolve named colors to hex via klimt color system
+        if let Some(hcolor) = crate::klimt::color::resolve_color(color_str) {
+            *color = Some(hcolor.to_svg());
+        } else {
+            // Fallback: use the raw string (including #)
+            *color = Some(color_str.to_string());
+        }
+    }
+    trimmed[end_pos..].trim().to_string()
 }
 
 fn parse_stereotypes(after: &str, stereotype: &mut Option<String>) -> String {
