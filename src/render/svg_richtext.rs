@@ -577,18 +577,20 @@ fn render_split_text_runs(buf: &mut String, spans: &[TextSpan], x: f64, y: f64, 
     for run in &runs {
         let raw_text = &run.text;
         // Java: leading whitespace on non-first runs is stripped and converted
-        // to cursor advancement. This ensures proper spacing between runs.
+        // to cursor advancement. Trailing whitespace is also stripped.
         let text = if !first {
-            let trimmed = raw_text.trim_start();
-            if trimmed.len() < raw_text.len() {
-                // Add space width for each trimmed space character
-                let n_spaces = raw_text.len() - trimmed.len();
+            let trimmed_start = raw_text.trim_start();
+            if trimmed_start.len() < raw_text.len() {
+                // Add space width for each trimmed leading space
+                let n_spaces = raw_text.len() - trimmed_start.len();
                 let space_w = font_metrics::text_width(" ", default_font, font_size, false, false);
                 cursor_x += space_w * n_spaces as f64;
             }
-            trimmed.to_string()
+            // Also strip trailing whitespace
+            trimmed_start.trim_end().to_string()
         } else {
-            raw_text.to_string()
+            // First run: only strip trailing whitespace
+            raw_text.trim_end().to_string()
         };
         if text.is_empty() { first = false; continue; }
         let run_font = run.font_family.as_deref().unwrap_or(default_font);
@@ -601,7 +603,13 @@ fn render_split_text_runs(buf: &mut String, spans: &[TextSpan], x: f64, y: f64, 
             Some(v) if v > 0.0 => v,
             _ => font_size,
         };
-        let run_fill = run.color.as_deref().unwrap_or(fill);
+        let run_fill_normalized;
+        let run_fill = if let Some(ref c) = run.color {
+            run_fill_normalized = crate::style::normalize_color(c);
+            &run_fill_normalized
+        } else {
+            fill
+        };
         let text_w = font_metrics::text_width(&text, run_font, run_size, run_bold, run_italic);
         // Java renders in alphabetical attribute order:
         // fill, filter, font-family, font-size, font-style, font-weight,
