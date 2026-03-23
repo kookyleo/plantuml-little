@@ -400,11 +400,10 @@ impl DotStringFactory {
         for node in &self.bibliotekon.nodes {
             if node.hidden { continue; }
             // LimitFinder.drawRectangle: (x-1, y-1) to (x+w-1, y+h-1)
-            // Plus entity internal drawEmpty extends bottom by 1 (empty compartment)
             let rx = node.min_x - 1.0;
             let ry = node.min_y - 1.0;
             let rr = node.min_x + node.width - 1.0;
-            let rb = node.min_y + node.height; // +1 for drawEmpty at entity bottom
+            let rb = node.min_y + node.height - 1.0;
             if rx < lf_min_x { lf_min_x = rx; }
             if ry < lf_min_y { lf_min_y = ry; }
             if rr > lf_max_x { lf_max_x = rr; }

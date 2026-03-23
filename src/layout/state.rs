@@ -1,12 +1,12 @@
 //! State diagram layout engine.
 //!
 //! Converts a `StateDiagram` into a fully positioned `StateLayout` ready for
-//! SVG rendering.  The algorithm uses a rank-based placement strategy where
-//! states connected by transitions are placed on successive rows, while
-//! unconnected states share the same row side-by-side.
+//! SVG rendering.  Uses Graphviz (dot) for layout via the svek pipeline,
+//! matching Java PlantUML behaviour.
 
 use std::collections::{HashMap, HashSet, VecDeque};
 
+use crate::layout::graphviz::{self, LayoutEdge, LayoutGraph, LayoutNode, RankDir};
 use crate::model::state::{State, StateDiagram, StateKind, Transition};
 use crate::Result;
 
@@ -22,6 +22,10 @@ pub struct StateLayout {
     pub state_layouts: Vec<StateNodeLayout>,
     pub transition_layouts: Vec<TransitionLayout>,
     pub note_layouts: Vec<StateNoteLayout>,
+    /// Svek moveDelta (dx, dy) for viewport calculation.
+    pub move_delta: (f64, f64),
+    /// LimitFinder span (w, h) for viewport calculation.
+    pub lf_span: (f64, f64),
 }
 
 /// A single positioned state node.
@@ -52,6 +56,13 @@ pub struct TransitionLayout {
     pub to_id: String,
     pub label: String,
     pub points: Vec<(f64, f64)>,
+    /// Raw SVG path d-string from Graphviz (Bezier curves). When set, the
+    /// renderer should use this instead of building M/L segments from `points`.
+    pub raw_path_d: Option<String>,
+    /// Arrowhead polygon points from Graphviz SVG.
+    pub arrow_polygon: Option<Vec<(f64, f64)>>,
+    /// Label position (x, y) from Graphviz edge label placement.
+    pub label_xy: Option<(f64, f64)>,
 }
 
 /// A positioned note.
@@ -1021,6 +1032,9 @@ fn layout_transitions(
             to_id: tr.to.clone(),
             label: tr.label.clone(),
             points,
+            raw_path_d: None,
+            arrow_polygon: None,
+            label_xy: None,
         });
     }
 
@@ -1031,7 +1045,7 @@ fn layout_transitions(
 // Public entry point
 // ---------------------------------------------------------------------------
 
-/// Perform the complete layout of a state diagram.
+/// Perform the complete layout of a state diagram using Graphviz.
 ///
 /// The result contains absolute positions for every state node, transition edge,
 /// and note so that a renderer can draw them without further computation.
@@ -1053,7 +1067,6 @@ pub fn layout_state(diagram: &StateDiagram) -> Result<StateLayout> {
     log::debug!("  implicit states: {}", implicit_states.len());
 
     // Merge declared + implicit states, deduplicating by ID.
-    // When duplicate IDs exist, prefer composite states over simple ones.
     let mut all_states: Vec<State> = diagram.states.clone();
     all_states.extend(implicit_states);
     dedup_states(&mut all_states);
@@ -1061,23 +1074,175 @@ pub fn layout_state(diagram: &StateDiagram) -> Result<StateLayout> {
     // Re-classify after adding implicit states
     let (initial_ids, final_ids) = classify_special_states(&all_states, &diagram.transitions);
 
-    // Layout states with rank-based placement
-    let (state_layouts, content_width, content_height) = layout_states_ranked(
-        &all_states,
-        &diagram.transitions,
-        &initial_ids,
-        &final_ids,
-        MARGIN,
-        MARGIN,
+    // Flatten all top-level states (including children of composites) for
+    // graphviz node generation. Composite children will be placed in subgraphs
+    // later if needed.
+    let mut sized_map: HashMap<String, (StateNodeLayout, f64, f64)> = HashMap::new();
+    for state in &all_states {
+        let (node, w, h) = compute_state_node(state, &diagram.transitions, &initial_ids, &final_ids);
+        sized_map.insert(state.id.clone(), (node, w, h));
+    }
+
+    // Build graphviz LayoutNode list from all top-level states
+    let mut gv_nodes: Vec<LayoutNode> = Vec::new();
+    let mut node_id_order: Vec<String> = Vec::new();
+    for state in &all_states {
+        let (_, w, h) = sized_map.get(&state.id).unwrap();
+        gv_nodes.push(LayoutNode {
+            id: state.id.clone(),
+            label: state.name.clone(),
+            width_pt: *w,
+            height_pt: *h,
+        });
+        node_id_order.push(state.id.clone());
+    }
+
+    // Build graphviz LayoutEdge list from transitions
+    let mut gv_edges: Vec<LayoutEdge> = Vec::new();
+    for tr in &diagram.transitions {
+        gv_edges.push(LayoutEdge {
+            from: tr.from.clone(),
+            to: tr.to.clone(),
+            label: if tr.label.is_empty() { None } else { Some(tr.label.clone()) },
+            minlen: 1,
+            invisible: false,
+        });
+    }
+
+    // Determine rankdir from diagram direction
+    let rankdir = match diagram.direction {
+        crate::model::diagram::Direction::TopToBottom => RankDir::TopToBottom,
+        crate::model::diagram::Direction::LeftToRight => RankDir::LeftToRight,
+        crate::model::diagram::Direction::RightToLeft => RankDir::RightToLeft,
+        crate::model::diagram::Direction::BottomToTop => RankDir::BottomToTop,
+    };
+
+    let graph = LayoutGraph {
+        nodes: gv_nodes,
+        edges: gv_edges,
+        rankdir,
+    };
+
+    // Run graphviz via svek pipeline
+    let gv_layout = graphviz::layout_with_svek(&graph)
+        .map_err(|e| crate::error::Error::Layout(format!("state graphviz layout: {e}")))?;
+
+    log::debug!(
+        "graphviz layout: {:.0}x{:.0}, {} nodes, {} edges, move_delta=({:.1},{:.1}), lf_span=({:.1},{:.1})",
+        gv_layout.total_width, gv_layout.total_height,
+        gv_layout.nodes.len(), gv_layout.edges.len(),
+        gv_layout.move_delta.0, gv_layout.move_delta.1,
+        gv_layout.lf_span.0, gv_layout.lf_span.1,
     );
 
-    // Build position map for transition routing
-    let pos_map = build_position_map(&state_layouts);
+    // Convert graphviz NodeLayout (center coords) to StateNodeLayout (top-left coords).
+    // Graphviz results are already normalized to origin (0,0) by layout_with_svek.
+    let mut state_layouts: Vec<StateNodeLayout> = Vec::new();
+    let mut node_position_map: HashMap<String, (f64, f64, f64, f64)> = HashMap::new();
 
-    // Layout transitions
-    let transition_layouts = layout_transitions(&diagram.transitions, &pos_map);
+    for gv_node in &gv_layout.nodes {
+        if let Some((template, _w, _h)) = sized_map.remove(&gv_node.id) {
+            let x = gv_node.cx - gv_node.width / 2.0 + MARGIN;
+            let y = gv_node.cy - gv_node.height / 2.0 + MARGIN;
+            let w = gv_node.width;
+            let h = gv_node.height;
+
+            node_position_map.insert(gv_node.id.clone(), (x, y, w, h));
+            log::debug!(
+                "  state '{}': gv_cx={:.1} gv_cy={:.1} → x={:.1} y={:.1} w={:.0} h={:.0} initial={} final={}",
+                gv_node.id, gv_node.cx, gv_node.cy, x, y, w, h,
+                template.is_initial, template.is_final,
+            );
+
+            let mut node = template;
+            node.x = x;
+            node.y = y;
+            node.width = w;
+            node.height = h;
+
+            // For composite states, recursively layout children within the bounds
+            if node.is_composite {
+                let child_offset_x = x + COMPOSITE_PADDING;
+                let child_offset_y = y + COMPOSITE_HEADER;
+                offset_children(&mut node.children, child_offset_x, child_offset_y);
+                for sep_y in &mut node.region_separators {
+                    *sep_y += child_offset_y;
+                }
+            }
+
+            state_layouts.push(node);
+        }
+    }
+
+    // Convert graphviz EdgeLayout to TransitionLayout.
+    // The svek pipeline returns edges with raw SVG path data and arrow polygons.
+    let active_transitions: Vec<&Transition> = diagram.transitions.iter().collect();
+    let mut transition_layouts: Vec<TransitionLayout> = Vec::new();
+
+    for (i, gv_edge) in gv_layout.edges.iter().enumerate() {
+        let (from_id, to_id) = if i < active_transitions.len() {
+            (active_transitions[i].from.clone(), active_transitions[i].to.clone())
+        } else {
+            (gv_edge.from.clone(), gv_edge.to.clone())
+        };
+        let label = if i < active_transitions.len() {
+            active_transitions[i].label.clone()
+        } else {
+            gv_edge.label.clone().unwrap_or_default()
+        };
+
+        // Shift points by MARGIN (x) and MARGIN (y) to match state positions
+        let points: Vec<(f64, f64)> = gv_edge.points.iter()
+            .map(|&(x, y)| (x + MARGIN, y + MARGIN))
+            .collect();
+
+        let raw_path_d = gv_edge.raw_path_d.as_ref()
+            .map(|d| graphviz::transform_path_d(d, MARGIN, MARGIN));
+
+        let arrow_polygon = gv_edge.arrow_polygon_points.as_ref()
+            .map(|pts| pts.iter().map(|&(x, y)| (x + MARGIN, y + MARGIN)).collect());
+
+        let label_xy = gv_edge.label_xy
+            .map(|(x, y)| (x + MARGIN, y + MARGIN));
+
+        transition_layouts.push(TransitionLayout {
+            from_id,
+            to_id,
+            label,
+            points,
+            raw_path_d,
+            arrow_polygon,
+            label_xy,
+        });
+    }
+
+    // Expand content width to include edge label extents (Java LimitFinder
+    // tracks text elements which can extend beyond node boundaries).
+    let mut content_width = gv_layout.total_width;
+    for edge in &gv_layout.edges {
+        if let Some(ref label) = edge.label {
+            if let Some((lx, _ly)) = edge.label_xy {
+                let tl = crate::font_metrics::text_width(label, "SansSerif", 13.0, false, false);
+                let label_right = lx + tl;
+                log::debug!("  edge label '{}': lx={:.1} tl={:.2} right={:.2}, content_width={:.1}", label, lx, tl, label_right, content_width);
+                if label_right > content_width {
+                    content_width = label_right;
+                }
+            }
+        }
+    }
 
     // Layout notes (placed to the right of the diagram body)
+    // Java LimitFinder tracks rect bottom at y+h-1, so the bounding box height is
+    // 1px less than the raw graphviz bounding box for multi-node diagrams.
+    // For single-node (degenerated), Java uses a different calculation that matches
+    // the raw graphviz height.
+    let is_degenerated = gv_layout.nodes.len() <= 1 && gv_layout.edges.is_empty();
+    let content_height = if is_degenerated {
+        gv_layout.total_height
+    } else {
+        gv_layout.total_height - 1.0
+    };
     let note_x = MARGIN + content_width + NOTE_OFFSET;
     let mut note_y = MARGIN;
     let mut note_layouts = Vec::new();
@@ -1136,16 +1301,15 @@ pub fn layout_state(diagram: &StateDiagram) -> Result<StateLayout> {
         note_layouts.len()
     );
 
-    let mut layout = StateLayout {
+    Ok(StateLayout {
         width: total_width,
         height: total_height,
         state_layouts,
         transition_layouts,
         note_layouts,
-    };
-    apply_direction_transform(&mut layout, &diagram.direction);
-
-    Ok(layout)
+        move_delta: gv_layout.move_delta,
+        lf_span: gv_layout.lf_span,
+    })
 }
 
 // ---------------------------------------------------------------------------
@@ -1510,11 +1674,12 @@ mod tests {
         assert_eq!(tl.from_id, "A");
         assert_eq!(tl.to_id, "B");
         assert_eq!(tl.label, "go");
-        assert_eq!(tl.points.len(), 2);
+        // Graphviz returns Bezier control points (typically 4+ points for a cubic)
+        assert!(!tl.points.is_empty(), "should have at least some points");
 
-        // Source point should be above target point (vertical layout)
+        // With graphviz, the first point should be above the last (vertical layout)
         let (_, from_y) = tl.points[0];
-        let (_, to_y) = tl.points[1];
+        let (_, to_y) = *tl.points.last().unwrap();
         assert!(from_y < to_y, "from_y={} should be < to_y={}", from_y, to_y);
     }
 
@@ -1661,16 +1826,20 @@ mod tests {
         );
     }
 
-    // 13. Multiple states ordered vertically
+    // 13. Multiple states ordered (graphviz places unconnected states on same rank)
     #[test]
     fn test_vertical_ordering() {
+        // With transitions, graphviz places connected states on successive ranks
         let d = StateDiagram {
             states: vec![
                 simple_state("First"),
                 simple_state("Second"),
                 simple_state("Third"),
             ],
-            transitions: vec![],
+            transitions: vec![
+                transition("First", "Second", ""),
+                transition("Second", "Third", ""),
+            ],
             notes: vec![],
             direction: Default::default(),
         };
@@ -1798,7 +1967,7 @@ mod tests {
         assert!(x1 < x2, "LR: Second x ({:.1}) < Third x ({:.1})", x1, x2);
     }
 
-    // 18. TB direction: height > width
+    // 18. TB direction: height > width (requires transitions for vertical ordering)
     #[test]
     fn test_top_to_bottom_direction() {
         use crate::model::diagram::Direction;
@@ -1808,13 +1977,16 @@ mod tests {
                 simple_state("Second"),
                 simple_state("Third"),
             ],
-            transitions: vec![],
+            transitions: vec![
+                transition("First", "Second", ""),
+                transition("Second", "Third", ""),
+            ],
             notes: vec![],
             direction: Direction::TopToBottom,
         };
         let layout = layout_state(&d).unwrap();
 
-        // With TB direction, height should be > width
+        // With TB direction and connected states, height should be > width
         assert!(
             layout.height > layout.width,
             "TB: height ({:.1}) should be > width ({:.1})",
@@ -1829,13 +2001,13 @@ mod tests {
         use crate::model::diagram::Direction;
         let d = StateDiagram {
             states: vec![simple_state("First"), simple_state("Second")],
-            transitions: vec![],
+            transitions: vec![transition("First", "Second", "")],
             notes: vec![],
             direction: Direction::BottomToTop,
         };
         let layout = layout_state(&d).unwrap();
 
-        // First state should be below Second in BT direction
+        // In BT direction, graphviz places First at bottom rank, Second at top
         let y0 = layout.state_layouts[0].y;
         let y1 = layout.state_layouts[1].y;
         assert!(

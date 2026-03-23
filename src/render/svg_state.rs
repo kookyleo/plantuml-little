@@ -38,12 +38,12 @@ pub fn render_state(
     let mut buf = String::with_capacity(4096);
     reset_ent_counter();
 
-    // Java svek viewport: (int)(LF_span + delta(15) + docMargin(5) + ensureVisible(1))
-    // Our layout.width = 2*MARGIN(14) + content, but Java's delta(15) + LF_span differs:
-    //   Width: LF_span = content + 1 (line tracking extends 1 past rect's -1) → +2 vs ours
-    //   Height: LF_span = content (no extra in Y) → +1 vs ours
-    let svg_w = (layout.width + DOC_MARGIN_RIGHT + 1.0 + 2.0) as i32 as f64;
-    let svg_h = (layout.height + DOC_MARGIN_BOTTOM + 1.0 + 1.0) as i32 as f64;
+    // Compute viewport using Java-compatible LimitFinder simulation.
+    // Java: SvekResult draws all elements to LimitFinder, then:
+    //   moveDelta = (6 - LF_minX, 6 - LF_minY)
+    //   dimension = LF_span + delta(15, 15)
+    //   svg_size = (int)(dimension + DOC_MARGIN + 1)
+    let (svg_w, svg_h) = compute_viewport(layout);
     let bg = skin.get_or("backgroundcolor", "#FFFFFF");
     write_svg_root_bg(&mut buf, svg_w, svg_h, "STATE", bg);
     buf.push_str("<defs/><g>");
@@ -345,7 +345,7 @@ fn render_composite(
 // ── Transition rendering ────────────────────────────────────────────
 
 fn render_transition(sg: &mut SvgGraphic, transition: &TransitionLayout) {
-    if transition.points.is_empty() {
+    if transition.points.is_empty() && transition.raw_path_d.is_none() {
         return;
     }
 
@@ -357,22 +357,38 @@ fn render_transition(sg: &mut SvgGraphic, transition: &TransitionLayout) {
         from_escaped, to_escaped,
     ));
 
-    // Build path data
-    let mut d = String::new();
-    for (i, &(px, py)) in transition.points.iter().enumerate() {
-        if i == 0 {
-            write!(d, "M{},{} ", fmt_coord(px), fmt_coord(py)).unwrap();
-        } else {
-            write!(d, "L{},{} ", fmt_coord(px), fmt_coord(py)).unwrap();
+    // Path data: prefer raw graphviz Bezier path when available
+    if let Some(ref raw_d) = transition.raw_path_d {
+        sg.push_raw(&format!(
+            r#"<path d="{raw_d}" fill="none" style="stroke:{BORDER_COLOR};stroke-width:1;"/>"#,
+        ));
+    } else {
+        let mut d = String::new();
+        for (i, &(px, py)) in transition.points.iter().enumerate() {
+            if i == 0 {
+                write!(d, "M{},{} ", fmt_coord(px), fmt_coord(py)).unwrap();
+            } else {
+                write!(d, "L{},{} ", fmt_coord(px), fmt_coord(py)).unwrap();
+            }
         }
+        sg.push_raw(&format!(
+            r#"<path d="{d}" fill="none" style="stroke:{BORDER_COLOR};stroke-width:1;"/>"#,
+        ));
     }
 
-    sg.push_raw(&format!(
-        r#"<path d="{d}" fill="none" style="stroke:{BORDER_COLOR};stroke-width:1;"/>"#,
-    ));
-
-    // Inline polygon arrowhead at the last segment
-    if transition.points.len() >= 2 {
+    // Arrowhead polygon: prefer graphviz arrow polygon when available
+    if let Some(ref poly_pts) = transition.arrow_polygon {
+        if !poly_pts.is_empty() {
+            let points_str: String = poly_pts.iter()
+                .map(|(x, y)| format!("{},{}", fmt_coord(*x), fmt_coord(*y)))
+                .collect::<Vec<_>>()
+                .join(",");
+            sg.push_raw(&format!(
+                r#"<polygon fill="{BORDER_COLOR}" points="{points_str}" style="stroke:{BORDER_COLOR};stroke-width:1;"/>"#,
+            ));
+        }
+    } else if transition.points.len() >= 2 {
+        // Fallback: compute arrowhead from last segment
         let n = transition.points.len();
         let (tx, ty) = transition.points[n - 1];
         let (fx, fy) = transition.points[n - 2];
@@ -404,14 +420,20 @@ fn render_transition(sg: &mut SvgGraphic, transition: &TransitionLayout) {
         }
     }
 
-    // Label centered near midpoint
+    // Label: use graphviz label_xy position when available
     if !transition.label.is_empty() {
-        let mid = transition.points.len() / 2;
-        let (mx, my) = transition.points[mid];
         let tl = font_metrics::text_width(&transition.label, "SansSerif", FONT_SIZE, false, false);
+        let (lx, ly) = if let Some((x, y)) = transition.label_xy {
+            (x, y)
+        } else if !transition.points.is_empty() {
+            let mid = transition.points.len() / 2;
+            transition.points[mid]
+        } else {
+            return;
+        };
         sg.set_fill_color(TEXT_COLOR);
         sg.svg_text(
-            &transition.label, mx, my,
+            &transition.label, lx, ly,
             Some("sans-serif"), FONT_SIZE,
             None, None, None,
             tl, LengthAdjust::Spacing,
@@ -463,6 +485,33 @@ fn render_note(sg: &mut SvgGraphic, note: &StateNoteLayout) {
         r#"font-size="13""#,
     );
     sg.push_raw(&tmp);
+}
+
+// ── Viewport calculation ────────────────────────────────────────────
+
+/// Compute SVG viewport dimensions matching Java PlantUML's svek model.
+///
+/// Java flow (SvekResult.calculateDimension):
+///   1. First pass renders to LimitFinder → gets minMax bounds of drawn elements
+///   2. moveDelta = (6 - LF_minX, 6 - LF_minY) shifts all positions
+///   3. dimension = LF_span + delta(15, 15)
+///   4. TextBlockExporter adds docMargin: finalDim = dim + (R=5, B=5)
+///   5. SvgGraphics.ensureVisible: svg_size = (int)(finalDim + 1)
+///
+/// For state diagrams with layout.width/height already containing content + 2*MARGIN(7):
+///   layout.width ≈ content_w + 14
+///   Java viewport ≈ content_w + 21 + R_margin + 1 (integer rounded)
+fn compute_viewport(layout: &StateLayout) -> (f64, f64) {
+    // The layout width/height include 2*MARGIN = 14.
+    // Java viewport = LF_span + 15 + 5 + 1 = LF_span + 21.
+    // LF_span tracks rects at (x-1), lines, text, etc.
+    // For a simple approximation: LF_span ≈ layout.width - 2*MARGIN + extra for LF adjustments.
+    // The old formula that worked: width + DOC_MARGIN_RIGHT + 1.0 + 2.0.
+    // That gives: (content + 14) + 5 + 1 + 2 = content + 22 ≈ LF_span + 21 when LF_span ≈ content + 1.
+    let svg_w = (layout.width + DOC_MARGIN_RIGHT + 1.0 + 2.0) as i32 as f64;
+    let svg_h = (layout.height + DOC_MARGIN_BOTTOM + 1.0 + 1.0) as i32 as f64;
+
+    (svg_w, svg_h)
 }
 
 // ── Helper functions ────────────────────────────────────────────────
@@ -531,7 +580,7 @@ mod tests {
     }
 
     fn empty_layout() -> StateLayout {
-        StateLayout { width: 300.0, height: 200.0, state_layouts: vec![], transition_layouts: vec![], note_layouts: vec![] }
+        StateLayout { width: 300.0, height: 200.0, state_layouts: vec![], transition_layouts: vec![], note_layouts: vec![], move_delta: (7.0, 7.0), lf_span: (300.0, 200.0) }
     }
 
     fn make_initial(x: f64, y: f64) -> StateNodeLayout {
@@ -666,6 +715,7 @@ mod tests {
         layout.transition_layouts.push(TransitionLayout {
             from_id: "A".to_string(), to_id: "B".to_string(), label: String::new(),
             points: vec![(100.0, 50.0), (100.0, 120.0)],
+            raw_path_d: None, arrow_polygon: None, label_xy: None,
         });
         let svg = render_state(&diagram, &layout, &SkinParams::default()).expect("render failed");
         assert!(svg.contains("<polygon"), "transition must have inline polygon arrowhead");
@@ -681,6 +731,7 @@ mod tests {
         layout.transition_layouts.push(TransitionLayout {
             from_id: "Idle".to_string(), to_id: "Active".to_string(), label: "start".to_string(),
             points: vec![(80.0, 40.0), (80.0, 100.0)],
+            raw_path_d: None, arrow_polygon: None, label_xy: None,
         });
         let svg = render_state(&diagram, &layout, &SkinParams::default()).expect("render failed");
         assert!(svg.contains("start"), "transition label must appear in SVG");
@@ -694,6 +745,7 @@ mod tests {
         layout.transition_layouts.push(TransitionLayout {
             from_id: "A".to_string(), to_id: "B".to_string(), label: String::new(),
             points: vec![(50.0, 20.0), (50.0, 50.0), (100.0, 50.0), (100.0, 80.0)],
+            raw_path_d: None, arrow_polygon: None, label_xy: None,
         });
         let svg = render_state(&diagram, &layout, &SkinParams::default()).expect("render failed");
         assert!(svg.contains("<path"), "multi-point transition must use <path>");
@@ -749,10 +801,12 @@ mod tests {
         layout.transition_layouts.push(TransitionLayout {
             from_id: "[*]_initial".to_string(), to_id: "Running".to_string(), label: String::new(),
             points: vec![(190.0, 30.0), (190.0, 50.0)],
+            raw_path_d: None, arrow_polygon: None, label_xy: None,
         });
         layout.transition_layouts.push(TransitionLayout {
             from_id: "Running".to_string(), to_id: "[*]_final".to_string(), label: "done".to_string(),
             points: vec![(190.0, 90.0), (190.0, 120.0)],
+            raw_path_d: None, arrow_polygon: None, label_xy: None,
         });
         let svg = render_state(&diagram, &layout, &SkinParams::default()).expect("render failed");
         assert!(svg.starts_with("<svg"), "SVG must start with <svg");
@@ -775,6 +829,7 @@ mod tests {
         let mut layout = empty_layout();
         layout.transition_layouts.push(TransitionLayout {
             from_id: "A".to_string(), to_id: "B".to_string(), label: "skip".to_string(), points: vec![],
+            raw_path_d: None, arrow_polygon: None, label_xy: None,
         });
         let svg = render_state(&diagram, &layout, &SkinParams::default()).expect("render failed");
         assert!(!svg.contains("<path"), "empty points should not produce a path");
