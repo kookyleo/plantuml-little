@@ -50,7 +50,7 @@ const HEADER_HEIGHT: f64 = 32.0;
 /// SvekResult.java:133 — moveDelta(6 - minMax.getMinX(), 6 - minMax.getMinY()).
 const MARGIN: f64 = 6.0;
 /// SvekResult.java:135 — minMax.getDimension().delta(15, 15).
-const CANVAS_DELTA: f64 = 15.0;
+pub(crate) const CANVAS_DELTA: f64 = 15.0;
 /// TextBlockExporter12026.java:196 — margin from plantuml.skin root.document style: right=5.
 pub(crate) const DOC_MARGIN_RIGHT: f64 = 5.0;
 /// TextBlockExporter12026.java:197 — margin from plantuml.skin root.document style: bottom=5.
@@ -294,7 +294,7 @@ fn render_body(diagram: &Diagram, layout: &DiagramLayout, skin: &SkinParams) -> 
             super::svg_activity::render_activity(ad, al, skin).map(|svg| BodyResult { svg, raw_body_dim: None })
         }
         (Diagram::State(sd), DiagramLayout::State(sl)) => {
-            super::svg_state::render_state(sd, sl, skin).map(|svg| BodyResult { svg, raw_body_dim: None })
+            super::svg_state::render_state(sd, sl, skin).map(|(svg, raw_body_dim)| BodyResult { svg, raw_body_dim })
         }
         (Diagram::Component(cd), DiagramLayout::Component(cl)) => {
             super::svg_component::render_component(cd, cl, skin).map(|svg| BodyResult { svg, raw_body_dim: None })
@@ -469,10 +469,14 @@ impl BoundsTracker {
         self.add_point(max_x, max_y);
     }
 
-    /// Java LimitFinder.drawText: (x, y-h+1.5) to (x+w, y+h)
+    /// Java LimitFinder.drawText:
+    ///   y_adj = y - h + 1.5
+    ///   addPoint(x, y_adj), addPoint(x, y_adj+h), addPoint(x+w, y_adj), addPoint(x+w, y_adj+h)
+    ///   i.e. (x, y-h+1.5) to (x+w, y+1.5)
     pub fn track_text(&mut self, x: f64, y: f64, text_width: f64, text_height: f64) {
-        self.add_point(x, y - text_height + 1.5);
-        self.add_point(x + text_width, y + text_height);
+        let y_adj = y - text_height + 1.5;
+        self.add_point(x, y_adj);
+        self.add_point(x + text_width, y_adj + text_height);
     }
 
     /// Span: max - min in each dimension. Used with CANVAS_DELTA + DOC_MARGIN

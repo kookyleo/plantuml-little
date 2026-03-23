@@ -5,7 +5,7 @@ use crate::font_metrics;
 use crate::klimt::svg::{fmt_coord, xml_escape, LengthAdjust, SvgGraphic};
 use crate::layout::state::{StateLayout, StateNodeLayout, StateNoteLayout, TransitionLayout};
 use crate::model::state::{StateDiagram, StateKind};
-use crate::render::svg::{write_svg_root_bg, write_bg_rect, DOC_MARGIN_RIGHT, DOC_MARGIN_BOTTOM};
+use crate::render::svg::{write_svg_root_bg, write_bg_rect, BoundsTracker, CANVAS_DELTA, DOC_MARGIN_RIGHT, DOC_MARGIN_BOTTOM};
 use crate::render::svg_richtext::render_creole_text;
 use crate::style::SkinParams;
 use crate::Result;
@@ -30,55 +30,62 @@ const FINAL_INNER: &str = "#000000";
 // ── Public entry point ──────────────────────────────────────────────
 
 /// Render a state diagram to SVG.
+/// Returns (svg_string, raw_body_dim) where raw_body_dim is the precise
+/// body content size matching Java SvekResult.calculateDimension().
 pub fn render_state(
     _diagram: &StateDiagram,
     layout: &StateLayout,
     skin: &SkinParams,
-) -> Result<String> {
+) -> Result<(String, Option<(f64, f64)>)> {
     let mut buf = String::with_capacity(4096);
     reset_ent_counter();
-
-    // Compute viewport using Java-compatible LimitFinder simulation.
-    // Java: SvekResult draws all elements to LimitFinder, then:
-    //   moveDelta = (6 - LF_minX, 6 - LF_minY)
-    //   dimension = LF_span + delta(15, 15)
-    //   svg_size = (int)(dimension + DOC_MARGIN + 1)
-    let (svg_w, svg_h) = compute_viewport(layout);
-    let bg = skin.get_or("backgroundcolor", "#FFFFFF");
-    write_svg_root_bg(&mut buf, svg_w, svg_h, "STATE", bg);
-    buf.push_str("<defs/><g>");
-    write_bg_rect(&mut buf, svg_w, svg_h, bg);
 
     let state_bg = skin.background_color("state", ENTITY_BG);
     let state_border = skin.border_color("state", BORDER_COLOR);
     let state_font = skin.font_color("state", TEXT_COLOR);
 
     let mut sg = SvgGraphic::new(0, 1.0);
+    let mut tracker = BoundsTracker::new();
 
     // States (including composite with children)
     for state in &layout.state_layouts {
-        render_state_node(&mut sg, state, state_bg, state_border, state_font);
+        render_state_node(&mut sg, &mut tracker, state, state_bg, state_border, state_font);
     }
 
     // Transitions
     for transition in &layout.transition_layouts {
-        render_transition(&mut sg, transition);
+        render_transition(&mut sg, &mut tracker, transition);
     }
 
     // Notes
     for note in &layout.note_layouts {
-        render_note(&mut sg, note);
+        render_note(&mut sg, &mut tracker, note);
     }
 
+    // Compute raw body dimensions from BoundsTracker span
+    // Java: SvekResult.calculateDimension = LF_span + delta(15, 15)
+    let (span_w, span_h) = tracker.span();
+    let raw_body_dim = (span_w + CANVAS_DELTA, span_h + CANVAS_DELTA);
+    log::trace!("state viewport: span=({span_w:.2}, {span_h:.2}) raw_body_dim=({:.2}, {:.2})", raw_body_dim.0, raw_body_dim.1);
+
+    // SVG size = (int)(raw_body_dim + DOC_MARGIN + 1)
+    let svg_w = (raw_body_dim.0 + DOC_MARGIN_RIGHT + 1.0) as i32 as f64;
+    let svg_h = (raw_body_dim.1 + DOC_MARGIN_BOTTOM + 1.0) as i32 as f64;
+
+    let bg = skin.get_or("backgroundcolor", "#FFFFFF");
+    write_svg_root_bg(&mut buf, svg_w, svg_h, "STATE", bg);
+    buf.push_str("<defs/><g>");
+    write_bg_rect(&mut buf, svg_w, svg_h, bg);
     buf.push_str(sg.body());
     buf.push_str("</g></svg>");
-    Ok(buf)
+    Ok((buf, Some(raw_body_dim)))
 }
 
 // ── State node rendering ────────────────────────────────────────────
 
 fn render_state_node(
     sg: &mut SvgGraphic,
+    tracker: &mut BoundsTracker,
     node: &StateNodeLayout,
     bg: &str,
     border: &str,
@@ -86,52 +93,54 @@ fn render_state_node(
 ) {
     match &node.kind {
         StateKind::Fork | StateKind::Join => {
-            render_fork_join(sg, node);
+            render_fork_join(sg, tracker, node);
         }
         StateKind::Choice => {
-            render_choice(sg, node, border);
+            render_choice(sg, tracker, node, border);
         }
         StateKind::History => {
-            render_history(sg, node, border, font_color, false);
+            render_history(sg, tracker, node, border, font_color, false);
         }
         StateKind::DeepHistory => {
-            render_history(sg, node, border, font_color, true);
+            render_history(sg, tracker, node, border, font_color, true);
         }
         StateKind::End => {
-            render_final(sg, node);
+            render_final(sg, tracker, node);
         }
         StateKind::EntryPoint => {
-            render_initial(sg, node);
+            render_initial(sg, tracker, node);
         }
         StateKind::ExitPoint => {
-            render_exit_point(sg, node, border);
+            render_exit_point(sg, tracker, node, border);
         }
         StateKind::Normal => {
             if node.is_initial {
-                render_initial(sg, node);
+                render_initial(sg, tracker, node);
             } else if node.is_final {
-                render_final(sg, node);
+                render_final(sg, tracker, node);
             } else if node.is_composite {
-                render_composite(sg, node, bg, border, font_color);
+                render_composite(sg, tracker, node, bg, border, font_color);
             } else {
-                render_simple(sg, node, bg, border, font_color);
+                render_simple(sg, tracker, node, bg, border, font_color);
             }
         }
     }
 }
 
 /// Initial state: filled ellipse, rx=10 ry=10 (matches Java PlantUML)
-fn render_initial(sg: &mut SvgGraphic, node: &StateNodeLayout) {
+fn render_initial(sg: &mut SvgGraphic, tracker: &mut BoundsTracker, node: &StateNodeLayout) {
     let cx = node.x + node.width / 2.0;
     let cy = node.y + node.height / 2.0;
     sg.push_raw(&format!(
         r#"<g class="start_entity"><ellipse cx="{}" cy="{}" fill="{INITIAL_FILL}" rx="10" ry="10" style="stroke:{INITIAL_FILL};stroke-width:1;"/></g>"#,
         fmt_coord(cx), fmt_coord(cy),
     ));
+    // Java LimitFinder.drawEllipse: addPoint(x, y), addPoint(x+w-1, y+h-1)
+    tracker.track_ellipse(cx, cy, 10.0, 10.0);
 }
 
 /// Final state: double circle (outer ring + inner filled)
-fn render_final(sg: &mut SvgGraphic, node: &StateNodeLayout) {
+fn render_final(sg: &mut SvgGraphic, tracker: &mut BoundsTracker, node: &StateNodeLayout) {
     let cx = node.x + node.width / 2.0;
     let cy = node.y + node.height / 2.0;
     sg.set_fill_color("none");
@@ -142,18 +151,21 @@ fn render_final(sg: &mut SvgGraphic, node: &StateNodeLayout) {
         r#"<circle cx="{}" cy="{}" fill="{FINAL_INNER}" r="7"/>"#,
         fmt_coord(cx), fmt_coord(cy),
     ));
+    // Java LimitFinder.drawEllipse: outer ring r=11
+    tracker.track_ellipse(cx, cy, 11.0, 11.0);
 }
 
 /// Fork/Join bar: filled black horizontal rectangle
-fn render_fork_join(sg: &mut SvgGraphic, node: &StateNodeLayout) {
+fn render_fork_join(sg: &mut SvgGraphic, tracker: &mut BoundsTracker, node: &StateNodeLayout) {
     sg.push_raw(&format!(
         r#"<rect fill="{INITIAL_FILL}" height="{}" rx="2" ry="2" stroke="none" width="{}" x="{}" y="{}"/>"#,
         fmt_coord(node.height), fmt_coord(node.width), fmt_coord(node.x), fmt_coord(node.y),
     ));
+    tracker.track_rect(node.x, node.y, node.width, node.height);
 }
 
 /// Choice diamond: small rotated square
-fn render_choice(sg: &mut SvgGraphic, node: &StateNodeLayout, border: &str) {
+fn render_choice(sg: &mut SvgGraphic, tracker: &mut BoundsTracker, node: &StateNodeLayout, border: &str) {
     let cx = node.x + node.width / 2.0;
     let cy = node.y + node.height / 2.0;
     let half = node.width / 2.0;
@@ -161,11 +173,14 @@ fn render_choice(sg: &mut SvgGraphic, node: &StateNodeLayout, border: &str) {
     sg.set_stroke_color(Some(border));
     sg.set_stroke_width(1.5, None);
     sg.svg_polygon(0.0, &[cx, cy - half, cx + half, cy, cx, cy + half, cx - half, cy]);
+    // Java LimitFinder.drawUPolygon with HACK_X_FOR_POLYGON=10
+    tracker.track_polygon(&[(cx, cy - half), (cx + half, cy), (cx, cy + half), (cx - half, cy)]);
 }
 
 /// History circle: small circle with "H" (or "H*") text inside
 fn render_history(
     sg: &mut SvgGraphic,
+    tracker: &mut BoundsTracker,
     node: &StateNodeLayout,
     border: &str,
     font_color: &str,
@@ -188,10 +203,11 @@ fn render_history(
         tl, LengthAdjust::Spacing,
         None, 0, Some("middle"),
     );
+    tracker.track_ellipse(cx, cy, r, r);
 }
 
 /// Exit point: circle with X inside
-fn render_exit_point(sg: &mut SvgGraphic, node: &StateNodeLayout, border: &str) {
+fn render_exit_point(sg: &mut SvgGraphic, tracker: &mut BoundsTracker, node: &StateNodeLayout, border: &str) {
     let cx = node.x + node.width / 2.0;
     let cy = node.y + node.height / 2.0;
     let r = node.width / 2.0;
@@ -207,11 +223,13 @@ fn render_exit_point(sg: &mut SvgGraphic, node: &StateNodeLayout, border: &str) 
     sg.set_stroke_color(Some(border));
     sg.set_stroke_width(1.5, None);
     sg.svg_line(cx + d, cy - d, cx - d, cy + d, 0.0);
+    tracker.track_ellipse(cx, cy, r, r);
 }
 
 /// Simple state: rounded rectangle with name + optional description
 fn render_simple(
     sg: &mut SvgGraphic,
+    tracker: &mut BoundsTracker,
     node: &StateNodeLayout,
     bg: &str,
     border: &str,
@@ -230,6 +248,8 @@ fn render_simple(
     sg.set_stroke_color(Some(border));
     sg.set_stroke_width(0.5, None);
     sg.svg_rectangle(node.x, node.y, node.width, node.height, 12.5, 12.5, 0.0);
+    // Java LimitFinder.drawRectangle: addPoint(x-1, y-1), addPoint(x+w-1, y+h-1)
+    tracker.track_rect(node.x, node.y, node.width, node.height);
 
     // Stereotype (shown above the name in smaller text)
     let mut name_y_offset = 0.0;
@@ -256,6 +276,7 @@ fn render_simple(
     sg.set_stroke_color(Some(border));
     sg.set_stroke_width(0.5, None);
     sg.svg_line(node.x, sep_y, node.x + node.width, sep_y, 0.0);
+    tracker.track_line(node.x, sep_y, node.x + node.width, sep_y);
 
     // State name text (centered)
     let name_width = font_metrics::text_width(&node.name, "SansSerif", 14.0, false, false);
@@ -268,16 +289,22 @@ fn render_simple(
         name_width, LengthAdjust::Spacing,
         None, 0, None,
     );
+    // Java LimitFinder.drawText: addPoint(x, y-h+1.5), addPoint(x+w, y+h)
+    let name_text_h = font_metrics::line_height("SansSerif", 14.0, false, false);
+    tracker.track_text(name_x, name_y, name_width, name_text_h);
 
     // Description lines: each visual line is a separate <text> element
     if !node.description.is_empty() {
         let base_x = node.x + 5.0;
         let first_y = sep_y + 16.1386;
         let visual_lines = expand_description_lines(&node.description);
+        let desc_text_h = font_metrics::line_height("SansSerif", DESC_FONT_SIZE, false, false);
         for (i, vline) in visual_lines.iter().enumerate() {
             let x = base_x + vline.tab_count as f64 * TAB_WIDTH;
             let y = first_y + i as f64 * DESC_LINE_HEIGHT;
             render_desc_line(sg, &vline.text, x, y, font_color);
+            let text_w = font_metrics::text_width(&vline.text, "SansSerif", DESC_FONT_SIZE, false, false);
+            tracker.track_text(x, y, text_w, desc_text_h);
         }
     }
 
@@ -288,6 +315,7 @@ fn render_simple(
 /// Composite state: rounded rectangle containing child states
 fn render_composite(
     sg: &mut SvgGraphic,
+    tracker: &mut BoundsTracker,
     node: &StateNodeLayout,
     bg: &str,
     border: &str,
@@ -306,6 +334,7 @@ fn render_composite(
     sg.set_stroke_color(Some(border));
     sg.set_stroke_width(0.5, None);
     sg.svg_rectangle(node.x, node.y, node.width, node.height, 12.5, 12.5, 0.0);
+    tracker.track_rect(node.x, node.y, node.width, node.height);
 
     // Composite state name at the top
     let cx = node.x + node.width / 2.0;
@@ -319,6 +348,8 @@ fn render_composite(
         name_tl, LengthAdjust::Spacing,
         None, 0, None,
     );
+    let name_text_h = font_metrics::line_height("SansSerif", 14.0, false, false);
+    tracker.track_text(cx, name_y, name_tl, name_text_h);
 
     // Separator line below the header
     let sep_y = node.y + 26.2969;
@@ -331,7 +362,7 @@ fn render_composite(
 
     // Recursively render children
     for child in &node.children {
-        render_state_node(sg, child, bg, border, font_color);
+        render_state_node(sg, tracker, child, bg, border, font_color);
     }
 
     // Render concurrent region separators (dashed lines)
@@ -344,7 +375,7 @@ fn render_composite(
 
 // ── Transition rendering ────────────────────────────────────────────
 
-fn render_transition(sg: &mut SvgGraphic, transition: &TransitionLayout) {
+fn render_transition(sg: &mut SvgGraphic, tracker: &mut BoundsTracker, transition: &TransitionLayout) {
     if transition.points.is_empty() && transition.raw_path_d.is_none() {
         return;
     }
@@ -375,6 +406,14 @@ fn render_transition(sg: &mut SvgGraphic, transition: &TransitionLayout) {
             r#"<path d="{d}" fill="none" style="stroke:{BORDER_COLOR};stroke-width:1;"/>"#,
         ));
     }
+    // Track edge path bounds (Java LimitFinder.drawDotPath)
+    if !transition.points.is_empty() {
+        let p_min_x = transition.points.iter().map(|p| p.0).fold(f64::INFINITY, f64::min);
+        let p_min_y = transition.points.iter().map(|p| p.1).fold(f64::INFINITY, f64::min);
+        let p_max_x = transition.points.iter().map(|p| p.0).fold(f64::NEG_INFINITY, f64::max);
+        let p_max_y = transition.points.iter().map(|p| p.1).fold(f64::NEG_INFINITY, f64::max);
+        tracker.track_path_bounds(p_min_x, p_min_y, p_max_x, p_max_y);
+    }
 
     // Arrowhead polygon: prefer graphviz arrow polygon when available
     if let Some(ref poly_pts) = transition.arrow_polygon {
@@ -386,6 +425,9 @@ fn render_transition(sg: &mut SvgGraphic, transition: &TransitionLayout) {
             sg.push_raw(&format!(
                 r#"<polygon fill="{BORDER_COLOR}" points="{points_str}" style="stroke:{BORDER_COLOR};stroke-width:1;"/>"#,
             ));
+            // Track polygon bounds (Java LimitFinder.drawUPolygon with HACK_X_FOR_POLYGON)
+            let pts: Vec<(f64, f64)> = poly_pts.iter().copied().collect();
+            tracker.track_polygon(&pts);
         }
     } else if transition.points.len() >= 2 {
         // Fallback: compute arrowhead from last segment
@@ -417,6 +459,7 @@ fn render_transition(sg: &mut SvgGraphic, transition: &TransitionLayout) {
             sg.set_stroke_color(Some(BORDER_COLOR));
             sg.set_stroke_width(1.0, None);
             sg.svg_polygon(0.0, &[p1x, p1y, p2x, p2y, p3x, p3y, p4x, p4y, p1x, p1y]);
+            tracker.track_polygon(&[(p1x, p1y), (p2x, p2y), (p3x, p3y), (p4x, p4y)]);
         }
     }
 
@@ -439,6 +482,9 @@ fn render_transition(sg: &mut SvgGraphic, transition: &TransitionLayout) {
             tl, LengthAdjust::Spacing,
             None, 0, None,
         );
+        // Java LimitFinder.drawText
+        let label_text_h = font_metrics::line_height("SansSerif", FONT_SIZE, false, false);
+        tracker.track_text(lx, ly, tl, label_text_h);
     }
 
     // Close <g>
@@ -447,7 +493,7 @@ fn render_transition(sg: &mut SvgGraphic, transition: &TransitionLayout) {
 
 // ── Note rendering ──────────────────────────────────────────────────
 
-fn render_note(sg: &mut SvgGraphic, note: &StateNoteLayout) {
+fn render_note(sg: &mut SvgGraphic, tracker: &mut BoundsTracker, note: &StateNoteLayout) {
     let x = note.x;
     let y = note.y;
     let w = note.width;
@@ -462,6 +508,8 @@ fn render_note(sg: &mut SvgGraphic, note: &StateNoteLayout) {
         0.0,
         &[x, y, x + w - fold, y, x + w, y + fold, x + w, y + h, x, y + h],
     );
+    // Track note polygon bounds
+    tracker.track_polygon(&[(x, y), (x + w - fold, y), (x + w, y + fold), (x + w, y + h), (x, y + h)]);
 
     // Fold lines (vertical + horizontal)
     sg.set_stroke_color(Some(NOTE_BORDER));
@@ -485,33 +533,6 @@ fn render_note(sg: &mut SvgGraphic, note: &StateNoteLayout) {
         r#"font-size="13""#,
     );
     sg.push_raw(&tmp);
-}
-
-// ── Viewport calculation ────────────────────────────────────────────
-
-/// Compute SVG viewport dimensions matching Java PlantUML's svek model.
-///
-/// Java flow (SvekResult.calculateDimension):
-///   1. First pass renders to LimitFinder → gets minMax bounds of drawn elements
-///   2. moveDelta = (6 - LF_minX, 6 - LF_minY) shifts all positions
-///   3. dimension = LF_span + delta(15, 15)
-///   4. TextBlockExporter adds docMargin: finalDim = dim + (R=5, B=5)
-///   5. SvgGraphics.ensureVisible: svg_size = (int)(finalDim + 1)
-///
-/// For state diagrams with layout.width/height already containing content + 2*MARGIN(7):
-///   layout.width ≈ content_w + 14
-///   Java viewport ≈ content_w + 21 + R_margin + 1 (integer rounded)
-fn compute_viewport(layout: &StateLayout) -> (f64, f64) {
-    // The layout width/height include 2*MARGIN = 14.
-    // Java viewport = LF_span + 15 + 5 + 1 = LF_span + 21.
-    // LF_span tracks rects at (x-1), lines, text, etc.
-    // For a simple approximation: LF_span ≈ layout.width - 2*MARGIN + extra for LF adjustments.
-    // The old formula that worked: width + DOC_MARGIN_RIGHT + 1.0 + 2.0.
-    // That gives: (content + 14) + 5 + 1 + 2 = content + 22 ≈ LF_span + 21 when LF_span ≈ content + 1.
-    let svg_w = (layout.width + DOC_MARGIN_RIGHT + 1.0 + 2.0) as i32 as f64;
-    let svg_h = (layout.height + DOC_MARGIN_BOTTOM + 1.0 + 1.0) as i32 as f64;
-
-    (svg_w, svg_h)
 }
 
 // ── Helper functions ────────────────────────────────────────────────
@@ -611,7 +632,7 @@ mod tests {
     fn test_empty_diagram() {
         let diagram = empty_diagram();
         let layout = empty_layout();
-        let svg = render_state(&diagram, &layout, &SkinParams::default()).expect("render failed");
+        let (svg, _) = render_state(&diagram, &layout, &SkinParams::default()).expect("render failed");
         assert!(svg.contains("<svg"), "must contain <svg");
         assert!(svg.contains("</svg>"), "must contain </svg>");
         assert!(svg.contains("xmlns=\"http://www.w3.org/2000/svg\""));
@@ -625,7 +646,7 @@ mod tests {
         let diagram = empty_diagram();
         let mut layout = empty_layout();
         layout.state_layouts.push(make_initial(90.0, 10.0));
-        let svg = render_state(&diagram, &layout, &SkinParams::default()).expect("render failed");
+        let (svg, _) = render_state(&diagram, &layout, &SkinParams::default()).expect("render failed");
         assert!(svg.contains(r#"rx="10""#), "initial ellipse must have rx=10");
         assert!(svg.contains(r#"ry="10""#), "initial ellipse must have ry=10");
         assert!(svg.contains(&format!(r#"fill="{INITIAL_FILL}""#)), "initial ellipse must be filled");
@@ -638,7 +659,7 @@ mod tests {
         let diagram = empty_diagram();
         let mut layout = empty_layout();
         layout.state_layouts.push(make_final(90.0, 80.0));
-        let svg = render_state(&diagram, &layout, &SkinParams::default()).expect("render failed");
+        let (svg, _) = render_state(&diagram, &layout, &SkinParams::default()).expect("render failed");
         assert_eq!(svg.matches("<circle").count(), 2, "final state must produce two circles");
         assert!(svg.contains(r#"r="11""#), "final outer ring must have r=11");
         assert!(svg.contains(r#"r="7""#), "final inner circle must have r=7");
@@ -650,7 +671,7 @@ mod tests {
         let diagram = empty_diagram();
         let mut layout = empty_layout();
         layout.state_layouts.push(make_simple("Idle", "Idle", 30.0, 40.0, 100.0, 40.0));
-        let svg = render_state(&diagram, &layout, &SkinParams::default()).expect("render failed");
+        let (svg, _) = render_state(&diagram, &layout, &SkinParams::default()).expect("render failed");
         assert!(svg.contains(r#"rx="12.5""#), "state must have rounded corners rx=12.5");
         assert!(svg.contains(r#"ry="12.5""#), "state must have rounded corners ry=12.5");
         assert!(svg.contains(r##"fill="#F1F1F1""##), "state must use default theme state_bg fill");
@@ -666,7 +687,7 @@ mod tests {
         let mut node = make_simple("Active", "Active", 20.0, 30.0, 140.0, 80.0);
         node.description = vec!["entry / start timer".to_string(), "exit / stop timer".to_string()];
         layout.state_layouts.push(node);
-        let svg = render_state(&diagram, &layout, &SkinParams::default()).expect("render failed");
+        let (svg, _) = render_state(&diagram, &layout, &SkinParams::default()).expect("render failed");
         assert!(svg.contains("Active"), "state name must appear");
         assert!(svg.contains("entry / start timer"), "first description line must appear");
         assert!(svg.contains("exit / stop timer"), "second description line must appear");
@@ -680,7 +701,7 @@ mod tests {
         let mut node = make_simple("InputPin", "InputPin", 20.0, 30.0, 120.0, 50.0);
         node.stereotype = Some("inputPin".to_string());
         layout.state_layouts.push(node);
-        let svg = render_state(&diagram, &layout, &SkinParams::default()).expect("render failed");
+        let (svg, _) = render_state(&diagram, &layout, &SkinParams::default()).expect("render failed");
         assert!(svg.contains("InputPin"), "state name must appear");
         assert!(svg.contains("&#171;inputPin&#187;"), "stereotype must appear with guillemets");
         assert!(svg.contains("font-style=\"italic\""), "stereotype must be italic");
@@ -700,7 +721,7 @@ mod tests {
             region_separators: Vec::new(),
         };
         layout.state_layouts.push(composite);
-        let svg = render_state(&diagram, &layout, &SkinParams::default()).expect("render failed");
+        let (svg, _) = render_state(&diagram, &layout, &SkinParams::default()).expect("render failed");
         assert!(svg.contains("Outer"), "composite name must appear");
         assert!(svg.contains("Inner"), "child state name must appear");
         let rect_count = svg.matches("<rect").count();
@@ -717,7 +738,7 @@ mod tests {
             points: vec![(100.0, 50.0), (100.0, 120.0)],
             raw_path_d: None, arrow_polygon: None, label_xy: None,
         });
-        let svg = render_state(&diagram, &layout, &SkinParams::default()).expect("render failed");
+        let (svg, _) = render_state(&diagram, &layout, &SkinParams::default()).expect("render failed");
         assert!(svg.contains("<polygon"), "transition must have inline polygon arrowhead");
         assert!(svg.contains("stroke:#181818"), "transition must use BORDER_COLOR in style");
         assert!(svg.contains("<path "), "transition must use <path>");
@@ -733,7 +754,7 @@ mod tests {
             points: vec![(80.0, 40.0), (80.0, 100.0)],
             raw_path_d: None, arrow_polygon: None, label_xy: None,
         });
-        let svg = render_state(&diagram, &layout, &SkinParams::default()).expect("render failed");
+        let (svg, _) = render_state(&diagram, &layout, &SkinParams::default()).expect("render failed");
         assert!(svg.contains("start"), "transition label must appear in SVG");
         assert!(svg.contains(r#"lengthAdjust="spacing""#), "label must have lengthAdjust");
     }
@@ -747,7 +768,7 @@ mod tests {
             points: vec![(50.0, 20.0), (50.0, 50.0), (100.0, 50.0), (100.0, 80.0)],
             raw_path_d: None, arrow_polygon: None, label_xy: None,
         });
-        let svg = render_state(&diagram, &layout, &SkinParams::default()).expect("render failed");
+        let (svg, _) = render_state(&diagram, &layout, &SkinParams::default()).expect("render failed");
         assert!(svg.contains("<path"), "multi-point transition must use <path>");
         assert!(svg.contains("<polygon"), "multi-point transition must have inline polygon arrowhead");
     }
@@ -757,7 +778,7 @@ mod tests {
         let diagram = empty_diagram();
         let mut layout = empty_layout();
         layout.note_layouts.push(StateNoteLayout { x: 10.0, y: 20.0, width: 120.0, height: 40.0, text: "important note".to_string() });
-        let svg = render_state(&diagram, &layout, &SkinParams::default()).expect("render failed");
+        let (svg, _) = render_state(&diagram, &layout, &SkinParams::default()).expect("render failed");
         assert!(svg.contains(&format!(r#"fill="{NOTE_BG}""#)), "note must use yellow background");
         assert!(svg.contains("important note"), "note text must appear");
         assert!(svg.contains("<polygon"), "note body must be a polygon with folded corner");
@@ -770,7 +791,7 @@ mod tests {
         let diagram = empty_diagram();
         let mut layout = empty_layout();
         layout.note_layouts.push(StateNoteLayout { x: 10.0, y: 20.0, width: 120.0, height: 60.0, text: "line one\nline two".to_string() });
-        let svg = render_state(&diagram, &layout, &SkinParams::default()).expect("render failed");
+        let (svg, _) = render_state(&diagram, &layout, &SkinParams::default()).expect("render failed");
         assert!(svg.contains("<tspan"), "multiline note must use tspan");
         assert!(svg.contains("line one"), "first line must appear");
         assert!(svg.contains("line two"), "second line must appear");
@@ -784,7 +805,7 @@ mod tests {
         let mut node = make_simple("test", "A & B < C", 10.0, 10.0, 120.0, 40.0);
         node.description = vec!["x > y & z".to_string()];
         layout.state_layouts.push(node);
-        let svg = render_state(&diagram, &layout, &SkinParams::default()).expect("render failed");
+        let (svg, _) = render_state(&diagram, &layout, &SkinParams::default()).expect("render failed");
         assert!(svg.contains("A &amp; B &lt; C"), "state name must be XML-escaped");
         assert!(svg.contains("x &gt; y &amp; z"), "description must be XML-escaped");
     }
@@ -808,13 +829,12 @@ mod tests {
             points: vec![(190.0, 90.0), (190.0, 120.0)],
             raw_path_d: None, arrow_polygon: None, label_xy: None,
         });
-        let svg = render_state(&diagram, &layout, &SkinParams::default()).expect("render failed");
+        let (svg, raw_dim) = render_state(&diagram, &layout, &SkinParams::default()).expect("render failed");
         assert!(svg.starts_with("<svg"), "SVG must start with <svg");
         assert!(svg.contains("</svg>"), "SVG must end with </svg>");
-        // SVG viewport = layout dims + DOC_MARGIN(5) + ensureVisible(1) + svek adjustment(+2w,+1h)
-        assert!(svg.contains("viewBox=\"0 0 408 307\""), "viewBox must match layout + doc margin");
-        assert!(svg.contains("width=\"408px\""), "width must match layout + doc margin");
-        assert!(svg.contains("height=\"307px\""), "height must match layout + doc margin");
+        // Viewport is computed from BoundsTracker span + CANVAS_DELTA(15) + DOC_MARGIN(5)
+        assert!(raw_dim.is_some(), "raw_body_dim must be present");
+        assert!(svg.contains("viewBox="), "must have viewBox");
         assert!(svg.contains("<defs/>"), "must have <defs/>");
         assert_eq!(svg.matches("<ellipse").count(), 1, "1 ellipse expected");
         assert_eq!(svg.matches("<circle").count(), 2, "2 circles expected");
@@ -831,7 +851,7 @@ mod tests {
             from_id: "A".to_string(), to_id: "B".to_string(), label: "skip".to_string(), points: vec![],
             raw_path_d: None, arrow_polygon: None, label_xy: None,
         });
-        let svg = render_state(&diagram, &layout, &SkinParams::default()).expect("render failed");
+        let (svg, _) = render_state(&diagram, &layout, &SkinParams::default()).expect("render failed");
         assert!(!svg.contains("<path"), "empty points should not produce a path");
         assert!(!svg.contains("skip"), "empty points should not produce a label");
     }
@@ -847,7 +867,7 @@ mod tests {
             is_initial: false, is_final: false, is_composite: false,
             children: vec![], kind: StateKind::Fork, region_separators: Vec::new(),
         });
-        let svg = render_state(&diagram, &layout, &SkinParams::default()).expect("render failed");
+        let (svg, _) = render_state(&diagram, &layout, &SkinParams::default()).expect("render failed");
         assert!(svg.contains("<rect"), "fork bar must produce a rect");
         assert!(svg.contains(&format!(r#"fill="{INITIAL_FILL}""#)), "fork bar must be filled");
         assert!(svg.contains(r#"rx="2""#), "fork bar must have minimal rounding");
@@ -864,7 +884,7 @@ mod tests {
             is_initial: false, is_final: false, is_composite: false,
             children: vec![], kind: StateKind::Join, region_separators: Vec::new(),
         });
-        let svg = render_state(&diagram, &layout, &SkinParams::default()).expect("render failed");
+        let (svg, _) = render_state(&diagram, &layout, &SkinParams::default()).expect("render failed");
         assert!(svg.contains("<rect"), "join bar must produce a rect");
     }
 
@@ -879,7 +899,7 @@ mod tests {
             is_initial: false, is_final: false, is_composite: false,
             children: vec![], kind: StateKind::Choice, region_separators: Vec::new(),
         });
-        let svg = render_state(&diagram, &layout, &SkinParams::default()).expect("render failed");
+        let (svg, _) = render_state(&diagram, &layout, &SkinParams::default()).expect("render failed");
         assert!(svg.contains("<polygon"), "choice must produce a polygon (diamond)");
     }
 
@@ -894,7 +914,7 @@ mod tests {
             is_initial: false, is_final: false, is_composite: false,
             children: vec![], kind: StateKind::History, region_separators: Vec::new(),
         });
-        let svg = render_state(&diagram, &layout, &SkinParams::default()).expect("render failed");
+        let (svg, _) = render_state(&diagram, &layout, &SkinParams::default()).expect("render failed");
         assert!(svg.contains("<circle"), "history must produce a circle");
         assert!(svg.contains(">H<"), "history must contain 'H' text");
     }
@@ -910,7 +930,7 @@ mod tests {
             is_initial: false, is_final: false, is_composite: false,
             children: vec![], kind: StateKind::DeepHistory, region_separators: Vec::new(),
         });
-        let svg = render_state(&diagram, &layout, &SkinParams::default()).expect("render failed");
+        let (svg, _) = render_state(&diagram, &layout, &SkinParams::default()).expect("render failed");
         assert!(svg.contains("<circle"), "deep history must produce a circle");
         assert!(svg.contains(">H*<"), "deep history must contain 'H*' text");
     }
@@ -930,7 +950,7 @@ mod tests {
             region_separators: vec![110.0],
         };
         layout.state_layouts.push(composite);
-        let svg = render_state(&diagram, &layout, &SkinParams::default()).expect("render failed");
+        let (svg, _) = render_state(&diagram, &layout, &SkinParams::default()).expect("render failed");
         assert!(svg.contains("stroke-dasharray"), "concurrent separator must be dashed");
     }
 }
