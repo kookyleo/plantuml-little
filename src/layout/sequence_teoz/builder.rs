@@ -39,7 +39,9 @@ const NOTE_FONT_SIZE: f64 = 13.0;
 const ACTIVATION_WIDTH: f64 = 10.0;
 const NOTE_PADDING: f64 = rose::NOTE_PADDING;
 const NOTE_FOLD: f64 = rose::SEQ_NOTE_FOLD;
-const STARTING_Y: f64 = 8.0;
+/// Java teoz: participant heads render at y=10 (5px frame + 5px inner margin).
+/// PlayingSpace content starts below the preferred participant height.
+const STARTING_Y: f64 = 10.0;
 /// Minimum gap between adjacent participant right-edge and next left-edge.
 const PARTICIPANT_GAP: f64 = 5.0;
 
@@ -1078,8 +1080,10 @@ pub fn build_teoz_layout(
 	// so: total = lifeline_bottom + (factor-1)*headHeight + 30
 	let show_footbox = !sd.hide_footbox;
 	let factor = if show_footbox { 2 } else { 1 };
+	// Java: PlayingSpace(+10) + outer(+10) + docMargin(+10) = 30.
+	// With STARTING_Y=10 (vs Java's 8), subtract 2 to compensate.
 	let total_height =
-		lifeline_bottom + (factor - 1) as f64 * max_preferred_height + 30.0;
+		lifeline_bottom + (factor - 1) as f64 * max_preferred_height + 28.0;
 
 	Ok(SeqLayout {
 		participants: part_layouts,

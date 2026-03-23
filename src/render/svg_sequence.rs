@@ -1881,7 +1881,13 @@ fn render_sequence_inner(
         let qualified_name = xml_escape(&p.name);
 
         // Head (bottom-aligned within head band)
-        let top_y = MARGIN + max_ph - p.box_height;
+        // Puma: head y starts at MARGIN(5). Teoz: starts at lifeline_top - max_preferred_h.
+        let head_base = if sd.teoz_mode {
+            layout.lifeline_top - max_ph - 1.0 // teoz: preferred = box + 1
+        } else {
+            MARGIN
+        };
+        let top_y = head_base + max_ph - p.box_height;
         let src_line_attr = sd.participants.get(i)
             .and_then(|pp| pp.source_line)
             .map(|sl| format!(r#" data-source-line="{sl}""#))
