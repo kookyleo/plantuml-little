@@ -29,7 +29,7 @@ pub fn render_erd(_ed: &ErdDiagram, layout: &ErdLayout, skin: &SkinParams) -> Re
     for node in &layout.relationship_nodes { render_relationship(&mut sg, node); }
     for attr in &layout.attribute_nodes { render_attribute(&mut sg, attr); }
     render_attr_parent_lines(&mut sg, &layout.attribute_nodes, &layout.entity_nodes, &layout.relationship_nodes);
-    for edge in &layout.edges { render_edge(&mut sg, edge); }
+    for (i, edge) in layout.edges.iter().enumerate() { render_edge(&mut sg, edge, i); }
     for isa in &layout.isa_layouts { render_isa(&mut sg, isa); }
     for note in &layout.notes { render_note(&mut sg, note); }
 
@@ -40,6 +40,7 @@ pub fn render_erd(_ed: &ErdDiagram, layout: &ErdLayout, skin: &SkinParams) -> Re
 
 fn render_entity(sg: &mut SvgGraphic, node: &ErdNodeLayout, bg: &str, border: &str, font_color: &str) {
     let (x, y, w, h) = (node.x, node.y, node.width, node.height);
+    sg.push_raw("<g>");
     if node.is_weak {
         sg.set_fill_color(bg); sg.set_stroke_color(Some(border)); sg.set_stroke_width(0.5, None);
         sg.svg_rectangle(x, y, w, h, 0.0, 0.0, 0.0);
@@ -53,11 +54,13 @@ fn render_entity(sg: &mut SvgGraphic, node: &ErdNodeLayout, bg: &str, border: &s
     let tx = x + 10.0; let ty = y + h / 2.0 + FONT_SIZE * 0.35;
     sg.set_fill_color(font_color);
     sg.svg_text(&node.label, tx, ty, Some("sans-serif"), FONT_SIZE, None, None, None, w - 20.0, LengthAdjust::Spacing, None, 0, None);
+    sg.push_raw("</g>");
 }
 
 fn render_relationship(sg: &mut SvgGraphic, node: &ErdNodeLayout) {
     let (x, y, w, h) = (node.x, node.y, node.width, node.height);
     let cx = x + w / 2.0; let cy = y + h / 2.0;
+    sg.push_raw("<g>");
     if node.is_identifying {
         sg.set_fill_color(ENTITY_BG); sg.set_stroke_color(Some(BORDER_COLOR)); sg.set_stroke_width(0.5, None);
         sg.svg_polygon(0.0, &[cx, y, x + w, cy, cx, y + h, x, cy]);
@@ -71,6 +74,7 @@ fn render_relationship(sg: &mut SvgGraphic, node: &ErdNodeLayout) {
     let ty = cy + FONT_SIZE * 0.35; let text_w = w - 40.0; let text_x = cx - text_w / 2.0;
     sg.set_fill_color(TEXT_COLOR);
     sg.svg_text(&node.label, text_x, ty, Some("sans-serif"), FONT_SIZE, None, None, None, text_w, LengthAdjust::Spacing, None, 0, None);
+    sg.push_raw("</g>");
 }
 
 fn render_attribute(sg: &mut SvgGraphic, attr: &ErdAttrLayout) {
@@ -111,12 +115,36 @@ fn render_attr_parent_lines(sg: &mut SvgGraphic, attrs: &[ErdAttrLayout], entiti
     }
 }
 
-fn render_edge(sg: &mut SvgGraphic, edge: &ErdEdgeLayout) {
+fn render_edge(sg: &mut SvgGraphic, edge: &ErdEdgeLayout, link_idx: usize) {
     let (x1, y1) = edge.from_point; let (x2, y2) = edge.to_point;
+    // Java wraps each link in <!--link From to To--> comment and <g class="link" ...>
+    sg.push_raw(&format!("<!--link {} to {}-->", xml_escape(&edge.from_name), xml_escape(&edge.to_name)));
+    let ent_from = format!("ent{:04}", edge.entity_idx_from + 2);
+    let ent_to = format!("ent{:04}", edge.entity_idx_to + 2);
+    sg.push_raw(&format!(
+        r#"<g class="link" data-entity-1="{}" data-entity-2="{}" data-link-type="association" data-source-line="{}" id="lnk{}">"#,
+        ent_from, ent_to, edge.source_line, link_idx + 2 + edge.entity_idx_to
+    ));
     if edge.is_double {
         let dx = x2 - x1; let dy = y2 - y1; let len = (dx * dx + dy * dy).sqrt();
         if len > 0.001 { let nx = -dy / len * 1.5; let ny = dx / len * 1.5; render_path_line(sg, x1 + nx, y1 + ny, x2 + nx, y2 + ny); render_path_line(sg, x1 - nx, y1 - ny, x2 - nx, y2 - ny); }
-    } else { render_path_line(sg, x1, y1, x2, y2); }
+    } else {
+        // Java uses cubic bezier C command even for straight lines:
+        // M x1,y1 C cx1,cy1 cx2,cy2 x2,y2
+        // For a straight line, control points are at 1/3 and 2/3 positions
+        let cx1 = x1 + (x2 - x1) / 3.0;
+        let cy1 = y1 + (y2 - y1) / 3.0;
+        let cx2 = x1 + 2.0 * (x2 - x1) / 3.0;
+        let cy2 = y1 + 2.0 * (y2 - y1) / 3.0;
+        sg.push_raw(&format!(
+            r#"<path d="M{},{} C{},{} {},{} {},{}" fill="none" id="{}-{}" style="stroke:{BORDER_COLOR};stroke-width:1;"/>"#,
+            fmt_coord(x1), fmt_coord(y1),
+            fmt_coord(cx1), fmt_coord(cy1),
+            fmt_coord(cx2), fmt_coord(cy2),
+            fmt_coord(x2), fmt_coord(y2),
+            xml_escape(&edge.from_name), xml_escape(&edge.to_name),
+        ));
+    }
     if edge.is_double {
         let dx = x2 - x1; let dy = y2 - y1; let len = (dx * dx + dy * dy).sqrt();
         if len > 0.001 {
@@ -127,10 +155,11 @@ fn render_edge(sg: &mut SvgGraphic, edge: &ErdEdgeLayout) {
     }
     if !edge.label.is_empty() {
         let mx = (x1 + x2) / 2.0; let my = (y1 + y2) / 2.0 - 6.0;
-        let escaped = xml_escape(&edge.label); let text_w = escaped.len() as f64 * 7.0;
+        let label_text_w = crate::font_metrics::text_width(&edge.label, "SansSerif", 11.0, false, false);
         sg.set_fill_color(TEXT_COLOR);
-        sg.svg_text(&edge.label, mx, my, Some("sans-serif"), 11.0, None, None, None, text_w, LengthAdjust::Spacing, None, 0, None);
+        sg.svg_text(&edge.label, mx, my, Some("sans-serif"), 11.0, None, None, None, label_text_w, LengthAdjust::Spacing, None, 0, None);
     }
+    sg.push_raw("</g>");
 }
 
 fn render_isa(sg: &mut SvgGraphic, isa: &ErdIsaLayout) {
@@ -180,8 +209,8 @@ mod tests {
     #[test] fn test_key_attribute_underline() { let mut l = empty_layout(); l.entity_nodes.push(make_entity_node("E", 100.0, 100.0, 80.0, 36.0)); l.attribute_nodes.push(ErdAttrLayout { is_key: true, ..make_attr("Number", "E", 100.0, 40.0) }); let svg = render_erd(&empty_diagram(), &l, &SkinParams::default()).unwrap(); assert!(svg.contains(r#"text-decoration="underline""#)); }
     #[test] fn test_derived_attribute_dashed() { let mut l = empty_layout(); l.entity_nodes.push(make_entity_node("E", 100.0, 100.0, 80.0, 36.0)); l.attribute_nodes.push(ErdAttrLayout { is_derived: true, ..make_attr("Bonus", "E", 100.0, 40.0) }); let svg = render_erd(&empty_diagram(), &l, &SkinParams::default()).unwrap(); assert!(svg.contains("stroke-dasharray")); }
     #[test] fn test_multi_attribute_double_ellipse() { let mut l = empty_layout(); l.entity_nodes.push(make_entity_node("E", 100.0, 100.0, 80.0, 36.0)); l.attribute_nodes.push(ErdAttrLayout { is_multi: true, ..make_attr("Name", "E", 100.0, 40.0) }); let svg = render_erd(&empty_diagram(), &l, &SkinParams::default()).unwrap(); assert_eq!(svg.matches("<ellipse").count(), 2); }
-    #[test] fn test_edge_rendering() { let mut l = empty_layout(); l.edges.push(ErdEdgeLayout { from_id: "R".into(), to_id: "E".into(), from_point: (100.0, 100.0), to_point: (200.0, 100.0), label: "N".into(), is_double: false }); let svg = render_erd(&empty_diagram(), &l, &SkinParams::default()).unwrap(); assert!(svg.contains("<path")); assert!(svg.contains("N")); }
-    #[test] fn test_double_edge() { let mut l = empty_layout(); l.edges.push(ErdEdgeLayout { from_id: "R".into(), to_id: "E".into(), from_point: (100.0, 100.0), to_point: (200.0, 100.0), label: "N".into(), is_double: true }); let svg = render_erd(&empty_diagram(), &l, &SkinParams::default()).unwrap(); assert!(svg.matches("<path").count() >= 2); }
+    #[test] fn test_edge_rendering() { let mut l = empty_layout(); l.edges.push(ErdEdgeLayout { from_id: "R".into(), to_id: "E".into(), from_name: "R".into(), to_name: "E".into(), from_point: (100.0, 100.0), to_point: (200.0, 100.0), label: "N".into(), is_double: false, source_line: 0, entity_idx_from: 0, entity_idx_to: 0 }); let svg = render_erd(&empty_diagram(), &l, &SkinParams::default()).unwrap(); assert!(svg.contains("<path")); assert!(svg.contains("N")); }
+    #[test] fn test_double_edge() { let mut l = empty_layout(); l.edges.push(ErdEdgeLayout { from_id: "R".into(), to_id: "E".into(), from_name: "R".into(), to_name: "E".into(), from_point: (100.0, 100.0), to_point: (200.0, 100.0), label: "N".into(), is_double: true, source_line: 0, entity_idx_from: 0, entity_idx_to: 0 }); let svg = render_erd(&empty_diagram(), &l, &SkinParams::default()).unwrap(); assert!(svg.matches("<path").count() >= 2); }
     #[test] fn test_isa_triangle() { let mut l = empty_layout(); l.isa_layouts.push(ErdIsaLayout { parent_id: "PARENT".into(), kind_label: "d".into(), triangle_center: (200.0, 200.0), triangle_size: 24.0, parent_point: (200.0, 170.0), child_points: vec![("C1".into(), (160.0, 250.0)), ("C2".into(), (240.0, 250.0))], is_double: true }); let svg = render_erd(&empty_diagram(), &l, &SkinParams::default()).unwrap(); assert!(svg.contains("<polygon")); assert!(svg.matches("<path").count() >= 3); assert!(svg.contains(">d<")); }
     #[test] fn test_attr_parent_lines() { let mut l = empty_layout(); l.entity_nodes.push(make_entity_node("E", 100.0, 100.0, 80.0, 36.0)); l.attribute_nodes.push(make_attr("X", "E", 140.0, 40.0)); l.attribute_nodes.push(make_attr("Y", "E", 100.0, 40.0)); let svg = render_erd(&empty_diagram(), &l, &SkinParams::default()).unwrap(); assert!(svg.matches("<path").count() >= 2); }
     #[test] fn test_xml_escaping() { let mut l = empty_layout(); l.entity_nodes.push(ErdNodeLayout { label: "A & B < C".into(), ..make_entity_node("E", 50.0, 50.0, 120.0, 36.0) }); let svg = render_erd(&empty_diagram(), &l, &SkinParams::default()).unwrap(); assert!(svg.contains("A &amp; B &lt; C")); }

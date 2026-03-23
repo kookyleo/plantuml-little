@@ -66,10 +66,15 @@ pub struct ErdAttrLayout {
 pub struct ErdEdgeLayout {
     pub from_id: String,
     pub to_id: String,
+    pub from_name: String,
+    pub to_name: String,
     pub from_point: (f64, f64),
     pub to_point: (f64, f64),
     pub label: String,
     pub is_double: bool,
+    pub source_line: usize,
+    pub entity_idx_from: usize,
+    pub entity_idx_to: usize,
 }
 
 /// A positioned note annotation.
@@ -102,10 +107,10 @@ pub struct ErdIsaLayout {
 
 const FONT_SIZE: f64 = 14.0;
 const ENTITY_PADDING: f64 = 10.0;
-const ENTITY_MIN_WIDTH: f64 = 80.0;
+const ENTITY_MIN_WIDTH: f64 = 0.0;
 const ENTITY_HEIGHT: f64 = 36.2969;
-const RELATIONSHIP_PADDING: f64 = 20.0;
-const RELATIONSHIP_MIN_WIDTH: f64 = 80.0;
+/// Java MARGIN constant from IEntityImage (used for diamond calculation)
+const JAVA_ENTITY_MARGIN: f64 = 5.0;
 const ATTR_RY: f64 = 14.5236;
 const ATTR_SPACING: f64 = 70.0;
 /// Gap between nodes placed side-by-side in the same rank.
@@ -133,8 +138,17 @@ fn entity_width(name: &str) -> f64 {
     (text_width(name) + 2.0 * ENTITY_PADDING).max(ENTITY_MIN_WIDTH)
 }
 
-fn relationship_width(name: &str) -> f64 {
-    (text_width(name) + 2.0 * RELATIONSHIP_PADDING).max(RELATIONSHIP_MIN_WIDTH)
+/// Compute relationship diamond dimensions matching Java's ChenRelationship formula:
+/// diagonal = (dimTitle.width + 2 * dimTitle.height) / sqrt(5) + 2 * MARGIN
+/// totalWidth = diagonal * sqrt(5)
+/// totalHeight = diagonal * sqrt(5) / 2
+fn relationship_diamond_size(name: &str) -> (f64, f64) {
+    let tw = text_width(name);
+    let th = font_metrics::line_height("SansSerif", FONT_SIZE, false, false);
+    let diagonal = (tw + 2.0 * th) / 5.0_f64.sqrt() + 2.0 * JAVA_ENTITY_MARGIN;
+    let total_w = diagonal * 5.0_f64.sqrt();
+    let total_h = diagonal * 5.0_f64.sqrt() / 2.0;
+    (total_w, total_h)
 }
 
 /// Compute attribute ellipse rx from label text.
@@ -259,8 +273,7 @@ pub fn layout_erd(diagram: &ErdDiagram) -> Result<ErdLayout> {
         all_ids.push(e.id.clone());
     }
     for r in &diagram.relationships {
-        let w = relationship_width(&r.name);
-        let dh = w * 0.5; // Diamond height roughly half of width
+        let (w, dh) = relationship_diamond_size(&r.name);
         node_sizes.insert(r.id.clone(), (w, dh));
         all_ids.push(r.id.clone());
     }
@@ -647,10 +660,15 @@ fn layout_edges(
         edges.push(ErdEdgeLayout {
             from_id: link.from.clone(),
             to_id: link.to.clone(),
+            from_name: link.from.clone(),
+            to_name: link.to.clone(),
             from_point,
             to_point,
             label: link.cardinality.clone(),
             is_double: link.is_double,
+            source_line: 0,
+            entity_idx_from: 0,
+            entity_idx_to: 0,
         });
     }
 
