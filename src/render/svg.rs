@@ -591,7 +591,7 @@ fn wrap_with_meta(body_svg: &str, meta: &DiagramMeta, diagram_type: &str, bg: &s
     // Body SVG includes DOC_MARGIN + 1: recover raw textBlock dimensions.
     let body_w = svg_w - DOC_MARGIN_RIGHT - 1.0;
     let body_h = svg_h - DOC_MARGIN_BOTTOM - 1.0;
-    eprintln!("[TRACE wrap_with_meta] svg_w={svg_w} svg_h={svg_h} body_w={body_w} body_h={body_h}");
+    log::trace!("wrap_with_meta: svg_w={svg_w} svg_h={svg_h} body_w={body_w} body_h={body_h}");
 
     // ── 1. Compute block dimensions for each meta element ───────────
     let hdr_text_w = meta.header.as_ref().map(|t| creole_text_w(t, META_HF_FONT_SIZE, false)).unwrap_or(0.0);
@@ -639,7 +639,7 @@ fn wrap_with_meta(body_svg: &str, meta: &DiagramMeta, diagram_type: &str, bg: &s
 
     let body_abs_x = outer_inner_x + cap_inner_x + title_inner_x + leg_inner_x;
     let body_abs_y = hdr_dim.1 + title_dim.1;
-    eprintln!("[TRACE body_pos] body_abs_x={body_abs_x:.6} body_abs_y={body_abs_y:.6}");
+    log::trace!("body_pos: body_abs_x={body_abs_x:.6} body_abs_y={body_abs_y:.6}");
 
     // ── 4. Render SVG ──────────────────────────────────────────────
     let mut buf = String::with_capacity(body_svg.len() + 2048);
@@ -690,14 +690,20 @@ fn wrap_with_meta(body_svg: &str, meta: &DiagramMeta, diagram_type: &str, bg: &s
         buf.push_str("</g>");
     }
 
-    // Body — Java's EntityImageSimpleEmpty.drawU() emits nothing for empty diagrams.
-    // Skip the body wrapper when content is trivially empty (only <defs/><g></g>).
-    let body_trimmed = body_content.replace("<defs/>", "").replace("<g>", "").replace("</g>", "");
-    if !body_trimmed.trim().is_empty() {
-        write!(buf, r#"<g transform="translate({},{})">"#,
-            fmt_coord(body_abs_x), fmt_coord(body_abs_y)).unwrap();
-        buf.push_str(&body_content);
-        buf.push_str("</g>");
+    // Body — Java renders body at absolute coordinates (no <g transform>).
+    // Strip the <defs/><g>...</g> wrapper from body_content (already have top-level <defs/>)
+    // and shift coordinates by (body_abs_x, body_abs_y).
+    let body_inner = body_content
+        .strip_prefix("<defs/><g>").unwrap_or(&body_content);
+    let body_inner = body_inner
+        .strip_suffix("</g>").unwrap_or(body_inner);
+    if !body_inner.trim().is_empty() {
+        if body_abs_x.abs() < 0.001 && body_abs_y.abs() < 0.001 {
+            buf.push_str(body_inner);
+        } else {
+            let shifted = offset_svg_coords(body_inner, body_abs_x, body_abs_y);
+            buf.push_str(&shifted);
+        }
     }
 
     // Legend (CENTER-aligned)
@@ -783,6 +789,119 @@ fn wrap_with_meta(body_svg: &str, meta: &DiagramMeta, diagram_type: &str, bg: &s
 
     buf.push_str("</g></svg>");
     Ok(buf)
+}
+
+/// Shift all coordinate attributes in SVG content by (dx, dy).
+/// Java renders body at absolute coordinates; this replaces <g transform="translate">.
+fn offset_svg_coords(svg: &str, dx: f64, dy: f64) -> String {
+    use regex::Regex;
+    use std::sync::OnceLock;
+
+    // Match position attributes: x="N", y="N", cx="N", cy="N", x1="N", y1="N", x2="N", y2="N"
+    static RE_X: OnceLock<Regex> = OnceLock::new();
+    static RE_Y: OnceLock<Regex> = OnceLock::new();
+    static RE_POINTS: OnceLock<Regex> = OnceLock::new();
+    static RE_PATH_D: OnceLock<Regex> = OnceLock::new();
+
+    let re_x = RE_X.get_or_init(|| Regex::new(r#"(?P<attr>(?:^| )(?:x|cx|x1|x2))="(?P<val>-?[\d.]+)""#).unwrap());
+    let re_y = RE_Y.get_or_init(|| Regex::new(r#"(?P<attr> (?:y|cy|y1|y2))="(?P<val>-?[\d.]+)""#).unwrap());
+    let re_points = RE_POINTS.get_or_init(|| Regex::new(r#"points="([^"]*)""#).unwrap());
+    let re_path_d = RE_PATH_D.get_or_init(|| Regex::new(r#" d="([^"]*)""#).unwrap());
+
+    let mut result = svg.to_string();
+
+    // Shift x-coordinate attributes
+    result = re_x.replace_all(&result, |caps: &regex::Captures| {
+        let attr = &caps["attr"];
+        let val: f64 = caps["val"].parse().unwrap_or(0.0);
+        format!("{}=\"{}\"", attr, fmt_coord(val + dx))
+    }).to_string();
+
+    // Shift y-coordinate attributes
+    result = re_y.replace_all(&result, |caps: &regex::Captures| {
+        let attr = &caps["attr"];
+        let val: f64 = caps["val"].parse().unwrap_or(0.0);
+        format!("{}=\"{}\"", attr, fmt_coord(val + dy))
+    }).to_string();
+
+    // Shift polygon points="x,y x,y ..."
+    result = re_points.replace_all(&result, |caps: &regex::Captures| {
+        let points = &caps[1];
+        let shifted: Vec<String> = points.split(',').collect::<Vec<_>>()
+            .chunks(2)
+            .filter_map(|pair| {
+                if pair.len() == 2 {
+                    let x: f64 = pair[0].trim().parse().unwrap_or(0.0);
+                    let y: f64 = pair[1].trim().parse().unwrap_or(0.0);
+                    Some(format!("{},{}", fmt_coord(x + dx), fmt_coord(y + dy)))
+                } else { None }
+            })
+            .collect();
+        format!("points=\"{}\"", shifted.join(","))
+    }).to_string();
+
+    // Shift path d="M x,y L x,y C x,y x,y x,y ..."
+    result = re_path_d.replace_all(&result, |caps: &regex::Captures| {
+        let d = &caps[1];
+        let shifted = offset_path_data(d, dx, dy);
+        format!(" d=\"{}\"", shifted)
+    }).to_string();
+
+    result
+}
+
+/// Offset all coordinates in an SVG path data string by (dx, dy).
+fn offset_path_data(d: &str, dx: f64, dy: f64) -> String {
+    let mut result = String::with_capacity(d.len());
+    let mut chars = d.chars().peekable();
+
+    while chars.peek().is_some() {
+        // Skip whitespace
+        while chars.peek().map_or(false, |c| c.is_whitespace()) {
+            result.push(chars.next().unwrap());
+        }
+        if chars.peek().is_none() { break; }
+
+        let c = *chars.peek().unwrap();
+        if c.is_alphabetic() {
+            result.push(chars.next().unwrap());
+            continue;
+        }
+
+        // Parse number (x coordinate)
+        if let Some(x) = parse_path_number(&mut chars) {
+            result.push_str(&fmt_coord(x + dx));
+            // Skip comma/space
+            skip_path_sep(&mut chars, &mut result);
+            // Parse y coordinate
+            if let Some(y) = parse_path_number(&mut chars) {
+                result.push_str(&fmt_coord(y + dy));
+            }
+        } else {
+            // Unknown char, pass through
+            if let Some(ch) = chars.next() {
+                result.push(ch);
+            }
+        }
+    }
+    result
+}
+
+fn parse_path_number(chars: &mut std::iter::Peekable<std::str::Chars>) -> Option<f64> {
+    let mut s = String::new();
+    if chars.peek() == Some(&'-') {
+        s.push(chars.next().unwrap());
+    }
+    while chars.peek().map_or(false, |c| c.is_ascii_digit() || *c == '.') {
+        s.push(chars.next().unwrap());
+    }
+    if s.is_empty() || s == "-" { None } else { s.parse().ok() }
+}
+
+fn skip_path_sep(chars: &mut std::iter::Peekable<std::str::Chars>, result: &mut String) {
+    while chars.peek().map_or(false, |c| *c == ',' || c.is_whitespace()) {
+        result.push(chars.next().unwrap());
+    }
 }
 
 // ── Class diagram rendering ─────────────────────────────────────────
@@ -2964,7 +3083,8 @@ mod tests {
         assert!(svg.contains("My Title"));
         assert!(svg.contains("font-weight=\"700\""));
         assert!(svg.contains("font-size=\"14\""));
-        assert!(svg.contains("translate("));
+        // Body coordinates are now shifted inline (no <g transform>)
+        assert!(!svg.contains("translate("), "body should use inline coordinate offset, not <g transform>");
     }
 
     #[test]
@@ -2981,8 +3101,7 @@ mod tests {
         let svg = render(&d, &l, &default_skin(), &meta).unwrap();
         let (svg_w, _) = extract_dimensions(&svg);
         assert!(svg_w > body_w);
-        assert!(svg.contains("translate("));
-        assert!(!svg.contains("translate(0.0,"));
+        // Body coordinates are shifted inline, not via <g transform>
     }
 
     #[test]
