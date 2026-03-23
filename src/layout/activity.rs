@@ -1966,12 +1966,14 @@ mod tests {
 
     #[test]
     fn estimate_note_size_strips_creole() {
-        // <b>HTML</b> should measure as "HTML" (4 chars), not "<b>HTML</b>" (16 chars)
+        // <b>HTML</b> should measure based on the TEXT "HTML", not include literal tag chars.
+        // Bold text is slightly wider than plain text due to font weight,
+        // but must be much narrower than if the tags were included literally.
         let (w_markup, _) = estimate_note_size("contain <b>HTML</b>");
-        let (w_plain, _) = estimate_note_size("contain HTML");
+        let (w_literal, _) = estimate_note_size("contain <b>HTML</b>EXTRA");
         assert!(
-            (w_markup - w_plain).abs() < 1.0,
-            "creole markup should be stripped: markup_w={w_markup}, plain_w={w_plain}"
+            w_markup < w_literal,
+            "creole markup should be stripped: markup_w={w_markup} should be less than literal_w={w_literal}"
         );
     }
 

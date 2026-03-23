@@ -200,19 +200,27 @@ pub fn creole_text_width(text: &str, default_font: &str, font_size: f64, bold: b
         let plain = plain_text_spans(spans);
         return font_metrics::text_width(&plain, default_font, font_size, bold, italic);
     }
-    // Font-family changes: measure each run in its own font, plus space gaps
+    // Styled text: measure each run with its own font/style
     let runs = flatten_to_runs(spans);
     let mut total = 0.0;
     let mut first = true;
     for run in &runs {
         let text = if !first { run.text.trim_start() } else { run.text.as_str() };
-        if text.is_empty() { continue; }
+        if text.is_empty() { first = false; continue; }
         // Add space gap if we trimmed leading whitespace
         if !first && text.len() < run.text.len() {
-            total += font_metrics::text_width(" ", default_font, font_size, false, false);
+            let n_spaces = run.text.len() - text.len();
+            total += font_metrics::text_width(" ", default_font, font_size, false, false) * n_spaces as f64;
         }
         let run_font = run.font_family.as_deref().unwrap_or(default_font);
-        total += font_metrics::text_width(text, run_font, font_size, bold, italic);
+        let run_bold = run.bold || bold;
+        let run_italic = run.italic || italic;
+        let run_size = match run.font_size_override {
+            Some(v) if v == -1.0 || v == -2.0 => (font_size * 0.77).round(),
+            Some(v) if v > 0.0 => v,
+            _ => font_size,
+        };
+        total += font_metrics::text_width(text, run_font, run_size, run_bold, run_italic);
         first = false;
     }
     total
