@@ -251,9 +251,13 @@ impl TeozParams {
 
 		// Java: ComponentRoseParticipant(style, stereo, NONE, 7, 7, 7, skinParam, display, false)
 		// marginX1=7, marginX2=7, marginY=7
+		// preferred_height = getTextHeight() + 1 = (lineHeight + 2*7) + 1 = 31.2969
+		// But the DRAWN rect height = getTextHeight() = 30.2969 (no +1).
+		// We use text_height (30.2969) as box_height for rendering consistency with puma.
 		let part_tm = TextMetrics::new(7.0, 7.0, 7.0, 0.0, h14);
-		let participant_height =
+		let participant_preferred_h =
 			rose::participant_preferred_size(&part_tm, 0.0, false, 0.0, 0.0).height;
+		let participant_height = participant_preferred_h - 1.0; // text_height only (drawn rect)
 
 		let frag_header_height = h13 + 2.0;
 
@@ -733,7 +737,9 @@ pub fn build_teoz_layout(
 	// ── Step 6: Assign Y positions (fillPositionelTiles) ─────────────────
 	// Simple linear walk: y starts at the participant box bottom + starting_y.
 	let max_box_height = box_heights.iter().copied().fold(0.0_f64, f64::max);
-	let mut y = STARTING_Y + max_box_height;
+	// Java layout uses preferred height (= drawn + 1) for lifeline start
+	let max_preferred_height = max_box_height + 1.0;
+	let mut y = STARTING_Y + max_preferred_height;
 	for tile in tiles.iter_mut() {
 		tile.set_y(y);
 		y += tile.preferred_height();
@@ -1073,7 +1079,7 @@ pub fn build_teoz_layout(
 	let show_footbox = !sd.hide_footbox;
 	let factor = if show_footbox { 2 } else { 1 };
 	let total_height =
-		lifeline_bottom + (factor - 1) as f64 * max_box_height + 30.0;
+		lifeline_bottom + (factor - 1) as f64 * max_preferred_height + 30.0;
 
 	Ok(SeqLayout {
 		participants: part_layouts,
@@ -1088,7 +1094,7 @@ pub fn build_teoz_layout(
 		refs,
 		autonumber_enabled,
 		autonumber_start,
-		lifeline_top: STARTING_Y + max_box_height,
+		lifeline_top: STARTING_Y + max_preferred_height,
 		lifeline_bottom,
 		total_width,
 		total_height,
