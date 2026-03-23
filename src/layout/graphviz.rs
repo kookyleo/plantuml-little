@@ -112,6 +112,10 @@ pub struct GraphLayout {
     /// Java: `minMax.getDimension()` from `SvekResult.calculateDimension()`.
     /// Used for viewport calculation: `SVG_size = (int)(span + DELTA(15) + DOC_MARGIN(5) + 1)`.
     pub lf_span: (f64, f64),
+    /// Normalization offset: the min (x, y) subtracted during origin normalization.
+    /// Used to align label_xy (which is pre-moveDelta, pre-normalization) with
+    /// path/node coordinates (which are post-moveDelta, post-normalization).
+    pub normalize_offset: (f64, f64),
 }
 
 /// AbstractEntityDiagram.java:61 — default nodesep = 0.35 inches.
@@ -399,7 +403,13 @@ pub fn layout_with_svek(graph: &LayoutGraph) -> Result<GraphLayout, Error> {
     let total_width = max_x - min_x;
     let total_height = max_y - min_y;
 
-    // debug removed
+    let normalize_offset = (min_x, min_y);
+    log::debug!("layout_with_svek normalize: min=({:.2},{:.2}) max=({:.2},{:.2})", min_x, min_y, max_x, max_y);
+    for e in &edges_out {
+        if let Some(ref lxy) = e.label_xy {
+            log::debug!("  edge label_xy before normalize: ({:.2},{:.2})", lxy.0, lxy.1);
+        }
+    }
 
     // Normalize to origin: shift so top-left entity corner is at (0, 0)
     for n in &mut nodes_out {
@@ -428,6 +438,7 @@ pub fn layout_with_svek(graph: &LayoutGraph) -> Result<GraphLayout, Error> {
         total_height,
         move_delta,
         lf_span,
+        normalize_offset,
     })
 }
 
@@ -564,6 +575,7 @@ fn parse_svg_output(svg: &str, graph: &LayoutGraph) -> Result<GraphLayout, Error
         total_height,
         move_delta: (0.0, 0.0),
         lf_span: (total_width, total_height),
+        normalize_offset: (0.0, 0.0),
     })
 }
 

@@ -420,28 +420,49 @@ impl BoundsTracker {
     }
 
     fn add_point(&mut self, x: f64, y: f64) {
+        log::trace!("BoundsTracker.addPoint({:.4}, {:.4})", x, y);
         if x < self.min_x { self.min_x = x; }
         if y < self.min_y { self.min_y = y; }
         if x > self.max_x { self.max_x = x; }
         if y > self.max_y { self.max_y = y; }
     }
 
-    /// Java LimitFinder.drawRectangle: (x-1, y-1) to (x+w-1, y+h-1)
+    /// Java LimitFinder.drawRectangle: (x-1, y-1) to (x+w-1+shadow*2, y+h-1+shadow*2)
     pub fn track_rect(&mut self, x: f64, y: f64, w: f64, h: f64) {
+        self.track_rect_shadow(x, y, w, h, 0.0);
+    }
+
+    /// Java LimitFinder.drawRectangle with delta shadow
+    pub fn track_rect_shadow(&mut self, x: f64, y: f64, w: f64, h: f64, shadow: f64) {
+        log::trace!("BoundsTracker.drawRect x={:.2} y={:.2} w={:.2} h={:.2} shadow={:.2}", x, y, w, h, shadow);
         self.add_point(x - 1.0, y - 1.0);
-        self.add_point(x + w - 1.0, y + h - 1.0);
+        self.add_point(x + w - 1.0 + shadow * 2.0, y + h - 1.0 + shadow * 2.0);
     }
 
     /// Java LimitFinder.drawEmpty: (x, y) to (x+w, y+h) — NO -1 adjustment
     pub fn track_empty(&mut self, x: f64, y: f64, w: f64, h: f64) {
+        log::trace!("BoundsTracker.drawEmpty x={:.2} y={:.2} w={:.2} h={:.2}", x, y, w, h);
         self.add_point(x, y);
         self.add_point(x + w, y + h);
     }
 
-    /// Java LimitFinder.drawEllipse: (cx-rx, cy-ry) to (cx+rx-1, cy+ry-1)
+    /// Java LimitFinder.drawEllipse: (x, y) to (x+w-1+shadow*2, y+h-1+shadow*2)
+    /// where x,y is top-left of bounding box
     pub fn track_ellipse(&mut self, cx: f64, cy: f64, rx: f64, ry: f64) {
-        self.add_point(cx - rx, cy - ry);
-        self.add_point(cx + rx - 1.0, cy + ry - 1.0);
+        self.track_ellipse_shadow(cx, cy, rx, ry, 0.0);
+    }
+
+    /// Java LimitFinder.drawEllipse with delta shadow
+    pub fn track_ellipse_shadow(&mut self, cx: f64, cy: f64, rx: f64, ry: f64, shadow: f64) {
+        // Java draws UEllipse at translate position (x, y) with width=2*rx, height=2*ry
+        // LimitFinder.drawEllipse(x, y, ellipse): addPoint(x, y), addPoint(x+w-1+s*2, y+h-1+s*2)
+        let x = cx - rx;
+        let y = cy - ry;
+        let w = 2.0 * rx;
+        let h = 2.0 * ry;
+        log::trace!("BoundsTracker.drawEllipse x={:.2} y={:.2} w={:.2} h={:.2} shadow={:.2}", x, y, w, h, shadow);
+        self.add_point(x, y);
+        self.add_point(x + w - 1.0 + shadow * 2.0, y + h - 1.0 + shadow * 2.0);
     }
 
     /// Java LimitFinder.drawUPolygon: HACK_X_FOR_POLYGON = 10
@@ -453,18 +474,21 @@ impl BoundsTracker {
         let max_x = points.iter().map(|p| p.0).fold(f64::NEG_INFINITY, f64::max);
         let min_y = points.iter().map(|p| p.1).fold(f64::INFINITY, f64::min);
         let max_y = points.iter().map(|p| p.1).fold(f64::NEG_INFINITY, f64::max);
+        log::trace!("BoundsTracker.drawPolygon minX={:.2} maxX={:.2} minY={:.2} maxY={:.2}", min_x, max_x, min_y, max_y);
         self.add_point(min_x - 10.0, min_y);
         self.add_point(max_x + 10.0, max_y);
     }
 
     /// Java LimitFinder.drawULine
     pub fn track_line(&mut self, x1: f64, y1: f64, x2: f64, y2: f64) {
+        log::trace!("BoundsTracker.drawLine ({:.2},{:.2})-({:.2},{:.2})", x1, y1, x2, y2);
         self.add_point(x1, y1);
         self.add_point(x2, y2);
     }
 
-    /// Java LimitFinder.drawUPath — just adds path bounding box
+    /// Java LimitFinder.drawDotPath — path bounding box
     pub fn track_path_bounds(&mut self, min_x: f64, min_y: f64, max_x: f64, max_y: f64) {
+        log::trace!("BoundsTracker.drawDotPath min=({:.2},{:.2}) max=({:.2},{:.2})", min_x, min_y, max_x, max_y);
         self.add_point(min_x, min_y);
         self.add_point(max_x, max_y);
     }
@@ -475,7 +499,10 @@ impl BoundsTracker {
     ///   i.e. (x, y-h+1.5) to (x+w, y+1.5)
     pub fn track_text(&mut self, x: f64, y: f64, text_width: f64, text_height: f64) {
         let y_adj = y - text_height + 1.5;
+        log::trace!("BoundsTracker.drawText x={:.4} y={:.4} w={:.4} h={:.4} y_adj={:.4}", x, y, text_width, text_height, y_adj);
         self.add_point(x, y_adj);
+        self.add_point(x, y_adj + text_height);
+        self.add_point(x + text_width, y_adj);
         self.add_point(x + text_width, y_adj + text_height);
     }
 
@@ -483,6 +510,9 @@ impl BoundsTracker {
     /// to compute final SVG dimensions matching Java's ensureVisible.
     pub fn span(&self) -> (f64, f64) {
         if self.max_x.is_finite() && self.min_x.is_finite() {
+            log::trace!("BoundsTracker.span: min=({:.4},{:.4}) max=({:.4},{:.4}) span=({:.4},{:.4})",
+                self.min_x, self.min_y, self.max_x, self.max_y,
+                self.max_x - self.min_x, self.max_y - self.min_y);
             (self.max_x - self.min_x, self.max_y - self.min_y)
         } else {
             (0.0, 0.0)
@@ -2201,6 +2231,9 @@ fn draw_edge(sg: &mut SvgGraphic, tracker: &mut BoundsTracker, link: &Link, el: 
         // Java: label positioned at labelXY from Graphviz, not edge midpoint.
         // labelXY is top-left of the label area. Text center is offset by
         // wh.h/2 - 4 (SheetBlock internal top margin of 4px).
+        // Java: label positioned at labelXY from Graphviz, not edge midpoint.
+        // labelXY is top-left of the label area. Text center is offset by
+        // wh.h/2 - 4 (SheetBlock internal top margin of 4px).
         let label_y = if let (Some((_, ly)), Some((_, wh))) = (el.label_xy, el.label_wh) {
             ly + edge_offset_y + wh / 2.0 - 4.0
         } else {
@@ -2873,7 +2906,7 @@ mod tests {
             }],
             notes: vec![],
             total_width: 240.0,
-            total_height: 220.0, move_delta: (7.0, 7.0), lf_span: (240.0, 220.0),
+            total_height: 220.0, move_delta: (7.0, 7.0), normalize_offset: (0.0, 0.0), lf_span: (240.0, 220.0),
         };
         (Diagram::Class(cd), DiagramLayout::Class(gl))
     }
@@ -2962,7 +2995,7 @@ mod tests {
             edges: vec![],
             notes: vec![],
             total_width: 200.0,
-            total_height: 100.0, move_delta: (7.0, 7.0), lf_span: (200.0, 100.0),
+            total_height: 100.0, move_delta: (7.0, 7.0), normalize_offset: (0.0, 0.0), lf_span: (200.0, 100.0),
         };
         let svg = render(
             &Diagram::Class(cd),
@@ -3000,7 +3033,7 @@ mod tests {
             edges: vec![],
             notes: vec![],
             total_width: 200.0,
-            total_height: 100.0, move_delta: (7.0, 7.0), lf_span: (200.0, 100.0),
+            total_height: 100.0, move_delta: (7.0, 7.0), normalize_offset: (0.0, 0.0), lf_span: (200.0, 100.0),
         };
         let svg = render(
             &Diagram::Class(cd),
@@ -3273,7 +3306,7 @@ mod tests {
                 connector: Some((180.0, 50.0, 160.0, 50.0)),
             }],
             total_width: 300.0,
-            total_height: 120.0, move_delta: (7.0, 7.0), lf_span: (200.0, 100.0),
+            total_height: 120.0, move_delta: (7.0, 7.0), normalize_offset: (0.0, 0.0), lf_span: (200.0, 100.0),
         };
         let svg = render(
             &Diagram::Class(cd),
@@ -3318,7 +3351,7 @@ mod tests {
                 connector: None,
             }],
             total_width: 100.0,
-            total_height: 60.0, move_delta: (7.0, 7.0), lf_span: (200.0, 100.0),
+            total_height: 60.0, move_delta: (7.0, 7.0), normalize_offset: (0.0, 0.0), lf_span: (200.0, 100.0),
         };
         let svg = render(
             &Diagram::Class(cd),

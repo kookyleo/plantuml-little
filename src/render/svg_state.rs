@@ -474,17 +474,31 @@ fn render_transition(sg: &mut SvgGraphic, tracker: &mut BoundsTracker, transitio
         } else {
             return;
         };
+        // Java: TextBlock is drawn at (labelXY.x + shield, labelXY.y + shield).
+        // Text is at +1 x-offset, baseline at +margin + ascent.
+        // The label_xy we receive is the TABLE polygon min_xy + MARGIN offset.
+        let margin_label = 1.0;
+        let text_x = lx + margin_label;
+        let text_h = font_metrics::line_height("SansSerif", FONT_SIZE, false, false);
+        let text_asc = font_metrics::ascent("SansSerif", FONT_SIZE, false, false);
+        let text_y = ly + margin_label + text_asc;
         sg.set_fill_color(TEXT_COLOR);
         sg.svg_text(
-            &transition.label, lx, ly,
+            &transition.label, text_x, text_y,
             Some("sans-serif"), FONT_SIZE,
             None, None, None,
             tl, LengthAdjust::Spacing,
             None, 0, None,
         );
-        // Java LimitFinder.drawText
-        let label_text_h = font_metrics::line_height("SansSerif", FONT_SIZE, false, false);
-        tracker.track_text(lx, ly, tl, label_text_h);
+        // Java LimitFinder tracks:
+        // 1. UEmpty for the label block: addPoint(x, y), addPoint(x+w, y+h)
+        // 2. UText inside the block: addPoint(x, y-h+1.5), addPoint(x+w, y+1.5)
+        // We track both for accurate viewport computation.
+        if let Some((bw, bh)) = transition.label_wh {
+            // Track label block as drawEmpty (matches Java SvekEdge label positioning)
+            tracker.track_empty(lx, ly, bw, bh);
+        }
+        tracker.track_text(text_x, text_y, tl, text_h);
     }
 
     // Close <g>
@@ -736,7 +750,7 @@ mod tests {
         layout.transition_layouts.push(TransitionLayout {
             from_id: "A".to_string(), to_id: "B".to_string(), label: String::new(),
             points: vec![(100.0, 50.0), (100.0, 120.0)],
-            raw_path_d: None, arrow_polygon: None, label_xy: None,
+            raw_path_d: None, arrow_polygon: None, label_xy: None, label_wh: None,
         });
         let (svg, _) = render_state(&diagram, &layout, &SkinParams::default()).expect("render failed");
         assert!(svg.contains("<polygon"), "transition must have inline polygon arrowhead");
@@ -752,7 +766,7 @@ mod tests {
         layout.transition_layouts.push(TransitionLayout {
             from_id: "Idle".to_string(), to_id: "Active".to_string(), label: "start".to_string(),
             points: vec![(80.0, 40.0), (80.0, 100.0)],
-            raw_path_d: None, arrow_polygon: None, label_xy: None,
+            raw_path_d: None, arrow_polygon: None, label_xy: None, label_wh: None,
         });
         let (svg, _) = render_state(&diagram, &layout, &SkinParams::default()).expect("render failed");
         assert!(svg.contains("start"), "transition label must appear in SVG");
@@ -766,7 +780,7 @@ mod tests {
         layout.transition_layouts.push(TransitionLayout {
             from_id: "A".to_string(), to_id: "B".to_string(), label: String::new(),
             points: vec![(50.0, 20.0), (50.0, 50.0), (100.0, 50.0), (100.0, 80.0)],
-            raw_path_d: None, arrow_polygon: None, label_xy: None,
+            raw_path_d: None, arrow_polygon: None, label_xy: None, label_wh: None,
         });
         let (svg, _) = render_state(&diagram, &layout, &SkinParams::default()).expect("render failed");
         assert!(svg.contains("<path"), "multi-point transition must use <path>");
@@ -822,12 +836,12 @@ mod tests {
         layout.transition_layouts.push(TransitionLayout {
             from_id: "[*]_initial".to_string(), to_id: "Running".to_string(), label: String::new(),
             points: vec![(190.0, 30.0), (190.0, 50.0)],
-            raw_path_d: None, arrow_polygon: None, label_xy: None,
+            raw_path_d: None, arrow_polygon: None, label_xy: None, label_wh: None,
         });
         layout.transition_layouts.push(TransitionLayout {
             from_id: "Running".to_string(), to_id: "[*]_final".to_string(), label: "done".to_string(),
             points: vec![(190.0, 90.0), (190.0, 120.0)],
-            raw_path_d: None, arrow_polygon: None, label_xy: None,
+            raw_path_d: None, arrow_polygon: None, label_xy: None, label_wh: None,
         });
         let (svg, raw_dim) = render_state(&diagram, &layout, &SkinParams::default()).expect("render failed");
         assert!(svg.starts_with("<svg"), "SVG must start with <svg");
@@ -849,7 +863,7 @@ mod tests {
         let mut layout = empty_layout();
         layout.transition_layouts.push(TransitionLayout {
             from_id: "A".to_string(), to_id: "B".to_string(), label: "skip".to_string(), points: vec![],
-            raw_path_d: None, arrow_polygon: None, label_xy: None,
+            raw_path_d: None, arrow_polygon: None, label_xy: None, label_wh: None,
         });
         let (svg, _) = render_state(&diagram, &layout, &SkinParams::default()).expect("render failed");
         assert!(!svg.contains("<path"), "empty points should not produce a path");

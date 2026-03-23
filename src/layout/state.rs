@@ -63,6 +63,8 @@ pub struct TransitionLayout {
     pub arrow_polygon: Option<Vec<(f64, f64)>>,
     /// Label position (x, y) from Graphviz edge label placement.
     pub label_xy: Option<(f64, f64)>,
+    /// Label block dimension (width, height) for LimitFinder-style empty tracking.
+    pub label_wh: Option<(f64, f64)>,
 }
 
 /// A positioned note.
@@ -1035,6 +1037,7 @@ fn layout_transitions(
             raw_path_d: None,
             arrow_polygon: None,
             label_xy: None,
+            label_wh: None,
         });
     }
 
@@ -1238,8 +1241,16 @@ pub fn layout_state(diagram: &StateDiagram) -> Result<StateLayout> {
         let arrow_polygon = gv_edge.arrow_polygon_points.as_ref()
             .map(|pts| pts.iter().map(|&(x, y)| (x + MARGIN, y + margin_y)).collect());
 
+        // label_xy from GraphLayout is pre-moveDelta, pre-normalization.
+        // Apply moveDelta + normalization + MARGIN to match path/node coords.
         let label_xy = gv_edge.label_xy
-            .map(|(x, y)| (x + MARGIN, y + margin_y));
+            .map(|(x, y)| {
+                let nx = x + gv_layout.move_delta.0 - gv_layout.normalize_offset.0 + MARGIN;
+                let ny = y + gv_layout.move_delta.1 - gv_layout.normalize_offset.1 + margin_y;
+                (nx, ny)
+            });
+
+        let label_wh = gv_edge.label_wh;
 
         transition_layouts.push(TransitionLayout {
             from_id,
@@ -1249,6 +1260,7 @@ pub fn layout_state(diagram: &StateDiagram) -> Result<StateLayout> {
             raw_path_d,
             arrow_polygon,
             label_xy,
+            label_wh,
         });
     }
 
@@ -1258,9 +1270,11 @@ pub fn layout_state(diagram: &StateDiagram) -> Result<StateLayout> {
     for edge in &gv_layout.edges {
         if let Some(ref label) = edge.label {
             if let Some((lx, _ly)) = edge.label_xy {
+                // lx is pre-moveDelta, pre-normalization. Transform to post-normalization space.
+                let lx_norm = lx + gv_layout.move_delta.0 - gv_layout.normalize_offset.0;
                 let tl = crate::font_metrics::text_width(label, "SansSerif", 13.0, false, false);
-                let label_right = lx + tl;
-                log::debug!("  edge label '{}': lx={:.1} tl={:.2} right={:.2}, content_width={:.1}", label, lx, tl, label_right, content_width);
+                let label_right = lx_norm + tl;
+                log::debug!("  edge label '{}': lx={:.1} tl={:.2} right={:.2}, content_width={:.1}", label, lx_norm, tl, label_right, content_width);
                 if label_right > content_width {
                     content_width = label_right;
                 }
