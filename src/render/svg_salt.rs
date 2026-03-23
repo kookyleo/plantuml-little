@@ -2,7 +2,7 @@ use crate::font_metrics;
 use crate::klimt::svg::{fmt_coord, LengthAdjust, SvgGraphic};
 use crate::layout::salt::{LayoutBox, SaltLayout, SaltWidgetLayout};
 use crate::model::salt::SaltDiagram;
-use crate::render::svg::{write_bg_rect, write_svg_root_bg_opt};
+use crate::render::svg::{write_bg_rect, write_svg_root_bg_opt, ensure_visible_int};
 use crate::style::SkinParams;
 use crate::Result;
 
@@ -16,9 +16,11 @@ pub fn render_salt(
 ) -> Result<String> {
     let mut buf = String::with_capacity(4096);
     let bg = skin.get_or("backgroundcolor", "#FFFFFF");
-    write_svg_root_bg_opt(&mut buf, layout.width, layout.height, Some("SALT"), bg);
+    let svg_w = ensure_visible_int(layout.width) as f64;
+    let svg_h = ensure_visible_int(layout.height) as f64;
+    write_svg_root_bg_opt(&mut buf, svg_w, svg_h, Some("SALT"), bg);
     buf.push_str("<defs/><g>");
-    write_bg_rect(&mut buf, layout.width, layout.height, bg);
+    write_bg_rect(&mut buf, svg_w, svg_h, bg);
 
     let mut sg = SvgGraphic::new(0, 1.0);
 

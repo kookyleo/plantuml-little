@@ -2,7 +2,7 @@ use crate::font_metrics;
 use crate::klimt::svg::{fmt_coord, LengthAdjust, SvgGraphic};
 use crate::layout::gantt::{GanttBarLayout, GanttDepLayout, GanttLayout, GanttNoteLayout, GanttTimeAxis};
 use crate::model::gantt::GanttDiagram;
-use crate::render::svg::{write_svg_root_bg, write_bg_rect};
+use crate::render::svg::{write_svg_root_bg, write_bg_rect, ensure_visible_int};
 use crate::render::svg_richtext::render_creole_text;
 use crate::style::SkinParams;
 use crate::Result;
@@ -19,9 +19,11 @@ use crate::skin::rose::{NOTE_BG, NOTE_BORDER, NOTE_FOLD, TEXT_COLOR};
 pub fn render_gantt(_diagram: &GanttDiagram, layout: &GanttLayout, skin: &SkinParams) -> Result<String> {
     let mut buf = String::with_capacity(4096);
     let bg = skin.get_or("backgroundcolor", "#FFFFFF");
-    write_svg_root_bg(&mut buf, layout.width, layout.height, "GANTT", bg);
+    let svg_w = ensure_visible_int(layout.width) as f64;
+    let svg_h = ensure_visible_int(layout.height) as f64;
+    write_svg_root_bg(&mut buf, svg_w, svg_h, "GANTT", bg);
     buf.push_str("<defs/><g>");
-    write_bg_rect(&mut buf, layout.width, layout.height, bg);
+    write_bg_rect(&mut buf, svg_w, svg_h, bg);
 
     let mut sg = SvgGraphic::new(0, 1.0);
     render_grid(&mut sg, layout);
@@ -127,7 +129,7 @@ mod tests {
     #[test] fn test_dependency_polyline() { let mut l = empty_layout(); l.dependencies.push(GanttDepLayout { from: "A".into(), to: "B".into(), points: vec![(100.0, 60.0), (150.0, 60.0), (150.0, 90.0), (200.0, 90.0)] }); let svg = render_gantt(&empty_model(), &l, &SkinParams::default()).unwrap(); assert!(svg.contains("<polyline")); assert!(svg.contains("<polygon")); }
     #[test] fn test_empty_dependency_points() { let mut l = empty_layout(); l.dependencies.push(GanttDepLayout { from: "A".into(), to: "B".into(), points: vec![] }); let svg = render_gantt(&empty_model(), &l, &SkinParams::default()).unwrap(); assert!(!svg.contains("<line x1=")); assert!(!svg.contains("<polyline")); }
     #[test] fn test_label_position() { let mut l = empty_layout(); l.bars.push(make_bar("T", "My Task", 200.0, 50.0, 100.0)); let svg = render_gantt(&empty_model(), &l, &SkinParams::default()).unwrap(); assert!(svg.contains(r#"text-anchor="end""#)); assert!(svg.contains("My Task")); }
-    #[test] fn test_svg_dimensions() { let mut l = empty_layout(); l.width = 600.0; l.height = 300.0; let svg = render_gantt(&empty_model(), &l, &SkinParams::default()).unwrap(); assert!(svg.contains(r#"width="600px""#)); assert!(svg.contains(r#"height="300px""#)); assert!(svg.contains(r#"viewBox="0 0 600 300""#)); }
+    #[test] fn test_svg_dimensions() { let mut l = empty_layout(); l.width = 600.0; l.height = 300.0; let svg = render_gantt(&empty_model(), &l, &SkinParams::default()).unwrap(); assert!(svg.contains(r#"width="601px""#)); assert!(svg.contains(r#"height="301px""#)); assert!(svg.contains(r#"viewBox="0 0 601 301""#)); }
     #[test] fn test_xml_escaping() { let mut l = empty_layout(); l.bars.push(make_bar("T", "A & B < C", 200.0, 50.0, 100.0)); let svg = render_gantt(&empty_model(), &l, &SkinParams::default()).unwrap(); assert!(svg.contains("A &amp; B &lt; C")); }
     #[test] fn test_full_chart() { let mut l = empty_layout(); l.width = 500.0; l.height = 200.0; l.bars.push(make_bar("A", "Design", 200.0, 50.0, 100.0)); l.bars.push(make_bar("B", "Build", 300.0, 80.0, 60.0)); l.time_axis.labels.push(GanttTimeLabel { text: "D1".into(), x: 200.0 }); l.dependencies.push(GanttDepLayout { from: "A".into(), to: "B".into(), points: vec![(300.0, 60.0), (300.0, 90.0)] }); let svg = render_gantt(&empty_model(), &l, &SkinParams::default()).unwrap(); assert!(svg.starts_with("<svg")); assert!(svg.contains("</svg>")); assert_eq!(svg.matches("<rect").count(), 2); assert!(svg.contains("Design")); assert!(svg.contains("Build")); assert!(svg.contains("D1")); assert!(svg.matches("<polygon").count() >= 1); }
     #[test] fn test_bar_rounded_corners() { let mut l = empty_layout(); l.bars.push(make_bar("T", "Task", 200.0, 50.0, 100.0)); let svg = render_gantt(&empty_model(), &l, &SkinParams::default()).unwrap(); assert!(svg.contains(r#"rx="3""#)); assert!(svg.contains(r#"ry="3""#)); }

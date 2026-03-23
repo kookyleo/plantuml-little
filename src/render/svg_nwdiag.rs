@@ -3,7 +3,7 @@ use crate::layout::nwdiag::{
     NwdiagConnectorLayout, NwdiagLayout, NwdiagNetworkLayout, NwdiagServerLayout,
 };
 use crate::model::nwdiag::NwdiagDiagram;
-use crate::render::svg::{write_svg_root_bg, write_bg_rect};
+use crate::render::svg::{write_svg_root_bg, write_bg_rect, ensure_visible_int};
 use crate::render::svg_richtext::render_creole_text;
 use crate::style::SkinParams;
 use crate::Result;
@@ -21,9 +21,11 @@ pub fn render_nwdiag(
     let mut buf = String::with_capacity(4096);
 
     let bg = skin.get_or("backgroundcolor", "#FFFFFF");
-    write_svg_root_bg(&mut buf, layout.width, layout.height, "NWDIAG", bg);
+    let svg_w = ensure_visible_int(layout.width) as f64;
+    let svg_h = ensure_visible_int(layout.height) as f64;
+    write_svg_root_bg(&mut buf, svg_w, svg_h, "NWDIAG", bg);
     buf.push_str("<defs/><g>");
-    write_bg_rect(&mut buf, layout.width, layout.height, bg);
+    write_bg_rect(&mut buf, svg_w, svg_h, bg);
 
     let mut sg = SvgGraphic::new(0, 1.0);
 

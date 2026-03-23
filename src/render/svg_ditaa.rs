@@ -3,7 +3,7 @@ use std::fmt::Write;
 use crate::klimt::svg::{fmt_coord, SvgGraphic};
 use crate::layout::ditaa::{DitaaBox, DitaaLayout, DitaaLine, DitaaText};
 use crate::model::ditaa::DitaaDiagram;
-use crate::render::svg::{write_svg_root_bg, write_bg_rect};
+use crate::render::svg::{write_svg_root_bg, write_bg_rect, ensure_visible_int};
 use crate::render::svg_richtext::{count_creole_lines, render_creole_text};
 use crate::style::SkinParams;
 use crate::Result;
@@ -27,9 +27,11 @@ pub fn render_ditaa(
     let background = skin.background_color("ditaabg", ACTIVATION_BG);
 
     let bg = skin.get_or("backgroundcolor", "#FFFFFF");
-    write_svg_root_bg(&mut buf, layout.width, layout.height, "DITAA", bg);
+    let svg_w = ensure_visible_int(layout.width) as f64;
+    let svg_h = ensure_visible_int(layout.height) as f64;
+    write_svg_root_bg(&mut buf, svg_w, svg_h, "DITAA", bg);
     buf.push_str("<defs/><g>");
-    write_bg_rect(&mut buf, layout.width, layout.height, bg);
+    write_bg_rect(&mut buf, svg_w, svg_h, bg);
     write!(
         buf,
         r#"<defs><marker id="ditaa-arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto-start-reverse"><path d="M0,0 L8,4 L0,8 Z " fill="{border}"/></marker></defs>"#

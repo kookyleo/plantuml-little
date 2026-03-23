@@ -4,7 +4,7 @@ use crate::layout::usecase::{
     ActorLayout, BoundaryLayout, UseCaseEdgeLayout, UseCaseLayout, UseCaseNodeLayout,
 };
 use crate::model::usecase::UseCaseDiagram;
-use crate::render::svg::{write_svg_root_bg, write_bg_rect};
+use crate::render::svg::{write_svg_root_bg, write_bg_rect, ensure_visible_int};
 use crate::style::SkinParams;
 use crate::Result;
 
@@ -53,15 +53,17 @@ pub fn render_usecase(
     let arrow_color = skin.arrow_color(BORDER_COLOR);
 
     let bg = skin.get_or("backgroundcolor", "#FFFFFF");
+    let svg_w = ensure_visible_int(layout.total_width) as f64;
+    let svg_h = ensure_visible_int(layout.total_height) as f64;
     write_svg_root_bg(
         &mut buf,
-        layout.total_width,
-        layout.total_height,
+        svg_w,
+        svg_h,
         "DESCRIPTION",
         bg,
     );
     buf.push_str("<defs/><g>");
-    write_bg_rect(&mut buf, layout.total_width, layout.total_height, bg);
+    write_bg_rect(&mut buf, svg_w, svg_h, bg);
 
     let mut sg = SvgGraphic::new(0, 1.0);
 
@@ -332,9 +334,9 @@ mod tests {
         layout.total_width = 600.0;
         layout.total_height = 400.0;
         let svg = render_usecase(&diagram, &layout, &SkinParams::default()).expect("render failed");
-        assert!(svg.contains(r#"width="600px""#), "width must match");
-        assert!(svg.contains(r#"height="400px""#), "height must match");
-        assert!(svg.contains(r#"viewBox="0 0 600 400""#), "viewBox must match");
+        assert!(svg.contains(r#"width="601px""#), "width uses ensure_visible_int(600)=601");
+        assert!(svg.contains(r#"height="401px""#), "height uses ensure_visible_int(400)=401");
+        assert!(svg.contains(r#"viewBox="0 0 601 401""#), "viewBox uses ensure_visible_int");
     }
 
     #[test]

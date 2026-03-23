@@ -5,7 +5,7 @@ use crate::font_metrics;
 use crate::klimt::svg::{fmt_coord, xml_escape, LengthAdjust, SvgGraphic};
 use crate::layout::wbs::{WbsEdgeLayout, WbsLayout, WbsNodeLayout, WbsNoteLayout};
 use crate::model::wbs::WbsDiagram;
-use crate::render::svg::{write_bg_rect, write_svg_root_bg};
+use crate::render::svg::{write_bg_rect, write_svg_root_bg, ensure_visible_int};
 use crate::skin::rose::{BORDER_COLOR, ENTITY_BG, NOTE_BG, NOTE_BORDER, NOTE_FOLD, TEXT_COLOR};
 use crate::style::SkinParams;
 use crate::Result;
@@ -20,9 +20,11 @@ pub fn render_wbs(_wd: &WbsDiagram, layout: &WbsLayout, skin: &SkinParams) -> Re
     let mut buf = String::with_capacity(4096);
 
     let bg = skin.get_or("backgroundcolor", "#FFFFFF");
-    write_svg_root_bg(&mut buf, layout.width, layout.height, "WBS", bg);
+    let svg_w = ensure_visible_int(layout.width) as f64;
+    let svg_h = ensure_visible_int(layout.height) as f64;
+    write_svg_root_bg(&mut buf, svg_w, svg_h, "WBS", bg);
     buf.push_str("<defs/><g>");
-    write_bg_rect(&mut buf, layout.width, layout.height, bg);
+    write_bg_rect(&mut buf, svg_w, svg_h, bg);
 
     let wbs_bg = skin.background_color("wbs", ENTITY_BG);
     let wbs_border = skin.border_color("wbs", BORDER_COLOR);

@@ -1,4 +1,4 @@
-use super::svg::{write_svg_root_bg, write_bg_rect};
+use super::svg::{write_svg_root_bg, write_bg_rect, ensure_visible_int};
 use crate::klimt::svg::{fmt_coord, SvgGraphic};
 use crate::layout::mindmap::{
     MindmapEdgeLayout, MindmapLayout, MindmapNodeLayout, MindmapNoteLayout,
@@ -27,9 +27,11 @@ pub fn render_mindmap(
     let mut buf = String::with_capacity(4096);
 
     let bg = skin.get_or("backgroundcolor", "#FFFFFF");
-    write_svg_root_bg(&mut buf, layout.width, layout.height, "MINDMAP", bg);
+    let svg_w = ensure_visible_int(layout.width) as f64;
+    let svg_h = ensure_visible_int(layout.height) as f64;
+    write_svg_root_bg(&mut buf, svg_w, svg_h, "MINDMAP", bg);
     buf.push_str("<defs/><g>");
-    write_bg_rect(&mut buf, layout.width, layout.height, bg);
+    write_bg_rect(&mut buf, svg_w, svg_h, bg);
 
     let mm_bg = skin.background_color("mindmap", ENTITY_BG);
     let mm_border = skin.border_color("mindmap", BORDER_COLOR);
@@ -192,7 +194,7 @@ mod tests {
         assert!(svg.contains("<svg")); assert!(svg.contains("</svg>")); assert_eq!(svg.matches("<path").count(), 0);
     }
 
-    #[test] fn render_viewbox_matches_dimensions() { let (d, l) = simple_layout(); let svg = render_mindmap(&d, &l, &SkinParams::default()).unwrap(); assert!(svg.contains("viewBox=\"0 0 320 120\"")); assert!(svg.contains("width=\"320px\"")); assert!(svg.contains("height=\"120px\"")); }
+    #[test] fn render_viewbox_matches_dimensions() { let (d, l) = simple_layout(); let svg = render_mindmap(&d, &l, &SkinParams::default()).unwrap(); assert!(svg.contains("viewBox=\"0 0 321 121\""), "viewBox uses ensure_visible_int"); assert!(svg.contains("width=\"321px\""), "width uses ensure_visible_int"); assert!(svg.contains("height=\"121px\""), "height uses ensure_visible_int"); }
     #[test] fn render_edge_stroke_color() { let (d, l) = simple_layout(); let svg = render_mindmap(&d, &l, &SkinParams::default()).unwrap(); assert!(svg.contains(&format!("stroke:{}", BORDER_COLOR))); }
 
     #[test]

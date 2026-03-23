@@ -1081,9 +1081,12 @@ pub fn build_teoz_layout(
 	let show_footbox = !sd.hide_footbox;
 	let factor = if show_footbox { 2 } else { 1 };
 	// Java: PlayingSpace(+10) + outer(+10) + docMargin(+10) = 30.
-	// With STARTING_Y=10 (vs Java's 8), subtract 2 to compensate.
+	// With STARTING_Y=10 (vs Java's 8), subtract 3 to compensate.
+	// The extra -1 accounts for ensureVisible's (int)(x+1) applied in the
+	// renderer; we pass raw dimensions and let ensure_visible_int handle it.
 	let total_height =
-		lifeline_bottom + (factor - 1) as f64 * max_preferred_height + 28.0;
+		lifeline_bottom + (factor - 1) as f64 * max_preferred_height + 27.0;
+	log::debug!("teoz_layout: total_width={total_width:.4} total_height={total_height:.4} lifeline_bottom={lifeline_bottom:.4} max_preferred_height={max_preferred_height:.4}");
 
 	Ok(SeqLayout {
 		participants: part_layouts,

@@ -11,7 +11,7 @@ use crate::Result;
 
 use crate::font_metrics;
 
-use super::svg::{write_svg_root_bg, write_bg_rect};
+use super::svg::{write_svg_root_bg, write_bg_rect, ensure_visible_int};
 use crate::klimt::svg::{fmt_coord, xml_escape, SvgGraphic, LengthAdjust};
 use super::svg_richtext::{disable_path_sprites, enable_path_sprites, render_creole_text, set_default_font_family, take_back_filters};
 
@@ -1872,9 +1872,9 @@ fn render_sequence_inner(
     layout: &SeqLayout,
     skin: &SkinParams,
 ) -> Result<String> {
-    // Layout already includes margins in total dimensions
-    let svg_w = layout.total_width;
-    let svg_h = layout.total_height;
+    // Layout includes margins; apply Java ensureVisible (int)(x+1) truncation
+    let svg_w = ensure_visible_int(layout.total_width) as f64;
+    let svg_h = ensure_visible_int(layout.total_height) as f64;
 
     let mut buf = String::with_capacity(4096);
 

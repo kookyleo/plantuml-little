@@ -1,7 +1,7 @@
 use crate::klimt::svg::{fmt_coord, xml_escape, LengthAdjust, SvgGraphic};
 use crate::layout::erd::{ErdAttrLayout, ErdEdgeLayout, ErdIsaLayout, ErdLayout, ErdNodeLayout, ErdNoteLayout};
 use crate::model::erd::ErdDiagram;
-use crate::render::svg::{write_svg_root_bg, write_bg_rect};
+use crate::render::svg::{write_svg_root_bg, write_bg_rect, ensure_visible_int};
 use crate::render::svg_richtext::render_creole_text;
 use crate::style::SkinParams;
 use crate::Result;
@@ -16,9 +16,11 @@ fn render_path_line(sg: &mut SvgGraphic, x1: f64, y1: f64, x2: f64, y2: f64) {
 pub fn render_erd(_ed: &ErdDiagram, layout: &ErdLayout, skin: &SkinParams) -> Result<String> {
     let mut buf = String::with_capacity(4096);
     let bg = skin.get_or("backgroundcolor", "#FFFFFF");
-    write_svg_root_bg(&mut buf, layout.width, layout.height, "CHEN_EER", bg);
+    let svg_w = ensure_visible_int(layout.width) as f64;
+    let svg_h = ensure_visible_int(layout.height) as f64;
+    write_svg_root_bg(&mut buf, svg_w, svg_h, "CHEN_EER", bg);
     buf.push_str("<defs/><g>");
-    write_bg_rect(&mut buf, layout.width, layout.height, bg);
+    write_bg_rect(&mut buf, svg_w, svg_h, bg);
 
     let ent_bg = skin.background_color("entity", ENTITY_BG);
     let ent_border = skin.border_color("entity", BORDER_COLOR);
@@ -215,7 +217,7 @@ mod tests {
     #[test] fn test_attr_parent_lines() { let mut l = empty_layout(); l.entity_nodes.push(make_entity_node("E", 100.0, 100.0, 80.0, 36.0)); l.attribute_nodes.push(make_attr("X", "E", 140.0, 40.0)); l.attribute_nodes.push(make_attr("Y", "E", 100.0, 40.0)); let svg = render_erd(&empty_diagram(), &l, &SkinParams::default()).unwrap(); assert!(svg.matches("<path").count() >= 2); }
     #[test] fn test_xml_escaping() { let mut l = empty_layout(); l.entity_nodes.push(ErdNodeLayout { label: "A & B < C".into(), ..make_entity_node("E", 50.0, 50.0, 120.0, 36.0) }); let svg = render_erd(&empty_diagram(), &l, &SkinParams::default()).unwrap(); assert!(svg.contains("A &amp; B &lt; C")); }
     #[test] fn test_attribute_type_annotation() { let mut l = empty_layout(); l.entity_nodes.push(make_entity_node("E", 100.0, 100.0, 80.0, 36.0)); l.attribute_nodes.push(ErdAttrLayout { has_type: true, type_label: Some("DATE".into()), ..make_attr("Born", "E", 100.0, 40.0) }); let svg = render_erd(&empty_diagram(), &l, &SkinParams::default()).unwrap(); assert!(svg.contains("DATE")); assert!(svg.contains("font-style=\"italic\"")); }
-    #[test] fn test_svg_dimensions() { let l = ErdLayout { width: 500.0, height: 400.0, ..empty_layout() }; let svg = render_erd(&empty_diagram(), &l, &SkinParams::default()).unwrap(); assert!(svg.contains("width=\"500px\"")); assert!(svg.contains("height=\"400px\"")); assert!(svg.contains("viewBox=\"0 0 500 400\"")); }
+    #[test] fn test_svg_dimensions() { let l = ErdLayout { width: 500.0, height: 400.0, ..empty_layout() }; let svg = render_erd(&empty_diagram(), &l, &SkinParams::default()).unwrap(); assert!(svg.contains("width=\"501px\""), "width should be ensure_visible_int(500)=501"); assert!(svg.contains("height=\"401px\""), "height should be ensure_visible_int(400)=401"); assert!(svg.contains("viewBox=\"0 0 501 401\""), "viewBox should use ensure_visible_int"); }
     #[test] fn test_nested_children_rendered() { let mut l = empty_layout(); l.entity_nodes.push(make_entity_node("E", 100.0, 100.0, 80.0, 36.0)); let mut a = make_attr("Name", "E", 100.0, 40.0); a.children = vec![make_attr("Fname", "Name", 80.0, 10.0), make_attr("Lname", "Name", 120.0, 10.0)]; l.attribute_nodes.push(a); let svg = render_erd(&empty_diagram(), &l, &SkinParams::default()).unwrap(); assert!(svg.contains("Fname")); assert!(svg.contains("Lname")); assert_eq!(svg.matches("<ellipse").count(), 3); }
     #[test] fn test_note_rendering() { let mut l = empty_layout(); l.notes.push(ErdNoteLayout { text: "primary entity".into(), x: 180.0, y: 60.0, width: 110.0, height: 40.0, lines: vec!["primary entity".into()], connector: Some((180.0, 80.0, 140.0, 80.0)) }); let svg = render_erd(&empty_diagram(), &l, &SkinParams::default()).unwrap(); assert!(svg.contains("<polygon")); assert!(svg.contains("primary entity")); assert!(svg.contains("stroke-dasharray")); }
     #[test] fn test_multiline_note_rendering() { let mut l = empty_layout(); l.notes.push(ErdNoteLayout { text: "line 1\nline 2".into(), x: 180.0, y: 60.0, width: 110.0, height: 56.0, lines: vec!["line 1".into(), "line 2".into()], connector: None }); let svg = render_erd(&empty_diagram(), &l, &SkinParams::default()).unwrap(); assert!(svg.contains("<tspan")); assert!(svg.contains("line 1")); assert!(svg.contains("line 2")); }

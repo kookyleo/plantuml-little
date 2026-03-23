@@ -166,8 +166,23 @@ pub(crate) fn write_svg_root_bg(buf: &mut String, w: f64, h: f64, diagram_type: 
     write_svg_root_bg_opt(buf, w, h, Some(diagram_type), bg);
 }
 
+/// Java `SvgGraphics.ensureVisible` truncation: `maxX = (int)(x + 1)`.
+/// Converts a floating-point dimension to the integer viewport value used by
+/// Java PlantUML.  Callers must pass the RAW dimension BEFORE the +1 truncation.
+pub(crate) fn ensure_visible_int(x: f64) -> i32 {
+    if x.is_finite() && x > 0.0 {
+        (x + 1.0) as i32
+    } else {
+        10 // Java default
+    }
+}
+
 /// Write SVG root element. `diagram_type` is optional — Java's PSystemSalt and
 /// PSystemDot don't go through TitledDiagram, so they omit `data-diagram-type`.
+///
+/// `w` and `h` should already be integer-valued viewport dimensions (having
+/// gone through `ensure_visible_int` or equivalent truncation).
+/// The function rounds via `as i32` for safety but does NOT add +1.
 pub(crate) fn write_svg_root_bg_opt(
     buf: &mut String,
     w: f64,
@@ -175,8 +190,8 @@ pub(crate) fn write_svg_root_bg_opt(
     diagram_type: Option<&str>,
     bg: &str,
 ) {
-    let wi = if w.is_finite() && w > 0.0 { w.ceil() as i32 } else { 100 };
-    let hi = if h.is_finite() && h > 0.0 { h.ceil() as i32 } else { 100 };
+    let wi = if w.is_finite() && w > 0.0 { w as i32 } else { 100 };
+    let hi = if h.is_finite() && h > 0.0 { h as i32 } else { 100 };
     buf.push_str(r#"<svg xmlns="http://www.w3.org/2000/svg""#);
     buf.push_str(r#" xmlns:xlink="http://www.w3.org/1999/xlink""#);
     buf.push_str(r#" contentStyleType="text/css""#);
@@ -216,8 +231,8 @@ pub(crate) use crate::klimt::svg::xml_escape;
 /// first child of `<g>` when `skinparam backgroundColor` is set.
 pub(crate) fn write_bg_rect(buf: &mut String, w: f64, h: f64, bg: &str) {
     if !bg.eq_ignore_ascii_case("#FFFFFF") {
-        let wi = if w.is_finite() && w > 0.0 { w.ceil() as i32 } else { 100 };
-        let hi = if h.is_finite() && h > 0.0 { h.ceil() as i32 } else { 100 };
+        let wi = if w.is_finite() && w > 0.0 { w as i32 } else { 100 };
+        let hi = if h.is_finite() && h > 0.0 { h as i32 } else { 100 };
         write!(
             buf,
             r#"<rect fill="{bg}" height="{hi}" style="stroke:none;stroke-width:1;" width="{wi}" x="0" y="0"/>"#,
@@ -673,9 +688,9 @@ fn wrap_with_meta(body_svg: &str, meta: &DiagramMeta, diagram_type: &str, bg: &s
     // textBlock dimensions for positioning
     let tb_w = total_dim.0;
     let tb_h = total_dim.1;
-    // Canvas: Java ensureVisible → maxX = (int)(dim + 1)
-    let canvas_w = (tb_w + DOC_MARGIN_RIGHT + 1.0) as i32 as f64;
-    let canvas_h = (tb_h + DOC_MARGIN_BOTTOM + 1.0) as i32 as f64;
+    // Java ensureVisible: maxX = (int)(x + 1)
+    let canvas_w = ensure_visible_int(tb_w + DOC_MARGIN_RIGHT) as f64;
+    let canvas_h = ensure_visible_int(tb_h + DOC_MARGIN_BOTTOM) as f64;
     log::trace!("wrap_with_meta: tb_w={tb_w:.6} tb_h={tb_h:.6} canvas_w={canvas_w} canvas_h={canvas_h}");
     log::trace!("wrap_with_meta: body_dim=({body_w},{body_h}) after_legend={after_legend:?} after_title={after_title:?} after_caption={after_caption:?}");
 
@@ -1104,8 +1119,9 @@ fn render_class(
     let (svg_w, svg_h) = {
         let dim_w = raw_body_dim.0 + DOC_MARGIN_RIGHT;
         let dim_h = raw_body_dim.1 + DOC_MARGIN_BOTTOM;
-        let w = (dim_w + 1.0) as i32;
-        let h = (dim_h + 1.0) as i32;
+        // Java ensureVisible: maxX = (int)(x + 1)
+        let w = ensure_visible_int(dim_w);
+        let h = ensure_visible_int(dim_h);
         (w as f64, h as f64)
     };
 

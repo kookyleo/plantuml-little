@@ -2,7 +2,7 @@ use crate::font_metrics;
 use crate::klimt::svg::{fmt_coord, LengthAdjust, SvgGraphic};
 use crate::layout::json_diagram::{JsonArrow, JsonBox, JsonLayout};
 use crate::model::json_diagram::JsonDiagram;
-use crate::render::svg::write_svg_root_bg;
+use crate::render::svg::{write_svg_root_bg, ensure_visible_int};
 use crate::style::SkinParams;
 use crate::Result;
 
@@ -30,7 +30,9 @@ pub fn render_yaml(jd: &JsonDiagram, layout: &JsonLayout, skin: &SkinParams) -> 
 fn render_with_type(_jd: &JsonDiagram, layout: &JsonLayout, skin: &SkinParams, dtype: &str) -> Result<String> {
     let mut buf = String::with_capacity(4096);
     let bg = skin.get_or("backgroundcolor", "#FFFFFF");
-    write_svg_root_bg(&mut buf, layout.width, layout.height, dtype, bg);
+    let svg_w = ensure_visible_int(layout.width) as f64;
+    let svg_h = ensure_visible_int(layout.height) as f64;
+    write_svg_root_bg(&mut buf, svg_w, svg_h, dtype, bg);
     buf.push_str("<defs/><g>");
 
     let mut sg = SvgGraphic::new(0, 1.0);

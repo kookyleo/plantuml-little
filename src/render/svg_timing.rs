@@ -1,4 +1,4 @@
-use super::svg::{write_bg_rect, write_svg_root_bg};
+use super::svg::{write_bg_rect, write_svg_root_bg, ensure_visible_int};
 use crate::klimt::svg::{fmt_coord, SvgGraphic};
 use crate::layout::timing::{
     TimingConstraintLayout, TimingLayout, TimingMsgLayout, TimingNoteLayout, TimingSegmentLayout,
@@ -28,9 +28,11 @@ pub fn render_timing(_td: &TimingDiagram, layout: &TimingLayout, skin: &SkinPara
     let constraint_color = skin.font_color("constraint", CONSTRAINT_COLOR);
     let arrow_color = skin.arrow_color(ARROW_COLOR);
     let bg = skin.get_or("backgroundcolor", "#FFFFFF");
-    write_svg_root_bg(&mut buf, layout.width, layout.height, "TIMING", bg);
+    let svg_w = ensure_visible_int(layout.width) as f64;
+    let svg_h = ensure_visible_int(layout.height) as f64;
+    write_svg_root_bg(&mut buf, svg_w, svg_h, "TIMING", bg);
     buf.push_str("<defs/><g>");
-    write_bg_rect(&mut buf, layout.width, layout.height, bg);
+    write_bg_rect(&mut buf, svg_w, svg_h, bg);
     let mut sg = SvgGraphic::new(0, 1.0);
     render_tick_grid(&mut sg, layout);
     for track in &layout.tracks { render_track(&mut sg, track, &timing_bg, &timing_border, &timing_font); }
@@ -118,7 +120,7 @@ mod tests {
     fn make_track(name: &str, y: f64, height: f64, segments: Vec<TimingSegmentLayout>) -> TimingTrackLayout { TimingTrackLayout { name: name.to_string(), y, height, segments } }
     #[test] fn test_empty_svg() { let svg = render_timing(&empty_model(), &empty_layout(), &SkinParams::default()).unwrap(); assert!(svg.contains("<svg")); assert!(svg.contains("</svg>")); assert!(svg.contains("xmlns=\"http://www.w3.org/2000/svg\"")); }
     #[test] fn test_defs_empty() { let svg = render_timing(&empty_model(), &empty_layout(), &SkinParams::default()).unwrap(); assert!(svg.contains("<defs/>")); }
-    #[test] fn test_svg_dimensions() { let mut l = empty_layout(); l.width = 600.0; l.height = 300.0; let svg = render_timing(&empty_model(), &l, &SkinParams::default()).unwrap(); assert!(svg.contains(r#"width="600px""#)); assert!(svg.contains(r#"height="300px""#)); assert!(svg.contains(r#"viewBox="0 0 600 300""#)); }
+    #[test] fn test_svg_dimensions() { let mut l = empty_layout(); l.width = 600.0; l.height = 300.0; let svg = render_timing(&empty_model(), &l, &SkinParams::default()).unwrap(); assert!(svg.contains(r#"width="601px""#)); assert!(svg.contains(r#"height="301px""#)); assert!(svg.contains(r#"viewBox="0 0 601 301""#)); }
     #[test] fn test_robust_segments() { let mut l = empty_layout(); l.tracks.push(make_track("DNS", 20.0, 40.0, vec![make_segment("Idle", 200.0, 350.0, 40.0, true)])); let svg = render_timing(&empty_model(), &l, &SkinParams::default()).unwrap(); assert!(svg.contains("<rect")); assert!(svg.contains("DNS")); assert!(svg.contains("Idle")); }
     #[test] fn test_concise_segments() { let mut l = empty_layout(); l.tracks.push(make_track("WU", 20.0, 24.0, vec![make_segment("Waiting", 200.0, 400.0, 32.0, false)])); let svg = render_timing(&empty_model(), &l, &SkinParams::default()).unwrap(); assert!(svg.contains("Waiting")); assert!(svg.contains("WU")); }
     #[test] fn test_message_arrow() { let mut l = empty_layout(); l.messages.push(TimingMsgLayout { from_x: 200.0, from_y: 40.0, to_x: 200.0, to_y: 80.0, label: "URL".into() }); let svg = render_timing(&empty_model(), &l, &SkinParams::default()).unwrap(); assert!(svg.contains("<polygon")); assert!(svg.contains("URL")); }

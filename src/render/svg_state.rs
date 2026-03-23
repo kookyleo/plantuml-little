@@ -5,7 +5,7 @@ use crate::font_metrics;
 use crate::klimt::svg::{fmt_coord, xml_escape, LengthAdjust, SvgGraphic};
 use crate::layout::state::{StateLayout, StateNodeLayout, StateNoteLayout, TransitionLayout};
 use crate::model::state::{StateDiagram, StateKind};
-use crate::render::svg::{write_svg_root_bg, write_bg_rect, BoundsTracker, CANVAS_DELTA, DOC_MARGIN_RIGHT, DOC_MARGIN_BOTTOM};
+use crate::render::svg::{write_svg_root_bg, write_bg_rect, ensure_visible_int, BoundsTracker, CANVAS_DELTA, DOC_MARGIN_RIGHT, DOC_MARGIN_BOTTOM};
 use crate::render::svg_richtext::render_creole_text;
 use crate::style::SkinParams;
 use crate::Result;
@@ -68,9 +68,9 @@ pub fn render_state(
     let raw_body_dim = (span_w + CANVAS_DELTA, span_h + CANVAS_DELTA);
     log::trace!("state viewport: span=({span_w:.2}, {span_h:.2}) raw_body_dim=({:.2}, {:.2})", raw_body_dim.0, raw_body_dim.1);
 
-    // SVG size = (int)(raw_body_dim + DOC_MARGIN + 1)
-    let svg_w = (raw_body_dim.0 + DOC_MARGIN_RIGHT + 1.0) as i32 as f64;
-    let svg_h = (raw_body_dim.1 + DOC_MARGIN_BOTTOM + 1.0) as i32 as f64;
+    // Java ensureVisible: maxX = (int)(x + 1)
+    let svg_w = ensure_visible_int(raw_body_dim.0 + DOC_MARGIN_RIGHT) as f64;
+    let svg_h = ensure_visible_int(raw_body_dim.1 + DOC_MARGIN_BOTTOM) as f64;
 
     let bg = skin.get_or("backgroundcolor", "#FFFFFF");
     write_svg_root_bg(&mut buf, svg_w, svg_h, "STATE", bg);
