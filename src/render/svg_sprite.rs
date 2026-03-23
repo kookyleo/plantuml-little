@@ -232,7 +232,9 @@ fn collect_gradient_defs(content: &str, defs: &mut Vec<(String, String)>) {
 
 /// Extract gradient elements from a <defs> block.
 fn extract_gradients_from_defs(defs_block: &str, out: &mut Vec<(String, String)>) {
-    for tag in &["linearGradient", "radialGradient"] {
+    // Only extract linearGradient — radialGradient is resolved to first stop
+    // color in get_fill_or(), matching Java's behavior.
+    for tag in &["linearGradient"] {
         let open = format!("<{tag}");
         let close = format!("</{tag}>");
         let mut pos = 0;
@@ -1182,15 +1184,48 @@ fn get_fill(element: &str) -> String {
 fn get_fill_or(element: &str, default: &str) -> String {
     // Check fill attribute
     if let Some(fill) = get_attr(element, "fill") {
-        return normalize_hex_color(fill);
+        let resolved = resolve_gradient_url(fill);
+        return normalize_hex_color(&resolved);
     }
     // Check style attribute for fill
     if let Some(style) = get_attr(element, "style") {
         if let Some(fill) = get_style_prop(style, "fill") {
-            return normalize_hex_color(fill);
+            let resolved = resolve_gradient_url(fill);
+            return normalize_hex_color(&resolved);
         }
     }
     default.to_string()
+}
+
+/// If the fill is `url(#id)` and the referenced element is a radialGradient,
+/// resolve to the first stop color. Java's SVG sprite renderer doesn't support
+/// radialGradient in SVG output — it uses the first stop color as flat fill.
+/// LinearGradients are kept as `url(#...)` references (they're emitted in <defs>).
+fn resolve_gradient_url(fill: &str) -> String {
+    if !fill.starts_with("url(#") {
+        return fill.to_string();
+    }
+    let id_end = fill.find(')').unwrap_or(fill.len());
+    let ref_id = &fill[5..id_end];
+
+    SPRITE_DEFS_MAP.with(|map| {
+        let map = map.borrow();
+        if let Some(def) = map.get(ref_id) {
+            if element_tag_name(def) == "radialGradient" {
+                // Extract first stop color
+                if let Some(stop_start) = def.find("stop-color=") {
+                    let rest = &def[stop_start + 12..]; // skip `stop-color="`
+                    if let Some(quote_end) = rest.find('"') {
+                        return rest[..quote_end].to_string();
+                    }
+                }
+                // Fallback: white
+                return "#FFFFFF".to_string();
+            }
+        }
+        // Not a radialGradient or not found — keep as url()
+        fill.to_string()
+    })
 }
 
 fn get_stroke_style(element: &str) -> String {
