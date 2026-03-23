@@ -1859,7 +1859,9 @@ pub fn render_sequence(
     set_default_font_family(font);
     enable_path_sprites();
     crate::render::svg_sprite::clear_gradient_defs();
+    crate::render::svg_sprite::set_monochrome(skin.is_monochrome());
     let result = render_sequence_inner(sd, layout, skin);
+    crate::render::svg_sprite::set_monochrome(false);
     disable_path_sprites();
     set_default_font_family(None);
     result

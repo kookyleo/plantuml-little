@@ -5,7 +5,7 @@
 //! `<text>` elements are preserved as `<text>` elements.  Gradients and defs
 //! are extracted and re-emitted in the parent SVG `<defs>` block.
 
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
 use std::fmt::Write;
 
@@ -15,6 +15,13 @@ thread_local! {
     static COLLECTED_GRADIENT_DEFS: RefCell<Vec<(String, String)>> = RefCell::new(Vec::new());
     /// Map of id -> element content for `<use>` resolution within the current sprite.
     static SPRITE_DEFS_MAP: RefCell<HashMap<String, String>> = RefCell::new(HashMap::new());
+    /// When true, all colors are converted to grayscale (skinparam monochrome true).
+    static MONOCHROME_MODE: Cell<bool> = Cell::new(false);
+}
+
+/// Set monochrome mode for sprite rendering.
+pub fn set_monochrome(enabled: bool) {
+    MONOCHROME_MODE.with(|m| m.set(enabled));
 }
 
 pub fn clear_gradient_defs() {
@@ -295,7 +302,14 @@ fn normalize_gradient(raw: &str, tag: &str) -> String {
                 write!(result, " offset=\"{v}\"").unwrap();
             }
             if let Some(v) = get_attr(&stop_raw, "stop-color") {
-                write!(result, " stop-color=\"{v}\"").unwrap();
+                let color = if MONOCHROME_MODE.with(|m| m.get()) {
+                    let normalized = normalize_hex_color(v);
+                    // normalize_hex_color already applies monochrome
+                    normalized
+                } else {
+                    v.to_string()
+                };
+                write!(result, " stop-color=\"{color}\"").unwrap();
             }
             if let Some(v) = get_attr(&stop_raw, "stop-opacity") {
                 // Java: integer values like "0" stay as-is, decimals get 4 places
@@ -1158,7 +1172,7 @@ fn parse_translate(transform: &str) -> (f64, f64) {
 /// uppercase (#RRGGBB). Expands 3-digit hex to 6-digit. Pass-through non-hex
 /// values like "none" or "url(#id)".
 fn normalize_hex_color(s: &str) -> String {
-    if let Some(hex) = s.strip_prefix('#') {
+    let normalized = if let Some(hex) = s.strip_prefix('#') {
         if hex.chars().all(|c| c.is_ascii_hexdigit()) {
             let upper = hex.to_ascii_uppercase();
             if upper.len() == 3 {
@@ -1169,12 +1183,37 @@ fn normalize_hex_color(s: &str) -> String {
                     expanded.push(c);
                     expanded.push(c);
                 }
-                return expanded;
+                expanded
+            } else {
+                format!("#{}", upper)
             }
-            return format!("#{}", upper);
+        } else {
+            s.to_string()
+        }
+    } else {
+        s.to_string()
+    };
+
+    // Apply monochrome conversion if enabled
+    if MONOCHROME_MODE.with(|m| m.get()) {
+        if let Some(mono) = to_monochrome_color(&normalized) {
+            return mono;
         }
     }
-    s.to_string()
+    normalized
+}
+
+/// Convert a hex color to monochrome (grayscale).
+/// Uses Java's integer formula: (r*299 + g*587 + b*114) / 1000
+fn to_monochrome_color(color: &str) -> Option<String> {
+    if !color.starts_with('#') || color.len() != 7 {
+        return None;
+    }
+    let r = u8::from_str_radix(&color[1..3], 16).ok()?;
+    let g = u8::from_str_radix(&color[3..5], 16).ok()?;
+    let b = u8::from_str_radix(&color[5..7], 16).ok()?;
+    let gray = ((r as u32 * 299 + g as u32 * 587 + b as u32 * 114) / 1000) as u8;
+    Some(format!("#{:02X}{:02X}{:02X}", gray, gray, gray))
 }
 
 fn get_fill(element: &str) -> String {

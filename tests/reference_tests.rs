@@ -102,9 +102,19 @@ fn normalize_filter_ids(s: &str) -> String {
         }
     }
 
-    // Replace all occurrences of each old ID with its canonical form
+    // Replace IDs in attribute contexts only (not in text content).
+    // Match patterns: id="ID", url(#ID), xlink:href="#ID"
     for (old_id, new_id) in &id_map {
-        result = result.replace(old_id, new_id);
+        // id="old_id"
+        result = result.replace(&format!("id=\"{old_id}\""), &format!("id=\"{new_id}\""));
+        // url(#old_id)
+        result = result.replace(&format!("url(#{old_id})"), &format!("url(#{new_id})"));
+        // xlink:href="#old_id"
+        result = result.replace(&format!("xlink:href=\"#{old_id}\""), &format!("xlink:href=\"#{new_id}\""));
+        // href="#old_id"
+        result = result.replace(&format!("href=\"#{old_id}\""), &format!("href=\"#{new_id}\""));
+        // filter="url(#old_id)"
+        result = result.replace(&format!("filter=\"url(#{old_id})\""), &format!("filter=\"url(#{new_id})\""));
     }
     result
 }
