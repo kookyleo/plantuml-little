@@ -1539,6 +1539,7 @@ mod tests {
             kind: ParticipantKind::Default,
             color: None,
             source_line: None,
+            link_url: None,
         }
     }
 

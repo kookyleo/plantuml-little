@@ -59,6 +59,20 @@ fn write_seq_defs(sg: &mut SvgGraphic) {
     sg.push_raw("<defs/>");
 }
 
+/// Encode a `[[url text]]` link for the SVG `<title>` element.
+/// Java replaces `:`, `/`, `\` with `.` and wraps with `..` prefix/suffix.
+fn encode_link_title(url: &str, display_text: &str) -> String {
+    let encoded_url: String = url.chars().map(|c| match c {
+        ':' | '/' | '\\' => '.',
+        _ => c,
+    }).collect();
+    let encoded_text: String = display_text.chars().map(|c| match c {
+        '\\' => '.',
+        _ => c,
+    }).collect();
+    format!("..{encoded_url} {encoded_text}..")
+}
+
 // ── Lifelines ───────────────────────────────────────────────────────
 
 /// Compute lifeline invisible rect height from layout bounds.
@@ -72,11 +86,17 @@ fn draw_lifelines(sg: &mut SvgGraphic, layout: &SeqLayout, skin: &SkinParams, sd
     for (i, p) in layout.participants.iter().enumerate() {
         let part_idx = i + 1;
         let qualified_name = xml_escape(&p.name);
-        let display = sd
-            .participants
-            .get(i)
+        let participant = sd.participants.get(i);
+        let display = participant
             .and_then(|pp| pp.display_name.as_deref())
             .unwrap_or(&p.name);
+        // Java: if participant has a [[url text]] link, the <title> includes
+        // the URL encoded with dots: ..http...example.com text..
+        let title_text = if let Some(url) = participant.and_then(|pp| pp.link_url.as_deref()) {
+            encode_link_title(url, display)
+        } else {
+            xml_escape(display)
+        };
         let escaped_display = xml_escape(display);
 
         let src_line_attr = sd.participants.get(i)
@@ -85,17 +105,15 @@ fn draw_lifelines(sg: &mut SvgGraphic, layout: &SeqLayout, skin: &SkinParams, sd
             .unwrap_or_default();
         let mut tmp = String::new();
         if sd.teoz_mode {
-            // Teoz: Java renders lifelines without semantic wrapper attributes
-            write!(tmp, "<g><title>{dname}</title>", dname = escaped_display).unwrap();
+            write!(tmp, "<g><title>{dname}</title>", dname = title_text).unwrap();
         } else {
-            // Puma: full semantic grouping with class/data attributes
             write!(
                 tmp,
                 r#"<g class="participant-lifeline" data-entity-uid="part{idx}" data-qualified-name="{qname}"{src_line} id="part{idx}-lifeline"><g><title>{dname}</title>"#,
                 idx = part_idx,
                 qname = qualified_name,
                 src_line = src_line_attr,
-                dname = escaped_display,
+                dname = title_text,
             )
             .unwrap();
         }

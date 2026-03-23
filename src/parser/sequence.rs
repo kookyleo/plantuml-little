@@ -569,7 +569,7 @@ pub fn parse_sequence_diagram_with_original(source: &str, original_source: Optio
                 _ => ParticipantKind::Default,
             };
 
-            let (name, display_name, color) = parse_participant_details(rest);
+            let (name, display_name, color, link_url) = parse_participant_details(rest);
             debug!(
                 "parsed participant declaration: name={name}, display={display_name:?}, color={color:?}, kind={kind:?}"
             );
@@ -585,6 +585,7 @@ pub fn parse_sequence_diagram_with_original(source: &str, original_source: Optio
                     kind,
                     color,
                     source_line: Some(source_line),
+                    link_url,
                 });
             }
             continue;
@@ -657,6 +658,7 @@ fn ensure_participant(
         kind: ParticipantKind::Default,
         color: None,
         source_line: Some(source_line),
+        link_url: None,
     });
 }
 
@@ -704,29 +706,33 @@ fn build_line_mapping(cleaned_source: &str, original_source: Option<&str>, block
     mapping
 }
 
-/// Strip `[[url text]]` markup from a display name, returning just the display text.
-/// E.g. `"[[http://example.com Line 1 Line 2]]"` → `"Line 1 Line 2"`
-fn strip_url_markup(s: &str) -> String {
+/// Strip `[[url text]]` markup from a display name, returning (display_text, first_url).
+/// E.g. `"[[http://example.com Line 1 Line 2]]"` → `("Line 1 Line 2", Some("http://example.com"))`
+fn strip_url_markup(s: &str) -> (String, Option<String>) {
     let mut result = s.to_string();
+    let mut first_url = None;
     while let Some(start) = result.find("[[") {
         if let Some(end) = result[start..].find("]]") {
             let inner = &result[start + 2..start + end];
-            // Extract text after URL (URL is the first token)
-            let display = if let Some(space_pos) = inner.find(' ') {
-                inner[space_pos + 1..].to_string()
+            // Extract URL (first token) and text after URL
+            let (url, display) = if let Some(space_pos) = inner.find(' ') {
+                (inner[..space_pos].to_string(), inner[space_pos + 1..].to_string())
             } else {
-                String::new()
+                (inner.to_string(), String::new())
             };
+            if first_url.is_none() {
+                first_url = Some(url);
+            }
             result.replace_range(start..start + end + 2, &display);
         } else {
             break;
         }
     }
-    result
+    (result, first_url)
 }
 
 /// Parse participant declaration details: name, display name, and color
-fn parse_participant_details(rest: &str) -> (String, Option<String>, Option<String>) {
+fn parse_participant_details(rest: &str) -> (String, Option<String>, Option<String>, Option<String>) {
     // Patterns:
     //   "Display Name" as Name #color
     //   "Display Name" as Name
@@ -737,14 +743,16 @@ fn parse_participant_details(rest: &str) -> (String, Option<String>, Option<Stri
     let mut remaining = rest.trim();
     let mut name: String;
     let mut display_name: Option<String> = None;
+    let mut link_url: Option<String> = None;
 
     if remaining.starts_with('"') {
         // Quoted display name first: "Display Name" as Name ...
         if let Some(end_quote) = remaining[1..].find('"') {
             let quoted = remaining[1..=end_quote].to_string();
             remaining = remaining[end_quote + 2..].trim();
-            // Strip [[url text]] patterns — extract just the display text
-            let cleaned = strip_url_markup(&quoted);
+            // Strip [[url text]] patterns — extract display text + URL
+            let (cleaned, url) = strip_url_markup(&quoted);
+            link_url = url;
             display_name = Some(cleaned);
 
             // Expect "as Name" next
@@ -797,7 +805,7 @@ fn parse_participant_details(rest: &str) -> (String, Option<String>, Option<Stri
         None
     };
 
-    (name, display_name, color)
+    (name, display_name, color, link_url)
 }
 
 /// Extract the first whitespace-delimited token from the beginning of the string

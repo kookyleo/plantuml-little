@@ -21,6 +21,9 @@ pub struct Participant {
     pub color: Option<String>,
     /// Source line number (0-based) for data-source-line attribute
     pub source_line: Option<usize>,
+    /// URL from `[[url text]]` link markup in the display name.
+    /// Used for Java-compatible `<title>` encoding in lifelines.
+    pub link_url: Option<String>,
 }
 
 /// Message arrow style
