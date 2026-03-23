@@ -919,6 +919,8 @@ fn parse_note(line: &str, last_to: &Option<String>) -> Option<SeqEvent> {
 
     if lower.starts_with("right") {
         let after = rest[5..].trim();
+        // Skip optional color specifier: #color
+        let after = skip_note_color(after);
         if let Some(text) = after.strip_prefix(':') {
             let text = text.trim().to_string();
             let participant = last_to.clone().unwrap_or_default();
@@ -929,6 +931,7 @@ fn parse_note(line: &str, last_to: &Option<String>) -> Option<SeqEvent> {
         }
     } else if lower.starts_with("left") {
         let after = rest[4..].trim();
+        let after = skip_note_color(after);
         if let Some(text) = after.strip_prefix(':') {
             let text = text.trim().to_string();
             let participant = last_to.clone().unwrap_or_default();
@@ -953,6 +956,20 @@ fn parse_note(line: &str, last_to: &Option<String>) -> Option<SeqEvent> {
         }
     } else {
         None
+    }
+}
+
+/// Skip optional note background color specifier (e.g., `#red`, `#AABBCC`).
+/// Java: `note right #color : text` syntax.
+fn skip_note_color(s: &str) -> &str {
+    if let Some(rest) = s.strip_prefix('#') {
+        // Find end of color: next whitespace or ':'
+        let end = rest
+            .find(|c: char| c.is_whitespace() || c == ':')
+            .unwrap_or(rest.len());
+        rest[end..].trim_start()
+    } else {
+        s
     }
 }
 
