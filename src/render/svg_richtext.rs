@@ -273,7 +273,11 @@ pub fn render_creole_text_opts(
 
     let (font_family, font_size, bold, italic) = parse_font_props(outer_attrs);
 
-    if lines.len() == 1 && line_needs_split_render(&lines[0]) {
+    // Split rendering: each styled span becomes a separate <text> element.
+    // This matches Java's DriverTextSvg which renders each atom separately.
+    // Exception: centered text (text_anchor="middle") stays as single element
+    // because split rendering would center each piece independently.
+    if lines.len() == 1 && text_anchor.is_none() && line_needs_split_render(&lines[0]) {
         render_split_text_runs(buf, &lines[0], x, y, fill, outer_attrs, &font_family, font_size, bold, italic);
         return 1;
     }
@@ -382,39 +386,175 @@ fn render_line_with_sprites(buf: &mut String, spans: &[TextSpan], x: f64, y: f64
 
 
 fn line_needs_split_render(spans: &[TextSpan]) -> bool {
-    spans.iter().any(|span| matches!(span, TextSpan::BackHighlight { .. } | TextSpan::FontFamily { .. }))
+    fn has_styled(spans: &[TextSpan]) -> bool {
+        spans.iter().any(|span| match span {
+            TextSpan::Plain(_) | TextSpan::InlineSvg { .. } => false,
+            TextSpan::Link { .. } => false,
+            TextSpan::Bold(_) | TextSpan::Italic(_) | TextSpan::Underline(_)
+            | TextSpan::Strikethrough(_) | TextSpan::Monospace(_)
+            | TextSpan::BackHighlight { .. } | TextSpan::FontFamily { .. }
+            | TextSpan::Colored { .. } | TextSpan::Sized { .. }
+            | TextSpan::Subscript(_) | TextSpan::Superscript(_) => true,
+        })
+    }
+    has_styled(spans)
 }
 
-struct TextRun { text: String, font_family: Option<String>, filter_id: Option<String> }
+/// A text run with full styling context for split rendering.
+/// Java renders each styled atom as a separate `<text>` SVG element.
+#[derive(Clone, Debug)]
+struct TextRun {
+    text: String,
+    font_family: Option<String>,
+    filter_id: Option<String>,
+    bold: bool,
+    italic: bool,
+    underline: bool,
+    strikethrough: bool,
+    color: Option<String>,
+    font_size_override: Option<f64>,
+    link_url: Option<String>,
+    link_tooltip: Option<String>,
+}
+
+impl TextRun {
+    fn new() -> Self {
+        Self { text: String::new(), font_family: None, filter_id: None,
+               bold: false, italic: false, underline: false, strikethrough: false,
+               color: None, font_size_override: None, link_url: None, link_tooltip: None }
+    }
+    fn with_text(text: &str) -> Self { let mut r = Self::new(); r.text = text.to_string(); r }
+    fn style_matches(&self, other: &RunStyle) -> bool {
+        opt_eq(&self.font_family, &other.font_family)
+            && opt_eq(&self.filter_id, &other.filter_id)
+            && self.bold == other.bold
+            && self.italic == other.italic
+            && self.underline == other.underline
+            && self.strikethrough == other.strikethrough
+            && opt_eq(&self.color, &other.color)
+            && self.font_size_override == other.font_size_override
+    }
+}
+
+fn opt_eq(a: &Option<String>, b: &Option<String>) -> bool {
+    match (a, b) { (None, None) => true, (Some(a), Some(b)) => a == b, _ => false }
+}
+
+#[derive(Clone, Debug)]
+struct RunStyle {
+    font_family: Option<String>,
+    filter_id: Option<String>,
+    bold: bool,
+    italic: bool,
+    underline: bool,
+    strikethrough: bool,
+    color: Option<String>,
+    font_size_override: Option<f64>,
+}
+
+impl RunStyle {
+    fn new() -> Self {
+        Self { font_family: None, filter_id: None,
+               bold: false, italic: false, underline: false, strikethrough: false,
+               color: None, font_size_override: None }
+    }
+}
 
 fn flatten_to_runs(spans: &[TextSpan]) -> Vec<TextRun> {
     let mut runs: Vec<TextRun> = Vec::new();
-    flatten_span_runs(spans, &mut runs, None, None);
+    flatten_span_runs(spans, &mut runs, &RunStyle::new());
     runs
 }
 
-fn flatten_span_runs(spans: &[TextSpan], runs: &mut Vec<TextRun>, current_font: Option<&str>, current_filter: Option<&str>) {
+fn flatten_span_runs(spans: &[TextSpan], runs: &mut Vec<TextRun>, style: &RunStyle) {
     for span in spans {
         match span {
             TextSpan::Plain(text) => {
                 if let Some(run) = runs.last_mut() {
-                    let sf = match (&run.font_family, current_font) { (None, None) => true, (Some(a), Some(b)) => a == b, _ => false };
-                    let sfl = match (&run.filter_id, current_filter) { (None, None) => true, (Some(a), Some(b)) => a == b, _ => false };
-                    if sf && sfl { run.text.push_str(text); continue; }
+                    if run.style_matches(style) { run.text.push_str(text); continue; }
                 }
-                runs.push(TextRun { text: text.clone(), font_family: current_font.map(String::from), filter_id: current_filter.map(String::from) });
+                let mut r = TextRun::with_text(text);
+                r.font_family = style.font_family.clone();
+                r.filter_id = style.filter_id.clone();
+                r.bold = style.bold; r.italic = style.italic;
+                r.underline = style.underline; r.strikethrough = style.strikethrough;
+                r.color = style.color.clone();
+                r.font_size_override = style.font_size_override;
+                runs.push(r);
             }
-            TextSpan::BackHighlight { color, content } => { let fid = register_back_filter(color); flatten_span_runs(content, runs, current_font, Some(&fid)); }
-            TextSpan::FontFamily { family, content } => { flatten_span_runs(content, runs, Some(family), current_filter); }
-            TextSpan::Bold(inner) | TextSpan::Italic(inner) | TextSpan::Underline(inner) | TextSpan::Strikethrough(inner) | TextSpan::Subscript(inner) | TextSpan::Superscript(inner) => { flatten_span_runs(inner, runs, current_font, current_filter); }
-            TextSpan::Colored { content, .. } | TextSpan::Sized { content, .. } => { flatten_span_runs(content, runs, current_font, current_filter); }
-            TextSpan::Monospace(text) => { runs.push(TextRun { text: text.clone(), font_family: Some("monospace".to_string()), filter_id: current_filter.map(String::from) }); }
-            TextSpan::Link { label, url, .. } => {
+            TextSpan::BackHighlight { color, content } => {
+                let fid = register_back_filter(color);
+                let mut s = style.clone(); s.filter_id = Some(fid);
+                flatten_span_runs(content, runs, &s);
+            }
+            TextSpan::FontFamily { family, content } => {
+                let mut s = style.clone(); s.font_family = Some(family.clone());
+                flatten_span_runs(content, runs, &s);
+            }
+            TextSpan::Bold(inner) => {
+                let mut s = style.clone(); s.bold = true;
+                flatten_span_runs(inner, runs, &s);
+            }
+            TextSpan::Italic(inner) => {
+                let mut s = style.clone(); s.italic = true;
+                flatten_span_runs(inner, runs, &s);
+            }
+            TextSpan::Underline(inner) => {
+                let mut s = style.clone(); s.underline = true;
+                flatten_span_runs(inner, runs, &s);
+            }
+            TextSpan::Strikethrough(inner) => {
+                let mut s = style.clone(); s.strikethrough = true;
+                flatten_span_runs(inner, runs, &s);
+            }
+            TextSpan::Colored { color, content } => {
+                let mut s = style.clone(); s.color = Some(color.clone());
+                flatten_span_runs(content, runs, &s);
+            }
+            TextSpan::Sized { size, content } => {
+                let mut s = style.clone(); s.font_size_override = Some(*size as f64);
+                flatten_span_runs(content, runs, &s);
+            }
+            TextSpan::Subscript(inner) => {
+                // Java: subscript uses font size × 0.77 (approximately 10/13)
+                let base_size = style.font_size_override.unwrap_or(0.0);
+                let sub_size = if base_size > 0.0 { base_size * 0.77 } else { -1.0 }; // Use -1 as marker for "subscript from default"
+                let mut s = style.clone();
+                s.font_size_override = Some(sub_size);
+                flatten_span_runs(inner, runs, &s);
+            }
+            TextSpan::Superscript(inner) => {
+                // Java: superscript uses font size × 0.77
+                let base_size = style.font_size_override.unwrap_or(0.0);
+                let sup_size = if base_size > 0.0 { base_size * 0.77 } else { -2.0 }; // Use -2 as marker for "superscript from default"
+                let mut s = style.clone();
+                s.font_size_override = Some(sup_size);
+                flatten_span_runs(inner, runs, &s);
+            }
+            TextSpan::Monospace(text) => {
+                let mut r = TextRun::with_text(text);
+                r.font_family = Some("monospace".to_string());
+                r.filter_id = style.filter_id.clone();
+                r.bold = style.bold; r.italic = style.italic;
+                r.underline = style.underline; r.strikethrough = style.strikethrough;
+                r.color = style.color.clone();
+                r.font_size_override = style.font_size_override;
+                runs.push(r);
+            }
+            TextSpan::Link { label, url, tooltip } => {
                 let visible = label.as_deref().unwrap_or(url);
-                if let Some(run) = runs.last_mut() {
-                    if run.font_family.as_deref() == current_font && run.filter_id.as_deref() == current_filter { run.text.push_str(visible); continue; }
-                }
-                runs.push(TextRun { text: visible.to_string(), font_family: current_font.map(String::from), filter_id: current_filter.map(String::from) });
+                // Links always create a new run (they need <a> wrapping)
+                let mut r = TextRun::with_text(visible);
+                r.font_family = style.font_family.clone();
+                r.filter_id = style.filter_id.clone();
+                r.bold = style.bold; r.italic = style.italic;
+                r.underline = true; // Links are underlined by default
+                r.strikethrough = style.strikethrough;
+                r.color = Some("#0000FF".to_string()); // Links are blue
+                r.font_size_override = style.font_size_override;
+                r.link_url = Some(url.clone());
+                r.link_tooltip = tooltip.clone();
+                runs.push(r);
             }
             TextSpan::InlineSvg { .. } => {}
         }
@@ -422,33 +562,74 @@ fn flatten_span_runs(spans: &[TextSpan], runs: &mut Vec<TextRun>, current_font: 
 }
 
 #[allow(clippy::too_many_arguments)]
-fn render_split_text_runs(buf: &mut String, spans: &[TextSpan], x: f64, y: f64, fill: &str, _outer_attrs: &str, default_font: &str, font_size: f64, bold: bool, italic: bool) {
+fn render_split_text_runs(buf: &mut String, spans: &[TextSpan], x: f64, y: f64, fill: &str, _outer_attrs: &str, default_font: &str, font_size: f64, base_bold: bool, base_italic: bool) {
     let runs = flatten_to_runs(spans);
     let mut cursor_x = x;
     let mut first = true;
     for run in &runs {
-        let text = run.text.clone();
-        let trimmed = text.trim_start();
-        // If we trimmed leading whitespace, add gap for the space
-        if !first && trimmed.len() < text.len() {
-            let space_w = font_metrics::text_width(" ", default_font, font_size, false, false);
-            cursor_x += space_w;
-        }
-        let text = if !first { trimmed.to_string() } else { text };
-        if text.is_empty() { continue; }
+        let raw_text = &run.text;
+        // Java: leading whitespace on non-first runs is stripped and converted
+        // to cursor advancement. This ensures proper spacing between runs.
+        let text = if !first {
+            let trimmed = raw_text.trim_start();
+            if trimmed.len() < raw_text.len() {
+                // Add space width for each trimmed space character
+                let n_spaces = raw_text.len() - trimmed.len();
+                let space_w = font_metrics::text_width(" ", default_font, font_size, false, false);
+                cursor_x += space_w * n_spaces as f64;
+            }
+            trimmed.to_string()
+        } else {
+            raw_text.to_string()
+        };
+        if text.is_empty() { first = false; continue; }
         let run_font = run.font_family.as_deref().unwrap_or(default_font);
-        let text_w = font_metrics::text_width(&text, run_font, font_size, bold, italic);
-        write!(buf, r#"<text fill="{}""#, xml_escape(fill)).unwrap();
+        let run_bold = run.bold || base_bold;
+        let run_italic = run.italic || base_italic;
+        // Handle subscript/superscript size markers
+        let run_size = match run.font_size_override {
+            Some(v) if v == -1.0 => (font_size * 0.77).round(), // subscript
+            Some(v) if v == -2.0 => (font_size * 0.77).round(), // superscript
+            Some(v) if v > 0.0 => v,
+            _ => font_size,
+        };
+        let run_fill = run.color.as_deref().unwrap_or(fill);
+        let text_w = font_metrics::text_width(&text, run_font, run_size, run_bold, run_italic);
+        // Java renders in alphabetical attribute order:
+        // fill, filter, font-family, font-size, font-style, font-weight,
+        // lengthAdjust, text-decoration, textLength, x, y
+        // Wrap link runs with <a> element
+        if let Some(ref url) = run.link_url {
+            let title = run.link_tooltip.as_deref().unwrap_or(url);
+            write!(buf, r#"<a href="{}" target="_top" title="{}" xlink:actuate="onRequest" xlink:href="{}" xlink:show="new" xlink:title="{}" xlink:type="simple">"#,
+                xml_escape(url), xml_escape(title), xml_escape(url), xml_escape(title)).unwrap();
+            if run.link_tooltip.is_some() {
+                write!(buf, "<title>{}</title>", xml_escape(title)).unwrap();
+            }
+        }
+        write!(buf, r#"<text fill="{}""#, xml_escape(run_fill)).unwrap();
         if let Some(ref fid) = run.filter_id { write!(buf, r#" filter="url(#{fid})""#).unwrap(); }
         write!(buf, r#" font-family="{}""#, xml_escape(run_font)).unwrap();
-        write!(buf, r#" font-size="{}""#, fmt_coord(font_size)).unwrap();
-        if italic { buf.push_str(r#" font-style="italic""#); }
-        if bold { buf.push_str(r#" font-weight="700""#); }
+        write!(buf, r#" font-size="{}""#, fmt_coord(run_size)).unwrap();
+        if run_italic { buf.push_str(r#" font-style="italic""#); }
+        if run_bold { buf.push_str(r#" font-weight="700""#); }
         write!(buf, r#" lengthAdjust="spacing""#).unwrap();
+        if run.strikethrough { buf.push_str(r#" text-decoration="wavy underline""#); }
+        else if run.underline { buf.push_str(r#" text-decoration="underline""#); }
         write!(buf, r#" textLength="{}""#, fmt_coord(text_w)).unwrap();
-        write!(buf, r#" x="{}" y="{}">"#, fmt_coord(cursor_x), fmt_coord(y)).unwrap();
+        // Java: for <size:N>, the y coordinate is adjusted (baseline shift)
+        let run_y = if let Some(sz) = run.font_size_override {
+            if sz > font_size {
+                // Larger text: Java shifts baseline up (y decreases by difference in ascent)
+                y - (sz - font_size) * 0.15
+            } else { y }
+        } else { y };
+        write!(buf, r#" x="{}" y="{}">"#, fmt_coord(cursor_x), fmt_coord(run_y)).unwrap();
         buf.push_str(&xml_escape(&text));
         buf.push_str("</text>");
+        if run.link_url.is_some() {
+            buf.push_str("</a>");
+        }
         cursor_x += text_w;
         first = false;
     }
@@ -990,9 +1171,10 @@ mod tests {
             None,
             "",
         );
-        assert!(buf.contains(r#"font-size="0.7em""#));
-        assert!(buf.contains(r#"baseline-shift="sub""#));
-        assert!(buf.contains(">2<"));
+        // Split rendering: each piece is a separate <text> element
+        assert!(buf.contains(">H<"), "should contain H text");
+        assert!(buf.contains(">2<"), "should contain subscript 2");
+        assert!(buf.contains(">O<"), "should contain O text");
     }
 
     #[test]
@@ -1008,8 +1190,9 @@ mod tests {
             None,
             "",
         );
-        assert!(buf.contains(r#"font-size="0.7em""#));
-        assert!(buf.contains(r#"baseline-shift="super""#));
+        // Split rendering: each piece is a separate <text> element
+        assert!(buf.contains(">E = mc<"), "should contain 'E = mc' text");
+        assert!(buf.contains(">2<"), "should contain superscript 2");
     }
 
     #[test]
