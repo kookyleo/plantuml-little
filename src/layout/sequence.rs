@@ -925,7 +925,17 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
                     .map(|line| message_sprite_extra_height(line))
                     .fold(0.0_f64, f64::max);
                 let extra_height = multiline_extra + sprite_extra + size_extra;
-                let msg_y = y_cursor + extra_height;
+                // Java: arrow position = freeY + textHeight, where textHeight
+                // includes text block height + 2*marginY(1). When text is empty,
+                // textHeight = 2 instead of (lineHeight + 2). Our initial y_cursor
+                // assumes a single-line text, so subtract the difference for empty text.
+                let has_text = text_lines.iter().any(|l| !l.is_empty());
+                let empty_text_adjust = if !has_text {
+                    lp.msg_line_height  // h13: difference between full-line and empty textHeight
+                } else {
+                    0.0
+                };
+                let msg_y = y_cursor + extra_height - empty_text_adjust;
 
                 let msg_autonumber = if autonumber_enabled {
                     let num = format!("{autonumber_counter}");
@@ -1036,10 +1046,21 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
                 if is_self {
                     let return_y = msg_y + lp.self_msg_height;
                     lifeline_extend_y = return_y + 18.0;
-                    // Cursor advances based on the unadjusted position to
-                    // maintain consistent spacing for subsequent messages.
-                    let unadjusted_return = y_cursor + extra_height + lp.self_msg_height;
-                    y_cursor = unadjusted_return + lp.message_spacing;
+                    // Java: y advances by ComponentRoseSelfArrow.getPreferredHeight
+                    // = textHeight + arrowDeltaY(4) + arrowOnlyHeight(13) + 2*paddingY(0)
+                    // where textHeight = textBlockHeight + 2*marginY(1)
+                    // textBlockHeight = 0 for empty text, num_lines * lineHeight otherwise
+                    let has_text = text_lines.iter().any(|l| !l.is_empty());
+                    let text_block_h = if has_text {
+                        text_lines.len() as f64 * msg_line_h
+                    } else {
+                        0.0
+                    };
+                    let self_margin_y = 1.0; // AbstractComponentRoseArrow marginY
+                    let self_text_h = text_block_h + 2.0 * self_margin_y;
+                    let self_preferred_h = self_text_h + rose::ARROW_DELTA_Y
+                        + rose::SELF_ARROW_ONLY_HEIGHT + 2.0 * rose::ARROW_PADDING_Y;
+                    y_cursor += self_preferred_h;
                     pending_self_return_y.insert(msg.from.clone(), return_y);
                 } else {
                     lifeline_extend_y = msg_y + 18.0;
