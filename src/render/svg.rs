@@ -280,7 +280,11 @@ pub fn render_with_source(
                     .map(|end| &body_result.svg[start..start + end])
             })
             .unwrap_or("CLASS");
-        let bg = skin.get_or("backgroundcolor", "#FFFFFF");
+        // Document-level BackGroundColor from <style> is stored as "document.backgroundcolor";
+        // skinparam BackGroundColor is stored as "backgroundcolor". Try both.
+        let bg = skin.get("document.backgroundcolor")
+            .or_else(|| skin.get("backgroundcolor"))
+            .unwrap_or("#FFFFFF");
         wrap_with_meta(&body_result.svg, meta, dtype, bg, body_result.raw_body_dim, skin)?
     };
 

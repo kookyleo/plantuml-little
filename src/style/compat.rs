@@ -198,6 +198,7 @@ impl SkinParams {
     pub fn background_color<'a>(&'a self, element: &str, default: &'a str) -> &'a str {
         let key1 = format!("{element}backgroundcolor");
         let key2 = format!("{element}.backgroundcolor");
+        let key3 = "backgroundcolor";
 
         if let Some(v) = self.params.get(&key1) {
             return v.as_str();
@@ -205,9 +206,9 @@ impl SkinParams {
         if let Some(v) = self.params.get(&key2) {
             return v.as_str();
         }
-        // Note: we intentionally do NOT fall back to the generic "backgroundcolor"
-        // key here. In Java, `document { BackGroundColor }` sets the SVG canvas
-        // background but does not affect entity box fills.
+        if let Some(v) = self.params.get(key3) {
+            return v.as_str();
+        }
         self.theme_bg(element).unwrap_or(default)
     }
 
@@ -613,7 +614,9 @@ fn extract_document_style(css: &str, params: &mut SkinParams) {
                     let key = parts[0].trim().to_lowercase();
                     let value = parts[1].trim();
                     if key == "backgroundcolor" {
-                        params.set("backgroundcolor", value);
+                        // Store under document-specific key so it doesn't override
+                        // entity fill colors via the generic fallback chain.
+                        params.set("document.backgroundcolor", value);
                         log::debug!("extracted document BackGroundColor: {value}");
                     }
                 }
