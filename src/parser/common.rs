@@ -556,9 +556,27 @@ pub fn parse_meta(source: &str) -> DiagramMeta {
     let mut meta = DiagramMeta::default();
     let lines: Vec<&str> = source.lines().collect();
     let mut i = 0;
+    let mut in_style_block = false;
 
     while i < lines.len() {
         let trimmed = lines[i].trim();
+
+        // Skip <style> blocks — they may contain selectors like "title {" that
+        // must NOT be interpreted as diagram meta declarations.
+        if trimmed.starts_with("<style>") || trimmed == "<style>" {
+            if !trimmed.contains("</style>") {
+                in_style_block = true;
+            }
+            i += 1;
+            continue;
+        }
+        if in_style_block {
+            if trimmed.contains("</style>") {
+                in_style_block = false;
+            }
+            i += 1;
+            continue;
+        }
 
         // title
         if trimmed == "title" {
