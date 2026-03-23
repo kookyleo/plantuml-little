@@ -274,17 +274,16 @@ fn draw_participant_rect_with_font(
     .unwrap();
     sg.push_raw(&tmp);
 
-    // Wrap text in <a> link when participant has a URL
-    if let Some(url) = link_url {
-        sg.push_raw(&format!(
-            r#"<a href="{url}" target="_top" title="{url}" xlink:actuate="onRequest" xlink:href="{url}" xlink:show="new" xlink:title="{url}" xlink:type="simple">"#
-        ));
-    }
-
     let effective_text_color = if link_url.is_some() { "#0000FF" } else { text_color };
     let text_decoration = if link_url.is_some() { Some("underline") } else { None };
 
+    // Java: each line of multiline text gets its own <a> wrapper
     for (line_idx, line) in lines.iter().enumerate() {
+        if let Some(url) = link_url {
+            sg.push_raw(&format!(
+                r#"<a href="{url}" target="_top" title="{url}" xlink:actuate="onRequest" xlink:href="{url}" xlink:show="new" xlink:title="{url}" xlink:type="simple">"#
+            ));
+        }
         let text_y = text_y_base + line_idx as f64 * line_h;
         let line_w = font_metrics::text_width(line, font_family, font_size, false, false);
         sg.set_fill_color(effective_text_color);
@@ -303,10 +302,9 @@ fn draw_participant_rect_with_font(
             0,
             None,
         );
-    }
-
-    if link_url.is_some() {
-        sg.push_raw("</a>");
+        if link_url.is_some() {
+            sg.push_raw("</a>");
+        }
     }
 }
 
