@@ -1195,8 +1195,11 @@ fn draw_self_message(
     // `return_x` is the return line endpoint (at lifeline/activation edge)
 
     // Line 1: outgoing horizontal
+    // Java drawLeftSide: x1 starts at 0, incremented by 1 before drawing.
+    // So the right end is prefTextWidth - 1 (absolute: pos2 - 1).
+    // Java drawRightSide: x1 starts at 0, so left end is 0 (absolute: pos2).
     let (line1_x1, line1_x2) = if msg.is_left {
-        (to_x, from_x)
+        (to_x, from_x - 1.0)
     } else {
         (from_x, to_x)
     };
@@ -1224,8 +1227,11 @@ fn draw_self_message(
     .unwrap();
 
     // Line 3: return horizontal
+    // Java drawLeftSide: extraline=1 for NORMAL arrowhead, so return right end
+    // is prefTextWidth - x2 - extraline from origin = pos2 - 2 in absolute.
     let (line3_x1, line3_x2) = if msg.is_left {
-        (to_x, return_x)
+        let extraline = if msg.has_open_head { 0.0 } else { 1.0 };
+        (to_x, return_x - extraline)
     } else {
         (return_x, to_x)
     };
@@ -1244,7 +1250,8 @@ fn draw_self_message(
     let ret_y = y + loop_height;
     if msg.is_left {
         // Left self-message: arrowhead points RIGHT at return
-        let tip_x = return_x;
+        // Java: after extraline+x2 adjustments, tip_x = pos2 - 2 for NORMAL head
+        let tip_x = return_x - if msg.has_open_head { 0.0 } else { 1.0 };
         if msg.has_open_head {
             write!(
                 tmp,
@@ -1328,9 +1335,19 @@ fn draw_self_message(
     // Label text above the first horizontal line — each line as separate <text>
     if !msg.text.is_empty() {
         let text_x = if msg.is_left {
-            // Left self-message: text goes to the left of the self-message loop
-            // Position at the far left of the text
-            to_x + 6.0
+            // Left self-message: Java renders the component at
+            // (pos2 - preferredWidth) and draws text at marginX1 (7) from there.
+            // The text is at the LEFT edge of the preferred width area.
+            let text_w = msg.text_lines
+                .iter()
+                .map(|line| crate::font_metrics::text_width(
+                    line, msg_font_family, msg_font_size, false, false,
+                ))
+                .fold(0.0_f64, f64::max);
+            let preferred = f64::max(text_w + 14.0, crate::skin::rose::SELF_ARROW_WIDTH + 5.0);
+            // Component origin = from_x - preferred (absolute)
+            // Text x = origin + marginX1(7)
+            from_x - preferred + 7.0
         } else {
             return_x + 6.0
         };
@@ -1903,9 +1920,19 @@ fn render_sequence_inner(
         .collect();
 
     // 3. Fragment frame rects (first outline, before lifelines).
-    // Reverse: outer fragments first to match Java's SVG element ordering.
-    for frag in layout.fragments.iter().rev() {
-        draw_fragment_frame(&mut sg, frag);
+    // Sort by y-position ascending to match Java's draw order: earlier fragments
+    // (higher on the page) render first. For nested fragments at the same y,
+    // larger (outer) ones have a smaller x and render first naturally.
+    {
+        let mut sorted_frags: Vec<&FragmentLayout> = layout.fragments.iter().collect();
+        sorted_frags.sort_by(|a, b| {
+            a.y.partial_cmp(&b.y)
+                .unwrap_or(std::cmp::Ordering::Equal)
+                .then_with(|| a.x.partial_cmp(&b.x).unwrap_or(std::cmp::Ordering::Equal))
+        });
+        for frag in &sorted_frags {
+            draw_fragment_frame(&mut sg, frag);
+        }
     }
 
     // 4/5. Activation bars and lifelines — order depends on engine:

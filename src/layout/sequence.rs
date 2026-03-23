@@ -133,8 +133,20 @@ impl LayoutParams {
     }
 }
 
-/// Fragment stack entry: (y_start, kind, label, separators, min_part_idx, max_part_idx, depth_at_push)
-type FragmentStackEntry = (f64, FragmentKind, String, Vec<(f64, String)>, Option<usize>, Option<usize>, usize);
+/// Fragment stack entry tracking open fragments during layout.
+struct FragmentStackEntry {
+    y_start: f64,
+    kind: FragmentKind,
+    label: String,
+    separators: Vec<(f64, String)>,
+    min_part_idx: Option<usize>,
+    max_part_idx: Option<usize>,
+    depth_at_push: usize,
+    /// Minimum x-extent of all messages within this fragment (includes text area)
+    msg_min_x: Option<f64>,
+    /// Maximum x-extent of all messages within this fragment (includes text area)
+    msg_max_x: Option<f64>,
+}
 
 // ── Layout output types ──────────────────────────────────────────────────────
 
@@ -295,8 +307,22 @@ fn update_fragment_participant_range(
     idx: usize,
 ) {
     for entry in fragment_stack.iter_mut() {
-        entry.4 = Some(entry.4.map_or(idx, |cur| cur.min(idx)));
-        entry.5 = Some(entry.5.map_or(idx, |cur| cur.max(idx)));
+        entry.min_part_idx = Some(entry.min_part_idx.map_or(idx, |cur| cur.min(idx)));
+        entry.max_part_idx = Some(entry.max_part_idx.map_or(idx, |cur| cur.max(idx)));
+    }
+}
+
+/// Update message x-extent tracking for all open fragments on the stack.
+/// Called when a message is laid out; min_x/max_x represent the message's
+/// full horizontal footprint including text area.
+fn update_fragment_message_extent(
+    fragment_stack: &mut [FragmentStackEntry],
+    min_x: f64,
+    max_x: f64,
+) {
+    for entry in fragment_stack.iter_mut() {
+        entry.msg_min_x = Some(entry.msg_min_x.map_or(min_x, |cur| cur.min(min_x)));
+        entry.msg_max_x = Some(entry.msg_max_x.map_or(max_x, |cur| cur.max(max_x)));
     }
 }
 
@@ -968,7 +994,7 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
                     to_x: if is_self { self_to_x } else { to_x },
                     y: msg_y,
                     text: msg.text.clone(),
-                    text_lines,
+                    text_lines: text_lines.clone(),
                     is_self,
                     is_dashed,
                     is_left,
@@ -977,6 +1003,24 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
                     source_line: msg.source_line,
                     self_return_x,
                 });
+
+                // Track message x-extent for fragment bounds (Java: InGroupable).
+                // Self-messages extend beyond the participant box by their text width.
+                if is_self && !fragment_stack.is_empty() {
+                    let text_w = text_lines
+                        .iter()
+                        .map(|line| message_line_width(line, default_font, msg_font_size))
+                        .fold(0.0_f64, f64::max);
+                    let preferred = f64::max(text_w + 14.0, rose::SELF_ARROW_WIDTH + 5.0);
+                    let (msg_x_min, msg_x_max) = if is_left {
+                        // Left self-message text extends to the left
+                        (from_x - preferred, from_x)
+                    } else {
+                        // Right self-message text extends to the right
+                        (from_x, from_x + preferred)
+                    };
+                    update_fragment_message_extent(&mut fragment_stack, msg_x_min, msg_x_max);
+                }
 
                 // Only enable note back-offset for single-line messages.
                 // Multi-line messages have complex text layout and the note
@@ -1245,7 +1289,17 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
             SeqEvent::FragmentStart { kind, label } => {
                 let frag_y = y_cursor - lp.frag_y_backoff;
                 let depth = fragment_stack.len();
-                fragment_stack.push((frag_y, kind.clone(), label.clone(), Vec::new(), None, None, depth));
+                fragment_stack.push(FragmentStackEntry {
+                    y_start: frag_y,
+                    kind: kind.clone(),
+                    label: label.clone(),
+                    separators: Vec::new(),
+                    min_part_idx: None,
+                    max_part_idx: None,
+                    depth_at_push: depth,
+                    msg_min_x: None,
+                    msg_max_x: None,
+                });
                 y_cursor = frag_y + lp.frag_after_header;
                 last_message_y = None;
             }
@@ -1253,7 +1307,7 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
             SeqEvent::FragmentSeparator { label } => {
                 if let Some(entry) = fragment_stack.last_mut() {
                     let sep_y = y_cursor - lp.frag_sep_backoff;
-                    entry.3.push((sep_y, label.clone()));
+                    entry.separators.push((sep_y, label.clone()));
                     y_cursor = sep_y + lp.frag_after_sep;
                 } else {
                     log::warn!("FragmentSeparator without matching FragmentStart");
@@ -1261,11 +1315,17 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
             }
 
             SeqEvent::FragmentEnd => {
-                if let Some((y_start, kind, label, separators, min_idx, max_idx, depth_at_push)) = fragment_stack.pop() {
+                if let Some(fse) = fragment_stack.pop() {
+                    let FragmentStackEntry {
+                        y_start, kind, label, separators,
+                        min_part_idx: min_idx, max_part_idx: max_idx,
+                        depth_at_push, msg_min_x, msg_max_x,
+                    } = fse;
                     let frag_end_y = y_cursor - lp.frag_end_backoff;
                     let frag_height = frag_end_y - y_start;
 
-                    // Compute fragment x and width based on involved participants.
+                    // Compute fragment x and width based on involved participants
+                    // AND message text extents (Java: InGroupableList.getMinX/getMaxX).
                     // Nested fragments get increasing padding: innermost uses
                     // FRAGMENT_PADDING, each outer layer adds another FRAGMENT_PADDING.
                     let (frag_left, frag_right) = if let (Some(lo), Some(hi)) = (min_idx, max_idx) {
@@ -1273,8 +1333,17 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
                         let p_hi = &participants[hi];
                         let left_pad = FRAGMENT_PADDING * (max_frag_depth[lo] - depth_at_push) as f64;
                         let right_pad = FRAGMENT_PADDING * (max_frag_depth[hi] - depth_at_push) as f64;
-                        let fl = p_lo.x - p_lo.box_width / 2.0 - left_pad;
-                        let fr = p_hi.x + p_hi.box_width / 2.0 + right_pad;
+                        let mut fl = p_lo.x - p_lo.box_width / 2.0 - left_pad;
+                        let mut fr = p_hi.x + p_hi.box_width / 2.0 + right_pad;
+                        // Expand fragment bounds to cover message text areas
+                        // (Java: arrows are InGroupable members of the group, so
+                        // their getMinX/getMaxX expand the group bounds with MARGIN5=5)
+                        if let Some(mx) = msg_min_x {
+                            fl = fl.min(mx - MARGIN);
+                        }
+                        if let Some(mx) = msg_max_x {
+                            fr = fr.max(mx + MARGIN);
+                        }
                         (fl, fr)
                     } else {
                         // Fallback: span all participants
@@ -1448,10 +1517,19 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
     if self_msg_right > total_width {
         total_width = self_msg_right;
     }
+    // Also account for fragment right edges extending beyond total_width
+    for frag in &fragments {
+        let frag_right = frag.x + frag.width;
+        if frag_right > total_width {
+            total_width = frag_right;
+        }
+    }
 
-    // Java: prepareMissingSpace — if left self-messages extend beyond the left
-    // boundary (x < 0 in participant-relative coords), shift ALL elements right.
-    let left_overflow = messages
+    // Java: prepareMissingSpace — if graphical elements extend beyond the left
+    // boundary (x < 0), shift ALL elements right. This includes both messages
+    // (arrows) and fragments (groups/alt/loop) that may extend left due to
+    // left self-messages within them.
+    let msg_overflow = messages
         .iter()
         .filter(|m| m.is_self && m.is_left)
         .map(|m| {
@@ -1466,6 +1544,18 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
             if left_edge < 0.0 { -left_edge } else { 0.0 }
         })
         .fold(0.0_f64, f64::max);
+    // Also check fragments: Java's GroupingGraphicalElement.getStartingX() is
+    // inGroupableList.getMinX() - MARGIN10 (10px further left than the actual
+    // draw position). prepareMissingSpace ensures getStartingX() >= 0, so the
+    // effective minimum fragment x after shifting should be >= MARGIN10 (10).
+    let frag_overflow = fragments
+        .iter()
+        .map(|f| {
+            let effective_x = f.x - FRAGMENT_PADDING; // MARGIN10 = 10 = FRAGMENT_PADDING
+            if effective_x < 0.0 { -effective_x } else { 0.0 }
+        })
+        .fold(0.0_f64, f64::max);
+    let left_overflow = msg_overflow.max(frag_overflow);
     if left_overflow > 0.0 {
         // Shift all participant positions and message coordinates right
         for p in &mut participants {
@@ -1489,14 +1579,25 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
     let total_height = (lifeline_bottom - 1.0) + max_participant_height + 7.0;
 
     // Close any remaining fragments (unmatched)
-    for (y_start, kind, label, separators, min_idx, max_idx, depth_at_push) in fragment_stack.drain(..) {
+    for fse in fragment_stack.drain(..) {
+        let FragmentStackEntry {
+            y_start, kind, label, separators,
+            min_part_idx: min_idx, max_part_idx: max_idx,
+            depth_at_push, msg_min_x, msg_max_x,
+        } = fse;
         let (frag_x, frag_w) = if let (Some(lo), Some(hi)) = (min_idx, max_idx) {
             let p_lo = &participants[lo];
             let p_hi = &participants[hi];
             let left_pad = FRAGMENT_PADDING * (max_frag_depth[lo] - depth_at_push) as f64;
             let right_pad = FRAGMENT_PADDING * (max_frag_depth[hi] - depth_at_push) as f64;
-            let fl = p_lo.x - p_lo.box_width / 2.0 - left_pad;
-            let fr = p_hi.x + p_hi.box_width / 2.0 + right_pad;
+            let mut fl = p_lo.x - p_lo.box_width / 2.0 - left_pad;
+            let mut fr = p_hi.x + p_hi.box_width / 2.0 + right_pad;
+            if let Some(mx) = msg_min_x {
+                fl = fl.min(mx - MARGIN);
+            }
+            if let Some(mx) = msg_max_x {
+                fr = fr.max(mx + MARGIN);
+            }
             (fl, fr - fl)
         } else {
             (leftmost - FRAGMENT_PADDING, full_width)
