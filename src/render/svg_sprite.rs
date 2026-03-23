@@ -13,6 +13,8 @@ use crate::klimt::svg::{fmt_coord, xml_escape};
 
 thread_local! {
     static COLLECTED_GRADIENT_DEFS: RefCell<Vec<(String, String)>> = RefCell::new(Vec::new());
+    /// Map of id -> element content for `<use>` resolution within the current sprite.
+    static SPRITE_DEFS_MAP: RefCell<HashMap<String, String>> = RefCell::new(HashMap::new());
 }
 
 pub fn clear_gradient_defs() {
@@ -51,6 +53,10 @@ pub fn sprite_text_gap(font_family: &str, font_size: f64, bold: bool, italic: bo
 /// content in the output SVG.  Returns a string containing `<path>`, `<text>`,
 /// and other converted elements.
 pub fn convert_svg_elements(svg: &str, offset_x: f64, offset_y: f64) -> String {
+    // Cache <defs> elements for <use> resolution
+    SPRITE_DEFS_MAP.with(|m| m.borrow_mut().clear());
+    cache_defs_elements(svg);
+
     let grad_defs = extract_gradient_defs(svg);
     if !grad_defs.is_empty() {
         COLLECTED_GRADIENT_DEFS.with(|collected| {
@@ -66,6 +72,62 @@ pub fn convert_svg_elements(svg: &str, offset_x: f64, offset_y: f64) -> String {
     let inner = strip_svg_wrapper(svg);
     convert_elements(&mut buf, inner.trim(), offset_x, offset_y, None);
     buf
+}
+
+/// Extract and cache `<defs>` elements by id for `<use>` resolution.
+fn cache_defs_elements(svg: &str) {
+    let inner = strip_svg_wrapper(svg);
+    let content = inner.trim();
+    let mut pos = 0;
+    while let Some(start) = content[pos..].find("<defs") {
+        let abs_start = pos + start;
+        if let Some(end) = content[abs_start..].find("</defs>") {
+            let defs_block = &content[abs_start..abs_start + end + 7];
+            // Find the opening <defs...> closing >
+            if let Some(gt) = defs_block.find('>') {
+                let defs_inner = &defs_block[gt + 1..defs_block.len() - 7]; // strip </defs>
+                extract_defs_by_id(defs_inner.trim());
+            }
+            pos = abs_start + end + 7;
+        } else {
+            break;
+        }
+    }
+}
+
+/// Extract elements with `id` attributes from defs content into the thread-local map.
+fn extract_defs_by_id(content: &str) {
+    SPRITE_DEFS_MAP.with(|map| {
+        let mut map = map.borrow_mut();
+        let mut pos = 0;
+        while pos < content.len() {
+            // Skip comments
+            if content[pos..].starts_with("<!--") {
+                if let Some(end) = content[pos..].find("-->") {
+                    pos += end + 3;
+                    continue;
+                }
+            }
+            if content.as_bytes().get(pos) != Some(&b'<') || content[pos..].starts_with("</") {
+                pos += 1;
+                continue;
+            }
+            // Parse element
+            if let Some((element, consumed)) = parse_element(&content[pos..]) {
+                if consumed == 0 {
+                    pos += 1;
+                    continue;
+                }
+                // Extract id attribute
+                if let Some(id) = get_attr(&element, "id") {
+                    map.insert(id.to_string(), element.clone());
+                }
+                pos += consumed;
+            } else {
+                pos += 1;
+            }
+        }
+    });
 }
 
 /// Extract gradient `<defs>` from SVG content for inclusion in the parent SVG.
@@ -566,7 +628,7 @@ fn convert_single_element_ext(
         "text" => convert_text(buf, element, text_ox, text_oy),
         "image" => convert_image(buf, element, ox, oy),
         "g" => convert_group(buf, element, ox, oy, text_ox, text_oy, css_text_props),
-        "use" => { /* TODO: use/defs expansion */ }
+        "use" => convert_use(buf, element, ox, oy, text_ox, text_oy, css_text_props),
         _ => {}
     }
 }
@@ -969,6 +1031,89 @@ fn convert_group(buf: &mut String, element: &str, ox: f64, oy: f64, text_ox: f64
         (0.0, 0.0)
     };
     convert_elements_with_text_offset(buf, inner.trim(), ox + tx, oy + ty, text_ox, text_oy, css_text_props);
+}
+
+/// Handle `<use>` elements by resolving `xlink:href` or `href` to a `<defs>` element.
+fn convert_use(
+    buf: &mut String,
+    element: &str,
+    ox: f64,
+    oy: f64,
+    text_ox: f64,
+    text_oy: f64,
+    css_text_props: &[(String, String)],
+) {
+    // Get href (strips the leading #)
+    let href = get_attr(element, "xlink:href")
+        .or_else(|| get_attr(element, "href"))
+        .unwrap_or("");
+    let ref_id = href.strip_prefix('#').unwrap_or(href);
+    if ref_id.is_empty() {
+        return;
+    }
+
+    // Get position
+    let use_x = get_attr(element, "x")
+        .and_then(|v| v.parse::<f64>().ok())
+        .unwrap_or(0.0);
+    let use_y = get_attr(element, "y")
+        .and_then(|v| v.parse::<f64>().ok())
+        .unwrap_or(0.0);
+
+    // Get optional transform (e.g. scale)
+    let (tx, ty) = if let Some(transform) = get_attr(element, "transform") {
+        // Handle scale transform by adjusting positions
+        if let Some(scale) = parse_scale(&transform) {
+            // For scale, we adjust the position and scale the content
+            // Java processes <use> by inlining the referenced content at the
+            // scaled position
+            (use_x * scale, use_y * scale)
+        } else {
+            let (ptx, pty) = parse_translate(&transform);
+            (use_x + ptx, use_y + pty)
+        }
+    } else {
+        (use_x, use_y)
+    };
+
+    // Look up the referenced element
+    let ref_content = SPRITE_DEFS_MAP.with(|map| {
+        map.borrow().get(ref_id).cloned()
+    });
+
+    if let Some(ref_element) = ref_content {
+        let tag_name = element_tag_name(&ref_element);
+        match tag_name {
+            "g" => {
+                // Inline the group content at the use position
+                let inner = extract_element_content(&ref_element, "g");
+                convert_elements_with_text_offset(buf, inner.trim(), ox + tx, oy + ty, text_ox + tx, text_oy + ty, css_text_props);
+            }
+            "symbol" => {
+                // Symbol: similar to g, but may have its own viewBox
+                let inner = extract_element_content(&ref_element, "symbol");
+                convert_elements_with_text_offset(buf, inner.trim(), ox + tx, oy + ty, text_ox + tx, text_oy + ty, css_text_props);
+            }
+            _ => {
+                // Single element — render it at the offset position
+                convert_single_element_ext(buf, &ref_element, ox + tx, oy + ty, text_ox + tx, text_oy + ty, None, css_text_props);
+            }
+        }
+    }
+}
+
+/// Parse scale(factor) from a transform string
+fn parse_scale(transform: &str) -> Option<f64> {
+    if let Some(start) = transform.find("scale(") {
+        let rest = &transform[start + 6..];
+        if let Some(end) = rest.find(')') {
+            let val = &rest[..end];
+            // Handle "scale(x,y)" or "scale(x)"
+            let first = val.split(',').next().unwrap_or(val).trim();
+            return first.parse::<f64>().ok();
+        }
+    }
+    None
 }
 
 fn parse_translate(transform: &str) -> (f64, f64) {
