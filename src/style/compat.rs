@@ -1457,4 +1457,11 @@ skinparam participant {
         let sp2 = parse_skinparams(src2);
         assert_eq!(sp2.border_color("state", "#000000"), "#DD0000");
     }
+
+    #[test]
+    fn parse_skinparam_nested_block_maxmessagesize() {
+        let src = "@startuml\nskinparam {\n   Maxmessagesize 200\n}\ngroup Grouping messages\n    Test <- Test : text\nend\n@enduml";
+        let params = parse_skinparams(src);
+        assert_eq!(params.get("maxmessagesize"), Some("200"));
+    }
 }

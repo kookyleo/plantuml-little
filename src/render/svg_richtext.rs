@@ -135,6 +135,56 @@ pub fn creole_plain_text(text: &str) -> String {
     flatten_plain_lines(&parse_creole(text)).join("")
 }
 
+/// Compute the effective line height for creole text, considering `<size:N>` markup.
+/// Returns the line height based on the largest font size used in any span.
+/// Java: `TextBlock.calculateDimension().getHeight()` uses the largest font in the display.
+pub fn creole_line_height(text: &str, default_font: &str, default_font_size: f64) -> f64 {
+    let max_size = max_font_size_in_creole(text, default_font_size);
+    font_metrics::line_height(default_font, max_size, false, false)
+}
+
+/// Find the maximum font size used in a creole text string.
+fn max_font_size_in_creole(text: &str, default_font_size: f64) -> f64 {
+    let parsed = parse_creole(text);
+    let lines = flatten_rich_lines(&parsed);
+    let mut max_size = default_font_size;
+    for line in &lines {
+        for span in line {
+            max_font_size_in_span(span, &mut max_size);
+        }
+    }
+    max_size
+}
+
+fn max_font_size_in_span(span: &TextSpan, max_size: &mut f64) {
+    match span {
+        TextSpan::Sized { size, content } => {
+            if *size > *max_size {
+                *max_size = *size;
+            }
+            for inner in content {
+                max_font_size_in_span(inner, max_size);
+            }
+        }
+        TextSpan::Bold(inner) | TextSpan::Italic(inner) | TextSpan::Underline(inner)
+        | TextSpan::Strikethrough(inner) | TextSpan::Subscript(inner)
+        | TextSpan::Superscript(inner) => {
+            for s in inner {
+                max_font_size_in_span(s, max_size);
+            }
+        }
+        TextSpan::Colored { content, .. }
+        | TextSpan::BackHighlight { content, .. }
+        | TextSpan::FontFamily { content, .. } => {
+            for s in content {
+                max_font_size_in_span(s, max_size);
+            }
+        }
+        TextSpan::Plain(_) | TextSpan::Monospace(_) | TextSpan::Link { .. }
+        | TextSpan::InlineSvg { .. } => {}
+    }
+}
+
 /// Compute the total width of creole text, respecting font-family changes.
 /// For text without font-family markup, this behaves like measuring plain text.
 /// For text with `<font:family>`, each segment is measured in its own font.

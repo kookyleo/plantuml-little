@@ -883,12 +883,22 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
                 } else {
                     0
                 };
+                // Compute this message's text line height (respecting <size:N> markup).
+                // If the text uses a larger font (e.g., <size:18>), the arrow component
+                // is taller. Java's tile model uses the actual text block height.
+                let msg_line_h = crate::render::svg_richtext::creole_line_height(
+                    text_lines.first().map(|s| s.as_str()).unwrap_or(""),
+                    default_font, msg_font_size,
+                );
+                // Extra height from text being taller than the default font size
+                let size_extra = msg_line_h - lp.msg_line_height;
+                let size_extra = if size_extra > 0.0 { size_extra } else { 0.0 };
                 // Multiline message text: extra lines push the arrow down
                 let multiline_extra = num_extra_lines as f64 * lp.msg_line_height;
                 let sprite_extra = msg.text.split("\\n").flat_map(|s| s.split(crate::NEWLINE_CHAR))
                     .map(|line| message_sprite_extra_height(line))
                     .fold(0.0_f64, f64::max);
-                let extra_height = multiline_extra + sprite_extra;
+                let extra_height = multiline_extra + sprite_extra + size_extra;
                 let msg_y = y_cursor + extra_height;
 
                 let msg_autonumber = if autonumber_enabled {
@@ -1438,8 +1448,6 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
     if self_msg_right > total_width {
         total_width = self_msg_right;
     }
-
-
 
     // Java: prepareMissingSpace — if left self-messages extend beyond the left
     // boundary (x < 0 in participant-relative coords), shift ALL elements right.
