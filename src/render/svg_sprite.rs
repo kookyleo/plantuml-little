@@ -207,33 +207,65 @@ fn normalize_gradient(raw: &str, tag: &str) -> String {
     }
     if tag == "linearGradient" {
         for attr in &["x1", "x2", "y1", "y2", "gradientUnits", "gradientTransform"] {
-            if let Some(v) = get_attr(raw, attr) { write!(result, " {attr}=\"{v}\"").unwrap(); }
+            if let Some(v) = get_attr(raw, attr) { write!(result, " {attr}=\"{}\"", truncate_gradient_value(v)).unwrap(); }
         }
     } else {
         for attr in &["cx", "cy", "r", "fx", "fy", "gradientUnits", "gradientTransform"] {
-            if let Some(v) = get_attr(raw, attr) { write!(result, " {attr}=\"{v}\"").unwrap(); }
+            if let Some(v) = get_attr(raw, attr) { write!(result, " {attr}=\"{}\"", truncate_gradient_value(v)).unwrap(); }
         }
     }
     result.push('>');
 
-    // Extract and append child <stop> elements without extra whitespace
+    // Extract and append child <stop> elements with Java-canonical attribute order:
+    // offset, stop-color, stop-opacity (matching Java SvgGraphics output)
     let close_tag = format!("</{tag}>");
     if let Some(inner_start) = raw.find('>') {
         let inner = &raw[inner_start + 1..raw.len() - close_tag.len()];
         for stop in inner.split("<stop") {
             let s = stop.trim();
             if s.is_empty() || !s.contains("offset") { continue; }
-            result.push_str("<stop ");
-            // Normalize whitespace: collapse multiple spaces to single space
-            let attrs = s.trim_end_matches('>').trim_end_matches('/').trim();
-            let normalized: String = attrs.split_whitespace().collect::<Vec<_>>().join(" ");
-            result.push_str(&normalized);
+            let stop_raw = format!("<stop {s}");
+            result.push_str("<stop");
+            // Canonical order: offset, stop-color, stop-opacity
+            if let Some(v) = get_attr(&stop_raw, "offset") {
+                write!(result, " offset=\"{v}\"").unwrap();
+            }
+            if let Some(v) = get_attr(&stop_raw, "stop-color") {
+                write!(result, " stop-color=\"{v}\"").unwrap();
+            }
+            if let Some(v) = get_attr(&stop_raw, "stop-opacity") {
+                // Java: integer values like "0" stay as-is, decimals get 4 places
+                if let Ok(n) = v.parse::<f64>() {
+                    if n == 0.0 {
+                        result.push_str(" stop-opacity=\"0\"");
+                    } else {
+                        write!(result, " stop-opacity=\"{n:.4}\"").unwrap();
+                    }
+                } else {
+                    write!(result, " stop-opacity=\"{v}\"").unwrap();
+                }
+            }
             result.push_str("/>");
         }
     }
 
     result.push_str(&close_tag);
     result
+}
+
+/// Truncate gradient coordinate values to 4 decimal places (matching Java DecimalFormat "0.####").
+/// Percentage values like "58.9717389%" → "58.9717%".
+/// Non-numeric values (gradientUnits, gradientTransform) pass through unchanged.
+fn truncate_gradient_value(v: &str) -> String {
+    if let Some(num_str) = v.strip_suffix('%') {
+        if let Ok(n) = num_str.parse::<f64>() {
+            return format!("{:.4}%", n);
+        }
+    }
+    if let Ok(n) = v.parse::<f64>() {
+        return format!("{:.4}", n);
+    }
+    v.to_string()
 }
 
 /// Recursively convert SVG elements to path-based output.
@@ -1086,10 +1118,11 @@ fn translate_path_data(d: &str, ox: f64, oy: f64) -> String {
                 }
             }
             'C' => {
-                // Cubic bezier: x1,y1 x2,y2 x,y
-                for _ in 0..3 {
+                // Cubic bezier: x1,y1 x2,y2 x,y (Java: no space after C)
+                for i in 0..3 {
                     if let Some((x, y)) = parse_coord_pair(&mut chars) {
-                        write!(result, " {},{}", fmt_coord(x + ox), fmt_coord(y + oy)).unwrap();
+                        let sep = if i == 0 { "" } else { " " };
+                        write!(result, "{sep}{},{}", fmt_coord(x + ox), fmt_coord(y + oy)).unwrap();
                     }
                 }
             }
