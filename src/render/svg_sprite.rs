@@ -856,10 +856,21 @@ fn convert_polygon(buf: &mut String, element: &str, ox: f64, oy: f64) {
 
 fn convert_path(buf: &mut String, element: &str, ox: f64, oy: f64) {
     let d = get_attr(element, "d").unwrap_or("");
-    let translated = translate_path_data(d, ox, oy);
+    let mut translated = translate_path_data(d, ox, oy);
+    // Java's sprite path processing strips trailing Z from closed paths
+    if translated.ends_with(" Z") {
+        translated.truncate(translated.len() - 2);
+    }
 
     let fill = get_fill(element);
     let style = get_stroke_style(element);
+    // Java: shapes with gradient fill and no explicit stroke get a default
+    // stroke matching the fill gradient (stroke-width:1)
+    let style = if style.is_empty() && fill.starts_with("url(") {
+        format!("stroke:{fill};stroke-width:1;")
+    } else {
+        style
+    };
 
     write!(buf, r#"<path d="{translated}" fill="{fill}""#).unwrap();
     if !style.is_empty() {
