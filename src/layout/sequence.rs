@@ -1517,11 +1517,17 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
     if self_msg_right > total_width {
         total_width = self_msg_right;
     }
-    // Also account for fragment right edges extending beyond total_width
+    // Also account for fragment and note right edges extending beyond total_width
     for frag in &fragments {
         let frag_right = frag.x + frag.width;
         if frag_right > total_width {
             total_width = frag_right;
+        }
+    }
+    for note in &notes {
+        let note_right = note.x + note.width;
+        if note_right > total_width {
+            total_width = note_right;
         }
     }
 
@@ -1555,7 +1561,13 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
             if effective_x < 0.0 { -effective_x } else { 0.0 }
         })
         .fold(0.0_f64, f64::max);
-    let left_overflow = msg_overflow.max(frag_overflow);
+    // Also check notes: left notes can extend beyond the left boundary.
+    // Java: NoteBox.getStartingX() / getMinX() returns the note's left edge.
+    let note_overflow = notes
+        .iter()
+        .map(|n| if n.x < 0.0 { -n.x } else { 0.0 })
+        .fold(0.0_f64, f64::max);
+    let left_overflow = msg_overflow.max(frag_overflow).max(note_overflow);
     if left_overflow > 0.0 {
         // Shift all participant positions and message coordinates right
         for p in &mut participants {
@@ -1571,6 +1583,9 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
         }
         for frag in &mut fragments {
             frag.x += left_overflow;
+        }
+        for n in &mut notes {
+            n.x += left_overflow;
         }
         total_width += left_overflow;
     }
