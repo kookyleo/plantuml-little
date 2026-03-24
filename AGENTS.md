@@ -126,6 +126,8 @@ A single bit of difference will fail the reference test. "Close enough" is never
 
 **深入对照每一个底层模块，确保一致。不要选择最简单的，选择最深入的，深度优先。必要时 ultrathink。**
 
+**要顺着依赖关系递归深入下去，子孙问题要拆小，达成两端一致，再逐层返回。一切以 Java-first TDD 为最高行动准绳。必要时 ultrathink。**
+
 #### Execution Discipline — The Debugging & Fixing Loop
 
 Every fix must follow this strict loop. No skipping steps, no guessing.
