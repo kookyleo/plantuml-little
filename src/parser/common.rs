@@ -652,6 +652,14 @@ pub fn parse_meta(source: &str) -> DiagramMeta {
             }
         }
 
+        // pragma
+        if let Some(rest) = trimmed.strip_prefix("!pragma ") {
+            let rest = rest.trim();
+            if let Some((key, val)) = rest.split_once(char::is_whitespace) {
+                meta.pragmas.insert(key.to_string(), val.trim().to_string());
+            }
+        }
+
         i += 1;
     }
 

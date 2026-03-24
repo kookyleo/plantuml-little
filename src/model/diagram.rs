@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use super::entity::Entity;
 use super::link::Link;
 
-/// Diagram metadata (title / header / footer / legend / caption)
+/// Diagram metadata (title / header / footer / legend / caption / pragmas)
 #[derive(Debug, Clone, Default)]
 pub struct DiagramMeta {
     pub title: Option<String>,
@@ -16,6 +16,8 @@ pub struct DiagramMeta {
     pub footer_line: Option<usize>,
     pub legend_line: Option<usize>,
     pub caption_line: Option<usize>,
+    /// Pragma key-value pairs (`!pragma key value`)
+    pub pragmas: HashMap<String, String>,
 }
 
 impl DiagramMeta {

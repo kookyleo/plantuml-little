@@ -267,26 +267,33 @@ pub fn render_with_source(
     set_default_font_family(skin.handwritten_font_family().map(|s| s.to_string()));
     let body_result = render_body(diagram, layout, skin)?;
     set_default_font_family(None);
-    let mut svg = if meta.is_empty() {
+
+    // Extract diagram type from body SVG
+    let dtype = body_result.svg
+        .find("data-diagram-type=\"")
+        .and_then(|pos| {
+            let start = pos + 19;
+            body_result.svg[start..]
+                .find('"')
+                .map(|end| body_result.svg[start..start + end].to_string())
+        })
+        .unwrap_or_else(|| "CLASS".to_string());
+
+    let mut svg = if meta.is_empty() && !meta.pragmas.contains_key("svginteractive") {
         body_result.svg
     } else {
-        // Extract diagram type from body SVG's data-diagram-type attribute
-        let dtype = body_result.svg
-            .find("data-diagram-type=\"")
-            .and_then(|pos| {
-                let start = pos + 19;
-                body_result.svg[start..]
-                    .find('"')
-                    .map(|end| &body_result.svg[start..start + end])
-            })
-            .unwrap_or("CLASS");
         // Document-level BackGroundColor from <style> is stored as "document.backgroundcolor";
         // skinparam BackGroundColor is stored as "backgroundcolor". Try both.
         let bg = skin.get("document.backgroundcolor")
             .or_else(|| skin.get("backgroundcolor"))
             .unwrap_or("#FFFFFF");
-        wrap_with_meta(&body_result.svg, meta, dtype, bg, body_result.raw_body_dim, skin)?
+        wrap_with_meta(&body_result.svg, meta, &dtype, bg, body_result.raw_body_dim, skin)?
     };
+
+    // Inject svginteractive CSS/JS if pragma is set
+    if meta.pragmas.get("svginteractive").map_or(false, |v| v == "true") {
+        svg = inject_svginteractive(svg, &dtype);
+    }
 
     if let Some(source) = source {
         svg = inject_plantuml_source(svg, source)?;
@@ -554,6 +561,92 @@ fn extract_svg_content(svg: &str) -> String {
         return after_open.to_string();
     }
     svg.to_string()
+}
+
+// ── SVG interactive CSS/JS resources ─────────────────────────────────
+
+/// CSS for sequence diagrams when `!pragma svginteractive true`
+const SEQUENCE_INTERACTIVE_CSS: &str = include_str!("interactive/sequencediagram.css");
+/// JS for sequence diagrams when `!pragma svginteractive true`
+const SEQUENCE_INTERACTIVE_JS: &str = include_str!("interactive/sequencediagram.js");
+/// CSS for non-sequence diagrams when `!pragma svginteractive true`
+const DEFAULT_INTERACTIVE_CSS: &str = include_str!("interactive/default.css");
+/// JS for non-sequence diagrams when `!pragma svginteractive true`
+const DEFAULT_INTERACTIVE_JS: &str = include_str!("interactive/default.js");
+
+/// Ensure text ends with a newline (matches Java FileUtils.readText behavior).
+fn ensure_trailing_newline(s: &str) -> String {
+    if s.ends_with('\n') {
+        s.to_string()
+    } else {
+        format!("{}\n", s)
+    }
+}
+
+/// XML-escape text for embedding in SVG `<script>` elements.
+fn xml_escape_js(s: &str) -> String {
+    let mut out = String::with_capacity(s.len() + s.len() / 10);
+    for c in s.chars() {
+        match c {
+            '&' => out.push_str("&amp;"),
+            '<' => out.push_str("&lt;"),
+            '>' => out.push_str("&gt;"),
+            _ => out.push(c),
+        }
+    }
+    out
+}
+
+/// Inject interactive CSS and JS into the SVG `<defs>` section.
+fn inject_svginteractive(svg: String, diagram_type: &str) -> String {
+    let (css, js) = if diagram_type == "SEQUENCE" {
+        (SEQUENCE_INTERACTIVE_CSS, SEQUENCE_INTERACTIVE_JS)
+    } else {
+        (DEFAULT_INTERACTIVE_CSS, DEFAULT_INTERACTIVE_JS)
+    };
+
+    // Java readText() reads line-by-line and appends \n after each line,
+    // effectively ensuring trailing newline. Replicate that behavior.
+    let css_text = ensure_trailing_newline(css);
+    let js_text = ensure_trailing_newline(js);
+
+    let defs_content = format!(
+        "<style type=\"text/css\"><![CDATA[\n{}]]></style><script>{}</script>",
+        css_text,
+        xml_escape_js(&js_text)
+    );
+
+    // Replace empty <defs/> with populated <defs>
+    if let Some(pos) = svg.find("<defs/>") {
+        let mut result = String::with_capacity(svg.len() + defs_content.len());
+        result.push_str(&svg[..pos]);
+        result.push_str("<defs>");
+        result.push_str(&defs_content);
+        result.push_str("</defs>");
+        result.push_str(&svg[pos + 7..]);
+        result
+    } else if let Some(pos) = svg.find("<defs>") {
+        // Already has <defs>...</defs> — inject at start of defs content
+        let insert_pos = pos + 6;
+        let mut result = String::with_capacity(svg.len() + defs_content.len());
+        result.push_str(&svg[..insert_pos]);
+        result.push_str(&defs_content);
+        result.push_str(&svg[insert_pos..]);
+        result
+    } else {
+        // No defs section found — insert before <g>
+        if let Some(pos) = svg.find("<g>") {
+            let mut result = String::with_capacity(svg.len() + defs_content.len() + 14);
+            result.push_str(&svg[..pos]);
+            result.push_str("<defs>");
+            result.push_str(&defs_content);
+            result.push_str("</defs>");
+            result.push_str(&svg[pos..]);
+            result
+        } else {
+            svg
+        }
+    }
 }
 
 fn inject_plantuml_source(mut svg: String, source: &str) -> Result<String> {
