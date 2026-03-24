@@ -124,6 +124,8 @@ A single bit of difference will fail the reference test. "Close enough" is never
 
 **遇到复杂问题深度优先，拆解子问题，递归坚持 java-first tdd 原则解决问题。** 不要畏惧深层架构变更——将问题分解为可验证的子步骤，每步都用 Java 源码和参考输出验证。
 
+**深入对照每一个底层模块，确保一致。不要选择最简单的，选择最深入的，深度优先。必要时 ultrathink。**
+
 #### Execution Discipline — The Debugging & Fixing Loop
 
 Every fix must follow this strict loop. No skipping steps, no guessing.
