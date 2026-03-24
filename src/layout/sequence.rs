@@ -181,6 +181,8 @@ pub struct MessageLayout {
     /// for any activation bar that overlaps at the return y.
     /// `return_x = max(from_x, activation_bar_right) + 1`
     pub self_return_x: f64,
+    /// Per-message arrow color override (from `[#color]` syntax)
+    pub color: Option<String>,
 }
 
 /// Activation bar layout
@@ -1039,6 +1041,7 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
                     autonumber: msg_autonumber,
                     source_line: msg.source_line,
                     self_return_x,
+                    color: msg.color.clone(),
                 });
 
                 // Track message x-extent for fragment bounds (Java: InGroupable).

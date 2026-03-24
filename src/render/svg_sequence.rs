@@ -2213,11 +2213,17 @@ fn render_sequence_inner(
             find_participant_idx_by_x(&layout.participants, msg.to_x, &part_index)
         };
 
+        // Per-message color override from [#color] syntax
+        let effective_color = msg.color.as_ref()
+            .map(|c| crate::style::normalize_color(c))
+            .unwrap_or_else(|| seq_arrow_color.to_string());
+        let effective_color = effective_color.as_str();
+
         if msg.is_self {
             draw_self_message(
                 &mut sg,
                 msg,
-                seq_arrow_color,
+                effective_color,
                 seq_arrow_thickness,
                 &default_font,
                 msg_font_size,
@@ -2229,7 +2235,7 @@ fn render_sequence_inner(
             draw_message(
                 &mut sg,
                 msg,
-                seq_arrow_color,
+                effective_color,
                 seq_arrow_thickness,
                 &default_font,
                 seq_svg_font_family,

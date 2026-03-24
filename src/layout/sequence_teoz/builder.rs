@@ -827,6 +827,7 @@ pub fn build_teoz_layout(
 					autonumber: autonumber.clone(),
 					source_line: None, // TODO: propagate from parser
 					self_return_x: from_x,
+					color: None,
 				});
 			}
 			TeozTile::SelfMessage {
@@ -854,6 +855,7 @@ pub fn build_teoz_layout(
 					autonumber: autonumber.clone(),
 					source_line: None, // TODO: propagate from parser
 					self_return_x: cx,
+					color: None,
 				});
 			}
 			TeozTile::Note {
