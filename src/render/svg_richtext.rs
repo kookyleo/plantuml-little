@@ -1234,7 +1234,8 @@ mod tests {
             "",
         );
         assert!(buf.contains(r#"href="https://example.com""#));
-        assert!(buf.contains("<title>hover</title>"));
+        // Java puts tooltip in title="..." and xlink:title="..." attributes, not <title> element
+        assert!(buf.contains(r#"title="hover""#));
         assert!(buf.contains("Example"));
     }
 

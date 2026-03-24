@@ -952,12 +952,14 @@ mod tests {
 
     #[test]
     fn test_link_tooltip_preserves_escaped_newline() {
+        // Inside [[...]], \n is kept as literal (backslash + n);
+        // title rendering (process_xlink_title) handles conversion to newline
         let rt = parse_creole("[[https://example.com{line1\\nline2} Label]]");
         assert_eq!(
             rt,
             RichText::Line(vec![TextSpan::Link {
                 url: "https://example.com".into(),
-                tooltip: Some("line1\nline2".into()),
+                tooltip: Some("line1\\nline2".into()),
                 label: Some("Label".into()),
             }])
         );

@@ -644,4 +644,23 @@ mod tests {
             _ => panic!("expected object"),
         }
     }
+
+    // 19. Escaped newlines (\\n in JSON → literal \n in value)
+    #[test]
+    fn test_escaped_newline_in_string() {
+        // JSON: "a\\nb\\nc" → parsed string: a\nb\nc (literal backslash-n)
+        let jd = parse(r#"{"desc": "a\\nb\\nc\\nd\\ne\\nf"}"#);
+        match &jd.root {
+            JsonValue::Object(entries) => {
+                let val = match &entries[0].1 {
+                    JsonValue::Str(s) => s.clone(),
+                    _ => panic!("expected string"),
+                };
+                // Should be literal \n (two chars: backslash + n)
+                assert_eq!(val, "a\\nb\\nc\\nd\\ne\\nf");
+                assert_eq!(val.split("\\n").count(), 6, "Should split into 6 parts on literal \\n");
+            }
+            _ => panic!("expected object"),
+        }
+    }
 }

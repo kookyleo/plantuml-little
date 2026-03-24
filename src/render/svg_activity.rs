@@ -149,6 +149,22 @@ pub fn render_activity(
     write_bg_rect(&mut buf, svg_w, svg_h, bg);
     buf.push_str(sg.body());
     buf.push_str("</g></svg>");
+
+    // Post-process: inject back-highlight filter definitions
+    let filters = crate::render::svg_richtext::take_back_filters();
+    if !filters.is_empty() {
+        let mut defs_content = String::new();
+        for (id, hex_color) in &filters {
+            use std::fmt::Write;
+            write!(
+                defs_content,
+                r#"<filter height="1" id="{}" width="1" x="0" y="0"><feFlood flood-color="{}" result="flood"/><feComposite in="SourceGraphic" in2="flood" operator="over"/></filter>"#,
+                id, hex_color,
+            ).unwrap();
+        }
+        buf = buf.replacen("<defs/>", &format!("<defs>{}</defs>", defs_content), 1);
+    }
+
     Ok(buf)
 }
 

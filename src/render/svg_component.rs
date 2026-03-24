@@ -1346,7 +1346,7 @@ mod tests {
             render_component(&diagram, &layout, &SkinParams::default()).expect("render failed");
         assert!(svg.contains(r#"font-weight="700""#));
         assert!(svg.contains(r#"href="https://example.com""#));
-        assert!(svg.contains("<title>hover</title>"));
+        assert!(svg.contains(r#"title="hover""#));
         assert!(svg.contains("label"));
     }
 

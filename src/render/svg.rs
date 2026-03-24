@@ -3272,7 +3272,7 @@ mod tests {
         let svg = render(&d, &l, &default_skin(), &meta).unwrap();
         assert!(svg.contains(r#"font-weight="700""#));
         assert!(svg.contains(r#"href="https://example.com""#));
-        assert!(svg.contains("<title>hover</title>"));
+        assert!(svg.contains(r#"title="hover""#));
         assert!(svg.contains("Link"));
     }
 

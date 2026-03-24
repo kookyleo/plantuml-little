@@ -340,4 +340,15 @@ mod tests {
         let layout = layout_json(&jd).unwrap();
         assert!(!layout.boxes.is_empty());
     }
+
+    #[test]
+    fn test_escaped_newline_value_produces_multiline() {
+        // desc: "a\nb\nc\nd\ne\nf" should produce 6 value lines
+        let jd = JsonDiagram { root: JsonValue::Object(vec![
+            ("desc".into(), JsonValue::Str("a\\nb\\nc\\nd\\ne\\nf".into())),
+        ]) };
+        let layout = layout_json(&jd).unwrap();
+        assert_eq!(layout.boxes[0].rows[0].value_lines.len(), 6,
+            "Expected 6 value lines, got: {:?}", layout.boxes[0].rows[0].value_lines);
+    }
 }
