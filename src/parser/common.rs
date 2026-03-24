@@ -136,7 +136,9 @@ pub fn detect_diagram_type(content: &str) -> DiagramHint {
 
         // Skip content inside bracket-display blocks: `name [\n...\n]`
         if in_bracket_display {
-            if trimmed == "]" || trimmed.ends_with(']') {
+            // Close bracket display when line is exactly "]" — NOT when it merely
+            // ends with "]" since `]]` (link close) would falsely terminate the block.
+            if trimmed == "]" {
                 in_bracket_display = false;
             }
             continue;
