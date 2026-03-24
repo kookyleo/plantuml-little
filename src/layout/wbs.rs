@@ -426,7 +426,9 @@ mod tests {
 
     #[test] fn test_single_root() {
         let l = layout_wbs(&mkd(leaf("Root", 1))).unwrap();
-        assert_eq!(l.nodes.len(), 1); assert!(l.edges.is_empty());
+        assert_eq!(l.nodes.len(), 1);
+        // Fork with 0 children creates stub edges (visible + dimension)
+        assert_eq!(l.edges.len(), 2);
     }
     #[test] fn test_root_with_children() {
         let r = WbsNode { text: "Root".into(), children: vec![leaf("A",2),leaf("B",2)], direction: WbsDirection::Default, alias: None, level: 1 };
