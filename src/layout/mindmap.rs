@@ -109,25 +109,42 @@ fn split_text_lines(text: &str) -> Vec<String> {
 
 /// Estimate the rendered size of a node based on its text.
 fn estimate_node_size(text: &str, is_root: bool) -> (f64, f64, Vec<String>) {
+    estimate_node_size_styled(text, is_root, H_PADDING, V_PADDING)
+}
+
+/// Estimate node size with custom padding values from style.
+fn estimate_node_size_styled(text: &str, is_root: bool, h_pad: f64, v_pad: f64) -> (f64, f64, Vec<String>) {
     let lines = split_text_lines(text);
     let max_line_width = lines
         .iter()
         .map(|l| font_metrics::text_width(l, "SansSerif", FONT_SIZE, false, false))
         .fold(0.0_f64, f64::max);
 
-    let base_width = max_line_width + 2.0 * H_PADDING;
-    let base_height = lines.len() as f64 * LINE_HEIGHT + 2.0 * V_PADDING;
-
-    let width = if is_root {
-        base_width.max(MIN_NODE_WIDTH) + 16.0 // root is slightly larger
+    let has_custom_padding = h_pad != H_PADDING || v_pad != V_PADDING;
+    let text_h = font_metrics::line_height("SansSerif", FONT_SIZE, false, false);
+    let base_width = max_line_width + 2.0 * h_pad;
+    let base_height = if has_custom_padding {
+        // When padding is customized (e.g. Padding 0), use exact text height
+        lines.len() as f64 * text_h + 2.0 * v_pad
     } else {
-        base_width.max(MIN_NODE_WIDTH)
+        lines.len() as f64 * LINE_HEIGHT + 2.0 * v_pad
     };
 
-    let height = if is_root {
-        base_height.max(MIN_NODE_HEIGHT) + 8.0
+    let (width, height) = if has_custom_padding {
+        // With custom padding, don't apply min sizes or root extras
+        (base_width, base_height)
     } else {
-        base_height.max(MIN_NODE_HEIGHT)
+        let w = if is_root {
+            base_width.max(MIN_NODE_WIDTH) + 16.0
+        } else {
+            base_width.max(MIN_NODE_WIDTH)
+        };
+        let h = if is_root {
+            base_height.max(MIN_NODE_HEIGHT) + 8.0
+        } else {
+            base_height.max(MIN_NODE_HEIGHT)
+        };
+        (w, h)
     };
 
     (width, height, lines)
@@ -179,8 +196,13 @@ struct SubtreeInfo {
 
 /// Recursively compute the subtree dimensions.
 fn compute_subtree_info(node: &MindmapNode) -> SubtreeInfo {
+    compute_subtree_info_styled(node, H_PADDING, V_PADDING)
+}
+
+/// Recursively compute subtree dimensions with custom padding.
+fn compute_subtree_info_styled(node: &MindmapNode, h_pad: f64, v_pad: f64) -> SubtreeInfo {
     let is_root = node.level == 1;
-    let (node_width, node_height, lines) = estimate_node_size(&node.text, is_root);
+    let (node_width, node_height, lines) = estimate_node_size_styled(&node.text, is_root, h_pad, v_pad);
 
     if node.children.is_empty() {
         return SubtreeInfo {
@@ -192,7 +214,9 @@ fn compute_subtree_info(node: &MindmapNode) -> SubtreeInfo {
         };
     }
 
-    let child_infos: Vec<SubtreeInfo> = node.children.iter().map(compute_subtree_info).collect();
+    let child_infos: Vec<SubtreeInfo> = node.children.iter()
+        .map(|c| compute_subtree_info_styled(c, h_pad, v_pad))
+        .collect();
 
     let children_total_height: f64 = child_infos.iter().map(|c| c.total_height).sum::<f64>()
         + (child_infos.len() as f64 - 1.0).max(0.0) * SIBLING_SPACING;
@@ -241,8 +265,10 @@ fn position_subtree(
         return;
     }
 
-    // Position children
-    let child_x = x + LEVEL_INDENT;
+    // Position children: parent right edge + gap
+    // Java uses a 50px gap between parent right and child left
+    const LEVEL_GAP: f64 = 50.0;
+    let child_x = x + info.node_width + LEVEL_GAP;
     let mut child_y = y_start;
 
     // If the children total height is less than the node height, center them
@@ -345,8 +371,16 @@ fn layout_notes(notes: &[MindmapNote], root: &MindmapNodeLayout) -> Vec<MindmapN
 // ---------------------------------------------------------------------------
 
 /// Lay out a mindmap diagram into positioned nodes and edges.
-pub fn layout_mindmap(diagram: &MindmapDiagram) -> Result<MindmapLayout> {
-    let info = compute_subtree_info(&diagram.root);
+pub fn layout_mindmap(diagram: &MindmapDiagram, skin: &crate::style::SkinParams) -> Result<MindmapLayout> {
+    // Extract style overrides for node padding
+    let h_pad = skin.get("node.padding")
+        .and_then(|s| s.parse::<f64>().ok())
+        .unwrap_or(H_PADDING);
+    let v_pad = skin.get("node.padding")
+        .and_then(|s| s.parse::<f64>().ok())
+        .unwrap_or(V_PADDING);
+
+    let info = compute_subtree_info_styled(&diagram.root, h_pad, v_pad);
 
     let mut nodes = Vec::new();
     let mut edges = Vec::new();
@@ -461,21 +495,21 @@ mod tests {
     #[test]
     fn layout_simple_produces_correct_node_count() {
         let diagram = simple_diagram();
-        let layout = layout_mindmap(&diagram).unwrap();
+        let layout = layout_mindmap(&diagram, &crate::style::SkinParams::default()).unwrap();
         assert_eq!(layout.nodes.len(), 3);
     }
 
     #[test]
     fn layout_simple_produces_correct_edge_count() {
         let diagram = simple_diagram();
-        let layout = layout_mindmap(&diagram).unwrap();
+        let layout = layout_mindmap(&diagram, &crate::style::SkinParams::default()).unwrap();
         assert_eq!(layout.edges.len(), 2);
     }
 
     #[test]
     fn layout_root_is_leftmost() {
         let diagram = simple_diagram();
-        let layout = layout_mindmap(&diagram).unwrap();
+        let layout = layout_mindmap(&diagram, &crate::style::SkinParams::default()).unwrap();
         let root = &layout.nodes[0];
         for node in &layout.nodes[1..] {
             assert!(
@@ -490,7 +524,7 @@ mod tests {
     #[test]
     fn layout_children_at_same_x() {
         let diagram = simple_diagram();
-        let layout = layout_mindmap(&diagram).unwrap();
+        let layout = layout_mindmap(&diagram, &crate::style::SkinParams::default()).unwrap();
         let child1_x = layout.nodes[1].x;
         let child2_x = layout.nodes[2].x;
         assert!(
@@ -504,7 +538,7 @@ mod tests {
     #[test]
     fn layout_children_vertically_ordered() {
         let diagram = simple_diagram();
-        let layout = layout_mindmap(&diagram).unwrap();
+        let layout = layout_mindmap(&diagram, &crate::style::SkinParams::default()).unwrap();
         assert!(
             layout.nodes[1].y < layout.nodes[2].y,
             "first child should be above second"
@@ -514,7 +548,7 @@ mod tests {
     #[test]
     fn layout_canvas_positive_dimensions() {
         let diagram = simple_diagram();
-        let layout = layout_mindmap(&diagram).unwrap();
+        let layout = layout_mindmap(&diagram, &crate::style::SkinParams::default()).unwrap();
         assert!(layout.width > 0.0);
         assert!(layout.height > 0.0);
     }
@@ -522,21 +556,21 @@ mod tests {
     #[test]
     fn layout_deep_correct_node_count() {
         let diagram = deep_diagram();
-        let layout = layout_mindmap(&diagram).unwrap();
+        let layout = layout_mindmap(&diagram, &crate::style::SkinParams::default()).unwrap();
         assert_eq!(layout.nodes.len(), 5);
     }
 
     #[test]
     fn layout_deep_correct_edge_count() {
         let diagram = deep_diagram();
-        let layout = layout_mindmap(&diagram).unwrap();
+        let layout = layout_mindmap(&diagram, &crate::style::SkinParams::default()).unwrap();
         assert_eq!(layout.edges.len(), 4);
     }
 
     #[test]
     fn layout_node_levels_correct() {
         let diagram = simple_diagram();
-        let layout = layout_mindmap(&diagram).unwrap();
+        let layout = layout_mindmap(&diagram, &crate::style::SkinParams::default()).unwrap();
         assert_eq!(layout.nodes[0].level, 1);
         assert_eq!(layout.nodes[1].level, 2);
         assert_eq!(layout.nodes[2].level, 2);
@@ -548,7 +582,7 @@ mod tests {
             root: MindmapNode::new("Alone", 1),
             notes: vec![],
         };
-        let layout = layout_mindmap(&diagram).unwrap();
+        let layout = layout_mindmap(&diagram, &crate::style::SkinParams::default()).unwrap();
         assert_eq!(layout.nodes.len(), 1);
         assert_eq!(layout.edges.len(), 0);
         assert!(layout.width > 0.0);
@@ -558,7 +592,7 @@ mod tests {
     #[test]
     fn layout_nodes_have_positive_dimensions() {
         let diagram = simple_diagram();
-        let layout = layout_mindmap(&diagram).unwrap();
+        let layout = layout_mindmap(&diagram, &crate::style::SkinParams::default()).unwrap();
         for node in &layout.nodes {
             assert!(node.width > 0.0, "node width should be positive");
             assert!(node.height > 0.0, "node height should be positive");
@@ -568,7 +602,7 @@ mod tests {
     #[test]
     fn layout_edges_connect_parent_to_child() {
         let diagram = simple_diagram();
-        let layout = layout_mindmap(&diagram).unwrap();
+        let layout = layout_mindmap(&diagram, &crate::style::SkinParams::default()).unwrap();
         // Each edge from_x should be root's right side, to_x should be child's left
         let root = &layout.nodes[0];
         for edge in &layout.edges {
@@ -623,7 +657,7 @@ mod tests {
             root,
             notes: vec![],
         };
-        let layout = layout_mindmap(&diagram).unwrap();
+        let layout = layout_mindmap(&diagram, &crate::style::SkinParams::default()).unwrap();
         assert_eq!(layout.nodes.len(), 2);
         assert_eq!(layout.nodes[1].lines.len(), 3);
     }
@@ -639,7 +673,7 @@ mod tests {
             root,
             notes: vec![],
         };
-        let layout = layout_mindmap(&diagram).unwrap();
+        let layout = layout_mindmap(&diagram, &crate::style::SkinParams::default()).unwrap();
         assert_eq!(layout.nodes.len(), 11);
         assert_eq!(layout.edges.len(), 10);
         // Verify all children are vertically ordered
@@ -657,7 +691,7 @@ mod tests {
                 position: "right".to_string(),
             }],
         };
-        let layout = layout_mindmap(&diagram).unwrap();
+        let layout = layout_mindmap(&diagram, &crate::style::SkinParams::default()).unwrap();
         assert_eq!(layout.notes.len(), 1);
         assert!(layout.notes[0].x > layout.nodes[0].x + layout.nodes[0].width);
         assert!(layout.notes[0].connector.is_some());

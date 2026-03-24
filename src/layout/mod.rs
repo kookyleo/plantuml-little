@@ -174,7 +174,7 @@ pub fn layout(diagram: &Diagram, skin: &crate::style::SkinParams) -> Result<Diag
             Ok(DiagramLayout::Json(jl))
         }
         Diagram::Mindmap(md) => {
-            let ml = mindmap::layout_mindmap(md)?;
+            let ml = mindmap::layout_mindmap(md, skin)?;
             Ok(DiagramLayout::Mindmap(ml))
         }
         Diagram::Nwdiag(nd) => {

@@ -33,19 +33,36 @@ pub fn render_mindmap(
     buf.push_str("<defs/><g>");
     write_bg_rect(&mut buf, svg_w, svg_h, bg);
 
-    let mm_bg = skin.background_color("mindmap", ENTITY_BG);
-    let mm_border = skin.border_color("mindmap", BORDER_COLOR);
+    // Node style: colors, border, corner radius
+    let has_node_bg_style = skin.get("node.backgroundcolor").is_some();
+    let node_bg = skin.get("node.backgroundcolor")
+        .unwrap_or_else(|| skin.background_color("mindmap", ENTITY_BG));
+    // Root uses gold by default, but style override applies to all nodes
+    let root_bg = if has_node_bg_style { node_bg } else { ROOT_FILL };
+    let child_bg = node_bg;
+    let node_border = skin.get("node.linecolor")
+        .unwrap_or_else(|| skin.border_color("mindmap", BORDER_COLOR));
+    let node_border_width: f64 = skin.get("node.linethickness")
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(BORDER_WIDTH);
+    let node_corner: f64 = skin.get("node.roundcorner")
+        .and_then(|s| s.parse::<f64>().ok())
+        .map(|v| v / 2.0) // Java: RoundCorner N → rx/ry = N/2
+        .unwrap_or(CORNER_RADIUS);
     let mm_font = skin.font_color("mindmap", TEXT_COLOR);
-    let edge_color = skin.arrow_color(BORDER_COLOR);
+    let edge_color = skin.get("node.linecolor")
+        .unwrap_or_else(|| skin.arrow_color(BORDER_COLOR));
 
     let mut sg = SvgGraphic::new(0, 1.0);
 
     for edge in &layout.edges {
-        render_edge(&mut sg, edge, edge_color);
+        render_edge_styled(&mut sg, edge, edge_color, node_border_width);
     }
 
     for node in &layout.nodes {
-        render_node(&mut sg, node, mm_bg, mm_border, mm_font);
+        let bg = if node.level == 1 { root_bg } else { child_bg };
+        render_node_styled(&mut sg, node, bg, node_border, mm_font,
+                           node_border_width, node_corner);
     }
 
     for note in &layout.notes {
@@ -58,6 +75,10 @@ pub fn render_mindmap(
 }
 
 fn render_edge(sg: &mut SvgGraphic, edge: &MindmapEdgeLayout, color: &str) {
+    render_edge_styled(sg, edge, color, BORDER_WIDTH);
+}
+
+fn render_edge_styled(sg: &mut SvgGraphic, edge: &MindmapEdgeLayout, color: &str, stroke_w: f64) {
     let dx = (edge.to_x - edge.from_x) / 2.0;
     let cx1 = edge.from_x + dx;
     let cy1 = edge.from_y;
@@ -65,11 +86,12 @@ fn render_edge(sg: &mut SvgGraphic, edge: &MindmapEdgeLayout, color: &str) {
     let cy2 = edge.to_y;
 
     sg.push_raw(&format!(
-        r#"<path d="M{},{} C{},{} {},{} {},{} " fill="none" style="stroke:{color};stroke-width:{BORDER_WIDTH};"/>"#,
+        r#"<path d="M{},{} C{},{} {},{} {},{} " fill="none" style="stroke:{color};stroke-width:{};"/>"#,
         fmt_coord(edge.from_x), fmt_coord(edge.from_y),
         fmt_coord(cx1), fmt_coord(cy1),
         fmt_coord(cx2), fmt_coord(cy2),
         fmt_coord(edge.to_x), fmt_coord(edge.to_y),
+        fmt_coord(stroke_w),
     ));
     sg.push_raw("\n");
 }
@@ -81,20 +103,31 @@ fn render_node(
     border: &str,
     font_color: &str,
 ) {
-    let fill = if node.level == 1 { ROOT_FILL } else { bg };
+    render_node_styled(sg, node, bg, border, font_color, BORDER_WIDTH, CORNER_RADIUS);
+}
 
-    sg.set_fill_color(fill);
+fn render_node_styled(
+    sg: &mut SvgGraphic,
+    node: &MindmapNodeLayout,
+    bg: &str,
+    border: &str,
+    font_color: &str,
+    stroke_w: f64,
+    corner_r: f64,
+) {
+    sg.set_fill_color(bg);
     sg.set_stroke_color(Some(border));
-    sg.set_stroke_width(BORDER_WIDTH, None);
-    sg.svg_rectangle(node.x, node.y, node.width, node.height, CORNER_RADIUS, CORNER_RADIUS, 0.0);
+    sg.set_stroke_width(stroke_w, None);
+    sg.svg_rectangle(node.x, node.y, node.width, node.height, corner_r, corner_r, 0.0);
 
     let total_text_height = count_creole_lines(&node.text) as f64 * LINE_HEIGHT;
     let text_start_y = node.y + (node.height - total_text_height) / 2.0 + LINE_HEIGHT * 0.75;
     let cx = node.x + node.width / 2.0;
+    // All mindmap nodes use font-size 14
     let outer_attrs = if node.level == 1 {
         r#"font-size="14" font-weight="700""#
     } else {
-        r#"font-size="12""#
+        r#"font-size="14""#
     };
     let mut tmp = String::new();
     render_creole_text(&mut tmp, &node.text, cx, text_start_y, LINE_HEIGHT, font_color, Some("middle"), outer_attrs);

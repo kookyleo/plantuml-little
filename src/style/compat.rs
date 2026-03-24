@@ -548,11 +548,25 @@ fn extract_document_style(css: &str, params: &mut SkinParams) {
                 continue;
             }
 
-            // Top-level section blocks (title {, footer {, etc.) — not inside document {}
+            // Top-level section blocks — not inside document {}
             if current_section.is_none() && depth == 0 && trimmed.contains('{') {
                 let brace_pos = trimmed.find('{').unwrap();
                 let name = trimmed[..brace_pos].trim().to_lowercase();
                 if matches!(name.as_str(), "title" | "footer" | "header" | "legend" | "caption") {
+                    current_section = Some(name);
+                    section_depth = depth;
+                    depth += opens;
+                    depth = depth.saturating_sub(closes);
+                    continue;
+                }
+                // Element-level blocks (node, root, etc.) — store under "element.xxx"
+                if matches!(name.as_str(), "node" | "root" | "arrow" | "group" | "separator"
+                            | "mindmapdiagram" | "wbsdiagram" | "element" | "component"
+                            | "participant" | "actor" | "boundary" | "control" | "entity"
+                            | "database" | "collections" | "queue" | "note" | "package"
+                            | "rectangle" | "card" | "cloud" | "frame" | "folder"
+                            | "interface" | "abstract" | "class" | "enum" | "state"
+                            | "usecase" | "activity" | "diamond") {
                     current_section = Some(name);
                     section_depth = depth;
                     depth += opens;
@@ -570,9 +584,16 @@ fn extract_document_style(css: &str, params: &mut SkinParams) {
                     let section = current_section.as_ref().unwrap();
                     let key = parts[0].trim().to_lowercase();
                     let value = parts[1].trim();
-                    let param_key = format!("document.{section}.{key}");
+                    // Document sub-sections (title, footer, etc.) use document.{section}.{key}
+                    // Element-level blocks (node, root, etc.) use {section}.{key}
+                    let param_key = if matches!(section.as_str(),
+                        "title" | "footer" | "header" | "legend" | "caption") {
+                        format!("document.{section}.{key}")
+                    } else {
+                        format!("{section}.{key}")
+                    };
                     params.set(&param_key, value);
-                    log::debug!("extracted top-level {section}.{key}: {value}");
+                    log::debug!("extracted style {param_key}: {value}");
                 }
             }
         }
