@@ -1632,18 +1632,13 @@ fn test_skinparam_colors001() {
 fn test_creole_sup_sub001() {
     let svg = convert_fixture("tests/fixtures/misc/creole_sup_sub001.puml");
     assert_valid_svg(&svg, "creole_sup_sub001");
+    // Java renders sub/sup as separate <text> elements with explicit y-offset
+    // and reduced font-size (0.77 * base), not CSS baseline-shift.
     assert!(
-        svg.contains(r#"baseline-shift="sub""#),
-        "subscript must have baseline-shift=sub"
+        svg.contains(r#"font-size="10""#),
+        "sub/sup must have reduced font-size (10 = round(13 * 0.77))"
     );
-    assert!(
-        svg.contains(r#"baseline-shift="super""#),
-        "superscript must have baseline-shift=super"
-    );
-    assert!(
-        svg.contains(r#"font-size="0.7em""#),
-        "sub/sup must have reduced font-size"
-    );
+    assert!(svg.contains(">2</text>"), "subscript/superscript '2' must appear");
 }
 
 #[test]
