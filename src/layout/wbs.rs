@@ -248,11 +248,18 @@ fn layout_fork(
     let first_child_cx = child_positions[0].1;
     let last_child_cx = child_positions.last().unwrap().1;
 
-    // Position root centered above children
+    // Position root: Java Fork centers root between first and last child connections.
+    // With 1 child: root is centered in the total fork width (= child subtree width).
     let root_cx = if first_child_cx < last_child_cx {
-        first_child_cx + (last_child_cx - first_child_cx) / 2.0
+        // Multiple children: center between first and last connection points,
+        // then adjust for root width
+        let pos_main = first_child_cx + (last_child_cx - first_child_cx - main_w) / 2.0;
+        pos_main + main_w / 2.0
     } else {
-        first_child_cx
+        // 1 child: center in total fork width
+        let total_fork_w: f64 = child_dims.iter().map(|d| d.0).sum::<f64>()
+            + (children.len().max(1) as f64 - 1.0) * FORK_DELTA1X;
+        origin_x + total_fork_w / 2.0
     };
     let root_x = root_cx - main_w / 2.0;
 

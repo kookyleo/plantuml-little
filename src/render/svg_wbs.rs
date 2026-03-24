@@ -55,7 +55,7 @@ pub fn render_wbs(_wd: &WbsDiagram, layout: &WbsLayout, skin: &SkinParams) -> Re
 
     if !layout.nodes.is_empty() {
         let root_idx = (0..layout.nodes.len()).find(|i| !child_nodes.contains(i)).unwrap_or(0);
-        render_subtree(
+        render_fork_root(
             &mut sg, layout, root_idx, &parent_children,
             wbs_bg, wbs_border, wbs_font, edge_color,
         );
@@ -74,7 +74,8 @@ pub fn render_wbs(_wd: &WbsDiagram, layout: &WbsLayout, skin: &SkinParams) -> Re
     Ok(buf)
 }
 
-fn render_subtree(
+/// Render the root node (Fork model): children first, then root.
+fn render_fork_root(
     sg: &mut SvgGraphic,
     layout: &WbsLayout,
     node_idx: usize,
@@ -84,39 +85,99 @@ fn render_subtree(
     let children = parent_children.get(&node_idx);
 
     if let Some(child_list) = children {
+        let edges: Vec<&WbsEdgeLayout> = child_list.iter().map(|&(ei, _)| &layout.edges[ei]).collect();
+        let connector_y = (edges[0].from_y + edges[0].to_y) / 2.0;
+
+        // For each child: vertical drop from bar, then child subtree
         for &(ei, ci) in child_list {
             let edge = &layout.edges[ei];
-            let connector_y = (edge.from_y + edge.to_y) / 2.0;
-            // Vertical drop from connector to child top
             sg.set_stroke_color(Some(edge_color));
             sg.set_stroke_width(STROKE_WIDTH, None);
             sg.svg_line(edge.to_x, connector_y, edge.to_x, edge.to_y, 0.0);
-
-            render_subtree(sg, layout, ci, parent_children, bg, border, font_color, edge_color);
+            render_itf_subtree(sg, layout, ci, parent_children, bg, border, font_color, edge_color);
         }
 
-        // Horizontal connector bar
-        let edges: Vec<&WbsEdgeLayout> = child_list.iter().map(|&(ei, _)| &layout.edges[ei]).collect();
-        let connector_y = (edges[0].from_y + edges[0].to_y) / 2.0;
-        if edges.len() > 1 {
-            let min_x = edges.iter().map(|e| e.to_x).fold(f64::INFINITY, f64::min);
-            let max_x = edges.iter().map(|e| e.to_x).fold(f64::NEG_INFINITY, f64::max);
+        // Horizontal connector bar: always drawn (even with 1 child)
+        let root_node = &layout.nodes[node_idx];
+        let root_cx = root_node.x + root_node.width / 2.0;
+        let min_x = edges.iter().map(|e| e.to_x).fold(f64::INFINITY, f64::min);
+        let max_x = edges.iter().map(|e| e.to_x).fold(f64::NEG_INFINITY, f64::max);
+        // Bar from leftmost child connection to rightmost (or root center if 1 child)
+        let bar_left = min_x.min(root_cx);
+        let bar_right = max_x.max(root_cx);
+        if (bar_right - bar_left).abs() > 0.01 {
             sg.set_stroke_color(Some(edge_color));
             sg.set_stroke_width(STROKE_WIDTH, None);
-            sg.svg_line(min_x, connector_y, max_x, connector_y, 0.0);
+            sg.svg_line(bar_left, connector_y, bar_right, connector_y, 0.0);
         }
 
-        // Parent rect + text
-        render_node(sg, &layout.nodes[node_idx], bg, border, font_color);
+        // Root rect + text
+        render_node(sg, root_node, bg, border, font_color);
 
-        // Parent vertical drop
-        let from_y = edges[0].from_y;
-        let from_x = edges[0].from_x;
+        // Root vertical connector (from root bottom to bar)
         sg.set_stroke_color(Some(edge_color));
         sg.set_stroke_width(STROKE_WIDTH, None);
-        sg.svg_line(from_x, from_y, from_x, connector_y, 0.0);
+        sg.svg_line(root_cx, root_node.y + root_node.height, root_cx, connector_y, 0.0);
     } else {
         render_node(sg, &layout.nodes[node_idx], bg, border, font_color);
+    }
+}
+
+/// Render a non-root subtree (ITFComposed model): node first, then children.
+fn render_itf_subtree(
+    sg: &mut SvgGraphic,
+    layout: &WbsLayout,
+    node_idx: usize,
+    parent_children: &HashMap<usize, Vec<(usize, usize)>>,
+    bg: &str, border: &str, font_color: &str, edge_color: &str,
+) {
+    // Draw this node first
+    render_node(sg, &layout.nodes[node_idx], bg, border, font_color);
+
+    if let Some(child_list) = parent_children.get(&node_idx) {
+        let parent_cx = layout.nodes[node_idx].x + layout.nodes[node_idx].width / 2.0;
+
+        // Separate left and right children by comparing child_cx to parent_cx
+        let mut left_children: Vec<(usize, usize)> = Vec::new();
+        let mut right_children: Vec<(usize, usize)> = Vec::new();
+        for &(ei, ci) in child_list {
+            let child_cx = layout.nodes[ci].x + layout.nodes[ci].width / 2.0;
+            if child_cx < parent_cx {
+                left_children.push((ei, ci));
+            } else {
+                right_children.push((ei, ci));
+            }
+        }
+
+        // Left children: horizontal line from child right edge to parent_cx
+        let mut last_child_y_mid = 0.0_f64;
+        for &(_ei, ci) in &left_children {
+            let child = &layout.nodes[ci];
+            let child_mid_y = child.y + child.height / 2.0;
+            let child_right = child.x + child.width;
+            sg.set_stroke_color(Some(edge_color));
+            sg.set_stroke_width(STROKE_WIDTH, None);
+            sg.svg_line(child_right, child_mid_y, parent_cx, child_mid_y, 0.0);
+            render_itf_subtree(sg, layout, ci, parent_children, bg, border, font_color, edge_color);
+            last_child_y_mid = last_child_y_mid.max(child_mid_y);
+        }
+
+        // Right children: horizontal line from parent_cx to child left edge
+        for &(_ei, ci) in &right_children {
+            let child = &layout.nodes[ci];
+            let child_mid_y = child.y + child.height / 2.0;
+            sg.set_stroke_color(Some(edge_color));
+            sg.set_stroke_width(STROKE_WIDTH, None);
+            sg.svg_line(parent_cx, child_mid_y, child.x, child_mid_y, 0.0);
+            render_itf_subtree(sg, layout, ci, parent_children, bg, border, font_color, edge_color);
+            last_child_y_mid = last_child_y_mid.max(child_mid_y);
+        }
+
+        // Vertical connector line from node bottom to last child midpoint
+        let from_y = layout.nodes[node_idx].y + layout.nodes[node_idx].height;
+        sg.set_stroke_color(Some(edge_color));
+        sg.set_stroke_width(STROKE_WIDTH, None);
+        sg.svg_line(parent_cx, from_y, parent_cx, last_child_y_mid, 0.0);
     }
 }
 
