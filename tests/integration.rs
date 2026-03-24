@@ -119,7 +119,8 @@ fn assert_svg_has_link(svg: &str, path: &str) {
 }
 
 fn assert_svg_has_tooltip(svg: &str, path: &str) {
-    assert!(svg.contains("<title>"), "{path}: missing tooltip markup");
+    // Java puts tooltip in title="..." and xlink:title="..." attributes, not <title> element
+    assert!(svg.contains("title=\"") || svg.contains("<title>"), "{path}: missing tooltip markup");
 }
 
 #[test]
@@ -994,7 +995,7 @@ fn test_convert_wbs_note_creole() {
     assert_valid_svg(&svg, "wbs_note_creole");
     assert!(svg.contains("<polygon"), "wbs note must render");
     assert!(
-        svg.contains("font-weight=\"bold\""),
+        svg.contains("font-weight=\"bold\"") || svg.contains("font-weight=\"700\""),
         "wbs note should render creole"
     );
 }
@@ -1128,7 +1129,7 @@ fn test_convert_timing_note_creole() {
     assert_valid_svg(&svg, "timing_note_creole");
     assert!(svg.contains("<polygon"), "timing note must render");
     assert!(
-        svg.contains("font-weight=\"bold\""),
+        svg.contains("font-weight=\"bold\"") || svg.contains("font-weight=\"700\""),
         "timing note should render creole"
     );
 }
@@ -1679,7 +1680,7 @@ fn test_creole_mixed001() {
     let svg = convert_fixture("tests/fixtures/misc/creole_mixed001.puml");
     assert_valid_svg(&svg, "creole_mixed001");
     assert!(
-        svg.contains(r#"font-weight="bold""#),
+        svg.contains(r#"font-weight="bold""#) || svg.contains(r#"font-weight="700""#),
         "must contain bold formatting"
     );
     assert!(
