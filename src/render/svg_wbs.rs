@@ -53,12 +53,26 @@ pub fn render_wbs(_wd: &WbsDiagram, layout: &WbsLayout, skin: &SkinParams) -> Re
         }
     }
 
+    // Collect unmatched edges (stub lines, e.g. Fork with 0 children)
+    let matched_edges: std::collections::HashSet<usize> = parent_children.values()
+        .flat_map(|v| v.iter().map(|&(ei, _)| ei))
+        .collect();
+
     if !layout.nodes.is_empty() {
         let root_idx = (0..layout.nodes.len()).find(|i| !child_nodes.contains(i)).unwrap_or(0);
         render_fork_root(
             &mut sg, layout, root_idx, &parent_children,
             wbs_bg, wbs_border, wbs_font, edge_color,
         );
+    }
+
+    // Render unmatched stub edges (Fork vertical stubs when no children)
+    for (ei, edge) in layout.edges.iter().enumerate() {
+        if !matched_edges.contains(&ei) {
+            sg.set_stroke_color(Some(edge_color));
+            sg.set_stroke_width(STROKE_WIDTH, None);
+            sg.svg_line(edge.from_x, edge.from_y, edge.to_x, edge.to_y, 0.0);
+        }
     }
 
     for link in &layout.extra_links {

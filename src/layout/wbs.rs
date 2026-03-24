@@ -229,6 +229,22 @@ fn layout_fork(
             text: node.text.clone(), alias: node.alias.clone(),
             x: origin_x, y: origin_y, width: main_w, height: main_h, level: node.level,
         });
+        // Java Fork draws a stub line to y0+deltay/2, but the fork dimension
+        // includes the full deltay. Use a helper edge that extends to the full
+        // deltay height so bounds calculation matches Java's dimension model.
+        let stub_draw_y = origin_y + main_h + FORK_DELTAY / 2.0;
+        let stub_dim_y = origin_y + main_h + FORK_DELTAY;
+        let cx = origin_x + main_w / 2.0;
+        // Visible stub line (drawn)
+        edges.push(WbsEdgeLayout {
+            from_x: cx, from_y: origin_y + main_h,
+            to_x: cx, to_y: stub_draw_y,
+        });
+        // Invisible dimension edge to make bounds match Java fork dim
+        edges.push(WbsEdgeLayout {
+            from_x: cx, from_y: stub_dim_y,
+            to_x: cx, to_y: stub_dim_y,
+        });
         return;
     }
 
@@ -366,6 +382,11 @@ pub fn layout_wbs(wd: &WbsDiagram) -> Result<WbsLayout> {
     for n in &nodes {
         min_x = min_x.min(n.x); min_y = min_y.min(n.y);
         max_x = max_x.max(n.x + n.width); max_y = max_y.max(n.y + n.height);
+    }
+    // Include edge endpoints in bounds (e.g. Fork stub lines extend below nodes)
+    for e in &edges {
+        max_x = max_x.max(e.from_x).max(e.to_x);
+        max_y = max_y.max(e.from_y).max(e.to_y);
     }
     for n in &notes {
         min_x = min_x.min(n.x); min_y = min_y.min(n.y);
