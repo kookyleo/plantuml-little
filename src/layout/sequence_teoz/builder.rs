@@ -1092,12 +1092,18 @@ pub fn build_teoz_layout(
 	// so: total = lifeline_bottom + (factor-1)*headHeight + 30
 	let show_footbox = !sd.hide_footbox;
 	let factor = if show_footbox { 2 } else { 1 };
-	// Java: PlayingSpace(+10) + outer(+10) + docMargin(+10) = 30.
-	// With STARTING_Y=10 (vs Java's 8), subtract 3 to compensate.
-	// The extra -1 accounts for ensureVisible's (int)(x+1) applied in the
-	// renderer; we pass raw dimensions and let ensure_visible_int handle it.
+	// Java height chain (no footbox, factor=1):
+	//   startingY(8) + sum_tiles → finalY
+	//   getPreferredHeight  = finalY + 10
+	//   body.height          = preferred + 1*headHeight
+	//   textBlock.height     = body.height + 10
+	//   finalDim.height      = textBlock.height + margin(5+5)
+	//   SVG viewport         = (int)(finalDim.height + 1)
+	// Combined: sum + head + 39 (with our STARTING_Y=10 → sum + head + 38 + 1)
+	// lifeline_bottom = STARTING_Y(10) + head + sum
+	// total = lifeline_bottom + (factor-1)*head + 28
 	let total_height =
-		lifeline_bottom + (factor - 1) as f64 * max_preferred_height + 27.0;
+		lifeline_bottom + (factor - 1) as f64 * max_preferred_height + 28.0;
 	log::debug!("teoz_layout: total_width={total_width:.4} total_height={total_height:.4} lifeline_bottom={lifeline_bottom:.4} max_preferred_height={max_preferred_height:.4}");
 
 	Ok(SeqLayout {

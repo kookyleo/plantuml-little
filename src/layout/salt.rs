@@ -272,6 +272,7 @@ mod tests {
                 ],
                 separator: false,
             },
+            is_inline: false,
         };
         let layout = layout_salt(&diagram).unwrap();
         match layout.root {
@@ -287,6 +288,7 @@ mod tests {
                 headers: vec!["Name".to_string(), "Age".to_string()],
                 rows: vec![vec!["Alice".to_string(), "30".to_string()]],
             },
+            is_inline: false,
         };
         let layout = layout_salt(&diagram).unwrap();
         match layout.root {

@@ -1,7 +1,9 @@
 use crate::model::salt::{SaltDiagram, SaltWidget};
 use crate::Result;
 
-fn extract_salt_block(source: &str) -> Option<String> {
+/// Extract salt block content and whether it's inline (`@startuml`+`salt`)
+/// Returns (block_text, is_inline).
+fn extract_salt_block(source: &str) -> Option<(String, bool)> {
     let mut inside = false;
     let mut lines = Vec::new();
 
@@ -20,9 +22,9 @@ fn extract_salt_block(source: &str) -> Option<String> {
     }
 
     if lines.is_empty() {
-        extract_inline_salt_block(source)
+        extract_inline_salt_block(source).map(|s| (s, true))
     } else {
-        Some(lines.join("\n"))
+        Some((lines.join("\n"), false))
     }
 }
 
@@ -52,7 +54,8 @@ fn extract_inline_salt_block(source: &str) -> Option<String> {
 }
 
 pub fn parse_salt_diagram(source: &str) -> Result<SaltDiagram> {
-    let block = extract_salt_block(source).unwrap_or_else(|| source.to_string());
+    let (block, is_inline) = extract_salt_block(source)
+        .unwrap_or_else(|| (source.to_string(), false));
     let lines: Vec<&str> = block.lines().collect();
     let mut pos = 0;
 
@@ -79,7 +82,7 @@ pub fn parse_salt_diagram(source: &str) -> Result<SaltDiagram> {
         }
     };
 
-    Ok(SaltDiagram { root })
+    Ok(SaltDiagram { root, is_inline })
 }
 
 fn parse_group(lines: &[&str], pos: &mut usize) -> Result<SaltWidget> {

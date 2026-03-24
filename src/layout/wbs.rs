@@ -108,52 +108,172 @@ fn note_size(text: &str) -> (f64, f64) {
 }
 
 // ---------------------------------------------------------------------------
-// Subtree width calculation
+// Java WBS layout: two-level model
+// Root uses Fork (horizontal children, deltay=40)
+// Deeper uses ITFComposed (vertical left/right stacks, marginBottom=15)
 // ---------------------------------------------------------------------------
 
-fn subtree_width(node: &WbsNode) -> f64 {
-    let (self_w, _) = node_size(&node.text);
-    if node.children.is_empty() {
-        return self_w;
+/// Fork constants (root level)
+const FORK_DELTA1X: f64 = 20.0;
+const FORK_DELTAY: f64 = 40.0;
+/// ITFComposed constants (deeper levels)
+const ITF_DELTA1X: f64 = 10.0;
+const ITF_MARGIN_BOTTOM: f64 = 15.0;
+
+use crate::model::wbs::WbsDirection;
+
+/// Split children into (left, right) groups by direction. Default → right.
+fn split_children(node: &WbsNode) -> (Vec<&WbsNode>, Vec<&WbsNode>) {
+    let mut left = Vec::new();
+    let mut right = Vec::new();
+    for child in &node.children {
+        match child.direction {
+            WbsDirection::Left => left.push(child),
+            _ => right.push(child),
+        }
     }
-    let children_total: f64 = node.children.iter().map(subtree_width).sum::<f64>()
-        + (node.children.len() as f64 - 1.0) * NODE_SPACING;
-    self_w.max(children_total)
+    (left, right)
+}
+
+/// ITFComposed subtree dimension (width, height) for non-root nodes.
+fn itf_dim(node: &WbsNode) -> (f64, f64) {
+    let (main_w, main_h) = node_size(&node.text);
+    if node.children.is_empty() {
+        return (main_w, main_h);
+    }
+    let (left, right) = split_children(node);
+    let left_w: f64 = left.iter().map(|c| itf_dim(c).0).fold(0.0_f64, f64::max);
+    let right_w: f64 = right.iter().map(|c| itf_dim(c).0).fold(0.0_f64, f64::max);
+    let left_h: f64 = left.iter().map(|c| ITF_MARGIN_BOTTOM + itf_dim(c).1).sum();
+    let right_h: f64 = right.iter().map(|c| ITF_MARGIN_BOTTOM + itf_dim(c).1).sum();
+    let w = (main_w / 2.0).max(ITF_DELTA1X + left_w)
+        + (main_w / 2.0).max(ITF_DELTA1X + right_w);
+    let h = main_h + left_h.max(right_h);
+    (w, h)
+}
+
+/// ITFComposed.getw1: x-offset of center from left edge.
+fn itf_w1(node: &WbsNode) -> f64 {
+    let (main_w, _) = node_size(&node.text);
+    let (left, _) = split_children(node);
+    let left_w: f64 = left.iter().map(|c| itf_dim(c).0).fold(0.0_f64, f64::max);
+    (main_w / 2.0).max(ITF_DELTA1X + left_w)
 }
 
 // ---------------------------------------------------------------------------
-// Layout tree recursion
+// Layout: ITFComposed (vertical fork for non-root levels)
 // ---------------------------------------------------------------------------
 
-fn layout_node(
-    node: &WbsNode, cx: f64, y: f64,
+fn layout_itf(
+    node: &WbsNode, origin_x: f64, origin_y: f64,
     nodes: &mut Vec<WbsNodeLayout>, edges: &mut Vec<WbsEdgeLayout>,
 ) {
-    let (w, h) = node_size(&node.text);
-    let x = cx - w / 2.0;
+    let (main_w, main_h) = node_size(&node.text);
+    let w1 = itf_w1(node);
+    let node_x = origin_x + w1 - main_w / 2.0;
     nodes.push(WbsNodeLayout {
         text: node.text.clone(), alias: node.alias.clone(),
-        x, y, width: w, height: h, level: node.level,
+        x: node_x, y: origin_y, width: main_w, height: main_h, level: node.level,
     });
 
     if node.children.is_empty() { return; }
 
-    // Child top = parent bottom + 2*EDGE_GAP
-    let child_y = y + h + 2.0 * EDGE_GAP;
+    let (left_children, right_children) = split_children(node);
+    let parent_cx = origin_x + w1;
+    let parent_by = origin_y + main_h;
 
-    let child_widths: Vec<f64> = node.children.iter().map(subtree_width).collect();
-    let total_children_width: f64 =
-        child_widths.iter().sum::<f64>() + (node.children.len() as f64 - 1.0) * NODE_SPACING;
-    let mut child_cx = cx - total_children_width / 2.0;
-
-    for (i, child) in node.children.iter().enumerate() {
-        let cw = child_widths[i];
-        let this_cx = child_cx + cw / 2.0;
+    // Left children: stacked vertically, placed left of parent center
+    let mut y = parent_by;
+    for child in &left_children {
+        y += ITF_MARGIN_BOTTOM;
+        let child_dim = itf_dim(child);
+        let child_ox = parent_cx - child_dim.0 - ITF_DELTA1X;
+        let child_cx = child_ox + itf_w1(child);
         edges.push(WbsEdgeLayout {
-            from_x: cx, from_y: y + h, to_x: this_cx, to_y: child_y,
+            from_x: parent_cx, from_y: parent_by,
+            to_x: child_cx, to_y: y,
         });
-        layout_node(child, this_cx, child_y, nodes, edges);
-        child_cx += cw + NODE_SPACING;
+        layout_itf(child, child_ox, y, nodes, edges);
+        y += child_dim.1;
+    }
+
+    // Right children: stacked vertically, placed right of parent center
+    let mut y = parent_by;
+    for child in &right_children {
+        y += ITF_MARGIN_BOTTOM;
+        let child_ox = parent_cx + ITF_DELTA1X;
+        let child_cx = child_ox + itf_w1(child);
+        edges.push(WbsEdgeLayout {
+            from_x: parent_cx, from_y: parent_by,
+            to_x: child_cx, to_y: y,
+        });
+        layout_itf(child, child_ox, y, nodes, edges);
+        y += itf_dim(child).1;
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Layout: Fork (horizontal spread for root level)
+// ---------------------------------------------------------------------------
+
+fn layout_fork(
+    node: &WbsNode, origin_x: f64, origin_y: f64,
+    nodes: &mut Vec<WbsNodeLayout>, edges: &mut Vec<WbsEdgeLayout>,
+) {
+    let (main_w, main_h) = node_size(&node.text);
+
+    // All root-level children go right in the Fork model
+    let children: Vec<&WbsNode> = node.children.iter().collect();
+    if children.is_empty() {
+        nodes.push(WbsNodeLayout {
+            text: node.text.clone(), alias: node.alias.clone(),
+            x: origin_x, y: origin_y, width: main_w, height: main_h, level: node.level,
+        });
+        return;
+    }
+
+    // Compute child subtree dimensions and positions
+    let child_dims: Vec<(f64, f64)> = children.iter().map(|c| itf_dim(c)).collect();
+    let child_y = origin_y + main_h + FORK_DELTAY;
+
+    // Compute child x-positions and centers (before laying out, for root positioning)
+    let mut child_positions: Vec<(f64, f64)> = Vec::new(); // (child_ox, child_cx)
+    let mut child_x = origin_x;
+    for (i, child) in children.iter().enumerate() {
+        let child_cx = child_x + itf_w1(child);
+        child_positions.push((child_x, child_cx));
+        child_x += child_dims[i].0 + FORK_DELTA1X;
+    }
+
+    let first_child_cx = child_positions[0].1;
+    let last_child_cx = child_positions.last().unwrap().1;
+
+    // Position root centered above children
+    let root_cx = if first_child_cx < last_child_cx {
+        first_child_cx + (last_child_cx - first_child_cx) / 2.0
+    } else {
+        first_child_cx
+    };
+    let root_x = root_cx - main_w / 2.0;
+
+    // Push root FIRST (so nodes[0] is always the root)
+    nodes.push(WbsNodeLayout {
+        text: node.text.clone(), alias: node.alias.clone(),
+        x: root_x, y: origin_y, width: main_w, height: main_h, level: node.level,
+    });
+
+    // Create edges from root to each child
+    for &(_, child_cx) in &child_positions {
+        edges.push(WbsEdgeLayout {
+            from_x: root_cx, from_y: origin_y + main_h,
+            to_x: child_cx, to_y: child_y,
+        });
+    }
+
+    // Now layout children recursively
+    for (i, child) in children.iter().enumerate() {
+        let (child_ox, _) = child_positions[i];
+        layout_itf(child, child_ox, child_y, nodes, edges);
     }
 }
 
@@ -200,9 +320,8 @@ pub fn layout_wbs(wd: &WbsDiagram) -> Result<WbsLayout> {
     debug!("layout_wbs: root='{}'", wd.root.text);
     let mut nodes = Vec::new();
     let mut edges = Vec::new();
-    let total_width = subtree_width(&wd.root);
-    let cx = MARGIN + total_width / 2.0;
-    layout_node(&wd.root, cx, MARGIN, &mut nodes, &mut edges);
+    // Root uses Fork layout (horizontal children), deeper uses ITFComposed (vertical)
+    layout_fork(&wd.root, MARGIN, MARGIN, &mut nodes, &mut edges);
 
     // Build alias -> node rect for edge-to-edge arrow connections
     let alias_rect: HashMap<String, (f64, f64, f64, f64)> = nodes.iter()

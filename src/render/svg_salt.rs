@@ -10,7 +10,7 @@ use crate::skin::rose::{ACTIVATION_BG, BORDER_COLOR, ENTITY_BG, TEXT_COLOR};
 const STROKE_WIDTH: f64 = 0.5;
 
 pub fn render_salt(
-    _diagram: &SaltDiagram,
+    diagram: &SaltDiagram,
     layout: &SaltLayout,
     skin: &SkinParams,
 ) -> Result<String> {
@@ -18,7 +18,10 @@ pub fn render_salt(
     let bg = skin.get_or("backgroundcolor", "#FFFFFF");
     let svg_w = ensure_visible_int(layout.width) as f64;
     let svg_h = ensure_visible_int(layout.height) as f64;
-    write_svg_root_bg_opt(&mut buf, svg_w, svg_h, Some("SALT"), bg);
+    // Java PSystemSalt via @startsalt emits data-diagram-type="SALT",
+    // but inline salt inside @startuml does not (different code path)
+    let dtype = if diagram.is_inline { None } else { Some("SALT") };
+    write_svg_root_bg_opt(&mut buf, svg_w, svg_h, dtype, bg);
     buf.push_str("<defs/><g>");
     write_bg_rect(&mut buf, svg_w, svg_h, bg);
 
@@ -371,6 +374,7 @@ mod tests {
         let svg = render_salt(
             &SaltDiagram {
                 root: crate::model::salt::SaltWidget::Button("OK".to_string()),
+                is_inline: false,
             },
             &layout,
             &SkinParams::default(),

@@ -1,6 +1,9 @@
 #[derive(Debug, Clone)]
 pub struct SaltDiagram {
     pub root: SaltWidget,
+    /// True when salt is embedded inside `@startuml` (inline), false for `@startsalt`.
+    /// Inline salt omits `data-diagram-type` in the SVG header (Java PSystemSalt behavior).
+    pub is_inline: bool,
 }
 
 #[derive(Debug, Clone)]
