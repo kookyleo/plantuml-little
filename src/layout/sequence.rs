@@ -92,10 +92,12 @@ impl LayoutParams {
         let frag_header_height = h13 + 2.0;
 
         // Divider/delay heights for empty text
-        let divider_tm = TextMetrics::new(0.0, 0.0, 5.0, 0.0, 0.0);
+        // Java: ComponentRoseDivider super(marginX1=4, marginX2=4, marginY=4)
+        let divider_tm = TextMetrics::new(4.0, 4.0, 4.0, 0.0, 0.0);
         let divider_height = rose::divider_preferred_size(&divider_tm).height;
 
-        let delay_tm = TextMetrics::new(0.0, 0.0, 5.0, 0.0, 0.0);
+        // Java: ComponentRoseDelayText super(marginX1=0, marginX2=0, marginY=4)
+        let delay_tm = TextMetrics::new(0.0, 0.0, 4.0, 0.0, 0.0);
         let delay_height = rose::delay_text_preferred_size(&delay_tm).height;
 
         // Reference frame height: h13 (body line) + h14 (header line scaled) +
@@ -1333,25 +1335,41 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
             }
 
             SeqEvent::Divider { text } => {
+                // Compute text-dependent height (Java: ComponentRoseDivider margins 4,4,4)
+                let div_h = if text.is_some() {
+                    let th = font_metrics::line_height(default_font, msg_font_size, false, false);
+                    let div_tm = TextMetrics::new(4.0, 4.0, 4.0, 0.0, th);
+                    rose::divider_preferred_size(&div_tm).height
+                } else {
+                    lp.divider_height
+                };
                 dividers.push(DividerLayout {
                     y: y_cursor,
                     x: leftmost - FRAGMENT_PADDING,
                     width: full_width,
                     text: text.clone(),
                 });
-                y_cursor += lp.divider_height;
+                y_cursor += div_h;
                 last_message_y = None;
             }
 
             SeqEvent::Delay { text } => {
+                // Compute text-dependent height (Java: ComponentRoseDelayText margins 0,0,4)
+                let del_h = if text.is_some() {
+                    let th = font_metrics::line_height(default_font, msg_font_size, false, false);
+                    let del_tm = TextMetrics::new(0.0, 0.0, 4.0, 0.0, th);
+                    rose::delay_text_preferred_size(&del_tm).height
+                } else {
+                    lp.delay_height
+                };
                 delays.push(DelayLayout {
                     y: y_cursor,
-                    height: lp.delay_height,
+                    height: del_h,
                     x: leftmost - FRAGMENT_PADDING,
                     width: full_width,
                     text: text.clone(),
                 });
-                y_cursor += lp.delay_height;
+                y_cursor += del_h;
                 last_message_y = None;
             }
 
