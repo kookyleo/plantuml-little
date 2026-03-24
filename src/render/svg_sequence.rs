@@ -1166,9 +1166,17 @@ fn draw_message(
         let msg_line_spacing =
             font_metrics::line_height(msg_font_family, msg_font_size, false, false);
         let num_lines = msg.text_lines.len().max(1);
+        // When text has <sub>, the subscript extends below the baseline, adding
+        // extra height below the text block. This shifts the text baseline up
+        // relative to the arrow position. Superscript extends above but does
+        // NOT shift the text baseline.
+        let sub_extra = msg.text_lines.first().map(|line| {
+            crate::render::svg_richtext::creole_sub_extra_height(line, msg_font_family, msg_font_size)
+        }).unwrap_or(0.0);
         let first_text_y = msg.y
             - (font_metrics::descent(msg_font_family, msg_font_size, false, false) + 2.0)
-            - (num_lines as f64 - 1.0) * msg_line_spacing;
+            - (num_lines as f64 - 1.0) * msg_line_spacing
+            - sub_extra;
 
         // Draw autonumber as separate bold text element
         if let Some(ref num_str) = msg.autonumber {
@@ -1421,9 +1429,13 @@ fn draw_self_message(
         let msg_line_spacing =
             font_metrics::line_height(msg_font_family, msg_font_size, false, false);
         let num_lines = msg.text_lines.len();
+        let sub_extra = msg.text_lines.first().map(|line| {
+            crate::render::svg_richtext::creole_sub_extra_height(line, msg_font_family, msg_font_size)
+        }).unwrap_or(0.0);
         let first_text_y = y
             - (font_metrics::descent(msg_font_family, msg_font_size, false, false) + 2.0)
-            - (num_lines as f64 - 1.0) * msg_line_spacing;
+            - (num_lines as f64 - 1.0) * msg_line_spacing
+            - sub_extra;
         for (i, line) in msg.text_lines.iter().enumerate() {
             if line.is_empty() {
                 continue;

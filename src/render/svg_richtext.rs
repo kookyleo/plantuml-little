@@ -171,12 +171,54 @@ pub fn creole_plain_text(text: &str) -> String {
     flatten_plain_lines(&parse_creole(text)).join("")
 }
 
-/// Compute the effective line height for creole text, considering `<size:N>` markup.
-/// Returns the line height based on the largest font size used in any span.
+/// Compute the effective line height for creole text, considering `<size:N>` markup
+/// and `<sub>`/`<sup>` elements that extend the vertical bounds.
 /// Java: `TextBlock.calculateDimension().getHeight()` uses the largest font in the display.
 pub fn creole_line_height(text: &str, default_font: &str, default_font_size: f64) -> f64 {
     let max_size = max_font_size_in_creole(text, default_font_size);
-    font_metrics::line_height(default_font, max_size, false, false)
+    let base_h = font_metrics::line_height(default_font, max_size, false, false);
+    // Check for sub/sup which adds extra vertical space
+    let parsed = parse_creole(text);
+    let lines = flatten_rich_lines(&parsed);
+    let has_sub = lines.iter().any(|line| line.iter().any(|s| has_subscript(s)));
+    let has_sup = lines.iter().any(|line| line.iter().any(|s| has_superscript(s)));
+    let mut extra = 0.0_f64;
+    let sub_size = (default_font_size * 0.77).round();
+    if has_sub {
+        // Subscript extends below: shift + descent(sub) - descent(base)
+        let sub_shift = default_font_size * 0.2852;
+        let desc_sub = font_metrics::descent(default_font, sub_size, false, false);
+        let desc_base = font_metrics::descent(default_font, default_font_size, false, false);
+        let below_extra = (sub_shift + desc_sub - desc_base).max(0.0);
+        extra = extra.max(below_extra);
+    }
+    if has_sup {
+        // Superscript extends above: shift + ascent(sup) - ascent(base)
+        let sup_shift = default_font_size * 0.4071;
+        let asc_sup = font_metrics::ascent(default_font, sub_size, false, false);
+        let asc_base = font_metrics::ascent(default_font, default_font_size, false, false);
+        let above_extra = (sup_shift + asc_sup - asc_base).max(0.0);
+        extra = extra.max(above_extra);
+    }
+    base_h + extra
+}
+
+/// Compute the extra height below baseline from `<sub>` elements only.
+/// This is used to shift the text baseline up in the renderer.
+/// Superscript extends above and does NOT shift the text baseline.
+pub fn creole_sub_extra_height(text: &str, default_font: &str, default_font_size: f64) -> f64 {
+    let parsed = parse_creole(text);
+    let lines = flatten_rich_lines(&parsed);
+    let has_sub = lines.iter().any(|line| line.iter().any(|s| has_subscript(s)));
+    if has_sub {
+        let sub_size = (default_font_size * 0.77).round();
+        let sub_shift = default_font_size * 0.2852;
+        let desc_sub = font_metrics::descent(default_font, sub_size, false, false);
+        let desc_base = font_metrics::descent(default_font, default_font_size, false, false);
+        (sub_shift + desc_sub - desc_base).max(0.0)
+    } else {
+        0.0
+    }
 }
 
 /// Find the maximum font size used in a creole text string.
@@ -218,6 +260,36 @@ fn max_font_size_in_span(span: &TextSpan, max_size: &mut f64) {
         }
         TextSpan::Plain(_) | TextSpan::Monospace(_) | TextSpan::Link { .. }
         | TextSpan::InlineSvg { .. } => {}
+    }
+}
+
+fn has_subscript(span: &TextSpan) -> bool {
+    match span {
+        TextSpan::Subscript(_) => true,
+        TextSpan::Bold(inner) | TextSpan::Italic(inner) | TextSpan::Underline(inner)
+        | TextSpan::Strikethrough(inner) | TextSpan::Superscript(inner) => {
+            inner.iter().any(|s| has_subscript(s))
+        }
+        TextSpan::Colored { content, .. } | TextSpan::BackHighlight { content, .. }
+        | TextSpan::FontFamily { content, .. } | TextSpan::Sized { content, .. } => {
+            content.iter().any(|s| has_subscript(s))
+        }
+        _ => false,
+    }
+}
+
+fn has_superscript(span: &TextSpan) -> bool {
+    match span {
+        TextSpan::Superscript(_) => true,
+        TextSpan::Bold(inner) | TextSpan::Italic(inner) | TextSpan::Underline(inner)
+        | TextSpan::Strikethrough(inner) | TextSpan::Subscript(inner) => {
+            inner.iter().any(|s| has_superscript(s))
+        }
+        TextSpan::Colored { content, .. } | TextSpan::BackHighlight { content, .. }
+        | TextSpan::FontFamily { content, .. } | TextSpan::Sized { content, .. } => {
+            content.iter().any(|s| has_superscript(s))
+        }
+        _ => false,
     }
 }
 
@@ -699,8 +771,15 @@ fn render_split_text_runs(buf: &mut String, spans: &[TextSpan], x: f64, y: f64, 
         // Java: for <size:N>, the y coordinate is adjusted (baseline shift).
         // The shift equals the difference in font descent between the overridden
         // and base sizes: y -= (descent(sz) - descent(base)).
+        // For subscript/superscript, Java shifts the baseline vertically.
         let run_y = if let Some(sz) = run.font_size_override {
-            if sz > font_size {
+            if sz == -1.0 {
+                // Subscript: shift down by font_size * 0.2852
+                y + font_size * 0.2852
+            } else if sz == -2.0 {
+                // Superscript: shift up by font_size * 0.4071
+                y - font_size * 0.4071
+            } else if sz > font_size {
                 let desc_base = font_metrics::descent(default_font, font_size, false, false);
                 let desc_large = font_metrics::descent(default_font, sz, false, false);
                 y - (desc_large - desc_base)
