@@ -690,26 +690,35 @@ fn render_note(sg: &mut SvgGraphic, tracker: &mut BoundsTracker, note: &StateNot
     let y = note.y;
     let w = note.width;
     let h = note.height;
-    let fold = 8.0;
+    let fold = 10.0;
 
-    // Note body polygon (top-left, pre-fold top-right, fold corner, bottom-right, bottom-left)
-    sg.set_fill_color(NOTE_BG);
-    sg.set_stroke_color(Some(NOTE_BORDER));
-    sg.set_stroke_width(1.0, None);
-    sg.svg_polygon(
-        0.0,
-        &[x, y, x + w - fold, y, x + w, y + fold, x + w, y + h, x, y + h],
-    );
-    // Track note polygon bounds
+    // Note body path (Java style: <path> with M/L commands)
+    // Java: stroke-width:0.5 for the body
+    sg.push_raw(&format!(
+        r#"<path d="M{},{} L{},{} L{},{} L{},{} L{},{} L{},{}" fill="{}" style="stroke:{};stroke-width:0.5;"/>"#,
+        fmt_coord(x), fmt_coord(y),
+        fmt_coord(x), fmt_coord(y + h),
+        fmt_coord(x + w), fmt_coord(y + h),
+        fmt_coord(x + w), fmt_coord(y + fold),
+        fmt_coord(x + w - fold), fmt_coord(y),
+        fmt_coord(x), fmt_coord(y),
+        NOTE_BG, NOTE_BORDER,
+    ));
+    sg.push_raw("\n");
+
+    // Fold corner path (Java style: stroke-width:1)
+    sg.push_raw(&format!(
+        r#"<path d="M{},{} L{},{} L{},{} L{},{}" fill="{}" style="stroke:{};stroke-width:1;"/>"#,
+        fmt_coord(x + w - fold), fmt_coord(y),
+        fmt_coord(x + w - fold), fmt_coord(y + fold),
+        fmt_coord(x + w), fmt_coord(y + fold),
+        fmt_coord(x + w - fold), fmt_coord(y),
+        NOTE_BG, NOTE_BORDER,
+    ));
+    sg.push_raw("\n");
+
+    // Track note bounds
     tracker.track_polygon(&[(x, y), (x + w - fold, y), (x + w, y + fold), (x + w, y + h), (x, y + h)]);
-
-    // Fold lines (vertical + horizontal)
-    sg.set_stroke_color(Some(NOTE_BORDER));
-    sg.set_stroke_width(1.0, None);
-    sg.svg_line(x + w - fold, y, x + w - fold, y + fold, 0.0);
-    sg.set_stroke_color(Some(NOTE_BORDER));
-    sg.set_stroke_width(1.0, None);
-    sg.svg_line(x + w - fold, y + fold, x + w, y + fold, 0.0);
 
     let text_x = x + 6.0;
     let text_y = y + fold + FONT_SIZE;
@@ -980,9 +989,7 @@ mod tests {
         let (svg, _) = render_state(&diagram, &layout, &SkinParams::default()).expect("render failed");
         assert!(svg.contains(&format!(r#"fill="{NOTE_BG}""#)), "note must use yellow background");
         assert!(svg.contains("important note"), "note text must appear");
-        assert!(svg.contains("<polygon"), "note body must be a polygon with folded corner");
-        let line_count = svg.matches("<line").count();
-        assert!(line_count >= 2, "note must have at least 2 fold lines, got {line_count}");
+        assert!(svg.matches("<path").count() >= 2, "note must use <path> for body and fold corner");
     }
 
     #[test]

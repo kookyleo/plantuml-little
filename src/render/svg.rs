@@ -1597,13 +1597,15 @@ fn draw_entity_box(
     sg.svg_rectangle(x, y, w, h, rx, rx, 0.0);
     tracker.track_rect(x, y, w, h);
 
-    // Java font resolution: classAttributeFontSize overrides both name and member
-    // font sizes. classFontSize only controls the name when classAttributeFontSize
-    // is absent.
+    // Java font resolution:
+    // - classFontSize controls the class name font size
+    // - classAttributeFontSize controls member (field/method) font size
+    // When only classFontSize is set, it applies to everything.
+    // When both are set, classFontSize → name, classAttributeFontSize → members.
     let explicit_attr_fs = skin.get("classattributefontsize").and_then(|s| s.parse::<f64>().ok());
     let explicit_class_fs = skin.get("classfontsize").and_then(|s| s.parse::<f64>().ok());
-    let attr_font_size = explicit_attr_fs.unwrap_or(FONT_SIZE);
-    let class_font_size = explicit_attr_fs.unwrap_or_else(|| explicit_class_fs.unwrap_or(FONT_SIZE));
+    let attr_font_size = explicit_attr_fs.unwrap_or_else(|| explicit_class_fs.unwrap_or(FONT_SIZE));
+    let class_font_size = explicit_class_fs.unwrap_or_else(|| explicit_attr_fs.unwrap_or(FONT_SIZE));
 
     // Entity name WITHOUT generic parameter — generic is rendered separately in draw_generic_box
     let name_display = entity.name.clone();
