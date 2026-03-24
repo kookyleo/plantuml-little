@@ -1216,7 +1216,7 @@ mod tests {
         });
         let svg =
             render_component(&diagram, &layout, &SkinParams::default()).expect("render failed");
-        assert!(svg.contains("<tspan"), "multiline note must use tspan");
+        assert!(!svg.contains("<tspan"), "multiline note must not use tspan");
         assert!(svg.contains("line one"), "first line must appear");
         assert!(svg.contains("line two"), "second line must appear");
     }

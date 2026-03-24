@@ -346,18 +346,20 @@ pub fn render_creole_text_opts(
         return 1;
     }
 
-    write_text_open(buf, x, y, fill, text_anchor, outer_attrs, text_length);
+    // Java renders each line as a separate <text> element via DriverTextSvg.
+    // Each line gets its own textLength and y offset.
     for (idx, line) in lines.iter().enumerate() {
-        let dy = if idx == 0 { 0.0 } else { line_height };
-        write!(buf, r#"<tspan x="{}" dy="{}">"#, fmt_coord(x), fmt_coord(dy)).unwrap();
+        let line_y = y + (idx as f64) * line_height;
+        let line_plain = plain_text_spans(line);
+        let line_text_length = font_metrics::text_width(&line_plain, &font_family, font_size, bold, italic);
+        write_text_open(buf, x, line_y, fill, text_anchor, outer_attrs, line_text_length);
         if let Some(text) = simple_plain_line(line) {
             buf.push_str(&xml_escape(text));
         } else {
             render_spans(buf, line, &SpanStyle::default(), fill);
         }
-        buf.push_str("</tspan>");
+        buf.push_str("</text>");
     }
-    buf.push_str("</text>");
     render_deferred_sprites(buf, &sprite_refs, x, y);
 
     lines.len()
@@ -1216,8 +1218,9 @@ mod tests {
             "",
         );
         assert_eq!(lines, 2);
-        assert_eq!(buf.matches("<text ").count(), 1);
-        assert_eq!(buf.matches("<tspan").count(), 2);
+        // Java renders each line as a separate <text> element
+        assert_eq!(buf.matches("<text ").count(), 2);
+        assert_eq!(buf.matches("<tspan").count(), 0);
     }
 
     #[test]

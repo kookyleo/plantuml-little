@@ -216,7 +216,8 @@ mod tests {
         let d = MindmapDiagram { root: MindmapNode::new("L1\\nL2", 1), notes: vec![] };
         let l = MindmapLayout { nodes: vec![MindmapNodeLayout { text: "L1\\nL2".into(), x: 10.0, y: 10.0, width: 80.0, height: 40.0, level: 1, lines: vec!["L1".into(), "L2".into()] }], edges: vec![], notes: vec![], width: 110.0, height: 60.0 };
         let svg = render_mindmap(&d, &l, &SkinParams::default()).unwrap();
-        assert_eq!(svg.matches("<text").count(), 1); assert!(svg.contains("<tspan"));
+        // Java renders each line as separate <text> element
+        assert_eq!(svg.matches("<text").count(), 2); assert!(!svg.contains("<tspan"));
     }
 
     #[test]

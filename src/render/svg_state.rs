@@ -998,10 +998,14 @@ mod tests {
         let mut layout = empty_layout();
         layout.note_layouts.push(StateNoteLayout { x: 10.0, y: 20.0, width: 120.0, height: 60.0, text: "line one\nline two".to_string() });
         let (svg, _) = render_state(&diagram, &layout, &SkinParams::default()).expect("render failed");
-        assert!(svg.contains("<tspan"), "multiline note must use tspan");
+        // Java renders each line as a separate <text> element (no tspan)
+        assert!(!svg.contains("<tspan"), "multiline note must not use tspan");
         assert!(svg.contains("line one"), "first line must appear");
         assert!(svg.contains("line two"), "second line must appear");
-        assert_eq!(svg.matches("<tspan").count(), 2, "two lines must produce two tspan elements");
+        // Two lines must produce two separate <text> elements for the note body
+        let text_count = svg.matches(">line one</text>").count()
+            + svg.matches(">line two</text>").count();
+        assert_eq!(text_count, 2, "two lines must produce two separate text elements");
     }
 
     #[test]

@@ -44,6 +44,9 @@ const NOTE_FOLD: f64 = rose::SEQ_NOTE_FOLD;
 const STARTING_Y: f64 = 10.0;
 /// Minimum gap between adjacent participant right-edge and next left-edge.
 const PARTICIPANT_GAP: f64 = 5.0;
+/// Document margin: 5px (exporter) + 5px (teoz UTranslate) = 10px.
+/// Applied to all x positions, matching Java's coordinate chain.
+const DOC_MARGIN_X: f64 = 10.0;
 
 // ── Tile types (inline, simplified) ──────────────────────────────────────────
 
@@ -412,8 +415,9 @@ pub fn build_teoz_layout(
 		box_heights.push(bh);
 		name_to_idx.insert(p.name.clone(), i);
 
-		// Next participant starts after posD + gap
-		xcurrent = rl.add_at_least(pos_d, PARTICIPANT_GAP);
+		// Next participant starts after posD.
+		// Java: xcurrent = livingSpace.getPosD(stringBounder).addAtLeast(0);
+		xcurrent = rl.add_at_least(pos_d, 0.0);
 	}
 
 	// ── Step 3: Build tiles from events ──────────────────────────────────
@@ -749,9 +753,20 @@ pub fn build_teoz_layout(
 	let lifeline_bottom = y;
 
 	// ── Step 7: Extract SeqLayout ────────────────────────────────────────
+	// Java applies UTranslate(5,5) internally + 5px exporter margin = 10px total.
+	// Compute x_offset = DOC_MARGIN_X - min1 (min of origin and tile minXes).
+	// For simple cases min1 = 0, so x_offset = 10.
+	let origin_val = rl.get_value(xorigin);
+	let min1 = livings.iter()
+		.map(|l| rl.get_value(l.pos_c))
+		.fold(origin_val, f64::min);
+	let x_offset = DOC_MARGIN_X - min1;
+	// Helper: get Real x value with document margin applied.
+	let get_x = |id: RealId| -> f64 { rl.get_value(id) + x_offset };
+
 	// Build ParticipantLayout from Real-resolved positions
 	for (i, p) in sd.participants.iter().enumerate() {
-		let center_x = rl.get_value(livings[i].pos_c);
+		let center_x = get_x(livings[i].pos_c);
 		part_layouts.push(ParticipantLayout {
 			name: p.name.clone(),
 			x: center_x,
@@ -777,8 +792,8 @@ pub fn build_teoz_layout(
 	let mut total_min_x = f64::MAX;
 	let mut total_max_x = f64::MIN;
 	for living in &livings {
-		let b = rl.get_value(living.pos_b);
-		let d = rl.get_value(living.pos_d);
+		let b = get_x(living.pos_b);
+		let d = get_x(living.pos_d);
 		if b < total_min_x {
 			total_min_x = b;
 		}
@@ -811,8 +826,8 @@ pub fn build_teoz_layout(
 				..
 			} => {
 				let ty = y.unwrap_or(0.0);
-				let from_x = rl.get_value(livings[*from_idx].pos_c);
-				let to_x = rl.get_value(livings[*to_idx].pos_c);
+				let from_x = get_x(livings[*from_idx].pos_c);
+				let to_x = get_x(livings[*to_idx].pos_c);
 				let is_left = to_x < from_x;
 				messages.push(MessageLayout {
 					from_x,
@@ -841,7 +856,7 @@ pub fn build_teoz_layout(
 				..
 			} => {
 				let ty = y.unwrap_or(0.0);
-				let cx = rl.get_value(livings[*participant_idx].pos_c);
+				let cx = get_x(livings[*participant_idx].pos_c);
 				messages.push(MessageLayout {
 					from_x: cx,
 					to_x: cx,
@@ -868,7 +883,7 @@ pub fn build_teoz_layout(
 				..
 			} => {
 				let ty = y.unwrap_or(0.0);
-				let cx = rl.get_value(livings[*participant_idx].pos_c);
+				let cx = get_x(livings[*participant_idx].pos_c);
 				let nx = if *is_left {
 					cx - *width - 5.0
 				} else {
@@ -899,12 +914,12 @@ pub fn build_teoz_layout(
 						.copied()
 						.unwrap_or(0);
 					(
-						rl.get_value(livings[idx0].pos_c),
-						rl.get_value(livings[idx1].pos_c),
+						get_x(livings[idx0].pos_c),
+						get_x(livings[idx1].pos_c),
 					)
 				} else if participants.len() == 1 {
 					let idx0 = name_to_idx.get(&participants[0]).copied().unwrap_or(0);
-					let cx = rl.get_value(livings[idx0].pos_c);
+					let cx = get_x(livings[idx0].pos_c);
 					(cx - *width / 2.0, cx + *width / 2.0)
 				} else {
 					(total_min_x, total_max_x)
@@ -957,8 +972,8 @@ pub fn build_teoz_layout(
 					} else {
 						let min_idx = *idxs.iter().min().unwrap();
 						let max_idx = *idxs.iter().max().unwrap();
-						let lx = rl.get_value(livings[min_idx].pos_b);
-						let rx = rl.get_value(livings[max_idx].pos_d);
+						let lx = get_x(livings[min_idx].pos_b);
+						let rx = get_x(livings[max_idx].pos_d);
 						(lx, rx - lx)
 					}
 				};
@@ -1022,7 +1037,7 @@ pub fn build_teoz_layout(
 					if let Some(stack) = act_state.get_mut(name) {
 						if let Some((y_start, level)) = stack.pop() {
 							let idx = name_to_idx.get(name).copied().unwrap_or(0);
-							let cx = rl.get_value(livings[idx].pos_c);
+							let cx = get_x(livings[idx].pos_c);
 							let x = cx - ACTIVATION_WIDTH / 2.0
 								+ (level - 1) as f64 * (ACTIVATION_WIDTH / 2.0);
 							activations.push(ActivationLayout {
@@ -1041,7 +1056,7 @@ pub fn build_teoz_layout(
 						.and_then(|t| t.get_y())
 						.unwrap_or(0.0);
 					let idx = name_to_idx.get(name).copied().unwrap_or(0);
-					let cx = rl.get_value(livings[idx].pos_c);
+					let cx = get_x(livings[idx].pos_c);
 					destroys.push(DestroyLayout { x: cx, y: ty });
 					// Close any open activations
 					if let Some(stack) = act_state.get_mut(name) {
@@ -1065,7 +1080,7 @@ pub fn build_teoz_layout(
 		// Close any unclosed activations at the lifeline bottom
 		for (name, stack) in act_state.drain() {
 			let idx = name_to_idx.get(&name).copied().unwrap_or(0);
-			let cx = rl.get_value(livings[idx].pos_c);
+			let cx = get_x(livings[idx].pos_c);
 			for (y_start, level) in stack {
 				let x = cx - ACTIVATION_WIDTH / 2.0
 					+ (level - 1) as f64 * (ACTIVATION_WIDTH / 2.0);
@@ -1080,7 +1095,8 @@ pub fn build_teoz_layout(
 		}
 	}
 
-	let total_width = diagram_width + 10.0;
+	// Java: TextBlock width = (maxX - minX) + 10, final = + margin(5+5) = + 20
+	let total_width = diagram_width + 2.0 * DOC_MARGIN_X;
 	// Java height chain:
 	//   getPreferredHeight  = finalY + 10          (PlayingSpace bottom padding)
 	//   bodyHeight          = preferred + factor*headHeight  (footbox adds 2nd head)
