@@ -315,7 +315,16 @@ fn render_body(diagram: &Diagram, layout: &DiagramLayout, skin: &SkinParams) -> 
     match (diagram, layout) {
         (Diagram::Class(cd), DiagramLayout::Class(gl)) => render_class(cd, gl, skin),
         (Diagram::Sequence(sd), DiagramLayout::Sequence(sl)) => {
-            svg_sequence::render_sequence(sd, sl, skin).map(|svg| BodyResult { svg, raw_body_dim: None })
+            // Sequence layout total_width/total_height include document margins
+            // (top=5, right=5, bottom=5 for Puma2). Recover raw textBlock dimensions.
+            let margin_top = 5.0;
+            let margin_right = DOC_MARGIN_RIGHT;
+            let margin_bottom = DOC_MARGIN_BOTTOM;
+            let raw_dim = Some((
+                sl.total_width - margin_right,
+                sl.total_height - margin_top - margin_bottom,
+            ));
+            svg_sequence::render_sequence(sd, sl, skin).map(|svg| BodyResult { svg, raw_body_dim: raw_dim })
         }
         (Diagram::Activity(ad), DiagramLayout::Activity(al)) => {
             super::svg_activity::render_activity(ad, al, skin).map(|svg| BodyResult { svg, raw_body_dim: None })
@@ -744,15 +753,27 @@ fn encode6bit(b: u8) -> char {
 fn wrap_with_meta(body_svg: &str, meta: &DiagramMeta, diagram_type: &str, bg: &str, raw_body_dim: Option<(f64, f64)>, skin: &crate::style::SkinParams) -> Result<String> {
     let (svg_w, svg_h) = extract_dimensions(body_svg);
     let body_content = extract_svg_content(body_svg);
+
+    // Document-level margin: Java TextBlockExporter12026 applies diagram.getDefaultMargins().
+    // Sequence diagrams (Puma2 classic): margin(top=5, right=5, bottom=5, left=0)
+    // Sequence diagrams (Teoz):          margin(top=5, right=5, bottom=5, left=5)
+    // CucaDiagram (class/component/etc): margin(top=0, right=5, bottom=5, left=0)
+    // The body SVG viewport already bakes in these margins via the layout engine,
+    // so we recover the raw textBlock dimensions by subtracting them.
+    let doc_margin_top = match diagram_type {
+        "SEQUENCE" => 5.0,
+        _ => 0.0,
+    };
+
     // Use raw body dimensions if available (avoids integer truncation loss).
     // Otherwise fall back to extracting from SVG header (lossy).
     let (body_w, body_h) = if let Some((rw, rh)) = raw_body_dim {
         (rw, rh)
     } else {
         // Body SVG includes DOC_MARGIN + 1: recover raw textBlock dimensions.
-        (svg_w - DOC_MARGIN_RIGHT - 1.0, svg_h - DOC_MARGIN_BOTTOM - 1.0)
+        (svg_w - DOC_MARGIN_RIGHT - 1.0, svg_h - doc_margin_top - DOC_MARGIN_BOTTOM - 1.0)
     };
-    log::trace!("wrap_with_meta: svg_w={svg_w} svg_h={svg_h} body_w={body_w} body_h={body_h}");
+    log::trace!("wrap_with_meta: svg_w={svg_w} svg_h={svg_h} body_w={body_w} body_h={body_h} doc_margin_top={doc_margin_top}");
 
     // ── Resolve document section styles ──────────────────────────────
     let hdr_font_size = skin.get("document.header.fontsize")
@@ -826,7 +847,7 @@ fn wrap_with_meta(body_svg: &str, meta: &DiagramMeta, diagram_type: &str, bg: &s
     let tb_h = total_dim.1;
     // Java ensureVisible: maxX = (int)(x + 1)
     let canvas_w = ensure_visible_int(tb_w + DOC_MARGIN_RIGHT) as f64;
-    let canvas_h = ensure_visible_int(tb_h + DOC_MARGIN_BOTTOM) as f64;
+    let canvas_h = ensure_visible_int(tb_h + doc_margin_top + DOC_MARGIN_BOTTOM) as f64;
     log::trace!("wrap_with_meta: tb_w={tb_w:.6} tb_h={tb_h:.6} canvas_w={canvas_w} canvas_h={canvas_h}");
     log::trace!("wrap_with_meta: body_dim=({body_w},{body_h}) after_legend={after_legend:?} after_title={after_title:?} after_caption={after_caption:?}");
 
@@ -838,7 +859,12 @@ fn wrap_with_meta(body_svg: &str, meta: &DiagramMeta, diagram_type: &str, bg: &s
 
     let body_abs_x = outer_inner_x + cap_inner_x + title_inner_x + leg_inner_x;
     let body_abs_y = hdr_dim.1 + title_dim.1;
-    log::trace!("body_pos: body_abs_x={body_abs_x:.6} body_abs_y={body_abs_y:.6}");
+    // Java TextBlockExporter12026 applies UTranslate(margin_left, margin_top) to the
+    // whole textBlock. For sequence diagrams margin_top=5 shifts all meta elements down.
+    // The body content already has this margin baked into its internal coordinates
+    // (layout MARGIN=5), so only meta elements need the shift.
+    let meta_dy = doc_margin_top;
+    log::trace!("body_pos: body_abs_x={body_abs_x:.6} body_abs_y={body_abs_y:.6} meta_dy={meta_dy}");
 
     // ── 4. Render SVG ──────────────────────────────────────────────
     let mut buf = String::with_capacity(body_svg.len() + 2048);
@@ -849,7 +875,7 @@ fn wrap_with_meta(body_svg: &str, meta: &DiagramMeta, diagram_type: &str, bg: &s
     // Header (RIGHT-aligned)
     if let Some(ref hdr) = meta.header {
         let hdr_x = tb_w - hdr_dim.0;
-        let text_y = font_metrics::ascent("SansSerif", hdr_font_size, false, false);
+        let text_y = meta_dy + font_metrics::ascent("SansSerif", hdr_font_size, false, false);
         let text_color = hdr_font_color.as_deref().unwrap_or(DIVIDER_COLOR);
         write!(buf, r#"<g class="header""#).unwrap();
         if let Some(sl) = meta.header_line {
@@ -858,8 +884,8 @@ fn wrap_with_meta(body_svg: &str, meta: &DiagramMeta, diagram_type: &str, bg: &s
         buf.push('>');
         if let Some(ref bg) = hdr_bg_color {
             write!(buf,
-                r#"<rect fill="{}" height="{}" style="stroke:none;stroke-width:1;" width="{}" x="{}" y="0"/>"#,
-                bg, fmt_coord(hdr_text_h), fmt_coord(hdr_text_w), fmt_coord(hdr_x)
+                r#"<rect fill="{}" height="{}" style="stroke:none;stroke-width:1;" width="{}" x="{}" y="{}"/>"#,
+                bg, fmt_coord(hdr_text_h), fmt_coord(hdr_text_w), fmt_coord(hdr_x), fmt_coord(meta_dy)
             ).unwrap();
         }
         render_creole_text(
@@ -877,7 +903,7 @@ fn wrap_with_meta(body_svg: &str, meta: &DiagramMeta, diagram_type: &str, bg: &s
         let title_block_x = outer_inner_x + cap_inner_x
             + ((after_title.0 - title_dim.0) / 2.0).max(0.0);
         let text_x = title_block_x + TITLE_MARGIN + TITLE_PADDING;
-        let text_y = hdr_dim.1 + TITLE_MARGIN + TITLE_PADDING
+        let text_y = meta_dy + hdr_dim.1 + TITLE_MARGIN + TITLE_PADDING
             + font_metrics::ascent("SansSerif", title_font_size, title_bold, false);
         let text_color = title_font_color.as_deref().unwrap_or(TEXT_COLOR);
         write!(buf, r#"<g class="title""#).unwrap();
@@ -887,7 +913,7 @@ fn wrap_with_meta(body_svg: &str, meta: &DiagramMeta, diagram_type: &str, bg: &s
         buf.push('>');
         if let Some(ref bg) = title_bg_color {
             let rect_x = title_block_x + TITLE_MARGIN;
-            let rect_y = hdr_dim.1 + TITLE_MARGIN;
+            let rect_y = meta_dy + hdr_dim.1 + TITLE_MARGIN;
             let rect_w = title_text_w + 2.0 * TITLE_PADDING;
             let rect_h = title_text_h + 2.0 * TITLE_PADDING;
             write!(buf,
@@ -941,7 +967,7 @@ fn wrap_with_meta(body_svg: &str, meta: &DiagramMeta, diagram_type: &str, bg: &s
     // Legend (CENTER-aligned)
     if let Some(ref leg) = meta.legend {
         let leg_wrapper_x = outer_inner_x + cap_inner_x + title_inner_x;
-        let leg_wrapper_y = hdr_dim.1 + title_dim.1 + body_h;
+        let leg_wrapper_y = meta_dy + hdr_dim.1 + title_dim.1 + body_h;
         let leg_block_x = ((after_legend.0 - leg_dim.0) / 2.0).max(0.0);
         let rect_x = leg_wrapper_x + leg_block_x + LEGEND_MARGIN;
         let rect_y = leg_wrapper_y + LEGEND_MARGIN;
@@ -982,7 +1008,7 @@ fn wrap_with_meta(body_svg: &str, meta: &DiagramMeta, diagram_type: &str, bg: &s
 
     // Caption (CENTER-aligned)
     if let Some(ref cap) = meta.caption {
-        let cap_y_start = hdr_dim.1 + after_title.1;
+        let cap_y_start = meta_dy + hdr_dim.1 + after_title.1;
         let cap_block_x = outer_inner_x
             + ((after_caption.0 - cap_dim.0) / 2.0).max(0.0);
         let text_x = cap_block_x + CAPTION_MARGIN + CAPTION_PADDING;
@@ -1016,7 +1042,7 @@ fn wrap_with_meta(body_svg: &str, meta: &DiagramMeta, diagram_type: &str, bg: &s
 
     // Footer (CENTER-aligned)
     if let Some(ref ftr) = meta.footer {
-        let ftr_y_start = hdr_dim.1 + after_caption.1;
+        let ftr_y_start = meta_dy + hdr_dim.1 + after_caption.1;
         let ftr_x = ((tb_w - ftr_dim.0) / 2.0).max(0.0);
         let text_y = ftr_y_start
             + font_metrics::ascent("SansSerif", ftr_font_size, false, false);
