@@ -1,4 +1,5 @@
 use std::cell::Cell;
+use std::collections::HashMap;
 use std::fmt::Write;
 
 use crate::font_metrics;
@@ -11,8 +12,11 @@ use crate::style::SkinParams;
 use crate::Result;
 
 thread_local! { static ENT_COUNTER: Cell<u32> = const { Cell::new(2) }; }
+thread_local! { static LNK_COUNTER: Cell<u32> = const { Cell::new(3) }; }
 fn next_ent_id() -> String { ENT_COUNTER.with(|c| { let id = c.get(); c.set(id + 1); format!("ent{:04}", id) }) }
+fn next_lnk_id() -> String { LNK_COUNTER.with(|c| { let id = c.get(); c.set(id + 1); format!("lnk{}", id) }) }
 fn reset_ent_counter() { ENT_COUNTER.with(|c| c.set(2)); }
+fn reset_lnk_counter() { LNK_COUNTER.with(|c| c.set(3)); }
 
 // ── Style constants (PlantUML rose theme) ───────────────────────────
 
@@ -26,6 +30,8 @@ const TAB_WIDTH: f64 = 30.515625;
 use crate::skin::rose::{BORDER_COLOR, ENTITY_BG, INITIAL_FILL, NOTE_BG, NOTE_BORDER, TEXT_COLOR};
 const FINAL_OUTER: &str = "#000000";
 const FINAL_INNER: &str = "#000000";
+/// Java ExtremityArrow.getDecorationLength() = 6.
+const ARROW_DECORATION_LEN: f64 = 6.0;
 
 // ── Public entry point ──────────────────────────────────────────────
 
@@ -39,6 +45,7 @@ pub fn render_state(
 ) -> Result<(String, Option<(f64, f64)>)> {
     let mut buf = String::with_capacity(4096);
     reset_ent_counter();
+    reset_lnk_counter();
 
     let state_bg = skin.background_color("state", ENTITY_BG);
     let state_border = skin.border_color("state", BORDER_COLOR);
@@ -47,31 +54,68 @@ pub fn render_state(
     let mut sg = SvgGraphic::new(0, 1.0);
     let mut tracker = BoundsTracker::new();
 
-    // States: Java renders regular entities before start/end entities.
-    // Pass 1: regular and composite entities
+    // Build state_id → ent_id mapping (pre-assign for ordering consistency).
+    let mut ent_id_map: HashMap<String, String> = HashMap::new();
+    // Pass 1: assign ent_ids to regular entities first (matching Java order).
     for state in &layout.state_layouts {
         if !state.is_initial && !state.is_final
             && !matches!(state.kind, StateKind::EntryPoint | StateKind::ExitPoint
                 | StateKind::End | StateKind::Fork | StateKind::Join
                 | StateKind::Choice | StateKind::History | StateKind::DeepHistory)
         {
-            render_state_node(&mut sg, &mut tracker, state, state_bg, state_border, state_font);
+            ent_id_map.insert(state.id.clone(), next_ent_id());
         }
     }
-    // Pass 2: special entities (initial, final, fork, join, choice, history, etc.)
+    // Pass 2: assign ent_ids to special entities. For [*] initial states,
+    // Java reuses the UID of the target entity from the first [*] transition.
     for state in &layout.state_layouts {
         if state.is_initial || state.is_final
             || matches!(state.kind, StateKind::EntryPoint | StateKind::ExitPoint
                 | StateKind::End | StateKind::Fork | StateKind::Join
                 | StateKind::Choice | StateKind::History | StateKind::DeepHistory)
         {
-            render_state_node(&mut sg, &mut tracker, state, state_bg, state_border, state_font);
+            if state.is_initial && (state.id == "[*]" || state.id.starts_with("[*]")) {
+                // Find the target of the first transition from [*]
+                let target_ent_id = layout.transition_layouts.iter()
+                    .find(|t| t.from_id == state.id)
+                    .and_then(|t| ent_id_map.get(&t.to_id))
+                    .cloned();
+                if let Some(id) = target_ent_id {
+                    ent_id_map.insert(state.id.clone(), id);
+                } else {
+                    ent_id_map.insert(state.id.clone(), next_ent_id());
+                }
+            } else {
+                ent_id_map.insert(state.id.clone(), next_ent_id());
+            }
+        }
+    }
+
+    // States: Java renders regular entities before start/end entities.
+    // Render pass 1: regular and composite entities
+    for state in &layout.state_layouts {
+        if !state.is_initial && !state.is_final
+            && !matches!(state.kind, StateKind::EntryPoint | StateKind::ExitPoint
+                | StateKind::End | StateKind::Fork | StateKind::Join
+                | StateKind::Choice | StateKind::History | StateKind::DeepHistory)
+        {
+            render_state_node(&mut sg, &mut tracker, state, state_bg, state_border, state_font, &ent_id_map);
+        }
+    }
+    // Render pass 2: special entities (initial, final, fork, join, choice, history, etc.)
+    for state in &layout.state_layouts {
+        if state.is_initial || state.is_final
+            || matches!(state.kind, StateKind::EntryPoint | StateKind::ExitPoint
+                | StateKind::End | StateKind::Fork | StateKind::Join
+                | StateKind::Choice | StateKind::History | StateKind::DeepHistory)
+        {
+            render_state_node(&mut sg, &mut tracker, state, state_bg, state_border, state_font, &ent_id_map);
         }
     }
 
     // Transitions
     for transition in &layout.transition_layouts {
-        render_transition(&mut sg, &mut tracker, transition);
+        render_transition(&mut sg, &mut tracker, transition, &ent_id_map);
     }
 
     // Notes
@@ -107,6 +151,7 @@ fn render_state_node(
     bg: &str,
     border: &str,
     font_color: &str,
+    ent_id_map: &HashMap<String, String>,
 ) {
     match &node.kind {
         StateKind::Fork | StateKind::Join => {
@@ -125,31 +170,37 @@ fn render_state_node(
             render_final(sg, tracker, node);
         }
         StateKind::EntryPoint => {
-            render_initial(sg, tracker, node);
+            render_initial(sg, tracker, node, ent_id_map);
         }
         StateKind::ExitPoint => {
             render_exit_point(sg, tracker, node, border);
         }
         StateKind::Normal => {
             if node.is_initial {
-                render_initial(sg, tracker, node);
+                render_initial(sg, tracker, node, ent_id_map);
             } else if node.is_final {
                 render_final(sg, tracker, node);
             } else if node.is_composite {
-                render_composite(sg, tracker, node, bg, border, font_color);
+                render_composite(sg, tracker, node, bg, border, font_color, ent_id_map);
             } else {
-                render_simple(sg, tracker, node, bg, border, font_color);
+                render_simple(sg, tracker, node, bg, border, font_color, ent_id_map);
             }
         }
     }
 }
 
 /// Initial state: filled ellipse, rx=10 ry=10 (matches Java PlantUML)
-fn render_initial(sg: &mut SvgGraphic, tracker: &mut BoundsTracker, node: &StateNodeLayout) {
+fn render_initial(sg: &mut SvgGraphic, tracker: &mut BoundsTracker, node: &StateNodeLayout, ent_id_map: &HashMap<String, String>) {
     let cx = node.x + node.width / 2.0;
     let cy = node.y + node.height / 2.0;
+    let ent_id = ent_id_map.get(&node.id).cloned().unwrap_or_else(|| "ent0002".to_string());
+    let mut attrs = format!(r#" data-qualified-name=".start.""#);
+    if let Some(sl) = node.source_line {
+        write!(attrs, r#" data-source-line="{}""#, sl).unwrap();
+    }
+    write!(attrs, r#" id="{}""#, ent_id).unwrap();
     sg.push_raw(&format!(
-        r#"<g class="start_entity"><ellipse cx="{}" cy="{}" fill="{INITIAL_FILL}" rx="10" ry="10" style="stroke:{INITIAL_FILL};stroke-width:1;"/></g>"#,
+        r#"<g class="start_entity"{attrs}><ellipse cx="{}" cy="{}" fill="{INITIAL_FILL}" rx="10" ry="10" style="stroke:{INITIAL_FILL};stroke-width:1;"/></g>"#,
         fmt_coord(cx), fmt_coord(cy),
     ));
     // Java LimitFinder.drawEllipse: addPoint(x, y), addPoint(x+w-1, y+h-1)
@@ -251,10 +302,11 @@ fn render_simple(
     bg: &str,
     border: &str,
     font_color: &str,
+    ent_id_map: &HashMap<String, String>,
 ) {
     // Open semantic <g> wrapper with entity ID
     let name_escaped = xml_escape(&node.name);
-    let ent_id = next_ent_id();
+    let ent_id = ent_id_map.get(&node.id).cloned().unwrap_or_else(next_ent_id);
     sg.push_raw(&format!(
         r#"<g class="entity" data-qualified-name="{}" id="{}">"#,
         name_escaped, ent_id,
@@ -337,10 +389,11 @@ fn render_composite(
     bg: &str,
     border: &str,
     font_color: &str,
+    ent_id_map: &HashMap<String, String>,
 ) {
     // Open semantic <g> wrapper with entity ID
     let name_escaped = xml_escape(&node.name);
-    let ent_id = next_ent_id();
+    let ent_id = ent_id_map.get(&node.id).cloned().unwrap_or_else(next_ent_id);
     sg.push_raw(&format!(
         r#"<g class="entity" data-qualified-name="{}" id="{}">"#,
         name_escaped, ent_id,
@@ -379,7 +432,7 @@ fn render_composite(
 
     // Recursively render children
     for child in &node.children {
-        render_state_node(sg, tracker, child, bg, border, font_color);
+        render_state_node(sg, tracker, child, bg, border, font_color, &HashMap::new());
     }
 
     // Render concurrent region separators (dashed lines)
@@ -392,23 +445,58 @@ fn render_composite(
 
 // ── Transition rendering ────────────────────────────────────────────
 
-fn render_transition(sg: &mut SvgGraphic, tracker: &mut BoundsTracker, transition: &TransitionLayout) {
+fn render_transition(sg: &mut SvgGraphic, tracker: &mut BoundsTracker, transition: &TransitionLayout, ent_id_map: &HashMap<String, String>) {
     if transition.points.is_empty() && transition.raw_path_d.is_none() {
         return;
     }
 
-    // Open semantic <g> wrapper
-    let from_escaped = xml_escape(&transition.from_id);
-    let to_escaped = xml_escape(&transition.to_id);
+    // Resolve entity IDs for attributes
+    let from_ent = ent_id_map.get(&transition.from_id).cloned().unwrap_or_default();
+    let to_ent = ent_id_map.get(&transition.to_id).cloned().unwrap_or_default();
+
+    // Build display name for the comment: use ".start." for [*] states
+    let from_display = if transition.from_id == "[*]" || transition.from_id.starts_with("[*]") {
+        "*start*".to_string()
+    } else {
+        transition.from_id.clone()
+    };
+    let to_display = if transition.to_id == "[*]" || transition.to_id.starts_with("[*]") {
+        "*end*".to_string()
+    } else {
+        transition.to_id.clone()
+    };
+
+    // Open semantic <g> wrapper with link attributes
+    let from_escaped = xml_escape(&from_display);
+    let to_escaped = xml_escape(&to_display);
+    let lnk_id = next_lnk_id();
+    let mut link_attrs = String::new();
+    if !from_ent.is_empty() {
+        write!(link_attrs, r#" data-entity-1="{}""#, from_ent).unwrap();
+    }
+    if !to_ent.is_empty() {
+        write!(link_attrs, r#" data-entity-2="{}""#, to_ent).unwrap();
+    }
+    write!(link_attrs, r#" data-link-type="dependency""#).unwrap();
+    if let Some(sl) = transition.source_line {
+        write!(link_attrs, r#" data-source-line="{}""#, sl).unwrap();
+    }
+    write!(link_attrs, r#" id="{}""#, lnk_id).unwrap();
     sg.push_raw(&format!(
-        r#"<!--link {} to {}--><g class="link">"#,
+        r#"<!--link {} to {}--><g class="link"{link_attrs}>"#,
         from_escaped, to_escaped,
     ));
 
-    // Path data: prefer raw graphviz Bezier path when available
+    // Build path ID: "from-to-to" (Java-style link IDs)
+    let path_id = format!("{}-to-{}", from_display, to_display);
+
+    // Path data: prefer raw graphviz Bezier path when available.
+    // Java adjusts the edge endpoint by the arrow decoration length (6px)
+    // to prevent the path from overlapping the arrowhead polygon.
     if let Some(ref raw_d) = transition.raw_path_d {
+        let adjusted_d = adjust_path_endpoint(raw_d, ARROW_DECORATION_LEN);
         sg.push_raw(&format!(
-            r#"<path d="{raw_d}" fill="none" style="stroke:{BORDER_COLOR};stroke-width:1;"/>"#,
+            r#"<path d="{adjusted_d}" fill="none" id="{path_id}" style="stroke:{BORDER_COLOR};stroke-width:1;"/>"#,
         ));
     } else {
         let mut d = String::new();
@@ -420,7 +508,7 @@ fn render_transition(sg: &mut SvgGraphic, tracker: &mut BoundsTracker, transitio
             }
         }
         sg.push_raw(&format!(
-            r#"<path d="{d}" fill="none" style="stroke:{BORDER_COLOR};stroke-width:1;"/>"#,
+            r#"<path d="{d}" fill="none" id="{path_id}" style="stroke:{BORDER_COLOR};stroke-width:1;"/>"#,
         ));
     }
     // Track edge path bounds (Java LimitFinder.drawDotPath)
@@ -521,6 +609,78 @@ fn render_transition(sg: &mut SvgGraphic, tracker: &mut BoundsTracker, transitio
 
     // Close <g>
     sg.push_raw("</g>");
+}
+
+/// Adjust the endpoint of an SVG path by moving it back `decoration_len` pixels
+/// along the arrow direction.  Java `DotPath.moveEndPoint()` moves both the
+/// endpoint (x2,y2) and the last control point (ctrlx2,ctrly2) by the same delta.
+///
+/// For a cubic Bezier `C x1,y1 x2,y2 x3,y3`, this adjusts both (x2,y2) and (x3,y3).
+fn adjust_path_endpoint(d: &str, decoration_len: f64) -> String {
+    let parts: Vec<&str> = d.split_whitespace().collect();
+    if parts.len() < 2 {
+        return d.to_string();
+    }
+
+    // Parse all coordinate pairs with their string positions.
+    let mut coord_positions: Vec<(usize, usize, f64, f64)> = Vec::new(); // (start, end, x, y)
+    let mut search_from = 0;
+    for part in &parts {
+        let cleaned = part.trim_start_matches(|c: char| c.is_ascii_alphabetic());
+        if let Some((x_str, y_str)) = cleaned.split_once(',') {
+            if let (Ok(x), Ok(y)) = (x_str.parse::<f64>(), y_str.parse::<f64>()) {
+                // Find the coordinate string in the original path
+                let coord_str = format!("{},{}", fmt_coord(x), fmt_coord(y));
+                if let Some(pos) = d[search_from..].find(&coord_str) {
+                    let abs_pos = search_from + pos;
+                    coord_positions.push((abs_pos, abs_pos + coord_str.len(), x, y));
+                    search_from = abs_pos + coord_str.len();
+                } else {
+                    coord_positions.push((0, 0, x, y)); // fallback
+                }
+            }
+        }
+    }
+
+    if coord_positions.len() < 3 {
+        return d.to_string();
+    }
+
+    // Compute the direction from the second-to-last control point to the endpoint.
+    let n = coord_positions.len();
+    let (_, _, x_end, y_end) = coord_positions[n - 1];
+    let (_, _, x_ctrl2, _y_ctrl2) = coord_positions[n - 2];
+    // Use the first control point to endpoint direction for angle computation
+    let (_, _, x_prev, y_prev) = coord_positions[n - 3];
+    _ = x_ctrl2; // the 2nd control point, not used for direction
+    _ = x_prev;
+
+    // Direction from penultimate ctrl to endpoint
+    let (_, _, cx2, cy2) = coord_positions[n - 2];
+    let dx = x_end - cx2;
+    let dy = y_end - cy2;
+    let len = (dx * dx + dy * dy).sqrt();
+    if len < 0.001 {
+        return d.to_string();
+    }
+
+    // Delta to apply (move back along the arrow direction)
+    let move_dx = -decoration_len * dx / len;
+    let move_dy = -decoration_len * dy / len;
+
+    // Apply delta to both the second control point and endpoint
+    let mut result = d.to_string();
+    // Process from end to start so positions remain valid
+    let (pos_end, end_end, xe, ye) = coord_positions[n - 1];
+    let (pos_ctrl, end_ctrl, xc, yc) = coord_positions[n - 2];
+    if pos_end > 0 && pos_ctrl > 0 {
+        let new_end = format!("{},{}", fmt_coord(xe + move_dx), fmt_coord(ye + move_dy));
+        result.replace_range(pos_end..end_end, &new_end);
+        let new_ctrl = format!("{},{}", fmt_coord(xc + move_dx), fmt_coord(yc + move_dy));
+        result.replace_range(pos_ctrl..end_ctrl, &new_ctrl);
+    }
+
+    result
 }
 
 // ── Note rendering ──────────────────────────────────────────────────
@@ -641,6 +801,7 @@ mod tests {
             id: "[*]_initial".to_string(), name: String::new(), x, y, width: 20.0, height: 20.0,
             description: vec![], stereotype: None, is_initial: true, is_final: false, is_composite: false,
             children: vec![], kind: crate::model::state::StateKind::default(), region_separators: Vec::new(),
+            source_line: None,
         }
     }
 
@@ -648,6 +809,7 @@ mod tests {
         StateNodeLayout {
             id: "[*]_final".to_string(), name: String::new(), x, y, width: 22.0, height: 22.0,
             description: vec![], stereotype: None, is_initial: false, is_final: true, is_composite: false,
+            source_line: None,
             children: vec![], kind: crate::model::state::StateKind::default(), region_separators: Vec::new(),
         }
     }
@@ -655,6 +817,7 @@ mod tests {
     fn make_simple(id: &str, name: &str, x: f64, y: f64, w: f64, h: f64) -> StateNodeLayout {
         StateNodeLayout {
             id: id.to_string(), name: name.to_string(), x, y, width: w, height: h,
+            source_line: None,
             description: vec![], stereotype: None, is_initial: false, is_final: false, is_composite: false,
             children: vec![], kind: crate::model::state::StateKind::default(), region_separators: Vec::new(),
         }
@@ -748,6 +911,7 @@ mod tests {
             id: "Outer".to_string(), name: "Outer".to_string(),
             x: 20.0, y: 30.0, width: 200.0, height: 120.0,
             description: vec![], stereotype: None,
+            source_line: None,
             is_initial: false, is_final: false, is_composite: true,
             children: vec![child], kind: crate::model::state::StateKind::default(),
             region_separators: Vec::new(),
@@ -769,6 +933,7 @@ mod tests {
             from_id: "A".to_string(), to_id: "B".to_string(), label: String::new(),
             points: vec![(100.0, 50.0), (100.0, 120.0)],
             raw_path_d: None, arrow_polygon: None, label_xy: None, label_wh: None,
+            source_line: None,
         });
         let (svg, _) = render_state(&diagram, &layout, &SkinParams::default()).expect("render failed");
         assert!(svg.contains("<polygon"), "transition must have inline polygon arrowhead");
@@ -784,6 +949,7 @@ mod tests {
         layout.transition_layouts.push(TransitionLayout {
             from_id: "Idle".to_string(), to_id: "Active".to_string(), label: "start".to_string(),
             points: vec![(80.0, 40.0), (80.0, 100.0)],
+            source_line: None,
             raw_path_d: None, arrow_polygon: None, label_xy: None, label_wh: None,
         });
         let (svg, _) = render_state(&diagram, &layout, &SkinParams::default()).expect("render failed");
@@ -797,6 +963,7 @@ mod tests {
         let mut layout = empty_layout();
         layout.transition_layouts.push(TransitionLayout {
             from_id: "A".to_string(), to_id: "B".to_string(), label: String::new(),
+            source_line: None,
             points: vec![(50.0, 20.0), (50.0, 50.0), (100.0, 50.0), (100.0, 80.0)],
             raw_path_d: None, arrow_polygon: None, label_xy: None, label_wh: None,
         });
@@ -855,11 +1022,13 @@ mod tests {
             from_id: "[*]_initial".to_string(), to_id: "Running".to_string(), label: String::new(),
             points: vec![(190.0, 30.0), (190.0, 50.0)],
             raw_path_d: None, arrow_polygon: None, label_xy: None, label_wh: None,
+            source_line: None,
         });
         layout.transition_layouts.push(TransitionLayout {
             from_id: "Running".to_string(), to_id: "[*]_final".to_string(), label: "done".to_string(),
             points: vec![(190.0, 90.0), (190.0, 120.0)],
             raw_path_d: None, arrow_polygon: None, label_xy: None, label_wh: None,
+            source_line: None,
         });
         let (svg, raw_dim) = render_state(&diagram, &layout, &SkinParams::default()).expect("render failed");
         assert!(svg.starts_with("<svg"), "SVG must start with <svg");
@@ -882,6 +1051,7 @@ mod tests {
         layout.transition_layouts.push(TransitionLayout {
             from_id: "A".to_string(), to_id: "B".to_string(), label: "skip".to_string(), points: vec![],
             raw_path_d: None, arrow_polygon: None, label_xy: None, label_wh: None,
+            source_line: None,
         });
         let (svg, _) = render_state(&diagram, &layout, &SkinParams::default()).expect("render failed");
         assert!(!svg.contains("<path"), "empty points should not produce a path");
@@ -894,6 +1064,7 @@ mod tests {
         let mut layout = empty_layout();
         layout.state_layouts.push(StateNodeLayout {
             id: "fork1".to_string(), name: "fork1".to_string(),
+            source_line: None,
             x: 30.0, y: 40.0, width: 80.0, height: 6.0,
             description: vec![], stereotype: None,
             is_initial: false, is_final: false, is_composite: false,
@@ -910,6 +1081,7 @@ mod tests {
         let diagram = empty_diagram();
         let mut layout = empty_layout();
         layout.state_layouts.push(StateNodeLayout {
+        source_line: None,
             id: "join1".to_string(), name: "join1".to_string(),
             x: 30.0, y: 40.0, width: 80.0, height: 6.0,
             description: vec![], stereotype: None,
@@ -930,6 +1102,7 @@ mod tests {
             description: vec![], stereotype: None,
             is_initial: false, is_final: false, is_composite: false,
             children: vec![], kind: StateKind::Choice, region_separators: Vec::new(),
+            source_line: None,
         });
         let (svg, _) = render_state(&diagram, &layout, &SkinParams::default()).expect("render failed");
         assert!(svg.contains("<polygon"), "choice must produce a polygon (diamond)");
@@ -945,6 +1118,7 @@ mod tests {
             description: vec![], stereotype: None,
             is_initial: false, is_final: false, is_composite: false,
             children: vec![], kind: StateKind::History, region_separators: Vec::new(),
+            source_line: None,
         });
         let (svg, _) = render_state(&diagram, &layout, &SkinParams::default()).expect("render failed");
         assert!(svg.contains("<circle"), "history must produce a circle");
@@ -961,6 +1135,7 @@ mod tests {
             description: vec![], stereotype: None,
             is_initial: false, is_final: false, is_composite: false,
             children: vec![], kind: StateKind::DeepHistory, region_separators: Vec::new(),
+            source_line: None,
         });
         let (svg, _) = render_state(&diagram, &layout, &SkinParams::default()).expect("render failed");
         assert!(svg.contains("<circle"), "deep history must produce a circle");
@@ -980,6 +1155,7 @@ mod tests {
             is_initial: false, is_final: false, is_composite: true,
             children: vec![child1, child2], kind: StateKind::Normal,
             region_separators: vec![110.0],
+            source_line: None,
         };
         layout.state_layouts.push(composite);
         let (svg, _) = render_state(&diagram, &layout, &SkinParams::default()).expect("render failed");

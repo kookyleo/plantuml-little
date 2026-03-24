@@ -297,16 +297,20 @@ pub fn parse_state_diagram(source: &str) -> Result<StateDiagram> {
         }
 
         // Handle transitions: `A --> B : label`, `A -> B`, `[*] --> A`
-        if let Some(trans) = try_parse_transition(trimmed) {
+        if let Some(mut trans) = try_parse_transition(trimmed) {
             debug!(
                 "line {}: transition '{}' -> '{}' label='{}' dashed={}",
                 line_num, trans.from, trans.to, trans.label, trans.dashed
             );
+            // Java uses 0-based line numbers from the original file.
+            // Our line_num is 1-based within the block (after @startuml strip),
+            // which equals 0-based original file line (accounting for @startuml).
+            trans.source_line = Some(line_num);
 
             // Auto-create states referenced in this transition
             let current_states = current_states_mut(&mut stack, &mut top_states);
-            ensure_state(current_states, &trans.from);
-            ensure_state(current_states, &trans.to);
+            ensure_state(current_states, &trans.from, trans.source_line);
+            ensure_state(current_states, &trans.to, trans.source_line);
 
             let current_transitions = current_transitions_mut(&mut stack, &mut top_transitions);
             current_transitions.push(trans);
@@ -317,7 +321,7 @@ pub fn parse_state_diagram(source: &str) -> Result<StateDiagram> {
         if let Some((state_id, desc)) = try_parse_description_line(trimmed) {
             debug!("line {line_num}: adding description to '{state_id}': '{desc}'");
             let current_states = current_states_mut(&mut stack, &mut top_states);
-            ensure_state(current_states, &state_id);
+            ensure_state(current_states, &state_id, None);
             if let Some(s) = find_state_mut(current_states, &state_id) {
                 s.description.push(desc);
             }
@@ -509,6 +513,7 @@ fn try_parse_composite_state(rest: &str) -> Option<State> {
         is_special: false,
         kind,
         regions: Vec::new(),
+        source_line: None,
     })
 }
 
@@ -547,6 +552,7 @@ fn parse_state_declaration(rest: &str) -> Option<State> {
         is_special: false,
         kind,
         regions: Vec::new(),
+        source_line: None,
     })
 }
 
@@ -701,6 +707,7 @@ fn try_parse_transition(line: &str) -> Option<Transition> {
         to: to_id,
         label,
         dashed,
+        source_line: None, // set by caller
     })
 }
 
@@ -852,7 +859,7 @@ fn current_transitions_mut<'a>(
 
 /// Ensure a state with the given ID exists in the states list.
 /// If not found, auto-create it. Handles `[*]` as a special state.
-fn ensure_state(states: &mut Vec<State>, id: &str) {
+fn ensure_state(states: &mut Vec<State>, id: &str, source_line: Option<usize>) {
     if id == "[*]" {
         // Check if [*] already exists
         if states.iter().any(|s| s.id == "[*]") {
@@ -868,6 +875,7 @@ fn ensure_state(states: &mut Vec<State>, id: &str) {
             is_special: true,
             kind: StateKind::default(),
             regions: Vec::new(),
+            source_line,
         });
         return;
     }
@@ -894,6 +902,7 @@ fn ensure_state(states: &mut Vec<State>, id: &str) {
         children: Vec::new(),
         is_special: false,
         kind,
+        source_line: None,
         regions: Vec::new(),
     });
 }

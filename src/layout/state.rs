@@ -47,6 +47,8 @@ pub struct StateNodeLayout {
     pub kind: StateKind,
     /// Y positions of concurrent region separators (dashed lines)
     pub region_separators: Vec<f64>,
+    /// Source line (0-based) for data-source-line attribute.
+    pub source_line: Option<usize>,
 }
 
 /// A transition edge between two states.
@@ -65,6 +67,8 @@ pub struct TransitionLayout {
     pub label_xy: Option<(f64, f64)>,
     /// Label block dimension (width, height) for LimitFinder-style empty tracking.
     pub label_wh: Option<(f64, f64)>,
+    /// Source line (0-based) for data-source-line attribute.
+    pub source_line: Option<usize>,
 }
 
 /// A positioned note.
@@ -276,6 +280,7 @@ fn collect_implicit_states(states: &[State], transitions: &[Transition]) -> Vec<
                     is_special,
                     kind,
                     regions: Vec::new(),
+                    source_line: None,
                 });
             }
         }
@@ -364,6 +369,7 @@ fn compute_state_node(
                 children: Vec::new(),
                 kind: state.kind.clone(),
                 region_separators: Vec::new(),
+                source_line: state.source_line,
             },
             diameter,
             diameter,
@@ -389,6 +395,7 @@ fn compute_state_node(
                 children: Vec::new(),
                 kind: state.kind.clone(),
                 region_separators: Vec::new(),
+                source_line: state.source_line,
             },
             w,
             h,
@@ -413,6 +420,7 @@ fn compute_state_node(
                 children: Vec::new(),
                 kind: state.kind.clone(),
                 region_separators: Vec::new(),
+                source_line: state.source_line,
             },
             s,
             s,
@@ -437,6 +445,7 @@ fn compute_state_node(
                 children: Vec::new(),
                 kind: state.kind.clone(),
                 region_separators: Vec::new(),
+                source_line: state.source_line,
             },
             d,
             d,
@@ -461,6 +470,7 @@ fn compute_state_node(
                 children: Vec::new(),
                 kind: state.kind.clone(),
                 region_separators: Vec::new(),
+                source_line: state.source_line,
             },
             diameter,
             diameter,
@@ -543,6 +553,7 @@ fn compute_state_node(
                 children: all_child_layouts,
                 kind: state.kind.clone(),
                 region_separators,
+                source_line: state.source_line,
             },
             width,
             height,
@@ -567,6 +578,7 @@ fn compute_state_node(
             children: Vec::new(),
             kind: state.kind.clone(),
             region_separators: Vec::new(),
+            source_line: state.source_line,
         },
         w,
         h,
@@ -1038,6 +1050,7 @@ fn layout_transitions(
             arrow_polygon: None,
             label_xy: None,
             label_wh: None,
+            source_line: tr.source_line,
         });
     }
 
@@ -1252,6 +1265,12 @@ pub fn layout_state(diagram: &StateDiagram) -> Result<StateLayout> {
 
         let label_wh = gv_edge.label_wh;
 
+        let source_line = if i < active_transitions.len() {
+            active_transitions[i].source_line
+        } else {
+            None
+        };
+
         transition_layouts.push(TransitionLayout {
             from_id,
             to_id,
@@ -1261,6 +1280,7 @@ pub fn layout_state(diagram: &StateDiagram) -> Result<StateLayout> {
             arrow_polygon,
             label_xy,
             label_wh,
+            source_line,
         });
     }
 
@@ -1471,6 +1491,7 @@ mod tests {
             is_special: false,
             kind: crate::model::state::StateKind::default(),
             regions: vec![],
+            source_line: None,
         }
     }
 
@@ -1484,6 +1505,7 @@ mod tests {
             is_special: true,
             kind: crate::model::state::StateKind::default(),
             regions: vec![],
+            source_line: None,
         }
     }
 
@@ -1493,6 +1515,7 @@ mod tests {
             to: to.to_string(),
             label: label.to_string(),
             dashed: false,
+            source_line: None,
         }
     }
 
@@ -1623,6 +1646,7 @@ mod tests {
                 is_special: false,
                 kind: crate::model::state::StateKind::default(),
                 regions: vec![],
+                source_line: None,
             }],
             transitions: vec![],
             notes: vec![],
@@ -1654,6 +1678,7 @@ mod tests {
             children: vec![simple_state("Deep1"), simple_state("Deep2")],
             is_special: false,
             kind: crate::model::state::StateKind::default(),
+            source_line: None,
             regions: vec![],
         };
 
@@ -1665,6 +1690,7 @@ mod tests {
                 stereotype: None,
                 children: vec![inner_composite, simple_state("Sibling")],
                 is_special: false,
+                source_line: None,
                 kind: crate::model::state::StateKind::default(),
                 regions: vec![],
             }],
@@ -1777,6 +1803,7 @@ mod tests {
                 ],
                 stereotype: None,
                 children: vec![],
+                source_line: None,
                 is_special: false,
                 kind: crate::model::state::StateKind::default(),
                 regions: vec![],
@@ -1840,6 +1867,7 @@ mod tests {
                 id: "MyState".to_string(),
                 description: vec![],
                 stereotype: Some("<<inputPin>>".to_string()),
+                source_line: None,
                 children: vec![],
                 is_special: false,
                 kind: crate::model::state::StateKind::default(),
@@ -1903,6 +1931,7 @@ mod tests {
                 name: "Empty".to_string(),
                 id: "Empty".to_string(),
                 description: vec![],
+                source_line: None,
                 stereotype: None,
                 children: vec![], // technically not composite since children is empty
                 is_special: false,

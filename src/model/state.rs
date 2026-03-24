@@ -43,6 +43,8 @@ pub struct State {
     /// Each region is a list of child states.
     /// If non-empty, `children` holds the first region and `regions` holds additional regions.
     pub regions: Vec<Vec<State>>,
+    /// Source line number (0-based) where this state was first defined/referenced.
+    pub source_line: Option<usize>,
 }
 
 /// State transition
@@ -56,6 +58,8 @@ pub struct Transition {
     pub label: String,
     /// Arrow style: `->` (solid) or `-->` (dashed) -- both rendered as solid in state diagrams
     pub dashed: bool,
+    /// Source line number (0-based) where this transition was defined.
+    pub source_line: Option<usize>,
 }
 
 /// Note
