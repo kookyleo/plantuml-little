@@ -126,7 +126,10 @@ fn split_lines(input: &str) -> Vec<String> {
         if chars[i] == '\\' {
             if i + 2 < chars.len() && chars[i + 1] == '\\' && chars[i + 2] == 'n' {
                 if in_link || tooltip_depth > 0 {
-                    buf.push('\n');
+                    // Inside links, keep \n as literal characters;
+                    // title processing (process_xlink_title) handles conversion
+                    buf.push('\\');
+                    buf.push('n');
                 } else {
                     parts.push(std::mem::take(&mut buf));
                 }
@@ -135,7 +138,8 @@ fn split_lines(input: &str) -> Vec<String> {
             }
             if i + 1 < chars.len() && chars[i + 1] == 'n' {
                 if in_link || tooltip_depth > 0 {
-                    buf.push('\n');
+                    buf.push('\\');
+                    buf.push('n');
                 } else {
                     parts.push(std::mem::take(&mut buf));
                 }

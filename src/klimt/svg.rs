@@ -86,6 +86,29 @@ pub fn xml_escape(s: &str) -> String {
     out
 }
 
+/// XML-escape a string for use in attribute values.
+/// Like `xml_escape` but also escapes `"` → `&quot;`, `\n` → `&#10;`,
+/// `\r` → `&#13;`, `\t` → `&#9;` (matching Java's XML serializer).
+pub fn xml_escape_attr(s: &str) -> String {
+    let mut out = String::with_capacity(s.len());
+    for ch in s.chars() {
+        match ch {
+            '&' => out.push_str("&amp;"),
+            '<' => out.push_str("&lt;"),
+            '>' => out.push_str("&gt;"),
+            '"' => out.push_str("&quot;"),
+            '\n' => out.push_str("&#10;"),
+            '\r' => out.push_str("&#13;"),
+            '\t' => out.push_str("&#9;"),
+            c if !c.is_ascii() => {
+                write!(out, "&#{};", c as u32).unwrap();
+            }
+            c => out.push(c),
+        }
+    }
+    out
+}
+
 // ── SvgGraphic ──────────────────────────────────────────────────────
 
 /// Low-level SVG element generator.

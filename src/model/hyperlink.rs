@@ -109,15 +109,38 @@ fn find_closing_brackets(s: &str) -> Option<usize> {
 
 /// Parse the inner content of `[[…]]` into (url, tooltip, label).
 ///
-/// Formats:
-///   `url`
-///   `url label with spaces`
-///   `url{tooltip}`
-///   `url{tooltip} label with spaces`
-///   `{tooltip} label with spaces`
+/// Formats (matched in order, following Java `UrlBuilder`):
+///   `"url"` + optional `{tooltip}` + optional `label`  (quoted URL)
+///   `{tooltip}`                                         (tooltip only)
+///   `{tooltip} label`                                   (tooltip + label)
+///   `url {tooltip}`                                     (link + tooltip, no label)
+///   `url` + optional `{tooltip}` + optional `label`     (unquoted URL)
 fn parse_inner(inner: &str) -> (&str, Option<&str>, Option<&str>) {
     let trimmed = inner.trim();
 
+    // 1. Quoted URL: "url" {tooltip}? label?
+    if let Some(after_open_quote) = trimmed.strip_prefix('"') {
+        if let Some(close_quote) = after_open_quote.find('"') {
+            let url = &after_open_quote[..close_quote];
+            let after_quote = after_open_quote[close_quote + 1..].trim();
+            // Check for optional {tooltip}
+            if let Some(after_brace_open) = after_quote.strip_prefix('{') {
+                if let Some(brace_end) = after_brace_open.find('}') {
+                    let tooltip = &after_brace_open[..brace_end];
+                    let after_brace = after_brace_open[brace_end + 1..].trim();
+                    let label = if after_brace.is_empty() { None } else { Some(after_brace) };
+                    let tooltip = if tooltip.is_empty() { None } else { Some(tooltip) };
+                    return (url, tooltip, label);
+                }
+            }
+            // No tooltip — check for label
+            let label = if after_quote.is_empty() { None } else { Some(after_quote) };
+            return (url, None, label);
+        }
+    }
+
+    // 2. Tooltip only: {tooltip}
+    // 3. Tooltip + label: {tooltip} label
     if let Some(after_open) = trimmed.strip_prefix('{') {
         if let Some(brace_end) = after_open.find('}') {
             let tooltip = &after_open[..brace_end];
@@ -136,7 +159,7 @@ fn parse_inner(inner: &str) -> (&str, Option<&str>, Option<&str>) {
         }
     }
 
-    // Check for tooltip `{…}`
+    // 4 & 5. Check for tooltip `{…}` after URL
     if let Some(brace_start) = trimmed.find('{') {
         let url = trimmed[..brace_start].trim();
         let after_url = &trimmed[brace_start..];

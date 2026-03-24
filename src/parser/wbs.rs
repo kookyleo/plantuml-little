@@ -59,6 +59,35 @@ fn parse_direction(after_stars: &str) -> (WbsDirection, &str) {
 ///   `(ALIAS) text` - parenthesized alias before text
 ///   `"text" as ALIAS` - quoted text with alias after
 ///   `text` - plain text, no alias
+/// Replace `\n` with newline, but only OUTSIDE `[[...]]` link markers.
+/// Inside link markers, `\n` stays as literal characters (the renderer
+/// handles newline interpretation in tooltips).
+fn replace_newlines_outside_links(s: &str) -> String {
+    let mut result = String::with_capacity(s.len());
+    let mut rest = s;
+    while !rest.is_empty() {
+        if let Some(start) = rest.find("[[") {
+            // Replace \n in the part before [[
+            let before = &rest[..start];
+            result.push_str(&before.replace("\\n", "\n").replace(crate::NEWLINE_CHAR, "\n"));
+            // Find matching ]]
+            if let Some(end) = rest[start + 2..].find("]]") {
+                let link_end = start + 2 + end + 2;
+                result.push_str(&rest[start..link_end]);
+                rest = &rest[link_end..];
+            } else {
+                // No matching ]] — treat rest as plain text
+                result.push_str(&rest[start..].replace("\\n", "\n").replace(crate::NEWLINE_CHAR, "\n"));
+                break;
+            }
+        } else {
+            result.push_str(&rest.replace("\\n", "\n").replace(crate::NEWLINE_CHAR, "\n"));
+            break;
+        }
+    }
+    result
+}
+
 fn parse_alias_and_text(input: &str) -> (Option<String>, String) {
     let trimmed = input.trim();
 
@@ -67,7 +96,7 @@ fn parse_alias_and_text(input: &str) -> (Option<String>, String) {
         if let Some(close_paren) = trimmed.find(')') {
             let alias = trimmed[1..close_paren].trim().to_string();
             let text = trimmed[close_paren + 1..].trim().to_string();
-            let text = text.replace("\\n", "\n").replace(crate::NEWLINE_CHAR, "\n");
+            let text = replace_newlines_outside_links(&text);
             return (Some(alias), text);
         }
     }
@@ -81,20 +110,18 @@ fn parse_alias_and_text(input: &str) -> (Option<String>, String) {
 
             if let Some(rest) = after_quote_clean.strip_prefix("as ") {
                 let alias = rest.trim().to_string();
-                let text = quoted_text.replace("\\n", "\n").replace(crate::NEWLINE_CHAR, "\n");
+                let text = replace_newlines_outside_links(&quoted_text);
                 return (Some(alias), text);
             } else {
                 // Quoted text without alias
-                let text = quoted_text;
-                let text = text.replace("\\n", "\n").replace(crate::NEWLINE_CHAR, "\n");
+                let text = replace_newlines_outside_links(&quoted_text);
                 return (None, text);
             }
         }
     }
 
     // Plain text, preserving inline link markup for the renderer.
-    let text = trimmed.to_string();
-    let text = text.replace("\\n", "\n").replace(crate::NEWLINE_CHAR, "\n");
+    let text = replace_newlines_outside_links(trimmed);
     (None, text)
 }
 

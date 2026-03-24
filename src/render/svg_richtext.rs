@@ -6,7 +6,7 @@ use crate::font_metrics;
 use crate::model::hyperlink::Hyperlink;
 use crate::model::richtext::{RichText, TextSpan};
 use crate::parser::creole::{parse_creole, parse_creole_opts};
-use crate::klimt::svg::{fmt_coord, xml_escape};
+use crate::klimt::svg::{fmt_coord, xml_escape, xml_escape_attr};
 use crate::render::svg_hyperlink::wrap_with_link;
 
 thread_local! {
@@ -67,6 +67,42 @@ pub fn disable_path_sprites() {
 
 fn is_path_sprites_enabled() -> bool {
     PATH_BASED_SPRITES.with(|p| *p.borrow())
+}
+
+/// Process a link title like Java's `SvgGraphics.LinkData.getXlinkTitle()`.
+/// 1. Decode `<U+XXXX>` Unicode escapes to actual characters
+/// 2. Replace literal `\n` with newline character
+fn process_xlink_title(title: &str) -> String {
+    // Step 1: Decode <U+XXXX> patterns
+    let mut result = String::with_capacity(title.len());
+    let mut rest = title;
+    while !rest.is_empty() {
+        if let Some(start) = rest.find("<U+") {
+            result.push_str(&rest[..start]);
+            let after = &rest[start + 3..];
+            if let Some(end) = after.find('>') {
+                let hex = &after[..end];
+                if let Ok(code) = u32::from_str_radix(hex, 16) {
+                    if let Some(ch) = char::from_u32(code) {
+                        result.push(ch);
+                        rest = &after[end + 1..];
+                        continue;
+                    }
+                }
+                // Failed to decode — keep literal
+                result.push_str(&rest[..start + 3 + end + 1]);
+                rest = &after[end + 1..];
+            } else {
+                result.push_str(rest);
+                break;
+            }
+        } else {
+            result.push_str(rest);
+            break;
+        }
+    }
+    // Step 2: Replace literal \n with newline
+    result.replace("\\n", "\n")
 }
 
 /// Override the default font family for all subsequent `render_creole_text` calls.
@@ -397,7 +433,7 @@ fn line_needs_split_render(spans: &[TextSpan]) -> bool {
     fn has_styled(spans: &[TextSpan]) -> bool {
         spans.iter().any(|span| match span {
             TextSpan::Plain(_) | TextSpan::InlineSvg { .. } => false,
-            TextSpan::Link { .. } => false,
+            TextSpan::Link { .. } => true,
             TextSpan::Bold(_) | TextSpan::Italic(_) | TextSpan::Underline(_)
             | TextSpan::Strikethrough(_) | TextSpan::Monospace(_)
             | TextSpan::BackHighlight { .. } | TextSpan::FontFamily { .. }
@@ -643,12 +679,10 @@ fn render_split_text_runs(buf: &mut String, spans: &[TextSpan], x: f64, y: f64, 
         // lengthAdjust, text-decoration, textLength, x, y
         // Wrap link runs with <a> element
         if let Some(ref url) = run.link_url {
-            let title = run.link_tooltip.as_deref().unwrap_or(url);
+            let title_src = run.link_tooltip.as_deref().unwrap_or(url);
+            let title = process_xlink_title(title_src);
             write!(buf, r#"<a href="{}" target="_top" title="{}" xlink:actuate="onRequest" xlink:href="{}" xlink:show="new" xlink:title="{}" xlink:type="simple">"#,
-                xml_escape(url), xml_escape(title), xml_escape(url), xml_escape(title)).unwrap();
-            if run.link_tooltip.is_some() {
-                write!(buf, "<title>{}</title>", xml_escape(title)).unwrap();
-            }
+                xml_escape_attr(url), xml_escape_attr(&title), xml_escape_attr(url), xml_escape_attr(&title)).unwrap();
         }
         write!(buf, r#"<text fill="{}""#, xml_escape(run_fill)).unwrap();
         if let Some(ref fid) = run.filter_id { write!(buf, r#" filter="url(#{fid})""#).unwrap(); }
