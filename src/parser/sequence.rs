@@ -668,6 +668,13 @@ fn ensure_participant(
     });
 }
 
+/// Normalize a line for fuzzy comparison in line mapping.
+/// Expands `%newline()` / `%n()` to the private-use \u{E100} character,
+/// so preprocessed lines can match their original source counterparts.
+fn normalize_for_mapping(s: &str) -> String {
+    s.replace("%newline()", "\u{E100}").replace("%n()", "\u{E100}")
+}
+
 /// Build a mapping from block line index to original source line number.
 ///
 /// Java's data-source-line uses the ORIGINAL .puml file line number (0-based).
@@ -690,13 +697,26 @@ fn build_line_mapping(cleaned_source: &str, original_source: Option<&str>, block
     let mut mapping = Vec::with_capacity(block_lines.len());
 
     // For each block line, find the matching line in original source
-    // searching forward from the last matched position
+    // searching forward from the last matched position.
+    // Only match non-trivial lines (skip empty/whitespace-only and skinparam
+    // lines that could come from theme expansion) to avoid false matches
+    // that advance search_from past the actual user content.
     let mut search_from = start_pos + 1;
     for bl in &block_lines {
         let trimmed = bl.trim();
+        // Skip matching for blank lines and skinparam lines from theme expansion;
+        // these are too common and cause false-positive matches that advance
+        // search_from past the user's real content lines.
+        if trimmed.is_empty() || trimmed.starts_with("skinparam ") {
+            mapping.push(start_pos + 1 + mapping.len());
+            continue;
+        }
         let mut found = false;
         for oi in search_from..orig_lines.len() {
-            if orig_lines[oi].trim() == trimmed {
+            let orig_trimmed = orig_lines[oi].trim();
+            // Exact match, or match after expanding %newline() / %n() macros
+            // that the preprocessor replaces with \u{E100}.
+            if orig_trimmed == trimmed || normalize_for_mapping(orig_trimmed) == normalize_for_mapping(trimmed) {
                 mapping.push(oi);
                 search_from = oi + 1;
                 found = true;

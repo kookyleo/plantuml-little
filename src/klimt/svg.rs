@@ -811,7 +811,9 @@ impl SvgGraphic {
         }
 
         if let Some(weight) = font_weight {
-            write!(elt, " font-weight=\"{}\"", weight).unwrap();
+            // Java maps "bold" to numeric "700"
+            let w = if weight == "bold" { "700" } else { weight };
+            write!(elt, " font-weight=\"{}\"", w).unwrap();
         }
 
         match length_adjust {
