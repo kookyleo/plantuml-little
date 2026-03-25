@@ -121,7 +121,7 @@ enum TeozTile {
 		y: Option<f64>,
 		center: RealId,
 		/// True if this note follows a self-message (shares Y, no height contribution).
-		is_self_msg_note: bool,
+		is_note_on_message: bool,
 	},
 	/// Note spanning two participants
 	NoteOver {
@@ -346,6 +346,19 @@ fn is_last_tile_self_message(tiles: &[TeozTile]) -> bool {
 	for tile in tiles.iter().rev() {
 		match tile {
 			TeozTile::SelfMessage { .. } => return true,
+			TeozTile::LifeEvent { .. } => continue,
+			_ => return false,
+		}
+	}
+	false
+}
+
+/// Check if the last non-LifeEvent tile is any message (Communication or SelfMessage).
+/// Used for note-on-message binding.
+fn is_last_tile_any_message(tiles: &[TeozTile]) -> bool {
+	for tile in tiles.iter().rev() {
+		match tile {
+			TeozTile::Communication { .. } | TeozTile::SelfMessage { .. } => return true,
 			TeozTile::LifeEvent { .. } => continue,
 			_ => return false,
 		}
@@ -582,7 +595,7 @@ pub fn build_teoz_layout(
 				let center = livings[idx].pos_c;
 				let w = estimate_note_width(text);
 				let h = estimate_note_height(text);
-				let is_smn = is_last_tile_self_message(&tiles);
+				let is_smn = is_last_tile_any_message(&tiles);
 				tiles.push(TeozTile::Note {
 					participant_idx: idx,
 					text: text.clone(),
@@ -591,7 +604,7 @@ pub fn build_teoz_layout(
 					height: h,
 					y: None,
 					center,
-					is_self_msg_note: is_smn,
+					is_note_on_message: is_smn,
 				});
 			}
 			SeqEvent::NoteLeft { participant, text } => {
@@ -599,7 +612,7 @@ pub fn build_teoz_layout(
 				let center = livings[idx].pos_c;
 				let w = estimate_note_width(text);
 				let h = estimate_note_height(text);
-				let is_smn = is_last_tile_self_message(&tiles);
+				let is_smn = is_last_tile_any_message(&tiles);
 				tiles.push(TeozTile::Note {
 					participant_idx: idx,
 					text: text.clone(),
@@ -608,7 +621,7 @@ pub fn build_teoz_layout(
 					height: h,
 					y: None,
 					center,
-					is_self_msg_note: is_smn,
+					is_note_on_message: is_smn,
 				});
 			}
 			SeqEvent::NoteOver { participants, text } => {
@@ -803,9 +816,48 @@ pub fn build_teoz_layout(
 	// Java layout uses preferred height (= drawn + 1) for lifeline start
 	let max_preferred_height = max_box_height + 1.0;
 	let mut y = STARTING_Y + max_preferred_height;
+	// Track the previous message for note-on-message binding.
+	// In Java, notes immediately following messages form a combined tile:
+	//   combined height = max(message_h, note_h)
+	// instead of message_h + note_h (separate tiles).
+	let mut prev_msg_height: Option<f64> = None;
+	let mut prev_msg_y: Option<f64> = None;
 	for tile in tiles.iter_mut() {
-		tile.set_y(y);
-		y += tile.preferred_height();
+		// Check if this Note follows a message (note-on-message binding).
+		// is_note_on_message tracks notes following self-messages; for normal
+		// messages, check if is_note_on_message OR if last tile was a Communication.
+		let is_note_on_msg = matches!(tile,
+			TeozTile::Note { is_note_on_message: true, .. }
+		) && prev_msg_height.is_some();
+
+		if is_note_on_msg {
+			let msg_h = prev_msg_height.unwrap();
+			let msg_y = prev_msg_y.unwrap();
+			let note_h = tile.preferred_height();
+			// Place note at the same y as the message
+			tile.set_y(msg_y);
+			// Combined height = max(message_h, note_h)
+			let combined_h = msg_h.max(note_h);
+			y = msg_y + combined_h;
+			prev_msg_height = None;
+			prev_msg_y = None;
+		} else {
+			tile.set_y(y);
+			match tile {
+				TeozTile::Communication { .. } | TeozTile::SelfMessage { .. } => {
+					prev_msg_height = Some(tile.preferred_height());
+					prev_msg_y = Some(y);
+				}
+				TeozTile::LifeEvent { .. } => {
+					// LifeEvent tiles don't break the message-note chain
+				}
+				_ => {
+					prev_msg_height = None;
+					prev_msg_y = None;
+				}
+			}
+			y += tile.preferred_height();
+		}
 	}
 	let lifeline_bottom = y;
 
@@ -1018,7 +1070,7 @@ pub fn build_teoz_layout(
 				width,
 				height,
 				y,
-				is_self_msg_note,
+				is_note_on_message,
 				..
 			} => {
 				let ty = y.unwrap_or(0.0);
@@ -1036,7 +1088,8 @@ pub fn build_teoz_layout(
 					height: *height,
 					text: text.clone(),
 					is_left: *is_left,
-					is_self_msg_note: *is_self_msg_note,
+					is_self_msg_note: *is_note_on_message,
+					is_note_on_message: *is_note_on_message,
 				});
 			}
 			TeozTile::NoteOver {
@@ -1075,6 +1128,7 @@ pub fn build_teoz_layout(
 					text: text.clone(),
 					is_left: false,
 					is_self_msg_note: false,
+					is_note_on_message: false,
 				});
 			}
 			TeozTile::Divider { text, y, .. } => {
@@ -1263,9 +1317,13 @@ pub fn build_teoz_layout(
 	//   SVG viewport         = (int)(finalDim.height + 1)
 	// Combined: sum + head + 39 (with our STARTING_Y=10 → sum + head + 38 + 1)
 	// lifeline_bottom = STARTING_Y(10) + head + sum
-	// total = lifeline_bottom + (factor-1)*head + 27
+	// total = lifeline_bottom + (factor-1)*head + 28
+	// Java: startingY(8) + sum + 10 + factor*head + 10 + 1 = sum + factor*head + 29
+	// Rust: (10 + head + sum) + (factor-1)*head + 28 + 1 = sum + factor*head + 39
+	// The 10 extra (39-29) is compensated by Rust's startingY(10) vs Java's(8) = 2
+	// plus the rest comes from tile height differences.
 	let total_height =
-		lifeline_bottom + (factor - 1) as f64 * max_preferred_height + 27.0;
+		lifeline_bottom + (factor - 1) as f64 * max_preferred_height + 28.0;
 	log::debug!("teoz_layout: total_width={total_width:.4} total_height={total_height:.4} lifeline_bottom={lifeline_bottom:.4} max_preferred_height={max_preferred_height:.4}");
 
 	Ok(SeqLayout {
