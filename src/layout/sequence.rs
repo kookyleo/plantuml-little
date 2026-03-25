@@ -619,6 +619,8 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
     // - normal messages widen the span between participants
     // - self messages widen the gap before/after the participant
     // - current activation level contributes extra live-line thickness
+    // Java constraintBefore(participant) for reverse self-messages on first participant
+    let mut min_first_part_center = 0.0_f64;
     let mut gap_autonumber_enabled = false;
     let mut gap_autonumber_counter: u32 = 1;
     let mut gap_active_levels: HashMap<&str, usize> = HashMap::new();
@@ -673,17 +675,10 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
                                 }
                             }
                             SeqDirection::RightToLeft => {
-                                // Left self-message: loop extends to the left.
-                                // The gap to the previous participant must accommodate:
-                                // loop_extent_from_center + prev_participant_half_width + margin
-                                let loop_extent = ACTIVATION_WIDTH / 2.0 + SELF_MSG_WIDTH;
-                                let neighbor_half = if idx > 0 {
-                                    box_widths[idx - 1] / 2.0
-                                } else {
-                                    0.0
-                                };
-                                let needed = needed.max(loop_extent + neighbor_half + 3.0);
-                                if idx > 0 && needed > min_gaps[idx - 1] {
+                                // Java: constraintBefore(participant).ensureValue(length)
+                                if idx == 0 {
+                                    min_first_part_center = min_first_part_center.max(needed);
+                                } else if needed > min_gaps[idx - 1] {
                                     min_gaps[idx - 1] = needed;
                                 }
                             }
@@ -805,7 +800,7 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
     let mut prev_center: Option<f64> = None;
     for (i, p) in sd.participants.iter().enumerate() {
         let center_x = match prev_center {
-            None => left_margin + box_widths[i] / 2.0,
+            None => (left_margin + box_widths[i] / 2.0).max(min_first_part_center),
             Some(pc) => pc + min_gaps[i - 1],
         };
 
@@ -1316,11 +1311,11 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
                 // segment merge which accounts for nearby activation bars).
                 let note_x = if last_message_was_self {
                     if !last_self_msg_is_left {
-                        // Non-reverse self-msg: note pushed right by arrow width
-                        px + last_self_msg_preferred_w
+                        // Java: (int)(segment.pos2) + arrowPreferredWidth
+                        px.trunc() + last_self_msg_preferred_w
                     } else {
-                        // Reverse self-msg: note on the lifeline side
-                        px + MARGIN
+                        // Reverse self-msg right note: (int)(segment.pos2)
+                        px.trunc()
                     }
                 } else {
                     px + ACTIVATION_WIDTH
@@ -1383,13 +1378,16 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
                 // where segment.pos1 = centerX - lifeline.getLeftShift(y)
                 // Java NoteBox.getStartingX for LEFT: (int)(segment.getPos1() - noteWidth)
                 // + pushToRight(-arrowPreferredWidth) for reverse self-msgs.
+                let note_layout_width = note_width + 2.0 * NOTE_COMPONENT_PADDING_X;
                 let note_x = if last_message_was_self && last_self_msg_is_left {
-                    // Reverse self-msg: note pushed left by arrow width
-                    px - note_width - last_self_msg_preferred_w
+                    // Java: (int)(pos1 - notePreferredWidth) + (-arrowPreferredWidth)
+                    (px - note_layout_width).trunc() - last_self_msg_preferred_w
+                } else if last_message_was_self {
+                    // Non-reverse self left note: (int)(pos1 - notePreferredWidth)
+                    (px - note_layout_width).trunc()
                 } else {
                     px - ACTIVATION_WIDTH - note_width
                 };
-                let note_layout_width = note_width + 2.0 * NOTE_COMPONENT_PADDING_X;
                 notes.push(NoteLayout {
                     x: note_x,
                     y: note_y,
