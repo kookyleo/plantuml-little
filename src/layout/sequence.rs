@@ -977,6 +977,9 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
                     0.0
                 };
                 let msg_y = y_cursor + extra_height - empty_text_adjust;
+                if is_self {
+                    log::debug!("self-msg: text_lines={}, num_extra={num_extra_lines}, extra_height={extra_height}, y_cursor_before={y_cursor}, msg_y={msg_y}", text_lines.len());
+                }
 
                 let msg_autonumber = if autonumber_enabled {
                     let num = format!("{autonumber_counter}");
@@ -1074,10 +1077,10 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
                     update_fragment_message_extent(&mut fragment_stack, msg_x_min, msg_x_max);
                 }
 
-                // Only enable note back-offset for single-line messages.
-                // Multi-line messages have complex text layout and the note
-                // positioning follows different rules in Java PlantUML.
-                if num_extra_lines == 0 {
+                // Enable note back-offset for single-line messages AND
+                // multi-line self-messages (Java positions notes alongside
+                // self-messages regardless of line count).
+                if num_extra_lines == 0 || is_self {
                     last_message_y = Some(msg_y);
                     last_message_was_self = is_self;
                 } else {
@@ -1210,8 +1213,10 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
                     } else {
                         lp.message_spacing - NOTE_FOLD
                     };
+                    log::debug!("NoteRight: msg_y={msg_y}, back_offset={back_offset}, note_height={note_height}, y_cursor={y_cursor}");
                     (msg_y - back_offset).max(MARGIN + max_ph)
                 } else {
+                    log::debug!("NoteRight: no last_message_y, using y_cursor={y_cursor}");
                     y_cursor
                 };
                 notes.push(NoteLayout {
