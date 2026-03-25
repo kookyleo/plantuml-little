@@ -1917,7 +1917,12 @@ fn draw_divider(sg: &mut SvgGraphic, divider: &DividerLayout) {
         let text_height = text_line_h + 2.0 * margin_y;
 
         // Java: textWidth = textBlock.width + marginX1(4) + marginX2(4)
-        let text_block_w = font_metrics::text_width(text, "SansSerif", FONT_SIZE, true, false);
+        // Java's divider regex captures the label with a trailing space
+        // (e.g., "Initialization " from "== Initialization =="), so the
+        // textBlock dimension includes the space advance. The SVG text
+        // rendering trims it, but the rect size uses the untrimmed width.
+        let text_with_space = format!("{} ", text);
+        let text_block_w = font_metrics::text_width(&text_with_space, "SansSerif", FONT_SIZE, true, false);
         let text_width = text_block_w + 4.0 + 4.0;
         let delta_x = 6.0;
 
@@ -1968,29 +1973,34 @@ fn draw_divider(sg: &mut SvgGraphic, divider: &DividerLayout) {
 
 // ── Delay ────────────────────────────────────────────────────────────
 
-fn draw_delay(sg: &mut SvgGraphic, delay: &DelayLayout) {
-    let center_y = delay.y + delay.height / 2.0;
-    let mid_x = delay.x + delay.width / 2.0;
-
-    // Three dots to indicate delay
-    for dy in [-4.0, 0.0, 4.0] {
-        let mut tmp = String::new();
-        write!(
-            tmp,
-            r#"<circle cx="{}" cy="{}" fill="{color}" r="1.5"/>"#,
-            fmt_coord(mid_x), fmt_coord(center_y + dy),
-            color = DIVIDER_COLOR,
-        )
-        .unwrap();
-        sg.push_raw(&tmp);
-        sg.push_raw("\n");
-    }
-
-    // Label text (delay uses font size 11, from rose.skin delay style)
+/// Draw delay text. Java: ComponentRoseDelayText.drawInternalU + GraphicalDelayText
+///
+/// The delay text is centered between the first and last participant's
+/// lifeline positions. The dotted lifeline is handled by lifeline splitting.
+fn draw_delay(sg: &mut SvgGraphic, delay: &DelayLayout, layout: &SeqLayout) {
+    // Java: ComponentRoseDelayText only draws text, no dots/circles.
     if let Some(text) = &delay.text {
-        let text_x = mid_x + 12.0;
-        let text_y = center_y + DELAY_FONT_SIZE * 0.35;
         let tl = font_metrics::text_width(text, "SansSerif", DELAY_FONT_SIZE, false, false);
+
+        // Java: GraphicalDelayText computes middle from first/last participant getCenterX.
+        // getCenterX = startingX + head.preferredWidth/2.0 + outMargin (exact, no integer div).
+        // Our p.x corresponds to getCenterX.
+        let first_p = layout.participants.first();
+        let last_p = layout.participants.last();
+        let mid_x = match (first_p, last_p) {
+            (Some(fp), Some(lp)) => (fp.x + lp.x) / 2.0,
+            _ => delay.x + delay.width / 2.0,
+        };
+        let text_x = mid_x - tl / 2.0;
+
+        // Y position: centered in component area, then offset by marginY + ascent
+        let text_line_h = font_metrics::line_height("SansSerif", DELAY_FONT_SIZE, false, false);
+        let margin_y = 4.0;
+        let text_height = text_line_h + 2.0 * margin_y;
+        let ypos = (delay.height - text_height) / 2.0;
+        let text_y = delay.lifeline_break_y + ypos + margin_y
+            + font_metrics::ascent("SansSerif", DELAY_FONT_SIZE, false, false);
+
         sg.set_fill_color(TEXT_COLOR);
         sg.svg_text(
             text,
@@ -2007,7 +2017,6 @@ fn draw_delay(sg: &mut SvgGraphic, delay: &DelayLayout) {
             0,
             None,
         );
-        sg.push_raw("\n");
     }
 }
 
@@ -2355,7 +2364,7 @@ fn render_sequence_inner(
                     draw_divider(&mut sg, div);
                 }
                 InterstitialEvent::Delay(delay) => {
-                    draw_delay(&mut sg, delay);
+                    draw_delay(&mut sg, delay, layout);
                 }
             }
             interstitial_idx += 1;
@@ -2455,7 +2464,7 @@ fn render_sequence_inner(
                 draw_divider(&mut sg, div);
             }
             InterstitialEvent::Delay(delay) => {
-                draw_delay(&mut sg, delay);
+                draw_delay(&mut sg, delay, layout);
             }
         }
         interstitial_idx += 1;
