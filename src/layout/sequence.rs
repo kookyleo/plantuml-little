@@ -373,11 +373,13 @@ fn update_fragment_message_extent(
     }
 }
 
-/// Count effective text lines, splitting on `\n` escape and NEWLINE_CHAR in
-/// addition to real newlines.
+/// Count effective text lines, splitting on real newlines and NEWLINE_CHAR.
+/// Note: `\n` escape (two-char backslash+n) is NOT expanded here because
+/// multiline note text already uses real newlines as separators.  The `\n`
+/// escape is only relevant for inline text rendering, handled by the SVG
+/// renderer.
 fn count_note_lines(text: &str) -> usize {
-    text.split("\\n")
-        .flat_map(|s| s.split(crate::NEWLINE_CHAR))
+    text.split(crate::NEWLINE_CHAR)
         .flat_map(|s| s.lines())
         .count()
         .max(1)
@@ -407,8 +409,7 @@ fn estimate_note_preferred_height(text: &str) -> f64 {
 /// Width = left_pad + max_line_width + right_pad (includes fold corner).
 fn estimate_note_width(text: &str) -> f64 {
     let max_line_w = text
-        .split("\\n")
-        .flat_map(|s| s.split(crate::NEWLINE_CHAR))
+        .split(crate::NEWLINE_CHAR)
         .flat_map(|s| s.lines())
         .map(|line| font_metrics::text_width(line, "SansSerif", NOTE_FONT_SIZE, false, false))
         .fold(0.0_f64, f64::max);
