@@ -191,6 +191,8 @@ pub struct MessageLayout {
     pub is_dashed: bool,
     pub is_left: bool,
     pub has_open_head: bool,
+    /// Arrow head type for rendering (full V, top half, bottom half)
+    pub arrow_head: SeqArrowHead,
     /// Autonumber string (e.g. "1", "2") — rendered as separate text element
     pub autonumber: Option<String>,
     /// Source line number (0-based) for data-source-line SVG attribute
@@ -976,7 +978,7 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
                         }
                     }
                 }
-                let has_open_head = msg.arrow_head == SeqArrowHead::Open;
+                let has_open_head = matches!(msg.arrow_head, SeqArrowHead::Open | SeqArrowHead::HalfTop | SeqArrowHead::HalfBottom);
 
                 // Track participant indices for fragment spanning
                 if !fragment_stack.is_empty() {
@@ -1107,6 +1109,7 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
                     is_dashed,
                     is_left,
                     has_open_head,
+                    arrow_head: msg.arrow_head.clone(),
                     autonumber: msg_autonumber,
                     source_line: msg.source_line,
                     self_return_x,

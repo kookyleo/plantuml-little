@@ -882,10 +882,14 @@ fn parse_arrow(left: &str, arrow: &str, right: &str, text: &str) -> Option<Messa
     // Check for arrow heads / half-arrows on left and right
     let has_left_arrow =
         stripped.starts_with('<') || stripped.starts_with('/') || stripped.starts_with('\\');
-    let has_open_left = stripped.starts_with("<<");
+    let has_open_left = stripped.starts_with("<<")
+        || stripped.starts_with("//")
+        || stripped.starts_with("\\\\");
     let has_right_arrow =
         stripped.ends_with('>') || stripped.ends_with('/') || stripped.ends_with('\\');
-    let has_open_right = stripped.ends_with(">>");
+    let has_open_right = stripped.ends_with(">>")
+        || stripped.ends_with("//")
+        || stripped.ends_with("\\\\");
 
     // Must have at least one arrowhead, half-arrow, or boundary marker
     if !has_left_arrow && !has_right_arrow && !has_left_boundary && !has_right_boundary {
@@ -902,8 +906,12 @@ fn parse_arrow(left: &str, arrow: &str, right: &str, text: &str) -> Option<Messa
         SeqDirection::LeftToRight
     };
 
-    let arrow_head = if has_open_left || has_open_right {
+    let arrow_head = if stripped.starts_with("<<") || stripped.ends_with(">>") {
         SeqArrowHead::Open
+    } else if stripped.starts_with("//") || stripped.ends_with("//") {
+        SeqArrowHead::HalfTop
+    } else if stripped.starts_with("\\\\") || stripped.ends_with("\\\\") {
+        SeqArrowHead::HalfBottom
     } else {
         SeqArrowHead::Filled
     };

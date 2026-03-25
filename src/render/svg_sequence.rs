@@ -4,7 +4,7 @@ use crate::layout::sequence::{
     ActivationLayout, DelayLayout, DestroyLayout, DividerLayout, FragmentLayout, GroupLayout,
     MessageLayout, NoteLayout, ParticipantLayout, RefLayout, SeqLayout,
 };
-use crate::model::sequence::{FragmentKind, ParticipantKind};
+use crate::model::sequence::{FragmentKind, ParticipantKind, SeqArrowHead};
 use crate::model::SequenceDiagram;
 use crate::style::SkinParams;
 use crate::Result;
@@ -1191,33 +1191,39 @@ fn draw_message(
 
     // Draw inline polygon arrowhead
     if msg.has_open_head {
-        // Open arrowhead: just two lines forming a V
+        // Open arrowhead: lines forming a V (or half-V for half-arrows)
         let (ax1, ax2) = if msg.is_left {
             (tip_x + 10.0, tip_x + 10.0)
         } else {
             (tip_x - 10.0, tip_x - 10.0)
         };
         let mut tmp = String::new();
-        write!(
-            tmp,
-            r#"<line style="stroke:{color};stroke-width:{sw};" x1="{ax}" x2="{tx}" y1="{y1}" y2="{y}"/>"#,
-            color = arrow_color,
-            ax = fmt_coord(ax1),
-            tx = fmt_coord(tip_x),
-            y1 = fmt_coord(msg.y - 4.0),
-            y = fmt_coord(msg.y),
-        )
-        .unwrap();
-        write!(
-            tmp,
-            r#"<line style="stroke:{color};stroke-width:{sw};" x1="{ax}" x2="{tx}" y1="{y1}" y2="{y}"/>"#,
-            color = arrow_color,
-            ax = fmt_coord(ax2),
-            tx = fmt_coord(tip_x),
-            y1 = fmt_coord(msg.y + 4.0),
-            y = fmt_coord(msg.y),
-        )
-        .unwrap();
+        // Top line of V (skip for HalfBottom)
+        if !matches!(msg.arrow_head, SeqArrowHead::HalfBottom) {
+            write!(
+                tmp,
+                r#"<line style="stroke:{color};stroke-width:{sw};" x1="{ax}" x2="{tx}" y1="{y1}" y2="{y}"/>"#,
+                color = arrow_color,
+                ax = fmt_coord(ax1),
+                tx = fmt_coord(tip_x),
+                y1 = fmt_coord(msg.y - 4.0),
+                y = fmt_coord(msg.y),
+            )
+            .unwrap();
+        }
+        // Bottom line of V (skip for HalfTop)
+        if !matches!(msg.arrow_head, SeqArrowHead::HalfTop) {
+            write!(
+                tmp,
+                r#"<line style="stroke:{color};stroke-width:{sw};" x1="{ax}" x2="{tx}" y1="{y1}" y2="{y}"/>"#,
+                color = arrow_color,
+                ax = fmt_coord(ax2),
+                tx = fmt_coord(tip_x),
+                y1 = fmt_coord(msg.y + 4.0),
+                y = fmt_coord(msg.y),
+            )
+            .unwrap();
+        }
         sg.push_raw(&tmp);
     } else {
         // Filled arrowhead polygon: 4-point diamond with inner point 6px from tip
@@ -1489,26 +1495,32 @@ fn draw_self_message(
         // Java: after extraline+x2 adjustments, tip_x = pos2 - 2 for NORMAL head
         let tip_x = return_x - if msg.has_open_head { 0.0 } else { 1.0 };
         if msg.has_open_head {
-            write!(
-                tmp,
-                r#"<line style="stroke:{color};stroke-width:{sw};" x1="{ax}" x2="{tx}" y1="{y1}" y2="{y}"/>"#,
-                color = arrow_color,
-                ax = fmt_coord(tip_x - 10.0),
-                tx = fmt_coord(tip_x),
-                y1 = fmt_coord(ret_y - 4.0),
-                y = fmt_coord(ret_y),
-            )
-            .unwrap();
-            write!(
-                tmp,
-                r#"<line style="stroke:{color};stroke-width:{sw};" x1="{ax}" x2="{tx}" y1="{y1}" y2="{y}"/>"#,
-                color = arrow_color,
-                ax = fmt_coord(tip_x - 10.0),
-                tx = fmt_coord(tip_x),
-                y1 = fmt_coord(ret_y + 4.0),
-                y = fmt_coord(ret_y),
-            )
-            .unwrap();
+            // Top line of V (skip for HalfBottom)
+            if !matches!(msg.arrow_head, SeqArrowHead::HalfBottom) {
+                write!(
+                    tmp,
+                    r#"<line style="stroke:{color};stroke-width:{sw};" x1="{ax}" x2="{tx}" y1="{y1}" y2="{y}"/>"#,
+                    color = arrow_color,
+                    ax = fmt_coord(tip_x - 10.0),
+                    tx = fmt_coord(tip_x),
+                    y1 = fmt_coord(ret_y - 4.0),
+                    y = fmt_coord(ret_y),
+                )
+                .unwrap();
+            }
+            // Bottom line of V (skip for HalfTop)
+            if !matches!(msg.arrow_head, SeqArrowHead::HalfTop) {
+                write!(
+                    tmp,
+                    r#"<line style="stroke:{color};stroke-width:{sw};" x1="{ax}" x2="{tx}" y1="{y1}" y2="{y}"/>"#,
+                    color = arrow_color,
+                    ax = fmt_coord(tip_x - 10.0),
+                    tx = fmt_coord(tip_x),
+                    y1 = fmt_coord(ret_y + 4.0),
+                    y = fmt_coord(ret_y),
+                )
+                .unwrap();
+            }
         } else {
             write!(
                 tmp,
@@ -1529,26 +1541,32 @@ fn draw_self_message(
         // Right self-message: arrowhead points LEFT at return
         let tip_x = return_x;
         if msg.has_open_head {
-            write!(
-                tmp,
-                r#"<line style="stroke:{color};stroke-width:{sw};" x1="{ax}" x2="{tx}" y1="{y1}" y2="{y}"/>"#,
-                color = arrow_color,
-                ax = fmt_coord(tip_x + 10.0),
-                tx = fmt_coord(tip_x),
-                y1 = fmt_coord(ret_y - 4.0),
-                y = fmt_coord(ret_y),
-            )
-            .unwrap();
-            write!(
-                tmp,
-                r#"<line style="stroke:{color};stroke-width:{sw};" x1="{ax}" x2="{tx}" y1="{y1}" y2="{y}"/>"#,
-                color = arrow_color,
-                ax = fmt_coord(tip_x + 10.0),
-                tx = fmt_coord(tip_x),
-                y1 = fmt_coord(ret_y + 4.0),
-                y = fmt_coord(ret_y),
-            )
-            .unwrap();
+            // Top line of V (skip for HalfBottom)
+            if !matches!(msg.arrow_head, SeqArrowHead::HalfBottom) {
+                write!(
+                    tmp,
+                    r#"<line style="stroke:{color};stroke-width:{sw};" x1="{ax}" x2="{tx}" y1="{y1}" y2="{y}"/>"#,
+                    color = arrow_color,
+                    ax = fmt_coord(tip_x + 10.0),
+                    tx = fmt_coord(tip_x),
+                    y1 = fmt_coord(ret_y - 4.0),
+                    y = fmt_coord(ret_y),
+                )
+                .unwrap();
+            }
+            // Bottom line of V (skip for HalfTop)
+            if !matches!(msg.arrow_head, SeqArrowHead::HalfTop) {
+                write!(
+                    tmp,
+                    r#"<line style="stroke:{color};stroke-width:{sw};" x1="{ax}" x2="{tx}" y1="{y1}" y2="{y}"/>"#,
+                    color = arrow_color,
+                    ax = fmt_coord(tip_x + 10.0),
+                    tx = fmt_coord(tip_x),
+                    y1 = fmt_coord(ret_y + 4.0),
+                    y = fmt_coord(ret_y),
+                )
+                .unwrap();
+            }
         } else {
             write!(
                 tmp,

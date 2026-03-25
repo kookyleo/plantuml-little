@@ -479,7 +479,7 @@ pub fn build_teoz_layout(
 
 				let text_h = tp.msg_line_height * text_lines.len().max(1) as f64;
 				let is_dashed = msg.arrow_style == SeqArrowStyle::Dashed;
-				let has_open_head = msg.arrow_head == SeqArrowHead::Open;
+				let has_open_head = matches!(msg.arrow_head, SeqArrowHead::Open | SeqArrowHead::HalfTop | SeqArrowHead::HalfBottom);
 
 				if msg.from == msg.to {
 					// Self-message
@@ -898,6 +898,7 @@ pub fn build_teoz_layout(
 					is_dashed: *is_dashed,
 					is_left,
 					has_open_head: *has_open_head,
+					arrow_head: if *has_open_head { SeqArrowHead::Open } else { SeqArrowHead::Filled },
 					autonumber: autonumber.clone(),
 					source_line: None, // TODO: propagate from parser
 					self_return_x: from_x,
@@ -961,6 +962,7 @@ pub fn build_teoz_layout(
 					is_dashed: *is_dashed,
 					is_left,
 					has_open_head: *has_open_head,
+					arrow_head: if *has_open_head { SeqArrowHead::Open } else { SeqArrowHead::Filled },
 					autonumber: autonumber.clone(),
 					source_line: None, // TODO: propagate from parser
 					self_return_x,
