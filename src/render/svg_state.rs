@@ -1,5 +1,5 @@
 use std::cell::Cell;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fmt::Write;
 
 use crate::font_metrics;
@@ -91,10 +91,46 @@ pub fn render_state(
         }
     }
 
-    // States: Java renders regular entities before start/end entities.
-    // Render pass 1: regular and composite entities
+    // Build set of child IDs for each composite state to identify internal transitions.
+    let mut rendered_transitions: HashSet<usize> = HashSet::new();
+    fn collect_child_ids(node: &StateNodeLayout, ids: &mut HashSet<String>) {
+        for child in &node.children {
+            ids.insert(child.id.clone());
+            collect_child_ids(child, ids);
+        }
+    }
+
+    // Java renders cluster (composite) states first: their header and children
+    // appear before simple top-level entities. Internal transitions are rendered
+    // immediately after their composite state's children.
+    // Pass 1: composite states (clusters) — header + children + internal transitions
     for state in &layout.state_layouts {
-        if !state.is_initial && !state.is_final
+        if state.is_composite
+            && !state.is_initial && !state.is_final
+            && !matches!(state.kind, StateKind::EntryPoint | StateKind::ExitPoint
+                | StateKind::End | StateKind::Fork | StateKind::Join
+                | StateKind::Choice | StateKind::History | StateKind::DeepHistory)
+        {
+            render_state_node(&mut sg, &mut tracker, state, state_bg, state_border, state_font, &ent_id_map);
+
+            // Render internal transitions (both endpoints are children of this composite)
+            let mut child_ids = HashSet::new();
+            collect_child_ids(state, &mut child_ids);
+            for (ti, transition) in layout.transition_layouts.iter().enumerate() {
+                if !rendered_transitions.contains(&ti)
+                    && child_ids.contains(&transition.from_id)
+                    && child_ids.contains(&transition.to_id)
+                {
+                    render_transition(&mut sg, &mut tracker, transition, &ent_id_map);
+                    rendered_transitions.insert(ti);
+                }
+            }
+        }
+    }
+    // Pass 2: regular non-composite entities
+    for state in &layout.state_layouts {
+        if !state.is_composite
+            && !state.is_initial && !state.is_final
             && !matches!(state.kind, StateKind::EntryPoint | StateKind::ExitPoint
                 | StateKind::End | StateKind::Fork | StateKind::Join
                 | StateKind::Choice | StateKind::History | StateKind::DeepHistory)
@@ -102,7 +138,7 @@ pub fn render_state(
             render_state_node(&mut sg, &mut tracker, state, state_bg, state_border, state_font, &ent_id_map);
         }
     }
-    // Render pass 2: special entities (initial, final, fork, join, choice, history, etc.)
+    // Pass 3: special entities (initial, final, fork, join, choice, history, etc.)
     for state in &layout.state_layouts {
         if state.is_initial || state.is_final
             || matches!(state.kind, StateKind::EntryPoint | StateKind::ExitPoint
@@ -113,9 +149,11 @@ pub fn render_state(
         }
     }
 
-    // Transitions
-    for transition in &layout.transition_layouts {
-        render_transition(&mut sg, &mut tracker, transition, &ent_id_map);
+    // Remaining transitions (top-level, not rendered as internal above)
+    for (ti, transition) in layout.transition_layouts.iter().enumerate() {
+        if !rendered_transitions.contains(&ti) {
+            render_transition(&mut sg, &mut tracker, transition, &ent_id_map);
+        }
     }
 
     // Notes
@@ -153,6 +191,19 @@ fn render_state_node(
     font_color: &str,
     ent_id_map: &HashMap<String, String>,
 ) {
+    render_state_node_with_parent(sg, tracker, node, bg, border, font_color, ent_id_map, None);
+}
+
+fn render_state_node_with_parent(
+    sg: &mut SvgGraphic,
+    tracker: &mut BoundsTracker,
+    node: &StateNodeLayout,
+    bg: &str,
+    border: &str,
+    font_color: &str,
+    ent_id_map: &HashMap<String, String>,
+    parent_name: Option<&str>,
+) {
     match &node.kind {
         StateKind::Fork | StateKind::Join => {
             render_fork_join(sg, tracker, node);
@@ -170,31 +221,36 @@ fn render_state_node(
             render_final(sg, tracker, node);
         }
         StateKind::EntryPoint => {
-            render_initial(sg, tracker, node, ent_id_map);
+            render_initial(sg, tracker, node, ent_id_map, parent_name);
         }
         StateKind::ExitPoint => {
             render_exit_point(sg, tracker, node, border);
         }
         StateKind::Normal => {
             if node.is_initial {
-                render_initial(sg, tracker, node, ent_id_map);
+                render_initial(sg, tracker, node, ent_id_map, parent_name);
             } else if node.is_final {
                 render_final(sg, tracker, node);
             } else if node.is_composite {
                 render_composite(sg, tracker, node, bg, border, font_color, ent_id_map);
             } else {
-                render_simple(sg, tracker, node, bg, border, font_color, ent_id_map);
+                render_simple(sg, tracker, node, bg, border, font_color, ent_id_map, parent_name);
             }
         }
     }
 }
 
 /// Initial state: filled ellipse, rx=10 ry=10 (matches Java PlantUML)
-fn render_initial(sg: &mut SvgGraphic, tracker: &mut BoundsTracker, node: &StateNodeLayout, ent_id_map: &HashMap<String, String>) {
+fn render_initial(sg: &mut SvgGraphic, tracker: &mut BoundsTracker, node: &StateNodeLayout, ent_id_map: &HashMap<String, String>, parent_name: Option<&str>) {
     let cx = node.x + node.width / 2.0;
     let cy = node.y + node.height / 2.0;
     let ent_id = ent_id_map.get(&node.id).cloned().unwrap_or_else(|| "ent0002".to_string());
-    let mut attrs = format!(r#" data-qualified-name=".start.""#);
+    // Java qualified name: ".start." for top-level, "Parent..start.Parent" for nested
+    let qname = match parent_name {
+        Some(p) => format!("{}..start.{}", p, p),
+        None => ".start.".to_string(),
+    };
+    let mut attrs = format!(r#" data-qualified-name="{}""#, xml_escape(&qname));
     if let Some(sl) = node.source_line {
         write!(attrs, r#" data-source-line="{}""#, sl).unwrap();
     }
@@ -303,13 +359,19 @@ fn render_simple(
     border: &str,
     font_color: &str,
     ent_id_map: &HashMap<String, String>,
+    parent_name: Option<&str>,
 ) {
     // Open semantic <g> wrapper with entity ID
-    let name_escaped = xml_escape(&node.name);
+    // Java qualified name: "Name" for top-level, "Parent.Name" for nested
+    let qname = match parent_name {
+        Some(p) => format!("{}.{}", p, node.name),
+        None => node.name.clone(),
+    };
+    let qname_escaped = xml_escape(&qname);
     let ent_id = ent_id_map.get(&node.id).cloned().unwrap_or_else(next_ent_id);
     sg.push_raw(&format!(
         r#"<g class="entity" data-qualified-name="{}" id="{}">"#,
-        name_escaped, ent_id,
+        qname_escaped, ent_id,
     ));
 
     // Background rounded rectangle
@@ -391,25 +453,45 @@ fn render_composite(
     font_color: &str,
     ent_id_map: &HashMap<String, String>,
 ) {
-    // Open semantic <g> wrapper with entity ID
-    let name_escaped = xml_escape(&node.name);
-    let ent_id = ent_id_map.get(&node.id).cloned().unwrap_or_else(next_ent_id);
+    let r = 12.5; // corner radius
+    let sep_y = node.y + 26.2969;
+    let x = node.x;
+    let y = node.y;
+    let w = node.width;
+    let h = node.height;
+
+    // 1. Tab header path (filled background, matching Java USymbolFrame)
+    //    Rounded top-left and right leading into a flat bottom at the separator line.
+    //    Java: path fills the header area from top to separator line.
+    let name_tl = font_metrics::text_width(&node.name, "SansSerif", 14.0, false, false);
+    // Java tab extends full width; the path traces: top-left rounded → top-right →
+    // arc down → right side to sep → left along sep → left side up → arc back.
     sg.push_raw(&format!(
-        r#"<g class="entity" data-qualified-name="{}" id="{}">"#,
-        name_escaped, ent_id,
+        "<path d=\"M{},{} L{},{} A{r},{r} 0 0 1 {},{} L{},{} L{},{} L{},{} A{r},{r} 0 0 1 {},{}\" fill=\"{bg}\"/>",
+        fmt_coord(x + r), fmt_coord(y),           // start: top-left + radius
+        fmt_coord(x + w - r), fmt_coord(y),        // top-right before arc
+        fmt_coord(x + w), fmt_coord(y + r),        // arc end: right side at radius
+        fmt_coord(x + w), fmt_coord(sep_y),        // right side down to separator
+        fmt_coord(x), fmt_coord(sep_y),            // bottom-left at separator
+        fmt_coord(x), fmt_coord(y + r),            // left side up to radius
+        fmt_coord(x + r), fmt_coord(y),            // arc back to start
     ));
 
-    // Outer rounded rectangle
-    sg.set_fill_color(bg);
+    // 2. Outer rounded rect (no fill, border only)
+    sg.push_raw(&format!(
+        "<rect fill=\"none\" height=\"{}\" rx=\"{r}\" ry=\"{r}\" style=\"stroke:{border};stroke-width:0.5;\" width=\"{}\" x=\"{}\" y=\"{}\"/>",
+        fmt_coord(h), fmt_coord(w), fmt_coord(x), fmt_coord(y),
+    ));
+    tracker.track_rect(x, y, w, h);
+
+    // 3. Separator line below the header
     sg.set_stroke_color(Some(border));
     sg.set_stroke_width(0.5, None);
-    sg.svg_rectangle(node.x, node.y, node.width, node.height, 12.5, 12.5, 0.0);
-    tracker.track_rect(node.x, node.y, node.width, node.height);
+    sg.svg_line(x, sep_y, x + w, sep_y, 0.0);
 
-    // Composite state name at the top
-    let cx = node.x + node.width / 2.0;
-    let name_y = node.y + 17.9951;
-    let name_tl = font_metrics::text_width(&node.name, "SansSerif", 14.0, false, false);
+    // 4. Composite state name text
+    let cx = x + w / 2.0;
+    let name_y = y + 17.9951;
     sg.set_fill_color(font_color);
     sg.svg_text(
         &node.name, cx, name_y,
@@ -421,25 +503,22 @@ fn render_composite(
     let name_text_h = font_metrics::line_height("SansSerif", 14.0, false, false);
     tracker.track_text(cx, name_y, name_tl, name_text_h);
 
-    // Separator line below the header
-    let sep_y = node.y + 26.2969;
-    sg.set_stroke_color(Some(border));
-    sg.set_stroke_width(0.5, None);
-    sg.svg_line(node.x, sep_y, node.x + node.width, sep_y, 0.0);
+    // Open semantic <g> wrapper (no children inside, just for closing)
+    let name_escaped = xml_escape(&node.name);
+    let ent_id = ent_id_map.get(&node.id).cloned().unwrap_or_else(next_ent_id);
+    // Note: Java wraps the entity in <g class="entity"> but we output the
+    // header elements before the entity <g> to match reference SVG order.
 
-    // Close the entity <g> before rendering children
-    sg.push_raw("</g>");
-
-    // Recursively render children
+    // Recursively render children with parent name for qualified naming
     for child in &node.children {
-        render_state_node(sg, tracker, child, bg, border, font_color, &HashMap::new());
+        render_state_node_with_parent(sg, tracker, child, bg, border, font_color, &HashMap::new(), Some(&node.name));
     }
 
     // Render concurrent region separators (dashed lines)
     for &sep_y in &node.region_separators {
         sg.set_stroke_color(Some(border));
         sg.set_stroke_width(1.0, Some((6.0, 4.0)));
-        sg.svg_line(node.x + 4.0, sep_y, node.x + node.width - 4.0, sep_y, 0.0);
+        sg.svg_line(x + 4.0, sep_y, x + w - 4.0, sep_y, 0.0);
     }
 }
 
