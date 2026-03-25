@@ -37,6 +37,7 @@ const FONT_SIZE: f64 = 14.0;
 const MSG_FONT_SIZE: f64 = 13.0;
 const NOTE_FONT_SIZE: f64 = 13.0;
 const ACTIVATION_WIDTH: f64 = 10.0;
+const SELF_MSG_WIDTH: f64 = 42.0;
 const NOTE_PADDING: f64 = rose::NOTE_PADDING;
 const NOTE_FOLD: f64 = rose::SEQ_NOTE_FOLD;
 /// Java teoz: participant heads render at y=10 (5px frame + 5px inner margin).
@@ -92,6 +93,8 @@ enum TeozTile {
 		autonumber: Option<String>,
 		center: RealId,
 		direction: SeqDirection,
+		/// Activation level at the time of this self-message
+		active_level: usize,
 	},
 	/// Activate / Deactivate / Destroy life event
 	LifeEvent {
@@ -477,6 +480,7 @@ pub fn build_teoz_layout(
 					let tm = TextMetrics::new(7.0, 7.0, 1.0, text_w, text_h);
 					let height = rose::self_arrow_preferred_size(&tm).height;
 
+					let level = active_levels.get(&msg.from).copied().unwrap_or(0);
 					tiles.push(TeozTile::SelfMessage {
 						participant_idx: idx,
 						text: msg.text.clone(),
@@ -489,6 +493,7 @@ pub fn build_teoz_layout(
 						autonumber,
 						center,
 						direction: msg.direction.clone(),
+						active_level: level,
 					});
 				} else {
 					// Normal message
@@ -685,16 +690,16 @@ pub fn build_teoz_layout(
 				text_width,
 				center,
 				direction,
+				active_level,
 				..
 			} => {
 				let idx = *participant_idx;
-				let level = active_levels.get(&livings[idx].name).copied().unwrap_or(0);
 				let tm = TextMetrics::new(7.0, 7.0, 1.0, *text_width, tp.msg_line_height);
 				let needed = rose::self_arrow_preferred_size(&tm).width
-					+ live_thickness_width(level);
+					+ live_thickness_width(*active_level);
 
 				// Self messages need space in one direction from center.
-				// Constrain the adjacent participant to be far enough.
+				// Constrain the adjacent participant (or origin) to be far enough.
 				match direction {
 					SeqDirection::LeftToRight => {
 						// Need space to the right
@@ -704,10 +709,13 @@ pub fn build_teoz_layout(
 						}
 					}
 					SeqDirection::RightToLeft => {
-						// Need space to the left
+						// Need space to the left: center >= ref + needed
 						if idx > 0 {
 							let prev_center = livings[idx - 1].pos_c;
 							rl.ensure_bigger_than_with_margin(*center, prev_center, needed);
+						} else {
+							// Leftmost participant: ensure enough room from origin
+							rl.ensure_bigger_than_with_margin(*center, xorigin, needed);
 						}
 					}
 				}
@@ -814,12 +822,12 @@ pub fn build_teoz_layout(
 	for tile in &tiles {
 		match tile {
 			TeozTile::SelfMessage {
-				participant_idx, text_width, direction, ..
+				participant_idx, text_width, direction, active_level, ..
 			} => {
 				let cx = get_x(livings[*participant_idx].pos_c);
-				let level = 0; // approximate
 				let tm = TextMetrics::new(7.0, 7.0, 1.0, *text_width, tp.msg_line_height);
-				let self_ext = rose::self_arrow_preferred_size(&tm).width;
+				let self_ext = rose::self_arrow_preferred_size(&tm).width
+					+ live_thickness_width(*active_level);
 				match direction {
 					SeqDirection::LeftToRight => {
 						let right = cx + self_ext;
@@ -879,6 +887,7 @@ pub fn build_teoz_layout(
 					autonumber: autonumber.clone(),
 					source_line: None, // TODO: propagate from parser
 					self_return_x: from_x,
+					self_center_x: from_x,
 					color: None,
 				});
 			}
@@ -886,27 +895,58 @@ pub fn build_teoz_layout(
 				participant_idx,
 				text,
 				text_lines,
+				text_width,
 				is_dashed,
 				has_open_head,
 				y,
 				autonumber,
+				direction,
+				active_level,
 				..
 			} => {
 				let ty = y.unwrap_or(0.0);
 				let cx = get_x(livings[*participant_idx].pos_c);
+				let is_left = *direction == SeqDirection::RightToLeft;
+				let has_bar = *active_level > 0;
+
+				// Compute self-message from_x/to_x/return_x accounting for
+				// activation bar, matching Java's LivingParticipantBox logic.
+				let (self_from_x, self_return_x, self_to_x) = if is_left {
+					let act_left = if has_bar {
+						cx - ACTIVATION_WIDTH / 2.0
+					} else {
+						cx
+					};
+					let outgoing_x = if has_bar { act_left } else { cx };
+					let ret_x = act_left - 1.0;
+					let to = act_left - SELF_MSG_WIDTH;
+					(outgoing_x, ret_x, to)
+				} else {
+					let act_right = if has_bar {
+						cx + ACTIVATION_WIDTH / 2.0
+					} else {
+						cx
+					};
+					let outgoing_x = if has_bar { act_right } else { cx };
+					let ret_x = act_right + 1.0;
+					let to = act_right + SELF_MSG_WIDTH;
+					(outgoing_x, ret_x, to)
+				};
+
 				messages.push(MessageLayout {
-					from_x: cx,
-					to_x: cx,
+					from_x: self_from_x,
+					to_x: self_to_x,
 					y: ty,
 					text: text.clone(),
 					text_lines: text_lines.clone(),
 					is_self: true,
 					is_dashed: *is_dashed,
-					is_left: false,
+					is_left,
 					has_open_head: *has_open_head,
 					autonumber: autonumber.clone(),
 					source_line: None, // TODO: propagate from parser
-					self_return_x: cx,
+					self_return_x,
+					self_center_x: cx,
 					color: None,
 				});
 			}

@@ -199,6 +199,9 @@ pub struct MessageLayout {
     /// for any activation bar that overlaps at the return y.
     /// `return_x = max(from_x, activation_bar_right) + 1`
     pub self_return_x: f64,
+    /// For self-messages: the participant center x (pos2). Used by the renderer
+    /// for text positioning, which Java bases on pos2 not the activation edge.
+    pub self_center_x: f64,
     /// Per-message arrow color override (from `[#color]` syntax)
     pub color: Option<String>,
 }
@@ -1103,6 +1106,7 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
                     autonumber: msg_autonumber,
                     source_line: msg.source_line,
                     self_return_x,
+                    self_center_x: from_x,
                     color: msg.color.clone(),
                 });
 
@@ -1779,9 +1783,14 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
                 .map(|line| message_line_width(line, default_font, msg_font_size))
                 .fold(0.0_f64, f64::max);
             let preferred = f64::max(text_w + 14.0, rose::SELF_ARROW_WIDTH + 5.0);
-            // The left self-message text starts at (from_x - preferred)
-            // If this is negative (before left edge), we need to shift right.
-            let left_edge = m.from_x - preferred;
+            // Java prepareMissingSpace computes getMinX() for each tile.
+            // For a left self-message, this accounts for the activation bar
+            // and margin in addition to the component preferred width.
+            // When activated, the left extent includes the full activation
+            // width plus an additional margin.
+            let has_activation = m.from_x < m.self_center_x;
+            let act_extra = if has_activation { ACTIVATION_WIDTH + MARGIN } else { 0.0 };
+            let left_edge = m.from_x - preferred - act_extra;
             if left_edge < 0.0 { -left_edge } else { 0.0 }
         })
         .fold(0.0_f64, f64::max);
@@ -1812,6 +1821,7 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
             m.from_x += left_overflow;
             m.to_x += left_overflow;
             m.self_return_x += left_overflow;
+            m.self_center_x += left_overflow;
         }
         for act in &mut activations {
             act.x += left_overflow;

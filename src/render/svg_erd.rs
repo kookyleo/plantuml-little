@@ -65,15 +65,17 @@ fn render_relationship(sg: &mut SvgGraphic, node: &ErdNodeLayout) {
     sg.push_raw("<g>");
     if node.is_identifying {
         sg.set_fill_color(ENTITY_BG); sg.set_stroke_color(Some(BORDER_COLOR)); sg.set_stroke_width(0.5, None);
-        sg.svg_polygon(0.0, &[cx, y, x + w, cy, cx, y + h, x, cy]);
+        sg.svg_polygon(0.0, &[x, cy, cx, y, x + w, cy, cx, y + h]);
         let inset = 4.0;
         sg.set_fill_color(ENTITY_BG); sg.set_stroke_color(Some(BORDER_COLOR)); sg.set_stroke_width(0.5, None);
-        sg.svg_polygon(0.0, &[cx, y + inset, x + w - inset * 1.5, cy, cx, y + h - inset, x + inset * 1.5, cy]);
+        sg.svg_polygon(0.0, &[x + inset * 1.5, cy, cx, y + inset, x + w - inset * 1.5, cy, cx, y + h - inset]);
     } else {
         sg.set_fill_color(ENTITY_BG); sg.set_stroke_color(Some(BORDER_COLOR)); sg.set_stroke_width(0.5, None);
-        sg.svg_polygon(0.0, &[cx, y, x + w, cy, cx, y + h, x, cy]);
+        sg.svg_polygon(0.0, &[x, cy, cx, y, x + w, cy, cx, y + h]);
     }
-    let ty = cy + FONT_SIZE * 0.35; let text_w = w - 40.0; let text_x = cx - text_w / 2.0;
+    let ty = cy + FONT_SIZE * 0.35;
+    let text_w = crate::font_metrics::text_width(&node.label, "SansSerif", FONT_SIZE, false, false);
+    let text_x = cx - text_w / 2.0;
     sg.set_fill_color(TEXT_COLOR);
     sg.svg_text(&node.label, text_x, ty, Some("sans-serif"), FONT_SIZE, None, None, None, text_w, LengthAdjust::Spacing, None, 0, None);
     sg.push_raw("</g>");

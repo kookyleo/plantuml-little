@@ -1515,9 +1515,8 @@ fn draw_self_message(
     // Label text above the first horizontal line — each line as separate <text>
     if !msg.text.is_empty() {
         let text_x = if msg.is_left {
-            // Left self-message: Java renders the component at
-            // (pos2 - preferredWidth) and draws text at marginX1 (7) from there.
-            // The text is at the LEFT edge of the preferred width area.
+            // Left self-message: text starts at from_x - preferredWidth + marginX1(7).
+            // For activated participants, from_x is the activation bar left edge.
             let text_w = msg.text_lines
                 .iter()
                 .map(|line| crate::font_metrics::text_width(
@@ -1525,8 +1524,6 @@ fn draw_self_message(
                 ))
                 .fold(0.0_f64, f64::max);
             let preferred = f64::max(text_w + 14.0, crate::skin::rose::SELF_ARROW_WIDTH + 5.0);
-            // Component origin = from_x - preferred (absolute)
-            // Text x = origin + marginX1(7)
             from_x - preferred + 7.0
         } else {
             return_x + 6.0
