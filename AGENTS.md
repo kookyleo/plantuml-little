@@ -128,6 +128,8 @@ A single bit of difference will fail the reference test. "Close enough" is never
 
 **要顺着依赖关系递归深入下去，子孙问题要拆小，达成两端一致，再逐层返回。一切以 Java-first TDD 为最高行动准绳。必要时 ultrathink。**
 
+**不要一遇到回退就 git checkout 回滚！要分析具体情况——只要大方向是向 Java 靠拢的，就往前推进，修复因改动调整而导致的回退，而不是放弃整个改动。回滚是最后手段，不是第一反应。**
+
 #### Execution Discipline — The Debugging & Fixing Loop
 
 Every fix must follow this strict loop. No skipping steps, no guessing.
