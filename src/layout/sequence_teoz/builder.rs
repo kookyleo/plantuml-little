@@ -40,9 +40,9 @@ const ACTIVATION_WIDTH: f64 = 10.0;
 const SELF_MSG_WIDTH: f64 = 42.0;
 const NOTE_PADDING: f64 = rose::NOTE_PADDING;
 const NOTE_FOLD: f64 = rose::SEQ_NOTE_FOLD;
-/// Java teoz: participant heads render at y=10 (5px frame + 5px inner margin).
-/// PlayingSpace content starts below the preferred participant height.
-const STARTING_Y: f64 = 10.0;
+/// Java teoz: PlayingSpace.startingY = 8.
+/// Content tiles start at y = STARTING_Y + headHeight.
+const STARTING_Y: f64 = 8.0;
 /// Minimum gap between adjacent participant right-edge and next left-edge.
 const PARTICIPANT_GAP: f64 = 5.0;
 /// Document margin: Java teoz applies UTranslate(5,5) + (-min1) shift.
@@ -504,7 +504,7 @@ pub fn build_teoz_layout(
 				}
 				let text_w = text_lines
 					.iter()
-					.map(|line| font_metrics::text_width(line, default_font, msg_font_size, false, false))
+					.map(|line| crate::render::svg_richtext::creole_text_width(line, default_font, msg_font_size, false, false))
 					.fold(0.0_f64, f64::max)
 					+ autonumber_extra_w;
 
@@ -1303,9 +1303,9 @@ pub fn build_teoz_layout(
 	//   calculateDimension  = bodyHeight + 10       (outer TextBlock wrapper)
 	//   SVG viewport        = dimension + 10        (doc margin: UTranslate(5,5))
 	//
-	// Combined: startingY + sum_tiles + 10 + factor*headHeight + 10 + 10
-	// Our lifeline_bottom already = startingY + headHeight + sum_tiles,
-	// so: total = lifeline_bottom + (factor-1)*headHeight + 30
+	// Combined: startingY(8) + sum_tiles + 10 + factor*headHeight + 10 + 10
+	// lifeline_bottom = STARTING_Y(8) + headHeight + sum_tiles,
+	// total = lifeline_bottom + (factor-1)*headHeight + 30
 	let show_footbox = !sd.hide_footbox;
 	let factor = if show_footbox { 2 } else { 1 };
 	// Java height chain (no footbox, factor=1):
@@ -1315,15 +1315,12 @@ pub fn build_teoz_layout(
 	//   textBlock.height     = body.height + 10
 	//   finalDim.height      = textBlock.height + margin(5+5)
 	//   SVG viewport         = (int)(finalDim.height + 1)
-	// Combined: sum + head + 39 (with our STARTING_Y=10 → sum + head + 38 + 1)
-	// lifeline_bottom = STARTING_Y(10) + head + sum
-	// total = lifeline_bottom + (factor-1)*head + 28
-	// Java: startingY(8) + sum + 10 + factor*head + 10 + 1 = sum + factor*head + 29
-	// Rust: (10 + head + sum) + (factor-1)*head + 28 + 1 = sum + factor*head + 39
-	// The 10 extra (39-29) is compensated by Rust's startingY(10) vs Java's(8) = 2
-	// plus the rest comes from tile height differences.
+	//
+	// lifeline_bottom = STARTING_Y(8) + head + sum
+	// Java total = sum + factor*head + 38  →  SVG = (int)(total + 1) = (int)(sum + factor*head + 39)
+	// Rust: (8 + head + sum) + (factor-1)*head + 30 = sum + factor*head + 38  ✓
 	let total_height =
-		lifeline_bottom + (factor - 1) as f64 * max_preferred_height + 28.0;
+		lifeline_bottom + (factor - 1) as f64 * max_preferred_height + 30.0;
 	log::debug!("teoz_layout: total_width={total_width:.4} total_height={total_height:.4} lifeline_bottom={lifeline_bottom:.4} max_preferred_height={max_preferred_height:.4}");
 
 	Ok(SeqLayout {
