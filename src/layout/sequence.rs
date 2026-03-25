@@ -245,6 +245,9 @@ pub struct NoteLayout {
     pub is_left: bool,
     /// Whether this note is attached to a self-message (affects width computation).
     pub(crate) is_self_msg_note: bool,
+    /// Whether this note is attached to any message (for note-on-message y-binding).
+    #[allow(dead_code)]
+    pub(crate) is_note_on_message: bool,
 }
 
 /// Group box layout
@@ -1335,6 +1338,7 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
                     text: text.clone(),
                     is_left: false,
                     is_self_msg_note: last_message_was_self,
+                    is_note_on_message: last_message_was_self,
                 });
                 // Notes inside fragments expand the fragment bounds (Java: InGroupable).
                 // Java NoteBox preferred width = visual_width + 2*paddingX (Rose.paddingX=5).
@@ -1399,6 +1403,7 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
                     text: text.clone(),
                     is_left: true,
                     is_self_msg_note: last_message_was_self,
+                    is_note_on_message: last_message_was_self,
                 });
                 // Notes inside fragments expand the fragment bounds (Java: InGroupable).
                 // Java NoteBox preferred width = visual_width + 2*paddingX.
@@ -1455,6 +1460,7 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
                         text: text.clone(),
                         is_left: false,
                         is_self_msg_note: false,
+                        is_note_on_message: false,
                     });
                     let note_bottom = note_y + note_height;
                     if note_bottom > y_cursor {
