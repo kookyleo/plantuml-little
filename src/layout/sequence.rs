@@ -24,6 +24,8 @@ const NOTE_COMPONENT_PADDING_X: f64 = 5.0;
 const MSG_FONT_SIZE: f64 = 13.0;
 /// Font size for fragment else/separator labels. Java: SansSerif 11pt
 const FRAG_ELSE_FONT_SIZE: f64 = 11.0;
+/// Font size for delay text. Java: rose.skin delay { FontSize 11 }
+const DELAY_FONT_SIZE: f64 = 11.0;
 
 fn active_left_shift(level: usize) -> f64 {
     if level == 0 {
@@ -71,6 +73,9 @@ struct LayoutParams {
     frag_after_end: f64,
     ref_y_backoff: f64,
     ref_after_end: f64,
+    /// Offset from freeY (top of arrow component) to the arrow line (msg_y).
+    /// Java: ComponentRoseArrow.getYPoint = textHeight + paddingY
+    arrow_y_point: f64,
 }
 
 impl LayoutParams {
@@ -117,6 +122,10 @@ impl LayoutParams {
         let ref_y_backoff = h13 + 6.0;
         let ref_after_end = message_spacing - 3.0;
 
+        // Arrow y-point: offset from freeY to the actual arrow line position.
+        // Java: ComponentRoseArrow.getYPoint = textHeight + paddingY
+        let arrow_y_point = arrow_tm.text_height() + rose::ARROW_PADDING_Y;
+
         Self {
             message_spacing,
             self_msg_height,
@@ -134,6 +143,7 @@ impl LayoutParams {
             frag_after_end,
             ref_y_backoff,
             ref_after_end,
+            arrow_y_point,
         }
     }
 }
@@ -248,7 +258,11 @@ pub struct DividerLayout {
     pub y: f64,
     pub x: f64,
     pub width: f64,
+    pub height: f64,
     pub text: Option<String>,
+    /// Java component origin Y (startingY = y - arrow_y_point).
+    /// Used for correct drawing position calculations.
+    pub component_y: f64,
 }
 
 /// Delay indicator layout
@@ -259,6 +273,9 @@ pub struct DelayLayout {
     pub x: f64,
     pub width: f64,
     pub text: Option<String>,
+    /// Y coordinate where lifeline break starts (Java freeY at delay start).
+    /// The break ends at `lifeline_break_y + height`.
+    pub lifeline_break_y: f64,
 }
 
 /// Ref layout
@@ -863,6 +880,9 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
         .last()
         .map_or(MARGIN, |p| p.x + p.box_width / 2.0);
     let full_width = (rightmost - leftmost).max(60.0) + 2.0 * FRAGMENT_PADDING;
+    // Divider/delay width: Java uses dimension.getWidth() = content width with MARGIN padding.
+    let body_width = (rightmost - leftmost).max(60.0) + 2.0 * MARGIN;
+    let body_x = leftmost - MARGIN;
 
     for (event_idx, event) in sd.events.iter().enumerate() {
         match event {
@@ -1428,11 +1448,14 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
                 } else {
                     lp.divider_height
                 };
+                let component_y = y_cursor - lp.arrow_y_point;
                 dividers.push(DividerLayout {
                     y: y_cursor,
-                    x: leftmost - FRAGMENT_PADDING,
-                    width: full_width,
+                    x: body_x,
+                    width: body_width,
+                    height: div_h,
                     text: text.clone(),
+                    component_y,
                 });
                 y_cursor += div_h;
                 last_message_y = None;
@@ -1440,19 +1463,26 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
 
             SeqEvent::Delay { text } => {
                 // Compute text-dependent height (Java: ComponentRoseDelayText margins 0,0,4)
+                // Delay uses font size 11 (from rose.skin delay style), not message font size 13
                 let del_h = if text.is_some() {
-                    let th = font_metrics::line_height(default_font, msg_font_size, false, false);
+                    let th = font_metrics::line_height(default_font, DELAY_FONT_SIZE, false, false);
                     let del_tm = TextMetrics::new(0.0, 0.0, 4.0, 0.0, th);
                     rose::delay_text_preferred_size(&del_tm).height
                 } else {
                     lp.delay_height
                 };
+                // Lifeline break position: Java freeY at delay start.
+                // In Java's model, freeY = msg_y - arrow_y_point, and after a message
+                // freeY += message_spacing. So at this point:
+                // freeY = y_cursor - arrow_y_point
+                let lifeline_break_y = y_cursor - lp.arrow_y_point;
                 delays.push(DelayLayout {
                     y: y_cursor,
                     height: del_h,
                     x: leftmost - FRAGMENT_PADDING,
                     width: full_width,
                     text: text.clone(),
+                    lifeline_break_y,
                 });
                 y_cursor += del_h;
                 last_message_y = None;

@@ -37,6 +37,8 @@ const FRAG_GUARD_GAP: f64 = 15.0;
 const FRAG_GUARD_LABEL_Y_OFFSET: f64 = 12.2104;
 const FRAG_SEP_LABEL_Y_OFFSET: f64 = 10.2104;
 
+const DELAY_FONT_SIZE: f64 = 11.0;
+
 const REF_TAB_HEIGHT: f64 = 17.0;
 const REF_TAB_NOTCH: f64 = 10.0;
 const REF_TAB_LEFT_PAD: f64 = 13.0;
@@ -82,7 +84,12 @@ fn encode_link_title(url: &str, display_text: &str) -> String {
 /// fragment, the grouping header's dimension causes an additional f32
 fn draw_lifelines(sg: &mut SvgGraphic, layout: &SeqLayout, skin: &SkinParams, sd: &SequenceDiagram) {
     let ll_color = skin.sequence_lifeline_border_color(BORDER_COLOR);
-    let ll_height = layout.lifeline_bottom - layout.lifeline_top;
+    // Collect delay break segments sorted by y
+    let mut delay_breaks: Vec<(f64, f64)> = layout.delays.iter()
+        .map(|d| (d.lifeline_break_y, d.lifeline_break_y + d.height))
+        .collect();
+    delay_breaks.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap());
+
     for (i, p) in layout.participants.iter().enumerate() {
         let part_idx = i + 1;
         let qualified_name = xml_escape(&p.name);
@@ -90,68 +97,167 @@ fn draw_lifelines(sg: &mut SvgGraphic, layout: &SeqLayout, skin: &SkinParams, sd
         let display = participant
             .and_then(|pp| pp.display_name.as_deref())
             .unwrap_or(&p.name);
-        // Java: if participant has a [[url text]] link, the <title> includes
-        // the URL encoded with dots: ..http...example.com text..
         let title_text = if let Some(url) = participant.and_then(|pp| pp.link_url.as_deref()) {
             encode_link_title(url, display)
         } else {
             xml_escape(display)
         };
-        let escaped_display = xml_escape(display);
 
         let src_line_attr = sd.participants.get(i)
             .and_then(|pp| pp.source_line)
             .map(|sl| format!(r#" data-source-line="{sl}""#))
             .unwrap_or_default();
-        let mut tmp = String::new();
+
+        // Java lifeline position: box_x + (int)(box_width) / 2 (Java integer division)
+        let box_x = p.x - p.box_width / 2.0;
+        let lifeline_x = box_x + (p.box_width as i32 / 2) as f64;
+        let rect_x = p.x - 4.0;
+
         if sd.teoz_mode {
+            // Teoz: single segment, no delay splitting
+            let ll_height = layout.lifeline_bottom - layout.lifeline_top;
+            let mut tmp = String::new();
             write!(tmp, "<g><title>{dname}</title>", dname = title_text).unwrap();
-        } else {
+            sg.push_raw(&tmp);
+
+            let mut tmp = String::new();
+            let _ = write!(
+                tmp,
+                "<rect fill=\"#000000\" fill-opacity=\"0.00000\" height=\"{h}\" width=\"8\" x=\"{x}\" y=\"{y}\"/>",
+                h = fmt_coord(ll_height), x = fmt_coord(rect_x), y = fmt_coord(layout.lifeline_top),
+            );
+            sg.push_raw(&tmp);
+
+            let mut tmp = String::new();
+            write!(
+                tmp,
+                r#"<line style="stroke:{color};stroke-width:0.5;stroke-dasharray:5,5;" x1="{x}" x2="{x}" y1="{y1}" y2="{y2}"/>"#,
+                x = fmt_coord(lifeline_x),
+                y1 = fmt_coord(layout.lifeline_top),
+                y2 = fmt_coord(layout.lifeline_bottom),
+                color = ll_color,
+            ).unwrap();
+            sg.push_raw(&tmp);
+            sg.push_raw("</g>");
+        } else if delay_breaks.is_empty() {
+            // No delays: single continuous lifeline
+            let ll_height = layout.lifeline_bottom - layout.lifeline_top;
+            let mut tmp = String::new();
             write!(
                 tmp,
                 r#"<g class="participant-lifeline" data-entity-uid="part{idx}" data-qualified-name="{qname}"{src_line} id="part{idx}-lifeline"><g><title>{dname}</title>"#,
-                idx = part_idx,
-                qname = qualified_name,
-                src_line = src_line_attr,
-                dname = title_text,
-            )
-            .unwrap();
-        }
-        sg.push_raw(&tmp);
+                idx = part_idx, qname = qualified_name, src_line = src_line_attr, dname = title_text,
+            ).unwrap();
+            sg.push_raw(&tmp);
 
-        // Java lifeline position: box_x + (int)(box_width) / 2 (Java integer division)
-        // This differs from exact center (box_x + box_width/2.0) due to truncation
-        let box_x = p.x - p.box_width / 2.0;
-        let lifeline_x = box_x + (p.box_width as i32 / 2) as f64;
+            let mut tmp = String::new();
+            let _ = write!(
+                tmp,
+                "<rect fill=\"#000000\" fill-opacity=\"0.00000\" height=\"{h}\" width=\"8\" x=\"{x}\" y=\"{y}\"/>",
+                h = fmt_coord(ll_height), x = fmt_coord(rect_x), y = fmt_coord(layout.lifeline_top),
+            );
+            sg.push_raw(&tmp);
 
-        // Transparent click-target rect over lifeline
-        let mut tmp = String::new();
-        let _ = write!(
-            tmp,
-            "<rect fill=\"#000000\" fill-opacity=\"0.00000\" height=\"{h}\" width=\"8\" x=\"{x}\" y=\"{y}\"/>",
-            h = fmt_coord(ll_height),
-            x = fmt_coord(p.x - 4.0),
-            y = fmt_coord(layout.lifeline_top),
-        );
-        sg.push_raw(&tmp);
-
-        // Dashed lifeline
-        let mut tmp = String::new();
-        write!(
-            tmp,
-            r#"<line style="stroke:{color};stroke-width:0.5;stroke-dasharray:5,5;" x1="{x}" x2="{x}" y1="{y1}" y2="{y2}"/>"#,
-            x = fmt_coord(lifeline_x),
-            y1 = fmt_coord(layout.lifeline_top),
-            y2 = fmt_coord(layout.lifeline_bottom),
-            color = ll_color,
-        )
-        .unwrap();
-        sg.push_raw(&tmp);
-
-        if sd.teoz_mode {
-            sg.push_raw("</g>");
-        } else {
+            let mut tmp = String::new();
+            write!(
+                tmp,
+                r#"<line style="stroke:{color};stroke-width:0.5;stroke-dasharray:5,5;" x1="{x}" x2="{x}" y1="{y1}" y2="{y2}"/>"#,
+                x = fmt_coord(lifeline_x),
+                y1 = fmt_coord(layout.lifeline_top),
+                y2 = fmt_coord(layout.lifeline_bottom),
+                color = ll_color,
+            ).unwrap();
+            sg.push_raw(&tmp);
             sg.push_raw("</g></g>");
+        } else {
+            // Delays present: split lifeline into segments with delay-style breaks.
+            // Java: LivingParticipantBox splits its lifeline at delay segments.
+            // Structure:
+            //   <g class="participant-lifeline" ...>
+            //     <g><title>...</title> <rect/> <line dasharray=5,5/> </g>  -- segment 1
+            //     <line dasharray=1,4/>  -- delay break
+            //     <g><title>...</title> <rect/> <line dasharray=5,5/> </g>  -- segment 2
+            //     ...
+            //   </g>
+            let mut tmp = String::new();
+            write!(
+                tmp,
+                r#"<g class="participant-lifeline" data-entity-uid="part{idx}" data-qualified-name="{qname}"{src_line} id="part{idx}-lifeline">"#,
+                idx = part_idx, qname = qualified_name, src_line = src_line_attr,
+            ).unwrap();
+            sg.push_raw(&tmp);
+
+            // Build segment boundaries from delays
+            let mut seg_start = layout.lifeline_top;
+            for &(break_start, break_end) in &delay_breaks {
+                // Normal segment before this delay
+                let seg_height = break_start - seg_start;
+                let mut tmp = String::new();
+                write!(tmp, "<g><title>{dname}</title>", dname = title_text).unwrap();
+                sg.push_raw(&tmp);
+
+                let mut tmp = String::new();
+                let _ = write!(
+                    tmp,
+                    "<rect fill=\"#000000\" fill-opacity=\"0.00000\" height=\"{h}\" width=\"8\" x=\"{x}\" y=\"{y}\"/>",
+                    h = fmt_coord(seg_height), x = fmt_coord(rect_x), y = fmt_coord(seg_start),
+                );
+                sg.push_raw(&tmp);
+
+                let mut tmp = String::new();
+                write!(
+                    tmp,
+                    r#"<line style="stroke:{color};stroke-width:0.5;stroke-dasharray:5,5;" x1="{x}" x2="{x}" y1="{y1}" y2="{y2}"/>"#,
+                    x = fmt_coord(lifeline_x),
+                    y1 = fmt_coord(seg_start),
+                    y2 = fmt_coord(break_start),
+                    color = ll_color,
+                ).unwrap();
+                sg.push_raw(&tmp);
+                sg.push_raw("</g>");
+
+                // Delay break line (dotted with stroke-dasharray:1,4)
+                let mut tmp = String::new();
+                write!(
+                    tmp,
+                    r#"<line style="stroke:{color};stroke-width:0.5;stroke-dasharray:1,4;" x1="{x}" x2="{x}" y1="{y1}" y2="{y2}"/>"#,
+                    x = fmt_coord(lifeline_x),
+                    y1 = fmt_coord(break_start),
+                    y2 = fmt_coord(break_end),
+                    color = ll_color,
+                ).unwrap();
+                sg.push_raw(&tmp);
+
+                seg_start = break_end;
+            }
+
+            // Final segment after last delay
+            let seg_height = layout.lifeline_bottom - seg_start;
+            let mut tmp = String::new();
+            write!(tmp, "<g><title>{dname}</title>", dname = title_text).unwrap();
+            sg.push_raw(&tmp);
+
+            let mut tmp = String::new();
+            let _ = write!(
+                tmp,
+                "<rect fill=\"#000000\" fill-opacity=\"0.00000\" height=\"{h}\" width=\"8\" x=\"{x}\" y=\"{y}\"/>",
+                h = fmt_coord(seg_height), x = fmt_coord(rect_x), y = fmt_coord(seg_start),
+            );
+            sg.push_raw(&tmp);
+
+            let mut tmp = String::new();
+            write!(
+                tmp,
+                r#"<line style="stroke:{color};stroke-width:0.5;stroke-dasharray:5,5;" x1="{x}" x2="{x}" y1="{y1}" y2="{y2}"/>"#,
+                x = fmt_coord(lifeline_x),
+                y1 = fmt_coord(seg_start),
+                y2 = fmt_coord(layout.lifeline_bottom),
+                color = ll_color,
+            ).unwrap();
+            sg.push_raw(&tmp);
+            sg.push_raw("</g>");
+
+            sg.push_raw("</g>");
         }
     }
 }
@@ -1746,86 +1852,117 @@ fn draw_fragment_separator(sg: &mut SvgGraphic, frag: &FragmentLayout, sep_y: f6
 
 // ── Divider ──────────────────────────────────────────────────────────
 
+/// Draw a divider. Java: ComponentRoseDivider.drawInternalU
+///
+/// The divider component draws relative to its component origin (component_y),
+/// which corresponds to Java's startingY (= freeY at divider creation time).
 fn draw_divider(sg: &mut SvgGraphic, divider: &DividerLayout) {
-    let center_y = divider.y + 15.0;
+    // Java: center_y = component_y + area.height / 2
+    let center_y = divider.component_y + divider.height / 2.0;
 
-    // Background stripe
+    // Divider colors: Java default rose.skin separator style
+    // background = #EEEEEE, borderColor = #000000
+    let bg_color = "#EEEEEE";
+    let border_color = "#000000";
+
+    // Java: drawRectLong at center - 1, height=3, stroke=simple(bg), fill=bg
+    let rect_y = center_y - 1.0;
     let mut tmp = String::new();
     write!(
         tmp,
-        r#"<rect fill="{color}" fill-opacity="0.20000" height="5" width="{}" x="{}" y="{}"/>"#,
-        fmt_coord(divider.width), fmt_coord(divider.x), fmt_coord(center_y - 2.5),
-        color = DIVIDER_COLOR,
+        r#"<rect fill="{bg}" height="3" style="stroke:{bg};stroke-width:1;" width="{w}" x="{x}" y="{y}"/>"#,
+        bg = bg_color,
+        w = fmt_coord(divider.width),
+        x = fmt_coord(divider.x),
+        y = fmt_coord(rect_y),
     )
     .unwrap();
     sg.push_raw(&tmp);
-    sg.push_raw("\n");
 
-    // Horizontal lines
+    // Java: drawDoubleLine - two lines at center-1 and center+2, stroke=borderColor
     {
         let mut tmp = String::new();
-        let y1 = fmt_coord(center_y - 2.5);
         write!(
             tmp,
-            r#"<line style="stroke:{color};stroke-width:1;" x1="{}" x2="{}" y1="{y1}" y2="{y1}"/>"#,
-            fmt_coord(divider.x), fmt_coord(divider.x + divider.width),
-            color = DIVIDER_COLOR,
+            r#"<line style="stroke:{color};stroke-width:1;" x1="{x1}" x2="{x2}" y1="{y}" y2="{y}"/>"#,
+            color = border_color,
+            x1 = fmt_coord(divider.x),
+            x2 = fmt_coord(divider.x + divider.width),
+            y = fmt_coord(center_y - 1.0),
         )
         .unwrap();
         sg.push_raw(&tmp);
     }
-    sg.push_raw("\n");
     {
         let mut tmp = String::new();
-        let y2 = fmt_coord(center_y + 2.5);
         write!(
             tmp,
-            r#"<line style="stroke:{color};stroke-width:1;" x1="{}" x2="{}" y1="{y2}" y2="{y2}"/>"#,
-            fmt_coord(divider.x), fmt_coord(divider.x + divider.width),
-            color = DIVIDER_COLOR,
+            r#"<line style="stroke:{color};stroke-width:1;" x1="{x1}" x2="{x2}" y1="{y}" y2="{y}"/>"#,
+            color = border_color,
+            x1 = fmt_coord(divider.x),
+            x2 = fmt_coord(divider.x + divider.width),
+            y = fmt_coord(center_y + 2.0),
         )
         .unwrap();
         sg.push_raw(&tmp);
     }
-    sg.push_raw("\n");
 
-    // Centered label text
+    // Centered label text with bordered rect
     if let Some(text) = &divider.text {
-        let mid_x = divider.x + divider.width / 2.0;
-        let text_y = center_y + FONT_SIZE * 0.35;
+        // Java: textHeight = textBlock.height + 2*marginY(4)
+        // For single-line: textBlock.height = line_height(13) = 15.1328
+        // textHeight = 15.1328 + 8 = 23.1328
+        let text_line_h = font_metrics::line_height("SansSerif", FONT_SIZE, false, false);
+        let margin_y = 4.0;
+        let text_height = text_line_h + 2.0 * margin_y;
 
-        // Text background
-        let text_width =
-            font_metrics::text_width(text, "SansSerif", FONT_SIZE, false, false) + 16.0;
+        // Java: textWidth = textBlock.width + marginX1(4) + marginX2(4)
+        let text_block_w = font_metrics::text_width(text, "SansSerif", FONT_SIZE, true, false);
+        let text_width = text_block_w + 4.0 + 4.0;
+        let delta_x = 6.0;
+
+        // Position centered in area
+        let xpos = divider.component_y; // dummy, we compute from area
+        let area_width = divider.width;
+        let rect_x = (area_width - text_width - delta_x) / 2.0 + divider.x;
+        let rect_y = divider.component_y + (divider.height - text_height) / 2.0;
+
+        // Java: rect with stroke=borderColor, stroke-width=2 (UStroke default)
         let mut tmp = String::new();
         write!(
             tmp,
-            r#"<rect fill="white" height="{}" width="{}" x="{}" y="{}"/>"#,
-            fmt_coord(FONT_SIZE * 1.2), fmt_coord(text_width),
-            fmt_coord(mid_x - text_width / 2.0), fmt_coord(center_y - FONT_SIZE * 0.6),
+            r#"<rect fill="{bg}" height="{h}" style="stroke:{border};stroke-width:2;" width="{w}" x="{x}" y="{y}"/>"#,
+            bg = bg_color,
+            h = fmt_coord(text_height),
+            w = fmt_coord(text_width + delta_x),
+            x = fmt_coord(rect_x),
+            y = fmt_coord(rect_y),
+            border = border_color,
         )
         .unwrap();
         sg.push_raw(&tmp);
-        sg.push_raw("\n");
 
-        let div_tl = font_metrics::text_width(text, "SansSerif", FONT_SIZE, true, false);
+        // Java: textBlock drawn at (xpos + deltaX, ypos + marginY)
+        let text_x = rect_x + delta_x;
+        let text_baseline_y = rect_y + margin_y
+            + font_metrics::ascent("SansSerif", FONT_SIZE, true, false);
+        let tl = font_metrics::text_width(text, "SansSerif", FONT_SIZE, true, false);
         sg.set_fill_color(TEXT_COLOR);
         sg.svg_text(
             text,
-            mid_x,
-            text_y,
+            text_x,
+            text_baseline_y,
             Some("sans-serif"),
             FONT_SIZE,
             Some("bold"),
             None,
             None,
-            div_tl,
+            tl,
             LengthAdjust::Spacing,
             None,
             0,
-            Some("middle"),
+            None, // left-aligned (not centered)
         );
-        sg.push_raw("\n");
     }
 }
 
@@ -1849,18 +1986,18 @@ fn draw_delay(sg: &mut SvgGraphic, delay: &DelayLayout) {
         sg.push_raw("\n");
     }
 
-    // Label text
+    // Label text (delay uses font size 11, from rose.skin delay style)
     if let Some(text) = &delay.text {
         let text_x = mid_x + 12.0;
-        let text_y = center_y + FONT_SIZE * 0.35;
-        let tl = font_metrics::text_width(text, "SansSerif", FONT_SIZE, false, false);
+        let text_y = center_y + DELAY_FONT_SIZE * 0.35;
+        let tl = font_metrics::text_width(text, "SansSerif", DELAY_FONT_SIZE, false, false);
         sg.set_fill_color(TEXT_COLOR);
         sg.svg_text(
             text,
             text_x,
             text_y,
             Some("sans-serif"),
-            FONT_SIZE,
+            DELAY_FONT_SIZE,
             None,
             None,
             None,
@@ -2047,15 +2184,8 @@ fn render_sequence_inner(
         draw_group(&mut sg, group);
     }
 
-    // 5c. Dividers
-    for divider in &layout.dividers {
-        draw_divider(&mut sg, divider);
-    }
-
-    // 5d. Delays
-    for delay in &layout.delays {
-        draw_delay(&mut sg, delay);
-    }
+    // 5c/5d. Dividers and delays are rendered after participant heads/tails,
+    // interleaved with messages (see step 8).
 
     // 5e. Refs are interleaved with messages (see step 8)
 
@@ -2176,6 +2306,8 @@ fn render_sequence_inner(
         Separator(&'a FragmentLayout, f64, &'a str),
         Ref(&'a RefLayout),
         Destroy(&'a DestroyLayout),
+        Divider(&'a DividerLayout),
+        Delay(&'a DelayLayout),
     }
     let mut interstitials: Vec<(f64, InterstitialEvent)> = Vec::new();
     for frag in &layout.fragments {
@@ -2189,6 +2321,12 @@ fn render_sequence_inner(
     }
     for d in &layout.destroys {
         interstitials.push((d.y, InterstitialEvent::Destroy(d)));
+    }
+    for div in &layout.dividers {
+        interstitials.push((div.y, InterstitialEvent::Divider(div)));
+    }
+    for delay in &layout.delays {
+        interstitials.push((delay.y, InterstitialEvent::Delay(delay)));
     }
     interstitials.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap());
     let mut interstitial_idx = 0;
@@ -2212,6 +2350,12 @@ fn render_sequence_inner(
                 }
                 InterstitialEvent::Destroy(d) => {
                     draw_destroy(&mut sg, d);
+                }
+                InterstitialEvent::Divider(div) => {
+                    draw_divider(&mut sg, div);
+                }
+                InterstitialEvent::Delay(delay) => {
+                    draw_delay(&mut sg, delay);
                 }
             }
             interstitial_idx += 1;
@@ -2306,6 +2450,12 @@ fn render_sequence_inner(
             }
             InterstitialEvent::Destroy(d) => {
                 draw_destroy(&mut sg, d);
+            }
+            InterstitialEvent::Divider(div) => {
+                draw_divider(&mut sg, div);
+            }
+            InterstitialEvent::Delay(delay) => {
+                draw_delay(&mut sg, delay);
             }
         }
         interstitial_idx += 1;

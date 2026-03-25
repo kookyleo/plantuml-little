@@ -941,6 +941,8 @@ pub fn build_teoz_layout(
 					x: total_min_x,
 					width: diagram_width,
 					text: text.clone(),
+					height: 0.0,
+					component_y: ty,
 				});
 			}
 			TeozTile::Delay { text, height, y } => {
@@ -951,6 +953,7 @@ pub fn build_teoz_layout(
 					x: total_min_x,
 					width: diagram_width,
 					text: text.clone(),
+					lifeline_break_y: ty,
 				});
 			}
 			TeozTile::Ref {
