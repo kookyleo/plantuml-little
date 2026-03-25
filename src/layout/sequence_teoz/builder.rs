@@ -809,6 +809,41 @@ pub fn build_teoz_layout(
 	if total_max_x == f64::MIN {
 		total_max_x = 0.0;
 	}
+	// Extend extents to account for self-messages and notes that extend
+	// beyond participant positions (e.g., single-participant self-messages).
+	for tile in &tiles {
+		match tile {
+			TeozTile::SelfMessage {
+				participant_idx, text_width, direction, ..
+			} => {
+				let cx = get_x(livings[*participant_idx].pos_c);
+				let level = 0; // approximate
+				let tm = TextMetrics::new(7.0, 7.0, 1.0, *text_width, tp.msg_line_height);
+				let self_ext = rose::self_arrow_preferred_size(&tm).width;
+				match direction {
+					SeqDirection::LeftToRight => {
+						let right = cx + self_ext;
+						if right > total_max_x { total_max_x = right; }
+					}
+					SeqDirection::RightToLeft => {
+						let left = cx - self_ext;
+						if left < total_min_x { total_min_x = left; }
+					}
+				}
+			}
+			TeozTile::Note { participant_idx, is_left, width, .. } => {
+				let cx = get_x(livings[*participant_idx].pos_c);
+				if *is_left {
+					let left = cx - *width - 5.0;
+					if left < total_min_x { total_min_x = left; }
+				} else {
+					let right = cx + *width + 5.0;
+					if right > total_max_x { total_max_x = right; }
+				}
+			}
+			_ => {}
+		}
+	}
 	let diagram_width = total_max_x - total_min_x;
 
 	// Track activation state for ActivationLayout generation
