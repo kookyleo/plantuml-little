@@ -205,23 +205,24 @@ mod tests {
     }
 
     #[test]
-    fn debug_title_xxxxddadaok() {
-        let text = "xxxxddadaok";
-        let family = "SansSerif";
-        let size = 14.0;
-        let bold = true;
-
-        let total_w = text_width(text, family, size, bold, false);
-        eprintln!("text_width(\"{text}\", {family}, {size}, bold={bold}) = {total_w:.10}");
-        for ch in text.chars() {
-            let w = char_width(ch, family, size, bold, false);
-            eprintln!("  char_width('{ch}') = {w:.10}");
+    fn text_width_matches_java_reference() {
+        // Verify text_width matches Java PlantUML's getStringBounds for various strings
+        let cases: &[(&str, f64, bool, f64)] = &[
+            ("Alice", 14.0, false, 33.667),
+            ("Bob", 14.0, false, 27.0566),
+            ("Hello", 13.0, false, 32.9507),
+            ("Test", 14.0, false, 29.9482),
+            ("Grouping messages", 13.0, true, 144.5869),
+            ("Swimlane1", 18.0, false, 98.6484),
+            ("Action 1", 12.0, false, 49.2422),
+        ];
+        for (text, size, bold, java_w) in cases {
+            let our_w = text_width(text, "SansSerif", *size, *bold, false);
+            assert!(
+                (our_w - java_w).abs() < 0.001,
+                "text_width(\"{text}\", size={size}, bold={bold}): ours={our_w:.4}, java={java_w:.4}"
+            );
         }
-
-        let asc = ascent(family, size, bold, false);
-        let desc = descent(family, size, bold, false);
-        let lh = line_height(family, size, bold, false);
-        eprintln!("ascent={asc:.10} descent={desc:.10} line_height={lh:.10} a+d={:.10}", asc + desc);
     }
 
 }
