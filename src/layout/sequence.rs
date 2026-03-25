@@ -352,11 +352,14 @@ fn update_fragment_message_extent(
     }
 }
 
-/// Estimate note height: line count * NOTE_FONT_SIZE + top/bottom padding.
-/// Uses NOTE_FONT_SIZE (13) rather than LINE_HEIGHT (16) to match Java PlantUML.
+/// Estimate note height: marginY*2 + lines * line_height.
+/// Java ComponentRoseNote: marginY1=5, marginY2=5, textBlock height = lines * line_height.
+/// The result is truncated to int (Java NoteBox casts preferred height).
 fn estimate_note_height(text: &str) -> f64 {
     let lines = text.lines().count().max(1) as f64;
-    (lines * NOTE_FONT_SIZE + 2.0 * NOTE_PADDING).max(25.0)
+    let lh = font_metrics::line_height("SansSerif", NOTE_FONT_SIZE, false, false);
+    let h = lines * lh + 10.0; // marginY1(5) + marginY2(5) = 10
+    h.trunc().max(25.0)
 }
 
 /// Compute note width based on text content using font metrics.

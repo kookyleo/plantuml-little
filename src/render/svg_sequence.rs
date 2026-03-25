@@ -18,7 +18,6 @@ use super::svg_richtext::{disable_path_sprites, enable_path_sprites, render_creo
 // ── Style constants ─────────────────────────────────────────────────
 
 const FONT_SIZE: f64 = 13.0;
-const LINE_HEIGHT: f64 = 16.0;
 use crate::skin::rose::{
     ACTIVATION_BG, BORDER_COLOR, DESTROY_COLOR, GROUP_BG, NOTE_BG,
     NOTE_BORDER, PARTICIPANT_BG, TEXT_COLOR,
@@ -1651,13 +1650,14 @@ fn draw_note(sg: &mut SvgGraphic, note: &NoteLayout) {
     // then TextBlock renders first line at y = ascent.
     let note_margin_y = 5.0; // AbstractTextualComponent.marginY for notes
     let text_y = note.y + note_margin_y + font_metrics::ascent("SansSerif", FONT_SIZE, false, false);
+    let note_line_height = font_metrics::line_height("SansSerif", FONT_SIZE, false, false);
     let mut tmp = String::new();
     render_creole_text(
         &mut tmp,
         &note.text,
         text_x,
         text_y,
-        LINE_HEIGHT,
+        note_line_height,
         TEXT_COLOR,
         None,
         &format!(r#"font-size="{FONT_SIZE}""#),

@@ -303,7 +303,9 @@ fn live_thickness_width(level: usize) -> f64 {
 
 fn estimate_note_height(text: &str) -> f64 {
 	let lines = text.lines().count().max(1) as f64;
-	(lines * NOTE_FONT_SIZE + 2.0 * NOTE_PADDING).max(25.0)
+	let lh = font_metrics::line_height("SansSerif", NOTE_FONT_SIZE, false, false);
+	let h = lines * lh + 10.0; // marginY1(5) + marginY2(5)
+	h.trunc().max(25.0)
 }
 
 fn estimate_note_width(text: &str) -> f64 {
