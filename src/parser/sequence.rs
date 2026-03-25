@@ -290,10 +290,16 @@ pub fn parse_sequence_diagram_with_original(source: &str, original_source: Optio
         }
 
         // Parse note right/left/over (single-line or start multiline block)
+        // Also handle teoz parallel note prefix "& note ..."
         {
-            let lower = trimmed.to_lowercase();
+            let note_trimmed = if trimmed.starts_with("& ") {
+                trimmed[2..].trim()
+            } else {
+                trimmed
+            };
+            let lower = note_trimmed.to_lowercase();
             if lower.starts_with("note ") {
-                match parse_note(trimmed, &last_to_participant) {
+                match parse_note(note_trimmed, &last_to_participant) {
                     Some(evt) => {
                         debug!("parsed note event");
                         events.push(evt);
@@ -301,19 +307,25 @@ pub fn parse_sequence_diagram_with_original(source: &str, original_source: Optio
                     }
                     None => {
                         // Check if this starts a multiline note block
-                        let rest = trimmed[5..].trim();
+                        let rest = note_trimmed[5..].trim();
                         let rest_lower = rest.to_lowercase();
                         if rest_lower.starts_with("right") {
                             in_note_block = true;
                             note_kind = Some("right");
-                            note_participant = last_to_participant.clone();
+                            let after = rest[5..].trim();
+                            let after = skip_note_color(after);
+                            let (_remainder, explicit_p) = strip_of_participant(after);
+                            note_participant = explicit_p.or_else(|| last_to_participant.clone());
                             note_lines.clear();
                             debug!("starting multiline note right");
                             continue;
                         } else if rest_lower.starts_with("left") {
                             in_note_block = true;
                             note_kind = Some("left");
-                            note_participant = last_to_participant.clone();
+                            let after = rest[4..].trim();
+                            let after = skip_note_color(after);
+                            let (_remainder, explicit_p) = strip_of_participant(after);
+                            note_participant = explicit_p.or_else(|| last_to_participant.clone());
                             note_lines.clear();
                             debug!("starting multiline note left");
                             continue;
@@ -959,6 +971,11 @@ fn parse_arrow(left: &str, arrow: &str, right: &str, text: &str) -> Option<Messa
 
 /// Parse a single-line note (with `:` inline text).
 /// Returns None if the note has no inline text (multiline note handled by caller).
+///
+/// Supported syntax:
+/// - `note right : text`       — note on last message target
+/// - `note right of Bob : text` — note on explicit participant
+/// - `note right #color : text` — note with background color
 fn parse_note(line: &str, last_to: &Option<String>) -> Option<SeqEvent> {
     let rest = line.trim().strip_prefix("note ")?.trim_start();
     let lower = rest.to_lowercase();
@@ -967,9 +984,13 @@ fn parse_note(line: &str, last_to: &Option<String>) -> Option<SeqEvent> {
         let after = rest[5..].trim();
         // Skip optional color specifier: #color
         let after = skip_note_color(after);
+        // Handle `of PARTICIPANT` clause
+        let (after, explicit_participant) = strip_of_participant(after);
         if let Some(text) = after.strip_prefix(':') {
             let text = text.trim().to_string();
-            let participant = last_to.clone().unwrap_or_default();
+            let participant = explicit_participant
+                .or_else(|| last_to.clone())
+                .unwrap_or_default();
             Some(SeqEvent::NoteRight { participant, text })
         } else {
             // No inline text — will be handled as multiline note
@@ -978,9 +999,12 @@ fn parse_note(line: &str, last_to: &Option<String>) -> Option<SeqEvent> {
     } else if lower.starts_with("left") {
         let after = rest[4..].trim();
         let after = skip_note_color(after);
+        let (after, explicit_participant) = strip_of_participant(after);
         if let Some(text) = after.strip_prefix(':') {
             let text = text.trim().to_string();
-            let participant = last_to.clone().unwrap_or_default();
+            let participant = explicit_participant
+                .or_else(|| last_to.clone())
+                .unwrap_or_default();
             Some(SeqEvent::NoteLeft { participant, text })
         } else {
             None
@@ -1016,6 +1040,38 @@ fn skip_note_color(s: &str) -> &str {
         rest[end..].trim_start()
     } else {
         s
+    }
+}
+
+/// Strip optional `of PARTICIPANT` clause from note direction remainder.
+/// Returns (remaining_str, Option<participant_name>).
+///
+/// Input examples:
+/// - `"of Alice: ok"`   -> `(": ok", Some("Alice"))`
+/// - `": text"`         -> `(": text", None)`
+/// - `""`               -> `("", None)`
+fn strip_of_participant(s: &str) -> (&str, Option<String>) {
+    let lower = s.to_lowercase();
+    if lower.starts_with("of ") {
+        // `s` has the original case; skip same number of chars
+        let rest_orig = s["of ".len()..].trim_start();
+        // Participant name ends at ':' or end of string
+        if let Some(colon_pos) = rest_orig.find(':') {
+            let participant = rest_orig[..colon_pos].trim().to_string();
+            let remainder = &rest_orig[colon_pos..];
+            (remainder, Some(participant))
+        } else {
+            // No colon — multiline note with explicit participant
+            let participant = rest_orig.trim().to_string();
+            let empty = &s[s.len()..]; // empty slice at end
+            if participant.is_empty() {
+                (empty, None)
+            } else {
+                (empty, Some(participant))
+            }
+        }
+    } else {
+        (s, None)
     }
 }
 
@@ -1669,5 +1725,50 @@ Sally --> Bob
         assert_eq!(diagram.participants.len(), 1, "only 'foo', not '& foo'");
         assert_eq!(diagram.participants[0].name, "foo");
         assert_eq!(diagram.events.iter().filter(|e| matches!(e, SeqEvent::Message(_))).count(), 2);
+    }
+
+    /// Parse `note right of PARTICIPANT : text` single-line syntax
+    #[test]
+    fn parse_note_right_of_participant() {
+        let src = "@startuml\nBob -> Alice : hello\nnote right of Alice: standalone\n@enduml";
+        let diagram = parse_sequence_diagram(src).unwrap();
+
+        assert!(matches!(&diagram.events[0], SeqEvent::Message(_)));
+        if let SeqEvent::NoteRight { participant, text } = &diagram.events[1] {
+            assert_eq!(participant, "Alice");
+            assert_eq!(text, "standalone");
+        } else {
+            panic!("expected NoteRight, got {:?}", &diagram.events[1]);
+        }
+    }
+
+    /// Parse `note left of PARTICIPANT : text` single-line syntax
+    #[test]
+    fn parse_note_left_of_participant() {
+        let src = "@startuml\nBob -> Alice : hello\nnote left of Bob: remark\n@enduml";
+        let diagram = parse_sequence_diagram(src).unwrap();
+
+        assert!(matches!(&diagram.events[0], SeqEvent::Message(_)));
+        if let SeqEvent::NoteLeft { participant, text } = &diagram.events[1] {
+            assert_eq!(participant, "Bob");
+            assert_eq!(text, "remark");
+        } else {
+            panic!("expected NoteLeft, got {:?}", &diagram.events[1]);
+        }
+    }
+
+    /// Parse multiline `note right of PARTICIPANT` (no colon, ends with `end note`)
+    #[test]
+    fn parse_multiline_note_right_of_participant() {
+        let src = "@startuml\nBob -> Alice : hello\nnote right of Alice\nline1\nline2\nend note\n@enduml";
+        let diagram = parse_sequence_diagram(src).unwrap();
+
+        assert!(matches!(&diagram.events[0], SeqEvent::Message(_)));
+        if let SeqEvent::NoteRight { participant, text } = &diagram.events[1] {
+            assert_eq!(participant, "Alice");
+            assert_eq!(text, "line1\nline2");
+        } else {
+            panic!("expected NoteRight, got {:?}", &diagram.events[1]);
+        }
     }
 }

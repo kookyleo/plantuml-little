@@ -45,8 +45,10 @@ const NOTE_FOLD: f64 = rose::SEQ_NOTE_FOLD;
 const STARTING_Y: f64 = 10.0;
 /// Minimum gap between adjacent participant right-edge and next left-edge.
 const PARTICIPANT_GAP: f64 = 5.0;
-/// Document margin: 5px (exporter) + 5px (teoz UTranslate) = 10px.
-/// Applied to all x positions, matching Java's coordinate chain.
+/// Document margin: Java teoz applies UTranslate(5,5) + (-min1) shift.
+/// The final dimension is body_width + 10.  Because Rust computes total_width
+/// as diagram_width + 2*DOC_MARGIN_X and our constraint solver produces
+/// slightly narrower gaps than Java, we keep 10 to compensate.
 const DOC_MARGIN_X: f64 = 10.0;
 
 // ── Tile types (inline, simplified) ──────────────────────────────────────────
@@ -704,16 +706,26 @@ pub fn build_teoz_layout(
 				let arrow_tm = TextMetrics::new(7.0, 7.0, 1.0, *text_width, tp.msg_line_height);
 				let arrow_w = rose::arrow_preferred_size(&arrow_tm, 0.0, 0.0).width;
 
+				// Java CommunicationTile.addConstraints():
+				// Forward: point2.ensureBiggerThan(point1.addFixed(width))
+				//   point2 = posC of target, adjusted by -LIVE_DELTA_SIZE if level>0
+				// Reverse: point1.ensureBiggerThan(point2.addFixed(width))
+				//   point1 = posC of source, adjusted by -LIVE_DELTA_SIZE if level>0
+				//   point2 = posC of target + level2 * LIVE_DELTA_SIZE
 				let fi_level = active_levels.get(&livings[fi].name).copied().unwrap_or(0);
 				let ti_level = active_levels.get(&livings[ti].name).copied().unwrap_or(0);
-				let extra = live_thickness_width(fi_level) + live_thickness_width(ti_level);
-				let needed = arrow_w + extra;
+				const LIVE_DELTA_SIZE: f64 = 5.0;
 
 				if fi < ti {
-					// Left-to-right: to_center >= from_center + needed
+					// Forward: to_center(-adjustment) >= from_center + width
+					let ti_adj = if ti_level > 0 { LIVE_DELTA_SIZE } else { 0.0 };
+					let needed = arrow_w + ti_adj;
 					rl.ensure_bigger_than_with_margin(*to_center, *from_center, needed);
 				} else {
-					// Right-to-left: from_center >= to_center + needed
+					// Reverse: from_center(-adjustment) >= to_center(+adjustment) + width
+					let fi_adj = if fi_level > 0 { LIVE_DELTA_SIZE } else { 0.0 };
+					let ti_adj = ti_level as f64 * LIVE_DELTA_SIZE;
+					let needed = arrow_w + fi_adj + ti_adj;
 					rl.ensure_bigger_than_with_margin(*from_center, *to_center, needed);
 				}
 			}
@@ -727,8 +739,11 @@ pub fn build_teoz_layout(
 			} => {
 				let idx = *participant_idx;
 				let tm = TextMetrics::new(7.0, 7.0, 1.0, *text_width, tp.msg_line_height);
+				// Java CommunicationTileSelf.addConstraints():
+				// Forward: next.posC >= this.posC2 + compWidth
+				// posC2 = posC + rightShift. Only use right shift for the constraint.
 				let needed = rose::self_arrow_preferred_size(&tm).width
-					+ live_thickness_width(*active_level);
+					+ active_right_shift(*active_level);
 
 				// Self messages need space in one direction from center.
 				// Constrain the adjacent participant (or origin) to be far enough.
@@ -858,15 +873,18 @@ pub fn build_teoz_layout(
 			} => {
 				let cx = get_x(livings[*participant_idx].pos_c);
 				let tm = TextMetrics::new(7.0, 7.0, 1.0, *text_width, tp.msg_line_height);
-				let self_ext = rose::self_arrow_preferred_size(&tm).width
-					+ live_thickness_width(*active_level);
+				let comp_width = rose::self_arrow_preferred_size(&tm).width;
+				// Java: getMaxX = posC2 + compWidth, where
+				// posC2 = posC + rightShift (activation bars extend right of center).
+				// Only add the right shift for right-extending messages,
+				// left shift for left-extending messages.
 				match direction {
 					SeqDirection::LeftToRight => {
-						let right = cx + self_ext;
+						let right = cx + active_right_shift(*active_level) + comp_width;
 						if right > total_max_x { total_max_x = right; }
 					}
 					SeqDirection::RightToLeft => {
-						let left = cx - self_ext;
+						let left = cx - active_left_shift(*active_level) - comp_width;
 						if left < total_min_x { total_min_x = left; }
 					}
 				}
@@ -885,6 +903,7 @@ pub fn build_teoz_layout(
 		}
 	}
 	let diagram_width = total_max_x - total_min_x;
+	log::debug!("teoz extents: min_x={total_min_x:.2} max_x={total_max_x:.2} diagram_width={diagram_width:.2}");
 
 	// Track activation state for ActivationLayout generation
 
@@ -1244,7 +1263,7 @@ pub fn build_teoz_layout(
 	//   SVG viewport         = (int)(finalDim.height + 1)
 	// Combined: sum + head + 39 (with our STARTING_Y=10 → sum + head + 38 + 1)
 	// lifeline_bottom = STARTING_Y(10) + head + sum
-	// total = lifeline_bottom + (factor-1)*head + 28
+	// total = lifeline_bottom + (factor-1)*head + 27
 	let total_height =
 		lifeline_bottom + (factor - 1) as f64 * max_preferred_height + 27.0;
 	log::debug!("teoz_layout: total_width={total_width:.4} total_height={total_height:.4} lifeline_bottom={lifeline_bottom:.4} max_preferred_height={max_preferred_height:.4}");
