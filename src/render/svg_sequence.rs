@@ -2192,7 +2192,7 @@ fn render_sequence_inner(
     }
     interstitials.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap());
     let mut interstitial_idx = 0;
-
+    let mut drawn_notes = std::collections::HashSet::new();
     for msg in &layout.messages {
         msg_seq_counter += 1;
 
@@ -2262,12 +2262,18 @@ fn render_sequence_inner(
 
         // Draw notes associated with this message (Java renders notes
         // inline after their associated message, not in a separate pass).
+        // For multiline self-messages, the note can be far above msg.y
+        // due to Java ArrowAndNoteBox centering (up to ~half the text height).
         let next_msg_y = layout.messages.get(msg_seq_counter)
             .map_or(f64::MAX, |m| m.y);
+        // Use larger back-threshold for self-messages (multiline text pushes
+        // the note much further above msg.y than for regular messages).
+        let note_back_threshold = if msg.is_self { 200.0 } else { 30.0 };
         let mut has_note = false;
-        for note in &layout.notes {
-            if note.y >= msg.y - 30.0 && note.y < next_msg_y {
+        for (ni, note) in layout.notes.iter().enumerate() {
+            if !drawn_notes.contains(&ni) && note.y >= msg.y - note_back_threshold && note.y < next_msg_y {
                 draw_note(&mut sg, note);
+                drawn_notes.insert(ni);
                 has_note = true;
             }
         }

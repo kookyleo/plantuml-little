@@ -814,6 +814,14 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
     // (overlapping vertically) rather than below it.
     let mut last_message_y: Option<f64> = None;
     let mut last_message_was_self: bool = false;
+    // For self-messages: store the starting Y and preferred height of the
+    // combined ArrowAndNoteBox tile so notes can be centered within it.
+    let mut last_self_msg_starting_y: f64 = 0.0;
+    let mut last_self_msg_preferred_h: f64 = 0.0;
+    // Java pushes NoteRight by arrowPreferredWidth for non-reverse self-msgs,
+    // and NoteLeft by -arrowPreferredWidth for reverse self-msgs.
+    let mut last_self_msg_is_left: bool = false;
+    let mut last_self_msg_preferred_w: f64 = 0.0;
 
     // When a note is placed alongside a message (back-offset), the next
     // activate should start at the message's y, not at y_cursor.
@@ -1059,14 +1067,21 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
                     color: msg.color.clone(),
                 });
 
-                // Track message x-extent for fragment bounds (Java: InGroupable).
-                // Self-messages extend beyond the participant box by their text width.
-                if is_self && !fragment_stack.is_empty() {
+                // Compute self-message arrow preferred width (used for fragment
+                // bounds AND for note x offset).
+                if is_self {
                     let text_w = text_lines
                         .iter()
                         .map(|line| message_line_width(line, default_font, msg_font_size))
                         .fold(0.0_f64, f64::max);
                     let preferred = f64::max(text_w + 14.0, rose::SELF_ARROW_WIDTH + 5.0);
+                    last_self_msg_is_left = is_left;
+                    last_self_msg_preferred_w = preferred;
+                }
+                // Track message x-extent for fragment bounds (Java: InGroupable).
+                // Self-messages extend beyond the participant box by their text width.
+                if is_self && !fragment_stack.is_empty() {
+                    let preferred = last_self_msg_preferred_w;
                     let (msg_x_min, msg_x_max) = if is_left {
                         // Left self-message text extends to the left
                         (from_x - preferred, from_x)
@@ -1074,6 +1089,7 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
                         // Right self-message text extends to the right
                         (from_x, from_x + preferred)
                     };
+                    log::trace!("self-msg frag extent: preferred={preferred}, from_x={from_x}, msg_x_min={msg_x_min}, msg_x_max={msg_x_max}");
                     update_fragment_message_extent(&mut fragment_stack, msg_x_min, msg_x_max);
                 }
 
@@ -1105,6 +1121,9 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
                     let self_text_h = text_block_h + 2.0 * self_margin_y;
                     let self_preferred_h = self_text_h + rose::ARROW_DELTA_Y
                         + rose::SELF_ARROW_ONLY_HEIGHT + 2.0 * rose::ARROW_PADDING_Y;
+                    // Save for note centering (Java ArrowAndNoteBox)
+                    last_self_msg_starting_y = msg_y - self_text_h;
+                    last_self_msg_preferred_h = self_preferred_h;
                     y_cursor += self_preferred_h;
                     pending_self_return_y.insert(msg.from.clone(), return_y);
                 } else {
@@ -1207,26 +1226,52 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
                 // The note doesn't advance y_cursor when it fits within the
                 // message spacing already consumed.
                 let note_y = if let Some(msg_y) = last_message_y {
-                    // Place note with back-offset from message position
-                    let back_offset = if last_message_was_self {
-                        (note_height - 1.0) / 2.0
+                    if last_message_was_self {
+                        // Java ArrowAndNoteBox: note is centered within the
+                        // combined tile height = max(arrowPH, notePH).
+                        let combined_h = last_self_msg_preferred_h.max(note_height);
+                        let note_push = (combined_h - note_height) / 2.0;
+                        log::debug!("NoteRight(self): startingY={last_self_msg_starting_y}, arrowPH={last_self_msg_preferred_h}, noteH={note_height}, combined={combined_h}, push={note_push}");
+                        last_self_msg_starting_y + note_push
                     } else {
-                        lp.message_spacing - NOTE_FOLD
-                    };
-                    log::debug!("NoteRight: msg_y={msg_y}, back_offset={back_offset}, note_height={note_height}, y_cursor={y_cursor}");
-                    (msg_y - back_offset).max(MARGIN + max_ph)
+                        let back_offset = lp.message_spacing - NOTE_FOLD;
+                        log::debug!("NoteRight: msg_y={msg_y}, back_offset={back_offset}, note_height={note_height}, y_cursor={y_cursor}");
+                        (msg_y - back_offset).max(MARGIN + max_ph)
+                    }
                 } else {
                     log::debug!("NoteRight: no last_message_y, using y_cursor={y_cursor}");
                     y_cursor
                 };
+                // Java NoteBox.getStartingX for RIGHT: (int)(segment.getPos2())
+                // + pushToRight(arrowPreferredWidth) for non-reverse self-msgs.
+                // For non-self messages, use ACTIVATION_WIDTH (matches Java's
+                // segment merge which accounts for nearby activation bars).
+                let note_x = if last_message_was_self {
+                    if !last_self_msg_is_left {
+                        // Non-reverse self-msg: note pushed right by arrow width
+                        px + last_self_msg_preferred_w
+                    } else {
+                        // Reverse self-msg: note on the lifeline side
+                        px + MARGIN
+                    }
+                } else {
+                    px + ACTIVATION_WIDTH
+                };
                 notes.push(NoteLayout {
-                    x: px + ACTIVATION_WIDTH,
+                    x: note_x,
                     y: note_y,
                     width: note_width,
                     height: note_height,
                     text: text.clone(),
                     is_left: false,
                 });
+                // Notes inside fragments expand the fragment bounds (Java: InGroupable).
+                // Fragment close adds MARGIN when computing fr, so don't add it here.
+                if !fragment_stack.is_empty() {
+                    update_fragment_message_extent(
+                        &mut fragment_stack, note_x, note_x + note_width,
+                    );
+                }
                 // Only advance y_cursor if the note bottom extends below current position
                 let note_bottom = note_y + note_height;
                 if note_bottom > y_cursor {
@@ -1243,23 +1288,44 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
                 let note_height = estimate_note_height(text);
                 let note_width = estimate_note_width(text);
                 let note_y = if let Some(msg_y) = last_message_y {
-                    let back_offset = if last_message_was_self {
-                        (note_height - 1.0) / 2.0
+                    if last_message_was_self {
+                        // Java ArrowAndNoteBox: note centered within combined tile
+                        let combined_h = last_self_msg_preferred_h.max(note_height);
+                        let note_push = (combined_h - note_height) / 2.0;
+                        last_self_msg_starting_y + note_push
                     } else {
-                        lp.message_spacing - NOTE_FOLD
-                    };
-                    (msg_y - back_offset).max(MARGIN + max_ph)
+                        let back_offset = lp.message_spacing - NOTE_FOLD;
+                        (msg_y - back_offset).max(MARGIN + max_ph)
+                    }
                 } else {
                     y_cursor
                 };
+                // Java NoteBox.getStartingX for LEFT:
+                // (int)(segment.getPos1() - noteWidth)
+                // where segment.pos1 = centerX - lifeline.getLeftShift(y)
+                // Java NoteBox.getStartingX for LEFT: (int)(segment.getPos1() - noteWidth)
+                // + pushToRight(-arrowPreferredWidth) for reverse self-msgs.
+                let note_x = if last_message_was_self && last_self_msg_is_left {
+                    // Reverse self-msg: note pushed left by arrow width
+                    px - note_width - last_self_msg_preferred_w
+                } else {
+                    px - ACTIVATION_WIDTH - note_width
+                };
                 notes.push(NoteLayout {
-                    x: px - ACTIVATION_WIDTH - note_width,
+                    x: note_x,
                     y: note_y,
                     width: note_width,
                     height: note_height,
                     text: text.clone(),
                     is_left: true,
                 });
+                // Notes inside fragments expand the fragment bounds (Java: InGroupable).
+                // Fragment close adds MARGIN when computing fl/fr, so don't add it here.
+                if !fragment_stack.is_empty() {
+                    update_fragment_message_extent(
+                        &mut fragment_stack, note_x, note_x + note_width,
+                    );
+                }
                 let note_bottom = note_y + note_height;
                 if note_bottom > y_cursor {
                     y_cursor = note_bottom;
@@ -1283,12 +1349,15 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
                     let note_w = estimate_note_width(text);
                     let width = (x2 - x1).abs().max(note_w);
                     let note_y = if let Some(msg_y) = last_message_y {
-                        let back_offset = if last_message_was_self {
-                            (note_height - 1.0) / 2.0
+                        if last_message_was_self {
+                            // Java ArrowAndNoteBox: note centered within combined tile
+                            let combined_h = last_self_msg_preferred_h.max(note_height);
+                            let note_push = (combined_h - note_height) / 2.0;
+                            last_self_msg_starting_y + note_push
                         } else {
-                            lp.message_spacing - NOTE_FOLD
-                        };
-                        (msg_y - back_offset).max(MARGIN + max_ph)
+                            let back_offset = lp.message_spacing - NOTE_FOLD;
+                            (msg_y - back_offset).max(MARGIN + max_ph)
+                        }
                     } else {
                         y_cursor
                     };
@@ -1436,6 +1505,7 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
                         if let Some(mx) = msg_max_x {
                             fr = fr.max(mx + MARGIN);
                         }
+                        log::trace!("fragment close: fl={fl}, fr={fr}, msg_min_x={msg_min_x:?}, msg_max_x={msg_max_x:?}");
                         (fl, fr)
                     } else {
                         // Fallback: span all participants
