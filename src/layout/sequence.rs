@@ -373,11 +373,21 @@ fn update_fragment_message_extent(
     }
 }
 
+/// Count effective text lines, splitting on `\n` escape and NEWLINE_CHAR in
+/// addition to real newlines.
+fn count_note_lines(text: &str) -> usize {
+    text.split("\\n")
+        .flat_map(|s| s.split(crate::NEWLINE_CHAR))
+        .flat_map(|s| s.lines())
+        .count()
+        .max(1)
+}
+
 /// Estimate note visual height (for rendering the note polygon).
 /// Java ComponentRoseNote: marginY=5, textBlock height = lines * line_height.
 /// Visual height = (int)(textBlockH + 2*marginY), clamped to min 25.
 fn estimate_note_height(text: &str) -> f64 {
-    let lines = text.lines().count().max(1) as f64;
+    let lines = count_note_lines(text) as f64;
     let lh = font_metrics::line_height("SansSerif", NOTE_FONT_SIZE, false, false);
     let h = lines * lh + 10.0; // marginY1(5) + marginY2(5) = 10
     h.trunc().max(25.0)
@@ -387,7 +397,7 @@ fn estimate_note_height(text: &str) -> f64 {
 /// Java ComponentRoseNote.getPreferredHeight = getTextHeight + 2*paddingY + deltaShadow.
 /// paddingY=5 (Rose.paddingY), deltaShadow=0 (default plantuml.skin).
 fn estimate_note_preferred_height(text: &str) -> f64 {
-    let lines = text.lines().count().max(1) as f64;
+    let lines = count_note_lines(text) as f64;
     let lh = font_metrics::line_height("SansSerif", NOTE_FONT_SIZE, false, false);
     let text_height = lines * lh + 10.0; // textBlockH + 2*marginY(5)
     text_height + 10.0 // + 2*paddingY(5), shadow=0
@@ -397,7 +407,9 @@ fn estimate_note_preferred_height(text: &str) -> f64 {
 /// Width = left_pad + max_line_width + right_pad (includes fold corner).
 fn estimate_note_width(text: &str) -> f64 {
     let max_line_w = text
-        .lines()
+        .split("\\n")
+        .flat_map(|s| s.split(crate::NEWLINE_CHAR))
+        .flat_map(|s| s.lines())
         .map(|line| font_metrics::text_width(line, "SansSerif", NOTE_FONT_SIZE, false, false))
         .fold(0.0_f64, f64::max);
     // left pad (6) + text + right pad (4) + fold (10) = text + 20
