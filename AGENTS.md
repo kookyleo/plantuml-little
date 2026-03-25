@@ -37,195 +37,125 @@ src/
 ├── lib.rs              # Library entry point: convert() pipeline
 ├── main.rs             # CLI binary (clap)
 ├── preproc/            # Preprocessor (variables, functions, includes, themes)
-│   ├── mod.rs          # Core: directive dispatch, variable expansion, conditionals
-│   ├── builtins.rs     # Color parsing, date formatting, theme/stdlib listing
-│   ├── expr.rs         # Expression evaluation, arithmetic, string utilities
-│   └── include.rs      # File resolution, archive extraction, subpart parsing
 ├── style.rs            # Skinparam parsing + theme engine
-├── error.rs            # Error types with line/column tracking
-├── text.rs             # CJK/Unicode text width calculation
 ├── parser/             # PlantUML text → Diagram IR
-│   ├── mod.rs          # Dispatcher (detect type → delegate)
-│   ├── common.rs       # Shared: block extraction, type detection, meta, sprites
-│   ├── creole.rs       # Creole markup → RichText/TextSpan
-│   ├── class.rs, sequence.rs, activity.rs, state.rs, ...
-│   └── json_diagram.rs, yaml_diagram.rs, ditaa.rs, salt.rs, ...
 ├── model/              # Internal representation
-│   ├── diagram.rs      # Diagram enum (17 variants)
-│   ├── entity.rs       # Class/interface/component entities
-│   ├── link.rs         # Relationships
-│   ├── richtext.rs     # TextSpan/RichText (Creole model)
-│   ├── sequence.rs, activity.rs, state.rs, ...
-│   └── hyperlink.rs
 ├── layout/             # Positioning engines
-│   ├── mod.rs          # Dispatcher
 │   ├── graphviz.rs     # vizoxide integration (DOT → positions)
-│   ├── sequence.rs, activity.rs, ...
-│   └── [per-diagram-type].rs
+│   └── [per-type].rs
+├── klimt/              # Low-level SVG graphics abstraction
+│   └── svg.rs          # SvgGraphic, ensure_visible, font rendering
+├── svek/               # Graphviz coordinate extraction pipeline
 └── render/             # IR + Layout → SVG
-    ├── svg.rs          # Class diagram SVG + shared utilities
-    ├── svg_richtext.rs # Creole → SVG tspan rendering + sprite
-    ├── svg_hyperlink.rs
-    ├── svg_sequence.rs, svg_activity.rs, ...
-    └── [per-diagram-type].rs
+    ├── svg.rs          # Shared: BoundsTracker, wrap_with_meta, ensure_visible_int
+    ├── svg_richtext.rs # Creole → SVG text rendering + sprite
+    └── [per-type].rs
 ```
 
-## Maintenance Guidelines
+## Upstream Alignment — The Iron Rule
 
-### Upstream Tracking
+**Goal: SVG output must be byte-identical to Java PlantUML.**
 
-PlantUML upstream repository: `https://github.com/plantuml/plantuml`
+### Core Principles
 
-Focus areas:
-1. **New diagram types** -- evaluate for inclusion
-2. **Syntax changes** -- extensions to existing diagram types
-3. **Preprocessor enhancements** -- new built-in functions, new directives
-4. **stdlib updates** -- vendor content updates as needed
-5. **Regression tests** -- extract new upstream test cases as fixtures
+1. **Java-first TDD**: Never fit numbers. Read the Java source code and use the exact same algorithms and parameters. No shortcuts, no approximations. A single bit of difference will fail the reference test.
 
-### Code Quality
+2. **Depth-first**: 深入对照每一个底层模块，确保一致。不要选择最简单的，选择最深入的。顺着依赖关系递归深入，子孙问题拆小，达成两端一致，再逐层返回。必要时 ultrathink。
 
-Known optimization targets (non-blocking):
-- `write!().unwrap()` never actually fails on String writes, but style is inconsistent
-- clippy pedantic level has ~508 hints (mostly documentation/annotation/precision cast style warnings)
+3. **Forward-fix, not revert**: 不要一遇到回退就 git checkout 回滚。只要大方向是向 Java 靠拢的，就往前推进——分析回退原因，修复级联问题，而非放弃整个改动。回滚是最后手段，不是第一反应。
+
+4. **No fear of deep changes**: 不要畏惧深层架构变更。将问题分解为可验证的子步骤，每步都用 Java 源码和参考输出验证。
+
+### Execution Discipline — The Debugging & Fixing Loop
+
+Every fix must follow this strict loop. No skipping steps, no guessing.
+
+1. **Enumerate sub-items.** Run `scripts/analyze_failures.py` to get the full failure taxonomy. Focus on **common root causes** that affect many tests, not individual test symptoms.
+
+2. **Pick the right target.** Selection criteria (in order):
+   - **Prefer tests with matching structure** — same SVG elements in roughly the same positions.
+   - **Work on shared root causes, not individual tests.** If 20 tests fail because of a common constant, fix the constant.
+   - State the target precisely: "make `foo.svg` match — currently differs at height (95 vs 100), root cause: member row height uses 14pt but skinparam sets 12pt."
+
+3. **Validate constants.** Before trusting any constant, cross-check against Java output. Run through Java (`java -jar plantuml.jar -tsvg`), extract the value, confirm it matches.
+
+4. **Trace both chains.** For the chosen test:
+   - **Rust chain**: trace from `.puml` input to the differing SVG byte. Record every intermediate value.
+   - **Java chain**: instrument Java with `System.err.println` to capture precise intermediate values (gold standard), or reverse-compute from reference SVG.
+
+5. **Diff at divergence point.** Compare Rust vs Java intermediate values. Fix structural differences first, then parameter differences.
+
+6. **Pre-check defaults.** Before committing, verify identical output for default skinparams (no overrides). Most passing tests use defaults.
+
+7. **Fix at the source.** Apply the minimal change at the divergence point. Never patch downstream.
+
+8. **Verify & iterate.** Run `cargo test --lib` (no regression) + `cargo test --test reference_tests` (track pass count). Each loop should either increase pass count or eliminate one dimension of difference.
+
+### Key Java Source Files
+
+| File | Purpose |
+|------|---------|
+| `SvgGraphics.java` | SVG generation, `ensureVisible()` (`(int)(x+1)` truncation) |
+| `SvekResult.java` | `calculateDimension()`, `moveDelta(6, 6)`, `delta(15, 15)` |
+| `LimitFinder.java` | Bounding box: `drawRectangle` adds `(x-1, y-1)` to `(x+w-1, y+h-1)` |
+| `TextBlockExporter12026.java` | `calculateFinalDimension()`, document margin (R=5, B=5) |
+| `DotStringFactory.java` | Graphviz params: `nodesep`, `ranksep`, `minRankSep` |
+| `SvekNode.java` | Node position: `moveDelta`, `getMinX/getMinY` |
+| `TileBuilder.java` | Teoz tile construction, note-on-message decorator pattern |
+| `ParticipantBox.java` | `outMargin=5`, participant width model |
+| `ComponentRoseNote.java` | Note `paddingX=5`, `marginX1=6`, `marginX2=15` |
+
+### Critical Constants (verified against Java source)
+
+```
+MARGIN = 6                  (SvekResult moveDelta offset)
+CANVAS_DELTA = 15           (SvekResult delta(15,15))
+DOC_MARGIN_RIGHT = 5        (plantuml.skin document style)
+DOC_MARGIN_BOTTOM = 5
+nodesep = max(0.35, 35/72)  (DotStringFactory)
+ranksep = max(0.8, 60/72)
+PARTICIPANT_OUT_MARGIN = 5  (ParticipantBox)
+NOTE_PADDING_X = 5          (ComponentRoseNote)
+```
+
+### Debugging Workflow
+
+```
+1. Run reference test, locate first differing byte
+2. Classify: coordinate / attribute / structure / content
+3. Find Java code path generating that value
+4. Instrument Java, rebuild, capture exact intermediates
+5. Implement same algorithm in Rust
+6. Verify: cargo test --test reference_tests
+7. If regression: analyze & fix forward, don't revert
+8. Commit
+```
+
+Java source: `/ext/plantuml/plantuml`
+Build: `cd /ext/plantuml/plantuml && ./gradlew jar`
+Run: `java -jar build/libs/plantuml-*.jar -tsvg -pipe < input.puml 2>debug.txt > output.svg`
+
+## Maintenance
 
 ### Test Strategy
 
 Three-tier testing:
-
-1. **Unit tests** (1321): within each parser/layout/render module
-2. **Integration tests** (183): `.puml` → `.svg`, verify valid SVG + no Creole markup leakage
-3. **Reference tests** (296): byte-for-byte comparison against Java PlantUML output
-   - Reference SVGs in `tests/reference/`, generated from Java PlantUML 1.2026.3beta4
-   - Regenerate: `bash tests/generate_reference.sh`
+1. **Unit tests** (~2500): within each parser/layout/render module
+2. **Integration tests** (~183): `.puml` → `.svg`, verify valid SVG + no markup leakage
+3. **Reference tests** (296): byte-for-byte comparison against Java PlantUML 1.2026.3beta5
+   - Reference SVGs in `tests/reference/`
    - Test macro: `reference_test!` in `tests/reference_tests.rs`
-   - Generated by: `python3 tests/generate_test_list.py > tests/reference_tests.rs`
 
-Font metrics extracted from Java AWT via `tests/tools/ExtractFontMetrics.java` → `src/font_metrics.rs`
+Font metrics extracted from Java AWT via `tests/tools/ExtractFontMetrics.java` → `src/font_metrics.rs`. Verified exact match with Java (zero divergence).
 
 ### Code Style
 
-- License: Multi-licensed (GPL-3.0 / LGPL-3.0 / Apache-2.0 / EPL-2.0 / MIT), following upstream PlantUML
+- License: Multi-licensed (GPL-3.0 / LGPL-3.0 / Apache-2.0 / EPL-2.0 / MIT)
 - Git messages: English, concise, no AI tool mentions
 - Author: `kookyleo <kookyleo@gmail.com>`
-- Prefer `thiserror` for error types, `clap` for CLI
-- Minimize dependencies -- only add crates when clearly justified
+- Never use `--release` during development/debugging
 - Prefer editing existing files over creating new ones
-
-### Upstream Alignment — The Iron Rule
-
-**Goal: SVG output must be byte-identical to Java PlantUML.**
-
-#### The Highest Principle
-
-**Never fit numbers. Read the Java source code and use the exact same algorithms and parameters. No shortcuts, no approximations.**
-
-A single bit of difference will fail the reference test. "Close enough" is never acceptable.
-
-**遇到复杂问题深度优先，拆解子问题，递归坚持 java-first tdd 原则解决问题。** 不要畏惧深层架构变更——将问题分解为可验证的子步骤，每步都用 Java 源码和参考输出验证。
-
-**深入对照每一个底层模块，确保一致。不要选择最简单的，选择最深入的，深度优先。必要时 ultrathink。**
-
-**要顺着依赖关系递归深入下去，子孙问题要拆小，达成两端一致，再逐层返回。一切以 Java-first TDD 为最高行动准绳。必要时 ultrathink。**
-
-**不要一遇到回退就 git checkout 回滚！要分析具体情况——只要大方向是向 Java 靠拢的，就往前推进，修复因改动调整而导致的回退，而不是放弃整个改动。回滚是最后手段，不是第一反应。**
-
-#### Execution Discipline — The Debugging & Fixing Loop
-
-Every fix must follow this strict loop. No skipping steps, no guessing.
-
-1. **Enumerate sub-items.** Run `scripts/analyze_failures.py` to get the full failure taxonomy. Break each root cause into concrete, countable sub-items. Focus on **common root causes** that affect many tests, not individual test symptoms.
-
-2. **Pick the right target.** Selection criteria (in order):
-   - **Prefer "nearly passing" tests** — fewest total differences (not just smallest first-diff delta). A test with 1px height diff but 50 other differences is a bad target. A test with 10px height-only diff and no other issues is ideal.
-   - **Prefer tests with matching structure** — our SVG has the same elements in roughly the same positions as Java. Completely different layouts indicate a missing layout engine, not a tunable constant.
-   - **Work on shared root causes, not individual tests.** If 20 tests fail because edge labels lack dimensions, fix the label dimension system — verify on one test, expect improvement across all 20.
-   - State the target precisely: "make `foo.svg` match reference — currently differs at height (95 vs 100), root cause: member row height uses 14pt but skinparam sets 12pt."
-
-3. **Validate constants before using them.** Before trusting any constant in the Rust code, cross-check it against the reference SVG values. Run the target `.puml` through Java (`java -jar plantuml.jar -tsvg`), extract the same value from the output SVG, and confirm the constant matches. Constants with wrong comments are a known hazard.
-
-4. **Trace the Rust chain.** For the chosen test, trace the full code path from `.puml` input to the differing SVG byte. Record every intermediate value (entity dimensions, DOT graph, Graphviz output, coordinate transform, SVG emission).
-
-5. **Trace the Java chain.** For the same input, trace the equivalent Java code path. Two approaches, in order of preference:
-   - **Instrument Java** with `System.err.println` to capture precise intermediate values. This is the gold standard. Build: `cd /ext/plantuml/plantuml && ./gradlew jar`. Run: `java -jar build/libs/plantuml-*.jar -tsvg -pipe < input.puml`.
-   - **Decompose from reference SVG** when instrumentation is impractical. Extract coordinates/dimensions from the reference SVG and reverse-compute the formula. Always cross-verify the formula against Java source code.
-
-6. **Diff the two chains.** Compare Rust vs Java intermediate values. The first divergence point is the bug location. If the Rust code is **structurally different** (different call graph, missing component, different algorithm), fix the structure first. If the structure matches but a value differs, binary-search for the exact parameter/constant that's wrong.
-
-7. **Pre-check the default case.** Before committing, verify the change produces identical output for the DEFAULT skinparams (no skinparam overrides). Most passing tests use defaults — breaking the default case causes mass regression. The new code path should only diverge from the old one when skinparams actually differ from defaults.
-
-8. **Fix at the precise location.** Apply the minimal change that makes the Rust value match Java at the divergence point. Never patch downstream — fix at the source of divergence.
-
-9. **Verify.** Run `cargo test --lib` (no regression) + `cargo test --test reference_tests` (pass count must not decrease). Then re-run `scripts/analyze_failures.py` to measure how many additional tests now pass. If the target test still doesn't pass (e.g., height fixed but width still wrong), note the remaining gap — it becomes the next loop's target.
-
-10. **Repeat.** Each loop should either increase pass count or eliminate one dimension of difference for a group of tests. The analysis script output is the single source of truth for progress tracking.
-
-#### Methodology — Reference Material
-
-1. **Read source code first.** When output differs, find the exact code path in Java and understand its precise algorithm. Key files:
-   - `SvgGraphics.java` — SVG element generation, coordinate formatting (`format()`), `ensureVisible()` mechanism
-   - `SvekResult.java` — `calculateDimension()`, `moveDelta(6, 6)`
-   - `DotStringFactory.java` — Graphviz parameters (`nodesep`, `ranksep`, `minRankSep`)
-   - `SvekNode.java` — node position extraction (`moveDelta`, `getMinX/getMinY`)
-   - `LimitFinder.java` — bounding box calculation (`drawRectangle` adds `x-1,y-1`, `UEmpty` correction)
-   - `FontParam.java` — default font size per element type
-   - `SkinParam.java` — circled character radius and other defaults
-   - `EntityImageClass.java` / `EntityImageClassHeader.java` — class diagram internal layout
-   - `HeaderLayout.java` — circled character + name + generics arrangement
-   - `TextBlockExporter12026.java` — `calculateFinalDimension()`, document margin (R=5, B=5)
-
-2. **Instrument the Java code** to capture precise intermediate values. Examples:
-   ```java
-   // SvekResult.java — inspect LimitFinder results
-   System.err.println("DEBUG_MINMAX: minX=" + minMax.getMinX() + " maxX=" + minMax.getMaxX());
-
-   // MinMaxMutable.java — trace bounding box changes with full stack
-   if (y > maxY) System.err.println("DEBUG: maxY -> " + y + " from " + new Throwable().getStackTrace()[2]);
-
-   // SvgGraphics.java — trace viewBox final values via ensureVisible
-   ```
-
-3. **Reverse-verify.** Use known-correct Java output to derive the formula, then confirm in Java source:
-   - Extract coordinate values from reference SVG
-   - Determine: `reference_value = f(which parameters?)`
-   - Find the exact definition of `f` in Java source
-   - Implement the same `f` in Rust
-
-4. **Never guess constants.** These must be read from Java source, never fitted:
-   - `MARGIN = 6` (SvekResult moveDelta offset)
-   - `CANVAS_DELTA = 15` (SvekResult delta(15,15))
-   - `DOC_MARGIN_RIGHT = 5, DOC_MARGIN_BOTTOM = 5` (plantuml.skin document style)
-   - `nodesep = max(0.35, 35/72)`, `ranksep = max(0.8, 60/72)` (DotStringFactory)
-   - `HEADER_HEIGHT = 32`, `EMPTY_COMPARTMENT = 8` (verified against reference + Java code)
-   - `CIRCLE_LEFT_PAD = 4`, `CIRCLE_DIAMETER = 22`, `circle_text_gap = 3`, `RIGHT_PAD = 3`
-
-5. **Graphviz integration must match Java exactly:**
-   - Use `dot -Tsvg` (not `dot -Tplain` — plain format loses precision in inches→pt round-trip)
-   - Read node min(x), min(y) from SVG polygon (Java's `SvekUtils.getMinXY`)
-   - Preserve original edge path d-string (M/C/L commands)
-   - Preserve original arrowhead polygon coordinates
-   - Use own precise node sizes, not Graphviz's rounded values
-
-6. **Font metrics must be exact:**
-   - Export precise lookup tables from Java AWT `FontMetrics.getStringBounds()`
-   - Use `:.6f` format (6 decimal places), not `:.6` (6 significant digits)
-   - Toolchain: `ExtractFontMetrics.java` → `font_metrics.json` → `gen_metrics_table.py` → `font_metrics.rs`
-
-#### Debugging Workflow
-
-```
-1. Run reference test, locate the first differing byte
-2. Classify the difference (coordinate / attribute / structure / content)
-3. Find the Java code path that generates that value
-4. Add debug prints to Java, rebuild, run, capture exact intermediate values
-5. Implement the same algorithm in Rust
-6. Verify: cargo test --test reference_tests
-7. Commit
-```
-
-Java PlantUML source: `/ext/plantuml/plantuml`
-Build: `cd /ext/plantuml/plantuml && ./gradlew jar`
-Run: `java -jar build/libs/plantuml-*.jar -tsvg -pipe < input.puml 2>debug.txt > output.svg`
+- Minimize dependencies
 
 ### Parallel Agent Work
 
@@ -233,3 +163,9 @@ File ownership matrix (enforced during parallel agent work):
 - Each agent only modifies its assigned files
 - parser/layout/render naturally isolated by diagram type
 - Shared files (lib.rs, mod.rs, diagram.rs) modified sequentially by the main thread
+
+### Pipeline Architecture
+
+For complex multi-step fixes, use a two-agent pipeline:
+1. **Analysis agent** (reads Rust + instruments Java): produces precise gap analysis with exact numeric values
+2. **Implementation agent** (writes Rust + reads Java): implements fixes based on analysis, fixes regressions forward
