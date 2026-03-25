@@ -114,7 +114,18 @@ fn estimate_text_size(text: &str) -> (f64, f64) {
     let lines: Vec<&str> = text.split('\n').collect();
     let max_line_width = lines
         .iter()
-        .map(|l| font_metrics::text_width(l, "SansSerif", FONT_SIZE, false, false))
+        .map(|l| {
+            let trimmed = l.trim();
+            // For creole table rows, measure content without outer pipes.
+            // Java: table cells are rendered individually, not as raw pipe-delimited text.
+            if trimmed.starts_with('|') && trimmed.ends_with('|') && trimmed.len() > 2 {
+                // Strip outer pipes and measure inner content (keeps inner |)
+                let inner = &trimmed[1..trimmed.len()-1];
+                font_metrics::text_width(inner, "SansSerif", FONT_SIZE, false, false)
+            } else {
+                font_metrics::text_width(l, "SansSerif", FONT_SIZE, false, false)
+            }
+        })
         .fold(0.0_f64, f64::max);
     let width = max_line_width + 2.0 * PADDING;
     // Java: creole table cells get extra padding (skinParam.getPadding() = 2,
