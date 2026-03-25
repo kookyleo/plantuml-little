@@ -385,13 +385,49 @@ fn count_note_lines(text: &str) -> usize {
         .max(1)
 }
 
+/// Estimate extra height added by creole formatting in note text.
+/// Java TextBlock layout adds:
+///   - Table rows: each cell in a table (`|...|`) gets +4px padding (2+2)
+///   - Horizontal separator (`----` or `====`): ~8px per separator
+///   - Bullet items: same height as normal lines (no extra)
+fn creole_note_extra_height(text: &str) -> f64 {
+    let mut extra = 0.0;
+    let mut in_table = false;
+    let mut table_rows = 0;
+    for line in text.split(crate::NEWLINE_CHAR).flat_map(|s| s.lines()) {
+        let trimmed = line.trim();
+        if trimmed.starts_with('|') && trimmed.ends_with('|') && trimmed.len() > 2 {
+            if !in_table {
+                in_table = true;
+                table_rows = 0;
+            }
+            table_rows += 1;
+        } else {
+            if in_table {
+                // Table block ended: add padding per row + border overhead
+                extra += table_rows as f64 * 4.0 + 6.0;
+                in_table = false;
+            }
+            if trimmed == "----" || trimmed == "====" || trimmed.starts_with("----") || trimmed.starts_with("====") {
+                // Horizontal separator line: Java CreoleHorizontalLine height
+                extra += 8.0;
+            }
+        }
+    }
+    if in_table {
+        extra += table_rows as f64 * 4.0 + 6.0;
+    }
+    extra
+}
+
 /// Estimate note visual height (for rendering the note polygon).
 /// Java ComponentRoseNote: marginY=5, textBlock height = lines * line_height.
 /// Visual height = (int)(textBlockH + 2*marginY), clamped to min 25.
 fn estimate_note_height(text: &str) -> f64 {
     let lines = count_note_lines(text) as f64;
     let lh = font_metrics::line_height("SansSerif", NOTE_FONT_SIZE, false, false);
-    let h = lines * lh + 10.0; // marginY1(5) + marginY2(5) = 10
+    let creole_extra = creole_note_extra_height(text);
+    let h = lines * lh + 10.0 + creole_extra; // marginY1(5) + marginY2(5) = 10
     h.trunc().max(25.0)
 }
 
@@ -401,7 +437,8 @@ fn estimate_note_height(text: &str) -> f64 {
 fn estimate_note_preferred_height(text: &str) -> f64 {
     let lines = count_note_lines(text) as f64;
     let lh = font_metrics::line_height("SansSerif", NOTE_FONT_SIZE, false, false);
-    let text_height = lines * lh + 10.0; // textBlockH + 2*marginY(5)
+    let creole_extra = creole_note_extra_height(text);
+    let text_height = lines * lh + 10.0 + creole_extra; // textBlockH + 2*marginY(5)
     text_height + 10.0 // + 2*paddingY(5), shadow=0
 }
 
