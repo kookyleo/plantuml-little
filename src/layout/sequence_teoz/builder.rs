@@ -118,6 +118,8 @@ enum TeozTile {
 		height: f64,
 		y: Option<f64>,
 		center: RealId,
+		/// True if this note follows a self-message (shares Y, no height contribution).
+		is_self_msg_note: bool,
 	},
 	/// Note spanning two participants
 	NoteOver {
@@ -333,6 +335,20 @@ fn message_text_width(text: &str, font_family: &str, font_size: f64) -> f64 {
 	text.split("\\n").flat_map(|s| s.split(crate::NEWLINE_CHAR))
 		.map(|line| font_metrics::text_width(line, font_family, font_size, false, false))
 		.fold(0.0_f64, f64::max)
+}
+
+// ── Note-on-message helper ───────────────────────────────────────────────────
+
+/// Check if the last non-LifeEvent tile in the list is a SelfMessage.
+fn is_last_tile_self_message(tiles: &[TeozTile]) -> bool {
+	for tile in tiles.iter().rev() {
+		match tile {
+			TeozTile::SelfMessage { .. } => return true,
+			TeozTile::LifeEvent { .. } => continue,
+			_ => return false,
+		}
+	}
+	false
 }
 
 // ── Main build function ──────────────────────────────────────────────────────
@@ -564,6 +580,7 @@ pub fn build_teoz_layout(
 				let center = livings[idx].pos_c;
 				let w = estimate_note_width(text);
 				let h = estimate_note_height(text);
+				let is_smn = is_last_tile_self_message(&tiles);
 				tiles.push(TeozTile::Note {
 					participant_idx: idx,
 					text: text.clone(),
@@ -572,6 +589,7 @@ pub fn build_teoz_layout(
 					height: h,
 					y: None,
 					center,
+					is_self_msg_note: is_smn,
 				});
 			}
 			SeqEvent::NoteLeft { participant, text } => {
@@ -579,6 +597,7 @@ pub fn build_teoz_layout(
 				let center = livings[idx].pos_c;
 				let w = estimate_note_width(text);
 				let h = estimate_note_height(text);
+				let is_smn = is_last_tile_self_message(&tiles);
 				tiles.push(TeozTile::Note {
 					participant_idx: idx,
 					text: text.clone(),
@@ -587,6 +606,7 @@ pub fn build_teoz_layout(
 					height: h,
 					y: None,
 					center,
+					is_self_msg_note: is_smn,
 				});
 			}
 			SeqEvent::NoteOver { participants, text } => {
@@ -979,6 +999,7 @@ pub fn build_teoz_layout(
 				width,
 				height,
 				y,
+				is_self_msg_note,
 				..
 			} => {
 				let ty = y.unwrap_or(0.0);
@@ -996,7 +1017,7 @@ pub fn build_teoz_layout(
 					height: *height,
 					text: text.clone(),
 					is_left: *is_left,
-					is_self_msg_note: false,
+					is_self_msg_note: *is_self_msg_note,
 				});
 			}
 			TeozTile::NoteOver {
