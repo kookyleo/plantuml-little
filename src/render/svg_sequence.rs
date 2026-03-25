@@ -20,7 +20,7 @@ use super::svg_richtext::{disable_path_sprites, enable_path_sprites, render_creo
 const FONT_SIZE: f64 = 13.0;
 const LINE_HEIGHT: f64 = 16.0;
 use crate::skin::rose::{
-    ACTIVATION_BG, BORDER_COLOR, DESTROY_COLOR, DIVIDER_COLOR, GROUP_BG, NOTE_BG,
+    ACTIVATION_BG, BORDER_COLOR, DESTROY_COLOR, GROUP_BG, NOTE_BG,
     NOTE_BORDER, PARTICIPANT_BG, TEXT_COLOR,
 };
 
