@@ -18,6 +18,9 @@ const GROUP_PADDING: f64 = 10.0;
 const FRAGMENT_PADDING: f64 = 10.0;
 const REF_EDGE_PAD: f64 = 3.0;
 const MARGIN: f64 = 5.0;
+/// Java note component padding (Rose.paddingX = 5). Added on each side of the
+/// note's drawn area when computing InGroupable extents for fragment bounds.
+const NOTE_COMPONENT_PADDING_X: f64 = 5.0;
 const MSG_FONT_SIZE: f64 = 13.0;
 /// Font size for fragment else/separator labels. Java: SansSerif 11pt
 const FRAG_ELSE_FONT_SIZE: f64 = 11.0;
@@ -1266,10 +1269,16 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
                     is_left: false,
                 });
                 // Notes inside fragments expand the fragment bounds (Java: InGroupable).
-                // Fragment close adds MARGIN when computing fr, so don't add it here.
+                // Java NoteBox preferred width = visual_width + 2*paddingX (Rose.paddingX=5).
+                // The InGroupable extent includes this padding beyond the visual edges.
+                // Java ArrowAndNoteBox.getPreferredWidth also adds noteRightShift
+                // (lifeLine.getRightShift(y) + 5) for RIGHT notes.
                 if !fragment_stack.is_empty() {
+                    let note_right_shift = NOTE_COMPONENT_PADDING_X; // lifeLine.getRightShift(y)=0 for no activation, +5
                     update_fragment_message_extent(
-                        &mut fragment_stack, note_x, note_x + note_width,
+                        &mut fragment_stack,
+                        note_x - NOTE_COMPONENT_PADDING_X,
+                        note_x + note_width + NOTE_COMPONENT_PADDING_X + note_right_shift,
                     );
                 }
                 // Only advance y_cursor if the note bottom extends below current position
@@ -1320,10 +1329,12 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
                     is_left: true,
                 });
                 // Notes inside fragments expand the fragment bounds (Java: InGroupable).
-                // Fragment close adds MARGIN when computing fl/fr, so don't add it here.
+                // Java NoteBox preferred width = visual_width + 2*paddingX.
                 if !fragment_stack.is_empty() {
                     update_fragment_message_extent(
-                        &mut fragment_stack, note_x, note_x + note_width,
+                        &mut fragment_stack,
+                        note_x - NOTE_COMPONENT_PADDING_X,
+                        note_x + note_width + NOTE_COMPONENT_PADDING_X,
                     );
                 }
                 let note_bottom = note_y + note_height;
