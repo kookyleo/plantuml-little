@@ -235,7 +235,11 @@ pub struct DestroyLayout {
 pub struct NoteLayout {
     pub x: f64,
     pub y: f64,
+    /// Visual width used for polygon rendering (estimate_note_width).
     pub width: f64,
+    /// Layout width = visual width + 2*paddingX (10px).
+    /// Matches Java ComponentRoseNote.getPreferredWidth.
+    pub layout_width: f64,
     pub height: f64,
     pub text: String,
     pub is_left: bool,
@@ -1199,7 +1203,10 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
                     y_cursor += 3.0;
                     y
                 } else {
-                    last_event_msg_y.unwrap_or(y_cursor)
+                    // When activation occurs before any message, Java starts
+                    // at lifeline_top + 10, not at y_cursor.
+                    last_event_msg_y
+                        .unwrap_or(MARGIN + max_ph + 1.0 + 10.0)
                 };
                 let stack = activation_stack
                     .entry(name.clone())
@@ -1316,10 +1323,12 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
                 } else {
                     px + ACTIVATION_WIDTH
                 };
+                let note_layout_width = note_width + 2.0 * NOTE_COMPONENT_PADDING_X;
                 notes.push(NoteLayout {
                     x: note_x,
                     y: note_y,
                     width: note_width,
+                    layout_width: note_layout_width,
                     height: note_height,
                     text: text.clone(),
                     is_left: false,
@@ -1377,10 +1386,12 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
                 } else {
                     px - ACTIVATION_WIDTH - note_width
                 };
+                let note_layout_width = note_width + 2.0 * NOTE_COMPONENT_PADDING_X;
                 notes.push(NoteLayout {
                     x: note_x,
                     y: note_y,
                     width: note_width,
+                    layout_width: note_layout_width,
                     height: note_height,
                     text: text.clone(),
                     is_left: true,
@@ -1430,10 +1441,12 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
                     } else {
                         y_cursor
                     };
+                    let note_layout_width = width + 2.0 * NOTE_COMPONENT_PADDING_X;
                     notes.push(NoteLayout {
                         x: center - width / 2.0,
                         y: note_y,
                         width,
+                        layout_width: note_layout_width,
                         height: note_height,
                         text: text.clone(),
                         is_left: false,
