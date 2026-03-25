@@ -79,6 +79,10 @@ enum TeozTile {
 		from_center: RealId,
 		/// RealId of the target participant center
 		to_center: RealId,
+		/// Circle decoration on from end
+		circle_from: bool,
+		/// Circle decoration on to end
+		circle_to: bool,
 	},
 	/// Self-message (from == to)
 	SelfMessage {
@@ -95,6 +99,10 @@ enum TeozTile {
 		direction: SeqDirection,
 		/// Activation level at the time of this self-message
 		active_level: usize,
+		/// Circle decoration on from end
+		circle_from: bool,
+		/// Circle decoration on to end
+		circle_to: bool,
 	},
 	/// Activate / Deactivate / Destroy life event
 	LifeEvent {
@@ -494,6 +502,8 @@ pub fn build_teoz_layout(
 						center,
 						direction: msg.direction.clone(),
 						active_level: level,
+						circle_from: msg.circle_from,
+						circle_to: msg.circle_to,
 					});
 				} else {
 					// Normal message
@@ -520,6 +530,8 @@ pub fn build_teoz_layout(
 						autonumber,
 						from_center,
 						to_center,
+						circle_from: msg.circle_from,
+						circle_to: msg.circle_to,
 					});
 				}
 			}
@@ -868,6 +880,8 @@ pub fn build_teoz_layout(
 				has_open_head,
 				y,
 				autonumber,
+				circle_from,
+				circle_to,
 				..
 			} => {
 				let ty = y.unwrap_or(0.0);
@@ -889,6 +903,8 @@ pub fn build_teoz_layout(
 					self_return_x: from_x,
 					self_center_x: from_x,
 					color: None,
+					circle_from: *circle_from,
+					circle_to: *circle_to,
 				});
 			}
 			TeozTile::SelfMessage {
@@ -902,6 +918,8 @@ pub fn build_teoz_layout(
 				autonumber,
 				direction,
 				active_level,
+				circle_from,
+				circle_to,
 				..
 			} => {
 				let ty = y.unwrap_or(0.0);
@@ -948,6 +966,8 @@ pub fn build_teoz_layout(
 					self_return_x,
 					self_center_x: cx,
 					color: None,
+					circle_from: *circle_from,
+					circle_to: *circle_to,
 				});
 			}
 			TeozTile::Note {
@@ -1199,7 +1219,7 @@ pub fn build_teoz_layout(
 	// lifeline_bottom = STARTING_Y(10) + head + sum
 	// total = lifeline_bottom + (factor-1)*head + 28
 	let total_height =
-		lifeline_bottom + (factor - 1) as f64 * max_preferred_height + 28.0;
+		lifeline_bottom + (factor - 1) as f64 * max_preferred_height + 27.0;
 	log::debug!("teoz_layout: total_width={total_width:.4} total_height={total_height:.4} lifeline_bottom={lifeline_bottom:.4} max_preferred_height={max_preferred_height:.4}");
 
 	Ok(SeqLayout {

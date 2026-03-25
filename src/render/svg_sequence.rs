@@ -1152,6 +1152,33 @@ fn draw_message(
 
     let sw = arrow_thickness as u32;
 
+    // Java constants for circle decorations
+    const DIAM_CIRCLE: f64 = 8.0;
+    const THIN_CIRCLE: f64 = 1.5;
+
+    // Draw circle decorations FIRST (before arrowhead and line)
+    // Java: ComponentRoseArrow.drawDressing1/drawDressing2
+    if msg.circle_from {
+        let cx = msg.from_x - 0.5;
+        let cy = msg.y - 0.75;
+        sg.push_raw(&format!(
+            r##"<ellipse cx="{}" cy="{}" fill="#000000" rx="{}" ry="{}" style="stroke:{};stroke-width:{};"/>"##,
+            fmt_coord(cx), fmt_coord(cy),
+            fmt_coord(DIAM_CIRCLE / 2.0), fmt_coord(DIAM_CIRCLE / 2.0),
+            arrow_color, fmt_coord(THIN_CIRCLE),
+        ));
+    }
+    if msg.circle_to {
+        let cx = msg.to_x - 0.5;
+        let cy = msg.y - 0.75;
+        sg.push_raw(&format!(
+            r##"<ellipse cx="{}" cy="{}" fill="#000000" rx="{}" ry="{}" style="stroke:{};stroke-width:{};"/>"##,
+            fmt_coord(cx), fmt_coord(cy),
+            fmt_coord(DIAM_CIRCLE / 2.0), fmt_coord(DIAM_CIRCLE / 2.0),
+            arrow_color, fmt_coord(THIN_CIRCLE),
+        ));
+    }
+
     // Determine arrow tip position and line endpoints
     // Java insets the arrow tip 2px from the participant center
     let (tip_x, line_x1, _line_x2) = if msg.is_left {
@@ -1358,6 +1385,35 @@ fn draw_self_message(
         r#"<g class="message" data-entity-1="part{}" data-entity-2="part{}"{} id="msg{}">"#,
         from_idx, from_idx, src_line_attr, msg_idx,
     ));
+
+    // Java constants for circle decorations
+    const DIAM_CIRCLE: f64 = 8.0;
+    const THIN_CIRCLE: f64 = 1.5;
+
+    // Draw circle decorations for self-messages
+    // circle_from → outgoing line, circle_to → return line
+    // For left self-message: circle at the right side (from_x - 0.5)
+    // For right self-message: circle at the right side (from_x + 0.5)
+    if msg.circle_from {
+        let cx = if msg.is_left { from_x - 0.5 } else { from_x + 0.5 };
+        let cy = y - 0.75;
+        sg.push_raw(&format!(
+            r##"<ellipse cx="{}" cy="{}" fill="#000000" rx="{}" ry="{}" style="stroke:{};stroke-width:{};"/>"##,
+            fmt_coord(cx), fmt_coord(cy),
+            fmt_coord(DIAM_CIRCLE / 2.0), fmt_coord(DIAM_CIRCLE / 2.0),
+            arrow_color, fmt_coord(THIN_CIRCLE),
+        ));
+    }
+    if msg.circle_to {
+        let cx = if msg.is_left { from_x - 0.5 } else { from_x + 0.5 };
+        let cy = (y + loop_height) - 0.75;
+        sg.push_raw(&format!(
+            r##"<ellipse cx="{}" cy="{}" fill="#000000" rx="{}" ry="{}" style="stroke:{};stroke-width:{};"/>"##,
+            fmt_coord(cx), fmt_coord(cy),
+            fmt_coord(DIAM_CIRCLE / 2.0), fmt_coord(DIAM_CIRCLE / 2.0),
+            arrow_color, fmt_coord(THIN_CIRCLE),
+        ));
+    }
 
     let dash_style = if msg.is_dashed {
         "stroke-dasharray:2,2;"
@@ -2146,11 +2202,10 @@ fn render_sequence_inner(
         .filter_map(|p| p.display_name.as_deref().map(|dn| (p.name.as_str(), dn)))
         .collect();
 
-    // 3. Fragment frame rects (first outline, before lifelines).
-    // Sort by y-position ascending to match Java's draw order: earlier fragments
-    // (higher on the page) render first. For nested fragments at the same y,
-    // larger (outer) ones have a smaller x and render first naturally.
-    {
+    // 3. Fragment frame rects — rendering order depends on engine.
+    // Puma: fragments BEFORE lifelines (Java DrawableSet order).
+    // Teoz: fragments AFTER lifelines AND participant boxes (Java MainTile order).
+    if !sd.teoz_mode {
         let mut sorted_frags: Vec<&FragmentLayout> = layout.fragments.iter().collect();
         sorted_frags.sort_by(|a, b| {
             a.y.partial_cmp(&b.y)
@@ -2185,7 +2240,7 @@ fn render_sequence_inner(
         draw_lifelines(&mut sg, layout, skin, sd);
     }
 
-    // 5b. Group frames (legacy)
+    // 5b. Group frames (legacy, puma only)
     for group in &layout.groups {
         draw_group(&mut sg, group);
     }
@@ -2286,6 +2341,20 @@ fn render_sequence_inner(
                 );
             }
             sg.push_raw("</g>");
+        }
+    }
+
+    // 6b. Fragment frame rects for teoz (after participant boxes).
+    // Java: MainTile renders fragments after lifelines and participant boxes.
+    if sd.teoz_mode {
+        let mut sorted_frags: Vec<&FragmentLayout> = layout.fragments.iter().collect();
+        sorted_frags.sort_by(|a, b| {
+            a.y.partial_cmp(&b.y)
+                .unwrap_or(std::cmp::Ordering::Equal)
+                .then_with(|| a.x.partial_cmp(&b.x).unwrap_or(std::cmp::Ordering::Equal))
+        });
+        for frag in &sorted_frags {
+            draw_fragment_frame(&mut sg, frag);
         }
     }
 

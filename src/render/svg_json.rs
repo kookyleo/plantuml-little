@@ -93,6 +93,17 @@ fn render_box(sg: &mut SvgGraphic, jbox: &JsonBox) {
             sg.svg_line(jbox.separator_x, row.y_top, jbox.separator_x, row.y_top + row.height, 0.0);
         }
 
+        // Draw node indicator circle for rows with child boxes
+        // Java: EntityImageJson draws a small filled circle at the row center
+        if row.has_child && has_keys {
+            let cx = jbox.separator_x;
+            let cy = row.y_top + bl;
+            sg.push_raw(&format!(
+                r##"<ellipse cx="{}" cy="{}" fill="{}" rx="3" ry="3" style="stroke:{};stroke-width:1;"/>"##,
+                fmt_coord(cx), fmt_coord(cy), BORDER_COLOR, BORDER_COLOR,
+            ));
+        }
+
         if i < jbox.rows.len() - 1 {
             let ly = row.y_top + row.height;
             sg.set_stroke_color(Some(BORDER_COLOR));

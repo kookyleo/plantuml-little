@@ -499,10 +499,10 @@ fn test_seq_fixture_autonumber001() {
 fn test_seq_fixture_participants001() {
     let svg = convert_fixture("tests/fixtures/sequence/seq_participants001.puml");
     assert_valid_svg(&svg, "seq_participants001");
-    // Actor renders as stick figure (circle head)
+    // Actor renders as stick figure (ellipse head)
     assert!(
-        svg.contains("<circle"),
-        "seq_participants001: actor should render circle (head)"
+        svg.contains("<ellipse"),
+        "seq_participants001: actor should render ellipse (head)"
     );
     // Database renders as cylinder (ellipse top)
     assert!(

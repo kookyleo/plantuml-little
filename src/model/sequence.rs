@@ -63,6 +63,10 @@ pub struct Message {
     pub color: Option<String>,
     /// Source line number (0-based) for data-source-line attribute
     pub source_line: Option<usize>,
+    /// Circle decoration on the "from" end of the arrow (o->)
+    pub circle_from: bool,
+    /// Circle decoration on the "to" end of the arrow (->o)
+    pub circle_to: bool,
 }
 
 /// Combined fragment kind

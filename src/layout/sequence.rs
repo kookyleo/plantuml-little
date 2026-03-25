@@ -204,6 +204,10 @@ pub struct MessageLayout {
     pub self_center_x: f64,
     /// Per-message arrow color override (from `[#color]` syntax)
     pub color: Option<String>,
+    /// Circle decoration on the "from" end of the arrow
+    pub circle_from: bool,
+    /// Circle decoration on the "to" end of the arrow
+    pub circle_to: bool,
 }
 
 /// Activation bar layout
@@ -1108,6 +1112,8 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
                     self_return_x,
                     self_center_x: from_x,
                     color: msg.color.clone(),
+                    circle_from: msg.circle_from,
+                    circle_to: msg.circle_to,
                 });
 
                 // Compute self-message arrow preferred width (used for fragment
@@ -1936,6 +1942,8 @@ mod tests {
             direction: SeqDirection::LeftToRight,
             color: None,
             source_line: None,
+            circle_from: false,
+            circle_to: false,
         }
     }
 
@@ -2232,6 +2240,8 @@ mod tests {
                 direction: SeqDirection::LeftToRight,
                 color: None,
                 source_line: None,
+                circle_from: false,
+                circle_to: false,
             })],
         teoz_mode: false, hide_footbox: false,};
         let layout = layout_sequence(&sd, &crate::style::SkinParams::default()).unwrap();
@@ -2500,6 +2510,8 @@ mod tests {
                     direction: SeqDirection::RightToLeft,
                     color: None,
                     source_line: None,
+                    circle_from: false,
+                    circle_to: false,
                 }),
                 SeqEvent::Deactivate("B".to_string()),
             ],

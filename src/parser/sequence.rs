@@ -865,6 +865,10 @@ fn extract_arrow_color(arrow: &str) -> (Option<String>, String) {
 fn parse_arrow(left: &str, arrow: &str, right: &str, text: &str) -> Option<Message> {
     let (color, clean_arrow) = extract_arrow_color(arrow);
 
+    // Detect circle decorators before stripping
+    let has_left_circle = clean_arrow.starts_with('o');
+    let has_right_circle = clean_arrow.ends_with('o');
+
     // Strip outer decorators (o, x, X)
     let stripped =
         clean_arrow.trim_start_matches(|c: char| c == 'o' || c == 'x' || c == 'X');
@@ -925,6 +929,12 @@ fn parse_arrow(left: &str, arrow: &str, right: &str, text: &str) -> Option<Messa
         }
     };
 
+    // Map left/right circle decorators to from/to based on direction
+    let (circle_from, circle_to) = match direction {
+        SeqDirection::LeftToRight => (has_left_circle, has_right_circle),
+        SeqDirection::RightToLeft => (has_right_circle, has_left_circle),
+    };
+
     Some(Message {
         from,
         to,
@@ -934,6 +944,8 @@ fn parse_arrow(left: &str, arrow: &str, right: &str, text: &str) -> Option<Messa
         direction,
         color,
         source_line: None, // set by caller
+        circle_from,
+        circle_to,
     })
 }
 
