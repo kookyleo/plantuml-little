@@ -21,6 +21,9 @@ const MARGIN: f64 = 5.0;
 /// Java note component padding (Rose.paddingX = 5). Added on each side of the
 /// note's drawn area when computing InGroupable extents for fragment bounds.
 const NOTE_COMPONENT_PADDING_X: f64 = 5.0;
+/// Java ComponentRoseNote paddingY (Rose.paddingY = 5).
+/// Applied via AbstractComponent.drawU before drawInternalU.
+const NOTE_COMPONENT_PADDING_Y: f64 = 5.0;
 const MSG_FONT_SIZE: f64 = 13.0;
 /// Font size for fragment else/separator labels. Java: SansSerif 11pt
 const FRAG_ELSE_FONT_SIZE: f64 = 11.0;
@@ -352,14 +355,24 @@ fn update_fragment_message_extent(
     }
 }
 
-/// Estimate note height: marginY*2 + lines * line_height.
-/// Java ComponentRoseNote: marginY1=5, marginY2=5, textBlock height = lines * line_height.
-/// The result is truncated to int (Java NoteBox casts preferred height).
+/// Estimate note visual height (for rendering the note polygon).
+/// Java ComponentRoseNote: marginY=5, textBlock height = lines * line_height.
+/// Visual height = (int)(textBlockH + 2*marginY), clamped to min 25.
 fn estimate_note_height(text: &str) -> f64 {
     let lines = text.lines().count().max(1) as f64;
     let lh = font_metrics::line_height("SansSerif", NOTE_FONT_SIZE, false, false);
     let h = lines * lh + 10.0; // marginY1(5) + marginY2(5) = 10
     h.trunc().max(25.0)
+}
+
+/// Estimate note layout preferred height (for ArrowAndNoteBox centering).
+/// Java ComponentRoseNote.getPreferredHeight = getTextHeight + 2*paddingY + deltaShadow.
+/// paddingY=5 (Rose.paddingY), deltaShadow=0 (default plantuml.skin).
+fn estimate_note_preferred_height(text: &str) -> f64 {
+    let lines = text.lines().count().max(1) as f64;
+    let lh = font_metrics::line_height("SansSerif", NOTE_FONT_SIZE, false, false);
+    let text_height = lines * lh + 10.0; // textBlockH + 2*marginY(5)
+    text_height + 10.0 // + 2*paddingY(5), shadow=0
 }
 
 /// Compute note width based on text content using font metrics.
@@ -1147,8 +1160,10 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
                     let self_text_h = text_block_h + 2.0 * self_margin_y;
                     let self_preferred_h = self_text_h + rose::ARROW_DELTA_Y
                         + rose::SELF_ARROW_ONLY_HEIGHT + 2.0 * rose::ARROW_PADDING_Y;
-                    // Save for note centering (Java ArrowAndNoteBox)
-                    last_self_msg_starting_y = msg_y - self_text_h;
+                    // Save for note centering (Java ArrowAndNoteBox).
+                    // Java: msg_y = tile.startingY + paddingY + textHeight
+                    // So tile.startingY = msg_y - paddingY - textHeight
+                    last_self_msg_starting_y = msg_y - self_text_h - rose::ARROW_PADDING_Y;
                     last_self_msg_preferred_h = self_preferred_h;
                     y_cursor += self_preferred_h;
                     pending_self_return_y.insert(msg.from.clone(), return_y);
@@ -1246,6 +1261,7 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
             SeqEvent::NoteRight { participant, text } => {
                 let px = find_participant_x(&participants, participant);
                 let note_height = estimate_note_height(text);
+                let note_preferred_h = estimate_note_preferred_height(text);
                 let note_width = estimate_note_width(text);
                 // In Java PlantUML, notes following a message are placed alongside
                 // the message (with a back-offset) rather than below it.
@@ -1255,10 +1271,14 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
                     if last_message_was_self {
                         // Java ArrowAndNoteBox: note is centered within the
                         // combined tile height = max(arrowPH, notePH).
-                        let combined_h = last_self_msg_preferred_h.max(note_height);
-                        let note_push = (combined_h - note_height) / 2.0;
-                        log::debug!("NoteRight(self): startingY={last_self_msg_starting_y}, arrowPH={last_self_msg_preferred_h}, noteH={note_height}, combined={combined_h}, push={note_push}");
-                        last_self_msg_starting_y + note_push
+                        // Use layout preferred height for centering, but the
+                        // note polygon y is at NoteBox.startingY + paddingY.
+                        let combined_h = last_self_msg_preferred_h.max(note_preferred_h);
+                        let note_push = (combined_h - note_preferred_h) / 2.0;
+                        log::debug!("NoteRight(self): startingY={last_self_msg_starting_y}, arrowPH={last_self_msg_preferred_h}, notePrefH={note_preferred_h}, combined={combined_h}, push={note_push}");
+                        // Java: note polygon y = imageMargin + freeY + push + paddingY
+                        // Our tile_start_y already includes imageMargin, so:
+                        last_self_msg_starting_y + note_push + NOTE_COMPONENT_PADDING_Y
                     } else {
                         let back_offset = lp.message_spacing - NOTE_FOLD;
                         log::debug!("NoteRight: msg_y={msg_y}, back_offset={back_offset}, note_height={note_height}, y_cursor={y_cursor}");
@@ -1318,13 +1338,14 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
             SeqEvent::NoteLeft { participant, text } => {
                 let px = find_participant_x(&participants, participant);
                 let note_height = estimate_note_height(text);
+                let note_preferred_h = estimate_note_preferred_height(text);
                 let note_width = estimate_note_width(text);
                 let note_y = if let Some(msg_y) = last_message_y {
                     if last_message_was_self {
                         // Java ArrowAndNoteBox: note centered within combined tile
-                        let combined_h = last_self_msg_preferred_h.max(note_height);
-                        let note_push = (combined_h - note_height) / 2.0;
-                        last_self_msg_starting_y + note_push
+                        let combined_h = last_self_msg_preferred_h.max(note_preferred_h);
+                        let note_push = (combined_h - note_preferred_h) / 2.0;
+                        last_self_msg_starting_y + note_push + NOTE_COMPONENT_PADDING_Y
                     } else {
                         let back_offset = lp.message_spacing - NOTE_FOLD;
                         (msg_y - back_offset).max(MARGIN + max_ph)
@@ -1380,14 +1401,15 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
                     let x2 = find_participant_x(&participants, last);
                     let center = (x1 + x2) / 2.0;
                     let note_height = estimate_note_height(text);
+                    let note_preferred_h = estimate_note_preferred_height(text);
                     let note_w = estimate_note_width(text);
                     let width = (x2 - x1).abs().max(note_w);
                     let note_y = if let Some(msg_y) = last_message_y {
                         if last_message_was_self {
                             // Java ArrowAndNoteBox: note centered within combined tile
-                            let combined_h = last_self_msg_preferred_h.max(note_height);
-                            let note_push = (combined_h - note_height) / 2.0;
-                            last_self_msg_starting_y + note_push
+                            let combined_h = last_self_msg_preferred_h.max(note_preferred_h);
+                            let note_push = (combined_h - note_preferred_h) / 2.0;
+                            last_self_msg_starting_y + note_push + NOTE_COMPONENT_PADDING_Y
                         } else {
                             let back_offset = lp.message_spacing - NOTE_FOLD;
                             (msg_y - back_offset).max(MARGIN + max_ph)
