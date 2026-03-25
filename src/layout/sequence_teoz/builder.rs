@@ -512,6 +512,50 @@ pub fn build_teoz_layout(
 				let is_dashed = msg.arrow_style == SeqArrowStyle::Dashed;
 				let has_open_head = matches!(msg.arrow_head, SeqArrowHead::Open | SeqArrowHead::HalfTop | SeqArrowHead::HalfBottom);
 
+				// Skip boundary/gate messages: "[" and "]" are not real participants.
+				// They are drawn at the diagram edges and should not create constraints.
+				let is_boundary_from = msg.from == "[";
+				let is_boundary_to = msg.to == "]";
+				if is_boundary_from || is_boundary_to {
+					// Boundary messages: create a Communication tile from/to the
+					// nearest edge participant, but don't add participant constraints.
+					let real_from = if is_boundary_from {
+						// [-> goes to the target; the "from" is the left edge
+						0 // first participant
+					} else {
+						name_to_idx.get(&msg.from).copied().unwrap_or(0)
+					};
+					let real_to = if is_boundary_to {
+						// ->] goes from the source; the "to" is the right edge
+						livings.len().saturating_sub(1)
+					} else {
+						name_to_idx.get(&msg.to).copied().unwrap_or(0)
+					};
+					let from_center = livings[real_from].pos_c;
+					let to_center = livings[real_to].pos_c;
+					let tm = TextMetrics::new(7.0, 7.0, 1.0, text_w, text_h);
+					let height = rose::arrow_preferred_size(&tm, 0.0, 0.0).height;
+					tiles.push(TeozTile::Communication {
+						from_name: msg.from.clone(),
+						to_name: msg.to.clone(),
+						from_idx: real_from,
+						to_idx: real_to,
+						text: msg.text.clone(),
+						text_lines,
+						is_dashed,
+						has_open_head,
+						text_width: text_w,
+						height,
+						y: None,
+						autonumber,
+						from_center,
+						to_center,
+						circle_from: msg.circle_from,
+						circle_to: msg.circle_to,
+					});
+					continue;
+				}
+
 				if msg.from == msg.to {
 					// Self-message
 					let idx = name_to_idx.get(&msg.from).copied().unwrap_or(0);
@@ -709,37 +753,37 @@ pub fn build_teoz_layout(
 			TeozTile::Communication {
 				from_idx,
 				to_idx,
+				from_name,
+				to_name,
 				text_width,
 				from_center,
 				to_center,
 				..
 			} => {
-				let fi = *from_idx;
-				let ti = *to_idx;
-				let arrow_tm = TextMetrics::new(7.0, 7.0, 1.0, *text_width, tp.msg_line_height);
-				let arrow_w = rose::arrow_preferred_size(&arrow_tm, 0.0, 0.0).width;
-
-				// Java CommunicationTile.addConstraints():
-				// Forward: point2.ensureBiggerThan(point1.addFixed(width))
-				//   point2 = posC of target, adjusted by -LIVE_DELTA_SIZE if level>0
-				// Reverse: point1.ensureBiggerThan(point2.addFixed(width))
-				//   point1 = posC of source, adjusted by -LIVE_DELTA_SIZE if level>0
-				//   point2 = posC of target + level2 * LIVE_DELTA_SIZE
-				let fi_level = active_levels.get(&livings[fi].name).copied().unwrap_or(0);
-				let ti_level = active_levels.get(&livings[ti].name).copied().unwrap_or(0);
-				const LIVE_DELTA_SIZE: f64 = 5.0;
-
-				if fi < ti {
-					// Forward: to_center(-adjustment) >= from_center + width
-					let ti_adj = if ti_level > 0 { LIVE_DELTA_SIZE } else { 0.0 };
-					let needed = arrow_w + ti_adj;
-					rl.ensure_bigger_than_with_margin(*to_center, *from_center, needed);
+				// Skip boundary/gate messages — they don't constrain participants.
+				if from_name == "[" || to_name == "]" {
+					// Boundary messages render at diagram edges, no constraint needed
 				} else {
-					// Reverse: from_center(-adjustment) >= to_center(+adjustment) + width
-					let fi_adj = if fi_level > 0 { LIVE_DELTA_SIZE } else { 0.0 };
-					let ti_adj = ti_level as f64 * LIVE_DELTA_SIZE;
-					let needed = arrow_w + fi_adj + ti_adj;
-					rl.ensure_bigger_than_with_margin(*from_center, *to_center, needed);
+					let fi = *from_idx;
+					let ti = *to_idx;
+					let arrow_tm = TextMetrics::new(7.0, 7.0, 1.0, *text_width, tp.msg_line_height);
+					let arrow_w = rose::arrow_preferred_size(&arrow_tm, 0.0, 0.0).width;
+
+					// Java CommunicationTile.addConstraints():
+					let fi_level = active_levels.get(&livings[fi].name).copied().unwrap_or(0);
+					let ti_level = active_levels.get(&livings[ti].name).copied().unwrap_or(0);
+					const LIVE_DELTA_SIZE: f64 = 5.0;
+
+					if fi < ti {
+						let ti_adj = if ti_level > 0 { LIVE_DELTA_SIZE } else { 0.0 };
+						let needed = arrow_w + ti_adj;
+						rl.ensure_bigger_than_with_margin(*to_center, *from_center, needed);
+					} else {
+						let fi_adj = if fi_level > 0 { LIVE_DELTA_SIZE } else { 0.0 };
+						let ti_adj = ti_level as f64 * LIVE_DELTA_SIZE;
+						let needed = arrow_w + fi_adj + ti_adj;
+						rl.ensure_bigger_than_with_margin(*from_center, *to_center, needed);
+					}
 				}
 			}
 			TeozTile::SelfMessage {
