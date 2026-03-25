@@ -243,6 +243,8 @@ pub struct NoteLayout {
     pub height: f64,
     pub text: String,
     pub is_left: bool,
+    /// Whether this note is attached to a self-message (affects width computation).
+    pub(crate) is_self_msg_note: bool,
 }
 
 /// Group box layout
@@ -1332,6 +1334,7 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
                     height: note_height,
                     text: text.clone(),
                     is_left: false,
+                    is_self_msg_note: last_message_was_self,
                 });
                 // Notes inside fragments expand the fragment bounds (Java: InGroupable).
                 // Java NoteBox preferred width = visual_width + 2*paddingX (Rose.paddingX=5).
@@ -1395,6 +1398,7 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
                     height: note_height,
                     text: text.clone(),
                     is_left: true,
+                    is_self_msg_note: last_message_was_self,
                 });
                 // Notes inside fragments expand the fragment bounds (Java: InGroupable).
                 // Java NoteBox preferred width = visual_width + 2*paddingX.
@@ -1450,6 +1454,7 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
                         height: note_height,
                         text: text.clone(),
                         is_left: false,
+                        is_self_msg_note: false,
                     });
                     let note_bottom = note_y + note_height;
                     if note_bottom > y_cursor {
@@ -1737,9 +1742,15 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
         .last()
         .map_or(2.0 * MARGIN, |p| p.x + p.box_width / 2.0 + right_margin);
 
-    // Expand total_width if any note extends beyond the participant area
+    // Expand total_width if any note extends beyond the participant area.
+    // For self-message RIGHT notes, Java ArrowAndNoteBox uses the combined
+    // tile width (arrowW + notePW + rightShift).
     for note in &notes {
-        let note_right = note.x + note.width + MARGIN;
+        let note_right = if note.is_self_msg_note && !note.is_left {
+            note.x + note.layout_width + NOTE_COMPONENT_PADDING_X
+        } else {
+            note.x + note.width + MARGIN
+        };
         if note_right > total_width {
             log::debug!(
                 "note extends beyond participants: note_right={note_right:.1}, expanding total_width from {total_width:.1}"

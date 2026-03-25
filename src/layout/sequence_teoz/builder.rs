@@ -996,6 +996,7 @@ pub fn build_teoz_layout(
 					height: *height,
 					text: text.clone(),
 					is_left: *is_left,
+					is_self_msg_note: false,
 				});
 			}
 			TeozTile::NoteOver {
@@ -1033,6 +1034,7 @@ pub fn build_teoz_layout(
 					height: *height,
 					text: text.clone(),
 					is_left: false,
+					is_self_msg_note: false,
 				});
 			}
 			TeozTile::Divider { text, y, .. } => {
