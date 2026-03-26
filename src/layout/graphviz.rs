@@ -547,10 +547,6 @@ fn flatten_cluster_layouts(
             .get(cluster.id.as_str())
             .and_then(|spec| spec.title.clone())
             .or_else(|| cluster.title.clone());
-        log::debug!(
-            "flatten_cluster: id={} qn={} x={:.1} y={:.1} w={:.1} h={:.1}",
-            cluster.id, qualified_name, cluster.x, cluster.y, cluster.width, cluster.height
-        );
         out.push(ClusterLayout {
             id: cluster.id.clone(),
             qualified_name,
