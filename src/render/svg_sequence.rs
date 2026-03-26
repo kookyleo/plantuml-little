@@ -1211,14 +1211,18 @@ fn draw_message(
     msg_idx: usize,
     source_line: Option<usize>,
     word_by_word: bool,
+    teoz_mode: bool,
 ) {
-    let src_line_attr = source_line
-        .map(|sl| format!(r#" data-source-line="{sl}""#))
-        .unwrap_or_default();
-    sg.push_raw(&format!(
-        r#"<g class="message" data-entity-1="part{}" data-entity-2="part{}"{} id="msg{}">"#,
-        from_idx, to_idx, src_line_attr, msg_idx,
-    ));
+    // Java teoz does not wrap messages in <g class="message">
+    if !teoz_mode {
+        let src_line_attr = source_line
+            .map(|sl| format!(r#" data-source-line="{sl}""#))
+            .unwrap_or_default();
+        sg.push_raw(&format!(
+            r#"<g class="message" data-entity-1="part{}" data-entity-2="part{}"{} id="msg{}">"#,
+            from_idx, to_idx, src_line_attr, msg_idx,
+        ));
+    }
 
     let sw = arrow_thickness as u32;
 
@@ -1433,7 +1437,9 @@ fn draw_message(
         }
     }
 
-    sg.push_raw("</g>");
+    if !teoz_mode {
+        sg.push_raw("</g>");
+    }
 }
 
 fn draw_self_message(
@@ -1446,6 +1452,7 @@ fn draw_self_message(
     from_idx: usize,
     msg_idx: usize,
     word_by_word: bool,
+    teoz_mode: bool,
 ) {
     let sw = arrow_thickness as u32;
     let from_x = msg.from_x;
@@ -1454,13 +1461,16 @@ fn draw_self_message(
     let y = msg.y;
     let loop_height = 13.0;
 
-    let src_line_attr = msg.source_line
-        .map(|sl| format!(r#" data-source-line="{sl}""#))
-        .unwrap_or_default();
-    sg.push_raw(&format!(
-        r#"<g class="message" data-entity-1="part{}" data-entity-2="part{}"{} id="msg{}">"#,
-        from_idx, from_idx, src_line_attr, msg_idx,
-    ));
+    // Java teoz does not wrap messages in <g class="message">
+    if !teoz_mode {
+        let src_line_attr = msg.source_line
+            .map(|sl| format!(r#" data-source-line="{sl}""#))
+            .unwrap_or_default();
+        sg.push_raw(&format!(
+            r#"<g class="message" data-entity-1="part{}" data-entity-2="part{}"{} id="msg{}">"#,
+            from_idx, from_idx, src_line_attr, msg_idx,
+        ));
+    }
 
     // Java constants for circle decorations
     const DIAM_CIRCLE: f64 = 8.0;
@@ -1707,7 +1717,9 @@ fn draw_self_message(
         }
     }
 
-    sg.push_raw("</g>");
+    if !teoz_mode {
+        sg.push_raw("</g>");
+    }
 }
 
 // ── Activation bars ─────────────────────────────────────────────────
@@ -1876,18 +1888,7 @@ fn draw_group(sg: &mut SvgGraphic, group: &GroupLayout) {
 
 // ── Fragment frames ──────────────────────────────────────────────────
 
-/// Phase 1: Draw just the frame outline rect (before lifelines)
-fn draw_fragment_frame(sg: &mut SvgGraphic, frag: &FragmentLayout) {
-    let fx = fmt_coord(frag.x);
-    let fy = fmt_coord(frag.y);
-    let fw = fmt_coord(frag.width);
-    let fh = fmt_coord(frag.height);
-    sg.push_raw(&format!(
-        "<rect fill=\"none\" height=\"{fh}\" style=\"stroke:#000000;stroke-width:1.5;\" width=\"{fw}\" x=\"{fx}\" y=\"{fy}\"/>"
-    ));
-}
-
-/// Phase 2: Draw pentagon tab, labels, separators (after messages)
+/// Draw complete fragment: pentagon tab, frame rect, and labels.
 fn draw_fragment_details(sg: &mut SvgGraphic, frag: &FragmentLayout) {
     let fx = fmt_coord(frag.x);
     let fy = fmt_coord(frag.y);
@@ -2298,9 +2299,9 @@ fn render_sequence_inner(
         .filter_map(|p| p.display_name.as_deref().map(|dn| (p.name.as_str(), dn)))
         .collect();
 
-    // 3. Fragment frame rects — rendering order depends on engine.
-    // Puma: fragments BEFORE lifelines (Java DrawableSet order).
-    // Teoz: fragments AFTER lifelines AND participant boxes (Java MainTile order).
+    // 3. Fragment frame rects — puma only.
+    // Puma: first rect BEFORE lifelines (Java DrawableSet order).
+    // Teoz: rendered in step 6b.
     if !sd.teoz_mode {
         let mut sorted_frags: Vec<&FragmentLayout> = layout.fragments.iter().collect();
         sorted_frags.sort_by(|a, b| {
@@ -2309,7 +2310,14 @@ fn render_sequence_inner(
                 .then_with(|| a.x.partial_cmp(&b.x).unwrap_or(std::cmp::Ordering::Equal))
         });
         for frag in &sorted_frags {
-            draw_fragment_frame(&mut sg, frag);
+            // Draw just the frame outline rect (first of two)
+            let fx = fmt_coord(frag.x);
+            let fy = fmt_coord(frag.y);
+            let fw = fmt_coord(frag.width);
+            let fh = fmt_coord(frag.height);
+            sg.push_raw(&format!(
+                "<rect fill=\"none\" height=\"{fh}\" style=\"stroke:#000000;stroke-width:1.5;\" width=\"{fw}\" x=\"{fx}\" y=\"{fy}\"/>"
+            ));
         }
     }
 
@@ -2446,8 +2454,9 @@ fn render_sequence_inner(
         }
     }
 
-    // 6b. Fragment frame rects for teoz (after participant boxes).
-    // Java: MainTile renders fragments after lifelines and participant boxes.
+    // 6b. Fragment rendering for teoz (after participant boxes).
+    // Teoz: pentagon + rect + label as one unit (Java MainTile order).
+    // Puma: handled in interstitial events (step 8).
     if sd.teoz_mode {
         let mut sorted_frags: Vec<&FragmentLayout> = layout.fragments.iter().collect();
         sorted_frags.sort_by(|a, b| {
@@ -2456,7 +2465,7 @@ fn render_sequence_inner(
                 .then_with(|| a.x.partial_cmp(&b.x).unwrap_or(std::cmp::Ordering::Equal))
         });
         for frag in &sorted_frags {
-            draw_fragment_frame(&mut sg, frag);
+            draw_fragment_details(&mut sg, frag);
         }
     }
 
@@ -2520,7 +2529,10 @@ fn render_sequence_inner(
         {
             match &interstitials[interstitial_idx].1 {
                 InterstitialEvent::FragmentDetail(frag) => {
-                    draw_fragment_details(&mut sg, frag);
+                    // Teoz: already drawn in step 6b
+                    if !sd.teoz_mode {
+                        draw_fragment_details(&mut sg, frag);
+                    }
                 }
                 InterstitialEvent::Separator(frag, sep_y, sep_label) => {
                     draw_fragment_separator(&mut sg, frag, *sep_y, sep_label);
@@ -2566,6 +2578,7 @@ fn render_sequence_inner(
                 from_idx,
                 msg_seq_counter,
                 word_by_word,
+                sd.teoz_mode,
             );
         } else {
             draw_message(
@@ -2581,6 +2594,7 @@ fn render_sequence_inner(
                 msg_seq_counter,
                 msg.source_line,
                 word_by_word,
+                sd.teoz_mode,
             );
         }
 
@@ -2626,7 +2640,10 @@ fn render_sequence_inner(
     while interstitial_idx < interstitials.len() {
         match &interstitials[interstitial_idx].1 {
             InterstitialEvent::FragmentDetail(frag) => {
-                draw_fragment_details(&mut sg, frag);
+                // Teoz: already drawn in step 6b
+                if !sd.teoz_mode {
+                    draw_fragment_details(&mut sg, frag);
+                }
             }
             InterstitialEvent::Separator(frag, sep_y, sep_label) => {
                 draw_fragment_separator(&mut sg, frag, *sep_y, sep_label);

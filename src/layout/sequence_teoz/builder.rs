@@ -101,6 +101,11 @@ enum TeozTile {
 		circle_to: bool,
 		/// Teoz parallel: shares y with previous tile
 		is_parallel: bool,
+		/// Activation level of the sender at this message
+		from_level: usize,
+		/// Activation level of the receiver at this message
+		/// (IGNORE_FUTURE_DEACTIVATE: includes activations from this message)
+		to_level: usize,
 	},
 	/// Self-message (from == to)
 	SelfMessage {
@@ -615,7 +620,7 @@ pub fn build_teoz_layout(
 	let mut autonumber_start: u32 = 1;
 	let mut active_levels: HashMap<String, usize> = HashMap::new();
 
-	for event in &sd.events {
+	for (event_idx, event) in sd.events.iter().enumerate() {
 		match event {
 			SeqEvent::AutoNumber { start } => {
 				autonumber_enabled = true;
@@ -697,6 +702,8 @@ pub fn build_teoz_layout(
 						circle_from: msg.circle_from,
 						circle_to: msg.circle_to,
 						is_parallel: msg.parallel,
+						from_level: 0,
+						to_level: 0,
 					});
 					continue;
 				}
@@ -736,6 +743,22 @@ pub fn build_teoz_layout(
 					let tm = TextMetrics::new(7.0, 7.0, 1.0, text_w, text_h);
 					let height = rose::arrow_preferred_size(&tm, 0.0, 0.0).height;
 
+					// Java IGNORE_FUTURE_DEACTIVATE: current levels +
+					// peek-ahead activations from this message (but not deactivations).
+					let mut fl = active_levels.get(&msg.from).copied().unwrap_or(0);
+					let mut tl = active_levels.get(&msg.to).copied().unwrap_or(0);
+					for peek in &sd.events[(event_idx + 1)..] {
+						match peek {
+							SeqEvent::Activate(name, _) => {
+								if name == &msg.from { fl += 1; }
+								if name == &msg.to { tl += 1; }
+							}
+							// Ignore future deactivations
+							SeqEvent::Deactivate(_) => {}
+							_ => break, // stop peeking at next non-life event
+						}
+					}
+
 					tiles.push(TeozTile::Communication {
 						from_name: msg.from.clone(),
 						to_name: msg.to.clone(),
@@ -754,6 +777,8 @@ pub fn build_teoz_layout(
 						circle_from: msg.circle_from,
 						circle_to: msg.circle_to,
 						is_parallel: msg.parallel,
+						from_level: fl,
+						to_level: tl,
 					});
 				}
 			}
@@ -909,6 +934,8 @@ pub fn build_teoz_layout(
 				text_width,
 				from_center,
 				to_center,
+				from_level,
+				to_level,
 				..
 			} => {
 				// Skip boundary/gate messages — they don't constrain participants.
@@ -921,17 +948,17 @@ pub fn build_teoz_layout(
 					let arrow_w = rose::arrow_preferred_size(&arrow_tm, 0.0, 0.0).width;
 
 					// Java CommunicationTile.addConstraints():
-					let fi_level = active_levels.get(&livings[fi].name).copied().unwrap_or(0);
-					let ti_level = active_levels.get(&livings[ti].name).copied().unwrap_or(0);
+					// Uses per-tile activation levels (IGNORE_FUTURE_DEACTIVATE),
+					// stored on the tile during construction.
 					const LIVE_DELTA_SIZE: f64 = 5.0;
 
 					if fi < ti {
-						let ti_adj = if ti_level > 0 { LIVE_DELTA_SIZE } else { 0.0 };
+						let ti_adj = if *to_level > 0 { LIVE_DELTA_SIZE } else { 0.0 };
 						let needed = arrow_w + ti_adj;
 						rl.ensure_bigger_than_with_margin(*to_center, *from_center, needed);
 					} else {
-						let fi_adj = if fi_level > 0 { LIVE_DELTA_SIZE } else { 0.0 };
-						let ti_adj = ti_level as f64 * LIVE_DELTA_SIZE;
+						let fi_adj = if *from_level > 0 { LIVE_DELTA_SIZE } else { 0.0 };
+						let ti_adj = *to_level as f64 * LIVE_DELTA_SIZE;
 						let needed = arrow_w + fi_adj + ti_adj;
 						rl.ensure_bigger_than_with_margin(*from_center, *to_center, needed);
 					}
@@ -1524,15 +1551,42 @@ pub fn build_teoz_layout(
 				autonumber,
 				circle_from,
 				circle_to,
+				from_level,
+				to_level,
 				..
 			} => {
 				let ty = y.unwrap_or(0.0);
 				// Java: tile y = tile top. Arrow y = tile_top + arrowY.
 				// arrowY = textHeight + paddingY = (height - ARROW_DELTA_Y - ARROW_PADDING_Y)
 				let arrow_y = ty + (height - rose::ARROW_DELTA_Y - rose::ARROW_PADDING_Y);
-				let from_x = get_x(livings[*from_idx].pos_c);
-				let to_x = get_x(livings[*to_idx].pos_c);
-				let is_left = to_x < from_x;
+				let raw_from_x = get_x(livings[*from_idx].pos_c);
+				let raw_to_x = get_x(livings[*to_idx].pos_c);
+				let is_left = raw_to_x < raw_from_x;
+
+				// Java CommunicationTile.drawU(): adjust x positions
+				// based on activation levels (LIVE_DELTA_SIZE = 5).
+				const LIVE_DELTA: f64 = 5.0;
+				let (from_x, to_x) = if is_left {
+					// Reverse direction (right-to-left)
+					let mut x1 = raw_from_x;
+					let level1 = *from_level;
+					if level1 == 1 {
+						x1 -= LIVE_DELTA;
+					} else if level1 > 2 {
+						x1 += LIVE_DELTA * (level1 as f64 - 2.0);
+					}
+					let x2 = raw_to_x + LIVE_DELTA * (*to_level as f64);
+					(x1, x2)
+				} else {
+					// Normal direction (left-to-right)
+					let x1 = raw_from_x + LIVE_DELTA * (*from_level as f64);
+					let mut adjusted_tl = *to_level as i64;
+					if adjusted_tl > 0 {
+						adjusted_tl -= 2;
+					}
+					let x2 = raw_to_x + LIVE_DELTA * (adjusted_tl as f64);
+					(x1, x2)
+				};
 				messages.push(MessageLayout {
 					from_x,
 					to_x,
@@ -1845,8 +1899,9 @@ pub fn build_teoz_layout(
 					}
 					TeozTile::LifeEvent { .. } => {
 						// LifeEvent tiles share position with the preceding
-						// message tile and don't update last_step_y. The
-						// activation y comes from the message's arrow y.
+						// message tile. Don't update last_step_y here — it
+						// was already set by the preceding Communication or
+						// SelfMessage tile.
 					}
 					_ => {}
 				}
