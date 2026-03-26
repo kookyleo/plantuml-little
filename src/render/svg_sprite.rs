@@ -20,6 +20,10 @@ thread_local! {
     /// Scale factor for coordinate conversion (1.0 = no scaling).
     /// Used by `convert_svg_elements_scaled` to pre-apply transforms.
     static SPRITE_SCALE: Cell<f64> = Cell::new(1.0);
+    /// Element-level scale override for arc radii.  When an element has a
+    /// `scale(s)` transform, Java uses `s` (not the accumulated sprite scale)
+    /// as the arc radius multiplier.  `None` means no override — use SPRITE_SCALE.
+    static ELEMENT_ARC_SCALE: Cell<Option<f64>> = Cell::new(None);
 }
 
 /// Set monochrome mode for sprite rendering.
@@ -35,6 +39,18 @@ fn sprite_scale() -> f64 {
 /// Apply sprite scale to a coordinate: `coord * scale`.
 fn sc(v: f64) -> f64 {
     v * sprite_scale()
+}
+
+/// Scale a radius value for arc commands.  When an element carries its own
+/// `scale(s)` transform, Java's SAX sprite parser uses that element scale
+/// directly (not multiplied by the base sprite scale) for SVG arc rx/ry
+/// parameters.  Without an element transform the base sprite scale is used.
+fn sc_arc(v: f64) -> f64 {
+    let override_scale = ELEMENT_ARC_SCALE.with(|s| s.get());
+    match override_scale {
+        Some(es) => v * es,
+        None => sc(v),
+    }
 }
 
 pub fn clear_gradient_defs() {
@@ -716,6 +732,7 @@ fn convert_single_element_ext(
 
         if let Some(prev) = saved_scale {
             SPRITE_SCALE.with(|s| s.set(prev));
+            ELEMENT_ARC_SCALE.with(|s| s.set(None));
         }
     }
 }
@@ -732,6 +749,8 @@ fn apply_element_transform(transform: &str, ox: f64, oy: f64) -> (f64, f64, Opti
         let prev_scale = sprite_scale();
         let new_scale = prev_scale * es;
         SPRITE_SCALE.with(|s| s.set(new_scale));
+        // Java's SAX parser uses the element scale (not accumulated) for arc radii
+        ELEMENT_ARC_SCALE.with(|s| s.set(Some(es)));
         (ox + sc(tx), oy + sc(ty), Some(prev_scale))
     } else if tx.abs() > 0.001 || ty.abs() > 0.001 {
         (ox + sc(tx), oy + sc(ty), None)
@@ -938,7 +957,10 @@ fn convert_circle(buf: &mut String, element: &str, ox: f64, oy: f64) {
     let r_raw = get_attr(element, "r")
         .and_then(|v| v.parse::<f64>().ok())
         .unwrap_or(0.0);
-    let r = sc(r_raw);
+    // Point positions use the full accumulated sprite scale
+    let r_pos = sc(r_raw);
+    // Arc radii use element scale only (matching Java SAX parser behavior)
+    let r_arc = sc_arc(r_raw);
 
     let acx = sc(cx) + ox;
     let acy = sc(cy) + oy;
@@ -946,13 +968,13 @@ fn convert_circle(buf: &mut String, element: &str, ox: f64, oy: f64) {
     // Circle as 4 arcs: start at left, go top, right, bottom, back to left
     let d = format!(
         "M{},{} A{r},{r} 0 0 1 {},{} A{r},{r} 0 0 1 {},{} A{r},{r} 0 0 1 {},{} A{r},{r} 0 0 1 {},{} L{},{}",
-        fmt_coord(acx - r), fmt_coord(acy),       // start: left
-        fmt_coord(acx), fmt_coord(acy - r),        // top
-        fmt_coord(acx + r), fmt_coord(acy),        // right
-        fmt_coord(acx), fmt_coord(acy + r),        // bottom
-        fmt_coord(acx - r), fmt_coord(acy),        // back to left
-        fmt_coord(acx - r), fmt_coord(acy),        // L close
-        r = fmt_coord_raw(r),
+        fmt_coord(acx - r_pos), fmt_coord(acy),       // start: left
+        fmt_coord(acx), fmt_coord(acy - r_pos),        // top
+        fmt_coord(acx + r_pos), fmt_coord(acy),        // right
+        fmt_coord(acx), fmt_coord(acy + r_pos),        // bottom
+        fmt_coord(acx - r_pos), fmt_coord(acy),        // back to left
+        fmt_coord(acx - r_pos), fmt_coord(acy),        // L close
+        r = fmt_coord_raw(r_arc),
     );
 
     let fill = get_fill(element);
@@ -978,8 +1000,12 @@ fn convert_ellipse(buf: &mut String, element: &str, ox: f64, oy: f64) {
     let ry_raw = get_attr(element, "ry")
         .and_then(|v| v.parse::<f64>().ok())
         .unwrap_or(0.0);
-    let rx = sc(rx_raw);
-    let ry = sc(ry_raw);
+    // Point positions use the full accumulated sprite scale
+    let rx_pos = sc(rx_raw);
+    let ry_pos = sc(ry_raw);
+    // Arc radii use element scale only (matching Java SAX parser behavior)
+    let rx_arc = sc_arc(rx_raw);
+    let ry_arc = sc_arc(ry_raw);
 
     let acx = sc(cx) + ox;
     let acy = sc(cy) + oy;
@@ -987,14 +1013,14 @@ fn convert_ellipse(buf: &mut String, element: &str, ox: f64, oy: f64) {
     // Ellipse as 4 arcs
     let d = format!(
         "M{},{} A{rx},{ry} 0 0 1 {},{} A{rx},{ry} 0 0 1 {},{} A{rx},{ry} 0 0 1 {},{} A{rx},{ry} 0 0 1 {},{} L{},{}",
-        fmt_coord(acx - rx), fmt_coord(acy),
-        fmt_coord(acx), fmt_coord(acy - ry),
-        fmt_coord(acx + rx), fmt_coord(acy),
-        fmt_coord(acx), fmt_coord(acy + ry),
-        fmt_coord(acx - rx), fmt_coord(acy),
-        fmt_coord(acx - rx), fmt_coord(acy),
-        rx = fmt_coord_raw(rx),
-        ry = fmt_coord_raw(ry),
+        fmt_coord(acx - rx_pos), fmt_coord(acy),
+        fmt_coord(acx), fmt_coord(acy - ry_pos),
+        fmt_coord(acx + rx_pos), fmt_coord(acy),
+        fmt_coord(acx), fmt_coord(acy + ry_pos),
+        fmt_coord(acx - rx_pos), fmt_coord(acy),
+        fmt_coord(acx - rx_pos), fmt_coord(acy),
+        rx = fmt_coord_raw(rx_arc),
+        ry = fmt_coord_raw(ry_arc),
     );
 
     let fill = get_fill(element);
