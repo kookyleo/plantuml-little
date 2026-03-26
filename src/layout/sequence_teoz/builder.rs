@@ -47,10 +47,17 @@ const NOTE_FOLD: f64 = rose::SEQ_NOTE_FOLD;
 const STARTING_Y: f64 = 10.0;
 /// Minimum gap between adjacent participant right-edge and next left-edge.
 const PARTICIPANT_GAP: f64 = 5.0;
-/// Document margin: Java teoz applies UTranslate(5,5) + (-min1) shift.
-/// The final dimension is body_width + 10.  We use 10.0 here; participant
-/// center positions may differ by ~0.5px from Java due to half-pixel rounding.
+/// Java teoz: SequenceDiagramFileMakerTeoz applies UTranslate(5,5) to
+/// the drawing, and SequenceDiagram.getDefaultMargins() returns (5,5,5,5).
+/// Combined x_offset = 5 + 5 - min1 = 10 - min1.
+/// Total viewport width = body_width + 10 + margins(5+5) = body_width + 20.
 const DOC_MARGIN_X: f64 = 10.0;
+/// Java: GroupingTile.MARGINX = 16 (internal padding between frame and content)
+const GROUP_MARGINX: f64 = 16.0;
+/// Java: GroupingTile.EXTERNAL_MARGINX1 = 3 (left frame margin)
+const GROUP_EXTERNAL_MARGINX1: f64 = 3.0;
+/// Java: GroupingTile.EXTERNAL_MARGINX2 = 9 (right frame margin)
+const GROUP_EXTERNAL_MARGINX2: f64 = 9.0;
 
 // ── Tile types (inline, simplified) ──────────────────────────────────────────
 
@@ -865,23 +872,25 @@ pub fn build_teoz_layout(
 
 				// Self messages need space in one direction from center.
 				// Constrain the adjacent participant (or origin) to be far enough.
+				// Java CommunicationTileSelf.addConstraints():
+				// Forward:  next.posC >= this.posC2 + compWidth (if next exists)
+				// Reverse:  this.posC >= prev.posC2 + compWidth (if prev exists)
+				// If no adjacent participant, Java adds NO constraint — the
+				// group/fragment margin expansion handles the extent shift.
 				match direction {
 					SeqDirection::LeftToRight => {
-						// Need space to the right
 						if idx + 1 < n_parts {
 							let next_center = livings[idx + 1].pos_c;
 							rl.ensure_bigger_than_with_margin(next_center, *center, needed);
 						}
 					}
 					SeqDirection::RightToLeft => {
-						// Need space to the left: center >= ref + needed
 						if idx > 0 {
 							let prev_center = livings[idx - 1].pos_c;
 							rl.ensure_bigger_than_with_margin(*center, prev_center, needed);
-						} else {
-							// Leftmost participant: ensure enough room from origin
-							rl.ensure_bigger_than_with_margin(*center, xorigin, needed);
 						}
+						// No constraint added for leftmost participant —
+						// the rendering shift (-min1) handles the left extent.
 					}
 				}
 			}
@@ -1024,14 +1033,246 @@ pub fn build_teoz_layout(
 	let mut lifeline_bottom = y;
 
 	// ── Step 7: Extract SeqLayout ────────────────────────────────────────
-	// Java applies UTranslate(5,5) internally + 5px exporter margin = 10px total.
-	// Compute x_offset = DOC_MARGIN_X - min1 (min of origin and tile minXes).
-	// For simple cases min1 = 0, so x_offset = 10.
+	// Java: SequenceDiagramFileMakerTeoz applies UTranslate(5,5) + dx(-min1).
+	// min1 = PlayingSpace.getMinX() which includes all tile minX, group
+	// margins, participant positions, and the origin.
+	// SVG viewport width = (maxX - minX) + 10.
+	//
+	// Compute raw_min/raw_max in Real coordinate space, then derive x_offset.
 	let origin_val = rl.get_value(xorigin);
-	let min1 = livings.iter()
-		.map(|l| rl.get_value(l.pos_c))
-		.fold(origin_val, f64::min);
+	let mut raw_min = origin_val;
+	let mut raw_max = origin_val;
+	// Include participant posB, posD, and posC2 (posC + activation delta)
+	for living in &livings {
+		let b = rl.get_value(living.pos_b);
+		let d = rl.get_value(living.pos_d);
+		let c = rl.get_value(living.pos_c);
+		if b < raw_min { raw_min = b; }
+		if d > raw_max { raw_max = d; }
+		// Java: PlayingSpace includes posC2 = posC + activation delta.
+		// For now, posC is sufficient since we track activation in extents below.
+		if c > raw_max { raw_max = c; }
+	}
+	// Include self-message and note extents in raw space.
+	// Only include tiles OUTSIDE groups/fragments — tiles inside groups
+	// contribute through the group expansion below.
+	{
+		let mut outer_depth: usize = 0;
+		for tile in &tiles {
+			match tile {
+				TeozTile::GroupStart { .. } | TeozTile::FragmentStart { .. } => {
+					outer_depth += 1;
+				}
+				TeozTile::GroupEnd { .. } | TeozTile::FragmentEnd { .. } => {
+					outer_depth = outer_depth.saturating_sub(1);
+				}
+				_ if outer_depth > 0 => {
+					// Skip: will be handled by group expansion below
+				}
+				TeozTile::SelfMessage {
+					participant_idx, text_width, direction, active_level, ..
+				} => {
+					let cx = rl.get_value(livings[*participant_idx].pos_c);
+					let tm = TextMetrics::new(7.0, 7.0, 1.0, *text_width, tp.msg_line_height);
+					let comp_width = rose::self_arrow_preferred_size(&tm).width;
+					match direction {
+						SeqDirection::LeftToRight => {
+							let right = cx + active_right_shift(*active_level) + comp_width;
+							if right > raw_max { raw_max = right; }
+						}
+						SeqDirection::RightToLeft => {
+							let left = cx - active_left_shift(*active_level) - comp_width;
+							if left < raw_min { raw_min = left; }
+						}
+					}
+				}
+				TeozTile::Note { participant_idx, is_left, width, is_note_on_message, .. } => {
+					let cx = rl.get_value(livings[*participant_idx].pos_c);
+					if *is_left {
+						let left = cx - *width - 5.0;
+						if left < raw_min { raw_min = left; }
+					} else {
+						let base_x = if *is_note_on_message {
+							let mut sm_right = cx;
+							for prev in tiles.iter() {
+								if let TeozTile::SelfMessage { participant_idx: si, text_width: tw, active_level: al, direction, .. } = prev {
+									if *si == *participant_idx {
+										let pcx = rl.get_value(livings[*si].pos_c);
+										let tm = TextMetrics::new(7.0, 7.0, 1.0, *tw, tp.msg_line_height);
+										let comp_w = rose::self_arrow_preferred_size(&tm).width;
+										sm_right = match direction {
+											SeqDirection::LeftToRight => pcx + active_right_shift(*al) + comp_w,
+											SeqDirection::RightToLeft => pcx,
+										};
+									}
+								}
+							}
+							sm_right
+						} else {
+							cx
+						};
+						let right = base_x + *width;
+						if right > raw_max { raw_max = right; }
+					}
+				}
+				_ => {}
+			}
+		}
+	}
+	// Apply group/fragment margin expansion using a recursive approach
+	// matching Java's GroupingTile hierarchy.  Each group computes its own
+	// internal min/max from children, adds MARGINX, then reports
+	// getMinX = min - EXTERNAL_MARGINX1, getMaxX = max + EXTERNAL_MARGINX2.
+	{
+		/// Compute the (getMinX, getMaxX) of a group starting at `start` in
+		/// the tile list, returning the index past the matching GroupEnd.
+		fn compute_group_extent(
+			tiles: &[TeozTile],
+			start: usize,
+			livings: &[LivingSpace],
+			rl: &RealLine,
+			tp: &TeozParams,
+		) -> (f64, f64, usize) {
+			let mut group_min = f64::MAX;
+			let mut group_max = f64::MIN;
+			let mut i = start;
+			while i < tiles.len() {
+				match &tiles[i] {
+					TeozTile::GroupStart { .. } | TeozTile::FragmentStart { .. } => {
+						// Recurse into nested group
+						let (child_min, child_max, next_i) =
+							compute_group_extent(tiles, i + 1, livings, rl, tp);
+						// Child reports getMinX/getMaxX; add MARGINX for this level
+						let child_with_margin_min = child_min - GROUP_MARGINX;
+						let child_with_margin_max = child_max + GROUP_MARGINX;
+						if child_with_margin_min < group_min { group_min = child_with_margin_min; }
+						if child_with_margin_max > group_max { group_max = child_with_margin_max; }
+						i = next_i;
+					}
+					TeozTile::GroupEnd { .. } | TeozTile::FragmentEnd { .. } => {
+						// End of this group — return with external margins
+						if group_min == f64::MAX { group_min = 0.0; }
+						if group_max == f64::MIN { group_max = 0.0; }
+						return (
+							group_min - GROUP_EXTERNAL_MARGINX1,
+							group_max + GROUP_EXTERNAL_MARGINX2,
+							i + 1,
+						);
+					}
+					TeozTile::SelfMessage { participant_idx, text_width, direction, active_level, .. } => {
+						let cx = rl.get_value(livings[*participant_idx].pos_c);
+						let tm = TextMetrics::new(7.0, 7.0, 1.0, *text_width, tp.msg_line_height);
+						let comp_width = rose::self_arrow_preferred_size(&tm).width;
+						let (t_min, t_max) = match direction {
+							SeqDirection::LeftToRight => (cx, cx + active_right_shift(*active_level) + comp_width),
+							SeqDirection::RightToLeft => (cx - active_left_shift(*active_level) - comp_width, cx),
+						};
+						// Add MARGINX for this tile within the group
+						let child_min = t_min - GROUP_MARGINX;
+						let child_max = t_max + GROUP_MARGINX;
+						if child_min < group_min { group_min = child_min; }
+						if child_max > group_max { group_max = child_max; }
+					}
+					TeozTile::Communication { from_idx, to_idx, .. } => {
+						let from_x = rl.get_value(livings[*from_idx].pos_c);
+						let to_x = rl.get_value(livings[*to_idx].pos_c);
+						let child_min = f64::min(from_x, to_x) - GROUP_MARGINX;
+						let child_max = f64::max(from_x, to_x) + GROUP_MARGINX;
+						if child_min < group_min { group_min = child_min; }
+						if child_max > group_max { group_max = child_max; }
+					}
+					TeozTile::Note { participant_idx, is_left, width, .. } => {
+						let cx = rl.get_value(livings[*participant_idx].pos_c);
+						let (t_min, t_max) = if *is_left {
+							(cx - *width - 5.0, cx)
+						} else {
+							(cx, cx + *width)
+						};
+						let child_min = t_min - GROUP_MARGINX;
+						let child_max = t_max + GROUP_MARGINX;
+						if child_min < group_min { group_min = child_min; }
+						if child_max > group_max { group_max = child_max; }
+					}
+					TeozTile::FragmentSeparator { .. } => {
+						// Java: else tiles contribute only to maxX, not to minX
+						// (handled by the parent group's allElses list)
+						// For simplicity, we skip separators in extent calc
+					}
+					_ => {}
+				}
+				i += 1;
+			}
+			// Reached end without GroupEnd (malformed)
+			if group_min == f64::MAX { group_min = 0.0; }
+			if group_max == f64::MIN { group_max = 0.0; }
+			(group_min - GROUP_EXTERNAL_MARGINX1, group_max + GROUP_EXTERNAL_MARGINX2, i)
+		}
+
+		let mut i = 0;
+		while i < tiles.len() {
+			match &tiles[i] {
+				TeozTile::GroupStart { .. } | TeozTile::FragmentStart { .. } => {
+					let (g_min, g_max, next_i) =
+						compute_group_extent(&tiles, i + 1, &livings, &rl, &tp);
+					if g_min < raw_min { raw_min = g_min; }
+					if g_max > raw_max { raw_max = g_max; }
+					i = next_i;
+				}
+				_ => {
+					i += 1;
+				}
+			}
+		}
+	}
+	// Also ensure group/fragment header label width is accounted for.
+	// Java GroupingTile:
+	//   this.min = RealUtils.min(child.getMinX() - MARGINX)
+	//   max2.add(this.min.addFixed(headerWidth + 16))
+	//   getMaxX = this.max.addFixed(EXTERNAL_MARGINX2)
+	// headerWidth = ComponentRoseGroupingHeader.getPreferredWidth
+	//             = pureTextWidth + marginX1(15) + marginX2(30) = pureTextWidth + 45
+	// Combined: getMaxX contribution = (this.min + pureTextWidth + 45 + 16) + 9
+	//         = this.min + pureTextWidth + 70
+	// Since raw_min = this.min - EXTERNAL_MARGINX1 = this.min - 3
+	//   → this.min = raw_min + 3
+	//   → contribution = raw_min + 3 + pureTextWidth + 70 = raw_min + pureTextWidth + 73
+	{
+		let mut group_depth: usize = 0;
+		let mut header_labels: Vec<String> = Vec::new();
+		for tile in &tiles {
+			match tile {
+				TeozTile::GroupStart { _label, .. } => {
+					group_depth += 1;
+					if let Some(l) = _label {
+						header_labels.push(l.clone());
+					}
+				}
+				TeozTile::FragmentStart { label, .. } => {
+					group_depth += 1;
+					header_labels.push(label.clone());
+				}
+				TeozTile::GroupEnd { .. } | TeozTile::FragmentEnd { .. } => {
+					if group_depth == 1 {
+						for lbl in &header_labels {
+							let pure_text_w = font_metrics::text_width(
+								lbl, default_font, msg_font_size, true, false,
+							);
+							// Java: this.min + pureTextW + 45 + 16 + EXTERNAL_MARGINX2(9) = this.min + pureTextW + 70
+							// this.min = raw_min + EXTERNAL_MARGINX1(3)
+							let header_max = raw_min + GROUP_EXTERNAL_MARGINX1 + pure_text_w + 45.0 + GROUP_MARGINX + GROUP_EXTERNAL_MARGINX2;
+							if header_max > raw_max { raw_max = header_max; }
+						}
+						header_labels.clear();
+					}
+					group_depth = group_depth.saturating_sub(1);
+				}
+				_ => {}
+			}
+		}
+	}
+	let min1 = raw_min;
 	let x_offset = DOC_MARGIN_X - min1;
+	log::debug!("teoz width: raw_min={raw_min:.4} raw_max={raw_max:.4} x_offset={x_offset:.4} diagram_w={:.4}", raw_max - raw_min);
 	// Helper: get Real x value with document margin applied.
 	let get_x = |id: RealId| -> f64 { rl.get_value(id) + x_offset };
 
@@ -1061,88 +1302,12 @@ pub fn build_teoz_layout(
 	let mut groups: Vec<GroupLayout> = Vec::new();
 	let mut group_stack: Vec<(f64, Option<String>)> = Vec::new();
 
-	// Compute total width from Real values
-	let mut total_min_x = f64::MAX;
-	let mut total_max_x = f64::MIN;
-	for living in &livings {
-		let b = get_x(living.pos_b);
-		let d = get_x(living.pos_d);
-		if b < total_min_x {
-			total_min_x = b;
-		}
-		if d > total_max_x {
-			total_max_x = d;
-		}
-	}
-	if total_min_x == f64::MAX {
-		total_min_x = 0.0;
-	}
-	if total_max_x == f64::MIN {
-		total_max_x = 0.0;
-	}
-	// Extend extents to account for self-messages and notes that extend
-	// beyond participant positions (e.g., single-participant self-messages).
-	for tile in &tiles {
-		match tile {
-			TeozTile::SelfMessage {
-				participant_idx, text_width, direction, active_level, ..
-			} => {
-				let cx = get_x(livings[*participant_idx].pos_c);
-				let tm = TextMetrics::new(7.0, 7.0, 1.0, *text_width, tp.msg_line_height);
-				let comp_width = rose::self_arrow_preferred_size(&tm).width;
-				// Java: getMaxX = posC2 + compWidth, where
-				// posC2 = posC + rightShift (activation bars extend right of center).
-				// Only add the right shift for right-extending messages,
-				// left shift for left-extending messages.
-				match direction {
-					SeqDirection::LeftToRight => {
-						let right = cx + active_right_shift(*active_level) + comp_width;
-						if right > total_max_x { total_max_x = right; }
-					}
-					SeqDirection::RightToLeft => {
-						let left = cx - active_left_shift(*active_level) - comp_width;
-						if left < total_min_x { total_min_x = left; }
-					}
-				}
-			}
-			TeozTile::Note { participant_idx, is_left, width, is_note_on_message, .. } => {
-				let cx = get_x(livings[*participant_idx].pos_c);
-				if *is_left {
-					let left = cx - *width - 5.0;
-					if left < total_min_x { total_min_x = left; }
-				} else {
-					// For note-on-self-message, the note extends from the self-arrow's
-					// right edge, not the participant center.
-					// Java: CommunicationTileSelfNoteRight.getMaxX() = tile.getMaxX() + noteWidth
-					let base_x = if *is_note_on_message {
-						// Find the self-message right edge from the preceding tile
-						let mut sm_right = cx + 5.0;
-						for prev in tiles.iter() {
-							if let TeozTile::SelfMessage { participant_idx: si, text_width: tw, active_level: al, direction, .. } = prev {
-								if *si == *participant_idx {
-									let pcx = get_x(livings[*si].pos_c);
-									let tm = TextMetrics::new(7.0, 7.0, 1.0, *tw, tp.msg_line_height);
-									let comp_w = rose::self_arrow_preferred_size(&tm).width;
-									sm_right = match direction {
-										SeqDirection::LeftToRight => pcx + active_right_shift(*al) + comp_w,
-										SeqDirection::RightToLeft => pcx + 5.0,
-									};
-								}
-							}
-						}
-						sm_right
-					} else {
-						cx + 5.0
-					};
-					let right = base_x + *width;
-					if right > total_max_x { total_max_x = right; }
-				}
-			}
-			_ => {}
-		}
-	}
-	let diagram_width = total_max_x - total_min_x;
-	log::debug!("teoz extents: min_x={total_min_x:.2} max_x={total_max_x:.2} diagram_width={diagram_width:.2}");
+	// Diagram width is raw_max - raw_min (computed above with group expansion).
+	// Rendered positions use get_x which adds x_offset, so differences are preserved.
+	let diagram_width = raw_max - raw_min;
+	let total_min_x = raw_min + x_offset; // = DOC_MARGIN_X = 5
+	let total_max_x = raw_max + x_offset;
+	log::debug!("teoz extents: raw_min={raw_min:.2} raw_max={raw_max:.2} diagram_width={diagram_width:.2} total_min_x={total_min_x:.2} total_max_x={total_max_x:.2}");
 
 	// Track activation state for ActivationLayout generation
 
@@ -1537,8 +1702,8 @@ pub fn build_teoz_layout(
 		lifeline_bottom = extended_lifeline_bottom;
 	}
 
-	// Java: TextBlock width = (maxX - minX) + 10, final = + margin(5+5) = + 20
-	// Java: TextBlock width = (maxX - minX) + 10, final = + margin(5+5) = + 20
+	// Java: PlayingSpaceWithParticipants.width = maxX - minX (= diagram_width)
+	// SequenceDiagramFileMakerTeoz viewport = width + 10 (UTranslate(5,5))
 	let total_width = diagram_width + 2.0 * DOC_MARGIN_X;
 	// Java height chain:
 	// Java height chain:
