@@ -87,6 +87,8 @@ enum TeozTile {
 		circle_from: bool,
 		/// Circle decoration on to end
 		circle_to: bool,
+		/// Teoz parallel: shares y with previous tile
+		is_parallel: bool,
 	},
 	/// Self-message (from == to)
 	SelfMessage {
@@ -107,6 +109,8 @@ enum TeozTile {
 		circle_from: bool,
 		/// Circle decoration on to end
 		circle_to: bool,
+		/// Teoz parallel: shares y with previous tile
+		is_parallel: bool,
 	},
 	/// Activate / Deactivate / Destroy life event
 	LifeEvent {
@@ -603,6 +607,7 @@ pub fn build_teoz_layout(
 						to_center,
 						circle_from: msg.circle_from,
 						circle_to: msg.circle_to,
+						is_parallel: msg.parallel,
 					});
 					continue;
 				}
@@ -630,6 +635,7 @@ pub fn build_teoz_layout(
 						active_level: level,
 						circle_from: msg.circle_from,
 						circle_to: msg.circle_to,
+						is_parallel: msg.parallel,
 					});
 				} else {
 					// Normal message
@@ -658,6 +664,7 @@ pub fn build_teoz_layout(
 						to_center,
 						circle_from: msg.circle_from,
 						circle_to: msg.circle_to,
+						is_parallel: msg.parallel,
 					});
 				}
 			}
@@ -935,10 +942,19 @@ pub fn build_teoz_layout(
 	// Java EmptyTile(4): spacer before and after a GroupingTile.
 	const EMPTY_TILE_SPACING: f64 = 4.0;
 
+	// Track the y position where the current "block" (non-parallel group) started.
+	// Parallel messages rewind y to this block start.
+	let mut block_start_y: Option<f64> = None;
+	let mut block_max_height: f64 = 0.0;
+
 	for tile in tiles.iter_mut() {
+		// Check if this tile is a parallel message
+		let is_parallel = matches!(tile,
+			TeozTile::Communication { is_parallel: true, .. }
+			| TeozTile::SelfMessage { is_parallel: true, .. }
+		);
+
 		// Check if this Note follows a message (note-on-message binding).
-		// is_note_on_message tracks notes following self-messages; for normal
-		// messages, check if is_note_on_message OR if last tile was a Communication.
 		let is_note_on_msg = matches!(tile,
 			TeozTile::Note { is_note_on_message: true, .. }
 		) && prev_msg_height.is_some();
@@ -954,6 +970,24 @@ pub fn build_teoz_layout(
 			y = msg_y + combined_h;
 			prev_msg_height = None;
 			prev_msg_y = None;
+		} else if is_parallel {
+			// Parallel message: rewind to block start, use max height
+			if let Some(bs_y) = block_start_y {
+				tile.set_y(bs_y);
+				let tile_h = tile.preferred_height();
+				if tile_h > block_max_height {
+					block_max_height = tile_h;
+				}
+				// Don't advance y — it will be set to block_start + max_height
+				// when the next non-parallel tile arrives or at the end
+				y = bs_y + block_max_height;
+			} else {
+				// No block to parallel with — treat as normal
+				tile.set_y(y);
+				y += tile.preferred_height();
+			}
+			prev_msg_height = Some(tile.preferred_height());
+			prev_msg_y = Some(tile.get_y().unwrap_or(y));
 		} else {
 			// Java inserts EmptyTile(4) spacer before GroupingTile
 			if matches!(tile, TeozTile::FragmentStart { .. } | TeozTile::GroupStart { .. }) {
@@ -968,6 +1002,9 @@ pub fn build_teoz_layout(
 				TeozTile::Communication { .. } | TeozTile::SelfMessage { .. } => {
 					prev_msg_height = Some(tile.preferred_height());
 					prev_msg_y = Some(y);
+					// Start a new parallel block
+					block_start_y = Some(y);
+					block_max_height = tile.preferred_height();
 				}
 				TeozTile::LifeEvent { .. } => {
 					// LifeEvent tiles don't break the message-note chain
@@ -975,6 +1012,8 @@ pub fn build_teoz_layout(
 				_ => {
 					prev_msg_height = None;
 					prev_msg_y = None;
+					block_start_y = None;
+					block_max_height = 0.0;
 				}
 			}
 			y += tile.preferred_height();

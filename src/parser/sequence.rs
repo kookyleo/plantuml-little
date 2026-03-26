@@ -409,10 +409,10 @@ pub fn parse_sequence_diagram_with_original(source: &str, original_source: Optio
         // database participant declaration with rest "-> Bob : ack".
 
         // Teoz parallel message prefix: "& A -> B : msg" means this message
-        // is parallel with the previous one. Strip the "&" prefix and treat
-        // as a normal message (parallel layout is not yet fully implemented,
-        // but this prevents "& foo" from being created as a participant).
-        let trimmed_arrow = if trimmed.starts_with("& ") {
+        // is parallel with the previous one. Strip the "&" prefix and mark
+        // the message as parallel for layout.
+        let is_parallel = trimmed.starts_with("& ");
+        let trimmed_arrow = if is_parallel {
             trimmed[2..].trim()
         } else {
             trimmed
@@ -428,6 +428,7 @@ pub fn parse_sequence_diagram_with_original(source: &str, original_source: Optio
                 .unwrap_or_default();
             if let Some(mut msg) = parse_arrow("[", &format!("[{arrow}"), right, &text) {
                 msg.source_line = Some(source_line);
+                msg.parallel = is_parallel;
                 debug!("parsed gate-left message: ?-> {} : {}", msg.to, msg.text);
                 ensure_participant(&mut declared_participants, &mut auto_participants, &msg.to, source_line);
                 last_to_participant = Some(msg.to.clone());
@@ -444,6 +445,7 @@ pub fn parse_sequence_diagram_with_original(source: &str, original_source: Optio
                 .unwrap_or_default();
             if let Some(mut msg) = parse_arrow(left, &format!("{arrow}]"), "]", &text) {
                 msg.source_line = Some(source_line);
+                msg.parallel = is_parallel;
                 debug!("parsed gate-right message: {} ->? : {}", msg.from, msg.text);
                 ensure_participant(&mut declared_participants, &mut auto_participants, &msg.from, source_line);
                 last_to_participant = Some(msg.from.clone());
@@ -536,6 +538,7 @@ pub fn parse_sequence_diagram_with_original(source: &str, original_source: Optio
 
             if let Some(mut msg) = parse_arrow(left, arrow, &right, &text) {
                 msg.source_line = Some(source_line);
+                msg.parallel = is_parallel;
                 debug!("parsed message: {} -> {} : {}", msg.from, msg.to, msg.text);
 
                 // Auto-create participants
@@ -966,6 +969,7 @@ fn parse_arrow(left: &str, arrow: &str, right: &str, text: &str) -> Option<Messa
         source_line: None, // set by caller
         circle_from,
         circle_to,
+        parallel: false, // set by caller if & prefix detected
     })
 }
 

@@ -69,6 +69,8 @@ pub struct Message {
     pub circle_from: bool,
     /// Circle decoration on the "to" end of the arrow (->o)
     pub circle_to: bool,
+    /// Teoz parallel message (& prefix): shares y position with previous tile
+    pub parallel: bool,
 }
 
 /// Combined fragment kind
