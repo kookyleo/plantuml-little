@@ -128,9 +128,27 @@ pub fn detect_diagram_type(content: &str) -> DiagramHint {
     let mut has_class_relation = false;
     let mut in_bracket_display = false;
 
+    let mut in_note_block = false;
+
     for line in content.lines() {
         let trimmed = line.trim();
         if trimmed.starts_with('\'') {
+            continue;
+        }
+
+        // Skip multi-line note blocks: content inside notes should not affect diagram type
+        if in_note_block {
+            if trimmed == "end note" || trimmed == "endnote" {
+                in_note_block = false;
+            }
+            continue;
+        }
+        if trimmed.starts_with("note ") && !trimmed.contains(':') {
+            in_note_block = true;
+            continue;
+        }
+        // Skip single-line note: `note ... : text`
+        if trimmed.starts_with("note ") && trimmed.contains(':') {
             continue;
         }
 
