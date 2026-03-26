@@ -82,6 +82,13 @@ pub fn render_activity(
             ));
         }
 
+        // Compute content bottom (max node y+h) for divider line extent.
+        // Java swimlane dividers stop at the content bottom, not the SVG
+        // viewport bottom (which includes margins).
+        let content_bottom = layout.nodes.iter()
+            .map(|n| n.y + n.height)
+            .fold(0.0_f64, f64::max);
+
         // Step 2: per-lane content + divider line
         for (lane_idx, sw) in layout.swimlane_layouts.iter().enumerate() {
             // 2a: Render nodes belonging to this lane
@@ -95,14 +102,14 @@ pub fn render_activity(
             // 2b: Divider line (Java: y1=header_top, y2=content_bottom)
             sg.set_stroke_color(Some(swimlane_border));
             sg.set_stroke_width(1.5, None);
-            sg.svg_line(sw.x, header_top, sw.x, layout.height, 0.0);
+            sg.svg_line(sw.x, header_top, sw.x, content_bottom, 0.0);
         }
         // Right border line
         if let Some(last) = layout.swimlane_layouts.last() {
             let right_x = last.x + last.width;
             sg.set_stroke_color(Some(swimlane_border));
             sg.set_stroke_width(1.5, None);
-            sg.svg_line(right_x, header_top, right_x, layout.height, 0.0);
+            sg.svg_line(right_x, header_top, right_x, content_bottom, 0.0);
         }
 
         // Step 3: edges (Java: Cross connections)

@@ -198,7 +198,6 @@ impl SkinParams {
     pub fn background_color<'a>(&'a self, element: &str, default: &'a str) -> &'a str {
         let key1 = format!("{element}backgroundcolor");
         let key2 = format!("{element}.backgroundcolor");
-        let key3 = "backgroundcolor";
 
         if let Some(v) = self.params.get(&key1) {
             return v.as_str();
@@ -206,9 +205,9 @@ impl SkinParams {
         if let Some(v) = self.params.get(&key2) {
             return v.as_str();
         }
-        if let Some(v) = self.params.get(key3) {
-            return v.as_str();
-        }
+        // Note: global "backgroundcolor" is NOT checked here.  In Java PlantUML
+        // `skinparam backgroundColor` only sets the diagram canvas background,
+        // not element fill colors.  Element fills use their own defaults.
         self.theme_bg(element).unwrap_or(default)
     }
 

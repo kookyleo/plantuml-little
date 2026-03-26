@@ -48,9 +48,8 @@ const STARTING_Y: f64 = 10.0;
 /// Minimum gap between adjacent participant right-edge and next left-edge.
 const PARTICIPANT_GAP: f64 = 5.0;
 /// Document margin: Java teoz applies UTranslate(5,5) + (-min1) shift.
-/// The final dimension is body_width + 10.  Because Rust computes total_width
-/// as diagram_width + 2*DOC_MARGIN_X and our constraint solver produces
-/// slightly narrower gaps than Java, we keep 10 to compensate.
+/// The final dimension is body_width + 10.  We use 10.0 here; participant
+/// center positions may differ by ~0.5px from Java due to half-pixel rounding.
 const DOC_MARGIN_X: f64 = 10.0;
 
 // ── Tile types (inline, simplified) ──────────────────────────────────────────
@@ -1021,7 +1020,8 @@ pub fn build_teoz_layout(
 			y += tile.preferred_height();
 		}
 	}
-	let lifeline_bottom = y;
+	let tiles_bottom = y;
+	let mut lifeline_bottom = y;
 
 	// ── Step 7: Extract SeqLayout ────────────────────────────────────────
 	// Java applies UTranslate(5,5) internally + 5px exporter margin = 10px total.
@@ -1402,25 +1402,41 @@ pub fn build_teoz_layout(
 
 	// Build activation bars from the event stream.
 	// Re-scan events to track activate/deactivate pairs.
+	// Use the y position of the nearest preceding message tile for activation
+	// start/end, because LifeEvent tiles have 0 height and share the same y
+	// position as consecutive events.
 	{
 		let mut act_state: HashMap<String, Vec<(f64, usize)>> = HashMap::new();
 		let mut tile_idx = 0;
+		// Track the y + height of the last message for activation boundary.
+		let mut last_msg_bottom: f64 = STARTING_Y + max_preferred_height;
+		let mut last_msg_y: f64 = STARTING_Y + max_preferred_height;
 		for event in &sd.events {
+			// Update last_msg_bottom when we see a message tile
+			if let Some(tile) = tiles.get(tile_idx) {
+				match tile {
+					TeozTile::Communication { height, y, .. }
+					| TeozTile::SelfMessage { height, y, .. } => {
+						let ty = y.unwrap_or(0.0);
+						last_msg_y = ty;
+						last_msg_bottom = ty + height;
+					}
+					_ => {}
+				}
+			}
+
 			match event {
 				SeqEvent::Activate(name) => {
-					let ty = tiles
-						.get(tile_idx)
-						.and_then(|t| t.get_y())
-						.unwrap_or(0.0);
+					// Activation starts at the bottom of the preceding message.
+					// For inline ++ on a message, the activate event comes
+					// right after the message, so last_msg_bottom is the
+					// arrow landing point.
 					let stack = act_state.entry(name.clone()).or_default();
 					let level = stack.len() + 1; // 1-based
-					stack.push((ty, level));
+					stack.push((last_msg_bottom, level));
 				}
 				SeqEvent::Deactivate(name) => {
-					let ty = tiles
-						.get(tile_idx)
-						.and_then(|t| t.get_y())
-						.unwrap_or(0.0);
+					// Deactivation ends at the bottom of the last message.
 					if let Some(stack) = act_state.get_mut(name) {
 						if let Some((y_start, level)) = stack.pop() {
 							let idx = name_to_idx.get(name).copied().unwrap_or(0);
@@ -1431,7 +1447,7 @@ pub fn build_teoz_layout(
 								participant: name.clone(),
 								x,
 								y_start,
-								y_end: ty,
+								y_end: last_msg_bottom,
 								level,
 							});
 						}
@@ -1441,7 +1457,7 @@ pub fn build_teoz_layout(
 					let ty = tiles
 						.get(tile_idx)
 						.and_then(|t| t.get_y())
-						.unwrap_or(0.0);
+						.unwrap_or(last_msg_bottom);
 					let idx = name_to_idx.get(name).copied().unwrap_or(0);
 					let cx = get_x(livings[idx].pos_c);
 					destroys.push(DestroyLayout { x: cx, y: ty });
@@ -1464,24 +1480,36 @@ pub fn build_teoz_layout(
 			}
 			tile_idx += 1;
 		}
-		// Close any unclosed activations at the lifeline bottom
+		// Close any unclosed activations at the lifeline bottom.
+		// Java: unclosed activations extend the lifeline by a minimum height
+		// (approximately 18px) beyond the last message bottom.
+		const MIN_UNCLOSED_ACTIVATION_HEIGHT: f64 = 18.0;
+		let mut extended_lifeline_bottom = lifeline_bottom;
 		for (name, stack) in act_state.drain() {
 			let idx = name_to_idx.get(&name).copied().unwrap_or(0);
 			let cx = get_x(livings[idx].pos_c);
 			for (y_start, level) in stack {
 				let x = cx - ACTIVATION_WIDTH / 2.0
 					+ (level - 1) as f64 * (ACTIVATION_WIDTH / 2.0);
+				// Ensure the activation has at least MIN_UNCLOSED_ACTIVATION_HEIGHT
+				let y_end = (y_start + MIN_UNCLOSED_ACTIVATION_HEIGHT).max(lifeline_bottom);
+				if y_end > extended_lifeline_bottom {
+					extended_lifeline_bottom = y_end;
+				}
 				activations.push(ActivationLayout {
 					participant: name.clone(),
 					x,
 					y_start,
-					y_end: lifeline_bottom,
+					y_end,
 					level,
 				});
 			}
 		}
+		// Update lifeline_bottom to account for unclosed activations
+		lifeline_bottom = extended_lifeline_bottom;
 	}
 
+	// Java: TextBlock width = (maxX - minX) + 10, final = + margin(5+5) = + 20
 	// Java: TextBlock width = (maxX - minX) + 10, final = + margin(5+5) = + 20
 	let total_width = diagram_width + 2.0 * DOC_MARGIN_X;
 	// Java height chain:
@@ -1498,7 +1526,7 @@ pub fn build_teoz_layout(
 	let show_footbox = !sd.hide_footbox;
 	let factor = if show_footbox { 2 } else { 1 };
 	let total_height =
-		lifeline_bottom + (factor - 1) as f64 * max_preferred_height + 28.0;
+		tiles_bottom + (factor - 1) as f64 * max_preferred_height + 28.0;
 	log::debug!("teoz_layout: total_width={total_width:.4} total_height={total_height:.4} lifeline_bottom={lifeline_bottom:.4} max_preferred_height={max_preferred_height:.4}");
 
 	Ok(SeqLayout {
