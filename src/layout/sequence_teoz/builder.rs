@@ -40,9 +40,11 @@ const ACTIVATION_WIDTH: f64 = 10.0;
 const SELF_MSG_WIDTH: f64 = 42.0;
 const NOTE_PADDING: f64 = rose::NOTE_PADDING;
 const NOTE_FOLD: f64 = rose::SEQ_NOTE_FOLD;
-/// Java teoz: PlayingSpace.startingY = 8.
-/// Content tiles start at y = STARTING_Y + headHeight.
-const STARTING_Y: f64 = 8.0;
+/// Java teoz: PlayingSpace.startingY = 8 for tile positioning, but the
+/// SVG coordinates include UTranslate(5,5) + defaultMargins(5,5,5,5),
+/// giving an effective offset of 10 for participant heads and lifelines.
+/// We use 10 here so SVG y coordinates match Java's output directly.
+const STARTING_Y: f64 = 10.0;
 /// Minimum gap between adjacent participant right-edge and next left-edge.
 const PARTICIPANT_GAP: f64 = 5.0;
 /// Document margin: Java teoz applies UTranslate(5,5) + (-min1) shift.
@@ -254,6 +256,10 @@ struct TeozParams {
 	participant_height: f64,
 	msg_line_height: f64,
 	frag_header_height: f64,
+	/// Java teoz ElseTile: ComponentRoseGroupingElse.getPreferredHeight() = textHeight + 16
+	/// textHeight = textBlock.height + 2*marginY(1) = h13 + 2
+	/// So frag_separator_height_teoz = h13 + 18
+	frag_separator_height_teoz: f64,
 	divider_height: f64,
 	delay_height: f64,
 	ref_height: f64,
@@ -280,6 +286,9 @@ impl TeozParams {
 		let participant_height = participant_preferred_h - 1.0; // text_height only (drawn rect)
 
 		let frag_header_height = h13 + 2.0;
+		// Java teoz: ElseTile preferred height = getTextHeight + 16
+		// getTextHeight = textBlock.height + 2*marginY(1) = h13 + 2
+		let frag_separator_height_teoz = h13 + 18.0;
 
 		let divider_tm = TextMetrics::new(0.0, 0.0, 5.0, 0.0, 0.0);
 		let divider_height = rose::divider_preferred_size(&divider_tm).height;
@@ -295,6 +304,7 @@ impl TeozParams {
 			participant_height,
 			msg_line_height: h13,
 			frag_header_height,
+			frag_separator_height_teoz,
 			divider_height,
 			delay_height,
 			ref_height,
@@ -317,15 +327,56 @@ fn live_thickness_width(level: usize) -> f64 {
 }
 
 fn estimate_note_height(text: &str) -> f64 {
-	let lines = text.lines().count().max(1) as f64;
+	let lines = text
+		.split(crate::NEWLINE_CHAR)
+		.flat_map(|s| s.lines())
+		.count()
+		.max(1) as f64;
 	let lh = font_metrics::line_height("SansSerif", NOTE_FONT_SIZE, false, false);
-	let h = lines * lh + 10.0; // marginY1(5) + marginY2(5)
+	let creole_extra = creole_note_extra_height(text);
+	let h = lines * lh + 10.0 + creole_extra; // marginY1(5) + marginY2(5)
 	h.trunc().max(25.0)
+}
+
+/// Estimate extra height added by creole formatting in note text.
+/// Tables get +4px padding per row + 6px border overhead.
+/// Horizontal separators (`----` or `====`) add ~8px each.
+fn creole_note_extra_height(text: &str) -> f64 {
+	let mut extra = 0.0;
+	let mut in_table = false;
+	let mut table_rows = 0;
+	for line in text.split(crate::NEWLINE_CHAR).flat_map(|s| s.lines()) {
+		let trimmed = line.trim();
+		if trimmed.starts_with('|') && trimmed.ends_with('|') && trimmed.len() > 2 {
+			if !in_table {
+				in_table = true;
+				table_rows = 0;
+			}
+			table_rows += 1;
+		} else {
+			if in_table {
+				extra += table_rows as f64 * 4.0 + 6.0;
+				in_table = false;
+			}
+			if trimmed == "----"
+				|| trimmed == "===="
+				|| trimmed.starts_with("----")
+				|| trimmed.starts_with("====")
+			{
+				extra += 8.0;
+			}
+		}
+	}
+	if in_table {
+		extra += table_rows as f64 * 4.0 + 6.0;
+	}
+	extra
 }
 
 fn estimate_note_width(text: &str) -> f64 {
 	let max_line_w = text
-		.lines()
+		.split(crate::NEWLINE_CHAR)
+		.flat_map(|s| s.lines())
 		.map(|line| font_metrics::text_width(line, "SansSerif", NOTE_FONT_SIZE, false, false))
 		.fold(0.0_f64, f64::max);
 	let w = max_line_w + NOTE_PADDING + NOTE_PADDING / 2.0 + NOTE_FOLD + 2.0;
@@ -460,7 +511,7 @@ pub fn build_teoz_layout(
 		name_to_idx.insert(p.name.clone(), i);
 
 		// Next participant starts after posD.
-		// Java: xcurrent = livingSpace.getPosD(stringBounder).addAtLeast(0);
+		// Java teoz: xcurrent = livingSpace.getPosD().addAtLeast(0);
 		xcurrent = rl.add_at_least(pos_d, 0.0);
 	}
 
@@ -702,10 +753,12 @@ pub fn build_teoz_layout(
 				});
 			}
 			SeqEvent::FragmentStart { kind, label } => {
+				// Java GroupingTile header: dim1.height + MARGINY_MAGIC/2
+				// dim1.height = frag_header_height, MARGINY_MAGIC/2 = 10
 				tiles.push(TeozTile::FragmentStart {
 					kind: kind.clone(),
 					label: label.clone(),
-					height: tp.frag_header_height,
+					height: tp.frag_header_height + 10.0,
 					y: None,
 				});
 			}
@@ -731,7 +784,7 @@ pub fn build_teoz_layout(
 			SeqEvent::GroupStart { label } => {
 				tiles.push(TeozTile::GroupStart {
 					_label: label.clone(),
-					height: tp.frag_header_height,
+					height: tp.frag_header_height + 10.0,
 					y: None,
 				});
 			}
@@ -851,6 +904,15 @@ pub fn build_teoz_layout(
 		}
 	}
 
+	// ── Step 4b: LivingSpaces.addConstraints() ──────────────────────────
+	// Java: current.posB >= previous.posD + 10 (ensure 10px gap between
+	// adjacent participants even when no messages span between them).
+	for i in 1..livings.len() {
+		let prev_d = livings[i - 1].pos_d;
+		let curr_b = livings[i].pos_b;
+		rl.ensure_bigger_than_with_margin(curr_b, prev_d, 10.0);
+	}
+
 	// ── Step 5: Compile constraints ──────────────────────────────────────
 	rl.compile();
 
@@ -866,6 +928,13 @@ pub fn build_teoz_layout(
 	// instead of message_h + note_h (separate tiles).
 	let mut prev_msg_height: Option<f64> = None;
 	let mut prev_msg_y: Option<f64> = None;
+	// Java GroupingTile: MARGINY_MAGIC = 20, but getPreferredHeight uses full 20
+	// while fillPositionelTiles uses header + MARGINY_MAGIC/2 = header + 10.
+	// The effective bottom padding is MARGINY_MAGIC - MARGINY_MAGIC/2 = 10.
+	const FRAG_BOTTOM_PADDING: f64 = 10.0;
+	// Java EmptyTile(4): spacer before and after a GroupingTile.
+	const EMPTY_TILE_SPACING: f64 = 4.0;
+
 	for tile in tiles.iter_mut() {
 		// Check if this Note follows a message (note-on-message binding).
 		// is_note_on_message tracks notes following self-messages; for normal
@@ -886,6 +955,14 @@ pub fn build_teoz_layout(
 			prev_msg_height = None;
 			prev_msg_y = None;
 		} else {
+			// Java inserts EmptyTile(4) spacer before GroupingTile
+			if matches!(tile, TeozTile::FragmentStart { .. } | TeozTile::GroupStart { .. }) {
+				y += EMPTY_TILE_SPACING;
+			}
+			// Java GroupingTile bottom padding = MARGINY_MAGIC/2 = 10
+			if matches!(tile, TeozTile::FragmentEnd { .. } | TeozTile::GroupEnd { .. }) {
+				y += FRAG_BOTTOM_PADDING;
+			}
 			tile.set_y(y);
 			match tile {
 				TeozTile::Communication { .. } | TeozTile::SelfMessage { .. } => {
@@ -985,13 +1062,36 @@ pub fn build_teoz_layout(
 					}
 				}
 			}
-			TeozTile::Note { participant_idx, is_left, width, .. } => {
+			TeozTile::Note { participant_idx, is_left, width, is_note_on_message, .. } => {
 				let cx = get_x(livings[*participant_idx].pos_c);
 				if *is_left {
 					let left = cx - *width - 5.0;
 					if left < total_min_x { total_min_x = left; }
 				} else {
-					let right = cx + *width + 5.0;
+					// For note-on-self-message, the note extends from the self-arrow's
+					// right edge, not the participant center.
+					// Java: CommunicationTileSelfNoteRight.getMaxX() = tile.getMaxX() + noteWidth
+					let base_x = if *is_note_on_message {
+						// Find the self-message right edge from the preceding tile
+						let mut sm_right = cx + 5.0;
+						for prev in tiles.iter() {
+							if let TeozTile::SelfMessage { participant_idx: si, text_width: tw, active_level: al, direction, .. } = prev {
+								if *si == *participant_idx {
+									let pcx = get_x(livings[*si].pos_c);
+									let tm = TextMetrics::new(7.0, 7.0, 1.0, *tw, tp.msg_line_height);
+									let comp_w = rose::self_arrow_preferred_size(&tm).width;
+									sm_right = match direction {
+										SeqDirection::LeftToRight => pcx + active_right_shift(*al) + comp_w,
+										SeqDirection::RightToLeft => pcx + 5.0,
+									};
+								}
+							}
+						}
+						sm_right
+					} else {
+						cx + 5.0
+					};
+					let right = base_x + *width;
 					if right > total_max_x { total_max_x = right; }
 				}
 			}
@@ -1342,29 +1442,20 @@ pub fn build_teoz_layout(
 	// Java: TextBlock width = (maxX - minX) + 10, final = + margin(5+5) = + 20
 	let total_width = diagram_width + 2.0 * DOC_MARGIN_X;
 	// Java height chain:
-	//   getPreferredHeight  = finalY + 10          (PlayingSpace bottom padding)
-	//   bodyHeight          = preferred + factor*headHeight  (footbox adds 2nd head)
-	//   calculateDimension  = bodyHeight + 10       (outer TextBlock wrapper)
-	//   SVG viewport        = dimension + 10        (doc margin: UTranslate(5,5))
+	// Java height chain:
+	//   startingY(8) + sum_tiles → finalY (in PlayingSpace coordinates)
+	//   getPreferredHeight  = finalY + 10 (bottom padding)
+	//   bodyHeight          = preferred + factor*headHeight
+	//   calculateDimension  = bodyHeight + 10 (TextBlock wrapper)
+	//   SVG viewport        = dimension + 10 (UTranslate(5,5))
 	//
-	// Combined: startingY(8) + sum_tiles + 10 + factor*headHeight + 10 + 10
-	// lifeline_bottom = STARTING_Y(8) + headHeight + sum_tiles,
-	// total = lifeline_bottom + (factor-1)*headHeight + 30
+	// Combined: 8 + sum + 10 + factor*head + 10 + 10 = sum + factor*head + 38
+	// Our lifeline_bottom = STARTING_Y(10) + head + sum
+	// total = lifeline_bottom + (factor-1)*head + 28 = sum + factor*head + 38  ✓
 	let show_footbox = !sd.hide_footbox;
 	let factor = if show_footbox { 2 } else { 1 };
-	// Java height chain (no footbox, factor=1):
-	//   startingY(8) + sum_tiles → finalY
-	//   getPreferredHeight  = finalY + 10
-	//   body.height          = preferred + 1*headHeight
-	//   textBlock.height     = body.height + 10
-	//   finalDim.height      = textBlock.height + margin(5+5)
-	//   SVG viewport         = (int)(finalDim.height + 1)
-	//
-	// lifeline_bottom = STARTING_Y(8) + head + sum
-	// Java total = sum + factor*head + 38  →  SVG = (int)(total + 1) = (int)(sum + factor*head + 39)
-	// Rust: (8 + head + sum) + (factor-1)*head + 30 = sum + factor*head + 38  ✓
 	let total_height =
-		lifeline_bottom + (factor - 1) as f64 * max_preferred_height + 30.0;
+		lifeline_bottom + (factor - 1) as f64 * max_preferred_height + 28.0;
 	log::debug!("teoz_layout: total_width={total_width:.4} total_height={total_height:.4} lifeline_bottom={lifeline_bottom:.4} max_preferred_height={max_preferred_height:.4}");
 
 	Ok(SeqLayout {
