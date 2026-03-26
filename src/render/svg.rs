@@ -640,7 +640,7 @@ fn inject_svginteractive(svg: String, diagram_type: &str) -> String {
     let js_text = ensure_trailing_newline(js);
 
     let defs_content = format!(
-        "<style type=\"text/css\"><![CDATA[{}]]></style><script>{}</script>",
+        "<style type=\"text/css\"><![CDATA[\n{}]]></style><script>{}</script>",
         css_text,
         xml_escape_js(&js_text)
     );
@@ -1233,11 +1233,12 @@ fn render_class(
         })
     });
     let has_generic = !is_degenerated && cd.entities.iter().any(|e| e.generic.is_some());
-    // `layout_with_svek()` normalizes the solved coordinates back to origin after
-    // SvekResult-style `moveDelta(6 - minX, 6 - minY)`. Rendering must therefore
-    // add back the raw Svek margin (= 6), not `6 + 1`.
-    let edge_offset_x = if has_member_polygon_icon { 8.0 } else { 6.0 };
-    let edge_offset_y = if has_generic { 9.0 } else { 6.0 };
+    // Java SvekResult: moveDelta(6 - LimitFinder_minX, 6 - LimitFinder_minY).
+    // LimitFinder_minX = polygon_minX - 1 (rect offset), so moveDelta = 7 default.
+    // Our svek uses moveDelta = 6 - polygon_minX. Entity renders at polygon_minX + moveDelta = 6.
+    // edge_offset = moveDelta + 1 (the LimitFinder rect -1 offset) = 7.
+    let edge_offset_x = if has_member_polygon_icon { 9.0 } else { 7.0 };
+    let edge_offset_y = if has_generic { 10.0 } else { 7.0 };
     let mut tracker = BoundsTracker::new();
     let mut sg = SvgGraphic::new(0, 1.0);
     let arrow_color = skin.arrow_color(LINK_COLOR);
