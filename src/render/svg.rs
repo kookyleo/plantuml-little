@@ -1647,7 +1647,7 @@ fn emit_circle_glyph(sg: &mut SvgGraphic, tracker: &mut BoundsTracker, kind: &En
         EntityKind::Abstract => (GLYPH_A_RAW, GLYPH_A_CENTER),
         EntityKind::Interface => (GLYPH_I_RAW, GLYPH_I_CENTER),
         EntityKind::Enum => (GLYPH_E_RAW, GLYPH_E_CENTER),
-        EntityKind::Annotation | EntityKind::Rectangle => return,
+        EntityKind::Annotation | EntityKind::Rectangle | EntityKind::Component => return,
     };
 
     // Java DriverCenteredCharacterSvg algorithm:
@@ -1755,6 +1755,7 @@ fn stereotype_circle_color(kind: &EntityKind) -> &'static str {
         EntityKind::Annotation => "#A9DCDF",
         EntityKind::Object => "#ADD1B2",
         EntityKind::Rectangle => "#F1F1F1",
+        EntityKind::Component => "#F1F1F1",
     }
 }
 
@@ -1792,6 +1793,7 @@ fn draw_entity_box(
         EntityKind::Abstract => (ENTITY_BG, BORDER_COLOR, "abstract"),
         EntityKind::Annotation => (ENTITY_BG, BORDER_COLOR, "annotation"),
         EntityKind::Rectangle => (ENTITY_BG, BORDER_COLOR, "rectangle"),
+        EntityKind::Component => (ENTITY_BG, BORDER_COLOR, "component"),
         EntityKind::Object => unreachable!(),
     };
     let default_fill = skin.background_color(element_type, default_bg);

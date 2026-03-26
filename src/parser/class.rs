@@ -46,7 +46,7 @@ pub fn parse_class_diagram(source: &str) -> Result<ClassDiagram> {
     // Visibility prefix: +/-/#/~ before the keyword (e.g. -class foo)
     let re_entity = Regex::new(concat!(
         r#"(?x)"#,
-        r#"^([+\-\#~])?(class|interface|abstract\s+class|abstract|enum|annotation|static\s+class|object|rectangle)"#,
+        r#"^([+\-\#~])?(class|interface|abstract\s+class|abstract|enum|annotation|static\s+class|object|rectangle|component)"#,
         r#"\s+"#,
         r#"("(?:[^"]+)"|[\w.<>,\s]+?)"#,
         r#"\s*"#,
@@ -581,6 +581,7 @@ fn parse_entity_kind(s: &str) -> EntityKind {
         "annotation" => EntityKind::Annotation,
         "object" => EntityKind::Object,
         "rectangle" => EntityKind::Rectangle,
+        "component" => EntityKind::Component,
         _ => EntityKind::Class,
     }
 }

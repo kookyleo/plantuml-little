@@ -247,8 +247,13 @@ pub fn detect_diagram_type(content: &str) -> DiagramHint {
             has_state_keyword = true;
         }
 
-        // Component / deployment keywords
+        // Component / deployment keywords.
+        // When a deployment keyword has a brace body (e.g. `component a {`),
+        // Java's ClassDiagramFactory handles it as a CLASS entity, so we
+        // set has_class_kw instead of has_component_keyword_definitive.
         let is_bracket_opener = in_bracket_display;
+        let has_brace_body = trimmed.ends_with('{')
+            || trimmed.ends_with("{}");
         if trimmed.starts_with("component ")
             || trimmed.starts_with("node ")
             || trimmed.starts_with("cloud ")
@@ -261,7 +266,12 @@ pub fn detect_diagram_type(content: &str) -> DiagramHint {
             || trimmed.starts_with("agent ")
             || trimmed.starts_with("stack ")
         {
-            has_component_keyword_definitive = true;
+            if has_brace_body {
+                // Brace-bodied deployment entities go through ClassDiagramFactory
+                has_class_kw = true;
+            } else {
+                has_component_keyword_definitive = true;
+            }
         }
         if trimmed.starts_with('[')
             && !trimmed.starts_with("[->")

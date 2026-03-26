@@ -8,6 +8,8 @@ pub enum EntityKind {
     Annotation,
     Object,
     Rectangle,
+    /// Component entity (rendered with component icon tabs)
+    Component,
 }
 
 /// Member visibility
