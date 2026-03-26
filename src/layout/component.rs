@@ -669,6 +669,7 @@ mod tests {
             label: label.to_string(),
             dashed: false,
             direction_hint: None,
+                arrow_len: 2,
         }
     }
 
@@ -820,6 +821,7 @@ mod tests {
                 label: String::new(),
                 dashed: true,
                 direction_hint: None,
+                arrow_len: 2,
             }],
             groups: vec![],
             notes: vec![],
@@ -840,6 +842,7 @@ mod tests {
                 label: String::new(),
                 dashed: false,
                 direction_hint: Some("right".to_string()),
+                arrow_len: 2,
             }],
             groups: vec![],
             direction: Default::default(),

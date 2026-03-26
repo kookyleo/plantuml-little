@@ -42,6 +42,8 @@ pub struct ComponentLink {
     pub label: String,
     pub dashed: bool,
     pub direction_hint: Option<String>,
+    /// Arrow stem length (dash/dot count). 1=horizontal, 2+=vertical.
+    pub arrow_len: usize,
 }
 
 #[derive(Debug, Clone)]
@@ -102,6 +104,7 @@ mod tests {
             label: "uses".to_string(),
             dashed: false,
             direction_hint: Some("right".to_string()),
+            arrow_len: 2,
         };
         assert_eq!(l.from, "A");
         assert_eq!(l.direction_hint, Some("right".to_string()));
@@ -187,6 +190,7 @@ mod tests {
             label: String::new(),
             dashed: true,
             direction_hint: None,
+            arrow_len: 2,
         };
         assert!(l.dashed);
         assert!(l.label.is_empty());

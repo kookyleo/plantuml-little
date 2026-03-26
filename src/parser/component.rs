@@ -666,6 +666,7 @@ fn try_parse_forward_arrow(line: &str) -> Option<ComponentLink> {
 
             let dashed = arrow_str.contains("..");
             let direction_hint = extract_direction_hint(arrow_str);
+            let arrow_len = count_arrow_len(arrow_str);
 
             return Some(ComponentLink {
                 from: from_id,
@@ -673,6 +674,7 @@ fn try_parse_forward_arrow(line: &str) -> Option<ComponentLink> {
                 label,
                 dashed,
                 direction_hint,
+                arrow_len,
             });
         }
     }
@@ -715,6 +717,7 @@ fn try_parse_backward_arrow(line: &str) -> Option<ComponentLink> {
         let full_arrow = format!("<{arrow_tail}");
         let dashed = full_arrow.contains("..");
         let direction_hint = extract_direction_hint(&full_arrow);
+        let arrow_len = count_arrow_len(&full_arrow);
 
         return Some(ComponentLink {
             from: from_id,
@@ -722,6 +725,7 @@ fn try_parse_backward_arrow(line: &str) -> Option<ComponentLink> {
             label,
             dashed,
             direction_hint,
+            arrow_len,
         });
     }
     None
@@ -781,6 +785,18 @@ fn extract_direction_hint(arrow: &str) -> Option<String> {
         }
     }
     None
+}
+
+/// Count the arrow stem length (number of dashes or dots in the arrow).
+fn count_arrow_len(arrow: &str) -> usize {
+    let cleaned = arrow
+        .replace("up", "")
+        .replace("down", "")
+        .replace("left", "")
+        .replace("right", "")
+        .replace('<', "")
+        .replace('>', "");
+    cleaned.chars().filter(|c| *c == '-' || *c == '.').count()
 }
 
 fn extract_last_token(s: &str) -> String {
