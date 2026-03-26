@@ -40,6 +40,10 @@ const ACTIVATION_WIDTH: f64 = 10.0;
 const SELF_MSG_WIDTH: f64 = 42.0;
 const NOTE_PADDING: f64 = rose::NOTE_PADDING;
 const NOTE_FOLD: f64 = rose::SEQ_NOTE_FOLD;
+/// Java Rose.paddingX = 5; ComponentRoseNote.getPreferredWidth includes 2*paddingX = 10
+/// beyond the drawn polygon width (getTextWidth). The extent calculations must use
+/// the full preferred width, not just the drawn width.
+const NOTE_EXTENT_PADDING: f64 = 10.0;
 /// Java teoz: PlayingSpace.startingY = 8 for tile positioning, but the
 /// SVG coordinates include UTranslate(5,5) + defaultMargins(5,5,5,5),
 /// giving an effective offset of 10 for participant heads and lifelines.
@@ -334,6 +338,58 @@ fn active_right_shift(level: usize) -> f64 {
 
 fn live_thickness_width(level: usize) -> f64 {
 	active_left_shift(level) + active_right_shift(level)
+}
+
+/// Unified extent calculation for a self-message tile, matching Java's
+/// CommunicationTileSelf.getMinX() / getMaxX().
+///
+/// Returns `(min_x, max_x)` in Real coordinate space (before x_offset).
+///
+/// Java logic:
+///   Forward (L→R):  minX = posC,  maxX = posC2 + compWidth
+///   Reverse (R→L):  minX = posC - compWidth - liveDeltaAdj,  maxX = posC2
+///   where posC2 = posC + active_right_shift(level)
+///         liveDeltaAdj = if level > 0 { LIVE_DELTA_SIZE } else { 0 }
+///         LIVE_DELTA_SIZE = 5.0 (CommunicationTile.LIVE_DELTA_SIZE)
+fn self_message_extent(
+	center_x: f64,
+	comp_width: f64,
+	active_level: usize,
+	direction: &SeqDirection,
+) -> (f64, f64) {
+	const LIVE_DELTA_SIZE: f64 = 5.0;
+	let pos_c2 = center_x + active_right_shift(active_level);
+	match direction {
+		SeqDirection::LeftToRight => {
+			(center_x, pos_c2 + comp_width)
+		}
+		SeqDirection::RightToLeft => {
+			let live_delta_adj = if active_level > 0 { LIVE_DELTA_SIZE } else { 0.0 };
+			(center_x - comp_width - live_delta_adj, pos_c2)
+		}
+	}
+}
+
+/// Compute the component width for a self-message tile given its text_width
+/// and message line height.
+fn self_message_comp_width(text_width: f64, msg_line_height: f64) -> f64 {
+	let tm = TextMetrics::new(7.0, 7.0, 1.0, text_width, msg_line_height);
+	rose::self_arrow_preferred_size(&tm).width
+}
+
+/// Find the most recent SelfMessage tile before `tile_index` (skipping LifeEvent tiles)
+/// and return its (participant_idx, text_width, direction, active_level).
+fn find_preceding_self_message(tiles: &[TeozTile], tile_index: usize) -> Option<(usize, f64, SeqDirection, usize)> {
+	for i in (0..tile_index).rev() {
+		match &tiles[i] {
+			TeozTile::SelfMessage { participant_idx, text_width, direction, active_level, .. } => {
+				return Some((*participant_idx, *text_width, direction.clone(), *active_level));
+			}
+			TeozTile::LifeEvent { .. } => continue,
+			_ => return None,
+		}
+	}
+	None
 }
 
 fn estimate_note_height(text: &str) -> f64 {
@@ -902,7 +958,7 @@ pub fn build_teoz_layout(
 				..
 			} => {
 				let idx = *participant_idx;
-				let note_half = *width / 2.0 + 5.0;
+				let note_half = (*width + NOTE_EXTENT_PADDING) / 2.0 + 5.0;
 				if *is_left {
 					// Note to the left: need space before this participant
 					if idx > 0 {
@@ -1056,9 +1112,12 @@ pub fn build_teoz_layout(
 	// Include self-message and note extents in raw space.
 	// Only include tiles OUTSIDE groups/fragments — tiles inside groups
 	// contribute through the group expansion below.
+	//
+	// Uses the unified self_message_extent() helper for consistent geometry.
 	{
 		let mut outer_depth: usize = 0;
-		for tile in &tiles {
+		for tile_i in 0..tiles.len() {
+			let tile = &tiles[tile_i];
 			match tile {
 				TeozTile::GroupStart { .. } | TeozTile::FragmentStart { .. } => {
 					outer_depth += 1;
@@ -1073,46 +1132,58 @@ pub fn build_teoz_layout(
 					participant_idx, text_width, direction, active_level, ..
 				} => {
 					let cx = rl.get_value(livings[*participant_idx].pos_c);
-					let tm = TextMetrics::new(7.0, 7.0, 1.0, *text_width, tp.msg_line_height);
-					let comp_width = rose::self_arrow_preferred_size(&tm).width;
-					match direction {
-						SeqDirection::LeftToRight => {
-							let right = cx + active_right_shift(*active_level) + comp_width;
-							if right > raw_max { raw_max = right; }
-						}
-						SeqDirection::RightToLeft => {
-							let left = cx - active_left_shift(*active_level) - comp_width;
-							if left < raw_min { raw_min = left; }
-						}
-					}
+					let comp_w = self_message_comp_width(*text_width, tp.msg_line_height);
+					let (sm_min, sm_max) = self_message_extent(cx, comp_w, *active_level, direction);
+					if sm_min < raw_min { raw_min = sm_min; }
+					if sm_max > raw_max { raw_max = sm_max; }
 				}
 				TeozTile::Note { participant_idx, is_left, width, is_note_on_message, .. } => {
 					let cx = rl.get_value(livings[*participant_idx].pos_c);
-					if *is_left {
-						let left = cx - *width - 5.0;
-						if left < raw_min { raw_min = left; }
-					} else {
-						let base_x = if *is_note_on_message {
-							let mut sm_right = cx;
-							for prev in tiles.iter() {
-								if let TeozTile::SelfMessage { participant_idx: si, text_width: tw, active_level: al, direction, .. } = prev {
-									if *si == *participant_idx {
-										let pcx = rl.get_value(livings[*si].pos_c);
-										let tm = TextMetrics::new(7.0, 7.0, 1.0, *tw, tp.msg_line_height);
-										let comp_w = rose::self_arrow_preferred_size(&tm).width;
-										sm_right = match direction {
-											SeqDirection::LeftToRight => pcx + active_right_shift(*al) + comp_w,
-											SeqDirection::RightToLeft => pcx,
-										};
-									}
-								}
+					// Java uses ComponentRoseNote.getPreferredWidth for extent,
+					// which includes 2*paddingX beyond the drawn polygon width.
+					let extent_w = *width + NOTE_EXTENT_PADDING;
+					if *is_note_on_message {
+						// Note attached to a self-message: use Java's
+						// CommunicationTileSelfNoteLeft/Right extent model.
+						// minX/maxX are derived from the self-message's extent.
+						if let Some((sm_pidx, sm_tw, sm_dir, sm_al)) = find_preceding_self_message(&tiles, tile_i) {
+							let sm_cx = rl.get_value(livings[sm_pidx].pos_c);
+							let sm_comp_w = self_message_comp_width(sm_tw, tp.msg_line_height);
+							let (sm_min, sm_max) = self_message_extent(sm_cx, sm_comp_w, sm_al, &sm_dir);
+							if *is_left {
+								// Java CommunicationTileSelfNoteLeft.getMinX():
+								//   tile.getMinX() - notePreferredWidth
+								let left = sm_min - extent_w;
+								if left < raw_min { raw_min = left; }
+								// maxX comes from the self-message
+								if sm_max > raw_max { raw_max = sm_max; }
+							} else {
+								// Java CommunicationTileSelfNoteRight.getMaxX():
+								//   tile.getMaxX() + notePreferredWidth
+								let right = sm_max + extent_w;
+								if right > raw_max { raw_max = right; }
+								// minX comes from the self-message
+								if sm_min < raw_min { raw_min = sm_min; }
 							}
-							sm_right
 						} else {
-							cx
-						};
-						let right = base_x + *width;
-						if right > raw_max { raw_max = right; }
+							// Fallback: note on regular message, use cx-based
+							if *is_left {
+								let left = cx - extent_w - 5.0;
+								if left < raw_min { raw_min = left; }
+							} else {
+								let right = cx + extent_w;
+								if right > raw_max { raw_max = right; }
+							}
+						}
+					} else {
+						// Standalone note: simple cx-based extent
+						if *is_left {
+							let left = cx - extent_w - 5.0;
+							if left < raw_min { raw_min = left; }
+						} else {
+							let right = cx + extent_w;
+							if right > raw_max { raw_max = right; }
+						}
 					}
 				}
 				_ => {}
@@ -1161,12 +1232,8 @@ pub fn build_teoz_layout(
 					}
 					TeozTile::SelfMessage { participant_idx, text_width, direction, active_level, .. } => {
 						let cx = rl.get_value(livings[*participant_idx].pos_c);
-						let tm = TextMetrics::new(7.0, 7.0, 1.0, *text_width, tp.msg_line_height);
-						let comp_width = rose::self_arrow_preferred_size(&tm).width;
-						let (t_min, t_max) = match direction {
-							SeqDirection::LeftToRight => (cx, cx + active_right_shift(*active_level) + comp_width),
-							SeqDirection::RightToLeft => (cx - active_left_shift(*active_level) - comp_width, cx),
-						};
+						let comp_w = self_message_comp_width(*text_width, tp.msg_line_height);
+						let (t_min, t_max) = self_message_extent(cx, comp_w, *active_level, direction);
 						// Add MARGINX for this tile within the group
 						let child_min = t_min - GROUP_MARGINX;
 						let child_max = t_max + GROUP_MARGINX;
@@ -1181,18 +1248,35 @@ pub fn build_teoz_layout(
 						if child_min < group_min { group_min = child_min; }
 						if child_max > group_max { group_max = child_max; }
 					}
-					TeozTile::Note { participant_idx, is_left, width, .. } => {
+					TeozTile::Note { participant_idx, is_left, width, is_note_on_message, .. } => {
 						let cx = rl.get_value(livings[*participant_idx].pos_c);
-						let (t_min, t_max) = if *is_left {
-							(cx - *width - 5.0, cx)
+						let extent_w = *width + NOTE_EXTENT_PADDING;
+						let (t_min, t_max) = if *is_note_on_message {
+							// Note on self-message: use self-message extent
+							if let Some((sm_pidx, sm_tw, sm_dir, sm_al)) = find_preceding_self_message(tiles, i) {
+								let sm_cx = rl.get_value(livings[sm_pidx].pos_c);
+								let sm_comp_w = self_message_comp_width(sm_tw, tp.msg_line_height);
+								let (sm_min, sm_max) = self_message_extent(sm_cx, sm_comp_w, sm_al, &sm_dir);
+								if *is_left {
+									(sm_min - extent_w, sm_max)
+								} else {
+									(sm_min, sm_max + extent_w)
+								}
+							} else {
+								// Fallback
+								if *is_left { (cx - extent_w - 5.0, cx) } else { (cx, cx + extent_w) }
+							}
+						} else if *is_left {
+							(cx - extent_w - 5.0, cx)
 						} else {
-							(cx, cx + *width)
+							(cx, cx + extent_w)
 						};
 						let child_min = t_min - GROUP_MARGINX;
 						let child_max = t_max + GROUP_MARGINX;
 						if child_min < group_min { group_min = child_min; }
 						if child_max > group_max { group_max = child_max; }
 					}
+
 					TeozTile::FragmentSeparator { .. } => {
 						// Java: else tiles contribute only to maxX, not to minX
 						// (handled by the parent group's allElses list)
@@ -1312,7 +1396,8 @@ pub fn build_teoz_layout(
 	// Track activation state for ActivationLayout generation
 
 
-	for tile in &tiles {
+	for tile_i in 0..tiles.len() {
+		let tile = &tiles[tile_i];
 		match tile {
 			TeozTile::Communication {
 				from_idx,
@@ -1434,7 +1519,25 @@ pub fn build_teoz_layout(
 			} => {
 				let ty = y.unwrap_or(0.0);
 				let cx = get_x(livings[*participant_idx].pos_c);
-				let nx = if *is_left {
+				let nx = if *is_note_on_message {
+					// Note on self-message: position relative to self-message extent
+					if let Some((sm_pidx, sm_tw, sm_dir, sm_al)) = find_preceding_self_message(&tiles, tile_i) {
+						let sm_cx = get_x(livings[sm_pidx].pos_c);
+						let sm_comp_w = self_message_comp_width(sm_tw, tp.msg_line_height);
+						let sm_cx_raw = rl.get_value(livings[sm_pidx].pos_c);
+						let (sm_min, sm_max) = self_message_extent(sm_cx_raw, sm_comp_w, sm_al, &sm_dir);
+						if *is_left {
+							// Java: tile.getMinX() - noteWidth (in raw coords) + x_offset
+							sm_min + x_offset - *width
+						} else {
+							// Java: tile.getMaxX() (in raw coords) + x_offset
+							sm_max + x_offset
+						}
+					} else {
+						// Fallback: note on regular message
+						if *is_left { cx - *width - 5.0 } else { cx + 5.0 }
+					}
+				} else if *is_left {
 					cx - *width - 5.0
 				} else {
 					cx + 5.0
