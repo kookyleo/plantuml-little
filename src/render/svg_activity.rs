@@ -6,7 +6,8 @@ use crate::font_metrics;
 use crate::klimt::svg::{fmt_coord, LengthAdjust, SvgGraphic};
 use crate::model::activity::ActivityDiagram;
 use crate::render::svg::{write_svg_root_bg, write_bg_rect};
-use crate::render::svg_richtext::{render_creole_text, render_creole_text_opts};
+use crate::render::svg_richtext::{render_creole_text, render_creole_text_opts, get_sprite_svg};
+use crate::render::svg_sprite;
 use crate::style::SkinParams;
 use crate::Result;
 
@@ -264,18 +265,64 @@ fn render_action(
     let first_baseline = node.y + padding + table_cell_padding + baseline_offset;
     let lh = action_line_height();
 
-    for (i, line) in lines.iter().enumerate() {
-        let y = first_baseline + i as f64 * lh;
+    // Java AtomImgSvg: sprite display scale = fontSize / (fontSize + 1)
+    let sprite_scale = ACTION_FONT_SIZE / (ACTION_FONT_SIZE + 1.0);
+
+    let mut y_cursor = 0.0_f64; // content height accumulated (relative to first_baseline area)
+    for (_i, line) in lines.iter().enumerate() {
+        let display_text = line.trim();
+        if display_text.is_empty() {
+            y_cursor += lh;
+            continue;
+        }
+
+        // Check for sprite-only line: `<$name>`
+        if display_text.starts_with("<$") && display_text.ends_with('>') {
+            let inner = &display_text[2..display_text.len() - 1];
+            let name = inner.split(',').next().unwrap_or(inner).trim();
+            if let Some(svg_content) = get_sprite_svg(name) {
+                let info = svg_sprite::sprite_info(&svg_content);
+                let sprite_w = info.vb_width * sprite_scale;
+                let sprite_h = info.vb_height * sprite_scale;
+                // Position sprite centered in the action box (Java behavior)
+                // or at base_x. Java centers sprites in the FtileBox.
+                let sprite_x = node.x + padding;
+                let sprite_y = node.y + padding + y_cursor;
+                let converted = svg_sprite::convert_svg_elements(
+                    &svg_content,
+                    sprite_x,
+                    sprite_y,
+                );
+                // Wrap in a scale group for the sprite_scale
+                let mut tmp = String::new();
+                use std::fmt::Write as _;
+                write!(
+                    tmp,
+                    r#"<g transform="translate({},{}) scale({:.4})">"#,
+                    fmt_coord(sprite_x),
+                    fmt_coord(sprite_y),
+                    sprite_scale,
+                ).unwrap();
+                // Re-convert at origin since we're wrapping in a scaled group
+                let converted_at_origin = svg_sprite::convert_svg_elements(
+                    &svg_content, 0.0, 0.0,
+                );
+                tmp.push_str(&converted_at_origin);
+                tmp.push_str("</g>");
+                sg.push_raw(&tmp);
+                y_cursor += sprite_h;
+                let _ = converted; // unused; we re-converted at origin
+                continue;
+            }
+        }
+
+        let y = first_baseline + y_cursor;
         // Java DriverTextSvg algorithm:
         // 1. Count leading spaces → add space_width per space to x
         // 2. StringUtils.trin() the remaining text (strips trailing whitespace)
         // 3. Render trimmed text at adjusted x
         let leading_spaces = line.len() - line.trim_start_matches(' ').len();
         let text_x = base_x + leading_spaces as f64 * space_width;
-        let display_text = line.trim();
-        if display_text.is_empty() {
-            continue;
-        }
         // For table rows, strip outer pipes and leading header markers (=)
         let cell_text = if is_table {
             let inner = display_text.trim_start_matches('|').trim_end_matches('|');
@@ -297,6 +344,7 @@ fn render_action(
             true, // preserve_backslash_n
         );
         sg.push_raw(&tmp);
+        y_cursor += lh;
     }
 
     // Render creole table grid lines

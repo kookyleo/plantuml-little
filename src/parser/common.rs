@@ -730,16 +730,19 @@ pub fn extract_sprites(source: &str) -> (String, HashMap<String, String>) {
                     // Collect SVG content (may span multiple lines)
                     let mut svg_buf = rest[svg_start..].to_string();
                     if svg_buf.contains("</svg>") {
-                        // Single-line sprite
+                        // Single-line sprite: replace with blank to preserve line numbering
                         sprites.insert(name, svg_buf);
+                        cleaned.push("");
                         i += 1;
                         continue;
                     }
-                    // Multi-line: accumulate until </svg>
+                    // Multi-line: accumulate until </svg>, replace all lines with blanks
+                    cleaned.push(""); // first sprite line
                     i += 1;
                     while i < lines.len() {
                         svg_buf.push('\n');
                         svg_buf.push_str(lines[i]);
+                        cleaned.push(""); // continuation line
                         if lines[i].contains("</svg>") {
                             break;
                         }

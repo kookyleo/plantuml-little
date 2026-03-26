@@ -107,37 +107,83 @@ const TABLE_CELL_PADDING: f64 = 2.0;
 /// Estimate the bounding-box size of an action box.
 /// Uses actual font metrics for precise sizing to match Java PlantUML.
 /// Detects creole tables (`|...|` rows) and adds cell padding.
+/// Detects inline sprite references (`<$name>`) and uses sprite viewBox
+/// dimensions (scaled by `fontSize / (fontSize + 1)`) for sizing.
 fn estimate_text_size(text: &str) -> (f64, f64) {
     let lh = font_metrics::line_height("SansSerif", FONT_SIZE, false, false);
     // Java: Display.create() does NOT trim lines; leading/trailing spaces
     // are preserved and measured for width (AtomText includes spaces).
     let lines: Vec<&str> = text.split('\n').collect();
-    let max_line_width = lines
-        .iter()
-        .map(|l| {
-            let trimmed = l.trim();
+
+    // Java AtomImgSvg: sprite visual size = viewBox × fontSize / (fontSize + 1).
+    let sprite_scale = FONT_SIZE / (FONT_SIZE + 1.0);
+
+    let mut max_line_width = 0.0_f64;
+    let mut total_content_height = 0.0_f64;
+    let mut has_table = false;
+
+    for l in &lines {
+        let trimmed = l.trim();
+        // Check for sprite-only line: `<$name>`
+        if let Some(sprite_dim) = sprite_line_dimensions(trimmed, sprite_scale) {
+            max_line_width = max_line_width.max(sprite_dim.0);
+            total_content_height += sprite_dim.1;
+        } else if trimmed.starts_with('|') && trimmed.ends_with('|') && trimmed.len() > 2 {
             // For creole table rows, measure content without outer pipes.
             // Java: table cells are rendered individually, not as raw pipe-delimited text.
-            if trimmed.starts_with('|') && trimmed.ends_with('|') && trimmed.len() > 2 {
-                // Strip outer pipes and measure inner content (keeps inner |)
-                let inner = &trimmed[1..trimmed.len()-1];
-                font_metrics::text_width(inner, "SansSerif", FONT_SIZE, false, false)
-            } else {
-                font_metrics::text_width(l, "SansSerif", FONT_SIZE, false, false)
-            }
-        })
-        .fold(0.0_f64, f64::max);
+            let inner = &trimmed[1..trimmed.len()-1];
+            let w = font_metrics::text_width(inner, "SansSerif", FONT_SIZE, false, false);
+            max_line_width = max_line_width.max(w);
+            total_content_height += lh;
+            has_table = true;
+        } else {
+            let w = font_metrics::text_width(l, "SansSerif", FONT_SIZE, false, false);
+            max_line_width = max_line_width.max(w);
+            total_content_height += lh;
+        }
+    }
+
     let width = max_line_width + 2.0 * PADDING;
     // Java: creole table cells get extra padding (skinParam.getPadding() = 2,
     // applied as top+bottom on each SheetBlock1 cell → +4 total per table).
-    let has_table = lines.iter().any(|l| {
-        let t = l.trim();
-        t.starts_with('|') && t.ends_with('|') && t.len() > 2
-    });
     let table_extra = if has_table { 2.0 * TABLE_CELL_PADDING } else { 0.0 };
-    let height = lines.len() as f64 * lh + 2.0 * PADDING + table_extra;
+    let height = total_content_height + 2.0 * PADDING + table_extra;
     log::debug!("estimate_text_size -> {}x{} ({} lines)", width, height, lines.len());
     (width, height)
+}
+
+/// If `line` is a sprite-only reference (e.g. `<$name>`), return its visual
+/// (width, height) after scaling.  Returns `None` for normal text lines.
+fn sprite_line_dimensions(line: &str, scale: f64) -> Option<(f64, f64)> {
+    let trimmed = line.trim();
+    if !trimmed.starts_with("<$") || !trimmed.ends_with('>') {
+        return None;
+    }
+    let inner = &trimmed[2..trimmed.len() - 1];
+    let name = inner.split(',').next().unwrap_or(inner).trim();
+    if name.is_empty() {
+        return None;
+    }
+    let svg = crate::render::svg_richtext::get_sprite_svg(name)?;
+    let (vb_w, vb_h) = parse_sprite_viewbox(&svg);
+    Some((vb_w * scale, vb_h * scale))
+}
+
+/// Parse viewBox from SVG content to get (width, height).
+fn parse_sprite_viewbox(svg: &str) -> (f64, f64) {
+    if let Some(vb_start) = svg.find("viewBox=\"") {
+        let rest = &svg[vb_start + 9..];
+        if let Some(vb_end) = rest.find('"') {
+            let parts: Vec<&str> = rest[..vb_end].split_whitespace().collect();
+            if parts.len() == 4 {
+                return (
+                    parts[2].parse().unwrap_or(100.0),
+                    parts[3].parse().unwrap_or(50.0),
+                );
+            }
+        }
+    }
+    (100.0, 50.0)
 }
 
 /// Height of a `====` / `----` horizontal separator in a note (Java: 10.0).
