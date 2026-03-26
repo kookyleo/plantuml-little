@@ -10,3 +10,4 @@ scripts/failures.json
 scripts/__pycache__/
 our_*.svg
 tests/fixtures/**/*.svg
+actual.svg\nactual_*.svg\nclaude-loop.log\nfailures_analysis.log\nmain_results.log\nout.svg\npatch_*.patch\nsvek.dot\nsvek.svg\ntest_newline.*\ntest_output.txt\ntest_parse\ntest_parse.rs\ntmp_debug/
