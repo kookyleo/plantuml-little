@@ -117,6 +117,8 @@ pub fn detect_diagram_type(content: &str) -> DiagramHint {
     let mut has_state_keyword = false;
     let mut has_component_keyword_definitive = false;
     let mut has_component_keyword_ambiguous = false;
+    let mut has_port_keyword = false;
+    let mut has_component_brace_only = true; // true if all component keywords have brace bodies
     let mut has_usecase_keyword = false;
     let mut has_salt_keyword = false;
     let mut has_timing_keyword = false;
@@ -247,14 +249,9 @@ pub fn detect_diagram_type(content: &str) -> DiagramHint {
             has_state_keyword = true;
         }
 
-        // Component / deployment keywords.
-        // When a deployment keyword has a brace body (e.g. `component a {`),
-        // Java's ClassDiagramFactory handles it as a CLASS entity, so we
-        // set has_class_kw instead of has_component_keyword_definitive.
+        // Component / deployment keywords
         let is_bracket_opener = in_bracket_display;
-        let has_brace_body = trimmed.ends_with('{')
-            || trimmed.ends_with("{}");
-        if trimmed.starts_with("component ")
+        let is_component_kw = trimmed.starts_with("component ")
             || trimmed.starts_with("node ")
             || trimmed.starts_with("cloud ")
             || trimmed.starts_with("card ")
@@ -264,14 +261,23 @@ pub fn detect_diagram_type(content: &str) -> DiagramHint {
             || trimmed.starts_with("folder ")
             || trimmed.starts_with("frame ")
             || trimmed.starts_with("agent ")
-            || trimmed.starts_with("stack ")
-        {
-            if has_brace_body {
-                // Brace-bodied deployment entities go through ClassDiagramFactory
-                has_class_kw = true;
-            } else {
-                has_component_keyword_definitive = true;
+            || trimmed.starts_with("stack ");
+        if is_component_kw {
+            has_component_keyword_definitive = true;
+            // Track whether ALL component keywords have brace bodies.
+            // Standalone `component A` (no brace) stays DESCRIPTION;
+            // `component A {` (brace body) may go to CLASS.
+            if !(trimmed.ends_with('{') || trimmed.ends_with("{}")) {
+                has_component_brace_only = false;
             }
+        }
+        // Port keywords: only present in DESCRIPTION/component diagrams
+        if trimmed.starts_with("portin ")
+            || trimmed.starts_with("portout ")
+            || trimmed == "portin"
+            || trimmed == "portout"
+        {
+            has_port_keyword = true;
         }
         if trimmed.starts_with('[')
             && !trimmed.starts_with("[->")
@@ -430,8 +436,14 @@ pub fn detect_diagram_type(content: &str) -> DiagramHint {
         return DiagramHint::Activity;
     }
 
-    // Component: only when no class keywords override
+    // Component: only when no class keywords override.
+    // When all component keywords have brace bodies and there are no arrows
+    // or ports, Java's ClassDiagramFactory takes priority (it can fully parse
+    // `component a {}` as a class entity). Otherwise DESCRIPTION wins.
     if has_component_keyword_definitive && !has_class_kw {
+        if has_component_brace_only && !has_arrow && !has_port_keyword {
+            return DiagramHint::Class;
+        }
         return DiagramHint::Component;
     }
     // Sequence arrows override class relations when no class keywords present
