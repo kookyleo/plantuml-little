@@ -273,8 +273,8 @@ struct TeozParams {
 	msg_line_height: f64,
 	frag_header_height: f64,
 	/// Java teoz ElseTile: ComponentRoseGroupingElse.getPreferredHeight() = textHeight + 16
-	/// textHeight = textBlock.height + 2*marginY(1) = h13 + 2
-	/// So frag_separator_height_teoz = h13 + 18
+	/// textHeight = textBlock.height + 2*marginY(1) = h11 + 2  (11pt style font)
+	/// So frag_separator_height_teoz = h11 + 18
 	frag_separator_height_teoz: f64,
 	divider_height: f64,
 	delay_height: f64,
@@ -303,8 +303,10 @@ impl TeozParams {
 
 		let frag_header_height = h13 + 2.0;
 		// Java teoz: ElseTile preferred height = getTextHeight + 16
-		// getTextHeight = textBlock.height + 2*marginY(1) = h13 + 2
-		let frag_separator_height_teoz = h13 + 18.0;
+		// Java ElseTile uses ComponentRoseGroupingElse with style font (11pt), not 13pt.
+		// getTextHeight = textBlock.height + 2*marginY(1) = h11 + 2
+		let h11 = font_metrics::line_height(font_family, 11.0, false, false);
+		let frag_separator_height_teoz = h11 + 18.0;
 
 		let divider_tm = TextMetrics::new(0.0, 0.0, 5.0, 0.0, 0.0);
 		let divider_height = rose::divider_preferred_size(&divider_tm).height;
@@ -369,6 +371,29 @@ fn self_message_extent(
 			let live_delta_adj = if active_level > 0 { LIVE_DELTA_SIZE } else { 0.0 };
 			(center_x - comp_width - live_delta_adj, pos_c2)
 		}
+	}
+}
+
+/// Compute the contact point for a self-message (or normal message).
+/// Java: CommunicationTileSelf.getContactPointRelative()
+///   = component.getYPoint() = (textHeight + textAndArrowHeight) / 2
+/// For normal messages: ContactPointRelative = arrowY = textHeight + paddingY
+fn compute_selfmsg_contact(tile: &TeozTile, msg_line_height: f64) -> f64 {
+	match tile {
+		TeozTile::SelfMessage { .. } => {
+			// Java: (textHeight + textAndArrowHeight) / 2 + paddingX(=0)
+			// textHeight = lineHeight + 2*marginY(1) = h13 + 2
+			// textAndArrowHeight = textHeight + arrowOnlyHeight(13)
+			let text_height = msg_line_height + 2.0;
+			let text_and_arrow_h = text_height + rose::SELF_ARROW_ONLY_HEIGHT;
+			(text_height + text_and_arrow_h) / 2.0
+		}
+		TeozTile::Communication { .. } => {
+			// Java: ComponentRoseArrow.getYPoint = textHeight + paddingY(4)
+			let text_height = msg_line_height + 2.0;
+			text_height + rose::ARROW_PADDING_Y
+		}
+		_ => 0.0,
 	}
 }
 
@@ -1020,77 +1045,154 @@ pub fn build_teoz_layout(
 	let mut block_start_y: Option<f64> = None;
 	let mut block_max_height: f64 = 0.0;
 
-	for tile in tiles.iter_mut() {
+	// Track fragment nesting for parallel message support.
+	// Java mergeParallel + TileParallel: when a parallel message follows a
+	// GroupingTile, both share the same y start and the GroupingTile is offset
+	// down by the message's contactPointRelative.
+	let mut frag_depth: i32 = 0;
+	// y before the EmptyTile(4) spacer of the outermost fragment
+	let mut frag_block_y_before: Option<f64> = None;
+	// Tile index range of the outermost fragment block
+	let mut frag_block_start_idx: Option<usize> = None;
+
+	let tile_count = tiles.len();
+	let mut tile_idx = 0;
+	while tile_idx < tile_count {
 		// Check if this tile is a parallel message
-		let is_parallel = matches!(tile,
+		let is_parallel = matches!(tiles[tile_idx],
 			TeozTile::Communication { is_parallel: true, .. }
 			| TeozTile::SelfMessage { is_parallel: true, .. }
 		);
 
 		// Check if this Note follows a message (note-on-message binding).
-		let is_note_on_msg = matches!(tile,
+		let is_note_on_msg = matches!(tiles[tile_idx],
 			TeozTile::Note { is_note_on_message: true, .. }
 		) && prev_msg_height.is_some();
 
 		if is_note_on_msg {
 			let msg_h = prev_msg_height.unwrap();
 			let msg_y = prev_msg_y.unwrap();
-			let note_h = tile.preferred_height();
+			let note_h = tiles[tile_idx].preferred_height();
 			// Place note at the same y as the message
-			tile.set_y(msg_y);
+			tiles[tile_idx].set_y(msg_y);
 			// Combined height = max(message_h, note_h)
 			let combined_h = msg_h.max(note_h);
 			y = msg_y + combined_h;
 			prev_msg_height = None;
 			prev_msg_y = None;
 		} else if is_parallel {
-			// Parallel message: rewind to block start, use max height
+			// Parallel message: rewind to block start, use max height.
+			// Java: mergeParallel pulls the previous non-LifeEvent tile into
+			// a TileParallel with the parallel message. Contact points align
+			// the tiles vertically.
 			if let Some(bs_y) = block_start_y {
-				tile.set_y(bs_y);
-				let tile_h = tile.preferred_height();
-				if tile_h > block_max_height {
-					block_max_height = tile_h;
+				// Check if the block is a fragment block. If so, apply the
+				// Java TileParallel contact-point offset: shift all fragment
+				// tiles down by the message's contact point, and place the
+				// message at the block start.
+				if let Some(frag_start_idx) = frag_block_start_idx.take() {
+					let selfmsg_contact = compute_selfmsg_contact(&tiles[tile_idx], tp.msg_line_height);
+					// Shift all fragment tiles down by selfmsg_contact
+					for shift_idx in frag_start_idx..tile_idx {
+						if let Some(old_y) = tiles[shift_idx].get_y() {
+							tiles[shift_idx].set_y(old_y + selfmsg_contact);
+						}
+					}
+					// Place parallel message at original block start
+					tiles[tile_idx].set_y(bs_y);
+					// Java removeEmptyCloseToParallel: the trailing EmptyTile(4)
+					// after the GroupingTile is removed when a parallel message
+					// follows. Our FragEnd.height(4) is the equivalent trailing
+					// spacer, so subtract it from block_max_height.
+					let trailing = EMPTY_TILE_SPACING; // 4.0
+					let effective_block = block_max_height - trailing;
+					y = bs_y + selfmsg_contact + effective_block;
+				} else {
+					tiles[tile_idx].set_y(bs_y);
+					let tile_h = tiles[tile_idx].preferred_height();
+					if tile_h > block_max_height {
+						block_max_height = tile_h;
+					}
+					y = bs_y + block_max_height;
 				}
-				// Don't advance y — it will be set to block_start + max_height
-				// when the next non-parallel tile arrives or at the end
-				y = bs_y + block_max_height;
 			} else {
 				// No block to parallel with — treat as normal
-				tile.set_y(y);
-				y += tile.preferred_height();
+				tiles[tile_idx].set_y(y);
+				y += tiles[tile_idx].preferred_height();
 			}
-			prev_msg_height = Some(tile.preferred_height());
-			prev_msg_y = Some(tile.get_y().unwrap_or(y));
+			prev_msg_height = Some(tiles[tile_idx].preferred_height());
+			prev_msg_y = Some(tiles[tile_idx].get_y().unwrap_or(y));
 		} else {
+			// Track fragment nesting depth
+			let is_frag_start = matches!(tiles[tile_idx], TeozTile::FragmentStart { .. } | TeozTile::GroupStart { .. });
+			let is_frag_end = matches!(tiles[tile_idx], TeozTile::FragmentEnd { .. } | TeozTile::GroupEnd { .. });
+
+			if is_frag_start {
+				frag_depth += 1;
+			}
+			if is_frag_end {
+				frag_depth -= 1;
+			}
+
 			// Java inserts EmptyTile(4) spacer before GroupingTile
-			if matches!(tile, TeozTile::FragmentStart { .. } | TeozTile::GroupStart { .. }) {
+			if is_frag_start {
 				y += EMPTY_TILE_SPACING;
 			}
 			// Java GroupingTile bottom padding = MARGINY_MAGIC/2 = 10
-			if matches!(tile, TeozTile::FragmentEnd { .. } | TeozTile::GroupEnd { .. }) {
+			if is_frag_end {
 				y += FRAG_BOTTOM_PADDING;
 			}
-			tile.set_y(y);
-			match tile {
+
+			// Record the outermost fragment start AFTER EmptyTile spacing.
+			// Java's TileParallel aligns the GroupingTile (which starts
+			// after the leading EmptyTile) with the parallel message.
+			if is_frag_start && frag_depth == 1 {
+				frag_block_y_before = Some(y);
+				frag_block_start_idx = Some(tile_idx);
+			}
+
+			tiles[tile_idx].set_y(y);
+
+			let tile_h = tiles[tile_idx].preferred_height();
+			match &tiles[tile_idx] {
 				TeozTile::Communication { .. } | TeozTile::SelfMessage { .. } => {
-					prev_msg_height = Some(tile.preferred_height());
+					prev_msg_height = Some(tile_h);
 					prev_msg_y = Some(y);
-					// Start a new parallel block
-					block_start_y = Some(y);
-					block_max_height = tile.preferred_height();
+					// Start a new parallel block (only at depth 0)
+					if frag_depth == 0 {
+						block_start_y = Some(y);
+						block_max_height = tile_h;
+					}
 				}
 				TeozTile::LifeEvent { .. } => {
 					// LifeEvent tiles don't break the message-note chain
 				}
+				TeozTile::FragmentEnd { .. } | TeozTile::GroupEnd { .. } if frag_depth == 0 => {
+					// Outermost fragment just closed. Set block_start_y to
+					// the FragmentStart y (after EmptyTile spacing) so that
+					// a subsequent parallel message can parallel with the
+					// entire GroupingTile equivalent.
+					if let Some(fby) = frag_block_y_before {
+						block_start_y = Some(fby);
+						block_max_height = y + tile_h - fby;
+					}
+					prev_msg_height = None;
+					prev_msg_y = None;
+				}
 				_ => {
 					prev_msg_height = None;
 					prev_msg_y = None;
-					block_start_y = None;
-					block_max_height = 0.0;
+					if frag_depth == 0 {
+						block_start_y = None;
+						block_max_height = 0.0;
+						frag_block_y_before = None;
+						frag_block_start_idx = None;
+					}
 				}
 			}
-			y += tile.preferred_height();
+			y += tile_h;
 		}
+		tile_idx += 1;
 	}
 	let tiles_bottom = y;
 	// Java: lifeline height = getPreferredHeight = finalY + 10 (bottom padding)
