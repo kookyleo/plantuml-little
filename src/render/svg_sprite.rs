@@ -17,11 +17,24 @@ thread_local! {
     static SPRITE_DEFS_MAP: RefCell<HashMap<String, String>> = RefCell::new(HashMap::new());
     /// When true, all colors are converted to grayscale (skinparam monochrome true).
     static MONOCHROME_MODE: Cell<bool> = Cell::new(false);
+    /// Scale factor for coordinate conversion (1.0 = no scaling).
+    /// Used by `convert_svg_elements_scaled` to pre-apply transforms.
+    static SPRITE_SCALE: Cell<f64> = Cell::new(1.0);
 }
 
 /// Set monochrome mode for sprite rendering.
 pub fn set_monochrome(enabled: bool) {
     MONOCHROME_MODE.with(|m| m.set(enabled));
+}
+
+/// Get current sprite scale factor.
+fn sprite_scale() -> f64 {
+    SPRITE_SCALE.with(|s| s.get())
+}
+
+/// Apply sprite scale to a coordinate: `coord * scale`.
+fn sc(v: f64) -> f64 {
+    v * sprite_scale()
 }
 
 pub fn clear_gradient_defs() {
@@ -52,6 +65,35 @@ pub fn sprite_info(svg: &str) -> SpriteInfo {
 /// Java: the gap equals the space advance from getStringBounds.
 pub fn sprite_text_gap(font_family: &str, font_size: f64, bold: bool, italic: bool) -> f64 {
     crate::font_metrics::char_width(' ', font_family, font_size, bold, italic)
+}
+
+/// Convert SVG sprite elements with scaling and absolute positioning.
+///
+/// All coordinates are multiplied by `scale`, then shifted by `(offset_x, offset_y)`.
+/// Sizes (radius, width, height) are multiplied by `scale` but not shifted.
+/// This matches Java's approach of pre-computing absolute coordinates instead of
+/// using `<g transform>` wrappers.
+pub fn convert_svg_elements_scaled(svg: &str, offset_x: f64, offset_y: f64, scale: f64) -> String {
+    SPRITE_DEFS_MAP.with(|m| m.borrow_mut().clear());
+    cache_defs_elements(svg);
+
+    let grad_defs = extract_gradient_defs(svg);
+    if !grad_defs.is_empty() {
+        COLLECTED_GRADIENT_DEFS.with(|collected| {
+            let mut collected = collected.borrow_mut();
+            for (id, def_xml) in &grad_defs {
+                if !collected.iter().any(|(eid, _)| eid == id) {
+                    collected.push((id.clone(), def_xml.clone()));
+                }
+            }
+        });
+    }
+    let mut buf = String::new();
+    let inner = strip_svg_wrapper(svg);
+    SPRITE_SCALE.with(|s| s.set(scale));
+    convert_elements(&mut buf, inner.trim(), offset_x, offset_y, None);
+    SPRITE_SCALE.with(|s| s.set(1.0));
+    buf
 }
 
 /// Convert SVG sprite elements to path-based elements with absolute positioning.
@@ -633,19 +675,61 @@ fn convert_single_element_ext(
     css_text_props: &[(String, String)],
 ) {
     let tag = element_tag_name(element);
+
+    // Handle element-level transform attribute by pre-applying it to the offset.
+    // Java applies transforms to coordinates before rendering, so the output
+    // uses absolute coordinates instead of SVG transform attributes.
+    let (eff_ox, eff_oy, saved_scale) = if tag != "g" && tag != "use" {
+        if let Some(transform) = get_attr(element, "transform") {
+            apply_element_transform(&transform, ox, oy)
+        } else {
+            (ox, oy, None)
+        }
+    } else {
+        (ox, oy, None)
+    };
+
     match tag {
-        "rect" => convert_rect(buf, element, ox, oy),
-        "circle" => convert_circle(buf, element, ox, oy),
-        "ellipse" => convert_ellipse(buf, element, ox, oy),
-        "line" => convert_line(buf, element, ox, oy),
-        "polyline" => convert_polyline(buf, element, ox, oy),
-        "polygon" => convert_polygon(buf, element, ox, oy),
-        "path" => convert_path(buf, element, ox, oy),
+        "rect" => convert_rect(buf, element, eff_ox, eff_oy),
+        "circle" => convert_circle(buf, element, eff_ox, eff_oy),
+        "ellipse" => convert_ellipse(buf, element, eff_ox, eff_oy),
+        "line" => convert_line(buf, element, eff_ox, eff_oy),
+        "polyline" => convert_polyline(buf, element, eff_ox, eff_oy),
+        "polygon" => convert_polygon(buf, element, eff_ox, eff_oy),
+        "path" => convert_path(buf, element, eff_ox, eff_oy),
         "text" => convert_text(buf, element, text_ox, text_oy),
-        "image" => convert_image(buf, element, ox, oy),
+        "image" => convert_image(buf, element, eff_ox, eff_oy),
         "g" => convert_group(buf, element, ox, oy, text_ox, text_oy, css_text_props),
         "use" => convert_use(buf, element, ox, oy, text_ox, text_oy, css_text_props),
         _ => {}
+    }
+
+    // Restore saved scale if modified by element transform
+    if let Some(prev) = saved_scale {
+        SPRITE_SCALE.with(|s| s.set(prev));
+    }
+}
+
+/// Apply an element-level SVG transform to the current offset and scale.
+/// Returns (new_ox, new_oy, saved_scale) where saved_scale is Some if the
+/// SPRITE_SCALE was modified (needs restoration after rendering).
+fn apply_element_transform(transform: &str, ox: f64, oy: f64) -> (f64, f64, Option<f64>) {
+    let (tx, ty) = parse_translate(transform);
+    let elem_scale = parse_scale(transform);
+
+    if let Some(es) = elem_scale {
+        // scale(s) transform: multiply current scale and adjust offset
+        let prev_scale = sprite_scale();
+        let new_scale = prev_scale * es;
+        SPRITE_SCALE.with(|s| s.set(new_scale));
+        // Don't adjust offset for scale — the element's own coordinates
+        // will be multiplied by the new combined scale via sc().
+        (ox + sc(tx), oy + sc(ty), Some(prev_scale))
+    } else if tx.abs() > 0.001 || ty.abs() > 0.001 {
+        // translate(tx, ty): just add to offset (already scaled by sc())
+        (ox + sc(tx), oy + sc(ty), None)
+    } else {
+        (ox, oy, None)
     }
 }
 
@@ -673,10 +757,10 @@ fn convert_rect(buf: &mut String, element: &str, ox: f64, oy: f64) {
         .and_then(|v| v.parse::<f64>().ok())
         .unwrap_or(0.0);
 
-    let ax = x + ox;
-    let ay = y + oy;
-    let ax2 = ax + w;
-    let ay2 = ay + h;
+    let ax = sc(x) + ox;
+    let ay = sc(y) + oy;
+    let ax2 = ax + sc(w);
+    let ay2 = ay + sc(h);
 
     // Build path: M x,y L x+w,y L x+w,y+h L x,y+h L x,y
     let d = format!(
@@ -717,12 +801,13 @@ fn convert_circle(buf: &mut String, element: &str, ox: f64, oy: f64) {
     let cy = get_attr(element, "cy")
         .and_then(|v| v.parse::<f64>().ok())
         .unwrap_or(0.0);
-    let r = get_attr(element, "r")
+    let r_raw = get_attr(element, "r")
         .and_then(|v| v.parse::<f64>().ok())
         .unwrap_or(0.0);
+    let r = sc(r_raw);
 
-    let acx = cx + ox;
-    let acy = cy + oy;
+    let acx = sc(cx) + ox;
+    let acy = sc(cy) + oy;
 
     // Circle as 4 arcs: start at left, go top, right, bottom, back to left
     let d = format!(
@@ -753,15 +838,17 @@ fn convert_ellipse(buf: &mut String, element: &str, ox: f64, oy: f64) {
     let cy = get_attr(element, "cy")
         .and_then(|v| v.parse::<f64>().ok())
         .unwrap_or(0.0);
-    let rx = get_attr(element, "rx")
+    let rx_raw = get_attr(element, "rx")
         .and_then(|v| v.parse::<f64>().ok())
         .unwrap_or(0.0);
-    let ry = get_attr(element, "ry")
+    let ry_raw = get_attr(element, "ry")
         .and_then(|v| v.parse::<f64>().ok())
         .unwrap_or(0.0);
+    let rx = sc(rx_raw);
+    let ry = sc(ry_raw);
 
-    let acx = cx + ox;
-    let acy = cy + oy;
+    let acx = sc(cx) + ox;
+    let acy = sc(cy) + oy;
 
     // Ellipse as 4 arcs
     let d = format!(
@@ -802,10 +889,10 @@ fn convert_line(buf: &mut String, element: &str, ox: f64, oy: f64) {
 
     let d = format!(
         "M{},{} L{},{}",
-        fmt_coord(x1 + ox),
-        fmt_coord(y1 + oy),
-        fmt_coord(x2 + ox),
-        fmt_coord(y2 + oy),
+        fmt_coord(sc(x1) + ox),
+        fmt_coord(sc(y1) + oy),
+        fmt_coord(sc(x2) + ox),
+        fmt_coord(sc(y2) + oy),
     );
 
     let fill = get_fill_or(element, "#000000");
@@ -907,12 +994,12 @@ fn convert_text(buf: &mut String, element: &str, ox: f64, oy: f64) {
     let inner = extract_element_content(element, "text");
 
     // Get attributes (check both attribute and style property)
-    let x = get_attr(element, "x")
+    let x = sc(get_attr(element, "x")
         .and_then(|v| v.parse::<f64>().ok())
-        .unwrap_or(0.0);
-    let y = get_attr(element, "y")
+        .unwrap_or(0.0));
+    let y = sc(get_attr(element, "y")
         .and_then(|v| v.parse::<f64>().ok())
-        .unwrap_or(0.0);
+        .unwrap_or(0.0));
     let fill = normalize_hex_color(get_text_attr_or(element, "fill", "fill", "#000000"));
     let font_family_raw = get_text_attr_or(element, "font-family", "font-family", "sans-serif");
     // Strip "px" suffix from font-size (CSS style may use "16px")
@@ -995,18 +1082,18 @@ fn convert_text(buf: &mut String, element: &str, ox: f64, oy: f64) {
 }
 
 fn convert_image(buf: &mut String, element: &str, ox: f64, oy: f64) {
-    let x = get_attr(element, "x")
+    let x = sc(get_attr(element, "x")
         .and_then(|v| v.parse::<f64>().ok())
-        .unwrap_or(0.0);
-    let y = get_attr(element, "y")
+        .unwrap_or(0.0));
+    let y = sc(get_attr(element, "y")
         .and_then(|v| v.parse::<f64>().ok())
-        .unwrap_or(0.0);
-    let w = get_attr(element, "width")
+        .unwrap_or(0.0));
+    let w = sc(get_attr(element, "width")
         .and_then(|v| v.parse::<f64>().ok())
-        .unwrap_or(0.0);
-    let h = get_attr(element, "height")
+        .unwrap_or(0.0));
+    let h = sc(get_attr(element, "height")
         .and_then(|v| v.parse::<f64>().ok())
-        .unwrap_or(0.0);
+        .unwrap_or(0.0));
     let href = get_attr(element, "xlink:href")
         .or_else(|| get_attr(element, "href"))
         .unwrap_or("");
@@ -1057,7 +1144,8 @@ fn convert_group(buf: &mut String, element: &str, ox: f64, oy: f64, text_ox: f64
     } else {
         (0.0, 0.0)
     };
-    convert_elements_with_text_offset(buf, inner.trim(), ox + tx, oy + ty, text_ox, text_oy, css_text_props);
+    // Scale the group's translation offset
+    convert_elements_with_text_offset(buf, inner.trim(), ox + sc(tx), oy + sc(ty), text_ox, text_oy, css_text_props);
 }
 
 /// Handle `<use>` elements by resolving `xlink:href` or `href` to a `<defs>` element.
@@ -1079,13 +1167,13 @@ fn convert_use(
         return;
     }
 
-    // Get position
-    let use_x = get_attr(element, "x")
+    // Get position (apply sprite scale)
+    let use_x = sc(get_attr(element, "x")
         .and_then(|v| v.parse::<f64>().ok())
-        .unwrap_or(0.0);
-    let use_y = get_attr(element, "y")
+        .unwrap_or(0.0));
+    let use_y = sc(get_attr(element, "y")
         .and_then(|v| v.parse::<f64>().ok())
-        .unwrap_or(0.0);
+        .unwrap_or(0.0));
 
     // Get optional transform (e.g. scale)
     let mut scale_factor = 1.0_f64;
@@ -1306,6 +1394,8 @@ fn scale_path_data(d: &str, scale: f64) -> String {
 /// uppercase (#RRGGBB). Expands 3-digit hex to 6-digit. Pass-through non-hex
 /// values like "none" or "url(#id)".
 fn normalize_hex_color(s: &str) -> String {
+    // Convert CSS named colors to hex (Java always uses hex notation)
+    let s = named_color_to_hex(s).unwrap_or_else(|| s.to_string());
     let normalized = if let Some(hex) = s.strip_prefix('#') {
         if hex.chars().all(|c| c.is_ascii_hexdigit()) {
             let upper = hex.to_ascii_uppercase();
@@ -1335,6 +1425,43 @@ fn normalize_hex_color(s: &str) -> String {
         }
     }
     normalized
+}
+
+/// Convert a CSS named color to uppercase hex (#RRGGBB).
+/// Returns None if the name is not recognized.
+fn named_color_to_hex(name: &str) -> Option<String> {
+    let hex = match name.to_lowercase().as_str() {
+        "black" => "#000000",
+        "white" => "#FFFFFF",
+        "red" => "#FF0000",
+        "green" => "#008000",
+        "blue" => "#0000FF",
+        "yellow" => "#FFFF00",
+        "cyan" | "aqua" => "#00FFFF",
+        "magenta" | "fuchsia" => "#FF00FF",
+        "orange" => "#FFA500",
+        "purple" => "#800080",
+        "lime" => "#00FF00",
+        "maroon" => "#800000",
+        "navy" => "#000080",
+        "olive" => "#808000",
+        "teal" => "#008080",
+        "silver" => "#C0C0C0",
+        "gray" | "grey" => "#808080",
+        "darkgray" | "darkgrey" => "#A9A9A9",
+        "lightgray" | "lightgrey" => "#D3D3D3",
+        "brown" => "#A52A2A",
+        "pink" => "#FFC0CB",
+        "coral" => "#FF7F50",
+        "crimson" => "#DC143C",
+        "gold" => "#FFD700",
+        "indigo" => "#4B0082",
+        "violet" => "#EE82EE",
+        "tan" => "#D2B48C",
+        "none" | "transparent" => return Some(name.to_string()),
+        _ => return None,
+    };
+    Some(hex.to_string())
 }
 
 /// Convert a hex color to monochrome (grayscale).
@@ -1444,7 +1571,7 @@ fn parse_points(s: &str, ox: f64, oy: f64) -> Vec<(f64, f64)> {
 
     for pair in nums.chunks(2) {
         if pair.len() == 2 {
-            points.push((pair[0] + ox, pair[1] + oy));
+            points.push((sc(pair[0]) + ox, sc(pair[1]) + oy));
         }
     }
     points
@@ -1477,17 +1604,18 @@ fn translate_path_data(d: &str, ox: f64, oy: f64) -> String {
             result.push(current_cmd);
         }
 
-        // Parse numbers based on command type
+        // Parse numbers based on command type.
+        // sc() applies the current sprite scale factor to coordinates/sizes.
         match current_cmd {
             'M' | 'L' | 'T' => {
-                // Absolute move/line: translate x,y
+                // Absolute move/line: scale + translate x,y
                 if let Some((x, y)) = parse_coord_pair(&mut chars) {
-                    write!(result, "{},{}", fmt_coord(x + ox), fmt_coord(y + oy)).unwrap();
+                    write!(result, "{},{}", fmt_coord(sc(x) + ox), fmt_coord(sc(y) + oy)).unwrap();
                 }
             }
             'A' => {
                 // Arc: rx,ry x-rotation large-arc sweep x,y
-                // Only translate the endpoint x,y
+                // Scale radii + endpoint, leave rotation/flags unchanged
                 if let Some(rx) = parse_number(&mut chars) {
                     skip_comma(&mut chars);
                     if let Some(ry) = parse_number(&mut chars) {
@@ -1502,13 +1630,13 @@ fn translate_path_data(d: &str, ox: f64, oy: f64) -> String {
                                         write!(
                                             result,
                                             "{},{} {} {} {} {},{}",
-                                            fmt_coord_raw(rx),
-                                            fmt_coord_raw(ry),
+                                            fmt_coord_raw(sc(rx)),
+                                            fmt_coord_raw(sc(ry)),
                                             rot as i32,
                                             large as i32,
                                             sweep as i32,
-                                            fmt_coord(x + ox),
-                                            fmt_coord(y + oy),
+                                            fmt_coord(sc(x) + ox),
+                                            fmt_coord(sc(y) + oy),
                                         )
                                         .unwrap();
                                     }
@@ -1523,7 +1651,7 @@ fn translate_path_data(d: &str, ox: f64, oy: f64) -> String {
                 for i in 0..3 {
                     if let Some((x, y)) = parse_coord_pair(&mut chars) {
                         let sep = if i == 0 { "" } else { " " };
-                        write!(result, "{sep}{},{}", fmt_coord(x + ox), fmt_coord(y + oy)).unwrap();
+                        write!(result, "{sep}{},{}", fmt_coord(sc(x) + ox), fmt_coord(sc(y) + oy)).unwrap();
                     }
                 }
             }

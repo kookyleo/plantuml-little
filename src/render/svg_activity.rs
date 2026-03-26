@@ -5,7 +5,7 @@ use crate::layout::activity::{
 use crate::font_metrics;
 use crate::klimt::svg::{fmt_coord, LengthAdjust, SvgGraphic};
 use crate::model::activity::ActivityDiagram;
-use crate::render::svg::{write_svg_root_bg, write_bg_rect};
+use crate::render::svg::{write_svg_root_bg, write_bg_rect, ensure_visible_int};
 use crate::render::svg_richtext::{render_creole_text, render_creole_text_opts, get_sprite_svg};
 use crate::render::svg_sprite;
 use crate::style::SkinParams;
@@ -28,11 +28,22 @@ use crate::skin::rose::{BORDER_COLOR, ENTITY_BG, FORK_FILL, INITIAL_FILL, NOTE_B
 // -- Public entry point -------------------------------------------------------
 
 /// Render an activity diagram to SVG.
+///
+/// `body_offset` is an optional `(dx, dy)` offset applied to all body
+/// coordinates.  When the body is wrapped by `wrap_with_meta`, this bakes
+/// the meta-element offset directly into the coordinates, avoiding the
+/// lossy string-level `offset_svg_coords` post-processing.
+///
+/// Returns `(svg_string, raw_body_dimensions)`.  The raw width is the
+/// precise layout width (avoids integer-truncation centering drift); the
+/// raw height is derived from the SVG viewport so that the existing
+/// `wrap_with_meta` height formula stays balanced.
 pub fn render_activity(
     diagram: &ActivityDiagram,
     layout: &ActivityLayout,
     skin: &SkinParams,
-) -> Result<String> {
+    body_offset: Option<(f64, f64)>,
+) -> Result<(String, Option<(f64, f64)>)> {
     use crate::model::activity::{ActivityEvent, NotePosition};
 
     // Skin color lookups
@@ -46,6 +57,11 @@ pub fn render_activity(
     let swimlane_font = skin.font_color("swimlane", TEXT_COLOR);
     let arrow_color = skin.arrow_color(BORDER_COLOR);
 
+    // Body offset: when wrapping with meta, coordinates are shifted so that
+    // wrap_with_meta can include the body content directly without lossy
+    // string-level coordinate shifting.
+    let (bo_x, bo_y) = body_offset.unwrap_or((0.0, 0.0));
+
     // --- Build node→lane mapping (same logic as layout Pass 2c) -----------
     let mut node_lane: Vec<usize> = Vec::new();
     let mut cur_lane: usize = 0;
@@ -58,9 +74,35 @@ pub fn render_activity(
         }
     }
 
+    // --- Shift layout data by body offset (for meta wrapping) ---------------
+    // When body_offset is set, all coordinates are pre-shifted so that
+    // wrap_with_meta can include the body content at body_abs_y = 0.
+    let shifted_nodes: Vec<ActivityNodeLayout>;
+    let shifted_edges: Vec<ActivityEdgeLayout>;
+    let nodes_ref: &[ActivityNodeLayout];
+    let edges_ref: &[ActivityEdgeLayout];
+    if bo_x.abs() > 0.001 || bo_y.abs() > 0.001 {
+        shifted_nodes = layout.nodes.iter().map(|n| {
+            let mut sn = n.clone();
+            sn.x += bo_x;
+            sn.y += bo_y;
+            sn
+        }).collect();
+        shifted_edges = layout.edges.iter().map(|e| {
+            let mut se = e.clone();
+            se.points = se.points.iter().map(|&(px, py)| (px + bo_x, py + bo_y)).collect();
+            se
+        }).collect();
+        nodes_ref = &shifted_nodes;
+        edges_ref = &shifted_edges;
+    } else {
+        nodes_ref = &layout.nodes;
+        edges_ref = &layout.edges;
+    }
+
     // --- Render into SvgGraphic (Java drawWhenSwimlanes order) ------------
     let mut sg = SvgGraphic::new(0, 1.0);
-    sg.track_rect(0.0, 0.0, layout.width, layout.height);
+    sg.track_rect(0.0, 0.0, layout.width + bo_x, layout.height + bo_y);
 
     let has_swimlanes = !layout.swimlane_layouts.is_empty();
 
@@ -86,14 +128,14 @@ pub fn render_activity(
         // Compute content bottom (max node y+h) for divider line extent.
         // Java swimlane dividers stop at the content bottom, not the SVG
         // viewport bottom (which includes margins).
-        let content_bottom = layout.nodes.iter()
+        let content_bottom = nodes_ref.iter()
             .map(|n| n.y + n.height)
             .fold(0.0_f64, f64::max);
 
         // Step 2: per-lane content + divider line
         for (lane_idx, sw) in layout.swimlane_layouts.iter().enumerate() {
             // 2a: Render nodes belonging to this lane
-            for (ni, node) in layout.nodes.iter().enumerate() {
+            for (ni, node) in nodes_ref.iter().enumerate() {
                 let nl = if ni < node_lane.len() { node_lane[ni] } else { 0 };
                 if nl == lane_idx {
                     render_node(&mut sg, node, act_bg, act_border, act_font,
@@ -114,7 +156,7 @@ pub fn render_activity(
         }
 
         // Step 3: edges (Java: Cross connections)
-        for edge in &layout.edges {
+        for edge in edges_ref {
             render_edge(&mut sg, edge, arrow_color, act_font);
         }
 
@@ -135,11 +177,11 @@ pub fn render_activity(
         }
     } else {
         // No swimlanes: Java draws nodes first, then edges (connections)
-        for node in &layout.nodes {
+        for node in nodes_ref {
             render_node(&mut sg, node, act_bg, act_border, act_font,
                 diamond_bg, diamond_border, arrow_color);
         }
-        for edge in &layout.edges {
+        for edge in edges_ref {
             render_edge(&mut sg, edge, arrow_color, act_font);
         }
     }
@@ -173,7 +215,19 @@ pub fn render_activity(
         buf = buf.replacen("<defs/>", &format!("<defs>{}</defs>", defs_content), 1);
     }
 
-    Ok(buf)
+    // Raw body dimensions for wrap_with_meta:
+    // - width: precise layout width (float) for exact title centering
+    // - height: derived from the ORIGINAL layout SVG viewport (without body
+    //   offset) minus doc margins, matching the extraction formula so
+    //   canvas_h stays balanced.
+    let doc_margin_top_activity = 10.0_f64;
+    let doc_margin_bottom = 5.0_f64;
+    // Use the original layout height (not shifted) for dimension recovery.
+    let orig_svg_h = ensure_visible_int(layout.height) as f64;
+    let raw_body_h = orig_svg_h - doc_margin_top_activity - doc_margin_bottom - 1.0;
+    let raw_body_dim = Some((layout.width, raw_body_h));
+
+    Ok((buf, raw_body_dim))
 }
 
 // -- Node rendering -----------------------------------------------------------
@@ -284,34 +338,19 @@ fn render_action(
                 let info = svg_sprite::sprite_info(&svg_content);
                 let sprite_w = info.vb_width * sprite_scale;
                 let sprite_h = info.vb_height * sprite_scale;
-                // Position sprite centered in the action box (Java behavior)
-                // or at base_x. Java centers sprites in the FtileBox.
+                // Position sprite at base_x, current y
                 let sprite_x = node.x + padding;
                 let sprite_y = node.y + padding + y_cursor;
-                let converted = svg_sprite::convert_svg_elements(
+                // Java pre-computes absolute coordinates with scale applied,
+                // instead of using <g transform> wrappers.
+                let converted = svg_sprite::convert_svg_elements_scaled(
                     &svg_content,
                     sprite_x,
                     sprite_y,
-                );
-                // Wrap in a scale group for the sprite_scale
-                let mut tmp = String::new();
-                use std::fmt::Write as _;
-                write!(
-                    tmp,
-                    r#"<g transform="translate({},{}) scale({:.4})">"#,
-                    fmt_coord(sprite_x),
-                    fmt_coord(sprite_y),
                     sprite_scale,
-                ).unwrap();
-                // Re-convert at origin since we're wrapping in a scaled group
-                let converted_at_origin = svg_sprite::convert_svg_elements(
-                    &svg_content, 0.0, 0.0,
                 );
-                tmp.push_str(&converted_at_origin);
-                tmp.push_str("</g>");
-                sg.push_raw(&tmp);
+                sg.push_raw(&converted);
                 y_cursor += sprite_h;
-                let _ = converted; // unused; we re-converted at origin
                 continue;
             }
         }
@@ -614,7 +653,7 @@ mod tests {
     fn test_empty_diagram() {
         let diagram = empty_diagram();
         let layout = empty_layout();
-        let svg = render_activity(&diagram, &layout, &SkinParams::default()).expect("render failed");
+        let (svg, _raw_dim) = render_activity(&diagram, &layout, &SkinParams::default(), None).expect("render failed");
         assert!(svg.contains("<svg"));
         assert!(svg.contains("</svg>"));
         assert!(svg.contains("xmlns=\"http://www.w3.org/2000/svg\""));
@@ -629,7 +668,7 @@ mod tests {
         let diagram = empty_diagram();
         let mut layout = empty_layout();
         layout.nodes.push(make_node(0, ActivityNodeKindLayout::Start, 90.0, 10.0, 20.0, 20.0, ""));
-        let svg = render_activity(&diagram, &layout, &SkinParams::default()).expect("render failed");
+        let (svg, _raw_dim) = render_activity(&diagram, &layout, &SkinParams::default(), None).expect("render failed");
         assert!(svg.contains(r#"rx="10""#), "start ellipse must have rx=10");
         assert!(svg.contains(r#"ry="10""#), "start ellipse must have ry=10");
         assert!(svg.contains(&format!(r#"fill="{INITIAL_FILL}""#)), "start ellipse must be filled");
@@ -641,7 +680,7 @@ mod tests {
         let diagram = empty_diagram();
         let mut layout = empty_layout();
         layout.nodes.push(make_node(0, ActivityNodeKindLayout::Stop, 90.0, 80.0, 22.0, 22.0, ""));
-        let svg = render_activity(&diagram, &layout, &SkinParams::default()).expect("render failed");
+        let (svg, _raw_dim) = render_activity(&diagram, &layout, &SkinParams::default(), None).expect("render failed");
         assert_eq!(svg.matches("<ellipse").count(), 2, "stop node must produce two ellipses");
         assert!(svg.contains(r#"rx="11""#), "stop outer ring must have rx=11");
         assert!(svg.contains(r#"rx="6""#), "stop inner ellipse must have rx=6");
@@ -653,7 +692,7 @@ mod tests {
         let diagram = empty_diagram();
         let mut layout = empty_layout();
         layout.nodes.push(make_node(0, ActivityNodeKindLayout::Action, 30.0, 40.0, 140.0, 36.0, "Do something"));
-        let svg = render_activity(&diagram, &layout, &SkinParams::default()).expect("render failed");
+        let (svg, _raw_dim) = render_activity(&diagram, &layout, &SkinParams::default(), None).expect("render failed");
         assert!(svg.contains(r#"rx="12.5""#), "action must have rounded corners rx=12.5");
         assert!(svg.contains(r#"ry="12.5""#), "action must have rounded corners ry=12.5");
         assert!(svg.contains(r#"stroke-width:0.5;"#), "action border must be stroke-width 0.5");
@@ -668,7 +707,7 @@ mod tests {
         let diagram = empty_diagram();
         let mut layout = empty_layout();
         layout.nodes.push(make_node(0, ActivityNodeKindLayout::Action, 30.0, 40.0, 160.0, 52.0, "Line one\nLine two"));
-        let svg = render_activity(&diagram, &layout, &SkinParams::default()).expect("render failed");
+        let (svg, _raw_dim) = render_activity(&diagram, &layout, &SkinParams::default(), None).expect("render failed");
         // Java: each line is a separate <text> element
         assert!(svg.contains("Line one"), "first line must appear");
         assert!(svg.contains("Line two"), "second line must appear");
@@ -680,7 +719,7 @@ mod tests {
         let diagram = empty_diagram();
         let mut layout = empty_layout();
         layout.nodes.push(make_node(0, ActivityNodeKindLayout::Diamond, 60.0, 50.0, 40.0, 40.0, ""));
-        let svg = render_activity(&diagram, &layout, &SkinParams::default()).expect("render failed");
+        let (svg, _raw_dim) = render_activity(&diagram, &layout, &SkinParams::default(), None).expect("render failed");
         assert!(svg.contains("<polygon"), "diamond must be rendered as polygon");
         assert!(svg.contains(r##"fill="#F1F1F1""##), "diamond must use ENTITY_BG");
         assert!(svg.contains("stroke:#181818"), "diamond must use BORDER_COLOR");
@@ -695,7 +734,7 @@ mod tests {
         let diagram = empty_diagram();
         let mut layout = empty_layout();
         layout.nodes.push(make_node(0, ActivityNodeKindLayout::ForkBar, 40.0, 60.0, 120.0, 6.0, ""));
-        let svg = render_activity(&diagram, &layout, &SkinParams::default()).expect("render failed");
+        let (svg, _raw_dim) = render_activity(&diagram, &layout, &SkinParams::default(), None).expect("render failed");
         assert!(svg.contains(&format!(r#"fill="{FORK_FILL}""#)), "fork bar must be black filled");
         assert!(svg.contains(r#"stroke="none""#), "fork bar must have no stroke");
     }
@@ -705,7 +744,7 @@ mod tests {
         let diagram = empty_diagram();
         let mut layout = empty_layout();
         layout.nodes.push(make_node(0, ActivityNodeKindLayout::Note { position: NotePositionLayout::Right }, 10.0, 20.0, 100.0, 40.0, "Remember this"));
-        let svg = render_activity(&diagram, &layout, &SkinParams::default()).expect("render failed");
+        let (svg, _raw_dim) = render_activity(&diagram, &layout, &SkinParams::default(), None).expect("render failed");
         assert!(svg.contains(&format!(r#"fill="{NOTE_BG}""#)), "note must use yellow background");
         assert!(svg.contains("Remember this"), "note text must appear");
         assert!(svg.contains("<path"), "note must use <path> elements");
@@ -720,7 +759,7 @@ mod tests {
             from_index: 0, to_index: 1, label: String::new(),
             points: vec![(100.0, 30.0), (100.0, 80.0)],
         });
-        let svg = render_activity(&diagram, &layout, &SkinParams::default()).expect("render failed");
+        let (svg, _raw_dim) = render_activity(&diagram, &layout, &SkinParams::default(), None).expect("render failed");
         assert!(svg.contains("<polygon"), "edge must have inline polygon arrowhead");
         assert!(svg.contains("stroke:#181818"), "edge must use BORDER_COLOR");
         assert!(svg.contains("<line "), "2-point edge must use <line>");
@@ -735,7 +774,7 @@ mod tests {
             from_index: 0, to_index: 1, label: "yes".to_string(),
             points: vec![(100.0, 30.0), (100.0, 80.0)],
         });
-        let svg = render_activity(&diagram, &layout, &SkinParams::default()).expect("render failed");
+        let (svg, _raw_dim) = render_activity(&diagram, &layout, &SkinParams::default(), None).expect("render failed");
         assert!(svg.contains("yes"), "edge label must appear in SVG");
     }
 
@@ -747,7 +786,7 @@ mod tests {
             from_index: 0, to_index: 1, label: String::new(),
             points: vec![(50.0, 20.0), (50.0, 50.0), (100.0, 50.0), (100.0, 80.0)],
         });
-        let svg = render_activity(&diagram, &layout, &SkinParams::default()).expect("render failed");
+        let (svg, _raw_dim) = render_activity(&diagram, &layout, &SkinParams::default(), None).expect("render failed");
         let line_count = svg.matches("<line ").count();
         assert!(line_count >= 3, "4-point edge must produce at least 3 line segments, got {line_count}");
         assert!(svg.contains("<polygon"), "multi-segment edge must have inline polygon arrowhead");
@@ -761,7 +800,7 @@ mod tests {
         layout.height = 300.0;
         layout.swimlane_layouts.push(SwimlaneLayout { name: "Lane A".to_string(), x: 0.0, width: 200.0 });
         layout.swimlane_layouts.push(SwimlaneLayout { name: "Lane B".to_string(), x: 200.0, width: 200.0 });
-        let svg = render_activity(&diagram, &layout, &SkinParams::default()).expect("render failed");
+        let (svg, _raw_dim) = render_activity(&diagram, &layout, &SkinParams::default(), None).expect("render failed");
         assert!(svg.contains("Lane A"), "swimlane A header must appear");
         assert!(svg.contains("Lane B"), "swimlane B header must appear");
         assert!(svg.contains("stroke:#000000"), "swimlane must have #000000 border");
@@ -776,7 +815,7 @@ mod tests {
         let diagram = empty_diagram();
         let mut layout = empty_layout();
         layout.nodes.push(make_node(0, ActivityNodeKindLayout::Action, 10.0, 10.0, 160.0, 36.0, "A & B < C"));
-        let svg = render_activity(&diagram, &layout, &SkinParams::default()).expect("render failed");
+        let (svg, _raw_dim) = render_activity(&diagram, &layout, &SkinParams::default(), None).expect("render failed");
         assert!(svg.contains("A &amp; B &lt; C"), "special characters must be XML-escaped");
     }
 
@@ -785,7 +824,7 @@ mod tests {
         let diagram = empty_diagram();
         let mut layout = empty_layout();
         layout.nodes.push(make_node(0, ActivityNodeKindLayout::End, 90.0, 80.0, 22.0, 22.0, ""));
-        let svg = render_activity(&diagram, &layout, &SkinParams::default()).expect("render failed");
+        let (svg, _raw_dim) = render_activity(&diagram, &layout, &SkinParams::default(), None).expect("render failed");
         assert_eq!(svg.matches("<ellipse").count(), 2, "End node must produce two ellipses like Stop");
     }
 
@@ -797,7 +836,7 @@ mod tests {
         layout.height = 300.0;
         layout.swimlane_layouts.push(SwimlaneLayout { name: "Lane X".to_string(), x: 0.0, width: 200.0 });
         layout.swimlane_layouts.push(SwimlaneLayout { name: "Lane Y".to_string(), x: 200.0, width: 200.0 });
-        let svg = render_activity(&diagram, &layout, &SkinParams::default()).expect("render failed");
+        let (svg, _raw_dim) = render_activity(&diagram, &layout, &SkinParams::default(), None).expect("render failed");
         assert!(svg.contains(r#"font-size="18""#), "swimlane headers must use font-size 18");
         assert!(svg.contains(r#"x1="400""#), "right border of last swimlane must be present");
     }
@@ -812,7 +851,7 @@ mod tests {
             from_index: 0, to_index: 1, label: String::new(),
             points: vec![(100.0, 50.0), (100.0, 80.0), (300.0, 80.0), (300.0, 110.0)],
         });
-        let svg = render_activity(&diagram, &layout, &SkinParams::default()).expect("render failed");
+        let (svg, _raw_dim) = render_activity(&diagram, &layout, &SkinParams::default(), None).expect("render failed");
         let line_count = svg.matches("<line ").count();
         assert!(line_count >= 3, "4-point cross-lane edge must produce at least 3 line segments");
         assert!(svg.contains("<polygon"), "cross-lane edge must have inline polygon arrowhead");
@@ -823,7 +862,7 @@ mod tests {
         let diagram = empty_diagram();
         let mut layout = empty_layout();
         layout.nodes.push(make_node(0, ActivityNodeKindLayout::Start, 90.0, 10.0, 20.0, 20.0, ""));
-        let svg = render_activity(&diagram, &layout, &SkinParams::default()).expect("render failed");
+        let (svg, _raw_dim) = render_activity(&diagram, &layout, &SkinParams::default(), None).expect("render failed");
         assert!(svg.contains(r#"cx="100""#), "fmt_coord must strip trailing .0");
         assert!(svg.contains(r#"cy="20""#), "fmt_coord must strip trailing .0");
     }

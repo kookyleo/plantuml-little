@@ -283,9 +283,18 @@ pub fn render_with_source(
     meta: &DiagramMeta,
     source: Option<&str>,
 ) -> Result<String> {
+    // For activity diagrams with meta elements (title/header/footer),
+    // pre-compute the body offset so the body renderer can emit absolute
+    // coordinates directly, avoiding lossy string-level coordinate shifting.
+    let activity_body_offset = if matches!(diagram, Diagram::Activity(_)) && !meta.is_empty() {
+        Some(compute_meta_body_offset(meta, skin))
+    } else {
+        None
+    };
+
     // Apply handwritten font override if enabled
     set_default_font_family(skin.handwritten_font_family().map(|s| s.to_string()));
-    let body_result = render_body(diagram, layout, skin)?;
+    let body_result = render_body(diagram, layout, skin, activity_body_offset)?;
     set_default_font_family(None);
 
     // Extract diagram type from body SVG
@@ -307,7 +316,7 @@ pub fn render_with_source(
         let bg = skin.get("document.backgroundcolor")
             .or_else(|| skin.get("backgroundcolor"))
             .unwrap_or("#FFFFFF");
-        wrap_with_meta(&body_result.svg, meta, &dtype, bg, body_result.raw_body_dim, skin)?
+        wrap_with_meta(&body_result.svg, meta, &dtype, bg, body_result.raw_body_dim, body_result.body_pre_offset, skin)?
     };
 
     // Inject svginteractive CSS/JS if pragma is set
@@ -322,6 +331,31 @@ pub fn render_with_source(
     Ok(svg)
 }
 
+/// Compute the body (dx, dy) offset for meta wrapping.
+///
+/// This is the offset from SVG origin to the body content start, accounting
+/// for header and title dimensions. Used to pre-apply the offset in the body
+/// renderer, avoiding lossy string-level coordinate shifting.
+fn compute_meta_body_offset(meta: &DiagramMeta, skin: &SkinParams) -> (f64, f64) {
+    let title_font_size = skin.get("document.title.fontsize")
+        .and_then(|s| s.parse::<f64>().ok()).unwrap_or(META_TITLE_FONT_SIZE);
+    let title_bold = title_font_size == META_TITLE_FONT_SIZE;
+
+    let hdr_font_size = skin.get("document.header.fontsize")
+        .and_then(|s| s.parse::<f64>().ok()).unwrap_or(META_HF_FONT_SIZE);
+    let hdr_text_h = if meta.header.is_some() { text_block_h(hdr_font_size, false) } else { 0.0 };
+    let hdr_text_w = meta.header.as_ref().map(|t| creole_text_w(t, hdr_font_size, false)).unwrap_or(0.0);
+    let hdr_dim = if meta.header.is_some() { block_dim(hdr_text_w, hdr_text_h, 0.0, 0.0) } else { (0.0, 0.0) };
+
+    let title_text_h = if meta.title.is_some() { text_block_h(title_font_size, title_bold) } else { 0.0 };
+    let title_text_w = meta.title.as_ref().map(|t| creole_text_w(t, title_font_size, title_bold)).unwrap_or(0.0);
+    let title_dim = if meta.title.is_some() { block_dim(title_text_w, title_text_h, TITLE_PADDING, TITLE_MARGIN) } else { (0.0, 0.0) };
+
+    // body_abs_y = hdr_dim.1 + title_dim.1
+    // body_abs_x = centering terms (typically 0 when body is wider than meta)
+    (0.0, hdr_dim.1 + title_dim.1)
+}
+
 /// Body rendering result: (svg_string, raw_body_content_dimensions).
 /// The raw dimensions are the precise body content size (Java SvekResult.calculateDimension)
 /// before DOC_MARGIN and ensureVisible integer truncation. When present, wrap_with_meta
@@ -329,9 +363,12 @@ pub fn render_with_source(
 struct BodyResult {
     svg: String,
     raw_body_dim: Option<(f64, f64)>,
+    /// When true, body coordinates already include the meta offset (body_abs_x/y).
+    /// wrap_with_meta should NOT apply offset_svg_coords.
+    body_pre_offset: bool,
 }
 
-fn render_body(diagram: &Diagram, layout: &DiagramLayout, skin: &SkinParams) -> Result<BodyResult> {
+fn render_body(diagram: &Diagram, layout: &DiagramLayout, skin: &SkinParams, activity_body_offset: Option<(f64, f64)>) -> Result<BodyResult> {
     match (diagram, layout) {
         (Diagram::Class(cd), DiagramLayout::Class(gl)) => render_class(cd, gl, skin),
         (Diagram::Sequence(sd), DiagramLayout::Sequence(sl)) => {
@@ -344,43 +381,43 @@ fn render_body(diagram: &Diagram, layout: &DiagramLayout, skin: &SkinParams) -> 
                 sl.total_width - margin_right,
                 sl.total_height - margin_top - margin_bottom,
             ));
-            svg_sequence::render_sequence(sd, sl, skin).map(|svg| BodyResult { svg, raw_body_dim: raw_dim })
+            svg_sequence::render_sequence(sd, sl, skin).map(|svg| BodyResult { svg, raw_body_dim: raw_dim, body_pre_offset: false })
         }
         (Diagram::Activity(ad), DiagramLayout::Activity(al)) => {
-            super::svg_activity::render_activity(ad, al, skin).map(|svg| BodyResult { svg, raw_body_dim: None })
+            super::svg_activity::render_activity(ad, al, skin, activity_body_offset).map(|(svg, raw_body_dim)| BodyResult { svg, raw_body_dim, body_pre_offset: activity_body_offset.is_some() })
         }
         (Diagram::State(sd), DiagramLayout::State(sl)) => {
-            super::svg_state::render_state(sd, sl, skin).map(|(svg, raw_body_dim)| BodyResult { svg, raw_body_dim })
+            super::svg_state::render_state(sd, sl, skin).map(|(svg, raw_body_dim)| BodyResult { svg, raw_body_dim, body_pre_offset: false })
         }
         (Diagram::Component(cd), DiagramLayout::Component(cl)) => {
-            super::svg_component::render_component(cd, cl, skin).map(|svg| BodyResult { svg, raw_body_dim: None })
+            super::svg_component::render_component(cd, cl, skin).map(|svg| BodyResult { svg, raw_body_dim: None, body_pre_offset: false })
         }
         (Diagram::Ditaa(dd), DiagramLayout::Ditaa(dl)) => {
-            super::svg_ditaa::render_ditaa(dd, dl, skin).map(|svg| BodyResult { svg, raw_body_dim: None })
+            super::svg_ditaa::render_ditaa(dd, dl, skin).map(|svg| BodyResult { svg, raw_body_dim: None, body_pre_offset: false })
         }
-        (Diagram::Erd(ed), DiagramLayout::Erd(el)) => super::svg_erd::render_erd(ed, el, skin).map(|svg| BodyResult { svg, raw_body_dim: None }),
+        (Diagram::Erd(ed), DiagramLayout::Erd(el)) => super::svg_erd::render_erd(ed, el, skin).map(|svg| BodyResult { svg, raw_body_dim: None, body_pre_offset: false }),
         (Diagram::Gantt(gd), DiagramLayout::Gantt(gl)) => {
-            super::svg_gantt::render_gantt(gd, gl, skin).map(|svg| BodyResult { svg, raw_body_dim: None })
+            super::svg_gantt::render_gantt(gd, gl, skin).map(|svg| BodyResult { svg, raw_body_dim: None, body_pre_offset: false })
         }
-        (Diagram::Json(jd), DiagramLayout::Json(jl)) => super::svg_json::render_json(jd, jl, skin).map(|svg| BodyResult { svg, raw_body_dim: None }),
+        (Diagram::Json(jd), DiagramLayout::Json(jl)) => super::svg_json::render_json(jd, jl, skin).map(|svg| BodyResult { svg, raw_body_dim: None, body_pre_offset: false }),
         (Diagram::Mindmap(md), DiagramLayout::Mindmap(ml)) => {
-            super::svg_mindmap::render_mindmap(md, ml, skin).map(|svg| BodyResult { svg, raw_body_dim: None })
+            super::svg_mindmap::render_mindmap(md, ml, skin).map(|svg| BodyResult { svg, raw_body_dim: None, body_pre_offset: false })
         }
         (Diagram::Nwdiag(nd), DiagramLayout::Nwdiag(nl)) => {
-            super::svg_nwdiag::render_nwdiag(nd, nl, skin).map(|svg| BodyResult { svg, raw_body_dim: None })
+            super::svg_nwdiag::render_nwdiag(nd, nl, skin).map(|svg| BodyResult { svg, raw_body_dim: None, body_pre_offset: false })
         }
-        (Diagram::Salt(sd), DiagramLayout::Salt(sl)) => super::svg_salt::render_salt(sd, sl, skin).map(|svg| BodyResult { svg, raw_body_dim: None }),
+        (Diagram::Salt(sd), DiagramLayout::Salt(sl)) => super::svg_salt::render_salt(sd, sl, skin).map(|svg| BodyResult { svg, raw_body_dim: None, body_pre_offset: false }),
         (Diagram::Timing(td), DiagramLayout::Timing(tl)) => {
-            super::svg_timing::render_timing(td, tl, skin).map(|svg| BodyResult { svg, raw_body_dim: None })
+            super::svg_timing::render_timing(td, tl, skin).map(|svg| BodyResult { svg, raw_body_dim: None, body_pre_offset: false })
         }
-        (Diagram::Wbs(wd), DiagramLayout::Wbs(wl)) => super::svg_wbs::render_wbs(wd, wl, skin).map(|svg| BodyResult { svg, raw_body_dim: None }),
-        (Diagram::Yaml(yd), DiagramLayout::Yaml(yl)) => super::svg_json::render_yaml(yd, yl, skin).map(|svg| BodyResult { svg, raw_body_dim: None }),
+        (Diagram::Wbs(wd), DiagramLayout::Wbs(wl)) => super::svg_wbs::render_wbs(wd, wl, skin).map(|svg| BodyResult { svg, raw_body_dim: None, body_pre_offset: false }),
+        (Diagram::Yaml(yd), DiagramLayout::Yaml(yl)) => super::svg_json::render_yaml(yd, yl, skin).map(|svg| BodyResult { svg, raw_body_dim: None, body_pre_offset: false }),
         (Diagram::UseCase(ud), DiagramLayout::UseCase(ul)) => {
-            super::svg_usecase::render_usecase(ud, ul, skin).map(|svg| BodyResult { svg, raw_body_dim: None })
+            super::svg_usecase::render_usecase(ud, ul, skin).map(|svg| BodyResult { svg, raw_body_dim: None, body_pre_offset: false })
         }
         (Diagram::Dot(_dd), DiagramLayout::Dot(_gl)) => {
             // Java PlantUML suppresses DOT rendering
-            Ok(BodyResult { svg: render_dot_suppressed(), raw_body_dim: None })
+            Ok(BodyResult { svg: render_dot_suppressed(), raw_body_dim: None, body_pre_offset: false })
         }
         _ => Err(crate::Error::Render("diagram/layout type mismatch".into())),
     }
@@ -770,7 +807,7 @@ fn encode6bit(b: u8) -> char {
     }
 }
 
-fn wrap_with_meta(body_svg: &str, meta: &DiagramMeta, diagram_type: &str, bg: &str, raw_body_dim: Option<(f64, f64)>, skin: &crate::style::SkinParams) -> Result<String> {
+fn wrap_with_meta(body_svg: &str, meta: &DiagramMeta, diagram_type: &str, bg: &str, raw_body_dim: Option<(f64, f64)>, body_pre_offset: bool, skin: &crate::style::SkinParams) -> Result<String> {
     let (svg_w, svg_h) = extract_dimensions(body_svg);
     let body_content = extract_svg_content(body_svg);
 
@@ -780,9 +817,22 @@ fn wrap_with_meta(body_svg: &str, meta: &DiagramMeta, diagram_type: &str, bg: &s
     // CucaDiagram (class/component/etc): margin(top=0, right=5, bottom=5, left=0)
     // The body SVG viewport already bakes in these margins via the layout engine,
     // so we recover the raw textBlock dimensions by subtracting them.
+    // Java ImageBuilder default margins per diagram type.
+    // Activity (FTile): body viewport already includes internal padding from
+    // compute_bounds (TOP_MARGIN + BOTTOM_MARGIN + 3) which absorbs the external
+    // margin budget.  title_margin_top=10 shifts meta elements down.
+    // Sequence (Puma2/Teoz): margin_top=5, body includes right margin.
+    // CucaDiagram (class/component/etc): margin_top=0.
     let doc_margin_top = match diagram_type {
         "SEQUENCE" => 5.0,
+        "ACTIVITY" => 10.0,
         _ => 0.0,
+    };
+    // Activity body viewport already includes right padding from compute_bounds,
+    // so DOC_MARGIN_RIGHT must not be added again for the canvas width.
+    let doc_margin_right = match diagram_type {
+        "ACTIVITY" => 0.0,
+        _ => DOC_MARGIN_RIGHT,
     };
 
     // Use raw body dimensions if available (avoids integer truncation loss).
@@ -866,7 +916,7 @@ fn wrap_with_meta(body_svg: &str, meta: &DiagramMeta, diagram_type: &str, bg: &s
     let tb_w = total_dim.0;
     let tb_h = total_dim.1;
     // Java ensureVisible: maxX = (int)(x + 1)
-    let canvas_w = ensure_visible_int(tb_w + DOC_MARGIN_RIGHT) as f64;
+    let canvas_w = ensure_visible_int(tb_w + doc_margin_right) as f64;
     let canvas_h = ensure_visible_int(tb_h + doc_margin_top + DOC_MARGIN_BOTTOM) as f64;
     log::trace!("wrap_with_meta: tb_w={tb_w:.6} tb_h={tb_h:.6} canvas_w={canvas_w} canvas_h={canvas_h}");
     log::trace!("wrap_with_meta: body_dim=({body_w},{body_h}) after_legend={after_legend:?} after_title={after_title:?} after_caption={after_caption:?}");
@@ -976,7 +1026,8 @@ fn wrap_with_meta(body_svg: &str, meta: &DiagramMeta, diagram_type: &str, bg: &s
         body_inner
     };
     if !body_inner.trim().is_empty() {
-        if body_abs_x.abs() < 0.001 && body_abs_y.abs() < 0.001 {
+        if body_pre_offset || (body_abs_x.abs() < 0.001 && body_abs_y.abs() < 0.001) {
+            // Body already has absolute coordinates (pre-offset applied by renderer).
             buf.push_str(body_inner);
         } else {
             let shifted = offset_svg_coords(body_inner, body_abs_x, body_abs_y);
@@ -1152,9 +1203,13 @@ fn offset_svg_coords(svg: &str, dx: f64, dy: f64) -> String {
 }
 
 /// Offset all coordinates in an SVG path data string by (dx, dy).
+///
+/// SVG-path-command-aware: correctly handles arc commands (A/a) where
+/// rx, ry, x-rotation, and flags must NOT be offset.
 fn offset_path_data(d: &str, dx: f64, dy: f64) -> String {
     let mut result = String::with_capacity(d.len());
     let mut chars = d.chars().peekable();
+    let mut cmd = ' ';
 
     while chars.peek().is_some() {
         // Skip whitespace
@@ -1165,23 +1220,96 @@ fn offset_path_data(d: &str, dx: f64, dy: f64) -> String {
 
         let c = *chars.peek().unwrap();
         if c.is_alphabetic() {
-            result.push(chars.next().unwrap());
+            cmd = chars.next().unwrap();
+            result.push(cmd);
             continue;
         }
 
-        // Parse number (x coordinate)
-        if let Some(x) = parse_path_number(&mut chars) {
-            result.push_str(&fmt_coord(x + dx));
-            // Skip comma/space
-            skip_path_sep(&mut chars, &mut result);
-            // Parse y coordinate
-            if let Some(y) = parse_path_number(&mut chars) {
-                result.push_str(&fmt_coord(y + dy));
+        match cmd.to_ascii_uppercase() {
+            'Z' => {
+                // No parameters
+                if let Some(ch) = chars.next() { result.push(ch); }
             }
-        } else {
-            // Unknown char, pass through
-            if let Some(ch) = chars.next() {
-                result.push(ch);
+            'H' => {
+                // Horizontal line: 1 x-value
+                if let Some(x) = parse_path_number(&mut chars) {
+                    result.push_str(&fmt_coord(x + dx));
+                }
+            }
+            'V' => {
+                // Vertical line: 1 y-value
+                if let Some(y) = parse_path_number(&mut chars) {
+                    result.push_str(&fmt_coord(y + dy));
+                }
+            }
+            'A' => {
+                // Arc: rx,ry x-rotation large-arc-flag sweep-flag x,y
+                // rx,ry and rotation/flags are NOT offset
+                if let Some(rx) = parse_path_number(&mut chars) {
+                    result.push_str(&fmt_coord(rx)); // rx (no offset)
+                    skip_path_sep(&mut chars, &mut result);
+                    if let Some(ry) = parse_path_number(&mut chars) {
+                        result.push_str(&fmt_coord(ry)); // ry (no offset)
+                        skip_path_sep(&mut chars, &mut result);
+                        if let Some(rot) = parse_path_number(&mut chars) {
+                            result.push_str(&fmt_coord(rot)); // x-rotation (no offset)
+                            skip_path_sep(&mut chars, &mut result);
+                            if let Some(la) = parse_path_number(&mut chars) {
+                                result.push_str(&fmt_coord(la)); // large-arc-flag (no offset)
+                                skip_path_sep(&mut chars, &mut result);
+                                if let Some(sw) = parse_path_number(&mut chars) {
+                                    result.push_str(&fmt_coord(sw)); // sweep-flag (no offset)
+                                    skip_path_sep(&mut chars, &mut result);
+                                    if let Some(x) = parse_path_number(&mut chars) {
+                                        result.push_str(&fmt_coord(x + dx)); // endpoint x
+                                        skip_path_sep(&mut chars, &mut result);
+                                        if let Some(y) = parse_path_number(&mut chars) {
+                                            result.push_str(&fmt_coord(y + dy)); // endpoint y
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            'C' => {
+                // Cubic bezier: x1,y1 x2,y2 x,y (3 pairs)
+                for _ in 0..3 {
+                    if let Some(x) = parse_path_number(&mut chars) {
+                        result.push_str(&fmt_coord(x + dx));
+                        skip_path_sep(&mut chars, &mut result);
+                        if let Some(y) = parse_path_number(&mut chars) {
+                            result.push_str(&fmt_coord(y + dy));
+                            skip_path_sep(&mut chars, &mut result);
+                        }
+                    }
+                }
+            }
+            'S' | 'Q' => {
+                // Smooth cubic / quadratic: 2 pairs
+                for _ in 0..2 {
+                    if let Some(x) = parse_path_number(&mut chars) {
+                        result.push_str(&fmt_coord(x + dx));
+                        skip_path_sep(&mut chars, &mut result);
+                        if let Some(y) = parse_path_number(&mut chars) {
+                            result.push_str(&fmt_coord(y + dy));
+                            skip_path_sep(&mut chars, &mut result);
+                        }
+                    }
+                }
+            }
+            _ => {
+                // M, L, T and others: 1 coordinate pair
+                if let Some(x) = parse_path_number(&mut chars) {
+                    result.push_str(&fmt_coord(x + dx));
+                    skip_path_sep(&mut chars, &mut result);
+                    if let Some(y) = parse_path_number(&mut chars) {
+                        result.push_str(&fmt_coord(y + dy));
+                    }
+                } else if let Some(ch) = chars.next() {
+                    result.push(ch);
+                }
             }
         }
     }
@@ -1422,7 +1550,7 @@ fn render_class(
     write_bg_rect(&mut buf, svg_w, svg_h, bg);
     buf.push_str(sg.body());
     buf.push_str("</g></svg>");
-    Ok(BodyResult { svg: buf, raw_body_dim: Some(raw_body_dim) })
+    Ok(BodyResult { svg: buf, raw_body_dim: Some(raw_body_dim), body_pre_offset: false })
 }
 
 fn draw_class_group(
@@ -3612,7 +3740,7 @@ mod tests {
     #[test]
     fn test_meta_title_can_expand_canvas_width() {
         let (d, l) = simple_diagram();
-        let body_result = render_body(&d, &l, &default_skin()).unwrap();
+        let body_result = render_body(&d, &l, &default_skin(), None).unwrap();
         let (body_w, _) = extract_dimensions(&body_result.svg);
         let meta = DiagramMeta {
             title: Some(
