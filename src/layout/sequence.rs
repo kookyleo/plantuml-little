@@ -221,6 +221,8 @@ pub struct ActivationLayout {
     pub y_end: f64,
     /// Nesting level (1-based). Level 1 = first activation, 2 = nested, etc.
     pub level: usize,
+    /// Optional background color for the activation bar (e.g., "#FF0000")
+    pub color: Option<String>,
 }
 
 /// Destroy marker layout
@@ -770,7 +772,7 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
                     }
                 }
             }
-            SeqEvent::Activate(name) => {
+            SeqEvent::Activate(name, _act_color) => {
                 let level = gap_active_levels.entry(name.as_str()).or_default();
                 *level += 1;
                 let max = max_active_levels.entry(name.as_str()).or_default();
@@ -1009,14 +1011,14 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
                         && sd.events[event_idx + 1..]
                             .iter()
                             .take_while(|e| !matches!(e, SeqEvent::Message(_)))
-                            .any(|e| matches!(e, SeqEvent::Activate(n) if n == &msg.to));
+                            .any(|e| matches!(e, SeqEvent::Activate(n, _) if n == &msg.to));
                     // Look-ahead: will the sender be activated before the next message?
                     // Java: activation bar starts at the message y, so offset applies.
                     let from_will_activate = !from_active
                         && sd.events[event_idx + 1..]
                             .iter()
                             .take_while(|e| !matches!(e, SeqEvent::Message(_)))
-                            .any(|e| matches!(e, SeqEvent::Activate(n) if n == &msg.from));
+                            .any(|e| matches!(e, SeqEvent::Activate(n, _) if n == &msg.from));
                     // Look-ahead: will the sender be deactivated before the next message?
                     // Java: activation bar ends at the return message y. getLevel(y)
                     // returns 0 at that point, so no activation offset is applied.
@@ -1131,7 +1133,7 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
                     && sd
                         .events
                         .get(event_idx + 1)
-                        .is_some_and(|e| matches!(e, SeqEvent::Activate(n) if n == &msg.from));
+                        .is_some_and(|e| matches!(e, SeqEvent::Activate(n, _) if n == &msg.from));
 
                 // When a non-activated self-message triggers an upcoming activate,
                 // shift the outgoing y up by ACTIVATION_WIDTH/2 so the return y
@@ -1256,7 +1258,7 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
                 }
             }
 
-            SeqEvent::Activate(name) => {
+            SeqEvent::Activate(name, _act_color) => {
                 // Priority: 1) self-message return y, 2) note-attached message y,
                 // 3) last message y, 4) y_cursor.
                 // Java binds activation start to the message y, not y_cursor.
@@ -1297,6 +1299,7 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
                             y_start,
                             y_end,
                             level,
+                            color: None,
                         });
                         log::debug!(
                             "deactivate '{name}' at y={y_end:.1}, bar from {y_start:.1} level={level}"
@@ -1331,6 +1334,7 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
                             y_start,
                             y_end: bar_end,
                             level,
+                            color: None,
                         });
                         log::debug!(
                             "destroy-deactivate '{name}' bar from {y_start:.1} to {bar_end:.1} level={level}"
@@ -1830,6 +1834,7 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
                 y_start,
                 y_end: y_cursor,
                 level,
+                color: None,
             });
             log::warn!(
                 "unclosed activation for '{name}' from y={y_start:.1}, closing at y={y_cursor:.1} level={level}"
@@ -2197,7 +2202,7 @@ mod tests {
             participants: vec![make_participant("A"), make_participant("B")],
             events: vec![
                 SeqEvent::Message(make_message("A", "B", "req")),
-                SeqEvent::Activate("B".to_string()),
+                SeqEvent::Activate("B".to_string(), None),
                 SeqEvent::Message(make_message("B", "A", "resp")),
                 SeqEvent::Deactivate("B".to_string()),
             ],
@@ -2637,7 +2642,7 @@ mod tests {
                     participant: "B".to_string(),
                     text: "Note".to_string(),
                 },
-                SeqEvent::Activate("B".to_string()),
+                SeqEvent::Activate("B".to_string(), None),
                 SeqEvent::Message(Message {
                     from: "B".to_string(),
                     to: "A".to_string(),
@@ -2745,11 +2750,11 @@ mod tests {
             participants: vec![make_participant("A"), make_participant("B")],
             events: vec![
                 SeqEvent::Message(make_message("A", "B", "req1")),
-                SeqEvent::Activate("B".to_string()),
+                SeqEvent::Activate("B".to_string(), None),
                 SeqEvent::Message(make_message("B", "A", "resp1")),
                 SeqEvent::Deactivate("B".to_string()),
                 SeqEvent::Message(make_message("A", "B", "req2")),
-                SeqEvent::Activate("B".to_string()),
+                SeqEvent::Activate("B".to_string(), None),
                 SeqEvent::Message(make_message("B", "A", "resp2")),
                 SeqEvent::Deactivate("B".to_string()),
             ],

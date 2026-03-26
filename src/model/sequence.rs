@@ -104,7 +104,7 @@ impl FragmentKind {
 #[derive(Debug, Clone)]
 pub enum SeqEvent {
     Message(Message),
-    Activate(String),
+    Activate(String, Option<String>),
     Deactivate(String),
     Destroy(String),
     NoteRight {

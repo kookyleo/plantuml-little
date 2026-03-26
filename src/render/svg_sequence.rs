@@ -109,8 +109,14 @@ fn draw_lifelines(sg: &mut SvgGraphic, layout: &SeqLayout, skin: &SkinParams, sd
 
         // Java lifeline position: box_x + (int)(box_width) / 2 (Java integer division)
         let box_x = p.x - p.box_width / 2.0;
-        let lifeline_x = box_x + (p.box_width as i32 / 2) as f64;
-        let rect_x = p.x - 4.0;
+        // Java teoz vs classic lifeline positioning:
+        // Teoz: ComponentRoseLine area width = 1 → line at posC, rect at posC - 3.5
+        // Classic: area width = headWidth + 2*outMargin → line at box_x + (int)(headWidth)/2
+        let (lifeline_x, rect_x) = if sd.teoz_mode {
+            (p.x, p.x - 3.5)
+        } else {
+            (box_x + (p.box_width as i32 / 2) as f64, p.x - 4.0)
+        };
 
         if sd.teoz_mode {
             // Teoz: single segment, no delay splitting
@@ -285,9 +291,9 @@ fn draw_lifelines_with_activations(
             xml_escape(display)
         };
 
-        let box_x = p.x - p.box_width / 2.0;
-        let lifeline_x = box_x + (p.box_width as i32 / 2) as f64;
-        let rect_x = p.x - 4.0;
+        // Teoz: ComponentRoseLine area width = 1 → line at posC, rect at posC - 3.5
+        let lifeline_x = p.x;
+        let rect_x = p.x - 3.5;
 
         // Draw this participant's lifeline
         let ll_height = layout.lifeline_bottom - layout.lifeline_top;
@@ -316,13 +322,10 @@ fn draw_lifelines_with_activations(
         sg.push_raw("</g>");
 
         // Draw activation bars belonging to this participant
+        // Java teoz: LiveBoxesDrawer passes null for stringsToDisplay → Display.NULL → empty tooltip
         for act in &layout.activations {
             if act.participant == p.name {
-                let title = display_names
-                    .get(act.participant.as_str())
-                    .copied()
-                    .unwrap_or(&act.participant);
-                draw_activation(sg, act, title);
+                draw_activation(sg, act, "");
             }
         }
     }
@@ -1714,15 +1717,23 @@ fn draw_activation(sg: &mut SvgGraphic, act: &ActivationLayout, title: &str) {
     let height = act.y_end - act.y_start;
 
     let mut tmp = String::new();
+    // Java: empty Display → <title/>, non-empty → <title>name</title>
+    let title_tag = if title.is_empty() {
+        "<title/>".to_string()
+    } else {
+        format!("<title>{}</title>", xml_escape(title))
+    };
+    // Use custom activation color if provided, otherwise default
+    let bg = act.color.as_deref().unwrap_or(ACTIVATION_BG);
     write!(
         tmp,
-        r#"<g><title>{title}</title><rect fill="{bg}" height="{}" style="stroke:{border};stroke-width:1;" width="{}" x="{}" y="{}"/></g>"#,
+        r#"<g>{title_tag}<rect fill="{bg}" height="{}" style="stroke:{border};stroke-width:1;" width="{}" x="{}" y="{}"/></g>"#,
         fmt_coord(height),
         fmt_coord(width),
         fmt_coord(act.x),
         fmt_coord(act.y_start),
-        title = xml_escape(title),
-        bg = ACTIVATION_BG,
+        title_tag = title_tag,
+        bg = bg,
         border = BORDER_COLOR,
     )
     .unwrap();
@@ -2353,22 +2364,24 @@ fn render_sequence_inner(
         .or_else(|| skin.get("defaultfontsize").and_then(|s| s.parse::<f64>().ok()))
         .unwrap_or(14.0);
 
-    // 6. Participant head + tail boxes (interleaved per participant, matching Java order)
+    // 6. Participant head + tail boxes
+    // Puma: interleaved per participant (head then tail for each).
+    // Teoz: all heads first, then all tails (Java: LivingSpaces.drawHeads called twice).
     let max_ph = layout.participants.iter().map(|pp| pp.box_height).fold(0.0_f64, f64::max);
-    let bottom_y = layout.lifeline_bottom - 1.0;
-    for (i, p) in layout.participants.iter().enumerate() {
+    // Puma: tail y = lifeline_bottom - 1 (drawing convention)
+    // Teoz: tail y = lifeline_bottom (Java: PlayingSpaceWithParticipants draws
+    //        tails at ug + dy(height + headHeight), height = getPreferredHeight)
+    let bottom_y = if sd.teoz_mode {
+        layout.lifeline_bottom
+    } else {
+        layout.lifeline_bottom - 1.0
+    };
+
+    // Helper closure for drawing one participant head or tail
+    let draw_part = |sg: &mut SvgGraphic, i: usize, p: &ParticipantLayout, y: f64, is_head: bool| {
         let part_idx = i + 1;
         let dn = display_names.get(p.name.as_str()).copied();
         let qualified_name = xml_escape(&p.name);
-
-        // Head (bottom-aligned within head band)
-        // Puma: head y starts at MARGIN(5). Teoz: starts at lifeline_top - max_preferred_h.
-        let head_base = if sd.teoz_mode {
-            layout.lifeline_top - max_ph - 1.0 // teoz: preferred = box + 1
-        } else {
-            MARGIN
-        };
-        let top_y = head_base + max_ph - p.box_height;
         let src_line_attr = sd.participants.get(i)
             .and_then(|pp| pp.source_line)
             .map(|sl| format!(r#" data-source-line="{sl}""#))
@@ -2376,50 +2389,60 @@ fn render_sequence_inner(
         let kind = sd.participants.get(i).map(|pp| &pp.kind);
         let is_actor = matches!(kind, Some(ParticipantKind::Actor));
         let part_text_color = skin.font_color("participant", TEXT_COLOR);
-
-        let mut tmp = String::new();
-        write!(
-            tmp,
-            r#"<g class="participant participant-head" data-entity-uid="part{idx}" data-qualified-name="{name}"{src_line} id="part{idx}-head">"#,
-            idx = part_idx,
-            name = qualified_name,
-            src_line = src_line_attr,
-        )
-        .unwrap();
-        sg.push_raw(&tmp);
         let part_link_url = sd.participants.get(i).and_then(|pp| pp.link_url.as_deref());
-        if is_actor {
-            draw_participant_actor(&mut sg, p, top_y, dn, part_border, part_text_color);
-        } else {
-            draw_participant_box_with_font(
-                &mut sg, p, top_y, dn, part_bg, part_border, part_font,
-                &default_font, part_font_size, true, part_link_url,
-            );
-        }
-        sg.push_raw("</g>");
 
-        // Tail (skipped when hide footbox is set)
-        if !sd.hide_footbox {
+        // Puma mode wraps in a group with class/data attributes; teoz does not
+        if !sd.teoz_mode {
+            let role = if is_head { "head" } else { "tail" };
             let mut tmp = String::new();
             write!(
                 tmp,
-                r#"<g class="participant participant-tail" data-entity-uid="part{idx}" data-qualified-name="{name}"{src_line} id="part{idx}-tail">"#,
+                r#"<g class="participant participant-{role}" data-entity-uid="part{idx}" data-qualified-name="{name}"{src_line} id="part{idx}-{role}">"#,
                 idx = part_idx,
                 name = qualified_name,
                 src_line = src_line_attr,
+                role = role,
             )
             .unwrap();
             sg.push_raw(&tmp);
-            if is_actor {
-                // Java: actor tail has text ABOVE, stickman BELOW
-                draw_participant_actor_tail(&mut sg, p, bottom_y, dn, part_border, part_text_color);
+        }
+        if is_actor {
+            if is_head {
+                draw_participant_actor(sg, p, y, dn, part_border, part_text_color);
             } else {
-                draw_participant_box_with_font(
-                    &mut sg, p, bottom_y, dn, part_bg, part_border, part_font,
-                    &default_font, part_font_size, false, part_link_url,
-                );
+                draw_participant_actor_tail(sg, p, y, dn, part_border, part_text_color);
             }
+        } else {
+            draw_participant_box_with_font(
+                sg, p, y, dn, part_bg, part_border, part_font,
+                &default_font, part_font_size, is_head, part_link_url,
+            );
+        }
+        if !sd.teoz_mode {
             sg.push_raw("</g>");
+        }
+    };
+
+    if sd.teoz_mode {
+        // Teoz: all heads, then all tails
+        for (i, p) in layout.participants.iter().enumerate() {
+            let head_base = layout.lifeline_top - max_ph - 1.0;
+            let top_y = head_base + max_ph - p.box_height;
+            draw_part(&mut sg, i, p, top_y, true);
+        }
+        if !sd.hide_footbox {
+            for (i, p) in layout.participants.iter().enumerate() {
+                draw_part(&mut sg, i, p, bottom_y, false);
+            }
+        }
+    } else {
+        // Puma: interleaved head + tail per participant
+        for (i, p) in layout.participants.iter().enumerate() {
+            let top_y = MARGIN + max_ph - p.box_height;
+            draw_part(&mut sg, i, p, top_y, true);
+            if !sd.hide_footbox {
+                draw_part(&mut sg, i, p, bottom_y, false);
+            }
         }
     }
 
@@ -2437,13 +2460,16 @@ fn render_sequence_inner(
         }
     }
 
-    // 7. Activation bars foreground pass.
-    for act in &layout.activations {
-        let title = display_names
-            .get(act.participant.as_str())
-            .copied()
-            .unwrap_or(&act.participant);
-        draw_activation(&mut sg, act, title);
+    // 7. Activation bars foreground pass (puma only).
+    // Teoz activations are already drawn in draw_lifelines_with_activations.
+    if !sd.teoz_mode {
+        for act in &layout.activations {
+            let title = display_names
+                .get(act.participant.as_str())
+                .copied()
+                .unwrap_or(&act.participant);
+            draw_activation(&mut sg, act, title);
+        }
     }
 
     // 8. Messages interleaved with fragment details and destroy markers

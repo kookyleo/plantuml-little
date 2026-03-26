@@ -266,13 +266,23 @@ pub fn parse_sequence_diagram_with_original(source: &str, original_source: Optio
             let lower = trimmed.to_lowercase();
             if lower.starts_with("activate ") {
                 let mut name = trimmed[9..].trim().to_string();
-                // Strip #color suffix (e.g. "activate a #green" → name="a")
+                // Extract #color suffix (e.g. "activate a #green" → name="a", color="#008000")
+                let mut act_color = None;
                 if let Some(hash_pos) = name.rfind(" #") {
+                    let color_raw = name[hash_pos + 1..].trim();
+                    act_color = crate::klimt::color::resolve_color(color_raw)
+                        .map(|c| c.to_svg());
+                    name = name[..hash_pos].trim().to_string();
+                } else if let Some(hash_pos) = name.rfind('#') {
+                    // No space: "activate a#green"
+                    let color_raw = name[hash_pos..].trim();
+                    act_color = crate::klimt::color::resolve_color(color_raw)
+                        .map(|c| c.to_svg());
                     name = name[..hash_pos].trim().to_string();
                 }
-                debug!("parsed activate: {name}");
+                debug!("parsed activate: {name} color={act_color:?}");
                 ensure_participant(&mut declared_participants, &mut auto_participants, &name, source_line);
-                events.push(SeqEvent::Activate(name));
+                events.push(SeqEvent::Activate(name, act_color));
                 continue;
             }
             if lower.starts_with("deactivate ") {
@@ -506,9 +516,13 @@ pub fn parse_sequence_diagram_with_original(source: &str, original_source: Optio
                 .map(|m| m.as_str().trim().to_string())
                 .unwrap_or_default();
 
-            // Strip #color suffix FIRST (e.g. "a --++ #red" -> "a --++")
-            // Java: color annotation applies to the activation bar, not the participant name
+            // Extract #color suffix (e.g. "a --++ #red" -> right="a --++", inline_color="#FF0000")
+            // Java: color annotation applies to the activation bar
+            let mut inline_color: Option<String> = None;
             if let Some(hash_pos) = right.rfind(" #") {
+                let color_raw = right[hash_pos + 1..].trim();
+                inline_color = crate::klimt::color::resolve_color(color_raw)
+                    .map(|c| c.to_svg());
                 right = right[..hash_pos].trim().to_string();
             } else if right.starts_with('#') {
                 // Entire right is a color - shouldn't happen, skip
@@ -564,7 +578,7 @@ pub fn parse_sequence_diagram_with_original(source: &str, original_source: Optio
                     events.push(SeqEvent::Deactivate(source));
                 }
                 if inline_activate {
-                    events.push(SeqEvent::Activate(target.clone()));
+                    events.push(SeqEvent::Activate(target.clone(), inline_color.clone()));
                 }
                 if inline_deactivate {
                     events.push(SeqEvent::Deactivate(target));
@@ -1164,7 +1178,7 @@ mod tests {
         let diagram = parse_sequence_diagram(src).unwrap();
 
         assert!(matches!(&diagram.events[0], SeqEvent::Message(_)));
-        assert!(matches!(&diagram.events[1], SeqEvent::Activate(ref n) if n == "B"));
+        assert!(matches!(&diagram.events[1], SeqEvent::Activate(ref n, _) if n == "B"));
         assert!(matches!(&diagram.events[2], SeqEvent::Message(_)));
         assert!(matches!(&diagram.events[3], SeqEvent::Deactivate(ref n) if n == "B"));
     }
@@ -1343,7 +1357,7 @@ Sally --> Bob
         assert!(
             matches!(&diagram.events[0], SeqEvent::Message(m) if m.from == "Bob" && m.to == "Bob")
         );
-        assert!(matches!(&diagram.events[1], SeqEvent::Activate(ref n) if n == "Bob"));
+        assert!(matches!(&diagram.events[1], SeqEvent::Activate(ref n, _) if n == "Bob"));
         assert!(
             matches!(&diagram.events[2], SeqEvent::Message(m) if m.from == "Bob" && m.to == "Bob")
         );

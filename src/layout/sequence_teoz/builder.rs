@@ -62,6 +62,8 @@ const GROUP_MARGINX: f64 = 16.0;
 const GROUP_EXTERNAL_MARGINX1: f64 = 3.0;
 /// Java: GroupingTile.EXTERNAL_MARGINX2 = 9 (right frame margin)
 const GROUP_EXTERNAL_MARGINX2: f64 = 9.0;
+/// Java: PlayingSpace.startingY = 8. Tiles start at this offset within the PlayingSpace.
+const PLAYINGSPACE_STARTING_Y: f64 = 8.0;
 
 // ── Tile types (inline, simplified) ──────────────────────────────────────────
 
@@ -730,7 +732,7 @@ pub fn build_teoz_layout(
 					});
 				}
 			}
-			SeqEvent::Activate(name) => {
+			SeqEvent::Activate(name, _act_color) => {
 				let level = active_levels.entry(name.clone()).or_insert(0);
 				*level += 1;
 				tiles.push(TeozTile::LifeEvent {
@@ -990,11 +992,16 @@ pub fn build_teoz_layout(
 	rl.compile();
 
 	// ── Step 6: Assign Y positions (fillPositionelTiles) ─────────────────
-	// Simple linear walk: y starts at the participant box bottom + starting_y.
+	// Java PlayingSpace positions tiles starting at startingY = 8 within the
+	// playing space. The playing space origin = STARTING_Y + max_preferred_height
+	// (below participant heads). So tile top y = lifeline_top + 8.
+	//
+	// In our model, tile y represents the tile TOP (like Java), not the arrow y.
+	// For Communication tiles, the arrow y = tile_y + arrowY.
 	let max_box_height = box_heights.iter().copied().fold(0.0_f64, f64::max);
 	// Java layout uses preferred height (= drawn + 1) for lifeline start
 	let max_preferred_height = max_box_height + 1.0;
-	let mut y = STARTING_Y + max_preferred_height;
+	let mut y = STARTING_Y + max_preferred_height + PLAYINGSPACE_STARTING_Y;
 	// Track the previous message for note-on-message binding.
 	// In Java, notes immediately following messages form a combined tile:
 	//   combined height = max(message_h, note_h)
@@ -1086,7 +1093,11 @@ pub fn build_teoz_layout(
 		}
 	}
 	let tiles_bottom = y;
-	let mut lifeline_bottom = y;
+	// Java: lifeline height = getPreferredHeight = finalY + 10 (bottom padding)
+	// where finalY = startingY(8) + sum_tile_heights.
+	// lifeline_bottom = lifeline_top + lifeline_height = lifeline_top + sum + 18
+	// tiles_bottom = lifeline_top + 8 + sum, so lifeline_bottom = tiles_bottom + 10
+	let mut lifeline_bottom = tiles_bottom + 10.0;
 
 	// ── Step 7: Extract SeqLayout ────────────────────────────────────────
 	// Java: SequenceDiagramFileMakerTeoz applies UTranslate(5,5) + dx(-min1).
@@ -1407,19 +1418,23 @@ pub fn build_teoz_layout(
 				is_dashed,
 				has_open_head,
 				y,
+				height,
 				autonumber,
 				circle_from,
 				circle_to,
 				..
 			} => {
 				let ty = y.unwrap_or(0.0);
+				// Java: tile y = tile top. Arrow y = tile_top + arrowY.
+				// arrowY = textHeight + paddingY = (height - ARROW_DELTA_Y - ARROW_PADDING_Y)
+				let arrow_y = ty + (height - rose::ARROW_DELTA_Y - rose::ARROW_PADDING_Y);
 				let from_x = get_x(livings[*from_idx].pos_c);
 				let to_x = get_x(livings[*to_idx].pos_c);
 				let is_left = to_x < from_x;
 				messages.push(MessageLayout {
 					from_x,
 					to_x,
-					y: ty,
+					y: arrow_y,
 					text: text.clone(),
 					text_lines: text_lines.clone(),
 					is_self: false,
@@ -1698,53 +1713,78 @@ pub fn build_teoz_layout(
 
 	// Build activation bars from the event stream.
 	// Re-scan events to track activate/deactivate pairs.
-	// Use the y position of the nearest preceding message tile for activation
-	// start/end, because LifeEvent tiles have 0 height and share the same y
-	// position as consecutive events.
+	//
+	// Java LiveBoxes: each tile records a "step" y for the living spaces:
+	// - CommunicationTile records step at tile_top + arrowY (= arrow y position)
+	// - LifeEventTile records step at tile_top
+	// Activation bars span from the step-y of the activate event to the step-y
+	// of the deactivate event.
 	{
-		let mut act_state: HashMap<String, Vec<(f64, usize)>> = HashMap::new();
+		let mut act_state: HashMap<String, Vec<(f64, usize, Option<String>)>> = HashMap::new();
 		let mut tile_idx = 0;
-		// Track the y + height of the last message for activation boundary.
-		let mut last_msg_bottom: f64 = STARTING_Y + max_preferred_height;
-		let mut last_msg_y: f64 = STARTING_Y + max_preferred_height;
+		// The step y of the current/preceding tile.
+		// Initial: lifeline_top + PLAYINGSPACE_STARTING_Y (before any tile)
+		let lifeline_top = STARTING_Y + max_preferred_height;
+		let mut last_step_y: f64 = lifeline_top + PLAYINGSPACE_STARTING_Y;
 		for event in &sd.events {
-			// Update last_msg_bottom when we see a message tile
+			// Update last_step_y when we see a tile
 			if let Some(tile) = tiles.get(tile_idx) {
 				match tile {
-					TeozTile::Communication { height, y, .. }
-					| TeozTile::SelfMessage { height, y, .. } => {
+					TeozTile::Communication { height, y, .. } => {
 						let ty = y.unwrap_or(0.0);
-						last_msg_y = ty;
-						last_msg_bottom = ty + height;
+						// Step y = tile_top + arrowY = tile_top + (height - 8)
+						last_step_y = ty + (height - rose::ARROW_DELTA_Y - rose::ARROW_PADDING_Y);
+					}
+					TeozTile::SelfMessage { height, y, .. } => {
+						let ty = y.unwrap_or(0.0);
+						let self_text_h = tp.msg_line_height * 1.0_f64;
+						let self_tm = TextMetrics::new(7.0, 7.0, 1.0, 0.0, self_text_h);
+						last_step_y = ty + rose::self_arrow_start_point(&self_tm).y;
+					}
+					TeozTile::LifeEvent { .. } => {
+						// LifeEvent tiles share position with the preceding
+						// message tile and don't update last_step_y. The
+						// activation y comes from the message's arrow y.
 					}
 					_ => {}
 				}
 			}
 
 			match event {
-				SeqEvent::Activate(name) => {
-					// Activation starts at the bottom of the preceding message.
-					// For inline ++ on a message, the activate event comes
-					// right after the message, so last_msg_bottom is the
-					// arrow landing point.
+				SeqEvent::Activate(name, act_color) => {
+					// Java: activation step recorded at the tile's step y
 					let stack = act_state.entry(name.clone()).or_default();
 					let level = stack.len() + 1; // 1-based
-					stack.push((last_msg_bottom, level));
+					log::debug!("teoz activate {name} level={level} y_start={last_step_y:.4}");
+					stack.push((last_step_y, level, act_color.clone()));
 				}
 				SeqEvent::Deactivate(name) => {
-					// Deactivation ends at the bottom of the last message.
+					// Java: deactivation step recorded at the tile's step y.
+					// When y_end == y_start (inline activate+deactivate at same
+					// message), Java's LiveBoxes.addStep applies a +5 collision
+					// adjustment. Combined with tile bottom padding, this gives
+					// a minimum activation height of 13px.
 					if let Some(stack) = act_state.get_mut(name) {
-						if let Some((y_start, level)) = stack.pop() {
+						if let Some((y_start, level, color)) = stack.pop() {
 							let idx = name_to_idx.get(name).copied().unwrap_or(0);
 							let cx = get_x(livings[idx].pos_c);
 							let x = cx - ACTIVATION_WIDTH / 2.0
 								+ (level - 1) as f64 * (ACTIVATION_WIDTH / 2.0);
+							let mut y_end = last_step_y;
+							// Java +5 collision adjustment: when deactivation step
+							// equals an existing step, LiveBoxes adds 5px. This
+							// results in minimum height = ARROW_DELTA_Y + ARROW_PADDING_Y + 5 = 13.
+							if (y_end - y_start).abs() < 0.001 {
+								y_end = y_start + rose::ARROW_DELTA_Y + rose::ARROW_PADDING_Y + 5.0;
+							}
+							log::debug!("teoz deactivate {name} level={level} y_start={y_start:.4} y_end={y_end:.4}");
 							activations.push(ActivationLayout {
 								participant: name.clone(),
 								x,
 								y_start,
-								y_end: last_msg_bottom,
+								y_end,
 								level,
+								color,
 							});
 						}
 					}
@@ -1753,13 +1793,13 @@ pub fn build_teoz_layout(
 					let ty = tiles
 						.get(tile_idx)
 						.and_then(|t| t.get_y())
-						.unwrap_or(last_msg_bottom);
+						.unwrap_or(last_step_y);
 					let idx = name_to_idx.get(name).copied().unwrap_or(0);
 					let cx = get_x(livings[idx].pos_c);
 					destroys.push(DestroyLayout { x: cx, y: ty });
 					// Close any open activations
 					if let Some(stack) = act_state.get_mut(name) {
-						while let Some((y_start, level)) = stack.pop() {
+						while let Some((y_start, level, color)) = stack.pop() {
 							let x = cx - ACTIVATION_WIDTH / 2.0
 								+ (level - 1) as f64 * (ACTIVATION_WIDTH / 2.0);
 							activations.push(ActivationLayout {
@@ -1768,6 +1808,7 @@ pub fn build_teoz_layout(
 								y_start,
 								y_end: ty,
 								level,
+								color,
 							});
 						}
 					}
@@ -1784,7 +1825,7 @@ pub fn build_teoz_layout(
 		for (name, stack) in act_state.drain() {
 			let idx = name_to_idx.get(&name).copied().unwrap_or(0);
 			let cx = get_x(livings[idx].pos_c);
-			for (y_start, level) in stack {
+			for (y_start, level, color) in stack {
 				let x = cx - ACTIVATION_WIDTH / 2.0
 					+ (level - 1) as f64 * (ACTIVATION_WIDTH / 2.0);
 				// Ensure the activation has at least MIN_UNCLOSED_ACTIVATION_HEIGHT
@@ -1798,6 +1839,7 @@ pub fn build_teoz_layout(
 					y_start,
 					y_end,
 					level,
+					color,
 				});
 			}
 		}
@@ -1809,7 +1851,6 @@ pub fn build_teoz_layout(
 	// SequenceDiagramFileMakerTeoz viewport = width + 10 (UTranslate(5,5))
 	let total_width = diagram_width + 2.0 * DOC_MARGIN_X;
 	// Java height chain:
-	// Java height chain:
 	//   startingY(8) + sum_tiles → finalY (in PlayingSpace coordinates)
 	//   getPreferredHeight  = finalY + 10 (bottom padding)
 	//   bodyHeight          = preferred + factor*headHeight
@@ -1817,12 +1858,13 @@ pub fn build_teoz_layout(
 	//   SVG viewport        = dimension + 10 (UTranslate(5,5))
 	//
 	// Combined: 8 + sum + 10 + factor*head + 10 + 10 = sum + factor*head + 38
-	// Our lifeline_bottom = STARTING_Y(10) + head + sum
-	// total = lifeline_bottom + (factor-1)*head + 28 = sum + factor*head + 38  ✓
+	// Java SVG viewport height = sum + factor*head + 38
+	// Our tiles_bottom = STARTING_Y + head + 8 + sum = sum + head + 18
+	// total = tiles_bottom + (factor-1)*head + 20 = sum + factor*head + 38  ✓
 	let show_footbox = !sd.hide_footbox;
 	let factor = if show_footbox { 2 } else { 1 };
 	let total_height =
-		tiles_bottom + (factor - 1) as f64 * max_preferred_height + 28.0;
+		tiles_bottom + (factor - 1) as f64 * max_preferred_height + 20.0;
 	log::debug!("teoz_layout: total_width={total_width:.4} total_height={total_height:.4} lifeline_bottom={lifeline_bottom:.4} max_preferred_height={max_preferred_height:.4}");
 
 	Ok(SeqLayout {
