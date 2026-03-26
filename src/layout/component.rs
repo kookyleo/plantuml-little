@@ -326,8 +326,26 @@ pub fn layout_component(cd: &ComponentDiagram) -> Result<ComponentLayout> {
         let span_h = gl.lf_span.1;
         (span_w + CANVAS_DELTA, span_h + CANVAS_DELTA)
     };
-    let total_width = ensure_visible_int(raw_body_w + DOC_MARGIN_RIGHT) as f64;
-    let total_height = ensure_visible_int(raw_body_h + DOC_MARGIN_BOTTOM) as f64;
+
+    // Extend viewport to include notes
+    let mut max_right = raw_body_w;
+    let mut max_bottom = raw_body_h;
+    for note in &note_layouts {
+        let nr = note.x + note.width - MARGIN + DOC_MARGIN_RIGHT;
+        let nb = note.y + note.height - MARGIN + DOC_MARGIN_BOTTOM;
+        if nr > max_right { max_right = nr; }
+        if nb > max_bottom { max_bottom = nb; }
+    }
+    // Also extend for group layouts
+    for group in &group_layouts {
+        let gr = group.x + group.width - MARGIN + DOC_MARGIN_RIGHT;
+        let gb = group.y + group.height - MARGIN + DOC_MARGIN_BOTTOM;
+        if gr > max_right { max_right = gr; }
+        if gb > max_bottom { max_bottom = gb; }
+    }
+
+    let total_width = ensure_visible_int(max_right + DOC_MARGIN_RIGHT) as f64;
+    let total_height = ensure_visible_int(max_bottom + DOC_MARGIN_BOTTOM) as f64;
 
     log::debug!("layout_component done: {:.0}x{:.0}", total_width, total_height);
 
