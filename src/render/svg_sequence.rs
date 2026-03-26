@@ -261,6 +261,73 @@ fn draw_lifelines(sg: &mut SvgGraphic, layout: &SeqLayout, skin: &SkinParams, sd
     }
 }
 
+/// Teoz-mode interleaved rendering: draw each participant's lifeline
+/// followed by that participant's activation bars.
+/// Java MainTile draws components per-participant, so activations appear
+/// immediately after their participant's lifeline group.
+fn draw_lifelines_with_activations(
+    sg: &mut SvgGraphic,
+    layout: &SeqLayout,
+    skin: &SkinParams,
+    sd: &SequenceDiagram,
+    display_names: &std::collections::HashMap<&str, &str>,
+) {
+    let ll_color = skin.sequence_lifeline_border_color(BORDER_COLOR);
+
+    for (i, p) in layout.participants.iter().enumerate() {
+        let participant = sd.participants.get(i);
+        let display = participant
+            .and_then(|pp| pp.display_name.as_deref())
+            .unwrap_or(&p.name);
+        let title_text = if let Some(url) = participant.and_then(|pp| pp.link_url.as_deref()) {
+            encode_link_title(url, display)
+        } else {
+            xml_escape(display)
+        };
+
+        let box_x = p.x - p.box_width / 2.0;
+        let lifeline_x = box_x + (p.box_width as i32 / 2) as f64;
+        let rect_x = p.x - 4.0;
+
+        // Draw this participant's lifeline
+        let ll_height = layout.lifeline_bottom - layout.lifeline_top;
+        let mut tmp = String::new();
+        write!(tmp, "<g><title>{dname}</title>", dname = title_text).unwrap();
+        sg.push_raw(&tmp);
+
+        let mut tmp = String::new();
+        let _ = write!(
+            tmp,
+            "<rect fill=\"#000000\" fill-opacity=\"0.00000\" height=\"{h}\" width=\"8\" x=\"{x}\" y=\"{y}\"/>",
+            h = fmt_coord(ll_height), x = fmt_coord(rect_x), y = fmt_coord(layout.lifeline_top),
+        );
+        sg.push_raw(&tmp);
+
+        let mut tmp = String::new();
+        write!(
+            tmp,
+            r#"<line style="stroke:{color};stroke-width:0.5;stroke-dasharray:5,5;" x1="{x}" x2="{x}" y1="{y1}" y2="{y2}"/>"#,
+            x = fmt_coord(lifeline_x),
+            y1 = fmt_coord(layout.lifeline_top),
+            y2 = fmt_coord(layout.lifeline_bottom),
+            color = ll_color,
+        ).unwrap();
+        sg.push_raw(&tmp);
+        sg.push_raw("</g>");
+
+        // Draw activation bars belonging to this participant
+        for act in &layout.activations {
+            if act.participant == p.name {
+                let title = display_names
+                    .get(act.participant.as_str())
+                    .copied()
+                    .unwrap_or(&act.participant);
+                draw_activation(sg, act, title);
+            }
+        }
+    }
+}
+
 // ── Color utilities ─────────────────────────────────────────────────
 
 /// Resolve a color string into SVG fill + optional fill-opacity attributes.
@@ -2236,17 +2303,11 @@ fn render_sequence_inner(
     }
 
     // 4/5. Activation bars and lifelines — order depends on engine:
-    // Teoz: lifelines first, then activations (Java MainTile draw order)
+    // Teoz: per-participant interleaving: lifeline then its activations
+    //       (Java MainTile draws each participant's components together)
     // Puma: activations first, then lifelines (Java DrawableSet draw order)
     if sd.teoz_mode {
-        draw_lifelines(&mut sg, layout, skin, sd);
-        for act in &layout.activations {
-            let title = display_names
-                .get(act.participant.as_str())
-                .copied()
-                .unwrap_or(&act.participant);
-            draw_activation(&mut sg, act, title);
-        }
+        draw_lifelines_with_activations(&mut sg, layout, skin, sd, &display_names);
     } else {
         for act in &layout.activations {
             let title = display_names
