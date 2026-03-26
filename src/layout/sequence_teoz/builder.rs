@@ -770,9 +770,11 @@ pub fn build_teoz_layout(
 				});
 			}
 			SeqEvent::FragmentSeparator { label } => {
+				// Java teoz: ElseTile preferred height = textHeight + 16
+				// textHeight = textBlock.height + 2*marginY(1) = h13 + 2
 				tiles.push(TeozTile::FragmentSeparator {
 					label: label.clone(),
-					height: tp.frag_header_height,
+					height: tp.frag_separator_height_teoz,
 					y: None,
 				});
 			}
