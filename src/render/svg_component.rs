@@ -31,12 +31,24 @@ fn text_len(text: &str, size: f64, bold: bool) -> f64 {
 // ---------------------------------------------------------------------------
 
 pub fn render_component(
-    _cd: &ComponentDiagram,
+    cd: &ComponentDiagram,
     layout: &ComponentLayout,
     skin: &SkinParams,
 ) -> Result<String> {
     let mut buf = String::with_capacity(4096);
     reset_entity_counter();
+
+    // Build entity ID map: entity name → "ent0002", "ent0003", etc.
+    // Java assigns IDs in definition order (source_line).
+    let mut entity_ids: std::collections::HashMap<String, String> = std::collections::HashMap::new();
+    let mut entities_sorted: Vec<&crate::model::component::ComponentEntity> = cd.entities.iter().collect();
+    entities_sorted.sort_by_key(|e| e.source_line.unwrap_or(usize::MAX));
+    let mut ent_counter = 2u32;
+    for ent in &entities_sorted {
+        let ent_id = format!("ent{:04}", ent_counter);
+        entity_ids.insert(ent.id.clone(), ent_id);
+        ent_counter += 1;
+    }
 
     // Skin color lookups
     let comp_bg = skin.background_color("component", ENTITY_BG);
@@ -122,9 +134,15 @@ pub fn render_component(
         );
     }
 
-    // Edges
-    for edge in &layout.edges {
-        render_edge(&mut sg, edge, arrow_color, comp_font);
+    // Edges — link IDs start after entity IDs
+    let mut link_counter = ent_counter;
+    for (ei, edge) in layout.edges.iter().enumerate() {
+        let source_line = cd.links.get(ei).and_then(|l| {
+            // Component links don't have source_line yet, derive from entity position
+            None::<usize>
+        });
+        render_edge(&mut sg, edge, arrow_color, comp_font, &entity_ids, link_counter, source_line);
+        link_counter += 1;
     }
 
     // Notes
@@ -820,88 +838,110 @@ fn render_node_text(sg: &mut SvgGraphic, node: &ComponentNodeLayout, font_color:
 // Edge rendering
 // ---------------------------------------------------------------------------
 
-fn render_edge(sg: &mut SvgGraphic, edge: &ComponentEdgeLayout, arrow_color: &str, font_color: &str) {
+fn render_edge(
+    sg: &mut SvgGraphic,
+    edge: &ComponentEdgeLayout,
+    arrow_color: &str,
+    font_color: &str,
+    entity_ids: &std::collections::HashMap<String, String>,
+    link_id: u32,
+    source_line: Option<usize>,
+) {
     if edge.points.is_empty() {
         return;
     }
 
-    // HTML comment + semantic group
+    // HTML comment
     sg.push_raw(&format!(
         "<!--link {} to {}-->",
         xml_escape(&edge.from),
         xml_escape(&edge.to),
     ));
-    sg.push_raw(&format!(
-        r#"<g class="link" id="{}-to-{}">"#,
-        xml_escape(&edge.from),
-        xml_escape(&edge.to),
-    ));
 
-    let dash = if edge.dashed {
-        r#" stroke-dasharray="7,5""#
+    // Semantic group with data attributes matching Java format
+    let from_ent = entity_ids.get(&edge.from).map(|s| s.as_str()).unwrap_or("");
+    let to_ent = entity_ids.get(&edge.to).map(|s| s.as_str()).unwrap_or("");
+    let link_type = if edge.dashed { "dependency" } else { "dependency" };
+    sg.push_raw(&format!(
+        r#"<g class="link" data-entity-1="{from_ent}" data-entity-2="{to_ent}" data-link-type="{link_type}""#,
+    ));
+    if let Some(sl) = source_line {
+        sg.push_raw(&format!(r#" data-source-line="{sl}""#));
+    }
+    sg.push_raw(&format!(r#" id="lnk{link_id}">"#));
+
+    let dash_style = if edge.dashed {
+        "stroke-dasharray:7,7;"
     } else {
         ""
     };
 
-    // Build path data
+    // Build SVG path data using cubic bezier curves
     let mut d = String::new();
-    for (i, (px, py)) in edge.points.iter().enumerate() {
-        if i == 0 {
-            write!(d, "M{},{} ", fmt_coord(*px), fmt_coord(*py)).unwrap();
-        } else {
+    let pts = &edge.points;
+    if !pts.is_empty() {
+        write!(d, "M{},{} ", fmt_coord(pts[0].0), fmt_coord(pts[0].1)).unwrap();
+        // Points come in groups of 3 for cubic bezier (C command)
+        let mut i = 1;
+        while i + 2 < pts.len() {
             write!(
                 d,
                 "C{},{} {},{} {},{} ",
-                fmt_coord(*px),
-                fmt_coord(*py),
-                fmt_coord(*px),
-                fmt_coord(*py),
-                fmt_coord(*px),
-                fmt_coord(*py),
+                fmt_coord(pts[i].0), fmt_coord(pts[i].1),
+                fmt_coord(pts[i + 1].0), fmt_coord(pts[i + 1].1),
+                fmt_coord(pts[i + 2].0), fmt_coord(pts[i + 2].1),
             )
             .unwrap();
+            i += 3;
+        }
+        // Remaining points as line segments
+        while i < pts.len() {
+            write!(d, "L{},{} ", fmt_coord(pts[i].0), fmt_coord(pts[i].1)).unwrap();
+            i += 1;
         }
     }
 
+    let path_id = format!("{}-to-{}", xml_escape(&edge.from), xml_escape(&edge.to));
     sg.push_raw(&format!(
-        r#"<path d="{d}" fill="none" id="{from}-to-{to}" style="stroke:{arrow_color};stroke-width:1;"{dash}/>"#,
-        from = xml_escape(&edge.from),
-        to = xml_escape(&edge.to),
+        r#"<path d="{d}" fill="none" id="{path_id}" style="stroke:{arrow_color};stroke-width:1;{dash_style}"/>"#,
     ));
 
-    // Inline polygon arrowhead at the last point
-    if edge.points.len() >= 2 {
-        let (tx, ty) = edge.points[edge.points.len() - 1];
-        let (fx, fy) = edge.points[edge.points.len() - 2];
+    // Arrowhead polygon at the last point
+    if pts.len() >= 2 {
+        let (tx, ty) = pts[pts.len() - 1];
+        let (fx, fy) = pts[pts.len() - 2];
         let dx = tx - fx;
         let dy = ty - fy;
         let len = (dx * dx + dy * dy).sqrt();
         if len > 0.0 {
             let ux = dx / len;
             let uy = dy / len;
-            let px = -uy;
-            let py = ux;
-            let p1x = tx - ux * 9.0 + px * 4.0;
-            let p1y = ty - uy * 9.0 + py * 4.0;
+            let nx = -uy;
+            let ny = ux;
+            // Java arrowhead: tip at (tx,ty), two wings 9px back, 4px wide
+            let p1x = tx - ux * 9.0 + nx * 4.0;
+            let p1y = ty - uy * 9.0 + ny * 4.0;
             let p2x = tx;
             let p2y = ty;
-            let p3x = tx - ux * 9.0 - px * 4.0;
-            let p3y = ty - uy * 9.0 - py * 4.0;
+            let p3x = tx - ux * 9.0 - nx * 4.0;
+            let p3y = ty - uy * 9.0 - ny * 4.0;
 
-            sg.set_fill_color(arrow_color); sg.set_stroke_color(Some(arrow_color)); sg.set_stroke_width(1.0, None);
+            sg.set_fill_color(arrow_color);
+            sg.set_stroke_color(Some(arrow_color));
+            sg.set_stroke_width(1.0, None);
             sg.svg_polygon(0.0, &[p1x, p1y, p2x, p2y, p3x, p3y, p1x, p1y]);
         }
     }
 
     // Label at midpoint
     if !edge.label.is_empty() {
-        let mid = edge.points.len() / 2;
-        let (mx, my) = if edge.points.len() == 2 {
-            let (x1, y1) = edge.points[0];
-            let (x2, y2) = edge.points[1];
+        let mid = pts.len() / 2;
+        let (mx, my) = if pts.len() == 2 {
+            let (x1, y1) = pts[0];
+            let (x2, y2) = pts[1];
             ((x1 + x2) / 2.0, (y1 + y2) / 2.0 - 6.0)
         } else {
-            edge.points[mid]
+            pts[mid]
         };
 
         let mut tmp = String::new();
