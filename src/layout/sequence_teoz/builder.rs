@@ -1251,8 +1251,21 @@ pub fn build_teoz_layout(
 			let msg_h = prev_msg_height.unwrap();
 			let msg_y = prev_msg_y.unwrap();
 			let note_h = tiles[tile_idx].preferred_height();
-			// Place note at the same y as the message
-			tiles[tile_idx].set_y(msg_y);
+			// Java CommunicationTileSelfNote: note y = startingY + push
+			// where push = (selfPreferredH - noteCalcH) / 2.
+			// For self-messages, this equals ARROW_PADDING_X (5px) because
+			// the note calcH includes the self-message's vertical extent.
+			// For regular messages, push = 0 (note starts at tile top).
+			// Check if the preceding message tile (skipping LifeEvents) is a self-message
+			let is_self_note = (0..tile_idx).rev().find_map(|j| {
+				match &tiles[j] {
+					TeozTile::LifeEvent { .. } => None, // skip
+					TeozTile::SelfMessage { .. } => Some(true),
+					_ => Some(false),
+				}
+			}).unwrap_or(false);
+			let note_push = if is_self_note { rose::ARROW_PADDING_X } else { 0.0 };
+			tiles[tile_idx].set_y(msg_y + note_push);
 			// Combined height = max(message_h, note_h)
 			let combined_h = msg_h.max(note_h);
 			y = msg_y + combined_h;
@@ -1907,12 +1920,17 @@ pub fn build_teoz_layout(
 				let ty = y.unwrap_or(0.0);
 				let cx = get_x(livings[*participant_idx].pos_c);
 				let nx = if *is_note_on_message {
-					// Note on self-message: position relative to self-message extent
+					// Note on self-message: position relative to self-message extent.
+					// Java CommunicationTileSelf uses posC2 = posC + rightShift,
+					// where rightShift >= ACTIVATION_WIDTH/2 (the lifeline always
+					// occupies at least this width). Use max(1, active_level) so
+					// the extent always clears the lifeline.
 					if let Some((sm_pidx, sm_tw, sm_dir, sm_al)) = find_preceding_self_message(&tiles, tile_i) {
 						let sm_cx = get_x(livings[sm_pidx].pos_c);
 						let sm_comp_w = self_message_comp_width(sm_tw, tp.msg_line_height);
 						let sm_cx_raw = rl.get_value(livings[sm_pidx].pos_c);
-						let (sm_min, sm_max) = self_message_extent(sm_cx_raw, sm_comp_w, sm_al, &sm_dir);
+						let note_al = sm_al.max(1); // lifeline always has >=1 activation width
+						let (sm_min, sm_max) = self_message_extent(sm_cx_raw, sm_comp_w, note_al, &sm_dir);
 						if *is_left {
 							// Java: tile.getMinX() - noteWidth (in raw coords) + x_offset
 							sm_min + x_offset - *width
@@ -1940,6 +1958,7 @@ pub fn build_teoz_layout(
 					is_self_msg_note: *is_note_on_message,
 					is_note_on_message: *is_note_on_message,
 					assoc_message_idx: None,
+					teoz_mode: true,
 				});
 			}
 			TeozTile::NoteOver {
@@ -1980,6 +1999,7 @@ pub fn build_teoz_layout(
 					is_self_msg_note: false,
 					is_note_on_message: false,
 					assoc_message_idx: None,
+					teoz_mode: true,
 				});
 			}
 			TeozTile::Divider { text, y, .. } => {

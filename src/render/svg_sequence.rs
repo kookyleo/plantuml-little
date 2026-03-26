@@ -1784,12 +1784,13 @@ fn draw_destroy(sg: &mut SvgGraphic, d: &DestroyLayout) {
 
 fn draw_note(sg: &mut SvgGraphic, note: &NoteLayout) {
     let fold = 10.0; // folded corner size
-    // Java truncates note x to int in NoteBox.getStartingX():
+    // Java puma mode truncates note x to int in NoteBox.getStartingX():
     //   xStart = (int)(segment.getSegment().getPos2())
+    // Java teoz mode doesn't truncate (constraint solver produces real coords).
+    let x = if note.teoz_mode { note.x } else { note.x.trunc() };
+    let y = note.y;
     // Java truncates polygon width to int in ComponentRoseNote.drawInternalU():
     //   int x2 = (int) getTextWidth(stringBounder)
-    let x = note.x.trunc();
-    let y = note.y;
     let w = note.width.trunc();
     let h = note.height;
 

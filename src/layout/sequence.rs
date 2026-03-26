@@ -253,6 +253,10 @@ pub struct NoteLayout {
     /// Index of the associated message (for rendering order).
     /// None for standalone notes (not following a message).
     pub(crate) assoc_message_idx: Option<usize>,
+    /// Whether this note was laid out in teoz mode (affects x truncation).
+    /// In teoz mode, note x coordinates come from the constraint solver
+    /// and should not be truncated.
+    pub(crate) teoz_mode: bool,
 }
 
 /// Group box layout
@@ -1406,6 +1410,7 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
                     is_self_msg_note: last_message_was_self,
                     is_note_on_message: last_message_was_self,
                     assoc_message_idx: last_message_idx,
+                    teoz_mode: false,
                 });
                 // Notes inside fragments expand the fragment bounds (Java: InGroupable).
                 // Java NoteBox preferred width = visual_width + 2*paddingX (Rose.paddingX=5).
@@ -1496,6 +1501,7 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
                     is_self_msg_note: last_message_was_self,
                     is_note_on_message: last_message_was_self,
                     assoc_message_idx: last_message_idx,
+                    teoz_mode: false,
                 });
                 // Notes inside fragments expand the fragment bounds (Java: InGroupable).
                 // Java NoteBox preferred width = visual_width + 2*paddingX.
@@ -1567,6 +1573,7 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
                         is_self_msg_note: false,
                         is_note_on_message: false,
                         assoc_message_idx: last_message_idx,
+                        teoz_mode: false,
                     });
                     let note_bottom = note_y + note_height;
                     if note_bottom > y_cursor {
