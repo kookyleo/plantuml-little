@@ -40,6 +40,7 @@ struct GroupFrame {
     kind: ComponentKind,
     stereotype: Option<String>,
     children: Vec<String>,
+    source_line: Option<usize>,
 }
 
 // ---------------------------------------------------------------------------
@@ -184,6 +185,7 @@ pub fn parse_component_diagram(source: &str) -> Result<ComponentDiagram> {
                     kind: frame.kind,
                     stereotype: frame.stereotype,
                     children: frame.children,
+                    source_line: frame.source_line,
                 });
             }
             continue;
@@ -238,6 +240,7 @@ pub fn parse_component_diagram(source: &str) -> Result<ComponentDiagram> {
                     kind: decl.kind,
                     stereotype: decl.stereotype,
                     children: Vec::new(),
+                    source_line: Some(line_num),
                 });
                 continue;
             }
@@ -353,6 +356,7 @@ pub fn parse_component_diagram(source: &str) -> Result<ComponentDiagram> {
             kind: frame.kind,
             stereotype: frame.stereotype,
             children: frame.children,
+            source_line: frame.source_line,
         });
     }
 
@@ -410,6 +414,9 @@ fn try_parse_entity_decl(line: &str) -> Option<EntityDecl> {
         ("agent ", ComponentKind::Agent),
         ("stack ", ComponentKind::Stack),
         ("queue ", ComponentKind::Queue),
+        ("portin ", ComponentKind::PortIn),
+        ("portout ", ComponentKind::PortOut),
+        ("port ", ComponentKind::PortIn),
     ];
 
     for (prefix, kind) in &keywords {

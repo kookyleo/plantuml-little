@@ -18,6 +18,9 @@ pub enum ComponentKind {
     Agent,
     Stack,
     Queue,
+    // Port kinds (used inside component groups)
+    PortIn,
+    PortOut,
 }
 
 #[derive(Debug, Clone)]
@@ -53,6 +56,8 @@ pub struct ComponentGroup {
     pub kind: ComponentKind,
     pub stereotype: Option<String>,
     pub children: Vec<String>,
+    /// Source line number (1-based) for data-source-line attribute
+    pub source_line: Option<usize>,
 }
 
 #[derive(Debug, Clone)]
@@ -129,6 +134,7 @@ mod tests {
             kind: ComponentKind::Rectangle,
             stereotype: Some("$businessProcess".to_string()),
             children: vec!["src".to_string(), "tgt".to_string()],
+            source_line: Some(3),
         };
         assert_eq!(g.children.len(), 2);
     }
@@ -223,7 +229,9 @@ mod tests {
             ComponentKind::Agent,
             ComponentKind::Stack,
             ComponentKind::Queue,
+            ComponentKind::PortIn,
+            ComponentKind::PortOut,
         ];
-        assert_eq!(kinds.len(), 14);
+        assert_eq!(kinds.len(), 16);
     }
 }

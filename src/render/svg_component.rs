@@ -174,10 +174,45 @@ fn render_group(
     // HTML comment
     sg.push_raw(&format!("<!--cluster {}-->", xml_escape(&group.id)));
 
-    // Open semantic <g>
-    sg.push_raw(&format!(r#"<g class="cluster" id="{}">"#, xml_escape(&group.id)));
+    // Allocate entity ID for this cluster
+    let ent_num = ENTITY_COUNTER.with(|c| { let v = c.get(); c.set(v + 1); v });
+    let ent_id = format!("ent{:04}", ent_num);
+
+    // Open semantic <g> with Java-matching attributes
+    let mut g_open = format!(
+        r#"<g class="cluster" data-qualified-name="{}""#,
+        xml_escape(&group.id)
+    );
+    if let Some(sl) = group.source_line {
+        g_open.push_str(&format!(r#" data-source-line="{}""#, sl));
+    }
+    g_open.push_str(&format!(r#" id="{ent_id}">"#));
+    sg.push_raw(&g_open);
 
     match group.kind {
+        ComponentKind::Component => {
+            // Component cluster: rect with component icon (two small rects)
+            sg.set_fill_color("none"); sg.set_stroke_color(Some(border)); sg.set_stroke_width(1.0, None);
+            sg.svg_rectangle(x, y, w, h, 2.5, 2.5, 0.0);
+
+            // Component icon on right side
+            let icon_w: f64 = 15.0;
+            let icon_h: f64 = 10.0;
+            let icon_x = x + w - icon_w - 5.0 + 2.0;
+            let icon_y1 = y + 5.0;
+            sg.set_fill_color("none"); sg.set_stroke_color(Some(border)); sg.set_stroke_width(1.0, None);
+            sg.svg_rectangle(icon_x, icon_y1, icon_w, icon_h, 0.0, 0.0, 0.0);
+            sg.set_fill_color("none"); sg.set_stroke_color(Some(border)); sg.set_stroke_width(1.0, None);
+            sg.svg_rectangle(icon_x - 2.0, icon_y1 + 2.0, 4.0, 2.0, 0.0, 0.0, 0.0);
+            sg.set_fill_color("none"); sg.set_stroke_color(Some(border)); sg.set_stroke_width(1.0, None);
+            sg.svg_rectangle(icon_x - 2.0, icon_y1 + 6.0, 4.0, 2.0, 0.0, 0.0, 0.0);
+
+            let tl = text_len(&group.name, 14.0, true);
+            let text_x = x + (w - tl) / 2.0;
+            let text_y = y + 25.9951;
+            sg.set_fill_color(font_color);
+            sg.svg_text(&group.name, text_x, text_y, Some("sans-serif"), 14.0, Some("bold"), None, None, tl, LengthAdjust::Spacing, None, 0, None);
+        }
         ComponentKind::Frame => {
             // Frame: rect with rx/ry 2.5, path-based label tab
             sg.set_fill_color("none"); sg.set_stroke_color(Some(border)); sg.set_stroke_width(1.0, None);
@@ -232,7 +267,7 @@ fn render_group(
             sg.svg_text(&group.name, text_x, text_y, Some("sans-serif"), 14.0, Some("bold"), None, None, tl, LengthAdjust::Spacing, None, 0, None);
         }
         _ => {
-            // Default package/rectangle: simple rect
+            // Default package/rectangle/card: simple rect
             sg.set_fill_color("none"); sg.set_stroke_color(Some(border)); sg.set_stroke_width(1.0, None);
             sg.svg_rectangle(x, y, w, h, 2.5, 2.5, 0.0);
 
@@ -321,6 +356,9 @@ fn render_node(
         ComponentKind::Agent => render_agent_node(sg, node, agent_bg, agent_border, comp_font),
         ComponentKind::Stack => render_stack_node(sg, node, stack_bg, stack_border, comp_font),
         ComponentKind::Queue => render_queue_node(sg, node, queue_bg, queue_border, comp_font),
+        ComponentKind::PortIn | ComponentKind::PortOut => {
+            render_port_node(sg, node, comp_bg, comp_border, comp_font);
+        }
     }
 }
 
@@ -770,6 +808,37 @@ fn render_queue_node(
     ));
 
     render_node_text(sg, node, font_color);
+    sg.push_raw("</g>");
+}
+
+/// Port: small 12x12 square with text label
+fn render_port_node(
+    sg: &mut SvgGraphic,
+    node: &ComponentNodeLayout,
+    bg: &str,
+    border: &str,
+    font_color: &str,
+) {
+    open_entity_g(sg, node);
+
+    let port_size: f64 = 12.0;
+    let cx = node.x + node.width / 2.0;
+
+    // Text label (centered below/above the port square)
+    let tl = text_len(&node.name, FONT_SIZE, false);
+    let text_x = cx - tl / 2.0;
+    let text_y = node.y + port_size + LINE_HEIGHT + 2.0;
+    sg.set_fill_color(font_color);
+    sg.svg_text(&node.name, text_x, text_y, Some("sans-serif"), FONT_SIZE, None, None, None, tl, LengthAdjust::Spacing, None, 0, None);
+
+    // Port square
+    let port_x = cx - port_size / 2.0;
+    let port_y = node.y;
+    sg.set_fill_color(bg);
+    sg.set_stroke_color(Some(border));
+    sg.set_stroke_width(1.5, None);
+    sg.svg_rectangle(port_x, port_y, port_size, port_size, 0.0, 0.0, 0.0);
+
     sg.push_raw("</g>");
 }
 
@@ -1274,6 +1343,8 @@ mod tests {
             y: 10.0,
             width: 200.0,
             height: 150.0,
+            source_line: None,
+            stereotype: None,
         });
         let svg =
             render_component(&diagram, &layout, &SkinParams::default()).expect("render failed");

@@ -6,7 +6,7 @@
 use std::collections::HashMap;
 
 use crate::font_metrics;
-use crate::layout::graphviz::{self, LayoutEdge, LayoutGraph, LayoutNode, RankDir};
+use crate::layout::graphviz::{self, LayoutClusterSpec, LayoutEdge, LayoutGraph, LayoutNode, RankDir};
 use crate::model::component::{ComponentDiagram, ComponentEntity, ComponentKind, ComponentLink};
 use crate::model::Direction;
 use crate::render::svg::{ensure_visible_int, CANVAS_DELTA, DOC_MARGIN_BOTTOM, DOC_MARGIN_RIGHT};
@@ -75,6 +75,8 @@ pub struct ComponentGroupLayout {
     pub y: f64,
     pub width: f64,
     pub height: f64,
+    pub source_line: Option<usize>,
+    pub stereotype: Option<String>,
 }
 
 // ---------------------------------------------------------------------------
@@ -113,6 +115,13 @@ const COMPONENT_ICON_EXTRA: f64 = 10.0;
 
 /// Estimate the size of a component entity.
 fn estimate_entity_size(entity: &ComponentEntity) -> (f64, f64) {
+    // Ports are small: 12x12 square (Java EntityPosition.RADIUS * 2)
+    // The text label is rendered outside the graphviz node, so the DOT node is just the port square.
+    if matches!(entity.kind, ComponentKind::PortIn | ComponentKind::PortOut) {
+        let port_size: f64 = 12.0;
+        return (port_size, port_size);
+    }
+
     // Java: width = leftPad(15) + text + gap(5) + icon(15) + rightPad(5)
     //     = text + 40 = text + 2*PADDING + COMPONENT_ICON_EXTRA
     // Name may contain real newlines (from \n expansion) — split and measure each line
@@ -214,7 +223,21 @@ pub fn layout_component(cd: &ComponentDiagram) -> Result<ComponentLayout> {
         Direction::RightToLeft => RankDir::RightToLeft,
     };
 
-    let graph = LayoutGraph { nodes: layout_nodes, edges: layout_edges, clusters: vec![], rankdir };
+    // Build cluster specs from parsed groups
+    let clusters: Vec<LayoutClusterSpec> = cd.groups.iter().map(|g| {
+        let node_ids: Vec<String> = g.children.iter()
+            .filter_map(|child_id| id_to_dot.get(child_id).cloned())
+            .collect();
+        LayoutClusterSpec {
+            id: sanitize_id(&g.id),
+            qualified_name: g.id.clone(),
+            title: Some(g.name.clone()),
+            node_ids,
+            sub_clusters: vec![],
+        }
+    }).collect();
+
+    let graph = LayoutGraph { nodes: layout_nodes, edges: layout_edges, clusters, rankdir };
     let gl = graphviz::layout_with_svek(&graph)?;
 
     let dot_to_id: HashMap<String, String> = id_to_dot.iter().map(|(k, v)| (v.clone(), k.clone())).collect();
@@ -246,7 +269,24 @@ pub fn layout_component(cd: &ComponentDiagram) -> Result<ComponentLayout> {
         }
     }).collect();
 
-    let group_layouts: Vec<ComponentGroupLayout> = Vec::new();
+    // Build group layouts from graphviz cluster output
+    let group_map: HashMap<String, &crate::model::component::ComponentGroup> =
+        cd.groups.iter().map(|g| (sanitize_id(&g.id), g)).collect();
+    let group_layouts: Vec<ComponentGroupLayout> = gl.clusters.iter().filter_map(|cl| {
+        let dot_id = sanitize_id(&cl.qualified_name);
+        let group = group_map.get(&dot_id).or_else(|| group_map.get(&cl.id))?;
+        Some(ComponentGroupLayout {
+            id: group.id.clone(),
+            name: group.name.clone(),
+            kind: group.kind.clone(),
+            x: cl.x + edge_offset,
+            y: cl.y + edge_offset,
+            width: cl.width,
+            height: cl.height,
+            source_line: group.source_line,
+            stereotype: group.stereotype.clone(),
+        })
+    }).collect();
 
     let mut note_layouts = Vec::new();
     let all_right = nodes.iter().map(|n| n.x + n.width).fold(0.0_f64, f64::max);
@@ -274,10 +314,18 @@ pub fn layout_component(cd: &ComponentDiagram) -> Result<ComponentLayout> {
         note_y = ny + nh + PADDING;
     }
 
-    let span_w = gl.lf_span.0;
-    let span_h = gl.lf_span.1;
-    let raw_body_w = span_w + CANVAS_DELTA;
-    let raw_body_h = span_h + CANVAS_DELTA;
+    // Viewport calculation: match Java's degenerated vs normal path
+    let is_degenerated = nodes.len() <= 1 && edges.is_empty();
+    let (raw_body_w, raw_body_h) = if is_degenerated && !nodes.is_empty() {
+        const DEGENERATED_DELTA: f64 = 7.0;
+        let entity_w = nodes[0].width;
+        let entity_h = nodes[0].height;
+        (entity_w + DEGENERATED_DELTA * 2.0, entity_h + DEGENERATED_DELTA * 2.0)
+    } else {
+        let span_w = gl.lf_span.0;
+        let span_h = gl.lf_span.1;
+        (span_w + CANVAS_DELTA, span_h + CANVAS_DELTA)
+    };
     let total_width = ensure_visible_int(raw_body_w + DOC_MARGIN_RIGHT) as f64;
     let total_height = ensure_visible_int(raw_body_h + DOC_MARGIN_BOTTOM) as f64;
 
@@ -754,6 +802,7 @@ mod tests {
                 kind: ComponentKind::Rectangle,
                 stereotype: None,
                 children: vec!["Inner".to_string()],
+                source_line: None,
             }],
             notes: vec![],
             direction: Default::default(),
