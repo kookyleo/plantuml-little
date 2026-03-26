@@ -1042,10 +1042,14 @@ mod tests {
     }
 
     #[test]
-    fn background_color_global_fallback() {
+    fn background_color_global_does_not_cascade() {
+        // In Java PlantUML, global `skinparam backgroundColor` only affects
+        // the diagram canvas, NOT element fills.  Elements use their own
+        // defaults (theme or hardcoded).
         let src = "skinparam BackgroundColor #FFFFFF";
         let params = parse_skinparams(src);
-        assert_eq!(params.background_color("class", "#default"), "#FFFFFF");
+        // Should return theme default #F1F1F1 for class, not global #FFFFFF
+        assert_eq!(params.background_color("class", "#default"), "#F1F1F1");
     }
 
     #[test]
@@ -1245,11 +1249,11 @@ mod tests {
     }
 
     #[test]
-    fn skinparams_global_overrides_theme() {
+    fn skinparams_global_does_not_override_theme() {
         let src = "skinparam BackgroundColor #AABBCC";
         let sp = parse_skinparams(src);
-        // Global skinparam should win over theme element default
-        assert_eq!(sp.background_color("class", "#IGNORED"), "#AABBCC");
+        // Global backgroundColor does not cascade to element fills
+        assert_eq!(sp.background_color("class", "#IGNORED"), "#F1F1F1");
     }
 
     #[test]
@@ -1577,10 +1581,10 @@ skinparam participant {
         let sp1 = parse_skinparams(src1);
         assert_eq!(sp1.background_color("component", "#default"), "#111111");
 
-        // Level 2: global key used when no element-specific key
+        // Level 2: global backgroundColor does NOT cascade to elements
         let src2 = "skinparam BackgroundColor #222222";
         let sp2 = parse_skinparams(src2);
-        assert_eq!(sp2.background_color("component", "#default"), "#222222");
+        assert_eq!(sp2.background_color("component", "#default"), "#F1F1F1");
 
         // Level 3: theme fallback when nothing is set
         let sp3 = SkinParams::new();
