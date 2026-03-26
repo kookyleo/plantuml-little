@@ -1248,18 +1248,44 @@ fn render_class(
     let group_meta: HashMap<&str, &crate::model::Group> =
         cd.groups.iter().map(|group| (group.name.as_str(), group)).collect();
 
-    // Build entity id map — IDs assigned by DEFINITION order (source_line),
-    // not rendering order. Java assigns entity UIDs at parse time.
+    // Build entity and group id map — IDs assigned by DEFINITION order (source_line),
+    // interleaved between entities and groups. Java assigns entity UIDs at parse time.
     let mut entity_ids: HashMap<String, String> = HashMap::new();
-    let mut entities_by_def_order: Vec<&Entity> = cd.entities.iter().collect();
-    entities_by_def_order.sort_by_key(|e| e.source_line.unwrap_or(usize::MAX));
+    let mut group_ids: HashMap<String, String> = HashMap::new();
+
+    // Collect all entities and groups with their source lines for interleaved ordering
+    enum IdSlot<'a> {
+        Entity(&'a Entity),
+        Group(&'a ClusterLayout),
+    }
+    let mut all_slots: Vec<(usize, IdSlot)> = Vec::new();
+    for entity in &cd.entities {
+        all_slots.push((entity.source_line.unwrap_or(usize::MAX), IdSlot::Entity(entity)));
+    }
+    for cluster in &layout.clusters {
+        let source_line = group_meta
+            .get(cluster.qualified_name.as_str())
+            .and_then(|group| group.source_line)
+            .unwrap_or(usize::MAX);
+        all_slots.push((source_line, IdSlot::Group(cluster)));
+    }
+    all_slots.sort_by_key(|(sl, _)| *sl);
+
     let mut ent_counter = 2u32; // Java starts entity IDs at ent0002
-    for entity in &entities_by_def_order {
+    for (_, slot) in &all_slots {
         let ent_id = format!("ent{:04}", ent_counter);
-        entity_ids.insert(sanitize_id(&entity.name), ent_id);
+        match slot {
+            IdSlot::Entity(entity) => {
+                entity_ids.insert(sanitize_id(&entity.name), ent_id);
+            }
+            IdSlot::Group(cluster) => {
+                group_ids.insert(cluster.qualified_name.clone(), ent_id);
+            }
+        }
         ent_counter += 1;
     }
-    let mut group_ids: HashMap<String, String> = HashMap::new();
+
+    // Build sorted group list for rendering
     let mut groups_by_def_order: Vec<&ClusterLayout> = layout.clusters.iter().collect();
     groups_by_def_order.sort_by_key(|cluster| {
         (
@@ -1271,11 +1297,6 @@ fn render_class(
             cluster.qualified_name.clone(),
         )
     });
-    for cluster in &groups_by_def_order {
-        let ent_id = format!("ent{:04}", ent_counter);
-        group_ids.insert(cluster.qualified_name.clone(), ent_id);
-        ent_counter += 1;
-    }
 
     // Java: object diagrams do NOT emit <!--class X--> comments for entities,
     // only class diagrams do.
@@ -1435,11 +1456,11 @@ fn draw_class_group(
 
     match group_kind {
         GroupKind::Rectangle => {
-            let border = skin.border_color("rectangle", "#000000");
+            let border = skin.border_color("rectangle", "#181818");
             let font_color = skin.font_color("rectangle", "#000000");
             sg.set_fill_color("none");
             sg.set_stroke_color(Some(border));
-            sg.set_stroke_width(1.5, None);
+            sg.set_stroke_width(1.0, None);
             sg.svg_rectangle(x, y, w, h, 2.5, 2.5, 0.0);
             tracker.track_rect(x, y, w, h);
             let text_w = font_metrics::text_width(title, "SansSerif", 14.0, true, false);
