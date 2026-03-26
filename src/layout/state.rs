@@ -1148,6 +1148,7 @@ pub fn layout_state(diagram: &StateDiagram) -> Result<StateLayout> {
     let graph = LayoutGraph {
         nodes: gv_nodes,
         edges: gv_edges,
+        clusters: vec![],
         rankdir,
     };
 

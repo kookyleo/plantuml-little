@@ -17,7 +17,7 @@ pub mod wbs;
 
 pub use graphviz::{
     layout as layout_graph, layout_with_svek, ClassNoteLayout, EdgeLayout, GraphLayout,
-    LayoutEdge, LayoutGraph, LayoutNode, NodeLayout, RankDir,
+    LayoutClusterSpec, LayoutEdge, LayoutGraph, LayoutNode, NodeLayout, RankDir,
 };
 
 use std::collections::HashMap;
@@ -212,6 +212,7 @@ pub fn layout(diagram: &Diagram, skin: &crate::style::SkinParams) -> Result<Diag
                     shape: None,
                 }],
                 edges: vec![],
+                clusters: vec![],
                 rankdir: RankDir::TopToBottom,
             };
             let gl = graphviz::layout(&lg)?;
@@ -226,7 +227,12 @@ fn sanitize_id(name: &str) -> String {
     name.replace('<', "_LT_")
         .replace('>', "_GT_")
         .replace(',', "_COMMA_")
+        .replace('.', "_DOT_")
         .replace(' ', "_")
+}
+
+fn cluster_id(name: &str) -> String {
+    format!("grp_{}", sanitize_id(name))
 }
 
 /// Compute generic block outer dimension width (genericDim.width in Java).
@@ -244,14 +250,199 @@ fn generic_dim_width(entity: &Entity) -> f64 {
 /// Split an entity name into display lines following Java Display semantics.
 /// Java splits on `\n` (literal backslash-n), `\r` (literal backslash-r), and NEWLINE_CHAR.
 /// Empty lines are preserved (rendered as non-breaking space).
-pub(crate) fn split_name_display_lines(name: &str) -> Vec<String> {
-    let lines: Vec<String> = name
-        .split("\\r\\n")
-        .flat_map(|s| s.split("\\n"))
-        .flat_map(|s| s.split("\\r"))
-        .flat_map(|s| s.split(crate::NEWLINE_CHAR))
-        .map(|s| s.to_string())
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum DisplayAlignment {
+    Left,
+    Center,
+    Right,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct DisplayLine {
+    pub text: String,
+    pub leading_tabs: usize,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct DisplayBlock {
+    pub alignment: DisplayAlignment,
+    pub lines: Vec<DisplayLine>,
+}
+
+pub(crate) fn display_tab_width(font_size: f64, bold: bool, italic: bool) -> f64 {
+    8.0 * font_metrics::text_width(" ", "SansSerif", font_size, bold, italic)
+}
+
+pub(crate) fn display_line_metrics(
+    line: &DisplayLine,
+    font_size: f64,
+    bold: bool,
+    italic: bool,
+) -> (f64, f64) {
+    let indent_width = line.leading_tabs as f64 * display_tab_width(font_size, bold, italic);
+    let visible = if line.text.is_empty() {
+        "\u{00A0}".to_string()
+    } else {
+        line.text.clone()
+    };
+    let visible_width = font_metrics::text_width(&visible, "SansSerif", font_size, bold, italic);
+    (visible_width, indent_width)
+}
+
+/// Convert a qualified entity name to the display name Java uses in class boxes.
+///
+/// For `pkg1.pkg2.Class`, the rendered name is `Class` while the qualified name
+/// remains `pkg1.pkg2.Class` for IDs, links, and interactive metadata.
+pub(crate) fn class_entity_display_name(name: &str) -> String {
+    let mut first_break = name.len();
+    for needle in ["\\r", "\\n"] {
+        if let Some(pos) = name.find(needle) {
+            first_break = first_break.min(pos);
+        }
+    }
+    if let Some(pos) = name.find(crate::NEWLINE_CHAR) {
+        first_break = first_break.min(pos);
+    }
+    if let Some(pos) = name.find('\r') {
+        first_break = first_break.min(pos);
+    }
+    if let Some(pos) = name.find('\n') {
+        first_break = first_break.min(pos);
+    }
+    let (head, tail) = name.split_at(first_break);
+    let short_head = head.rsplit('.').next().unwrap_or(head);
+    format!("{short_head}{tail}")
+}
+
+fn group_display_name(name: &str) -> String {
+    name.rsplit('.').next().unwrap_or(name).to_string()
+}
+
+fn build_layout_clusters(
+    cd: &ClassDiagram,
+    name_to_id: &HashMap<String, String>,
+) -> Vec<LayoutClusterSpec> {
+    use crate::model::Group;
+
+    fn parent_group_name(group_name: &str, all_names: &[String]) -> Option<String> {
+        all_names
+            .iter()
+            .filter(|candidate| candidate.as_str() != group_name)
+            .filter(|candidate| group_name.starts_with(candidate.as_str()))
+            .filter(|candidate| group_name.as_bytes().get(candidate.len()) == Some(&b'.'))
+            .max_by_key(|candidate| candidate.len())
+            .cloned()
+    }
+
+    fn build_cluster_recursive(
+        group: &Group,
+        children_by_parent: &HashMap<Option<String>, Vec<&Group>>,
+        name_to_id: &HashMap<String, String>,
+    ) -> LayoutClusterSpec {
+        let mut children = children_by_parent
+            .get(&Some(group.name.clone()))
+            .cloned()
+            .unwrap_or_default();
+        children.sort_by_key(|child| (child.source_line.unwrap_or(usize::MAX), child.name.matches('.').count(), child.name.clone()));
+        LayoutClusterSpec {
+            id: cluster_id(&group.name),
+            qualified_name: group.name.clone(),
+            title: Some(group_display_name(&group.name)),
+            node_ids: group.entities.iter().map(|name| {
+                name_to_id.get(name).cloned().unwrap_or_else(|| sanitize_id(name))
+            }).collect(),
+            sub_clusters: children
+                .into_iter()
+                .map(|child| build_cluster_recursive(child, children_by_parent, name_to_id))
+                .collect(),
+        }
+    }
+
+    let group_names: Vec<String> = cd.groups.iter().map(|group| group.name.clone()).collect();
+    let mut children_by_parent: HashMap<Option<String>, Vec<&crate::model::Group>> = HashMap::new();
+    for group in &cd.groups {
+        let parent = parent_group_name(&group.name, &group_names);
+        children_by_parent.entry(parent).or_default().push(group);
+    }
+    let mut roots = children_by_parent.remove(&None).unwrap_or_default();
+    roots.sort_by_key(|group| (group.source_line.unwrap_or(usize::MAX), group.name.matches('.').count(), group.name.clone()));
+    roots
+        .into_iter()
+        .map(|group| build_cluster_recursive(group, &children_by_parent, name_to_id))
+        .collect()
+}
+
+pub(crate) fn split_name_display(name: &str) -> DisplayBlock {
+    let mut lines = Vec::new();
+    let mut current = String::new();
+    let chars: Vec<char> = name.chars().collect();
+    let mut alignment = DisplayAlignment::Center;
+    let mut i = 0usize;
+    while i < chars.len() {
+        if chars[i] == '\\' && i + 1 < chars.len() {
+            match chars[i + 1] {
+                'r' => {
+                    lines.push(current);
+                    current = String::new();
+                    alignment = DisplayAlignment::Right;
+                    i += 2;
+                    continue;
+                }
+                'l' => {
+                    lines.push(current);
+                    current = String::new();
+                    alignment = DisplayAlignment::Left;
+                    i += 2;
+                    continue;
+                }
+                'n' => {
+                    lines.push(current);
+                    current = String::new();
+                    i += 2;
+                    continue;
+                }
+                't' => {
+                    current.push('\t');
+                    i += 2;
+                    continue;
+                }
+                '\\' => {
+                    current.push('\\');
+                    i += 2;
+                    continue;
+                }
+                _ => {}
+            }
+        }
+        if matches!(chars[i], '\r' | '\n') || chars[i] == crate::NEWLINE_CHAR {
+            lines.push(current);
+            current = String::new();
+            i += 1;
+            continue;
+        }
+        current.push(chars[i]);
+        i += 1;
+    }
+    lines.push(current);
+
+    let lines = lines
+        .into_iter()
+        .map(|line| {
+            let leading_tabs = line.chars().take_while(|ch| *ch == '\t').count();
+            let text = line.chars().skip(leading_tabs).collect::<String>();
+            DisplayLine { text, leading_tabs }
+        })
         .collect();
+
+    DisplayBlock { alignment, lines }
+}
+
+pub(crate) fn split_name_display_lines(name: &str) -> Vec<String> {
+    let block = split_name_display(name);
+    let mut lines = Vec::new();
+    for line in block.lines {
+        lines.push(line.text);
+    }
     if lines.is_empty() {
         vec![name.to_string()]
     } else {
@@ -284,16 +475,19 @@ fn estimate_entity_size(
 
     // Entity name WITHOUT generic parameter -- generic is rendered separately.
     // Split name into display lines following Java Display semantics (\n, \r split).
-    let name_lines = split_name_display_lines(&entity.name);
-    let n_name_lines = name_lines.len();
+    let name_display = class_entity_display_name(&entity.name);
+    let name_block = split_name_display(&name_display);
+    let n_name_lines = name_block.lines.len();
 
     let visible_stereotypes = visible_stereotype_labels(&cd.hide_show_rules, &entity.stereotypes);
     let italic_name = entity.kind == EntityKind::Abstract;
-    let name_width = name_lines
+    let name_width = name_block
+        .lines
         .iter()
         .map(|line| {
-            let display = if line.is_empty() { "\u{00A0}".to_string() } else { line.clone() };
-            font_metrics::text_width(&display, "SansSerif", name_font_size, false, italic_name)
+            let (visible_width, indent_width) =
+                display_line_metrics(line, name_font_size, false, italic_name);
+            visible_width + indent_width
         })
         .fold(0.0_f64, f64::max);
     let name_block_width = name_width + HEADER_NAME_BLOCK_MARGIN_X;
@@ -416,7 +610,7 @@ fn estimate_object_size(entity: &Entity) -> (f64, f64) {
 
 fn estimate_entity_size_legacy(entity: &Entity) -> (f64, f64) {
     // Entity name WITHOUT generic parameter -- generic is rendered separately
-    let name_display = entity.name.clone();
+    let name_display = class_entity_display_name(&entity.name);
 
     // check if a stereotype line is needed (interface / enum / abstract / custom stereotype)
     let has_stereotype_line = !entity.stereotypes.is_empty()
@@ -765,10 +959,12 @@ fn layout_class_diagram(cd: &ClassDiagram, skin: &crate::style::SkinParams) -> R
     } else {
         RankDir::TopToBottom
     };
+    let clusters = build_layout_clusters(cd, &name_to_id);
 
     let graph = LayoutGraph {
         nodes,
         edges,
+        clusters,
         rankdir,
     };
 
@@ -1198,6 +1394,7 @@ mod tests {
     fn sanitize_id_escapes_special_chars() {
         assert_eq!(sanitize_id("List<String>"), "List_LT_String_GT_");
         assert_eq!(sanitize_id("Map<K, V>"), "Map_LT_K_COMMA__V_GT_");
+        assert_eq!(sanitize_id("pkg1.pkg2.Class"), "pkg1_DOT_pkg2_DOT_Class");
         assert_eq!(sanitize_id("Simple"), "Simple");
         assert_eq!(sanitize_id("My Class"), "My_Class");
     }
@@ -1334,7 +1531,7 @@ mod tests {
     #[test]
     fn split_name_backslash_r_n() {
         let lines = split_name_display_lines("Class 1\\r\\nLine 2");
-        assert_eq!(lines, vec!["Class 1", "Line 2"]);
+        assert_eq!(lines, vec!["Class 1", "", "Line 2"]);
     }
 
     #[test]
@@ -1344,10 +1541,33 @@ mod tests {
     }
 
     #[test]
-    fn split_name_crlf_is_single_break() {
-        // \r\n is a single CRLF sequence, producing one split
+    fn split_name_crlf_preserves_empty_line_in_visible_lines() {
         let lines = split_name_display_lines("Before\\r\\n\\tAfter");
-        assert_eq!(lines, vec!["Before", "\\tAfter"]);
+        assert_eq!(lines, vec!["Before", "", "After"]);
+    }
+
+    #[test]
+    fn split_name_display_tracks_alignment_and_leading_tabs() {
+        let block = split_name_display("Before\\r\\n\\tAfter");
+        assert_eq!(block.alignment, DisplayAlignment::Right);
+        assert_eq!(
+            block.lines,
+            vec![
+                DisplayLine { text: "Before".to_string(), leading_tabs: 0 },
+                DisplayLine { text: "".to_string(), leading_tabs: 0 },
+                DisplayLine { text: "After".to_string(), leading_tabs: 1 },
+            ]
+        );
+    }
+
+    #[test]
+    fn display_line_metrics_counts_tab_indent_separately() {
+        let line = DisplayLine { text: "After".to_string(), leading_tabs: 1 };
+        let (visible_width, indent_width) = display_line_metrics(&line, 14.0, false, false);
+        let expected_visible = font_metrics::text_width("After", "SansSerif", 14.0, false, false);
+        let expected_indent = display_tab_width(14.0, false, false);
+        assert!((visible_width - expected_visible).abs() < 1e-9);
+        assert!((indent_width - expected_indent).abs() < 1e-9);
     }
 
     #[test]
@@ -1362,6 +1582,12 @@ mod tests {
         let name = format!("A{}B", crate::NEWLINE_CHAR);
         let lines = split_name_display_lines(&name);
         assert_eq!(lines, vec!["A", "B"]);
+    }
+
+    #[test]
+    fn class_entity_display_name_drops_namespace_prefix() {
+        let display = class_entity_display_name("pkg1.pkg2.Class 1\\r\\n\\tBody");
+        assert_eq!(display, "Class 1\\r\\n\\tBody");
     }
 
     #[test]

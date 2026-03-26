@@ -24,6 +24,16 @@ pub struct LayoutEdge {
     pub invisible: bool,
 }
 
+/// Input: a graph cluster (package / namespace / rectangle container).
+#[derive(Debug, Clone)]
+pub struct LayoutClusterSpec {
+    pub id: String,
+    pub qualified_name: String,
+    pub title: Option<String>,
+    pub node_ids: Vec<String>,
+    pub sub_clusters: Vec<LayoutClusterSpec>,
+}
+
 /// Layout direction
 #[derive(Debug, Clone, Default)]
 pub enum RankDir {
@@ -50,6 +60,7 @@ impl RankDir {
 pub struct LayoutGraph {
     pub nodes: Vec<LayoutNode>,
     pub edges: Vec<LayoutEdge>,
+    pub clusters: Vec<LayoutClusterSpec>,
     pub rankdir: RankDir,
 }
 
@@ -98,11 +109,24 @@ pub struct ClassNoteLayout {
     pub connector: Option<(f64, f64, f64, f64)>,
 }
 
+/// Output: cluster/package bounds after Graphviz layout.
+#[derive(Debug, Clone)]
+pub struct ClusterLayout {
+    pub id: String,
+    pub qualified_name: String,
+    pub title: Option<String>,
+    pub x: f64,
+    pub y: f64,
+    pub width: f64,
+    pub height: f64,
+}
+
 /// Output: layout result for the entire graph
 #[derive(Debug, Clone)]
 pub struct GraphLayout {
     pub nodes: Vec<NodeLayout>,
     pub edges: Vec<EdgeLayout>,
+    pub clusters: Vec<ClusterLayout>,
     pub notes: Vec<ClassNoteLayout>,
     pub total_width: f64,
     pub total_height: f64,
@@ -259,12 +283,17 @@ pub fn layout_with_svek(graph: &LayoutGraph) -> Result<GraphLayout, Error> {
     };
 
     let mut builder = GraphvizImageBuilder::new(config);
+    let mut node_cluster_ids = std::collections::HashMap::new();
+    collect_node_cluster_assignments(&graph.clusters, &mut node_cluster_ids);
 
     // Register entities
     for node in &graph.nodes {
         let mut ed = EntityDescriptor::new(&node.id, node.width_pt, node.height_pt);
         if let Some(shape) = node.shape {
             ed = ed.with_shape(shape);
+        }
+        if let Some(cluster_id) = node_cluster_ids.get(&node.id) {
+            ed = ed.with_cluster(cluster_id);
         }
         builder.add_entity(ed);
     }
@@ -292,7 +321,9 @@ pub fn layout_with_svek(graph: &LayoutGraph) -> Result<GraphLayout, Error> {
             // Java: Display.create0 → SheetBlock2. Height = lines × line_h (no extra margin).
             // Java: addVisibilityModifier wraps with TextBlockMarged(marginLabel=1),
             // adding 1px on all sides. labelText.calculateDimension() = inner + 2*margin.
-            let margin_label = 1.0;
+            // Java SvekEdge.getLabelTextBlock():
+            // self-links use a much larger DOT label margin than normal links.
+            let margin_label = if edge.from == edge.to { 6.0 } else { 1.0 };
             let label_h = lines.len() as f64 * line_h + 2.0 * margin_label;
             ld.label_dimension = Some((max_line_w + 2.0 * margin_label, label_h));
         }
@@ -301,6 +332,10 @@ pub fn layout_with_svek(graph: &LayoutGraph) -> Result<GraphLayout, Error> {
         }
         ld.minlen = Some(edge.minlen);
         builder.add_link(ld);
+    }
+
+    for cluster in &graph.clusters {
+        builder.add_cluster(layout_cluster_to_builder(cluster));
     }
 
     // Generate DOT
@@ -344,6 +379,7 @@ pub fn layout_with_svek(graph: &LayoutGraph) -> Result<GraphLayout, Error> {
     // since the renderer adds its own MARGIN offset.
     let svek_nodes = builder.nodes();
     let svek_edges = builder.edges();
+    let svek_clusters = builder.clusters();
 
     // Build initial node layouts
     let mut nodes_out: Vec<NodeLayout> = svek_nodes.iter().enumerate().map(|(i, sn)| {
@@ -395,11 +431,25 @@ pub fn layout_with_svek(graph: &LayoutGraph) -> Result<GraphLayout, Error> {
         }
     }).collect();
 
+    let mut cluster_specs_by_id: std::collections::HashMap<&str, &LayoutClusterSpec> =
+        std::collections::HashMap::new();
+    collect_cluster_specs_by_id(&graph.clusters, &mut cluster_specs_by_id);
+    let mut clusters_out = Vec::new();
+    flatten_cluster_layouts(svek_clusters, &cluster_specs_by_id, &mut clusters_out);
+
     // Compute bounding box
-    let min_x = nodes_out.iter().map(|n| n.cx - n.width / 2.0).fold(f64::INFINITY, f64::min);
-    let min_y = nodes_out.iter().map(|n| n.cy - n.height / 2.0).fold(f64::INFINITY, f64::min);
-    let max_x = nodes_out.iter().map(|n| n.cx + n.width / 2.0).fold(0.0_f64, f64::max);
-    let max_y = nodes_out.iter().map(|n| n.cy + n.height / 2.0).fold(0.0_f64, f64::max);
+    let min_x_nodes = nodes_out.iter().map(|n| n.cx - n.width / 2.0).fold(f64::INFINITY, f64::min);
+    let min_y_nodes = nodes_out.iter().map(|n| n.cy - n.height / 2.0).fold(f64::INFINITY, f64::min);
+    let max_x_nodes = nodes_out.iter().map(|n| n.cx + n.width / 2.0).fold(f64::NEG_INFINITY, f64::max);
+    let max_y_nodes = nodes_out.iter().map(|n| n.cy + n.height / 2.0).fold(f64::NEG_INFINITY, f64::max);
+    let min_x_clusters = clusters_out.iter().map(|c| c.x).fold(f64::INFINITY, f64::min);
+    let min_y_clusters = clusters_out.iter().map(|c| c.y).fold(f64::INFINITY, f64::min);
+    let max_x_clusters = clusters_out.iter().map(|c| c.x + c.width).fold(f64::NEG_INFINITY, f64::max);
+    let max_y_clusters = clusters_out.iter().map(|c| c.y + c.height).fold(f64::NEG_INFINITY, f64::max);
+    let min_x = min_x_nodes.min(min_x_clusters);
+    let min_y = min_y_nodes.min(min_y_clusters);
+    let max_x = max_x_nodes.max(max_x_clusters);
+    let max_y = max_y_nodes.max(max_y_clusters);
     let total_width = max_x - min_x;
     let total_height = max_y - min_y;
 
@@ -429,10 +479,15 @@ pub fn layout_with_svek(graph: &LayoutGraph) -> Result<GraphLayout, Error> {
             e.raw_path_d = Some(transform_path_d(raw_d, -min_x, -min_y));
         }
     }
+    for c in &mut clusters_out {
+        c.x -= min_x;
+        c.y -= min_y;
+    }
 
     Ok(GraphLayout {
         nodes: nodes_out,
         edges: edges_out,
+        clusters: clusters_out,
         notes: Vec::new(),
         total_width,
         total_height,
@@ -440,6 +495,69 @@ pub fn layout_with_svek(graph: &LayoutGraph) -> Result<GraphLayout, Error> {
         lf_span,
         normalize_offset,
     })
+}
+
+fn collect_node_cluster_assignments(
+    clusters: &[LayoutClusterSpec],
+    out: &mut std::collections::HashMap<String, String>,
+) {
+    for cluster in clusters {
+        for node_id in &cluster.node_ids {
+            out.insert(node_id.clone(), cluster.id.clone());
+        }
+        collect_node_cluster_assignments(&cluster.sub_clusters, out);
+    }
+}
+
+fn layout_cluster_to_builder(cluster: &LayoutClusterSpec) -> crate::svek::builder::ClusterDescriptor {
+    let mut result = crate::svek::builder::ClusterDescriptor::new(&cluster.id);
+    if let Some(ref title) = cluster.title {
+        result = result.with_title(title);
+    }
+    for node_id in &cluster.node_ids {
+        result = result.add_entity(node_id);
+    }
+    for sub in &cluster.sub_clusters {
+        result = result.add_sub_cluster(layout_cluster_to_builder(sub));
+    }
+    result
+}
+
+fn collect_cluster_specs_by_id<'a>(
+    clusters: &'a [LayoutClusterSpec],
+    out: &mut std::collections::HashMap<&'a str, &'a LayoutClusterSpec>,
+) {
+    for cluster in clusters {
+        out.insert(cluster.id.as_str(), cluster);
+        collect_cluster_specs_by_id(&cluster.sub_clusters, out);
+    }
+}
+
+fn flatten_cluster_layouts(
+    clusters: &[crate::svek::cluster::Cluster],
+    specs_by_id: &std::collections::HashMap<&str, &LayoutClusterSpec>,
+    out: &mut Vec<ClusterLayout>,
+) {
+    for cluster in clusters {
+        let qualified_name = specs_by_id
+            .get(cluster.id.as_str())
+            .map(|spec| spec.qualified_name.clone())
+            .unwrap_or_else(|| cluster.id.clone());
+        let title = specs_by_id
+            .get(cluster.id.as_str())
+            .and_then(|spec| spec.title.clone())
+            .or_else(|| cluster.title.clone());
+        out.push(ClusterLayout {
+            id: cluster.id.clone(),
+            qualified_name,
+            title,
+            x: cluster.x,
+            y: cluster.y,
+            width: cluster.width,
+            height: cluster.height,
+        });
+        flatten_cluster_layouts(&cluster.sub_clusters, specs_by_id, out);
+    }
 }
 
 /// Parse `dot -Tsvg` output to extract node positions and edge paths.
@@ -570,6 +688,7 @@ fn parse_svg_output(svg: &str, graph: &LayoutGraph) -> Result<GraphLayout, Error
     Ok(GraphLayout {
         nodes,
         edges: edge_layouts,
+        clusters: vec![],
         notes: vec![],
         total_width,
         total_height,
@@ -958,6 +1077,7 @@ mod tests {
                 minlen: 1,
                 invisible: false,
             }],
+            clusters: vec![],
             rankdir: RankDir::TopToBottom,
         }
     }
@@ -992,6 +1112,7 @@ mod tests {
                 shape: None,
             }],
             edges: vec![],
+            clusters: vec![],
             rankdir: RankDir::LeftToRight,
         };
         let result = layout(&graph).expect("single node layout failed");

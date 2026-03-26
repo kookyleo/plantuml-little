@@ -109,6 +109,12 @@ pub fn xml_escape_attr(s: &str) -> String {
     out
 }
 
+/// Match Java DOM comment serialization under `us-ascii`: keep ASCII bytes
+/// verbatim and replace non-ASCII codepoints with `?`.
+pub fn svg_comment_escape(s: &str) -> String {
+    s.chars().map(|c| if c.is_ascii() { c } else { '?' }).collect()
+}
+
 // ── SvgGraphic ──────────────────────────────────────────────────────
 
 /// Low-level SVG element generator.
@@ -892,7 +898,7 @@ impl SvgGraphic {
     // ── Comment ─────────────────────────────────────────────────────
 
     pub fn add_comment(&mut self, comment: &str) {
-        write!(self.buf, "<!--{}-->", comment).unwrap();
+        write!(self.buf, "<!--{}-->", svg_comment_escape(comment)).unwrap();
     }
 
     // ── Group management ────────────────────────────────────────────
@@ -1741,6 +1747,13 @@ mod tests {
         assert!(svg.body().contains("<!--test comment-->"));
     }
 
+    #[test]
+    fn comment_non_ascii_becomes_question_mark() {
+        let mut svg = make_svg();
+        svg.add_comment("A<&>é");
+        assert!(svg.body().contains("<!--A<&>?-->"));
+    }
+
     // ── Full SVG document ──────────────────────────────────────
 
     #[test]
@@ -1809,6 +1822,11 @@ mod tests {
     #[test]
     fn xml_escape_non_ascii() {
         assert_eq!(xml_escape("\u{00E9}"), "&#233;");
+    }
+
+    #[test]
+    fn svg_comment_escape_non_ascii() {
+        assert_eq!(svg_comment_escape("A<&>é"), "A<&>?");
     }
 
     // ── Attribute order verification ───────────────────────────

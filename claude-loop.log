@@ -1,0 +1,20 @@
+
+[2026-03-22 21:01:22] === Claude Loop 开始 ===
+[2026-03-22 21:01:22] 工作目录: /ext/plantuml/plantuml-little
+[2026-03-22 21:01:22] 进度文件: /ext/plantuml/plantuml-little/process.md
+[2026-03-22 21:01:22] 日志文件: /ext/plantuml/plantuml-little/claude-loop.log
+[2026-03-22 21:01:22] 最大轮次: 10
+[2026-03-22 21:01:22] --- 第 1/10 轮开始 ---
+[2026-03-22 21:01:22] 调用 claude CLI...
+Round 1 完成。
+
+**总结**:
+- 运行 analyze_failures.py: 88 passed / 208 failed / 296 total
+- 选中目标: `dev_newline_preproc_functionparam_line_continuation_puml` (CLASS, h+3px, w-1px)
+- 已识别双根因:
+  1. **`BORDERED_EXTRA` 应为 1.0** — Java `TextBlockBordered.calculateDimension()` 在宽高各加 +1，Rust 缺少此项。影响所有带 title/caption/legend 的测试。
+  2. **空 class diagram body 尺寸** — Java 用 `EntityImageSimpleEmpty(10,10)` 无 delta，Rust 错误地对 0 entity 加了 degenerated delta 得到 (14,14)。
+[2026-03-22 21:15:43] claude CLI 退出码: 0
+[2026-03-22 21:15:43] 第 1 轮结束 | 状态: done | 说明: 选中 CLASS 空 diagram 测试 (h+3, w-1)，识别双根因: BORDERED_EXTRA=0 和空 body delta
+[2026-03-22 21:15:43] === 任务完成 ===
+[2026-03-22 21:15:43] === Claude Loop 结束 ===

@@ -460,7 +460,7 @@ impl UGroup {
 
     /// Insert/overwrite an entry, sanitizing the value (non-word chars become '.').
     pub fn put(&mut self, key: UGroupType, value: &str) {
-        let fixed = Self::fix(value);
+        let fixed = sanitize_group_metadata_value(value);
         // Replace existing entry for this key, or append.
         if let Some(entry) = self.entries.iter_mut().find(|(k, _)| *k == key) {
             entry.1 = fixed;
@@ -472,13 +472,21 @@ impl UGroup {
     pub fn entries(&self) -> &[(UGroupType, String)] {
         &self.entries
     }
+}
 
-    /// Sanitize a value: replace characters that are not `[-\w ]` with '.'.
-    fn fix(value: &str) -> String {
-        value.chars().map(|c| {
-            if c.is_alphanumeric() || c == '_' || c == '-' || c == ' ' { c } else { '.' }
-        }).collect()
-    }
+/// Java `UGroup.fix()`: replace characters that are not `[-\\w ]` with '.',
+/// where `\\w` uses ASCII semantics.
+pub(crate) fn sanitize_group_metadata_value(value: &str) -> String {
+    value
+        .chars()
+        .map(|c| {
+            if c.is_ascii_alphanumeric() || c == '_' || c == '-' || c == ' ' {
+                c
+            } else {
+                '.'
+            }
+        })
+        .collect()
 }
 
 // ── SvgAttributes ───────────────────────────────────────────────────
@@ -747,6 +755,12 @@ mod tests {
     fn ugroup_sanitize_value() {
         let g = UGroup::singleton(UGroupType::Class, "foo<bar>baz");
         assert_eq!(g.entries()[0].1, "foo.bar.baz");
+    }
+
+    #[test]
+    fn ugroup_sanitize_value_non_ascii_becomes_dot() {
+        let g = UGroup::singleton(UGroupType::DataQualifiedName, "Aé中-B");
+        assert_eq!(g.entries()[0].1, "A..-B");
     }
 
     #[test]

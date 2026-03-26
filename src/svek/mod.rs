@@ -15,6 +15,7 @@ pub mod snake;
 pub mod svg_result;
 
 use crate::klimt::geom::XPoint2D;
+use crate::svek::edge::{append_table, LabelDimension};
 
 // ── DotMode ──────────────────────────────────────────────────────────
 
@@ -270,25 +271,41 @@ impl DotStringFactory {
             DotSplines::Curved => sb.push_str("splines=curved;\n"),
         }
 
-        // Clusters
+        // Java DotStringFactory:
+        //   root.printCluster1(...)
+        //   for line in lines0()
+        //   root.printCluster2(...)
+        //   for line in lines1()
+        //
+        // We do not yet port EntityPosition.TOP ordering, but for class/package
+        // diagrams the important behavior is:
+        // 1. length==1 links are emitted before cluster bodies
+        // 2. remaining links are emitted after cluster bodies
+        for edge in &self.bibliotekon.edges {
+            if edge.is_horizontal() {
+                edge.append_line(&mut sb);
+            }
+        }
+
+        // Clusters + nodes
         for cluster in &self.bibliotekon.clusters {
             self.write_cluster(&mut sb, cluster);
         }
 
-        // Nodes (not in clusters)
-        let clustered: std::collections::HashSet<&str> = self.bibliotekon.clusters.iter()
-            .flat_map(|c| c.node_uids.iter().map(|s| s.as_str()))
-            .collect();
-
+        let mut clustered = std::collections::HashSet::new();
+        for cluster in &self.bibliotekon.clusters {
+            collect_clustered_nodes(cluster, &mut clustered);
+        }
         for node in &self.bibliotekon.nodes {
             if !clustered.contains(node.uid.as_str()) {
                 node.append_shape(&mut sb);
             }
         }
 
-        // Edges — Java: DotStringFactory iterates biblio.allLines()
         for edge in &self.bibliotekon.edges {
-            edge.append_line(&mut sb);
+            if !edge.is_horizontal() {
+                edge.append_line(&mut sb);
+            }
         }
 
         sb.push_str("}\n");
@@ -296,19 +313,43 @@ impl DotStringFactory {
     }
 
     fn write_cluster(&self, sb: &mut String, cluster: &cluster::Cluster) {
+        // Java ClusterDotString wraps the actual cluster inside unlabeled p0/p1
+        // protection clusters. Those wrappers materially affect Graphviz
+        // geometry, especially for nested packages and self-loop labels.
+        sb.push_str(&format!("subgraph cluster_{}p0 {{\n", cluster.id));
+        sb.push_str("label=\"\";\n");
         sb.push_str(&format!("subgraph cluster_{} {{\n", cluster.id));
+        sb.push_str("style=solid;\n");
+        sb.push_str("color=\"#000000\";\n");
         if let Some(ref title) = cluster.title {
-            sb.push_str(&format!("label=\"{}\";\n", title));
+            sb.push_str("labeljust=\"c\";\n");
+            sb.push_str("label=<");
+            let (title_width, title_height) = cluster_title_label_dim(title);
+            append_table(
+                sb,
+                LabelDimension::new(title_width as f64, ((title_height - 5).max(1)) as f64),
+                0x000000,
+            );
+            sb.push_str(">;\n");
+        } else {
+            sb.push_str("label=\"\";\n");
         }
-        sb.push_str("margin=\"14\";\n");
-        for sub in &cluster.sub_clusters {
-            self.write_cluster(sb, sub);
-        }
+        sb.push_str(&format!("subgraph cluster_{}p1 {{\n", cluster.id));
+        sb.push_str("label=\"\";\n");
+
+        // Java Cluster.printCluster2() writes normal nodes before child
+        // clusters. That ordering affects nested package geometry.
         for uid in &cluster.node_uids {
             if let Some(node) = self.bibliotekon.find_node(uid) {
                 node.append_shape(sb);
             }
         }
+        for sub in &cluster.sub_clusters {
+            self.write_cluster(sb, sub);
+        }
+
+        sb.push_str("}\n");
+        sb.push_str("}\n");
         sb.push_str("}\n");
     }
 
@@ -327,6 +368,9 @@ impl DotStringFactory {
         // converts to SVG viewport coordinates.
         let (tx, ty) = parse_svg_translate(svg);
         let svg_result = SvgResult::new(svg.to_string());
+        for cluster in &mut self.bibliotekon.clusters {
+            solve_cluster_positions(svg, cluster, tx, ty);
+        }
 
         // Position nodes by finding their polygons via color
         for node in &mut self.bibliotekon.nodes {
@@ -434,6 +478,9 @@ impl DotStringFactory {
                 if lb > lf_max_y { lf_max_y = lb; }
             }
         }
+        for cluster in &self.bibliotekon.clusters {
+            extend_lf_with_cluster(cluster, &mut lf_min_x, &mut lf_min_y, &mut lf_max_x, &mut lf_max_y);
+        }
         log::debug!("svek solve LF: min=({:.1},{:.1}) max=({:.1},{:.1})", lf_min_x, lf_min_y, lf_max_x, lf_max_y);
         let lf_span = if lf_max_x.is_finite() && lf_min_x.is_finite() {
             (lf_max_x - lf_min_x, lf_max_y - lf_min_y)
@@ -451,6 +498,9 @@ impl DotStringFactory {
             if node.hidden { continue; }
             if node.min_x < min_x { min_x = node.min_x; }
             if node.min_y < min_y { min_y = node.min_y; }
+        }
+        for cluster in &self.bibliotekon.clusters {
+            extend_min_with_cluster(cluster, &mut min_x, &mut min_y);
         }
         let (dx, dy) = if min_x.is_finite() && min_y.is_finite() {
             let dx = 6.0 - min_x;
@@ -476,6 +526,28 @@ impl DotStringFactory {
         for edge in &mut self.bibliotekon.edges {
             edge.move_delta(dx, dy);
         }
+        for cluster in &mut self.bibliotekon.clusters {
+            move_cluster_delta(cluster, dx, dy);
+        }
+    }
+}
+
+fn cluster_title_label_dim(title: &str) -> (i32, i32) {
+    let width = crate::font_metrics::text_width(title, "SansSerif", 14.0, true, false).floor() as i32;
+    let height =
+        crate::font_metrics::line_height("SansSerif", 14.0, true, false).floor() as i32;
+    (width.max(0), height.max(0))
+}
+
+fn collect_clustered_nodes<'a>(
+    cluster: &'a cluster::Cluster,
+    clustered: &mut std::collections::HashSet<&'a str>,
+) {
+    for uid in &cluster.node_uids {
+        clustered.insert(uid.as_str());
+    }
+    for sub in &cluster.sub_clusters {
+        collect_clustered_nodes(sub, clustered);
     }
 }
 
@@ -488,6 +560,14 @@ struct TranslateFunction {
 impl Point2DFunction for TranslateFunction {
     fn apply(&self, pt: XPoint2D) -> XPoint2D {
         XPoint2D::new(pt.x + self.tx, pt.y + self.ty)
+    }
+}
+
+fn move_cluster_delta(cluster: &mut cluster::Cluster, dx: f64, dy: f64) {
+    cluster.x += dx;
+    cluster.y += dy;
+    for sub in &mut cluster.sub_clusters {
+        move_cluster_delta(sub, dx, dy);
     }
 }
 
@@ -508,12 +588,97 @@ fn parse_svg_translate(svg: &str) -> (f64, f64) {
     (0.0, 0.0)
 }
 
+fn solve_cluster_positions(svg: &str, cluster: &mut cluster::Cluster, tx: f64, ty: f64) {
+    if let Some((x, y, width, height)) = parse_svg_cluster_bounds(svg, &cluster.id, tx, ty) {
+        cluster.x = x;
+        cluster.y = y;
+        cluster.width = width;
+        cluster.height = height;
+    }
+    for sub in &mut cluster.sub_clusters {
+        solve_cluster_positions(svg, sub, tx, ty);
+    }
+}
+
+fn parse_svg_cluster_bounds(svg: &str, cluster_id: &str, tx: f64, ty: f64) -> Option<(f64, f64, f64, f64)> {
+    let title = format!("<title>cluster_{cluster_id}</title>");
+    let title_pos = svg.find(&title)?;
+    let start = title_pos;
+    let mut end = (start + 600).min(svg.len());
+    while end > start && !svg.is_char_boundary(end) {
+        end -= 1;
+    }
+    let search = &svg[start..end];
+    let polygon_pos = search.find("<polygon")?;
+    let polygon = &search[polygon_pos..];
+    let points = parse_points_attr(polygon)?;
+    let mut min_x = f64::INFINITY;
+    let mut min_y = f64::INFINITY;
+    let mut max_x = f64::NEG_INFINITY;
+    let mut max_y = f64::NEG_INFINITY;
+    for pair in points.split_whitespace() {
+        let mut coords = pair.split(',');
+        let x: f64 = coords.next()?.parse().ok()?;
+        let y: f64 = coords.next()?.parse().ok()?;
+        min_x = min_x.min(x + tx);
+        min_y = min_y.min(y + ty);
+        max_x = max_x.max(x + tx);
+        max_y = max_y.max(y + ty);
+    }
+    Some((min_x, min_y, max_x - min_x, max_y - min_y))
+}
+
+fn parse_points_attr(elem: &str) -> Option<&str> {
+    let needle = "points=\"";
+    let pos = elem.find(needle)?;
+    let after = &elem[pos + needle.len()..];
+    let end = after.find('"')?;
+    Some(&after[..end])
+}
+
+fn extend_lf_with_cluster(
+    cluster: &cluster::Cluster,
+    min_x: &mut f64,
+    min_y: &mut f64,
+    max_x: &mut f64,
+    max_y: &mut f64,
+) {
+    if cluster.width > 0.0 && cluster.height > 0.0 {
+        if cluster.x < *min_x { *min_x = cluster.x; }
+        if cluster.y < *min_y { *min_y = cluster.y; }
+        let right = cluster.x + cluster.width;
+        let bottom = cluster.y + cluster.height;
+        if right > *max_x { *max_x = right; }
+        if bottom > *max_y { *max_y = bottom; }
+    }
+    for sub in &cluster.sub_clusters {
+        extend_lf_with_cluster(sub, min_x, min_y, max_x, max_y);
+    }
+}
+
+fn extend_min_with_cluster(cluster: &cluster::Cluster, min_x: &mut f64, min_y: &mut f64) {
+    if cluster.width > 0.0 && cluster.height > 0.0 {
+        if cluster.x < *min_x { *min_x = cluster.x; }
+        if cluster.y < *min_y { *min_y = cluster.y; }
+    }
+    for sub in &cluster.sub_clusters {
+        extend_min_with_cluster(sub, min_x, min_y);
+    }
+}
+
 /// Parse a numeric XML attribute value near a given position.
 /// Searches forward from `from` within a reasonable range for `attr_name="value"`.
 fn parse_xml_attr_near(svg: &str, from: usize, attr_name: &str) -> Option<f64> {
-    // Search within next 200 chars for the element containing this attribute
-    let end = (from + 200).min(svg.len());
-    let search = &svg[from..end];
+    // Search within the next ~200 bytes, but keep UTF-8 boundaries intact.
+    let mut start = from.min(svg.len());
+    while start < svg.len() && !svg.is_char_boundary(start) {
+        start += 1;
+    }
+    let mut end = (start + 200).min(svg.len());
+    while end > start && !svg.is_char_boundary(end) {
+        end -= 1;
+    }
+    let search = &svg[start..end];
     let needle = format!("{}=\"", attr_name);
     let pos = search.find(&needle)?;
     let val_start = pos + needle.len();
@@ -577,6 +742,24 @@ mod tests {
     }
 
     #[test]
+    fn parse_xml_attr_near_handles_multibyte_window_end() {
+        let svg = format!("{}cx=\"54\"≤z", "a".repeat(191));
+        assert_eq!(parse_xml_attr_near(&svg, 0, "cx"), Some(54.0));
+    }
+
+    #[test]
+    fn parse_svg_cluster_bounds_handles_multibyte_window_end() {
+        let prefix = "a".repeat(560);
+        let svg = format!(
+            r#"{prefix}<title>cluster_demo</title><polygon points="10,20 30,20 30,40 10,40"/>´"#
+        );
+        assert_eq!(
+            parse_svg_cluster_bounds(&svg, "demo", 0.0, 0.0),
+            Some((10.0, 20.0, 20.0, 20.0))
+        );
+    }
+
+    #[test]
     fn solve_positions_nodes_from_polygon() {
         // Simulate Graphviz SVG output with two nodes identified by color
         let svg = concat!(
@@ -633,5 +816,30 @@ mod tests {
         let n = factory.bibliotekon.find_node("n1").unwrap();
         // Node not found in SVG, but normalization still shifts to (6, 6)
         assert_eq!(n.min_x, 6.0);
+    }
+
+    #[test]
+    fn create_dot_string_does_not_repeat_nested_cluster_nodes() {
+        let mut bib = Bibliotekon::new();
+        bib.add_node(node::SvekNode::new("A", 100.0, 50.0));
+        bib.add_node(node::SvekNode::new("B", 80.0, 40.0));
+
+        let mut outer = cluster::Cluster::new("outer");
+        outer.add_node("A");
+        let mut inner = cluster::Cluster::new("inner");
+        inner.add_node("B");
+        outer.sub_clusters.push(inner);
+        bib.add_cluster(outer);
+
+        let factory = DotStringFactory::new(bib);
+        let dot = factory.create_dot_string(DotMode::Normal);
+
+        assert_eq!(dot.matches("\"A\" [").count(), 1);
+        assert_eq!(dot.matches("\"B\" [").count(), 1);
+    }
+
+    #[test]
+    fn cluster_title_label_dim_matches_java_cluster_header() {
+        assert_eq!(cluster_title_label_dim("pkg1"), (39, 16));
     }
 }

@@ -384,6 +384,7 @@ pub fn parse_class_diagram(source: &str) -> Result<ClassDiagram> {
 
     // Auto-create entities referenced in links but not declared
     auto_create_entities(&mut entities, &links, &mut entity_order);
+    synthesize_implicit_package_groups(&entities, &mut groups);
     sort_entities_by_order(&mut entities, &entity_order);
 
     Ok(ClassDiagram {
@@ -717,7 +718,7 @@ fn parse_link(line: &str, source_line: usize) -> Option<(Link, usize)> {
     // Right heads: |>, >, *, o, +, or nothing
     let re = Regex::new(concat!(
         r"(?x)",
-        r"^([\w.]+)", // from entity
+        r#"^((?:"[^"]+"|[\w.]+))"#, // from entity (quoted or simple)
         r"\s*",
         r"(?:\[[^\]]*\])?", // optional qualifier [...]
         r"\s+",
@@ -751,7 +752,7 @@ fn parse_link(line: &str, source_line: usize) -> Option<(Link, usize)> {
         r")", // arrow group end
         r"\s*",
         r#"(?:"([^"]*)"\s+)?"#, // optional to-label "..."
-        r"([\w.]+)",            // to entity
+        r#"((?:"[^"]+"|[\w.]+))"#, // to entity (quoted or simple)
         r"\s*",
         r"(?:\s*:\s*(.*))?", // optional label
         r"$",
@@ -761,10 +762,10 @@ fn parse_link(line: &str, source_line: usize) -> Option<(Link, usize)> {
     let trimmed = line.trim();
 
     if let Some(caps) = re.captures(trimmed) {
-        let from = caps.get(1).unwrap().as_str().to_string();
+        let from = caps.get(1).unwrap().as_str().trim_matches('"').to_string();
         let arrow = caps.get(2).unwrap().as_str();
         let to_label = caps.get(3).map(|m| m.as_str().trim().to_string());
-        let to = caps.get(4).unwrap().as_str().to_string();
+        let to = caps.get(4).unwrap().as_str().trim_matches('"').to_string();
         let label = caps.get(5).map(|m| m.as_str().trim().to_string());
 
         let (left_head, line_style, right_head) = parse_arrow(arrow);
@@ -788,7 +789,7 @@ fn parse_link(line: &str, source_line: usize) -> Option<(Link, usize)> {
     // Also try with qualifier brackets between arrow and entity
     let re2 = Regex::new(concat!(
         r"(?x)",
-        r"^([\w.]+)", // from entity
+        r#"^((?:"[^"]+"|[\w.]+))"#, // from entity (quoted or simple)
         r"\s*",
         r"(?:\[[^\]]*\])?", // optional qualifier [...]
         r"\s+",
@@ -813,7 +814,7 @@ fn parse_link(line: &str, source_line: usize) -> Option<(Link, usize)> {
         r"(?:\[[^\]]*\])?", // optional qualifier [...]
         r"\s*",
         r#"(?:"([^"]*)"\s+)?"#, // optional to-label "..."
-        r"([\w.]+)",            // to entity
+        r#"((?:"[^"]+"|[\w.]+))"#, // to entity (quoted or simple)
         r"\s*",
         r"(?:\s*:\s*(.*))?", // optional label
         r"$",
@@ -821,10 +822,10 @@ fn parse_link(line: &str, source_line: usize) -> Option<(Link, usize)> {
     .unwrap();
 
     if let Some(caps) = re2.captures(trimmed) {
-        let from = caps.get(1).unwrap().as_str().to_string();
+        let from = caps.get(1).unwrap().as_str().trim_matches('"').to_string();
         let arrow = caps.get(2).unwrap().as_str();
         let to_label = caps.get(3).map(|m| m.as_str().trim().to_string());
-        let to = caps.get(4).unwrap().as_str().to_string();
+        let to = caps.get(4).unwrap().as_str().trim_matches('"').to_string();
         let label = caps.get(5).map(|m| m.as_str().trim().to_string());
 
         let (left_head, line_style, right_head) = parse_arrow(arrow);
@@ -1001,6 +1002,86 @@ fn auto_create_entities(
             source_line: None,
             visibility: None,
         });
+    }
+}
+
+fn implicit_name_head(name: &str) -> &str {
+    let mut end = name.len();
+    for needle in ["\\r", "\\n"] {
+        if let Some(pos) = name.find(needle) {
+            end = end.min(pos);
+        }
+    }
+    if let Some(pos) = name.find(crate::NEWLINE_CHAR) {
+        end = end.min(pos);
+    }
+    if let Some(pos) = name.find('\r') {
+        end = end.min(pos);
+    }
+    if let Some(pos) = name.find('\n') {
+        end = end.min(pos);
+    }
+    &name[..end]
+}
+
+fn implicit_package_prefixes(name: &str) -> Vec<String> {
+    let head = implicit_name_head(name);
+    let Some(last_dot) = head.rfind('.') else {
+        return Vec::new();
+    };
+    let package_path = &head[..last_dot];
+    if package_path.is_empty() {
+        return Vec::new();
+    }
+    let mut prefixes = Vec::new();
+    let mut current = String::new();
+    for segment in package_path.split('.') {
+        if segment.is_empty() {
+            break;
+        }
+        if !current.is_empty() {
+            current.push('.');
+        }
+        current.push_str(segment);
+        prefixes.push(current.clone());
+    }
+    prefixes
+}
+
+fn synthesize_implicit_package_groups(
+    entities: &[Entity],
+    groups: &mut Vec<Group>,
+) {
+    let mut known_group_names: std::collections::HashSet<String> =
+        groups.iter().map(|g| g.name.clone()).collect();
+
+    for entity in entities {
+        let prefixes = implicit_package_prefixes(&entity.name);
+        if prefixes.is_empty() {
+            continue;
+        }
+        for prefix in &prefixes {
+            if known_group_names.insert(prefix.clone()) {
+                groups.push(Group {
+                    kind: GroupKind::Package,
+                    name: prefix.clone(),
+                    entities: Vec::new(),
+                    stereotypes: Vec::new(),
+                    color: None,
+                    source_line: entity.source_line,
+                });
+            }
+        }
+        if let Some(deepest) = prefixes.last() {
+            if let Some(group) = groups.iter_mut().find(|g| g.name == *deepest) {
+                if !group.entities.iter().any(|name| name == &entity.name) {
+                    group.entities.push(entity.name.clone());
+                }
+                if group.source_line.is_none() {
+                    group.source_line = entity.source_line;
+                }
+            }
+        }
     }
 }
 
@@ -1293,6 +1374,37 @@ mod tests {
         assert_eq!(cd.entities.len(), 4);
         assert_eq!(cd.links.len(), 3);
         assert!(cd.links[0].label.is_some());
+    }
+
+    #[test]
+    fn parse_link_with_quoted_entity_names() {
+        let src = concat!(
+            "@startuml\n",
+            "class \"A name with spaces\"\n",
+            "\"A name with spaces\" --> \"A name with spaces\" : Hello\n",
+            "@enduml\n",
+        );
+        let cd = parse_class_diagram(src).unwrap();
+        assert_eq!(cd.entities.len(), 1);
+        assert_eq!(cd.links.len(), 1);
+        assert_eq!(cd.links[0].from, "A name with spaces");
+        assert_eq!(cd.links[0].to, "A name with spaces");
+        assert_eq!(cd.links[0].label.as_deref(), Some("Hello"));
+    }
+
+    #[test]
+    fn parse_implicit_package_groups_from_qualified_name() {
+        let src = concat!(
+            "@startuml\n",
+            "class \"pkg1.pkg2.Class 1\\r\\n\\tBody\"\n",
+            "@enduml\n",
+        );
+        let cd = parse_class_diagram(src).unwrap();
+        assert_eq!(cd.entities.len(), 1);
+        assert!(cd.groups.iter().any(|g| g.name == "pkg1"));
+        assert!(cd.groups.iter().any(|g| g.name == "pkg1.pkg2"));
+        let inner = cd.groups.iter().find(|g| g.name == "pkg1.pkg2").unwrap();
+        assert_eq!(inner.entities, vec!["pkg1.pkg2.Class 1\\r\\n\\tBody".to_string()]);
     }
 
     // ── Object diagram tests ──

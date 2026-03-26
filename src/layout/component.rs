@@ -214,7 +214,7 @@ pub fn layout_component(cd: &ComponentDiagram) -> Result<ComponentLayout> {
         Direction::RightToLeft => RankDir::RightToLeft,
     };
 
-    let graph = LayoutGraph { nodes: layout_nodes, edges: layout_edges, rankdir };
+    let graph = LayoutGraph { nodes: layout_nodes, edges: layout_edges, clusters: vec![], rankdir };
     let gl = graphviz::layout_with_svek(&graph)?;
 
     let dot_to_id: HashMap<String, String> = id_to_dot.iter().map(|(k, v)| (v.clone(), k.clone())).collect();

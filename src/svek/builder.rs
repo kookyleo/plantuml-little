@@ -370,6 +370,14 @@ impl GraphvizImageBuilder {
             .unwrap_or(&[])
     }
 
+    /// Get the positioned clusters after solving.
+    pub fn clusters(&self) -> &[Cluster] {
+        self.factory
+            .as_ref()
+            .map(|f| f.bibliotekon.clusters.as_slice())
+            .unwrap_or(&[])
+    }
+
     /// Move all positioned elements by a delta offset.
     pub fn move_delta(&mut self, dx: f64, dy: f64) {
         if let Some(factory) = &mut self.factory {
@@ -537,7 +545,12 @@ mod tests {
 
         let dot = builder.build_dot();
         assert!(dot.contains("subgraph cluster_pkg"));
-        assert!(dot.contains("label=\"MyPackage\""));
+        assert!(dot.contains("subgraph cluster_pkgp0"));
+        assert!(dot.contains("subgraph cluster_pkgp1"));
+        assert!(dot.contains("labeljust=\"c\""));
+        assert!(dot.contains("style=solid;"));
+        assert!(dot.contains("color=\"#000000\";"));
+        assert!(dot.contains("label=<"));
     }
 
     #[test]
@@ -752,8 +765,12 @@ mod tests {
         let dot = builder.build_dot();
         assert!(dot.contains("subgraph cluster_outer"));
         assert!(dot.contains("subgraph cluster_inner"));
-        assert!(dot.contains("label=\"Outer\""));
-        assert!(dot.contains("label=\"Inner\""));
+        assert!(dot.contains("subgraph cluster_outerp0"));
+        assert!(dot.contains("subgraph cluster_outerp1"));
+        assert!(dot.contains("subgraph cluster_innerp0"));
+        assert!(dot.contains("subgraph cluster_innerp1"));
+        assert!(dot.contains("labeljust=\"c\""));
+        assert!(dot.matches("label=<").count() >= 2);
     }
 
     #[test]

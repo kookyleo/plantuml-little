@@ -5,18 +5,19 @@ use std::io::Write as IoWrite;
 use flate2::write::DeflateEncoder;
 use flate2::Compression;
 
-use crate::layout::graphviz::{ClassNoteLayout, EdgeLayout, GraphLayout, NodeLayout};
+use crate::layout::graphviz::{ClassNoteLayout, ClusterLayout, EdgeLayout, GraphLayout, NodeLayout};
 use crate::layout::split_member_lines;
 use crate::layout::DiagramLayout;
 use crate::model::{
     ArrowHead, ClassDiagram, ClassHideShowRule, ClassPortion, ClassRuleTarget, Diagram,
-    DiagramMeta, Entity, EntityKind, LineStyle, Link, Member, Visibility,
+    DiagramMeta, Entity, EntityKind, GroupKind, LineStyle, Link, Member, Visibility,
 };
 use crate::style::SkinParams;
 use crate::Result;
 
 use crate::font_metrics;
-use crate::klimt::svg::{LengthAdjust, SvgGraphic};
+use crate::klimt::sanitize_group_metadata_value;
+use crate::klimt::svg::{svg_comment_escape, LengthAdjust, SvgGraphic};
 
 use super::svg_richtext::{
     count_creole_lines, creole_plain_text, get_default_font_family_pub,
@@ -222,10 +223,29 @@ fn sanitize_id(name: &str) -> String {
     name.replace('<', "_LT_")
         .replace('>', "_GT_")
         .replace(',', "_COMMA_")
+        .replace('.', "_DOT_")
         .replace(' ', "_")
 }
 
 pub(crate) use crate::klimt::svg::xml_escape;
+
+fn svg_group_metadata_attr(value: &str) -> String {
+    xml_escape(&sanitize_group_metadata_value(value))
+}
+
+fn class_link_id_for_svg(link: &Link) -> String {
+    let from = crate::layout::class_entity_display_name(&link.from);
+    let to = crate::layout::class_entity_display_name(&link.to);
+    let head = link.right_head != ArrowHead::None;
+    let tail = link.left_head != ArrowHead::None;
+    if !head && tail {
+        format!("{from}-backto-{to}")
+    } else if (!head && !tail) || (head && tail) {
+        format!("{from}-{to}")
+    } else {
+        format!("{from}-to-{to}")
+    }
+}
 
 /// Write a background `<rect>` covering the entire canvas when the background
 /// color differs from the default #FFFFFF. Java PlantUML emits this rect as the
@@ -620,7 +640,7 @@ fn inject_svginteractive(svg: String, diagram_type: &str) -> String {
     let js_text = ensure_trailing_newline(js);
 
     let defs_content = format!(
-        "<style type=\"text/css\"><![CDATA[\n{}]]></style><script>{}</script>",
+        "<style type=\"text/css\"><![CDATA[{}]]></style><script>{}</script>",
         css_text,
         xml_escape_js(&js_text)
     );
@@ -1213,18 +1233,19 @@ fn render_class(
         })
     });
     let has_generic = !is_degenerated && cd.entities.iter().any(|e| e.generic.is_some());
-    // Java SvekResult: moveDelta(6 - LimitFinder_minX, 6 - LimitFinder_minY).
-    // LimitFinder_minX = polygon_minX - 1 (rect offset), so moveDelta = 7 default.
-    // Our svek uses moveDelta = 6 - polygon_minX. Entity renders at polygon_minX + moveDelta = 6.
-    // edge_offset = moveDelta + 1 (the LimitFinder rect -1 offset) = 7.
-    let edge_offset_x = if has_member_polygon_icon { 9.0 } else { 7.0 };
-    let edge_offset_y = if has_generic { 10.0 } else { 7.0 };
+    // `layout_with_svek()` normalizes the solved coordinates back to origin after
+    // SvekResult-style `moveDelta(6 - minX, 6 - minY)`. Rendering must therefore
+    // add back the raw Svek margin (= 6), not `6 + 1`.
+    let edge_offset_x = if has_member_polygon_icon { 8.0 } else { 6.0 };
+    let edge_offset_y = if has_generic { 9.0 } else { 6.0 };
     let mut tracker = BoundsTracker::new();
     let mut sg = SvgGraphic::new(0, 1.0);
     let arrow_color = skin.arrow_color(LINK_COLOR);
 
     let node_map: HashMap<&str, &NodeLayout> =
         layout.nodes.iter().map(|n| (n.id.as_str(), n)).collect();
+    let group_meta: HashMap<&str, &crate::model::Group> =
+        cd.groups.iter().map(|group| (group.name.as_str(), group)).collect();
 
     // Build entity id map — IDs assigned by DEFINITION order (source_line),
     // not rendering order. Java assigns entity UIDs at parse time.
@@ -1237,10 +1258,36 @@ fn render_class(
         entity_ids.insert(sanitize_id(&entity.name), ent_id);
         ent_counter += 1;
     }
+    let mut group_ids: HashMap<String, String> = HashMap::new();
+    let mut groups_by_def_order: Vec<&ClusterLayout> = layout.clusters.iter().collect();
+    groups_by_def_order.sort_by_key(|cluster| {
+        (
+            group_meta
+                .get(cluster.qualified_name.as_str())
+                .and_then(|group| group.source_line)
+                .unwrap_or(usize::MAX),
+            cluster.qualified_name.matches('.').count(),
+            cluster.qualified_name.clone(),
+        )
+    });
+    for cluster in &groups_by_def_order {
+        let ent_id = format!("ent{:04}", ent_counter);
+        group_ids.insert(cluster.qualified_name.clone(), ent_id);
+        ent_counter += 1;
+    }
 
     // Java: object diagrams do NOT emit <!--class X--> comments for entities,
     // only class diagrams do.
     let is_object_diagram = cd.entities.iter().all(|e| e.kind == EntityKind::Object);
+
+    for cluster in &groups_by_def_order {
+        let ent_id = group_ids
+            .get(cluster.qualified_name.as_str())
+            .map(|s| s.as_str())
+            .unwrap_or("ent0000");
+        let group = group_meta.get(cluster.qualified_name.as_str()).copied();
+        draw_class_group(&mut sg, &mut tracker, cluster, group, ent_id, skin);
+    }
 
     for entity in &cd.entities {
         let sid = sanitize_id(&entity.name);
@@ -1249,18 +1296,19 @@ fn render_class(
                 .get(&sid)
                 .map(|s| s.as_str())
                 .unwrap_or("ent0000");
+            let display_name = crate::layout::class_entity_display_name(&entity.name);
             if is_object_diagram {
                 sg.push_raw(&format!(
                     "<g class=\"entity\" data-qualified-name=\"{}\"",
-                    xml_escape(&entity.name),
+                    svg_group_metadata_attr(&entity.name),
                 ));
             } else {
                 sg.push_raw(&format!(
                     "<!--{} {}--><g class=\"entity\" data-qualified-name=\"{}\"",
                     // Java uses "class" for class entities, "entity" for others (rectangle, etc.)
                     if entity.kind == EntityKind::Rectangle { "entity" } else { "class" },
-                    xml_escape(&entity.name),
-                    xml_escape(&entity.name),
+                    svg_comment_escape(&display_name),
+                    svg_group_metadata_attr(&entity.name),
                 ));
             }
             if let Some(source_line) = entity.source_line {
@@ -1284,10 +1332,12 @@ fn render_class(
             let from_ent = entity_ids.get(&from_id).map(|s| s.as_str()).unwrap_or("");
             let to_ent = entity_ids.get(&to_id).map(|s| s.as_str()).unwrap_or("");
             let link_type = derive_link_type(link);
+            let from_display = crate::layout::class_entity_display_name(&link.from);
+            let to_display = crate::layout::class_entity_display_name(&link.to);
             sg.push_raw(&format!(
                 "<!--link {} to {}--><g class=\"link\" data-entity-1=\"{}\" data-entity-2=\"{}\" data-link-type=\"{}\"",
-                xml_escape(&link.from),
-                xml_escape(&link.to),
+                svg_comment_escape(&from_display),
+                svg_comment_escape(&to_display),
                 from_ent,
                 to_ent,
                 link_type,
@@ -1296,7 +1346,7 @@ fn render_class(
                 sg.push_raw(&format!(" data-source-line=\"{source_line}\""));
             }
             sg.push_raw(&format!(" id=\"lnk{link_counter}\">"));
-            draw_edge(&mut sg, &mut tracker, link, el, arrow_color, edge_offset_x, edge_offset_y);
+            draw_edge(&mut sg, &mut tracker, layout, link, el, arrow_color, edge_offset_x, edge_offset_y);
             sg.push_raw("</g>");
             link_counter += 1;
         }
@@ -1351,6 +1401,122 @@ fn render_class(
     buf.push_str(sg.body());
     buf.push_str("</g></svg>");
     Ok(BodyResult { svg: buf, raw_body_dim: Some(raw_body_dim) })
+}
+
+fn draw_class_group(
+    sg: &mut SvgGraphic,
+    tracker: &mut BoundsTracker,
+    cluster: &ClusterLayout,
+    group: Option<&crate::model::Group>,
+    ent_id: &str,
+    skin: &SkinParams,
+) {
+    if cluster.width <= 0.0 || cluster.height <= 0.0 {
+        return;
+    }
+    let group_kind = group.map(|g| &g.kind).unwrap_or(&GroupKind::Package);
+    let qname = &cluster.qualified_name;
+    let title = cluster.title.as_deref().unwrap_or(qname);
+    sg.push_raw(&format!(
+        "<!--cluster {}--><g class=\"cluster\" data-qualified-name=\"{}\"",
+        svg_comment_escape(title),
+        svg_group_metadata_attr(qname),
+    ));
+    if let Some(source_line) = group.and_then(|g| g.source_line) {
+        sg.push_raw(&format!(" data-source-line=\"{source_line}\""));
+    }
+    sg.push_raw(&format!(" id=\"{ent_id}\">"));
+
+    let x = cluster.x + MARGIN;
+    let y = cluster.y + MARGIN;
+    let w = cluster.width;
+    let h = cluster.height;
+
+    match group_kind {
+        GroupKind::Rectangle => {
+            let border = skin.border_color("rectangle", "#000000");
+            let font_color = skin.font_color("rectangle", "#000000");
+            sg.set_fill_color("none");
+            sg.set_stroke_color(Some(border));
+            sg.set_stroke_width(1.5, None);
+            sg.svg_rectangle(x, y, w, h, 2.5, 2.5, 0.0);
+            tracker.track_rect(x, y, w, h);
+            let text_w = font_metrics::text_width(title, "SansSerif", 14.0, true, false);
+            let text_x = x + 4.0;
+            let text_y = y + 14.9951;
+            sg.push_raw(&format!(
+                r#"<text fill="{font_color}" font-family="sans-serif" font-size="14" font-weight="700" lengthAdjust="spacing" textLength="{}" x="{}" y="{}">{}</text>"#,
+                fmt_coord(text_w),
+                fmt_coord(text_x),
+                fmt_coord(text_y),
+                xml_escape(title),
+            ));
+            tracker.track_rect(text_x, text_y - HEADER_NAME_BASELINE, text_w, HEADER_NAME_BLOCK_HEIGHT);
+        }
+        _ => {
+            let border = skin.border_color("package", "#000000");
+            let font_color = skin.font_color("package", "#000000");
+            let text_w = font_metrics::text_width(title, "SansSerif", 14.0, true, false);
+            let r = 2.5_f64;
+            let tab_bottom = y + 22.2969;
+            let tab_right = (x + w - r).min(x + text_w + 13.0);
+            let tab_notch = (tab_right - 9.5).max(x + r);
+            let tab_arc_end_x = (tab_right - 7.0).max(tab_notch);
+            sg.push_raw(&format!(
+                concat!(
+                    r#"<path d="M{},{} L{},{}"#,
+                    r#" A3.75,3.75 0 0 1 {},{}"#,
+                    r#" L{},{}"#,
+                    r#" L{},{}"#,
+                    r#" A{},{} 0 0 1 {},{}"#,
+                    r#" L{},{}"#,
+                    r#" A{},{} 0 0 1 {},{}"#,
+                    r#" L{},{}"#,
+                    r#" A{},{} 0 0 1 {},{}"#,
+                    r#" L{},{}"#,
+                    r#" A{},{} 0 0 1 {},{}" fill="none" style="stroke:{};stroke-width:1.5;"/>"#
+                ),
+                fmt_coord(x + r), fmt_coord(y),
+                fmt_coord(tab_notch), fmt_coord(y),
+                fmt_coord(tab_arc_end_x), fmt_coord(y + r),
+                fmt_coord(tab_right), fmt_coord(tab_bottom),
+                fmt_coord(x + w - r), fmt_coord(tab_bottom),
+                fmt_coord(r), fmt_coord(r),
+                fmt_coord(x + w), fmt_coord(tab_bottom + r),
+                fmt_coord(x + w), fmt_coord(y + h - r),
+                fmt_coord(r), fmt_coord(r),
+                fmt_coord(x + w - r), fmt_coord(y + h),
+                fmt_coord(x + r), fmt_coord(y + h),
+                fmt_coord(r), fmt_coord(r),
+                fmt_coord(x), fmt_coord(y + h - r),
+                fmt_coord(x), fmt_coord(y + r),
+                fmt_coord(r), fmt_coord(r),
+                fmt_coord(x + r), fmt_coord(y),
+                border,
+            ));
+            sg.push_raw(&format!(
+                r#"<line style="stroke:{border};stroke-width:1.5;" x1="{}" x2="{}" y1="{}" y2="{}"/>"#,
+                fmt_coord(x),
+                fmt_coord(tab_right),
+                fmt_coord(tab_bottom),
+                fmt_coord(tab_bottom),
+            ));
+            let text_x = x + 4.0;
+            let text_y = y + 14.9951;
+            sg.push_raw(&format!(
+                r#"<text fill="{font_color}" font-family="sans-serif" font-size="14" font-weight="700" lengthAdjust="spacing" textLength="{}" x="{}" y="{}">{}</text>"#,
+                fmt_coord(text_w),
+                fmt_coord(text_x),
+                fmt_coord(text_y),
+                xml_escape(title),
+            ));
+            tracker.track_path_bounds(x, y, x + w, y + h);
+            tracker.track_line(x, tab_bottom, tab_right, tab_bottom);
+            tracker.track_rect(text_x, text_y - HEADER_NAME_BASELINE, text_w, HEADER_NAME_BLOCK_HEIGHT);
+        }
+    }
+
+    sg.push_raw("</g>");
 }
 
 // ── Stereotype circle glyph paths ───────────────────────────────────
@@ -1590,8 +1756,8 @@ fn draw_entity_box(
         return;
     }
 
-    // Java: entity rect starts at (moveDelta_offset + 1, moveDelta_offset + 1)
-    // where the +1 is the border inset (rect drawn 1px inside the Graphviz node boundary)
+    // Java: after `layout_with_svek()` re-normalizes to origin, class entities
+    // render back at the plain Svek margin offset (= 6).
     let x = nl.cx - nl.width / 2.0 + edge_offset_x;
     let y = nl.cy - nl.height / 2.0 + edge_offset_y;
     let w = nl.width;
@@ -1634,7 +1800,7 @@ fn draw_entity_box(
     let class_font_size = explicit_class_fs.unwrap_or_else(|| explicit_attr_fs.unwrap_or(FONT_SIZE));
 
     // Entity name WITHOUT generic parameter — generic is rendered separately in draw_generic_box
-    let name_display = entity.name.clone();
+    let name_display = crate::layout::class_entity_display_name(&entity.name);
     let visible_stereotypes = visible_stereotype_labels(&cd.hide_show_rules, entity);
     let show_fields = show_portion(&cd.hide_show_rules, ClassPortion::Field, &entity.name);
     let show_methods = show_portion(&cd.hide_show_rules, ClassPortion::Method, &entity.name);
@@ -1695,18 +1861,19 @@ fn draw_entity_box(
         }
     } else {
         let italic_name = entity.kind == EntityKind::Abstract;
-        // Split name into display lines following Java Display semantics
-        let name_lines = crate::layout::split_name_display_lines(&name_display);
-        let n_name_lines = name_lines.len();
-        // Measure each line, use widest for layout
-        let name_line_widths: Vec<f64> = name_lines
+        let name_block = crate::layout::split_name_display(&name_display);
+        let n_name_lines = name_block.lines.len();
+        let name_line_metrics: Vec<(f64, f64)> = name_block
+            .lines
             .iter()
             .map(|line| {
-                let display = if line.is_empty() { "\u{00A0}".to_string() } else { line.clone() };
-                font_metrics::text_width(&display, "SansSerif", class_font_size, false, italic_name)
+                crate::layout::display_line_metrics(line, class_font_size, false, italic_name)
             })
             .collect();
-        let name_width = name_line_widths.iter().copied().fold(0.0_f64, f64::max);
+        let name_width = name_line_metrics
+            .iter()
+            .map(|(visible_width, indent_width)| visible_width + indent_width)
+            .fold(0.0_f64, f64::max);
         // Compute name block height and baseline dynamically from actual font size
         let name_ascent = font_metrics::ascent("SansSerif", class_font_size, false, italic_name);
         let name_descent = font_metrics::descent("SansSerif", class_font_size, false, italic_name);
@@ -1754,10 +1921,12 @@ fn draw_entity_box(
         emit_circle_glyph(sg, tracker, &entity.kind, ecx, ecy);
 
         let header_top_offset = (header_height - stereo_height - name_block_height) / 2.0;
-        let name_x = x + HEADER_CIRCLE_BLOCK_WIDTH + vis_icon_w + (width_stereo_and_name - name_block_width) / 2.0 + h1 + h2 + 3.0;
+        let name_block_x =
+            x + HEADER_CIRCLE_BLOCK_WIDTH + vis_icon_w + (width_stereo_and_name - name_block_width) / 2.0 + h1 + h2;
+        let name_inner_x = name_block_x + 3.0;
 
         if let Some(ref vis) = entity.visibility {
-            let icon_x = name_x - ENTITY_VIS_ICON_BLOCK_SIZE;
+            let icon_x = name_inner_x - ENTITY_VIS_ICON_BLOCK_SIZE;
             // Java: EntityImageClassHeader wraps visibility UBlock with
             // withMargin(top=4), then mergeLR(uBlock, name, CENTER).
             // uBlock dim = (11, 11), with margin: (11, 15).
@@ -1795,21 +1964,30 @@ fn draw_entity_box(
         };
         sg.set_fill_color(font_color);
         // Render each name line as a separate <text> element
-        for (line_idx, line) in name_lines.iter().enumerate() {
-            let display_line = if line.is_empty() { "\u{00A0}".to_string() } else { line.clone() };
+        for (line_idx, line) in name_block.lines.iter().enumerate() {
+            let display_line = if line.text.is_empty() {
+                "\u{00A0}".to_string()
+            } else {
+                line.text.clone()
+            };
             let line_y = y + header_top_offset + stereo_height + name_baseline
                 + line_idx as f64 * single_line_height;
-            let line_w = name_line_widths[line_idx];
-            // Center each line within the name block
-            let line_x = name_x + (name_width - line_w) / 2.0;
+            let (visible_width, indent_width) = name_line_metrics[line_idx];
+            let measured_width = visible_width + indent_width;
+            let align_offset = match name_block.alignment {
+                crate::layout::DisplayAlignment::Left => 0.0,
+                crate::layout::DisplayAlignment::Center => (name_width - measured_width) / 2.0,
+                crate::layout::DisplayAlignment::Right => name_width - measured_width,
+            };
+            let line_x = name_inner_x + align_offset + indent_width;
             sg.svg_text(
                 &display_line, line_x, line_y,
                 Some("sans-serif"), class_font_size,
                 None, font_style, None,
-                line_w, LengthAdjust::Spacing,
+                visible_width, LengthAdjust::Spacing,
                 None, 0, None,
             );
-            tracker.track_rect(line_x, line_y - name_baseline, line_w, single_line_height);
+            tracker.track_rect(line_x, line_y - name_baseline, visible_width, single_line_height);
         }
     }
 
@@ -1823,8 +2001,7 @@ fn draw_entity_box(
     let header_height = if has_kind_label {
         HEADER_HEIGHT
     } else {
-        let name_lines_for_h = crate::layout::split_name_display_lines(&name_display);
-        let n_lines = name_lines_for_h.len();
+        let n_lines = crate::layout::split_name_display(&name_display).lines.len();
         let single_h = font_metrics::ascent("SansSerif", class_font_size, false, false)
             + font_metrics::descent("SansSerif", class_font_size, false, false);
         let dynamic_name_h = n_lines as f64 * single_h;
@@ -2401,7 +2578,20 @@ fn derive_link_type(link: &Link) -> &'static str {
     }
 }
 
-fn draw_edge(sg: &mut SvgGraphic, tracker: &mut BoundsTracker, link: &Link, el: &EdgeLayout, link_color: &str, edge_offset_x: f64, edge_offset_y: f64) {
+fn edge_label_margin(link: &Link) -> f64 {
+    if link.from == link.to { 6.0 } else { 1.0 }
+}
+
+fn draw_edge(
+    sg: &mut SvgGraphic,
+    tracker: &mut BoundsTracker,
+    layout: &GraphLayout,
+    link: &Link,
+    el: &EdgeLayout,
+    link_color: &str,
+    edge_offset_x: f64,
+    edge_offset_y: f64,
+) {
     if el.points.is_empty() {
         return;
     }
@@ -2443,20 +2633,7 @@ fn draw_edge(sg: &mut SvgGraphic, tracker: &mut BoundsTracker, link: &Link, el: 
     };
     // Java Link.idCommentForSvg(): separator depends on decorations.
     // Java decor1 = head decoration (right_head), decor2 = tail decoration (left_head).
-    let path_id = {
-        let head = link.right_head != ArrowHead::None; // Java decor1
-        let tail = link.left_head != ArrowHead::None;  // Java decor2
-        if !head && tail {
-            // looksLikeRevertedForSvg: decor1=NONE, decor2≠NONE
-            format!("{}-backto-{}", link.from, link.to)
-        } else if (!head && !tail) || (head && tail) {
-            // looksLikeNoDecorAtAllSvg: both NONE or both non-NONE
-            format!("{}-{}", link.from, link.to)
-        } else {
-            // default: decor1≠NONE, decor2=NONE → "FROM-to-TO"
-            format!("{}-to-{}", link.from, link.to)
-        }
-    };
+    let path_id = class_link_id_for_svg(link);
     {
         let mut path_elt = String::from("<path");
         if let Some(source_line) = link.source_line {
@@ -2464,7 +2641,8 @@ fn draw_edge(sg: &mut SvgGraphic, tracker: &mut BoundsTracker, link: &Link, el: 
         }
         write!(
             path_elt,
-            r#" d="{d}" fill="none" id="{path_id}" style="stroke:{link_color};stroke-width:1;{dash_style}"/>"#,
+            r#" d="{d}" fill="none" id="{}" style="stroke:{link_color};stroke-width:1;{dash_style}"/>"#,
+            crate::klimt::svg::xml_escape_attr(&path_id),
         )
         .unwrap();
         sg.push_raw(&path_elt);
@@ -2478,43 +2656,64 @@ fn draw_edge(sg: &mut SvgGraphic, tracker: &mut BoundsTracker, link: &Link, el: 
     }
 
     if let Some(label) = &link.label {
-        let mid_idx = path_points.len() / 2;
-        let (mx, _my) = path_points[mid_idx];
-        let label_x = mx + edge_offset_x;
-        // Java: label positioned at labelXY from Graphviz, not edge midpoint.
-        // labelXY is top-left of the label area. Text center is offset by
-        // wh.h/2 - 4 (SheetBlock internal top margin of 4px).
-        // Java: label positioned at labelXY from Graphviz, not edge midpoint.
-        // labelXY is top-left of the label area. Text center is offset by
-        // wh.h/2 - 4 (SheetBlock internal top margin of 4px).
-        let label_y = if let (Some((_, ly)), Some((_, wh))) = (el.label_xy, el.label_wh) {
-            ly + edge_offset_y + wh / 2.0 - 4.0
-        } else {
-            _my + edge_offset_y - 6.0
-        };
-        draw_label(sg, label, label_x, label_y);
-        // Track label text extent for bounding box (Java LimitFinder.drawText).
+        let font_family = "SansSerif";
         let font_size = LINK_LABEL_FONT_SIZE;
+        let margin_label = edge_label_margin(link);
         let lines = split_label_lines(label);
-        let max_w = lines
+        let line_height = font_metrics::line_height(font_family, font_size, false, false);
+        let ascent = font_metrics::ascent(font_family, font_size, false, false);
+        let widths: Vec<f64> = lines
             .iter()
-            .map(|(t, _)| font_metrics::text_width(t, "SansSerif", font_size, false, false))
-            .fold(0.0_f64, f64::max);
-        let line_h = font_metrics::line_height("SansSerif", font_size, false, false);
-        let block_x = label_x + 1.0;
-        let total_h = lines.len() as f64 * line_h;
-        let ascent = font_metrics::ascent("SansSerif", font_size, false, false);
-        let base_y = label_y - total_h / 2.0 + ascent;
-        for (idx, (line_text, _)) in lines.iter().enumerate() {
-            let text_w = font_metrics::text_width(line_text, "SansSerif", font_size, false, false);
-            let ly = base_y + idx as f64 * line_h;
-            tracker.track_text(block_x, ly, text_w, line_h);
+            .map(|(t, _)| font_metrics::text_width(t, font_family, font_size, false, false))
+            .collect();
+        let max_width = widths.iter().copied().fold(0.0_f64, f64::max);
+
+        if let Some((lx, ly)) = el.label_xy.map(|(x, y)| {
+            (
+                x + layout.move_delta.0 - layout.normalize_offset.0 + edge_offset_x,
+                y + layout.move_delta.1 - layout.normalize_offset.1 + edge_offset_y,
+            )
+        }) {
+            let base_x = lx + margin_label;
+            let base_y = ly + margin_label + ascent;
+            let default_font = get_default_font_family_pub();
+            for (idx, (line_text, align)) in lines.iter().enumerate() {
+                let text_w = widths[idx];
+                let line_x = match align {
+                    LabelAlign::Left => base_x,
+                    LabelAlign::Center => base_x + (max_width - text_w) / 2.0,
+                    LabelAlign::Right => base_x + (max_width - text_w),
+                };
+                let line_y = base_y + idx as f64 * line_height;
+                sg.set_fill_color(TEXT_COLOR);
+                sg.svg_text(
+                    line_text, line_x, line_y,
+                    Some(&default_font), font_size,
+                    None, None, None,
+                    text_w, LengthAdjust::Spacing,
+                    None, 0, None,
+                );
+                tracker.track_text(line_x, line_y, text_w, line_height);
+            }
+            if let Some((bw, bh)) = el.label_wh {
+                tracker.track_empty(lx, ly, bw, bh);
+            }
+        } else {
+            let mid_idx = path_points.len() / 2;
+            let (mx, my) = path_points[mid_idx];
+            let label_x = mx + edge_offset_x;
+            let label_y = my + edge_offset_y - 6.0;
+            draw_label(sg, label, label_x, label_y);
+            let total_h = lines.len() as f64 * line_height;
+            let block_x = label_x + 1.0;
+            let base_y = label_y - total_h / 2.0 + ascent;
+            for (idx, _line_text) in lines.iter().map(|(t, _)| t).enumerate() {
+                let text_w = widths[idx];
+                let ly = base_y + idx as f64 * line_height;
+                tracker.track_text(block_x, ly, text_w, line_height);
+            }
+            tracker.track_empty(label_x, base_y, max_width + 2.0, 0.0);
         }
-        // Java: SvekEdge.addVisibilityModifier wraps the label TextBlock with
-        // TextBlockMarged(marginLabel=1). TextBlockMarged.drawU emits UEmpty with
-        // the full marged dimension (inner_w + 2, inner_h + 2). This extends the
-        // bounding box 1px beyond the widest text line on the right.
-        tracker.track_empty(label_x, base_y, max_w + 2.0, 0.0);
     }
 }
 
@@ -3157,6 +3356,7 @@ mod tests {
                 label_xy: None,
                 label_wh: None,
             }],
+            clusters: vec![],
             notes: vec![],
             total_width: 240.0,
             total_height: 220.0, move_delta: (7.0, 7.0), normalize_offset: (0.0, 0.0), lf_span: (240.0, 220.0),
@@ -3246,6 +3446,7 @@ mod tests {
                 height: 40.0,
             }],
             edges: vec![],
+            clusters: vec![],
             notes: vec![],
             total_width: 200.0,
             total_height: 100.0, move_delta: (7.0, 7.0), normalize_offset: (0.0, 0.0), lf_span: (200.0, 100.0),
@@ -3284,6 +3485,7 @@ mod tests {
                 height: 40.0,
             }],
             edges: vec![],
+            clusters: vec![],
             notes: vec![],
             total_width: 200.0,
             total_height: 100.0, move_delta: (7.0, 7.0), normalize_offset: (0.0, 0.0), lf_span: (200.0, 100.0),
@@ -3558,6 +3760,7 @@ mod tests {
                 lines: vec!["test note".into()],
                 connector: Some((180.0, 50.0, 160.0, 50.0)),
             }],
+            clusters: vec![],
             total_width: 300.0,
             total_height: 120.0, move_delta: (7.0, 7.0), normalize_offset: (0.0, 0.0), lf_span: (200.0, 100.0),
         };
@@ -3603,6 +3806,7 @@ mod tests {
                 lines: vec!["floating".into()],
                 connector: None,
             }],
+            clusters: vec![],
             total_width: 100.0,
             total_height: 60.0, move_delta: (7.0, 7.0), normalize_offset: (0.0, 0.0), lf_span: (200.0, 100.0),
         };
