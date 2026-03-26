@@ -90,6 +90,10 @@ fn find_closing_brackets(s: &str) -> Option<usize> {
         if bytes[i] == b']' && bytes[i + 1] == b']' {
             return Some(i);
         }
+        // Java: [[...]] must not span lines — newline breaks the link
+        if bytes[i] == b'\n' {
+            return None;
+        }
         // Skip over `{…}` blocks so that `}` inside tooltips doesn't confuse us.
         if bytes[i] == b'{' {
             i += 1;

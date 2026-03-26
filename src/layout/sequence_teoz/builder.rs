@@ -1275,6 +1275,7 @@ pub fn build_teoz_layout(
 					is_left: *is_left,
 					is_self_msg_note: *is_note_on_message,
 					is_note_on_message: *is_note_on_message,
+					assoc_message_idx: None,
 				});
 			}
 			TeozTile::NoteOver {
@@ -1314,6 +1315,7 @@ pub fn build_teoz_layout(
 					is_left: false,
 					is_self_msg_note: false,
 					is_note_on_message: false,
+					assoc_message_idx: None,
 				});
 			}
 			TeozTile::Divider { text, y, .. } => {

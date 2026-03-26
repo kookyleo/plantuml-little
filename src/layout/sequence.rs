@@ -248,6 +248,9 @@ pub struct NoteLayout {
     /// Whether this note is attached to any message (for note-on-message y-binding).
     #[allow(dead_code)]
     pub(crate) is_note_on_message: bool,
+    /// Index of the associated message (for rendering order).
+    /// None for standalone notes (not following a message).
+    pub(crate) assoc_message_idx: Option<usize>,
 }
 
 /// Group box layout
@@ -381,6 +384,7 @@ fn update_fragment_message_extent(
 fn count_note_lines(text: &str) -> usize {
     text.split(crate::NEWLINE_CHAR)
         .flat_map(|s| s.lines())
+        .flat_map(|s| s.split("\\n"))
         .count()
         .max(1)
 }
@@ -448,6 +452,7 @@ fn estimate_note_width(text: &str) -> f64 {
     let max_line_w = text
         .split(crate::NEWLINE_CHAR)
         .flat_map(|s| s.lines())
+        .flat_map(|s| s.split("\\n"))
         .map(|line| font_metrics::text_width(line, "SansSerif", NOTE_FONT_SIZE, false, false))
         .fold(0.0_f64, f64::max);
     // left pad (6) + text + right pad (4) + fold (10) = text + 20
@@ -918,6 +923,10 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
     // (overlapping vertically) rather than below it.
     let mut last_message_y: Option<f64> = None;
     let mut last_message_was_self: bool = false;
+    // Index of the last message in the messages array (for note association)
+    let mut last_message_idx: Option<usize> = None;
+    // Extra height from multiline message text (used to adjust note back-offset)
+    let mut last_message_extra_height: f64 = 0.0;
     // For self-messages: store the starting Y and preferred height of the
     // combined ArrowAndNoteBox tile so notes can be centered within it.
     let mut last_self_msg_starting_y: f64 = 0.0;
@@ -1091,6 +1100,10 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
                 } else {
                     0.0
                 };
+                // Save tile start (freeY in Java terms) before computing msg_y.
+                // y_cursor at this point is freeY + textHeight for the default
+                // single-line case. The actual tile start (freeY) is where the
+                // tile begins, which is msg_y - back_offset (the note's y position).
                 let msg_y = y_cursor + extra_height - empty_text_adjust;
                 if is_self {
                     log::debug!("self-msg: text_lines={}, num_extra={num_extra_lines}, extra_height={extra_height}, y_cursor_before={y_cursor}, msg_y={msg_y}", text_lines.len());
@@ -1204,15 +1217,12 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
                     update_fragment_message_extent(&mut fragment_stack, msg_x_min, msg_x_max);
                 }
 
-                // Enable note back-offset for single-line messages AND
-                // multi-line self-messages (Java positions notes alongside
-                // self-messages regardless of line count).
-                if num_extra_lines == 0 || is_self {
-                    last_message_y = Some(msg_y);
-                    last_message_was_self = is_self;
-                } else {
-                    last_message_y = None;
-                }
+                // Java positions notes alongside messages regardless of
+                // line count (both single-line and multi-line).
+                last_message_y = Some(msg_y);
+                last_message_was_self = is_self;
+                last_message_extra_height = extra_height;
+                last_message_idx = Some(messages.len() - 1);
                 last_event_msg_y = Some(msg_y);
 
                 if is_self {
@@ -1355,8 +1365,10 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
                         // Our tile_start_y already includes imageMargin, so:
                         last_self_msg_starting_y + note_push + NOTE_COMPONENT_PADDING_Y
                     } else {
-                        let back_offset = lp.message_spacing - NOTE_FOLD;
-                        log::debug!("NoteRight: msg_y={msg_y}, back_offset={back_offset}, note_height={note_height}, y_cursor={y_cursor}");
+                        // For multiline messages, the back_offset must account
+                        // for the extra text lines above the arrow line.
+                        let back_offset = lp.message_spacing - NOTE_FOLD + last_message_extra_height;
+                        log::debug!("NoteRight: msg_y={msg_y}, back_offset={back_offset}, extra_h={last_message_extra_height}, note_height={note_height}, y_cursor={y_cursor}");
                         (msg_y - back_offset).max(MARGIN + max_ph)
                     }
                 } else {
@@ -1389,6 +1401,7 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
                     is_left: false,
                     is_self_msg_note: last_message_was_self,
                     is_note_on_message: last_message_was_self,
+                    assoc_message_idx: last_message_idx,
                 });
                 // Notes inside fragments expand the fragment bounds (Java: InGroupable).
                 // Java NoteBox preferred width = visual_width + 2*paddingX (Rose.paddingX=5).
@@ -1403,10 +1416,26 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
                         note_x + note_width + NOTE_COMPONENT_PADDING_X + note_right_shift,
                     );
                 }
-                // Only advance y_cursor if the note bottom extends below current position
-                let note_bottom = note_y + note_height;
-                if note_bottom > y_cursor {
-                    y_cursor = note_bottom;
+                // Java ArrowAndNoteBox: combined tile preferred height is
+                // max(arrowPreferredH, notePreferredH), measured from tile start.
+                // The tile start (freeY) = note_y (note is placed at the tile start).
+                // The arrow's total advancement = y_cursor (= msg_y + message_spacing).
+                // The note's advancement = note_y + note_preferred_height.
+                // If the note extends beyond y_cursor, advance y_cursor.
+                let note_pref_h = estimate_note_preferred_height(text);
+                if last_message_was_self {
+                    let note_tile_bottom = note_y + note_pref_h;
+                    if note_tile_bottom > y_cursor {
+                        y_cursor = note_tile_bottom;
+                    }
+                } else if let Some(msg_y) = last_message_y {
+                    // For non-self messages: tile start = note_y.
+                    // Arrow PH from tile start = y_cursor - note_y.
+                    // If note PH > arrow PH, push y_cursor forward by the difference.
+                    let arrow_ph = y_cursor - note_y;
+                    if note_pref_h > arrow_ph {
+                        y_cursor += note_pref_h - arrow_ph;
+                    }
                 }
                 if last_message_y.is_some() {
                     pending_note_activate_y = last_message_y;
@@ -1426,10 +1455,12 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
                         let note_push = (combined_h - note_preferred_h) / 2.0;
                         last_self_msg_starting_y + note_push + NOTE_COMPONENT_PADDING_Y
                     } else {
-                        let back_offset = lp.message_spacing - NOTE_FOLD;
+                        let back_offset = lp.message_spacing - NOTE_FOLD + last_message_extra_height;
+                        log::debug!("NoteLeft: msg_y={msg_y}, back_offset={back_offset}, extra_h={last_message_extra_height}, note_height={note_height}, y_cursor={y_cursor}");
                         (msg_y - back_offset).max(MARGIN + max_ph)
                     }
                 } else {
+                    log::debug!("NoteLeft: no last_message_y, using y_cursor={y_cursor}");
                     y_cursor
                 };
                 // Java NoteBox.getStartingX for LEFT:
@@ -1454,6 +1485,7 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
                     is_left: true,
                     is_self_msg_note: last_message_was_self,
                     is_note_on_message: last_message_was_self,
+                    assoc_message_idx: last_message_idx,
                 });
                 // Notes inside fragments expand the fragment bounds (Java: InGroupable).
                 // Java NoteBox preferred width = visual_width + 2*paddingX.
@@ -1464,9 +1496,17 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
                         note_x + note_width + NOTE_COMPONENT_PADDING_X,
                     );
                 }
-                let note_bottom = note_y + note_height;
-                if note_bottom > y_cursor {
-                    y_cursor = note_bottom;
+                let note_pref_h = estimate_note_preferred_height(text);
+                if last_message_was_self {
+                    let note_tile_bottom = note_y + note_pref_h;
+                    if note_tile_bottom > y_cursor {
+                        y_cursor = note_tile_bottom;
+                    }
+                } else if let Some(msg_y) = last_message_y {
+                    let arrow_ph = y_cursor - note_y;
+                    if note_pref_h > arrow_ph {
+                        y_cursor += note_pref_h - arrow_ph;
+                    }
                 }
                 if last_message_y.is_some() {
                     pending_note_activate_y = last_message_y;
@@ -1494,7 +1534,7 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
                             let note_push = (combined_h - note_preferred_h) / 2.0;
                             last_self_msg_starting_y + note_push + NOTE_COMPONENT_PADDING_Y
                         } else {
-                            let back_offset = lp.message_spacing - NOTE_FOLD;
+                            let back_offset = lp.message_spacing - NOTE_FOLD + last_message_extra_height;
                             (msg_y - back_offset).max(MARGIN + max_ph)
                         }
                     } else {
@@ -1511,6 +1551,7 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
                         is_left: false,
                         is_self_msg_note: false,
                         is_note_on_message: false,
+                        assoc_message_idx: last_message_idx,
                     });
                     let note_bottom = note_y + note_height;
                     if note_bottom > y_cursor {
