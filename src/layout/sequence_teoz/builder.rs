@@ -179,6 +179,8 @@ enum TeozTile {
 		label: String,
 		height: f64,
 		y: Option<f64>,
+		/// Teoz parallel: shares y with previous tile block
+		is_parallel: bool,
 	},
 	/// Fragment separator (else)
 	FragmentSeparator {
@@ -479,6 +481,112 @@ fn estimate_note_width(text: &str) -> f64 {
 		.fold(0.0_f64, f64::max);
 	let w = max_line_w + NOTE_PADDING + NOTE_PADDING / 2.0 + NOTE_FOLD + 2.0;
 	w.max(30.0)
+}
+
+/// Compute per-fragment (min_x, max_x) extent from child tiles within the
+/// range [start_idx..end_idx) in raw coordinate space.
+/// This matches Java GroupingTile which computes its own min/max from children.
+fn compute_fragment_extent(
+	tiles: &[TeozTile],
+	start_idx: usize,
+	end_idx: usize,
+	livings: &[LivingSpace],
+	rl: &RealLine,
+	tp: &TeozParams,
+) -> (f64, f64) {
+	let mut fmin = f64::MAX;
+	let mut fmax = f64::MIN;
+	let mut nested_depth: usize = 0;
+
+	for i in start_idx..end_idx {
+		let tile = &tiles[i];
+		match tile {
+			TeozTile::FragmentStart { .. } | TeozTile::GroupStart { .. } => {
+				nested_depth += 1;
+				continue;
+			}
+			TeozTile::FragmentEnd { .. } | TeozTile::GroupEnd { .. } => {
+				if nested_depth > 0 {
+					nested_depth -= 1;
+				}
+				continue;
+			}
+			_ if nested_depth > 0 => {
+				// Skip nested fragment children — they contribute through
+				// the nested fragment's own extent (handled by recursive layout).
+				continue;
+			}
+			_ => {}
+		}
+		match tile {
+			TeozTile::Communication { from_idx, to_idx, .. } => {
+				let from_x = rl.get_value(livings[*from_idx].pos_c);
+				let to_x = rl.get_value(livings[*to_idx].pos_c);
+				let t_min = f64::min(from_x, to_x);
+				let t_max = f64::max(from_x, to_x);
+				if t_min < fmin { fmin = t_min; }
+				if t_max > fmax { fmax = t_max; }
+			}
+			TeozTile::SelfMessage { participant_idx, text_width, direction, active_level, .. } => {
+				let cx = rl.get_value(livings[*participant_idx].pos_c);
+				let comp_w = self_message_comp_width(*text_width, tp.msg_line_height);
+				let (t_min, t_max) = self_message_extent(cx, comp_w, *active_level, direction);
+				if t_min < fmin { fmin = t_min; }
+				if t_max > fmax { fmax = t_max; }
+			}
+			TeozTile::Note { participant_idx, is_left, width, is_note_on_message, .. } => {
+				let cx = rl.get_value(livings[*participant_idx].pos_c);
+				let extent_w = *width + NOTE_EXTENT_PADDING;
+				if *is_note_on_message {
+					// Note on self-message: use self-message extent as base
+					if let Some((sm_pidx, sm_tw, sm_dir, sm_al)) = find_preceding_self_message(tiles, i) {
+						let sm_cx = rl.get_value(livings[sm_pidx].pos_c);
+						let sm_comp_w = self_message_comp_width(sm_tw, tp.msg_line_height);
+						let (sm_min, sm_max) = self_message_extent(sm_cx, sm_comp_w, sm_al, &sm_dir);
+						let (t_min, t_max) = if *is_left {
+							(sm_min - extent_w, sm_max)
+						} else {
+							(sm_min, sm_max + extent_w)
+						};
+						if t_min < fmin { fmin = t_min; }
+						if t_max > fmax { fmax = t_max; }
+					} else {
+						// Fallback to cx-based
+						if *is_left {
+							let left = cx - extent_w - 5.0;
+							if left < fmin { fmin = left; }
+							if cx > fmax { fmax = cx; }
+						} else {
+							let right = cx + extent_w;
+							if right > fmax { fmax = right; }
+							if cx < fmin { fmin = cx; }
+						}
+					}
+				} else {
+					if *is_left {
+						let left = cx - extent_w - 5.0;
+						if left < fmin { fmin = left; }
+						if cx > fmax { fmax = cx; }
+					} else {
+						let right = cx + extent_w;
+						if right > fmax { fmax = right; }
+						if cx < fmin { fmin = cx; }
+					}
+				}
+			}
+			_ => {}
+		}
+	}
+
+	// Fallback if no children found
+	if fmin == f64::MAX { fmin = 0.0; }
+	if fmax == f64::MIN { fmax = 0.0; }
+
+	// Apply GroupingTile MARGINX (internal padding between frame and content)
+	fmin -= GROUP_MARGINX;
+	fmax += GROUP_MARGINX;
+
+	(fmin, fmax)
 }
 
 #[allow(dead_code)]
@@ -873,7 +981,7 @@ pub fn build_teoz_layout(
 					y: None,
 				});
 			}
-			SeqEvent::FragmentStart { kind, label } => {
+			SeqEvent::FragmentStart { kind, label, parallel } => {
 				// Java GroupingTile header: dim1.height + MARGINY_MAGIC/2
 				// dim1.height = frag_header_height, MARGINY_MAGIC/2 = 10
 				tiles.push(TeozTile::FragmentStart {
@@ -881,6 +989,7 @@ pub fn build_teoz_layout(
 					label: label.clone(),
 					height: tp.frag_header_height + 10.0,
 					y: None,
+					is_parallel: *parallel,
 				});
 			}
 			SeqEvent::FragmentSeparator { label } => {
@@ -1082,21 +1191,63 @@ pub fn build_teoz_layout(
 	// Tile index range of the outermost fragment block
 	let mut frag_block_start_idx: Option<usize> = None;
 
+	// Track parallel fragment blocks.
+	// When a FragmentStart has is_parallel=true, we rewind y to the start
+	// of the previous block and lay out the fragment in parallel.
+	// After the matching FragmentEnd, y = block_start + max(prev_height, this_height).
+	let mut parallel_frag_base_y: Option<f64> = None;
+	let mut parallel_frag_prev_height: f64 = 0.0;
+	let mut parallel_frag_depth: i32 = 0; // nesting depth within the parallel fragment
+
 	let tile_count = tiles.len();
 	let mut tile_idx = 0;
 	while tile_idx < tile_count {
 		// Check if this tile is a parallel message
-		let is_parallel = matches!(tiles[tile_idx],
+		let is_parallel_msg = matches!(tiles[tile_idx],
 			TeozTile::Communication { is_parallel: true, .. }
 			| TeozTile::SelfMessage { is_parallel: true, .. }
 		);
+		// Check if this tile is a parallel fragment start
+		let is_parallel_frag = matches!(tiles[tile_idx],
+			TeozTile::FragmentStart { is_parallel: true, .. }
+		);
+		let is_parallel = is_parallel_msg;
 
 		// Check if this Note follows a message (note-on-message binding).
 		let is_note_on_msg = matches!(tiles[tile_idx],
 			TeozTile::Note { is_note_on_message: true, .. }
 		) && prev_msg_height.is_some();
 
-		if is_note_on_msg {
+		if is_parallel_frag {
+			// Parallel fragment: rewind y to the start of the previous block.
+			// Java mergeParallel creates a TileParallel where both fragments
+			// share the same y start, and total height = max(frag1_h, frag2_h).
+			if let Some(bs_y) = block_start_y {
+				// Java removeEmptyCloseToParallel: the trailing EmptyTile(4) and
+				// FRAG_BOTTOM_PADDING(10) from the previous fragment are removed.
+				// Compute effective previous height without trailing padding.
+				let trailing_padding = FRAG_BOTTOM_PADDING + EMPTY_TILE_SPACING; // 10 + 4 = 14
+				let prev_effective = block_max_height - trailing_padding;
+				parallel_frag_base_y = Some(bs_y);
+				parallel_frag_prev_height = prev_effective;
+				parallel_frag_depth = 1; // this fragment's own depth
+				// Rewind to block start. No EmptyTile(4) before parallel fragment
+				// (Java removeEmptyCloseToParallel removes it).
+				y = bs_y;
+				frag_depth += 1;
+				tiles[tile_idx].set_y(y);
+				let tile_h = tiles[tile_idx].preferred_height();
+				y += tile_h;
+			} else {
+				// No block to parallel with — treat as normal fragment
+				frag_depth += 1;
+				y += EMPTY_TILE_SPACING;
+				tiles[tile_idx].set_y(y);
+				y += tiles[tile_idx].preferred_height();
+			}
+			prev_msg_height = None;
+			prev_msg_y = None;
+		} else if is_note_on_msg {
 			let msg_h = prev_msg_height.unwrap();
 			let msg_y = prev_msg_y.unwrap();
 			let note_h = tiles[tile_idx].preferred_height();
@@ -1156,9 +1307,17 @@ pub fn build_teoz_layout(
 
 			if is_frag_start {
 				frag_depth += 1;
+				// Track parallel fragment nesting
+				if parallel_frag_base_y.is_some() {
+					parallel_frag_depth += 1;
+				}
 			}
 			if is_frag_end {
 				frag_depth -= 1;
+				// Track parallel fragment nesting
+				if parallel_frag_base_y.is_some() {
+					parallel_frag_depth -= 1;
+				}
 			}
 
 			// Java inserts EmptyTile(4) spacer before GroupingTile
@@ -1168,6 +1327,35 @@ pub fn build_teoz_layout(
 			// Java GroupingTile bottom padding = MARGINY_MAGIC/2 = 10
 			if is_frag_end {
 				y += FRAG_BOTTOM_PADDING;
+			}
+
+			// Check if this FragmentEnd closes the parallel fragment
+			if is_frag_end && parallel_frag_depth == 0 {
+				if let Some(base_y) = parallel_frag_base_y.take() {
+					// Current fragment height from base, excluding trailing padding.
+					// y already includes FRAG_BOTTOM_PADDING(10) added above;
+					// exclude it along with this tile's height (EmptyTile equivalent).
+					let trailing_padding = FRAG_BOTTOM_PADDING + tiles[tile_idx].preferred_height();
+					let this_frag_height = y - base_y; // y includes the 10px padding
+					let this_effective = this_frag_height - FRAG_BOTTOM_PADDING;
+					// Use max of previous block height and this parallel fragment height
+					let max_height = parallel_frag_prev_height.max(this_effective);
+					// After the parallel block, add back the trailing padding so
+					// subsequent normal tiles have correct spacing.
+					y = base_y + max_height + FRAG_BOTTOM_PADDING;
+					// Set block tracking for potential subsequent parallel blocks
+					block_start_y = Some(base_y);
+					// block_max_height includes trailing padding for subsequent parallelism
+					block_max_height = max_height + FRAG_BOTTOM_PADDING + EMPTY_TILE_SPACING;
+					frag_block_y_before = Some(base_y);
+					// Place the FragEnd tile at the appropriate position
+					tiles[tile_idx].set_y(y);
+					y += tiles[tile_idx].preferred_height();
+					prev_msg_height = None;
+					prev_msg_y = None;
+					tile_idx += 1;
+					continue;
+				}
 			}
 
 			// Record the outermost fragment start AFTER EmptyTile spacing.
@@ -1522,7 +1710,7 @@ pub fn build_teoz_layout(
 	let mut delays: Vec<DelayLayout> = Vec::new();
 	let mut refs: Vec<RefLayout> = Vec::new();
 	let mut fragments: Vec<FragmentLayout> = Vec::new();
-	let mut fragment_stack: Vec<(f64, FragmentKind, String, Vec<(f64, String)>)> = Vec::new();
+	let mut fragment_stack: Vec<(f64, FragmentKind, String, Vec<(f64, String)>, usize)> = Vec::new();
 	let mut groups: Vec<GroupLayout> = Vec::new();
 	let mut group_stack: Vec<(f64, Option<String>)> = Vec::new();
 
@@ -1850,7 +2038,7 @@ pub fn build_teoz_layout(
 			}
 			TeozTile::FragmentStart { kind, label, y, .. } => {
 				let ty = y.unwrap_or(0.0);
-				fragment_stack.push((ty, kind.clone(), label.clone(), Vec::new()));
+				fragment_stack.push((ty, kind.clone(), label.clone(), Vec::new(), tile_i + 1));
 			}
 			TeozTile::FragmentSeparator { label, y, .. } => {
 				let ty = y.unwrap_or(0.0);
@@ -1860,24 +2048,32 @@ pub fn build_teoz_layout(
 			}
 			TeozTile::FragmentEnd { y, .. } => {
 				let ty = y.unwrap_or(0.0);
-				if let Some((y_start, kind, label, separators)) = fragment_stack.pop() {
-					// Java GroupingTile: drawU uses min (not min-EXTERNAL_MARGINX1)
-					// and width = max - min (not including external margins).
-					// The nesting depth determines the inset.
+				if let Some((y_start, kind, label, separators, child_start)) = fragment_stack.pop() {
 					let depth = fragment_stack.len(); // 0 for outermost
-					let inset_left = GROUP_EXTERNAL_MARGINX1 * (depth + 1) as f64;
-					let inset_right = GROUP_EXTERNAL_MARGINX2 * (depth + 1) as f64;
+					// Compute per-fragment width from child tiles.
+					// Java GroupingTile computes its own min/max from children.
+					let (frag_min, frag_max) = compute_fragment_extent(
+						&tiles, child_start, tile_i, &livings, &rl, &tp,
+					);
+					// Also account for header label width
+					let pure_text_w = font_metrics::text_width(
+						&label, default_font, msg_font_size, true, false,
+					);
+					// Java: this.min + headerWidth + 16 → contributes to maxX
+					let header_right = frag_min + pure_text_w + 45.0 + GROUP_MARGINX;
+					let effective_max = frag_max.max(header_right);
+					// Convert to document coordinates
+					let frag_x = frag_min + x_offset;
+					let frag_width = effective_max - frag_min;
 					// The tile y includes FRAG_BOTTOM_PADDING (10px) which is
 					// spacing below the frame rect, not part of the frame itself.
-					// Java GroupingTile.drawU: rect height = lastY - startY,
-					// where lastY is the content bottom before bottom padding.
 					let frame_height = ty - y_start - FRAG_BOTTOM_PADDING;
 					fragments.push(FragmentLayout {
 						kind,
 						label,
-						x: total_min_x + inset_left,
+						x: frag_x,
 						y: y_start,
-						width: diagram_width - inset_left - inset_right,
+						width: frag_width,
 						height: frame_height,
 						separators,
 					});

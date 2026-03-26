@@ -359,7 +359,14 @@ pub fn parse_sequence_diagram_with_original(source: &str, original_source: Optio
 
         // Parse combined fragments and group/end/else
         {
-            let lower = trimmed.to_lowercase();
+            // Teoz parallel fragment prefix: "& opt ..." means this fragment
+            // is parallel with the previous tile block.
+            let (frag_parallel, frag_trimmed) = if trimmed.starts_with("& ") {
+                (true, trimmed[2..].trim())
+            } else {
+                (false, trimmed)
+            };
+            let lower = frag_trimmed.to_lowercase();
 
             // "end" closes a fragment or legacy group
             if lower == "end" {
@@ -376,7 +383,7 @@ pub fn parse_sequence_diagram_with_original(source: &str, original_source: Optio
 
             // "else" within a fragment
             if lower.starts_with("else") && fragment_depth > 0 {
-                let rest = trimmed[4..].trim();
+                let rest = frag_trimmed[4..].trim();
                 let label = rest.to_string();
                 debug!("parsed fragment separator: {label:?}");
                 events.push(SeqEvent::FragmentSeparator { label });
@@ -385,18 +392,18 @@ pub fn parse_sequence_diagram_with_original(source: &str, original_source: Optio
 
             // Fragment start keywords: alt, loop, opt, par, break, critical
             if let Some((kind, rest_start)) = parse_fragment_keyword(&lower) {
-                let label = trimmed[rest_start..].trim().to_string();
+                let label = frag_trimmed[rest_start..].trim().to_string();
                 fragment_depth += 1;
                 debug!(
-                    "parsed fragment start {kind:?} label={label:?} (depth now {fragment_depth})"
+                    "parsed fragment start {kind:?} label={label:?} parallel={frag_parallel} (depth now {fragment_depth})"
                 );
-                events.push(SeqEvent::FragmentStart { kind, label });
+                events.push(SeqEvent::FragmentStart { kind, label, parallel: frag_parallel });
                 continue;
             }
 
             // Legacy "group" keyword
             if lower.starts_with("group") {
-                let rest = trimmed[5..].trim();
+                let rest = frag_trimmed[5..].trim();
                 let label = if rest.is_empty() {
                     None
                 } else {
@@ -408,6 +415,7 @@ pub fn parse_sequence_diagram_with_original(source: &str, original_source: Optio
                 events.push(SeqEvent::FragmentStart {
                     kind: FragmentKind::Group,
                     label: label.unwrap_or_default(),
+                    parallel: frag_parallel,
                 });
                 continue;
             }
@@ -1222,7 +1230,7 @@ mod tests {
         let diagram = parse_sequence_diagram(src).unwrap();
 
         assert!(
-            matches!(&diagram.events[0], SeqEvent::FragmentStart { kind, label } if *kind == FragmentKind::Group && label == "My Group")
+            matches!(&diagram.events[0], SeqEvent::FragmentStart { kind, label, .. } if *kind == FragmentKind::Group && label == "My Group")
         );
         assert!(matches!(&diagram.events[1], SeqEvent::Message(_)));
         assert!(matches!(&diagram.events[2], SeqEvent::FragmentEnd));
@@ -1477,7 +1485,7 @@ Sally --> Bob
         let diagram = parse_sequence_diagram(src).unwrap();
 
         assert!(
-            matches!(&diagram.events[1], SeqEvent::FragmentStart { kind, label } if *kind == FragmentKind::Alt && label == "success")
+            matches!(&diagram.events[1], SeqEvent::FragmentStart { kind, label, .. } if *kind == FragmentKind::Alt && label == "success")
         );
         assert!(
             matches!(&diagram.events[3], SeqEvent::FragmentSeparator { label } if label == "failure")
@@ -1492,7 +1500,7 @@ Sally --> Bob
         let diagram = parse_sequence_diagram(src).unwrap();
 
         assert!(
-            matches!(&diagram.events[0], SeqEvent::FragmentStart { kind, label } if *kind == FragmentKind::Loop && label == "1000 times")
+            matches!(&diagram.events[0], SeqEvent::FragmentStart { kind, label, .. } if *kind == FragmentKind::Loop && label == "1000 times")
         );
         assert!(matches!(&diagram.events[2], SeqEvent::FragmentEnd));
     }
@@ -1504,7 +1512,7 @@ Sally --> Bob
         let diagram = parse_sequence_diagram(src).unwrap();
 
         assert!(
-            matches!(&diagram.events[0], SeqEvent::FragmentStart { kind, label } if *kind == FragmentKind::Opt && label == "extra processing")
+            matches!(&diagram.events[0], SeqEvent::FragmentStart { kind, label, .. } if *kind == FragmentKind::Opt && label == "extra processing")
         );
     }
 
@@ -1515,7 +1523,7 @@ Sally --> Bob
         let diagram = parse_sequence_diagram(src).unwrap();
 
         assert!(
-            matches!(&diagram.events[0], SeqEvent::FragmentStart { kind, label } if *kind == FragmentKind::Par && label == "thread 1")
+            matches!(&diagram.events[0], SeqEvent::FragmentStart { kind, label, .. } if *kind == FragmentKind::Par && label == "thread 1")
         );
         assert!(
             matches!(&diagram.events[2], SeqEvent::FragmentSeparator { label } if label == "thread 2")

@@ -129,6 +129,8 @@ pub enum SeqEvent {
     FragmentStart {
         kind: FragmentKind,
         label: String,
+        /// Teoz parallel fragment (& prefix): shares y position with previous tile
+        parallel: bool,
     },
     /// Fragment separator (else within alt/par)
     FragmentSeparator {

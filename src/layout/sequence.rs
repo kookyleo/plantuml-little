@@ -1656,7 +1656,7 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
                 last_message_y = None;
             }
 
-            SeqEvent::FragmentStart { kind, label } => {
+            SeqEvent::FragmentStart { kind, label, .. } => {
                 let frag_y = y_cursor - lp.frag_y_backoff;
                 let depth = fragment_stack.len();
                 fragment_stack.push(FragmentStackEntry {
@@ -2427,6 +2427,7 @@ mod tests {
                 SeqEvent::FragmentStart {
                     kind: FragmentKind::Alt,
                     label: "success".to_string(),
+                    parallel: false,
                 },
                 SeqEvent::Message(make_message("A", "B", "ok")),
                 SeqEvent::FragmentSeparator {
