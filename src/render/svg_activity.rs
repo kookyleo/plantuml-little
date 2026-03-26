@@ -240,13 +240,25 @@ fn render_action(
     let padding = 10.0; // Java: activityDiagram.activity.Padding = 10
     let base_x = node.x + padding;
     let baseline_offset = font_metrics::ascent("SansSerif", ACTION_FONT_SIZE, false, false);
-    let first_baseline = node.y + padding + baseline_offset;
     // Java DriverTextSvg: space width for leading-space offset
     let space_width =
         font_metrics::text_width(" ", "SansSerif", ACTION_FONT_SIZE, false, false);
 
+    // Check if the content is a creole table (all lines are table rows).
+    // Table rows start and end with '|' and have length > 2.
+    let is_table = lines.iter().all(|l| {
+        let t = l.trim();
+        t.starts_with('|') && t.ends_with('|') && t.len() > 2
+    }) && !lines.is_empty();
+
+    // For creole tables, Java adds TABLE_CELL_PADDING (2px) to the y offset
+    // and renders grid lines.
+    let table_cell_padding = if is_table { 2.0 } else { 0.0 };
+    let first_baseline = node.y + padding + table_cell_padding + baseline_offset;
+    let lh = action_line_height();
+
     for (i, line) in lines.iter().enumerate() {
-        let y = first_baseline + i as f64 * action_line_height();
+        let y = first_baseline + i as f64 * lh;
         // Java DriverTextSvg algorithm:
         // 1. Count leading spaces → add space_width per space to x
         // 2. StringUtils.trin() the remaining text (strips trailing whitespace)
@@ -257,20 +269,66 @@ fn render_action(
         if display_text.is_empty() {
             continue;
         }
+        // For table rows, strip outer pipes and leading header markers (=)
+        let cell_text = if is_table {
+            let inner = display_text.trim_start_matches('|').trim_end_matches('|');
+            inner.trim().trim_start_matches("= ").trim_start_matches('=')
+        } else {
+            display_text
+        };
         let mut tmp = String::new();
         // Java: activity action text preserves literal \n as displayable text
         render_creole_text_opts(
             &mut tmp,
-            display_text,
+            cell_text,
             text_x,
             y,
-            action_line_height(),
+            lh,
             font_color,
             None,
             r#"font-size="12""#,
             true, // preserve_backslash_n
         );
         sg.push_raw(&tmp);
+    }
+
+    // Render creole table grid lines
+    if is_table && !lines.is_empty() {
+        let grid_left = base_x;
+        // Find max text width for grid right boundary
+        let max_text_w = lines.iter().map(|l| {
+            let t = l.trim();
+            let inner = t.trim_start_matches('|').trim_end_matches('|');
+            font_metrics::text_width(inner.trim(), "SansSerif", ACTION_FONT_SIZE, false, false)
+        }).fold(0.0_f64, f64::max);
+        let grid_right = grid_left + max_text_w;
+        let grid_top = node.y + padding + table_cell_padding;
+        let n_rows = lines.len();
+        // Horizontal lines: top, between rows, bottom
+        for row in 0..=n_rows {
+            let y_line = grid_top + row as f64 * lh;
+            let mut tmp = String::new();
+            use std::fmt::Write;
+            write!(tmp,
+                r#"<line style="stroke:#000000;stroke-width:0.5;" x1="{x1}" x2="{x2}" y1="{y}" y2="{y}"/>"#,
+                x1 = fmt_coord(grid_left), x2 = fmt_coord(grid_right),
+                y = fmt_coord(y_line),
+            ).unwrap();
+            sg.push_raw(&tmp);
+        }
+        // Vertical lines: left and right
+        let y_top = grid_top;
+        let y_bottom = grid_top + n_rows as f64 * lh;
+        for &x in &[grid_left, grid_right] {
+            let mut tmp = String::new();
+            use std::fmt::Write;
+            write!(tmp,
+                r#"<line style="stroke:#000000;stroke-width:0.5;" x1="{x}" x2="{x}" y1="{y1}" y2="{y2}"/>"#,
+                x = fmt_coord(x),
+                y1 = fmt_coord(y_top), y2 = fmt_coord(y_bottom),
+            ).unwrap();
+            sg.push_raw(&tmp);
+        }
     }
 }
 
