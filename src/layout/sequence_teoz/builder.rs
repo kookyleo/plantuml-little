@@ -1540,12 +1540,15 @@ pub fn build_teoz_layout(
 		let tile = &tiles[tile_i];
 		match tile {
 			TeozTile::Communication {
+				from_name,
+				to_name,
 				from_idx,
 				to_idx,
 				text,
 				text_lines,
 				is_dashed,
 				has_open_head,
+				text_width,
 				y,
 				height,
 				autonumber,
@@ -1561,31 +1564,56 @@ pub fn build_teoz_layout(
 				let arrow_y = ty + (height - rose::ARROW_DELTA_Y - rose::ARROW_PADDING_Y);
 				let raw_from_x = get_x(livings[*from_idx].pos_c);
 				let raw_to_x = get_x(livings[*to_idx].pos_c);
-				let is_left = raw_to_x < raw_from_x;
 
-				// Java CommunicationTile.drawU(): adjust x positions
-				// based on activation levels (LIVE_DELTA_SIZE = 5).
-				const LIVE_DELTA: f64 = 5.0;
-				let (from_x, to_x) = if is_left {
-					// Reverse direction (right-to-left)
-					let mut x1 = raw_from_x;
-					let level1 = *from_level;
-					if level1 == 1 {
-						x1 -= LIVE_DELTA;
-					} else if level1 > 2 {
-						x1 += LIVE_DELTA * (level1 as f64 - 2.0);
+				// Gate/lost/found messages: virtual endpoint is near the
+				// real participant, computed from arrow preferred width.
+				// Java: CommunicationTile uses getPreferredWidth() which is
+				// text_width + ARROW_DELTA_X(10) + 2*paddingY(7) + inset(2).
+				let is_gate_from = from_name == "[";
+				let is_gate_to = to_name == "]";
+
+				let (from_x, to_x, is_left) = if is_gate_from || is_gate_to {
+					// Gate message: compute virtual endpoint from text width.
+					// Arrow total width = 7 (left pad) + text_width + 5 (right pad)
+					//                    + 10 (arrowhead) + 2 (inset) = text_width + 24
+					let arrow_span = text_width + 24.0;
+					if is_gate_to {
+						// Lost message (A->?): arrow goes right from real participant
+						let fx = raw_from_x;
+						let tx = fx + arrow_span;
+						(fx, tx, false)
+					} else {
+						// Found message (?->E): arrow comes from left to real participant
+						let tx = raw_to_x;
+						let fx = tx - arrow_span;
+						(fx, tx, false)
 					}
-					let x2 = raw_to_x + LIVE_DELTA * (*to_level as f64);
-					(x1, x2)
 				} else {
-					// Normal direction (left-to-right)
-					let x1 = raw_from_x + LIVE_DELTA * (*from_level as f64);
-					let mut adjusted_tl = *to_level as i64;
-					if adjusted_tl > 0 {
-						adjusted_tl -= 2;
+					let is_left = raw_to_x < raw_from_x;
+					// Java CommunicationTile.drawU(): adjust x positions
+					// based on activation levels (LIVE_DELTA_SIZE = 5).
+					const LIVE_DELTA: f64 = 5.0;
+					if is_left {
+						// Reverse direction (right-to-left)
+						let mut x1 = raw_from_x;
+						let level1 = *from_level;
+						if level1 == 1 {
+							x1 -= LIVE_DELTA;
+						} else if level1 > 2 {
+							x1 += LIVE_DELTA * (level1 as f64 - 2.0);
+						}
+						let x2 = raw_to_x + LIVE_DELTA * (*to_level as f64);
+						(x1, x2, true)
+					} else {
+						// Normal direction (left-to-right)
+						let x1 = raw_from_x + LIVE_DELTA * (*from_level as f64);
+						let mut adjusted_tl = *to_level as i64;
+						if adjusted_tl > 0 {
+							adjusted_tl -= 2;
+						}
+						let x2 = raw_to_x + LIVE_DELTA * (adjusted_tl as f64);
+						(x1, x2, false)
 					}
-					let x2 = raw_to_x + LIVE_DELTA * (adjusted_tl as f64);
-					(x1, x2)
 				};
 				messages.push(MessageLayout {
 					from_x,
@@ -1839,13 +1867,18 @@ pub fn build_teoz_layout(
 					let depth = fragment_stack.len(); // 0 for outermost
 					let inset_left = GROUP_EXTERNAL_MARGINX1 * (depth + 1) as f64;
 					let inset_right = GROUP_EXTERNAL_MARGINX2 * (depth + 1) as f64;
+					// The tile y includes FRAG_BOTTOM_PADDING (10px) which is
+					// spacing below the frame rect, not part of the frame itself.
+					// Java GroupingTile.drawU: rect height = lastY - startY,
+					// where lastY is the content bottom before bottom padding.
+					let frame_height = ty - y_start - FRAG_BOTTOM_PADDING;
 					fragments.push(FragmentLayout {
 						kind,
 						label,
 						x: total_min_x + inset_left,
 						y: y_start,
 						width: diagram_width - inset_left - inset_right,
-						height: ty - y_start,
+						height: frame_height,
 						separators,
 					});
 				}

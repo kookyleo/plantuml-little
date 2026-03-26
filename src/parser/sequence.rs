@@ -575,13 +575,15 @@ pub fn parse_sequence_diagram_with_original(source: &str, original_source: Optio
                 events.push(SeqEvent::Message(msg));
                 // Java: --++ = deactivate source + activate target
                 if inline_deactivate_source {
-                    events.push(SeqEvent::Deactivate(source));
+                    events.push(SeqEvent::Deactivate(source.clone()));
                 }
                 if inline_activate {
                     events.push(SeqEvent::Activate(target.clone(), inline_color.clone()));
                 }
                 if inline_deactivate {
-                    events.push(SeqEvent::Deactivate(target));
+                    // Java: `--` suffix deactivates the SOURCE, not the target.
+                    // Example: `B -->> A-- : Data` deactivates B (the sender).
+                    events.push(SeqEvent::Deactivate(source.clone()));
                 }
                 continue;
             }
