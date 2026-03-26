@@ -25,7 +25,7 @@ use crate::Result;
 
 use crate::layout::sequence::{
 	ActivationLayout, DelayLayout, DestroyLayout, DividerLayout, FragmentLayout,
-	MessageLayout, NoteLayout, ParticipantLayout, RefLayout, SeqLayout,
+	GroupLayout, MessageLayout, NoteLayout, ParticipantLayout, RefLayout, SeqLayout,
 };
 
 use super::living::LivingSpace;
@@ -1058,6 +1058,8 @@ pub fn build_teoz_layout(
 	let mut refs: Vec<RefLayout> = Vec::new();
 	let mut fragments: Vec<FragmentLayout> = Vec::new();
 	let mut fragment_stack: Vec<(f64, FragmentKind, String, Vec<(f64, String)>)> = Vec::new();
+	let mut groups: Vec<GroupLayout> = Vec::new();
+	let mut group_stack: Vec<(f64, Option<String>)> = Vec::new();
 
 	// Compute total width from Real values
 	let mut total_min_x = f64::MAX;
@@ -1204,6 +1206,13 @@ pub fn build_teoz_layout(
 				let is_left = *direction == SeqDirection::RightToLeft;
 				let has_bar = *active_level > 0;
 
+				// Java: CommunicationTileSelf.drawU() uses
+				//   getStartingY() + comp.getYPoint(stringBounder)
+				// where getYPoint = self_arrow_start_point().y = text_h + ARROW_PADDING_Y
+				let self_text_h = tp.msg_line_height * text_lines.len().max(1) as f64;
+				let self_tm = TextMetrics::new(7.0, 7.0, 1.0, *text_width, self_text_h);
+				let self_y_offset = rose::self_arrow_start_point(&self_tm).y;
+
 				// Compute self-message from_x/to_x/return_x accounting for
 				// activation bar, matching Java's LivingParticipantBox logic.
 				let (self_from_x, self_return_x, self_to_x) = if is_left {
@@ -1231,7 +1240,7 @@ pub fn build_teoz_layout(
 				messages.push(MessageLayout {
 					from_x: self_from_x,
 					to_x: self_to_x,
-					y: ty,
+					y: ty + self_y_offset,
 					text: text.clone(),
 					text_lines: text_lines.clone(),
 					is_self: true,
@@ -1396,6 +1405,25 @@ pub fn build_teoz_layout(
 					});
 				}
 			}
+			TeozTile::GroupStart { _label, y, .. } => {
+				let ty = y.unwrap_or(0.0);
+				group_stack.push((ty, _label.clone()));
+			}
+			TeozTile::GroupEnd { y, .. } => {
+				let ty = y.unwrap_or(0.0);
+				if let Some((y_start, label)) = group_stack.pop() {
+					// Group frame spans the full diagram width, matching fragments
+					groups.push(GroupLayout {
+						x: total_min_x,
+						y_start,
+						y_end: ty,
+						width: diagram_width,
+						label,
+					});
+				} else {
+					log::warn!("GroupEnd without matching GroupStart");
+				}
+			}
 			_ => {}
 		}
 	}
@@ -1535,7 +1563,7 @@ pub fn build_teoz_layout(
 		activations,
 		destroys,
 		notes,
-		groups: Vec::new(),
+		groups,
 		fragments,
 		dividers,
 		delays,
