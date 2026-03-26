@@ -241,6 +241,24 @@ fn generic_dim_width(entity: &Entity) -> f64 {
     }
 }
 
+/// Split an entity name into display lines following Java Display semantics.
+/// Java splits on `\n` (literal backslash-n), `\r` (literal backslash-r), and NEWLINE_CHAR.
+/// Empty lines are preserved (rendered as non-breaking space).
+pub(crate) fn split_name_display_lines(name: &str) -> Vec<String> {
+    let lines: Vec<String> = name
+        .split("\\r\\n")
+        .flat_map(|s| s.split("\\n"))
+        .flat_map(|s| s.split("\\r"))
+        .flat_map(|s| s.split(crate::NEWLINE_CHAR))
+        .map(|s| s.to_string())
+        .collect();
+    if lines.is_empty() {
+        vec![name.to_string()]
+    } else {
+        lines
+    }
+}
+
 /// Estimate entity rendering size (width_pt, height_pt)
 fn estimate_entity_size(
     cd: &ClassDiagram,
@@ -264,19 +282,22 @@ fn estimate_entity_size(
         return estimate_rectangle_size(entity);
     }
 
-    // Entity name WITHOUT generic parameter -- generic is rendered separately
-    let name_display = entity.name.clone();
+    // Entity name WITHOUT generic parameter -- generic is rendered separately.
+    // Split name into display lines following Java Display semantics (\n, \r split).
+    let name_lines = split_name_display_lines(&entity.name);
+    let n_name_lines = name_lines.len();
 
     let visible_stereotypes = visible_stereotype_labels(&cd.hide_show_rules, &entity.stereotypes);
     let italic_name = entity.kind == EntityKind::Abstract;
-    let name_width = font_metrics::text_width(
-        &name_display,
-        "SansSerif",
-        name_font_size,
-        false,
-        italic_name,
-    );
+    let name_width = name_lines
+        .iter()
+        .map(|line| {
+            let display = if line.is_empty() { "\u{00A0}".to_string() } else { line.clone() };
+            font_metrics::text_width(&display, "SansSerif", name_font_size, false, italic_name)
+        })
+        .fold(0.0_f64, f64::max);
     let name_block_width = name_width + HEADER_NAME_BLOCK_MARGIN_X;
+    let name_block_height = n_name_lines as f64 * HEADER_NAME_BLOCK_HEIGHT;
     let stereo_block_width = visible_stereotypes
         .iter()
         .map(|label| {
@@ -296,7 +317,7 @@ fn estimate_entity_size(
     let header_width = HEADER_CIRCLE_BLOCK_WIDTH + vis_icon_w + name_block_width.max(stereo_block_width) + gen_w;
     let stereo_height = visible_stereotypes.len() as f64 * HEADER_STEREO_LINE_HEIGHT;
     let header_height = HEADER_CIRCLE_BLOCK_HEIGHT
-        .max(stereo_height + HEADER_NAME_BLOCK_HEIGHT + HEADER_STEREO_NAME_GAP);
+        .max(stereo_height + name_block_height + HEADER_STEREO_NAME_GAP);
 
     let visible_fields: Vec<&Member> = entity
         .members
@@ -1295,6 +1316,97 @@ mod tests {
         assert!(
             result[0].connector.is_none(),
             "floating note should have no connector"
+        );
+    }
+
+    #[test]
+    fn split_name_single_line() {
+        let lines = split_name_display_lines("Foo");
+        assert_eq!(lines, vec!["Foo"]);
+    }
+
+    #[test]
+    fn split_name_backslash_n() {
+        let lines = split_name_display_lines("Class 1\\nLine 2");
+        assert_eq!(lines, vec!["Class 1", "Line 2"]);
+    }
+
+    #[test]
+    fn split_name_backslash_r_n() {
+        let lines = split_name_display_lines("Class 1\\r\\nLine 2");
+        assert_eq!(lines, vec!["Class 1", "Line 2"]);
+    }
+
+    #[test]
+    fn split_name_backslash_r() {
+        let lines = split_name_display_lines("Part A\\rPart B");
+        assert_eq!(lines, vec!["Part A", "Part B"]);
+    }
+
+    #[test]
+    fn split_name_crlf_is_single_break() {
+        // \r\n is a single CRLF sequence, producing one split
+        let lines = split_name_display_lines("Before\\r\\n\\tAfter");
+        assert_eq!(lines, vec!["Before", "\\tAfter"]);
+    }
+
+    #[test]
+    fn split_name_separate_r_and_n() {
+        // \r and \n as separate sequences produce empty line between
+        let lines = split_name_display_lines("A\\rB\\nC");
+        assert_eq!(lines, vec!["A", "B", "C"]);
+    }
+
+    #[test]
+    fn split_name_newline_char() {
+        let name = format!("A{}B", crate::NEWLINE_CHAR);
+        let lines = split_name_display_lines(&name);
+        assert_eq!(lines, vec!["A", "B"]);
+    }
+
+    #[test]
+    fn multiline_name_increases_header_height() {
+        let single = empty_entity("Foo");
+        let multi = Entity {
+            name: "Foo\\nBar".to_string(),
+            ..single.clone()
+        };
+        let diagram = empty_diagram();
+        let (_, h_single) = estimate_entity_size(&diagram, &single, MEMBER_ROW_HEIGHT, CLASS_FONT_SIZE, CLASS_FONT_SIZE);
+        let (_, h_multi) = estimate_entity_size(&diagram, &multi, MEMBER_ROW_HEIGHT, CLASS_FONT_SIZE, CLASS_FONT_SIZE);
+        // Multi-line name should produce a taller entity
+        assert!(
+            h_multi > h_single,
+            "multi-line name height {h_multi} should be > single-line {h_single}"
+        );
+        // With HEADER_CIRCLE_BLOCK_HEIGHT(32) as minimum:
+        // single: header = max(32, 16.297 + 10) = 32, total = 32 + 16 = 48
+        // double: header = max(32, 32.594 + 10) = 42.594, total = 42.594 + 16 = 58.594
+        // diff ≈ 10.594 (not full line_height because circle_block caps single-line header)
+        let diff = h_multi - h_single;
+        assert!(
+            diff > 10.0 && diff < 17.0,
+            "height diff {diff} should be between 10 and 17 (name line height minus circle cap)"
+        );
+    }
+
+    #[test]
+    fn three_line_name_height() {
+        let single = empty_entity("A");
+        let triple = Entity {
+            name: "A\\nB\\nC".to_string(),
+            ..single.clone()
+        };
+        let diagram = empty_diagram();
+        let (_, h_single) = estimate_entity_size(&diagram, &single, MEMBER_ROW_HEIGHT, CLASS_FONT_SIZE, CLASS_FONT_SIZE);
+        let (_, h_triple) = estimate_entity_size(&diagram, &triple, MEMBER_ROW_HEIGHT, CLASS_FONT_SIZE, CLASS_FONT_SIZE);
+        // Three-line name: header = max(32, 3*16.297 + 10) = max(32, 58.891) = 58.891
+        // vs single-line: header = 32
+        // diff = 58.891 - 32 = 26.891
+        let diff = h_triple - h_single;
+        assert!(
+            (diff - 26.890625).abs() < 0.01,
+            "3-line vs 1-line height diff {diff} should be ~26.891"
         );
     }
 }

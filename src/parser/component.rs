@@ -107,7 +107,7 @@ pub fn parse_component_diagram(source: &str) -> Result<ComponentDiagram> {
                 ref mut lines,
             } => {
                 if line == "]" {
-                    let desc = expand_newlines(&lines.join("\n"));
+                    let desc = expand_body_newlines(&lines.join("\n"));
                     let desc_lines: Vec<String> =
                         desc.lines().map(std::string::ToString::to_string).collect();
                     debug!(

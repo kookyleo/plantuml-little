@@ -1695,17 +1695,23 @@ fn draw_entity_box(
         }
     } else {
         let italic_name = entity.kind == EntityKind::Abstract;
-        let name_width = font_metrics::text_width(
-            &name_display,
-            "SansSerif",
-            class_font_size,
-            false,
-            italic_name,
-        );
+        // Split name into display lines following Java Display semantics
+        let name_lines = crate::layout::split_name_display_lines(&name_display);
+        let n_name_lines = name_lines.len();
+        // Measure each line, use widest for layout
+        let name_line_widths: Vec<f64> = name_lines
+            .iter()
+            .map(|line| {
+                let display = if line.is_empty() { "\u{00A0}".to_string() } else { line.clone() };
+                font_metrics::text_width(&display, "SansSerif", class_font_size, false, italic_name)
+            })
+            .collect();
+        let name_width = name_line_widths.iter().copied().fold(0.0_f64, f64::max);
         // Compute name block height and baseline dynamically from actual font size
         let name_ascent = font_metrics::ascent("SansSerif", class_font_size, false, italic_name);
         let name_descent = font_metrics::descent("SansSerif", class_font_size, false, italic_name);
-        let name_block_height = name_ascent + name_descent;
+        let single_line_height = name_ascent + name_descent;
+        let name_block_height = n_name_lines as f64 * single_line_height;
         let name_baseline = name_ascent;
         let name_block_width = name_width + HEADER_NAME_BLOCK_MARGIN_X;
         let stereo_widths: Vec<f64> = visible_stereotypes
@@ -1782,21 +1788,29 @@ fn draw_entity_box(
             tracker.track_rect(stereo_x, stereo_y - HEADER_STEREO_BASELINE, stereo_widths[idx], HEADER_STEREO_LINE_HEIGHT);
         }
 
-        let name_y = y + header_top_offset + stereo_height + name_baseline;
         let font_style = if entity.kind == EntityKind::Abstract {
             Some("italic")
         } else {
             None
         };
         sg.set_fill_color(font_color);
-        sg.svg_text(
-            &name_display, name_x, name_y,
-            Some("sans-serif"), class_font_size,
-            None, font_style, None,
-            name_width, LengthAdjust::Spacing,
-            None, 0, None,
-        );
-        tracker.track_rect(name_x, name_y - name_baseline, name_width, name_block_height);
+        // Render each name line as a separate <text> element
+        for (line_idx, line) in name_lines.iter().enumerate() {
+            let display_line = if line.is_empty() { "\u{00A0}".to_string() } else { line.clone() };
+            let line_y = y + header_top_offset + stereo_height + name_baseline
+                + line_idx as f64 * single_line_height;
+            let line_w = name_line_widths[line_idx];
+            // Center each line within the name block
+            let line_x = name_x + (name_width - line_w) / 2.0;
+            sg.svg_text(
+                &display_line, line_x, line_y,
+                Some("sans-serif"), class_font_size,
+                None, font_style, None,
+                line_w, LengthAdjust::Spacing,
+                None, 0, None,
+            );
+            tracker.track_rect(line_x, line_y - name_baseline, line_w, single_line_height);
+        }
     }
 
     // Draw generic type box at top-right corner of entity rect
@@ -1809,8 +1823,11 @@ fn draw_entity_box(
     let header_height = if has_kind_label {
         HEADER_HEIGHT
     } else {
-        let dynamic_name_h = font_metrics::ascent("SansSerif", class_font_size, false, false)
+        let name_lines_for_h = crate::layout::split_name_display_lines(&name_display);
+        let n_lines = name_lines_for_h.len();
+        let single_h = font_metrics::ascent("SansSerif", class_font_size, false, false)
             + font_metrics::descent("SansSerif", class_font_size, false, false);
+        let dynamic_name_h = n_lines as f64 * single_h;
         HEADER_CIRCLE_BLOCK_HEIGHT.max(
             visible_stereotypes.len() as f64 * HEADER_STEREO_LINE_HEIGHT
                 + dynamic_name_h

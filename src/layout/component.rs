@@ -113,7 +113,15 @@ const COMPONENT_ICON_EXTRA: f64 = 10.0;
 fn estimate_entity_size(entity: &ComponentEntity) -> (f64, f64) {
     // Java: width = leftPad(15) + text + gap(5) + icon(15) + rightPad(5)
     //     = text + 40 = text + 2*PADDING + COMPONENT_ICON_EXTRA
-    let name_w = text_width(&entity.name) + 2.0 * PADDING + COMPONENT_ICON_EXTRA;
+    // Name may contain real newlines (from \n expansion) — split and measure each line
+    let name_lines: Vec<&str> = entity.name.lines().collect();
+    let name_line_count = name_lines.len().max(1);
+    let name_w = name_lines
+        .iter()
+        .map(|line| text_width(line))
+        .fold(0.0_f64, f64::max)
+        + 2.0 * PADDING
+        + COMPONENT_ICON_EXTRA;
 
     let desc_w = entity
         .description
@@ -134,7 +142,7 @@ fn estimate_entity_size(entity: &ComponentEntity) -> (f64, f64) {
         0.0
     };
     let desc_lines = entity.description.len() as f64;
-    let total_lines = 1.0 + stereo_lines + desc_lines;
+    let total_lines = name_line_count as f64 + stereo_lines + desc_lines;
     let height = (total_lines * LINE_HEIGHT + 2.0 * PADDING).max(NODE_MIN_HEIGHT);
 
     (width, height)
@@ -1093,6 +1101,36 @@ mod tests {
             "BT: A y ({:.1}) should be > D y ({:.1})",
             a.y,
             d_node.y
+        );
+    }
+
+    #[test]
+    fn test_multiline_name_sizing() {
+        let single = simple_entity("Web");
+        let (_, h_single) = estimate_entity_size(&single);
+
+        let multi = ComponentEntity {
+            name: "Line1\nLine2\nLine3".to_string(),
+            id: "multi".to_string(),
+            kind: ComponentKind::Component,
+            stereotype: None,
+            description: vec![],
+            parent: None,
+            color: None,
+            source_line: None,
+        };
+        let (_, h_multi) = estimate_entity_size(&multi);
+        // 3 name lines should be taller than 1 name line
+        assert!(
+            h_multi > h_single,
+            "multi-line name height {h_multi} should exceed single-line {h_single}"
+        );
+        // Height difference should be 2 * LINE_HEIGHT (2 extra lines)
+        let diff = h_multi - h_single;
+        assert!(
+            (diff - 2.0 * LINE_HEIGHT).abs() < 0.01,
+            "height diff {diff} should be ~{:.4}",
+            2.0 * LINE_HEIGHT
         );
     }
 }
