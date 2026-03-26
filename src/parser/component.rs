@@ -313,7 +313,8 @@ pub fn parse_component_diagram(source: &str) -> Result<ComponentDiagram> {
         }
 
         // Try to parse arrow / link
-        if let Some(link) = try_parse_link(line) {
+        if let Some(mut link) = try_parse_link(line) {
+            link.source_line = Some(line_num);
             debug!(
                 "line {}: link '{}' -> '{}' label='{}' dashed={} hint={:?}",
                 line_num, link.from, link.to, link.label, link.dashed, link.direction_hint
@@ -682,6 +683,7 @@ fn try_parse_forward_arrow(line: &str) -> Option<ComponentLink> {
                 dashed,
                 direction_hint,
                 arrow_len,
+                source_line: None,
             });
         }
     }
@@ -733,6 +735,7 @@ fn try_parse_backward_arrow(line: &str) -> Option<ComponentLink> {
             dashed,
             direction_hint,
             arrow_len,
+            source_line: None,
         });
     }
     None

@@ -137,10 +137,7 @@ pub fn render_component(
     // Edges — link IDs start after entity IDs
     let mut link_counter = ent_counter;
     for (ei, edge) in layout.edges.iter().enumerate() {
-        let source_line = cd.links.get(ei).and_then(|l| {
-            // Component links don't have source_line yet, derive from entity position
-            None::<usize>
-        });
+        let source_line = cd.links.get(ei).and_then(|l| l.source_line);
         render_edge(&mut sg, edge, arrow_color, comp_font, &entity_ids, link_counter, source_line);
         link_counter += 1;
     }
@@ -970,6 +967,7 @@ fn render_edge(
         }
     }
 
+    let d = d.trim_end().to_string();
     let path_id = format!("{}-to-{}", xml_escape(&edge.from), xml_escape(&edge.to));
     sg.push_raw(&format!(
         r#"<path d="{d}" fill="none" id="{path_id}" style="stroke:{arrow_color};stroke-width:1;{dash_style}"/>"#,

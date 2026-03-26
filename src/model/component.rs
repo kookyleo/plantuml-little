@@ -47,6 +47,8 @@ pub struct ComponentLink {
     pub direction_hint: Option<String>,
     /// Arrow stem length (dash/dot count). 1=horizontal, 2+=vertical.
     pub arrow_len: usize,
+    /// Source line number (1-based) for data-source-line attribute
+    pub source_line: Option<usize>,
 }
 
 #[derive(Debug, Clone)]
@@ -110,6 +112,7 @@ mod tests {
             dashed: false,
             direction_hint: Some("right".to_string()),
             arrow_len: 2,
+            source_line: Some(3),
         };
         assert_eq!(l.from, "A");
         assert_eq!(l.direction_hint, Some("right".to_string()));
@@ -197,6 +200,7 @@ mod tests {
             dashed: true,
             direction_hint: None,
             arrow_len: 2,
+            source_line: None,
         };
         assert!(l.dashed);
         assert!(l.label.is_empty());

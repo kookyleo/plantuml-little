@@ -592,7 +592,8 @@ mod tests {
             label: label.to_string(),
             dashed: false,
             direction_hint: None,
-                arrow_len: 2,
+            arrow_len: 2,
+            source_line: None,
         }
     }
 
@@ -741,6 +742,7 @@ mod tests {
                 dashed: true,
                 direction_hint: None,
                 arrow_len: 2,
+                source_line: None,
             }],
             groups: vec![],
             notes: vec![],
@@ -762,6 +764,7 @@ mod tests {
                 dashed: false,
                 direction_hint: Some("right".to_string()),
                 arrow_len: 2,
+                source_line: None,
             }],
             groups: vec![],
             direction: Default::default(),
