@@ -1833,12 +1833,18 @@ pub fn build_teoz_layout(
 			TeozTile::FragmentEnd { y, .. } => {
 				let ty = y.unwrap_or(0.0);
 				if let Some((y_start, kind, label, separators)) = fragment_stack.pop() {
+					// Java GroupingTile: drawU uses min (not min-EXTERNAL_MARGINX1)
+					// and width = max - min (not including external margins).
+					// The nesting depth determines the inset.
+					let depth = fragment_stack.len(); // 0 for outermost
+					let inset_left = GROUP_EXTERNAL_MARGINX1 * (depth + 1) as f64;
+					let inset_right = GROUP_EXTERNAL_MARGINX2 * (depth + 1) as f64;
 					fragments.push(FragmentLayout {
 						kind,
 						label,
-						x: total_min_x,
+						x: total_min_x + inset_left,
 						y: y_start,
-						width: diagram_width,
+						width: diagram_width - inset_left - inset_right,
 						height: ty - y_start,
 						separators,
 					});
@@ -1851,12 +1857,15 @@ pub fn build_teoz_layout(
 			TeozTile::GroupEnd { y, .. } => {
 				let ty = y.unwrap_or(0.0);
 				if let Some((y_start, label)) = group_stack.pop() {
-					// Group frame spans the full diagram width, matching fragments
+					// Java GroupingTile: drawU uses min (not min-EXTERNAL_MARGINX1)
+					let depth = group_stack.len();
+					let inset_left = GROUP_EXTERNAL_MARGINX1 * (depth + 1) as f64;
+					let inset_right = GROUP_EXTERNAL_MARGINX2 * (depth + 1) as f64;
 					groups.push(GroupLayout {
-						x: total_min_x,
+						x: total_min_x + inset_left,
 						y_start,
 						y_end: ty,
-						width: diagram_width,
+						width: diagram_width - inset_left - inset_right,
 						label,
 					});
 				} else {
