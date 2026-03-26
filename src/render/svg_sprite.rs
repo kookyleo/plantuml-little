@@ -676,37 +676,47 @@ fn convert_single_element_ext(
 ) {
     let tag = element_tag_name(element);
 
-    // Handle element-level transform attribute by pre-applying it to the offset.
+    // Handle element-level transform attribute by pre-applying it to coordinates.
     // Java applies transforms to coordinates before rendering, so the output
     // uses absolute coordinates instead of SVG transform attributes.
-    let (eff_ox, eff_oy, saved_scale) = if tag != "g" && tag != "use" {
-        if let Some(transform) = get_attr(element, "transform") {
-            apply_element_transform(&transform, ox, oy)
-        } else {
-            (ox, oy, None)
-        }
+    let elem_transform = if tag != "g" && tag != "use" {
+        get_attr(element, "transform")
     } else {
-        (ox, oy, None)
+        None
     };
 
-    match tag {
-        "rect" => convert_rect(buf, element, eff_ox, eff_oy),
-        "circle" => convert_circle(buf, element, eff_ox, eff_oy),
-        "ellipse" => convert_ellipse(buf, element, eff_ox, eff_oy),
-        "line" => convert_line(buf, element, eff_ox, eff_oy),
-        "polyline" => convert_polyline(buf, element, eff_ox, eff_oy),
-        "polygon" => convert_polygon(buf, element, eff_ox, eff_oy),
-        "path" => convert_path(buf, element, eff_ox, eff_oy),
-        "text" => convert_text(buf, element, text_ox, text_oy),
-        "image" => convert_image(buf, element, eff_ox, eff_oy),
-        "g" => convert_group(buf, element, ox, oy, text_ox, text_oy, css_text_props),
-        "use" => convert_use(buf, element, ox, oy, text_ox, text_oy, css_text_props),
-        _ => {}
-    }
+    // Check for affine transforms (rotate, matrix) that need full matrix application
+    let affine_matrix = elem_transform.as_deref().and_then(parse_affine_transform);
 
-    // Restore saved scale if modified by element transform
-    if let Some(prev) = saved_scale {
-        SPRITE_SCALE.with(|s| s.set(prev));
+    if let Some(ref matrix) = affine_matrix {
+        // Full affine transform: convert the element by transforming each point
+        convert_element_with_affine(buf, element, tag, ox, oy, matrix);
+    } else {
+        // Simple translate/scale or no transform
+        let (eff_ox, eff_oy, saved_scale) = if let Some(ref transform) = elem_transform {
+            apply_element_transform(transform, ox, oy)
+        } else {
+            (ox, oy, None)
+        };
+
+        match tag {
+            "rect" => convert_rect(buf, element, eff_ox, eff_oy),
+            "circle" => convert_circle(buf, element, eff_ox, eff_oy),
+            "ellipse" => convert_ellipse(buf, element, eff_ox, eff_oy),
+            "line" => convert_line(buf, element, eff_ox, eff_oy),
+            "polyline" => convert_polyline(buf, element, eff_ox, eff_oy),
+            "polygon" => convert_polygon(buf, element, eff_ox, eff_oy),
+            "path" => convert_path(buf, element, eff_ox, eff_oy),
+            "text" => convert_text(buf, element, text_ox, text_oy),
+            "image" => convert_image(buf, element, eff_ox, eff_oy),
+            "g" => convert_group(buf, element, ox, oy, text_ox, text_oy, css_text_props),
+            "use" => convert_use(buf, element, ox, oy, text_ox, text_oy, css_text_props),
+            _ => {}
+        }
+
+        if let Some(prev) = saved_scale {
+            SPRITE_SCALE.with(|s| s.set(prev));
+        }
     }
 }
 
@@ -722,14 +732,138 @@ fn apply_element_transform(transform: &str, ox: f64, oy: f64) -> (f64, f64, Opti
         let prev_scale = sprite_scale();
         let new_scale = prev_scale * es;
         SPRITE_SCALE.with(|s| s.set(new_scale));
-        // Don't adjust offset for scale — the element's own coordinates
-        // will be multiplied by the new combined scale via sc().
         (ox + sc(tx), oy + sc(ty), Some(prev_scale))
     } else if tx.abs() > 0.001 || ty.abs() > 0.001 {
-        // translate(tx, ty): just add to offset (already scaled by sc())
         (ox + sc(tx), oy + sc(ty), None)
     } else {
         (ox, oy, None)
+    }
+}
+
+/// Parse a full affine transform matrix from an SVG transform attribute.
+/// Supports: translate(tx[,ty]), scale(s[,sy]), rotate(a[,cx,cy]), matrix(a,b,c,d,e,f)
+/// Returns the combined [a, b, c, d, e, f] affine matrix.
+fn parse_affine_transform(transform: &str) -> Option<[f64; 6]> {
+    let t = transform.trim();
+    if let Some(args) = t.strip_prefix("matrix(").and_then(|s| s.strip_suffix(')')) {
+        let vals: Vec<f64> = args.split(|c: char| c == ',' || c.is_whitespace())
+            .filter(|s| !s.is_empty())
+            .filter_map(|s| s.trim().parse().ok())
+            .collect();
+        if vals.len() == 6 {
+            return Some([vals[0], vals[1], vals[2], vals[3], vals[4], vals[5]]);
+        }
+    }
+    if let Some(args) = t.strip_prefix("rotate(").and_then(|s| s.strip_suffix(')')) {
+        let vals: Vec<f64> = args.split(|c: char| c == ',' || c.is_whitespace())
+            .filter(|s| !s.is_empty())
+            .filter_map(|s| s.trim().parse().ok())
+            .collect();
+        if vals.len() >= 1 {
+            let angle = vals[0] * std::f64::consts::PI / 180.0;
+            let (sin_a, cos_a) = angle.sin_cos();
+            let (cx, cy) = if vals.len() >= 3 { (vals[1], vals[2]) } else { (0.0, 0.0) };
+            // rotate(a, cx, cy) = translate(cx,cy) * rotate(a) * translate(-cx,-cy)
+            let e = cx - cx * cos_a + cy * sin_a;
+            let f = cy - cx * sin_a - cy * cos_a;
+            return Some([cos_a, sin_a, -sin_a, cos_a, e, f]);
+        }
+    }
+    None
+}
+
+/// Apply an affine transform matrix [a,b,c,d,e,f] to a point (x,y).
+fn affine_transform_point(m: &[f64; 6], x: f64, y: f64) -> (f64, f64) {
+    (m[0] * x + m[2] * y + m[4], m[1] * x + m[3] * y + m[5])
+}
+
+/// Convert an element by applying a full affine transform to its coordinates.
+/// Used for rotate() and matrix() transforms where simple offset+scale isn't enough.
+fn convert_element_with_affine(
+    buf: &mut String,
+    element: &str,
+    tag: &str,
+    ox: f64,
+    oy: f64,
+    matrix: &[f64; 6],
+) {
+    let s = sprite_scale();
+    // Transform a point: apply element affine, then sprite scale + offset
+    let tp = |x: f64, y: f64| -> (f64, f64) {
+        let (tx, ty) = affine_transform_point(matrix, x, y);
+        (tx * s + ox, ty * s + oy)
+    };
+
+    match tag {
+        "rect" => {
+            let x = get_attr(element, "x").and_then(|v| v.parse::<f64>().ok()).unwrap_or(0.0);
+            let y = get_attr(element, "y").and_then(|v| v.parse::<f64>().ok()).unwrap_or(0.0);
+            let w = get_attr(element, "width").and_then(|v| v.parse::<f64>().ok()).unwrap_or(0.0);
+            let h = get_attr(element, "height").and_then(|v| v.parse::<f64>().ok()).unwrap_or(0.0);
+            let corners = [(x, y), (x + w, y), (x + w, y + h), (x, y + h)];
+            let transformed: Vec<(f64, f64)> = corners.iter().map(|&(cx, cy)| tp(cx, cy)).collect();
+            let mut d = format!("M{},{}", fmt_coord(transformed[0].0), fmt_coord(transformed[0].1));
+            for &(px, py) in &transformed[1..] {
+                write!(d, " L{},{}", fmt_coord(px), fmt_coord(py)).unwrap();
+            }
+            write!(d, " L{},{}", fmt_coord(transformed[0].0), fmt_coord(transformed[0].1)).unwrap();
+            let fill = get_fill(element);
+            let style = get_stroke_style(element);
+            write!(buf, r#"<path d="{d}" fill="{fill}""#).unwrap();
+            if !style.is_empty() {
+                write!(buf, r#" style="{style}""#).unwrap();
+            }
+            buf.push_str("/>");
+        }
+        "circle" => {
+            let cx = get_attr(element, "cx").and_then(|v| v.parse::<f64>().ok()).unwrap_or(0.0);
+            let cy = get_attr(element, "cy").and_then(|v| v.parse::<f64>().ok()).unwrap_or(0.0);
+            let r = get_attr(element, "r").and_then(|v| v.parse::<f64>().ok()).unwrap_or(0.0);
+            // Under affine transform, circle becomes ellipse. For uniform transforms
+            // (rotate), it stays a circle with scaled radius.
+            let (acx, acy) = tp(cx, cy);
+            // Approximate the transformed radius using the matrix scale factor
+            let det = (matrix[0] * matrix[3] - matrix[1] * matrix[2]).abs();
+            let avg_scale = det.sqrt();
+            let ar = r * avg_scale * s;
+            let d = format!(
+                "M{},{} A{r},{r} 0 0 1 {},{} A{r},{r} 0 0 1 {},{} A{r},{r} 0 0 1 {},{} A{r},{r} 0 0 1 {},{} L{},{}",
+                fmt_coord(acx - ar), fmt_coord(acy),
+                fmt_coord(acx), fmt_coord(acy - ar),
+                fmt_coord(acx + ar), fmt_coord(acy),
+                fmt_coord(acx), fmt_coord(acy + ar),
+                fmt_coord(acx - ar), fmt_coord(acy),
+                fmt_coord(acx - ar), fmt_coord(acy),
+                r = fmt_coord_raw(ar),
+            );
+            let fill = get_fill(element);
+            let style = get_stroke_style(element);
+            write!(buf, r#"<path d="{d}" fill="{fill}""#).unwrap();
+            if !style.is_empty() {
+                write!(buf, r#" style="{style}""#).unwrap();
+            }
+            buf.push_str("/>");
+        }
+        "line" => {
+            let x1 = get_attr(element, "x1").and_then(|v| v.parse::<f64>().ok()).unwrap_or(0.0);
+            let y1 = get_attr(element, "y1").and_then(|v| v.parse::<f64>().ok()).unwrap_or(0.0);
+            let x2 = get_attr(element, "x2").and_then(|v| v.parse::<f64>().ok()).unwrap_or(0.0);
+            let y2 = get_attr(element, "y2").and_then(|v| v.parse::<f64>().ok()).unwrap_or(0.0);
+            let (ax1, ay1) = tp(x1, y1);
+            let (ax2, ay2) = tp(x2, y2);
+            let d = format!("M{},{} L{},{}", fmt_coord(ax1), fmt_coord(ay1), fmt_coord(ax2), fmt_coord(ay2));
+            let fill = get_fill_or(element, "#000000");
+            let style = get_stroke_style(element);
+            write!(buf, r#"<path d="{d}" fill="{fill}""#).unwrap();
+            if !style.is_empty() {
+                write!(buf, r#" style="{style}""#).unwrap();
+            }
+            buf.push_str("/>");
+        }
+        _ => {
+            // Unsupported element under affine transform — skip
+            log::warn!("svg_sprite: unsupported element '{}' with affine transform, skipping", tag);
+        }
     }
 }
 
