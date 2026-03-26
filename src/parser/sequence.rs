@@ -1791,4 +1791,50 @@ Sally --> Bob
             panic!("expected NoteRight, got {:?}", &diagram.events[1]);
         }
     }
+
+    /// Inline -- suffix deactivates the SOURCE, not the target.
+    /// Java: `B -->> A-- : Data` deactivates B (the sender).
+    #[test]
+    fn inline_deactivate_targets_source() {
+        let src = "@startuml\nactivate B\nB -->> A-- : Data\n@enduml";
+        let diagram = parse_sequence_diagram(src).unwrap();
+        // Events: Activate(B), Message(B→A), Deactivate(B)
+        assert!(matches!(&diagram.events[0], SeqEvent::Activate(ref n, _) if n == "B"));
+        assert!(matches!(&diagram.events[1], SeqEvent::Message(ref m) if m.from == "B" && m.to == "A"));
+        // The -- suffix deactivates the SOURCE (B), not the target (A)
+        assert!(
+            matches!(&diagram.events[2], SeqEvent::Deactivate(ref n) if n == "B"),
+            "expected Deactivate(B) but got {:?}", &diagram.events[2]
+        );
+    }
+
+    /// --++ suffix deactivates source and activates target.
+    #[test]
+    fn inline_deactivate_source_activate_target() {
+        let src = "@startuml\nactivate A\nA ->> B --++ : msg\n@enduml";
+        let diagram = parse_sequence_diagram(src).unwrap();
+        // Events: Activate(A), Message(A→B), Deactivate(A), Activate(B)
+        assert!(matches!(&diagram.events[0], SeqEvent::Activate(ref n, _) if n == "A"));
+        assert!(matches!(&diagram.events[1], SeqEvent::Message(ref m) if m.from == "A" && m.to == "B"));
+        assert!(
+            matches!(&diagram.events[2], SeqEvent::Deactivate(ref n) if n == "A"),
+            "expected Deactivate(A) but got {:?}", &diagram.events[2]
+        );
+        assert!(matches!(&diagram.events[3], SeqEvent::Activate(ref n, _) if n == "B"));
+    }
+
+    /// ++-- suffix activates target and deactivates source.
+    #[test]
+    fn inline_activate_target_deactivate_source() {
+        let src = "@startuml\nactivate A\nA -> B++-- : msg\n@enduml";
+        let diagram = parse_sequence_diagram(src).unwrap();
+        // Events: Activate(A), Message(A→B), Activate(B), Deactivate(A)
+        assert!(matches!(&diagram.events[0], SeqEvent::Activate(ref n, _) if n == "A"));
+        assert!(matches!(&diagram.events[1], SeqEvent::Message(ref m) if m.from == "A" && m.to == "B"));
+        assert!(matches!(&diagram.events[2], SeqEvent::Activate(ref n, _) if n == "B"));
+        assert!(
+            matches!(&diagram.events[3], SeqEvent::Deactivate(ref n) if n == "A"),
+            "expected Deactivate(A) but got {:?}", &diagram.events[3]
+        );
+    }
 }
