@@ -1428,13 +1428,19 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
                     if note_tile_bottom > y_cursor {
                         y_cursor = note_tile_bottom;
                     }
-                } else if let Some(msg_y) = last_message_y {
+                } else if let Some(_msg_y) = last_message_y {
                     // For non-self messages: tile start = note_y.
                     // Arrow PH from tile start = y_cursor - note_y.
                     // If note PH > arrow PH, push y_cursor forward by the difference.
                     let arrow_ph = y_cursor - note_y;
                     if note_pref_h > arrow_ph {
                         y_cursor += note_pref_h - arrow_ph;
+                    }
+                } else {
+                    // Standalone note (not following a message): advance by note height
+                    let note_bottom = note_y + note_height;
+                    if note_bottom > y_cursor {
+                        y_cursor = note_bottom;
                     }
                 }
                 if last_message_y.is_some() {
@@ -1502,10 +1508,15 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
                     if note_tile_bottom > y_cursor {
                         y_cursor = note_tile_bottom;
                     }
-                } else if let Some(msg_y) = last_message_y {
+                } else if let Some(_msg_y) = last_message_y {
                     let arrow_ph = y_cursor - note_y;
                     if note_pref_h > arrow_ph {
                         y_cursor += note_pref_h - arrow_ph;
+                    }
+                } else {
+                    let note_bottom = note_y + note_height;
+                    if note_bottom > y_cursor {
+                        y_cursor = note_bottom;
                     }
                 }
                 if last_message_y.is_some() {
@@ -2068,6 +2079,7 @@ mod tests {
             source_line: None,
             circle_from: false,
             circle_to: false,
+            parallel: false,
         }
     }
 
@@ -2366,6 +2378,7 @@ mod tests {
                 source_line: None,
                 circle_from: false,
                 circle_to: false,
+                parallel: false,
             })],
         teoz_mode: false, hide_footbox: false,};
         let layout = layout_sequence(&sd, &crate::style::SkinParams::default()).unwrap();
@@ -2636,6 +2649,7 @@ mod tests {
                     source_line: None,
                     circle_from: false,
                     circle_to: false,
+                    parallel: false,
                 }),
                 SeqEvent::Deactivate("B".to_string()),
             ],
