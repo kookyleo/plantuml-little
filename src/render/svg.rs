@@ -915,8 +915,7 @@ fn inject_svginteractive(svg: String, diagram_type: &str) -> String {
     let css_text = ensure_trailing_newline(css);
     let js_text = ensure_trailing_newline(js);
 
-    // Java wraps CSS content inside CDATA block. The CSS file already starts
-    // with a leading newline (matching Java's FileUtils.readText behavior).
+    // Java wraps CSS content inside CDATA block.
     let defs_content = format!(
         "<style type=\"text/css\"><![CDATA[{}]]></style><script>{}</script>",
         css_text,
