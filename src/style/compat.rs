@@ -381,6 +381,26 @@ impl SkinParams {
         default
     }
 
+    /// Get the line thickness for a given element type.
+    ///
+    /// Lookup chain: `{element}.linethickness` -> `root.linethickness` -> default.
+    /// In Java PlantUML, `root { LineThickness N }` in `<style>` sets the
+    /// base thickness for all elements.
+    pub fn line_thickness(&self, element: &str, default: f64) -> f64 {
+        let key1 = format!("{element}.linethickness");
+        if let Some(v) = self.params.get(&key1) {
+            if let Ok(t) = v.parse::<f64>() {
+                return t;
+            }
+        }
+        if let Some(v) = self.params.get("root.linethickness") {
+            if let Ok(t) = v.parse::<f64>() {
+                return t;
+            }
+        }
+        default
+    }
+
     /// Get sequence arrow thickness.
     pub fn sequence_arrow_thickness(&self) -> Option<f64> {
         self.params
@@ -1656,5 +1676,13 @@ skinparam participant {
         let src = "@startuml\nskinparam {\n   Maxmessagesize 200\n}\ngroup Grouping messages\n    Test <- Test : text\nend\n@enduml";
         let params = parse_skinparams(src);
         assert_eq!(params.get("maxmessagesize"), Some("200"));
+    }
+
+    #[test]
+    fn parse_root_style_linethickness() {
+        let src = "<style>\nroot {\n  LineThickness 1\n  FontName Verdana\n}\n</style>";
+        let params = parse_skinparams(src);
+        assert_eq!(params.get("root.linethickness"), Some("1"));
+        assert_eq!(params.get("root.fontname"), Some("Verdana"));
     }
 }

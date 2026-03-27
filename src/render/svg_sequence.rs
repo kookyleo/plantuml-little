@@ -48,6 +48,15 @@ const REF_KIND_LABEL_Y_OFFSET: f64 = 14.0669;
 const REF_LABEL_FONT_SIZE: f64 = 12.0;
 const REF_FRAME_STROKE: &str = "#000000";
 
+/// Format stroke width for SVG: integer when whole, decimal otherwise.
+fn fmt_stroke_width(w: f64) -> String {
+    if (w - w.round()).abs() < f64::EPSILON {
+        format!("{}", w as i32)
+    } else {
+        format!("{w}")
+    }
+}
+
 fn svg_font_family_attr(font_family: &str) -> &str {
     match font_family {
         "SansSerif" => "sans-serif",
@@ -394,7 +403,7 @@ fn draw_participant_box_with_font(
 
     match &p.kind {
         ParticipantKind::Actor => {
-            draw_participant_actor(sg, p, y, display_name, border, text_color);
+            draw_participant_actor(sg, p, y, display_name, border, text_color, 0.5, "SansSerif");
         }
         ParticipantKind::Boundary => {
             draw_participant_boundary(sg, p, y, display_name, fill, border, text_color, head);
@@ -537,6 +546,8 @@ fn draw_participant_actor(
     display_name: Option<&str>,
     border: &str,
     text_color: &str,
+    thickness: f64,
+    font_family: &str,
 ) {
     let name = display_name.unwrap_or(&p.name);
     let cx = p.x; // participant center x from layout
@@ -549,18 +560,18 @@ fn draw_participant_actor(
     let arms_length = 13.0_f64;
     let legs_x = 13.0_f64;
     let legs_y = 15.0_f64;
-    let thickness = 0.5_f64;
-    let stickman_width = arms_length.max(legs_x) * 2.0 + 2.0 * thickness; // 27
-    let stickman_height = head_diam + body_length + legs_y + 2.0 * thickness + 1.0; // 60
+    let stickman_width = arms_length.max(legs_x) * 2.0 + 2.0 * thickness;
+    let stickman_height = head_diam + body_length + legs_y + 2.0 * thickness + 1.0;
 
-    // Java: startX = max(arms,legs) - headDiam/2 + thickness = 5.5
+    // Java: startX = max(arms,legs) - headDiam/2 + thickness
     let start_x = arms_length.max(legs_x) - head_diam / 2.0 + thickness;
-    // Java: centerX = startX + headDiam/2 = 13.5
+    // Java: centerX = startX + headDiam/2
     let center_x = start_x + head_diam / 2.0;
 
-    // Text metrics
+    // Text metrics - use effective font from skin params
     let font_size = 14.0;
-    let tl = font_metrics::text_width(name, "SansSerif", font_size, false, false);
+    let svg_ff = svg_font_family_attr(font_family);
+    let tl = font_metrics::text_width(name, font_family, font_size, false, false);
     let margin_x1 = 3.0;
     let margin_x2 = 3.0;
     let text_width = tl + margin_x1 + margin_x2;
@@ -590,13 +601,13 @@ fn draw_participant_actor(
     // marginX1 is already baked into textWidth for centering calculation,
     // but does NOT add to the SVG x coordinate.
     let text_x = component_x + text_middle_pos;
-    let text_y = y + stickman_height + font_metrics::ascent("SansSerif", font_size, false, false);
+    let text_y = y + stickman_height + font_metrics::ascent(font_family, font_size, false, false);
     sg.set_fill_color(text_color);
     sg.svg_text(
         name,
         text_x,
         text_y,
-        Some("sans-serif"),
+        Some(svg_ff),
         font_size,
         None,
         None,
@@ -616,13 +627,14 @@ fn draw_participant_actor(
     let hcx = fmt_coord(head_cx);
     let hcy = fmt_coord(head_cy);
     let hr = fmt_coord(head_r);
+    let sw = fmt_stroke_width(thickness);
     let mut el = String::new();
     write!(el,
-        "<ellipse cx=\"{hcx}\" cy=\"{hcy}\" fill=\"#E2E2F0\" rx=\"{hr}\" ry=\"{hr}\" style=\"stroke:{border};stroke-width:0.5;\"/>"
+        "<ellipse cx=\"{hcx}\" cy=\"{hcy}\" fill=\"#E2E2F0\" rx=\"{hr}\" ry=\"{hr}\" style=\"stroke:{border};stroke-width:{sw};\"/>"
     ).unwrap();
     sg.push_raw(&el);
 
-    // 3. Single path for body+arms+legs (Java: ActorStickMan, stroke 0.5)
+    // 3. Single path for body+arms+legs
     // Java path origin at (centerX, headDiam + thickness) relative to component + delta
     let path_ox = component_x + delta + center_x;
     let path_oy = y + head_diam + thickness;
@@ -639,7 +651,7 @@ fn draw_participant_actor(
     let lf = fmt_coord(path_oy + body_length + legs_y);
     let mut pa = String::new();
     write!(pa,
-        "<path d=\"M{pcx},{bt} L{pcx},{bb} M{la},{ay} L{ra},{ay} M{pcx},{bb} L{ll},{lf} M{pcx},{bb} L{rl},{lf}\" fill=\"none\" style=\"stroke:{border};stroke-width:0.5;\"/>"
+        "<path d=\"M{pcx},{bt} L{pcx},{bb} M{la},{ay} L{ra},{ay} M{pcx},{bb} L{ll},{lf} M{pcx},{bb} L{rl},{lf}\" fill=\"none\" style=\"stroke:{border};stroke-width:{sw};\"/>"
     ).unwrap();
     sg.push_raw(&pa);
 }
@@ -653,6 +665,8 @@ fn draw_participant_actor_tail(
     display_name: Option<&str>,
     border: &str,
     text_color: &str,
+    thickness: f64,
+    font_family: &str,
 ) {
     let name = display_name.unwrap_or(&p.name);
     let cx = p.x;
@@ -665,14 +679,14 @@ fn draw_participant_actor_tail(
     let arms_length = 13.0_f64;
     let legs_x = 13.0_f64;
     let legs_y = 15.0_f64;
-    let thickness = 0.5_f64;
     let stickman_width = arms_length.max(legs_x) * 2.0 + 2.0 * thickness;
     let stickman_height = head_diam + body_length + legs_y + 2.0 * thickness + 1.0;
     let start_x = arms_length.max(legs_x) - head_diam / 2.0 + thickness;
     let center_x = start_x + head_diam / 2.0;
 
     let font_size = 14.0;
-    let tl = font_metrics::text_width(name, "SansSerif", font_size, false, false);
+    let svg_ff = svg_font_family_attr(font_family);
+    let tl = font_metrics::text_width(name, font_family, font_size, false, false);
     let margin_x1 = 3.0;
     let margin_x2 = 3.0;
     let text_width = tl + margin_x1 + margin_x2;
@@ -681,9 +695,9 @@ fn draw_participant_actor_tail(
     let component_x = cx - pref_width / 2.0;
 
     // Java (head=false): text at (textMiddlePos, 0), stickman at (delta, textHeight)
-    let text_height = font_metrics::line_height("SansSerif", font_size, false, false);
+    let text_height = font_metrics::line_height(font_family, font_size, false, false);
     let text_x = component_x + text_middle_pos;
-    let text_y = y + font_metrics::ascent("SansSerif", font_size, false, false);
+    let text_y = y + font_metrics::ascent(font_family, font_size, false, false);
 
     // 1. Text first
     sg.set_fill_color(text_color);
@@ -691,7 +705,7 @@ fn draw_participant_actor_tail(
         name,
         text_x,
         text_y,
-        Some("sans-serif"),
+        Some(svg_ff),
         font_size,
         None,
         None,
@@ -713,9 +727,10 @@ fn draw_participant_actor_tail(
     let hcx = fmt_coord(head_cx);
     let hcy = fmt_coord(head_cy);
     let hr = fmt_coord(head_r);
+    let sw = fmt_stroke_width(thickness);
     let mut el = String::new();
     write!(el,
-        "<ellipse cx=\"{hcx}\" cy=\"{hcy}\" fill=\"#E2E2F0\" rx=\"{hr}\" ry=\"{hr}\" style=\"stroke:{border};stroke-width:0.5;\"/>"
+        "<ellipse cx=\"{hcx}\" cy=\"{hcy}\" fill=\"#E2E2F0\" rx=\"{hr}\" ry=\"{hr}\" style=\"stroke:{border};stroke-width:{sw};\"/>"
     ).unwrap();
     sg.push_raw(&el);
 
@@ -733,7 +748,7 @@ fn draw_participant_actor_tail(
     let lf = fmt_coord(path_oy + body_length + legs_y);
     let mut pa = String::new();
     write!(pa,
-        "<path d=\"M{pcx},{bt} L{pcx},{bb} M{la},{ay} L{ra},{ay} M{pcx},{bb} L{ll},{lf} M{pcx},{bb} L{rl},{lf}\" fill=\"none\" style=\"stroke:{border};stroke-width:0.5;\"/>"
+        "<path d=\"M{pcx},{bt} L{pcx},{bb} M{la},{ay} L{ra},{ay} M{pcx},{bb} L{ll},{lf} M{pcx},{bb} L{rl},{lf}\" fill=\"none\" style=\"stroke:{border};stroke-width:{sw};\"/>"
     ).unwrap();
     sg.push_raw(&pa);
 }
@@ -2632,6 +2647,7 @@ fn render_sequence_inner(
         skin.background_color("participant", PARTICIPANT_BG)
     };
     let part_border = skin.border_color("participant", BORDER_COLOR);
+    let part_thickness = skin.line_thickness("participant", 0.5);
     let part_font = skin.font_color("participant", TEXT_COLOR);
     let part_font_size: f64 = skin
         .get("participantfontsize")
@@ -2696,9 +2712,9 @@ fn render_sequence_inner(
         }
         if is_actor {
             if is_head {
-                draw_participant_actor(sg, p, y, dn, part_border, part_text_color);
+                draw_participant_actor(sg, p, y, dn, part_border, part_text_color, part_thickness, &default_font);
             } else {
-                draw_participant_actor_tail(sg, p, y, dn, part_border, part_text_color);
+                draw_participant_actor_tail(sg, p, y, dn, part_border, part_text_color, part_thickness, &default_font);
             }
         } else {
             draw_participant_box_with_font(
@@ -2980,6 +2996,13 @@ fn render_sequence_inner(
             .unwrap();
         }
         buf = buf.replacen("<defs/>", &format!("<defs>{}</defs>", defs_content), 1);
+    }
+
+    // Apply theme line thickness: replace default stroke-width:0.5 with theme value
+    let theme_thickness = skin.line_thickness("participant", 0.5);
+    if (theme_thickness - 0.5).abs() > f64::EPSILON {
+        let sw_str = fmt_stroke_width(theme_thickness);
+        buf = buf.replace("stroke-width:0.5;", &format!("stroke-width:{sw_str};"));
     }
 
     Ok(buf)

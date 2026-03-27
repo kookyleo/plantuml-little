@@ -660,6 +660,14 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
         .and_then(|s| s.parse::<f64>().ok());
     // Participant box height: already computed in lp with the correct font
     let base_participant_height = lp.participant_height;
+    // Actor stickman thickness from style (default 0.5, `!theme plain` sets 1.0)
+    let actor_thickness = skin.line_thickness("participant", 0.5);
+    // Root margin from style: adds to the base diagram MARGIN (default 0)
+    let root_margin: f64 = skin
+        .get("root.margin")
+        .and_then(|s| s.parse::<f64>().ok())
+        .unwrap_or(0.0);
+    let effective_margin = MARGIN + root_margin;
 
     // 1. Compute participant box widths first
     let mut box_widths: Vec<f64> = Vec::with_capacity(sd.participants.len());
@@ -688,8 +696,13 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
         } else {
             0.0
         };
+        // Actor height offset: stickman_height(thickness) - participant_rect_height_offset
+        // At default thickness=0.5: stickman_height=60, offset=45.0
+        // At thickness=1.0: stickman_height=61, offset=46.0
+        // Formula: 45.0 + 2*(thickness - 0.5), since stickman adds 2*thickness
+        let actor_extra = 45.0 + 2.0 * (actor_thickness - 0.5);
         let bh = match p.kind {
-            ParticipantKind::Actor => base_participant_height + 45.0 + multiline_extra,
+            ParticipantKind::Actor => base_participant_height + actor_extra + multiline_extra,
             // Boundary/Control/Entity: Java icon height = 32 (radius=12, margin=4)
             // Actor stickman height = 60 → difference = 28, so offset = 45 - 28 = 17
             ParticipantKind::Boundary | ParticipantKind::Control | ParticipantKind::Entity => {
@@ -709,10 +722,29 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
     }
 
     // 2. Compute minimum gaps between adjacent participant centers
+    // Java: ParticipantPadding adds 2*padding to rect participant preferred widths
+    // (actors are NOT affected by ParticipantPadding)
+    let participant_padding: f64 = skin
+        .get("participantpadding")
+        .and_then(|s| s.parse::<f64>().ok())
+        .unwrap_or(0.0);
     let n = sd.participants.len();
+    // Effective width for gap computation: add 2*padding to non-actor participants
+    let effective_widths: Vec<f64> = sd
+        .participants
+        .iter()
+        .enumerate()
+        .map(|(i, p)| {
+            if matches!(p.kind, ParticipantKind::Actor) {
+                box_widths[i]
+            } else {
+                box_widths[i] + 2.0 * participant_padding
+            }
+        })
+        .collect();
     let mut min_gaps: Vec<f64> = if n > 1 {
         (0..n - 1)
-            .map(|i| box_widths[i] / 2.0 + box_widths[i + 1] / 2.0 + 10.0)
+            .map(|i| effective_widths[i] / 2.0 + effective_widths[i + 1] / 2.0 + 10.0)
             .collect()
     } else {
         Vec::new()
@@ -914,9 +946,9 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
 
     let max_depth_for_leftmost = if n > 0 { max_frag_depth[0] } else { 0 };
     let left_margin = if max_depth_for_leftmost > 0 {
-        2.0 * MARGIN + max_depth_for_leftmost as f64 * FRAGMENT_PADDING
+        2.0 * effective_margin + max_depth_for_leftmost as f64 * FRAGMENT_PADDING
     } else {
-        MARGIN
+        effective_margin
     };
 
     // 3. Position participants left-to-right using computed gaps
@@ -1955,7 +1987,7 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
     let right_margin = 2.0 * MARGIN;
     let mut total_width = participants
         .last()
-        .map_or(2.0 * MARGIN, |p| p.x + p.box_width / 2.0 + right_margin);
+        .map_or(2.0 * MARGIN, |p| p.x + effective_widths.last().unwrap_or(&p.box_width) / 2.0 + right_margin);
 
     // Expand total_width if any note extends beyond the participant area.
     // For self-message RIGHT notes, Java ArrowAndNoteBox uses the combined
