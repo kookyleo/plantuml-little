@@ -1745,7 +1745,18 @@ fn render_class(
     // Java renders at the post-Svek coordinates directly. `render_offset`
     // re-applies the exact per-axis delta needed to reconstruct the Java space.
     let edge_offset_x = layout.render_offset.0;
-    let edge_offset_y = layout.render_offset.1;
+    // Java's LimitFinder Pass 1 sees generic boxes that protrude above entity
+    // rects, lowering LF min_y. Our svek LimitFinder doesn't see generics.
+    // Compensate: if any entity has a generic type, the generic box extends
+    // GENERIC_PROTRUSION above the entity, which Java's LF captures as a lower
+    // min_y, shifting all content down by that amount.
+    let has_generic = cd.entities.iter().any(|e| e.generic.is_some());
+    let generic_y_adjust = if has_generic {
+        GENERIC_PROTRUSION
+    } else {
+        0.0
+    };
+    let edge_offset_y = layout.render_offset.1 + generic_y_adjust;
     let mut tracker = BoundsTracker::new();
     let mut sg = SvgGraphic::new(0, 1.0);
     let arrow_color = skin.arrow_color(LINK_COLOR);
@@ -1863,6 +1874,16 @@ fn render_class(
                 });
         }
     }
+    // Build a definition-order index matching Java's entity creation order.
+    // cd.entities is already sorted by sort_entities_by_order() in the parser,
+    // which accounts for hide/show rules that implicitly reserve entity slots
+    // before their explicit class declarations.
+    let entity_def_order: HashMap<&str, usize> = cd
+        .entities
+        .iter()
+        .enumerate()
+        .map(|(i, e)| (e.name.as_str(), i))
+        .collect();
     let mut entities_by_render_order: Vec<&Entity> = cd.entities.iter().collect();
     entities_by_render_order.sort_by_key(|entity| {
         (
@@ -1870,7 +1891,10 @@ fn render_class(
                 .get(entity.name.as_str())
                 .copied()
                 .unwrap_or(usize::MAX),
-            entity.source_line.unwrap_or(usize::MAX),
+            entity_def_order
+                .get(entity.name.as_str())
+                .copied()
+                .unwrap_or(usize::MAX),
         )
     });
 
