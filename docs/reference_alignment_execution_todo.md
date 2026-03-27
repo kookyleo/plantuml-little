@@ -2,7 +2,8 @@
 
 ## Current Baseline
 
-- Current comparable baseline after svek overhaul + forward-fix on 2026-03-27: `160 passed / 136 failed / 296 total`
+- Current comparable baseline after LimitFinder image-width fix on 2026-03-28: `168 passed / 128 failed / 296 total`
+- Previous baseline after svek overhaul + forward-fix on 2026-03-27: `160 passed / 136 failed / 296 total`
 - The svek overhaul (class edge SIMPLIER, cluster shapes, shield ports) gained 9 tests (hideshow002/003, SVG0005, qualifiedassoc001/002, component/colors001) but regressed 9 others.
 - Forward-fix session restored 8 of 9 regressions: CDATA CSS newline, entity UID ordering, track_empty viewport, generic protrusion offset, entity render order.
 - Remaining 9 regressions (offset by 9 improvements): SVG0004_Smetana (CDATA inconsistency), hideshow004 (2px x-offset), class_funcparam_arrow_01 (x-offset from SIMPLIER node positions), scxml0001 (state width from svek node structure changes).
