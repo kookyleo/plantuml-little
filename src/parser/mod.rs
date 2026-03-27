@@ -83,7 +83,7 @@ pub fn parse_with_original(source: &str, original_source: Option<&str>) -> Resul
 
     match dtype {
         DiagramHint::Class => {
-            let cd = class::parse_class_diagram(source)?;
+            let cd = class::parse_class_diagram_with_original(source, original_source)?;
             Ok(Diagram::Class(cd))
         }
         DiagramHint::Sequence => {

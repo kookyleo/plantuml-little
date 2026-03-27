@@ -239,16 +239,16 @@ pub fn render_state(
         }
     }
 
+    // Notes
+    for note in &layout.note_layouts {
+        render_note(&mut sg, &mut tracker, note);
+    }
+
     // Remaining transitions (top-level, not rendered as internal above)
     for (ti, transition) in layout.transition_layouts.iter().enumerate() {
         if !rendered_transitions.contains(&ti) {
             render_transition(&mut sg, &mut tracker, transition, &ent_id_map);
         }
-    }
-
-    // Notes
-    for note in &layout.note_layouts {
-        render_note(&mut sg, &mut tracker, note);
     }
 
     // Compute raw body dimensions from BoundsTracker span
@@ -649,12 +649,12 @@ fn render_composite(
     sg.svg_line(x, sep_y, x + w, sep_y, 0.0);
 
     // 4. Composite state name text
-    let cx = x + w / 2.0;
+    let name_x = x + (w - name_tl) / 2.0;
     let name_y = y + 17.9951;
     sg.set_fill_color(font_color);
     sg.svg_text(
         &node.name,
-        cx,
+        name_x,
         name_y,
         Some("sans-serif"),
         14.0,
@@ -668,7 +668,7 @@ fn render_composite(
         None,
     );
     let name_text_h = font_metrics::line_height("SansSerif", 14.0, false, false);
-    tracker.track_text(cx, name_y, name_tl, name_text_h);
+    tracker.track_text(name_x, name_y, name_tl, name_text_h);
 
     // Open semantic <g> wrapper (no children inside, just for closing)
     let name_escaped = xml_escape(&node.name);
@@ -724,16 +724,10 @@ fn render_transition(
         .unwrap_or_default();
 
     // Build display name for the comment: use ".start." for [*] states
-    let from_display = if transition.from_id == "[*]" || transition.from_id.starts_with("[*]") {
-        "*start*".to_string()
-    } else {
-        transition.from_id.clone()
-    };
-    let to_display = if transition.to_id == "[*]" || transition.to_id.starts_with("[*]") {
-        "*end*".to_string()
-    } else {
-        transition.to_id.clone()
-    };
+    let from_display = special_transition_endpoint_display(&transition.from_id, true)
+        .unwrap_or_else(|| transition.from_id.clone());
+    let to_display = special_transition_endpoint_display(&transition.to_id, false)
+        .unwrap_or_else(|| transition.to_id.clone());
 
     // Open semantic <g> wrapper with link attributes
     let from_escaped = xml_escape(&from_display);
@@ -977,6 +971,15 @@ fn adjust_path_endpoint(d: &str, decoration_len: f64) -> String {
     result
 }
 
+fn special_transition_endpoint_display(id: &str, is_source: bool) -> Option<String> {
+    if id == "[*]" {
+        return Some(if is_source { "*start*" } else { "*end*" }.to_string());
+    }
+    let scope = id.strip_prefix("[*]")?;
+    let prefix = if is_source { "*start*" } else { "*end*" };
+    Some(format!("{prefix}{scope}"))
+}
+
 // ── Note rendering ──────────────────────────────────────────────────
 
 fn render_note(sg: &mut SvgGraphic, tracker: &mut BoundsTracker, note: &StateNoteLayout) {
@@ -985,24 +988,135 @@ fn render_note(sg: &mut SvgGraphic, tracker: &mut BoundsTracker, note: &StateNot
     let w = note.width;
     let h = note.height;
     let fold = 10.0;
+    let notch_half = 4.0;
+    let ent_id = next_ent_id();
+    let qualified_name = note.entity_id.as_deref().unwrap_or("GMN");
 
-    // Note body path (Java style: <path> with M/L commands)
-    // Java: stroke-width:0.5 for the body
     sg.push_raw(&format!(
-        r#"<path d="M{},{} L{},{} L{},{} L{},{} L{},{} L{},{}" fill="{}" style="stroke:{};stroke-width:0.5;"/>"#,
-        fmt_coord(x), fmt_coord(y),
-        fmt_coord(x), fmt_coord(y + h),
-        fmt_coord(x + w), fmt_coord(y + h),
-        fmt_coord(x + w), fmt_coord(y + fold),
-        fmt_coord(x + w - fold), fmt_coord(y),
-        fmt_coord(x), fmt_coord(y),
-        NOTE_BG, NOTE_BORDER,
+        r#"<g class="entity" data-qualified-name="{}""#,
+        xml_escape(qualified_name)
+    ));
+    if let Some(source_line) = note.source_line {
+        sg.push_raw(&format!(r#" data-source-line="{}""#, source_line));
+    }
+    sg.push_raw(&format!(r#" id="{}">"#, ent_id));
+
+    let body_path = if let Some((ax, ay)) = note.anchor {
+        match note.position.as_str() {
+            "left" => format!(
+                "M{},{} L{},{} L{},{} L{},{} L{},{} L{},{} L{},{} L{},{} L{},{}",
+                fmt_coord(x),
+                fmt_coord(y),
+                fmt_coord(x),
+                fmt_coord(y + h),
+                fmt_coord(x + w),
+                fmt_coord(y + h),
+                fmt_coord(x + w),
+                fmt_coord(ay + notch_half),
+                fmt_coord(ax),
+                fmt_coord(ay),
+                fmt_coord(x + w),
+                fmt_coord(ay - notch_half),
+                fmt_coord(x + w),
+                fmt_coord(y + fold),
+                fmt_coord(x + w - fold),
+                fmt_coord(y),
+                fmt_coord(x),
+                fmt_coord(y),
+            ),
+            "top" => format!(
+                "M{},{} L{},{} L{},{} L{},{} L{},{} L{},{} L{},{} L{},{} L{},{}",
+                fmt_coord(x),
+                fmt_coord(y),
+                fmt_coord(x),
+                fmt_coord(y + h),
+                fmt_coord(x + w),
+                fmt_coord(y + h),
+                fmt_coord(x + w),
+                fmt_coord(y + fold),
+                fmt_coord(x + w - fold),
+                fmt_coord(y),
+                fmt_coord(ax + notch_half),
+                fmt_coord(y),
+                fmt_coord(ax),
+                fmt_coord(ay),
+                fmt_coord(ax - notch_half),
+                fmt_coord(y),
+                fmt_coord(x),
+                fmt_coord(y),
+            ),
+            "bottom" => format!(
+                "M{},{} L{},{} L{},{} L{},{} L{},{} L{},{} L{},{} L{},{} L{},{}",
+                fmt_coord(x),
+                fmt_coord(y),
+                fmt_coord(x),
+                fmt_coord(y + h),
+                fmt_coord(ax - notch_half),
+                fmt_coord(y + h),
+                fmt_coord(ax),
+                fmt_coord(ay),
+                fmt_coord(ax + notch_half),
+                fmt_coord(y + h),
+                fmt_coord(x + w),
+                fmt_coord(y + h),
+                fmt_coord(x + w),
+                fmt_coord(y + fold),
+                fmt_coord(x + w - fold),
+                fmt_coord(y),
+                fmt_coord(x),
+                fmt_coord(y),
+            ),
+            _ => format!(
+                "M{},{} L{},{} L{},{} L{},{} L{},{} L{},{} L{},{} L{},{} L{},{}",
+                fmt_coord(x),
+                fmt_coord(y),
+                fmt_coord(x),
+                fmt_coord(ay - notch_half),
+                fmt_coord(ax),
+                fmt_coord(ay),
+                fmt_coord(x),
+                fmt_coord(ay + notch_half),
+                fmt_coord(x),
+                fmt_coord(y + h),
+                fmt_coord(x + w),
+                fmt_coord(y + h),
+                fmt_coord(x + w),
+                fmt_coord(y + fold),
+                fmt_coord(x + w - fold),
+                fmt_coord(y),
+                fmt_coord(x),
+                fmt_coord(y),
+            ),
+        }
+    } else {
+        format!(
+            "M{},{} L{},{} L{},{} L{},{} L{},{} L{},{}",
+            fmt_coord(x),
+            fmt_coord(y),
+            fmt_coord(x),
+            fmt_coord(y + h),
+            fmt_coord(x + w),
+            fmt_coord(y + h),
+            fmt_coord(x + w),
+            fmt_coord(y + fold),
+            fmt_coord(x + w - fold),
+            fmt_coord(y),
+            fmt_coord(x),
+            fmt_coord(y),
+        )
+    };
+
+    sg.push_raw(&format!(
+        r#"<path d="{}" fill="{}" style="stroke:{};stroke-width:0.5;"/>"#,
+        body_path,
+        NOTE_BG,
+        NOTE_BORDER,
     ));
     sg.push_raw("\n");
 
-    // Fold corner path (Java style: stroke-width:1)
+    // Fold corner path matches the note border stroke.
     sg.push_raw(&format!(
-        r#"<path d="M{},{} L{},{} L{},{} L{},{}" fill="{}" style="stroke:{};stroke-width:1;"/>"#,
+        r#"<path d="M{},{} L{},{} L{},{} L{},{}" fill="{}" style="stroke:{};stroke-width:0.5;"/>"#,
         fmt_coord(x + w - fold),
         fmt_coord(y),
         fmt_coord(x + w - fold),
@@ -1017,28 +1131,23 @@ fn render_note(sg: &mut SvgGraphic, tracker: &mut BoundsTracker, note: &StateNot
     sg.push_raw("\n");
 
     // Track note bounds
-    tracker.track_polygon(&[
-        (x, y),
-        (x + w - fold, y),
-        (x + w, y + fold),
-        (x + w, y + h),
-        (x, y + h),
-    ]);
+    tracker.track_polygon(&[(x, y), (x + w - fold, y), (x + w, y + fold), (x + w, y + h), (x, y + h)]);
 
     let text_x = x + 6.0;
-    let text_y = y + fold + FONT_SIZE;
+    let text_y = y + 17.0669;
     let mut tmp = String::new();
     render_creole_text(
         &mut tmp,
         &note.text,
         text_x,
         text_y,
-        LINE_HEIGHT,
+        font_metrics::line_height("SansSerif", FONT_SIZE, false, false),
         TEXT_COLOR,
         None,
         r#"font-size="13""#,
     );
     sg.push_raw(&tmp);
+    sg.push_raw("</g>");
 }
 
 // ── Helper functions ────────────────────────────────────────────────
@@ -1495,6 +1604,11 @@ mod tests {
             width: 120.0,
             height: 40.0,
             text: "important note".to_string(),
+            position: "right".to_string(),
+            target: None,
+            entity_id: Some("GMN2".to_string()),
+            source_line: Some(1),
+            anchor: None,
         });
         let (svg, _) =
             render_state(&diagram, &layout, &SkinParams::default()).expect("render failed");
@@ -1519,6 +1633,11 @@ mod tests {
             width: 120.0,
             height: 60.0,
             text: "line one\nline two".to_string(),
+            position: "right".to_string(),
+            target: None,
+            entity_id: Some("GMN2".to_string()),
+            source_line: Some(1),
+            anchor: None,
         });
         let (svg, _) =
             render_state(&diagram, &layout, &SkinParams::default()).expect("render failed");

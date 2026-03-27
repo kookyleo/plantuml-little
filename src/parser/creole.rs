@@ -438,12 +438,16 @@ fn try_parse_html_tag(chars: &[char], start: usize, end: usize) -> Option<(TextS
     ] {
         if matches_at_ci(chars, start, open) {
             let content_start = start + open.len();
-            if let Some(close_pos) = find_tag_close_ci(chars, content_start, end, close) {
-                let mut inner = Vec::new();
-                parse_inline_chars(chars, content_start, close_pos, &mut inner, None);
-                let span = make(merge_plains(inner));
-                return Some((span, close_pos + close.len() - start));
-            }
+            let close_pos = find_tag_close_ci(chars, content_start, end, close).unwrap_or(end);
+            let consumed_end = if close_pos == end {
+                end
+            } else {
+                close_pos + close.len()
+            };
+            let mut inner = Vec::new();
+            parse_inline_chars(chars, content_start, close_pos, &mut inner, None);
+            let span = make(merge_plains(inner));
+            return Some((span, consumed_end - start));
         }
     }
 
@@ -843,6 +847,17 @@ mod tests {
     #[test]
     fn test_html_italic() {
         let rt = parse_creole("<i>italic</i>");
+        assert_eq!(
+            rt,
+            RichText::Line(vec![TextSpan::Italic(vec![TextSpan::Plain(
+                "italic".into()
+            )])])
+        );
+    }
+
+    #[test]
+    fn test_html_italic_unclosed_consumes_rest_of_line() {
+        let rt = parse_creole("<i>italic");
         assert_eq!(
             rt,
             RichText::Line(vec![TextSpan::Italic(vec![TextSpan::Plain(

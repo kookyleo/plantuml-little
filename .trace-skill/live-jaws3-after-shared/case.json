@@ -1,0 +1,191 @@
+{
+  "fixture": {
+    "absolute_path": "/ext/plantuml/plantuml-little/tests/fixtures/dev/jaws/jaws3.puml",
+    "relative_path": "tests/fixtures/dev/jaws/jaws3.puml",
+    "test_name": "reference_fixtures_dev_jaws_jaws3_puml",
+    "reference_path": "/ext/plantuml/plantuml-little/tests/reference/dev/jaws/jaws3.svg"
+  },
+  "summary": {
+    "family": "graphviz-svek",
+    "diagram_type": "CLASS",
+    "keywords": [
+      "newline_func",
+      "creole_markup",
+      "creole_table"
+    ],
+    "source": {
+      "bytes": 297,
+      "lines": 17
+    },
+    "rust": {
+      "viewport": {
+        "width": "241px",
+        "height": "92px"
+      },
+      "diagram_type": "CLASS",
+      "element_counts": {
+        "rect": 1,
+        "path": 0,
+        "text": 11,
+        "ellipse": 0,
+        "polygon": 0,
+        "group": 2
+      },
+      "bytes": 3482,
+      "lines": 1
+    },
+    "java": {
+      "viewport": {
+        "width": "241px",
+        "height": "92px"
+      },
+      "diagram_type": "CLASS",
+      "element_counts": {
+        "rect": 1,
+        "path": 0,
+        "text": 11,
+        "ellipse": 0,
+        "polygon": 0,
+        "group": 2
+      },
+      "bytes": 3496,
+      "lines": 1
+    },
+    "reference": {
+      "viewport": {
+        "width": "241px",
+        "height": "92px"
+      },
+      "diagram_type": "CLASS",
+      "element_counts": {
+        "rect": 1,
+        "path": 0,
+        "text": 11,
+        "ellipse": 0,
+        "polygon": 0,
+        "group": 2
+      },
+      "bytes": 3496,
+      "lines": 1
+    },
+    "first_diff": {
+      "line": 1,
+      "col": 412,
+      "message": "expected=...ta-qualified-name=\"r\" data-source-line=\"9\" id=\"ent0002\"><rect fill=\"#F1F1F1\" hei... actual=...ta-qualified-name=\"r\" data-source-line=\"5\" id=\"ent0002\"><rect fill=\"#F1F1F1\" hei...",
+      "target": "reference"
+    },
+    "diff_profile": {
+      "category": "viewport-only",
+      "surface_category": "viewport-only",
+      "root_svg_signal": true,
+      "structural_signal": true,
+      "coordinate_signal": true,
+      "coordinate_delta": null,
+      "viewport": {
+        "reference": {
+          "width": 241,
+          "height": 92
+        },
+        "actual": {
+          "width": 241,
+          "height": 92
+        },
+        "delta": {
+          "width": 0,
+          "height": 0
+        },
+        "score": 0
+      },
+      "size_summary": "unknown",
+      "underlying_signals": [
+        {
+          "key": "graphviz-coordinate-chain",
+          "label": "Graphviz coordinate chain",
+          "strength": "medium",
+          "reason": "No stronger earlier-stage signal was detected, so start with the Graphviz/Svek handoff."
+        }
+      ]
+    },
+    "fix_suggestions": [
+      {
+        "key": "class-cluster-or-protrusion",
+        "label": "Class cluster/protrusion chain",
+        "strength": "medium",
+        "reason": "CLASS viewport drift often comes from group bounds, qualifier spacing, or protrusion normalization after svek.",
+        "files": [
+          "/ext/plantuml/plantuml-little/src/svek/mod.rs",
+          "/ext/plantuml/plantuml-little/src/svek/cluster.rs",
+          "/ext/plantuml/plantuml-little/src/render/svg.rs"
+        ]
+      }
+    ],
+    "reference_test": {
+      "status": "failed",
+      "returncode": 101,
+      "stdout_path": "/ext/plantuml/plantuml-little/.trace-skill/live-jaws3-after-shared/reference-test.stdout.log",
+      "stderr_path": "/ext/plantuml/plantuml-little/.trace-skill/live-jaws3-after-shared/reference-test.stderr.log",
+      "primary_log_path": "/ext/plantuml/plantuml-little/.trace-skill/live-jaws3-after-shared/reference-test.stderr.log",
+      "failure_excerpt": "Running tests/reference_tests.rs (target/debug/deps/reference_tests-69b2c048eac2359d)\n\nthread 'reference_fixtures_dev_jaws_jaws3_puml' (4014215) panicked at tests/reference_tests.rs:226:9:\ntests/fixtures/dev/jaws/jaws3.puml: output differs from reference at line 1 col 412\nexpected: ...ta-qualified-name=\"r\" data-source-line=\"9\" id=\"ent0002\"><rect fill=\"#F1F1F1\" hei...\nactual:   ...ta-qualified-name=\"r\" data-source-line=\"5\" id=\"ent0002\"><rect fill=\"#F1F1F1\" hei...\nnote: run with `RUST_BACKTRACE=1` environment variable to display a backtrace"
+    },
+    "trace_diff": {
+      "available": false,
+      "path": null,
+      "first_changed": null
+    },
+    "authoritative_match": false
+  },
+  "commands": {
+    "rust_render": {
+      "cmd": [
+        "cargo",
+        "run",
+        "--quiet",
+        "--",
+        "/ext/plantuml/plantuml-little/tests/fixtures/dev/jaws/jaws3.puml",
+        "--output",
+        "/ext/plantuml/plantuml-little/.trace-skill/live-jaws3-after-shared/rust.svg"
+      ],
+      "cwd": "/ext/plantuml/plantuml-little",
+      "returncode": 0,
+      "stdout_path": "/ext/plantuml/plantuml-little/.trace-skill/live-jaws3-after-shared/rust-render.stdout.log",
+      "stderr_path": "/ext/plantuml/plantuml-little/.trace-skill/live-jaws3-after-shared/rust-render.stderr.log",
+      "artifact_path": "/ext/plantuml/plantuml-little/.trace-skill/live-jaws3-after-shared/rust.svg",
+      "stdout_excerpt": null,
+      "stderr_excerpt": "warning: unused import: `NoteLinkStrategy`\n  --> src/abel/entity.rs:12:58\n   |\n12 | use super::{CucaNote, DisplayPositioned, EntityPosition, NoteLinkStrategy, Together};\n   |                                                          ^^^^^^^^^^^^^^^^\n   |\n   = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default\n\nwarning: unused imports: `count_creole_lines` and `max_creole_plain_line_len`\n  --> src/render/svg.rs:27:5\n   |\n27 |     count_creole_lines, creole_plain_text, get_default_font_family_pub, max_creole_plain_line_len,\n   |     ^^^^^^^^^^^^^^^^^^                                                  ^^^^^^^^^^^^^^^^^^^^^^^^^\n\nwarning: unused import: `NotePosition`\n  --> src/render/svg_activity.rs:49:49\n   |\n49 |     use crate::model::activity::{ActivityEvent, NotePositi\n...\n^^^^^^^^^^^^\n\nwarning: function `convert_single_element` is never used\n   --> src/render/svg_sprite.rs:707:4\n    |\n707 | fn convert_single_element(\n    |    ^^^^^^^^^^^^^^^^^^^^^^\n\nwarning: method `is_opalisable` is never used\n   --> src/svek/edge.rs:952:8\n    |\n433 | impl SvekEdge {\n    | ------------- method in this implementation\n...\n952 |     fn is_opalisable(&self) -> bool {\n    |        ^^^^^^^^^^^^^\n\nwarning: function `parse_points` is never used\n   --> src/svek/svg_result.rs:324:4\n    |\n324 | fn parse_points(s: &str) -> Vec<XPoint2D> {\n    |    ^^^^^^^^^^^^\n\nwarning: function `parse_svg_path_to_dotpath` is never used\n   --> src/svek/svg_result.rs:346:4\n    |\n346 | fn parse_svg_path_to_dotpath(d: &str) -> Option<crate::klimt::shape::DotPath> {\n    |    ^^^^^^^^^^^^^^^^^^^^^^^^^"
+    },
+    "java_render": {
+      "cmd": [
+        "java",
+        "-jar",
+        "/ext/plantuml/plantuml/build/libs/plantuml-1.2026.3beta5.jar",
+        "-tsvg",
+        "-pipe"
+      ],
+      "cwd": "/ext/plantuml/plantuml-little",
+      "returncode": 0,
+      "stdout_path": "/ext/plantuml/plantuml-little/.trace-skill/live-jaws3-after-shared/java-render.stdout.svg",
+      "stderr_path": "/ext/plantuml/plantuml-little/.trace-skill/live-jaws3-after-shared/java-render.stderr.log",
+      "artifact_path": "/ext/plantuml/plantuml-little/.trace-skill/live-jaws3-after-shared/java.svg",
+      "stdout_excerpt": "<svg xmlns=\"http://www.w3.org/2000/svg\" xmlns:xlink=\"http://www.w3.org/1999/xlink\" contentStyleType=\"text/css\" data-diagram-type=\"CLASS\" height=\"92px\" preserveAspectRatio=\"none\" style=\"width:241px;height:92px;background:#FFFFFF;\" version=\"1.1\" viewBox=\"0 0 241 92\" width=\"241px\" zoomAndPan=\"magnify\"><?plantuml 1.2026.3beta5?><defs/><g><!--entity r--><g class=\"entity\" data-qualified-name=\"r\" data-source-line=\"9\" id=\"ent0002\"><rect fill=\"#F1F1F1\" height=\"72.8906\" rx=\"2.5\" ry=\"2.5\" style=\"stroke:#181818;stroke-width:0.5;\" width=\"221.3389\" x=\"7\" y=\"7\"/><text fill=\"#000000\" font-family=\"sans-serif\" font-size=\"14\" font-style=\"italic\" lengthAdjust=\"spacing\" textLength=\"93.0029\" x=\"17\" y=\"29.9951\">on rectangle:</text><text fill=\"#000000\" font-family=\"sans-serif\" font-size=\"14\" font-weight=\"700\" len\n...\n5.2969\" y2=\"67.8906\"/><line style=\"stroke:#000000;stroke-width:0.5;\" x1=\"160.4658\" x2=\"160.4658\" y1=\"35.2969\" y2=\"67.8906\"/><line style=\"stroke:#000000;stroke-width:0.5;\" x1=\"178.2734\" x2=\"178.2734\" y1=\"35.2969\" y2=\"67.8906\"/><line style=\"stroke:#000000;stroke-width:0.5;\" x1=\"182.7236\" x2=\"182.7236\" y1=\"35.2969\" y2=\"67.8906\"/><line style=\"stroke:#000000;stroke-width:0.5;\" x1=\"200.5313\" x2=\"200.5313\" y1=\"35.2969\" y2=\"67.8906\"/><line style=\"stroke:#000000;stroke-width:0.5;\" x1=\"218.3389\" x2=\"218.3389\" y1=\"35.2969\" y2=\"67.8906\"/></g><?plantuml-src TO_13e8m44Jl-nNB1XA8N41FHZpw4yQG0YjfqhIc5hZmyRPKZHTFE_CccTrDHcKweJ1rebEC3TBQu4Mo6YhyAAnn9KWUrlGyJ9OnjMR9qrceYQiIewWBo9xisbbO6QhQZUOKYwd4RFoV5hZ3JFEYfEOy65gH_7Zl201_IHq95P2m7kwJxfqq6c0xZ2g_ZMeVHhiFzk0jMEwTqAF_q-8LJl9iD7xP4U8nS0Du0G00?></g></svg>",
+      "stderr_excerpt": null
+    },
+    "reference_test": {
+      "cmd": [
+        "cargo",
+        "test",
+        "--test",
+        "reference_tests",
+        "reference_fixtures_dev_jaws_jaws3_puml",
+        "--",
+        "--nocapture"
+      ],
+      "cwd": "/ext/plantuml/plantuml-little",
+      "returncode": 101,
+      "stdout_path": "/ext/plantuml/plantuml-little/.trace-skill/live-jaws3-after-shared/reference-test.stdout.log",
+      "stderr_path": "/ext/plantuml/plantuml-little/.trace-skill/live-jaws3-after-shared/reference-test.stderr.log",
+      "artifact_path": null,
+      "stdout_excerpt": "running 1 test\ntest reference_fixtures_dev_jaws_jaws3_puml ... FAILED\n\nfailures:\n\nfailures:\n    reference_fixtures_dev_jaws_jaws3_puml\n\ntest result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 295 filtered out; finished in 0.06s",
+      "stderr_excerpt": "warning: unused import: `NoteLinkStrategy`\n  --> src/abel/entity.rs:12:58\n   |\n12 | use super::{CucaNote, DisplayPositioned, EntityPosition, NoteLinkStrategy, Together};\n   |                                                          ^^^^^^^^^^^^^^^^\n   |\n   = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default\n\nwarning: unused imports: `count_creole_lines` and `max_creole_plain_line_len`\n  --> src/render/svg.rs:27:5\n   |\n27 |     count_creole_lines, creole_plain_text, get_default_font_family_pub, max_creole_plain_line_len,\n   |     ^^^^^^^^^^^^^^^^^^                                                  ^^^^^^^^^^^^^^^^^^^^^^^^^\n\nwarning: unused import: `NotePosition`\n  --> src/render/svg_activity.rs:49:49\n   |\n49 |     use crate::model::activity::{ActivityEvent, NotePositi\n...\nes_sprite_test_polyline_sprites_puml`\n\nwarning: `plantuml-little` (test \"reference_tests\") generated 112 warnings\n    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.20s\n     Running tests/reference_tests.rs (target/debug/deps/reference_tests-69b2c048eac2359d)\n\nthread 'reference_fixtures_dev_jaws_jaws3_puml' (4014215) panicked at tests/reference_tests.rs:226:9:\ntests/fixtures/dev/jaws/jaws3.puml: output differs from reference at line 1 col 412\nexpected: ...ta-qualified-name=\"r\" data-source-line=\"9\" id=\"ent0002\"><rect fill=\"#F1F1F1\" hei...\nactual:   ...ta-qualified-name=\"r\" data-source-line=\"5\" id=\"ent0002\"><rect fill=\"#F1F1F1\" hei...\nnote: run with `RUST_BACKTRACE=1` environment variable to display a backtrace\nerror: test failed, to rerun pass `--test reference_tests`"
+    }
+  }
+}

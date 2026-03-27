@@ -1,0 +1,326 @@
+{
+  "fixture": {
+    "absolute_path": "/ext/plantuml/plantuml-little/tests/fixtures/state/state_note001.puml",
+    "relative_path": "tests/fixtures/state/state_note001.puml",
+    "test_name": "reference_fixtures_state_state_note001_puml",
+    "reference_path": "/ext/plantuml/plantuml-little/tests/reference/state/state_note001.svg"
+  },
+  "summary": {
+    "family": "graphviz-svek",
+    "diagram_type": "STATE",
+    "keywords": [],
+    "source": {
+      "bytes": 182,
+      "lines": 13
+    },
+    "rust": {
+      "viewport": {
+        "width": "284px",
+        "height": "368px"
+      },
+      "diagram_type": "STATE",
+      "element_counts": {
+        "rect": 3,
+        "path": 7,
+        "text": 14,
+        "ellipse": 2,
+        "polygon": 2,
+        "group": 7
+      },
+      "bytes": 5101,
+      "lines": 5
+    },
+    "java": null,
+    "reference": {
+      "viewport": {
+        "width": "371px",
+        "height": "366px"
+      },
+      "diagram_type": "STATE",
+      "element_counts": {
+        "rect": 3,
+        "path": 8,
+        "text": 6,
+        "ellipse": 2,
+        "polygon": 3,
+        "group": 10
+      },
+      "bytes": 4919,
+      "lines": 1
+    },
+    "raw_first_diff": {
+      "line": 1,
+      "col": 148,
+      "message": "expected=...ss\" data-diagram-type=\"STATE\" height=\"366px\" preserveAspectRatio=\"none\" style=\"w... actual=...ss\" data-diagram-type=\"STATE\" height=\"368px\" preserveAspectRatio=\"none\" style=\"w...",
+      "target": "reference"
+    },
+    "semantic_first_diff": {
+      "line": 1,
+      "col": 148,
+      "message": "expected=...ss\" data-diagram-type=\"STATE\" height=\"366px\" preserveAspectRatio=\"none\" style=\"w... actual=...ss\" data-diagram-type=\"STATE\" height=\"368px\" preserveAspectRatio=\"none\" style=\"w...",
+      "target": "reference"
+    },
+    "object_first_diff": {
+      "index": 0,
+      "expected": {
+        "tag": "svg",
+        "attrs": {
+          "contentStyleType": "text/css",
+          "data-diagram-type": "STATE",
+          "height": "366px",
+          "preserveAspectRatio": "none",
+          "style": "width:371px;height:366px;background:#FFFFFF;",
+          "version": "1.1",
+          "viewBox": "0 0 371 366",
+          "width": "371px",
+          "zoomAndPan": "magnify"
+        },
+        "text": "ActiveRunningInactiveThis is activeMulti linenote text"
+      },
+      "actual": {
+        "tag": "svg",
+        "attrs": {
+          "contentStyleType": "text/css",
+          "data-diagram-type": "STATE",
+          "height": "368px",
+          "preserveAspectRatio": "none",
+          "style": "width:284px;height:368px;background:#FFFFFF;",
+          "version": "1.1",
+          "viewBox": "0 0 284 368",
+          "width": "284px",
+          "zoomAndPan": "magnify"
+        },
+        "text": "ActiveRunningInactive\n\nThis is active\n\nMulti linenote text"
+      },
+      "target": "reference"
+    },
+    "semantic_equivalent": false,
+    "diff_profile": {
+      "category": "coordinate-only",
+      "surface_category": "coordinate-only",
+      "root_svg_signal": true,
+      "structural_signal": true,
+      "coordinate_signal": true,
+      "coordinate_delta": {
+        "attr": "height",
+        "expected": "366px",
+        "actual": "368px",
+        "delta": null
+      },
+      "object_delta": {
+        "tag": "svg",
+        "expected_tag": "svg",
+        "actual_tag": "svg",
+        "changed_attrs": [
+          {
+            "attr": "height",
+            "expected": "366px",
+            "actual": "368px"
+          },
+          {
+            "attr": "style",
+            "expected": "width:371px;height:366px;background:#FFFFFF;",
+            "actual": "width:284px;height:368px;background:#FFFFFF;"
+          },
+          {
+            "attr": "viewBox",
+            "expected": "0 0 371 366",
+            "actual": "0 0 284 368"
+          },
+          {
+            "attr": "width",
+            "expected": "371px",
+            "actual": "284px"
+          }
+        ],
+        "changed_attr_keys": [
+          "height",
+          "style",
+          "viewBox",
+          "width"
+        ],
+        "same_text": false,
+        "text_changed": true,
+        "expected_text": "ActiveRunningInactiveThis is activeMulti linenote text",
+        "actual_text": "ActiveRunningInactive\n\nThis is active\n\nMulti linenote text"
+      },
+      "viewport": {
+        "reference": {
+          "width": 371,
+          "height": 366
+        },
+        "actual": {
+          "width": 284,
+          "height": 368
+        },
+        "delta": {
+          "width": -87,
+          "height": 2
+        },
+        "score": 89
+      },
+      "size_summary": "dw=-87, dh=+2",
+      "semantic_equivalent": false,
+      "underlying_signals": [
+        {
+          "key": "element-structure-drift",
+          "label": "Element structure drift",
+          "strength": "high",
+          "reason": "The first differing byte is a coordinate or viewport attribute, but the rendered element counts already diverge, so the true root cause is earlier than post-Graphviz coordinate extraction."
+        }
+      ]
+    },
+    "fix_suggestions": [
+      {
+        "key": "element-structure-drift",
+        "label": "Element structure drift",
+        "strength": "high",
+        "reason": "Rendered element counts already diverge, so compare earlier render structure or shared text assembly before post-dot coordinate extraction.",
+        "files": [
+          "/ext/plantuml/plantuml-little/src/render/svg_state.rs",
+          "/ext/plantuml/plantuml-little/src/render/svg.rs",
+          "/ext/plantuml/plantuml-little/src/layout/mod.rs"
+        ]
+      }
+    ],
+    "code_anchors": [
+      {
+        "key": "graphviz-svek-core",
+        "label": "Graphviz/Svek core",
+        "reason": "Graphviz-backed diagrams usually diverge in SvekResult bounds, LimitFinder participation, or final SVG coordinate normalization.",
+        "java_files": [
+          "/ext/plantuml/plantuml/src/main/java/net/sourceforge/plantuml/svek/SvekResult.java",
+          "/ext/plantuml/plantuml/src/main/java/net/sourceforge/plantuml/svek/LimitFinder.java",
+          "/ext/plantuml/plantuml/src/main/java/net/sourceforge/plantuml/klimt/drawing/svg/SvgGraphics.java"
+        ],
+        "rust_files": [
+          "/ext/plantuml/plantuml-little/src/svek/mod.rs",
+          "/ext/plantuml/plantuml-little/src/svek/svg_result.rs",
+          "/ext/plantuml/plantuml-little/src/layout/graphviz.rs",
+          "/ext/plantuml/plantuml-little/src/render/svg.rs"
+        ]
+      },
+      {
+        "key": "element-structure-drift",
+        "label": "Element structure drift",
+        "reason": "Element counts already diverge before the first visible coordinate diff, so inspect earlier render structure or shared text assembly before post-dot normalization.",
+        "java_files": [
+          "/ext/plantuml/plantuml/src/main/java/net/sourceforge/plantuml/TextBlockExporter12026.java",
+          "/ext/plantuml/plantuml/src/main/java/net/sourceforge/plantuml/klimt/shape/TextBlock.java"
+        ],
+        "rust_files": [
+          "/ext/plantuml/plantuml-little/src/render/svg.rs",
+          "/ext/plantuml/plantuml-little/src/render/svg_richtext.rs",
+          "/ext/plantuml/plantuml-little/src/layout/mod.rs"
+        ]
+      }
+    ],
+    "trace_request": {
+      "stages": [
+        "preproc.done",
+        "parse.done",
+        "layout.dot_input",
+        "layout.dot_output",
+        "layout.done",
+        "render.prep",
+        "render.bounds",
+        "svg.final"
+      ],
+      "conventions": {
+        "rust_env": {
+          "PUML_TRACE_JSONL": "/tmp/rust-trace.jsonl",
+          "PUML_TRACE_STAGES": "preproc.done,parse.done,layout.dot_input,layout.dot_output,layout.done,render.prep,render.bounds,svg.final"
+        },
+        "java_properties": {
+          "plantuml.trace.jsonl": "/tmp/java-trace.jsonl",
+          "plantuml.trace.stages": "preproc.done,parse.done,layout.dot_input,layout.dot_output,layout.done,render.prep,render.bounds,svg.final"
+        }
+      },
+      "rust_hooks": [
+        "/ext/plantuml/plantuml-little/src/svek/mod.rs",
+        "/ext/plantuml/plantuml-little/src/svek/svg_result.rs",
+        "/ext/plantuml/plantuml-little/src/layout/graphviz.rs",
+        "/ext/plantuml/plantuml-little/src/render/svg.rs"
+      ],
+      "java_hooks": [
+        "/ext/plantuml/plantuml/src/main/java/net/sourceforge/plantuml/svek/SvekResult.java",
+        "/ext/plantuml/plantuml/src/main/java/net/sourceforge/plantuml/svek/LimitFinder.java",
+        "/ext/plantuml/plantuml/src/main/java/net/sourceforge/plantuml/klimt/drawing/svg/SvgGraphics.java"
+      ]
+    },
+    "reference_test": {
+      "status": "failed",
+      "returncode": 101,
+      "stdout_path": "/ext/plantuml/plantuml-little/.trace-skill/live-state-note001-skill4/reference-test.stdout.log",
+      "stderr_path": "/ext/plantuml/plantuml-little/.trace-skill/live-state-note001-skill4/reference-test.stderr.log",
+      "primary_log_path": "/ext/plantuml/plantuml-little/.trace-skill/live-state-note001-skill4/reference-test.stderr.log",
+      "failure_excerpt": "Running tests/reference_tests.rs (target/debug/deps/reference_tests-69b2c048eac2359d)\n\nthread 'reference_fixtures_state_state_note001_puml' (4108912) panicked at tests/reference_tests.rs:226:9:\ntests/fixtures/state/state_note001.puml: output differs from reference at line 1 col 148\nexpected: ...ss\" data-diagram-type=\"STATE\" height=\"366px\" preserveAspectRatio=\"none\" style=\"w...\nactual:   ...ss\" data-diagram-type=\"STATE\" height=\"368px\" preserveAspectRatio=\"none\" style=\"w...\nnote: run with `RUST_BACKTRACE=1` environment variable to display a backtrace"
+    },
+    "trace_diff": {
+      "available": false,
+      "path": null,
+      "first_changed": null
+    },
+    "authoritative_match": false,
+    "authority": {
+      "tier": "reference-test",
+      "artifact_target": "reference",
+      "worktree": {
+        "dirty": true,
+        "changed_count": 17,
+        "sample_paths": [
+          " M src/layout/activity.rs",
+          " M src/layout/mod.rs",
+          " M src/parser/activity.rs",
+          " M src/parser/class.rs",
+          " M src/parser/creole.rs",
+          " M src/parser/mod.rs",
+          " M src/preproc/expr.rs",
+          " M src/preproc/mod.rs",
+          " M src/render/svg.rs",
+          " M src/render/svg_activity.rs"
+        ],
+        "returncode": 0
+      }
+    }
+  },
+  "commands": {
+    "rust_render": {
+      "cmd": [
+        "cargo",
+        "run",
+        "--quiet",
+        "--",
+        "/ext/plantuml/plantuml-little/tests/fixtures/state/state_note001.puml",
+        "--output",
+        "/ext/plantuml/plantuml-little/.trace-skill/live-state-note001-skill4/rust.svg"
+      ],
+      "cwd": "/ext/plantuml/plantuml-little",
+      "returncode": 0,
+      "stdout_path": "/ext/plantuml/plantuml-little/.trace-skill/live-state-note001-skill4/rust-render.stdout.log",
+      "stderr_path": "/ext/plantuml/plantuml-little/.trace-skill/live-state-note001-skill4/rust-render.stderr.log",
+      "artifact_path": "/ext/plantuml/plantuml-little/.trace-skill/live-state-note001-skill4/rust.svg",
+      "stdout_excerpt": null,
+      "stderr_excerpt": "warning: unused import: `NoteLinkStrategy`\n  --> src/abel/entity.rs:12:58\n   |\n12 | use super::{CucaNote, DisplayPositioned, EntityPosition, NoteLinkStrategy, Together};\n   |                                                          ^^^^^^^^^^^^^^^^\n   |\n   = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default\n\nwarning: unused imports: `count_creole_lines` and `max_creole_plain_line_len`\n  --> src/render/svg.rs:27:5\n   |\n27 |     count_creole_lines, creole_plain_text, get_default_font_family_pub, max_creole_plain_line_len,\n   |     ^^^^^^^^^^^^^^^^^^                                                  ^^^^^^^^^^^^^^^^^^^^^^^^^\n\nwarning: unused import: `NotePosition`\n  --> src/render/svg_activity.rs:60:49\n   |\n60 |     use crate::model::activity::{ActivityEvent, NotePositi\n...\n^^^^^^^^^^^^\n\nwarning: function `convert_single_element` is never used\n   --> src/render/svg_sprite.rs:707:4\n    |\n707 | fn convert_single_element(\n    |    ^^^^^^^^^^^^^^^^^^^^^^\n\nwarning: method `is_opalisable` is never used\n   --> src/svek/edge.rs:952:8\n    |\n433 | impl SvekEdge {\n    | ------------- method in this implementation\n...\n952 |     fn is_opalisable(&self) -> bool {\n    |        ^^^^^^^^^^^^^\n\nwarning: function `parse_points` is never used\n   --> src/svek/svg_result.rs:324:4\n    |\n324 | fn parse_points(s: &str) -> Vec<XPoint2D> {\n    |    ^^^^^^^^^^^^\n\nwarning: function `parse_svg_path_to_dotpath` is never used\n   --> src/svek/svg_result.rs:346:4\n    |\n346 | fn parse_svg_path_to_dotpath(d: &str) -> Option<crate::klimt::shape::DotPath> {\n    |    ^^^^^^^^^^^^^^^^^^^^^^^^^"
+    },
+    "java_render": null,
+    "reference_test": {
+      "cmd": [
+        "cargo",
+        "test",
+        "--test",
+        "reference_tests",
+        "reference_fixtures_state_state_note001_puml",
+        "--",
+        "--nocapture"
+      ],
+      "cwd": "/ext/plantuml/plantuml-little",
+      "returncode": 101,
+      "stdout_path": "/ext/plantuml/plantuml-little/.trace-skill/live-state-note001-skill4/reference-test.stdout.log",
+      "stderr_path": "/ext/plantuml/plantuml-little/.trace-skill/live-state-note001-skill4/reference-test.stderr.log",
+      "artifact_path": null,
+      "stdout_excerpt": "running 1 test\ntest reference_fixtures_state_state_note001_puml ... FAILED\n\nfailures:\n\nfailures:\n    reference_fixtures_state_state_note001_puml\n\ntest result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 295 filtered out; finished in 0.02s",
+      "stderr_excerpt": "warning: unused import: `NoteLinkStrategy`\n  --> src/abel/entity.rs:12:58\n   |\n12 | use super::{CucaNote, DisplayPositioned, EntityPosition, NoteLinkStrategy, Together};\n   |                                                          ^^^^^^^^^^^^^^^^\n   |\n   = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default\n\nwarning: unused imports: `count_creole_lines` and `max_creole_plain_line_len`\n  --> src/render/svg.rs:27:5\n   |\n27 |     count_creole_lines, creole_plain_text, get_default_font_family_pub, max_creole_plain_line_len,\n   |     ^^^^^^^^^^^^^^^^^^                                                  ^^^^^^^^^^^^^^^^^^^^^^^^^\n\nwarning: unused import: `NotePosition`\n  --> src/render/svg_activity.rs:60:49\n   |\n60 |     use crate::model::activity::{ActivityEvent, NotePositi\n...\ntest_polyline_sprites_puml`\n\nwarning: `plantuml-little` (test \"reference_tests\") generated 112 warnings\n    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.20s\n     Running tests/reference_tests.rs (target/debug/deps/reference_tests-69b2c048eac2359d)\n\nthread 'reference_fixtures_state_state_note001_puml' (4108912) panicked at tests/reference_tests.rs:226:9:\ntests/fixtures/state/state_note001.puml: output differs from reference at line 1 col 148\nexpected: ...ss\" data-diagram-type=\"STATE\" height=\"366px\" preserveAspectRatio=\"none\" style=\"w...\nactual:   ...ss\" data-diagram-type=\"STATE\" height=\"368px\" preserveAspectRatio=\"none\" style=\"w...\nnote: run with `RUST_BACKTRACE=1` environment variable to display a backtrace\nerror: test failed, to rerun pass `--test reference_tests`"
+    }
+  }
+}

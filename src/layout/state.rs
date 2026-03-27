@@ -79,6 +79,11 @@ pub struct StateNoteLayout {
     pub width: f64,
     pub height: f64,
     pub text: String,
+    pub position: String,
+    pub target: Option<String>,
+    pub entity_id: Option<String>,
+    pub source_line: Option<usize>,
+    pub anchor: Option<(f64, f64)>,
 }
 
 // ---------------------------------------------------------------------------
@@ -103,6 +108,7 @@ const COMPOSITE_PADDING: f64 = 12.0;
 /// Header height for composite state name area.
 const COMPOSITE_HEADER: f64 = 26.0;
 const NOTE_OFFSET: f64 = 30.0;
+const NOTE_FONT_SIZE: f64 = 13.0;
 const FORK_BAR_WIDTH: f64 = 80.0;
 const FORK_BAR_HEIGHT: f64 = 8.0;
 /// Choice diamond side length.
@@ -205,10 +211,17 @@ fn expand_visual_lines(descriptions: &[String]) -> Vec<String> {
 /// Estimate the size of a note, clamped to `NOTE_MAX_WIDTH`.
 fn estimate_note_size(text: &str) -> (f64, f64) {
     let lines: Vec<&str> = text.lines().collect();
-    let max_line_len = lines.iter().map(|l| l.len()).max().unwrap_or(0);
-    let width = (max_line_len as f64 * CHAR_WIDTH + 2.0 * PADDING).min(NOTE_MAX_WIDTH);
+    let note_line_height =
+        crate::font_metrics::line_height("SansSerif", NOTE_FONT_SIZE, false, false);
+    let max_line_width = lines
+        .iter()
+        .map(|line| {
+            crate::font_metrics::text_width(line, "SansSerif", NOTE_FONT_SIZE, false, false)
+        })
+        .fold(0.0_f64, f64::max);
+    let width = (max_line_width + 21.0).min(NOTE_MAX_WIDTH);
     let width = width.max(60.0);
-    let height = (lines.len().max(1) as f64 * LINE_HEIGHT + 2.0 * PADDING).max(STATE_MIN_HEIGHT);
+    let height = (lines.len().max(1) as f64 * note_line_height + 10.0).max(25.1328);
     (width, height)
 }
 
@@ -224,11 +237,20 @@ fn classify_special_states(
     states: &[State],
     transitions: &[Transition],
 ) -> (HashSet<String>, HashSet<String>) {
-    let special_ids: HashSet<String> = states
-        .iter()
-        .filter(|s| s.is_special)
-        .map(|s| s.id.clone())
-        .collect();
+    fn collect_special_ids(states: &[State], out: &mut HashSet<String>) {
+        for state in states {
+            if state.is_special {
+                out.insert(state.id.clone());
+            }
+            collect_special_ids(&state.children, out);
+            for region in &state.regions {
+                collect_special_ids(region, out);
+            }
+        }
+    }
+
+    let mut special_ids = HashSet::new();
+    collect_special_ids(states, &mut special_ids);
 
     let mut initial_ids = HashSet::new();
     let mut final_ids = HashSet::new();
@@ -1067,6 +1089,14 @@ fn layout_transitions(
     result
 }
 
+fn transition_key(tr: &Transition) -> (String, String, Option<usize>) {
+    (tr.from.clone(), tr.to.clone(), tr.source_line)
+}
+
+fn transition_layout_key(tr: &TransitionLayout) -> (String, String, Option<usize>) {
+    (tr.from_id.clone(), tr.to_id.clone(), tr.source_line)
+}
+
 // ---------------------------------------------------------------------------
 // Public entry point
 // ---------------------------------------------------------------------------
@@ -1145,6 +1175,26 @@ pub fn layout_state(diagram: &StateDiagram) -> Result<StateLayout> {
         node_id_order.push(state.id.clone());
     }
 
+    let mut attached_notes: Vec<(&crate::model::state::StateNote, f64, f64)> = Vec::new();
+    for note in &diagram.notes {
+        if let (Some(entity_id), Some(_target)) = (note.entity_id.as_ref(), note.target.as_ref()) {
+            let (w, h) = estimate_note_size(&note.text);
+            gv_nodes.push(LayoutNode {
+                id: entity_id.clone(),
+                label: entity_id.clone(),
+                width_pt: w,
+                height_pt: h,
+                shape: None,
+                shield: None,
+                entity_position: None,
+                max_label_width: None,
+                order: Some(node_id_order.len()),
+            });
+            node_id_order.push(entity_id.clone());
+            attached_notes.push((note, w, h));
+        }
+    }
+
     // Build graphviz LayoutEdge list from transitions
     let mut gv_edges: Vec<LayoutEdge> = Vec::new();
     for tr in &diagram.transitions {
@@ -1168,12 +1218,34 @@ pub fn layout_state(diagram: &StateDiagram) -> Result<StateLayout> {
         });
     }
 
-    // Determine rankdir from diagram direction
+    for (note, _w, _h) in &attached_notes {
+        let (from, to, minlen) = match note.position.as_str() {
+            "left" => (note.entity_id.clone().unwrap(), note.target.clone().unwrap(), 0),
+            "top" => (note.entity_id.clone().unwrap(), note.target.clone().unwrap(), 2),
+            "bottom" => (note.target.clone().unwrap(), note.entity_id.clone().unwrap(), 2),
+            _ => (note.target.clone().unwrap(), note.entity_id.clone().unwrap(), 0),
+        };
+        gv_edges.push(LayoutEdge {
+            from,
+            to,
+            label: None,
+            tail_label: None,
+            tail_label_boxed: false,
+            head_label: None,
+            head_label_boxed: false,
+            tail_decoration: crate::svek::edge::LinkDecoration::None,
+            head_decoration: crate::svek::edge::LinkDecoration::None,
+            line_style: crate::svek::edge::LinkStyle::Dashed,
+            minlen,
+            invisible: true,
+        });
+    }
+
     let rankdir = match diagram.direction {
         crate::model::diagram::Direction::TopToBottom => RankDir::TopToBottom,
         crate::model::diagram::Direction::LeftToRight => RankDir::LeftToRight,
-        crate::model::diagram::Direction::RightToLeft => RankDir::RightToLeft,
         crate::model::diagram::Direction::BottomToTop => RankDir::BottomToTop,
+        crate::model::diagram::Direction::RightToLeft => RankDir::RightToLeft,
     };
 
     let graph = LayoutGraph {
@@ -1235,8 +1307,19 @@ pub fn layout_state(diagram: &StateDiagram) -> Result<StateLayout> {
 
     let mut state_layouts: Vec<StateNodeLayout> = Vec::new();
     let mut node_position_map: HashMap<String, (f64, f64, f64, f64)> = HashMap::new();
+    let attached_note_ids: HashSet<&str> = attached_notes
+        .iter()
+        .filter_map(|(note, _, _)| note.entity_id.as_deref())
+        .collect();
+    let mut attached_note_positions: HashMap<String, (f64, f64, f64, f64)> = HashMap::new();
 
     for gv_node in &gv_layout.nodes {
+        if attached_note_ids.contains(gv_node.id.as_str()) {
+            let x = gv_node.cx - gv_node.width / 2.0 + MARGIN;
+            let y = gv_node.cy - gv_node.height / 2.0 + margin_y;
+            attached_note_positions.insert(gv_node.id.clone(), (x, y, gv_node.width, gv_node.height));
+            continue;
+        }
         if let Some((template, _w, _h)) = sized_map.remove(&gv_node.id) {
             let x = gv_node.cx - gv_node.width / 2.0 + MARGIN;
             let y = gv_node.cy - gv_node.height / 2.0 + margin_y;
@@ -1274,6 +1357,7 @@ pub fn layout_state(diagram: &StateDiagram) -> Result<StateLayout> {
     // The svek pipeline returns edges with raw SVG path data and arrow polygons.
     let active_transitions: Vec<&Transition> = diagram.transitions.iter().collect();
     let mut transition_layouts: Vec<TransitionLayout> = Vec::new();
+    let mut visible_transition_keys: HashSet<(String, String, Option<usize>)> = HashSet::new();
 
     for (i, gv_edge) in gv_layout.edges.iter().enumerate() {
         let (from_id, to_id) = if i < active_transitions.len() {
@@ -1324,7 +1408,7 @@ pub fn layout_state(diagram: &StateDiagram) -> Result<StateLayout> {
             None
         };
 
-        transition_layouts.push(TransitionLayout {
+        let layout = TransitionLayout {
             from_id,
             to_id,
             label,
@@ -1334,7 +1418,26 @@ pub fn layout_state(diagram: &StateDiagram) -> Result<StateLayout> {
             label_xy,
             label_wh,
             source_line,
-        });
+        };
+        if !layout.points.is_empty() || layout.raw_path_d.is_some() {
+            visible_transition_keys.insert(transition_layout_key(&layout));
+        }
+        transition_layouts.push(layout);
+    }
+
+    // Graphviz input only contains top-level state nodes. Composite-internal transitions
+    // can therefore disappear before the svek edge solve, especially when note helper
+    // edges are also present. Synthesize any missing visible transitions from the
+    // already-laid-out recursive child positions.
+    let full_pos_map = build_position_map(&state_layouts);
+    let missing_transitions: Vec<Transition> = diagram
+        .transitions
+        .iter()
+        .filter(|tr| !visible_transition_keys.contains(&transition_key(tr)))
+        .cloned()
+        .collect();
+    if !missing_transitions.is_empty() {
+        transition_layouts.extend(layout_transitions(&missing_transitions, &full_pos_map));
     }
 
     // Expand content width to include edge label extents (Java LimitFinder
@@ -1362,20 +1465,87 @@ pub fn layout_state(diagram: &StateDiagram) -> Result<StateLayout> {
         }
     }
 
-    // Layout notes (placed to the right of the diagram body)
+    // Layout notes. Attached notes are anchored to their target state box and
+    // centered on the target axis; detached notes fall back to the legacy
+    // stacked-right placement.
     let content_height = gv_layout.total_height;
-    let note_x = MARGIN + content_width + NOTE_OFFSET;
-    let mut note_y = margin_y;
+    let detached_note_x = MARGIN + content_width + NOTE_OFFSET;
+    let mut detached_note_y = margin_y;
     let mut note_layouts = Vec::new();
 
     for note in &diagram.notes {
         let (nw, nh) = estimate_note_size(&note.text);
+        let (note_x, note_y, anchor) = if let Some(entity_id) = note.entity_id.as_ref() {
+            if let Some(&(nx, ny, _nw_gv, _nh_gv)) = attached_note_positions.get(entity_id) {
+                let (ax, ay, note_x, note_y) = note.target.as_ref().and_then(|target_id| {
+                    node_position_map.get(target_id).map(|&(tx, ty, tw, th)| {
+                        let center_x = tx + tw / 2.0;
+                        let center_y = ty + th / 2.0;
+                        match note.position.as_str() {
+                            "left" => (tx, center_y, nx, center_y - nh / 2.0),
+                            "top" => (center_x, ty, center_x - nw / 2.0, ny),
+                            "bottom" => (center_x, ty + th, center_x - nw / 2.0, ny),
+                            _ => (tx + tw, center_y, nx, center_y - nh / 2.0),
+                        }
+                    })
+                }).unwrap_or((nx, ny, nx, ny));
+                (note_x, note_y, Some((ax, ay)))
+            } else if let Some(target_id) = note.target.as_ref() {
+                if let Some(&(tx, ty, tw, th)) = node_position_map.get(target_id) {
+                    let center_x = tx + tw / 2.0;
+                    let center_y = ty + th / 2.0;
+                    match note.position.as_str() {
+                        "left" => (tx - 35.0 - nw, center_y - nh / 2.0, Some((tx, center_y))),
+                        "top" => (
+                            center_x - nw / 2.0,
+                            ty - 35.0 - nh,
+                            Some((center_x, ty)),
+                        ),
+                        "bottom" => (
+                            center_x - nw / 2.0,
+                            ty + th + 35.0,
+                            Some((center_x, ty + th)),
+                        ),
+                        _ => (tx + tw + 35.0, center_y - nh / 2.0, Some((tx + tw, center_y))),
+                    }
+                } else {
+                    (detached_note_x, detached_note_y, None)
+                }
+            } else {
+                (detached_note_x, detached_note_y, None)
+            }
+        } else if let Some(target_id) = note.target.as_ref() {
+            if let Some(&(tx, ty, tw, th)) = node_position_map.get(target_id) {
+                let center_x = tx + tw / 2.0;
+                let center_y = ty + th / 2.0;
+                match note.position.as_str() {
+                    "left" => (tx - 35.0 - nw, center_y - nh / 2.0, Some((tx, center_y))),
+                    "top" => (
+                        center_x - nw / 2.0,
+                        ty - 35.0 - nh,
+                        Some((center_x, ty)),
+                    ),
+                    "bottom" => (
+                        center_x - nw / 2.0,
+                        ty + th + 35.0,
+                        Some((center_x, ty + th)),
+                    ),
+                    _ => (tx + tw + 35.0, center_y - nh / 2.0, Some((tx + tw, center_y))),
+                }
+            } else {
+                (detached_note_x, detached_note_y, None)
+            }
+        } else {
+            (detached_note_x, detached_note_y, None)
+        };
         log::debug!(
-            "  note @ ({:.1}, {:.1}) {}x{}: '{}'",
+            "  note @ ({:.1}, {:.1}) {}x{} pos={} target={:?}: '{}'",
             note_x,
             note_y,
             nw,
             nh,
+            note.position,
+            note.target,
             note.text
         );
         note_layouts.push(StateNoteLayout {
@@ -1384,8 +1554,15 @@ pub fn layout_state(diagram: &StateDiagram) -> Result<StateLayout> {
             width: nw,
             height: nh,
             text: note.text.clone(),
+            position: note.position.clone(),
+            target: note.target.clone(),
+            entity_id: note.entity_id.clone(),
+            source_line: note.source_line,
+            anchor,
         });
-        note_y += nh + PADDING;
+        if note.target.is_none() {
+            detached_note_y += nh + PADDING;
+        }
     }
 
     // Compute total bounding box
@@ -1815,6 +1992,49 @@ mod tests {
         assert!(from_y < to_y, "from_y={} should be < to_y={}", from_y, to_y);
     }
 
+    #[test]
+    fn test_composite_internal_transition_is_synthesized() {
+        let d = StateDiagram {
+            states: vec![State {
+                name: "Active".to_string(),
+                id: "Active".to_string(),
+                description: vec![],
+                stereotype: None,
+                children: vec![
+                    State {
+                        name: "[*]".to_string(),
+                        id: "[*]Active".to_string(),
+                        description: vec![],
+                        stereotype: None,
+                        children: vec![],
+                        is_special: true,
+                        kind: StateKind::Normal,
+                        regions: vec![],
+                        source_line: Some(4),
+                    },
+                    simple_state("Running"),
+                ],
+                is_special: false,
+                kind: StateKind::Normal,
+                regions: vec![],
+                source_line: Some(3),
+            }],
+            transitions: vec![transition("[*]Active", "Running", "")],
+            notes: vec![],
+            direction: Default::default(),
+        };
+        let layout = layout_state(&d).unwrap();
+        let tr = layout
+            .transition_layouts
+            .iter()
+            .find(|tr| tr.from_id == "[*]Active" && tr.to_id == "Running")
+            .expect("missing composite-internal transition");
+        assert!(
+            !tr.points.is_empty() || tr.raw_path_d.is_some(),
+            "composite-internal transition should have visible geometry"
+        );
+    }
+
     // 9. Notes layout
     #[test]
     fn test_notes() {
@@ -1824,11 +2044,19 @@ mod tests {
             notes: vec![
                 StateNote {
                     alias: None,
+                    entity_id: None,
                     text: "first note".to_string(),
+                    position: "right".to_string(),
+                    target: None,
+                    source_line: None,
                 },
                 StateNote {
                     alias: Some("n1".to_string()),
+                    entity_id: Some("n1".to_string()),
                     text: "second note\nwith two lines".to_string(),
+                    position: "right".to_string(),
+                    target: None,
+                    source_line: None,
                 },
             ],
             direction: Default::default(),
@@ -1852,6 +2080,62 @@ mod tests {
 
         // Second note should be below the first
         assert!(n1.y > n0.y);
+    }
+
+    #[test]
+    fn test_attached_side_notes_anchor_to_target_state() {
+        let d = StateDiagram {
+            states: vec![simple_state("Active"), simple_state("Inactive")],
+            transitions: vec![],
+            notes: vec![
+                StateNote {
+                    alias: None,
+                    entity_id: Some("GMN2".to_string()),
+                    text: "This is active".to_string(),
+                    position: "right".to_string(),
+                    target: Some("Active".to_string()),
+                    source_line: Some(3),
+                },
+                StateNote {
+                    alias: None,
+                    entity_id: Some("GMN3".to_string()),
+                    text: "Multi line\nnote text".to_string(),
+                    position: "left".to_string(),
+                    target: Some("Inactive".to_string()),
+                    source_line: Some(4),
+                },
+            ],
+            direction: Default::default(),
+        };
+        let layout = layout_state(&d).unwrap();
+
+        let active = layout
+            .state_layouts
+            .iter()
+            .find(|node| node.id == "Active")
+            .unwrap();
+        let inactive = layout
+            .state_layouts
+            .iter()
+            .find(|node| node.id == "Inactive")
+            .unwrap();
+        let right_note = layout
+            .note_layouts
+            .iter()
+            .find(|note| note.position == "right")
+            .unwrap();
+        let left_note = layout
+            .note_layouts
+            .iter()
+            .find(|note| note.position == "left")
+            .unwrap();
+
+        assert!(right_note.x > active.x + active.width);
+        assert!(left_note.x + left_note.width < inactive.x);
+        assert!((right_note.y + right_note.height / 2.0 - (active.y + active.height / 2.0)).abs() < 0.01);
+        assert!((left_note.y + left_note.height / 2.0 - (inactive.y + inactive.height / 2.0)).abs() < 0.01);
+        assert_eq!(right_note.anchor, Some((active.x + active.width, active.y + active.height / 2.0)));
+        assert_eq!(left_note.anchor, Some((inactive.x, inactive.y + inactive.height / 2.0)));
     }
 
     // 10. Text sizing for states with descriptions
@@ -2026,7 +2310,11 @@ mod tests {
             transitions: vec![transition("A", "B", "")],
             notes: vec![StateNote {
                 alias: None,
+                entity_id: None,
                 text: "a note".to_string(),
+                position: "right".to_string(),
+                target: None,
+                source_line: None,
             }],
             direction: Default::default(),
         };
@@ -2158,4 +2446,5 @@ mod tests {
             y1
         );
     }
+
 }

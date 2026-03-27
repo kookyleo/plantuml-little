@@ -205,6 +205,9 @@ impl SkinParams {
         if let Some(v) = self.params.get(&key2) {
             return v.as_str();
         }
+        if let Some(v) = self.params.get("root.backgroundcolor") {
+            return v.as_str();
+        }
         // Note: global "backgroundcolor" is NOT checked here.  In Java PlantUML
         // `skinparam backgroundColor` only sets the diagram canvas background,
         // not element fill colors.  Element fills use their own defaults.
@@ -233,6 +236,9 @@ impl SkinParams {
         if let Some(v) = self.params.get(key3) {
             return v.as_str();
         }
+        if let Some(v) = self.params.get("root.fontcolor") {
+            return v.as_str();
+        }
         self.theme_font(element).unwrap_or(default)
     }
 
@@ -256,6 +262,12 @@ impl SkinParams {
             return v.as_str();
         }
         if let Some(v) = self.params.get(key3) {
+            return v.as_str();
+        }
+        if let Some(v) = self.params.get("root.bordercolor") {
+            return v.as_str();
+        }
+        if let Some(v) = self.params.get("root.linecolor") {
             return v.as_str();
         }
         self.theme_border(element).unwrap_or(default)
@@ -1310,6 +1322,24 @@ mod tests {
         let sp = parse_skinparams(src);
         // Global backgroundColor does not cascade to element fills
         assert_eq!(sp.background_color("class", "#IGNORED"), "#F1F1F1");
+    }
+
+    #[test]
+    fn skinparams_root_style_cascades_to_element_colors() {
+        let src = "<style>\nroot {\n  BackgroundColor #ABCDEF\n  FontColor #654321\n  LineColor #123456\n}\n</style>";
+        let sp = parse_skinparams(src);
+        assert_eq!(sp.background_color("participant", "#IGNORED"), "#ABCDEF");
+        assert_eq!(sp.border_color("participant", "#IGNORED"), "#123456");
+        assert_eq!(sp.font_color("participant", "#IGNORED"), "#654321");
+    }
+
+    #[test]
+    fn theme_plain_cascades_root_background_to_sequence_participants() {
+        let src = "@startuml\n!theme plain\nactor Alice\nparticipant Bob\nAlice -> Bob\n@enduml";
+        let preprocessed = crate::preproc::preprocess(src).expect("theme preprocess");
+        let sp = parse_skinparams(&preprocessed);
+        assert_eq!(sp.background_color("participant", "#IGNORED"), "#FFFFFF");
+        assert_eq!(sp.border_color("participant", "#IGNORED"), "#000000");
     }
 
     #[test]

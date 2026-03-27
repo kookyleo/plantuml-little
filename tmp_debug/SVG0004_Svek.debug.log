@@ -1,0 +1,758 @@
+warning: unused import: `NoteLinkStrategy`
+  --> src/abel/entity.rs:13:50
+   |
+13 |     CucaNote, DisplayPositioned, EntityPosition, NoteLinkStrategy, Together,
+   |                                                  ^^^^^^^^^^^^^^^^
+   |
+   = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused import: `ArrowBody`
+  --> src/skin/rose.rs:16:5
+   |
+16 |     ArrowBody, ArrowConfiguration, ArrowDecoration, ArrowDirection, ArrowHead, ArrowPart,
+   |     ^^^^^^^^^
+
+warning: unused import: `crate::klimt::geom::XCubicCurve2D`
+   --> src/svek/svg_result.rs:367:9
+    |
+367 |     use crate::klimt::geom::XCubicCurve2D;
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused imports: `count_creole_lines` and `max_creole_plain_line_len`
+  --> src/render/svg.rs:22:5
+   |
+22 |     count_creole_lines, creole_plain_text, get_default_font_family_pub,
+   |     ^^^^^^^^^^^^^^^^^^
+23 |     max_creole_plain_line_len, render_creole_text, set_default_font_family,
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `NotePosition`
+  --> src/render/svg_activity.rs:35:49
+   |
+35 |     use crate::model::activity::{ActivityEvent, NotePosition};
+   |                                                 ^^^^^^^^^^^^
+
+warning: unused import: `std::fmt::Write`
+    --> src/render/svg_sprite.rs:1180:9
+     |
+1180 |     use std::fmt::Write;
+     |         ^^^^^^^^^^^^^^^
+
+warning: unused import: `std::fmt::Write`
+    --> src/render/svg_sprite.rs:1204:9
+     |
+1204 |     use std::fmt::Write;
+     |         ^^^^^^^^^^^^^^^
+
+warning: unused import: `std::fmt::Write`
+ --> src/render/svg_wbs.rs:2:5
+  |
+2 | use std::fmt::Write;
+  |     ^^^^^^^^^^^^^^^
+
+warning: unused import: `xml_escape`
+ --> src/render/svg_wbs.rs:5:36
+  |
+5 | use crate::klimt::svg::{fmt_coord, xml_escape, LengthAdjust, SvgGraphic};
+  |                                    ^^^^^^^^^^
+
+warning: unused variable: `i`
+   --> src/layout/activity.rs:285:10
+    |
+285 |     for (i, name) in swimlanes.iter().enumerate() {
+    |          ^
+    |
+    = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+help: if this is intentional, prefix it with an underscore
+    |
+285 |     for (_i, name) in swimlanes.iter().enumerate() {
+    |          +
+help: you might have meant to pattern match on the similarly named constant `MAX_ITERATIONS`
+    |
+285 -     for (i, name) in swimlanes.iter().enumerate() {
+285 +     for (preproc::Context::process_while::MAX_ITERATIONS, name) in swimlanes.iter().enumerate() {
+    |
+
+warning: unused variable: `old_x`
+   --> src/layout/activity.rs:963:17
+    |
+963 |             let old_x = swimlane_layouts[i].x;
+    |                 ^^^^^
+    |
+help: if this is intentional, prefix it with an underscore
+    |
+963 |             let _old_x = swimlane_layouts[i].x;
+    |                 +
+help: you might have meant to pattern match on the similarly named constant `PAD`
+    |
+963 -             let old_x = swimlane_layouts[i].x;
+963 +             let render::svg_wbs::PAD = swimlane_layouts[i].x;
+    |
+
+warning: unused variable: `y_cursor`
+    --> src/layout/activity.rs:1150:5
+     |
+1150 |     y_cursor: f64,
+     |     ^^^^^^^^
+     |
+help: if this is intentional, prefix it with an underscore
+     |
+1150 |     _y_cursor: f64,
+     |     +
+help: you might have meant to pattern match on the similarly named constant `PAD`
+     |
+1150 -     y_cursor: f64,
+1150 +     render::svg_wbs::PAD: f64,
+     |
+
+warning: unused variable: `box_idx`
+   --> src/layout/json_diagram.rs:223:9
+    |
+223 |     let box_idx = boxes.len();
+    |         ^^^^^^^
+    |
+help: if this is intentional, prefix it with an underscore
+    |
+223 |     let _box_idx = boxes.len();
+    |         +
+help: you might have meant to pattern match on the similarly named constant `MAX_ITERATIONS`
+    |
+223 -     let box_idx = boxes.len();
+223 +     let preproc::Context::process_while::MAX_ITERATIONS = boxes.len();
+    |
+
+warning: unused variable: `i`
+   --> src/layout/json_diagram.rs:241:10
+    |
+241 |     for (i, row_spec) in spec.rows.iter().enumerate() {
+    |          ^
+    |
+help: if this is intentional, prefix it with an underscore
+    |
+241 |     for (_i, row_spec) in spec.rows.iter().enumerate() {
+    |          +
+help: you might have meant to pattern match on the similarly named constant `MAX_ITERATIONS`
+    |
+241 -     for (i, row_spec) in spec.rows.iter().enumerate() {
+241 +     for (preproc::Context::process_while::MAX_ITERATIONS, row_spec) in spec.rows.iter().enumerate() {
+    |
+
+warning: unused variable: `trailing_padding`
+    --> src/layout/sequence_teoz/builder.rs:1351:10
+     |
+1351 |                     let trailing_padding = FRAG_BOTTOM_PADDING + tiles[tile_idx].preferred_height();
+     |                         ^^^^^^^^^^^^^^^^
+     |
+help: if this is intentional, prefix it with an underscore
+     |
+1351 |                     let _trailing_padding = FRAG_BOTTOM_PADDING + tiles[tile_idx].preferred_height();
+     |                         +
+help: you might have meant to pattern match on the similarly named constant `PAD`
+     |
+1351 -                     let trailing_padding = FRAG_BOTTOM_PADDING + tiles[tile_idx].preferred_height();
+1351 +                     let render::svg_wbs::PAD = FRAG_BOTTOM_PADDING + tiles[tile_idx].preferred_height();
+     |
+
+warning: unused variable: `sm_cx`
+    --> src/layout/sequence_teoz/builder.rs:1929:11
+     |
+1929 |                         let sm_cx = get_x(livings[sm_pidx].pos_c);
+     |                             ^^^^^
+     |
+help: if this is intentional, prefix it with an underscore
+     |
+1929 |                         let _sm_cx = get_x(livings[sm_pidx].pos_c);
+     |                             +
+help: you might have meant to pattern match on the similarly named constant `PAD`
+     |
+1929 -                         let sm_cx = get_x(livings[sm_pidx].pos_c);
+1929 +                         let render::svg_wbs::PAD = get_x(livings[sm_pidx].pos_c);
+     |
+
+warning: unused variable: `depth`
+    --> src/layout/sequence_teoz/builder.rs:2072:10
+     |
+2072 |                     let depth = fragment_stack.len(); // 0 for outermost
+     |                         ^^^^^
+     |
+help: if this is intentional, prefix it with an underscore
+     |
+2072 |                     let _depth = fragment_stack.len(); // 0 for outermost
+     |                         +
+help: you might have meant to pattern match on the similarly named constant `MAX_ITERATIONS`
+     |
+2072 -                     let depth = fragment_stack.len(); // 0 for outermost
+2072 +                     let preproc::Context::process_while::MAX_ITERATIONS = fragment_stack.len(); // 0 for outermost
+     |
+
+warning: unused variable: `height`
+    --> src/layout/sequence_teoz/builder.rs:2152:30
+     |
+2152 |                     TeozTile::SelfMessage { height, y, .. } => {
+     |                                             ^^^^^^-
+     |                                             |
+     |                                             help: try removing the field
+
+warning: unused variable: `has_open_left`
+   --> src/parser/sequence.rs:924:9
+    |
+924 |     let has_open_left = stripped.starts_with("<<")
+    |         ^^^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_has_open_left`
+
+warning: unused variable: `has_open_right`
+   --> src/parser/sequence.rs:929:9
+    |
+929 |     let has_open_right = stripped.ends_with(">>")
+    |         ^^^^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_has_open_right`
+
+warning: unused variable: `cx`
+    --> src/render/svg.rs:2402:17
+     |
+2402 |             let cx = fmt_coord(ecx);
+     |                 ^^ help: if this is intentional, prefix it with an underscore: `_cx`
+
+warning: unused variable: `cy`
+    --> src/render/svg.rs:2403:17
+     |
+2403 |             let cy = fmt_coord(ecy);
+     |                 ^^ help: if this is intentional, prefix it with an underscore: `_cy`
+
+warning: unused variable: `rx`
+    --> src/render/svg.rs:2415:17
+     |
+2415 |             let rx = fmt_coord(rect_x);
+     |                 ^^ help: if this is intentional, prefix it with an underscore: `_rx`
+
+warning: unused variable: `ry`
+    --> src/render/svg.rs:2416:17
+     |
+2416 |             let ry = fmt_coord(rect_y);
+     |                 ^^ help: if this is intentional, prefix it with an underscore: `_ry`
+
+warning: unused variable: `l`
+   --> src/render/svg_component.rs:140:54
+    |
+140 |         let source_line = cd.links.get(ei).and_then(|l| {
+    |                                                      ^ help: if this is intentional, prefix it with an underscore: `_l`
+
+warning: unused variable: `tl`
+   --> src/render/svg_component.rs:800:9
+    |
+800 |     let tl = font_metrics::text_width(&node.name, "SansSerif", FONT_SIZE, false, false);
+    |         ^^
+    |
+help: if this is intentional, prefix it with an underscore
+    |
+800 |     let _tl = font_metrics::text_width(&node.name, "SansSerif", FONT_SIZE, false, false);
+    |         +
+help: you might have meant to pattern match on the similarly named constant `PAD`
+    |
+800 -     let tl = font_metrics::text_width(&node.name, "SansSerif", FONT_SIZE, false, false);
+800 +     let render::svg_wbs::PAD = font_metrics::text_width(&node.name, "SansSerif", FONT_SIZE, false, false);
+    |
+
+warning: unused variable: `dot`
+   --> src/render/svg_sprite.rs:353:17
+    |
+353 |     if let Some(dot) = s.find('.') {
+    |                 ^^^
+    |
+help: if this is intentional, prefix it with an underscore
+    |
+353 |     if let Some(_dot) = s.find('.') {
+    |                 +
+help: you might have meant to pattern match on the similarly named constant `MAX_ITERATIONS`
+    |
+353 -     if let Some(dot) = s.find('.') {
+353 +     if let Some(preproc::Context::process_while::MAX_ITERATIONS) = s.find('.') {
+    |
+
+warning: unused variable: `display_names`
+   --> src/render/svg_sequence.rs:279:5
+    |
+279 |     display_names: &std::collections::HashMap<&str, &str>,
+    |     ^^^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_display_names`
+
+warning: unused variable: `stickman_height`
+   --> src/render/svg_sequence.rs:634:9
+    |
+634 |     let stickman_height = head_diam + body_length + legs_y + 2.0 * thickness + 1.0;
+    |         ^^^^^^^^^^^^^^^
+    |
+help: if this is intentional, prefix it with an underscore
+    |
+634 |     let _stickman_height = head_diam + body_length + legs_y + 2.0 * thickness + 1.0;
+    |         +
+help: you might have meant to pattern match on the similarly named constant `PAD`
+    |
+634 -     let stickman_height = head_diam + body_length + legs_y + 2.0 * thickness + 1.0;
+634 +     let render::svg_wbs::PAD = head_diam + body_length + legs_y + 2.0 * thickness + 1.0;
+    |
+
+warning: unused variable: `margin_y1`
+    --> src/render/svg_sequence.rs:1096:9
+     |
+1096 |     let margin_y1 = 5.0_f64;
+     |         ^^^^^^^^^
+     |
+help: if this is intentional, prefix it with an underscore
+     |
+1096 |     let _margin_y1 = 5.0_f64;
+     |         +
+help: you might have meant to pattern match on the similarly named constant `PAD`
+     |
+1096 -     let margin_y1 = 5.0_f64;
+1096 +     let render::svg_wbs::PAD = 5.0_f64;
+     |
+
+warning: unused variable: `xpos`
+    --> src/render/svg_sequence.rs:2096:13
+     |
+2096 |         let xpos = divider.component_y; // dummy, we compute from area
+     |             ^^^^
+     |
+help: if this is intentional, prefix it with an underscore
+     |
+2096 |         let _xpos = divider.component_y; // dummy, we compute from area
+     |             +
+help: you might have meant to pattern match on the similarly named constant `PAD`
+     |
+2096 -         let xpos = divider.component_y; // dummy, we compute from area
+2096 +         let render::svg_wbs::PAD = divider.component_y; // dummy, we compute from area
+     |
+
+warning: unused variable: `name_escaped`
+   --> src/render/svg_state.rs:507:9
+    |
+507 |     let name_escaped = xml_escape(&node.name);
+    |         ^^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_name_escaped`
+
+warning: unused variable: `ent_id`
+   --> src/render/svg_state.rs:508:9
+    |
+508 |     let ent_id = ent_id_map.get(&node.id).cloned().unwrap_or_else(next_ent_id);
+    |         ^^^^^^ help: if this is intentional, prefix it with an underscore: `_ent_id`
+
+warning: unused variable: `y_prev`
+   --> src/render/svg_state.rs:733:24
+    |
+733 |     let (_, _, x_prev, y_prev) = coord_positions[n - 3];
+    |                        ^^^^^^
+    |
+help: if this is intentional, prefix it with an underscore
+    |
+733 |     let (_, _, x_prev, _y_prev) = coord_positions[n - 3];
+    |                        +
+help: you might have meant to pattern match on the similarly named constant `PAD`
+    |
+733 -     let (_, _, x_prev, y_prev) = coord_positions[n - 3];
+733 +     let (_, _, x_prev, render::svg_wbs::PAD) = coord_positions[n - 3];
+    |
+
+warning: field `0` is never read
+   --> src/klimt/svg.rs:165:11
+    |
+165 |     Group(String),
+    |     ----- ^^^^^^
+    |     |
+    |     field in this variant
+    |
+    = note: `GroupEntry` has derived impls for the traits `Clone` and `Debug`, but these are intentionally ignored during dead code analysis
+    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+help: consider changing the field to be of unit type to suppress this warning while preserving the field numbering, or remove the field
+    |
+165 -     Group(String),
+165 +     Group(()),
+    |
+
+warning: field `0` is never read
+   --> src/klimt/svg.rs:166:10
+    |
+166 |     Link(String),
+    |     ---- ^^^^^^
+    |     |
+    |     field in this variant
+    |
+    = note: `GroupEntry` has derived impls for the traits `Clone` and `Debug`, but these are intentionally ignored during dead code analysis
+help: consider changing the field to be of unit type to suppress this warning while preserving the field numbering, or remove the field
+    |
+166 -     Link(String),
+166 +     Link(()),
+    |
+
+warning: constant `CLASS_ATTR_FONT_SIZE` is never used
+  --> src/layout/mod.rs:62:7
+   |
+62 | const CLASS_ATTR_FONT_SIZE: f64 = 10.0;
+   |       ^^^^^^^^^^^^^^^^^^^^
+
+warning: constant `MEMBER_BLOCK_HEIGHT_ONE_ROW` is never used
+  --> src/layout/mod.rs:97:7
+   |
+97 | const MEMBER_BLOCK_HEIGHT_ONE_ROW: f64 = 24.296875;
+   |       ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: constant `SWIMLANE_MIN_WIDTH` is never used
+  --> src/layout/activity.rs:94:7
+   |
+94 | const SWIMLANE_MIN_WIDTH: f64 = 80.0;
+   |       ^^^^^^^^^^^^^^^^^^
+
+warning: constant `NODE_SPACING_X` is never used
+  --> src/layout/component.rs:93:7
+   |
+93 | const NODE_SPACING_X: f64 = 35.0;
+   |       ^^^^^^^^^^^^^^
+
+warning: constant `NODE_SPACING_Y` is never used
+  --> src/layout/component.rs:94:7
+   |
+94 | const NODE_SPACING_Y: f64 = 50.0;
+   |       ^^^^^^^^^^^^^^
+
+warning: constant `GROUP_PADDING` is never used
+  --> src/layout/component.rs:95:7
+   |
+95 | const GROUP_PADDING: f64 = 20.0;
+   |       ^^^^^^^^^^^^^
+
+warning: constant `GROUP_HEADER` is never used
+  --> src/layout/component.rs:96:7
+   |
+96 | const GROUP_HEADER: f64 = 30.0;
+   |       ^^^^^^^^^^^^
+
+warning: constant `GRID_COLS` is never used
+   --> src/layout/component.rs:100:7
+    |
+100 | const GRID_COLS: usize = 3;
+    |       ^^^^^^^^^
+
+warning: function `apply_direction_transform` is never used
+   --> src/layout/component.rs:299:4
+    |
+299 | fn apply_direction_transform(
+    |    ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `layout_edges` is never used
+   --> src/layout/component.rs:385:4
+    |
+385 | fn layout_edges(
+    |    ^^^^^^^^^^^^
+
+warning: function `route_with_hint` is never used
+   --> src/layout/component.rs:444:4
+    |
+444 | fn route_with_hint(
+    |    ^^^^^^^^^^^^^^^
+
+warning: function `route_auto` is never used
+   --> src/layout/component.rs:472:4
+    |
+472 | fn route_auto(
+    |    ^^^^^^^^^^
+
+warning: constant `LEVEL_INDENT` is never used
+  --> src/layout/mindmap.rs:85:7
+   |
+85 | const LEVEL_INDENT: f64 = 200.0;
+   |       ^^^^^^^^^^^^
+
+warning: function `estimate_node_size` is never used
+   --> src/layout/mindmap.rs:111:4
+    |
+111 | fn estimate_node_size(text: &str, is_root: bool) -> (f64, f64, Vec<String>) {
+    |    ^^^^^^^^^^^^^^^^^^
+
+warning: function `compute_subtree_info` is never used
+   --> src/layout/mindmap.rs:198:4
+    |
+198 | fn compute_subtree_info(node: &MindmapNode) -> SubtreeInfo {
+    |    ^^^^^^^^^^^^^^^^^^^^
+
+warning: field `frag_header_height` is never read
+  --> src/layout/sequence.rs:63:5
+   |
+53 | struct LayoutParams {
+   |        ------------ field in this struct
+...
+63 |     frag_header_height: f64,
+   |     ^^^^^^^^^^^^^^^^^^
+
+warning: constant `PARTICIPANT_GAP` is never used
+  --> src/layout/sequence_teoz/builder.rs:53:7
+   |
+53 | const PARTICIPANT_GAP: f64 = 5.0;
+   |       ^^^^^^^^^^^^^^^
+
+warning: function `active_left_shift` is never used
+   --> src/layout/sequence_teoz/builder.rs:342:4
+    |
+342 | fn active_left_shift(level: usize) -> f64 {
+    |    ^^^^^^^^^^^^^^^^^
+
+warning: function `live_thickness_width` is never used
+   --> src/layout/sequence_teoz/builder.rs:350:4
+    |
+350 | fn live_thickness_width(level: usize) -> f64 {
+    |    ^^^^^^^^^^^^^^^^^^^^
+
+warning: function `is_last_tile_self_message` is never used
+   --> src/layout/sequence_teoz/builder.rs:602:4
+    |
+602 | fn is_last_tile_self_message(tiles: &[TeozTile]) -> bool {
+    |    ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `build_position_map` is never used
+   --> src/layout/state.rs:976:4
+    |
+976 | fn build_position_map(nodes: &[StateNodeLayout]) -> HashMap<String, (f64, f64, f64, f64)> {
+    |    ^^^^^^^^^^^^^^^^^^
+
+warning: function `collect_positions` is never used
+   --> src/layout/state.rs:983:4
+    |
+983 | fn collect_positions(nodes: &[StateNodeLayout], map: &mut HashMap<String, (f64, f64, f64, f64)>) {
+    |    ^^^^^^^^^^^^^^^^^
+
+warning: function `layout_transitions` is never used
+   --> src/layout/state.rs:991:4
+    |
+991 | fn layout_transitions(
+    |    ^^^^^^^^^^^^^^^^^^
+
+warning: function `apply_direction_transform` is never used
+    --> src/layout/state.rs:1384:4
+     |
+1384 | fn apply_direction_transform(
+     |    ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `transform_state_nodes_swap_xy` is never used
+    --> src/layout/state.rs:1443:4
+     |
+1443 | fn transform_state_nodes_swap_xy(nodes: &mut [StateNodeLayout]) {
+     |    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `transform_state_nodes_mirror_x` is never used
+    --> src/layout/state.rs:1452:4
+     |
+1452 | fn transform_state_nodes_mirror_x(nodes: &mut [StateNodeLayout], total_width: f64) {
+     |    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `transform_state_nodes_mirror_y` is never used
+    --> src/layout/state.rs:1460:4
+     |
+1460 | fn transform_state_nodes_mirror_y(nodes: &mut [StateNodeLayout], total_height: f64) {
+     |    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: constant `EDGE_GAP` is never used
+  --> src/layout/wbs.rs:71:7
+   |
+71 | const EDGE_GAP: f64 = 20.0;
+   |       ^^^^^^^^
+
+warning: constant `NODE_SPACING` is never used
+  --> src/layout/wbs.rs:72:7
+   |
+72 | const NODE_SPACING: f64 = 20.0;
+   |       ^^^^^^^^^^^^
+
+warning: struct `TranslateFunction` is never constructed
+   --> src/svek/mod.rs:508:8
+    |
+508 | struct TranslateFunction {
+    |        ^^^^^^^^^^^^^^^^^
+
+warning: method `is_opalisable` is never used
+   --> src/svek/edge.rs:915:8
+    |
+432 | impl SvekEdge {
+    | ------------- method in this implementation
+...
+915 |     fn is_opalisable(&self) -> bool {
+    |        ^^^^^^^^^^^^^
+
+warning: function `parse_points` is never used
+   --> src/svek/svg_result.rs:328:4
+    |
+328 | fn parse_points(s: &str) -> Vec<XPoint2D> {
+    |    ^^^^^^^^^^^^
+
+warning: constant `PADDING` is never used
+  --> src/render/svg.rs:47:7
+   |
+47 | const PADDING: f64 = 3.0;
+   |       ^^^^^^^
+
+warning: constant `CIRCLE_LEFT_PAD` is never used
+  --> src/render/svg.rs:59:7
+   |
+59 | const CIRCLE_LEFT_PAD: f64 = 4.0;
+   |       ^^^^^^^^^^^^^^^
+
+warning: constant `CIRCLE_DIAMETER` is never used
+  --> src/render/svg.rs:61:7
+   |
+61 | const CIRCLE_DIAMETER: f64 = 22.0;
+   |       ^^^^^^^^^^^^^^^
+
+warning: constant `MEMBER_ROW_HEIGHT` is never used
+  --> src/render/svg.rs:93:7
+   |
+93 | const MEMBER_ROW_HEIGHT: f64 = 16.296875;
+   |       ^^^^^^^^^^^^^^^^^
+
+warning: constant `MEMBER_BLOCK_HEIGHT_ONE_ROW` is never used
+  --> src/render/svg.rs:95:7
+   |
+95 | const MEMBER_BLOCK_HEIGHT_ONE_ROW: f64 = 24.296875;
+   |       ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: constant `MEMBER_ICON_Y_FROM_SEP` is never used
+  --> src/render/svg.rs:97:7
+   |
+97 | const MEMBER_ICON_Y_FROM_SEP: f64 = 8.6484375;
+   |       ^^^^^^^^^^^^^^^^^^^^^^
+
+warning: constant `MEMBER_ICON_DRAW_OFFSET` is never used
+  --> src/render/svg.rs:99:7
+   |
+99 | const MEMBER_ICON_DRAW_OFFSET: f64 = 2.0;
+   |       ^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: constant `MEMBER_ICON_RADIUS` is never used
+   --> src/render/svg.rs:101:7
+    |
+101 | const MEMBER_ICON_RADIUS: f64 = 3.0;
+    |       ^^^^^^^^^^^^^^^^^^
+
+warning: constant `MEMBER_TEXT_Y_OFFSET` is never used
+   --> src/render/svg.rs:109:7
+    |
+109 | const MEMBER_TEXT_Y_OFFSET: f64 = 16.995117;
+    |       ^^^^^^^^^^^^^^^^^^^^
+
+warning: constant `GENERIC_PROTRUSION` is never used
+   --> src/render/svg.rs:128:7
+    |
+128 | const GENERIC_PROTRUSION: f64 = GENERIC_DELTA - GENERIC_OUTER_MARGIN;
+    |       ^^^^^^^^^^^^^^^^^^
+
+warning: function `write_svg_root` is never used
+   --> src/render/svg.rs:161:15
+    |
+161 | pub(crate) fn write_svg_root(buf: &mut String, w: f64, h: f64, diagram_type: &str) {
+    |               ^^^^^^^^^^^^^^
+
+warning: function `offset_glyph_path_xy` is never used
+    --> src/render/svg.rs:1651:4
+     |
+1651 | fn offset_glyph_path_xy(path: &str, dx: f64, dy: f64) -> String {
+     |    ^^^^^^^^^^^^^^^^^^^^
+
+warning: function `format_member` is never used
+    --> src/render/svg.rs:2511:4
+     |
+2511 | fn format_member(m: &Member) -> String {
+     |    ^^^^^^^^^^^^^
+
+warning: function `render_swimlane` is never used
+   --> src/render/svg_activity.rs:516:4
+    |
+516 | fn render_swimlane(
+    |    ^^^^^^^^^^^^^^^
+
+warning: function `render_edge` is never used
+  --> src/render/svg_mindmap.rs:77:4
+   |
+77 | fn render_edge(sg: &mut SvgGraphic, edge: &MindmapEdgeLayout, color: &str) {
+   |    ^^^^^^^^^^^
+
+warning: function `render_node` is never used
+  --> src/render/svg_mindmap.rs:99:4
+   |
+99 | fn render_node(
+   |    ^^^^^^^^^^^
+
+warning: function `convert_single_element` is never used
+   --> src/render/svg_sprite.rs:615:4
+    |
+615 | fn convert_single_element(
+    |    ^^^^^^^^^^^^^^^^^^^^^^
+
+warning: constant `FRAG_SEP_LABEL_Y_OFFSET` is never used
+  --> src/render/svg_sequence.rs:37:7
+   |
+37 | const FRAG_SEP_LABEL_Y_OFFSET: f64 = 10.2104;
+   |       ^^^^^^^^^^^^^^^^^^^^^^^
+
+[2026-03-26T15:37:19Z DEBUG plantuml_little::parser::class] skipping unrecognized line: !pragma svginteractive true
+[2026-03-26T15:37:19Z DEBUG plantuml_little::parser::class] entity declaration: pkg1.pkg2.Class 1 with ASCII special chars\r\n\t!#$%&'()*+,-/:;<=>?@[\\]^_`{|}~¡™£€∞§¶•ªºæ≤≥π¥ƒ©ç®¬÷≠åø´¨ˆ∂˙†˜ß-«œ∆˚≈♭µ∑√Ωìñ😀☕️ (Class)
+[2026-03-26T15:37:19Z DEBUG plantuml_little::parser::class] link: pkg1.pkg2.Class 1 with ASCII special chars\r\n\t!#$%&'()*+,-/:;<=>?@[\\]^_`{|}~¡™£€∞§¶•ªºæ≤≥π¥ƒ©ç®¬÷≠åø´¨ˆ∂˙†˜ß-«œ∆˚≈♭µ∑√Ωìñ😀☕️ -> pkg1.pkg2.Class 1 with ASCII special chars\r\n\t!#$%&'()*+,-/:;<=>?@[\\]^_`{|}~¡™£€∞§¶•ªºæ≤≥π¥ƒ©ç®¬÷≠åø´¨ˆ∂˙†˜ß-«œ∆˚≈♭µ∑√Ωìñ😀☕️ (Solid, len=1)
+[2026-03-26T15:37:19Z DEBUG plantuml_little::parser::class] direction inferred from arrow: LeftToRight
+[2026-03-26T15:37:19Z DEBUG plantuml_little::style::compat] parsed 0 skinparams
+[2026-03-26T15:37:19Z DEBUG plantuml_little::layout] layout_class_diagram: 1 entities, 1 links, 0 notes
+[2026-03-26T15:37:19Z DEBUG plantuml_little::layout] estimate_entity_size: pkg1.pkg2.Class 1 with ASCII special chars\r\n\t!#$%&'()*+,-/:;<=>?@[\\]^_`{|}~¡™£€∞§¶•ªºæ≤≥π¥ƒ©ç®¬÷≠åø´¨ˆ∂˙†˜ß-«œ∆˚≈♭µ∑√Ωìñ😀☕️ -> (709.11328125, 74.890625)
+[2026-03-26T15:37:19Z DEBUG plantuml_little::layout::graphviz] layout_with_svek: 1 nodes, 1 edges
+[2026-03-26T15:37:19Z DEBUG plantuml_little::svek::builder] Building DOT string for 1 entities, 1 links, 1 clusters
+[2026-03-26T15:37:19Z DEBUG plantuml_little::layout::graphviz] svek dot input:
+    digraph unix {
+    nodesep=0.486111;
+    ranksep=0.833333;
+    remincross=true;
+    searchsize=500;
+    subgraph cluster_grp_pkg1 {
+    label="pkg1";
+    margin="14";
+    subgraph cluster_grp_pkg1_DOT_pkg2 {
+    label="pkg2";
+    margin="14";
+    "pkg1_DOT_pkg2_DOT_Class_1_with_ASCII_special_chars\r\n\t!#$%&'()*+_COMMA_-/:;_LT_=_GT_?@[\\]^_`{|}~¡™£€∞§¶•ªºæ≤≥π¥ƒ©ç®¬÷≠åø´¨ˆ∂˙†˜ß-«œ∆˚≈♭µ∑√Ωìñ😀☕️" [shape=rect,label="",width=9.848796,height=1.040148,color="#010100"];
+    }
+    }
+    "pkg1_DOT_pkg2_DOT_Class_1_with_ASCII_special_chars\r\n\t!#$%&'()*+_COMMA_-/:;_LT_=_GT_?@[\\]^_`{|}~¡™£€∞§¶•ªºæ≤≥π¥ƒ©ç®¬÷≠åø´¨ˆ∂˙†˜ß-«œ∆˚≈♭µ∑√Ωìñ😀☕️"->"pkg1_DOT_pkg2_DOT_Class_1_with_ASCII_special_chars\r\n\t!#$%&'()*+_COMMA_-/:;_LT_=_GT_?@[\\]^_`{|}~¡™£€∞§¶•ªºæ≤≥π¥ƒ©ç®¬÷≠åø´¨ˆ∂˙†˜ß-«œ∆˚≈♭µ∑√Ωìñ😀☕️"[arrowhead=none,arrowtail=none,minlen=0,color="#020200",label=<<TABLE BGCOLOR="#030300" FIXEDSIZE="TRUE" WIDTH="34" HEIGHT="17"><TR><TD></TD></TR></TABLE>>];
+    }
+    
+[2026-03-26T15:37:19Z DEBUG plantuml_little::layout::graphviz] svek dot svg output:
+    <?xml version="1.0" encoding="UTF-8" standalone="no"?>
+    <!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN"
+     "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+    <!-- Generated by graphviz version 2.43.0 (0)
+     -->
+    <!-- Title: unix Pages: 1 -->
+    <svg width="842pt" height="201pt"
+     viewBox="0.00 0.00 842.00 201.00" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+    <g id="graph0" class="graph" transform="scale(1 1) rotate(0) translate(4 197)">
+    <title>unix</title>
+    <polygon fill="white" stroke="transparent" points="-4,4 -4,-197 838,-197 838,4 -4,4"/>
+    <g id="clust1" class="cluster">
+    <title>cluster_grp_pkg1</title>
+    <polygon fill="none" stroke="black" points="8,-8 8,-185 826,-185 826,-8 8,-8"/>
+    <text text-anchor="middle" x="417" y="-169.8" font-family="Times,serif" font-size="14.00">pkg1</text>
+    </g>
+    <g id="clust2" class="cluster">
+    <title>cluster_grp_pkg1_DOT_pkg2</title>
+    <polygon fill="none" stroke="black" points="22,-22 22,-148 812,-148 812,-22 22,-22"/>
+    <text text-anchor="middle" x="417" y="-132.8" font-family="Times,serif" font-size="14.00">pkg2</text>
+    </g>
+    <!-- pkg1_DOT_pkg2_DOT_Class_1_with_ASCII_special_chars\r\n\t!#$%&amp;&#39;()*+_COMMA_&#45;/:;_LT_=_GT_?@[\\]^_`{|}~¡™£€∞§¶•ªºæ≤≥π¥ƒ©ç®¬÷≠åø´¨ˆ∂˙†˜ß&#45;«œ∆˚≈♭µ∑√Ωìñ😀☕️ -->
+    <g id="node1" class="node">
+    <title>pkg1_DOT_pkg2_DOT_Class_1_with_ASCII_special_chars\r\n\t!#$%&amp;&#39;()*+_COMMA_&#45;/:;_LT_=_GT_?@[\\]^_`{|}~¡™£€∞§¶•ªºæ≤≥π¥ƒ©ç®¬÷≠åø´¨ˆ∂˙†˜ß&#45;«œ∆˚≈♭µ∑√Ωìñ😀☕️</title>
+    <polygon fill="none" stroke="#010100" points="745.5,-111 36.5,-111 36.5,-36 745.5,-36 745.5,-111"/>
+    </g>
+    <!-- pkg1_DOT_pkg2_DOT_Class_1_with_ASCII_special_chars\r\n\t!#$%&amp;&#39;()*+_COMMA_&#45;/:;_LT_=_GT_?@[\\]^_`{|}~¡™£€∞§¶•ªºæ≤≥π¥ƒ©ç®¬÷≠åø´¨ˆ∂˙†˜ß&#45;«œ∆˚≈♭µ∑√Ωìñ😀☕️&#45;&gt;pkg1_DOT_pkg2_DOT_Class_1_with_ASCII_special_chars\r\n\t!#$%&amp;&#39;()*+_COMMA_&#45;/:;_LT_=_GT_?@[\\]^_`{|}~¡™£€∞§¶•ªºæ≤≥π¥ƒ©ç®¬÷≠åø´¨ˆ∂˙†˜ß&#45;«œ∆˚≈♭µ∑√Ωìñ😀☕️ -->
+    <g id="edge1" class="edge">
+    <title>pkg1_DOT_pkg2_DOT_Class_1_with_ASCII_special_chars\r\n\t!#$%&amp;&#39;()*+_COMMA_&#45;/:;_LT_=_GT_?@[\\]^_`{|}~¡™£€∞§¶•ªºæ≤≥π¥ƒ©ç®¬÷≠åø´¨ˆ∂˙†˜ß&#45;«œ∆˚≈♭µ∑√Ωìñ😀☕️&#45;&gt;pkg1_DOT_pkg2_DOT_Class_1_with_ASCII_special_chars\r\n\t!#$%&amp;&#39;()*+_COMMA_&#45;/:;_LT_=_GT_?@[\\]^_`{|}~¡™£€∞§¶•ªºæ≤≥π¥ƒ©ç®¬÷≠åø´¨ˆ∂˙†˜ß&#45;«œ∆˚≈♭µ∑√Ωìñ😀☕️</title>
+    <path fill="none" stroke="#020200" d="M745.61,-83.17C767.4,-80.88 780.5,-77.66 780.5,-73.5 780.5,-69.34 767.4,-66.12 745.61,-63.83"/>
+    <polygon fill="#030300" stroke="transparent" points="780.5,-65 780.5,-82 814.5,-82 814.5,-65 780.5,-65"/>
+    <polygon fill="none" stroke="#020200" points="783.5,-72.5 783.5,-78.5 789.5,-78.5 789.5,-72.5 783.5,-72.5"/>
+    <polygon fill="none" stroke="#020200" points="780.5,-65 780.5,-82 814.5,-82 814.5,-65 780.5,-65"/>
+    </g>
+    </g>
+    </svg>
+    
+[2026-03-26T15:37:19Z DEBUG plantuml_little::svek::builder] Solving SVG output (3152 bytes)
+[2026-03-26T15:37:19Z DEBUG plantuml_little::svek] svek solve LF: min=(12.0,12.0) max=(830.0,189.0)
+[2026-03-26T15:37:19Z DEBUG plantuml_little::layout::graphviz] layout_with_svek normalize: min=(6.00,6.00) max=(824.00,183.00)
+[2026-03-26T15:37:19Z DEBUG plantuml_little::layout::graphviz]   edge label_xy before normalize: (784.50,115.00)
+[2026-03-26T15:37:19Z INFO  plantuml_little] written: "/tmp/svg0004_unused.svg"

@@ -1,0 +1,174 @@
+======================================================================
+  Reference Test Failure Analysis
+  101 passed / 195 failed / 296 total
+======================================================================
+
+──────────────────────────────────────────────────────────────────────
+  BY DIAGRAM TYPE
+──────────────────────────────────────────────────────────────────────
+    49  SEQUENCE
+    21  DESCRIPTION
+    20  CLASS
+    14  STATE
+    10  ACTIVITY
+     9  CHEN_EER
+     4  TIMING
+     2  MINDMAP
+     2  JSON
+     2  GANTT
+     1  NWDIAG
+     1  SALT
+     1  YAML
+
+──────────────────────────────────────────────────────────────────────
+  BY ROOT CAUSE
+──────────────────────────────────────────────────────────────────────
+    62  svg_height/large(>30px)
+        [DESCRIPTION:16, CLASS:13, SEQUENCE:9, ACTIVITY:7, CHEN_EER:6]
+    39  svg_height/medium(6-30px)
+        [SEQUENCE:16, CLASS:5, STATE:5, DESCRIPTION:4, CHEN_EER:3]
+     8  viewport_width/medium(6-30px)
+        [SEQUENCE:8]
+     7  attr_stroke_width
+        [ACTIVITY:3, CLASS:2, SEQUENCE:2]
+     6  viewport_width/large(>30px)
+        [SEQUENCE:6]
+     5  style_attr
+        [SEQUENCE:4, DESCRIPTION:1]
+     4  svg_height/tiny(<=2px)
+        [SEQUENCE:2, STATE:2]
+     3  svg_height/small(3-5px)
+        [STATE:2, NWDIAG:1]
+     2  url_tooltip
+        [SEQUENCE:2]
+
+──────────────────────────────────────────────────────────────────────
+  KEYWORD ANALYSIS (puml content tags)
+──────────────────────────────────────────────────────────────────────
+    32  newline_func  [svg_height/medium(6-30px):16, svg_height/large(>30px):12, svg_height/tiny(<=2px):2]
+    32  teoz  [svg_height/medium(6-30px):12, svg_height/large(>30px):6, viewport_width/medium(6-30px):4]
+    25  creole_markup  [svg_height/large(>30px):11, svg_height/medium(6-30px):4, viewport_width/medium(6-30px):4]
+     9  theme  [svg_height/large(>30px):3, svg_height/tiny(<=2px):2, svg_height/medium(6-30px):2]
+     6  left_self_msg  [viewport_width/medium(6-30px):4, svg_height/medium(6-30px):2]
+     5  sprite  [svg_height/large(>30px):3, svg_height/medium(6-30px):2]
+     5  skinparam_font  [svg_height/large(>30px):4, svg_height/medium(6-30px):1]
+     4  url_link  [viewport_width/large(>30px):2, svg_height/medium(6-30px):1, svg_height/large(>30px):1]
+     4  maxmessagesize  [viewport_width/medium(6-30px):2, style_attr:2]
+     1  handwritten  [svg_height/medium(6-30px):1]
+
+──────────────────────────────────────────────────────────────────────
+  HEIGHT DELTA DISTRIBUTION (for height-related failures)
+──────────────────────────────────────────────────────────────────────
+  SEQUENCE     ( 27): min= -152  median=  -24  max= +439
+  DESCRIPTION  ( 20): min= -253  median=  -49  max= +406
+  CLASS        ( 18): min= -442  median=  -58  max=  +13
+  STATE        ( 14): min=  -84  median=  +11  max= +113
+  CHEN_EER     (  9): min=   -6  median=  +83  max= +318
+  ACTIVITY     (  7): min= -441  median=  -81  max=  -53
+  TIMING       (  4): min=  -51  median=  -34  max=  -34
+  MINDMAP      (  2): min=  +16  median=  +16  max=  +16
+  JSON         (  2): min=  -20  median=  -20  max=  -20
+  GANTT        (  2): min=  -25  median=  -25  max=  -25
+  NWDIAG       (  1): min=   -5  median=   -5  max=   -5
+  SALT         (  1): min= +152  median= +152  max= +152
+  YAML         (  1): min=  -57  median=  -57  max=  -57
+
+──────────────────────────────────────────────────────────────────────
+  SEQUENCE DIAGRAM BREAKDOWN
+──────────────────────────────────────────────────────────────────────
+  Teoz:      32 tests
+  Non-teoz:  17 tests
+  Non-teoz keyword breakdown:
+      5  creole_markup
+      4  newline_func
+      4  left_self_msg
+      4  maxmessagesize
+      2  url_link
+      2  theme
+      2  sprite
+      1  handwritten
+      1  skinparam_font
+
+──────────────────────────────────────────────────────────────────────
+  WIDTH-ONLY FAILURES (14 tests)
+──────────────────────────────────────────────────────────────────────
+   -186px  SEQUENCE      dev_jaws_jaws11_puml
+          keywords: creole_markup, url_link
+   -186px  SEQUENCE      sequence_jaws11_puml
+          keywords: creole_markup, url_link
+    -69px  SEQUENCE      nonreg_simple_TeozAltElseParallel_0001_puml
+          keywords: teoz, theme
+    -69px  SEQUENCE      preprocessor_teozaltelseparallel_0001_puml
+          keywords: teoz, theme
+    +43px  SEQUENCE      nonreg_simple_TeozAltElseParallel_0003_puml
+          keywords: teoz
+    +43px  SEQUENCE      preprocessor_teozaltelseparallel_0003_puml
+          keywords: teoz
+    +20px  SEQUENCE      nonreg_simple_SequenceArrows_0002_puml
+          keywords: creole_markup, teoz
+    +20px  SEQUENCE      preprocessor_sequencearrows_0002_puml
+          keywords: creole_markup, teoz
+    -14px  SEQUENCE      nonreg_simple_SequenceLayout_0003_puml
+          keywords: left_self_msg
+    -14px  SEQUENCE      sequence_sequencelayout_0003_puml
+          keywords: left_self_msg
+    +10px  SEQUENCE      nonreg_simple_SequenceArrows_0001_puml
+          keywords: creole_markup, teoz
+    +10px  SEQUENCE      preprocessor_sequencearrows_0001_puml
+          keywords: creole_markup, teoz
+     -6px  SEQUENCE      nonreg_simple_SequenceLayout_0001c_puml
+          keywords: left_self_msg, maxmessagesize
+     -6px  SEQUENCE      sequence_sequencelayout_0001c_puml
+          keywords: left_self_msg, maxmessagesize
+
+──────────────────────────────────────────────────────────────────────
+  NEARLY PASSING (sorted by total dimensional error)
+──────────────────────────────────────────────────────────────────────
+      2      w=?     h-2  SEQUENCE      dev_jaws_jaws6_puml [width-unknown]
+                                          newline_func,theme
+      2      w=?     h-2  SEQUENCE      preprocessor_jaws6_puml [width-unknown]
+                                          newline_func,theme
+      2      w=?     h-2  STATE         state_state_concurrent001_puml [width-unknown]
+      2      w=?     h+2  STATE         state_state_note001_puml [width-unknown]
+      3      w=?     h+3  STATE         nonreg_scxml_SCXML0005_puml [width-unknown]
+      3      w=?     h+3  STATE         state_scxml0005_puml [width-unknown]
+      5      w=?     h-5  NWDIAG        nwdiag_basic_puml [width-unknown]
+      6      w=?     h-6  CHEN_EER      erd_chenrankdir_puml [width-unknown]
+      6      w=?     h-6  CHEN_EER      nonreg_simple_ChenRankDir_puml [width-unknown]
+      6      w-6    h=ok  SEQUENCE      nonreg_simple_SequenceLayout_0001c_puml [width-only]
+                                          left_self_msg,maxmessagesize
+      6      w-6    h=ok  SEQUENCE      sequence_sequencelayout_0001c_puml [width-only]
+                                          left_self_msg,maxmessagesize
+      8      w=?     h-8  SEQUENCE      nonreg_simple_SequenceLeftMessageAndActiveLifeLines_0001_puml [width-unknown]
+                                          left_self_msg,teoz
+      8      w=?     h-8  SEQUENCE      preprocessor_sequenceleftmessageandactivelifelines_0001_puml [width-unknown]
+                                          left_self_msg,teoz
+      9      w=?     h-9  SEQUENCE      dev_newline_seq_mono_line_puml [width-unknown]
+                                          newline_func
+      9      w=?     h-9  SEQUENCE      preprocessor_seq_mono_line_puml [width-unknown]
+                                          newline_func
+     10     w+10    h=ok  SEQUENCE      nonreg_simple_SequenceArrows_0001_puml [width-only]
+                                          creole_markup,teoz
+     10     w+10    h=ok  SEQUENCE      preprocessor_sequencearrows_0001_puml [width-only]
+                                          creole_markup,teoz
+     11      w=?    h+11  CHEN_EER      erd_weak001_puml [width-unknown]
+     11      w=?    h+11  STATE         nonreg_scxml_SCXML0003_puml [width-unknown]
+     11      w=?    h+11  STATE         state_scxml0003_puml [width-unknown]
+     12      w=?    h-12  SEQUENCE      nonreg_simple_TeozTimelineIssues_0002_puml [width-unknown]
+                                          teoz
+     12      w=?    h-12  SEQUENCE      preprocessor_teoztimelineissues_0002_puml [width-unknown]
+                                          teoz
+     13      w=?    h+13  CLASS         dev_jaws_jaws3_puml [width-unknown]
+                                          newline_func
+     13      w=?    h+13  CLASS         preprocessor_jaws3_puml [width-unknown]
+                                          newline_func
+     14     w-14    h=ok  SEQUENCE      nonreg_simple_SequenceLayout_0003_puml [width-only]
+                                          left_self_msg
+     14     w-14    h=ok  SEQUENCE      sequence_sequencelayout_0003_puml [width-only]
+                                          left_self_msg
+     16      w=?    h+16  MINDMAP       dev_jaws_jaws12_puml [width-unknown]
+                                          creole_markup,newline_func
+     16      w=?    h+16  MINDMAP       mindmap_jaws12_puml [width-unknown]
+                                          creole_markup,newline_func
+     16      w=?    h-16  STATE         nonreg_scxml_SCXML0002_puml [width-unknown]
+     16      w=?    h-16  STATE         state_scxml0002_puml [width-unknown]

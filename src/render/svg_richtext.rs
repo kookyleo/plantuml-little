@@ -6,7 +6,7 @@ use crate::font_metrics;
 use crate::klimt::svg::{fmt_coord, xml_escape, xml_escape_attr};
 use crate::model::hyperlink::Hyperlink;
 use crate::model::richtext::{RichText, TextSpan};
-use crate::parser::creole::{parse_creole, parse_creole_opts};
+use crate::parser::creole::{parse_creole, parse_creole_opts, parse_inline};
 use crate::render::svg_hyperlink::wrap_with_link;
 
 thread_local! {
@@ -464,21 +464,20 @@ pub fn render_creole_text_opts(
     }
 
     // Compute textLength for the <text> element.
-    let plain = lines
-        .iter()
-        .map(|line| plain_text_spans(line))
-        .collect::<Vec<_>>()
-        .join("");
-    let text_length = font_metrics::text_width(&plain, &font_family, font_size, bold, italic);
-
     if lines.len() == 1 {
-        write_text_open(buf, x, y, fill, text_anchor, outer_attrs, text_length);
-        if let Some(text) = simple_plain_line(&lines[0]) {
-            buf.push_str(&xml_escape(text));
-        } else {
-            render_spans(buf, &lines[0], &SpanStyle::default(), fill);
-        }
-        buf.push_str("</text>");
+        render_prepared_line(
+            buf,
+            &lines[0],
+            x,
+            y,
+            fill,
+            text_anchor,
+            outer_attrs,
+            &font_family,
+            font_size,
+            bold,
+            italic,
+        );
         render_deferred_sprites(buf, &sprite_refs, x, y);
         return 1;
     }
@@ -487,28 +486,566 @@ pub fn render_creole_text_opts(
     // Each line gets its own textLength and y offset.
     for (idx, line) in lines.iter().enumerate() {
         let line_y = y + (idx as f64) * line_height;
-        let line_plain = plain_text_spans(line);
-        let line_text_length =
-            font_metrics::text_width(&line_plain, &font_family, font_size, bold, italic);
-        write_text_open(
+        render_prepared_line(
             buf,
+            line,
             x,
             line_y,
             fill,
             text_anchor,
             outer_attrs,
-            line_text_length,
+            &font_family,
+            font_size,
+            bold,
+            italic,
         );
+    }
+    render_deferred_sprites(buf, &sprite_refs, x, y);
+
+    lines.len()
+}
+
+#[derive(Clone)]
+struct DisplayTableCell {
+    lines: Vec<Vec<TextSpan>>,
+    is_header: bool,
+}
+
+#[derive(Clone)]
+struct DisplayTableRow {
+    cells: Vec<DisplayTableCell>,
+}
+
+struct DisplayTableLayout {
+    col_widths: Vec<f64>,
+    row_heights: Vec<f64>,
+    width: f64,
+    total_height: f64,
+}
+
+enum DisplayBlock {
+    Text(Vec<String>),
+    Table(Vec<DisplayTableRow>),
+}
+
+const TABLE_MARGIN_Y: f64 = 2.0;
+const NBSP: &str = "\u{00A0}";
+
+pub fn measure_creole_display_lines(
+    lines: &[String],
+    default_font: &str,
+    font_size: f64,
+    bold: bool,
+    italic: bool,
+    preserve_backslash_n: bool,
+) -> (f64, f64) {
+    let blocks = build_display_blocks(lines, preserve_backslash_n);
+    let mut width = 0.0_f64;
+    let mut height = 0.0_f64;
+
+    for block in &blocks {
+        match block {
+            DisplayBlock::Text(text_lines) => {
+                for line in text_lines {
+                    width =
+                        width.max(creole_text_width(line, default_font, font_size, bold, italic));
+                    height += creole_line_height(line, default_font, font_size);
+                }
+            }
+            DisplayBlock::Table(rows) => {
+                let layout = layout_display_table(rows, default_font, font_size, bold, italic);
+                width = width.max(layout.width);
+                height += layout.total_height;
+            }
+        }
+    }
+
+    if blocks.is_empty() {
+        (
+            0.0,
+            font_metrics::line_height(default_font, font_size, bold, italic),
+        )
+    } else {
+        (width, height)
+    }
+}
+
+pub fn render_creole_display_lines(
+    buf: &mut String,
+    lines: &[String],
+    x: f64,
+    top_y: f64,
+    fill: &str,
+    outer_attrs: &str,
+    preserve_backslash_n: bool,
+) {
+    let blocks = build_display_blocks(lines, preserve_backslash_n);
+    let (default_font, font_size, bold, italic) = parse_font_props(outer_attrs);
+    let mut cursor_y = top_y;
+
+    for block in &blocks {
+        match block {
+            DisplayBlock::Text(text_lines) => {
+                for line in text_lines {
+                    let line_height = creole_line_height(line, &default_font, font_size);
+                    let ascent = font_metrics::ascent(&default_font, font_size, bold, italic);
+                    render_creole_text_opts(
+                        buf,
+                        line,
+                        x,
+                        cursor_y + ascent,
+                        line_height,
+                        fill,
+                        None,
+                        outer_attrs,
+                        preserve_backslash_n,
+                    );
+                    cursor_y += line_height;
+                }
+            }
+            DisplayBlock::Table(rows) => {
+                let layout = layout_display_table(rows, &default_font, font_size, bold, italic);
+                render_display_table(
+                    buf,
+                    rows,
+                    &layout,
+                    x,
+                    cursor_y,
+                    fill,
+                    font_size,
+                    &default_font,
+                    bold,
+                    italic,
+                );
+                cursor_y += layout.total_height;
+            }
+        }
+    }
+}
+
+fn build_display_blocks(lines: &[String], preserve_backslash_n: bool) -> Vec<DisplayBlock> {
+    let mut blocks = Vec::new();
+    let mut idx = 0usize;
+
+    while idx < lines.len() {
+        let line = &lines[idx];
+        if is_table_display_line(line) {
+            let mut raw_rows = Vec::new();
+            while idx < lines.len() && is_table_display_line(&lines[idx]) {
+                raw_rows.push(lines[idx].clone());
+                idx += 1;
+            }
+            blocks.push(DisplayBlock::Table(parse_display_table_rows(
+                &raw_rows,
+                preserve_backslash_n,
+            )));
+            continue;
+        }
+
+        blocks.push(DisplayBlock::Text(split_display_line(line)));
+        idx += 1;
+    }
+
+    blocks
+}
+
+fn split_display_line(line: &str) -> Vec<String> {
+    let mut parts = Vec::new();
+    let mut current = String::new();
+    for ch in line.chars() {
+        if ch == crate::NEWLINE_CHAR || ch == '\n' {
+            parts.push(std::mem::take(&mut current));
+        } else {
+            current.push(ch);
+        }
+    }
+    parts.push(current);
+    parts
+}
+
+fn is_table_display_line(line: &str) -> bool {
+    let trimmed = line.trim();
+    trimmed.starts_with('|') && trimmed.ends_with('|') && trimmed.len() >= 2
+}
+
+fn parse_display_table_rows(lines: &[String], preserve_backslash_n: bool) -> Vec<DisplayTableRow> {
+    lines.iter()
+        .map(|line| DisplayTableRow {
+            cells: parse_display_table_cells(line, preserve_backslash_n),
+        })
+        .collect()
+}
+
+fn parse_display_table_cells(line: &str, preserve_backslash_n: bool) -> Vec<DisplayTableCell> {
+    let trimmed = line.trim();
+    let inner = trimmed
+        .strip_prefix('|')
+        .unwrap_or(trimmed)
+        .strip_suffix('|')
+        .unwrap_or(trimmed);
+
+    inner
+        .split('|')
+        .map(|part| {
+            let mut cell_text = part.trim();
+            let is_header = cell_text.starts_with('=');
+            if is_header {
+                cell_text = cell_text.trim_start_matches('=').trim();
+            }
+            let lines = split_table_cell_lines(cell_text, preserve_backslash_n)
+                .into_iter()
+                .map(|cell_line| parse_inline(&cell_line))
+                .collect();
+            DisplayTableCell { lines, is_header }
+        })
+        .collect()
+}
+
+fn split_table_cell_lines(text: &str, preserve_backslash_n: bool) -> Vec<String> {
+    let mut parts = Vec::new();
+    let chars: Vec<char> = text.chars().collect();
+    let mut current = String::new();
+    let mut idx = 0usize;
+
+    while idx < chars.len() {
+        let ch = chars[idx];
+        if ch == crate::NEWLINE_CHAR || ch == '\n' {
+            parts.push(std::mem::take(&mut current).trim().to_string());
+            idx += 1;
+            continue;
+        }
+        if !preserve_backslash_n && ch == '\\' && idx + 1 < chars.len() && chars[idx + 1] == 'n' {
+            parts.push(std::mem::take(&mut current).trim().to_string());
+            idx += 2;
+            continue;
+        }
+
+        current.push(ch);
+        idx += 1;
+    }
+
+    parts.push(current.trim().to_string());
+    parts
+}
+
+fn layout_display_table(
+    rows: &[DisplayTableRow],
+    default_font: &str,
+    font_size: f64,
+    bold: bool,
+    italic: bool,
+) -> DisplayTableLayout {
+    let col_count = rows.iter().map(|row| row.cells.len()).max().unwrap_or(0);
+    let mut col_widths = vec![0.0_f64; col_count];
+    let mut row_heights = vec![0.0_f64; rows.len()];
+
+    for (row_idx, row) in rows.iter().enumerate() {
+        let mut row_height = 0.0_f64;
+        for (col_idx, cell) in row.cells.iter().enumerate() {
+            let cell_bold = bold || cell.is_header;
+            let cell_line_height =
+                font_metrics::line_height(default_font, font_size, cell_bold, italic);
+            row_height = row_height.max(cell_line_height * cell.lines.len().max(1) as f64);
+            col_widths[col_idx] = col_widths[col_idx].max(measure_table_cell_width(
+                cell,
+                default_font,
+                font_size,
+                cell_bold,
+                italic,
+            ));
+        }
+        row_heights[row_idx] = row_height;
+    }
+
+    let width = col_widths.iter().sum();
+    let total_height = row_heights.iter().sum::<f64>() + 2.0 * TABLE_MARGIN_Y;
+
+    DisplayTableLayout {
+        col_widths,
+        row_heights,
+        width,
+        total_height,
+    }
+}
+
+fn measure_table_cell_width(
+    cell: &DisplayTableCell,
+    default_font: &str,
+    font_size: f64,
+    bold: bool,
+    italic: bool,
+) -> f64 {
+    let space_width = font_metrics::text_width(" ", default_font, font_size, bold, italic);
+    let nbsp_width = font_metrics::text_width(NBSP, default_font, font_size, bold, italic);
+    let mut width = 0.0_f64;
+
+    for line in &cell.lines {
+        let plain = plain_text_spans(line);
+        let candidate = if plain.is_empty() {
+            nbsp_width
+        } else {
+            measure_parsed_line_width(line, default_font, font_size, bold, italic)
+                + 2.0 * space_width
+        };
+        width = width.max(candidate);
+    }
+
+    width
+}
+
+fn render_display_table(
+    buf: &mut String,
+    rows: &[DisplayTableRow],
+    layout: &DisplayTableLayout,
+    x: f64,
+    top_y: f64,
+    fill: &str,
+    font_size: f64,
+    default_font: &str,
+    bold: bool,
+    italic: bool,
+) {
+    let mut row_top = top_y + TABLE_MARGIN_Y;
+
+    for (row_idx, row) in rows.iter().enumerate() {
+        let row_height = layout.row_heights[row_idx];
+        let mut col_x = x;
+
+        for (col_idx, col_width) in layout.col_widths.iter().enumerate() {
+            if let Some(cell) = row.cells.get(col_idx) {
+                let cell_bold = bold || cell.is_header;
+                let cell_line_height =
+                    font_metrics::line_height(default_font, font_size, cell_bold, italic);
+                let cell_ascent =
+                    font_metrics::ascent(default_font, font_size, cell_bold, italic);
+                let cell_space =
+                    font_metrics::text_width(" ", default_font, font_size, cell_bold, italic);
+                let cell_attrs = build_cell_outer_attrs(font_size, cell_bold, italic);
+
+                for (line_idx, line) in cell.lines.iter().enumerate() {
+                    let baseline = row_top + cell_ascent + line_idx as f64 * cell_line_height;
+                    let render_line = if plain_text_spans(line).is_empty() {
+                        vec![TextSpan::Plain(NBSP.to_string())]
+                    } else {
+                        line.clone()
+                    };
+                    let text_x = if plain_text_spans(line).is_empty() {
+                        col_x
+                    } else {
+                        col_x + cell_space
+                    };
+                    render_preparsed_lines(
+                        buf,
+                        &[render_line],
+                        text_x,
+                        baseline,
+                        cell_line_height,
+                        fill,
+                        None,
+                        &cell_attrs,
+                    );
+                }
+            }
+
+            col_x += col_width;
+        }
+
+        row_top += row_height;
+    }
+
+    let grid_top = top_y + TABLE_MARGIN_Y;
+    let grid_bottom = grid_top + layout.row_heights.iter().sum::<f64>();
+    let mut y = grid_top;
+    write!(
+        buf,
+        r#"<line style="stroke:#000000;stroke-width:0.5;" x1="{}" x2="{}" y1="{}" y2="{}"/>"#,
+        fmt_coord(x),
+        fmt_coord(x + layout.width),
+        fmt_coord(y),
+        fmt_coord(y)
+    )
+    .unwrap();
+    for row_height in &layout.row_heights {
+        y += row_height;
+        write!(
+            buf,
+            r#"<line style="stroke:#000000;stroke-width:0.5;" x1="{}" x2="{}" y1="{}" y2="{}"/>"#,
+            fmt_coord(x),
+            fmt_coord(x + layout.width),
+            fmt_coord(y),
+            fmt_coord(y)
+        )
+        .unwrap();
+    }
+
+    let mut vx = x;
+    write!(
+        buf,
+        r#"<line style="stroke:#000000;stroke-width:0.5;" x1="{}" x2="{}" y1="{}" y2="{}"/>"#,
+        fmt_coord(vx),
+        fmt_coord(vx),
+        fmt_coord(grid_top),
+        fmt_coord(grid_bottom)
+    )
+    .unwrap();
+    for width in &layout.col_widths {
+        vx += width;
+        write!(
+            buf,
+            r#"<line style="stroke:#000000;stroke-width:0.5;" x1="{}" x2="{}" y1="{}" y2="{}"/>"#,
+            fmt_coord(vx),
+            fmt_coord(vx),
+            fmt_coord(grid_top),
+            fmt_coord(grid_bottom)
+        )
+        .unwrap();
+    }
+}
+
+fn build_cell_outer_attrs(font_size: f64, bold: bool, italic: bool) -> String {
+    let mut attrs = format!(r#"font-size="{font_size}""#);
+    if bold {
+        attrs.push_str(r#" font-weight="700""#);
+    }
+    if italic {
+        attrs.push_str(r#" font-style="italic""#);
+    }
+    attrs
+}
+
+fn measure_parsed_line_width(
+    spans: &[TextSpan],
+    default_font: &str,
+    font_size: f64,
+    bold: bool,
+    italic: bool,
+) -> f64 {
+    if !line_needs_split_render(spans) {
+        let plain = plain_text_spans(spans);
+        return font_metrics::text_width(&plain, default_font, font_size, bold, italic);
+    }
+
+    let runs = flatten_to_runs(spans);
+    let mut total = 0.0_f64;
+    let mut first = true;
+    for run in &runs {
+        let text = if !first {
+            run.text.trim_start()
+        } else {
+            run.text.as_str()
+        };
+        if text.is_empty() {
+            first = false;
+            continue;
+        }
+        if !first && text.len() < run.text.len() {
+            let n_spaces = run.text.len() - text.len();
+            total += font_metrics::text_width(" ", default_font, font_size, false, false)
+                * n_spaces as f64;
+        }
+        let run_font = run.font_family.as_deref().unwrap_or(default_font);
+        let run_bold = run.bold || bold;
+        let run_italic = run.italic || italic;
+        let run_size = match run.font_size_override {
+            Some(v) if v == -1.0 || v == -2.0 => (font_size * 0.77).round(),
+            Some(v) if v > 0.0 => v,
+            _ => font_size,
+        };
+        total += font_metrics::text_width(text, run_font, run_size, run_bold, run_italic);
+        first = false;
+    }
+    total
+}
+
+fn render_preparsed_lines(
+    buf: &mut String,
+    lines: &[Vec<TextSpan>],
+    x: f64,
+    y: f64,
+    line_height: f64,
+    fill: &str,
+    text_anchor: Option<&str>,
+    outer_attrs: &str,
+) -> usize {
+    let (font_family, font_size, bold, italic) = parse_font_props(outer_attrs);
+
+    if lines.len() == 1 && text_anchor.is_none() && line_needs_split_render(&lines[0]) {
+        render_split_text_runs(
+            buf,
+            &lines[0],
+            x,
+            y,
+            fill,
+            outer_attrs,
+            &font_family,
+            font_size,
+            bold,
+            italic,
+        );
+        return 1;
+    }
+
+    for (idx, line) in lines.iter().enumerate() {
+        let line_y = y + idx as f64 * line_height;
+        render_prepared_line(
+            buf,
+            line,
+            x,
+            line_y,
+            fill,
+            text_anchor,
+            outer_attrs,
+            &font_family,
+            font_size,
+            bold,
+            italic,
+        );
+    }
+
+    lines.len()
+}
+
+#[allow(clippy::too_many_arguments)]
+fn render_prepared_line(
+    buf: &mut String,
+    line: &[TextSpan],
+    x: f64,
+    y: f64,
+    fill: &str,
+    text_anchor: Option<&str>,
+    outer_attrs: &str,
+    font_family: &str,
+    font_size: f64,
+    bold: bool,
+    italic: bool,
+) {
+    let line_plain = plain_text_spans(line);
+    let is_visual_blank_line = line_plain.is_empty();
+    if is_visual_blank_line {
+        let text_length = font_metrics::text_width(NBSP, font_family, font_size, bold, italic);
+        write_text_open(buf, x, y, fill, text_anchor, outer_attrs, text_length);
+        buf.push_str(&xml_escape(NBSP));
+        buf.push_str("</text>");
+    } else if text_anchor.is_none() {
+        let text_length = font_metrics::text_width(&line_plain, font_family, font_size, bold, italic);
+        write_text_open(buf, x, y, fill, text_anchor, outer_attrs, text_length);
         if let Some(text) = simple_plain_line(line) {
             buf.push_str(&xml_escape(text));
         } else {
             render_spans(buf, line, &SpanStyle::default(), fill);
         }
         buf.push_str("</text>");
+    } else if let Some(text) = simple_plain_line(line) {
+        let text_length = font_metrics::text_width(&line_plain, font_family, font_size, bold, italic);
+        write_text_open(buf, x, y, fill, text_anchor, outer_attrs, text_length);
+        buf.push_str(&xml_escape(text));
+        buf.push_str("</text>");
+    } else {
+        let text_length = font_metrics::text_width(&line_plain, font_family, font_size, bold, italic);
+        write_text_open(buf, x, y, fill, text_anchor, outer_attrs, text_length);
+        render_spans(buf, line, &SpanStyle::default(), fill);
+        buf.push_str("</text>");
     }
-    render_deferred_sprites(buf, &sprite_refs, x, y);
-
-    lines.len()
 }
 
 fn render_line_with_sprites(
@@ -848,55 +1385,7 @@ fn render_split_text_runs(
 ) {
     let runs = flatten_to_runs(spans);
     let mut cursor_x = x;
-    let mut first = true;
     for run in &runs {
-        let raw_text = &run.text;
-        // Java: leading whitespace on non-first runs is stripped and converted
-        // to cursor advancement. Trailing whitespace is also stripped.
-        let (text, trailing_spaces) = if !first {
-            let trimmed_start = raw_text.trim_start();
-            if trimmed_start.len() < raw_text.len() {
-                // Add space width for each trimmed leading space
-                let n_spaces = raw_text.len() - trimmed_start.len();
-                let space_w = font_metrics::text_width(" ", default_font, font_size, false, false);
-                cursor_x += space_w * n_spaces as f64;
-            }
-            // Also strip trailing whitespace, but count stripped trailing spaces
-            let trimmed_both = trimmed_start.trim_end();
-            let n_trailing = trimmed_start.len() - trimmed_both.len();
-            (trimmed_both.to_string(), n_trailing)
-        } else {
-            // First run: only strip trailing whitespace, count stripped trailing spaces
-            let trimmed = raw_text.trim_end();
-            let n_trailing = raw_text.len() - trimmed.len();
-            (trimmed.to_string(), n_trailing)
-        };
-        if text.is_empty() {
-            // Java: whitespace-only runs between styled segments are rendered as
-            // &#160; (non-breaking space) text elements. The cursor was already
-            // advanced by leading-space handling above, so render at the position
-            // where the space(s) started (cursor_x - n_spaces * space_w).
-            if !first && !raw_text.is_empty() && raw_text.trim().is_empty() {
-                let n_spaces = raw_text.len();
-                let space_w = font_metrics::text_width(" ", default_font, font_size, false, false);
-                let total_space_w = space_w * n_spaces as f64;
-                let space_x = cursor_x - total_space_w;
-                let nbsp = "\u{00A0}".repeat(n_spaces);
-                write!(buf, r#"<text fill="{}""#, xml_escape(fill)).unwrap();
-                write!(buf, r#" font-family="{}""#, xml_escape(default_font)).unwrap();
-                write!(buf, r#" font-size="{}""#, fmt_coord(font_size)).unwrap();
-                if base_bold {
-                    buf.push_str(r#" font-weight="700""#);
-                }
-                write!(buf, r#" lengthAdjust="spacing""#).unwrap();
-                write!(buf, r#" textLength="{}""#, fmt_coord(total_space_w)).unwrap();
-                write!(buf, r#" x="{}" y="{}">"#, fmt_coord(space_x), fmt_coord(y)).unwrap();
-                buf.push_str(&xml_escape(&nbsp));
-                buf.push_str("</text>");
-            }
-            first = false;
-            continue;
-        }
         let run_font = run.font_family.as_deref().unwrap_or(default_font);
         let run_bold = run.bold || base_bold;
         let run_italic = run.italic || base_italic;
@@ -914,11 +1403,36 @@ fn render_split_text_runs(
         } else {
             fill
         };
+        // Java: for <size:N>, the y coordinate is adjusted (baseline shift).
+        // The shift equals the difference in font descent between the overridden
+        // and base sizes: y -= (descent(sz) - descent(base)).
+        // For subscript/superscript, Java shifts the baseline vertically.
+        let run_y = if let Some(sz) = run.font_size_override {
+            if sz == -1.0 {
+                // Subscript: shift down by font_size * 0.2852
+                y + font_size * 0.2852
+            } else if sz == -2.0 {
+                // Superscript: shift up by font_size * 0.4071
+                y - font_size * 0.4071
+            } else if sz > font_size {
+                let desc_base = font_metrics::descent(default_font, font_size, false, false);
+                let desc_large = font_metrics::descent(default_font, sz, false, false);
+                y - (desc_large - desc_base)
+            } else {
+                y
+            }
+        } else {
+            y
+        };
+        if run.text.is_empty() {
+            continue;
+        }
+        let text = if run.text.chars().all(char::is_whitespace) {
+            NBSP.repeat(run.text.chars().count())
+        } else {
+            run.text.clone()
+        };
         let text_w = font_metrics::text_width(&text, run_font, run_size, run_bold, run_italic);
-        // Java renders in alphabetical attribute order:
-        // fill, filter, font-family, font-size, font-style, font-weight,
-        // lengthAdjust, text-decoration, textLength, x, y
-        // Wrap link runs with <a> element
         if let Some(ref url) = run.link_url {
             let title_src = run.link_tooltip.as_deref().unwrap_or(url);
             let title = process_xlink_title(title_src);
@@ -944,27 +1458,6 @@ fn render_split_text_runs(
             buf.push_str(r#" text-decoration="underline""#);
         }
         write!(buf, r#" textLength="{}""#, fmt_coord(text_w)).unwrap();
-        // Java: for <size:N>, the y coordinate is adjusted (baseline shift).
-        // The shift equals the difference in font descent between the overridden
-        // and base sizes: y -= (descent(sz) - descent(base)).
-        // For subscript/superscript, Java shifts the baseline vertically.
-        let run_y = if let Some(sz) = run.font_size_override {
-            if sz == -1.0 {
-                // Subscript: shift down by font_size * 0.2852
-                y + font_size * 0.2852
-            } else if sz == -2.0 {
-                // Superscript: shift up by font_size * 0.4071
-                y - font_size * 0.4071
-            } else if sz > font_size {
-                let desc_base = font_metrics::descent(default_font, font_size, false, false);
-                let desc_large = font_metrics::descent(default_font, sz, false, false);
-                y - (desc_large - desc_base)
-            } else {
-                y
-            }
-        } else {
-            y
-        };
         write!(
             buf,
             r#" x="{}" y="{}">"#,
@@ -978,13 +1471,6 @@ fn render_split_text_runs(
             buf.push_str("</a>");
         }
         cursor_x += text_w;
-        // Account for trailing whitespace that was stripped from the rendered text.
-        // Java: each stripped trailing space advances the cursor by one space width.
-        if trailing_spaces > 0 {
-            let space_w = font_metrics::text_width(" ", default_font, font_size, false, false);
-            cursor_x += space_w * trailing_spaces as f64;
-        }
-        first = false;
     }
 }
 
@@ -1490,6 +1976,31 @@ mod tests {
     }
 
     #[test]
+    fn renders_empty_line_as_nbsp() {
+        let mut buf = String::new();
+        let lines = render_creole_text(&mut buf, "", 10.0, 20.0, 16.0, "#000000", None, "");
+        assert_eq!(lines, 1);
+        assert!(buf.contains("&#160;"));
+        assert!(!buf.contains(r#"textLength="0""#));
+    }
+
+    #[test]
+    fn renders_blank_table_cell_line_as_nbsp() {
+        let mut buf = String::new();
+        render_creole_display_lines(
+            &mut buf,
+            &[String::from("| \\nvalue | x |")],
+            10.0,
+            20.0,
+            "#000000",
+            r#"font-size="12""#,
+            false,
+        );
+        assert!(buf.contains("&#160;"));
+        assert!(!buf.contains(r#"textLength="0""#));
+    }
+
+    #[test]
     fn renders_link_with_tooltip() {
         let mut buf = String::new();
         render_creole_text(
@@ -1630,8 +2141,43 @@ mod tests {
             None,
             "",
         );
-        assert!(buf.contains("plain text"));
+        assert_eq!(buf.matches("<text ").count(), 1);
+        assert!(buf.contains(">plain text</text>"));
         assert!(!buf.contains("<g transform="));
+    }
+
+    #[test]
+    fn renders_plain_line_as_single_text_element() {
+        let mut buf = String::new();
+        render_creole_text(
+            &mut buf,
+            "This is a note",
+            41.0,
+            226.8276,
+            15.1328,
+            "#000000",
+            None,
+            r#"font-size="13""#,
+        );
+        assert_eq!(buf.matches("<text ").count(), 1);
+        assert!(buf.contains(">This is a note</text>"));
+    }
+
+    #[test]
+    fn centered_plain_line_keeps_single_text_element() {
+        let mut buf = String::new();
+        render_creole_text(
+            &mut buf,
+            "plain text",
+            10.0,
+            20.0,
+            16.0,
+            "#000000",
+            Some("middle"),
+            "",
+        );
+        assert_eq!(buf.matches("<text ").count(), 1);
+        assert!(buf.contains(">plain text</text>"));
     }
 
     #[test]

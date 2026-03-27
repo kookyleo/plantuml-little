@@ -1,0 +1,11 @@
+@startuml
+[*] --> Active
+state Active {
+  [*] --> Sub1
+  Sub1 --> Sub2
+  --
+  [*] --> Sub3
+  Sub3 --> Sub4
+}
+Active --> [*]
+@enduml

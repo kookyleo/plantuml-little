@@ -37,8 +37,8 @@ pub(super) fn requires_round_trip_quotes(value: &str) -> bool {
 
 /// Expand built-in functions in normal lines.
 ///
-/// `%newline()` and `%n()` produce the literal escape `\n` which downstream
-/// parsers / renderers interpret as a line break in displayed text.
+/// `%newline()` and `%n()` produce PlantUML's hidden newline placeholder,
+/// which downstream parsers/renderers interpret according to Display semantics.
 pub(super) fn expand_builtins(line: &str) -> String {
     let mut result = line.to_string();
 
@@ -93,8 +93,9 @@ pub(super) fn expand_expression_builtins(line: &str) -> String {
         );
     }
 
-    result = result.replace("%newline()", "\"\n\"");
-    result = result.replace("%n()", "\"\n\"");
+    let nl = crate::NEWLINE_CHAR;
+    result = result.replace("%newline()", &format!("\"{nl}\""));
+    result = result.replace("%n()", &format!("\"{nl}\""));
     result = result.replace("%true()", "true");
     result = result.replace("%false()", "false");
     result
@@ -565,7 +566,7 @@ pub(super) fn try_eval_concat_expr(s: &str) -> Option<String> {
             continue;
         }
         match trimmed {
-            "%newline()" | "%n()" => out.push('\n'),
+            "%newline()" | "%n()" => out.push(crate::NEWLINE_CHAR),
             _ if ((trimmed.starts_with('"') && trimmed.ends_with('"'))
                 || (trimmed.starts_with('\'') && trimmed.ends_with('\'')))
                 && trimmed.len() >= 2 =>

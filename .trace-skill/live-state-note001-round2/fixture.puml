@@ -1,0 +1,12 @@
+@startuml
+[*] --> Active
+Active --> Inactive
+state Active {
+  [*] --> Running
+}
+note right of Active : This is active
+note left of Inactive
+  Multi line
+  note text
+end note
+@enduml

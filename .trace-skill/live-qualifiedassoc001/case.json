@@ -1,0 +1,182 @@
+{
+  "fixture": {
+    "absolute_path": "/ext/plantuml/plantuml-little/tests/fixtures/class/qualifiedassoc001.puml",
+    "relative_path": "tests/fixtures/class/qualifiedassoc001.puml",
+    "test_name": "reference_fixtures_class_qualifiedassoc001_puml",
+    "reference_path": "/ext/plantuml/plantuml-little/tests/reference/class/qualifiedassoc001.svg"
+  },
+  "summary": {
+    "family": "graphviz-svek",
+    "diagram_type": "CLASS",
+    "keywords": [],
+    "source": {
+      "bytes": 259,
+      "lines": 12
+    },
+    "rust": {
+      "viewport": {
+        "width": "663px",
+        "height": "374px"
+      },
+      "diagram_type": "CLASS",
+      "element_counts": {
+        "rect": 21,
+        "path": 16,
+        "text": 21,
+        "ellipse": 10,
+        "polygon": 10,
+        "group": 17
+      },
+      "bytes": 19104,
+      "lines": 1
+    },
+    "java": {
+      "viewport": {
+        "width": "662px",
+        "height": "374px"
+      },
+      "diagram_type": "CLASS",
+      "element_counts": {
+        "rect": 21,
+        "path": 16,
+        "text": 21,
+        "ellipse": 10,
+        "polygon": 10,
+        "group": 17
+      },
+      "bytes": 19102,
+      "lines": 1
+    },
+    "reference": {
+      "viewport": {
+        "width": "662px",
+        "height": "374px"
+      },
+      "diagram_type": "CLASS",
+      "element_counts": {
+        "rect": 21,
+        "path": 16,
+        "text": 21,
+        "ellipse": 10,
+        "polygon": 10,
+        "group": 17
+      },
+      "bytes": 19102,
+      "lines": 1
+    },
+    "first_diff": {
+      "line": 1,
+      "col": 195,
+      "message": "expected=...eserveAspectRatio=\"none\" style=\"width:662px;height:374px;background:#FFFFFF;\" ve... actual=...eserveAspectRatio=\"none\" style=\"width:663px;height:374px;background:#FFFFFF;\" ve...",
+      "target": "reference"
+    },
+    "diff_profile": {
+      "category": "coordinate-only",
+      "root_svg_signal": true,
+      "structural_signal": true,
+      "coordinate_signal": true,
+      "coordinate_delta": {
+        "attr": "y",
+        "expected": 159.0,
+        "actual": 162.0,
+        "delta": 3.0
+      },
+      "viewport": {
+        "reference": {
+          "width": 662,
+          "height": 374
+        },
+        "actual": {
+          "width": 663,
+          "height": 374
+        },
+        "delta": {
+          "width": 1,
+          "height": 0
+        },
+        "score": 1
+      },
+      "size_summary": "dw=+1"
+    },
+    "fix_suggestions": [
+      {
+        "key": "svek-offset-normalization",
+        "label": "Svek offset normalization",
+        "strength": "high",
+        "reason": "A small repeated y-offset in graphviz-backed diagrams usually points to move_delta, normalize_offset, or generic protrusion handling.",
+        "files": [
+          "/ext/plantuml/plantuml-little/src/svek/mod.rs",
+          "/ext/plantuml/plantuml-little/src/layout/graphviz.rs",
+          "/ext/plantuml/plantuml-little/src/render/svg.rs"
+        ]
+      }
+    ],
+    "reference_test": {
+      "status": "failed",
+      "returncode": 101,
+      "stdout_path": "/ext/plantuml/plantuml-little/.trace-skill/live-qualifiedassoc001/reference-test.stdout.log",
+      "stderr_path": "/ext/plantuml/plantuml-little/.trace-skill/live-qualifiedassoc001/reference-test.stderr.log",
+      "primary_log_path": "/ext/plantuml/plantuml-little/.trace-skill/live-qualifiedassoc001/reference-test.stderr.log",
+      "failure_excerpt": "Running tests/reference_tests.rs (target/debug/deps/reference_tests-69b2c048eac2359d)\n\nthread 'reference_fixtures_class_qualifiedassoc001_puml' (3996704) panicked at tests/reference_tests.rs:226:9:\ntests/fixtures/class/qualifiedassoc001.puml: output differs from reference at line 1 col 195\nexpected: ...eserveAspectRatio=\"none\" style=\"width:662px;height:374px;background:#FFFFFF;\" ve...\nactual:   ...eserveAspectRatio=\"none\" style=\"width:663px;height:374px;background:#FFFFFF;\" ve...\nnote: run with `RUST_BACKTRACE=1` environment variable to display a backtrace"
+    },
+    "trace_diff": {
+      "available": false,
+      "path": null,
+      "first_changed": null
+    }
+  },
+  "commands": {
+    "rust_render": {
+      "cmd": [
+        "cargo",
+        "run",
+        "--quiet",
+        "--",
+        "/ext/plantuml/plantuml-little/tests/fixtures/class/qualifiedassoc001.puml",
+        "--output",
+        "/ext/plantuml/plantuml-little/.trace-skill/live-qualifiedassoc001/rust.svg"
+      ],
+      "cwd": "/ext/plantuml/plantuml-little",
+      "returncode": 0,
+      "stdout_path": "/ext/plantuml/plantuml-little/.trace-skill/live-qualifiedassoc001/rust-render.stdout.log",
+      "stderr_path": "/ext/plantuml/plantuml-little/.trace-skill/live-qualifiedassoc001/rust-render.stderr.log",
+      "artifact_path": "/ext/plantuml/plantuml-little/.trace-skill/live-qualifiedassoc001/rust.svg",
+      "stdout_excerpt": null,
+      "stderr_excerpt": "warning: unused import: `NoteLinkStrategy`\n  --> src/abel/entity.rs:12:58\n   |\n12 | use super::{CucaNote, DisplayPositioned, EntityPosition, NoteLinkStrategy, Together};\n   |                                                          ^^^^^^^^^^^^^^^^\n   |\n   = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default\n\nwarning: unused imports: `count_creole_lines` and `max_creole_plain_line_len`\n  --> src/render/svg.rs:27:5\n   |\n27 |     count_creole_lines, creole_plain_text, get_default_font_family_pub, max_creole_plain_line_len,\n   |     ^^^^^^^^^^^^^^^^^^                                                  ^^^^^^^^^^^^^^^^^^^^^^^^^\n\nwarning: unused import: `NotePosition`\n  --> src/render/svg_activity.rs:49:49\n   |\n49 |     use crate::model::activity::{ActivityEvent, NotePositi\n...\n^^^^^^^^^^^^\n\nwarning: function `convert_single_element` is never used\n   --> src/render/svg_sprite.rs:707:4\n    |\n707 | fn convert_single_element(\n    |    ^^^^^^^^^^^^^^^^^^^^^^\n\nwarning: method `is_opalisable` is never used\n   --> src/svek/edge.rs:952:8\n    |\n433 | impl SvekEdge {\n    | ------------- method in this implementation\n...\n952 |     fn is_opalisable(&self) -> bool {\n    |        ^^^^^^^^^^^^^\n\nwarning: function `parse_points` is never used\n   --> src/svek/svg_result.rs:324:4\n    |\n324 | fn parse_points(s: &str) -> Vec<XPoint2D> {\n    |    ^^^^^^^^^^^^\n\nwarning: function `parse_svg_path_to_dotpath` is never used\n   --> src/svek/svg_result.rs:346:4\n    |\n346 | fn parse_svg_path_to_dotpath(d: &str) -> Option<crate::klimt::shape::DotPath> {\n    |    ^^^^^^^^^^^^^^^^^^^^^^^^^"
+    },
+    "java_render": {
+      "cmd": [
+        "java",
+        "-jar",
+        "/ext/plantuml/plantuml/build/libs/plantuml-1.2026.3beta5.jar",
+        "-tsvg",
+        "-pipe"
+      ],
+      "cwd": "/ext/plantuml/plantuml-little",
+      "returncode": 0,
+      "stdout_path": "/ext/plantuml/plantuml-little/.trace-skill/live-qualifiedassoc001/java-render.stdout.svg",
+      "stderr_path": "/ext/plantuml/plantuml-little/.trace-skill/live-qualifiedassoc001/java-render.stderr.log",
+      "artifact_path": "/ext/plantuml/plantuml-little/.trace-skill/live-qualifiedassoc001/java.svg",
+      "stdout_excerpt": "<svg xmlns=\"http://www.w3.org/2000/svg\" xmlns:xlink=\"http://www.w3.org/1999/xlink\" contentStyleType=\"text/css\" data-diagram-type=\"CLASS\" height=\"374px\" preserveAspectRatio=\"none\" style=\"width:662px;height:374px;background:#FFFFFF;\" version=\"1.1\" viewBox=\"0 0 662 374\" width=\"662px\" zoomAndPan=\"magnify\"><?plantuml 1.2026.3beta5?><defs/><g><!--class HashMap--><g class=\"entity\" data-qualified-name=\"HashMap\" data-source-line=\"1\" id=\"ent0002\"><rect fill=\"#F1F1F1\" height=\"48\" rx=\"2.5\" ry=\"2.5\" style=\"stroke:#181818;stroke-width:0.5;\" width=\"120.7109\" x=\"141\" y=\"159\"/><ellipse cx=\"156\" cy=\"175\" fill=\"#ADD1B2\" rx=\"11\" ry=\"11\" style=\"stroke:#181818;stroke-width:1;\"/><path d=\"M158.9688,180.6406 Q158.3906,180.9375 157.75,181.0781 Q157.1094,181.2344 156.4063,181.2344 Q153.9063,181.2344 152.5781,179.593\n...\n55.11 C612.317,83.21 579.7701,125.0521 594.2601,153.2821\" fill=\"none\" id=\"MoreComplex-to-Z\" style=\"stroke:#181818;stroke-width:1;stroke-dasharray:7,7;\"/><polygon fill=\"#181818\" points=\"597,158.62,596.4488,148.7866,594.7168,154.1717,589.3316,152.4397,597,158.62\" style=\"stroke:#181818;stroke-width:1;\"/><rect fill=\"#F1F1F1\" height=\"18.2969\" style=\"stroke:#181818;stroke-width:0.5;\" width=\"76.4883\" x=\"559.6429\" y=\"55.11\"/><text fill=\"#000000\" font-family=\"sans-serif\" font-size=\"14\" lengthAdjust=\"spacing\" textLength=\"72.4883\" x=\"561.6429\" y=\"69.1051\">z: boolean</text></g><?plantuml-src PSm_3u8m48VXdK_nczKsuSz428kBYM4o8IhfKA02IQManGID7zv3NGWttdFtLbewXuDqRIQ7vBZBKmyq_mKAwGiaR_PWAGebaFjBBWE13RUSz4OQBBKA1GolPsr8mwNMaS2MwRdSaaRUbpDZrTxS1wqc55ECqsYxdhuvLSxhYsUChXy566KkQtx5A8tHIlQ_mlK3?></g></svg>",
+      "stderr_excerpt": null
+    },
+    "reference_test": {
+      "cmd": [
+        "cargo",
+        "test",
+        "--test",
+        "reference_tests",
+        "reference_fixtures_class_qualifiedassoc001_puml",
+        "--",
+        "--nocapture"
+      ],
+      "cwd": "/ext/plantuml/plantuml-little",
+      "returncode": 101,
+      "stdout_path": "/ext/plantuml/plantuml-little/.trace-skill/live-qualifiedassoc001/reference-test.stdout.log",
+      "stderr_path": "/ext/plantuml/plantuml-little/.trace-skill/live-qualifiedassoc001/reference-test.stderr.log",
+      "artifact_path": null,
+      "stdout_excerpt": "running 1 test\ntest reference_fixtures_class_qualifiedassoc001_puml ... FAILED\n\nfailures:\n\nfailures:\n    reference_fixtures_class_qualifiedassoc001_puml\n\ntest result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 295 filtered out; finished in 0.23s",
+      "stderr_excerpt": "warning: unused import: `NoteLinkStrategy`\n  --> src/abel/entity.rs:12:58\n   |\n12 | use super::{CucaNote, DisplayPositioned, EntityPosition, NoteLinkStrategy, Together};\n   |                                                          ^^^^^^^^^^^^^^^^\n   |\n   = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default\n\nwarning: unused imports: `count_creole_lines` and `max_creole_plain_line_len`\n  --> src/render/svg.rs:27:5\n   |\n27 |     count_creole_lines, creole_plain_text, get_default_font_family_pub, max_creole_plain_line_len,\n   |     ^^^^^^^^^^^^^^^^^^                                                  ^^^^^^^^^^^^^^^^^^^^^^^^^\n\nwarning: unused import: `NotePosition`\n  --> src/render/svg_activity.rs:49:49\n   |\n49 |     use crate::model::activity::{ActivityEvent, NotePositi\n...\nyline_sprites_puml`\n\nwarning: `plantuml-little` (test \"reference_tests\") generated 112 warnings\n    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.20s\n     Running tests/reference_tests.rs (target/debug/deps/reference_tests-69b2c048eac2359d)\n\nthread 'reference_fixtures_class_qualifiedassoc001_puml' (3996704) panicked at tests/reference_tests.rs:226:9:\ntests/fixtures/class/qualifiedassoc001.puml: output differs from reference at line 1 col 195\nexpected: ...eserveAspectRatio=\"none\" style=\"width:662px;height:374px;background:#FFFFFF;\" ve...\nactual:   ...eserveAspectRatio=\"none\" style=\"width:663px;height:374px;background:#FFFFFF;\" ve...\nnote: run with `RUST_BACKTRACE=1` environment variable to display a backtrace\nerror: test failed, to rerun pass `--test reference_tests`"
+    }
+  }
+}

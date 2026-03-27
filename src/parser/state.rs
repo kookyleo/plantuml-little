@@ -12,6 +12,10 @@ enum ParseMode {
     /// Inside a `note as ALIAS` block, accumulating text until `end note`
     Note {
         alias: Option<String>,
+        entity_id: Option<String>,
+        position: Option<String>,
+        target: Option<String>,
+        source_line: usize,
         lines: Vec<String>,
         start_line: usize,
         start_column: usize,
@@ -50,6 +54,7 @@ pub fn parse_state_diagram(source: &str) -> Result<StateDiagram> {
     let mut top_states: Vec<State> = Vec::new();
     let mut top_transitions: Vec<Transition> = Vec::new();
     let mut notes: Vec<StateNote> = Vec::new();
+    let mut note_sequence = 1usize;
     let mut direction = Direction::default();
     let mut mode = ParseMode::Normal;
 
@@ -80,6 +85,10 @@ pub fn parse_state_diagram(source: &str) -> Result<StateDiagram> {
             }
             ParseMode::Note {
                 ref alias,
+                ref entity_id,
+                ref position,
+                ref target,
+                ref mut source_line,
                 ref mut lines,
                 ..
             } => {
@@ -95,10 +104,19 @@ pub fn parse_state_diagram(source: &str) -> Result<StateDiagram> {
                     );
                     notes.push(StateNote {
                         alias: alias.clone(),
+                        entity_id: entity_id.clone(),
                         text,
+                        position: position.clone().unwrap_or_default(),
+                        target: target.clone(),
+                        source_line: Some(*source_line),
                     });
                     mode = ParseMode::Normal;
                 } else {
+                    if lines.is_empty() {
+                        // Java multiline note line location points at the first body line,
+                        // not the `note ...` opener.
+                        *source_line = line_num;
+                    }
                     lines.push(trimmed.to_string());
                     trace!("line {line_num}: accumulating note line");
                 }
@@ -226,7 +244,11 @@ pub fn parse_state_diagram(source: &str) -> Result<StateDiagram> {
             if let Some(alias) = parse_note_as(trimmed) {
                 debug!("line {line_num}: starting note with alias '{alias}'");
                 mode = ParseMode::Note {
-                    alias: Some(alias),
+                    alias: Some(alias.clone()),
+                    entity_id: Some(alias.clone()),
+                    position: None,
+                    target: None,
+                    source_line: line_num,
                     lines: Vec::new(),
                     start_line: line_num,
                     start_column: line.to_lowercase().find("note").unwrap_or(0) + 1,
@@ -234,20 +256,36 @@ pub fn parse_state_diagram(source: &str) -> Result<StateDiagram> {
                 continue;
             }
             // Handle `note right of <State> : text` or `note left of <State> : text`
-            if let Some(note_text) = parse_note_direction_inline(trimmed) {
-                debug!("line {line_num}: inline note '{note_text}'");
+            if let Some((position, target, note_text)) = parse_note_direction_inline(trimmed) {
+                let entity_id = format!("GMN{}", note_sequence + 1);
+                note_sequence += 1;
+                debug!(
+                    "line {line_num}: inline note position={position} target={target} text='{note_text}'"
+                );
                 notes.push(StateNote {
                     alias: None,
+                    entity_id: Some(entity_id),
                     text: note_text,
+                    position,
+                    target: Some(target),
+                    source_line: Some(line_num),
                 });
                 continue;
             }
 
             // Handle multi-line `note left of <State>` / `note right of <State>` (no inline text)
-            if is_note_direction_block_start(&lower) {
-                debug!("line {line_num}: starting multi-line note block");
+            if let Some((position, target)) = parse_note_direction_block_start(trimmed) {
+                let entity_id = format!("GMN{}", note_sequence + 1);
+                note_sequence += 1;
+                debug!(
+                    "line {line_num}: starting multi-line note block position={position} target={target}"
+                );
                 mode = ParseMode::Note {
                     alias: None,
+                    entity_id: Some(entity_id),
+                    position: Some(position),
+                    target: Some(target),
+                    source_line: line_num,
                     lines: Vec::new(),
                     start_line: line_num,
                     start_column: line.to_lowercase().find("note").unwrap_or(0) + 1,
@@ -298,6 +336,7 @@ pub fn parse_state_diagram(source: &str) -> Result<StateDiagram> {
 
         // Handle transitions: `A --> B : label`, `A -> B`, `[*] --> A`
         if let Some(mut trans) = try_parse_transition(trimmed) {
+            scope_transition_special_state_ids(&mut trans, &stack);
             debug!(
                 "line {}: transition '{}' -> '{}' label='{}' dashed={}",
                 line_num, trans.from, trans.to, trans.label, trans.dashed
@@ -443,42 +482,54 @@ fn parse_note_as(line: &str) -> Option<String> {
 }
 
 /// Parse an inline note with direction: `note right of State : text` or `note left of State : text`
-fn parse_note_direction_inline(line: &str) -> Option<String> {
-    let lower = line.to_lowercase();
-    let rest = lower.strip_prefix("note ")?;
-    // Match "right of", "left of", "top of", "bottom of"
-    let after_dir = rest
-        .strip_prefix("right of ")
-        .or_else(|| rest.strip_prefix("left of "))
-        .or_else(|| rest.strip_prefix("top of "))
-        .or_else(|| rest.strip_prefix("bottom of "))?;
-    // There must be a colon separating state name from note text
-    let colon_pos = after_dir.find(':')?;
-    // Extract note text from original line
-    let lower_prefix_len = line.len() - after_dir.len();
-    let orig_after = &line[lower_prefix_len..];
-    let text = orig_after[colon_pos + 1..].trim().to_string();
+fn parse_note_direction_inline(line: &str) -> Option<(String, String, String)> {
+    let (position, target, maybe_text) = parse_note_direction(line)?;
+    let text = maybe_text?;
     if text.is_empty() {
         return None;
     }
-    Some(text)
+    Some((position, target, text))
+}
+
+fn parse_note_direction(line: &str) -> Option<(String, String, Option<String>)> {
+    let lower = line.to_lowercase();
+    let rest = lower.strip_prefix("note ")?;
+    for (position, prefix) in [
+        ("right", "right of "),
+        ("left", "left of "),
+        ("top", "top of "),
+        ("bottom", "bottom of "),
+    ] {
+        if let Some(after_dir) = rest.strip_prefix(prefix) {
+            let lower_prefix_len = line.len() - after_dir.len();
+            let orig_after = &line[lower_prefix_len..];
+            if let Some(colon_pos) = after_dir.find(':') {
+                let target = normalize_note_target(orig_after[..colon_pos].trim());
+                let text = orig_after[colon_pos + 1..].trim().to_string();
+                return Some((position.to_string(), target, Some(text)));
+            }
+            let target = normalize_note_target(orig_after.trim());
+            return Some((position.to_string(), target, None));
+        }
+    }
+    None
 }
 
 /// Check if a line starts a multi-line note block: `note right of State` (no colon)
-fn is_note_direction_block_start(lower: &str) -> bool {
-    let rest = match lower.strip_prefix("note ") {
-        Some(r) => r,
-        None => return false,
-    };
-    let after_dir = rest
-        .strip_prefix("right of ")
-        .or_else(|| rest.strip_prefix("left of "))
-        .or_else(|| rest.strip_prefix("top of "))
-        .or_else(|| rest.strip_prefix("bottom of "));
-    match after_dir {
-        Some(after) => !after.contains(':'),
-        None => false,
+fn parse_note_direction_block_start(line: &str) -> Option<(String, String)> {
+    let (position, target, maybe_text) = parse_note_direction(line)?;
+    if maybe_text.is_none() {
+        return Some((position, target));
     }
+    None
+}
+
+fn normalize_note_target(target: &str) -> String {
+    let trimmed = target.trim();
+    if trimmed == "[*]" {
+        return "[*]".to_string();
+    }
+    parse_state_header(trimmed).0
 }
 
 /// Try to parse a composite state declaration from the rest after `state `.
@@ -785,6 +836,27 @@ fn normalize_state_ref(s: &str) -> String {
     trimmed.to_string()
 }
 
+fn scope_transition_special_state_ids(trans: &mut Transition, stack: &[CompositeFrame]) {
+    if trans.from == "[*]" {
+        trans.from = scoped_special_state_id(stack);
+    }
+    if trans.to == "[*]" {
+        trans.to = scoped_special_state_id(stack);
+    }
+}
+
+fn scoped_special_state_id(stack: &[CompositeFrame]) -> String {
+    if stack.is_empty() {
+        return "[*]".to_string();
+    }
+    let scope = stack
+        .iter()
+        .map(|frame| frame.state.id.as_str())
+        .collect::<Vec<_>>()
+        .join(".");
+    format!("[*]{scope}")
+}
+
 /// Try to parse a description-addition line: `StateName : text`
 /// This is NOT a `state` keyword line, just a bare `ID : description`.
 fn try_parse_description_line(line: &str) -> Option<(String, String)> {
@@ -860,15 +932,14 @@ fn current_transitions_mut<'a>(
 /// Ensure a state with the given ID exists in the states list.
 /// If not found, auto-create it. Handles `[*]` as a special state.
 fn ensure_state(states: &mut Vec<State>, id: &str, source_line: Option<usize>) {
-    if id == "[*]" {
-        // Check if [*] already exists
-        if states.iter().any(|s| s.id == "[*]") {
+    if id == "[*]" || id.starts_with("[*]") {
+        if states.iter().any(|s| s.id == id) {
             return;
         }
-        debug!("auto-creating special state [*]");
+        debug!("auto-creating special state {id}");
         states.push(State {
             name: "[*]".to_string(),
-            id: "[*]".to_string(),
+            id: id.to_string(),
             description: Vec::new(),
             stereotype: None,
             children: Vec::new(),
@@ -1079,7 +1150,7 @@ mod tests {
         let diagram = parse_state_diagram(src).unwrap();
         assert_eq!(diagram.states.len(), 1);
         assert_eq!(diagram.transitions.len(), 2);
-        assert_eq!(diagram.transitions[0].from, "[*]");
+        assert_eq!(diagram.transitions[0].from, "[*]parent");
         assert_eq!(diagram.transitions[0].to, "child1");
     }
 
@@ -1576,6 +1647,9 @@ mod tests {
         let diagram = parse_state_diagram(src).unwrap();
         assert_eq!(diagram.notes.len(), 1);
         assert_eq!(diagram.notes[0].text, "This is active");
+        assert_eq!(diagram.notes[0].position, "right");
+        assert_eq!(diagram.notes[0].target.as_deref(), Some("A"));
+        assert_eq!(diagram.notes[0].entity_id.as_deref(), Some("GMN2"));
     }
 
     #[test]
@@ -1585,6 +1659,10 @@ mod tests {
         let diagram = parse_state_diagram(src).unwrap();
         assert_eq!(diagram.notes.len(), 1);
         assert_eq!(diagram.notes[0].text, "Multi line\nnote text");
+        assert_eq!(diagram.notes[0].position, "left");
+        assert_eq!(diagram.notes[0].target.as_deref(), Some("B"));
+        assert_eq!(diagram.notes[0].entity_id.as_deref(), Some("GMN2"));
+        assert_eq!(diagram.notes[0].source_line, Some(3));
     }
 
     // ---- Fixture file tests for pseudo-states ----
@@ -1705,5 +1783,8 @@ mod tests {
         );
         assert_eq!(diagram.notes[0].text, "This is active");
         assert_eq!(diagram.notes[1].text, "Multi line\nnote text");
+        assert_eq!(diagram.notes[0].source_line, Some(6));
+        assert_eq!(diagram.notes[1].source_line, Some(8));
+        assert_eq!(diagram.transitions[2].from, "[*]Active");
     }
 }

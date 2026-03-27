@@ -1,0 +1,172 @@
+{
+  "fixture": {
+    "absolute_path": "/ext/plantuml/plantuml-little/tests/fixtures/class/hideshow003.puml",
+    "relative_path": "tests/fixtures/class/hideshow003.puml",
+    "test_name": "reference_fixtures_class_hideshow003_puml",
+    "reference_path": "/ext/plantuml/plantuml-little/tests/reference/class/hideshow003.svg"
+  },
+  "summary": {
+    "family": "graphviz-svek",
+    "diagram_type": "CLASS",
+    "keywords": [],
+    "source": {
+      "bytes": 143,
+      "lines": 14
+    },
+    "rust": {
+      "viewport": {
+        "width": "255px",
+        "height": "121px"
+      },
+      "diagram_type": "CLASS",
+      "element_counts": {
+        "rect": 4,
+        "path": 4,
+        "text": 5,
+        "ellipse": 3,
+        "polygon": 0,
+        "group": 6
+      },
+      "bytes": 5144,
+      "lines": 1
+    },
+    "java": {
+      "viewport": {
+        "width": "255px",
+        "height": "121px"
+      },
+      "diagram_type": "CLASS",
+      "element_counts": {
+        "rect": 4,
+        "path": 4,
+        "text": 5,
+        "ellipse": 3,
+        "polygon": 0,
+        "group": 6
+      },
+      "bytes": 5144,
+      "lines": 1
+    },
+    "reference": {
+      "viewport": {
+        "width": "255px",
+        "height": "121px"
+      },
+      "diagram_type": "CLASS",
+      "element_counts": {
+        "rect": 4,
+        "path": 4,
+        "text": 5,
+        "ellipse": 3,
+        "polygon": 0,
+        "group": 6
+      },
+      "bytes": 5144,
+      "lines": 1
+    },
+    "first_diff": null,
+    "diff_profile": {
+      "category": "viewport-only",
+      "root_svg_signal": true,
+      "structural_signal": true,
+      "coordinate_signal": true,
+      "coordinate_delta": null,
+      "viewport": {
+        "reference": {
+          "width": 255,
+          "height": 121
+        },
+        "actual": {
+          "width": 255,
+          "height": 121
+        },
+        "delta": {
+          "width": 0,
+          "height": 0
+        },
+        "score": 0
+      },
+      "size_summary": "unknown"
+    },
+    "fix_suggestions": [
+      {
+        "key": "class-cluster-or-protrusion",
+        "label": "Class cluster/protrusion chain",
+        "strength": "medium",
+        "reason": "CLASS viewport drift often comes from group bounds, qualifier spacing, or protrusion normalization after svek.",
+        "files": [
+          "/ext/plantuml/plantuml-little/src/svek/mod.rs",
+          "/ext/plantuml/plantuml-little/src/svek/cluster.rs",
+          "/ext/plantuml/plantuml-little/src/render/svg.rs"
+        ]
+      }
+    ],
+    "reference_test": {
+      "status": "passed",
+      "returncode": 0,
+      "stdout_path": "/ext/plantuml/plantuml-little/.trace-skill/live-hideshow003/reference-test.stdout.log",
+      "stderr_path": "/ext/plantuml/plantuml-little/.trace-skill/live-hideshow003/reference-test.stderr.log",
+      "primary_log_path": "/ext/plantuml/plantuml-little/.trace-skill/live-hideshow003/reference-test.stdout.log",
+      "failure_excerpt": "warning: unused import: `NoteLinkStrategy`\n  --> src/abel/entity.rs:12:58\n   |\n12 | use super::{CucaNote, DisplayPositioned, EntityPosition, NoteLinkStrategy, Together};\n   |                                                          ^^^^^^^^^^^^^^^^\n   |\n   = note: `#[warn(unused_imports)]` (part of \n...\n `reference_fixtures_sprite_test_polyline_sprites_puml`\n\nwarning: `plantuml-little` (test \"reference_tests\") generated 112 warnings\n    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.20s\n     Running tests/reference_tests.rs (target/debug/deps/reference_tests-69b2c048eac2359d)"
+    },
+    "trace_diff": {
+      "available": false,
+      "path": null,
+      "first_changed": null
+    }
+  },
+  "commands": {
+    "rust_render": {
+      "cmd": [
+        "cargo",
+        "run",
+        "--quiet",
+        "--",
+        "/ext/plantuml/plantuml-little/tests/fixtures/class/hideshow003.puml",
+        "--output",
+        "/ext/plantuml/plantuml-little/.trace-skill/live-hideshow003/rust.svg"
+      ],
+      "cwd": "/ext/plantuml/plantuml-little",
+      "returncode": 0,
+      "stdout_path": "/ext/plantuml/plantuml-little/.trace-skill/live-hideshow003/rust-render.stdout.log",
+      "stderr_path": "/ext/plantuml/plantuml-little/.trace-skill/live-hideshow003/rust-render.stderr.log",
+      "artifact_path": "/ext/plantuml/plantuml-little/.trace-skill/live-hideshow003/rust.svg",
+      "stdout_excerpt": null,
+      "stderr_excerpt": "warning: unused import: `NoteLinkStrategy`\n  --> src/abel/entity.rs:12:58\n   |\n12 | use super::{CucaNote, DisplayPositioned, EntityPosition, NoteLinkStrategy, Together};\n   |                                                          ^^^^^^^^^^^^^^^^\n   |\n   = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default\n\nwarning: unused imports: `count_creole_lines` and `max_creole_plain_line_len`\n  --> src/render/svg.rs:27:5\n   |\n27 |     count_creole_lines, creole_plain_text, get_default_font_family_pub, max_creole_plain_line_len,\n   |     ^^^^^^^^^^^^^^^^^^                                                  ^^^^^^^^^^^^^^^^^^^^^^^^^\n\nwarning: unused import: `NotePosition`\n  --> src/render/svg_activity.rs:49:49\n   |\n49 |     use crate::model::activity::{ActivityEvent, NotePositi\n...\n^^^^^^^^^^^^\n\nwarning: function `convert_single_element` is never used\n   --> src/render/svg_sprite.rs:707:4\n    |\n707 | fn convert_single_element(\n    |    ^^^^^^^^^^^^^^^^^^^^^^\n\nwarning: method `is_opalisable` is never used\n   --> src/svek/edge.rs:952:8\n    |\n433 | impl SvekEdge {\n    | ------------- method in this implementation\n...\n952 |     fn is_opalisable(&self) -> bool {\n    |        ^^^^^^^^^^^^^\n\nwarning: function `parse_points` is never used\n   --> src/svek/svg_result.rs:324:4\n    |\n324 | fn parse_points(s: &str) -> Vec<XPoint2D> {\n    |    ^^^^^^^^^^^^\n\nwarning: function `parse_svg_path_to_dotpath` is never used\n   --> src/svek/svg_result.rs:346:4\n    |\n346 | fn parse_svg_path_to_dotpath(d: &str) -> Option<crate::klimt::shape::DotPath> {\n    |    ^^^^^^^^^^^^^^^^^^^^^^^^^"
+    },
+    "java_render": {
+      "cmd": [
+        "java",
+        "-jar",
+        "/ext/plantuml/plantuml/build/libs/plantuml-1.2026.3beta5.jar",
+        "-tsvg",
+        "-pipe"
+      ],
+      "cwd": "/ext/plantuml/plantuml-little",
+      "returncode": 0,
+      "stdout_path": "/ext/plantuml/plantuml-little/.trace-skill/live-hideshow003/java-render.stdout.svg",
+      "stderr_path": "/ext/plantuml/plantuml-little/.trace-skill/live-hideshow003/java-render.stderr.log",
+      "artifact_path": "/ext/plantuml/plantuml-little/.trace-skill/live-hideshow003/java.svg",
+      "stdout_excerpt": "<svg xmlns=\"http://www.w3.org/2000/svg\" xmlns:xlink=\"http://www.w3.org/1999/xlink\" contentStyleType=\"text/css\" data-diagram-type=\"CLASS\" height=\"121px\" preserveAspectRatio=\"none\" style=\"width:255px;height:121px;background:#FFFFFF;\" version=\"1.1\" viewBox=\"0 0 255 121\" width=\"255px\" zoomAndPan=\"magnify\"><?plantuml 1.2026.3beta5?><defs/><g><!--cluster foo--><g class=\"cluster\" data-qualified-name=\"foo\" data-source-line=\"5\" id=\"ent0003\"><rect fill=\"none\" height=\"99\" rx=\"2.5\" ry=\"2.5\" style=\"stroke:#181818;stroke-width:1;\" width=\"74\" x=\"68\" y=\"7\"/><text fill=\"#000000\" font-family=\"sans-serif\" font-size=\"14\" font-weight=\"700\" lengthAdjust=\"spacing\" textLength=\"25.3271\" x=\"92.3364\" y=\"21.9951\">foo</text></g><!--cluster bar--><g class=\"cluster\" data-qualified-name=\"bar\" data-source-line=\"9\" id=\"ent\n...\n5 23.75,51.5313 Q24.4063,51.6875 24.9688,51.9844 L24.9688,54.7031 Q24.3438,54.125 23.75,53.8594 Q23.1563,53.5781 22.5313,53.5781 Q21.1875,53.5781 20.5,54.6563 Q19.8125,55.7188 19.8125,57.8125 Q19.8125,59.9063 20.5,60.9844 Q21.1875,62.0469 22.5313,62.0469 Q23.1563,62.0469 23.75,61.7813 Q24.3438,61.5 24.9688,60.9219 L24.9688,63.6406 Z \" fill=\"#000000\"/><text fill=\"#000000\" font-family=\"sans-serif\" font-size=\"14\" lengthAdjust=\"spacing\" textLength=\"9.7754\" x=\"36\" y=\"62.8467\">C</text><line style=\"stroke:#181818;stroke-width:0.5;\" x1=\"8\" x2=\"47.7754\" y1=\"74\" y2=\"74\"/><line style=\"stroke:#181818;stroke-width:0.5;\" x1=\"8\" x2=\"47.7754\" y1=\"82\" y2=\"82\"/></g><?plantuml-src ROkn3O0m30JxdyA384l092QOW8X8bAH1ABjZGKF1DrVStxhDIgLgrbZFf80BKWgDr7LBZCp6IJ8paDLLENnGCl7L3o-GxOq7D229syKhMVrxwj5k?></g></svg>",
+      "stderr_excerpt": null
+    },
+    "reference_test": {
+      "cmd": [
+        "cargo",
+        "test",
+        "--test",
+        "reference_tests",
+        "reference_fixtures_class_hideshow003_puml",
+        "--",
+        "--nocapture"
+      ],
+      "cwd": "/ext/plantuml/plantuml-little",
+      "returncode": 0,
+      "stdout_path": "/ext/plantuml/plantuml-little/.trace-skill/live-hideshow003/reference-test.stdout.log",
+      "stderr_path": "/ext/plantuml/plantuml-little/.trace-skill/live-hideshow003/reference-test.stderr.log",
+      "artifact_path": null,
+      "stdout_excerpt": "running 1 test\ntest reference_fixtures_class_hideshow003_puml ... ok\n\ntest result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 295 filtered out; finished in 0.06s",
+      "stderr_excerpt": "warning: unused import: `NoteLinkStrategy`\n  --> src/abel/entity.rs:12:58\n   |\n12 | use super::{CucaNote, DisplayPositioned, EntityPosition, NoteLinkStrategy, Together};\n   |                                                          ^^^^^^^^^^^^^^^^\n   |\n   = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default\n\nwarning: unused imports: `count_creole_lines` and `max_creole_plain_line_len`\n  --> src/render/svg.rs:27:5\n   |\n27 |     count_creole_lines, creole_plain_text, get_default_font_family_pub, max_creole_plain_line_len,\n   |     ^^^^^^^^^^^^^^^^^^                                                  ^^^^^^^^^^^^^^^^^^^^^^^^^\n\nwarning: unused import: `NotePosition`\n  --> src/render/svg_activity.rs:49:49\n   |\n49 |     use crate::model::activity::{ActivityEvent, NotePositi\n...\nestGradientSprite_puml,\n     |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `reference_fixtures_sprite_test_gradient_sprite_puml`\n\nwarning: function `reference_fixtures_sprite_testPolylineSprites_puml` should have a snake case name\n    --> tests/reference_tests.rs:1369:5\n     |\n1369 |     reference_fixtures_sprite_testPolylineSprites_puml,\n     |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `reference_fixtures_sprite_test_polyline_sprites_puml`\n\nwarning: `plantuml-little` (test \"reference_tests\") generated 112 warnings\n    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.20s\n     Running tests/reference_tests.rs (target/debug/deps/reference_tests-69b2c048eac2359d)"
+    }
+  }
+}

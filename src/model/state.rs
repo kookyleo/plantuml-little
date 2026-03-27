@@ -67,8 +67,16 @@ pub struct Transition {
 pub struct StateNote {
     /// Note alias
     pub alias: Option<String>,
+    /// Internal entity id/qualified name used for rendered note entities.
+    pub entity_id: Option<String>,
     /// Note text
     pub text: String,
+    /// Relative position: left/right/top/bottom for notes attached to a state.
+    pub position: String,
+    /// Target state id for attached notes.
+    pub target: Option<String>,
+    /// Source line number (1-based) for data-source-line attribute.
+    pub source_line: Option<usize>,
 }
 
 /// State diagram IR

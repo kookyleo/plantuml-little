@@ -25,7 +25,7 @@ use crate::svek::edge::LineOfSegments;
 
 use super::svg_richtext::{
     count_creole_lines, creole_plain_text, get_default_font_family_pub, max_creole_plain_line_len,
-    render_creole_text, set_default_font_family,
+    render_creole_display_lines, render_creole_text, set_default_font_family,
 };
 use super::svg_sequence;
 
@@ -131,7 +131,6 @@ const GENERIC_OUTER_MARGIN: f64 = 1.0;
 const GENERIC_DELTA: f64 = 4.0;
 /// Protrusion above entity rect = delta - outer_margin = 3.
 const GENERIC_PROTRUSION: f64 = GENERIC_DELTA - GENERIC_OUTER_MARGIN;
-
 use crate::skin::rose::{
     BORDER_COLOR, DIVIDER_COLOR, ENTITY_BG, LEGEND_BG, LEGEND_BORDER, NOTE_BG, NOTE_BORDER,
     NOTE_FOLD, NOTE_PADDING as NOTE_TEXT_PADDING, TEXT_COLOR,
@@ -1741,17 +1740,36 @@ fn render_class(
     layout: &GraphLayout,
     skin: &SkinParams,
 ) -> Result<BodyResult> {
+    let node_map: HashMap<&str, &NodeLayout> =
+        layout.nodes.iter().map(|n| (n.id.as_str(), n)).collect();
     // Rust normalizes Svek coordinates back to the origin for rendering, but
     // Java renders at the post-Svek coordinates directly. `render_offset`
     // re-applies the exact per-axis delta needed to reconstruct the Java space.
     let edge_offset_x = layout.render_offset.0;
-    // Java's LimitFinder Pass 1 sees generic boxes that protrude above entity
-    // rects, lowering LF min_y. Our svek LimitFinder doesn't see generics.
-    // Compensate: if any entity has a generic type, the generic box extends
-    // GENERIC_PROTRUSION above the entity, which Java's LF captures as a lower
-    // min_y, shifting all content down by that amount.
-    let has_generic = cd.entities.iter().any(|e| e.generic.is_some());
-    let generic_y_adjust = if has_generic {
+    // Java's LimitFinder sees generic boxes protruding above the owning entity
+    // header. That only changes the global min_y when a generic entity is also
+    // on the diagram's topmost entity row; lower generic entities do not affect
+    // the final moveDelta-derived y origin.
+    let min_entity_top = cd
+        .entities
+        .iter()
+        .filter_map(|entity| {
+            node_map
+                .get(sanitize_id(&entity.name).as_str())
+                .map(|node| node.cy - node.height / 2.0)
+        })
+        .fold(f64::INFINITY, f64::min);
+    let generic_y_adjust = if cd
+        .entities
+        .iter()
+        .filter(|entity| entity.generic.is_some())
+        .filter_map(|entity| {
+            node_map
+                .get(sanitize_id(&entity.name).as_str())
+                .map(|node| node.cy - node.height / 2.0)
+        })
+        .any(|top| (top - min_entity_top).abs() <= 0.001)
+    {
         GENERIC_PROTRUSION
     } else {
         0.0
@@ -1760,9 +1778,6 @@ fn render_class(
     let mut tracker = BoundsTracker::new();
     let mut sg = SvgGraphic::new(0, 1.0);
     let arrow_color = skin.arrow_color(LINK_COLOR);
-
-    let node_map: HashMap<&str, &NodeLayout> =
-        layout.nodes.iter().map(|n| (n.id.as_str(), n)).collect();
     let group_meta: HashMap<&str, &crate::model::Group> = cd
         .groups
         .iter()
@@ -2868,10 +2883,6 @@ fn draw_entity_box(
             stroke,
         );
     }
-    // UEmpty: Java body.drawU emits an empty shape at the bottom-right of each entity.
-    // drawEmpty(x, y, 1, 1) adds (x, y) to (x+1, y+1), but since the entity rect
-    // already covers (x-1,y-1) to (x+w-1,y+h-1), this just extends max to (x+w, y+h).
-    tracker.track_empty(x + w, y + h, 0.0, 0.0);
 }
 
 /// Draw the generic type box (dashed rect + italic text) at top-right of entity.
@@ -2964,34 +2975,23 @@ fn draw_rectangle_entity_box(
     sg.svg_rectangle(x, y, w, h, rx, rx, 0.0);
     tracker.track_rect(x, y, w, h);
 
-    // Java: description text at font-size 14, left-aligned, padding 10px
+    // Java: rectangle description bodies go through Display.create9 / BodyEnhanced2.
+    // That means hidden newline and table semantics are handled by the shared
+    // Creole display pipeline rather than plain per-line text emission.
     let desc_font_size = 14.0_f64;
-    let desc_lh = font_metrics::line_height("SansSerif", desc_font_size, false, false);
-    let desc_ascent = font_metrics::ascent("SansSerif", desc_font_size, false, false);
     let text_x = x + 10.0;
-    // Java: first text y = rect_y + padding(10) + ascent
-    let first_y = y + 10.0 + desc_ascent;
-
-    for (i, line) in entity.description.iter().enumerate() {
-        let text_y = first_y + i as f64 * desc_lh;
-        let tl = font_metrics::text_width(line, "SansSerif", desc_font_size, false, false);
-        sg.set_fill_color(font_color);
-        sg.svg_text(
-            line,
-            text_x,
-            text_y,
-            Some("sans-serif"),
-            desc_font_size,
-            None,
-            None,
-            None,
-            tl,
-            crate::klimt::svg::LengthAdjust::Spacing,
-            None,
-            0, // horizontal
-            None,
-        );
-    }
+    let text_top = y + 10.0;
+    let mut content = String::new();
+    render_creole_display_lines(
+        &mut content,
+        &entity.description,
+        text_x,
+        text_top,
+        font_color,
+        &format!(r#"font-size="{desc_font_size}""#),
+        true,
+    );
+    sg.push_raw(&content);
 }
 
 ///

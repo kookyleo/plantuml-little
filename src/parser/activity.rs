@@ -12,6 +12,7 @@ enum ParseState {
     /// Inside a `:...; ` multi-line action, accumulating text
     Action {
         text: String,
+        leading_blank_line: bool,
         start_line: usize,
         start_column: usize,
     },
@@ -130,27 +131,30 @@ pub fn parse_activity_diagram(source: &str) -> Result<ActivityDiagram> {
                 }
                 continue;
             }
-            ParseState::Action { ref mut text, .. } => {
+            ParseState::Action {
+                ref mut text,
+                ref mut leading_blank_line,
+                ..
+            } => {
                 // Continue accumulating action text until we find a line ending with `;`
                 if let Some(suffix) = line.strip_suffix(';') {
                     // Last line of multi-line action
-                    if !text.is_empty() {
+                    if !text.is_empty() || *leading_blank_line {
                         text.push('\n');
+                        *leading_blank_line = false;
                     }
                     text.push_str(suffix);
-                    // Multi-line action: physical newlines already separate lines.
-                    // Java does NOT expand \n within multi-line action text.
-                    let action_text = text.replace(crate::NEWLINE_CHAR, "\n");
                     debug!(
                         "line {}: closing multi-line action, text len={}",
                         line_num,
-                        action_text.len()
+                        text.len()
                     );
-                    events.push(ActivityEvent::Action { text: action_text });
+                    events.push(ActivityEvent::Action { text: text.clone() });
                     state = ParseState::Normal;
                 } else {
-                    if !text.is_empty() {
+                    if !text.is_empty() || *leading_blank_line {
                         text.push('\n');
+                        *leading_blank_line = false;
                     }
                     text.push_str(line);
                     trace!("line {line_num}: accumulating action line");
@@ -294,6 +298,7 @@ pub fn parse_activity_diagram(source: &str) -> Result<ActivityDiagram> {
                 debug!("line {line_num}: starting multi-line action");
                 state = ParseState::Action {
                     text: raw_after_colon,
+                    leading_blank_line: after_colon.is_empty(),
                     start_line: line_num,
                     start_column: line.find(':').unwrap_or(0) + 1,
                 };
@@ -1059,6 +1064,7 @@ mod tests {
 
         // Second action is multi-line (starts with `:` + newline, ends with `;`)
         if let ActivityEvent::Action { text } = &diagram.events[1] {
+            assert!(text.starts_with('\n'));
             assert!(text.contains("Creole Table"));
             assert!(text.contains("Line2"));
         } else {
@@ -1067,6 +1073,8 @@ mod tests {
 
         // Third action is also multi-line
         if let ActivityEvent::Action { text } = &diagram.events[2] {
+            assert!(text.starts_with('\n'));
+            assert!(text.contains("%newline()"));
             assert!(text.contains("Creole Table"));
             assert!(text.contains("Line2"));
         } else {

@@ -1,0 +1,216 @@
+{
+  "fixture": {
+    "absolute_path": "/ext/plantuml/plantuml-little/tests/fixtures/activity/a0002.puml",
+    "relative_path": "tests/fixtures/activity/a0002.puml",
+    "test_name": "reference_fixtures_activity_a0002_puml",
+    "reference_path": "/ext/plantuml/plantuml-little/tests/reference/activity/a0002.svg"
+  },
+  "summary": {
+    "family": "self-layout",
+    "diagram_type": "ACTIVITY",
+    "keywords": [
+      "creole_markup",
+      "creole_table"
+    ],
+    "source": {
+      "bytes": 659,
+      "lines": 34
+    },
+    "rust": {
+      "viewport": {
+        "width": "562px",
+        "height": "736px"
+      },
+      "diagram_type": "ACTIVITY",
+      "element_counts": {
+        "rect": 3,
+        "path": 6,
+        "text": 46,
+        "ellipse": 3,
+        "polygon": 3,
+        "group": 1
+      },
+      "bytes": 10875,
+      "lines": 1
+    },
+    "java": {
+      "viewport": {
+        "width": "562px",
+        "height": "736px"
+      },
+      "diagram_type": "ACTIVITY",
+      "element_counts": {
+        "rect": 3,
+        "path": 6,
+        "text": 115,
+        "ellipse": 5,
+        "polygon": 3,
+        "group": 1
+      },
+      "bytes": 21153,
+      "lines": 1
+    },
+    "reference": {
+      "viewport": {
+        "width": "562px",
+        "height": "736px"
+      },
+      "diagram_type": "ACTIVITY",
+      "element_counts": {
+        "rect": 3,
+        "path": 6,
+        "text": 115,
+        "ellipse": 5,
+        "polygon": 3,
+        "group": 1
+      },
+      "bytes": 21153,
+      "lines": 1
+    },
+    "first_diff": {
+      "line": 1,
+      "col": 362,
+      "message": "expected=...26.3beta5?><defs><filter height=\"1\" id=\"b1d3v29bgce2h80\" width=\"1\" x=\"0\" y=\"0\"><... actual=...26.3beta5?><defs><filter height=\"1\" id=\"inkoj4fwrplg3000\" width=\"1\" x=\"0\" y=\"0\">...",
+      "target": "reference"
+    },
+    "diff_profile": {
+      "category": "coordinate-only",
+      "surface_category": "coordinate-only",
+      "root_svg_signal": true,
+      "structural_signal": true,
+      "coordinate_signal": true,
+      "coordinate_delta": {
+        "attr": "x1",
+        "expected": 209.144,
+        "actual": 20.0,
+        "delta": -189.144
+      },
+      "viewport": {
+        "reference": {
+          "width": 562,
+          "height": 736
+        },
+        "actual": {
+          "width": 562,
+          "height": 736
+        },
+        "delta": {
+          "width": 0,
+          "height": 0
+        },
+        "score": 0
+      },
+      "size_summary": "unknown",
+      "underlying_signals": [
+        {
+          "key": "shared-richtext-table",
+          "label": "Shared richtext table/display",
+          "strength": "high",
+          "reason": "Source contains Creole/table markup but Rust emits far fewer text or line elements than Java/reference, which points to Display/Creole table semantics rather than Graphviz coordinates."
+        },
+        {
+          "key": "shared-text-body",
+          "label": "Shared text/body semantics",
+          "strength": "high",
+          "reason": "Viewport drift plus newline/Creole source markers usually means multiline Display splitting, block height, or body padding accumulation is off upstream of final SVG."
+        }
+      ]
+    },
+    "fix_suggestions": [
+      {
+        "key": "shared-richtext-table",
+        "label": "Shared richtext table/display",
+        "strength": "high",
+        "reason": "Rust and Java disagree on Creole/table structure, so start in the shared Display/Creole parser-renderer path instead of the Graphviz handoff.",
+        "files": [
+          "/ext/plantuml/plantuml-little/src/parser/class.rs",
+          "/ext/plantuml/plantuml-little/src/parser/creole.rs",
+          "/ext/plantuml/plantuml-little/src/layout/mod.rs",
+          "/ext/plantuml/plantuml-little/src/render/svg_richtext.rs",
+          "/ext/plantuml/plantuml-little/src/render/svg.rs"
+        ]
+      },
+      {
+        "key": "shared-text-body-height",
+        "label": "Shared text/body height",
+        "strength": "high",
+        "reason": "The underlying signals point to upstream Display or Creole semantics, so investigate text splitting and block measurement before touching downstream coordinates.",
+        "files": [
+          "/ext/plantuml/plantuml-little/src/layout/mod.rs",
+          "/ext/plantuml/plantuml-little/src/render/svg.rs",
+          "/ext/plantuml/plantuml-little/src/render/svg_richtext.rs",
+          "/ext/plantuml/plantuml-little/src/parser/class.rs",
+          "/ext/plantuml/plantuml-little/src/parser/component.rs"
+        ]
+      }
+    ],
+    "reference_test": {
+      "status": "failed",
+      "returncode": 101,
+      "stdout_path": "/ext/plantuml/plantuml-little/.trace-skill/live-a0002-now/reference-test.stdout.log",
+      "stderr_path": "/ext/plantuml/plantuml-little/.trace-skill/live-a0002-now/reference-test.stderr.log",
+      "primary_log_path": "/ext/plantuml/plantuml-little/.trace-skill/live-a0002-now/reference-test.stderr.log",
+      "failure_excerpt": "Running tests/reference_tests.rs (target/debug/deps/reference_tests-69b2c048eac2359d)\n\nthread 'reference_fixtures_activity_a0002_puml' (4048022) panicked at tests/reference_tests.rs:219:21:\ntests/fixtures/activity/a0002.puml: output differs from reference at line 1 col 764\nexpected: ...idth:1;\"/><path d=\"M35,209.7607 L35,234.8936 L142.6011,234.8936 L142.6011,219.76...\nactual:   ...idth:1;\"/><path d=\"M35,209.7607 L35,234.9007 L142.6011,234.9007 L142.6011,219.76...\nnote: run with `RUST_BACKTRACE=1` environment variable to display a backtrace"
+    },
+    "trace_diff": {
+      "available": false,
+      "path": null,
+      "first_changed": null
+    },
+    "authoritative_match": false
+  },
+  "commands": {
+    "rust_render": {
+      "cmd": [
+        "cargo",
+        "run",
+        "--quiet",
+        "--",
+        "/ext/plantuml/plantuml-little/tests/fixtures/activity/a0002.puml",
+        "--output",
+        "/ext/plantuml/plantuml-little/.trace-skill/live-a0002-now/rust.svg"
+      ],
+      "cwd": "/ext/plantuml/plantuml-little",
+      "returncode": 0,
+      "stdout_path": "/ext/plantuml/plantuml-little/.trace-skill/live-a0002-now/rust-render.stdout.log",
+      "stderr_path": "/ext/plantuml/plantuml-little/.trace-skill/live-a0002-now/rust-render.stderr.log",
+      "artifact_path": "/ext/plantuml/plantuml-little/.trace-skill/live-a0002-now/rust.svg",
+      "stdout_excerpt": null,
+      "stderr_excerpt": "warning: unused import: `NoteLinkStrategy`\n  --> src/abel/entity.rs:12:58\n   |\n12 | use super::{CucaNote, DisplayPositioned, EntityPosition, NoteLinkStrategy, Together};\n   |                                                          ^^^^^^^^^^^^^^^^\n   |\n   = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default\n\nwarning: unused imports: `count_creole_lines` and `max_creole_plain_line_len`\n  --> src/render/svg.rs:27:5\n   |\n27 |     count_creole_lines, creole_plain_text, get_default_font_family_pub, max_creole_plain_line_len,\n   |     ^^^^^^^^^^^^^^^^^^                                                  ^^^^^^^^^^^^^^^^^^^^^^^^^\n\nwarning: unused import: `NotePosition`\n  --> src/render/svg_activity.rs:59:49\n   |\n59 |     use crate::model::activity::{ActivityEvent, NotePositi\n...\n^^^^^^^^^^^^\n\nwarning: function `convert_single_element` is never used\n   --> src/render/svg_sprite.rs:707:4\n    |\n707 | fn convert_single_element(\n    |    ^^^^^^^^^^^^^^^^^^^^^^\n\nwarning: method `is_opalisable` is never used\n   --> src/svek/edge.rs:952:8\n    |\n433 | impl SvekEdge {\n    | ------------- method in this implementation\n...\n952 |     fn is_opalisable(&self) -> bool {\n    |        ^^^^^^^^^^^^^\n\nwarning: function `parse_points` is never used\n   --> src/svek/svg_result.rs:324:4\n    |\n324 | fn parse_points(s: &str) -> Vec<XPoint2D> {\n    |    ^^^^^^^^^^^^\n\nwarning: function `parse_svg_path_to_dotpath` is never used\n   --> src/svek/svg_result.rs:346:4\n    |\n346 | fn parse_svg_path_to_dotpath(d: &str) -> Option<crate::klimt::shape::DotPath> {\n    |    ^^^^^^^^^^^^^^^^^^^^^^^^^"
+    },
+    "java_render": {
+      "cmd": [
+        "java",
+        "-jar",
+        "/ext/plantuml/plantuml/build/libs/plantuml-1.2026.3beta5.jar",
+        "-tsvg",
+        "-pipe"
+      ],
+      "cwd": "/ext/plantuml/plantuml-little",
+      "returncode": 0,
+      "stdout_path": "/ext/plantuml/plantuml-little/.trace-skill/live-a0002-now/java-render.stdout.svg",
+      "stderr_path": "/ext/plantuml/plantuml-little/.trace-skill/live-a0002-now/java-render.stderr.log",
+      "artifact_path": "/ext/plantuml/plantuml-little/.trace-skill/live-a0002-now/java.svg",
+      "stdout_excerpt": "<svg xmlns=\"http://www.w3.org/2000/svg\" xmlns:xlink=\"http://www.w3.org/1999/xlink\" contentStyleType=\"text/css\" data-diagram-type=\"ACTIVITY\" height=\"736px\" preserveAspectRatio=\"none\" style=\"width:562px;height:736px;background:#FFFFFF;\" version=\"1.1\" viewBox=\"0 0 562 736\" width=\"562px\" zoomAndPan=\"magnify\"><?plantuml 1.2026.3beta5?><defs><filter height=\"1\" id=\"b1d3v29bgce2h80\" width=\"1\" x=\"0\" y=\"0\"><feFlood flood-color=\"#FF0000\" result=\"flood\"/><feComposite in=\"SourceGraphic\" in2=\"flood\" operator=\"over\"/></filter></defs><g><rect fill=\"none\" height=\"20.9531\" style=\"stroke:none;stroke-width:1;\" width=\"515.2031\" x=\"20\" y=\"17.7451\"/><ellipse cx=\"175.8726\" cy=\"53.6982\" fill=\"#222222\" rx=\"10\" ry=\"10\" style=\"stroke:#222222;stroke-width:1;\"/><path d=\"M35,209.7607 L35,234.8936 L142.6011,234.8936 L142\n...\ngon fill=\"#181818\" points=\"365.2432,500.167,369.2432,510.167,373.2432,500.167,369.2432,504.167\" style=\"stroke:#181818;stroke-width:1;\"/><text fill=\"#000000\" font-family=\"sans-serif\" font-size=\"18\" lengthAdjust=\"spacing\" textLength=\"64.8545\" x=\"147.5586\" y=\"34.4531\">Actor 1</text><text fill=\"#000000\" font-family=\"sans-serif\" font-size=\"18\" lengthAdjust=\"spacing\" textLength=\"64.8545\" x=\"404.2297\" y=\"34.4531\">Actor 2</text><?plantuml-src rL31JiCm3BtdAwoUW4lN7KkfDC41YKrS9d5ssxI9IECgCHCJtR_ZjKMLk78YYcBByNj-VaNaizEbmfhjoVBvoM8Ni8Sl1U29zPG07F3JzX_zcstOGBRPIF6YBgf85_Yugva2PAEAZ85LtX9bzsfY2BOpB80TxCbtVt-kf49tD3RE4YMIXwXFEg2JdpHrrkkOfe2-WHgzr6hoZDP3KPNFnyE-IAjIgWzo9Dp18ph1TC16Gw_PK0D98ZlSt2R9bR-ei7xFWsxA8P2nbMNT0Cb0XuFICcKIrJf2jej4SBhbV9Of5-UMnQZjE5cq_MNHEWPUNg6LHlxPyfyRkDgssXMPXcy0?></g></svg>",
+      "stderr_excerpt": null
+    },
+    "reference_test": {
+      "cmd": [
+        "cargo",
+        "test",
+        "--test",
+        "reference_tests",
+        "reference_fixtures_activity_a0002_puml",
+        "--",
+        "--nocapture"
+      ],
+      "cwd": "/ext/plantuml/plantuml-little",
+      "returncode": 101,
+      "stdout_path": "/ext/plantuml/plantuml-little/.trace-skill/live-a0002-now/reference-test.stdout.log",
+      "stderr_path": "/ext/plantuml/plantuml-little/.trace-skill/live-a0002-now/reference-test.stderr.log",
+      "artifact_path": null,
+      "stdout_excerpt": "running 1 test\ntest reference_fixtures_activity_a0002_puml ... FAILED\n\nfailures:\n\nfailures:\n    reference_fixtures_activity_a0002_puml\n\ntest result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 295 filtered out; finished in 0.04s",
+      "stderr_excerpt": "Blocking waiting for file lock on package cache\n    Blocking waiting for file lock on package cache\n    Blocking waiting for file lock on package cache\nwarning: unused import: `NoteLinkStrategy`\n  --> src/abel/entity.rs:12:58\n   |\n12 | use super::{CucaNote, DisplayPositioned, EntityPosition, NoteLinkStrategy, Together};\n   |                                                          ^^^^^^^^^^^^^^^^\n   |\n   = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default\n\nwarning: unused imports: `count_creole_lines` and `max_creole_plain_line_len`\n  --> src/render/svg.rs:27:5\n   |\n27 |     count_creole_lines, creole_plain_text, get_default_font_family_pub, max_creole_plain_line_len,\n   |     ^^^^^^^^^^^^^^^^^^                                                  ^^^^^^^^^^^^^^^^^^^^^\n...\ns_sprite_test_polyline_sprites_puml`\n\nwarning: `plantuml-little` (test \"reference_tests\") generated 112 warnings\n    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.32s\n     Running tests/reference_tests.rs (target/debug/deps/reference_tests-69b2c048eac2359d)\n\nthread 'reference_fixtures_activity_a0002_puml' (4048022) panicked at tests/reference_tests.rs:219:21:\ntests/fixtures/activity/a0002.puml: output differs from reference at line 1 col 764\nexpected: ...idth:1;\"/><path d=\"M35,209.7607 L35,234.8936 L142.6011,234.8936 L142.6011,219.76...\nactual:   ...idth:1;\"/><path d=\"M35,209.7607 L35,234.9007 L142.6011,234.9007 L142.6011,219.76...\nnote: run with `RUST_BACKTRACE=1` environment variable to display a backtrace\nerror: test failed, to rerun pass `--test reference_tests`"
+    }
+  }
+}

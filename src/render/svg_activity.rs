@@ -1,12 +1,19 @@
+use std::fmt::Write;
+
 use crate::font_metrics;
 use crate::klimt::svg::{fmt_coord, LengthAdjust, SvgGraphic};
 use crate::layout::activity::{
-    ActivityEdgeLayout, ActivityLayout, ActivityNodeKindLayout, ActivityNodeLayout,
-    NotePositionLayout, SwimlaneLayout,
+    classify_activity_table_lines, ActivityEdgeLayout, ActivityLayout, ActivityNodeKindLayout,
+    ActivityNodeLayout, ActivityNoteModeLayout, ActivityTableKind, NotePositionLayout,
+    SwimlaneLayout,
+    TABLE_CELL_PADDING,
 };
 use crate::model::activity::ActivityDiagram;
 use crate::render::svg::{ensure_visible_int, write_bg_rect, write_svg_root_bg};
-use crate::render::svg_richtext::{get_sprite_svg, render_creole_text, render_creole_text_opts};
+use crate::render::svg_richtext::{
+    creole_line_height, creole_text_width, get_sprite_svg, render_creole_display_lines,
+    render_creole_text, render_creole_text_opts,
+};
 use crate::render::svg_sprite;
 use crate::style::SkinParams;
 use crate::Result;
@@ -17,6 +24,10 @@ use crate::Result;
 const NOTE_FONT_SIZE: f64 = 13.0;
 /// Action/diamond font size (Java: 12px, from activityDiagram.activity.FontSize)
 const ACTION_FONT_SIZE: f64 = 12.0;
+/// Java `Swimlanes.swimlanesSpecial()` appends an empty dummy swimlane. Its
+/// title block still contributes a final divider `x2 = 7.86083984375`, so the
+/// transparent title background extends `x2 - 6` past the visible right divider.
+const SWIMLANE_TITLE_BG_RIGHT_EXTRA: f64 = 1.86083984375;
 /// Action text line height – computed from font_metrics, matching
 /// Java's AWT `font.getStringBounds().getHeight()` = ascent + descent.
 fn action_line_height() -> f64 {
@@ -142,7 +153,7 @@ pub fn render_activity(
             sg.push_raw(&format!(
                 r#"<rect fill="none" height="{}" style="stroke:none;stroke-width:1;" width="{}" x="{}" y="{}"/>"#,
                 fmt_coord(titles_height),
-                fmt_coord(last.x + last.width - first.x),
+                fmt_coord(last.x + last.width - first.x + SWIMLANE_TITLE_BG_RIGHT_EXTRA),
                 fmt_coord(first.x),
                 fmt_coord(header_top),
             ));
@@ -159,23 +170,74 @@ pub fn render_activity(
         // Step 2: per-lane content + divider line
         for (lane_idx, sw) in layout.swimlane_layouts.iter().enumerate() {
             // 2a: Render nodes belonging to this lane
-            for (ni, node) in nodes_ref.iter().enumerate() {
-                let nl = if ni < node_lane.len() {
-                    node_lane[ni]
-                } else {
-                    0
-                };
-                if nl == lane_idx {
-                    render_node(
-                        &mut sg,
-                        node,
-                        act_bg,
-                        act_border,
-                        act_font,
-                        diamond_bg,
-                        diamond_border,
-                        arrow_color,
-                    );
+            let mut ni = 0usize;
+            while ni < nodes_ref.len() {
+                let nl = node_lane.get(ni).copied().unwrap_or(0);
+                if nl != lane_idx {
+                    ni += 1;
+                    continue;
+                }
+
+                let node = &nodes_ref[ni];
+                match &node.kind {
+                    ActivityNodeKindLayout::Note { .. }
+                    | ActivityNodeKindLayout::FloatingNote { .. } => {
+                        render_node(
+                            &mut sg,
+                            node,
+                            act_bg,
+                            act_border,
+                            act_font,
+                            diamond_bg,
+                            diamond_border,
+                            arrow_color,
+                        );
+                        ni += 1;
+                    }
+                    _ => {
+                        let mut left_notes = Vec::new();
+                        let mut right_notes = Vec::new();
+                        let mut j = ni + 1;
+                        while j < nodes_ref.len() {
+                            let lane_j = node_lane.get(j).copied().unwrap_or(0);
+                            if lane_j != lane_idx {
+                                break;
+                            }
+                            match &nodes_ref[j].kind {
+                                ActivityNodeKindLayout::Note { position, .. }
+                                | ActivityNodeKindLayout::FloatingNote { position, .. } => match position {
+                                    NotePositionLayout::Left => left_notes.push(j),
+                                    NotePositionLayout::Right => right_notes.push(j),
+                                },
+                                _ => break,
+                            }
+                            j += 1;
+                        }
+
+                        for idx in left_notes.into_iter().chain(right_notes.into_iter()) {
+                            render_node(
+                                &mut sg,
+                                &nodes_ref[idx],
+                                act_bg,
+                                act_border,
+                                act_font,
+                                diamond_bg,
+                                diamond_border,
+                                arrow_color,
+                            );
+                        }
+                        render_node(
+                            &mut sg,
+                            node,
+                            act_bg,
+                            act_border,
+                            act_font,
+                            diamond_bg,
+                            diamond_border,
+                            arrow_color,
+                        );
+                        ni = j;
+                    }
                 }
             }
             // 2b: Divider line (Java: y1=header_top, y2=content_bottom)
@@ -191,17 +253,33 @@ pub fn render_activity(
             sg.svg_line(right_x, header_top, right_x, content_bottom, 0.0);
         }
 
-        // Step 3: edges (Java: Cross connections)
+        // Step 3: same-lane edges are emitted during the per-lane draw pass;
+        // cross-lane edges are emitted afterwards by Swimlanes.Cross.
+        for lane_idx in 0..layout.swimlane_layouts.len() {
+            for edge in edges_ref {
+                let from_lane = node_lane.get(edge.from_index).copied().unwrap_or(0);
+                let to_lane = node_lane.get(edge.to_index).copied().unwrap_or(0);
+                if from_lane == lane_idx && to_lane == lane_idx {
+                    render_edge(&mut sg, edge, arrow_color, act_font);
+                }
+            }
+        }
         for edge in edges_ref {
-            render_edge(&mut sg, edge, arrow_color, act_font);
+            let from_lane = node_lane.get(edge.from_index).copied().unwrap_or(0);
+            let to_lane = node_lane.get(edge.to_index).copied().unwrap_or(0);
+            if from_lane != to_lane {
+                render_edge(&mut sg, edge, arrow_color, act_font);
+            }
         }
 
-        // Step 4: header text (drawn last, left-aligned like Java)
-        // Java: x = lane.x + 5, y = header_top + ascent
+        // Step 4: header text (drawn last)
+        // Java uses `CenteredText(swTitle, getWidthWithoutTitle(swimlane))`.
+        // In Rust's lane model the visual lane width includes the 10px divider
+        // band, so `getWidthWithoutTitle(swimlane)` maps to `sw.width - 10`.
         let header_text_y = header_top + header_asc;
         for sw in &layout.swimlane_layouts {
-            let label_x = sw.x + 5.0; // Java: lane.x + 5 (LANE_DIVIDER_HALF)
             let tl = font_metrics::text_width(&sw.name, "SansSerif", 18.0, false, false);
+            let label_x = sw.x + 5.0 + ((sw.width - 10.0) - tl) / 2.0;
             sg.set_fill_color(swimlane_font);
             sg.svg_text(
                 &sw.name,
@@ -216,7 +294,7 @@ pub fn render_activity(
                 LengthAdjust::Spacing,
                 None,
                 0,
-                None, // left-aligned (Java default, no text-anchor)
+                None,
             );
         }
     } else {
@@ -302,8 +380,12 @@ fn render_node(
         ActivityNodeKindLayout::Action => render_action(sg, node, act_bg, act_border, act_font),
         ActivityNodeKindLayout::Diamond => render_diamond(sg, node, diamond_bg, diamond_border),
         ActivityNodeKindLayout::ForkBar => render_fork_bar(sg, node),
-        ActivityNodeKindLayout::Note { position } => render_note(sg, node, position),
-        ActivityNodeKindLayout::FloatingNote { position } => render_note(sg, node, position),
+        ActivityNodeKindLayout::Note { position, mode } => {
+            render_note(sg, node, position, mode, true)
+        }
+        ActivityNodeKindLayout::FloatingNote { position, mode } => {
+            render_note(sg, node, position, mode, false)
+        }
         ActivityNodeKindLayout::Detach => render_detach(sg, node, arrow_color),
     }
 }
@@ -353,21 +435,35 @@ fn render_action(
     // base_x = rect_x + padding_left.
     let padding = 10.0; // Java: activityDiagram.activity.Padding = 10
     let base_x = node.x + padding;
+    let top_y = node.y + padding;
     let baseline_offset = font_metrics::ascent("SansSerif", ACTION_FONT_SIZE, false, false);
     // Java DriverTextSvg: space width for leading-space offset
     let space_width = font_metrics::text_width(" ", "SansSerif", ACTION_FONT_SIZE, false, false);
 
-    // Check if the content is a creole table (all lines are table rows).
-    // Table rows start and end with '|' and have length > 2.
-    let is_table = lines.iter().all(|l| {
-        let t = l.trim();
-        t.starts_with('|') && t.ends_with('|') && t.len() > 2
-    }) && !lines.is_empty();
+    match classify_activity_table_lines(&lines) {
+        Some(ActivityTableKind::MultiColumn) => {
+            let display_lines: Vec<String> = lines.iter().map(|line| (*line).to_string()).collect();
+            let mut tmp = String::new();
+            render_creole_display_lines(
+                &mut tmp,
+                &display_lines,
+                base_x,
+                top_y,
+                font_color,
+                r#"font-size="12""#,
+                false,
+            );
+            sg.push_raw(&tmp);
+            return;
+        }
+        Some(ActivityTableKind::SingleColumn { rows }) => {
+            render_single_column_table_action(sg, base_x, top_y, font_color, &rows);
+            return;
+        }
+        None => {}
+    }
 
-    // For creole tables, Java adds TABLE_CELL_PADDING (2px) to the y offset
-    // and renders grid lines.
-    let table_cell_padding = if is_table { 2.0 } else { 0.0 };
-    let first_baseline = node.y + padding + table_cell_padding + baseline_offset;
+    let first_baseline = top_y + baseline_offset;
     let lh = action_line_height();
 
     // Java AtomImgSvg: sprite display scale = fontSize / (fontSize + 1)
@@ -413,21 +509,11 @@ fn render_action(
         // 3. Render trimmed text at adjusted x
         let leading_spaces = line.len() - line.trim_start_matches(' ').len();
         let text_x = base_x + leading_spaces as f64 * space_width;
-        // For table rows, strip outer pipes and leading header markers (=)
-        let cell_text = if is_table {
-            let inner = display_text.trim_start_matches('|').trim_end_matches('|');
-            inner
-                .trim()
-                .trim_start_matches("= ")
-                .trim_start_matches('=')
-        } else {
-            display_text
-        };
         let mut tmp = String::new();
         // Java: activity action text preserves literal \n as displayable text
         render_creole_text_opts(
             &mut tmp,
-            cell_text,
+            display_text,
             text_x,
             y,
             lh,
@@ -439,48 +525,85 @@ fn render_action(
         sg.push_raw(&tmp);
         y_cursor += lh;
     }
+}
 
-    // Render creole table grid lines
-    if is_table && !lines.is_empty() {
-        let grid_left = base_x;
-        // Find max text width for grid right boundary
-        let max_text_w = lines
-            .iter()
-            .map(|l| {
-                let t = l.trim();
-                let inner = t.trim_start_matches('|').trim_end_matches('|');
-                font_metrics::text_width(inner.trim(), "SansSerif", ACTION_FONT_SIZE, false, false)
-            })
-            .fold(0.0_f64, f64::max);
-        let grid_right = grid_left + max_text_w;
-        let grid_top = node.y + padding + table_cell_padding;
-        let n_rows = lines.len();
-        // Horizontal lines: top, between rows, bottom
-        for row in 0..=n_rows {
-            let y_line = grid_top + row as f64 * lh;
-            let mut tmp = String::new();
-            use std::fmt::Write;
-            write!(tmp,
-                r#"<line style="stroke:#000000;stroke-width:0.5;" x1="{x1}" x2="{x2}" y1="{y}" y2="{y}"/>"#,
-                x1 = fmt_coord(grid_left), x2 = fmt_coord(grid_right),
-                y = fmt_coord(y_line),
-            ).unwrap();
-            sg.push_raw(&tmp);
-        }
-        // Vertical lines: left and right
-        let y_top = grid_top;
-        let y_bottom = grid_top + n_rows as f64 * lh;
-        for &x in &[grid_left, grid_right] {
-            let mut tmp = String::new();
-            use std::fmt::Write;
-            write!(tmp,
-                r#"<line style="stroke:#000000;stroke-width:0.5;" x1="{x}" x2="{x}" y1="{y1}" y2="{y2}"/>"#,
-                x = fmt_coord(x),
-                y1 = fmt_coord(y_top), y2 = fmt_coord(y_bottom),
-            ).unwrap();
-            sg.push_raw(&tmp);
-        }
+fn render_single_column_table_action(
+    sg: &mut SvgGraphic,
+    x: f64,
+    top_y: f64,
+    font_color: &str,
+    rows: &[String],
+) {
+    let row_heights: Vec<f64> = rows
+        .iter()
+        .map(|row| creole_line_height(row, "SansSerif", ACTION_FONT_SIZE))
+        .collect();
+    let content_width = rows.iter().fold(0.0_f64, |acc, row| {
+        acc.max(creole_text_width(row, "SansSerif", ACTION_FONT_SIZE, false, false))
+    });
+    let ascent = font_metrics::ascent("SansSerif", ACTION_FONT_SIZE, false, false);
+    let grid_top = top_y + TABLE_CELL_PADDING;
+    let grid_bottom = grid_top + row_heights.iter().sum::<f64>();
+
+    let mut row_top = grid_top;
+    let mut tmp = String::new();
+    for (row, row_height) in rows.iter().zip(&row_heights) {
+        render_creole_text_opts(
+            &mut tmp,
+            row,
+            x,
+            row_top + ascent,
+            *row_height,
+            font_color,
+            None,
+            r#"font-size="12""#,
+            false,
+        );
+        row_top += row_height;
     }
+
+    let mut y = grid_top;
+    write!(
+        tmp,
+        r#"<line style="stroke:#000000;stroke-width:0.5;" x1="{}" x2="{}" y1="{}" y2="{}"/>"#,
+        fmt_coord(x),
+        fmt_coord(x + content_width),
+        fmt_coord(y),
+        fmt_coord(y)
+    )
+    .unwrap();
+    for row_height in &row_heights {
+        y += row_height;
+        write!(
+            tmp,
+            r#"<line style="stroke:#000000;stroke-width:0.5;" x1="{}" x2="{}" y1="{}" y2="{}"/>"#,
+            fmt_coord(x),
+            fmt_coord(x + content_width),
+            fmt_coord(y),
+            fmt_coord(y)
+        )
+        .unwrap();
+    }
+    write!(
+        tmp,
+        r#"<line style="stroke:#000000;stroke-width:0.5;" x1="{}" x2="{}" y1="{}" y2="{}"/>"#,
+        fmt_coord(x),
+        fmt_coord(x),
+        fmt_coord(grid_top),
+        fmt_coord(grid_bottom)
+    )
+    .unwrap();
+    write!(
+        tmp,
+        r#"<line style="stroke:#000000;stroke-width:0.5;" x1="{}" x2="{}" y1="{}" y2="{}"/>"#,
+        fmt_coord(x + content_width),
+        fmt_coord(x + content_width),
+        fmt_coord(grid_top),
+        fmt_coord(grid_bottom)
+    )
+    .unwrap();
+
+    sg.push_raw(&tmp);
 }
 
 /// Diamond node: rotated square for if/while conditions
@@ -521,30 +644,115 @@ fn render_detach(sg: &mut SvgGraphic, node: &ActivityNodeLayout, arrow_color: &s
     sg.svg_line(cx + r, cy - r, cx - r, cy + r, 0.0);
 }
 
-/// Note (or floating note): path-based note shape with folded corner + text
-fn render_note(sg: &mut SvgGraphic, node: &ActivityNodeLayout, _position: &NotePositionLayout) {
+/// Note (or floating note): path-based note shape with folded corner + text.
+/// Single attached notes use Java's linked Opale polygon; grouped/floating
+/// notes keep the normal folded-corner shape.
+fn render_note(
+    sg: &mut SvgGraphic,
+    node: &ActivityNodeLayout,
+    position: &NotePositionLayout,
+    mode: &ActivityNoteModeLayout,
+    linked: bool,
+) {
     let x = node.x;
     let y = node.y;
     let w = node.width;
     let h = node.height;
     let fold = 10.0;
+    let margin_y = 5.0;
+    let bullet_text_dx = 12.0;
+    let bullet_radius = 2.5;
 
-    // Note body as <path>
-    sg.push_raw(&format!(
-        r#"<path d="M{},{} L{},{} L{},{} L{},{} L{},{} L{},{} " fill="{NOTE_BG}" style="stroke:{NOTE_BORDER};stroke-width:0.5;"/>"#,
-        fmt_coord(x), fmt_coord(y),
-        fmt_coord(x), fmt_coord(y + h),
-        fmt_coord(x + w), fmt_coord(y + h),
-        fmt_coord(x + w), fmt_coord(y + fold),
-        fmt_coord(x + w - fold), fmt_coord(y),
-        fmt_coord(x), fmt_coord(y),
-    ));
-    // Track note bounding box for ensureVisible (push_raw bypasses tracking)
-    sg.track_rect(x, y, w, h);
+    let render_linked_opale = linked && *mode == ActivityNoteModeLayout::Single;
+    if render_linked_opale {
+        let cy = y + h / 2.0;
+        let y1 = match position {
+            NotePositionLayout::Right => (cy - 4.0).clamp(y, y + h - 8.0),
+            NotePositionLayout::Left => (cy - 4.0).clamp(y + fold, y + h - 8.0),
+        };
+        let notch_left = x - 20.0;
+        let notch_right = x + w + 20.0;
+        let path_d = match position {
+            NotePositionLayout::Right => format!(
+                "M{},{} L{},{} L{},{} L{},{} L{},{} A0,0 0 0 0 {},{} L{},{} A0,0 0 0 0 {},{} L{},{} L{},{} L{},{} A0,0 0 0 0 {},{}",
+                fmt_coord(x),
+                fmt_coord(y),
+                fmt_coord(x),
+                fmt_coord(y1),
+                fmt_coord(notch_left),
+                fmt_coord(cy),
+                fmt_coord(x),
+                fmt_coord(y1 + 8.0),
+                fmt_coord(x),
+                fmt_coord(y + h),
+                fmt_coord(x),
+                fmt_coord(y + h),
+                fmt_coord(x + w),
+                fmt_coord(y + h),
+                fmt_coord(x + w),
+                fmt_coord(y + h),
+                fmt_coord(x + w),
+                fmt_coord(y + fold),
+                fmt_coord(x + w - fold),
+                fmt_coord(y),
+                fmt_coord(x),
+                fmt_coord(y),
+                fmt_coord(x),
+                fmt_coord(y)
+            ),
+            NotePositionLayout::Left => format!(
+                "M{},{} L{},{} A0,0 0 0 0 {},{} L{},{} A0,0 0 0 0 {},{} L{},{} L{},{} L{},{} L{},{} L{},{} L{},{} A0,0 0 0 0 {},{}",
+                fmt_coord(x),
+                fmt_coord(y),
+                fmt_coord(x),
+                fmt_coord(y + h),
+                fmt_coord(x),
+                fmt_coord(y + h),
+                fmt_coord(x + w),
+                fmt_coord(y + h),
+                fmt_coord(x + w),
+                fmt_coord(y + h),
+                fmt_coord(x + w),
+                fmt_coord(y1 + 8.0),
+                fmt_coord(notch_right),
+                fmt_coord(cy),
+                fmt_coord(x + w),
+                fmt_coord(y1),
+                fmt_coord(x + w),
+                fmt_coord(y + fold),
+                fmt_coord(x + w - fold),
+                fmt_coord(y),
+                fmt_coord(x),
+                fmt_coord(y),
+                fmt_coord(x),
+                fmt_coord(y)
+            ),
+        };
+        sg.push_raw(&format!(
+            r#"<path d="{}" fill="{NOTE_BG}" style="stroke:{NOTE_BORDER};stroke-width:0.5;"/>"#,
+            path_d
+        ));
+        // Track the callout protrusion so ensureVisible sees the linked shape.
+        match position {
+            NotePositionLayout::Right => sg.track_rect(x - 20.0, y, w + 20.0, h),
+            NotePositionLayout::Left => sg.track_rect(x, y, w + 20.0, h),
+        }
+    } else {
+        sg.push_raw(&format!(
+            r#"<path d="M{},{} L{},{} L{},{} L{},{} L{},{} L{},{}" fill="{NOTE_BG}" style="stroke:{NOTE_BORDER};stroke-width:0.5;"/>"#,
+            fmt_coord(x), fmt_coord(y),
+            fmt_coord(x), fmt_coord(y + h),
+            fmt_coord(x + w), fmt_coord(y + h),
+            fmt_coord(x + w), fmt_coord(y + fold),
+            fmt_coord(x + w - fold), fmt_coord(y),
+            fmt_coord(x), fmt_coord(y),
+        ));
+        sg.track_rect(x, y, w, h);
+    }
 
     // Fold triangle as <path>
     sg.push_raw(&format!(
-        r#"<path d="M{},{} L{},{} L{},{} L{},{} " fill="{NOTE_BG}" style="stroke:{NOTE_BORDER};stroke-width:0.5;"/>"#,
+        r#"<path d="M{},{} L{},{} L{},{} L{},{}" fill="{NOTE_BG}" style="stroke:{NOTE_BORDER};stroke-width:0.5;"/>"#,
         fmt_coord(x + w - fold), fmt_coord(y),
         fmt_coord(x + w - fold), fmt_coord(y + fold),
         fmt_coord(x + w), fmt_coord(y + fold),
@@ -555,24 +763,55 @@ fn render_note(sg: &mut SvgGraphic, node: &ActivityNodeLayout, _position: &NoteP
     // This avoids the multi-line textLength issue where a single <text> with tspans
     // gets an incorrect total textLength.
     let note_lh = crate::font_metrics::line_height("SansSerif", NOTE_FONT_SIZE, false, false);
+    let note_ascent = crate::font_metrics::ascent("SansSerif", NOTE_FONT_SIZE, false, false);
+    let note_descent = crate::font_metrics::descent("SansSerif", NOTE_FONT_SIZE, false, false);
     let text_x = x + 6.0;
-    // Java top margin: fold(10) + ascent(~7.07) = first text baseline y
-    let mut text_y = y + fold + NOTE_FONT_SIZE;
+    // Java Opale draws the SheetBlock translated by marginY, so the first
+    // text baseline sits at marginY + ascent from the note top.
+    let mut text_y = y + margin_y + note_ascent;
+    let mut in_bullet_item = false;
     for line in node.text.split('\n') {
         // Horizontal separator gets less vertical space (Java: 10px)
         let trimmed = line.trim();
         let is_sep = trimmed.len() >= 4
             && (trimmed.chars().all(|c| c == '=') || trimmed.chars().all(|c| c == '-'));
         if is_sep {
-            // TODO: render as <line> pair; for now just skip text and add 10px
+            let sep_top = text_y - note_lh + note_descent;
+            let sep_y1 = sep_top + 5.0;
+            let sep_y2 = sep_y1 + 2.0;
+            sg.set_stroke_color(Some(NOTE_BORDER));
+            sg.set_stroke_width(1.0, None);
+            sg.svg_line(x, sep_y1, x + w, sep_y1, 0.0);
+            sg.svg_line(x, sep_y2, x + w, sep_y2, 0.0);
+            in_bullet_item = false;
             text_y += crate::layout::activity::NOTE_SEPARATOR_HEIGHT;
             continue;
         }
+
+        let (line_text, line_x) = if let Some(rest) = line.strip_prefix("* ") {
+            let bullet_cx = text_x + 5.5;
+            let bullet_cy = text_y - 4.4341;
+            sg.push_raw(&format!(
+                r#"<ellipse cx="{}" cy="{}" fill="{TEXT_COLOR}" rx="{}" ry="{}"/>"#,
+                fmt_coord(bullet_cx),
+                fmt_coord(bullet_cy),
+                fmt_coord(bullet_radius),
+                fmt_coord(bullet_radius),
+            ));
+            in_bullet_item = true;
+            (rest, text_x + bullet_text_dx)
+        } else if in_bullet_item && !trimmed.is_empty() {
+            (line, text_x + bullet_text_dx)
+        } else {
+            in_bullet_item = false;
+            (line, text_x)
+        };
+
         let mut tmp = String::new();
         render_creole_text(
             &mut tmp,
-            line,
-            text_x,
+            line_text,
+            line_x,
             text_y,
             note_lh,
             TEXT_COLOR,
@@ -966,6 +1205,7 @@ mod tests {
             0,
             ActivityNodeKindLayout::Note {
                 position: NotePositionLayout::Right,
+                mode: ActivityNoteModeLayout::Grouped,
             },
             10.0,
             20.0,
@@ -979,12 +1219,37 @@ mod tests {
             svg.contains(&format!(r#"fill="{NOTE_BG}""#)),
             "note must use yellow background"
         );
-        assert!(svg.contains("Remember this"), "note text must appear");
+        assert!(svg.contains(">Remember this<"), "note text must appear");
         assert!(svg.contains("<path"), "note must use <path> elements");
         assert!(
             svg.contains("stroke-width:0.5;"),
             "note must have stroke-width 0.5"
         );
+    }
+
+    #[test]
+    fn test_single_attached_note_renders_linked_opale() {
+        let diagram = empty_diagram();
+        let mut layout = empty_layout();
+        layout.nodes.push(make_node(
+            0,
+            ActivityNodeKindLayout::Note {
+                position: NotePositionLayout::Right,
+                mode: ActivityNoteModeLayout::Single,
+            },
+            10.0,
+            20.0,
+            100.0,
+            40.0,
+            "Linked",
+        ));
+        let (svg, _raw_dim) = render_activity(&diagram, &layout, &SkinParams::default(), None)
+            .expect("render failed");
+        assert!(
+            svg.contains(r#"L-10,40"#),
+            "single attached note must render the left callout notch"
+        );
+        assert!(svg.contains(">Linked<"), "linked note text must appear");
     }
 
     #[test]
@@ -1157,6 +1422,75 @@ mod tests {
     }
 
     #[test]
+    fn test_swimlane_headers_are_centered_on_lane_content() {
+        let mut diagram = empty_diagram();
+        diagram.swimlanes = vec!["AA".to_string(), "BB".to_string()];
+        diagram.events = vec![
+            crate::model::activity::ActivityEvent::Swimlane {
+                name: "AA".to_string(),
+            },
+            crate::model::activity::ActivityEvent::Action {
+                text: "first".to_string(),
+            },
+            crate::model::activity::ActivityEvent::Swimlane {
+                name: "BB".to_string(),
+            },
+            crate::model::activity::ActivityEvent::Action {
+                text: "second".to_string(),
+            },
+        ];
+
+        let mut layout = empty_layout();
+        layout.width = 420.0;
+        layout.height = 240.0;
+        layout.swimlane_layouts.push(SwimlaneLayout {
+            name: "AA".to_string(),
+            x: 20.0,
+            width: 90.0,
+        });
+        layout.swimlane_layouts.push(SwimlaneLayout {
+            name: "BB".to_string(),
+            x: 220.0,
+            width: 70.0,
+        });
+        layout.nodes.push(make_node(
+            0,
+            ActivityNodeKindLayout::Action,
+            40.0,
+            80.0,
+            80.0,
+            36.0,
+            "first",
+        ));
+        layout.nodes.push(make_node(
+            1,
+            ActivityNodeKindLayout::Action,
+            260.0,
+            80.0,
+            60.0,
+            36.0,
+            "second",
+        ));
+
+        let (svg, _raw_dim) = render_activity(&diagram, &layout, &SkinParams::default(), None)
+            .expect("render failed");
+
+        let lane_a_title_width = font_metrics::text_width("AA", "SansSerif", 18.0, false, false);
+        let lane_b_title_width = font_metrics::text_width("BB", "SansSerif", 18.0, false, false);
+        let lane_a_x = fmt_coord(20.0 + 5.0 + ((90.0 - 10.0) - lane_a_title_width) / 2.0);
+        let lane_b_x = fmt_coord(220.0 + 5.0 + ((70.0 - 10.0) - lane_b_title_width) / 2.0);
+
+        assert!(
+            svg.contains(&format!(r#"x="{lane_a_x}""#)),
+            "lane A header should be centered on `sw.width - 10`"
+        );
+        assert!(
+            svg.contains(&format!(r#"x="{lane_b_x}""#)),
+            "lane B header should be centered on `sw.width - 10`"
+        );
+    }
+
+    #[test]
     fn test_cross_lane_multi_segment_edge() {
         let diagram = empty_diagram();
         let mut layout = empty_layout();
@@ -1178,6 +1512,136 @@ mod tests {
         assert!(
             svg.contains("<polygon"),
             "cross-lane edge must have inline polygon arrowhead"
+        );
+    }
+
+    #[test]
+    fn test_swimlane_edges_render_same_lane_before_cross_lane() {
+        use crate::model::activity::ActivityEvent;
+
+        let diagram = ActivityDiagram {
+            events: vec![
+                ActivityEvent::Swimlane {
+                    name: "Lane A".into(),
+                },
+                ActivityEvent::Start,
+                ActivityEvent::Action {
+                    text: "A1".into(),
+                },
+                ActivityEvent::Swimlane {
+                    name: "Lane B".into(),
+                },
+                ActivityEvent::Action {
+                    text: "B1".into(),
+                },
+                ActivityEvent::Swimlane {
+                    name: "Lane A".into(),
+                },
+                ActivityEvent::Action {
+                    text: "A2".into(),
+                },
+                ActivityEvent::Stop,
+            ],
+            swimlanes: vec!["Lane A".into(), "Lane B".into()],
+            direction: Default::default(),
+            note_max_width: None,
+        };
+
+        let mut layout = empty_layout();
+        layout.width = 320.0;
+        layout.height = 260.0;
+        layout.swimlane_layouts.push(SwimlaneLayout {
+            name: "Lane A".to_string(),
+            x: 20.0,
+            width: 100.0,
+        });
+        layout.swimlane_layouts.push(SwimlaneLayout {
+            name: "Lane B".to_string(),
+            x: 140.0,
+            width: 100.0,
+        });
+        layout.nodes.push(make_node(
+            0,
+            ActivityNodeKindLayout::Start,
+            50.0,
+            20.0,
+            20.0,
+            20.0,
+            "",
+        ));
+        layout.nodes.push(make_node(
+            1,
+            ActivityNodeKindLayout::Action,
+            35.0,
+            60.0,
+            50.0,
+            20.0,
+            "A1",
+        ));
+        layout.nodes.push(make_node(
+            2,
+            ActivityNodeKindLayout::Action,
+            155.0,
+            100.0,
+            50.0,
+            20.0,
+            "B1",
+        ));
+        layout.nodes.push(make_node(
+            3,
+            ActivityNodeKindLayout::Action,
+            35.0,
+            140.0,
+            50.0,
+            20.0,
+            "A2",
+        ));
+        layout.nodes.push(make_node(
+            4,
+            ActivityNodeKindLayout::Stop,
+            49.0,
+            180.0,
+            22.0,
+            22.0,
+            "",
+        ));
+        layout.edges.push(ActivityEdgeLayout {
+            from_index: 0,
+            to_index: 1,
+            label: String::new(),
+            points: vec![(60.0, 40.0), (60.0, 60.0)],
+        });
+        layout.edges.push(ActivityEdgeLayout {
+            from_index: 1,
+            to_index: 2,
+            label: String::new(),
+            points: vec![(60.0, 80.0), (60.0, 85.0), (180.0, 85.0), (180.0, 100.0)],
+        });
+        layout.edges.push(ActivityEdgeLayout {
+            from_index: 2,
+            to_index: 3,
+            label: String::new(),
+            points: vec![(180.0, 120.0), (180.0, 125.0), (60.0, 125.0), (60.0, 140.0)],
+        });
+        layout.edges.push(ActivityEdgeLayout {
+            from_index: 3,
+            to_index: 4,
+            label: String::new(),
+            points: vec![(60.0, 160.0), (60.0, 180.0)],
+        });
+
+        let (svg, _raw_dim) = render_activity(&diagram, &layout, &SkinParams::default(), None)
+            .expect("render failed");
+
+        let same_lane_tail = svg
+            .find(r#"x1="60" x2="60" y1="160" y2="180""#)
+            .expect("missing same-lane edge");
+        let cross_lane_head = svg
+            .find(r#"x1="60" x2="60" y1="80" y2="85""#)
+            .expect("missing cross-lane edge");
+        assert!(
+            same_lane_tail < cross_lane_head,
+            "same-lane edges should render before cross-lane edges"
         );
     }
 

@@ -1,0 +1,308 @@
+{
+  "fixture": {
+    "absolute_path": "/ext/plantuml/plantuml-little/tests/fixtures/dev/jaws/jaws6.puml",
+    "relative_path": "tests/fixtures/dev/jaws/jaws6.puml",
+    "test_name": "reference_fixtures_dev_jaws_jaws6_puml",
+    "reference_path": "/ext/plantuml/plantuml-little/tests/reference/dev/jaws/jaws6.svg"
+  },
+  "summary": {
+    "family": "sequence",
+    "diagram_type": "SEQUENCE",
+    "keywords": [
+      "newline_func",
+      "theme"
+    ],
+    "source": {
+      "bytes": 191,
+      "lines": 11
+    },
+    "rust": {
+      "viewport": {
+        "width": "527px",
+        "height": "185px"
+      },
+      "diagram_type": "SEQUENCE",
+      "element_counts": {
+        "rect": 11,
+        "path": 4,
+        "text": 12,
+        "ellipse": 4,
+        "polygon": 0,
+        "group": 21
+      },
+      "bytes": 7367,
+      "lines": 1
+    },
+    "java": {
+      "viewport": {
+        "width": "527px",
+        "height": "185px"
+      },
+      "diagram_type": "SEQUENCE",
+      "element_counts": {
+        "rect": 11,
+        "path": 4,
+        "text": 12,
+        "ellipse": 4,
+        "polygon": 0,
+        "group": 21
+      },
+      "bytes": 7367,
+      "lines": 1
+    },
+    "reference": {
+      "viewport": {
+        "width": "527px",
+        "height": "185px"
+      },
+      "diagram_type": "SEQUENCE",
+      "element_counts": {
+        "rect": 11,
+        "path": 4,
+        "text": 12,
+        "ellipse": 4,
+        "polygon": 0,
+        "group": 21
+      },
+      "bytes": 7367,
+      "lines": 1
+    },
+    "raw_first_diff": {
+      "line": 1,
+      "col": 5442,
+      "message": "expected=...just=\"spacing\" textLength=\"47.3252\" x=\"360.0415\" y=\"70.9951\">Orders</text></g><g... actual=...just=\"spacing\" textLength=\"47.3252\" x=\"341.5127\" y=\"70.9951\">Orders</text></g><g...",
+      "target": "reference"
+    },
+    "semantic_first_diff": {
+      "line": 1,
+      "col": 5312,
+      "message": "expected=...just=\"spacing\" textLength=\"47.3252\" x=\"360.0415\" y=\"70.9951\">Orders</text></g><g... actual=...just=\"spacing\" textLength=\"47.3252\" x=\"341.5127\" y=\"70.9951\">Orders</text></g><g...",
+      "target": "reference"
+    },
+    "object_first_diff": {
+      "index": 50,
+      "expected": {
+        "tag": "text",
+        "attrs": {
+          "fill": "#000000",
+          "font-family": "Verdana",
+          "font-size": "14",
+          "lengthAdjust": "spacing",
+          "textLength": "47.3252",
+          "x": "360.0415",
+          "y": "70.9951"
+        },
+        "text": "Orders"
+      },
+      "actual": {
+        "tag": "text",
+        "attrs": {
+          "fill": "#000000",
+          "font-family": "Verdana",
+          "font-size": "14",
+          "lengthAdjust": "spacing",
+          "textLength": "47.3252",
+          "x": "341.5127",
+          "y": "70.9951"
+        },
+        "text": "Orders"
+      },
+      "target": "reference"
+    },
+    "semantic_equivalent": false,
+    "diff_profile": {
+      "category": "coordinate-only",
+      "surface_category": "coordinate-only",
+      "root_svg_signal": true,
+      "structural_signal": true,
+      "coordinate_signal": true,
+      "coordinate_delta": {
+        "attr": "path_d",
+        "expected": null,
+        "actual": null,
+        "delta": null
+      },
+      "viewport": {
+        "reference": {
+          "width": 527,
+          "height": 185
+        },
+        "actual": {
+          "width": 527,
+          "height": 185
+        },
+        "delta": {
+          "width": 0,
+          "height": 0
+        },
+        "score": 0
+      },
+      "size_summary": "unknown",
+      "semantic_equivalent": false,
+      "underlying_signals": [
+        {
+          "key": "sequence-core",
+          "label": "Sequence core",
+          "strength": "medium",
+          "reason": "No stronger shared-text or structure signal was detected, so keep the investigation in the sequence layout family."
+        }
+      ]
+    },
+    "fix_suggestions": [
+      {
+        "key": "sequence-core",
+        "label": "Sequence layout core",
+        "strength": "high",
+        "reason": "Sequence mismatch without teoz usually belongs to lifeline width, self-message width, or message layout.",
+        "files": [
+          "/ext/plantuml/plantuml-little/src/layout/sequence.rs",
+          "/ext/plantuml/plantuml-little/src/render/svg_sequence.rs"
+        ]
+      },
+      {
+        "key": "sprite-renderer",
+        "label": "Sprite renderer",
+        "strength": "medium",
+        "reason": "Sprite, transform, or path-data mismatches usually come from the SVG sprite renderer rather than parser logic.",
+        "files": [
+          "/ext/plantuml/plantuml-little/src/render/svg_sprite.rs"
+        ]
+      }
+    ],
+    "code_anchors": [
+      {
+        "key": "sequence-core",
+        "label": "Sequence core",
+        "reason": "Sequence mismatches usually belong to tile spacing, participant width, or self-message placement.",
+        "java_files": [
+          "/ext/plantuml/plantuml/src/main/java/net/sourceforge/plantuml/sequencediagram/teoz/TileBuilder.java",
+          "/ext/plantuml/plantuml/src/main/java/net/sourceforge/plantuml/sequencediagram/graphic/ParticipantBox.java"
+        ],
+        "rust_files": [
+          "/ext/plantuml/plantuml-little/src/layout/sequence.rs",
+          "/ext/plantuml/plantuml-little/src/layout/sequence_teoz/builder.rs",
+          "/ext/plantuml/plantuml-little/src/render/svg_sequence.rs"
+        ]
+      }
+    ],
+    "trace_request": {
+      "stages": [
+        "preproc.done",
+        "parse.done",
+        "layout.dispatch",
+        "layout.done",
+        "render.prep",
+        "render.bounds",
+        "svg.final"
+      ],
+      "conventions": {
+        "rust_env": {
+          "PUML_TRACE_JSONL": "/tmp/rust-trace.jsonl",
+          "PUML_TRACE_STAGES": "preproc.done,parse.done,layout.dispatch,layout.done,render.prep,render.bounds,svg.final"
+        },
+        "java_properties": {
+          "plantuml.trace.jsonl": "/tmp/java-trace.jsonl",
+          "plantuml.trace.stages": "preproc.done,parse.done,layout.dispatch,layout.done,render.prep,render.bounds,svg.final"
+        }
+      },
+      "rust_hooks": [
+        "/ext/plantuml/plantuml-little/src/layout/sequence.rs",
+        "/ext/plantuml/plantuml-little/src/layout/sequence_teoz/builder.rs",
+        "/ext/plantuml/plantuml-little/src/render/svg_sequence.rs"
+      ],
+      "java_hooks": [
+        "/ext/plantuml/plantuml/src/main/java/net/sourceforge/plantuml/sequencediagram/teoz/TileBuilder.java",
+        "/ext/plantuml/plantuml/src/main/java/net/sourceforge/plantuml/sequencediagram/graphic/ParticipantBox.java"
+      ]
+    },
+    "reference_test": {
+      "status": "failed",
+      "returncode": 101,
+      "stdout_path": "/ext/plantuml/plantuml-little/.trace-skill/live-jaws6-seq-x/reference-test.stdout.log",
+      "stderr_path": "/ext/plantuml/plantuml-little/.trace-skill/live-jaws6-seq-x/reference-test.stderr.log",
+      "primary_log_path": "/ext/plantuml/plantuml-little/.trace-skill/live-jaws6-seq-x/reference-test.stderr.log",
+      "failure_excerpt": "Running tests/reference_tests.rs (target/debug/deps/reference_tests-69b2c048eac2359d)\n\nthread 'reference_fixtures_dev_jaws_jaws6_puml' (4105735) panicked at tests/reference_tests.rs:226:9:\ntests/fixtures/dev/jaws/jaws6.puml: output differs from reference at line 1 col 5442\nexpected: ...just=\"spacing\" textLength=\"47.3252\" x=\"360.0415\" y=\"70.9951\">Orders</text></g><g...\nactual:   ...just=\"spacing\" textLength=\"47.3252\" x=\"341.5127\" y=\"70.9951\">Orders</text></g><g...\nnote: run with `RUST_BACKTRACE=1` environment variable to display a backtrace"
+    },
+    "trace_diff": {
+      "available": false,
+      "path": null,
+      "first_changed": null
+    },
+    "authoritative_match": false,
+    "authority": {
+      "tier": "reference-test",
+      "artifact_target": "reference",
+      "worktree": {
+        "dirty": true,
+        "changed_count": 17,
+        "sample_paths": [
+          " M src/layout/activity.rs",
+          " M src/layout/mod.rs",
+          " M src/parser/activity.rs",
+          " M src/parser/class.rs",
+          " M src/parser/creole.rs",
+          " M src/parser/mod.rs",
+          " M src/preproc/expr.rs",
+          " M src/preproc/mod.rs",
+          " M src/render/svg.rs",
+          " M src/render/svg_activity.rs"
+        ],
+        "returncode": 0
+      }
+    }
+  },
+  "commands": {
+    "rust_render": {
+      "cmd": [
+        "cargo",
+        "run",
+        "--quiet",
+        "--",
+        "/ext/plantuml/plantuml-little/tests/fixtures/dev/jaws/jaws6.puml",
+        "--output",
+        "/ext/plantuml/plantuml-little/.trace-skill/live-jaws6-seq-x/rust.svg"
+      ],
+      "cwd": "/ext/plantuml/plantuml-little",
+      "returncode": 0,
+      "stdout_path": "/ext/plantuml/plantuml-little/.trace-skill/live-jaws6-seq-x/rust-render.stdout.log",
+      "stderr_path": "/ext/plantuml/plantuml-little/.trace-skill/live-jaws6-seq-x/rust-render.stderr.log",
+      "artifact_path": "/ext/plantuml/plantuml-little/.trace-skill/live-jaws6-seq-x/rust.svg",
+      "stdout_excerpt": null,
+      "stderr_excerpt": "warning: unused import: `NoteLinkStrategy`\n  --> src/abel/entity.rs:12:58\n   |\n12 | use super::{CucaNote, DisplayPositioned, EntityPosition, NoteLinkStrategy, Together};\n   |                                                          ^^^^^^^^^^^^^^^^\n   |\n   = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default\n\nwarning: unused imports: `count_creole_lines` and `max_creole_plain_line_len`\n  --> src/render/svg.rs:27:5\n   |\n27 |     count_creole_lines, creole_plain_text, get_default_font_family_pub, max_creole_plain_line_len,\n   |     ^^^^^^^^^^^^^^^^^^                                                  ^^^^^^^^^^^^^^^^^^^^^^^^^\n\nwarning: unused import: `NotePosition`\n  --> src/render/svg_activity.rs:60:49\n   |\n60 |     use crate::model::activity::{ActivityEvent, NotePositi\n...\n^^^^^^^^^^^^\n\nwarning: function `convert_single_element` is never used\n   --> src/render/svg_sprite.rs:707:4\n    |\n707 | fn convert_single_element(\n    |    ^^^^^^^^^^^^^^^^^^^^^^\n\nwarning: method `is_opalisable` is never used\n   --> src/svek/edge.rs:952:8\n    |\n433 | impl SvekEdge {\n    | ------------- method in this implementation\n...\n952 |     fn is_opalisable(&self) -> bool {\n    |        ^^^^^^^^^^^^^\n\nwarning: function `parse_points` is never used\n   --> src/svek/svg_result.rs:324:4\n    |\n324 | fn parse_points(s: &str) -> Vec<XPoint2D> {\n    |    ^^^^^^^^^^^^\n\nwarning: function `parse_svg_path_to_dotpath` is never used\n   --> src/svek/svg_result.rs:346:4\n    |\n346 | fn parse_svg_path_to_dotpath(d: &str) -> Option<crate::klimt::shape::DotPath> {\n    |    ^^^^^^^^^^^^^^^^^^^^^^^^^"
+    },
+    "java_render": {
+      "cmd": [
+        "java",
+        "-jar",
+        "/ext/plantuml/plantuml/build/libs/plantuml-1.2026.3beta5.jar",
+        "-tsvg",
+        "-pipe"
+      ],
+      "cwd": "/ext/plantuml/plantuml-little",
+      "returncode": 0,
+      "stdout_path": "/ext/plantuml/plantuml-little/.trace-skill/live-jaws6-seq-x/java-render.stdout.svg",
+      "stderr_path": "/ext/plantuml/plantuml-little/.trace-skill/live-jaws6-seq-x/java-render.stderr.log",
+      "artifact_path": "/ext/plantuml/plantuml-little/.trace-skill/live-jaws6-seq-x/java.svg",
+      "stdout_excerpt": "<svg xmlns=\"http://www.w3.org/2000/svg\" xmlns:xlink=\"http://www.w3.org/1999/xlink\" contentStyleType=\"text/css\" data-diagram-type=\"SEQUENCE\" height=\"185px\" preserveAspectRatio=\"none\" style=\"width:527px;height:185px;background:#FFFFFF;\" version=\"1.1\" viewBox=\"0 0 527 185\" width=\"527px\" zoomAndPan=\"magnify\"><?plantuml 1.2026.3beta5?><defs/><g><g class=\"participant-lifeline\" data-entity-uid=\"part1\" data-qualified-name=\"po\" data-source-line=\"3\" id=\"part1-lifeline\"><g><title>Purchase Officer</title><rect fill=\"#000000\" fill-opacity=\"0.00000\" height=\"20\" width=\"8\" x=\"66.7056\" y=\"82.2969\"/><line style=\"stroke:#000000;stroke-width:1;stroke-dasharray:5,5;\" x1=\"70\" x2=\"70\" y1=\"82.2969\" y2=\"102.2969\"/></g></g><g class=\"participant-lifeline\" data-entity-uid=\"part2\" data-qualified-name=\"o\" data-source-l\n...\nh:1;\"/></g><g class=\"participant participant-tail\" data-entity-uid=\"part5\" data-qualified-name=\"sup\" data-source-line=\"7\" id=\"part5-tail\"><text fill=\"#000000\" font-family=\"Verdana\" font-size=\"14\" lengthAdjust=\"spacing\" textLength=\"57.6816\" x=\"452.8955\" y=\"114.292\">Supplier</text><ellipse cx=\"484.7363\" cy=\"126.5938\" fill=\"#FFFFFF\" rx=\"8\" ry=\"8\" style=\"stroke:#000000;stroke-width:1;\"/><path d=\"M484.7363,134.5938 L484.7363,161.5938 M471.7363,142.5938 L497.7363,142.5938 M484.7363,161.5938 L471.7363,176.5938 M484.7363,161.5938 L497.7363,176.5938\" fill=\"none\" style=\"stroke:#000000;stroke-width:1;\"/></g><?plantuml-src NSxB3S8m30RWUwOmaP1W1OuiK2G6G2PngQMGM8uZXc84RfsiLLGESFxqFtOsqPD04d9s3eCL1Nzf6YQi1CCuSY3rW1MaE44r3YoO3VnfqBZHdvnRV91rkV_A_8veMDSHcZ_xJA_4cGx7tbHx8DxAzyMrYIJU9ceJjm00?></g></svg>",
+      "stderr_excerpt": "TRACE participant code=o display0=:Order tooltip=:Order hex=3a,4f,72,64,65,72\nTRACE participant code=d_o display0=«datastore» tooltip=«datastore» hex=ab,64,61,74,61,73,74,6f,72,65,bb\nTRACE line tooltip=:Order\nTRACE line tooltip=«datastore»"
+    },
+    "reference_test": {
+      "cmd": [
+        "cargo",
+        "test",
+        "--test",
+        "reference_tests",
+        "reference_fixtures_dev_jaws_jaws6_puml",
+        "--",
+        "--nocapture"
+      ],
+      "cwd": "/ext/plantuml/plantuml-little",
+      "returncode": 101,
+      "stdout_path": "/ext/plantuml/plantuml-little/.trace-skill/live-jaws6-seq-x/reference-test.stdout.log",
+      "stderr_path": "/ext/plantuml/plantuml-little/.trace-skill/live-jaws6-seq-x/reference-test.stderr.log",
+      "artifact_path": null,
+      "stdout_excerpt": "running 1 test\ntest reference_fixtures_dev_jaws_jaws6_puml ... FAILED\n\nfailures:\n\nfailures:\n    reference_fixtures_dev_jaws_jaws6_puml\n\ntest result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 295 filtered out; finished in 0.09s",
+      "stderr_excerpt": "warning: unused import: `NoteLinkStrategy`\n  --> src/abel/entity.rs:12:58\n   |\n12 | use super::{CucaNote, DisplayPositioned, EntityPosition, NoteLinkStrategy, Together};\n   |                                                          ^^^^^^^^^^^^^^^^\n   |\n   = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default\n\nwarning: unused imports: `count_creole_lines` and `max_creole_plain_line_len`\n  --> src/render/svg.rs:27:5\n   |\n27 |     count_creole_lines, creole_plain_text, get_default_font_family_pub, max_creole_plain_line_len,\n   |     ^^^^^^^^^^^^^^^^^^                                                  ^^^^^^^^^^^^^^^^^^^^^^^^^\n\nwarning: unused import: `NotePosition`\n  --> src/render/svg_activity.rs:60:49\n   |\n60 |     use crate::model::activity::{ActivityEvent, NotePositi\n...\ns_sprite_test_polyline_sprites_puml`\n\nwarning: `plantuml-little` (test \"reference_tests\") generated 112 warnings\n    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.19s\n     Running tests/reference_tests.rs (target/debug/deps/reference_tests-69b2c048eac2359d)\n\nthread 'reference_fixtures_dev_jaws_jaws6_puml' (4105735) panicked at tests/reference_tests.rs:226:9:\ntests/fixtures/dev/jaws/jaws6.puml: output differs from reference at line 1 col 5442\nexpected: ...just=\"spacing\" textLength=\"47.3252\" x=\"360.0415\" y=\"70.9951\">Orders</text></g><g...\nactual:   ...just=\"spacing\" textLength=\"47.3252\" x=\"341.5127\" y=\"70.9951\">Orders</text></g><g...\nnote: run with `RUST_BACKTRACE=1` environment variable to display a backtrace\nerror: test failed, to rerun pass `--test reference_tests`"
+    }
+  }
+}

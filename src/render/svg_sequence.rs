@@ -16,6 +16,7 @@ use super::svg_richtext::{
     disable_path_sprites, enable_path_sprites, render_creole_text, set_default_font_family,
     take_back_filters,
 };
+use crate::klimt::sanitize_group_metadata_value;
 use crate::klimt::svg::{fmt_coord, xml_escape, LengthAdjust, SvgGraphic};
 
 // ── Style constants ─────────────────────────────────────────────────
@@ -92,6 +93,19 @@ fn encode_link_title(url: &str, display_text: &str) -> String {
     format!("..{encoded_url} {encoded_text}..")
 }
 
+fn first_metadata_title_line(display_text: &str) -> &str {
+    let first_literal = display_text.split("\\n").next().unwrap_or(display_text);
+    let first_encoded = first_literal
+        .split(crate::NEWLINE_CHAR)
+        .next()
+        .unwrap_or(first_literal);
+    first_encoded.lines().next().unwrap_or(first_encoded)
+}
+
+fn encode_metadata_title(display_text: &str) -> String {
+    xml_escape(&sanitize_group_metadata_value(first_metadata_title_line(display_text)))
+}
+
 // ── Lifelines ───────────────────────────────────────────────────────
 
 /// Compute lifeline invisible rect height from layout bounds.
@@ -124,7 +138,7 @@ fn draw_lifelines(
         let title_text = if let Some(url) = participant.and_then(|pp| pp.link_url.as_deref()) {
             encode_link_title(url, display)
         } else {
-            xml_escape(display)
+            encode_metadata_title(display)
         };
 
         let src_line_attr = sd
@@ -315,7 +329,7 @@ fn draw_lifelines_with_activations(
         let title_text = if let Some(url) = participant.and_then(|pp| pp.link_url.as_deref()) {
             encode_link_title(url, display)
         } else {
-            xml_escape(display)
+            encode_metadata_title(display)
         };
 
         // Teoz: ComponentRoseLine area width = 1 → line at posC, rect at posC - 3.5
@@ -403,7 +417,17 @@ fn draw_participant_box_with_font(
 
     match &p.kind {
         ParticipantKind::Actor => {
-            draw_participant_actor(sg, p, y, display_name, border, text_color, 0.5, "SansSerif");
+            draw_participant_actor(
+                sg,
+                p,
+                y,
+                display_name,
+                fill,
+                border,
+                text_color,
+                0.5,
+                "SansSerif",
+            );
         }
         ParticipantKind::Boundary => {
             draw_participant_boundary(sg, p, y, display_name, fill, border, text_color, head);
@@ -465,6 +489,11 @@ fn draw_participant_rect_with_font(
     let text_y_base = y + 19.9951 + (font_size - 14.0) * 0.92825;
     let line_h = font_metrics::line_height(font_family, font_size, false, false);
     let svg_font_family = svg_font_family_attr(font_family);
+    let line_widths: Vec<f64> = lines
+        .iter()
+        .map(|line| font_metrics::text_width(line, font_family, font_size, false, false))
+        .collect();
+    let max_line_width = line_widths.iter().copied().fold(0.0_f64, f64::max);
 
     let fill_attrs = resolve_fill_attrs(bg);
     let mut tmp = String::new();
@@ -498,11 +527,12 @@ fn draw_participant_rect_with_font(
             ));
         }
         let text_y = text_y_base + line_idx as f64 * line_h;
-        let line_w = font_metrics::text_width(line, font_family, font_size, false, false);
+        let line_w = line_widths[line_idx];
+        let line_x = text_x + (max_line_width - line_w) / 2.0;
         sg.set_fill_color(effective_text_color);
         sg.svg_text(
             line,
-            text_x,
+            line_x,
             text_y,
             Some(svg_font_family),
             font_size,
@@ -544,6 +574,7 @@ fn draw_participant_actor(
     p: &ParticipantLayout,
     y: f64,
     display_name: Option<&str>,
+    fill: &str,
     border: &str,
     text_color: &str,
     thickness: f64,
@@ -628,9 +659,10 @@ fn draw_participant_actor(
     let hcy = fmt_coord(head_cy);
     let hr = fmt_coord(head_r);
     let sw = fmt_stroke_width(thickness);
+    let fill_attrs = resolve_fill_attrs(fill);
     let mut el = String::new();
     write!(el,
-        "<ellipse cx=\"{hcx}\" cy=\"{hcy}\" fill=\"#E2E2F0\" rx=\"{hr}\" ry=\"{hr}\" style=\"stroke:{border};stroke-width:{sw};\"/>"
+        "<ellipse cx=\"{hcx}\" cy=\"{hcy}\" {fill_attrs} rx=\"{hr}\" ry=\"{hr}\" style=\"stroke:{border};stroke-width:{sw};\"/>"
     ).unwrap();
     sg.push_raw(&el);
 
@@ -663,6 +695,7 @@ fn draw_participant_actor_tail(
     p: &ParticipantLayout,
     y: f64,
     display_name: Option<&str>,
+    fill: &str,
     border: &str,
     text_color: &str,
     thickness: f64,
@@ -728,9 +761,10 @@ fn draw_participant_actor_tail(
     let hcy = fmt_coord(head_cy);
     let hr = fmt_coord(head_r);
     let sw = fmt_stroke_width(thickness);
+    let fill_attrs = resolve_fill_attrs(fill);
     let mut el = String::new();
     write!(el,
-        "<ellipse cx=\"{hcx}\" cy=\"{hcy}\" fill=\"#E2E2F0\" rx=\"{hr}\" ry=\"{hr}\" style=\"stroke:{border};stroke-width:{sw};\"/>"
+        "<ellipse cx=\"{hcx}\" cy=\"{hcy}\" {fill_attrs} rx=\"{hr}\" ry=\"{hr}\" style=\"stroke:{border};stroke-width:{sw};\"/>"
     ).unwrap();
     sg.push_raw(&el);
 
@@ -1992,7 +2026,7 @@ fn draw_activation(sg: &mut SvgGraphic, act: &ActivationLayout, title: &str) {
     let title_tag = if title.is_empty() {
         "<title/>".to_string()
     } else {
-        format!("<title>{}</title>", xml_escape(title))
+        format!("<title>{}</title>", encode_metadata_title(title))
     };
     // Use custom activation color if provided, otherwise default
     let bg = act.color.as_deref().unwrap_or(ACTIVATION_BG);
@@ -2712,9 +2746,29 @@ fn render_sequence_inner(
         }
         if is_actor {
             if is_head {
-                draw_participant_actor(sg, p, y, dn, part_border, part_text_color, part_thickness, &default_font);
+                draw_participant_actor(
+                    sg,
+                    p,
+                    y,
+                    dn,
+                    part_bg,
+                    part_border,
+                    part_text_color,
+                    part_thickness,
+                    &default_font,
+                );
             } else {
-                draw_participant_actor_tail(sg, p, y, dn, part_border, part_text_color, part_thickness, &default_font);
+                draw_participant_actor_tail(
+                    sg,
+                    p,
+                    y,
+                    dn,
+                    part_bg,
+                    part_border,
+                    part_text_color,
+                    part_thickness,
+                    &default_font,
+                );
             }
         } else {
             draw_participant_box_with_font(
@@ -3038,8 +3092,21 @@ fn find_participant_idx_by_x(
 
 #[cfg(test)]
 mod tests {
+    use super::encode_metadata_title;
+
     fn convert(puml: &str) -> String {
         crate::convert(puml).expect("convert must succeed")
+    }
+
+    #[test]
+    fn metadata_title_uses_java_ugroup_fix_semantics() {
+        assert_eq!(encode_metadata_title(":Order"), ".Order");
+        assert_eq!(encode_metadata_title("«datastore»"), ".datastore.");
+        assert_eq!(encode_metadata_title("«datastore»\\nOrders"), ".datastore.");
+        assert_eq!(
+            encode_metadata_title(&format!("«datastore»{}Orders", crate::NEWLINE_CHAR)),
+            ".datastore."
+        );
     }
 
     #[test]
@@ -3094,5 +3161,44 @@ mod tests {
         // Empty @startuml/@enduml may not parse as sequence diagram;
         // just verify it doesn't panic
         let _ = crate::convert("@startuml\n@enduml");
+    }
+
+    #[test]
+    fn participant_visible_text_is_not_sanitized_in_metadata_title_fix() {
+        let svg = convert("@startuml\nparticipant \":Order\" as o\no -> o : msg\n@enduml");
+        assert!(svg.contains("<title>.Order</title>"));
+        assert!(svg.contains(">:Order</text>"));
+    }
+
+    #[test]
+    fn theme_plain_renders_white_actor_head_and_participant_boxes() {
+        let svg = convert(
+            "@startuml\n!theme plain\nactor Alice\nparticipant Bob\nAlice -> Bob\n@enduml",
+        );
+        assert!(svg.contains(r#"<ellipse cx=""#));
+        assert!(svg.contains("fill=\"#FFFFFF\""));
+        assert!(svg.contains("<rect fill=\"#FFFFFF\""));
+    }
+
+    #[test]
+    fn multiline_default_participant_centers_each_line() {
+        let svg = convert(
+            "@startuml\n!theme plain\nparticipant \"«datastore»%newline()Orders\" as d\n@enduml",
+        );
+        let datastore_idx = svg.find("&#171;datastore&#187;</text>").unwrap();
+        let datastore_prefix = &svg[..datastore_idx];
+        let datastore_x_start = datastore_prefix.rfind(" x=\"").unwrap() + 4;
+        let datastore_x_end = datastore_prefix[datastore_x_start..].find('"').unwrap() + datastore_x_start;
+        let datastore_x: f64 = datastore_prefix[datastore_x_start..datastore_x_end]
+            .parse()
+            .unwrap();
+
+        let orders_idx = svg.find(">Orders</text>").unwrap();
+        let orders_prefix = &svg[..orders_idx];
+        let orders_x_start = orders_prefix.rfind(" x=\"").unwrap() + 4;
+        let orders_x_end = orders_prefix[orders_x_start..].find('"').unwrap() + orders_x_start;
+        let orders_x: f64 = orders_prefix[orders_x_start..orders_x_end].parse().unwrap();
+
+        assert!(orders_x > datastore_x);
     }
 }

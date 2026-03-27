@@ -27,6 +27,7 @@ use crate::model::{
     ArrowHead, ClassDiagram, ClassHideShowRule, ClassPortion, ClassRuleTarget, Diagram,
     Direction, Entity, EntityKind, GroupKind, LineStyle, Member, Stereotype,
 };
+use crate::render::svg_richtext::measure_creole_display_lines;
 use crate::Result;
 
 #[derive(Debug, Clone, Copy, Default, PartialEq)]
@@ -699,18 +700,17 @@ fn estimate_entity_size(
 /// Java: body text at font-size 14, padding 10px, no header/separator.
 fn estimate_rectangle_size(entity: &Entity) -> (f64, f64) {
     let desc_font_size = 14.0_f64;
-    let desc_lh = font_metrics::line_height("SansSerif", desc_font_size, false, false);
     let padding = 10.0;
-
-    let max_line_w = entity
-        .description
-        .iter()
-        .map(|l| font_metrics::text_width(l, "SansSerif", desc_font_size, false, false))
-        .fold(0.0_f64, f64::max);
-
-    let n_lines = entity.description.len().max(1) as f64;
-    let width = max_line_w + 2.0 * padding;
-    let height = n_lines * desc_lh + 2.0 * padding;
+    let (content_width, content_height) = measure_creole_display_lines(
+        &entity.description,
+        "SansSerif",
+        desc_font_size,
+        false,
+        false,
+        true,
+    );
+    let width = content_width + 2.0 * padding;
+    let height = content_height + 2.0 * padding;
 
     log::debug!(
         "estimate_rectangle_size: {} -> ({:.2}, {:.2}) [{} lines]",

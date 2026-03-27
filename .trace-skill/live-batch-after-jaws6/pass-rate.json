@@ -1,0 +1,26 @@
+{
+  "analysis_tier": "authoritative-pass-rate",
+  "passed": 101,
+  "failed": 195,
+  "total": 296,
+  "pass_rate": 34.122,
+  "pass_rate_delta": null,
+  "returncode": 101,
+  "worktree": {
+    "dirty": true,
+    "changed_count": 17,
+    "sample_paths": [
+      " M src/layout/activity.rs",
+      " M src/layout/mod.rs",
+      " M src/parser/activity.rs",
+      " M src/parser/class.rs",
+      " M src/parser/creole.rs",
+      " M src/parser/mod.rs",
+      " M src/preproc/expr.rs",
+      " M src/preproc/mod.rs",
+      " M src/render/svg.rs",
+      " M src/render/svg_activity.rs"
+    ],
+    "returncode": 0
+  }
+}

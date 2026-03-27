@@ -11,11 +11,19 @@ use regex::Regex;
 
 /// Parse class diagram source text into ClassDiagram IR
 pub fn parse_class_diagram(source: &str) -> Result<ClassDiagram> {
+    parse_class_diagram_with_original(source, None)
+}
+
+pub fn parse_class_diagram_with_original(
+    source: &str,
+    original_source: Option<&str>,
+) -> Result<ClassDiagram> {
     let block = super::common::extract_block(source);
     let content = block.as_deref().unwrap_or(source);
+    let line_mapping = build_line_mapping(source, original_source, content);
 
     // Preprocess: merge continuation lines (line ending with `\` joins next line)
-    let merged = merge_continuation_lines(content);
+    let merged = merge_continuation_lines_with_mapping(content, &line_mapping);
 
     let mut entities: Vec<Entity> = Vec::new();
     let mut links: Vec<Link> = Vec::new();
@@ -78,8 +86,8 @@ pub fn parse_class_diagram(source: &str) -> Result<ClassDiagram> {
     let re_direction_lr = Regex::new(r"^left\s+to\s+right\s+direction$").unwrap();
     let re_direction_tb = Regex::new(r"^top\s+to\s+bottom\s+direction$").unwrap();
 
-    for (line_idx, line) in merged.lines().enumerate() {
-        let source_line = line_idx + 1;
+    for (line, source_line) in &merged {
+        let source_line = *source_line;
         let trimmed = line.trim();
 
         // Handle style blocks
@@ -153,18 +161,12 @@ pub fn parse_class_diagram(source: &str) -> Result<ClassDiagram> {
         if in_description_block {
             if trimmed == "]" {
                 if let Some(ref mut ent) = current_entity {
-                    // Java: each physical line becomes a Display line.
-                    // Within each line, %chr(10) and %newline() (U+E100) expand to newlines,
-                    // but literal \n stays as text (Java Display.create for bracket bodies).
+                    // Java CommandCreateElementMultilines keeps each physical line as one
+                    // Display entry for bracket bodies. Hidden newline (U+E100) stays inside
+                    // the Display line and is interpreted later by the Creole pipeline.
                     ent.description = description_block_lines
                         .iter()
-                        .flat_map(|l| {
-                            l.replace(crate::NEWLINE_CHAR, "\n")
-                                .replace("%chr(10)", "\n")
-                                .split('\n')
-                                .map(|s| s.trim_end().to_string())
-                                .collect::<Vec<_>>()
-                        })
+                        .map(|line| line.trim_end().to_string())
                         .collect();
                     let name = ent.name.clone();
                     entities.push(current_entity.take().unwrap());
@@ -524,27 +526,92 @@ fn sort_entities_by_order(entities: &mut [Entity], entity_order: &[String]) {
     });
 }
 
-/// Merge continuation lines: a line ending with `\` (backslash at end) joins with the next line.
-fn merge_continuation_lines(content: &str) -> String {
-    let mut result = Vec::new();
-    let mut carry = String::new();
+fn normalize_for_mapping(s: &str) -> String {
+    s.replace("%newline()", "\u{E100}")
+        .replace("%n()", "\u{E100}")
+}
 
-    for line in content.lines() {
-        if let Some(stripped) = line.strip_suffix('\\') {
-            carry.push_str(stripped);
-        } else if !carry.is_empty() {
-            carry.push_str(line);
-            result.push(carry.clone());
-            carry.clear();
-        } else {
-            result.push(line.to_string());
+fn build_line_mapping(
+    cleaned_source: &str,
+    original_source: Option<&str>,
+    block: &str,
+) -> Vec<usize> {
+    let orig = original_source.unwrap_or(cleaned_source);
+    let orig_lines: Vec<&str> = orig.lines().collect();
+
+    let start_pos = orig_lines
+        .iter()
+        .position(|line| {
+            let trimmed = line.trim();
+            trimmed.starts_with("@startuml") || trimmed.starts_with("@start")
+        })
+        .unwrap_or(0);
+
+    let mut mapping = Vec::with_capacity(block.lines().count());
+    let mut search_from = start_pos + 1;
+
+    for block_line in block.lines() {
+        let trimmed = block_line.trim();
+        if trimmed.is_empty() || trimmed.starts_with("skinparam ") {
+            mapping.push(start_pos + 1 + mapping.len());
+            continue;
+        }
+        let mut found = false;
+        for orig_idx in search_from..orig_lines.len() {
+            let orig_trimmed = orig_lines[orig_idx].trim();
+            if orig_trimmed == trimmed
+                || normalize_for_mapping(orig_trimmed) == normalize_for_mapping(trimmed)
+            {
+                mapping.push(orig_idx);
+                search_from = orig_idx + 1;
+                found = true;
+                break;
+            }
+        }
+        if !found {
+            mapping.push(start_pos + 1 + mapping.len());
         }
     }
-    if !carry.is_empty() {
-        result.push(carry);
+
+    mapping
+}
+
+/// Merge continuation lines: a line ending with `\` (backslash at end) joins
+/// with the next line, keeping the first original source line number for the
+/// combined logical line.
+fn merge_continuation_lines_with_mapping(content: &str, line_mapping: &[usize]) -> Vec<(String, usize)> {
+    let mut result = Vec::new();
+    let mut carry = String::new();
+    let mut carry_source_line: Option<usize> = None;
+
+    for (idx, line) in content.lines().enumerate() {
+        let mapped_source_line = line_mapping.get(idx).copied().unwrap_or(idx + 1);
+        if let Some(stripped) = line.strip_suffix('\\') {
+            if carry.is_empty() {
+                carry_source_line = Some(mapped_source_line);
+            }
+            carry.push_str(stripped);
+            continue;
+        }
+        if !carry.is_empty() {
+            carry.push_str(line);
+            result.push((
+                std::mem::take(&mut carry),
+                carry_source_line.take().unwrap_or(mapped_source_line),
+            ));
+            continue;
+        }
+        result.push((line.to_string(), mapped_source_line));
     }
 
-    result.join("\n")
+    if !carry.is_empty() {
+        result.push((
+            carry,
+            carry_source_line.unwrap_or(line_mapping.len().saturating_add(1)),
+        ));
+    }
+
+    result
 }
 
 fn should_skip_line(trimmed: &str) -> bool {
@@ -1557,6 +1624,19 @@ mod tests {
         let cd = parse_class_diagram(&src).unwrap();
         assert!(cd.groups.len() >= 2);
         assert!(cd.entities.len() >= 4);
+    }
+
+    #[test]
+    fn parse_fixture_jaws3_uses_original_source_line_for_rectangle() {
+        let original = std::fs::read_to_string(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/tests/fixtures/dev/jaws/jaws3.puml"
+        ))
+        .unwrap();
+        let expanded = crate::preproc::preprocess(&original).unwrap();
+        let cd = parse_class_diagram_with_original(&expanded, Some(&original)).unwrap();
+        let rectangle = cd.entities.iter().find(|entity| entity.name == "r").unwrap();
+        assert_eq!(rectangle.source_line, Some(9));
     }
 
     // 22. Parse fixture a0005 - style blocks, title, legend, footer, header
