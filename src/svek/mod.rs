@@ -650,26 +650,27 @@ impl DotStringFactory {
             }
         }
         for edge in &self.bibliotekon.edges {
-            // LimitFinder.drawEmpty for edge label block
+            // LimitFinder: Java draws the label text block at
+            // (labelXY.x + shield, labelXY.y + shield) where labelXY is the
+            // top-left (getMinXY) of the Graphviz label polygon. The text
+            // block's own drawU then invokes drawEmpty(0, 0, dim) on the
+            // LimitFinder, so the LF sees (lx, ly) to (lx+w, ly+h).
             if let (Some(ref pt), Some(ref dim)) = (&edge.label_xy, &edge.label_dimension) {
                 let dim_w = if edge.divide_label_width_by_two {
                     dim.width / 2.0
                 } else {
                     dim.width
                 };
-                let shielded_w = dim_w + 2.0 * edge.label_shield;
-                let shielded_h = dim.height + 2.0 * edge.label_shield;
-                let lx = pt.x - shielded_w / 2.0;
-                let ly = pt.y - shielded_h / 2.0;
-                // drawEmpty: (x, y) to (x+w, y+h) — no -1
+                let lx = pt.x + edge.label_shield;
+                let ly = pt.y + edge.label_shield;
+                let lr = lx + dim_w;
+                let lb = ly + dim.height;
                 if lx < lf_min_x {
                     lf_min_x = lx;
                 }
                 if ly < lf_min_y {
                     lf_min_y = ly;
                 }
-                let lr = lx + shielded_w;
-                let lb = ly + shielded_h;
                 if lr > lf_max_x {
                     lf_max_x = lr;
                 }
