@@ -2,9 +2,11 @@
 
 ## Current Baseline
 
-- Current comparable baseline after polygon + fold fixes on 2026-03-28: `168 passed / 128 failed / 296 total`
-- Correctness fixes applied: skip label-bg polygons in graphviz edge parsing (scxml0001 now has correct arrowhead instead of label rectangle), note fold stroke-width 0.5→1.0 to match Java
-- Key blocking issue identified: 2px x-shift in graphviz edge path coordinates affects state and class diagrams; root cause is in svek moveDelta vs graphviz SVG translate transform interaction
+- Current baseline after edge coordinate fix on 2026-03-28: `170 passed / 126 failed / 296 total`
+- Fixed: 2px x/y shift in svek edge path coordinates — Graphviz SVG translate(tx,ty) and svek YDelta(full_height)+moveDelta use different transforms; now parsed edge data is corrected to match svek node space before merging
+- Fixed: DOT label TABLE border polygons (fill="none") incorrectly identified as arrowheads; now filtered alongside stroke="transparent" label backgrounds
+- Fixed: state note fold corner stroke-width from 1.0 to 0.5 to match Java SkinParam default
+- Previous baseline after polygon + fold fixes on 2026-03-28: `168 passed / 128 failed / 296 total`
 - Previous comparable baseline after LimitFinder image-width fix on 2026-03-28: `168 passed / 128 failed / 296 total`
 - Previous baseline after svek overhaul + forward-fix on 2026-03-27: `160 passed / 136 failed / 296 total`
 - The svek overhaul (class edge SIMPLIER, cluster shapes, shield ports) gained 9 tests (hideshow002/003, SVG0005, qualifiedassoc001/002, component/colors001) but regressed 9 others.
