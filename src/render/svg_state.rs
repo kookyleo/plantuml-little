@@ -1114,9 +1114,9 @@ fn render_note(sg: &mut SvgGraphic, tracker: &mut BoundsTracker, note: &StateNot
     ));
     sg.push_raw("\n");
 
-    // Fold corner path matches the note border stroke.
+    // Fold corner path uses stroke-width:1 (Java EntityImageNote.drawNoteHat default).
     sg.push_raw(&format!(
-        r#"<path d="M{},{} L{},{} L{},{} L{},{}" fill="{}" style="stroke:{};stroke-width:0.5;"/>"#,
+        r#"<path d="M{},{} L{},{} L{},{} L{},{}" fill="{}" style="stroke:{};stroke-width:1;"/>"#,
         fmt_coord(x + w - fold),
         fmt_coord(y),
         fmt_coord(x + w - fold),

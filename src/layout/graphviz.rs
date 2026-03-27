@@ -1040,27 +1040,39 @@ fn parse_svg_edge(g: &str, tx: f64, ty: f64) -> Option<EdgeLayout> {
     }
 
     // Parse arrowhead <polygon> for arrow tip and full polygon points.
+    // Skip label background polygons (stroke="transparent") — those are Java's
+    // SvekEdge label shields, not arrowheads.
     let path_end = g
         .find("<path")
         .and_then(|p| g[p..].find("/>").map(|e| p + e + 2));
     let polygon_search_start = path_end.unwrap_or(0);
-    let (arrow_tip, arrow_polygon_points) =
-        if let Some(poly_pos) = g[polygon_search_start..].find("<polygon") {
-            let polygon = &g[polygon_search_start + poly_pos..];
-            if let Some(pts_str) = parse_xml_attr_str(polygon, "points") {
-                let poly_pts = parse_polygon_points(pts_str, tx, ty);
-                let tip = if poly_pts.len() >= 2 {
-                    Some(poly_pts[1])
-                } else {
-                    poly_pts.first().copied()
-                };
-                (tip, Some(poly_pts))
-            } else {
-                (None, None)
+    let (arrow_tip, arrow_polygon_points) = {
+        let mut result = (None, None);
+        let mut search = polygon_search_start;
+        while let Some(poly_pos) = g[search..].find("<polygon") {
+            let abs_pos = search + poly_pos;
+            let polygon = &g[abs_pos..];
+            // Skip label background polygons with transparent stroke
+            let is_label_bg = polygon
+                .find("stroke=\"transparent\"")
+                .map_or(false, |s| s < polygon.find("/>").unwrap_or(usize::MAX));
+            if !is_label_bg {
+                if let Some(pts_str) = parse_xml_attr_str(polygon, "points") {
+                    let poly_pts = parse_polygon_points(pts_str, tx, ty);
+                    let tip = if poly_pts.len() >= 2 {
+                        Some(poly_pts[1])
+                    } else {
+                        poly_pts.first().copied()
+                    };
+                    result = (tip, Some(poly_pts));
+                    break;
+                }
             }
-        } else {
-            (None, None)
-        };
+            // Move past this polygon
+            search = abs_pos + 9; // past "<polygon"
+        }
+        result
+    };
 
     Some(EdgeLayout {
         from,
