@@ -2883,10 +2883,13 @@ fn draw_entity_box(
             stroke,
         );
     }
-    // UEmpty: Java body.drawU emits an empty shape at the bottom-right of each entity.
-    // drawEmpty(x, y, 1, 1) adds (x, y) to (x+1, y+1), but since the entity rect
-    // already covers (x-1,y-1) to (x+w-1,y+h-1), this just extends max to (x+w, y+h).
-    tracker.track_empty(x + w, y + h, 0.0, 0.0);
+    // Java's LimitFinder first-pass sees separator lines at entity IMAGE width
+    // (ULine(imageWidth,0) at entity translate). For non-expanded nodes where
+    // imageWidth == nodeWidth, this adds max_x = x + imageWidth (1px beyond
+    // the rect's x + nodeWidth - 1). For Graphviz-expanded nodes (qualifiers),
+    // imageWidth < nodeWidth and the line doesn't extend beyond the rect.
+    // Use image_width from the layout to match Java's LimitFinder.
+    tracker.track_line(x, y, x + nl.image_width, y);
 }
 
 /// Draw the generic type box (dashed rect + italic text) at top-right of entity.
@@ -2920,7 +2923,6 @@ fn draw_generic_box(
     sg.set_stroke_width(1.0, Some((2.0, 2.0)));
     sg.svg_rectangle(rect_x, rect_y, rect_w, rect_h, 0.0, 0.0, 0.0);
     tracker.track_rect(rect_x, rect_y, rect_w, rect_h);
-    tracker.track_empty(rect_x, rect_y, rect_w, rect_h);
 
     let text_x = rect_x + GENERIC_INNER_MARGIN;
     let text_y = rect_y + GENERIC_INNER_MARGIN + GENERIC_BASELINE;
@@ -4940,6 +4942,7 @@ mod tests {
                     cy: 50.0,
                     width: 120.0,
                     height: 80.0,
+                    image_width: 120.0,
                 },
                 NodeLayout {
                     id: "Bar".into(),
@@ -4947,6 +4950,7 @@ mod tests {
                     cy: 180.0,
                     width: 120.0,
                     height: 40.0,
+                    image_width: 120.0,
                 },
             ],
             edges: vec![EdgeLayout {
@@ -5061,6 +5065,7 @@ mod tests {
                 cy: 40.0,
                 width: 100.0,
                 height: 40.0,
+                image_width: 100.0,
             }],
             edges: vec![],
             clusters: vec![],
@@ -5105,6 +5110,7 @@ mod tests {
                 cy: 40.0,
                 width: 100.0,
                 height: 40.0,
+                image_width: 100.0,
             }],
             edges: vec![],
             clusters: vec![],
@@ -5382,6 +5388,7 @@ mod tests {
                 cy: 50.0,
                 width: 120.0,
                 height: 80.0,
+                image_width: 120.0,
             }],
             edges: vec![],
             notes: vec![ClassNoteLayout {

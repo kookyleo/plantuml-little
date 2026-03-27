@@ -226,6 +226,7 @@ pub fn layout(diagram: &Diagram, skin: &crate::style::SkinParams) -> Result<Diag
                     entity_position: None,
                     max_label_width: None,
                     order: None,
+                    image_width_pt: None,
                 }],
                 edges: vec![],
                 clusters: vec![],
@@ -1051,6 +1052,7 @@ fn layout_class_diagram(cd: &ClassDiagram, skin: &crate::style::SkinParams) -> R
         .map(|e| {
             let (mut w, h) =
                 estimate_entity_size(cd, e, member_row_h, name_font_size, attr_font_size);
+            let natural_w = w; // before qualifier expansion
             let shield = qualifier_margins.get(&e.name).and_then(|margins| {
                 let kal_width = margins.up_total_width.max(margins.down_total_width);
                 if kal_width > 0.0 {
@@ -1077,6 +1079,7 @@ fn layout_class_diagram(cd: &ClassDiagram, skin: &crate::style::SkinParams) -> R
                 entity_position: None,
                 max_label_width: None,
                 order: e.source_line,
+                image_width_pt: if (natural_w - w).abs() > 0.01 { Some(natural_w) } else { None },
             }
         })
         .collect();
@@ -1655,6 +1658,7 @@ mod tests {
             cy: 50.0,
             width: 120.0,
             height: 80.0,
+            image_width: 120.0,
         }];
         let name_to_id: HashMap<String, String> = [("Foo".to_string(), "Foo".to_string())]
             .into_iter()
@@ -1691,6 +1695,7 @@ mod tests {
             cy: 100.0,
             width: 100.0,
             height: 60.0,
+            image_width: 100.0,
         }];
         let name_to_id: HashMap<String, String> = [("Bar".to_string(), "Bar".to_string())]
             .into_iter()
@@ -1725,6 +1730,7 @@ mod tests {
             cy: 50.0,
             width: 80.0,
             height: 40.0,
+            image_width: 80.0,
         }];
         let name_to_id: HashMap<String, String> =
             [("X".to_string(), "X".to_string())].into_iter().collect();

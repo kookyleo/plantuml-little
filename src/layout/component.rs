@@ -266,6 +266,7 @@ pub fn layout_component(cd: &ComponentDiagram) -> Result<ComponentLayout> {
                 entity_position,
                 max_label_width,
                 order: e.source_line,
+                image_width_pt: None,
             }
         })
         .collect();

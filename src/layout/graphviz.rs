@@ -8,7 +8,7 @@ use std::process::{Command, Stdio};
 pub struct LayoutNode {
     pub id: String,
     pub label: String,
-    pub width_pt: f64,  // node width in pt (72pt = 1 inch)
+    pub width_pt: f64,  // node width in pt (72pt = 1 inch), may be expanded for qualifiers
     pub height_pt: f64, // node height in pt
     /// DOT shape override (default: Rectangle → "rect").
     pub shape: Option<crate::svek::shape_type::ShapeType>,
@@ -20,6 +20,10 @@ pub struct LayoutNode {
     pub max_label_width: Option<f64>,
     /// Source/declaration order used to preserve Java DOT emission ordering.
     pub order: Option<usize>,
+    /// Entity image natural width before qualifier expansion (px).
+    /// Java's LimitFinder uses this for separator line bounds instead of
+    /// the expanded DOT node width.
+    pub image_width_pt: Option<f64>,
 }
 
 /// Input: a graph edge
@@ -95,8 +99,12 @@ pub struct NodeLayout {
     pub id: String,
     pub cx: f64,     // center x (converted from Graphviz pt, Y-axis flipped)
     pub cy: f64,     // center y
-    pub width: f64,  // width
-    pub height: f64, // height
+    pub width: f64,  // width (from Graphviz, may be expanded)
+    pub height: f64, // height (from Graphviz, may be expanded)
+    /// Entity image natural width (DOT input minimum, in px).
+    /// When Graphviz expands a node beyond the image dimensions (e.g. for
+    /// qualifier shields), `image_width < width`.
+    pub image_width: f64,
 }
 
 /// Output: edge path after layout (SVG coordinates)
@@ -504,12 +512,18 @@ pub fn layout_with_svek(graph: &LayoutGraph) -> Result<GraphLayout, Error> {
             } else {
                 sn.uid.clone()
             };
+            let iw = if i < graph.nodes.len() {
+                graph.nodes[i].image_width_pt.unwrap_or(graph.nodes[i].width_pt)
+            } else {
+                sn.width
+            };
             NodeLayout {
                 id,
                 cx: sn.cx,
                 cy: sn.cy,
                 width: sn.width,
                 height: sn.height,
+                image_width: iw,
             }
         })
         .collect();
@@ -1003,6 +1017,7 @@ fn parse_svg_node(g: &str, tx: f64, ty: f64, graph: &LayoutGraph) -> Option<Node
         cy: min_y + h / 2.0,
         width: w,
         height: h,
+        image_width: w,
     })
 }
 
@@ -1308,6 +1323,7 @@ mod tests {
                     entity_position: None,
                     max_label_width: None,
                     order: None,
+                    image_width_pt: None,
                 },
                 LayoutNode {
                     id: "B".into(),
@@ -1319,6 +1335,7 @@ mod tests {
                     entity_position: None,
                     max_label_width: None,
                     order: None,
+                    image_width_pt: None,
                 },
             ],
             edges: vec![LayoutEdge {
@@ -1373,6 +1390,7 @@ mod tests {
                 entity_position: None,
                 max_label_width: None,
                 order: None,
+                image_width_pt: None,
             }],
             edges: vec![],
             clusters: vec![],
