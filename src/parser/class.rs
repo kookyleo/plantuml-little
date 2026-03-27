@@ -161,12 +161,18 @@ pub fn parse_class_diagram_with_original(
         if in_description_block {
             if trimmed == "]" {
                 if let Some(ref mut ent) = current_entity {
-                    // Java CommandCreateElementMultilines keeps each physical line as one
-                    // Display entry for bracket bodies. Hidden newline (U+E100) stays inside
-                    // the Display line and is interpreted later by the Creole pipeline.
+                    // Java: each physical line becomes a Display line.
+                    // Within each line, %chr(10) and %newline() (U+E100) expand to newlines,
+                    // but literal \n stays as text (Java Display.create for bracket bodies).
                     ent.description = description_block_lines
                         .iter()
-                        .map(|line| line.trim_end().to_string())
+                        .flat_map(|l| {
+                            l.replace(crate::NEWLINE_CHAR, "\n")
+                                .replace("%chr(10)", "\n")
+                                .split('\n')
+                                .map(|s| s.trim_end().to_string())
+                                .collect::<Vec<_>>()
+                        })
                         .collect();
                     let name = ent.name.clone();
                     entities.push(current_entity.take().unwrap());

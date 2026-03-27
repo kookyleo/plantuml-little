@@ -1385,7 +1385,60 @@ fn render_split_text_runs(
 ) {
     let runs = flatten_to_runs(spans);
     let mut cursor_x = x;
+    let mut first = true;
     for run in &runs {
+        let raw_text = &run.text;
+        // Java: leading whitespace on non-first runs is stripped and converted
+        // to cursor advancement. Trailing whitespace is also stripped.
+        let (text, trailing_spaces) = if !first {
+            let trimmed_start = raw_text.trim_start();
+            if trimmed_start.len() < raw_text.len() {
+                // Add space width for each trimmed leading space
+                let n_spaces = raw_text.len() - trimmed_start.len();
+                let space_w = font_metrics::text_width(" ", default_font, font_size, false, false);
+                cursor_x += space_w * n_spaces as f64;
+            }
+            // Also strip trailing whitespace, but count stripped trailing spaces
+            let trimmed_both = trimmed_start.trim_end();
+            let n_trailing = trimmed_start.len() - trimmed_both.len();
+            (trimmed_both.to_string(), n_trailing)
+        } else {
+            // First run: only strip trailing whitespace, count stripped trailing spaces
+            let trimmed = raw_text.trim_end();
+            let n_trailing = raw_text.len() - trimmed.len();
+            (trimmed.to_string(), n_trailing)
+        };
+        if text.is_empty() {
+            // Java: whitespace-only runs between styled segments are rendered as
+            // non-breaking space text elements. The cursor was already advanced
+            // by leading-space handling above.
+            if !first && !raw_text.is_empty() && raw_text.trim().is_empty() {
+                let n_spaces = raw_text.len();
+                let space_w = font_metrics::text_width(" ", default_font, font_size, false, false);
+                let total_space_w = space_w * n_spaces as f64;
+                let space_x = cursor_x - total_space_w;
+                let nbsp = "\u{00A0}".repeat(n_spaces);
+                write!(buf, r#"<text fill="{}""#, xml_escape(fill)).unwrap();
+                write!(buf, r#" font-family="{}""#, xml_escape(default_font)).unwrap();
+                write!(buf, r#" font-size="{}""#, fmt_coord(font_size)).unwrap();
+                if base_bold {
+                    buf.push_str(r#" font-weight="700""#);
+                }
+                write!(buf, r#" lengthAdjust="spacing""#).unwrap();
+                write!(buf, r#" textLength="{}""#, fmt_coord(total_space_w)).unwrap();
+                write!(
+                    buf,
+                    r#" x="{}" y="{}">"#,
+                    fmt_coord(space_x),
+                    fmt_coord(y)
+                )
+                .unwrap();
+                buf.push_str(&xml_escape(&nbsp));
+                buf.push_str("</text>");
+            }
+            first = false;
+            continue;
+        }
         let run_font = run.font_family.as_deref().unwrap_or(default_font);
         let run_bold = run.bold || base_bold;
         let run_italic = run.italic || base_italic;
@@ -1404,15 +1457,10 @@ fn render_split_text_runs(
             fill
         };
         // Java: for <size:N>, the y coordinate is adjusted (baseline shift).
-        // The shift equals the difference in font descent between the overridden
-        // and base sizes: y -= (descent(sz) - descent(base)).
-        // For subscript/superscript, Java shifts the baseline vertically.
         let run_y = if let Some(sz) = run.font_size_override {
             if sz == -1.0 {
-                // Subscript: shift down by font_size * 0.2852
                 y + font_size * 0.2852
             } else if sz == -2.0 {
-                // Superscript: shift up by font_size * 0.4071
                 y - font_size * 0.4071
             } else if sz > font_size {
                 let desc_base = font_metrics::descent(default_font, font_size, false, false);
@@ -1423,14 +1471,6 @@ fn render_split_text_runs(
             }
         } else {
             y
-        };
-        if run.text.is_empty() {
-            continue;
-        }
-        let text = if run.text.chars().all(char::is_whitespace) {
-            NBSP.repeat(run.text.chars().count())
-        } else {
-            run.text.clone()
         };
         let text_w = font_metrics::text_width(&text, run_font, run_size, run_bold, run_italic);
         if let Some(ref url) = run.link_url {
@@ -1471,6 +1511,12 @@ fn render_split_text_runs(
             buf.push_str("</a>");
         }
         cursor_x += text_w;
+        // Account for trailing whitespace that was stripped from the rendered text.
+        if trailing_spaces > 0 {
+            let space_w = font_metrics::text_width(" ", default_font, font_size, false, false);
+            cursor_x += space_w * trailing_spaces as f64;
+        }
+        first = false;
     }
 }
 

@@ -638,8 +638,10 @@ fn extract_document_style(css: &str, params: &mut SkinParams) {
             }
         }
 
-        // Extract properties from top-level section blocks (not inside document)
-        if !in_document && current_section.is_some() && depth > section_depth {
+        // Extract properties from top-level section blocks (not inside document).
+        // Only pick up direct properties (depth == section_depth + 1), not nested
+        // sub-selectors like `.highlight { BackGroundColor ... }`.
+        if !in_document && current_section.is_some() && depth == section_depth + 1 {
             if !trimmed.contains('{') && !trimmed.starts_with('}') {
                 let parts: Vec<&str> = trimmed.splitn(2, char::is_whitespace).collect();
                 if parts.len() == 2 {

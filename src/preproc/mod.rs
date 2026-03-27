@@ -2013,12 +2013,12 @@ impl Context {
         let trimmed = expanded.trim();
 
         if matches!(trimmed, "%newline()" | "%n()") {
-            return Ok(Value::Str(crate::NEWLINE_CHAR.to_string()));
+            return Ok(Value::Str("\n".to_string()));
         }
 
         // Preserve evaluated multiline strings verbatim. Re-parsing through
         // Value::parse_from() trims line endings, which breaks helpers that
-        // intentionally build text with literal newline characters.
+        // intentionally build text with %newline() inside loops.
         if expanded.contains('\n') || expanded.contains('\r') {
             return Ok(Value::Str(expanded));
         }
@@ -3514,28 +3514,21 @@ mod tests {
     fn test_function_with_while_concat_and_newline() {
         let src = "!function $rows()\n  !$n = 2\n  !$i = 0\n  !$res = \"\"\n  !while $i < $n\n    !$res = $res + \"row\" + $i + %newline()\n    !$i = $i + 1\n  !endwhile\n  !return $res\n!endfunction\n$rows()";
         let out = preprocess(src).unwrap();
-        let expected = format!("row0{}row1{}", crate::NEWLINE_CHAR, crate::NEWLINE_CHAR);
-        assert!(out.contains(&expected), "got: {:?}", out);
+        assert!(out.contains("row0\nrow1"), "got: {}", out);
     }
 
     #[test]
     fn test_expression_concat_preserves_existing_newlines() {
         let mut ctx = Context::new();
         let mut scope = HashMap::new();
-        scope.insert(
-            "$res".to_string(),
-            Value::Str(format!("row0{}", crate::NEWLINE_CHAR)),
-        );
+        scope.insert("$res".to_string(), Value::Str("row0\n".to_string()));
         scope.insert("$i".to_string(), Value::Int(1));
         ctx.local_scopes.push(scope);
 
         let out = ctx
             .evaluate_expression_text_with_funcs(r#"$res + "row" + $i + %newline()"#)
             .unwrap();
-        assert_eq!(
-            out,
-            format!("row0{}row1{}", crate::NEWLINE_CHAR, crate::NEWLINE_CHAR)
-        );
+        assert_eq!(out, "row0\nrow1\n");
     }
 
     #[test]
@@ -3557,10 +3550,7 @@ mod tests {
         };
 
         let out = ctx.eval_func(&func, &[]).unwrap();
-        assert_eq!(
-            out,
-            format!("row0{}row1{}", crate::NEWLINE_CHAR, crate::NEWLINE_CHAR)
-        );
+        assert_eq!(out, "row0\nrow1\n");
     }
 
     #[test]
@@ -3585,10 +3575,7 @@ mod tests {
         );
 
         let out = ctx.expand_line("$rows()").unwrap();
-        assert_eq!(
-            out,
-            format!("row0{}row1{}", crate::NEWLINE_CHAR, crate::NEWLINE_CHAR)
-        );
+        assert_eq!(out, "row0\nrow1\n");
     }
 
     #[test]

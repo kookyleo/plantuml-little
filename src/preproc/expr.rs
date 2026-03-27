@@ -93,9 +93,8 @@ pub(super) fn expand_expression_builtins(line: &str) -> String {
         );
     }
 
-    let nl = crate::NEWLINE_CHAR;
-    result = result.replace("%newline()", &format!("\"{nl}\""));
-    result = result.replace("%n()", &format!("\"{nl}\""));
+    result = result.replace("%newline()", "\"\n\"");
+    result = result.replace("%n()", "\"\n\"");
     result = result.replace("%true()", "true");
     result = result.replace("%false()", "false");
     result
@@ -566,7 +565,7 @@ pub(super) fn try_eval_concat_expr(s: &str) -> Option<String> {
             continue;
         }
         match trimmed {
-            "%newline()" | "%n()" => out.push(crate::NEWLINE_CHAR),
+            "%newline()" | "%n()" => out.push('\n'),
             _ if ((trimmed.starts_with('"') && trimmed.ends_with('"'))
                 || (trimmed.starts_with('\'') && trimmed.ends_with('\'')))
                 && trimmed.len() >= 2 =>
