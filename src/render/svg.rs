@@ -4489,8 +4489,12 @@ fn draw_edge_label_block(
         tracker.track_empty(x, y, bw, bh);
     }
 
-    let base_x = if boxed { x + margin } else { x };
-    let base_y = if boxed { y + margin + ascent } else { y + ascent };
+    // Java: TextBlockMarged translates by (left=margin, top=margin) before
+    // drawing the inner text block.  For boxed labels the margin is the box
+    // inset; for non-boxed center edge labels (margin=1) this produces the
+    // +1 px shift that addVisibilityModifier's TextBlockMarged applies.
+    let base_x = x + margin;
+    let base_y = y + margin + ascent;
     let align_width = if boxed {
         (outer_width - 2.0 * margin).max(max_width)
     } else {
