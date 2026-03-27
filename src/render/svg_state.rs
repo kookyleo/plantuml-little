@@ -255,10 +255,10 @@ pub fn render_state(
     // Java: SvekResult.calculateDimension = LF_span + delta(15, 15)
     let (span_w, span_h) = tracker.span();
     let raw_body_dim = (span_w + CANVAS_DELTA, span_h + CANVAS_DELTA);
-    log::trace!(
+    log::debug!(
         "state viewport: span=({span_w:.2}, {span_h:.2}) raw_body_dim=({:.2}, {:.2})",
         raw_body_dim.0,
-        raw_body_dim.1
+        raw_body_dim.1,
     );
 
     // Java ensureVisible: maxX = (int)(x + 1)
@@ -1112,11 +1112,10 @@ fn render_note(sg: &mut SvgGraphic, tracker: &mut BoundsTracker, note: &StateNot
         NOTE_BG,
         NOTE_BORDER,
     ));
-    sg.push_raw("\n");
 
-    // Fold corner path uses stroke-width:0.5 (Java SkinParam default for note elements).
+    // Fold corner path uses stroke-width:1 (Java default for note fold triangle).
     sg.push_raw(&format!(
-        r#"<path d="M{},{} L{},{} L{},{} L{},{}" fill="{}" style="stroke:{};stroke-width:0.5;"/>"#,
+        r#"<path d="M{},{} L{},{} L{},{} L{},{}" fill="{}" style="stroke:{};stroke-width:1;"/>"#,
         fmt_coord(x + w - fold),
         fmt_coord(y),
         fmt_coord(x + w - fold),
@@ -1128,10 +1127,10 @@ fn render_note(sg: &mut SvgGraphic, tracker: &mut BoundsTracker, note: &StateNot
         NOTE_BG,
         NOTE_BORDER,
     ));
-    sg.push_raw("\n");
 
-    // Track note bounds
-    tracker.track_polygon(&[(x, y), (x + w - fold, y), (x + w, y + fold), (x + w, y + h), (x, y + h)]);
+    // Track note bounds — notes are drawn as UPath in Java, not UPolygon,
+    // so they do NOT get HACK_X_FOR_POLYGON offsets.
+    tracker.track_path_bounds(x, y, x + w, y + h);
 
     let text_x = x + 6.0;
     let text_y = y + 17.0669;

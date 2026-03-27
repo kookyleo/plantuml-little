@@ -114,7 +114,6 @@ const FORK_BAR_HEIGHT: f64 = 8.0;
 /// Choice diamond side length.
 const CHOICE_SIZE: f64 = 24.0;
 const HISTORY_DIAMETER: f64 = 22.0;
-const NOTE_MAX_WIDTH: f64 = 200.0;
 const MARGIN: f64 = 7.0;
 
 // ---------------------------------------------------------------------------
@@ -208,7 +207,7 @@ fn expand_visual_lines(descriptions: &[String]) -> Vec<String> {
     lines
 }
 
-/// Estimate the size of a note, clamped to `NOTE_MAX_WIDTH`.
+/// Estimate the size of a note from its text content.
 fn estimate_note_size(text: &str) -> (f64, f64) {
     let lines: Vec<&str> = text.lines().collect();
     let note_line_height =
@@ -219,8 +218,7 @@ fn estimate_note_size(text: &str) -> (f64, f64) {
             crate::font_metrics::text_width(line, "SansSerif", NOTE_FONT_SIZE, false, false)
         })
         .fold(0.0_f64, f64::max);
-    let width = (max_line_width + 21.0).min(NOTE_MAX_WIDTH);
-    let width = width.max(60.0);
+    let width = (max_line_width + 21.0).max(60.0);
     let height = (lines.len().max(1) as f64 * note_line_height + 10.0).max(25.1328);
     (width, height)
 }
@@ -1170,15 +1168,16 @@ pub fn layout_state(diagram: &StateDiagram) -> Result<StateLayout> {
             shield: None,
             entity_position: None,
             max_label_width: None,
-            order: None,
+            order: Some(node_id_order.len()),
             image_width_pt: None,
         });
         node_id_order.push(state.id.clone());
     }
 
     let mut attached_notes: Vec<(&crate::model::state::StateNote, f64, f64)> = Vec::new();
+    let mut standalone_note_ids: std::collections::HashSet<String> = std::collections::HashSet::new();
     for note in &diagram.notes {
-        if let (Some(entity_id), Some(_target)) = (note.entity_id.as_ref(), note.target.as_ref()) {
+        if let Some(entity_id) = note.entity_id.as_ref() {
             let (w, h) = estimate_note_size(&note.text);
             gv_nodes.push(LayoutNode {
                 id: entity_id.clone(),
@@ -1193,7 +1192,11 @@ pub fn layout_state(diagram: &StateDiagram) -> Result<StateLayout> {
                 image_width_pt: None,
             });
             node_id_order.push(entity_id.clone());
-            attached_notes.push((note, w, h));
+            if note.target.is_some() {
+                attached_notes.push((note, w, h));
+            } else {
+                standalone_note_ids.insert(entity_id.clone());
+            }
         }
     }
 
@@ -1314,12 +1317,19 @@ pub fn layout_state(diagram: &StateDiagram) -> Result<StateLayout> {
         .filter_map(|(note, _, _)| note.entity_id.as_deref())
         .collect();
     let mut attached_note_positions: HashMap<String, (f64, f64, f64, f64)> = HashMap::new();
+    let mut standalone_note_positions: HashMap<String, (f64, f64, f64, f64)> = HashMap::new();
 
     for gv_node in &gv_layout.nodes {
         if attached_note_ids.contains(gv_node.id.as_str()) {
             let x = gv_node.cx - gv_node.width / 2.0 + MARGIN;
             let y = gv_node.cy - gv_node.height / 2.0 + margin_y;
             attached_note_positions.insert(gv_node.id.clone(), (x, y, gv_node.width, gv_node.height));
+            continue;
+        }
+        if standalone_note_ids.contains(gv_node.id.as_str()) {
+            let x = gv_node.cx - gv_node.width / 2.0 + MARGIN;
+            let y = gv_node.cy - gv_node.height / 2.0 + margin_y;
+            standalone_note_positions.insert(gv_node.id.clone(), (x, y, gv_node.width, gv_node.height));
             continue;
         }
         if let Some((template, _w, _h)) = sized_map.remove(&gv_node.id) {
@@ -1513,6 +1523,9 @@ pub fn layout_state(diagram: &StateDiagram) -> Result<StateLayout> {
                 } else {
                     (detached_note_x, detached_note_y, None)
                 }
+            } else if let Some(&(sx, sy, _sw, _sh)) = standalone_note_positions.get(entity_id) {
+                // Standalone `note as ALIAS` — use graphviz-determined position
+                (sx, sy, None)
             } else {
                 (detached_note_x, detached_note_y, None)
             }
@@ -1567,27 +1580,30 @@ pub fn layout_state(diagram: &StateDiagram) -> Result<StateLayout> {
         }
     }
 
-    // Compute total bounding box
-    let notes_right = if note_layouts.is_empty() {
-        0.0
-    } else {
-        note_layouts
-            .iter()
-            .map(|n| n.x + n.width)
-            .fold(0.0_f64, f64::max)
-    };
+    // Compute total bounding box.
+    // Notes positioned by graphviz (attached or standalone) are already included
+    // in content_width/content_height. Only truly detached notes (not in graphviz)
+    // need separate bounding-box tracking.
+    let non_gv_notes: Vec<&StateNoteLayout> = note_layouts
+        .iter()
+        .filter(|n| {
+            n.entity_id.as_ref().map_or(true, |id| {
+                !attached_note_positions.contains_key(id) && !standalone_note_positions.contains_key(id)
+            })
+        })
+        .collect();
+    let notes_right = non_gv_notes
+        .iter()
+        .map(|n| n.x + n.width)
+        .fold(0.0_f64, f64::max);
     let states_right = MARGIN + content_width;
     let total_width = states_right.max(notes_right) + MARGIN;
     let total_width = total_width.max(2.0 * MARGIN);
 
-    let notes_bottom = if note_layouts.is_empty() {
-        0.0
-    } else {
-        note_layouts
-            .iter()
-            .map(|n| n.y + n.height)
-            .fold(0.0_f64, f64::max)
-    };
+    let notes_bottom = non_gv_notes
+        .iter()
+        .map(|n| n.y + n.height)
+        .fold(0.0_f64, f64::max);
     let states_bottom = margin_y + content_height;
     let total_height = states_bottom.max(notes_bottom) + margin_y;
     let total_height = total_height.max(2.0 * MARGIN);
