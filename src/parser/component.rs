@@ -474,7 +474,12 @@ fn parse_entity_rest(rest: &str, kind: ComponentKind) -> EntityDecl {
         name = trimmed[..end_pos].to_string();
         id = name.clone();
 
-        let after = parse_entity_modifiers(trimmed[end_pos..].trim(), &mut id, &mut stereotype, &mut color);
+        let after = parse_entity_modifiers(
+            trimmed[end_pos..].trim(),
+            &mut id,
+            &mut stereotype,
+            &mut color,
+        );
         parse_entity_tail(
             &after,
             &mut opens_group,
@@ -513,7 +518,12 @@ fn parse_as_alias(after: &str, id: &mut String) -> String {
     }
 }
 
-fn parse_entity_modifiers(after: &str, id: &mut String, stereotype: &mut Option<String>, color: &mut Option<String>) -> String {
+fn parse_entity_modifiers(
+    after: &str,
+    id: &mut String,
+    stereotype: &mut Option<String>,
+    color: &mut Option<String>,
+) -> String {
     let mut remaining = after.trim().to_string();
 
     loop {

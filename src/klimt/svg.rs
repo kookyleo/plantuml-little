@@ -64,7 +64,11 @@ fn java_round_4(v: f64) -> f64 {
 
 /// Format a boolean flag for SVG path arc: 0 or 1.
 fn fmt_bool(x: f64) -> &'static str {
-    if x == 0.0 { "0" } else { "1" }
+    if x == 0.0 {
+        "0"
+    } else {
+        "1"
+    }
 }
 
 /// XML-escape text content matching Java's DOM serializer (us-ascii encoding).
@@ -112,7 +116,9 @@ pub fn xml_escape_attr(s: &str) -> String {
 /// Match Java DOM comment serialization under `us-ascii`: keep ASCII bytes
 /// verbatim and replace non-ASCII codepoints with `?`.
 pub fn svg_comment_escape(s: &str) -> String {
-    s.chars().map(|c| if c.is_ascii() { c } else { '?' }).collect()
+    s.chars()
+        .map(|c| if c.is_ascii() { c } else { '?' })
+        .collect()
 }
 
 // ── SvgGraphic ──────────────────────────────────────────────────────
@@ -382,12 +388,7 @@ impl SvgGraphic {
             id, x1, x2, y1, y2
         )
         .unwrap();
-        write!(
-            self.defs,
-            "<stop offset=\"0%\" stop-color=\"{}\"/>",
-            color1
-        )
-        .unwrap();
+        write!(self.defs, "<stop offset=\"0%\" stop-color=\"{}\"/>", color1).unwrap();
         write!(
             self.defs,
             "<stop offset=\"100%\" stop-color=\"{}\"/>",
@@ -429,7 +430,8 @@ impl SvgGraphic {
         .unwrap();
         write!(self.defs, "</filter>").unwrap();
 
-        self.filter_back_colors.insert(color.to_string(), id.clone());
+        self.filter_back_colors
+            .insert(color.to_string(), id.clone());
         id
     }
 
@@ -453,8 +455,17 @@ impl SvgGraphic {
         if height <= 0.0 || width <= 0.0 {
             return;
         }
-        log::trace!("svg_rectangle: x={}, y={}, w={}, h={}, rx={}, ry={}, fill={}, stroke={}",
-            x, y, width, height, rx, ry, self.fill, self.stroke);
+        log::trace!(
+            "svg_rectangle: x={}, y={}, w={}, h={}, rx={}, ry={}, fill={}, stroke={}",
+            x,
+            y,
+            width,
+            height,
+            rx,
+            ry,
+            self.fill,
+            self.stroke
+        );
         self.manage_shadow(delta_shadow);
         if !self.hidden {
             let mut elt = String::with_capacity(128);
@@ -473,21 +484,17 @@ impl SvgGraphic {
             elt.push_str("/>");
             self.buf.push_str(&elt);
         }
-        self.ensure_visible(x + width + 2.0 * delta_shadow, y + height + 2.0 * delta_shadow);
+        self.ensure_visible(
+            x + width + 2.0 * delta_shadow,
+            y + height + 2.0 * delta_shadow,
+        );
     }
 
     /// Emit an `<ellipse>` element.
     /// Java: SvgGraphics.svgEllipse()
     ///
     /// Attribute order: cx, cy, fill, [fill-opacity], [filter], rx, ry, [style]
-    pub fn svg_ellipse(
-        &mut self,
-        cx: f64,
-        cy: f64,
-        rx: f64,
-        ry: f64,
-        delta_shadow: f64,
-    ) {
+    pub fn svg_ellipse(&mut self, cx: f64, cy: f64, rx: f64, ry: f64, delta_shadow: f64) {
         self.manage_shadow(delta_shadow);
         if !self.hidden {
             let mut elt = String::with_capacity(128);
@@ -507,15 +514,7 @@ impl SvgGraphic {
 
     /// Emit an SVG arc ellipse path.
     /// Java: SvgGraphics.svgArcEllipse()
-    pub fn svg_arc_ellipse(
-        &mut self,
-        rx: f64,
-        ry: f64,
-        x1: f64,
-        y1: f64,
-        x2: f64,
-        y2: f64,
-    ) {
+    pub fn svg_arc_ellipse(&mut self, rx: f64, ry: f64, x1: f64, y1: f64, x2: f64, y2: f64) {
         if !self.hidden {
             let d = format!(
                 "M{},{} A{},{} 0 0 0 {} {}",
@@ -542,15 +541,15 @@ impl SvgGraphic {
     /// Java: SvgGraphics.svgLine()
     ///
     /// Attribute order: [filter], [style], x1, x2, y1, y2
-    pub fn svg_line(
-        &mut self,
-        x1: f64,
-        y1: f64,
-        x2: f64,
-        y2: f64,
-        delta_shadow: f64,
-    ) {
-        log::trace!("svg_line: x1={}, y1={}, x2={}, y2={}, stroke={}", x1, y1, x2, y2, self.stroke);
+    pub fn svg_line(&mut self, x1: f64, y1: f64, x2: f64, y2: f64, delta_shadow: f64) {
+        log::trace!(
+            "svg_line: x1={}, y1={}, x2={}, y2={}, stroke={}",
+            x1,
+            y1,
+            x2,
+            y2,
+            self.stroke
+        );
         self.manage_shadow(delta_shadow);
         if !self.hidden {
             let mut elt = String::with_capacity(128);
@@ -604,13 +603,7 @@ impl SvgGraphic {
     /// Emit a `<circle>` element.
     ///
     /// Attribute order (alphabetical): cx, cy, fill, [fill-opacity], [filter], r, [style]
-    pub fn svg_circle(
-        &mut self,
-        cx: f64,
-        cy: f64,
-        r: f64,
-        delta_shadow: f64,
-    ) {
+    pub fn svg_circle(&mut self, cx: f64, cy: f64, r: f64, delta_shadow: f64) {
         self.manage_shadow(delta_shadow);
         if !self.hidden {
             let mut elt = String::with_capacity(128);
@@ -769,8 +762,14 @@ impl SvgGraphic {
         orientation: i32,
         text_anchor: Option<&str>,
     ) {
-        log::trace!("svg_text: text={:?}, x={}, y={}, font_size={}, fill={}",
-            text, x, y, font_size, self.fill);
+        log::trace!(
+            "svg_text: text={:?}, x={}, y={}, font_size={}, fill={}",
+            text,
+            x,
+            y,
+            font_size,
+            self.fill
+        );
         if self.hidden {
             self.ensure_visible(x, y);
             self.ensure_visible(x + text_length, y);
@@ -857,13 +856,7 @@ impl SvgGraphic {
             )
             .unwrap();
         } else if orientation == 270 {
-            write!(
-                elt,
-                " transform=\"rotate(90 {} {})\"",
-                self.f(x),
-                self.f(y)
-            )
-            .unwrap();
+            write!(elt, " transform=\"rotate(90 {} {})\"", self.f(x), self.f(y)).unwrap();
         }
 
         write!(elt, " x=\"{}\"", self.f(x)).unwrap();
@@ -1142,7 +1135,8 @@ impl super::UGraphic for UGraphicSvg {
         self.apply_fill_color();
         self.apply_stroke_color();
         self.apply_stroke_width();
-        self.svg.svg_rectangle(x, y, width, height, rx / 2.0, rx / 2.0, 0.0);
+        self.svg
+            .svg_rectangle(x, y, width, height, rx / 2.0, rx / 2.0, 0.0);
     }
 
     /// Draw an ellipse. Java: DriverEllipseSvg.draw()
@@ -1169,14 +1163,23 @@ impl super::UGraphic for UGraphicSvg {
     }
 
     /// Draw text. Java: DriverTextSvg.draw()
-    fn draw_text(&mut self, text: &str, font_family: &str, font_size: f64, bold: bool, italic: bool) {
+    fn draw_text(
+        &mut self,
+        text: &str,
+        font_family: &str,
+        font_size: f64,
+        bold: bool,
+        italic: bool,
+    ) {
         let x = self.translate.dx;
         let y = self.translate.dy;
 
         let text_color = &self.param.color;
         self.svg.set_fill_color(&text_color.to_svg());
 
-        let dim = self.string_bounder.calculate_dimension(font_family, font_size, bold, italic, text);
+        let dim =
+            self.string_bounder
+                .calculate_dimension(font_family, font_size, bold, italic, text);
         let text_length = dim.width;
 
         let font_weight = if bold { Some("700") } else { Option::None };
@@ -1974,5 +1977,4 @@ mod tests {
         assert!(body.contains("width=\"0.5\""));
         assert!(body.contains("height=\"0.5\""));
     }
-
 }

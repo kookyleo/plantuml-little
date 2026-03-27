@@ -508,7 +508,10 @@ fn try_parse_timing_note(line: &str) -> Option<TimingNoteParseResult> {
 
         if let Some(colon_pos) = after_on.find(':') {
             let target = after_on[..colon_pos].trim().to_string();
-            let text = after_on[colon_pos + 1..].trim().replace("\\n", "\n").replace(crate::NEWLINE_CHAR, "\n");
+            let text = after_on[colon_pos + 1..]
+                .trim()
+                .replace("\\n", "\n")
+                .replace(crate::NEWLINE_CHAR, "\n");
             return Some(TimingNoteParseResult::SingleLine(TimingNote {
                 text,
                 position: "top".to_string(),
@@ -539,7 +542,10 @@ fn try_parse_timing_note(line: &str) -> Option<TimingNoteParseResult> {
 
             if let Some(colon_pos) = after_of.find(':') {
                 let target = after_of[..colon_pos].trim().to_string();
-                let text = after_of[colon_pos + 1..].trim().replace("\\n", "\n").replace(crate::NEWLINE_CHAR, "\n");
+                let text = after_of[colon_pos + 1..]
+                    .trim()
+                    .replace("\\n", "\n")
+                    .replace(crate::NEWLINE_CHAR, "\n");
                 return Some(TimingNoteParseResult::SingleLine(TimingNote {
                     text,
                     position: pos.to_string(),

@@ -104,7 +104,10 @@ const MIN_NOTE_HEIGHT: f64 = 28.0;
 
 /// Split text on `\n` escape sequences and return individual lines.
 fn split_text_lines(text: &str) -> Vec<String> {
-    text.split("\\n").flat_map(|s| s.split(crate::NEWLINE_CHAR)).map(|s| s.trim().to_string()).collect()
+    text.split("\\n")
+        .flat_map(|s| s.split(crate::NEWLINE_CHAR))
+        .map(|s| s.trim().to_string())
+        .collect()
 }
 
 /// Estimate the rendered size of a node based on its text.
@@ -113,7 +116,12 @@ fn estimate_node_size(text: &str, is_root: bool) -> (f64, f64, Vec<String>) {
 }
 
 /// Estimate node size with custom padding values from style.
-fn estimate_node_size_styled(text: &str, is_root: bool, h_pad: f64, v_pad: f64) -> (f64, f64, Vec<String>) {
+fn estimate_node_size_styled(
+    text: &str,
+    is_root: bool,
+    h_pad: f64,
+    v_pad: f64,
+) -> (f64, f64, Vec<String>) {
     let lines = split_text_lines(text);
     let max_line_width = lines
         .iter()
@@ -152,7 +160,9 @@ fn estimate_node_size_styled(text: &str, is_root: bool, h_pad: f64, v_pad: f64) 
 
 fn plain_text_lines(text: &str) -> Vec<String> {
     let plain = plain_text(&parse_creole(text));
-    let normalized = plain.replace("\\n", "\n").replace(crate::NEWLINE_CHAR, "\n");
+    let normalized = plain
+        .replace("\\n", "\n")
+        .replace(crate::NEWLINE_CHAR, "\n");
     let lines: Vec<String> = normalized
         .lines()
         .map(|line| line.trim().to_string())
@@ -202,7 +212,8 @@ fn compute_subtree_info(node: &MindmapNode) -> SubtreeInfo {
 /// Recursively compute subtree dimensions with custom padding.
 fn compute_subtree_info_styled(node: &MindmapNode, h_pad: f64, v_pad: f64) -> SubtreeInfo {
     let is_root = node.level == 1;
-    let (node_width, node_height, lines) = estimate_node_size_styled(&node.text, is_root, h_pad, v_pad);
+    let (node_width, node_height, lines) =
+        estimate_node_size_styled(&node.text, is_root, h_pad, v_pad);
 
     if node.children.is_empty() {
         return SubtreeInfo {
@@ -214,7 +225,9 @@ fn compute_subtree_info_styled(node: &MindmapNode, h_pad: f64, v_pad: f64) -> Su
         };
     }
 
-    let child_infos: Vec<SubtreeInfo> = node.children.iter()
+    let child_infos: Vec<SubtreeInfo> = node
+        .children
+        .iter()
         .map(|c| compute_subtree_info_styled(c, h_pad, v_pad))
         .collect();
 
@@ -371,12 +384,17 @@ fn layout_notes(notes: &[MindmapNote], root: &MindmapNodeLayout) -> Vec<MindmapN
 // ---------------------------------------------------------------------------
 
 /// Lay out a mindmap diagram into positioned nodes and edges.
-pub fn layout_mindmap(diagram: &MindmapDiagram, skin: &crate::style::SkinParams) -> Result<MindmapLayout> {
+pub fn layout_mindmap(
+    diagram: &MindmapDiagram,
+    skin: &crate::style::SkinParams,
+) -> Result<MindmapLayout> {
     // Extract style overrides for node padding
-    let h_pad = skin.get("node.padding")
+    let h_pad = skin
+        .get("node.padding")
         .and_then(|s| s.parse::<f64>().ok())
         .unwrap_or(H_PADDING);
-    let v_pad = skin.get("node.padding")
+    let v_pad = skin
+        .get("node.padding")
         .and_then(|s| s.parse::<f64>().ok())
         .unwrap_or(V_PADDING);
 

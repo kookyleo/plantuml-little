@@ -17,8 +17,8 @@
 
 #[cfg(test)]
 mod link_decor_tests {
-    use plantuml_little::decoration::LinkDecor;
     use plantuml_little::decoration::link_decor::ExtremityKind;
+    use plantuml_little::decoration::LinkDecor;
 
     // ── Variant count ──────────────────────────────────────────────────────
 
@@ -81,7 +81,10 @@ mod link_decor_tests {
         assert_eq!(format!("{:?}", LinkDecor::Plus), "Plus");
         assert_eq!(format!("{:?}", LinkDecor::HalfArrowUp), "HalfArrowUp");
         assert_eq!(format!("{:?}", LinkDecor::HalfArrowDown), "HalfArrowDown");
-        assert_eq!(format!("{:?}", LinkDecor::SquareToBeRemoved), "SquareToBeRemoved");
+        assert_eq!(
+            format!("{:?}", LinkDecor::SquareToBeRemoved),
+            "SquareToBeRemoved"
+        );
     }
 
     // ── Margin metadata ────────────────────────────────────────────────────
@@ -681,12 +684,18 @@ mod link_decor_tests {
 
     #[test]
     fn extremity_kind_arrow_is_arrow() {
-        assert_eq!(LinkDecor::Arrow.extremity_kind(), Some(ExtremityKind::Arrow));
+        assert_eq!(
+            LinkDecor::Arrow.extremity_kind(),
+            Some(ExtremityKind::Arrow)
+        );
     }
 
     #[test]
     fn extremity_kind_crowfoot_variants() {
-        assert_eq!(LinkDecor::Crowfoot.extremity_kind(), Some(ExtremityKind::Crowfoot));
+        assert_eq!(
+            LinkDecor::Crowfoot.extremity_kind(),
+            Some(ExtremityKind::Crowfoot)
+        );
         assert_eq!(
             LinkDecor::CircleCrowfoot.extremity_kind(),
             Some(ExtremityKind::CircleCrowfoot)
@@ -699,9 +708,18 @@ mod link_decor_tests {
 
     #[test]
     fn extremity_kind_remaining_single_variants() {
-        assert_eq!(LinkDecor::CircleLine.extremity_kind(), Some(ExtremityKind::CircleLine));
-        assert_eq!(LinkDecor::DoubleLine.extremity_kind(), Some(ExtremityKind::DoubleLine));
-        assert_eq!(LinkDecor::CircleCross.extremity_kind(), Some(ExtremityKind::CircleCross));
+        assert_eq!(
+            LinkDecor::CircleLine.extremity_kind(),
+            Some(ExtremityKind::CircleLine)
+        );
+        assert_eq!(
+            LinkDecor::DoubleLine.extremity_kind(),
+            Some(ExtremityKind::DoubleLine)
+        );
+        assert_eq!(
+            LinkDecor::CircleCross.extremity_kind(),
+            Some(ExtremityKind::CircleCross)
+        );
         assert_eq!(
             LinkDecor::ArrowAndCircle.extremity_kind(),
             Some(ExtremityKind::ArrowAndCircle)
@@ -711,7 +729,10 @@ mod link_decor_tests {
             Some(ExtremityKind::NotNavigable)
         );
         assert_eq!(LinkDecor::Plus.extremity_kind(), Some(ExtremityKind::Plus));
-        assert_eq!(LinkDecor::Square.extremity_kind(), Some(ExtremityKind::Square));
+        assert_eq!(
+            LinkDecor::Square.extremity_kind(),
+            Some(ExtremityKind::Square)
+        );
         assert_eq!(
             LinkDecor::Parenthesis.extremity_kind(),
             Some(ExtremityKind::Parenthesis)
@@ -807,7 +828,10 @@ mod link_middle_decor_tests {
 
     #[test]
     fn inversed_superset_is_identity() {
-        assert_eq!(LinkMiddleDecor::Superset.inversed(), LinkMiddleDecor::Superset);
+        assert_eq!(
+            LinkMiddleDecor::Superset.inversed(),
+            LinkMiddleDecor::Superset
+        );
     }
 
     #[test]
@@ -982,15 +1006,30 @@ mod link_style_tests {
 
     #[test]
     fn from_string1_dashed_case_insensitive() {
-        assert_eq!(LinkStyle::from_string1("dashed").kind(), LinkStyleKind::Dashed);
-        assert_eq!(LinkStyle::from_string1("DASHED").kind(), LinkStyleKind::Dashed);
-        assert_eq!(LinkStyle::from_string1("Dashed").kind(), LinkStyleKind::Dashed);
+        assert_eq!(
+            LinkStyle::from_string1("dashed").kind(),
+            LinkStyleKind::Dashed
+        );
+        assert_eq!(
+            LinkStyle::from_string1("DASHED").kind(),
+            LinkStyleKind::Dashed
+        );
+        assert_eq!(
+            LinkStyle::from_string1("Dashed").kind(),
+            LinkStyleKind::Dashed
+        );
     }
 
     #[test]
     fn from_string1_dotted_case_insensitive() {
-        assert_eq!(LinkStyle::from_string1("dotted").kind(), LinkStyleKind::Dotted);
-        assert_eq!(LinkStyle::from_string1("DOTTED").kind(), LinkStyleKind::Dotted);
+        assert_eq!(
+            LinkStyle::from_string1("dotted").kind(),
+            LinkStyleKind::Dotted
+        );
+        assert_eq!(
+            LinkStyle::from_string1("DOTTED").kind(),
+            LinkStyleKind::Dotted
+        );
     }
 
     #[test]
@@ -1040,8 +1079,8 @@ mod link_style_tests {
 
 #[cfg(test)]
 mod link_type_tests {
-    use plantuml_little::decoration::{LinkDecor, LinkMiddleDecor, LinkStyleKind, LinkType};
     use plantuml_little::decoration::link_type::LinkStrategy;
+    use plantuml_little::decoration::{LinkDecor, LinkMiddleDecor, LinkStyleKind, LinkType};
     use plantuml_little::klimt::UStroke;
 
     // ── Construction ───────────────────────────────────────────────────────
@@ -1131,9 +1170,7 @@ mod link_type_tests {
 
     #[test]
     fn both_none_looks_like_no_decor() {
-        assert!(
-            LinkType::new(LinkDecor::None, LinkDecor::None).looks_like_no_decor_at_all_svg()
-        );
+        assert!(LinkType::new(LinkDecor::None, LinkDecor::None).looks_like_no_decor_at_all_svg());
     }
 
     #[test]
@@ -1159,12 +1196,17 @@ mod link_type_tests {
 
     #[test]
     fn normal_style_is_not_invisible() {
-        assert_eq!(LinkType::new(LinkDecor::Arrow, LinkDecor::None).is_invisible(), false);
+        assert_eq!(
+            LinkType::new(LinkDecor::Arrow, LinkDecor::None).is_invisible(),
+            false
+        );
     }
 
     #[test]
     fn invisible_style_is_invisible() {
-        assert!(LinkType::new(LinkDecor::Arrow, LinkDecor::None).go_invisible().is_invisible());
+        assert!(LinkType::new(LinkDecor::Arrow, LinkDecor::None)
+            .go_invisible()
+            .is_invisible());
     }
 
     #[test]
@@ -1179,7 +1221,10 @@ mod link_type_tests {
 
     #[test]
     fn arrow_on_both_is_not_extends() {
-        assert_eq!(LinkType::new(LinkDecor::Arrow, LinkDecor::Arrow).is_extends(), false);
+        assert_eq!(
+            LinkType::new(LinkDecor::Arrow, LinkDecor::Arrow).is_extends(),
+            false
+        );
     }
 
     // ── Style derivation ───────────────────────────────────────────────────
@@ -1204,7 +1249,9 @@ mod link_type_tests {
 
     #[test]
     fn go_invisible_produces_invisible_style() {
-        assert!(LinkType::new(LinkDecor::Arrow, LinkDecor::None).go_invisible().is_invisible());
+        assert!(LinkType::new(LinkDecor::Arrow, LinkDecor::None)
+            .go_invisible()
+            .is_invisible());
     }
 
     #[test]
@@ -1610,9 +1657,18 @@ mod usymbol_tests {
 
     #[test]
     fn from_name_database_case_insensitive() {
-        assert_eq!(USymbolKind::from_name("database"), Some(USymbolKind::Database));
-        assert_eq!(USymbolKind::from_name("DATABASE"), Some(USymbolKind::Database));
-        assert_eq!(USymbolKind::from_name("Database"), Some(USymbolKind::Database));
+        assert_eq!(
+            USymbolKind::from_name("database"),
+            Some(USymbolKind::Database)
+        );
+        assert_eq!(
+            USymbolKind::from_name("DATABASE"),
+            Some(USymbolKind::Database)
+        );
+        assert_eq!(
+            USymbolKind::from_name("Database"),
+            Some(USymbolKind::Database)
+        );
     }
 
     #[test]
@@ -1622,13 +1678,22 @@ mod usymbol_tests {
 
     #[test]
     fn from_name_component_alias_maps_to_component2() {
-        assert_eq!(USymbolKind::from_name("component"), Some(USymbolKind::Component2));
-        assert_eq!(USymbolKind::from_name("component2"), Some(USymbolKind::Component2));
+        assert_eq!(
+            USymbolKind::from_name("component"),
+            Some(USymbolKind::Component2)
+        );
+        assert_eq!(
+            USymbolKind::from_name("component2"),
+            Some(USymbolKind::Component2)
+        );
     }
 
     #[test]
     fn from_name_component1() {
-        assert_eq!(USymbolKind::from_name("component1"), Some(USymbolKind::Component1));
+        assert_eq!(
+            USymbolKind::from_name("component1"),
+            Some(USymbolKind::Component1)
+        );
     }
 
     #[test]
@@ -1641,7 +1706,10 @@ mod usymbol_tests {
 
     #[test]
     fn from_name_actor_alias_maps_to_stickman() {
-        assert_eq!(USymbolKind::from_name("actor"), Some(USymbolKind::ActorStickman));
+        assert_eq!(
+            USymbolKind::from_name("actor"),
+            Some(USymbolKind::ActorStickman)
+        );
         assert_eq!(
             USymbolKind::from_name("actor_stickman"),
             Some(USymbolKind::ActorStickman)
@@ -1650,12 +1718,18 @@ mod usymbol_tests {
 
     #[test]
     fn from_name_actor_awesome() {
-        assert_eq!(USymbolKind::from_name("actor_awesome"), Some(USymbolKind::ActorAwesome));
+        assert_eq!(
+            USymbolKind::from_name("actor_awesome"),
+            Some(USymbolKind::ActorAwesome)
+        );
     }
 
     #[test]
     fn from_name_actor_hollow() {
-        assert_eq!(USymbolKind::from_name("actor_hollow"), Some(USymbolKind::ActorHollow));
+        assert_eq!(
+            USymbolKind::from_name("actor_hollow"),
+            Some(USymbolKind::ActorHollow)
+        );
     }
 
     #[test]
@@ -1668,13 +1742,22 @@ mod usymbol_tests {
 
     #[test]
     fn from_name_entity_aliases() {
-        assert_eq!(USymbolKind::from_name("entity"), Some(USymbolKind::EntityDomain));
-        assert_eq!(USymbolKind::from_name("entity_domain"), Some(USymbolKind::EntityDomain));
+        assert_eq!(
+            USymbolKind::from_name("entity"),
+            Some(USymbolKind::EntityDomain)
+        );
+        assert_eq!(
+            USymbolKind::from_name("entity_domain"),
+            Some(USymbolKind::EntityDomain)
+        );
     }
 
     #[test]
     fn from_name_rectangle_and_rect_alias() {
-        assert_eq!(USymbolKind::from_name("rectangle"), Some(USymbolKind::Rectangle));
+        assert_eq!(
+            USymbolKind::from_name("rectangle"),
+            Some(USymbolKind::Rectangle)
+        );
         assert_eq!(USymbolKind::from_name("rect"), Some(USymbolKind::Rectangle));
     }
 
@@ -1776,8 +1859,14 @@ mod usymbol_tests {
 
     #[test]
     fn margin_group_same_as_frame() {
-        assert_eq!(USymbolKind::Group.margin().x1, USymbolKind::Frame.margin().x1);
-        assert_eq!(USymbolKind::Group.margin().y1, USymbolKind::Frame.margin().y1);
+        assert_eq!(
+            USymbolKind::Group.margin().x1,
+            USymbolKind::Frame.margin().x1
+        );
+        assert_eq!(
+            USymbolKind::Group.margin().y1,
+            USymbolKind::Frame.margin().y1
+        );
     }
 
     #[test]
@@ -1871,7 +1960,12 @@ mod usymbol_tests {
             USymbolKind::Folder,
             USymbolKind::Storage,
         ] {
-            assert_eq!(kind.supp_height(), 0, "{:?}.supp_height() should be 0", kind);
+            assert_eq!(
+                kind.supp_height(),
+                0,
+                "{:?}.supp_height() should be 0",
+                kind
+            );
         }
     }
 
@@ -1887,7 +1981,11 @@ mod usymbol_tests {
 
     #[test]
     fn supp_width_default_is_zero() {
-        for kind in [USymbolKind::Rectangle, USymbolKind::Cloud, USymbolKind::Folder] {
+        for kind in [
+            USymbolKind::Rectangle,
+            USymbolKind::Cloud,
+            USymbolKind::Folder,
+        ] {
             assert_eq!(kind.supp_width(), 0, "{:?}.supp_width() should be 0", kind);
         }
     }

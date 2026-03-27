@@ -216,13 +216,22 @@ mod tests {
 
     #[test]
     fn from_str_loose_abstract() {
-        assert_eq!(LeafType::from_str_loose("abstract"), Some(LeafType::AbstractClass));
-        assert_eq!(LeafType::from_str_loose("ABSTRACT_CLASS"), Some(LeafType::AbstractClass));
+        assert_eq!(
+            LeafType::from_str_loose("abstract"),
+            Some(LeafType::AbstractClass)
+        );
+        assert_eq!(
+            LeafType::from_str_loose("ABSTRACT_CLASS"),
+            Some(LeafType::AbstractClass)
+        );
     }
 
     #[test]
     fn from_str_loose_diamond() {
-        assert_eq!(LeafType::from_str_loose("diamond"), Some(LeafType::StateChoice));
+        assert_eq!(
+            LeafType::from_str_loose("diamond"),
+            Some(LeafType::StateChoice)
+        );
     }
 
     #[test]
@@ -235,7 +244,10 @@ mod tests {
         assert_eq!(LeafType::from_str_loose("CLASS"), Some(LeafType::Class));
         assert_eq!(LeafType::from_str_loose("class"), Some(LeafType::Class));
         assert_eq!(LeafType::from_str_loose("NOTE"), Some(LeafType::Note));
-        assert_eq!(LeafType::from_str_loose("INTERFACE"), Some(LeafType::Interface));
+        assert_eq!(
+            LeafType::from_str_loose("INTERFACE"),
+            Some(LeafType::Interface)
+        );
     }
 
     #[test]
@@ -272,23 +284,57 @@ mod tests {
     fn all_variants_distinct() {
         use std::collections::HashSet;
         let variants = vec![
-            LeafType::EmptyPackage, LeafType::AbstractClass, LeafType::Class,
-            LeafType::Interface, LeafType::Annotation, LeafType::Protocol,
-            LeafType::Struct, LeafType::Exception, LeafType::Metaclass,
-            LeafType::Stereotype, LeafType::LollipopFull, LeafType::LollipopHalf,
-            LeafType::Note, LeafType::Tips, LeafType::Object, LeafType::Map,
-            LeafType::Json, LeafType::Association, LeafType::Enum,
-            LeafType::Circle, LeafType::Dataclass, LeafType::Record,
-            LeafType::Usecase, LeafType::UsecaseBusiness, LeafType::Description,
-            LeafType::ArcCircle, LeafType::Activity, LeafType::Branch,
-            LeafType::SynchroBar, LeafType::CircleStart, LeafType::CircleEnd,
-            LeafType::PointForAssociation, LeafType::ActivityConcurrent,
-            LeafType::State, LeafType::StateConcurrent, LeafType::PseudoState,
-            LeafType::DeepHistory, LeafType::StateChoice, LeafType::StateForkJoin,
-            LeafType::StateTransitionLabel, LeafType::Block, LeafType::Entity,
-            LeafType::Domain, LeafType::Requirement, LeafType::PortIn,
-            LeafType::PortOut, LeafType::ChenEntity, LeafType::ChenRelationship,
-            LeafType::ChenAttribute, LeafType::ChenCircle, LeafType::StillUnknown,
+            LeafType::EmptyPackage,
+            LeafType::AbstractClass,
+            LeafType::Class,
+            LeafType::Interface,
+            LeafType::Annotation,
+            LeafType::Protocol,
+            LeafType::Struct,
+            LeafType::Exception,
+            LeafType::Metaclass,
+            LeafType::Stereotype,
+            LeafType::LollipopFull,
+            LeafType::LollipopHalf,
+            LeafType::Note,
+            LeafType::Tips,
+            LeafType::Object,
+            LeafType::Map,
+            LeafType::Json,
+            LeafType::Association,
+            LeafType::Enum,
+            LeafType::Circle,
+            LeafType::Dataclass,
+            LeafType::Record,
+            LeafType::Usecase,
+            LeafType::UsecaseBusiness,
+            LeafType::Description,
+            LeafType::ArcCircle,
+            LeafType::Activity,
+            LeafType::Branch,
+            LeafType::SynchroBar,
+            LeafType::CircleStart,
+            LeafType::CircleEnd,
+            LeafType::PointForAssociation,
+            LeafType::ActivityConcurrent,
+            LeafType::State,
+            LeafType::StateConcurrent,
+            LeafType::PseudoState,
+            LeafType::DeepHistory,
+            LeafType::StateChoice,
+            LeafType::StateForkJoin,
+            LeafType::StateTransitionLabel,
+            LeafType::Block,
+            LeafType::Entity,
+            LeafType::Domain,
+            LeafType::Requirement,
+            LeafType::PortIn,
+            LeafType::PortOut,
+            LeafType::ChenEntity,
+            LeafType::ChenRelationship,
+            LeafType::ChenAttribute,
+            LeafType::ChenCircle,
+            LeafType::StillUnknown,
         ];
         let set: HashSet<_> = variants.iter().collect();
         assert_eq!(set.len(), variants.len(), "all variants must be distinct");

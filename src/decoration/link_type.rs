@@ -1,9 +1,9 @@
 // decoration::link_type - Complete link type (both endpoints + line style)
 // Port of Java PlantUML's decoration.LinkType
 
-use crate::klimt::UStroke;
 use super::link_decor::{LinkDecor, LinkMiddleDecor};
 use super::link_style::LinkStyle;
+use crate::klimt::UStroke;
 
 /// Link layout strategy hint (for DOT/svek).
 /// Java: `abel.LinkStrategy`
@@ -44,7 +44,12 @@ impl LinkType {
         middle_decor: LinkMiddleDecor,
         style: LinkStyle,
     ) -> Self {
-        Self { decor1, decor2, middle_decor, style }
+        Self {
+            decor1,
+            decor2,
+            middle_decor,
+            style,
+        }
     }
 
     // ── Accessors ──
@@ -104,25 +109,45 @@ impl LinkType {
     /// Return a copy with dashed line style.
     /// Java: `goDashed()`
     pub fn go_dashed(&self) -> Self {
-        Self::new_full(self.decor1, self.decor2, self.middle_decor, LinkStyle::dashed())
+        Self::new_full(
+            self.decor1,
+            self.decor2,
+            self.middle_decor,
+            LinkStyle::dashed(),
+        )
     }
 
     /// Return a copy with dotted line style.
     /// Java: `goDotted()`
     pub fn go_dotted(&self) -> Self {
-        Self::new_full(self.decor1, self.decor2, self.middle_decor, LinkStyle::dotted())
+        Self::new_full(
+            self.decor1,
+            self.decor2,
+            self.middle_decor,
+            LinkStyle::dotted(),
+        )
     }
 
     /// Return a copy with bold line style.
     /// Java: `goBold()`
     pub fn go_bold(&self) -> Self {
-        Self::new_full(self.decor1, self.decor2, self.middle_decor, LinkStyle::bold())
+        Self::new_full(
+            self.decor1,
+            self.decor2,
+            self.middle_decor,
+            LinkStyle::bold(),
+        )
     }
 
     /// Return a copy with invisible line style.
     /// Java: `getInvisible()`
     pub fn go_invisible(&self) -> Self {
-        Self::new_full(self.decor1, self.decor2, self.middle_decor, LinkStyle::invisible())
+        Self::new_full(
+            self.decor1,
+            self.decor2,
+            self.middle_decor,
+            LinkStyle::invisible(),
+        )
     }
 
     /// Return a copy with an explicit thickness override.
@@ -152,35 +177,65 @@ impl LinkType {
     /// Remove decor1 (set to None).
     /// Java: `withoutDecors1()`
     pub fn without_decors1(&self) -> Self {
-        Self::new_full(LinkDecor::None, self.decor2, self.middle_decor, self.style.clone())
+        Self::new_full(
+            LinkDecor::None,
+            self.decor2,
+            self.middle_decor,
+            self.style.clone(),
+        )
     }
 
     /// Remove decor2 (set to None).
     /// Java: `withoutDecors2()`
     pub fn without_decors2(&self) -> Self {
-        Self::new_full(self.decor1, LinkDecor::None, self.middle_decor, self.style.clone())
+        Self::new_full(
+            self.decor1,
+            LinkDecor::None,
+            self.middle_decor,
+            self.style.clone(),
+        )
     }
 
     /// Keep only decor1 (decor2 -> None).
     /// Java: `getPart1()`
     pub fn part1(&self) -> Self {
-        Self::new_full(self.decor1, LinkDecor::None, self.middle_decor, self.style.clone())
+        Self::new_full(
+            self.decor1,
+            LinkDecor::None,
+            self.middle_decor,
+            self.style.clone(),
+        )
     }
 
     /// Keep only decor2 (decor1 -> None).
     /// Java: `getPart2()`
     pub fn part2(&self) -> Self {
-        Self::new_full(LinkDecor::None, self.decor2, self.middle_decor, self.style.clone())
+        Self::new_full(
+            LinkDecor::None,
+            self.decor2,
+            self.middle_decor,
+            self.style.clone(),
+        )
     }
 
     // ── Middle decor derivation ──
 
     pub fn with_middle_circle(&self) -> Self {
-        Self::new_full(self.decor1, self.decor2, LinkMiddleDecor::Circle, self.style.clone())
+        Self::new_full(
+            self.decor1,
+            self.decor2,
+            LinkMiddleDecor::Circle,
+            self.style.clone(),
+        )
     }
 
     pub fn with_middle_circle_circled(&self) -> Self {
-        Self::new_full(self.decor1, self.decor2, LinkMiddleDecor::CircleCircled, self.style.clone())
+        Self::new_full(
+            self.decor1,
+            self.decor2,
+            LinkMiddleDecor::CircleCircled,
+            self.style.clone(),
+        )
     }
 
     pub fn with_middle_circle_circled1(&self) -> Self {
@@ -202,23 +257,43 @@ impl LinkType {
     }
 
     pub fn with_middle_subset(&self) -> Self {
-        Self::new_full(self.decor1, self.decor2, LinkMiddleDecor::Subset, self.style.clone())
+        Self::new_full(
+            self.decor1,
+            self.decor2,
+            LinkMiddleDecor::Subset,
+            self.style.clone(),
+        )
     }
 
     pub fn with_middle_superset(&self) -> Self {
-        Self::new_full(self.decor1, self.decor2, LinkMiddleDecor::Superset, self.style.clone())
+        Self::new_full(
+            self.decor1,
+            self.decor2,
+            LinkMiddleDecor::Superset,
+            self.style.clone(),
+        )
     }
 
     // ── Lollipop interface helpers ──
 
     /// Java: `withLollipopInterfaceEye1()`
     pub fn with_lollipop_interface_eye1(&self) -> Self {
-        Self::new_full(self.decor1, LinkDecor::None, self.middle_decor, self.style.clone())
+        Self::new_full(
+            self.decor1,
+            LinkDecor::None,
+            self.middle_decor,
+            self.style.clone(),
+        )
     }
 
     /// Java: `withLollipopInterfaceEye2()`
     pub fn with_lollipop_interface_eye2(&self) -> Self {
-        Self::new_full(LinkDecor::None, self.decor2, self.middle_decor, self.style.clone())
+        Self::new_full(
+            LinkDecor::None,
+            self.decor2,
+            self.middle_decor,
+            self.style.clone(),
+        )
     }
 
     // ── Stroke resolution ──
@@ -300,8 +375,11 @@ impl LinkType {
         if self.has(LinkDecor::NotNavigable) {
             return Some("not_navigable");
         }
-        if self.has_any(&[LinkDecor::Crowfoot, LinkDecor::CircleCrowfoot, LinkDecor::LineCrowfoot])
-        {
+        if self.has_any(&[
+            LinkDecor::Crowfoot,
+            LinkDecor::CircleCrowfoot,
+            LinkDecor::LineCrowfoot,
+        ]) {
             return Some("crowfoot");
         }
         if self.has_any(&[LinkDecor::CircleLine, LinkDecor::DoubleLine]) || self.both_none() {
@@ -338,8 +416,8 @@ impl std::fmt::Display for LinkType {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use super::super::link_style::LinkStyleKind;
+    use super::*;
 
     #[test]
     fn basic_new() {
@@ -374,8 +452,7 @@ mod tests {
 
     #[test]
     fn inversed_middle_decor() {
-        let lt = LinkType::new(LinkDecor::Arrow, LinkDecor::None)
-            .with_middle_circle_circled1();
+        let lt = LinkType::new(LinkDecor::Arrow, LinkDecor::None).with_middle_circle_circled1();
         let inv = lt.inversed();
         assert_eq!(inv.middle_decor(), LinkMiddleDecor::CircleCircled2);
     }
@@ -383,28 +460,20 @@ mod tests {
     #[test]
     fn looks_like_reverted_for_svg() {
         assert!(LinkType::new(LinkDecor::None, LinkDecor::Arrow).looks_like_reverted_for_svg());
-        assert!(
-            !LinkType::new(LinkDecor::Arrow, LinkDecor::None).looks_like_reverted_for_svg()
-        );
-        assert!(
-            !LinkType::new(LinkDecor::Arrow, LinkDecor::Arrow).looks_like_reverted_for_svg()
-        );
+        assert!(!LinkType::new(LinkDecor::Arrow, LinkDecor::None).looks_like_reverted_for_svg());
+        assert!(!LinkType::new(LinkDecor::Arrow, LinkDecor::Arrow).looks_like_reverted_for_svg());
     }
 
     #[test]
     fn looks_like_no_decor_at_all_svg() {
         // Both none
-        assert!(
-            LinkType::new(LinkDecor::None, LinkDecor::None).looks_like_no_decor_at_all_svg()
-        );
+        assert!(LinkType::new(LinkDecor::None, LinkDecor::None).looks_like_no_decor_at_all_svg());
         // Both present
         assert!(
             LinkType::new(LinkDecor::Arrow, LinkDecor::Extends).looks_like_no_decor_at_all_svg()
         );
         // One side only
-        assert!(
-            !LinkType::new(LinkDecor::Arrow, LinkDecor::None).looks_like_no_decor_at_all_svg()
-        );
+        assert!(!LinkType::new(LinkDecor::Arrow, LinkDecor::None).looks_like_no_decor_at_all_svg());
     }
 
     #[test]
@@ -461,8 +530,14 @@ mod tests {
     #[test]
     fn middle_subset_superset() {
         let lt = LinkType::new(LinkDecor::Arrow, LinkDecor::None);
-        assert_eq!(lt.with_middle_subset().middle_decor(), LinkMiddleDecor::Subset);
-        assert_eq!(lt.with_middle_superset().middle_decor(), LinkMiddleDecor::Superset);
+        assert_eq!(
+            lt.with_middle_subset().middle_decor(),
+            LinkMiddleDecor::Subset
+        );
+        assert_eq!(
+            lt.with_middle_superset().middle_decor(),
+            LinkMiddleDecor::Superset
+        );
     }
 
     // ── Stroke resolution ──

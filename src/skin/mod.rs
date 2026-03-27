@@ -7,17 +7,17 @@
 // - Component types (participant, note, divider, etc.)
 // - Rose theme (the default PlantUML skin)
 
+pub mod actor;
 pub mod arrow;
 pub mod component;
-pub mod actor;
 pub mod rose;
 
 // Re-exports
+pub use actor::{
+    ActorAwesome, ActorGeometry, ActorHollow, ActorStickMan, ActorStyle, AwesomePathCmd,
+};
 pub use arrow::{
     ArrowBody, ArrowConfiguration, ArrowDecoration, ArrowDirection, ArrowDressing, ArrowHead,
     ArrowPart,
 };
 pub use component::{ComponentStyle, ComponentType};
-pub use actor::{
-    ActorAwesome, ActorGeometry, ActorHollow, ActorStickMan, ActorStyle, AwesomePathCmd,
-};

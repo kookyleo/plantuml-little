@@ -5,7 +5,7 @@ use crate::font_metrics;
 use crate::klimt::svg::{fmt_coord, xml_escape, LengthAdjust, SvgGraphic};
 use crate::layout::wbs::{WbsEdgeLayout, WbsLayout, WbsNodeLayout, WbsNoteLayout};
 use crate::model::wbs::WbsDiagram;
-use crate::render::svg::{write_bg_rect, write_svg_root_bg, ensure_visible_int};
+use crate::render::svg::{ensure_visible_int, write_bg_rect, write_svg_root_bg};
 use crate::skin::rose::{BORDER_COLOR, ENTITY_BG, NOTE_BG, NOTE_BORDER, NOTE_FOLD, TEXT_COLOR};
 use crate::style::SkinParams;
 use crate::Result;
@@ -54,15 +54,24 @@ pub fn render_wbs(_wd: &WbsDiagram, layout: &WbsLayout, skin: &SkinParams) -> Re
     }
 
     // Collect unmatched edges (stub lines, e.g. Fork with 0 children)
-    let matched_edges: std::collections::HashSet<usize> = parent_children.values()
+    let matched_edges: std::collections::HashSet<usize> = parent_children
+        .values()
         .flat_map(|v| v.iter().map(|&(ei, _)| ei))
         .collect();
 
     if !layout.nodes.is_empty() {
-        let root_idx = (0..layout.nodes.len()).find(|i| !child_nodes.contains(i)).unwrap_or(0);
+        let root_idx = (0..layout.nodes.len())
+            .find(|i| !child_nodes.contains(i))
+            .unwrap_or(0);
         render_fork_root(
-            &mut sg, layout, root_idx, &parent_children,
-            wbs_bg, wbs_border, wbs_font, edge_color,
+            &mut sg,
+            layout,
+            root_idx,
+            &parent_children,
+            wbs_bg,
+            wbs_border,
+            wbs_font,
+            edge_color,
         );
     }
 
@@ -100,12 +109,18 @@ fn render_fork_root(
     layout: &WbsLayout,
     node_idx: usize,
     parent_children: &HashMap<usize, Vec<(usize, usize)>>,
-    bg: &str, border: &str, font_color: &str, edge_color: &str,
+    bg: &str,
+    border: &str,
+    font_color: &str,
+    edge_color: &str,
 ) {
     let children = parent_children.get(&node_idx);
 
     if let Some(child_list) = children {
-        let edges: Vec<&WbsEdgeLayout> = child_list.iter().map(|&(ei, _)| &layout.edges[ei]).collect();
+        let edges: Vec<&WbsEdgeLayout> = child_list
+            .iter()
+            .map(|&(ei, _)| &layout.edges[ei])
+            .collect();
         let connector_y = (edges[0].from_y + edges[0].to_y) / 2.0;
 
         // For each child: vertical drop from bar, then child subtree
@@ -114,14 +129,26 @@ fn render_fork_root(
             sg.set_stroke_color(Some(edge_color));
             sg.set_stroke_width(STROKE_WIDTH, None);
             sg.svg_line(edge.to_x, connector_y, edge.to_x, edge.to_y, 0.0);
-            render_itf_subtree(sg, layout, ci, parent_children, bg, border, font_color, edge_color);
+            render_itf_subtree(
+                sg,
+                layout,
+                ci,
+                parent_children,
+                bg,
+                border,
+                font_color,
+                edge_color,
+            );
         }
 
         // Horizontal connector bar: always drawn (even with 1 child)
         let root_node = &layout.nodes[node_idx];
         let root_cx = root_node.x + root_node.width / 2.0;
         let min_x = edges.iter().map(|e| e.to_x).fold(f64::INFINITY, f64::min);
-        let max_x = edges.iter().map(|e| e.to_x).fold(f64::NEG_INFINITY, f64::max);
+        let max_x = edges
+            .iter()
+            .map(|e| e.to_x)
+            .fold(f64::NEG_INFINITY, f64::max);
         // Bar from leftmost child connection to rightmost (or root center if 1 child)
         let bar_left = min_x.min(root_cx);
         let bar_right = max_x.max(root_cx);
@@ -137,7 +164,13 @@ fn render_fork_root(
         // Root vertical connector (from root bottom to bar)
         sg.set_stroke_color(Some(edge_color));
         sg.set_stroke_width(STROKE_WIDTH, None);
-        sg.svg_line(root_cx, root_node.y + root_node.height, root_cx, connector_y, 0.0);
+        sg.svg_line(
+            root_cx,
+            root_node.y + root_node.height,
+            root_cx,
+            connector_y,
+            0.0,
+        );
     } else {
         render_node(sg, &layout.nodes[node_idx], bg, border, font_color);
     }
@@ -149,7 +182,10 @@ fn render_itf_subtree(
     layout: &WbsLayout,
     node_idx: usize,
     parent_children: &HashMap<usize, Vec<(usize, usize)>>,
-    bg: &str, border: &str, font_color: &str, edge_color: &str,
+    bg: &str,
+    border: &str,
+    font_color: &str,
+    edge_color: &str,
 ) {
     // Draw this node first
     render_node(sg, &layout.nodes[node_idx], bg, border, font_color);
@@ -178,7 +214,16 @@ fn render_itf_subtree(
             sg.set_stroke_color(Some(edge_color));
             sg.set_stroke_width(STROKE_WIDTH, None);
             sg.svg_line(child_right, child_mid_y, parent_cx, child_mid_y, 0.0);
-            render_itf_subtree(sg, layout, ci, parent_children, bg, border, font_color, edge_color);
+            render_itf_subtree(
+                sg,
+                layout,
+                ci,
+                parent_children,
+                bg,
+                border,
+                font_color,
+                edge_color,
+            );
             last_child_y_mid = last_child_y_mid.max(child_mid_y);
         }
 
@@ -189,7 +234,16 @@ fn render_itf_subtree(
             sg.set_stroke_color(Some(edge_color));
             sg.set_stroke_width(STROKE_WIDTH, None);
             sg.svg_line(parent_cx, child_mid_y, child.x, child_mid_y, 0.0);
-            render_itf_subtree(sg, layout, ci, parent_children, bg, border, font_color, edge_color);
+            render_itf_subtree(
+                sg,
+                layout,
+                ci,
+                parent_children,
+                bg,
+                border,
+                font_color,
+                edge_color,
+            );
             last_child_y_mid = last_child_y_mid.max(child_mid_y);
         }
 
@@ -201,7 +255,13 @@ fn render_itf_subtree(
     }
 }
 
-fn render_node(sg: &mut SvgGraphic, node: &WbsNodeLayout, bg: &str, border: &str, font_color: &str) {
+fn render_node(
+    sg: &mut SvgGraphic,
+    node: &WbsNodeLayout,
+    bg: &str,
+    border: &str,
+    font_color: &str,
+) {
     sg.set_fill_color(bg);
     sg.set_stroke_color(Some(border));
     sg.set_stroke_width(STROKE_WIDTH, None);
@@ -214,8 +274,14 @@ fn render_node(sg: &mut SvgGraphic, node: &WbsNodeLayout, bg: &str, border: &str
         let text_y = node.y + PAD + ASCENT;
         let mut tmp = String::new();
         render_creole_text(
-            &mut tmp, &node.text, text_x, text_y, LINE_HEIGHT,
-            font_color, None, &format!(r#"font-size="{FONT_SIZE:.0}""#),
+            &mut tmp,
+            &node.text,
+            text_x,
+            text_y,
+            LINE_HEIGHT,
+            font_color,
+            None,
+            &format!(r#"font-size="{FONT_SIZE:.0}""#),
         );
         sg.push_raw(&tmp);
         return;
@@ -230,11 +296,19 @@ fn render_node(sg: &mut SvgGraphic, node: &WbsNodeLayout, bg: &str, border: &str
         let text_len = font_metrics::text_width(line, "SansSerif", FONT_SIZE, false, false);
         sg.set_fill_color(font_color);
         sg.svg_text(
-            line, text_x, text_y,
-            Some("sans-serif"), FONT_SIZE,
-            None, None, None,
-            text_len, LengthAdjust::Spacing,
-            None, 0, None,
+            line,
+            text_x,
+            text_y,
+            Some("sans-serif"),
+            FONT_SIZE,
+            None,
+            None,
+            None,
+            text_len,
+            LengthAdjust::Spacing,
+            None,
+            0,
+            None,
         );
     }
 }
@@ -254,10 +328,12 @@ fn render_note(sg: &mut SvgGraphic, note: &WbsNoteLayout, font_color: &str) {
     sg.set_fill_color(NOTE_BG);
     sg.set_stroke_color(Some(NOTE_BORDER));
     sg.set_stroke_width(0.5, None);
-    sg.svg_polygon(0.0, &[
-        note.x, note.y, fold_x, note.y,
-        x2, fold_y, x2, y2, note.x, y2,
-    ]);
+    sg.svg_polygon(
+        0.0,
+        &[
+            note.x, note.y, fold_x, note.y, x2, fold_y, x2, y2, note.x, y2,
+        ],
+    );
 
     // Fold path
     sg.push_raw(&format!(
@@ -268,8 +344,16 @@ fn render_note(sg: &mut SvgGraphic, note: &WbsNoteLayout, font_color: &str) {
 
     let mut tmp = String::new();
     use crate::render::svg_richtext::render_creole_text;
-    render_creole_text(&mut tmp, &note.text, note.x + 6.0, note.y + NOTE_FOLD + FONT_SIZE,
-        LINE_HEIGHT, font_color, None, r#"font-size="13""#);
+    render_creole_text(
+        &mut tmp,
+        &note.text,
+        note.x + 6.0,
+        note.y + NOTE_FOLD + FONT_SIZE,
+        LINE_HEIGHT,
+        font_color,
+        None,
+        r#"font-size="13""#,
+    );
     sg.push_raw(&tmp);
 }
 
@@ -299,11 +383,12 @@ fn render_extra_link(sg: &mut SvgGraphic, link: &WbsEdgeLayout, color: &str) {
         sg.set_fill_color(color);
         sg.set_stroke_color(Some(color));
         sg.set_stroke_width(1.0, None);
-        sg.svg_polygon(0.0, &[
-            tip_x, tip_y, left_x, left_y,
-            mid_x, mid_y, right_x, right_y,
-            tip_x, tip_y,
-        ]);
+        sg.svg_polygon(
+            0.0,
+            &[
+                tip_x, tip_y, left_x, left_y, mid_x, mid_y, right_x, right_y, tip_x, tip_y,
+            ],
+        );
     }
 }
 
@@ -316,53 +401,92 @@ mod tests {
 
     fn empty_wbs() -> WbsDiagram {
         WbsDiagram {
-            root: WbsNode { text: "R".into(), children: vec![], direction: WbsDirection::Default, alias: None, level: 1 },
-            links: vec![], notes: vec![],
+            root: WbsNode {
+                text: "R".into(),
+                children: vec![],
+                direction: WbsDirection::Default,
+                alias: None,
+                level: 1,
+            },
+            links: vec![],
+            notes: vec![],
         }
     }
     fn empty_layout() -> WbsLayout {
-        WbsLayout { nodes: vec![], edges: vec![], extra_links: vec![], notes: vec![], width: 200.0, height: 100.0 }
+        WbsLayout {
+            nodes: vec![],
+            edges: vec![],
+            extra_links: vec![],
+            notes: vec![],
+            width: 200.0,
+            height: 100.0,
+        }
     }
     fn make_node(text: &str, level: usize, x: f64, y: f64, w: f64, h: f64) -> WbsNodeLayout {
-        WbsNodeLayout { text: text.into(), alias: None, x, y, width: w, height: h, level }
+        WbsNodeLayout {
+            text: text.into(),
+            alias: None,
+            x,
+            y,
+            width: w,
+            height: h,
+            level,
+        }
     }
 
-    #[test] fn test_svg_header() {
+    #[test]
+    fn test_svg_header() {
         let svg = render_wbs(&empty_wbs(), &empty_layout(), &SkinParams::default()).unwrap();
-        assert!(svg.contains("<svg")); assert!(svg.contains("</svg>"));
+        assert!(svg.contains("<svg"));
+        assert!(svg.contains("</svg>"));
         assert!(svg.contains("contentStyleType=\"text/css\""));
     }
-    #[test] fn test_node_fill() {
+    #[test]
+    fn test_node_fill() {
         let mut l = empty_layout();
         l.nodes.push(make_node("Root", 1, 50.0, 10.0, 80.0, 30.0));
         let svg = render_wbs(&empty_wbs(), &l, &SkinParams::default()).unwrap();
         assert!(svg.contains(r##"fill="#F1F1F1""##));
         assert!(!svg.contains("rx="));
     }
-    #[test] fn test_text() {
+    #[test]
+    fn test_text() {
         let mut l = empty_layout();
         l.nodes.push(make_node("Hello", 1, 10.0, 10.0, 80.0, 30.0));
         let svg = render_wbs(&empty_wbs(), &l, &SkinParams::default()).unwrap();
         assert!(svg.contains("Hello"));
         assert!(svg.contains(r#"font-size="12""#));
     }
-    #[test] fn test_multiline() {
+    #[test]
+    fn test_multiline() {
         let mut l = empty_layout();
         l.nodes.push(make_node("A\nB", 2, 10.0, 10.0, 100.0, 50.0));
         let svg = render_wbs(&empty_wbs(), &l, &SkinParams::default()).unwrap();
         assert_eq!(svg.matches("<text ").count(), 2);
     }
-    #[test] fn test_edge() {
+    #[test]
+    fn test_edge() {
         let mut l = empty_layout();
         l.nodes.push(make_node("R", 1, 90.0, 10.0, 20.0, 30.0));
         l.nodes.push(make_node("C", 2, 80.0, 80.0, 40.0, 30.0));
-        l.edges.push(WbsEdgeLayout { from_x: 100.0, from_y: 40.0, to_x: 100.0, to_y: 80.0 });
+        l.edges.push(WbsEdgeLayout {
+            from_x: 100.0,
+            from_y: 40.0,
+            to_x: 100.0,
+            to_y: 80.0,
+        });
         let svg = render_wbs(&empty_wbs(), &l, &SkinParams::default()).unwrap();
         assert!(svg.contains("<line"));
     }
-    #[test] fn test_extra_link() {
+    #[test]
+    fn test_extra_link() {
         let mut l = empty_layout();
-        l.extra_links.push(WbsEdgeLayout { from_x: 150.0, from_y: 50.0, to_x: 50.0, to_y: 50.0 });
+        l.extra_links.push(WbsEdgeLayout {
+            from_x: 150.0,
+            from_y: 50.0,
+            to_x: 50.0,
+            to_y: 50.0,
+        });
         let svg = render_wbs(&empty_wbs(), &l, &SkinParams::default()).unwrap();
         assert!(svg.contains("<polygon"));
     }

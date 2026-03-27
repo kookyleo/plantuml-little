@@ -2,7 +2,7 @@ use crate::font_metrics;
 use crate::klimt::svg::{fmt_coord, LengthAdjust, SvgGraphic};
 use crate::layout::json_diagram::{JsonArrow, JsonBox, JsonLayout};
 use crate::model::json_diagram::JsonDiagram;
-use crate::render::svg::{write_svg_root_bg, ensure_visible_int};
+use crate::render::svg::{ensure_visible_int, write_svg_root_bg};
 use crate::style::SkinParams;
 use crate::Result;
 
@@ -27,7 +27,12 @@ pub fn render_yaml(jd: &JsonDiagram, layout: &JsonLayout, skin: &SkinParams) -> 
     render_with_type(jd, layout, skin, "YAML")
 }
 
-fn render_with_type(_jd: &JsonDiagram, layout: &JsonLayout, skin: &SkinParams, dtype: &str) -> Result<String> {
+fn render_with_type(
+    _jd: &JsonDiagram,
+    layout: &JsonLayout,
+    skin: &SkinParams,
+    dtype: &str,
+) -> Result<String> {
     let mut buf = String::with_capacity(4096);
     let bg = skin.get_or("backgroundcolor", "#FFFFFF");
     let svg_w = ensure_visible_int(layout.width) as f64;
@@ -36,8 +41,12 @@ fn render_with_type(_jd: &JsonDiagram, layout: &JsonLayout, skin: &SkinParams, d
     buf.push_str("<defs/><g>");
 
     let mut sg = SvgGraphic::new(0, 1.0);
-    for jbox in &layout.boxes { render_box(&mut sg, jbox); }
-    for arrow in &layout.arrows { render_arrow(&mut sg, arrow); }
+    for jbox in &layout.boxes {
+        render_box(&mut sg, jbox);
+    }
+    for arrow in &layout.arrows {
+        render_arrow(&mut sg, arrow);
+    }
     buf.push_str(sg.body());
 
     buf.push_str("</g></svg>");
@@ -65,32 +74,58 @@ fn render_box(sg: &mut SvgGraphic, jbox: &JsonBox) {
             let key_tl = font_metrics::text_width(key, "SansSerif", FONT_SIZE, true, false);
             sg.set_fill_color(TEXT_COLOR);
             sg.svg_text(
-                key, key_x, text_y,
-                Some("sans-serif"), FONT_SIZE,
-                Some("700"), None, None,
-                key_tl, LengthAdjust::Spacing,
-                None, 0, None,
+                key,
+                key_x,
+                text_y,
+                Some("sans-serif"),
+                FONT_SIZE,
+                Some("700"),
+                None,
+                None,
+                key_tl,
+                LengthAdjust::Spacing,
+                None,
+                0,
+                None,
             );
         }
 
-        let val_x = if has_keys { jbox.separator_x + PADDING } else { x + PADDING };
+        let val_x = if has_keys {
+            jbox.separator_x + PADDING
+        } else {
+            x + PADDING
+        };
         for (li, line) in row.value_lines.iter().enumerate() {
             let line_y = text_y + li as f64 * lh;
             let val_tl = font_metrics::text_width(line, "SansSerif", FONT_SIZE, false, false);
             sg.set_fill_color(TEXT_COLOR);
             sg.svg_text(
-                line, val_x, line_y,
-                Some("sans-serif"), FONT_SIZE,
-                None, None, None,
-                val_tl, LengthAdjust::Spacing,
-                None, 0, None,
+                line,
+                val_x,
+                line_y,
+                Some("sans-serif"),
+                FONT_SIZE,
+                None,
+                None,
+                None,
+                val_tl,
+                LengthAdjust::Spacing,
+                None,
+                0,
+                None,
             );
         }
 
         if has_keys {
             sg.set_stroke_color(Some(BORDER_COLOR));
             sg.set_stroke_width(1.0, None);
-            sg.svg_line(jbox.separator_x, row.y_top, jbox.separator_x, row.y_top + row.height, 0.0);
+            sg.svg_line(
+                jbox.separator_x,
+                row.y_top,
+                jbox.separator_x,
+                row.y_top + row.height,
+                0.0,
+            );
         }
 
         // Draw node indicator circle for rows with child boxes
@@ -131,9 +166,17 @@ fn render_arrow(sg: &mut SvgGraphic, arrow: &JsonArrow) {
     let sz = 3.1073;
     sg.push_raw(&format!(
         r#"<path d="M{},{} L{},{} L{},{} L{},{} L{},{}" fill="{BORDER_COLOR}"/>"#,
-        fmt_coord(tx - 7.0), fmt_coord(ty + sz), fmt_coord(tx - 5.0), fmt_coord(ty),
-        fmt_coord(tx - 7.0), fmt_coord(ty - sz), fmt_coord(tx), fmt_coord(ty),
-        fmt_coord(tx - 7.0), fmt_coord(ty + sz)));
+        fmt_coord(tx - 7.0),
+        fmt_coord(ty + sz),
+        fmt_coord(tx - 5.0),
+        fmt_coord(ty),
+        fmt_coord(tx - 7.0),
+        fmt_coord(ty - sz),
+        fmt_coord(tx),
+        fmt_coord(ty),
+        fmt_coord(tx - 7.0),
+        fmt_coord(ty + sz)
+    ));
 }
 
 #[cfg(test)]
@@ -145,9 +188,9 @@ mod tests {
 
     #[test]
     fn test_simple_render() {
-        let jd = JsonDiagram { root: JsonValue::Object(vec![
-            ("name".into(), JsonValue::Str("Alice".into())),
-        ]) };
+        let jd = JsonDiagram {
+            root: JsonValue::Object(vec![("name".into(), JsonValue::Str("Alice".into()))]),
+        };
         let layout = layout_json(&jd).unwrap();
         let svg = render_json(&jd, &layout, &SkinParams::default()).unwrap();
         assert!(svg.contains("<svg"));
@@ -157,9 +200,9 @@ mod tests {
 
     #[test]
     fn test_boolean_rendering() {
-        let jd = JsonDiagram { root: JsonValue::Object(vec![
-            ("a".into(), JsonValue::Bool(true)),
-        ]) };
+        let jd = JsonDiagram {
+            root: JsonValue::Object(vec![("a".into(), JsonValue::Bool(true))]),
+        };
         let layout = layout_json(&jd).unwrap();
         let svg = render_json(&jd, &layout, &SkinParams::default()).unwrap();
         assert!(svg.contains("\u{2611}") || svg.contains("&#9745;"));

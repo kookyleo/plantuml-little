@@ -1,20 +1,20 @@
 use std::path::Path;
 
-pub mod error;
-pub mod font_metrics;
 pub mod abel;
 pub mod decoration;
 pub mod dot;
+pub mod error;
+pub mod font_metrics;
 pub mod klimt;
 pub mod layout;
-pub mod skin;
-pub mod svek;
-pub mod tim;
 pub mod model;
 pub mod parser;
 pub mod preproc;
 pub mod render;
+pub mod skin;
 pub mod style;
+pub mod svek;
+pub mod tim;
 
 pub use error::{Error, Result};
 
@@ -83,10 +83,33 @@ fn render_cleaned(original_source: &str, source: &str) -> Result<String> {
 fn enrich_meta_source_lines(meta: &mut model::DiagramMeta, source: &str) {
     for (i, line) in source.lines().enumerate() {
         let t = line.trim();
-        if meta.header.is_some() && meta.header_line.is_none() && (t.starts_with("header ") || t == "header") { meta.header_line = Some(i); }
-        if meta.title.is_some() && meta.title_line.is_none() && (t.starts_with("title ") || t == "title") { meta.title_line = Some(i); }
-        if meta.footer.is_some() && meta.footer_line.is_none() && (t.starts_with("footer ") || t == "footer") { meta.footer_line = Some(i); }
-        if meta.caption.is_some() && meta.caption_line.is_none() && t.starts_with("caption ") { meta.caption_line = Some(i); }
-        if meta.legend.is_some() && meta.legend_line.is_none() && t.starts_with("legend") && (t.len() == 6 || t.as_bytes().get(6) == Some(&b' ')) { meta.legend_line = Some(i); }
+        if meta.header.is_some()
+            && meta.header_line.is_none()
+            && (t.starts_with("header ") || t == "header")
+        {
+            meta.header_line = Some(i);
+        }
+        if meta.title.is_some()
+            && meta.title_line.is_none()
+            && (t.starts_with("title ") || t == "title")
+        {
+            meta.title_line = Some(i);
+        }
+        if meta.footer.is_some()
+            && meta.footer_line.is_none()
+            && (t.starts_with("footer ") || t == "footer")
+        {
+            meta.footer_line = Some(i);
+        }
+        if meta.caption.is_some() && meta.caption_line.is_none() && t.starts_with("caption ") {
+            meta.caption_line = Some(i);
+        }
+        if meta.legend.is_some()
+            && meta.legend_line.is_none()
+            && t.starts_with("legend")
+            && (t.len() == 6 || t.as_bytes().get(6) == Some(&b' '))
+        {
+            meta.legend_line = Some(i);
+        }
     }
 }

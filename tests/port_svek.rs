@@ -23,10 +23,12 @@
 //   GraphvizImageBuilder (Java pipeline only), SvekResult (Java pipeline only)
 
 use plantuml_little::svek;
-use plantuml_little::svek::svg_result::{SvgResult, POINTS_EQUALS};
-use plantuml_little::svek::shape_type::{ShapeType, PackageStyle, ConditionStyle, ConditionEndStyle};
-use plantuml_little::svek::snake::{YDelta, Oscillator};
 use plantuml_little::svek::node::PortGeometry;
+use plantuml_little::svek::shape_type::{
+    ConditionEndStyle, ConditionStyle, PackageStyle, ShapeType,
+};
+use plantuml_little::svek::snake::{Oscillator, YDelta};
+use plantuml_little::svek::svg_result::{SvgResult, POINTS_EQUALS};
 
 // ── Helpers ───────────────────────────────────────────────────────────────
 
@@ -117,7 +119,10 @@ fn svg_result_get_index_from_color_skeleton_for_int() {
     // 0x0000FF == blue; stroke="#0000ff"
     let result = SvgResult::new("stroke=\"#0000ff\"".to_string());
     let idx = result.get_index_from_color(0x0000FF);
-    assert!(idx.is_some(), "Expected Some index for known color, got None");
+    assert!(
+        idx.is_some(),
+        "Expected Some index for known color, got None"
+    );
 
     let no_match = SvgResult::new("<svg/>".to_string());
     assert_eq!(no_match.get_index_from_color(0x123456), None);
@@ -278,8 +283,14 @@ fn shape_type_value_of_skeleton_for_string() {
 fn shape_type_all_expected_constants_present() {
     // Java: assertNotNull on each constant — verify via Debug repr and cross-inequality
     assert_ne!(ShapeType::RectanglePort, ShapeType::Rectangle);
-    assert_ne!(ShapeType::RectangleWithCircleInside, ShapeType::RectanglePort);
-    assert_ne!(ShapeType::RectangleHtmlForPorts, ShapeType::RectangleWithCircleInside);
+    assert_ne!(
+        ShapeType::RectangleWithCircleInside,
+        ShapeType::RectanglePort
+    );
+    assert_ne!(
+        ShapeType::RectangleHtmlForPorts,
+        ShapeType::RectangleWithCircleInside
+    );
     assert_ne!(ShapeType::RoundRectangle, ShapeType::RectangleHtmlForPorts);
     assert_ne!(ShapeType::Oval, ShapeType::RoundRectangle);
     assert_ne!(ShapeType::Octagon, ShapeType::Oval);
@@ -406,11 +417,20 @@ fn package_style_from_string_skeleton_for_string() {
     // Java: PackageStyle.fromString("FOLDER") == FOLDER (case-insensitive)
     assert_eq!(PackageStyle::from_str("FOLDER"), Some(PackageStyle::Folder));
     assert_eq!(PackageStyle::from_str("folder"), Some(PackageStyle::Folder));
-    assert_eq!(PackageStyle::from_str("RECTANGLE"), Some(PackageStyle::Rectangle));
+    assert_eq!(
+        PackageStyle::from_str("RECTANGLE"),
+        Some(PackageStyle::Rectangle)
+    );
     assert_eq!(PackageStyle::from_str("cloud"), Some(PackageStyle::Cloud));
     // special alias: "rect" -> RECTANGLE
-    assert_eq!(PackageStyle::from_str("rect"), Some(PackageStyle::Rectangle));
-    assert_eq!(PackageStyle::from_str("RECT"), Some(PackageStyle::Rectangle));
+    assert_eq!(
+        PackageStyle::from_str("rect"),
+        Some(PackageStyle::Rectangle)
+    );
+    assert_eq!(
+        PackageStyle::from_str("RECT"),
+        Some(PackageStyle::Rectangle)
+    );
     // unknown
     assert_eq!(PackageStyle::from_str("unknown"), None);
     assert_eq!(PackageStyle::from_str(""), None);
@@ -538,7 +558,11 @@ fn margins_to_string_skeleton_for_none() {
     let m = svek::Margins::new(1.0, 2.0, 3.0, 4.0);
     // Rust Debug format shows field values
     let s = format!("{:?}", m);
-    assert!(s.contains("1.0") || s.contains("x1"), "debug repr should contain values: {}", s);
+    assert!(
+        s.contains("1.0") || s.contains("x1"),
+        "debug repr should contain values: {}",
+        s
+    );
 }
 
 #[test]
@@ -748,9 +772,17 @@ fn oscillator_next_position_returns_unique_positions() {
 fn svek_utils_pixel_to_inches_skeleton_for_double() {
     // Java: SvekUtils.pixelToInches(72.0) == 1.0, pixelToInches(36.0) == 0.5
     let one_inch = svek::utils::pixel_to_inches(72.0);
-    assert!((one_inch - 1.0).abs() < 1e-6, "72px should be 1.0 inches, got {}", one_inch);
+    assert!(
+        (one_inch - 1.0).abs() < 1e-6,
+        "72px should be 1.0 inches, got {}",
+        one_inch
+    );
     let half_inch = svek::utils::pixel_to_inches(36.0);
-    assert!((half_inch - 0.5).abs() < 1e-6, "36px should be 0.5 inches, got {}", half_inch);
+    assert!(
+        (half_inch - 0.5).abs() < 1e-6,
+        "36px should be 0.5 inches, got {}",
+        half_inch
+    );
 }
 
 #[test]

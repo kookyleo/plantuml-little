@@ -10,12 +10,8 @@
 
 // ── Imports for public types ────────────────────────────────────────────────
 
-use plantuml_little::klimt::{
-    UClip, UStroke, UTranslate,
-};
-use plantuml_little::klimt::svg::{
-    fmt_coord, xml_escape, LengthAdjust, SvgGraphic,
-};
+use plantuml_little::klimt::svg::{fmt_coord, xml_escape, LengthAdjust, SvgGraphic};
+use plantuml_little::klimt::{UClip, UStroke, UTranslate};
 
 // ═══════════════════════════════════════════════════════════════════════════
 // 1. LimitFinder (Java) -> BoundsTracker (Rust)  — pub(crate), all #[ignore]

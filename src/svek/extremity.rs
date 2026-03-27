@@ -21,12 +21,7 @@ fn rotate_point(x: f64, y: f64, angle: f64) -> (f64, f64) {
 }
 
 /// Build a polygon from a list of (x,y) points, apply rotation and translation.
-fn build_rotated_polygon(
-    points: &[(f64, f64)],
-    angle: f64,
-    tx: f64,
-    ty: f64,
-) -> Vec<(f64, f64)> {
+fn build_rotated_polygon(points: &[(f64, f64)], angle: f64, tx: f64, ty: f64) -> Vec<(f64, f64)> {
     points
         .iter()
         .map(|&(x, y)| {
@@ -142,8 +137,7 @@ impl ExtremityArrow {
     /// 3-point constructor (with center). Java: `ExtremityArrow(XPoint2D p1, double angle, XPoint2D center)`
     pub fn with_center(p1: XPoint2D, angle: f64, center: XPoint2D) -> Self {
         let angle = manage_round(angle);
-        let polygon =
-            build_rotated_polygon(&Self::raw_points(), angle + PI / 2.0, p1.x, p1.y);
+        let polygon = build_rotated_polygon(&Self::raw_points(), angle + PI / 2.0, p1.x, p1.y);
         let contact = XPoint2D::new(
             p1.x - Self::X_CONTACT * (angle + PI / 2.0).cos(),
             p1.y - Self::X_CONTACT * (angle + PI / 2.0).sin(),
@@ -616,12 +610,7 @@ impl ExtremityTriangle {
         let angle = manage_round(angle);
         let xw = x_wing as f64;
         let ya = y_aperture as f64;
-        let raw = vec![
-            (0.0, 0.0),
-            (-xw, -ya),
-            (-xw, ya),
-            (0.0, 0.0),
-        ];
+        let raw = vec![(0.0, 0.0), (-xw, -ya), (-xw, ya), (0.0, 0.0)];
         let polygon = build_rotated_polygon(&raw, angle + PI / 2.0, p1.x, p1.y);
         Self {
             polygon,
@@ -1617,9 +1606,7 @@ impl Extremity for ExtremityOther {
     }
 
     fn some_point(&self) -> Option<XPoint2D> {
-        self.polygon
-            .first()
-            .map(|&(x, y)| XPoint2D::new(x, y))
+        self.polygon.first().map(|&(x, y)| XPoint2D::new(x, y))
     }
 }
 
@@ -2210,8 +2197,7 @@ mod tests {
 
     #[test]
     fn extends_like_decoration_length() {
-        let ext =
-            ExtremityExtendsLike::new_redefines(XPoint2D::new(0.0, 0.0), 0.0, HColor::None);
+        let ext = ExtremityExtendsLike::new_redefines(XPoint2D::new(0.0, 0.0), 0.0, HColor::None);
         assert_eq!(ext.decoration_length(), 18.0);
     }
 
@@ -2346,9 +2332,17 @@ mod tests {
     fn diamond_at_zero_symmetry() {
         let diamond = ExtremityDiamond::new(XPoint2D::new(0.0, 0.0), 0.0, false);
         // Diamond polygon should have 4+ points
-        assert!(diamond.polygon.len() >= 4, "Diamond should have at least 4 points");
+        assert!(
+            diamond.polygon.len() >= 4,
+            "Diamond should have at least 4 points"
+        );
         // Points should form a diamond shape (non-degenerate)
-        let (min_x, max_x) = diamond.polygon.iter().fold((f64::MAX, f64::MIN), |(mn, mx), p| (mn.min(p.0), mx.max(p.0)));
+        let (min_x, max_x) = diamond
+            .polygon
+            .iter()
+            .fold((f64::MAX, f64::MIN), |(mn, mx), p| {
+                (mn.min(p.0), mx.max(p.0))
+            });
         assert!(max_x - min_x > 0.1, "Diamond should have non-zero width");
     }
 
@@ -2440,11 +2434,8 @@ pub fn draw_extremity_to_svg(
     let temp_sg = crate::klimt::svg::SvgGraphic::new(0, 1.0);
     let sb: Box<dyn crate::klimt::font::StringBounder> =
         Box::new(crate::klimt::font::DefaultStringBounder);
-    let mut ug = crate::klimt::svg::UGraphicSvg::new(
-        temp_sg,
-        sb,
-        crate::klimt::svg::LengthAdjust::Spacing,
-    );
+    let mut ug =
+        crate::klimt::svg::UGraphicSvg::new(temp_sg, sb, crate::klimt::svg::LengthAdjust::Spacing);
 
     // Set stroke/fill colors
     use crate::klimt::UGraphic;

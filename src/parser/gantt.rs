@@ -258,7 +258,10 @@ fn try_parse_gantt_note(line: &str) -> Option<GanttNoteParseResult> {
                 let after_bracket = after_for[close_bracket + 1..].trim();
 
                 if let Some(colon_rest) = after_bracket.strip_prefix(':') {
-                    let text = colon_rest.trim().replace("\\n", "\n").replace(crate::NEWLINE_CHAR, "\n");
+                    let text = colon_rest
+                        .trim()
+                        .replace("\\n", "\n")
+                        .replace(crate::NEWLINE_CHAR, "\n");
                     return Some(GanttNoteParseResult::SingleLine(GanttNote {
                         text,
                         position: "bottom".to_string(),
@@ -288,7 +291,10 @@ fn try_parse_gantt_note(line: &str) -> Option<GanttNoteParseResult> {
                     let after_bracket = after_of[close_bracket + 1..].trim();
 
                     if let Some(colon_rest) = after_bracket.strip_prefix(':') {
-                        let text = colon_rest.trim().replace("\\n", "\n").replace(crate::NEWLINE_CHAR, "\n");
+                        let text = colon_rest
+                            .trim()
+                            .replace("\\n", "\n")
+                            .replace(crate::NEWLINE_CHAR, "\n");
                         return Some(GanttNoteParseResult::SingleLine(GanttNote {
                             text,
                             position: pos.to_string(),
@@ -307,7 +313,10 @@ fn try_parse_gantt_note(line: &str) -> Option<GanttNoteParseResult> {
 
     // `note : text` (floating)
     if let Some(after_colon) = rest.strip_prefix(':') {
-        let text = after_colon.trim().replace("\\n", "\n").replace(crate::NEWLINE_CHAR, "\n");
+        let text = after_colon
+            .trim()
+            .replace("\\n", "\n")
+            .replace(crate::NEWLINE_CHAR, "\n");
         return Some(GanttNoteParseResult::SingleLine(GanttNote {
             text,
             position: "bottom".to_string(),

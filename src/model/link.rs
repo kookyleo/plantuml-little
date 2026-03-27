@@ -19,6 +19,7 @@ pub enum ArrowHead {
 /// Relationship between entities
 #[derive(Debug, Clone)]
 pub struct Link {
+    pub uid: Option<String>,
     pub from: String,
     pub to: String,
     pub left_head: ArrowHead,
@@ -27,6 +28,8 @@ pub struct Link {
     pub label: Option<String>,
     pub from_label: Option<String>,
     pub to_label: Option<String>,
+    pub from_qualifier: Option<String>,
+    pub to_qualifier: Option<String>,
     pub source_line: Option<usize>,
     /// Number of dashes/dots in the arrow.  1 = horizontal (LR), >=2 = vertical (TB).
     /// Java: Link.getLength()

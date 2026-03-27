@@ -6,10 +6,14 @@
 use std::collections::HashMap;
 
 use crate::font_metrics;
-use crate::layout::graphviz::{self, LayoutClusterSpec, LayoutEdge, LayoutGraph, LayoutNode, RankDir};
+use crate::layout::graphviz::{
+    self, LayoutClusterSpec, LayoutEdge, LayoutGraph, LayoutNode, RankDir,
+};
 use crate::model::component::{ComponentDiagram, ComponentEntity, ComponentKind, ComponentLink};
 use crate::model::Direction;
 use crate::render::svg::{ensure_visible_int, CANVAS_DELTA, DOC_MARGIN_BOTTOM, DOC_MARGIN_RIGHT};
+use crate::svek::node::EntityPosition;
+use crate::svek::shape_type::ShapeType;
 use crate::Result;
 
 // ---------------------------------------------------------------------------
@@ -49,6 +53,7 @@ pub struct ComponentEdgeLayout {
     pub from: String,
     pub to: String,
     pub points: Vec<(f64, f64)>,
+    pub raw_path_d: Option<String>,
     pub label: String,
     pub dashed: bool,
 }
@@ -86,7 +91,7 @@ pub struct ComponentGroupLayout {
 const FONT_SIZE: f64 = 14.0;
 // Java: line_height = (ascent + descent) from AWT FontMetrics for SansSerif 14pt
 const LINE_HEIGHT: f64 = 16.2969; // (1901 + 483) / 2048 * 14
-// Java: component node padding = 15px top + 15px bottom
+                                  // Java: component node padding = 15px top + 15px bottom
 const PADDING: f64 = 15.0;
 // Java: no explicit minimum width for components; the name + icon determines width
 const NODE_MIN_WIDTH: f64 = 0.0;
@@ -171,6 +176,31 @@ fn estimate_note_size(text: &str) -> (f64, f64) {
     (width, height)
 }
 
+fn parse_path_start(d: &str) -> Option<(f64, f64)> {
+    let d = d.trim_start();
+    let d = d.strip_prefix('M').or_else(|| d.strip_prefix('m'))?;
+    let d = d.trim_start();
+    let comma = d.find(',')?;
+    let x: f64 = d[..comma].trim().parse().ok()?;
+    let rest = &d[comma + 1..];
+    let y_end = rest
+        .find(|c: char| c.is_whitespace() || c.is_ascii_alphabetic())
+        .unwrap_or(rest.len());
+    let y: f64 = rest[..y_end].trim().parse().ok()?;
+    Some((x, y))
+}
+
+fn align_raw_path_d(raw_d: &str, points: &[(f64, f64)], dx: f64, dy: f64) -> String {
+    let Some(&(px, py)) = points.first() else {
+        return graphviz::transform_path_d(raw_d, dx, dy);
+    };
+    let Some((rx, ry)) = parse_path_start(raw_d) else {
+        return graphviz::transform_path_d(raw_d, dx, dy);
+    };
+
+    graphviz::transform_path_d(raw_d, dx + (px - rx), dy + (py - ry))
+}
+
 // ---------------------------------------------------------------------------
 // Public entry point
 // ---------------------------------------------------------------------------
@@ -178,43 +208,100 @@ fn estimate_note_size(text: &str) -> (f64, f64) {
 pub fn layout_component(cd: &ComponentDiagram) -> Result<ComponentLayout> {
     log::debug!(
         "layout_component: {} entities, {} links, {} groups, {} notes",
-        cd.entities.len(), cd.links.len(), cd.groups.len(), cd.notes.len()
+        cd.entities.len(),
+        cd.links.len(),
+        cd.groups.len(),
+        cd.notes.len()
     );
 
-    let entity_map: HashMap<String, &ComponentEntity> = cd
-        .entities.iter().map(|e| (e.id.clone(), e)).collect();
+    let entity_map: HashMap<String, &ComponentEntity> =
+        cd.entities.iter().map(|e| (e.id.clone(), e)).collect();
 
     let group_ids: std::collections::HashSet<String> =
         cd.groups.iter().map(|g| g.id.clone()).collect();
 
     fn sanitize_id(name: &str) -> String {
-        name.replace('<', "_LT_").replace('>', "_GT_")
-            .replace(',', "_COMMA_").replace(' ', "_").replace('"', "_Q_")
+        name.replace('<', "_LT_")
+            .replace('>', "_GT_")
+            .replace(',', "_COMMA_")
+            .replace(' ', "_")
+            .replace('"', "_Q_")
     }
 
     let id_to_dot: HashMap<String, String> = cd
-        .entities.iter().map(|e| (e.id.clone(), sanitize_id(&e.id))).collect();
+        .entities
+        .iter()
+        .map(|e| (e.id.clone(), sanitize_id(&e.id)))
+        .collect();
 
-    let layout_nodes: Vec<LayoutNode> = cd.entities.iter()
+    let layout_nodes: Vec<LayoutNode> = cd
+        .entities
+        .iter()
         .filter(|e| !group_ids.contains(&e.id))
         .map(|e| {
             let (w, h) = estimate_entity_size(e);
+            let entity_position = match e.kind {
+                ComponentKind::PortIn => Some(EntityPosition::PortIn),
+                ComponentKind::PortOut => Some(EntityPosition::PortOut),
+                _ => None,
+            };
+            let shape = match e.kind {
+                ComponentKind::PortIn | ComponentKind::PortOut => Some(ShapeType::RectanglePort),
+                _ => None,
+            };
+            let max_label_width = match e.kind {
+                ComponentKind::PortIn | ComponentKind::PortOut => Some(text_width(&e.name)),
+                _ => None,
+            };
             LayoutNode {
-                id: id_to_dot.get(&e.id).cloned().unwrap_or_else(|| sanitize_id(&e.id)),
-                label: e.name.clone(), width_pt: w, height_pt: h, shape: None,
+                id: id_to_dot
+                    .get(&e.id)
+                    .cloned()
+                    .unwrap_or_else(|| sanitize_id(&e.id)),
+                label: e.name.clone(),
+                width_pt: w,
+                height_pt: h,
+                shape,
+                shield: None,
+                entity_position,
+                max_label_width,
+                order: e.source_line,
             }
-        }).collect();
+        })
+        .collect();
 
-    let layout_edges: Vec<LayoutEdge> = cd.links.iter().map(|link| {
-        let from_dot = id_to_dot.get(&link.from).cloned().unwrap_or_else(|| sanitize_id(&link.from));
-        let to_dot = id_to_dot.get(&link.to).cloned().unwrap_or_else(|| sanitize_id(&link.to));
-        LayoutEdge {
-            from: from_dot, to: to_dot,
-            label: if link.label.is_empty() { None } else { Some(link.label.clone()) },
-            minlen: link.arrow_len.saturating_sub(1) as u32,
-            invisible: false,
-        }
-    }).collect();
+    let layout_edges: Vec<LayoutEdge> = cd
+        .links
+        .iter()
+        .map(|link| {
+            let from_dot = id_to_dot
+                .get(&link.from)
+                .cloned()
+                .unwrap_or_else(|| sanitize_id(&link.from));
+            let to_dot = id_to_dot
+                .get(&link.to)
+                .cloned()
+                .unwrap_or_else(|| sanitize_id(&link.to));
+            LayoutEdge {
+                from: from_dot,
+                to: to_dot,
+                label: if link.label.is_empty() {
+                    None
+                } else {
+                    Some(link.label.clone())
+                },
+                tail_label: None,
+                tail_label_boxed: false,
+                head_label: None,
+                head_label_boxed: false,
+                tail_decoration: crate::svek::edge::LinkDecoration::None,
+                head_decoration: crate::svek::edge::LinkDecoration::None,
+                line_style: crate::svek::edge::LinkStyle::Normal,
+                minlen: link.arrow_len.saturating_sub(1) as u32,
+                invisible: false,
+            }
+        })
+        .collect();
 
     let rankdir = match cd.direction {
         Direction::TopToBottom => RankDir::TopToBottom,
@@ -224,23 +311,42 @@ pub fn layout_component(cd: &ComponentDiagram) -> Result<ComponentLayout> {
     };
 
     // Build cluster specs from parsed groups
-    let clusters: Vec<LayoutClusterSpec> = cd.groups.iter().map(|g| {
-        let node_ids: Vec<String> = g.children.iter()
-            .filter_map(|child_id| id_to_dot.get(child_id).cloned())
-            .collect();
-        LayoutClusterSpec {
-            id: sanitize_id(&g.id),
-            qualified_name: g.id.clone(),
-            title: Some(g.name.clone()),
-            node_ids,
-            sub_clusters: vec![],
-        }
-    }).collect();
+    let clusters: Vec<LayoutClusterSpec> = cd
+        .groups
+        .iter()
+        .map(|g| {
+            let node_ids: Vec<String> = g
+                .children
+                .iter()
+                .filter_map(|child_id| id_to_dot.get(child_id).cloned())
+                .collect();
+            LayoutClusterSpec {
+                id: sanitize_id(&g.id),
+                qualified_name: g.id.clone(),
+                title: Some(g.name.clone()),
+                style: crate::svek::cluster::ClusterStyle::Rectangle,
+                label_width: None,
+                label_height: None,
+                node_ids,
+                sub_clusters: vec![],
+                order: g.source_line,
+            }
+        })
+        .collect();
 
-    let graph = LayoutGraph { nodes: layout_nodes, edges: layout_edges, clusters, rankdir };
+    let graph = LayoutGraph {
+        nodes: layout_nodes,
+        edges: layout_edges,
+        clusters,
+        rankdir,
+        use_simplier_dot_link_strategy: false,
+    };
     let gl = graphviz::layout_with_svek(&graph)?;
 
-    let dot_to_id: HashMap<String, String> = id_to_dot.iter().map(|(k, v)| (v.clone(), k.clone())).collect();
+    let dot_to_id: HashMap<String, String> = id_to_dot
+        .iter()
+        .map(|(k, v)| (v.clone(), k.clone()))
+        .collect();
     let edge_offset = MARGIN;
 
     let mut nodes: Vec<ComponentNodeLayout> = Vec::new();
@@ -248,45 +354,74 @@ pub fn layout_component(cd: &ComponentDiagram) -> Result<ComponentLayout> {
 
     for nl in &gl.nodes {
         let entity_id = dot_to_id.get(&nl.id).cloned().unwrap_or(nl.id.clone());
-        let entity = match entity_map.get(&entity_id) { Some(e) => *e, None => continue };
+        let entity = match entity_map.get(&entity_id) {
+            Some(e) => *e,
+            None => continue,
+        };
         let x = nl.cx - nl.width / 2.0 + edge_offset;
         let y = nl.cy - nl.height / 2.0 + edge_offset;
         node_positions.insert(entity_id.clone(), (x, y, nl.width, nl.height));
         nodes.push(ComponentNodeLayout {
-            id: entity_id, name: entity.name.clone(), kind: entity.kind.clone(),
-            x, y, width: nl.width, height: nl.height,
-            description: entity.description.clone(), stereotype: entity.stereotype.clone(),
-            color: entity.color.clone(), source_line: entity.source_line,
+            id: entity_id,
+            name: entity.name.clone(),
+            kind: entity.kind.clone(),
+            x,
+            y,
+            width: nl.width,
+            height: nl.height,
+            description: entity.description.clone(),
+            stereotype: entity.stereotype.clone(),
+            color: entity.color.clone(),
+            source_line: entity.source_line,
         });
     }
 
-    let edges: Vec<ComponentEdgeLayout> = gl.edges.iter().zip(cd.links.iter()).map(|(el, link)| {
-        let mut points = el.points.clone();
-        for pt in &mut points { pt.0 += edge_offset; pt.1 += edge_offset; }
-        ComponentEdgeLayout {
-            from: link.from.clone(), to: link.to.clone(), points,
-            label: link.label.clone(), dashed: link.dashed,
-        }
-    }).collect();
+    let edges: Vec<ComponentEdgeLayout> = gl
+        .edges
+        .iter()
+        .zip(cd.links.iter())
+        .map(|(el, link)| {
+            let mut points = el.points.clone();
+            for pt in &mut points {
+                pt.0 += edge_offset;
+                pt.1 += edge_offset;
+            }
+            ComponentEdgeLayout {
+                from: link.from.clone(),
+                to: link.to.clone(),
+                points,
+                raw_path_d: el
+                    .raw_path_d
+                    .as_ref()
+                    .map(|raw_d| align_raw_path_d(raw_d, &el.points, edge_offset, edge_offset)),
+                label: link.label.clone(),
+                dashed: link.dashed,
+            }
+        })
+        .collect();
 
     // Build group layouts from graphviz cluster output
     let group_map: HashMap<String, &crate::model::component::ComponentGroup> =
         cd.groups.iter().map(|g| (sanitize_id(&g.id), g)).collect();
-    let group_layouts: Vec<ComponentGroupLayout> = gl.clusters.iter().filter_map(|cl| {
-        let dot_id = sanitize_id(&cl.qualified_name);
-        let group = group_map.get(&dot_id).or_else(|| group_map.get(&cl.id))?;
-        Some(ComponentGroupLayout {
-            id: group.id.clone(),
-            name: group.name.clone(),
-            kind: group.kind.clone(),
-            x: cl.x + edge_offset,
-            y: cl.y + edge_offset,
-            width: cl.width,
-            height: cl.height,
-            source_line: group.source_line,
-            stereotype: group.stereotype.clone(),
+    let group_layouts: Vec<ComponentGroupLayout> = gl
+        .clusters
+        .iter()
+        .filter_map(|cl| {
+            let dot_id = sanitize_id(&cl.qualified_name);
+            let group = group_map.get(&dot_id).or_else(|| group_map.get(&cl.id))?;
+            Some(ComponentGroupLayout {
+                id: group.id.clone(),
+                name: group.name.clone(),
+                kind: group.kind.clone(),
+                x: cl.x + edge_offset,
+                y: cl.y + edge_offset,
+                width: cl.width,
+                height: cl.height,
+                source_line: group.source_line,
+                stereotype: group.stereotype.clone(),
+            })
         })
-    }).collect();
+        .collect();
 
     let mut note_layouts = Vec::new();
     let all_right = nodes.iter().map(|n| n.x + n.width).fold(0.0_f64, f64::max);
@@ -303,13 +438,22 @@ pub fn layout_component(cd: &ComponentDiagram) -> Result<ComponentLayout> {
                     "right" => (tx + tw + NOTE_OFFSET, ty),
                     _ => (note_x_default, note_y),
                 }
-            } else { (note_x_default, note_y) }
-        } else { (note_x_default, note_y) };
+            } else {
+                (note_x_default, note_y)
+            }
+        } else {
+            (note_x_default, note_y)
+        };
         let nx = nx.max(MARGIN);
         let ny = ny.max(MARGIN);
         note_layouts.push(ComponentNoteLayout {
-            x: nx, y: ny, width: nw, height: nh,
-            text: note.text.clone(), position: note.position.clone(), target: note.target.clone(),
+            x: nx,
+            y: ny,
+            width: nw,
+            height: nh,
+            text: note.text.clone(),
+            position: note.position.clone(),
+            target: note.target.clone(),
         });
         note_y = ny + nh + PADDING;
     }
@@ -320,7 +464,10 @@ pub fn layout_component(cd: &ComponentDiagram) -> Result<ComponentLayout> {
         const DEGENERATED_DELTA: f64 = 7.0;
         let entity_w = nodes[0].width;
         let entity_h = nodes[0].height;
-        (entity_w + DEGENERATED_DELTA * 2.0, entity_h + DEGENERATED_DELTA * 2.0)
+        (
+            entity_w + DEGENERATED_DELTA * 2.0,
+            entity_h + DEGENERATED_DELTA * 2.0,
+        )
     } else {
         let span_w = gl.lf_span.0;
         let span_h = gl.lf_span.1;
@@ -333,25 +480,41 @@ pub fn layout_component(cd: &ComponentDiagram) -> Result<ComponentLayout> {
     for note in &note_layouts {
         let nr = note.x + note.width - MARGIN + DOC_MARGIN_RIGHT;
         let nb = note.y + note.height - MARGIN + DOC_MARGIN_BOTTOM;
-        if nr > max_right { max_right = nr; }
-        if nb > max_bottom { max_bottom = nb; }
+        if nr > max_right {
+            max_right = nr;
+        }
+        if nb > max_bottom {
+            max_bottom = nb;
+        }
     }
     // Also extend for group layouts
     for group in &group_layouts {
         let gr = group.x + group.width - MARGIN + DOC_MARGIN_RIGHT;
         let gb = group.y + group.height - MARGIN + DOC_MARGIN_BOTTOM;
-        if gr > max_right { max_right = gr; }
-        if gb > max_bottom { max_bottom = gb; }
+        if gr > max_right {
+            max_right = gr;
+        }
+        if gb > max_bottom {
+            max_bottom = gb;
+        }
     }
 
     let total_width = ensure_visible_int(max_right + DOC_MARGIN_RIGHT) as f64;
     let total_height = ensure_visible_int(max_bottom + DOC_MARGIN_BOTTOM) as f64;
 
-    log::debug!("layout_component done: {:.0}x{:.0}", total_width, total_height);
+    log::debug!(
+        "layout_component done: {:.0}x{:.0}",
+        total_width,
+        total_height
+    );
 
     Ok(ComponentLayout {
-        nodes, edges, notes: note_layouts, groups: group_layouts,
-        width: total_width, height: total_height,
+        nodes,
+        edges,
+        notes: note_layouts,
+        groups: group_layouts,
+        width: total_width,
+        height: total_height,
     })
 }
 
@@ -498,6 +661,7 @@ fn layout_edges(
             from: link.from.clone(),
             to: link.to.clone(),
             points,
+            raw_path_d: None,
             label: link.label.clone(),
             dashed: link.dashed,
         });
@@ -599,7 +763,8 @@ mod tests {
             stereotype: None,
             description: vec![],
             parent: None,
-            color: None, source_line: None,
+            color: None,
+            source_line: None,
         }
     }
 
@@ -664,6 +829,25 @@ mod tests {
         assert!(!layout.edges[0].points.is_empty());
     }
 
+    #[test]
+    fn test_align_raw_path_d_matches_points_start() {
+        let raw_d = "M39,113.03 C39,125.82 39,153.48 39,166.63";
+        let points = vec![
+            (33.0, 107.03),
+            (33.0, 119.82),
+            (33.0, 147.48),
+            (33.0, 160.63),
+        ];
+
+        let aligned = align_raw_path_d(raw_d, &points, 7.0, 7.0);
+
+        assert!(aligned.starts_with("M40,114.03"), "got: {aligned}");
+        assert!(
+            aligned.contains("C40,126.82 40,154.48 40,167.63"),
+            "got: {aligned}"
+        );
+    }
+
     // 4. Grid layout (more than GRID_COLS entities)
     #[test]
     fn test_grid_layout() {
@@ -700,7 +884,8 @@ mod tests {
             stereotype: None,
             description: vec![],
             parent: None,
-            color: None, source_line: None,
+            color: None,
+            source_line: None,
         };
         let (w, _) = estimate_entity_size(&e);
         assert!(w > NODE_MIN_WIDTH, "long name should produce wider node");
@@ -720,7 +905,8 @@ mod tests {
                 "line3".to_string(),
             ],
             parent: None,
-            color: None, source_line: None,
+            color: None,
+            source_line: None,
         };
         let (_, h) = estimate_entity_size(&e);
         let expected = (4.0 * LINE_HEIGHT + 2.0 * PADDING).max(NODE_MIN_HEIGHT);
@@ -804,7 +990,8 @@ mod tests {
                     stereotype: None,
                     description: vec![],
                     parent: None,
-                    color: None, source_line: None,
+                    color: None,
+                    source_line: None,
                 },
                 ComponentEntity {
                     name: "Inner".to_string(),
@@ -813,7 +1000,8 @@ mod tests {
                     stereotype: None,
                     description: vec![],
                     parent: Some("Outer".to_string()),
-                    color: None, source_line: None,
+                    color: None,
+                    source_line: None,
                 },
             ],
             links: vec![],
@@ -906,7 +1094,8 @@ mod tests {
             stereotype: Some("MyStereotype".to_string()),
             description: vec![],
             parent: None,
-            color: None, source_line: None,
+            color: None,
+            source_line: None,
         };
         let (_, h) = estimate_entity_size(&e);
         let plain_e = simple_entity("A");
@@ -946,7 +1135,8 @@ mod tests {
         let d = ComponentDiagram {
             entities: vec![simple_entity("A"), simple_entity("B")],
             links: vec![simple_link("A", "B", "")],
-            groups: vec![], notes: vec![],
+            groups: vec![],
+            notes: vec![],
             direction: Direction::LeftToRight,
         };
         let layout = layout_component(&d).unwrap();
@@ -988,7 +1178,8 @@ mod tests {
         let d = ComponentDiagram {
             entities: vec![simple_entity("A"), simple_entity("B")],
             links: vec![simple_link("A", "B", "")],
-            groups: vec![], notes: vec![],
+            groups: vec![],
+            notes: vec![],
             direction: Direction::BottomToTop,
         };
         let layout = layout_component(&d).unwrap();

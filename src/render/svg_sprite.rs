@@ -336,11 +336,23 @@ fn normalize_gradient(raw: &str, tag: &str) -> String {
     }
     if tag == "linearGradient" {
         for attr in &["x1", "x2", "y1", "y2", "gradientUnits", "gradientTransform"] {
-            if let Some(v) = get_attr(raw, attr) { write!(result, " {attr}=\"{}\"", truncate_gradient_value(v)).unwrap(); }
+            if let Some(v) = get_attr(raw, attr) {
+                write!(result, " {attr}=\"{}\"", truncate_gradient_value(v)).unwrap();
+            }
         }
     } else {
-        for attr in &["cx", "cy", "r", "fx", "fy", "gradientUnits", "gradientTransform"] {
-            if let Some(v) = get_attr(raw, attr) { write!(result, " {attr}=\"{}\"", truncate_gradient_value(v)).unwrap(); }
+        for attr in &[
+            "cx",
+            "cy",
+            "r",
+            "fx",
+            "fy",
+            "gradientUnits",
+            "gradientTransform",
+        ] {
+            if let Some(v) = get_attr(raw, attr) {
+                write!(result, " {attr}=\"{}\"", truncate_gradient_value(v)).unwrap();
+            }
         }
     }
     result.push('>');
@@ -352,7 +364,9 @@ fn normalize_gradient(raw: &str, tag: &str) -> String {
         let inner = &raw[inner_start + 1..raw.len() - close_tag.len()];
         for stop in inner.split("<stop") {
             let s = stop.trim();
-            if s.is_empty() || !s.contains("offset") { continue; }
+            if s.is_empty() || !s.contains("offset") {
+                continue;
+            }
             let stop_raw = format!("<stop {s}");
             result.push_str("<stop");
             // Canonical order: offset, stop-color, stop-opacity
@@ -463,7 +477,9 @@ fn extract_css_text_props(content: &str) -> Vec<(String, String)> {
     // Extract CSS body (skip CDATA wrapper if present)
     let css_body = if let Some(cdata) = style_block.find("<![CDATA[") {
         let body_start = cdata + 9;
-        let body_end = style_block[body_start..].find("]]>").map_or(style_block.len(), |e| body_start + e);
+        let body_end = style_block[body_start..]
+            .find("]]>")
+            .map_or(style_block.len(), |e| body_start + e);
         &style_block[body_start..body_end]
     } else if let Some(gt) = style_block.find('>') {
         &style_block[gt + 1..]
@@ -481,7 +497,10 @@ fn extract_css_text_props(content: &str) -> Vec<(String, String)> {
         }
         // Must be followed by whitespace or {
         let after_pos = i + 4;
-        if after_pos < bytes.len() && !bytes[after_pos].is_ascii_whitespace() && bytes[after_pos] != b'{' {
+        if after_pos < bytes.len()
+            && !bytes[after_pos].is_ascii_whitespace()
+            && bytes[after_pos] != b'{'
+        {
             continue;
         }
         // Found "text" selector — extract the rule body
@@ -519,7 +538,11 @@ fn convert_elements_inner(
     while pos < content.len() {
         iterations += 1;
         if iterations > 500 {
-            log::warn!("svg_sprite: exceeded 500 iterations at pos={}/{}, aborting", pos, content.len());
+            log::warn!(
+                "svg_sprite: exceeded 500 iterations at pos={}/{}, aborting",
+                pos,
+                content.len()
+            );
             break;
         }
         // Skip whitespace, comments, and non-element text
@@ -593,7 +616,16 @@ fn convert_elements_inner(
             } else {
                 element
             };
-            convert_single_element_ext(buf, &element, ox, oy, text_ox, text_oy, parent_transform, css_text_props);
+            convert_single_element_ext(
+                buf,
+                &element,
+                ox,
+                oy,
+                text_ox,
+                text_oy,
+                parent_transform,
+                css_text_props,
+            );
             pos += consumed;
         } else {
             pos += 1;
@@ -635,7 +667,9 @@ fn parse_element(s: &str) -> Option<(String, usize)> {
     let mut guard = 0;
     while depth > 0 && search_pos < s.len() {
         guard += 1;
-        if guard > 100 || depth > 5 { break; }
+        if guard > 100 || depth > 5 {
+            break;
+        }
         let open_tag = format!("<{tag_name}");
         let next_open = s[search_pos..].find(open_tag.as_str());
         let next_close = s[search_pos..].find(close_tag.as_str());
@@ -765,7 +799,8 @@ fn apply_element_transform(transform: &str, ox: f64, oy: f64) -> (f64, f64, Opti
 fn parse_affine_transform(transform: &str) -> Option<[f64; 6]> {
     let t = transform.trim();
     if let Some(args) = t.strip_prefix("matrix(").and_then(|s| s.strip_suffix(')')) {
-        let vals: Vec<f64> = args.split(|c: char| c == ',' || c.is_whitespace())
+        let vals: Vec<f64> = args
+            .split(|c: char| c == ',' || c.is_whitespace())
             .filter(|s| !s.is_empty())
             .filter_map(|s| s.trim().parse().ok())
             .collect();
@@ -774,14 +809,19 @@ fn parse_affine_transform(transform: &str) -> Option<[f64; 6]> {
         }
     }
     if let Some(args) = t.strip_prefix("rotate(").and_then(|s| s.strip_suffix(')')) {
-        let vals: Vec<f64> = args.split(|c: char| c == ',' || c.is_whitespace())
+        let vals: Vec<f64> = args
+            .split(|c: char| c == ',' || c.is_whitespace())
             .filter(|s| !s.is_empty())
             .filter_map(|s| s.trim().parse().ok())
             .collect();
         if vals.len() >= 1 {
             let angle = vals[0] * std::f64::consts::PI / 180.0;
             let (sin_a, cos_a) = angle.sin_cos();
-            let (cx, cy) = if vals.len() >= 3 { (vals[1], vals[2]) } else { (0.0, 0.0) };
+            let (cx, cy) = if vals.len() >= 3 {
+                (vals[1], vals[2])
+            } else {
+                (0.0, 0.0)
+            };
             // rotate(a, cx, cy) = translate(cx,cy) * rotate(a) * translate(-cx,-cy)
             let e = cx - cx * cos_a + cy * sin_a;
             let f = cy - cx * sin_a - cy * cos_a;
@@ -815,17 +855,35 @@ fn convert_element_with_affine(
 
     match tag {
         "rect" => {
-            let x = get_attr(element, "x").and_then(|v| v.parse::<f64>().ok()).unwrap_or(0.0);
-            let y = get_attr(element, "y").and_then(|v| v.parse::<f64>().ok()).unwrap_or(0.0);
-            let w = get_attr(element, "width").and_then(|v| v.parse::<f64>().ok()).unwrap_or(0.0);
-            let h = get_attr(element, "height").and_then(|v| v.parse::<f64>().ok()).unwrap_or(0.0);
+            let x = get_attr(element, "x")
+                .and_then(|v| v.parse::<f64>().ok())
+                .unwrap_or(0.0);
+            let y = get_attr(element, "y")
+                .and_then(|v| v.parse::<f64>().ok())
+                .unwrap_or(0.0);
+            let w = get_attr(element, "width")
+                .and_then(|v| v.parse::<f64>().ok())
+                .unwrap_or(0.0);
+            let h = get_attr(element, "height")
+                .and_then(|v| v.parse::<f64>().ok())
+                .unwrap_or(0.0);
             let corners = [(x, y), (x + w, y), (x + w, y + h), (x, y + h)];
             let transformed: Vec<(f64, f64)> = corners.iter().map(|&(cx, cy)| tp(cx, cy)).collect();
-            let mut d = format!("M{},{}", fmt_coord(transformed[0].0), fmt_coord(transformed[0].1));
+            let mut d = format!(
+                "M{},{}",
+                fmt_coord(transformed[0].0),
+                fmt_coord(transformed[0].1)
+            );
             for &(px, py) in &transformed[1..] {
                 write!(d, " L{},{}", fmt_coord(px), fmt_coord(py)).unwrap();
             }
-            write!(d, " L{},{}", fmt_coord(transformed[0].0), fmt_coord(transformed[0].1)).unwrap();
+            write!(
+                d,
+                " L{},{}",
+                fmt_coord(transformed[0].0),
+                fmt_coord(transformed[0].1)
+            )
+            .unwrap();
             let fill = get_fill(element);
             let style = get_stroke_style(element);
             write!(buf, r#"<path d="{d}" fill="{fill}""#).unwrap();
@@ -835,9 +893,15 @@ fn convert_element_with_affine(
             buf.push_str("/>");
         }
         "circle" => {
-            let cx = get_attr(element, "cx").and_then(|v| v.parse::<f64>().ok()).unwrap_or(0.0);
-            let cy = get_attr(element, "cy").and_then(|v| v.parse::<f64>().ok()).unwrap_or(0.0);
-            let r = get_attr(element, "r").and_then(|v| v.parse::<f64>().ok()).unwrap_or(0.0);
+            let cx = get_attr(element, "cx")
+                .and_then(|v| v.parse::<f64>().ok())
+                .unwrap_or(0.0);
+            let cy = get_attr(element, "cy")
+                .and_then(|v| v.parse::<f64>().ok())
+                .unwrap_or(0.0);
+            let r = get_attr(element, "r")
+                .and_then(|v| v.parse::<f64>().ok())
+                .unwrap_or(0.0);
             // Under affine transform, circle becomes ellipse. For uniform transforms
             // (rotate), it stays a circle with scaled radius.
             let (acx, acy) = tp(cx, cy);
@@ -864,13 +928,27 @@ fn convert_element_with_affine(
             buf.push_str("/>");
         }
         "line" => {
-            let x1 = get_attr(element, "x1").and_then(|v| v.parse::<f64>().ok()).unwrap_or(0.0);
-            let y1 = get_attr(element, "y1").and_then(|v| v.parse::<f64>().ok()).unwrap_or(0.0);
-            let x2 = get_attr(element, "x2").and_then(|v| v.parse::<f64>().ok()).unwrap_or(0.0);
-            let y2 = get_attr(element, "y2").and_then(|v| v.parse::<f64>().ok()).unwrap_or(0.0);
+            let x1 = get_attr(element, "x1")
+                .and_then(|v| v.parse::<f64>().ok())
+                .unwrap_or(0.0);
+            let y1 = get_attr(element, "y1")
+                .and_then(|v| v.parse::<f64>().ok())
+                .unwrap_or(0.0);
+            let x2 = get_attr(element, "x2")
+                .and_then(|v| v.parse::<f64>().ok())
+                .unwrap_or(0.0);
+            let y2 = get_attr(element, "y2")
+                .and_then(|v| v.parse::<f64>().ok())
+                .unwrap_or(0.0);
             let (ax1, ay1) = tp(x1, y1);
             let (ax2, ay2) = tp(x2, y2);
-            let d = format!("M{},{} L{},{}", fmt_coord(ax1), fmt_coord(ay1), fmt_coord(ax2), fmt_coord(ay2));
+            let d = format!(
+                "M{},{} L{},{}",
+                fmt_coord(ax1),
+                fmt_coord(ay1),
+                fmt_coord(ax2),
+                fmt_coord(ay2)
+            );
             let fill = get_fill_or(element, "#000000");
             let style = get_stroke_style(element);
             write!(buf, r#"<path d="{d}" fill="{fill}""#).unwrap();
@@ -881,7 +959,10 @@ fn convert_element_with_affine(
         }
         _ => {
             // Unsupported element under affine transform — skip
-            log::warn!("svg_sprite: unsupported element '{}' with affine transform, skipping", tag);
+            log::warn!(
+                "svg_sprite: unsupported element '{}' with affine transform, skipping",
+                tag
+            );
         }
     }
 }
@@ -1143,7 +1224,12 @@ fn convert_path(buf: &mut String, element: &str, ox: f64, oy: f64) {
 }
 
 /// Get a text attribute from either a direct attribute or the style property.
-fn get_text_attr_or<'a>(element: &'a str, attr: &str, style_prop: &str, default: &'a str) -> &'a str {
+fn get_text_attr_or<'a>(
+    element: &'a str,
+    attr: &str,
+    style_prop: &str,
+    default: &'a str,
+) -> &'a str {
     get_attr(element, attr)
         .or_else(|| get_attr(element, "style").and_then(|s| get_style_prop(s, style_prop)))
         .unwrap_or(default)
@@ -1167,11 +1253,23 @@ fn convert_text(buf: &mut String, element: &str, ox: f64, oy: f64) {
     let font_size = font_size_raw.trim_end_matches("px");
     let font_family = font_family_raw;
     let font_weight_str = get_text_attr_or(element, "font-weight", "font-weight", "");
-    let font_weight: Option<&str> = if font_weight_str.is_empty() { None } else { Some(font_weight_str) };
+    let font_weight: Option<&str> = if font_weight_str.is_empty() {
+        None
+    } else {
+        Some(font_weight_str)
+    };
     let font_style_str = get_text_attr_or(element, "font-style", "font-style", "");
-    let font_style_attr: Option<&str> = if font_style_str.is_empty() { None } else { Some(font_style_str) };
+    let font_style_attr: Option<&str> = if font_style_str.is_empty() {
+        None
+    } else {
+        Some(font_style_str)
+    };
     let td_str = get_text_attr_or(element, "text-decoration", "text-decoration", "");
-    let text_decoration: Option<&str> = if td_str.is_empty() { None } else { Some(td_str) };
+    let text_decoration: Option<&str> = if td_str.is_empty() {
+        None
+    } else {
+        Some(td_str)
+    };
 
     // Compute text width using font metrics
     let text_content = inner.trim();
@@ -1197,9 +1295,15 @@ fn convert_text(buf: &mut String, element: &str, ox: f64, oy: f64) {
     };
 
     // Java: "monospaced" → "monospace"
-    let font_family = if font_family.eq_ignore_ascii_case("monospaced") { "monospace" } else { font_family };
+    let font_family = if font_family.eq_ignore_ascii_case("monospaced") {
+        "monospace"
+    } else {
+        font_family
+    };
     // Java: replace spaces with non-breaking space (&#160;) for monospace/courier fonts
-    let text_output: std::borrow::Cow<str> = if font_family.eq_ignore_ascii_case("monospace") || font_family.eq_ignore_ascii_case("courier") {
+    let text_output: std::borrow::Cow<str> = if font_family.eq_ignore_ascii_case("monospace")
+        || font_family.eq_ignore_ascii_case("courier")
+    {
         std::borrow::Cow::Owned(text_content.replace(' ', "\u{00A0}"))
     } else {
         std::borrow::Cow::Borrowed(text_content)
@@ -1260,7 +1364,8 @@ fn convert_image(buf: &mut String, element: &str, ox: f64, oy: f64) {
 
     // Java wraps raster images (PNG/JPEG) inside an SVG container and
     // base64-encodes the whole thing as data:image/svg+xml.
-    let final_href = if href.starts_with("data:image/png;") || href.starts_with("data:image/jpeg;") {
+    let final_href = if href.starts_with("data:image/png;") || href.starts_with("data:image/jpeg;")
+    {
         // Always include xmlns:xlink since the inner <image> uses xlink:href
         let svg_header = format!(
             r#"<svg height="{}" width="{}" xmlns:xlink="http://www.w3.org/1999/xlink" xmlns="http://www.w3.org/2000/svg" >"#,
@@ -1294,7 +1399,15 @@ fn convert_image(buf: &mut String, element: &str, ox: f64, oy: f64) {
     buf.push_str("/>");
 }
 
-fn convert_group(buf: &mut String, element: &str, ox: f64, oy: f64, text_ox: f64, text_oy: f64, css_text_props: &[(String, String)]) {
+fn convert_group(
+    buf: &mut String,
+    element: &str,
+    ox: f64,
+    oy: f64,
+    text_ox: f64,
+    text_oy: f64,
+    css_text_props: &[(String, String)],
+) {
     let inner = extract_element_content(element, "g");
     // Apply transform="translate(x,y)" if present — for shapes only.
     // Java: group transforms are applied to shape coordinates but NOT to text
@@ -1305,7 +1418,15 @@ fn convert_group(buf: &mut String, element: &str, ox: f64, oy: f64, text_ox: f64
         (0.0, 0.0)
     };
     // Scale the group's translation offset
-    convert_elements_with_text_offset(buf, inner.trim(), ox + sc(tx), oy + sc(ty), text_ox, text_oy, css_text_props);
+    convert_elements_with_text_offset(
+        buf,
+        inner.trim(),
+        ox + sc(tx),
+        oy + sc(ty),
+        text_ox,
+        text_oy,
+        css_text_props,
+    );
 }
 
 /// Handle `<use>` elements by resolving `xlink:href` or `href` to a `<defs>` element.
@@ -1354,9 +1475,7 @@ fn convert_use(
     };
 
     // Look up the referenced element
-    let ref_content = SPRITE_DEFS_MAP.with(|map| {
-        map.borrow().get(ref_id).cloned()
-    });
+    let ref_content = SPRITE_DEFS_MAP.with(|map| map.borrow().get(ref_id).cloned());
 
     if let Some(ref_element) = ref_content {
         // If there's a scale transform, pre-scale the referenced content
@@ -1370,16 +1489,41 @@ fn convert_use(
             "g" => {
                 // Inline the group content at the use position
                 let inner = extract_element_content(&ref_element, "g");
-                convert_elements_with_text_offset(buf, inner.trim(), ox + tx, oy + ty, text_ox + tx, text_oy + ty, css_text_props);
+                convert_elements_with_text_offset(
+                    buf,
+                    inner.trim(),
+                    ox + tx,
+                    oy + ty,
+                    text_ox + tx,
+                    text_oy + ty,
+                    css_text_props,
+                );
             }
             "symbol" => {
                 // Symbol: similar to g, but may have its own viewBox
                 let inner = extract_element_content(&ref_element, "symbol");
-                convert_elements_with_text_offset(buf, inner.trim(), ox + tx, oy + ty, text_ox + tx, text_oy + ty, css_text_props);
+                convert_elements_with_text_offset(
+                    buf,
+                    inner.trim(),
+                    ox + tx,
+                    oy + ty,
+                    text_ox + tx,
+                    text_oy + ty,
+                    css_text_props,
+                );
             }
             _ => {
                 // Single element — render it at the offset position
-                convert_single_element_ext(buf, &ref_element, ox + tx, oy + ty, text_ox + tx, text_oy + ty, None, css_text_props);
+                convert_single_element_ext(
+                    buf,
+                    &ref_element,
+                    ox + tx,
+                    oy + ty,
+                    text_ox + tx,
+                    text_oy + ty,
+                    None,
+                    css_text_props,
+                );
             }
         }
     }
@@ -1433,7 +1577,10 @@ fn scale_svg_content(content: &str, scale: f64) -> String {
     while i < bytes.len() {
         if bytes[i] == b'<' {
             // We're at a tag start. Find the end of this tag.
-            let tag_end = content[i..].find('>').map(|e| i + e + 1).unwrap_or(content.len());
+            let tag_end = content[i..]
+                .find('>')
+                .map(|e| i + e + 1)
+                .unwrap_or(content.len());
             let tag = &content[i..tag_end];
 
             // Scale numeric attributes: cx, cy, r, rx, ry, x, y, width, height, x1, y1, x2, y2
@@ -1450,7 +1597,22 @@ fn scale_svg_content(content: &str, scale: f64) -> String {
 
 fn scale_tag_attributes(tag: &str, scale: f64) -> String {
     use std::fmt::Write;
-    let coord_attrs = ["cx", "cy", "r", "rx", "ry", "x", "y", "x1", "y1", "x2", "y2", "width", "height", "stroke-width"];
+    let coord_attrs = [
+        "cx",
+        "cy",
+        "r",
+        "rx",
+        "ry",
+        "x",
+        "y",
+        "x1",
+        "y1",
+        "x2",
+        "y2",
+        "width",
+        "height",
+        "stroke-width",
+    ];
     let mut result = tag.to_string();
 
     // Scale coordinate attributes
@@ -1458,7 +1620,11 @@ fn scale_tag_attributes(tag: &str, scale: f64) -> String {
         let pattern = format!("{}=\"", attr_name);
         if let Some(pos) = result.find(&pattern) {
             // Ensure it's a full attribute match (preceded by space or tag start)
-            let before = if pos > 0 { result.as_bytes()[pos - 1] } else { b' ' };
+            let before = if pos > 0 {
+                result.as_bytes()[pos - 1]
+            } else {
+                b' '
+            };
             if before != b' ' && before != b'\t' && before != b'\n' {
                 continue;
             }
@@ -1484,7 +1650,12 @@ fn scale_tag_attributes(tag: &str, scale: f64) -> String {
             let d_val_end = d_val_start + d_val_end_rel;
             let d_str = result[d_val_start..d_val_end].to_string();
             let scaled_d = scale_path_data(&d_str, scale);
-            result = format!("{}d=\"{}\"{}", &result[..d_pos], scaled_d, &result[d_val_end + 1..]);
+            result = format!(
+                "{}d=\"{}\"{}",
+                &result[..d_pos],
+                scaled_d,
+                &result[d_val_end + 1..]
+            );
         }
     }
 
@@ -1517,11 +1688,19 @@ fn scale_path_data(d: &str, scale: f64) -> String {
     let mut chars = d.chars().peekable();
 
     while let Some(&ch) = chars.peek() {
-        if ch.is_ascii_digit() || (ch == '-' && {
-            // Check if this is a negative number sign (not part of a range)
-            let prev = result.chars().last().unwrap_or(' ');
-            prev == ' ' || prev == ',' || prev.is_ascii_alphabetic()
-        }) || (ch == '.' && result.chars().last().map(|c| c == ' ' || c == ',').unwrap_or(true)) {
+        if ch.is_ascii_digit()
+            || (ch == '-' && {
+                // Check if this is a negative number sign (not part of a range)
+                let prev = result.chars().last().unwrap_or(' ');
+                prev == ' ' || prev == ',' || prev.is_ascii_alphabetic()
+            })
+            || (ch == '.'
+                && result
+                    .chars()
+                    .last()
+                    .map(|c| c == ' ' || c == ',')
+                    .unwrap_or(true))
+        {
             let mut num_str = String::new();
             if ch == '-' {
                 num_str.push(ch);
@@ -1693,20 +1872,11 @@ fn get_stroke_style(element: &str) -> String {
 
     // Collect stroke properties from attributes
     let stroke = get_attr(element, "stroke")
-        .or_else(|| {
-            get_attr(element, "style")
-                .and_then(|s| get_style_prop(s, "stroke"))
-        });
+        .or_else(|| get_attr(element, "style").and_then(|s| get_style_prop(s, "stroke")));
     let stroke_width = get_attr(element, "stroke-width")
-        .or_else(|| {
-            get_attr(element, "style")
-                .and_then(|s| get_style_prop(s, "stroke-width"))
-        });
+        .or_else(|| get_attr(element, "style").and_then(|s| get_style_prop(s, "stroke-width")));
     let stroke_dasharray = get_attr(element, "stroke-dasharray")
-        .or_else(|| {
-            get_attr(element, "style")
-                .and_then(|s| get_style_prop(s, "stroke-dasharray"))
-        });
+        .or_else(|| get_attr(element, "style").and_then(|s| get_style_prop(s, "stroke-dasharray")));
 
     if let Some(s) = stroke {
         parts.push(format!("stroke:{};", normalize_hex_color(s)));
@@ -1770,7 +1940,13 @@ fn translate_path_data(d: &str, ox: f64, oy: f64) -> String {
             'M' | 'L' | 'T' => {
                 // Absolute move/line: scale + translate x,y
                 if let Some((x, y)) = parse_coord_pair(&mut chars) {
-                    write!(result, "{},{}", fmt_coord(sc(x) + ox), fmt_coord(sc(y) + oy)).unwrap();
+                    write!(
+                        result,
+                        "{},{}",
+                        fmt_coord(sc(x) + ox),
+                        fmt_coord(sc(y) + oy)
+                    )
+                    .unwrap();
                 }
             }
             'A' => {
@@ -1811,7 +1987,13 @@ fn translate_path_data(d: &str, ox: f64, oy: f64) -> String {
                 for i in 0..3 {
                     if let Some((x, y)) = parse_coord_pair(&mut chars) {
                         let sep = if i == 0 { "" } else { " " };
-                        write!(result, "{sep}{},{}", fmt_coord(sc(x) + ox), fmt_coord(sc(y) + oy)).unwrap();
+                        write!(
+                            result,
+                            "{sep}{},{}",
+                            fmt_coord(sc(x) + ox),
+                            fmt_coord(sc(y) + oy)
+                        )
+                        .unwrap();
                     }
                 }
             }
@@ -1846,7 +2028,10 @@ fn parse_number(chars: &mut std::iter::Peekable<std::str::Chars>) -> Option<f64>
         s.push(chars.next().unwrap());
     }
     // Digits and decimal point
-    while chars.peek().map_or(false, |&c| c.is_ascii_digit() || c == '.') {
+    while chars
+        .peek()
+        .map_or(false, |&c| c.is_ascii_digit() || c == '.')
+    {
         s.push(chars.next().unwrap());
     }
     if s.is_empty() || s == "-" || s == "+" {
@@ -1856,13 +2041,19 @@ fn parse_number(chars: &mut std::iter::Peekable<std::str::Chars>) -> Option<f64>
 }
 
 fn skip_comma(chars: &mut std::iter::Peekable<std::str::Chars>) {
-    while chars.peek().map_or(false, |&c| c == ',' || c.is_whitespace()) {
+    while chars
+        .peek()
+        .map_or(false, |&c| c == ',' || c.is_whitespace())
+    {
         chars.next();
     }
 }
 
 fn skip_whitespace_comma(chars: &mut std::iter::Peekable<std::str::Chars>) {
-    while chars.peek().map_or(false, |&c| c.is_whitespace() || c == ',') {
+    while chars
+        .peek()
+        .map_or(false, |&c| c.is_whitespace() || c == ',')
+    {
         chars.next();
     }
 }
@@ -1916,7 +2107,8 @@ mod tests {
     #[test]
     fn test_line_to_path() {
         let mut buf = String::new();
-        let elem = "<line x1=\"0\" y1=\"2\" x2=\"100\" y2=\"2\" stroke=\"#FF0000\" stroke-width=\"4\"/>";
+        let elem =
+            "<line x1=\"0\" y1=\"2\" x2=\"100\" y2=\"2\" stroke=\"#FF0000\" stroke-width=\"4\"/>";
         convert_line(&mut buf, elem, 71.3804, 61.4297);
         assert!(buf.contains("<path"));
         assert!(buf.contains("stroke:#FF0000"));

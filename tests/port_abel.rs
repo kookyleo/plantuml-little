@@ -59,8 +59,14 @@ mod entity_position {
         assert_eq!(format!("{:?}", EntityPosition::ExitPoint), "ExitPoint");
         assert_eq!(format!("{:?}", EntityPosition::InputPin), "InputPin");
         assert_eq!(format!("{:?}", EntityPosition::OutputPin), "OutputPin");
-        assert_eq!(format!("{:?}", EntityPosition::ExpansionInput), "ExpansionInput");
-        assert_eq!(format!("{:?}", EntityPosition::ExpansionOutput), "ExpansionOutput");
+        assert_eq!(
+            format!("{:?}", EntityPosition::ExpansionInput),
+            "ExpansionInput"
+        );
+        assert_eq!(
+            format!("{:?}", EntityPosition::ExpansionOutput),
+            "ExpansionOutput"
+        );
         assert_eq!(format!("{:?}", EntityPosition::PortIn), "PortIn");
         assert_eq!(format!("{:?}", EntityPosition::PortOut), "PortOut");
         // Cross-inequality: all variants are distinct
@@ -206,15 +212,39 @@ mod entity_position {
     #[test]
     fn from_stereotype() {
         // Java: fromStereotype() — case-insensitive matching via lowercase
-        assert_eq!(EntityPosition::from_stereotype("<<entrypoint>>"), EntityPosition::EntryPoint);
-        assert_eq!(EntityPosition::from_stereotype("<<ENTRYPOINT>>"), EntityPosition::EntryPoint);
-        assert_eq!(EntityPosition::from_stereotype("<<exitpoint>>"), EntityPosition::ExitPoint);
-        assert_eq!(EntityPosition::from_stereotype("<<inputpin>>"), EntityPosition::InputPin);
-        assert_eq!(EntityPosition::from_stereotype("<<outputpin>>"), EntityPosition::OutputPin);
-        assert_eq!(EntityPosition::from_stereotype("<<expansioninput>>"), EntityPosition::ExpansionInput);
-        assert_eq!(EntityPosition::from_stereotype("<<expansionoutput>>"), EntityPosition::ExpansionOutput);
+        assert_eq!(
+            EntityPosition::from_stereotype("<<entrypoint>>"),
+            EntityPosition::EntryPoint
+        );
+        assert_eq!(
+            EntityPosition::from_stereotype("<<ENTRYPOINT>>"),
+            EntityPosition::EntryPoint
+        );
+        assert_eq!(
+            EntityPosition::from_stereotype("<<exitpoint>>"),
+            EntityPosition::ExitPoint
+        );
+        assert_eq!(
+            EntityPosition::from_stereotype("<<inputpin>>"),
+            EntityPosition::InputPin
+        );
+        assert_eq!(
+            EntityPosition::from_stereotype("<<outputpin>>"),
+            EntityPosition::OutputPin
+        );
+        assert_eq!(
+            EntityPosition::from_stereotype("<<expansioninput>>"),
+            EntityPosition::ExpansionInput
+        );
+        assert_eq!(
+            EntityPosition::from_stereotype("<<expansionoutput>>"),
+            EntityPosition::ExpansionOutput
+        );
         // Unknown stereotype falls back to NORMAL
-        assert_eq!(EntityPosition::from_stereotype("<<unknown>>"), EntityPosition::Normal);
+        assert_eq!(
+            EntityPosition::from_stereotype("<<unknown>>"),
+            EntityPosition::Normal
+        );
     }
 
     #[test]
@@ -276,9 +306,15 @@ mod group_type {
         assert_eq!(format!("{:?}", GroupType::Root), "Root");
         assert_eq!(format!("{:?}", GroupType::Package), "Package");
         assert_eq!(format!("{:?}", GroupType::State), "State");
-        assert_eq!(format!("{:?}", GroupType::ConcurrentState), "ConcurrentState");
+        assert_eq!(
+            format!("{:?}", GroupType::ConcurrentState),
+            "ConcurrentState"
+        );
         assert_eq!(format!("{:?}", GroupType::InnerActivity), "InnerActivity");
-        assert_eq!(format!("{:?}", GroupType::ConcurrentActivity), "ConcurrentActivity");
+        assert_eq!(
+            format!("{:?}", GroupType::ConcurrentActivity),
+            "ConcurrentActivity"
+        );
         assert_eq!(format!("{:?}", GroupType::Domain), "Domain");
         assert_eq!(format!("{:?}", GroupType::Requirement), "Requirement");
         // Cross-inequality: all variants are distinct
@@ -330,23 +366,41 @@ mod leaf_type {
     fn get_leaf_type_exact_match() {
         // Java: LeafType.getLeafType("CLASS") == CLASS
         assert_eq!(LeafType::from_str_loose("CLASS"), Some(LeafType::Class));
-        assert_eq!(LeafType::from_str_loose("INTERFACE"), Some(LeafType::Interface));
+        assert_eq!(
+            LeafType::from_str_loose("INTERFACE"),
+            Some(LeafType::Interface)
+        );
         assert_eq!(LeafType::from_str_loose("ENUM"), Some(LeafType::Enum));
     }
 
     #[test]
     fn get_leaf_type_abstract_prefix() {
         // Java: "abstract"/"ABSTRACT" → ABSTRACT_CLASS; "ABSTRACT_CLASS" → ABSTRACT_CLASS
-        assert_eq!(LeafType::from_str_loose("ABSTRACT"), Some(LeafType::AbstractClass));
-        assert_eq!(LeafType::from_str_loose("abstract"), Some(LeafType::AbstractClass));
-        assert_eq!(LeafType::from_str_loose("ABSTRACT_CLASS"), Some(LeafType::AbstractClass));
+        assert_eq!(
+            LeafType::from_str_loose("ABSTRACT"),
+            Some(LeafType::AbstractClass)
+        );
+        assert_eq!(
+            LeafType::from_str_loose("abstract"),
+            Some(LeafType::AbstractClass)
+        );
+        assert_eq!(
+            LeafType::from_str_loose("ABSTRACT_CLASS"),
+            Some(LeafType::AbstractClass)
+        );
     }
 
     #[test]
     fn get_leaf_type_diamond_prefix() {
         // Java: "DIAMOND"/"diamond" → STATE_CHOICE
-        assert_eq!(LeafType::from_str_loose("DIAMOND"), Some(LeafType::StateChoice));
-        assert_eq!(LeafType::from_str_loose("diamond"), Some(LeafType::StateChoice));
+        assert_eq!(
+            LeafType::from_str_loose("DIAMOND"),
+            Some(LeafType::StateChoice)
+        );
+        assert_eq!(
+            LeafType::from_str_loose("diamond"),
+            Some(LeafType::StateChoice)
+        );
     }
 
     #[test]
@@ -360,7 +414,10 @@ mod leaf_type {
     fn get_leaf_type_case_insensitive() {
         // Java: lowercased input still resolves correctly
         assert_eq!(LeafType::from_str_loose("class"), Some(LeafType::Class));
-        assert_eq!(LeafType::from_str_loose("interface"), Some(LeafType::Interface));
+        assert_eq!(
+            LeafType::from_str_loose("interface"),
+            Some(LeafType::Interface)
+        );
     }
 
     #[test]
@@ -442,7 +499,10 @@ mod entity_portion {
         assert_eq!(format!("{:?}", EntityPortion::Field), "Field");
         assert_eq!(format!("{:?}", EntityPortion::Method), "Method");
         assert_eq!(format!("{:?}", EntityPortion::Member), "Member");
-        assert_eq!(format!("{:?}", EntityPortion::CircledCharacter), "CircledCharacter");
+        assert_eq!(
+            format!("{:?}", EntityPortion::CircledCharacter),
+            "CircledCharacter"
+        );
         assert_eq!(format!("{:?}", EntityPortion::Stereotype), "Stereotype");
         // Cross-inequality: all variants are distinct
         assert_ne!(EntityPortion::Field, EntityPortion::Method);
@@ -728,8 +788,8 @@ mod link_arrow {
 
 #[cfg(test)]
 mod cuca_note {
-    use plantuml_little::abel::{CucaNote, NoteLinkStrategy};
     use plantuml_little::abel::entity::NotePosition;
+    use plantuml_little::abel::{CucaNote, NoteLinkStrategy};
 
     fn make_display() -> Vec<String> {
         vec!["test note".to_string()]
@@ -820,12 +880,21 @@ mod note_link_strategy {
         // Java: assertSame(NORMAL, ...) etc.
         // Verify Debug representation matches expected name (equivalent to valueOf by name).
         assert_eq!(format!("{:?}", NoteLinkStrategy::Normal), "Normal");
-        assert_eq!(format!("{:?}", NoteLinkStrategy::HalfPrintedFull), "HalfPrintedFull");
-        assert_eq!(format!("{:?}", NoteLinkStrategy::HalfNotPrinted), "HalfNotPrinted");
+        assert_eq!(
+            format!("{:?}", NoteLinkStrategy::HalfPrintedFull),
+            "HalfPrintedFull"
+        );
+        assert_eq!(
+            format!("{:?}", NoteLinkStrategy::HalfNotPrinted),
+            "HalfNotPrinted"
+        );
         // Cross-inequality: all variants are distinct
         assert_ne!(NoteLinkStrategy::Normal, NoteLinkStrategy::HalfPrintedFull);
         assert_ne!(NoteLinkStrategy::Normal, NoteLinkStrategy::HalfNotPrinted);
-        assert_ne!(NoteLinkStrategy::HalfPrintedFull, NoteLinkStrategy::HalfNotPrinted);
+        assert_ne!(
+            NoteLinkStrategy::HalfPrintedFull,
+            NoteLinkStrategy::HalfNotPrinted
+        );
     }
 
     #[test]
@@ -932,7 +1001,11 @@ mod display_positioned {
     fn get_display() {
         // Java: assertSame(display, dp.getDisplay())
         let text = make_display();
-        let dp = DisplayPositioned::single(text.clone(), HorizontalAlignment::Left, VerticalAlignment::Top);
+        let dp = DisplayPositioned::single(
+            text.clone(),
+            HorizontalAlignment::Left,
+            VerticalAlignment::Top,
+        );
         assert_eq!(dp.display, text);
     }
 
@@ -1091,10 +1164,7 @@ mod entity_gender_utils {
     #[test]
     fn and_both_all() {
         // Java: and(all, all) → contains any entity; getGender() == null
-        let combined = EntityGender::And(
-            Box::new(EntityGender::All),
-            Box::new(EntityGender::All),
-        );
+        let combined = EntityGender::And(Box::new(EntityGender::All), Box::new(EntityGender::All));
         let e = Entity::new_leaf("X", LeafType::Class);
         assert!(combined.contains(&e));
         assert!(combined.gender().is_none());
@@ -1104,10 +1174,7 @@ mod entity_gender_utils {
     fn and_one_false() {
         // Java: and(all, byEntityType(CLASS)) with non-CLASS → false; with CLASS → true
         let class_only = EntityGender::ByEntityType(LeafType::Class);
-        let and_gender = EntityGender::And(
-            Box::new(EntityGender::All),
-            Box::new(class_only),
-        );
+        let and_gender = EntityGender::And(Box::new(EntityGender::All), Box::new(class_only));
         let non_class = Entity::new_leaf("I", LeafType::Interface);
         assert!(and_gender.contains(&non_class) == false);
 

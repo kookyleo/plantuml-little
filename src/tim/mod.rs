@@ -255,11 +255,7 @@ impl TContext {
     }
 
     /// Resolve a variable from memory, with JSON path support.
-    pub fn get_variable(
-        &self,
-        memory: &dyn TMemory,
-        name: &str,
-    ) -> Option<TValue> {
+    pub fn get_variable(&self, memory: &dyn TMemory, name: &str) -> Option<TValue> {
         memory.get_variable(name).cloned()
     }
 
@@ -269,11 +265,7 @@ impl TContext {
     }
 
     /// Call a built-in function by name with arguments.
-    pub fn call_builtin(
-        &self,
-        name: &str,
-        args: &[TValue],
-    ) -> Result<TValue, String> {
+    pub fn call_builtin(&self, name: &str, args: &[TValue]) -> Result<TValue, String> {
         let func = self
             .builtins
             .get(name)
@@ -282,10 +274,7 @@ impl TContext {
     }
 
     /// Get a `Knowledge` implementation backed by this context and memory.
-    pub fn as_knowledge<'a>(
-        &'a self,
-        memory: &'a dyn TMemory,
-    ) -> ContextKnowledge<'a> {
+    pub fn as_knowledge<'a>(&'a self, memory: &'a dyn TMemory) -> ContextKnowledge<'a> {
         ContextKnowledge {
             context: self,
             memory,
@@ -311,11 +300,7 @@ impl expression::Knowledge for ContextKnowledge<'_> {
         self.memory.get_variable(name).cloned()
     }
 
-    fn get_function(
-        &self,
-        name: &str,
-        _nb_arg: usize,
-    ) -> Option<expression::BuiltinFn> {
+    fn get_function(&self, name: &str, _nb_arg: usize) -> Option<expression::BuiltinFn> {
         self.context.builtins.get(name).copied()
     }
 }
@@ -355,7 +340,10 @@ mod tests {
     #[test]
     fn variable_scope_parse() {
         assert_eq!(TVariableScope::parse("local"), Some(TVariableScope::Local));
-        assert_eq!(TVariableScope::parse("GLOBAL"), Some(TVariableScope::Global));
+        assert_eq!(
+            TVariableScope::parse("GLOBAL"),
+            Some(TVariableScope::Global)
+        );
         assert_eq!(TVariableScope::parse("Local"), Some(TVariableScope::Local));
         assert_eq!(TVariableScope::parse("unknown"), None);
     }

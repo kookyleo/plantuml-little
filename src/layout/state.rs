@@ -128,7 +128,8 @@ fn text_width(text: &str, font_size: f64) -> f64 {
     let mut rest = text;
     while let Some(pos) = rest.find("\\t") {
         if pos > 0 {
-            x += crate::font_metrics::text_width(&rest[..pos], "SansSerif", font_size, false, false);
+            x +=
+                crate::font_metrics::text_width(&rest[..pos], "SansSerif", font_size, false, false);
         }
         // Tab-stop snap: advance to next multiple of tab_pixel_size
         let remainder = x % tab_pixel_size;
@@ -168,7 +169,11 @@ fn estimate_state_size(state: &State) -> (f64, f64) {
     // Java: EntityImageState layout uses different fonts for name vs body.
     let name_h = crate::font_metrics::line_height("SansSerif", STATE_NAME_FONT_SIZE, false, false);
     let desc_h = crate::font_metrics::line_height("SansSerif", STATE_DESC_FONT_SIZE, false, false);
-    let stereo_h = if state.stereotype.is_some() { desc_h } else { 0.0 };
+    let stereo_h = if state.stereotype.is_some() {
+        desc_h
+    } else {
+        0.0
+    };
     let desc_total = visual_lines.len() as f64 * desc_h;
     let height = (name_h + stereo_h + desc_total + 2.0 * PADDING).max(STATE_MIN_HEIGHT);
 
@@ -298,10 +303,9 @@ fn dedup_states(states: &mut Vec<State>) {
 
     for i in 0..states.len() {
         if let Some(&prev_idx) = seen.get(&states[i].id) {
-            let prev_is_composite = !states[prev_idx].children.is_empty()
-                || !states[prev_idx].regions.is_empty();
-            let curr_is_composite = !states[i].children.is_empty()
-                || !states[i].regions.is_empty();
+            let prev_is_composite =
+                !states[prev_idx].children.is_empty() || !states[prev_idx].regions.is_empty();
+            let curr_is_composite = !states[i].children.is_empty() || !states[i].regions.is_empty();
 
             if curr_is_composite && !prev_is_composite {
                 // Current is composite, previous is simple -> remove previous
@@ -612,9 +616,7 @@ fn assign_ranks(
     // Edges TO these states should not create back-edges for SCC/ranking,
     // since [*] logically represents two separate nodes (start dot + end dot).
     let special_set: HashSet<usize> = (0..n)
-        .filter(|&i| {
-            state_ids[i] == "[*]" || state_ids[i].starts_with("[*]")
-        })
+        .filter(|&i| state_ids[i] == "[*]" || state_ids[i].starts_with("[*]"))
         .collect();
 
     // Build adjacency from transitions scoped to this level.
@@ -625,7 +627,10 @@ fn assign_ranks(
     let mut has_edge: Vec<bool> = vec![false; n];
 
     for tr in transitions {
-        if let (Some(&fi), Some(&ti)) = (id_to_idx.get(tr.from.as_str()), id_to_idx.get(tr.to.as_str())) {
+        if let (Some(&fi), Some(&ti)) = (
+            id_to_idx.get(tr.from.as_str()),
+            id_to_idx.get(tr.to.as_str()),
+        ) {
             // Skip self-loops for ranking
             if fi == ti {
                 has_edge[fi] = true;
@@ -665,7 +670,10 @@ fn assign_ranks(
     // Iterative Tarjan
     {
         // Use a work stack to avoid recursion
-        enum Action { Visit(usize), Finish(usize) }
+        enum Action {
+            Visit(usize),
+            Finish(usize),
+        }
         let mut work: Vec<Action> = Vec::new();
 
         for start in 0..n {
@@ -846,7 +854,12 @@ fn layout_states_ranked(
     // First pass: compute sizes for all states
     let mut sized_entries: Vec<(StateNodeLayout, f64, f64)> = Vec::new();
     for state in states {
-        sized_entries.push(compute_state_node(state, transitions, initial_ids, final_ids));
+        sized_entries.push(compute_state_node(
+            state,
+            transitions,
+            initial_ids,
+            final_ids,
+        ));
     }
 
     let state_ids: Vec<String> = states.iter().map(|s| s.id.clone()).collect();
@@ -872,10 +885,7 @@ fn layout_states_ranked(
             .iter()
             .map(|&i| sized_entries[i].2)
             .fold(0.0_f64, f64::max);
-        let row_width: f64 = row_entries
-            .iter()
-            .map(|&i| sized_entries[i].1)
-            .sum::<f64>()
+        let row_width: f64 = row_entries.iter().map(|&i| sized_entries[i].1).sum::<f64>()
             + STATE_SPACING * (row_entries.len() as f64 - 1.0).max(0.0);
 
         total_width = total_width.max(row_width);
@@ -1095,7 +1105,8 @@ pub fn layout_state(diagram: &StateDiagram) -> Result<StateLayout> {
     // later if needed.
     let mut sized_map: HashMap<String, (StateNodeLayout, f64, f64)> = HashMap::new();
     for state in &all_states {
-        let (node, w, h) = compute_state_node(state, &diagram.transitions, &initial_ids, &final_ids);
+        let (node, w, h) =
+            compute_state_node(state, &diagram.transitions, &initial_ids, &final_ids);
         sized_map.insert(state.id.clone(), (node, w, h));
     }
 
@@ -1107,10 +1118,15 @@ pub fn layout_state(diagram: &StateDiagram) -> Result<StateLayout> {
         // Java uses shape=circle for [*] (initial/final) and shape=rect for states.
         // We use Circle for special states to match Java's DOT and get correct
         // graphviz node spacing.
-        let shape = if state.is_special || matches!(state.kind,
-            StateKind::History | StateKind::DeepHistory |
-            StateKind::EntryPoint | StateKind::ExitPoint | StateKind::End)
-        {
+        let shape = if state.is_special
+            || matches!(
+                state.kind,
+                StateKind::History
+                    | StateKind::DeepHistory
+                    | StateKind::EntryPoint
+                    | StateKind::ExitPoint
+                    | StateKind::End
+            ) {
             Some(crate::svek::shape_type::ShapeType::Circle)
         } else {
             None // Default: ShapeType::Rectangle → shape=rect
@@ -1121,6 +1137,10 @@ pub fn layout_state(diagram: &StateDiagram) -> Result<StateLayout> {
             width_pt: *w,
             height_pt: *h,
             shape,
+            shield: None,
+            entity_position: None,
+            max_label_width: None,
+            order: None,
         });
         node_id_order.push(state.id.clone());
     }
@@ -1131,7 +1151,18 @@ pub fn layout_state(diagram: &StateDiagram) -> Result<StateLayout> {
         gv_edges.push(LayoutEdge {
             from: tr.from.clone(),
             to: tr.to.clone(),
-            label: if tr.label.is_empty() { None } else { Some(tr.label.clone()) },
+            label: if tr.label.is_empty() {
+                None
+            } else {
+                Some(tr.label.clone())
+            },
+            tail_label: None,
+            tail_label_boxed: false,
+            head_label: None,
+            head_label_boxed: false,
+            tail_decoration: crate::svek::edge::LinkDecoration::None,
+            head_decoration: crate::svek::edge::LinkDecoration::None,
+            line_style: crate::svek::edge::LinkStyle::Normal,
             minlen: 1,
             invisible: false,
         });
@@ -1150,6 +1181,7 @@ pub fn layout_state(diagram: &StateDiagram) -> Result<StateLayout> {
         edges: gv_edges,
         clusters: vec![],
         rankdir,
+        use_simplier_dot_link_strategy: false,
     };
 
     // Run graphviz via svek pipeline
@@ -1180,10 +1212,21 @@ pub fn layout_state(diagram: &StateDiagram) -> Result<StateLayout> {
         if let Some(top_node) = topmost {
             let top_state = all_states.iter().find(|s| s.id == top_node.id);
             let is_circle = top_state.map_or(false, |s| {
-                s.is_special || matches!(s.kind, StateKind::History | StateKind::DeepHistory
-                    | StateKind::EntryPoint | StateKind::ExitPoint | StateKind::End)
+                s.is_special
+                    || matches!(
+                        s.kind,
+                        StateKind::History
+                            | StateKind::DeepHistory
+                            | StateKind::EntryPoint
+                            | StateKind::ExitPoint
+                            | StateKind::End
+                    )
             });
-            if is_circle { 6.0 } else { 7.0 }
+            if is_circle {
+                6.0
+            } else {
+                7.0
+            }
         } else {
             7.0
         }
@@ -1234,7 +1277,10 @@ pub fn layout_state(diagram: &StateDiagram) -> Result<StateLayout> {
 
     for (i, gv_edge) in gv_layout.edges.iter().enumerate() {
         let (from_id, to_id) = if i < active_transitions.len() {
-            (active_transitions[i].from.clone(), active_transitions[i].to.clone())
+            (
+                active_transitions[i].from.clone(),
+                active_transitions[i].to.clone(),
+            )
         } else {
             (gv_edge.from.clone(), gv_edge.to.clone())
         };
@@ -1245,24 +1291,30 @@ pub fn layout_state(diagram: &StateDiagram) -> Result<StateLayout> {
         };
 
         // Shift points by MARGIN (x) and margin_y (y) to match state positions
-        let points: Vec<(f64, f64)> = gv_edge.points.iter()
+        let points: Vec<(f64, f64)> = gv_edge
+            .points
+            .iter()
             .map(|&(x, y)| (x + MARGIN, y + margin_y))
             .collect();
 
-        let raw_path_d = gv_edge.raw_path_d.as_ref()
+        let raw_path_d = gv_edge
+            .raw_path_d
+            .as_ref()
             .map(|d| graphviz::transform_path_d(d, MARGIN, margin_y));
 
-        let arrow_polygon = gv_edge.arrow_polygon_points.as_ref()
-            .map(|pts| pts.iter().map(|&(x, y)| (x + MARGIN, y + margin_y)).collect());
+        let arrow_polygon = gv_edge.arrow_polygon_points.as_ref().map(|pts| {
+            pts.iter()
+                .map(|&(x, y)| (x + MARGIN, y + margin_y))
+                .collect()
+        });
 
         // label_xy from GraphLayout is pre-moveDelta, pre-normalization.
         // Apply moveDelta + normalization + MARGIN to match path/node coords.
-        let label_xy = gv_edge.label_xy
-            .map(|(x, y)| {
-                let nx = x + gv_layout.move_delta.0 - gv_layout.normalize_offset.0 + MARGIN;
-                let ny = y + gv_layout.move_delta.1 - gv_layout.normalize_offset.1 + margin_y;
-                (nx, ny)
-            });
+        let label_xy = gv_edge.label_xy.map(|(x, y)| {
+            let nx = x + gv_layout.move_delta.0 - gv_layout.normalize_offset.0 + MARGIN;
+            let ny = y + gv_layout.move_delta.1 - gv_layout.normalize_offset.1 + margin_y;
+            (nx, ny)
+        });
 
         let label_wh = gv_edge.label_wh;
 
@@ -1295,7 +1347,14 @@ pub fn layout_state(diagram: &StateDiagram) -> Result<StateLayout> {
                 let lx_norm = lx + gv_layout.move_delta.0 - gv_layout.normalize_offset.0;
                 let tl = crate::font_metrics::text_width(label, "SansSerif", 13.0, false, false);
                 let label_right = lx_norm + tl;
-                log::debug!("  edge label '{}': lx={:.1} tl={:.2} right={:.2}, content_width={:.1}", label, lx_norm, tl, label_right, content_width);
+                log::debug!(
+                    "  edge label '{}': lx={:.1} tl={:.2} right={:.2}, content_width={:.1}",
+                    label,
+                    lx_norm,
+                    tl,
+                    label_right,
+                    content_width
+                );
                 if label_right > content_width {
                     content_width = label_right;
                 }
@@ -1626,7 +1685,12 @@ mod tests {
             .iter()
             .find(|n| n.id == "Active")
             .unwrap();
-        assert!(start.y < active.y, "start.y={} should be < active.y={}", start.y, active.y);
+        assert!(
+            start.y < active.y,
+            "start.y={} should be < active.y={}",
+            start.y,
+            active.y
+        );
 
         // Transitions should have points
         for tl in &layout.transition_layouts {
@@ -1817,9 +1881,13 @@ mod tests {
         let node = &layout.state_layouts[0];
 
         // Width should accommodate the longest description line
-        let expected_min_w =
-            crate::font_metrics::text_width("a much longer description line", "SansSerif", STATE_DESC_FONT_SIZE, false, false)
-            + 2.0 * PADDING;
+        let expected_min_w = crate::font_metrics::text_width(
+            "a much longer description line",
+            "SansSerif",
+            STATE_DESC_FONT_SIZE,
+            false,
+            false,
+        ) + 2.0 * PADDING;
         assert!(
             node.width >= expected_min_w,
             "width {} should be >= {}",
@@ -1828,8 +1896,10 @@ mod tests {
         );
 
         // Height should accommodate name (14pt) + 3 description lines (12pt)
-        let name_h = crate::font_metrics::line_height("SansSerif", STATE_NAME_FONT_SIZE, false, false);
-        let desc_h = crate::font_metrics::line_height("SansSerif", STATE_DESC_FONT_SIZE, false, false);
+        let name_h =
+            crate::font_metrics::line_height("SansSerif", STATE_NAME_FONT_SIZE, false, false);
+        let desc_h =
+            crate::font_metrics::line_height("SansSerif", STATE_DESC_FONT_SIZE, false, false);
         let expected_min_h = name_h + 3.0 * desc_h + 2.0 * PADDING;
         assert!(
             node.height >= expected_min_h,

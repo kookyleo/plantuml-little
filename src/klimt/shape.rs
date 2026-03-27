@@ -26,7 +26,9 @@ pub struct UPath {
 }
 
 impl UPath {
-    pub fn new() -> Self { Self::default() }
+    pub fn new() -> Self {
+        Self::default()
+    }
 
     pub fn move_to(&mut self, x: f64, y: f64) {
         self.segments.push(USegment {
@@ -49,7 +51,16 @@ impl UPath {
         });
     }
 
-    pub fn arc_to(&mut self, rx: f64, ry: f64, x_rot: f64, large_arc: f64, sweep: f64, x: f64, y: f64) {
+    pub fn arc_to(
+        &mut self,
+        rx: f64,
+        ry: f64,
+        x_rot: f64,
+        large_arc: f64,
+        sweep: f64,
+        x: f64,
+        y: f64,
+    ) {
         self.segments.push(USegment {
             kind: super::geom::USegmentType::ArcTo,
             coords: vec![rx, ry, x_rot, large_arc, sweep, x, y],
@@ -70,19 +81,30 @@ impl UPath {
         for seg in &self.segments {
             match seg.kind {
                 MoveTo => {
-                    if !d.is_empty() { d.push(' '); }
+                    if !d.is_empty() {
+                        d.push(' ');
+                    }
                     d.push_str(&format!("M{:.4} {:.4}", seg.coords[0], seg.coords[1]));
                 }
                 LineTo => d.push_str(&format!(" L{:.4} {:.4}", seg.coords[0], seg.coords[1])),
                 CubicTo => d.push_str(&format!(
                     " C{:.4} {:.4} {:.4} {:.4} {:.4} {:.4}",
-                    seg.coords[0], seg.coords[1], seg.coords[2], seg.coords[3], seg.coords[4], seg.coords[5]
+                    seg.coords[0],
+                    seg.coords[1],
+                    seg.coords[2],
+                    seg.coords[3],
+                    seg.coords[4],
+                    seg.coords[5]
                 )),
                 ArcTo => d.push_str(&format!(
                     " A{:.4} {:.4} {:.4} {} {} {:.4} {:.4}",
-                    seg.coords[0], seg.coords[1], seg.coords[2],
-                    seg.coords[3] as i32, seg.coords[4] as i32,
-                    seg.coords[5], seg.coords[6]
+                    seg.coords[0],
+                    seg.coords[1],
+                    seg.coords[2],
+                    seg.coords[3] as i32,
+                    seg.coords[4] as i32,
+                    seg.coords[5],
+                    seg.coords[6]
                 )),
                 Close => d.push_str(" Z"),
             }
@@ -92,8 +114,12 @@ impl UPath {
 }
 
 impl Shadowable for UPath {
-    fn delta_shadow(&self) -> f64 { self.shadow }
-    fn set_delta_shadow(&mut self, delta: f64) { self.shadow = delta; }
+    fn delta_shadow(&self) -> f64 {
+        self.shadow
+    }
+    fn set_delta_shadow(&mut self, delta: f64) {
+        self.shadow = delta;
+    }
 }
 
 // ── URectangle ──────────────────────────────────────────────────────
@@ -112,7 +138,14 @@ pub struct URectangle {
 
 impl URectangle {
     pub fn build(width: f64, height: f64) -> Self {
-        Self { width, height, rx: 0.0, ry: 0.0, shadow: 0.0, comment: None }
+        Self {
+            width,
+            height,
+            rx: 0.0,
+            ry: 0.0,
+            shadow: 0.0,
+            comment: None,
+        }
     }
 
     pub fn from_dim(dim: XDimension2D) -> Self {
@@ -121,19 +154,32 @@ impl URectangle {
 
     /// Return a copy with the given rounded corner radius (rx = ry = round).
     pub fn rounded(&self, round: f64) -> Self {
-        Self { rx: round, ry: round, ..self.clone() }
+        Self {
+            rx: round,
+            ry: round,
+            ..self.clone()
+        }
     }
 
     pub fn with_height(&self, new_height: f64) -> Self {
-        Self { height: new_height, ..self.clone() }
+        Self {
+            height: new_height,
+            ..self.clone()
+        }
     }
 
     pub fn with_width(&self, new_width: f64) -> Self {
-        Self { width: new_width, ..self.clone() }
+        Self {
+            width: new_width,
+            ..self.clone()
+        }
     }
 
     pub fn with_comment(&self, comment: String) -> Self {
-        Self { comment: Some(comment), ..self.clone() }
+        Self {
+            comment: Some(comment),
+            ..self.clone()
+        }
     }
 
     /// Create a UPath representing a rectangle with diagonal-cut corners.
@@ -189,8 +235,12 @@ impl fmt::Display for URectangle {
 }
 
 impl Shadowable for URectangle {
-    fn delta_shadow(&self) -> f64 { self.shadow }
-    fn set_delta_shadow(&mut self, delta: f64) { self.shadow = delta; }
+    fn delta_shadow(&self) -> f64 {
+        self.shadow
+    }
+    fn set_delta_shadow(&mut self, delta: f64) {
+        self.shadow = delta;
+    }
 }
 
 // ── UEllipse ────────────────────────────────────────────────────────
@@ -211,11 +261,23 @@ pub struct UEllipse {
 
 impl UEllipse {
     pub fn build(width: f64, height: f64) -> Self {
-        Self { width, height, start: 0.0, extend: 0.0, shadow: 0.0 }
+        Self {
+            width,
+            height,
+            start: 0.0,
+            extend: 0.0,
+            shadow: 0.0,
+        }
     }
 
     pub fn arc(width: f64, height: f64, start: f64, extend: f64) -> Self {
-        Self { width, height, start, extend, shadow: 0.0 }
+        Self {
+            width,
+            height,
+            start,
+            extend,
+            shadow: 0.0,
+        }
     }
 
     pub fn dimension(&self) -> XDimension2D {
@@ -265,8 +327,12 @@ impl fmt::Display for UEllipse {
 }
 
 impl Shadowable for UEllipse {
-    fn delta_shadow(&self) -> f64 { self.shadow }
-    fn set_delta_shadow(&mut self, delta: f64) { self.shadow = delta; }
+    fn delta_shadow(&self) -> f64 {
+        self.shadow
+    }
+    fn set_delta_shadow(&mut self, delta: f64) {
+        self.shadow = delta;
+    }
 }
 
 // ── ULine ───────────────────────────────────────────────────────────
@@ -282,7 +348,11 @@ pub struct ULine {
 
 impl ULine {
     pub fn new(dx: f64, dy: f64) -> Self {
-        Self { dx, dy, shadow: 0.0 }
+        Self {
+            dx,
+            dy,
+            shadow: 0.0,
+        }
     }
 
     pub fn from_points(p1: XPoint2D, p2: XPoint2D) -> Self {
@@ -306,10 +376,7 @@ impl ULine {
         }
         let cos = theta.cos();
         let sin = theta.sin();
-        Self::new(
-            self.dx * cos - self.dy * sin,
-            self.dx * sin + self.dy * cos,
-        )
+        Self::new(self.dx * cos - self.dy * sin, self.dx * sin + self.dy * cos)
     }
 
     pub fn length(&self) -> f64 {
@@ -324,8 +391,12 @@ impl fmt::Display for ULine {
 }
 
 impl Shadowable for ULine {
-    fn delta_shadow(&self) -> f64 { self.shadow }
-    fn set_delta_shadow(&mut self, delta: f64) { self.shadow = delta; }
+    fn delta_shadow(&self) -> f64 {
+        self.shadow
+    }
+    fn set_delta_shadow(&mut self, delta: f64) {
+        self.shadow = delta;
+    }
 }
 
 // ── UText ───────────────────────────────────────────────────────────
@@ -381,16 +452,23 @@ pub struct DotPath {
 }
 
 impl DotPath {
-    pub fn new() -> Self { Self::default() }
+    pub fn new() -> Self {
+        Self::default()
+    }
 
     pub fn from_beziers(beziers: Vec<XCubicCurve2D>) -> Self {
-        Self { beziers, comment: None }
+        Self {
+            beziers,
+            comment: None,
+        }
     }
 
     /// Append a cubic curve from four points.
     pub fn add_curve_4(&self, p1: XPoint2D, p2: XPoint2D, p3: XPoint2D, p4: XPoint2D) -> Self {
         let mut copy = self.beziers.clone();
-        copy.push(XCubicCurve2D::new(p1.x, p1.y, p2.x, p2.y, p3.x, p3.y, p4.x, p4.y));
+        copy.push(XCubicCurve2D::new(
+            p1.x, p1.y, p2.x, p2.y, p3.x, p3.y, p4.x, p4.y,
+        ));
         Self::from_beziers(copy)
     }
 
@@ -443,18 +521,28 @@ impl DotPath {
     pub fn move_delta(&mut self, dx: f64, dy: f64) {
         for c in &mut self.beziers {
             *c = XCubicCurve2D::new(
-                c.x1 + dx, c.y1 + dy,
-                c.ctrlx1 + dx, c.ctrly1 + dy,
-                c.ctrlx2 + dx, c.ctrly2 + dy,
-                c.x2 + dx, c.y2 + dy,
+                c.x1 + dx,
+                c.y1 + dy,
+                c.ctrlx1 + dx,
+                c.ctrly1 + dy,
+                c.ctrlx2 + dx,
+                c.ctrly2 + dy,
+                c.x2 + dx,
+                c.y2 + dy,
             );
         }
     }
 
     /// Reverse the path direction.
     pub fn reverse(&self) -> Self {
-        let mut rev: Vec<XCubicCurve2D> = self.beziers.iter()
-            .map(|c| XCubicCurve2D::new(c.x2, c.y2, c.ctrlx2, c.ctrly2, c.ctrlx1, c.ctrly1, c.x1, c.y1))
+        let mut rev: Vec<XCubicCurve2D> = self
+            .beziers
+            .iter()
+            .map(|c| {
+                XCubicCurve2D::new(
+                    c.x2, c.y2, c.ctrlx2, c.ctrly2, c.ctrlx1, c.ctrly1, c.x1, c.y1,
+                )
+            })
             .collect();
         rev.reverse();
         Self::from_beziers(rev)
@@ -486,7 +574,9 @@ impl DotPath {
             if i == 0 {
                 result.move_to(bez.x1, bez.y1);
             }
-            result.cubic_to(bez.ctrlx1, bez.ctrly1, bez.ctrlx2, bez.ctrly2, bez.x2, bez.y2);
+            result.cubic_to(
+                bez.ctrlx1, bez.ctrly1, bez.ctrlx2, bez.ctrly2, bez.x2, bez.y2,
+            );
         }
         result
     }
@@ -524,9 +614,14 @@ impl DotPath {
 impl fmt::Display for DotPath {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         for (i, c) in self.beziers.iter().enumerate() {
-            if i > 0 { write!(f, " - ")?; }
-            write!(f, "({},{}) ({},{}) ({},{}) ({},{})",
-                c.x1, c.y1, c.ctrlx1, c.ctrly1, c.ctrlx2, c.ctrly2, c.x2, c.y2)?;
+            if i > 0 {
+                write!(f, " - ")?;
+            }
+            write!(
+                f,
+                "({},{}) ({},{}) ({},{}) ({},{})",
+                c.x1, c.y1, c.ctrlx1, c.ctrly1, c.ctrlx2, c.ctrly2, c.x2, c.y2
+            )?;
         }
         Ok(())
     }
@@ -548,7 +643,10 @@ impl UEmpty {
     }
 
     pub fn from_dim(dim: XDimension2D) -> Self {
-        Self { width: dim.width, height: dim.height }
+        Self {
+            width: dim.width,
+            height: dim.height,
+        }
     }
 }
 
@@ -569,7 +667,9 @@ pub struct UComment {
 
 impl UComment {
     pub fn new(comment: &str) -> Self {
-        Self { comment: comment.to_string() }
+        Self {
+            comment: comment.to_string(),
+        }
     }
 }
 
@@ -597,7 +697,14 @@ pub struct UImage {
 
 impl UImage {
     pub fn new(data: Vec<u8>, width: u32, height: u32) -> Self {
-        Self { data, width, height, scale: 1.0, formula: None, raw_file_name: None }
+        Self {
+            data,
+            width,
+            height,
+            scale: 1.0,
+            formula: None,
+            raw_file_name: None,
+        }
     }
 
     pub fn with_scale(mut self, scale: f64) -> Self {
@@ -662,12 +769,23 @@ impl UImageSvg {
     pub fn get_data(&self, name: &str) -> Option<i32> {
         // Try viewBox first
         let viewbox_re = regex::Regex::new(
-            r#"viewBox[= "']+([\d.]+)[\s,]+([\d.]+)[\s,]+([\d.]+)[\s,]+([\d.]+)"#
-        ).ok()?;
+            r#"viewBox[= "']+([\d.]+)[\s,]+([\d.]+)[\s,]+([\d.]+)[\s,]+([\d.]+)"#,
+        )
+        .ok()?;
         if let Some(caps) = viewbox_re.captures(&self.svg) {
             match name {
-                "width" => return caps.get(3).and_then(|m| m.as_str().parse::<f64>().ok()).map(|v| v as i32),
-                "height" => return caps.get(4).and_then(|m| m.as_str().parse::<f64>().ok()).map(|v| v as i32),
+                "width" => {
+                    return caps
+                        .get(3)
+                        .and_then(|m| m.as_str().parse::<f64>().ok())
+                        .map(|v| v as i32)
+                }
+                "height" => {
+                    return caps
+                        .get(4)
+                        .and_then(|m| m.as_str().parse::<f64>().ok())
+                        .map(|v| v as i32)
+                }
                 _ => {}
             }
         }
@@ -702,8 +820,18 @@ pub struct UHorizontalLine {
 }
 
 impl UHorizontalLine {
-    pub fn infinite(default_thickness: f64, skip_at_start: f64, skip_at_end: f64, style: char) -> Self {
-        Self { skip_at_start, skip_at_end, style, default_thickness }
+    pub fn infinite(
+        default_thickness: f64,
+        skip_at_start: f64,
+        skip_at_end: f64,
+        style: char,
+    ) -> Self {
+        Self {
+            skip_at_start,
+            skip_at_end,
+            style,
+            default_thickness,
+        }
     }
 
     pub fn is_double(&self) -> bool {
@@ -731,7 +859,11 @@ pub struct UCenteredCharacter {
 
 impl UCenteredCharacter {
     pub fn new(c: char, font_family: &str, font_size: f64) -> Self {
-        Self { c, font_family: font_family.to_string(), font_size }
+        Self {
+            c,
+            font_family: font_family.to_string(),
+            font_size,
+        }
     }
 }
 
@@ -976,8 +1108,7 @@ mod tests {
 
     #[test]
     fn utext_with_orientation() {
-        let t = UText::build("Rotated", "SansSerif", 12.0, true, false)
-            .with_orientation(90);
+        let t = UText::build("Rotated", "SansSerif", 12.0, true, false).with_orientation(90);
         assert_eq!(t.orientation, 90);
         assert!(t.bold);
     }

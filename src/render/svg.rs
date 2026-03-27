@@ -5,7 +5,10 @@ use std::io::Write as IoWrite;
 use flate2::write::DeflateEncoder;
 use flate2::Compression;
 
-use crate::layout::graphviz::{ClassNoteLayout, ClusterLayout, EdgeLayout, GraphLayout, NodeLayout};
+use crate::layout::class_group_header_metrics;
+use crate::layout::graphviz::{
+    ClassNoteLayout, ClusterLayout, EdgeLayout, GraphLayout, NodeLayout,
+};
 use crate::layout::split_member_lines;
 use crate::layout::DiagramLayout;
 use crate::model::{
@@ -18,10 +21,11 @@ use crate::Result;
 use crate::font_metrics;
 use crate::klimt::sanitize_group_metadata_value;
 use crate::klimt::svg::{svg_comment_escape, LengthAdjust, SvgGraphic};
+use crate::svek::edge::LineOfSegments;
 
 use super::svg_richtext::{
-    count_creole_lines, creole_plain_text, get_default_font_family_pub,
-    max_creole_plain_line_len, render_creole_text, set_default_font_family,
+    count_creole_lines, creole_plain_text, get_default_font_family_pub, max_creole_plain_line_len,
+    render_creole_text, set_default_font_family,
 };
 use super::svg_sequence;
 
@@ -129,8 +133,8 @@ const GENERIC_DELTA: f64 = 4.0;
 const GENERIC_PROTRUSION: f64 = GENERIC_DELTA - GENERIC_OUTER_MARGIN;
 
 use crate::skin::rose::{
-    BORDER_COLOR, DIVIDER_COLOR, ENTITY_BG, LEGEND_BG, LEGEND_BORDER,
-    NOTE_BG, NOTE_BORDER, NOTE_FOLD, NOTE_PADDING as NOTE_TEXT_PADDING, TEXT_COLOR,
+    BORDER_COLOR, DIVIDER_COLOR, ENTITY_BG, LEGEND_BG, LEGEND_BORDER, NOTE_BG, NOTE_BORDER,
+    NOTE_FOLD, NOTE_PADDING as NOTE_TEXT_PADDING, TEXT_COLOR,
 };
 const LINK_COLOR: &str = BORDER_COLOR;
 /// Java PlantUML renders link labels at font-size 13 (not 14).
@@ -155,6 +159,35 @@ const LEGEND_MARGIN: f64 = 12.0;
 const LEGEND_ROUND_CORNER: f64 = 15.0;
 
 // ── Helpers ─────────────────────────────────────────────────────────
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+enum QualifierEndpoint {
+    Tail,
+    Head,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+struct QualifierKey {
+    link_idx: usize,
+    endpoint: QualifierEndpoint,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+enum KalPosition {
+    Left,
+    Right,
+    Up,
+    Down,
+}
+
+#[derive(Debug, Clone, Copy)]
+struct KalPlacement {
+    x: f64,
+    y: f64,
+    width: f64,
+    height: f64,
+    shift_x: f64,
+}
 
 pub(crate) use crate::klimt::svg::fmt_coord;
 
@@ -192,8 +225,16 @@ pub(crate) fn write_svg_root_bg_opt(
     diagram_type: Option<&str>,
     bg: &str,
 ) {
-    let wi = if w.is_finite() && w > 0.0 { w as i32 } else { 100 };
-    let hi = if h.is_finite() && h > 0.0 { h as i32 } else { 100 };
+    let wi = if w.is_finite() && w > 0.0 {
+        w as i32
+    } else {
+        100
+    };
+    let hi = if h.is_finite() && h > 0.0 {
+        h as i32
+    } else {
+        100
+    };
     buf.push_str(r#"<svg xmlns="http://www.w3.org/2000/svg""#);
     buf.push_str(r#" xmlns:xlink="http://www.w3.org/1999/xlink""#);
     buf.push_str(r#" contentStyleType="text/css""#);
@@ -236,15 +277,22 @@ fn svg_group_metadata_attr(value: &str) -> String {
 fn class_link_id_for_svg(link: &Link) -> String {
     let from = crate::layout::class_entity_display_name(&link.from);
     let to = crate::layout::class_entity_display_name(&link.to);
-    let head = link.right_head != ArrowHead::None;
-    let tail = link.left_head != ArrowHead::None;
-    if !head && tail {
+    if link_looks_reverted_for_svg(link) {
         format!("{from}-backto-{to}")
-    } else if (!head && !tail) || (head && tail) {
+    } else if link_looks_no_decor_at_all_svg(link) {
         format!("{from}-{to}")
     } else {
         format!("{from}-to-{to}")
     }
+}
+
+fn link_looks_reverted_for_svg(link: &Link) -> bool {
+    link.left_head != ArrowHead::None && link.right_head == ArrowHead::None
+}
+
+fn link_looks_no_decor_at_all_svg(link: &Link) -> bool {
+    (link.left_head == ArrowHead::None && link.right_head == ArrowHead::None)
+        || (link.left_head != ArrowHead::None && link.right_head != ArrowHead::None)
 }
 
 /// Write a background `<rect>` covering the entire canvas when the background
@@ -252,8 +300,16 @@ fn class_link_id_for_svg(link: &Link) -> String {
 /// first child of `<g>` when `skinparam backgroundColor` is set.
 pub(crate) fn write_bg_rect(buf: &mut String, w: f64, h: f64, bg: &str) {
     if !bg.eq_ignore_ascii_case("#FFFFFF") {
-        let wi = if w.is_finite() && w > 0.0 { w as i32 } else { 100 };
-        let hi = if h.is_finite() && h > 0.0 { h as i32 } else { 100 };
+        let wi = if w.is_finite() && w > 0.0 {
+            w as i32
+        } else {
+            100
+        };
+        let hi = if h.is_finite() && h > 0.0 {
+            h as i32
+        } else {
+            100
+        };
         write!(
             buf,
             r#"<rect fill="{bg}" height="{hi}" style="stroke:none;stroke-width:1;" width="{wi}" x="0" y="0"/>"#,
@@ -298,7 +354,8 @@ pub fn render_with_source(
     set_default_font_family(None);
 
     // Extract diagram type from body SVG
-    let dtype = body_result.svg
+    let dtype = body_result
+        .svg
         .find("data-diagram-type=\"")
         .and_then(|pos| {
             let start = pos + 19;
@@ -313,14 +370,27 @@ pub fn render_with_source(
     } else {
         // Document-level BackGroundColor from <style> is stored as "document.backgroundcolor";
         // skinparam BackGroundColor is stored as "backgroundcolor". Try both.
-        let bg = skin.get("document.backgroundcolor")
+        let bg = skin
+            .get("document.backgroundcolor")
             .or_else(|| skin.get("backgroundcolor"))
             .unwrap_or("#FFFFFF");
-        wrap_with_meta(&body_result.svg, meta, &dtype, bg, body_result.raw_body_dim, body_result.body_pre_offset, skin)?
+        wrap_with_meta(
+            &body_result.svg,
+            meta,
+            &dtype,
+            bg,
+            body_result.raw_body_dim,
+            body_result.body_pre_offset,
+            skin,
+        )?
     };
 
     // Inject svginteractive CSS/JS if pragma is set
-    if meta.pragmas.get("svginteractive").map_or(false, |v| v == "true") {
+    if meta
+        .pragmas
+        .get("svginteractive")
+        .map_or(false, |v| v == "true")
+    {
         svg = inject_svginteractive(svg, &dtype);
     }
 
@@ -337,19 +407,47 @@ pub fn render_with_source(
 /// for header and title dimensions. Used to pre-apply the offset in the body
 /// renderer, avoiding lossy string-level coordinate shifting.
 fn compute_meta_body_offset(meta: &DiagramMeta, skin: &SkinParams) -> (f64, f64) {
-    let title_font_size = skin.get("document.title.fontsize")
-        .and_then(|s| s.parse::<f64>().ok()).unwrap_or(META_TITLE_FONT_SIZE);
+    let title_font_size = skin
+        .get("document.title.fontsize")
+        .and_then(|s| s.parse::<f64>().ok())
+        .unwrap_or(META_TITLE_FONT_SIZE);
     let title_bold = title_font_size == META_TITLE_FONT_SIZE;
 
-    let hdr_font_size = skin.get("document.header.fontsize")
-        .and_then(|s| s.parse::<f64>().ok()).unwrap_or(META_HF_FONT_SIZE);
-    let hdr_text_h = if meta.header.is_some() { text_block_h(hdr_font_size, false) } else { 0.0 };
-    let hdr_text_w = meta.header.as_ref().map(|t| creole_text_w(t, hdr_font_size, false)).unwrap_or(0.0);
-    let hdr_dim = if meta.header.is_some() { block_dim(hdr_text_w, hdr_text_h, 0.0, 0.0) } else { (0.0, 0.0) };
+    let hdr_font_size = skin
+        .get("document.header.fontsize")
+        .and_then(|s| s.parse::<f64>().ok())
+        .unwrap_or(META_HF_FONT_SIZE);
+    let hdr_text_h = if meta.header.is_some() {
+        text_block_h(hdr_font_size, false)
+    } else {
+        0.0
+    };
+    let hdr_text_w = meta
+        .header
+        .as_ref()
+        .map(|t| creole_text_w(t, hdr_font_size, false))
+        .unwrap_or(0.0);
+    let hdr_dim = if meta.header.is_some() {
+        block_dim(hdr_text_w, hdr_text_h, 0.0, 0.0)
+    } else {
+        (0.0, 0.0)
+    };
 
-    let title_text_h = if meta.title.is_some() { text_block_h(title_font_size, title_bold) } else { 0.0 };
-    let title_text_w = meta.title.as_ref().map(|t| creole_text_w(t, title_font_size, title_bold)).unwrap_or(0.0);
-    let title_dim = if meta.title.is_some() { block_dim(title_text_w, title_text_h, TITLE_PADDING, TITLE_MARGIN) } else { (0.0, 0.0) };
+    let title_text_h = if meta.title.is_some() {
+        text_block_h(title_font_size, title_bold)
+    } else {
+        0.0
+    };
+    let title_text_w = meta
+        .title
+        .as_ref()
+        .map(|t| creole_text_w(t, title_font_size, title_bold))
+        .unwrap_or(0.0);
+    let title_dim = if meta.title.is_some() {
+        block_dim(title_text_w, title_text_h, TITLE_PADDING, TITLE_MARGIN)
+    } else {
+        (0.0, 0.0)
+    };
 
     // body_abs_y = hdr_dim.1 + title_dim.1
     // body_abs_x = centering terms (typically 0 when body is wider than meta)
@@ -368,7 +466,12 @@ struct BodyResult {
     body_pre_offset: bool,
 }
 
-fn render_body(diagram: &Diagram, layout: &DiagramLayout, skin: &SkinParams, activity_body_offset: Option<(f64, f64)>) -> Result<BodyResult> {
+fn render_body(
+    diagram: &Diagram,
+    layout: &DiagramLayout,
+    skin: &SkinParams,
+    activity_body_offset: Option<(f64, f64)>,
+) -> Result<BodyResult> {
     match (diagram, layout) {
         (Diagram::Class(cd), DiagramLayout::Class(gl)) => render_class(cd, gl, skin),
         (Diagram::Sequence(sd), DiagramLayout::Sequence(sl)) => {
@@ -381,43 +484,116 @@ fn render_body(diagram: &Diagram, layout: &DiagramLayout, skin: &SkinParams, act
                 sl.total_width - margin_right,
                 sl.total_height - margin_top - margin_bottom,
             ));
-            svg_sequence::render_sequence(sd, sl, skin).map(|svg| BodyResult { svg, raw_body_dim: raw_dim, body_pre_offset: false })
+            svg_sequence::render_sequence(sd, sl, skin).map(|svg| BodyResult {
+                svg,
+                raw_body_dim: raw_dim,
+                body_pre_offset: false,
+            })
         }
         (Diagram::Activity(ad), DiagramLayout::Activity(al)) => {
-            super::svg_activity::render_activity(ad, al, skin, activity_body_offset).map(|(svg, raw_body_dim)| BodyResult { svg, raw_body_dim, body_pre_offset: activity_body_offset.is_some() })
+            super::svg_activity::render_activity(ad, al, skin, activity_body_offset).map(
+                |(svg, raw_body_dim)| BodyResult {
+                    svg,
+                    raw_body_dim,
+                    body_pre_offset: activity_body_offset.is_some(),
+                },
+            )
         }
         (Diagram::State(sd), DiagramLayout::State(sl)) => {
-            super::svg_state::render_state(sd, sl, skin).map(|(svg, raw_body_dim)| BodyResult { svg, raw_body_dim, body_pre_offset: false })
+            super::svg_state::render_state(sd, sl, skin).map(|(svg, raw_body_dim)| BodyResult {
+                svg,
+                raw_body_dim,
+                body_pre_offset: false,
+            })
         }
         (Diagram::Component(cd), DiagramLayout::Component(cl)) => {
-            super::svg_component::render_component(cd, cl, skin).map(|svg| BodyResult { svg, raw_body_dim: None, body_pre_offset: false })
+            super::svg_component::render_component(cd, cl, skin).map(|svg| BodyResult {
+                svg,
+                raw_body_dim: None,
+                body_pre_offset: false,
+            })
         }
         (Diagram::Ditaa(dd), DiagramLayout::Ditaa(dl)) => {
-            super::svg_ditaa::render_ditaa(dd, dl, skin).map(|svg| BodyResult { svg, raw_body_dim: None, body_pre_offset: false })
+            super::svg_ditaa::render_ditaa(dd, dl, skin).map(|svg| BodyResult {
+                svg,
+                raw_body_dim: None,
+                body_pre_offset: false,
+            })
         }
-        (Diagram::Erd(ed), DiagramLayout::Erd(el)) => super::svg_erd::render_erd(ed, el, skin).map(|svg| BodyResult { svg, raw_body_dim: None, body_pre_offset: false }),
+        (Diagram::Erd(ed), DiagramLayout::Erd(el)) => {
+            super::svg_erd::render_erd(ed, el, skin).map(|svg| BodyResult {
+                svg,
+                raw_body_dim: None,
+                body_pre_offset: false,
+            })
+        }
         (Diagram::Gantt(gd), DiagramLayout::Gantt(gl)) => {
-            super::svg_gantt::render_gantt(gd, gl, skin).map(|svg| BodyResult { svg, raw_body_dim: None, body_pre_offset: false })
+            super::svg_gantt::render_gantt(gd, gl, skin).map(|svg| BodyResult {
+                svg,
+                raw_body_dim: None,
+                body_pre_offset: false,
+            })
         }
-        (Diagram::Json(jd), DiagramLayout::Json(jl)) => super::svg_json::render_json(jd, jl, skin).map(|svg| BodyResult { svg, raw_body_dim: None, body_pre_offset: false }),
+        (Diagram::Json(jd), DiagramLayout::Json(jl)) => super::svg_json::render_json(jd, jl, skin)
+            .map(|svg| BodyResult {
+                svg,
+                raw_body_dim: None,
+                body_pre_offset: false,
+            }),
         (Diagram::Mindmap(md), DiagramLayout::Mindmap(ml)) => {
-            super::svg_mindmap::render_mindmap(md, ml, skin).map(|svg| BodyResult { svg, raw_body_dim: None, body_pre_offset: false })
+            super::svg_mindmap::render_mindmap(md, ml, skin).map(|svg| BodyResult {
+                svg,
+                raw_body_dim: None,
+                body_pre_offset: false,
+            })
         }
         (Diagram::Nwdiag(nd), DiagramLayout::Nwdiag(nl)) => {
-            super::svg_nwdiag::render_nwdiag(nd, nl, skin).map(|svg| BodyResult { svg, raw_body_dim: None, body_pre_offset: false })
+            super::svg_nwdiag::render_nwdiag(nd, nl, skin).map(|svg| BodyResult {
+                svg,
+                raw_body_dim: None,
+                body_pre_offset: false,
+            })
         }
-        (Diagram::Salt(sd), DiagramLayout::Salt(sl)) => super::svg_salt::render_salt(sd, sl, skin).map(|svg| BodyResult { svg, raw_body_dim: None, body_pre_offset: false }),
+        (Diagram::Salt(sd), DiagramLayout::Salt(sl)) => super::svg_salt::render_salt(sd, sl, skin)
+            .map(|svg| BodyResult {
+                svg,
+                raw_body_dim: None,
+                body_pre_offset: false,
+            }),
         (Diagram::Timing(td), DiagramLayout::Timing(tl)) => {
-            super::svg_timing::render_timing(td, tl, skin).map(|svg| BodyResult { svg, raw_body_dim: None, body_pre_offset: false })
+            super::svg_timing::render_timing(td, tl, skin).map(|svg| BodyResult {
+                svg,
+                raw_body_dim: None,
+                body_pre_offset: false,
+            })
         }
-        (Diagram::Wbs(wd), DiagramLayout::Wbs(wl)) => super::svg_wbs::render_wbs(wd, wl, skin).map(|svg| BodyResult { svg, raw_body_dim: None, body_pre_offset: false }),
-        (Diagram::Yaml(yd), DiagramLayout::Yaml(yl)) => super::svg_json::render_yaml(yd, yl, skin).map(|svg| BodyResult { svg, raw_body_dim: None, body_pre_offset: false }),
+        (Diagram::Wbs(wd), DiagramLayout::Wbs(wl)) => {
+            super::svg_wbs::render_wbs(wd, wl, skin).map(|svg| BodyResult {
+                svg,
+                raw_body_dim: None,
+                body_pre_offset: false,
+            })
+        }
+        (Diagram::Yaml(yd), DiagramLayout::Yaml(yl)) => super::svg_json::render_yaml(yd, yl, skin)
+            .map(|svg| BodyResult {
+                svg,
+                raw_body_dim: None,
+                body_pre_offset: false,
+            }),
         (Diagram::UseCase(ud), DiagramLayout::UseCase(ul)) => {
-            super::svg_usecase::render_usecase(ud, ul, skin).map(|svg| BodyResult { svg, raw_body_dim: None, body_pre_offset: false })
+            super::svg_usecase::render_usecase(ud, ul, skin).map(|svg| BodyResult {
+                svg,
+                raw_body_dim: None,
+                body_pre_offset: false,
+            })
         }
         (Diagram::Dot(_dd), DiagramLayout::Dot(_gl)) => {
             // Java PlantUML suppresses DOT rendering
-            Ok(BodyResult { svg: render_dot_suppressed(), raw_body_dim: None, body_pre_offset: false })
+            Ok(BodyResult {
+                svg: render_dot_suppressed(),
+                raw_body_dim: None,
+                body_pre_offset: false,
+            })
         }
         _ => Err(crate::Error::Render("diagram/layout type mismatch".into())),
     }
@@ -427,7 +603,9 @@ fn render_body(diagram: &Diagram, layout: &DiagramLayout, skin: &SkinParams, act
 fn render_dot_suppressed() -> String {
     let mut s = String::new();
     s.push_str("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n");
-    s.push_str("<svg xmlns=\"http://www.w3.org/2000/svg\" xmlns:xlink=\"http://www.w3.org/1999/xlink\">\n");
+    s.push_str(
+        "<svg xmlns=\"http://www.w3.org/2000/svg\" xmlns:xlink=\"http://www.w3.org/1999/xlink\">\n",
+    );
     s.push_str("<a xlink:href=\"https://github.com/plantuml/plantuml/issues/2495\">\n");
     s.push_str("<text x=\"10\" y=\"30\" font-family=\"sans-serif\" font-size=\"14\" fill=\"blue\" text-decoration=\"underline\">This feature has been suppressed</text>\n");
     s.push_str("</a>\n");
@@ -446,7 +624,10 @@ fn text_block_h(font_size: f64, bold: bool) -> f64 {
         + font_metrics::descent("SansSerif", font_size, bold, false)
 }
 fn bordered_dim(text_w: f64, text_h: f64, padding: f64) -> (f64, f64) {
-    (text_w + 2.0 * padding + BORDERED_EXTRA, text_h + 2.0 * padding + BORDERED_EXTRA)
+    (
+        text_w + 2.0 * padding + BORDERED_EXTRA,
+        text_h + 2.0 * padding + BORDERED_EXTRA,
+    )
 }
 fn block_dim(text_w: f64, text_h: f64, padding: f64, margin: f64) -> (f64, f64) {
     let (bw, bh) = bordered_dim(text_w, text_h, padding);
@@ -514,10 +695,18 @@ impl BoundsTracker {
 
     fn add_point(&mut self, x: f64, y: f64) {
         log::trace!("BoundsTracker.addPoint({:.4}, {:.4})", x, y);
-        if x < self.min_x { self.min_x = x; }
-        if y < self.min_y { self.min_y = y; }
-        if x > self.max_x { self.max_x = x; }
-        if y > self.max_y { self.max_y = y; }
+        if x < self.min_x {
+            self.min_x = x;
+        }
+        if y < self.min_y {
+            self.min_y = y;
+        }
+        if x > self.max_x {
+            self.max_x = x;
+        }
+        if y > self.max_y {
+            self.max_y = y;
+        }
     }
 
     /// Java LimitFinder.drawRectangle: (x-1, y-1) to (x+w-1+shadow*2, y+h-1+shadow*2)
@@ -527,14 +716,27 @@ impl BoundsTracker {
 
     /// Java LimitFinder.drawRectangle with delta shadow
     pub fn track_rect_shadow(&mut self, x: f64, y: f64, w: f64, h: f64, shadow: f64) {
-        log::trace!("BoundsTracker.drawRect x={:.2} y={:.2} w={:.2} h={:.2} shadow={:.2}", x, y, w, h, shadow);
+        log::trace!(
+            "BoundsTracker.drawRect x={:.2} y={:.2} w={:.2} h={:.2} shadow={:.2}",
+            x,
+            y,
+            w,
+            h,
+            shadow
+        );
         self.add_point(x - 1.0, y - 1.0);
         self.add_point(x + w - 1.0 + shadow * 2.0, y + h - 1.0 + shadow * 2.0);
     }
 
     /// Java LimitFinder.drawEmpty: (x, y) to (x+w, y+h) — NO -1 adjustment
     pub fn track_empty(&mut self, x: f64, y: f64, w: f64, h: f64) {
-        log::trace!("BoundsTracker.drawEmpty x={:.2} y={:.2} w={:.2} h={:.2}", x, y, w, h);
+        log::trace!(
+            "BoundsTracker.drawEmpty x={:.2} y={:.2} w={:.2} h={:.2}",
+            x,
+            y,
+            w,
+            h
+        );
         self.add_point(x, y);
         self.add_point(x + w, y + h);
     }
@@ -553,7 +755,14 @@ impl BoundsTracker {
         let y = cy - ry;
         let w = 2.0 * rx;
         let h = 2.0 * ry;
-        log::trace!("BoundsTracker.drawEllipse x={:.2} y={:.2} w={:.2} h={:.2} shadow={:.2}", x, y, w, h, shadow);
+        log::trace!(
+            "BoundsTracker.drawEllipse x={:.2} y={:.2} w={:.2} h={:.2} shadow={:.2}",
+            x,
+            y,
+            w,
+            h,
+            shadow
+        );
         self.add_point(x, y);
         self.add_point(x + w - 1.0 + shadow * 2.0, y + h - 1.0 + shadow * 2.0);
     }
@@ -567,21 +776,39 @@ impl BoundsTracker {
         let max_x = points.iter().map(|p| p.0).fold(f64::NEG_INFINITY, f64::max);
         let min_y = points.iter().map(|p| p.1).fold(f64::INFINITY, f64::min);
         let max_y = points.iter().map(|p| p.1).fold(f64::NEG_INFINITY, f64::max);
-        log::trace!("BoundsTracker.drawPolygon minX={:.2} maxX={:.2} minY={:.2} maxY={:.2}", min_x, max_x, min_y, max_y);
+        log::trace!(
+            "BoundsTracker.drawPolygon minX={:.2} maxX={:.2} minY={:.2} maxY={:.2}",
+            min_x,
+            max_x,
+            min_y,
+            max_y
+        );
         self.add_point(min_x - 10.0, min_y);
         self.add_point(max_x + 10.0, max_y);
     }
 
     /// Java LimitFinder.drawULine
     pub fn track_line(&mut self, x1: f64, y1: f64, x2: f64, y2: f64) {
-        log::trace!("BoundsTracker.drawLine ({:.2},{:.2})-({:.2},{:.2})", x1, y1, x2, y2);
+        log::trace!(
+            "BoundsTracker.drawLine ({:.2},{:.2})-({:.2},{:.2})",
+            x1,
+            y1,
+            x2,
+            y2
+        );
         self.add_point(x1, y1);
         self.add_point(x2, y2);
     }
 
     /// Java LimitFinder.drawDotPath — path bounding box
     pub fn track_path_bounds(&mut self, min_x: f64, min_y: f64, max_x: f64, max_y: f64) {
-        log::trace!("BoundsTracker.drawDotPath min=({:.2},{:.2}) max=({:.2},{:.2})", min_x, min_y, max_x, max_y);
+        log::trace!(
+            "BoundsTracker.drawDotPath min=({:.2},{:.2}) max=({:.2},{:.2})",
+            min_x,
+            min_y,
+            max_x,
+            max_y
+        );
         self.add_point(min_x, min_y);
         self.add_point(max_x, max_y);
     }
@@ -592,7 +819,14 @@ impl BoundsTracker {
     ///   i.e. (x, y-h+1.5) to (x+w, y+1.5)
     pub fn track_text(&mut self, x: f64, y: f64, text_width: f64, text_height: f64) {
         let y_adj = y - text_height + 1.5;
-        log::trace!("BoundsTracker.drawText x={:.4} y={:.4} w={:.4} h={:.4} y_adj={:.4}", x, y, text_width, text_height, y_adj);
+        log::trace!(
+            "BoundsTracker.drawText x={:.4} y={:.4} w={:.4} h={:.4} y_adj={:.4}",
+            x,
+            y,
+            text_width,
+            text_height,
+            y_adj
+        );
         self.add_point(x, y_adj);
         self.add_point(x, y_adj + text_height);
         self.add_point(x + text_width, y_adj);
@@ -603,9 +837,15 @@ impl BoundsTracker {
     /// to compute final SVG dimensions matching Java's ensureVisible.
     pub fn span(&self) -> (f64, f64) {
         if self.max_x.is_finite() && self.min_x.is_finite() {
-            log::trace!("BoundsTracker.span: min=({:.4},{:.4}) max=({:.4},{:.4}) span=({:.4},{:.4})",
-                self.min_x, self.min_y, self.max_x, self.max_y,
-                self.max_x - self.min_x, self.max_y - self.min_y);
+            log::trace!(
+                "BoundsTracker.span: min=({:.4},{:.4}) max=({:.4},{:.4}) span=({:.4},{:.4})",
+                self.min_x,
+                self.min_y,
+                self.max_x,
+                self.max_y,
+                self.max_x - self.min_x,
+                self.max_y - self.min_y
+            );
             (self.max_x - self.min_x, self.max_y - self.min_y)
         } else {
             (0.0, 0.0)
@@ -677,7 +917,7 @@ fn inject_svginteractive(svg: String, diagram_type: &str) -> String {
     let js_text = ensure_trailing_newline(js);
 
     let defs_content = format!(
-        "<style type=\"text/css\"><![CDATA[\n{}]]></style><script>{}</script>",
+        "<style type=\"text/css\"><![CDATA[{}]]></style><script>{}</script>",
         css_text,
         xml_escape_js(&js_text)
     );
@@ -807,7 +1047,15 @@ fn encode6bit(b: u8) -> char {
     }
 }
 
-fn wrap_with_meta(body_svg: &str, meta: &DiagramMeta, diagram_type: &str, bg: &str, raw_body_dim: Option<(f64, f64)>, body_pre_offset: bool, skin: &crate::style::SkinParams) -> Result<String> {
+fn wrap_with_meta(
+    body_svg: &str,
+    meta: &DiagramMeta,
+    diagram_type: &str,
+    bg: &str,
+    raw_body_dim: Option<(f64, f64)>,
+    body_pre_offset: bool,
+    skin: &crate::style::SkinParams,
+) -> Result<String> {
     let (svg_w, svg_h) = extract_dimensions(body_svg);
     let body_content = extract_svg_content(body_svg);
 
@@ -841,69 +1089,144 @@ fn wrap_with_meta(body_svg: &str, meta: &DiagramMeta, diagram_type: &str, bg: &s
         (rw, rh)
     } else {
         // Body SVG includes DOC_MARGIN + 1: recover raw textBlock dimensions.
-        (svg_w - DOC_MARGIN_RIGHT - 1.0, svg_h - doc_margin_top - DOC_MARGIN_BOTTOM - 1.0)
+        (
+            svg_w - DOC_MARGIN_RIGHT - 1.0,
+            svg_h - doc_margin_top - DOC_MARGIN_BOTTOM - 1.0,
+        )
     };
     log::trace!("wrap_with_meta: svg_w={svg_w} svg_h={svg_h} body_w={body_w} body_h={body_h} doc_margin_top={doc_margin_top}");
 
     // ── Resolve document section styles ──────────────────────────────
-    let hdr_font_size = skin.get("document.header.fontsize")
-        .and_then(|s| s.parse::<f64>().ok()).unwrap_or(META_HF_FONT_SIZE);
-    let hdr_font_color = skin.get("document.header.fontcolor")
-        .map(|s| s.to_string());
-    let hdr_bg_color = skin.get("document.header.backgroundcolor")
-        .map(|s| s.to_string());
-
-    let ftr_font_size = skin.get("document.footer.fontsize")
-        .and_then(|s| s.parse::<f64>().ok()).unwrap_or(META_HF_FONT_SIZE);
-    let ftr_font_color = skin.get("document.footer.fontcolor")
-        .map(|s| s.to_string());
-    let ftr_bg_color = skin.get("document.footer.backgroundcolor")
+    let hdr_font_size = skin
+        .get("document.header.fontsize")
+        .and_then(|s| s.parse::<f64>().ok())
+        .unwrap_or(META_HF_FONT_SIZE);
+    let hdr_font_color = skin.get("document.header.fontcolor").map(|s| s.to_string());
+    let hdr_bg_color = skin
+        .get("document.header.backgroundcolor")
         .map(|s| s.to_string());
 
-    let title_font_size = skin.get("document.title.fontsize")
-        .and_then(|s| s.parse::<f64>().ok()).unwrap_or(META_TITLE_FONT_SIZE);
-    let title_font_color = skin.get("document.title.fontcolor")
-        .map(|s| s.to_string());
-    let title_bg_color = skin.get("document.title.backgroundcolor")
-        .map(|s| s.to_string());
-
-    let leg_font_size = skin.get("document.legend.fontsize")
-        .and_then(|s| s.parse::<f64>().ok()).unwrap_or(META_LEGEND_FONT_SIZE);
-    let leg_font_color = skin.get("document.legend.fontcolor")
-        .map(|s| s.to_string());
-    let leg_bg_color = skin.get("document.legend.backgroundcolor")
+    let ftr_font_size = skin
+        .get("document.footer.fontsize")
+        .and_then(|s| s.parse::<f64>().ok())
+        .unwrap_or(META_HF_FONT_SIZE);
+    let ftr_font_color = skin.get("document.footer.fontcolor").map(|s| s.to_string());
+    let ftr_bg_color = skin
+        .get("document.footer.backgroundcolor")
         .map(|s| s.to_string());
 
-    let cap_font_size = skin.get("document.caption.fontsize")
-        .and_then(|s| s.parse::<f64>().ok()).unwrap_or(META_CAPTION_FONT_SIZE);
-    let cap_font_color = skin.get("document.caption.fontcolor")
+    let title_font_size = skin
+        .get("document.title.fontsize")
+        .and_then(|s| s.parse::<f64>().ok())
+        .unwrap_or(META_TITLE_FONT_SIZE);
+    let title_font_color = skin.get("document.title.fontcolor").map(|s| s.to_string());
+    let title_bg_color = skin
+        .get("document.title.backgroundcolor")
         .map(|s| s.to_string());
-    let cap_bg_color = skin.get("document.caption.backgroundcolor")
+
+    let leg_font_size = skin
+        .get("document.legend.fontsize")
+        .and_then(|s| s.parse::<f64>().ok())
+        .unwrap_or(META_LEGEND_FONT_SIZE);
+    let leg_font_color = skin.get("document.legend.fontcolor").map(|s| s.to_string());
+    let leg_bg_color = skin
+        .get("document.legend.backgroundcolor")
+        .map(|s| s.to_string());
+
+    let cap_font_size = skin
+        .get("document.caption.fontsize")
+        .and_then(|s| s.parse::<f64>().ok())
+        .unwrap_or(META_CAPTION_FONT_SIZE);
+    let cap_font_color = skin
+        .get("document.caption.fontcolor")
+        .map(|s| s.to_string());
+    let cap_bg_color = skin
+        .get("document.caption.backgroundcolor")
         .map(|s| s.to_string());
 
     let title_bold = title_font_size == META_TITLE_FONT_SIZE; // default title is bold
 
     // ── 1. Compute block dimensions for each meta element ───────────
-    let hdr_text_w = meta.header.as_ref().map(|t| creole_text_w(t, hdr_font_size, false)).unwrap_or(0.0);
-    let hdr_text_h = if meta.header.is_some() { text_block_h(hdr_font_size, false) } else { 0.0 };
-    let hdr_dim = if meta.header.is_some() { block_dim(hdr_text_w, hdr_text_h, 0.0, 0.0) } else { (0.0, 0.0) };
+    let hdr_text_w = meta
+        .header
+        .as_ref()
+        .map(|t| creole_text_w(t, hdr_font_size, false))
+        .unwrap_or(0.0);
+    let hdr_text_h = if meta.header.is_some() {
+        text_block_h(hdr_font_size, false)
+    } else {
+        0.0
+    };
+    let hdr_dim = if meta.header.is_some() {
+        block_dim(hdr_text_w, hdr_text_h, 0.0, 0.0)
+    } else {
+        (0.0, 0.0)
+    };
 
-    let ftr_text_w = meta.footer.as_ref().map(|t| creole_text_w(t, ftr_font_size, false)).unwrap_or(0.0);
-    let ftr_text_h = if meta.footer.is_some() { text_block_h(ftr_font_size, false) } else { 0.0 };
-    let ftr_dim = if meta.footer.is_some() { block_dim(ftr_text_w, ftr_text_h, 0.0, 0.0) } else { (0.0, 0.0) };
+    let ftr_text_w = meta
+        .footer
+        .as_ref()
+        .map(|t| creole_text_w(t, ftr_font_size, false))
+        .unwrap_or(0.0);
+    let ftr_text_h = if meta.footer.is_some() {
+        text_block_h(ftr_font_size, false)
+    } else {
+        0.0
+    };
+    let ftr_dim = if meta.footer.is_some() {
+        block_dim(ftr_text_w, ftr_text_h, 0.0, 0.0)
+    } else {
+        (0.0, 0.0)
+    };
 
-    let title_text_w = meta.title.as_ref().map(|t| creole_text_w(t, title_font_size, title_bold)).unwrap_or(0.0);
-    let title_text_h = if meta.title.is_some() { text_block_h(title_font_size, title_bold) } else { 0.0 };
-    let title_dim = if meta.title.is_some() { block_dim(title_text_w, title_text_h, TITLE_PADDING, TITLE_MARGIN) } else { (0.0, 0.0) };
+    let title_text_w = meta
+        .title
+        .as_ref()
+        .map(|t| creole_text_w(t, title_font_size, title_bold))
+        .unwrap_or(0.0);
+    let title_text_h = if meta.title.is_some() {
+        text_block_h(title_font_size, title_bold)
+    } else {
+        0.0
+    };
+    let title_dim = if meta.title.is_some() {
+        block_dim(title_text_w, title_text_h, TITLE_PADDING, TITLE_MARGIN)
+    } else {
+        (0.0, 0.0)
+    };
     log::trace!("wrap_with_meta: title text_w={title_text_w:.10} text_h={title_text_h:.10} title_dim={title_dim:?}");
 
-    let cap_text_w = meta.caption.as_ref().map(|t| creole_text_w(t, cap_font_size, false)).unwrap_or(0.0);
-    let cap_text_h = if meta.caption.is_some() { text_block_h(cap_font_size, false) } else { 0.0 };
-    let cap_dim = if meta.caption.is_some() { block_dim(cap_text_w, cap_text_h, CAPTION_PADDING, CAPTION_MARGIN) } else { (0.0, 0.0) };
+    let cap_text_w = meta
+        .caption
+        .as_ref()
+        .map(|t| creole_text_w(t, cap_font_size, false))
+        .unwrap_or(0.0);
+    let cap_text_h = if meta.caption.is_some() {
+        text_block_h(cap_font_size, false)
+    } else {
+        0.0
+    };
+    let cap_dim = if meta.caption.is_some() {
+        block_dim(cap_text_w, cap_text_h, CAPTION_PADDING, CAPTION_MARGIN)
+    } else {
+        (0.0, 0.0)
+    };
 
-    let leg_text_w = meta.legend.as_ref().map(|t| creole_text_w(t, leg_font_size, false)).unwrap_or(0.0);
-    let leg_text_h = if meta.legend.is_some() { text_block_h(leg_font_size, false) } else { 0.0 };
-    let leg_dim = if meta.legend.is_some() { block_dim(leg_text_w, leg_text_h, LEGEND_PADDING, LEGEND_MARGIN) } else { (0.0, 0.0) };
+    let leg_text_w = meta
+        .legend
+        .as_ref()
+        .map(|t| creole_text_w(t, leg_font_size, false))
+        .unwrap_or(0.0);
+    let leg_text_h = if meta.legend.is_some() {
+        text_block_h(leg_font_size, false)
+    } else {
+        0.0
+    };
+    let leg_dim = if meta.legend.is_some() {
+        block_dim(leg_text_w, leg_text_h, LEGEND_PADDING, LEGEND_MARGIN)
+    } else {
+        (0.0, 0.0)
+    };
 
     // ── 2. Compute total dimensions (inside-out stacking) ──────────
     let body_dim = (body_w, body_h);
@@ -918,7 +1241,9 @@ fn wrap_with_meta(body_svg: &str, meta: &DiagramMeta, diagram_type: &str, bg: &s
     // Java ensureVisible: maxX = (int)(x + 1)
     let canvas_w = ensure_visible_int(tb_w + doc_margin_right) as f64;
     let canvas_h = ensure_visible_int(tb_h + doc_margin_top + DOC_MARGIN_BOTTOM) as f64;
-    log::trace!("wrap_with_meta: tb_w={tb_w:.6} tb_h={tb_h:.6} canvas_w={canvas_w} canvas_h={canvas_h}");
+    log::trace!(
+        "wrap_with_meta: tb_w={tb_w:.6} tb_h={tb_h:.6} canvas_w={canvas_w} canvas_h={canvas_h}"
+    );
     log::trace!("wrap_with_meta: body_dim=({body_w},{body_h}) after_legend={after_legend:?} after_title={after_title:?} after_caption={after_caption:?}");
 
     // ── 3. Compute absolute drawing positions ──────────────────────
@@ -934,7 +1259,9 @@ fn wrap_with_meta(body_svg: &str, meta: &DiagramMeta, diagram_type: &str, bg: &s
     // The body content already has this margin baked into its internal coordinates
     // (layout MARGIN=5), so only meta elements need the shift.
     let meta_dy = doc_margin_top;
-    log::trace!("body_pos: body_abs_x={body_abs_x:.6} body_abs_y={body_abs_y:.6} meta_dy={meta_dy}");
+    log::trace!(
+        "body_pos: body_abs_x={body_abs_x:.6} body_abs_y={body_abs_y:.6} meta_dy={meta_dy}"
+    );
 
     // ── 4. Render SVG ──────────────────────────────────────────────
     let mut buf = String::with_capacity(body_svg.len() + 2048);
@@ -959,21 +1286,30 @@ fn wrap_with_meta(body_svg: &str, meta: &DiagramMeta, diagram_type: &str, bg: &s
             ).unwrap();
         }
         render_creole_text(
-            &mut buf, hdr, hdr_x, text_y,
+            &mut buf,
+            hdr,
+            hdr_x,
+            text_y,
             text_block_h(hdr_font_size, false),
-            text_color, None,
+            text_color,
+            None,
             &format!(r#"font-size="{}""#, hdr_font_size as i32),
         );
-        if buf.ends_with('\n') { buf.pop(); }
+        if buf.ends_with('\n') {
+            buf.pop();
+        }
         buf.push_str("</g>");
     }
 
     // Title (CENTER-aligned)
     if let Some(ref title) = meta.title {
-        let title_block_x = outer_inner_x + cap_inner_x
-            + ((after_title.0 - title_dim.0) / 2.0).max(0.0);
+        let title_block_x =
+            outer_inner_x + cap_inner_x + ((after_title.0 - title_dim.0) / 2.0).max(0.0);
         let text_x = title_block_x + TITLE_MARGIN + TITLE_PADDING;
-        let text_y = meta_dy + hdr_dim.1 + TITLE_MARGIN + TITLE_PADDING
+        let text_y = meta_dy
+            + hdr_dim.1
+            + TITLE_MARGIN
+            + TITLE_PADDING
             + font_metrics::ascent("SansSerif", title_font_size, title_bold, false);
         let text_color = title_font_color.as_deref().unwrap_or(TEXT_COLOR);
         write!(buf, r#"<g class="title""#).unwrap();
@@ -991,14 +1327,24 @@ fn wrap_with_meta(body_svg: &str, meta: &DiagramMeta, diagram_type: &str, bg: &s
                 bg, fmt_coord(rect_h), fmt_coord(rect_w), fmt_coord(rect_x), fmt_coord(rect_y)
             ).unwrap();
         }
-        let weight_str = if title_bold { r#" font-weight="700""# } else { "" };
+        let weight_str = if title_bold {
+            r#" font-weight="700""#
+        } else {
+            ""
+        };
         render_creole_text(
-            &mut buf, title, text_x, text_y,
+            &mut buf,
+            title,
+            text_x,
+            text_y,
             text_block_h(title_font_size, title_bold),
-            text_color, None,
+            text_color,
+            None,
             &format!(r#"font-size="{}"{}"#, title_font_size as i32, weight_str),
         );
-        if buf.ends_with('\n') { buf.pop(); }
+        if buf.ends_with('\n') {
+            buf.pop();
+        }
         buf.push_str("</g>");
     }
 
@@ -1006,15 +1352,18 @@ fn wrap_with_meta(body_svg: &str, meta: &DiagramMeta, diagram_type: &str, bg: &s
     // Strip the <defs/><g>...</g> wrapper from body_content (already have top-level <defs/>)
     // and shift coordinates by (body_abs_x, body_abs_y).
     let body_inner = body_content
-        .strip_prefix("<defs/><g>").unwrap_or(&body_content);
-    let body_inner = body_inner
-        .strip_suffix("</g>").unwrap_or(body_inner);
+        .strip_prefix("<defs/><g>")
+        .unwrap_or(&body_content);
+    let body_inner = body_inner.strip_suffix("</g>").unwrap_or(body_inner);
     // Strip body-level background rect if present (wrap_with_meta provides its own).
     // Pattern: <rect fill="..." height="N" style="stroke:none;stroke-width:1;" width="N" x="0" y="0"/>
     let body_inner = if body_inner.starts_with("<rect fill=\"") {
         if let Some(end) = body_inner.find("/>") {
             let rect_tag = &body_inner[..end + 2];
-            if rect_tag.contains("stroke:none") && rect_tag.contains("x=\"0\"") && rect_tag.contains("y=\"0\"") {
+            if rect_tag.contains("stroke:none")
+                && rect_tag.contains("x=\"0\"")
+                && rect_tag.contains("y=\"0\"")
+            {
                 &body_inner[end + 2..]
             } else {
                 body_inner
@@ -1051,8 +1400,11 @@ fn wrap_with_meta(body_svg: &str, meta: &DiagramMeta, diagram_type: &str, bg: &s
 
         write!(buf, r#"<g class="legend""#).unwrap();
         // Java: legend includes data-source-line only when no document <style> block is used
-        let has_style = leg_bg_color.is_some() || title_bg_color.is_some()
-            || hdr_bg_color.is_some() || ftr_bg_color.is_some() || cap_bg_color.is_some();
+        let has_style = leg_bg_color.is_some()
+            || title_bg_color.is_some()
+            || hdr_bg_color.is_some()
+            || ftr_bg_color.is_some()
+            || cap_bg_color.is_some();
         if !has_style {
             if let Some(sl) = meta.legend_line {
                 write!(buf, r#" data-source-line="{sl}""#).unwrap();
@@ -1065,25 +1417,33 @@ fn wrap_with_meta(body_svg: &str, meta: &DiagramMeta, diagram_type: &str, bg: &s
             fmt_coord(draw_w), fmt_coord(rect_x), fmt_coord(rect_y),
         ).unwrap();
         let text_x = rect_x + LEGEND_PADDING;
-        let text_y = rect_y + LEGEND_PADDING
+        let text_y = rect_y
+            + LEGEND_PADDING
             + font_metrics::ascent("SansSerif", leg_font_size, false, false);
         render_creole_text(
-            &mut buf, leg, text_x, text_y,
+            &mut buf,
+            leg,
+            text_x,
+            text_y,
             text_block_h(leg_font_size, false),
-            text_color, None,
+            text_color,
+            None,
             &format!(r#"font-size="{}""#, leg_font_size as i32),
         );
-        if buf.ends_with('\n') { buf.pop(); }
+        if buf.ends_with('\n') {
+            buf.pop();
+        }
         buf.push_str("</g>");
     }
 
     // Caption (CENTER-aligned)
     if let Some(ref cap) = meta.caption {
         let cap_y_start = meta_dy + hdr_dim.1 + after_title.1;
-        let cap_block_x = outer_inner_x
-            + ((after_caption.0 - cap_dim.0) / 2.0).max(0.0);
+        let cap_block_x = outer_inner_x + ((after_caption.0 - cap_dim.0) / 2.0).max(0.0);
         let text_x = cap_block_x + CAPTION_MARGIN + CAPTION_PADDING;
-        let text_y = cap_y_start + CAPTION_MARGIN + CAPTION_PADDING
+        let text_y = cap_y_start
+            + CAPTION_MARGIN
+            + CAPTION_PADDING
             + font_metrics::ascent("SansSerif", cap_font_size, false, false);
         let text_color = cap_font_color.as_deref().unwrap_or(TEXT_COLOR);
         write!(buf, r#"<g class="caption""#).unwrap();
@@ -1102,12 +1462,18 @@ fn wrap_with_meta(body_svg: &str, meta: &DiagramMeta, diagram_type: &str, bg: &s
             ).unwrap();
         }
         render_creole_text(
-            &mut buf, cap, text_x, text_y,
+            &mut buf,
+            cap,
+            text_x,
+            text_y,
             text_block_h(cap_font_size, false),
-            text_color, None,
+            text_color,
+            None,
             &format!(r#"font-size="{}""#, cap_font_size as i32),
         );
-        if buf.ends_with('\n') { buf.pop(); }
+        if buf.ends_with('\n') {
+            buf.pop();
+        }
         buf.push_str("</g>");
     }
 
@@ -1115,8 +1481,7 @@ fn wrap_with_meta(body_svg: &str, meta: &DiagramMeta, diagram_type: &str, bg: &s
     if let Some(ref ftr) = meta.footer {
         let ftr_y_start = meta_dy + hdr_dim.1 + after_caption.1;
         let ftr_x = ((tb_w - ftr_dim.0) / 2.0).max(0.0);
-        let text_y = ftr_y_start
-            + font_metrics::ascent("SansSerif", ftr_font_size, false, false);
+        let text_y = ftr_y_start + font_metrics::ascent("SansSerif", ftr_font_size, false, false);
         let text_color = ftr_font_color.as_deref().unwrap_or(DIVIDER_COLOR);
         write!(buf, r#"<g class="footer""#).unwrap();
         if let Some(sl) = meta.footer_line {
@@ -1130,12 +1495,18 @@ fn wrap_with_meta(body_svg: &str, meta: &DiagramMeta, diagram_type: &str, bg: &s
             ).unwrap();
         }
         render_creole_text(
-            &mut buf, ftr, ftr_x, text_y,
+            &mut buf,
+            ftr,
+            ftr_x,
+            text_y,
             text_block_h(ftr_font_size, false),
-            text_color, None,
+            text_color,
+            None,
             &format!(r#"font-size="{}""#, ftr_font_size as i32),
         );
-        if buf.ends_with('\n') { buf.pop(); }
+        if buf.ends_with('\n') {
+            buf.pop();
+        }
         buf.push_str("</g>");
     }
 
@@ -1155,49 +1526,64 @@ fn offset_svg_coords(svg: &str, dx: f64, dy: f64) -> String {
     static RE_POINTS: OnceLock<Regex> = OnceLock::new();
     static RE_PATH_D: OnceLock<Regex> = OnceLock::new();
 
-    let re_x = RE_X.get_or_init(|| Regex::new(r#"(?P<attr>(?:^| )(?:x|cx|x1|x2))="(?P<val>-?[\d.]+)""#).unwrap());
-    let re_y = RE_Y.get_or_init(|| Regex::new(r#"(?P<attr> (?:y|cy|y1|y2))="(?P<val>-?[\d.]+)""#).unwrap());
+    let re_x = RE_X.get_or_init(|| {
+        Regex::new(r#"(?P<attr>(?:^| )(?:x|cx|x1|x2))="(?P<val>-?[\d.]+)""#).unwrap()
+    });
+    let re_y = RE_Y
+        .get_or_init(|| Regex::new(r#"(?P<attr> (?:y|cy|y1|y2))="(?P<val>-?[\d.]+)""#).unwrap());
     let re_points = RE_POINTS.get_or_init(|| Regex::new(r#"points="([^"]*)""#).unwrap());
     let re_path_d = RE_PATH_D.get_or_init(|| Regex::new(r#" d="([^"]*)""#).unwrap());
 
     let mut result = svg.to_string();
 
     // Shift x-coordinate attributes
-    result = re_x.replace_all(&result, |caps: &regex::Captures| {
-        let attr = &caps["attr"];
-        let val: f64 = caps["val"].parse().unwrap_or(0.0);
-        format!("{}=\"{}\"", attr, fmt_coord(val + dx))
-    }).to_string();
+    result = re_x
+        .replace_all(&result, |caps: &regex::Captures| {
+            let attr = &caps["attr"];
+            let val: f64 = caps["val"].parse().unwrap_or(0.0);
+            format!("{}=\"{}\"", attr, fmt_coord(val + dx))
+        })
+        .to_string();
 
     // Shift y-coordinate attributes
-    result = re_y.replace_all(&result, |caps: &regex::Captures| {
-        let attr = &caps["attr"];
-        let val: f64 = caps["val"].parse().unwrap_or(0.0);
-        format!("{}=\"{}\"", attr, fmt_coord(val + dy))
-    }).to_string();
+    result = re_y
+        .replace_all(&result, |caps: &regex::Captures| {
+            let attr = &caps["attr"];
+            let val: f64 = caps["val"].parse().unwrap_or(0.0);
+            format!("{}=\"{}\"", attr, fmt_coord(val + dy))
+        })
+        .to_string();
 
     // Shift polygon points="x,y x,y ..."
-    result = re_points.replace_all(&result, |caps: &regex::Captures| {
-        let points = &caps[1];
-        let shifted: Vec<String> = points.split(',').collect::<Vec<_>>()
-            .chunks(2)
-            .filter_map(|pair| {
-                if pair.len() == 2 {
-                    let x: f64 = pair[0].trim().parse().unwrap_or(0.0);
-                    let y: f64 = pair[1].trim().parse().unwrap_or(0.0);
-                    Some(format!("{},{}", fmt_coord(x + dx), fmt_coord(y + dy)))
-                } else { None }
-            })
-            .collect();
-        format!("points=\"{}\"", shifted.join(","))
-    }).to_string();
+    result = re_points
+        .replace_all(&result, |caps: &regex::Captures| {
+            let points = &caps[1];
+            let shifted: Vec<String> = points
+                .split(',')
+                .collect::<Vec<_>>()
+                .chunks(2)
+                .filter_map(|pair| {
+                    if pair.len() == 2 {
+                        let x: f64 = pair[0].trim().parse().unwrap_or(0.0);
+                        let y: f64 = pair[1].trim().parse().unwrap_or(0.0);
+                        Some(format!("{},{}", fmt_coord(x + dx), fmt_coord(y + dy)))
+                    } else {
+                        None
+                    }
+                })
+                .collect();
+            format!("points=\"{}\"", shifted.join(","))
+        })
+        .to_string();
 
     // Shift path d="M x,y L x,y C x,y x,y x,y ..."
-    result = re_path_d.replace_all(&result, |caps: &regex::Captures| {
-        let d = &caps[1];
-        let shifted = offset_path_data(d, dx, dy);
-        format!(" d=\"{}\"", shifted)
-    }).to_string();
+    result = re_path_d
+        .replace_all(&result, |caps: &regex::Captures| {
+            let d = &caps[1];
+            let shifted = offset_path_data(d, dx, dy);
+            format!(" d=\"{}\"", shifted)
+        })
+        .to_string();
 
     result
 }
@@ -1216,7 +1602,9 @@ fn offset_path_data(d: &str, dx: f64, dy: f64) -> String {
         while chars.peek().map_or(false, |c| c.is_whitespace()) {
             result.push(chars.next().unwrap());
         }
-        if chars.peek().is_none() { break; }
+        if chars.peek().is_none() {
+            break;
+        }
 
         let c = *chars.peek().unwrap();
         if c.is_alphabetic() {
@@ -1228,7 +1616,9 @@ fn offset_path_data(d: &str, dx: f64, dy: f64) -> String {
         match cmd.to_ascii_uppercase() {
             'Z' => {
                 // No parameters
-                if let Some(ch) = chars.next() { result.push(ch); }
+                if let Some(ch) = chars.next() {
+                    result.push(ch);
+                }
             }
             'H' => {
                 // Horizontal line: 1 x-value
@@ -1264,7 +1654,8 @@ fn offset_path_data(d: &str, dx: f64, dy: f64) -> String {
                                         result.push_str(&fmt_coord(x + dx)); // endpoint x
                                         skip_path_sep(&mut chars, &mut result);
                                         if let Some(y) = parse_path_number(&mut chars) {
-                                            result.push_str(&fmt_coord(y + dy)); // endpoint y
+                                            result.push_str(&fmt_coord(y + dy));
+                                            // endpoint y
                                         }
                                     }
                                 }
@@ -1321,14 +1712,24 @@ fn parse_path_number(chars: &mut std::iter::Peekable<std::str::Chars>) -> Option
     if chars.peek() == Some(&'-') {
         s.push(chars.next().unwrap());
     }
-    while chars.peek().map_or(false, |c| c.is_ascii_digit() || *c == '.') {
+    while chars
+        .peek()
+        .map_or(false, |c| c.is_ascii_digit() || *c == '.')
+    {
         s.push(chars.next().unwrap());
     }
-    if s.is_empty() || s == "-" { None } else { s.parse().ok() }
+    if s.is_empty() || s == "-" {
+        None
+    } else {
+        s.parse().ok()
+    }
 }
 
 fn skip_path_sep(chars: &mut std::iter::Peekable<std::str::Chars>, result: &mut String) {
-    while chars.peek().map_or(false, |c| *c == ',' || c.is_whitespace()) {
+    while chars
+        .peek()
+        .map_or(false, |c| *c == ',' || c.is_whitespace())
+    {
         result.push(chars.next().unwrap());
     }
 }
@@ -1340,41 +1741,22 @@ fn render_class(
     layout: &GraphLayout,
     skin: &SkinParams,
 ) -> Result<BodyResult> {
-    // Java SvekResult: moveDelta(6 - minMax.getMinX(), 6 - minMax.getMinY())
-    // minX depends on elements: rect gives (x-1), polygon HACK gives (x + local_minX - 10).
-    // For class diagrams with protected/package visibility icons (UPolygon):
-    //   icon at entity_x + margin(6) + translate(1) = entity_x + 7
-    //   polygon local_minX = 0 → HACK min = entity_x + 7 - 10 = entity_x - 3
-    //   vs rect: entity_x - 1
-    // After normalization entity_x = 0: HACK min = -3, rect min = -1.
-    // moveDelta = 6 - min(-3, -1) = 6 - (-3) = 9.
-    //
-    // Without polygon icons: moveDelta = 6 - (-1) = 7.
-    // Java has two paths:
-    // 1. EntityImageDegenerated (single entity, no links): delta=7, always offset=7.
-    // 2. SvekResult (multi-entity): moveDelta(6 - minX, 6 - minY).
-    //    minX = -1 (rect) or -3 (polygon HACK for protected/package member icons).
-    let is_degenerated = layout.nodes.len() <= 1 && layout.edges.is_empty();
-    let has_member_polygon_icon = !is_degenerated && cd.entities.iter().any(|e| {
-        e.members.iter().any(|m| {
-            matches!(m.visibility, Some(Visibility::Protected) | Some(Visibility::Package))
-        })
-    });
-    let has_generic = !is_degenerated && cd.entities.iter().any(|e| e.generic.is_some());
-    // Java SvekResult: moveDelta(6 - LimitFinder_minX, 6 - LimitFinder_minY).
-    // LimitFinder_minX = polygon_minX - 1 (rect offset), so moveDelta = 7 default.
-    // Our svek uses moveDelta = 6 - polygon_minX. Entity renders at polygon_minX + moveDelta = 6.
-    // edge_offset = moveDelta + 1 (the LimitFinder rect -1 offset) = 7.
-    let edge_offset_x = if has_member_polygon_icon { 9.0 } else { 7.0 };
-    let edge_offset_y = if has_generic { 10.0 } else { 7.0 };
+    // Rust normalizes Svek coordinates back to the origin for rendering, but
+    // Java renders at the post-Svek coordinates directly. `render_offset`
+    // re-applies the exact per-axis delta needed to reconstruct the Java space.
+    let edge_offset_x = layout.render_offset.0;
+    let edge_offset_y = layout.render_offset.1;
     let mut tracker = BoundsTracker::new();
     let mut sg = SvgGraphic::new(0, 1.0);
     let arrow_color = skin.arrow_color(LINK_COLOR);
 
     let node_map: HashMap<&str, &NodeLayout> =
         layout.nodes.iter().map(|n| (n.id.as_str(), n)).collect();
-    let group_meta: HashMap<&str, &crate::model::Group> =
-        cd.groups.iter().map(|group| (group.name.as_str(), group)).collect();
+    let group_meta: HashMap<&str, &crate::model::Group> = cd
+        .groups
+        .iter()
+        .map(|group| (group.name.as_str(), group))
+        .collect();
 
     // Build entity and group id map — IDs assigned by DEFINITION order (source_line),
     // interleaved between entities and groups. Java assigns entity UIDs at parse time.
@@ -1388,7 +1770,10 @@ fn render_class(
     }
     let mut all_slots: Vec<(usize, IdSlot)> = Vec::new();
     for entity in &cd.entities {
-        all_slots.push((entity.source_line.unwrap_or(usize::MAX), IdSlot::Entity(entity)));
+        all_slots.push((
+            entity.source_line.unwrap_or(usize::MAX),
+            IdSlot::Entity(entity),
+        ));
     }
     for cluster in &layout.clusters {
         let source_line = group_meta
@@ -1401,12 +1786,19 @@ fn render_class(
 
     let mut ent_counter = 2u32; // Java starts entity IDs at ent0002
     for (_, slot) in &all_slots {
-        let ent_id = format!("ent{:04}", ent_counter);
         match slot {
             IdSlot::Entity(entity) => {
+                let ent_id = entity
+                    .uid
+                    .clone()
+                    .unwrap_or_else(|| format!("ent{:04}", ent_counter));
                 entity_ids.insert(sanitize_id(&entity.name), ent_id);
             }
             IdSlot::Group(cluster) => {
+                let ent_id = group_meta
+                    .get(cluster.qualified_name.as_str())
+                    .and_then(|group| group.uid.clone())
+                    .unwrap_or_else(|| format!("ent{:04}", ent_counter));
                 group_ids.insert(cluster.qualified_name.clone(), ent_id);
             }
         }
@@ -1436,10 +1828,44 @@ fn render_class(
             .map(|s| s.as_str())
             .unwrap_or("ent0000");
         let group = group_meta.get(cluster.qualified_name.as_str()).copied();
-        draw_class_group(&mut sg, &mut tracker, cluster, group, ent_id, skin);
+        draw_class_group(
+            &mut sg,
+            &mut tracker,
+            cd,
+            cluster,
+            group,
+            ent_id,
+            skin,
+            edge_offset_x,
+            edge_offset_y,
+        );
     }
 
-    for entity in &cd.entities {
+    let mut entity_group_order: HashMap<&str, usize> = HashMap::new();
+    let mut entity_qualified_names: HashMap<&str, String> = HashMap::new();
+    for group in &cd.groups {
+        let group_order = group.source_line.unwrap_or(usize::MAX);
+        for entity_name in &group.entities {
+            entity_group_order
+                .entry(entity_name.as_str())
+                .or_insert(group_order);
+            entity_qualified_names
+                .entry(entity_name.as_str())
+                .or_insert_with(|| format!("{}.{}", group.name, entity_name));
+        }
+    }
+    let mut entities_by_render_order: Vec<&Entity> = cd.entities.iter().collect();
+    entities_by_render_order.sort_by_key(|entity| {
+        (
+            entity_group_order
+                .get(entity.name.as_str())
+                .copied()
+                .unwrap_or(usize::MAX),
+            entity.source_line.unwrap_or(usize::MAX),
+        )
+    });
+
+    for entity in entities_by_render_order {
         let sid = sanitize_id(&entity.name);
         if let Some(nl) = node_map.get(sid.as_str()) {
             let ent_id = entity_ids
@@ -1450,42 +1876,70 @@ fn render_class(
             if is_object_diagram {
                 sg.push_raw(&format!(
                     "<g class=\"entity\" data-qualified-name=\"{}\"",
-                    svg_group_metadata_attr(&entity.name),
+                    svg_group_metadata_attr(
+                        entity_qualified_names
+                            .get(entity.name.as_str())
+                            .map(|s| s.as_str())
+                            .unwrap_or(entity.name.as_str()),
+                    ),
                 ));
             } else {
                 sg.push_raw(&format!(
                     "<!--{} {}--><g class=\"entity\" data-qualified-name=\"{}\"",
                     // Java uses "class" for class entities, "entity" for others (rectangle, etc.)
-                    if entity.kind == EntityKind::Rectangle { "entity" } else { "class" },
+                    if entity.kind == EntityKind::Rectangle {
+                        "entity"
+                    } else {
+                        "class"
+                    },
                     svg_comment_escape(&display_name),
-                    svg_group_metadata_attr(&entity.name),
+                    svg_group_metadata_attr(
+                        entity_qualified_names
+                            .get(entity.name.as_str())
+                            .map(|s| s.as_str())
+                            .unwrap_or(entity.name.as_str()),
+                    ),
                 ));
             }
             if let Some(source_line) = entity.source_line {
                 sg.push_raw(&format!(" data-source-line=\"{source_line}\""));
             }
             sg.push_raw(&format!(" id=\"{ent_id}\">"));
-            draw_entity_box(&mut sg, &mut tracker, cd, entity, nl, skin, edge_offset_x, edge_offset_y);
+            draw_entity_box(
+                &mut sg,
+                &mut tracker,
+                cd,
+                entity,
+                nl,
+                skin,
+                edge_offset_x,
+                edge_offset_y,
+            );
             sg.push_raw("</g>");
         }
     }
 
+    let qualifier_placements =
+        compute_qualifier_placements(cd, layout, edge_offset_x, edge_offset_y);
     let mut link_counter = ent_counter;
-    for link in &cd.links {
+    for (link_idx, link) in cd.links.iter().enumerate() {
         let from_id = sanitize_id(&link.from);
         let to_id = sanitize_id(&link.to);
-        if let Some(el) = layout
-            .edges
-            .iter()
-            .find(|e| e.from == from_id && e.to == to_id)
+        if let Some(el) = layout.edges.get(link_idx).filter(|e| e.from == from_id && e.to == to_id)
         {
             let from_ent = entity_ids.get(&from_id).map(|s| s.as_str()).unwrap_or("");
             let to_ent = entity_ids.get(&to_id).map(|s| s.as_str()).unwrap_or("");
             let link_type = derive_link_type(link);
             let from_display = crate::layout::class_entity_display_name(&link.from);
             let to_display = crate::layout::class_entity_display_name(&link.to);
+            let comment_prefix = if link_looks_reverted_for_svg(link) {
+                "reverse link"
+            } else {
+                "link"
+            };
             sg.push_raw(&format!(
-                "<!--link {} to {}--><g class=\"link\" data-entity-1=\"{}\" data-entity-2=\"{}\" data-link-type=\"{}\"",
+                "<!--{} {} to {}--><g class=\"link\" data-entity-1=\"{}\" data-entity-2=\"{}\" data-link-type=\"{}\"",
+                comment_prefix,
                 svg_comment_escape(&from_display),
                 svg_comment_escape(&to_display),
                 from_ent,
@@ -1495,8 +1949,24 @@ fn render_class(
             if let Some(source_line) = link.source_line {
                 sg.push_raw(&format!(" data-source-line=\"{source_line}\""));
             }
-            sg.push_raw(&format!(" id=\"lnk{link_counter}\">"));
-            draw_edge(&mut sg, &mut tracker, layout, link, el, arrow_color, edge_offset_x, edge_offset_y);
+            let link_id = link
+                .uid
+                .clone()
+                .unwrap_or_else(|| format!("lnk{link_counter}"));
+            sg.push_raw(&format!(" id=\"{link_id}\">"));
+            draw_edge(
+                &mut sg,
+                &mut tracker,
+                layout,
+                link,
+                el,
+                link_idx,
+                &qualifier_placements,
+                skin,
+                arrow_color,
+                edge_offset_x,
+                edge_offset_y,
+            );
             sg.push_raw("</g>");
             link_counter += 1;
         }
@@ -1520,13 +1990,24 @@ fn render_class(
     // Compute raw body content dimensions (Java SvekResult.calculateDimension).
     // These preserve full fractional precision for meta-wrapping.
     let raw_body_dim = if is_degenerated {
-        let entity_w = if layout.nodes.is_empty() { 0.0 } else { layout.nodes[0].width };
-        let entity_h = if layout.nodes.is_empty() { 0.0 } else { layout.nodes[0].height };
+        let entity_w = if layout.nodes.is_empty() {
+            0.0
+        } else {
+            layout.nodes[0].width
+        };
+        let entity_h = if layout.nodes.is_empty() {
+            0.0
+        } else {
+            layout.nodes[0].height
+        };
         let (calc_w, calc_h) = if layout.nodes.is_empty() {
             (10.0, 10.0)
         } else {
             const DEGENERATED_DELTA: f64 = 7.0;
-            (entity_w + DEGENERATED_DELTA * 2.0, entity_h + DEGENERATED_DELTA * 2.0)
+            (
+                entity_w + DEGENERATED_DELTA * 2.0,
+                entity_h + DEGENERATED_DELTA * 2.0,
+            )
         };
         (calc_w, calc_h)
     } else {
@@ -1550,16 +2031,23 @@ fn render_class(
     write_bg_rect(&mut buf, svg_w, svg_h, bg);
     buf.push_str(sg.body());
     buf.push_str("</g></svg>");
-    Ok(BodyResult { svg: buf, raw_body_dim: Some(raw_body_dim), body_pre_offset: false })
+    Ok(BodyResult {
+        svg: buf,
+        raw_body_dim: Some(raw_body_dim),
+        body_pre_offset: false,
+    })
 }
 
 fn draw_class_group(
     sg: &mut SvgGraphic,
     tracker: &mut BoundsTracker,
+    cd: &crate::model::ClassDiagram,
     cluster: &ClusterLayout,
     group: Option<&crate::model::Group>,
     ent_id: &str,
     skin: &SkinParams,
+    edge_offset_x: f64,
+    edge_offset_y: f64,
 ) {
     if cluster.width <= 0.0 || cluster.height <= 0.0 {
         return;
@@ -1577,23 +2065,54 @@ fn draw_class_group(
     }
     sg.push_raw(&format!(" id=\"{ent_id}\">"));
 
-    let x = cluster.x + MARGIN;
-    let y = cluster.y + MARGIN;
+    let x = cluster.x + edge_offset_x;
+    let y = cluster.y + edge_offset_y;
     let w = cluster.width;
     let h = cluster.height;
+    let group_header = group.map(|group| class_group_header_metrics(group, &cd.hide_show_rules));
+    let visible_stereotypes = group_header
+        .as_ref()
+        .map(|metrics| metrics.visible_stereotypes.as_slice())
+        .unwrap_or(&[]);
+    let title_ascent = font_metrics::ascent("SansSerif", 14.0, true, false);
+    let title_line_height = font_metrics::line_height("SansSerif", 14.0, true, false);
+    let stereo_ascent = font_metrics::ascent("SansSerif", 14.0, false, true);
+    let stereo_line_height = font_metrics::line_height("SansSerif", 14.0, false, true);
 
     match group_kind {
         GroupKind::Rectangle => {
             let border = skin.border_color("rectangle", "#181818");
             let font_color = skin.font_color("rectangle", "#000000");
-            sg.set_fill_color("none");
+            let fill = class_group_fill_color(cd, group).unwrap_or_else(|| "none".to_string());
+            sg.set_fill_color(&fill);
             sg.set_stroke_color(Some(border));
             sg.set_stroke_width(1.0, None);
             sg.svg_rectangle(x, y, w, h, 2.5, 2.5, 0.0);
             tracker.track_rect(x, y, w, h);
+            for (idx, label) in visible_stereotypes.iter().enumerate() {
+                let stereo_text = format!("\u{00AB}{label}\u{00BB}");
+                let stereo_w =
+                    font_metrics::text_width(&stereo_text, "SansSerif", 14.0, false, true);
+                let stereo_x = x + (w - stereo_w) / 2.0;
+                let stereo_y = y + 2.0 + stereo_ascent + idx as f64 * stereo_line_height;
+                sg.push_raw(&format!(
+                    r#"<text fill="{font_color}" font-family="sans-serif" font-size="14" font-style="italic" lengthAdjust="spacing" textLength="{}" x="{}" y="{}">{}</text>"#,
+                    fmt_coord(stereo_w),
+                    fmt_coord(stereo_x),
+                    fmt_coord(stereo_y),
+                    xml_escape(&stereo_text),
+                ));
+                tracker.track_rect(
+                    stereo_x,
+                    stereo_y - stereo_ascent,
+                    stereo_w,
+                    stereo_line_height,
+                );
+            }
             let text_w = font_metrics::text_width(title, "SansSerif", 14.0, true, false);
-            let text_x = x + 4.0;
-            let text_y = y + 14.9951;
+            let text_x = x + (w - text_w) / 2.0;
+            let text_y =
+                y + 2.0 + visible_stereotypes.len() as f64 * stereo_line_height + title_ascent;
             sg.push_raw(&format!(
                 r#"<text fill="{font_color}" font-family="sans-serif" font-size="14" font-weight="700" lengthAdjust="spacing" textLength="{}" x="{}" y="{}">{}</text>"#,
                 fmt_coord(text_w),
@@ -1601,7 +2120,12 @@ fn draw_class_group(
                 fmt_coord(text_y),
                 xml_escape(title),
             ));
-            tracker.track_rect(text_x, text_y - HEADER_NAME_BASELINE, text_w, HEADER_NAME_BLOCK_HEIGHT);
+            tracker.track_rect(
+                text_x,
+                text_y - HEADER_NAME_BASELINE,
+                text_w,
+                HEADER_NAME_BLOCK_HEIGHT,
+            );
         }
         _ => {
             let border = skin.border_color("package", "#000000");
@@ -1626,22 +2150,38 @@ fn draw_class_group(
                     r#" L{},{}"#,
                     r#" A{},{} 0 0 1 {},{}" fill="none" style="stroke:{};stroke-width:1.5;"/>"#
                 ),
-                fmt_coord(x + r), fmt_coord(y),
-                fmt_coord(tab_notch), fmt_coord(y),
-                fmt_coord(tab_arc_end_x), fmt_coord(y + r),
-                fmt_coord(tab_right), fmt_coord(tab_bottom),
-                fmt_coord(x + w - r), fmt_coord(tab_bottom),
-                fmt_coord(r), fmt_coord(r),
-                fmt_coord(x + w), fmt_coord(tab_bottom + r),
-                fmt_coord(x + w), fmt_coord(y + h - r),
-                fmt_coord(r), fmt_coord(r),
-                fmt_coord(x + w - r), fmt_coord(y + h),
-                fmt_coord(x + r), fmt_coord(y + h),
-                fmt_coord(r), fmt_coord(r),
-                fmt_coord(x), fmt_coord(y + h - r),
-                fmt_coord(x), fmt_coord(y + r),
-                fmt_coord(r), fmt_coord(r),
-                fmt_coord(x + r), fmt_coord(y),
+                fmt_coord(x + r),
+                fmt_coord(y),
+                fmt_coord(tab_notch),
+                fmt_coord(y),
+                fmt_coord(tab_arc_end_x),
+                fmt_coord(y + r),
+                fmt_coord(tab_right),
+                fmt_coord(tab_bottom),
+                fmt_coord(x + w - r),
+                fmt_coord(tab_bottom),
+                fmt_coord(r),
+                fmt_coord(r),
+                fmt_coord(x + w),
+                fmt_coord(tab_bottom + r),
+                fmt_coord(x + w),
+                fmt_coord(y + h - r),
+                fmt_coord(r),
+                fmt_coord(r),
+                fmt_coord(x + w - r),
+                fmt_coord(y + h),
+                fmt_coord(x + r),
+                fmt_coord(y + h),
+                fmt_coord(r),
+                fmt_coord(r),
+                fmt_coord(x),
+                fmt_coord(y + h - r),
+                fmt_coord(x),
+                fmt_coord(y + r),
+                fmt_coord(r),
+                fmt_coord(r),
+                fmt_coord(x + r),
+                fmt_coord(y),
                 border,
             ));
             sg.push_raw(&format!(
@@ -1652,7 +2192,7 @@ fn draw_class_group(
                 fmt_coord(tab_bottom),
             ));
             let text_x = x + 4.0;
-            let text_y = y + 14.9951;
+            let text_y = y + 2.0 + title_ascent;
             sg.push_raw(&format!(
                 r#"<text fill="{font_color}" font-family="sans-serif" font-size="14" font-weight="700" lengthAdjust="spacing" textLength="{}" x="{}" y="{}">{}</text>"#,
                 fmt_coord(text_w),
@@ -1660,9 +2200,39 @@ fn draw_class_group(
                 fmt_coord(text_y),
                 xml_escape(title),
             ));
+            let title_h = if text_w == 0.0 {
+                10.0
+            } else {
+                title_line_height + 6.0
+            };
+            for (idx, label) in visible_stereotypes.iter().enumerate() {
+                let stereo_text = format!("\u{00AB}{label}\u{00BB}");
+                let stereo_w =
+                    font_metrics::text_width(&stereo_text, "SansSerif", 14.0, false, true);
+                let stereo_x = x + 4.0 + (w - stereo_w) / 2.0;
+                let stereo_y = y + 2.0 + title_h + stereo_ascent + idx as f64 * stereo_line_height;
+                sg.push_raw(&format!(
+                    r#"<text fill="{font_color}" font-family="sans-serif" font-size="14" font-style="italic" lengthAdjust="spacing" textLength="{}" x="{}" y="{}">{}</text>"#,
+                    fmt_coord(stereo_w),
+                    fmt_coord(stereo_x),
+                    fmt_coord(stereo_y),
+                    xml_escape(&stereo_text),
+                ));
+                tracker.track_rect(
+                    stereo_x,
+                    stereo_y - stereo_ascent,
+                    stereo_w,
+                    stereo_line_height,
+                );
+            }
             tracker.track_path_bounds(x, y, x + w, y + h);
             tracker.track_line(x, tab_bottom, tab_right, tab_bottom);
-            tracker.track_rect(text_x, text_y - HEADER_NAME_BASELINE, text_w, HEADER_NAME_BLOCK_HEIGHT);
+            tracker.track_rect(
+                text_x,
+                text_y - HEADER_NAME_BASELINE,
+                text_w,
+                HEADER_NAME_BLOCK_HEIGHT,
+            );
         }
     }
 
@@ -1769,7 +2339,13 @@ const GLYPH_A_RAW: &[(char, &[(f64, f64)])] = &[
 
 /// Emit a stereotype circle glyph path element.
 /// `circle_cx` and `circle_cy` are the absolute SVG coordinates of the circle center.
-fn emit_circle_glyph(sg: &mut SvgGraphic, tracker: &mut BoundsTracker, kind: &EntityKind, circle_cx: f64, circle_cy: f64) {
+fn emit_circle_glyph(
+    sg: &mut SvgGraphic,
+    tracker: &mut BoundsTracker,
+    kind: &EntityKind,
+    circle_cx: f64,
+    circle_cy: f64,
+) {
     let (glyph_raw, center) = match kind {
         EntityKind::Class | EntityKind::Object => (GLYPH_C_RAW, GLYPH_C_CENTER),
         EntityKind::Abstract => (GLYPH_A_RAW, GLYPH_A_CENTER),
@@ -1801,10 +2377,18 @@ fn emit_circle_glyph(sg: &mut SvgGraphic, tracker: &mut BoundsTracker, kind: &En
             d.push_str(&fmt_coord(final_x));
             d.push(',');
             d.push_str(&fmt_coord(final_y));
-            if final_x < path_min_x { path_min_x = final_x; }
-            if final_y < path_min_y { path_min_y = final_y; }
-            if final_x > path_max_x { path_max_x = final_x; }
-            if final_y > path_max_y { path_max_y = final_y; }
+            if final_x < path_min_x {
+                path_min_x = final_x;
+            }
+            if final_y < path_min_y {
+                path_min_y = final_y;
+            }
+            if final_x > path_max_x {
+                path_max_x = final_x;
+            }
+            if final_y > path_max_y {
+                path_max_y = final_y;
+            }
         }
         // Java SvgGraphics: every command (including Z) has a trailing space
         d.push(' ');
@@ -1873,11 +2457,10 @@ fn offset_glyph_path_xy(path: &str, dx: f64, dy: f64) -> String {
     result
 }
 
-
 fn stereotype_circle_color(kind: &EntityKind) -> &'static str {
     match kind {
         EntityKind::Class => "#ADD1B2",
-        EntityKind::Interface => "#A9DCDF",
+        EntityKind::Interface => "#B4A7E5",
         EntityKind::Enum => "#EB937F",
         EntityKind::Abstract => "#A9DCDF",
         EntityKind::Annotation => "#A9DCDF",
@@ -1925,7 +2508,12 @@ fn draw_entity_box(
         EntityKind::Object => unreachable!(),
     };
     let default_fill = skin.background_color(element_type, default_bg);
-    let fill = entity.color.as_deref().unwrap_or(default_fill);
+    let fill = entity
+        .color
+        .as_deref()
+        .map(crate::style::normalize_color)
+        .or_else(|| class_stereotype_fill_color(&cd.stereotype_backgrounds, &entity.stereotypes))
+        .unwrap_or_else(|| default_fill.to_string());
     let stroke = skin.border_color(element_type, default_border);
     let font_color = skin.font_color(element_type, TEXT_COLOR);
 
@@ -1935,7 +2523,7 @@ fn draw_entity_box(
     let rx = skin.round_corner().map(|rc| rc / 2.0).unwrap_or(2.5);
 
     // Rect with rx="2.5" ry="2.5" to match Java PlantUML
-    sg.set_fill_color(fill);
+    sg.set_fill_color(&fill);
     sg.set_stroke_color(Some(stroke));
     sg.set_stroke_width(0.5, None);
     sg.svg_rectangle(x, y, w, h, rx, rx, 0.0);
@@ -1946,10 +2534,15 @@ fn draw_entity_box(
     // - classAttributeFontSize controls member (field/method) font size
     // When only classFontSize is set, it applies to everything.
     // When both are set, classFontSize → name, classAttributeFontSize → members.
-    let explicit_attr_fs = skin.get("classattributefontsize").and_then(|s| s.parse::<f64>().ok());
-    let explicit_class_fs = skin.get("classfontsize").and_then(|s| s.parse::<f64>().ok());
+    let explicit_attr_fs = skin
+        .get("classattributefontsize")
+        .and_then(|s| s.parse::<f64>().ok());
+    let explicit_class_fs = skin
+        .get("classfontsize")
+        .and_then(|s| s.parse::<f64>().ok());
     let attr_font_size = explicit_attr_fs.unwrap_or_else(|| explicit_class_fs.unwrap_or(FONT_SIZE));
-    let class_font_size = explicit_class_fs.unwrap_or_else(|| explicit_attr_fs.unwrap_or(FONT_SIZE));
+    let class_font_size =
+        explicit_class_fs.unwrap_or_else(|| explicit_attr_fs.unwrap_or(FONT_SIZE));
 
     // Entity name WITHOUT generic parameter — generic is rendered separately in draw_generic_box
     let name_display = crate::layout::class_entity_display_name(&entity.name);
@@ -1968,10 +2561,8 @@ fn draw_entity_box(
         .filter(|m| m.is_method)
         .filter(|_| show_methods)
         .collect();
-    let has_kind_label = matches!(
-        entity.kind,
-        EntityKind::Interface | EntityKind::Enum | EntityKind::Annotation
-    );
+    let has_kind_label = matches!(entity.kind, EntityKind::Enum | EntityKind::Annotation);
+    let italic_name = matches!(entity.kind, EntityKind::Abstract | EntityKind::Interface);
 
     if has_kind_label {
         let kind_text = match entity.kind {
@@ -1995,9 +2586,15 @@ fn draw_entity_box(
         {
             let kind_ascent = font_metrics::ascent("SansSerif", kind_fs, false, true);
             let kind_descent = font_metrics::descent("SansSerif", kind_fs, false, true);
-            tracker.track_rect(cx, kind_y - kind_ascent, kind_tl_val, kind_ascent + kind_descent);
+            tracker.track_rect(
+                cx,
+                kind_y - kind_ascent,
+                kind_tl_val,
+                kind_ascent + kind_descent,
+            );
         }
-        let name_tl_val = font_metrics::text_width(&name_display, "SansSerif", class_font_size, true, false);
+        let name_tl_val =
+            font_metrics::text_width(&name_display, "SansSerif", class_font_size, true, false);
         {
             let name_tl = fmt_coord(name_tl_val);
             let name_escaped = xml_escape(&name_display);
@@ -2009,10 +2606,14 @@ fn draw_entity_box(
         {
             let name_ascent = font_metrics::ascent("SansSerif", class_font_size, true, false);
             let name_descent = font_metrics::descent("SansSerif", class_font_size, true, false);
-            tracker.track_rect(cx, name_y - name_ascent, name_tl_val, name_ascent + name_descent);
+            tracker.track_rect(
+                cx,
+                name_y - name_ascent,
+                name_tl_val,
+                name_ascent + name_descent,
+            );
         }
     } else {
-        let italic_name = entity.kind == EntityKind::Abstract;
         let name_block = crate::layout::split_name_display(&name_display);
         let n_name_lines = name_block.lines.len();
         let name_line_metrics: Vec<(f64, f64)> = name_block
@@ -2050,14 +2651,20 @@ fn draw_entity_box(
         let stereo_height = visible_stereotypes.len() as f64 * HEADER_STEREO_LINE_HEIGHT;
         let header_height = HEADER_CIRCLE_BLOCK_HEIGHT
             .max(stereo_height + name_block_height + HEADER_STEREO_NAME_GAP);
-        let vis_icon_w = if entity.visibility.is_some() { ENTITY_VIS_ICON_BLOCK_SIZE } else { 0.0 };
+        let vis_icon_w = if entity.visibility.is_some() {
+            ENTITY_VIS_ICON_BLOCK_SIZE
+        } else {
+            0.0
+        };
         let gen_dim_w = if let Some(ref g) = entity.generic {
             let text_w = font_metrics::text_width(g, "SansSerif", GENERIC_FONT_SIZE, false, true);
             text_w + 2.0 * GENERIC_INNER_MARGIN + 2.0 * GENERIC_OUTER_MARGIN
         } else {
             0.0
         };
-        let supp_width = (w - HEADER_CIRCLE_BLOCK_WIDTH - vis_icon_w - width_stereo_and_name - gen_dim_w).max(0.0);
+        let supp_width =
+            (w - HEADER_CIRCLE_BLOCK_WIDTH - vis_icon_w - width_stereo_and_name - gen_dim_w)
+                .max(0.0);
         let h2 = (HEADER_CIRCLE_BLOCK_WIDTH / 4.0).min(supp_width * 0.1);
         let h1 = (supp_width - h2) / 2.0;
 
@@ -2073,8 +2680,12 @@ fn draw_entity_box(
         emit_circle_glyph(sg, tracker, &entity.kind, ecx, ecy);
 
         let header_top_offset = (header_height - stereo_height - name_block_height) / 2.0;
-        let name_block_x =
-            x + HEADER_CIRCLE_BLOCK_WIDTH + vis_icon_w + (width_stereo_and_name - name_block_width) / 2.0 + h1 + h2;
+        let name_block_x = x
+            + HEADER_CIRCLE_BLOCK_WIDTH
+            + vis_icon_w
+            + (width_stereo_and_name - name_block_width) / 2.0
+            + h1
+            + h2;
         let name_inner_x = name_block_x + 3.0;
 
         if let Some(ref vis) = entity.visibility {
@@ -2097,8 +2708,16 @@ fn draw_entity_box(
 
         for (idx, label) in visible_stereotypes.iter().enumerate() {
             let stereo_text = format!("\u{00AB}{label}\u{00BB}");
-            let stereo_x = x + HEADER_CIRCLE_BLOCK_WIDTH + vis_icon_w + (width_stereo_and_name - stereo_widths[idx]) / 2.0 + h1 + h2;
-            let stereo_y = y + header_top_offset + HEADER_STEREO_BASELINE + idx as f64 * HEADER_STEREO_LINE_HEIGHT;
+            let stereo_x = x
+                + HEADER_CIRCLE_BLOCK_WIDTH
+                + vis_icon_w
+                + (width_stereo_and_name - stereo_widths[idx]) / 2.0
+                + h1
+                + h2;
+            let stereo_y = y
+                + header_top_offset
+                + HEADER_STEREO_BASELINE
+                + idx as f64 * HEADER_STEREO_LINE_HEIGHT;
             sg.push_raw(&format!(
                 r#"<text fill="{font_color}" font-family="sans-serif" font-size="12" font-style="italic" lengthAdjust="spacing" textLength="{}" x="{}" y="{}">{}</text>"#,
                 fmt_coord(stereo_widths[idx]),
@@ -2106,10 +2725,15 @@ fn draw_entity_box(
                 fmt_coord(stereo_y),
                 xml_escape(&stereo_text),
             ));
-            tracker.track_rect(stereo_x, stereo_y - HEADER_STEREO_BASELINE, stereo_widths[idx], HEADER_STEREO_LINE_HEIGHT);
+            tracker.track_rect(
+                stereo_x,
+                stereo_y - HEADER_STEREO_BASELINE,
+                stereo_widths[idx],
+                HEADER_STEREO_LINE_HEIGHT,
+            );
         }
 
-        let font_style = if entity.kind == EntityKind::Abstract {
+        let font_style = if italic_name {
             Some("italic")
         } else {
             None
@@ -2122,7 +2746,10 @@ fn draw_entity_box(
             } else {
                 line.text.clone()
             };
-            let line_y = y + header_top_offset + stereo_height + name_baseline
+            let line_y = y
+                + header_top_offset
+                + stereo_height
+                + name_baseline
                 + line_idx as f64 * single_line_height;
             let (visible_width, indent_width) = name_line_metrics[line_idx];
             let measured_width = visible_width + indent_width;
@@ -2133,13 +2760,26 @@ fn draw_entity_box(
             };
             let line_x = name_inner_x + align_offset + indent_width;
             sg.svg_text(
-                &display_line, line_x, line_y,
-                Some("sans-serif"), class_font_size,
-                None, font_style, None,
-                visible_width, LengthAdjust::Spacing,
-                None, 0, None,
+                &display_line,
+                line_x,
+                line_y,
+                Some("sans-serif"),
+                class_font_size,
+                None,
+                font_style,
+                None,
+                visible_width,
+                LengthAdjust::Spacing,
+                None,
+                0,
+                None,
             );
-            tracker.track_rect(line_x, line_y - name_baseline, visible_width, single_line_height);
+            tracker.track_rect(
+                line_x,
+                line_y - name_baseline,
+                visible_width,
+                single_line_height,
+            );
         }
     }
 
@@ -2154,8 +2794,8 @@ fn draw_entity_box(
         HEADER_HEIGHT
     } else {
         let n_lines = crate::layout::split_name_display(&name_display).lines.len();
-        let single_h = font_metrics::ascent("SansSerif", class_font_size, false, false)
-            + font_metrics::descent("SansSerif", class_font_size, false, false);
+        let single_h = font_metrics::ascent("SansSerif", class_font_size, false, italic_name)
+            + font_metrics::descent("SansSerif", class_font_size, false, italic_name);
         let dynamic_name_h = n_lines as f64 * single_h;
         HEADER_CIRCLE_BLOCK_HEIGHT.max(
             visible_stereotypes.len() as f64 * HEADER_STEREO_LINE_HEIGHT
@@ -2195,10 +2835,6 @@ fn draw_entity_box(
             stroke,
         );
     }
-    // UEmpty: Java body.drawU emits an empty shape at the bottom-right of each entity.
-    // drawEmpty(x, y, 1, 1) adds (x, y) to (x+1, y+1), but since the entity rect
-    // already covers (x-1,y-1) to (x+w-1,y+h-1), this just extends max to (x+w, y+h).
-    tracker.track_empty(x + w, y + h, 0.0, 0.0);
 }
 
 /// Draw the generic type box (dashed rect + italic text) at top-right of entity.
@@ -2210,7 +2846,8 @@ fn draw_generic_box(
     entity_y: f64,
     entity_w: f64,
 ) {
-    let text_w = font_metrics::text_width(generic_text, "SansSerif", GENERIC_FONT_SIZE, false, true);
+    let text_w =
+        font_metrics::text_width(generic_text, "SansSerif", GENERIC_FONT_SIZE, false, true);
     let rect_w = text_w + 2.0 * GENERIC_INNER_MARGIN;
     let rect_h = GENERIC_TEXT_HEIGHT + 2.0 * GENERIC_INNER_MARGIN;
     let gen_dim_w = rect_w + 2.0 * GENERIC_OUTER_MARGIN;
@@ -2237,13 +2874,26 @@ fn draw_generic_box(
     let text_y = rect_y + GENERIC_INNER_MARGIN + GENERIC_BASELINE;
     sg.set_fill_color("#000000");
     sg.svg_text(
-        generic_text, text_x, text_y,
-        Some("sans-serif"), 12.0,
-        None, Some("italic"), None,
-        text_w, LengthAdjust::Spacing,
-        None, 0, None,
+        generic_text,
+        text_x,
+        text_y,
+        Some("sans-serif"),
+        12.0,
+        None,
+        Some("italic"),
+        None,
+        text_w,
+        LengthAdjust::Spacing,
+        None,
+        0,
+        None,
     );
-    tracker.track_rect(text_x, text_y - GENERIC_BASELINE, text_w, GENERIC_TEXT_HEIGHT);
+    tracker.track_rect(
+        text_x,
+        text_y - GENERIC_BASELINE,
+        text_w,
+        GENERIC_TEXT_HEIGHT,
+    );
 }
 
 /// Draw an Object entity box (EntityImageObject.java layout).
@@ -2290,9 +2940,14 @@ fn draw_rectangle_entity_box(
         let tl = font_metrics::text_width(line, "SansSerif", desc_font_size, false, false);
         sg.set_fill_color(font_color);
         sg.svg_text(
-            line, text_x, text_y,
-            Some("sans-serif"), desc_font_size,
-            None, None, None,
+            line,
+            text_x,
+            text_y,
+            Some("sans-serif"),
+            desc_font_size,
+            None,
+            None,
+            None,
             tl,
             crate::klimt::svg::LengthAdjust::Spacing,
             None,
@@ -2340,13 +2995,8 @@ fn draw_object_box(
     const OBJ_NAME_MARGIN: f64 = 2.0;
 
     let class_font_size = skin.font_size("class", FONT_SIZE);
-    let name_width = font_metrics::text_width(
-        &entity.name,
-        "SansSerif",
-        class_font_size,
-        false,
-        false,
-    );
+    let name_width =
+        font_metrics::text_width(&entity.name, "SansSerif", class_font_size, false, false);
     let name_block_width = name_width + 2.0 * OBJ_NAME_MARGIN;
     let name_block_height = HEADER_NAME_BLOCK_HEIGHT + 2.0 * OBJ_NAME_MARGIN;
 
@@ -2358,13 +3008,26 @@ fn draw_object_box(
 
     sg.set_fill_color(font_color);
     sg.svg_text(
-        &entity.name, text_x, text_y,
-        Some("sans-serif"), class_font_size,
-        None, None, None,
-        name_width, LengthAdjust::Spacing,
-        None, 0, None,
+        &entity.name,
+        text_x,
+        text_y,
+        Some("sans-serif"),
+        class_font_size,
+        None,
+        None,
+        None,
+        name_width,
+        LengthAdjust::Spacing,
+        None,
+        0,
+        None,
     );
-    tracker.track_rect(text_x, text_y - HEADER_NAME_BASELINE, name_width, HEADER_NAME_BLOCK_HEIGHT);
+    tracker.track_rect(
+        text_x,
+        text_y - HEADER_NAME_BASELINE,
+        name_width,
+        HEADER_NAME_BLOCK_HEIGHT,
+    );
 
     // Separator line at y + titleHeight
     let title_height = name_block_height;
@@ -2377,11 +3040,7 @@ fn draw_object_box(
     tracker.track_line(x1, sep_y, x2, sep_y);
 
     // Render object fields in the body section
-    let visible_fields: Vec<&Member> = entity
-        .members
-        .iter()
-        .filter(|m| !m.is_method)
-        .collect();
+    let visible_fields: Vec<&Member> = entity.members.iter().filter(|m| !m.is_method).collect();
     if !visible_fields.is_empty() {
         let attr_font_size = skin.font_size("classattribute", class_font_size);
         let x1_val = fmt_coord(x1);
@@ -2428,6 +3087,8 @@ fn draw_member_section(
     sg.set_stroke_width(0.5, None);
     sg.svg_line(x1_f, section_y, x2_f, section_y, 0.0);
     tracker.track_line(x1_f, section_y, x2_f, section_y);
+    let (section_w, section_h) = member_section_block_dimensions(members, attr_font_size);
+    tracker.track_empty(x, section_y, section_w, section_h);
 
     // visual_row tracks the current visual line index across all members
     let mut visual_row: usize = 0;
@@ -2464,17 +3125,14 @@ fn draw_member_section(
             None
         };
 
-        let base_text_x = x
-            + if member.visibility.is_some() {
-                MEMBER_TEXT_X_WITH_ICON
-            } else {
-                MEMBER_TEXT_X_NO_ICON
-            };
+        let base_text_x = x + if member.visibility.is_some() {
+            MEMBER_TEXT_X_WITH_ICON
+        } else {
+            MEMBER_TEXT_X_NO_ICON
+        };
 
         for (line_idx, (line_text, indent)) in lines.iter().enumerate() {
-            let text_y = section_y
-                + text_y_offset
-                + (visual_row + line_idx) as f64 * row_h;
+            let text_y = section_y + text_y_offset + (visual_row + line_idx) as f64 * row_h;
             let text_x = if line_idx == 0 {
                 base_text_x
             } else {
@@ -2489,11 +3147,19 @@ fn draw_member_section(
             );
             sg.set_fill_color(font_color);
             sg.svg_text(
-                line_text, text_x, text_y,
-                Some("sans-serif"), attr_font_size,
-                None, font_style_attr, text_deco_attr,
-                text_width_val, LengthAdjust::Spacing,
-                None, 0, None,
+                line_text,
+                text_x,
+                text_y,
+                Some("sans-serif"),
+                attr_font_size,
+                None,
+                font_style_attr,
+                text_deco_attr,
+                text_width_val,
+                LengthAdjust::Spacing,
+                None,
+                0,
+                None,
             );
             {
                 let text_ascent = font_metrics::ascent(
@@ -2521,6 +3187,42 @@ fn draw_member_section(
     }
 }
 
+fn member_section_block_dimensions(members: &[&Member], attr_font_size: f64) -> (f64, f64) {
+    if members.is_empty() {
+        return (12.0, EMPTY_COMPARTMENT);
+    }
+
+    // Java MethodsOrFieldsArea wraps the member content block with
+    // TextBlockUtils.withMargin(..., 6, 4), which contributes a UEmpty
+    // wrapper to LimitFinder even when inner text/icon primitives are tracked
+    // separately.
+    let has_small_icon = members.iter().any(|m| m.visibility.is_some());
+    let icon_col_w = if has_small_icon { 14.0 } else { 0.0 };
+    let text_w = members
+        .iter()
+        .map(|member| {
+            let text = member_text(member);
+            split_member_lines(&text)
+                .iter()
+                .enumerate()
+                .map(|(idx, (line_text, indent))| {
+                    let line_w = font_metrics::text_width(
+                        line_text,
+                        "SansSerif",
+                        attr_font_size,
+                        false,
+                        member.modifiers.is_abstract,
+                    );
+                    if idx == 0 { line_w } else { indent + line_w }
+                })
+                .fold(0.0_f64, f64::max)
+        })
+        .fold(0.0_f64, f64::max);
+    let content_w = icon_col_w + text_w;
+    let content_h = section_height_with_fs(members, attr_font_size) - 8.0;
+    (content_w + 12.0, content_h + 8.0)
+}
+
 fn section_height_with_fs(members: &[&Member], attr_font_size: f64) -> f64 {
     if members.is_empty() {
         EMPTY_COMPARTMENT
@@ -2534,8 +3236,7 @@ fn section_height_with_fs(members: &[&Member], attr_font_size: f64) -> f64 {
                 split_member_lines(&text).len()
             })
             .sum();
-        one_row_h
-            + (total_visual_lines.saturating_sub(1)) as f64 * row_h
+        one_row_h + (total_visual_lines.saturating_sub(1)) as f64 * row_h
     }
 }
 
@@ -2620,12 +3321,19 @@ fn draw_visibility_icon(
             sg.set_fill_color(fill);
             sg.set_stroke_color(Some("#B38D22"));
             sg.set_stroke_width(1.0, None);
-            sg.svg_polygon(0.0, &[
-                poly_pts[0].0, poly_pts[0].1,
-                poly_pts[1].0, poly_pts[1].1,
-                poly_pts[2].0, poly_pts[2].1,
-                poly_pts[3].0, poly_pts[3].1,
-            ]);
+            sg.svg_polygon(
+                0.0,
+                &[
+                    poly_pts[0].0,
+                    poly_pts[0].1,
+                    poly_pts[1].0,
+                    poly_pts[1].1,
+                    poly_pts[2].0,
+                    poly_pts[2].1,
+                    poly_pts[3].0,
+                    poly_pts[3].1,
+                ],
+            );
             tracker.track_polygon(&poly_pts);
         }
         Visibility::Package => {
@@ -2635,18 +3343,24 @@ fn draw_visibility_icon(
             let oy = y;
             let fill = if is_method { "#4177AF" } else { "none" };
             let poly_pts = [
-                (ox + 4.0, oy + 1.0),   // (size/2=4, 1)
-                (ox, oy + 7.0),          // (0, size-1=7)
-                (ox + 8.0, oy + 7.0),   // (size=8, size-1=7)
+                (ox + 4.0, oy + 1.0), // (size/2=4, 1)
+                (ox, oy + 7.0),       // (0, size-1=7)
+                (ox + 8.0, oy + 7.0), // (size=8, size-1=7)
             ];
             sg.set_fill_color(fill);
             sg.set_stroke_color(Some("#1963A0"));
             sg.set_stroke_width(1.0, None);
-            sg.svg_polygon(0.0, &[
-                poly_pts[0].0, poly_pts[0].1,
-                poly_pts[1].0, poly_pts[1].1,
-                poly_pts[2].0, poly_pts[2].1,
-            ]);
+            sg.svg_polygon(
+                0.0,
+                &[
+                    poly_pts[0].0,
+                    poly_pts[0].1,
+                    poly_pts[1].0,
+                    poly_pts[1].1,
+                    poly_pts[2].0,
+                    poly_pts[2].1,
+                ],
+            );
             tracker.track_polygon(&poly_pts);
         }
     }
@@ -2675,6 +3389,29 @@ fn visible_stereotype_labels(rules: &[ClassHideShowRule], entity: &Entity) -> Ve
         .map(|st| st.0.clone())
         .filter(|label| stereotype_label_visible(rules, label))
         .collect()
+}
+
+fn class_group_fill_color(
+    cd: &ClassDiagram,
+    group: Option<&crate::model::Group>,
+) -> Option<String> {
+    let group = group?;
+    group
+        .color
+        .as_deref()
+        .map(crate::style::normalize_color)
+        .or_else(|| class_stereotype_fill_color(&cd.stereotype_backgrounds, &group.stereotypes))
+}
+
+fn class_stereotype_fill_color(
+    stereotype_backgrounds: &HashMap<String, String>,
+    stereotypes: &[crate::model::Stereotype],
+) -> Option<String> {
+    stereotypes
+        .iter()
+        .filter_map(|stereotype| stereotype_backgrounds.get(&stereotype.0))
+        .map(|color| crate::style::normalize_color(color))
+        .last()
 }
 
 fn stereotype_label_visible(rules: &[ClassHideShowRule], label: &str) -> bool {
@@ -2708,30 +3445,30 @@ fn format_member(m: &Member) -> String {
 
 /// Derive the `data-link-type` attribute value from the link's arrow and line style.
 fn derive_link_type(link: &Link) -> &'static str {
-    // Check the "dominant" arrowhead (right_head for A-->B, left_head for B<--A)
-    let head = if link.right_head != ArrowHead::None {
-        &link.right_head
+    let left = &link.left_head;
+    let right = &link.right_head;
+    if matches!(left, ArrowHead::Diamond) || matches!(right, ArrowHead::Diamond) {
+        "composition"
+    } else if matches!(left, ArrowHead::DiamondHollow) || matches!(right, ArrowHead::DiamondHollow)
+    {
+        "aggregation"
+    } else if matches!(left, ArrowHead::Triangle) || matches!(right, ArrowHead::Triangle) {
+        "extension"
+    } else if matches!(left, ArrowHead::Arrow) || matches!(right, ArrowHead::Arrow) {
+        "dependency"
+    } else if matches!(left, ArrowHead::Plus) || matches!(right, ArrowHead::Plus) {
+        "innerclass"
     } else {
-        &link.left_head
-    };
-    match head {
-        ArrowHead::Triangle => {
-            if link.line_style == LineStyle::Dashed {
-                "realisation"
-            } else {
-                "extension"
-            }
-        }
-        ArrowHead::Diamond => "composition",
-        ArrowHead::DiamondHollow => "aggregation",
-        ArrowHead::Arrow => "dependency",
-        ArrowHead::Plus => "innerclass",
-        ArrowHead::None => "association",
+        "association"
     }
 }
 
 fn edge_label_margin(link: &Link) -> f64 {
-    if link.from == link.to { 6.0 } else { 1.0 }
+    if link.from == link.to {
+        6.0
+    } else {
+        1.0
+    }
 }
 
 fn draw_edge(
@@ -2740,6 +3477,9 @@ fn draw_edge(
     layout: &GraphLayout,
     link: &Link,
     el: &EdgeLayout,
+    link_idx: usize,
+    qualifier_placements: &HashMap<QualifierKey, KalPlacement>,
+    skin: &SkinParams,
     link_color: &str,
     edge_offset_x: f64,
     edge_offset_y: f64,
@@ -2748,7 +3488,29 @@ fn draw_edge(
         return;
     }
 
-    let mut path_points = el.points.clone();
+    let mut decor_points = el.points.clone();
+    if let Some(placement) = qualifier_placements.get(&QualifierKey {
+        link_idx,
+        endpoint: QualifierEndpoint::Tail,
+    }) {
+        if let Some((dx, dy)) =
+            qualifier_edge_translation(link, QualifierEndpoint::Tail, placement)
+        {
+            move_edge_start_point(&mut decor_points, dx, dy);
+        }
+    }
+    if let Some(placement) = qualifier_placements.get(&QualifierKey {
+        link_idx,
+        endpoint: QualifierEndpoint::Head,
+    }) {
+        if let Some((dx, dy)) =
+            qualifier_edge_translation(link, QualifierEndpoint::Head, placement)
+        {
+            move_edge_end_point(&mut decor_points, dx, dy);
+        }
+    }
+
+    let mut path_points = decor_points.clone();
     if link.left_head != ArrowHead::None {
         shorten_edge_for_head(&mut path_points, &link.left_head, true);
     }
@@ -2767,10 +3529,18 @@ fn draw_edge(
         for &(px, py) in &path_points {
             let ax = px + edge_offset_x;
             let ay = py + edge_offset_y;
-            if ax < p_min_x { p_min_x = ax; }
-            if ay < p_min_y { p_min_y = ay; }
-            if ax > p_max_x { p_max_x = ax; }
-            if ay > p_max_y { p_max_y = ay; }
+            if ax < p_min_x {
+                p_min_x = ax;
+            }
+            if ay < p_min_y {
+                p_min_y = ay;
+            }
+            if ax > p_max_x {
+                p_max_x = ax;
+            }
+            if ay > p_max_y {
+                p_max_y = ay;
+            }
         }
         if p_min_x.is_finite() {
             tracker.track_path_bounds(p_min_x, p_min_y, p_max_x, p_max_y);
@@ -2801,61 +3571,67 @@ fn draw_edge(
     }
 
     if link.left_head != ArrowHead::None {
-        emit_arrowhead(sg, tracker, &link.left_head, &el.points, true, link_color, edge_offset_x, edge_offset_y);
+        emit_arrowhead(
+            sg,
+            tracker,
+            &link.left_head,
+            &decor_points,
+            true,
+            link_color,
+            edge_offset_x,
+            edge_offset_y,
+        );
     }
     if link.right_head != ArrowHead::None {
-        emit_arrowhead(sg, tracker, &link.right_head, &el.points, false, link_color, edge_offset_x, edge_offset_y);
+        emit_arrowhead(
+            sg,
+            tracker,
+            &link.right_head,
+            &decor_points,
+            false,
+            link_color,
+            edge_offset_x,
+            edge_offset_y,
+        );
     }
 
     if let Some(label) = &link.label {
-        let font_family = "SansSerif";
-        let font_size = LINK_LABEL_FONT_SIZE;
         let margin_label = edge_label_margin(link);
-        let lines = split_label_lines(label);
-        let line_height = font_metrics::line_height(font_family, font_size, false, false);
-        let ascent = font_metrics::ascent(font_family, font_size, false, false);
-        let widths: Vec<f64> = lines
-            .iter()
-            .map(|(t, _)| font_metrics::text_width(t, font_family, font_size, false, false))
-            .collect();
-        let max_width = widths.iter().copied().fold(0.0_f64, f64::max);
-
         if let Some((lx, ly)) = el.label_xy.map(|(x, y)| {
             (
                 x + layout.move_delta.0 - layout.normalize_offset.0 + edge_offset_x,
                 y + layout.move_delta.1 - layout.normalize_offset.1 + edge_offset_y,
             )
         }) {
-            let base_x = lx + margin_label;
-            let base_y = ly + margin_label + ascent;
-            let default_font = get_default_font_family_pub();
-            for (idx, (line_text, align)) in lines.iter().enumerate() {
-                let text_w = widths[idx];
-                let line_x = match align {
-                    LabelAlign::Left => base_x,
-                    LabelAlign::Center => base_x + (max_width - text_w) / 2.0,
-                    LabelAlign::Right => base_x + (max_width - text_w),
-                };
-                let line_y = base_y + idx as f64 * line_height;
-                sg.set_fill_color(TEXT_COLOR);
-                sg.svg_text(
-                    line_text, line_x, line_y,
-                    Some(&default_font), font_size,
-                    None, None, None,
-                    text_w, LengthAdjust::Spacing,
-                    None, 0, None,
-                );
-                tracker.track_text(line_x, line_y, text_w, line_height);
-            }
-            if let Some((bw, bh)) = el.label_wh {
-                tracker.track_empty(lx, ly, bw, bh);
-            }
+            draw_edge_label_block(
+                sg,
+                tracker,
+                label,
+                lx,
+                ly,
+                el.label_wh,
+                margin_label,
+                LINK_LABEL_FONT_SIZE,
+                false,
+                skin,
+            );
         } else {
             let mid_idx = path_points.len() / 2;
             let (mx, my) = path_points[mid_idx];
             let label_x = mx + edge_offset_x;
             let label_y = my + edge_offset_y - 6.0;
             draw_label(sg, label, label_x, label_y);
+            let lines = split_label_lines(label);
+            let line_height =
+                font_metrics::line_height("SansSerif", LINK_LABEL_FONT_SIZE, false, false);
+            let ascent = font_metrics::ascent("SansSerif", LINK_LABEL_FONT_SIZE, false, false);
+            let widths: Vec<f64> = lines
+                .iter()
+                .map(|(t, _)| {
+                    font_metrics::text_width(t, "SansSerif", LINK_LABEL_FONT_SIZE, false, false)
+                })
+                .collect();
+            let max_width = widths.iter().copied().fold(0.0_f64, f64::max);
             let total_h = lines.len() as f64 * line_height;
             let block_x = label_x + 1.0;
             let base_y = label_y - total_h / 2.0 + ascent;
@@ -2865,6 +3641,84 @@ fn draw_edge(
                 tracker.track_text(block_x, ly, text_w, line_height);
             }
             tracker.track_empty(label_x, base_y, max_width + 2.0, 0.0);
+        }
+    }
+
+    if let Some((text, x, y)) = edge_side_label_origin(
+        layout,
+        el.tail_label.as_deref(),
+        el.tail_label_xy,
+        edge_offset_x,
+        edge_offset_y,
+    ) {
+        draw_edge_label_block(
+            sg,
+            tracker,
+            text,
+            x,
+            y,
+            el.tail_label_wh,
+            if el.tail_label_boxed { 2.0 } else { 0.0 },
+            if el.tail_label_boxed { 14.0 } else { LINK_LABEL_FONT_SIZE },
+            el.tail_label_boxed,
+            skin,
+        );
+    }
+
+    if let Some((text, x, y)) = edge_side_label_origin(
+        layout,
+        el.head_label.as_deref(),
+        el.head_label_xy,
+        edge_offset_x,
+        edge_offset_y,
+    ) {
+        draw_edge_label_block(
+            sg,
+            tracker,
+            text,
+            x,
+            y,
+            el.head_label_wh,
+            if el.head_label_boxed { 2.0 } else { 0.0 },
+            if el.head_label_boxed { 14.0 } else { LINK_LABEL_FONT_SIZE },
+            el.head_label_boxed,
+            skin,
+        );
+    }
+
+    if let Some(text) = link.from_qualifier.as_deref() {
+        if let Some(placement) = qualifier_placements.get(&QualifierKey {
+            link_idx,
+            endpoint: QualifierEndpoint::Tail,
+        }) {
+            draw_kal_box(
+                sg,
+                tracker,
+                text,
+                placement.x,
+                placement.y,
+                placement.width,
+                placement.height,
+                skin,
+            );
+        }
+    }
+
+    if let Some(text) = link.to_qualifier.as_deref() {
+        if let Some(placement) = qualifier_placements.get(&QualifierKey {
+            link_idx,
+            endpoint: QualifierEndpoint::Head,
+        }) {
+            draw_kal_box(
+                sg,
+                tracker,
+                text,
+                placement.x,
+                placement.y,
+                placement.width,
+                placement.height,
+                skin,
+            );
         }
     }
 }
@@ -3051,6 +3905,8 @@ fn emit_arrowhead(
     } else {
         edge_end_angle(points)
     };
+    // Java extremity factories snap near-cardinal angles before drawing.
+    let base_angle = crate::svek::extremity::manage_round(base_angle);
 
     match head {
         ArrowHead::Arrow => emit_rotated_polygon(
@@ -3072,11 +3928,13 @@ fn emit_arrowhead(
         ArrowHead::Triangle => emit_rotated_polygon(
             sg,
             tracker,
-            &[(0.0, 0.0), (-19.0, -7.0), (-19.0, 7.0), (0.0, 0.0)],
-            base_angle + std::f64::consts::FRAC_PI_2,
+            // Java class-path `LinkDecor.EXTENDS` uses `ExtremityFactoryTriangle`
+            // in the complete extremity chain: xWing=18, yAperture=6.
+            &[(0.0, 0.0), (-18.0, -6.0), (-18.0, 6.0), (0.0, 0.0)],
+            base_angle,
             tip_x,
             tip_y,
-            ENTITY_BG,
+            "none",
             link_color,
         ),
         ArrowHead::Diamond => emit_rotated_polygon(
@@ -3089,7 +3947,7 @@ fn emit_arrowhead(
                 (-6.0, 4.0),
                 (0.0, 0.0),
             ],
-            base_angle + std::f64::consts::FRAC_PI_2,
+            base_angle,
             tip_x,
             tip_y,
             link_color,
@@ -3105,10 +3963,10 @@ fn emit_arrowhead(
                 (-6.0, 4.0),
                 (0.0, 0.0),
             ],
-            base_angle + std::f64::consts::FRAC_PI_2,
+            base_angle,
             tip_x,
             tip_y,
-            "#FFFFFF",
+            "none",
             link_color,
         ),
         ArrowHead::Plus => emit_plus_head(sg, tracker, tip_x, tip_y, base_angle, link_color),
@@ -3153,30 +4011,43 @@ fn emit_rotated_polygon(
     tracker.track_polygon(&rotated_points);
 }
 
-fn emit_plus_head(sg: &mut SvgGraphic, tracker: &mut BoundsTracker, tip_x: f64, tip_y: f64, angle: f64, link_color: &str) {
+fn emit_plus_head(
+    sg: &mut SvgGraphic,
+    tracker: &mut BoundsTracker,
+    tip_x: f64,
+    tip_y: f64,
+    angle: f64,
+    link_color: &str,
+) {
     let radius = 8.0;
-    let center_x = tip_x + radius * angle.sin();
-    let center_y = tip_y - radius * angle.cos();
+    let center_x = tip_x - radius * angle.cos();
+    let center_y = tip_y - radius * angle.sin();
+    let cross_angle = angle - std::f64::consts::FRAC_PI_2;
     sg.set_fill_color("#FFFFFF");
     sg.set_stroke_color(Some(link_color));
     sg.set_stroke_width(1.0, None);
-    sg.svg_circle(center_x, center_y, 8.0, 0.0);
+    sg.svg_ellipse(center_x, center_y, radius, radius, 0.0);
     tracker.track_ellipse(center_x, center_y, radius, radius);
 
     let p1 = point_on_circle(
         center_x,
         center_y,
         radius,
-        angle - std::f64::consts::FRAC_PI_2,
+        cross_angle - std::f64::consts::FRAC_PI_2,
     );
     let p2 = point_on_circle(
         center_x,
         center_y,
         radius,
-        angle + std::f64::consts::FRAC_PI_2,
+        cross_angle + std::f64::consts::FRAC_PI_2,
     );
-    let p3 = point_on_circle(center_x, center_y, radius, angle);
-    let p4 = point_on_circle(center_x, center_y, radius, angle + std::f64::consts::PI);
+    let p3 = point_on_circle(center_x, center_y, radius, cross_angle);
+    let p4 = point_on_circle(
+        center_x,
+        center_y,
+        radius,
+        cross_angle + std::f64::consts::PI,
+    );
     sg.set_stroke_color(Some(link_color));
     sg.set_stroke_width(1.0, None);
     sg.svg_line(p1.0, p1.1, p2.0, p2.1, 0.0);
@@ -3195,6 +4066,22 @@ enum LabelAlign {
     Center,
     Left,
     Right,
+}
+
+fn edge_side_label_origin<'a>(
+    layout: &GraphLayout,
+    text: Option<&'a str>,
+    xy: Option<(f64, f64)>,
+    edge_offset_x: f64,
+    edge_offset_y: f64,
+) -> Option<(&'a str, f64, f64)> {
+    let text = text?;
+    let (x, y) = xy?;
+    Some((
+        text,
+        x + layout.move_delta.0 - layout.normalize_offset.0 + edge_offset_x,
+        y + layout.move_delta.1 - layout.normalize_offset.1 + edge_offset_y,
+    ))
 }
 
 /// Split a link label on `\n`, `\l`, `\r` break sequences.
@@ -3243,6 +4130,351 @@ fn split_label_lines(text: &str) -> Vec<(String, LabelAlign)> {
     result
 }
 
+fn kal_block_dimensions(text: &str) -> (f64, f64) {
+    let font_family = "SansSerif";
+    let font_size = 14.0;
+    let lines = split_label_lines(text);
+    let max_width = lines
+        .iter()
+        .map(|(t, _)| font_metrics::text_width(t, font_family, font_size, false, false))
+        .fold(0.0_f64, f64::max);
+    let height =
+        lines.len() as f64 * font_metrics::line_height(font_family, font_size, false, false);
+    (max_width + 4.0, height + 2.0)
+}
+
+fn kal_origin(anchor_x: f64, anchor_y: f64, width: f64, height: f64, pos: KalPosition) -> (f64, f64) {
+    match pos {
+        KalPosition::Right => (anchor_x, anchor_y - height / 2.0),
+        KalPosition::Left => (anchor_x - width + 0.5, anchor_y - height / 2.0),
+        KalPosition::Down => (anchor_x - width / 2.0, anchor_y),
+        KalPosition::Up => (anchor_x - width / 2.0, anchor_y - height + 0.5),
+    }
+}
+
+fn kal_position_for_link(link: &Link, endpoint: QualifierEndpoint) -> Option<KalPosition> {
+    match endpoint {
+        QualifierEndpoint::Tail => {
+            if link.from_qualifier.is_none() {
+                None
+            } else if link.arrow_len == 1 {
+                Some(KalPosition::Right)
+            } else {
+                Some(KalPosition::Down)
+            }
+        }
+        QualifierEndpoint::Head => {
+            if link.to_qualifier.is_none() {
+                None
+            } else if link.arrow_len == 1 {
+                Some(KalPosition::Left)
+            } else {
+                Some(KalPosition::Up)
+            }
+        }
+    }
+}
+
+fn qualifier_edge_translation(
+    link: &Link,
+    endpoint: QualifierEndpoint,
+    placement: &KalPlacement,
+) -> Option<(f64, f64)> {
+    let pos = kal_position_for_link(link, endpoint)?;
+    let mut dx = 0.0;
+    let mut dy = 0.0;
+
+    match endpoint {
+        QualifierEndpoint::Tail => {
+            // Java Kal.moveX() only moves the start point for kal1/entity1.
+            if matches!(pos, KalPosition::Up | KalPosition::Down) {
+                dx += placement.shift_x;
+            }
+            if link.left_head != ArrowHead::None {
+                match pos {
+                    KalPosition::Right => dx += placement.width,
+                    KalPosition::Left => dx -= placement.width,
+                    KalPosition::Down => dy += placement.height,
+                    KalPosition::Up => dy -= placement.height,
+                }
+            }
+        }
+        QualifierEndpoint::Head => {
+            if link.right_head != ArrowHead::None {
+                match pos {
+                    KalPosition::Right => dx += placement.width,
+                    KalPosition::Left => dx -= placement.width,
+                    KalPosition::Down => dy += placement.height,
+                    KalPosition::Up => dy -= placement.height,
+                }
+            }
+        }
+    }
+
+    if dx.abs() <= f64::EPSILON && dy.abs() <= f64::EPSILON {
+        None
+    } else {
+        Some((dx, dy))
+    }
+}
+
+fn compute_qualifier_placements(
+    cd: &ClassDiagram,
+    layout: &GraphLayout,
+    edge_offset_x: f64,
+    edge_offset_y: f64,
+) -> HashMap<QualifierKey, KalPlacement> {
+    #[derive(Debug, Clone)]
+    struct PendingKal {
+        key: QualifierKey,
+        entity: String,
+        pos: KalPosition,
+        orig_x: f64,
+        x: f64,
+        y: f64,
+        width: f64,
+        height: f64,
+    }
+
+    let mut pending = Vec::new();
+    for (link_idx, link) in cd.links.iter().enumerate() {
+        let Some(edge) = layout.edges.get(link_idx) else {
+            continue;
+        };
+        let Some(&(sx, sy)) = edge.points.first() else {
+            continue;
+        };
+        let Some(&(ex, ey)) = edge.points.last() else {
+            continue;
+        };
+
+        if let (Some(text), Some(pos)) = (
+            link.from_qualifier.as_deref(),
+            kal_position_for_link(link, QualifierEndpoint::Tail),
+        ) {
+            let (width, height) = kal_block_dimensions(text);
+            let (x, y) = kal_origin(
+                sx + edge_offset_x,
+                sy + edge_offset_y,
+                width,
+                height,
+                pos,
+            );
+            pending.push(PendingKal {
+                key: QualifierKey {
+                    link_idx,
+                    endpoint: QualifierEndpoint::Tail,
+                },
+                entity: link.from.clone(),
+                pos,
+                orig_x: x,
+                x,
+                y,
+                width,
+                height,
+            });
+        }
+
+        if let (Some(text), Some(pos)) = (
+            link.to_qualifier.as_deref(),
+            kal_position_for_link(link, QualifierEndpoint::Head),
+        ) {
+            let (width, height) = kal_block_dimensions(text);
+            let (x, y) = kal_origin(
+                ex + edge_offset_x,
+                ey + edge_offset_y,
+                width,
+                height,
+                pos,
+            );
+            pending.push(PendingKal {
+                key: QualifierKey {
+                    link_idx,
+                    endpoint: QualifierEndpoint::Head,
+                },
+                entity: link.to.clone(),
+                pos,
+                orig_x: x,
+                x,
+                y,
+                width,
+                height,
+            });
+        }
+    }
+
+    let mut grouped: HashMap<(String, KalPosition), Vec<usize>> = HashMap::new();
+    for (idx, item) in pending.iter().enumerate() {
+        if matches!(item.pos, KalPosition::Up | KalPosition::Down) {
+            grouped
+                .entry((item.entity.clone(), item.pos))
+                .or_default()
+                .push(idx);
+        }
+    }
+
+    for indices in grouped.values() {
+        if indices.len() < 2 {
+            continue;
+        }
+        let mut los = LineOfSegments::new();
+        for idx in indices {
+            let item = &pending[*idx];
+            los.add_segment(item.x - 5.0, item.x + item.width + 5.0);
+        }
+        let resolved = los.solve_overlaps();
+        for (order, idx) in indices.iter().enumerate() {
+            let item = &mut pending[*idx];
+            let old_x1 = item.x - 5.0;
+            let dx = resolved[order] - old_x1;
+            item.x += dx;
+        }
+    }
+
+    pending
+        .into_iter()
+        .map(|item| {
+            (
+                item.key,
+                KalPlacement {
+                    x: item.x,
+                    y: item.y,
+                    width: item.width,
+                    height: item.height,
+                    shift_x: item.x - item.orig_x,
+                },
+            )
+        })
+        .collect()
+}
+
+fn draw_kal_box(
+    sg: &mut SvgGraphic,
+    tracker: &mut BoundsTracker,
+    text: &str,
+    x: f64,
+    y: f64,
+    width: f64,
+    height: f64,
+    skin: &SkinParams,
+) {
+    let font_family = "SansSerif";
+    let font_size = 14.0;
+    let line_height = font_metrics::line_height(font_family, font_size, false, false);
+    let ascent = font_metrics::ascent(font_family, font_size, false, false);
+    let fill = skin.background_color("class", "#F1F1F1");
+    let border = skin.border_color("class", "#181818");
+    let default_font = get_default_font_family_pub();
+
+    sg.set_fill_color(&fill);
+    sg.set_stroke_color(Some(border));
+    sg.set_stroke_width(0.5, None);
+    sg.svg_rectangle(x, y, width, height, 0.0, 0.0, 0.0);
+    tracker.track_rect(x, y, width, height);
+
+    for (idx, (line_text, _)) in split_label_lines(text).iter().enumerate() {
+        let text_x = x + 2.0;
+        let text_y = y + 1.0 + ascent + idx as f64 * line_height;
+        let text_w = font_metrics::text_width(line_text, font_family, font_size, false, false);
+        sg.set_fill_color(TEXT_COLOR);
+        sg.svg_text(
+            line_text,
+            text_x,
+            text_y,
+            Some(&default_font),
+            font_size,
+            None,
+            None,
+            None,
+            text_w,
+            LengthAdjust::Spacing,
+            None,
+            0,
+            None,
+        );
+        tracker.track_text(text_x, text_y, text_w, line_height);
+    }
+}
+
+fn draw_edge_label_block(
+    sg: &mut SvgGraphic,
+    tracker: &mut BoundsTracker,
+    text: &str,
+    x: f64,
+    y: f64,
+    block_wh: Option<(f64, f64)>,
+    margin: f64,
+    font_size: f64,
+    boxed: bool,
+    skin: &SkinParams,
+) {
+    let font_family = "SansSerif";
+    let lines = split_label_lines(text);
+    let line_height = font_metrics::line_height(font_family, font_size, false, false);
+    let ascent = font_metrics::ascent(font_family, font_size, false, false);
+    let widths: Vec<f64> = lines
+        .iter()
+        .map(|(t, _)| font_metrics::text_width(t, font_family, font_size, false, false))
+        .collect();
+    let max_width = widths.iter().copied().fold(0.0_f64, f64::max);
+    let outer_width = block_wh.map(|(w, _)| w).unwrap_or(max_width + 2.0 * margin);
+    let outer_height = block_wh
+        .map(|(_, h)| h)
+        .unwrap_or(lines.len() as f64 * line_height + 2.0 * margin);
+
+    if boxed {
+        let fill = skin.background_color("class", "#F1F1F1");
+        let border = skin.border_color("class", "#181818");
+        sg.set_fill_color(&fill);
+        sg.set_stroke_color(Some(border));
+        sg.set_stroke_width(0.5, None);
+        sg.svg_rectangle(x, y, outer_width, outer_height, 0.0, 0.0, 0.0);
+        tracker.track_rect(x, y, outer_width, outer_height);
+    } else if let Some((bw, bh)) = block_wh {
+        tracker.track_empty(x, y, bw, bh);
+    }
+
+    let base_x = if boxed { x + margin } else { x };
+    let base_y = if boxed { y + margin + ascent } else { y + ascent };
+    let align_width = if boxed {
+        (outer_width - 2.0 * margin).max(max_width)
+    } else {
+        max_width
+    };
+    let default_font = get_default_font_family_pub();
+
+    for (idx, (line_text, align)) in lines.iter().enumerate() {
+        let text_w = widths[idx];
+        let line_x = if boxed {
+            base_x
+        } else {
+            match align {
+                LabelAlign::Left => base_x,
+                LabelAlign::Center => base_x + (align_width - text_w) / 2.0,
+                LabelAlign::Right => base_x + (align_width - text_w),
+            }
+        };
+        let line_y = base_y + idx as f64 * line_height;
+        sg.set_fill_color(TEXT_COLOR);
+        sg.svg_text(
+            line_text,
+            line_x,
+            line_y,
+            Some(&default_font),
+            font_size,
+            None,
+            None,
+            None,
+            text_w,
+            LengthAdjust::Spacing,
+            None,
+            0,
+            None,
+        );
+        tracker.track_text(line_x, line_y, text_w, line_height);
+    }
+}
+
 /// Render a link label.
 ///
 /// Java PlantUML renders multiline labels (`\n`, `\l`, `\r`) as separate
@@ -3286,11 +4518,19 @@ fn draw_label(sg: &mut SvgGraphic, text: &str, x: f64, y: f64) {
 
         sg.set_fill_color(TEXT_COLOR);
         sg.svg_text(
-            line_text, line_x, line_y,
-            Some(&default_font), font_size,
-            None, None, None,
-            text_w, LengthAdjust::Spacing,
-            None, 0, None,
+            line_text,
+            line_x,
+            line_y,
+            Some(&default_font),
+            font_size,
+            None,
+            None,
+            None,
+            text_w,
+            LengthAdjust::Spacing,
+            None,
+            0,
+            None,
         );
     }
 }
@@ -3315,22 +4555,26 @@ fn draw_class_note(sg: &mut SvgGraphic, tracker: &mut BoundsTracker, note: &Clas
     sg.set_fill_color(NOTE_BG);
     sg.set_stroke_color(Some(NOTE_BORDER));
     sg.set_stroke_width(1.0, None);
-    sg.svg_polygon(0.0, &[
-        note_poly[0].0, note_poly[0].1,
-        note_poly[1].0, note_poly[1].1,
-        note_poly[2].0, note_poly[2].1,
-        note_poly[3].0, note_poly[3].1,
-        note_poly[4].0, note_poly[4].1,
-    ]);
+    sg.svg_polygon(
+        0.0,
+        &[
+            note_poly[0].0,
+            note_poly[0].1,
+            note_poly[1].0,
+            note_poly[1].1,
+            note_poly[2].0,
+            note_poly[2].1,
+            note_poly[3].0,
+            note_poly[3].1,
+            note_poly[4].0,
+            note_poly[4].1,
+        ],
+    );
     tracker.track_polygon(&note_poly);
 
     // fold corner triangle
     {
-        let fold_pts = [
-            (x + w - fold, y),
-            (x + w - fold, y + fold),
-            (x + w, y),
-        ];
+        let fold_pts = [(x + w - fold, y), (x + w - fold, y + fold), (x + w, y)];
         let cx = fmt_coord(fold_pts[0].0);
         let cy = fmt_coord(fold_pts[0].1);
         let cy2 = fmt_coord(fold_pts[1].1);
@@ -3356,11 +4600,11 @@ fn draw_class_note(sg: &mut SvgGraphic, tracker: &mut BoundsTracker, note: &Clas
         render_creole_text(
             &mut tmp,
             &note.text,
-        text_x,
-        text_y,
-        LINE_HEIGHT,
-        TEXT_COLOR,
-        None,
+            text_x,
+            text_y,
+            LINE_HEIGHT,
+            TEXT_COLOR,
+            None,
             &format!(r#"font-size="{FONT_SIZE}""#),
         );
         sg.push_raw(&tmp);
@@ -3422,8 +4666,160 @@ mod tests {
         assert_eq!(fmt_coord(0.00001), "0"); // rounds to 0.0000
     }
 
+    fn assert_point_eq(actual: (f64, f64), expected: (f64, f64)) {
+        assert!(
+            (actual.0 - expected.0).abs() < 0.0001,
+            "x mismatch: actual={} expected={}",
+            actual.0,
+            expected.0
+        );
+        assert!(
+            (actual.1 - expected.1).abs() < 0.0001,
+            "y mismatch: actual={} expected={}",
+            actual.1,
+            expected.1
+        );
+    }
+
+    #[test]
+    fn move_edge_start_point_moves_first_control_point_like_java_dotpath() {
+        let mut points = vec![
+            (201.0, 61.11),
+            (201.0, 89.21),
+            (201.0, 112.39),
+            (201.0, 140.62),
+        ];
+        move_edge_start_point(&mut points, 0.0, 18.2969);
+
+        assert_point_eq(points[0], (201.0, 79.4069));
+        assert_point_eq(points[1], (201.0, 107.5069));
+        assert_point_eq(points[2], (201.0, 112.39));
+        assert_point_eq(points[3], (201.0, 140.62));
+    }
+
+    #[test]
+    fn move_edge_end_point_moves_last_control_point_like_java_dotpath() {
+        let mut points = vec![
+            (201.0, 79.4069),
+            (201.0, 107.5069),
+            (201.0, 112.39),
+            (201.0, 140.62),
+        ];
+        move_edge_end_point(&mut points, 0.0, -18.2969);
+
+        assert_point_eq(points[0], (201.0, 79.4069));
+        assert_point_eq(points[1], (201.0, 107.5069));
+        assert_point_eq(points[2], (201.0, 94.0931));
+        assert_point_eq(points[3], (201.0, 122.3231));
+    }
+
+    #[test]
+    fn emit_diamond_hollow_arrowhead_uses_none_fill_like_java() {
+        let mut sg = SvgGraphic::new(0, 1.0);
+        let mut tracker = BoundsTracker::new();
+        emit_arrowhead(
+            &mut sg,
+            &mut tracker,
+            &ArrowHead::DiamondHollow,
+            &[(201.0, 237.4069), (201.0, 265.5069), (201.0, 258.0931), (201.0, 286.3231)],
+            true,
+            "#181818",
+            0.0,
+            0.0,
+        );
+        assert!(
+            sg.body().contains(r#"<polygon fill="none""#),
+            "expected hollow diamond fill to match Java aggregation output"
+        );
+    }
+
+    #[test]
+    fn emit_plus_head_horizontal_matches_java_geometry() {
+        let mut sg = SvgGraphic::new(0, 1.0);
+        let mut tracker = BoundsTracker::new();
+        emit_plus_head(&mut sg, &mut tracker, 118.9061, 183.0, 0.0, "#181818");
+        let body = sg.body();
+        assert!(body.contains(r##"<ellipse cx="110.9061" cy="183" fill="#FFFFFF" rx="8" ry="8""##));
+        assert!(body.contains(r#"x1="102.9061" x2="118.9061" y1="183" y2="183""#));
+        assert!(body.contains(r#"x1="110.9061" x2="110.9061" y1="175" y2="191""#));
+    }
+
+    fn make_link() -> Link {
+        Link {
+            uid: None,
+            from: "Foo".into(),
+            to: "Bar".into(),
+            left_head: ArrowHead::None,
+            right_head: ArrowHead::None,
+            line_style: LineStyle::Solid,
+            label: None,
+            from_label: None,
+            to_label: None,
+            from_qualifier: None,
+            to_qualifier: None,
+            source_line: None,
+            arrow_len: 2,
+        }
+    }
+
+    #[test]
+    fn qualifier_without_start_decoration_does_not_push_start_point_down() {
+        let mut link = make_link();
+        link.from_qualifier = Some("x: String".into());
+        let placement = KalPlacement {
+            x: 436.7054,
+            y: 55.11,
+            width: 63.2334,
+            height: 18.2969,
+            shift_x: 0.0,
+        };
+
+        assert_eq!(
+            qualifier_edge_translation(&link, QualifierEndpoint::Tail, &placement),
+            None
+        );
+    }
+
+    #[test]
+    fn qualifier_with_start_decoration_matches_java_downward_translation() {
+        let mut link = make_link();
+        link.from_qualifier = Some("c3".into());
+        link.left_head = ArrowHead::DiamondHollow;
+        let placement = KalPlacement {
+            x: 175.0,
+            y: 55.11,
+            width: 21.7939,
+            height: 18.2969,
+            shift_x: 0.0,
+        };
+
+        assert_eq!(
+            qualifier_edge_translation(&link, QualifierEndpoint::Tail, &placement),
+            Some((0.0, 18.2969))
+        );
+    }
+
+    #[test]
+    fn downward_qualifier_overlap_only_moves_start_point_horizontally_without_decoration() {
+        let mut link = make_link();
+        link.from_qualifier = Some("x".into());
+        let placement = KalPlacement {
+            x: 0.0,
+            y: 0.0,
+            width: 10.0,
+            height: 18.2969,
+            shift_x: 7.5,
+        };
+
+        assert_eq!(
+            qualifier_edge_translation(&link, QualifierEndpoint::Tail, &placement),
+            Some((7.5, 0.0))
+        );
+    }
+
     fn simple_diagram() -> (Diagram, DiagramLayout) {
         let entity = Entity {
+            uid: None,
             name: "Foo".into(),
             kind: EntityKind::Class,
             stereotypes: vec![],
@@ -3455,6 +4851,7 @@ mod tests {
             visibility: None,
         };
         let entity2 = Entity {
+            uid: None,
             name: "Bar".into(),
             kind: EntityKind::Interface,
             stereotypes: vec![],
@@ -3466,6 +4863,7 @@ mod tests {
             visibility: None,
         };
         let link = Link {
+            uid: None,
             from: "Foo".into(),
             to: "Bar".into(),
             left_head: ArrowHead::None,
@@ -3474,6 +4872,8 @@ mod tests {
             label: Some("implements".into()),
             from_label: None,
             to_label: None,
+            from_qualifier: None,
+            to_qualifier: None,
             source_line: None,
             arrow_len: 2,
         };
@@ -3505,13 +4905,25 @@ mod tests {
                 raw_path_d: None,
                 arrow_polygon_points: None,
                 label: None,
+                tail_label: None,
+                tail_label_xy: None,
+                tail_label_wh: None,
+                tail_label_boxed: false,
+                head_label: None,
+                head_label_xy: None,
+                head_label_wh: None,
+                head_label_boxed: false,
                 label_xy: None,
                 label_wh: None,
             }],
             clusters: vec![],
             notes: vec![],
             total_width: 240.0,
-            total_height: 220.0, move_delta: (7.0, 7.0), normalize_offset: (0.0, 0.0), lf_span: (240.0, 220.0),
+            total_height: 220.0,
+            move_delta: (7.0, 7.0),
+            normalize_offset: (0.0, 0.0),
+            lf_span: (240.0, 220.0),
+            render_offset: (7.0, 7.0),
         };
         (Diagram::Class(cd), DiagramLayout::Class(gl))
     }
@@ -3538,7 +4950,7 @@ mod tests {
         let svg = render(&d, &l, &default_skin(), &default_meta()).unwrap();
         assert!(svg.contains("Foo"));
         assert!(svg.contains("Bar"));
-        assert!(svg.contains("interface"));
+        assert!(svg.contains("font-style=\"italic\""));
     }
 
     #[test]
@@ -3577,6 +4989,7 @@ mod tests {
     #[test]
     fn test_entity_with_special_chars() {
         let entity = Entity {
+            uid: None,
             name: "Map<K, V>".into(),
             kind: EntityKind::Class,
             stereotypes: vec![],
@@ -3601,7 +5014,11 @@ mod tests {
             clusters: vec![],
             notes: vec![],
             total_width: 200.0,
-            total_height: 100.0, move_delta: (7.0, 7.0), normalize_offset: (0.0, 0.0), lf_span: (200.0, 100.0),
+            total_height: 100.0,
+            move_delta: (7.0, 7.0),
+            normalize_offset: (0.0, 0.0),
+            lf_span: (200.0, 100.0),
+            render_offset: (7.0, 7.0),
         };
         let svg = render(
             &Diagram::Class(cd),
@@ -3616,6 +5033,7 @@ mod tests {
     #[test]
     fn test_object_entity_renders_without_circle_icon() {
         let entity = Entity {
+            uid: None,
             name: "myObj".into(),
             kind: EntityKind::Object,
             stereotypes: vec![],
@@ -3640,7 +5058,11 @@ mod tests {
             clusters: vec![],
             notes: vec![],
             total_width: 200.0,
-            total_height: 100.0, move_delta: (7.0, 7.0), normalize_offset: (0.0, 0.0), lf_span: (200.0, 100.0),
+            total_height: 100.0,
+            move_delta: (7.0, 7.0),
+            normalize_offset: (0.0, 0.0),
+            lf_span: (200.0, 100.0),
+            render_offset: (7.0, 7.0),
         };
         let svg = render(
             &Diagram::Class(cd),
@@ -3734,7 +5156,10 @@ mod tests {
         assert!(svg.contains("font-weight=\"700\""));
         assert!(svg.contains("font-size=\"14\""));
         // Body coordinates are now shifted inline (no <g transform>)
-        assert!(!svg.contains("translate("), "body should use inline coordinate offset, not <g transform>");
+        assert!(
+            !svg.contains("translate("),
+            "body should use inline coordinate offset, not <g transform>"
+        );
     }
 
     #[test]
@@ -3866,7 +5291,10 @@ mod tests {
         let svg = render_dot_suppressed();
         assert!(svg.contains("<svg"), "must contain <svg tag");
         assert!(svg.contains("</svg>"), "must contain </svg> tag");
-        assert!(svg.contains("suppressed"), "must contain suppressed message");
+        assert!(
+            svg.contains("suppressed"),
+            "must contain suppressed message"
+        );
         assert!(svg.contains("2495"), "must reference issue 2495");
     }
 
@@ -3877,6 +5305,7 @@ mod tests {
         use crate::layout::graphviz::ClassNoteLayout;
 
         let entity = Entity {
+            uid: None,
             name: "Foo".into(),
             kind: EntityKind::Class,
             stereotypes: vec![],
@@ -3914,7 +5343,11 @@ mod tests {
             }],
             clusters: vec![],
             total_width: 300.0,
-            total_height: 120.0, move_delta: (7.0, 7.0), normalize_offset: (0.0, 0.0), lf_span: (200.0, 100.0),
+            total_height: 120.0,
+            move_delta: (7.0, 7.0),
+            normalize_offset: (0.0, 0.0),
+            lf_span: (200.0, 100.0),
+            render_offset: (7.0, 7.0),
         };
         let svg = render(
             &Diagram::Class(cd),
@@ -3960,7 +5393,11 @@ mod tests {
             }],
             clusters: vec![],
             total_width: 100.0,
-            total_height: 60.0, move_delta: (7.0, 7.0), normalize_offset: (0.0, 0.0), lf_span: (200.0, 100.0),
+            total_height: 60.0,
+            move_delta: (7.0, 7.0),
+            normalize_offset: (0.0, 0.0),
+            lf_span: (200.0, 100.0),
+            render_offset: (7.0, 7.0),
         };
         let svg = render(
             &Diagram::Class(cd),

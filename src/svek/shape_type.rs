@@ -24,7 +24,9 @@ impl ShapeType {
     /// DOT shape attribute value.
     pub fn dot_shape(&self) -> &'static str {
         match self {
-            Self::Rectangle | Self::RectanglePort | Self::RectangleWithCircleInside
+            Self::Rectangle
+            | Self::RectanglePort
+            | Self::RectangleWithCircleInside
             | Self::RectangleHtmlForPorts => "rect",
             Self::RoundRectangle => "rect",
             Self::Circle => "circle",
@@ -110,7 +112,10 @@ mod tests {
     #[test]
     fn package_style_parse() {
         assert_eq!(PackageStyle::from_str("folder"), Some(PackageStyle::Folder));
-        assert_eq!(PackageStyle::from_str("RECT"), Some(PackageStyle::Rectangle));
+        assert_eq!(
+            PackageStyle::from_str("RECT"),
+            Some(PackageStyle::Rectangle)
+        );
         assert_eq!(PackageStyle::from_str("Cloud"), Some(PackageStyle::Cloud));
         assert!(PackageStyle::from_str("unknown").is_none());
     }

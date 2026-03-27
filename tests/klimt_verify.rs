@@ -9,7 +9,9 @@ fn assert_close(name: &str, actual: f64, expected: f64) {
     assert!(
         (actual - expected).abs() < 1e-9,
         "{}: expected {}, got {}",
-        name, expected, actual
+        name,
+        expected,
+        actual
     );
 }
 
@@ -18,7 +20,11 @@ fn assert_close_tol(name: &str, actual: f64, expected: f64, tol: f64) {
     assert!(
         (actual - expected).abs() <= tol,
         "{}: expected {} (±{}), got {} (diff={})",
-        name, expected, tol, actual, (actual - expected).abs()
+        name,
+        expected,
+        tol,
+        actual,
+        (actual - expected).abs()
     );
 }
 
@@ -50,8 +56,12 @@ fn color_named_matches_java() {
         let color = klimt::color::resolve_color(name)
             .unwrap_or_else(|| panic!("color '{}' not resolved", name));
         assert_eq!(
-            color.to_svg(), expected,
-            "color '{}': expected {}, got {}", name, expected, color.to_svg()
+            color.to_svg(),
+            expected,
+            "color '{}': expected {}, got {}",
+            name,
+            expected,
+            color.to_svg()
         );
     }
 }
@@ -60,7 +70,10 @@ fn color_named_matches_java() {
 fn color_transparent_matches_java() {
     // Java returns "#00000000" for transparent
     let c = klimt::color::resolve_color("transparent").unwrap();
-    assert!(c.is_none() || c.is_transparent(), "transparent should be none/transparent");
+    assert!(
+        c.is_none() || c.is_transparent(),
+        "transparent should be none/transparent"
+    );
 }
 
 #[test]
@@ -84,7 +97,10 @@ fn color_is_dark_matches_java() {
     use klimt::color::HColor;
     // Java: black is dark, white is not, red is dark
     assert!(HColor::rgb(0, 0, 0).is_dark(), "black should be dark");
-    assert!(!HColor::rgb(255, 255, 255).is_dark(), "white should not be dark");
+    assert!(
+        !HColor::rgb(255, 255, 255).is_dark(),
+        "white should not be dark"
+    );
     assert!(HColor::rgb(255, 0, 0).is_dark(), "red should be dark");
 }
 
@@ -133,7 +149,11 @@ fn utranslate_matches_java() {
 #[test]
 fn xpoint2d_matches_java() {
     use klimt::geom::XPoint2D;
-    assert_close("dist_3_4", XPoint2D::distance_between(0.0, 0.0, 3.0, 4.0), 5.0);
+    assert_close(
+        "dist_3_4",
+        XPoint2D::distance_between(0.0, 0.0, 3.0, 4.0),
+        5.0,
+    );
     let p1 = XPoint2D::new(10.0, 20.0);
     let p2 = XPoint2D::new(13.0, 24.0);
     assert_close("dist_p1_p2", p1.distance(&p2), 5.0);
@@ -293,18 +313,37 @@ fn svg_rect_attribute_order_matches_java() {
 
 #[test]
 fn svg_text_attribute_order_matches_java() {
-    use klimt::svg::{SvgGraphic, LengthAdjust};
+    use klimt::svg::{LengthAdjust, SvgGraphic};
     let mut svg = SvgGraphic::new(12345, 1.0);
     svg.set_fill_color("#000000");
-    svg.svg_text("Alice", 12.0, 24.9951, Some("sans-serif"), 14.0,
-                 None, None, None, 33.667, LengthAdjust::Spacing, None, 0, None);
+    svg.svg_text(
+        "Alice",
+        12.0,
+        24.9951,
+        Some("sans-serif"),
+        14.0,
+        None,
+        None,
+        None,
+        33.667,
+        LengthAdjust::Spacing,
+        None,
+        0,
+        None,
+    );
     let body = svg.body();
 
     // Java reference: fill, font-family, font-size, lengthAdjust, textLength, x, y
     assert!(body.contains("fill="), "has fill");
-    assert!(body.contains("font-family=\"sans-serif\""), "has font-family");
+    assert!(
+        body.contains("font-family=\"sans-serif\""),
+        "has font-family"
+    );
     assert!(body.contains("font-size=\"14\""), "has font-size");
-    assert!(body.contains("lengthAdjust=\"spacing\""), "has lengthAdjust");
+    assert!(
+        body.contains("lengthAdjust=\"spacing\""),
+        "has lengthAdjust"
+    );
     assert!(body.contains("textLength=\"33.667\""), "has textLength");
     assert!(body.contains(">Alice</text>"), "has text content");
 }
@@ -320,14 +359,23 @@ fn svg_root_element_matches_java_format() {
 
     // Compare with Java's exact output from diag0_root
     let expected_start = r#"<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" contentStyleType="text/css" data-diagram-type="SEQUENCE""#;
-    assert!(doc.starts_with(expected_start),
+    assert!(
+        doc.starts_with(expected_start),
         "SVG root should start with:\n{}\nbut got:\n{}",
-        expected_start, &doc[..doc.len().min(200)]);
+        expected_start,
+        &doc[..doc.len().min(200)]
+    );
 
     // Check key attributes present
     assert!(doc.contains("height=\"122px\""), "height");
-    assert!(doc.contains("preserveAspectRatio=\"none\""), "preserveAspectRatio");
-    assert!(doc.contains(r##"style="width:115px;height:122px;background:#FFFFFF;""##), "style");
+    assert!(
+        doc.contains("preserveAspectRatio=\"none\""),
+        "preserveAspectRatio"
+    );
+    assert!(
+        doc.contains(r##"style="width:115px;height:122px;background:#FFFFFF;""##),
+        "style"
+    );
     assert!(doc.contains("version=\"1.1\""), "version");
     assert!(doc.contains("viewBox=\"0 0 115 122\""), "viewBox");
     assert!(doc.contains("width=\"115px\""), "width");
@@ -342,29 +390,54 @@ fn font_metrics_text_width_sansserif14() {
     // Java: SansSerif 14 plain
     // "Alice" = 32.0, "Bob" = 28.0
     // Note: pre-computed tables may differ from this machine's Java AWT by ~2px
-    assert_close_tol("Alice_w", text_width("Alice", "SansSerif", 14.0, false, false), 32.0, 2.0);
-    assert_close_tol("Bob_w", text_width("Bob", "SansSerif", 14.0, false, false), 28.0, 2.0);
+    assert_close_tol(
+        "Alice_w",
+        text_width("Alice", "SansSerif", 14.0, false, false),
+        32.0,
+        2.0,
+    );
+    assert_close_tol(
+        "Bob_w",
+        text_width("Bob", "SansSerif", 14.0, false, false),
+        28.0,
+        2.0,
+    );
 }
 
 #[test]
 fn font_metrics_text_width_sansserif13() {
     use plantuml_little::font_metrics::text_width;
     // Java: SansSerif 13 plain, "hello" = 30.0
-    assert_close_tol("hello_w", text_width("hello", "SansSerif", 13.0, false, false), 30.0, 2.0);
+    assert_close_tol(
+        "hello_w",
+        text_width("hello", "SansSerif", 13.0, false, false),
+        30.0,
+        2.0,
+    );
 }
 
 #[test]
 fn font_metrics_text_width_mono13() {
     use plantuml_little::font_metrics::text_width;
     // Java: Monospaced 13 plain, "code" = 32.0
-    assert_close_tol("code_w", text_width("code", "Monospaced", 13.0, false, false), 32.0, 1.0);
+    assert_close_tol(
+        "code_w",
+        text_width("code", "Monospaced", 13.0, false, false),
+        32.0,
+        1.0,
+    );
 }
 
 #[test]
 fn font_metrics_text_width_sansserif12() {
     use plantuml_little::font_metrics::text_width;
     // Java: SansSerif 12 plain, "A much longer text" = 118.0
-    assert_close_tol("long_w", text_width("A much longer text", "SansSerif", 12.0, false, false), 118.0, 4.0);
+    assert_close_tol(
+        "long_w",
+        text_width("A much longer text", "SansSerif", 12.0, false, false),
+        118.0,
+        4.0,
+    );
 }
 
 #[test]
@@ -372,22 +445,42 @@ fn font_metrics_text_width_bold() {
     use plantuml_little::font_metrics::text_width;
     // Java: SansSerif 14 bold
     // "Alice" = 38.0, "Bob" = 30.0
-    assert_close_tol("bold_Alice_w", text_width("Alice", "SansSerif", 14.0, true, false), 38.0, 1.0);
-    assert_close_tol("bold_Bob_w", text_width("Bob", "SansSerif", 14.0, true, false), 30.0, 1.0);
+    assert_close_tol(
+        "bold_Alice_w",
+        text_width("Alice", "SansSerif", 14.0, true, false),
+        38.0,
+        1.0,
+    );
+    assert_close_tol(
+        "bold_Bob_w",
+        text_width("Bob", "SansSerif", 14.0, true, false),
+        30.0,
+        1.0,
+    );
 }
 
 #[test]
 fn font_metrics_text_width_bold_sansserif13() {
     use plantuml_little::font_metrics::text_width;
     // Java: SansSerif 13 bold, "hello" = 35.0
-    assert_close_tol("bold_hello_w", text_width("hello", "SansSerif", 13.0, true, false), 35.0, 1.0);
+    assert_close_tol(
+        "bold_hello_w",
+        text_width("hello", "SansSerif", 13.0, true, false),
+        35.0,
+        1.0,
+    );
 }
 
 #[test]
 fn font_metrics_text_width_bold_mono13() {
     use plantuml_little::font_metrics::text_width;
     // Java: Monospaced 13 bold, "code" = 32.0
-    assert_close_tol("bold_code_w", text_width("code", "Monospaced", 13.0, true, false), 32.0, 1.0);
+    assert_close_tol(
+        "bold_code_w",
+        text_width("code", "Monospaced", 13.0, true, false),
+        32.0,
+        1.0,
+    );
 }
 
 #[test]
@@ -395,17 +488,42 @@ fn font_metrics_single_chars_sansserif14() {
     use plantuml_little::font_metrics::text_width;
     // Java: SansSerif 14 plain
     // " " = 4.0, "M" = 12.0, "W" = 13.0, "i" = 3.0
-    assert_close_tol("space_w", text_width(" ", "SansSerif", 14.0, false, false), 4.0, 1.0);
-    assert_close_tol("M_w", text_width("M", "SansSerif", 14.0, false, false), 12.0, 1.0);
-    assert_close_tol("W_w", text_width("W", "SansSerif", 14.0, false, false), 13.0, 1.0);
-    assert_close_tol("i_w", text_width("i", "SansSerif", 14.0, false, false), 3.0, 1.0);
+    assert_close_tol(
+        "space_w",
+        text_width(" ", "SansSerif", 14.0, false, false),
+        4.0,
+        1.0,
+    );
+    assert_close_tol(
+        "M_w",
+        text_width("M", "SansSerif", 14.0, false, false),
+        12.0,
+        1.0,
+    );
+    assert_close_tol(
+        "W_w",
+        text_width("W", "SansSerif", 14.0, false, false),
+        13.0,
+        1.0,
+    );
+    assert_close_tol(
+        "i_w",
+        text_width("i", "SansSerif", 14.0, false, false),
+        3.0,
+        1.0,
+    );
 }
 
 #[test]
 fn font_metrics_digit_string_sansserif14() {
     use plantuml_little::font_metrics::text_width;
     // Java: SansSerif 14 plain, "0123456789" = 90.0
-    assert_close_tol("digit_w", text_width("0123456789", "SansSerif", 14.0, false, false), 90.0, 2.0);
+    assert_close_tol(
+        "digit_w",
+        text_width("0123456789", "SansSerif", 14.0, false, false),
+        90.0,
+        2.0,
+    );
 }
 
 #[test]
@@ -413,21 +531,36 @@ fn font_metrics_digit_string_mono14() {
     use plantuml_little::font_metrics::text_width;
     // Java: Monospaced 14 plain, "0123456789" = 80.0 (8px per char)
     // Note: pre-computed width tables may differ from this machine's AWT by ~5px
-    assert_close_tol("mono_digit_w", text_width("0123456789", "Monospaced", 14.0, false, false), 80.0, 5.0);
+    assert_close_tol(
+        "mono_digit_w",
+        text_width("0123456789", "Monospaced", 14.0, false, false),
+        80.0,
+        5.0,
+    );
 }
 
 #[test]
 fn font_metrics_italic_sansserif14() {
     use plantuml_little::font_metrics::text_width;
     // Java: SansSerif 14 italic, "Alice" = 32.0
-    assert_close_tol("italic_Alice_w", text_width("Alice", "SansSerif", 14.0, false, true), 32.0, 2.0);
+    assert_close_tol(
+        "italic_Alice_w",
+        text_width("Alice", "SansSerif", 14.0, false, true),
+        32.0,
+        2.0,
+    );
 }
 
 #[test]
 fn font_metrics_italic_mono13() {
     use plantuml_little::font_metrics::text_width;
     // Java: Monospaced 13 italic, "code" = 32.0
-    assert_close_tol("italic_code_w", text_width("code", "Monospaced", 13.0, false, true), 32.0, 1.0);
+    assert_close_tol(
+        "italic_code_w",
+        text_width("code", "Monospaced", 13.0, false, true),
+        32.0,
+        1.0,
+    );
 }
 
 // ═══ 15. Font vertical metrics ═══════════════════════════════════════
@@ -438,48 +571,118 @@ fn font_metrics_line_height() {
     // Java vertical metrics: line height = ascent + descent + leading
     // Java getHeight() returns integer-rounded values; our tables use fractional.
     // SansSerif 14: Java height = 17.0, our tables have fractional (16.297 or similar)
-    assert_close_tol("sansserif14_h", line_height("SansSerif", 14.0, false, false), 17.0, 2.0);
+    assert_close_tol(
+        "sansserif14_h",
+        line_height("SansSerif", 14.0, false, false),
+        17.0,
+        2.0,
+    );
     // SansSerif 13: Java height = 17.0
-    assert_close_tol("sansserif13_h", line_height("SansSerif", 13.0, false, false), 17.0, 2.0);
+    assert_close_tol(
+        "sansserif13_h",
+        line_height("SansSerif", 13.0, false, false),
+        17.0,
+        2.0,
+    );
     // SansSerif 12: Java height = 15.0
-    assert_close_tol("sansserif12_h", line_height("SansSerif", 12.0, false, false), 15.0, 2.0);
+    assert_close_tol(
+        "sansserif12_h",
+        line_height("SansSerif", 12.0, false, false),
+        15.0,
+        2.0,
+    );
     // Monospaced 13: Java height = 17.0
-    assert_close_tol("mono13_h", line_height("Monospaced", 13.0, false, false), 17.0, 2.0);
+    assert_close_tol(
+        "mono13_h",
+        line_height("Monospaced", 13.0, false, false),
+        17.0,
+        2.0,
+    );
     // Monospaced 14: Java height = 17.0
-    assert_close_tol("mono14_h", line_height("Monospaced", 14.0, false, false), 17.0, 2.0);
+    assert_close_tol(
+        "mono14_h",
+        line_height("Monospaced", 14.0, false, false),
+        17.0,
+        2.0,
+    );
 }
 
 #[test]
 fn font_metrics_line_height_bold() {
     use plantuml_little::font_metrics::line_height;
     // SansSerif 14 bold: Java height = 17.0
-    assert_close_tol("sansserif14b_h", line_height("SansSerif", 14.0, true, false), 17.0, 2.0);
+    assert_close_tol(
+        "sansserif14b_h",
+        line_height("SansSerif", 14.0, true, false),
+        17.0,
+        2.0,
+    );
     // SansSerif 13 bold: Java height = 17.0
-    assert_close_tol("sansserif13b_h", line_height("SansSerif", 13.0, true, false), 17.0, 2.0);
+    assert_close_tol(
+        "sansserif13b_h",
+        line_height("SansSerif", 13.0, true, false),
+        17.0,
+        2.0,
+    );
     // Monospaced 13 bold: Java height = 17.0
-    assert_close_tol("mono13b_h", line_height("Monospaced", 13.0, true, false), 17.0, 2.0);
+    assert_close_tol(
+        "mono13b_h",
+        line_height("Monospaced", 13.0, true, false),
+        17.0,
+        2.0,
+    );
 }
 
 #[test]
 fn font_metrics_ascent() {
     use plantuml_little::font_metrics::ascent;
     // Java: SansSerif 14 ascent = 13.0
-    assert_close_tol("sansserif14_asc", ascent("SansSerif", 14.0, false, false), 13.0, 1.0);
+    assert_close_tol(
+        "sansserif14_asc",
+        ascent("SansSerif", 14.0, false, false),
+        13.0,
+        1.0,
+    );
     // Java: SansSerif 12 ascent = 12.0
-    assert_close_tol("sansserif12_asc", ascent("SansSerif", 12.0, false, false), 12.0, 1.0);
+    assert_close_tol(
+        "sansserif12_asc",
+        ascent("SansSerif", 12.0, false, false),
+        12.0,
+        1.0,
+    );
     // Java: Monospaced 13 ascent = 13.0
-    assert_close_tol("mono13_asc", ascent("Monospaced", 13.0, false, false), 13.0, 1.0);
+    assert_close_tol(
+        "mono13_asc",
+        ascent("Monospaced", 13.0, false, false),
+        13.0,
+        1.0,
+    );
 }
 
 #[test]
 fn font_metrics_descent() {
     use plantuml_little::font_metrics::descent;
     // Java: SansSerif 14 descent = 4.0
-    assert_close_tol("sansserif14_desc", descent("SansSerif", 14.0, false, false), 4.0, 1.0);
+    assert_close_tol(
+        "sansserif14_desc",
+        descent("SansSerif", 14.0, false, false),
+        4.0,
+        1.0,
+    );
     // Java: SansSerif 12 descent = 3.0
-    assert_close_tol("sansserif12_desc", descent("SansSerif", 12.0, false, false), 3.0, 1.0);
+    assert_close_tol(
+        "sansserif12_desc",
+        descent("SansSerif", 12.0, false, false),
+        3.0,
+        1.0,
+    );
     // Java: Monospaced 13 descent = 4.0
-    assert_close_tol("mono13_desc", descent("Monospaced", 13.0, false, false), 4.0, 1.0);
+    assert_close_tol(
+        "mono13_desc",
+        descent("Monospaced", 13.0, false, false),
+        4.0,
+        1.0,
+    );
 }
 
 // ═══ 16. Color darken/lighten HSL ════════════════════════════════════
@@ -549,10 +752,18 @@ fn svg_rect_fragment_matches_java() {
 
     // Verify exact attribute values
     assert!(body.contains(r##"fill="#E2E2F0""##), "fill value: {}", body);
-    assert!(body.contains("height=\"30.2969\""), "height value: {}", body);
+    assert!(
+        body.contains("height=\"30.2969\""),
+        "height value: {}",
+        body
+    );
     assert!(body.contains("rx=\"2.5\""), "rx value: {}", body);
     assert!(body.contains("ry=\"2.5\""), "ry value: {}", body);
-    assert!(body.contains("stroke:#181818;stroke-width:0.5;"), "style value: {}", body);
+    assert!(
+        body.contains("stroke:#181818;stroke-width:0.5;"),
+        "style value: {}",
+        body
+    );
     assert!(body.contains("width=\"47.667\""), "width value: {}", body);
     assert!(body.contains(" x=\"5\""), "x value: {}", body);
     assert!(body.contains(" y=\"5\""), "y value: {}", body);
@@ -605,33 +816,66 @@ fn svg_polygon_fragment_matches_java() {
     svg.set_fill_color("#181818");
     svg.set_stroke_color(Some("#181818"));
     svg.set_stroke_width(1.0, None);
-    svg.svg_polygon(0.0, &[72.248, 63.4297, 82.248, 67.4297, 72.248, 71.4297, 76.248, 67.4297]);
+    svg.svg_polygon(
+        0.0,
+        &[
+            72.248, 63.4297, 82.248, 67.4297, 72.248, 71.4297, 76.248, 67.4297,
+        ],
+    );
     let body = svg.body();
 
     assert!(body.contains(r##"fill="#181818""##), "fill: {}", body);
-    assert!(body.contains("points=\"72.248,63.4297,82.248,67.4297,72.248,71.4297,76.248,67.4297\""),
-        "points: {}", body);
+    assert!(
+        body.contains("points=\"72.248,63.4297,82.248,67.4297,72.248,71.4297,76.248,67.4297\""),
+        "points: {}",
+        body
+    );
     assert!(body.contains("stroke:#181818"), "stroke: {}", body);
     assert!(body.contains("stroke-width:1"), "stroke-width: {}", body);
 }
 
 #[test]
 fn svg_text_fragment_matches_java() {
-    use klimt::svg::{SvgGraphic, LengthAdjust};
+    use klimt::svg::{LengthAdjust, SvgGraphic};
     // Java first text:
     // <text fill="#000000" font-family="sans-serif" font-size="14"
     //   lengthAdjust="spacing" textLength="33.667" x="12" y="24.9951">Alice</text>
     let mut svg = SvgGraphic::new(12345, 1.0);
     svg.set_fill_color("#000000");
-    svg.svg_text("Alice", 12.0, 24.9951, Some("sans-serif"), 14.0,
-                 None, None, None, 33.667, LengthAdjust::Spacing, None, 0, None);
+    svg.svg_text(
+        "Alice",
+        12.0,
+        24.9951,
+        Some("sans-serif"),
+        14.0,
+        None,
+        None,
+        None,
+        33.667,
+        LengthAdjust::Spacing,
+        None,
+        0,
+        None,
+    );
     let body = svg.body();
 
     assert!(body.contains(r##"fill="#000000""##), "fill: {}", body);
-    assert!(body.contains("font-family=\"sans-serif\""), "font-family: {}", body);
+    assert!(
+        body.contains("font-family=\"sans-serif\""),
+        "font-family: {}",
+        body
+    );
     assert!(body.contains("font-size=\"14\""), "font-size: {}", body);
-    assert!(body.contains("lengthAdjust=\"spacing\""), "lengthAdjust: {}", body);
-    assert!(body.contains("textLength=\"33.667\""), "textLength: {}", body);
+    assert!(
+        body.contains("lengthAdjust=\"spacing\""),
+        "lengthAdjust: {}",
+        body
+    );
+    assert!(
+        body.contains("textLength=\"33.667\""),
+        "textLength: {}",
+        body
+    );
     assert!(body.contains(" x=\"12\""), "x: {}", body);
     assert!(body.contains(" y=\"24.9951\""), "y: {}", body);
     assert!(body.contains(">Alice</text>"), "text content: {}", body);
@@ -652,21 +896,52 @@ fn svg_shadow_filter_structure_matches_java() {
 
     // Verify shadow filter elements match Java structure
     assert!(defs.contains("<filter"), "has filter element");
-    assert!(defs.contains("height=\"300%\""), "filter height=300%: {}", defs);
-    assert!(defs.contains("width=\"300%\""), "filter width=300%: {}", defs);
+    assert!(
+        defs.contains("height=\"300%\""),
+        "filter height=300%: {}",
+        defs
+    );
+    assert!(
+        defs.contains("width=\"300%\""),
+        "filter width=300%: {}",
+        defs
+    );
     assert!(defs.contains("x=\"-1\""), "filter x=-1: {}", defs);
     assert!(defs.contains("y=\"-1\""), "filter y=-1: {}", defs);
-    assert!(defs.contains("feGaussianBlur"), "has feGaussianBlur: {}", defs);
-    assert!(defs.contains("stdDeviation=\"2\""), "stdDeviation=2: {}", defs);
-    assert!(defs.contains("feColorMatrix"), "has feColorMatrix: {}", defs);
-    assert!(defs.contains("0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 .4 0"),
-        "color matrix values: {}", defs);
+    assert!(
+        defs.contains("feGaussianBlur"),
+        "has feGaussianBlur: {}",
+        defs
+    );
+    assert!(
+        defs.contains("stdDeviation=\"2\""),
+        "stdDeviation=2: {}",
+        defs
+    );
+    assert!(
+        defs.contains("feColorMatrix"),
+        "has feColorMatrix: {}",
+        defs
+    );
+    assert!(
+        defs.contains("0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 .4 0"),
+        "color matrix values: {}",
+        defs
+    );
     assert!(defs.contains("feOffset"), "has feOffset: {}", defs);
     assert!(defs.contains("dx=\"4\""), "feOffset dx=4: {}", defs);
     assert!(defs.contains("dy=\"4\""), "feOffset dy=4: {}", defs);
     assert!(defs.contains("feBlend"), "has feBlend: {}", defs);
-    assert!(defs.contains("in=\"SourceGraphic\""), "feBlend in=SourceGraphic: {}", defs);
-    assert!(defs.contains("mode=\"normal\""), "feBlend mode=normal: {}", defs);
+    assert!(
+        defs.contains("in=\"SourceGraphic\""),
+        "feBlend in=SourceGraphic: {}",
+        defs
+    );
+    assert!(
+        defs.contains("mode=\"normal\""),
+        "feBlend mode=normal: {}",
+        defs
+    );
 }
 
 // ═══ 19. Gradient creation ═══════════════════════════════════════════
@@ -683,8 +958,16 @@ fn svg_gradient_policies_match_java() {
     assert!(defs.contains("y1=\"50%\""), "pipe y1: {}", defs);
     assert!(defs.contains("x2=\"100%\""), "pipe x2: {}", defs);
     assert!(defs.contains("y2=\"50%\""), "pipe y2: {}", defs);
-    assert!(defs.contains(r##"stop-color="#FF0000""##), "stop1 color: {}", defs);
-    assert!(defs.contains(r##"stop-color="#0000FF""##), "stop2 color: {}", defs);
+    assert!(
+        defs.contains(r##"stop-color="#FF0000""##),
+        "stop1 color: {}",
+        defs
+    );
+    assert!(
+        defs.contains(r##"stop-color="#0000FF""##),
+        "stop2 color: {}",
+        defs
+    );
     assert!(!id.is_empty(), "gradient id not empty");
 
     // Policy '-' (vertical): x1=50% y1=0% x2=50% y2=100%
@@ -733,8 +1016,8 @@ fn svg_gradient_dedup_matches_java() {
 
 #[test]
 fn upath_svg_rect_d_attribute() {
-    use klimt::svg::SvgGraphic;
     use klimt::shape::UPath;
+    use klimt::svg::SvgGraphic;
     // Build a rectangle path and render via SvgGraphic at offset (5, 3)
     let mut path = UPath::new();
     path.move_to(10.0, 20.0);
@@ -750,14 +1033,17 @@ fn upath_svg_rect_d_attribute() {
     let body = svg.body();
 
     // Java expected: "M15,23 L55,23 L55,63 L15,63"
-    assert!(body.contains("d=\"M15,23 L55,23 L55,63 L15,63\""),
-        "rect path d attribute: {}", body);
+    assert!(
+        body.contains("d=\"M15,23 L55,23 L55,63 L15,63\""),
+        "rect path d attribute: {}",
+        body
+    );
 }
 
 #[test]
 fn upath_svg_cubic_d_attribute() {
-    use klimt::svg::SvgGraphic;
     use klimt::shape::UPath;
+    use klimt::svg::SvgGraphic;
     // Build a cubic path and render at offset (0, 0)
     let mut path = UPath::new();
     path.move_to(0.0, 0.0);
@@ -771,14 +1057,17 @@ fn upath_svg_cubic_d_attribute() {
     let body = svg.body();
 
     // Java expected: "M0,0 C10,0 20,10 20,20"
-    assert!(body.contains("d=\"M0,0 C10,0 20,10 20,20\""),
-        "cubic path d attribute: {}", body);
+    assert!(
+        body.contains("d=\"M0,0 C10,0 20,10 20,20\""),
+        "cubic path d attribute: {}",
+        body
+    );
 }
 
 #[test]
 fn upath_svg_arc_d_attribute() {
-    use klimt::svg::SvgGraphic;
     use klimt::shape::UPath;
+    use klimt::svg::SvgGraphic;
     // Build an arc path and render at offset (10, 5)
     let mut path = UPath::new();
     path.move_to(0.0, 0.0);
@@ -792,8 +1081,11 @@ fn upath_svg_arc_d_attribute() {
     let body = svg.body();
 
     // Java expected: "M10,5 A25,25 0 0 1 60,30"
-    assert!(body.contains("d=\"M10,5 A25,25 0 0 1 60,30\""),
-        "arc path d attribute: {}", body);
+    assert!(
+        body.contains("d=\"M10,5 A25,25 0 0 1 60,30\""),
+        "arc path d attribute: {}",
+        body
+    );
 }
 
 // ═══ 21. SVG line with solid stroke ══════════════════════════════════
@@ -833,7 +1125,11 @@ fn svg_fill_opacity_matches_java() {
     let body = svg.body();
 
     // When fill has 8 hex digits, Java splits into fill + fill-opacity
-    assert!(body.contains(r##"fill="#000000""##), "fill without alpha: {}", body);
+    assert!(
+        body.contains(r##"fill="#000000""##),
+        "fill without alpha: {}",
+        body
+    );
     assert!(body.contains("fill-opacity="), "has fill-opacity: {}", body);
 }
 

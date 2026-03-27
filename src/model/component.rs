@@ -97,7 +97,8 @@ mod tests {
             stereotype: None,
             description: vec![],
             parent: None,
-            color: None, source_line: None,
+            color: None,
+            source_line: None,
         };
         assert_eq!(e.name, "test");
         assert_eq!(e.kind, ComponentKind::Component);
@@ -165,7 +166,8 @@ mod tests {
             stereotype: None,
             description: vec!["line 1".to_string(), "line 2".to_string()],
             parent: None,
-            color: None, source_line: None,
+            color: None,
+            source_line: None,
         };
         assert_eq!(e.description.len(), 2);
     }
@@ -179,7 +181,8 @@ mod tests {
             stereotype: None,
             description: vec![],
             parent: Some("outer".to_string()),
-            color: None, source_line: None,
+            color: None,
+            source_line: None,
         };
         assert_eq!(e.parent, Some("outer".to_string()));
     }

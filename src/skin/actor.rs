@@ -110,11 +110,26 @@ impl ActorStickMan {
         // spine
         segs.push((0.0, 0.0, 0.0, self.body_length));
         // arms
-        segs.push((-self.arms_length, self.arms_y, self.arms_length, self.arms_y));
+        segs.push((
+            -self.arms_length,
+            self.arms_y,
+            self.arms_length,
+            self.arms_y,
+        ));
         // left leg
-        segs.push((0.0, self.body_length, -self.legs_x, self.body_length + self.legs_y));
+        segs.push((
+            0.0,
+            self.body_length,
+            -self.legs_x,
+            self.body_length + self.legs_y,
+        ));
         // right leg
-        segs.push((0.0, self.body_length, self.legs_x, self.body_length + self.legs_y));
+        segs.push((
+            0.0,
+            self.body_length,
+            self.legs_x,
+            self.body_length + self.legs_y,
+        ));
         segs
     }
 
@@ -200,11 +215,32 @@ impl ActorAwesome {
             AwesomePathCmd::CubicTo(co, co, bw / 2.0 - sh - co, co, bw / 2.0 - sh, 0.0),
             AwesomePathCmd::CubicTo(bw / 2.0 - sh / 2.0, 0.0, bw / 2.0, sh / 2.0, bw / 2.0, sh),
             AwesomePathCmd::LineTo(bw / 2.0, bh - r),
-            AwesomePathCmd::CubicTo(bw / 2.0, bh - r / 2.0, bw / 2.0 - r / 2.0, bh, bw / 2.0 - r, bh),
+            AwesomePathCmd::CubicTo(
+                bw / 2.0,
+                bh - r / 2.0,
+                bw / 2.0 - r / 2.0,
+                bh,
+                bw / 2.0 - r,
+                bh,
+            ),
             AwesomePathCmd::LineTo(-bw / 2.0 + r, bh),
-            AwesomePathCmd::CubicTo(-bw / 2.0 + r / 2.0, bh, -bw / 2.0, bh - r / 2.0, -bw / 2.0, bh - r),
+            AwesomePathCmd::CubicTo(
+                -bw / 2.0 + r / 2.0,
+                bh,
+                -bw / 2.0,
+                bh - r / 2.0,
+                -bw / 2.0,
+                bh - r,
+            ),
             AwesomePathCmd::LineTo(-bw / 2.0, sh),
-            AwesomePathCmd::CubicTo(-bw / 2.0, sh / 2.0, -bw / 2.0 + sh / 2.0, 0.0, -bw / 2.0 + sh, 0.0),
+            AwesomePathCmd::CubicTo(
+                -bw / 2.0,
+                sh / 2.0,
+                -bw / 2.0 + sh / 2.0,
+                0.0,
+                -bw / 2.0 + sh,
+                0.0,
+            ),
             AwesomePathCmd::CubicTo(-bw / 2.0 + sh + co, co, -co, co, 0.0, co),
             AwesomePathCmd::Close,
         ]

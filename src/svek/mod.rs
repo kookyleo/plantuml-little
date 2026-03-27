@@ -4,17 +4,17 @@
 // Named "svek" = SVG + Graphviz Engine (K?)
 // Workflow: Model → DOT string → Graphviz → SVG → parse coordinates → redraw via klimt
 
-pub mod node;
-pub mod edge;
-pub mod cluster;
-pub mod extremity;
-pub mod shape_type;
-pub mod image;
 pub mod builder;
+pub mod cluster;
+pub mod edge;
+pub mod extremity;
+pub mod image;
+pub mod node;
+pub mod shape_type;
 pub mod snake;
 pub mod svg_result;
 
-use crate::klimt::geom::XPoint2D;
+use crate::klimt::geom::{Rankdir, RectangleArea, XPoint2D};
 use crate::svek::edge::{append_table, LabelDimension};
 
 // ── DotMode ──────────────────────────────────────────────────────────
@@ -56,7 +56,9 @@ pub struct ColorSequence {
 
 impl ColorSequence {
     pub fn new() -> Self {
-        Self { current: 0x0001_0100 }
+        Self {
+            current: 0x0001_0100,
+        }
     }
 
     /// Get next unique color as RGB integer.
@@ -116,7 +118,11 @@ pub struct Bibliotekon {
 
 impl Bibliotekon {
     pub fn new() -> Self {
-        Self { nodes: Vec::new(), edges: Vec::new(), clusters: Vec::new() }
+        Self {
+            nodes: Vec::new(),
+            edges: Vec::new(),
+            clusters: Vec::new(),
+        }
     }
 
     pub fn add_node(&mut self, node: node::SvekNode) {
@@ -139,12 +145,18 @@ impl Bibliotekon {
         self.clusters.push(cluster);
     }
 
-    pub fn all_nodes(&self) -> &[node::SvekNode] { &self.nodes }
-    pub fn all_edges(&self) -> &[edge::SvekEdge] { &self.edges }
+    pub fn all_nodes(&self) -> &[node::SvekNode] {
+        &self.nodes
+    }
+    pub fn all_edges(&self) -> &[edge::SvekEdge] {
+        &self.edges
+    }
 }
 
 impl Default for Bibliotekon {
-    fn default() -> Self { Self::new() }
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 // ── Margins ──────────────────────────────────────────────────────────
@@ -161,19 +173,33 @@ pub struct Margins {
 
 impl Margins {
     pub fn none() -> Self {
-        Self { x1: 0.0, x2: 0.0, y1: 0.0, y2: 0.0 }
+        Self {
+            x1: 0.0,
+            x2: 0.0,
+            y1: 0.0,
+            y2: 0.0,
+        }
     }
 
     pub fn uniform(margin: f64) -> Self {
-        Self { x1: margin, x2: margin, y1: margin, y2: margin }
+        Self {
+            x1: margin,
+            x2: margin,
+            y1: margin,
+            y2: margin,
+        }
     }
 
     pub fn new(x1: f64, x2: f64, y1: f64, y2: f64) -> Self {
         Self { x1, x2, y1, y2 }
     }
 
-    pub fn total_width(&self) -> f64 { self.x1 + self.x2 }
-    pub fn total_height(&self) -> f64 { self.y1 + self.y2 }
+    pub fn total_width(&self) -> f64 {
+        self.x1 + self.x2
+    }
+    pub fn total_height(&self) -> f64 {
+        self.y1 + self.y2
+    }
 
     /// Check if all margins are zero. Java: `Margins.isZero()`
     pub fn is_zero(&self) -> bool {
@@ -192,13 +218,21 @@ pub trait Point2DFunction {
 /// Identity transform (no coordinate change).
 pub struct IdentityFunction;
 impl Point2DFunction for IdentityFunction {
-    fn apply(&self, pt: XPoint2D) -> XPoint2D { pt }
+    fn apply(&self, pt: XPoint2D) -> XPoint2D {
+        pt
+    }
 }
 
 // ── DotStringFactory ─────────────────────────────────────────────────
 
 /// Generates DOT string from a Bibliotekon and parses Graphviz SVG output.
 /// Java: `svek.DotStringFactory`
+#[derive(Debug, Clone)]
+pub enum TopLevelDotItem {
+    Node(String),
+    Cluster(String),
+}
+
 pub struct DotStringFactory {
     pub bibliotekon: Bibliotekon,
     pub rankdir: crate::klimt::geom::Rankdir,
@@ -206,6 +240,7 @@ pub struct DotStringFactory {
     pub is_activity: bool,
     pub nodesep_override: Option<f64>,
     pub ranksep_override: Option<f64>,
+    pub top_level_items: Vec<TopLevelDotItem>,
 }
 
 impl DotStringFactory {
@@ -217,17 +252,25 @@ impl DotStringFactory {
             is_activity: false,
             nodesep_override: None,
             ranksep_override: None,
+            top_level_items: Vec::new(),
         }
     }
 
     pub fn with_rankdir(mut self, r: crate::klimt::geom::Rankdir) -> Self {
-        self.rankdir = r; self
+        self.rankdir = r;
+        self
     }
     pub fn with_splines(mut self, s: DotSplines) -> Self {
-        self.splines = s; self
+        self.splines = s;
+        self
     }
     pub fn with_activity(mut self, a: bool) -> Self {
-        self.is_activity = a; self
+        self.is_activity = a;
+        self
+    }
+    pub fn with_top_level_items(mut self, items: Vec<TopLevelDotItem>) -> Self {
+        self.top_level_items = items;
+        self
     }
 
     /// Generate the complete DOT string.
@@ -248,10 +291,12 @@ impl DotStringFactory {
             sb.push_str(&format!("rankdir={};\n", rd));
         }
 
-        let nodesep = self.nodesep_override
+        let nodesep = self
+            .nodesep_override
             .map(|px| utils::pixel_to_inches(px))
             .unwrap_or(utils::DEFAULT_NODESEP_IN);
-        let ranksep = self.ranksep_override
+        let ranksep = self
+            .ranksep_override
             .map(|px| utils::pixel_to_inches(px))
             .unwrap_or(utils::DEFAULT_RANKSEP_IN);
         sb.push_str(&format!("nodesep={:.6};\n", nodesep));
@@ -287,18 +332,65 @@ impl DotStringFactory {
             }
         }
 
-        // Clusters + nodes
-        for cluster in &self.bibliotekon.clusters {
-            self.write_cluster(&mut sb, cluster);
-        }
-
         let mut clustered = std::collections::HashSet::new();
         for cluster in &self.bibliotekon.clusters {
             collect_clustered_nodes(cluster, &mut clustered);
         }
-        for node in &self.bibliotekon.nodes {
-            if !clustered.contains(node.uid.as_str()) {
-                node.append_shape(&mut sb);
+
+        if self.top_level_items.is_empty() {
+            for cluster in &self.bibliotekon.clusters {
+                self.write_cluster(&mut sb, cluster);
+            }
+            for node in &self.bibliotekon.nodes {
+                if !clustered.contains(node.uid.as_str()) {
+                    node.append_shape(&mut sb);
+                }
+            }
+        } else {
+            let clusters_by_id: std::collections::HashMap<&str, &cluster::Cluster> = self
+                .bibliotekon
+                .clusters
+                .iter()
+                .map(|cluster| (cluster.id.as_str(), cluster))
+                .collect();
+            let free_nodes_by_id: std::collections::HashMap<&str, &node::SvekNode> = self
+                .bibliotekon
+                .nodes
+                .iter()
+                .filter(|node| !clustered.contains(node.uid.as_str()))
+                .map(|node| (node.uid.as_str(), node))
+                .collect();
+            let mut emitted_clusters = std::collections::HashSet::new();
+            let mut emitted_nodes = std::collections::HashSet::new();
+
+            for item in &self.top_level_items {
+                match item {
+                    TopLevelDotItem::Cluster(id) => {
+                        if let Some(cluster) = clusters_by_id.get(id.as_str()) {
+                            self.write_cluster(&mut sb, cluster);
+                            emitted_clusters.insert(id.as_str());
+                        }
+                    }
+                    TopLevelDotItem::Node(id) => {
+                        if let Some(node) = free_nodes_by_id.get(id.as_str()) {
+                            node.append_shape(&mut sb);
+                            emitted_nodes.insert(id.as_str());
+                        }
+                    }
+                }
+            }
+
+            for cluster in &self.bibliotekon.clusters {
+                if !emitted_clusters.contains(cluster.id.as_str()) {
+                    self.write_cluster(&mut sb, cluster);
+                }
+            }
+            for node in &self.bibliotekon.nodes {
+                if !clustered.contains(node.uid.as_str())
+                    && !emitted_nodes.contains(node.uid.as_str())
+                {
+                    node.append_shape(&mut sb);
+                }
             }
         }
 
@@ -313,6 +405,63 @@ impl DotStringFactory {
     }
 
     fn write_cluster(&self, sb: &mut String, cluster: &cluster::Cluster) {
+        let cluster_nodes: Vec<&node::SvekNode> = cluster
+            .node_uids
+            .iter()
+            .filter_map(|uid| self.bibliotekon.find_node(uid))
+            .collect();
+        let has_non_normal = cluster_nodes
+            .iter()
+            .any(|node| !node.entity_position.is_normal());
+        let has_port = cluster_nodes
+            .iter()
+            .any(|node| node.entity_position.is_port());
+        let cluster_label = cluster_dot_label(cluster);
+
+        if has_non_normal {
+            sb.push_str(&format!("subgraph cluster_{} {{\n", cluster.id));
+            sb.push_str("style=solid;\n");
+            sb.push_str("color=\"#000000\";\n");
+
+            self.write_cluster_rank(sb, "source", &cluster_nodes, cluster, |node| {
+                node.entity_position.is_input()
+            });
+            self.write_cluster_rank(sb, "sink", &cluster_nodes, cluster, |node| {
+                node.entity_position.is_output()
+            });
+
+            if has_port {
+                sb.push_str(&format!("subgraph cluster_{}ee {{\n", cluster.id));
+                sb.push_str("label=\"\";\n");
+            } else {
+                sb.push_str(&format!("subgraph cluster_{}ee {{\n", cluster.id));
+                sb.push_str(&format!("label={cluster_label};\n"));
+            }
+
+            for uid in &cluster.node_uids {
+                if let Some(node) = self.bibliotekon.find_node(uid) {
+                    if node.entity_position.is_normal() {
+                        node.append_shape(sb);
+                    }
+                }
+            }
+            for sub in &cluster.sub_clusters {
+                self.write_cluster(sb, sub);
+            }
+
+            if has_port {
+                sb.push_str(&format!(
+                    "{} [shape=rect,width=.01,height=.01,label={}];\n",
+                    cluster_special_point_id(cluster),
+                    cluster_label,
+                ));
+            }
+
+            sb.push_str("}\n");
+            sb.push_str("}\n");
+            return;
+        }
+
         // Java ClusterDotString wraps the actual cluster inside unlabeled p0/p1
         // protection clusters. Those wrappers materially affect Graphviz
         // geometry, especially for nested packages and self-loop labels.
@@ -321,16 +470,9 @@ impl DotStringFactory {
         sb.push_str(&format!("subgraph cluster_{} {{\n", cluster.id));
         sb.push_str("style=solid;\n");
         sb.push_str("color=\"#000000\";\n");
-        if let Some(ref title) = cluster.title {
+        if cluster_label != "\"\"" {
             sb.push_str("labeljust=\"c\";\n");
-            sb.push_str("label=<");
-            let (title_width, title_height) = cluster_title_label_dim(title);
-            append_table(
-                sb,
-                LabelDimension::new(title_width as f64, ((title_height - 5).max(1)) as f64),
-                0x000000,
-            );
-            sb.push_str(">;\n");
+            sb.push_str(&format!("label={cluster_label};\n"));
         } else {
             sb.push_str("label=\"\";\n");
         }
@@ -353,23 +495,74 @@ impl DotStringFactory {
         sb.push_str("}\n");
     }
 
+    fn write_cluster_rank<F>(
+        &self,
+        sb: &mut String,
+        rank: &str,
+        cluster_nodes: &[&node::SvekNode],
+        cluster: &cluster::Cluster,
+        predicate: F,
+    ) where
+        F: Fn(&node::SvekNode) -> bool,
+    {
+        let entries: Vec<&node::SvekNode> = cluster_nodes
+            .iter()
+            .copied()
+            .filter(|node| predicate(node))
+            .collect();
+        if entries.is_empty() {
+            return;
+        }
+
+        sb.push_str(&format!("{{rank={rank};"));
+        for node in &entries {
+            sb.push_str(&node.uid);
+            sb.push(';');
+        }
+        sb.push_str("}\n");
+
+        for node in &entries {
+            node.append_shape(sb);
+        }
+
+        if entries.iter().any(|node| node.entity_position.is_port()) {
+            let mut iter = entries.iter();
+            if let Some(first) = iter.next() {
+                sb.push_str(&first.uid);
+                for node in iter {
+                    sb.push_str("->");
+                    sb.push_str(&node.uid);
+                }
+                sb.push_str(" [arrowhead=none];\n");
+                sb.push_str(&format!(
+                    "{}->{};\n",
+                    entries.last().unwrap().uid,
+                    cluster_special_point_id(cluster),
+                ));
+            }
+        }
+    }
+
     /// Parse SVG output and position nodes/edges.
     /// Java: `DotStringFactory.solve(SvgResult)`
     ///
     /// 1. For each node: find polygon/ellipse by color → extract position
     /// 2. For each edge: call `solve_line()` to extract path + labels
     /// 3. Normalize coordinates (shift so min position = (6, 6))
-    /// Returns (moveDelta, limitFinder_span) from normalization.
-    pub fn solve(&mut self, svg: &str) -> Result<((f64, f64), (f64, f64)), String> {
+    /// Returns (moveDelta, limitFinder_span, render_offset) from normalization.
+    pub fn solve(&mut self, svg: &str) -> Result<((f64, f64), (f64, f64), (f64, f64)), String> {
         use crate::svek::svg_result::SvgResult;
 
-        // Parse translate(tx, ty) from Graphviz SVG top-level <g> transform.
-        // Graphviz coordinates are in internal space (Y negative); translate
-        // converts to SVG viewport coordinates.
-        let (tx, ty) = parse_svg_translate(svg);
-        let svg_result = SvgResult::new(svg.to_string());
+        // Java svek uses a pure YDelta(fullHeight) transform when parsing
+        // Graphviz SVG output: x is left unchanged, y is flipped by adding
+        // the full SVG canvas height.
+        let full_height = parse_svg_full_height(svg);
+        let svg_result = SvgResult::with_function(
+            svg.to_string(),
+            Box::new(crate::svek::snake::YDelta::new(full_height)),
+        );
         for cluster in &mut self.bibliotekon.clusters {
-            solve_cluster_positions(svg, cluster, tx, ty);
+            solve_cluster_positions(svg, cluster, full_height);
         }
 
         // Position nodes by finding their polygons via color
@@ -389,20 +582,17 @@ impl DotStringFactory {
                     if let Some(cy) = parse_xml_attr_near(svg_str, idx, "cy") {
                         let rx = parse_xml_attr_near(svg_str, idx, "rx").unwrap_or(0.0);
                         let ry = parse_xml_attr_near(svg_str, idx, "ry").unwrap_or(0.0);
-                        node.min_x = (cx + tx) - rx;
-                        node.min_y = (cy + ty) - ry;
-                        node.cx = cx + tx;
-                        node.cy = cy + ty;
+                        node.min_x = cx - rx;
+                        node.min_y = (cy + full_height) - ry;
+                        node.cx = cx;
+                        node.cy = cy + full_height;
                     }
                 }
             } else {
-                // Extract polygon points from SVG and apply translate
+                // Extract polygon points from SVG and apply Java YDelta.
                 let raw_points = svg_result.extract_points_at(idx);
                 if !raw_points.is_empty() {
-                    let points: Vec<XPoint2D> = raw_points
-                        .iter()
-                        .map(|p| XPoint2D::new(p.x + tx, p.y + ty))
-                        .collect();
+                    let points: Vec<XPoint2D> = raw_points.to_vec();
                     let min_x = points.iter().map(|p| p.x).fold(f64::INFINITY, f64::min);
                     let min_y = points.iter().map(|p| p.y).fold(f64::INFINITY, f64::min);
                     node.min_x = min_x;
@@ -414,31 +604,19 @@ impl DotStringFactory {
             }
         }
 
-        // Position edges — extract_dot_path handles raw SVG coords;
-        // apply translate to resulting paths
+        adjust_cluster_frontiers(
+            &mut self.bibliotekon.clusters,
+            &self.bibliotekon.nodes,
+            self.rankdir,
+        );
+
+        // Position edges — SvgResult already applies the Java YDelta transform.
         for edge in &mut self.bibliotekon.edges {
             edge.solve_line(&svg_result);
-            // Apply translate to extracted path
-            if tx != 0.0 || ty != 0.0 {
-                if let Some(ref mut path) = edge.dot_path {
-                    path.move_delta(tx, ty);
-                }
-                if let Some(ref mut path) = edge.dot_path_init {
-                    path.move_delta(tx, ty);
-                }
-                if let Some(ref mut pt) = edge.label_xy {
-                    pt.x += tx;
-                    pt.y += ty;
-                }
-                if let Some(ref mut pt) = edge.start_tail_label_xy {
-                    pt.x += tx;
-                    pt.y += ty;
-                }
-                if let Some(ref mut pt) = edge.end_head_label_xy {
-                    pt.x += tx;
-                    pt.y += ty;
-                }
-            }
+        }
+        let nodes_snapshot = self.bibliotekon.nodes.clone();
+        for edge in &mut self.bibliotekon.edges {
+            edge.manage_collision(&nodes_snapshot);
         }
 
         // ── LimitFinder span (before moveDelta) ──
@@ -450,38 +628,72 @@ impl DotStringFactory {
         let mut lf_max_x = f64::NEG_INFINITY;
         let mut lf_max_y = f64::NEG_INFINITY;
         for node in &self.bibliotekon.nodes {
-            if node.hidden { continue; }
+            if node.hidden {
+                continue;
+            }
             // LimitFinder.drawRectangle: (x-1, y-1) to (x+w-1, y+h-1)
             let rx = node.min_x - 1.0;
             let ry = node.min_y - 1.0;
             let rr = node.min_x + node.width - 1.0;
             let rb = node.min_y + node.height - 1.0;
-            if rx < lf_min_x { lf_min_x = rx; }
-            if ry < lf_min_y { lf_min_y = ry; }
-            if rr > lf_max_x { lf_max_x = rr; }
-            if rb > lf_max_y { lf_max_y = rb; }
+            if rx < lf_min_x {
+                lf_min_x = rx;
+            }
+            if ry < lf_min_y {
+                lf_min_y = ry;
+            }
+            if rr > lf_max_x {
+                lf_max_x = rr;
+            }
+            if rb > lf_max_y {
+                lf_max_y = rb;
+            }
         }
         for edge in &self.bibliotekon.edges {
             // LimitFinder.drawEmpty for edge label block
             if let (Some(ref pt), Some(ref dim)) = (&edge.label_xy, &edge.label_dimension) {
-                let dim_w = if edge.divide_label_width_by_two { dim.width / 2.0 } else { dim.width };
+                let dim_w = if edge.divide_label_width_by_two {
+                    dim.width / 2.0
+                } else {
+                    dim.width
+                };
                 let shielded_w = dim_w + 2.0 * edge.label_shield;
                 let shielded_h = dim.height + 2.0 * edge.label_shield;
                 let lx = pt.x - shielded_w / 2.0;
                 let ly = pt.y - shielded_h / 2.0;
                 // drawEmpty: (x, y) to (x+w, y+h) — no -1
-                if lx < lf_min_x { lf_min_x = lx; }
-                if ly < lf_min_y { lf_min_y = ly; }
+                if lx < lf_min_x {
+                    lf_min_x = lx;
+                }
+                if ly < lf_min_y {
+                    lf_min_y = ly;
+                }
                 let lr = lx + shielded_w;
                 let lb = ly + shielded_h;
-                if lr > lf_max_x { lf_max_x = lr; }
-                if lb > lf_max_y { lf_max_y = lb; }
+                if lr > lf_max_x {
+                    lf_max_x = lr;
+                }
+                if lb > lf_max_y {
+                    lf_max_y = lb;
+                }
             }
         }
         for cluster in &self.bibliotekon.clusters {
-            extend_lf_with_cluster(cluster, &mut lf_min_x, &mut lf_min_y, &mut lf_max_x, &mut lf_max_y);
+            extend_lf_with_cluster(
+                cluster,
+                &mut lf_min_x,
+                &mut lf_min_y,
+                &mut lf_max_x,
+                &mut lf_max_y,
+            );
         }
-        log::debug!("svek solve LF: min=({:.1},{:.1}) max=({:.1},{:.1})", lf_min_x, lf_min_y, lf_max_x, lf_max_y);
+        log::debug!(
+            "svek solve LF: min=({:.1},{:.1}) max=({:.1},{:.1})",
+            lf_min_x,
+            lf_min_y,
+            lf_max_x,
+            lf_max_y
+        );
         let lf_span = if lf_max_x.is_finite() && lf_min_x.is_finite() {
             (lf_max_x - lf_min_x, lf_max_y - lf_min_y)
         } else {
@@ -495,13 +707,28 @@ impl DotStringFactory {
         let mut min_x = f64::INFINITY;
         let mut min_y = f64::INFINITY;
         for node in &self.bibliotekon.nodes {
-            if node.hidden { continue; }
-            if node.min_x < min_x { min_x = node.min_x; }
-            if node.min_y < min_y { min_y = node.min_y; }
+            if node.hidden {
+                continue;
+            }
+            if node.min_x < min_x {
+                min_x = node.min_x;
+            }
+            if node.min_y < min_y {
+                min_y = node.min_y;
+            }
         }
         for cluster in &self.bibliotekon.clusters {
             extend_min_with_cluster(cluster, &mut min_x, &mut min_y);
         }
+        let render_offset = if min_x.is_finite()
+            && min_y.is_finite()
+            && lf_min_x.is_finite()
+            && lf_min_y.is_finite()
+        {
+            (6.0 + min_x - lf_min_x, 6.0 + min_y - lf_min_y)
+        } else {
+            (6.0, 6.0)
+        };
         let (dx, dy) = if min_x.is_finite() && min_y.is_finite() {
             let dx = 6.0 - min_x;
             let dy = 6.0 - min_y;
@@ -511,7 +738,7 @@ impl DotStringFactory {
             (0.0, 0.0)
         };
 
-        Ok(((dx, dy), lf_span))
+        Ok(((dx, dy), lf_span, render_offset))
     }
 
     /// Move all positioned elements by delta.
@@ -533,10 +760,39 @@ impl DotStringFactory {
 }
 
 fn cluster_title_label_dim(title: &str) -> (i32, i32) {
-    let width = crate::font_metrics::text_width(title, "SansSerif", 14.0, true, false).floor() as i32;
-    let height =
-        crate::font_metrics::line_height("SansSerif", 14.0, true, false).floor() as i32;
+    let width =
+        crate::font_metrics::text_width(title, "SansSerif", 14.0, true, false).floor() as i32;
+    let height = crate::font_metrics::line_height("SansSerif", 14.0, true, false).floor() as i32;
     (width.max(0), height.max(0))
+}
+
+fn cluster_label_dim(cluster: &cluster::Cluster) -> Option<(i32, i32)> {
+    if let Some((width, height)) = cluster.label_size {
+        return Some((
+            width.floor().max(0.0) as i32,
+            height.floor().max(0.0) as i32,
+        ));
+    }
+    cluster.title.as_deref().map(cluster_title_label_dim)
+}
+
+fn cluster_dot_label(cluster: &cluster::Cluster) -> String {
+    if let Some((title_width, title_height)) = cluster_label_dim(cluster) {
+        let mut label = String::from("<");
+        append_table(
+            &mut label,
+            LabelDimension::new(title_width as f64, ((title_height - 5).max(1)) as f64),
+            0x000000,
+        );
+        label.push('>');
+        label
+    } else {
+        "\"\"".to_string()
+    }
+}
+
+fn cluster_special_point_id(cluster: &cluster::Cluster) -> String {
+    format!("za{}", cluster.id)
 }
 
 fn collect_clustered_nodes<'a>(
@@ -551,18 +807,6 @@ fn collect_clustered_nodes<'a>(
     }
 }
 
-/// Coordinate transform that applies translate(tx, ty).
-struct TranslateFunction {
-    tx: f64,
-    ty: f64,
-}
-
-impl Point2DFunction for TranslateFunction {
-    fn apply(&self, pt: XPoint2D) -> XPoint2D {
-        XPoint2D::new(pt.x + self.tx, pt.y + self.ty)
-    }
-}
-
 fn move_cluster_delta(cluster: &mut cluster::Cluster, dx: f64, dy: f64) {
     cluster.x += dx;
     cluster.y += dy;
@@ -571,36 +815,249 @@ fn move_cluster_delta(cluster: &mut cluster::Cluster, dx: f64, dy: f64) {
     }
 }
 
-/// Parse `translate(tx, ty)` from Graphviz SVG top-level `<g>` transform.
-fn parse_svg_translate(svg: &str) -> (f64, f64) {
-    if let Some(pos) = svg.find("translate(") {
-        let after = &svg[pos + 10..];
-        if let Some(end) = after.find(')') {
-            let inner = &after[..end];
-            let parts: Vec<&str> = inner.split(|c: char| c == ' ' || c == ',').collect();
-            if parts.len() >= 2 {
-                let tx: f64 = parts[0].trim().parse().unwrap_or(0.0);
-                let ty: f64 = parts[1].trim().parse().unwrap_or(0.0);
-                return (tx, ty);
+fn adjust_cluster_frontiers(
+    clusters: &mut [cluster::Cluster],
+    nodes: &[node::SvekNode],
+    rankdir: Rankdir,
+) {
+    let node_rects: std::collections::HashMap<&str, (RectangleArea, node::EntityPosition)> = nodes
+        .iter()
+        .filter(|node| !node.hidden)
+        .map(|node| {
+            (
+                node.uid.as_str(),
+                (
+                    RectangleArea::new(
+                        node.min_x,
+                        node.min_y,
+                        node.min_x + node.width,
+                        node.min_y + node.height,
+                    ),
+                    node.entity_position,
+                ),
+            )
+        })
+        .collect();
+    for cluster in clusters {
+        adjust_cluster_frontier(cluster, &node_rects, rankdir);
+    }
+}
+
+fn adjust_cluster_frontier(
+    cluster: &mut cluster::Cluster,
+    node_rects: &std::collections::HashMap<&str, (RectangleArea, node::EntityPosition)>,
+    rankdir: Rankdir,
+) {
+    for sub in &mut cluster.sub_clusters {
+        adjust_cluster_frontier(sub, node_rects, rankdir);
+    }
+
+    let initial = RectangleArea::new(
+        cluster.x,
+        cluster.y,
+        cluster.x + cluster.width,
+        cluster.y + cluster.height,
+    );
+    if initial.width() <= 0.0 || initial.height() <= 0.0 {
+        return;
+    }
+
+    let mut has_non_normal = false;
+    let mut core: Option<RectangleArea> = None;
+    let mut points = Vec::new();
+    for uid in &cluster.node_uids {
+        let Some((rect, position)) = node_rects.get(uid.as_str()) else {
+            continue;
+        };
+        if position.is_normal() {
+            core = Some(match core {
+                Some(current) => current.merge(rect),
+                None => *rect,
+            });
+        } else {
+            has_non_normal = true;
+            points.push(rect.center());
+        }
+    }
+    if !has_non_normal {
+        return;
+    }
+
+    for sub in &cluster.sub_clusters {
+        if sub.width > 0.0 && sub.height > 0.0 {
+            let rect = RectangleArea::new(sub.x, sub.y, sub.x + sub.width, sub.y + sub.height);
+            core = Some(match core {
+                Some(current) => current.merge(&rect),
+                None => rect,
+            });
+        }
+    }
+
+    let mut core = core.unwrap_or_else(|| {
+        let center = initial.center();
+        RectangleArea::new(
+            center.x - 1.0,
+            center.y - 1.0,
+            center.x + 1.0,
+            center.y + 1.0,
+        )
+    });
+    for point in &points {
+        core = core.merge_point(*point);
+    }
+
+    let mut touch_min_x = false;
+    let mut touch_max_x = false;
+    let mut touch_min_y = false;
+    let mut touch_max_y = false;
+    for point in &points {
+        if coord_eq(point.x, core.min_x) {
+            touch_min_x = true;
+        }
+        if coord_eq(point.x, core.max_x) {
+            touch_max_x = true;
+        }
+        if coord_eq(point.y, core.min_y) {
+            touch_min_y = true;
+        }
+        if coord_eq(point.y, core.max_y) {
+            touch_max_y = true;
+        }
+    }
+    if !touch_min_x {
+        core = core.with_min_x(initial.min_x);
+    }
+    if !touch_max_x {
+        core = core.with_max_x(initial.max_x);
+    }
+    if !touch_min_y {
+        core = core.with_min_y(initial.min_y);
+    }
+    if !touch_max_y {
+        core = core.with_max_y(initial.max_y);
+    }
+
+    let delta = 3.0 * node::EntityPosition::RADIUS;
+    let mut push_min_x = false;
+    let mut push_max_x = false;
+    let mut push_min_y = false;
+    let mut push_max_y = false;
+    for point in &points {
+        if coord_eq(point.y, core.min_y) || coord_eq(point.y, core.max_y) {
+            if (point.x - core.max_x).abs() < delta {
+                push_max_x = true;
+            }
+            if (point.x - core.min_x).abs() < delta {
+                push_min_x = true;
+            }
+        }
+        if coord_eq(point.x, core.min_x) || coord_eq(point.x, core.max_x) {
+            if (point.y - core.max_y).abs() < delta {
+                push_max_y = true;
+            }
+            if (point.y - core.min_y).abs() < delta {
+                push_min_y = true;
             }
         }
     }
-    (0.0, 0.0)
+    for point in &points {
+        if rankdir == Rankdir::LeftToRight {
+            if coord_eq(point.x, core.min_x)
+                && (coord_eq(point.y, core.min_y) || coord_eq(point.y, core.max_y))
+            {
+                push_min_x = false;
+            }
+            if coord_eq(point.x, core.max_x)
+                && (coord_eq(point.y, core.min_y) || coord_eq(point.y, core.max_y))
+            {
+                push_max_x = false;
+            }
+        } else {
+            if coord_eq(point.y, core.min_y)
+                && (coord_eq(point.x, core.min_x) || coord_eq(point.x, core.max_x))
+            {
+                push_min_y = false;
+            }
+            if coord_eq(point.y, core.max_y)
+                && (coord_eq(point.x, core.min_x) || coord_eq(point.x, core.max_x))
+            {
+                push_max_y = false;
+            }
+        }
+    }
+    if push_max_x {
+        core = core.add_max_x(delta);
+    }
+    if push_min_x {
+        core = core.add_min_x(-delta);
+    }
+    if push_max_y {
+        core = core.add_max_y(delta);
+    }
+    if push_min_y {
+        core = core.add_min_y(-delta);
+    }
+
+    if let Some((title_width, title_height)) = cluster_label_dim(cluster) {
+        if title_width > 0 && title_height > 0 {
+            ensure_cluster_min_width(&mut core, initial, f64::from(title_width) + 10.0);
+        }
+    }
+
+    cluster.x = core.min_x;
+    cluster.y = core.min_y;
+    cluster.width = core.width();
+    cluster.height = core.height();
 }
 
-fn solve_cluster_positions(svg: &str, cluster: &mut cluster::Cluster, tx: f64, ty: f64) {
-    if let Some((x, y, width, height)) = parse_svg_cluster_bounds(svg, &cluster.id, tx, ty) {
+fn ensure_cluster_min_width(core: &mut RectangleArea, initial: RectangleArea, min_width: f64) {
+    let delta = core.width() - min_width;
+    if delta >= 0.0 {
+        return;
+    }
+    let mut new_min_x = core.min_x + delta / 2.0;
+    let mut new_max_x = core.max_x - delta / 2.0;
+    let error = new_min_x - initial.min_x;
+    if error < 0.0 {
+        new_min_x -= error;
+        new_max_x -= error;
+    }
+    *core = core.with_min_x(new_min_x).with_max_x(new_max_x);
+}
+
+fn coord_eq(a: f64, b: f64) -> bool {
+    (a - b).abs() < 1e-6
+}
+
+/// Parse the Graphviz SVG canvas height in pt.
+fn parse_svg_full_height(svg: &str) -> f64 {
+    let Some(pos) = svg.find(" height=\"") else {
+        return 0.0;
+    };
+    let after = &svg[pos + 9..];
+    let Some(end) = after.find("pt\"") else {
+        return 0.0;
+    };
+    after[..end].trim().parse().unwrap_or(0.0)
+}
+
+fn solve_cluster_positions(svg: &str, cluster: &mut cluster::Cluster, full_height: f64) {
+    if let Some((x, y, width, height)) = parse_svg_cluster_bounds(svg, &cluster.id, full_height) {
         cluster.x = x;
         cluster.y = y;
         cluster.width = width;
         cluster.height = height;
     }
     for sub in &mut cluster.sub_clusters {
-        solve_cluster_positions(svg, sub, tx, ty);
+        solve_cluster_positions(svg, sub, full_height);
     }
 }
 
-fn parse_svg_cluster_bounds(svg: &str, cluster_id: &str, tx: f64, ty: f64) -> Option<(f64, f64, f64, f64)> {
+fn parse_svg_cluster_bounds(
+    svg: &str,
+    cluster_id: &str,
+    full_height: f64,
+) -> Option<(f64, f64, f64, f64)> {
     let title = format!("<title>cluster_{cluster_id}</title>");
     let title_pos = svg.find(&title)?;
     let start = title_pos;
@@ -620,10 +1077,10 @@ fn parse_svg_cluster_bounds(svg: &str, cluster_id: &str, tx: f64, ty: f64) -> Op
         let mut coords = pair.split(',');
         let x: f64 = coords.next()?.parse().ok()?;
         let y: f64 = coords.next()?.parse().ok()?;
-        min_x = min_x.min(x + tx);
-        min_y = min_y.min(y + ty);
-        max_x = max_x.max(x + tx);
-        max_y = max_y.max(y + ty);
+        min_x = min_x.min(x);
+        min_y = min_y.min(y + full_height);
+        max_x = max_x.max(x);
+        max_y = max_y.max(y + full_height);
     }
     Some((min_x, min_y, max_x - min_x, max_y - min_y))
 }
@@ -644,12 +1101,32 @@ fn extend_lf_with_cluster(
     max_y: &mut f64,
 ) {
     if cluster.width > 0.0 && cluster.height > 0.0 {
-        if cluster.x < *min_x { *min_x = cluster.x; }
-        if cluster.y < *min_y { *min_y = cluster.y; }
-        let right = cluster.x + cluster.width;
-        let bottom = cluster.y + cluster.height;
-        if right > *max_x { *max_x = right; }
-        if bottom > *max_y { *max_y = bottom; }
+        let (left, top, right, bottom) = match cluster.style {
+            cluster::ClusterStyle::Rectangle | cluster::ClusterStyle::RoundedRectangle => (
+                cluster.x - 1.0,
+                cluster.y - 1.0,
+                cluster.x + cluster.width - 1.0,
+                cluster.y + cluster.height - 1.0,
+            ),
+            _ => (
+                cluster.x,
+                cluster.y,
+                cluster.x + cluster.width,
+                cluster.y + cluster.height,
+            ),
+        };
+        if left < *min_x {
+            *min_x = left;
+        }
+        if top < *min_y {
+            *min_y = top;
+        }
+        if right > *max_x {
+            *max_x = right;
+        }
+        if bottom > *max_y {
+            *max_y = bottom;
+        }
     }
     for sub in &cluster.sub_clusters {
         extend_lf_with_cluster(sub, min_x, min_y, max_x, max_y);
@@ -658,8 +1135,12 @@ fn extend_lf_with_cluster(
 
 fn extend_min_with_cluster(cluster: &cluster::Cluster, min_x: &mut f64, min_y: &mut f64) {
     if cluster.width > 0.0 && cluster.height > 0.0 {
-        if cluster.x < *min_x { *min_x = cluster.x; }
-        if cluster.y < *min_y { *min_y = cluster.y; }
+        if cluster.x < *min_x {
+            *min_x = cluster.x;
+        }
+        if cluster.y < *min_y {
+            *min_y = cluster.y;
+        }
     }
     for sub in &cluster.sub_clusters {
         extend_min_with_cluster(sub, min_x, min_y);
@@ -754,7 +1235,7 @@ mod tests {
             r#"{prefix}<title>cluster_demo</title><polygon points="10,20 30,20 30,40 10,40"/>´"#
         );
         assert_eq!(
-            parse_svg_cluster_bounds(&svg, "demo", 0.0, 0.0),
+            parse_svg_cluster_bounds(&svg, "demo", 0.0),
             Some((10.0, 20.0, 20.0, 20.0))
         );
     }

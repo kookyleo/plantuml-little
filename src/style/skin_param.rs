@@ -311,16 +311,24 @@ pub trait ISkinSimple {
     fn values(&self) -> &HashMap<String, String>;
 
     /// Global padding value.
-    fn get_padding(&self) -> f64 { 0.0 }
+    fn get_padding(&self) -> f64 {
+        0.0
+    }
 
     /// Monospaced font family name.
-    fn monospaced_family(&self) -> &str { "monospace" }
+    fn monospaced_family(&self) -> &str {
+        "monospace"
+    }
 
     /// Tab size in spaces.
-    fn tab_size(&self) -> i32 { 8 }
+    fn tab_size(&self) -> i32 {
+        8
+    }
 
     /// DPI for the output.
-    fn dpi(&self) -> i32 { 96 }
+    fn dpi(&self) -> i32 {
+        96
+    }
 }
 
 // ── ISkinParam ───────────────────────────────────────────────────────
@@ -345,11 +353,22 @@ pub trait ISkinParam: ISkinSimple {
 
     // ── Colors ──────────────────────────────────────────────────────
 
-    fn hyperlink_color(&self) -> HColor { HColor::simple("#0000FF") }
-    fn use_underline_for_hyperlink(&self) -> UStroke { UStroke::with_thickness(1.0) }
-    fn background_color(&self) -> HColor { HColor::simple("#FFFFFF") }
+    fn hyperlink_color(&self) -> HColor {
+        HColor::simple("#0000FF")
+    }
+    fn use_underline_for_hyperlink(&self) -> UStroke {
+        UStroke::with_thickness(1.0)
+    }
+    fn background_color(&self) -> HColor {
+        HColor::simple("#FFFFFF")
+    }
 
-    fn html_color(&self, param: ColorParam, stereotype: Option<&str>, clickable: bool) -> Option<HColor> {
+    fn html_color(
+        &self,
+        param: ColorParam,
+        stereotype: Option<&str>,
+        clickable: bool,
+    ) -> Option<HColor> {
         None
     }
 
@@ -363,7 +382,12 @@ pub trait ISkinParam: ISkinSimple {
 
     // ── Fonts ───────────────────────────────────────────────────────
 
-    fn font(&self, stereotype: Option<&str>, in_package_title: bool, params: &[FontParam]) -> Option<(String, f64, bool, bool)> {
+    fn font(
+        &self,
+        stereotype: Option<&str>,
+        in_package_title: bool,
+        params: &[FontParam],
+    ) -> Option<(String, f64, bool, bool)> {
         None
     }
 
@@ -383,109 +407,209 @@ pub trait ISkinParam: ISkinSimple {
         default
     }
 
-    fn stereotype_alignment(&self) -> HorizontalAlignment { HorizontalAlignment::Center }
+    fn stereotype_alignment(&self) -> HorizontalAlignment {
+        HorizontalAlignment::Center
+    }
 
     // ── Class / Object ──────────────────────────────────────────────
 
-    fn circled_character_radius(&self) -> i32 { 11 }
-    fn circled_character(&self, stereotype: Option<&str>) -> char { ' ' }
-    fn class_attribute_icon_size(&self) -> i32 { 10 }
+    fn circled_character_radius(&self) -> i32 {
+        11
+    }
+    fn circled_character(&self, stereotype: Option<&str>) -> char {
+        ' '
+    }
+    fn class_attribute_icon_size(&self) -> i32 {
+        10
+    }
 
     // ── Layout ──────────────────────────────────────────────────────
 
-    fn dot_splines(&self) -> DotSplines { DotSplines::Spline }
-    fn nodesep(&self) -> f64 { 25.0 }
-    fn ranksep(&self) -> f64 { 40.0 }
-    fn rankdir(&self) -> Rankdir { Rankdir::TopToBottom }
+    fn dot_splines(&self) -> DotSplines {
+        DotSplines::Spline
+    }
+    fn nodesep(&self) -> f64 {
+        25.0
+    }
+    fn ranksep(&self) -> f64 {
+        40.0
+    }
+    fn rankdir(&self) -> Rankdir {
+        Rankdir::TopToBottom
+    }
 
     // ── Shadowing ───────────────────────────────────────────────────
 
-    fn shadowing(&self, stereotype: Option<&str>) -> bool { false }
-    fn shadowing_for_note(&self, stereotype: Option<&str>) -> bool { false }
+    fn shadowing(&self, stereotype: Option<&str>) -> bool {
+        false
+    }
+    fn shadowing_for_note(&self, stereotype: Option<&str>) -> bool {
+        false
+    }
 
     // ── Styles ──────────────────────────────────────────────────────
 
-    fn package_style(&self) -> PackageStyle { PackageStyle::Folder }
-    fn component_style(&self) -> ComponentStyle { ComponentStyle::Uml2 }
-    fn actor_style(&self) -> ActorStyle { ActorStyle::Stickman }
+    fn package_style(&self) -> PackageStyle {
+        PackageStyle::Folder
+    }
+    fn component_style(&self) -> ComponentStyle {
+        ComponentStyle::Uml2
+    }
+    fn actor_style(&self) -> ActorStyle {
+        ActorStyle::Stickman
+    }
 
     // ── Corners ─────────────────────────────────────────────────────
 
-    fn round_corner(&self, param: CornerParam, stereotype: Option<&str>) -> f64 { 0.0 }
-    fn diagonal_corner(&self, param: CornerParam, stereotype: Option<&str>) -> f64 { 0.0 }
+    fn round_corner(&self, param: CornerParam, stereotype: Option<&str>) -> f64 {
+        0.0
+    }
+    fn diagonal_corner(&self, param: CornerParam, stereotype: Option<&str>) -> f64 {
+        0.0
+    }
 
     // ── Behavior flags ──────────────────────────────────────────────
 
-    fn stereotype_position_top(&self) -> bool { true }
-    fn use_swimlanes(&self, dtype: DiagramType) -> bool { false }
-    fn strict_uml_style(&self) -> bool { false }
-    fn force_sequence_participant_underlined(&self) -> bool { false }
-    fn same_class_width(&self) -> bool { false }
-    fn use_octagon_for_activity(&self, stereotype: Option<&str>) -> bool { false }
-    fn handwritten(&self) -> bool { false }
-    fn use_rank_same(&self) -> bool { false }
-    fn display_generic_with_old_fashion(&self) -> bool { false }
-    fn response_message_below_arrow(&self) -> bool { false }
-    fn svg_dimension_style(&self) -> bool { true }
-    fn fix_circle_label_overlapping(&self) -> bool { false }
+    fn stereotype_position_top(&self) -> bool {
+        true
+    }
+    fn use_swimlanes(&self, dtype: DiagramType) -> bool {
+        false
+    }
+    fn strict_uml_style(&self) -> bool {
+        false
+    }
+    fn force_sequence_participant_underlined(&self) -> bool {
+        false
+    }
+    fn same_class_width(&self) -> bool {
+        false
+    }
+    fn use_octagon_for_activity(&self, stereotype: Option<&str>) -> bool {
+        false
+    }
+    fn handwritten(&self) -> bool {
+        false
+    }
+    fn use_rank_same(&self) -> bool {
+        false
+    }
+    fn display_generic_with_old_fashion(&self) -> bool {
+        false
+    }
+    fn response_message_below_arrow(&self) -> bool {
+        false
+    }
+    fn svg_dimension_style(&self) -> bool {
+        true
+    }
+    fn fix_circle_label_overlapping(&self) -> bool {
+        false
+    }
 
     // ── VizJs ───────────────────────────────────────────────────────
 
     fn set_use_vizjs(&mut self, use_vizjs: bool) {}
-    fn is_use_vizjs(&self) -> bool { false }
+    fn is_use_vizjs(&self) -> bool {
+        false
+    }
 
     // ── Conditions (activity diagrams) ──────────────────────────────
 
-    fn condition_style(&self) -> ConditionStyle { ConditionStyle::Diamond }
-    fn condition_end_style(&self) -> ConditionEndStyle { ConditionEndStyle::Diamond }
+    fn condition_style(&self) -> ConditionStyle {
+        ConditionStyle::Diamond
+    }
+    fn condition_end_style(&self) -> ConditionEndStyle {
+        ConditionEndStyle::Diamond
+    }
 
     // ── Line break / wrapping ───────────────────────────────────────
 
-    fn max_message_size(&self) -> LineBreakStrategy { LineBreakStrategy::None }
-    fn swimlane_wrap_title_width(&self) -> LineBreakStrategy { LineBreakStrategy::None }
+    fn max_message_size(&self) -> LineBreakStrategy {
+        LineBreakStrategy::None
+    }
+    fn swimlane_wrap_title_width(&self) -> LineBreakStrategy {
+        LineBreakStrategy::None
+    }
 
     // ── Group inheritance ───────────────────────────────────────────
 
-    fn group_inheritance(&self) -> i32 { 0 }
+    fn group_inheritance(&self) -> i32 {
+        0
+    }
 
     // ── Guillemets ──────────────────────────────────────────────────
 
-    fn guillemet(&self) -> Guillemet { Guillemet::DoubleAngle }
+    fn guillemet(&self) -> Guillemet {
+        Guillemet::DoubleAngle
+    }
 
     // ── Output config ───────────────────────────────────────────────
 
-    fn svg_link_target(&self) -> &str { "_top" }
-    fn preserve_aspect_ratio(&self) -> &str { "none" }
-    fn max_ascii_message_length(&self) -> i32 { -1 }
-    fn color_arrow_separation_space(&self) -> i32 { 0 }
-    fn swimlane_width(&self) -> i32 { 0 }
-    fn length_adjust(&self) -> LengthAdjust { LengthAdjust::Spacing }
-    fn param_same_class_width(&self) -> f64 { 0.0 }
+    fn svg_link_target(&self) -> &str {
+        "_top"
+    }
+    fn preserve_aspect_ratio(&self) -> &str {
+        "none"
+    }
+    fn max_ascii_message_length(&self) -> i32 {
+        -1
+    }
+    fn color_arrow_separation_space(&self) -> i32 {
+        0
+    }
+    fn swimlane_width(&self) -> i32 {
+        0
+    }
+    fn length_adjust(&self) -> LengthAdjust {
+        LengthAdjust::Spacing
+    }
+    fn param_same_class_width(&self) -> f64 {
+        0.0
+    }
 
     // ── Diagram type ────────────────────────────────────────────────
 
-    fn diagram_type(&self) -> DiagramType { DiagramType::Sequence }
+    fn diagram_type(&self) -> DiagramType {
+        DiagramType::Sequence
+    }
 
     // ── Misc ────────────────────────────────────────────────────────
 
-    fn hover_path_color(&self) -> Option<HColor> { None }
-    fn tikz_font_distortion(&self) -> TikzFontDistortion { TikzFontDistortion::default() }
-    fn padding(&self, param: PaddingParam) -> f64 { 0.0 }
-    fn split_param(&self) -> SplitParam { SplitParam::default() }
-    fn arrows(&self) -> Arrows { Arrows }
+    fn hover_path_color(&self) -> Option<HColor> {
+        None
+    }
+    fn tikz_font_distortion(&self) -> TikzFontDistortion {
+        TikzFontDistortion::default()
+    }
+    fn padding(&self, param: PaddingParam) -> f64 {
+        0.0
+    }
+    fn split_param(&self) -> SplitParam {
+        SplitParam::default()
+    }
+    fn arrows(&self) -> Arrows {
+        Arrows
+    }
 
     // ── Style builder ───────────────────────────────────────────────
 
-    fn current_style_builder(&self) -> Option<&StyleBuilder> { None }
+    fn current_style_builder(&self) -> Option<&StyleBuilder> {
+        None
+    }
     fn mute_style(&mut self, modified: &[Style]) {}
 
     // ── Sprites ─────────────────────────────────────────────────────
 
-    fn all_sprite_names(&self) -> Vec<String> { Vec::new() }
+    fn all_sprite_names(&self) -> Vec<String> {
+        Vec::new()
+    }
 
     // ── Skin ────────────────────────────────────────────────────────
 
-    fn default_skin(&self) -> &str { "plantuml.skin" }
+    fn default_skin(&self) -> &str {
+        "plantuml.skin"
+    }
     fn set_default_skin(&mut self, skin: &str) {}
 
     // ── SVG size ────────────────────────────────────────────────────
@@ -506,7 +630,9 @@ mod tests {
 
     impl TestSkinParam {
         fn new() -> Self {
-            Self { values: HashMap::new() }
+            Self {
+                values: HashMap::new(),
+            }
         }
     }
 
@@ -555,12 +681,7 @@ mod tests {
     fn alignment_defaults() {
         let skin = TestSkinParam::new();
         assert_eq!(
-            skin.horizontal_alignment(
-                AlignmentParam::ArrowMessageAlignment,
-                None,
-                false,
-                None,
-            ),
+            skin.horizontal_alignment(AlignmentParam::ArrowMessageAlignment, None, false, None,),
             HorizontalAlignment::Center,
         );
         assert_eq!(skin.stereotype_alignment(), HorizontalAlignment::Center);
@@ -634,7 +755,9 @@ mod tests {
     #[test]
     fn color_returns_none() {
         let skin = TestSkinParam::new();
-        assert!(skin.html_color(ColorParam::Background, None, false).is_none());
+        assert!(skin
+            .html_color(ColorParam::Background, None, false)
+            .is_none());
         assert!(skin.font_html_color(None, &[FontParam::Default]).is_none());
     }
 

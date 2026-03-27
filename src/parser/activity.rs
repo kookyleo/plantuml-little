@@ -616,9 +616,19 @@ fn expand_backslash_n(s: &str) -> String {
     while i < chars.len() {
         if chars[i] == '\\' && i + 1 < chars.len() {
             match chars[i + 1] {
-                'n' => { result.push('\n'); i += 2; }
-                '\\' => { result.push('\\'); i += 2; }
-                other => { result.push('\\'); result.push(other); i += 2; }
+                'n' => {
+                    result.push('\n');
+                    i += 2;
+                }
+                '\\' => {
+                    result.push('\\');
+                    i += 2;
+                }
+                other => {
+                    result.push('\\');
+                    result.push(other);
+                    i += 2;
+                }
             }
         } else if chars[i] == crate::NEWLINE_CHAR {
             result.push('\n');

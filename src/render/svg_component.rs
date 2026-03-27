@@ -1,13 +1,13 @@
 use std::fmt::Write;
 
 use crate::font_metrics;
-use crate::klimt::svg::{fmt_coord, xml_escape, SvgGraphic, LengthAdjust};
+use crate::klimt::svg::{fmt_coord, xml_escape, LengthAdjust, SvgGraphic};
 use crate::layout::component::{
     ComponentEdgeLayout, ComponentGroupLayout, ComponentLayout, ComponentNodeLayout,
     ComponentNoteLayout,
 };
 use crate::model::component::{ComponentDiagram, ComponentKind};
-use crate::render::svg::{write_svg_root_bg, write_bg_rect};
+use crate::render::svg::{write_bg_rect, write_svg_root_bg};
 use crate::render::svg_richtext::render_creole_text;
 use crate::style::SkinParams;
 use crate::Result;
@@ -36,12 +36,13 @@ pub fn render_component(
     skin: &SkinParams,
 ) -> Result<String> {
     let mut buf = String::with_capacity(4096);
-    reset_entity_counter();
 
     // Build entity ID map: entity name → "ent0002", "ent0003", etc.
     // Java assigns IDs in definition order (source_line).
-    let mut entity_ids: std::collections::HashMap<String, String> = std::collections::HashMap::new();
-    let mut entities_sorted: Vec<&crate::model::component::ComponentEntity> = cd.entities.iter().collect();
+    let mut entity_ids: std::collections::HashMap<String, String> =
+        std::collections::HashMap::new();
+    let mut entities_sorted: Vec<&crate::model::component::ComponentEntity> =
+        cd.entities.iter().collect();
     entities_sorted.sort_by_key(|e| e.source_line.unwrap_or(usize::MAX));
     let mut ent_counter = 2u32;
     for ent in &entities_sorted {
@@ -49,6 +50,17 @@ pub fn render_component(
         entity_ids.insert(ent.id.clone(), ent_id);
         ent_counter += 1;
     }
+    let qualified_names = build_component_qualified_names(cd);
+    let entity_parents: std::collections::HashMap<String, Option<String>> = cd
+        .entities
+        .iter()
+        .map(|ent| (ent.id.clone(), ent.parent.clone()))
+        .collect();
+    let group_center_y: std::collections::HashMap<String, f64> = layout
+        .groups
+        .iter()
+        .map(|group| (group.id.clone(), group.y + group.height / 2.0))
+        .collect();
 
     // Skin color lookups
     let comp_bg = skin.background_color("component", ENTITY_BG);
@@ -98,14 +110,50 @@ pub fn render_component(
 
     // Groups (render before nodes so they appear behind)
     for group in &layout.groups {
-        render_group(&mut sg, group, group_bg, group_border, group_font);
+        let ent_id = entity_ids
+            .get(&group.id)
+            .map(String::as_str)
+            .unwrap_or_default();
+        let qualified_name = qualified_names
+            .get(&group.id)
+            .map(String::as_str)
+            .unwrap_or(group.id.as_str());
+        render_group(
+            &mut sg,
+            group,
+            ent_id,
+            qualified_name,
+            group_bg,
+            group_border,
+            group_font,
+        );
     }
 
     // Nodes
     for node in &layout.nodes {
+        let parent_id = entity_parents
+            .get(&node.id)
+            .and_then(|parent| parent.as_deref());
+        let port_label_above = matches!(node.kind, ComponentKind::PortIn | ComponentKind::PortOut)
+            && parent_id
+                .and_then(|parent| group_center_y.get(parent))
+                .is_some_and(|center_y| node.y < *center_y);
+        let meta = EntitySvgMeta {
+            ent_id: entity_ids
+                .get(&node.id)
+                .map(String::as_str)
+                .unwrap_or_default(),
+            qualified_name: qualified_names
+                .get(&node.id)
+                .map(String::as_str)
+                .unwrap_or(node.id.as_str()),
+            emit_comment: !matches!(node.kind, ComponentKind::PortIn | ComponentKind::PortOut),
+            port_label_above,
+        };
         render_node(
             &mut sg,
             node,
+            meta,
             comp_bg,
             comp_border,
             comp_font,
@@ -138,7 +186,15 @@ pub fn render_component(
     let mut link_counter = ent_counter;
     for (ei, edge) in layout.edges.iter().enumerate() {
         let source_line = cd.links.get(ei).and_then(|l| l.source_line);
-        render_edge(&mut sg, edge, arrow_color, comp_font, &entity_ids, link_counter, source_line);
+        render_edge(
+            &mut sg,
+            edge,
+            arrow_color,
+            comp_font,
+            &entity_ids,
+            link_counter,
+            source_line,
+        );
         link_counter += 1;
     }
 
@@ -159,6 +215,8 @@ pub fn render_component(
 fn render_group(
     sg: &mut SvgGraphic,
     group: &ComponentGroupLayout,
+    ent_id: &str,
+    qualified_name: &str,
     _bg: &str,
     border: &str,
     font_color: &str,
@@ -171,14 +229,10 @@ fn render_group(
     // HTML comment
     sg.push_raw(&format!("<!--cluster {}-->", xml_escape(&group.id)));
 
-    // Allocate entity ID for this cluster
-    let ent_num = ENTITY_COUNTER.with(|c| { let v = c.get(); c.set(v + 1); v });
-    let ent_id = format!("ent{:04}", ent_num);
-
     // Open semantic <g> with Java-matching attributes
     let mut g_open = format!(
         r#"<g class="cluster" data-qualified-name="{}""#,
-        xml_escape(&group.id)
+        xml_escape(qualified_name)
     );
     if let Some(sl) = group.source_line {
         g_open.push_str(&format!(r#" data-source-line="{}""#, sl));
@@ -189,30 +243,54 @@ fn render_group(
     match group.kind {
         ComponentKind::Component => {
             // Component cluster: rect with component icon (two small rects)
-            sg.set_fill_color("none"); sg.set_stroke_color(Some(border)); sg.set_stroke_width(1.0, None);
+            sg.set_fill_color("none");
+            sg.set_stroke_color(Some(border));
+            sg.set_stroke_width(1.0, None);
             sg.svg_rectangle(x, y, w, h, 2.5, 2.5, 0.0);
 
             // Component icon on right side
             let icon_w: f64 = 15.0;
             let icon_h: f64 = 10.0;
-            let icon_x = x + w - icon_w - 5.0 + 2.0;
+            let icon_x = x + w - icon_w - 5.0;
             let icon_y1 = y + 5.0;
-            sg.set_fill_color("none"); sg.set_stroke_color(Some(border)); sg.set_stroke_width(1.0, None);
+            sg.set_fill_color("none");
+            sg.set_stroke_color(Some(border));
+            sg.set_stroke_width(1.0, None);
             sg.svg_rectangle(icon_x, icon_y1, icon_w, icon_h, 0.0, 0.0, 0.0);
-            sg.set_fill_color("none"); sg.set_stroke_color(Some(border)); sg.set_stroke_width(1.0, None);
+            sg.set_fill_color("none");
+            sg.set_stroke_color(Some(border));
+            sg.set_stroke_width(1.0, None);
             sg.svg_rectangle(icon_x - 2.0, icon_y1 + 2.0, 4.0, 2.0, 0.0, 0.0, 0.0);
-            sg.set_fill_color("none"); sg.set_stroke_color(Some(border)); sg.set_stroke_width(1.0, None);
+            sg.set_fill_color("none");
+            sg.set_stroke_color(Some(border));
+            sg.set_stroke_width(1.0, None);
             sg.svg_rectangle(icon_x - 2.0, icon_y1 + 6.0, 4.0, 2.0, 0.0, 0.0, 0.0);
 
             let tl = text_len(&group.name, 14.0, true);
             let text_x = x + (w - tl) / 2.0;
             let text_y = y + 25.9951;
             sg.set_fill_color(font_color);
-            sg.svg_text(&group.name, text_x, text_y, Some("sans-serif"), 14.0, Some("bold"), None, None, tl, LengthAdjust::Spacing, None, 0, None);
+            sg.svg_text(
+                &group.name,
+                text_x,
+                text_y,
+                Some("sans-serif"),
+                14.0,
+                Some("bold"),
+                None,
+                None,
+                tl,
+                LengthAdjust::Spacing,
+                None,
+                0,
+                None,
+            );
         }
         ComponentKind::Frame => {
             // Frame: rect with rx/ry 2.5, path-based label tab
-            sg.set_fill_color("none"); sg.set_stroke_color(Some(border)); sg.set_stroke_width(1.0, None);
+            sg.set_fill_color("none");
+            sg.set_stroke_color(Some(border));
+            sg.set_stroke_width(1.0, None);
             sg.svg_rectangle(x, y, w, h, 2.5, 2.5, 0.0);
 
             let tl = text_len(&group.name, 14.0, true);
@@ -231,7 +309,21 @@ fn render_group(
             let text_x = x + 3.0;
             let text_y = y + 13.9951;
             sg.set_fill_color(font_color);
-            sg.svg_text(&group.name, text_x, text_y, Some("sans-serif"), 14.0, Some("bold"), None, None, tl, LengthAdjust::Spacing, None, 0, None);
+            sg.svg_text(
+                &group.name,
+                text_x,
+                text_y,
+                Some("sans-serif"),
+                14.0,
+                Some("bold"),
+                None,
+                None,
+                tl,
+                LengthAdjust::Spacing,
+                None,
+                0,
+                None,
+            );
         }
         ComponentKind::Node => {
             // Node: 3D polygon box with depth lines
@@ -242,17 +334,19 @@ fn render_group(
             let p_tr = (x + w, y + depth);
             let p_br = (x + w - depth, y + h);
             let p_bl = (x, y + h);
-            sg.set_fill_color("none"); sg.set_stroke_color(Some(border)); sg.set_stroke_width(1.0, None);
-            sg.svg_polygon(0.0, &[
-                p_tl.0, p_tl.1,
-                p_tlb.0, p_tlb.1,
-                p_trb.0, p_trb.1,
-                p_trb.0, p_tr.1,
-                p_br.0, p_br.1,
-                p_bl.0, p_bl.1,
-            ]);
+            sg.set_fill_color("none");
+            sg.set_stroke_color(Some(border));
+            sg.set_stroke_width(1.0, None);
+            sg.svg_polygon(
+                0.0,
+                &[
+                    p_tl.0, p_tl.1, p_tlb.0, p_tlb.1, p_trb.0, p_trb.1, p_trb.0, p_tr.1, p_br.0,
+                    p_br.1, p_bl.0, p_bl.1,
+                ],
+            );
 
-            sg.set_stroke_color(Some(border)); sg.set_stroke_width(1.0, None);
+            sg.set_stroke_color(Some(border));
+            sg.set_stroke_width(1.0, None);
             sg.svg_line(p_br.0, p_tl.1, p_trb.0, p_tlb.1, 0.0);
             sg.svg_line(p_tl.0, p_tl.1, p_br.0, p_tl.1, 0.0);
             sg.svg_line(p_br.0, p_tl.1, p_br.0, p_br.1, 0.0);
@@ -261,18 +355,48 @@ fn render_group(
             let text_x = x + (w - depth) / 2.0 - tl / 2.0;
             let text_y = y + depth + 15.9951;
             sg.set_fill_color(font_color);
-            sg.svg_text(&group.name, text_x, text_y, Some("sans-serif"), 14.0, Some("bold"), None, None, tl, LengthAdjust::Spacing, None, 0, None);
+            sg.svg_text(
+                &group.name,
+                text_x,
+                text_y,
+                Some("sans-serif"),
+                14.0,
+                Some("bold"),
+                None,
+                None,
+                tl,
+                LengthAdjust::Spacing,
+                None,
+                0,
+                None,
+            );
         }
         _ => {
             // Default package/rectangle/card: simple rect
-            sg.set_fill_color("none"); sg.set_stroke_color(Some(border)); sg.set_stroke_width(1.0, None);
+            sg.set_fill_color("none");
+            sg.set_stroke_color(Some(border));
+            sg.set_stroke_width(1.0, None);
             sg.svg_rectangle(x, y, w, h, 2.5, 2.5, 0.0);
 
             let tl = text_len(&group.name, 14.0, true);
             let text_x = x + (w - tl) / 2.0;
             let text_y = y + 15.9951;
             sg.set_fill_color(font_color);
-            sg.svg_text(&group.name, text_x, text_y, Some("sans-serif"), 14.0, Some("bold"), None, None, tl, LengthAdjust::Spacing, None, 0, None);
+            sg.svg_text(
+                &group.name,
+                text_x,
+                text_y,
+                Some("sans-serif"),
+                14.0,
+                Some("bold"),
+                None,
+                None,
+                tl,
+                LengthAdjust::Spacing,
+                None,
+                0,
+                None,
+            );
         }
     }
 
@@ -283,10 +407,19 @@ fn render_group(
 // Node rendering
 // ---------------------------------------------------------------------------
 
+#[derive(Clone, Copy)]
+struct EntitySvgMeta<'a> {
+    ent_id: &'a str,
+    qualified_name: &'a str,
+    emit_comment: bool,
+    port_label_above: bool,
+}
+
 #[allow(clippy::too_many_arguments)]
 fn render_node(
     sg: &mut SvgGraphic,
     node: &ComponentNodeLayout,
+    meta: EntitySvgMeta<'_>,
     comp_bg: &str,
     comp_border: &str,
     comp_font: &str,
@@ -329,59 +462,64 @@ fn render_node(
 
     match node.kind {
         ComponentKind::Component => {
-            render_component_node(sg, node, comp_bg, comp_border, comp_font);
+            render_component_node(sg, node, meta, comp_bg, comp_border, comp_font);
         }
         ComponentKind::Rectangle => {
-            render_rectangle_node(sg, node, rect_bg, rect_border, comp_font);
+            render_rectangle_node(sg, node, meta, rect_bg, rect_border, comp_font);
         }
-        ComponentKind::Database => render_database_node(sg, node, db_bg, db_border, comp_font),
-        ComponentKind::Cloud => render_cloud_node(sg, node, cloud_bg, cloud_border, comp_font),
-        ComponentKind::Node => render_box_node(sg, node, node_bg, node_border, comp_font),
-        ComponentKind::Package => render_box_node(sg, node, rect_bg, rect_border, comp_font),
+        ComponentKind::Database => {
+            render_database_node(sg, node, meta, db_bg, db_border, comp_font)
+        }
+        ComponentKind::Cloud => {
+            render_cloud_node(sg, node, meta, cloud_bg, cloud_border, comp_font)
+        }
+        ComponentKind::Node => render_box_node(sg, node, meta, node_bg, node_border, comp_font),
+        ComponentKind::Package => render_box_node(sg, node, meta, rect_bg, rect_border, comp_font),
         ComponentKind::Interface => {
-            render_interface_node(sg, node, comp_bg, comp_border, comp_font);
+            render_interface_node(sg, node, meta, comp_bg, comp_border, comp_font);
         }
-        ComponentKind::Card => render_rectangle_node(sg, node, rect_bg, rect_border, comp_font),
+        ComponentKind::Card => {
+            render_rectangle_node(sg, node, meta, rect_bg, rect_border, comp_font)
+        }
         ComponentKind::Artifact => {
-            render_artifact_node(sg, node, artifact_bg, artifact_border, comp_font);
+            render_artifact_node(sg, node, meta, artifact_bg, artifact_border, comp_font);
         }
         ComponentKind::Storage => {
-            render_storage_node(sg, node, storage_bg, storage_border, comp_font);
+            render_storage_node(sg, node, meta, storage_bg, storage_border, comp_font);
         }
-        ComponentKind::Folder => render_folder_node(sg, node, folder_bg, folder_border, comp_font),
-        ComponentKind::Frame => render_frame_node(sg, node, frame_bg, frame_border, comp_font),
-        ComponentKind::Agent => render_agent_node(sg, node, agent_bg, agent_border, comp_font),
-        ComponentKind::Stack => render_stack_node(sg, node, stack_bg, stack_border, comp_font),
-        ComponentKind::Queue => render_queue_node(sg, node, queue_bg, queue_border, comp_font),
+        ComponentKind::Folder => {
+            render_folder_node(sg, node, meta, folder_bg, folder_border, comp_font)
+        }
+        ComponentKind::Frame => {
+            render_frame_node(sg, node, meta, frame_bg, frame_border, comp_font)
+        }
+        ComponentKind::Agent => {
+            render_agent_node(sg, node, meta, agent_bg, agent_border, comp_font)
+        }
+        ComponentKind::Stack => {
+            render_stack_node(sg, node, meta, stack_bg, stack_border, comp_font)
+        }
+        ComponentKind::Queue => {
+            render_queue_node(sg, node, meta, queue_bg, queue_border, comp_font)
+        }
         ComponentKind::PortIn | ComponentKind::PortOut => {
-            render_port_node(sg, node, comp_bg, comp_border, comp_font);
+            render_port_node(sg, node, meta, comp_bg, comp_border, comp_font);
         }
     }
 }
 
-thread_local! {
-    /// Java entity counter — starts at 2 (first two IDs reserved for diagram-level)
-    static ENTITY_COUNTER: std::cell::Cell<usize> = const { std::cell::Cell::new(2) };
-}
-
-/// Reset entity counter (call before rendering a new diagram)
-fn reset_entity_counter() {
-    ENTITY_COUNTER.with(|c| c.set(2));
-}
-
 /// Emit HTML comment + open `<g class="entity">` with Java-matching attributes.
-fn open_entity_g(sg: &mut SvgGraphic, node: &ComponentNodeLayout) {
-    let ent_num = ENTITY_COUNTER.with(|c| { let v = c.get(); c.set(v + 1); v });
-    let ent_id = format!("ent{:04}", ent_num);
-    sg.push_raw(&format!("<!--entity {}-->", xml_escape(&node.id)));
-    let source_line = node.source_line.map_or(String::new(), |l| {
-        format!(r#" data-source-line="{}""#, l)
-    });
-    // Java: data-qualified-name uses the entity's qualified ID (e.g. "c1.web_app"),
-    // not the display text (which may contain Creole markup like <size:12>).
+fn open_entity_g(sg: &mut SvgGraphic, node: &ComponentNodeLayout, meta: EntitySvgMeta<'_>) {
+    if meta.emit_comment {
+        sg.push_raw(&format!("<!--entity {}-->", xml_escape(&node.id)));
+    }
+    let source_line = node
+        .source_line
+        .map_or(String::new(), |l| format!(r#" data-source-line="{}""#, l));
     sg.push_raw(&format!(
         r#"<g class="entity" data-qualified-name="{}"{source_line} id="{ent_id}">"#,
-        xml_escape(&node.id),
+        xml_escape(meta.qualified_name),
+        ent_id = meta.ent_id,
     ));
 }
 
@@ -389,18 +527,21 @@ fn open_entity_g(sg: &mut SvgGraphic, node: &ComponentNodeLayout) {
 fn render_component_node(
     sg: &mut SvgGraphic,
     node: &ComponentNodeLayout,
+    meta: EntitySvgMeta<'_>,
     bg: &str,
     border: &str,
     font_color: &str,
 ) {
-    open_entity_g(sg, node);
+    open_entity_g(sg, node, meta);
 
     let x = node.x;
     let y = node.y;
     let w = node.width;
     let h = node.height;
 
-    sg.set_fill_color(bg); sg.set_stroke_color(Some(border)); sg.set_stroke_width(0.5, None);
+    sg.set_fill_color(bg);
+    sg.set_stroke_color(Some(border));
+    sg.set_stroke_width(0.5, None);
     sg.svg_rectangle(x, y, w, h, 2.5, 2.5, 0.0);
 
     // Component icon on right side
@@ -408,11 +549,17 @@ fn render_component_node(
     let icon_h: f64 = 10.0;
     let icon_x = x + w - icon_w - 5.0;
     let icon_y1 = y + 5.0;
-    sg.set_fill_color(bg); sg.set_stroke_color(Some(border)); sg.set_stroke_width(0.5, None);
+    sg.set_fill_color(bg);
+    sg.set_stroke_color(Some(border));
+    sg.set_stroke_width(0.5, None);
     sg.svg_rectangle(icon_x, icon_y1, icon_w, icon_h, 0.0, 0.0, 0.0);
-    sg.set_fill_color(bg); sg.set_stroke_color(Some(border)); sg.set_stroke_width(0.5, None);
+    sg.set_fill_color(bg);
+    sg.set_stroke_color(Some(border));
+    sg.set_stroke_width(0.5, None);
     sg.svg_rectangle(icon_x - 2.0, icon_y1 + 2.0, 4.0, 2.0, 0.0, 0.0, 0.0);
-    sg.set_fill_color(bg); sg.set_stroke_color(Some(border)); sg.set_stroke_width(0.5, None);
+    sg.set_fill_color(bg);
+    sg.set_stroke_color(Some(border));
+    sg.set_stroke_width(0.5, None);
     sg.svg_rectangle(icon_x - 2.0, icon_y1 + 6.0, 4.0, 2.0, 0.0, 0.0, 0.0);
 
     render_node_text(sg, node, font_color);
@@ -423,13 +570,16 @@ fn render_component_node(
 fn render_rectangle_node(
     sg: &mut SvgGraphic,
     node: &ComponentNodeLayout,
+    meta: EntitySvgMeta<'_>,
     bg: &str,
     border: &str,
     font_color: &str,
 ) {
-    open_entity_g(sg, node);
+    open_entity_g(sg, node, meta);
 
-    sg.set_fill_color(bg); sg.set_stroke_color(Some(border)); sg.set_stroke_width(0.5, None);
+    sg.set_fill_color(bg);
+    sg.set_stroke_color(Some(border));
+    sg.set_stroke_width(0.5, None);
     sg.svg_rectangle(node.x, node.y, node.width, node.height, 2.5, 2.5, 0.0);
 
     render_node_text(sg, node, font_color);
@@ -440,11 +590,12 @@ fn render_rectangle_node(
 fn render_database_node(
     sg: &mut SvgGraphic,
     node: &ComponentNodeLayout,
+    meta: EntitySvgMeta<'_>,
     bg: &str,
     border: &str,
     font_color: &str,
 ) {
-    open_entity_g(sg, node);
+    open_entity_g(sg, node, meta);
 
     let x = node.x;
     let y = node.y;
@@ -493,13 +644,16 @@ fn render_database_node(
 fn render_cloud_node(
     sg: &mut SvgGraphic,
     node: &ComponentNodeLayout,
+    meta: EntitySvgMeta<'_>,
     bg: &str,
     border: &str,
     font_color: &str,
 ) {
-    open_entity_g(sg, node);
+    open_entity_g(sg, node, meta);
 
-    sg.set_fill_color(bg); sg.set_stroke_color(Some(border)); sg.set_stroke_width(0.5, None);
+    sg.set_fill_color(bg);
+    sg.set_stroke_color(Some(border));
+    sg.set_stroke_width(0.5, None);
     sg.svg_rectangle(node.x, node.y, node.width, node.height, 20.0, 20.0, 0.0);
 
     render_node_text(sg, node, font_color);
@@ -510,13 +664,16 @@ fn render_cloud_node(
 fn render_box_node(
     sg: &mut SvgGraphic,
     node: &ComponentNodeLayout,
+    meta: EntitySvgMeta<'_>,
     fill: &str,
     border: &str,
     font_color: &str,
 ) {
-    open_entity_g(sg, node);
+    open_entity_g(sg, node, meta);
 
-    sg.set_fill_color(fill); sg.set_stroke_color(Some(border)); sg.set_stroke_width(0.5, None);
+    sg.set_fill_color(fill);
+    sg.set_stroke_color(Some(border));
+    sg.set_stroke_width(0.5, None);
     sg.svg_rectangle(node.x, node.y, node.width, node.height, 2.5, 2.5, 0.0);
 
     render_node_text(sg, node, font_color);
@@ -527,21 +684,38 @@ fn render_box_node(
 fn render_interface_node(
     sg: &mut SvgGraphic,
     node: &ComponentNodeLayout,
+    meta: EntitySvgMeta<'_>,
     bg: &str,
     border: &str,
     font_color: &str,
 ) {
-    open_entity_g(sg, node);
+    open_entity_g(sg, node, meta);
 
     let cx = node.x + node.width / 2.0;
     let cy = node.y + 12.0;
-    sg.set_fill_color(bg); sg.set_stroke_color(Some(border)); sg.set_stroke_width(0.5, None);
+    sg.set_fill_color(bg);
+    sg.set_stroke_color(Some(border));
+    sg.set_stroke_width(0.5, None);
     sg.svg_circle(cx, cy, 8.0, 0.0);
 
     let name_y = cy + 20.0;
     let tl = text_len(&node.name, 14.0, false);
     sg.set_fill_color(font_color);
-    sg.svg_text(&node.name, cx - tl / 2.0, name_y, Some("sans-serif"), 14.0, None, None, None, tl, LengthAdjust::Spacing, None, 0, None);
+    sg.svg_text(
+        &node.name,
+        cx - tl / 2.0,
+        name_y,
+        Some("sans-serif"),
+        14.0,
+        None,
+        None,
+        None,
+        tl,
+        LengthAdjust::Spacing,
+        None,
+        0,
+        None,
+    );
 
     sg.push_raw("</g>");
 }
@@ -550,34 +724,48 @@ fn render_interface_node(
 fn render_artifact_node(
     sg: &mut SvgGraphic,
     node: &ComponentNodeLayout,
+    meta: EntitySvgMeta<'_>,
     bg: &str,
     border: &str,
     font_color: &str,
 ) {
-    open_entity_g(sg, node);
+    open_entity_g(sg, node, meta);
 
     let x = node.x;
     let y = node.y;
     let w = node.width;
     let h = node.height;
 
-    sg.set_fill_color(bg); sg.set_stroke_color(Some(border)); sg.set_stroke_width(0.5, None);
+    sg.set_fill_color(bg);
+    sg.set_stroke_color(Some(border));
+    sg.set_stroke_width(0.5, None);
     sg.svg_rectangle(x, y, w, h, 2.5, 2.5, 0.0);
 
     // Folded corner icon (small polygon at top right)
     let fold: f64 = 6.0;
     let ix = x + w - 17.0;
     let iy = y + 5.0;
-    sg.set_fill_color(bg); sg.set_stroke_color(Some(border)); sg.set_stroke_width(0.5, None);
-    sg.svg_polygon(0.0, &[
-        ix, iy,
-        ix, iy + 14.0,
-        ix + 12.0, iy + 14.0,
-        ix + 12.0, iy + fold,
-        ix + fold, iy,
-    ]);
+    sg.set_fill_color(bg);
+    sg.set_stroke_color(Some(border));
+    sg.set_stroke_width(0.5, None);
+    sg.svg_polygon(
+        0.0,
+        &[
+            ix,
+            iy,
+            ix,
+            iy + 14.0,
+            ix + 12.0,
+            iy + 14.0,
+            ix + 12.0,
+            iy + fold,
+            ix + fold,
+            iy,
+        ],
+    );
 
-    sg.set_stroke_color(Some(border)); sg.set_stroke_width(0.5, None);
+    sg.set_stroke_color(Some(border));
+    sg.set_stroke_width(0.5, None);
     sg.svg_line(ix + fold, iy, ix + fold, iy + fold, 0.0);
     sg.svg_line(ix + 12.0, iy + fold, ix + fold, iy + fold, 0.0);
 
@@ -589,14 +777,17 @@ fn render_artifact_node(
 fn render_storage_node(
     sg: &mut SvgGraphic,
     node: &ComponentNodeLayout,
+    meta: EntitySvgMeta<'_>,
     bg: &str,
     border: &str,
     font_color: &str,
 ) {
-    open_entity_g(sg, node);
+    open_entity_g(sg, node, meta);
 
     let rx = 35.0_f64.min(node.width / 4.0);
-    sg.set_fill_color(bg); sg.set_stroke_color(Some(border)); sg.set_stroke_width(0.5, None);
+    sg.set_fill_color(bg);
+    sg.set_stroke_color(Some(border));
+    sg.set_stroke_width(0.5, None);
     sg.svg_rectangle(node.x, node.y, node.width, node.height, rx, rx, 0.0);
 
     render_node_text(sg, node, font_color);
@@ -607,11 +798,12 @@ fn render_storage_node(
 fn render_folder_node(
     sg: &mut SvgGraphic,
     node: &ComponentNodeLayout,
+    meta: EntitySvgMeta<'_>,
     bg: &str,
     border: &str,
     font_color: &str,
 ) {
-    open_entity_g(sg, node);
+    open_entity_g(sg, node, meta);
 
     let x = node.x;
     let y = node.y;
@@ -668,7 +860,8 @@ fn render_folder_node(
         border,
     ));
 
-    sg.set_stroke_color(Some(border)); sg.set_stroke_width(0.5, None);
+    sg.set_stroke_color(Some(border));
+    sg.set_stroke_width(0.5, None);
     sg.svg_line(x, y + tab_h, x + w, y + tab_h, 0.0);
 
     render_node_text(sg, node, font_color);
@@ -679,11 +872,12 @@ fn render_folder_node(
 fn render_frame_node(
     sg: &mut SvgGraphic,
     node: &ComponentNodeLayout,
+    meta: EntitySvgMeta<'_>,
     bg: &str,
     border: &str,
     _font_color: &str,
 ) {
-    open_entity_g(sg, node);
+    open_entity_g(sg, node, meta);
 
     let x = node.x;
     let y = node.y;
@@ -692,17 +886,35 @@ fn render_frame_node(
     let tab_w = (w * 0.4).min(70.0);
     let tab_h = FONT_SIZE + 6.0;
 
-    sg.set_fill_color(bg); sg.set_stroke_color(Some(border)); sg.set_stroke_width(0.5, None);
+    sg.set_fill_color(bg);
+    sg.set_stroke_color(Some(border));
+    sg.set_stroke_width(0.5, None);
     sg.svg_rectangle(x, y, w, h, 2.5, 2.5, 0.0);
 
-    sg.set_fill_color(border); sg.set_stroke_color(Some(border)); sg.set_stroke_width(0.5, None);
+    sg.set_fill_color(border);
+    sg.set_stroke_color(Some(border));
+    sg.set_stroke_width(0.5, None);
     sg.svg_rectangle(x, y, tab_w, tab_h, 0.0, 0.0, 0.0);
 
     let label_cx = x + tab_w / 2.0;
     let label_cy = y + tab_h / 2.0 + FONT_SIZE * 0.35;
     let tl = text_len(&node.name, FONT_SIZE - 1.0, true);
     sg.set_fill_color("#FFFFFF");
-    sg.svg_text(&node.name, label_cx, label_cy, Some("sans-serif"), FONT_SIZE - 1.0, Some("700"), None, None, tl, LengthAdjust::Spacing, None, 0, Some("middle"));
+    sg.svg_text(
+        &node.name,
+        label_cx,
+        label_cy,
+        Some("sans-serif"),
+        FONT_SIZE - 1.0,
+        Some("700"),
+        None,
+        None,
+        tl,
+        LengthAdjust::Spacing,
+        None,
+        0,
+        Some("middle"),
+    );
 
     sg.push_raw("</g>");
 }
@@ -711,13 +923,16 @@ fn render_frame_node(
 fn render_agent_node(
     sg: &mut SvgGraphic,
     node: &ComponentNodeLayout,
+    meta: EntitySvgMeta<'_>,
     bg: &str,
     border: &str,
     font_color: &str,
 ) {
-    open_entity_g(sg, node);
+    open_entity_g(sg, node, meta);
 
-    sg.set_fill_color(bg); sg.set_stroke_color(Some(border)); sg.set_stroke_width(0.5, None);
+    sg.set_fill_color(bg);
+    sg.set_stroke_color(Some(border));
+    sg.set_stroke_width(0.5, None);
     sg.svg_rectangle(node.x, node.y, node.width, node.height, 2.5, 2.5, 0.0);
 
     render_node_text(sg, node, font_color);
@@ -728,11 +943,12 @@ fn render_agent_node(
 fn render_stack_node(
     sg: &mut SvgGraphic,
     node: &ComponentNodeLayout,
+    meta: EntitySvgMeta<'_>,
     bg: &str,
     border: &str,
     font_color: &str,
 ) {
-    open_entity_g(sg, node);
+    open_entity_g(sg, node, meta);
 
     let x = node.x;
     let y = node.y;
@@ -740,7 +956,9 @@ fn render_stack_node(
     let h = node.height;
 
     // Main body rect (stroke:none)
-    sg.set_fill_color(bg); sg.set_stroke_color(Some("none")); sg.set_stroke_width(0.5, None);
+    sg.set_fill_color(bg);
+    sg.set_stroke_color(Some("none"));
+    sg.set_stroke_width(0.5, None);
     sg.svg_rectangle(x, y, w, h, 2.5, 2.5, 0.0);
 
     // Frame path
@@ -767,11 +985,12 @@ fn render_stack_node(
 fn render_queue_node(
     sg: &mut SvgGraphic,
     node: &ComponentNodeLayout,
+    meta: EntitySvgMeta<'_>,
     bg: &str,
     border: &str,
     font_color: &str,
 ) {
-    open_entity_g(sg, node);
+    open_entity_g(sg, node, meta);
 
     let x = node.x;
     let y = node.y;
@@ -812,21 +1031,42 @@ fn render_queue_node(
 fn render_port_node(
     sg: &mut SvgGraphic,
     node: &ComponentNodeLayout,
+    meta: EntitySvgMeta<'_>,
     bg: &str,
     border: &str,
     font_color: &str,
 ) {
-    open_entity_g(sg, node);
+    open_entity_g(sg, node, meta);
 
     let port_size: f64 = 12.0;
     let cx = node.x + node.width / 2.0;
+    let ascent = font_metrics::ascent("SansSerif", FONT_SIZE, false, false);
+    let descent = font_metrics::descent("SansSerif", FONT_SIZE, false, false);
 
     // Text label (centered below/above the port square)
     let tl = text_len(&node.name, FONT_SIZE, false);
     let text_x = cx - tl / 2.0;
-    let text_y = node.y + port_size + LINE_HEIGHT + 2.0;
+    let text_y = if meta.port_label_above {
+        node.y - port_size - descent
+    } else {
+        node.y + port_size + ascent
+    };
     sg.set_fill_color(font_color);
-    sg.svg_text(&node.name, text_x, text_y, Some("sans-serif"), FONT_SIZE, None, None, None, tl, LengthAdjust::Spacing, None, 0, None);
+    sg.svg_text(
+        &node.name,
+        text_x,
+        text_y,
+        Some("sans-serif"),
+        FONT_SIZE,
+        None,
+        None,
+        None,
+        tl,
+        LengthAdjust::Spacing,
+        None,
+        0,
+        None,
+    );
 
     // Port square
     let port_x = cx - port_size / 2.0;
@@ -851,7 +1091,21 @@ fn render_node_text(sg: &mut SvgGraphic, node: &ComponentNodeLayout, font_color:
         let sy = node.y + FONT_SIZE + 4.0;
         let tl = font_metrics::text_width(&stereo_text, "sans-serif", FONT_SIZE - 2.0, false, true);
         sg.set_fill_color(font_color);
-        sg.svg_text(&stereo_text, cx - tl / 2.0, sy, Some("sans-serif"), FONT_SIZE - 2.0, None, Some("italic"), None, tl, LengthAdjust::Spacing, None, 0, None);
+        sg.svg_text(
+            &stereo_text,
+            cx - tl / 2.0,
+            sy,
+            Some("sans-serif"),
+            FONT_SIZE - 2.0,
+            None,
+            Some("italic"),
+            None,
+            tl,
+            LengthAdjust::Spacing,
+            None,
+            0,
+            None,
+        );
         y_offset = LINE_HEIGHT;
     }
 
@@ -880,7 +1134,8 @@ fn render_node_text(sg: &mut SvgGraphic, node: &ComponentNodeLayout, font_color:
     // Description
     if has_desc {
         let sep_y = name_y + 6.0;
-        sg.set_stroke_color(Some(BORDER_COLOR)); sg.set_stroke_width(1.0, None);
+        sg.set_stroke_color(Some(BORDER_COLOR));
+        sg.set_stroke_width(1.0, None);
         sg.svg_line(node.x, sep_y, node.x + node.width, sep_y, 0.0);
 
         let text_x = node.x + 8.0;
@@ -898,6 +1153,38 @@ fn render_node_text(sg: &mut SvgGraphic, node: &ComponentNodeLayout, font_color:
         );
         sg.push_raw(&tmp);
     }
+}
+
+fn build_component_qualified_names(
+    cd: &ComponentDiagram,
+) -> std::collections::HashMap<String, String> {
+    let parents: std::collections::HashMap<&str, Option<&str>> = cd
+        .entities
+        .iter()
+        .map(|ent| (ent.id.as_str(), ent.parent.as_deref()))
+        .collect();
+
+    fn resolve(
+        id: &str,
+        parents: &std::collections::HashMap<&str, Option<&str>>,
+        memo: &mut std::collections::HashMap<String, String>,
+    ) -> String {
+        if let Some(existing) = memo.get(id) {
+            return existing.clone();
+        }
+        let qualified = match parents.get(id).copied().flatten() {
+            Some(parent) => format!("{}.{}", resolve(parent, parents, memo), id),
+            None => id.to_string(),
+        };
+        memo.insert(id.to_string(), qualified.clone());
+        qualified
+    }
+
+    let mut memo = std::collections::HashMap::new();
+    for ent in &cd.entities {
+        resolve(&ent.id, &parents, &mut memo);
+    }
+    memo
 }
 
 // ---------------------------------------------------------------------------
@@ -927,7 +1214,11 @@ fn render_edge(
     // Semantic group with data attributes matching Java format
     let from_ent = entity_ids.get(&edge.from).map(|s| s.as_str()).unwrap_or("");
     let to_ent = entity_ids.get(&edge.to).map(|s| s.as_str()).unwrap_or("");
-    let link_type = if edge.dashed { "dependency" } else { "dependency" };
+    let link_type = if edge.dashed {
+        "dependency"
+    } else {
+        "dependency"
+    };
     sg.push_raw(&format!(
         r#"<g class="link" data-entity-1="{from_ent}" data-entity-2="{to_ent}" data-link-type="{link_type}""#,
     ));
@@ -942,38 +1233,42 @@ fn render_edge(
         ""
     };
 
-    // Build SVG path data using cubic bezier curves
-    let mut d = String::new();
     let pts = &edge.points;
-    if !pts.is_empty() {
-        write!(d, "M{},{} ", fmt_coord(pts[0].0), fmt_coord(pts[0].1)).unwrap();
-        // Points come in groups of 3 for cubic bezier (C command)
-        let mut i = 1;
-        while i + 2 < pts.len() {
-            write!(
-                d,
-                "C{},{} {},{} {},{} ",
-                fmt_coord(pts[i].0), fmt_coord(pts[i].1),
-                fmt_coord(pts[i + 1].0), fmt_coord(pts[i + 1].1),
-                fmt_coord(pts[i + 2].0), fmt_coord(pts[i + 2].1),
-            )
-            .unwrap();
-            i += 3;
+    let d = if let Some(ref raw_d) = edge.raw_path_d {
+        adjust_path_endpoint(raw_d, 6.0)
+    } else {
+        let mut d = String::new();
+        if !pts.is_empty() {
+            write!(d, "M{},{} ", fmt_coord(pts[0].0), fmt_coord(pts[0].1)).unwrap();
+            // Points come in groups of 3 for cubic bezier (C command)
+            let mut i = 1;
+            while i + 2 < pts.len() {
+                write!(
+                    d,
+                    "C{},{} {},{} {},{} ",
+                    fmt_coord(pts[i].0),
+                    fmt_coord(pts[i].1),
+                    fmt_coord(pts[i + 1].0),
+                    fmt_coord(pts[i + 1].1),
+                    fmt_coord(pts[i + 2].0),
+                    fmt_coord(pts[i + 2].1),
+                )
+                .unwrap();
+                i += 3;
+            }
+            while i < pts.len() {
+                write!(d, "L{},{} ", fmt_coord(pts[i].0), fmt_coord(pts[i].1)).unwrap();
+                i += 1;
+            }
         }
-        // Remaining points as line segments
-        while i < pts.len() {
-            write!(d, "L{},{} ", fmt_coord(pts[i].0), fmt_coord(pts[i].1)).unwrap();
-            i += 1;
-        }
-    }
-
-    let d = d.trim_end().to_string();
+        d.trim_end().to_string()
+    };
     let path_id = format!("{}-to-{}", xml_escape(&edge.from), xml_escape(&edge.to));
     sg.push_raw(&format!(
         r#"<path d="{d}" fill="none" id="{path_id}" style="stroke:{arrow_color};stroke-width:1;{dash_style}"/>"#,
     ));
 
-    // Arrowhead polygon at the last point
+    // Java `ExtremityArrow`: 5-point arrowhead with a contact notch.
     if pts.len() >= 2 {
         let (tx, ty) = pts[pts.len() - 1];
         let (fx, fy) = pts[pts.len() - 2];
@@ -983,20 +1278,24 @@ fn render_edge(
         if len > 0.0 {
             let ux = dx / len;
             let uy = dy / len;
-            let nx = -uy;
-            let ny = ux;
-            // Java arrowhead: tip at (tx,ty), two wings 9px back, 4px wide
-            let p1x = tx - ux * 9.0 + nx * 4.0;
-            let p1y = ty - uy * 9.0 + ny * 4.0;
-            let p2x = tx;
-            let p2y = ty;
-            let p3x = tx - ux * 9.0 - nx * 4.0;
-            let p3y = ty - uy * 9.0 - ny * 4.0;
+            let px = -uy;
+            let py = ux;
+            let back = 9.0;
+            let side = 4.0;
+            let mid_back = 5.0;
+            let p1x = tx;
+            let p1y = ty;
+            let p2x = tx - ux * back - px * side;
+            let p2y = ty - uy * back - py * side;
+            let p3x = tx - ux * mid_back;
+            let p3y = ty - uy * mid_back;
+            let p4x = tx - ux * back + px * side;
+            let p4y = ty - uy * back + py * side;
 
             sg.set_fill_color(arrow_color);
             sg.set_stroke_color(Some(arrow_color));
             sg.set_stroke_width(1.0, None);
-            sg.svg_polygon(0.0, &[p1x, p1y, p2x, p2y, p3x, p3y, p1x, p1y]);
+            sg.svg_polygon(0.0, &[p1x, p1y, p2x, p2y, p3x, p3y, p4x, p4y, p1x, p1y]);
         }
     }
 
@@ -1028,6 +1327,46 @@ fn render_edge(
     sg.push_raw("</g>");
 }
 
+fn adjust_path_endpoint(d: &str, decoration_len: f64) -> String {
+    let parts: Vec<&str> = d.split_whitespace().collect();
+    if parts.len() < 2 {
+        return d.to_string();
+    }
+
+    let parse_pair = |s: &str| -> Option<(f64, f64)> {
+        let mut it = s.split(',');
+        Some((it.next()?.parse().ok()?, it.next()?.parse().ok()?))
+    };
+
+    let Some((tx, ty)) = parse_pair(parts[parts.len() - 1]) else {
+        return d.to_string();
+    };
+    let Some((fx, fy)) = parse_pair(parts[parts.len() - 2]) else {
+        return d.to_string();
+    };
+    let dx = tx - fx;
+    let dy = ty - fy;
+    let len = (dx * dx + dy * dy).sqrt();
+    if len <= 0.0 {
+        return d.to_string();
+    }
+
+    let ux = dx / len;
+    let uy = dy / len;
+    let mut out: Vec<String> = parts.iter().map(|part| (*part).to_string()).collect();
+    out[parts.len() - 2] = format!(
+        "{},{}",
+        fmt_coord(fx - ux * decoration_len),
+        fmt_coord(fy - uy * decoration_len)
+    );
+    out[parts.len() - 1] = format!(
+        "{},{}",
+        fmt_coord(tx - ux * decoration_len),
+        fmt_coord(ty - uy * decoration_len)
+    );
+    out.join(" ")
+}
+
 // ---------------------------------------------------------------------------
 // Note rendering
 // ---------------------------------------------------------------------------
@@ -1045,10 +1384,27 @@ fn render_note(
     let h = note.height;
     let fold = 8.0;
 
-    sg.set_fill_color(bg); sg.set_stroke_color(Some(border)); sg.set_stroke_width(1.0, None);
-    sg.svg_polygon(0.0, &[x, y, x + w - fold, y, x + w, y + fold, x + w, y + h, x, y + h]);
+    sg.set_fill_color(bg);
+    sg.set_stroke_color(Some(border));
+    sg.set_stroke_width(1.0, None);
+    sg.svg_polygon(
+        0.0,
+        &[
+            x,
+            y,
+            x + w - fold,
+            y,
+            x + w,
+            y + fold,
+            x + w,
+            y + h,
+            x,
+            y + h,
+        ],
+    );
 
-    sg.set_stroke_color(Some(border)); sg.set_stroke_width(1.0, None);
+    sg.set_stroke_color(Some(border));
+    sg.set_stroke_width(1.0, None);
     sg.svg_line(x + w - fold, y, x + w - fold, y + fold, 0.0);
     sg.svg_line(x + w - fold, y + fold, x + w, y + fold, 0.0);
 
@@ -1114,7 +1470,8 @@ mod tests {
             height: h,
             description: vec![],
             stereotype: None,
-            color: None, source_line: None,
+            color: None,
+            source_line: None,
         }
     }
 
@@ -1165,7 +1522,8 @@ mod tests {
             height: 40.0,
             description: vec![],
             stereotype: None,
-            color: None, source_line: None,
+            color: None,
+            source_line: None,
         });
         let svg =
             render_component(&diagram, &layout, &SkinParams::default()).expect("render failed");
@@ -1188,7 +1546,8 @@ mod tests {
             height: 60.0,
             description: vec![],
             stereotype: None,
-            color: None, source_line: None,
+            color: None,
+            source_line: None,
         });
         let svg =
             render_component(&diagram, &layout, &SkinParams::default()).expect("render failed");
@@ -1211,7 +1570,8 @@ mod tests {
             height: 60.0,
             description: vec![],
             stereotype: None,
-            color: None, source_line: None,
+            color: None,
+            source_line: None,
         });
         let svg =
             render_component(&diagram, &layout, &SkinParams::default()).expect("render failed");
@@ -1231,6 +1591,7 @@ mod tests {
             from: "A".to_string(),
             to: "B".to_string(),
             points: vec![(100.0, 50.0), (100.0, 120.0)],
+            raw_path_d: None,
             label: String::new(),
             dashed: false,
         });
@@ -1255,6 +1616,7 @@ mod tests {
             from: "A".to_string(),
             to: "B".to_string(),
             points: vec![(100.0, 50.0), (100.0, 120.0)],
+            raw_path_d: None,
             label: String::new(),
             dashed: true,
         });
@@ -1275,6 +1637,7 @@ mod tests {
             from: "A".to_string(),
             to: "B".to_string(),
             points: vec![(80.0, 40.0), (80.0, 100.0)],
+            raw_path_d: None,
             label: "uses".to_string(),
             dashed: false,
         });
@@ -1365,7 +1728,8 @@ mod tests {
             height: 40.0,
             description: vec!["x > y".to_string()],
             stereotype: None,
-            color: None, source_line: None,
+            color: None,
+            source_line: None,
         });
         let svg =
             render_component(&diagram, &layout, &SkinParams::default()).expect("render failed");
@@ -1388,7 +1752,8 @@ mod tests {
             height: 60.0,
             description: vec![],
             stereotype: Some("service".to_string()),
-            color: None, source_line: None,
+            color: None,
+            source_line: None,
         });
         let svg =
             render_component(&diagram, &layout, &SkinParams::default()).expect("render failed");
@@ -1417,7 +1782,8 @@ mod tests {
             height: 80.0,
             description: vec!["desc line 1".to_string(), "desc line 2".to_string()],
             stereotype: None,
-            color: None, source_line: None,
+            color: None,
+            source_line: None,
         });
         let svg =
             render_component(&diagram, &layout, &SkinParams::default()).expect("render failed");
@@ -1449,7 +1815,8 @@ mod tests {
             height: 90.0,
             description: vec!["**bold** [[https://example.com{hover} label]]".to_string()],
             stereotype: None,
-            color: None, source_line: None,
+            color: None,
+            source_line: None,
         });
         let svg =
             render_component(&diagram, &layout, &SkinParams::default()).expect("render failed");
@@ -1492,6 +1859,7 @@ mod tests {
             from: "A".to_string(),
             to: "B".to_string(),
             points: vec![(70.0, 60.0), (70.0, 100.0)],
+            raw_path_d: None,
             label: "uses".to_string(),
             dashed: false,
         });
@@ -1524,7 +1892,8 @@ mod tests {
             height: 50.0,
             description: vec![],
             stereotype: None,
-            color: None, source_line: None,
+            color: None,
+            source_line: None,
         });
         let svg =
             render_component(&diagram, &layout, &SkinParams::default()).expect("render failed");
@@ -1541,6 +1910,7 @@ mod tests {
             from: "A".to_string(),
             to: "B".to_string(),
             points: vec![(10.0, 10.0), (50.0, 50.0), (100.0, 50.0), (150.0, 100.0)],
+            raw_path_d: None,
             label: String::new(),
             dashed: false,
         });

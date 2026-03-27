@@ -2873,7 +2873,10 @@ mod tests {
         let src = "@startuml\n!pragma teoz true\nAlice -> Bob\n@enduml";
         let out = preprocess(src).unwrap();
         // Pragmas are passed through so downstream parsers can see them
-        assert!(out.contains("!pragma teoz true"), "pragma should be passed through, got: {out}");
+        assert!(
+            out.contains("!pragma teoz true"),
+            "pragma should be passed through, got: {out}"
+        );
         assert!(out.contains("Alice -> Bob"));
     }
 

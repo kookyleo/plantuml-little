@@ -238,10 +238,7 @@ fn builtin_strpos(args: &[TValue]) -> Result<TValue, String> {
     check_args("%strpos", args, 2, 2)?;
     let haystack = args[0].to_string();
     let needle = args[1].to_string();
-    let pos = haystack
-        .find(&needle)
-        .map(|p| p as i64)
-        .unwrap_or(-1);
+    let pos = haystack.find(&needle).map(|p| p as i64).unwrap_or(-1);
     Ok(TValue::from_int(pos))
 }
 
@@ -554,11 +551,7 @@ mod tests {
 
     #[test]
     fn test_substr() {
-        let r = builtin_substr(&[
-            TValue::from_string("hello world"),
-            TValue::from_int(6),
-        ])
-        .unwrap();
+        let r = builtin_substr(&[TValue::from_string("hello world"), TValue::from_int(6)]).unwrap();
         assert_eq!(r.to_string(), "world");
 
         let r = builtin_substr(&[
@@ -570,11 +563,7 @@ mod tests {
         assert_eq!(r.to_string(), "hello");
 
         // pos beyond end
-        let r = builtin_substr(&[
-            TValue::from_string("hi"),
-            TValue::from_int(100),
-        ])
-        .unwrap();
+        let r = builtin_substr(&[TValue::from_string("hi"), TValue::from_int(100)]).unwrap();
         assert_eq!(r.to_string(), "");
     }
 
@@ -587,11 +576,8 @@ mod tests {
         .unwrap();
         assert_eq!(r.to_int(), 6);
 
-        let r = builtin_strpos(&[
-            TValue::from_string("hello"),
-            TValue::from_string("xyz"),
-        ])
-        .unwrap();
+        let r =
+            builtin_strpos(&[TValue::from_string("hello"), TValue::from_string("xyz")]).unwrap();
         assert_eq!(r.to_int(), -1);
     }
 
@@ -643,11 +629,8 @@ mod tests {
 
     #[test]
     fn test_splitstr() {
-        let r = builtin_splitstr(&[
-            TValue::from_string("a,b,c"),
-            TValue::from_string(","),
-        ])
-        .unwrap();
+        let r =
+            builtin_splitstr(&[TValue::from_string("a,b,c"), TValue::from_string(",")]).unwrap();
         if let TValue::Json(serde_json::Value::Array(arr)) = r {
             assert_eq!(arr.len(), 3);
             assert_eq!(arr[0].as_str().unwrap(), "a");

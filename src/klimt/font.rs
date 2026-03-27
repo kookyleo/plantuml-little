@@ -15,7 +15,14 @@ use super::geom::XDimension2D;
 /// font_metrics module.
 pub trait StringBounder {
     /// Calculate the rendered dimensions of a string.
-    fn calculate_dimension(&self, font_family: &str, font_size: f64, bold: bool, italic: bool, text: &str) -> XDimension2D;
+    fn calculate_dimension(
+        &self,
+        font_family: &str,
+        font_size: f64,
+        bold: bool,
+        italic: bool,
+        text: &str,
+    ) -> XDimension2D;
 }
 
 // ── Default implementation using font_metrics ────────────────────────
@@ -24,7 +31,14 @@ pub trait StringBounder {
 pub struct DefaultStringBounder;
 
 impl StringBounder for DefaultStringBounder {
-    fn calculate_dimension(&self, font_family: &str, font_size: f64, bold: bool, italic: bool, text: &str) -> XDimension2D {
+    fn calculate_dimension(
+        &self,
+        font_family: &str,
+        font_size: f64,
+        bold: bool,
+        italic: bool,
+        text: &str,
+    ) -> XDimension2D {
         let width = crate::font_metrics::text_width(text, font_family, font_size, bold, italic);
         let height = crate::font_metrics::line_height(font_family, font_size, bold, italic);
         XDimension2D::new(width, height)
@@ -32,7 +46,9 @@ impl StringBounder for DefaultStringBounder {
 }
 
 impl Default for DefaultStringBounder {
-    fn default() -> Self { Self }
+    fn default() -> Self {
+        Self
+    }
 }
 
 // ── Tests ────────────────────────────────────────────────────────────

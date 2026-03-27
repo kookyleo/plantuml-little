@@ -358,10 +358,7 @@ fn find_participant_idx(name_to_idx: &HashMap<String, usize>, name: &str) -> Opt
 }
 
 /// Update min/max participant indices for all open fragments on the stack
-fn update_fragment_participant_range(
-    fragment_stack: &mut [FragmentStackEntry],
-    idx: usize,
-) {
+fn update_fragment_participant_range(fragment_stack: &mut [FragmentStackEntry], idx: usize) {
     for entry in fragment_stack.iter_mut() {
         entry.min_part_idx = Some(entry.min_part_idx.map_or(idx, |cur| cur.min(idx)));
         entry.max_part_idx = Some(entry.max_part_idx.map_or(idx, |cur| cur.max(idx)));
@@ -418,7 +415,11 @@ fn creole_note_extra_height(text: &str) -> f64 {
                 extra += table_rows as f64 * 4.0 + 6.0;
                 in_table = false;
             }
-            if trimmed == "----" || trimmed == "====" || trimmed.starts_with("----") || trimmed.starts_with("====") {
+            if trimmed == "----"
+                || trimmed == "===="
+                || trimmed.starts_with("----")
+                || trimmed.starts_with("====")
+            {
                 // Horizontal separator line: Java CreoleHorizontalLine height
                 extra += 8.0;
             }
@@ -531,11 +532,21 @@ fn message_line_width(line: &str, font_family: &str, font_size: f64) -> f64 {
         let abs_start = pos + start;
         if abs_start > pos {
             let text = &line[pos..abs_start];
-            let text = if had_sprite { text.strip_prefix(' ').unwrap_or(text) } else { text };
+            let text = if had_sprite {
+                text.strip_prefix(' ').unwrap_or(text)
+            } else {
+                text
+            };
             let text = text.strip_suffix(' ').unwrap_or(text);
             if !text.is_empty() {
                 let w = font_metrics::text_width(text, font_family, font_size, false, false);
-                if w > 0.0 { if !first { total += gap; } total += w; first = false; }
+                if w > 0.0 {
+                    if !first {
+                        total += gap;
+                    }
+                    total += w;
+                    first = false;
+                }
             }
         }
         let name_start = abs_start + 2;
@@ -544,24 +555,42 @@ fn message_line_width(line: &str, font_family: &str, font_size: f64) -> f64 {
             let name = name_part.split(',').next().unwrap_or(name_part).trim();
             if let Some(svg) = crate::render::svg_richtext::get_sprite_svg(name) {
                 let (w, _) = parse_sprite_viewbox(&svg);
-                if !first { total += gap; } total += w; first = false;
+                if !first {
+                    total += gap;
+                }
+                total += w;
+                first = false;
             }
-            pos = name_start + end + 1; had_sprite = true;
-        } else { break; }
+            pos = name_start + end + 1;
+            had_sprite = true;
+        } else {
+            break;
+        }
     }
     if pos < line.len() {
         let text = &line[pos..];
-        let text = if had_sprite { text.strip_prefix(' ').unwrap_or(text) } else { text };
+        let text = if had_sprite {
+            text.strip_prefix(' ').unwrap_or(text)
+        } else {
+            text
+        };
         if !text.is_empty() {
             let w = font_metrics::text_width(text, font_family, font_size, false, false);
-            if w > 0.0 { if !first { total += gap; } total += w; }
+            if w > 0.0 {
+                if !first {
+                    total += gap;
+                }
+                total += w;
+            }
         }
     }
     total
 }
 
 fn message_sprite_extra_height(line: &str) -> f64 {
-    if !line.contains("<$") { return 0.0; }
+    if !line.contains("<$") {
+        return 0.0;
+    }
     let mut max_extra = 0.0_f64;
     let mut pos = 0;
     while let Some(start) = line[pos..].find("<$") {
@@ -575,7 +604,9 @@ fn message_sprite_extra_height(line: &str) -> f64 {
                 max_extra = max_extra.max(extra);
             }
             pos = abs_start + end + 1;
-        } else { break; }
+        } else {
+            break;
+        }
     }
     max_extra
 }
@@ -586,7 +617,10 @@ fn parse_sprite_viewbox(svg: &str) -> (f64, f64) {
         if let Some(vb_end) = rest.find('"') {
             let parts: Vec<&str> = rest[..vb_end].split_whitespace().collect();
             if parts.len() == 4 {
-                return (parts[2].parse().unwrap_or(100.0), parts[3].parse().unwrap_or(50.0));
+                return (
+                    parts[2].parse().unwrap_or(100.0),
+                    parts[3].parse().unwrap_or(50.0),
+                );
             }
         }
     }
@@ -635,11 +669,16 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
     for (i, p) in sd.participants.iter().enumerate() {
         let display = p.display_name.as_deref().unwrap_or(&p.name);
         // Split display name by literal \n for multiline participants
-        let display_lines: Vec<&str> = display.split("\\n").flat_map(|s| s.split(crate::NEWLINE_CHAR)).collect();
+        let display_lines: Vec<&str> = display
+            .split("\\n")
+            .flat_map(|s| s.split(crate::NEWLINE_CHAR))
+            .collect();
         let num_lines = display_lines.len();
         let max_line_w = display_lines
             .iter()
-            .map(|line| font_metrics::text_width(line, default_font, participant_font_size, false, false))
+            .map(|line| {
+                font_metrics::text_width(line, default_font, participant_font_size, false, false)
+            })
             .fold(0.0_f64, f64::max);
         let bw = rose::participant_preferred_width(&p.kind, max_line_w, 1.5);
         let participant_line_height =
@@ -653,9 +692,9 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
             ParticipantKind::Actor => base_participant_height + 45.0 + multiline_extra,
             // Boundary/Control/Entity: Java icon height = 32 (radius=12, margin=4)
             // Actor stickman height = 60 → difference = 28, so offset = 45 - 28 = 17
-            ParticipantKind::Boundary
-            | ParticipantKind::Control
-            | ParticipantKind::Entity => base_participant_height + 17.0 + multiline_extra,
+            ParticipantKind::Boundary | ParticipantKind::Control | ParticipantKind::Entity => {
+                base_participant_height + 17.0 + multiline_extra
+            }
             // Database: Java dimStickman = (36, 46), actor diff = 60-46 = 14, offset = 45-14 = 31
             ParticipantKind::Database => base_participant_height + 31.0 + multiline_extra,
             // Collections: rect + shadow offset (DELTA=4), total = base + 4
@@ -700,7 +739,11 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
                 let autonumber_extra_w = if gap_autonumber_enabled {
                     let num_str = format!("{gap_autonumber_counter}");
                     let num_w = font_metrics::text_width(
-                        &num_str, default_font, msg_font_size, true, false,
+                        &num_str,
+                        default_font,
+                        msg_font_size,
+                        true,
+                        false,
                     );
                     gap_autonumber_counter += 1;
                     num_w + 4.0 // 4px gap between number and text
@@ -708,12 +751,18 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
                     0.0
                 };
 
-                let mut text_lines: Vec<String> =
-                    msg.text.split("\\n").flat_map(|s| s.split(crate::NEWLINE_CHAR)).map(ToString::to_string).collect();
+                let mut text_lines: Vec<String> = msg
+                    .text
+                    .split("\\n")
+                    .flat_map(|s| s.split(crate::NEWLINE_CHAR))
+                    .map(ToString::to_string)
+                    .collect();
                 if let Some(max_w) = max_message_size {
                     text_lines = text_lines
                         .into_iter()
-                        .flat_map(|line| wrap_text_to_width(&line, max_w, default_font, msg_font_size))
+                        .flat_map(|line| {
+                            wrap_text_to_width(&line, max_w, default_font, msg_font_size)
+                        })
                         .collect();
                 }
                 let text_w = text_lines
@@ -725,8 +774,10 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
 
                 if msg.from == msg.to {
                     if let Some(&idx) = part_name_to_idx.get(&msg.from) {
-                        let active_level =
-                            gap_active_levels.get(msg.from.as_str()).copied().unwrap_or(0);
+                        let active_level = gap_active_levels
+                            .get(msg.from.as_str())
+                            .copied()
+                            .unwrap_or(0);
                         let tm = rose::TextMetrics::new(7.0, 7.0, 1.0, text_w, text_h);
                         let needed = rose::self_arrow_preferred_size(&tm).width
                             + live_thickness_width(active_level);
@@ -755,12 +806,16 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
                     }
                     continue;
                 }
-                if let (Some(&fi), Some(&ti)) =
-                    (part_name_to_idx.get(&msg.from), part_name_to_idx.get(&msg.to))
-                {
+                if let (Some(&fi), Some(&ti)) = (
+                    part_name_to_idx.get(&msg.from),
+                    part_name_to_idx.get(&msg.to),
+                ) {
                     let (lo, hi) = if fi < ti { (fi, ti) } else { (ti, fi) };
                     let tm = rose::TextMetrics::new(7.0, 7.0, 1.0, text_w, text_h);
-                    let fi_level = gap_active_levels.get(msg.from.as_str()).copied().unwrap_or(0);
+                    let fi_level = gap_active_levels
+                        .get(msg.from.as_str())
+                        .copied()
+                        .unwrap_or(0);
                     let ti_level = gap_active_levels.get(msg.to.as_str()).copied().unwrap_or(0);
                     let needed = rose::arrow_preferred_size(&tm, 0.0, 0.0).width
                         + active_right_shift(fi_level)
@@ -910,8 +965,8 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
     let note_extra = if has_regular_msg_note { 3.0 } else { 0.0 };
     // Initial y_cursor: MARGIN + max_participant_height + 1(lifeline gap) +
     // line_preferred_height(20) + (msg_line_height - ARROW_DELTA_Y)
-    let initial_offset = 1.0 + rose::line_preferred_size().height
-        + (lp.msg_line_height - rose::ARROW_DELTA_Y);
+    let initial_offset =
+        1.0 + rose::line_preferred_size().height + (lp.msg_line_height - rose::ARROW_DELTA_Y);
     let mut y_cursor = MARGIN + max_ph + initial_offset + note_extra;
 
     // Track the bottom y of the last rendered event for lifeline sizing.
@@ -1052,7 +1107,10 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
                         }
                     }
                 }
-                let has_open_head = matches!(msg.arrow_head, SeqArrowHead::Open | SeqArrowHead::HalfTop | SeqArrowHead::HalfBottom);
+                let has_open_head = matches!(
+                    msg.arrow_head,
+                    SeqArrowHead::Open | SeqArrowHead::HalfTop | SeqArrowHead::HalfBottom
+                );
 
                 // Track participant indices for fragment spanning
                 if !fragment_stack.is_empty() {
@@ -1064,8 +1122,12 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
                     }
                 }
 
-                let mut text_lines: Vec<String> =
-                    msg.text.split("\\n").flat_map(|s| s.split(crate::NEWLINE_CHAR)).map(|s| s.to_string()).collect();
+                let mut text_lines: Vec<String> = msg
+                    .text
+                    .split("\\n")
+                    .flat_map(|s| s.split(crate::NEWLINE_CHAR))
+                    .map(|s| s.to_string())
+                    .collect();
                 // Apply Maxmessagesize word wrapping
                 if let Some(max_w) = max_message_size {
                     text_lines = text_lines
@@ -1085,14 +1147,18 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
                 // is taller. Java's tile model uses the actual text block height.
                 let msg_line_h = crate::render::svg_richtext::creole_line_height(
                     text_lines.first().map(|s| s.as_str()).unwrap_or(""),
-                    default_font, msg_font_size,
+                    default_font,
+                    msg_font_size,
                 );
                 // Extra height from text being taller than the default font size
                 let size_extra = msg_line_h - lp.msg_line_height;
                 let size_extra = if size_extra > 0.0 { size_extra } else { 0.0 };
                 // Multiline message text: extra lines push the arrow down
                 let multiline_extra = num_extra_lines as f64 * lp.msg_line_height;
-                let sprite_extra = msg.text.split("\\n").flat_map(|s| s.split(crate::NEWLINE_CHAR))
+                let sprite_extra = msg
+                    .text
+                    .split("\\n")
+                    .flat_map(|s| s.split(crate::NEWLINE_CHAR))
                     .map(|line| message_sprite_extra_height(line))
                     .fold(0.0_f64, f64::max);
                 let extra_height = multiline_extra + sprite_extra + size_extra;
@@ -1102,7 +1168,7 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
                 // assumes a single-line text, so subtract the difference for empty text.
                 let has_text = text_lines.iter().any(|l| !l.is_empty());
                 let empty_text_adjust = if !has_text {
-                    lp.msg_line_height  // h13: difference between full-line and empty textHeight
+                    lp.msg_line_height // h13: difference between full-line and empty textHeight
                 } else {
                     0.0
                 };
@@ -1246,8 +1312,10 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
                     };
                     let self_margin_y = 1.0; // AbstractComponentRoseArrow marginY
                     let self_text_h = text_block_h + 2.0 * self_margin_y;
-                    let self_preferred_h = self_text_h + rose::ARROW_DELTA_Y
-                        + rose::SELF_ARROW_ONLY_HEIGHT + 2.0 * rose::ARROW_PADDING_Y;
+                    let self_preferred_h = self_text_h
+                        + rose::ARROW_DELTA_Y
+                        + rose::SELF_ARROW_ONLY_HEIGHT
+                        + 2.0 * rose::ARROW_PADDING_Y;
                     // Save for note centering (Java ArrowAndNoteBox).
                     // Java: msg_y = tile.startingY + paddingY + textHeight
                     // So tile.startingY = msg_y - paddingY - textHeight
@@ -1276,12 +1344,9 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
                 } else {
                     // When activation occurs before any message, Java starts
                     // at lifeline_top + 10, not at y_cursor.
-                    last_event_msg_y
-                        .unwrap_or(MARGIN + max_ph + 1.0 + 10.0)
+                    last_event_msg_y.unwrap_or(MARGIN + max_ph + 1.0 + 10.0)
                 };
-                let stack = activation_stack
-                    .entry(name.clone())
-                    .or_default();
+                let stack = activation_stack.entry(name.clone()).or_default();
                 let level = stack.len() + 1; // 1-based nesting level
                 log::debug!("activate '{name}' at y={act_y:.1} level={level}");
                 stack.push((act_y, level));
@@ -1322,7 +1387,10 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
                 let destroy_y = pending_self_return_y
                     .remove(name.as_str())
                     .unwrap_or(y_cursor);
-                destroys.push(DestroyLayout { x: px, y: destroy_y });
+                destroys.push(DestroyLayout {
+                    x: px,
+                    y: destroy_y,
+                });
 
                 // Also close any active activation bar for this participant.
                 // The bar ends slightly above the destroy center (offset -7
@@ -1375,7 +1443,8 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
                     } else {
                         // For multiline messages, the back_offset must account
                         // for the extra text lines above the arrow line.
-                        let back_offset = lp.message_spacing - NOTE_FOLD + last_message_extra_height;
+                        let back_offset =
+                            lp.message_spacing - NOTE_FOLD + last_message_extra_height;
                         log::debug!("NoteRight: msg_y={msg_y}, back_offset={back_offset}, extra_h={last_message_extra_height}, note_height={note_height}, y_cursor={y_cursor}");
                         (msg_y - back_offset).max(MARGIN + max_ph)
                     }
@@ -1470,7 +1539,8 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
                         let note_push = (combined_h - note_preferred_h) / 2.0;
                         last_self_msg_starting_y + note_push + NOTE_COMPONENT_PADDING_Y
                     } else {
-                        let back_offset = lp.message_spacing - NOTE_FOLD + last_message_extra_height;
+                        let back_offset =
+                            lp.message_spacing - NOTE_FOLD + last_message_extra_height;
                         log::debug!("NoteLeft: msg_y={msg_y}, back_offset={back_offset}, extra_h={last_message_extra_height}, note_height={note_height}, y_cursor={y_cursor}");
                         (msg_y - back_offset).max(MARGIN + max_ph)
                     }
@@ -1555,7 +1625,8 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
                             let note_push = (combined_h - note_preferred_h) / 2.0;
                             last_self_msg_starting_y + note_push + NOTE_COMPONENT_PADDING_Y
                         } else {
-                            let back_offset = lp.message_spacing - NOTE_FOLD + last_message_extra_height;
+                            let back_offset =
+                                lp.message_spacing - NOTE_FOLD + last_message_extra_height;
                             (msg_y - back_offset).max(MARGIN + max_ph)
                         }
                     } else {
@@ -1694,9 +1765,15 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
             SeqEvent::FragmentEnd => {
                 if let Some(fse) = fragment_stack.pop() {
                     let FragmentStackEntry {
-                        y_start, kind, label, separators,
-                        min_part_idx: min_idx, max_part_idx: max_idx,
-                        depth_at_push, msg_min_x, msg_max_x,
+                        y_start,
+                        kind,
+                        label,
+                        separators,
+                        min_part_idx: min_idx,
+                        max_part_idx: max_idx,
+                        depth_at_push,
+                        msg_min_x,
+                        msg_max_x,
                     } = fse;
                     let frag_end_y = y_cursor - lp.frag_end_backoff;
                     let frag_height = frag_end_y - y_start;
@@ -1708,8 +1785,10 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
                     let (frag_left, frag_right) = if let (Some(lo), Some(hi)) = (min_idx, max_idx) {
                         let p_lo = &participants[lo];
                         let p_hi = &participants[hi];
-                        let left_pad = FRAGMENT_PADDING * (max_frag_depth[lo] - depth_at_push) as f64;
-                        let right_pad = FRAGMENT_PADDING * (max_frag_depth[hi] - depth_at_push) as f64;
+                        let left_pad =
+                            FRAGMENT_PADDING * (max_frag_depth[lo] - depth_at_push) as f64;
+                        let right_pad =
+                            FRAGMENT_PADDING * (max_frag_depth[hi] - depth_at_push) as f64;
                         let mut fl = p_lo.x - p_lo.box_width / 2.0 - left_pad;
                         let mut fr = p_hi.x + p_hi.box_width / 2.0 + right_pad;
                         // Expand fragment bounds to cover message text areas
@@ -1725,7 +1804,10 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
                         (fl, fr)
                     } else {
                         // Fallback: span all participants
-                        (leftmost - FRAGMENT_PADDING, leftmost - FRAGMENT_PADDING + full_width)
+                        (
+                            leftmost - FRAGMENT_PADDING,
+                            leftmost - FRAGMENT_PADDING + full_width,
+                        )
                     };
 
                     // Compute min width for label tab + guard text.
@@ -1739,19 +1821,31 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
                             label.clone()
                         };
                         let tab_text_w = font_metrics::text_width(
-                            &tab_text, default_font, msg_font_size, true, false,
+                            &tab_text,
+                            default_font,
+                            msg_font_size,
+                            true,
+                            false,
                         );
                         tab_text_w + 50.0 // 15(left) + text + 30(right+notch) + 5(margin)
                     } else {
                         let kind_text_w = font_metrics::text_width(
-                            kind.label(), default_font, msg_font_size, true, false,
+                            kind.label(),
+                            default_font,
+                            msg_font_size,
+                            true,
+                            false,
                         );
                         // Tab: 15(left) + kind_text_w + 30(right+notch)
                         let tab_right = kind_text_w + 45.0;
                         if !label.is_empty() {
                             let guard_text = format!("[{label}]");
                             let guard_w = font_metrics::text_width(
-                                &guard_text, default_font, FRAG_ELSE_FONT_SIZE, true, false,
+                                &guard_text,
+                                default_font,
+                                FRAG_ELSE_FONT_SIZE,
+                                true,
+                                false,
                             );
                             tab_right + 15.0 + guard_w + 5.0
                         } else {
@@ -1789,8 +1883,10 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
                         let hi = fi.max(li);
                         let p_lo = &participants[lo];
                         let p_hi = &participants[hi];
-                        (p_lo.x - p_lo.box_width / 2.0 - REF_EDGE_PAD,
-                         p_hi.x + p_hi.box_width / 2.0 + REF_EDGE_PAD)
+                        (
+                            p_lo.x - p_lo.box_width / 2.0 - REF_EDGE_PAD,
+                            p_hi.x + p_hi.box_width / 2.0 + REF_EDGE_PAD,
+                        )
                     } else {
                         let x1 = find_participant_x(&participants, first);
                         let x2 = find_participant_x(&participants, last);
@@ -1833,8 +1929,7 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
         for &(y_start, level) in stack {
             let name = &p.name;
             let px = find_participant_x(&participants, name);
-            let x = px - ACTIVATION_WIDTH / 2.0
-                + (level - 1) as f64 * (ACTIVATION_WIDTH / 2.0);
+            let x = px - ACTIVATION_WIDTH / 2.0 + (level - 1) as f64 * (ACTIVATION_WIDTH / 2.0);
             activations.push(ActivationLayout {
                 participant: name.clone(),
                 x,
@@ -1894,7 +1989,8 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
         .iter()
         .filter(|m| m.is_self && !m.is_left)
         .map(|m| {
-            let text_w = m.text_lines
+            let text_w = m
+                .text_lines
                 .iter()
                 .map(|line| message_line_width(line, default_font, msg_font_size))
                 .fold(0.0_f64, f64::max);
@@ -1931,7 +2027,8 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
         .iter()
         .filter(|m| m.is_self && m.is_left)
         .map(|m| {
-            let text_w = m.text_lines
+            let text_w = m
+                .text_lines
                 .iter()
                 .map(|line| message_line_width(line, default_font, msg_font_size))
                 .fold(0.0_f64, f64::max);
@@ -1942,9 +2039,17 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
             // When activated, the left extent includes the full activation
             // width plus an additional margin.
             let has_activation = m.from_x < m.self_center_x;
-            let act_extra = if has_activation { ACTIVATION_WIDTH + MARGIN } else { 0.0 };
+            let act_extra = if has_activation {
+                ACTIVATION_WIDTH + MARGIN
+            } else {
+                0.0
+            };
             let left_edge = m.from_x - preferred - act_extra;
-            if left_edge < 0.0 { -left_edge } else { 0.0 }
+            if left_edge < 0.0 {
+                -left_edge
+            } else {
+                0.0
+            }
         })
         .fold(0.0_f64, f64::max);
     // Also check fragments: Java's GroupingGraphicalElement.getStartingX() is
@@ -1955,7 +2060,11 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
         .iter()
         .map(|f| {
             let effective_x = f.x - FRAGMENT_PADDING; // MARGIN10 = 10 = FRAGMENT_PADDING
-            if effective_x < 0.0 { -effective_x } else { 0.0 }
+            if effective_x < 0.0 {
+                -effective_x
+            } else {
+                0.0
+            }
         })
         .fold(0.0_f64, f64::max);
     // Also check notes: left notes can extend beyond the left boundary.
@@ -1994,9 +2103,15 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
     // Close any remaining fragments (unmatched)
     for fse in fragment_stack.drain(..) {
         let FragmentStackEntry {
-            y_start, kind, label, separators,
-            min_part_idx: min_idx, max_part_idx: max_idx,
-            depth_at_push, msg_min_x, msg_max_x,
+            y_start,
+            kind,
+            label,
+            separators,
+            min_part_idx: min_idx,
+            max_part_idx: max_idx,
+            depth_at_push,
+            msg_min_x,
+            msg_max_x,
         } = fse;
         let (frag_x, frag_w) = if let (Some(lo), Some(hi)) = (min_idx, max_idx) {
             let p_lo = &participants[lo];
@@ -2067,7 +2182,6 @@ mod tests {
         SeqDirection, SeqEvent, SequenceDiagram,
     };
 
-
     fn make_participant(name: &str) -> Participant {
         Participant {
             name: name.to_string(),
@@ -2100,7 +2214,9 @@ mod tests {
         let sd = SequenceDiagram {
             participants: vec![make_participant("Alice")],
             events: vec![],
-        teoz_mode: false, hide_footbox: false,};
+            teoz_mode: false,
+            hide_footbox: false,
+        };
         let layout = layout_sequence(&sd, &crate::style::SkinParams::default()).unwrap();
 
         assert_eq!(layout.participants.len(), 1);
@@ -2140,7 +2256,9 @@ mod tests {
         let sd = SequenceDiagram {
             participants: vec![make_participant("Alice"), make_participant("Bob")],
             events: vec![SeqEvent::Message(make_message("Alice", "Bob", "hello"))],
-        teoz_mode: false, hide_footbox: false,};
+            teoz_mode: false,
+            hide_footbox: false,
+        };
         let layout = layout_sequence(&sd, &crate::style::SkinParams::default()).unwrap();
 
         assert_eq!(layout.participants.len(), 2);
@@ -2187,7 +2305,9 @@ mod tests {
         let sd_self = SequenceDiagram {
             participants: vec![make_participant("A")],
             events: vec![SeqEvent::Message(make_message("A", "A", "self"))],
-        teoz_mode: false, hide_footbox: false,};
+            teoz_mode: false,
+            hide_footbox: false,
+        };
 
         let layout_self = layout_sequence(&sd_self, &crate::style::SkinParams::default()).unwrap();
 
@@ -2213,7 +2333,9 @@ mod tests {
                 SeqEvent::Message(make_message("B", "A", "resp")),
                 SeqEvent::Deactivate("B".to_string()),
             ],
-        teoz_mode: false, hide_footbox: false,};
+            teoz_mode: false,
+            hide_footbox: false,
+        };
         let layout = layout_sequence(&sd, &crate::style::SkinParams::default()).unwrap();
 
         assert_eq!(layout.activations.len(), 1);
@@ -2276,7 +2398,9 @@ mod tests {
         let sd = SequenceDiagram {
             participants: vec![],
             events: vec![],
-        teoz_mode: false, hide_footbox: false,};
+            teoz_mode: false,
+            hide_footbox: false,
+        };
         let layout = layout_sequence(&sd, &crate::style::SkinParams::default()).unwrap();
 
         assert!(layout.participants.is_empty());
@@ -2298,7 +2422,9 @@ mod tests {
                 },
                 SeqEvent::Message(make_message("A", "A", "after note")),
             ],
-        teoz_mode: false, hide_footbox: false,};
+            teoz_mode: false,
+            hide_footbox: false,
+        };
         let layout = layout_sequence(&sd, &crate::style::SkinParams::default()).unwrap();
 
         assert_eq!(layout.notes.len(), 1);
@@ -2334,7 +2460,9 @@ mod tests {
                 SeqEvent::Message(make_message("A", "B", "ping")),
                 SeqEvent::GroupEnd,
             ],
-        teoz_mode: false, hide_footbox: false,};
+            teoz_mode: false,
+            hide_footbox: false,
+        };
         let layout = layout_sequence(&sd, &crate::style::SkinParams::default()).unwrap();
 
         assert_eq!(layout.groups.len(), 1);
@@ -2392,7 +2520,9 @@ mod tests {
                 circle_to: false,
                 parallel: false,
             })],
-        teoz_mode: false, hide_footbox: false,};
+            teoz_mode: false,
+            hide_footbox: false,
+        };
         let layout = layout_sequence(&sd, &crate::style::SkinParams::default()).unwrap();
 
         let msg = &layout.messages[0];
@@ -2408,7 +2538,9 @@ mod tests {
                 SeqEvent::Message(make_message("A", "B", "kill")),
                 SeqEvent::Destroy("B".to_string()),
             ],
-        teoz_mode: false, hide_footbox: false,};
+            teoz_mode: false,
+            hide_footbox: false,
+        };
         let layout = layout_sequence(&sd, &crate::style::SkinParams::default()).unwrap();
 
         assert_eq!(layout.destroys.len(), 1);
@@ -2443,7 +2575,9 @@ mod tests {
                 SeqEvent::Message(make_message("A", "B", "err")),
                 SeqEvent::FragmentEnd,
             ],
-        teoz_mode: false, hide_footbox: false,};
+            teoz_mode: false,
+            hide_footbox: false,
+        };
         let layout = layout_sequence(&sd, &crate::style::SkinParams::default()).unwrap();
 
         assert_eq!(layout.fragments.len(), 1);
@@ -2503,7 +2637,9 @@ mod tests {
             events: vec![SeqEvent::Divider {
                 text: Some("Phase 1".to_string()),
             }],
-        teoz_mode: false, hide_footbox: false,};
+            teoz_mode: false,
+            hide_footbox: false,
+        };
         let layout = layout_sequence(&sd, &crate::style::SkinParams::default()).unwrap();
 
         assert_eq!(layout.dividers.len(), 1);
@@ -2517,7 +2653,9 @@ mod tests {
             events: vec![SeqEvent::Delay {
                 text: Some("waiting".to_string()),
             }],
-        teoz_mode: false, hide_footbox: false,};
+            teoz_mode: false,
+            hide_footbox: false,
+        };
         let layout = layout_sequence(&sd, &crate::style::SkinParams::default()).unwrap();
 
         assert_eq!(layout.delays.len(), 1);
@@ -2532,7 +2670,8 @@ mod tests {
                 participants: vec!["A".to_string(), "B".to_string()],
                 label: "init phase".to_string(),
             }],
-            teoz_mode: false, hide_footbox: false,
+            teoz_mode: false,
+            hide_footbox: false,
         };
         let layout = layout_sequence(&sd, &crate::style::SkinParams::default()).unwrap();
 
@@ -2574,7 +2713,9 @@ mod tests {
                 SeqEvent::Spacing { pixels: 50 },
                 SeqEvent::Message(make_message("A", "B", "after")),
             ],
-        teoz_mode: false, hide_footbox: false,};
+            teoz_mode: false,
+            hide_footbox: false,
+        };
         let layout = layout_sequence(&sd, &crate::style::SkinParams::default()).unwrap();
 
         assert_eq!(layout.messages.len(), 2);
@@ -2597,7 +2738,9 @@ mod tests {
                 participant: "A".to_string(),
                 text: "a note".to_string(),
             }],
-        teoz_mode: false, hide_footbox: false,};
+            teoz_mode: false,
+            hide_footbox: false,
+        };
         let layout = layout_sequence(&sd, &crate::style::SkinParams::default()).unwrap();
 
         let note = &layout.notes[0];
@@ -2611,9 +2754,8 @@ mod tests {
         );
 
         // Also verify it's wider than participant-only width
-        let participant_only_width = layout.participants[0].x
-            + layout.participants[0].box_width / 2.0
-            + 2.0 * MARGIN;
+        let participant_only_width =
+            layout.participants[0].x + layout.participants[0].box_width / 2.0 + 2.0 * MARGIN;
         assert!(
             layout.total_width > participant_only_width,
             "total_width {:.1} should exceed participant-only {:.1} due to note",
@@ -2634,7 +2776,10 @@ mod tests {
             "long note ({w_long:.1}) should be wider than short note ({w_short:.1})"
         );
         // minimum note width should be at least 30
-        assert!(w_short >= 30.0, "short note width {w_short:.1} should be >= 30");
+        assert!(
+            w_short >= 30.0,
+            "short note width {w_short:.1} should be >= 30"
+        );
     }
 
     // ── Combination / integration invariants ─────────────────────
@@ -2666,7 +2811,9 @@ mod tests {
                 }),
                 SeqEvent::Deactivate("B".to_string()),
             ],
-        teoz_mode: false, hide_footbox: false,};
+            teoz_mode: false,
+            hide_footbox: false,
+        };
         let layout = layout_sequence(&sd, &crate::style::SkinParams::default()).unwrap();
 
         assert_eq!(layout.activations.len(), 1);
@@ -2736,7 +2883,9 @@ mod tests {
                 SeqEvent::Message(make_message("B", "A", "m2")),
                 SeqEvent::Message(make_message("A", "B", "m3")),
             ],
-        teoz_mode: false, hide_footbox: false,};
+            teoz_mode: false,
+            hide_footbox: false,
+        };
         let layout = layout_sequence(&sd, &crate::style::SkinParams::default()).unwrap();
 
         let lp = LayoutParams::compute("SansSerif", MSG_FONT_SIZE, FONT_SIZE);
@@ -2766,7 +2915,9 @@ mod tests {
                 SeqEvent::Message(make_message("B", "A", "resp2")),
                 SeqEvent::Deactivate("B".to_string()),
             ],
-        teoz_mode: false, hide_footbox: false,};
+            teoz_mode: false,
+            hide_footbox: false,
+        };
         let layout = layout_sequence(&sd, &crate::style::SkinParams::default()).unwrap();
 
         assert_eq!(layout.activations.len(), 2);

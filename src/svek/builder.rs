@@ -8,10 +8,11 @@
 use crate::klimt::geom::{Rankdir, XDimension2D};
 use crate::svek::cluster::Cluster;
 use crate::svek::edge::{LabelDimension, SvekEdge};
-use crate::svek::node::SvekNode;
+use crate::svek::node::{EntityPosition, SvekNode};
 use crate::svek::shape_type::ShapeType;
 use crate::svek::{
-    Bibliotekon, ColorSequence, DotMode, DotSplines, DotStringFactory,
+    Bibliotekon, ColorSequence, DotMode, DotSplines, DotStringFactory, Margins,
+    TopLevelDotItem,
 };
 
 use log::{debug, trace, warn};
@@ -27,6 +28,10 @@ pub struct EntityDescriptor {
     pub height: f64,
     pub shape_type: ShapeType,
     pub cluster_id: Option<String>,
+    pub shield: Margins,
+    pub entity_position: EntityPosition,
+    pub max_label_width: f64,
+    pub order: Option<usize>,
     /// Whether this entity has been removed/hidden
     pub removed: bool,
 }
@@ -39,6 +44,10 @@ impl EntityDescriptor {
             height,
             shape_type: ShapeType::Rectangle,
             cluster_id: None,
+            shield: Margins::none(),
+            entity_position: EntityPosition::Normal,
+            max_label_width: 0.0,
+            order: None,
             removed: false,
         }
     }
@@ -50,6 +59,26 @@ impl EntityDescriptor {
 
     pub fn with_cluster(mut self, cluster_id: &str) -> Self {
         self.cluster_id = Some(cluster_id.to_string());
+        self
+    }
+
+    pub fn with_shield(mut self, shield: Margins) -> Self {
+        self.shield = shield;
+        self
+    }
+
+    pub fn with_entity_position(mut self, entity_position: EntityPosition) -> Self {
+        self.entity_position = entity_position;
+        self
+    }
+
+    pub fn with_max_label_width(mut self, max_label_width: f64) -> Self {
+        self.max_label_width = max_label_width;
+        self
+    }
+
+    pub fn with_order(mut self, order: usize) -> Self {
+        self.order = Some(order);
         self
     }
 
@@ -69,6 +98,15 @@ pub struct LinkDescriptor {
     /// Label dimensions (width, height) for DOT table sizing.
     /// Java: computed from TextBlock.calculateDimension().
     pub label_dimension: Option<(f64, f64)>,
+    pub tail_label: Option<String>,
+    pub tail_label_dimension: Option<(f64, f64)>,
+    pub head_label: Option<String>,
+    pub head_label_dimension: Option<(f64, f64)>,
+    pub decor1: crate::svek::edge::LinkDecoration,
+    pub decor2: crate::svek::edge::LinkDecoration,
+    pub line_style: crate::svek::edge::LinkStyle,
+    pub from_port: Option<String>,
+    pub to_port: Option<String>,
     /// Whether this link has been removed
     pub removed: bool,
     /// Whether this link is invisible (used for layout constraint only)
@@ -87,6 +125,15 @@ impl LinkDescriptor {
             to: to.to_string(),
             label: None,
             label_dimension: None,
+            tail_label: None,
+            tail_label_dimension: None,
+            head_label: None,
+            head_label_dimension: None,
+            decor1: crate::svek::edge::LinkDecoration::None,
+            decor2: crate::svek::edge::LinkDecoration::None,
+            line_style: crate::svek::edge::LinkStyle::Normal,
+            from_port: None,
+            to_port: None,
             removed: false,
             invisible: false,
             minlen: None,
@@ -98,6 +145,39 @@ impl LinkDescriptor {
         self.label = Some(label.to_string());
         self
     }
+
+    pub fn with_tail_label(mut self, label: &str, width: f64, height: f64) -> Self {
+        self.tail_label = Some(label.to_string());
+        self.tail_label_dimension = Some((width, height));
+        self
+    }
+
+    pub fn with_head_label(mut self, label: &str, width: f64, height: f64) -> Self {
+        self.head_label = Some(label.to_string());
+        self.head_label_dimension = Some((width, height));
+        self
+    }
+
+    pub fn with_decorations(
+        mut self,
+        decor1: crate::svek::edge::LinkDecoration,
+        decor2: crate::svek::edge::LinkDecoration,
+    ) -> Self {
+        self.decor1 = decor1;
+        self.decor2 = decor2;
+        self
+    }
+
+    pub fn with_style(mut self, line_style: crate::svek::edge::LinkStyle) -> Self {
+        self.line_style = line_style;
+        self
+    }
+
+    pub fn with_ports(mut self, from_port: Option<&str>, to_port: Option<&str>) -> Self {
+        self.from_port = from_port.map(str::to_string);
+        self.to_port = to_port.map(str::to_string);
+        self
+    }
 }
 
 // ── ClusterDescriptor ───────────────────────────────────────────────
@@ -107,8 +187,11 @@ impl LinkDescriptor {
 pub struct ClusterDescriptor {
     pub id: String,
     pub title: Option<String>,
+    pub style: super::cluster::ClusterStyle,
+    pub label_size: Option<(f64, f64)>,
     pub entity_ids: Vec<String>,
     pub sub_clusters: Vec<ClusterDescriptor>,
+    pub order: Option<usize>,
 }
 
 impl ClusterDescriptor {
@@ -116,13 +199,26 @@ impl ClusterDescriptor {
         Self {
             id: id.to_string(),
             title: None,
+            style: super::cluster::ClusterStyle::default(),
+            label_size: None,
             entity_ids: Vec::new(),
             sub_clusters: Vec::new(),
+            order: None,
         }
     }
 
     pub fn with_title(mut self, title: &str) -> Self {
         self.title = Some(title.to_string());
+        self
+    }
+
+    pub fn with_label_size(mut self, width: f64, height: f64) -> Self {
+        self.label_size = Some((width, height));
+        self
+    }
+
+    pub fn with_style(mut self, style: super::cluster::ClusterStyle) -> Self {
+        self.style = style;
         self
     }
 
@@ -133,6 +229,11 @@ impl ClusterDescriptor {
 
     pub fn add_sub_cluster(mut self, sub: ClusterDescriptor) -> Self {
         self.sub_clusters.push(sub);
+        self
+    }
+
+    pub fn with_order(mut self, order: usize) -> Self {
+        self.order = Some(order);
         self
     }
 }
@@ -149,6 +250,7 @@ pub struct BuilderConfig {
     pub is_state: bool,
     pub nodesep: Option<f64>,
     pub ranksep: Option<f64>,
+    pub use_simplier_dot_link_strategy: bool,
 }
 
 impl Default for BuilderConfig {
@@ -161,6 +263,7 @@ impl Default for BuilderConfig {
             is_state: false,
             nodesep: None,
             ranksep: None,
+            use_simplier_dot_link_strategy: false,
         }
     }
 }
@@ -253,6 +356,9 @@ impl GraphvizImageBuilder {
             node.color = self.color_seq.next_color();
             node.shape_type = ent.shape_type;
             node.cluster_id = ent.cluster_id.clone();
+            node.shield = ent.shield;
+            node.entity_position = ent.entity_position;
+            node.max_label_width = ent.max_label_width;
             bib.add_node(node);
         }
 
@@ -276,6 +382,20 @@ impl GraphvizImageBuilder {
             edge.note_label_color = self.color_seq.next_color();
             edge.start_tail_color = self.color_seq.next_color();
             edge.end_head_color = self.color_seq.next_color();
+            if link.from_port.is_some() || link.to_port.is_some() {
+                let start = match &link.from_port {
+                    Some(port) => crate::svek::edge::EntityPort::with_port(&link.from, port),
+                    None => crate::svek::edge::EntityPort::new(&link.from),
+                };
+                let end = match &link.to_port {
+                    Some(port) => crate::svek::edge::EntityPort::with_port(&link.to, port),
+                    None => crate::svek::edge::EntityPort::new(&link.to),
+                };
+                edge = edge.with_ports(start, end);
+            }
+            edge = edge.with_decorations(link.decor1, link.decor2);
+            edge = edge.with_style(link.line_style);
+            edge.use_simplier_dot_link_strategy = self.config.use_simplier_dot_link_strategy;
             edge.label = link.label.clone();
             if let Some((w, h)) = link.label_dimension {
                 edge.label_dimension = Some(LabelDimension::new(w, h));
@@ -283,6 +403,12 @@ impl GraphvizImageBuilder {
                 // (e.g., circle/diamond on link). For plain association links, shield = 0.
                 // middle_decor support: edge.label_shield = 7.0 when link has circle/diamond.
                 edge.label_shield = if link.has_middle_decor { 7.0 } else { 0.0 };
+            }
+            if let (Some(text), Some((w, h))) = (&link.tail_label, link.tail_label_dimension) {
+                edge = edge.with_tail_label(text, LabelDimension::new(w, h));
+            }
+            if let (Some(text), Some((w, h))) = (&link.head_label, link.head_label_dimension) {
+                edge = edge.with_head_label(text, LabelDimension::new(w, h));
             }
             edge.is_invis = link.invisible;
             if let Some(minlen) = link.minlen {
@@ -298,11 +424,38 @@ impl GraphvizImageBuilder {
             bib.add_cluster(cluster);
         }
 
+        let mut top_level_items: Vec<(usize, usize, TopLevelDotItem)> = Vec::new();
+        for (idx, ent) in self.entities.iter().enumerate() {
+            if ent.removed || ent.cluster_id.is_some() {
+                continue;
+            }
+            if let Some(order) = ent.order {
+                top_level_items.push((order, idx, TopLevelDotItem::Node(ent.id.clone())));
+            }
+        }
+        let cluster_base = self.entities.len();
+        for (idx, cluster) in self.clusters.iter().enumerate() {
+            if let Some(order) = cluster.order {
+                top_level_items.push((
+                    order,
+                    cluster_base + idx,
+                    TopLevelDotItem::Cluster(cluster.id.clone()),
+                ));
+            }
+        }
+        top_level_items.sort_by_key(|(order, idx, _)| (*order, *idx));
+
         // Build the factory and generate DOT
         let mut factory = DotStringFactory::new(bib)
             .with_rankdir(self.config.rankdir)
             .with_splines(self.config.dot_splines)
-            .with_activity(self.config.is_activity);
+            .with_activity(self.config.is_activity)
+            .with_top_level_items(
+                top_level_items
+                    .into_iter()
+                    .map(|(_, _, item)| item)
+                    .collect(),
+            );
 
         if let Some(nodesep) = self.config.nodesep {
             factory.nodesep_override = Some(nodesep);
@@ -320,6 +473,8 @@ impl GraphvizImageBuilder {
     fn build_cluster(cdesc: &ClusterDescriptor) -> Cluster {
         let mut cluster = Cluster::new(&cdesc.id);
         cluster.title = cdesc.title.clone();
+        cluster.style = cdesc.style;
+        cluster.label_size = cdesc.label_size;
         for eid in &cdesc.entity_ids {
             cluster.add_node(eid);
         }
@@ -333,8 +488,8 @@ impl GraphvizImageBuilder {
     /// Java: `DotStringFactory.solve()` + `GraphvizImageBuilder.buildImage()` (solve part)
     ///
     /// Call this after running Graphviz externally and obtaining the SVG output.
-    /// Returns (moveDelta, limitFinder_span) from normalization.
-    pub fn solve(&mut self, svg: &str) -> Result<((f64, f64), (f64, f64)), String> {
+    /// Returns (moveDelta, limitFinder_span, render_offset) from normalization.
+    pub fn solve(&mut self, svg: &str) -> Result<((f64, f64), (f64, f64), (f64, f64)), String> {
         let factory = self
             .factory
             .as_mut()
@@ -533,9 +688,7 @@ mod tests {
     #[test]
     fn builder_build_dot_with_cluster() {
         let mut builder = GraphvizImageBuilder::new(BuilderConfig::default());
-        builder.add_entity(
-            EntityDescriptor::new("A", 100.0, 50.0).with_cluster("pkg"),
-        );
+        builder.add_entity(EntityDescriptor::new("A", 100.0, 50.0).with_cluster("pkg"));
         builder.add_entity(EntityDescriptor::new("B", 80.0, 40.0));
         builder.add_cluster(
             ClusterDescriptor::new("pkg")
@@ -551,6 +704,24 @@ mod tests {
         assert!(dot.contains("style=solid;"));
         assert!(dot.contains("color=\"#000000\";"));
         assert!(dot.contains("label=<"));
+    }
+
+    #[test]
+    fn builder_build_dot_with_shielded_rectangle() {
+        let mut builder = GraphvizImageBuilder::new(BuilderConfig::default());
+        builder.add_entity(
+            EntityDescriptor::new("A", 100.0, 50.0)
+                .with_shield(Margins::new(5.0, 10.0, 3.0, 7.0)),
+        );
+
+        let dot = builder.build_dot();
+        assert!(dot.contains("shape=plaintext"));
+        assert!(dot.contains("CELLSPACING=\"0\""));
+        assert!(dot.contains("WIDTH=\"5\" HEIGHT=\"1\""));
+        assert!(dot.contains("WIDTH=\"10\" HEIGHT=\"1\""));
+        assert!(dot.contains("WIDTH=\"1\" HEIGHT=\"3\""));
+        assert!(dot.contains("WIDTH=\"1\" HEIGHT=\"7\""));
+        assert!(dot.contains("PORT=\"h\""));
     }
 
     #[test]
@@ -610,12 +781,10 @@ mod tests {
             ..Default::default()
         };
         let mut builder = GraphvizImageBuilder::new(config);
+        builder
+            .add_entity(EntityDescriptor::new("start", 20.0, 20.0).with_shape(ShapeType::Circle));
         builder.add_entity(
-            EntityDescriptor::new("start", 20.0, 20.0).with_shape(ShapeType::Circle),
-        );
-        builder.add_entity(
-            EntityDescriptor::new("act1", 100.0, 50.0)
-                .with_shape(ShapeType::RoundRectangle),
+            EntityDescriptor::new("act1", 100.0, 50.0).with_shape(ShapeType::RoundRectangle),
         );
         builder.add_link(LinkDescriptor::new("start", "act1"));
 
@@ -745,12 +914,8 @@ mod tests {
     #[test]
     fn builder_nested_cluster() {
         let mut builder = GraphvizImageBuilder::new(BuilderConfig::default());
-        builder.add_entity(
-            EntityDescriptor::new("A", 100.0, 50.0).with_cluster("outer"),
-        );
-        builder.add_entity(
-            EntityDescriptor::new("B", 80.0, 40.0).with_cluster("inner"),
-        );
+        builder.add_entity(EntityDescriptor::new("A", 100.0, 50.0).with_cluster("outer"));
+        builder.add_entity(EntityDescriptor::new("B", 80.0, 40.0).with_cluster("inner"));
         builder.add_cluster(
             ClusterDescriptor::new("outer")
                 .with_title("Outer")

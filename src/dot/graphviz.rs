@@ -69,9 +69,7 @@ impl ExeState {
             ExeState::Ok => "Dot executable OK",
             ExeState::NullUndefined => "No dot executable found",
             ExeState::DoesNotExist => "Dot executable does not exist",
-            ExeState::IsADirectory => {
-                "Dot executable should be an executable, not a directory"
-            }
+            ExeState::IsADirectory => "Dot executable should be an executable, not a directory",
             ExeState::NotAFile => "Dot executable is not a valid file",
             ExeState::CannotBeRead => "Dot executable cannot be read",
         }
@@ -145,11 +143,7 @@ const DEFAULT_TIMEOUT_MS: u64 = 60_000;
 
 /// Run an external command, optionally piping `input` to stdin and capturing
 /// stdout. Port of Java `ProcessRunner.run()`.
-pub fn run_process(
-    cmd: &[&str],
-    input: Option<&[u8]>,
-    timeout_ms: Option<u64>,
-) -> ProcessResult {
+pub fn run_process(cmd: &[&str], input: Option<&[u8]>, timeout_ms: Option<u64>) -> ProcessResult {
     let timeout = Duration::from_millis(timeout_ms.unwrap_or(DEFAULT_TIMEOUT_MS));
     log::debug!(
         "run_process: cmd={:?}, input_len={}, timeout={}ms",
@@ -339,7 +333,10 @@ impl Graphviz for GraphvizNative {
 
         let cmd = self.command_line();
         let cmd_refs: Vec<&str> = cmd.iter().map(|s| s.as_str()).collect();
-        log::info!("create_file: cmd={cmd_refs:?}, dot_len={}", self.dot_string.len());
+        log::info!(
+            "create_file: cmd={cmd_refs:?}, dot_len={}",
+            self.dot_string.len()
+        );
 
         let result = run_process(&cmd_refs, Some(self.dot_string.as_bytes()), None);
         if result.state.is_ok() {
@@ -480,15 +477,12 @@ pub fn test_graphviz_installation() -> Result<(), String> {
         return Err(format!("Error: timeout {state}"));
     }
     if output.is_empty() {
-        return Err(
-            "Error: dot generates empty file. Check your dot installation.".into(),
-        );
+        return Err("Error: dot generates empty file. Check your dot installation.".into());
     }
     let s = String::from_utf8_lossy(&output);
     if !s.contains("<svg") {
         return Err(
-            "Error: dot generates unreadable SVG file. Check your dot installation."
-                .into(),
+            "Error: dot generates unreadable SVG file. Check your dot installation.".into(),
         );
     }
     Ok(())
@@ -500,8 +494,7 @@ pub fn detect_graphviz_version() -> GraphvizVersion {
     let gv = GraphvizNative::new("", &["svg"]);
     let version_str = gv.dot_version();
     log::info!("detect_graphviz_version: raw={version_str}");
-    GraphvizVersion::parse_from_dot_output(&version_str)
-        .unwrap_or(GraphvizVersion::DEFAULT)
+    GraphvizVersion::parse_from_dot_output(&version_str).unwrap_or(GraphvizVersion::DEFAULT)
 }
 
 // ---------------------------------------------------------------------------
@@ -532,7 +525,10 @@ mod tests {
     #[test]
     fn exe_state_text_messages() {
         assert_eq!(ExeState::Ok.text_message(), "Dot executable OK");
-        assert_eq!(ExeState::NullUndefined.text_message(), "No dot executable found");
+        assert_eq!(
+            ExeState::NullUndefined.text_message(),
+            "No dot executable found"
+        );
         assert!(!ExeState::DoesNotExist.text_message().is_empty());
     }
 

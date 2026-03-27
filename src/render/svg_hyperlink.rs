@@ -1,5 +1,5 @@
-use crate::model::hyperlink::Hyperlink;
 use crate::klimt::svg::{fmt_coord, xml_escape};
+use crate::model::hyperlink::Hyperlink;
 use std::fmt::Write;
 
 /// Escape a URL for use in an XML/SVG attribute value.
@@ -59,7 +59,8 @@ pub fn render_linked_text(
     let escaped_text = xml_escape(text);
     let text_elem = format!(
         r#"<text font-family="sans-serif" x="{}" y="{}"{extra}>{text}</text>"#,
-        fmt_coord(x), fmt_coord(y),
+        fmt_coord(x),
+        fmt_coord(y),
         extra = if extra_attrs.is_empty() {
             String::new()
         } else {

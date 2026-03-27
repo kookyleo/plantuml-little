@@ -24,10 +24,20 @@ use std::collections::HashMap;
 
 use crate::font_metrics;
 use crate::model::{
-    ClassDiagram, ClassHideShowRule, ClassPortion, ClassRuleTarget, Diagram, Direction, Entity,
-    EntityKind, Member, Stereotype,
+    ArrowHead, ClassDiagram, ClassHideShowRule, ClassPortion, ClassRuleTarget, Diagram,
+    Direction, Entity, EntityKind, GroupKind, LineStyle, Member, Stereotype,
 };
 use crate::Result;
+
+#[derive(Debug, Clone, Copy, Default, PartialEq)]
+pub(crate) struct QualifierMargins {
+    pub left: f64,
+    pub right: f64,
+    pub top: f64,
+    pub bottom: f64,
+    pub up_total_width: f64,
+    pub down_total_width: f64,
+}
 
 /// Unified layout result
 #[derive(Debug)]
@@ -113,6 +123,8 @@ const GENERIC_FONT_SIZE: f64 = 12.0;
 const GENERIC_INNER_MARGIN: f64 = 1.0;
 /// Outer margin around TextBlockGeneric (withMargin(genericBlock, 1, 1), line 145).
 const GENERIC_OUTER_MARGIN: f64 = 1.0;
+/// Group header title/stereotype font size.
+const GROUP_HEADER_FONT_SIZE: f64 = 14.0;
 
 // ── Object entity sizing constants — sourced from EntityImageObject.java ──
 //
@@ -210,10 +222,15 @@ pub fn layout(diagram: &Diagram, skin: &crate::style::SkinParams) -> Result<Diag
                     width_pt: 200.0,
                     height_pt: 100.0,
                     shape: None,
+                    shield: None,
+                    entity_position: None,
+                    max_label_width: None,
+                    order: None,
                 }],
                 edges: vec![],
                 clusters: vec![],
                 rankdir: RankDir::TopToBottom,
+                use_simplier_dot_link_strategy: false,
             };
             let gl = graphviz::layout(&lg)?;
             let _ = &dd.source;
@@ -233,6 +250,61 @@ fn sanitize_id(name: &str) -> String {
 
 fn cluster_id(name: &str) -> String {
     format!("grp_{}", sanitize_id(name))
+}
+
+pub(crate) fn compute_entity_qualifier_margins(
+    cd: &ClassDiagram,
+) -> HashMap<String, QualifierMargins> {
+    let mut margins: HashMap<String, QualifierMargins> = HashMap::new();
+
+    for link in &cd.links {
+        if let Some(text) = &link.from_qualifier {
+            let dim = qualifier_box_dimension(text);
+            let entry = margins.entry(link.from.clone()).or_default();
+            if link.arrow_len == 1 {
+                entry.right = entry.right.max(dim.0);
+            } else {
+                entry.bottom = entry.bottom.max(dim.1);
+                entry.down_total_width += dim.0;
+            }
+        }
+        if let Some(text) = &link.to_qualifier {
+            let dim = qualifier_box_dimension(text);
+            let entry = margins.entry(link.to.clone()).or_default();
+            if link.arrow_len == 1 {
+                entry.left = entry.left.max(dim.0);
+            } else {
+                entry.top = entry.top.max(dim.1);
+                entry.up_total_width += dim.0;
+            }
+        }
+    }
+
+    margins
+}
+
+fn qualifier_box_dimension(text: &str) -> (f64, f64) {
+    let text_w = font_metrics::text_width(text, "SansSerif", 14.0, false, false);
+    let text_h = font_metrics::line_height("SansSerif", 14.0, false, false);
+    (text_w + 4.0, text_h + 2.0)
+}
+
+fn arrow_head_to_svek_decoration(head: &ArrowHead) -> crate::svek::edge::LinkDecoration {
+    match head {
+        ArrowHead::None => crate::svek::edge::LinkDecoration::None,
+        ArrowHead::Arrow => crate::svek::edge::LinkDecoration::Arrow,
+        ArrowHead::Triangle => crate::svek::edge::LinkDecoration::Extends,
+        ArrowHead::Diamond => crate::svek::edge::LinkDecoration::Composition,
+        ArrowHead::DiamondHollow => crate::svek::edge::LinkDecoration::Aggregation,
+        ArrowHead::Plus => crate::svek::edge::LinkDecoration::Plus,
+    }
+}
+
+fn link_style_to_svek(line_style: &LineStyle) -> crate::svek::edge::LinkStyle {
+    match line_style {
+        LineStyle::Solid => crate::svek::edge::LinkStyle::Normal,
+        LineStyle::Dashed => crate::svek::edge::LinkStyle::Dashed,
+    }
 }
 
 /// Compute generic block outer dimension width (genericDim.width in Java).
@@ -318,11 +390,51 @@ fn group_display_name(name: &str) -> String {
     name.rsplit('.').next().unwrap_or(name).to_string()
 }
 
+#[derive(Debug, Clone)]
+pub(crate) struct ClassGroupHeaderMetrics {
+    pub visible_stereotypes: Vec<String>,
+    pub label_width: f64,
+    pub label_height: f64,
+}
+
+pub(crate) fn class_group_header_metrics(
+    group: &crate::model::Group,
+    rules: &[ClassHideShowRule],
+) -> ClassGroupHeaderMetrics {
+    let title = group_display_name(&group.name);
+    let title_width =
+        font_metrics::text_width(&title, "SansSerif", GROUP_HEADER_FONT_SIZE, true, false);
+    let title_height = font_metrics::line_height("SansSerif", GROUP_HEADER_FONT_SIZE, true, false);
+    let stereo_line_height =
+        font_metrics::line_height("SansSerif", GROUP_HEADER_FONT_SIZE, false, true);
+    let visible_stereotypes = visible_stereotype_labels(rules, &group.stereotypes);
+    let stereo_width = visible_stereotypes
+        .iter()
+        .map(|label| {
+            font_metrics::text_width(
+                &format!("\u{00AB}{label}\u{00BB}"),
+                "SansSerif",
+                GROUP_HEADER_FONT_SIZE,
+                false,
+                true,
+            )
+        })
+        .fold(0.0_f64, f64::max);
+    let stereo_height = visible_stereotypes.len() as f64 * stereo_line_height;
+
+    ClassGroupHeaderMetrics {
+        visible_stereotypes,
+        label_width: title_width.max(stereo_width).floor().max(0.0),
+        label_height: (title_height + stereo_height).floor().max(0.0),
+    }
+}
+
 fn build_layout_clusters(
     cd: &ClassDiagram,
     name_to_id: &HashMap<String, String>,
 ) -> Vec<LayoutClusterSpec> {
     use crate::model::Group;
+    use crate::svek::cluster::ClusterStyle;
 
     fn parent_group_name(group_name: &str, all_names: &[String]) -> Option<String> {
         all_names
@@ -336,25 +448,47 @@ fn build_layout_clusters(
 
     fn build_cluster_recursive(
         group: &Group,
+        cd: &ClassDiagram,
         children_by_parent: &HashMap<Option<String>, Vec<&Group>>,
         name_to_id: &HashMap<String, String>,
     ) -> LayoutClusterSpec {
+        let header_metrics = class_group_header_metrics(group, &cd.hide_show_rules);
         let mut children = children_by_parent
             .get(&Some(group.name.clone()))
             .cloned()
             .unwrap_or_default();
-        children.sort_by_key(|child| (child.source_line.unwrap_or(usize::MAX), child.name.matches('.').count(), child.name.clone()));
+        children.sort_by_key(|child| {
+            (
+                child.source_line.unwrap_or(usize::MAX),
+                child.name.matches('.').count(),
+                child.name.clone(),
+            )
+        });
         LayoutClusterSpec {
             id: cluster_id(&group.name),
             qualified_name: group.name.clone(),
             title: Some(group_display_name(&group.name)),
-            node_ids: group.entities.iter().map(|name| {
-                name_to_id.get(name).cloned().unwrap_or_else(|| sanitize_id(name))
-            }).collect(),
+            style: match group.kind {
+                GroupKind::Rectangle => ClusterStyle::Rectangle,
+                GroupKind::Package | GroupKind::Namespace => ClusterStyle::Package,
+            },
+            label_width: Some(header_metrics.label_width),
+            label_height: Some(header_metrics.label_height),
+            node_ids: group
+                .entities
+                .iter()
+                .map(|name| {
+                    name_to_id
+                        .get(name)
+                        .cloned()
+                        .unwrap_or_else(|| sanitize_id(name))
+                })
+                .collect(),
             sub_clusters: children
                 .into_iter()
-                .map(|child| build_cluster_recursive(child, children_by_parent, name_to_id))
+                .map(|child| build_cluster_recursive(child, cd, children_by_parent, name_to_id))
                 .collect(),
+            order: group.source_line,
         }
     }
 
@@ -365,10 +499,16 @@ fn build_layout_clusters(
         children_by_parent.entry(parent).or_default().push(group);
     }
     let mut roots = children_by_parent.remove(&None).unwrap_or_default();
-    roots.sort_by_key(|group| (group.source_line.unwrap_or(usize::MAX), group.name.matches('.').count(), group.name.clone()));
+    roots.sort_by_key(|group| {
+        (
+            group.source_line.unwrap_or(usize::MAX),
+            group.name.matches('.').count(),
+            group.name.clone(),
+        )
+    });
     roots
         .into_iter()
-        .map(|group| build_cluster_recursive(group, &children_by_parent, name_to_id))
+        .map(|group| build_cluster_recursive(group, cd, &children_by_parent, name_to_id))
         .collect()
 }
 
@@ -458,10 +598,7 @@ fn estimate_entity_size(
     name_font_size: f64,
     attr_font_size: f64,
 ) -> (f64, f64) {
-    if matches!(
-        entity.kind,
-        EntityKind::Interface | EntityKind::Enum | EntityKind::Annotation
-    ) {
+    if matches!(entity.kind, EntityKind::Enum | EntityKind::Annotation) {
         return estimate_entity_size_legacy(entity);
     }
 
@@ -480,7 +617,7 @@ fn estimate_entity_size(
     let n_name_lines = name_block.lines.len();
 
     let visible_stereotypes = visible_stereotype_labels(&cd.hide_show_rules, &entity.stereotypes);
-    let italic_name = entity.kind == EntityKind::Abstract;
+    let italic_name = matches!(entity.kind, EntityKind::Abstract | EntityKind::Interface);
     let name_width = name_block
         .lines
         .iter()
@@ -505,13 +642,18 @@ fn estimate_entity_size(
             )
         })
         .fold(0.0_f64, f64::max);
-    let vis_icon_w = if entity.visibility.is_some() { ENTITY_VIS_ICON_BLOCK_WIDTH } else { 0.0 };
+    let vis_icon_w = if entity.visibility.is_some() {
+        ENTITY_VIS_ICON_BLOCK_WIDTH
+    } else {
+        0.0
+    };
     // HeaderLayout.java:74 -- width = circleDim.w + max(stereoDim.w, nameDim.w) + genericDim.w
     let gen_w = generic_dim_width(entity);
-    let header_width = HEADER_CIRCLE_BLOCK_WIDTH + vis_icon_w + name_block_width.max(stereo_block_width) + gen_w;
+    let header_width =
+        HEADER_CIRCLE_BLOCK_WIDTH + vis_icon_w + name_block_width.max(stereo_block_width) + gen_w;
     let stereo_height = visible_stereotypes.len() as f64 * HEADER_STEREO_LINE_HEIGHT;
-    let header_height = HEADER_CIRCLE_BLOCK_HEIGHT
-        .max(stereo_height + name_block_height + HEADER_STEREO_NAME_GAP);
+    let header_height =
+        HEADER_CIRCLE_BLOCK_HEIGHT.max(stereo_height + name_block_height + HEADER_STEREO_NAME_GAP);
 
     let visible_fields: Vec<&Member> = entity
         .members
@@ -529,8 +671,8 @@ fn estimate_entity_size(
     let show_fields = show_portion(&cd.hide_show_rules, ClassPortion::Field, &entity.name);
     let show_methods = show_portion(&cd.hide_show_rules, ClassPortion::Method, &entity.name);
 
-    let body_width =
-        estimate_members_width(&visible_fields, attr_font_size).max(estimate_members_width(&visible_methods, attr_font_size));
+    let body_width = estimate_members_width(&visible_fields, attr_font_size)
+        .max(estimate_members_width(&visible_methods, attr_font_size));
     let body_height = section_height(show_fields, &visible_fields, member_row_h)
         + section_height(show_methods, &visible_methods, member_row_h);
 
@@ -560,7 +702,9 @@ fn estimate_rectangle_size(entity: &Entity) -> (f64, f64) {
     let desc_lh = font_metrics::line_height("SansSerif", desc_font_size, false, false);
     let padding = 10.0;
 
-    let max_line_w = entity.description.iter()
+    let max_line_w = entity
+        .description
+        .iter()
         .map(|l| font_metrics::text_width(l, "SansSerif", desc_font_size, false, false))
         .fold(0.0_f64, f64::max);
 
@@ -570,19 +714,17 @@ fn estimate_rectangle_size(entity: &Entity) -> (f64, f64) {
 
     log::debug!(
         "estimate_rectangle_size: {} -> ({:.2}, {:.2}) [{} lines]",
-        entity.name, width, height, entity.description.len()
+        entity.name,
+        width,
+        height,
+        entity.description.len()
     );
     (width, height)
 }
 
 fn estimate_object_size(entity: &Entity) -> (f64, f64) {
-    let name_width = font_metrics::text_width(
-        &entity.name,
-        "SansSerif",
-        CLASS_FONT_SIZE,
-        false,
-        false,
-    );
+    let name_width =
+        font_metrics::text_width(&entity.name, "SansSerif", CLASS_FONT_SIZE, false, false);
     // name block: text + margin(2, 2, 2, 2)
     let name_block_width = name_width + 2.0 * OBJ_NAME_MARGIN;
     let name_block_height = HEADER_NAME_BLOCK_HEIGHT + 2.0 * OBJ_NAME_MARGIN;
@@ -784,7 +926,8 @@ fn member_visual_lines(m: &Member) -> usize {
 /// The first line always has indent=0; continuation lines use the width
 /// of the leading whitespace as an indent offset from the first line.
 pub(crate) fn split_member_lines(text: &str) -> Vec<(String, f64)> {
-    let parts: Vec<&str> = text.split("\\n")
+    let parts: Vec<&str> = text
+        .split("\\n")
         .flat_map(|s| s.split(crate::NEWLINE_CHAR))
         .flat_map(|s| s.split('\n'))
         .collect();
@@ -795,13 +938,8 @@ pub(crate) fn split_member_lines(text: &str) -> Vec<(String, f64)> {
         } else {
             let trimmed = part.trim_start();
             let leading = &part[..part.len() - trimmed.len()];
-            let indent = font_metrics::text_width(
-                leading,
-                "SansSerif",
-                CLASS_FONT_SIZE,
-                false,
-                false,
-            );
+            let indent =
+                font_metrics::text_width(leading, "SansSerif", CLASS_FONT_SIZE, false, false);
             result.push((trimmed.to_string(), indent));
         }
     }
@@ -886,8 +1024,10 @@ fn layout_class_diagram(cd: &ClassDiagram, skin: &crate::style::SkinParams) -> R
     let explicit_class_fs = skin
         .get("classfontsize")
         .and_then(|s| s.parse::<f64>().ok());
-    let attr_font_size = explicit_attr_fs.unwrap_or_else(|| explicit_class_fs.unwrap_or(CLASS_FONT_SIZE));
-    let name_font_size = explicit_class_fs.unwrap_or_else(|| explicit_attr_fs.unwrap_or(CLASS_FONT_SIZE));
+    let attr_font_size =
+        explicit_attr_fs.unwrap_or_else(|| explicit_class_fs.unwrap_or(CLASS_FONT_SIZE));
+    let name_font_size =
+        explicit_class_fs.unwrap_or_else(|| explicit_attr_fs.unwrap_or(CLASS_FONT_SIZE));
 
     // Resolve member row height from skinparams.
     // Java default: FontParam.CLASS_ATTRIBUTE renders at 14pt (same as CLASS).
@@ -902,13 +1042,28 @@ fn layout_class_diagram(cd: &ClassDiagram, skin: &crate::style::SkinParams) -> R
         .iter()
         .map(|e| (e.name.clone(), sanitize_id(&e.name)))
         .collect();
+    let qualifier_margins = compute_entity_qualifier_margins(cd);
 
     // build LayoutNode list
     let nodes: Vec<LayoutNode> = cd
         .entities
         .iter()
         .map(|e| {
-            let (w, h) = estimate_entity_size(cd, e, member_row_h, name_font_size, attr_font_size);
+            let (mut w, h) =
+                estimate_entity_size(cd, e, member_row_h, name_font_size, attr_font_size);
+            let shield = qualifier_margins.get(&e.name).and_then(|margins| {
+                let kal_width = margins.up_total_width.max(margins.down_total_width);
+                if kal_width > 0.0 {
+                    w = w.max(kal_width * 1.3);
+                }
+                let shield = crate::svek::Margins::new(
+                    margins.left,
+                    margins.right,
+                    margins.top,
+                    margins.bottom,
+                );
+                if shield.is_zero() { None } else { Some(shield) }
+            });
             LayoutNode {
                 id: name_to_id
                     .get(&e.name)
@@ -918,6 +1073,10 @@ fn layout_class_diagram(cd: &ClassDiagram, skin: &crate::style::SkinParams) -> R
                 width_pt: w,
                 height_pt: h,
                 shape: None,
+                shield,
+                entity_position: None,
+                max_label_width: None,
+                order: e.source_line,
             }
         })
         .collect();
@@ -942,6 +1101,13 @@ fn layout_class_diagram(cd: &ClassDiagram, skin: &crate::style::SkinParams) -> R
                 from: from_id,
                 to: to_id,
                 label: link.label.clone(),
+                tail_label: link.from_label.clone(),
+                tail_label_boxed: false,
+                head_label: link.to_label.clone(),
+                head_label_boxed: false,
+                tail_decoration: arrow_head_to_svek_decoration(&link.left_head),
+                head_decoration: arrow_head_to_svek_decoration(&link.right_head),
+                line_style: link_style_to_svek(&link.line_style),
                 minlen: link.arrow_len.saturating_sub(1) as u32,
                 invisible: false,
             }
@@ -966,6 +1132,7 @@ fn layout_class_diagram(cd: &ClassDiagram, skin: &crate::style::SkinParams) -> R
         edges,
         clusters,
         rankdir,
+        use_simplier_dot_link_strategy: true,
     };
 
     let mut layout = layout_with_svek(&graph)?;
@@ -982,10 +1149,17 @@ fn layout_class_diagram(cd: &ClassDiagram, skin: &crate::style::SkinParams) -> R
             let mid_idx = el.points.len() / 2;
             let (mx, _my) = el.points[mid_idx];
             // Label is drawn at mx+1 (1px offset in draw_label), extending right
-            let lines: Vec<&str> = label.split("\\n").flat_map(|s| s.split(crate::NEWLINE_CHAR)).flat_map(|s| s.split("\\l")).flat_map(|s| s.split("\\r")).collect();
+            let lines: Vec<&str> = label
+                .split("\\n")
+                .flat_map(|s| s.split(crate::NEWLINE_CHAR))
+                .flat_map(|s| s.split("\\l"))
+                .flat_map(|s| s.split("\\r"))
+                .collect();
             let max_line_w = lines
                 .iter()
-                .map(|l| font_metrics::text_width(l, "SansSerif", link_label_font_size, false, false))
+                .map(|l| {
+                    font_metrics::text_width(l, "SansSerif", link_label_font_size, false, false)
+                })
                 .fold(0.0_f64, f64::max);
             let label_right = mx + 1.0 + max_line_w;
             if label_right > layout.total_width {
@@ -1035,6 +1209,14 @@ fn layout_class_diagram(cd: &ClassDiagram, skin: &crate::style::SkinParams) -> R
                     p.0 += shift_x;
                     p.1 += shift_y;
                 }
+            }
+            if let Some(ref mut xy) = e.tail_label_xy {
+                xy.0 += shift_x;
+                xy.1 += shift_y;
+            }
+            if let Some(ref mut xy) = e.head_label_xy {
+                xy.0 += shift_x;
+                xy.1 += shift_y;
             }
         }
         for n in &mut layout.notes {
@@ -1122,6 +1304,13 @@ fn square_edges_for_entities(
                 from: ids[head_branch].clone(),
                 to: ids[i].clone(),
                 label: None,
+                tail_label: None,
+                tail_label_boxed: false,
+                head_label: None,
+                head_label_boxed: false,
+                tail_decoration: crate::svek::edge::LinkDecoration::None,
+                head_decoration: crate::svek::edge::LinkDecoration::None,
+                line_style: crate::svek::edge::LinkStyle::Normal,
                 minlen: 1,
                 invisible: true,
             });
@@ -1131,6 +1320,13 @@ fn square_edges_for_entities(
                 from: ids[i - 1].clone(),
                 to: ids[i].clone(),
                 label: None,
+                tail_label: None,
+                tail_label_boxed: false,
+                head_label: None,
+                head_label_boxed: false,
+                tail_decoration: crate::svek::edge::LinkDecoration::None,
+                head_decoration: crate::svek::edge::LinkDecoration::None,
+                line_style: crate::svek::edge::LinkStyle::Normal,
                 minlen: 0,
                 invisible: true,
             });
@@ -1262,6 +1458,7 @@ mod tests {
 
     fn empty_entity(name: &str) -> Entity {
         Entity {
+            uid: None,
             name: name.to_string(),
             kind: EntityKind::Class,
             stereotypes: vec![],
@@ -1301,7 +1498,13 @@ mod tests {
     #[test]
     fn estimate_size_empty_class_returns_minimum() {
         let e = empty_entity("Foo");
-        let (w, h) = estimate_entity_size(&empty_diagram(), &e, MEMBER_ROW_HEIGHT, CLASS_FONT_SIZE, CLASS_FONT_SIZE);
+        let (w, h) = estimate_entity_size(
+            &empty_diagram(),
+            &e,
+            MEMBER_ROW_HEIGHT,
+            CLASS_FONT_SIZE,
+            CLASS_FONT_SIZE,
+        );
         // Width = circle(4+22) + gap(3) + text_width("Foo",14) + pad(3) ≈ 57
         assert!(w >= 40.0, "width should be >= 40, got {w}");
         // Height = header(32) + fields(8) + methods(8) = 48
@@ -1311,6 +1514,7 @@ mod tests {
     #[test]
     fn estimate_size_accounts_for_members() {
         let e = Entity {
+            uid: None,
             name: "A".to_string(),
             kind: EntityKind::Class,
             stereotypes: vec![],
@@ -1328,7 +1532,13 @@ mod tests {
             source_line: None,
             visibility: None,
         };
-        let (w, h) = estimate_entity_size(&empty_diagram(), &e, MEMBER_ROW_HEIGHT, CLASS_FONT_SIZE, CLASS_FONT_SIZE);
+        let (w, h) = estimate_entity_size(
+            &empty_diagram(),
+            &e,
+            MEMBER_ROW_HEIGHT,
+            CLASS_FONT_SIZE,
+            CLASS_FONT_SIZE,
+        );
 
         // height = header(32) + fields(8) + members(2*8+8) = 64
         let expected_min_height =
@@ -1353,8 +1563,9 @@ mod tests {
     }
 
     #[test]
-    fn estimate_size_interface_adds_stereotype_line() {
+    fn estimate_size_interface_uses_standard_header_height() {
         let e = Entity {
+            uid: None,
             name: "Runnable".to_string(),
             kind: EntityKind::Interface,
             stereotypes: vec![],
@@ -1365,13 +1576,16 @@ mod tests {
             source_line: None,
             visibility: None,
         };
-        let (_, h) = estimate_entity_size(&empty_diagram(), &e, MEMBER_ROW_HEIGHT, CLASS_FONT_SIZE, CLASS_FONT_SIZE);
-
-        let expected_min = HEADER_HEIGHT_PT + 2.0 * EMPTY_COMPARTMENT;
-        assert!(
-            h >= expected_min,
-            "interface height {h} should be >= {expected_min}"
+        let (_, h) = estimate_entity_size(
+            &empty_diagram(),
+            &e,
+            MEMBER_ROW_HEIGHT,
+            CLASS_FONT_SIZE,
+            CLASS_FONT_SIZE,
         );
+
+        let expected = HEADER_HEIGHT_PT + 2.0 * EMPTY_COMPARTMENT;
+        assert_eq!(h, expected, "interface height should follow the standard class header path");
     }
 
     #[test]
@@ -1382,8 +1596,20 @@ mod tests {
             ..plain.clone()
         };
         let diagram = empty_diagram();
-        let (w_plain, _) = estimate_entity_size(&diagram, &plain, MEMBER_ROW_HEIGHT, CLASS_FONT_SIZE, CLASS_FONT_SIZE);
-        let (w_generic, _) = estimate_entity_size(&diagram, &generic, MEMBER_ROW_HEIGHT, CLASS_FONT_SIZE, CLASS_FONT_SIZE);
+        let (w_plain, _) = estimate_entity_size(
+            &diagram,
+            &plain,
+            MEMBER_ROW_HEIGHT,
+            CLASS_FONT_SIZE,
+            CLASS_FONT_SIZE,
+        );
+        let (w_generic, _) = estimate_entity_size(
+            &diagram,
+            &generic,
+            MEMBER_ROW_HEIGHT,
+            CLASS_FONT_SIZE,
+            CLASS_FONT_SIZE,
+        );
         assert!(
             w_generic > w_plain,
             "generic entity should be wider: {w_generic} > {w_plain}"
@@ -1553,16 +1779,28 @@ mod tests {
         assert_eq!(
             block.lines,
             vec![
-                DisplayLine { text: "Before".to_string(), leading_tabs: 0 },
-                DisplayLine { text: "".to_string(), leading_tabs: 0 },
-                DisplayLine { text: "After".to_string(), leading_tabs: 1 },
+                DisplayLine {
+                    text: "Before".to_string(),
+                    leading_tabs: 0
+                },
+                DisplayLine {
+                    text: "".to_string(),
+                    leading_tabs: 0
+                },
+                DisplayLine {
+                    text: "After".to_string(),
+                    leading_tabs: 1
+                },
             ]
         );
     }
 
     #[test]
     fn display_line_metrics_counts_tab_indent_separately() {
-        let line = DisplayLine { text: "After".to_string(), leading_tabs: 1 };
+        let line = DisplayLine {
+            text: "After".to_string(),
+            leading_tabs: 1,
+        };
         let (visible_width, indent_width) = display_line_metrics(&line, 14.0, false, false);
         let expected_visible = font_metrics::text_width("After", "SansSerif", 14.0, false, false);
         let expected_indent = display_tab_width(14.0, false, false);
@@ -1598,8 +1836,20 @@ mod tests {
             ..single.clone()
         };
         let diagram = empty_diagram();
-        let (_, h_single) = estimate_entity_size(&diagram, &single, MEMBER_ROW_HEIGHT, CLASS_FONT_SIZE, CLASS_FONT_SIZE);
-        let (_, h_multi) = estimate_entity_size(&diagram, &multi, MEMBER_ROW_HEIGHT, CLASS_FONT_SIZE, CLASS_FONT_SIZE);
+        let (_, h_single) = estimate_entity_size(
+            &diagram,
+            &single,
+            MEMBER_ROW_HEIGHT,
+            CLASS_FONT_SIZE,
+            CLASS_FONT_SIZE,
+        );
+        let (_, h_multi) = estimate_entity_size(
+            &diagram,
+            &multi,
+            MEMBER_ROW_HEIGHT,
+            CLASS_FONT_SIZE,
+            CLASS_FONT_SIZE,
+        );
         // Multi-line name should produce a taller entity
         assert!(
             h_multi > h_single,
@@ -1624,8 +1874,20 @@ mod tests {
             ..single.clone()
         };
         let diagram = empty_diagram();
-        let (_, h_single) = estimate_entity_size(&diagram, &single, MEMBER_ROW_HEIGHT, CLASS_FONT_SIZE, CLASS_FONT_SIZE);
-        let (_, h_triple) = estimate_entity_size(&diagram, &triple, MEMBER_ROW_HEIGHT, CLASS_FONT_SIZE, CLASS_FONT_SIZE);
+        let (_, h_single) = estimate_entity_size(
+            &diagram,
+            &single,
+            MEMBER_ROW_HEIGHT,
+            CLASS_FONT_SIZE,
+            CLASS_FONT_SIZE,
+        );
+        let (_, h_triple) = estimate_entity_size(
+            &diagram,
+            &triple,
+            MEMBER_ROW_HEIGHT,
+            CLASS_FONT_SIZE,
+            CLASS_FONT_SIZE,
+        );
         // Three-line name: header = max(32, 3*16.297 + 10) = max(32, 58.891) = 58.891
         // vs single-line: header = 32
         // diff = 58.891 - 32 = 26.891

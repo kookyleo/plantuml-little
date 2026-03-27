@@ -551,7 +551,10 @@ fn extract_document_style(css: &str, params: &mut SkinParams) {
             if current_section.is_none() && depth == 0 && trimmed.contains('{') {
                 let brace_pos = trimmed.find('{').unwrap();
                 let name = trimmed[..brace_pos].trim().to_lowercase();
-                if matches!(name.as_str(), "title" | "footer" | "header" | "legend" | "caption") {
+                if matches!(
+                    name.as_str(),
+                    "title" | "footer" | "header" | "legend" | "caption"
+                ) {
                     current_section = Some(name);
                     section_depth = depth;
                     depth += opens;
@@ -559,13 +562,41 @@ fn extract_document_style(css: &str, params: &mut SkinParams) {
                     continue;
                 }
                 // Element-level blocks (node, root, etc.) — store under "element.xxx"
-                if matches!(name.as_str(), "node" | "root" | "arrow" | "group" | "separator"
-                            | "mindmapdiagram" | "wbsdiagram" | "element" | "component"
-                            | "participant" | "actor" | "boundary" | "control" | "entity"
-                            | "database" | "collections" | "queue" | "note" | "package"
-                            | "rectangle" | "card" | "cloud" | "frame" | "folder"
-                            | "interface" | "abstract" | "class" | "enum" | "state"
-                            | "usecase" | "activity" | "diamond") {
+                if matches!(
+                    name.as_str(),
+                    "node"
+                        | "root"
+                        | "arrow"
+                        | "group"
+                        | "separator"
+                        | "mindmapdiagram"
+                        | "wbsdiagram"
+                        | "element"
+                        | "component"
+                        | "participant"
+                        | "actor"
+                        | "boundary"
+                        | "control"
+                        | "entity"
+                        | "database"
+                        | "collections"
+                        | "queue"
+                        | "note"
+                        | "package"
+                        | "rectangle"
+                        | "card"
+                        | "cloud"
+                        | "frame"
+                        | "folder"
+                        | "interface"
+                        | "abstract"
+                        | "class"
+                        | "enum"
+                        | "state"
+                        | "usecase"
+                        | "activity"
+                        | "diamond"
+                ) {
                     current_section = Some(name);
                     section_depth = depth;
                     depth += opens;
@@ -585,8 +616,10 @@ fn extract_document_style(css: &str, params: &mut SkinParams) {
                     let value = parts[1].trim();
                     // Document sub-sections (title, footer, etc.) use document.{section}.{key}
                     // Element-level blocks (node, root, etc.) use {section}.{key}
-                    let param_key = if matches!(section.as_str(),
-                        "title" | "footer" | "header" | "legend" | "caption") {
+                    let param_key = if matches!(
+                        section.as_str(),
+                        "title" | "footer" | "header" | "legend" | "caption"
+                    ) {
                         format!("document.{section}.{key}")
                     } else {
                         format!("{section}.{key}")
@@ -602,7 +635,10 @@ fn extract_document_style(css: &str, params: &mut SkinParams) {
             if current_section.is_none() && depth == doc_depth + 1 && trimmed.contains('{') {
                 let brace_pos = trimmed.find('{').unwrap();
                 let name = trimmed[..brace_pos].trim().to_lowercase();
-                if matches!(name.as_str(), "title" | "footer" | "header" | "legend" | "caption") {
+                if matches!(
+                    name.as_str(),
+                    "title" | "footer" | "header" | "legend" | "caption"
+                ) {
                     current_section = Some(name);
                     section_depth = depth;
                     depth += opens;
@@ -626,8 +662,10 @@ fn extract_document_style(css: &str, params: &mut SkinParams) {
             }
 
             // Direct document-level properties (not in sub-block)
-            if current_section.is_none() && depth == doc_depth + 1
-                && !trimmed.contains('{') && !trimmed.starts_with('}')
+            if current_section.is_none()
+                && depth == doc_depth + 1
+                && !trimmed.contains('{')
+                && !trimmed.starts_with('}')
             {
                 let parts: Vec<&str> = trimmed.splitn(2, char::is_whitespace).collect();
                 if parts.len() == 2 {
@@ -794,9 +832,7 @@ pub fn normalize_color(color: &str) -> String {
                 // #AARRGGBB -> #RRGGBB (drop alpha, uppercase)
                 format!("#{}", &hex_clean[2..])
             }
-            _ => {
-                trimmed.to_string()
-            }
+            _ => trimmed.to_string(),
         };
     }
 

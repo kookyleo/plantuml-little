@@ -15,7 +15,10 @@ pub fn parse_sequence_diagram(source: &str) -> Result<SequenceDiagram> {
     parse_sequence_diagram_with_original(source, None)
 }
 
-pub fn parse_sequence_diagram_with_original(source: &str, original_source: Option<&str>) -> Result<SequenceDiagram> {
+pub fn parse_sequence_diagram_with_original(
+    source: &str,
+    original_source: Option<&str>,
+) -> Result<SequenceDiagram> {
     let block = super::common::extract_block(source).unwrap_or_else(|| source.to_string());
 
     // Java data-source-line uses 0-based absolute line numbers from the
@@ -89,7 +92,10 @@ pub fn parse_sequence_diagram_with_original(source: &str, original_source: Optio
     let autonumber_re = Regex::new(r"(?i)^autonumber(?:\s+(\d+))?$").unwrap();
 
     for (block_line_idx, line) in block.lines().enumerate() {
-        let source_line = line_mapping.get(block_line_idx).copied().unwrap_or(block_line_idx);
+        let source_line = line_mapping
+            .get(block_line_idx)
+            .copied()
+            .unwrap_or(block_line_idx);
         let trimmed = line.trim();
 
         // Skip empty lines
@@ -135,9 +141,7 @@ pub fn parse_sequence_diagram_with_original(source: &str, original_source: Optio
 
         // Collect multiline note content
         if in_note_block {
-            if trimmed.eq_ignore_ascii_case("end note")
-                || trimmed.eq_ignore_ascii_case("endnote")
-            {
+            if trimmed.eq_ignore_ascii_case("end note") || trimmed.eq_ignore_ascii_case("endnote") {
                 let text = note_lines.join("\n");
                 let evt = match note_kind {
                     Some("right") => SeqEvent::NoteRight {
@@ -270,18 +274,21 @@ pub fn parse_sequence_diagram_with_original(source: &str, original_source: Optio
                 let mut act_color = None;
                 if let Some(hash_pos) = name.rfind(" #") {
                     let color_raw = name[hash_pos + 1..].trim();
-                    act_color = crate::klimt::color::resolve_color(color_raw)
-                        .map(|c| c.to_svg());
+                    act_color = crate::klimt::color::resolve_color(color_raw).map(|c| c.to_svg());
                     name = name[..hash_pos].trim().to_string();
                 } else if let Some(hash_pos) = name.rfind('#') {
                     // No space: "activate a#green"
                     let color_raw = name[hash_pos..].trim();
-                    act_color = crate::klimt::color::resolve_color(color_raw)
-                        .map(|c| c.to_svg());
+                    act_color = crate::klimt::color::resolve_color(color_raw).map(|c| c.to_svg());
                     name = name[..hash_pos].trim().to_string();
                 }
                 debug!("parsed activate: {name} color={act_color:?}");
-                ensure_participant(&mut declared_participants, &mut auto_participants, &name, source_line);
+                ensure_participant(
+                    &mut declared_participants,
+                    &mut auto_participants,
+                    &name,
+                    source_line,
+                );
                 events.push(SeqEvent::Activate(name, act_color));
                 continue;
             }
@@ -397,7 +404,11 @@ pub fn parse_sequence_diagram_with_original(source: &str, original_source: Optio
                 debug!(
                     "parsed fragment start {kind:?} label={label:?} parallel={frag_parallel} (depth now {fragment_depth})"
                 );
-                events.push(SeqEvent::FragmentStart { kind, label, parallel: frag_parallel });
+                events.push(SeqEvent::FragmentStart {
+                    kind,
+                    label,
+                    parallel: frag_parallel,
+                });
                 continue;
             }
 
@@ -448,7 +459,12 @@ pub fn parse_sequence_diagram_with_original(source: &str, original_source: Optio
                 msg.source_line = Some(source_line);
                 msg.parallel = is_parallel;
                 debug!("parsed gate-left message: ?-> {} : {}", msg.to, msg.text);
-                ensure_participant(&mut declared_participants, &mut auto_participants, &msg.to, source_line);
+                ensure_participant(
+                    &mut declared_participants,
+                    &mut auto_participants,
+                    &msg.to,
+                    source_line,
+                );
                 last_to_participant = Some(msg.to.clone());
                 events.push(SeqEvent::Message(msg));
                 continue;
@@ -465,7 +481,12 @@ pub fn parse_sequence_diagram_with_original(source: &str, original_source: Optio
                 msg.source_line = Some(source_line);
                 msg.parallel = is_parallel;
                 debug!("parsed gate-right message: {} ->? : {}", msg.from, msg.text);
-                ensure_participant(&mut declared_participants, &mut auto_participants, &msg.from, source_line);
+                ensure_participant(
+                    &mut declared_participants,
+                    &mut auto_participants,
+                    &msg.from,
+                    source_line,
+                );
                 last_to_participant = Some(msg.from.clone());
                 events.push(SeqEvent::Message(msg));
                 continue;
@@ -482,8 +503,16 @@ pub fn parse_sequence_diagram_with_original(source: &str, original_source: Optio
                 .unwrap_or_default();
             if let Some(mut msg) = parse_arrow("[", &format!("[{arrow}"), right, &text) {
                 msg.source_line = Some(source_line);
-                debug!("parsed boundary-left message: [-> {} : {}", msg.to, msg.text);
-                ensure_participant(&mut declared_participants, &mut auto_participants, &msg.to, source_line);
+                debug!(
+                    "parsed boundary-left message: [-> {} : {}",
+                    msg.to, msg.text
+                );
+                ensure_participant(
+                    &mut declared_participants,
+                    &mut auto_participants,
+                    &msg.to,
+                    source_line,
+                );
                 last_to_participant = Some(msg.to.clone());
                 events.push(SeqEvent::Message(msg));
                 continue;
@@ -504,7 +533,12 @@ pub fn parse_sequence_diagram_with_original(source: &str, original_source: Optio
                     "parsed boundary-right message: {} ->] : {}",
                     msg.from, msg.text
                 );
-                ensure_participant(&mut declared_participants, &mut auto_participants, &msg.from, source_line);
+                ensure_participant(
+                    &mut declared_participants,
+                    &mut auto_participants,
+                    &msg.from,
+                    source_line,
+                );
                 last_to_participant = Some(msg.from.clone());
                 events.push(SeqEvent::Message(msg));
                 continue;
@@ -529,8 +563,7 @@ pub fn parse_sequence_diagram_with_original(source: &str, original_source: Optio
             let mut inline_color: Option<String> = None;
             if let Some(hash_pos) = right.rfind(" #") {
                 let color_raw = right[hash_pos + 1..].trim();
-                inline_color = crate::klimt::color::resolve_color(color_raw)
-                    .map(|c| c.to_svg());
+                inline_color = crate::klimt::color::resolve_color(color_raw).map(|c| c.to_svg());
                 right = right[..hash_pos].trim().to_string();
             } else if right.starts_with('#') {
                 // Entire right is a color - shouldn't happen, skip
@@ -711,7 +744,8 @@ fn ensure_participant(
 /// Expands `%newline()` / `%n()` to the private-use \u{E100} character,
 /// so preprocessed lines can match their original source counterparts.
 fn normalize_for_mapping(s: &str) -> String {
-    s.replace("%newline()", "\u{E100}").replace("%n()", "\u{E100}")
+    s.replace("%newline()", "\u{E100}")
+        .replace("%n()", "\u{E100}")
 }
 
 /// Build a mapping from block line index to original source line number.
@@ -720,12 +754,17 @@ fn normalize_for_mapping(s: &str) -> String {
 /// When preprocessing strips lines (sprite, !pragma, !include, etc.), the
 /// cleaned block has fewer lines and different indices.  This function matches
 /// each cleaned block line to its position in the original source by content.
-fn build_line_mapping(cleaned_source: &str, original_source: Option<&str>, block: &str) -> Vec<usize> {
+fn build_line_mapping(
+    cleaned_source: &str,
+    original_source: Option<&str>,
+    block: &str,
+) -> Vec<usize> {
     let orig = original_source.unwrap_or(cleaned_source);
     let orig_lines: Vec<&str> = orig.lines().collect();
 
     // Find @startuml position in original source
-    let start_pos = orig_lines.iter()
+    let start_pos = orig_lines
+        .iter()
         .position(|l| {
             let t = l.trim();
             t.starts_with("@startuml") || t.starts_with("@start")
@@ -755,7 +794,9 @@ fn build_line_mapping(cleaned_source: &str, original_source: Option<&str>, block
             let orig_trimmed = orig_lines[oi].trim();
             // Exact match, or match after expanding %newline() / %n() macros
             // that the preprocessor replaces with \u{E100}.
-            if orig_trimmed == trimmed || normalize_for_mapping(orig_trimmed) == normalize_for_mapping(trimmed) {
+            if orig_trimmed == trimmed
+                || normalize_for_mapping(orig_trimmed) == normalize_for_mapping(trimmed)
+            {
                 mapping.push(oi);
                 search_from = oi + 1;
                 found = true;
@@ -781,7 +822,10 @@ fn strip_url_markup(s: &str) -> (String, Option<String>) {
             let inner = &result[start + 2..start + end];
             // Extract URL (first token) and text after URL
             let (url, display) = if let Some(space_pos) = inner.find(' ') {
-                (inner[..space_pos].to_string(), inner[space_pos + 1..].to_string())
+                (
+                    inner[..space_pos].to_string(),
+                    inner[space_pos + 1..].to_string(),
+                )
             } else {
                 (inner.to_string(), String::new())
             };
@@ -797,7 +841,9 @@ fn strip_url_markup(s: &str) -> (String, Option<String>) {
 }
 
 /// Parse participant declaration details: name, display name, and color
-fn parse_participant_details(rest: &str) -> (String, Option<String>, Option<String>, Option<String>) {
+fn parse_participant_details(
+    rest: &str,
+) -> (String, Option<String>, Option<String>, Option<String>) {
     // Patterns:
     //   "Display Name" as Name #color
     //   "Display Name" as Name
@@ -909,8 +955,7 @@ fn parse_arrow(left: &str, arrow: &str, right: &str, text: &str) -> Option<Messa
     let has_right_circle = clean_arrow.ends_with('o');
 
     // Strip outer decorators (o, x, X)
-    let stripped =
-        clean_arrow.trim_start_matches(|c: char| c == 'o' || c == 'x' || c == 'X');
+    let stripped = clean_arrow.trim_start_matches(|c: char| c == 'o' || c == 'x' || c == 'X');
     let stripped = stripped.trim_end_matches(|c: char| c == 'o' || c == 'x' || c == 'X');
 
     // Check for boundary markers
@@ -921,14 +966,12 @@ fn parse_arrow(left: &str, arrow: &str, right: &str, text: &str) -> Option<Messa
     // Check for arrow heads / half-arrows on left and right
     let has_left_arrow =
         stripped.starts_with('<') || stripped.starts_with('/') || stripped.starts_with('\\');
-    let has_open_left = stripped.starts_with("<<")
-        || stripped.starts_with("//")
-        || stripped.starts_with("\\\\");
+    let has_open_left =
+        stripped.starts_with("<<") || stripped.starts_with("//") || stripped.starts_with("\\\\");
     let has_right_arrow =
         stripped.ends_with('>') || stripped.ends_with('/') || stripped.ends_with('\\');
-    let has_open_right = stripped.ends_with(">>")
-        || stripped.ends_with("//")
-        || stripped.ends_with("\\\\");
+    let has_open_right =
+        stripped.ends_with(">>") || stripped.ends_with("//") || stripped.ends_with("\\\\");
 
     // Must have at least one arrowhead, half-arrow, or boundary marker
     if !has_left_arrow && !has_right_arrow && !has_left_boundary && !has_right_boundary {
@@ -936,14 +979,12 @@ fn parse_arrow(left: &str, arrow: &str, right: &str, text: &str) -> Option<Messa
     }
 
     // Direction: left-pointing heads mean right-to-left
-    let direction = if stripped.starts_with('<')
-        || stripped.starts_with('/')
-        || stripped.starts_with('\\')
-    {
-        SeqDirection::RightToLeft
-    } else {
-        SeqDirection::LeftToRight
-    };
+    let direction =
+        if stripped.starts_with('<') || stripped.starts_with('/') || stripped.starts_with('\\') {
+            SeqDirection::RightToLeft
+        } else {
+            SeqDirection::LeftToRight
+        };
 
     let arrow_head = if stripped.starts_with("<<") || stripped.ends_with(">>") {
         SeqArrowHead::Open
@@ -1713,21 +1754,30 @@ Sally --> Bob
     fn parse_pragma_teoz_true() {
         let src = "@startuml\n!pragma teoz true\nA -> B : msg\n@enduml";
         let diagram = parse_sequence_diagram(src).unwrap();
-        assert!(diagram.teoz_mode, "teoz_mode should be true when pragma teoz true is set");
+        assert!(
+            diagram.teoz_mode,
+            "teoz_mode should be true when pragma teoz true is set"
+        );
     }
 
     #[test]
     fn parse_no_pragma_teoz_defaults_false() {
         let src = "@startuml\nA -> B : msg\n@enduml";
         let diagram = parse_sequence_diagram(src).unwrap();
-        assert!(diagram.teoz_mode == false, "teoz_mode should default to false");
+        assert!(
+            diagram.teoz_mode == false,
+            "teoz_mode should default to false"
+        );
     }
 
     #[test]
     fn parse_other_pragma_ignored() {
         let src = "@startuml\n!pragma graphviz_dot jdot\nA -> B : msg\n@enduml";
         let diagram = parse_sequence_diagram(src).unwrap();
-        assert!(diagram.teoz_mode == false, "other pragmas should not enable teoz_mode");
+        assert!(
+            diagram.teoz_mode == false,
+            "other pragmas should not enable teoz_mode"
+        );
     }
 
     #[test]
@@ -1741,7 +1791,10 @@ Sally --> Bob
     fn hide_footbox_default_false() {
         let src = "@startuml\nA -> B : msg\n@enduml";
         let diagram = parse_sequence_diagram(src).unwrap();
-        assert!(diagram.hide_footbox == false, "hide footbox defaults to false");
+        assert!(
+            diagram.hide_footbox == false,
+            "hide footbox defaults to false"
+        );
     }
 
     #[test]
@@ -1752,7 +1805,14 @@ Sally --> Bob
         let diagram = parse_sequence_diagram(src).unwrap();
         assert_eq!(diagram.participants.len(), 1, "only 'foo', not '& foo'");
         assert_eq!(diagram.participants[0].name, "foo");
-        assert_eq!(diagram.events.iter().filter(|e| matches!(e, SeqEvent::Message(_))).count(), 2);
+        assert_eq!(
+            diagram
+                .events
+                .iter()
+                .filter(|e| matches!(e, SeqEvent::Message(_)))
+                .count(),
+            2
+        );
     }
 
     /// Parse `note right of PARTICIPANT : text` single-line syntax
@@ -1788,7 +1848,8 @@ Sally --> Bob
     /// Parse multiline `note right of PARTICIPANT` (no colon, ends with `end note`)
     #[test]
     fn parse_multiline_note_right_of_participant() {
-        let src = "@startuml\nBob -> Alice : hello\nnote right of Alice\nline1\nline2\nend note\n@enduml";
+        let src =
+            "@startuml\nBob -> Alice : hello\nnote right of Alice\nline1\nline2\nend note\n@enduml";
         let diagram = parse_sequence_diagram(src).unwrap();
 
         assert!(matches!(&diagram.events[0], SeqEvent::Message(_)));
@@ -1808,11 +1869,14 @@ Sally --> Bob
         let diagram = parse_sequence_diagram(src).unwrap();
         // Events: Activate(B), Message(B→A), Deactivate(B)
         assert!(matches!(&diagram.events[0], SeqEvent::Activate(ref n, _) if n == "B"));
-        assert!(matches!(&diagram.events[1], SeqEvent::Message(ref m) if m.from == "B" && m.to == "A"));
+        assert!(
+            matches!(&diagram.events[1], SeqEvent::Message(ref m) if m.from == "B" && m.to == "A")
+        );
         // The -- suffix deactivates the SOURCE (B), not the target (A)
         assert!(
             matches!(&diagram.events[2], SeqEvent::Deactivate(ref n) if n == "B"),
-            "expected Deactivate(B) but got {:?}", &diagram.events[2]
+            "expected Deactivate(B) but got {:?}",
+            &diagram.events[2]
         );
     }
 
@@ -1823,10 +1887,13 @@ Sally --> Bob
         let diagram = parse_sequence_diagram(src).unwrap();
         // Events: Activate(A), Message(A→B), Deactivate(A), Activate(B)
         assert!(matches!(&diagram.events[0], SeqEvent::Activate(ref n, _) if n == "A"));
-        assert!(matches!(&diagram.events[1], SeqEvent::Message(ref m) if m.from == "A" && m.to == "B"));
+        assert!(
+            matches!(&diagram.events[1], SeqEvent::Message(ref m) if m.from == "A" && m.to == "B")
+        );
         assert!(
             matches!(&diagram.events[2], SeqEvent::Deactivate(ref n) if n == "A"),
-            "expected Deactivate(A) but got {:?}", &diagram.events[2]
+            "expected Deactivate(A) but got {:?}",
+            &diagram.events[2]
         );
         assert!(matches!(&diagram.events[3], SeqEvent::Activate(ref n, _) if n == "B"));
     }
@@ -1838,11 +1905,14 @@ Sally --> Bob
         let diagram = parse_sequence_diagram(src).unwrap();
         // Events: Activate(A), Message(A→B), Activate(B), Deactivate(A)
         assert!(matches!(&diagram.events[0], SeqEvent::Activate(ref n, _) if n == "A"));
-        assert!(matches!(&diagram.events[1], SeqEvent::Message(ref m) if m.from == "A" && m.to == "B"));
+        assert!(
+            matches!(&diagram.events[1], SeqEvent::Message(ref m) if m.from == "A" && m.to == "B")
+        );
         assert!(matches!(&diagram.events[2], SeqEvent::Activate(ref n, _) if n == "B"));
         assert!(
             matches!(&diagram.events[3], SeqEvent::Deactivate(ref n) if n == "A"),
-            "expected Deactivate(A) but got {:?}", &diagram.events[3]
+            "expected Deactivate(A) but got {:?}",
+            &diagram.events[3]
         );
     }
 }

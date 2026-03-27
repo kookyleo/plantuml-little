@@ -652,8 +652,8 @@ mod tests {
 
     #[test]
     fn link_quantifiers() {
-        let arg = LinkArg::new(vec![], 1)
-            .with_quantifier(Some("1".to_string()), Some("*".to_string()));
+        let arg =
+            LinkArg::new(vec![], 1).with_quantifier(Some("1".to_string()), Some("*".to_string()));
         let link = Link::new("a", "b", simple_link_type(), arg);
         assert_eq!(link.quantifier1(), Some("1"));
         assert_eq!(link.quantifier2(), Some("*"));
@@ -661,8 +661,8 @@ mod tests {
 
     #[test]
     fn link_roles() {
-        let arg = LinkArg::new(vec![], 1)
-            .with_role(Some("owner".to_string()), Some("owned".to_string()));
+        let arg =
+            LinkArg::new(vec![], 1).with_role(Some("owner".to_string()), Some("owned".to_string()));
         let link = Link::new("a", "b", simple_link_type(), arg);
         assert_eq!(link.role1(), Some("owner"));
         assert_eq!(link.role2(), Some("owned"));
@@ -680,6 +680,9 @@ mod tests {
         l1.set_note(Some(note));
         l2.add_note_from(&l1, NoteLinkStrategy::HalfPrintedFull);
         assert!(l2.note().is_some());
-        assert_eq!(l2.note().unwrap().strategy, NoteLinkStrategy::HalfPrintedFull);
+        assert_eq!(
+            l2.note().unwrap().strategy,
+            NoteLinkStrategy::HalfPrintedFull
+        );
     }
 }

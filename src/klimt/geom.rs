@@ -11,7 +11,9 @@ pub struct XPoint2D {
 }
 
 impl XPoint2D {
-    pub fn new(x: f64, y: f64) -> Self { Self { x, y } }
+    pub fn new(x: f64, y: f64) -> Self {
+        Self { x, y }
+    }
 
     pub fn distance(&self, other: &XPoint2D) -> f64 {
         ((self.x - other.x).powi(2) + (self.y - other.y).powi(2)).sqrt()
@@ -33,11 +35,17 @@ impl XPoint2D {
     }
 
     pub fn moved(&self, dx: f64, dy: f64) -> Self {
-        Self { x: self.x + dx, y: self.y + dy }
+        Self {
+            x: self.x + dx,
+            y: self.y + dy,
+        }
     }
 
     pub fn move_point(&self, delta: &XPoint2D) -> Self {
-        Self { x: self.x + delta.x, y: self.y + delta.y }
+        Self {
+            x: self.x + delta.x,
+            y: self.y + delta.y,
+        }
     }
 }
 
@@ -51,11 +59,21 @@ pub struct XDimension2D {
 }
 
 impl XDimension2D {
-    pub fn new(width: f64, height: f64) -> Self { Self { width, height } }
-    pub fn zero() -> Self { Self { width: 0.0, height: 0.0 } }
+    pub fn new(width: f64, height: f64) -> Self {
+        Self { width, height }
+    }
+    pub fn zero() -> Self {
+        Self {
+            width: 0.0,
+            height: 0.0,
+        }
+    }
 
     pub fn delta(&self, dw: f64, dh: f64) -> Self {
-        Self { width: self.width + dw, height: self.height + dh }
+        Self {
+            width: self.width + dw,
+            height: self.height + dh,
+        }
     }
 
     pub fn max(&self, other: &XDimension2D) -> Self {
@@ -93,26 +111,47 @@ pub struct XRectangle2D {
 
 impl XRectangle2D {
     pub fn new(x: f64, y: f64, width: f64, height: f64) -> Self {
-        Self { x, y, width, height }
+        Self {
+            x,
+            y,
+            width,
+            height,
+        }
     }
 
-    pub fn center_x(&self) -> f64 { self.x + self.width / 2.0 }
-    pub fn center_y(&self) -> f64 { self.y + self.height / 2.0 }
-    pub fn max_x(&self) -> f64 { self.x + self.width }
-    pub fn max_y(&self) -> f64 { self.y + self.height }
+    pub fn center_x(&self) -> f64 {
+        self.x + self.width / 2.0
+    }
+    pub fn center_y(&self) -> f64 {
+        self.y + self.height / 2.0
+    }
+    pub fn max_x(&self) -> f64 {
+        self.x + self.width
+    }
+    pub fn max_y(&self) -> f64 {
+        self.y + self.height
+    }
 
     pub fn contains(&self, px: f64, py: f64) -> bool {
         px >= self.x && px <= self.max_x() && py >= self.y && py <= self.max_y()
     }
 
-    pub fn min_x(&self) -> f64 { self.x }
-    pub fn min_y(&self) -> f64 { self.y }
+    pub fn min_x(&self) -> f64 {
+        self.x
+    }
+    pub fn min_y(&self) -> f64 {
+        self.y
+    }
 
     pub fn intersects(&self, other: &XRectangle2D) -> bool {
-        self.width > 0.0 && self.height > 0.0
-            && other.width > 0.0 && other.height > 0.0
-            && other.x < self.x + self.width && other.x + other.width > self.x
-            && other.y < self.y + self.height && other.y + other.height > self.y
+        self.width > 0.0
+            && self.height > 0.0
+            && other.width > 0.0
+            && other.height > 0.0
+            && other.x < self.x + self.width
+            && other.x + other.width > self.x
+            && other.y < self.y + self.height
+            && other.y + other.height > self.y
     }
 
     /// Line-rectangle intersection: find where `line` crosses the rectangle boundary.
@@ -153,7 +192,12 @@ impl XLine2D {
     }
 
     pub fn from_points(p1: XPoint2D, p2: XPoint2D) -> Self {
-        Self { x1: p1.x, y1: p1.y, x2: p2.x, y2: p2.y }
+        Self {
+            x1: p1.x,
+            y1: p1.y,
+            x2: p2.x,
+            y2: p2.y,
+        }
     }
 
     pub fn middle(&self) -> XPoint2D {
@@ -174,9 +218,7 @@ impl XLine2D {
     }
 
     /// Static point-to-segment distance squared (matches Java `XLine2D.ptSegDistSq`).
-    pub fn pt_seg_dist_sq_static(
-        x1: f64, y1: f64, x2: f64, y2: f64, px: f64, py: f64,
-    ) -> f64 {
+    pub fn pt_seg_dist_sq_static(x1: f64, y1: f64, x2: f64, y2: f64, px: f64, py: f64) -> f64 {
         let rx2 = x2 - x1;
         let ry2 = y2 - y1;
         let mut rpx = px - x1;
@@ -202,15 +244,29 @@ impl XLine2D {
         len_sq
     }
 
-    pub fn p1(&self) -> XPoint2D { XPoint2D::new(self.x1, self.y1) }
-    pub fn p2(&self) -> XPoint2D { XPoint2D::new(self.x2, self.y2) }
+    pub fn p1(&self) -> XPoint2D {
+        XPoint2D::new(self.x1, self.y1)
+    }
+    pub fn p2(&self) -> XPoint2D {
+        XPoint2D::new(self.x2, self.y2)
+    }
 
     pub fn with_point1(&self, p: XPoint2D) -> Self {
-        Self { x1: p.x, y1: p.y, x2: self.x2, y2: self.y2 }
+        Self {
+            x1: p.x,
+            y1: p.y,
+            x2: self.x2,
+            y2: self.y2,
+        }
     }
 
     pub fn with_point2(&self, p: XPoint2D) -> Self {
-        Self { x1: self.x1, y1: self.y1, x2: p.x, y2: p.y }
+        Self {
+            x1: self.x1,
+            y1: self.y1,
+            x2: p.x,
+            y2: p.y,
+        }
     }
 
     /// Segment-segment intersection (returns `None` if no intersection).
@@ -267,10 +323,16 @@ impl MinMax {
         self.add_point(r.max_x(), r.max_y());
     }
 
-    pub fn width(&self) -> f64 { self.max_x - self.min_x }
-    pub fn height(&self) -> f64 { self.max_y - self.min_y }
+    pub fn width(&self) -> f64 {
+        self.max_x - self.min_x
+    }
+    pub fn height(&self) -> f64 {
+        self.max_y - self.min_y
+    }
 
-    pub fn is_empty(&self) -> bool { self.min_x > self.max_x }
+    pub fn is_empty(&self) -> bool {
+        self.min_x > self.max_x
+    }
 
     pub fn to_rect(&self) -> XRectangle2D {
         XRectangle2D::new(self.min_x, self.min_y, self.width(), self.height())
@@ -354,29 +416,54 @@ pub struct XCubicCurve2D {
 
 impl XCubicCurve2D {
     pub fn new(
-        x1: f64, y1: f64,
-        ctrlx1: f64, ctrly1: f64,
-        ctrlx2: f64, ctrly2: f64,
-        x2: f64, y2: f64,
+        x1: f64,
+        y1: f64,
+        ctrlx1: f64,
+        ctrly1: f64,
+        ctrlx2: f64,
+        ctrly2: f64,
+        x2: f64,
+        y2: f64,
     ) -> Self {
-        Self { x1, y1, ctrlx1, ctrly1, ctrlx2, ctrly2, x2, y2 }
+        Self {
+            x1,
+            y1,
+            ctrlx1,
+            ctrly1,
+            ctrlx2,
+            ctrly2,
+            x2,
+            y2,
+        }
     }
 
     pub fn none() -> Self {
         Self::new(0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
     }
 
-    pub fn p1(&self) -> XPoint2D { XPoint2D::new(self.x1, self.y1) }
-    pub fn p2(&self) -> XPoint2D { XPoint2D::new(self.x2, self.y2) }
-    pub fn ctrl_p1(&self) -> XPoint2D { XPoint2D::new(self.ctrlx1, self.ctrly1) }
-    pub fn ctrl_p2(&self) -> XPoint2D { XPoint2D::new(self.ctrlx2, self.ctrly2) }
+    pub fn p1(&self) -> XPoint2D {
+        XPoint2D::new(self.x1, self.y1)
+    }
+    pub fn p2(&self) -> XPoint2D {
+        XPoint2D::new(self.x2, self.y2)
+    }
+    pub fn ctrl_p1(&self) -> XPoint2D {
+        XPoint2D::new(self.ctrlx1, self.ctrly1)
+    }
+    pub fn ctrl_p2(&self) -> XPoint2D {
+        XPoint2D::new(self.ctrlx2, self.ctrly2)
+    }
 
     pub fn set_curve(
         &mut self,
-        x1: f64, y1: f64,
-        ctrlx1: f64, ctrly1: f64,
-        ctrlx2: f64, ctrly2: f64,
-        x2: f64, y2: f64,
+        x1: f64,
+        y1: f64,
+        ctrlx1: f64,
+        ctrly1: f64,
+        ctrlx2: f64,
+        ctrly2: f64,
+        x2: f64,
+        y2: f64,
     ) {
         self.x1 = x1;
         self.y1 = y1;
@@ -391,10 +478,14 @@ impl XCubicCurve2D {
     pub fn set_curve_from(&mut self, other: &XCubicCurve2D) {
         // Note: Java source copies ctrlx2/ctrly2 for x2/y2 (matching original)
         self.set_curve(
-            other.x1, other.y1,
-            other.ctrlx1, other.ctrly1,
-            other.ctrlx2, other.ctrly2,
-            other.ctrlx2, other.ctrly2,
+            other.x1,
+            other.y1,
+            other.ctrlx1,
+            other.ctrly1,
+            other.ctrlx2,
+            other.ctrly2,
+            other.ctrlx2,
+            other.ctrly2,
         );
     }
 
@@ -436,10 +527,20 @@ impl XCubicCurve2D {
     /// Flatness squared: max distance-squared of control points from the chord.
     pub fn flatness_sq(&self) -> f64 {
         let d1 = XLine2D::pt_seg_dist_sq_static(
-            self.x1, self.y1, self.x2, self.y2, self.ctrlx1, self.ctrly1,
+            self.x1,
+            self.y1,
+            self.x2,
+            self.y2,
+            self.ctrlx1,
+            self.ctrly1,
         );
         let d2 = XLine2D::pt_seg_dist_sq_static(
-            self.x1, self.y1, self.x2, self.y2, self.ctrlx2, self.ctrly2,
+            self.x1,
+            self.y1,
+            self.x2,
+            self.y2,
+            self.ctrlx2,
+            self.ctrly2,
         );
         d1.max(d2)
     }
@@ -569,13 +670,15 @@ impl BezierUtils {
     pub fn shorten(bez: &mut XCubicCurve2D, shape: &XRectangle2D) {
         let c1 = shape.contains(bez.x1, bez.y1);
         let c2 = shape.contains(bez.x2, bez.y2);
-        assert!(c1 != c2, "BezierUtils::shorten: exactly one endpoint must be inside");
+        assert!(
+            c1 != c2,
+            "BezierUtils::shorten: exactly one endpoint must be inside"
+        );
 
         if !c1 {
             // Reverse so that p1 is inside
             let rev = XCubicCurve2D::new(
-                bez.x2, bez.y2, bez.ctrlx2, bez.ctrly2,
-                bez.ctrlx1, bez.ctrly1, bez.x1, bez.y1,
+                bez.x2, bez.y2, bez.ctrlx2, bez.ctrly2, bez.ctrlx1, bez.ctrly1, bez.x1, bez.y1,
             );
             *bez = rev;
         }
@@ -587,13 +690,25 @@ impl BezierUtils {
         let cut_left = Self::is_cutting(&left, shape);
         if cut_left {
             bez.set_curve(
-                left.x1, left.y1, left.ctrlx1, left.ctrly1,
-                left.ctrlx2, left.ctrly2, left.x2, left.y2,
+                left.x1,
+                left.y1,
+                left.ctrlx1,
+                left.ctrly1,
+                left.ctrlx2,
+                left.ctrly2,
+                left.x2,
+                left.y2,
             );
         } else {
             bez.set_curve(
-                right.x1, right.y1, right.ctrlx1, right.ctrly1,
-                right.ctrlx2, right.ctrly2, right.x2, right.y2,
+                right.x1,
+                right.y1,
+                right.ctrlx1,
+                right.ctrly1,
+                right.ctrlx2,
+                right.ctrly2,
+                right.x2,
+                right.y2,
             );
         }
     }
@@ -613,7 +728,12 @@ pub struct MinMaxMutable {
 impl MinMaxMutable {
     pub fn empty(init_to_zero: bool) -> Self {
         if init_to_zero {
-            Self { min_x: 0.0, min_y: 0.0, max_x: 0.0, max_y: 0.0 }
+            Self {
+                min_x: 0.0,
+                min_y: 0.0,
+                max_x: 0.0,
+                max_y: 0.0,
+            }
         } else {
             Self {
                 min_x: f64::MAX,
@@ -661,7 +781,11 @@ impl MinMaxMutable {
 
 impl std::fmt::Display for MinMaxMutable {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "X={} to {} and Y={} to {}", self.min_x, self.max_x, self.min_y, self.max_y)
+        write!(
+            f,
+            "X={} to {} and Y={} to {}",
+            self.min_x, self.max_x, self.min_y, self.max_y
+        )
     }
 }
 
@@ -708,7 +832,9 @@ impl CoordinateChange {
         XPoint2D::new(self.x1 + x, self.y1 + y)
     }
 
-    pub fn length(&self) -> f64 { self.len }
+    pub fn length(&self) -> f64 {
+        self.len
+    }
 }
 
 // ── PointAndAngle ───────────────────────────────────────────────────
@@ -721,9 +847,15 @@ pub struct PointAndAngle {
 }
 
 impl PointAndAngle {
-    pub fn new(pt: XPoint2D, angle: f64) -> Self { Self { pt, angle } }
-    pub fn x(&self) -> f64 { self.pt.x }
-    pub fn y(&self) -> f64 { self.pt.y }
+    pub fn new(pt: XPoint2D, angle: f64) -> Self {
+        Self { pt, angle }
+    }
+    pub fn x(&self) -> f64 {
+        self.pt.x
+    }
+    pub fn y(&self) -> f64 {
+        self.pt.y
+    }
 }
 
 // ── PointDirected ───────────────────────────────────────────────────
@@ -738,11 +870,19 @@ pub struct PointDirected {
 
 impl PointDirected {
     pub fn new(p: XPoint2D, angle: f64) -> Self {
-        Self { x: p.x, y: p.y, angle }
+        Self {
+            x: p.x,
+            y: p.y,
+            angle,
+        }
     }
 
-    pub fn point(&self) -> XPoint2D { XPoint2D::new(self.x, self.y) }
-    pub fn angle(&self) -> f64 { self.angle }
+    pub fn point(&self) -> XPoint2D {
+        XPoint2D::new(self.x, self.y)
+    }
+    pub fn angle(&self) -> f64 {
+        self.angle
+    }
 }
 
 // ── MinFinder ───────────────────────────────────────────────────────
@@ -756,12 +896,19 @@ pub struct MinFinder {
 
 impl MinFinder {
     pub fn new() -> Self {
-        Self { min_x: f64::MAX, min_y: f64::MAX }
+        Self {
+            min_x: f64::MAX,
+            min_y: f64::MAX,
+        }
     }
 
     pub fn manage(&mut self, x: f64, y: f64) {
-        if x < self.min_x { self.min_x = x; }
-        if y < self.min_y { self.min_y = y; }
+        if x < self.min_x {
+            self.min_x = x;
+        }
+        if y < self.min_y {
+            self.min_y = y;
+        }
     }
 
     pub fn manage_point(&mut self, p: XPoint2D) {
@@ -772,12 +919,18 @@ impl MinFinder {
         self.manage(other.min_x, other.min_y);
     }
 
-    pub fn min_x(&self) -> f64 { self.min_x }
-    pub fn min_y(&self) -> f64 { self.min_y }
+    pub fn min_x(&self) -> f64 {
+        self.min_x
+    }
+    pub fn min_y(&self) -> f64 {
+        self.min_y
+    }
 }
 
 impl Default for MinFinder {
-    fn default() -> Self { Self::new() }
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl std::fmt::Display for MinFinder {
@@ -799,7 +952,12 @@ pub struct RectangleArea {
 
 impl RectangleArea {
     pub fn new(min_x: f64, min_y: f64, max_x: f64, max_y: f64) -> Self {
-        Self { min_x, min_y, max_x, max_y }
+        Self {
+            min_x,
+            min_y,
+            max_x,
+            max_y,
+        }
     }
 
     pub fn from_points(p1: XPoint2D, p2: XPoint2D) -> Self {
@@ -820,8 +978,12 @@ impl RectangleArea {
         }
     }
 
-    pub fn width(&self) -> f64 { self.max_x - self.min_x }
-    pub fn height(&self) -> f64 { self.max_y - self.min_y }
+    pub fn width(&self) -> f64 {
+        self.max_x - self.min_x
+    }
+    pub fn height(&self) -> f64 {
+        self.max_y - self.min_y
+    }
 
     pub fn contains(&self, x: f64, y: f64) -> bool {
         x >= self.min_x && x < self.max_x && y >= self.min_y && y < self.max_y
@@ -850,25 +1012,60 @@ impl RectangleArea {
     }
 
     pub fn center(&self) -> XPoint2D {
-        XPoint2D::new((self.min_x + self.max_x) / 2.0, (self.min_y + self.max_y) / 2.0)
+        XPoint2D::new(
+            (self.min_x + self.max_x) / 2.0,
+            (self.min_y + self.max_y) / 2.0,
+        )
     }
 
     pub fn dimension(&self) -> XDimension2D {
         XDimension2D::new(self.width(), self.height())
     }
 
-    pub fn with_min_x(&self, v: f64) -> Self { Self { min_x: v, ..*self } }
-    pub fn with_max_x(&self, v: f64) -> Self { Self { max_x: v, ..*self } }
-    pub fn with_min_y(&self, v: f64) -> Self { Self { min_y: v, ..*self } }
-    pub fn with_max_y(&self, v: f64) -> Self { Self { max_y: v, ..*self } }
+    pub fn with_min_x(&self, v: f64) -> Self {
+        Self { min_x: v, ..*self }
+    }
+    pub fn with_max_x(&self, v: f64) -> Self {
+        Self { max_x: v, ..*self }
+    }
+    pub fn with_min_y(&self, v: f64) -> Self {
+        Self { min_y: v, ..*self }
+    }
+    pub fn with_max_y(&self, v: f64) -> Self {
+        Self { max_y: v, ..*self }
+    }
 
-    pub fn add_min_x(&self, d: f64) -> Self { Self { min_x: self.min_x + d, ..*self } }
-    pub fn add_min_y(&self, d: f64) -> Self { Self { min_y: self.min_y + d, ..*self } }
-    pub fn add_max_x(&self, d: f64) -> Self { Self { max_x: self.max_x + d, ..*self } }
-    pub fn add_max_y(&self, d: f64) -> Self { Self { max_y: self.max_y + d, ..*self } }
+    pub fn add_min_x(&self, d: f64) -> Self {
+        Self {
+            min_x: self.min_x + d,
+            ..*self
+        }
+    }
+    pub fn add_min_y(&self, d: f64) -> Self {
+        Self {
+            min_y: self.min_y + d,
+            ..*self
+        }
+    }
+    pub fn add_max_x(&self, d: f64) -> Self {
+        Self {
+            max_x: self.max_x + d,
+            ..*self
+        }
+    }
+    pub fn add_max_y(&self, d: f64) -> Self {
+        Self {
+            max_y: self.max_y + d,
+            ..*self
+        }
+    }
 
     pub fn delta(&self, m1: f64, m2: f64) -> Self {
-        Self { max_x: self.max_x + m1, max_y: self.max_y + m2, ..*self }
+        Self {
+            max_x: self.max_x + m1,
+            max_y: self.max_y + m2,
+            ..*self
+        }
     }
 
     /// Find intersection of a cubic Bezier curve with this rectangle border.
@@ -898,17 +1095,29 @@ impl RectangleArea {
         let dw = (self.min_x - pt.x).abs();
         let de = (self.max_x - pt.x).abs();
 
-        if dn <= dw && dn <= de && dn <= ds { return Some(Side::North); }
-        if ds <= dn && ds <= dw && ds <= de { return Some(Side::South); }
-        if de <= dn && de <= dw && de <= ds { return Some(Side::East); }
-        if dw <= dn && dw <= de && dw <= ds { return Some(Side::West); }
+        if dn <= dw && dn <= de && dn <= ds {
+            return Some(Side::North);
+        }
+        if ds <= dn && ds <= dw && ds <= de {
+            return Some(Side::South);
+        }
+        if de <= dn && de <= dw && de <= ds {
+            return Some(Side::East);
+        }
+        if dw <= dn && dw <= de && dw <= ds {
+            return Some(Side::West);
+        }
         None
     }
 }
 
 impl std::fmt::Display for RectangleArea {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "minX={} maxX={} minY={} maxY={}", self.min_x, self.max_x, self.min_y, self.max_y)
+        write!(
+            f,
+            "minX={} maxX={} minY={} maxY={}",
+            self.min_x, self.max_x, self.min_y, self.max_y
+        )
     }
 }
 
@@ -1337,10 +1546,7 @@ mod tests {
 
     #[test]
     fn rect_area_from_points() {
-        let r = RectangleArea::from_points(
-            XPoint2D::new(30.0, 40.0),
-            XPoint2D::new(10.0, 20.0),
-        );
+        let r = RectangleArea::from_points(XPoint2D::new(30.0, 40.0), XPoint2D::new(10.0, 20.0));
         assert_eq!(r.min_x, 10.0);
         assert_eq!(r.min_y, 20.0);
         assert_eq!(r.max_x, 30.0);

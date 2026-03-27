@@ -3,13 +3,13 @@
 
 #[cfg(test)]
 mod klimt_port_tests {
+    use plantuml_little::klimt::color::colors;
+    use plantuml_little::klimt::geom::{USegmentType, XPoint2D, XRectangle2D};
+    use plantuml_little::klimt::shape::UPath;
     use plantuml_little::klimt::{
         Fashion, LineBreakStrategy, ShadowData, Shadowable, SvgAttributes, UClip, UGroup,
         UGroupType, UPattern, UStroke, UTranslate,
     };
-    use plantuml_little::klimt::color::colors;
-    use plantuml_little::klimt::geom::{USegmentType, XPoint2D, XRectangle2D};
-    use plantuml_little::klimt::shape::UPath;
 
     const DELTA: f64 = 1e-9;
 
@@ -270,22 +270,34 @@ mod klimt_port_tests {
 
     #[test]
     fn ugrouptype_data_entity_has_hyphen() {
-        assert_eq!(UGroupType::DataEntity.svg_key_attribute_name(), "data-entity");
+        assert_eq!(
+            UGroupType::DataEntity.svg_key_attribute_name(),
+            "data-entity"
+        );
     }
 
     #[test]
     fn ugrouptype_data_qualified_name_has_hyphens() {
-        assert_eq!(UGroupType::DataQualifiedName.svg_key_attribute_name(), "data-qualified-name");
+        assert_eq!(
+            UGroupType::DataQualifiedName.svg_key_attribute_name(),
+            "data-qualified-name"
+        );
     }
 
     #[test]
     fn ugrouptype_data_source_line_correct() {
-        assert_eq!(UGroupType::DataSourceLine.svg_key_attribute_name(), "data-source-line");
+        assert_eq!(
+            UGroupType::DataSourceLine.svg_key_attribute_name(),
+            "data-source-line"
+        );
     }
 
     #[test]
     fn ugrouptype_data_visibility_modifier_correct() {
-        assert_eq!(UGroupType::DataVisibilityModifier.svg_key_attribute_name(), "data-visibility-modifier");
+        assert_eq!(
+            UGroupType::DataVisibilityModifier.svg_key_attribute_name(),
+            "data-visibility-modifier"
+        );
     }
 
     #[test]
@@ -555,10 +567,7 @@ mod klimt_port_tests {
 
     #[test]
     fn fashion_new_stores_colors() {
-        let f = Fashion::new(
-            Some(colors::WHITE.clone()),
-            Some(colors::BLACK.clone()),
-        );
+        let f = Fashion::new(Some(colors::WHITE.clone()), Some(colors::BLACK.clone()));
         assert_eq!(f.back_color.as_ref().unwrap().to_svg(), "#FFFFFF");
         assert_eq!(f.fore_color.as_ref().unwrap().to_svg(), "#000000");
     }
@@ -608,10 +617,8 @@ mod klimt_port_tests {
 
     #[test]
     fn fashion_with_back_color_replaces_back_color() {
-        let f = Fashion::new(
-            Some(colors::WHITE.clone()),
-            Some(colors::BLACK.clone()),
-        ).with_back_color(Some(colors::RED.clone()));
+        let f = Fashion::new(Some(colors::WHITE.clone()), Some(colors::BLACK.clone()))
+            .with_back_color(Some(colors::RED.clone()));
         assert_eq!(f.back_color.as_ref().unwrap().to_svg(), "#FF0000");
         // fore color unchanged
         assert_eq!(f.fore_color.as_ref().unwrap().to_svg(), "#000000");
@@ -619,10 +626,8 @@ mod klimt_port_tests {
 
     #[test]
     fn fashion_with_fore_color_replaces_fore_color() {
-        let f = Fashion::new(
-            Some(colors::WHITE.clone()),
-            Some(colors::BLACK.clone()),
-        ).with_fore_color(Some(colors::BLUE.clone()));
+        let f = Fashion::new(Some(colors::WHITE.clone()), Some(colors::BLACK.clone()))
+            .with_fore_color(Some(colors::BLUE.clone()));
         assert_eq!(f.fore_color.as_ref().unwrap().to_svg(), "#0000FF");
         // back color unchanged
         assert_eq!(f.back_color.as_ref().unwrap().to_svg(), "#FFFFFF");

@@ -54,8 +54,8 @@ fn extract_inline_salt_block(source: &str) -> Option<String> {
 }
 
 pub fn parse_salt_diagram(source: &str) -> Result<SaltDiagram> {
-    let (block, is_inline) = extract_salt_block(source)
-        .unwrap_or_else(|| (source.to_string(), false));
+    let (block, is_inline) =
+        extract_salt_block(source).unwrap_or_else(|| (source.to_string(), false));
     let lines: Vec<&str> = block.lines().collect();
     let mut pos = 0;
 

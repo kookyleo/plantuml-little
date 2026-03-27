@@ -23,7 +23,11 @@ pub struct DarkString {
 
 impl DarkString {
     pub fn new(value1: Option<String>, value2: Option<String>, priority: i32) -> Self {
-        Self { value1, value2, priority }
+        Self {
+            value1,
+            value2,
+            priority,
+        }
     }
 
     /// Merge with another DarkString, combining light/dark halves when possible.
@@ -42,20 +46,12 @@ impl DarkString {
 
         // self is light-only, other is dark-only -> combine
         if self.value2.is_none() && other.value1.is_none() {
-            return DarkString::new(
-                self.value1.clone(),
-                other.value2.clone(),
-                self.priority,
-            );
+            return DarkString::new(self.value1.clone(), other.value2.clone(), self.priority);
         }
 
         // other is light-only, self is dark-only -> combine
         if other.value2.is_none() && self.value1.is_none() {
-            return DarkString::new(
-                other.value1.clone(),
-                self.value2.clone(),
-                other.priority,
-            );
+            return DarkString::new(other.value1.clone(), self.value2.clone(), other.priority);
         }
 
         // Fallback: higher priority wins
@@ -67,7 +63,11 @@ impl DarkString {
     }
 
     pub fn add_priority(&self, delta: i32) -> DarkString {
-        DarkString::new(self.value1.clone(), self.value2.clone(), self.priority + delta)
+        DarkString::new(
+            self.value1.clone(),
+            self.value2.clone(),
+            self.priority + delta,
+        )
     }
 
     pub fn value1(&self) -> Option<&str> {
@@ -132,16 +132,34 @@ pub enum MergeStrategy {
 /// zero/empty value or panic, matching Java's `ValueAbstract` behavior for
 /// methods not overridden in a concrete subclass.
 pub trait Value: std::fmt::Debug {
-    fn as_string(&self) -> &str { "" }
-    fn as_color(&self) -> HColor { HColor::None }
-    fn as_int(&self, minus_one_if_error: bool) -> i32 {
-        if minus_one_if_error { -1 } else { 0 }
+    fn as_string(&self) -> &str {
+        ""
     }
-    fn as_double(&self) -> f64 { 0.0 }
-    fn as_double_default_to(&self, default: f64) -> f64 { default }
-    fn as_boolean(&self) -> bool { false }
-    fn as_horizontal_alignment(&self) -> HorizontalAlignment { HorizontalAlignment::Left }
-    fn priority(&self) -> i32 { 0 }
+    fn as_color(&self) -> HColor {
+        HColor::None
+    }
+    fn as_int(&self, minus_one_if_error: bool) -> i32 {
+        if minus_one_if_error {
+            -1
+        } else {
+            0
+        }
+    }
+    fn as_double(&self) -> f64 {
+        0.0
+    }
+    fn as_double_default_to(&self, default: f64) -> f64 {
+        default
+    }
+    fn as_boolean(&self) -> bool {
+        false
+    }
+    fn as_horizontal_alignment(&self) -> HorizontalAlignment {
+        HorizontalAlignment::Left
+    }
+    fn priority(&self) -> i32 {
+        0
+    }
 }
 
 // ── ValueNull ───────────────────────────────────────────────────────
@@ -156,14 +174,30 @@ impl ValueNull {
 }
 
 impl Value for ValueNull {
-    fn as_string(&self) -> &str { "" }
-    fn as_color(&self) -> HColor { HColor::simple("#000000") }
-    fn as_int(&self, _minus_one_if_error: bool) -> i32 { 0 }
-    fn as_double(&self) -> f64 { 0.0 }
-    fn as_double_default_to(&self, default: f64) -> f64 { default }
-    fn as_boolean(&self) -> bool { false }
-    fn as_horizontal_alignment(&self) -> HorizontalAlignment { HorizontalAlignment::Left }
-    fn priority(&self) -> i32 { 0 }
+    fn as_string(&self) -> &str {
+        ""
+    }
+    fn as_color(&self) -> HColor {
+        HColor::simple("#000000")
+    }
+    fn as_int(&self, _minus_one_if_error: bool) -> i32 {
+        0
+    }
+    fn as_double(&self) -> f64 {
+        0.0
+    }
+    fn as_double_default_to(&self, default: f64) -> f64 {
+        default
+    }
+    fn as_boolean(&self) -> bool {
+        false
+    }
+    fn as_horizontal_alignment(&self) -> HorizontalAlignment {
+        HorizontalAlignment::Left
+    }
+    fn priority(&self) -> i32 {
+        0
+    }
 }
 
 impl std::fmt::Display for ValueNull {
@@ -265,18 +299,26 @@ impl Value for ValueImpl {
         if digits.is_empty() {
             return if minus_one_if_error { -1 } else { 0 };
         }
-        digits.parse::<i32>().unwrap_or(if minus_one_if_error { -1 } else { 0 })
+        digits
+            .parse::<i32>()
+            .unwrap_or(if minus_one_if_error { -1 } else { 0 })
     }
 
     fn as_double(&self) -> f64 {
         let s = self.value.value1().unwrap_or("");
-        let digits: String = s.chars().filter(|c| c.is_ascii_digit() || *c == '.').collect();
+        let digits: String = s
+            .chars()
+            .filter(|c| c.is_ascii_digit() || *c == '.')
+            .collect();
         digits.parse::<f64>().unwrap_or(0.0)
     }
 
     fn as_double_default_to(&self, default: f64) -> f64 {
         let s = self.value.value1().unwrap_or("");
-        let digits: String = s.chars().filter(|c| c.is_ascii_digit() || *c == '.').collect();
+        let digits: String = s
+            .chars()
+            .filter(|c| c.is_ascii_digit() || *c == '.')
+            .collect();
         if digits.is_empty() {
             return default;
         }
@@ -284,7 +326,8 @@ impl Value for ValueImpl {
     }
 
     fn as_boolean(&self) -> bool {
-        self.value.value1()
+        self.value
+            .value1()
             .map(|s| s.eq_ignore_ascii_case("true"))
             .unwrap_or(false)
     }
@@ -316,7 +359,10 @@ pub struct ValueColor {
 
 impl ValueColor {
     pub fn new(color: HColor, priority: i32) -> Self {
-        Self { color, prio: priority }
+        Self {
+            color,
+            prio: priority,
+        }
     }
 }
 
@@ -594,7 +640,11 @@ mod tests {
 
     #[test]
     fn value_color_returns_color() {
-        let c = HColor::Simple { r: 0, g: 128, b: 255 };
+        let c = HColor::Simple {
+            r: 0,
+            g: 128,
+            b: 255,
+        };
         let v = ValueColor::new(c.clone(), 10);
         assert_eq!(v.as_color(), c);
         assert_eq!(v.priority(), 10);

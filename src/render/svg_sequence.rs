@@ -11,16 +11,19 @@ use crate::Result;
 
 use crate::font_metrics;
 
-use super::svg::{write_svg_root_bg, write_bg_rect, ensure_visible_int};
-use crate::klimt::svg::{fmt_coord, xml_escape, SvgGraphic, LengthAdjust};
-use super::svg_richtext::{disable_path_sprites, enable_path_sprites, render_creole_text, set_default_font_family, take_back_filters};
+use super::svg::{ensure_visible_int, write_bg_rect, write_svg_root_bg};
+use super::svg_richtext::{
+    disable_path_sprites, enable_path_sprites, render_creole_text, set_default_font_family,
+    take_back_filters,
+};
+use crate::klimt::svg::{fmt_coord, xml_escape, LengthAdjust, SvgGraphic};
 
 // ── Style constants ─────────────────────────────────────────────────
 
 const FONT_SIZE: f64 = 13.0;
 use crate::skin::rose::{
-    ACTIVATION_BG, BORDER_COLOR, DESTROY_COLOR, GROUP_BG, NOTE_BG,
-    NOTE_BORDER, PARTICIPANT_BG, TEXT_COLOR,
+    ACTIVATION_BG, BORDER_COLOR, DESTROY_COLOR, GROUP_BG, NOTE_BG, NOTE_BORDER, PARTICIPANT_BG,
+    TEXT_COLOR,
 };
 
 const MARGIN: f64 = 5.0;
@@ -63,14 +66,20 @@ fn write_seq_defs(sg: &mut SvgGraphic) {
 /// Encode a `[[url text]]` link for the SVG `<title>` element.
 /// Java replaces `:`, `/`, `\` with `.` and wraps with `..` prefix/suffix.
 fn encode_link_title(url: &str, display_text: &str) -> String {
-    let encoded_url: String = url.chars().map(|c| match c {
-        ':' | '/' | '\\' => '.',
-        _ => c,
-    }).collect();
-    let encoded_text: String = display_text.chars().map(|c| match c {
-        '\\' => '.',
-        _ => c,
-    }).collect();
+    let encoded_url: String = url
+        .chars()
+        .map(|c| match c {
+            ':' | '/' | '\\' => '.',
+            _ => c,
+        })
+        .collect();
+    let encoded_text: String = display_text
+        .chars()
+        .map(|c| match c {
+            '\\' => '.',
+            _ => c,
+        })
+        .collect();
     format!("..{encoded_url} {encoded_text}..")
 }
 
@@ -81,10 +90,17 @@ fn encode_link_title(url: &str, display_text: &str) -> String {
 /// Java's `LivingParticipantBox` accumulates its preferred-size dimension
 /// through multiple `addDim()` calls.  When the diagram contains a `group`
 /// fragment, the grouping header's dimension causes an additional f32
-fn draw_lifelines(sg: &mut SvgGraphic, layout: &SeqLayout, skin: &SkinParams, sd: &SequenceDiagram) {
+fn draw_lifelines(
+    sg: &mut SvgGraphic,
+    layout: &SeqLayout,
+    skin: &SkinParams,
+    sd: &SequenceDiagram,
+) {
     let ll_color = skin.sequence_lifeline_border_color(BORDER_COLOR);
     // Collect delay break segments sorted by y
-    let mut delay_breaks: Vec<(f64, f64)> = layout.delays.iter()
+    let mut delay_breaks: Vec<(f64, f64)> = layout
+        .delays
+        .iter()
         .map(|d| (d.lifeline_break_y, d.lifeline_break_y + d.height))
         .collect();
     delay_breaks.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap());
@@ -102,7 +118,9 @@ fn draw_lifelines(sg: &mut SvgGraphic, layout: &SeqLayout, skin: &SkinParams, sd
             xml_escape(display)
         };
 
-        let src_line_attr = sd.participants.get(i)
+        let src_line_attr = sd
+            .participants
+            .get(i)
             .and_then(|pp| pp.source_line)
             .map(|sl| format!(r#" data-source-line="{sl}""#))
             .unwrap_or_default();
@@ -426,7 +444,10 @@ fn draw_participant_rect_with_font(
     link_url: Option<&str>,
 ) {
     let name = display_name.unwrap_or(&p.name);
-    let lines: Vec<&str> = name.split("\\n").flat_map(|s| s.split(crate::NEWLINE_CHAR)).collect();
+    let lines: Vec<&str> = name
+        .split("\\n")
+        .flat_map(|s| s.split(crate::NEWLINE_CHAR))
+        .collect();
     let padding = 7.0;
     let box_width = p.box_width;
     let box_height = p.box_height;
@@ -449,8 +470,16 @@ fn draw_participant_rect_with_font(
     .unwrap();
     sg.push_raw(&tmp);
 
-    let effective_text_color = if link_url.is_some() { "#0000FF" } else { text_color };
-    let text_decoration = if link_url.is_some() { Some("underline") } else { None };
+    let effective_text_color = if link_url.is_some() {
+        "#0000FF"
+    } else {
+        text_color
+    };
+    let text_decoration = if link_url.is_some() {
+        Some("underline")
+    } else {
+        None
+    };
 
     // Java: each line of multiline text gets its own <a> wrapper
     for (line_idx, line) in lines.iter().enumerate() {
@@ -564,12 +593,19 @@ fn draw_participant_actor(
     let text_y = y + stickman_height + font_metrics::ascent("SansSerif", font_size, false, false);
     sg.set_fill_color(text_color);
     sg.svg_text(
-        name, text_x, text_y,
-        Some("sans-serif"), font_size,
-        None, None, None,
+        name,
+        text_x,
+        text_y,
+        Some("sans-serif"),
+        font_size,
+        None,
+        None,
+        None,
         tl,
         LengthAdjust::Spacing,
-        None, 0, None,
+        None,
+        0,
+        None,
     );
 
     // 2. Ellipse head
@@ -652,11 +688,19 @@ fn draw_participant_actor_tail(
     // 1. Text first
     sg.set_fill_color(text_color);
     sg.svg_text(
-        name, text_x, text_y,
-        Some("sans-serif"), font_size,
-        None, None, None,
-        tl, LengthAdjust::Spacing,
-        None, 0, None,
+        name,
+        text_x,
+        text_y,
+        Some("sans-serif"),
+        font_size,
+        None,
+        None,
+        None,
+        tl,
+        LengthAdjust::Spacing,
+        None,
+        0,
+        None,
     );
 
     // 2. Stickman below text
@@ -739,8 +783,19 @@ fn draw_participant_boundary(
         let text_y = y + icon_height + font_metrics::ascent("SansSerif", font_size, false, false);
         sg.set_fill_color(text_color);
         sg.svg_text(
-            name, text_x, text_y, Some("sans-serif"), font_size,
-            None, None, None, tl, LengthAdjust::Spacing, None, 0, None,
+            name,
+            text_x,
+            text_y,
+            Some("sans-serif"),
+            font_size,
+            None,
+            None,
+            None,
+            tl,
+            LengthAdjust::Spacing,
+            None,
+            0,
+            None,
         );
 
         // 2. Path at (delta + margin, margin)
@@ -754,8 +809,19 @@ fn draw_participant_boundary(
         let text_y = y + font_metrics::ascent("SansSerif", font_size, false, false);
         sg.set_fill_color(text_color);
         sg.svg_text(
-            name, text_x, text_y, Some("sans-serif"), font_size,
-            None, None, None, tl, LengthAdjust::Spacing, None, 0, None,
+            name,
+            text_x,
+            text_y,
+            Some("sans-serif"),
+            font_size,
+            None,
+            None,
+            None,
+            tl,
+            LengthAdjust::Spacing,
+            None,
+            0,
+            None,
         );
 
         // 2. Icon at (delta, textHeight)
@@ -768,9 +834,12 @@ fn draw_participant_boundary(
 /// Draw the boundary icon (path + ellipse) at the given origin.
 fn draw_boundary_icon(
     sg: &mut SvgGraphic,
-    px: f64, py: f64,
-    radius: f64, left: f64,
-    bg: &str, border: &str,
+    px: f64,
+    py: f64,
+    radius: f64,
+    left: f64,
+    bg: &str,
+    border: &str,
 ) {
     let px_s = fmt_coord(px);
     let py_top = fmt_coord(py);
@@ -804,7 +873,15 @@ fn draw_participant_control(
     text_color: &str,
     head: bool,
 ) {
-    draw_iconic_participant(sg, p, y, display_name, bg, border, text_color, head,
+    draw_iconic_participant(
+        sg,
+        p,
+        y,
+        display_name,
+        bg,
+        border,
+        text_color,
+        head,
         |sg, px, py, radius, bg, border| {
             // Ellipse
             let ecx = px + radius;
@@ -822,12 +899,18 @@ fn draw_participant_control(
             let x_contact = 4.0_f64;
             let ax = px + radius - x_contact;
             let ay = py;
-            let pts = format!("{},{},{},{},{},{},{},{},{},{}",
-                fmt_coord(ax), fmt_coord(ay),
-                fmt_coord(ax + x_wing), fmt_coord(ay - y_aperture),
-                fmt_coord(ax + x_contact), fmt_coord(ay),
-                fmt_coord(ax + x_wing), fmt_coord(ay + y_aperture),
-                fmt_coord(ax), fmt_coord(ay),
+            let pts = format!(
+                "{},{},{},{},{},{},{},{},{},{}",
+                fmt_coord(ax),
+                fmt_coord(ay),
+                fmt_coord(ax + x_wing),
+                fmt_coord(ay - y_aperture),
+                fmt_coord(ax + x_contact),
+                fmt_coord(ay),
+                fmt_coord(ax + x_wing),
+                fmt_coord(ay + y_aperture),
+                fmt_coord(ax),
+                fmt_coord(ay),
             );
             let mut pg = String::new();
             write!(pg,
@@ -849,7 +932,15 @@ fn draw_participant_entity(
     text_color: &str,
     head: bool,
 ) {
-    draw_iconic_participant(sg, p, y, display_name, bg, border, text_color, head,
+    draw_iconic_participant(
+        sg,
+        p,
+        y,
+        display_name,
+        bg,
+        border,
+        text_color,
+        head,
         |sg, px, py, radius, bg, border| {
             // Ellipse
             let ecx = px + radius;
@@ -913,22 +1004,58 @@ fn draw_iconic_participant(
         let text_y = y + icon_height + font_metrics::ascent("SansSerif", font_size, false, false);
         sg.set_fill_color(text_color);
         sg.svg_text(
-            name, text_x, text_y, Some("sans-serif"), font_size,
-            None, None, None, tl, LengthAdjust::Spacing, None, 0, None,
+            name,
+            text_x,
+            text_y,
+            Some("sans-serif"),
+            font_size,
+            None,
+            None,
+            None,
+            tl,
+            LengthAdjust::Spacing,
+            None,
+            0,
+            None,
         );
         // Icon at (delta + margin, margin)
-        draw_icon(sg, component_x + delta + margin, y + margin, radius, bg, border);
+        draw_icon(
+            sg,
+            component_x + delta + margin,
+            y + margin,
+            radius,
+            bg,
+            border,
+        );
     } else {
         // Text at (textMiddlePos, 0)
         let text_x = component_x + text_middle_pos;
         let text_y = y + font_metrics::ascent("SansSerif", font_size, false, false);
         sg.set_fill_color(text_color);
         sg.svg_text(
-            name, text_x, text_y, Some("sans-serif"), font_size,
-            None, None, None, tl, LengthAdjust::Spacing, None, 0, None,
+            name,
+            text_x,
+            text_y,
+            Some("sans-serif"),
+            font_size,
+            None,
+            None,
+            None,
+            tl,
+            LengthAdjust::Spacing,
+            None,
+            0,
+            None,
         );
         // Icon at (delta + margin, textHeight + margin)
-        draw_icon(sg, component_x + delta + margin, y + text_height + margin, radius, bg, border);
+        draw_icon(
+            sg,
+            component_x + delta + margin,
+            y + text_height + margin,
+            radius,
+            bg,
+            border,
+        );
     }
 }
 
@@ -979,19 +1106,44 @@ fn draw_participant_database(
     // 1. Text first
     sg.set_fill_color(text_color);
     sg.svg_text(
-        name, text_x, text_y, Some("sans-serif"), font_size,
-        None, None, None, tl, LengthAdjust::Spacing, None, 0, None,
+        name,
+        text_x,
+        text_y,
+        Some("sans-serif"),
+        font_size,
+        None,
+        None,
+        None,
+        tl,
+        LengthAdjust::Spacing,
+        None,
+        0,
+        None,
     );
 
     // 2. Cylinder body path (Java: USymbolDatabase.drawDatabase)
-    draw_database_cylinder(sg, cyl_x, cyl_y, icon_width, icon_height, curve_h, bg, border);
+    draw_database_cylinder(
+        sg,
+        cyl_x,
+        cyl_y,
+        icon_width,
+        icon_height,
+        curve_h,
+        bg,
+        border,
+    );
 }
 
 /// Draw the database cylinder using cubic bezier paths matching Java USymbolDatabase.
 fn draw_database_cylinder(
     sg: &mut SvgGraphic,
-    x: f64, y: f64, w: f64, h: f64, ch: f64,
-    bg: &str, border: &str,
+    x: f64,
+    y: f64,
+    w: f64,
+    h: f64,
+    ch: f64,
+    bg: &str,
+    border: &str,
 ) {
     let mid = w / 2.0;
     // Path 1: cylinder body
@@ -999,10 +1151,10 @@ fn draw_database_cylinder(
     let x0 = fmt_coord(x);
     let xm = fmt_coord(x + mid);
     let xw = fmt_coord(x + w);
-    let yt = fmt_coord(y);       // 0
-    let yc = fmt_coord(y + ch);  // ch (top of body)
+    let yt = fmt_coord(y); // 0
+    let yc = fmt_coord(y + ch); // ch (top of body)
     let yb = fmt_coord(y + h - ch); // h-ch (bottom of body)
-    let yh = fmt_coord(y + h);   // h (bottom control)
+    let yh = fmt_coord(y + h); // h (bottom control)
     let mut body = String::new();
     write!(body,
         "<path d=\"M{x0},{yc} C{x0},{yt} {xm},{yt} {xm},{yt} C{xm},{yt} {xw},{yt} {xw},{yc} L{xw},{yb} C{xw},{yh} {xm},{yh} {xm},{yh} C{xm},{yh} {x0},{yh} {x0},{yb} L{x0},{yc}\" fill=\"{bg}\" style=\"stroke:{border};stroke-width:0.5;\"/>"
@@ -1064,8 +1216,19 @@ fn draw_participant_collections(
     let text_y = main_y + 7.0 + font_metrics::ascent("SansSerif", font_size, false, false);
     sg.set_fill_color(text_color);
     sg.svg_text(
-        name, text_x, text_y, Some("sans-serif"), font_size,
-        None, None, None, tl, LengthAdjust::Spacing, None, 0, None,
+        name,
+        text_x,
+        text_y,
+        Some("sans-serif"),
+        font_size,
+        None,
+        None,
+        None,
+        tl,
+        LengthAdjust::Spacing,
+        None,
+        0,
+        None,
     );
 }
 
@@ -1127,11 +1290,23 @@ fn draw_participant_queue(
 
     // Text inside shape at (margin_x1, vertically centered)
     let text_x = x0 + margin_x1;
-    let text_y = y0 + (h - text_height) / 2.0 + font_metrics::ascent("SansSerif", font_size, false, false);
+    let text_y =
+        y0 + (h - text_height) / 2.0 + font_metrics::ascent("SansSerif", font_size, false, false);
     sg.set_fill_color(text_color);
     sg.svg_text(
-        name, text_x, text_y, Some("sans-serif"), font_size,
-        None, None, None, tl, LengthAdjust::Spacing, None, 0, None,
+        name,
+        text_x,
+        text_y,
+        Some("sans-serif"),
+        font_size,
+        None,
+        None,
+        None,
+        tl,
+        LengthAdjust::Spacing,
+        None,
+        0,
+        None,
     );
 }
 
@@ -1153,7 +1328,8 @@ fn render_word_by_word(
     for (i, word) in words.iter().enumerate() {
         if i > 0 {
             // Render &#160; (non-breaking space) between words
-            let space_w = font_metrics::text_width("\u{00a0}", metrics_font, font_size, false, false);
+            let space_w =
+                font_metrics::text_width("\u{00a0}", metrics_font, font_size, false, false);
             sg.set_fill_color(TEXT_COLOR);
             sg.svg_text(
                 "\u{00a0}",
@@ -1270,7 +1446,11 @@ fn draw_message(
         let arm_offset = if msg.is_left { 10.0 } else { -10.0 };
         let arm_x = tip_x + arm_offset;
         // Ensure x1 < x2 and pair y1/y2 accordingly (Java convention)
-        let (lx1, lx2) = if tip_x < arm_x { (tip_x, arm_x) } else { (arm_x, tip_x) };
+        let (lx1, lx2) = if tip_x < arm_x {
+            (tip_x, arm_x)
+        } else {
+            (arm_x, tip_x)
+        };
         let (top_y1, top_y2) = if tip_x < arm_x {
             (msg.y, msg.y - 4.0) // tip is x1 → y1=arrow_y, arm is x2 → y2=above
         } else {
@@ -1384,7 +1564,8 @@ fn draw_message(
 
         // If autonumber, compute the offset for message text (number is bold)
         let text_x = if let Some(ref num_str) = msg.autonumber {
-            let num_w = font_metrics::text_width(num_str, msg_font_family, msg_font_size, true, false);
+            let num_w =
+                font_metrics::text_width(num_str, msg_font_family, msg_font_size, true, false);
             base_text_x + num_w + 4.0
         } else {
             base_text_x
@@ -1397,9 +1578,17 @@ fn draw_message(
         // extra height below the text block. This shifts the text baseline up
         // relative to the arrow position. Superscript extends above but does
         // NOT shift the text baseline.
-        let sub_extra = msg.text_lines.first().map(|line| {
-            crate::render::svg_richtext::creole_sub_extra_height(line, msg_font_family, msg_font_size)
-        }).unwrap_or(0.0);
+        let sub_extra = msg
+            .text_lines
+            .first()
+            .map(|line| {
+                crate::render::svg_richtext::creole_sub_extra_height(
+                    line,
+                    msg_font_family,
+                    msg_font_size,
+                )
+            })
+            .unwrap_or(0.0);
         let first_text_y = msg.y
             - (font_metrics::descent(msg_font_family, msg_font_size, false, false) + 2.0)
             - (num_lines as f64 - 1.0) * msg_line_spacing
@@ -1434,7 +1623,15 @@ fn draw_message(
             }
             let line_y = first_text_y + i as f64 * msg_line_spacing;
             if word_by_word {
-                render_word_by_word(sg, line, text_x, line_y, msg_font_family, msg_svg_family, msg_font_size);
+                render_word_by_word(
+                    sg,
+                    line,
+                    text_x,
+                    line_y,
+                    msg_font_family,
+                    msg_svg_family,
+                    msg_font_size,
+                );
             } else {
                 let mut tmp = String::new();
                 render_creole_text(
@@ -1478,7 +1675,8 @@ fn draw_self_message(
 
     // Java teoz does not wrap messages in <g class="message">
     if !teoz_mode {
-        let src_line_attr = msg.source_line
+        let src_line_attr = msg
+            .source_line
             .map(|sl| format!(r#" data-source-line="{sl}""#))
             .unwrap_or_default();
         sg.push_raw(&format!(
@@ -1496,7 +1694,11 @@ fn draw_self_message(
     // For left self-message: circle at the right side (from_x - 0.5)
     // For right self-message: circle at the right side (from_x + 0.5)
     if msg.circle_from {
-        let cx = if msg.is_left { from_x - 0.5 } else { from_x + 0.5 };
+        let cx = if msg.is_left {
+            from_x - 0.5
+        } else {
+            from_x + 0.5
+        };
         let cy = y - 0.75;
         sg.push_raw(&format!(
             r##"<ellipse cx="{}" cy="{}" fill="#000000" rx="{}" ry="{}" style="stroke:{};stroke-width:{};"/>"##,
@@ -1506,7 +1708,11 @@ fn draw_self_message(
         ));
     }
     if msg.circle_to {
-        let cx = if msg.is_left { from_x - 0.5 } else { from_x + 0.5 };
+        let cx = if msg.is_left {
+            from_x - 0.5
+        } else {
+            from_x + 0.5
+        };
         let cy = (y + loop_height) - 0.75;
         sg.push_raw(&format!(
             r##"<ellipse cx="{}" cy="{}" fill="#000000" rx="{}" ry="{}" style="stroke:{};stroke-width:{};"/>"##,
@@ -1686,11 +1892,18 @@ fn draw_self_message(
         let text_x = if msg.is_left {
             // Left self-message: text starts at from_x - preferredWidth + marginX1(7).
             // For activated participants, from_x is the activation bar left edge.
-            let text_w = msg.text_lines
+            let text_w = msg
+                .text_lines
                 .iter()
-                .map(|line| crate::font_metrics::text_width(
-                    line, msg_font_family, msg_font_size, false, false,
-                ))
+                .map(|line| {
+                    crate::font_metrics::text_width(
+                        line,
+                        msg_font_family,
+                        msg_font_size,
+                        false,
+                        false,
+                    )
+                })
                 .fold(0.0_f64, f64::max);
             let preferred = f64::max(text_w + 14.0, crate::skin::rose::SELF_ARROW_WIDTH + 5.0);
             from_x - preferred + 7.0
@@ -1700,9 +1913,17 @@ fn draw_self_message(
         let msg_line_spacing =
             font_metrics::line_height(msg_font_family, msg_font_size, false, false);
         let num_lines = msg.text_lines.len();
-        let sub_extra = msg.text_lines.first().map(|line| {
-            crate::render::svg_richtext::creole_sub_extra_height(line, msg_font_family, msg_font_size)
-        }).unwrap_or(0.0);
+        let sub_extra = msg
+            .text_lines
+            .first()
+            .map(|line| {
+                crate::render::svg_richtext::creole_sub_extra_height(
+                    line,
+                    msg_font_family,
+                    msg_font_size,
+                )
+            })
+            .unwrap_or(0.0);
         let first_text_y = y
             - (font_metrics::descent(msg_font_family, msg_font_size, false, false) + 2.0)
             - (num_lines as f64 - 1.0) * msg_line_spacing
@@ -1714,7 +1935,15 @@ fn draw_self_message(
             let line_y = first_text_y + i as f64 * msg_line_spacing;
             if word_by_word {
                 let svg_family = svg_font_family_attr(msg_font_family);
-                render_word_by_word(sg, line, text_x, line_y, msg_font_family, svg_family, msg_font_size);
+                render_word_by_word(
+                    sg,
+                    line,
+                    text_x,
+                    line_y,
+                    msg_font_family,
+                    svg_family,
+                    msg_font_size,
+                );
             } else {
                 let mut tmp = String::new();
                 render_creole_text(
@@ -1784,10 +2013,14 @@ fn draw_destroy(sg: &mut SvgGraphic, d: &DestroyLayout) {
 
 fn draw_note(sg: &mut SvgGraphic, note: &NoteLayout) {
     let fold = 10.0; // folded corner size
-    // Java puma mode truncates note x to int in NoteBox.getStartingX():
-    //   xStart = (int)(segment.getSegment().getPos2())
-    // Java teoz mode doesn't truncate (constraint solver produces real coords).
-    let x = if note.teoz_mode { note.x } else { note.x.trunc() };
+                     // Java puma mode truncates note x to int in NoteBox.getStartingX():
+                     //   xStart = (int)(segment.getSegment().getPos2())
+                     // Java teoz mode doesn't truncate (constraint solver produces real coords).
+    let x = if note.teoz_mode {
+        note.x
+    } else {
+        note.x.trunc()
+    };
     let y = note.y;
     // Java truncates polygon width to int in ComponentRoseNote.drawInternalU():
     //   int x2 = (int) getTextWidth(stringBounder)
@@ -1826,7 +2059,8 @@ fn draw_note(sg: &mut SvgGraphic, note: &NoteLayout) {
     // Java: ComponentRoseNote applies UTranslate(marginX1=6, marginY=5),
     // then TextBlock renders first line at y = ascent.
     let note_margin_y = 5.0; // AbstractTextualComponent.marginY for notes
-    let text_y = note.y + note_margin_y + font_metrics::ascent("SansSerif", FONT_SIZE, false, false);
+    let text_y =
+        note.y + note_margin_y + font_metrics::ascent("SansSerif", FONT_SIZE, false, false);
     let note_line_height = font_metrics::line_height("SansSerif", FONT_SIZE, false, false);
     let mut tmp = String::new();
     render_creole_text(
@@ -1959,7 +2193,8 @@ fn draw_fragment_details(sg: &mut SvgGraphic, frag: &FragmentLayout) {
     // Guard text (font-size 11, bold) — only for non-Group fragments
     if !is_group && !frag.label.is_empty() {
         let guard_text = format!("[{}]", frag.label);
-        let guard_w = font_metrics::text_width(&guard_text, "SansSerif", FRAG_GUARD_FONT_SIZE, true, false);
+        let guard_w =
+            font_metrics::text_width(&guard_text, "SansSerif", FRAG_GUARD_FONT_SIZE, true, false);
         let guard_x = tab_right + FRAG_GUARD_GAP;
         let guard_y = frag.y + FRAG_GUARD_LABEL_Y_OFFSET;
         sg.set_fill_color("#000000");
@@ -1984,7 +2219,12 @@ fn draw_fragment_details(sg: &mut SvgGraphic, frag: &FragmentLayout) {
 }
 
 /// Draw a single separator line + label within a fragment
-fn draw_fragment_separator(sg: &mut SvgGraphic, frag: &FragmentLayout, sep_y: f64, sep_label: &str) {
+fn draw_fragment_separator(
+    sg: &mut SvgGraphic,
+    frag: &FragmentLayout,
+    sep_y: f64,
+    sep_label: &str,
+) {
     let fx = fmt_coord(frag.x);
     let y_s = fmt_coord(sep_y);
     sg.push_raw(&format!(
@@ -2088,7 +2328,8 @@ fn draw_divider(sg: &mut SvgGraphic, divider: &DividerLayout) {
         // textBlock dimension includes the space advance. The SVG text
         // rendering trims it, but the rect size uses the untrimmed width.
         let text_with_space = format!("{} ", text);
-        let text_block_w = font_metrics::text_width(&text_with_space, "SansSerif", FONT_SIZE, true, false);
+        let text_block_w =
+            font_metrics::text_width(&text_with_space, "SansSerif", FONT_SIZE, true, false);
         let text_width = text_block_w + 4.0 + 4.0;
         let delta_x = 6.0;
 
@@ -2115,8 +2356,8 @@ fn draw_divider(sg: &mut SvgGraphic, divider: &DividerLayout) {
 
         // Java: textBlock drawn at (xpos + deltaX, ypos + marginY)
         let text_x = rect_x + delta_x;
-        let text_baseline_y = rect_y + margin_y
-            + font_metrics::ascent("SansSerif", FONT_SIZE, true, false);
+        let text_baseline_y =
+            rect_y + margin_y + font_metrics::ascent("SansSerif", FONT_SIZE, true, false);
         let tl = font_metrics::text_width(text, "SansSerif", FONT_SIZE, true, false);
         sg.set_fill_color(TEXT_COLOR);
         sg.svg_text(
@@ -2164,7 +2405,9 @@ fn draw_delay(sg: &mut SvgGraphic, delay: &DelayLayout, layout: &SeqLayout) {
         let margin_y = 4.0;
         let text_height = text_line_h + 2.0 * margin_y;
         let ypos = (delay.height - text_height) / 2.0;
-        let text_y = delay.lifeline_break_y + ypos + margin_y
+        let text_y = delay.lifeline_break_y
+            + ypos
+            + margin_y
             + font_metrics::ascent("SansSerif", DELAY_FONT_SIZE, false, false);
 
         sg.set_fill_color(TEXT_COLOR);
@@ -2221,7 +2464,8 @@ fn draw_ref(sg: &mut SvgGraphic, r: &RefLayout) {
         0,
         None,
     );
-    let label_w = font_metrics::text_width(&r.label, "SansSerif", REF_LABEL_FONT_SIZE, false, false);
+    let label_w =
+        font_metrics::text_width(&r.label, "SansSerif", REF_LABEL_FONT_SIZE, false, false);
     let center_x = r.x + r.width / 2.0;
     let label_x = center_x - label_w / 2.0;
     let body_top = r.y + REF_TAB_HEIGHT;
@@ -2266,8 +2510,15 @@ pub fn render_sequence(
     skin: &SkinParams,
 ) -> Result<String> {
     // Apply skinparam font overrides
-    let font = skin.default_font_name()
-        .or_else(|| if skin.is_handwritten() { Some("Comic Sans MS, Segoe Print, cursive") } else { None })
+    let font = skin
+        .default_font_name()
+        .or_else(|| {
+            if skin.is_handwritten() {
+                Some("Comic Sans MS, Segoe Print, cursive")
+            } else {
+                None
+            }
+        })
         .map(|s| s.to_string());
     set_default_font_family(font);
     enable_path_sprites();
@@ -2385,13 +2636,20 @@ fn render_sequence_inner(
     let part_font_size: f64 = skin
         .get("participantfontsize")
         .and_then(|s| s.parse::<f64>().ok())
-        .or_else(|| skin.get("defaultfontsize").and_then(|s| s.parse::<f64>().ok()))
+        .or_else(|| {
+            skin.get("defaultfontsize")
+                .and_then(|s| s.parse::<f64>().ok())
+        })
         .unwrap_or(14.0);
 
     // 6. Participant head + tail boxes
     // Puma: interleaved per participant (head then tail for each).
     // Teoz: all heads first, then all tails (Java: LivingSpaces.drawHeads called twice).
-    let max_ph = layout.participants.iter().map(|pp| pp.box_height).fold(0.0_f64, f64::max);
+    let max_ph = layout
+        .participants
+        .iter()
+        .map(|pp| pp.box_height)
+        .fold(0.0_f64, f64::max);
     // Puma: tail y = lifeline_bottom - 1 (drawing convention)
     // Teoz: tail y = lifeline_bottom (Java: PlayingSpaceWithParticipants draws
     //        tails at ug + dy(height + headHeight), height = getPreferredHeight)
@@ -2402,11 +2660,17 @@ fn render_sequence_inner(
     };
 
     // Helper closure for drawing one participant head or tail
-    let draw_part = |sg: &mut SvgGraphic, i: usize, p: &ParticipantLayout, y: f64, is_head: bool| {
+    let draw_part = |sg: &mut SvgGraphic,
+                     i: usize,
+                     p: &ParticipantLayout,
+                     y: f64,
+                     is_head: bool| {
         let part_idx = i + 1;
         let dn = display_names.get(p.name.as_str()).copied();
         let qualified_name = xml_escape(&p.name);
-        let src_line_attr = sd.participants.get(i)
+        let src_line_attr = sd
+            .participants
+            .get(i)
             .and_then(|pp| pp.source_line)
             .map(|sl| format!(r#" data-source-line="{sl}""#))
             .unwrap_or_default();
@@ -2438,8 +2702,17 @@ fn render_sequence_inner(
             }
         } else {
             draw_participant_box_with_font(
-                sg, p, y, dn, part_bg, part_border, part_font,
-                &default_font, part_font_size, is_head, part_link_url,
+                sg,
+                p,
+                y,
+                dn,
+                part_bg,
+                part_border,
+                part_font,
+                &default_font,
+                part_font_size,
+                is_head,
+                part_link_url,
             );
         }
         if !sd.teoz_mode {
@@ -2518,7 +2791,10 @@ fn render_sequence_inner(
     for frag in &layout.fragments {
         interstitials.push((frag.y, InterstitialEvent::FragmentDetail(frag)));
         for (sep_y, sep_label) in &frag.separators {
-            interstitials.push((*sep_y, InterstitialEvent::Separator(frag, *sep_y, sep_label)));
+            interstitials.push((
+                *sep_y,
+                InterstitialEvent::Separator(frag, *sep_y, sep_label),
+            ));
         }
     }
     for r in &layout.refs {
@@ -2540,9 +2816,7 @@ fn render_sequence_inner(
         msg_seq_counter += 1;
 
         // Emit interstitial events that come before this message's y
-        while interstitial_idx < interstitials.len()
-            && interstitials[interstitial_idx].0 < msg.y
-        {
+        while interstitial_idx < interstitials.len() && interstitials[interstitial_idx].0 < msg.y {
             match &interstitials[interstitial_idx].1 {
                 InterstitialEvent::FragmentDetail(frag) => {
                     // Teoz: already drawn in step 6b
@@ -2578,7 +2852,9 @@ fn render_sequence_inner(
         };
 
         // Per-message color override from [#color] syntax
-        let effective_color = msg.color.as_ref()
+        let effective_color = msg
+            .color
+            .as_ref()
             .map(|c| crate::style::normalize_color(c))
             .unwrap_or_else(|| seq_arrow_color.to_string());
         let effective_color = effective_color.as_str();
@@ -2616,7 +2892,9 @@ fn render_sequence_inner(
 
         // Draw notes associated with this message. Use explicit message
         // index association when available; fall back to y-range heuristic.
-        let next_msg_y = layout.messages.get(msg_seq_counter)
+        let next_msg_y = layout
+            .messages
+            .get(msg_seq_counter)
             .map_or(f64::MAX, |m| m.y);
         let note_back_threshold = if msg.is_self { 200.0 } else { 100.0 };
         let mut has_note = false;
@@ -2690,7 +2968,9 @@ fn render_sequence_inner(
     let filters = take_back_filters();
     if !gradient_defs.is_empty() || !filters.is_empty() {
         let mut defs_content = String::new();
-        for (_id, def_xml) in &gradient_defs { defs_content.push_str(def_xml); }
+        for (_id, def_xml) in &gradient_defs {
+            defs_content.push_str(def_xml);
+        }
         for (id, hex_color) in &filters {
             write!(
                 defs_content,
@@ -2772,7 +3052,8 @@ mod tests {
 
     #[test]
     fn smoke_activation() {
-        let svg = convert("@startuml\nA -> B : req\nactivate B\nB --> A : resp\ndeactivate B\n@enduml");
+        let svg =
+            convert("@startuml\nA -> B : req\nactivate B\nB --> A : resp\ndeactivate B\n@enduml");
         assert!(svg.starts_with("<svg"));
     }
 

@@ -181,10 +181,7 @@ mod tests {
         // Has links, so not degenerated
         assert!(!d.is_degenerated_with_few_entities(3));
 
-        let d2 = DotData {
-            links: vec![],
-            ..d
-        };
+        let d2 = DotData { links: vec![], ..d };
         assert!(d2.is_degenerated_with_few_entities(3));
         assert!(!d2.is_degenerated_with_few_entities(2));
     }

@@ -33,7 +33,9 @@ pub enum HColor {
 }
 
 impl UChange for HColor {
-    fn as_any(&self) -> &dyn std::any::Any { self }
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
 }
 
 impl HColor {
@@ -421,7 +423,11 @@ impl HColorLinearGradient {
 
 /// Normalize stops: sort by offset, clamp to 0..1, nudge duplicates.
 fn normalize_stops(mut stops: Vec<GradientStop>) -> Vec<GradientStop> {
-    stops.sort_by(|a, b| a.offset.partial_cmp(&b.offset).unwrap_or(std::cmp::Ordering::Equal));
+    stops.sort_by(|a, b| {
+        a.offset
+            .partial_cmp(&b.offset)
+            .unwrap_or(std::cmp::Ordering::Equal)
+    });
 
     let mut result = Vec::with_capacity(stops.len());
     let mut last = -1.0_f64;
@@ -1688,12 +1694,7 @@ mod tests {
     fn named_colors_sorted() {
         let names = named_color_names();
         for w in names.windows(2) {
-            assert!(
-                w[0] <= w[1],
-                "names not sorted: '{}' > '{}'",
-                w[0],
-                w[1]
-            );
+            assert!(w[0] <= w[1], "names not sorted: '{}' > '{}'", w[0], w[1]);
         }
     }
 

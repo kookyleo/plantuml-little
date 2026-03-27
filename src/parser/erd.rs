@@ -734,7 +734,10 @@ fn try_parse_erd_note(line: &str) -> Option<ErdNoteParseResult> {
 
             if let Some(colon_pos) = after_of.find(':') {
                 let target = after_of[..colon_pos].trim().to_string();
-                let text = after_of[colon_pos + 1..].trim().replace("\\n", "\n").replace(crate::NEWLINE_CHAR, "\n");
+                let text = after_of[colon_pos + 1..]
+                    .trim()
+                    .replace("\\n", "\n")
+                    .replace(crate::NEWLINE_CHAR, "\n");
                 return Some(ErdNoteParseResult::SingleLine(ErdNote {
                     text,
                     position: pos.to_string(),
@@ -754,7 +757,10 @@ fn try_parse_erd_note(line: &str) -> Option<ErdNoteParseResult> {
         }
 
         if let Some(after_colon) = after_pos.strip_prefix(':') {
-            let text = after_colon.trim().replace("\\n", "\n").replace(crate::NEWLINE_CHAR, "\n");
+            let text = after_colon
+                .trim()
+                .replace("\\n", "\n")
+                .replace(crate::NEWLINE_CHAR, "\n");
             return Some(ErdNoteParseResult::SingleLine(ErdNote {
                 text,
                 position: pos.to_string(),

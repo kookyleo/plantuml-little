@@ -25,6 +25,9 @@ pub fn parse_class_diagram(source: &str) -> Result<ClassDiagram> {
     let mut hide_show_rules = Vec::new();
     let mut stereotype_backgrounds = HashMap::new();
     let mut entity_order: Vec<String> = Vec::new();
+    let mut next_uid_value: u32 = 1;
+    let mut entity_uids: HashMap<String, String> = HashMap::new();
+    let mut entity_first_source_lines: HashMap<String, usize> = HashMap::new();
 
     let mut notes: Vec<ClassNote> = Vec::new();
 
@@ -250,6 +253,7 @@ pub fn parse_class_diagram(source: &str) -> Result<ClassDiagram> {
             let color = parse_color_from_tail(rest);
             debug!("opening group: {name} ({kind_str})");
             group_stack.push(Group {
+                uid: Some(next_entity_uid(&mut next_uid_value)),
                 kind,
                 name,
                 entities: Vec::new(),
@@ -301,8 +305,16 @@ pub fn parse_class_diagram(source: &str) -> Result<ClassDiagram> {
 
             debug!("entity declaration: {name} ({kind:?})");
             reserve_entity_order(&mut entity_order, &name);
+            let uid = ensure_entity_uid(
+                &mut entity_uids,
+                &mut entity_first_source_lines,
+                &mut next_uid_value,
+                &name,
+                source_line,
+            );
 
             let entity = Entity {
+                uid: Some(uid),
                 name: name.clone(),
                 kind,
                 stereotypes,
@@ -310,7 +322,7 @@ pub fn parse_class_diagram(source: &str) -> Result<ClassDiagram> {
                 description: Vec::new(),
                 color,
                 generic,
-                source_line: Some(source_line),
+                source_line: entity_first_source_lines.get(&name).copied(),
                 visibility: entity_visibility,
             };
 
@@ -334,8 +346,34 @@ pub fn parse_class_diagram(source: &str) -> Result<ClassDiagram> {
         }
 
         // Relationship parsing
-        if let Some((link, arrow_len)) = parse_link(trimmed, source_line) {
-            debug!("link: {} -> {} ({:?}, len={})", link.from, link.to, link.line_style, arrow_len);
+        if let Some((link, arrow_len, reversed_by_direction)) = parse_link(trimmed, source_line) {
+            debug!(
+                "link: {} -> {} ({:?}, len={})",
+                link.from, link.to, link.line_style, arrow_len
+            );
+            reserve_entity_order(&mut entity_order, &link.from);
+            reserve_entity_order(&mut entity_order, &link.to);
+            ensure_entity_uid(
+                &mut entity_uids,
+                &mut entity_first_source_lines,
+                &mut next_uid_value,
+                &link.from,
+                source_line,
+            );
+            ensure_entity_uid(
+                &mut entity_uids,
+                &mut entity_first_source_lines,
+                &mut next_uid_value,
+                &link.to,
+                source_line,
+            );
+            let mut link = link;
+            // Java CommandLinkClass creates the link before applying `getInv()`
+            // for `u`/`l` hints, so those reversed links burn one sequence slot.
+            if reversed_by_direction {
+                let _ = next_link_uid(&mut next_uid_value);
+            }
+            link.uid = Some(next_link_uid(&mut next_uid_value));
             // Java: first link's arrow length determines rankdir.
             // Single dash/dot (len=1) = horizontal (LR).
             // Double+ dash/dot (len>=2) = vertical (TB).
@@ -383,8 +421,14 @@ pub fn parse_class_diagram(source: &str) -> Result<ClassDiagram> {
     }
 
     // Auto-create entities referenced in links but not declared
-    auto_create_entities(&mut entities, &links, &mut entity_order);
-    synthesize_implicit_package_groups(&entities, &mut groups);
+    auto_create_entities(
+        &mut entities,
+        &links,
+        &mut entity_order,
+        &entity_uids,
+        &entity_first_source_lines,
+    );
+    synthesize_implicit_package_groups(&entities, &mut groups, &mut next_uid_value);
     sort_entities_by_order(&mut entities, &entity_order);
 
     Ok(ClassDiagram {
@@ -403,6 +447,32 @@ fn reserve_entity_order(entity_order: &mut Vec<String>, name: &str) {
     if !entity_order.iter().any(|existing| existing == name) {
         entity_order.push(name.to_string());
     }
+}
+
+fn next_entity_uid(next_uid_value: &mut u32) -> String {
+    *next_uid_value += 1;
+    format!("ent{:04}", *next_uid_value)
+}
+
+fn next_link_uid(next_uid_value: &mut u32) -> String {
+    *next_uid_value += 1;
+    format!("lnk{}", *next_uid_value)
+}
+
+fn ensure_entity_uid(
+    entity_uids: &mut HashMap<String, String>,
+    entity_first_source_lines: &mut HashMap<String, usize>,
+    next_uid_value: &mut u32,
+    name: &str,
+    source_line: usize,
+) -> String {
+    entity_first_source_lines
+        .entry(name.to_string())
+        .or_insert(source_line);
+    entity_uids
+        .entry(name.to_string())
+        .or_insert_with(|| next_entity_uid(next_uid_value))
+        .clone()
 }
 
 fn sort_entities_by_order(entities: &mut [Entity], entity_order: &[String]) {
@@ -710,10 +780,11 @@ fn parse_member(line: &str) -> Option<Member> {
 ///   left heads: `<|`, `<`, `*`, `o`, `+`, or none
 ///   line: `--` (solid) or `..` (dashed), with optional direction hint letters
 ///   right heads: `|>`, `>`, `*`, `o`, `+`, or none
-/// Returns (Link, arrow_length) where arrow_length is the number of dashes/dots.
+/// Returns (Link, arrow_length, reversed_by_direction) where arrow_length is
+/// the number of dashes/dots. `reversed_by_direction` matches Java's `getInv()`
+/// path, which consumes an additional link UID.
 /// length=1 means horizontal (LR), length>=2 means vertical (TB).
-fn parse_link(line: &str, source_line: usize) -> Option<(Link, usize)> {
-    // Build pattern for the arrow itself
+fn parse_link(line: &str, source_line: usize) -> Option<(Link, usize, bool)> {
     // Left heads: <|, <, *, o, +, or nothing
     // Line: --..variations with optional direction letters
     // Right heads: |>, >, *, o, +, or nothing
@@ -721,38 +792,18 @@ fn parse_link(line: &str, source_line: usize) -> Option<(Link, usize)> {
         r"(?x)",
         r#"^((?:"[^"]+"|[\w.]+))"#, // from entity (quoted or simple)
         r"\s*",
-        r"(?:\[[^\]]*\])?", // optional qualifier [...]
-        r"\s+",
-        r"(",                  // arrow group start
+        r"(?:\[([^\]]*)\])?", // optional from qualifier [...]
+        r"\s*",
+        r#"(?:"([^"]*)"\s*)?"#, // optional from-label "..."
+        r"(",                   // arrow group start
         r"(?:<\||\*|o|\+|<)?", // optional left head
-        r"(?:",
-        r"-+[udlr]*-+", // solid: --  -u-  ---
-        r"|",
-        r"\.+[udlr]*\.+", // dashed: ..  .r.  ...
-        r"|",
-        r"-+[udlr]*-*>", // solid ending with >: --> -u->
-        r"|",
-        r"\.+[udlr]*\.*>", // dashed ending with >: ..> .r.>
-        r"|",
-        r"-+[udlr]*-*\|>", // solid ending with |>: --|>
-        r"|",
-        r"\.+[udlr]*\.*\|>", // dashed ending with |>: ..|>
-        r"|",
-        r"-+[udlr]*-*\*", // solid ending with *: --*
-        r"|",
-        r"\.+[udlr]*\.*\*", // dashed ending with *: ..*
-        r"|",
-        r"-+[udlr]*-*o", // solid ending with o: --o
-        r"|",
-        r"\.+[udlr]*\.*o", // dashed ending with o: ..o
-        r"|",
-        r"-+[udlr]*-*\+", // solid ending with +: --+
-        r"|",
-        r"\.+[udlr]*\.*\+", // dashed ending with +: ..+
-        r")",
+        r"(?:-+[udlr]*-*|\.+[udlr]*\.*)",
+        r"(?:\|>|>|\*|o|\+)?", // optional right head
         r")", // arrow group end
         r"\s*",
-        r#"(?:"([^"]*)"\s+)?"#, // optional to-label "..."
+        r#"(?:"([^"]*)"\s*)?"#, // optional to-label "..."
+        r"(?:\[([^\]]*)\])?",   // optional to qualifier [...]
+        r"\s*",
         r#"((?:"[^"]+"|[\w.]+))"#, // to entity (quoted or simple)
         r"\s*",
         r"(?:\s*:\s*(.*))?", // optional label
@@ -761,93 +812,75 @@ fn parse_link(line: &str, source_line: usize) -> Option<(Link, usize)> {
     .unwrap();
 
     let trimmed = line.trim();
+    let caps = re.captures(trimmed)?;
 
-    if let Some(caps) = re.captures(trimmed) {
-        let from = caps.get(1).unwrap().as_str().trim_matches('"').to_string();
-        let arrow = caps.get(2).unwrap().as_str();
-        let to_label = caps.get(3).map(|m| m.as_str().trim().to_string());
-        let to = caps.get(4).unwrap().as_str().trim_matches('"').to_string();
-        let label = caps.get(5).map(|m| m.as_str().trim().to_string());
+    let mut from = caps.get(1).unwrap().as_str().trim_matches('"').to_string();
+    let mut from_qualifier = caps
+        .get(2)
+        .map(|m| m.as_str().trim().to_string())
+        .filter(|s| !s.is_empty());
+    let mut from_label = caps
+        .get(3)
+        .map(|m| m.as_str().trim().to_string())
+        .filter(|s| !s.is_empty());
+    let arrow = caps.get(4).unwrap().as_str();
+    let mut to_label = caps
+        .get(5)
+        .map(|m| m.as_str().trim().to_string())
+        .filter(|s| !s.is_empty());
+    let mut to_qualifier = caps
+        .get(6)
+        .map(|m| m.as_str().trim().to_string())
+        .filter(|s| !s.is_empty());
+    let mut to = caps.get(7).unwrap().as_str().trim_matches('"').to_string();
+    let label = caps
+        .get(8)
+        .map(|m| m.as_str().trim().to_string())
+        .filter(|s| !s.is_empty());
 
-        let (left_head, line_style, right_head) = parse_arrow(arrow);
-        // Arrow length: count dashes/dots. 1=horizontal(LR), 2+=vertical(TB).
-        let arrow_len = arrow.chars().filter(|c| *c == '-' || *c == '.').count();
+    let (mut left_head, line_style, mut right_head) = parse_arrow(arrow);
+    // Arrow length: count dashes/dots. 1=horizontal(LR), 2+=vertical(TB).
+    let arrow_len = compute_arrow_len(arrow);
 
-        return Some((Link {
+    let reversed_by_direction = arrow_direction_requires_reverse(arrow);
+    if reversed_by_direction {
+        std::mem::swap(&mut from, &mut to);
+        std::mem::swap(&mut from_qualifier, &mut to_qualifier);
+        std::mem::swap(&mut from_label, &mut to_label);
+        std::mem::swap(&mut left_head, &mut right_head);
+    }
+
+    Some((
+        Link {
+            uid: None,
             from,
             to,
             left_head,
             right_head,
             line_style,
             label,
-            from_label: None,
+            from_label,
             to_label,
+            from_qualifier,
+            to_qualifier,
             source_line: Some(source_line),
             arrow_len,
-        }, arrow_len));
-    }
-
-    // Also try with qualifier brackets between arrow and entity
-    let re2 = Regex::new(concat!(
-        r"(?x)",
-        r#"^((?:"[^"]+"|[\w.]+))"#, // from entity (quoted or simple)
-        r"\s*",
-        r"(?:\[[^\]]*\])?", // optional qualifier [...]
-        r"\s+",
-        r"(", // arrow group start
-        r"(?:<\||\*|o|\+|<)?",
-        r"(?:",
-        r"-+[udlr]*-+",
-        r"|\.+[udlr]*\.+",
-        r"|-+[udlr]*-*>",
-        r"|\.+[udlr]*\.*>",
-        r"|-+[udlr]*-*\|>",
-        r"|\.+[udlr]*\.*\|>",
-        r"|-+[udlr]*-*\*",
-        r"|\.+[udlr]*\.*\*",
-        r"|-+[udlr]*-*o",
-        r"|\.+[udlr]*\.*o",
-        r"|-+[udlr]*-*\+",
-        r"|\.+[udlr]*\.*\+",
-        r")",
-        r")", // arrow group end
-        r"\s*",
-        r"(?:\[[^\]]*\])?", // optional qualifier [...]
-        r"\s*",
-        r#"(?:"([^"]*)"\s+)?"#, // optional to-label "..."
-        r#"((?:"[^"]+"|[\w.]+))"#, // to entity (quoted or simple)
-        r"\s*",
-        r"(?:\s*:\s*(.*))?", // optional label
-        r"$",
+        },
+        arrow_len,
+        reversed_by_direction,
     ))
-    .unwrap();
+}
 
-    if let Some(caps) = re2.captures(trimmed) {
-        let from = caps.get(1).unwrap().as_str().trim_matches('"').to_string();
-        let arrow = caps.get(2).unwrap().as_str();
-        let to_label = caps.get(3).map(|m| m.as_str().trim().to_string());
-        let to = caps.get(4).unwrap().as_str().trim_matches('"').to_string();
-        let label = caps.get(5).map(|m| m.as_str().trim().to_string());
+fn arrow_direction_requires_reverse(arrow: &str) -> bool {
+    arrow.contains('u') || arrow.contains('l')
+}
 
-        let (left_head, line_style, right_head) = parse_arrow(arrow);
-        // Arrow length: count dashes/dots. 1=horizontal(LR), 2+=vertical(TB).
-        let arrow_len = arrow.chars().filter(|c| *c == '-' || *c == '.').count();
-
-        return Some((Link {
-            from,
-            to,
-            left_head,
-            right_head,
-            line_style,
-            label,
-            from_label: None,
-            to_label,
-            source_line: Some(source_line),
-            arrow_len,
-        }, arrow_len));
+fn compute_arrow_len(arrow: &str) -> usize {
+    if arrow.contains('l') || arrow.contains('r') {
+        1
+    } else {
+        arrow.chars().filter(|c| *c == '-' || *c == '.').count()
     }
-
-    None
 }
 
 /// Parse an arrow string into (left_head, line_style, right_head)
@@ -931,7 +964,10 @@ fn try_parse_class_note(line: &str) -> Option<ClassNoteParseResult> {
 
             if let Some(colon_pos) = after_of.find(':') {
                 let target = after_of[..colon_pos].trim().to_string();
-                let text = after_of[colon_pos + 1..].trim().replace("\\n", "\n").replace(crate::NEWLINE_CHAR, "\n");
+                let text = after_of[colon_pos + 1..]
+                    .trim()
+                    .replace("\\n", "\n")
+                    .replace(crate::NEWLINE_CHAR, "\n");
                 return Some(ClassNoteParseResult::SingleLine(ClassNote {
                     text,
                     position: pos.to_string(),
@@ -952,7 +988,10 @@ fn try_parse_class_note(line: &str) -> Option<ClassNoteParseResult> {
 
         // `note <pos> : text` or `note <pos>` (no target)
         if let Some(after_colon) = after_pos.strip_prefix(':') {
-            let text = after_colon.trim().replace("\\n", "\n").replace(crate::NEWLINE_CHAR, "\n");
+            let text = after_colon
+                .trim()
+                .replace("\\n", "\n")
+                .replace(crate::NEWLINE_CHAR, "\n");
             return Some(ClassNoteParseResult::SingleLine(ClassNote {
                 text,
                 position: pos.to_string(),
@@ -976,6 +1015,8 @@ fn auto_create_entities(
     entities: &mut Vec<Entity>,
     links: &[Link],
     entity_order: &mut Vec<String>,
+    entity_uids: &HashMap<String, String>,
+    entity_first_source_lines: &HashMap<String, usize>,
 ) {
     let known: std::collections::HashSet<String> =
         entities.iter().map(|e| e.name.clone()).collect();
@@ -993,14 +1034,15 @@ fn auto_create_entities(
     for name in to_add {
         reserve_entity_order(entity_order, &name);
         entities.push(Entity {
-            name,
+            uid: entity_uids.get(&name).cloned(),
+            name: name.clone(),
             kind: EntityKind::Class,
             stereotypes: Vec::new(),
             members: Vec::new(),
             description: Vec::new(),
             color: None,
             generic: None,
-            source_line: None,
+            source_line: entity_first_source_lines.get(&name).copied(),
             visibility: None,
         });
     }
@@ -1052,6 +1094,7 @@ fn implicit_package_prefixes(name: &str) -> Vec<String> {
 fn synthesize_implicit_package_groups(
     entities: &[Entity],
     groups: &mut Vec<Group>,
+    next_uid_value: &mut u32,
 ) {
     let mut known_group_names: std::collections::HashSet<String> =
         groups.iter().map(|g| g.name.clone()).collect();
@@ -1064,6 +1107,7 @@ fn synthesize_implicit_package_groups(
         for prefix in &prefixes {
             if known_group_names.insert(prefix.clone()) {
                 groups.push(Group {
+                    uid: Some(next_entity_uid(next_uid_value)),
                     kind: GroupKind::Package,
                     name: prefix.clone(),
                     entities: Vec::new(),
@@ -1239,6 +1283,82 @@ mod tests {
         assert_eq!(link.label.as_deref(), Some("uses"));
     }
 
+    #[test]
+    fn parse_association_with_side_labels() {
+        let cd = parse(r#"A "many" --> "one" B"#);
+        assert_eq!(cd.links.len(), 1);
+        let link = &cd.links[0];
+        assert_eq!(link.from_label.as_deref(), Some("many"));
+        assert_eq!(link.to_label.as_deref(), Some("one"));
+    }
+
+    #[test]
+    fn parse_association_with_qualifiers() {
+        let cd = parse(r#"Shop [customerId: long] ---> "customer\n1" Customer"#);
+        assert_eq!(cd.links.len(), 1);
+        let link = &cd.links[0];
+        assert_eq!(link.from_qualifier.as_deref(), Some("customerId: long"));
+        assert_eq!(link.to_label.as_deref(), Some(r#"customer\n1"#));
+        assert_eq!(link.to_qualifier, None);
+    }
+
+    #[test]
+    fn parse_association_with_two_qualifiers() {
+        let cd = parse(r#"B [key2a] o-- [key2b] C : holds >"#);
+        assert_eq!(cd.links.len(), 1);
+        let link = &cd.links[0];
+        assert_eq!(link.from_qualifier.as_deref(), Some("key2a"));
+        assert_eq!(link.to_qualifier.as_deref(), Some("key2b"));
+        assert_eq!(link.label.as_deref(), Some("holds >"));
+    }
+
+    #[test]
+    fn parse_single_dash_association_with_label() {
+        let cd = parse(r#"A [key1] *- "1" B : holds >"#);
+        assert_eq!(cd.links.len(), 1);
+        let link = &cd.links[0];
+        assert_eq!(link.arrow_len, 1);
+        assert_eq!(link.from_qualifier.as_deref(), Some("key1"));
+        assert_eq!(link.to_label.as_deref(), Some("1"));
+        assert_eq!(link.label.as_deref(), Some("holds >"));
+    }
+
+    #[test]
+    fn parse_direction_hint_lr_forces_horizontal_queue() {
+        let cd = parse(r#"HashMap [b2] *.r.> [f] V2"#);
+        assert_eq!(cd.links.len(), 1);
+        let link = &cd.links[0];
+        assert_eq!(link.arrow_len, 1);
+        assert_eq!(link.from_qualifier.as_deref(), Some("b2"));
+        assert_eq!(link.to_qualifier.as_deref(), Some("f"));
+    }
+
+    #[test]
+    fn parse_direction_hint_up_reverses_endpoints() {
+        let cd = parse(r#"HashMap [a1] <|-u-> [e] V1"#);
+        assert_eq!(cd.links.len(), 1);
+        let link = &cd.links[0];
+        assert_eq!(link.from, "V1");
+        assert_eq!(link.to, "HashMap");
+        assert_eq!(link.from_qualifier.as_deref(), Some("e"));
+        assert_eq!(link.to_qualifier.as_deref(), Some("a1"));
+        assert_eq!(link.left_head, ArrowHead::Arrow);
+        assert_eq!(link.right_head, ArrowHead::Triangle);
+    }
+
+    #[test]
+    fn parse_direction_hint_left_reverses_endpoints() {
+        let cd = parse(r#"HashMap [d4] +-l-> [h] V4"#);
+        assert_eq!(cd.links.len(), 1);
+        let link = &cd.links[0];
+        assert_eq!(link.from, "V4");
+        assert_eq!(link.to, "HashMap");
+        assert_eq!(link.from_qualifier.as_deref(), Some("h"));
+        assert_eq!(link.to_qualifier.as_deref(), Some("d4"));
+        assert_eq!(link.left_head, ArrowHead::Arrow);
+        assert_eq!(link.right_head, ArrowHead::Plus);
+    }
+
     // 12. Parse class with stereotype
     #[test]
     fn parse_class_with_stereotype() {
@@ -1283,6 +1403,61 @@ mod tests {
         assert_eq!(cd.entities.len(), 2);
         assert!(cd.entities.iter().any(|e| e.name == "A"));
         assert!(cd.entities.iter().any(|e| e.name == "B"));
+    }
+
+    #[test]
+    fn implicit_entities_follow_java_shared_uid_sequence() {
+        let src = std::fs::read_to_string(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/tests/fixtures/class/qualifiedassoc002.puml"
+        ))
+        .unwrap();
+        let cd = parse_class_diagram(&src).unwrap();
+
+        let entity_uids: HashMap<_, _> = cd
+            .entities
+            .iter()
+            .map(|entity| (entity.name.as_str(), entity.uid.as_deref()))
+            .collect();
+        assert_eq!(entity_uids.get("Map"), Some(&Some("ent0002")));
+        assert_eq!(entity_uids.get("HashMap"), Some(&Some("ent0003")));
+        assert_eq!(entity_uids.get("Shop"), Some(&Some("ent0005")));
+        assert_eq!(entity_uids.get("Customer"), Some(&Some("ent0006")));
+
+        let shop = cd.entities.iter().find(|entity| entity.name == "Shop").unwrap();
+        let customer = cd
+            .entities
+            .iter()
+            .find(|entity| entity.name == "Customer")
+            .unwrap();
+        assert_eq!(shop.source_line, Some(5));
+        assert_eq!(customer.source_line, Some(5));
+
+        let link_uids: Vec<_> = cd.links.iter().map(|link| link.uid.as_deref()).collect();
+        assert_eq!(link_uids, vec![Some("lnk4"), Some("lnk7"), Some("lnk8")]);
+    }
+
+    #[test]
+    fn explicit_entity_after_link_keeps_implicit_uid_and_source_line() {
+        let cd = parse("A --> B\nclass A");
+        let a = cd.entities.iter().find(|entity| entity.name == "A").unwrap();
+        let b = cd.entities.iter().find(|entity| entity.name == "B").unwrap();
+        assert_eq!(a.uid.as_deref(), Some("ent0002"));
+        assert_eq!(b.uid.as_deref(), Some("ent0003"));
+        assert_eq!(a.source_line, Some(1));
+        assert_eq!(b.source_line, Some(1));
+        assert_eq!(cd.links[0].uid.as_deref(), Some("lnk4"));
+    }
+
+    #[test]
+    fn reversed_direction_link_burns_intermediate_uid_like_java_get_inv() {
+        let cd = parse("class HashMap\nHashMap [a1] <|-u-> [e] V1\nHashMap [b2] *.r.> [f] V2");
+        let v1 = cd.entities.iter().find(|entity| entity.name == "V1").unwrap();
+        let v2 = cd.entities.iter().find(|entity| entity.name == "V2").unwrap();
+        assert_eq!(v1.uid.as_deref(), Some("ent0003"));
+        assert_eq!(cd.links[0].uid.as_deref(), Some("lnk5"));
+        assert_eq!(v2.uid.as_deref(), Some("ent0006"));
+        assert_eq!(cd.links[1].uid.as_deref(), Some("lnk7"));
     }
 
     // 17. Skip style block / skinparam / comments
@@ -1405,7 +1580,10 @@ mod tests {
         assert!(cd.groups.iter().any(|g| g.name == "pkg1"));
         assert!(cd.groups.iter().any(|g| g.name == "pkg1.pkg2"));
         let inner = cd.groups.iter().find(|g| g.name == "pkg1.pkg2").unwrap();
-        assert_eq!(inner.entities, vec!["pkg1.pkg2.Class 1\\r\\n\\tBody".to_string()]);
+        assert_eq!(
+            inner.entities,
+            vec!["pkg1.pkg2.Class 1\\r\\n\\tBody".to_string()]
+        );
     }
 
     // ── Object diagram tests ──

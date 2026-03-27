@@ -14,9 +14,7 @@ pub mod version;
 
 pub use dot_data::{DotData, DotEntity, DotLink};
 pub use dot_splines::DotSplines;
-pub use graphviz::{
-    ExeState, Graphviz, GraphvizNative, ProcessState, DEFAULT_IMAGE_LIMIT,
-};
+pub use graphviz::{ExeState, Graphviz, GraphvizNative, ProcessState, DEFAULT_IMAGE_LIMIT};
 pub use version::{GraphvizVersion, DOT_VERSION_LIMIT};
 
 // ---------------------------------------------------------------------------
@@ -108,12 +106,12 @@ pub fn segment_intersection(p1: Point2D, p2: Point2D, p3: Point2D, p4: Point2D) 
         return None;
     }
 
-    let xi =
-        ((p3.x - p4.x) * (p1.x * p2.y - p1.y * p2.x) - (p1.x - p2.x) * (p3.x * p4.y - p3.y * p4.x))
-            / d;
-    let yi =
-        ((p3.y - p4.y) * (p1.x * p2.y - p1.y * p2.x) - (p1.y - p2.y) * (p3.x * p4.y - p3.y * p4.x))
-            / d;
+    let xi = ((p3.x - p4.x) * (p1.x * p2.y - p1.y * p2.x)
+        - (p1.x - p2.x) * (p3.x * p4.y - p3.y * p4.x))
+        / d;
+    let yi = ((p3.y - p4.y) * (p1.x * p2.y - p1.y * p2.x)
+        - (p1.y - p2.y) * (p3.x * p4.y - p3.y * p4.x))
+        / d;
 
     // Check that intersection is within both segments
     if xi + EPSILON < p1.x.min(p2.x) || xi - EPSILON > p1.x.max(p2.x) {
@@ -226,7 +224,11 @@ mod tests {
         let result = rect_line_intersection(&rect, center, target);
         assert!(result.is_some());
         let pt = result.unwrap();
-        assert!((pt.y - 0.0).abs() < 0.01, "should hit top edge, got y={}", pt.y);
+        assert!(
+            (pt.y - 0.0).abs() < 0.01,
+            "should hit top edge, got y={}",
+            pt.y
+        );
         assert!((pt.x - 50.0).abs() < 0.01);
     }
 

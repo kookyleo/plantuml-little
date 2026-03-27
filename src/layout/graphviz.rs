@@ -12,6 +12,14 @@ pub struct LayoutNode {
     pub height_pt: f64, // node height in pt
     /// DOT shape override (default: Rectangle → "rect").
     pub shape: Option<crate::svek::shape_type::ShapeType>,
+    /// Java `SvekNode.shield()` margins for shielded HTML labels.
+    pub shield: Option<crate::svek::Margins>,
+    /// Java svek entity position for special boundary nodes such as ports.
+    pub entity_position: Option<crate::svek::node::EntityPosition>,
+    /// Java `EntityImagePort.getMaxWidthFromLabelForEntryExit()` equivalent.
+    pub max_label_width: Option<f64>,
+    /// Source/declaration order used to preserve Java DOT emission ordering.
+    pub order: Option<usize>,
 }
 
 /// Input: a graph edge
@@ -20,6 +28,13 @@ pub struct LayoutEdge {
     pub from: String,
     pub to: String,
     pub label: Option<String>,
+    pub tail_label: Option<String>,
+    pub tail_label_boxed: bool,
+    pub head_label: Option<String>,
+    pub head_label_boxed: bool,
+    pub tail_decoration: crate::svek::edge::LinkDecoration,
+    pub head_decoration: crate::svek::edge::LinkDecoration,
+    pub line_style: crate::svek::edge::LinkStyle,
     pub minlen: u32,
     pub invisible: bool,
 }
@@ -30,8 +45,13 @@ pub struct LayoutClusterSpec {
     pub id: String,
     pub qualified_name: String,
     pub title: Option<String>,
+    pub style: crate::svek::cluster::ClusterStyle,
+    pub label_width: Option<f64>,
+    pub label_height: Option<f64>,
     pub node_ids: Vec<String>,
     pub sub_clusters: Vec<LayoutClusterSpec>,
+    /// Source/declaration order used to preserve Java DOT emission ordering.
+    pub order: Option<usize>,
 }
 
 /// Layout direction
@@ -62,6 +82,11 @@ pub struct LayoutGraph {
     pub edges: Vec<LayoutEdge>,
     pub clusters: Vec<LayoutClusterSpec>,
     pub rankdir: RankDir,
+    /// Temporary execution switch: class diagrams now follow Java's
+    /// `LinkStrategy.SIMPLIER` for DOT arrows, while other diagram families
+    /// still rely on legacy Graphviz arrow emission until their svek pipelines
+    /// are ported far enough to render decorations purely from bezier geometry.
+    pub use_simplier_dot_link_strategy: bool,
 }
 
 /// Output: node position after layout (SVG coordinates, origin top-left, Y downward)
@@ -90,6 +115,22 @@ pub struct EdgeLayout {
     pub arrow_polygon_points: Option<Vec<(f64, f64)>>,
     /// Edge label text (if any), carried from input for width expansion.
     pub label: Option<String>,
+    /// Tail-side label text (quantifier or qualifier).
+    pub tail_label: Option<String>,
+    /// Tail-side label position from svek solve.
+    pub tail_label_xy: Option<(f64, f64)>,
+    /// Tail-side label block dimension.
+    pub tail_label_wh: Option<(f64, f64)>,
+    /// Whether the tail-side label is a boxed qualifier.
+    pub tail_label_boxed: bool,
+    /// Head-side label text (quantifier or qualifier).
+    pub head_label: Option<String>,
+    /// Head-side label position from svek solve.
+    pub head_label_xy: Option<(f64, f64)>,
+    /// Head-side label block dimension.
+    pub head_label_wh: Option<(f64, f64)>,
+    /// Whether the head-side label is a boxed qualifier.
+    pub head_label_boxed: bool,
     /// Label center position from svek solve, used for LimitFinder-style tracking.
     pub label_xy: Option<(f64, f64)>,
     /// Label block dimension (width, height) from label_dimension + shield.
@@ -140,6 +181,13 @@ pub struct GraphLayout {
     /// Used to align label_xy (which is pre-moveDelta, pre-normalization) with
     /// path/node coordinates (which are post-moveDelta, post-normalization).
     pub normalize_offset: (f64, f64),
+    /// Render offset needed after origin normalization to reconstruct Java's
+    /// final post-Svek coordinates.
+    ///
+    /// Java moves by `6 - LimitFinder.min`, while the Rust normalization step
+    /// subtracts the post-solve geometric min. The extra offset is therefore
+    /// `6 + geometric_min - limitfinder_min`, and it can differ by axis.
+    pub render_offset: (f64, f64),
 }
 
 /// AbstractEntityDiagram.java:61 — default nodesep = 0.35 inches.
@@ -154,6 +202,21 @@ const MIN_NODE_SEP_PX: f64 = 35.0;
 /// SvekUtils.java:99-102 — pixelToInches: 72 DPI.
 fn px_to_inches(px: f64) -> f64 {
     px / 72.0
+}
+
+fn measure_edge_text_block(text: &str, font_size: f64) -> (f64, f64) {
+    let lines: Vec<&str> = text
+        .split("\\n")
+        .flat_map(|s| s.split("\\l"))
+        .flat_map(|s| s.split("\\r"))
+        .flat_map(|s| s.split(crate::NEWLINE_CHAR))
+        .collect();
+    let max_line_w = lines
+        .iter()
+        .map(|l| crate::font_metrics::text_width(l, "SansSerif", font_size, false, false))
+        .fold(0.0_f64, f64::max);
+    let line_h = crate::font_metrics::line_height("SansSerif", font_size, false, false);
+    (max_line_w, lines.len() as f64 * line_h)
 }
 
 /// Serialize a LayoutGraph into a DOT format string
@@ -258,7 +321,9 @@ pub fn layout(graph: &LayoutGraph) -> Result<GraphLayout, Error> {
 /// and color-based SVG parsing. Converts svek results back to `GraphLayout`.
 pub fn layout_with_svek(graph: &LayoutGraph) -> Result<GraphLayout, Error> {
     use crate::klimt::geom::Rankdir;
-    use crate::svek::builder::{BuilderConfig, EntityDescriptor, GraphvizImageBuilder, LinkDescriptor};
+    use crate::svek::builder::{
+        BuilderConfig, EntityDescriptor, GraphvizImageBuilder, LinkDescriptor,
+    };
     use crate::svek::DotSplines;
 
     log::debug!(
@@ -279,18 +344,37 @@ pub fn layout_with_svek(graph: &LayoutGraph) -> Result<GraphLayout, Error> {
         dot_splines: DotSplines::Spline,
         nodesep: Some(MIN_NODE_SEP_PX),
         ranksep: Some(MIN_RANK_SEP_PX),
+        use_simplier_dot_link_strategy: graph.use_simplier_dot_link_strategy,
         ..Default::default()
     };
 
     let mut builder = GraphvizImageBuilder::new(config);
     let mut node_cluster_ids = std::collections::HashMap::new();
     collect_node_cluster_assignments(&graph.clusters, &mut node_cluster_ids);
+    let shielded_node_ids: std::collections::HashSet<&str> = graph
+        .nodes
+        .iter()
+        .filter(|node| node.shield.is_some())
+        .map(|node| node.id.as_str())
+        .collect();
 
     // Register entities
     for node in &graph.nodes {
         let mut ed = EntityDescriptor::new(&node.id, node.width_pt, node.height_pt);
         if let Some(shape) = node.shape {
             ed = ed.with_shape(shape);
+        }
+        if let Some(shield) = node.shield {
+            ed = ed.with_shield(shield);
+        }
+        if let Some(entity_position) = node.entity_position {
+            ed = ed.with_entity_position(entity_position);
+        }
+        if let Some(max_label_width) = node.max_label_width {
+            ed = ed.with_max_label_width(max_label_width);
+        }
+        if let Some(order) = node.order {
+            ed = ed.with_order(order);
         }
         if let Some(cluster_id) = node_cluster_ids.get(&node.id) {
             ed = ed.with_cluster(cluster_id);
@@ -307,25 +391,42 @@ pub fn layout_with_svek(graph: &LayoutGraph) -> Result<GraphLayout, Error> {
             // Java: SvekLine.labelDimension = TextBlock.calculateDimension().
             // Edge labels use SansSerif 13pt (FontParam.CLASS = 13 for links).
             // Split on all PlantUML line separators: \n (center), \l (left), \r (right).
-            let lines: Vec<&str> = label
-                .split("\\n")
-                .flat_map(|s| s.split("\\l"))
-                .flat_map(|s| s.split("\\r"))
-                .flat_map(|s| s.split(crate::NEWLINE_CHAR))
-                .collect();
-            let max_line_w = lines
-                .iter()
-                .map(|l| crate::font_metrics::text_width(l, "SansSerif", 13.0, false, false))
-                .fold(0.0_f64, f64::max);
-            let line_h = crate::font_metrics::line_height("SansSerif", 13.0, false, false);
+            let (max_line_w, text_h) = measure_edge_text_block(label, 13.0);
             // Java: Display.create0 → SheetBlock2. Height = lines × line_h (no extra margin).
             // Java: addVisibilityModifier wraps with TextBlockMarged(marginLabel=1),
             // adding 1px on all sides. labelText.calculateDimension() = inner + 2*margin.
             // Java SvekEdge.getLabelTextBlock():
             // self-links use a much larger DOT label margin than normal links.
             let margin_label = if edge.from == edge.to { 6.0 } else { 1.0 };
-            let label_h = lines.len() as f64 * line_h + 2.0 * margin_label;
+            let label_h = text_h + 2.0 * margin_label;
             ld.label_dimension = Some((max_line_w + 2.0 * margin_label, label_h));
+        }
+        if let Some(ref tail_label) = edge.tail_label {
+            let font_size = if edge.tail_label_boxed { 14.0 } else { 13.0 };
+            let (text_w, text_h) = measure_edge_text_block(tail_label, font_size);
+            ld.tail_label = Some(tail_label.clone());
+            ld.tail_label_dimension = Some(if edge.tail_label_boxed {
+                (text_w + 4.0, text_h + 2.0)
+            } else {
+                (text_w, text_h)
+            });
+        }
+        if let Some(ref head_label) = edge.head_label {
+            let font_size = if edge.head_label_boxed { 14.0 } else { 13.0 };
+            let (text_w, text_h) = measure_edge_text_block(head_label, font_size);
+            ld.head_label = Some(head_label.clone());
+            ld.head_label_dimension = Some(if edge.head_label_boxed {
+                (text_w + 4.0, text_h + 2.0)
+            } else {
+                (text_w, text_h)
+            });
+        }
+        ld = ld.with_decorations(edge.head_decoration, edge.tail_decoration);
+        ld = ld.with_style(edge.line_style);
+        let from_port = shielded_node_ids.contains(edge.from.as_str()).then_some("h");
+        let to_port = shielded_node_ids.contains(edge.to.as_str()).then_some("h");
+        if from_port.is_some() || to_port.is_some() {
+            ld = ld.with_ports(from_port, to_port);
         }
         if edge.invisible {
             ld.invisible = true;
@@ -369,9 +470,21 @@ pub fn layout_with_svek(graph: &LayoutGraph) -> Result<GraphLayout, Error> {
 
     let svg = String::from_utf8_lossy(&output.stdout);
     log::debug!("svek dot svg output:\n{svg}");
+    let parsed_svg_edges = parse_svg_edges_pre_normalize(&svg);
+    let mut parsed_svg_edges_by_key: std::collections::HashMap<
+        (String, String),
+        std::collections::VecDeque<EdgeLayout>,
+    > = std::collections::HashMap::new();
+    for edge in parsed_svg_edges {
+        let key = (
+            strip_entity_port(&edge.from).to_string(),
+            strip_entity_port(&edge.to).to_string(),
+        );
+        parsed_svg_edges_by_key.entry(key).or_default().push_back(edge);
+    }
 
     // Solve: parse SVG and position nodes/edges
-    let (move_delta, lf_span) = builder
+    let (move_delta, lf_span, render_offset) = builder
         .solve(&svg)
         .map_err(|e| Error::Layout(format!("svek solve error: {e}")))?;
 
@@ -382,54 +495,91 @@ pub fn layout_with_svek(graph: &LayoutGraph) -> Result<GraphLayout, Error> {
     let svek_clusters = builder.clusters();
 
     // Build initial node layouts
-    let mut nodes_out: Vec<NodeLayout> = svek_nodes.iter().enumerate().map(|(i, sn)| {
-        let id = if i < graph.nodes.len() {
-            graph.nodes[i].id.clone()
-        } else {
-            sn.uid.clone()
-        };
-        NodeLayout { id, cx: sn.cx, cy: sn.cy, width: sn.width, height: sn.height }
-    }).collect();
+    let mut nodes_out: Vec<NodeLayout> = svek_nodes
+        .iter()
+        .enumerate()
+        .map(|(i, sn)| {
+            let id = if i < graph.nodes.len() {
+                graph.nodes[i].id.clone()
+            } else {
+                sn.uid.clone()
+            };
+            NodeLayout {
+                id,
+                cx: sn.cx,
+                cy: sn.cy,
+                width: sn.width,
+                height: sn.height,
+            }
+        })
+        .collect();
 
     // Build initial edge layouts
-    let active_edges: Vec<&crate::layout::graphviz::LayoutEdge> = graph.edges
+    let active_edges: Vec<&crate::layout::graphviz::LayoutEdge> =
+        graph.edges.iter().filter(|e| !e.invisible).collect();
+    let mut edges_out: Vec<EdgeLayout> = svek_edges
         .iter()
-        .filter(|e| !e.invisible)
-        .collect();
-    let mut edges_out: Vec<EdgeLayout> = svek_edges.iter().enumerate().map(|(i, se)| {
-        let (from, to) = if i < active_edges.len() {
-            (active_edges[i].from.clone(), active_edges[i].to.clone())
-        } else {
-            (se.from_uid.clone(), se.to_uid.clone())
-        };
-        let mut points = Vec::new();
-        let mut raw_path_d = None;
-        if let Some(ref dp) = se.get_dot_path() {
-            for bez in &dp.beziers {
-                if points.is_empty() {
-                    points.push((bez.x1, bez.y1));
+        .enumerate()
+        .map(|(i, se)| {
+            let (from, to) = if i < active_edges.len() {
+                (active_edges[i].from.clone(), active_edges[i].to.clone())
+            } else {
+                (se.from_uid.clone(), se.to_uid.clone())
+            };
+            let mut points = Vec::new();
+            let mut raw_path_d = None;
+            if let Some(ref dp) = se.get_dot_path() {
+                for bez in &dp.beziers {
+                    if points.is_empty() {
+                        points.push((bez.x1, bez.y1));
+                    }
+                    points.push((bez.ctrlx1, bez.ctrly1));
+                    points.push((bez.ctrlx2, bez.ctrly2));
+                    points.push((bez.x2, bez.y2));
                 }
-                points.push((bez.ctrlx1, bez.ctrly1));
-                points.push((bez.ctrlx2, bez.ctrly2));
-                points.push((bez.x2, bez.y2));
+                raw_path_d = Some(dp.to_upath().to_svg_path_d());
             }
-            raw_path_d = Some(dp.to_upath().to_svg_path_d());
-        }
-        EdgeLayout {
-            from, to, points,
-            arrow_tip: se.end_contact_point().map(|p| (p.x, p.y)),
-            raw_path_d,
-            arrow_polygon_points: None,
-            label: se.label.clone(),
-            label_xy: se.label_xy.map(|p| (p.x, p.y)),
-            label_wh: se.label_dimension.map(|d| {
-                let dim_w = if se.divide_label_width_by_two { d.width / 2.0 } else { d.width };
-                let dim_h = d.height;
-                // Add shield (same as DOT table sizing)
-                (dim_w + 2.0 * se.label_shield, dim_h + 2.0 * se.label_shield)
-            }),
-        }
-    }).collect();
+            let parsed_edge = parsed_svg_edges_by_key
+                .get_mut(&(strip_entity_port(&from).to_string(), strip_entity_port(&to).to_string()))
+                .and_then(|edges| edges.pop_front());
+            EdgeLayout {
+                from,
+                to,
+                points,
+                arrow_tip: parsed_edge
+                    .as_ref()
+                    .and_then(|edge| edge.arrow_tip)
+                    .or_else(|| se.end_contact_point().map(|p| (p.x, p.y))),
+                raw_path_d: parsed_edge
+                    .as_ref()
+                    .and_then(|edge| edge.raw_path_d.clone())
+                    .or(raw_path_d),
+                arrow_polygon_points: parsed_edge
+                    .as_ref()
+                    .and_then(|edge| edge.arrow_polygon_points.clone()),
+                label: se.label.clone(),
+                tail_label: se.start_tail_text.clone(),
+                tail_label_xy: se.start_tail_label_xy.map(|p| (p.x, p.y)),
+                tail_label_wh: se.start_tail_dimension.map(|d| (d.width, d.height)),
+                tail_label_boxed: active_edges.get(i).is_some_and(|edge| edge.tail_label_boxed),
+                head_label: se.end_head_text.clone(),
+                head_label_xy: se.end_head_label_xy.map(|p| (p.x, p.y)),
+                head_label_wh: se.end_head_dimension.map(|d| (d.width, d.height)),
+                head_label_boxed: active_edges.get(i).is_some_and(|edge| edge.head_label_boxed),
+                label_xy: se.label_xy.map(|p| (p.x, p.y)),
+                label_wh: se.label_dimension.map(|d| {
+                    let dim_w = if se.divide_label_width_by_two {
+                        d.width / 2.0
+                    } else {
+                        d.width
+                    };
+                    let dim_h = d.height;
+                    // Add shield (same as DOT table sizing)
+                    (dim_w + 2.0 * se.label_shield, dim_h + 2.0 * se.label_shield)
+                }),
+            }
+        })
+        .collect();
 
     let mut cluster_specs_by_id: std::collections::HashMap<&str, &LayoutClusterSpec> =
         std::collections::HashMap::new();
@@ -438,14 +588,38 @@ pub fn layout_with_svek(graph: &LayoutGraph) -> Result<GraphLayout, Error> {
     flatten_cluster_layouts(svek_clusters, &cluster_specs_by_id, &mut clusters_out);
 
     // Compute bounding box
-    let min_x_nodes = nodes_out.iter().map(|n| n.cx - n.width / 2.0).fold(f64::INFINITY, f64::min);
-    let min_y_nodes = nodes_out.iter().map(|n| n.cy - n.height / 2.0).fold(f64::INFINITY, f64::min);
-    let max_x_nodes = nodes_out.iter().map(|n| n.cx + n.width / 2.0).fold(f64::NEG_INFINITY, f64::max);
-    let max_y_nodes = nodes_out.iter().map(|n| n.cy + n.height / 2.0).fold(f64::NEG_INFINITY, f64::max);
-    let min_x_clusters = clusters_out.iter().map(|c| c.x).fold(f64::INFINITY, f64::min);
-    let min_y_clusters = clusters_out.iter().map(|c| c.y).fold(f64::INFINITY, f64::min);
-    let max_x_clusters = clusters_out.iter().map(|c| c.x + c.width).fold(f64::NEG_INFINITY, f64::max);
-    let max_y_clusters = clusters_out.iter().map(|c| c.y + c.height).fold(f64::NEG_INFINITY, f64::max);
+    let min_x_nodes = nodes_out
+        .iter()
+        .map(|n| n.cx - n.width / 2.0)
+        .fold(f64::INFINITY, f64::min);
+    let min_y_nodes = nodes_out
+        .iter()
+        .map(|n| n.cy - n.height / 2.0)
+        .fold(f64::INFINITY, f64::min);
+    let max_x_nodes = nodes_out
+        .iter()
+        .map(|n| n.cx + n.width / 2.0)
+        .fold(f64::NEG_INFINITY, f64::max);
+    let max_y_nodes = nodes_out
+        .iter()
+        .map(|n| n.cy + n.height / 2.0)
+        .fold(f64::NEG_INFINITY, f64::max);
+    let min_x_clusters = clusters_out
+        .iter()
+        .map(|c| c.x)
+        .fold(f64::INFINITY, f64::min);
+    let min_y_clusters = clusters_out
+        .iter()
+        .map(|c| c.y)
+        .fold(f64::INFINITY, f64::min);
+    let max_x_clusters = clusters_out
+        .iter()
+        .map(|c| c.x + c.width)
+        .fold(f64::NEG_INFINITY, f64::max);
+    let max_y_clusters = clusters_out
+        .iter()
+        .map(|c| c.y + c.height)
+        .fold(f64::NEG_INFINITY, f64::max);
     let min_x = min_x_nodes.min(min_x_clusters);
     let min_y = min_y_nodes.min(min_y_clusters);
     let max_x = max_x_nodes.max(max_x_clusters);
@@ -454,10 +628,20 @@ pub fn layout_with_svek(graph: &LayoutGraph) -> Result<GraphLayout, Error> {
     let total_height = max_y - min_y;
 
     let normalize_offset = (min_x, min_y);
-    log::debug!("layout_with_svek normalize: min=({:.2},{:.2}) max=({:.2},{:.2})", min_x, min_y, max_x, max_y);
+    log::debug!(
+        "layout_with_svek normalize: min=({:.2},{:.2}) max=({:.2},{:.2})",
+        min_x,
+        min_y,
+        max_x,
+        max_y
+    );
     for e in &edges_out {
         if let Some(ref lxy) = e.label_xy {
-            log::debug!("  edge label_xy before normalize: ({:.2},{:.2})", lxy.0, lxy.1);
+            log::debug!(
+                "  edge label_xy before normalize: ({:.2},{:.2})",
+                lxy.0,
+                lxy.1
+            );
         }
     }
 
@@ -478,6 +662,14 @@ pub fn layout_with_svek(graph: &LayoutGraph) -> Result<GraphLayout, Error> {
         if let Some(ref raw_d) = e.raw_path_d {
             e.raw_path_d = Some(transform_path_d(raw_d, -min_x, -min_y));
         }
+        if let Some(ref mut pts) = e.arrow_polygon_points {
+            for p in pts.iter_mut() {
+                p.0 -= min_x;
+                p.1 -= min_y;
+            }
+        }
+        // Java keeps head/tail label positions in pre-normalized Svek space.
+        // They are translated later by SvekEdge.drawU() via moveDelta only.
     }
     for c in &mut clusters_out {
         c.x -= min_x;
@@ -494,7 +686,40 @@ pub fn layout_with_svek(graph: &LayoutGraph) -> Result<GraphLayout, Error> {
         move_delta,
         lf_span,
         normalize_offset,
+        render_offset,
     })
+}
+
+fn parse_svg_edges_pre_normalize(svg: &str) -> Vec<EdgeLayout> {
+    let (tx, ty) = parse_transform_translate(svg);
+    let mut result = Vec::new();
+    let mut search_from = 0;
+    while let Some(rel_pos) = svg[search_from..].find("<g id=") {
+        let g_start = search_from + rel_pos;
+        let tag_end = match svg[g_start..].find('>') {
+            Some(pos) => g_start + pos + 1,
+            None => break,
+        };
+        let open_tag = &svg[g_start..tag_end];
+        if !open_tag.contains("class=\"edge\"") {
+            search_from = tag_end;
+            continue;
+        }
+        let g_end = match svg[tag_end..].find("</g>") {
+            Some(pos) => tag_end + pos + 4,
+            None => break,
+        };
+        let g_content = &svg[g_start..g_end];
+        search_from = g_end;
+        if let Some(edge) = parse_svg_edge(g_content, tx, ty) {
+            result.push(edge);
+        }
+    }
+    result
+}
+
+fn strip_entity_port(uid: &str) -> &str {
+    uid.split(':').next().unwrap_or(uid)
 }
 
 fn collect_node_cluster_assignments(
@@ -509,10 +734,18 @@ fn collect_node_cluster_assignments(
     }
 }
 
-fn layout_cluster_to_builder(cluster: &LayoutClusterSpec) -> crate::svek::builder::ClusterDescriptor {
-    let mut result = crate::svek::builder::ClusterDescriptor::new(&cluster.id);
+fn layout_cluster_to_builder(
+    cluster: &LayoutClusterSpec,
+) -> crate::svek::builder::ClusterDescriptor {
+    let mut result = crate::svek::builder::ClusterDescriptor::new(&cluster.id).with_style(cluster.style);
     if let Some(ref title) = cluster.title {
         result = result.with_title(title);
+    }
+    if let (Some(label_width), Some(label_height)) = (cluster.label_width, cluster.label_height) {
+        result = result.with_label_size(label_width, label_height);
+    }
+    if let Some(order) = cluster.order {
+        result = result.with_order(order);
     }
     for node_id in &cluster.node_ids {
         result = result.add_entity(node_id);
@@ -683,6 +916,8 @@ fn parse_svg_output(svg: &str, graph: &LayoutGraph) -> Result<GraphLayout, Error
                 p.1 -= min_y;
             }
         }
+        // Java keeps head/tail label positions in pre-normalized Svek space.
+        // They are translated later by SvekEdge.drawU() via moveDelta only.
     }
 
     Ok(GraphLayout {
@@ -695,6 +930,7 @@ fn parse_svg_output(svg: &str, graph: &LayoutGraph) -> Result<GraphLayout, Error
         move_delta: (0.0, 0.0),
         lf_span: (total_width, total_height),
         normalize_offset: (0.0, 0.0),
+        render_offset: (0.0, 0.0),
     })
 }
 
@@ -819,6 +1055,14 @@ fn parse_svg_edge(g: &str, tx: f64, ty: f64) -> Option<EdgeLayout> {
         raw_path_d,
         arrow_polygon_points,
         label: None,
+        tail_label: None,
+        tail_label_xy: None,
+        tail_label_wh: None,
+        tail_label_boxed: false,
+        head_label: None,
+        head_label_xy: None,
+        head_label_wh: None,
+        head_label_boxed: false,
         label_xy: None,
         label_wh: None,
     })
@@ -967,7 +1211,6 @@ pub fn transform_path_d(d: &str, tx: f64, ty: f64) -> String {
     result
 }
 
-
 /// Parse SVG path `d` attribute (M/C/L commands) and apply transform.
 ///
 /// Graphviz edge paths typically use:
@@ -1061,6 +1304,10 @@ mod tests {
                     width_pt: 108.0,
                     height_pt: 36.0,
                     shape: None,
+                    shield: None,
+                    entity_position: None,
+                    max_label_width: None,
+                    order: None,
                 },
                 LayoutNode {
                     id: "B".into(),
@@ -1068,17 +1315,29 @@ mod tests {
                     width_pt: 108.0,
                     height_pt: 36.0,
                     shape: None,
+                    shield: None,
+                    entity_position: None,
+                    max_label_width: None,
+                    order: None,
                 },
             ],
             edges: vec![LayoutEdge {
                 from: "A".into(),
                 to: "B".into(),
                 label: None,
+                tail_label: None,
+                tail_label_boxed: false,
+                head_label: None,
+                head_label_boxed: false,
+                tail_decoration: crate::svek::edge::LinkDecoration::None,
+                head_decoration: crate::svek::edge::LinkDecoration::None,
+                line_style: crate::svek::edge::LinkStyle::Normal,
                 minlen: 1,
                 invisible: false,
             }],
             clusters: vec![],
             rankdir: RankDir::TopToBottom,
+            use_simplier_dot_link_strategy: false,
         }
     }
 
@@ -1110,10 +1369,15 @@ mod tests {
                 width_pt: 72.0,
                 height_pt: 36.0,
                 shape: None,
+                shield: None,
+                entity_position: None,
+                max_label_width: None,
+                order: None,
             }],
             edges: vec![],
             clusters: vec![],
             rankdir: RankDir::LeftToRight,
+            use_simplier_dot_link_strategy: false,
         };
         let result = layout(&graph).expect("single node layout failed");
         assert_eq!(result.nodes.len(), 1);

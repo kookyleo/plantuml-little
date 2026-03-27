@@ -292,15 +292,32 @@ impl StyleSignatureBasic {
     // ── Convenience constructors for common selectors ───────────────
 
     pub fn activity() -> Self {
-        Self::of(&[SName::Root, SName::Element, SName::ActivityDiagram, SName::Activity])
+        Self::of(&[
+            SName::Root,
+            SName::Element,
+            SName::ActivityDiagram,
+            SName::Activity,
+        ])
     }
 
     pub fn activity_diamond() -> Self {
-        Self::of(&[SName::Root, SName::Element, SName::ActivityDiagram, SName::Activity, SName::Diamond])
+        Self::of(&[
+            SName::Root,
+            SName::Element,
+            SName::ActivityDiagram,
+            SName::Activity,
+            SName::Diamond,
+        ])
     }
 
     pub fn activity_arrow() -> Self {
-        Self::of(&[SName::Root, SName::Element, SName::ActivityDiagram, SName::Activity, SName::Arrow])
+        Self::of(&[
+            SName::Root,
+            SName::Element,
+            SName::ActivityDiagram,
+            SName::Activity,
+            SName::Arrow,
+        ])
     }
 }
 
@@ -333,11 +350,17 @@ impl std::fmt::Display for StyleSignatureBasic {
 /// Java: `style.StyleSignature`
 pub trait StyleSignature {
     /// Get the merged style from a StyleBuilder.
-    fn get_merged_style(&self, builder: &super::style_def::StyleBuilder) -> Option<super::style_def::Style>;
+    fn get_merged_style(
+        &self,
+        builder: &super::style_def::StyleBuilder,
+    ) -> Option<super::style_def::Style>;
 }
 
 impl StyleSignature for StyleSignatureBasic {
-    fn get_merged_style(&self, builder: &super::style_def::StyleBuilder) -> Option<super::style_def::Style> {
+    fn get_merged_style(
+        &self,
+        builder: &super::style_def::StyleBuilder,
+    ) -> Option<super::style_def::Style> {
         Some(builder.get_merged_style(self))
     }
 }
@@ -372,7 +395,10 @@ impl Default for StyleSignatures {
 }
 
 impl StyleSignature for StyleSignatures {
-    fn get_merged_style(&self, builder: &super::style_def::StyleBuilder) -> Option<super::style_def::Style> {
+    fn get_merged_style(
+        &self,
+        builder: &super::style_def::StyleBuilder,
+    ) -> Option<super::style_def::Style> {
         if self.all.is_empty() {
             return None;
         }
@@ -543,7 +569,10 @@ mod tests {
         let decl = StyleSignatureBasic::of(&[SName::Root, SName::Arrow]);
         // Element: root, element, sequenceDiagram, arrow
         let elem = StyleSignatureBasic::of(&[
-            SName::Root, SName::Element, SName::SequenceDiagram, SName::Arrow,
+            SName::Root,
+            SName::Element,
+            SName::SequenceDiagram,
+            SName::Arrow,
         ]);
         // Declaration's SNames are a subset of element's
         assert!(decl.match_all(&elem));
@@ -585,8 +614,7 @@ mod tests {
     #[test]
     fn signature_match_all_stereotype_missing() {
         let decl = StyleSignatureBasic::of(&[SName::Root]).add_stereotype("foo");
-        let elem = StyleSignatureBasic::of(&[SName::Root, SName::Arrow])
-            .add_stereotype("bar");
+        let elem = StyleSignatureBasic::of(&[SName::Root, SName::Arrow]).add_stereotype("bar");
         assert!(!decl.match_all(&elem));
     }
 

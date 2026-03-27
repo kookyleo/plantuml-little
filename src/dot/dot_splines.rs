@@ -85,10 +85,7 @@ mod tests {
             Some(DotSplines::Splines)
         );
         assert_eq!(DotSplines::from_str_opt("true"), Some(DotSplines::Splines));
-        assert_eq!(
-            DotSplines::from_str_opt("Curved"),
-            Some(DotSplines::Curved)
-        );
+        assert_eq!(DotSplines::from_str_opt("Curved"), Some(DotSplines::Curved));
         assert_eq!(DotSplines::from_str_opt("unknown"), None);
     }
 

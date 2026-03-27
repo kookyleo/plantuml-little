@@ -120,7 +120,10 @@ fn assert_svg_has_link(svg: &str, path: &str) {
 
 fn assert_svg_has_tooltip(svg: &str, path: &str) {
     // Java puts tooltip in title="..." and xlink:title="..." attributes, not <title> element
-    assert!(svg.contains("title=\"") || svg.contains("<title>"), "{path}: missing tooltip markup");
+    assert!(
+        svg.contains("title=\"") || svg.contains("<title>"),
+        "{path}: missing tooltip markup"
+    );
 }
 
 #[test]
@@ -224,10 +227,19 @@ fn test_fixture_generics001() {
     let svg = convert_fixture("tests/fixtures/class/generics001.puml");
     assert_valid_svg(&svg, "generics001");
     // Generic parameters are rendered in a separate dashed box, not in the class name
-    assert!(svg.contains("ArrayList"), "generics001: must display ArrayList");
-    assert!(svg.contains(">E<"), "generics001: must display generic parameter E");
+    assert!(
+        svg.contains("ArrayList"),
+        "generics001: must display ArrayList"
+    );
+    assert!(
+        svg.contains(">E<"),
+        "generics001: must display generic parameter E"
+    );
     assert!(svg.contains("HashMap"), "generics001: must display HashMap");
-    assert!(svg.contains(">K,V<"), "generics001: must display generic parameter K,V");
+    assert!(
+        svg.contains(">K,V<"),
+        "generics001: must display generic parameter K,V"
+    );
 }
 
 #[test]
@@ -1544,7 +1556,10 @@ fn test_dot_fixture_basic() {
     let svg = convert_fixture("tests/fixtures/dot/basic.puml");
     // DOT rendering is suppressed in Java PlantUML (issue #2495)
     assert!(svg.contains("<svg"), "dot/basic: must contain <svg tag");
-    assert!(svg.contains("suppressed"), "dot/basic: must show suppressed message");
+    assert!(
+        svg.contains("suppressed"),
+        "dot/basic: must show suppressed message"
+    );
 }
 
 // ── Skinparam integration tests ──
@@ -1638,7 +1653,10 @@ fn test_creole_sup_sub001() {
         svg.contains(r#"font-size="10""#),
         "sub/sup must have reduced font-size (10 = round(13 * 0.77))"
     );
-    assert!(svg.contains(">2</text>"), "subscript/superscript '2' must appear");
+    assert!(
+        svg.contains(">2</text>"),
+        "subscript/superscript '2' must appear"
+    );
 }
 
 #[test]

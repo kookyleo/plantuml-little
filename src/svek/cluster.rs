@@ -7,6 +7,7 @@
 pub struct Cluster {
     pub id: String,
     pub title: Option<String>,
+    pub label_size: Option<(f64, f64)>,
     pub node_uids: Vec<String>,
     pub sub_clusters: Vec<Cluster>,
     /// Position after layout
@@ -36,9 +37,13 @@ impl Cluster {
         Self {
             id: id.to_string(),
             title: None,
+            label_size: None,
             node_uids: Vec::new(),
             sub_clusters: Vec::new(),
-            x: 0.0, y: 0.0, width: 0.0, height: 0.0,
+            x: 0.0,
+            y: 0.0,
+            width: 0.0,
+            height: 0.0,
             style: ClusterStyle::default(),
         }
     }

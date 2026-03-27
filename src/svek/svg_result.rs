@@ -3,6 +3,7 @@
 
 use crate::klimt::geom::XPoint2D;
 use crate::svek::Point2DFunction;
+use std::rc::Rc;
 
 // ── Constants ────────────────────────────────────────────────────────
 
@@ -19,18 +20,19 @@ pub const POINTS_EQUALS: &str = "points=\"";
 /// and methods to extract point lists for node/edge positions.
 pub struct SvgResult {
     svg: String,
-    function: Box<dyn Point2DFunction>,
+    function: Rc<dyn Point2DFunction>,
 }
 
 impl SvgResult {
     pub fn new(svg: String) -> Self {
-        Self {
-            svg,
-            function: Box::new(crate::svek::IdentityFunction),
-        }
+        Self::with_shared_function(svg, Rc::new(crate::svek::IdentityFunction))
     }
 
     pub fn with_function(svg: String, function: Box<dyn Point2DFunction>) -> Self {
+        Self::with_shared_function(svg, Rc::from(function))
+    }
+
+    fn with_shared_function(svg: String, function: Rc<dyn Point2DFunction>) -> Self {
         Self { svg, function }
     }
 
@@ -57,10 +59,7 @@ impl SvgResult {
         } else {
             self.svg[pos..].to_string()
         };
-        SvgResult {
-            svg: s,
-            function: Box::new(crate::svek::IdentityFunction),
-        }
+        SvgResult::with_shared_function(s, self.function.clone())
     }
 
     /// Create a sub-result from `start` to `end`, keeping the transform.
@@ -72,10 +71,7 @@ impl SvgResult {
             let actual_end = end.min(self.svg.len());
             self.svg[start..actual_end].to_string()
         };
-        SvgResult {
-            svg: s,
-            function: Box::new(crate::svek::IdentityFunction),
-        }
+        SvgResult::with_shared_function(s, self.function.clone())
     }
 
     // ── Color lookup ─────────────────────────────────────────────────
@@ -210,15 +206,12 @@ impl SvgResult {
     }
 
     /// Extract DotPath from SVG path `d` attribute at given position.
-    pub fn extract_dot_path(
-        &self,
-        from: usize,
-    ) -> Option<(crate::klimt::shape::DotPath, usize)> {
+    pub fn extract_dot_path(&self, from: usize) -> Option<(crate::klimt::shape::DotPath, usize)> {
         let d_start = self.svg[from..].find("d=\"")?;
         let d_pos = from + d_start + 3;
         let d_end = self.svg[d_pos..].find('"')?;
         let d_str = &self.svg[d_pos..d_pos + d_end];
-        let path = parse_svg_path_to_dotpath(d_str)?;
+        let path = parse_svg_path_to_dotpath_with_fn(d_str, &*self.function)?;
         Some((path, d_pos + d_end))
     }
 }
@@ -233,6 +226,8 @@ impl SvgResult {
 pub struct PointListIterator {
     /// The full SVG string being searched.
     svg_text: String,
+    /// Coordinate transform shared with the parent SvgResult.
+    function: Rc<dyn Point2DFunction>,
     /// Current search position: >= 0 means active, -1 means color not found, -2 means exhausted.
     pos: i64,
 }
@@ -250,6 +245,7 @@ impl PointListIterator {
         };
         Self {
             svg_text: svg_result.svg.clone(),
+            function: svg_result.function.clone(),
             pos,
         }
     }
@@ -265,6 +261,7 @@ impl PointListIterator {
     pub fn clone_me(&self) -> Self {
         Self {
             svg_text: self.svg_text.clone(),
+            function: self.function.clone(),
             pos: self.pos,
         }
     }
@@ -293,7 +290,7 @@ impl Iterator for PointListIterator {
             self.pos = -2;
             return Some(Vec::new());
         };
-        let sub = SvgResult::new(sub_svg);
+        let sub = SvgResult::with_shared_function(sub_svg, self.function.clone());
         let result = sub.extract_list(POINTS_EQUALS);
 
         if result.is_empty() {
@@ -302,8 +299,7 @@ impl Iterator for PointListIterator {
             // Advance past this points="..." attribute
             match self.svg_text[pos..].find(POINTS_EQUALS) {
                 Some(offset) => {
-                    self.pos =
-                        (pos + offset + POINTS_EQUALS.len() + 1) as i64;
+                    self.pos = (pos + offset + POINTS_EQUALS.len() + 1) as i64;
                 }
                 None => {
                     self.pos = -2;
@@ -332,11 +328,7 @@ fn parse_points(s: &str) -> Vec<XPoint2D> {
         .split_whitespace()
         .filter_map(|t| {
             // Skip path commands (single alphabetic characters)
-            if t.len() == 1
-                && t.chars()
-                    .next()
-                    .map_or(false, |c| c.is_ascii_alphabetic())
-            {
+            if t.len() == 1 && t.chars().next().map_or(false, |c| c.is_ascii_alphabetic()) {
                 return None;
             }
             t.parse::<f64>().ok()
@@ -377,9 +369,21 @@ fn parse_svg_path_to_dotpath_with_fn(
     let tokens = tokenize_svg_path(d);
 
     for tok in &tokens {
-        if tok.len() == 1 && tok.chars().next().map_or(false, |c| c.is_ascii_alphabetic()) {
+        if tok.len() == 1
+            && tok
+                .chars()
+                .next()
+                .map_or(false, |c| c.is_ascii_alphabetic())
+        {
             // Process accumulated numbers before switching command
-            process_path_cmd(cmd, &mut nums, &mut beziers, &mut current_x, &mut current_y, function);
+            process_path_cmd(
+                cmd,
+                &mut nums,
+                &mut beziers,
+                &mut current_x,
+                &mut current_y,
+                function,
+            );
             cmd = tok.chars().next().unwrap();
             continue;
         }
@@ -387,10 +391,24 @@ fn parse_svg_path_to_dotpath_with_fn(
             nums.push(v);
         }
         // Process immediately when enough numbers for current command
-        process_path_cmd(cmd, &mut nums, &mut beziers, &mut current_x, &mut current_y, function);
+        process_path_cmd(
+            cmd,
+            &mut nums,
+            &mut beziers,
+            &mut current_x,
+            &mut current_y,
+            function,
+        );
     }
     // Process any remaining numbers
-    process_path_cmd(cmd, &mut nums, &mut beziers, &mut current_x, &mut current_y, function);
+    process_path_cmd(
+        cmd,
+        &mut nums,
+        &mut beziers,
+        &mut current_x,
+        &mut current_y,
+        function,
+    );
 
     if beziers.is_empty() {
         None
@@ -454,8 +472,10 @@ fn tokenize_svg_path(d: &str) -> Vec<String> {
             }
             tokens.push(ch.to_string());
             chars.next();
-        } else if ch == '-' && !num_buf.is_empty()
-            && !num_buf.ends_with('e') && !num_buf.ends_with('E')
+        } else if ch == '-'
+            && !num_buf.is_empty()
+            && !num_buf.ends_with('e')
+            && !num_buf.ends_with('E')
         {
             // Negative sign starts a new number (unless after exponent)
             tokens.push(std::mem::take(&mut num_buf));
@@ -504,8 +524,7 @@ mod tests {
 
     #[test]
     fn parse_svg_path_cubic() {
-        let path =
-            parse_svg_path_to_dotpath("M 0,0 C 10,0 20,10 30,20").unwrap();
+        let path = parse_svg_path_to_dotpath("M 0,0 C 10,0 20,10 30,20").unwrap();
         assert_eq!(path.beziers.len(), 1);
         assert_eq!(path.start_point(), XPoint2D::new(0.0, 0.0));
         assert_eq!(path.end_point(), XPoint2D::new(30.0, 20.0));
@@ -513,16 +532,13 @@ mod tests {
 
     #[test]
     fn parse_svg_path_multiple_cubics() {
-        let path = parse_svg_path_to_dotpath(
-            "M 0,0 C 1,2 3,4 5,6 C 7,8 9,10 11,12",
-        );
+        let path = parse_svg_path_to_dotpath("M 0,0 C 1,2 3,4 5,6 C 7,8 9,10 11,12");
         assert!(path.is_some());
     }
 
     #[test]
     fn parse_svg_path_line() {
-        let path =
-            parse_svg_path_to_dotpath("M 0,0 L 10,20").unwrap();
+        let path = parse_svg_path_to_dotpath("M 0,0 L 10,20").unwrap();
         assert_eq!(path.beziers.len(), 1);
         assert_eq!(path.start_point(), XPoint2D::new(0.0, 0.0));
         assert_eq!(path.end_point(), XPoint2D::new(10.0, 20.0));
@@ -559,12 +575,23 @@ mod tests {
         assert_eq!(sub.svg(), "defgh");
     }
 
+    #[test]
+    fn svg_result_substring_preserves_transform() {
+        use crate::svek::snake::YDelta;
+
+        let sr = SvgResult::with_function("x 10,20 30,40".to_string(), Box::new(YDelta::new(100.0)));
+        let sub = sr.substring_from(2);
+        let pts = sub.get_points(" ");
+        assert_eq!(pts.len(), 2);
+        assert_eq!(pts[0], XPoint2D::new(10.0, 120.0));
+        assert_eq!(pts[1], XPoint2D::new(30.0, 140.0));
+    }
+
     // ── SvgResult find_by_color ──────────────────────────────────────
 
     #[test]
     fn svg_result_find_by_color_stroke_attr() {
-        let svg =
-            r##"<line stroke="#010200" x1="10" y1="20"/>"##;
+        let svg = r##"<line stroke="#010200" x1="10" y1="20"/>"##;
         let sr = SvgResult::new(svg.to_string());
         assert!(sr.find_by_color(0x010200).is_some());
         assert!(sr.find_by_color(0xFF0000).is_none());
@@ -572,16 +599,14 @@ mod tests {
 
     #[test]
     fn svg_result_find_by_color_stroke_style() {
-        let svg =
-            r##"<path style="fill:none;stroke:#abcdef;stroke-width:1"/>"##;
+        let svg = r##"<path style="fill:none;stroke:#abcdef;stroke-width:1"/>"##;
         let sr = SvgResult::new(svg.to_string());
         assert!(sr.find_by_color(0xABCDEF).is_some());
     }
 
     #[test]
     fn svg_result_find_by_color_fill_attr() {
-        let svg =
-            r##"<rect fill="#112233" width="10" height="10"/>"##;
+        let svg = r##"<rect fill="#112233" width="10" height="10"/>"##;
         let sr = SvgResult::new(svg.to_string());
         assert!(sr.find_by_color(0x112233).is_some());
     }
@@ -601,8 +626,7 @@ mod tests {
 
     #[test]
     fn svg_result_extract_list_d() {
-        let svg =
-            r#"<path d="M10,20 C30,40 50,60 70,80"/>"#;
+        let svg = r#"<path d="M10,20 C30,40 50,60 70,80"/>"#;
         let sr = SvgResult::new(svg.to_string());
         let pts = sr.extract_list(D_EQUALS);
         // Splits by " MC" chars: tokens are "10,20", "30,40", "50,60", "70,80"
@@ -626,8 +650,7 @@ mod tests {
 
     #[test]
     fn svg_result_get_points_mc_separator() {
-        let sr =
-            SvgResult::new("10,20M30,40C50,60".to_string());
+        let sr = SvgResult::new("10,20M30,40C50,60".to_string());
         let pts = sr.get_points(" MC");
         assert_eq!(pts.len(), 3);
     }
@@ -654,8 +677,7 @@ mod tests {
 
     #[test]
     fn svg_result_is_path_consistent() {
-        let sr1 =
-            SvgResult::new("M0,0 C1,2 3,4 5,6".to_string());
+        let sr1 = SvgResult::new("M0,0 C1,2 3,4 5,6".to_string());
         assert!(sr1.is_path_consistent());
 
         let sr2 = SvgResult::new("C1,2 3,4 5,6".to_string());
@@ -723,6 +745,21 @@ mod tests {
         assert!(iter.next().is_none());
     }
 
+    #[test]
+    fn point_list_iterator_preserves_transform() {
+        use crate::svek::snake::YDelta;
+
+        let svg = concat!(
+            r##"<g stroke="#010200">"##,
+            r#"<polygon points="10,20 30,40"/>"#,
+            r#"</g>"#,
+        );
+        let sr = SvgResult::with_function(svg.to_string(), Box::new(YDelta::new(100.0)));
+        let mut iter = sr.get_points_with_this_color(0x010200);
+        let first = iter.next().unwrap();
+        assert_eq!(first, vec![XPoint2D::new(10.0, 120.0), XPoint2D::new(30.0, 140.0)]);
+    }
+
     // ── split_by_chars ───────────────────────────────────────────────
 
     #[test]
@@ -734,10 +771,7 @@ mod tests {
     #[test]
     fn split_by_chars_spaces() {
         let result = split_by_chars("10,20 30,40 50,60", " ");
-        assert_eq!(
-            result,
-            vec!["10,20", "30,40", "50,60"]
-        );
+        assert_eq!(result, vec!["10,20", "30,40", "50,60"]);
     }
 
     #[test]
@@ -752,10 +786,7 @@ mod tests {
     fn svg_result_with_ydelta() {
         use crate::svek::snake::YDelta;
 
-        let sr = SvgResult::with_function(
-            "10,20 30,40".to_string(),
-            Box::new(YDelta::new(100.0)),
-        );
+        let sr = SvgResult::with_function("10,20 30,40".to_string(), Box::new(YDelta::new(100.0)));
         let pts = sr.get_points(" ");
         assert_eq!(pts.len(), 2);
         assert_eq!(pts[0].x, 10.0);

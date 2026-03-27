@@ -3,10 +3,10 @@ use std::collections::HashMap;
 use std::fmt::Write;
 
 use crate::font_metrics;
+use crate::klimt::svg::{fmt_coord, xml_escape, xml_escape_attr};
 use crate::model::hyperlink::Hyperlink;
 use crate::model::richtext::{RichText, TextSpan};
 use crate::parser::creole::{parse_creole, parse_creole_opts};
-use crate::klimt::svg::{fmt_coord, xml_escape, xml_escape_attr};
 use crate::render::svg_hyperlink::wrap_with_link;
 
 thread_local! {
@@ -34,11 +34,18 @@ pub fn take_back_filters() -> Vec<(String, String)> {
 
 fn back_filter_id(color: &str) -> String {
     let mut h: u64 = 0xcbf2_9ce4_8422_2325;
-    for b in color.bytes() { h ^= b as u64; h = h.wrapping_mul(0x100_0000_01b3); }
+    for b in color.bytes() {
+        h ^= b as u64;
+        h = h.wrapping_mul(0x100_0000_01b3);
+    }
     let mut id = String::with_capacity(16);
     for _ in 0..16 {
         let c = (h % 36) as u8;
-        id.push(if c < 10 { (b'0' + c) as char } else { (b'a' + c - 10) as char });
+        id.push(if c < 10 {
+            (b'0' + c) as char
+        } else {
+            (b'a' + c - 10) as char
+        });
         h /= 36;
     }
     id
@@ -180,8 +187,12 @@ pub fn creole_line_height(text: &str, default_font: &str, default_font_size: f64
     // Check for sub/sup which adds extra vertical space
     let parsed = parse_creole(text);
     let lines = flatten_rich_lines(&parsed);
-    let has_sub = lines.iter().any(|line| line.iter().any(|s| has_subscript(s)));
-    let has_sup = lines.iter().any(|line| line.iter().any(|s| has_superscript(s)));
+    let has_sub = lines
+        .iter()
+        .any(|line| line.iter().any(|s| has_subscript(s)));
+    let has_sup = lines
+        .iter()
+        .any(|line| line.iter().any(|s| has_superscript(s)));
     let mut extra = 0.0_f64;
     let sub_size = (default_font_size * 0.77).round();
     if has_sub {
@@ -209,7 +220,9 @@ pub fn creole_line_height(text: &str, default_font: &str, default_font_size: f64
 pub fn creole_sub_extra_height(text: &str, default_font: &str, default_font_size: f64) -> f64 {
     let parsed = parse_creole(text);
     let lines = flatten_rich_lines(&parsed);
-    let has_sub = lines.iter().any(|line| line.iter().any(|s| has_subscript(s)));
+    let has_sub = lines
+        .iter()
+        .any(|line| line.iter().any(|s| has_subscript(s)));
     if has_sub {
         let sub_size = (default_font_size * 0.77).round();
         let sub_shift = default_font_size * 0.2852;
@@ -244,8 +257,11 @@ fn max_font_size_in_span(span: &TextSpan, max_size: &mut f64) {
                 max_font_size_in_span(inner, max_size);
             }
         }
-        TextSpan::Bold(inner) | TextSpan::Italic(inner) | TextSpan::Underline(inner)
-        | TextSpan::Strikethrough(inner) | TextSpan::Subscript(inner)
+        TextSpan::Bold(inner)
+        | TextSpan::Italic(inner)
+        | TextSpan::Underline(inner)
+        | TextSpan::Strikethrough(inner)
+        | TextSpan::Subscript(inner)
         | TextSpan::Superscript(inner) => {
             for s in inner {
                 max_font_size_in_span(s, max_size);
@@ -258,7 +274,9 @@ fn max_font_size_in_span(span: &TextSpan, max_size: &mut f64) {
                 max_font_size_in_span(s, max_size);
             }
         }
-        TextSpan::Plain(_) | TextSpan::Monospace(_) | TextSpan::Link { .. }
+        TextSpan::Plain(_)
+        | TextSpan::Monospace(_)
+        | TextSpan::Link { .. }
         | TextSpan::InlineSvg { .. } => {}
     }
 }
@@ -266,14 +284,15 @@ fn max_font_size_in_span(span: &TextSpan, max_size: &mut f64) {
 fn has_subscript(span: &TextSpan) -> bool {
     match span {
         TextSpan::Subscript(_) => true,
-        TextSpan::Bold(inner) | TextSpan::Italic(inner) | TextSpan::Underline(inner)
-        | TextSpan::Strikethrough(inner) | TextSpan::Superscript(inner) => {
-            inner.iter().any(|s| has_subscript(s))
-        }
-        TextSpan::Colored { content, .. } | TextSpan::BackHighlight { content, .. }
-        | TextSpan::FontFamily { content, .. } | TextSpan::Sized { content, .. } => {
-            content.iter().any(|s| has_subscript(s))
-        }
+        TextSpan::Bold(inner)
+        | TextSpan::Italic(inner)
+        | TextSpan::Underline(inner)
+        | TextSpan::Strikethrough(inner)
+        | TextSpan::Superscript(inner) => inner.iter().any(|s| has_subscript(s)),
+        TextSpan::Colored { content, .. }
+        | TextSpan::BackHighlight { content, .. }
+        | TextSpan::FontFamily { content, .. }
+        | TextSpan::Sized { content, .. } => content.iter().any(|s| has_subscript(s)),
         _ => false,
     }
 }
@@ -281,14 +300,15 @@ fn has_subscript(span: &TextSpan) -> bool {
 fn has_superscript(span: &TextSpan) -> bool {
     match span {
         TextSpan::Superscript(_) => true,
-        TextSpan::Bold(inner) | TextSpan::Italic(inner) | TextSpan::Underline(inner)
-        | TextSpan::Strikethrough(inner) | TextSpan::Subscript(inner) => {
-            inner.iter().any(|s| has_superscript(s))
-        }
-        TextSpan::Colored { content, .. } | TextSpan::BackHighlight { content, .. }
-        | TextSpan::FontFamily { content, .. } | TextSpan::Sized { content, .. } => {
-            content.iter().any(|s| has_superscript(s))
-        }
+        TextSpan::Bold(inner)
+        | TextSpan::Italic(inner)
+        | TextSpan::Underline(inner)
+        | TextSpan::Strikethrough(inner)
+        | TextSpan::Subscript(inner) => inner.iter().any(|s| has_superscript(s)),
+        TextSpan::Colored { content, .. }
+        | TextSpan::BackHighlight { content, .. }
+        | TextSpan::FontFamily { content, .. }
+        | TextSpan::Sized { content, .. } => content.iter().any(|s| has_superscript(s)),
         _ => false,
     }
 }
@@ -296,7 +316,13 @@ fn has_superscript(span: &TextSpan) -> bool {
 /// Compute the total width of creole text, respecting font-family changes.
 /// For text without font-family markup, this behaves like measuring plain text.
 /// For text with `<font:family>`, each segment is measured in its own font.
-pub fn creole_text_width(text: &str, default_font: &str, font_size: f64, bold: bool, italic: bool) -> f64 {
+pub fn creole_text_width(
+    text: &str,
+    default_font: &str,
+    font_size: f64,
+    bold: bool,
+    italic: bool,
+) -> f64 {
     let lines = flatten_rich_lines(&parse_creole(text));
     if lines.is_empty() {
         return 0.0;
@@ -313,12 +339,20 @@ pub fn creole_text_width(text: &str, default_font: &str, font_size: f64, bold: b
     let mut total = 0.0;
     let mut first = true;
     for run in &runs {
-        let text = if !first { run.text.trim_start() } else { run.text.as_str() };
-        if text.is_empty() { first = false; continue; }
+        let text = if !first {
+            run.text.trim_start()
+        } else {
+            run.text.as_str()
+        };
+        if text.is_empty() {
+            first = false;
+            continue;
+        }
         // Add space gap if we trimmed leading whitespace
         if !first && text.len() < run.text.len() {
             let n_spaces = run.text.len() - text.len();
-            total += font_metrics::text_width(" ", default_font, font_size, false, false) * n_spaces as f64;
+            total += font_metrics::text_width(" ", default_font, font_size, false, false)
+                * n_spaces as f64;
         }
         let run_font = run.font_family.as_deref().unwrap_or(default_font);
         let run_bold = run.bold || bold;
@@ -345,7 +379,17 @@ pub fn render_creole_text(
     text_anchor: Option<&str>,
     outer_attrs: &str,
 ) -> usize {
-    render_creole_text_opts(buf, text, x, y, line_height, fill, text_anchor, outer_attrs, false)
+    render_creole_text_opts(
+        buf,
+        text,
+        x,
+        y,
+        line_height,
+        fill,
+        text_anchor,
+        outer_attrs,
+        false,
+    )
 }
 
 /// Like `render_creole_text` but with `preserve_backslash_n` option.
@@ -369,7 +413,10 @@ pub fn render_creole_text_opts(
     };
 
     // Check if any line contains sprites
-    let has_sprites = lines.iter().any(|line| line.iter().any(|span| matches!(span, TextSpan::InlineSvg { .. })));
+    let has_sprites = lines.iter().any(|line| {
+        line.iter()
+            .any(|span| matches!(span, TextSpan::InlineSvg { .. }))
+    });
 
     // Path-based sprite rendering for sequence diagrams
     if has_sprites && is_path_sprites_enabled() && lines.len() == 1 {
@@ -378,14 +425,21 @@ pub fn render_creole_text_opts(
 
     // Legacy sprite rendering: collect for deferred rendering after text
     let sprite_refs: Vec<(String, Option<String>)> = if has_sprites {
-        lines.iter().flat_map(|line| {
-            line.iter().filter_map(|span| {
-                if let TextSpan::InlineSvg { name } = span {
-                    Some((name.clone(), get_sprite(name)))
-                } else { None }
+        lines
+            .iter()
+            .flat_map(|line| {
+                line.iter().filter_map(|span| {
+                    if let TextSpan::InlineSvg { name } = span {
+                        Some((name.clone(), get_sprite(name)))
+                    } else {
+                        None
+                    }
+                })
             })
-        }).collect()
-    } else { Vec::new() };
+            .collect()
+    } else {
+        Vec::new()
+    };
 
     let (font_family, font_size, bold, italic) = parse_font_props(outer_attrs);
 
@@ -394,7 +448,18 @@ pub fn render_creole_text_opts(
     // Exception: centered text (text_anchor="middle") stays as single element
     // because split rendering would center each piece independently.
     if lines.len() == 1 && text_anchor.is_none() && line_needs_split_render(&lines[0]) {
-        render_split_text_runs(buf, &lines[0], x, y, fill, outer_attrs, &font_family, font_size, bold, italic);
+        render_split_text_runs(
+            buf,
+            &lines[0],
+            x,
+            y,
+            fill,
+            outer_attrs,
+            &font_family,
+            font_size,
+            bold,
+            italic,
+        );
         return 1;
     }
 
@@ -423,8 +488,17 @@ pub fn render_creole_text_opts(
     for (idx, line) in lines.iter().enumerate() {
         let line_y = y + (idx as f64) * line_height;
         let line_plain = plain_text_spans(line);
-        let line_text_length = font_metrics::text_width(&line_plain, &font_family, font_size, bold, italic);
-        write_text_open(buf, x, line_y, fill, text_anchor, outer_attrs, line_text_length);
+        let line_text_length =
+            font_metrics::text_width(&line_plain, &font_family, font_size, bold, italic);
+        write_text_open(
+            buf,
+            x,
+            line_y,
+            fill,
+            text_anchor,
+            outer_attrs,
+            line_text_length,
+        );
         if let Some(text) = simple_plain_line(line) {
             buf.push_str(&xml_escape(text));
         } else {
@@ -437,8 +511,14 @@ pub fn render_creole_text_opts(
     lines.len()
 }
 
-
-fn render_line_with_sprites(buf: &mut String, spans: &[TextSpan], x: f64, y: f64, fill: &str, outer_attrs: &str) -> usize {
+fn render_line_with_sprites(
+    buf: &mut String,
+    spans: &[TextSpan],
+    x: f64,
+    y: f64,
+    fill: &str,
+    outer_attrs: &str,
+) -> usize {
     use crate::render::svg_sprite;
     let (font_family, font_size, bold, italic) = parse_font_props(outer_attrs);
     let gap = svg_sprite::sprite_text_gap(&font_family, font_size, bold, italic);
@@ -450,15 +530,23 @@ fn render_line_with_sprites(buf: &mut String, spans: &[TextSpan], x: f64, y: f64
         match span {
             TextSpan::InlineSvg { name } => {
                 if !text_buf.is_empty() {
-                    if let Some(TextSpan::Plain(t)) = text_buf.last_mut() { *t = t.trim_end().to_string(); }
+                    if let Some(TextSpan::Plain(t)) = text_buf.last_mut() {
+                        *t = t.trim_end().to_string();
+                    }
                     let plain = plain_text_spans(&text_buf);
-                    let text_w = font_metrics::text_width(&plain, &font_family, font_size, bold, italic);
+                    let text_w =
+                        font_metrics::text_width(&plain, &font_family, font_size, bold, italic);
                     if !plain.is_empty() {
                         write_text_open(buf, cursor_x, y, fill, None, outer_attrs, text_w);
                         if text_buf.len() == 1 {
-                            if let Some(t) = simple_plain_line(&text_buf) { buf.push_str(&xml_escape(t)); }
-                            else { render_spans(buf, &text_buf, &SpanStyle::default(), fill); }
-                        } else { render_spans(buf, &text_buf, &SpanStyle::default(), fill); }
+                            if let Some(t) = simple_plain_line(&text_buf) {
+                                buf.push_str(&xml_escape(t));
+                            } else {
+                                render_spans(buf, &text_buf, &SpanStyle::default(), fill);
+                            }
+                        } else {
+                            render_spans(buf, &text_buf, &SpanStyle::default(), fill);
+                        }
                         buf.push_str("</text>");
                         cursor_x += text_w + gap;
                     }
@@ -467,7 +555,8 @@ fn render_line_with_sprites(buf: &mut String, spans: &[TextSpan], x: f64, y: f64
                 if let Some(svg_content) = get_sprite(name) {
                     let info = svg_sprite::sprite_info(&svg_content);
                     let sprite_y_offset = arrow_y - 2.0 - info.vb_height;
-                    let converted = svg_sprite::convert_svg_elements(&svg_content, cursor_x, sprite_y_offset);
+                    let converted =
+                        svg_sprite::convert_svg_elements(&svg_content, cursor_x, sprite_y_offset);
                     buf.push_str(&converted);
                     cursor_x += info.vb_width + gap;
                 }
@@ -477,7 +566,9 @@ fn render_line_with_sprites(buf: &mut String, spans: &[TextSpan], x: f64, y: f64
                 if in_sprite && text_buf.is_empty() {
                     if let TextSpan::Plain(t) = span {
                         let trimmed = t.trim_start().to_string();
-                        if !trimmed.is_empty() { text_buf.push(TextSpan::Plain(trimmed)); }
+                        if !trimmed.is_empty() {
+                            text_buf.push(TextSpan::Plain(trimmed));
+                        }
                         in_sprite = false;
                         continue;
                     }
@@ -493,26 +584,36 @@ fn render_line_with_sprites(buf: &mut String, spans: &[TextSpan], x: f64, y: f64
         if !plain.is_empty() {
             write_text_open(buf, cursor_x, y, fill, None, outer_attrs, text_w);
             if text_buf.len() == 1 {
-                if let Some(t) = simple_plain_line(&text_buf) { buf.push_str(&xml_escape(t)); }
-                else { render_spans(buf, &text_buf, &SpanStyle::default(), fill); }
-            } else { render_spans(buf, &text_buf, &SpanStyle::default(), fill); }
+                if let Some(t) = simple_plain_line(&text_buf) {
+                    buf.push_str(&xml_escape(t));
+                } else {
+                    render_spans(buf, &text_buf, &SpanStyle::default(), fill);
+                }
+            } else {
+                render_spans(buf, &text_buf, &SpanStyle::default(), fill);
+            }
             buf.push_str("</text>");
         }
     }
     1
 }
 
-
 fn line_needs_split_render(spans: &[TextSpan]) -> bool {
     fn has_styled(spans: &[TextSpan]) -> bool {
         spans.iter().any(|span| match span {
             TextSpan::Plain(_) | TextSpan::InlineSvg { .. } => false,
             TextSpan::Link { .. } => true,
-            TextSpan::Bold(_) | TextSpan::Italic(_) | TextSpan::Underline(_)
-            | TextSpan::Strikethrough(_) | TextSpan::Monospace(_)
-            | TextSpan::BackHighlight { .. } | TextSpan::FontFamily { .. }
-            | TextSpan::Colored { .. } | TextSpan::Sized { .. }
-            | TextSpan::Subscript(_) | TextSpan::Superscript(_) => true,
+            TextSpan::Bold(_)
+            | TextSpan::Italic(_)
+            | TextSpan::Underline(_)
+            | TextSpan::Strikethrough(_)
+            | TextSpan::Monospace(_)
+            | TextSpan::BackHighlight { .. }
+            | TextSpan::FontFamily { .. }
+            | TextSpan::Colored { .. }
+            | TextSpan::Sized { .. }
+            | TextSpan::Subscript(_)
+            | TextSpan::Superscript(_) => true,
         })
     }
     has_styled(spans)
@@ -537,11 +638,25 @@ struct TextRun {
 
 impl TextRun {
     fn new() -> Self {
-        Self { text: String::new(), font_family: None, filter_id: None,
-               bold: false, italic: false, underline: false, strikethrough: false,
-               color: None, font_size_override: None, link_url: None, link_tooltip: None }
+        Self {
+            text: String::new(),
+            font_family: None,
+            filter_id: None,
+            bold: false,
+            italic: false,
+            underline: false,
+            strikethrough: false,
+            color: None,
+            font_size_override: None,
+            link_url: None,
+            link_tooltip: None,
+        }
     }
-    fn with_text(text: &str) -> Self { let mut r = Self::new(); r.text = text.to_string(); r }
+    fn with_text(text: &str) -> Self {
+        let mut r = Self::new();
+        r.text = text.to_string();
+        r
+    }
     fn style_matches(&self, other: &RunStyle) -> bool {
         opt_eq(&self.font_family, &other.font_family)
             && opt_eq(&self.filter_id, &other.filter_id)
@@ -555,7 +670,11 @@ impl TextRun {
 }
 
 fn opt_eq(a: &Option<String>, b: &Option<String>) -> bool {
-    match (a, b) { (None, None) => true, (Some(a), Some(b)) => a == b, _ => false }
+    match (a, b) {
+        (None, None) => true,
+        (Some(a), Some(b)) => a == b,
+        _ => false,
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -572,9 +691,16 @@ struct RunStyle {
 
 impl RunStyle {
     fn new() -> Self {
-        Self { font_family: None, filter_id: None,
-               bold: false, italic: false, underline: false, strikethrough: false,
-               color: None, font_size_override: None }
+        Self {
+            font_family: None,
+            filter_id: None,
+            bold: false,
+            italic: false,
+            underline: false,
+            strikethrough: false,
+            color: None,
+            font_size_override: None,
+        }
     }
 }
 
@@ -589,54 +715,71 @@ fn flatten_span_runs(spans: &[TextSpan], runs: &mut Vec<TextRun>, style: &RunSty
         match span {
             TextSpan::Plain(text) => {
                 if let Some(run) = runs.last_mut() {
-                    if run.style_matches(style) { run.text.push_str(text); continue; }
+                    if run.style_matches(style) {
+                        run.text.push_str(text);
+                        continue;
+                    }
                 }
                 let mut r = TextRun::with_text(text);
                 r.font_family = style.font_family.clone();
                 r.filter_id = style.filter_id.clone();
-                r.bold = style.bold; r.italic = style.italic;
-                r.underline = style.underline; r.strikethrough = style.strikethrough;
+                r.bold = style.bold;
+                r.italic = style.italic;
+                r.underline = style.underline;
+                r.strikethrough = style.strikethrough;
                 r.color = style.color.clone();
                 r.font_size_override = style.font_size_override;
                 runs.push(r);
             }
             TextSpan::BackHighlight { color, content } => {
                 let fid = register_back_filter(color);
-                let mut s = style.clone(); s.filter_id = Some(fid);
+                let mut s = style.clone();
+                s.filter_id = Some(fid);
                 flatten_span_runs(content, runs, &s);
             }
             TextSpan::FontFamily { family, content } => {
-                let mut s = style.clone(); s.font_family = Some(family.clone());
+                let mut s = style.clone();
+                s.font_family = Some(family.clone());
                 flatten_span_runs(content, runs, &s);
             }
             TextSpan::Bold(inner) => {
-                let mut s = style.clone(); s.bold = true;
+                let mut s = style.clone();
+                s.bold = true;
                 flatten_span_runs(inner, runs, &s);
             }
             TextSpan::Italic(inner) => {
-                let mut s = style.clone(); s.italic = true;
+                let mut s = style.clone();
+                s.italic = true;
                 flatten_span_runs(inner, runs, &s);
             }
             TextSpan::Underline(inner) => {
-                let mut s = style.clone(); s.underline = true;
+                let mut s = style.clone();
+                s.underline = true;
                 flatten_span_runs(inner, runs, &s);
             }
             TextSpan::Strikethrough(inner) => {
-                let mut s = style.clone(); s.strikethrough = true;
+                let mut s = style.clone();
+                s.strikethrough = true;
                 flatten_span_runs(inner, runs, &s);
             }
             TextSpan::Colored { color, content } => {
-                let mut s = style.clone(); s.color = Some(color.clone());
+                let mut s = style.clone();
+                s.color = Some(color.clone());
                 flatten_span_runs(content, runs, &s);
             }
             TextSpan::Sized { size, content } => {
-                let mut s = style.clone(); s.font_size_override = Some(*size as f64);
+                let mut s = style.clone();
+                s.font_size_override = Some(*size as f64);
                 flatten_span_runs(content, runs, &s);
             }
             TextSpan::Subscript(inner) => {
                 // Java: subscript uses font size × 0.77 (approximately 10/13)
                 let base_size = style.font_size_override.unwrap_or(0.0);
-                let sub_size = if base_size > 0.0 { base_size * 0.77 } else { -1.0 }; // Use -1 as marker for "subscript from default"
+                let sub_size = if base_size > 0.0 {
+                    base_size * 0.77
+                } else {
+                    -1.0
+                }; // Use -1 as marker for "subscript from default"
                 let mut s = style.clone();
                 s.font_size_override = Some(sub_size);
                 flatten_span_runs(inner, runs, &s);
@@ -644,7 +787,11 @@ fn flatten_span_runs(spans: &[TextSpan], runs: &mut Vec<TextRun>, style: &RunSty
             TextSpan::Superscript(inner) => {
                 // Java: superscript uses font size × 0.77
                 let base_size = style.font_size_override.unwrap_or(0.0);
-                let sup_size = if base_size > 0.0 { base_size * 0.77 } else { -2.0 }; // Use -2 as marker for "superscript from default"
+                let sup_size = if base_size > 0.0 {
+                    base_size * 0.77
+                } else {
+                    -2.0
+                }; // Use -2 as marker for "superscript from default"
                 let mut s = style.clone();
                 s.font_size_override = Some(sup_size);
                 flatten_span_runs(inner, runs, &s);
@@ -653,19 +800,26 @@ fn flatten_span_runs(spans: &[TextSpan], runs: &mut Vec<TextRun>, style: &RunSty
                 let mut r = TextRun::with_text(text);
                 r.font_family = Some("monospace".to_string());
                 r.filter_id = style.filter_id.clone();
-                r.bold = style.bold; r.italic = style.italic;
-                r.underline = style.underline; r.strikethrough = style.strikethrough;
+                r.bold = style.bold;
+                r.italic = style.italic;
+                r.underline = style.underline;
+                r.strikethrough = style.strikethrough;
                 r.color = style.color.clone();
                 r.font_size_override = style.font_size_override;
                 runs.push(r);
             }
-            TextSpan::Link { label, url, tooltip } => {
+            TextSpan::Link {
+                label,
+                url,
+                tooltip,
+            } => {
                 let visible = label.as_deref().unwrap_or(url);
                 // Links always create a new run (they need <a> wrapping)
                 let mut r = TextRun::with_text(visible);
                 r.font_family = style.font_family.clone();
                 r.filter_id = style.filter_id.clone();
-                r.bold = style.bold; r.italic = style.italic;
+                r.bold = style.bold;
+                r.italic = style.italic;
                 r.underline = true; // Links are underlined by default
                 r.strikethrough = style.strikethrough;
                 r.color = Some("#0000FF".to_string()); // Links are blue
@@ -680,7 +834,18 @@ fn flatten_span_runs(spans: &[TextSpan], runs: &mut Vec<TextRun>, style: &RunSty
 }
 
 #[allow(clippy::too_many_arguments)]
-fn render_split_text_runs(buf: &mut String, spans: &[TextSpan], x: f64, y: f64, fill: &str, _outer_attrs: &str, default_font: &str, font_size: f64, base_bold: bool, base_italic: bool) {
+fn render_split_text_runs(
+    buf: &mut String,
+    spans: &[TextSpan],
+    x: f64,
+    y: f64,
+    fill: &str,
+    _outer_attrs: &str,
+    default_font: &str,
+    font_size: f64,
+    base_bold: bool,
+    base_italic: bool,
+) {
     let runs = flatten_to_runs(spans);
     let mut cursor_x = x;
     let mut first = true;
@@ -720,7 +885,9 @@ fn render_split_text_runs(buf: &mut String, spans: &[TextSpan], x: f64, y: f64, 
                 write!(buf, r#"<text fill="{}""#, xml_escape(fill)).unwrap();
                 write!(buf, r#" font-family="{}""#, xml_escape(default_font)).unwrap();
                 write!(buf, r#" font-size="{}""#, fmt_coord(font_size)).unwrap();
-                if base_bold { buf.push_str(r#" font-weight="700""#); }
+                if base_bold {
+                    buf.push_str(r#" font-weight="700""#);
+                }
                 write!(buf, r#" lengthAdjust="spacing""#).unwrap();
                 write!(buf, r#" textLength="{}""#, fmt_coord(total_space_w)).unwrap();
                 write!(buf, r#" x="{}" y="{}">"#, fmt_coord(space_x), fmt_coord(y)).unwrap();
@@ -759,14 +926,23 @@ fn render_split_text_runs(buf: &mut String, spans: &[TextSpan], x: f64, y: f64, 
                 xml_escape_attr(url), xml_escape_attr(&title), xml_escape_attr(url), xml_escape_attr(&title)).unwrap();
         }
         write!(buf, r#"<text fill="{}""#, xml_escape(run_fill)).unwrap();
-        if let Some(ref fid) = run.filter_id { write!(buf, r#" filter="url(#{fid})""#).unwrap(); }
+        if let Some(ref fid) = run.filter_id {
+            write!(buf, r#" filter="url(#{fid})""#).unwrap();
+        }
         write!(buf, r#" font-family="{}""#, xml_escape(run_font)).unwrap();
         write!(buf, r#" font-size="{}""#, fmt_coord(run_size)).unwrap();
-        if run_italic { buf.push_str(r#" font-style="italic""#); }
-        if run_bold { buf.push_str(r#" font-weight="700""#); }
+        if run_italic {
+            buf.push_str(r#" font-style="italic""#);
+        }
+        if run_bold {
+            buf.push_str(r#" font-weight="700""#);
+        }
         write!(buf, r#" lengthAdjust="spacing""#).unwrap();
-        if run.strikethrough { buf.push_str(r#" text-decoration="wavy underline""#); }
-        else if run.underline { buf.push_str(r#" text-decoration="underline""#); }
+        if run.strikethrough {
+            buf.push_str(r#" text-decoration="wavy underline""#);
+        } else if run.underline {
+            buf.push_str(r#" text-decoration="underline""#);
+        }
         write!(buf, r#" textLength="{}""#, fmt_coord(text_w)).unwrap();
         // Java: for <size:N>, the y coordinate is adjusted (baseline shift).
         // The shift equals the difference in font descent between the overridden
@@ -783,9 +959,19 @@ fn render_split_text_runs(buf: &mut String, spans: &[TextSpan], x: f64, y: f64, 
                 let desc_base = font_metrics::descent(default_font, font_size, false, false);
                 let desc_large = font_metrics::descent(default_font, sz, false, false);
                 y - (desc_large - desc_base)
-            } else { y }
-        } else { y };
-        write!(buf, r#" x="{}" y="{}">"#, fmt_coord(cursor_x), fmt_coord(run_y)).unwrap();
+            } else {
+                y
+            }
+        } else {
+            y
+        };
+        write!(
+            buf,
+            r#" x="{}" y="{}">"#,
+            fmt_coord(cursor_x),
+            fmt_coord(run_y)
+        )
+        .unwrap();
         buf.push_str(&xml_escape(&text));
         buf.push_str("</text>");
         if run.link_url.is_some() {
@@ -825,8 +1011,8 @@ fn parse_font_props(outer_attrs: &str) -> (String, f64, bool, bool) {
                         }
                         "font-weight" => {
                             // CSS: bold = 700; Java uses numeric weights >= 700 as bold
-                            bold = value == "bold"
-                                || value.parse::<u32>().map_or(false, |w| w >= 700);
+                            bold =
+                                value == "bold" || value.parse::<u32>().map_or(false, |w| w >= 700);
                         }
                         "font-style" => {
                             italic = value == "italic";
@@ -1222,7 +1408,8 @@ fn render_deferred_sprites(
             writeln!(
                 buf,
                 r#"<g transform="translate({},{}) scale({scale:.4})">{svg}</g>"#,
-                fmt_coord(sprite_x), fmt_coord(sprite_y),
+                fmt_coord(sprite_x),
+                fmt_coord(sprite_y),
             )
             .unwrap();
             offset_x += display_w + 4.0;

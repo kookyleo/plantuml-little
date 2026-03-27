@@ -20,10 +20,17 @@ impl SymbolMargin {
     pub fn new(x1: f64, x2: f64, y1: f64, y2: f64) -> Self {
         Self { x1, x2, y1, y2 }
     }
-    pub fn width(&self) -> f64 { self.x1 + self.x2 }
-    pub fn height(&self) -> f64 { self.y1 + self.y2 }
+    pub fn width(&self) -> f64 {
+        self.x1 + self.x2
+    }
+    pub fn height(&self) -> f64 {
+        self.y1 + self.y2
+    }
     pub fn add_dimension(&self, dim: XDimension2D) -> XDimension2D {
-        XDimension2D::new(dim.width + self.x1 + self.x2, dim.height + self.y1 + self.y2)
+        XDimension2D::new(
+            dim.width + self.x1 + self.x2,
+            dim.height + self.y1 + self.y2,
+        )
     }
 }
 
@@ -113,8 +120,9 @@ impl USymbolKind {
             // Java: USymbolCollections.getMargin() => Margin(10, 10, 10, 10)
             Self::Collections => SymbolMargin::new(10.0, 10.0, 10.0, 10.0),
             // Java: USymbolRectangle.getMargin() => Margin(10, 10, 10, 10)
-            Self::Rectangle | Self::Agent | Self::Archimate | Self::ComponentRectangle =>
-                SymbolMargin::new(10.0, 10.0, 10.0, 10.0),
+            Self::Rectangle | Self::Agent | Self::Archimate | Self::ComponentRectangle => {
+                SymbolMargin::new(10.0, 10.0, 10.0, 10.0)
+            }
             // Java: USymbolProcess.getMargin() => Margin(20, 20, 10, 10)
             Self::Process => SymbolMargin::new(20.0, 20.0, 10.0, 10.0),
             // Java: USymbolLabel.getMargin() => Margin(10, 10, 10, 10)
@@ -225,16 +233,36 @@ pub enum PrimitiveKind {
 
 impl ShapePrimitive {
     fn rect(r: URectangle, dx: f64, dy: f64) -> Self {
-        Self { kind: PrimitiveKind::Rect(r), dx, dy, no_fill: false }
+        Self {
+            kind: PrimitiveKind::Rect(r),
+            dx,
+            dy,
+            no_fill: false,
+        }
     }
     fn path(p: UPath, dx: f64, dy: f64) -> Self {
-        Self { kind: PrimitiveKind::Path(p), dx, dy, no_fill: false }
+        Self {
+            kind: PrimitiveKind::Path(p),
+            dx,
+            dy,
+            no_fill: false,
+        }
     }
     fn ellipse(e: UEllipse, dx: f64, dy: f64) -> Self {
-        Self { kind: PrimitiveKind::Ellipse(e), dx, dy, no_fill: false }
+        Self {
+            kind: PrimitiveKind::Ellipse(e),
+            dx,
+            dy,
+            no_fill: false,
+        }
     }
     fn line(l: ULine, dx: f64, dy: f64) -> Self {
-        Self { kind: PrimitiveKind::Line(l), dx, dy, no_fill: false }
+        Self {
+            kind: PrimitiveKind::Line(l),
+            dx,
+            dy,
+            no_fill: false,
+        }
     }
     fn no_fill(mut self) -> Self {
         self.no_fill = true;
@@ -244,7 +272,10 @@ impl ShapePrimitive {
 
 impl SymbolShape {
     fn new() -> Self {
-        Self { outlines: Vec::new(), decorations: Vec::new() }
+        Self {
+            outlines: Vec::new(),
+            decorations: Vec::new(),
+        }
     }
 }
 
@@ -253,7 +284,13 @@ impl SymbolShape {
 
 /// Draw a rectangle symbol.
 /// Java: `USymbolRectangle.drawRect()`
-pub fn draw_rectangle(width: f64, height: f64, shadow: f64, round_corner: f64, diagonal_corner: f64) -> SymbolShape {
+pub fn draw_rectangle(
+    width: f64,
+    height: f64,
+    shadow: f64,
+    round_corner: f64,
+    diagonal_corner: f64,
+) -> SymbolShape {
     let mut shape = SymbolShape::new();
     if diagonal_corner > 0.0 {
         let mut rect = URectangle::build(width, height);
@@ -284,13 +321,19 @@ pub fn draw_component2(width: f64, height: f64, shadow: f64, round_corner: f64) 
 
     // Small rectangle (15x10) at top-right
     let small = URectangle::build(15.0, 10.0);
-    shape.decorations.push(ShapePrimitive::rect(small, width - 20.0, 5.0));
+    shape
+        .decorations
+        .push(ShapePrimitive::rect(small, width - 20.0, 5.0));
 
     // Two tiny rectangles (4x2) as tabs
     let tiny1 = URectangle::build(4.0, 2.0);
     let tiny2 = URectangle::build(4.0, 2.0);
-    shape.decorations.push(ShapePrimitive::rect(tiny1, width - 22.0, 7.0));
-    shape.decorations.push(ShapePrimitive::rect(tiny2, width - 22.0, 11.0));
+    shape
+        .decorations
+        .push(ShapePrimitive::rect(tiny1, width - 22.0, 7.0));
+    shape
+        .decorations
+        .push(ShapePrimitive::rect(tiny2, width - 22.0, 11.0));
 
     shape
 }
@@ -311,8 +354,12 @@ pub fn draw_component1(width: f64, height: f64, shadow: f64, round_corner: f64) 
     // UML 1 notation: two small rectangles (10x5) on the left edge
     let small1 = URectangle::build(10.0, 5.0);
     let small2 = URectangle::build(10.0, 5.0);
-    shape.decorations.push(ShapePrimitive::rect(small1, -5.0, 5.0));
-    shape.decorations.push(ShapePrimitive::rect(small2, -5.0, height - 10.0));
+    shape
+        .decorations
+        .push(ShapePrimitive::rect(small1, -5.0, 5.0));
+    shape
+        .decorations
+        .push(ShapePrimitive::rect(small2, -5.0, height - 10.0));
 
     shape
 }
@@ -342,7 +389,9 @@ pub fn draw_database(width: f64, height: f64, shadow: f64) -> SymbolShape {
     closing.move_to(0.0, 10.0);
     closing.cubic_to(0.0, 20.0, width / 2.0, 20.0, width / 2.0, 20.0);
     closing.cubic_to(width / 2.0, 20.0, width, 20.0, width, 10.0);
-    shape.decorations.push(ShapePrimitive::path(closing, 0.0, 0.0).no_fill());
+    shape
+        .decorations
+        .push(ShapePrimitive::path(closing, 0.0, 0.0).no_fill());
 
     shape
 }
@@ -425,7 +474,9 @@ pub fn draw_folder(
 
     // Horizontal line separating the tab from the body
     let line = ULine::hline(wtitle + FOLDER_MARGIN_TITLE_X3);
-    shape.decorations.push(ShapePrimitive::line(line, 0.0, htitle));
+    shape
+        .decorations
+        .push(ShapePrimitive::line(line, 0.0, htitle));
 
     shape
 }
@@ -473,9 +524,25 @@ fn cloud_frontier(width: f64, height: f64) -> UPath {
     let mut points: Vec<(f64, f64)> = Vec::new();
 
     if width > 100.0 && height > 100.0 {
-        cloud_complex(&mut rng, &mut points, bubble_size, point_a, point_b, point_c, point_d);
+        cloud_complex(
+            &mut rng,
+            &mut points,
+            bubble_size,
+            point_a,
+            point_b,
+            point_c,
+            point_d,
+        );
     } else {
-        cloud_simple(&mut rng, &mut points, bubble_size, point_a, point_b, point_c, point_d);
+        cloud_simple(
+            &mut rng,
+            &mut points,
+            bubble_size,
+            point_a,
+            point_b,
+            point_c,
+            point_d,
+        );
     }
 
     // Close the loop
@@ -498,16 +565,43 @@ fn cloud_complex(
     rng: &mut JavaRandom,
     points: &mut Vec<(f64, f64)>,
     bubble_size: f64,
-    a: (f64, f64), b: (f64, f64), c: (f64, f64), d: (f64, f64),
+    a: (f64, f64),
+    b: (f64, f64),
+    c: (f64, f64),
+    d: (f64, f64),
 ) {
     let margin2 = 7.0;
-    cloud_special_line(bubble_size, rng, points, mv_x(a, margin2), mv_x(b, -margin2));
+    cloud_special_line(
+        bubble_size,
+        rng,
+        points,
+        mv_x(a, margin2),
+        mv_x(b, -margin2),
+    );
     points.push(mv_y(b, margin2));
-    cloud_special_line(bubble_size, rng, points, mv_y(b, margin2), mv_y(c, -margin2));
+    cloud_special_line(
+        bubble_size,
+        rng,
+        points,
+        mv_y(b, margin2),
+        mv_y(c, -margin2),
+    );
     points.push(mv_x(c, -margin2));
-    cloud_special_line(bubble_size, rng, points, mv_x(c, -margin2), mv_x(d, margin2));
+    cloud_special_line(
+        bubble_size,
+        rng,
+        points,
+        mv_x(c, -margin2),
+        mv_x(d, margin2),
+    );
     points.push(mv_y(d, -margin2));
-    cloud_special_line(bubble_size, rng, points, mv_y(d, -margin2), mv_y(a, margin2));
+    cloud_special_line(
+        bubble_size,
+        rng,
+        points,
+        mv_y(d, -margin2),
+        mv_y(a, margin2),
+    );
     points.push(mv_x(a, margin2));
 }
 
@@ -515,7 +609,10 @@ fn cloud_simple(
     rng: &mut JavaRandom,
     points: &mut Vec<(f64, f64)>,
     bubble_size: f64,
-    a: (f64, f64), b: (f64, f64), c: (f64, f64), d: (f64, f64),
+    a: (f64, f64),
+    b: (f64, f64),
+    c: (f64, f64),
+    d: (f64, f64),
 ) {
     cloud_special_line(bubble_size, rng, points, a, b);
     cloud_special_line(bubble_size, rng, points, b, c);
@@ -523,13 +620,19 @@ fn cloud_simple(
     cloud_special_line(bubble_size, rng, points, d, a);
 }
 
-fn mv_x(pt: (f64, f64), dx: f64) -> (f64, f64) { (pt.0 + dx, pt.1) }
-fn mv_y(pt: (f64, f64), dy: f64) -> (f64, f64) { (pt.0, pt.1 + dy) }
+fn mv_x(pt: (f64, f64), dx: f64) -> (f64, f64) {
+    (pt.0 + dx, pt.1)
+}
+fn mv_y(pt: (f64, f64), dy: f64) -> (f64, f64) {
+    (pt.0, pt.1 + dy)
+}
 
 fn cloud_special_line(
-    bubble_size: f64, rng: &mut JavaRandom,
+    bubble_size: f64,
+    rng: &mut JavaRandom,
     points: &mut Vec<(f64, f64)>,
-    p1: (f64, f64), p2: (f64, f64),
+    p1: (f64, f64),
+    p2: (f64, f64),
 ) {
     let length = coord_length(p1, p2);
     let (cos, sin) = coord_angle(p1, p2);
@@ -543,7 +646,8 @@ fn cloud_special_line(
 fn cloud_bubble_line(
     rng: &mut JavaRandom,
     points: &mut Vec<(f64, f64)>,
-    p1: (f64, f64), p2: (f64, f64),
+    p1: (f64, f64),
+    p2: (f64, f64),
     mut bubble_size: f64,
 ) {
     let length = coord_length(p1, p2);
@@ -565,8 +669,20 @@ fn cloud_add_curve(rng: &mut JavaRandom, path: &mut UPath, p1: (f64, f64), p2: (
     let length = coord_length(p1, p2);
     let (cos, sin) = coord_angle(p1, p2);
     let coef = rng_range(rng, 0.25, 0.35);
-    let mid = coord_true(p1, cos, sin, length * coef, -length * rng_range(rng, 0.4, 0.55));
-    let mid2 = coord_true(p1, cos, sin, length * (1.0 - coef), -length * rng_range(rng, 0.4, 0.55));
+    let mid = coord_true(
+        p1,
+        cos,
+        sin,
+        length * coef,
+        -length * rng_range(rng, 0.4, 0.55),
+    );
+    let mid2 = coord_true(
+        p1,
+        cos,
+        sin,
+        length * (1.0 - coef),
+        -length * rng_range(rng, 0.4, 0.55),
+    );
     path.cubic_to(mid.0, mid.1, mid2.0, mid2.1, p2.0, p2.1);
 }
 
@@ -620,11 +736,21 @@ pub fn draw_node(width: f64, height: f64, shadow: f64) -> SymbolShape {
     shape.outlines.push(ShapePrimitive::path(body, 0.0, 0.0));
 
     // Diagonal line: upper-right corner fold
-    shape.decorations.push(ShapePrimitive::line(ULine::new(10.0, -10.0), width - 10.0, 10.0));
+    shape.decorations.push(ShapePrimitive::line(
+        ULine::new(10.0, -10.0),
+        width - 10.0,
+        10.0,
+    ));
     // Horizontal line: bottom of top face
-    shape.decorations.push(ShapePrimitive::line(ULine::hline(width - 10.0), 0.0, 10.0));
+    shape
+        .decorations
+        .push(ShapePrimitive::line(ULine::hline(width - 10.0), 0.0, 10.0));
     // Vertical line: right side inner edge
-    shape.decorations.push(ShapePrimitive::line(ULine::vline(height - 10.0), width - 10.0, 10.0));
+    shape.decorations.push(ShapePrimitive::line(
+        ULine::vline(height - 10.0),
+        width - 10.0,
+        10.0,
+    ));
 
     shape
 }
@@ -675,7 +801,9 @@ pub fn draw_frame(
     tab.line_to(text_width, text_height - cornersize);
     tab.line_to(text_width - cornersize, text_height);
     tab.line_to(0.0, text_height);
-    shape.decorations.push(ShapePrimitive::path(tab, 0.0, 0.0).no_fill());
+    shape
+        .decorations
+        .push(ShapePrimitive::path(tab, 0.0, 0.0).no_fill());
 
     shape
 }
@@ -708,7 +836,9 @@ pub fn draw_card(width: f64, height: f64, shadow: f64, top: f64, round_corner: f
     shape.outlines.push(ShapePrimitive::rect(rect, 0.0, 0.0));
 
     if top != 0.0 {
-        shape.decorations.push(ShapePrimitive::line(ULine::hline(width), 0.0, top));
+        shape
+            .decorations
+            .push(ShapePrimitive::line(ULine::hline(width), 0.0, top));
     }
 
     shape
@@ -753,9 +883,25 @@ pub fn draw_queue(width: f64, height: f64, shadow: f64) -> SymbolShape {
     // Closing arc on the right side
     let mut closing = UPath::new();
     closing.move_to(width - dx, 0.0);
-    closing.cubic_to(width - dx * 2.0, 0.0, width - dx * 2.0, height / 2.0, width - dx * 2.0, height / 2.0);
-    closing.cubic_to(width - dx * 2.0, height, width - dx, height, width - dx, height);
-    shape.decorations.push(ShapePrimitive::path(closing, 0.0, 0.0).no_fill());
+    closing.cubic_to(
+        width - dx * 2.0,
+        0.0,
+        width - dx * 2.0,
+        height / 2.0,
+        width - dx * 2.0,
+        height / 2.0,
+    );
+    closing.cubic_to(
+        width - dx * 2.0,
+        height,
+        width - dx,
+        height,
+        width - dx,
+        height,
+    );
+    shape
+        .decorations
+        .push(ShapePrimitive::path(closing, 0.0, 0.0).no_fill());
 
     shape
 }
@@ -797,7 +943,9 @@ pub fn draw_stack(width: f64, height: f64, shadow: f64, round_corner: f64) -> Sy
         bracket.arc_to(r, r, 0.0, 0.0, 1.0, width - border + r, 0.0);
         bracket.line_to(width, 0.0);
     }
-    shape.decorations.push(ShapePrimitive::path(bracket, 0.0, 0.0).no_fill());
+    shape
+        .decorations
+        .push(ShapePrimitive::path(bracket, 0.0, 0.0).no_fill());
 
     shape
 }
@@ -846,12 +994,16 @@ pub fn draw_person(body_dim: XDimension2D, shadow: f64) -> SymbolShape {
     let mut head = UEllipse::build(head_size, head_size);
     head.shadow = shadow;
     let posx = (body_dim.width - head_size) / 2.0;
-    shape.outlines.push(ShapePrimitive::ellipse(head, posx, 0.0));
+    shape
+        .outlines
+        .push(ShapePrimitive::ellipse(head, posx, 0.0));
 
     // Body (rounded rectangle)
     let mut body = URectangle::build(body_dim.width, body_dim.height).rounded(head_size);
     body.shadow = shadow;
-    shape.outlines.push(ShapePrimitive::rect(body, 0.0, head_size));
+    shape
+        .outlines
+        .push(ShapePrimitive::rect(body, 0.0, head_size));
 
     shape
 }
@@ -935,14 +1087,20 @@ pub fn draw_artifact(width: f64, height: f64, shadow: f64, round_corner: f64) ->
     icon.line_to(width_sym, corner);
     icon.line_to(width_sym - corner, 0.0);
     icon.line_to(0.0, 0.0);
-    shape.decorations.push(ShapePrimitive::path(icon, x_sym, y_sym));
+    shape
+        .decorations
+        .push(ShapePrimitive::path(icon, x_sym, y_sym));
 
     // Fold lines
     shape.decorations.push(ShapePrimitive::line(
-        ULine::vline(corner), x_sym + width_sym - corner, y_sym
+        ULine::vline(corner),
+        x_sym + width_sym - corner,
+        y_sym,
     ));
     shape.decorations.push(ShapePrimitive::line(
-        ULine::hline(-corner), x_sym + width_sym, y_sym + corner
+        ULine::hline(-corner),
+        x_sym + width_sym,
+        y_sym + corner,
     ));
 
     shape
@@ -960,7 +1118,9 @@ pub fn draw_collections(width: f64, height: f64, shadow: f64, round_corner: f64)
     // Back rectangle (offset by delta)
     let mut back = URectangle::build(width - delta, height - delta).rounded(round_corner);
     back.shadow = shadow;
-    shape.outlines.push(ShapePrimitive::rect(back, delta, delta));
+    shape
+        .outlines
+        .push(ShapePrimitive::rect(back, delta, delta));
 
     // Front rectangle (no shadow)
     let front = URectangle::build(width - delta, height - delta).rounded(round_corner);
@@ -1033,7 +1193,8 @@ impl JavaRandom {
     }
 
     fn next(&mut self, bits: i32) -> i32 {
-        self.seed = (self.seed.wrapping_mul(0x5DEECE66Di64).wrapping_add(0xBi64)) & ((1i64 << 48) - 1);
+        self.seed =
+            (self.seed.wrapping_mul(0x5DEECE66Di64).wrapping_add(0xBi64)) & ((1i64 << 48) - 1);
         (self.seed >> (48 - bits)) as i32
     }
 
@@ -1054,20 +1215,41 @@ mod tests {
 
     #[test]
     fn symbol_from_name() {
-        assert_eq!(USymbolKind::from_name("database"), Some(USymbolKind::Database));
+        assert_eq!(
+            USymbolKind::from_name("database"),
+            Some(USymbolKind::Database)
+        );
         assert_eq!(USymbolKind::from_name("CLOUD"), Some(USymbolKind::Cloud));
-        assert_eq!(USymbolKind::from_name("component"), Some(USymbolKind::Component2));
-        assert_eq!(USymbolKind::from_name("ACTOR"), Some(USymbolKind::ActorStickman));
+        assert_eq!(
+            USymbolKind::from_name("component"),
+            Some(USymbolKind::Component2)
+        );
+        assert_eq!(
+            USymbolKind::from_name("ACTOR"),
+            Some(USymbolKind::ActorStickman)
+        );
         assert!(USymbolKind::from_name("nonexistent").is_none());
     }
 
     #[test]
     fn symbol_from_name_aliases() {
         assert_eq!(USymbolKind::from_name("RECT"), Some(USymbolKind::Rectangle));
-        assert_eq!(USymbolKind::from_name("entity"), Some(USymbolKind::EntityDomain));
-        assert_eq!(USymbolKind::from_name("entity_domain"), Some(USymbolKind::EntityDomain));
-        assert_eq!(USymbolKind::from_name("component2"), Some(USymbolKind::Component2));
-        assert_eq!(USymbolKind::from_name("component1"), Some(USymbolKind::Component1));
+        assert_eq!(
+            USymbolKind::from_name("entity"),
+            Some(USymbolKind::EntityDomain)
+        );
+        assert_eq!(
+            USymbolKind::from_name("entity_domain"),
+            Some(USymbolKind::EntityDomain)
+        );
+        assert_eq!(
+            USymbolKind::from_name("component2"),
+            Some(USymbolKind::Component2)
+        );
+        assert_eq!(
+            USymbolKind::from_name("component1"),
+            Some(USymbolKind::Component1)
+        );
     }
 
     // ── margins (verified against Java source) ──
@@ -1373,9 +1555,10 @@ mod tests {
         match &s.outlines[0].kind {
             PrimitiveKind::Path(p) => {
                 // Rounded path has arc segments
-                let has_arc = p.segments.iter().any(|seg| {
-                    matches!(seg.kind, crate::klimt::geom::USegmentType::ArcTo)
-                });
+                let has_arc = p
+                    .segments
+                    .iter()
+                    .any(|seg| matches!(seg.kind, crate::klimt::geom::USegmentType::ArcTo));
                 assert!(has_arc);
             }
             _ => panic!("expected Path for rounded folder"),
@@ -1534,7 +1717,7 @@ mod tests {
         let s = draw_stack(100.0, 60.0, 3.0, 0.0);
         assert_eq!(s.outlines.len(), 1); // inner rect
         assert_eq!(s.decorations.len(), 1); // bracket path
-        // Inner rect is offset by border=15
+                                            // Inner rect is offset by border=15
         assert_eq!(s.outlines[0].dx, 15.0);
         match &s.outlines[0].kind {
             PrimitiveKind::Rect(r) => {
@@ -1574,7 +1757,7 @@ mod tests {
         let body = XDimension2D::new(80.0, 60.0);
         let s = draw_person(body, 0.0);
         assert_eq!(s.outlines.len(), 2); // head + body
-        // Head should be an ellipse
+                                         // Head should be an ellipse
         match &s.outlines[0].kind {
             PrimitiveKind::Ellipse(e) => {
                 assert!(e.width > 0.0);
@@ -1609,9 +1792,10 @@ mod tests {
         // Rounded version uses arcs in the fold
         match &s.decorations[0].kind {
             PrimitiveKind::Path(p) => {
-                let has_arc = p.segments.iter().any(|seg| {
-                    matches!(seg.kind, crate::klimt::geom::USegmentType::ArcTo)
-                });
+                let has_arc = p
+                    .segments
+                    .iter()
+                    .any(|seg| matches!(seg.kind, crate::klimt::geom::USegmentType::ArcTo));
                 assert!(has_arc);
             }
             _ => panic!("expected Path for fold"),
@@ -1633,7 +1817,7 @@ mod tests {
     fn collections_shape() {
         let s = draw_collections(100.0, 60.0, 0.0, 0.0);
         assert_eq!(s.outlines.len(), 2); // back + front rect
-        // Back rect offset by delta=4
+                                         // Back rect offset by delta=4
         assert_eq!(s.outlines[0].dx, 4.0);
         assert_eq!(s.outlines[0].dy, 4.0);
         match &s.outlines[0].kind {

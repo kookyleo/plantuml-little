@@ -96,7 +96,9 @@ fn node_size(text: &str) -> (f64, f64) {
 }
 
 fn note_size(text: &str) -> (f64, f64) {
-    let plain = plain_text(&parse_creole(text)).replace("\\n", "\n").replace(crate::NEWLINE_CHAR, "\n");
+    let plain = plain_text(&parse_creole(text))
+        .replace("\\n", "\n")
+        .replace(crate::NEWLINE_CHAR, "\n");
     let lines: Vec<&str> = plain.lines().collect();
     let max_width = lines
         .iter()
@@ -146,8 +148,7 @@ fn itf_dim(node: &WbsNode) -> (f64, f64) {
     let right_w: f64 = right.iter().map(|c| itf_dim(c).0).fold(0.0_f64, f64::max);
     let left_h: f64 = left.iter().map(|c| ITF_MARGIN_BOTTOM + itf_dim(c).1).sum();
     let right_h: f64 = right.iter().map(|c| ITF_MARGIN_BOTTOM + itf_dim(c).1).sum();
-    let w = (main_w / 2.0).max(ITF_DELTA1X + left_w)
-        + (main_w / 2.0).max(ITF_DELTA1X + right_w);
+    let w = (main_w / 2.0).max(ITF_DELTA1X + left_w) + (main_w / 2.0).max(ITF_DELTA1X + right_w);
     let h = main_h + left_h.max(right_h);
     (w, h)
 }
@@ -165,18 +166,28 @@ fn itf_w1(node: &WbsNode) -> f64 {
 // ---------------------------------------------------------------------------
 
 fn layout_itf(
-    node: &WbsNode, origin_x: f64, origin_y: f64,
-    nodes: &mut Vec<WbsNodeLayout>, edges: &mut Vec<WbsEdgeLayout>,
+    node: &WbsNode,
+    origin_x: f64,
+    origin_y: f64,
+    nodes: &mut Vec<WbsNodeLayout>,
+    edges: &mut Vec<WbsEdgeLayout>,
 ) {
     let (main_w, main_h) = node_size(&node.text);
     let w1 = itf_w1(node);
     let node_x = origin_x + w1 - main_w / 2.0;
     nodes.push(WbsNodeLayout {
-        text: node.text.clone(), alias: node.alias.clone(),
-        x: node_x, y: origin_y, width: main_w, height: main_h, level: node.level,
+        text: node.text.clone(),
+        alias: node.alias.clone(),
+        x: node_x,
+        y: origin_y,
+        width: main_w,
+        height: main_h,
+        level: node.level,
     });
 
-    if node.children.is_empty() { return; }
+    if node.children.is_empty() {
+        return;
+    }
 
     let (left_children, right_children) = split_children(node);
     let parent_cx = origin_x + w1;
@@ -190,8 +201,10 @@ fn layout_itf(
         let child_ox = parent_cx - child_dim.0 - ITF_DELTA1X;
         let child_cx = child_ox + itf_w1(child);
         edges.push(WbsEdgeLayout {
-            from_x: parent_cx, from_y: parent_by,
-            to_x: child_cx, to_y: y,
+            from_x: parent_cx,
+            from_y: parent_by,
+            to_x: child_cx,
+            to_y: y,
         });
         layout_itf(child, child_ox, y, nodes, edges);
         y += child_dim.1;
@@ -204,8 +217,10 @@ fn layout_itf(
         let child_ox = parent_cx + ITF_DELTA1X;
         let child_cx = child_ox + itf_w1(child);
         edges.push(WbsEdgeLayout {
-            from_x: parent_cx, from_y: parent_by,
-            to_x: child_cx, to_y: y,
+            from_x: parent_cx,
+            from_y: parent_by,
+            to_x: child_cx,
+            to_y: y,
         });
         layout_itf(child, child_ox, y, nodes, edges);
         y += itf_dim(child).1;
@@ -217,8 +232,11 @@ fn layout_itf(
 // ---------------------------------------------------------------------------
 
 fn layout_fork(
-    node: &WbsNode, origin_x: f64, origin_y: f64,
-    nodes: &mut Vec<WbsNodeLayout>, edges: &mut Vec<WbsEdgeLayout>,
+    node: &WbsNode,
+    origin_x: f64,
+    origin_y: f64,
+    nodes: &mut Vec<WbsNodeLayout>,
+    edges: &mut Vec<WbsEdgeLayout>,
 ) {
     let (main_w, main_h) = node_size(&node.text);
 
@@ -226,8 +244,13 @@ fn layout_fork(
     let children: Vec<&WbsNode> = node.children.iter().collect();
     if children.is_empty() {
         nodes.push(WbsNodeLayout {
-            text: node.text.clone(), alias: node.alias.clone(),
-            x: origin_x, y: origin_y, width: main_w, height: main_h, level: node.level,
+            text: node.text.clone(),
+            alias: node.alias.clone(),
+            x: origin_x,
+            y: origin_y,
+            width: main_w,
+            height: main_h,
+            level: node.level,
         });
         // Java Fork draws a stub line to y0+deltay/2, but the fork dimension
         // includes the full deltay. Use a helper edge that extends to the full
@@ -237,13 +260,17 @@ fn layout_fork(
         let cx = origin_x + main_w / 2.0;
         // Visible stub line (drawn)
         edges.push(WbsEdgeLayout {
-            from_x: cx, from_y: origin_y + main_h,
-            to_x: cx, to_y: stub_draw_y,
+            from_x: cx,
+            from_y: origin_y + main_h,
+            to_x: cx,
+            to_y: stub_draw_y,
         });
         // Invisible dimension edge to make bounds match Java fork dim
         edges.push(WbsEdgeLayout {
-            from_x: cx, from_y: stub_dim_y,
-            to_x: cx, to_y: stub_dim_y,
+            from_x: cx,
+            from_y: stub_dim_y,
+            to_x: cx,
+            to_y: stub_dim_y,
         });
         return;
     }
@@ -281,15 +308,22 @@ fn layout_fork(
 
     // Push root FIRST (so nodes[0] is always the root)
     nodes.push(WbsNodeLayout {
-        text: node.text.clone(), alias: node.alias.clone(),
-        x: root_x, y: origin_y, width: main_w, height: main_h, level: node.level,
+        text: node.text.clone(),
+        alias: node.alias.clone(),
+        x: root_x,
+        y: origin_y,
+        width: main_w,
+        height: main_h,
+        level: node.level,
     });
 
     // Create edges from root to each child
     for &(_, child_cx) in &child_positions {
         edges.push(WbsEdgeLayout {
-            from_x: root_cx, from_y: origin_y + main_h,
-            to_x: child_cx, to_y: child_y,
+            from_x: root_cx,
+            from_y: origin_y + main_h,
+            to_x: child_cx,
+            to_y: child_y,
         });
     }
 
@@ -310,7 +344,9 @@ fn layout_notes(notes: &[WbsNote], root: &WbsNodeLayout) -> Vec<WbsNoteLayout> {
         let (width, height) = note_size(&note.text);
         let si = {
             let c = counts.entry(note.position.as_str()).or_insert(0);
-            let v = *c as f64; *c += 1; v
+            let v = *c as f64;
+            *c += 1;
+            v
         };
         let (x, y, conn) = match note.position.as_str() {
             "left" => {
@@ -334,7 +370,14 @@ fn layout_notes(notes: &[WbsNote], root: &WbsNodeLayout) -> Vec<WbsNoteLayout> {
                 (x, y, Some((root.x + root.width, rcy, x, y + height / 2.0)))
             }
         };
-        result.push(WbsNoteLayout { text: note.text.clone(), x, y, width, height, connector: conn });
+        result.push(WbsNoteLayout {
+            text: note.text.clone(),
+            x,
+            y,
+            width,
+            height,
+            connector: conn,
+        });
     }
     result
 }
@@ -347,8 +390,13 @@ pub fn layout_wbs(wd: &WbsDiagram) -> Result<WbsLayout> {
     layout_fork(&wd.root, MARGIN, MARGIN, &mut nodes, &mut edges);
 
     // Build alias -> node rect for edge-to-edge arrow connections
-    let alias_rect: HashMap<String, (f64, f64, f64, f64)> = nodes.iter()
-        .filter_map(|n| n.alias.as_ref().map(|a| (a.clone(), (n.x, n.y, n.width, n.height))))
+    let alias_rect: HashMap<String, (f64, f64, f64, f64)> = nodes
+        .iter()
+        .filter_map(|n| {
+            n.alias
+                .as_ref()
+                .map(|a| (a.clone(), (n.x, n.y, n.width, n.height)))
+        })
         .collect();
 
     let mut extra_links = Vec::new();
@@ -368,20 +416,28 @@ pub fn layout_wbs(wd: &WbsDiagram) -> Result<WbsLayout> {
                 (fx + fw, tx)
             };
             extra_links.push(WbsEdgeLayout {
-                from_x: lx_from, from_y: link_y,
-                to_x: lx_to, to_y: link_y,
+                from_x: lx_from,
+                from_y: link_y,
+                to_x: lx_to,
+                to_y: link_y,
             });
         }
     }
 
-    let root_layout = nodes.iter().find(|n| n.level == 1).cloned().unwrap_or_else(|| nodes[0].clone());
+    let root_layout = nodes
+        .iter()
+        .find(|n| n.level == 1)
+        .cloned()
+        .unwrap_or_else(|| nodes[0].clone());
     let mut notes = layout_notes(&wd.notes, &root_layout);
 
     let (mut min_x, mut min_y) = (f64::INFINITY, f64::INFINITY);
     let (mut max_x, mut max_y) = (0.0_f64, 0.0_f64);
     for n in &nodes {
-        min_x = min_x.min(n.x); min_y = min_y.min(n.y);
-        max_x = max_x.max(n.x + n.width); max_y = max_y.max(n.y + n.height);
+        min_x = min_x.min(n.x);
+        min_y = min_y.min(n.y);
+        max_x = max_x.max(n.x + n.width);
+        max_y = max_y.max(n.y + n.height);
     }
     // Include edge endpoints in bounds (e.g. Fork stub lines extend below nodes)
     for e in &edges {
@@ -389,26 +445,53 @@ pub fn layout_wbs(wd: &WbsDiagram) -> Result<WbsLayout> {
         max_y = max_y.max(e.from_y).max(e.to_y);
     }
     for n in &notes {
-        min_x = min_x.min(n.x); min_y = min_y.min(n.y);
-        max_x = max_x.max(n.x + n.width); max_y = max_y.max(n.y + n.height);
+        min_x = min_x.min(n.x);
+        min_y = min_y.min(n.y);
+        max_x = max_x.max(n.x + n.width);
+        max_y = max_y.max(n.y + n.height);
     }
 
     let sx = if min_x < MARGIN { MARGIN - min_x } else { 0.0 };
     let sy = if min_y < MARGIN { MARGIN - min_y } else { 0.0 };
     if sx > 0.0 || sy > 0.0 {
-        for n in &mut nodes { n.x += sx; n.y += sy; }
-        for e in &mut edges { e.from_x += sx; e.to_x += sx; e.from_y += sy; e.to_y += sy; }
-        for l in &mut extra_links { l.from_x += sx; l.to_x += sx; l.from_y += sy; l.to_y += sy; }
+        for n in &mut nodes {
+            n.x += sx;
+            n.y += sy;
+        }
+        for e in &mut edges {
+            e.from_x += sx;
+            e.to_x += sx;
+            e.from_y += sy;
+            e.to_y += sy;
+        }
+        for l in &mut extra_links {
+            l.from_x += sx;
+            l.to_x += sx;
+            l.from_y += sy;
+            l.to_y += sy;
+        }
         for n in &mut notes {
-            n.x += sx; n.y += sy;
+            n.x += sx;
+            n.y += sy;
             if let Some((x1, y1, x2, y2)) = n.connector.as_mut() {
-                *x1 += sx; *x2 += sx; *y1 += sy; *y2 += sy;
+                *x1 += sx;
+                *x2 += sx;
+                *y1 += sy;
+                *y2 += sy;
             }
         }
-        max_x += sx; max_y += sy;
+        max_x += sx;
+        max_y += sy;
     }
 
-    Ok(WbsLayout { nodes, edges, extra_links, notes, width: max_x + MARGIN, height: max_y + MARGIN })
+    Ok(WbsLayout {
+        nodes,
+        edges,
+        extra_links,
+        notes,
+        width: max_x + MARGIN,
+        height: max_y + MARGIN,
+    })
 }
 
 #[cfg(test)]
@@ -417,47 +500,115 @@ mod tests {
     use crate::model::wbs::{WbsDiagram, WbsDirection, WbsLink, WbsNode, WbsNote};
 
     fn leaf(text: &str, level: usize) -> WbsNode {
-        WbsNode { text: text.to_string(), children: vec![], direction: WbsDirection::Default, alias: None, level }
+        WbsNode {
+            text: text.to_string(),
+            children: vec![],
+            direction: WbsDirection::Default,
+            alias: None,
+            level,
+        }
     }
     fn leaf_alias(text: &str, alias: &str, level: usize) -> WbsNode {
-        WbsNode { text: text.to_string(), children: vec![], direction: WbsDirection::Default, alias: Some(alias.into()), level }
+        WbsNode {
+            text: text.to_string(),
+            children: vec![],
+            direction: WbsDirection::Default,
+            alias: Some(alias.into()),
+            level,
+        }
     }
-    fn mkd(root: WbsNode) -> WbsDiagram { WbsDiagram { root, links: vec![], notes: vec![] } }
+    fn mkd(root: WbsNode) -> WbsDiagram {
+        WbsDiagram {
+            root,
+            links: vec![],
+            notes: vec![],
+        }
+    }
 
-    #[test] fn test_single_root() {
+    #[test]
+    fn test_single_root() {
         let l = layout_wbs(&mkd(leaf("Root", 1))).unwrap();
         assert_eq!(l.nodes.len(), 1);
         // Fork with 0 children creates stub edges (visible + dimension)
         assert_eq!(l.edges.len(), 2);
     }
-    #[test] fn test_root_with_children() {
-        let r = WbsNode { text: "Root".into(), children: vec![leaf("A",2),leaf("B",2)], direction: WbsDirection::Default, alias: None, level: 1 };
+    #[test]
+    fn test_root_with_children() {
+        let r = WbsNode {
+            text: "Root".into(),
+            children: vec![leaf("A", 2), leaf("B", 2)],
+            direction: WbsDirection::Default,
+            alias: None,
+            level: 1,
+        };
         let l = layout_wbs(&mkd(r)).unwrap();
-        assert_eq!(l.nodes.len(), 3); assert_eq!(l.edges.len(), 2);
+        assert_eq!(l.nodes.len(), 3);
+        assert_eq!(l.edges.len(), 2);
     }
-    #[test] fn test_children_below() {
-        let r = WbsNode { text: "Root".into(), children: vec![leaf("A",2)], direction: WbsDirection::Default, alias: None, level: 1 };
+    #[test]
+    fn test_children_below() {
+        let r = WbsNode {
+            text: "Root".into(),
+            children: vec![leaf("A", 2)],
+            direction: WbsDirection::Default,
+            alias: None,
+            level: 1,
+        };
         let l = layout_wbs(&mkd(r)).unwrap();
         assert!(l.nodes[1].y > l.nodes[0].y);
     }
-    #[test] fn test_multiline() {
-        let (_,h1) = node_size("One"); let (_,h2) = node_size("A\nB");
+    #[test]
+    fn test_multiline() {
+        let (_, h1) = node_size("One");
+        let (_, h2) = node_size("A\nB");
         assert!(h2 > h1);
     }
-    #[test] fn test_extra_links() {
-        let r = WbsNode { text: "R".into(), children: vec![leaf_alias("A","AA",2), leaf_alias("B","BB",2)], direction: WbsDirection::Default, alias: None, level: 1 };
-        let d = WbsDiagram { root: r, links: vec![WbsLink{from:"AA".into(),to:"BB".into()}], notes: vec![] };
+    #[test]
+    fn test_extra_links() {
+        let r = WbsNode {
+            text: "R".into(),
+            children: vec![leaf_alias("A", "AA", 2), leaf_alias("B", "BB", 2)],
+            direction: WbsDirection::Default,
+            alias: None,
+            level: 1,
+        };
+        let d = WbsDiagram {
+            root: r,
+            links: vec![WbsLink {
+                from: "AA".into(),
+                to: "BB".into(),
+            }],
+            notes: vec![],
+        };
         assert_eq!(layout_wbs(&d).unwrap().extra_links.len(), 1);
     }
-    #[test] fn test_note() {
-        let d = WbsDiagram { root: leaf("R",1), links: vec![], notes: vec![WbsNote{text:"hi".into(),position:"right".into()}] };
+    #[test]
+    fn test_note() {
+        let d = WbsDiagram {
+            root: leaf("R", 1),
+            links: vec![],
+            notes: vec![WbsNote {
+                text: "hi".into(),
+                position: "right".into(),
+            }],
+        };
         let l = layout_wbs(&d).unwrap();
         assert_eq!(l.notes.len(), 1);
         assert!(l.notes[0].x > l.nodes[0].x + l.nodes[0].width);
     }
-    #[test] fn test_bbox() {
-        let r = WbsNode { text: "R".into(), children: vec![leaf("A",2),leaf("B",2)], direction: WbsDirection::Default, alias: None, level: 1 };
+    #[test]
+    fn test_bbox() {
+        let r = WbsNode {
+            text: "R".into(),
+            children: vec![leaf("A", 2), leaf("B", 2)],
+            direction: WbsDirection::Default,
+            alias: None,
+            level: 1,
+        };
         let l = layout_wbs(&mkd(r)).unwrap();
-        for n in &l.nodes { assert!(n.x+n.width <= l.width); assert!(n.y+n.height <= l.height); }
+        for n in &l.nodes {
+            assert!(n.x + n.width <= l.width);
+            assert!(n.y + n.height <= l.height);
+        }
     }
 }

@@ -131,7 +131,7 @@ fn estimate_text_size(text: &str) -> (f64, f64) {
         } else if trimmed.starts_with('|') && trimmed.ends_with('|') && trimmed.len() > 2 {
             // For creole table rows, measure content without outer pipes.
             // Java: table cells are rendered individually, not as raw pipe-delimited text.
-            let inner = &trimmed[1..trimmed.len()-1];
+            let inner = &trimmed[1..trimmed.len() - 1];
             let w = font_metrics::text_width(inner, "SansSerif", FONT_SIZE, false, false);
             max_line_width = max_line_width.max(w);
             total_content_height += lh;
@@ -146,9 +146,18 @@ fn estimate_text_size(text: &str) -> (f64, f64) {
     let width = max_line_width + 2.0 * PADDING;
     // Java: creole table cells get extra padding (skinParam.getPadding() = 2,
     // applied as top+bottom on each SheetBlock1 cell → +4 total per table).
-    let table_extra = if has_table { 2.0 * TABLE_CELL_PADDING } else { 0.0 };
+    let table_extra = if has_table {
+        2.0 * TABLE_CELL_PADDING
+    } else {
+        0.0
+    };
     let height = total_content_height + 2.0 * PADDING + table_extra;
-    log::debug!("estimate_text_size -> {}x{} ({} lines)", width, height, lines.len());
+    log::debug!(
+        "estimate_text_size -> {}x{} ({} lines)",
+        width,
+        height,
+        lines.len()
+    );
     (width, height)
 }
 
@@ -225,7 +234,7 @@ fn estimate_note_size(text: &str) -> (f64, f64) {
         }
     }
     let width = max_line_width + margin_x1 + margin_x2; // Java Opale: textBlock.w + 6 + 15
-    // Java: top_pad + (N-1)*lh + sep + bottom_pad
+                                                        // Java: top_pad + (N-1)*lh + sep + bottom_pad
     let height = if n_text > 0 {
         let text_intervals = (n_text as f64 - 1.0) * note_lh;
         top_pad + text_intervals + sep_height + bottom_pad
@@ -233,7 +242,13 @@ fn estimate_note_size(text: &str) -> (f64, f64) {
         // Separator only: minimal note box
         fold + margin_x1 + sep_height
     };
-    log::debug!("estimate_note_size: {:.4}x{:.4} ({} text, max_lw={:.4})", width, height, n_text, max_line_width);
+    log::debug!(
+        "estimate_note_size: {:.4}x{:.4} ({} text, max_lw={:.4})",
+        width,
+        height,
+        n_text,
+        max_line_width
+    );
     (width, height)
 }
 
@@ -329,9 +344,8 @@ fn compute_swimlane_layouts(swimlanes: &[String]) -> Vec<SwimlaneLayout> {
     // Java: first LaneDivider starts at edge half-space (5px each side = 10px)
     let mut x = LANE_DIVIDER_HALF * 2.0; // left divider width = 10
     for (i, name) in swimlanes.iter().enumerate() {
-        let title_width = font_metrics::text_width(
-            name, "SansSerif", SWIMLANE_HEADER_FONT_SIZE, false, false,
-        );
+        let title_width =
+            font_metrics::text_width(name, "SansSerif", SWIMLANE_HEADER_FONT_SIZE, false, false);
         // Initial lane width from header text (no min-width — Java doesn't use one)
         let lane_width = title_width + 2.0 * lane_pad;
         layouts.push(SwimlaneLayout {
@@ -839,7 +853,8 @@ pub fn layout_activity(diagram: &ActivityDiagram) -> Result<ActivityLayout> {
 
     // --- Pass 2b: centering for non-swimlane diagrams ----------------------
     if swimlane_layouts.is_empty() && !nodes.is_empty() {
-        let max_half_w = nodes.iter()
+        let max_half_w = nodes
+            .iter()
             .filter(|n| is_flow_node(&n.kind))
             .map(|n| n.width / 2.0)
             .fold(0.0_f64, f64::max);
@@ -867,14 +882,22 @@ pub fn layout_activity(diagram: &ActivityDiagram) -> Result<ActivityLayout> {
                     cur_lane = resolve_swimlane_index(&diagram.swimlanes, name);
                 }
                 // Every event that emits a node (same order as Pass 2)
-                ActivityEvent::Start | ActivityEvent::Stop
+                ActivityEvent::Start
+                | ActivityEvent::Stop
                 | ActivityEvent::Action { .. }
-                | ActivityEvent::If { .. } | ActivityEvent::ElseIf { .. }
-                | ActivityEvent::Else { .. } | ActivityEvent::EndIf
-                | ActivityEvent::While { .. } | ActivityEvent::EndWhile { .. }
-                | ActivityEvent::Repeat | ActivityEvent::RepeatWhile { .. }
-                | ActivityEvent::Fork | ActivityEvent::ForkAgain | ActivityEvent::EndFork
-                | ActivityEvent::Note { .. } | ActivityEvent::FloatingNote { .. }
+                | ActivityEvent::If { .. }
+                | ActivityEvent::ElseIf { .. }
+                | ActivityEvent::Else { .. }
+                | ActivityEvent::EndIf
+                | ActivityEvent::While { .. }
+                | ActivityEvent::EndWhile { .. }
+                | ActivityEvent::Repeat
+                | ActivityEvent::RepeatWhile { .. }
+                | ActivityEvent::Fork
+                | ActivityEvent::ForkAgain
+                | ActivityEvent::EndFork
+                | ActivityEvent::Note { .. }
+                | ActivityEvent::FloatingNote { .. }
                 | ActivityEvent::Detach => {
                     node_lane.push(cur_lane);
                 }
@@ -892,11 +915,19 @@ pub fn layout_activity(diagram: &ActivityDiagram) -> Result<ActivityLayout> {
 
         // For each flow node, find adjacent notes and compute composite width
         for (ni, node) in nodes.iter().enumerate() {
-            let li = if ni < node_lane.len() { node_lane[ni] } else { 0 };
+            let li = if ni < node_lane.len() {
+                node_lane[ni]
+            } else {
+                0
+            };
             let left = node.x;
             let right = node.x + node.width;
-            if left < lane_min_x[li] { lane_min_x[li] = left; }
-            if right > lane_max_x[li] { lane_max_x[li] = right; }
+            if left < lane_min_x[li] {
+                lane_min_x[li] = left;
+            }
+            if right > lane_max_x[li] {
+                lane_max_x[li] = right;
+            }
 
             if is_flow_node(&node.kind) {
                 // Find adjacent notes (immediately following this flow node)
@@ -904,26 +935,30 @@ pub fn layout_activity(diagram: &ActivityDiagram) -> Result<ActivityLayout> {
                 let mut right_note_w = 0.0_f64;
                 for j in (ni + 1)..nodes.len() {
                     match &nodes[j].kind {
-                        ActivityNodeKindLayout::Note { position } => {
-                            match position {
-                                NotePositionLayout::Left => left_note_w += nodes[j].width,
-                                NotePositionLayout::Right => right_note_w += nodes[j].width,
-                            }
-                        }
-                        ActivityNodeKindLayout::FloatingNote { position } => {
-                            match position {
-                                NotePositionLayout::Left => left_note_w += nodes[j].width,
-                                NotePositionLayout::Right => right_note_w += nodes[j].width,
-                            }
-                        }
+                        ActivityNodeKindLayout::Note { position } => match position {
+                            NotePositionLayout::Left => left_note_w += nodes[j].width,
+                            NotePositionLayout::Right => right_note_w += nodes[j].width,
+                        },
+                        ActivityNodeKindLayout::FloatingNote { position } => match position {
+                            NotePositionLayout::Left => left_note_w += nodes[j].width,
+                            NotePositionLayout::Right => right_note_w += nodes[j].width,
+                        },
                         _ => break, // next flow node — stop looking
                     }
                 }
                 // Java FtileWithNotes: each note Opale is wrapped with
                 // TextBlockUtils.withMargin(opale, 10, 10) → +20 per note side.
                 let note_margin = 20.0; // Java: withMargin(opale, 10, 10)
-                let left_total = if left_note_w > 0.0 { left_note_w + note_margin } else { 0.0 };
-                let right_total = if right_note_w > 0.0 { right_note_w + note_margin } else { 0.0 };
+                let left_total = if left_note_w > 0.0 {
+                    left_note_w + note_margin
+                } else {
+                    0.0
+                };
+                let right_total = if right_note_w > 0.0 {
+                    right_note_w + note_margin
+                } else {
+                    0.0
+                };
                 let composite_w = node.width + left_total + right_total;
                 if composite_w > lane_max_composite_w[li] {
                     lane_max_composite_w[li] = composite_w;
@@ -934,9 +969,13 @@ pub fn layout_activity(diagram: &ActivityDiagram) -> Result<ActivityLayout> {
         // 3) Expand each lane; Java LaneDivider: edge=5, between=5..N depending on title overflow
         // Left divider = halfMissing(0)(=5) + halfMissing(1)(=5 or more)
         let half_missing_edge = LANE_DIVIDER_HALF;
-        let header_widths: Vec<f64> = diagram.swimlanes.iter().map(|name| {
-            font_metrics::text_width(name, "SansSerif", SWIMLANE_HEADER_FONT_SIZE, false, false)
-        }).collect();
+        let header_widths: Vec<f64> = diagram
+            .swimlanes
+            .iter()
+            .map(|name| {
+                font_metrics::text_width(name, "SansSerif", SWIMLANE_HEADER_FONT_SIZE, false, false)
+            })
+            .collect();
 
         // First pass: determine final lane widths (max of header and content)
         let mut lane_widths: Vec<f64> = Vec::with_capacity(n_lanes);
@@ -953,20 +992,22 @@ pub fn layout_activity(diagram: &ActivityDiagram) -> Result<ActivityLayout> {
                 for (ni2, n2) in nodes.iter().enumerate() {
                     if ni2 < node_lane.len() && node_lane[ni2] == i {
                         match &n2.kind {
-                            ActivityNodeKindLayout::Note { position } |
-                            ActivityNodeKindLayout::FloatingNote { position } => {
-                                match position {
-                                    NotePositionLayout::Left => has_left = true,
-                                    NotePositionLayout::Right => has_right = true,
-                                }
-                            }
+                            ActivityNodeKindLayout::Note { position }
+                            | ActivityNodeKindLayout::FloatingNote { position } => match position {
+                                NotePositionLayout::Left => has_left = true,
+                                NotePositionLayout::Right => has_right = true,
+                            },
                             _ => {}
                         }
                     }
                 }
                 has_left && has_right
             };
-            let stencil_correction = if lane_max_composite_w[i] > 0.0 && !has_both_sides { 1.0 } else { 0.0 };
+            let stencil_correction = if lane_max_composite_w[i] > 0.0 && !has_both_sides {
+                1.0
+            } else {
+                0.0
+            };
             let content_width = if lane_max_composite_w[i] > 0.0 {
                 lane_max_composite_w[i] + stencil_correction
             } else if lane_max_x[i] > lane_min_x[i] {
@@ -988,9 +1029,7 @@ pub fn layout_activity(diagram: &ActivityDiagram) -> Result<ActivityLayout> {
         // Java getHalfMissingSpace: if title > actualWidth, expand divider.
         // Since lane_widths already includes max(content, header+pad), title
         // overflow is already absorbed. half_missing returns the base 5px.
-        let half_missing = |_lane_idx: usize| -> f64 {
-            LANE_DIVIDER_HALF
-        };
+        let half_missing = |_lane_idx: usize| -> f64 { LANE_DIVIDER_HALF };
 
         // Java: left lane line consistently at x ≈ 20 (divider(10) + centering offset).
         // This comes from LaneDivider width + content minX compensation.
@@ -1389,12 +1428,20 @@ mod tests {
         //   Lane A width = 71.6, Lane B width = 71.6
         let d = ActivityDiagram {
             events: vec![
-                ActivityEvent::Swimlane { name: "Lane A".into() },
+                ActivityEvent::Swimlane {
+                    name: "Lane A".into(),
+                },
                 ActivityEvent::Start,
-                ActivityEvent::Action { text: "task A".into() },
+                ActivityEvent::Action {
+                    text: "task A".into(),
+                },
                 ActivityEvent::Stop,
-                ActivityEvent::Swimlane { name: "Lane B".into() },
-                ActivityEvent::Action { text: "task B".into() },
+                ActivityEvent::Swimlane {
+                    name: "Lane B".into(),
+                },
+                ActivityEvent::Action {
+                    text: "task B".into(),
+                },
             ],
             swimlanes: vec!["Lane A".into(), "Lane B".into()],
             direction: Default::default(),
@@ -1426,15 +1473,23 @@ mod tests {
         // Swimlane must expand to fit the composite (flow node + note) width.
         let d = ActivityDiagram {
             events: vec![
-                ActivityEvent::Swimlane { name: "Lane A".into() },
+                ActivityEvent::Swimlane {
+                    name: "Lane A".into(),
+                },
                 ActivityEvent::Start,
-                ActivityEvent::Action { text: "action".into() },
+                ActivityEvent::Action {
+                    text: "action".into(),
+                },
                 ActivityEvent::Note {
                     position: NotePosition::Right,
                     text: "a short note".into(),
                 },
-                ActivityEvent::Swimlane { name: "Lane B".into() },
-                ActivityEvent::Action { text: "task2".into() },
+                ActivityEvent::Swimlane {
+                    name: "Lane B".into(),
+                },
+                ActivityEvent::Action {
+                    text: "task2".into(),
+                },
                 ActivityEvent::Stop,
             ],
             swimlanes: vec!["Lane A".into(), "Lane B".into()],
@@ -1450,13 +1505,18 @@ mod tests {
             lane_a.width
         );
         // Note must be fully inside Lane A boundary
-        let note = layout.nodes.iter().find(|n| matches!(n.kind, ActivityNodeKindLayout::Note { .. })).unwrap();
+        let note = layout
+            .nodes
+            .iter()
+            .find(|n| matches!(n.kind, ActivityNodeKindLayout::Note { .. }))
+            .unwrap();
         let note_right = note.x + note.width;
         let lane_a_right = lane_a.x + lane_a.width;
         assert!(
             note_right <= lane_a_right + 1.0,
             "note right ({:.1}) should be within Lane A right ({:.1})",
-            note_right, lane_a_right
+            note_right,
+            lane_a_right
         );
     }
 
@@ -1684,7 +1744,10 @@ mod tests {
             (action2.y - expected_action2_y).abs() < 1.0,
             "action2.y ({:.1}) should be at {:.1} (action1 bottom + spacing), \
              floating note should not push it down. note.y={:.1} note.h={:.1}",
-            action2.y, expected_action2_y, note.y, note.height
+            action2.y,
+            expected_action2_y,
+            note.y,
+            note.height
         );
     }
 
@@ -2077,7 +2140,10 @@ mod tests {
         let lh = font_metrics::line_height("SansSerif", NOTE_FONT_SIZE, false, false);
         let asc = font_metrics::ascent("SansSerif", NOTE_FONT_SIZE, false, false);
         let desc = font_metrics::descent("SansSerif", NOTE_FONT_SIZE, false, false);
-        println!("note lh={lh:.4}, asc={asc:.4}, desc={desc:.4}, asc+desc={:.4}", asc + desc);
+        println!(
+            "note lh={lh:.4}, asc={asc:.4}, desc={desc:.4}, asc+desc={:.4}",
+            asc + desc
+        );
         // line_height should be ≈ 15.13
         assert!(
             (lh - 15.13).abs() < 0.5,
@@ -2152,7 +2218,9 @@ mod tests {
     fn wrap_with_max_width_integrates_in_layout() {
         let d = ActivityDiagram {
             events: vec![
-                ActivityEvent::Action { text: "work".into() },
+                ActivityEvent::Action {
+                    text: "work".into(),
+                },
                 ActivityEvent::Note {
                     position: NotePosition::Right,
                     text: "A Long Long Long Long Long Long Long Long Long note".into(),
@@ -2172,4 +2240,3 @@ mod tests {
         );
     }
 }
-

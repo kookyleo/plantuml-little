@@ -375,7 +375,9 @@ fn collect_states(td: &TimingDiagram) -> HashMap<String, Vec<String>> {
 }
 
 fn note_size(text: &str) -> (f64, f64) {
-    let plain = plain_text(&parse_creole(text)).replace("\\n", "\n").replace(crate::NEWLINE_CHAR, "\n");
+    let plain = plain_text(&parse_creole(text))
+        .replace("\\n", "\n")
+        .replace(crate::NEWLINE_CHAR, "\n");
     let lines: Vec<&str> = plain.lines().collect();
     let max_width = lines
         .iter()

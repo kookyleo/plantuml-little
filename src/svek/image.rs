@@ -202,11 +202,9 @@ impl HeaderLayout {
     /// Java: `HeaderLayout.drawU()`
     pub fn layout_offsets(&self, total_width: f64, total_height: f64) -> HeaderOffsets {
         let width_stereo_and_name = self.stereo_dim.width.max(self.name_dim.width);
-        let supp_width = (total_width
-            - self.circle_dim.width
-            - width_stereo_and_name
-            - self.generic_dim.width)
-            .max(0.0);
+        let supp_width =
+            (total_width - self.circle_dim.width - width_stereo_and_name - self.generic_dim.width)
+                .max(0.0);
 
         let h2 = (self.circle_dim.width / 4.0).min(supp_width * 0.1);
         let h1 = ((supp_width - h2) / 2.0).max(0.0);
@@ -215,16 +213,12 @@ impl HeaderLayout {
         let y_circle = (total_height - self.circle_dim.height) / 2.0;
 
         let diff_height = total_height - self.stereo_dim.height - self.name_dim.height;
-        let x_stereo = self.circle_dim.width
-            + (width_stereo_and_name - self.stereo_dim.width) / 2.0
-            + h1
-            + h2;
+        let x_stereo =
+            self.circle_dim.width + (width_stereo_and_name - self.stereo_dim.width) / 2.0 + h1 + h2;
         let y_stereo = diff_height / 2.0;
 
-        let x_name = self.circle_dim.width
-            + (width_stereo_and_name - self.name_dim.width) / 2.0
-            + h1
-            + h2;
+        let x_name =
+            self.circle_dim.width + (width_stereo_and_name - self.name_dim.width) / 2.0 + h1 + h2;
         let y_name = diff_height / 2.0 + self.stereo_dim.height;
 
         let (x_generic, y_generic) = if self.generic_dim.width > 0.0 {
@@ -614,12 +608,7 @@ mod tests {
 
     #[test]
     fn inner_activity() {
-        let ia = InnerActivity::new(
-            XDimension2D::new(100.0, 50.0),
-            "#000000",
-            "#ffffff",
-            3.0,
-        );
+        let ia = InnerActivity::new(XDimension2D::new(100.0, 50.0), "#000000", "#ffffff", 3.0);
         assert_eq!(ia.dimension().width, 100.0);
         assert_eq!(ia.dimension().height, 50.0);
         assert_eq!(

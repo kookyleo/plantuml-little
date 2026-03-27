@@ -263,8 +263,10 @@ impl TokenOperator {
         match self {
             Self::Multiplication | Self::Division => 97,
             Self::Addition | Self::Subtraction => 96,
-            Self::LessThan | Self::GreaterThan
-            | Self::LessThanOrEquals | Self::GreaterThanOrEquals => 94,
+            Self::LessThan
+            | Self::GreaterThan
+            | Self::LessThanOrEquals
+            | Self::GreaterThanOrEquals => 94,
             Self::Equals | Self::NotEquals => 93,
             Self::LogicalAnd => 89,
             Self::LogicalOr => 88,
@@ -361,7 +363,11 @@ impl Token {
         }
     }
 
-    pub fn with_json(surface: impl Into<String>, token_type: TokenType, json: serde_json::Value) -> Self {
+    pub fn with_json(
+        surface: impl Into<String>,
+        token_type: TokenType,
+        json: serde_json::Value,
+    ) -> Self {
         Self {
             surface: surface.into(),
             token_type,
@@ -606,18 +612,12 @@ mod tests {
             TokenOperator::from_chars('=', '='),
             Some(TokenOperator::Equals)
         );
-        assert_eq!(
-            TokenOperator::from_chars('=', ' '),
-            None
-        );
+        assert_eq!(TokenOperator::from_chars('=', ' '), None);
         assert_eq!(
             TokenOperator::from_chars('&', '&'),
             Some(TokenOperator::LogicalAnd)
         );
-        assert_eq!(
-            TokenOperator::from_chars('&', ' '),
-            None
-        );
+        assert_eq!(TokenOperator::from_chars('&', ' '), None);
     }
 
     #[test]
@@ -661,8 +661,7 @@ mod tests {
     #[test]
     fn simple_knowledge() {
         let mut k = SimpleKnowledge::new();
-        k.variables
-            .insert("$x".to_string(), TValue::from_int(42));
+        k.variables.insert("$x".to_string(), TValue::from_int(42));
         assert_eq!(k.get_variable("$x").unwrap().to_int(), 42);
         assert!(k.get_variable("$y").is_none());
     }

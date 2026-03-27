@@ -9,9 +9,7 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use super::group_type::GroupType;
 use super::leaf_type::LeafType;
-use super::{
-    CucaNote, DisplayPositioned, EntityPosition, NoteLinkStrategy, Together,
-};
+use super::{CucaNote, DisplayPositioned, EntityPosition, NoteLinkStrategy, Together};
 use crate::klimt::color::HColor;
 
 // ── Unique-ID generator ──────────────────────────────────────────────
@@ -106,10 +104,7 @@ impl EntityColors {
     }
 
     pub fn is_empty(&self) -> bool {
-        self.back.is_none()
-            && self.line.is_none()
-            && self.text.is_none()
-            && self.header.is_none()
+        self.back.is_none() && self.line.is_none() && self.text.is_none() && self.header.is_none()
     }
 }
 
@@ -813,10 +808,22 @@ mod tests {
         assert!(VisibilityModifier::is_visibility_char('~'));
         assert!(!VisibilityModifier::is_visibility_char('x'));
 
-        assert_eq!(VisibilityModifier::from_char('+'), Some(VisibilityModifier::Public));
-        assert_eq!(VisibilityModifier::from_char('-'), Some(VisibilityModifier::Private));
-        assert_eq!(VisibilityModifier::from_char('#'), Some(VisibilityModifier::Protected));
-        assert_eq!(VisibilityModifier::from_char('~'), Some(VisibilityModifier::Package));
+        assert_eq!(
+            VisibilityModifier::from_char('+'),
+            Some(VisibilityModifier::Public)
+        );
+        assert_eq!(
+            VisibilityModifier::from_char('-'),
+            Some(VisibilityModifier::Private)
+        );
+        assert_eq!(
+            VisibilityModifier::from_char('#'),
+            Some(VisibilityModifier::Protected)
+        );
+        assert_eq!(
+            VisibilityModifier::from_char('~'),
+            Some(VisibilityModifier::Package)
+        );
         assert_eq!(VisibilityModifier::from_char('x'), None);
     }
 
@@ -856,7 +863,10 @@ mod tests {
     fn together_support() {
         let mut e = Entity::new_leaf("A", LeafType::Class);
         assert!(e.together().is_none());
-        let t = Together { id: 1, parent: None };
+        let t = Together {
+            id: 1,
+            parent: None,
+        };
         e.set_together(Some(t.clone()));
         assert_eq!(e.together().unwrap().id, 1);
     }

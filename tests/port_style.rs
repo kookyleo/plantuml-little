@@ -11,9 +11,8 @@
 #[cfg(test)]
 mod style_port_tests {
     use plantuml_little::style::{
-        ClockwiseTopRightBottomLeft, DarkString, LengthAdjust, MergeStrategy, PName, SName,
-        Style, StyleBuilder, StyleKey, StyleSignatureBasic, StyleStorage, Value, ValueImpl,
-        ValueNull,
+        ClockwiseTopRightBottomLeft, DarkString, LengthAdjust, MergeStrategy, PName, SName, Style,
+        StyleBuilder, StyleKey, StyleSignatureBasic, StyleStorage, Value, ValueImpl, ValueNull,
     };
     use std::collections::HashMap;
 
@@ -85,7 +84,10 @@ mod style_port_tests {
     fn pname_value_of_exact() {
         // Mirrors: valueOf_skeleton
         assert_eq!(PName::from_name("FontColor"), Some(PName::FontColor));
-        assert_eq!(PName::from_name("BackGroundColor"), Some(PName::BackGroundColor));
+        assert_eq!(
+            PName::from_name("BackGroundColor"),
+            Some(PName::BackGroundColor)
+        );
         assert_eq!(PName::from_name("FontSize"), Some(PName::FontSize));
         assert_eq!(PName::from_name("LineColor"), Some(PName::LineColor));
         assert_eq!(PName::from_name("Shadowing"), Some(PName::Shadowing));
@@ -97,7 +99,10 @@ mod style_port_tests {
         assert_eq!(PName::from_name("FontColor"), Some(PName::FontColor));
         assert_eq!(PName::from_name("fontcolor"), Some(PName::FontColor));
         assert_eq!(PName::from_name("FONTCOLOR"), Some(PName::FontColor));
-        assert_eq!(PName::from_name("backgroundcolor"), Some(PName::BackGroundColor));
+        assert_eq!(
+            PName::from_name("backgroundcolor"),
+            Some(PName::BackGroundColor)
+        );
         assert_eq!(PName::from_name("FontSize"), Some(PName::FontSize));
     }
 
@@ -448,7 +453,7 @@ mod style_port_tests {
         // Mirrors: dark_skeleton — dark value stores in value2; as_string() returns ""
         let v = ValueImpl::dark("darkval", 5);
         let _ = format!("{}", v); // toString shouldn't throw
-        // as_string() returns value1 which is None for dark-only
+                                  // as_string() returns value1 which is None for dark-only
         assert_eq!(v.as_string(), "");
     }
 
@@ -511,9 +516,18 @@ mod style_port_tests {
         // Mirrors: asHorizontalAlignment_skeleton
         use plantuml_little::klimt::geom::HorizontalAlignment;
         use plantuml_little::style::Value;
-        assert_eq!(ValueImpl::regular("left", 1).as_horizontal_alignment(), HorizontalAlignment::Left);
-        assert_eq!(ValueImpl::regular("right", 1).as_horizontal_alignment(), HorizontalAlignment::Right);
-        assert_eq!(ValueImpl::regular("center", 1).as_horizontal_alignment(), HorizontalAlignment::Center);
+        assert_eq!(
+            ValueImpl::regular("left", 1).as_horizontal_alignment(),
+            HorizontalAlignment::Left
+        );
+        assert_eq!(
+            ValueImpl::regular("right", 1).as_horizontal_alignment(),
+            HorizontalAlignment::Right
+        );
+        assert_eq!(
+            ValueImpl::regular("center", 1).as_horizontal_alignment(),
+            HorizontalAlignment::Center
+        );
     }
 
     #[test]
@@ -597,7 +611,10 @@ mod style_port_tests {
     fn value_null_as_horizontal_alignment_is_left() {
         // Mirrors: asHorizontalAlignment_skeleton
         use plantuml_little::klimt::geom::HorizontalAlignment;
-        assert_eq!(ValueNull::NULL.as_horizontal_alignment(), HorizontalAlignment::Left);
+        assert_eq!(
+            ValueNull::NULL.as_horizontal_alignment(),
+            HorizontalAlignment::Left
+        );
     }
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -618,7 +635,10 @@ mod style_port_tests {
         // Mirrors: toString_skeleton
         let key = StyleKey::of(&[SName::Root, SName::Note]);
         let s = format!("{}", key);
-        assert!(s.contains("Root") || s.contains("root"), "toString must mention root");
+        assert!(
+            s.contains("Root") || s.contains("root"),
+            "toString must mention root"
+        );
     }
 
     #[test]
@@ -773,7 +793,9 @@ mod style_port_tests {
     fn sig_is_starred_logic() {
         // Mirrors: isStarred_skeleton
         assert!(!StyleSignatureBasic::empty().is_starred());
-        assert!(StyleSignatureBasic::of(&[SName::Root]).add_star().is_starred());
+        assert!(StyleSignatureBasic::of(&[SName::Root])
+            .add_star()
+            .is_starred());
     }
 
     #[test]
@@ -852,7 +874,9 @@ mod style_port_tests {
     fn sig_is_with_dot_logic() {
         // Mirrors: isWithDot_skeleton
         assert!(!StyleSignatureBasic::of(&[SName::Root]).is_with_dot());
-        assert!(StyleSignatureBasic::of(&[SName::Root]).add_stereotype("s").is_with_dot());
+        assert!(StyleSignatureBasic::of(&[SName::Root])
+            .add_stereotype("s")
+            .is_with_dot());
     }
 
     #[test]
@@ -918,7 +942,11 @@ mod style_port_tests {
     fn sig_of_with_extra_snames_slice() {
         // Mirrors: of_overload_2_skeleton (varargs variant)
         let sig = StyleSignatureBasic::of(&[
-            SName::Root, SName::Element, SName::ActivityDiagram, SName::Activity, SName::Diamond,
+            SName::Root,
+            SName::Element,
+            SName::ActivityDiagram,
+            SName::Activity,
+            SName::Diamond,
         ]);
         assert!(sig.get_key().snames.contains(&SName::Root));
         assert!(sig.get_key().snames.contains(&SName::Diamond));
@@ -1014,10 +1042,7 @@ mod style_port_tests {
     fn builder_get_merged_style_special_empty_returns_none() {
         // Mirrors: getMergedStyleSpecial_skeleton empty case
         let builder = StyleBuilder::new();
-        let result = builder.get_merged_style_special(
-            &StyleSignatureBasic::of(&[SName::Root]),
-            0,
-        );
+        let result = builder.get_merged_style_special(&StyleSignatureBasic::of(&[SName::Root]), 0);
         assert!(result.is_none());
     }
 
@@ -1374,17 +1399,23 @@ mod style_port_tests {
         let elem_has_it = StyleSignatureBasic::of(&[SName::Root, SName::Arrow])
             .add_stereotype("foo")
             .add_stereotype("bar");
-        let elem_missing = StyleSignatureBasic::of(&[SName::Root, SName::Arrow])
-            .add_stereotype("bar");
+        let elem_missing =
+            StyleSignatureBasic::of(&[SName::Root, SName::Arrow]).add_stereotype("bar");
         assert!(decl.match_all(&elem_has_it));
         assert!(!decl.match_all(&elem_missing));
     }
 
     #[test]
     fn sig_match_all_level_exact() {
-        let decl = StyleSignatureBasic::empty().add_sname(SName::Root).add_level(3);
-        let elem_ok = StyleSignatureBasic::empty().add_sname(SName::Root).add_level(3);
-        let elem_wrong = StyleSignatureBasic::empty().add_sname(SName::Root).add_level(5);
+        let decl = StyleSignatureBasic::empty()
+            .add_sname(SName::Root)
+            .add_level(3);
+        let elem_ok = StyleSignatureBasic::empty()
+            .add_sname(SName::Root)
+            .add_level(3);
+        let elem_wrong = StyleSignatureBasic::empty()
+            .add_sname(SName::Root)
+            .add_level(5);
         assert!(decl.match_all(&elem_ok));
         assert!(!decl.match_all(&elem_wrong));
     }

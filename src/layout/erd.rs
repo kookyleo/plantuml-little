@@ -314,10 +314,7 @@ pub fn layout_erd(diagram: &ErdDiagram) -> Result<ErdLayout> {
         rank_cross_extents.push(cross_total);
     }
 
-    let max_cross = rank_cross_extents
-        .iter()
-        .copied()
-        .fold(0.0_f64, f64::max);
+    let max_cross = rank_cross_extents.iter().copied().fold(0.0_f64, f64::max);
 
     // Space above the first rank for attribute ellipses
     let attr_band = compute_attr_band(diagram);
@@ -478,10 +475,14 @@ pub fn layout_erd(diagram: &ErdDiagram) -> Result<ErdLayout> {
 
     debug!(
         "layout_erd done: {:.0}x{:.0}, {} ents, {} rels, {} attrs, {} edges, {} ISAs, {} notes",
-        width, height,
-        entity_nodes.len(), relationship_nodes.len(),
-        attribute_nodes.len(), edges.len(),
-        isa_layouts.len(), notes.len()
+        width,
+        height,
+        entity_nodes.len(),
+        relationship_nodes.len(),
+        attribute_nodes.len(),
+        edges.len(),
+        isa_layouts.len(),
+        notes.len()
     );
 
     Ok(ErdLayout {

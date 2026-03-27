@@ -389,7 +389,10 @@ mod tests {
     fn retrieve_case_insensitive() {
         assert_eq!(SName::retrieve("Arrow"), Some(SName::Arrow));
         assert_eq!(SName::retrieve("ARROW"), Some(SName::Arrow));
-        assert_eq!(SName::retrieve("SequenceDiagram"), Some(SName::SequenceDiagram));
+        assert_eq!(
+            SName::retrieve("SequenceDiagram"),
+            Some(SName::SequenceDiagram)
+        );
     }
 
     #[test]
@@ -445,7 +448,12 @@ mod tests {
         for &(sname, java_name) in ALL_SNAMES {
             let key = java_name.replace('_', "");
             let result = SName::retrieve(&key);
-            assert_eq!(result, Some(sname), "roundtrip failed for java_name={}", java_name);
+            assert_eq!(
+                result,
+                Some(sname),
+                "roundtrip failed for java_name={}",
+                java_name
+            );
         }
     }
 
@@ -465,11 +473,17 @@ mod tests {
     #[test]
     fn spot_variants_present() {
         assert_eq!(SName::retrieve("spot"), Some(SName::Spot));
-        assert_eq!(SName::retrieve("spotannotation"), Some(SName::SpotAnnotation));
+        assert_eq!(
+            SName::retrieve("spotannotation"),
+            Some(SName::SpotAnnotation)
+        );
         assert_eq!(SName::retrieve("spotinterface"), Some(SName::SpotInterface));
         assert_eq!(SName::retrieve("spotenum"), Some(SName::SpotEnum));
         assert_eq!(SName::retrieve("spotclass"), Some(SName::SpotClass));
-        assert_eq!(SName::retrieve("spotabstractclass"), Some(SName::SpotAbstractClass));
+        assert_eq!(
+            SName::retrieve("spotabstractclass"),
+            Some(SName::SpotAbstractClass)
+        );
         assert_eq!(SName::retrieve("spotrecord"), Some(SName::SpotRecord));
     }
 }

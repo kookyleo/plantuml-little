@@ -48,6 +48,7 @@ pub struct Stereotype(pub String);
 /// Entity (class, interface, enum, etc.)
 #[derive(Debug, Clone)]
 pub struct Entity {
+    pub uid: Option<String>,
     pub name: String,
     pub kind: EntityKind,
     pub stereotypes: Vec<Stereotype>,

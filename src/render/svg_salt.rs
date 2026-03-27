@@ -2,7 +2,7 @@ use crate::font_metrics;
 use crate::klimt::svg::{fmt_coord, LengthAdjust, SvgGraphic};
 use crate::layout::salt::{LayoutBox, SaltLayout, SaltWidgetLayout};
 use crate::model::salt::SaltDiagram;
-use crate::render::svg::{write_bg_rect, write_svg_root_bg_opt, ensure_visible_int};
+use crate::render::svg::{ensure_visible_int, write_bg_rect, write_svg_root_bg_opt};
 use crate::style::SkinParams;
 use crate::Result;
 
@@ -20,7 +20,11 @@ pub fn render_salt(
     let svg_h = ensure_visible_int(layout.height) as f64;
     // Java PSystemSalt via @startsalt emits data-diagram-type="SALT",
     // but inline salt inside @startuml does not (different code path)
-    let dtype = if diagram.is_inline { None } else { Some("SALT") };
+    let dtype = if diagram.is_inline {
+        None
+    } else {
+        Some("SALT")
+    };
     write_svg_root_bg_opt(&mut buf, svg_w, svg_h, dtype, bg);
     buf.push_str("<defs/><g>");
     write_bg_rect(&mut buf, svg_w, svg_h, bg);
@@ -305,13 +309,13 @@ fn render_text(sg: &mut SvgGraphic, x: f64, y: f64, text: &str, font: &str, anch
         y,
         Some("sans-serif"),
         12.0,
-        None,  // font_weight
-        None,  // font_style
-        None,  // text_decoration
+        None, // font_weight
+        None, // font_style
+        None, // text_decoration
         tl,
         LengthAdjust::Spacing,
-        None,  // text_back_color
-        0,     // orientation
+        None, // text_back_color
+        0,    // orientation
         anchor,
     );
     sg.push_raw("\n");

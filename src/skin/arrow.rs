@@ -804,8 +804,8 @@ mod tests {
 
     #[test]
     fn reverse_swaps_dressings_and_decorations() {
-        let a = ArrowConfiguration::with_direction_normal()
-            .with_decoration1(ArrowDecoration::Circle);
+        let a =
+            ArrowConfiguration::with_direction_normal().with_decoration1(ArrowDecoration::Circle);
         let b = a.reverse();
         assert_eq!(b.dressing1().head, ArrowHead::Normal);
         assert_eq!(b.dressing2().head, ArrowHead::None);
@@ -863,8 +863,7 @@ mod tests {
 
     #[test]
     fn with_color() {
-        let a =
-            ArrowConfiguration::with_direction_normal().with_color(Some("red".to_string()));
+        let a = ArrowConfiguration::with_direction_normal().with_color(Some("red".to_string()));
         assert_eq!(a.color(), Some("red"));
     }
 

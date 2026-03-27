@@ -28,23 +28,46 @@ pub struct ClockwiseTopRightBottomLeft {
 
 impl ClockwiseTopRightBottomLeft {
     pub fn none() -> Self {
-        Self { top: 0.0, right: 0.0, bottom: 0.0, left: 0.0 }
+        Self {
+            top: 0.0,
+            right: 0.0,
+            bottom: 0.0,
+            left: 0.0,
+        }
     }
 
     pub fn same(value: f64) -> Self {
-        Self { top: value, right: value, bottom: value, left: value }
+        Self {
+            top: value,
+            right: value,
+            bottom: value,
+            left: value,
+        }
     }
 
     pub fn new(top: f64, right: f64, bottom: f64, left: f64) -> Self {
-        Self { top, right, bottom, left }
+        Self {
+            top,
+            right,
+            bottom,
+            left,
+        }
     }
 
     pub fn margin1_margin2(m1: f64, m2: f64) -> Self {
-        Self { top: m1, right: m2, bottom: m1, left: m2 }
+        Self {
+            top: m1,
+            right: m2,
+            bottom: m1,
+            left: m2,
+        }
     }
 
     pub fn inc_top(&self, delta: f64) -> Self {
-        Self { top: self.top + delta, ..*self }
+        Self {
+            top: self.top + delta,
+            ..*self
+        }
     }
 
     /// Parse a CSS-style padding/margin string.
@@ -94,12 +117,18 @@ impl ClockwiseTopRightBottomLeft {
 }
 
 impl Default for ClockwiseTopRightBottomLeft {
-    fn default() -> Self { Self::none() }
+    fn default() -> Self {
+        Self::none()
+    }
 }
 
 impl std::fmt::Display for ClockwiseTopRightBottomLeft {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}:{}:{}:{}", self.top, self.right, self.bottom, self.left)
+        write!(
+            f,
+            "{}:{}:{}:{}",
+            self.top, self.right, self.bottom, self.left
+        )
     }
 }
 
@@ -125,7 +154,10 @@ impl Style {
 
     /// Convenience: create an empty style with the given signature.
     pub fn empty(signature: StyleSignatureBasic) -> Self {
-        Self { signature, map: HashMap::new() }
+        Self {
+            signature,
+            map: HashMap::new(),
+        }
     }
 
     /// Look up a property value.
@@ -203,7 +235,8 @@ impl Style {
 
     /// Get horizontal alignment.
     pub fn horizontal_alignment(&self) -> HorizontalAlignment {
-        self.value(PName::HorizontalAlignment).as_horizontal_alignment()
+        self.value(PName::HorizontalAlignment)
+            .as_horizontal_alignment()
     }
 
     /// Get font name.
@@ -214,7 +247,11 @@ impl Style {
     /// Get font size (defaults to 14 if missing).
     pub fn font_size(&self) -> i32 {
         let size = self.value(PName::FontSize).as_int(true);
-        if size == -1 { 14 } else { size }
+        if size == -1 {
+            14
+        } else {
+            size
+        }
     }
 
     /// Get font color.
@@ -259,10 +296,7 @@ impl Style {
                 let merged_ds = other_val.dark_string().merge_with(previous.dark_string());
                 both.insert(
                     *key,
-                    ValueImpl::regular(
-                        merged_ds.value1().unwrap_or(""),
-                        merged_ds.priority(),
-                    ),
+                    ValueImpl::regular(merged_ds.value1().unwrap_or(""), merged_ds.priority()),
                 );
             } else {
                 both.insert(*key, other_val.clone());
@@ -348,7 +382,12 @@ impl Style {
 
 impl std::fmt::Display for Style {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{} {:?}", self.signature, self.map.keys().collect::<Vec<_>>())
+        write!(
+            f,
+            "{} {:?}",
+            self.signature,
+            self.map.keys().collect::<Vec<_>>()
+        )
     }
 }
 
@@ -414,10 +453,9 @@ impl StyleStorage {
             }
             merged = match merged {
                 None => Some(style.clone()),
-                Some(existing) => Some(existing.merge_with(
-                    style,
-                    MergeStrategy::OverwriteExistingValue,
-                )),
+                Some(existing) => {
+                    Some(existing.merge_with(style, MergeStrategy::OverwriteExistingValue))
+                }
             };
         }
         merged.unwrap_or_else(|| Style::empty(signature.clone()))
@@ -489,10 +527,7 @@ impl StyleBuilder {
         }
         match self.storage.get(signature).cloned() {
             Some(orig) => {
-                let merged = orig.merge_with(
-                    &new_style,
-                    MergeStrategy::OverwriteExistingValue,
-                );
+                let merged = orig.merge_with(&new_style, MergeStrategy::OverwriteExistingValue);
                 self.storage.put(merged);
             }
             None => {
@@ -509,10 +544,7 @@ impl StyleBuilder {
             let sig = modified.signature().clone();
             match result.storage.get(&sig).cloned() {
                 Some(orig) => {
-                    let merged = orig.merge_with(
-                        modified,
-                        MergeStrategy::OverwriteExistingValue,
-                    );
+                    let merged = orig.merge_with(modified, MergeStrategy::OverwriteExistingValue);
                     result.storage.put(merged);
                 }
                 None => {
@@ -555,10 +587,9 @@ impl StyleBuilder {
             };
             merged = match merged {
                 None => Some(tmp),
-                Some(existing) => Some(existing.merge_with(
-                    &tmp,
-                    MergeStrategy::OverwriteExistingValue,
-                )),
+                Some(existing) => {
+                    Some(existing.merge_with(&tmp, MergeStrategy::OverwriteExistingValue))
+                }
             };
         }
         merged

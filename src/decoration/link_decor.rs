@@ -58,33 +58,37 @@ impl LinkDecor {
     pub fn meta(self) -> LinkDecorMeta {
         use LinkDecor::*;
         let (margin, fill, arrow_size) = match self {
-            None                => (2,  false, 0.0),
-            Extends             => (30, false, 2.0),
-            Composition         => (15, true,  1.3),
-            Agregation          => (15, false, 1.3),
-            NotNavigable        => (1,  false, 0.5),
-            Redefines           => (30, false, 2.0),
-            DefinedBy           => (30, false, 2.0),
-            Crowfoot            => (10, true,  0.8),
-            CircleCrowfoot      => (14, false, 0.8),
-            CircleLine          => (10, false, 0.8),
-            DoubleLine          => (7,  false, 0.7),
-            LineCrowfoot        => (10, false, 0.8),
-            Arrow               => (10, true,  0.5),
-            ArrowTriangle       => (10, true,  0.8),
-            ArrowAndCircle      => (10, false, 0.5),
-            Circle              => (0,  false, 0.5),
-            CircleFill          => (0,  false, 0.5),
-            CircleConnect       => (0,  false, 0.5),
-            Parenthesis         => (0,  false, 1.0),
-            Square              => (0,  false, 0.5),
-            CircleCross         => (0,  false, 0.5),
-            Plus                => (0,  false, 1.5),
-            HalfArrowUp         => (0,  false, 1.5),
-            HalfArrowDown       => (0,  false, 1.5),
-            SquareToBeRemoved   => (30, false, 0.0),
+            None => (2, false, 0.0),
+            Extends => (30, false, 2.0),
+            Composition => (15, true, 1.3),
+            Agregation => (15, false, 1.3),
+            NotNavigable => (1, false, 0.5),
+            Redefines => (30, false, 2.0),
+            DefinedBy => (30, false, 2.0),
+            Crowfoot => (10, true, 0.8),
+            CircleCrowfoot => (14, false, 0.8),
+            CircleLine => (10, false, 0.8),
+            DoubleLine => (7, false, 0.7),
+            LineCrowfoot => (10, false, 0.8),
+            Arrow => (10, true, 0.5),
+            ArrowTriangle => (10, true, 0.8),
+            ArrowAndCircle => (10, false, 0.5),
+            Circle => (0, false, 0.5),
+            CircleFill => (0, false, 0.5),
+            CircleConnect => (0, false, 0.5),
+            Parenthesis => (0, false, 1.0),
+            Square => (0, false, 0.5),
+            CircleCross => (0, false, 0.5),
+            Plus => (0, false, 1.5),
+            HalfArrowUp => (0, false, 1.5),
+            HalfArrowDown => (0, false, 1.5),
+            SquareToBeRemoved => (30, false, 0.0),
         };
-        LinkDecorMeta { margin, fill, arrow_size }
+        LinkDecorMeta {
+            margin,
+            fill,
+            arrow_size,
+        }
     }
 
     /// Shorthand for `self.meta().margin`.
@@ -143,29 +147,37 @@ impl LinkDecor {
     pub fn extremity_kind(self) -> Option<ExtremityKind> {
         use LinkDecor::*;
         match self {
-            Extends         => Some(ExtremityKind::Triangle { w: 18.0, h: 6.0, len: 18.0 }),
-            Redefines       => Some(ExtremityKind::ExtendsLike { has_dot: false }),
-            DefinedBy       => Some(ExtremityKind::ExtendsLike { has_dot: true }),
-            Plus            => Some(ExtremityKind::Plus),
-            HalfArrowUp     => Some(ExtremityKind::HalfArrow { direction: 1 }),
-            HalfArrowDown   => Some(ExtremityKind::HalfArrow { direction: -1 }),
-            ArrowTriangle   => Some(ExtremityKind::Triangle { w: 8.0, h: 3.0, len: 8.0 }),
-            Crowfoot        => Some(ExtremityKind::Crowfoot),
-            CircleCrowfoot  => Some(ExtremityKind::CircleCrowfoot),
-            LineCrowfoot    => Some(ExtremityKind::LineCrowfoot),
-            CircleLine      => Some(ExtremityKind::CircleLine),
-            DoubleLine      => Some(ExtremityKind::DoubleLine),
-            CircleCross     => Some(ExtremityKind::CircleCross),
-            Arrow           => Some(ExtremityKind::Arrow),
-            ArrowAndCircle  => Some(ExtremityKind::ArrowAndCircle),
-            NotNavigable    => Some(ExtremityKind::NotNavigable),
-            Agregation      => Some(ExtremityKind::Diamond { filled: false }),
-            Composition     => Some(ExtremityKind::Diamond { filled: true }),
-            Circle          => Some(ExtremityKind::Circle { filled: false }),
-            CircleFill      => Some(ExtremityKind::Circle { filled: true }),
-            Square          => Some(ExtremityKind::Square),
-            Parenthesis     => Some(ExtremityKind::Parenthesis),
-            CircleConnect   => Some(ExtremityKind::CircleConnect),
+            Extends => Some(ExtremityKind::Triangle {
+                w: 18.0,
+                h: 6.0,
+                len: 18.0,
+            }),
+            Redefines => Some(ExtremityKind::ExtendsLike { has_dot: false }),
+            DefinedBy => Some(ExtremityKind::ExtendsLike { has_dot: true }),
+            Plus => Some(ExtremityKind::Plus),
+            HalfArrowUp => Some(ExtremityKind::HalfArrow { direction: 1 }),
+            HalfArrowDown => Some(ExtremityKind::HalfArrow { direction: -1 }),
+            ArrowTriangle => Some(ExtremityKind::Triangle {
+                w: 8.0,
+                h: 3.0,
+                len: 8.0,
+            }),
+            Crowfoot => Some(ExtremityKind::Crowfoot),
+            CircleCrowfoot => Some(ExtremityKind::CircleCrowfoot),
+            LineCrowfoot => Some(ExtremityKind::LineCrowfoot),
+            CircleLine => Some(ExtremityKind::CircleLine),
+            DoubleLine => Some(ExtremityKind::DoubleLine),
+            CircleCross => Some(ExtremityKind::CircleCross),
+            Arrow => Some(ExtremityKind::Arrow),
+            ArrowAndCircle => Some(ExtremityKind::ArrowAndCircle),
+            NotNavigable => Some(ExtremityKind::NotNavigable),
+            Agregation => Some(ExtremityKind::Diamond { filled: false }),
+            Composition => Some(ExtremityKind::Diamond { filled: true }),
+            Circle => Some(ExtremityKind::Circle { filled: false }),
+            CircleFill => Some(ExtremityKind::Circle { filled: true }),
+            Square => Some(ExtremityKind::Square),
+            Parenthesis => Some(ExtremityKind::Parenthesis),
+            CircleConnect => Some(ExtremityKind::CircleConnect),
             None | SquareToBeRemoved => Option::None,
         }
     }
@@ -205,25 +217,25 @@ pub enum ExtremityKind {
 /// Populated from the Java enum's `decors1` arrays.
 static DECORS1: LazyLock<HashMap<&'static str, LinkDecor>> = LazyLock::new(|| {
     let entries: &[(&[&str], LinkDecor)] = &[
-        (&["<|", "^"],      LinkDecor::Extends),
-        (&["*"],             LinkDecor::Composition),
-        (&["o"],             LinkDecor::Agregation),
-        (&["x"],             LinkDecor::NotNavigable),
-        (&["<||"],           LinkDecor::Redefines),
-        (&["<|:"],           LinkDecor::DefinedBy),
-        (&["}"],             LinkDecor::Crowfoot),
-        (&["}o"],            LinkDecor::CircleCrowfoot),
-        (&["|o"],            LinkDecor::CircleLine),
-        (&["||"],            LinkDecor::DoubleLine),
-        (&["}|"],            LinkDecor::LineCrowfoot),
-        (&["<", "<_"],       LinkDecor::Arrow),
-        (&["<<"],            LinkDecor::ArrowTriangle),
-        (&["0"],             LinkDecor::Circle),
-        (&["@"],             LinkDecor::CircleFill),
-        (&["0)"],            LinkDecor::CircleConnect),
-        (&[")"],             LinkDecor::Parenthesis),
-        (&["#"],             LinkDecor::Square),
-        (&["+"],             LinkDecor::Plus),
+        (&["<|", "^"], LinkDecor::Extends),
+        (&["*"], LinkDecor::Composition),
+        (&["o"], LinkDecor::Agregation),
+        (&["x"], LinkDecor::NotNavigable),
+        (&["<||"], LinkDecor::Redefines),
+        (&["<|:"], LinkDecor::DefinedBy),
+        (&["}"], LinkDecor::Crowfoot),
+        (&["}o"], LinkDecor::CircleCrowfoot),
+        (&["|o"], LinkDecor::CircleLine),
+        (&["||"], LinkDecor::DoubleLine),
+        (&["}|"], LinkDecor::LineCrowfoot),
+        (&["<", "<_"], LinkDecor::Arrow),
+        (&["<<"], LinkDecor::ArrowTriangle),
+        (&["0"], LinkDecor::Circle),
+        (&["@"], LinkDecor::CircleFill),
+        (&["0)"], LinkDecor::CircleConnect),
+        (&[")"], LinkDecor::Parenthesis),
+        (&["#"], LinkDecor::Square),
+        (&["+"], LinkDecor::Plus),
     ];
     let mut m = HashMap::new();
     for (keys, decor) in entries {
@@ -238,27 +250,27 @@ static DECORS1: LazyLock<HashMap<&'static str, LinkDecor>> = LazyLock::new(|| {
 /// Populated from the Java enum's `decors2` arrays.
 static DECORS2: LazyLock<HashMap<&'static str, LinkDecor>> = LazyLock::new(|| {
     let entries: &[(&[&str], LinkDecor)] = &[
-        (&["|>", "^"],      LinkDecor::Extends),
-        (&["*"],             LinkDecor::Composition),
-        (&["o"],             LinkDecor::Agregation),
-        (&["x"],             LinkDecor::NotNavigable),
-        (&["||>"],           LinkDecor::Redefines),
-        (&[":|>"],           LinkDecor::DefinedBy),
-        (&["{"],             LinkDecor::Crowfoot),
-        (&["o{"],            LinkDecor::CircleCrowfoot),
-        (&["o|"],            LinkDecor::CircleLine),
-        (&["||"],            LinkDecor::DoubleLine),
-        (&["|{"],            LinkDecor::LineCrowfoot),
-        (&[">", "_>"],       LinkDecor::Arrow),
-        (&[">>"],            LinkDecor::ArrowTriangle),
-        (&["0"],             LinkDecor::Circle),
-        (&["@"],             LinkDecor::CircleFill),
-        (&["(0"],            LinkDecor::CircleConnect),
-        (&["("],             LinkDecor::Parenthesis),
-        (&["#"],             LinkDecor::Square),
-        (&["+"],             LinkDecor::Plus),
-        (&["\\\\"],          LinkDecor::HalfArrowUp),
-        (&["//"],            LinkDecor::HalfArrowDown),
+        (&["|>", "^"], LinkDecor::Extends),
+        (&["*"], LinkDecor::Composition),
+        (&["o"], LinkDecor::Agregation),
+        (&["x"], LinkDecor::NotNavigable),
+        (&["||>"], LinkDecor::Redefines),
+        (&[":|>"], LinkDecor::DefinedBy),
+        (&["{"], LinkDecor::Crowfoot),
+        (&["o{"], LinkDecor::CircleCrowfoot),
+        (&["o|"], LinkDecor::CircleLine),
+        (&["||"], LinkDecor::DoubleLine),
+        (&["|{"], LinkDecor::LineCrowfoot),
+        (&[">", "_>"], LinkDecor::Arrow),
+        (&[">>"], LinkDecor::ArrowTriangle),
+        (&["0"], LinkDecor::Circle),
+        (&["@"], LinkDecor::CircleFill),
+        (&["(0"], LinkDecor::CircleConnect),
+        (&["("], LinkDecor::Parenthesis),
+        (&["#"], LinkDecor::Square),
+        (&["+"], LinkDecor::Plus),
+        (&["\\\\"], LinkDecor::HalfArrowUp),
+        (&["//"], LinkDecor::HalfArrowDown),
     ];
     let mut m = HashMap::new();
     for (keys, decor) in entries {
@@ -566,12 +578,21 @@ mod tests {
 
     #[test]
     fn middle_decor_inversed() {
-        assert_eq!(LinkMiddleDecor::CircleCircled1.inversed(), LinkMiddleDecor::CircleCircled2);
-        assert_eq!(LinkMiddleDecor::CircleCircled2.inversed(), LinkMiddleDecor::CircleCircled1);
+        assert_eq!(
+            LinkMiddleDecor::CircleCircled1.inversed(),
+            LinkMiddleDecor::CircleCircled2
+        );
+        assert_eq!(
+            LinkMiddleDecor::CircleCircled2.inversed(),
+            LinkMiddleDecor::CircleCircled1
+        );
         assert_eq!(LinkMiddleDecor::Circle.inversed(), LinkMiddleDecor::Circle);
         assert_eq!(LinkMiddleDecor::None.inversed(), LinkMiddleDecor::None);
         assert_eq!(LinkMiddleDecor::Subset.inversed(), LinkMiddleDecor::Subset);
-        assert_eq!(LinkMiddleDecor::Superset.inversed(), LinkMiddleDecor::Superset);
+        assert_eq!(
+            LinkMiddleDecor::Superset.inversed(),
+            LinkMiddleDecor::Superset
+        );
     }
 
     // ── Comprehensive variant coverage ──

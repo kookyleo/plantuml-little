@@ -346,15 +346,9 @@ impl SvekNode {
         sb.push(',');
         sb.push_str("label=\"\"");
         sb.push(',');
-        sb.push_str(&format!(
-            "width={}",
-            super::utils::px_to_dot(self.width)
-        ));
+        sb.push_str(&format!("width={}", super::utils::px_to_dot(self.width)));
         sb.push(',');
-        sb.push_str(&format!(
-            "height={}",
-            super::utils::px_to_dot(self.height)
-        ));
+        sb.push_str(&format!("height={}", super::utils::px_to_dot(self.height)));
         sb.push(',');
         sb.push_str(&format!(
             "color=\"{}\"",
@@ -371,9 +365,7 @@ impl SvekNode {
                 // Should not reach here - handled in append_shape
                 panic!("shielded Rectangle should use HTML label");
             }
-            ShapeType::Rectangle
-            | ShapeType::RectangleWithCircleInside
-            | ShapeType::Folder => {
+            ShapeType::Rectangle | ShapeType::RectangleWithCircleInside | ShapeType::Folder => {
                 sb.push_str("shape=rect");
             }
             ShapeType::RectangleHtmlForPorts => {
@@ -538,15 +530,9 @@ impl SvekNode {
         sb.push(',');
         sb.push_str("label=\"\"");
         sb.push(',');
-        sb.push_str(&format!(
-            "width={}",
-            super::utils::px_to_dot(self.width)
-        ));
+        sb.push_str(&format!("width={}", super::utils::px_to_dot(self.width)));
         sb.push(',');
-        sb.push_str(&format!(
-            "height={}",
-            super::utils::px_to_dot(self.height)
-        ));
+        sb.push_str(&format!("height={}", super::utils::px_to_dot(self.height)));
         sb.push(',');
         sb.push_str(&format!(
             "color=\"{}\"",
@@ -1054,7 +1040,8 @@ mod tests {
 
         // Verify HTML table structure
         assert!(dot.starts_with("sh0100 [shape=plaintext,label=<"));
-        assert!(dot.contains("<TABLE BORDER=\"0\" CELLBORDER=\"0\" CELLSPACING=\"0\" CELLPADDING=\"0\">"));
+        assert!(dot
+            .contains("<TABLE BORDER=\"0\" CELLBORDER=\"0\" CELLSPACING=\"0\" CELLPADDING=\"0\">"));
         // Top row: shield.y1 = 3.0
         assert!(dot.contains("HEIGHT=\"3\""));
         // Middle row: shield.x1 = 5.0, main cell, shield.x2 = 10.0

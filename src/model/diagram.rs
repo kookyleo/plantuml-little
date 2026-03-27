@@ -43,6 +43,7 @@ pub enum Direction {
 /// Grouping container (package / namespace / rectangle)
 #[derive(Debug, Clone)]
 pub struct Group {
+    pub uid: Option<String>,
     pub kind: GroupKind,
     pub name: String,
     pub entities: Vec<String>,

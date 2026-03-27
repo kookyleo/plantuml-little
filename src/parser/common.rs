@@ -104,8 +104,15 @@ pub fn detect_diagram_type(content: &str) -> DiagramHint {
     let sequence_keywords_ambiguous = ["database ", "queue "];
 
     let seq_fragment_keywords = [
-        "alt ", "else ", "loop ", "opt ", "par ", "break", "critical",
-        "ref over ", "group ",
+        "alt ",
+        "else ",
+        "loop ",
+        "opt ",
+        "par ",
+        "break",
+        "critical",
+        "ref over ",
+        "group ",
     ];
 
     let mut has_seq_actor = false;
@@ -166,17 +173,14 @@ pub fn detect_diagram_type(content: &str) -> DiagramHint {
         // Detect bracket-display opener (e.g. `component C [`, `file f [`)
         // Java compat: `rectangle [` alone → CLASS diagram (not COMPONENT).
         // Only non-rectangle bracket-display triggers definitive COMPONENT.
-        if (trimmed.ends_with(" [") || trimmed.ends_with('['))
-            && !trimmed.starts_with('[')
-        {
+        if (trimmed.ends_with(" [") || trimmed.ends_with('[')) && !trimmed.starts_with('[') {
             let before = trimmed[..trimmed.len() - 1].trim();
             if !before.is_empty() && !before.ends_with('-') && !before.ends_with('<') {
                 in_bracket_display = true;
                 // `rectangle ... [` and `file ... [` are ambiguous (Java treats as CLASS);
                 // only `component`, `node`, etc. are definitive COMPONENT indicators.
                 let lower_before = before.to_lowercase();
-                let is_class_compatible_bracket =
-                    lower_before.starts_with("rectangle ")
+                let is_class_compatible_bracket = lower_before.starts_with("rectangle ")
                     || lower_before.starts_with("file ")
                     || lower_before.starts_with("folder ")
                     || lower_before.starts_with("frame ")
@@ -286,9 +290,12 @@ pub fn detect_diagram_type(content: &str) -> DiagramHint {
         {
             has_component_keyword_definitive = true;
         }
-        if trimmed.starts_with("rectangle ") || trimmed.starts_with("package ")
-            || trimmed.starts_with("file ") || trimmed.starts_with("folder ")
-            || trimmed.starts_with("frame ") || trimmed.starts_with("card ")
+        if trimmed.starts_with("rectangle ")
+            || trimmed.starts_with("package ")
+            || trimmed.starts_with("file ")
+            || trimmed.starts_with("folder ")
+            || trimmed.starts_with("frame ")
+            || trimmed.starts_with("card ")
         {
             has_component_keyword_ambiguous = true;
         }
@@ -562,7 +569,8 @@ pub fn has_meaningful_uml_content(content: &str) -> bool {
             || trimmed.starts_with("show ")
             || trimmed.starts_with("scale ")
             || trimmed.starts_with('!')  // preprocessor directives (!pragma, !define, !include, etc.)
-            || trimmed.starts_with("sprite ")  // sprite definitions
+            || trimmed.starts_with("sprite ")
+        // sprite definitions
         {
             // For multi-line sprites, skip the SVG body
             if trimmed.starts_with("sprite ") && trimmed.contains("<svg") {

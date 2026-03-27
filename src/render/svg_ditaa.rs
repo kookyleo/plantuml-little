@@ -3,7 +3,7 @@ use std::fmt::Write;
 use crate::klimt::svg::{fmt_coord, SvgGraphic};
 use crate::layout::ditaa::{DitaaBox, DitaaLayout, DitaaLine, DitaaText};
 use crate::model::ditaa::DitaaDiagram;
-use crate::render::svg::{write_svg_root_bg, write_bg_rect, ensure_visible_int};
+use crate::render::svg::{ensure_visible_int, write_bg_rect, write_svg_root_bg};
 use crate::render::svg_richtext::{count_creole_lines, render_creole_text};
 use crate::style::SkinParams;
 use crate::Result;
@@ -90,7 +90,15 @@ fn render_box(
     sg.set_fill_color(fill);
     sg.set_stroke_color(Some(border));
     sg.set_stroke_width(1.5, None);
-    sg.svg_rectangle(ditaa_box.x, ditaa_box.y, ditaa_box.width, ditaa_box.height, radius, radius, 0.0);
+    sg.svg_rectangle(
+        ditaa_box.x,
+        ditaa_box.y,
+        ditaa_box.width,
+        ditaa_box.height,
+        radius,
+        radius,
+        0.0,
+    );
     sg.push_raw("\n");
 
     if let Some(text) = &ditaa_box.text {

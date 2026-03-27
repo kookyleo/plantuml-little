@@ -25,23 +25,38 @@ impl LinkStyle {
     // ── Factory constructors (matching Java static methods) ──
 
     pub fn normal() -> Self {
-        Self { kind: LinkStyleKind::Normal, thickness: None }
+        Self {
+            kind: LinkStyleKind::Normal,
+            thickness: None,
+        }
     }
 
     pub fn dashed() -> Self {
-        Self { kind: LinkStyleKind::Dashed, thickness: None }
+        Self {
+            kind: LinkStyleKind::Dashed,
+            thickness: None,
+        }
     }
 
     pub fn dotted() -> Self {
-        Self { kind: LinkStyleKind::Dotted, thickness: None }
+        Self {
+            kind: LinkStyleKind::Dotted,
+            thickness: None,
+        }
     }
 
     pub fn bold() -> Self {
-        Self { kind: LinkStyleKind::Bold, thickness: None }
+        Self {
+            kind: LinkStyleKind::Bold,
+            thickness: None,
+        }
     }
 
     pub fn invisible() -> Self {
-        Self { kind: LinkStyleKind::Invisible, thickness: None }
+        Self {
+            kind: LinkStyleKind::Invisible,
+            thickness: None,
+        }
     }
 
     // ── Queries ──
@@ -67,7 +82,10 @@ impl LinkStyle {
     /// Return a new `LinkStyle` with the same kind but an explicit thickness.
     /// Java: `goThickness(double)`
     pub fn go_thickness(&self, thickness: f64) -> Self {
-        Self { kind: self.kind, thickness: Some(thickness) }
+        Self {
+            kind: self.kind,
+            thickness: Some(thickness),
+        }
     }
 
     // ── Stroke conversion ──

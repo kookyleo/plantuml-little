@@ -658,7 +658,11 @@ mod tests {
                 };
                 // Should be literal \n (two chars: backslash + n)
                 assert_eq!(val, "a\\nb\\nc\\nd\\ne\\nf");
-                assert_eq!(val.split("\\n").count(), 6, "Should split into 6 parts on literal \\n");
+                assert_eq!(
+                    val.split("\\n").count(),
+                    6,
+                    "Should split into 6 parts on literal \\n"
+                );
             }
             _ => panic!("expected object"),
         }

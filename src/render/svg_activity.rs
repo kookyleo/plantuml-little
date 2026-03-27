@@ -1,12 +1,12 @@
+use crate::font_metrics;
+use crate::klimt::svg::{fmt_coord, LengthAdjust, SvgGraphic};
 use crate::layout::activity::{
     ActivityEdgeLayout, ActivityLayout, ActivityNodeKindLayout, ActivityNodeLayout,
     NotePositionLayout, SwimlaneLayout,
 };
-use crate::font_metrics;
-use crate::klimt::svg::{fmt_coord, LengthAdjust, SvgGraphic};
 use crate::model::activity::ActivityDiagram;
-use crate::render::svg::{write_svg_root_bg, write_bg_rect, ensure_visible_int};
-use crate::render::svg_richtext::{render_creole_text, render_creole_text_opts, get_sprite_svg};
+use crate::render::svg::{ensure_visible_int, write_bg_rect, write_svg_root_bg};
+use crate::render::svg_richtext::{get_sprite_svg, render_creole_text, render_creole_text_opts};
 use crate::render::svg_sprite;
 use crate::style::SkinParams;
 use crate::Result;
@@ -23,7 +23,9 @@ fn action_line_height() -> f64 {
     font_metrics::line_height("SansSerif", ACTION_FONT_SIZE, false, false)
 }
 
-use crate::skin::rose::{BORDER_COLOR, ENTITY_BG, FORK_FILL, INITIAL_FILL, NOTE_BG, NOTE_BORDER, TEXT_COLOR};
+use crate::skin::rose::{
+    BORDER_COLOR, ENTITY_BG, FORK_FILL, INITIAL_FILL, NOTE_BG, NOTE_BORDER, TEXT_COLOR,
+};
 
 // -- Public entry point -------------------------------------------------------
 
@@ -68,9 +70,15 @@ pub fn render_activity(
     for event in &diagram.events {
         match event {
             ActivityEvent::Swimlane { name } => {
-                cur_lane = diagram.swimlanes.iter().position(|n| n == name).unwrap_or(0);
+                cur_lane = diagram
+                    .swimlanes
+                    .iter()
+                    .position(|n| n == name)
+                    .unwrap_or(0);
             }
-            _ => { node_lane.push(cur_lane); }
+            _ => {
+                node_lane.push(cur_lane);
+            }
         }
     }
 
@@ -82,17 +90,29 @@ pub fn render_activity(
     let nodes_ref: &[ActivityNodeLayout];
     let edges_ref: &[ActivityEdgeLayout];
     if bo_x.abs() > 0.001 || bo_y.abs() > 0.001 {
-        shifted_nodes = layout.nodes.iter().map(|n| {
-            let mut sn = n.clone();
-            sn.x += bo_x;
-            sn.y += bo_y;
-            sn
-        }).collect();
-        shifted_edges = layout.edges.iter().map(|e| {
-            let mut se = e.clone();
-            se.points = se.points.iter().map(|&(px, py)| (px + bo_x, py + bo_y)).collect();
-            se
-        }).collect();
+        shifted_nodes = layout
+            .nodes
+            .iter()
+            .map(|n| {
+                let mut sn = n.clone();
+                sn.x += bo_x;
+                sn.y += bo_y;
+                sn
+            })
+            .collect();
+        shifted_edges = layout
+            .edges
+            .iter()
+            .map(|e| {
+                let mut se = e.clone();
+                se.points = se
+                    .points
+                    .iter()
+                    .map(|&(px, py)| (px + bo_x, py + bo_y))
+                    .collect();
+                se
+            })
+            .collect();
         nodes_ref = &shifted_nodes;
         edges_ref = &shifted_edges;
     } else {
@@ -115,7 +135,10 @@ pub fn render_activity(
         let header_top = 2019.0 / 2048.0 * 18.0;
 
         // Step 1: drawTitlesBackground — transparent header rect
-        if let (Some(first), Some(last)) = (layout.swimlane_layouts.first(), layout.swimlane_layouts.last()) {
+        if let (Some(first), Some(last)) = (
+            layout.swimlane_layouts.first(),
+            layout.swimlane_layouts.last(),
+        ) {
             sg.push_raw(&format!(
                 r#"<rect fill="none" height="{}" style="stroke:none;stroke-width:1;" width="{}" x="{}" y="{}"/>"#,
                 fmt_coord(titles_height),
@@ -128,7 +151,8 @@ pub fn render_activity(
         // Compute content bottom (max node y+h) for divider line extent.
         // Java swimlane dividers stop at the content bottom, not the SVG
         // viewport bottom (which includes margins).
-        let content_bottom = nodes_ref.iter()
+        let content_bottom = nodes_ref
+            .iter()
             .map(|n| n.y + n.height)
             .fold(0.0_f64, f64::max);
 
@@ -136,10 +160,22 @@ pub fn render_activity(
         for (lane_idx, sw) in layout.swimlane_layouts.iter().enumerate() {
             // 2a: Render nodes belonging to this lane
             for (ni, node) in nodes_ref.iter().enumerate() {
-                let nl = if ni < node_lane.len() { node_lane[ni] } else { 0 };
+                let nl = if ni < node_lane.len() {
+                    node_lane[ni]
+                } else {
+                    0
+                };
                 if nl == lane_idx {
-                    render_node(&mut sg, node, act_bg, act_border, act_font,
-                        diamond_bg, diamond_border, arrow_color);
+                    render_node(
+                        &mut sg,
+                        node,
+                        act_bg,
+                        act_border,
+                        act_font,
+                        diamond_bg,
+                        diamond_border,
+                        arrow_color,
+                    );
                 }
             }
             // 2b: Divider line (Java: y1=header_top, y2=content_bottom)
@@ -168,18 +204,34 @@ pub fn render_activity(
             let tl = font_metrics::text_width(&sw.name, "SansSerif", 18.0, false, false);
             sg.set_fill_color(swimlane_font);
             sg.svg_text(
-                &sw.name, label_x, header_text_y,
-                Some("sans-serif"), 18.0,
-                None, None, None,
-                tl, LengthAdjust::Spacing,
-                None, 0, None, // left-aligned (Java default, no text-anchor)
+                &sw.name,
+                label_x,
+                header_text_y,
+                Some("sans-serif"),
+                18.0,
+                None,
+                None,
+                None,
+                tl,
+                LengthAdjust::Spacing,
+                None,
+                0,
+                None, // left-aligned (Java default, no text-anchor)
             );
         }
     } else {
         // No swimlanes: Java draws nodes first, then edges (connections)
         for node in nodes_ref {
-            render_node(&mut sg, node, act_bg, act_border, act_font,
-                diamond_bg, diamond_border, arrow_color);
+            render_node(
+                &mut sg,
+                node,
+                act_bg,
+                act_border,
+                act_font,
+                diamond_bg,
+                diamond_border,
+                arrow_color,
+            );
         }
         for edge in edges_ref {
             render_edge(&mut sg, edge, arrow_color, act_font);
@@ -303,8 +355,7 @@ fn render_action(
     let base_x = node.x + padding;
     let baseline_offset = font_metrics::ascent("SansSerif", ACTION_FONT_SIZE, false, false);
     // Java DriverTextSvg: space width for leading-space offset
-    let space_width =
-        font_metrics::text_width(" ", "SansSerif", ACTION_FONT_SIZE, false, false);
+    let space_width = font_metrics::text_width(" ", "SansSerif", ACTION_FONT_SIZE, false, false);
 
     // Check if the content is a creole table (all lines are table rows).
     // Table rows start and end with '|' and have length > 2.
@@ -365,7 +416,10 @@ fn render_action(
         // For table rows, strip outer pipes and leading header markers (=)
         let cell_text = if is_table {
             let inner = display_text.trim_start_matches('|').trim_end_matches('|');
-            inner.trim().trim_start_matches("= ").trim_start_matches('=')
+            inner
+                .trim()
+                .trim_start_matches("= ")
+                .trim_start_matches('=')
         } else {
             display_text
         };
@@ -390,11 +444,14 @@ fn render_action(
     if is_table && !lines.is_empty() {
         let grid_left = base_x;
         // Find max text width for grid right boundary
-        let max_text_w = lines.iter().map(|l| {
-            let t = l.trim();
-            let inner = t.trim_start_matches('|').trim_end_matches('|');
-            font_metrics::text_width(inner.trim(), "SansSerif", ACTION_FONT_SIZE, false, false)
-        }).fold(0.0_f64, f64::max);
+        let max_text_w = lines
+            .iter()
+            .map(|l| {
+                let t = l.trim();
+                let inner = t.trim_start_matches('|').trim_end_matches('|');
+                font_metrics::text_width(inner.trim(), "SansSerif", ACTION_FONT_SIZE, false, false)
+            })
+            .fold(0.0_f64, f64::max);
         let grid_right = grid_left + max_text_w;
         let grid_top = node.y + padding + table_cell_padding;
         let n_rows = lines.len();
@@ -444,7 +501,10 @@ fn render_diamond(sg: &mut SvgGraphic, node: &ActivityNodeLayout, bg: &str, bord
 fn render_fork_bar(sg: &mut SvgGraphic, node: &ActivityNodeLayout) {
     sg.push_raw(&format!(
         r#"<rect fill="{FORK_FILL}" height="{}" stroke="none" width="{}" x="{}" y="{}"/>"#,
-        fmt_coord(node.height), fmt_coord(node.width), fmt_coord(node.x), fmt_coord(node.y),
+        fmt_coord(node.height),
+        fmt_coord(node.width),
+        fmt_coord(node.x),
+        fmt_coord(node.y),
     ));
 }
 
@@ -526,7 +586,12 @@ fn render_note(sg: &mut SvgGraphic, node: &ActivityNodeLayout, _position: &NoteP
 
 // -- Edge rendering -----------------------------------------------------------
 
-fn render_edge(sg: &mut SvgGraphic, edge: &ActivityEdgeLayout, arrow_color: &str, text_color: &str) {
+fn render_edge(
+    sg: &mut SvgGraphic,
+    edge: &ActivityEdgeLayout,
+    arrow_color: &str,
+    text_color: &str,
+) {
     if edge.points.is_empty() {
         return;
     }
@@ -563,11 +628,19 @@ fn render_edge(sg: &mut SvgGraphic, edge: &ActivityEdgeLayout, arrow_color: &str
         let tl = font_metrics::text_width(&edge.label, "SansSerif", ACTION_FONT_SIZE, false, false);
         sg.set_fill_color(text_color);
         sg.svg_text(
-            &edge.label, mx, my,
-            Some("sans-serif"), ACTION_FONT_SIZE,
-            None, None, None,
-            tl, LengthAdjust::Spacing,
-            None, 0, Some("middle"),
+            &edge.label,
+            mx,
+            my,
+            Some("sans-serif"),
+            ACTION_FONT_SIZE,
+            None,
+            None,
+            None,
+            tl,
+            LengthAdjust::Spacing,
+            None,
+            0,
+            Some("middle"),
         );
     }
 }
@@ -617,11 +690,19 @@ fn render_swimlane(
     let tl = font_metrics::text_width(&sw.name, "SansSerif", 18.0, false, false);
     sg.set_fill_color(font_color);
     sg.svg_text(
-        &sw.name, label_x, 16.0,
-        Some("sans-serif"), 18.0,
-        None, None, None,
-        tl, LengthAdjust::Spacing,
-        None, 0, Some("middle"),
+        &sw.name,
+        label_x,
+        16.0,
+        Some("sans-serif"),
+        18.0,
+        None,
+        None,
+        None,
+        tl,
+        LengthAdjust::Spacing,
+        None,
+        0,
+        Some("middle"),
     );
 }
 
@@ -638,22 +719,50 @@ mod tests {
     use crate::style::SkinParams;
 
     fn empty_diagram() -> ActivityDiagram {
-        ActivityDiagram { events: vec![], swimlanes: vec![], direction: Default::default(), note_max_width: None }
+        ActivityDiagram {
+            events: vec![],
+            swimlanes: vec![],
+            direction: Default::default(),
+            note_max_width: None,
+        }
     }
 
     fn empty_layout() -> ActivityLayout {
-        ActivityLayout { width: 200.0, height: 100.0, nodes: vec![], edges: vec![], swimlane_layouts: vec![] }
+        ActivityLayout {
+            width: 200.0,
+            height: 100.0,
+            nodes: vec![],
+            edges: vec![],
+            swimlane_layouts: vec![],
+        }
     }
 
-    fn make_node(index: usize, kind: ActivityNodeKindLayout, x: f64, y: f64, w: f64, h: f64, text: &str) -> ActivityNodeLayout {
-        ActivityNodeLayout { index, kind, x, y, width: w, height: h, text: text.to_string() }
+    fn make_node(
+        index: usize,
+        kind: ActivityNodeKindLayout,
+        x: f64,
+        y: f64,
+        w: f64,
+        h: f64,
+        text: &str,
+    ) -> ActivityNodeLayout {
+        ActivityNodeLayout {
+            index,
+            kind,
+            x,
+            y,
+            width: w,
+            height: h,
+            text: text.to_string(),
+        }
     }
 
     #[test]
     fn test_empty_diagram() {
         let diagram = empty_diagram();
         let layout = empty_layout();
-        let (svg, _raw_dim) = render_activity(&diagram, &layout, &SkinParams::default(), None).expect("render failed");
+        let (svg, _raw_dim) = render_activity(&diagram, &layout, &SkinParams::default(), None)
+            .expect("render failed");
         assert!(svg.contains("<svg"));
         assert!(svg.contains("</svg>"));
         assert!(svg.contains("xmlns=\"http://www.w3.org/2000/svg\""));
@@ -667,62 +776,157 @@ mod tests {
     fn test_start_ellipse() {
         let diagram = empty_diagram();
         let mut layout = empty_layout();
-        layout.nodes.push(make_node(0, ActivityNodeKindLayout::Start, 90.0, 10.0, 20.0, 20.0, ""));
-        let (svg, _raw_dim) = render_activity(&diagram, &layout, &SkinParams::default(), None).expect("render failed");
+        layout.nodes.push(make_node(
+            0,
+            ActivityNodeKindLayout::Start,
+            90.0,
+            10.0,
+            20.0,
+            20.0,
+            "",
+        ));
+        let (svg, _raw_dim) = render_activity(&diagram, &layout, &SkinParams::default(), None)
+            .expect("render failed");
         assert!(svg.contains(r#"rx="10""#), "start ellipse must have rx=10");
         assert!(svg.contains(r#"ry="10""#), "start ellipse must have ry=10");
-        assert!(svg.contains(&format!(r#"fill="{INITIAL_FILL}""#)), "start ellipse must be filled");
-        assert_eq!(svg.matches("<ellipse").count(), 1, "start node must produce exactly one ellipse");
+        assert!(
+            svg.contains(&format!(r#"fill="{INITIAL_FILL}""#)),
+            "start ellipse must be filled"
+        );
+        assert_eq!(
+            svg.matches("<ellipse").count(),
+            1,
+            "start node must produce exactly one ellipse"
+        );
     }
 
     #[test]
     fn test_stop_ellipse() {
         let diagram = empty_diagram();
         let mut layout = empty_layout();
-        layout.nodes.push(make_node(0, ActivityNodeKindLayout::Stop, 90.0, 80.0, 22.0, 22.0, ""));
-        let (svg, _raw_dim) = render_activity(&diagram, &layout, &SkinParams::default(), None).expect("render failed");
-        assert_eq!(svg.matches("<ellipse").count(), 2, "stop node must produce two ellipses");
-        assert!(svg.contains(r#"rx="11""#), "stop outer ring must have rx=11");
-        assert!(svg.contains(r#"rx="6""#), "stop inner ellipse must have rx=6");
-        assert!(svg.contains(r#"stroke-width:1;"#), "ellipses must have stroke-width=1");
+        layout.nodes.push(make_node(
+            0,
+            ActivityNodeKindLayout::Stop,
+            90.0,
+            80.0,
+            22.0,
+            22.0,
+            "",
+        ));
+        let (svg, _raw_dim) = render_activity(&diagram, &layout, &SkinParams::default(), None)
+            .expect("render failed");
+        assert_eq!(
+            svg.matches("<ellipse").count(),
+            2,
+            "stop node must produce two ellipses"
+        );
+        assert!(
+            svg.contains(r#"rx="11""#),
+            "stop outer ring must have rx=11"
+        );
+        assert!(
+            svg.contains(r#"rx="6""#),
+            "stop inner ellipse must have rx=6"
+        );
+        assert!(
+            svg.contains(r#"stroke-width:1;"#),
+            "ellipses must have stroke-width=1"
+        );
     }
 
     #[test]
     fn test_action_box() {
         let diagram = empty_diagram();
         let mut layout = empty_layout();
-        layout.nodes.push(make_node(0, ActivityNodeKindLayout::Action, 30.0, 40.0, 140.0, 36.0, "Do something"));
-        let (svg, _raw_dim) = render_activity(&diagram, &layout, &SkinParams::default(), None).expect("render failed");
-        assert!(svg.contains(r#"rx="12.5""#), "action must have rounded corners rx=12.5");
-        assert!(svg.contains(r#"ry="12.5""#), "action must have rounded corners ry=12.5");
-        assert!(svg.contains(r#"stroke-width:0.5;"#), "action border must be stroke-width 0.5");
-        assert!(svg.contains(r##"fill="#F1F1F1""##), "action must use default theme activity_bg fill");
-        assert!(svg.contains("Do something"), "action text must appear in SVG");
+        layout.nodes.push(make_node(
+            0,
+            ActivityNodeKindLayout::Action,
+            30.0,
+            40.0,
+            140.0,
+            36.0,
+            "Do something",
+        ));
+        let (svg, _raw_dim) = render_activity(&diagram, &layout, &SkinParams::default(), None)
+            .expect("render failed");
+        assert!(
+            svg.contains(r#"rx="12.5""#),
+            "action must have rounded corners rx=12.5"
+        );
+        assert!(
+            svg.contains(r#"ry="12.5""#),
+            "action must have rounded corners ry=12.5"
+        );
+        assert!(
+            svg.contains(r#"stroke-width:0.5;"#),
+            "action border must be stroke-width 0.5"
+        );
+        assert!(
+            svg.contains(r##"fill="#F1F1F1""##),
+            "action must use default theme activity_bg fill"
+        );
+        assert!(
+            svg.contains("Do something"),
+            "action text must appear in SVG"
+        );
         // Java: text is manually centered (no text-anchor attribute)
-        assert!(svg.contains("Do something"), "action text must be centered in box");
+        assert!(
+            svg.contains("Do something"),
+            "action text must be centered in box"
+        );
     }
 
     #[test]
     fn test_action_multiline_text() {
         let diagram = empty_diagram();
         let mut layout = empty_layout();
-        layout.nodes.push(make_node(0, ActivityNodeKindLayout::Action, 30.0, 40.0, 160.0, 52.0, "Line one\nLine two"));
-        let (svg, _raw_dim) = render_activity(&diagram, &layout, &SkinParams::default(), None).expect("render failed");
+        layout.nodes.push(make_node(
+            0,
+            ActivityNodeKindLayout::Action,
+            30.0,
+            40.0,
+            160.0,
+            52.0,
+            "Line one\nLine two",
+        ));
+        let (svg, _raw_dim) = render_activity(&diagram, &layout, &SkinParams::default(), None)
+            .expect("render failed");
         // Java: each line is a separate <text> element
         assert!(svg.contains("Line one"), "first line must appear");
         assert!(svg.contains("Line two"), "second line must appear");
-        assert!(svg.matches("font-size=\"12\"").count() >= 2, "two lines must produce two <text> elements");
+        assert!(
+            svg.matches("font-size=\"12\"").count() >= 2,
+            "two lines must produce two <text> elements"
+        );
     }
 
     #[test]
     fn test_diamond_node() {
         let diagram = empty_diagram();
         let mut layout = empty_layout();
-        layout.nodes.push(make_node(0, ActivityNodeKindLayout::Diamond, 60.0, 50.0, 40.0, 40.0, ""));
-        let (svg, _raw_dim) = render_activity(&diagram, &layout, &SkinParams::default(), None).expect("render failed");
-        assert!(svg.contains("<polygon"), "diamond must be rendered as polygon");
-        assert!(svg.contains(r##"fill="#F1F1F1""##), "diamond must use ENTITY_BG");
-        assert!(svg.contains("stroke:#181818"), "diamond must use BORDER_COLOR");
+        layout.nodes.push(make_node(
+            0,
+            ActivityNodeKindLayout::Diamond,
+            60.0,
+            50.0,
+            40.0,
+            40.0,
+            "",
+        ));
+        let (svg, _raw_dim) = render_activity(&diagram, &layout, &SkinParams::default(), None)
+            .expect("render failed");
+        assert!(
+            svg.contains("<polygon"),
+            "diamond must be rendered as polygon"
+        );
+        assert!(
+            svg.contains(r##"fill="#F1F1F1""##),
+            "diamond must use ENTITY_BG"
+        );
+        assert!(
+            svg.contains("stroke:#181818"),
+            "diamond must use BORDER_COLOR"
+        );
         assert!(svg.contains("80,50"), "diamond top vertex");
         assert!(svg.contains("100,70"), "diamond right vertex");
         assert!(svg.contains("80,90"), "diamond bottom vertex");
@@ -733,22 +937,54 @@ mod tests {
     fn test_fork_bar() {
         let diagram = empty_diagram();
         let mut layout = empty_layout();
-        layout.nodes.push(make_node(0, ActivityNodeKindLayout::ForkBar, 40.0, 60.0, 120.0, 6.0, ""));
-        let (svg, _raw_dim) = render_activity(&diagram, &layout, &SkinParams::default(), None).expect("render failed");
-        assert!(svg.contains(&format!(r#"fill="{FORK_FILL}""#)), "fork bar must be black filled");
-        assert!(svg.contains(r#"stroke="none""#), "fork bar must have no stroke");
+        layout.nodes.push(make_node(
+            0,
+            ActivityNodeKindLayout::ForkBar,
+            40.0,
+            60.0,
+            120.0,
+            6.0,
+            "",
+        ));
+        let (svg, _raw_dim) = render_activity(&diagram, &layout, &SkinParams::default(), None)
+            .expect("render failed");
+        assert!(
+            svg.contains(&format!(r#"fill="{FORK_FILL}""#)),
+            "fork bar must be black filled"
+        );
+        assert!(
+            svg.contains(r#"stroke="none""#),
+            "fork bar must have no stroke"
+        );
     }
 
     #[test]
     fn test_note_node() {
         let diagram = empty_diagram();
         let mut layout = empty_layout();
-        layout.nodes.push(make_node(0, ActivityNodeKindLayout::Note { position: NotePositionLayout::Right }, 10.0, 20.0, 100.0, 40.0, "Remember this"));
-        let (svg, _raw_dim) = render_activity(&diagram, &layout, &SkinParams::default(), None).expect("render failed");
-        assert!(svg.contains(&format!(r#"fill="{NOTE_BG}""#)), "note must use yellow background");
+        layout.nodes.push(make_node(
+            0,
+            ActivityNodeKindLayout::Note {
+                position: NotePositionLayout::Right,
+            },
+            10.0,
+            20.0,
+            100.0,
+            40.0,
+            "Remember this",
+        ));
+        let (svg, _raw_dim) = render_activity(&diagram, &layout, &SkinParams::default(), None)
+            .expect("render failed");
+        assert!(
+            svg.contains(&format!(r#"fill="{NOTE_BG}""#)),
+            "note must use yellow background"
+        );
         assert!(svg.contains("Remember this"), "note text must appear");
         assert!(svg.contains("<path"), "note must use <path> elements");
-        assert!(svg.contains("stroke-width:0.5;"), "note must have stroke-width 0.5");
+        assert!(
+            svg.contains("stroke-width:0.5;"),
+            "note must have stroke-width 0.5"
+        );
     }
 
     #[test]
@@ -756,14 +992,23 @@ mod tests {
         let diagram = empty_diagram();
         let mut layout = empty_layout();
         layout.edges.push(ActivityEdgeLayout {
-            from_index: 0, to_index: 1, label: String::new(),
+            from_index: 0,
+            to_index: 1,
+            label: String::new(),
             points: vec![(100.0, 30.0), (100.0, 80.0)],
         });
-        let (svg, _raw_dim) = render_activity(&diagram, &layout, &SkinParams::default(), None).expect("render failed");
-        assert!(svg.contains("<polygon"), "edge must have inline polygon arrowhead");
+        let (svg, _raw_dim) = render_activity(&diagram, &layout, &SkinParams::default(), None)
+            .expect("render failed");
+        assert!(
+            svg.contains("<polygon"),
+            "edge must have inline polygon arrowhead"
+        );
         assert!(svg.contains("stroke:#181818"), "edge must use BORDER_COLOR");
         assert!(svg.contains("<line "), "2-point edge must use <line>");
-        assert!(!svg.contains("marker-end"), "edges must use inline polygon, not marker-end");
+        assert!(
+            !svg.contains("marker-end"),
+            "edges must use inline polygon, not marker-end"
+        );
     }
 
     #[test]
@@ -771,10 +1016,13 @@ mod tests {
         let diagram = empty_diagram();
         let mut layout = empty_layout();
         layout.edges.push(ActivityEdgeLayout {
-            from_index: 0, to_index: 1, label: "yes".to_string(),
+            from_index: 0,
+            to_index: 1,
+            label: "yes".to_string(),
             points: vec![(100.0, 30.0), (100.0, 80.0)],
         });
-        let (svg, _raw_dim) = render_activity(&diagram, &layout, &SkinParams::default(), None).expect("render failed");
+        let (svg, _raw_dim) = render_activity(&diagram, &layout, &SkinParams::default(), None)
+            .expect("render failed");
         assert!(svg.contains("yes"), "edge label must appear in SVG");
     }
 
@@ -783,13 +1031,22 @@ mod tests {
         let diagram = empty_diagram();
         let mut layout = empty_layout();
         layout.edges.push(ActivityEdgeLayout {
-            from_index: 0, to_index: 1, label: String::new(),
+            from_index: 0,
+            to_index: 1,
+            label: String::new(),
             points: vec![(50.0, 20.0), (50.0, 50.0), (100.0, 50.0), (100.0, 80.0)],
         });
-        let (svg, _raw_dim) = render_activity(&diagram, &layout, &SkinParams::default(), None).expect("render failed");
+        let (svg, _raw_dim) = render_activity(&diagram, &layout, &SkinParams::default(), None)
+            .expect("render failed");
         let line_count = svg.matches("<line ").count();
-        assert!(line_count >= 3, "4-point edge must produce at least 3 line segments, got {line_count}");
-        assert!(svg.contains("<polygon"), "multi-segment edge must have inline polygon arrowhead");
+        assert!(
+            line_count >= 3,
+            "4-point edge must produce at least 3 line segments, got {line_count}"
+        );
+        assert!(
+            svg.contains("<polygon"),
+            "multi-segment edge must have inline polygon arrowhead"
+        );
     }
 
     #[test]
@@ -798,34 +1055,77 @@ mod tests {
         let mut layout = empty_layout();
         layout.width = 400.0;
         layout.height = 300.0;
-        layout.swimlane_layouts.push(SwimlaneLayout { name: "Lane A".to_string(), x: 0.0, width: 200.0 });
-        layout.swimlane_layouts.push(SwimlaneLayout { name: "Lane B".to_string(), x: 200.0, width: 200.0 });
-        let (svg, _raw_dim) = render_activity(&diagram, &layout, &SkinParams::default(), None).expect("render failed");
+        layout.swimlane_layouts.push(SwimlaneLayout {
+            name: "Lane A".to_string(),
+            x: 0.0,
+            width: 200.0,
+        });
+        layout.swimlane_layouts.push(SwimlaneLayout {
+            name: "Lane B".to_string(),
+            x: 200.0,
+            width: 200.0,
+        });
+        let (svg, _raw_dim) = render_activity(&diagram, &layout, &SkinParams::default(), None)
+            .expect("render failed");
         assert!(svg.contains("Lane A"), "swimlane A header must appear");
         assert!(svg.contains("Lane B"), "swimlane B header must appear");
-        assert!(svg.contains("stroke:#000000"), "swimlane must have #000000 border");
-        assert!(svg.contains("stroke-width:1.5;"), "swimlane lines must have stroke-width 1.5");
+        assert!(
+            svg.contains("stroke:#000000"),
+            "swimlane must have #000000 border"
+        );
+        assert!(
+            svg.contains("stroke-width:1.5;"),
+            "swimlane lines must have stroke-width 1.5"
+        );
         // Divider lines extend to content bottom (max node y+h), which is 0
         // for an empty layout.  Just verify they exist.
-        assert!(svg.contains("y2="), "swimlane dividers must have y2 attribute");
+        assert!(
+            svg.contains("y2="),
+            "swimlane dividers must have y2 attribute"
+        );
     }
 
     #[test]
     fn test_xml_escape_in_action() {
         let diagram = empty_diagram();
         let mut layout = empty_layout();
-        layout.nodes.push(make_node(0, ActivityNodeKindLayout::Action, 10.0, 10.0, 160.0, 36.0, "A & B < C"));
-        let (svg, _raw_dim) = render_activity(&diagram, &layout, &SkinParams::default(), None).expect("render failed");
-        assert!(svg.contains("A &amp; B &lt; C"), "special characters must be XML-escaped");
+        layout.nodes.push(make_node(
+            0,
+            ActivityNodeKindLayout::Action,
+            10.0,
+            10.0,
+            160.0,
+            36.0,
+            "A & B < C",
+        ));
+        let (svg, _raw_dim) = render_activity(&diagram, &layout, &SkinParams::default(), None)
+            .expect("render failed");
+        assert!(
+            svg.contains("A &amp; B &lt; C"),
+            "special characters must be XML-escaped"
+        );
     }
 
     #[test]
     fn test_end_node_same_as_stop() {
         let diagram = empty_diagram();
         let mut layout = empty_layout();
-        layout.nodes.push(make_node(0, ActivityNodeKindLayout::End, 90.0, 80.0, 22.0, 22.0, ""));
-        let (svg, _raw_dim) = render_activity(&diagram, &layout, &SkinParams::default(), None).expect("render failed");
-        assert_eq!(svg.matches("<ellipse").count(), 2, "End node must produce two ellipses like Stop");
+        layout.nodes.push(make_node(
+            0,
+            ActivityNodeKindLayout::End,
+            90.0,
+            80.0,
+            22.0,
+            22.0,
+            "",
+        ));
+        let (svg, _raw_dim) = render_activity(&diagram, &layout, &SkinParams::default(), None)
+            .expect("render failed");
+        assert_eq!(
+            svg.matches("<ellipse").count(),
+            2,
+            "End node must produce two ellipses like Stop"
+        );
     }
 
     #[test]
@@ -834,11 +1134,26 @@ mod tests {
         let mut layout = empty_layout();
         layout.width = 400.0;
         layout.height = 300.0;
-        layout.swimlane_layouts.push(SwimlaneLayout { name: "Lane X".to_string(), x: 0.0, width: 200.0 });
-        layout.swimlane_layouts.push(SwimlaneLayout { name: "Lane Y".to_string(), x: 200.0, width: 200.0 });
-        let (svg, _raw_dim) = render_activity(&diagram, &layout, &SkinParams::default(), None).expect("render failed");
-        assert!(svg.contains(r#"font-size="18""#), "swimlane headers must use font-size 18");
-        assert!(svg.contains(r#"x1="400""#), "right border of last swimlane must be present");
+        layout.swimlane_layouts.push(SwimlaneLayout {
+            name: "Lane X".to_string(),
+            x: 0.0,
+            width: 200.0,
+        });
+        layout.swimlane_layouts.push(SwimlaneLayout {
+            name: "Lane Y".to_string(),
+            x: 200.0,
+            width: 200.0,
+        });
+        let (svg, _raw_dim) = render_activity(&diagram, &layout, &SkinParams::default(), None)
+            .expect("render failed");
+        assert!(
+            svg.contains(r#"font-size="18""#),
+            "swimlane headers must use font-size 18"
+        );
+        assert!(
+            svg.contains(r#"x1="400""#),
+            "right border of last swimlane must be present"
+        );
     }
 
     #[test]
@@ -848,22 +1163,46 @@ mod tests {
         layout.width = 400.0;
         layout.height = 300.0;
         layout.edges.push(ActivityEdgeLayout {
-            from_index: 0, to_index: 1, label: String::new(),
+            from_index: 0,
+            to_index: 1,
+            label: String::new(),
             points: vec![(100.0, 50.0), (100.0, 80.0), (300.0, 80.0), (300.0, 110.0)],
         });
-        let (svg, _raw_dim) = render_activity(&diagram, &layout, &SkinParams::default(), None).expect("render failed");
+        let (svg, _raw_dim) = render_activity(&diagram, &layout, &SkinParams::default(), None)
+            .expect("render failed");
         let line_count = svg.matches("<line ").count();
-        assert!(line_count >= 3, "4-point cross-lane edge must produce at least 3 line segments");
-        assert!(svg.contains("<polygon"), "cross-lane edge must have inline polygon arrowhead");
+        assert!(
+            line_count >= 3,
+            "4-point cross-lane edge must produce at least 3 line segments"
+        );
+        assert!(
+            svg.contains("<polygon"),
+            "cross-lane edge must have inline polygon arrowhead"
+        );
     }
 
     #[test]
     fn test_fmt_coord_in_output() {
         let diagram = empty_diagram();
         let mut layout = empty_layout();
-        layout.nodes.push(make_node(0, ActivityNodeKindLayout::Start, 90.0, 10.0, 20.0, 20.0, ""));
-        let (svg, _raw_dim) = render_activity(&diagram, &layout, &SkinParams::default(), None).expect("render failed");
-        assert!(svg.contains(r#"cx="100""#), "fmt_coord must strip trailing .0");
-        assert!(svg.contains(r#"cy="20""#), "fmt_coord must strip trailing .0");
+        layout.nodes.push(make_node(
+            0,
+            ActivityNodeKindLayout::Start,
+            90.0,
+            10.0,
+            20.0,
+            20.0,
+            "",
+        ));
+        let (svg, _raw_dim) = render_activity(&diagram, &layout, &SkinParams::default(), None)
+            .expect("render failed");
+        assert!(
+            svg.contains(r#"cx="100""#),
+            "fmt_coord must strip trailing .0"
+        );
+        assert!(
+            svg.contains(r#"cy="20""#),
+            "fmt_coord must strip trailing .0"
+        );
     }
 }

@@ -5,8 +5,8 @@
 // edges that need to avoid obstacles get routed through
 // horizontal/vertical segments with smooth S-curve transitions.
 
-use crate::klimt::geom::XPoint2D;
 use super::Point2DFunction;
+use crate::klimt::geom::XPoint2D;
 
 /// Y-axis offset function. Java: `svek.YDelta`
 #[derive(Debug, Clone)]
@@ -15,7 +15,9 @@ pub struct YDelta {
 }
 
 impl YDelta {
-    pub fn new(delta: f64) -> Self { Self { delta } }
+    pub fn new(delta: f64) -> Self {
+        Self { delta }
+    }
 }
 
 impl Point2DFunction for YDelta {
@@ -31,7 +33,9 @@ pub struct Oscillator {
 }
 
 impl Oscillator {
-    pub fn new() -> Self { Self { values: Vec::new() } }
+    pub fn new() -> Self {
+        Self { values: Vec::new() }
+    }
 
     pub fn add_value(&mut self, v: f64) {
         self.values.push(v);

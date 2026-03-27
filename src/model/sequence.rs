@@ -39,7 +39,7 @@ pub enum SeqArrowStyle {
 #[derive(Debug, Clone, PartialEq, Default)]
 pub enum SeqArrowHead {
     #[default]
-    Filled,     // > or / or \ — filled triangle or half-arrow
+    Filled, // > or / or \ — filled triangle or half-arrow
     Open,       // >> or << — open V-shaped head (2 lines)
     HalfTop,    // // — open half-arrow, upper line only
     HalfBottom, // \\ — open half-arrow, lower line only

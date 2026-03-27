@@ -23,9 +23,6 @@ use crate::layout::sequence::SeqLayout;
 ///
 /// Converts a parsed SequenceDiagram into a SeqLayout using the tile-based
 /// constraint propagation approach (matching Java's Teoz engine).
-pub fn layout_sequence_teoz(
-	sd: &SequenceDiagram,
-	skin: &SkinParams,
-) -> Result<SeqLayout> {
-	builder::build_teoz_layout(sd, skin)
+pub fn layout_sequence_teoz(sd: &SequenceDiagram, skin: &SkinParams) -> Result<SeqLayout> {
+    builder::build_teoz_layout(sd, skin)
 }

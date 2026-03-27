@@ -113,7 +113,11 @@ struct BoxSpec {
 
 fn build_box_spec(value: &JsonValue, specs: &mut Vec<BoxSpec>) -> usize {
     let idx = specs.len();
-    specs.push(BoxSpec { rows: vec![], max_key_w: 0.0, max_val_w: 0.0 });
+    specs.push(BoxSpec {
+        rows: vec![],
+        max_key_w: 0.0,
+        max_val_w: 0.0,
+    });
 
     match value {
         JsonValue::Object(entries) => {
@@ -125,17 +129,28 @@ fn build_box_spec(value: &JsonValue, specs: &mut Vec<BoxSpec>) -> usize {
                     let placeholder = "\u{00A0}\u{00A0}\u{00A0}";
                     specs[idx].max_val_w = specs[idx].max_val_w.max(text_w(placeholder, false));
                     specs[idx].rows.push(BoxRowSpec {
-                        key: Some(key.clone()), value_lines: vec![placeholder.to_string()],
-                        has_child: true, child_spec_idx: Some(child_idx),
+                        key: Some(key.clone()),
+                        value_lines: vec![placeholder.to_string()],
+                        has_child: true,
+                        child_spec_idx: Some(child_idx),
                     });
                 } else {
                     let (display, lines) = format_leaf_value(val);
-                    for line in &lines { specs[idx].max_val_w = specs[idx].max_val_w.max(text_w(line, false)); }
-                    if lines.is_empty() { specs[idx].max_val_w = specs[idx].max_val_w.max(text_w(&display, false)); }
+                    for line in &lines {
+                        specs[idx].max_val_w = specs[idx].max_val_w.max(text_w(line, false));
+                    }
+                    if lines.is_empty() {
+                        specs[idx].max_val_w = specs[idx].max_val_w.max(text_w(&display, false));
+                    }
                     specs[idx].rows.push(BoxRowSpec {
                         key: Some(key.clone()),
-                        value_lines: if lines.is_empty() { vec![display] } else { lines },
-                        has_child: false, child_spec_idx: None,
+                        value_lines: if lines.is_empty() {
+                            vec![display]
+                        } else {
+                            lines
+                        },
+                        has_child: false,
+                        child_spec_idx: None,
                     });
                 }
             }
@@ -147,15 +162,19 @@ fn build_box_spec(value: &JsonValue, specs: &mut Vec<BoxSpec>) -> usize {
                     let placeholder = "\u{00A0}\u{00A0}\u{00A0}";
                     specs[idx].max_val_w = specs[idx].max_val_w.max(text_w(placeholder, false));
                     specs[idx].rows.push(BoxRowSpec {
-                        key: None, value_lines: vec![placeholder.to_string()],
-                        has_child: true, child_spec_idx: Some(child_idx),
+                        key: None,
+                        value_lines: vec![placeholder.to_string()],
+                        has_child: true,
+                        child_spec_idx: Some(child_idx),
                     });
                 } else {
                     let (display, _) = format_leaf_value(item);
                     specs[idx].max_val_w = specs[idx].max_val_w.max(text_w(&display, false));
                     specs[idx].rows.push(BoxRowSpec {
-                        key: None, value_lines: vec![display],
-                        has_child: false, child_spec_idx: None,
+                        key: None,
+                        value_lines: vec![display],
+                        has_child: false,
+                        child_spec_idx: None,
                     });
                 }
             }
@@ -164,8 +183,10 @@ fn build_box_spec(value: &JsonValue, specs: &mut Vec<BoxSpec>) -> usize {
             let (display, _) = format_leaf_value(value);
             specs[idx].max_val_w = specs[idx].max_val_w.max(text_w(&display, false));
             specs[idx].rows.push(BoxRowSpec {
-                key: None, value_lines: vec![display],
-                has_child: false, child_spec_idx: None,
+                key: None,
+                value_lines: vec![display],
+                has_child: false,
+                child_spec_idx: None,
             });
         }
     }
@@ -178,14 +199,23 @@ fn format_leaf_value(val: &JsonValue) -> (String, Vec<String>) {
         JsonValue::Bool(false) => ("\u{2610} false".to_string(), vec![]),
         JsonValue::Null => ("null".to_string(), vec![]),
         JsonValue::Number(n) => {
-            if *n == (*n as i64) as f64 && n.is_finite() { (format!("{}", *n as i64), vec![]) }
-            else { (format!("{n}"), vec![]) }
+            if *n == (*n as i64) as f64 && n.is_finite() {
+                (format!("{}", *n as i64), vec![])
+            } else {
+                (format!("{n}"), vec![])
+            }
         }
         JsonValue::Str(s) => {
             if s.contains("\\n") || s.contains(crate::NEWLINE_CHAR) {
-                let lines: Vec<String> = s.split("\\n").flat_map(|l| l.split(crate::NEWLINE_CHAR)).map(|l| l.to_string()).collect();
+                let lines: Vec<String> = s
+                    .split("\\n")
+                    .flat_map(|l| l.split(crate::NEWLINE_CHAR))
+                    .map(|l| l.to_string())
+                    .collect();
                 (s.clone(), lines)
-            } else { (s.clone(), vec![]) }
+            } else {
+                (s.clone(), vec![])
+            }
         }
         _ => (val.display_value(), vec![]),
     }
@@ -195,15 +225,24 @@ fn row_spec_height(row: &BoxRowSpec) -> f64 {
     let rh = row_height();
     let lh = line_height();
     let n = row.value_lines.len().max(1);
-    if n <= 1 { rh } else { baseline_offset() + (n as f64 - 1.0) * lh + (rh - baseline_offset()) }
+    if n <= 1 {
+        rh
+    } else {
+        baseline_offset() + (n as f64 - 1.0) * lh + (rh - baseline_offset())
+    }
 }
 
-fn box_spec_height(spec: &BoxSpec) -> f64 { spec.rows.iter().map(row_spec_height).sum() }
+fn box_spec_height(spec: &BoxSpec) -> f64 {
+    spec.rows.iter().map(row_spec_height).sum()
+}
 
 fn box_spec_width(spec: &BoxSpec) -> f64 {
     let has_keys = spec.rows.iter().any(|r| r.key.is_some());
-    if has_keys { PADDING + spec.max_key_w + PADDING + PADDING + spec.max_val_w + PADDING }
-    else { PADDING + spec.max_val_w + PADDING }
+    if has_keys {
+        PADDING + spec.max_key_w + PADDING + PADDING + spec.max_val_w + PADDING
+    } else {
+        PADDING + spec.max_val_w + PADDING
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -211,24 +250,43 @@ fn box_spec_width(spec: &BoxSpec) -> f64 {
 // ---------------------------------------------------------------------------
 
 fn position_boxes(
-    spec_idx: usize, specs: &[BoxSpec], x: f64, y: f64,
-    boxes: &mut Vec<JsonBox>, arrows: &mut Vec<JsonArrow>,
+    spec_idx: usize,
+    specs: &[BoxSpec],
+    x: f64,
+    y: f64,
+    boxes: &mut Vec<JsonBox>,
+    arrows: &mut Vec<JsonArrow>,
 ) -> (f64, f64) {
     let spec = &specs[spec_idx];
     let box_w = box_spec_width(spec);
     let box_h = box_spec_height(spec);
     let has_keys = spec.rows.iter().any(|r| r.key.is_some());
-    let sep_x = if has_keys { x + PADDING + spec.max_key_w + PADDING } else { x };
+    let sep_x = if has_keys {
+        x + PADDING + spec.max_key_w + PADDING
+    } else {
+        x
+    };
 
     let box_idx = boxes.len();
-    let mut jbox = JsonBox { x, y, width: box_w, height: box_h, rows: vec![], separator_x: sep_x };
+    let mut jbox = JsonBox {
+        x,
+        y,
+        width: box_w,
+        height: box_h,
+        rows: vec![],
+        separator_x: sep_x,
+    };
 
     let mut row_y = y;
     for row_spec in &spec.rows {
         let rh = row_spec_height(row_spec);
         jbox.rows.push(JsonBoxRow {
-            key: row_spec.key.clone(), value_lines: row_spec.value_lines.clone(),
-            has_child: row_spec.has_child, child_box_idx: None, y_top: row_y, height: rh,
+            key: row_spec.key.clone(),
+            value_lines: row_spec.value_lines.clone(),
+            has_child: row_spec.has_child,
+            child_box_idx: None,
+            y_top: row_y,
+            height: rh,
         });
         row_y += rh;
     }
@@ -251,7 +309,12 @@ fn position_boxes(
 
             let child_box = &boxes[boxes.len() - count_subtree_boxes(child_spec_idx, specs)];
             let child_center_y = child_box.y + child_box.height / 2.0;
-            arrows.push(JsonArrow { from_x: x + box_w, from_y: row_center_y, to_x: child_x, to_y: child_center_y });
+            arrows.push(JsonArrow {
+                from_x: x + box_w,
+                from_y: row_center_y,
+                to_x: child_x,
+                to_y: child_center_y,
+            });
 
             max_right = max_right.max(cr);
             max_bottom = max_bottom.max(cb);
@@ -265,7 +328,9 @@ fn position_boxes(
 fn count_subtree_boxes(spec_idx: usize, specs: &[BoxSpec]) -> usize {
     let mut count = 1;
     for row in &specs[spec_idx].rows {
-        if let Some(ci) = row.child_spec_idx { count += count_subtree_boxes(ci, specs); }
+        if let Some(ci) = row.child_spec_idx {
+            count += count_subtree_boxes(ci, specs);
+        }
     }
     count
 }
@@ -283,14 +348,24 @@ pub fn layout_json(jd: &JsonDiagram) -> Result<JsonLayout> {
         let h = row_height() + 2.0 * MARGIN;
         return Ok(JsonLayout {
             boxes: vec![JsonBox {
-                x: MARGIN, y: MARGIN, width: w - 2.0 * MARGIN, height: h - 2.0 * MARGIN,
+                x: MARGIN,
+                y: MARGIN,
+                width: w - 2.0 * MARGIN,
+                height: h - 2.0 * MARGIN,
                 rows: vec![JsonBoxRow {
-                    key: None, value_lines: vec![display], has_child: false,
-                    child_box_idx: None, y_top: MARGIN, height: row_height(),
+                    key: None,
+                    value_lines: vec![display],
+                    has_child: false,
+                    child_box_idx: None,
+                    y_top: MARGIN,
+                    height: row_height(),
                 }],
                 separator_x: MARGIN,
             }],
-            arrows: vec![], width: w, height: h, rows: vec![],
+            arrows: vec![],
+            width: w,
+            height: h,
+            rows: vec![],
         });
     }
 
@@ -299,13 +374,26 @@ pub fn layout_json(jd: &JsonDiagram) -> Result<JsonLayout> {
 
     let mut boxes: Vec<JsonBox> = Vec::new();
     let mut arrows: Vec<JsonArrow> = Vec::new();
-    let (max_right, max_bottom) = position_boxes(0, &specs, MARGIN, MARGIN, &mut boxes, &mut arrows);
+    let (max_right, max_bottom) =
+        position_boxes(0, &specs, MARGIN, MARGIN, &mut boxes, &mut arrows);
 
     let width = max_right + MARGIN;
     let height = max_bottom + MARGIN;
 
-    debug!("layout_json: {} boxes, {} arrows, {:.0}x{:.0}", boxes.len(), arrows.len(), width, height);
-    Ok(JsonLayout { boxes, arrows, width, height, rows: vec![] })
+    debug!(
+        "layout_json: {} boxes, {} arrows, {:.0}x{:.0}",
+        boxes.len(),
+        arrows.len(),
+        width,
+        height
+    );
+    Ok(JsonLayout {
+        boxes,
+        arrows,
+        width,
+        height,
+        rows: vec![],
+    })
 }
 
 #[cfg(test)]
@@ -315,10 +403,12 @@ mod tests {
 
     #[test]
     fn test_simple_object() {
-        let jd = JsonDiagram { root: JsonValue::Object(vec![
-            ("a".into(), JsonValue::Bool(true)),
-            ("b".into(), JsonValue::Number(42.0)),
-        ]) };
+        let jd = JsonDiagram {
+            root: JsonValue::Object(vec![
+                ("a".into(), JsonValue::Bool(true)),
+                ("b".into(), JsonValue::Number(42.0)),
+            ]),
+        };
         let layout = layout_json(&jd).unwrap();
         assert!(!layout.boxes.is_empty());
         assert_eq!(layout.boxes[0].rows.len(), 2);
@@ -326,9 +416,12 @@ mod tests {
 
     #[test]
     fn test_nested_creates_child_boxes() {
-        let jd = JsonDiagram { root: JsonValue::Object(vec![
-            ("items".into(), JsonValue::Array(vec![JsonValue::Str("x".into())])),
-        ]) };
+        let jd = JsonDiagram {
+            root: JsonValue::Object(vec![(
+                "items".into(),
+                JsonValue::Array(vec![JsonValue::Str("x".into())]),
+            )]),
+        };
         let layout = layout_json(&jd).unwrap();
         assert!(layout.boxes.len() >= 2);
         assert!(!layout.arrows.is_empty());
@@ -336,7 +429,9 @@ mod tests {
 
     #[test]
     fn test_leaf_root() {
-        let jd = JsonDiagram { root: JsonValue::Number(42.0) };
+        let jd = JsonDiagram {
+            root: JsonValue::Number(42.0),
+        };
         let layout = layout_json(&jd).unwrap();
         assert!(!layout.boxes.is_empty());
     }
@@ -344,11 +439,18 @@ mod tests {
     #[test]
     fn test_escaped_newline_value_produces_multiline() {
         // desc: "a\nb\nc\nd\ne\nf" should produce 6 value lines
-        let jd = JsonDiagram { root: JsonValue::Object(vec![
-            ("desc".into(), JsonValue::Str("a\\nb\\nc\\nd\\ne\\nf".into())),
-        ]) };
+        let jd = JsonDiagram {
+            root: JsonValue::Object(vec![(
+                "desc".into(),
+                JsonValue::Str("a\\nb\\nc\\nd\\ne\\nf".into()),
+            )]),
+        };
         let layout = layout_json(&jd).unwrap();
-        assert_eq!(layout.boxes[0].rows[0].value_lines.len(), 6,
-            "Expected 6 value lines, got: {:?}", layout.boxes[0].rows[0].value_lines);
+        assert_eq!(
+            layout.boxes[0].rows[0].value_lines.len(),
+            6,
+            "Expected 6 value lines, got: {:?}",
+            layout.boxes[0].rows[0].value_lines
+        );
     }
 }

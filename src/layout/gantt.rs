@@ -169,7 +169,9 @@ fn total_days(diagram: &GanttDiagram, schedule: &HashMap<String, u32>) -> u32 {
 }
 
 fn note_size(text: &str) -> (f64, f64) {
-    let plain = plain_text(&parse_creole(text)).replace("\\n", "\n").replace(crate::NEWLINE_CHAR, "\n");
+    let plain = plain_text(&parse_creole(text))
+        .replace("\\n", "\n")
+        .replace(crate::NEWLINE_CHAR, "\n");
     let lines: Vec<&str> = plain.lines().collect();
     let max_width = lines
         .iter()

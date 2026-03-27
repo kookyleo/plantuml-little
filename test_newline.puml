@@ -1,0 +1,6 @@
+@startuml
+component A [
+hello\nworld
+]
+component "hello\nworld" as B
+@enduml

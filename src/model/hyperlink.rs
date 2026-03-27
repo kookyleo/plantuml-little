@@ -132,13 +132,25 @@ fn parse_inner(inner: &str) -> (&str, Option<&str>, Option<&str>) {
                 if let Some(brace_end) = after_brace_open.find('}') {
                     let tooltip = &after_brace_open[..brace_end];
                     let after_brace = after_brace_open[brace_end + 1..].trim();
-                    let label = if after_brace.is_empty() { None } else { Some(after_brace) };
-                    let tooltip = if tooltip.is_empty() { None } else { Some(tooltip) };
+                    let label = if after_brace.is_empty() {
+                        None
+                    } else {
+                        Some(after_brace)
+                    };
+                    let tooltip = if tooltip.is_empty() {
+                        None
+                    } else {
+                        Some(tooltip)
+                    };
                     return (url, tooltip, label);
                 }
             }
             // No tooltip — check for label
-            let label = if after_quote.is_empty() { None } else { Some(after_quote) };
+            let label = if after_quote.is_empty() {
+                None
+            } else {
+                Some(after_quote)
+            };
             return (url, None, label);
         }
     }

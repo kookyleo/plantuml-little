@@ -5,10 +5,10 @@
 // Provides output-format-independent drawing primitives that map 1:1
 // with Java PlantUML's internal graphics API.
 
-pub mod geom;
 pub mod color;
-pub mod shape;
 pub mod font;
+pub mod geom;
+pub mod shape;
 pub mod svg;
 
 // ── UChange: marker trait for state changes applied to UGraphic ──────
@@ -33,16 +33,26 @@ pub struct UStroke {
 }
 
 impl UChange for UStroke {
-    fn as_any(&self) -> &dyn std::any::Any { self }
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
 }
 
 impl UStroke {
     pub fn new(dash_visible: f64, dash_space: f64, thickness: f64) -> Self {
-        Self { dash_visible, dash_space, thickness }
+        Self {
+            dash_visible,
+            dash_space,
+            thickness,
+        }
     }
 
     pub fn with_thickness(thickness: f64) -> Self {
-        Self { dash_visible: 0.0, dash_space: 0.0, thickness }
+        Self {
+            dash_visible: 0.0,
+            dash_space: 0.0,
+            thickness,
+        }
     }
 
     pub fn simple() -> Self {
@@ -50,17 +60,27 @@ impl UStroke {
     }
 
     pub fn only_thickness(&self) -> Self {
-        Self { dash_visible: 0.0, dash_space: 0.0, thickness: self.thickness }
+        Self {
+            dash_visible: 0.0,
+            dash_space: 0.0,
+            thickness: self.thickness,
+        }
     }
 
     /// Returns dash array for SVG `stroke-dasharray`, or None if solid.
     pub fn dasharray_svg(&self) -> Option<(f64, f64)> {
-        if self.dash_visible == 0.0 { None } else { Some((self.dash_visible, self.dash_space)) }
+        if self.dash_visible == 0.0 {
+            None
+        } else {
+            Some((self.dash_visible, self.dash_space))
+        }
     }
 }
 
 impl Default for UStroke {
-    fn default() -> Self { Self::simple() }
+    fn default() -> Self {
+        Self::simple()
+    }
 }
 
 // ── UTranslate ───────────────────────────────────────────────────────
@@ -74,30 +94,51 @@ pub struct UTranslate {
 }
 
 impl UChange for UTranslate {
-    fn as_any(&self) -> &dyn std::any::Any { self }
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
 }
 
 impl UTranslate {
-    pub fn new(dx: f64, dy: f64) -> Self { Self { dx, dy } }
-    pub fn none() -> Self { Self { dx: 0.0, dy: 0.0 } }
-    pub fn dx(dx: f64) -> Self { Self { dx, dy: 0.0 } }
-    pub fn dy(dy: f64) -> Self { Self { dx: 0.0, dy } }
+    pub fn new(dx: f64, dy: f64) -> Self {
+        Self { dx, dy }
+    }
+    pub fn none() -> Self {
+        Self { dx: 0.0, dy: 0.0 }
+    }
+    pub fn dx(dx: f64) -> Self {
+        Self { dx, dy: 0.0 }
+    }
+    pub fn dy(dy: f64) -> Self {
+        Self { dx: 0.0, dy }
+    }
 
     pub fn compose(self, other: UTranslate) -> Self {
-        Self { dx: self.dx + other.dx, dy: self.dy + other.dy }
+        Self {
+            dx: self.dx + other.dx,
+            dy: self.dy + other.dy,
+        }
     }
 
     pub fn reverse(self) -> Self {
-        Self { dx: -self.dx, dy: -self.dy }
+        Self {
+            dx: -self.dx,
+            dy: -self.dy,
+        }
     }
 
     pub fn scaled(self, scale: f64) -> Self {
-        Self { dx: self.dx * scale, dy: self.dy * scale }
+        Self {
+            dx: self.dx * scale,
+            dy: self.dy * scale,
+        }
     }
 }
 
 impl Default for UTranslate {
-    fn default() -> Self { Self::none() }
+    fn default() -> Self {
+        Self::none()
+    }
 }
 
 // ── UBackground ──────────────────────────────────────────────────────
@@ -111,7 +152,9 @@ pub enum UBackground {
 }
 
 impl UChange for UBackground {
-    fn as_any(&self) -> &dyn std::any::Any { self }
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
 }
 
 // ── UPattern ─────────────────────────────────────────────────────────
@@ -127,7 +170,9 @@ pub enum UPattern {
 }
 
 impl UChange for UPattern {
-    fn as_any(&self) -> &dyn std::any::Any { self }
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
 }
 
 // ── UParam: current render state ─────────────────────────────────────
@@ -191,7 +236,14 @@ pub trait UGraphic {
     fn draw_rect(&mut self, width: f64, height: f64, rx: f64);
     fn draw_ellipse(&mut self, width: f64, height: f64);
     fn draw_line(&mut self, dx: f64, dy: f64);
-    fn draw_text(&mut self, text: &str, font_family: &str, font_size: f64, bold: bool, italic: bool);
+    fn draw_text(
+        &mut self,
+        text: &str,
+        font_family: &str,
+        font_size: f64,
+        bold: bool,
+        italic: bool,
+    );
     fn draw_path(&mut self, path: &shape::UPath);
     fn draw_polygon(&mut self, points: &[(f64, f64)]);
 
@@ -226,12 +278,19 @@ pub struct UClip {
 }
 
 impl UChange for UClip {
-    fn as_any(&self) -> &dyn std::any::Any { self }
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
 }
 
 impl UClip {
     pub fn new(x: f64, y: f64, width: f64, height: f64) -> Self {
-        Self { x, y, width, height }
+        Self {
+            x,
+            y,
+            width,
+            height,
+        }
     }
 
     /// Enlarge the clip region by `delta` in all directions.
@@ -246,7 +305,12 @@ impl UClip {
 
     /// Translate the clip region by the given offset.
     pub fn translate(&self, dx: f64, dy: f64) -> Self {
-        Self { x: self.x + dx, y: self.y + dy, width: self.width, height: self.height }
+        Self {
+            x: self.x + dx,
+            y: self.y + dy,
+            width: self.width,
+            height: self.height,
+        }
     }
 
     /// Translate the clip region by a UTranslate.
@@ -256,8 +320,7 @@ impl UClip {
 
     /// Test whether a point is inside this clip region.
     pub fn is_inside(&self, xp: f64, yp: f64) -> bool {
-        xp >= self.x && xp <= self.x + self.width
-            && yp >= self.y && yp <= self.y + self.height
+        xp >= self.x && xp <= self.x + self.width && yp >= self.y && yp <= self.y + self.height
     }
 
     /// Test whether a point (from geom::XPoint2D) is inside this clip region.
@@ -278,7 +341,11 @@ impl UClip {
 
 impl std::fmt::Display for UClip {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "CLIP x={} y={} w={} h={}", self.x, self.y, self.width, self.height)
+        write!(
+            f,
+            "CLIP x={} y={} w={} h={}",
+            self.x, self.y, self.width, self.height
+        )
     }
 }
 
@@ -312,23 +379,39 @@ impl Fashion {
     }
 
     pub fn with_shadow(&self, delta_shadow: f64) -> Self {
-        Self { delta_shadow, ..self.clone() }
+        Self {
+            delta_shadow,
+            ..self.clone()
+        }
     }
 
     pub fn with_stroke(&self, stroke: UStroke) -> Self {
-        Self { stroke, ..self.clone() }
+        Self {
+            stroke,
+            ..self.clone()
+        }
     }
 
     pub fn with_back_color(&self, back_color: Option<color::HColor>) -> Self {
-        Self { back_color, ..self.clone() }
+        Self {
+            back_color,
+            ..self.clone()
+        }
     }
 
     pub fn with_fore_color(&self, fore_color: Option<color::HColor>) -> Self {
-        Self { fore_color, ..self.clone() }
+        Self {
+            fore_color,
+            ..self.clone()
+        }
     }
 
     pub fn with_corner(&self, round_corner: f64, diagonal_corner: f64) -> Self {
-        Self { round_corner, diagonal_corner, ..self.clone() }
+        Self {
+            round_corner,
+            diagonal_corner,
+            ..self.clone()
+        }
     }
 
     pub fn is_shadowing(&self) -> bool {
@@ -385,7 +468,9 @@ impl LineBreakStrategy {
 }
 
 impl Default for LineBreakStrategy {
-    fn default() -> Self { Self::None }
+    fn default() -> Self {
+        Self::None
+    }
 }
 
 // ── UGroupType ──────────────────────────────────────────────────────
@@ -449,7 +534,9 @@ pub struct UGroup {
 }
 
 impl UGroup {
-    pub fn new() -> Self { Self::default() }
+    pub fn new() -> Self {
+        Self::default()
+    }
 
     /// Create a UGroup with a single entry.
     pub fn singleton(key: UGroupType, value: &str) -> Self {
@@ -501,7 +588,9 @@ pub struct SvgAttributes {
 }
 
 impl SvgAttributes {
-    pub fn empty() -> Self { Self::default() }
+    pub fn empty() -> Self {
+        Self::default()
+    }
 
     /// Add a single attribute, returning a new SvgAttributes.
     pub fn add(&self, key: &str, value: &str) -> Self {
@@ -573,7 +662,9 @@ pub struct ShadowData {
 }
 
 impl ShadowData {
-    pub fn new() -> Self { Self { delta_shadow: 0.0 } }
+    pub fn new() -> Self {
+        Self { delta_shadow: 0.0 }
+    }
 }
 
 impl Shadowable for ShadowData {
@@ -737,9 +828,18 @@ mod tests {
     fn ugroup_type_svg_name() {
         assert_eq!(UGroupType::Id.svg_key_attribute_name(), "id");
         assert_eq!(UGroupType::Class.svg_key_attribute_name(), "class");
-        assert_eq!(UGroupType::DataEntity.svg_key_attribute_name(), "data-entity");
-        assert_eq!(UGroupType::DataSourceLine.svg_key_attribute_name(), "data-source-line");
-        assert_eq!(UGroupType::DataVisibilityModifier.svg_key_attribute_name(), "data-visibility-modifier");
+        assert_eq!(
+            UGroupType::DataEntity.svg_key_attribute_name(),
+            "data-entity"
+        );
+        assert_eq!(
+            UGroupType::DataSourceLine.svg_key_attribute_name(),
+            "data-source-line"
+        );
+        assert_eq!(
+            UGroupType::DataVisibilityModifier.svg_key_attribute_name(),
+            "data-visibility-modifier"
+        );
     }
 
     // ── UGroup tests ──
@@ -782,7 +882,9 @@ mod tests {
 
     #[test]
     fn svg_attributes_add() {
-        let a = SvgAttributes::empty().add("fill", "red").add("stroke", "blue");
+        let a = SvgAttributes::empty()
+            .add("fill", "red")
+            .add("stroke", "blue");
         assert_eq!(a.pairs().len(), 2);
         assert_eq!(a.pairs()[0], ("fill".to_string(), "red".to_string()));
         assert_eq!(a.pairs()[1], ("stroke".to_string(), "blue".to_string()));
@@ -790,7 +892,9 @@ mod tests {
 
     #[test]
     fn svg_attributes_add_replaces_existing() {
-        let a = SvgAttributes::empty().add("fill", "red").add("fill", "green");
+        let a = SvgAttributes::empty()
+            .add("fill", "red")
+            .add("fill", "green");
         assert_eq!(a.pairs().len(), 1);
         assert_eq!(a.pairs()[0].1, "green");
     }

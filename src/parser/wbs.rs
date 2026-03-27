@@ -69,7 +69,11 @@ fn replace_newlines_outside_links(s: &str) -> String {
         if let Some(start) = rest.find("[[") {
             // Replace \n in the part before [[
             let before = &rest[..start];
-            result.push_str(&before.replace("\\n", "\n").replace(crate::NEWLINE_CHAR, "\n"));
+            result.push_str(
+                &before
+                    .replace("\\n", "\n")
+                    .replace(crate::NEWLINE_CHAR, "\n"),
+            );
             // Find matching ]]
             if let Some(end) = rest[start + 2..].find("]]") {
                 let link_end = start + 2 + end + 2;
@@ -77,7 +81,11 @@ fn replace_newlines_outside_links(s: &str) -> String {
                 rest = &rest[link_end..];
             } else {
                 // No matching ]] — treat rest as plain text
-                result.push_str(&rest[start..].replace("\\n", "\n").replace(crate::NEWLINE_CHAR, "\n"));
+                result.push_str(
+                    &rest[start..]
+                        .replace("\\n", "\n")
+                        .replace(crate::NEWLINE_CHAR, "\n"),
+                );
                 break;
             }
         } else {
@@ -388,7 +396,10 @@ fn try_parse_wbs_note(line: &str) -> Option<WbsNoteParseResult> {
         let after_pos = rest[pos.len()..].trim();
 
         if let Some(after_colon) = after_pos.strip_prefix(':') {
-            let text = after_colon.trim().replace("\\n", "\n").replace(crate::NEWLINE_CHAR, "\n");
+            let text = after_colon
+                .trim()
+                .replace("\\n", "\n")
+                .replace(crate::NEWLINE_CHAR, "\n");
             return Some(WbsNoteParseResult::SingleLine(WbsNote {
                 text,
                 position: pos.to_string(),

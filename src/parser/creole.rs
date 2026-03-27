@@ -166,8 +166,7 @@ fn split_lines_literal(input: &str) -> Vec<String> {
 
 fn is_horizontal_rule(line: &str) -> bool {
     let trimmed = line.trim();
-    trimmed.len() >= 4
-        && (trimmed.chars().all(|c| c == '-') || trimmed.chars().all(|c| c == '='))
+    trimmed.len() >= 4 && (trimmed.chars().all(|c| c == '-') || trimmed.chars().all(|c| c == '='))
 }
 
 fn is_bullet_line(line: &str) -> bool {
@@ -1351,7 +1350,9 @@ mod tests {
             _ => panic!("expected Block, got: {rt:?}"),
         };
         assert!(
-            items.iter().any(|item| matches!(item, RichText::HorizontalRule)),
+            items
+                .iter()
+                .any(|item| matches!(item, RichText::HorizontalRule)),
             "==== should produce HorizontalRule, got: {items:?}"
         );
     }

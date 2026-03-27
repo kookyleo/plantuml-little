@@ -4,7 +4,7 @@ use crate::layout::usecase::{
     ActorLayout, BoundaryLayout, UseCaseEdgeLayout, UseCaseLayout, UseCaseNodeLayout,
 };
 use crate::model::usecase::UseCaseDiagram;
-use crate::render::svg::{write_svg_root_bg, write_bg_rect, ensure_visible_int};
+use crate::render::svg::{ensure_visible_int, write_bg_rect, write_svg_root_bg};
 use crate::style::SkinParams;
 use crate::Result;
 
@@ -55,13 +55,7 @@ pub fn render_usecase(
     let bg = skin.get_or("backgroundcolor", "#FFFFFF");
     let svg_w = ensure_visible_int(layout.total_width) as f64;
     let svg_h = ensure_visible_int(layout.total_height) as f64;
-    write_svg_root_bg(
-        &mut buf,
-        svg_w,
-        svg_h,
-        "DESCRIPTION",
-        bg,
-    );
+    write_svg_root_bg(&mut buf, svg_w, svg_h, "DESCRIPTION", bg);
     buf.push_str("<defs/><g>");
     write_bg_rect(&mut buf, svg_w, svg_h, bg);
 
@@ -150,11 +144,19 @@ fn render_actor(sg: &mut SvgGraphic, actor: &ActorLayout, stroke: &str, font_col
     let tl = font_metrics::text_width(&actor.name, "SansSerif", FONT_SIZE, false, false);
     sg.set_fill_color(font_color);
     sg.svg_text(
-        &actor.name, cx, name_y,
-        Some("sans-serif"), FONT_SIZE,
-        None, None, None,
-        tl, LengthAdjust::Spacing,
-        None, 0, Some("middle"),
+        &actor.name,
+        cx,
+        name_y,
+        Some("sans-serif"),
+        FONT_SIZE,
+        None,
+        None,
+        None,
+        tl,
+        LengthAdjust::Spacing,
+        None,
+        0,
+        Some("middle"),
     );
 }
 
@@ -178,11 +180,19 @@ fn render_usecase_oval(
     let tl = font_metrics::text_width(&uc.name, "SansSerif", FONT_SIZE, false, false);
     sg.set_fill_color(font_color);
     sg.svg_text(
-        &uc.name, uc.cx, text_y,
-        Some("sans-serif"), FONT_SIZE,
-        None, None, None,
-        tl, LengthAdjust::Spacing,
-        None, 0, Some("middle"),
+        &uc.name,
+        uc.cx,
+        text_y,
+        Some("sans-serif"),
+        FONT_SIZE,
+        None,
+        None,
+        None,
+        tl,
+        LengthAdjust::Spacing,
+        None,
+        0,
+        Some("middle"),
     );
 }
 
@@ -200,18 +210,34 @@ fn render_boundary(sg: &mut SvgGraphic, boundary: &BoundaryLayout, border: &str,
     sg.set_fill_color(fill);
     sg.set_stroke_color(Some(border));
     sg.set_stroke_width(0.5, dash);
-    sg.svg_rectangle(boundary.x, boundary.y, boundary.width, boundary.height, 4.0, 4.0, 0.0);
+    sg.svg_rectangle(
+        boundary.x,
+        boundary.y,
+        boundary.width,
+        boundary.height,
+        4.0,
+        4.0,
+        0.0,
+    );
 
     let name_x = boundary.x + 8.0;
     let name_y = boundary.y + FONT_SIZE + 4.0;
     let tl = font_metrics::text_width(&boundary.name, "SansSerif", FONT_SIZE, true, false);
     sg.set_fill_color(font_color);
     sg.svg_text(
-        &boundary.name, name_x, name_y,
-        Some("sans-serif"), FONT_SIZE,
-        Some("bold"), None, None,
-        tl, LengthAdjust::Spacing,
-        None, 0, None,
+        &boundary.name,
+        name_x,
+        name_y,
+        Some("sans-serif"),
+        FONT_SIZE,
+        Some("bold"),
+        None,
+        None,
+        tl,
+        LengthAdjust::Spacing,
+        None,
+        0,
+        None,
     );
 }
 
@@ -220,11 +246,7 @@ fn render_boundary(sg: &mut SvgGraphic, boundary: &BoundaryLayout, border: &str,
 // ---------------------------------------------------------------------------
 
 fn render_edge(sg: &mut SvgGraphic, edge: &UseCaseEdgeLayout, arrow_color: &str, font_color: &str) {
-    let dash = if edge.dashed {
-        Some((7.0, 5.0))
-    } else {
-        None
-    };
+    let dash = if edge.dashed { Some((7.0, 5.0)) } else { None };
 
     sg.set_stroke_color(Some(arrow_color));
     sg.set_stroke_width(1.0, dash);
@@ -265,11 +287,19 @@ fn render_edge(sg: &mut SvgGraphic, edge: &UseCaseEdgeLayout, arrow_color: &str,
             let tl = font_metrics::text_width(&stereo_text, "SansSerif", stereo_fs, false, true);
             sg.set_fill_color(font_color);
             sg.svg_text(
-                &stereo_text, mid_x, mid_y - FONT_SIZE - 2.0,
-                Some("sans-serif"), stereo_fs,
-                None, Some("italic"), None,
-                tl, LengthAdjust::Spacing,
-                None, 0, Some("middle"),
+                &stereo_text,
+                mid_x,
+                mid_y - FONT_SIZE - 2.0,
+                Some("sans-serif"),
+                stereo_fs,
+                None,
+                Some("italic"),
+                None,
+                tl,
+                LengthAdjust::Spacing,
+                None,
+                0,
+                Some("middle"),
             );
         }
     }
@@ -279,11 +309,19 @@ fn render_edge(sg: &mut SvgGraphic, edge: &UseCaseEdgeLayout, arrow_color: &str,
         let tl = font_metrics::text_width(&edge.label, "SansSerif", FONT_SIZE, false, false);
         sg.set_fill_color(font_color);
         sg.svg_text(
-            &edge.label, mid_x, mid_y + FONT_SIZE,
-            Some("sans-serif"), FONT_SIZE,
-            None, None, None,
-            tl, LengthAdjust::Spacing,
-            None, 0, Some("middle"),
+            &edge.label,
+            mid_x,
+            mid_y + FONT_SIZE,
+            Some("sans-serif"),
+            FONT_SIZE,
+            None,
+            None,
+            None,
+            tl,
+            LengthAdjust::Spacing,
+            None,
+            0,
+            Some("middle"),
         );
     }
 }
@@ -304,15 +342,23 @@ mod tests {
 
     fn empty_diagram() -> UseCaseDiagram {
         UseCaseDiagram {
-            actors: vec![], usecases: vec![], links: vec![],
-            boundaries: vec![], notes: vec![], direction: Direction::LeftToRight,
+            actors: vec![],
+            usecases: vec![],
+            links: vec![],
+            boundaries: vec![],
+            notes: vec![],
+            direction: Direction::LeftToRight,
         }
     }
 
     fn empty_layout() -> UseCaseLayout {
         UseCaseLayout {
-            actors: vec![], usecases: vec![], edges: vec![],
-            boundaries: vec![], total_width: 400.0, total_height: 300.0,
+            actors: vec![],
+            usecases: vec![],
+            edges: vec![],
+            boundaries: vec![],
+            total_width: 400.0,
+            total_height: 300.0,
         }
     }
 
@@ -334,9 +380,18 @@ mod tests {
         layout.total_width = 600.0;
         layout.total_height = 400.0;
         let svg = render_usecase(&diagram, &layout, &SkinParams::default()).expect("render failed");
-        assert!(svg.contains(r#"width="601px""#), "width uses ensure_visible_int(600)=601");
-        assert!(svg.contains(r#"height="401px""#), "height uses ensure_visible_int(400)=401");
-        assert!(svg.contains(r#"viewBox="0 0 601 401""#), "viewBox uses ensure_visible_int");
+        assert!(
+            svg.contains(r#"width="601px""#),
+            "width uses ensure_visible_int(600)=601"
+        );
+        assert!(
+            svg.contains(r#"height="401px""#),
+            "height uses ensure_visible_int(400)=401"
+        );
+        assert!(
+            svg.contains(r#"viewBox="0 0 601 401""#),
+            "viewBox uses ensure_visible_int"
+        );
     }
 
     #[test]
@@ -344,13 +399,20 @@ mod tests {
         let diagram = empty_diagram();
         let mut layout = empty_layout();
         layout.actors.push(ActorLayout {
-            id: "a1".into(), name: "Customer".into(),
-            cx: 100.0, cy: 100.0, width: 50.0, height: 80.0,
+            id: "a1".into(),
+            name: "Customer".into(),
+            cx: 100.0,
+            cy: 100.0,
+            width: 50.0,
+            height: 80.0,
         });
         let svg = render_usecase(&diagram, &layout, &SkinParams::default()).expect("render failed");
         assert!(svg.contains("<circle"), "actor must have head circle");
         let line_count = svg.matches("<line").count();
-        assert!(line_count >= 5, "actor must have 5 lines (body + 2 arms + 2 legs), got {line_count}");
+        assert!(
+            line_count >= 5,
+            "actor must have 5 lines (body + 2 arms + 2 legs), got {line_count}"
+        );
         assert!(svg.contains("Customer"), "actor name must appear");
     }
 
@@ -359,11 +421,18 @@ mod tests {
         let diagram = empty_diagram();
         let mut layout = empty_layout();
         layout.actors.push(ActorLayout {
-            id: "a1".into(), name: "A & B < C".into(),
-            cx: 100.0, cy: 100.0, width: 50.0, height: 80.0,
+            id: "a1".into(),
+            name: "A & B < C".into(),
+            cx: 100.0,
+            cy: 100.0,
+            width: 50.0,
+            height: 80.0,
         });
         let svg = render_usecase(&diagram, &layout, &SkinParams::default()).expect("render failed");
-        assert!(svg.contains("A &amp; B &lt; C"), "actor name must be XML-escaped");
+        assert!(
+            svg.contains("A &amp; B &lt; C"),
+            "actor name must be XML-escaped"
+        );
     }
 
     #[test]
@@ -371,14 +440,24 @@ mod tests {
         let diagram = empty_diagram();
         let mut layout = empty_layout();
         layout.usecases.push(UseCaseNodeLayout {
-            id: "uc1".into(), name: "Login".into(),
-            cx: 200.0, cy: 150.0, rx: 70.0, ry: 25.0,
+            id: "uc1".into(),
+            name: "Login".into(),
+            cx: 200.0,
+            cy: 150.0,
+            rx: 70.0,
+            ry: 25.0,
         });
         let svg = render_usecase(&diagram, &layout, &SkinParams::default()).expect("render failed");
         assert!(svg.contains("<ellipse"), "use case must produce an ellipse");
         assert!(svg.contains("Login"), "use case name must appear");
-        assert!(svg.contains("fill=\"#F1F1F1\""), "use case must use default fill");
-        assert!(svg.contains(r#"text-anchor="middle""#), "use case text must be centered");
+        assert!(
+            svg.contains("fill=\"#F1F1F1\""),
+            "use case must use default fill"
+        );
+        assert!(
+            svg.contains(r#"text-anchor="middle""#),
+            "use case text must be centered"
+        );
     }
 
     #[test]
@@ -386,11 +465,18 @@ mod tests {
         let diagram = empty_diagram();
         let mut layout = empty_layout();
         layout.usecases.push(UseCaseNodeLayout {
-            id: "uc1".into(), name: "Search & Filter".into(),
-            cx: 200.0, cy: 150.0, rx: 80.0, ry: 25.0,
+            id: "uc1".into(),
+            name: "Search & Filter".into(),
+            cx: 200.0,
+            cy: 150.0,
+            rx: 80.0,
+            ry: 25.0,
         });
         let svg = render_usecase(&diagram, &layout, &SkinParams::default()).expect("render failed");
-        assert!(svg.contains("Search &amp; Filter"), "use case name must be XML-escaped");
+        assert!(
+            svg.contains("Search &amp; Filter"),
+            "use case name must be XML-escaped"
+        );
     }
 
     #[test]
@@ -398,7 +484,12 @@ mod tests {
         let diagram = empty_diagram();
         let mut layout = empty_layout();
         layout.boundaries.push(BoundaryLayout {
-            name: "MySystem".into(), x: 50.0, y: 50.0, width: 200.0, height: 150.0, nesting_depth: 0,
+            name: "MySystem".into(),
+            x: 50.0,
+            y: 50.0,
+            width: 200.0,
+            height: 150.0,
+            nesting_depth: 0,
         });
         let svg = render_usecase(&diagram, &layout, &SkinParams::default()).expect("render failed");
         assert!(svg.contains("<rect"), "boundary must produce a rect");
@@ -412,10 +503,18 @@ mod tests {
         let diagram = empty_diagram();
         let mut layout = empty_layout();
         layout.boundaries.push(BoundaryLayout {
-            name: "System <v2>".into(), x: 50.0, y: 50.0, width: 200.0, height: 150.0, nesting_depth: 0,
+            name: "System <v2>".into(),
+            x: 50.0,
+            y: 50.0,
+            width: 200.0,
+            height: 150.0,
+            nesting_depth: 0,
         });
         let svg = render_usecase(&diagram, &layout, &SkinParams::default()).expect("render failed");
-        assert!(svg.contains("System &lt;v2&gt;"), "boundary name must be XML-escaped");
+        assert!(
+            svg.contains("System &lt;v2&gt;"),
+            "boundary name must be XML-escaped"
+        );
     }
 
     #[test]
@@ -423,14 +522,29 @@ mod tests {
         let diagram = empty_diagram();
         let mut layout = empty_layout();
         layout.edges.push(UseCaseEdgeLayout {
-            from_x: 50.0, from_y: 100.0, to_x: 200.0, to_y: 100.0,
-            label: String::new(), dashed: false, has_arrow: true, stereotype: None,
+            from_x: 50.0,
+            from_y: 100.0,
+            to_x: 200.0,
+            to_y: 100.0,
+            label: String::new(),
+            dashed: false,
+            has_arrow: true,
+            stereotype: None,
         });
         let svg = render_usecase(&diagram, &layout, &SkinParams::default()).expect("render failed");
         assert!(svg.contains("<line"), "edge must produce a line");
-        assert!(svg.contains("<polygon"), "edge must have inline polygon arrowhead");
-        assert!(!svg.contains("stroke-dasharray"), "association must not be dashed");
-        assert!(!svg.contains("\u{00AB}"), "association must not have stereotype guillemets");
+        assert!(
+            svg.contains("<polygon"),
+            "edge must have inline polygon arrowhead"
+        );
+        assert!(
+            !svg.contains("stroke-dasharray"),
+            "association must not be dashed"
+        );
+        assert!(
+            !svg.contains("\u{00AB}"),
+            "association must not have stereotype guillemets"
+        );
     }
 
     #[test]
@@ -438,13 +552,28 @@ mod tests {
         let diagram = empty_diagram();
         let mut layout = empty_layout();
         layout.edges.push(UseCaseEdgeLayout {
-            from_x: 50.0, from_y: 100.0, to_x: 250.0, to_y: 100.0,
-            label: String::new(), dashed: true, has_arrow: true, stereotype: Some("include".into()),
+            from_x: 50.0,
+            from_y: 100.0,
+            to_x: 250.0,
+            to_y: 100.0,
+            label: String::new(),
+            dashed: true,
+            has_arrow: true,
+            stereotype: Some("include".into()),
         });
         let svg = render_usecase(&diagram, &layout, &SkinParams::default()).expect("render failed");
-        assert!(svg.contains("stroke-dasharray"), "dashed edge must have dasharray");
-        assert!(svg.contains("&#171;include&#187;"), "stereotype must appear with guillemets");
-        assert!(svg.contains("font-style=\"italic\""), "stereotype must be italic");
+        assert!(
+            svg.contains("stroke-dasharray"),
+            "dashed edge must have dasharray"
+        );
+        assert!(
+            svg.contains("&#171;include&#187;"),
+            "stereotype must appear with guillemets"
+        );
+        assert!(
+            svg.contains("font-style=\"italic\""),
+            "stereotype must be italic"
+        );
     }
 
     #[test]
@@ -452,8 +581,14 @@ mod tests {
         let diagram = empty_diagram();
         let mut layout = empty_layout();
         layout.edges.push(UseCaseEdgeLayout {
-            from_x: 50.0, from_y: 80.0, to_x: 200.0, to_y: 80.0,
-            label: "uses".into(), dashed: false, has_arrow: true, stereotype: None,
+            from_x: 50.0,
+            from_y: 80.0,
+            to_x: 200.0,
+            to_y: 80.0,
+            label: "uses".into(),
+            dashed: false,
+            has_arrow: true,
+            stereotype: None,
         });
         let svg = render_usecase(&diagram, &layout, &SkinParams::default()).expect("render failed");
         assert!(svg.contains("uses"), "edge label must appear");
@@ -464,17 +599,38 @@ mod tests {
         let diagram = empty_diagram();
         let mut layout = empty_layout();
         layout.actors.push(ActorLayout {
-            id: "a1".into(), name: "User".into(), cx: 50.0, cy: 100.0, width: 50.0, height: 80.0,
+            id: "a1".into(),
+            name: "User".into(),
+            cx: 50.0,
+            cy: 100.0,
+            width: 50.0,
+            height: 80.0,
         });
         layout.usecases.push(UseCaseNodeLayout {
-            id: "uc1".into(), name: "Login".into(), cx: 250.0, cy: 100.0, rx: 70.0, ry: 25.0,
+            id: "uc1".into(),
+            name: "Login".into(),
+            cx: 250.0,
+            cy: 100.0,
+            rx: 70.0,
+            ry: 25.0,
         });
         layout.boundaries.push(BoundaryLayout {
-            name: "System".into(), x: 160.0, y: 60.0, width: 180.0, height: 80.0, nesting_depth: 0,
+            name: "System".into(),
+            x: 160.0,
+            y: 60.0,
+            width: 180.0,
+            height: 80.0,
+            nesting_depth: 0,
         });
         layout.edges.push(UseCaseEdgeLayout {
-            from_x: 50.0, from_y: 100.0, to_x: 180.0, to_y: 100.0,
-            label: String::new(), dashed: false, has_arrow: true, stereotype: None,
+            from_x: 50.0,
+            from_y: 100.0,
+            to_x: 180.0,
+            to_y: 100.0,
+            label: String::new(),
+            dashed: false,
+            has_arrow: true,
+            stereotype: None,
         });
         let svg = render_usecase(&diagram, &layout, &SkinParams::default()).expect("render failed");
         assert!(svg.contains("<ellipse"), "must have use case oval");

@@ -363,9 +363,9 @@ impl EntityGender {
         match self {
             Self::ByEntityType(lt) => entity.leaf_type() == Some(*lt),
             Self::ByEntityAlone(uid) => entity.uid() == uid,
-            Self::ByStereotype(stereo) => {
-                entity.stereotype().map_or(false, |s| s.contains(stereo.as_str()))
-            }
+            Self::ByStereotype(stereo) => entity
+                .stereotype()
+                .map_or(false, |s| s.contains(stereo.as_str())),
             Self::ByClassName(name) => entity.name() == name,
             Self::ByPackage(parent_name) => {
                 entity.parent_name().map_or(false, |p| p == parent_name)
@@ -411,11 +411,7 @@ pub mod entity_utils {
     use super::*;
 
     /// Check if a group is a parent (ancestor) of another group.
-    fn is_parent_by_name(
-        group_name: &str,
-        candidate_name: &str,
-        entities: &[Entity],
-    ) -> bool {
+    fn is_parent_by_name(group_name: &str, candidate_name: &str, entities: &[Entity]) -> bool {
         let mut current = candidate_name.to_string();
         loop {
             if current == group_name {
@@ -435,11 +431,7 @@ pub mod entity_utils {
 
     /// Check if a link's both endpoints are inside a given group.
     /// Java: `EntityUtils.isPureInnerLink12(Entity, Link)`
-    pub fn is_pure_inner_link12(
-        group_name: &str,
-        link: &Link,
-        entities: &[Entity],
-    ) -> bool {
+    pub fn is_pure_inner_link12(group_name: &str, link: &Link, entities: &[Entity]) -> bool {
         let e1_parent = entities
             .iter()
             .find(|e| e.uid() == link.entity1_uid())
@@ -461,11 +453,7 @@ pub mod entity_utils {
     /// Check if a link's both endpoints have the same inside/outside
     /// relationship to a given group.
     /// Java: `EntityUtils.isPureInnerLink3(Entity, Link)`
-    pub fn is_pure_inner_link3(
-        group_name: &str,
-        link: &Link,
-        entities: &[Entity],
-    ) -> bool {
+    pub fn is_pure_inner_link3(group_name: &str, link: &Link, entities: &[Entity]) -> bool {
         let e1_parent = entities
             .iter()
             .find(|e| e.uid() == link.entity1_uid())
@@ -522,24 +510,23 @@ mod tests {
 
     #[test]
     fn link_arg_with_quantifier() {
-        let arg = LinkArg::new(vec![], 1)
-            .with_quantifier(Some("1".to_string()), Some("*".to_string()));
+        let arg =
+            LinkArg::new(vec![], 1).with_quantifier(Some("1".to_string()), Some("*".to_string()));
         assert_eq!(arg.quantifier1(), Some("1"));
         assert_eq!(arg.quantifier2(), Some("*"));
     }
 
     #[test]
     fn link_arg_with_role() {
-        let arg = LinkArg::new(vec![], 1)
-            .with_role(Some("owner".to_string()), Some("owned".to_string()));
+        let arg =
+            LinkArg::new(vec![], 1).with_role(Some("owner".to_string()), Some("owned".to_string()));
         assert_eq!(arg.role1(), Some("owner"));
         assert_eq!(arg.role2(), Some("owned"));
     }
 
     #[test]
     fn link_arg_with_kal() {
-        let arg = LinkArg::new(vec![], 1)
-            .with_kal(Some("k1".to_string()), Some("k2".to_string()));
+        let arg = LinkArg::new(vec![], 1).with_kal(Some("k1".to_string()), Some("k2".to_string()));
         assert!(arg.has_kal1());
         assert!(arg.has_kal2());
         assert_eq!(arg.kal1(), Some("k1"));
@@ -555,8 +542,7 @@ mod tests {
 
     #[test]
     fn link_arg_empty_kal() {
-        let arg = LinkArg::new(vec![], 1)
-            .with_kal(Some(String::new()), None);
+        let arg = LinkArg::new(vec![], 1).with_kal(Some(String::new()), None);
         assert!(!arg.has_kal1());
         assert!(!arg.has_kal2());
     }

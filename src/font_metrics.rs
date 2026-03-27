@@ -47,9 +47,17 @@ fn resolve_face(family: &str, bold: bool) -> &'static ttf_parser::Face<'static> 
     // "Courier New" is a physical font — uninstalled on reference machine → Dialog fallback.
     let is_mono = p == "monospaced" || p == "monospace" || p == "courier";
     if is_mono {
-        if bold { &fonts.mono_bold } else { &fonts.mono }
+        if bold {
+            &fonts.mono_bold
+        } else {
+            &fonts.mono
+        }
     } else {
-        if bold { &fonts.sans_bold } else { &fonts.sans }
+        if bold {
+            &fonts.sans_bold
+        } else {
+            &fonts.sans
+        }
     }
 }
 
@@ -89,7 +97,7 @@ pub fn text_width(text: &str, family: &str, size: f64, bold: bool, italic: bool)
 pub fn line_height(family: &str, size: f64, _bold: bool, _italic: bool) -> f64 {
     let face = resolve_face(family, false); // vertical metrics are style-independent
     let upem = face.units_per_em() as f64;
-    let asc = face.ascender() as f64;           // positive (hhea.ascender)
+    let asc = face.ascender() as f64; // positive (hhea.ascender)
     let desc = face.descender().unsigned_abs() as f64; // make positive
     (asc + desc) / upem * size
 }
@@ -166,7 +174,10 @@ mod tests {
         // All monospaced chars should have equal advance width
         let w_a = char_width('a', "Monospaced", 13.0, false, false);
         let w_w = char_width('W', "Monospaced", 13.0, false, false);
-        assert!((w_a - w_w).abs() < 1e-6, "mono: a={w_a} W={w_w} should be equal");
+        assert!(
+            (w_a - w_w).abs() < 1e-6,
+            "mono: a={w_a} W={w_w} should be equal"
+        );
     }
 
     #[test]
@@ -189,7 +200,10 @@ mod tests {
         // → Java Dialog fallback → sans-serif
         let w_courier_new = char_width('a', "Courier New", 12.0, false, false);
         let w_sans = char_width('a', "SansSerif", 12.0, false, false);
-        assert!((w_courier_new - w_sans).abs() < 1e-10, "Courier New maps to sans (Dialog fallback)");
+        assert!(
+            (w_courier_new - w_sans).abs() < 1e-10,
+            "Courier New maps to sans (Dialog fallback)"
+        );
         // "SansSerif", "Dialog", "Arial" all resolve to sans font
         let w3 = char_width('a', "SansSerif", 12.0, false, false);
         let w4 = char_width('a', "Dialog", 12.0, false, false);
@@ -224,5 +238,4 @@ mod tests {
             );
         }
     }
-
 }

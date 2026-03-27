@@ -139,7 +139,10 @@ mod tests {
     #[test]
     fn from_name_exact_case() {
         assert_eq!(PName::from_name("FontSize"), Some(PName::FontSize));
-        assert_eq!(PName::from_name("BackGroundColor"), Some(PName::BackGroundColor));
+        assert_eq!(
+            PName::from_name("BackGroundColor"),
+            Some(PName::BackGroundColor)
+        );
         assert_eq!(PName::from_name("BarWidth"), Some(PName::BarWidth));
     }
 
@@ -147,7 +150,10 @@ mod tests {
     fn from_name_case_insensitive() {
         assert_eq!(PName::from_name("fontsize"), Some(PName::FontSize));
         assert_eq!(PName::from_name("FONTSIZE"), Some(PName::FontSize));
-        assert_eq!(PName::from_name("backgroundcolor"), Some(PName::BackGroundColor));
+        assert_eq!(
+            PName::from_name("backgroundcolor"),
+            Some(PName::BackGroundColor)
+        );
     }
 
     #[test]

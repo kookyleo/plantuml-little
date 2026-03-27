@@ -3,7 +3,7 @@
 
 use std::fmt;
 
-use crate::klimt::geom::{XDimension2D, XPoint2D};
+use crate::klimt::geom::{XDimension2D, XPoint2D, XRectangle2D};
 use crate::klimt::shape::DotPath;
 
 // ── Direction ───────────────────────────────────────────────────────
@@ -423,6 +423,7 @@ pub struct SvekEdge {
     // ── Flags ──
     pub opale: bool,
     pub use_rank_same: bool,
+    pub use_simplier_dot_link_strategy: bool,
 
     // ── Arrow polygon points (from SVG parsing) ──
     pub arrow_head: Option<Vec<XPoint2D>>,
@@ -469,6 +470,7 @@ impl SvekEdge {
             dy: 0.0,
             opale: false,
             use_rank_same: false,
+            use_simplier_dot_link_strategy: false,
             arrow_head: None,
             arrow_tail: None,
         }
@@ -622,20 +624,25 @@ impl SvekEdge {
     fn get_decoration_svek(&self) -> String {
         let mut result = String::new();
 
-        // Arrow head/tail types
-        let head = self.decor1.dot_arrow();
-        let tail = self.decor2.dot_arrow();
-        if head != "open" || tail != "none" {
-            result.push_str(&format!("arrowhead={},arrowtail={},", head, tail));
+        if self.use_simplier_dot_link_strategy {
+            // Java Link.getLinkStrategy() currently returns SIMPLIER, so DOT
+            // only solves the spline and PlantUML renders the decorations
+            // itself from the solved bezier geometry.
+            result.push_str("arrowtail=none,arrowhead=none,");
+        } else {
+            // Staged alignment: component/state still rely on the legacy DOT
+            // arrow emission path until their svek pipelines are fully ported.
+            let head = self.decor1.dot_arrow();
+            let tail = self.decor2.dot_arrow();
+            if head != "open" || tail != "none" {
+                result.push_str(&format!("arrowhead={},arrowtail={},", head, tail));
+            }
+            if self.decor1 != LinkDecoration::None && self.decor2 != LinkDecoration::None {
+                result.push_str("dir=both,");
+            }
         }
 
-        // Line style
         result.push_str(self.link_style.dot_style());
-
-        // Direction (both = show both arrowheads)
-        if self.decor1 != LinkDecoration::None && self.decor2 != LinkDecoration::None {
-            result.push_str("dir=both,");
-        }
 
         result
     }
@@ -726,6 +733,36 @@ impl SvekEdge {
             return None;
         }
         Some(get_min_xy(&points))
+    }
+
+    /// Move endpoint labels away from overlapping node bounds.
+    /// Java: `SvekEdge.manageCollision(Collection<SvekNode>)`
+    pub fn manage_collision(&mut self, all_nodes: &[crate::svek::node::SvekNode]) {
+        for node in all_nodes {
+            let expanded = XRectangle2D::new(
+                node.min_x - 8.0,
+                node.min_y - 8.0,
+                node.width + 16.0,
+                node.height + 16.0,
+            );
+
+            if let (Some(ref mut pos), Some(dim)) =
+                (&mut self.start_tail_label_xy, self.start_tail_dimension)
+            {
+                let rect = XRectangle2D::new(pos.x, pos.y, dim.width, dim.height);
+                if expanded.intersects(&rect) {
+                    *pos = move_away_from_rect(expanded, rect);
+                }
+            }
+
+            if let (Some(ref mut pos), Some(dim)) = (&mut self.end_head_label_xy, self.end_head_dimension)
+            {
+                let rect = XRectangle2D::new(pos.x, pos.y, dim.width, dim.height);
+                if expanded.intersects(&rect) {
+                    *pos = move_away_from_rect(expanded, rect);
+                }
+            }
+        }
     }
 
     // ── Arrow direction detection ──
@@ -1008,6 +1045,48 @@ pub fn get_max_xy(points: &[XPoint2D]) -> XPoint2D {
     XPoint2D::new(max_x, max_y)
 }
 
+fn move_away_from_rect(fixed: XRectangle2D, moving: XRectangle2D) -> XPoint2D {
+    let fixed_center = XPoint2D::new(fixed.center_x(), fixed.center_y());
+    let moving_center = XPoint2D::new(moving.center_x(), moving.center_y());
+    let delta_x = moving_center.x - fixed_center.x;
+    let delta_y = moving_center.y - fixed_center.y;
+
+    let intersects_at = |coef: f64| -> bool {
+        let shifted = XRectangle2D::new(
+            moving.x + delta_x * coef,
+            moving.y + delta_y * coef,
+            moving.width,
+            moving.height,
+        );
+        fixed.intersects(&shifted)
+    };
+
+    if !intersects_at(0.0) {
+        return XPoint2D::new(moving.x, moving.y);
+    }
+
+    let mut min = 0.0;
+    let mut max = 0.1;
+    while intersects_at(max) {
+        max *= 2.0;
+    }
+
+    for _ in 0..5 {
+        let candidate = (min + max) / 2.0;
+        if intersects_at(candidate) {
+            min = candidate;
+        } else {
+            max = candidate;
+        }
+    }
+
+    let candidate = (min + max) / 2.0;
+    XPoint2D::new(
+        moving.x + delta_x * candidate,
+        moving.y + delta_y * candidate,
+    )
+}
+
 // ── Tests ───────────────────────────────────────────────────────────
 
 #[cfg(test)]
@@ -1209,8 +1288,7 @@ mod tests {
 
     #[test]
     fn edge_display() {
-        let e =
-            SvekEdge::new("X", "Y").with_colors(0x010200, 0x020300, 0x030400, 0x040500);
+        let e = SvekEdge::new("X", "Y").with_colors(0x010200, 0x020300, 0x030400, 0x040500);
         let s = format!("{}", e);
         assert!(s.contains("X"));
         assert!(s.contains("Y"));
@@ -1295,6 +1373,47 @@ mod tests {
     }
 
     #[test]
+    fn manage_collision_moves_head_label_outside_expanded_node_box() {
+        let mut edge = SvekEdge::new("A", "B");
+        edge.end_head_text = Some("value".to_string());
+        edge.end_head_dimension = Some(LabelDimension::new(35.5088, 15.1332));
+        edge.end_head_label_xy = Some(XPoint2D::new(260.85, 269.72));
+
+        let mut node = crate::svek::node::SvekNode::new("B", 100.0039, 48.0);
+        node.min_x = 302.0;
+        node.min_y = 249.0;
+
+        edge.manage_collision(&[node]);
+        let pos = edge.end_head_label_xy.unwrap();
+        let rect = XRectangle2D::new(pos.x, pos.y, 35.5088, 15.1332);
+        let expanded = XRectangle2D::new(294.0, 241.0, 116.0039, 64.0);
+        assert!(!expanded.intersects(&rect));
+        assert!(pos.x < 260.85);
+    }
+
+    #[test]
+    fn manage_collision_moves_multiline_head_label_up_and_left() {
+        let mut edge = SvekEdge::new("A", "B");
+        edge.end_head_text = Some("customer\\n1".to_string());
+        edge.end_head_dimension = Some(LabelDimension::new(61.2168, 30.2664));
+        edge.end_head_label_xy = Some(XPoint2D::new(285.0, 212.6887));
+
+        let mut node = crate::svek::node::SvekNode::new("B", 100.0039, 48.0);
+        node.min_x = 302.0;
+        node.min_y = 249.0;
+
+        edge.manage_collision(&[node]);
+        let pos = edge.end_head_label_xy.unwrap();
+        let rect = XRectangle2D::new(pos.x, pos.y, 61.2168, 30.2664);
+        let expanded = XRectangle2D::new(294.0, 241.0, 116.0039, 64.0);
+        assert!((pos.x - 283.464647109375).abs() < 1e-9);
+        assert!((pos.y - 210.78274890625002).abs() < 1e-9);
+        assert!(expanded.intersects(&rect));
+        assert!(pos.x < 285.0);
+        assert!(pos.y < 212.6887);
+    }
+
+    #[test]
     fn append_line_invis() {
         let mut e = SvekEdge::new("A", "B").with_colors(0x010200, 0, 0, 0);
         e.is_invis = true;
@@ -1364,6 +1483,27 @@ mod tests {
             sb
         );
         assert!(sb.contains("dir=both"), "expected dir=both, got: {}", sb);
+    }
+
+    #[test]
+    fn append_line_decorations_simplier() {
+        let mut e = SvekEdge::new("A", "B")
+            .with_colors(0x010200, 0, 0, 0)
+            .with_decorations(LinkDecoration::Extends, LinkDecoration::Arrow);
+        e.use_simplier_dot_link_strategy = true;
+        let mut sb = String::new();
+        e.append_line(&mut sb);
+        assert!(
+            sb.contains("arrowhead=none"),
+            "expected arrowhead=none, got: {}",
+            sb
+        );
+        assert!(
+            sb.contains("arrowtail=none"),
+            "expected arrowtail=none, got: {}",
+            sb
+        );
+        assert!(!sb.contains("dir=both"), "did not expect dir=both, got: {}", sb);
     }
 
     #[test]
@@ -1554,8 +1694,8 @@ mod tests {
 
     #[test]
     fn dzeta_autolink() {
-        let e = SvekEdge::new("A", "A")
-            .with_decorations(LinkDecoration::Arrow, LinkDecoration::None);
+        let e =
+            SvekEdge::new("A", "A").with_decorations(LinkDecoration::Arrow, LinkDecoration::None);
         let hz = e.horizontal_dzeta();
         let vz = e.vertical_dzeta();
         assert_eq!(hz, vz);
@@ -1730,8 +1870,7 @@ mod tests {
     fn solve_line_color_not_found() {
         let mut e = SvekEdge::new("A", "B");
         e.color = 0xFF0000;
-        let svg =
-            crate::svek::svg_result::SvgResult::new("<svg></svg>".to_string());
+        let svg = crate::svek::svg_result::SvgResult::new("<svg></svg>".to_string());
         e.solve_line(&svg);
         assert!(e.dot_path.is_none());
     }
@@ -1740,8 +1879,7 @@ mod tests {
     fn solve_line_with_path() {
         let mut e = SvekEdge::new("A", "B");
         e.color = 0x010200;
-        let svg_str =
-            r##"<path stroke="#010200" d="M 10,20 C 30,40 50,60 70,80"/>"##;
+        let svg_str = r##"<path stroke="#010200" d="M 10,20 C 30,40 50,60 70,80"/>"##;
         let svg = crate::svek::svg_result::SvgResult::new(svg_str.to_string());
         e.solve_line(&svg);
         assert!(
@@ -1804,6 +1942,36 @@ mod tests {
         assert!(sb.contains("arrowhead=diamond"));
         assert!(sb.contains("arrowtail=open"));
         assert!(sb.contains("dir=both"));
+        assert!(sb.contains("style=dashed"));
+        assert!(sb.contains("minlen=1"));
+        assert!(sb.contains("color=\"#010200\""));
+        assert!(sb.contains("label=<"));
+        assert!(sb.contains("BGCOLOR=\"#020300\""));
+        assert!(sb.contains("WIDTH=\"50\" HEIGHT=\"14\""));
+        assert!(sb.ends_with("];\n"));
+    }
+
+    #[test]
+    fn full_dot_output_simplier() {
+        let mut e = SvekEdge::new("ClassA", "ClassB")
+            .with_ports(
+                EntityPort::with_port("ClassA", "south"),
+                EntityPort::with_port("ClassB", "north"),
+            )
+            .with_colors(0x010200, 0x020300, 0x030400, 0x040500)
+            .with_decorations(LinkDecoration::Composition, LinkDecoration::Arrow)
+            .with_style(LinkStyle::Dashed)
+            .with_length(2)
+            .with_label("extends", LabelDimension::new(50.0, 14.0));
+        e.use_simplier_dot_link_strategy = true;
+
+        let mut sb = String::new();
+        e.append_line(&mut sb);
+
+        assert!(sb.starts_with("\"ClassA\":south->\"ClassB\":north["));
+        assert!(sb.contains("arrowhead=none"));
+        assert!(sb.contains("arrowtail=none"));
+        assert!(!sb.contains("dir=both"));
         assert!(sb.contains("style=dashed"));
         assert!(sb.contains("minlen=1"));
         assert!(sb.contains("color=\"#010200\""));

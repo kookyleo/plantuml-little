@@ -230,9 +230,14 @@ const QUEUE_MARGIN_RIGHT: f64 = 15.0;
 
 /// Preferred size for a normal (non-self) arrow.
 /// Java: `ComponentRoseArrow.getPreferredWidth/Height`
-pub fn arrow_preferred_size(text: &TextMetrics, inclination1: f64, inclination2: f64) -> XDimension2D {
+pub fn arrow_preferred_size(
+    text: &TextMetrics,
+    inclination1: f64,
+    inclination2: f64,
+) -> XDimension2D {
     let w = text.text_width() + ARROW_DELTA_X;
-    let h = text.text_height() + ARROW_DELTA_Y + 2.0 * ARROW_PADDING_Y + inclination1 + inclination2;
+    let h =
+        text.text_height() + ARROW_DELTA_Y + 2.0 * ARROW_PADDING_Y + inclination1 + inclination2;
     XDimension2D::new(w, h)
 }
 
@@ -329,24 +334,24 @@ pub fn participant_preferred_size(
 /// - `pure_text_width`: measured text width (no margins)
 /// - `thickness`: stroke thickness (Java default = 1.5 for sequence participants)
 pub fn participant_preferred_width(
-	kind: &ParticipantKind,
-	pure_text_width: f64,
-	thickness: f64,
+    kind: &ParticipantKind,
+    pure_text_width: f64,
+    thickness: f64,
 ) -> f64 {
-	match kind {
-		ParticipantKind::Default => pure_text_width + 2.0 * 7.0,
-		ParticipantKind::Actor => {
-			let icon_w = ActorStickMan::new(false).preferred_width(thickness);
-			let text_w = pure_text_width + 2.0 * ICON_MARGIN_X;
-			icon_w.max(text_w)
-		}
-		ParticipantKind::Boundary => BOUNDARY_ICON_WIDTH.max(pure_text_width + 2.0 * ICON_MARGIN_X),
-		ParticipantKind::Control => CONTROL_ICON_WIDTH.max(pure_text_width + 2.0 * ICON_MARGIN_X),
-		ParticipantKind::Entity => ENTITY_ICON_WIDTH.max(pure_text_width + 2.0 * ICON_MARGIN_X),
-		ParticipantKind::Database => DATABASE_ICON_WIDTH.max(pure_text_width + 2.0 * ICON_MARGIN_X),
-		ParticipantKind::Collections => pure_text_width + 2.0 * 7.0 + COLLECTIONS_DELTA,
-		ParticipantKind::Queue => pure_text_width + QUEUE_MARGIN_LEFT + QUEUE_MARGIN_RIGHT,
-	}
+    match kind {
+        ParticipantKind::Default => pure_text_width + 2.0 * 7.0,
+        ParticipantKind::Actor => {
+            let icon_w = ActorStickMan::new(false).preferred_width(thickness);
+            let text_w = pure_text_width + 2.0 * ICON_MARGIN_X;
+            icon_w.max(text_w)
+        }
+        ParticipantKind::Boundary => BOUNDARY_ICON_WIDTH.max(pure_text_width + 2.0 * ICON_MARGIN_X),
+        ParticipantKind::Control => CONTROL_ICON_WIDTH.max(pure_text_width + 2.0 * ICON_MARGIN_X),
+        ParticipantKind::Entity => ENTITY_ICON_WIDTH.max(pure_text_width + 2.0 * ICON_MARGIN_X),
+        ParticipantKind::Database => DATABASE_ICON_WIDTH.max(pure_text_width + 2.0 * ICON_MARGIN_X),
+        ParticipantKind::Collections => pure_text_width + 2.0 * 7.0 + COLLECTIONS_DELTA,
+        ParticipantKind::Queue => pure_text_width + QUEUE_MARGIN_LEFT + QUEUE_MARGIN_RIGHT,
+    }
 }
 
 /// Preferred size for a note.
@@ -572,7 +577,11 @@ pub fn polygon_reverse(part: ArrowPart, nice_arrow: bool) -> Vec<(f64, f64)> {
 /// Build the polygon for a self-arrow head.
 /// Java: `ComponentRoseSelfArrow.getPolygon`
 pub fn polygon_self(config: &ArrowConfiguration, nice_arrow: bool) -> Vec<(f64, f64)> {
-    let direction: f64 = if config.is_reverse_define() { -1.0 } else { 1.0 };
+    let direction: f64 = if config.is_reverse_define() {
+        -1.0
+    } else {
+        1.0
+    };
     let x = direction * ARROW_DELTA_X;
     match config.part() {
         ArrowPart::TopPart => {
@@ -661,11 +670,7 @@ pub fn draw_arrow(
     }
 
     let is_below = below_for_response && config.is_reverse_define();
-    let pos_arrow = if is_below {
-        0.0
-    } else {
-        text.text_height()
-    };
+    let pos_arrow = if is_below { 0.0 } else { text.text_height() };
 
     // Main line
     let line_stroke = if config.is_dotted() {
@@ -686,18 +691,33 @@ pub fn draw_arrow(
         sg.set_fill_color(&fg_color.to_svg());
         sg.set_stroke_color(Some(&fg_color.to_svg()));
         sg.set_stroke_width(stroke.thickness, stroke.dasharray_svg());
-        let flat: Vec<f64> = poly.iter().flat_map(|&(x, y)| [pos2 + x, pos_arrow + inclination2 + y]).collect();
+        let flat: Vec<f64> = poly
+            .iter()
+            .flat_map(|&(x, y)| [pos2 + x, pos_arrow + inclination2 + y])
+            .collect();
         sg.svg_polygon(0.0, &flat);
     } else if dressing2.head == ArrowHead::Async {
         if config.part() != ArrowPart::BottomPart {
             sg.set_stroke_color(Some(&fg_color.to_svg()));
             sg.set_stroke_width(stroke.thickness, stroke.dasharray_svg());
-            sg.svg_line(pos2, pos_arrow + inclination2, pos2 - ARROW_DELTA_X, pos_arrow + inclination2 - ARROW_DELTA_Y, 0.0);
+            sg.svg_line(
+                pos2,
+                pos_arrow + inclination2,
+                pos2 - ARROW_DELTA_X,
+                pos_arrow + inclination2 - ARROW_DELTA_Y,
+                0.0,
+            );
         }
         if config.part() != ArrowPart::TopPart {
             sg.set_stroke_color(Some(&fg_color.to_svg()));
             sg.set_stroke_width(stroke.thickness, stroke.dasharray_svg());
-            sg.svg_line(pos2, pos_arrow + inclination2, pos2 - ARROW_DELTA_X, pos_arrow + inclination2 + ARROW_DELTA_Y, 0.0);
+            sg.svg_line(
+                pos2,
+                pos_arrow + inclination2,
+                pos2 - ARROW_DELTA_X,
+                pos_arrow + inclination2 + ARROW_DELTA_Y,
+                0.0,
+            );
         }
     } else if dressing2.head == ArrowHead::CrossX {
         let x_stroke = UStroke::with_thickness(2.0);
@@ -716,18 +736,33 @@ pub fn draw_arrow(
         sg.set_fill_color(&fg_color.to_svg());
         sg.set_stroke_color(Some(&fg_color.to_svg()));
         sg.set_stroke_width(stroke.thickness, stroke.dasharray_svg());
-        let flat: Vec<f64> = poly.iter().flat_map(|&(x, y)| [pos1 + x, pos_arrow + inclination1 + y]).collect();
+        let flat: Vec<f64> = poly
+            .iter()
+            .flat_map(|&(x, y)| [pos1 + x, pos_arrow + inclination1 + y])
+            .collect();
         sg.svg_polygon(0.0, &flat);
     } else if dressing1.head == ArrowHead::Async {
         if config.part() != ArrowPart::BottomPart {
             sg.set_stroke_color(Some(&fg_color.to_svg()));
             sg.set_stroke_width(stroke.thickness, stroke.dasharray_svg());
-            sg.svg_line(pos1, pos_arrow + inclination1, pos1 + ARROW_DELTA_X, pos_arrow + inclination1 - ARROW_DELTA_Y, 0.0);
+            sg.svg_line(
+                pos1,
+                pos_arrow + inclination1,
+                pos1 + ARROW_DELTA_X,
+                pos_arrow + inclination1 - ARROW_DELTA_Y,
+                0.0,
+            );
         }
         if config.part() != ArrowPart::TopPart {
             sg.set_stroke_color(Some(&fg_color.to_svg()));
             sg.set_stroke_width(stroke.thickness, stroke.dasharray_svg());
-            sg.svg_line(pos1, pos_arrow + inclination1, pos1 + ARROW_DELTA_X, pos_arrow + inclination1 + ARROW_DELTA_Y, 0.0);
+            sg.svg_line(
+                pos1,
+                pos_arrow + inclination1,
+                pos1 + ARROW_DELTA_X,
+                pos_arrow + inclination1 + ARROW_DELTA_Y,
+                0.0,
+            );
         }
     } else if dressing1.head == ArrowHead::CrossX {
         let x_stroke = UStroke::with_thickness(2.0);
@@ -743,7 +778,8 @@ pub fn draw_arrow(
     // Decorations (circles)
     if config.decoration1() == ArrowDecoration::Circle {
         let cx = pos1 - DIAM_CIRCLE / 2.0 - THIN_CIRCLE + DIAM_CIRCLE / 2.0;
-        let cy = pos_arrow + inclination1 - DIAM_CIRCLE / 2.0 - THIN_CIRCLE / 2.0 + DIAM_CIRCLE / 2.0;
+        let cy =
+            pos_arrow + inclination1 - DIAM_CIRCLE / 2.0 - THIN_CIRCLE / 2.0 + DIAM_CIRCLE / 2.0;
         sg.set_fill_color(&bg_color.to_svg());
         sg.set_stroke_color(Some(&fg_color.to_svg()));
         sg.set_stroke_width(THIN_CIRCLE, None);
@@ -751,7 +787,8 @@ pub fn draw_arrow(
     }
     if config.decoration2() == ArrowDecoration::Circle {
         let cx = pos2 - DIAM_CIRCLE / 2.0 + THIN_CIRCLE + DIAM_CIRCLE / 2.0;
-        let cy = pos_arrow + inclination2 - DIAM_CIRCLE / 2.0 - THIN_CIRCLE / 2.0 + DIAM_CIRCLE / 2.0;
+        let cy =
+            pos_arrow + inclination2 - DIAM_CIRCLE / 2.0 - THIN_CIRCLE / 2.0 + DIAM_CIRCLE / 2.0;
         sg.set_fill_color(&bg_color.to_svg());
         sg.set_stroke_color(Some(&fg_color.to_svg()));
         sg.set_stroke_width(THIN_CIRCLE, None);
@@ -809,9 +846,21 @@ pub fn draw_self_arrow(
     // Top horizontal
     sg.svg_line(x1, text_height, SELF_ARROW_XRIGHT, text_height, 0.0);
     // Vertical
-    sg.svg_line(SELF_ARROW_XRIGHT, text_height, SELF_ARROW_XRIGHT, text_height + arrow_height, 0.0);
+    sg.svg_line(
+        SELF_ARROW_XRIGHT,
+        text_height,
+        SELF_ARROW_XRIGHT,
+        text_height + arrow_height,
+        0.0,
+    );
     // Bottom horizontal
-    sg.svg_line(x2, text_height + arrow_height, SELF_ARROW_XRIGHT, text_height + arrow_height, 0.0);
+    sg.svg_line(
+        x2,
+        text_height + arrow_height,
+        SELF_ARROW_XRIGHT,
+        text_height + arrow_height,
+        0.0,
+    );
 
     // Arrow head at bottom-left
     if has_final_cross {
@@ -819,26 +868,53 @@ pub fn draw_self_arrow(
         sg.set_stroke_color(Some(&fg_color.to_svg()));
         sg.set_stroke_width(x_stroke.thickness, x_stroke.dasharray_svg());
         let y0 = text_height - ARROW_DELTA_X / 2.0 + arrow_height;
-        sg.svg_line(SPACE_CROSS_X, y0, SPACE_CROSS_X + ARROW_DELTA_X, y0 + ARROW_DELTA_X, 0.0);
+        sg.svg_line(
+            SPACE_CROSS_X,
+            y0,
+            SPACE_CROSS_X + ARROW_DELTA_X,
+            y0 + ARROW_DELTA_X,
+            0.0,
+        );
         let y1 = text_height + ARROW_DELTA_X / 2.0 + arrow_height;
-        sg.svg_line(SPACE_CROSS_X, y1, SPACE_CROSS_X + ARROW_DELTA_X, y1 - ARROW_DELTA_X, 0.0);
+        sg.svg_line(
+            SPACE_CROSS_X,
+            y1,
+            SPACE_CROSS_X + ARROW_DELTA_X,
+            y1 - ARROW_DELTA_X,
+            0.0,
+        );
     } else if config.dressing2().head == ArrowHead::Async {
         if config.part() != ArrowPart::BottomPart {
             sg.set_stroke_color(Some(&fg_color.to_svg()));
             sg.set_stroke_width(stroke.thickness, stroke.dasharray_svg());
-            sg.svg_line(x2, text_height + arrow_height, x2 + ARROW_DELTA_X, text_height + arrow_height - ARROW_DELTA_Y, 0.0);
+            sg.svg_line(
+                x2,
+                text_height + arrow_height,
+                x2 + ARROW_DELTA_X,
+                text_height + arrow_height - ARROW_DELTA_Y,
+                0.0,
+            );
         }
         if config.part() != ArrowPart::TopPart {
             sg.set_stroke_color(Some(&fg_color.to_svg()));
             sg.set_stroke_width(stroke.thickness, stroke.dasharray_svg());
-            sg.svg_line(x2, text_height + arrow_height, x2 + ARROW_DELTA_X, text_height + arrow_height + ARROW_DELTA_Y, 0.0);
+            sg.svg_line(
+                x2,
+                text_height + arrow_height,
+                x2 + ARROW_DELTA_X,
+                text_height + arrow_height + ARROW_DELTA_Y,
+                0.0,
+            );
         }
     } else if config.dressing2().head == ArrowHead::Normal {
         let poly = polygon_self(config, nice_arrow);
         sg.set_fill_color(&fg_color.to_svg());
         sg.set_stroke_color(Some(&fg_color.to_svg()));
         sg.set_stroke_width(stroke.thickness, stroke.dasharray_svg());
-        let flat: Vec<f64> = poly.iter().flat_map(|&(px, py)| [x2 + px, text_height + arrow_height + py]).collect();
+        let flat: Vec<f64> = poly
+            .iter()
+            .flat_map(|&(px, py)| [x2 + px, text_height + arrow_height + py])
+            .collect();
         sg.svg_polygon(0.0, &flat);
     }
 
@@ -848,26 +924,53 @@ pub fn draw_self_arrow(
         sg.set_stroke_color(Some(&fg_color.to_svg()));
         sg.set_stroke_width(x_stroke.thickness, x_stroke.dasharray_svg());
         let y0 = text_height - ARROW_DELTA_X / 2.0;
-        sg.svg_line(SPACE_CROSS_X, y0, SPACE_CROSS_X + ARROW_DELTA_X, y0 + ARROW_DELTA_X, 0.0);
+        sg.svg_line(
+            SPACE_CROSS_X,
+            y0,
+            SPACE_CROSS_X + ARROW_DELTA_X,
+            y0 + ARROW_DELTA_X,
+            0.0,
+        );
         let y1 = text_height + ARROW_DELTA_X / 2.0;
-        sg.svg_line(SPACE_CROSS_X, y1, SPACE_CROSS_X + ARROW_DELTA_X, y1 - ARROW_DELTA_X, 0.0);
+        sg.svg_line(
+            SPACE_CROSS_X,
+            y1,
+            SPACE_CROSS_X + ARROW_DELTA_X,
+            y1 - ARROW_DELTA_X,
+            0.0,
+        );
     } else if config.dressing1().head == ArrowHead::Async {
         if config.part() != ArrowPart::BottomPart {
             sg.set_stroke_color(Some(&fg_color.to_svg()));
             sg.set_stroke_width(stroke.thickness, stroke.dasharray_svg());
-            sg.svg_line(x1, text_height, x1 + ARROW_DELTA_X, text_height + ARROW_DELTA_Y, 0.0);
+            sg.svg_line(
+                x1,
+                text_height,
+                x1 + ARROW_DELTA_X,
+                text_height + ARROW_DELTA_Y,
+                0.0,
+            );
         }
         if config.part() != ArrowPart::TopPart {
             sg.set_stroke_color(Some(&fg_color.to_svg()));
             sg.set_stroke_width(stroke.thickness, stroke.dasharray_svg());
-            sg.svg_line(x1, text_height, x1 + ARROW_DELTA_X, text_height - ARROW_DELTA_Y, 0.0);
+            sg.svg_line(
+                x1,
+                text_height,
+                x1 + ARROW_DELTA_X,
+                text_height - ARROW_DELTA_Y,
+                0.0,
+            );
         }
     } else if config.dressing1().head == ArrowHead::Normal {
         let poly = polygon_self(config, nice_arrow);
         sg.set_fill_color(&fg_color.to_svg());
         sg.set_stroke_color(Some(&fg_color.to_svg()));
         sg.set_stroke_width(stroke.thickness, stroke.dasharray_svg());
-        let flat: Vec<f64> = poly.iter().flat_map(|&(px, py)| [x1 + px, text_height + py]).collect();
+        let flat: Vec<f64> = poly
+            .iter()
+            .flat_map(|&(px, py)| [x1 + px, text_height + py])
+            .collect();
         sg.svg_polygon(0.0, &flat);
     }
 }
@@ -897,13 +1000,29 @@ pub fn draw_participant(
         sg.set_fill_color(&bg_color.to_svg());
         sg.set_stroke_color(Some(&fg_color.to_svg()));
         sg.set_stroke_width(stroke.thickness, stroke.dasharray_svg());
-        sg.svg_rectangle(padding + delta_coll, 0.0, tw, th, round_corner, round_corner, delta_shadow);
+        sg.svg_rectangle(
+            padding + delta_coll,
+            0.0,
+            tw,
+            th,
+            round_corner,
+            round_corner,
+            delta_shadow,
+        );
     }
 
     sg.set_fill_color(&bg_color.to_svg());
     sg.set_stroke_color(Some(&fg_color.to_svg()));
     sg.set_stroke_width(stroke.thickness, stroke.dasharray_svg());
-    sg.svg_rectangle(padding, delta_coll, tw, th, round_corner, round_corner, delta_shadow);
+    sg.svg_rectangle(
+        padding,
+        delta_coll,
+        tw,
+        th,
+        round_corner,
+        round_corner,
+        delta_shadow,
+    );
 }
 
 /// Draw a note into an SvgGraphic.
@@ -920,9 +1039,12 @@ pub fn draw_note(
     let text_height = text.text_height() as i32;
     let mut x2 = text.text_width() as i32;
 
-    let _diff_x = area.dimension.width - note_preferred_size(text, padding_x, padding_y, fashion.delta_shadow).width;
+    let _diff_x = area.dimension.width
+        - note_preferred_size(text, padding_x, padding_y, fashion.delta_shadow).width;
 
-    if area.dimension.width > note_preferred_size(text, padding_x, padding_y, fashion.delta_shadow).width {
+    if area.dimension.width
+        > note_preferred_size(text, padding_x, padding_y, fashion.delta_shadow).width
+    {
         x2 = (area.dimension.width - 2.0 * padding_x) as i32;
     }
 
@@ -948,8 +1070,12 @@ pub fn draw_note(
         path.arc_to(r, r, 0.0, 0.0, 1.0, r, 0.0);
     }
 
-    if let Some(ref f) = fashion.back_color { sg.set_fill_color(&f.to_svg()); }
-    if let Some(ref c) = fashion.fore_color { sg.set_stroke_color(Some(&c.to_svg())); }
+    if let Some(ref f) = fashion.back_color {
+        sg.set_fill_color(&f.to_svg());
+    }
+    if let Some(ref c) = fashion.fore_color {
+        sg.set_stroke_color(Some(&c.to_svg()));
+    }
     sg.set_stroke_width(fashion.stroke.thickness, fashion.stroke.dasharray_svg());
     sg.svg_path(0.0, 0.0, &path, fashion.delta_shadow);
 
@@ -959,7 +1085,9 @@ pub fn draw_note(
     corner.line_to(x2 as f64 - CORNER_SIZE, CORNER_SIZE);
     corner.line_to(x2 as f64, CORNER_SIZE);
     sg.set_fill_color("none");
-    if let Some(ref c) = fashion.fore_color { sg.set_stroke_color(Some(&c.to_svg())); }
+    if let Some(ref c) = fashion.fore_color {
+        sg.set_stroke_color(Some(&c.to_svg()));
+    }
     sg.set_stroke_width(fashion.stroke.thickness, fashion.stroke.dasharray_svg());
     sg.svg_path(0.0, 0.0, &corner, 0.0);
 }
@@ -981,7 +1109,16 @@ pub fn draw_divider(
 
     if empty {
         // Just draw separator lines
-        draw_divider_sep(sg, dim.width, dim.height / 2.0, bg_color, border_color, stroke, round_corner, shadow);
+        draw_divider_sep(
+            sg,
+            dim.width,
+            dim.height / 2.0,
+            bg_color,
+            border_color,
+            stroke,
+            round_corner,
+            shadow,
+        );
     } else {
         let text_width = text.text_width();
         let text_height = text.text_height();
@@ -989,13 +1126,30 @@ pub fn draw_divider(
         let xpos = (dim.width - text_width - delta_x) / 2.0;
         let ypos = (dim.height - text_height) / 2.0;
 
-        draw_divider_sep(sg, dim.width, dim.height / 2.0, bg_color, border_color, stroke, round_corner, shadow);
+        draw_divider_sep(
+            sg,
+            dim.width,
+            dim.height / 2.0,
+            bg_color,
+            border_color,
+            stroke,
+            round_corner,
+            shadow,
+        );
 
         // Text background rect
         sg.set_fill_color(&bg_color.to_svg());
         sg.set_stroke_color(Some(&border_color.to_svg()));
         sg.set_stroke_width(stroke.thickness, stroke.dasharray_svg());
-        sg.svg_rectangle(xpos, ypos, text_width + delta_x, text_height, round_corner, round_corner, shadow);
+        sg.svg_rectangle(
+            xpos,
+            ypos,
+            text_width + delta_x,
+            text_height,
+            round_corner,
+            round_corner,
+            shadow,
+        );
     }
 }
 
@@ -1041,22 +1195,49 @@ pub fn draw_grouping_header(
 
     // Background rect
     sg.set_fill_color(&background.to_svg());
-    if let Some(ref c) = fashion.fore_color { sg.set_stroke_color(Some(&c.to_svg())); }
+    if let Some(ref c) = fashion.fore_color {
+        sg.set_stroke_color(Some(&c.to_svg()));
+    }
     sg.set_stroke_width(fashion.stroke.thickness, fashion.stroke.dasharray_svg());
-    sg.svg_rectangle(0.0, 0.0, dim.width, dim.height, round_corner, round_corner, fashion.delta_shadow);
+    sg.svg_rectangle(
+        0.0,
+        0.0,
+        dim.width,
+        dim.height,
+        round_corner,
+        round_corner,
+        fashion.delta_shadow,
+    );
 
     // Corner tab
     let corner_path = grouping_corner_path(text_width, text_height, round_corner);
-    if let Some(ref f) = corner_fashion.back_color { sg.set_fill_color(&f.to_svg()); }
-    if let Some(ref c) = corner_fashion.fore_color { sg.set_stroke_color(Some(&c.to_svg())); }
-    sg.set_stroke_width(corner_fashion.stroke.thickness, corner_fashion.stroke.dasharray_svg());
+    if let Some(ref f) = corner_fashion.back_color {
+        sg.set_fill_color(&f.to_svg());
+    }
+    if let Some(ref c) = corner_fashion.fore_color {
+        sg.set_stroke_color(Some(&c.to_svg()));
+    }
+    sg.set_stroke_width(
+        corner_fashion.stroke.thickness,
+        corner_fashion.stroke.dasharray_svg(),
+    );
     sg.svg_path(0.0, 0.0, &corner_path, 0.0);
 
     // Outline rect (no fill)
     sg.set_fill_color("none");
-    if let Some(ref c) = fashion.fore_color { sg.set_stroke_color(Some(&c.to_svg())); }
+    if let Some(ref c) = fashion.fore_color {
+        sg.set_stroke_color(Some(&c.to_svg()));
+    }
     sg.set_stroke_width(fashion.stroke.thickness, fashion.stroke.dasharray_svg());
-    sg.svg_rectangle(0.0, 0.0, dim.width, dim.height, round_corner, round_corner, 0.0);
+    sg.svg_rectangle(
+        0.0,
+        0.0,
+        dim.width,
+        dim.height,
+        round_corner,
+        round_corner,
+        0.0,
+    );
 }
 
 /// Build the corner tab path for a grouping header.
@@ -1113,7 +1294,15 @@ pub fn draw_line(sg: &mut SvgGraphic, area: &Area, color: &HColor, stroke: &UStr
         sg.set_fill_color(&HColor::None.to_svg());
         sg.set_stroke_color(Some(&HColor::None.to_svg()));
         sg.set_stroke_width(zero_stroke.thickness, zero_stroke.dasharray_svg());
-        sg.svg_rectangle((dim.width - hover_w) / 2.0, 0.0, hover_w, dim.height, 0.0, 0.0, 0.0);
+        sg.svg_rectangle(
+            (dim.width - hover_w) / 2.0,
+            0.0,
+            hover_w,
+            dim.height,
+            0.0,
+            0.0,
+            0.0,
+        );
     }
 
     sg.set_stroke_color(Some(&color.to_svg()));
@@ -1141,29 +1330,59 @@ pub fn draw_active_line(
     let simple = UStroke::simple();
 
     if close_up && close_down {
-        if let Some(ref f) = fashion.back_color { sg.set_fill_color(&f.to_svg()); }
-        if let Some(ref c) = fashion.fore_color { sg.set_stroke_color(Some(&c.to_svg())); }
+        if let Some(ref f) = fashion.back_color {
+            sg.set_fill_color(&f.to_svg());
+        }
+        if let Some(ref c) = fashion.fore_color {
+            sg.set_stroke_color(Some(&c.to_svg()));
+        }
         sg.set_stroke_width(simple.thickness, simple.dasharray_svg());
-        sg.svg_rectangle(x as f64, 0.0, ACTIVE_LINE_WIDTH, dim.height, 0.0, 0.0, shadow);
+        sg.svg_rectangle(
+            x as f64,
+            0.0,
+            ACTIVE_LINE_WIDTH,
+            dim.height,
+            0.0,
+            0.0,
+            shadow,
+        );
     } else {
         // Background rect (no border)
-        if let Some(ref f) = fashion.back_color { sg.set_fill_color(&f.to_svg()); }
-        if let Some(ref c) = fashion.back_color { sg.set_stroke_color(Some(&c.to_svg())); }
+        if let Some(ref f) = fashion.back_color {
+            sg.set_fill_color(&f.to_svg());
+        }
+        if let Some(ref c) = fashion.back_color {
+            sg.set_stroke_color(Some(&c.to_svg()));
+        }
         sg.set_stroke_width(simple.thickness, simple.dasharray_svg());
         sg.svg_rectangle(x as f64, 0.0, ACTIVE_LINE_WIDTH, dim.height, 0.0, 0.0, 0.0);
 
         // Left & right vertical lines
-        if let Some(ref c) = fashion.fore_color { sg.set_stroke_color(Some(&c.to_svg())); }
+        if let Some(ref c) = fashion.fore_color {
+            sg.set_stroke_color(Some(&c.to_svg()));
+        }
         sg.set_stroke_width(simple.thickness, simple.dasharray_svg());
         sg.svg_line(x as f64, 0.0, x as f64, dim.height, 0.0);
-        sg.svg_line(x as f64 + ACTIVE_LINE_WIDTH, 0.0, x as f64 + ACTIVE_LINE_WIDTH, dim.height, 0.0);
+        sg.svg_line(
+            x as f64 + ACTIVE_LINE_WIDTH,
+            0.0,
+            x as f64 + ACTIVE_LINE_WIDTH,
+            dim.height,
+            0.0,
+        );
 
         // Top/bottom lines if closed
         if close_up {
             sg.svg_line(x as f64, 0.0, x as f64 + ACTIVE_LINE_WIDTH, 0.0, 0.0);
         }
         if close_down {
-            sg.svg_line(x as f64, dim.height, x as f64 + ACTIVE_LINE_WIDTH, dim.height, 0.0);
+            sg.svg_line(
+                x as f64,
+                dim.height,
+                x as f64 + ACTIVE_LINE_WIDTH,
+                dim.height,
+                0.0,
+            );
         }
     }
 }
@@ -1217,10 +1436,25 @@ pub fn draw_reference(
     // Body rect
     let body_width = dim.width - REF_X_MARGIN * 2.0 - body_fashion.delta_shadow;
     let body_height = dim.height - REF_HEIGHT_FOOTER;
-    if let Some(ref f) = body_fashion.back_color { sg.set_fill_color(&f.to_svg()); }
-    if let Some(ref c) = body_fashion.fore_color { sg.set_stroke_color(Some(&c.to_svg())); }
-    sg.set_stroke_width(body_fashion.stroke.thickness, body_fashion.stroke.dasharray_svg());
-    sg.svg_rectangle(REF_X_MARGIN, 0.0, body_width, body_height, round_corner, round_corner, body_fashion.delta_shadow);
+    if let Some(ref f) = body_fashion.back_color {
+        sg.set_fill_color(&f.to_svg());
+    }
+    if let Some(ref c) = body_fashion.fore_color {
+        sg.set_stroke_color(Some(&c.to_svg()));
+    }
+    sg.set_stroke_width(
+        body_fashion.stroke.thickness,
+        body_fashion.stroke.dasharray_svg(),
+    );
+    sg.svg_rectangle(
+        REF_X_MARGIN,
+        0.0,
+        body_width,
+        body_height,
+        round_corner,
+        round_corner,
+        body_fashion.delta_shadow,
+    );
 
     // Header corner tab
     let header_corner = reference_corner_path(
@@ -1228,9 +1462,16 @@ pub fn draw_reference(
         text_header_height as f64,
         round_corner,
     );
-    if let Some(ref f) = header_fashion.back_color { sg.set_fill_color(&f.to_svg()); }
-    if let Some(ref c) = header_fashion.fore_color { sg.set_stroke_color(Some(&c.to_svg())); }
-    sg.set_stroke_width(header_fashion.stroke.thickness, header_fashion.stroke.dasharray_svg());
+    if let Some(ref f) = header_fashion.back_color {
+        sg.set_fill_color(&f.to_svg());
+    }
+    if let Some(ref c) = header_fashion.fore_color {
+        sg.set_stroke_color(Some(&c.to_svg()));
+    }
+    sg.set_stroke_width(
+        header_fashion.stroke.thickness,
+        header_fashion.stroke.dasharray_svg(),
+    );
     sg.svg_path(REF_X_MARGIN, 0.0, &header_corner, 0.0);
 }
 
@@ -1276,10 +1517,22 @@ pub fn draw_note_box(
         x2 = (area.dimension.width - 2.0 * px) as i32;
     }
 
-    if let Some(ref f) = fashion.back_color { sg.set_fill_color(&f.to_svg()); }
-    if let Some(ref c) = fashion.fore_color { sg.set_stroke_color(Some(&c.to_svg())); }
+    if let Some(ref f) = fashion.back_color {
+        sg.set_fill_color(&f.to_svg());
+    }
+    if let Some(ref c) = fashion.fore_color {
+        sg.set_stroke_color(Some(&c.to_svg()));
+    }
     sg.set_stroke_width(fashion.stroke.thickness, fashion.stroke.dasharray_svg());
-    sg.svg_rectangle(0.0, 0.0, x2 as f64, text_height as f64, round_corner, round_corner, fashion.delta_shadow);
+    sg.svg_rectangle(
+        0.0,
+        0.0,
+        x2 as f64,
+        text_height as f64,
+        round_corner,
+        round_corner,
+        fashion.delta_shadow,
+    );
 }
 
 /// Draw a hexagonal note into an SvgGraphic.
@@ -1311,8 +1564,12 @@ pub fn draw_note_hexagonal(
         (cs, 0.0),
     ];
 
-    if let Some(ref f) = fashion.back_color { sg.set_fill_color(&f.to_svg()); }
-    if let Some(ref c) = fashion.fore_color { sg.set_stroke_color(Some(&c.to_svg())); }
+    if let Some(ref f) = fashion.back_color {
+        sg.set_fill_color(&f.to_svg());
+    }
+    if let Some(ref c) = fashion.fore_color {
+        sg.set_stroke_color(Some(&c.to_svg()));
+    }
     sg.set_stroke_width(fashion.stroke.thickness, fashion.stroke.dasharray_svg());
     let flat: Vec<f64> = points.iter().flat_map(|&(x, y)| [x, y]).collect();
     sg.svg_polygon(0.0, &flat);
@@ -1328,10 +1585,22 @@ pub fn draw_englober(
     round_corner: f64,
 ) {
     let dim = area.dimension;
-    if let Some(ref f) = fashion.back_color { sg.set_fill_color(&f.to_svg()); }
-    if let Some(ref c) = fashion.fore_color { sg.set_stroke_color(Some(&c.to_svg())); }
+    if let Some(ref f) = fashion.back_color {
+        sg.set_fill_color(&f.to_svg());
+    }
+    if let Some(ref c) = fashion.fore_color {
+        sg.set_stroke_color(Some(&c.to_svg()));
+    }
     sg.set_stroke_width(fashion.stroke.thickness, fashion.stroke.dasharray_svg());
-    sg.svg_rectangle(0.0, 0.0, dim.width, dim.height, round_corner, round_corner, fashion.delta_shadow);
+    sg.svg_rectangle(
+        0.0,
+        0.0,
+        dim.width,
+        dim.height,
+        round_corner,
+        round_corner,
+        fashion.delta_shadow,
+    );
 }
 
 // ══════════════════════════════════════════════════════════════════════
@@ -1826,15 +2095,27 @@ mod tests {
 
     #[test]
     fn draw_arrow_hidden_produces_empty() {
-        let hidden_config = ArrowConfiguration::with_direction_normal()
-            .with_body(ArrowBody::Hidden);
+        let hidden_config =
+            ArrowConfiguration::with_direction_normal().with_body(ArrowBody::Hidden);
         let tm = make_text(80.0, 14.0);
         let area = Area::new(200.0, 30.0);
         let fg = HColor::rgb(0, 0, 0);
         let bg = HColor::rgb(255, 255, 255);
         let stroke = UStroke::simple();
         let mut sg = new_sg();
-        draw_arrow(&mut sg, &hidden_config, &tm, &area, &fg, &bg, &stroke, true, false, 0.0, 0.0);
+        draw_arrow(
+            &mut sg,
+            &hidden_config,
+            &tm,
+            &area,
+            &fg,
+            &bg,
+            &stroke,
+            true,
+            false,
+            0.0,
+            0.0,
+        );
         assert!(sg.body().is_empty());
     }
 
@@ -1847,7 +2128,9 @@ mod tests {
         let bg = HColor::rgb(255, 255, 255);
         let stroke = UStroke::simple();
         let mut sg = new_sg();
-        draw_arrow(&mut sg, &config, &tm, &area, &fg, &bg, &stroke, true, false, 0.0, 0.0);
+        draw_arrow(
+            &mut sg, &config, &tm, &area, &fg, &bg, &stroke, true, false, 0.0, 0.0,
+        );
         let body = sg.body();
         assert!(!body.is_empty());
         // Should have at least a line and a polygon
@@ -1857,15 +2140,16 @@ mod tests {
 
     #[test]
     fn draw_arrow_async_produces_lines() {
-        let config = ArrowConfiguration::with_direction_normal()
-            .with_head2(ArrowHead::Async);
+        let config = ArrowConfiguration::with_direction_normal().with_head2(ArrowHead::Async);
         let tm = make_text(80.0, 14.0);
         let area = Area::new(200.0, 30.0);
         let fg = HColor::rgb(0, 0, 0);
         let bg = HColor::rgb(255, 255, 255);
         let stroke = UStroke::simple();
         let mut sg = new_sg();
-        draw_arrow(&mut sg, &config, &tm, &area, &fg, &bg, &stroke, true, false, 0.0, 0.0);
+        draw_arrow(
+            &mut sg, &config, &tm, &area, &fg, &bg, &stroke, true, false, 0.0, 0.0,
+        );
         let body = sg.body();
         assert!(!body.is_empty());
         // Async arrow: main line + 2 async head lines
@@ -1875,15 +2159,16 @@ mod tests {
 
     #[test]
     fn draw_arrow_crossx_produces_lines() {
-        let config = ArrowConfiguration::with_direction_normal()
-            .with_head2(ArrowHead::CrossX);
+        let config = ArrowConfiguration::with_direction_normal().with_head2(ArrowHead::CrossX);
         let tm = make_text(80.0, 14.0);
         let area = Area::new(200.0, 30.0);
         let fg = HColor::rgb(0, 0, 0);
         let bg = HColor::rgb(255, 255, 255);
         let stroke = UStroke::simple();
         let mut sg = new_sg();
-        draw_arrow(&mut sg, &config, &tm, &area, &fg, &bg, &stroke, true, false, 0.0, 0.0);
+        draw_arrow(
+            &mut sg, &config, &tm, &area, &fg, &bg, &stroke, true, false, 0.0, 0.0,
+        );
         let body = sg.body();
         let line_count = body.matches("<line").count();
         assert!(line_count >= 3, "expected >= 3 lines, got {}", line_count);
@@ -1900,7 +2185,9 @@ mod tests {
         let bg = HColor::rgb(255, 255, 255);
         let stroke = UStroke::simple();
         let mut sg = new_sg();
-        draw_arrow(&mut sg, &config, &tm, &area, &fg, &bg, &stroke, true, false, 0.0, 0.0);
+        draw_arrow(
+            &mut sg, &config, &tm, &area, &fg, &bg, &stroke, true, false, 0.0, 0.0,
+        );
         let body = sg.body();
         let ellipse_count = body.matches("<ellipse").count();
         assert_eq!(ellipse_count, 2);
@@ -1908,8 +2195,7 @@ mod tests {
 
     #[test]
     fn draw_self_arrow_hidden() {
-        let config = ArrowConfiguration::with_direction_self(false)
-            .with_body(ArrowBody::Hidden);
+        let config = ArrowConfiguration::with_direction_self(false).with_body(ArrowBody::Hidden);
         let tm = make_text(30.0, 14.0);
         let area = Area::new(100.0, 40.0);
         let fg = HColor::rgb(0, 0, 0);
@@ -1945,7 +2231,9 @@ mod tests {
         let bg = HColor::rgb(255, 255, 200);
         let stroke = UStroke::simple();
         let mut sg = new_sg();
-        draw_participant(&mut sg, &tm, &area, &fg, &bg, &stroke, 5.0, 0.0, 0.0, false, 0.0, 0.0);
+        draw_participant(
+            &mut sg, &tm, &area, &fg, &bg, &stroke, 5.0, 0.0, 0.0, false, 0.0, 0.0,
+        );
         let body = sg.body();
         let rect_count = body.matches("<rect").count();
         assert_eq!(rect_count, 1);
@@ -1959,7 +2247,9 @@ mod tests {
         let bg = HColor::rgb(255, 255, 200);
         let stroke = UStroke::simple();
         let mut sg = new_sg();
-        draw_participant(&mut sg, &tm, &area, &fg, &bg, &stroke, 5.0, 0.0, 0.0, true, 0.0, 0.0);
+        draw_participant(
+            &mut sg, &tm, &area, &fg, &bg, &stroke, 5.0, 0.0, 0.0, true, 0.0, 0.0,
+        );
         let body = sg.body();
         let rect_count = body.matches("<rect").count();
         assert_eq!(rect_count, 2); // two rects for collections
@@ -2008,7 +2298,8 @@ mod tests {
         let tm = TextMetrics::new(15.0, 30.0, 1.0, 40.0, 14.0);
         let area = Area::new(200.0, 30.0);
         let fashion = Fashion::new(Some(HColor::rgb(200, 200, 200)), Some(HColor::rgb(0, 0, 0)));
-        let corner_fashion = Fashion::new(Some(HColor::rgb(180, 180, 180)), Some(HColor::rgb(0, 0, 0)));
+        let corner_fashion =
+            Fashion::new(Some(HColor::rgb(180, 180, 180)), Some(HColor::rgb(0, 0, 0)));
         let bg = HColor::rgb(240, 240, 240);
         let mut sg = new_sg();
         draw_grouping_header(&mut sg, &tm, &area, &fashion, &corner_fashion, &bg, 0.0);
@@ -2110,10 +2401,21 @@ mod tests {
     fn draw_reference_produces_rect_and_path() {
         let tm = make_text(80.0, 14.0);
         let area = Area::new(200.0, 60.0);
-        let header_fashion = Fashion::new(Some(HColor::rgb(200, 200, 200)), Some(HColor::rgb(0, 0, 0)));
-        let body_fashion = Fashion::new(Some(HColor::rgb(255, 255, 255)), Some(HColor::rgb(0, 0, 0)));
+        let header_fashion =
+            Fashion::new(Some(HColor::rgb(200, 200, 200)), Some(HColor::rgb(0, 0, 0)));
+        let body_fashion =
+            Fashion::new(Some(HColor::rgb(255, 255, 255)), Some(HColor::rgb(0, 0, 0)));
         let mut sg = new_sg();
-        draw_reference(&mut sg, &tm, &area, &header_fashion, &body_fashion, 30.0, 14.0, 0.0);
+        draw_reference(
+            &mut sg,
+            &tm,
+            &area,
+            &header_fashion,
+            &body_fashion,
+            30.0,
+            14.0,
+            0.0,
+        );
         let body = sg.body();
         let rect_count = body.matches("<rect").count();
         let path_count = body.matches("<path").count();
@@ -2202,7 +2504,9 @@ mod tests {
 
     #[test]
     fn area_with_delta() {
-        let a = Area::new(100.0, 50.0).with_delta_x1(10.0).with_text_delta_x(5.0);
+        let a = Area::new(100.0, 50.0)
+            .with_delta_x1(10.0)
+            .with_text_delta_x(5.0);
         assert_eq!(a.delta_x1, 10.0);
         assert_eq!(a.text_delta_x, 5.0);
     }

@@ -3,7 +3,7 @@ use crate::layout::nwdiag::{
     NwdiagConnectorLayout, NwdiagLayout, NwdiagNetworkLayout, NwdiagServerLayout,
 };
 use crate::model::nwdiag::NwdiagDiagram;
-use crate::render::svg::{write_svg_root_bg, write_bg_rect, ensure_visible_int};
+use crate::render::svg::{ensure_visible_int, write_bg_rect, write_svg_root_bg};
 use crate::render::svg_richtext::render_creole_text;
 use crate::style::SkinParams;
 use crate::Result;
@@ -76,7 +76,15 @@ fn render_network(sg: &mut SvgGraphic, network: &NwdiagNetworkLayout, skin: &Ski
     sg.set_fill_color(fill);
     sg.set_stroke_color(Some(border));
     sg.set_stroke_width(0.5, None);
-    sg.svg_rectangle(network.x, network.y, network.width, network.height, 8.0, 8.0, 0.0);
+    sg.svg_rectangle(
+        network.x,
+        network.y,
+        network.width,
+        network.height,
+        8.0,
+        8.0,
+        0.0,
+    );
 
     let mut tmp = String::new();
     render_creole_text(
@@ -115,7 +123,15 @@ fn render_server(sg: &mut SvgGraphic, server: &NwdiagServerLayout, skin: &SkinPa
     sg.set_fill_color(fill);
     sg.set_stroke_color(Some(border));
     sg.set_stroke_width(0.5, None);
-    sg.svg_rectangle(server.x, server.y, server.width, server.height, 4.0, 4.0, 0.0);
+    sg.svg_rectangle(
+        server.x,
+        server.y,
+        server.width,
+        server.height,
+        4.0,
+        4.0,
+        0.0,
+    );
 
     let mut tmp = String::new();
     render_creole_text(
