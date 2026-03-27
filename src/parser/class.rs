@@ -28,6 +28,7 @@ pub fn parse_class_diagram(source: &str) -> Result<ClassDiagram> {
     let mut next_uid_value: u32 = 1;
     let mut entity_uids: HashMap<String, String> = HashMap::new();
     let mut entity_first_source_lines: HashMap<String, usize> = HashMap::new();
+    let mut known_implicit_groups: std::collections::HashSet<String> = std::collections::HashSet::new();
 
     let mut notes: Vec<ClassNote> = Vec::new();
 
@@ -252,6 +253,7 @@ pub fn parse_class_diagram(source: &str) -> Result<ClassDiagram> {
             let stereotypes = parse_stereotypes_from_tail(rest);
             let color = parse_color_from_tail(rest);
             debug!("opening group: {name} ({kind_str})");
+            known_implicit_groups.insert(name.clone());
             group_stack.push(Group {
                 uid: Some(next_entity_uid(&mut next_uid_value)),
                 kind,
@@ -312,6 +314,15 @@ pub fn parse_class_diagram(source: &str) -> Result<ClassDiagram> {
                 &name,
                 source_line,
             );
+            // Java creates implicit package groups immediately when an entity
+            // with dots is registered, so group UIDs come before link UIDs.
+            synthesize_implicit_groups_for_entity(
+                &name,
+                Some(source_line),
+                &mut groups,
+                &mut known_implicit_groups,
+                &mut next_uid_value,
+            );
 
             let entity = Entity {
                 uid: Some(uid),
@@ -360,12 +371,26 @@ pub fn parse_class_diagram(source: &str) -> Result<ClassDiagram> {
                 &link.from,
                 source_line,
             );
+            synthesize_implicit_groups_for_entity(
+                &link.from,
+                Some(source_line),
+                &mut groups,
+                &mut known_implicit_groups,
+                &mut next_uid_value,
+            );
             ensure_entity_uid(
                 &mut entity_uids,
                 &mut entity_first_source_lines,
                 &mut next_uid_value,
                 &link.to,
                 source_line,
+            );
+            synthesize_implicit_groups_for_entity(
+                &link.to,
+                Some(source_line),
+                &mut groups,
+                &mut known_implicit_groups,
+                &mut next_uid_value,
             );
             let mut link = link;
             // Java CommandLinkClass creates the link before applying `getInv()`
@@ -428,7 +453,17 @@ pub fn parse_class_diagram(source: &str) -> Result<ClassDiagram> {
         &entity_uids,
         &entity_first_source_lines,
     );
-    synthesize_implicit_package_groups(&entities, &mut groups, &mut next_uid_value);
+    // Synthesize implicit packages for any auto-created entities that weren't
+    // handled inline during parsing (e.g. entities only referenced in links).
+    for entity in &entities {
+        synthesize_implicit_groups_for_entity(
+            &entity.name,
+            entity.source_line,
+            &mut groups,
+            &mut known_implicit_groups,
+            &mut next_uid_value,
+        );
+    }
     sort_entities_by_order(&mut entities, &entity_order);
 
     Ok(ClassDiagram {
@@ -1091,40 +1126,40 @@ fn implicit_package_prefixes(name: &str) -> Vec<String> {
     prefixes
 }
 
-fn synthesize_implicit_package_groups(
-    entities: &[Entity],
+/// Synthesize implicit package groups for a single entity name.
+/// Java creates package hierarchy immediately when an entity with dots is registered,
+/// so group UIDs are allocated from the shared counter before any subsequent link UIDs.
+fn synthesize_implicit_groups_for_entity(
+    entity_name: &str,
+    source_line: Option<usize>,
     groups: &mut Vec<Group>,
+    known_implicit_groups: &mut std::collections::HashSet<String>,
     next_uid_value: &mut u32,
 ) {
-    let mut known_group_names: std::collections::HashSet<String> =
-        groups.iter().map(|g| g.name.clone()).collect();
-
-    for entity in entities {
-        let prefixes = implicit_package_prefixes(&entity.name);
-        if prefixes.is_empty() {
-            continue;
+    let prefixes = implicit_package_prefixes(entity_name);
+    if prefixes.is_empty() {
+        return;
+    }
+    for prefix in &prefixes {
+        if known_implicit_groups.insert(prefix.clone()) {
+            groups.push(Group {
+                uid: Some(next_entity_uid(next_uid_value)),
+                kind: GroupKind::Package,
+                name: prefix.clone(),
+                entities: Vec::new(),
+                stereotypes: Vec::new(),
+                color: None,
+                source_line,
+            });
         }
-        for prefix in &prefixes {
-            if known_group_names.insert(prefix.clone()) {
-                groups.push(Group {
-                    uid: Some(next_entity_uid(next_uid_value)),
-                    kind: GroupKind::Package,
-                    name: prefix.clone(),
-                    entities: Vec::new(),
-                    stereotypes: Vec::new(),
-                    color: None,
-                    source_line: entity.source_line,
-                });
+    }
+    if let Some(deepest) = prefixes.last() {
+        if let Some(group) = groups.iter_mut().find(|g| g.name == *deepest) {
+            if !group.entities.iter().any(|name| name == entity_name) {
+                group.entities.push(entity_name.to_string());
             }
-        }
-        if let Some(deepest) = prefixes.last() {
-            if let Some(group) = groups.iter_mut().find(|g| g.name == *deepest) {
-                if !group.entities.iter().any(|name| name == &entity.name) {
-                    group.entities.push(entity.name.clone());
-                }
-                if group.source_line.is_none() {
-                    group.source_line = entity.source_line;
-                }
+            if group.source_line.is_none() {
+                group.source_line = source_line;
             }
         }
     }

@@ -1851,7 +1851,16 @@ fn render_class(
                 .or_insert(group_order);
             entity_qualified_names
                 .entry(entity_name.as_str())
-                .or_insert_with(|| format!("{}.{}", group.name, entity_name));
+                .or_insert_with(|| {
+                    // If the entity name already starts with the group prefix
+                    // (implicit package groups), don't prepend it again.
+                    let prefix = format!("{}.", group.name);
+                    if entity_name.starts_with(&prefix) {
+                        entity_name.clone()
+                    } else {
+                        format!("{}.{}", group.name, entity_name)
+                    }
+                });
         }
     }
     let mut entities_by_render_order: Vec<&Entity> = cd.entities.iter().collect();
@@ -2835,6 +2844,10 @@ fn draw_entity_box(
             stroke,
         );
     }
+    // UEmpty: Java body.drawU emits an empty shape at the bottom-right of each entity.
+    // drawEmpty(x, y, 1, 1) adds (x, y) to (x+1, y+1), but since the entity rect
+    // already covers (x-1,y-1) to (x+w-1,y+h-1), this just extends max to (x+w, y+h).
+    tracker.track_empty(x + w, y + h, 0.0, 0.0);
 }
 
 /// Draw the generic type box (dashed rect + italic text) at top-right of entity.
