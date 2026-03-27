@@ -478,23 +478,66 @@ pub fn layout_with_svek(graph: &LayoutGraph) -> Result<GraphLayout, Error> {
 
     let svg = String::from_utf8_lossy(&output.stdout);
     log::debug!("svek dot svg output:\n{svg}");
+
+    // Parse edges directly from Graphviz SVG for arrowhead polygon data.
+    // These coordinates use Graphviz's translate(tx,ty) transform.
+    let (gv_tx, gv_ty) = parse_transform_translate(&svg);
     let parsed_svg_edges = parse_svg_edges_pre_normalize(&svg);
+
+    // Solve: parse SVG and position nodes/edges via svek's YDelta(full_height)
+    // transform, then apply moveDelta normalization.
+    let (move_delta, lf_span, render_offset) = builder
+        .solve(&svg)
+        .map_err(|e| Error::Layout(format!("svek solve error: {e}")))?;
+
+    // Graphviz SVG parsed edges use translate(tx,ty), while svek uses
+    // YDelta(full_height) + moveDelta(dx,dy). These differ by a constant:
+    //   correction_x = moveDelta_x - tx
+    //   correction_y = full_height - ty + moveDelta_y
+    // Apply this correction so parsed edge data aligns with svek node positions.
+    let full_height = {
+        let p = svg.find(" height=\"").map(|p| p + 9).unwrap_or(0);
+        let e = svg[p..].find("pt\"").unwrap_or(0);
+        svg[p..p + e].trim().parse::<f64>().unwrap_or(0.0)
+    };
+    let correction_x = move_delta.0 - gv_tx;
+    let correction_y = full_height - gv_ty + move_delta.1;
+    log::debug!(
+        "parsed-edge correction: dx={correction_x:.2} dy={correction_y:.2} (tx={gv_tx}, ty={gv_ty}, fh={full_height}, md={:?})",
+        move_delta
+    );
+
     let mut parsed_svg_edges_by_key: std::collections::HashMap<
         (String, String),
         std::collections::VecDeque<EdgeLayout>,
     > = std::collections::HashMap::new();
-    for edge in parsed_svg_edges {
+    for mut edge in parsed_svg_edges {
+        // Shift parsed edge coordinates from Graphviz-translate space to svek space.
+        if correction_x.abs() > 1e-6 || correction_y.abs() > 1e-6 {
+            for p in &mut edge.points {
+                p.0 += correction_x;
+                p.1 += correction_y;
+            }
+            if let Some(ref mut tip) = edge.arrow_tip {
+                tip.0 += correction_x;
+                tip.1 += correction_y;
+            }
+            if let Some(ref raw_d) = edge.raw_path_d {
+                edge.raw_path_d = Some(transform_path_d(raw_d, correction_x, correction_y));
+            }
+            if let Some(ref mut pts) = edge.arrow_polygon_points {
+                for p in pts.iter_mut() {
+                    p.0 += correction_x;
+                    p.1 += correction_y;
+                }
+            }
+        }
         let key = (
             strip_entity_port(&edge.from).to_string(),
             strip_entity_port(&edge.to).to_string(),
         );
         parsed_svg_edges_by_key.entry(key).or_default().push_back(edge);
     }
-
-    // Solve: parse SVG and position nodes/edges
-    let (move_delta, lf_span, render_offset) = builder
-        .solve(&svg)
-        .map_err(|e| Error::Layout(format!("svek solve error: {e}")))?;
 
     // Convert svek results to GraphLayout, normalizing to origin (0,0)
     // since the renderer adds its own MARGIN offset.
@@ -1040,8 +1083,10 @@ fn parse_svg_edge(g: &str, tx: f64, ty: f64) -> Option<EdgeLayout> {
     }
 
     // Parse arrowhead <polygon> for arrow tip and full polygon points.
-    // Skip label background polygons (stroke="transparent") — those are Java's
-    // SvekEdge label shields, not arrowheads.
+    // Skip non-arrowhead polygons:
+    // - stroke="transparent": label background (Java SvekEdge label shield)
+    // - fill="none": label TABLE cell/row borders from DOT HTML labels
+    // Arrowhead polygons always have a solid fill color (fill="#RRGGBB").
     let path_end = g
         .find("<path")
         .and_then(|p| g[p..].find("/>").map(|e| p + e + 2));
@@ -1052,11 +1097,16 @@ fn parse_svg_edge(g: &str, tx: f64, ty: f64) -> Option<EdgeLayout> {
         while let Some(poly_pos) = g[search..].find("<polygon") {
             let abs_pos = search + poly_pos;
             let polygon = &g[abs_pos..];
+            let tag_end = polygon.find("/>").unwrap_or(usize::MAX);
             // Skip label background polygons with transparent stroke
             let is_label_bg = polygon
                 .find("stroke=\"transparent\"")
-                .map_or(false, |s| s < polygon.find("/>").unwrap_or(usize::MAX));
-            if !is_label_bg {
+                .map_or(false, |s| s < tag_end);
+            // Skip label table border polygons with fill="none"
+            let is_table_border = polygon
+                .find("fill=\"none\"")
+                .map_or(false, |s| s < tag_end);
+            if !is_label_bg && !is_table_border {
                 if let Some(pts_str) = parse_xml_attr_str(polygon, "points") {
                     let poly_pts = parse_polygon_points(pts_str, tx, ty);
                     let tip = if poly_pts.len() >= 2 {
