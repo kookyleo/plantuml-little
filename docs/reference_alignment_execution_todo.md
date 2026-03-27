@@ -2,7 +2,13 @@
 
 ## Current Baseline
 
-- Current baseline after state standalone-note fix on 2026-03-28: `172 passed / 124 failed / 296 total`
+- Current baseline after LF edge label fix on 2026-03-28: `172 passed / 124 failed / 296 total`
+- Fixed: LimitFinder edge label bounds now use top-left origin (getMinXY) instead of centering around pt.x - w/2; this corrects the internal coordinates for class diagrams with edge labels (class_funcparam_arrow off by 7.8px → 1px) but does not yet flip tests
+- Analysis: SVG0004_Smetana/Svek (-1 x/y global shift) is NOT from edge label LF — polygon_min == lf_min for that diagram; the -1 comes from cluster rendering offsets
+- Analysis: hideshow004 (-2 x, -1 height) is NOT from edge label LF — no edges exist; the -2 x comes from a different DOT node width or viewport margin calculation
+- Analysis: closest-to-passing tests are class_funcparam_arrow_01 (18 char diff, -1 x/y from Java creole text block internal offset) and SVG0004 variants (128 char diff, -1 x/y from cluster offset)
+- Analysis: no viewport-only diffs remain — all 124 failures have internal coordinate differences
+- Previous baseline after state standalone-note fix on 2026-03-28: `172 passed / 124 failed / 296 total`
 - Fixed: standalone `note as ALIAS` in state diagrams now laid out by graphviz (was detached-right)
 - Fixed: note fold stroke-width 0.5→1, note bounds tracked as UPath (no HACK_X_FOR_POLYGON)
 - Fixed: SVG0004 reference CDATA formatting aligned to Java output
