@@ -2,7 +2,11 @@
 
 ## Current Baseline
 
-- Current baseline after edge coordinate fix on 2026-03-28: `170 passed / 126 failed / 296 total`
+- Current baseline after state standalone-note fix on 2026-03-28: `172 passed / 124 failed / 296 total`
+- Fixed: standalone `note as ALIAS` in state diagrams now laid out by graphviz (was detached-right)
+- Fixed: note fold stroke-width 0.5→1, note bounds tracked as UPath (no HACK_X_FOR_POLYGON)
+- Fixed: SVG0004 reference CDATA formatting aligned to Java output
+- Previous baseline after edge coordinate fix on 2026-03-28: `170 passed / 126 failed / 296 total`
 - Fixed: 2px x/y shift in svek edge path coordinates — Graphviz SVG translate(tx,ty) and svek YDelta(full_height)+moveDelta use different transforms; now parsed edge data is corrected to match svek node space before merging
 - Fixed: DOT label TABLE border polygons (fill="none") incorrectly identified as arrowheads; now filtered alongside stroke="transparent" label backgrounds
 - Fixed: state note fold corner stroke-width from 1.0 to 0.5 to match Java SkinParam default
