@@ -1,4 +1,0 @@
-TRACE participant code=o display0=:Order tooltip=:Order hex=3a,4f,72,64,65,72
-TRACE participant code=d_o display0=«datastore» tooltip=«datastore» hex=ab,64,61,74,61,73,74,6f,72,65,bb
-TRACE line tooltip=:Order
-TRACE line tooltip=«datastore»
