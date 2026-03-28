@@ -1491,25 +1491,9 @@ fn draw_message(
     // Draw inline polygon arrowhead
     if msg.has_open_head {
         // Open arrowhead: lines forming a V (or half-V for half-arrows)
-        // Java draws from tip to arm-end, with x1 always the smaller value.
+        // Java convention: x1=tip, x2=arm, y1=tip_y (arrow_y), y2=arm_y.
         let arm_offset = if msg.is_left { 10.0 } else { -10.0 };
         let arm_x = tip_x + arm_offset;
-        // Ensure x1 < x2 and pair y1/y2 accordingly (Java convention)
-        let (lx1, lx2) = if tip_x < arm_x {
-            (tip_x, arm_x)
-        } else {
-            (arm_x, tip_x)
-        };
-        let (top_y1, top_y2) = if tip_x < arm_x {
-            (msg.y, msg.y - 4.0) // tip is x1 → y1=arrow_y, arm is x2 → y2=above
-        } else {
-            (msg.y - 4.0, msg.y) // arm is x1 → y1=above, tip is x2 → y2=arrow_y
-        };
-        let (bot_y1, bot_y2) = if tip_x < arm_x {
-            (msg.y, msg.y + 4.0)
-        } else {
-            (msg.y + 4.0, msg.y)
-        };
         let mut tmp = String::new();
         // Top line of V (skip for HalfBottom)
         if !matches!(msg.arrow_head, SeqArrowHead::HalfBottom) {
@@ -1517,10 +1501,10 @@ fn draw_message(
                 tmp,
                 r#"<line style="stroke:{color};stroke-width:{sw};" x1="{x1}" x2="{x2}" y1="{y1}" y2="{y2}"/>"#,
                 color = arrow_color,
-                x1 = fmt_coord(lx1),
-                x2 = fmt_coord(lx2),
-                y1 = fmt_coord(top_y1),
-                y2 = fmt_coord(top_y2),
+                x1 = fmt_coord(tip_x),
+                x2 = fmt_coord(arm_x),
+                y1 = fmt_coord(msg.y),
+                y2 = fmt_coord(msg.y - 4.0),
             )
             .unwrap();
         }
@@ -1530,10 +1514,10 @@ fn draw_message(
                 tmp,
                 r#"<line style="stroke:{color};stroke-width:{sw};" x1="{x1}" x2="{x2}" y1="{y1}" y2="{y2}"/>"#,
                 color = arrow_color,
-                x1 = fmt_coord(lx1),
-                x2 = fmt_coord(lx2),
-                y1 = fmt_coord(bot_y1),
-                y2 = fmt_coord(bot_y2),
+                x1 = fmt_coord(tip_x),
+                x2 = fmt_coord(arm_x),
+                y1 = fmt_coord(msg.y),
+                y2 = fmt_coord(msg.y + 4.0),
             )
             .unwrap();
         }
@@ -1569,13 +1553,13 @@ fn draw_message(
     } else {
         ""
     };
-    // Line stops at polygon inner edge (4px from tip for filled, at tip for open)
-    // Java: for left-pointing open arrows, line extends to to_x (not tip_x).
+    // Java: line len = area_width - 1, so the line ends 1px before the area right edge.
+    // For open-head arrows, the line extends to tip_x + 1 (= to_x - 1) for right-pointing.
     let adjusted_x2 = if msg.has_open_head {
         if msg.is_left {
             msg.to_x // Java: reversed open arrow line extends to target center
         } else {
-            tip_x
+            tip_x + 1.0 // Java: len = width - 1, so line ends at to_x - 1
         }
     } else if msg.is_left {
         tip_x + 4.0
@@ -2800,7 +2784,9 @@ fn render_sequence_inner(
         }
         if !sd.hide_footbox {
             for (i, p) in layout.participants.iter().enumerate() {
-                draw_part(&mut sg, i, p, bottom_y, false);
+                // Java teoz: LivingSpace.drawHead() always uses headType (not tailType),
+                // so all participant types render with head=true layout (icon on top, text below).
+                draw_part(&mut sg, i, p, bottom_y, true);
             }
         }
     } else {
