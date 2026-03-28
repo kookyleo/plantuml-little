@@ -2,7 +2,11 @@
 
 ## Current Baseline
 
-- Current baseline after LEFT note positioning fix on 2026-03-28: `174 passed / 122 failed / 296 total`
+- Current baseline after macro whole-word fix on 2026-03-28: `176 passed / 120 failed / 296 total`
+- Fixed: parameterised !define macro expansion now uses whole-word matching, preventing e.g. Extension() from matching inside loadExtension()
+- Analysis: hideshow004 root cause fully traced via Java LimitFinder debug. The -1 height comes from missing UEmpty (entity body text block) tracking — Java LF sees UEmpty(x,y,w,h) with addPoint(x+w,y+h) without the -1 rect adjustment, extending max_y by +1. The -2px x-offset comes from Java moveDelta using LF min_x=-3 (includes visibility modifier polygon HACK_X_FOR_POLYGON=10 at entity_x+margin_left(6)+triangle_translate(1)+polygon_local_min(0)-10=-3) while our render_offset uses svek LF min_x=-1 (only rect adjustment). Both effects confirmed via Java debug instrumentation.
+- Analysis: jaws7 (height 16 vs 78) has two issues: (1) macro expansion bug (fixed above), (2) class parser doesn't handle creole-formatted names like `class "<b>TYP: B</b>" as A << (E,White) Extension >>`
+- Previous baseline after LEFT note positioning fix on 2026-03-28: `174 passed / 122 failed / 296 total`
 - Fixed: LEFT note on self-messages now uses Java NoteBox.getStartingX() formula with (int) truncation and notePreferredWidth instead of visual width; fragment extent for self-msg notes matches Java InGroupableList margin chain (MARGIN5+MARGIN10=15)
 - Previous baseline after LF edge label fix on 2026-03-28: `172 passed / 124 failed / 296 total`
 - Fixed: LimitFinder edge label bounds now use top-left origin (getMinXY) instead of centering around pt.x - w/2; this corrects the internal coordinates for class diagrams with edge labels (class_funcparam_arrow off by 7.8px → 1px) but does not yet flip tests
