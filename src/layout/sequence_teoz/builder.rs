@@ -391,6 +391,38 @@ fn active_right_shift(level: usize) -> f64 {
     level as f64 * (ACTIVATION_WIDTH / 2.0)
 }
 
+/// Unescape PlantUML text escape sequences after \\n splitting.
+/// Java: Display.create() processes \\-prefixed escapes in legacy mode:
+///   `\\\\` -> `\`, `\\t` -> tab. Other `\\X` pass through.
+fn unescape_backslash(s: &str) -> String {
+    let mut result = String::with_capacity(s.len());
+    let chars: Vec<char> = s.chars().collect();
+    let mut i = 0;
+    while i < chars.len() {
+        if chars[i] == '\\' && i + 1 < chars.len() {
+            match chars[i + 1] {
+                '\\' => {
+                    result.push('\\');
+                    i += 2;
+                }
+                't' => {
+                    result.push('\t');
+                    i += 2;
+                }
+                _ => {
+                    result.push(chars[i]);
+                    result.push(chars[i + 1]);
+                    i += 2;
+                }
+            }
+        } else {
+            result.push(chars[i]);
+            i += 1;
+        }
+    }
+    result
+}
+
 fn live_thickness_width(level: usize) -> f64 {
     active_left_shift(level) + active_right_shift(level)
 }
@@ -874,7 +906,7 @@ pub fn build_teoz_layout(sd: &SequenceDiagram, skin: &SkinParams) -> Result<SeqL
                     .text
                     .split("\\n")
                     .flat_map(|s| s.split(crate::NEWLINE_CHAR))
-                    .map(ToString::to_string)
+                    .map(|s| unescape_backslash(s))
                     .collect();
                 if let Some(max_w) = max_message_size {
                     text_lines = text_lines
@@ -1194,9 +1226,14 @@ pub fn build_teoz_layout(sd: &SequenceDiagram, skin: &SkinParams) -> Result<SeqL
                 to_level,
                 ..
             } => {
-                // Skip boundary/gate messages — they don't constrain participants.
-                if from_name == "[" || to_name == "]" {
-                    // Boundary messages render at diagram edges, no constraint needed
+                if from_name == "[" {
+                    // Left-border messages: Java CommunicationExoTile.addConstraints()
+                    // posC >= xOrigin + arrowWidth
+                    let arrow_tm = TextMetrics::new(7.0, 7.0, 1.0, *text_width, tp.msg_line_height);
+                    let arrow_w = rose::arrow_preferred_size(&arrow_tm, 0.0, 0.0).width;
+                    rl.ensure_bigger_than_with_margin(*to_center, xorigin, arrow_w);
+                } else if to_name == "]" {
+                    // Right-border messages: no constraint in Java
                 } else {
                     let fi = *from_idx;
                     let ti = *to_idx;
