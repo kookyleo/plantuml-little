@@ -2399,6 +2399,28 @@ pub fn build_teoz_layout(sd: &SequenceDiagram, skin: &SkinParams) -> Result<SeqL
                     // The tile y includes FRAG_BOTTOM_PADDING (10px) which is
                     // spacing below the frame rect, not part of the frame itself.
                     let frame_height = ty - y_start - FRAG_BOTTOM_PADDING;
+                    // Find the first message tile index within this fragment.
+                    // Count message tiles before child_start to get the message index.
+                    let first_msg_idx = {
+                        let mut msg_count_before = 0;
+                        let mut found = None;
+                        for ti in 0..tiles.len() {
+                            let is_msg = matches!(
+                                tiles[ti],
+                                TeozTile::Communication { .. } | TeozTile::SelfMessage { .. }
+                            );
+                            if ti >= child_start && ti < tile_i && is_msg && found.is_none() {
+                                found = Some(msg_count_before);
+                            }
+                            if is_msg && ti < child_start {
+                                msg_count_before += 1;
+                            }
+                            if is_msg && ti >= child_start && ti < tile_i && found.is_some() {
+                                break;
+                            }
+                        }
+                        found
+                    };
                     fragments.push(FragmentLayout {
                         kind,
                         label,
@@ -2407,6 +2429,7 @@ pub fn build_teoz_layout(sd: &SequenceDiagram, skin: &SkinParams) -> Result<SeqL
                         width: frag_width,
                         height: frame_height,
                         separators,
+                        first_msg_index: first_msg_idx,
                     });
                 }
             }

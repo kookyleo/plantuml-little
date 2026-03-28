@@ -2172,7 +2172,8 @@ fn draw_group(sg: &mut SvgGraphic, group: &GroupLayout) {
 
 // ── Fragment frames ──────────────────────────────────────────────────
 
-/// Draw complete fragment: pentagon tab, frame rect, and labels.
+/// Draw complete fragment: pentagon tab, frame rect, labels, and separators.
+/// Java GroupingTile.drawU() draws header, then drawAllElses(), then child tiles.
 fn draw_fragment_details(sg: &mut SvgGraphic, frag: &FragmentLayout) {
     let fx = fmt_coord(frag.x);
     let fy = fmt_coord(frag.y);
@@ -2249,18 +2250,38 @@ fn draw_fragment_details(sg: &mut SvgGraphic, frag: &FragmentLayout) {
         );
     }
 
-    // Note: separators are rendered inline with messages via draw_fragment_separator
+    // For teoz fragments (first_msg_index set), draw separators as part of the
+    // fragment detail. Java GroupingTile.drawU() calls drawAllElses() right after
+    // the header, before any child tiles.
+    if frag.first_msg_index.is_some() {
+        for (sep_y, sep_label) in &frag.separators {
+            draw_fragment_separator(sg, frag, *sep_y, sep_label, true);
+        }
+    }
 }
 
 /// Draw a single separator line + label within a fragment
+///
+/// In Java teoz, the else separator component is drawn at `tile_y + MARGINY_MAGIC/2`.
+/// Inside the component, the dashed line is at dy=1, and the text is at
+/// `(marginY + 2, marginX1)` = `(3, 5)`.  So:
+///   line absolute Y = tile_y + 10 + 1 = tile_y + 11
+///   text absolute Y = tile_y + 10 + 3 + ascent_11 = tile_y + 10 + 3 + ascent(11pt)
 fn draw_fragment_separator(
     sg: &mut SvgGraphic,
     frag: &FragmentLayout,
     sep_y: f64,
     sep_label: &str,
+    teoz: bool,
 ) {
+    // In teoz mode, the stored sep_y is the raw tile Y.
+    // Java: ComponentRoseGroupingElse draws dashed line at component_y + 1
+    // component_y = tile_y + MARGINY_MAGIC/2 = tile_y + 10
+    // So line_y = tile_y + 11
+    // In puma mode, sep_y is already the correct line Y.
+    let line_y = if teoz { sep_y + 11.0 } else { sep_y };
     let fx = fmt_coord(frag.x);
-    let y_s = fmt_coord(sep_y);
+    let y_s = fmt_coord(line_y);
     sg.push_raw(&format!(
         "<line style=\"stroke:#000000;stroke-width:1;stroke-dasharray:2,2;\" x1=\"{fx}\" x2=\"{}\" y1=\"{y_s}\" y2=\"{y_s}\"/>",
         fmt_coord(frag.x + frag.width),
@@ -2270,7 +2291,14 @@ fn draw_fragment_separator(
         let bracket_text = format!("[{sep_label}]");
         let sep_tl = font_metrics::text_width(&bracket_text, "SansSerif", 11.0, true, false);
         let label_x = frag.x + 5.0;
-        let label_y = sep_y + 10.2105;
+        let label_y = if teoz {
+            // Java teoz: text at (marginX1=5, marginY+2=3) within component.
+            // component_y = tile_y + 10. Text SVG y = component_y + 3 + ascent_11.
+            let ascent_11 = font_metrics::ascent("SansSerif", 11.0, true, false);
+            sep_y + 10.0 + 3.0 + ascent_11
+        } else {
+            sep_y + 10.2105
+        };
         sg.set_fill_color("#000000");
         sg.svg_text(
             &bracket_text,
@@ -2800,20 +2828,9 @@ fn render_sequence_inner(
         }
     }
 
-    // 6b. Fragment rendering for teoz (after participant boxes).
-    // Teoz: pentagon + rect + label as one unit (Java MainTile order).
-    // Puma: handled in interstitial events (step 8).
-    if sd.teoz_mode {
-        let mut sorted_frags: Vec<&FragmentLayout> = layout.fragments.iter().collect();
-        sorted_frags.sort_by(|a, b| {
-            a.y.partial_cmp(&b.y)
-                .unwrap_or(std::cmp::Ordering::Equal)
-                .then_with(|| a.x.partial_cmp(&b.x).unwrap_or(std::cmp::Ordering::Equal))
-        });
-        for frag in &sorted_frags {
-            draw_fragment_details(&mut sg, frag);
-        }
-    }
+    // 6b. Fragment rendering handled in interstitial events (step 8)
+    // for both teoz and puma modes. Fragments are drawn interleaved with
+    // messages at their correct Y positions (Java MainTile order).
 
     // 7. Activation bars foreground pass (puma only).
     // Teoz activations are already drawn in draw_lifelines_with_activations.
@@ -2835,7 +2852,8 @@ fn render_sequence_inner(
     let word_by_word = skin.get("maxmessagesize").is_some();
     let mut msg_seq_counter: usize = 0;
 
-    // Collect all interstitial events: (y, type) sorted by y
+    // Collect interstitial events (separators, refs, destroys, dividers, delays).
+    // Fragment details are handled separately via first_msg_index.
     enum InterstitialEvent<'a> {
         FragmentDetail(&'a FragmentLayout),
         Separator(&'a FragmentLayout, f64, &'a str),
@@ -2845,13 +2863,25 @@ fn render_sequence_inner(
         Delay(&'a DelayLayout),
     }
     let mut interstitials: Vec<(f64, InterstitialEvent)> = Vec::new();
+    // Build fragment-by-message-index map for ordered fragment rendering.
+    // Fragments with first_msg_index are drawn just before that message.
+    // Fragments without first_msg_index use Y-based ordering.
+    let mut frag_by_msg_idx: std::collections::BTreeMap<usize, Vec<&FragmentLayout>> =
+        std::collections::BTreeMap::new();
     for frag in &layout.fragments {
-        interstitials.push((frag.y, InterstitialEvent::FragmentDetail(frag)));
-        for (sep_y, sep_label) in &frag.separators {
-            interstitials.push((
-                *sep_y,
-                InterstitialEvent::Separator(frag, *sep_y, sep_label),
-            ));
+        if let Some(mi) = frag.first_msg_index {
+            // Teoz: fragment detail + separators are drawn together
+            // before the first message (handled via frag_by_msg_idx)
+            frag_by_msg_idx.entry(mi).or_default().push(frag);
+        } else {
+            // Puma: fragment detail and separators use Y-based interstitials
+            interstitials.push((frag.y, InterstitialEvent::FragmentDetail(frag)));
+            for (sep_y, sep_label) in &frag.separators {
+                interstitials.push((
+                    *sep_y,
+                    InterstitialEvent::Separator(frag, *sep_y, sep_label),
+                ));
+            }
         }
     }
     for r in &layout.refs {
@@ -2872,17 +2902,21 @@ fn render_sequence_inner(
     for (msg_idx, msg) in layout.messages.iter().enumerate() {
         msg_seq_counter += 1;
 
+        // Draw fragment details that should appear before this message
+        if let Some(frags) = frag_by_msg_idx.remove(&msg_idx) {
+            for frag in frags {
+                draw_fragment_details(&mut sg, frag);
+            }
+        }
+
         // Emit interstitial events that come before this message's y
         while interstitial_idx < interstitials.len() && interstitials[interstitial_idx].0 < msg.y {
             match &interstitials[interstitial_idx].1 {
                 InterstitialEvent::FragmentDetail(frag) => {
-                    // Teoz: already drawn in step 6b
-                    if !sd.teoz_mode {
-                        draw_fragment_details(&mut sg, frag);
-                    }
+                    draw_fragment_details(&mut sg, frag);
                 }
                 InterstitialEvent::Separator(frag, sep_y, sep_label) => {
-                    draw_fragment_separator(&mut sg, frag, *sep_y, sep_label);
+                    draw_fragment_separator(&mut sg, frag, *sep_y, sep_label, false);
                 }
                 InterstitialEvent::Ref(r) => {
                     draw_ref(&mut sg, r);
@@ -2979,6 +3013,13 @@ fn render_sequence_inner(
         }
     }
 
+    // Draw any remaining fragment details not associated with messages
+    for (_mi, frags) in frag_by_msg_idx {
+        for frag in frags {
+            draw_fragment_details(&mut sg, frag);
+        }
+    }
+
     // Draw any remaining notes not yet drawn (standalone or missed by association)
     for (ni, note) in layout.notes.iter().enumerate() {
         if !drawn_notes.contains(&ni) {
@@ -2991,13 +3032,10 @@ fn render_sequence_inner(
     while interstitial_idx < interstitials.len() {
         match &interstitials[interstitial_idx].1 {
             InterstitialEvent::FragmentDetail(frag) => {
-                // Teoz: already drawn in step 6b
-                if !sd.teoz_mode {
-                    draw_fragment_details(&mut sg, frag);
-                }
+                draw_fragment_details(&mut sg, frag);
             }
             InterstitialEvent::Separator(frag, sep_y, sep_label) => {
-                draw_fragment_separator(&mut sg, frag, *sep_y, sep_label);
+                draw_fragment_separator(&mut sg, frag, *sep_y, sep_label, false);
             }
             InterstitialEvent::Ref(r) => {
                 draw_ref(&mut sg, r);

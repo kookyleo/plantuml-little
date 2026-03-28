@@ -280,6 +280,9 @@ pub struct FragmentLayout {
     pub height: f64,
     /// (y_position, label) for each separator (else) within the fragment
     pub separators: Vec<(f64, String)>,
+    /// Index of the first message tile inside this fragment (for render ordering).
+    /// Used to interleave fragment frames with messages in correct tile order.
+    pub first_msg_index: Option<usize>,
 }
 
 /// Divider layout
@@ -2007,6 +2010,7 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
                         width: frag_w,
                         height: frag_height,
                         separators,
+                        first_msg_index: None,
                     });
                     lifeline_extend_y = frag_end_y + 17.0;
                     y_cursor = frag_end_y + lp.frag_after_end;
@@ -2354,6 +2358,7 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
             width: frag_w,
             height: frag_height,
             separators,
+            first_msg_index: None,
         });
         log::warn!("unclosed fragment, closing at y={y_cursor:.1}");
     }
