@@ -220,6 +220,39 @@ fn px_to_inches(px: f64) -> f64 {
     px / 72.0
 }
 
+/// Check if a label contains a link arrow direction indicator.
+/// Java: `StringWithArrow` recognizes " >", " <", "> ", "< ", ">", "<".
+fn has_link_arrow_indicator(label: &str) -> bool {
+    let s = label.trim();
+    s == ">" || s == "<"
+        || s.ends_with(" >") || s.ends_with(" <")
+        || s.starts_with("> ") || s.starts_with("< ")
+}
+
+/// Strip link arrow direction indicators from label text.
+/// Java: `StringWithArrow` extracts " >", " <", "> ", "< " from the label
+/// and renders them as arrow polygons. The label text for dimension
+/// calculation does not include these indicators.
+fn strip_link_arrow_text(label: &str) -> String {
+    let s = label.trim();
+    if s == ">" || s == "<" {
+        return String::new();
+    }
+    if let Some(rest) = s.strip_suffix(" >") {
+        return rest.trim().to_string();
+    }
+    if let Some(rest) = s.strip_suffix(" <") {
+        return rest.trim().to_string();
+    }
+    if let Some(rest) = s.strip_prefix("> ") {
+        return rest.trim().to_string();
+    }
+    if let Some(rest) = s.strip_prefix("< ") {
+        return rest.trim().to_string();
+    }
+    s.to_string()
+}
+
 fn measure_edge_text_block(text: &str, font_size: f64) -> (f64, f64) {
     let lines: Vec<&str> = text
         .split("\\n")
@@ -407,18 +440,28 @@ pub fn layout_with_svek(graph: &LayoutGraph) -> Result<GraphLayout, Error> {
         if let Some(ref label) = edge.label {
             ld = ld.with_label(label);
             // Compute label dimensions from font metrics for DOT sizing.
-            // Java: SvekLine.labelDimension = TextBlock.calculateDimension().
+            // Java: labelText = StringWithArrow.addMagicArrow(label, guide, font)
+            //   then addVisibilityModifier wraps with TextBlockMarged(marginLabel).
             // Edge labels use SansSerif 13pt (FontParam.CLASS = 13 for links).
-            // Split on all PlantUML line separators: \n (center), \l (left), \r (right).
-            let (max_line_w, text_h) = measure_edge_text_block(label, 13.0);
-            // Java: Display.create0 → SheetBlock2. Height = lines × line_h (no extra margin).
-            // Java: addVisibilityModifier wraps with TextBlockMarged(marginLabel=1),
-            // adding 1px on all sides. labelText.calculateDimension() = inner + 2*margin.
-            // Java SvekEdge.getLabelTextBlock():
-            // self-links use a much larger DOT label margin than normal links.
+            //
+            // Java label dimension breakdown:
+            // 1. Raw text block: text_width × text_height
+            // 2. If link has direction arrow (" >", " <", etc.): mergeLR with
+            //    TextBlockArrow2(size=fontSize=13) → adds 13px width
+            // 3. TextBlockMarged(marginLabel=1 for normal, 6 for self): adds 2*margin
+            // Result: (text_w + arrow_w + 2*margin) × (max(text_h, arrow_h) + 2*margin)
+            let has_arrow = has_link_arrow_indicator(label);
+            let label_text = strip_link_arrow_text(label);
+            let (text_w, text_h) = measure_edge_text_block(&label_text, 13.0);
+            let arrow_w = if has_arrow { 13.0 } else { 0.0 };
             let margin_label = if edge.from == edge.to { 6.0 } else { 1.0 };
-            let label_h = text_h + 2.0 * margin_label;
-            ld.label_dimension = Some((max_line_w + 2.0 * margin_label, label_h));
+            let inner_w = text_w + arrow_w;
+            let inner_h = if has_arrow { text_h.max(13.0) } else { text_h };
+            let dim_w = inner_w + 2.0 * margin_label;
+            let dim_h = inner_h + 2.0 * margin_label;
+            log::debug!("edge label={:?} text_w={:.4} arrow_w={} margin={} dim=({:.4},{:.4})",
+                label, text_w, arrow_w, margin_label, dim_w, dim_h);
+            ld.label_dimension = Some((dim_w, dim_h));
         }
         if let Some(ref tail_label) = edge.tail_label {
             let font_size = if edge.tail_label_boxed { 14.0 } else { 13.0 };
