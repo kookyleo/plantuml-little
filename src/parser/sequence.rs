@@ -30,6 +30,7 @@ pub fn parse_sequence_diagram_with_original(
     let mut auto_participants: Vec<Participant> = Vec::new();
     let mut events: Vec<SeqEvent> = Vec::new();
     let mut last_to_participant: Option<String> = None;
+    let mut last_from_participant: Option<String> = None;
     let mut in_style_block = false;
     let mut in_skinparam_block = false;
     // Multiline note collection
@@ -342,7 +343,7 @@ pub fn parse_sequence_diagram_with_original(
                             let after = rest[4..].trim();
                             let after = skip_note_color(after);
                             let (_remainder, explicit_p) = strip_of_participant(after);
-                            note_participant = explicit_p.or_else(|| last_to_participant.clone());
+                            note_participant = explicit_p.or_else(|| last_from_participant.clone());
                             note_lines.clear();
                             debug!("starting multiline note left");
                             continue;
@@ -611,6 +612,7 @@ pub fn parse_sequence_diagram_with_original(
                 );
 
                 last_to_participant = Some(msg.to.clone());
+                last_from_participant = Some(msg.from.clone());
                 let source = msg.from.clone();
                 let target = msg.to.clone();
                 events.push(SeqEvent::Message(msg));

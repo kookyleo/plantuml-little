@@ -1597,9 +1597,12 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
                     // For non-self messages: tile start = note_y.
                     // Arrow PH from tile start = y_cursor - note_y.
                     // If note PH > arrow PH, push y_cursor forward by the difference.
-                    let arrow_ph = y_cursor - note_y;
+                    let arrow_ph =
+                        lp.message_spacing + last_message_extra_height;
                     if note_pref_h > arrow_ph {
-                        y_cursor += note_pref_h - arrow_ph;
+                        let note_push = note_pref_h - arrow_ph;
+                        y_cursor += note_push;
+                        lifeline_extend_y += note_push / 2.0;
                     }
                 } else {
                     // Standalone note (not following a message): advance by note height
@@ -1715,9 +1718,12 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
                         y_cursor = note_tile_bottom;
                     }
                 } else if let Some(_msg_y) = last_message_y {
-                    let arrow_ph = y_cursor - note_y;
+                    let arrow_ph =
+                        lp.message_spacing + last_message_extra_height;
                     if note_pref_h > arrow_ph {
-                        y_cursor += note_pref_h - arrow_ph;
+                        let note_push = note_pref_h - arrow_ph;
+                        y_cursor += note_push;
+                        lifeline_extend_y += note_push / 2.0;
                     }
                 } else {
                     let note_bottom = note_y + note_height;
