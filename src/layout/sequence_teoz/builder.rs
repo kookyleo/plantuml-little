@@ -256,6 +256,58 @@ impl TeozTile {
             Self::GroupEnd { y, .. } => *y,
         }
     }
+
+    /// Java TileParallel contact-point alignment.
+    /// Returns the distance from the tile top to the arrow "contact" point.
+    /// For Communication tiles: `text_height + ARROW_PADDING_Y` = `height - 8`.
+    /// For SelfMessage tiles: `text_height + 11.5` = `height - 13.5`.
+    /// For non-message tiles: 0 (top-aligned).
+    fn contact_point_relative(&self) -> f64 {
+        match self {
+            Self::Communication { height, .. } => {
+                // height = tm.text_height() + ARROW_DELTA_Y + 2*ARROW_PADDING_Y
+                // contact = tm.text_height() + ARROW_PADDING_Y
+                height - (rose::ARROW_DELTA_Y + rose::ARROW_PADDING_Y)
+            }
+            Self::SelfMessage { height, .. } => {
+                // height = tm.text_height() + ARROW_DELTA_Y + SELF_ARROW_ONLY_HEIGHT + 2*ARROW_PADDING_Y
+                // contact = tm.text_height() + SELF_ARROW_ONLY_HEIGHT/2 + ARROW_PADDING_X
+                let tm_text_h = height - rose::ARROW_DELTA_Y - rose::SELF_ARROW_ONLY_HEIGHT
+                    - 2.0 * rose::ARROW_PADDING_Y;
+                tm_text_h + rose::SELF_ARROW_ONLY_HEIGHT / 2.0 + rose::ARROW_PADDING_X
+            }
+            _ => 0.0,
+        }
+    }
+
+    /// Distance from contact point to tile bottom (Java `getZZZ()`).
+    fn zzz(&self) -> f64 {
+        self.preferred_height() - self.contact_point_relative()
+    }
+}
+
+/// Apply Java TileParallel contact-point alignment to a block of parallel tiles.
+///
+/// Each tile in a parallel block is shifted down by `(maxContact - itsContact)`
+/// so that all arrows align at the same Y coordinate. This matches Java's
+/// `TileParallel.drawU()` which translates each sub-tile by that delta.
+fn apply_contact_point_alignment(tiles: &mut [TeozTile], indices: &[usize]) {
+    if indices.len() <= 1 {
+        return; // no alignment needed for single tiles
+    }
+    let max_contact = indices
+        .iter()
+        .map(|&i| tiles[i].contact_point_relative())
+        .fold(0.0_f64, f64::max);
+    for &i in indices {
+        let contact = tiles[i].contact_point_relative();
+        let shift = max_contact - contact;
+        if shift > 0.0 {
+            if let Some(old_y) = tiles[i].get_y() {
+                tiles[i].set_y(old_y + shift);
+            }
+        }
+    }
 }
 
 // ── Layout parameters ────────────────────────────────────────────────────────
@@ -1290,6 +1342,12 @@ pub fn build_teoz_layout(sd: &SequenceDiagram, skin: &SkinParams) -> Result<SeqL
     // Tile index range of the outermost fragment block
     let mut frag_block_start_idx: Option<usize> = None;
 
+    // Track parallel message tile indices for contact-point alignment.
+    // Java TileParallel aligns parallel tiles so their contact points (arrow y)
+    // match the maximum contact point among all parallel tiles.
+    // Each entry is tile_index for message tiles in the current parallel block.
+    let mut parallel_block_tile_indices: Vec<usize> = Vec::new();
+
     // Track parallel fragment blocks.
     // When a FragmentStart has is_parallel=true, we rewind y to the start
     // of the previous block and lay out the fragment in parallel.
@@ -1432,6 +1490,7 @@ pub fn build_teoz_layout(sd: &SequenceDiagram, skin: &SkinParams) -> Result<SeqL
                 tiles[tile_idx].set_y(y);
                 y += tiles[tile_idx].preferred_height();
             }
+            parallel_block_tile_indices.push(tile_idx);
             prev_msg_height = Some(tiles[tile_idx].preferred_height());
             prev_msg_y = Some(tiles[tile_idx].get_y().unwrap_or(y));
         } else {
@@ -1515,6 +1574,11 @@ pub fn build_teoz_layout(sd: &SequenceDiagram, skin: &SkinParams) -> Result<SeqL
                     prev_msg_y = Some(y);
                     // Start a new parallel block (only at depth 0)
                     if frag_depth == 0 {
+                        // Apply contact-point alignment for the previous block
+                        apply_contact_point_alignment(&mut tiles, &parallel_block_tile_indices);
+                        parallel_block_tile_indices.clear();
+                        // Record this tile as the first in a new parallel block
+                        parallel_block_tile_indices.push(tile_idx);
                         block_start_y = Some(y);
                         block_max_height = tile_h;
                     }
@@ -1538,6 +1602,8 @@ pub fn build_teoz_layout(sd: &SequenceDiagram, skin: &SkinParams) -> Result<SeqL
                     prev_msg_height = None;
                     prev_msg_y = None;
                     if frag_depth == 0 {
+                        apply_contact_point_alignment(&mut tiles, &parallel_block_tile_indices);
+                        parallel_block_tile_indices.clear();
                         block_start_y = None;
                         block_max_height = 0.0;
                         frag_block_y_before = None;
@@ -1549,6 +1615,8 @@ pub fn build_teoz_layout(sd: &SequenceDiagram, skin: &SkinParams) -> Result<SeqL
         }
         tile_idx += 1;
     }
+    // Apply contact-point alignment for the last parallel block
+    apply_contact_point_alignment(&mut tiles, &parallel_block_tile_indices);
     let tiles_bottom = y;
     // Java: lifeline height = getPreferredHeight = finalY + 10 (bottom padding)
     // where finalY = startingY(8) + sum_tile_heights.
