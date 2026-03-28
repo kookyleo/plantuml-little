@@ -151,6 +151,12 @@ fn split_lines(input: &str) -> Vec<String> {
         i += 1;
     }
     parts.push(buf);
+    // Trim leading/trailing whitespace from each line part, matching Java behavior.
+    // Java's StringUtils.trin() is applied after \n splitting.
+    parts.iter_mut().for_each(|p| {
+        let trimmed = p.trim().to_string();
+        *p = trimmed;
+    });
     parts
 }
 

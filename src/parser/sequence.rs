@@ -750,6 +750,28 @@ fn normalize_for_mapping(s: &str) -> String {
         .replace("%n()", "\u{E100}")
 }
 
+/// Check if two lines match for mapping purposes, tolerating variable
+/// substitution differences. Compares exact first, then via normalize,
+/// then via prefix before the first `\n` / `\\n` (newline escape in
+/// message labels is the most common place variables appear).
+fn lines_match_for_mapping(block_line: &str, orig_line: &str) -> bool {
+    if block_line == orig_line {
+        return true;
+    }
+    if normalize_for_mapping(block_line) == normalize_for_mapping(orig_line) {
+        return true;
+    }
+    // Compare up to the first literal `\n` or `\\n` — if the prefix
+    // matches and the original has a variable reference after it,
+    // they are almost certainly the same line.
+    let bl_prefix = block_line.split("\\n").next().unwrap_or(block_line);
+    let ol_prefix = orig_line.split("\\n").next().unwrap_or(orig_line);
+    if !bl_prefix.is_empty() && bl_prefix.len() > 5 && bl_prefix == ol_prefix {
+        return true;
+    }
+    false
+}
+
 /// Build a mapping from block line index to original source line number.
 ///
 /// Java's data-source-line uses the ORIGINAL .puml file line number (0-based).
@@ -794,11 +816,9 @@ fn build_line_mapping(
         let mut found = false;
         for oi in search_from..orig_lines.len() {
             let orig_trimmed = orig_lines[oi].trim();
-            // Exact match, or match after expanding %newline() / %n() macros
-            // that the preprocessor replaces with \u{E100}.
-            if orig_trimmed == trimmed
-                || normalize_for_mapping(orig_trimmed) == normalize_for_mapping(trimmed)
-            {
+            // Exact match, or match after expanding %newline() / %n() macros,
+            // or prefix match before `\n` to tolerate variable substitution.
+            if lines_match_for_mapping(trimmed, orig_trimmed) {
                 mapping.push(oi);
                 search_from = oi + 1;
                 found = true;
