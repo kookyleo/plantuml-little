@@ -758,6 +758,10 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
     let mut gap_autonumber_counter: u32 = 1;
     let mut gap_active_levels: HashMap<&str, usize> = HashMap::new();
     let mut max_active_levels: HashMap<&str, usize> = HashMap::new();
+    // Java constraint: for a reverse self-message on the first participant (idx=0),
+    // the constraint solver ensures centerX >= arrowPreferredWidth. Track this
+    // so we can apply it when positioning participants.
+    let mut min_first_center: f64 = 0.0;
     for event in &sd.events {
         match event {
             SeqEvent::AutoNumber { start } => {
@@ -832,6 +836,11 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
                                 let needed = needed.max(loop_extent + neighbor_half + 3.0);
                                 if idx > 0 && needed > min_gaps[idx - 1] {
                                     min_gaps[idx - 1] = needed;
+                                }
+                                // Java constraint: for idx=0, constraintBefore
+                                // ensures centerX >= arrowPreferredWidth
+                                if idx == 0 && needed > min_first_center {
+                                    min_first_center = needed;
                                 }
                             }
                         }
@@ -956,7 +965,7 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
     let mut prev_center: Option<f64> = None;
     for (i, p) in sd.participants.iter().enumerate() {
         let center_x = match prev_center {
-            None => left_margin + box_widths[i] / 2.0,
+            None => (left_margin + box_widths[i] / 2.0).max(min_first_center),
             Some(pc) => pc + min_gaps[i - 1],
         };
 
@@ -1048,6 +1057,11 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
     let mut dividers: Vec<DividerLayout> = Vec::new();
     let mut delays: Vec<DelayLayout> = Vec::new();
     let mut refs: Vec<RefLayout> = Vec::new();
+    // Track self-msg notes that need x recomputation after left_overflow shift.
+    // Java dynamically recomputes note positions at post-shift coordinates, which
+    // gives different (int) truncation results. Stores (note_index, participant_x,
+    // note_layout_width, arrow_preferred_width, is_reverse_self_msg).
+    let mut self_msg_note_fixups: Vec<(usize, usize, f64, f64, bool)> = Vec::new();
     let mut autonumber_enabled = false;
     let mut autonumber_start: u32 = 1;
     let mut autonumber_counter: u32 = 1;
@@ -1491,18 +1505,22 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
                 //   createNoteBox), but the note sits near the lifeline.
                 // For non-self messages, use ACTIVATION_WIDTH (matches Java's
                 // segment merge which accounts for nearby activation bars).
+                let note_layout_width = note_width + 2.0 * NOTE_COMPONENT_PADDING_X;
+                // Java NoteBox.getStartingX for RIGHT: (int)(pos2) + delta
+                // polygon_x = startingX + paddingX(5) = (int)(pos2) + delta + paddingX
                 let note_x = if last_message_was_self {
+                    let base = px as i64 as f64; // (int)(pos2)
                     if !last_self_msg_is_left {
-                        // Non-reverse self-msg: note pushed right by arrow width
-                        px + last_self_msg_preferred_w
+                        // Non-reverse self-msg: delta = arrowPW
+                        base + last_self_msg_preferred_w + NOTE_COMPONENT_PADDING_X
                     } else {
-                        // Reverse self-msg: note on the lifeline side
-                        px + MARGIN
+                        // Reverse self-msg: delta = 0
+                        base + NOTE_COMPONENT_PADDING_X
                     }
                 } else {
                     px + ACTIVATION_WIDTH
                 };
-                let note_layout_width = note_width + 2.0 * NOTE_COMPONENT_PADDING_X;
+                let note_right_idx = notes.len();
                 notes.push(NoteLayout {
                     x: note_x,
                     y: note_y,
@@ -1516,6 +1534,18 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
                     assoc_message_idx: last_message_idx,
                     teoz_mode: false,
                 });
+                // Record self-msg notes for post-shift x recomputation
+                if last_message_was_self {
+                    if let Some(pidx) = part_name_to_idx.get(participant.as_str()).copied() {
+                        self_msg_note_fixups.push((
+                            note_right_idx,
+                            pidx,
+                            note_layout_width,
+                            last_self_msg_preferred_w,
+                            last_self_msg_is_left,
+                        ));
+                    }
+                }
                 // Notes inside fragments expand the fragment bounds (Java: InGroupable).
                 // Java NoteBox preferred width = visual_width + 2*paddingX (Rose.paddingX=5).
                 // The InGroupable extent includes this padding beyond the visual edges.
@@ -1523,11 +1553,33 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
                 // (lifeLine.getRightShift(y) + 5) for RIGHT notes.
                 if !fragment_stack.is_empty() {
                     let note_right_shift = NOTE_COMPONENT_PADDING_X; // lifeLine.getRightShift(y)=0 for no activation, +5
-                    update_fragment_message_extent(
-                        &mut fragment_stack,
-                        note_x - NOTE_COMPONENT_PADDING_X,
-                        note_x + note_width + NOTE_COMPONENT_PADDING_X + note_right_shift,
-                    );
+                    if last_message_was_self {
+                        // Java ArrowAndNoteBox.getMaxX = getStartingX + getPreferredWidth.
+                        // For reverse self-msg with RIGHT note: getStartingX = centerX - arrowPW,
+                        // getPreferredWidth = arrowPW + notePW + rightShift.
+                        // maxX = centerX + notePW + rightShift (untruncated px).
+                        // min: arrow starts at centerX - arrowPW (for reverse) or noteStartX
+                        let starting_x = note_x - NOTE_COMPONENT_PADDING_X;
+                        let frag_min = if last_self_msg_is_left {
+                            // Reverse: arrow at centerX - arrowPW
+                            (px - last_self_msg_preferred_w).min(starting_x as f64)
+                        } else {
+                            starting_x as f64
+                        };
+                        // max uses untruncated px to avoid int truncation error
+                        let frag_max = px + note_layout_width + note_right_shift;
+                        update_fragment_message_extent(
+                            &mut fragment_stack,
+                            frag_min,
+                            frag_max,
+                        );
+                    } else {
+                        update_fragment_message_extent(
+                            &mut fragment_stack,
+                            note_x - NOTE_COMPONENT_PADDING_X,
+                            note_x + note_width + NOTE_COMPONENT_PADDING_X + note_right_shift,
+                        );
+                    }
                 }
                 // Java ArrowAndNoteBox: combined tile preferred height is
                 // max(arrowPreferredH, notePreferredH), measured from tile start.
@@ -1564,6 +1616,7 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
 
             SeqEvent::NoteLeft { participant, text } => {
                 let px = find_participant_x(&participants, participant);
+                let part_idx_for_note = part_name_to_idx.get(participant.as_str()).copied();
                 let note_height = estimate_note_height(text);
                 let note_preferred_h = estimate_note_preferred_height(text);
                 let note_width = estimate_note_width(text);
@@ -1590,19 +1643,25 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
                 // For forward self-msgs: delta = 0 (no pushToRight).
                 // Java truncates (pos1 - notePW) to int before adding delta.
                 let note_layout_width = note_width + 2.0 * NOTE_COMPONENT_PADDING_X;
+                // Java NoteBox.getStartingX computes the NoteBox position;
+                // Java AbstractComponent.drawU adds paddingX(5) before drawing
+                // the polygon. We compute the final polygon position (startingX + paddingX).
                 let note_x = if last_message_was_self {
-                    // Java: (int)(pos1 - notePW) + delta
+                    // Java: startingX = (int)(pos1 - notePW) + delta
+                    // polygon_x = startingX + paddingX(5) = startingX + NOTE_COMPONENT_PADDING_X
                     let base = (px - note_layout_width) as i64 as f64;
-                    if last_self_msg_is_left {
+                    let starting_x = if last_self_msg_is_left {
                         // Reverse self-msg: delta = -arrowPW
                         base - last_self_msg_preferred_w
                     } else {
                         // Forward self-msg: delta = 0
                         base
-                    }
+                    };
+                    starting_x + NOTE_COMPONENT_PADDING_X
                 } else {
                     px - ACTIVATION_WIDTH - note_width
                 };
+                let note_idx = notes.len();
                 notes.push(NoteLayout {
                     x: note_x,
                     y: note_y,
@@ -1616,6 +1675,18 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
                     assoc_message_idx: last_message_idx,
                     teoz_mode: false,
                 });
+                // Record self-msg notes for post-shift x recomputation
+                if last_message_was_self {
+                    if let Some(pidx) = part_idx_for_note {
+                        self_msg_note_fixups.push((
+                            note_idx,
+                            pidx,
+                            note_layout_width,
+                            last_self_msg_preferred_w,
+                            last_self_msg_is_left,
+                        ));
+                    }
+                }
                 // Notes inside fragments expand the fragment bounds (Java: InGroupable).
                 // Java ArrowAndNoteBox.getMinX/getMaxX = getStartingX()/getStartingX()+getPW().
                 // For self-message notes, note_x already includes the full offset
@@ -1625,9 +1696,10 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
                     let (frag_min, frag_max) = if last_message_was_self {
                         // Java: ArrowAndNoteBox reports note.getStartingX() as min
                         // and note.getStartingX() + combinedPW as max.
-                        // The fragment's MARGIN(5) + FRAGMENT_PADDING(10) = 15 accounts
-                        // for Java's MARGIN5(5) + MARGIN10(10) = 15.
-                        (note_x, note_x + note_layout_width + last_self_msg_preferred_w)
+                        // note_x is polygon position (startingX + paddingX); subtract
+                        // paddingX to get startingX for fragment bounds.
+                        let starting_x = note_x - NOTE_COMPONENT_PADDING_X;
+                        (starting_x, starting_x + note_layout_width + last_self_msg_preferred_w)
                     } else {
                         (
                             note_x - NOTE_COMPONENT_PADDING_X,
@@ -1854,7 +1926,6 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
                         if let Some(mx) = msg_max_x {
                             fr = fr.max(mx + MARGIN);
                         }
-                        log::trace!("fragment close: fl={fl}, fr={fr}, msg_min_x={msg_min_x:?}, msg_max_x={msg_max_x:?}");
                         (fl, fr)
                     } else {
                         // Fallback: span all participants
@@ -2016,7 +2087,8 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
     // tile width (arrowW + notePW + rightShift).
     for note in &notes {
         let note_right = if note.is_self_msg_note && !note.is_left {
-            note.x + note.layout_width + NOTE_COMPONENT_PADDING_X
+            // note.x = startingX + paddingX; subtract paddingX to get startingX
+            (note.x - NOTE_COMPONENT_PADDING_X) + note.layout_width + NOTE_COMPONENT_PADDING_X
         } else {
             note.x + note.width + MARGIN
         };
@@ -2149,6 +2221,68 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
             n.x += left_overflow;
         }
         total_width += left_overflow;
+
+        // Java dynamically recomputes note positions at post-shift coordinates.
+        // The (int) truncation in NoteBox.getStartingX gives different results
+        // at different center positions. Recompute self-msg note x values and
+        // update fragment bounds to match Java's post-shift rendering.
+        if !self_msg_note_fixups.is_empty() {
+            for &(note_idx, pidx, note_lw, arrow_pw, is_reverse) in &self_msg_note_fixups {
+                let shifted_px = participants[pidx].x;
+                // Recompute Java NoteBox.getStartingX at post-shift position
+                let new_starting_x = if notes[note_idx].is_left {
+                    let base = (shifted_px - note_lw) as i64 as f64;
+                    if is_reverse {
+                        base - arrow_pw
+                    } else {
+                        base
+                    }
+                } else {
+                    // RIGHT note: startingX = (int)(pos2) + delta
+                    let base = shifted_px as i64 as f64;
+                    if !is_reverse {
+                        // Non-reverse: delta = arrowPW
+                        base + arrow_pw
+                    } else {
+                        // Reverse: delta = 0
+                        base
+                    }
+                };
+                // note.x stores polygon position = startingX + paddingX
+                let new_polygon_x = new_starting_x + NOTE_COMPONENT_PADDING_X;
+                let old_polygon_x = notes[note_idx].x;
+                if (new_polygon_x - old_polygon_x).abs() > 0.001 {
+                    notes[note_idx].x = new_polygon_x;
+                    // Update fragment bounds using startingX (not polygon_x)
+                    for frag in &mut fragments {
+                        if frag.y <= notes[note_idx].y
+                            && notes[note_idx].y <= frag.y + frag.height
+                        {
+                            // Java InGroupableList: min = member.getMinX - MARGIN5
+                            // For LEFT notes: ArrowAndNoteBox.min = noteStartX, max = noteStartX + combinedPW
+                            //   combinedPW = arrowPW + notePW
+                            // For RIGHT notes: ArrowAndNoteBox extent doesn't add arrowPW to the RIGHT
+                            //   since the arrow is to the LEFT of the note
+                            let (note_frag_min, note_frag_max) = if notes[note_idx].is_left {
+                                (new_starting_x - MARGIN, new_starting_x + note_lw + arrow_pw + MARGIN)
+                            } else {
+                                let right_shift = NOTE_COMPONENT_PADDING_X;
+                                (new_starting_x - MARGIN, new_starting_x + note_lw + right_shift + MARGIN)
+                            };
+                            if note_frag_min < frag.x {
+                                let expand = frag.x - note_frag_min;
+                                frag.x = note_frag_min;
+                                frag.width += expand;
+                            }
+                            let frag_right = frag.x + frag.width;
+                            if note_frag_max > frag_right {
+                                frag.width = note_frag_max - frag.x;
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
 
     // Tail box at lifeline_bottom - 1, then add box height + bottom margin (~7)

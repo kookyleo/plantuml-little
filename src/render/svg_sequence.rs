@@ -2062,10 +2062,11 @@ fn draw_destroy(sg: &mut SvgGraphic, d: &DestroyLayout) {
 
 fn draw_note(sg: &mut SvgGraphic, note: &NoteLayout) {
     let fold = 10.0; // folded corner size
-                     // Java puma mode truncates note x to int in NoteBox.getStartingX():
-                     //   xStart = (int)(segment.getSegment().getPos2())
-                     // Java teoz mode doesn't truncate (constraint solver produces real coords).
-    let x = if note.teoz_mode {
+    // Java NoteBox.getStartingX uses (int) truncation, and AbstractComponent.drawU
+    // applies UTranslate(paddingX, paddingY). Self-msg notes have this baked into
+    // note.x during layout. For non-self notes in classic mode, truncation is
+    // applied here to match Java's rendering.
+    let x = if note.teoz_mode || note.is_self_msg_note {
         note.x
     } else {
         note.x.trunc()
