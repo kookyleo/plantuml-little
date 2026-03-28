@@ -1208,6 +1208,7 @@ pub fn layout_state(diagram: &StateDiagram) -> Result<StateLayout> {
             order: Some(node_id_order.len()),
             image_width_pt: None,
             lf_extra_left: 0.0,
+            lf_rect_correction: true,
         });
         node_id_order.push(state.id.clone());
     }
@@ -1229,6 +1230,9 @@ pub fn layout_state(diagram: &StateDiagram) -> Result<StateLayout> {
                 order: Some(node_id_order.len()),
                 image_width_pt: None,
                 lf_extra_left: 0.0,
+                // Notes use UPath in Java's entity image, not URectangle,
+                // so LimitFinder.drawRectangle's -1 correction doesn't apply.
+                lf_rect_correction: false,
             });
             node_id_order.push(entity_id.clone());
             if note.target.is_some() {
@@ -1349,6 +1353,12 @@ pub fn layout_state(diagram: &StateDiagram) -> Result<StateLayout> {
     };
     log::debug!("  margin_y={:.0}", margin_y);
 
+    // Use svek render_offset for x margin (varies with note presence).
+    // Java: moveDelta(6 - LF_minX, ...) where LF_minX depends on node types.
+    // For diagrams with only rect-drawn entities, render_offset.0 = 7 (= MARGIN).
+    // When note entities (UPath-drawn) determine the min, render_offset.0 = 6.
+    let margin_x = gv_layout.render_offset.0;
+
     let mut state_layouts: Vec<StateNodeLayout> = Vec::new();
     let mut node_position_map: HashMap<String, (f64, f64, f64, f64)> = HashMap::new();
     let attached_note_ids: HashSet<&str> = attached_notes
@@ -1360,19 +1370,19 @@ pub fn layout_state(diagram: &StateDiagram) -> Result<StateLayout> {
 
     for gv_node in &gv_layout.nodes {
         if attached_note_ids.contains(gv_node.id.as_str()) {
-            let x = gv_node.cx - gv_node.width / 2.0 + MARGIN;
+            let x = gv_node.cx - gv_node.width / 2.0 + margin_x;
             let y = gv_node.cy - gv_node.height / 2.0 + margin_y;
             attached_note_positions.insert(gv_node.id.clone(), (x, y, gv_node.width, gv_node.height));
             continue;
         }
         if standalone_note_ids.contains(gv_node.id.as_str()) {
-            let x = gv_node.cx - gv_node.width / 2.0 + MARGIN;
+            let x = gv_node.cx - gv_node.width / 2.0 + margin_x;
             let y = gv_node.cy - gv_node.height / 2.0 + margin_y;
             standalone_note_positions.insert(gv_node.id.clone(), (x, y, gv_node.width, gv_node.height));
             continue;
         }
         if let Some((template, _w, _h)) = sized_map.remove(&gv_node.id) {
-            let x = gv_node.cx - gv_node.width / 2.0 + MARGIN;
+            let x = gv_node.cx - gv_node.width / 2.0 + margin_x;
             let y = gv_node.cy - gv_node.height / 2.0 + margin_y;
             let w = gv_node.width;
             let h = gv_node.height;
@@ -1429,24 +1439,24 @@ pub fn layout_state(diagram: &StateDiagram) -> Result<StateLayout> {
         let points: Vec<(f64, f64)> = gv_edge
             .points
             .iter()
-            .map(|&(x, y)| (x + MARGIN, y + margin_y))
+            .map(|&(x, y)| (x + margin_x, y + margin_y))
             .collect();
 
         let raw_path_d = gv_edge
             .raw_path_d
             .as_ref()
-            .map(|d| graphviz::transform_path_d(d, MARGIN, margin_y));
+            .map(|d| graphviz::transform_path_d(d, margin_x, margin_y));
 
         let arrow_polygon = gv_edge.arrow_polygon_points.as_ref().map(|pts| {
             pts.iter()
-                .map(|&(x, y)| (x + MARGIN, y + margin_y))
+                .map(|&(x, y)| (x + margin_x, y + margin_y))
                 .collect()
         });
 
         // label_xy from GraphLayout is pre-moveDelta, pre-normalization.
         // Apply moveDelta + normalization + MARGIN to match path/node coords.
         let label_xy = gv_edge.label_xy.map(|(x, y)| {
-            let nx = x + gv_layout.move_delta.0 - gv_layout.normalize_offset.0 + MARGIN;
+            let nx = x + gv_layout.move_delta.0 - gv_layout.normalize_offset.0 + margin_x;
             let ny = y + gv_layout.move_delta.1 - gv_layout.normalize_offset.1 + margin_y;
             (nx, ny)
         });
@@ -1520,7 +1530,7 @@ pub fn layout_state(diagram: &StateDiagram) -> Result<StateLayout> {
     // centered on the target axis; detached notes fall back to the legacy
     // stacked-right placement.
     let content_height = gv_layout.total_height;
-    let detached_note_x = MARGIN + content_width + NOTE_OFFSET;
+    let detached_note_x = margin_x + content_width + NOTE_OFFSET;
     let mut detached_note_y = margin_y;
     let mut note_layouts = Vec::new();
 
@@ -1635,9 +1645,9 @@ pub fn layout_state(diagram: &StateDiagram) -> Result<StateLayout> {
         .iter()
         .map(|n| n.x + n.width)
         .fold(0.0_f64, f64::max);
-    let states_right = MARGIN + content_width;
-    let total_width = states_right.max(notes_right) + MARGIN;
-    let total_width = total_width.max(2.0 * MARGIN);
+    let states_right = margin_x + content_width;
+    let total_width = states_right.max(notes_right) + margin_x;
+    let total_width = total_width.max(2.0 * margin_x);
 
     let notes_bottom = non_gv_notes
         .iter()
@@ -1645,7 +1655,7 @@ pub fn layout_state(diagram: &StateDiagram) -> Result<StateLayout> {
         .fold(0.0_f64, f64::max);
     let states_bottom = margin_y + content_height;
     let total_height = states_bottom.max(notes_bottom) + margin_y;
-    let total_height = total_height.max(2.0 * MARGIN);
+    let total_height = total_height.max(2.0 * margin_y);
 
     log::debug!(
         "layout_state done: {:.0}x{:.0}, {} states, {} transitions, {} notes",

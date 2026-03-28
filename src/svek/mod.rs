@@ -604,6 +604,14 @@ impl DotStringFactory {
             }
         }
 
+        for node in &self.bibliotekon.nodes {
+            if node.hidden { continue; }
+            log::debug!(
+                "svek node uid={} min=({:.4},{:.4}) cx={:.4} cy={:.4} w={:.4} h={:.4}",
+                node.uid, node.min_x, node.min_y, node.cx, node.cy, node.width, node.height
+            );
+        }
+
         adjust_cluster_frontiers(
             &mut self.bibliotekon.clusters,
             &self.bibliotekon.nodes,
@@ -634,15 +642,16 @@ impl DotStringFactory {
                 continue;
             }
             // LimitFinder.drawRectangle: (x-1, y-1) to (x+w-1, y+h-1)
-            // Also account for entity image content (visibility modifier polygons)
-            // that extends the LF beyond the node rect bounding box.
+            // LimitFinder.drawUPath: (x+minX, y+minY) → no -1 correction
+            // Notes use UPath; states/classes use URectangle → -1 correction.
             // Skip for degenerated diagrams (≤1 node, no edges) where Java
             // uses EntityImageDegenerated with fixed positioning.
             let extra_left = if is_degenerated { 0.0 } else { node.lf_extra_left };
-            let rx = node.min_x - 1.0 - extra_left;
-            let ry = node.min_y - 1.0;
-            let rr = node.min_x + node.width - 1.0;
-            let rb = node.min_y + node.height - 1.0;
+            let rect_corr = if node.lf_rect_correction { 1.0 } else { 0.0 };
+            let rx = node.min_x - rect_corr - extra_left;
+            let ry = node.min_y - rect_corr;
+            let rr = node.min_x + node.width - rect_corr;
+            let rb = node.min_y + node.height - rect_corr;
             if rx < lf_min_x {
                 lf_min_x = rx;
             }
@@ -662,6 +671,15 @@ impl DotStringFactory {
             // top-left (getMinXY) of the Graphviz label polygon. The text
             // block's own drawU then invokes drawEmpty(0, 0, dim) on the
             // LimitFinder, so the LF sees (lx, ly) to (lx+w, ly+h).
+            //
+            // Additionally, Java's LimitFinder.drawText adjusts:
+            //   y -= textHeight - 1.5
+            // The label text block (TextBlockMarged) adds marginLabel before
+            // drawing text. So the LF text contribution for min_y is:
+            //   ly_text = label_y + shield + marginLabel - descent + 1.5
+            // where descent is Java AWT SansSerif 13pt descent (3.0659).
+            // This can be LOWER than the drawEmpty min_y when
+            // marginLabel + 1.5 < descent (i.e. marginLabel=1).
             if let (Some(ref pt), Some(ref dim)) = (&edge.label_xy, &edge.label_dimension) {
                 let dim_w = if edge.divide_label_width_by_two {
                     dim.width / 2.0
@@ -684,6 +702,23 @@ impl DotStringFactory {
                 if lb > lf_max_y {
                     lf_max_y = lb;
                 }
+                // Text descent correction: Java LimitFinder.drawText adjusts
+                // y by -(textHeight - 1.5), so the effective min_y from text is:
+                //   ly + marginLabel + 1.5 - descent
+                // marginLabel = 6 for self-links, 1 otherwise.
+                if edge.label.is_some() {
+                    let margin_label = if edge.from_uid == edge.to_uid {
+                        6.0
+                    } else {
+                        1.0
+                    };
+                    let descent =
+                        crate::font_metrics::descent("SansSerif", 13.0, false, false);
+                    let ly_text = ly + margin_label + 1.5 - descent;
+                    if ly_text < lf_min_y {
+                        lf_min_y = ly_text;
+                    }
+                }
             }
         }
         for cluster in &self.bibliotekon.clusters {
@@ -696,7 +731,7 @@ impl DotStringFactory {
             );
         }
         log::debug!(
-            "svek solve LF: min=({:.1},{:.1}) max=({:.1},{:.1})",
+            "svek solve LF: min=({:.4},{:.4}) max=({:.4},{:.4})",
             lf_min_x,
             lf_min_y,
             lf_max_x,
@@ -737,6 +772,10 @@ impl DotStringFactory {
         } else {
             (6.0, 6.0)
         };
+        log::debug!(
+            "svek solve polygon min=({:.4},{:.4}) render_offset=({:.4},{:.4})",
+            min_x, min_y, render_offset.0, render_offset.1
+        );
         let (dx, dy) = if min_x.is_finite() && min_y.is_finite() {
             let dx = 6.0 - min_x;
             let dy = 6.0 - min_y;
@@ -745,6 +784,10 @@ impl DotStringFactory {
         } else {
             (0.0, 0.0)
         };
+        log::debug!(
+            "svek solve moveDelta=({:.4},{:.4})",
+            dx, dy
+        );
 
         Ok(((dx, dy), lf_span, render_offset))
     }

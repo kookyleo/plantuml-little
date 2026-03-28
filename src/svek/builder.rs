@@ -36,6 +36,9 @@ pub struct EntityDescriptor {
     pub removed: bool,
     /// Extra LimitFinder left extension from entity image content.
     pub lf_extra_left: f64,
+    /// Whether LimitFinder.drawRectangle -1 correction applies.
+    /// False for notes (drawn with UPath instead of URectangle).
+    pub lf_rect_correction: bool,
 }
 
 impl EntityDescriptor {
@@ -52,6 +55,7 @@ impl EntityDescriptor {
             order: None,
             removed: false,
             lf_extra_left: 0.0,
+            lf_rect_correction: true,
         }
     }
 
@@ -87,6 +91,11 @@ impl EntityDescriptor {
 
     pub fn with_lf_extra_left(mut self, extra: f64) -> Self {
         self.lf_extra_left = extra;
+        self
+    }
+
+    pub fn with_lf_rect_correction(mut self, val: bool) -> Self {
+        self.lf_rect_correction = val;
         self
     }
 
@@ -368,6 +377,7 @@ impl GraphvizImageBuilder {
             node.entity_position = ent.entity_position;
             node.max_label_width = ent.max_label_width;
             node.lf_extra_left = ent.lf_extra_left;
+            node.lf_rect_correction = ent.lf_rect_correction;
             bib.add_node(node);
         }
 

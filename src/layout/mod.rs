@@ -228,6 +228,7 @@ pub fn layout(diagram: &Diagram, skin: &crate::style::SkinParams) -> Result<Diag
                     order: None,
                     image_width_pt: None,
                     lf_extra_left: 0.0,
+                    lf_rect_correction: true,
                 }],
                 edges: vec![],
                 clusters: vec![],
@@ -1124,6 +1125,7 @@ fn layout_class_diagram(cd: &ClassDiagram, skin: &crate::style::SkinParams) -> R
                 order: e.source_line,
                 image_width_pt: if (natural_w - w).abs() > 0.01 { Some(natural_w) } else { None },
                 lf_extra_left: lf_extra,
+                lf_rect_correction: true,
             }
         })
         .collect();

@@ -182,6 +182,9 @@ pub struct SvekNode {
     /// visibility modifier polygons with HACK_X_FOR_POLYGON=10).
     /// Applied as: lf_min_x = min(node_min_x - 1, node_min_x - 1 - extra).
     pub lf_extra_left: f64,
+    /// Whether LimitFinder.drawRectangle -1 correction applies.
+    /// False for notes (drawn with UPath instead of URectangle).
+    pub lf_rect_correction: bool,
 }
 
 impl SvekNode {
@@ -207,6 +210,7 @@ impl SvekNode {
             cx: 0.0,
             cy: 0.0,
             lf_extra_left: 0.0,
+            lf_rect_correction: true,
         }
     }
 
@@ -240,6 +244,7 @@ impl SvekNode {
             cx: 0.0,
             cy: 0.0,
             lf_extra_left: 0.0,
+            lf_rect_correction: true,
         }
     }
 

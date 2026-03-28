@@ -32,6 +32,10 @@ pub struct LayoutNode {
     /// E.g. for PACKAGE/PROTECTED polygons at node_x+7, HACK gives
     /// node_x-3, which is -2 beyond node_x-1 → lf_extra_left = 2.
     pub lf_extra_left: f64,
+    /// Java LimitFinder.drawRectangle applies a -1 correction on both axes.
+    /// Nodes whose entity images use UPath instead of URectangle (e.g. notes)
+    /// don't get this correction. When false, the LF simulation skips the -1.
+    pub lf_rect_correction: bool,
 }
 
 /// Input: a graph edge
@@ -430,6 +434,9 @@ pub fn layout_with_svek(graph: &LayoutGraph) -> Result<GraphLayout, Error> {
         }
         if node.lf_extra_left > 0.0 {
             ed = ed.with_lf_extra_left(node.lf_extra_left);
+        }
+        if !node.lf_rect_correction {
+            ed = ed.with_lf_rect_correction(false);
         }
         builder.add_entity(ed);
     }
@@ -1470,6 +1477,7 @@ mod tests {
                     order: None,
                     image_width_pt: None,
                     lf_extra_left: 0.0,
+                    lf_rect_correction: true,
                 },
                 LayoutNode {
                     id: "B".into(),
@@ -1483,6 +1491,7 @@ mod tests {
                     order: None,
                     image_width_pt: None,
                     lf_extra_left: 0.0,
+                    lf_rect_correction: true,
                 },
             ],
             edges: vec![LayoutEdge {
@@ -1539,6 +1548,7 @@ mod tests {
                 order: None,
                 image_width_pt: None,
                 lf_extra_left: 0.0,
+                    lf_rect_correction: true,
             }],
             edges: vec![],
             clusters: vec![],
