@@ -2,7 +2,9 @@
 
 ## Current Baseline
 
-- Current baseline after LF edge label fix on 2026-03-28: `172 passed / 124 failed / 296 total`
+- Current baseline after LEFT note positioning fix on 2026-03-28: `174 passed / 122 failed / 296 total`
+- Fixed: LEFT note on self-messages now uses Java NoteBox.getStartingX() formula with (int) truncation and notePreferredWidth instead of visual width; fragment extent for self-msg notes matches Java InGroupableList margin chain (MARGIN5+MARGIN10=15)
+- Previous baseline after LF edge label fix on 2026-03-28: `172 passed / 124 failed / 296 total`
 - Fixed: LimitFinder edge label bounds now use top-left origin (getMinXY) instead of centering around pt.x - w/2; this corrects the internal coordinates for class diagrams with edge labels (class_funcparam_arrow off by 7.8px → 1px) but does not yet flip tests
 - Analysis: SVG0004_Smetana/Svek (-1 x/y global shift) is NOT from edge label LF — polygon_min == lf_min for that diagram; the -1 comes from cluster rendering offsets
 - Analysis: hideshow004 (-2 x, -1 height) is NOT from edge label LF — no edges exist; the -2 x comes from a different DOT node width or viewport margin calculation
