@@ -103,10 +103,12 @@ const STATE_MIN_HEIGHT: f64 = 50.0;
 /// Vertical gap between rows of states (includes arrow space).
 const STATE_SPACING: f64 = 50.0;
 const SPECIAL_STATE_RADIUS: f64 = 10.0;
-/// Padding inside composite states around children.
+/// Java: IEntityImage.MARGIN (padding around inner content).
+const IE_MARGIN: f64 = 5.0;
+/// Java: IEntityImage.MARGIN_LINE (line/section separator padding).
+const IE_MARGIN_LINE: f64 = 5.0;
+/// Padding inside composite states around children (horizontal).
 const COMPOSITE_PADDING: f64 = 12.0;
-/// Header height for composite state name area.
-const COMPOSITE_HEADER: f64 = 26.0;
 const NOTE_OFFSET: f64 = 30.0;
 const NOTE_FONT_SIZE: f64 = 13.0;
 const FORK_BAR_WIDTH: f64 = 80.0;
@@ -115,6 +117,36 @@ const FORK_BAR_HEIGHT: f64 = 8.0;
 const CHOICE_SIZE: f64 = 24.0;
 const HISTORY_DIAMETER: f64 = 22.0;
 const MARGIN: f64 = 7.0;
+
+// ---------------------------------------------------------------------------
+// Composite state dimension helpers (Java: InnerStateAutonom)
+// ---------------------------------------------------------------------------
+
+/// Title text height for a composite state name.
+/// Java: title.calculateDimension(sb).getHeight() — the line height of the
+/// state name font (SansSerif 14pt, ascent+descent).
+fn composite_title_height() -> f64 {
+    crate::font_metrics::line_height("SansSerif", STATE_NAME_FONT_SIZE, false, false)
+}
+
+/// Header height for a composite state: the y-offset of the separator line.
+/// Java: `titreHeight = IEntityImage.MARGIN + text.getHeight() + IEntityImage.MARGIN_LINE`
+fn composite_header_height() -> f64 {
+    IE_MARGIN + composite_title_height() + IE_MARGIN_LINE
+}
+
+/// Y-offset where inner children start within a composite state.
+/// Java: `getSpaceYforURL() = titreHeight + marginForFields + attr.height + MARGIN_LINE`
+/// (simplified for no attributes: `titreHeight + MARGIN_LINE`)
+fn composite_inner_y_offset() -> f64 {
+    composite_header_height() + IE_MARGIN_LINE
+}
+
+/// Total height overhead for a composite state (total - inner_children_height).
+/// Java: `calculateDimensionSlow().height - inner.height = title_h + 2*MARGIN + 2*MARGIN_LINE`
+fn composite_height_overhead() -> f64 {
+    composite_title_height() + 2.0 * IE_MARGIN + 2.0 * IE_MARGIN_LINE
+}
 
 // ---------------------------------------------------------------------------
 // Text measurement helpers
@@ -554,11 +586,16 @@ fn compute_state_node(
             all_child_layouts = child_layouts;
         }
 
-        let inner_width = total_child_w + 2.0 * COMPOSITE_PADDING;
-        let inner_height = total_child_h + COMPOSITE_HEADER + COMPOSITE_PADDING;
+        // Java: InnerStateAutonom.calculateDimensionSlow()
+        //   dim = title.mergeTB(attr, innerImage)  →  max(title_w, inner_w)
+        //   result = dim.delta(2*MARGIN + 2*MARGIN_LINE)  →  max_w + 20
+        // inner_w ≈ graphviz cluster interior (children + cluster margin 8pt per side)
+        let inner_img_w = total_child_w + 2.0 * 8.0; // graphviz cluster default margin = 8pt
+        let inner_height = total_child_h + composite_height_overhead();
 
-        let name_w = text_width(&state.name, STATE_NAME_FONT_SIZE) + 2.0 * PADDING;
-        let width = inner_width.max(name_w).max(STATE_MIN_WIDTH);
+        let name_w = text_width(&state.name, STATE_NAME_FONT_SIZE);
+        let merged_w = inner_img_w.max(name_w);
+        let width = (merged_w + 2.0 * IE_MARGIN + 2.0 * IE_MARGIN_LINE).max(STATE_MIN_WIDTH);
         let height = inner_height.max(STATE_MIN_HEIGHT);
 
         return (
@@ -957,7 +994,7 @@ fn layout_states_ranked(
             // Offset children to absolute positions within the composite
             if node.is_composite {
                 let child_offset_x = x + COMPOSITE_PADDING;
-                let child_offset_y = y + COMPOSITE_HEADER;
+                let child_offset_y = y + composite_inner_y_offset();
                 offset_children(&mut node.children, child_offset_x, child_offset_y);
                 for sep_y in &mut node.region_separators {
                     *sep_y += child_offset_y;
@@ -1356,7 +1393,7 @@ pub fn layout_state(diagram: &StateDiagram) -> Result<StateLayout> {
             // For composite states, recursively layout children within the bounds
             if node.is_composite {
                 let child_offset_x = x + COMPOSITE_PADDING;
-                let child_offset_y = y + COMPOSITE_HEADER;
+                let child_offset_y = y + composite_inner_y_offset();
                 offset_children(&mut node.children, child_offset_x, child_offset_y);
                 for sep_y in &mut node.region_separators {
                     *sep_y += child_offset_y;
@@ -1924,7 +1961,7 @@ mod tests {
         // Children should be inside the container
         for child in &container.children {
             assert!(child.x >= container.x);
-            assert!(child.y >= container.y + COMPOSITE_HEADER);
+            assert!(child.y >= container.y + composite_inner_y_offset());
             assert!(child.x + child.width <= container.x + container.width + 1.0);
         }
     }
