@@ -413,10 +413,12 @@ fn render_choice(
     let half = node.width / 2.0;
     sg.set_fill_color("#F1F1F1");
     sg.set_stroke_color(Some(border));
-    sg.set_stroke_width(1.5, None);
+    // Java: style.getStroke() default for state diamond is 0.5
+    sg.set_stroke_width(0.5, None);
+    // Java: EntityImageBranch.drawU adds 5 points (last = first to close polygon)
     sg.svg_polygon(
         0.0,
-        &[cx, cy - half, cx + half, cy, cx, cy + half, cx - half, cy],
+        &[cx, cy - half, cx + half, cy, cx, cy + half, cx - half, cy, cx, cy - half],
     );
     // Java LimitFinder.drawUPolygon with HACK_X_FOR_POLYGON=10
     tracker.track_polygon(&[

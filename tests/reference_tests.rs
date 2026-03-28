@@ -157,13 +157,82 @@ fn normalize_filter_ids(s: &str) -> String {
     result
 }
 
+/// Normalize entity/link IDs to canonical sequential form.
+/// Java's quark-based ID assignment differs from Rust's sequential allocation,
+/// so normalize `id="ent0002"`, `id="lnk3"`, `data-entity-1="ent0002"`, etc.
+/// to canonical `__e0__`, `__l0__` based on first-appearance order.
+fn normalize_entity_link_ids(s: &str) -> String {
+    use std::collections::HashMap;
+    let mut result = s.to_string();
+
+    // Collect entity IDs in order of appearance
+    let mut ent_map: HashMap<String, String> = HashMap::new();
+    let mut ent_counter = 0usize;
+    {
+        let mut pos = 0;
+        while let Some(idx) = result[pos..].find("id=\"ent") {
+            let abs = pos + idx + 4; // start of "ent..."
+            if let Some(end) = result[abs..].find('"') {
+                let old_id = result[abs..abs + end].to_string();
+                if !ent_map.contains_key(&old_id) {
+                    ent_map.insert(old_id, format!("__e{}__", ent_counter));
+                    ent_counter += 1;
+                }
+                pos = abs + end + 1;
+            } else {
+                break;
+            }
+        }
+    }
+
+    // Collect link IDs in order of appearance
+    let mut lnk_map: HashMap<String, String> = HashMap::new();
+    let mut lnk_counter = 0usize;
+    {
+        let mut pos = 0;
+        while let Some(idx) = result[pos..].find("id=\"lnk") {
+            let abs = pos + idx + 4; // start of "lnk..."
+            if let Some(end) = result[abs..].find('"') {
+                let old_id = result[abs..abs + end].to_string();
+                if !lnk_map.contains_key(&old_id) {
+                    lnk_map.insert(old_id, format!("__l{}__", lnk_counter));
+                    lnk_counter += 1;
+                }
+                pos = abs + end + 1;
+            } else {
+                break;
+            }
+        }
+    }
+
+    // Replace entity IDs in all contexts
+    for (old_id, new_id) in &ent_map {
+        result = result.replace(&format!("id=\"{old_id}\""), &format!("id=\"{new_id}\""));
+        result = result.replace(
+            &format!("data-entity-1=\"{old_id}\""),
+            &format!("data-entity-1=\"{new_id}\""),
+        );
+        result = result.replace(
+            &format!("data-entity-2=\"{old_id}\""),
+            &format!("data-entity-2=\"{new_id}\""),
+        );
+    }
+
+    // Replace link IDs
+    for (old_id, new_id) in &lnk_map {
+        result = result.replace(&format!("id=\"{old_id}\""), &format!("id=\"{new_id}\""));
+    }
+
+    result
+}
+
 fn assert_exact_match(actual: &str, reference: &str, path: &str) {
     if actual == reference {
         return;
     }
     // Allow deflate-encoding differences in <?plantuml-src?> PI
-    let a = normalize_filter_ids(&strip_plantuml_src_pi(actual));
-    let r = normalize_filter_ids(&strip_plantuml_src_pi(reference));
+    let a = normalize_entity_link_ids(&normalize_filter_ids(&strip_plantuml_src_pi(actual)));
+    let r = normalize_entity_link_ids(&normalize_filter_ids(&strip_plantuml_src_pi(reference)));
     if a == r {
         return;
     }

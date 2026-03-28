@@ -1247,49 +1247,78 @@ fn parse_polygon_points(points_str: &str, tx: f64, ty: f64) -> Vec<(f64, f64)> {
 /// Returns a new d-string with all coordinates offset by (tx, ty),
 /// formatted to match Java PlantUML coordinate style.
 pub fn transform_path_d(d: &str, tx: f64, ty: f64) -> String {
+    // Java renders DotPath via UPath→SvgGraphics.svgPath() which emits an explicit
+    // command letter (M/C/L) for each segment.  Graphviz SVG may use implicit
+    // continuation (one C followed by multiple triplets).  We re-emit with explicit
+    // command letters per segment to match Java output.
     let mut result = String::new();
     let mut chars = d.chars().peekable();
-    let mut had_coords = false; // track if we just emitted coordinates
+    let mut current_cmd = ' ';
+    let mut coord_pairs_in_segment = 0u32;
+
+    // How many coordinate pairs per segment for each command
+    fn pairs_per_segment(cmd: char) -> u32 {
+        match cmd {
+            'M' | 'L' => 1,
+            'C' => 3,
+            'Q' => 2,
+            _ => 1,
+        }
+    }
 
     while let Some(&c) = chars.peek() {
         match c {
-            'M' | 'C' | 'L' | 'Z' => {
-                // Add space before command if preceded by coordinates
-                if had_coords && !result.is_empty() && !result.ends_with(' ') {
-                    result.push(' ');
+            'M' | 'C' | 'L' | 'Q' | 'Z' => {
+                if c == 'Z' {
+                    if !result.is_empty() && !result.ends_with(' ') {
+                        result.push(' ');
+                    }
+                    result.push('Z');
+                    chars.next();
+                    current_cmd = ' ';
+                    coord_pairs_in_segment = 0;
+                } else {
+                    current_cmd = c;
+                    coord_pairs_in_segment = 0;
+                    chars.next();
+                    // Don't emit command yet — it will be emitted when we see coordinates
                 }
-                result.push(c);
-                chars.next();
-                had_coords = false;
             }
             '-' | '0'..='9' | '.' => {
                 let x = parse_next_number(&mut chars);
                 skip_separators(&mut chars);
                 let y = parse_next_number(&mut chars);
                 if let (Some(x), Some(y)) = (x, y) {
+                    // Check if we need to emit a new command letter
+                    let pps = pairs_per_segment(current_cmd);
+                    if coord_pairs_in_segment % pps == 0 {
+                        // Start of a new segment — emit command letter
+                        if !result.is_empty() && !result.ends_with(' ') {
+                            result.push(' ');
+                        }
+                        result.push(current_cmd);
+                    } else {
+                        result.push(' ');
+                    }
+                    coord_pairs_in_segment += 1;
+
                     let nx = tx + x;
                     let ny = ty + y;
                     result.push_str(&fmt_coord(nx));
                     result.push(',');
                     result.push_str(&fmt_coord(ny));
-                    had_coords = true;
                 }
-                // Consume trailing separators and add space if more data follows
-                if let Some(&next) = chars.peek() {
-                    if next == ' ' || next == ',' {
-                        skip_separators(&mut chars);
-                        // Add space only if more data follows (not end, not another separator)
-                        if let Some(&next2) = chars.peek() {
-                            if next2 != ' ' && next2 != ',' {
-                                result.push(' ');
-                            }
-                        }
+                // Consume trailing separators
+                while let Some(&next) = chars.peek() {
+                    if next == ' ' || next == ',' || next == '\t' || next == '\n' || next == '\r' {
+                        chars.next();
+                    } else {
+                        break;
                     }
                 }
             }
             ' ' | ',' | '\t' | '\n' | '\r' => {
                 chars.next();
-                // Skip, spaces are managed above
             }
             _ => {
                 chars.next();
