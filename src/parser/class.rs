@@ -671,6 +671,7 @@ fn parse_hide_show_rule(trimmed: &str) -> Option<Vec<ClassHideShowRule>> {
             target: ClassRuleTarget::Any,
             portion: ClassPortion::Stereotype,
             show,
+            empty_only: false,
         }]);
     }
 
@@ -683,7 +684,47 @@ fn parse_hide_show_rule(trimmed: &str) -> Option<Vec<ClassHideShowRule>> {
             target: ClassRuleTarget::Stereotype(rest[0][2..rest[0].len() - 2].trim().to_string()),
             portion: ClassPortion::Stereotype,
             show,
+            empty_only: false,
         }]);
+    }
+
+    // "hide empty members" / "hide empty fields" / "hide empty methods"
+    if rest.len() == 2 && rest[0] == "empty" {
+        match rest[1] {
+            "members" => {
+                return Some(vec![
+                    ClassHideShowRule {
+                        target: ClassRuleTarget::Any,
+                        portion: ClassPortion::Field,
+                        show,
+                        empty_only: true,
+                    },
+                    ClassHideShowRule {
+                        target: ClassRuleTarget::Any,
+                        portion: ClassPortion::Method,
+                        show,
+                        empty_only: true,
+                    },
+                ]);
+            }
+            "fields" => {
+                return Some(vec![ClassHideShowRule {
+                    target: ClassRuleTarget::Any,
+                    portion: ClassPortion::Field,
+                    show,
+                    empty_only: true,
+                }]);
+            }
+            "methods" => {
+                return Some(vec![ClassHideShowRule {
+                    target: ClassRuleTarget::Any,
+                    portion: ClassPortion::Method,
+                    show,
+                    empty_only: true,
+                }]);
+            }
+            _ => {}
+        }
     }
 
     if rest.len() == 1 && rest[0] == "members" {
@@ -692,11 +733,13 @@ fn parse_hide_show_rule(trimmed: &str) -> Option<Vec<ClassHideShowRule>> {
                 target: ClassRuleTarget::Any,
                 portion: ClassPortion::Field,
                 show,
+                empty_only: false,
             },
             ClassHideShowRule {
                 target: ClassRuleTarget::Any,
                 portion: ClassPortion::Method,
                 show,
+                empty_only: false,
             },
         ]);
     }
@@ -713,6 +756,7 @@ fn parse_hide_show_rule(trimmed: &str) -> Option<Vec<ClassHideShowRule>> {
             target,
             portion,
             show,
+            empty_only: false,
         }]);
     }
 

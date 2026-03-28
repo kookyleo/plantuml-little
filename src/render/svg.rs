@@ -2601,8 +2601,10 @@ fn draw_entity_box(
     // Entity name WITHOUT generic parameter — generic is rendered separately in draw_generic_box
     let name_display = crate::layout::class_entity_display_name(&entity.name);
     let visible_stereotypes = visible_stereotype_labels(&cd.hide_show_rules, entity);
-    let show_fields = show_portion(&cd.hide_show_rules, ClassPortion::Field, &entity.name);
-    let show_methods = show_portion(&cd.hide_show_rules, ClassPortion::Method, &entity.name);
+    let raw_field_count = entity.members.iter().filter(|m| !m.is_method).count();
+    let raw_method_count = entity.members.iter().filter(|m| m.is_method).count();
+    let show_fields = show_portion(&cd.hide_show_rules, ClassPortion::Field, &entity.name, raw_field_count);
+    let show_methods = show_portion(&cd.hide_show_rules, ClassPortion::Method, &entity.name, raw_method_count);
     let visible_fields: Vec<&Member> = entity
         .members
         .iter()
@@ -3427,10 +3429,18 @@ fn draw_visibility_icon(
     sg.push_raw("</g>");
 }
 
-fn show_portion(rules: &[ClassHideShowRule], portion: ClassPortion, entity_name: &str) -> bool {
+fn show_portion(
+    rules: &[ClassHideShowRule],
+    portion: ClassPortion,
+    entity_name: &str,
+    member_count: usize,
+) -> bool {
     let mut result = true;
     for rule in rules {
         if rule.portion != portion {
+            continue;
+        }
+        if rule.empty_only && member_count > 0 {
             continue;
         }
         match &rule.target {

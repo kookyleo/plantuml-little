@@ -87,6 +87,8 @@ pub struct ClassHideShowRule {
     pub target: ClassRuleTarget,
     pub portion: ClassPortion,
     pub show: bool,
+    /// When true, the rule only applies to empty sections (e.g. `hide empty members`).
+    pub empty_only: bool,
 }
 
 /// Class diagram IR

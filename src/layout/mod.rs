@@ -657,21 +657,24 @@ fn estimate_entity_size(
     let header_height =
         HEADER_CIRCLE_BLOCK_HEIGHT.max(stereo_height + name_block_height + HEADER_STEREO_NAME_GAP);
 
+    let raw_field_count = entity.members.iter().filter(|m| !m.is_method).count();
+    let raw_method_count = entity.members.iter().filter(|m| m.is_method).count();
+
     let visible_fields: Vec<&Member> = entity
         .members
         .iter()
         .filter(|m| !m.is_method)
-        .filter(|_| show_portion(&cd.hide_show_rules, ClassPortion::Field, &entity.name))
+        .filter(|_| show_portion(&cd.hide_show_rules, ClassPortion::Field, &entity.name, raw_field_count))
         .collect();
     let visible_methods: Vec<&Member> = entity
         .members
         .iter()
         .filter(|m| m.is_method)
-        .filter(|_| show_portion(&cd.hide_show_rules, ClassPortion::Method, &entity.name))
+        .filter(|_| show_portion(&cd.hide_show_rules, ClassPortion::Method, &entity.name, raw_method_count))
         .collect();
 
-    let show_fields = show_portion(&cd.hide_show_rules, ClassPortion::Field, &entity.name);
-    let show_methods = show_portion(&cd.hide_show_rules, ClassPortion::Method, &entity.name);
+    let show_fields = show_portion(&cd.hide_show_rules, ClassPortion::Field, &entity.name, raw_field_count);
+    let show_methods = show_portion(&cd.hide_show_rules, ClassPortion::Method, &entity.name, raw_method_count);
 
     let body_width = estimate_members_width(&visible_fields, attr_font_size)
         .max(estimate_members_width(&visible_methods, attr_font_size));
@@ -948,10 +951,19 @@ pub(crate) fn split_member_lines(text: &str) -> Vec<(String, f64)> {
     result
 }
 
-fn show_portion(rules: &[ClassHideShowRule], portion: ClassPortion, entity_name: &str) -> bool {
+fn show_portion(
+    rules: &[ClassHideShowRule],
+    portion: ClassPortion,
+    entity_name: &str,
+    member_count: usize,
+) -> bool {
     let mut result = true;
     for rule in rules {
         if rule.portion != portion {
+            continue;
+        }
+        // empty_only rules only apply when the section has no members
+        if rule.empty_only && member_count > 0 {
             continue;
         }
         match &rule.target {
@@ -972,8 +984,10 @@ fn show_portion(rules: &[ClassHideShowRule], portion: ClassPortion, entity_name:
 /// With HACK=10: LF sees node_x + 7 - 10 = node_x - 3.
 /// Normal rect LF: node_x - 1. Extra = 3 - 1 = 2.
 fn entity_lf_extra_left(cd: &ClassDiagram, entity: &Entity) -> f64 {
-    let show_fields = show_portion(&cd.hide_show_rules, ClassPortion::Field, &entity.name);
-    let show_methods = show_portion(&cd.hide_show_rules, ClassPortion::Method, &entity.name);
+    let raw_field_count = entity.members.iter().filter(|m| !m.is_method).count();
+    let raw_method_count = entity.members.iter().filter(|m| m.is_method).count();
+    let show_fields = show_portion(&cd.hide_show_rules, ClassPortion::Field, &entity.name, raw_field_count);
+    let show_methods = show_portion(&cd.hide_show_rules, ClassPortion::Method, &entity.name, raw_method_count);
 
     let has_polygon_modifier = entity.members.iter().any(|m| {
         let visible = if m.is_method { show_methods } else { show_fields };
