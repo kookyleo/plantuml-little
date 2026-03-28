@@ -2377,13 +2377,60 @@ pub fn build_teoz_layout(sd: &SequenceDiagram, skin: &SkinParams) -> Result<SeqL
     // Activation bars span from the step-y of the activate event to the step-y
     // of the deactivate event.
     {
-        let mut act_state: HashMap<String, Vec<(f64, usize, Option<String>)>> = HashMap::new();
+        // act_state: per-participant stack of active levels.
+        // Each entry: (y_start_stairs, y_start_addstep, level, color)
+        // y_start_stairs = position used in getStairs (message arrowY)
+        // y_start_addstep = position used in addStep collision check
+        //   (arrowY for first-message inline, msg_bottom for parallel-message inline)
+        let mut act_state: HashMap<String, Vec<(f64, f64, usize, Option<String>)>> = HashMap::new();
         let mut tile_idx = 0;
         // The step y of the current/preceding tile.
         // Initial: lifeline_top + PLAYINGSPACE_STARTING_Y (before any tile)
         let lifeline_top = STARTING_Y + max_preferred_height;
         let mut last_step_y: f64 = lifeline_top + PLAYINGSPACE_STARTING_Y;
-        for event in &sd.events {
+
+        // Track message bottom (msg_y + msg_height).
+        let mut last_msg_bottom_y: f64 = lifeline_top + PLAYINGSPACE_STARTING_Y;
+
+        // Pre-compute which events are "inside TileParallel first message".
+        // In Java, when a non-parallel message is followed (after inline events)
+        // by a parallel `&` message, mergeParallel puts the first message + its
+        // inline LifeEvents inside a TileParallel. Contact point adjustment
+        // positions those LifeEvents at arrowY instead of msg_bottom.
+        // For all other cases (no following parallel, or events from the
+        // parallel message itself), addStep y = msg_bottom.
+        let inside_tile_parallel: Vec<bool> = {
+            let mut result = vec![false; sd.events.len()];
+            let mut last_msg_idx: Option<usize> = None;
+            let mut inline_indices: Vec<usize> = Vec::new();
+            for (i, ev) in sd.events.iter().enumerate() {
+                match ev {
+                    SeqEvent::Message(m) => {
+                        if m.parallel {
+                            // The previous message + its inline events are inside TileParallel
+                            if let Some(_msg_idx) = last_msg_idx {
+                                for &idx in &inline_indices {
+                                    result[idx] = true;
+                                }
+                            }
+                        }
+                        last_msg_idx = Some(i);
+                        inline_indices.clear();
+                    }
+                    SeqEvent::Activate(..) | SeqEvent::Deactivate(_) | SeqEvent::Destroy(_) => {
+                        if last_msg_idx.is_some() {
+                            inline_indices.push(i);
+                        }
+                    }
+                    _ => {
+                        last_msg_idx = None;
+                        inline_indices.clear();
+                    }
+                }
+            }
+            result
+        };
+        for (event_idx, event) in sd.events.iter().enumerate() {
             // Update last_step_y when we see a tile
             if let Some(tile) = tiles.get(tile_idx) {
                 match tile {
@@ -2391,18 +2438,19 @@ pub fn build_teoz_layout(sd: &SequenceDiagram, skin: &SkinParams) -> Result<SeqL
                         let ty = y.unwrap_or(0.0);
                         // Step y = tile_top + arrowY = tile_top + (height - 8)
                         last_step_y = ty + (height - rose::ARROW_DELTA_Y - rose::ARROW_PADDING_Y);
+                        last_msg_bottom_y = ty + height;
                     }
                     TeozTile::SelfMessage { height, y, .. } => {
                         let ty = y.unwrap_or(0.0);
                         let self_text_h = tp.msg_line_height * 1.0_f64;
                         let self_tm = TextMetrics::new(7.0, 7.0, 1.0, 0.0, self_text_h);
                         last_step_y = ty + rose::self_arrow_start_point(&self_tm).y;
+                        last_msg_bottom_y = ty + height;
                     }
                     TeozTile::LifeEvent { .. } => {
-                        // LifeEvent tiles share position with the preceding
-                        // message tile. Don't update last_step_y here — it
-                        // was already set by the preceding Communication or
-                        // SelfMessage tile.
+                        // Inline LifeEvents use the message's step_y (already
+                        // set by the preceding Communication). We don't update
+                        // last_step_y here.
                     }
                     _ => {}
                 }
@@ -2410,30 +2458,55 @@ pub fn build_teoz_layout(sd: &SequenceDiagram, skin: &SkinParams) -> Result<SeqL
 
             match event {
                 SeqEvent::Activate(name, act_color) => {
-                    // Java: activation step recorded at the tile's step y
+                    // Java getStairs: position = message arrowY (= last_step_y).
+                    // Java addStep: LifeEvent tile at msg_bottom, EXCEPT when
+                    // inside TileParallel (first msg of parallel block) where
+                    // contact point adjustment puts it at arrowY.
+                    let y_stairs = last_step_y;
+                    let y_addstep = if inside_tile_parallel[event_idx] {
+                        last_step_y // arrowY (inside TileParallel)
+                    } else {
+                        last_msg_bottom_y // msg_bottom (sequential)
+                    };
                     let stack = act_state.entry(name.clone()).or_default();
                     let level = stack.len() + 1; // 1-based
-                    log::debug!("teoz activate {name} level={level} y_start={last_step_y:.4}");
-                    stack.push((last_step_y, level, act_color.clone()));
+                    log::debug!("teoz activate {name} level={level} y_stairs={y_stairs:.4} y_addstep={y_addstep:.4}");
+                    stack.push((y_stairs, y_addstep, level, act_color.clone()));
                 }
                 SeqEvent::Deactivate(name) => {
-                    // Java: deactivation step recorded at the tile's step y.
-                    // When y_end == y_start (inline activate+deactivate at same
-                    // message), Java's LiveBoxes.addStep applies a +5 collision
-                    // adjustment. Combined with tile bottom padding, this gives
-                    // a minimum activation height of 13px.
                     if let Some(stack) = act_state.get_mut(name) {
-                        if let Some((y_start, level, color)) = stack.pop() {
+                        if let Some((y_start, y_start_addstep, level, color)) = stack.pop() {
                             let idx = name_to_idx.get(name).copied().unwrap_or(0);
                             let cx = get_x(livings[idx].pos_c);
                             let x = cx - ACTIVATION_WIDTH / 2.0
                                 + (level - 1) as f64 * (ACTIVATION_WIDTH / 2.0);
+                            // Java getStairs: inline deactivate uses message
+                            // arrowY (= last_step_y). Standalone deactivate uses
+                            // its own tile position (= msg_bottom after TileParallel).
+                            //
+                            // Detection: if last_step_y == y_start, the deactivate
+                            // is at the same message arrowY as the activate. Check
+                            // if there is a msg_bottom available that differs:
+                            // if so, this may be a standalone deactivate.
                             let mut y_end = last_step_y;
-                            // Java +5 collision adjustment: when deactivation step
-                            // equals an existing step, LiveBoxes adds 5px. This
-                            // results in minimum height = ARROW_DELTA_Y + ARROW_PADDING_Y + 5 = 13.
                             if (y_end - y_start).abs() < 0.001 {
-                                y_end = y_start + rose::ARROW_DELTA_Y + rose::ARROW_PADDING_Y + 5.0;
+                                // Both at message arrowY. Two sub-cases:
+                                if last_msg_bottom_y > y_start + 0.001 {
+                                    // Standalone deactivate: tile at msg_bottom.
+                                    // Java getStairs position = msg_bottom.
+                                    y_end = last_msg_bottom_y;
+                                    // Java addStep collision: if the deactivate's
+                                    // tile_y (= msg_bottom) matches the activate's
+                                    // addStep y → bump +5.
+                                    if (last_msg_bottom_y - y_start_addstep).abs() < 0.001 {
+                                        y_end += 5.0;
+                                    }
+                                } else {
+                                    // True inline collision (same message
+                                    // activate+deactivate). Minimum height 13px.
+                                    y_end = y_start + rose::ARROW_DELTA_Y
+                                        + rose::ARROW_PADDING_Y + 5.0;
+                                }
                             }
                             log::debug!("teoz deactivate {name} level={level} y_start={y_start:.4} y_end={y_end:.4}");
                             activations.push(ActivationLayout {
@@ -2457,7 +2530,7 @@ pub fn build_teoz_layout(sd: &SequenceDiagram, skin: &SkinParams) -> Result<SeqL
                     destroys.push(DestroyLayout { x: cx, y: ty });
                     // Close any open activations
                     if let Some(stack) = act_state.get_mut(name) {
-                        while let Some((y_start, level, color)) = stack.pop() {
+                        while let Some((y_start, _y_addstep, level, color)) = stack.pop() {
                             let x = cx - ACTIVATION_WIDTH / 2.0
                                 + (level - 1) as f64 * (ACTIVATION_WIDTH / 2.0);
                             activations.push(ActivationLayout {
@@ -2483,7 +2556,7 @@ pub fn build_teoz_layout(sd: &SequenceDiagram, skin: &SkinParams) -> Result<SeqL
         for (name, stack) in act_state.drain() {
             let idx = name_to_idx.get(&name).copied().unwrap_or(0);
             let cx = get_x(livings[idx].pos_c);
-            for (y_start, level, color) in stack {
+            for (y_start, _y_addstep, level, color) in stack {
                 let x = cx - ACTIVATION_WIDTH / 2.0 + (level - 1) as f64 * (ACTIVATION_WIDTH / 2.0);
                 // Ensure the activation has at least MIN_UNCLOSED_ACTIVATION_HEIGHT
                 let y_end = (y_start + MIN_UNCLOSED_ACTIVATION_HEIGHT).max(lifeline_bottom);
