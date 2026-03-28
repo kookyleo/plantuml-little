@@ -537,6 +537,24 @@ fn normalize_for_mapping(s: &str) -> String {
         .replace("%n()", "\u{E100}")
 }
 
+/// Check if two lines match for mapping purposes, tolerating variable
+/// substitution differences. Compares exact first, then via normalize,
+/// then via prefix before the first `\n` escape.
+fn lines_match_for_mapping(block_line: &str, orig_line: &str) -> bool {
+    if block_line == orig_line {
+        return true;
+    }
+    if normalize_for_mapping(block_line) == normalize_for_mapping(orig_line) {
+        return true;
+    }
+    let bl_prefix = block_line.split("\\n").next().unwrap_or(block_line);
+    let ol_prefix = orig_line.split("\\n").next().unwrap_or(orig_line);
+    if !bl_prefix.is_empty() && bl_prefix.len() > 5 && bl_prefix == ol_prefix {
+        return true;
+    }
+    false
+}
+
 fn build_line_mapping(
     cleaned_source: &str,
     original_source: Option<&str>,
@@ -565,9 +583,7 @@ fn build_line_mapping(
         let mut found = false;
         for orig_idx in search_from..orig_lines.len() {
             let orig_trimmed = orig_lines[orig_idx].trim();
-            if orig_trimmed == trimmed
-                || normalize_for_mapping(orig_trimmed) == normalize_for_mapping(trimmed)
-            {
+            if lines_match_for_mapping(trimmed, orig_trimmed) {
                 mapping.push(orig_idx);
                 search_from = orig_idx + 1;
                 found = true;
