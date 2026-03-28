@@ -726,10 +726,10 @@ mod tests {
         let dot = builder.build_dot();
         assert!(dot.contains("shape=plaintext"));
         assert!(dot.contains("CELLSPACING=\"0\""));
-        assert!(dot.contains("WIDTH=\"5\" HEIGHT=\"1\""));
-        assert!(dot.contains("WIDTH=\"10\" HEIGHT=\"1\""));
-        assert!(dot.contains("WIDTH=\"1\" HEIGHT=\"3\""));
-        assert!(dot.contains("WIDTH=\"1\" HEIGHT=\"7\""));
+        assert!(dot.contains("WIDTH=\"5.0\" HEIGHT=\"1.0\""));
+        assert!(dot.contains("WIDTH=\"10.0\" HEIGHT=\"1.0\""));
+        assert!(dot.contains("WIDTH=\"1.0\" HEIGHT=\"3.0\""));
+        assert!(dot.contains("WIDTH=\"1.0\" HEIGHT=\"7.0\""));
         assert!(dot.contains("PORT=\"h\""));
     }
 

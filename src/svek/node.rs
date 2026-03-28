@@ -6,6 +6,17 @@ use crate::klimt::geom::{RectangleArea, XDimension2D, XPoint2D};
 use super::shape_type::ShapeType;
 use super::{ColorSequence, Margins};
 
+/// Format f64 matching Java's Double.toString():
+/// - Integer values get ".0" suffix: 0.0 → "0.0", 1.0 → "1.0"
+/// - Non-integer values display normally: 18.296875 → "18.296875"
+fn java_double_to_string(v: f64) -> String {
+    if v == v.floor() && v.is_finite() {
+        format!("{:.1}", v)
+    } else {
+        format!("{}", v)
+    }
+}
+
 // ── EntityPosition ──────────────────────────────────────────────────
 
 /// Entity position within a diagram (normal vs boundary/port).
@@ -433,8 +444,8 @@ impl SvekNode {
         sb.push_str(&format!(
             "<TD BGCOLOR=\"{}\" FIXEDSIZE=\"TRUE\" WIDTH=\"{}\" HEIGHT=\"{}\" PORT=\"h\">",
             ColorSequence::color_to_hex(self.color),
-            self.width,
-            self.height
+            java_double_to_string(self.width),
+            java_double_to_string(self.height)
         ));
         sb.push_str("</TD>");
         Self::append_td_sized(sb, shield.x2, 1.0);
@@ -574,7 +585,8 @@ impl SvekNode {
         sb.push_str("<TD");
         sb.push_str(&format!(
             " FIXEDSIZE=\"TRUE\" WIDTH=\"{}\" HEIGHT=\"{}\"",
-            w, h
+            java_double_to_string(w),
+            java_double_to_string(h),
         ));
         sb.push('>');
         sb.push_str("</TD>");
@@ -1049,17 +1061,17 @@ mod tests {
         assert!(dot
             .contains("<TABLE BORDER=\"0\" CELLBORDER=\"0\" CELLSPACING=\"0\" CELLPADDING=\"0\">"));
         // Top row: shield.y1 = 3.0
-        assert!(dot.contains("HEIGHT=\"3\""));
+        assert!(dot.contains("HEIGHT=\"3.0\""));
         // Middle row: shield.x1 = 5.0, main cell, shield.x2 = 10.0
-        assert!(dot.contains("WIDTH=\"5\""));
-        assert!(dot.contains("WIDTH=\"10\""));
+        assert!(dot.contains("WIDTH=\"5.0\""));
+        assert!(dot.contains("WIDTH=\"10.0\""));
         // Main cell
         assert!(dot.contains("BGCOLOR=\"#0a0a00\""));
-        assert!(dot.contains("WIDTH=\"80\""));
-        assert!(dot.contains("HEIGHT=\"40\""));
+        assert!(dot.contains("WIDTH=\"80.0\""));
+        assert!(dot.contains("HEIGHT=\"40.0\""));
         assert!(dot.contains("PORT=\"h\""));
         // Bottom row: shield.y2 = 7.0
-        assert!(dot.contains("HEIGHT=\"7\""));
+        assert!(dot.contains("HEIGHT=\"7.0\""));
     }
 
     #[test]
