@@ -779,6 +779,16 @@ pub fn build_teoz_layout(sd: &SequenceDiagram, skin: &SkinParams) -> Result<SeqL
         xcurrent = rl.add_at_least(pos_d, 0.0);
     }
 
+    // ── Step 2b: Add inter-participant constraints ───────────────────────
+    // Java: LivingSpaces.addConstraints() ensures posA_next >= posE_prev + 10
+    // where posA = posB - marginBefore, posE = posD + marginAfter.
+    // With default margins of 0, this adds 10px gap between adjacent boxes.
+    for i in 1..livings.len() {
+        let prev_pos_d = livings[i - 1].pos_d;
+        let curr_pos_b = livings[i].pos_b;
+        rl.ensure_bigger_than_with_margin(curr_pos_b, prev_pos_d, 10.0);
+    }
+
     // ── Step 3: Build tiles from events ──────────────────────────────────
     let mut tiles: Vec<TeozTile> = Vec::new();
     let mut autonumber_enabled = false;
