@@ -226,7 +226,7 @@ fn px_to_inches(px: f64) -> f64 {
 
 /// Check if a label contains a link arrow direction indicator.
 /// Java: `StringWithArrow` recognizes " >", " <", "> ", "< ", ">", "<".
-fn has_link_arrow_indicator(label: &str) -> bool {
+pub(crate) fn has_link_arrow_indicator(label: &str) -> bool {
     let s = label.trim();
     s == ">" || s == "<"
         || s.ends_with(" >") || s.ends_with(" <")
@@ -237,7 +237,7 @@ fn has_link_arrow_indicator(label: &str) -> bool {
 /// Java: `StringWithArrow` extracts " >", " <", "> ", "< " from the label
 /// and renders them as arrow polygons. The label text for dimension
 /// calculation does not include these indicators.
-fn strip_link_arrow_text(label: &str) -> String {
+pub(crate) fn strip_link_arrow_text(label: &str) -> String {
     let s = label.trim();
     if s == ">" || s == "<" {
         return String::new();
@@ -255,6 +255,13 @@ fn strip_link_arrow_text(label: &str) -> String {
         return rest.trim().to_string();
     }
     s.to_string()
+}
+
+/// Return true if the label's arrow indicator is "backward" (pointing left / <).
+/// Java: StringWithArrow sets LinkArrow.BACKWARD for "<" and " <" and "< ".
+pub(crate) fn is_link_arrow_backward(label: &str) -> bool {
+    let s = label.trim();
+    s == "<" || s.ends_with(" <") || s.starts_with("< ")
 }
 
 fn measure_edge_text_block(text: &str, font_size: f64) -> (f64, f64) {

@@ -7,7 +7,8 @@ use flate2::Compression;
 
 use crate::layout::class_group_header_metrics;
 use crate::layout::graphviz::{
-    ClassNoteLayout, ClusterLayout, EdgeLayout, GraphLayout, NodeLayout,
+    has_link_arrow_indicator, is_link_arrow_backward, strip_link_arrow_text, ClassNoteLayout,
+    ClusterLayout, EdgeLayout, GraphLayout, NodeLayout,
 };
 use crate::layout::split_member_lines;
 use crate::layout::DiagramLayout;
@@ -3541,6 +3542,111 @@ fn edge_label_margin(link: &Link) -> f64 {
     }
 }
 
+/// Parse the start and end points from an SVG path d-string.
+/// Returns ((start_x, start_y), (end_x, end_y)) or None.
+fn parse_path_start_end(d: &str) -> Option<((f64, f64), (f64, f64))> {
+    // Start: first M command
+    let d = d.trim();
+    if !d.starts_with('M') {
+        return None;
+    }
+    let rest = &d[1..];
+    // Parse start coordinates: "x,y" or "x y"
+    let mut chars = rest.chars().peekable();
+    let sx_str: String = chars
+        .by_ref()
+        .take_while(|c| *c != ',' && *c != ' ')
+        .collect();
+    let sy_str: String = chars
+        .by_ref()
+        .take_while(|c| *c != ' ' && *c != 'C' && *c != 'L' && *c != 'c' && *c != 'l')
+        .collect();
+    let sx = sx_str.parse::<f64>().ok()?;
+    let sy = sy_str.parse::<f64>().ok()?;
+
+    // End: last numeric pair in the path
+    // Find all numbers at the end of the path
+    let bytes = d.as_bytes();
+    let mut end = d.len();
+    // Skip trailing whitespace
+    while end > 0 && bytes[end - 1] == b' ' {
+        end -= 1;
+    }
+    // Walk backwards to find the last y coordinate
+    let mut ey_end = end;
+    while ey_end > 0
+        && (bytes[ey_end - 1].is_ascii_digit()
+            || bytes[ey_end - 1] == b'.'
+            || bytes[ey_end - 1] == b'-')
+    {
+        ey_end -= 1;
+    }
+    let ey_str = &d[ey_end..end];
+    // Skip separator (comma or space)
+    let mut ex_end = ey_end;
+    if ex_end > 0 && (bytes[ex_end - 1] == b',' || bytes[ex_end - 1] == b' ') {
+        ex_end -= 1;
+    }
+    // Walk backwards to find the last x coordinate
+    let mut ex_start = ex_end;
+    while ex_start > 0
+        && (bytes[ex_start - 1].is_ascii_digit()
+            || bytes[ex_start - 1] == b'.'
+            || bytes[ex_start - 1] == b'-')
+    {
+        ex_start -= 1;
+    }
+    let ex_str = &d[ex_start..ex_end];
+    let ex = ex_str.parse::<f64>().ok()?;
+    let ey = ey_str.parse::<f64>().ok()?;
+
+    Some(((sx, sy), (ex, ey)))
+}
+
+/// Draw a TextBlockArrow2 polygon for a link label arrow indicator.
+/// Java: `TextBlockArrow2.drawU()` renders a small triangle whose direction
+/// is determined by the edge path angle, font size, and link arrow direction.
+///
+/// `origin_x`, `origin_y` is the top-left of the arrow text block (13×13),
+/// already inside the TextBlockMarged margin.
+fn draw_label_arrow_polygon(
+    sg: &mut SvgGraphic,
+    origin_x: f64,
+    origin_y: f64,
+    angle: f64,
+    font_size: f64,
+) {
+    let tri_size = (font_size * 0.80) as i32;
+    let tri_size_f = tri_size as f64;
+    let cx = origin_x + tri_size_f / 2.0;
+    let cy = origin_y + font_size / 2.0;
+    let radius = tri_size_f / 2.0;
+    let beta = std::f64::consts::PI * 4.0 / 5.0;
+
+    let p0x = cx + radius * angle.sin();
+    let p0y = cy + radius * angle.cos();
+    let p1x = cx + radius * (angle + beta).sin();
+    let p1y = cy + radius * (angle + beta).cos();
+    let p2x = cx + radius * (angle - beta).sin();
+    let p2y = cy + radius * (angle - beta).cos();
+
+    let points_str = format!(
+        "{},{},{},{},{},{},{},{}",
+        crate::klimt::svg::fmt_coord(p0x),
+        crate::klimt::svg::fmt_coord(p0y),
+        crate::klimt::svg::fmt_coord(p1x),
+        crate::klimt::svg::fmt_coord(p1y),
+        crate::klimt::svg::fmt_coord(p2x),
+        crate::klimt::svg::fmt_coord(p2y),
+        crate::klimt::svg::fmt_coord(p0x),
+        crate::klimt::svg::fmt_coord(p0y),
+    );
+    sg.push_raw(&format!(
+        "<polygon fill=\"#000000\" points=\"{}\" style=\"stroke:#000000;stroke-width:1;\"/>",
+        points_str,
+    ));
+}
+
 fn draw_edge(
     sg: &mut SvgGraphic,
     tracker: &mut BoundsTracker,
@@ -3673,13 +3779,56 @@ fn draw_edge(
                 y + layout.move_delta.1 - layout.normalize_offset.1 + edge_offset_y,
             )
         }) {
+            let has_arrow = has_link_arrow_indicator(label);
+            let label_text = if has_arrow {
+                strip_link_arrow_text(label)
+            } else {
+                label.clone()
+            };
+            let arrow_w = if has_arrow { LINK_LABEL_FONT_SIZE } else { 0.0 };
+
+            if has_arrow {
+                // Compute arrow direction from the rendered edge path.
+                // Java uses dotPath.getStartPoint()/getEndPoint() which correspond
+                // to the rendered SVG path M start and last C/L end coordinates.
+                let angle_points = parse_path_start_end(&d).unwrap_or_else(|| {
+                    (el.points[0], el.points[el.points.len() - 1])
+                });
+                let (sx, sy) = angle_points.0;
+                let (ex, ey) = angle_points.1;
+                let mut angle = (ex - sx).atan2(ey - sy);
+                if is_link_arrow_backward(label) {
+                    angle += std::f64::consts::PI;
+                }
+                // Java: addMagicArrow merges TextBlockArrow2 LEFT of the margin-wrapped text.
+                // The arrow is NOT inside the margin — only the text has the margin.
+                // Outer height = max(arrow_h=13, text_h + 2*margin).
+                // dy_arrow = (outer_h - 13) / 2.
+                let text_h = font_metrics::line_height(
+                    "SansSerif",
+                    LINK_LABEL_FONT_SIZE,
+                    false,
+                    false,
+                );
+                let text_marged_h = text_h + 2.0 * margin_label;
+                let outer_h = text_marged_h.max(LINK_LABEL_FONT_SIZE);
+                let dy_arrow = (outer_h - LINK_LABEL_FONT_SIZE) / 2.0;
+                draw_label_arrow_polygon(
+                    sg,
+                    lx,
+                    ly + dy_arrow,
+                    angle,
+                    LINK_LABEL_FONT_SIZE,
+                );
+            }
+
             draw_edge_label_block(
                 sg,
                 tracker,
-                label,
-                lx,
+                &label_text,
+                lx + arrow_w,
                 ly,
-                el.label_wh,
+                el.label_wh.map(|(w, h)| (w - arrow_w, h)),
                 margin_label,
                 LINK_LABEL_FONT_SIZE,
                 false,
