@@ -100,12 +100,35 @@ pub(super) fn expand_expression_builtins(line: &str) -> String {
     result
 }
 
+/// Find the macro name as a whole word (not a substring of a longer identifier).
+/// Returns the byte offset of the match, or None.
+fn find_whole_word(haystack: &str, name: &str) -> Option<usize> {
+    let mut search_from = 0;
+    while let Some(pos) = haystack[search_from..].find(name) {
+        let abs_pos = search_from + pos;
+        // Check character before: must not be alphanumeric or underscore
+        let before_ok = if abs_pos == 0 {
+            true
+        } else {
+            let prev = haystack.as_bytes()[abs_pos - 1];
+            !prev.is_ascii_alphanumeric() && prev != b'_'
+        };
+        // Character after name is already checked by the caller (must be '('),
+        // but for safety ensure it's not part of an identifier
+        if before_ok {
+            return Some(abs_pos);
+        }
+        search_from = abs_pos + 1;
+    }
+    None
+}
+
 /// Expand a parameterised `!define` macro within a line.
 pub(super) fn expand_parameterised_define(line: &str, name: &str, entry: &DefineEntry) -> String {
     let mut result = line.to_string();
     let concat_re = regex::Regex::new(r"\s*##\s*").unwrap();
 
-    while let Some(start) = result.find(name) {
+    while let Some(start) = find_whole_word(&result, name) {
         let after_name = start + name.len();
         let rest = &result[after_name..];
 

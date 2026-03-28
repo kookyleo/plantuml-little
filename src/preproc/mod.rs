@@ -3134,6 +3134,20 @@ mod tests {
     }
 
     #[test]
+    fn test_define_macro_whole_word_match() {
+        // Macro name "Extension" must not match inside "loadExtension"
+        let src = "!define Extension(id, name, type = \"Extension\")  class name as id\n${loadExtension(SST310_DEFAULT_ERROR_RESPONSE)}";
+        let out = preprocess(src).unwrap();
+        // The ${loadExtension(...)} should remain as-is — the macro should
+        // not be expanded because "Extension" is part of "loadExtension"
+        assert!(
+            out.contains("${loadExtension(SST310_DEFAULT_ERROR_RESPONSE)}"),
+            "macro should not expand inside identifier: {}",
+            out
+        );
+    }
+
+    #[test]
     fn test_definelong_with_params() {
         let src = "!definelong Pair(a, b)\ncomponent a\ncomponent b\na -> b\n!enddefinelong\nPair(Foo, Bar)";
         let out = preprocess(src).unwrap();
