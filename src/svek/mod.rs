@@ -604,14 +604,6 @@ impl DotStringFactory {
             }
         }
 
-        for node in &self.bibliotekon.nodes {
-            if node.hidden { continue; }
-            log::debug!(
-                "svek node uid={} min=({:.4},{:.4}) cx={:.4} cy={:.4} w={:.4} h={:.4}",
-                node.uid, node.min_x, node.min_y, node.cx, node.cy, node.width, node.height
-            );
-        }
-
         adjust_cluster_frontiers(
             &mut self.bibliotekon.clusters,
             &self.bibliotekon.nodes,
@@ -772,10 +764,6 @@ impl DotStringFactory {
         } else {
             (6.0, 6.0)
         };
-        log::debug!(
-            "svek solve polygon min=({:.4},{:.4}) render_offset=({:.4},{:.4})",
-            min_x, min_y, render_offset.0, render_offset.1
-        );
         let (dx, dy) = if min_x.is_finite() && min_y.is_finite() {
             let dx = 6.0 - min_x;
             let dy = 6.0 - min_y;
@@ -784,10 +772,6 @@ impl DotStringFactory {
         } else {
             (0.0, 0.0)
         };
-        log::debug!(
-            "svek solve moveDelta=({:.4},{:.4})",
-            dx, dy
-        );
 
         Ok(((dx, dy), lf_span, render_offset))
     }
