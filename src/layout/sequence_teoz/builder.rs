@@ -2669,7 +2669,9 @@ pub fn build_teoz_layout(sd: &SequenceDiagram, skin: &SkinParams) -> Result<SeqL
     }
 
     // Java: PlayingSpaceWithParticipants.width = maxX - minX (= diagram_width)
-    // SequenceDiagramFileMakerTeoz viewport = width + 10 (UTranslate(5,5))
+    // SequenceDiagramFileMakerTeoz: calculateDimension returns (width + 10, height + 10)
+    // SVG exporter adds getDefaultMargins() = (5,5,5,5) for teoz mode.
+    // Total viewport width = body_width + 10 + 5 + 5 = body_width + 20.
     let total_width = diagram_width + 2.0 * DOC_MARGIN_X;
     // Java height chain:
     //   startingY(8) + sum_tiles → finalY (in PlayingSpace coordinates)
