@@ -317,7 +317,7 @@ pub fn parse_sequence_diagram_with_original(
             };
             let lower = note_trimmed.to_lowercase();
             if lower.starts_with("note ") {
-                match parse_note(note_trimmed, &last_to_participant) {
+                match parse_note(note_trimmed, &last_to_participant, &last_from_participant) {
                     Some(evt) => {
                         debug!("parsed note event");
                         events.push(evt);
@@ -1047,7 +1047,7 @@ fn parse_arrow(left: &str, arrow: &str, right: &str, text: &str) -> Option<Messa
 /// - `note right : text`       — note on last message target
 /// - `note right of Bob : text` — note on explicit participant
 /// - `note right #color : text` — note with background color
-fn parse_note(line: &str, last_to: &Option<String>) -> Option<SeqEvent> {
+fn parse_note(line: &str, last_to: &Option<String>, last_from: &Option<String>) -> Option<SeqEvent> {
     let rest = line.trim().strip_prefix("note ")?.trim_start();
     let lower = rest.to_lowercase();
 
@@ -1074,7 +1074,7 @@ fn parse_note(line: &str, last_to: &Option<String>) -> Option<SeqEvent> {
         if let Some(text) = after.strip_prefix(':') {
             let text = text.trim().to_string();
             let participant = explicit_participant
-                .or_else(|| last_to.clone())
+                .or_else(|| last_from.clone())
                 .unwrap_or_default();
             Some(SeqEvent::NoteLeft { participant, text })
         } else {
