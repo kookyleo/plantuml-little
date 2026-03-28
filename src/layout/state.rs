@@ -991,10 +991,14 @@ fn layout_states_ranked(
             node.x = x;
             node.y = y;
 
-            // Offset children to absolute positions within the composite
+            // Offset children to absolute positions within the composite.
+            // Java inner SvekResult adds moveDelta (inner margin) on top of
+            // the composite header offset.
             if node.is_composite {
+                let has_circle_child = node.children.iter().any(|c| c.is_initial || c.is_final);
+                let inner_margin = if has_circle_child { 6.0 } else { MARGIN };
                 let child_offset_x = x + COMPOSITE_PADDING;
-                let child_offset_y = y + composite_inner_y_offset();
+                let child_offset_y = y + composite_inner_y_offset() + inner_margin;
                 offset_children(&mut node.children, child_offset_x, child_offset_y);
                 for sep_y in &mut node.region_separators {
                     *sep_y += child_offset_y;
@@ -1196,6 +1200,9 @@ pub fn layout_state(diagram: &StateDiagram) -> Result<StateLayout> {
         } else {
             None // Default: ShapeType::Rectangle → shape=rect
         };
+        // Circles/ellipses use LimitFinder.drawEllipse: min(x, y), max(x+w-1, y+h-1)
+        // Rectangles use drawRectangle: min(x-1, y-1), max(x+w-1, y+h-1)
+        let is_circle = shape == Some(crate::svek::shape_type::ShapeType::Circle);
         gv_nodes.push(LayoutNode {
             id: state.id.clone(),
             label: state.name.clone(),
@@ -1208,7 +1215,7 @@ pub fn layout_state(diagram: &StateDiagram) -> Result<StateLayout> {
             order: Some(node_id_order.len()),
             image_width_pt: None,
             lf_extra_left: 0.0,
-            lf_rect_correction: true,
+            lf_rect_correction: !is_circle,
         });
         node_id_order.push(state.id.clone());
     }

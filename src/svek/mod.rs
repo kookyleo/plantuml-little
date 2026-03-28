@@ -633,17 +633,20 @@ impl DotStringFactory {
             if node.hidden {
                 continue;
             }
-            // LimitFinder.drawRectangle: (x-1, y-1) to (x+w-1, y+h-1)
-            // LimitFinder.drawUPath: (x+minX, y+minY) → no -1 correction
-            // Notes use UPath; states/classes use URectangle → -1 correction.
-            // Skip for degenerated diagrams (≤1 node, no edges) where Java
-            // uses EntityImageDegenerated with fixed positioning.
+            // Java LimitFinder corrections vary by entity image type:
+            //   drawRectangle (states, classes): min -= 1, max -= 1
+            //   drawEllipse (circles):          min += 0, max -= 1
+            //   drawUPath (notes):              min += 0, max += 0
+            // `lf_rect_correction` controls the min-side -1 only.
+            // Max-side -1 applies to all non-UPath nodes (rect + ellipse).
+            // Skip for degenerated diagrams (≤1 node, no edges).
             let extra_left = if is_degenerated { 0.0 } else { node.lf_extra_left };
-            let rect_corr = if node.lf_rect_correction { 1.0 } else { 0.0 };
-            let rx = node.min_x - rect_corr - extra_left;
-            let ry = node.min_y - rect_corr;
-            let rr = node.min_x + node.width - rect_corr;
-            let rb = node.min_y + node.height - rect_corr;
+            let min_corr = if node.lf_rect_correction { 1.0 } else { 0.0 };
+            let max_corr = 1.0; // -1 on max side for all drawn shapes (rect + ellipse)
+            let rx = node.min_x - min_corr - extra_left;
+            let ry = node.min_y - min_corr;
+            let rr = node.min_x + node.width - max_corr;
+            let rb = node.min_y + node.height - max_corr;
             if rx < lf_min_x {
                 lf_min_x = rx;
             }
