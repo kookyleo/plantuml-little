@@ -836,25 +836,29 @@ fn normalize_state_ref(s: &str) -> String {
     trimmed.to_string()
 }
 
+/// Scope and split `[*]` into separate start/end IDs.
+/// Java: `[*]` as source → `getStart()` = `*start*` + scope
+///       `[*]` as target → `getEnd()` = `*end*` + scope
 fn scope_transition_special_state_ids(trans: &mut Transition, stack: &[CompositeFrame]) {
     if trans.from == "[*]" {
-        trans.from = scoped_special_state_id(stack);
+        trans.from = scoped_special_state_id(stack, true);
     }
     if trans.to == "[*]" {
-        trans.to = scoped_special_state_id(stack);
+        trans.to = scoped_special_state_id(stack, false);
     }
 }
 
-fn scoped_special_state_id(stack: &[CompositeFrame]) -> String {
+fn scoped_special_state_id(stack: &[CompositeFrame], is_start: bool) -> String {
+    let suffix = if is_start { "__start" } else { "__end" };
     if stack.is_empty() {
-        return "[*]".to_string();
+        return format!("[*]{suffix}");
     }
     let scope = stack
         .iter()
         .map(|frame| frame.state.id.as_str())
         .collect::<Vec<_>>()
         .join(".");
-    format!("[*]{scope}")
+    format!("[*]{suffix}{scope}")
 }
 
 /// Try to parse a description-addition line: `StateName : text`
@@ -938,7 +942,7 @@ fn ensure_state(states: &mut Vec<State>, id: &str, source_line: Option<usize>) {
         }
         debug!("auto-creating special state {id}");
         states.push(State {
-            name: "[*]".to_string(),
+            name: id.to_string(),
             id: id.to_string(),
             description: Vec::new(),
             stereotype: None,
@@ -1113,13 +1117,16 @@ mod tests {
         let src = "@startuml\n[*] --> s1\ns1 --> [*]\n@enduml";
         let diagram = parse_state_diagram(src).unwrap();
         assert_eq!(diagram.transitions.len(), 2);
-        assert_eq!(diagram.transitions[0].from, "[*]");
+        // Java: [*] as source → getStart() = "*start*", as target → getEnd() = "*end*"
+        assert_eq!(diagram.transitions[0].from, "[*]__start");
         assert_eq!(diagram.transitions[0].to, "s1");
         assert_eq!(diagram.transitions[1].from, "s1");
-        assert_eq!(diagram.transitions[1].to, "[*]");
-        // [*] should be auto-created as special
-        let special = diagram.states.iter().find(|s| s.id == "[*]").unwrap();
-        assert!(special.is_special);
+        assert_eq!(diagram.transitions[1].to, "[*]__end");
+        // Both should be auto-created as special
+        let start = diagram.states.iter().find(|s| s.id == "[*]__start").unwrap();
+        assert!(start.is_special);
+        let end = diagram.states.iter().find(|s| s.id == "[*]__end").unwrap();
+        assert!(end.is_special);
     }
 
     #[test]
@@ -1150,7 +1157,7 @@ mod tests {
         let diagram = parse_state_diagram(src).unwrap();
         assert_eq!(diagram.states.len(), 1);
         assert_eq!(diagram.transitions.len(), 2);
-        assert_eq!(diagram.transitions[0].from, "[*]parent");
+        assert_eq!(diagram.transitions[0].from, "[*]__startparent");
         assert_eq!(diagram.transitions[0].to, "child1");
     }
 
@@ -1287,15 +1294,15 @@ mod tests {
         .unwrap();
         let diagram = parse_state_diagram(&src).unwrap();
 
-        // States: s1, s2, [*]
+        // States: s1, s2, [*]__start
         assert_eq!(diagram.states.len(), 3);
         assert!(diagram.states.iter().any(|s| s.id == "s1"));
         assert!(diagram.states.iter().any(|s| s.id == "s2"));
-        assert!(diagram.states.iter().any(|s| s.id == "[*]" && s.is_special));
+        assert!(diagram.states.iter().any(|s| s.id == "[*]__start" && s.is_special));
 
-        // Transitions: [*] --> s1, s1 --> s2 : play
+        // Transitions: [*]__start --> s1, s1 --> s2 : play
         assert_eq!(diagram.transitions.len(), 2);
-        assert_eq!(diagram.transitions[0].from, "[*]");
+        assert_eq!(diagram.transitions[0].from, "[*]__start");
         assert_eq!(diagram.transitions[0].to, "s1");
         assert_eq!(diagram.transitions[1].from, "s1");
         assert_eq!(diagram.transitions[1].to, "s2");
@@ -1471,8 +1478,9 @@ mod tests {
         .unwrap();
         let diagram = parse_state_diagram(&src).unwrap();
 
-        // States: [*], State1, State2
-        assert!(diagram.states.iter().any(|s| s.id == "[*]"));
+        // States: [*]__start, [*]__end, State1, State2
+        assert!(diagram.states.iter().any(|s| s.id == "[*]__start"));
+        assert!(diagram.states.iter().any(|s| s.id == "[*]__end"));
         assert!(diagram.states.iter().any(|s| s.id == "State1"));
         assert!(diagram.states.iter().any(|s| s.id == "State2"));
 
@@ -1485,7 +1493,7 @@ mod tests {
         );
         assert_eq!(state1.description[0], "this is a string");
 
-        // Transitions: [*] --> State1, State1 --> [*], State1 -> State2, State2 --> [*]
+        // Transitions: [*]__start --> State1, State1 --> [*]__end, State1 -> State2, State2 --> [*]__end
         assert_eq!(diagram.transitions.len(), 4);
     }
 
@@ -1785,6 +1793,6 @@ mod tests {
         assert_eq!(diagram.notes[1].text, "Multi line\nnote text");
         assert_eq!(diagram.notes[0].source_line, Some(6));
         assert_eq!(diagram.notes[1].source_line, Some(8));
-        assert_eq!(diagram.transitions[2].from, "[*]Active");
+        assert_eq!(diagram.transitions[2].from, "[*]__startActive");
     }
 }

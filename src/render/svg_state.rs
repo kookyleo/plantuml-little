@@ -111,7 +111,7 @@ pub fn render_state(
                     | StateKind::DeepHistory
             )
         {
-            if state.is_initial && (state.id == "[*]" || state.id.starts_with("[*]")) {
+            if state.is_initial && (state.id == "[*]" || state.id.starts_with("[*]__start") || state.id.starts_with("[*]")) {
                 // Find the target of the first transition from [*]
                 let target_ent_id = layout
                     .transition_layouts
@@ -376,15 +376,19 @@ fn render_initial(
 }
 
 /// Final state: double circle (outer ring + inner filled)
+/// Java: EntityImageCircleEnd renders two UEllipses (outer 22x22 + inner 12x12)
 fn render_final(sg: &mut SvgGraphic, tracker: &mut BoundsTracker, node: &StateNodeLayout) {
     let cx = node.x + node.width / 2.0;
     let cy = node.y + node.height / 2.0;
-    sg.set_fill_color("none");
-    sg.set_stroke_color(Some(FINAL_OUTER));
-    sg.set_stroke_width(2.0, None);
-    sg.svg_circle(cx, cy, 11.0, 0.0);
+    // Outer ring: stroke only, no fill
     sg.push_raw(&format!(
-        r#"<circle cx="{}" cy="{}" fill="{FINAL_INNER}" r="7"/>"#,
+        r#"<ellipse cx="{}" cy="{}" fill="none" rx="11" ry="11" style="stroke:{INITIAL_FILL};stroke-width:1;"/>"#,
+        fmt_coord(cx),
+        fmt_coord(cy),
+    ));
+    // Inner filled dot
+    sg.push_raw(&format!(
+        r#"<ellipse cx="{}" cy="{}" fill="{INITIAL_FILL}" rx="6" ry="6" style="stroke:{INITIAL_FILL};stroke-width:1;"/>"#,
         fmt_coord(cx),
         fmt_coord(cy),
     ));
@@ -973,13 +977,27 @@ fn adjust_path_endpoint(d: &str, decoration_len: f64) -> String {
     result
 }
 
-fn special_transition_endpoint_display(id: &str, is_source: bool) -> Option<String> {
+fn special_transition_endpoint_display(id: &str, _is_source: bool) -> Option<String> {
+    // After parser split: [*]__start / [*]__end already encode direction
+    if id == "[*]__start" {
+        return Some("*start*".to_string());
+    }
+    if id == "[*]__end" {
+        return Some("*end*".to_string());
+    }
+    // Legacy: plain [*] (shouldn't happen after parser fix)
     if id == "[*]" {
-        return Some(if is_source { "*start*" } else { "*end*" }.to_string());
+        return Some("*start*".to_string());
+    }
+    // Scoped: [*]__startActive, [*]__endActive, etc.
+    if let Some(scope) = id.strip_prefix("[*]__start") {
+        return Some(format!("*start*{scope}"));
+    }
+    if let Some(scope) = id.strip_prefix("[*]__end") {
+        return Some(format!("*end*{scope}"));
     }
     let scope = id.strip_prefix("[*]")?;
-    let prefix = if is_source { "*start*" } else { "*end*" };
-    Some(format!("{prefix}{scope}"))
+    Some(format!("*start*{scope}"))
 }
 
 // ── Note rendering ──────────────────────────────────────────────────
@@ -1383,15 +1401,15 @@ mod tests {
         let (svg, _) =
             render_state(&diagram, &layout, &SkinParams::default()).expect("render failed");
         assert_eq!(
-            svg.matches("<circle").count(),
+            svg.matches("<ellipse").count(),
             2,
-            "final state must produce two circles"
+            "final state must produce two ellipses"
         );
-        assert!(svg.contains(r#"r="11""#), "final outer ring must have r=11");
-        assert!(svg.contains(r#"r="7""#), "final inner circle must have r=7");
+        assert!(svg.contains(r#"rx="11""#), "final outer ring must have rx=11");
+        assert!(svg.contains(r#"rx="6""#), "final inner ellipse must have rx=6");
         assert!(
-            svg.contains("stroke-width:2;"),
-            "outer ring must have stroke-width=2"
+            svg.contains("stroke-width:1;"),
+            "outer ring must have stroke-width=1"
         );
     }
 
@@ -1715,8 +1733,8 @@ mod tests {
         assert!(raw_dim.is_some(), "raw_body_dim must be present");
         assert!(svg.contains("viewBox="), "must have viewBox");
         assert!(svg.contains("<defs/>"), "must have <defs/>");
-        assert_eq!(svg.matches("<ellipse").count(), 1, "1 ellipse expected");
-        assert_eq!(svg.matches("<circle").count(), 2, "2 circles expected");
+        assert_eq!(svg.matches("<ellipse").count(), 3, "3 ellipses expected (1 initial + 2 final)");
+        assert_eq!(svg.matches("<circle").count(), 0, "0 circles expected");
         assert_eq!(svg.matches("<rect").count(), 1, "1 rect expected");
         assert_eq!(
             svg.matches(r#"class="link""#).count(),

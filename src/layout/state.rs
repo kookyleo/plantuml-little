@@ -288,7 +288,7 @@ fn collect_implicit_states(states: &[State], transitions: &[Transition]) -> Vec<
     for tr in transitions {
         for id in [&tr.from, &tr.to] {
             if !declared.contains(id.as_str()) && seen.insert(id.clone()) {
-                let is_special = id == "[*]" || id.starts_with("[*]");
+                let is_special = id.starts_with("[*]");
                 let kind = if id.ends_with("[H*]") {
                     StateKind::DeepHistory
                 } else if id.ends_with("[H]") {
