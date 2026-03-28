@@ -2723,7 +2723,12 @@ pub fn build_teoz_layout(sd: &SequenceDiagram, skin: &SkinParams) -> Result<SeqL
     // total = tiles_bottom + (factor-1)*head + 20 = sum + factor*head + 38  ✓
     let show_footbox = !sd.hide_footbox;
     let factor = if show_footbox { 2 } else { 1 };
-    let total_height = tiles_bottom + (factor - 1) as f64 * max_preferred_height + 20.0;
+    // Java: when skin has shadowing (e.g. `skin rose`, delta=4), the LimitFinder
+    // extends element bounds by 2*deltaShadow. Participant boxes at the bottom of
+    // the diagram push the viewport down by this amount.
+    let shadow_expansion = 2.0 * sd.delta_shadow;
+    let total_height =
+        tiles_bottom + (factor - 1) as f64 * max_preferred_height + 20.0 + shadow_expansion;
     log::debug!("teoz_layout: total_width={total_width:.4} total_height={total_height:.4} lifeline_bottom={lifeline_bottom:.4} max_preferred_height={max_preferred_height:.4}");
 
     Ok(SeqLayout {

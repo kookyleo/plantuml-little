@@ -45,6 +45,8 @@ pub fn parse_sequence_diagram_with_original(
     let mut teoz_mode = false;
     // Whether `hide footbox` was encountered
     let mut hide_footbox = false;
+    // Shadow offset from skin directive (e.g. `skin rose` -> 4.0)
+    let mut delta_shadow: f64 = 0.0;
 
     let participant_re = Regex::new(
         r"(?i)^(participant|actor|boundary|control|entity|database|collections|queue)\s+(.+)$",
@@ -201,7 +203,13 @@ pub fn parse_sequence_diagram_with_original(
                 continue;
             }
             if lower.starts_with("skin ") {
-                debug!("skipping directive: {trimmed}");
+                let skin_name = lower["skin ".len()..].trim();
+                if skin_name == "rose" {
+                    delta_shadow = 4.0;
+                    debug!("skin rose: delta_shadow=4");
+                } else {
+                    debug!("skipping skin directive: {trimmed}");
+                }
                 continue;
             }
         }
@@ -683,6 +691,7 @@ pub fn parse_sequence_diagram_with_original(
         events,
         teoz_mode,
         hide_footbox,
+        delta_shadow,
     })
 }
 

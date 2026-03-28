@@ -168,4 +168,6 @@ pub struct SequenceDiagram {
     pub teoz_mode: bool,
     /// Whether `hide footbox` was set (hide tail participant boxes)
     pub hide_footbox: bool,
+    /// Shadow offset from skin directive (e.g. `skin rose` sets 4.0)
+    pub delta_shadow: f64,
 }
