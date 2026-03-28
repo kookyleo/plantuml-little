@@ -1597,9 +1597,18 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
                     // For non-self messages: tile start = note_y.
                     // Arrow PH from tile start = y_cursor - note_y.
                     // If note PH > arrow PH, push y_cursor forward by the difference.
-                    let arrow_ph = y_cursor - note_y;
+                    let arrow_ph = if last_message_extra_height > 0.0 {
+                        // Multiline: use tile preferred height, not y_cursor - note_y
+                        // which is inflated by extra_height in the back_offset.
+                        lp.message_spacing + last_message_extra_height
+                    } else {
+                        // Single-line: original formula works correctly
+                        y_cursor - note_y
+                    };
                     if note_pref_h > arrow_ph {
-                        y_cursor += note_pref_h - arrow_ph;
+                        let note_push = note_pref_h - arrow_ph;
+                        y_cursor += note_push;
+                        lifeline_extend_y += note_push / 2.0;
                     }
                 } else {
                     // Standalone note (not following a message): advance by note height
@@ -1659,7 +1668,9 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
                     };
                     starting_x + NOTE_COMPONENT_PADDING_X
                 } else {
-                    px - ACTIVATION_WIDTH - note_width
+                    // Java: startingX = (int)(pos1 - notePW)
+                    let sx = (px - note_layout_width) as i64 as f64;
+                    sx + NOTE_COMPONENT_PADDING_X
                 };
                 let note_idx = notes.len();
                 notes.push(NoteLayout {
@@ -1715,9 +1726,18 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
                         y_cursor = note_tile_bottom;
                     }
                 } else if let Some(_msg_y) = last_message_y {
-                    let arrow_ph = y_cursor - note_y;
+                    let arrow_ph = if last_message_extra_height > 0.0 {
+                        // Multiline: use tile preferred height, not y_cursor - note_y
+                        // which is inflated by extra_height in the back_offset.
+                        lp.message_spacing + last_message_extra_height
+                    } else {
+                        // Single-line: original formula works correctly
+                        y_cursor - note_y
+                    };
                     if note_pref_h > arrow_ph {
-                        y_cursor += note_pref_h - arrow_ph;
+                        let note_push = note_pref_h - arrow_ph;
+                        y_cursor += note_push;
+                        lifeline_extend_y += note_push / 2.0;
                     }
                 } else {
                     let note_bottom = note_y + note_height;
@@ -2197,7 +2217,14 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
     // Java: NoteBox.getStartingX() / getMinX() returns the note's left edge.
     let note_overflow = notes
         .iter()
-        .map(|n| if n.x < 0.0 { -n.x } else { 0.0 })
+        .map(|n| {
+            let sx = if n.is_left && !n.is_self_msg_note {
+                n.x - NOTE_COMPONENT_PADDING_X
+            } else {
+                n.x
+            };
+            if sx < 0.0 { -sx } else { 0.0 }
+        })
         .fold(0.0_f64, f64::max);
     let left_overflow = msg_overflow.max(frag_overflow).max(note_overflow);
     if left_overflow > 0.0 {

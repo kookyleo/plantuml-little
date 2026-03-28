@@ -30,6 +30,7 @@ pub fn parse_sequence_diagram_with_original(
     let mut auto_participants: Vec<Participant> = Vec::new();
     let mut events: Vec<SeqEvent> = Vec::new();
     let mut last_to_participant: Option<String> = None;
+    let mut last_from_participant: Option<String> = None;
     let mut in_style_block = false;
     let mut in_skinparam_block = false;
     // Multiline note collection
@@ -316,7 +317,7 @@ pub fn parse_sequence_diagram_with_original(
             };
             let lower = note_trimmed.to_lowercase();
             if lower.starts_with("note ") {
-                match parse_note(note_trimmed, &last_to_participant) {
+                match parse_note(note_trimmed, &last_to_participant, &last_from_participant) {
                     Some(evt) => {
                         debug!("parsed note event");
                         events.push(evt);
@@ -342,7 +343,7 @@ pub fn parse_sequence_diagram_with_original(
                             let after = rest[4..].trim();
                             let after = skip_note_color(after);
                             let (_remainder, explicit_p) = strip_of_participant(after);
-                            note_participant = explicit_p.or_else(|| last_to_participant.clone());
+                            note_participant = explicit_p.or_else(|| last_from_participant.clone());
                             note_lines.clear();
                             debug!("starting multiline note left");
                             continue;
@@ -611,6 +612,7 @@ pub fn parse_sequence_diagram_with_original(
                 );
 
                 last_to_participant = Some(msg.to.clone());
+                last_from_participant = Some(msg.from.clone());
                 let source = msg.from.clone();
                 let target = msg.to.clone();
                 events.push(SeqEvent::Message(msg));
@@ -1045,7 +1047,7 @@ fn parse_arrow(left: &str, arrow: &str, right: &str, text: &str) -> Option<Messa
 /// - `note right : text`       — note on last message target
 /// - `note right of Bob : text` — note on explicit participant
 /// - `note right #color : text` — note with background color
-fn parse_note(line: &str, last_to: &Option<String>) -> Option<SeqEvent> {
+fn parse_note(line: &str, last_to: &Option<String>, last_from: &Option<String>) -> Option<SeqEvent> {
     let rest = line.trim().strip_prefix("note ")?.trim_start();
     let lower = rest.to_lowercase();
 
@@ -1072,7 +1074,7 @@ fn parse_note(line: &str, last_to: &Option<String>) -> Option<SeqEvent> {
         if let Some(text) = after.strip_prefix(':') {
             let text = text.trim().to_string();
             let participant = explicit_participant
-                .or_else(|| last_to.clone())
+                .or_else(|| last_from.clone())
                 .unwrap_or_default();
             Some(SeqEvent::NoteLeft { participant, text })
         } else {
