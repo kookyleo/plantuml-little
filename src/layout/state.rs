@@ -1170,6 +1170,7 @@ pub fn layout_state(diagram: &StateDiagram) -> Result<StateLayout> {
             max_label_width: None,
             order: Some(node_id_order.len()),
             image_width_pt: None,
+            lf_extra_left: 0.0,
         });
         node_id_order.push(state.id.clone());
     }
@@ -1190,6 +1191,7 @@ pub fn layout_state(diagram: &StateDiagram) -> Result<StateLayout> {
                 max_label_width: None,
                 order: Some(node_id_order.len()),
                 image_width_pt: None,
+                lf_extra_left: 0.0,
             });
             node_id_order.push(entity_id.clone());
             if note.target.is_some() {

@@ -24,6 +24,14 @@ pub struct LayoutNode {
     /// Java's LimitFinder uses this for separator line bounds instead of
     /// the expanded DOT node width.
     pub image_width_pt: Option<f64>,
+    /// Extra LimitFinder min_x extension from entity image content.
+    /// Java's HACK_X_FOR_POLYGON=10 pushes polygon visibility modifiers
+    /// 10px left of their actual min_x, extending the LF boundary beyond
+    /// the node rect. Value is the extra negative x offset relative to
+    /// the normal rect LF contribution (node_min_x - 1).
+    /// E.g. for PACKAGE/PROTECTED polygons at node_x+7, HACK gives
+    /// node_x-3, which is -2 beyond node_x-1 → lf_extra_left = 2.
+    pub lf_extra_left: f64,
 }
 
 /// Input: a graph edge
@@ -386,6 +394,9 @@ pub fn layout_with_svek(graph: &LayoutGraph) -> Result<GraphLayout, Error> {
         }
         if let Some(cluster_id) = node_cluster_ids.get(&node.id) {
             ed = ed.with_cluster(cluster_id);
+        }
+        if node.lf_extra_left > 0.0 {
+            ed = ed.with_lf_extra_left(node.lf_extra_left);
         }
         builder.add_entity(ed);
     }
@@ -1386,6 +1397,7 @@ mod tests {
                     max_label_width: None,
                     order: None,
                     image_width_pt: None,
+                    lf_extra_left: 0.0,
                 },
                 LayoutNode {
                     id: "B".into(),
@@ -1398,6 +1410,7 @@ mod tests {
                     max_label_width: None,
                     order: None,
                     image_width_pt: None,
+                    lf_extra_left: 0.0,
                 },
             ],
             edges: vec![LayoutEdge {
@@ -1453,6 +1466,7 @@ mod tests {
                 max_label_width: None,
                 order: None,
                 image_width_pt: None,
+                lf_extra_left: 0.0,
             }],
             edges: vec![],
             clusters: vec![],

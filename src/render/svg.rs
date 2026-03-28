@@ -2577,6 +2577,11 @@ fn draw_entity_box(
     sg.set_stroke_width(0.5, None);
     sg.svg_rectangle(x, y, w, h, rx, rx, 0.0);
     tracker.track_rect(x, y, w, h);
+    // Java entity image wrapper draws UEmpty(imageDim) at translate position,
+    // which LimitFinder tracks with addPoint(x+w, y+h) — NO -1 adjustment.
+    // This pushes max_y 1px beyond what the URectangle alone contributes.
+    // Use image_width (not expanded DOT width) to match Java's calculateDimension.
+    tracker.track_empty(x, y, nl.image_width, h);
 
     // Java font resolution:
     // - classFontSize controls the class name font size

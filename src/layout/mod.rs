@@ -25,7 +25,7 @@ use std::collections::HashMap;
 use crate::font_metrics;
 use crate::model::{
     ArrowHead, ClassDiagram, ClassHideShowRule, ClassPortion, ClassRuleTarget, Diagram,
-    Direction, Entity, EntityKind, GroupKind, LineStyle, Member, Stereotype,
+    Direction, Entity, EntityKind, GroupKind, LineStyle, Member, Stereotype, Visibility,
 };
 use crate::Result;
 
@@ -227,6 +227,7 @@ pub fn layout(diagram: &Diagram, skin: &crate::style::SkinParams) -> Result<Diag
                     max_label_width: None,
                     order: None,
                     image_width_pt: None,
+                    lf_extra_left: 0.0,
                 }],
                 edges: vec![],
                 clusters: vec![],
@@ -962,6 +963,30 @@ fn show_portion(rules: &[ClassHideShowRule], portion: ClassPortion, entity_name:
     result
 }
 
+/// Compute extra LimitFinder left extension for an entity's visibility modifier
+/// polygons. Java's HACK_X_FOR_POLYGON=10 pushes polygon boundaries 10px left,
+/// extending the LF min_x beyond the normal rect contribution.
+///
+/// For PROTECTED (diamond) and PACKAGE (triangle) modifiers, the polygon's
+/// leftmost point is at node_x + 7 (MEMBER_ICON_X_OFFSET=6, then ox=x+1).
+/// With HACK=10: LF sees node_x + 7 - 10 = node_x - 3.
+/// Normal rect LF: node_x - 1. Extra = 3 - 1 = 2.
+fn entity_lf_extra_left(cd: &ClassDiagram, entity: &Entity) -> f64 {
+    let show_fields = show_portion(&cd.hide_show_rules, ClassPortion::Field, &entity.name);
+    let show_methods = show_portion(&cd.hide_show_rules, ClassPortion::Method, &entity.name);
+
+    let has_polygon_modifier = entity.members.iter().any(|m| {
+        let visible = if m.is_method { show_methods } else { show_fields };
+        visible
+            && matches!(
+                m.visibility,
+                Some(Visibility::Protected) | Some(Visibility::Package)
+            )
+    });
+
+    if has_polygon_modifier { 2.0 } else { 0.0 }
+}
+
 fn visible_stereotype_labels(
     rules: &[ClassHideShowRule],
     stereotypes: &[Stereotype],
@@ -1066,6 +1091,10 @@ fn layout_class_diagram(cd: &ClassDiagram, skin: &crate::style::SkinParams) -> R
                 );
                 if shield.is_zero() { None } else { Some(shield) }
             });
+            // Java's HACK_X_FOR_POLYGON=10 extends the LimitFinder boundary
+            // for visibility modifier polygons (PROTECTED/PACKAGE triangles/diamonds).
+            // This pushes lf_min_x 2px beyond the rect's (node_x - 1).
+            let lf_extra = entity_lf_extra_left(cd, e);
             LayoutNode {
                 id: name_to_id
                     .get(&e.name)
@@ -1080,6 +1109,7 @@ fn layout_class_diagram(cd: &ClassDiagram, skin: &crate::style::SkinParams) -> R
                 max_label_width: None,
                 order: e.source_line,
                 image_width_pt: if (natural_w - w).abs() > 0.01 { Some(natural_w) } else { None },
+                lf_extra_left: lf_extra,
             }
         })
         .collect();

@@ -34,6 +34,8 @@ pub struct EntityDescriptor {
     pub order: Option<usize>,
     /// Whether this entity has been removed/hidden
     pub removed: bool,
+    /// Extra LimitFinder left extension from entity image content.
+    pub lf_extra_left: f64,
 }
 
 impl EntityDescriptor {
@@ -49,6 +51,7 @@ impl EntityDescriptor {
             max_label_width: 0.0,
             order: None,
             removed: false,
+            lf_extra_left: 0.0,
         }
     }
 
@@ -79,6 +82,11 @@ impl EntityDescriptor {
 
     pub fn with_order(mut self, order: usize) -> Self {
         self.order = Some(order);
+        self
+    }
+
+    pub fn with_lf_extra_left(mut self, extra: f64) -> Self {
+        self.lf_extra_left = extra;
         self
     }
 
@@ -359,6 +367,7 @@ impl GraphvizImageBuilder {
             node.shield = ent.shield;
             node.entity_position = ent.entity_position;
             node.max_label_width = ent.max_label_width;
+            node.lf_extra_left = ent.lf_extra_left;
             bib.add_node(node);
         }
 

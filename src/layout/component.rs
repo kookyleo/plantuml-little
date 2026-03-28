@@ -267,6 +267,7 @@ pub fn layout_component(cd: &ComponentDiagram) -> Result<ComponentLayout> {
                 max_label_width,
                 order: e.source_line,
                 image_width_pt: None,
+                lf_extra_left: 0.0,
             }
         })
         .collect();

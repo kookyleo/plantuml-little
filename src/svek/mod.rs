@@ -623,6 +623,8 @@ impl DotStringFactory {
         // Java Pass 1: LimitFinder.drawRectangle(x, y, w, h) → addPoint(x-1, y-1), addPoint(x+w-1, y+h-1)
         // Java Pass 1: LimitFinder.drawEmpty for edge labels → addPoint(x, y), addPoint(x+w, y+h)
         // We simulate this on the unshifted svek coordinates to get the exact span.
+        let active_nodes = self.bibliotekon.nodes.iter().filter(|n| !n.hidden).count();
+        let is_degenerated = active_nodes <= 1 && self.bibliotekon.edges.is_empty();
         let mut lf_min_x = f64::INFINITY;
         let mut lf_min_y = f64::INFINITY;
         let mut lf_max_x = f64::NEG_INFINITY;
@@ -632,7 +634,12 @@ impl DotStringFactory {
                 continue;
             }
             // LimitFinder.drawRectangle: (x-1, y-1) to (x+w-1, y+h-1)
-            let rx = node.min_x - 1.0;
+            // Also account for entity image content (visibility modifier polygons)
+            // that extends the LF beyond the node rect bounding box.
+            // Skip for degenerated diagrams (≤1 node, no edges) where Java
+            // uses EntityImageDegenerated with fixed positioning.
+            let extra_left = if is_degenerated { 0.0 } else { node.lf_extra_left };
+            let rx = node.min_x - 1.0 - extra_left;
             let ry = node.min_y - 1.0;
             let rr = node.min_x + node.width - 1.0;
             let rb = node.min_y + node.height - 1.0;

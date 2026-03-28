@@ -167,6 +167,10 @@ pub struct SvekNode {
     pub cx: f64,
     /// Center Y from SVG parsing (used to derive min_y)
     pub cy: f64,
+    /// Extra LimitFinder left extension from entity image content (e.g.
+    /// visibility modifier polygons with HACK_X_FOR_POLYGON=10).
+    /// Applied as: lf_min_x = min(node_min_x - 1, node_min_x - 1 - extra).
+    pub lf_extra_left: f64,
 }
 
 impl SvekNode {
@@ -191,6 +195,7 @@ impl SvekNode {
             polygon: None,
             cx: 0.0,
             cy: 0.0,
+            lf_extra_left: 0.0,
         }
     }
 
@@ -223,6 +228,7 @@ impl SvekNode {
             polygon: None,
             cx: 0.0,
             cy: 0.0,
+            lf_extra_left: 0.0,
         }
     }
 
