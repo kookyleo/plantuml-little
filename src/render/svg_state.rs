@@ -123,16 +123,22 @@ pub fn render_state(
             )
         {
             if state.is_initial && (state.id == "[*]" || state.id.starts_with("[*]__start") || state.id.starts_with("[*]")) {
-                // Find the target of the first transition from [*]
-                let target_ent_id = layout
-                    .transition_layouts
-                    .iter()
-                    .find(|t| t.from_id == state.id)
-                    .and_then(|t| ent_id_map.get(&t.to_id))
-                    .cloned();
-                if let Some(id) = target_ent_id {
-                    ent_id_map.insert(state.id.clone(), id);
-                } else {
+                // Java reuses the UID of the target entity from the first [*] transition
+                // for top-level start states. Nested start states get unique IDs.
+                let is_top_level = layout.state_layouts.iter().any(|s| s.id == state.id);
+                if is_top_level {
+                    let target_ent_id = layout
+                        .transition_layouts
+                        .iter()
+                        .find(|t| t.from_id == state.id)
+                        .and_then(|t| ent_id_map.get(&t.to_id))
+                        .cloned();
+                    if let Some(id) = target_ent_id {
+                        ent_id_map.insert(state.id.clone(), id);
+                    } else {
+                        ent_id_map.insert(state.id.clone(), next_ent_id());
+                    }
+                } else if !ent_id_map.contains_key(&state.id) {
                     ent_id_map.insert(state.id.clone(), next_ent_id());
                 }
             } else if !ent_id_map.contains_key(&state.id) {
