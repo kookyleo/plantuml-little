@@ -1,0 +1,9 @@
+@startuml
+!pragma teoz true
+participant Alice as a
+
+a -\  a : self filled half top
+a -/  a : self filled half bottom
+a -\\ a : self open half top
+a -// a : self open half bottom
+@enduml

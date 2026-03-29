@@ -212,6 +212,19 @@ fn ext_ref_seq_half_arrow_open() {
 }
 
 #[test]
+#[ignore = "diagnostic: self-message half-arrow (filled + open)"]
+fn ext_ref_seq_self_half_arrow() {
+    assert_ext_reference_case(
+        "seq_self_half_arrow",
+        "seq_ext_self_half_arrow.puml",
+        CompareProfile {
+            normalize_ids: true,
+            strip_source_line: true,
+        },
+    );
+}
+
+#[test]
 #[ignore = "diagnostic: filled half-arrow polygon shape (3-point vs 4-point)"]
 fn ext_ref_seq_half_arrow_filled() {
     assert_ext_reference_case(

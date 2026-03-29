@@ -1490,13 +1490,23 @@ fn draw_message(
 
     // Draw inline polygon arrowhead
     if msg.has_open_head {
-        // Open arrowhead: lines forming a V (or half-V for half-arrows)
-        // Java convention: x1=tip, x2=arm, y1=tip_y (arrow_y), y2=arm_y.
+        // Open arrowhead: lines forming a V (or half-V for half-arrows).
+        // Direction-aware: for right-pointing, `\\`(HalfBottom)→ top arm, `//'(HalfTop)→ bottom arm.
+        // For left-pointing, meanings flip.
         let arm_offset = if msg.is_left { 10.0 } else { -10.0 };
         let arm_x = tip_x + arm_offset;
         let mut tmp = String::new();
-        // Top line of V (skip for HalfBottom)
-        if !matches!(msg.arrow_head, SeqArrowHead::HalfBottom) {
+        let skip_top = if msg.is_left {
+            matches!(msg.arrow_head, SeqArrowHead::HalfBottom)
+        } else {
+            matches!(msg.arrow_head, SeqArrowHead::HalfTop)
+        };
+        let skip_bottom = if msg.is_left {
+            matches!(msg.arrow_head, SeqArrowHead::HalfTop)
+        } else {
+            matches!(msg.arrow_head, SeqArrowHead::HalfBottom)
+        };
+        if !skip_top {
             write!(
                 tmp,
                 r#"<line style="stroke:{color};stroke-width:{sw};" x1="{x1}" x2="{x2}" y1="{y1}" y2="{y2}"/>"#,
@@ -1508,8 +1518,7 @@ fn draw_message(
             )
             .unwrap();
         }
-        // Bottom line of V (skip for HalfTop)
-        if !matches!(msg.arrow_head, SeqArrowHead::HalfTop) {
+        if !skip_bottom {
             write!(
                 tmp,
                 r#"<line style="stroke:{color};stroke-width:{sw};" x1="{x1}" x2="{x2}" y1="{y1}" y2="{y2}"/>"#,
@@ -1523,27 +1532,34 @@ fn draw_message(
         }
         sg.push_raw(&tmp);
     } else {
-        // Filled arrowhead polygon: 4-point diamond with inner point 6px from tip
-        let (p1x, p2x, p3x, p4x) = if msg.is_left {
-            (tip_x + 10.0, tip_x, tip_x + 10.0, tip_x + 6.0)
-        } else {
-            (tip_x - 10.0, tip_x, tip_x - 10.0, tip_x - 6.0)
-        };
+        // Filled arrowhead polygon
+        let arm_x = if msg.is_left { tip_x + 10.0 } else { tip_x - 10.0 };
         let mut tmp = String::new();
-        write!(
-            tmp,
-            r#"<polygon fill="{color}" points="{p1x},{p1y},{p2x},{p2y},{p3x},{p3y},{p4x},{p4y}" style="stroke:{color};stroke-width:1;"/>"#,
-            color = arrow_color,
-            p1x = fmt_coord(p1x),
-            p1y = fmt_coord(msg.y - 4.0),
-            p2x = fmt_coord(p2x),
-            p2y = fmt_coord(msg.y),
-            p3x = fmt_coord(p3x),
-            p3y = fmt_coord(msg.y + 4.0),
-            p4x = fmt_coord(p4x),
-            p4y = fmt_coord(msg.y),
-        )
-        .unwrap();
+        match msg.arrow_head {
+            SeqArrowHead::FilledHalfTop => {
+                write!(tmp, r#"<polygon fill="{color}" points="{},{},{},{},{},{}" style="stroke:{color};stroke-width:1;"/>"#,
+                    fmt_coord(arm_x), fmt_coord(msg.y - 4.0),
+                    fmt_coord(tip_x), fmt_coord(msg.y),
+                    fmt_coord(arm_x), fmt_coord(msg.y),
+                    color = arrow_color).unwrap();
+            }
+            SeqArrowHead::FilledHalfBottom => {
+                write!(tmp, r#"<polygon fill="{color}" points="{},{},{},{},{},{}" style="stroke:{color};stroke-width:1;"/>"#,
+                    fmt_coord(arm_x), fmt_coord(msg.y),
+                    fmt_coord(tip_x), fmt_coord(msg.y),
+                    fmt_coord(arm_x), fmt_coord(msg.y + 4.0),
+                    color = arrow_color).unwrap();
+            }
+            _ => {
+                let inner_x = if msg.is_left { tip_x + 6.0 } else { tip_x - 6.0 };
+                write!(tmp, r#"<polygon fill="{color}" points="{},{},{},{},{},{},{},{}" style="stroke:{color};stroke-width:1;"/>"#,
+                    fmt_coord(arm_x), fmt_coord(msg.y - 4.0),
+                    fmt_coord(tip_x), fmt_coord(msg.y),
+                    fmt_coord(arm_x), fmt_coord(msg.y + 4.0),
+                    fmt_coord(inner_x), fmt_coord(msg.y),
+                    color = arrow_color).unwrap();
+            }
+        }
         sg.push_raw(&tmp);
     }
 
@@ -1553,13 +1569,17 @@ fn draw_message(
     } else {
         ""
     };
-    // Java: line len = area_width - 1, so the line ends 1px before the area right edge.
-    // For open-head arrows, the line extends to tip_x + 1 (= to_x - 1) for right-pointing.
-    let adjusted_x2 = if msg.has_open_head {
+    // Open and filled-half arrows: line extends to tip_x + 1.
+    // Full filled arrows: line ends 4px before tip (hidden by filled diamond).
+    let is_half_filled = matches!(
+        msg.arrow_head,
+        SeqArrowHead::FilledHalfTop | SeqArrowHead::FilledHalfBottom
+    );
+    let adjusted_x2 = if msg.has_open_head || is_half_filled {
         if msg.is_left {
-            msg.to_x // Java: reversed open arrow line extends to target center
+            msg.to_x
         } else {
-            tip_x + 1.0 // Java: len = width - 1, so line ends at to_x - 1
+            tip_x + 1.0
         }
     } else if msg.is_left {
         tip_x + 4.0
@@ -1809,7 +1829,9 @@ fn draw_self_message(
         let extraline = if msg.has_open_head { 0.0 } else { 1.0 };
         (to_x, return_x - extraline)
     } else {
-        (return_x, to_x)
+        // Right self-msg: only open arrows subtract extraline from return line.
+        let extraline_r = if msg.has_open_head { 1.0 } else { 0.0 };
+        (return_x - extraline_r, to_x)
     };
     write!(
         tmp,
@@ -1872,50 +1894,84 @@ fn draw_self_message(
             .unwrap();
         }
     } else {
-        // Right self-message: arrowhead points LEFT at return
-        let tip_x = return_x;
+        // Right self-message: arrowhead points LEFT at return.
+        let is_half = matches!(
+            msg.arrow_head,
+            SeqArrowHead::HalfTop
+                | SeqArrowHead::HalfBottom
+                | SeqArrowHead::FilledHalfTop
+                | SeqArrowHead::FilledHalfBottom
+        );
+        // tip_x: only FilledHalf uses -1; all others use return_x directly.
+        let tip_x = if matches!(msg.arrow_head, SeqArrowHead::FilledHalfTop | SeqArrowHead::FilledHalfBottom) {
+            return_x - 1.0
+        } else {
+            return_x
+        };
         if msg.has_open_head {
-            // Top line of V (skip for HalfBottom)
-            if !matches!(msg.arrow_head, SeqArrowHead::HalfBottom) {
+            // Arrow points LEFT: swap HalfTop/HalfBottom skip for half-arrows,
+            // keep original behavior for Open (full V).
+            let skip_top = if is_half {
+                matches!(msg.arrow_head, SeqArrowHead::HalfTop)
+            } else {
+                false
+            };
+            let skip_bottom = if is_half {
+                matches!(msg.arrow_head, SeqArrowHead::HalfBottom)
+            } else {
+                false
+            };
+            // Java convention for self-msg V-lines: x1=tip, x2=arm
+            if !skip_top {
                 write!(
                     tmp,
-                    r#"<line style="stroke:{color};stroke-width:{sw};" x1="{ax}" x2="{tx}" y1="{y1}" y2="{y}"/>"#,
+                    r#"<line style="stroke:{color};stroke-width:{sw};" x1="{tx}" x2="{ax}" y1="{y}" y2="{y1}"/>"#,
                     color = arrow_color,
-                    ax = fmt_coord(tip_x + 10.0),
                     tx = fmt_coord(tip_x),
-                    y1 = fmt_coord(ret_y - 4.0),
+                    ax = fmt_coord(tip_x + 10.0),
                     y = fmt_coord(ret_y),
+                    y1 = fmt_coord(ret_y - 4.0),
                 )
                 .unwrap();
             }
-            // Bottom line of V (skip for HalfTop)
-            if !matches!(msg.arrow_head, SeqArrowHead::HalfTop) {
+            if !skip_bottom {
                 write!(
                     tmp,
-                    r#"<line style="stroke:{color};stroke-width:{sw};" x1="{ax}" x2="{tx}" y1="{y1}" y2="{y}"/>"#,
+                    r#"<line style="stroke:{color};stroke-width:{sw};" x1="{tx}" x2="{ax}" y1="{y}" y2="{y1}"/>"#,
                     color = arrow_color,
-                    ax = fmt_coord(tip_x + 10.0),
                     tx = fmt_coord(tip_x),
-                    y1 = fmt_coord(ret_y + 4.0),
+                    ax = fmt_coord(tip_x + 10.0),
                     y = fmt_coord(ret_y),
+                    y1 = fmt_coord(ret_y + 4.0),
                 )
                 .unwrap();
             }
         } else {
-            write!(
-                tmp,
-                r#"<polygon fill="{color}" points="{p1x},{p1y},{p2x},{p2y},{p3x},{p3y},{p4x},{p4y}" style="stroke:{color};stroke-width:1;"/>"#,
-                color = arrow_color,
-                p1x = fmt_coord(tip_x + 10.0),
-                p1y = fmt_coord(ret_y - 4.0),
-                p2x = fmt_coord(tip_x),
-                p2y = fmt_coord(ret_y),
-                p3x = fmt_coord(tip_x + 10.0),
-                p3y = fmt_coord(ret_y + 4.0),
-                p4x = fmt_coord(tip_x + 6.0),
-                p4y = fmt_coord(ret_y),
-            )
-            .unwrap();
+            let arm_x = tip_x + 10.0;
+            match msg.arrow_head {
+                SeqArrowHead::FilledHalfTop => {
+                    write!(tmp, r#"<polygon fill="{color}" points="{},{},{},{},{},{}" style="stroke:{color};stroke-width:1;"/>"#,
+                        fmt_coord(arm_x), fmt_coord(ret_y - 4.0),
+                        fmt_coord(tip_x), fmt_coord(ret_y),
+                        fmt_coord(arm_x), fmt_coord(ret_y),
+                        color = arrow_color).unwrap();
+                }
+                SeqArrowHead::FilledHalfBottom => {
+                    write!(tmp, r#"<polygon fill="{color}" points="{},{},{},{},{},{}" style="stroke:{color};stroke-width:1;"/>"#,
+                        fmt_coord(arm_x), fmt_coord(ret_y),
+                        fmt_coord(tip_x), fmt_coord(ret_y),
+                        fmt_coord(arm_x), fmt_coord(ret_y + 4.0),
+                        color = arrow_color).unwrap();
+                }
+                _ => {
+                    write!(tmp, r#"<polygon fill="{color}" points="{},{},{},{},{},{},{},{}" style="stroke:{color};stroke-width:1;"/>"#,
+                        fmt_coord(arm_x), fmt_coord(ret_y - 4.0),
+                        fmt_coord(tip_x), fmt_coord(ret_y),
+                        fmt_coord(arm_x), fmt_coord(ret_y + 4.0),
+                        fmt_coord(tip_x + 6.0), fmt_coord(ret_y),
+                        color = arrow_color).unwrap();
+                }
+            }
         }
     }
     sg.push_raw(&tmp);
