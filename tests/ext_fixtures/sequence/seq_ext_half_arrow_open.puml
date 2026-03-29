@@ -1,0 +1,8 @@
+@startuml
+!pragma teoz true
+participant Alice as a
+participant Bob as b
+
+a -\\  b : open half top (double backslash)
+a -//  b : open half bottom (double slash)
+@enduml

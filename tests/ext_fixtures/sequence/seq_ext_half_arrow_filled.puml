@@ -1,0 +1,8 @@
+@startuml
+!pragma teoz true
+participant Alice as a
+participant Bob as b
+
+a -\  b : filled half top
+a -/  b : filled half bottom
+@enduml
