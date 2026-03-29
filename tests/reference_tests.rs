@@ -238,37 +238,13 @@ fn strip_nonvisual_data_attrs(s: &str) -> String {
     re.replace_all(s, "").to_string()
 }
 
-/// Normalize internal note entity names (GMN{n}) to canonical sequential form.
-/// Java's quark-based numbering differs from our sequential numbering.
-fn normalize_note_names(s: &str) -> String {
-    use std::collections::HashMap;
-    let re = regex::Regex::new(r#"data-qualified-name="(GMN\d+)""#).unwrap();
-    let mut map: HashMap<String, String> = HashMap::new();
-    let mut counter = 0usize;
-    for cap in re.captures_iter(s) {
-        let name = cap[1].to_string();
-        if !map.contains_key(&name) {
-            map.insert(name, format!("__gmn{}__", counter));
-            counter += 1;
-        }
-    }
-    let mut result = s.to_string();
-    for (old, new) in &map {
-        result = result.replace(
-            &format!("data-qualified-name=\"{old}\""),
-            &format!("data-qualified-name=\"{new}\""),
-        );
-    }
-    result
-}
-
 fn assert_exact_match(actual: &str, reference: &str, path: &str) {
     if actual == reference {
         return;
     }
     // Allow deflate-encoding differences in <?plantuml-src?> PI
-    let a = normalize_note_names(&normalize_entity_link_ids(&normalize_filter_ids(&strip_nonvisual_data_attrs(&strip_plantuml_src_pi(actual)))));
-    let r = normalize_note_names(&normalize_entity_link_ids(&normalize_filter_ids(&strip_nonvisual_data_attrs(&strip_plantuml_src_pi(reference)))));
+    let a = normalize_entity_link_ids(&normalize_filter_ids(&strip_nonvisual_data_attrs(&strip_plantuml_src_pi(actual))));
+    let r = normalize_entity_link_ids(&normalize_filter_ids(&strip_nonvisual_data_attrs(&strip_plantuml_src_pi(reference))));
     if a == r {
         return;
     }
@@ -302,7 +278,7 @@ fn assert_exact_match(actual: &str, reference: &str, path: &str) {
             }
         });
         if let (Some((a_start, a_end, a_val)), Some((r_start, r_end, r_val))) = (a_num, r_num) {
-            if (a_val - r_val).abs() < 6.0 {
+            if (a_val - r_val).abs() < 0.01 {
                 ai = if a_end > ai {
                     a_end
                 } else if a_start < ai {

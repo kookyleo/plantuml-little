@@ -384,10 +384,9 @@ fn dedup_states(states: &mut Vec<State>) {
             let curr_is_composite = !states[i].children.is_empty() || !states[i].regions.is_empty();
 
             if curr_is_composite && !prev_is_composite {
-                // Current is composite, previous is simple -> swap composite into
-                // the earlier position to preserve declaration order, remove later dup
-                states.swap(prev_idx, i);
-                to_remove.push(i);
+                // Current is composite, previous is simple -> remove previous
+                to_remove.push(prev_idx);
+                seen.insert(states[i].id.clone(), i);
             } else {
                 // Previous is composite or both are simple -> remove current
                 to_remove.push(i);
@@ -1316,13 +1315,9 @@ fn layout_transitions(
             let ex = to_cx;
             let ey = to_y;
             let dy = ey - sy;
-            // Generate Bezier control points that approximate graphviz curve shape.
-            // The renderer's adjust_path_endpoint will shift both CP2 and the endpoint
-            // back by decoration_len (6px). Pre-compensate CP2 so the final result
-            // approximates the ~25%/~49% control point ratios of graphviz output.
-            let decoration_compensation = 6.0;
+            // Generate Bezier control points that approximate graphviz curve shape
             let cy1 = sy + dy * 0.25;
-            let cy2 = sy + dy * 0.50 + decoration_compensation;
+            let cy2 = sy + dy * 0.50;
             let raw = format!(
                 "M{},{} C{},{} {},{} {},{}",
                 crate::klimt::svg::fmt_coord(sx),
@@ -1666,10 +1661,6 @@ pub fn layout_state(diagram: &StateDiagram) -> Result<StateLayout> {
             state_layouts.push(node);
         }
     }
-
-    // Sort state_layouts by declaration order, matching Java's quark iteration.
-    let id_order: HashMap<&str, usize> = node_id_order.iter().enumerate().map(|(i, id)| (id.as_str(), i)).collect();
-    state_layouts.sort_by_key(|n| id_order.get(n.id.as_str()).copied().unwrap_or(usize::MAX));
 
     // Convert graphviz EdgeLayout to TransitionLayout.
     // The svek pipeline returns edges with raw SVG path data and arrow polygons.
