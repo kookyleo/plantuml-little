@@ -138,10 +138,24 @@ pub fn detect_diagram_type(content: &str) -> DiagramHint {
     let mut in_bracket_display = false;
 
     let mut in_note_block = false;
+    let mut in_style_block = false;
 
     for line in content.lines() {
         let trimmed = line.trim();
         if trimmed.starts_with('\'') {
+            continue;
+        }
+
+        // Skip content inside <style> blocks: CSS-like selectors like
+        // `note {` should not be mistaken for PlantUML note blocks.
+        if in_style_block {
+            if trimmed == "</style>" {
+                in_style_block = false;
+            }
+            continue;
+        }
+        if trimmed == "<style>" {
+            in_style_block = true;
             continue;
         }
 

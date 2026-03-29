@@ -505,6 +505,150 @@ pub fn render_creole_text_opts(
     lines.len()
 }
 
+/// Render a single line of text in word-by-word mode, matching Java's DriverTextSvg
+/// behavior when `MaximumWidth` is set. Each word and each inter-word space
+/// becomes its own `<text>` SVG element.
+///
+/// Returns the number of lines rendered (always 1 for a single line).
+pub fn render_creole_text_word_by_word(
+    buf: &mut String,
+    text: &str,
+    x: f64,
+    y: f64,
+    _line_height: f64,
+    fill: &str,
+    outer_attrs: &str,
+) -> usize {
+    let lines = flatten_rich_lines(&parse_creole(text));
+    let line = if lines.is_empty() {
+        vec![TextSpan::Plain(String::new())]
+    } else {
+        // word-by-word mode processes only one line at a time
+        lines.into_iter().next().unwrap_or_else(|| vec![TextSpan::Plain(String::new())])
+    };
+
+    let (default_font, font_size, base_bold, base_italic) = parse_font_props(outer_attrs);
+    let runs = flatten_to_runs(&line);
+    let space_w = font_metrics::text_width(" ", &default_font, font_size, false, false);
+
+    let mut cursor_x = x;
+
+    for run in &runs {
+        let run_font = run.font_family.as_deref().unwrap_or(&default_font);
+        let run_bold = run.bold || base_bold;
+        let run_italic = run.italic || base_italic;
+        let run_size = match run.font_size_override {
+            Some(v) if v == -1.0 => (font_size * 0.77).round(), // subscript
+            Some(v) if v == -2.0 => (font_size * 0.77).round(), // superscript
+            Some(v) if v > 0.0 => v,
+            _ => font_size,
+        };
+        let run_fill_normalized;
+        let run_fill = if let Some(ref c) = run.color {
+            run_fill_normalized = crate::style::normalize_color(c);
+            &run_fill_normalized
+        } else {
+            fill
+        };
+
+        // Split the run text into words and spaces
+        let mut chars = run.text.chars().peekable();
+        let mut pieces: Vec<(String, bool)> = Vec::new(); // (text, is_space)
+        while chars.peek().is_some() {
+            if chars.peek() == Some(&' ') {
+                let mut spaces = String::new();
+                while chars.peek() == Some(&' ') {
+                    spaces.push(chars.next().unwrap());
+                }
+                pieces.push((spaces, true));
+            } else {
+                let mut word = String::new();
+                while chars.peek().is_some() && chars.peek() != Some(&' ') {
+                    word.push(chars.next().unwrap());
+                }
+                pieces.push((word, false));
+            }
+        }
+
+        for (piece, is_space) in &pieces {
+            if *is_space {
+                // Render spaces as &#160; elements
+                let n_spaces = piece.len();
+                let total_w = space_w * n_spaces as f64;
+                let nbsp = "\u{00A0}".repeat(n_spaces);
+                write!(buf, r#"<text fill="{}""#, xml_escape(run_fill)).unwrap();
+                if let Some(ref fid) = run.filter_id {
+                    write!(buf, r#" filter="url(#{fid})""#).unwrap();
+                }
+                write!(buf, r#" font-family="{}""#, xml_escape(run_font)).unwrap();
+                write!(buf, r#" font-size="{}""#, fmt_coord(run_size)).unwrap();
+                if run_italic {
+                    buf.push_str(r#" font-style="italic""#);
+                }
+                if run_bold {
+                    buf.push_str(r#" font-weight="700""#);
+                }
+                write!(buf, r#" lengthAdjust="spacing""#).unwrap();
+                write!(buf, r#" textLength="{}""#, fmt_coord(total_w)).unwrap();
+                write!(
+                    buf,
+                    r#" x="{}" y="{}">"#,
+                    fmt_coord(cursor_x),
+                    fmt_coord(y)
+                )
+                .unwrap();
+                buf.push_str(&xml_escape(&nbsp));
+                buf.push_str("</text>");
+                cursor_x += total_w;
+            } else {
+                // Render word
+                let word_w =
+                    font_metrics::text_width(piece, run_font, run_size, run_bold, run_italic);
+                if let Some(ref url) = run.link_url {
+                    let title_src = run.link_tooltip.as_deref().unwrap_or(url);
+                    let title = process_xlink_title(title_src);
+                    write!(buf, r#"<a href="{}" target="_top" title="{}" xlink:actuate="onRequest" xlink:href="{}" xlink:show="new" xlink:title="{}" xlink:type="simple">"#,
+                        xml_escape_attr(url), xml_escape_attr(&title), xml_escape_attr(url), xml_escape_attr(&title)).unwrap();
+                }
+                write!(buf, r#"<text fill="{}""#, xml_escape(run_fill)).unwrap();
+                if let Some(ref fid) = run.filter_id {
+                    write!(buf, r#" filter="url(#{fid})""#).unwrap();
+                }
+                write!(buf, r#" font-family="{}""#, xml_escape(run_font)).unwrap();
+                write!(buf, r#" font-size="{}""#, fmt_coord(run_size)).unwrap();
+                if run_italic {
+                    buf.push_str(r#" font-style="italic""#);
+                }
+                if run_bold {
+                    buf.push_str(r#" font-weight="700""#);
+                }
+                write!(buf, r#" lengthAdjust="spacing""#).unwrap();
+                if run.strikethrough {
+                    buf.push_str(r#" text-decoration="wavy underline""#);
+                } else if run.underline {
+                    buf.push_str(r#" text-decoration="underline""#);
+                }
+                write!(buf, r#" textLength="{}""#, fmt_coord(word_w)).unwrap();
+                write!(
+                    buf,
+                    r#" x="{}" y="{}">"#,
+                    fmt_coord(cursor_x),
+                    fmt_coord(y)
+                )
+                .unwrap();
+                buf.push_str(&xml_escape(piece));
+                buf.push_str("</text>");
+                if run.link_url.is_some() {
+                    buf.push_str("</a>");
+                }
+                cursor_x += word_w;
+            }
+        }
+    }
+
+    1
+}
+
 #[derive(Clone)]
 struct DisplayTableCell {
     lines: Vec<Vec<TextSpan>>,

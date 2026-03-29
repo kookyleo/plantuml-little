@@ -12,7 +12,7 @@ use crate::model::activity::ActivityDiagram;
 use crate::render::svg::{ensure_visible_int, write_bg_rect, write_svg_root_bg};
 use crate::render::svg_richtext::{
     creole_line_height, creole_text_width, get_sprite_svg, render_creole_display_lines,
-    render_creole_text, render_creole_text_opts,
+    render_creole_text, render_creole_text_opts, render_creole_text_word_by_word,
 };
 use crate::render::svg_sprite;
 use crate::style::SkinParams;
@@ -69,6 +69,10 @@ pub fn render_activity(
     let swimlane_border = skin.border_color("swimlane", TEXT_COLOR);
     let swimlane_font = skin.font_color("swimlane", TEXT_COLOR);
     let arrow_color = skin.arrow_color(BORDER_COLOR);
+
+    // Java: when MaximumWidth is set, notes use word-by-word rendering
+    // (each word and space becomes a separate <text> SVG element).
+    let word_by_word_notes = diagram.note_max_width.is_some();
 
     // Body offset: when wrapping with meta, coordinates are shifted so that
     // wrap_with_meta can include the body content directly without lossy
@@ -191,6 +195,7 @@ pub fn render_activity(
                             diamond_bg,
                             diamond_border,
                             arrow_color,
+                            word_by_word_notes,
                         );
                         ni += 1;
                     }
@@ -224,6 +229,7 @@ pub fn render_activity(
                                 diamond_bg,
                                 diamond_border,
                                 arrow_color,
+                                word_by_word_notes,
                             );
                         }
                         render_node(
@@ -235,6 +241,7 @@ pub fn render_activity(
                             diamond_bg,
                             diamond_border,
                             arrow_color,
+                            word_by_word_notes,
                         );
                         ni = j;
                     }
@@ -309,6 +316,7 @@ pub fn render_activity(
                 diamond_bg,
                 diamond_border,
                 arrow_color,
+                word_by_word_notes,
             );
         }
         for edge in edges_ref {
@@ -372,6 +380,7 @@ fn render_node(
     diamond_bg: &str,
     diamond_border: &str,
     arrow_color: &str,
+    word_by_word_notes: bool,
 ) {
     match &node.kind {
         ActivityNodeKindLayout::Start => render_start(sg, node),
@@ -381,10 +390,10 @@ fn render_node(
         ActivityNodeKindLayout::Diamond => render_diamond(sg, node, diamond_bg, diamond_border),
         ActivityNodeKindLayout::ForkBar => render_fork_bar(sg, node),
         ActivityNodeKindLayout::Note { position, mode } => {
-            render_note(sg, node, position, mode, true)
+            render_note(sg, node, position, mode, true, word_by_word_notes)
         }
         ActivityNodeKindLayout::FloatingNote { position, mode } => {
-            render_note(sg, node, position, mode, false)
+            render_note(sg, node, position, mode, false, word_by_word_notes)
         }
         ActivityNodeKindLayout::Detach => render_detach(sg, node, arrow_color),
     }
@@ -653,6 +662,7 @@ fn render_note(
     position: &NotePositionLayout,
     mode: &ActivityNoteModeLayout,
     linked: bool,
+    word_by_word: bool,
 ) {
     let x = node.x;
     let y = node.y;
@@ -808,16 +818,28 @@ fn render_note(
         };
 
         let mut tmp = String::new();
-        render_creole_text(
-            &mut tmp,
-            line_text,
-            line_x,
-            text_y,
-            note_lh,
-            TEXT_COLOR,
-            None,
-            r#"font-size="13""#,
-        );
+        if word_by_word {
+            render_creole_text_word_by_word(
+                &mut tmp,
+                line_text,
+                line_x,
+                text_y,
+                note_lh,
+                TEXT_COLOR,
+                r#"font-size="13""#,
+            );
+        } else {
+            render_creole_text(
+                &mut tmp,
+                line_text,
+                line_x,
+                text_y,
+                note_lh,
+                TEXT_COLOR,
+                None,
+                r#"font-size="13""#,
+            );
+        }
         sg.push_raw(&tmp);
         text_y += note_lh;
     }
