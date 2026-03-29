@@ -1123,8 +1123,11 @@ fn layout_children_with_graphviz(
                     | StateKind::ExitPoint
                     | StateKind::End
             );
+        let is_diamond = matches!(state.kind, StateKind::Choice);
         let shape = if is_circle {
             Some(crate::svek::shape_type::ShapeType::Circle)
+        } else if is_diamond {
+            Some(crate::svek::shape_type::ShapeType::Diamond)
         } else {
             None
         };
@@ -1429,7 +1432,7 @@ pub fn layout_state(diagram: &StateDiagram) -> Result<StateLayout> {
         // Java uses shape=circle for [*] (initial/final) and shape=rect for states.
         // We use Circle for special states to match Java's DOT and get correct
         // graphviz node spacing.
-        let shape = if state.is_special
+        let is_circle_kind = state.is_special
             || matches!(
                 state.kind,
                 StateKind::History
@@ -1437,14 +1440,18 @@ pub fn layout_state(diagram: &StateDiagram) -> Result<StateLayout> {
                     | StateKind::EntryPoint
                     | StateKind::ExitPoint
                     | StateKind::End
-            ) {
+            );
+        let is_diamond = matches!(state.kind, StateKind::Choice);
+        let shape = if is_circle_kind {
             Some(crate::svek::shape_type::ShapeType::Circle)
+        } else if is_diamond {
+            Some(crate::svek::shape_type::ShapeType::Diamond)
         } else {
             None // Default: ShapeType::Rectangle → shape=rect
         };
         // Circles/ellipses use LimitFinder.drawEllipse: min(x, y), max(x+w-1, y+h-1)
         // Rectangles use drawRectangle: min(x-1, y-1), max(x+w-1, y+h-1)
-        let is_circle = shape == Some(crate::svek::shape_type::ShapeType::Circle);
+        let is_circle = is_circle_kind;
         gv_nodes.push(LayoutNode {
             id: state.id.clone(),
             label: state.name.clone(),

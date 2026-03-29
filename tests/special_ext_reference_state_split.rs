@@ -314,6 +314,19 @@ fn ext_ref_state_note_path() {
 }
 
 #[test]
+#[ignore = "diagnostic: choice diagram edge Bezier control points"]
+fn ext_ref_state_choice_bezier() {
+    assert_ext_reference_case(
+        "state_choice_bezier",
+        "state_ext_choice_bezier.puml",
+        CompareProfile {
+            normalize_ids: true,
+            strip_source_line: true,
+        },
+    );
+}
+
+#[test]
 #[ignore = "diagnostic: multiline note body path shape"]
 fn ext_ref_state_note_multiline() {
     assert_ext_reference_case(
