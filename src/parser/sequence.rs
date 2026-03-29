@@ -1023,6 +1023,10 @@ fn parse_arrow(left: &str, arrow: &str, right: &str, text: &str) -> Option<Messa
         SeqArrowHead::HalfTop
     } else if stripped.starts_with("\\\\") || stripped.ends_with("\\\\") {
         SeqArrowHead::HalfBottom
+    } else if stripped.ends_with('\\') || stripped.starts_with('/') {
+        SeqArrowHead::FilledHalfTop
+    } else if stripped.ends_with('/') || stripped.starts_with('\\') {
+        SeqArrowHead::FilledHalfBottom
     } else {
         SeqArrowHead::Filled
     };
@@ -1054,6 +1058,8 @@ fn parse_arrow(left: &str, arrow: &str, right: &str, text: &str) -> Option<Messa
         SeqDirection::RightToLeft => (has_right_circle, has_left_circle),
     };
 
+    let is_reverse_define = !has_right_arrow && has_left_arrow;
+
     Some(Message {
         from,
         to,
@@ -1066,6 +1072,7 @@ fn parse_arrow(left: &str, arrow: &str, right: &str, text: &str) -> Option<Messa
         circle_from,
         circle_to,
         parallel: false, // set by caller if & prefix detected
+        is_reverse_define,
     })
 }
 

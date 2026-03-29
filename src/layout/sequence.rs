@@ -2427,6 +2427,7 @@ mod tests {
             circle_from: false,
             circle_to: false,
             parallel: false,
+            is_reverse_define: false,
         }
     }
 
@@ -3029,6 +3030,7 @@ mod tests {
                     circle_from: false,
                     circle_to: false,
                     parallel: false,
+                    is_reverse_define: true,
                 }),
                 SeqEvent::Deactivate("B".to_string()),
             ],

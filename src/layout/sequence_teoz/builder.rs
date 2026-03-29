@@ -83,6 +83,7 @@ enum TeozTile {
         text_lines: Vec<String>,
         is_dashed: bool,
         has_open_head: bool,
+        arrow_head: SeqArrowHead,
         /// Minimum pixel width needed by the message text
         text_width: f64,
         /// Preferred height of this tile
@@ -114,12 +115,14 @@ enum TeozTile {
         text_lines: Vec<String>,
         is_dashed: bool,
         has_open_head: bool,
+        arrow_head: SeqArrowHead,
         text_width: f64,
         height: f64,
         y: Option<f64>,
         autonumber: Option<String>,
         center: RealId,
         direction: SeqDirection,
+        is_reverse_define: bool,
         /// Activation level at the time of this self-message
         active_level: usize,
         /// Circle decoration on from end
@@ -969,6 +972,7 @@ pub fn build_teoz_layout(sd: &SequenceDiagram, skin: &SkinParams) -> Result<SeqL
                         text_lines,
                         is_dashed,
                         has_open_head,
+                        arrow_head: msg.arrow_head.clone(),
                         text_width: text_w,
                         height,
                         y: None,
@@ -998,12 +1002,14 @@ pub fn build_teoz_layout(sd: &SequenceDiagram, skin: &SkinParams) -> Result<SeqL
                         text_lines,
                         is_dashed,
                         has_open_head,
+                        arrow_head: msg.arrow_head.clone(),
                         text_width: text_w,
                         height,
                         y: None,
                         autonumber,
                         center,
                         direction: msg.direction.clone(),
+                        is_reverse_define: msg.is_reverse_define,
                         active_level: level,
                         circle_from: msg.circle_from,
                         circle_to: msg.circle_to,
@@ -1048,6 +1054,7 @@ pub fn build_teoz_layout(sd: &SequenceDiagram, skin: &SkinParams) -> Result<SeqL
                         text_lines,
                         is_dashed,
                         has_open_head,
+                        arrow_head: msg.arrow_head.clone(),
                         text_width: text_w,
                         height,
                         y: None,
@@ -1265,39 +1272,25 @@ pub fn build_teoz_layout(sd: &SequenceDiagram, skin: &SkinParams) -> Result<SeqL
                 participant_idx,
                 text_width,
                 center,
-                direction,
+                is_reverse_define,
                 active_level,
                 ..
             } => {
                 let idx = *participant_idx;
                 let tm = TextMetrics::new(7.0, 7.0, 1.0, *text_width, tp.msg_line_height);
-                // Java CommunicationTileSelf.addConstraints():
-                // Forward: next.posC >= this.posC2 + compWidth
-                // posC2 = posC + rightShift. Only use right shift for the constraint.
                 let needed =
                     rose::self_arrow_preferred_size(&tm).width + active_right_shift(*active_level);
 
-                // Self messages need space in one direction from center.
-                // Constrain the adjacent participant (or origin) to be far enough.
-                // Java CommunicationTileSelf.addConstraints():
-                // Forward:  next.posC >= this.posC2 + compWidth (if next exists)
-                // Reverse:  this.posC >= prev.posC2 + compWidth (if prev exists)
-                // If no adjacent participant, Java adds NO constraint — the
-                // group/fragment margin expansion handles the extent shift.
-                match direction {
-                    SeqDirection::LeftToRight => {
-                        if idx + 1 < n_parts {
-                            let next_center = livings[idx + 1].pos_c;
-                            rl.ensure_bigger_than_with_margin(next_center, *center, needed);
-                        }
+                // Java CommunicationTileSelf uses isReverseDefine() (not direction)
+                if *is_reverse_define {
+                    if idx > 0 {
+                        let prev_center = livings[idx - 1].pos_c;
+                        rl.ensure_bigger_than_with_margin(*center, prev_center, needed);
                     }
-                    SeqDirection::RightToLeft => {
-                        if idx > 0 {
-                            let prev_center = livings[idx - 1].pos_c;
-                            rl.ensure_bigger_than_with_margin(*center, prev_center, needed);
-                        }
-                        // No constraint added for leftmost participant —
-                        // the rendering shift (-min1) handles the left extent.
+                } else {
+                    if idx + 1 < n_parts {
+                        let next_center = livings[idx + 1].pos_c;
+                        rl.ensure_bigger_than_with_margin(next_center, *center, needed);
                     }
                 }
             }
@@ -2086,6 +2079,7 @@ pub fn build_teoz_layout(sd: &SequenceDiagram, skin: &SkinParams) -> Result<SeqL
                 text_lines,
                 is_dashed,
                 has_open_head,
+                arrow_head,
                 text_width,
                 y,
                 height,
@@ -2163,11 +2157,7 @@ pub fn build_teoz_layout(sd: &SequenceDiagram, skin: &SkinParams) -> Result<SeqL
                     is_dashed: *is_dashed,
                     is_left,
                     has_open_head: *has_open_head,
-                    arrow_head: if *has_open_head {
-                        SeqArrowHead::Open
-                    } else {
-                        SeqArrowHead::Filled
-                    },
+                    arrow_head: arrow_head.clone(),
                     autonumber: autonumber.clone(),
                     source_line: None, // TODO: propagate from parser
                     self_return_x: from_x,
@@ -2184,6 +2174,7 @@ pub fn build_teoz_layout(sd: &SequenceDiagram, skin: &SkinParams) -> Result<SeqL
                 text_width,
                 is_dashed,
                 has_open_head,
+                arrow_head,
                 y,
                 autonumber,
                 direction,
@@ -2238,11 +2229,7 @@ pub fn build_teoz_layout(sd: &SequenceDiagram, skin: &SkinParams) -> Result<SeqL
                     is_dashed: *is_dashed,
                     is_left,
                     has_open_head: *has_open_head,
-                    arrow_head: if *has_open_head {
-                        SeqArrowHead::Open
-                    } else {
-                        SeqArrowHead::Filled
-                    },
+                    arrow_head: arrow_head.clone(),
                     autonumber: autonumber.clone(),
                     source_line: None, // TODO: propagate from parser
                     self_return_x,
