@@ -320,7 +320,7 @@ fn render_state_node_with_parent(
             render_fork_join(sg, tracker, node);
         }
         StateKind::Choice => {
-            render_choice(sg, tracker, node, border);
+            render_choice(sg, tracker, node, border, ent_id_map, parent_name);
         }
         StateKind::History => {
             render_history(sg, tracker, node, border, font_color, false);
@@ -448,10 +448,27 @@ fn render_choice(
     tracker: &mut BoundsTracker,
     node: &StateNodeLayout,
     border: &str,
+    ent_id_map: &HashMap<String, String>,
+    parent_name: Option<&str>,
 ) {
     let cx = node.x + node.width / 2.0;
     let cy = node.y + node.height / 2.0;
     let half = node.width / 2.0;
+
+    // Open semantic <g> wrapper
+    let qname = match parent_name {
+        Some(p) => format!("{}.{}", p, node.id),
+        None => node.id.clone(),
+    };
+    let ent_id = ent_id_map
+        .get(&node.id)
+        .cloned()
+        .unwrap_or_else(next_ent_id);
+    sg.push_raw(&format!(
+        r#"<g class="entity" data-qualified-name="{}" id="{}">"#,
+        xml_escape(&qname), ent_id,
+    ));
+
     sg.set_fill_color("#F1F1F1");
     sg.set_stroke_color(Some(border));
     // Java: style.getStroke() default for state diamond is 0.5
@@ -468,6 +485,8 @@ fn render_choice(
         (cx, cy + half),
         (cx - half, cy),
     ]);
+
+    sg.push_raw("</g>");
 }
 
 /// History circle: small circle with "H" (or "H*") text inside
@@ -544,10 +563,10 @@ fn render_simple(
     parent_name: Option<&str>,
 ) {
     // Open semantic <g> wrapper with entity ID
-    // Java qualified name: "Name" for top-level, "Parent.Name" for nested
+    // Java qualified name: "Id" for top-level, "ParentId.Id" for nested
     let qname = match parent_name {
-        Some(p) => format!("{}.{}", p, node.name),
-        None => node.name.clone(),
+        Some(p) => format!("{}.{}", p, node.id),
+        None => node.id.clone(),
     };
     let qname_escaped = xml_escape(&qname);
     let ent_id = ent_id_map
@@ -732,7 +751,7 @@ fn render_composite(
             border,
             font_color,
             ent_id_map,
-            Some(&node.name),
+            Some(&node.id),
         );
     }
 
@@ -1259,6 +1278,18 @@ fn split_backslash_n(s: &str) -> Vec<&str> {
     r
 }
 fn render_desc_line(sg: &mut SvgGraphic, text: &str, x: f64, y: f64, fc: &str) {
+    // Java: leading ASCII spaces in description lines are converted to x-offset.
+    // Only strip ASCII spaces (0x20), not Unicode whitespace like NBSP (\u00A0).
+    let n_leading = text.bytes().take_while(|&b| b == b' ').count();
+    let x = if n_leading > 0 {
+        let space_w =
+            font_metrics::text_width(" ", "SansSerif", DESC_FONT_SIZE, false, false);
+        x + space_w * n_leading as f64
+    } else {
+        x
+    };
+    let text = &text[n_leading..];
+
     if text.contains("**") {
         render_desc_line_bold(sg, text, x, y, fc);
         return;
@@ -1285,14 +1316,25 @@ fn render_desc_line_bold(sg: &mut SvgGraphic, text: &str, x: f64, y: f64, fc: &s
             ib = !ib;
             continue;
         }
-        let e = xml_escape(part);
-        let tl = font_metrics::text_width(part, "SansSerif", DESC_FONT_SIZE, ib, false);
+        // Java StripeSimple: trailing whitespace before a bold boundary is stripped
+        // from the text content and instead advanced as cursor gap.
+        let trimmed = part.trim_end();
+        let n_trailing = part.len() - trimmed.len();
+        let display = if trimmed.is_empty() { part } else { trimmed };
+        let e = xml_escape(display);
+        let tl = font_metrics::text_width(display, "SansSerif", DESC_FONT_SIZE, ib, false);
         if ib {
             sg.push_raw(&format!(r#"<text fill="{fc}" font-family="sans-serif" font-size="12" font-weight="700" lengthAdjust="spacing" textLength="{}" x="{}" y="{}">{e}</text>"#, fmt_coord(tl), fmt_coord(cx), fmt_coord(y)));
         } else {
             sg.push_raw(&format!(r#"<text fill="{fc}" font-family="sans-serif" font-size="12" lengthAdjust="spacing" textLength="{}" x="{}" y="{}">{e}</text>"#, fmt_coord(tl), fmt_coord(cx), fmt_coord(y)));
         }
         cx += tl;
+        // Advance cursor for stripped trailing spaces
+        if n_trailing > 0 && !trimmed.is_empty() {
+            let space_w =
+                font_metrics::text_width(" ", "SansSerif", DESC_FONT_SIZE, false, false);
+            cx += space_w * n_trailing as f64;
+        }
         ib = !ib;
     }
 }

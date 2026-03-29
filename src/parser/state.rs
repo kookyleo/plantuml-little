@@ -665,11 +665,33 @@ fn parse_state_header(s: &str) -> (String, String, Option<String>) {
         }
     };
 
-    // Parse stereotype from remainder: <<something>>
-    let stereotype = parse_stereotype(remainder);
+    // Handle "as alias" in the remainder: `"Display Name" as alias <<stereo>>`
+    let (alias, after_alias) = if let Some(rest) = remainder.strip_prefix("as ") {
+        let rest = rest.trim_start();
+        // The alias is the next token (before stereotype or end of string)
+        if let Some(stereo_start) = rest.find("<<") {
+            let alias = rest[..stereo_start].trim();
+            (Some(alias.to_string()), &rest[stereo_start..])
+        } else {
+            // No stereotype after alias: take everything as alias
+            match rest.find(|c: char| c.is_whitespace()) {
+                Some(pos) => (Some(rest[..pos].to_string()), rest[pos..].trim()),
+                None => (Some(rest.to_string()), ""),
+            }
+        }
+    } else {
+        (None, remainder)
+    };
 
-    // Generate ID from name: for quoted names, sanitize to create an ID
-    let id = sanitize_id(&raw_name);
+    // Parse stereotype from remainder: <<something>>
+    let stereotype = parse_stereotype(after_alias);
+
+    // If alias is present, use it as the ID; otherwise generate from name
+    let id = if let Some(alias) = alias {
+        alias
+    } else {
+        sanitize_id(&raw_name)
+    };
     let display_name = raw_name;
 
     (id, display_name, stereotype)

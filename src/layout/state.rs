@@ -184,6 +184,25 @@ fn text_width(text: &str, font_size: f64) -> f64 {
     x
 }
 
+/// Compute the visual width of a description line, accounting for `**bold**` markup.
+/// This matches Java which measures text width after creole parsing.
+fn desc_line_visual_width(line: &str, font_size: f64) -> f64 {
+    if !line.contains("**") {
+        return text_width(line, font_size);
+    }
+    let mut cx = 0.0;
+    let mut is_bold = false;
+    for part in line.split("**") {
+        if part.is_empty() {
+            is_bold = !is_bold;
+            continue;
+        }
+        cx += crate::font_metrics::text_width(part, "SansSerif", font_size, is_bold, false);
+        is_bold = !is_bold;
+    }
+    cx
+}
+
 /// Estimate the size of a simple (non-composite, non-special) state.
 /// Returns `(width, height)`.
 ///
@@ -197,7 +216,7 @@ fn estimate_state_size(state: &State) -> (f64, f64) {
 
     let desc_w = visual_lines
         .iter()
-        .map(|line| text_width(line, STATE_DESC_FONT_SIZE) + 2.0 * PADDING)
+        .map(|line| desc_line_visual_width(line, STATE_DESC_FONT_SIZE) + 2.0 * PADDING)
         .fold(0.0_f64, f64::max);
 
     let stereo_w = state
