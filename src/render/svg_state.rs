@@ -200,58 +200,16 @@ pub fn render_state(
             }
         }
     }
-    // Pass 2: regular non-composite entities
+    // Pass 2: all non-composite entities in declaration order.
     for state in &layout.state_layouts {
-        if !state.is_composite
-            && !state.is_initial
-            && !state.is_final
-            && !matches!(
-                state.kind,
-                StateKind::EntryPoint
-                    | StateKind::ExitPoint
-                    | StateKind::End
-                    | StateKind::Fork
-                    | StateKind::Join
-                    | StateKind::Choice
-                    | StateKind::History
-                    | StateKind::DeepHistory
-            )
+        if !(state.is_composite && !state.is_initial && !state.is_final
+            && !matches!(state.kind,
+                StateKind::EntryPoint | StateKind::ExitPoint | StateKind::End
+                | StateKind::Fork | StateKind::Join | StateKind::Choice
+                | StateKind::History | StateKind::DeepHistory))
         {
             render_state_node(
-                &mut sg,
-                &mut tracker,
-                state,
-                state_bg,
-                state_border,
-                state_font,
-                &ent_id_map,
-            );
-        }
-    }
-    // Pass 3: special entities (initial, final, fork, join, choice, history, etc.)
-    for state in &layout.state_layouts {
-        if state.is_initial
-            || state.is_final
-            || matches!(
-                state.kind,
-                StateKind::EntryPoint
-                    | StateKind::ExitPoint
-                    | StateKind::End
-                    | StateKind::Fork
-                    | StateKind::Join
-                    | StateKind::Choice
-                    | StateKind::History
-                    | StateKind::DeepHistory
-            )
-        {
-            render_state_node(
-                &mut sg,
-                &mut tracker,
-                state,
-                state_bg,
-                state_border,
-                state_font,
-                &ent_id_map,
+                &mut sg, &mut tracker, state, state_bg, state_border, state_font, &ent_id_map,
             );
         }
     }
@@ -1081,88 +1039,64 @@ fn render_note(sg: &mut SvgGraphic, tracker: &mut BoundsTracker, note: &StateNot
     let body_path = if let Some((ax, ay)) = note.anchor {
         match note.position.as_str() {
             "left" => format!(
-                "M{},{} L{},{} L{},{} L{},{} L{},{} L{},{} L{},{} L{},{} L{},{}",
-                fmt_coord(x),
-                fmt_coord(y),
-                fmt_coord(x),
-                fmt_coord(y + h),
-                fmt_coord(x + w),
-                fmt_coord(y + h),
-                fmt_coord(x + w),
-                fmt_coord(ay + notch_half),
-                fmt_coord(ax),
-                fmt_coord(ay),
-                fmt_coord(x + w),
-                fmt_coord(ay - notch_half),
-                fmt_coord(x + w),
-                fmt_coord(y + fold),
-                fmt_coord(x + w - fold),
-                fmt_coord(y),
-                fmt_coord(x),
-                fmt_coord(y),
+                "M{},{} L{},{} A0,0 0 0 0 {},{} L{},{} A0,0 0 0 0 {},{} L{},{} L{},{} L{},{} L{},{} L{},{} L{},{} A0,0 0 0 0 {},{}",
+                fmt_coord(x), fmt_coord(y),
+                fmt_coord(x), fmt_coord(y + h),
+                fmt_coord(x), fmt_coord(y + h),
+                fmt_coord(x + w), fmt_coord(y + h),
+                fmt_coord(x + w), fmt_coord(y + h),
+                fmt_coord(x + w), fmt_coord(ay + notch_half),
+                fmt_coord(ax), fmt_coord(ay),
+                fmt_coord(x + w), fmt_coord(ay - notch_half),
+                fmt_coord(x + w), fmt_coord(y + fold),
+                fmt_coord(x + w - fold), fmt_coord(y),
+                fmt_coord(x), fmt_coord(y),
+                fmt_coord(x), fmt_coord(y),
             ),
             "top" => format!(
-                "M{},{} L{},{} L{},{} L{},{} L{},{} L{},{} L{},{} L{},{} L{},{}",
-                fmt_coord(x),
-                fmt_coord(y),
-                fmt_coord(x),
-                fmt_coord(y + h),
-                fmt_coord(x + w),
-                fmt_coord(y + h),
-                fmt_coord(x + w),
-                fmt_coord(y + fold),
-                fmt_coord(x + w - fold),
-                fmt_coord(y),
-                fmt_coord(ax + notch_half),
-                fmt_coord(y),
-                fmt_coord(ax),
-                fmt_coord(ay),
-                fmt_coord(ax - notch_half),
-                fmt_coord(y),
-                fmt_coord(x),
-                fmt_coord(y),
+                "M{},{} L{},{} A0,0 0 0 0 {},{} L{},{} A0,0 0 0 0 {},{} L{},{} L{},{} L{},{} L{},{} L{},{} L{},{} A0,0 0 0 0 {},{}",
+                fmt_coord(x), fmt_coord(y),
+                fmt_coord(x), fmt_coord(y + h),
+                fmt_coord(x), fmt_coord(y + h),
+                fmt_coord(x + w), fmt_coord(y + h),
+                fmt_coord(x + w), fmt_coord(y + h),
+                fmt_coord(x + w), fmt_coord(y + fold),
+                fmt_coord(x + w - fold), fmt_coord(y),
+                fmt_coord(ax + notch_half), fmt_coord(y),
+                fmt_coord(ax), fmt_coord(ay),
+                fmt_coord(ax - notch_half), fmt_coord(y),
+                fmt_coord(x), fmt_coord(y),
+                fmt_coord(x), fmt_coord(y),
             ),
             "bottom" => format!(
-                "M{},{} L{},{} L{},{} L{},{} L{},{} L{},{} L{},{} L{},{} L{},{}",
-                fmt_coord(x),
-                fmt_coord(y),
-                fmt_coord(x),
-                fmt_coord(y + h),
-                fmt_coord(ax - notch_half),
-                fmt_coord(y + h),
-                fmt_coord(ax),
-                fmt_coord(ay),
-                fmt_coord(ax + notch_half),
-                fmt_coord(y + h),
-                fmt_coord(x + w),
-                fmt_coord(y + h),
-                fmt_coord(x + w),
-                fmt_coord(y + fold),
-                fmt_coord(x + w - fold),
-                fmt_coord(y),
-                fmt_coord(x),
-                fmt_coord(y),
+                "M{},{} L{},{} A0,0 0 0 0 {},{} L{},{} L{},{} L{},{} L{},{} A0,0 0 0 0 {},{} L{},{} L{},{} L{},{} A0,0 0 0 0 {},{}",
+                fmt_coord(x), fmt_coord(y),
+                fmt_coord(x), fmt_coord(y + h),
+                fmt_coord(x), fmt_coord(y + h),
+                fmt_coord(ax - notch_half), fmt_coord(y + h),
+                fmt_coord(ax), fmt_coord(ay),
+                fmt_coord(ax + notch_half), fmt_coord(y + h),
+                fmt_coord(x + w), fmt_coord(y + h),
+                fmt_coord(x + w), fmt_coord(y + h),
+                fmt_coord(x + w), fmt_coord(y + fold),
+                fmt_coord(x + w - fold), fmt_coord(y),
+                fmt_coord(x), fmt_coord(y),
+                fmt_coord(x), fmt_coord(y),
             ),
             _ => format!(
-                "M{},{} L{},{} L{},{} L{},{} L{},{} L{},{} L{},{} L{},{} L{},{}",
-                fmt_coord(x),
-                fmt_coord(y),
-                fmt_coord(x),
-                fmt_coord(ay - notch_half),
-                fmt_coord(ax),
-                fmt_coord(ay),
-                fmt_coord(x),
-                fmt_coord(ay + notch_half),
-                fmt_coord(x),
-                fmt_coord(y + h),
-                fmt_coord(x + w),
-                fmt_coord(y + h),
-                fmt_coord(x + w),
-                fmt_coord(y + fold),
-                fmt_coord(x + w - fold),
-                fmt_coord(y),
-                fmt_coord(x),
-                fmt_coord(y),
+                "M{},{} L{},{} L{},{} L{},{} L{},{} A0,0 0 0 0 {},{} L{},{} A0,0 0 0 0 {},{} L{},{} L{},{} L{},{} A0,0 0 0 0 {},{}",
+                fmt_coord(x), fmt_coord(y),
+                fmt_coord(x), fmt_coord(ay - notch_half),
+                fmt_coord(ax), fmt_coord(ay),
+                fmt_coord(x), fmt_coord(ay + notch_half),
+                fmt_coord(x), fmt_coord(y + h),
+                fmt_coord(x), fmt_coord(y + h),
+                fmt_coord(x + w), fmt_coord(y + h),
+                fmt_coord(x + w), fmt_coord(y + h),
+                fmt_coord(x + w), fmt_coord(y + fold),
+                fmt_coord(x + w - fold), fmt_coord(y),
+                fmt_coord(x), fmt_coord(y),
+                fmt_coord(x), fmt_coord(y),
             ),
         }
     } else {
@@ -1190,9 +1124,9 @@ fn render_note(sg: &mut SvgGraphic, tracker: &mut BoundsTracker, note: &StateNot
         NOTE_BORDER,
     ));
 
-    // Fold corner path uses stroke-width:1 (Java default for note fold triangle).
+    // Fold corner path uses stroke-width:0.5 (same as note body).
     sg.push_raw(&format!(
-        r#"<path d="M{},{} L{},{} L{},{} L{},{}" fill="{}" style="stroke:{};stroke-width:1;"/>"#,
+        r#"<path d="M{},{} L{},{} L{},{} L{},{}" fill="{}" style="stroke:{};stroke-width:0.5;"/>"#,
         fmt_coord(x + w - fold),
         fmt_coord(y),
         fmt_coord(x + w - fold),
