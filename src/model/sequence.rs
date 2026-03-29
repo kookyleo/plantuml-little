@@ -39,7 +39,9 @@ pub enum SeqArrowStyle {
 #[derive(Debug, Clone, PartialEq, Default)]
 pub enum SeqArrowHead {
     #[default]
-    Filled, // > or / or \ — filled triangle or half-arrow
+    Filled,          // > — filled diamond arrowhead (4 points)
+    FilledHalfTop,   // \\ on right (or / on left) — filled top-half triangle
+    FilledHalfBottom, // / on right (or \\ on left) — filled bottom-half triangle
     Open,       // >> or << — open V-shaped head (2 lines)
     HalfTop,    // // — open half-arrow, upper line only
     HalfBottom, // \\ — open half-arrow, lower line only
@@ -71,6 +73,8 @@ pub struct Message {
     pub circle_to: bool,
     /// Teoz parallel message (& prefix): shares y position with previous tile
     pub parallel: bool,
+    /// Java isReverseDefine: controls self-message constraint direction
+    pub is_reverse_define: bool,
 }
 
 /// Combined fragment kind
