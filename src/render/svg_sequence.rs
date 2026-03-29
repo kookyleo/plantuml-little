@@ -1848,19 +1848,22 @@ fn draw_self_message(
     let ret_y = y + loop_height;
     if msg.is_left {
         // Left self-message: arrowhead points RIGHT at return
-        // Java: after extraline+x2 adjustments, tip_x = pos2 - 2 for NORMAL head
-        let tip_x = return_x - if msg.has_open_head { 0.0 } else { 1.0 };
+        // Java: tip is always 1px inset from the return line endpoint.
+        // For NORMAL head: extraline=1, so return line is 1px shorter → tip = return_x - 1.
+        // For ASYNC/open head: extraline=0, return line goes to return_x → tip = return_x - 1.
+        let tip_x = return_x - 1.0;
         if msg.has_open_head {
             // Top line of V (skip for HalfBottom)
+            // Java convention: x1=tip, x2=arm (tip→arm direction)
             if !matches!(msg.arrow_head, SeqArrowHead::HalfBottom) {
                 write!(
                     tmp,
-                    r#"<line style="stroke:{color};stroke-width:{sw};" x1="{ax}" x2="{tx}" y1="{y1}" y2="{y}"/>"#,
+                    r#"<line style="stroke:{color};stroke-width:{sw};" x1="{tx}" x2="{ax}" y1="{y}" y2="{y1}"/>"#,
                     color = arrow_color,
-                    ax = fmt_coord(tip_x - 10.0),
                     tx = fmt_coord(tip_x),
-                    y1 = fmt_coord(ret_y - 4.0),
+                    ax = fmt_coord(tip_x - 10.0),
                     y = fmt_coord(ret_y),
+                    y1 = fmt_coord(ret_y - 4.0),
                 )
                 .unwrap();
             }
@@ -1868,12 +1871,12 @@ fn draw_self_message(
             if !matches!(msg.arrow_head, SeqArrowHead::HalfTop) {
                 write!(
                     tmp,
-                    r#"<line style="stroke:{color};stroke-width:{sw};" x1="{ax}" x2="{tx}" y1="{y1}" y2="{y}"/>"#,
+                    r#"<line style="stroke:{color};stroke-width:{sw};" x1="{tx}" x2="{ax}" y1="{y}" y2="{y1}"/>"#,
                     color = arrow_color,
-                    ax = fmt_coord(tip_x - 10.0),
                     tx = fmt_coord(tip_x),
-                    y1 = fmt_coord(ret_y + 4.0),
+                    ax = fmt_coord(tip_x - 10.0),
                     y = fmt_coord(ret_y),
+                    y1 = fmt_coord(ret_y + 4.0),
                 )
                 .unwrap();
             }

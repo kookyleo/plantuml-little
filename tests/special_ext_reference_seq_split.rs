@@ -327,3 +327,68 @@ fn ext_ref_seq_teoz_alt_simple() {
         },
     );
 }
+
+#[test]
+#[ignore = "diagnostic: right self-message no activation"]
+fn ext_ref_seq_right_self_noact() {
+    assert_ext_reference_case(
+        "seq_right_self_noact",
+        "seq_ext_right_self_noact.puml",
+        CompareProfile {
+            normalize_ids: true,
+            strip_source_line: true,
+        },
+    );
+}
+
+#[test]
+#[ignore = "diagnostic: right self-message simple"]
+fn ext_ref_seq_right_self_simple() {
+    assert_ext_reference_case(
+        "seq_right_self_simple",
+        "seq_ext_right_self_simple.puml",
+        CompareProfile {
+            normalize_ids: true,
+            strip_source_line: true,
+        },
+    );
+}
+
+#[test]
+#[ignore = "diagnostic: left self-message with msg-attached activation"]
+fn ext_ref_seq_left_self_msgact() {
+    assert_ext_reference_case(
+        "seq_left_self_msgact",
+        "seq_ext_left_self_msgact.puml",
+        CompareProfile {
+            normalize_ids: true,
+            strip_source_line: true,
+        },
+    );
+}
+
+#[test]
+#[ignore = "diagnostic: left self-message simple"]
+fn ext_ref_seq_left_self_simple() {
+    assert_ext_reference_case(
+        "seq_left_self_simple",
+        "seq_ext_left_self_simple.puml",
+        CompareProfile {
+            normalize_ids: true,
+            strip_source_line: true,
+        },
+    );
+}
+
+#[test]
+#[ignore = "diagnostic: left self-message with activation"]
+fn ext_ref_seq_left_msg_active() {
+    assert_ext_reference_case(
+        "seq_left_msg_active",
+        "seq_ext_left_msg_active.puml",
+        CompareProfile {
+            normalize_ids: true,
+            strip_source_line: true,
+        },
+    );
+}

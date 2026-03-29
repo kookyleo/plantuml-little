@@ -1253,18 +1253,39 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
                         .events
                         .get(event_idx + 1)
                         .is_some_and(|e| matches!(e, SeqEvent::Activate(n, _) if n == &msg.from));
+                // Check if deactivation follows (next events before next message
+                // include Deactivate for this participant).
+                // Java: ComponentRoseSelfArrow deltaY += halfLifeWidth for deactivate.
+                let will_deactivate_self = is_self
+                    && sd.events[event_idx + 1..]
+                        .iter()
+                        .take_while(|e| !matches!(e, SeqEvent::Message(_)))
+                        .any(|e| matches!(e, SeqEvent::Deactivate(n) if n == &msg.from));
 
-                // When a non-activated self-message triggers an upcoming activate,
-                // shift the outgoing y up by ACTIVATION_WIDTH/2 so the return y
-                // aligns with the activation bar start position.
-                let msg_y = if is_self && will_activate && !is_activated {
-                    msg_y - ACTIVATION_WIDTH / 2.0
-                } else {
-                    msg_y
-                };
+                // Java deltaY adjustments for self-messages:
+                //   if isActivate:   deltaY -= halfLifeWidth (shift UP)
+                //   if isDeactivate: deltaY += halfLifeWidth (shift DOWN)
+                // Both can apply simultaneously.
+                // The shift affects RENDERING only (arrow/text position).
+                // Activation bar positions use the UNSHIFTED msg_y.
+                let mut self_delta_y = 0.0;
+                if is_self && will_activate && !is_activated {
+                    self_delta_y -= ACTIVATION_WIDTH / 2.0;
+                }
+                if is_self && will_deactivate_self {
+                    self_delta_y += ACTIVATION_WIDTH / 2.0;
+                }
+                // msg_y_unshifted: used for activation tracking, cursor advancement
+                let msg_y_unshifted = msg_y;
+                // msg_y: used for rendering (includes deltaY shift)
+                let msg_y = msg_y + self_delta_y;
 
                 let (self_from_x, self_return_x, self_to_x) = if is_self {
                     let has_bar = is_activated || will_activate;
+                    // For deactivating self-messages, the return arrow lands
+                    // BELOW the activation bar (due to deltaY shift), so use
+                    // lifeline center (no activation bar at return y).
+                    let has_bar_at_return = has_bar && !will_deactivate_self;
                     if is_left {
                         // Left self-message: arrow goes to the LEFT
                         let act_left = if has_bar {
@@ -1272,8 +1293,13 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
                         } else {
                             from_x
                         };
+                        let ret_edge = if has_bar_at_return {
+                            act_left
+                        } else {
+                            from_x
+                        };
                         let outgoing_x = if is_activated { act_left } else { from_x };
-                        let ret_x = act_left - 1.0;
+                        let ret_x = ret_edge - 1.0;
                         let to = act_left - SELF_MSG_WIDTH;
                         (outgoing_x, ret_x, to)
                     } else {
@@ -1283,8 +1309,13 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
                         } else {
                             from_x
                         };
+                        let ret_edge = if has_bar_at_return {
+                            act_right
+                        } else {
+                            from_x
+                        };
                         let outgoing_x = if is_activated { act_right } else { from_x };
-                        let ret_x = act_right + 1.0;
+                        let ret_x = ret_edge + 1.0;
                         let to = act_right + SELF_MSG_WIDTH;
                         (outgoing_x, ret_x, to)
                     }
@@ -1344,11 +1375,21 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
                 last_message_was_self = is_self;
                 last_message_extra_height = extra_height;
                 last_message_idx = Some(messages.len() - 1);
-                last_event_msg_y = Some(msg_y);
+                // For self-messages with deactivation, the activation bar end
+                // position in Java = posYendLevel which maps to msg_y + 1 in
+                // SVG coordinates. For non-self messages, msg_y_unshifted works.
+                if is_self && will_deactivate_self {
+                    last_event_msg_y = Some(msg_y + 1.0);
+                } else {
+                    last_event_msg_y = Some(msg_y_unshifted);
+                }
 
                 if is_self {
                     let return_y = msg_y + lp.self_msg_height;
-                    lifeline_extend_y = return_y + 18.0;
+                    // Lifeline extent uses unshifted position (deltaY only
+                    // affects rendering, not the tile's freeY advancement).
+                    let return_y_for_lifeline = msg_y_unshifted + lp.self_msg_height;
+                    lifeline_extend_y = return_y_for_lifeline + 18.0;
                     // Java: y advances by ComponentRoseSelfArrow.getPreferredHeight
                     // = textHeight + arrowDeltaY(4) + arrowOnlyHeight(13) + 2*paddingY(0)
                     // where textHeight = textBlockHeight + 2*marginY(1)
@@ -1371,7 +1412,10 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
                     last_self_msg_starting_y = msg_y - self_text_h - rose::ARROW_PADDING_Y;
                     last_self_msg_preferred_h = self_preferred_h;
                     y_cursor += self_preferred_h;
-                    pending_self_return_y.insert(msg.from.clone(), return_y);
+                    // Activation start uses unshifted return y (Java arrowYStartLevel
+                    // is based on startingY, not startingY+deltaY).
+                    let return_y_unshifted = msg_y_unshifted + lp.self_msg_height;
+                    pending_self_return_y.insert(msg.from.clone(), return_y_unshifted);
                 } else {
                     lifeline_extend_y = msg_y + 18.0;
                     y_cursor = msg_y + lp.message_spacing;

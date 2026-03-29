@@ -1,0 +1,5 @@
+@startuml
+activate Test
+Test <<-- Test : hello
+deactivate Test
+@enduml
