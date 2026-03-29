@@ -76,7 +76,10 @@ fn transition_key_layout(tr: &TransitionLayout) -> TransitionKey {
 }
 
 fn is_explicit_pass1_state(state: &State) -> bool {
-    !state.is_special && !is_special_render_kind(&state.kind) && state.explicit_source_line.is_some()
+    // All explicitly declared states (those with a source line from `state Foo` syntax)
+    // go into pass-1 order, regardless of kind (Choice, Fork, etc.).
+    // Only implicit special states (.start., .end.) are excluded.
+    !state.is_special && state.explicit_source_line.is_some()
 }
 
 fn build_java_state_render_plan(diagram: &StateDiagram, layout: &StateLayout) -> JavaStateRenderPlan {
