@@ -75,8 +75,19 @@ pub fn render_state(
 
     // Build state_id → ent_id mapping (pre-assign for ordering consistency).
     let mut ent_id_map: HashMap<String, String> = HashMap::new();
+
+    // Collect all states including composite children for ent_id assignment
+    fn collect_all_states<'a>(states: &'a [StateNodeLayout], out: &mut Vec<&'a StateNodeLayout>) {
+        for state in states {
+            out.push(state);
+            collect_all_states(&state.children, out);
+        }
+    }
+    let mut all_states_flat: Vec<&StateNodeLayout> = Vec::new();
+    collect_all_states(&layout.state_layouts, &mut all_states_flat);
+
     // Pass 1: assign ent_ids to regular entities first (matching Java order).
-    for state in &layout.state_layouts {
+    for state in &all_states_flat {
         if !state.is_initial
             && !state.is_final
             && !matches!(
@@ -96,7 +107,7 @@ pub fn render_state(
     }
     // Pass 2: assign ent_ids to special entities. For [*] initial states,
     // Java reuses the UID of the target entity from the first [*] transition.
-    for state in &layout.state_layouts {
+    for state in &all_states_flat {
         if state.is_initial
             || state.is_final
             || matches!(
@@ -124,7 +135,7 @@ pub fn render_state(
                 } else {
                     ent_id_map.insert(state.id.clone(), next_ent_id());
                 }
-            } else {
+            } else if !ent_id_map.contains_key(&state.id) {
                 ent_id_map.insert(state.id.clone(), next_ent_id());
             }
         }
@@ -312,7 +323,7 @@ fn render_state_node_with_parent(
             render_history(sg, tracker, node, border, font_color, true);
         }
         StateKind::End => {
-            render_final(sg, tracker, node);
+            render_final(sg, tracker, node, ent_id_map, parent_name);
         }
         StateKind::EntryPoint => {
             render_initial(sg, tracker, node, ent_id_map, parent_name);
@@ -324,7 +335,7 @@ fn render_state_node_with_parent(
             if node.is_initial {
                 render_initial(sg, tracker, node, ent_id_map, parent_name);
             } else if node.is_final {
-                render_final(sg, tracker, node);
+                render_final(sg, tracker, node, ent_id_map, parent_name);
             } else if node.is_composite {
                 render_composite(sg, tracker, node, bg, border, font_color, ent_id_map);
             } else {
@@ -377,18 +388,38 @@ fn render_initial(
 
 /// Final state: double circle (outer ring + inner filled)
 /// Java: EntityImageCircleEnd renders two UEllipses (outer 22x22 + inner 12x12)
-fn render_final(sg: &mut SvgGraphic, tracker: &mut BoundsTracker, node: &StateNodeLayout) {
+fn render_final(
+    sg: &mut SvgGraphic,
+    tracker: &mut BoundsTracker,
+    node: &StateNodeLayout,
+    ent_id_map: &HashMap<String, String>,
+    parent_name: Option<&str>,
+) {
     let cx = node.x + node.width / 2.0;
     let cy = node.y + node.height / 2.0;
+    let ent_id = ent_id_map
+        .get(&node.id)
+        .cloned()
+        .unwrap_or_else(|| next_ent_id());
+    // Java qualified name: ".end." for top-level, "Parent..end.Parent" for nested
+    let qname = match parent_name {
+        Some(p) => format!("{}..end.{}", p, p),
+        None => ".end.".to_string(),
+    };
+    let mut attrs = format!(r#" data-qualified-name="{}""#, xml_escape(&qname));
+    if let Some(sl) = node.source_line {
+        write!(attrs, r#" data-source-line="{}""#, sl).unwrap();
+    }
+    write!(attrs, r#" id="{}""#, ent_id).unwrap();
     // Outer ring: stroke only, no fill
     sg.push_raw(&format!(
-        r#"<ellipse cx="{}" cy="{}" fill="none" rx="11" ry="11" style="stroke:{INITIAL_FILL};stroke-width:1;"/>"#,
+        r#"<g class="end_entity"{attrs}><ellipse cx="{}" cy="{}" fill="none" rx="11" ry="11" style="stroke:{INITIAL_FILL};stroke-width:1;"/>"#,
         fmt_coord(cx),
         fmt_coord(cy),
     ));
     // Inner filled dot
     sg.push_raw(&format!(
-        r#"<ellipse cx="{}" cy="{}" fill="{INITIAL_FILL}" rx="6" ry="6" style="stroke:{INITIAL_FILL};stroke-width:1;"/>"#,
+        r#"<ellipse cx="{}" cy="{}" fill="{INITIAL_FILL}" rx="6" ry="6" style="stroke:{INITIAL_FILL};stroke-width:1;"/></g>"#,
         fmt_coord(cx),
         fmt_coord(cy),
     ));
@@ -700,10 +731,11 @@ fn render_composite(
     }
 
     // Render concurrent region separators (dashed lines)
+    // Java: ConcurrentStates renders separator as ULine with stroke(1.5) dashVisible=8 dashSpace=10
     for &sep_y in &node.region_separators {
         sg.set_stroke_color(Some(border));
-        sg.set_stroke_width(1.0, Some((6.0, 4.0)));
-        sg.svg_line(x + 4.0, sep_y, x + w - 4.0, sep_y, 0.0);
+        sg.set_stroke_width(1.5, Some((8.0, 10.0)));
+        sg.svg_line(x + 5.0, sep_y, x + w - 7.0, sep_y, 0.0);
     }
 }
 

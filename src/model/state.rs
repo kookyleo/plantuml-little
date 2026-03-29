@@ -58,6 +58,10 @@ pub struct Transition {
     pub label: String,
     /// Arrow style: `->` (solid) or `-->` (dashed) -- both rendered as solid in state diagrams
     pub dashed: bool,
+    /// Arrow length = number of dashes in the arrow symbol.
+    /// `->` = 1, `-->` = 2, `--->` = 3, etc.
+    /// Java uses this as graphviz `minlen = length - 1`.
+    pub length: usize,
     /// Source line number (0-based) where this transition was defined.
     pub source_line: Option<usize>,
 }

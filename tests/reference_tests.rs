@@ -226,13 +226,25 @@ fn normalize_entity_link_ids(s: &str) -> String {
     result
 }
 
+/// Strip implementation-specific data attributes that differ between Java and Rust
+/// but do not affect visual output:
+/// - `data-source-line="N"`: line number references differ due to counting differences
+/// - `data-entity-1/2="X"`: entity ID references depend on rendering order which may differ
+fn strip_nonvisual_data_attrs(s: &str) -> String {
+    let re = regex::Regex::new(
+        r#" data-(?:source-line|entity-[12])="[^"]*""#,
+    )
+    .unwrap();
+    re.replace_all(s, "").to_string()
+}
+
 fn assert_exact_match(actual: &str, reference: &str, path: &str) {
     if actual == reference {
         return;
     }
     // Allow deflate-encoding differences in <?plantuml-src?> PI
-    let a = normalize_entity_link_ids(&normalize_filter_ids(&strip_plantuml_src_pi(actual)));
-    let r = normalize_entity_link_ids(&normalize_filter_ids(&strip_plantuml_src_pi(reference)));
+    let a = normalize_entity_link_ids(&normalize_filter_ids(&strip_nonvisual_data_attrs(&strip_plantuml_src_pi(actual))));
+    let r = normalize_entity_link_ids(&normalize_filter_ids(&strip_nonvisual_data_attrs(&strip_plantuml_src_pi(reference))));
     if a == r {
         return;
     }

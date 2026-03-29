@@ -100,8 +100,13 @@ const STATE_DESC_FONT_SIZE: f64 = 12.0;
 /// Minimum state dimensions matching Java PlantUML defaults.
 const STATE_MIN_WIDTH: f64 = 50.0;
 const STATE_MIN_HEIGHT: f64 = 50.0;
-/// Vertical gap between rows of states (includes arrow space).
+/// Vertical gap between rows of states (includes arrow space) — for outer layout.
 const STATE_SPACING: f64 = 50.0;
+/// Graphviz default ranksep (0.5 inches = 36pt) — used for inner composite layouts
+/// where Java's inner graphviz runs with default parameters (no ranksep= directive).
+const INNER_RANKSEP: f64 = 36.0;
+/// Graphviz default nodesep (0.25 inches = 18pt) — used for inner composite layouts.
+const INNER_NODESEP: f64 = 18.0;
 const SPECIAL_STATE_RADIUS: f64 = 10.0;
 /// Java: IEntityImage.MARGIN (padding around inner content).
 const IE_MARGIN: f64 = 5.0;
@@ -587,11 +592,22 @@ fn compute_state_node(
         }
 
         // Java: InnerStateAutonom.calculateDimensionSlow()
-        //   dim = title.mergeTB(attr, innerImage)  →  max(title_w, inner_w)
-        //   result = dim.delta(2*MARGIN + 2*MARGIN_LINE)  →  max_w + 20
-        // inner_w ≈ graphviz cluster interior (children + cluster margin 8pt per side)
-        let inner_img_w = total_child_w + 2.0 * 8.0; // graphviz cluster default margin = 8pt
-        let inner_height = total_child_h + composite_height_overhead();
+        //   inner_img = SvekResult.calculateDimension() = lf_span + delta(15, 15)
+        //   dim = title.mergeTB(attr, inner_img)  →  (max(title_w, inner_w), title_h + inner_h)
+        //   result = dim.delta(2*MARGIN + 2*MARGIN_LINE)  →  (dim_w + 20, dim_h + 20)
+        // Total: composite_h = title_h + (total_child_h + 15) + 20 = total_child_h + title_h + 35
+        // Java SvekResult.calculateDimension() adds delta(15,15) to lf_span.
+        // Our total_child_h/w is bounding-box based (slightly larger than lf_span
+        // which uses LimitFinder -1 corrections on rect bottom/right).
+        // Width: use 15 (rect -1 correction on right edge already matches Java's addPoint(x+w-1))
+        // Height: use 14 (rect -1 correction on bottom edge means our height is 1px more than lf_span)
+        // Width: total_child_w approximates lf_span but is ~2px less due to LF corrections
+        // (rect -1 on left, circle no correction). Use +16 to compensate.
+        // Height: total_child_h is ~1px more than lf_span_h due to rect -1 on bottom.
+        // Use +14 (= delta(15) - 1px LF correction).
+        let inner_img_w = total_child_w + 16.0;
+        let inner_img_h = total_child_h + 14.0;
+        let inner_height = inner_img_h + composite_height_overhead();
 
         let name_w = text_width(&state.name, STATE_NAME_FONT_SIZE);
         let merged_w = inner_img_w.max(name_w);
@@ -904,6 +920,28 @@ fn layout_states_ranked(
     start_x: f64,
     start_y: f64,
 ) -> (Vec<StateNodeLayout>, f64, f64) {
+    layout_states_ranked_with_spacing(
+        states,
+        transitions,
+        initial_ids,
+        final_ids,
+        start_x,
+        start_y,
+        INNER_RANKSEP,
+        INNER_NODESEP,
+    )
+}
+
+fn layout_states_ranked_with_spacing(
+    states: &[State],
+    transitions: &[Transition],
+    initial_ids: &HashSet<String>,
+    final_ids: &HashSet<String>,
+    start_x: f64,
+    start_y: f64,
+    ranksep: f64,
+    nodesep: f64,
+) -> (Vec<StateNodeLayout>, f64, f64) {
     if states.is_empty() {
         return (Vec::new(), 0.0, 0.0);
     }
@@ -943,7 +981,7 @@ fn layout_states_ranked(
             .map(|&i| sized_entries[i].2)
             .fold(0.0_f64, f64::max);
         let row_width: f64 = row_entries.iter().map(|&i| sized_entries[i].1).sum::<f64>()
-            + STATE_SPACING * (row_entries.len() as f64 - 1.0).max(0.0);
+            + nodesep * (row_entries.len() as f64 - 1.0).max(0.0);
 
         total_width = total_width.max(row_width);
 
@@ -954,17 +992,17 @@ fn layout_states_ranked(
             // Vertically center within the row
             let y_offset = (row_height - h) / 2.0;
             positioned[idx] = Some((x_cursor, y_cursor + y_offset));
-            x_cursor += w + STATE_SPACING;
+            x_cursor += w + nodesep;
         }
 
-        y_cursor += row_height + STATE_SPACING;
+        y_cursor += row_height + ranksep;
     }
 
     // Remove trailing spacing
     let total_height = if ranks.is_empty() {
         0.0
     } else {
-        y_cursor - start_y - STATE_SPACING
+        y_cursor - start_y - ranksep
     };
 
     // Center each row within the total width
@@ -973,7 +1011,7 @@ fn layout_states_ranked(
             .iter()
             .map(|&i| sized_entries[i].1)
             .sum::<f64>()
-            + STATE_SPACING * (rank_indices.len() as f64 - 1.0).max(0.0);
+            + nodesep * (rank_indices.len() as f64 - 1.0).max(0.0);
         let offset = (total_width - row_width) / 2.0;
         if offset > 0.5 {
             for &idx in rank_indices {
@@ -1022,6 +1060,157 @@ fn layout_states_ranked(
     }
 
     (nodes, total_width, total_height)
+}
+
+/// Layout composite children using Graphviz, matching Java's approach of running
+/// a separate graphviz pass for each composite state's inner content.
+///
+/// Returns `(laid_out_nodes, content_width, content_height)` where positions are
+/// relative to (0, 0) in the composite's inner space.
+fn layout_children_with_graphviz(
+    states: &[State],
+    transitions: &[Transition],
+    initial_ids: &HashSet<String>,
+    final_ids: &HashSet<String>,
+) -> (Vec<StateNodeLayout>, f64, f64) {
+    if states.is_empty() {
+        return (Vec::new(), 0.0, 0.0);
+    }
+
+    // Compute sizes for all child states
+    let mut sized_map: HashMap<String, (StateNodeLayout, f64, f64)> = HashMap::new();
+    for state in states {
+        let (node, w, h) = compute_state_node(state, transitions, initial_ids, final_ids);
+        sized_map.insert(state.id.clone(), (node, w, h));
+    }
+
+    // Build graphviz nodes
+    let mut gv_nodes: Vec<LayoutNode> = Vec::new();
+    let mut node_id_order: Vec<String> = Vec::new();
+    for state in states {
+        let (_, w, h) = sized_map.get(&state.id).unwrap();
+        let is_circle = state.is_special
+            || matches!(
+                state.kind,
+                StateKind::History
+                    | StateKind::DeepHistory
+                    | StateKind::EntryPoint
+                    | StateKind::ExitPoint
+                    | StateKind::End
+            );
+        let shape = if is_circle {
+            Some(crate::svek::shape_type::ShapeType::Circle)
+        } else {
+            None
+        };
+        gv_nodes.push(LayoutNode {
+            id: state.id.clone(),
+            label: state.name.clone(),
+            width_pt: *w,
+            height_pt: *h,
+            shape,
+            shield: None,
+            entity_position: None,
+            max_label_width: None,
+            order: Some(node_id_order.len()),
+            image_width_pt: None,
+            lf_extra_left: 0.0,
+            lf_rect_correction: !is_circle,
+        });
+        node_id_order.push(state.id.clone());
+    }
+
+    // Build graphviz edges for transitions involving only these child states
+    let child_ids: HashSet<&str> = states.iter().map(|s| s.id.as_str()).collect();
+    let mut gv_edges: Vec<LayoutEdge> = Vec::new();
+    for tr in transitions {
+        if child_ids.contains(tr.from.as_str()) && child_ids.contains(tr.to.as_str()) {
+            gv_edges.push(LayoutEdge {
+                from: tr.from.clone(),
+                to: tr.to.clone(),
+                label: if tr.label.is_empty() {
+                    None
+                } else {
+                    Some(tr.label.clone())
+                },
+                tail_label: None,
+                tail_label_boxed: false,
+                head_label: None,
+                head_label_boxed: false,
+                tail_decoration: crate::svek::edge::LinkDecoration::None,
+                head_decoration: crate::svek::edge::LinkDecoration::None,
+                line_style: crate::svek::edge::LinkStyle::Normal,
+                minlen: if tr.length > 0 { (tr.length - 1) as u32 } else { 0 },
+                invisible: false,
+            });
+        }
+    }
+
+    let graph = LayoutGraph {
+        nodes: gv_nodes,
+        edges: gv_edges,
+        clusters: vec![],
+        rankdir: RankDir::TopToBottom,
+        use_simplier_dot_link_strategy: false,
+    };
+
+    // Run graphviz for inner composite content
+    let gv_layout = match graphviz::layout_with_svek(&graph) {
+        Ok(layout) => {
+            log::debug!(
+                "inner graphviz: {}x{}, lf_span=({:.1},{:.1}), move_delta=({:.1},{:.1})",
+                layout.total_width, layout.total_height,
+                layout.lf_span.0, layout.lf_span.1,
+                layout.move_delta.0, layout.move_delta.1,
+            );
+            layout
+        }
+        Err(e) => {
+            log::warn!("graphviz inner layout failed: {e}, falling back to ranked layout");
+            return layout_states_ranked(states, transitions, initial_ids, final_ids, 0.0, 0.0);
+        }
+    };
+
+    // Use the render_offset (Java moveDelta margin) to shift coordinates
+    let margin_x = gv_layout.render_offset.0;
+    let margin_y = gv_layout.render_offset.1;
+
+    // Convert graphviz results to child node positions (relative to origin)
+    let mut nodes = Vec::new();
+    for gv_node in &gv_layout.nodes {
+        if let Some((template, _w, _h)) = sized_map.remove(&gv_node.id) {
+            // Use margin offsets matching Java's moveDelta for inner image
+            let x = gv_node.cx - gv_node.width / 2.0 + margin_x;
+            let y = gv_node.cy - gv_node.height / 2.0 + margin_y;
+            let w = gv_node.width;
+            let h = gv_node.height;
+
+            let mut node = template;
+            node.x = x;
+            node.y = y;
+            node.width = w;
+            node.height = h;
+
+            // For nested composites, offset children
+            if node.is_composite {
+                let child_offset_x = x + COMPOSITE_PADDING;
+                let child_offset_y = y + composite_inner_y_offset();
+                offset_children(&mut node.children, child_offset_x, child_offset_y);
+                for sep_y in &mut node.region_separators {
+                    *sep_y += child_offset_y;
+                }
+            }
+
+            nodes.push(node);
+        }
+    }
+
+    // Use LimitFinder span for the inner image dimensions, matching
+    // Java's SvekResult.calculateDimension() = minMax.getDimension().
+    let inner_w = gv_layout.lf_span.0;
+    let inner_h = gv_layout.lf_span.1;
+
+    (nodes, inner_w, inner_h)
 }
 
 /// Recursively offset children's positions from relative (0,0) to absolute.
@@ -1268,7 +1457,7 @@ pub fn layout_state(diagram: &StateDiagram) -> Result<StateLayout> {
             tail_decoration: crate::svek::edge::LinkDecoration::None,
             head_decoration: crate::svek::edge::LinkDecoration::None,
             line_style: crate::svek::edge::LinkStyle::Normal,
-            minlen: 1,
+            minlen: if tr.length > 0 { (tr.length - 1) as u32 } else { 0 },
             invisible: false,
         });
     }
@@ -1407,10 +1596,16 @@ pub fn layout_state(diagram: &StateDiagram) -> Result<StateLayout> {
             node.width = w;
             node.height = h;
 
-            // For composite states, recursively layout children within the bounds
+            // For composite states, recursively layout children within the bounds.
+            // Java's InnerStateAutonom.drawU translates by (MARGIN, spaceYforURL),
+            // then the inner SvekResult applies moveDelta(6 - LF_min). The inner
+            // moveDelta.y adds ~6px for circle-topped layouts or ~7 for rect-topped.
             if node.is_composite {
+                let has_circle_child =
+                    node.children.iter().any(|c| c.is_initial || c.is_final);
+                let inner_margin = if has_circle_child { 6.0 } else { MARGIN };
                 let child_offset_x = x + COMPOSITE_PADDING;
-                let child_offset_y = y + composite_inner_y_offset();
+                let child_offset_y = y + composite_inner_y_offset() + inner_margin;
                 offset_children(&mut node.children, child_offset_x, child_offset_y);
                 for sep_y in &mut node.region_separators {
                     *sep_y += child_offset_y;
@@ -1826,6 +2021,7 @@ mod tests {
             to: to.to_string(),
             label: label.to_string(),
             dashed: false,
+            length: 2,
             source_line: None,
         }
     }

@@ -758,6 +758,7 @@ fn try_parse_transition(line: &str) -> Option<Transition> {
         to: to_id,
         label,
         dashed,
+        length: dashes,
         source_line: None, // set by caller
     })
 }
