@@ -1278,19 +1278,46 @@ fn layout_transitions(
         let to_cx = to_x + to_w / 2.0;
         let to_cy = to_y + to_h / 2.0;
 
-        let points = if (from_cy - to_cy).abs() < 1.0 {
+        // Build connection points and Bezier path matching Java's graphviz output.
+        // Java uses raw graphviz Bezier curves; we generate synthetic cubic Beziers
+        // that approximate the same shape for vertical/horizontal connections.
+        let (points, raw_path_d) = if (from_cy - to_cy).abs() < 1.0 {
             // Horizontal: connect right-center to left-center
-            if from_cx < to_cx {
-                vec![(from_x + from_w, from_cy), (to_x, to_cy)]
+            let (start, end) = if from_cx < to_cx {
+                ((from_x + from_w, from_cy), (to_x, to_cy))
             } else {
-                vec![(from_x, from_cy), (to_x + to_w, to_cy)]
-            }
+                ((from_x, from_cy), (to_x + to_w, to_cy))
+            };
+            (vec![start, end], None)
         } else if to_cy > from_cy {
             // Target is below: bottom-center to top-center
-            vec![(from_cx, from_y + from_h), (to_cx, to_y)]
+            let sx = from_cx;
+            let sy = from_y + from_h;
+            let ex = to_cx;
+            let ey = to_y;
+            let dy = ey - sy;
+            // Generate Bezier control points that approximate graphviz curve shape
+            let cy1 = sy + dy * 0.25;
+            let cy2 = sy + dy * 0.50;
+            let raw = format!(
+                "M{},{} C{},{} {},{} {},{}",
+                crate::klimt::svg::fmt_coord(sx),
+                crate::klimt::svg::fmt_coord(sy),
+                crate::klimt::svg::fmt_coord(sx),
+                crate::klimt::svg::fmt_coord(cy1),
+                crate::klimt::svg::fmt_coord(ex),
+                crate::klimt::svg::fmt_coord(cy2),
+                crate::klimt::svg::fmt_coord(ex),
+                crate::klimt::svg::fmt_coord(ey),
+            );
+            (vec![(sx, sy), (ex, ey)], Some(raw))
         } else {
             // Target is above: top-center to bottom-center
-            vec![(from_cx, from_y), (to_cx, to_y + to_h)]
+            let sx = from_cx;
+            let sy = from_y;
+            let ex = to_cx;
+            let ey = to_y + to_h;
+            (vec![(sx, sy), (ex, ey)], None)
         };
 
         log::debug!(
@@ -1306,7 +1333,7 @@ fn layout_transitions(
             to_id: tr.to.clone(),
             label: tr.label.clone(),
             points,
-            raw_path_d: None,
+            raw_path_d,
             arrow_polygon: None,
             label_xy: None,
             label_wh: None,

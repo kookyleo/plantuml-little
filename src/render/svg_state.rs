@@ -725,7 +725,7 @@ fn render_composite(
             bg,
             border,
             font_color,
-            &HashMap::new(),
+            ent_id_map,
             Some(&node.name),
         );
     }
