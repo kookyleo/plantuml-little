@@ -259,10 +259,11 @@ pub fn arrow_y_point(text: &TextMetrics, below_for_response: bool) -> f64 {
 }
 
 /// Y point for self-arrow. Java: `ComponentRoseSelfArrow.getYPoint`
+/// Note: Java uses `getPaddingX() = 0` here (NOT `ARROW_PADDING_X`).
 pub fn self_arrow_y_point(text: &TextMetrics) -> f64 {
     let text_h = text.text_height();
     let text_and_arrow_h = text_h + SELF_ARROW_ONLY_HEIGHT;
-    (text_h + text_and_arrow_h) / 2.0 + ARROW_PADDING_X
+    (text_h + text_and_arrow_h) / 2.0
 }
 
 /// Start/end points for a normal arrow.
@@ -2048,7 +2049,8 @@ mod tests {
         let tm = make_text(30.0, 14.0);
         let y = self_arrow_y_point(&tm);
         let th = tm.text_height();
-        let expected = (th + th + SELF_ARROW_ONLY_HEIGHT) / 2.0 + ARROW_PADDING_X;
+        // Java: getPaddingX() = 0 for ComponentRoseSelfArrow
+        let expected = (th + th + SELF_ARROW_ONLY_HEIGHT) / 2.0;
         assert_eq!(y, expected);
     }
 

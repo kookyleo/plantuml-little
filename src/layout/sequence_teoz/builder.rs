@@ -274,10 +274,11 @@ impl TeozTile {
             }
             Self::SelfMessage { height, .. } => {
                 // height = tm.text_height() + ARROW_DELTA_Y + SELF_ARROW_ONLY_HEIGHT + 2*ARROW_PADDING_Y
-                // contact = tm.text_height() + SELF_ARROW_ONLY_HEIGHT/2 + ARROW_PADDING_X
+                // Java: contact = getYPoint = (text_h + text_h + arrowOnly) / 2 + getPaddingX()
+                // getPaddingX() = 0 for ComponentRoseSelfArrow (not ARROW_PADDING_X)
                 let tm_text_h = height - rose::ARROW_DELTA_Y - rose::SELF_ARROW_ONLY_HEIGHT
                     - 2.0 * rose::ARROW_PADDING_Y;
-                tm_text_h + rose::SELF_ARROW_ONLY_HEIGHT / 2.0 + rose::ARROW_PADDING_X
+                tm_text_h + rose::SELF_ARROW_ONLY_HEIGHT / 2.0
             }
             _ => 0.0,
         }
@@ -580,7 +581,8 @@ fn estimate_note_width(text: &str) -> f64 {
 
 /// Compute per-fragment (min_x, max_x) extent from child tiles within the
 /// range [start_idx..end_idx) in raw coordinate space.
-/// This matches Java GroupingTile which computes its own min/max from children.
+/// This matches Java GroupingTile which computes its own min/max from children,
+/// recursively including nested fragment extents.
 fn compute_fragment_extent(
     tiles: &[TeozTile],
     start_idx: usize,
@@ -591,24 +593,60 @@ fn compute_fragment_extent(
 ) -> (f64, f64) {
     let mut fmin = f64::MAX;
     let mut fmax = f64::MIN;
-    let mut nested_depth: usize = 0;
+    let mut i = start_idx;
 
-    for i in start_idx..end_idx {
+    while i < end_idx {
         let tile = &tiles[i];
         match tile {
             TeozTile::FragmentStart { .. } | TeozTile::GroupStart { .. } => {
-                nested_depth += 1;
+                // Recursively compute nested fragment extent.
+                // Find matching end by counting depth.
+                let nested_start = i + 1;
+                let mut depth = 1usize;
+                let mut nested_end = i + 1;
+                while nested_end < end_idx && depth > 0 {
+                    match &tiles[nested_end] {
+                        TeozTile::FragmentStart { .. } | TeozTile::GroupStart { .. } => {
+                            depth += 1;
+                        }
+                        TeozTile::FragmentEnd { .. } | TeozTile::GroupEnd { .. } => {
+                            depth -= 1;
+                        }
+                        _ => {}
+                    }
+                    nested_end += 1;
+                }
+                // nested_end is now past the matching end tile
+                let (child_min, child_max) =
+                    compute_fragment_extent(tiles, nested_start, nested_end - 1, livings, rl, tp);
+                // Add MARGINX for this child within the parent group
+                let child_with_margin_min = child_min - GROUP_MARGINX;
+                let child_with_margin_max = child_max + GROUP_MARGINX;
+                if child_with_margin_min < fmin {
+                    fmin = child_with_margin_min;
+                }
+                if child_with_margin_max > fmax {
+                    fmax = child_with_margin_max;
+                }
+                // Also include the nested fragment's header label width
+                if let TeozTile::FragmentStart { label, .. } = tile {
+                    let pure_text_w = crate::font_metrics::text_width(
+                        label,
+                        "sans-serif",
+                        13.0,
+                        true,
+                        false,
+                    );
+                    let header_right = child_min + pure_text_w + 45.0 + GROUP_MARGINX;
+                    if header_right > fmax {
+                        fmax = header_right;
+                    }
+                }
+                i = nested_end;
                 continue;
             }
             TeozTile::FragmentEnd { .. } | TeozTile::GroupEnd { .. } => {
-                if nested_depth > 0 {
-                    nested_depth -= 1;
-                }
-                continue;
-            }
-            _ if nested_depth > 0 => {
-                // Skip nested fragment children — they contribute through
-                // the nested fragment's own extent (handled by recursive layout).
+                i += 1;
                 continue;
             }
             _ => {}
@@ -716,6 +754,31 @@ fn compute_fragment_extent(
             }
             _ => {}
         }
+        i += 1;
+    }
+
+    // Collect fragment separator (else) labels for width contribution.
+    // Java: ElseTile.getMaxX() = parent.getMinX() + elseComponentWidth
+    // where elseComponentWidth = pureTextWidth + marginX1(5) + marginX2(5)
+    let mut else_labels: Vec<String> = Vec::new();
+    {
+        let mut sep_depth: usize = 0;
+        for j in start_idx..end_idx {
+            match &tiles[j] {
+                TeozTile::FragmentStart { .. } | TeozTile::GroupStart { .. } => {
+                    sep_depth += 1;
+                }
+                TeozTile::FragmentEnd { .. } | TeozTile::GroupEnd { .. } => {
+                    if sep_depth > 0 {
+                        sep_depth -= 1;
+                    }
+                }
+                TeozTile::FragmentSeparator { label, .. } if sep_depth == 0 => {
+                    else_labels.push(label.clone());
+                }
+                _ => {}
+            }
+        }
     }
 
     // Fallback if no children found
@@ -730,6 +793,22 @@ fn compute_fragment_extent(
     fmin -= GROUP_MARGINX;
     fmax += GROUP_MARGINX;
 
+    // Add else separator width contributions.
+    // Java: ElseTile.getMaxX() = parent.getMinX() + elseComponentWidth
+    // parent.getMinX() = this.min = fmin (after MARGINX)
+    // Java ComponentRoseGroupingElse wraps label in brackets: "[label]"
+    // and uses marginX1=5, marginX2=5, 11pt bold font.
+    for label in &else_labels {
+        let bracket_label = format!("[{}]", label);
+        let pure_text_w =
+            crate::font_metrics::text_width(&bracket_label, "sans-serif", 11.0, true, false);
+        // Java ComponentRoseGroupingElse: marginX1=5, marginX2=5
+        let else_width = pure_text_w + 10.0;
+        let else_max = fmin + else_width;
+        if else_max > fmax {
+            fmax = else_max;
+        }
+    }
     (fmin, fmax)
 }
 
@@ -1429,12 +1508,21 @@ pub fn build_teoz_layout(sd: &SequenceDiagram, skin: &SkinParams) -> Result<SeqL
                 // Compute effective previous height without trailing padding.
                 let trailing_padding = FRAG_BOTTOM_PADDING + EMPTY_TILE_SPACING; // 10 + 4 = 14
                 let prev_effective = block_max_height - trailing_padding;
+                // Java TileParallel contact-point alignment: when a fragment
+                // (contactPointRelative = 0) is parallel with message tiles
+                // (contactPointRelative = height - 8), the fragment is shifted
+                // down by the max message contact point so their baselines align.
+                let max_msg_contact: f64 = parallel_block_tile_indices
+                    .iter()
+                    .map(|&i| tiles[i].contact_point_relative())
+                    .fold(0.0_f64, f64::max);
                 parallel_frag_base_y = Some(bs_y);
                 parallel_frag_prev_height = prev_effective;
                 parallel_frag_depth = 1; // this fragment's own depth
-                                         // Rewind to block start. No EmptyTile(4) before parallel fragment
+                                         // Rewind to block start + contact shift.
+                                         // No EmptyTile(4) before parallel fragment
                                          // (Java removeEmptyCloseToParallel removes it).
-                y = bs_y;
+                y = bs_y + max_msg_contact;
                 frag_depth += 1;
                 tiles[tile_idx].set_y(y);
                 let tile_h = tiles[tile_idx].preferred_height();
@@ -1564,7 +1652,7 @@ pub fn build_teoz_layout(sd: &SequenceDiagram, skin: &SkinParams) -> Result<SeqL
                     // Current fragment height from base, excluding trailing padding.
                     // y already includes FRAG_BOTTOM_PADDING(10) added above;
                     // exclude it along with this tile's height (EmptyTile equivalent).
-                    let trailing_padding = FRAG_BOTTOM_PADDING + tiles[tile_idx].preferred_height();
+                    let _trailing_padding = FRAG_BOTTOM_PADDING + tiles[tile_idx].preferred_height();
                     let this_frag_height = y - base_y; // y includes the 10px padding
                     let this_effective = this_frag_height - FRAG_BOTTOM_PADDING;
                     // Use max of previous block height and this parallel fragment height
@@ -1572,10 +1660,12 @@ pub fn build_teoz_layout(sd: &SequenceDiagram, skin: &SkinParams) -> Result<SeqL
                     // After the parallel block, add back the trailing padding so
                     // subsequent normal tiles have correct spacing.
                     y = base_y + max_height + FRAG_BOTTOM_PADDING;
-                    // Set block tracking for potential subsequent parallel blocks
+                    // Set block tracking for potential subsequent parallel blocks.
+                    // Java removeEmptyCloseToParallel strips the trailing
+                    // EmptyTile(4) when a subsequent parallel tile follows, so
+                    // block_max_height should NOT include EMPTY_TILE_SPACING.
                     block_start_y = Some(base_y);
-                    // block_max_height includes trailing padding for subsequent parallelism
-                    block_max_height = max_height + FRAG_BOTTOM_PADDING + EMPTY_TILE_SPACING;
+                    block_max_height = max_height + FRAG_BOTTOM_PADDING;
                     frag_block_y_before = Some(base_y);
                     // Place the FragEnd tile at the appropriate position
                     tiles[tile_idx].set_y(y);
@@ -1812,6 +1902,7 @@ pub fn build_teoz_layout(sd: &SequenceDiagram, skin: &SkinParams) -> Result<SeqL
         ) -> (f64, f64, usize) {
             let mut group_min = f64::MAX;
             let mut group_max = f64::MIN;
+            let mut else_labels: Vec<String> = Vec::new();
             let mut i = start;
             while i < tiles.len() {
                 match &tiles[i] {
@@ -1837,6 +1928,26 @@ pub fn build_teoz_layout(sd: &SequenceDiagram, skin: &SkinParams) -> Result<SeqL
                         }
                         if group_max == f64::MIN {
                             group_max = 0.0;
+                        }
+                        // Java: else tiles contribute to maxX via
+                        // ElseTile.getMaxX() = parent.getMinX() + elseWidth
+                        // parent.getMinX() = group_min - EXTERNAL_MARGINX1
+                        eprintln!("[GRP-EXT-END] i={i} else_count={} group_min={group_min:.4} group_max={group_max:.4}", else_labels.len());
+                        for label in &else_labels {
+                            let bracket_label = format!("[{}]", label);
+                            let pure_text_w = crate::font_metrics::text_width(
+                                &bracket_label,
+                                "sans-serif",
+                                11.0,
+                                true,
+                                false,
+                            );
+                            let else_width = pure_text_w + 10.0; // marginX1(5) + marginX2(5)
+                            let else_max =
+                                (group_min - GROUP_EXTERNAL_MARGINX1) + else_width;
+                            if else_max > group_max {
+                                group_max = else_max;
+                            }
                         }
                         return (
                             group_min - GROUP_EXTERNAL_MARGINX1,
@@ -1925,10 +2036,10 @@ pub fn build_teoz_layout(sd: &SequenceDiagram, skin: &SkinParams) -> Result<SeqL
                         }
                     }
 
-                    TeozTile::FragmentSeparator { .. } => {
+                    TeozTile::FragmentSeparator { label, .. } => {
                         // Java: else tiles contribute only to maxX, not to minX
-                        // (handled by the parent group's allElses list)
-                        // For simplicity, we skip separators in extent calc
+                        // Collected and processed at the GroupEnd/FragmentEnd
+                        else_labels.push(label.clone());
                     }
                     _ => {}
                 }

@@ -1,0 +1,10 @@
+@startuml
+!pragma teoz true
+    opt
+        A->B: message
+    end
+    & opt
+        C->D: message
+    end
+    B -[hidden]-> C: "              "
+@enduml

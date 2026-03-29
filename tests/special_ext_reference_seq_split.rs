@@ -249,3 +249,81 @@ fn ext_ref_seq_half_arrow_filled() {
         },
     );
 }
+
+#[test]
+#[ignore = "diagnostic: teoz opt/alt nested fragment parallel with self-msg"]
+fn ext_ref_seq_teoz_opt_alt_par() {
+    assert_ext_reference_case(
+        "seq_teoz_opt_alt_par",
+        "seq_ext_teoz_opt_alt_par.puml",
+        CompareProfile {
+            normalize_ids: true,
+            strip_source_line: true,
+        },
+    );
+}
+
+#[test]
+#[ignore = "diagnostic: teoz self-message parallel with nested fragment"]
+fn ext_ref_seq_teoz_self_par_nested() {
+    assert_ext_reference_case(
+        "seq_teoz_self_par_nested",
+        "seq_ext_teoz_self_par_nested.puml",
+        CompareProfile {
+            normalize_ids: true,
+            strip_source_line: true,
+        },
+    );
+}
+
+#[test]
+#[ignore = "diagnostic: teoz simplest parallel fragment pair"]
+fn ext_ref_seq_teoz_par_frag_simple() {
+    assert_ext_reference_case(
+        "seq_teoz_par_frag_simple",
+        "seq_ext_teoz_par_frag_simple.puml",
+        CompareProfile {
+            normalize_ids: true,
+            strip_source_line: true,
+        },
+    );
+}
+
+#[test]
+#[ignore = "diagnostic: teoz parallel fragment pairs"]
+fn ext_ref_seq_teoz_par_frag() {
+    assert_ext_reference_case(
+        "seq_teoz_par_frag",
+        "seq_ext_teoz_par_frag.puml",
+        CompareProfile {
+            normalize_ids: true,
+            strip_source_line: true,
+        },
+    );
+}
+
+#[test]
+#[ignore = "diagnostic: teoz alt followed by parallel self-message"]
+fn ext_ref_seq_teoz_alt_par_self() {
+    assert_ext_reference_case(
+        "seq_teoz_alt_par_self",
+        "seq_ext_teoz_alt_par_self.puml",
+        CompareProfile {
+            normalize_ids: true,
+            strip_source_line: true,
+        },
+    );
+}
+
+#[test]
+#[ignore = "diagnostic: teoz alt/else/par fragment height"]
+fn ext_ref_seq_teoz_alt_simple() {
+    assert_ext_reference_case(
+        "seq_teoz_alt_simple",
+        "seq_ext_teoz_alt_simple.puml",
+        CompareProfile {
+            normalize_ids: true,
+            strip_source_line: true,
+        },
+    );
+}

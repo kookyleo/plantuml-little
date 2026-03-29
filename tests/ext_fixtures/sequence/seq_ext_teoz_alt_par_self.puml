@@ -1,0 +1,15 @@
+@startuml
+!pragma teoz true
+
+participant "Random Name" as foo
+
+hide footbox
+
+    alt REQUEST
+        bossrpcp ->B : request
+    else RESPONSE
+        bossrpcp -> bossrpcp : respond
+    end
+& foo -> foo : test
+
+@enduml
