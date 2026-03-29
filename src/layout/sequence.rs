@@ -2108,17 +2108,51 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
 
     // Expand total_width if any note extends beyond the participant area.
     // For self-message RIGHT notes, Java ArrowAndNoteBox uses the combined
-    // tile width (arrowW + notePW + rightShift).
+    // tile width (arrowW + notePW + rightShift), plus the Puma right margin.
+    // Java: endX = arrow.startingX + arrowPW + notePW + noteRightShift
+    //       freeX = max(freeX, endX) ; SVG = freeX + defaultMargins.right(5)
+    // Our initial total_width already includes an extra MARGIN(5) over Java's
+    // initial freeX (right_margin=10 vs Java's 2*outMargin=10, but our formula
+    // adds MARGIN beyond participant right edge). So the self-msg note endX
+    // must also include that extra MARGIN to match Java's SVG output.
     for note in &notes {
         let note_right = if note.is_self_msg_note && !note.is_left {
-            // note.x = startingX + paddingX; subtract paddingX to get startingX
-            (note.x - NOTE_COMPONENT_PADDING_X) + note.layout_width + NOTE_COMPONENT_PADDING_X
+            // Java ArrowAndNoteBox extent:
+            //   startingX = min(arrow.startingX, noteBox.startingX)
+            //   preferredWidth = arrowPW + notePW + noteRightShift
+            //   endX = startingX + preferredWidth
+            // For forward self-msg: arrow.startingX = pos2, endX = pos2 + arrowPW + notePW + noteRightShift
+            // For reverse self-msg: arrow.startingX = pos2 - arrowPW, endX = pos2 + notePW + noteRightShift
+            // noteRightShift = lifeLine.getRightShift(y) + 5 = 0 + 5 = 5 for no activation.
+            // Plus Puma right margin (MARGIN=5) to match getDefaultMargins().
+            if let Some(mi) = note.assoc_message_idx {
+                let msg = &messages[mi];
+                let pos2 = msg.from_x; // un-truncated participant center
+                let arrow_pw = {
+                    let text_w: f64 = msg.text_lines.iter()
+                        .map(|line| message_line_width(line, default_font, msg_font_size))
+                        .fold(0.0_f64, f64::max);
+                    f64::max(text_w + 14.0, rose::SELF_ARROW_WIDTH + 5.0)
+                };
+                let note_right_shift = NOTE_COMPONENT_PADDING_X; // getRightShift(y)=0 + 5
+                let is_reverse = msg.is_self && msg.is_left;
+                if is_reverse {
+                    // Reverse: endX = pos2 + notePW + noteRightShift
+                    pos2 + note.layout_width + note_right_shift + MARGIN
+                } else {
+                    // Forward: endX = pos2 + arrowPW + notePW + noteRightShift
+                    pos2 + arrow_pw + note.layout_width + note_right_shift + MARGIN
+                }
+            } else {
+                // Fallback if no associated message
+                (note.x - NOTE_COMPONENT_PADDING_X) + note.layout_width + NOTE_COMPONENT_PADDING_X + MARGIN
+            }
         } else {
             note.x + note.width + MARGIN
         };
         if note_right > total_width {
             log::debug!(
-                "note extends beyond participants: note_right={note_right:.1}, expanding total_width from {total_width:.1}"
+                "note extends beyond participants: note_right={note_right:.4}, expanding total_width from {total_width:.4}"
             );
             total_width = note_right;
         }
@@ -2218,15 +2252,15 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
         })
         .fold(0.0_f64, f64::max);
     // Also check notes: left notes can extend beyond the left boundary.
-    // Java: NoteBox.getStartingX() / getMinX() returns the note's left edge.
+    // Java prepareMissingSpace uses ev.getStartingX() which for NoteBox
+    // returns the NoteBox position (before paddingX). Our note.x stores
+    // the polygon position (startingX + paddingX), so we subtract paddingX
+    // to recover the NoteBox startingX for overflow calculation.
     let note_overflow = notes
         .iter()
         .map(|n| {
-            let sx = if n.is_left && !n.is_self_msg_note {
-                n.x - NOTE_COMPONENT_PADDING_X
-            } else {
-                n.x
-            };
+            // Java: startingX = note.x - paddingX for all note types
+            let sx = n.x - NOTE_COMPONENT_PADDING_X;
             if sx < 0.0 { -sx } else { 0.0 }
         })
         .fold(0.0_f64, f64::max);
