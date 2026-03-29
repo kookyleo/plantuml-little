@@ -108,6 +108,7 @@ const INNER_RANKSEP: f64 = 36.0;
 /// Graphviz default nodesep (0.25 inches = 18pt) — used for inner composite layouts.
 const INNER_NODESEP: f64 = 18.0;
 const SPECIAL_STATE_RADIUS: f64 = 10.0;
+const FINAL_STATE_DIAMETER: f64 = 22.0;
 /// Java: IEntityImage.MARGIN (padding around inner content).
 const IE_MARGIN: f64 = 5.0;
 /// Java: IEntityImage.MARGIN_LINE (line/section separator padding).
@@ -362,6 +363,7 @@ fn collect_implicit_states(states: &[State], transitions: &[Transition]) -> Vec<
                     kind,
                     regions: Vec::new(),
                     source_line: None,
+                    explicit_source_line: None,
                 });
             }
         }
@@ -432,7 +434,11 @@ fn compute_state_node(
     let is_composite = !state.children.is_empty() || !state.regions.is_empty();
 
     if state.is_special {
-        let diameter = 2.0 * SPECIAL_STATE_RADIUS;
+        let diameter = if is_final {
+            FINAL_STATE_DIAMETER
+        } else {
+            2.0 * SPECIAL_STATE_RADIUS
+        };
         return (
             StateNodeLayout {
                 id: state.id.clone(),
@@ -533,7 +539,7 @@ fn compute_state_node(
     }
 
     if state.kind == StateKind::End {
-        let diameter = 2.0 * SPECIAL_STATE_RADIUS;
+        let diameter = FINAL_STATE_DIAMETER;
         return (
             StateNodeLayout {
                 id: state.id.clone(),
@@ -1161,6 +1167,7 @@ fn layout_children_with_graphviz(
                 line_style: crate::svek::edge::LinkStyle::Normal,
                 minlen: if tr.length > 0 { (tr.length - 1) as u32 } else { 0 },
                 invisible: false,
+                no_constraint: false,
             });
         }
     }
@@ -1505,6 +1512,7 @@ pub fn layout_state(diagram: &StateDiagram) -> Result<StateLayout> {
             line_style: crate::svek::edge::LinkStyle::Normal,
             minlen: if tr.length > 0 { (tr.length - 1) as u32 } else { 0 },
             invisible: false,
+            no_constraint: false,
         });
     }
 
@@ -1528,6 +1536,7 @@ pub fn layout_state(diagram: &StateDiagram) -> Result<StateLayout> {
             line_style: crate::svek::edge::LinkStyle::Dashed,
             minlen,
             invisible: true,
+            no_constraint: false,
         });
     }
 
@@ -2044,6 +2053,7 @@ mod tests {
             kind: crate::model::state::StateKind::default(),
             regions: vec![],
             source_line: None,
+            explicit_source_line: None,
         }
     }
 
@@ -2058,6 +2068,7 @@ mod tests {
             kind: crate::model::state::StateKind::default(),
             regions: vec![],
             source_line: None,
+            explicit_source_line: None,
         }
     }
 
@@ -2205,6 +2216,7 @@ mod tests {
                 kind: crate::model::state::StateKind::default(),
                 regions: vec![],
                 source_line: None,
+                explicit_source_line: None,
             }],
             transitions: vec![],
             notes: vec![],
@@ -2238,6 +2250,7 @@ mod tests {
             kind: crate::model::state::StateKind::default(),
             source_line: None,
             regions: vec![],
+            explicit_source_line: None,
         };
 
         let d = StateDiagram {
@@ -2251,6 +2264,7 @@ mod tests {
                 source_line: None,
                 kind: crate::model::state::StateKind::default(),
                 regions: vec![],
+                explicit_source_line: None,
             }],
             transitions: vec![],
             notes: vec![],
@@ -2327,6 +2341,7 @@ mod tests {
                         kind: StateKind::Normal,
                         regions: vec![],
                         source_line: Some(4),
+                        explicit_source_line: None,
                     },
                     simple_state("Running"),
                 ],
@@ -2334,6 +2349,7 @@ mod tests {
                 kind: StateKind::Normal,
                 regions: vec![],
                 source_line: Some(3),
+                explicit_source_line: None,
             }],
             transitions: vec![transition("[*]Active", "Running", "")],
             notes: vec![],
@@ -2472,6 +2488,7 @@ mod tests {
                 is_special: false,
                 kind: crate::model::state::StateKind::default(),
                 regions: vec![],
+                explicit_source_line: None,
             }],
             transitions: vec![],
             notes: vec![],
@@ -2543,6 +2560,7 @@ mod tests {
                 is_special: false,
                 kind: crate::model::state::StateKind::default(),
                 regions: vec![],
+                explicit_source_line: None,
             }],
             transitions: vec![],
             notes: vec![],
@@ -2608,6 +2626,7 @@ mod tests {
                 is_special: false,
                 kind: crate::model::state::StateKind::default(),
                 regions: vec![],
+                explicit_source_line: None,
             }],
             transitions: vec![],
             notes: vec![],

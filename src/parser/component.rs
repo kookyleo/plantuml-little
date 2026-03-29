@@ -735,7 +735,14 @@ fn try_parse_backward_arrow(line: &str) -> Option<ComponentLink> {
 
         let full_arrow = format!("<{arrow_tail}");
         let dashed = full_arrow.contains("..");
-        let direction_hint = extract_direction_hint(&full_arrow);
+        // Invert direction hint for backward arrows since from/to are swapped
+        let direction_hint = extract_direction_hint(&full_arrow).map(|d| match d.as_str() {
+            "up" => "down".to_string(),
+            "down" => "up".to_string(),
+            "left" => "right".to_string(),
+            "right" => "left".to_string(),
+            _ => d,
+        });
         let arrow_len = count_arrow_len(&full_arrow);
 
         return Some(ComponentLink {

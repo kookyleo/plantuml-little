@@ -53,6 +53,8 @@ pub struct LayoutEdge {
     pub line_style: crate::svek::edge::LinkStyle,
     pub minlen: u32,
     pub invisible: bool,
+    /// When true, set constraint=false in DOT (cross-axis direction hints).
+    pub no_constraint: bool,
 }
 
 /// Input: a graph cluster (package / namespace / rectangle container).
@@ -506,6 +508,9 @@ pub fn layout_with_svek(graph: &LayoutGraph) -> Result<GraphLayout, Error> {
         }
         if edge.invisible {
             ld.invisible = true;
+        }
+        if edge.no_constraint {
+            ld.no_constraint = true;
         }
         ld.minlen = Some(edge.minlen);
         builder.add_link(ld);
@@ -1514,6 +1519,7 @@ mod tests {
                 line_style: crate::svek::edge::LinkStyle::Normal,
                 minlen: 1,
                 invisible: false,
+                no_constraint: false,
             }],
             clusters: vec![],
             rankdir: RankDir::TopToBottom,

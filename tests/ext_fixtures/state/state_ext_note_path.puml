@@ -1,0 +1,4 @@
+@startuml
+state Active
+note right of Active : short note
+@enduml

@@ -45,6 +45,9 @@ pub struct State {
     pub regions: Vec<Vec<State>>,
     /// Source line number (0-based) where this state was first defined/referenced.
     pub source_line: Option<usize>,
+    /// Physical source line (0-based) of the first explicit declaration/description
+    /// that defines this state during Java's parser pass 1.
+    pub explicit_source_line: Option<usize>,
 }
 
 /// State transition

@@ -157,8 +157,22 @@ fn estimate_entity_size(entity: &ComponentEntity) -> (f64, f64) {
     } else {
         0.0
     };
-    let desc_lines = entity.description.len() as f64;
-    let total_lines = name_line_count as f64 + stereo_lines + desc_lines;
+    // When entity has a body description `[...]`, the body replaces the name display.
+    // Java: EntityImageDescription uses the body text block only (name is just an alias).
+    // Also filter structural tags like `<code>` / `</code>` which are not visual lines.
+    let total_lines = if entity.description.is_empty() {
+        name_line_count as f64 + stereo_lines
+    } else {
+        let effective_desc_lines = entity
+            .description
+            .iter()
+            .filter(|line| {
+                let t = line.trim();
+                !t.eq_ignore_ascii_case("<code>") && !t.eq_ignore_ascii_case("</code>")
+            })
+            .count() as f64;
+        effective_desc_lines + stereo_lines
+    };
     let height = (total_lines * LINE_HEIGHT + 2.0 * PADDING).max(NODE_MIN_HEIGHT);
 
     (width, height)
@@ -285,9 +299,32 @@ pub fn layout_component(cd: &ComponentDiagram) -> Result<ComponentLayout> {
                 .get(&link.to)
                 .cloned()
                 .unwrap_or_else(|| sanitize_id(&link.to));
+            // Determine if direction hint is along the main axis or cross axis.
+            // Main axis (TB/BT): up/down; Cross axis: left/right
+            // Main axis (LR/RL): left/right; Cross axis: up/down
+            let is_vertical = matches!(
+                cd.direction,
+                Direction::TopToBottom | Direction::BottomToTop
+            );
+            let hint = link.direction_hint.as_deref();
+            let is_main_axis = hint.map_or(true, |h| {
+                if is_vertical {
+                    h == "up" || h == "down"
+                } else {
+                    h == "left" || h == "right"
+                }
+            });
+            // Invert DOT edge direction for "against the flow" hints on main axis
+            let invert = is_main_axis
+                && hint.map_or(false, |h| h == "up" || h == "left");
+            let (edge_from, edge_to) = if invert {
+                (to_dot, from_dot)
+            } else {
+                (from_dot, to_dot)
+            };
             LayoutEdge {
-                from: from_dot,
-                to: to_dot,
+                from: edge_from,
+                to: edge_to,
                 label: if link.label.is_empty() {
                     None
                 } else {
@@ -302,6 +339,7 @@ pub fn layout_component(cd: &ComponentDiagram) -> Result<ComponentLayout> {
                 line_style: crate::svek::edge::LinkStyle::Normal,
                 minlen: link.arrow_len.saturating_sub(1) as u32,
                 invisible: false,
+                no_constraint: !is_main_axis,
             }
         })
         .collect();
@@ -323,13 +361,22 @@ pub fn layout_component(cd: &ComponentDiagram) -> Result<ComponentLayout> {
                 .iter()
                 .filter_map(|child_id| id_to_dot.get(child_id).cloned())
                 .collect();
+            // Compute cluster label dimensions from group name
+            let name_lines: Vec<&str> = g.name.lines().collect();
+            let name_line_count = name_lines.len().max(1) as f64;
+            let label_w = name_lines
+                .iter()
+                .map(|line| font_metrics::text_width(line, "SansSerif", FONT_SIZE, true, false))
+                .fold(0.0_f64, f64::max);
+            let label_h =
+                name_line_count * font_metrics::line_height("SansSerif", FONT_SIZE, true, false);
             LayoutClusterSpec {
                 id: sanitize_id(&g.id),
                 qualified_name: g.id.clone(),
                 title: Some(g.name.clone()),
                 style: crate::svek::cluster::ClusterStyle::Rectangle,
-                label_width: None,
-                label_height: None,
+                label_width: Some(label_w.floor().max(0.0)),
+                label_height: Some(label_h.floor().max(0.0)),
                 node_ids,
                 sub_clusters: vec![],
                 order: g.source_line,

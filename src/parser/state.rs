@@ -48,7 +48,8 @@ struct CompositeFrame {
 pub fn parse_state_diagram(source: &str) -> Result<StateDiagram> {
     let block = super::common::extract_block(source).unwrap_or_else(|| source.to_string());
 
-    // Pre-process: join continuation lines (trailing `\`)
+    // Pre-process: join continuation lines (trailing `\`) while preserving
+    // the original physical line numbers within the extracted @startuml block.
     let joined = join_continuation_lines(&block);
 
     let mut top_states: Vec<State> = Vec::new();
@@ -61,8 +62,7 @@ pub fn parse_state_diagram(source: &str) -> Result<StateDiagram> {
     // Stack for composite state nesting
     let mut stack: Vec<CompositeFrame> = Vec::new();
 
-    for (line_num, line) in joined.lines().enumerate() {
-        let line_num = line_num + 1; // 1-based
+    for (line_num, line) in joined {
 
         match mode {
             ParseMode::StyleBlock { .. } => {
@@ -309,6 +309,9 @@ pub fn parse_state_diagram(source: &str) -> Result<StateDiagram> {
                     "line {}: entering composite state '{}' (name='{}')",
                     line_num, composite.id, composite.name
                 );
+                let mut composite = composite;
+                composite.source_line = Some(line_num);
+                composite.explicit_source_line = Some(line_num);
                 stack.push(CompositeFrame {
                     state: composite,
                     transitions: Vec::new(),
@@ -320,11 +323,13 @@ pub fn parse_state_diagram(source: &str) -> Result<StateDiagram> {
 
             // Simple state declaration: `state Name`, `state "Quoted"`,
             // `state Name <<stereo>>`, `state Name: desc`
-            if let Some(parsed) = parse_state_declaration(rest) {
+            if let Some(mut parsed) = parse_state_declaration(rest) {
                 debug!(
                     "line {}: state declaration id='{}', name='{}', stereo={:?}, desc={:?}",
                     line_num, parsed.id, parsed.name, parsed.stereotype, parsed.description
                 );
+                parsed.source_line = Some(line_num);
+                parsed.explicit_source_line = Some(line_num);
                 let current_states = current_states_mut(&mut stack, &mut top_states);
                 merge_or_add_state(current_states, parsed);
                 continue;
@@ -360,8 +365,11 @@ pub fn parse_state_diagram(source: &str) -> Result<StateDiagram> {
         if let Some((state_id, desc)) = try_parse_description_line(trimmed) {
             debug!("line {line_num}: adding description to '{state_id}': '{desc}'");
             let current_states = current_states_mut(&mut stack, &mut top_states);
-            ensure_state(current_states, &state_id, None);
+            ensure_state(current_states, &state_id, Some(line_num));
             if let Some(s) = find_state_mut(current_states, &state_id) {
+                if s.explicit_source_line.is_none() {
+                    s.explicit_source_line = Some(line_num);
+                }
                 s.description.push(desc);
             }
             continue;
@@ -432,30 +440,34 @@ pub fn parse_state_diagram(source: &str) -> Result<StateDiagram> {
     })
 }
 
-/// Join lines ending with `\` (continuation) into a single logical line.
-fn join_continuation_lines(source: &str) -> String {
-    let mut result = String::with_capacity(source.len());
+/// Join lines ending with `\` (continuation) into logical lines while keeping
+/// the 1-based physical line number of the first contributing line.
+fn join_continuation_lines(source: &str) -> Vec<(usize, String)> {
+    let mut result = Vec::new();
     let mut continuation = String::new();
+    let mut continuation_start = None;
 
-    for line in source.lines() {
+    for (idx, line) in source.lines().enumerate() {
+        let line_num = idx + 1;
         if let Some(without_backslash) = line.strip_suffix('\\') {
             // Remove the trailing backslash and append to continuation buffer
+            if continuation.is_empty() {
+                continuation_start = Some(line_num);
+            }
             continuation.push_str(without_backslash);
         } else if !continuation.is_empty() {
             continuation.push_str(line);
-            result.push_str(&continuation);
-            result.push('\n');
+            result.push((continuation_start.unwrap_or(line_num), continuation.clone()));
             continuation.clear();
+            continuation_start = None;
         } else {
-            result.push_str(line);
-            result.push('\n');
+            result.push((line_num, line.to_string()));
         }
     }
 
     // If there's a dangling continuation, add it anyway
     if !continuation.is_empty() {
-        result.push_str(&continuation);
-        result.push('\n');
+        result.push((continuation_start.unwrap_or(1), continuation));
     }
 
     result
@@ -565,6 +577,7 @@ fn try_parse_composite_state(rest: &str) -> Option<State> {
         kind,
         regions: Vec::new(),
         source_line: None,
+        explicit_source_line: None,
     })
 }
 
@@ -604,6 +617,7 @@ fn parse_state_declaration(rest: &str) -> Option<State> {
         kind,
         regions: Vec::new(),
         source_line: None,
+        explicit_source_line: None,
     })
 }
 
@@ -974,6 +988,7 @@ fn ensure_state(states: &mut Vec<State>, id: &str, source_line: Option<usize>) {
             kind: StateKind::default(),
             regions: Vec::new(),
             source_line,
+            explicit_source_line: None,
         });
         return;
     }
@@ -1000,7 +1015,8 @@ fn ensure_state(states: &mut Vec<State>, id: &str, source_line: Option<usize>) {
         children: Vec::new(),
         is_special: false,
         kind,
-        source_line: None,
+        source_line,
+        explicit_source_line: None,
         regions: Vec::new(),
     });
 }
@@ -1032,6 +1048,21 @@ fn merge_or_add_state(states: &mut Vec<State>, new_state: State) {
         if existing.stereotype.is_none() && new_state.stereotype.is_some() {
             existing.stereotype = new_state.stereotype;
         }
+        existing.source_line = match (existing.source_line, new_state.source_line) {
+            (Some(a), Some(b)) => Some(a.min(b)),
+            (Some(a), None) => Some(a),
+            (None, Some(b)) => Some(b),
+            (None, None) => None,
+        };
+        existing.explicit_source_line = match (
+            existing.explicit_source_line,
+            new_state.explicit_source_line,
+        ) {
+            (Some(a), Some(b)) => Some(a.min(b)),
+            (Some(a), None) => Some(a),
+            (None, Some(b)) => Some(b),
+            (None, None) => None,
+        };
     } else {
         states.push(new_state);
     }
@@ -1099,6 +1130,19 @@ mod tests {
         assert_eq!(diagram.states[0].description.len(), 2);
         assert_eq!(diagram.states[0].description[0], "line1");
         assert_eq!(diagram.states[0].description[1], "line2");
+    }
+
+    #[test]
+    fn join_continuation_lines_preserves_physical_line_numbers() {
+        let joined = join_continuation_lines("state A\nA : hello\\\nworld\nA -> A\n");
+        assert_eq!(
+            joined,
+            vec![
+                (1, "state A".to_string()),
+                (2, "A : helloworld".to_string()),
+                (4, "A -> A".to_string()),
+            ]
+        );
     }
 
     // ---- Transitions ----
@@ -1254,6 +1298,14 @@ mod tests {
         assert_eq!(diagram.states.len(), 1);
         assert_eq!(diagram.states[0].description.len(), 1);
         assert_eq!(diagram.states[0].description[0], "line1continued");
+    }
+
+    #[test]
+    fn parse_transition_after_continuation_uses_physical_line_number() {
+        let src = "@startuml\nstate A\nA : adding bold:\\n\\\nsecond line\nA -> A\n@enduml";
+        let diagram = parse_state_diagram(src).unwrap();
+        assert_eq!(diagram.transitions.len(), 1);
+        assert_eq!(diagram.transitions[0].source_line, Some(4));
     }
 
     // ---- Error cases ----

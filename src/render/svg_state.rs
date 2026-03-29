@@ -1,11 +1,10 @@
-use std::cell::Cell;
 use std::collections::{HashMap, HashSet};
 use std::fmt::Write;
 
 use crate::font_metrics;
 use crate::klimt::svg::{fmt_coord, xml_escape, LengthAdjust, SvgGraphic};
 use crate::layout::state::{StateLayout, StateNodeLayout, StateNoteLayout, TransitionLayout};
-use crate::model::state::{StateDiagram, StateKind};
+use crate::model::state::{State, StateDiagram, StateKind, Transition};
 use crate::render::svg::{
     ensure_visible_int, write_bg_rect, write_svg_root_bg, BoundsTracker, CANVAS_DELTA,
     DOC_MARGIN_BOTTOM, DOC_MARGIN_RIGHT,
@@ -13,29 +12,6 @@ use crate::render::svg::{
 use crate::render::svg_richtext::render_creole_text;
 use crate::style::SkinParams;
 use crate::Result;
-
-thread_local! { static ENT_COUNTER: Cell<u32> = const { Cell::new(2) }; }
-thread_local! { static LNK_COUNTER: Cell<u32> = const { Cell::new(3) }; }
-fn next_ent_id() -> String {
-    ENT_COUNTER.with(|c| {
-        let id = c.get();
-        c.set(id + 1);
-        format!("ent{:04}", id)
-    })
-}
-fn next_lnk_id() -> String {
-    LNK_COUNTER.with(|c| {
-        let id = c.get();
-        c.set(id + 1);
-        format!("lnk{}", id)
-    })
-}
-fn reset_ent_counter() {
-    ENT_COUNTER.with(|c| c.set(2));
-}
-fn reset_lnk_counter() {
-    LNK_COUNTER.with(|c| c.set(3));
-}
 
 // ── Style constants (PlantUML rose theme) ───────────────────────────
 
@@ -52,19 +28,168 @@ const FINAL_INNER: &str = "#000000";
 /// Java ExtremityArrow.getDecorationLength() = 6.
 const ARROW_DECORATION_LEN: f64 = 6.0;
 
+type TransitionKey = (String, String, Option<usize>);
+
+struct JavaStateRenderPlan {
+    ent_id_map: HashMap<String, String>,
+    lnk_id_map: HashMap<TransitionKey, String>,
+    top_level_order: Vec<String>,
+}
+
+fn is_special_render_kind(kind: &StateKind) -> bool {
+    matches!(
+        kind,
+        StateKind::EntryPoint
+            | StateKind::ExitPoint
+            | StateKind::End
+            | StateKind::Fork
+            | StateKind::Join
+            | StateKind::Choice
+            | StateKind::History
+            | StateKind::DeepHistory
+    )
+}
+
+fn collect_all_layout_states<'a>(states: &'a [StateNodeLayout], out: &mut Vec<&'a StateNodeLayout>) {
+    for state in states {
+        out.push(state);
+        collect_all_layout_states(&state.children, out);
+    }
+}
+
+fn collect_all_diagram_states<'a>(states: &'a [State], out: &mut Vec<&'a State>) {
+    for state in states {
+        out.push(state);
+        collect_all_diagram_states(&state.children, out);
+        for region in &state.regions {
+            collect_all_diagram_states(region, out);
+        }
+    }
+}
+
+fn transition_key_model(tr: &Transition) -> TransitionKey {
+    (tr.from.clone(), tr.to.clone(), tr.source_line)
+}
+
+fn transition_key_layout(tr: &TransitionLayout) -> TransitionKey {
+    (tr.from_id.clone(), tr.to_id.clone(), tr.source_line)
+}
+
+fn is_explicit_pass1_state(state: &State) -> bool {
+    !state.is_special && !is_special_render_kind(&state.kind) && state.explicit_source_line.is_some()
+}
+
+fn build_java_state_render_plan(diagram: &StateDiagram, layout: &StateLayout) -> JavaStateRenderPlan {
+    let mut all_layout_states = Vec::new();
+    collect_all_layout_states(&layout.state_layouts, &mut all_layout_states);
+
+    let mut all_diagram_states = Vec::new();
+    collect_all_diagram_states(&diagram.states, &mut all_diagram_states);
+
+    let top_level_ids: HashSet<&str> = layout.state_layouts.iter().map(|state| state.id.as_str()).collect();
+
+    let mut ent_numbers: HashMap<String, u32> = HashMap::new();
+    let mut explicit_top_level_order = Vec::new();
+    let mut explicit_states: Vec<(usize, usize, &State)> = all_diagram_states
+        .iter()
+        .enumerate()
+        .filter_map(|(idx, state)| {
+            if is_explicit_pass1_state(state) {
+                Some((state.explicit_source_line.unwrap_or(usize::MAX), idx, *state))
+            } else {
+                None
+            }
+        })
+        .collect();
+    explicit_states.sort_by_key(|(line, idx, _)| (*line, *idx));
+
+    let mut pass1_next = 2u32;
+    for (_, _, state) in explicit_states {
+        ent_numbers.entry(state.id.clone()).or_insert_with(|| {
+            let assigned = pass1_next;
+            pass1_next += 1;
+            assigned
+        });
+        if top_level_ids.contains(state.id.as_str()) {
+            explicit_top_level_order.push(state.id.clone());
+        }
+    }
+
+    let mut pass2_next = 2u32;
+    let mut pass2_top_level_order = Vec::new();
+    let mut lnk_numbers: HashMap<TransitionKey, u32> = HashMap::new();
+    for tr in &diagram.transitions {
+        for endpoint_id in [&tr.from, &tr.to] {
+            if !ent_numbers.contains_key(endpoint_id) {
+                ent_numbers.insert(endpoint_id.clone(), pass2_next);
+                if top_level_ids.contains(endpoint_id.as_str()) {
+                    pass2_top_level_order.push(endpoint_id.clone());
+                }
+                pass2_next += 1;
+            }
+        }
+        lnk_numbers.insert(transition_key_model(tr), pass2_next);
+        pass2_next += 1;
+    }
+
+    let mut fallback_next = ent_numbers
+        .values()
+        .copied()
+        .chain(lnk_numbers.values().copied())
+        .max()
+        .unwrap_or(1)
+        + 1;
+
+    for state in all_layout_states {
+        if !ent_numbers.contains_key(&state.id) {
+            ent_numbers.insert(state.id.clone(), fallback_next);
+            fallback_next += 1;
+        }
+    }
+
+    for tr in &layout.transition_layouts {
+        let key = transition_key_layout(tr);
+        if let std::collections::hash_map::Entry::Vacant(entry) = lnk_numbers.entry(key) {
+            entry.insert(fallback_next);
+            fallback_next += 1;
+        }
+    }
+
+    let mut top_level_order = Vec::new();
+    let mut seen = HashSet::new();
+    for id in explicit_top_level_order
+        .into_iter()
+        .chain(pass2_top_level_order)
+        .chain(layout.state_layouts.iter().map(|state| state.id.clone()))
+    {
+        if seen.insert(id.clone()) {
+            top_level_order.push(id);
+        }
+    }
+    JavaStateRenderPlan {
+        ent_id_map: ent_numbers
+            .into_iter()
+            .map(|(id, number)| (id, format!("ent{number:04}")))
+            .collect(),
+        lnk_id_map: lnk_numbers
+            .into_iter()
+            .map(|(key, number)| (key, format!("lnk{number}")))
+            .collect(),
+        top_level_order,
+    }
+}
+
 // ── Public entry point ──────────────────────────────────────────────
 
 /// Render a state diagram to SVG.
 /// Returns (svg_string, raw_body_dim) where raw_body_dim is the precise
 /// body content size matching Java SvekResult.calculateDimension().
 pub fn render_state(
-    _diagram: &StateDiagram,
+    diagram: &StateDiagram,
     layout: &StateLayout,
     skin: &SkinParams,
 ) -> Result<(String, Option<(f64, f64)>)> {
     let mut buf = String::with_capacity(4096);
-    reset_ent_counter();
-    reset_lnk_counter();
 
     let state_bg = skin.background_color("state", ENTITY_BG);
     let state_border = skin.border_color("state", BORDER_COLOR);
@@ -72,80 +197,9 @@ pub fn render_state(
 
     let mut sg = SvgGraphic::new(0, 1.0);
     let mut tracker = BoundsTracker::new();
-
-    // Build state_id → ent_id mapping (pre-assign for ordering consistency).
-    let mut ent_id_map: HashMap<String, String> = HashMap::new();
-
-    // Collect all states including composite children for ent_id assignment
-    fn collect_all_states<'a>(states: &'a [StateNodeLayout], out: &mut Vec<&'a StateNodeLayout>) {
-        for state in states {
-            out.push(state);
-            collect_all_states(&state.children, out);
-        }
-    }
-    let mut all_states_flat: Vec<&StateNodeLayout> = Vec::new();
-    collect_all_states(&layout.state_layouts, &mut all_states_flat);
-
-    // Pass 1: assign ent_ids to regular entities first (matching Java order).
-    for state in &all_states_flat {
-        if !state.is_initial
-            && !state.is_final
-            && !matches!(
-                state.kind,
-                StateKind::EntryPoint
-                    | StateKind::ExitPoint
-                    | StateKind::End
-                    | StateKind::Fork
-                    | StateKind::Join
-                    | StateKind::Choice
-                    | StateKind::History
-                    | StateKind::DeepHistory
-            )
-        {
-            ent_id_map.insert(state.id.clone(), next_ent_id());
-        }
-    }
-    // Pass 2: assign ent_ids to special entities. For [*] initial states,
-    // Java reuses the UID of the target entity from the first [*] transition.
-    for state in &all_states_flat {
-        if state.is_initial
-            || state.is_final
-            || matches!(
-                state.kind,
-                StateKind::EntryPoint
-                    | StateKind::ExitPoint
-                    | StateKind::End
-                    | StateKind::Fork
-                    | StateKind::Join
-                    | StateKind::Choice
-                    | StateKind::History
-                    | StateKind::DeepHistory
-            )
-        {
-            if state.is_initial && (state.id == "[*]" || state.id.starts_with("[*]__start") || state.id.starts_with("[*]")) {
-                // Java reuses the UID of the target entity from the first [*] transition
-                // for top-level start states. Nested start states get unique IDs.
-                let is_top_level = layout.state_layouts.iter().any(|s| s.id == state.id);
-                if is_top_level {
-                    let target_ent_id = layout
-                        .transition_layouts
-                        .iter()
-                        .find(|t| t.from_id == state.id)
-                        .and_then(|t| ent_id_map.get(&t.to_id))
-                        .cloned();
-                    if let Some(id) = target_ent_id {
-                        ent_id_map.insert(state.id.clone(), id);
-                    } else {
-                        ent_id_map.insert(state.id.clone(), next_ent_id());
-                    }
-                } else if !ent_id_map.contains_key(&state.id) {
-                    ent_id_map.insert(state.id.clone(), next_ent_id());
-                }
-            } else if !ent_id_map.contains_key(&state.id) {
-                ent_id_map.insert(state.id.clone(), next_ent_id());
-            }
-        }
-    }
+    let render_plan = build_java_state_render_plan(diagram, layout);
+    let ent_id_map = &render_plan.ent_id_map;
+    let lnk_id_map = &render_plan.lnk_id_map;
 
     // Build set of child IDs for each composite state to identify internal transitions.
     let mut rendered_transitions: HashSet<usize> = HashSet::new();
@@ -156,37 +210,28 @@ pub fn render_state(
         }
     }
 
-    // Java renders cluster (composite) states first: their header and children
-    // appear before simple top-level entities. Internal transitions are rendered
-    // immediately after their composite state's children.
-    // Pass 1: composite states (clusters) — header + children + internal transitions
-    for state in &layout.state_layouts {
-        if state.is_composite
-            && !state.is_initial
-            && !state.is_final
-            && !matches!(
-                state.kind,
-                StateKind::EntryPoint
-                    | StateKind::ExitPoint
-                    | StateKind::End
-                    | StateKind::Fork
-                    | StateKind::Join
-                    | StateKind::Choice
-                    | StateKind::History
-                    | StateKind::DeepHistory
-            )
-        {
-            render_state_node(
-                &mut sg,
-                &mut tracker,
-                state,
-                state_bg,
-                state_border,
-                state_font,
-                &ent_id_map,
-            );
+    let top_level_nodes: HashMap<&str, &StateNodeLayout> = layout
+        .state_layouts
+        .iter()
+        .map(|state| (state.id.as_str(), state))
+        .collect();
 
-            // Render internal transitions (both endpoints are children of this composite)
+    for state_id in &render_plan.top_level_order {
+        let Some(state) = top_level_nodes.get(state_id.as_str()).copied() else {
+            continue;
+        };
+        render_state_node(
+            &mut sg,
+            &mut tracker,
+            state,
+            state_bg,
+            state_border,
+            state_font,
+            ent_id_map,
+        );
+
+        // Render internal transitions (both endpoints are children of this composite)
+        if state.is_composite {
             let mut child_ids = HashSet::new();
             collect_child_ids(state, &mut child_ids);
             for (ti, transition) in layout.transition_layouts.iter().enumerate() {
@@ -194,65 +239,10 @@ pub fn render_state(
                     && child_ids.contains(&transition.from_id)
                     && child_ids.contains(&transition.to_id)
                 {
-                    render_transition(&mut sg, &mut tracker, transition, &ent_id_map);
+                    render_transition(&mut sg, &mut tracker, transition, ent_id_map, lnk_id_map);
                     rendered_transitions.insert(ti);
                 }
             }
-        }
-    }
-    // Pass 2: regular non-composite entities
-    for state in &layout.state_layouts {
-        if !state.is_composite
-            && !state.is_initial
-            && !state.is_final
-            && !matches!(
-                state.kind,
-                StateKind::EntryPoint
-                    | StateKind::ExitPoint
-                    | StateKind::End
-                    | StateKind::Fork
-                    | StateKind::Join
-                    | StateKind::Choice
-                    | StateKind::History
-                    | StateKind::DeepHistory
-            )
-        {
-            render_state_node(
-                &mut sg,
-                &mut tracker,
-                state,
-                state_bg,
-                state_border,
-                state_font,
-                &ent_id_map,
-            );
-        }
-    }
-    // Pass 3: special entities (initial, final, fork, join, choice, history, etc.)
-    for state in &layout.state_layouts {
-        if state.is_initial
-            || state.is_final
-            || matches!(
-                state.kind,
-                StateKind::EntryPoint
-                    | StateKind::ExitPoint
-                    | StateKind::End
-                    | StateKind::Fork
-                    | StateKind::Join
-                    | StateKind::Choice
-                    | StateKind::History
-                    | StateKind::DeepHistory
-            )
-        {
-            render_state_node(
-                &mut sg,
-                &mut tracker,
-                state,
-                state_bg,
-                state_border,
-                state_font,
-                &ent_id_map,
-            );
         }
     }
 
@@ -264,7 +254,7 @@ pub fn render_state(
     // Remaining transitions (top-level, not rendered as internal above)
     for (ti, transition) in layout.transition_layouts.iter().enumerate() {
         if !rendered_transitions.contains(&ti) {
-            render_transition(&mut sg, &mut tracker, transition, &ent_id_map);
+            render_transition(&mut sg, &mut tracker, transition, ent_id_map, lnk_id_map);
         }
     }
 
@@ -406,7 +396,7 @@ fn render_final(
     let ent_id = ent_id_map
         .get(&node.id)
         .cloned()
-        .unwrap_or_else(|| next_ent_id());
+        .unwrap_or_else(|| "ent0000".to_string());
     // Java qualified name: ".end." for top-level, "Parent..end.Parent" for nested
     let qname = match parent_name {
         Some(p) => format!("{}..end.{}", p, p),
@@ -463,7 +453,7 @@ fn render_choice(
     let ent_id = ent_id_map
         .get(&node.id)
         .cloned()
-        .unwrap_or_else(next_ent_id);
+        .unwrap_or_else(|| "ent0000".to_string());
     sg.push_raw(&format!(
         r#"<g class="entity" data-qualified-name="{}" id="{}">"#,
         xml_escape(&qname), ent_id,
@@ -572,7 +562,7 @@ fn render_simple(
     let ent_id = ent_id_map
         .get(&node.id)
         .cloned()
-        .unwrap_or_else(next_ent_id);
+        .unwrap_or_else(|| "ent0000".to_string());
     sg.push_raw(&format!(
         r#"<g class="entity" data-qualified-name="{}" id="{}">"#,
         qname_escaped, ent_id,
@@ -732,12 +722,6 @@ fn render_composite(
     let name_text_h = font_metrics::line_height("SansSerif", 14.0, false, false);
     tracker.track_text(name_x, name_y, name_tl, name_text_h);
 
-    // Open semantic <g> wrapper (no children inside, just for closing)
-    let name_escaped = xml_escape(&node.name);
-    let ent_id = ent_id_map
-        .get(&node.id)
-        .cloned()
-        .unwrap_or_else(next_ent_id);
     // Note: Java wraps the entity in <g class="entity"> but we output the
     // header elements before the entity <g> to match reference SVG order.
 
@@ -771,6 +755,7 @@ fn render_transition(
     tracker: &mut BoundsTracker,
     transition: &TransitionLayout,
     ent_id_map: &HashMap<String, String>,
+    lnk_id_map: &HashMap<TransitionKey, String>,
 ) {
     if transition.points.is_empty() && transition.raw_path_d.is_none() {
         return;
@@ -795,7 +780,10 @@ fn render_transition(
     // Open semantic <g> wrapper with link attributes
     let from_escaped = xml_escape(&from_display);
     let to_escaped = xml_escape(&to_display);
-    let lnk_id = next_lnk_id();
+    let lnk_id = lnk_id_map
+        .get(&transition_key_layout(transition))
+        .cloned()
+        .unwrap_or_else(|| "lnk0".to_string());
     let mut link_attrs = String::new();
     if !from_ent.is_empty() {
         write!(link_attrs, r#" data-entity-1="{}""#, from_ent).unwrap();
@@ -1066,8 +1054,11 @@ fn render_note(sg: &mut SvgGraphic, tracker: &mut BoundsTracker, note: &StateNot
     let h = note.height;
     let fold = 10.0;
     let notch_half = 4.0;
-    let ent_id = next_ent_id();
     let qualified_name = note.entity_id.as_deref().unwrap_or("GMN");
+    let note_id_seed = qualified_name
+        .bytes()
+        .fold(0u32, |acc, byte| acc.wrapping_mul(131).wrapping_add(byte as u32));
+    let ent_id = format!("ent{}", 9000 + (note_id_seed % 1000));
 
     sg.push_raw(&format!(
         r#"<g class="entity" data-qualified-name="{}""#,
@@ -1144,7 +1135,7 @@ fn render_note(sg: &mut SvgGraphic, tracker: &mut BoundsTracker, note: &StateNot
                 fmt_coord(y),
             ),
             _ => format!(
-                "M{},{} L{},{} L{},{} L{},{} L{},{} L{},{} L{},{} L{},{} L{},{}",
+                "M{},{} L{},{} L{},{} L{},{} L{},{} A0,0 0 0 0 {},{} L{},{} A0,0 0 0 0 {},{} L{},{} L{},{} L{},{} A0,0 0 0 0 {},{}",
                 fmt_coord(x),
                 fmt_coord(y),
                 fmt_coord(x),
@@ -1155,14 +1146,17 @@ fn render_note(sg: &mut SvgGraphic, tracker: &mut BoundsTracker, note: &StateNot
                 fmt_coord(ay + notch_half),
                 fmt_coord(x),
                 fmt_coord(y + h),
+                fmt_coord(x), fmt_coord(y + h),  // A0,0 at bottom-left
                 fmt_coord(x + w),
                 fmt_coord(y + h),
+                fmt_coord(x + w), fmt_coord(y + h),  // A0,0 at bottom-right
                 fmt_coord(x + w),
                 fmt_coord(y + fold),
                 fmt_coord(x + w - fold),
                 fmt_coord(y),
                 fmt_coord(x),
                 fmt_coord(y),
+                fmt_coord(x), fmt_coord(y),  // A0,0 at closing top-left
             ),
         }
     } else {
@@ -1190,9 +1184,9 @@ fn render_note(sg: &mut SvgGraphic, tracker: &mut BoundsTracker, note: &StateNot
         NOTE_BORDER,
     ));
 
-    // Fold corner path uses stroke-width:1 (Java default for note fold triangle).
+    // Fold corner path uses stroke-width:0.5 (Java: note fold triangle inherits note border width).
     sg.push_raw(&format!(
-        r#"<path d="M{},{} L{},{} L{},{} L{},{}" fill="{}" style="stroke:{};stroke-width:1;"/>"#,
+        r#"<path d="M{},{} L{},{} L{},{} L{},{}" fill="{}" style="stroke:{};stroke-width:0.5;"/>"#,
         fmt_coord(x + w - fold),
         fmt_coord(y),
         fmt_coord(x + w - fold),

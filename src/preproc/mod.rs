@@ -2721,15 +2721,21 @@ impl Context {
 fn join_continuations(source: &str) -> String {
     let mut result = Vec::new();
     let mut accum = String::new();
+    let mut continued_lines = 0usize;
 
     for line in source.lines() {
         if let Some(prefix) = line.strip_suffix('\\') {
             // Continuation: strip the trailing backslash and append
             accum.push_str(prefix);
+            continued_lines += 1;
         } else if !accum.is_empty() {
             accum.push_str(line);
             result.push(accum.clone());
+            for _ in 0..continued_lines {
+                result.push(String::new());
+            }
             accum.clear();
+            continued_lines = 0;
         } else {
             result.push(line.to_string());
         }
@@ -2737,6 +2743,9 @@ fn join_continuations(source: &str) -> String {
     // Flush remaining
     if !accum.is_empty() {
         result.push(accum);
+        for _ in 0..continued_lines {
+            result.push(String::new());
+        }
     }
 
     result.join("\n")
@@ -3279,6 +3288,17 @@ mod tests {
         let src = "hello \\\nworld";
         let out = preprocess(src).unwrap();
         assert!(out.contains("hello world"), "got: {}", out);
+    }
+
+    #[test]
+    fn test_line_continuation_preserves_line_count() {
+        let src = "a\\\nb\nc";
+        let out = preprocess(src).unwrap();
+        assert_eq!(out.lines().count(), 3, "got: {:?}", out);
+        let lines: Vec<_> = out.lines().collect();
+        assert_eq!(lines[0], "ab");
+        assert_eq!(lines[1], "");
+        assert_eq!(lines[2], "c");
     }
 
     #[test]

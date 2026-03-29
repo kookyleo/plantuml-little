@@ -133,6 +133,8 @@ pub struct LinkDescriptor {
     /// Whether the link has a middle decoration (circle, diamond, etc.).
     /// Java: labelShield = 7 when middleDecor != NONE.
     pub has_middle_decor: bool,
+    /// When true, set constraint=false in DOT (cross-axis direction hints).
+    pub no_constraint: bool,
 }
 
 impl LinkDescriptor {
@@ -155,6 +157,7 @@ impl LinkDescriptor {
             invisible: false,
             minlen: None,
             has_middle_decor: false,
+            no_constraint: false,
         }
     }
 
@@ -430,6 +433,9 @@ impl GraphvizImageBuilder {
                 edge = edge.with_head_label(text, LabelDimension::new(w, h));
             }
             edge.is_invis = link.invisible;
+            if link.no_constraint {
+                edge.is_constraint = false;
+            }
             if let Some(minlen) = link.minlen {
                 // link_length = minlen + 1 (Java: minlen = link.getLength() - 1)
                 edge.link_length = (minlen as i32) + 1;

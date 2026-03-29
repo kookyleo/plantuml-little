@@ -1159,6 +1159,7 @@ fn layout_class_diagram(cd: &ClassDiagram, skin: &crate::style::SkinParams) -> R
                 line_style: link_style_to_svek(&link.line_style),
                 minlen: link.arrow_len.saturating_sub(1) as u32,
                 invisible: false,
+                no_constraint: false,
             }
         })
         .collect();
@@ -1362,6 +1363,7 @@ fn square_edges_for_entities(
                 line_style: crate::svek::edge::LinkStyle::Normal,
                 minlen: 1,
                 invisible: true,
+                no_constraint: false,
             });
             head_branch = i;
         } else {
@@ -1378,6 +1380,7 @@ fn square_edges_for_entities(
                 line_style: crate::svek::edge::LinkStyle::Normal,
                 minlen: 0,
                 invisible: true,
+                no_constraint: false,
             });
         }
     }

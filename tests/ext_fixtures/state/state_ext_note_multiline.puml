@@ -1,0 +1,7 @@
+@startuml
+state Inactive
+note left of Inactive
+  Multi line
+  note text
+end note
+@enduml
