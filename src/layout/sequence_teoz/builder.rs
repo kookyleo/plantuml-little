@@ -107,6 +107,8 @@ enum TeozTile {
         /// Activation level of the receiver at this message
         /// (IGNORE_FUTURE_DEACTIVATE: includes activations from this message)
         to_level: usize,
+        /// Hidden arrow: occupies space but is not drawn
+        hidden: bool,
     },
     /// Self-message (from == to)
     SelfMessage {
@@ -131,6 +133,8 @@ enum TeozTile {
         circle_to: bool,
         /// Teoz parallel: shares y with previous tile
         is_parallel: bool,
+        /// Hidden arrow: occupies space but is not drawn
+        hidden: bool,
     },
     /// Activate / Deactivate / Destroy life event
     LifeEvent { height: f64, y: Option<f64> },
@@ -619,9 +623,13 @@ fn compute_fragment_extent(
                 // nested_end is now past the matching end tile
                 let (child_min, child_max) =
                     compute_fragment_extent(tiles, nested_start, nested_end - 1, livings, rl, tp);
-                // Add MARGINX for this child within the parent group
-                let child_with_margin_min = child_min - GROUP_MARGINX;
-                let child_with_margin_max = child_max + GROUP_MARGINX;
+                // Java: parent sees nested fragment as tile.getMinX() and tile.getMaxX()
+                // getMinX = this.min - EXTERNAL_MARGINX1, getMaxX = this.max + EXTERNAL_MARGINX2
+                // Then parent applies tile.getMinX() - MARGINX and tile.getMaxX() + MARGINX
+                // BUT: the bottom fmin -= GROUP_MARGINX applies the parent MARGINX uniformly.
+                // So here we only need EXTERNAL margins. The bottom MARGINX handles the rest.
+                let child_with_margin_min = child_min - GROUP_EXTERNAL_MARGINX1;
+                let child_with_margin_max = child_max + GROUP_EXTERNAL_MARGINX2;
                 if child_with_margin_min < fmin {
                     fmin = child_with_margin_min;
                 }
@@ -629,15 +637,29 @@ fn compute_fragment_extent(
                     fmax = child_with_margin_max;
                 }
                 // Also include the nested fragment's header label width
-                if let TeozTile::FragmentStart { label, .. } = tile {
-                    let pure_text_w = crate::font_metrics::text_width(
-                        label,
+                // Java: max candidate = min + dim1.getWidth() + 16
+                if let TeozTile::FragmentStart { label, kind, .. } = tile {
+                    let kind_text_w = crate::font_metrics::text_width(
+                        kind.label(),
                         "sans-serif",
                         13.0,
                         true,
                         false,
                     );
-                    let header_right = child_min + pure_text_w + 45.0 + GROUP_MARGINX;
+                    let header_width = if label.is_empty() {
+                        kind_text_w + 45.0
+                    } else {
+                        let bracket_label = format!("[{}]", label);
+                        let comment_w = crate::font_metrics::text_width(
+                            &bracket_label,
+                            "sans-serif",
+                            11.0,
+                            true,
+                            false,
+                        );
+                        kind_text_w + 45.0 + 15.0 + comment_w
+                    };
+                    let header_right = child_min + header_width + 16.0;
                     if header_right > fmax {
                         fmax = header_right;
                     }
@@ -1063,6 +1085,7 @@ pub fn build_teoz_layout(sd: &SequenceDiagram, skin: &SkinParams) -> Result<SeqL
                         is_parallel: msg.parallel,
                         from_level: 0,
                         to_level: 0,
+                        hidden: msg.hidden,
                     });
                     continue;
                 }
@@ -1093,6 +1116,7 @@ pub fn build_teoz_layout(sd: &SequenceDiagram, skin: &SkinParams) -> Result<SeqL
                         circle_from: msg.circle_from,
                         circle_to: msg.circle_to,
                         is_parallel: msg.parallel,
+                        hidden: msg.hidden,
                     });
                 } else {
                     // Normal message
@@ -1145,6 +1169,7 @@ pub fn build_teoz_layout(sd: &SequenceDiagram, skin: &SkinParams) -> Result<SeqL
                         is_parallel: msg.parallel,
                         from_level: fl,
                         to_level: tl,
+                        hidden: msg.hidden,
                     });
                 }
             }
@@ -1920,6 +1945,7 @@ pub fn build_teoz_layout(sd: &SequenceDiagram, skin: &SkinParams) -> Result<SeqL
                             group_max = child_with_margin_max;
                         }
                         i = next_i;
+                        continue; // Skip i += 1 at the bottom of the loop
                     }
                     TeozTile::GroupEnd { .. } | TeozTile::FragmentEnd { .. } => {
                         // End of this group — return with external margins
@@ -1932,7 +1958,6 @@ pub fn build_teoz_layout(sd: &SequenceDiagram, skin: &SkinParams) -> Result<SeqL
                         // Java: else tiles contribute to maxX via
                         // ElseTile.getMaxX() = parent.getMinX() + elseWidth
                         // parent.getMinX() = group_min - EXTERNAL_MARGINX1
-                        eprintln!("[GRP-EXT-END] i={i} else_count={} group_min={group_min:.4} group_max={group_max:.4}", else_labels.len());
                         for label in &else_labels {
                             let bracket_label = format!("[{}]", label);
                             let pure_text_w = crate::font_metrics::text_width(
@@ -1947,6 +1972,52 @@ pub fn build_teoz_layout(sd: &SequenceDiagram, skin: &SkinParams) -> Result<SeqL
                                 (group_min - GROUP_EXTERNAL_MARGINX1) + else_width;
                             if else_max > group_max {
                                 group_max = else_max;
+                            }
+                        }
+                        // Java: max2.add(this.min.addFixed(width + 16))
+                        // where width = ComponentRoseGroupingHeader.getPreferredWidth()
+                        // The parent FragmentStart/GroupStart is at start-1
+                        if start > 0 {
+                            match &tiles[start - 1] {
+                                TeozTile::FragmentStart { kind, label, .. } => {
+                                    let kind_text_w = crate::font_metrics::text_width(
+                                        kind.label(), "sans-serif", 13.0, true, false,
+                                    );
+                                    let header_w = if label.is_empty() {
+                                        kind_text_w + 45.0
+                                    } else {
+                                        let bl = format!("[{}]", label);
+                                        let cw = crate::font_metrics::text_width(
+                                            &bl, "sans-serif", 11.0, true, false,
+                                        );
+                                        kind_text_w + 45.0 + 15.0 + cw
+                                    };
+                                    let header_max = group_min + header_w + 16.0;
+                                    if header_max > group_max {
+                                        group_max = header_max;
+                                    }
+                                }
+                                TeozTile::GroupStart { _label, .. } => {
+                                    if let Some(lbl) = _label {
+                                        let kind_text_w = crate::font_metrics::text_width(
+                                            "group", "sans-serif", 13.0, true, false,
+                                        );
+                                        let header_w = if lbl.is_empty() {
+                                            kind_text_w + 45.0
+                                        } else {
+                                            let bl = format!("[{}]", lbl);
+                                            let cw = crate::font_metrics::text_width(
+                                                &bl, "sans-serif", 11.0, true, false,
+                                            );
+                                            kind_text_w + 45.0 + 15.0 + cw
+                                        };
+                                        let header_max = group_min + header_w + 16.0;
+                                        if header_max > group_max {
+                                            group_max = header_max;
+                                        }
+                                    }
+                                }
+                                _ => {}
                             }
                         }
                         return (
@@ -2093,42 +2164,55 @@ pub fn build_teoz_layout(sd: &SequenceDiagram, skin: &SkinParams) -> Result<SeqL
     //   → contribution = raw_min + 3 + pureTextWidth + 70 = raw_min + pureTextWidth + 73
     {
         let mut group_depth: usize = 0;
-        let mut header_labels: Vec<String> = Vec::new();
+        // Store (kind_label, condition_label) pairs for header width computation
+        let mut header_entries: Vec<(&str, String)> = Vec::new();
         for tile in &tiles {
             match tile {
                 TeozTile::GroupStart { _label, .. } => {
                     group_depth += 1;
                     if let Some(l) = _label {
-                        header_labels.push(l.clone());
+                        header_entries.push(("group", l.clone()));
                     }
                 }
-                TeozTile::FragmentStart { label, .. } => {
+                TeozTile::FragmentStart { kind, label, .. } => {
                     group_depth += 1;
-                    header_labels.push(label.clone());
+                    header_entries.push((kind.label(), label.clone()));
                 }
                 TeozTile::GroupEnd { .. } | TeozTile::FragmentEnd { .. } => {
                     if group_depth == 1 {
-                        for lbl in &header_labels {
-                            let pure_text_w = font_metrics::text_width(
-                                lbl,
+                        for (kind_lbl, condition) in &header_entries {
+                            let kind_text_w = font_metrics::text_width(
+                                kind_lbl,
                                 default_font,
                                 msg_font_size,
                                 true,
                                 false,
                             );
-                            // Java: this.min + pureTextW + 45 + 16 + EXTERNAL_MARGINX2(9) = this.min + pureTextW + 70
+                            let header_width = if condition.is_empty() {
+                                kind_text_w + 45.0
+                            } else {
+                                let bracket_label = format!("[{}]", condition);
+                                let comment_w = font_metrics::text_width(
+                                    &bracket_label,
+                                    default_font,
+                                    11.0,
+                                    true,
+                                    false,
+                                );
+                                kind_text_w + 45.0 + 15.0 + comment_w
+                            };
+                            // Java: this.min + headerWidth + 16 + EXTERNAL_MARGINX2(9)
                             // this.min = raw_min + EXTERNAL_MARGINX1(3)
                             let header_max = raw_min
                                 + GROUP_EXTERNAL_MARGINX1
-                                + pure_text_w
-                                + 45.0
-                                + GROUP_MARGINX
+                                + header_width
+                                + 16.0
                                 + GROUP_EXTERNAL_MARGINX2;
                             if header_max > raw_max {
                                 raw_max = header_max;
                             }
                         }
-                        header_labels.clear();
+                        header_entries.clear();
                     }
                     group_depth = group_depth.saturating_sub(1);
                 }
@@ -2199,8 +2283,12 @@ pub fn build_teoz_layout(sd: &SequenceDiagram, skin: &SkinParams) -> Result<SeqL
                 circle_to,
                 from_level,
                 to_level,
+                hidden,
                 ..
             } => {
+                if *hidden {
+                    continue;
+                }
                 let ty = y.unwrap_or(0.0);
                 // Java: tile y = tile top. Arrow y = tile_top + arrowY.
                 // arrowY = textHeight + paddingY = (height - ARROW_DELTA_Y - ARROW_PADDING_Y)
@@ -2292,8 +2380,12 @@ pub fn build_teoz_layout(sd: &SequenceDiagram, skin: &SkinParams) -> Result<SeqL
                 active_level,
                 circle_from,
                 circle_to,
+                hidden,
                 ..
             } => {
+                if *hidden {
+                    continue;
+                }
                 let ty = y.unwrap_or(0.0);
                 let cx = get_x(livings[*participant_idx].pos_c);
                 let is_left = *direction == SeqDirection::RightToLeft;
@@ -2522,11 +2614,27 @@ pub fn build_teoz_layout(sd: &SequenceDiagram, skin: &SkinParams) -> Result<SeqL
                                                       // Java GroupingTile computes its own min/max from children.
                     let (frag_min, frag_max) =
                         compute_fragment_extent(&tiles, child_start, tile_i, &livings, &rl, &tp);
-                    // Also account for header label width
-                    let pure_text_w =
-                        font_metrics::text_width(&label, default_font, msg_font_size, true, false);
-                    // Java: this.min + headerWidth + 16 → contributes to maxX
-                    let header_right = frag_min + pure_text_w + 45.0 + GROUP_MARGINX;
+                    // Java: ComponentRoseGroupingHeader.getPreferredWidth():
+                    //   getTextWidth() = pureTextW(kindLabel) + marginX1(15) + marginX2(30)
+                    //   if condition label present:
+                    //     sup = marginX1(15) + commentMargin(0) + commentTextWidth
+                    //     commentText = "[condition]" at 11pt bold
+                    //   else: sup = 0
+                    //   width = getTextWidth() + sup
+                    // Java GroupingTile: max candidate = this.min + width + 16
+                    let kind_text_w =
+                        font_metrics::text_width(kind.label(), default_font, msg_font_size, true, false);
+                    let header_width = if label.is_empty() {
+                        // No condition label: sup = 0
+                        kind_text_w + 45.0  // marginX1(15) + marginX2(30)
+                    } else {
+                        // Condition label present: "[label]" at 11pt bold
+                        let bracket_label = format!("[{}]", label);
+                        let comment_w =
+                            font_metrics::text_width(&bracket_label, default_font, 11.0, true, false);
+                        kind_text_w + 45.0 + 15.0 + comment_w  // + marginX1(15) + commentWidth
+                    };
+                    let header_right = frag_min + header_width + 16.0;
                     let effective_max = frag_max.max(header_right);
                     // Convert to document coordinates
                     let frag_x = frag_min + x_offset;
@@ -2836,7 +2944,17 @@ pub fn build_teoz_layout(sd: &SequenceDiagram, skin: &SkinParams) -> Result<SeqL
         destroys,
         notes,
         groups,
-        fragments,
+        fragments: {
+            // Sort fragments so outer (earlier y, taller) come before inner.
+            // Java draws outer GroupingTile first via recursive drawU().
+            let mut sorted = fragments;
+            sorted.sort_by(|a, b| {
+                a.y.partial_cmp(&b.y)
+                    .unwrap_or(std::cmp::Ordering::Equal)
+                    .then_with(|| b.height.partial_cmp(&a.height).unwrap_or(std::cmp::Ordering::Equal))
+            });
+            sorted
+        },
         dividers,
         delays,
         refs,

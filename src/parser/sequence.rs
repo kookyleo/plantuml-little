@@ -54,22 +54,23 @@ pub fn parse_sequence_diagram_with_original(
     .unwrap();
 
     // Arrow regex: full PlantUML arrow syntax including half-arrows and decorators.
+    // The bracket group matches both color [#...] and style [hidden] annotations.
     let arrow_re = Regex::new(
-        r"^(.+?)\s+([oxX]*(?:<<?)?(?:[/\\]{1,2})?(?:\[#[^\]]+\])?-+(?:\[#[^\]]+\])?-*(?:[/\\]{1,2})?(?:>?>?)?[oxX]*)\s+(.+?)(?:\s*:\s*(.*))?$",
+        r"^(.+?)\s+([oxX]*(?:<<?)?(?:[/\\]{1,2})?(?:\[#[^\]]+\]|\[(?i:hidden)\])?-+(?:\[#[^\]]+\]|\[(?i:hidden)\])?-*(?:[/\\]{1,2})?(?:>?>?)?[oxX]*)\s+(.+?)(?:\s*:\s*(.*))?$",
     )
     .unwrap();
     let arrow_nospace_re = Regex::new(
-        r"^([A-Za-z_]\w*)([oxX]*(?:<<?)?(?:[/\\]{1,2})?(?:\[#[^\]]+\])?-+(?:\[#[^\]]+\])?-*(?:[/\\]{1,2})?(?:>?>?)?[oxX]*)([A-Za-z_]\w*)(?:\s*:\s*(.*))?$",
+        r"^([A-Za-z_]\w*)\s*([oxX]*(?:<<?)?(?:[/\\]{1,2})?(?:\[#[^\]]+\]|\[(?i:hidden)\])?-+(?:\[#[^\]]+\]|\[(?i:hidden)\])?-*(?:[/\\]{1,2})?(?:>?>?)?[oxX]*)\s*([A-Za-z_]\w*)(?:\s*:\s*(.*))?$",
     )
     .unwrap();
     // Boundary arrow from left: [-> or [<-> participant
     let boundary_left_re = Regex::new(
-        r"^\[([oxX]*(?:<<?)?(?:[/\\]{1,2})?(?:\[#[^\]]+\])?-+(?:\[#[^\]]+\])?-*(?:[/\\]{1,2})?(?:>?>?)?[oxX]*)\s+(.+?)(?:\s*:\s*(.*))?$",
+        r"^\[([oxX]*(?:<<?)?(?:[/\\]{1,2})?(?:\[#[^\]]+\]|\[(?i:hidden)\])?-+(?:\[#[^\]]+\]|\[(?i:hidden)\])?-*(?:[/\\]{1,2})?(?:>?>?)?[oxX]*)\s+(.+?)(?:\s*:\s*(.*))?$",
     )
     .unwrap();
     // Boundary arrow to right: participant ->]
     let boundary_right_re = Regex::new(
-        r"^(.+?)\s+([oxX]*(?:<<?)?(?:[/\\]{1,2})?(?:\[#[^\]]+\])?-+(?:\[#[^\]]+\])?-*(?:[/\\]{1,2})?(?:>?>?)?[oxX]*\])\s*(?:\s*:\s*(.*))?$",
+        r"^(.+?)\s+([oxX]*(?:<<?)?(?:[/\\]{1,2})?(?:\[#[^\]]+\]|\[(?i:hidden)\])?-+(?:\[#[^\]]+\]|\[(?i:hidden)\])?-*(?:[/\\]{1,2})?(?:>?>?)?[oxX]*\])\s*(?:\s*:\s*(.*))?$",
     )
     .unwrap();
 
@@ -975,11 +976,22 @@ fn extract_arrow_color(arrow: &str) -> (Option<String>, String) {
     (None, arrow.to_string())
 }
 
+/// Check whether the arrow contains `[hidden]` and strip it if so.
+fn extract_arrow_hidden(arrow: &str) -> (bool, String) {
+    let lower = arrow.to_lowercase();
+    if let Some(start) = lower.find("[hidden]") {
+        let cleaned = format!("{}{}", &arrow[..start], &arrow[start + 8..]);
+        return (true, cleaned);
+    }
+    (false, arrow.to_string())
+}
+
 /// Parse arrow syntax and return a Message.
 /// Handles full PlantUML syntax: heads (>, >>), half-arrows (/, \),
 /// decorators (o, x), boundary ([, ]), and shaft (-, --).
 fn parse_arrow(left: &str, arrow: &str, right: &str, text: &str) -> Option<Message> {
-    let (color, clean_arrow) = extract_arrow_color(arrow);
+    let (is_hidden, arrow_no_hidden) = extract_arrow_hidden(arrow);
+    let (color, clean_arrow) = extract_arrow_color(&arrow_no_hidden);
 
     // Detect circle decorators before stripping
     let has_left_circle = clean_arrow.starts_with('o');
@@ -1073,6 +1085,7 @@ fn parse_arrow(left: &str, arrow: &str, right: &str, text: &str) -> Option<Messa
         circle_to,
         parallel: false, // set by caller if & prefix detected
         is_reverse_define,
+        hidden: is_hidden,
     })
 }
 

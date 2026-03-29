@@ -75,6 +75,8 @@ pub struct Message {
     pub parallel: bool,
     /// Java isReverseDefine: controls self-message constraint direction
     pub is_reverse_define: bool,
+    /// Hidden arrow: `-[hidden]->` — occupies vertical space but is not drawn
+    pub hidden: bool,
 }
 
 /// Combined fragment kind
