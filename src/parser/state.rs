@@ -227,10 +227,10 @@ pub fn parse_state_diagram(source: &str) -> Result<StateDiagram> {
 
                 // Push the completed composite state into the parent scope
                 if let Some(parent) = stack.last_mut() {
-                    parent.state.children.push(completed_state);
+                    merge_or_add_state(&mut parent.state.children, completed_state);
                     parent.transitions.extend(inner_transitions);
                 } else {
-                    top_states.push(completed_state);
+                    merge_or_add_state(&mut top_states, completed_state);
                     top_transitions.extend(inner_transitions);
                 }
             } else {
@@ -970,8 +970,47 @@ fn current_transitions_mut<'a>(
     }
 }
 
+fn find_state_recursive<'a>(states: &'a [State], id: &str) -> Option<&'a State> {
+    for state in states {
+        if state.id == id {
+            return Some(state);
+        }
+        if let Some(found) = find_state_recursive(&state.children, id) {
+            return Some(found);
+        }
+        for region in &state.regions {
+            if let Some(found) = find_state_recursive(region, id) {
+                return Some(found);
+            }
+        }
+    }
+    None
+}
+
+fn find_state_recursive_mut<'a>(states: &'a mut [State], id: &str) -> Option<&'a mut State> {
+    for state in states {
+        if state.id == id {
+            return Some(state);
+        }
+        if let Some(found) = find_state_recursive_mut(&mut state.children, id) {
+            return Some(found);
+        }
+        for region in &mut state.regions {
+            if let Some(found) = find_state_recursive_mut(region, id) {
+                return Some(found);
+            }
+        }
+    }
+    None
+}
+
+fn history_parent_id(id: &str) -> Option<&str> {
+    id.strip_suffix("[H*]").or_else(|| id.strip_suffix("[H]"))
+}
+
 /// Ensure a state with the given ID exists in the states list.
-/// If not found, auto-create it. Handles `[*]` as a special state.
+/// If not found, auto-create it. Handles `[*]` as a special state and attaches
+/// history pseudo states to their owning composite when that composite exists.
 fn ensure_state(states: &mut Vec<State>, id: &str, source_line: Option<usize>) {
     if id == "[*]" || id.starts_with("[*]") {
         if states.iter().any(|s| s.id == id) {
@@ -993,7 +1032,7 @@ fn ensure_state(states: &mut Vec<State>, id: &str, source_line: Option<usize>) {
         return;
     }
 
-    if find_state(states, id).is_some() {
+    if find_state_recursive(states, id).is_some() {
         return;
     }
 
@@ -1005,6 +1044,27 @@ fn ensure_state(states: &mut Vec<State>, id: &str, source_line: Option<usize>) {
     } else {
         StateKind::default()
     };
+
+    if matches!(kind, StateKind::History | StateKind::DeepHistory) {
+        if let Some(parent_id) = history_parent_id(id) {
+            if let Some(parent) = find_state_recursive_mut(states, parent_id) {
+                debug!("auto-creating history child '{id}' under '{parent_id}'");
+                parent.children.push(State {
+                    name: id.to_string(),
+                    id: id.to_string(),
+                    description: Vec::new(),
+                    stereotype: None,
+                    children: Vec::new(),
+                    is_special: false,
+                    kind,
+                    source_line,
+                    explicit_source_line: None,
+                    regions: Vec::new(),
+                });
+                return;
+            }
+        }
+    }
 
     debug!("auto-creating state '{id}' (kind={kind:?})");
     states.push(State {
@@ -1036,19 +1096,53 @@ fn find_state_mut<'a>(states: &'a mut [State], id: &str) -> Option<&'a mut State
 /// Otherwise, add it to the list.
 fn merge_or_add_state(states: &mut Vec<State>, new_state: State) {
     if let Some(existing) = states.iter_mut().find(|s| s.id == new_state.id) {
+        let State {
+            name,
+            id: _,
+            description,
+            stereotype,
+            children,
+            is_special,
+            kind,
+            regions,
+            source_line,
+            explicit_source_line,
+        } = new_state;
         // Merge: add descriptions
-        for desc in new_state.description {
+        for desc in description {
             existing.description.push(desc);
         }
         // Update display name if the existing one is just the ID
-        if existing.name == existing.id && new_state.name != new_state.id {
-            existing.name = new_state.name;
+        if existing.name == existing.id && name != existing.id {
+            existing.name = name;
         }
         // Set stereotype if not already set
-        if existing.stereotype.is_none() && new_state.stereotype.is_some() {
-            existing.stereotype = new_state.stereotype;
+        if existing.stereotype.is_none() && stereotype.is_some() {
+            existing.stereotype = stereotype;
         }
-        existing.source_line = match (existing.source_line, new_state.source_line) {
+        if !is_special {
+            existing.is_special = false;
+        }
+        if matches!(existing.kind, StateKind::Normal) && !matches!(kind, StateKind::Normal) {
+            existing.kind = kind;
+        }
+        for child in children {
+            merge_or_add_state(&mut existing.children, child);
+        }
+        if existing.regions.is_empty() {
+            existing.regions = regions;
+        } else {
+            for (idx, region) in regions.into_iter().enumerate() {
+                if let Some(existing_region) = existing.regions.get_mut(idx) {
+                    for child in region {
+                        merge_or_add_state(existing_region, child);
+                    }
+                } else {
+                    existing.regions.push(region);
+                }
+            }
+        }
+        existing.source_line = match (existing.source_line, source_line) {
             (Some(a), Some(b)) => Some(a.min(b)),
             (Some(a), None) => Some(a),
             (None, Some(b)) => Some(b),
@@ -1056,7 +1150,7 @@ fn merge_or_add_state(states: &mut Vec<State>, new_state: State) {
         };
         existing.explicit_source_line = match (
             existing.explicit_source_line,
-            new_state.explicit_source_line,
+            explicit_source_line,
         ) {
             (Some(a), Some(b)) => Some(a.min(b)),
             (Some(a), None) => Some(a),
@@ -1816,11 +1910,16 @@ mod tests {
             .expect("should have a transition to Active[H]");
         assert_eq!(hist_tr.to, "Active[H]");
 
-        let hist_state = diagram
+        let active = diagram
             .states
             .iter()
+            .find(|s| s.id == "Active")
+            .expect("should have Active state");
+        let hist_state = active
+            .children
+            .iter()
             .find(|s| s.id == "Active[H]")
-            .expect("should have auto-created Active[H] state");
+            .expect("should have auto-created Active[H] child");
         assert_eq!(hist_state.kind, StateKind::History);
     }
 

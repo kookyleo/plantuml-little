@@ -1,0 +1,9 @@
+@startuml
+[*] --> Active
+state Active {
+  [*] --> Idle
+  Idle --> Processing
+}
+Active --> Paused
+Paused --> Active[H]
+@enduml

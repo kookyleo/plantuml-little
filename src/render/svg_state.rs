@@ -2,7 +2,7 @@ use std::collections::{HashMap, HashSet};
 use std::fmt::Write;
 
 use crate::font_metrics;
-use crate::klimt::svg::{fmt_coord, xml_escape, LengthAdjust, SvgGraphic};
+use crate::klimt::svg::{fmt_coord, svg_comment_escape, xml_escape, LengthAdjust, SvgGraphic};
 use crate::layout::state::{StateLayout, StateNodeLayout, StateNoteLayout, TransitionLayout};
 use crate::model::state::{State, StateDiagram, StateKind, Transition};
 use crate::render::svg::{
@@ -29,10 +29,16 @@ const FINAL_INNER: &str = "#000000";
 const ARROW_DECORATION_LEN: f64 = 6.0;
 
 type TransitionKey = (String, String, Option<usize>);
+#[derive(Clone)]
+struct NoteRenderInfo {
+    qualified_name: String,
+    ent_id: String,
+}
 
 struct JavaStateRenderPlan {
     ent_id_map: HashMap<String, String>,
     lnk_id_map: HashMap<TransitionKey, String>,
+    note_infos: Vec<Option<NoteRenderInfo>>,
     top_level_order: Vec<String>,
 }
 
@@ -169,6 +175,28 @@ fn build_java_state_render_plan(diagram: &StateDiagram, layout: &StateLayout) ->
             top_level_order.push(id);
         }
     }
+
+    let mut anonymous_attached_seen = 0u32;
+    let note_infos = diagram
+        .notes
+        .iter()
+        .map(|note| {
+            if note.alias.is_some() {
+                return None;
+            }
+            let target_id = note.target.as_deref()?;
+            let target_ent = ent_numbers
+                .get(target_id)
+                .copied()?;
+            let qnum = target_ent + anonymous_attached_seen;
+            anonymous_attached_seen += 1;
+            Some(NoteRenderInfo {
+                qualified_name: format!("GMN{qnum}"),
+                ent_id: format!("ent{:04}", qnum + 1),
+            })
+        })
+        .collect();
+
     JavaStateRenderPlan {
         ent_id_map: ent_numbers
             .into_iter()
@@ -178,6 +206,7 @@ fn build_java_state_render_plan(diagram: &StateDiagram, layout: &StateLayout) ->
             .into_iter()
             .map(|(key, number)| (key, format!("lnk{number}")))
             .collect(),
+        note_infos,
         top_level_order,
     }
 }
@@ -250,8 +279,9 @@ pub fn render_state(
     }
 
     // Notes
-    for note in &layout.note_layouts {
-        render_note(&mut sg, &mut tracker, note);
+    for (idx, note) in layout.note_layouts.iter().enumerate() {
+        let note_info = render_plan.note_infos.get(idx).and_then(|info| info.as_ref());
+        render_note(&mut sg, &mut tracker, note, note_info);
     }
 
     // Remaining transitions (top-level, not rendered as internal above)
@@ -261,17 +291,8 @@ pub fn render_state(
         }
     }
 
-    // Compute raw body dimensions from BoundsTracker span
-    // Java: SvekResult.calculateDimension = LF_span + delta(15, 15)
     let (span_w, span_h) = tracker.span();
     let raw_body_dim = (span_w + CANVAS_DELTA, span_h + CANVAS_DELTA);
-    log::debug!(
-        "state viewport: span=({span_w:.2}, {span_h:.2}) raw_body_dim=({:.2}, {:.2})",
-        raw_body_dim.0,
-        raw_body_dim.1,
-    );
-
-    // Java ensureVisible: maxX = (int)(x + 1)
     let svg_w = ensure_visible_int(raw_body_dim.0 + DOC_MARGIN_RIGHT) as f64;
     let svg_h = ensure_visible_int(raw_body_dim.1 + DOC_MARGIN_BOTTOM) as f64;
 
@@ -281,6 +302,7 @@ pub fn render_state(
     write_bg_rect(&mut buf, svg_w, svg_h, bg);
     buf.push_str(sg.body());
     buf.push_str("</g></svg>");
+
     Ok((buf, Some(raw_body_dim)))
 }
 
@@ -336,7 +358,16 @@ fn render_state_node_with_parent(
             } else if node.is_final {
                 render_final(sg, tracker, node, ent_id_map, parent_name);
             } else if node.is_composite {
-                render_composite(sg, tracker, node, bg, border, font_color, ent_id_map);
+                render_composite(
+                    sg,
+                    tracker,
+                    node,
+                    bg,
+                    border,
+                    font_color,
+                    ent_id_map,
+                    parent_name,
+                );
             } else {
                 render_simple(
                     sg,
@@ -429,8 +460,11 @@ fn render_final(
 /// Fork/Join bar: filled black horizontal rectangle
 fn render_fork_join(sg: &mut SvgGraphic, tracker: &mut BoundsTracker, node: &StateNodeLayout) {
     sg.push_raw(&format!(
-        r#"<rect fill="{INITIAL_FILL}" height="{}" rx="2" ry="2" stroke="none" width="{}" x="{}" y="{}"/>"#,
-        fmt_coord(node.height), fmt_coord(node.width), fmt_coord(node.x), fmt_coord(node.y),
+        r##"<rect fill="#555555" height="{}" style="stroke:none;stroke-width:1;" width="{}" x="{}" y="{}"/>"##,
+        fmt_coord(node.height),
+        fmt_coord(node.width),
+        fmt_coord(node.x),
+        fmt_coord(node.y),
     ));
     tracker.track_rect(node.x, node.y, node.width, node.height);
 }
@@ -494,27 +528,28 @@ fn render_history(
     let cx = node.x + node.width / 2.0;
     let cy = node.y + node.height / 2.0;
     let r = node.width / 2.0;
-    sg.set_fill_color("none");
+    let font_size = 14.0;
+    sg.set_fill_color(ENTITY_BG);
     sg.set_stroke_color(Some(border));
-    sg.set_stroke_width(1.5, None);
-    sg.svg_circle(cx, cy, r, 0.0);
+    sg.set_stroke_width(0.5, None);
+    sg.svg_ellipse(cx, cy, r, r, 0.0);
     let label = if deep { "H*" } else { "H" };
-    let tl = font_metrics::text_width(label, "SansSerif", FONT_SIZE, true, false);
+    let tl = font_metrics::text_width(label, "SansSerif", font_size, false, false);
     sg.set_fill_color(font_color);
     sg.svg_text(
         label,
-        cx,
-        cy + FONT_SIZE * 0.35,
+        cx - tl / 2.0,
+        cy + font_size * 0.3462,
         Some("sans-serif"),
-        FONT_SIZE,
-        Some("bold"),
+        font_size,
+        None,
         None,
         None,
         tl,
         LengthAdjust::Spacing,
         None,
         0,
-        Some("middle"),
+        None,
     );
     tracker.track_ellipse(cx, cy, r, r);
 }
@@ -666,6 +701,7 @@ fn render_composite(
     border: &str,
     font_color: &str,
     ent_id_map: &HashMap<String, String>,
+    parent_name: Option<&str>,
 ) {
     let r = 12.5; // corner radius
     let sep_y = node.y + 26.2969;
@@ -673,6 +709,33 @@ fn render_composite(
     let y = node.y;
     let w = node.width;
     let h = node.height;
+    let render_as_cluster = node
+        .children
+        .iter()
+        .any(|child| matches!(child.kind, StateKind::History | StateKind::DeepHistory));
+    let qname = match parent_name {
+        Some(parent) => format!("{}.{}", parent, node.id),
+        None => node.id.clone(),
+    };
+    if render_as_cluster {
+        let ent_id = ent_id_map
+            .get(&node.id)
+            .cloned()
+            .unwrap_or_else(|| "ent0000".to_string());
+        let mut cluster_attrs = format!(
+            r#" class="cluster" data-qualified-name="{}""#,
+            xml_escape(&qname)
+        );
+        if let Some(source_line) = node.source_line {
+            write!(cluster_attrs, r#" data-source-line="{}""#, source_line).unwrap();
+        }
+        write!(cluster_attrs, r#" id="{}""#, ent_id).unwrap();
+        sg.push_raw(&format!(
+            "<!--cluster {}--><g{}>",
+            svg_comment_escape(&node.name),
+            cluster_attrs,
+        ));
+    }
 
     // 1. Tab header path (filled background, matching Java USymbolFrame)
     //    Rounded top-left and right leading into a flat bottom at the separator line.
@@ -690,6 +753,7 @@ fn render_composite(
         fmt_coord(x), fmt_coord(y + r),            // left side up to radius
         fmt_coord(x + r), fmt_coord(y),            // arc back to start
     ));
+    tracker.track_path_bounds(x, y, x + w, sep_y);
 
     // 2. Outer rounded rect (no fill, border only)
     sg.push_raw(&format!(
@@ -702,6 +766,7 @@ fn render_composite(
     sg.set_stroke_color(Some(border));
     sg.set_stroke_width(0.5, None);
     sg.svg_line(x, sep_y, x + w, sep_y, 0.0);
+    tracker.track_line(x, sep_y, x + w, sep_y);
 
     // 4. Composite state name text
     let name_x = x + (w - name_tl) / 2.0;
@@ -724,9 +789,9 @@ fn render_composite(
     );
     let name_text_h = font_metrics::line_height("SansSerif", 14.0, false, false);
     tracker.track_text(name_x, name_y, name_tl, name_text_h);
-
-    // Note: Java wraps the entity in <g class="entity"> but we output the
-    // header elements before the entity <g> to match reference SVG order.
+    if render_as_cluster {
+        sg.push_raw("</g>");
+    }
 
     // Recursively render children with parent name for qualified naming
     for child in &node.children {
@@ -738,7 +803,7 @@ fn render_composite(
             border,
             font_color,
             ent_id_map,
-            Some(&node.id),
+            Some(&qname),
         );
     }
 
@@ -1044,35 +1109,53 @@ fn special_transition_endpoint_display(id: &str, _is_source: bool) -> Option<Str
     if let Some(scope) = id.strip_prefix("[*]__end") {
         return Some(format!("*end*{scope}"));
     }
+    if let Some(scope) = id.strip_suffix("[H*]") {
+        return Some(format!("*deephistorical*{scope}"));
+    }
+    if let Some(scope) = id.strip_suffix("[H]") {
+        return Some(format!("*historical*{scope}"));
+    }
     let scope = id.strip_prefix("[*]")?;
     Some(format!("*start*{scope}"))
 }
 
 // ── Note rendering ──────────────────────────────────────────────────
 
-fn render_note(sg: &mut SvgGraphic, tracker: &mut BoundsTracker, note: &StateNoteLayout) {
+fn render_note(
+    sg: &mut SvgGraphic,
+    tracker: &mut BoundsTracker,
+    note: &StateNoteLayout,
+    note_info: Option<&NoteRenderInfo>,
+) {
     let x = note.x;
     let y = note.y;
     let w = note.width;
     let h = note.height;
     let fold = 10.0;
     let notch_half = 4.0;
-    let qualified_name = note.entity_id.as_deref().unwrap_or("GMN");
-    let note_id_seed = qualified_name
-        .bytes()
-        .fold(0u32, |acc, byte| acc.wrapping_mul(131).wrapping_add(byte as u32));
-    let ent_id = format!("ent{}", 9000 + (note_id_seed % 1000));
+    let (qualified_name, ent_id) = if let Some(info) = note_info {
+        (info.qualified_name.clone(), info.ent_id.clone())
+    } else {
+        let qualified_name = note.entity_id.as_deref().unwrap_or("GMN");
+        let note_id_seed = qualified_name
+            .bytes()
+            .fold(0u32, |acc, byte| acc.wrapping_mul(131).wrapping_add(byte as u32));
+        let ent_id = format!("ent{}", 9000 + (note_id_seed % 1000));
+        (qualified_name.to_string(), ent_id)
+    };
 
     sg.push_raw(&format!(
         r#"<g class="entity" data-qualified-name="{}""#,
-        xml_escape(qualified_name)
+        xml_escape(&qualified_name)
     ));
     if let Some(source_line) = note.source_line {
         sg.push_raw(&format!(r#" data-source-line="{}""#, source_line));
     }
     sg.push_raw(&format!(r#" id="{}">"#, ent_id));
 
-    let body_path = if let Some((ax, ay)) = note.anchor {
+    let body_path = if let Some((start, end)) = note.opale_points {
+        build_opale_note_path(x, y, w, h, start, end)
+    } else if let Some((ax, ay)) = note.anchor {
         match note.position.as_str() {
             "left" => format!(
                 "M{},{} L{},{} L{},{} L{},{} L{},{} L{},{} L{},{} L{},{} L{},{}",
@@ -1221,6 +1304,171 @@ fn render_note(sg: &mut SvgGraphic, tracker: &mut BoundsTracker, note: &StateNot
     );
     sg.push_raw(&tmp);
     sg.push_raw("</g>");
+}
+
+#[derive(Clone, Copy)]
+enum OpaleDirection {
+    Left,
+    Right,
+    Up,
+    Down,
+}
+
+fn opale_strategy(width: f64, height: f64, point: (f64, f64)) -> OpaleDirection {
+    let d_left = point.0.abs();
+    let d_right = (width - point.0).abs();
+    let d_up = point.1.abs();
+    let d_down = (height - point.1).abs();
+    if d_left <= d_right && d_left <= d_down && d_left <= d_up {
+        OpaleDirection::Left
+    } else if d_right <= d_down && d_right <= d_up {
+        OpaleDirection::Right
+    } else if d_up <= d_down {
+        OpaleDirection::Up
+    } else {
+        OpaleDirection::Down
+    }
+}
+
+fn build_opale_note_path(
+    x: f64,
+    y: f64,
+    width: f64,
+    height: f64,
+    start: (f64, f64),
+    end: (f64, f64),
+) -> String {
+    let start_local = (start.0 - x, start.1 - y);
+    let end_local = (end.0 - x, end.1 - y);
+    let center = (width / 2.0, height / 2.0);
+    let dist_start = (start_local.0 - center.0).powi(2) + (start_local.1 - center.1).powi(2);
+    let dist_end = (end_local.0 - center.0).powi(2) + (end_local.1 - center.1).powi(2);
+    let (pp1, pp2) = if dist_start > dist_end {
+        (end_local, start_local)
+    } else {
+        (start_local, end_local)
+    };
+
+    match opale_strategy(width, height, pp1) {
+        OpaleDirection::Left => {
+            let y1 = (pp1.1 - 4.0).clamp(0.0, height - 8.0);
+            format!(
+                "M{},{} L{},{} L{},{} L{},{} L{},{} A0,0 0 0 0 {},{} L{},{} A0,0 0 0 0 {},{} L{},{} L{},{} L{},{} A0,0 0 0 0 {},{}",
+                fmt_coord(x),
+                fmt_coord(y),
+                fmt_coord(x),
+                fmt_coord(y + y1),
+                fmt_coord(x + pp2.0),
+                fmt_coord(y + pp2.1),
+                fmt_coord(x),
+                fmt_coord(y + y1 + 8.0),
+                fmt_coord(x),
+                fmt_coord(y + height),
+                fmt_coord(x),
+                fmt_coord(y + height),
+                fmt_coord(x + width),
+                fmt_coord(y + height),
+                fmt_coord(x + width),
+                fmt_coord(y + height),
+                fmt_coord(x + width),
+                fmt_coord(y + 10.0),
+                fmt_coord(x + width - 10.0),
+                fmt_coord(y),
+                fmt_coord(x),
+                fmt_coord(y),
+                fmt_coord(x),
+                fmt_coord(y),
+            )
+        }
+        OpaleDirection::Right => {
+            let y1 = (pp1.1 - 4.0).clamp(10.0, height - 8.0);
+            format!(
+                "M{},{} L{},{} A0,0 0 0 0 {},{} L{},{} A0,0 0 0 0 {},{} L{},{} L{},{} L{},{} L{},{} L{},{} L{},{} A0,0 0 0 0 {},{}",
+                fmt_coord(x),
+                fmt_coord(y),
+                fmt_coord(x),
+                fmt_coord(y + height),
+                fmt_coord(x),
+                fmt_coord(y + height),
+                fmt_coord(x + width),
+                fmt_coord(y + height),
+                fmt_coord(x + width),
+                fmt_coord(y + height),
+                fmt_coord(x + width),
+                fmt_coord(y + y1 + 8.0),
+                fmt_coord(x + pp2.0),
+                fmt_coord(y + pp2.1),
+                fmt_coord(x + width),
+                fmt_coord(y + y1),
+                fmt_coord(x + width),
+                fmt_coord(y + 10.0),
+                fmt_coord(x + width - 10.0),
+                fmt_coord(y),
+                fmt_coord(x),
+                fmt_coord(y),
+                fmt_coord(x),
+                fmt_coord(y),
+            )
+        }
+        OpaleDirection::Up => {
+            let x1 = (pp1.0 - 4.0).clamp(0.0, width - 10.0);
+            format!(
+                "M{},{} L{},{} A0,0 0 0 0 {},{} L{},{} A0,0 0 0 0 {},{} L{},{} L{},{} L{},{} L{},{} L{},{} L{},{} A0,0 0 0 0 {},{}",
+                fmt_coord(x),
+                fmt_coord(y),
+                fmt_coord(x),
+                fmt_coord(y + height),
+                fmt_coord(x),
+                fmt_coord(y + height),
+                fmt_coord(x + width),
+                fmt_coord(y + height),
+                fmt_coord(x + width),
+                fmt_coord(y + height),
+                fmt_coord(x + width),
+                fmt_coord(y + 10.0),
+                fmt_coord(x + width - 10.0),
+                fmt_coord(y),
+                fmt_coord(x + x1 + 8.0),
+                fmt_coord(y),
+                fmt_coord(x + pp2.0),
+                fmt_coord(y + pp2.1),
+                fmt_coord(x + x1),
+                fmt_coord(y),
+                fmt_coord(x),
+                fmt_coord(y),
+                fmt_coord(x),
+                fmt_coord(y),
+            )
+        }
+        OpaleDirection::Down => {
+            let x1 = (pp1.0 - 4.0).clamp(0.0, width);
+            format!(
+                "M{},{} L{},{} A0,0 0 0 0 {},{} L{},{} L{},{} L{},{} A0,0 0 0 0 {},{} L{},{} L{},{} L{},{} A0,0 0 0 0 {},{}",
+                fmt_coord(x),
+                fmt_coord(y),
+                fmt_coord(x),
+                fmt_coord(y + height),
+                fmt_coord(x),
+                fmt_coord(y + height),
+                fmt_coord(x + x1),
+                fmt_coord(y + height),
+                fmt_coord(x + pp2.0),
+                fmt_coord(y + pp2.1),
+                fmt_coord(x + x1 + 8.0),
+                fmt_coord(y + height),
+                fmt_coord(x + width),
+                fmt_coord(y + height),
+                fmt_coord(x + width),
+                fmt_coord(y + 10.0),
+                fmt_coord(x + width - 10.0),
+                fmt_coord(y),
+                fmt_coord(x),
+                fmt_coord(y),
+                fmt_coord(x),
+                fmt_coord(y),
+            )
+        }
+    }
 }
 
 // ── Helper functions ────────────────────────────────────────────────
@@ -1381,6 +1629,7 @@ mod tests {
             is_composite: false,
             children: vec![],
             kind: crate::model::state::StateKind::default(),
+            internal_transitions: Vec::new(),
             region_separators: Vec::new(),
             source_line: None,
         }
@@ -1402,6 +1651,7 @@ mod tests {
             source_line: None,
             children: vec![],
             kind: crate::model::state::StateKind::default(),
+            internal_transitions: Vec::new(),
             region_separators: Vec::new(),
         }
     }
@@ -1422,6 +1672,7 @@ mod tests {
             is_composite: false,
             children: vec![],
             kind: crate::model::state::StateKind::default(),
+            internal_transitions: Vec::new(),
             region_separators: Vec::new(),
         }
     }
@@ -1589,6 +1840,7 @@ mod tests {
             is_composite: true,
             children: vec![child],
             kind: crate::model::state::StateKind::default(),
+            internal_transitions: Vec::new(),
             region_separators: Vec::new(),
         };
         layout.state_layouts.push(composite);
@@ -1705,6 +1957,7 @@ mod tests {
             entity_id: Some("GMN2".to_string()),
             source_line: Some(1),
             anchor: None,
+            opale_points: None,
         });
         let (svg, _) =
             render_state(&diagram, &layout, &SkinParams::default()).expect("render failed");
@@ -1734,6 +1987,7 @@ mod tests {
             entity_id: Some("GMN2".to_string()),
             source_line: Some(1),
             anchor: None,
+            opale_points: None,
         });
         let (svg, _) =
             render_state(&diagram, &layout, &SkinParams::default()).expect("render failed");
@@ -1867,6 +2121,7 @@ mod tests {
             is_composite: false,
             children: vec![],
             kind: StateKind::Fork,
+            internal_transitions: Vec::new(),
             region_separators: Vec::new(),
         });
         let (svg, _) =
@@ -1901,6 +2156,7 @@ mod tests {
             is_composite: false,
             children: vec![],
             kind: StateKind::Join,
+            internal_transitions: Vec::new(),
             region_separators: Vec::new(),
         });
         let (svg, _) =
@@ -1926,6 +2182,7 @@ mod tests {
             is_composite: false,
             children: vec![],
             kind: StateKind::Choice,
+            internal_transitions: Vec::new(),
             region_separators: Vec::new(),
             source_line: None,
         });
@@ -1955,6 +2212,7 @@ mod tests {
             is_composite: false,
             children: vec![],
             kind: StateKind::History,
+            internal_transitions: Vec::new(),
             region_separators: Vec::new(),
             source_line: None,
         });
@@ -1982,6 +2240,7 @@ mod tests {
             is_composite: false,
             children: vec![],
             kind: StateKind::DeepHistory,
+            internal_transitions: Vec::new(),
             region_separators: Vec::new(),
             source_line: None,
         });
@@ -2014,6 +2273,7 @@ mod tests {
             is_composite: true,
             children: vec![child1, child2],
             kind: StateKind::Normal,
+            internal_transitions: Vec::new(),
             region_separators: vec![110.0],
             source_line: None,
         };
