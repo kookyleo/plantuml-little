@@ -100,6 +100,10 @@ enum TeozTile {
         circle_from: bool,
         /// Circle decoration on to end
         circle_to: bool,
+        /// Cross (X) decoration on from end
+        cross_from: bool,
+        /// Cross (X) decoration on to end
+        cross_to: bool,
         /// Teoz parallel: shares y with previous tile
         is_parallel: bool,
         /// Activation level of the sender at this message
@@ -131,6 +135,10 @@ enum TeozTile {
         circle_from: bool,
         /// Circle decoration on to end
         circle_to: bool,
+        /// Cross (X) decoration on from end
+        cross_from: bool,
+        /// Cross (X) decoration on to end
+        cross_to: bool,
         /// Teoz parallel: shares y with previous tile
         is_parallel: bool,
         /// Hidden arrow: occupies space but is not drawn
@@ -1103,6 +1111,8 @@ pub fn build_teoz_layout(sd: &SequenceDiagram, skin: &SkinParams) -> Result<SeqL
                         to_center,
                         circle_from: msg.circle_from,
                         circle_to: msg.circle_to,
+                        cross_from: msg.cross_from,
+                        cross_to: msg.cross_to,
                         is_parallel: msg.parallel,
                         from_level: 0,
                         to_level: 0,
@@ -1136,6 +1146,8 @@ pub fn build_teoz_layout(sd: &SequenceDiagram, skin: &SkinParams) -> Result<SeqL
                         active_level: level,
                         circle_from: msg.circle_from,
                         circle_to: msg.circle_to,
+                        cross_from: msg.cross_from,
+                        cross_to: msg.cross_to,
                         is_parallel: msg.parallel,
                         hidden: msg.hidden,
                     });
@@ -1187,6 +1199,8 @@ pub fn build_teoz_layout(sd: &SequenceDiagram, skin: &SkinParams) -> Result<SeqL
                         to_center,
                         circle_from: msg.circle_from,
                         circle_to: msg.circle_to,
+                        cross_from: msg.cross_from,
+                        cross_to: msg.cross_to,
                         is_parallel: msg.parallel,
                         from_level: fl,
                         to_level: tl,
@@ -2292,6 +2306,8 @@ pub fn build_teoz_layout(sd: &SequenceDiagram, skin: &SkinParams) -> Result<SeqL
                 autonumber,
                 circle_from,
                 circle_to,
+                cross_from,
+                cross_to,
                 from_level,
                 to_level,
                 hidden,
@@ -2375,6 +2391,8 @@ pub fn build_teoz_layout(sd: &SequenceDiagram, skin: &SkinParams) -> Result<SeqL
                     color: None,
                     circle_from: *circle_from,
                     circle_to: *circle_to,
+                    cross_from: *cross_from,
+                    cross_to: *cross_to,
                 });
             }
             TeozTile::SelfMessage {
@@ -2391,6 +2409,8 @@ pub fn build_teoz_layout(sd: &SequenceDiagram, skin: &SkinParams) -> Result<SeqL
                 active_level,
                 circle_from,
                 circle_to,
+                cross_from,
+                cross_to,
                 hidden,
                 ..
             } => {
@@ -2451,6 +2471,8 @@ pub fn build_teoz_layout(sd: &SequenceDiagram, skin: &SkinParams) -> Result<SeqL
                     color: None,
                     circle_from: *circle_from,
                     circle_to: *circle_to,
+                    cross_from: *cross_from,
+                    cross_to: *cross_to,
                 });
             }
             TeozTile::Note {

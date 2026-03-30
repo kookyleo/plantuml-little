@@ -71,6 +71,10 @@ pub struct Message {
     pub circle_from: bool,
     /// Circle decoration on the "to" end of the arrow (->o)
     pub circle_to: bool,
+    /// Cross (X) decoration on the "from" end of the arrow (x->)
+    pub cross_from: bool,
+    /// Cross (X) decoration on the "to" end of the arrow (->x)
+    pub cross_to: bool,
     /// Teoz parallel message (& prefix): shares y position with previous tile
     pub parallel: bool,
     /// Java isReverseDefine: controls self-message constraint direction

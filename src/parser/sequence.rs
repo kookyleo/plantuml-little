@@ -993,9 +993,11 @@ fn parse_arrow(left: &str, arrow: &str, right: &str, text: &str) -> Option<Messa
     let (is_hidden, arrow_no_hidden) = extract_arrow_hidden(arrow);
     let (color, clean_arrow) = extract_arrow_color(&arrow_no_hidden);
 
-    // Detect circle decorators before stripping
+    // Detect circle and cross decorators before stripping
     let has_left_circle = clean_arrow.starts_with('o');
     let has_right_circle = clean_arrow.ends_with('o');
+    let has_left_cross = clean_arrow.starts_with('x') || clean_arrow.starts_with('X');
+    let has_right_cross = clean_arrow.ends_with('x') || clean_arrow.ends_with('X');
 
     // Strip outer decorators (o, x, X)
     let stripped = clean_arrow.trim_start_matches(|c: char| c == 'o' || c == 'x' || c == 'X');
@@ -1064,10 +1066,14 @@ fn parse_arrow(left: &str, arrow: &str, right: &str, text: &str) -> Option<Messa
         }
     };
 
-    // Map left/right circle decorators to from/to based on direction
+    // Map left/right circle/cross decorators to from/to based on direction
     let (circle_from, circle_to) = match direction {
         SeqDirection::LeftToRight => (has_left_circle, has_right_circle),
         SeqDirection::RightToLeft => (has_right_circle, has_left_circle),
+    };
+    let (cross_from, cross_to) = match direction {
+        SeqDirection::LeftToRight => (has_left_cross, has_right_cross),
+        SeqDirection::RightToLeft => (has_right_cross, has_left_cross),
     };
 
     let is_reverse_define = !has_right_arrow && has_left_arrow;
@@ -1083,6 +1089,8 @@ fn parse_arrow(left: &str, arrow: &str, right: &str, text: &str) -> Option<Messa
         source_line: None, // set by caller
         circle_from,
         circle_to,
+        cross_from,
+        cross_to,
         parallel: false, // set by caller if & prefix detected
         is_reverse_define,
         hidden: is_hidden,

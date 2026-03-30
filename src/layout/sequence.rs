@@ -210,6 +210,10 @@ pub struct MessageLayout {
     pub circle_from: bool,
     /// Circle decoration on the "to" end of the arrow
     pub circle_to: bool,
+    /// Cross (X) decoration on the "from" end of the arrow
+    pub cross_from: bool,
+    /// Cross (X) decoration on the "to" end of the arrow
+    pub cross_to: bool,
 }
 
 /// Activation bar layout
@@ -1341,6 +1345,8 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
                     color: msg.color.clone(),
                     circle_from: msg.circle_from,
                     circle_to: msg.circle_to,
+                    cross_from: msg.cross_from,
+                    cross_to: msg.cross_to,
                 });
 
                 // Compute self-message arrow preferred width (used for fragment
@@ -2520,8 +2526,11 @@ mod tests {
             source_line: None,
             circle_from: false,
             circle_to: false,
+            cross_from: false,
+            cross_to: false,
             parallel: false,
             is_reverse_define: false,
+            hidden: false,
         }
     }
 
@@ -2841,7 +2850,11 @@ mod tests {
                 source_line: None,
                 circle_from: false,
                 circle_to: false,
+                cross_from: false,
+                cross_to: false,
                 parallel: false,
+                is_reverse_define: false,
+                hidden: false,
             })],
             teoz_mode: false,
             hide_footbox: false,
@@ -3138,8 +3151,11 @@ mod tests {
                     source_line: None,
                     circle_from: false,
                     circle_to: false,
+                    cross_from: false,
+                    cross_to: false,
                     parallel: false,
                     is_reverse_define: true,
+                    hidden: false,
                 }),
                 SeqEvent::Deactivate("B".to_string()),
             ],

@@ -1478,89 +1478,165 @@ fn draw_message(
         ));
     }
 
+    // Circle at target shifts the arrowhead inward by diamCircle/2 + thinCircle
+    let circle_to_shift = if msg.circle_to { 4.0 + 1.5 } else { 0.0 };
+    // Circle at source shifts line start by diamCircle/2
+    let circle_from_shift = if msg.circle_from { 4.0 } else { 0.0 };
+
     // Determine arrow tip position and line endpoints
     // Java insets the arrow tip 2px from the participant center
     let (tip_x, line_x1, _line_x2) = if msg.is_left {
         // Right-to-left: arrow points left, tip 1px inset from target center
-        (msg.to_x + 1.0, msg.from_x - 1.0, msg.to_x)
+        (msg.to_x + 1.0 + circle_to_shift, msg.from_x - 1.0 - circle_from_shift, msg.to_x)
     } else {
         // Left-to-right: arrow points right, tip 2px inset from target center
-        (msg.to_x - 2.0, msg.from_x, msg.to_x)
+        (msg.to_x - 2.0 - circle_to_shift, msg.from_x + circle_from_shift, msg.to_x)
     };
 
-    // Draw inline polygon arrowhead
-    if msg.has_open_head {
-        // Open arrowhead: lines forming a V (or half-V for half-arrows).
-        // Direction-aware: for right-pointing, `\\`(HalfBottom)→ top arm, `//'(HalfTop)→ bottom arm.
-        // For left-pointing, meanings flip.
-        let arm_offset = if msg.is_left { 10.0 } else { -10.0 };
-        let arm_x = tip_x + arm_offset;
+    // Java constants for cross (X) decorations
+    const SPACE_CROSS_X: f64 = 6.0;
+    const ARROW_DELTA_X: f64 = 10.0;
+
+    // Cross (X) decoration at target end (->x): replaces arrowhead
+    if msg.cross_to {
         let mut tmp = String::new();
-        let skip_top = if msg.is_left {
-            matches!(msg.arrow_head, SeqArrowHead::HalfBottom)
+        let (x0, half) = if msg.is_left {
+            // Left-pointing: X at left end (near to_x)
+            (tip_x + SPACE_CROSS_X, ARROW_DELTA_X / 2.0)
         } else {
-            matches!(msg.arrow_head, SeqArrowHead::HalfTop)
+            // Right-pointing: X at right end (near to_x)
+            (tip_x - SPACE_CROSS_X - ARROW_DELTA_X, ARROW_DELTA_X / 2.0)
         };
-        let skip_bottom = if msg.is_left {
-            matches!(msg.arrow_head, SeqArrowHead::HalfTop)
-        } else {
-            matches!(msg.arrow_head, SeqArrowHead::HalfBottom)
-        };
-        if !skip_top {
-            write!(
-                tmp,
-                r#"<line style="stroke:{color};stroke-width:{sw};" x1="{x1}" x2="{x2}" y1="{y1}" y2="{y2}"/>"#,
-                color = arrow_color,
-                x1 = fmt_coord(tip_x),
-                x2 = fmt_coord(arm_x),
-                y1 = fmt_coord(msg.y),
-                y2 = fmt_coord(msg.y - 4.0),
-            )
-            .unwrap();
-        }
-        if !skip_bottom {
-            write!(
-                tmp,
-                r#"<line style="stroke:{color};stroke-width:{sw};" x1="{x1}" x2="{x2}" y1="{y1}" y2="{y2}"/>"#,
-                color = arrow_color,
-                x1 = fmt_coord(tip_x),
-                x2 = fmt_coord(arm_x),
-                y1 = fmt_coord(msg.y),
-                y2 = fmt_coord(msg.y + 4.0),
-            )
-            .unwrap();
-        }
+        // Two crossing lines forming X, stroke-width:2
+        write!(
+            tmp,
+            r#"<line style="stroke:{color};stroke-width:2;" x1="{x1}" x2="{x2}" y1="{y1}" y2="{y2}"/>"#,
+            color = arrow_color,
+            x1 = fmt_coord(x0),
+            x2 = fmt_coord(x0 + ARROW_DELTA_X),
+            y1 = fmt_coord(msg.y - half),
+            y2 = fmt_coord(msg.y + half),
+        )
+        .unwrap();
+        write!(
+            tmp,
+            r#"<line style="stroke:{color};stroke-width:2;" x1="{x1}" x2="{x2}" y1="{y1}" y2="{y2}"/>"#,
+            color = arrow_color,
+            x1 = fmt_coord(x0),
+            x2 = fmt_coord(x0 + ARROW_DELTA_X),
+            y1 = fmt_coord(msg.y + half),
+            y2 = fmt_coord(msg.y - half),
+        )
+        .unwrap();
         sg.push_raw(&tmp);
-    } else {
-        // Filled arrowhead polygon
-        let arm_x = if msg.is_left { tip_x + 10.0 } else { tip_x - 10.0 };
+    }
+
+    // Cross (X) decoration at source end (x->)
+    if msg.cross_from {
         let mut tmp = String::new();
-        match msg.arrow_head {
-            SeqArrowHead::FilledHalfTop => {
-                write!(tmp, r#"<polygon fill="{color}" points="{},{},{},{},{},{}" style="stroke:{color};stroke-width:1;"/>"#,
-                    fmt_coord(arm_x), fmt_coord(msg.y - 4.0),
-                    fmt_coord(tip_x), fmt_coord(msg.y),
-                    fmt_coord(arm_x), fmt_coord(msg.y),
-                    color = arrow_color).unwrap();
-            }
-            SeqArrowHead::FilledHalfBottom => {
-                write!(tmp, r#"<polygon fill="{color}" points="{},{},{},{},{},{}" style="stroke:{color};stroke-width:1;"/>"#,
-                    fmt_coord(arm_x), fmt_coord(msg.y),
-                    fmt_coord(tip_x), fmt_coord(msg.y),
-                    fmt_coord(arm_x), fmt_coord(msg.y + 4.0),
-                    color = arrow_color).unwrap();
-            }
-            _ => {
-                let inner_x = if msg.is_left { tip_x + 6.0 } else { tip_x - 6.0 };
-                write!(tmp, r#"<polygon fill="{color}" points="{},{},{},{},{},{},{},{}" style="stroke:{color};stroke-width:1;"/>"#,
-                    fmt_coord(arm_x), fmt_coord(msg.y - 4.0),
-                    fmt_coord(tip_x), fmt_coord(msg.y),
-                    fmt_coord(arm_x), fmt_coord(msg.y + 4.0),
-                    fmt_coord(inner_x), fmt_coord(msg.y),
-                    color = arrow_color).unwrap();
-            }
-        }
+        let (x0, half) = if msg.is_left {
+            // Left-pointing: X at right end (near from_x)
+            (msg.from_x - SPACE_CROSS_X - ARROW_DELTA_X - 1.0, ARROW_DELTA_X / 2.0)
+        } else {
+            // Right-pointing: X at left end (near from_x)
+            (msg.from_x + SPACE_CROSS_X + 1.0, ARROW_DELTA_X / 2.0)
+        };
+        write!(
+            tmp,
+            r#"<line style="stroke:{color};stroke-width:2;" x1="{x1}" x2="{x2}" y1="{y1}" y2="{y2}"/>"#,
+            color = arrow_color,
+            x1 = fmt_coord(x0),
+            x2 = fmt_coord(x0 + ARROW_DELTA_X),
+            y1 = fmt_coord(msg.y - half),
+            y2 = fmt_coord(msg.y + half),
+        )
+        .unwrap();
+        write!(
+            tmp,
+            r#"<line style="stroke:{color};stroke-width:2;" x1="{x1}" x2="{x2}" y1="{y1}" y2="{y2}"/>"#,
+            color = arrow_color,
+            x1 = fmt_coord(x0),
+            x2 = fmt_coord(x0 + ARROW_DELTA_X),
+            y1 = fmt_coord(msg.y + half),
+            y2 = fmt_coord(msg.y - half),
+        )
+        .unwrap();
         sg.push_raw(&tmp);
+    }
+
+    // Draw inline polygon arrowhead (skip if cross_to replaces the arrowhead)
+    if !msg.cross_to {
+        if msg.has_open_head {
+            // Open arrowhead: lines forming a V (or half-V for half-arrows).
+            let arm_offset = if msg.is_left { 10.0 } else { -10.0 };
+            let arm_x = tip_x + arm_offset;
+            let mut tmp = String::new();
+            let skip_top = if msg.is_left {
+                matches!(msg.arrow_head, SeqArrowHead::HalfBottom)
+            } else {
+                matches!(msg.arrow_head, SeqArrowHead::HalfTop)
+            };
+            let skip_bottom = if msg.is_left {
+                matches!(msg.arrow_head, SeqArrowHead::HalfTop)
+            } else {
+                matches!(msg.arrow_head, SeqArrowHead::HalfBottom)
+            };
+            if !skip_top {
+                write!(
+                    tmp,
+                    r#"<line style="stroke:{color};stroke-width:{sw};" x1="{x1}" x2="{x2}" y1="{y1}" y2="{y2}"/>"#,
+                    color = arrow_color,
+                    x1 = fmt_coord(tip_x),
+                    x2 = fmt_coord(arm_x),
+                    y1 = fmt_coord(msg.y),
+                    y2 = fmt_coord(msg.y - 4.0),
+                )
+                .unwrap();
+            }
+            if !skip_bottom {
+                write!(
+                    tmp,
+                    r#"<line style="stroke:{color};stroke-width:{sw};" x1="{x1}" x2="{x2}" y1="{y1}" y2="{y2}"/>"#,
+                    color = arrow_color,
+                    x1 = fmt_coord(tip_x),
+                    x2 = fmt_coord(arm_x),
+                    y1 = fmt_coord(msg.y),
+                    y2 = fmt_coord(msg.y + 4.0),
+                )
+                .unwrap();
+            }
+            sg.push_raw(&tmp);
+        } else {
+            // Filled arrowhead polygon
+            let arm_x = if msg.is_left { tip_x + 10.0 } else { tip_x - 10.0 };
+            let mut tmp = String::new();
+            match msg.arrow_head {
+                SeqArrowHead::FilledHalfTop => {
+                    write!(tmp, r#"<polygon fill="{color}" points="{},{},{},{},{},{}" style="stroke:{color};stroke-width:1;"/>"#,
+                        fmt_coord(arm_x), fmt_coord(msg.y - 4.0),
+                        fmt_coord(tip_x), fmt_coord(msg.y),
+                        fmt_coord(arm_x), fmt_coord(msg.y),
+                        color = arrow_color).unwrap();
+                }
+                SeqArrowHead::FilledHalfBottom => {
+                    write!(tmp, r#"<polygon fill="{color}" points="{},{},{},{},{},{}" style="stroke:{color};stroke-width:1;"/>"#,
+                        fmt_coord(arm_x), fmt_coord(msg.y),
+                        fmt_coord(tip_x), fmt_coord(msg.y),
+                        fmt_coord(arm_x), fmt_coord(msg.y + 4.0),
+                        color = arrow_color).unwrap();
+                }
+                _ => {
+                    let inner_x = if msg.is_left { tip_x + 6.0 } else { tip_x - 6.0 };
+                    write!(tmp, r#"<polygon fill="{color}" points="{},{},{},{},{},{},{},{}" style="stroke:{color};stroke-width:1;"/>"#,
+                        fmt_coord(arm_x), fmt_coord(msg.y - 4.0),
+                        fmt_coord(tip_x), fmt_coord(msg.y),
+                        fmt_coord(arm_x), fmt_coord(msg.y + 4.0),
+                        fmt_coord(inner_x), fmt_coord(msg.y),
+                        color = arrow_color).unwrap();
+                }
+            }
+            sg.push_raw(&tmp);
+        }
     }
 
     // Message line
@@ -1569,13 +1645,19 @@ fn draw_message(
     } else {
         ""
     };
-    // Open and filled-half arrows: line extends to tip_x + 1.
-    // Full filled arrows: line ends 4px before tip (hidden by filled diamond).
+    // Compute line endpoints, adjusted for cross/arrowhead decorations
     let is_half_filled = matches!(
         msg.arrow_head,
         SeqArrowHead::FilledHalfTop | SeqArrowHead::FilledHalfBottom
     );
-    let adjusted_x2 = if msg.has_open_head || is_half_filled {
+    let adjusted_x2 = if msg.cross_to {
+        // CrossX at target: line ends at X center
+        if msg.is_left {
+            tip_x + SPACE_CROSS_X + ARROW_DELTA_X / 2.0
+        } else {
+            tip_x - SPACE_CROSS_X - ARROW_DELTA_X / 2.0
+        }
+    } else if msg.has_open_head || is_half_filled {
         if msg.is_left {
             msg.to_x
         } else {
@@ -1586,11 +1668,21 @@ fn draw_message(
     } else {
         tip_x - 4.0
     };
+    let adjusted_x1 = if msg.cross_from {
+        // CrossX at source: line starts at X center
+        if msg.is_left {
+            line_x1 - 2.0 * SPACE_CROSS_X
+        } else {
+            line_x1 + 2.0 * SPACE_CROSS_X
+        }
+    } else {
+        line_x1
+    };
     // For left-pointing arrows, swap x1/x2 so smaller x comes first
     let (lx1, lx2) = if msg.is_left {
-        (adjusted_x2, line_x1)
+        (adjusted_x2, adjusted_x1)
     } else {
-        (line_x1, adjusted_x2)
+        (adjusted_x1, adjusted_x2)
     };
     let mut tmp = String::new();
     write!(
@@ -1608,11 +1700,12 @@ fn draw_message(
     // Label text above the line — each line as a separate <text> element
     let has_text = !msg.text.is_empty() || msg.autonumber.is_some();
     if has_text {
+        let cross_from_text_offset = if msg.cross_from { ARROW_DELTA_X } else { 0.0 };
         let base_text_x = if msg.is_left {
             // Left arrow: text starts after arrowhead polygon (tip + polygon_width + gap)
-            tip_x + 16.0
+            tip_x + 16.0 + cross_from_text_offset
         } else {
-            msg.from_x + 7.0
+            msg.from_x + 7.0 + cross_from_text_offset
         };
 
         // If autonumber, compute the offset for message text (number is bold)
@@ -1781,6 +1874,10 @@ fn draw_self_message(
         ""
     };
 
+    // Java constants for cross (X) decorations
+    const SPACE_CROSS_X: f64 = 6.0;
+    const ARROW_DELTA_X_SELF: f64 = 10.0;
+
     // 3-line self-message: horizontal out, vertical down, horizontal return
     let mut tmp = String::new();
 
@@ -1790,14 +1887,19 @@ fn draw_self_message(
     // `to_x` is the far end of the horizontal
     // `return_x` is the return line endpoint (at lifeline/activation edge)
 
+    // Cross offsets: Java adds 2*spaceCrossX to x1 (outgoing) or x2 (return)
+    let cross_from_offset = if msg.cross_from { 2.0 * SPACE_CROSS_X } else { 0.0 };
+    let cross_to_offset = if msg.cross_to { 2.0 * SPACE_CROSS_X } else { 0.0 };
+
     // Line 1: outgoing horizontal
-    // Java drawLeftSide: x1 starts at 0, incremented by 1 before drawing.
-    // So the right end is prefTextWidth - 1 (absolute: pos2 - 1).
-    // Java drawRightSide: x1 starts at 0, so left end is 0 (absolute: pos2).
     let (line1_x1, line1_x2) = if msg.is_left {
+        // Left self-msg: outgoing goes left from lifeline
+        // Java: x1 starts at 0, incremented by 1 before drawing
         (to_x, from_x - 1.0)
     } else {
-        (from_x, to_x)
+        // Right self-msg: outgoing goes right from lifeline
+        // Java: x1 starts at 0, adjusted for cross_from
+        (from_x + cross_from_offset, to_x)
     };
     write!(
         tmp,
@@ -1823,15 +1925,19 @@ fn draw_self_message(
     .unwrap();
 
     // Line 3: return horizontal
-    // Java drawLeftSide: extraline=1 for NORMAL arrowhead, so return right end
-    // is prefTextWidth - x2 - extraline from origin = pos2 - 2 in absolute.
     let (line3_x1, line3_x2) = if msg.is_left {
         let extraline = if msg.has_open_head { 0.0 } else { 1.0 };
         (to_x, return_x - extraline)
     } else {
-        // Right self-msg: only open arrows subtract extraline from return line.
-        let extraline_r = if msg.has_open_head { 1.0 } else { 0.0 };
-        (return_x - extraline_r, to_x)
+        // Right self-msg: adjust for cross_to or open head
+        let base_x1 = if msg.cross_to {
+            // Cross replaces arrowhead: return starts after cross space
+            return_x - 1.0 + cross_to_offset
+        } else {
+            let extraline_r = if msg.has_open_head { 1.0 } else { 0.0 };
+            return_x - extraline_r
+        };
+        (base_x1, to_x)
     };
     write!(
         tmp,
@@ -1844,17 +1950,61 @@ fn draw_self_message(
     )
     .unwrap();
 
-    // Arrowhead at return
+    // Cross (X) decoration at source (outgoing line) — drawn before arrowhead
+    if msg.cross_from {
+        let x0 = if msg.is_left {
+            // Left self-msg: cross on outgoing (right side)
+            from_x - SPACE_CROSS_X - ARROW_DELTA_X_SELF
+        } else {
+            // Right self-msg: cross on outgoing (left side)
+            from_x + SPACE_CROSS_X
+        };
+        let half = ARROW_DELTA_X_SELF / 2.0;
+        write!(
+            tmp,
+            r#"<line style="stroke:{color};stroke-width:2;" x1="{x1}" x2="{x2}" y1="{y1}" y2="{y2}"/>"#,
+            color = arrow_color,
+            x1 = fmt_coord(x0), x2 = fmt_coord(x0 + ARROW_DELTA_X_SELF),
+            y1 = fmt_coord(y - half), y2 = fmt_coord(y + half),
+        ).unwrap();
+        write!(
+            tmp,
+            r#"<line style="stroke:{color};stroke-width:2;" x1="{x1}" x2="{x2}" y1="{y1}" y2="{y2}"/>"#,
+            color = arrow_color,
+            x1 = fmt_coord(x0), x2 = fmt_coord(x0 + ARROW_DELTA_X_SELF),
+            y1 = fmt_coord(y + half), y2 = fmt_coord(y - half),
+        ).unwrap();
+    }
+
+    // Arrowhead or cross at return
     let ret_y = y + loop_height;
-    if msg.is_left {
+
+    if msg.cross_to {
+        // Cross (X) at return line replaces arrowhead
+        let x0 = if msg.is_left {
+            from_x - SPACE_CROSS_X - ARROW_DELTA_X_SELF
+        } else {
+            from_x + SPACE_CROSS_X
+        };
+        let half = ARROW_DELTA_X_SELF / 2.0;
+        write!(
+            tmp,
+            r#"<line style="stroke:{color};stroke-width:2;" x1="{x1}" x2="{x2}" y1="{y1}" y2="{y2}"/>"#,
+            color = arrow_color,
+            x1 = fmt_coord(x0), x2 = fmt_coord(x0 + ARROW_DELTA_X_SELF),
+            y1 = fmt_coord(ret_y - half), y2 = fmt_coord(ret_y + half),
+        ).unwrap();
+        write!(
+            tmp,
+            r#"<line style="stroke:{color};stroke-width:2;" x1="{x1}" x2="{x2}" y1="{y1}" y2="{y2}"/>"#,
+            color = arrow_color,
+            x1 = fmt_coord(x0), x2 = fmt_coord(x0 + ARROW_DELTA_X_SELF),
+            y1 = fmt_coord(ret_y + half), y2 = fmt_coord(ret_y - half),
+        ).unwrap();
+    } else if msg.is_left {
         // Left self-message: arrowhead points RIGHT at return
-        // Java: tip is always 1px inset from the return line endpoint.
-        // For NORMAL head: extraline=1, so return line is 1px shorter → tip = return_x - 1.
-        // For ASYNC/open head: extraline=0, return line goes to return_x → tip = return_x - 1.
         let tip_x = return_x - 1.0;
         if msg.has_open_head {
-            // Top line of V (skip for HalfBottom)
-            // Java convention: x1=tip, x2=arm (tip→arm direction)
             if !matches!(msg.arrow_head, SeqArrowHead::HalfBottom) {
                 write!(
                     tmp,
@@ -1867,7 +2017,6 @@ fn draw_self_message(
                 )
                 .unwrap();
             }
-            // Bottom line of V (skip for HalfTop)
             if !matches!(msg.arrow_head, SeqArrowHead::HalfTop) {
                 write!(
                     tmp,
@@ -1905,15 +2054,12 @@ fn draw_self_message(
                 | SeqArrowHead::FilledHalfTop
                 | SeqArrowHead::FilledHalfBottom
         );
-        // tip_x: only FilledHalf uses -1; all others use return_x directly.
         let tip_x = if matches!(msg.arrow_head, SeqArrowHead::FilledHalfTop | SeqArrowHead::FilledHalfBottom) {
             return_x - 1.0
         } else {
             return_x
         };
         if msg.has_open_head {
-            // Arrow points LEFT: swap HalfTop/HalfBottom skip for half-arrows,
-            // keep original behavior for Open (full V).
             let skip_top = if is_half {
                 matches!(msg.arrow_head, SeqArrowHead::HalfTop)
             } else {
@@ -1924,7 +2070,6 @@ fn draw_self_message(
             } else {
                 false
             };
-            // Java convention for self-msg V-lines: x1=tip, x2=arm
             if !skip_top {
                 write!(
                     tmp,
