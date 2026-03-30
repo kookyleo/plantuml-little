@@ -100,9 +100,6 @@ pub struct LayoutGraph {
     pub edges: Vec<LayoutEdge>,
     pub clusters: Vec<LayoutClusterSpec>,
     pub rankdir: RankDir,
-    /// Override the default ranksep (60pt). Inner composite state layouts
-    /// use Graphviz's default 0.5in (36pt) to match Java's inner solve.
-    pub ranksep_override: Option<f64>,
     /// Temporary execution switch: class diagrams now follow Java's
     /// `LinkStrategy.SIMPLIER` for DOT arrows, while other diagram families
     /// still rely on legacy Graphviz arrow emission until their svek pipelines
@@ -220,7 +217,7 @@ const DEFAULT_NODESEP_IN: f64 = 0.35;
 /// AbstractEntityDiagram.java:61 — default ranksep = 0.8 inches.
 const DEFAULT_RANKSEP_IN: f64 = 0.8;
 /// DotStringFactory.java:238-245 — getMinRankSep: class/state/component = 60px.
-pub(crate) const MIN_RANK_SEP_PX: f64 = 60.0;
+const MIN_RANK_SEP_PX: f64 = 60.0;
 /// DotStringFactory.java:248-253 — getMinNodeSep: default = 35px.
 const MIN_NODE_SEP_PX: f64 = 35.0;
 
@@ -408,7 +405,7 @@ pub fn layout_with_svek(graph: &LayoutGraph) -> Result<GraphLayout, Error> {
         rankdir,
         dot_splines: DotSplines::Spline,
         nodesep: Some(MIN_NODE_SEP_PX),
-        ranksep: graph.ranksep_override.or(Some(MIN_RANK_SEP_PX)),
+        ranksep: Some(MIN_RANK_SEP_PX),
         use_simplier_dot_link_strategy: graph.use_simplier_dot_link_strategy,
         ..Default::default()
     };
@@ -1526,7 +1523,6 @@ mod tests {
             }],
             clusters: vec![],
             rankdir: RankDir::TopToBottom,
-            ranksep_override: None,
             use_simplier_dot_link_strategy: false,
         }
     }
@@ -1570,7 +1566,6 @@ mod tests {
             edges: vec![],
             clusters: vec![],
             rankdir: RankDir::LeftToRight,
-            ranksep_override: None,
             use_simplier_dot_link_strategy: false,
         };
         let result = layout(&graph).expect("single node layout failed");

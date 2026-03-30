@@ -837,15 +837,16 @@ impl BoundsTracker {
     /// to compute final SVG dimensions matching Java's ensureVisible.
     pub fn span(&self) -> (f64, f64) {
         if self.max_x.is_finite() && self.min_x.is_finite() {
+            log::trace!(
+                "BoundsTracker.span: min=({:.4},{:.4}) max=({:.4},{:.4}) span=({:.4},{:.4})",
+                self.min_x,
+                self.min_y,
+                self.max_x,
+                self.max_y,
+                self.max_x - self.min_x,
+                self.max_y - self.min_y
+            );
             (self.max_x - self.min_x, self.max_y - self.min_y)
-        } else {
-            (0.0, 0.0)
-        }
-    }
-
-    pub fn min_point(&self) -> (f64, f64) {
-        if self.max_x.is_finite() && self.min_x.is_finite() {
-            (self.min_x, self.min_y)
         } else {
             (0.0, 0.0)
         }

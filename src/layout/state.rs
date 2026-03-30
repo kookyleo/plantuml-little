@@ -6,9 +6,7 @@
 
 use std::collections::{HashMap, HashSet, VecDeque};
 
-use crate::layout::graphviz::{
-    self, LayoutClusterSpec, LayoutEdge, LayoutGraph, LayoutNode, RankDir,
-};
+use crate::layout::graphviz::{self, LayoutEdge, LayoutGraph, LayoutNode, RankDir};
 use crate::model::state::{State, StateDiagram, StateKind, Transition};
 use crate::Result;
 
@@ -86,8 +84,6 @@ pub struct StateNoteLayout {
     pub entity_id: Option<String>,
     pub source_line: Option<usize>,
     pub anchor: Option<(f64, f64)>,
-    /// Original helper-edge endpoints used by Java's Opale linked-note shape.
-    pub opale_points: Option<((f64, f64), (f64, f64))>,
 }
 
 // ---------------------------------------------------------------------------
@@ -587,13 +583,14 @@ fn compute_state_node(
             // Multiple concurrent regions
             let mut region_y = 0.0;
             for (i, region) in all_regions.iter().enumerate() {
-                let (mut child_layouts, child_w, child_h) = layout_children_with_graphviz(
+                let (child_layouts, child_w, child_h) = layout_states_ranked(
                     region,
                     transitions,
                     initial_ids,
                     final_ids,
+                    0.0,
+                    region_y,
                 );
-                offset_children(&mut child_layouts, 0.0, region_y);
                 total_child_w = total_child_w.max(child_w);
                 region_y += child_h;
                 all_child_layouts.extend(child_layouts);
@@ -606,11 +603,13 @@ fn compute_state_node(
             }
             total_child_h = region_y;
         } else {
-            let (child_layouts, child_w, child_h) = layout_children_with_graphviz(
+            let (child_layouts, child_w, child_h) = layout_states_ranked(
                 &state.children,
                 transitions,
                 initial_ids,
                 final_ids,
+                0.0,
+                0.0,
             );
             total_child_w = child_w;
             total_child_h = child_h;
@@ -621,8 +620,10 @@ fn compute_state_node(
         //   inner_img = SvekResult.calculateDimension() = lf_span + delta(15, 15)
         //   dim = title.mergeTB(attr, inner_img)  →  (max(title_w, inner_w), title_h + inner_h)
         //   result = dim.delta(2*MARGIN + 2*MARGIN_LINE)  →  (dim_w + 20, dim_h + 20)
-        // Java: inner_img = SvekResult.calculateDimension() = LF_span + delta(15, 15)
-        let inner_img_w = total_child_w + 15.0;
+        // Width: total_child_w approximates lf_span but is ~2px less due to LF corrections
+        // (rect -1 on left, circle no correction). Use +16 to compensate.
+        // Height: use +15 matching Java's SvekResult delta(15,15).
+        let inner_img_w = total_child_w + 16.0;
         let inner_img_h = total_child_h + 15.0;
         let inner_height = inner_img_h + composite_height_overhead();
 
@@ -1172,8 +1173,6 @@ fn layout_children_with_graphviz(
         edges: gv_edges,
         clusters: vec![],
         rankdir: RankDir::TopToBottom,
-        // Java inner composite graphs use Graphviz's 0.5in default ranksep.
-        ranksep_override: Some(36.0),
         use_simplier_dot_link_strategy: false,
     };
 
@@ -1375,34 +1374,6 @@ fn transition_layout_key(tr: &TransitionLayout) -> (String, String, Option<usize
     (tr.from_id.clone(), tr.to_id.clone(), tr.source_line)
 }
 
-/// Search for a nested state by ID within a list of top-level states.
-fn find_nested_state_in_list<'a>(states: &'a [State], target_id: &str) -> Option<&'a State> {
-    fn search<'a>(state: &'a State, target: &str) -> Option<&'a State> {
-        if state.id == target {
-            return Some(state);
-        }
-        for child in &state.children {
-            if let Some(found) = search(child, target) {
-                return Some(found);
-            }
-        }
-        for region in &state.regions {
-            for child in region {
-                if let Some(found) = search(child, target) {
-                    return Some(found);
-                }
-            }
-        }
-        None
-    }
-    for state in states {
-        if let Some(found) = search(state, target_id) {
-            return Some(found);
-        }
-    }
-    None
-}
-
 // ---------------------------------------------------------------------------
 // Public entry point
 // ---------------------------------------------------------------------------
@@ -1491,44 +1462,6 @@ pub fn layout_state(diagram: &StateDiagram) -> Result<StateLayout> {
         node_id_order.push(state.id.clone());
     }
 
-    // Add exposed history nodes to the outer DOT so that cross-boundary
-    // transitions (e.g. Paused -> Active[H]) influence rank assignment.
-    // Java puts these inside a cluster with the parent composite; here we
-    // simply add them as standalone nodes since the position is determined
-    // by the outer solve and rendered as part of the composite.
-    let top_level_ids: HashSet<&str> = all_states.iter().map(|s| s.id.as_str()).collect();
-    let mut exposed_history_ids: HashSet<String> = HashSet::new();
-    for tr in &diagram.transitions {
-        let from_top = top_level_ids.contains(tr.from.as_str());
-        let to_top = top_level_ids.contains(tr.to.as_str());
-        if from_top == to_top {
-            continue;
-        }
-        let nested_id = if from_top { &tr.to } else { &tr.from };
-        if let Some(found) = find_nested_state_in_list(&all_states, nested_id) {
-            if matches!(found.kind, StateKind::History | StateKind::DeepHistory) {
-                if exposed_history_ids.insert(found.id.clone()) {
-                    let (_, w, h) = compute_state_node(found, &diagram.transitions, &initial_ids, &final_ids);
-                    gv_nodes.push(LayoutNode {
-                        id: found.id.clone(),
-                        label: found.name.clone(),
-                        width_pt: w,
-                        height_pt: h,
-                        shape: Some(crate::svek::shape_type::ShapeType::Circle),
-                        shield: None,
-                        entity_position: None,
-                        max_label_width: None,
-                        order: Some(node_id_order.len()),
-                        image_width_pt: None,
-                        lf_extra_left: 0.0,
-                        lf_rect_correction: false,
-                    });
-                    node_id_order.push(found.id.clone());
-                }
-            }
-        }
-    }
-
     let mut attached_notes: Vec<(&crate::model::state::StateNote, f64, f64)> = Vec::new();
     let mut standalone_note_ids: std::collections::HashSet<String> = std::collections::HashSet::new();
     for note in &diagram.notes {
@@ -1614,46 +1547,11 @@ pub fn layout_state(diagram: &StateDiagram) -> Result<StateLayout> {
         crate::model::diagram::Direction::RightToLeft => RankDir::RightToLeft,
     };
 
-    // Build clusters for composites with exposed history nodes.
-    // Groups the composite rect and its exposed history node(s) together
-    // so Graphviz treats them as a single rank unit.
-    let mut cluster_specs: Vec<LayoutClusterSpec> = Vec::new();
-    for state in &all_states {
-        let is_composite = !state.children.is_empty() || !state.regions.is_empty();
-        if !is_composite {
-            continue;
-        }
-        // Check if any exposed history node belongs to this composite
-        let mut history_ids_in_cluster: Vec<String> = Vec::new();
-        for hist_id in &exposed_history_ids {
-            if find_nested_state_in_list(std::slice::from_ref(state), hist_id).is_some() {
-                history_ids_in_cluster.push(hist_id.clone());
-            }
-        }
-        if history_ids_in_cluster.is_empty() {
-            continue;
-        }
-        let mut node_ids = vec![state.id.clone()];
-        node_ids.extend(history_ids_in_cluster);
-        cluster_specs.push(LayoutClusterSpec {
-            id: format!("state_{}", state.id.replace(|c: char| !c.is_ascii_alphanumeric(), "_")),
-            qualified_name: state.id.clone(),
-            title: None,
-            style: crate::svek::cluster::ClusterStyle::Rectangle,
-            label_width: None,
-            label_height: None,
-            node_ids,
-            sub_clusters: vec![],
-            order: state.source_line,
-        });
-    }
-
     let graph = LayoutGraph {
         nodes: gv_nodes,
         edges: gv_edges,
-        clusters: cluster_specs,
+        clusters: vec![],
         rankdir,
-        ranksep_override: Some(graphviz::MIN_RANK_SEP_PX),
         use_simplier_dot_link_strategy: false,
     };
 
@@ -1982,7 +1880,6 @@ pub fn layout_state(diagram: &StateDiagram) -> Result<StateLayout> {
             entity_id: note.entity_id.clone(),
             source_line: note.source_line,
             anchor,
-            opale_points: None,
         });
         if note.target.is_none() {
             detached_note_y += nh + PADDING;
