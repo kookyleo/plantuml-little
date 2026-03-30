@@ -1,0 +1,5 @@
+@startuml
+state Inner {
+  [*] --> A : label
+}
+@enduml
