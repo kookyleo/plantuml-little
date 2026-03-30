@@ -1,78 +1,51 @@
-# Continue: State Diagram Alignment
+# Continue: Reference Test Alignment
 
-## Scope
+## Current State (2026-03-31)
 
-Continue from the current state-diagram alignment work. The active target is now `tests/fixtures/state/state_history001.puml`.
+- **Reference tests**: 233/296 passed (78.7%)
+- **Baseline at session start**: 221/296 (74.7%)
+- **Net gain this session**: +12 tests
+- **Git**: main branch
 
-Use `python3`, not `python`, for all local scripts.
+## Next Priority: Bidirectional arrows (`<->`)
 
-## Current Progress
+SequenceArrows_0001 is at col 8528 (very close). The remaining blocker is `<->` / `o<->o` / `x<->x` bidirectional arrows. Need:
+1. Parser: `bidirectional: bool` on Message (already detects `has_left_arrow && has_right_arrow`)
+2. Renderer: draw arrowhead at BOTH ends in `draw_message`
+3. Ext fixture: `seq_ext_bidir_arrow.puml`
 
-1. `state_monoline_03` was split into isolated special ext cases, fixed, and the original reference test now passes.
-2. The special ext split workflow is stable. `cargo test --test special_ext_reference_state_split -- --ignored --nocapture` currently passes `12/12`.
-3. `state_history001` has been significantly improved:
-   - History node ownership, rendering, and transition endpoints are correct
-   - Exposed history nodes now participate in the outer Graphviz solve
-   - Composite children use Graphviz inner solve (fixes cycle handling)
-   - Cluster grouping groups composite + history for rank assignment
+## Recently Fixed (this session)
 
-## What Was Fixed Already
+| Commit | Fix | Tests |
+|--------|-----|-------|
+| 1a5bda8 | state composite explicit_source_line | +1 |
+| ead403d | Choice node shape=diamond | +1 |
+| 325d729 | Puma self-msg note width | +2 |
+| 1d20218 | activity word-by-word note | +2 |
+| 523add5 | teoz fragment width, hidden arrow, asymmetric spacing | +8 |
+| 619cae0 | left self-msg deltaY, arrowhead | +1 |
+| a56e64d | teoz note preferred height | 0 (structural) |
+| 4caf01f | composite inner height delta +14→+15 | 0 (structural) |
+| 46a1c10/f5d940b | inner composite graphviz solve | 0 (architectural) |
+| 477b5fc | inner composite child positions | 0 (structural) |
+| e5d1a2d | activation bar positioning | +2 |
+| bbcd512 | cross (X) decoration + circle offset | 0 (feature) |
 
-1. Nested history ownership is preserved in the parser and model, so `Active[H]` is treated as a child of `Active` instead of a stray top-level node.
-2. State history rendering is much closer to Java now:
-   - history marker uses filled ellipse styling
-   - `H` text is regular-weight at Java-like sizing
-   - transition endpoint display maps to `*historical*Active` / `*deephistorical*...`
-3. The outer state Graphviz solve now includes exposed nested history nodes when they are referenced across the top-level boundary.
-4. A lightweight cluster path was added for this special history case so the outer solve can include the composite state and its exposed history node in the same cluster.
-5. Composite children now use `layout_children_with_graphviz` (real Graphviz solve) instead of `layout_states_ranked` (which collapsed cycles incorrectly).
+## Diagnosed Remaining Issues
 
-## Current Remaining Gap
+| Issue | Root cause | Priority |
+|-------|-----------|----------|
+| SequenceArrows `<->` | bidirectional unimplemented | HIGH (blocks 4 tests) |
+| state_history001 (-50px) | Java 5-level cluster vs single-rect | MED |
+| state fork/SCXML (-17px) | inner ranksep vs edge labels | MED |
+| TeozTimeline 0007/0009 | group height model | LOW |
+| component viewport 2px | Smetana precision | LOW |
+| SequenceLeftMsg 0001/0002 | participant x-position 0.5px | LOW |
 
-The active failing reference case is:
+## Ext Test Infrastructure
 
-- `cargo test --test reference_tests reference_fixtures_state_state_history001_puml -- --nocapture`
-
-Current result:
-
-- Rust root height: `454px`
-- Reference root height: `404px`
-
-The remaining 50px gap is due to a fundamental architectural difference:
-
-### Java Cluster Approach (desired behavior)
-Java puts ALL inner children of the composite state directly into the outer DOT as a Graphviz cluster subgraph (with 5 nested levels: a/p0/main/i/p1). A `zaent` point node serves as the cluster entry/exit for external edges. The cluster's inner children use the outer ranksep, and Graphviz determines the cluster bounds. The rank assignment allows Paused to be positioned ABOVE Active (since `Paused -> Active[H]` is a back-edge).
-
-### Rust Single-Rect Approach (current behavior)
-Rust pre-computes the composite's inner layout (via Graphviz inner solve with ranksep=36pt), then represents the composite as a single tall rect in the outer DOT. The tall rect forces Graphviz to allocate more vertical space, and the rank ordering puts Paused BELOW Active (following `Active -> Paused` direction).
-
-### Root Cause Analysis
-The single-rect approach produces different Graphviz rank assignments than Java's cluster approach. In Java, `Paused -> Active[H]` where Active[H] is inside the cluster creates a back-edge constraint that places Paused at rank 0 (above the cluster). In Rust, `Active -> Paused` dominates and places Paused at rank 2 (below Active).
-
-### Attempted Full Cluster Approach
-A full cluster approach was attempted (putting children as individual nodes in the outer DOT inside nested cluster subgraphs). The cluster bounds matched Java exactly (152x309), but the svek solve's index-based node mapping couldn't correctly extract positions for nodes inside clusters (the color-based position extraction works correctly, but normalization/remapping was misconfigured). This approach is architecturally correct but needs svek solve fixes.
-
-### Next Steps
-1. Fix the svek solve to correctly handle nodes inside clusters (the color match works but normalization offsets need per-solve isolation)
-2. OR: compute the composite height using the Java cluster formula instead of the single-rect formula
-3. OR: match Java's rank ordering by reversing the `Active -> Paused` edge direction when history creates a back-edge constraint
-
-## Key Files
-- `src/layout/state.rs` — state layout, composite sizing, DOT generation
-- `src/layout/graphviz.rs` — LayoutGraph to DOT conversion
-- `src/svek/builder.rs` — DOT builder, clusters
-- `src/svek/mod.rs` — svek solve, cluster handling
-- `src/render/svg_state.rs` — rendering order
-
-## Verified Commands
-
-```bash
-cargo test --test special_ext_reference_state_split -- --ignored --nocapture
-cargo test --test reference_tests reference_fixtures_state_state_history001_puml -- --nocapture
-RUST_LOG=debug cargo run -- tests/fixtures/state/state_history001.puml -o /tmp/state_history001.svg
-```
-
-Java DOT debug:
-```bash
-java -jar /ext/plantuml/plantuml/build/libs/$(ls /ext/plantuml/plantuml/build/libs/ | grep 'plantuml-.*\.jar$' | grep -v sources | grep -v javadoc | sort | tail -1) -debugsvek tests/ext_fixtures/state/state_ext_history_simple.puml
-```
+| Harness | Tests | Pass |
+|---------|-------|------|
+| special_ext_reference_state_split.rs | 13 | 8/13 |
+| special_ext_reference_seq_split.rs | ~20 | most pass |
+| special_ext_reference_activity_split.rs | 2 | 2/2 |
