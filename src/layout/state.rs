@@ -620,18 +620,11 @@ fn compute_state_node(
         //   inner_img = SvekResult.calculateDimension() = lf_span + delta(15, 15)
         //   dim = title.mergeTB(attr, inner_img)  →  (max(title_w, inner_w), title_h + inner_h)
         //   result = dim.delta(2*MARGIN + 2*MARGIN_LINE)  →  (dim_w + 20, dim_h + 20)
-        // Total: composite_h = title_h + (total_child_h + 15) + 20 = total_child_h + title_h + 35
-        // Java SvekResult.calculateDimension() adds delta(15,15) to lf_span.
-        // Our total_child_h/w is bounding-box based (slightly larger than lf_span
-        // which uses LimitFinder -1 corrections on rect bottom/right).
-        // Width: use 15 (rect -1 correction on right edge already matches Java's addPoint(x+w-1))
-        // Height: use 14 (rect -1 correction on bottom edge means our height is 1px more than lf_span)
         // Width: total_child_w approximates lf_span but is ~2px less due to LF corrections
         // (rect -1 on left, circle no correction). Use +16 to compensate.
-        // Height: total_child_h is ~1px more than lf_span_h due to rect -1 on bottom.
-        // Use +14 (= delta(15) - 1px LF correction).
+        // Height: use +15 matching Java's SvekResult delta(15,15).
         let inner_img_w = total_child_w + 16.0;
-        let inner_img_h = total_child_h + 14.0;
+        let inner_img_h = total_child_h + 15.0;
         let inner_height = inner_img_h + composite_height_overhead();
 
         let name_w = text_width(&state.name, STATE_NAME_FONT_SIZE);

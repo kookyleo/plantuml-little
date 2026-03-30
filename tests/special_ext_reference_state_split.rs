@@ -338,3 +338,29 @@ fn ext_ref_state_note_multiline() {
         },
     );
 }
+
+#[test]
+#[ignore = "diagnostic: fork/join bar height with composite"]
+fn ext_ref_state_fork_composite() {
+    assert_ext_reference_case(
+        "state_fork_composite",
+        "state_ext_fork_composite.puml",
+        CompareProfile {
+            normalize_ids: true,
+            strip_source_line: true,
+        },
+    );
+}
+
+#[test]
+#[ignore = "diagnostic: fork/join bar height"]
+fn ext_ref_state_fork_simple() {
+    assert_ext_reference_case(
+        "state_fork_simple",
+        "state_ext_fork_simple.puml",
+        CompareProfile {
+            normalize_ids: true,
+            strip_source_line: true,
+        },
+    );
+}

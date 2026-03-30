@@ -1,0 +1,16 @@
+@startuml
+[*] --> Active
+state Active {
+  [*] --> Idle
+  Idle --> Processing : event
+}
+Active --> Done
+state fork_state <<fork>>
+[*] --> fork_state
+fork_state --> State1
+fork_state --> State2
+state join_state <<join>>
+State1 --> join_state
+State2 --> join_state
+join_state --> [*]
+@enduml
