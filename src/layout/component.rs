@@ -389,6 +389,7 @@ pub fn layout_component(cd: &ComponentDiagram) -> Result<ComponentLayout> {
         edges: layout_edges,
         clusters,
         rankdir,
+        ranksep_override: None,
         use_simplier_dot_link_strategy: false,
     };
     let gl = graphviz::layout_with_svek(&graph)?;

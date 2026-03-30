@@ -340,6 +340,32 @@ fn ext_ref_state_note_multiline() {
 }
 
 #[test]
+#[ignore = "diagnostic: empty composite state overhead height"]
+fn ext_ref_state_composite_empty() {
+    assert_ext_reference_case(
+        "state_composite_empty",
+        "state_ext_composite_empty.puml",
+        CompareProfile {
+            normalize_ids: true,
+            strip_source_line: true,
+        },
+    );
+}
+
+#[test]
+#[ignore = "diagnostic: composite state with edge labels height"]
+fn ext_ref_state_composite_with_label() {
+    assert_ext_reference_case(
+        "state_composite_with_label",
+        "state_ext_composite_with_label.puml",
+        CompareProfile {
+            normalize_ids: true,
+            strip_source_line: true,
+        },
+    );
+}
+
+#[test]
 #[ignore = "diagnostic: fork/join bar height with composite"]
 fn ext_ref_state_fork_composite() {
     assert_ext_reference_case(
@@ -358,6 +384,19 @@ fn ext_ref_state_fork_simple() {
     assert_ext_reference_case(
         "state_fork_simple",
         "state_ext_fork_simple.puml",
+        CompareProfile {
+            normalize_ids: true,
+            strip_source_line: true,
+        },
+    );
+}
+
+#[test]
+#[ignore = "diagnostic: history cluster height in outer layout"]
+fn ext_ref_state_history_simple() {
+    assert_ext_reference_case(
+        "state_history_simple",
+        "state_ext_history_simple.puml",
         CompareProfile {
             normalize_ids: true,
             strip_source_line: true,
