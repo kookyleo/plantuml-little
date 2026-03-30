@@ -47,6 +47,10 @@ pub struct StateNodeLayout {
     pub children: Vec<StateNodeLayout>,
     /// Pseudo-state kind (fork, join, choice, history, etc.)
     pub kind: StateKind,
+    /// Internal transitions resolved by the inner graphviz solve.
+    /// These are stored relative to the inner origin (0,0) and offset
+    /// to absolute coordinates when the composite is positioned.
+    pub internal_transitions: Vec<TransitionLayout>,
     /// Y positions of concurrent region separators (dashed lines)
     pub region_separators: Vec<f64>,
     /// Source line (0-based) for data-source-line attribute.
@@ -458,6 +462,7 @@ fn compute_state_node(
                 is_composite: false,
                 children: Vec::new(),
                 kind: state.kind.clone(),
+                internal_transitions: Vec::new(),
                 region_separators: Vec::new(),
                 source_line: state.source_line,
             },
@@ -484,6 +489,7 @@ fn compute_state_node(
                 is_composite: false,
                 children: Vec::new(),
                 kind: state.kind.clone(),
+                internal_transitions: Vec::new(),
                 region_separators: Vec::new(),
                 source_line: state.source_line,
             },
@@ -509,6 +515,7 @@ fn compute_state_node(
                 is_composite: false,
                 children: Vec::new(),
                 kind: state.kind.clone(),
+                internal_transitions: Vec::new(),
                 region_separators: Vec::new(),
                 source_line: state.source_line,
             },
@@ -534,6 +541,7 @@ fn compute_state_node(
                 is_composite: false,
                 children: Vec::new(),
                 kind: state.kind.clone(),
+                internal_transitions: Vec::new(),
                 region_separators: Vec::new(),
                 source_line: state.source_line,
             },
@@ -559,6 +567,7 @@ fn compute_state_node(
                 is_composite: false,
                 children: Vec::new(),
                 kind: state.kind.clone(),
+                internal_transitions: Vec::new(),
                 region_separators: Vec::new(),
                 source_line: state.source_line,
             },
@@ -583,20 +592,26 @@ fn compute_state_node(
             all_regions.push(&state.children);
         }
 
+        let mut all_inner_transitions: Vec<TransitionLayout> = Vec::new();
         if all_regions.len() > 1 {
             // Multiple concurrent regions
             let mut region_y = 0.0;
             for (i, region) in all_regions.iter().enumerate() {
-                let (mut child_layouts, child_w, child_h) = layout_children_with_graphviz(
+                let (mut child_layouts, mut inner_tr, child_w, child_h) = layout_children_with_graphviz(
                     region,
                     transitions,
                     initial_ids,
                     final_ids,
                 );
                 offset_children(&mut child_layouts, 0.0, region_y);
+                // Also offset inner transitions for this region
+                for tr in &mut inner_tr {
+                    offset_transition(tr, 0.0, region_y);
+                }
                 total_child_w = total_child_w.max(child_w);
                 region_y += child_h;
                 all_child_layouts.extend(child_layouts);
+                all_inner_transitions.extend(inner_tr);
 
                 if i < all_regions.len() - 1 {
                     region_y += STATE_SPACING / 2.0;
@@ -606,7 +621,7 @@ fn compute_state_node(
             }
             total_child_h = region_y;
         } else {
-            let (child_layouts, child_w, child_h) = layout_children_with_graphviz(
+            let (child_layouts, inner_tr, child_w, child_h) = layout_children_with_graphviz(
                 &state.children,
                 transitions,
                 initial_ids,
@@ -615,6 +630,7 @@ fn compute_state_node(
             total_child_w = child_w;
             total_child_h = child_h;
             all_child_layouts = child_layouts;
+            all_inner_transitions = inner_tr;
         }
 
         // Java: InnerStateAutonom.calculateDimensionSlow()
@@ -646,6 +662,7 @@ fn compute_state_node(
                 is_composite: true,
                 children: all_child_layouts,
                 kind: state.kind.clone(),
+                internal_transitions: all_inner_transitions,
                 region_separators,
                 source_line: state.source_line,
             },
@@ -671,6 +688,7 @@ fn compute_state_node(
             is_composite: false,
             children: Vec::new(),
             kind: state.kind.clone(),
+            internal_transitions: Vec::new(),
             region_separators: Vec::new(),
             source_line: state.source_line,
         },
@@ -1082,16 +1100,16 @@ fn layout_states_ranked_with_spacing(
 /// Layout composite children using Graphviz, matching Java's approach of running
 /// a separate graphviz pass for each composite state's inner content.
 ///
-/// Returns `(laid_out_nodes, content_width, content_height)` where positions are
-/// relative to (0, 0) in the composite's inner space.
+/// Returns `(laid_out_nodes, inner_transitions, content_width, content_height)` where
+/// positions are relative to (0, 0) in the composite's inner space.
 fn layout_children_with_graphviz(
     states: &[State],
     transitions: &[Transition],
     initial_ids: &HashSet<String>,
     final_ids: &HashSet<String>,
-) -> (Vec<StateNodeLayout>, f64, f64) {
+) -> (Vec<StateNodeLayout>, Vec<TransitionLayout>, f64, f64) {
     if states.is_empty() {
-        return (Vec::new(), 0.0, 0.0);
+        return (Vec::new(), Vec::new(), 0.0, 0.0);
     }
 
     // Compute sizes for all child states
@@ -1190,21 +1208,21 @@ fn layout_children_with_graphviz(
         }
         Err(e) => {
             log::warn!("graphviz inner layout failed: {e}, falling back to ranked layout");
-            return layout_states_ranked(states, transitions, initial_ids, final_ids, 0.0, 0.0);
+            let (nodes, w, h) = layout_states_ranked(states, transitions, initial_ids, final_ids, 0.0, 0.0);
+            return (nodes, Vec::new(), w, h);
         }
     };
 
-    // Use the render_offset (Java moveDelta margin) to shift coordinates
-    let margin_x = gv_layout.render_offset.0;
-    let margin_y = gv_layout.render_offset.1;
+    // Inner composite children are positioned relative to (0,0).
+    // The outer layout adds composite header + padding offsets, so we must NOT
+    // apply the render_offset here — that would double-count the moveDelta margin.
 
     // Convert graphviz results to child node positions (relative to origin)
     let mut nodes = Vec::new();
     for gv_node in &gv_layout.nodes {
         if let Some((template, _w, _h)) = sized_map.remove(&gv_node.id) {
-            // Use margin offsets matching Java's moveDelta for inner image
-            let x = gv_node.cx - gv_node.width / 2.0 + margin_x;
-            let y = gv_node.cy - gv_node.height / 2.0 + margin_y;
+            let x = gv_node.cx - gv_node.width / 2.0;
+            let y = gv_node.cy - gv_node.height / 2.0;
             let w = gv_node.width;
             let h = gv_node.height;
 
@@ -1228,12 +1246,60 @@ fn layout_children_with_graphviz(
         }
     }
 
+    // Build inner transitions from the graphviz edges.
+    // These are positioned relative to (0,0) in the inner space, matching the
+    // child node positions. The outer layout will offset them later.
+    let child_ids: HashSet<&str> = states.iter().map(|s| s.id.as_str()).collect();
+    let child_transitions: Vec<&Transition> = transitions
+        .iter()
+        .filter(|tr| child_ids.contains(tr.from.as_str()) && child_ids.contains(tr.to.as_str()))
+        .collect();
+    let mut inner_transitions = Vec::new();
+    for (i, gv_edge) in gv_layout.edges.iter().enumerate() {
+        let (from_id, to_id) = if i < child_transitions.len() {
+            (child_transitions[i].from.clone(), child_transitions[i].to.clone())
+        } else {
+            (gv_edge.from.clone(), gv_edge.to.clone())
+        };
+        let label = if i < child_transitions.len() {
+            child_transitions[i].label.clone()
+        } else {
+            gv_edge.label.clone().unwrap_or_default()
+        };
+        let source_line = if i < child_transitions.len() {
+            child_transitions[i].source_line
+        } else {
+            None
+        };
+
+        let raw_path_d = gv_edge.raw_path_d.clone();
+        let arrow_polygon = gv_edge.arrow_polygon_points.clone();
+
+        let label_xy = gv_edge.label_xy.map(|(x, y)| {
+            let nx = x + gv_layout.move_delta.0 - gv_layout.normalize_offset.0;
+            let ny = y + gv_layout.move_delta.1 - gv_layout.normalize_offset.1;
+            (nx, ny)
+        });
+
+        inner_transitions.push(TransitionLayout {
+            from_id,
+            to_id,
+            label,
+            points: gv_edge.points.clone(),
+            raw_path_d,
+            arrow_polygon,
+            label_xy,
+            label_wh: gv_edge.label_wh,
+            source_line,
+        });
+    }
+
     // Use LimitFinder span for the inner image dimensions, matching
     // Java's SvekResult.calculateDimension() = minMax.getDimension().
     let inner_w = gv_layout.lf_span.0;
     let inner_h = gv_layout.lf_span.1;
 
-    (nodes, inner_w, inner_h)
+    (nodes, inner_transitions, inner_w, inner_h)
 }
 
 /// Recursively offset children's positions from relative (0,0) to absolute.
@@ -1241,6 +1307,10 @@ fn offset_children(children: &mut [StateNodeLayout], offset_x: f64, offset_y: f6
     for child in children.iter_mut() {
         child.x += offset_x;
         child.y += offset_y;
+        // Also offset any internal transitions stored in this child
+        for tr in &mut child.internal_transitions {
+            offset_transition(tr, offset_x, offset_y);
+        }
         if child.is_composite {
             // Children of children are already relative to the child; the
             // recursive layout already set them.  But since we just moved the
@@ -1248,6 +1318,27 @@ fn offset_children(children: &mut [StateNodeLayout], offset_x: f64, offset_y: f6
             // were relative to (0,0), so we need to offset them too.
             offset_children(&mut child.children, offset_x, offset_y);
         }
+    }
+}
+
+/// Offset a single transition layout by (dx, dy).
+fn offset_transition(tr: &mut TransitionLayout, dx: f64, dy: f64) {
+    for p in &mut tr.points {
+        p.0 += dx;
+        p.1 += dy;
+    }
+    if let Some(ref mut d) = tr.raw_path_d {
+        *d = crate::layout::graphviz::transform_path_d(d, dx, dy);
+    }
+    if let Some(ref mut pts) = tr.arrow_polygon {
+        for p in pts.iter_mut() {
+            p.0 += dx;
+            p.1 += dy;
+        }
+    }
+    if let Some(ref mut xy) = tr.label_xy {
+        xy.0 += dx;
+        xy.1 += dy;
     }
 }
 
@@ -1559,9 +1650,15 @@ pub fn layout_state(diagram: &StateDiagram) -> Result<StateLayout> {
         }
     }
 
-    // Build graphviz LayoutEdge list from transitions
+    // Build graphviz LayoutEdge list from transitions.
+    // Only include transitions where both endpoints are top-level (outer) nodes.
+    // Inner transitions are handled by the composite's inner graphviz solve.
+    let outer_node_ids: HashSet<String> = gv_nodes.iter().map(|n| n.id.clone()).collect();
     let mut gv_edges: Vec<LayoutEdge> = Vec::new();
     for tr in &diagram.transitions {
+        if !outer_node_ids.contains(&tr.from) || !outer_node_ids.contains(&tr.to) {
+            continue;
+        }
         gv_edges.push(LayoutEdge {
             from: tr.from.clone(),
             to: tr.to.clone(),
@@ -1764,6 +1861,10 @@ pub fn layout_state(diagram: &StateDiagram) -> Result<StateLayout> {
                 let child_offset_x = x + COMPOSITE_PADDING;
                 let child_offset_y = y + composite_inner_y_offset() + inner_margin;
                 offset_children(&mut node.children, child_offset_x, child_offset_y);
+                // Offset the composite's own internal transitions to absolute coords
+                for tr in &mut node.internal_transitions {
+                    offset_transition(tr, child_offset_x, child_offset_y);
+                }
                 for sep_y in &mut node.region_separators {
                     *sep_y += child_offset_y;
                 }
@@ -1775,7 +1876,12 @@ pub fn layout_state(diagram: &StateDiagram) -> Result<StateLayout> {
 
     // Convert graphviz EdgeLayout to TransitionLayout.
     // The svek pipeline returns edges with raw SVG path data and arrow polygons.
-    let active_transitions: Vec<&Transition> = diagram.transitions.iter().collect();
+    // active_transitions matches gv_edges: only outer transitions.
+    let active_transitions: Vec<&Transition> = diagram
+        .transitions
+        .iter()
+        .filter(|tr| outer_node_ids.contains(&tr.from) && outer_node_ids.contains(&tr.to))
+        .collect();
     let mut transition_layouts: Vec<TransitionLayout> = Vec::new();
     let mut visible_transition_keys: HashSet<(String, String, Option<usize>)> = HashSet::new();
 
@@ -1845,10 +1951,28 @@ pub fn layout_state(diagram: &StateDiagram) -> Result<StateLayout> {
         transition_layouts.push(layout);
     }
 
-    // Graphviz input only contains top-level state nodes. Composite-internal transitions
-    // can therefore disappear before the svek edge solve, especially when note helper
-    // edges are also present. Synthesize any missing visible transitions from the
-    // already-laid-out recursive child positions.
+    // Inject internal transitions from composite states (resolved by inner graphviz).
+    // These have proper Bezier paths from the inner solve, unlike synthesized transitions.
+    fn collect_internal_transitions(node: &mut StateNodeLayout, out: &mut Vec<TransitionLayout>, keys: &mut HashSet<(String, String, Option<usize>)>) {
+        let drained: Vec<TransitionLayout> = node.internal_transitions.drain(..).collect();
+        for tr in drained {
+            let key = transition_layout_key(&tr);
+            log::debug!("[inject] internal transition: {} -> {} path_d={:?} points={} key={:?} already_present={}", tr.from_id, tr.to_id, tr.raw_path_d.as_ref().map(|d| &d[..d.len().min(60)]), tr.points.len(), key, keys.contains(&key));
+            if !keys.contains(&key) {
+                keys.insert(key);
+                out.push(tr);
+            }
+        }
+        for child in &mut node.children {
+            collect_internal_transitions(child, out, keys);
+        }
+    }
+    for node in &mut state_layouts {
+        collect_internal_transitions(node, &mut transition_layouts, &mut visible_transition_keys);
+    }
+
+    // Synthesize any remaining missing transitions from child positions
+    // (fallback for transitions not resolved by inner graphviz).
     let full_pos_map = build_position_map(&state_layouts);
     let missing_transitions: Vec<Transition> = diagram
         .transitions
@@ -1859,7 +1983,6 @@ pub fn layout_state(diagram: &StateDiagram) -> Result<StateLayout> {
     if !missing_transitions.is_empty() {
         transition_layouts.extend(layout_transitions(&missing_transitions, &full_pos_map));
     }
-
     // Expand content width to include edge label extents (Java LimitFinder
     // tracks text elements which can extend beyond node boundaries).
     let mut content_width = gv_layout.total_width;
