@@ -392,3 +392,42 @@ fn ext_ref_seq_left_msg_active() {
         },
     );
 }
+
+#[test]
+#[ignore = "diagnostic: teoz timeline arrow decorations and note over"]
+fn ext_ref_seq_teoz_timeline_0007() {
+    assert_ext_reference_case(
+        "seq_teoz_timeline_0007",
+        "seq_ext_teoz_timeline_0007.puml",
+        CompareProfile {
+            normalize_ids: true,
+            strip_source_line: true,
+        },
+    );
+}
+
+#[test]
+#[ignore = "diagnostic: teoz timeline notes with hidden and activate"]
+fn ext_ref_seq_teoz_timeline_0004() {
+    assert_ext_reference_case(
+        "seq_teoz_timeline_0004",
+        "seq_ext_teoz_timeline_0004.puml",
+        CompareProfile {
+            normalize_ids: true,
+            strip_source_line: true,
+        },
+    );
+}
+
+#[test]
+#[ignore = "diagnostic: teoz timeline parallel messages with activate/deactivate"]
+fn ext_ref_seq_teoz_timeline_0002() {
+    assert_ext_reference_case(
+        "seq_teoz_timeline_0002",
+        "seq_ext_teoz_timeline_0002.puml",
+        CompareProfile {
+            normalize_ids: true,
+            strip_source_line: true,
+        },
+    );
+}

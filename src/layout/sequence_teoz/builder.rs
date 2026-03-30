@@ -526,6 +526,8 @@ fn find_preceding_self_message(
     None
 }
 
+/// Drawn polygon height for the note (SVG rendering).
+/// Java: `(int) getTextHeight()` where `getTextHeight = textBlock.h + 2*marginY(5)`.
 fn estimate_note_height(text: &str) -> f64 {
     let lines = text
         .split(crate::NEWLINE_CHAR)
@@ -536,6 +538,25 @@ fn estimate_note_height(text: &str) -> f64 {
     let creole_extra = creole_note_extra_height(text);
     let h = lines * lh + 10.0 + creole_extra; // marginY1(5) + marginY2(5)
     h.trunc().max(25.0)
+}
+
+/// Preferred height for note tile spacing (Y advancement).
+/// Java: `ComponentRoseNote.getPreferredHeight()`
+///   = `getTextHeight() + 2*paddingY + deltaShadow`
+///   = `(textBlock.h + 2*marginY(5)) + 2*paddingY(5) + 0`
+///   = `textBlock.h + 20`
+/// This is larger than the drawn polygon height by 2*paddingY(=10).
+fn note_preferred_height(text: &str, delta_shadow: f64) -> f64 {
+    let lines = text
+        .split(crate::NEWLINE_CHAR)
+        .flat_map(|s| s.lines())
+        .count()
+        .max(1) as f64;
+    let lh = font_metrics::line_height("SansSerif", NOTE_FONT_SIZE, false, false);
+    let creole_extra = creole_note_extra_height(text);
+    // getTextHeight = textBlock.h + 2*marginY(5)
+    // getPreferredHeight = getTextHeight + 2*paddingY(5) + deltaShadow
+    lines * lh + 20.0 + creole_extra + delta_shadow
 }
 
 /// Estimate extra height added by creole formatting in note text.
@@ -1201,7 +1222,7 @@ pub fn build_teoz_layout(sd: &SequenceDiagram, skin: &SkinParams) -> Result<SeqL
                 let idx = name_to_idx.get(participant).copied().unwrap_or(0);
                 let center = livings[idx].pos_c;
                 let w = estimate_note_width(text);
-                let h = estimate_note_height(text);
+                let h = note_preferred_height(text, sd.delta_shadow);
                 let is_smn = is_last_tile_any_message(&tiles);
                 tiles.push(TeozTile::Note {
                     participant_idx: idx,
@@ -1218,7 +1239,7 @@ pub fn build_teoz_layout(sd: &SequenceDiagram, skin: &SkinParams) -> Result<SeqL
                 let idx = name_to_idx.get(participant).copied().unwrap_or(0);
                 let center = livings[idx].pos_c;
                 let w = estimate_note_width(text);
-                let h = estimate_note_height(text);
+                let h = note_preferred_height(text, sd.delta_shadow);
                 let is_smn = is_last_tile_any_message(&tiles);
                 tiles.push(TeozTile::Note {
                     participant_idx: idx,
@@ -1233,7 +1254,7 @@ pub fn build_teoz_layout(sd: &SequenceDiagram, skin: &SkinParams) -> Result<SeqL
             }
             SeqEvent::NoteOver { participants, text } => {
                 let w = estimate_note_width(text);
-                let h = estimate_note_height(text);
+                let h = note_preferred_height(text, sd.delta_shadow);
                 tiles.push(TeozTile::NoteOver {
                     participants: participants.clone(),
                     text: text.clone(),
@@ -1571,22 +1592,12 @@ pub fn build_teoz_layout(sd: &SequenceDiagram, skin: &SkinParams) -> Result<SeqL
             // the note calcH includes the self-message's vertical extent.
             // For regular messages, push = 0 (note starts at tile top).
             // Check if the preceding message tile (skipping LifeEvents) is a self-message
-            let is_self_note = (0..tile_idx)
-                .rev()
-                .find_map(|j| {
-                    match &tiles[j] {
-                        TeozTile::LifeEvent { .. } => None, // skip
-                        TeozTile::SelfMessage { .. } => Some(true),
-                        _ => Some(false),
-                    }
-                })
-                .unwrap_or(false);
-            let note_push = if is_self_note {
-                rose::ARROW_PADDING_X
-            } else {
-                0.0
-            };
-            tiles[tile_idx].set_y(msg_y + note_push);
+            // Java: CommunicationTileNoteRight and CommunicationTileSelfNoteRight
+            // both place the note at the tile's y position (= msg_y). The polygon is
+            // then rendered at tile_y + paddingY(5) by AbstractComponent.drawU().
+            // We set tile_y = msg_y here; the paddingY offset is applied when
+            // extracting NoteLayout for SVG rendering.
+            tiles[tile_idx].set_y(msg_y);
             // Combined height = max(message_h, note_h)
             let combined_h = msg_h.max(note_h);
             y = msg_y + combined_h;
@@ -2447,12 +2458,15 @@ pub fn build_teoz_layout(sd: &SequenceDiagram, skin: &SkinParams) -> Result<SeqL
                 text,
                 is_left,
                 width,
-                height,
+                height: _,
                 y,
                 is_note_on_message,
                 ..
             } => {
-                let ty = y.unwrap_or(0.0);
+                // Java AbstractComponent.drawU applies UTranslate(paddingX, paddingY)
+                // before rendering the note polygon. For notes, Rose.paddingY = 5.
+                // The tile y is the tile top; the polygon starts paddingY below it.
+                let ty = y.unwrap_or(0.0) + 5.0;
                 let cx = get_x(livings[*participant_idx].pos_c);
                 let nx = if *is_note_on_message {
                     // Note on self-message: position relative to self-message extent.
@@ -2489,12 +2503,15 @@ pub fn build_teoz_layout(sd: &SequenceDiagram, skin: &SkinParams) -> Result<SeqL
                 } else {
                     cx + 5.0
                 };
+                // Use drawn polygon height for SVG rendering, not the
+                // preferred tile height which includes 2*paddingY extra.
+                let drawn_h = estimate_note_height(text);
                 notes.push(NoteLayout {
                     x: nx,
                     y: ty,
                     width: *width,
                     layout_width: *width + 10.0,
-                    height: *height,
+                    height: drawn_h,
                     text: text.clone(),
                     is_left: *is_left,
                     is_self_msg_note: *is_note_on_message,
@@ -2507,10 +2524,11 @@ pub fn build_teoz_layout(sd: &SequenceDiagram, skin: &SkinParams) -> Result<SeqL
                 participants,
                 text,
                 width,
-                height,
+                height: _,
                 y,
             } => {
-                let ty = y.unwrap_or(0.0);
+                // Same paddingY offset as Note (see above).
+                let ty = y.unwrap_or(0.0) + 5.0;
                 // Center the note between the first and last referenced participant
                 let (left_x, right_x) = if participants.len() >= 2 {
                     let idx0 = name_to_idx.get(&participants[0]).copied().unwrap_or(0);
@@ -2527,12 +2545,13 @@ pub fn build_teoz_layout(sd: &SequenceDiagram, skin: &SkinParams) -> Result<SeqL
                     (total_min_x, total_max_x)
                 };
                 let center = (left_x + right_x) / 2.0;
+                let drawn_h = estimate_note_height(text);
                 notes.push(NoteLayout {
                     x: center - *width / 2.0,
                     y: ty,
                     width: *width,
                     layout_width: *width + 10.0,
-                    height: *height,
+                    height: drawn_h,
                     text: text.clone(),
                     is_left: false,
                     is_self_msg_note: false,
