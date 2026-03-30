@@ -1385,7 +1385,6 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
                 }
 
                 if is_self {
-                    let return_y = msg_y + lp.self_msg_height;
                     // Lifeline extent uses unshifted position (deltaY only
                     // affects rendering, not the tile's freeY advancement).
                     let return_y_for_lifeline = msg_y_unshifted + lp.self_msg_height;
@@ -1412,10 +1411,17 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
                     last_self_msg_starting_y = msg_y - self_text_h - rose::ARROW_PADDING_Y;
                     last_self_msg_preferred_h = self_preferred_h;
                     y_cursor += self_preferred_h;
-                    // Activation start uses unshifted return y (Java arrowYStartLevel
-                    // is based on startingY, not startingY+deltaY).
-                    let return_y_unshifted = msg_y_unshifted + lp.self_msg_height;
-                    pending_self_return_y.insert(msg.from.clone(), return_y_unshifted);
+                    // Java STRICT_SELFMESSAGE_POSITION: activation start uses
+                    // arrowYStartLevel + 8, which equals the shifted (rendered)
+                    // return y. For destroy/deactivate, the end position uses
+                    // arrowYEndLevel (unshifted). Use shifted msg_y for activate
+                    // and unshifted msg_y for destroy/deactivate.
+                    let pending_y = if will_activate && !is_activated {
+                        msg_y + lp.self_msg_height
+                    } else {
+                        msg_y_unshifted + lp.self_msg_height
+                    };
+                    pending_self_return_y.insert(msg.from.clone(), pending_y);
                 } else {
                     lifeline_extend_y = msg_y + 18.0;
                     y_cursor = msg_y + lp.message_spacing;
@@ -1437,7 +1443,10 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
                 } else {
                     // When activation occurs before any message, Java starts
                     // at lifeline_top + 10, not at y_cursor.
-                    last_event_msg_y.unwrap_or(MARGIN + max_ph + 1.0 + 10.0)
+                    let base = last_event_msg_y.unwrap_or(MARGIN + max_ph + 1.0 + 10.0);
+                    // Java STRICT_SELFMESSAGE_POSITION: when activation follows
+                    // a self-message, add delta1=8 to the posYstartLevel.
+                    if last_message_was_self { base + 8.0 } else { base }
                 };
                 let stack = activation_stack.entry(name.clone()).or_default();
                 let level = stack.len() + 1; // 1-based nesting level
@@ -2114,6 +2123,13 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
     }
 
     // Close any remaining activations (unmatched).
+    // Java clips activation boxes to the body area (newpage2 + 1) which equals
+    // freeY2_final + 1. In Rust coordinates, this corresponds to:
+    //   y_cursor - (msg_line_height + MARGIN)
+    // because y_cursor starts at an offset from Java's freeY2 by exactly
+    //   initial_offset - 11 = msg_line_height + 6
+    // and the +1 from Java's clip boundary brings it to msg_line_height + 5 = msg_line_height + MARGIN.
+    let unclosed_end = y_cursor - lp.msg_line_height - MARGIN;
     // Iterate in participant declaration order for deterministic output.
     for p in &participants {
         let Some(stack) = activation_stack.get(&p.name) else {
@@ -2127,12 +2143,12 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
                 participant: name.clone(),
                 x,
                 y_start,
-                y_end: y_cursor,
+                y_end: unclosed_end,
                 level,
                 color: None,
             });
-            log::warn!(
-                "unclosed activation for '{name}' from y={y_start:.1}, closing at y={y_cursor:.1} level={level}"
+            log::debug!(
+                "unclosed activation for '{name}' from y={y_start:.1}, closing at y={unclosed_end:.1} level={level}"
             );
         }
     }
