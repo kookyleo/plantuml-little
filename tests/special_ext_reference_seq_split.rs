@@ -394,6 +394,32 @@ fn ext_ref_seq_left_msg_active() {
 }
 
 #[test]
+#[ignore = "diagnostic: teoz simple group with two messages"]
+fn ext_ref_seq_teoz_group_simple() {
+    assert_ext_reference_case(
+        "seq_teoz_group_simple",
+        "seq_ext_teoz_group_simple.puml",
+        CompareProfile {
+            normalize_ids: true,
+            strip_source_line: true,
+        },
+    );
+}
+
+#[test]
+#[ignore = "diagnostic: teoz timeline groups with activations"]
+fn ext_ref_seq_teoz_timeline_0009() {
+    assert_ext_reference_case(
+        "seq_teoz_timeline_0009",
+        "seq_ext_teoz_timeline_0009.puml",
+        CompareProfile {
+            normalize_ids: true,
+            strip_source_line: true,
+        },
+    );
+}
+
+#[test]
 #[ignore = "diagnostic: teoz timeline arrow decorations and note over"]
 fn ext_ref_seq_teoz_timeline_0007() {
     assert_ext_reference_case(
