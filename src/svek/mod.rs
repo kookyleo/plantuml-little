@@ -516,7 +516,10 @@ impl DotStringFactory {
 
         sb.push_str(&format!("{{rank={rank};"));
         for node in &entries {
+            // Quote UIDs to handle special characters (colons, brackets, etc.)
+            sb.push('"');
             sb.push_str(&node.uid);
+            sb.push('"');
             sb.push(';');
         }
         sb.push_str("}\n");
@@ -528,14 +531,17 @@ impl DotStringFactory {
         if entries.iter().any(|node| node.entity_position.is_port()) {
             let mut iter = entries.iter();
             if let Some(first) = iter.next() {
+                sb.push('"');
                 sb.push_str(&first.uid);
+                sb.push('"');
                 for node in iter {
-                    sb.push_str("->");
+                    sb.push_str("->\"");
                     sb.push_str(&node.uid);
+                    sb.push('"');
                 }
                 sb.push_str(" [arrowhead=none];\n");
                 sb.push_str(&format!(
-                    "{}->{};\n",
+                    "\"{}\"->{};\n",
                     entries.last().unwrap().uid,
                     cluster_special_point_id(cluster),
                 ));

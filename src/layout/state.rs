@@ -128,6 +128,13 @@ const FORK_BAR_HEIGHT: f64 = 8.0;
 /// Choice diamond side length.
 const CHOICE_SIZE: f64 = 24.0;
 const HISTORY_DIAMETER: f64 = 22.0;
+/// Java: <<inputPin>>/<<outputPin>> entity images are 12x12 rectangles.
+const PIN_SIZE: f64 = 12.0;
+/// Height bonus per pin type (inputPin/outputPin) for composite states.
+/// Java uses {rank=source}/{rank=sink} cluster constraints which add
+/// approximately ranksep/2 + cluster_margin + pin_size of vertical space
+/// per pin type. Empirically ~40px matches Java's cluster layout.
+const PIN_RANK_HEIGHT_BONUS: f64 = 45.0;
 const MARGIN: f64 = 7.0;
 
 // ---------------------------------------------------------------------------
@@ -677,7 +684,34 @@ fn compute_state_node(
         // total_child is the raw lf_span, so we add 15 once.
         let inner_img_w = if is_concurrent { total_child_w } else { total_child_w + 15.0 };
         let inner_img_h = if is_concurrent { total_child_h } else { total_child_h + 15.0 };
-        let inner_height = inner_img_h + composite_height_overhead();
+
+        // Java uses {rank=source}/{rank=sink} cluster constraints for
+        // inputPin/outputPin children. Each pin type at a cluster boundary
+        // adds approximately (ranksep/2 + cluster_margin + pin_size) of
+        // vertical space. But this only applies to composites that have
+        // INTERNAL pin states (not composites where pins are at the cluster
+        // boundary visible to the outer layout, like the top-level module).
+        // We detect pins that are direct children of THIS composite and add
+        // a height bonus for the rank separation they would occupy.
+        let pin_bonus = {
+            // Only add pin bonus if the children of this composite include
+            // pins AND regular (non-pin) states that would be in separate ranks.
+            let children = &state.children;
+            let has_regular = children.iter().any(|c| {
+                c.stereotype.as_deref() != Some("inputPin")
+                    && c.stereotype.as_deref() != Some("outputPin")
+                    && !c.is_special
+            });
+            if has_regular {
+                let has_input = children.iter().any(|c| c.stereotype.as_deref() == Some("inputPin"));
+                let has_output = children.iter().any(|c| c.stereotype.as_deref() == Some("outputPin"));
+                let pin_types = (has_input as u32) + (has_output as u32);
+                pin_types as f64 * PIN_RANK_HEIGHT_BONUS
+            } else {
+                0.0
+            }
+        };
+        let inner_height = inner_img_h + composite_height_overhead() + pin_bonus;
 
         let name_w = text_width(&state.name, STATE_NAME_FONT_SIZE);
         let merged_w = inner_img_w.max(name_w);
@@ -1155,11 +1189,20 @@ fn layout_children_with_graphviz(
         sized_map.insert(state.id.clone(), (node, w, h));
     }
 
-    // Build graphviz nodes
+    // Build graphviz nodes.
+    // Detect <<inputPin>>/<<outputPin>> stereotypes: Java uses tiny 12x12
+    // EntityPosition nodes placed at cluster source/sink ranks.
     let mut gv_nodes: Vec<LayoutNode> = Vec::new();
     let mut node_id_order: Vec<String> = Vec::new();
+    let mut has_pins = false;
     for state in states {
         let (_, w, h) = sized_map.get(&state.id).unwrap();
+        let is_input_pin = state.stereotype.as_deref() == Some("inputPin");
+        let is_output_pin = state.stereotype.as_deref() == Some("outputPin");
+        let is_pin = is_input_pin || is_output_pin;
+        if is_pin {
+            has_pins = true;
+        }
         let is_circle = state.is_special
             || matches!(
                 state.kind,
@@ -1170,6 +1213,12 @@ fn layout_children_with_graphviz(
                     | StateKind::End
             );
         let is_diamond = matches!(state.kind, StateKind::Choice);
+        // Pin states use tiny 12x12 rects in Java (EntityPosition.INPUT_PIN/OUTPUT_PIN)
+        let (node_w, node_h) = if is_pin {
+            (PIN_SIZE, PIN_SIZE)
+        } else {
+            (*w, *h)
+        };
         let shape = if is_circle {
             Some(crate::svek::shape_type::ShapeType::Circle)
         } else if is_diamond {
@@ -1180,8 +1229,8 @@ fn layout_children_with_graphviz(
         gv_nodes.push(LayoutNode {
             id: state.id.clone(),
             label: state.name.clone(),
-            width_pt: *w,
-            height_pt: *h,
+            width_pt: node_w,
+            height_pt: node_h,
             shape,
             shield: None,
             entity_position: None,
@@ -1189,8 +1238,8 @@ fn layout_children_with_graphviz(
             order: Some(node_id_order.len()),
             image_width_pt: None,
             lf_extra_left: 0.0,
-            lf_rect_correction: !is_circle,
-            lf_has_body_separator: !is_circle && !is_diamond,
+            lf_rect_correction: !is_circle && !is_pin,
+            lf_has_body_separator: !is_circle && !is_diamond && !is_pin,
         });
         node_id_order.push(state.id.clone());
     }
@@ -1223,13 +1272,21 @@ fn layout_children_with_graphviz(
         }
     }
 
+    // Pin states (inputPin/outputPin) don't get rank-forcing edges here.
+    // Instead, the composite sizing in compute_state_node adds a height
+    // bonus to account for Java's cluster-based rank=source/sink placement.
+
     let graph = LayoutGraph {
         nodes: gv_nodes,
         edges: gv_edges,
         clusters: vec![],
         rankdir: RankDir::TopToBottom,
-        // Java inner composite graphs use Graphviz's 0.5in default ranksep.
-        ranksep_override: Some(36.0),
+        // Java uses a single flat DOT graph with clusters where all nodes share
+        // the same ranksep (60pt). For composites WITH inputPin/outputPin states,
+        // the cluster-based rank constraints produce larger vertical gaps matching
+        // the outer ranksep. For composites without pins, use the default
+        // Graphviz 0.5in (36pt) to preserve existing layout behavior.
+        ranksep_override: Some(if has_pins { graphviz::MIN_RANK_SEP_PX } else { INNER_RANKSEP }),
         // Java inner composite graphs omit nodesep, using Graphviz's default 0.25in (18pt).
         nodesep_override: Some(INNER_NODESEP),
         use_simplier_dot_link_strategy: false,
@@ -1505,6 +1562,7 @@ fn transition_key(tr: &Transition) -> (String, String, Option<usize>) {
 fn transition_layout_key(tr: &TransitionLayout) -> (String, String, Option<usize>) {
     (tr.from_id.clone(), tr.to_id.clone(), tr.source_line)
 }
+
 
 /// Search for a nested state by ID within a list of top-level states.
 fn find_nested_state_in_list<'a>(states: &'a [State], target_id: &str) -> Option<&'a State> {
@@ -1816,7 +1874,6 @@ pub fn layout_state(diagram: &StateDiagram) -> Result<StateLayout> {
         gv_layout.move_delta.0, gv_layout.move_delta.1,
         gv_layout.lf_span.0, gv_layout.lf_span.1,
     );
-
     // Convert graphviz NodeLayout (center coords) to StateNodeLayout (top-left coords).
     // Graphviz results are already normalized to origin (0,0) by layout_with_svek.
     //
