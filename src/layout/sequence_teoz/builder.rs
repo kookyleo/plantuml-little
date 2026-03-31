@@ -161,6 +161,8 @@ enum TeozTile {
         center: RealId,
         /// True if this note follows a self-message (shares Y, no height contribution).
         is_note_on_message: bool,
+        /// Activation level of the participant at this note (for x offset).
+        active_level: usize,
     },
     /// Note spanning two participants
     NoteOver {
@@ -1067,7 +1069,15 @@ pub fn build_teoz_layout(sd: &SequenceDiagram, skin: &SkinParams) -> Result<SeqL
                     .fold(0.0_f64, f64::max)
                     + autonumber_extra_w;
 
-                let text_h = tp.msg_line_height * text_lines.len().max(1) as f64;
+                // Java: when display has a single empty string, AbstractTextualComponent
+                // creates a TextBlockEmpty with height 0.  Only non-empty text contributes.
+                let is_text_empty =
+                    text_lines.len() == 1 && text_lines[0].is_empty();
+                let text_h = if is_text_empty {
+                    0.0
+                } else {
+                    tp.msg_line_height * text_lines.len().max(1) as f64
+                };
                 let is_dashed = msg.arrow_style == SeqArrowStyle::Dashed;
                 let has_open_head = matches!(
                     msg.arrow_head,
@@ -1254,6 +1264,7 @@ pub fn build_teoz_layout(sd: &SequenceDiagram, skin: &SkinParams) -> Result<SeqL
                     y: None,
                     center,
                     is_note_on_message: is_smn,
+                    active_level: active_levels.get(participant).copied().unwrap_or(0),
                 });
             }
             SeqEvent::NoteLeft { participant, text } => {
@@ -1271,6 +1282,7 @@ pub fn build_teoz_layout(sd: &SequenceDiagram, skin: &SkinParams) -> Result<SeqL
                     y: None,
                     center,
                     is_note_on_message: is_smn,
+                    active_level: active_levels.get(participant).copied().unwrap_or(0),
                 });
             }
             SeqEvent::NoteOver { participants, text } => {
@@ -1619,8 +1631,36 @@ pub fn build_teoz_layout(sd: &SequenceDiagram, skin: &SkinParams) -> Result<SeqL
             // We set tile_y = msg_y here; the paddingY offset is applied when
             // extracting NoteLayout for SVG rendering.
             tiles[tile_idx].set_y(msg_y);
-            // Combined height = max(message_h, note_h)
-            let combined_h = msg_h.max(note_h);
+            // Java TileParallel: when a `& note` follows a non-parallel message,
+            // Java mergeParallel creates TileParallel(message, note) whose height
+            // = max(contacts) + max(zzz_values). This is larger than max(msg_h, note_h)
+            // because message has high contact + low zzz, note has low contact + high zzz.
+            // However, standalone notes after parallel messages should use plain max.
+            let preceding_is_non_parallel = {
+                let mut idx = tile_idx - 1;
+                while idx > 0 && matches!(tiles[idx], TeozTile::LifeEvent { .. }) {
+                    idx -= 1;
+                }
+                match &tiles[idx] {
+                    TeozTile::Communication { is_parallel, .. }
+                    | TeozTile::SelfMessage { is_parallel, .. } => !*is_parallel,
+                    _ => false,
+                }
+            };
+            let combined_h = if preceding_is_non_parallel {
+                // TileParallel formula: max(contacts) + max(zzz_values)
+                let mut idx = tile_idx - 1;
+                while idx > 0 && matches!(tiles[idx], TeozTile::LifeEvent { .. }) {
+                    idx -= 1;
+                }
+                let msg_contact = tiles[idx].contact_point_relative();
+                let msg_zzz = tiles[idx].zzz();
+                let note_contact = note_h / 2.0;
+                let note_zzz = note_h - note_contact;
+                msg_contact.max(note_contact) + msg_zzz.max(note_zzz)
+            } else {
+                msg_h.max(note_h)
+            };
             y = msg_y + combined_h;
             prev_msg_height = None;
             prev_msg_y = None;
@@ -1870,12 +1910,14 @@ pub fn build_teoz_layout(sd: &SequenceDiagram, skin: &SkinParams) -> Result<SeqL
                     is_left,
                     width,
                     is_note_on_message,
+                    active_level,
                     ..
                 } => {
                     let cx = rl.get_value(livings[*participant_idx].pos_c);
                     // Java uses ComponentRoseNote.getPreferredWidth for extent,
                     // which includes 2*paddingX beyond the drawn polygon width.
                     let extent_w = *width + NOTE_EXTENT_PADDING;
+                    let level_offset = *active_level as f64 * 5.0;
                     if *is_note_on_message {
                         // Note attached to a self-message: use Java's
                         // CommunicationTileSelfNoteLeft/Right extent model.
@@ -1911,28 +1953,28 @@ pub fn build_teoz_layout(sd: &SequenceDiagram, skin: &SkinParams) -> Result<SeqL
                                 }
                             }
                         } else {
-                            // Fallback: note on regular message, use cx-based
+                            // Fallback: note on regular message, use cx + level_offset
                             if *is_left {
-                                let left = cx - extent_w - 5.0;
+                                let left = cx - level_offset - extent_w;
                                 if left < raw_min {
                                     raw_min = left;
                                 }
                             } else {
-                                let right = cx + extent_w;
+                                let right = cx + level_offset + extent_w;
                                 if right > raw_max {
                                     raw_max = right;
                                 }
                             }
                         }
                     } else {
-                        // Standalone note: simple cx-based extent
+                        // Standalone note: cx + level_offset based extent
                         if *is_left {
-                            let left = cx - extent_w - 5.0;
+                            let left = cx - level_offset - extent_w;
                             if left < raw_min {
                                 raw_min = left;
                             }
                         } else {
-                            let right = cx + extent_w;
+                            let right = cx + level_offset + extent_w;
                             if right > raw_max {
                                 raw_max = right;
                             }
@@ -2494,6 +2536,7 @@ pub fn build_teoz_layout(sd: &SequenceDiagram, skin: &SkinParams) -> Result<SeqL
                 height: _,
                 y,
                 is_note_on_message,
+                active_level,
                 ..
             } => {
                 // Java AbstractComponent.drawU applies UTranslate(paddingX, paddingY)
@@ -2501,6 +2544,9 @@ pub fn build_teoz_layout(sd: &SequenceDiagram, skin: &SkinParams) -> Result<SeqL
                 // The tile y is the tile top; the polygon starts paddingY below it.
                 let ty = y.unwrap_or(0.0) + 5.0;
                 let cx = get_x(livings[*participant_idx].pos_c);
+                // Java CommunicationTileNoteRight.getNotePosition:
+                //   posC + level * LIVE_DELTA_SIZE (= 5)
+                let level_offset = *active_level as f64 * 5.0;
                 let nx = if *is_note_on_message {
                     // Note on self-message: position relative to self-message extent.
                     // Java CommunicationTileSelf uses posC2 = posC + rightShift,
@@ -2517,24 +2563,22 @@ pub fn build_teoz_layout(sd: &SequenceDiagram, skin: &SkinParams) -> Result<SeqL
                         let (sm_min, sm_max) =
                             self_message_extent(sm_cx_raw, sm_comp_w, note_al, &sm_dir);
                         if *is_left {
-                            // Java: tile.getMinX() - noteWidth (in raw coords) + x_offset
                             sm_min + x_offset - *width
                         } else {
-                            // Java: tile.getMaxX() (in raw coords) + x_offset
                             sm_max + x_offset
                         }
                     } else {
-                        // Fallback: note on regular message
+                        // Note on regular message: shift by activation level
                         if *is_left {
-                            cx - *width - 5.0
+                            cx - level_offset - *width - 5.0
                         } else {
-                            cx + 5.0
+                            cx + level_offset + 5.0
                         }
                     }
                 } else if *is_left {
-                    cx - *width - 5.0
+                    cx - level_offset - *width - 5.0
                 } else {
-                    cx + 5.0
+                    cx + level_offset + 5.0
                 };
                 // Use drawn polygon height for SVG rendering, not the
                 // preferred tile height which includes 2*paddingY extra.
@@ -2826,9 +2870,15 @@ pub fn build_teoz_layout(sd: &SequenceDiagram, skin: &SkinParams) -> Result<SeqL
                         last_step_y = ty + (height - rose::ARROW_DELTA_Y - rose::ARROW_PADDING_Y);
                         last_msg_bottom_y = ty + height;
                     }
-                    TeozTile::SelfMessage { height, y, .. } => {
+                    TeozTile::SelfMessage { height, y, text_lines, .. } => {
                         let ty = y.unwrap_or(0.0);
-                        let self_text_h = tp.msg_line_height * 1.0_f64;
+                        // Java: when text is a single empty string, TextBlockEmpty gives height 0.
+                        let is_text_empty = text_lines.len() == 1 && text_lines[0].is_empty();
+                        let self_text_h = if is_text_empty {
+                            0.0
+                        } else {
+                            tp.msg_line_height * text_lines.len().max(1) as f64
+                        };
                         let self_tm = TextMetrics::new(7.0, 7.0, 1.0, 0.0, self_text_h);
                         last_step_y = ty + rose::self_arrow_start_point(&self_tm).y;
                         last_msg_bottom_y = ty + height;
@@ -2845,9 +2895,6 @@ pub fn build_teoz_layout(sd: &SequenceDiagram, skin: &SkinParams) -> Result<SeqL
             match event {
                 SeqEvent::Activate(name, act_color) => {
                     // Java getStairs: position = message arrowY (= last_step_y).
-                    // Java addStep: LifeEvent tile at msg_bottom, EXCEPT when
-                    // inside TileParallel (first msg of parallel block) where
-                    // contact point adjustment puts it at arrowY.
                     let y_stairs = last_step_y;
                     let y_addstep = if inside_tile_parallel[event_idx] {
                         last_step_y // arrowY (inside TileParallel)
