@@ -83,6 +83,9 @@ pub struct Message {
     pub hidden: bool,
     /// Bidirectional arrow: `<->` — arrowheads at both ends
     pub bidirectional: bool,
+    /// Short gate arrow (?->) as opposed to full boundary ([->).
+    /// Gate arrows use text-width-based span; boundary arrows extend to diagram edges.
+    pub is_short_gate: bool,
 }
 
 /// Combined fragment kind

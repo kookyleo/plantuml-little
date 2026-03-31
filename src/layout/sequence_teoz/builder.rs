@@ -115,6 +115,8 @@ enum TeozTile {
         hidden: bool,
         /// Bidirectional arrow: arrowheads at both ends
         bidirectional: bool,
+        /// Short gate arrow (?->) vs full boundary ([->)
+        is_short_gate: bool,
     },
     /// Self-message (from == to)
     SelfMessage {
@@ -1134,6 +1136,7 @@ pub fn build_teoz_layout(sd: &SequenceDiagram, skin: &SkinParams) -> Result<SeqL
                         to_level: 0,
                         hidden: msg.hidden,
                         bidirectional: msg.bidirectional,
+                        is_short_gate: msg.is_short_gate,
                     });
                     continue;
                 }
@@ -1236,6 +1239,7 @@ pub fn build_teoz_layout(sd: &SequenceDiagram, skin: &SkinParams) -> Result<SeqL
                         to_level: tl,
                         hidden: msg.hidden,
                         bidirectional: msg.bidirectional,
+                        is_short_gate: msg.is_short_gate,
                     });
                 }
             }
@@ -2369,6 +2373,48 @@ pub fn build_teoz_layout(sd: &SequenceDiagram, skin: &SkinParams) -> Result<SeqL
     let total_max_x = raw_max + x_offset;
     log::debug!("teoz extents: raw_min={raw_min:.2} raw_max={raw_max:.2} diagram_width={diagram_width:.2} total_min_x={total_min_x:.2} total_max_x={total_max_x:.2}");
 
+    // Java CommunicationExoTile border positions: boundary arrows extend from
+    // the left/right diagram edges (border1/border2).
+    // border1 = min(leftmost participant posB, all left-boundary arrow extents, xOrigin)
+    // border2 = max(rightmost participant posD, all right-boundary arrow extents)
+    let mut border1 = get_x(livings[0].pos_b);
+    let mut border2 = get_x(livings[livings.len() - 1].pos_d);
+    // Pre-scan boundary arrows to find min/max extents
+    for tile in &tiles {
+        if let TeozTile::Communication {
+            from_name,
+            to_name,
+            to_idx,
+            from_idx,
+            text_width,
+            is_short_gate,
+            ..
+        } = tile
+        {
+            if *is_short_gate {
+                continue;
+            }
+            let arrow_span = text_width + 24.0;
+            if from_name == "[" {
+                // Left boundary: from_x = target_posC - arrow_span
+                let target_x = get_x(livings[*to_idx].pos_c);
+                let fx = target_x - arrow_span;
+                if fx < border1 {
+                    border1 = fx;
+                }
+            }
+            if to_name == "]" {
+                // Right boundary: to_x = source_posC + arrow_span
+                let source_x = get_x(livings[*from_idx].pos_c);
+                let tx = source_x + arrow_span;
+                if tx > border2 {
+                    border2 = tx;
+                }
+            }
+        }
+    }
+    log::debug!("teoz borders: border1={border1:.4} border2={border2:.4}");
+
     // Track activation state for ActivationLayout generation
     // Track the most recent message index for note-on-message association.
     let mut last_msg_idx: Option<usize> = None;
@@ -2398,6 +2444,7 @@ pub fn build_teoz_layout(sd: &SequenceDiagram, skin: &SkinParams) -> Result<SeqL
                 to_level,
                 hidden,
                 bidirectional,
+                is_short_gate,
                 ..
             } => {
                 if *hidden {
@@ -2417,21 +2464,61 @@ pub fn build_teoz_layout(sd: &SequenceDiagram, skin: &SkinParams) -> Result<SeqL
                 let is_gate_from = from_name == "[";
                 let is_gate_to = to_name == "]";
 
-                let (from_x, to_x, is_left) = if is_gate_from || is_gate_to {
-                    // Gate message: compute virtual endpoint from text width.
-                    // Arrow total width = 7 (left pad) + text_width + 5 (right pad)
-                    //                    + 10 (arrowhead) + 2 (inset) = text_width + 24
+                let (from_x, to_x, is_left, text_delta_x) = if (is_gate_from || is_gate_to) && !*is_short_gate {
+                    // Full boundary arrows ([->  ->]) extend to diagram edges.
+                    // Java CommunicationExoTile with !isShortArrow():
+                    // border1 = leftmost participant posB (head box left edge)
+                    // border2 = rightmost participant posD (head box right edge)
+                    //
+                    // For left boundary [->:
+                    //   from_x = border1, to_x = participant center
+                    //   text is positioned relative to the computed arrow span,
+                    //   not from border1, so text_delta_x adjusts it.
+                    //
+                    // For right boundary ->]:
+                    //   from_x = participant center, to_x = border2
+                    //   text is relative to from_x (unchanged), no delta needed.
+                    //
+                    // Java CommunicationExoTile also adjusts x1/x2 for circle
+                    // decorations at boundary edges (diamCircle/2 + 2 = 6).
+                    const CIRCLE_BOUNDARY_SHIFT: f64 = 6.0; // diamCircle/2 + thinCircle + 0.5
+
+                    if is_gate_to {
+                        // Right boundary (->]): arrow extends to the right diagram edge
+                        let fx = raw_from_x;
+                        let mut tx = border2;
+                        // Java: decoration2==CIRCLE && TO_RIGHT → x2 -= 6
+                        if *circle_to {
+                            tx -= CIRCLE_BOUNDARY_SHIFT;
+                        }
+                        (fx, tx, false, 0.0)
+                    } else {
+                        // Left boundary ([->): arrow extends from the left diagram edge
+                        let tx = raw_to_x;
+                        // Java CommunicationExoTile: textDeltaX is computed BEFORE
+                        // circle adjustment, then x1 is shifted for circle.
+                        let arrow_span = text_width + 24.0;
+                        let computed_fx = tx - arrow_span;
+                        let delta = computed_fx - border1;
+                        let mut fx = border1;
+                        // Java: decoration1==CIRCLE && FROM_LEFT → x1 += 6
+                        if *circle_from {
+                            fx += CIRCLE_BOUNDARY_SHIFT;
+                        }
+                        (fx, tx, false, delta)
+                    }
+                } else if (is_gate_from || is_gate_to) && *is_short_gate {
+                    // Short gate arrows (?-> ->?) use text-width-based span,
+                    // NOT extending to diagram edges.
                     let arrow_span = text_width + 24.0;
                     if is_gate_to {
-                        // Lost message (A->?): arrow goes right from real participant
                         let fx = raw_from_x;
                         let tx = fx + arrow_span;
-                        (fx, tx, false)
+                        (fx, tx, false, 0.0)
                     } else {
-                        // Found message (?->E): arrow comes from left to real participant
                         let tx = raw_to_x;
                         let fx = tx - arrow_span;
-                        (fx, tx, false)
+                        (fx, tx, false, 0.0)
                     }
                 } else {
                     let is_left = raw_to_x < raw_from_x;
@@ -2448,7 +2535,7 @@ pub fn build_teoz_layout(sd: &SequenceDiagram, skin: &SkinParams) -> Result<SeqL
                             x1 += LIVE_DELTA * (level1 as f64 - 2.0);
                         }
                         let x2 = raw_to_x + LIVE_DELTA * (*to_level as f64);
-                        (x1, x2, true)
+                        (x1, x2, true, 0.0)
                     } else {
                         // Normal direction (left-to-right)
                         let x1 = raw_from_x + LIVE_DELTA * (*from_level as f64);
@@ -2457,7 +2544,7 @@ pub fn build_teoz_layout(sd: &SequenceDiagram, skin: &SkinParams) -> Result<SeqL
                             adjusted_tl -= 2;
                         }
                         let x2 = raw_to_x + LIVE_DELTA * (adjusted_tl as f64);
-                        (x1, x2, false)
+                        (x1, x2, false, 0.0)
                     }
                 };
                 messages.push(MessageLayout {
@@ -2481,6 +2568,7 @@ pub fn build_teoz_layout(sd: &SequenceDiagram, skin: &SkinParams) -> Result<SeqL
                     cross_from: *cross_from,
                     cross_to: *cross_to,
                     bidirectional: *bidirectional,
+                    text_delta_x,
                 });
                 last_msg_idx = Some(messages.len() - 1);
             }
@@ -2564,6 +2652,7 @@ pub fn build_teoz_layout(sd: &SequenceDiagram, skin: &SkinParams) -> Result<SeqL
                     cross_from: *cross_from,
                     cross_to: *cross_to,
                     bidirectional: *bidirectional,
+                    text_delta_x: 0.0,
                 });
                 last_msg_idx = Some(messages.len() - 1);
             }

@@ -216,6 +216,10 @@ pub struct MessageLayout {
     pub cross_to: bool,
     /// Bidirectional arrow: arrowheads at both ends
     pub bidirectional: bool,
+    /// Text horizontal offset for boundary arrows.
+    /// Java CommunicationExoTile uses textDeltaX to shift text when the arrow
+    /// area extends to the diagram edge but text remains near the participant.
+    pub text_delta_x: f64,
 }
 
 /// Activation bar layout
@@ -1346,6 +1350,7 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
                     cross_from: msg.cross_from,
                     cross_to: msg.cross_to,
                     bidirectional: msg.bidirectional,
+                    text_delta_x: 0.0,
                 });
 
                 // Compute self-message arrow preferred width (used for fragment
@@ -2536,6 +2541,7 @@ mod tests {
             is_reverse_define: false,
             hidden: false,
             bidirectional: false,
+            is_short_gate: false,
         }
     }
 
@@ -2869,6 +2875,7 @@ mod tests {
                 is_reverse_define: false,
                 hidden: false,
                 bidirectional: false,
+                is_short_gate: false,
             })],
             teoz_mode: false,
             hide_footbox: false,
@@ -3181,6 +3188,7 @@ mod tests {
                     is_reverse_define: true,
                     hidden: false,
                     bidirectional: false,
+                    is_short_gate: false,
                 }),
                 SeqEvent::Deactivate("B".to_string()),
             ],

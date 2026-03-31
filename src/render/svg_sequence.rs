@@ -1789,9 +1789,14 @@ fn draw_message(
     // Label text above the line — each line as a separate <text> element
     let has_text = !msg.text.is_empty() || msg.autonumber.is_some();
     if has_text {
-        // Cross at source shifts text only for LeftToRight (cross is on left, near text start).
-        // For RightToLeft, cross is on right side and doesn't affect text position.
-        let cross_from_text_offset = if msg.cross_from && !msg.is_left && !msg.bidirectional {
+        // Java ComponentRoseArrow: when direction2 is BOTH_DIRECTION or
+        // RIGHT_TO_LEFT_REVERSE, textPos += arrowDeltaX.  This applies when:
+        // - cross_from (dressing1.head = CROSSX, makes direction2 = BOTH)
+        // - bidirectional (both dressing heads non-NONE, makes direction2 = BOTH)
+        // Cross/bidir at source shifts text only for LeftToRight.
+        let from_decoration_text_offset = if !msg.is_left
+            && ((!msg.bidirectional && msg.cross_from) || msg.bidirectional)
+        {
             ARROW_DELTA_X
         } else {
             0.0
@@ -1802,7 +1807,10 @@ fn draw_message(
             let base_tip = msg.to_x + 1.0;
             base_tip + 16.0
         } else {
-            msg.from_x + 7.0 + cross_from_text_offset
+            // Java CommunicationExoTile: for boundary arrows text_delta_x
+            // shifts text to remain at the participant-relative position
+            // rather than the border edge position.
+            msg.from_x + 7.0 + from_decoration_text_offset + msg.text_delta_x.max(0.0)
         };
 
         // If autonumber, compute the offset for message text (number is bold)

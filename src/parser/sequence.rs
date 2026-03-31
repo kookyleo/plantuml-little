@@ -487,6 +487,7 @@ pub fn parse_sequence_diagram_with_original(
             if let Some(mut msg) = parse_arrow("[", &format!("[{arrow}"), right, &text) {
                 msg.source_line = Some(source_line);
                 msg.parallel = is_parallel;
+                msg.is_short_gate = true;
                 debug!("parsed gate-left message: ?-> {} : {}", msg.to, msg.text);
                 ensure_participant(
                     &mut declared_participants,
@@ -509,6 +510,7 @@ pub fn parse_sequence_diagram_with_original(
             if let Some(mut msg) = parse_arrow(left, &format!("{arrow}]"), "]", &text) {
                 msg.source_line = Some(source_line);
                 msg.parallel = is_parallel;
+                msg.is_short_gate = true;
                 debug!("parsed gate-right message: {} ->? : {}", msg.from, msg.text);
                 ensure_participant(
                     &mut declared_participants,
@@ -1014,20 +1016,30 @@ fn parse_arrow(left: &str, arrow: &str, right: &str, text: &str) -> Option<Messa
     let (is_hidden, arrow_no_hidden) = extract_arrow_hidden(arrow);
     let (color, clean_arrow) = extract_arrow_color(&arrow_no_hidden);
 
-    // Detect circle and cross decorators before stripping
-    let has_left_circle = clean_arrow.starts_with('o');
-    let has_right_circle = clean_arrow.ends_with('o');
-    let has_left_cross = clean_arrow.starts_with('x') || clean_arrow.starts_with('X');
-    let has_right_cross = clean_arrow.ends_with('x') || clean_arrow.ends_with('X');
+    // Strip boundary markers first, then detect circle/cross decorators.
+    // For boundary arrows like [o-> or ->o], the [ and ] come outermost.
+    let has_left_boundary = clean_arrow.starts_with('[');
+    let has_right_boundary = clean_arrow.ends_with(']');
+    let after_boundary = if has_left_boundary {
+        &clean_arrow[1..]
+    } else {
+        &clean_arrow[..]
+    };
+    let after_boundary = if has_right_boundary {
+        &after_boundary[..after_boundary.len().saturating_sub(1)]
+    } else {
+        after_boundary
+    };
+
+    // Detect circle and cross decorators after boundary markers
+    let has_left_circle = after_boundary.starts_with('o');
+    let has_right_circle = after_boundary.ends_with('o');
+    let has_left_cross = after_boundary.starts_with('x') || after_boundary.starts_with('X');
+    let has_right_cross = after_boundary.ends_with('x') || after_boundary.ends_with('X');
 
     // Strip outer decorators (o, x, X)
-    let stripped = clean_arrow.trim_start_matches(|c: char| c == 'o' || c == 'x' || c == 'X');
+    let stripped = after_boundary.trim_start_matches(|c: char| c == 'o' || c == 'x' || c == 'X');
     let stripped = stripped.trim_end_matches(|c: char| c == 'o' || c == 'x' || c == 'X');
-
-    // Check for boundary markers
-    let has_left_boundary = stripped.starts_with('[');
-    let has_right_boundary = stripped.ends_with(']');
-    let stripped = stripped.trim_start_matches('[').trim_end_matches(']');
 
     // Check for arrow heads / half-arrows on left and right
     let has_left_arrow =
@@ -1117,6 +1129,7 @@ fn parse_arrow(left: &str, arrow: &str, right: &str, text: &str) -> Option<Messa
         is_reverse_define,
         hidden: is_hidden,
         bidirectional,
+        is_short_gate: false, // set by caller for ?-> / ->? arrows
     })
 }
 
