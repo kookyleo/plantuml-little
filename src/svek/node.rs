@@ -185,6 +185,8 @@ pub struct SvekNode {
     /// Whether LimitFinder.drawRectangle -1 correction applies.
     /// False for notes (drawn with UPath instead of URectangle).
     pub lf_rect_correction: bool,
+    /// Whether the entity draws a full-width body separator ULine.
+    pub lf_has_body_separator: bool,
 }
 
 impl SvekNode {
@@ -211,6 +213,7 @@ impl SvekNode {
             cy: 0.0,
             lf_extra_left: 0.0,
             lf_rect_correction: true,
+            lf_has_body_separator: false,
         }
     }
 
@@ -245,6 +248,7 @@ impl SvekNode {
             cy: 0.0,
             lf_extra_left: 0.0,
             lf_rect_correction: true,
+            lf_has_body_separator: false,
         }
     }
 

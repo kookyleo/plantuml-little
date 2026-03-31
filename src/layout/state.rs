@@ -1154,6 +1154,7 @@ fn layout_children_with_graphviz(
             image_width_pt: None,
             lf_extra_left: 0.0,
             lf_rect_correction: !is_circle,
+            lf_has_body_separator: !is_circle && !is_diamond,
         });
         node_id_order.push(state.id.clone());
     }
@@ -1579,6 +1580,7 @@ pub fn layout_state(diagram: &StateDiagram) -> Result<StateLayout> {
             image_width_pt: None,
             lf_extra_left: 0.0,
             lf_rect_correction: !is_circle,
+            lf_has_body_separator: !is_circle && !is_diamond,
         });
         node_id_order.push(state.id.clone());
     }
@@ -1614,6 +1616,7 @@ pub fn layout_state(diagram: &StateDiagram) -> Result<StateLayout> {
                         image_width_pt: None,
                         lf_extra_left: 0.0,
                         lf_rect_correction: false,
+                        lf_has_body_separator: false,
                     });
                     node_id_order.push(found.id.clone());
                 }
@@ -1641,6 +1644,7 @@ pub fn layout_state(diagram: &StateDiagram) -> Result<StateLayout> {
                 // Notes use UPath in Java's entity image, not URectangle,
                 // so LimitFinder.drawRectangle's -1 correction doesn't apply.
                 lf_rect_correction: false,
+                lf_has_body_separator: false,
             });
             node_id_order.push(entity_id.clone());
             if note.target.is_some() {
@@ -2025,13 +2029,23 @@ pub fn layout_state(diagram: &StateDiagram) -> Result<StateLayout> {
             if let Some(&(nx, ny, _nw_gv, _nh_gv)) = attached_note_positions.get(entity_id) {
                 let (ax, ay, note_x, note_y) = note.target.as_ref().and_then(|target_id| {
                     node_position_map.get(target_id).map(|&(tx, ty, tw, th)| {
-                        let center_x = tx + tw / 2.0;
-                        let center_y = ty + th / 2.0;
+                        // Java Smetana routes the note-to-target edge and derives anchor
+                        // from the edge path. The Smetana endpoint hits the target's
+                        // graphviz polygon boundary. Graphviz polygon positions snap to
+                        // integer pt grid, so the polygon center and edges differ slightly
+                        // from the exact rendered positions.
+                        //
+                        // Approximate by rounding to graphviz polygon grid:
+                        // - Center y: subtract fractional height correction
+                        // - Edge x: use rounded width
+                        let polygon_center_y = ty + th / 2.0 - (th - th.round()) / 2.0;
+                        let polygon_right = tx + tw.round();
+                        let polygon_center_x = tx + tw / 2.0 - (tw - tw.round()) / 2.0;
                         match note.position.as_str() {
-                            "left" => (tx, center_y, nx, center_y - nh / 2.0),
-                            "top" => (center_x, ty, center_x - nw / 2.0, ny),
-                            "bottom" => (center_x, ty + th, center_x - nw / 2.0, ny),
-                            _ => (tx + tw, center_y, nx, center_y - nh / 2.0),
+                            "left" => (tx, polygon_center_y, nx, ny),
+                            "top" => (polygon_center_x, ty, nx, ny),
+                            "bottom" => (polygon_center_x, ty + th, nx, ny),
+                            _ => (polygon_right, polygon_center_y, nx, ny),
                         }
                     })
                 }).unwrap_or((nx, ny, nx, ny));

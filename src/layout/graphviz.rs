@@ -36,6 +36,11 @@ pub struct LayoutNode {
     /// Nodes whose entity images use UPath instead of URectangle (e.g. notes)
     /// don't get this correction. When false, the LF simulation skips the -1.
     pub lf_rect_correction: bool,
+    /// When true, the entity draws a full-width ULine.hline(width) (e.g. state
+    /// separator line, class separator). This overrides the drawRectangle -1
+    /// on the max_x axis, because ULine contributes (x + width) without -1.
+    /// Only applies to state/class entities with body separators.
+    pub lf_has_body_separator: bool,
 }
 
 /// Input: a graph edge
@@ -451,6 +456,9 @@ pub fn layout_with_svek(graph: &LayoutGraph) -> Result<GraphLayout, Error> {
         }
         if !node.lf_rect_correction {
             ed = ed.with_lf_rect_correction(false);
+        }
+        if node.lf_has_body_separator {
+            ed.lf_has_body_separator = true;
         }
         builder.add_entity(ed);
     }
@@ -1499,6 +1507,7 @@ mod tests {
                     image_width_pt: None,
                     lf_extra_left: 0.0,
                     lf_rect_correction: true,
+                    lf_has_body_separator: false,
                 },
                 LayoutNode {
                     id: "B".into(),
@@ -1513,6 +1522,7 @@ mod tests {
                     image_width_pt: None,
                     lf_extra_left: 0.0,
                     lf_rect_correction: true,
+                    lf_has_body_separator: false,
                 },
             ],
             edges: vec![LayoutEdge {
@@ -1573,6 +1583,7 @@ mod tests {
                 image_width_pt: None,
                 lf_extra_left: 0.0,
                     lf_rect_correction: true,
+                    lf_has_body_separator: false,
             }],
             edges: vec![],
             clusters: vec![],

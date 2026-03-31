@@ -1158,25 +1158,39 @@ fn render_note(
     } else if let Some((ax, ay)) = note.anchor {
         match note.position.as_str() {
             "left" => format!(
-                "M{},{} L{},{} L{},{} L{},{} L{},{} L{},{} L{},{} L{},{} L{},{}",
+                "M{},{} L{},{} A0,0 0 0 0 {},{} L{},{} A0,0 0 0 0 {},{} L{},{} L{},{} L{},{} L{},{} L{},{} L{},{} A0,0 0 0 0 {},{}",
                 fmt_coord(x),
                 fmt_coord(y),
+                // left side down to bottom-left
                 fmt_coord(x),
                 fmt_coord(y + h),
+                // bottom-left arc (degenerate)
+                fmt_coord(x), fmt_coord(y + h),
+                // bottom edge to bottom-right
                 fmt_coord(x + w),
                 fmt_coord(y + h),
+                // bottom-right arc (degenerate)
+                fmt_coord(x + w), fmt_coord(y + h),
+                // right side down to notch
                 fmt_coord(x + w),
                 fmt_coord(ay + notch_half),
+                // notch tip
                 fmt_coord(ax),
                 fmt_coord(ay),
+                // right side up from notch
                 fmt_coord(x + w),
                 fmt_coord(ay - notch_half),
+                // right side up to fold
                 fmt_coord(x + w),
                 fmt_coord(y + fold),
+                // fold diagonal
                 fmt_coord(x + w - fold),
                 fmt_coord(y),
+                // top edge to top-left
                 fmt_coord(x),
                 fmt_coord(y),
+                // top-left arc (degenerate)
+                fmt_coord(x), fmt_coord(y),
             ),
             "top" => format!(
                 "M{},{} L{},{} L{},{} L{},{} L{},{} L{},{} L{},{} L{},{} L{},{}",

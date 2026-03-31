@@ -322,6 +322,7 @@ pub fn layout_erd(diagram: &ErdDiagram) -> Result<ErdLayout> {
             image_width_pt: None,
             lf_extra_left: 0.0,
             lf_rect_correction: true,
+                    lf_has_body_separator: false,
         });
     }
     for r in &diagram.relationships {
@@ -339,6 +340,7 @@ pub fn layout_erd(diagram: &ErdDiagram) -> Result<ErdLayout> {
             image_width_pt: None,
             lf_extra_left: 0.0,
             lf_rect_correction: true,
+                    lf_has_body_separator: false,
         });
     }
 

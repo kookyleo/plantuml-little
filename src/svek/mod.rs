@@ -633,20 +633,60 @@ impl DotStringFactory {
             if node.hidden {
                 continue;
             }
-            // Java LimitFinder corrections vary by entity image type:
-            //   drawRectangle (states, classes): min -= 1, max -= 1
-            //   drawEllipse (circles):          min += 0, max -= 1
-            //   drawUPath (notes):              min += 0, max += 0
-            // `lf_rect_correction` controls the min-side -1 only.
-            // Max-side -1 applies to all non-UPath nodes (rect + ellipse).
-            // Skip for degenerated diagrams (≤1 node, no edges).
+            // Java LimitFinder corrections by entity image draw type:
+            //
+            //   drawRectangle (states, classes):
+            //     addPoint(x-1, y-1), addPoint(x+w-1, y+h-1)
+            //     → min_corr = 1, max_corr = 1
+            //     BUT: all rect entities also draw ULine.hline(width), which adds
+            //     addPoint(x+w, y+yLine) — overriding the rect's max_x by +1.
+            //     Effective: max_corr_x = 0, max_corr_y = 1.
+            //
+            //   drawEllipse (circles):
+            //     addPoint(x, y), addPoint(x+w-1, y+h-1)
+            //     → min_corr = 0, max_corr = 1 (both axes)
+            //
+            //   drawUPath (notes):
+            //     addPoint(x+minX, y+minY), addPoint(x+maxX, y+maxY)
+            //     → min_corr = 0, max_corr = 0
+            //
+            // `lf_rect_correction` is true for rect entities, false for circles/notes.
             let extra_left = if is_degenerated { 0.0 } else { node.lf_extra_left };
             let min_corr = if node.lf_rect_correction { 1.0 } else { 0.0 };
-            let max_corr = 1.0; // -1 on max side for all drawn shapes (rect + ellipse)
+            // For rect entities: ULine.hline(width) overrides rect's -1 on x-axis,
+            // so max_corr_x = 0. For ellipse entities (Circle/Oval/Diamond): max_corr = 1.
+            // For UPath entities (notes, !rect_corr, non-ellipse shape): max_corr = 0.
+            let is_ellipse_shape = matches!(
+                node.shape_type,
+                shape_type::ShapeType::Circle
+                    | shape_type::ShapeType::Oval
+                    | shape_type::ShapeType::Diamond
+            );
+            // For rect entities with body separator (state/class): the ULine.hline(width)
+            // overrides the drawRectangle -1 on max_x.
+            // For rect entities without body separator (components): rect -1 stands.
+            let max_corr_x = if node.lf_has_body_separator {
+                0.0 // ULine.hline(width) overrides rect's -1 on x-axis
+            } else if node.lf_rect_correction || is_ellipse_shape {
+                1.0 // rect/ellipse: max -= 1
+            } else {
+                0.0 // UPath (notes): no correction
+            };
+            let max_corr_y = if node.lf_rect_correction || is_ellipse_shape {
+                1.0 // rect/ellipse: max_y -= 1
+            } else {
+                0.0 // UPath (notes): no correction
+            };
             let rx = node.min_x - min_corr - extra_left;
             let ry = node.min_y - min_corr;
-            let rr = node.min_x + node.width - max_corr;
-            let rb = node.min_y + node.height - max_corr;
+            let rr = node.min_x + node.width - max_corr_x;
+            let rb = node.min_y + node.height - max_corr_y;
+            log::trace!(
+                "  LF node uid={} min=({:.4},{:.4}) w={:.4} h={:.4} rect_corr={} body_sep={} => rx={:.4} ry={:.4} rr={:.4} rb={:.4}",
+                node.uid, node.min_x, node.min_y, node.width, node.height,
+                node.lf_rect_correction, node.lf_has_body_separator,
+                rx, ry, rr, rb,
+            );
             if rx < lf_min_x {
                 lf_min_x = rx;
             }

@@ -283,6 +283,7 @@ pub fn layout_component(cd: &ComponentDiagram) -> Result<ComponentLayout> {
                 image_width_pt: None,
                 lf_extra_left: 0.0,
                 lf_rect_correction: true,
+                    lf_has_body_separator: false,
             }
         })
         .collect();

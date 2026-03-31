@@ -39,6 +39,10 @@ pub struct EntityDescriptor {
     /// Whether LimitFinder.drawRectangle -1 correction applies.
     /// False for notes (drawn with UPath instead of URectangle).
     pub lf_rect_correction: bool,
+    /// Whether the entity draws a full-width body separator ULine.
+    /// This overrides the drawRectangle -1 on max_x because the
+    /// ULine contributes (x + width) without -1.
+    pub lf_has_body_separator: bool,
 }
 
 impl EntityDescriptor {
@@ -56,6 +60,7 @@ impl EntityDescriptor {
             removed: false,
             lf_extra_left: 0.0,
             lf_rect_correction: true,
+            lf_has_body_separator: false,
         }
     }
 
@@ -381,6 +386,7 @@ impl GraphvizImageBuilder {
             node.max_label_width = ent.max_label_width;
             node.lf_extra_left = ent.lf_extra_left;
             node.lf_rect_correction = ent.lf_rect_correction;
+            node.lf_has_body_separator = ent.lf_has_body_separator;
             bib.add_node(node);
         }
 
