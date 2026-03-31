@@ -694,8 +694,6 @@ fn compute_state_node(
         // We detect pins that are direct children of THIS composite and add
         // a height bonus for the rank separation they would occupy.
         let pin_bonus = {
-            // Only add pin bonus if the children of this composite include
-            // pins AND regular (non-pin) states that would be in separate ranks.
             let children = &state.children;
             let has_regular = children.iter().any(|c| {
                 c.stereotype.as_deref() != Some("inputPin")
@@ -706,7 +704,45 @@ fn compute_state_node(
                 let has_input = children.iter().any(|c| c.stereotype.as_deref() == Some("inputPin"));
                 let has_output = children.iter().any(|c| c.stereotype.as_deref() == Some("outputPin"));
                 let pin_types = (has_input as u32) + (has_output as u32);
-                pin_types as f64 * PIN_RANK_HEIGHT_BONUS
+                // Java uses cluster {rank=source/sink} to force pins into
+                // separate ranks. In Rust's flat graph, pins may or may not
+                // end up in separate ranks depending on edges.
+                //
+                // When pins have external edges (from parent-level transitions),
+                // graphviz already produces proper rank separation within the
+                // parent's DOT, so the pin bonus only covers cluster margins.
+                // When pins are isolated (no external edges), a larger bonus
+                // is needed to approximate the full cluster rank separation.
+                let child_ids: HashSet<&str> = children.iter()
+                    .map(|c| c.id.as_str())
+                    .collect();
+                let pin_ids: HashSet<&str> = children.iter()
+                    .filter(|c| {
+                        c.stereotype.as_deref() == Some("inputPin")
+                            || c.stereotype.as_deref() == Some("outputPin")
+                    })
+                    .map(|c| c.id.as_str())
+                    .collect();
+                // Check if pins are already rank-separated by other means:
+                // 1. External edges from parent transitions reference pin children
+                // 2. Initial/final states in this composite create rank structure
+                let pins_have_external_edges = transitions.iter().any(|tr| {
+                    let from_is_pin = pin_ids.contains(tr.from.as_str());
+                    let to_is_pin = pin_ids.contains(tr.to.as_str());
+                    let from_is_child = child_ids.contains(tr.from.as_str());
+                    let to_is_child = child_ids.contains(tr.to.as_str());
+                    (from_is_pin && !to_is_child) || (to_is_pin && !from_is_child)
+                });
+                let has_initial_or_final = children.iter().any(|c| c.is_special)
+                    || initial_ids.iter().any(|id| child_ids.contains(id.as_str()));
+                let pins_rank_separated = pins_have_external_edges || has_initial_or_final;
+                let bonus_per_type = if pins_rank_separated {
+                    PIN_RANK_HEIGHT_BONUS
+                } else {
+                    // Pins are isolated: need full rank separation approximation
+                    PIN_RANK_HEIGHT_BONUS + 16.0
+                };
+                pin_types as f64 * bonus_per_type
             } else {
                 0.0
             }
