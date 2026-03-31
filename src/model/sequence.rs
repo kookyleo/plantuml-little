@@ -127,12 +127,16 @@ pub enum SeqEvent {
         text: String,
         /// True when the note uses `& note` parallel syntax
         parallel: bool,
+        /// Optional background color (e.g. "#FF0000" from `note right #red`)
+        color: Option<String>,
     },
     NoteLeft {
         participant: String,
         text: String,
         /// True when the note uses `& note` parallel syntax
         parallel: bool,
+        /// Optional background color
+        color: Option<String>,
     },
     NoteOver {
         participants: Vec<String>,

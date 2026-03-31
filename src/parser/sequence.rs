@@ -41,6 +41,7 @@ pub fn parse_sequence_diagram_with_original(
     let mut note_participants: Vec<String> = Vec::new();
     let mut note_lines: Vec<String> = Vec::new();
     let mut note_is_parallel = false;
+    let mut note_color: Option<String> = None;
     // Track fragment nesting depth so "end" emits FragmentEnd when inside fragments
     let mut fragment_depth: usize = 0;
     // Whether `!pragma teoz true` was encountered
@@ -154,11 +155,13 @@ pub fn parse_sequence_diagram_with_original(
                         participant: note_participant.take().unwrap_or_default(),
                         text,
                         parallel: note_is_parallel,
+                        color: note_color.take(),
                     },
                     Some("left") => SeqEvent::NoteLeft {
                         participant: note_participant.take().unwrap_or_default(),
                         text,
                         parallel: note_is_parallel,
+                        color: note_color.take(),
                     },
                     _ => SeqEvent::NoteOver {
                         participants: std::mem::take(&mut note_participants),
@@ -357,7 +360,8 @@ pub fn parse_sequence_diagram_with_original(
                             note_kind = Some("right");
                             note_is_parallel = is_parallel_note;
                             let after = rest[5..].trim();
-                            let after = skip_note_color(after);
+                            let (after, nc) = extract_note_color(after);
+                            note_color = nc;
                             let (_remainder, explicit_p) = strip_of_participant(after);
                             note_participant = explicit_p.or_else(|| last_to_participant.clone());
                             note_lines.clear();
@@ -368,7 +372,8 @@ pub fn parse_sequence_diagram_with_original(
                             note_kind = Some("left");
                             note_is_parallel = is_parallel_note;
                             let after = rest[4..].trim();
-                            let after = skip_note_color(after);
+                            let (after, nc) = extract_note_color(after);
+                            note_color = nc;
                             let (_remainder, explicit_p) = strip_of_participant(after);
                             note_participant = explicit_p.or_else(|| last_from_participant.clone());
                             note_lines.clear();
@@ -1146,8 +1151,7 @@ fn parse_note(line: &str, last_to: &Option<String>, last_from: &Option<String>) 
 
     if lower.starts_with("right") {
         let after = rest[5..].trim();
-        // Skip optional color specifier: #color
-        let after = skip_note_color(after);
+        let (after, note_color) = extract_note_color(after);
         // Handle `of PARTICIPANT` clause
         let (after, explicit_participant) = strip_of_participant(after);
         if let Some(text) = after.strip_prefix(':') {
@@ -1159,6 +1163,7 @@ fn parse_note(line: &str, last_to: &Option<String>, last_from: &Option<String>) 
                 participant,
                 text,
                 parallel: false,
+                color: note_color,
             })
         } else {
             // No inline text — will be handled as multiline note
@@ -1166,7 +1171,7 @@ fn parse_note(line: &str, last_to: &Option<String>, last_from: &Option<String>) 
         }
     } else if lower.starts_with("left") {
         let after = rest[4..].trim();
-        let after = skip_note_color(after);
+        let (after, note_color) = extract_note_color(after);
         let (after, explicit_participant) = strip_of_participant(after);
         if let Some(text) = after.strip_prefix(':') {
             let text = text.trim().to_string();
@@ -1177,6 +1182,7 @@ fn parse_note(line: &str, last_to: &Option<String>, last_from: &Option<String>) 
                 participant,
                 text,
                 parallel: false,
+                color: note_color,
             })
         } else {
             None
@@ -1205,18 +1211,29 @@ fn parse_note(line: &str, last_to: &Option<String>, last_from: &Option<String>) 
     }
 }
 
-/// Skip optional note background color specifier (e.g., `#red`, `#AABBCC`).
+/// Extract optional note background color specifier (e.g., `#red`, `#AABBCC`).
+/// Returns (remaining_str, Option<color_string>).
 /// Java: `note right #color : text` syntax.
-fn skip_note_color(s: &str) -> &str {
+fn extract_note_color(s: &str) -> (&str, Option<String>) {
     if let Some(rest) = s.strip_prefix('#') {
         // Find end of color: next whitespace or ':'
         let end = rest
             .find(|c: char| c.is_whitespace() || c == ':')
             .unwrap_or(rest.len());
-        rest[end..].trim_start()
+        let color_raw = &rest[..end];
+        // Try resolving via klimt color (handles named colors like "red" → #FF0000)
+        let resolved = crate::klimt::color::resolve_color(&format!("#{color_raw}"))
+            .map(|c| c.to_svg())
+            .unwrap_or_else(|| crate::style::normalize_color(&format!("#{color_raw}")));
+        (rest[end..].trim_start(), Some(resolved))
     } else {
-        s
+        (s, None)
     }
+}
+
+/// Skip optional note background color specifier (backward compat wrapper).
+fn skip_note_color(s: &str) -> &str {
+    extract_note_color(s).0
 }
 
 /// Strip optional `of PARTICIPANT` clause from note direction remainder.

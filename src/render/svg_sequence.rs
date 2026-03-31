@@ -2549,6 +2549,8 @@ fn draw_note(sg: &mut SvgGraphic, note: &NoteLayout, shadow_attr: &str) {
     let w = note.width.trunc();
     let h = note.height;
 
+    let bg = note.color.as_deref().unwrap_or(NOTE_BG);
+
     // Body: hexagonal path with folded top-right corner (Java: Opale.getPolygonNormal)
     {
         let x0 = fmt_coord(x);
@@ -2559,7 +2561,7 @@ fn draw_note(sg: &mut SvgGraphic, note: &NoteLayout, shadow_attr: &str) {
         let yf = fmt_coord(y + fold);
         sg.push_raw(&format!(
             "<path d=\"M{x0},{y0} L{x0},{y1} L{x1},{y1} L{x1},{yf} L{xf},{y0} L{x0},{y0}\" fill=\"{bg}\"{shadow} style=\"stroke:{border};stroke-width:0.5;\"/>",
-            bg = NOTE_BG,
+            bg = bg,
             border = NOTE_BORDER,
             shadow = shadow_attr,
         ));
@@ -2573,7 +2575,7 @@ fn draw_note(sg: &mut SvgGraphic, note: &NoteLayout, shadow_attr: &str) {
         let cx2 = fmt_coord(x + w);
         sg.push_raw(&format!(
             "<path d=\"M{cx_s},{cy_s} L{cx_s},{cy2} L{cx2},{cy2} L{cx_s},{cy_s}\" fill=\"{bg}\" style=\"stroke:{border};stroke-width:0.5;\"/>",
-            bg = NOTE_BG,
+            bg = bg,
             border = NOTE_BORDER,
         ));
     }

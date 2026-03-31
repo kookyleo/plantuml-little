@@ -117,6 +117,8 @@ enum TeozTile {
         bidirectional: bool,
         /// Short gate arrow (?->) vs full boundary ([->)
         is_short_gate: bool,
+        /// Per-message arrow color override
+        color: Option<String>,
     },
     /// Self-message (from == to)
     SelfMessage {
@@ -152,6 +154,8 @@ enum TeozTile {
         hidden: bool,
         /// Bidirectional arrow: arrowheads at both ends
         bidirectional: bool,
+        /// Per-message arrow color override
+        color: Option<String>,
     },
     /// Activate / Deactivate / Destroy life event
     LifeEvent { height: f64, y: Option<f64> },
@@ -170,6 +174,8 @@ enum TeozTile {
         active_level: usize,
         /// True when the note uses `& note` parallel syntax (TileParallel in Java)
         is_parallel: bool,
+        /// Optional background color override
+        color: Option<String>,
     },
     /// Note spanning two participants
     NoteOver {
@@ -1188,6 +1194,7 @@ pub fn build_teoz_layout(sd: &SequenceDiagram, skin: &SkinParams) -> Result<SeqL
                         hidden: msg.hidden,
                         bidirectional: msg.bidirectional,
                         is_short_gate: msg.is_short_gate,
+                        color: msg.color.clone(),
                     });
                     continue;
                 }
@@ -1249,6 +1256,7 @@ pub fn build_teoz_layout(sd: &SequenceDiagram, skin: &SkinParams) -> Result<SeqL
                         is_parallel: msg.parallel,
                         hidden: msg.hidden,
                         bidirectional: msg.bidirectional,
+                        color: msg.color.clone(),
                     });
                 } else {
                     // Normal message
@@ -1318,6 +1326,7 @@ pub fn build_teoz_layout(sd: &SequenceDiagram, skin: &SkinParams) -> Result<SeqL
                         hidden: msg.hidden,
                         bidirectional: msg.bidirectional,
                         is_short_gate: msg.is_short_gate,
+                        color: msg.color.clone(),
                     });
                 }
             }
@@ -1349,6 +1358,7 @@ pub fn build_teoz_layout(sd: &SequenceDiagram, skin: &SkinParams) -> Result<SeqL
                 participant,
                 text,
                 parallel,
+                color,
             } => {
                 let idx = name_to_idx.get(participant).copied().unwrap_or(0);
                 let center = livings[idx].pos_c;
@@ -1366,12 +1376,14 @@ pub fn build_teoz_layout(sd: &SequenceDiagram, skin: &SkinParams) -> Result<SeqL
                     is_note_on_message: is_smn,
                     active_level: active_levels.get(participant).copied().unwrap_or(0),
                     is_parallel: *parallel,
+                    color: color.clone(),
                 });
             }
             SeqEvent::NoteLeft {
                 participant,
                 text,
                 parallel,
+                color,
             } => {
                 let idx = name_to_idx.get(participant).copied().unwrap_or(0);
                 let center = livings[idx].pos_c;
@@ -1389,6 +1401,7 @@ pub fn build_teoz_layout(sd: &SequenceDiagram, skin: &SkinParams) -> Result<SeqL
                     is_note_on_message: is_smn,
                     active_level: active_levels.get(participant).copied().unwrap_or(0),
                     is_parallel: *parallel,
+                    color: color.clone(),
                 });
             }
             SeqEvent::NoteOver {
@@ -1774,6 +1787,19 @@ pub fn build_teoz_layout(sd: &SequenceDiagram, skin: &SkinParams) -> Result<SeqL
             } else {
                 msg_h.max(note_h)
             };
+            // Java: note wraps message inside TileParallel, so LifeEvent
+            // tiles AFTER the TileParallel see the combined height. In Rust,
+            // the note is a separate tile, so LifeEvent tiles between the
+            // message and the note were placed using only the message height.
+            // Retroactively adjust those LifeEvent tiles to use combined_h.
+            if combined_h > msg_h {
+                let new_y_after = msg_y + combined_h;
+                for adj_idx in (preceding_msg_idx + 1)..tile_idx {
+                    if matches!(tiles[adj_idx], TeozTile::LifeEvent { .. }) {
+                        tiles[adj_idx].set_y(new_y_after);
+                    }
+                }
+            }
             y = msg_y + combined_h;
             prev_msg_height = None;
             prev_msg_y = None;
@@ -2579,6 +2605,7 @@ pub fn build_teoz_layout(sd: &SequenceDiagram, skin: &SkinParams) -> Result<SeqL
                 hidden,
                 bidirectional,
                 is_short_gate,
+                color,
                 ..
             } => {
                 if *hidden {
@@ -2702,7 +2729,7 @@ pub fn build_teoz_layout(sd: &SequenceDiagram, skin: &SkinParams) -> Result<SeqL
                     source_line: None, // TODO: propagate from parser
                     self_return_x: from_x,
                     self_center_x: from_x,
-                    color: None,
+                    color: color.clone(),
                     circle_from: *circle_from,
                     circle_to: *circle_to,
                     cross_from: *cross_from,
@@ -2733,6 +2760,7 @@ pub fn build_teoz_layout(sd: &SequenceDiagram, skin: &SkinParams) -> Result<SeqL
                 cross_to,
                 hidden,
                 bidirectional,
+                color,
                 ..
             } => {
                 if *hidden {
@@ -2795,7 +2823,7 @@ pub fn build_teoz_layout(sd: &SequenceDiagram, skin: &SkinParams) -> Result<SeqL
                     source_line: None, // TODO: propagate from parser
                     self_return_x,
                     self_center_x: cx,
-                    color: None,
+                    color: color.clone(),
                     circle_from: *circle_from,
                     circle_to: *circle_to,
                     cross_from: *cross_from,
@@ -2816,6 +2844,7 @@ pub fn build_teoz_layout(sd: &SequenceDiagram, skin: &SkinParams) -> Result<SeqL
                 y,
                 is_note_on_message,
                 active_level,
+                color,
                 ..
             } => {
                 // Java AbstractComponent.drawU applies UTranslate(paddingX, paddingY)
@@ -2882,6 +2911,7 @@ pub fn build_teoz_layout(sd: &SequenceDiagram, skin: &SkinParams) -> Result<SeqL
                         None
                     },
                     teoz_mode: true,
+                    color: color.clone(),
                 });
             }
             TeozTile::NoteOver {
@@ -2922,6 +2952,7 @@ pub fn build_teoz_layout(sd: &SequenceDiagram, skin: &SkinParams) -> Result<SeqL
                     is_note_on_message: false,
                     assoc_message_idx: None,
                     teoz_mode: true,
+                    color: None,
                 });
             }
             TeozTile::Divider { text, y, .. } => {
@@ -3252,6 +3283,11 @@ pub fn build_teoz_layout(sd: &SequenceDiagram, skin: &SkinParams) -> Result<SeqL
                                 + (level - 1) as f64 * (ACTIVATION_WIDTH / 2.0);
                             let mut y_end = if deact_inline {
                                 last_step_y
+                            } else if inside_tile_parallel[event_idx] {
+                                // Java TileParallel adjusts LifeEvent callbackY
+                                // by the max contact point offset, placing it at
+                                // the preceding message's arrow y (= last_step_y).
+                                last_step_y
                             } else {
                                 tiles.get(tile_idx)
                                     .and_then(|t| t.get_y())
@@ -3259,8 +3295,20 @@ pub fn build_teoz_layout(sd: &SequenceDiagram, skin: &SkinParams) -> Result<SeqL
                             };
                             if (y_end - y_start).abs() < 0.001 {
                                 if deact_inline {
-                                    y_end = y_start + rose::ARROW_DELTA_Y
-                                        + rose::ARROW_PADDING_Y + 5.0;
+                                    // Java: the deactivate LifeEventTile position
+                                    // naturally advances past the message/note
+                                    // combined tile height, producing correct bar
+                                    // height. Use tile y as the bar end position.
+                                    let tile_y = tiles.get(tile_idx)
+                                        .and_then(|t| t.get_y())
+                                        .unwrap_or(y_start + rose::ARROW_DELTA_Y
+                                            + rose::ARROW_PADDING_Y + 5.0);
+                                    y_end = tile_y;
+                                    // If tile y also matches start, apply minimum
+                                    if (y_end - y_start).abs() < 0.001 {
+                                        y_end = y_start + rose::ARROW_DELTA_Y
+                                            + rose::ARROW_PADDING_Y + 5.0;
+                                    }
                                 } else if last_msg_bottom_y > y_start + 0.001 {
                                     y_end = last_msg_bottom_y;
                                     if (last_msg_bottom_y - y_start_addstep).abs() < 0.001 {

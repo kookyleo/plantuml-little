@@ -275,6 +275,8 @@ pub struct NoteLayout {
     /// In teoz mode, note x coordinates come from the constraint solver
     /// and should not be truncated.
     pub(crate) teoz_mode: bool,
+    /// Optional background color override (from `note right #red`)
+    pub color: Option<String>,
 }
 
 /// Group box layout
@@ -1610,7 +1612,7 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
                     is_self_msg_note: last_message_was_self,
                     is_note_on_message: last_message_was_self,
                     assoc_message_idx: last_message_idx,
-                    teoz_mode: false,
+                    teoz_mode: false, color: None,
                 });
                 // Record self-msg notes for post-shift x recomputation
                 if last_message_was_self {
@@ -1764,7 +1766,7 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
                     is_self_msg_note: last_message_was_self,
                     is_note_on_message: last_message_was_self,
                     assoc_message_idx: last_message_idx,
-                    teoz_mode: false,
+                    teoz_mode: false, color: None,
                 });
                 // Record self-msg notes for post-shift x recomputation
                 if last_message_was_self {
@@ -1871,7 +1873,7 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
                         is_self_msg_note: false,
                         is_note_on_message: false,
                         assoc_message_idx: last_message_idx,
-                        teoz_mode: false,
+                        teoz_mode: false, color: None,
                     });
                     let note_bottom = note_y + note_height;
                     if note_bottom > y_cursor {

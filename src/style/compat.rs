@@ -908,6 +908,13 @@ pub fn normalize_color(color: &str) -> String {
         return hex.to_string();
     }
 
+    // Bare hex without '#' prefix (e.g. "22A722" from parser)
+    let all_hex = trimmed.len() == 6
+        && trimmed.chars().all(|c| c.is_ascii_hexdigit());
+    if all_hex {
+        return format!("#{}", trimmed.to_ascii_uppercase());
+    }
+
     trimmed.to_string()
 }
 
