@@ -44,6 +44,8 @@ pub struct LayoutEdge {
     pub from: String,
     pub to: String,
     pub label: Option<String>,
+    /// Pre-computed label dimension override.
+    pub label_dimension: Option<(f64, f64)>,
     pub tail_label: Option<String>,
     pub tail_label_boxed: bool,
     pub head_label: Option<String>,
@@ -458,6 +460,9 @@ pub fn layout_with_svek(graph: &LayoutGraph) -> Result<GraphLayout, Error> {
         let mut ld = LinkDescriptor::new(&edge.from, &edge.to);
         if let Some(ref label) = edge.label {
             ld = ld.with_label(label);
+            if let Some(dim) = edge.label_dimension {
+                ld.label_dimension = Some(dim);
+            } else {
             // Compute label dimensions from font metrics for DOT sizing.
             // Java: labelText = StringWithArrow.addMagicArrow(label, guide, font)
             //   then addVisibilityModifier wraps with TextBlockMarged(marginLabel).
@@ -481,6 +486,7 @@ pub fn layout_with_svek(graph: &LayoutGraph) -> Result<GraphLayout, Error> {
             log::debug!("edge label={:?} text_w={:.4} arrow_w={} margin={} dim=({:.4},{:.4})",
                 label, text_w, arrow_w, margin_label, dim_w, dim_h);
             ld.label_dimension = Some((dim_w, dim_h));
+            }
         }
         if let Some(ref tail_label) = edge.tail_label {
             let font_size = if edge.tail_label_boxed { 14.0 } else { 13.0 };
@@ -1513,6 +1519,7 @@ mod tests {
                 from: "A".into(),
                 to: "B".into(),
                 label: None,
+                label_dimension: None,
                 tail_label: None,
                 tail_label_boxed: false,
                 head_label: None,

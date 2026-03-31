@@ -1171,6 +1171,7 @@ fn layout_children_with_graphviz(
                 } else {
                     Some(tr.label.clone())
                 },
+                label_dimension: None,
                 tail_label: None,
                 tail_label_boxed: false,
                 head_label: None,
@@ -1667,6 +1668,7 @@ pub fn layout_state(diagram: &StateDiagram) -> Result<StateLayout> {
             } else {
                 Some(tr.label.clone())
             },
+            label_dimension: None,
             tail_label: None,
             tail_label_boxed: false,
             head_label: None,
@@ -1691,6 +1693,7 @@ pub fn layout_state(diagram: &StateDiagram) -> Result<StateLayout> {
             from,
             to,
             label: None,
+            label_dimension: None,
             tail_label: None,
             tail_label_boxed: false,
             head_label: None,

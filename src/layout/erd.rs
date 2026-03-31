@@ -9,7 +9,10 @@ use std::collections::HashMap;
 use log::debug;
 
 use crate::font_metrics;
+use crate::layout::graphviz::{self, LayoutEdge, LayoutGraph, LayoutNode, RankDir};
 use crate::model::erd::{ErdAttribute, ErdDiagram, ErdDirection, ErdIsa};
+use crate::render::svg::{CANVAS_DELTA, DOC_MARGIN_BOTTOM, DOC_MARGIN_RIGHT};
+use crate::svek::shape_type::ShapeType;
 use crate::Result;
 
 // ---------------------------------------------------------------------------
@@ -75,6 +78,10 @@ pub struct ErdEdgeLayout {
     pub source_line: usize,
     pub entity_idx_from: usize,
     pub entity_idx_to: usize,
+    /// Raw SVG path d-string from graphviz (via svek pipeline).
+    pub raw_path_d: Option<String>,
+    /// Label position from svek solve (x, y).
+    pub label_xy: Option<(f64, f64)>,
 }
 
 /// A positioned note annotation.
@@ -250,7 +257,11 @@ fn assign_ranks(
 // Core layout
 // ---------------------------------------------------------------------------
 
-/// Perform the complete layout of an ERD.
+/// Perform the complete layout of an ERD using the svek/graphviz pipeline.
+///
+/// Java PlantUML routes ERD diagrams through the same graphviz DOT engine
+/// as class diagrams. Entities become rect nodes, relationships become
+/// diamond nodes, and links become edges with `minlen=2`.
 pub fn layout_erd(diagram: &ErdDiagram) -> Result<ErdLayout> {
     debug!(
         "layout_erd: {} entities, {} relationships, {} links, {} ISAs, direction={:?}",
@@ -263,87 +274,138 @@ pub fn layout_erd(diagram: &ErdDiagram) -> Result<ErdLayout> {
 
     let is_lr = diagram.direction == ErdDirection::LeftToRight;
 
-    // Collect all node IDs in declaration order and compute sizes
+    // Collect node sizes
     let mut node_sizes: HashMap<String, (f64, f64)> = HashMap::new();
-    let mut all_ids: Vec<String> = Vec::new();
-
     for e in &diagram.entities {
         let w = entity_width(&e.name);
         node_sizes.insert(e.id.clone(), (w, ENTITY_HEIGHT));
-        all_ids.push(e.id.clone());
     }
     for r in &diagram.relationships {
         let (w, dh) = relationship_diamond_size(&r.name);
         node_sizes.insert(r.id.clone(), (w, dh));
-        all_ids.push(r.id.clone());
     }
 
-    // Assign ranks using link topology
-    let ranks = assign_ranks(&all_ids, &diagram.links, &diagram.isas);
-
-    // Group nodes by rank, preserving declaration order within each rank
-    let max_rank = ranks.values().copied().max().unwrap_or(0);
-    let mut rank_groups: Vec<Vec<String>> = vec![vec![]; max_rank + 1];
-    for id in &all_ids {
-        if let Some(&r) = ranks.get(id) {
-            rank_groups[r].push(id.clone());
-        }
+    // Build name lookup: id -> display name
+    let mut name_map: HashMap<String, String> = HashMap::new();
+    for e in &diagram.entities {
+        name_map.insert(e.id.clone(), e.name.clone());
+    }
+    for r in &diagram.relationships {
+        name_map.insert(r.id.clone(), r.name.clone());
     }
 
-    // Compute per-rank sizing
-    let mut rank_main_sizes: Vec<f64> = Vec::new();
-    let mut rank_cross_extents: Vec<f64> = Vec::new();
+    // Entity index map for link metadata
+    let mut entity_idx: HashMap<String, usize> = HashMap::new();
+    for (i, e) in diagram.entities.iter().enumerate() {
+        entity_idx.insert(e.id.clone(), i);
+    }
+    for (i, r) in diagram.relationships.iter().enumerate() {
+        entity_idx.insert(r.id.clone(), diagram.entities.len() + i);
+    }
 
-    for rank_nodes in &rank_groups {
-        let mut max_main = 0.0_f64;
-        let mut cross_total = 0.0_f64;
-        for (i, id) in rank_nodes.iter().enumerate() {
-            let (w, h) = node_sizes.get(id).copied().unwrap_or((80.0, 36.0));
-            if is_lr {
-                max_main = max_main.max(w);
-                cross_total += h;
-            } else {
-                max_main = max_main.max(h);
-                cross_total += w;
+    // Build svek layout nodes
+    let rankdir = if is_lr { RankDir::LeftToRight } else { RankDir::TopToBottom };
+
+    let mut layout_nodes: Vec<LayoutNode> = Vec::new();
+    for e in &diagram.entities {
+        let (w, h) = node_sizes[&e.id];
+        layout_nodes.push(LayoutNode {
+            id: e.id.clone(),
+            label: e.name.clone(),
+            width_pt: w,
+            height_pt: h,
+            shape: Some(ShapeType::Rectangle),
+            shield: None,
+            entity_position: None,
+            max_label_width: None,
+            order: None,
+            image_width_pt: None,
+            lf_extra_left: 0.0,
+            lf_rect_correction: true,
+        });
+    }
+    for r in &diagram.relationships {
+        let (w, h) = node_sizes[&r.id];
+        layout_nodes.push(LayoutNode {
+            id: r.id.clone(),
+            label: r.name.clone(),
+            width_pt: w,
+            height_pt: h,
+            shape: Some(ShapeType::Diamond),
+            shield: None,
+            entity_position: None,
+            max_label_width: None,
+            order: None,
+            image_width_pt: None,
+            lf_extra_left: 0.0,
+            lf_rect_correction: true,
+        });
+    }
+
+    // Measure cardinality label dimensions for DOT edge label tables.
+    // Java ERD uses font-size 11 for edge labels.
+    let label_dims: Vec<(f64, f64)> = diagram
+        .links
+        .iter()
+        .map(|link| {
+            let tw = font_metrics::text_width(&link.cardinality, "SansSerif", 11.0, false, false);
+            let th = font_metrics::line_height("SansSerif", 11.0, false, false);
+            let dim_w = (tw + 2.0).floor();
+            let dim_h = (th + 2.0).floor();
+            (dim_w, dim_h)
+        })
+        .collect();
+
+    let layout_edges: Vec<LayoutEdge> = diagram
+        .links
+        .iter()
+        .enumerate()
+        .map(|(i, link)| {
+            let (lw, lh) = label_dims[i];
+            LayoutEdge {
+                from: link.from.clone(),
+                to: link.to.clone(),
+                label: Some(link.cardinality.clone()),
+                label_dimension: Some((lw, lh)),
+                tail_label: None,
+                tail_label_boxed: false,
+                head_label: None,
+                head_label_boxed: false,
+                tail_decoration: crate::svek::edge::LinkDecoration::None,
+                head_decoration: crate::svek::edge::LinkDecoration::None,
+                line_style: crate::svek::edge::LinkStyle::Normal,
+                minlen: 2,
+                invisible: false,
+                no_constraint: false,
             }
-            if i > 0 {
-                cross_total += RANK_NODE_GAP;
-            }
-        }
-        rank_main_sizes.push(max_main);
-        rank_cross_extents.push(cross_total);
-    }
+        })
+        .collect();
 
-    let max_cross = rank_cross_extents.iter().copied().fold(0.0_f64, f64::max);
+    let graph = LayoutGraph {
+        nodes: layout_nodes,
+        edges: layout_edges,
+        clusters: vec![],
+        rankdir,
+        ranksep_override: None,
+        use_simplier_dot_link_strategy: false,
+    };
 
-    // Space above the first rank for attribute ellipses
-    let attr_band = compute_attr_band(diagram);
+    let gl = graphviz::layout_with_svek(&graph)
+        .map_err(|e| crate::error::Error::Layout(format!("ERD svek layout: {e}")))?;
 
-    // Place nodes rank by rank
+    // Extract node positions from svek result.
+    // Java LimitFinder.drawRectangle applies -1 correction only on x, not y.
+    // The Rust svek code applies it on both axes. Compensate by subtracting 1
+    // from render_dy for node positions. Edge paths/labels use unadjusted offset.
+    let render_dx = gl.render_offset.0;
+    let render_dy = gl.render_offset.1 - 1.0;
+    
+
     let mut positions: HashMap<String, (f64, f64, f64, f64)> = HashMap::new();
-    let mut main_cursor = MARGIN + attr_band;
-
-    for (ri, rank_nodes) in rank_groups.iter().enumerate() {
-        if rank_nodes.is_empty() {
-            continue;
-        }
-
-        let cross_extent = rank_cross_extents[ri];
-        let cross_start = MARGIN + (max_cross - cross_extent) / 2.0;
-        let mut cross_cursor = cross_start;
-
-        for id in rank_nodes {
-            let (w, h) = node_sizes.get(id).copied().unwrap_or((80.0, 36.0));
-            if is_lr {
-                positions.insert(id.clone(), (main_cursor, cross_cursor, w, h));
-                cross_cursor += h + RANK_NODE_GAP;
-            } else {
-                positions.insert(id.clone(), (cross_cursor, main_cursor, w, h));
-                cross_cursor += w + RANK_NODE_GAP;
-            }
-        }
-
-        main_cursor += rank_main_sizes[ri] + RANK_SEP;
+    for nl in &gl.nodes {
+        let x = nl.cx - nl.width / 2.0 + render_dx;
+        let y = nl.cy - nl.height / 2.0 + render_dy;
+        positions.insert(nl.id.clone(), (x, y, nl.width, nl.height));
     }
 
     // Build entity node layouts
@@ -355,10 +417,7 @@ pub fn layout_erd(diagram: &ErdDiagram) -> Result<ErdLayout> {
             Some(ErdNodeLayout {
                 id: e.id.clone(),
                 label: e.name.clone(),
-                x,
-                y,
-                width: w,
-                height: h,
+                x, y, width: w, height: h,
                 is_weak: e.is_weak,
                 is_identifying: false,
             })
@@ -374,10 +433,7 @@ pub fn layout_erd(diagram: &ErdDiagram) -> Result<ErdLayout> {
             Some(ErdNodeLayout {
                 id: r.id.clone(),
                 label: r.name.clone(),
-                x,
-                y,
-                width: w,
-                height: h,
+                x, y, width: w, height: h,
                 is_weak: false,
                 is_identifying: r.is_identifying,
             })
@@ -393,13 +449,8 @@ pub fn layout_erd(diagram: &ErdDiagram) -> Result<ErdLayout> {
             let parent_cx = px + pw / 2.0;
             let parent_cy = py + ph / 2.0;
             layout_attributes(
-                &e.attributes,
-                &e.id,
-                parent_cx,
-                parent_cy,
-                is_lr,
-                &mut attribute_nodes,
-                &mut attr_idx,
+                &e.attributes, &e.id, parent_cx, parent_cy, is_lr,
+                &mut attribute_nodes, &mut attr_idx,
             );
         }
     }
@@ -409,80 +460,113 @@ pub fn layout_erd(diagram: &ErdDiagram) -> Result<ErdLayout> {
             let parent_cx = rx + rw / 2.0;
             let parent_cy = ry + rh / 2.0;
             layout_attributes(
-                &r.attributes,
-                &r.id,
-                parent_cx,
-                parent_cy,
-                is_lr,
-                &mut attribute_nodes,
-                &mut attr_idx,
+                &r.attributes, &r.id, parent_cx, parent_cy, is_lr,
+                &mut attribute_nodes, &mut attr_idx,
             );
         }
     }
 
-    // Layout edges (links)
-    let edges = layout_edges(&diagram.links, &positions);
+    // Layout edges from svek results
+    let mut edges: Vec<ErdEdgeLayout> = Vec::new();
+    for (li, link) in diagram.links.iter().enumerate() {
+        let from_name = name_map.get(&link.from).cloned().unwrap_or(link.from.clone());
+        let to_name = name_map.get(&link.to).cloned().unwrap_or(link.to.clone());
+        let from_idx = entity_idx.get(&link.from).copied().unwrap_or(0);
+        let to_idx = entity_idx.get(&link.to).copied().unwrap_or(0);
+
+        let svek_edge = gl.edges.get(li);
+        let raw_path_d = svek_edge
+            .and_then(|e| e.raw_path_d.as_ref())
+            .map(|d| shift_svg_path(d, render_dx, render_dy));
+        let label_xy = svek_edge.and_then(|e| {
+            let (lx, ly) = e.label_xy?;
+            Some((lx + render_dx, ly + render_dy))
+        });
+
+        let (from_point, to_point) = if let (Some(fp), Some(tp)) =
+            (positions.get(&link.from), positions.get(&link.to))
+        {
+            let (fx, fy, fw, fh) = *fp;
+            let (tx, ty, tw, th) = *tp;
+            let fc = (fx + fw / 2.0, fy + fh / 2.0);
+            let tc = (tx + tw / 2.0, ty + th / 2.0);
+            (
+                clip_to_rect(fc.0, fc.1, fw, fh, tc.0, tc.1),
+                clip_to_rect(tc.0, tc.1, tw, th, fc.0, fc.1),
+            )
+        } else {
+            ((0.0, 0.0), (0.0, 0.0))
+        };
+
+        edges.push(ErdEdgeLayout {
+            from_id: link.from.clone(),
+            to_id: link.to.clone(),
+            from_name, to_name,
+            from_point, to_point,
+            label: link.cardinality.clone(),
+            is_double: link.is_double,
+            source_line: 0,
+            entity_idx_from: from_idx,
+            entity_idx_to: to_idx,
+            raw_path_d,
+            label_xy,
+        });
+    }
 
     // Layout ISAs
     let isa_layouts = layout_isas(&diagram.isas, &positions, is_lr);
 
-    // Compute bounding box
-    let mut max_x = 0.0_f64;
-    let mut max_y = 0.0_f64;
+    // Viewport: use svek lf_span + CANVAS_DELTA + DOC_MARGIN (same as class/component)
+    let is_degenerated = entity_nodes.len() + relationship_nodes.len() <= 1 && edges.is_empty();
+    let (raw_body_w, raw_body_h) = if is_degenerated
+        && (entity_nodes.len() + relationship_nodes.len()) == 1
+    {
+        const DEGENERATED_DELTA: f64 = 7.0;
+        let n = entity_nodes.first().or(relationship_nodes.first()).unwrap();
+        (n.width + DEGENERATED_DELTA * 2.0, n.height + DEGENERATED_DELTA * 2.0)
+    } else {
+        (gl.lf_span.0 + CANVAS_DELTA, gl.lf_span.1 + CANVAS_DELTA)
+    };
 
-    for node in entity_nodes.iter().chain(relationship_nodes.iter()) {
-        max_x = max_x.max(node.x + node.width);
-        max_y = max_y.max(node.y + node.height);
-    }
+    let mut max_right = raw_body_w;
+    let mut max_bottom = raw_body_h;
 
     for attr in &attribute_nodes {
-        max_x = max_x.max(attr.x + attr.rx);
-        max_y = max_y.max(attr.y + attr.ry);
+        let ar = attr.x + attr.rx - render_dx + DOC_MARGIN_RIGHT;
+        let ab = attr.y + attr.ry - render_dy + DOC_MARGIN_BOTTOM;
+        max_right = max_right.max(ar);
+        max_bottom = max_bottom.max(ab);
         for child in &attr.children {
-            max_x = max_x.max(child.x + child.rx);
-            max_y = max_y.max(child.y + child.ry);
+            let cr = child.x + child.rx - render_dx + DOC_MARGIN_RIGHT;
+            let cb = child.y + child.ry - render_dy + DOC_MARGIN_BOTTOM;
+            max_right = max_right.max(cr);
+            max_bottom = max_bottom.max(cb);
         }
-    }
-
-    for edge in &edges {
-        max_x = max_x.max(edge.from_point.0).max(edge.to_point.0);
-        max_y = max_y.max(edge.from_point.1).max(edge.to_point.1);
     }
 
     for isa in &isa_layouts {
         let (tx, ty) = isa.triangle_center;
-        max_x = max_x.max(tx + isa.triangle_size);
-        max_y = max_y.max(ty + isa.triangle_size);
-        for (_, (cx, cy)) in &isa.child_points {
-            max_x = max_x.max(*cx);
-            max_y = max_y.max(*cy);
-        }
+        max_right = max_right.max(tx + isa.triangle_size - render_dx + DOC_MARGIN_RIGHT);
+        max_bottom = max_bottom.max(ty + isa.triangle_size - render_dy + DOC_MARGIN_BOTTOM);
     }
 
-    let notes = layout_notes(&diagram.notes, &positions, max_x, max_y);
+    let notes = layout_notes(&diagram.notes, &positions, max_right, max_bottom);
 
     for note in &notes {
-        max_x = max_x.max(note.x + note.width);
-        max_y = max_y.max(note.y + note.height);
-        if let Some((x1, y1, x2, y2)) = note.connector {
-            max_x = max_x.max(x1).max(x2);
-            max_y = max_y.max(y1).max(y2);
-        }
+        let nr = note.x + note.width - render_dx + DOC_MARGIN_RIGHT;
+        let nb = note.y + note.height - render_dy + DOC_MARGIN_BOTTOM;
+        max_right = max_right.max(nr);
+        max_bottom = max_bottom.max(nb);
     }
 
-    let width = max_x + MARGIN;
-    let height = max_y + MARGIN;
+    let width = max_right + DOC_MARGIN_RIGHT;
+    let height = max_bottom + DOC_MARGIN_BOTTOM;
 
     debug!(
-        "layout_erd done: {:.0}x{:.0}, {} ents, {} rels, {} attrs, {} edges, {} ISAs, {} notes",
-        width,
-        height,
-        entity_nodes.len(),
-        relationship_nodes.len(),
-        attribute_nodes.len(),
-        edges.len(),
-        isa_layouts.len(),
-        notes.len()
+        "layout_erd done: {:.0}x{:.0} (lf_span={:.1}x{:.1}), {} ents, {} rels, {} attrs, {} edges, {} ISAs, {} notes",
+        width, height, gl.lf_span.0, gl.lf_span.1,
+        entity_nodes.len(), relationship_nodes.len(), attribute_nodes.len(),
+        edges.len(), isa_layouts.len(), notes.len()
     );
 
     Ok(ErdLayout {
@@ -670,10 +754,58 @@ fn layout_edges(
             source_line: 0,
             entity_idx_from: 0,
             entity_idx_to: 0,
+            raw_path_d: None,
+            label_xy: None,
         });
     }
 
     edges
+}
+
+/// Shift all numeric coordinates in an SVG path d-string by (dx, dy).
+fn shift_svg_path(d: &str, dx: f64, dy: f64) -> String {
+    use crate::render::svg::fmt_coord;
+    let mut result = String::with_capacity(d.len() + 32);
+    let mut chars = d.chars().peekable();
+    while let Some(&c) = chars.peek() {
+        if c == 'M' || c == 'C' || c == 'L' || c == ' ' {
+            result.push(c);
+            chars.next();
+            continue;
+        }
+        if c == '-' || c == '.' || c.is_ascii_digit() {
+            let mut num_str = String::new();
+            while let Some(&nc) = chars.peek() {
+                if nc == '-' || nc == '.' || nc.is_ascii_digit() {
+                    num_str.push(nc);
+                    chars.next();
+                } else {
+                    break;
+                }
+            }
+            let x_val: f64 = num_str.parse().unwrap_or(0.0);
+            result.push_str(&fmt_coord(x_val + dx));
+            if let Some(&',') = chars.peek() {
+                result.push(',');
+                chars.next();
+            }
+            let mut num_str = String::new();
+            while let Some(&nc) = chars.peek() {
+                if nc == '-' || nc == '.' || nc.is_ascii_digit() {
+                    num_str.push(nc);
+                    chars.next();
+                } else {
+                    break;
+                }
+            }
+            let y_val: f64 = num_str.parse().unwrap_or(0.0);
+            result.push_str(&fmt_coord(y_val + dy));
+        } else {
+            result.push(c);
+            chars.next();
+        }
+    }
+    result
 }
 
 /// Clip a line from (cx, cy) toward (target_x, target_y) to the rectangle.

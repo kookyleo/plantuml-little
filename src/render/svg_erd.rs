@@ -99,7 +99,9 @@ fn render_entity(
         sg.svg_rectangle(x, y, w, h, 0.0, 0.0, 0.0);
     }
     let tx = x + 10.0;
-    let ty = y + h / 2.0 + FONT_SIZE * 0.35;
+    let asc = crate::font_metrics::ascent("SansSerif", FONT_SIZE, false, false);
+    let desc = crate::font_metrics::descent("SansSerif", FONT_SIZE, false, false);
+    let ty = y + h / 2.0 + (asc - desc) / 2.0;
     sg.set_fill_color(font_color);
     sg.svg_text(
         &node.label,
@@ -152,7 +154,9 @@ fn render_relationship(sg: &mut SvgGraphic, node: &ErdNodeLayout) {
         sg.set_stroke_width(0.5, None);
         sg.svg_polygon(0.0, &[x, cy, cx, y, x + w, cy, cx, y + h]);
     }
-    let ty = cy + FONT_SIZE * 0.35;
+    let asc = crate::font_metrics::ascent("SansSerif", FONT_SIZE, false, false);
+    let desc = crate::font_metrics::descent("SansSerif", FONT_SIZE, false, false);
+    let ty = cy + (asc - desc) / 2.0;
     let text_w = crate::font_metrics::text_width(&node.label, "SansSerif", FONT_SIZE, false, false);
     let text_x = cx - text_w / 2.0;
     sg.set_fill_color(TEXT_COLOR);
@@ -290,7 +294,7 @@ fn render_edge(sg: &mut SvgGraphic, edge: &ErdEdgeLayout, link_idx: usize) {
     let ent_to = format!("ent{:04}", edge.entity_idx_to + 2);
     sg.push_raw(&format!(
         r#"<g class="link" data-entity-1="{}" data-entity-2="{}" data-link-type="association" data-source-line="{}" id="lnk{}">"#,
-        ent_from, ent_to, edge.source_line, link_idx + 2 + edge.entity_idx_to
+        ent_from, ent_to, edge.source_line, link_idx + 5
     ));
     if edge.is_double {
         let dx = x2 - x1;
@@ -302,10 +306,13 @@ fn render_edge(sg: &mut SvgGraphic, edge: &ErdEdgeLayout, link_idx: usize) {
             render_path_line(sg, x1 + nx, y1 + ny, x2 + nx, y2 + ny);
             render_path_line(sg, x1 - nx, y1 - ny, x2 - nx, y2 - ny);
         }
+    } else if let Some(ref path_d) = edge.raw_path_d {
+        sg.push_raw(&format!(
+            r#"<path d="{}" fill="none" id="{}-{}" style="stroke:{BORDER_COLOR};stroke-width:1;\"/>"#,
+            path_d,
+            xml_escape(&edge.from_name), xml_escape(&edge.to_name),
+        ));
     } else {
-        // Java uses cubic bezier C command even for straight lines:
-        // M x1,y1 C cx1,cy1 cx2,cy2 x2,y2
-        // For a straight line, control points are at 1/3 and 2/3 positions
         let cx1 = x1 + (x2 - x1) / 3.0;
         let cy1 = y1 + (y2 - y1) / 3.0;
         let cx2 = x1 + 2.0 * (x2 - x1) / 3.0;
@@ -337,8 +344,12 @@ fn render_edge(sg: &mut SvgGraphic, edge: &ErdEdgeLayout, link_idx: usize) {
         }
     }
     if !edge.label.is_empty() {
-        let mx = (x1 + x2) / 2.0;
-        let my = (y1 + y2) / 2.0 - 6.0;
+        let (mx, my) = if let Some((lx, ly)) = edge.label_xy {
+            let asc = crate::font_metrics::ascent("SansSerif", 11.0, false, false);
+            (lx + 1.0, ly + asc)
+        } else {
+            ((x1 + x2) / 2.0, (y1 + y2) / 2.0 - 6.0)
+        };
         let label_text_w =
             crate::font_metrics::text_width(&edge.label, "SansSerif", 11.0, false, false);
         sg.set_fill_color(TEXT_COLOR);
@@ -619,6 +630,8 @@ mod tests {
             source_line: 0,
             entity_idx_from: 0,
             entity_idx_to: 0,
+            raw_path_d: None,
+            label_xy: None,
         });
         let svg = render_erd(&empty_diagram(), &l, &SkinParams::default()).unwrap();
         assert!(svg.contains("<path"));
@@ -639,6 +652,8 @@ mod tests {
             source_line: 0,
             entity_idx_from: 0,
             entity_idx_to: 0,
+            raw_path_d: None,
+            label_xy: None,
         });
         let svg = render_erd(&empty_diagram(), &l, &SkinParams::default()).unwrap();
         assert!(svg.matches("<path").count() >= 2);

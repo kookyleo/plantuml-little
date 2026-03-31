@@ -330,6 +330,7 @@ pub fn layout_component(cd: &ComponentDiagram) -> Result<ComponentLayout> {
                 } else {
                     Some(link.label.clone())
                 },
+                label_dimension: None,
                 tail_label: None,
                 tail_label_boxed: false,
                 head_label: None,
