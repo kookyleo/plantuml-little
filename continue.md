@@ -7,12 +7,11 @@
 - **Net gain this session**: +12 tests
 - **Git**: main branch
 
-## Next Priority: Bidirectional arrows (`<->`)
+## Next Priority: SequenceArrows remaining issues
 
-SequenceArrows_0001 is at col 8528 (very close). The remaining blocker is `<->` / `o<->o` / `x<->x` bidirectional arrows. Need:
-1. Parser: `bidirectional: bool` on Message (already detects `has_left_arrow && has_right_arrow`)
-2. Renderer: draw arrowhead at BOTH ends in `draw_message`
-3. Ext fixture: `seq_ext_bidir_arrow.puml`
+Bidirectional arrows (`<->`, `o<->o`, `x<->x`) are now implemented. SequenceArrows_0001
+diverges at col 34856 due to Bob left self-message text x-position (participant position
+precision issue, same root cause as SequenceLeftMsg 0001/0002).
 
 ## Recently Fixed (this session)
 
@@ -30,12 +29,13 @@ SequenceArrows_0001 is at col 8528 (very close). The remaining blocker is `<->` 
 | 477b5fc | inner composite child positions | 0 (structural) |
 | e5d1a2d | activation bar positioning | +2 |
 | bbcd512 | cross (X) decoration + circle offset | 0 (feature) |
+| 3a4b63f | bidirectional arrows + decoration order fix | 0 (feature) |
 
 ## Diagnosed Remaining Issues
 
 | Issue | Root cause | Priority |
 |-------|-----------|----------|
-| SequenceArrows `<->` | bidirectional unimplemented | HIGH (blocks 4 tests) |
+| SequenceArrows 0001/0002 | Bob left self-msg text x-position | MED |
 | state_history001 (-50px) | Java 5-level cluster vs single-rect | MED |
 | state fork/SCXML (-17px) | inner ranksep vs edge labels | MED |
 | TeozTimeline 0007/0009 | group height model | LOW |
