@@ -1572,28 +1572,11 @@ pub fn build_teoz_layout(sd: &SequenceDiagram, skin: &SkinParams) -> Result<SeqL
                     }
                 }
             }
-            TeozTile::Note {
-                participant_idx,
-                is_left,
-                width,
-                center,
-                ..
-            } => {
-                let idx = *participant_idx;
-                let note_half = (*width + NOTE_EXTENT_PADDING + sd.delta_shadow) / 2.0 + 5.0;
-                if *is_left {
-                    // Note to the left: need space before this participant
-                    if idx > 0 {
-                        let prev_center = livings[idx - 1].pos_c;
-                        rl.ensure_bigger_than_with_margin(*center, prev_center, note_half);
-                    }
-                } else {
-                    // Note to the right: need space after this participant
-                    if idx + 1 < n_parts {
-                        let next_center = livings[idx + 1].pos_c;
-                        rl.ensure_bigger_than_with_margin(next_center, *center, note_half);
-                    }
-                }
+            TeozTile::Note { .. } => {
+                // Java NoteTile.addConstraints() and CommunicationTileNoteRight
+                // .addConstraints() are empty — notes do NOT push adjacent
+                // participants apart.  The note width only extends the diagram's
+                // raw_max/raw_min through the extent computation in Step 6.
             }
             _ => {}
         }
