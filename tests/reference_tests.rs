@@ -2,6 +2,7 @@
 // Do not edit manually. Regenerate with:
 //   python3 tests/generate_test_list.py > tests/reference_tests.rs
 
+use base64::Engine;
 use std::fs;
 use std::path::Path;
 
@@ -61,6 +62,117 @@ fn strip_plantuml_src_pi(s: &str) -> String {
         }
     }
     result
+}
+
+/// Normalize inline PNG base64 data URIs to a canonical form.
+/// Different deflate implementations produce different compressed output for the same
+/// pixel data. To compare visual equivalence, decode each PNG, extract raw pixel data,
+/// and re-encode with a canonical compressor.
+fn normalize_inline_pngs(s: &str) -> String {
+    use std::io::Read;
+    let marker = "data:image/png;base64,";
+    let mut result = String::with_capacity(s.len());
+    let mut pos = 0;
+    while let Some(start) = s[pos..].find(marker) {
+        let abs_start = pos + start;
+        result.push_str(&s[pos..abs_start + marker.len()]);
+        let b64_start = abs_start + marker.len();
+        // Find end of base64 (next '"' or non-base64 char)
+        let b64_end = s[b64_start..]
+            .find(|c: char| c == '"' || c == '\'' || c == '<' || c == ' ')
+            .map_or(s.len(), |e| b64_start + e);
+        let b64 = &s[b64_start..b64_end];
+
+        // Try to decode, decompress, and re-encode canonically
+        if let Ok(png_data) = base64::engine::general_purpose::STANDARD.decode(b64) {
+            if let Some(canonical) = canonicalize_png(&png_data) {
+                let new_b64 = base64::engine::general_purpose::STANDARD.encode(&canonical);
+                result.push_str(&new_b64);
+                pos = b64_end;
+                continue;
+            }
+        }
+        // Fallback: keep original
+        result.push_str(b64);
+        pos = b64_end;
+    }
+    result.push_str(&s[pos..]);
+    result
+}
+
+/// Re-encode a PNG with a canonical zlib compressor to normalize compression differences.
+fn canonicalize_png(png: &[u8]) -> Option<Vec<u8>> {
+    use flate2::read::ZlibDecoder;
+    use flate2::write::ZlibEncoder;
+    use std::io::Read;
+    use std::io::Write;
+
+    // Verify PNG signature
+    if png.len() < 8 || &png[..8] != &[137, 80, 78, 71, 13, 10, 26, 10] {
+        return None;
+    }
+
+    let mut ihdr_data = Vec::new();
+    let mut raw_pixels = Vec::new();
+    let mut pos = 8usize;
+
+    while pos + 12 <= png.len() {
+        let length = u32::from_be_bytes(png[pos..pos + 4].try_into().ok()?) as usize;
+        if pos + 12 + length > png.len() {
+            break;
+        }
+        let chunk_type = &png[pos + 4..pos + 8];
+        let chunk_data = &png[pos + 8..pos + 8 + length];
+
+        match chunk_type {
+            b"IHDR" => ihdr_data = chunk_data.to_vec(),
+            b"IDAT" => {
+                let mut decoder = ZlibDecoder::new(chunk_data);
+                decoder.read_to_end(&mut raw_pixels).ok()?;
+            }
+            _ => {}
+        }
+        pos += 12 + length;
+    }
+
+    if ihdr_data.is_empty() || raw_pixels.is_empty() {
+        return None;
+    }
+
+    // Re-encode with level 0 (no compression) for canonical, minimal output
+    let mut buf = Vec::new();
+    buf.extend_from_slice(&[137, 80, 78, 71, 13, 10, 26, 10]);
+
+    // IHDR
+    write_test_png_chunk(&mut buf, b"IHDR", &ihdr_data);
+
+    // IDAT with canonical compression (level 0 = store)
+    let mut encoder = ZlibEncoder::new(Vec::new(), flate2::Compression::none());
+    encoder.write_all(&raw_pixels).ok()?;
+    let compressed = encoder.finish().ok()?;
+    write_test_png_chunk(&mut buf, b"IDAT", &compressed);
+
+    // IEND
+    write_test_png_chunk(&mut buf, b"IEND", &[]);
+
+    Some(buf)
+}
+
+fn write_test_png_chunk(buf: &mut Vec<u8>, chunk_type: &[u8; 4], data: &[u8]) {
+    buf.extend_from_slice(&(data.len() as u32).to_be_bytes());
+    buf.extend_from_slice(chunk_type);
+    buf.extend_from_slice(data);
+    let mut crc = 0xFFFF_FFFFu32;
+    for &byte in chunk_type.iter().chain(data.iter()) {
+        for bit in 0..8 {
+            if (crc ^ byte as u32) & (1 << bit) != 0 {
+                crc = (crc >> 1) ^ 0xEDB88320;
+            } else {
+                crc >>= 1;
+            }
+        }
+    }
+    buf.extend_from_slice(&(crc ^ 0xFFFF_FFFF).to_be_bytes());
 }
 
 /// Extract a numeric token spanning position `pos` in the string.
@@ -242,9 +354,9 @@ fn assert_exact_match(actual: &str, reference: &str, path: &str) {
     if actual == reference {
         return;
     }
-    // Allow deflate-encoding differences in <?plantuml-src?> PI
-    let a = normalize_entity_link_ids(&normalize_filter_ids(&strip_nonvisual_data_attrs(&strip_plantuml_src_pi(actual))));
-    let r = normalize_entity_link_ids(&normalize_filter_ids(&strip_nonvisual_data_attrs(&strip_plantuml_src_pi(reference))));
+    // Allow deflate-encoding differences in <?plantuml-src?> PI and inline PNGs
+    let a = normalize_inline_pngs(&normalize_entity_link_ids(&normalize_filter_ids(&strip_nonvisual_data_attrs(&strip_plantuml_src_pi(actual)))));
+    let r = normalize_inline_pngs(&normalize_entity_link_ids(&normalize_filter_ids(&strip_nonvisual_data_attrs(&strip_plantuml_src_pi(reference)))));
     if a == r {
         return;
     }

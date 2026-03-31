@@ -1,14 +1,15 @@
 use std::fmt::Write;
 
 use crate::font_metrics;
-use crate::klimt::svg::{fmt_coord, xml_escape, LengthAdjust, SvgGraphic};
+use crate::klimt::svg::{fmt_coord, svg_comment_escape, xml_escape, LengthAdjust, SvgGraphic};
 use crate::layout::component::{
     ComponentEdgeLayout, ComponentGroupLayout, ComponentLayout, ComponentNodeLayout,
     ComponentNoteLayout,
 };
 use crate::model::component::{ComponentDiagram, ComponentKind};
 use crate::render::svg::{write_bg_rect, write_svg_root_bg};
-use crate::render::svg_richtext::render_creole_text;
+use crate::render::svg_richtext::{get_sprite_svg, render_creole_text};
+use crate::render::svg_sprite;
 use crate::style::SkinParams;
 use crate::Result;
 
@@ -226,13 +227,21 @@ fn render_group(
     let w = group.width;
     let h = group.height;
 
-    // HTML comment
-    sg.push_raw(&format!("<!--cluster {}-->", xml_escape(&group.id)));
+    // HTML comment — Java replaces non-ASCII and newlines with '?'
+    let comment_id = group.id.replace('\n', "?").replace(crate::NEWLINE_CHAR, "?");
+    sg.push_raw(&format!(
+        "<!--cluster {}-->",
+        svg_comment_escape(&comment_id)
+    ));
 
-    // Open semantic <g> with Java-matching attributes
+    // Open semantic <g> with Java-matching attributes.
+    // Java uses '.' for newlines in qualified names (from entity code/name).
+    let qn_for_attr = qualified_name
+        .replace('\n', ".")
+        .replace(crate::NEWLINE_CHAR, ".");
     let mut g_open = format!(
         r#"<g class="cluster" data-qualified-name="{}""#,
-        xml_escape(qualified_name)
+        xml_escape(&qn_for_attr)
     );
     if let Some(sl) = group.source_line {
         g_open.push_str(&format!(r#" data-source-line="{}""#, sl));
@@ -378,29 +387,104 @@ fn render_group(
             sg.set_stroke_width(1.0, None);
             sg.svg_rectangle(x, y, w, h, 2.5, 2.5, 0.0);
 
-            let tl = text_len(&group.name, 14.0, true);
-            let text_x = x + (w - tl) / 2.0;
-            let text_y = y + 15.9951;
-            sg.set_fill_color(font_color);
-            sg.svg_text(
-                &group.name,
-                text_x,
-                text_y,
-                Some("sans-serif"),
-                14.0,
-                Some("bold"),
-                None,
-                None,
-                tl,
-                LengthAdjust::Spacing,
-                None,
-                0,
-                None,
-            );
+            // Check for sprite stereotype
+            let sprite_h = render_group_sprite(sg, group, x, y, w);
+
+            // Name text — each line rendered with CENTER alignment.
+            // Java uses TextBlockVertical to stack lines, centering within the block width.
+            let name_lines: Vec<&str> = group.name.lines().collect();
+            let line_h =
+                font_metrics::line_height("SansSerif", FONT_SIZE, true, false);
+            let name_y_start = y + 2.0 + sprite_h;
+            for (li, line) in name_lines.iter().enumerate() {
+                let display_line = line.trim();
+                let tl = text_len(display_line, 14.0, true);
+                let text_x = x + (w - tl) / 2.0;
+                let ascent = font_metrics::ascent("SansSerif", FONT_SIZE, true, false);
+                let text_y = name_y_start + li as f64 * line_h + ascent;
+                sg.set_fill_color(font_color);
+                sg.svg_text(
+                    display_line,
+                    text_x,
+                    text_y,
+                    Some("sans-serif"),
+                    14.0,
+                    Some("bold"),
+                    None,
+                    None,
+                    tl,
+                    LengthAdjust::Spacing,
+                    None,
+                    0,
+                    None,
+                );
+            }
         }
     }
 
     sg.push_raw("</g>");
+}
+
+/// Render a sprite stereotype image for a group, if applicable.
+/// Returns the sprite height (0.0 if no sprite).
+fn render_group_sprite(
+    sg: &mut SvgGraphic,
+    group: &ComponentGroupLayout,
+    x: f64,
+    y: f64,
+    w: f64,
+) -> f64 {
+    let stereo = match &group.stereotype {
+        Some(s) if s.starts_with('$') => &s[1..],
+        _ => return 0.0,
+    };
+    let svg_content = match get_sprite_svg(stereo) {
+        Some(s) => s,
+        None => return 0.0,
+    };
+    let info = svg_sprite::sprite_info(&svg_content);
+    let sprite_w = info.vb_width;
+    let sprite_h = info.vb_height;
+    // Java: stereotype sprite centered at y=cluster_y+2
+    let sprite_x = x + (w - sprite_w) / 2.0;
+    let sprite_y = y + 2.0;
+    render_sprite_image(sg, &svg_content, sprite_x, sprite_y, sprite_w, sprite_h);
+    sprite_h
+}
+
+/// Render a sprite as an `<image>` element with inline PNG data URI.
+/// Java PlantUML renders monochrome sprites directly as PNG `<image>` elements
+/// (not wrapped in SVG containers like stdlib SVG sprites).
+fn render_sprite_image(
+    sg: &mut SvgGraphic,
+    svg_content: &str,
+    x: f64,
+    y: f64,
+    w: f64,
+    h: f64,
+) {
+    // Extract the PNG data URI from the sprite SVG.
+    // The sprite SVG format: <svg ...><image ... xlink:href="data:image/png;base64,..."/></svg>
+    if let Some(href_start) = svg_content.find("xlink:href=\"") {
+        let href_val_start = href_start + "xlink:href=\"".len();
+        if let Some(href_end) = svg_content[href_val_start..].find('"') {
+            let href = &svg_content[href_val_start..href_val_start + href_end];
+            if href.starts_with("data:image/png;base64,") {
+                sg.push_raw(&format!(
+                    r#"<image height="{}" width="{}" x="{}" xlink:href="{}" y="{}"/>"#,
+                    h as u32,
+                    w as u32,
+                    fmt_coord(x),
+                    href,
+                    fmt_coord(y),
+                ));
+                return;
+            }
+        }
+    }
+    // Fallback: use convert_svg_elements for non-PNG sprites
+    let converted = svg_sprite::convert_svg_elements(svg_content, x, y);
+    sg.push_raw(&converted);
 }
 
 // ---------------------------------------------------------------------------
@@ -511,14 +595,22 @@ fn render_node(
 /// Emit HTML comment + open `<g class="entity">` with Java-matching attributes.
 fn open_entity_g(sg: &mut SvgGraphic, node: &ComponentNodeLayout, meta: EntitySvgMeta<'_>) {
     if meta.emit_comment {
-        sg.push_raw(&format!("<!--entity {}-->", xml_escape(&node.id)));
+        sg.push_raw(&format!(
+            "<!--entity {}-->",
+            svg_comment_escape(&node.id)
+        ));
     }
     let source_line = node
         .source_line
         .map_or(String::new(), |l| format!(r#" data-source-line="{}""#, l));
+    // Java uses '.' for newlines in qualified names (from entity code/name).
+    let qn_for_attr = meta
+        .qualified_name
+        .replace('\n', ".")
+        .replace(crate::NEWLINE_CHAR, ".");
     sg.push_raw(&format!(
         r#"<g class="entity" data-qualified-name="{}"{source_line} id="{ent_id}">"#,
-        xml_escape(meta.qualified_name),
+        xml_escape(&qn_for_attr),
         ent_id = meta.ent_id,
     ));
 }
@@ -1084,39 +1176,77 @@ fn render_node_text(sg: &mut SvgGraphic, node: &ComponentNodeLayout, font_color:
     let cx = node.x + node.width / 2.0;
     let has_desc = !node.description.is_empty();
 
-    // Stereotype
+    // Check for sprite stereotype
+    let sprite_rendered = if let Some(ref stereotype) = node.stereotype {
+        if stereotype.starts_with('$') {
+            let sprite_name = &stereotype[1..];
+            if let Some(svg_content) = get_sprite_svg(sprite_name) {
+                let info = svg_sprite::sprite_info(&svg_content);
+                let sprite_w = info.vb_width;
+                let sprite_h = info.vb_height;
+                // Java USymbolRectangle.asSmall: margin(10,10,10,10)
+                // Sprite centered at (cx - sprite_w/2, node.y + margin_top)
+                let sprite_x = cx - sprite_w / 2.0;
+                let sprite_y = node.y + 10.0; // margin top = 10
+                render_sprite_image(sg, &svg_content, sprite_x, sprite_y, sprite_w, sprite_h);
+                Some(sprite_h)
+            } else {
+                None
+            }
+        } else {
+            None
+        }
+    } else {
+        None
+    };
+
+    // Stereotype text (only for non-sprite stereotypes)
     let mut y_offset = 0.0;
-    if let Some(ref stereotype) = node.stereotype {
-        let stereo_text = format!("\u{00AB}{stereotype}\u{00BB}");
-        let sy = node.y + FONT_SIZE + 4.0;
-        let tl = font_metrics::text_width(&stereo_text, "sans-serif", FONT_SIZE - 2.0, false, true);
-        sg.set_fill_color(font_color);
-        sg.svg_text(
-            &stereo_text,
-            cx - tl / 2.0,
-            sy,
-            Some("sans-serif"),
-            FONT_SIZE - 2.0,
-            None,
-            Some("italic"),
-            None,
-            tl,
-            LengthAdjust::Spacing,
-            None,
-            0,
-            None,
-        );
-        y_offset = LINE_HEIGHT;
+    if sprite_rendered.is_none() {
+        if let Some(ref stereotype) = node.stereotype {
+            let stereo_text = format!("\u{00AB}{stereotype}\u{00BB}");
+            let sy = node.y + FONT_SIZE + 4.0;
+            let tl =
+                font_metrics::text_width(&stereo_text, "sans-serif", FONT_SIZE - 2.0, false, true);
+            sg.set_fill_color(font_color);
+            sg.svg_text(
+                &stereo_text,
+                cx - tl / 2.0,
+                sy,
+                Some("sans-serif"),
+                FONT_SIZE - 2.0,
+                None,
+                Some("italic"),
+                None,
+                tl,
+                LengthAdjust::Spacing,
+                None,
+                0,
+                None,
+            );
+            y_offset = LINE_HEIGHT;
+        }
     }
 
-    // Name — Java: left-aligned, regular weight, x = rect_x + PADDING
-    let name_y = if has_desc {
+    // Name positioning
+    let name_y = if let Some(sprite_h) = sprite_rendered {
+        // Java USymbolRectangle.asSmall: label drawn at margin_top + sprite_h + ascent
+        let ascent = font_metrics::ascent("SansSerif", FONT_SIZE, false, false);
+        node.y + 10.0 + sprite_h + ascent
+    } else if has_desc {
         node.y + FONT_SIZE + 4.0 + y_offset
     } else {
         // Java: baseline = rect_y + 20 + ascent (15 padding + 5 component internal margin)
         node.y + 20.0 + font_metrics::ascent("SansSerif", FONT_SIZE, false, false)
     };
-    let name_x = node.x + 15.0;
+
+    // Name text — centered for sprite stereotype, left-aligned otherwise
+    let name_x = if sprite_rendered.is_some() {
+        let tl = font_metrics::text_width(&node.name, "SansSerif", FONT_SIZE, false, false);
+        cx - tl / 2.0
+    } else {
+        node.x + 15.0
+    };
     let tl = font_metrics::text_width(&node.name, "SansSerif", FONT_SIZE, false, false);
     let mut tmp = String::new();
     render_creole_text(

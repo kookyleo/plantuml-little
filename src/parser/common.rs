@@ -751,7 +751,8 @@ fn collect_block(
 /// Extract SVG sprite definitions from source text.
 ///
 /// Parses `sprite NAME <svg ...>...</svg>` blocks (single- or multi-line)
-/// and returns a map of sprite name -> SVG content, plus the cleaned source
+/// and hex-encoded sprite definitions `sprite $NAME [WxH/depth] { hex_rows }`.
+/// Returns a map of sprite name -> SVG content, plus the cleaned source
 /// with sprite definitions removed.
 pub fn extract_sprites(source: &str) -> (String, HashMap<String, String>) {
     let mut sprites = HashMap::new();
@@ -762,12 +763,13 @@ pub fn extract_sprites(source: &str) -> (String, HashMap<String, String>) {
     while i < lines.len() {
         let trimmed = lines[i].trim();
 
-        // Match: sprite [optional $]NAME <svg ...
+        // Match: sprite [optional $]NAME ...
         if let Some(rest) = trimmed.strip_prefix("sprite ") {
             let rest = rest.trim();
             // Strip optional leading $
             let rest = rest.strip_prefix('$').unwrap_or(rest);
-            // Find the name (everything before the first space or <)
+
+            // Try SVG format: sprite NAME <svg ...>...</svg>
             if let Some(svg_start) = rest.find("<svg") {
                 let name = rest[..svg_start].trim().to_string();
                 if !name.is_empty() {
@@ -797,6 +799,51 @@ pub fn extract_sprites(source: &str) -> (String, HashMap<String, String>) {
                     continue;
                 }
             }
+
+            // Try hex format: sprite $NAME [WxH/depth] { hex_rows }
+            if let Some((name, width, height, depth, header_has_brace)) =
+                parse_hex_sprite_header(rest)
+            {
+                cleaned.push(""); // sprite header line
+                i += 1;
+
+                // If the header line didn't contain '{', look for it on the next line
+                let mut found_brace = header_has_brace;
+                if !found_brace {
+                    while i < lines.len() {
+                        let t = lines[i].trim();
+                        cleaned.push("");
+                        i += 1;
+                        if t == "{" || t.starts_with('{') {
+                            found_brace = true;
+                            break;
+                        }
+                    }
+                }
+
+                if found_brace {
+                    // Collect hex rows until '}'
+                    let mut hex_rows: Vec<String> = Vec::new();
+                    while i < lines.len() {
+                        let t = lines[i].trim();
+                        cleaned.push("");
+                        if t == "}" || t.starts_with('}') {
+                            i += 1;
+                            break;
+                        }
+                        hex_rows.push(t.to_string());
+                        i += 1;
+                    }
+
+                    // Convert hex data to PNG and wrap in SVG
+                    if let Some(svg) =
+                        hex_sprite_to_svg(&hex_rows, width, height, depth)
+                    {
+                        sprites.insert(name, svg);
+                    }
+                }
+                continue;
+            }
         }
 
         cleaned.push(lines[i]);
@@ -804,6 +851,199 @@ pub fn extract_sprites(source: &str) -> (String, HashMap<String, String>) {
     }
 
     (cleaned.join("\n"), sprites)
+}
+
+/// Parse a hex sprite header line like `NAME [WxH/depth] {`
+/// Returns (name, width, height, depth, has_opening_brace).
+fn parse_hex_sprite_header(rest: &str) -> Option<(String, usize, usize, usize, bool)> {
+    // rest is after "sprite " and optional "$", e.g.:
+    //   "businessProcess [16x16/16] {"
+    //   "myIcon [32x32/4]"
+    let bracket_start = rest.find('[')?;
+    let name = rest[..bracket_start].trim().to_string();
+    if name.is_empty() {
+        return None;
+    }
+    let bracket_end = rest.find(']')?;
+    let dims = &rest[bracket_start + 1..bracket_end];
+
+    // Parse "WxH" or "WxH/depth"
+    let (wh, depth_str) = if let Some(slash) = dims.find('/') {
+        (&dims[..slash], &dims[slash + 1..])
+    } else {
+        (dims, "16") // default 16 gray levels
+    };
+    let x_pos = wh.find('x')?;
+    let width: usize = wh[..x_pos].trim().parse().ok()?;
+    let height: usize = wh[x_pos + 1..].trim().parse().ok()?;
+    let depth: usize = depth_str.trim().parse().ok()?;
+
+    let has_brace = rest[bracket_end + 1..].contains('{');
+    Some((name, width, height, depth, has_brace))
+}
+
+/// Convert hex sprite data to an SVG string wrapping a base64-encoded PNG image.
+///
+/// Java PlantUML renders monochrome sprites as raster PNG images encoded inline.
+/// The hex data encodes grayscale pixels: each hex character represents one pixel
+/// with a gray level from 0 (foreground/black) to depth-1 (background/transparent).
+fn hex_sprite_to_svg(
+    hex_rows: &[String],
+    width: usize,
+    height: usize,
+    depth: usize,
+) -> Option<String> {
+    // Parse hex data into a 2D gray array
+    let mut pixels: Vec<Vec<u8>> = Vec::with_capacity(height);
+    for row in hex_rows {
+        let mut pixel_row = Vec::with_capacity(width);
+        for ch in row.chars() {
+            if let Some(val) = ch.to_digit(16) {
+                pixel_row.push(val as u8);
+            }
+        }
+        // Pad or truncate to width
+        pixel_row.resize(width, (depth - 1) as u8);
+        pixels.push(pixel_row);
+    }
+    // Pad missing rows
+    while pixels.len() < height {
+        pixels.push(vec![(depth - 1) as u8; width]);
+    }
+
+    // Convert gray levels to RGBA pixels (Java algorithm from SpriteMonochrome.toUImage)
+    let max_level = (depth - 1) as f64;
+    // Find max coefficient for alpha scaling
+    let mut max_coef: f64 = 0.0;
+    for row in &pixels {
+        for &g in row {
+            let coef = g as f64 / max_level;
+            if coef > max_coef {
+                max_coef = coef;
+            }
+        }
+    }
+    if max_coef == 0.0 {
+        max_coef = 1.0; // avoid division by zero for all-zero sprites
+    }
+
+    let mut rgba = Vec::with_capacity(width * height * 4);
+    for row in &pixels {
+        for &g in row {
+            let coef = g as f64 / max_level;
+            // Color: interpolate between white (background) and black (foreground)
+            // coef=0 → background (white), coef=1 → foreground (black)
+            let r = ((1.0 - coef) * 255.0) as u8;
+            let green = r;
+            let b = r;
+            // Alpha: fully opaque when coef > maxCoef/4, otherwise proportional
+            let alpha = if coef > max_coef / 4.0 {
+                255u8
+            } else {
+                (255.0 * (coef * 4.0 / max_coef)) as u8
+            };
+            rgba.push(r);
+            rgba.push(green);
+            rgba.push(b);
+            rgba.push(alpha);
+        }
+    }
+
+    // Encode as PNG
+    let png_data = encode_png_rgba(width, height, &rgba)?;
+
+    // Encode as base64
+    use base64::Engine;
+    let b64 = base64::engine::general_purpose::STANDARD.encode(&png_data);
+    let data_uri = format!("data:image/png;base64,{b64}");
+
+    // Wrap in SVG container (Java format: <svg> with viewBox, containing <image>)
+    Some(format!(
+        r#"<svg viewBox="0 0 {width} {height}"><image width="{width}" height="{height}" xlink:href="{data_uri}"/></svg>"#,
+    ))
+}
+
+/// Minimal PNG encoder for RGBA pixel data.
+fn encode_png_rgba(width: usize, height: usize, rgba: &[u8]) -> Option<Vec<u8>> {
+    if rgba.len() != width * height * 4 {
+        return None;
+    }
+
+    let mut buf = Vec::new();
+
+    // PNG signature
+    buf.extend_from_slice(&[137, 80, 78, 71, 13, 10, 26, 10]);
+
+    // IHDR chunk
+    let mut ihdr = Vec::new();
+    ihdr.extend_from_slice(&(width as u32).to_be_bytes());
+    ihdr.extend_from_slice(&(height as u32).to_be_bytes());
+    ihdr.push(8); // bit depth
+    ihdr.push(6); // color type: RGBA
+    ihdr.push(0); // compression method
+    ihdr.push(0); // filter method
+    ihdr.push(0); // interlace method
+    write_png_chunk(&mut buf, b"IHDR", &ihdr);
+
+    // IDAT chunk: raw pixel data with filter byte per row, deflate-compressed
+    let mut raw_data = Vec::new();
+    for y in 0..height {
+        raw_data.push(0); // filter type: None
+        let row_start = y * width * 4;
+        let row_end = row_start + width * 4;
+        raw_data.extend_from_slice(&rgba[row_start..row_end]);
+    }
+
+    // Compress with deflate (zlib format)
+    use flate2::write::ZlibEncoder;
+    use flate2::Compression;
+    use std::io::Write;
+    // Java's ImageIO PNG encoder uses zlib compression level producing FLEVEL=1 (fast).
+    // flate2/miniz_oxide: level 1 produces the closest match to Java's zlib level 4.
+    let mut encoder = ZlibEncoder::new(Vec::new(), Compression::fast());
+    encoder.write_all(&raw_data).ok()?;
+    let compressed = encoder.finish().ok()?;
+    write_png_chunk(&mut buf, b"IDAT", &compressed);
+
+    // IEND chunk
+    write_png_chunk(&mut buf, b"IEND", &[]);
+
+    Some(buf)
+}
+
+fn write_png_chunk(buf: &mut Vec<u8>, chunk_type: &[u8; 4], data: &[u8]) {
+    buf.extend_from_slice(&(data.len() as u32).to_be_bytes());
+    buf.extend_from_slice(chunk_type);
+    buf.extend_from_slice(data);
+    // CRC32 over type + data
+    let crc = crc32(chunk_type, data);
+    buf.extend_from_slice(&crc.to_be_bytes());
+}
+
+fn crc32(chunk_type: &[u8], data: &[u8]) -> u32 {
+    // Standard CRC32 with PNG polynomial
+    static CRC_TABLE: std::sync::LazyLock<[u32; 256]> = std::sync::LazyLock::new(|| {
+        let mut table = [0u32; 256];
+        for n in 0..256u32 {
+            let mut c = n;
+            for _ in 0..8 {
+                if c & 1 != 0 {
+                    c = 0xEDB88320 ^ (c >> 1);
+                } else {
+                    c >>= 1;
+                }
+            }
+            table[n as usize] = c;
+        }
+        table
+    });
+
+    let mut crc = 0xFFFF_FFFFu32;
+    for &byte in chunk_type.iter().chain(data.iter()) {
+        let index = ((crc ^ byte as u32) & 0xFF) as usize;
+        crc = CRC_TABLE[index] ^ (crc >> 8);
+    }
+    crc ^ 0xFFFF_FFFF
 }
 
 #[cfg(test)]
@@ -1197,5 +1437,58 @@ mod tests {
         // Java treats `rectangle [...]` as CLASS, not COMPONENT.
         let content = "rectangle A [\ntest 1\ntest 2\n]\n";
         assert!(matches!(detect_diagram_type(content), DiagramHint::Class));
+    }
+
+    #[test]
+    fn extract_sprites_hex_format() {
+        let src = "sprite $icon [4x2/16] {\nF00F\n0FF0\n}\nAlice -> Bob\n";
+        let (cleaned, sprites) = extract_sprites(src);
+        assert_eq!(sprites.len(), 1, "should extract one hex sprite");
+        assert!(sprites.contains_key("icon"), "key should be 'icon'");
+        assert!(
+            sprites["icon"].contains("<image"),
+            "SVG should contain <image> element"
+        );
+        assert!(
+            sprites["icon"].contains("data:image/png;base64,"),
+            "should have base64 PNG"
+        );
+        assert!(
+            !cleaned.contains("sprite"),
+            "sprite lines should be removed from cleaned"
+        );
+        assert!(cleaned.contains("Alice -> Bob"));
+    }
+
+    #[test]
+    fn extract_sprites_hex_16x16() {
+        let src = concat!(
+            "sprite $businessProcess [16x16/16] {\n",
+            "FFFFFFFFFFFFFFFF\n",
+            "FFFFFFFFFFFFFFFF\n",
+            "FFFFFFFFFFFFFFFF\n",
+            "FFFFFFFFFFFFFFFF\n",
+            "FFFFFFFFFF0FFFFF\n",
+            "FFFFFFFFFF00FFFF\n",
+            "FF00000000000FFF\n",
+            "FF000000000000FF\n",
+            "FF00000000000FFF\n",
+            "FFFFFFFFFF00FFFF\n",
+            "FFFFFFFFFF0FFFFF\n",
+            "FFFFFFFFFFFFFFFF\n",
+            "FFFFFFFFFFFFFFFF\n",
+            "FFFFFFFFFFFFFFFF\n",
+            "FFFFFFFFFFFFFFFF\n",
+            "FFFFFFFFFFFFFFFF\n",
+            "}\n",
+            "rectangle A\n",
+        );
+        let (cleaned, sprites) = extract_sprites(src);
+        assert_eq!(sprites.len(), 1);
+        assert!(sprites.contains_key("businessProcess"));
+        let svg = &sprites["businessProcess"];
+        assert!(svg.contains("viewBox=\"0 0 16 16\""), "viewBox should be 16x16");
+        assert!(!cleaned.contains("sprite"));
+        assert!(cleaned.contains("rectangle A"));
     }
 }

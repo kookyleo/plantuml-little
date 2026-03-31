@@ -118,6 +118,18 @@ fn text_width(text: &str) -> f64 {
 /// gap(5) + icon_width(15) + right_pad(5) - right_PADDING(15) = 10
 const COMPONENT_ICON_EXTRA: f64 = 10.0;
 
+/// Get sprite dimensions if the stereotype references a registered sprite.
+/// Returns (width, height) of the sprite, or None if not a sprite.
+fn sprite_stereo_dimensions(stereotype: &str) -> Option<(f64, f64)> {
+    if !stereotype.starts_with('$') {
+        return None;
+    }
+    let sprite_name = &stereotype[1..];
+    let svg = crate::render::svg_richtext::get_sprite_svg(sprite_name)?;
+    let info = crate::render::svg_sprite::sprite_info(&svg);
+    Some((info.vb_width, info.vb_height))
+}
+
 /// Estimate the size of a component entity.
 fn estimate_entity_size(entity: &ComponentEntity) -> (f64, f64) {
     // Ports are small: 12x12 square (Java EntityPosition.RADIUS * 2)
@@ -127,17 +139,51 @@ fn estimate_entity_size(entity: &ComponentEntity) -> (f64, f64) {
         return (port_size, port_size);
     }
 
+    // Check if stereotype references a sprite
+    let sprite_dims = entity
+        .stereotype
+        .as_ref()
+        .and_then(|s| sprite_stereo_dimensions(s));
+
+    if let Some((sprite_w, sprite_h)) = sprite_dims {
+        // Java: USymbolRectangle.asSmall uses Margin(10,10,10,10).
+        // Dimension = margin.addDimension(stereo.mergeTB(label))
+        //   stereo = (sprite_w, sprite_h)
+        //   label  = (name_text_width, name_line_height)
+        //   mergeTB: width = max(sprite_w, label_w), height = sprite_h + label_h
+        //   addDimension: width += 20, height += 20
+        let name_lines: Vec<&str> = entity.name.lines().collect();
+        let name_line_count = name_lines.len().max(1);
+        let label_w = name_lines
+            .iter()
+            .map(|line| text_width(line))
+            .fold(0.0_f64, f64::max);
+        let label_h = name_line_count as f64 * LINE_HEIGHT;
+        let content_w = label_w.max(sprite_w);
+        let content_h = sprite_h + label_h;
+        let margin = 10.0; // Java Margin(10,10,10,10)
+        let width = content_w + 2.0 * margin;
+        let height = (content_h + 2.0 * margin).max(NODE_MIN_HEIGHT);
+        return (width, height);
+    }
+
+    // Non-sprite path: original sizing logic
     // Java: width = leftPad(15) + text + gap(5) + icon(15) + rightPad(5)
     //     = text + 40 = text + 2*PADDING + COMPONENT_ICON_EXTRA
     // Name may contain real newlines (from \n expansion) — split and measure each line
     let name_lines: Vec<&str> = entity.name.lines().collect();
     let name_line_count = name_lines.len().max(1);
+    let icon_extra = if matches!(entity.kind, ComponentKind::Component) {
+        COMPONENT_ICON_EXTRA
+    } else {
+        0.0
+    };
     let name_w = name_lines
         .iter()
         .map(|line| text_width(line))
         .fold(0.0_f64, f64::max)
         + 2.0 * PADDING
-        + COMPONENT_ICON_EXTRA;
+        + icon_extra;
 
     let desc_w = entity
         .description
@@ -363,15 +409,34 @@ pub fn layout_component(cd: &ComponentDiagram) -> Result<ComponentLayout> {
                 .iter()
                 .filter_map(|child_id| id_to_dot.get(child_id).cloned())
                 .collect();
-            // Compute cluster label dimensions from group name
+            // Compute cluster label dimensions from group name.
+            // Java ClusterHeader: stereoAndTitle = mergeTB(stereo, title)
+            //   dimLabel.getHeight() = stereo_h + title_h
+            //   titleAndAttributeHeight = (int)(dimLabel.getHeight() + ...)
+            // Then DOT label height = titleAndAttributeHeight - 5
+            // Java measures untrimmed lines for label width in DOT
             let name_lines: Vec<&str> = g.name.lines().collect();
             let name_line_count = name_lines.len().max(1) as f64;
             let label_w = name_lines
                 .iter()
                 .map(|line| font_metrics::text_width(line, "SansSerif", FONT_SIZE, true, false))
                 .fold(0.0_f64, f64::max);
-            let label_h =
+            let title_h =
                 name_line_count * font_metrics::line_height("SansSerif", FONT_SIZE, true, false);
+            // Add sprite height if stereotype references a sprite
+            let sprite_h = g
+                .stereotype
+                .as_ref()
+                .and_then(|s| sprite_stereo_dimensions(s))
+                .map_or(0.0, |(_, h)| h);
+            // Java: titleAndAttributeHeight = (int)(sprite_h + title_h)
+            // The -5 adjustment is already applied in cluster_dot_label (svek/mod.rs:888).
+            let raw_h = sprite_h + title_h;
+            let label_h = if sprite_h > 0.0 {
+                raw_h.floor()
+            } else {
+                raw_h
+            };
             LayoutClusterSpec {
                 id: sanitize_id(&g.id),
                 qualified_name: g.id.clone(),
