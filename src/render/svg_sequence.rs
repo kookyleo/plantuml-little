@@ -1935,11 +1935,21 @@ fn draw_self_message(
     teoz_mode: bool,
 ) {
     let sw = arrow_thickness as u32;
-    let from_x = msg.from_x;
     let to_x = msg.to_x;
-    let return_x = msg.self_return_x;
     let y = msg.y;
     let loop_height = 13.0;
+
+    // For left self-messages at level > 1, Java's drawLeftSide shifts line endpoints
+    // and decoration positions right by (level-1)*LIVE_DELTA_SIZE to span stacked
+    // activation bars. Compute this shift and apply it to from_x/return_x.
+    // Text positioning uses unshifted msg.from_x.
+    let left_level_shift = if msg.is_left && msg.active_level > 1 {
+        (msg.active_level - 1) as f64 * 5.0
+    } else {
+        0.0
+    };
+    let from_x = msg.from_x + left_level_shift;
+    let return_x = msg.self_return_x + left_level_shift;
 
     // Java teoz does not wrap messages in <g class="message">
     if !teoz_mode {
@@ -1958,10 +1968,8 @@ fn draw_self_message(
     const THIN_CIRCLE: f64 = 1.5;
 
     // Draw circle decorations for self-messages
-    // circle_from → outgoing line, circle_to → return line
-    // Java draws circles at the activation bar edge - 0.5:
-    //   left self-msg: centerX - leftShift - 0.5 = from_x - 0.5
-    //   right self-msg: centerX + rightShift - 0.5 = from_x - 0.5
+    // Circles are drawn at the activation bar edge - 0.5.
+    // For left self-messages, from_x already includes left_level_shift.
     if msg.circle_from {
         let cx = from_x - 0.5;
         let cy = y - 0.75;
@@ -2002,9 +2010,28 @@ fn draw_self_message(
     // `to_x` is the far end of the horizontal
     // `return_x` is the return line endpoint (at lifeline/activation edge)
 
-    // Cross offsets: Java adds 2*spaceCrossX to x1 (outgoing) or x2 (return)
-    let cross_from_offset = if msg.cross_from { 2.0 * SPACE_CROSS_X } else { 0.0 };
-    let cross_to_offset = if msg.cross_to { 2.0 * SPACE_CROSS_X } else { 0.0 };
+    // Cross offsets: for left self-messages, Java uses level-based indent
+    // (spaceCrossX + level*deltaSize) instead of simple 2*spaceCrossX.
+    let level = msg.active_level;
+    let extra_live_delta_indent = level as f64 * 5.0;
+    let cross_from_offset = if msg.cross_from {
+        if msg.is_left {
+            SPACE_CROSS_X + if level > 0 { extra_live_delta_indent } else { SPACE_CROSS_X }
+        } else {
+            2.0 * SPACE_CROSS_X
+        }
+    } else {
+        0.0
+    };
+    let cross_to_offset = if msg.cross_to {
+        if msg.is_left {
+            SPACE_CROSS_X + if level > 0 { extra_live_delta_indent } else { SPACE_CROSS_X }
+        } else {
+            2.0 * SPACE_CROSS_X
+        }
+    } else {
+        0.0
+    };
     // Circle offset: circle at from shifts outgoing line.
     // For bidirectional (arrowhead at outgoing), full shift (diam/2 + thin).
     // For non-bidirectional, only diam/2.
@@ -2017,11 +2044,10 @@ fn draw_self_message(
 
     // Line 1: outgoing horizontal
     let (line1_x1, line1_x2) = if msg.is_left {
-        // Left self-msg: outgoing goes left from lifeline
-        // Java: x1 starts at 0, incremented by 1 before drawing.
-        // When decoration1=CIRCLE, x1 += diamCircle/2 - thinCircle = 2.5,
-        // then x1 += 1 → total shift = 3.5 (vs 1 without circle).
-        // Net shortening from circle = diamCircle/2 (4.0) from the right end.
+        // Left self-msg: Java drawLeftSide x1 computation.
+        // For circle_from: x1 += diamCircle/2 - thinCircle + (head1==NONE ? thinCircle : 0)
+        // For left self-msgs (reverseDefine), outgoing end always has head=NONE,
+        // so circle_from shortens by full diamCircle/2 (= 4.0).
         let circle_from_outgoing_shift = if msg.circle_from { DIAM_CIRCLE / 2.0 } else { 0.0 };
         (to_x, from_x - 1.0 - circle_from_outgoing_shift - cross_from_offset)
     } else {
@@ -2099,8 +2125,9 @@ fn draw_self_message(
     // Cross (X) decoration at source (outgoing line) — drawn before arrowhead
     if msg.cross_from {
         let x0 = if msg.is_left {
-            // Left self-msg: cross on outgoing (right side)
-            from_x - SPACE_CROSS_X - ARROW_DELTA_X_SELF
+            // Left self-msg: Java draws at (prefTextWidth - x1 - spaceCrossX/2)
+            // which equals line1_x2 - spaceCrossX/2
+            line1_x2 - SPACE_CROSS_X / 2.0
         } else {
             // Right self-msg: cross on outgoing (left side)
             from_x + SPACE_CROSS_X
@@ -2160,7 +2187,9 @@ fn draw_self_message(
     if msg.cross_to {
         // Cross (X) at return line replaces arrowhead
         let x0 = if msg.is_left {
-            from_x - SPACE_CROSS_X - ARROW_DELTA_X_SELF
+            // Java: (prefTextWidth - x2 - spaceCrossX/2) = line3_x2 - spaceCrossX/2
+            // (x2 not adjusted by NORMAL/ASYNC post-increment since cross replaces arrow)
+            line3_x2 - SPACE_CROSS_X / 2.0
         } else {
             from_x + SPACE_CROSS_X
         };
@@ -2181,8 +2210,12 @@ fn draw_self_message(
         ).unwrap();
     } else if msg.is_left {
         // Left self-message: arrowhead points RIGHT at return
-        // When circle_to is present, the arrowhead shifts left by circle offset
-        let tip_x = return_x - 1.0 - circle_to_line_offset;
+        // Java polygon vertex for full arrow: tip at (0,0) → line3_x2.
+        // Half arrows and open heads: tip at (-1,0) → line3_x2 - 1.
+        let is_full_filled = matches!(msg.arrow_head, SeqArrowHead::Filled)
+            && !msg.has_open_head
+            && !msg.cross_to;
+        let tip_x = if is_full_filled { line3_x2 } else { line3_x2 - 1.0 };
         if msg.has_open_head {
             if !matches!(msg.arrow_head, SeqArrowHead::HalfBottom) {
                 write!(
@@ -2351,7 +2384,9 @@ fn draw_self_message(
                 })
                 .fold(0.0_f64, f64::max);
             let preferred = f64::max(text_w + 14.0, crate::skin::rose::SELF_ARROW_WIDTH + 5.0);
-            from_x - preferred + 7.0
+            // Use unshifted from_x for text (Java: text at origin + marginX1,
+            // not level-shifted)
+            msg.from_x - preferred + 7.0
         } else {
             return_x + 6.0
         };

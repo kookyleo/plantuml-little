@@ -220,6 +220,10 @@ pub struct MessageLayout {
     /// Java CommunicationExoTile uses textDeltaX to shift text when the arrow
     /// area extends to the diagram edge but text remains near the participant.
     pub text_delta_x: f64,
+    /// Activation level at the self-message participant.
+    /// Used by the renderer to adjust self-message line positions for stacked
+    /// activation bars (Java: CommunicationTileSelf.drawU level-based shift).
+    pub active_level: usize,
 }
 
 /// Activation bar layout
@@ -1351,6 +1355,7 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
                     cross_to: msg.cross_to,
                     bidirectional: msg.bidirectional,
                     text_delta_x: 0.0,
+                    active_level: 0,
                 });
 
                 // Compute self-message arrow preferred width (used for fragment

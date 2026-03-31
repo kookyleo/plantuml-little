@@ -1147,6 +1147,18 @@ pub fn build_teoz_layout(sd: &SequenceDiagram, skin: &SkinParams) -> Result<SeqL
                     let to_center = livings[real_to].pos_c;
                     let tm = TextMetrics::new(7.0, 7.0, 1.0, text_w, text_h);
                     let height = rose::arrow_preferred_size(&tm, 0.0, 0.0).height;
+                    // Boundary arrows need the activation level of the real participant
+                    // for position adjustments (Java: CommunicationExoTile.drawU).
+                    let fl = if is_boundary_from {
+                        0
+                    } else {
+                        active_levels.get(&msg.from).copied().unwrap_or(0)
+                    };
+                    let tl = if is_boundary_to {
+                        0
+                    } else {
+                        active_levels.get(&msg.to).copied().unwrap_or(0)
+                    };
                     tiles.push(TeozTile::Communication {
                         from_name: msg.from.clone(),
                         to_name: msg.to.clone(),
@@ -1168,8 +1180,8 @@ pub fn build_teoz_layout(sd: &SequenceDiagram, skin: &SkinParams) -> Result<SeqL
                         cross_from: msg.cross_from,
                         cross_to: msg.cross_to,
                         is_parallel: msg.parallel,
-                        from_level: 0,
-                        to_level: 0,
+                        from_level: fl,
+                        to_level: tl,
                         hidden: msg.hidden,
                         bidirectional: msg.bidirectional,
                         is_short_gate: msg.is_short_gate,
@@ -2594,7 +2606,9 @@ pub fn build_teoz_layout(sd: &SequenceDiagram, skin: &SkinParams) -> Result<SeqL
 
                     if is_gate_to {
                         // Right boundary (->]): arrow extends to the right diagram edge
-                        let fx = raw_from_x;
+                        // Java: x1 += LIVE_DELTA_SIZE * level
+                        let mut fx = raw_from_x;
+                        fx += 5.0 * (*from_level as f64);
                         let mut tx = border2;
                         // Java: decoration2==CIRCLE && TO_RIGHT → x2 -= 6
                         if *circle_to {
@@ -2603,7 +2617,11 @@ pub fn build_teoz_layout(sd: &SequenceDiagram, skin: &SkinParams) -> Result<SeqL
                         (fx, tx, false, 0.0)
                     } else {
                         // Left boundary ([->): arrow extends from the left diagram edge
-                        let tx = raw_to_x;
+                        // Java: x2 += LIVE_DELTA_SIZE * (level - 2)
+                        let mut tx = raw_to_x;
+                        if *to_level > 0 {
+                            tx += 5.0 * (*to_level as f64 - 2.0);
+                        }
                         // Java CommunicationExoTile: textDeltaX is computed BEFORE
                         // circle adjustment, then x1 is shifted for circle.
                         let arrow_span = text_width + 24.0;
@@ -2678,6 +2696,7 @@ pub fn build_teoz_layout(sd: &SequenceDiagram, skin: &SkinParams) -> Result<SeqL
                     cross_to: *cross_to,
                     bidirectional: *bidirectional,
                     text_delta_x,
+                    active_level: 0,
                 });
                 last_msg_idx = Some(messages.len() - 1);
             }
@@ -2717,7 +2736,12 @@ pub fn build_teoz_layout(sd: &SequenceDiagram, skin: &SkinParams) -> Result<SeqL
                 let self_y_offset = rose::self_arrow_start_point(&self_tm).y;
 
                 // Compute self-message from_x/to_x/return_x accounting for
-                // activation bar, matching Java's LivingParticipantBox logic.
+                // activation bar, matching Java's CommunicationTileSelf.drawU().
+                //
+                // Right side: Java shifts origin by level * LIVE_DELTA_SIZE.
+                // Left side: leftShift is always ACTIVATION_WIDTH/2 (5) when active;
+                //   level-based adjustments for lines/decorations are applied in the renderer.
+                let al = *active_level as usize;
                 let (self_from_x, self_return_x, self_to_x) = if is_left {
                     let act_left = if has_bar {
                         cx - ACTIVATION_WIDTH / 2.0
@@ -2729,8 +2753,9 @@ pub fn build_teoz_layout(sd: &SequenceDiagram, skin: &SkinParams) -> Result<SeqL
                     let to = act_left - SELF_MSG_WIDTH;
                     (outgoing_x, ret_x, to)
                 } else {
+                    // Java: x1 = posC + LIVE_DELTA_SIZE * level
                     let act_right = if has_bar {
-                        cx + ACTIVATION_WIDTH / 2.0
+                        cx + active_right_shift(al)
                     } else {
                         cx
                     };
@@ -2762,6 +2787,7 @@ pub fn build_teoz_layout(sd: &SequenceDiagram, skin: &SkinParams) -> Result<SeqL
                     cross_to: *cross_to,
                     bidirectional: *bidirectional,
                     text_delta_x: 0.0,
+                    active_level: *active_level as usize,
                 });
                 last_msg_idx = Some(messages.len() - 1);
             }
