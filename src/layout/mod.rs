@@ -706,25 +706,30 @@ fn estimate_entity_size(
 /// Java: body text at font-size 14, padding 10px, no header/separator.
 fn estimate_rectangle_size(entity: &Entity) -> (f64, f64) {
     let desc_font_size = 14.0_f64;
-    let desc_lh = font_metrics::line_height("SansSerif", desc_font_size, false, false);
     let padding = 10.0;
 
-    let max_line_w = entity
-        .description
-        .iter()
-        .map(|l| font_metrics::text_width(l, "SansSerif", desc_font_size, false, false))
-        .fold(0.0_f64, f64::max);
+    // Use creole measurement to account for table syntax, inline markup, etc.
+    // preserve_backslash_n=true: Java keeps literal \n as displayable text in bracket bodies.
+    let (content_w, content_h) = crate::render::svg_richtext::measure_creole_display_lines(
+        &entity.description,
+        "SansSerif",
+        desc_font_size,
+        false,
+        false,
+        true,
+    );
 
-    let n_lines = entity.description.len().max(1) as f64;
-    let width = max_line_w + 2.0 * padding;
-    let height = n_lines * desc_lh + 2.0 * padding;
+    let width = content_w + 2.0 * padding;
+    let height = content_h + 2.0 * padding;
 
     log::debug!(
-        "estimate_rectangle_size: {} -> ({:.2}, {:.2}) [{} lines]",
+        "estimate_rectangle_size: {} -> ({:.2}, {:.2}) [{} desc lines, content {:.2}x{:.2}]",
         entity.name,
         width,
         height,
-        entity.description.len()
+        entity.description.len(),
+        content_w,
+        content_h,
     );
     (width, height)
 }

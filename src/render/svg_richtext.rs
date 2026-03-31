@@ -323,7 +323,20 @@ pub fn creole_text_width(
     bold: bool,
     italic: bool,
 ) -> f64 {
-    let lines = flatten_rich_lines(&parse_creole(text));
+    creole_text_width_opts(text, default_font, font_size, bold, italic, false)
+}
+
+/// Like `creole_text_width` but with `preserve_backslash_n` option.
+/// When true, literal `\n` in the text is treated as displayable text, not a line break.
+fn creole_text_width_opts(
+    text: &str,
+    default_font: &str,
+    font_size: f64,
+    bold: bool,
+    italic: bool,
+    preserve_backslash_n: bool,
+) -> f64 {
+    let lines = flatten_rich_lines(&parse_creole_opts(text, preserve_backslash_n));
     if lines.is_empty() {
         return 0.0;
     }
@@ -691,8 +704,14 @@ pub fn measure_creole_display_lines(
         match block {
             DisplayBlock::Text(text_lines) => {
                 for line in text_lines {
-                    width =
-                        width.max(creole_text_width(line, default_font, font_size, bold, italic));
+                    width = width.max(creole_text_width_opts(
+                        line,
+                        default_font,
+                        font_size,
+                        bold,
+                        italic,
+                        preserve_backslash_n,
+                    ));
                     height += creole_line_height(line, default_font, font_size);
                 }
             }

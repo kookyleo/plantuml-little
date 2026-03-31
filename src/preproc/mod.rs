@@ -5112,4 +5112,34 @@ mod tests {
             out
         );
     }
+
+    #[test]
+    fn test_jaws3_preproc_newline_in_table_variable() {
+        let source = r#"@startuml
+!global $table = "|= Field1 |= Field 2 |"
+!procedure $row($value1, $value2)
+%set_variable_value("$table", %get_variable_value("$table") + %newline() + "| " + $value1 + " | " + $value2 + " |")
+!endfunction
+
+$row("1", "2")
+$row("3", "4")
+
+rectangle r [
+<i>on rectangle:
+$table
+]
+@enduml"#;
+        let expanded = preprocess(source).unwrap();
+        // %newline() in expression context produces \n (actual newline), which
+        // causes lines() to split the table rows into separate lines.
+        // This is the expected Rust behavior matching the visual result.
+        let table_lines: Vec<&str> = expanded
+            .lines()
+            .filter(|l| l.trim_start().starts_with('|'))
+            .collect();
+        assert_eq!(table_lines.len(), 3, "table should produce 3 separate rows");
+        assert!(table_lines[0].contains("Field1"));
+        assert!(table_lines[1].contains("1"));
+        assert!(table_lines[2].contains("3"));
+    }
 }

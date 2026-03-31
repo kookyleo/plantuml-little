@@ -26,7 +26,7 @@ use crate::svek::edge::LineOfSegments;
 
 use super::svg_richtext::{
     count_creole_lines, creole_plain_text, get_default_font_family_pub, max_creole_plain_line_len,
-    render_creole_text, set_default_font_family,
+    render_creole_display_lines, render_creole_text, set_default_font_family,
 };
 use super::svg_sequence;
 
@@ -2989,34 +2989,23 @@ fn draw_rectangle_entity_box(
     sg.svg_rectangle(x, y, w, h, rx, rx, 0.0);
     tracker.track_rect(x, y, w, h);
 
-    // Java: description text at font-size 14, left-aligned, padding 10px
-    let desc_font_size = 14.0_f64;
-    let desc_lh = font_metrics::line_height("SansSerif", desc_font_size, false, false);
-    let desc_ascent = font_metrics::ascent("SansSerif", desc_font_size, false, false);
+    // Java: description text at font-size 14, left-aligned, padding 10px.
+    // Use creole rendering to handle inline markup (<i>, <b>, etc.) and table syntax (|= ... |).
+    // preserve_backslash_n=true: Java keeps literal \n as displayable text in bracket bodies.
     let text_x = x + 10.0;
-    // Java: first text y = rect_y + padding(10) + ascent
-    let first_y = y + 10.0 + desc_ascent;
+    let top_y = y + 10.0;
 
-    for (i, line) in entity.description.iter().enumerate() {
-        let text_y = first_y + i as f64 * desc_lh;
-        let tl = font_metrics::text_width(line, "SansSerif", desc_font_size, false, false);
-        sg.set_fill_color(font_color);
-        sg.svg_text(
-            line,
-            text_x,
-            text_y,
-            Some("sans-serif"),
-            desc_font_size,
-            None,
-            None,
-            None,
-            tl,
-            crate::klimt::svg::LengthAdjust::Spacing,
-            None,
-            0, // horizontal
-            None,
-        );
-    }
+    let mut tmp = String::new();
+    render_creole_display_lines(
+        &mut tmp,
+        &entity.description,
+        text_x,
+        top_y,
+        font_color,
+        r#"font-size="14""#,
+        true,
+    );
+    sg.push_raw(&tmp);
 }
 
 ///

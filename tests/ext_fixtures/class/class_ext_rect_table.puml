@@ -1,0 +1,8 @@
+@startuml
+rectangle r [
+<i>on rectangle:
+|= Field1 |= Field 2 |
+| 1 | 2 |
+| 3 | 4 |
+]
+@enduml
