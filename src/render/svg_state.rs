@@ -796,21 +796,9 @@ fn render_composite(
     }
 
     // Recursively render children with parent name for qualified naming.
-    // Java renders non-special entities first, then special (start/end circles) last.
-    for child in node
-        .children
-        .iter()
-        .filter(|c| !c.is_initial && !c.is_final)
-    {
-        render_state_node_with_parent(
-            sg, tracker, child, bg, border, font_color, ent_id_map, Some(&qname),
-        );
-    }
-    for child in node
-        .children
-        .iter()
-        .filter(|c| c.is_initial || c.is_final)
-    {
+    // Java renders entities in LinkedHashMap insertion order (= parse order).
+    // The children list already preserves the correct order from parsing.
+    for child in &node.children {
         render_state_node_with_parent(
             sg, tracker, child, bg, border, font_color, ent_id_map, Some(&qname),
         );

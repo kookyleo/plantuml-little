@@ -214,7 +214,12 @@ pub fn parse_state_diagram(source: &str) -> Result<StateDiagram> {
 
         // Handle closing brace `}` for composite states
         if trimmed == "}" {
-            if let Some(frame) = stack.pop() {
+            if let Some(mut frame) = stack.pop() {
+                // Apply Java two-pass ordering to children before closing.
+                reorder_java_pass_order(&mut frame.state.children);
+                for region in &mut frame.state.regions {
+                    reorder_java_pass_order(region);
+                }
                 debug!(
                     "line {}: closing composite state '{}' with {} children, {} transitions",
                     line_num,
@@ -424,6 +429,14 @@ pub fn parse_state_diagram(source: &str) -> Result<StateDiagram> {
             message: format!("unclosed composite state(s): {}", unclosed.join(", ")),
         });
     }
+
+    // Java uses a two-pass parser: pass ONE processes `state` keyword
+    // declarations (creating Quark children), pass TWO processes transitions
+    // (creating link entities like [*]).  This means explicitly declared
+    // states always precede auto-created ones in the Quark children order.
+    // We emulate this by reordering: explicitly declared states first
+    // (preserving relative order), then auto-created states.
+    reorder_java_pass_order(&mut top_states);
 
     debug!(
         "parsed state diagram: {} states, {} transitions, {} notes",
@@ -1159,6 +1172,43 @@ fn merge_or_add_state(states: &mut Vec<State>, new_state: State) {
         };
     } else {
         states.push(new_state);
+    }
+}
+
+/// Reorder state children to match Java's two-pass ordering.
+///
+/// Java processes `state` keyword declarations in pass ONE and transitions
+/// in pass TWO.  The Quark LinkedHashMap preserves insertion order, so
+/// states declared with `state` keyword appear before states auto-created
+/// by transitions.  We emulate this by stable-sorting: explicitly declared
+/// states (those with `explicit_source_line.is_some()`) first, then
+/// auto-created states, preserving relative order within each group.
+/// Also recursively reorder children of composite states.
+fn reorder_java_pass_order(states: &mut Vec<State>) {
+    // Stable partition: explicit-first, auto-created-second.
+    // We use a two-pass collect to preserve relative order.
+    let explicit: Vec<State> = states
+        .iter()
+        .filter(|s| s.explicit_source_line.is_some())
+        .cloned()
+        .collect();
+    let auto: Vec<State> = states
+        .iter()
+        .filter(|s| s.explicit_source_line.is_none())
+        .cloned()
+        .collect();
+    states.clear();
+    states.extend(explicit);
+    states.extend(auto);
+
+    // Recursively reorder children of composite states
+    for state in states.iter_mut() {
+        if !state.children.is_empty() {
+            reorder_java_pass_order(&mut state.children);
+        }
+        for region in &mut state.regions {
+            reorder_java_pass_order(region);
+        }
     }
 }
 

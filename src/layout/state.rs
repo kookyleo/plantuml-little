@@ -162,6 +162,36 @@ fn composite_height_overhead() -> f64 {
     composite_title_height() + 2.0 * IE_MARGIN + 2.0 * IE_MARGIN_LINE
 }
 
+/// Compute the inner moveDelta margin for a composite state.
+///
+/// Java: `moveDelta.y = 6 - LF_min_y`.  The LimitFinder applies a -1
+/// correction for rectangles (`drawRectangle`) but not for circles
+/// (`drawEllipse`).  If the topmost child (minimum y after graphviz
+/// positioning) is a rect, LF_min_y = -1 → margin = 7.  If the topmost
+/// child is a circle (initial/final/choice), LF_min_y = 0 → margin = 6.
+fn composite_inner_margin(children: &[StateNodeLayout]) -> f64 {
+    fn is_circle(c: &StateNodeLayout) -> bool {
+        c.is_initial
+            || c.is_final
+            || matches!(
+                c.kind,
+                StateKind::Choice
+                    | StateKind::History
+                    | StateKind::DeepHistory
+                    | StateKind::EntryPoint
+                    | StateKind::ExitPoint
+                    | StateKind::End
+            )
+    }
+    let topmost = children
+        .iter()
+        .min_by(|a, b| a.y.partial_cmp(&b.y).unwrap());
+    match topmost {
+        Some(c) if is_circle(c) => 6.0,
+        _ => MARGIN, // 7.0
+    }
+}
+
 // ---------------------------------------------------------------------------
 // Text measurement helpers
 // ---------------------------------------------------------------------------
@@ -1068,10 +1098,7 @@ fn layout_states_ranked_with_spacing(
             // Java inner SvekResult adds moveDelta (inner margin) on top of
             // the composite header offset.
             if node.is_composite {
-                let has_rect_child = node.children.iter().any(|c| {
-                    !c.is_initial && !c.is_final && !matches!(c.kind, StateKind::Choice)
-                });
-                let inner_margin = if has_rect_child { MARGIN } else { 6.0 };
+                let inner_margin = composite_inner_margin(&node.children);
                 let child_offset_x = x + COMPOSITE_PADDING;
                 let child_offset_y = y + composite_inner_y_offset() + inner_margin;
                 offset_children(&mut node.children, child_offset_x, child_offset_y);
@@ -1871,11 +1898,7 @@ pub fn layout_state(diagram: &StateDiagram) -> Result<StateLayout> {
             // the effective margin is 7. For circle-only layouts (no rect
             // correction), the margin is 6.
             if node.is_composite {
-                let has_rect_child = node
-                    .children
-                    .iter()
-                    .any(|c| !c.is_initial && !c.is_final && !matches!(c.kind, StateKind::Choice));
-                let inner_margin = if has_rect_child { MARGIN } else { 6.0 };
+                let inner_margin = composite_inner_margin(&node.children);
                 let child_offset_x = x + COMPOSITE_PADDING;
                 let child_offset_y = y + composite_inner_y_offset() + inner_margin;
                 offset_children(&mut node.children, child_offset_x, child_offset_y);
