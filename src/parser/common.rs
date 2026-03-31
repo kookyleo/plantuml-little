@@ -754,8 +754,11 @@ fn collect_block(
 /// and hex-encoded sprite definitions `sprite $NAME [WxH/depth] { hex_rows }`.
 /// Returns a map of sprite name -> SVG content, plus the cleaned source
 /// with sprite definitions removed.
-pub fn extract_sprites(source: &str) -> (String, HashMap<String, String>) {
+pub fn extract_sprites(
+    source: &str,
+) -> (String, HashMap<String, String>, HashMap<String, SpriteGrayData>) {
     let mut sprites = HashMap::new();
+    let mut gray_data_map: HashMap<String, SpriteGrayData> = HashMap::new();
     let mut cleaned = Vec::new();
     let lines: Vec<&str> = source.lines().collect();
     let mut i = 0;
@@ -836,10 +839,11 @@ pub fn extract_sprites(source: &str) -> (String, HashMap<String, String>) {
                     }
 
                     // Convert hex data to PNG and wrap in SVG
-                    if let Some(svg) =
+                    if let Some((svg, gdata)) =
                         hex_sprite_to_svg(&hex_rows, width, height, depth)
                     {
-                        sprites.insert(name, svg);
+                        sprites.insert(name.clone(), svg);
+                        gray_data_map.insert(name, gdata);
                     }
                 }
                 continue;
@@ -850,7 +854,7 @@ pub fn extract_sprites(source: &str) -> (String, HashMap<String, String>) {
         i += 1;
     }
 
-    (cleaned.join("\n"), sprites)
+    (cleaned.join("\n"), sprites, gray_data_map)
 }
 
 /// Parse a hex sprite header line like `NAME [WxH/depth] {`
@@ -882,6 +886,20 @@ fn parse_hex_sprite_header(rest: &str) -> Option<(String, usize, usize, usize, b
     Some((name, width, height, depth, has_brace))
 }
 
+/// Raw gray-level data for a monochrome sprite, stored for deferred PNG generation.
+/// Java re-renders sprites at draw time with context-dependent background colors
+/// (e.g. entity fill color), so we keep the raw data for on-demand PNG generation.
+#[derive(Clone, Debug)]
+pub struct SpriteGrayData {
+    pub width: usize,
+    pub height: usize,
+    pub depth: usize,
+    /// Flat row-major array of gray levels, each in `0..depth`.
+    pub gray: Vec<u8>,
+    /// Pre-computed max coefficient (max gray / (depth-1)) for alpha scaling.
+    pub max_coef: f64,
+}
+
 /// Convert hex sprite data to an SVG string wrapping a base64-encoded PNG image.
 ///
 /// Java PlantUML renders monochrome sprites as raster PNG images encoded inline.
@@ -892,75 +910,102 @@ fn hex_sprite_to_svg(
     width: usize,
     height: usize,
     depth: usize,
-) -> Option<String> {
-    // Parse hex data into a 2D gray array
-    let mut pixels: Vec<Vec<u8>> = Vec::with_capacity(height);
+) -> Option<(String, SpriteGrayData)> {
+    let gray_data = parse_sprite_gray(hex_rows, width, height, depth);
+    let data_uri = sprite_gray_to_data_uri(&gray_data, 255, 255, 255)?;
+
+    // Wrap in SVG container (Java format: <svg> with viewBox, containing <image>)
+    let svg = format!(
+        r#"<svg viewBox="0 0 {width} {height}"><image width="{width}" height="{height}" xlink:href="{data_uri}"/></svg>"#,
+    );
+    Some((svg, gray_data))
+}
+
+/// Parse hex sprite rows into a `SpriteGrayData` structure.
+fn parse_sprite_gray(
+    hex_rows: &[String],
+    width: usize,
+    height: usize,
+    depth: usize,
+) -> SpriteGrayData {
+    let mut gray = Vec::with_capacity(width * height);
     for row in hex_rows {
-        let mut pixel_row = Vec::with_capacity(width);
+        let mut count = 0;
         for ch in row.chars() {
             if let Some(val) = ch.to_digit(16) {
-                pixel_row.push(val as u8);
+                gray.push(val as u8);
+                count += 1;
             }
         }
-        // Pad or truncate to width
-        pixel_row.resize(width, (depth - 1) as u8);
-        pixels.push(pixel_row);
+        // Pad to width
+        while count < width {
+            gray.push((depth - 1) as u8);
+            count += 1;
+        }
     }
     // Pad missing rows
-    while pixels.len() < height {
-        pixels.push(vec![(depth - 1) as u8; width]);
+    while gray.len() < width * height {
+        gray.push((depth - 1) as u8);
     }
 
-    // Convert gray levels to RGBA pixels (Java algorithm from SpriteMonochrome.toUImage)
     let max_level = (depth - 1) as f64;
-    // Find max coefficient for alpha scaling
     let mut max_coef: f64 = 0.0;
-    for row in &pixels {
-        for &g in row {
-            let coef = g as f64 / max_level;
-            if coef > max_coef {
-                max_coef = coef;
-            }
+    for &g in &gray {
+        let coef = g as f64 / max_level;
+        if coef > max_coef {
+            max_coef = coef;
         }
     }
     if max_coef == 0.0 {
-        max_coef = 1.0; // avoid division by zero for all-zero sprites
+        max_coef = 1.0;
     }
 
-    let mut rgba = Vec::with_capacity(width * height * 4);
-    for row in &pixels {
-        for &g in row {
-            let coef = g as f64 / max_level;
-            // Color: interpolate between white (background) and black (foreground)
-            // coef=0 → background (white), coef=1 → foreground (black)
-            let r = ((1.0 - coef) * 255.0) as u8;
-            let green = r;
-            let b = r;
-            // Alpha: fully opaque when coef > maxCoef/4, otherwise proportional
-            let alpha = if coef > max_coef / 4.0 {
-                255u8
-            } else {
-                (255.0 * (coef * 4.0 / max_coef)) as u8
-            };
-            rgba.push(r);
-            rgba.push(green);
-            rgba.push(b);
-            rgba.push(alpha);
-        }
+    SpriteGrayData {
+        width,
+        height,
+        depth,
+        gray,
+        max_coef,
+    }
+}
+
+/// Generate a PNG data URI from sprite gray data with a custom background color.
+///
+/// Java's `SpriteMonochrome.toUImage` uses a gradient from `backcolor` to `forecolor`
+/// (black). The background color comes from the current drawing context (e.g. entity
+/// fill color `#F1F1F1`), which affects the RGB of transparent pixels.
+pub fn sprite_gray_to_data_uri(
+    data: &SpriteGrayData,
+    bg_r: u8,
+    bg_g: u8,
+    bg_b: u8,
+) -> Option<String> {
+    let max_level = (data.depth - 1) as f64;
+    let mut rgba = Vec::with_capacity(data.width * data.height * 4);
+    for &g in &data.gray {
+        let coef = g as f64 / max_level;
+        // Color: interpolate between background and black (foreground)
+        // coef=0 → background, coef=1 → foreground (black)
+        let r = ((1.0 - coef) * bg_r as f64) as u8;
+        let green = ((1.0 - coef) * bg_g as f64) as u8;
+        let b = ((1.0 - coef) * bg_b as f64) as u8;
+        // Alpha: fully opaque when coef > maxCoef/4, otherwise proportional
+        let alpha = if coef > data.max_coef / 4.0 {
+            255u8
+        } else {
+            (255.0 * (coef * 4.0 / data.max_coef)) as u8
+        };
+        rgba.push(r);
+        rgba.push(green);
+        rgba.push(b);
+        rgba.push(alpha);
     }
 
-    // Encode as PNG
-    let png_data = encode_png_rgba(width, height, &rgba)?;
+    let png_data = encode_png_rgba(data.width, data.height, &rgba)?;
 
-    // Encode as base64
     use base64::Engine;
     let b64 = base64::engine::general_purpose::STANDARD.encode(&png_data);
-    let data_uri = format!("data:image/png;base64,{b64}");
-
-    // Wrap in SVG container (Java format: <svg> with viewBox, containing <image>)
-    Some(format!(
-        r#"<svg viewBox="0 0 {width} {height}"><image width="{width}" height="{height}" xlink:href="{data_uri}"/></svg>"#,
-    ))
+    Some(format!("data:image/png;base64,{b64}"))
 }
 
 /// Minimal PNG encoder for RGBA pixel data.
@@ -1398,7 +1443,7 @@ mod tests {
     #[test]
     fn extract_sprites_single_line() {
         let src = "Alice -> Bob : hi\nsprite redrect <svg viewBox=\"0 0 100 50\"><rect/></svg>\nBob -> Alice : ok\n";
-        let (cleaned, sprites) = extract_sprites(src);
+        let (cleaned, sprites, _) = extract_sprites(src);
         assert_eq!(sprites.len(), 1);
         assert!(sprites.contains_key("redrect"));
         assert!(sprites["redrect"].contains("<rect/>"));
@@ -1409,7 +1454,7 @@ mod tests {
     #[test]
     fn extract_sprites_multiline() {
         let src = "sprite myicon <svg viewBox=\"0 0 50 50\">\n  <circle cx=\"25\" cy=\"25\" r=\"20\"/>\n</svg>\nAlice -> Bob\n";
-        let (cleaned, sprites) = extract_sprites(src);
+        let (cleaned, sprites, _) = extract_sprites(src);
         assert_eq!(sprites.len(), 1);
         assert!(sprites["myicon"].contains("<circle"));
         assert!(cleaned.contains("Alice -> Bob"));
@@ -1419,7 +1464,7 @@ mod tests {
     #[test]
     fn extract_sprites_dollar_prefix() {
         let src = "sprite $icon <svg viewBox=\"0 0 10 10\"><rect/></svg>\n";
-        let (_, sprites) = extract_sprites(src);
+        let (_, sprites, _) = extract_sprites(src);
         assert_eq!(sprites.len(), 1);
         assert!(sprites.contains_key("icon"));
     }
@@ -1427,7 +1472,7 @@ mod tests {
     #[test]
     fn extract_sprites_none() {
         let src = "Alice -> Bob : hello\n";
-        let (cleaned, sprites) = extract_sprites(src);
+        let (cleaned, sprites, _) = extract_sprites(src);
         assert!(sprites.is_empty());
         assert_eq!(cleaned, "Alice -> Bob : hello");
     }
@@ -1442,7 +1487,7 @@ mod tests {
     #[test]
     fn extract_sprites_hex_format() {
         let src = "sprite $icon [4x2/16] {\nF00F\n0FF0\n}\nAlice -> Bob\n";
-        let (cleaned, sprites) = extract_sprites(src);
+        let (cleaned, sprites, _) = extract_sprites(src);
         assert_eq!(sprites.len(), 1, "should extract one hex sprite");
         assert!(sprites.contains_key("icon"), "key should be 'icon'");
         assert!(
@@ -1483,7 +1528,7 @@ mod tests {
             "}\n",
             "rectangle A\n",
         );
-        let (cleaned, sprites) = extract_sprites(src);
+        let (cleaned, sprites, _) = extract_sprites(src);
         assert_eq!(sprites.len(), 1);
         assert!(sprites.contains_key("businessProcess"));
         let svg = &sprites["businessProcess"];

@@ -52,8 +52,9 @@ pub fn convert_with_input_path(puml_source: &str, input_path: &Path) -> Result<S
 
 fn render_expanded(original_source: &str, expanded: &str) -> Result<String> {
     // Extract SVG sprite definitions before parsing (sprite lines would confuse parsers)
-    let (cleaned, sprites) = parser::common::extract_sprites(expanded);
+    let (cleaned, sprites, gray_data) = parser::common::extract_sprites(expanded);
     render::svg_richtext::set_sprites(sprites);
+    render::svg_richtext::set_sprite_gray_data(gray_data);
     // Use a guard to ensure sprites are cleared even if rendering panics
     struct SpriteGuard;
     impl Drop for SpriteGuard {

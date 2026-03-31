@@ -27,6 +27,19 @@ fn text_len(text: &str, size: f64, bold: bool) -> f64 {
     font_metrics::text_width(text, "sans-serif", size, bold, false)
 }
 
+/// Parse a CSS hex color string like "#F1F1F1" into (r, g, b) components.
+fn parse_hex_color(color: &str) -> Option<(u8, u8, u8)> {
+    let hex = color.strip_prefix('#')?;
+    if hex.len() == 6 {
+        let r = u8::from_str_radix(&hex[0..2], 16).ok()?;
+        let g = u8::from_str_radix(&hex[2..4], 16).ok()?;
+        let b = u8::from_str_radix(&hex[4..6], 16).ok()?;
+        Some((r, g, b))
+    } else {
+        None
+    }
+}
+
 // ---------------------------------------------------------------------------
 // Public entry point
 // ---------------------------------------------------------------------------
@@ -392,14 +405,30 @@ fn render_group(
 
             // Name text — each line rendered with CENTER alignment.
             // Java uses TextBlockVertical to stack lines, centering within the block width.
+            // Each line's untrimmed width determines centering; leading spaces shift x
+            // (Java DriverTextSvg strips leading spaces and advances x accordingly).
             let name_lines: Vec<&str> = group.name.lines().collect();
             let line_h =
                 font_metrics::line_height("SansSerif", FONT_SIZE, true, false);
+            let space_w =
+                font_metrics::char_width(' ', "SansSerif", FONT_SIZE, true, false);
+            // Compute untrimmed width for each line, and the max (= text block width)
+            let untrimmed_widths: Vec<f64> = name_lines
+                .iter()
+                .map(|line| font_metrics::text_width(line, "SansSerif", FONT_SIZE, true, false))
+                .collect();
+            let max_untrimmed_w = untrimmed_widths.iter().cloned().fold(0.0_f64, f64::max);
+            // Center the text block within the cluster
+            let block_x = x + (w - max_untrimmed_w) / 2.0;
             let name_y_start = y + 2.0 + sprite_h;
             for (li, line) in name_lines.iter().enumerate() {
+                let leading_spaces = line.len() - line.trim_start().len();
+                let leading_w = leading_spaces as f64 * space_w;
                 let display_line = line.trim();
                 let tl = text_len(display_line, 14.0, true);
-                let text_x = x + (w - tl) / 2.0;
+                let untrimmed_w = untrimmed_widths[li];
+                // Center this line within the block, then shift by leading space width
+                let text_x = block_x + (max_untrimmed_w - untrimmed_w) / 2.0 + leading_w;
                 let ascent = font_metrics::ascent("SansSerif", FONT_SIZE, true, false);
                 let text_y = name_y_start + li as f64 * line_h + ascent;
                 sg.set_fill_color(font_color);
@@ -485,6 +514,39 @@ fn render_sprite_image(
     // Fallback: use convert_svg_elements for non-PNG sprites
     let converted = svg_sprite::convert_svg_elements(svg_content, x, y);
     sg.push_raw(&converted);
+}
+
+/// Render a sprite with a context-dependent background color.
+///
+/// Java's `SpriteMonochrome.toUImage` uses the UGraphic back color when generating
+/// the sprite image, so transparent pixels have the entity's fill color in their RGB.
+/// This function re-generates the sprite PNG with the correct background.
+fn render_sprite_with_bg(
+    sg: &mut SvgGraphic,
+    sprite_name: &str,
+    svg_content: &str,
+    x: f64,
+    y: f64,
+    w: f64,
+    h: f64,
+    bg_r: u8,
+    bg_g: u8,
+    bg_b: u8,
+) {
+    use crate::render::svg_richtext::get_sprite_data_uri_with_bg;
+    if let Some(data_uri) = get_sprite_data_uri_with_bg(sprite_name, bg_r, bg_g, bg_b) {
+        sg.push_raw(&format!(
+            r#"<image height="{}" width="{}" x="{}" xlink:href="{}" y="{}"/>"#,
+            h as u32,
+            w as u32,
+            fmt_coord(x),
+            data_uri,
+            fmt_coord(y),
+        ));
+        return;
+    }
+    // Fallback to default rendering
+    render_sprite_image(sg, svg_content, x, y, w, h);
 }
 
 // ---------------------------------------------------------------------------
@@ -654,7 +716,7 @@ fn render_component_node(
     sg.set_stroke_width(0.5, None);
     sg.svg_rectangle(icon_x - 2.0, icon_y1 + 6.0, 4.0, 2.0, 0.0, 0.0, 0.0);
 
-    render_node_text(sg, node, font_color);
+    render_node_text(sg, node, font_color, bg);
     sg.push_raw("</g>");
 }
 
@@ -674,7 +736,7 @@ fn render_rectangle_node(
     sg.set_stroke_width(0.5, None);
     sg.svg_rectangle(node.x, node.y, node.width, node.height, 2.5, 2.5, 0.0);
 
-    render_node_text(sg, node, font_color);
+    render_node_text(sg, node, font_color, bg);
     sg.push_raw("</g>");
 }
 
@@ -728,7 +790,7 @@ fn render_database_node(
         fmt_coord(x + w), fmt_coord(y + ry),
     ));
 
-    render_node_text(sg, node, font_color);
+    render_node_text(sg, node, font_color, bg);
     sg.push_raw("</g>");
 }
 
@@ -748,7 +810,7 @@ fn render_cloud_node(
     sg.set_stroke_width(0.5, None);
     sg.svg_rectangle(node.x, node.y, node.width, node.height, 20.0, 20.0, 0.0);
 
-    render_node_text(sg, node, font_color);
+    render_node_text(sg, node, font_color, bg);
     sg.push_raw("</g>");
 }
 
@@ -757,18 +819,18 @@ fn render_box_node(
     sg: &mut SvgGraphic,
     node: &ComponentNodeLayout,
     meta: EntitySvgMeta<'_>,
-    fill: &str,
+    bg: &str,
     border: &str,
     font_color: &str,
 ) {
     open_entity_g(sg, node, meta);
 
-    sg.set_fill_color(fill);
+    sg.set_fill_color(bg);
     sg.set_stroke_color(Some(border));
     sg.set_stroke_width(0.5, None);
     sg.svg_rectangle(node.x, node.y, node.width, node.height, 2.5, 2.5, 0.0);
 
-    render_node_text(sg, node, font_color);
+    render_node_text(sg, node, font_color, bg);
     sg.push_raw("</g>");
 }
 
@@ -861,7 +923,7 @@ fn render_artifact_node(
     sg.svg_line(ix + fold, iy, ix + fold, iy + fold, 0.0);
     sg.svg_line(ix + 12.0, iy + fold, ix + fold, iy + fold, 0.0);
 
-    render_node_text(sg, node, font_color);
+    render_node_text(sg, node, font_color, bg);
     sg.push_raw("</g>");
 }
 
@@ -882,7 +944,7 @@ fn render_storage_node(
     sg.set_stroke_width(0.5, None);
     sg.svg_rectangle(node.x, node.y, node.width, node.height, rx, rx, 0.0);
 
-    render_node_text(sg, node, font_color);
+    render_node_text(sg, node, font_color, bg);
     sg.push_raw("</g>");
 }
 
@@ -956,7 +1018,7 @@ fn render_folder_node(
     sg.set_stroke_width(0.5, None);
     sg.svg_line(x, y + tab_h, x + w, y + tab_h, 0.0);
 
-    render_node_text(sg, node, font_color);
+    render_node_text(sg, node, font_color, bg);
     sg.push_raw("</g>");
 }
 
@@ -1027,7 +1089,7 @@ fn render_agent_node(
     sg.set_stroke_width(0.5, None);
     sg.svg_rectangle(node.x, node.y, node.width, node.height, 2.5, 2.5, 0.0);
 
-    render_node_text(sg, node, font_color);
+    render_node_text(sg, node, font_color, bg);
     sg.push_raw("</g>");
 }
 
@@ -1069,7 +1131,7 @@ fn render_stack_node(
         fmt_coord(x + w + 15.0), fmt_coord(y),
     ));
 
-    render_node_text(sg, node, font_color);
+    render_node_text(sg, node, font_color, bg);
     sg.push_raw("</g>");
 }
 
@@ -1115,7 +1177,7 @@ fn render_queue_node(
         fmt_coord(x + w - cap), fmt_coord(y + h),
     ));
 
-    render_node_text(sg, node, font_color);
+    render_node_text(sg, node, font_color, bg);
     sg.push_raw("</g>");
 }
 
@@ -1172,9 +1234,19 @@ fn render_port_node(
 }
 
 /// Render name, stereotype, and description text for a node
-fn render_node_text(sg: &mut SvgGraphic, node: &ComponentNodeLayout, font_color: &str) {
+fn render_node_text(
+    sg: &mut SvgGraphic,
+    node: &ComponentNodeLayout,
+    font_color: &str,
+    entity_bg: &str,
+) {
     let cx = node.x + node.width / 2.0;
     let has_desc = !node.description.is_empty();
+
+    // Parse entity background color for sprite rendering.
+    // Java passes the UGraphic back color to SpriteMonochrome.toUImage, which uses it
+    // as the gradient start color (affecting RGB of transparent pixels in the PNG).
+    let (bg_r, bg_g, bg_b) = parse_hex_color(entity_bg).unwrap_or((255, 255, 255));
 
     // Check for sprite stereotype
     let sprite_rendered = if let Some(ref stereotype) = node.stereotype {
@@ -1188,7 +1260,18 @@ fn render_node_text(sg: &mut SvgGraphic, node: &ComponentNodeLayout, font_color:
                 // Sprite centered at (cx - sprite_w/2, node.y + margin_top)
                 let sprite_x = cx - sprite_w / 2.0;
                 let sprite_y = node.y + 10.0; // margin top = 10
-                render_sprite_image(sg, &svg_content, sprite_x, sprite_y, sprite_w, sprite_h);
+                render_sprite_with_bg(
+                    sg,
+                    sprite_name,
+                    &svg_content,
+                    sprite_x,
+                    sprite_y,
+                    sprite_w,
+                    sprite_h,
+                    bg_r,
+                    bg_g,
+                    bg_b,
+                );
                 Some(sprite_h)
             } else {
                 None

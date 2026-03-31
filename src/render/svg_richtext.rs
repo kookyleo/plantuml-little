@@ -9,8 +9,11 @@ use crate::model::richtext::{RichText, TextSpan};
 use crate::parser::creole::{parse_creole, parse_creole_opts, parse_inline};
 use crate::render::svg_hyperlink::wrap_with_link;
 
+use crate::parser::common::SpriteGrayData;
+
 thread_local! {
     static SVG_SPRITES: RefCell<HashMap<String, String>> = RefCell::new(HashMap::new());
+    static SPRITE_GRAY: RefCell<HashMap<String, SpriteGrayData>> = RefCell::new(HashMap::new());
     static DEFAULT_FONT_FAMILY: RefCell<Option<String>> = const { RefCell::new(None) };
     static PATH_BASED_SPRITES: RefCell<bool> = const { RefCell::new(false) };
     static BACK_FILTERS: RefCell<Vec<(String, String)>> = RefCell::new(Vec::new());
@@ -21,9 +24,15 @@ pub fn set_sprites(sprites: HashMap<String, String>) {
     SVG_SPRITES.with(|s| *s.borrow_mut() = sprites);
 }
 
+/// Set the sprite gray data registry for context-dependent PNG re-generation.
+pub fn set_sprite_gray_data(data: HashMap<String, SpriteGrayData>) {
+    SPRITE_GRAY.with(|s| *s.borrow_mut() = data);
+}
+
 /// Clear the sprite registry after rendering.
 pub fn clear_sprites() {
     SVG_SPRITES.with(|s| s.borrow_mut().clear());
+    SPRITE_GRAY.with(|s| s.borrow_mut().clear());
     PATH_BASED_SPRITES.with(|p| *p.borrow_mut() = false);
     BACK_FILTERS.with(|f| f.borrow_mut().clear());
 }
@@ -137,6 +146,28 @@ fn get_sprite(name: &str) -> Option<String> {
 
 pub fn get_sprite_svg(name: &str) -> Option<String> {
     get_sprite(name)
+}
+
+/// Get a sprite data URI with a custom background color.
+///
+/// If the sprite has raw gray data, re-generates the PNG with the given background.
+/// Otherwise falls back to extracting the data URI from the pre-generated SVG.
+pub fn get_sprite_data_uri_with_bg(name: &str, bg_r: u8, bg_g: u8, bg_b: u8) -> Option<String> {
+    // Try gray data first (hex-encoded monochrome sprites)
+    let from_gray = SPRITE_GRAY.with(|s| {
+        s.borrow().get(name).and_then(|data| {
+            crate::parser::common::sprite_gray_to_data_uri(data, bg_r, bg_g, bg_b)
+        })
+    });
+    if from_gray.is_some() {
+        return from_gray;
+    }
+    // Fallback: extract data URI from pre-generated SVG
+    get_sprite(name).and_then(|svg| {
+        let href_start = svg.find("xlink:href=\"")? + "xlink:href=\"".len();
+        let href_end = svg[href_start..].find('"')? + href_start;
+        Some(svg[href_start..href_end].to_string())
+    })
 }
 
 #[derive(Clone, Default)]
