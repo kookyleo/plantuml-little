@@ -122,14 +122,20 @@ pub enum SeqEvent {
     NoteRight {
         participant: String,
         text: String,
+        /// True when the note uses `& note` parallel syntax
+        parallel: bool,
     },
     NoteLeft {
         participant: String,
         text: String,
+        /// True when the note uses `& note` parallel syntax
+        parallel: bool,
     },
     NoteOver {
         participants: Vec<String>,
         text: String,
+        /// True when the note uses `& note` parallel syntax
+        parallel: bool,
     },
     /// Legacy group start (kept for backward compatibility, maps to Fragment)
     GroupStart {

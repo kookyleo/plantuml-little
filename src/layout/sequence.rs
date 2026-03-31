@@ -1526,7 +1526,9 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
                 log::debug!("destroy '{name}' at y={destroy_y:.1}");
             }
 
-            SeqEvent::NoteRight { participant, text } => {
+            SeqEvent::NoteRight {
+                participant, text, ..
+            } => {
                 let px = find_participant_x(&participants, participant);
                 let note_height = estimate_note_height(text);
                 let note_preferred_h = estimate_note_preferred_height(text);
@@ -1684,7 +1686,9 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
                 last_message_y = None;
             }
 
-            SeqEvent::NoteLeft { participant, text } => {
+            SeqEvent::NoteLeft {
+                participant, text, ..
+            } => {
                 let px = find_participant_x(&participants, participant);
                 let part_idx_for_note = part_name_to_idx.get(participant.as_str()).copied();
                 let note_height = estimate_note_height(text);
@@ -1815,6 +1819,7 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
             SeqEvent::NoteOver {
                 participants: parts,
                 text,
+                ..
             } => {
                 // Place note centered over the listed participants
                 if let (Some(first), Some(last)) = (parts.first(), parts.last()) {
@@ -2754,6 +2759,7 @@ mod tests {
                 SeqEvent::NoteRight {
                     participant: "A".to_string(),
                     text: "a note".to_string(),
+                    parallel: false,
                 },
                 SeqEvent::Message(make_message("A", "A", "after note")),
             ],
@@ -3095,6 +3101,7 @@ mod tests {
             events: vec![SeqEvent::NoteRight {
                 participant: "A".to_string(),
                 text: "a note".to_string(),
+                parallel: false,
             }],
             teoz_mode: false,
             hide_footbox: false,
@@ -3154,6 +3161,7 @@ mod tests {
                 SeqEvent::NoteRight {
                     participant: "B".to_string(),
                     text: "Note".to_string(),
+                    parallel: false,
                 },
                 SeqEvent::Activate("B".to_string(), None),
                 SeqEvent::Message(Message {

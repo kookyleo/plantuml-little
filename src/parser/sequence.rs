@@ -40,6 +40,7 @@ pub fn parse_sequence_diagram_with_original(
     let mut note_participant: Option<String> = None;
     let mut note_participants: Vec<String> = Vec::new();
     let mut note_lines: Vec<String> = Vec::new();
+    let mut note_is_parallel = false;
     // Track fragment nesting depth so "end" emits FragmentEnd when inside fragments
     let mut fragment_depth: usize = 0;
     // Whether `!pragma teoz true` was encountered
@@ -152,14 +153,17 @@ pub fn parse_sequence_diagram_with_original(
                     Some("right") => SeqEvent::NoteRight {
                         participant: note_participant.take().unwrap_or_default(),
                         text,
+                        parallel: note_is_parallel,
                     },
                     Some("left") => SeqEvent::NoteLeft {
                         participant: note_participant.take().unwrap_or_default(),
                         text,
+                        parallel: note_is_parallel,
                     },
                     _ => SeqEvent::NoteOver {
                         participants: std::mem::take(&mut note_participants),
                         text,
+                        parallel: note_is_parallel,
                     },
                 };
                 debug!("parsed multiline note event");
@@ -167,6 +171,7 @@ pub fn parse_sequence_diagram_with_original(
                 in_note_block = false;
                 note_kind = None;
                 note_lines.clear();
+                note_is_parallel = false;
             } else {
                 note_lines.push(trimmed.to_string());
             }
@@ -320,7 +325,8 @@ pub fn parse_sequence_diagram_with_original(
         // Parse note right/left/over (single-line or start multiline block)
         // Also handle teoz parallel note prefix "& note ..."
         {
-            let note_trimmed = if trimmed.starts_with("& ") {
+            let is_parallel_note = trimmed.starts_with("& ");
+            let note_trimmed = if is_parallel_note {
                 trimmed[2..].trim()
             } else {
                 trimmed
@@ -328,7 +334,16 @@ pub fn parse_sequence_diagram_with_original(
             let lower = note_trimmed.to_lowercase();
             if lower.starts_with("note ") {
                 match parse_note(note_trimmed, &last_to_participant, &last_from_participant) {
-                    Some(evt) => {
+                    Some(mut evt) => {
+                        // Propagate parallel flag to the event
+                        match &mut evt {
+                            SeqEvent::NoteRight { parallel, .. }
+                            | SeqEvent::NoteLeft { parallel, .. }
+                            | SeqEvent::NoteOver { parallel, .. } => {
+                                *parallel = is_parallel_note;
+                            }
+                            _ => {}
+                        }
                         debug!("parsed note event");
                         events.push(evt);
                         continue;
@@ -340,6 +355,7 @@ pub fn parse_sequence_diagram_with_original(
                         if rest_lower.starts_with("right") {
                             in_note_block = true;
                             note_kind = Some("right");
+                            note_is_parallel = is_parallel_note;
                             let after = rest[5..].trim();
                             let after = skip_note_color(after);
                             let (_remainder, explicit_p) = strip_of_participant(after);
@@ -350,6 +366,7 @@ pub fn parse_sequence_diagram_with_original(
                         } else if rest_lower.starts_with("left") {
                             in_note_block = true;
                             note_kind = Some("left");
+                            note_is_parallel = is_parallel_note;
                             let after = rest[4..].trim();
                             let after = skip_note_color(after);
                             let (_remainder, explicit_p) = strip_of_participant(after);
@@ -360,6 +377,7 @@ pub fn parse_sequence_diagram_with_original(
                         } else if rest_lower.starts_with("over") {
                             in_note_block = true;
                             note_kind = Some("over");
+                            note_is_parallel = is_parallel_note;
                             let after = rest[4..].trim();
                             note_participants = after
                                 .split(',')
@@ -1124,7 +1142,11 @@ fn parse_note(line: &str, last_to: &Option<String>, last_from: &Option<String>) 
             let participant = explicit_participant
                 .or_else(|| last_to.clone())
                 .unwrap_or_default();
-            Some(SeqEvent::NoteRight { participant, text })
+            Some(SeqEvent::NoteRight {
+                participant,
+                text,
+                parallel: false,
+            })
         } else {
             // No inline text — will be handled as multiline note
             None
@@ -1138,7 +1160,11 @@ fn parse_note(line: &str, last_to: &Option<String>, last_from: &Option<String>) 
             let participant = explicit_participant
                 .or_else(|| last_from.clone())
                 .unwrap_or_default();
-            Some(SeqEvent::NoteLeft { participant, text })
+            Some(SeqEvent::NoteLeft {
+                participant,
+                text,
+                parallel: false,
+            })
         } else {
             None
         }
@@ -1152,7 +1178,11 @@ fn parse_note(line: &str, last_to: &Option<String>, last_from: &Option<String>) 
                 .split(',')
                 .map(|s| s.trim().to_string())
                 .collect();
-            Some(SeqEvent::NoteOver { participants, text })
+            Some(SeqEvent::NoteOver {
+                participants,
+                text,
+                parallel: false,
+            })
         } else {
             // No inline text — multiline
             None
@@ -1886,7 +1916,10 @@ Sally --> Bob
         let diagram = parse_sequence_diagram(src).unwrap();
 
         assert!(matches!(&diagram.events[0], SeqEvent::Message(_)));
-        if let SeqEvent::NoteRight { participant, text } = &diagram.events[1] {
+        if let SeqEvent::NoteRight {
+            participant, text, ..
+        } = &diagram.events[1]
+        {
             assert_eq!(participant, "Alice");
             assert_eq!(text, "standalone");
         } else {
@@ -1901,7 +1934,10 @@ Sally --> Bob
         let diagram = parse_sequence_diagram(src).unwrap();
 
         assert!(matches!(&diagram.events[0], SeqEvent::Message(_)));
-        if let SeqEvent::NoteLeft { participant, text } = &diagram.events[1] {
+        if let SeqEvent::NoteLeft {
+            participant, text, ..
+        } = &diagram.events[1]
+        {
             assert_eq!(participant, "Bob");
             assert_eq!(text, "remark");
         } else {
@@ -1917,7 +1953,10 @@ Sally --> Bob
         let diagram = parse_sequence_diagram(src).unwrap();
 
         assert!(matches!(&diagram.events[0], SeqEvent::Message(_)));
-        if let SeqEvent::NoteRight { participant, text } = &diagram.events[1] {
+        if let SeqEvent::NoteRight {
+            participant, text, ..
+        } = &diagram.events[1]
+        {
             assert_eq!(participant, "Alice");
             assert_eq!(text, "line1\nline2");
         } else {

@@ -163,6 +163,8 @@ enum TeozTile {
         is_note_on_message: bool,
         /// Activation level of the participant at this note (for x offset).
         active_level: usize,
+        /// True when the note uses `& note` parallel syntax (TileParallel in Java)
+        is_parallel: bool,
     },
     /// Note spanning two participants
     NoteOver {
@@ -1177,8 +1179,11 @@ pub fn build_teoz_layout(sd: &SequenceDiagram, skin: &SkinParams) -> Result<SeqL
                     let tm = TextMetrics::new(7.0, 7.0, 1.0, text_w, text_h);
                     let height = rose::arrow_preferred_size(&tm, 0.0, 0.0).height;
 
-                    // Java IGNORE_FUTURE_DEACTIVATE: current levels +
-                    // peek-ahead activations from this message (but not deactivations).
+                    // Java IGNORE_FUTURE_DEACTIVATE: peek ahead for activations
+                    // linked to this message. In Java, all LifeEvents between two
+                    // messages are linked to the preceding message via setMessage().
+                    // So we scan ahead until the next non-parallel Message, counting
+                    // activations but ignoring deactivations and notes.
                     let mut fl = active_levels.get(&msg.from).copied().unwrap_or(0);
                     let mut tl = active_levels.get(&msg.to).copied().unwrap_or(0);
                     for peek in &sd.events[(event_idx + 1)..] {
@@ -1191,9 +1196,18 @@ pub fn build_teoz_layout(sd: &SequenceDiagram, skin: &SkinParams) -> Result<SeqL
                                     tl += 1;
                                 }
                             }
-                            // Ignore future deactivations
+                            // Ignore future deactivations (IGNORE_FUTURE_DEACTIVATE mode)
                             SeqEvent::Deactivate(_) => {}
-                            _ => break, // stop peeking at next non-life event
+                            // Skip notes — Java's nextButSkippingNotes skips these
+                            SeqEvent::NoteRight { .. }
+                            | SeqEvent::NoteLeft { .. }
+                            | SeqEvent::NoteOver { .. } => {}
+                            // Stop at the next non-parallel message (end of this
+                            // message's linked LifeEvent chain in Java).
+                            SeqEvent::Message(m) if !m.parallel => break,
+                            // Continue past parallel messages (they share the link)
+                            SeqEvent::Message(_) => {}
+                            _ => break,
                         }
                     }
 
@@ -1249,7 +1263,11 @@ pub fn build_teoz_layout(sd: &SequenceDiagram, skin: &SkinParams) -> Result<SeqL
                     y: None,
                 });
             }
-            SeqEvent::NoteRight { participant, text } => {
+            SeqEvent::NoteRight {
+                participant,
+                text,
+                parallel,
+            } => {
                 let idx = name_to_idx.get(participant).copied().unwrap_or(0);
                 let center = livings[idx].pos_c;
                 let w = estimate_note_width(text);
@@ -1265,9 +1283,14 @@ pub fn build_teoz_layout(sd: &SequenceDiagram, skin: &SkinParams) -> Result<SeqL
                     center,
                     is_note_on_message: is_smn,
                     active_level: active_levels.get(participant).copied().unwrap_or(0),
+                    is_parallel: *parallel,
                 });
             }
-            SeqEvent::NoteLeft { participant, text } => {
+            SeqEvent::NoteLeft {
+                participant,
+                text,
+                parallel,
+            } => {
                 let idx = name_to_idx.get(participant).copied().unwrap_or(0);
                 let center = livings[idx].pos_c;
                 let w = estimate_note_width(text);
@@ -1283,9 +1306,14 @@ pub fn build_teoz_layout(sd: &SequenceDiagram, skin: &SkinParams) -> Result<SeqL
                     center,
                     is_note_on_message: is_smn,
                     active_level: active_levels.get(participant).copied().unwrap_or(0),
+                    is_parallel: *parallel,
                 });
             }
-            SeqEvent::NoteOver { participants, text } => {
+            SeqEvent::NoteOver {
+                participants,
+                text,
+                ..
+            } => {
                 let w = estimate_note_width(text);
                 let h = note_preferred_height(text, sd.delta_shadow);
                 tiles.push(TeozTile::NoteOver {
@@ -1619,43 +1647,50 @@ pub fn build_teoz_layout(sd: &SequenceDiagram, skin: &SkinParams) -> Result<SeqL
             let msg_h = prev_msg_height.unwrap();
             let msg_y = prev_msg_y.unwrap();
             let note_h = tiles[tile_idx].preferred_height();
-            // Java CommunicationTileSelfNote: note y = startingY + push
-            // where push = (selfPreferredH - noteCalcH) / 2.
-            // For self-messages, this equals ARROW_PADDING_X (5px) because
-            // the note calcH includes the self-message's vertical extent.
-            // For regular messages, push = 0 (note starts at tile top).
-            // Check if the preceding message tile (skipping LifeEvents) is a self-message
-            // Java: CommunicationTileNoteRight and CommunicationTileSelfNoteRight
-            // both place the note at the tile's y position (= msg_y). The polygon is
-            // then rendered at tile_y + paddingY(5) by AbstractComponent.drawU().
-            // We set tile_y = msg_y here; the paddingY offset is applied when
-            // extracting NoteLayout for SVG rendering.
-            tiles[tile_idx].set_y(msg_y);
+            // Find the preceding message tile (skipping LifeEvents).
+            let preceding_msg_idx = {
+                let mut idx = tile_idx - 1;
+                while idx > 0 && matches!(tiles[idx], TeozTile::LifeEvent { .. }) {
+                    idx -= 1;
+                }
+                idx
+            };
+            let preceding_is_non_parallel = match &tiles[preceding_msg_idx] {
+                TeozTile::Communication { is_parallel, .. }
+                | TeozTile::SelfMessage { is_parallel, .. } => !*is_parallel,
+                _ => false,
+            };
+            // Java TileParallel contact-point alignment: when a `& note` (parallel)
+            // follows a non-parallel message, Java's mergeParallel wraps them in a
+            // TileParallel. Within TileParallel.drawU(), each sub-tile is shifted
+            // down by (maxContact - itsContact). For non-parallel notes (wrapper
+            // CommunicationTileNoteRight), there's no TileParallel — the note
+            // draws at the same Y as the message, so no contact-point shift.
+            let note_contact = note_h / 2.0;
+            let note_is_parallel_tile = matches!(
+                tiles[tile_idx],
+                TeozTile::Note {
+                    is_parallel: true,
+                    ..
+                }
+            );
+            let contact_delta = if preceding_is_non_parallel && note_is_parallel_tile {
+                let msg_contact = tiles[preceding_msg_idx].contact_point_relative();
+                let max_contact = msg_contact.max(note_contact);
+                max_contact - note_contact
+            } else {
+                0.0
+            };
+            tiles[tile_idx].set_y(msg_y + contact_delta);
             // Java TileParallel: when a `& note` follows a non-parallel message,
             // Java mergeParallel creates TileParallel(message, note) whose height
             // = max(contacts) + max(zzz_values). This is larger than max(msg_h, note_h)
             // because message has high contact + low zzz, note has low contact + high zzz.
             // However, standalone notes after parallel messages should use plain max.
-            let preceding_is_non_parallel = {
-                let mut idx = tile_idx - 1;
-                while idx > 0 && matches!(tiles[idx], TeozTile::LifeEvent { .. }) {
-                    idx -= 1;
-                }
-                match &tiles[idx] {
-                    TeozTile::Communication { is_parallel, .. }
-                    | TeozTile::SelfMessage { is_parallel, .. } => !*is_parallel,
-                    _ => false,
-                }
-            };
-            let combined_h = if preceding_is_non_parallel {
+            let combined_h = if preceding_is_non_parallel && note_is_parallel_tile {
                 // TileParallel formula: max(contacts) + max(zzz_values)
-                let mut idx = tile_idx - 1;
-                while idx > 0 && matches!(tiles[idx], TeozTile::LifeEvent { .. }) {
-                    idx -= 1;
-                }
-                let msg_contact = tiles[idx].contact_point_relative();
-                let msg_zzz = tiles[idx].zzz();
-                let note_contact = note_h / 2.0;
+                let msg_contact = tiles[preceding_msg_idx].contact_point_relative();
+                let msg_zzz = tiles[preceding_msg_idx].zzz();
                 let note_zzz = note_h - note_contact;
                 msg_contact.max(note_contact) + msg_zzz.max(note_zzz)
             } else {
@@ -2335,6 +2370,8 @@ pub fn build_teoz_layout(sd: &SequenceDiagram, skin: &SkinParams) -> Result<SeqL
     log::debug!("teoz extents: raw_min={raw_min:.2} raw_max={raw_max:.2} diagram_width={diagram_width:.2} total_min_x={total_min_x:.2} total_max_x={total_max_x:.2}");
 
     // Track activation state for ActivationLayout generation
+    // Track the most recent message index for note-on-message association.
+    let mut last_msg_idx: Option<usize> = None;
 
     for tile_i in 0..tiles.len() {
         let tile = &tiles[tile_i];
@@ -2445,6 +2482,7 @@ pub fn build_teoz_layout(sd: &SequenceDiagram, skin: &SkinParams) -> Result<SeqL
                     cross_to: *cross_to,
                     bidirectional: *bidirectional,
                 });
+                last_msg_idx = Some(messages.len() - 1);
             }
             TeozTile::SelfMessage {
                 participant_idx,
@@ -2527,6 +2565,7 @@ pub fn build_teoz_layout(sd: &SequenceDiagram, skin: &SkinParams) -> Result<SeqL
                     cross_to: *cross_to,
                     bidirectional: *bidirectional,
                 });
+                last_msg_idx = Some(messages.len() - 1);
             }
             TeozTile::Note {
                 participant_idx,
@@ -2593,7 +2632,11 @@ pub fn build_teoz_layout(sd: &SequenceDiagram, skin: &SkinParams) -> Result<SeqL
                     is_left: *is_left,
                     is_self_msg_note: *is_note_on_message,
                     is_note_on_message: *is_note_on_message,
-                    assoc_message_idx: None,
+                    assoc_message_idx: if *is_note_on_message {
+                        last_msg_idx
+                    } else {
+                        None
+                    },
                     teoz_mode: true,
                 });
             }
