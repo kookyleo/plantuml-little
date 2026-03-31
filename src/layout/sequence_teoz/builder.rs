@@ -113,6 +113,8 @@ enum TeozTile {
         to_level: usize,
         /// Hidden arrow: occupies space but is not drawn
         hidden: bool,
+        /// Bidirectional arrow: arrowheads at both ends
+        bidirectional: bool,
     },
     /// Self-message (from == to)
     SelfMessage {
@@ -143,6 +145,8 @@ enum TeozTile {
         is_parallel: bool,
         /// Hidden arrow: occupies space but is not drawn
         hidden: bool,
+        /// Bidirectional arrow: arrowheads at both ends
+        bidirectional: bool,
     },
     /// Activate / Deactivate / Destroy life event
     LifeEvent { height: f64, y: Option<f64> },
@@ -1117,6 +1121,7 @@ pub fn build_teoz_layout(sd: &SequenceDiagram, skin: &SkinParams) -> Result<SeqL
                         from_level: 0,
                         to_level: 0,
                         hidden: msg.hidden,
+                        bidirectional: msg.bidirectional,
                     });
                     continue;
                 }
@@ -1150,6 +1155,7 @@ pub fn build_teoz_layout(sd: &SequenceDiagram, skin: &SkinParams) -> Result<SeqL
                         cross_to: msg.cross_to,
                         is_parallel: msg.parallel,
                         hidden: msg.hidden,
+                        bidirectional: msg.bidirectional,
                     });
                 } else {
                     // Normal message
@@ -1205,6 +1211,7 @@ pub fn build_teoz_layout(sd: &SequenceDiagram, skin: &SkinParams) -> Result<SeqL
                         from_level: fl,
                         to_level: tl,
                         hidden: msg.hidden,
+                        bidirectional: msg.bidirectional,
                     });
                 }
             }
@@ -2311,6 +2318,7 @@ pub fn build_teoz_layout(sd: &SequenceDiagram, skin: &SkinParams) -> Result<SeqL
                 from_level,
                 to_level,
                 hidden,
+                bidirectional,
                 ..
             } => {
                 if *hidden {
@@ -2393,6 +2401,7 @@ pub fn build_teoz_layout(sd: &SequenceDiagram, skin: &SkinParams) -> Result<SeqL
                     circle_to: *circle_to,
                     cross_from: *cross_from,
                     cross_to: *cross_to,
+                    bidirectional: *bidirectional,
                 });
             }
             TeozTile::SelfMessage {
@@ -2412,6 +2421,7 @@ pub fn build_teoz_layout(sd: &SequenceDiagram, skin: &SkinParams) -> Result<SeqL
                 cross_from,
                 cross_to,
                 hidden,
+                bidirectional,
                 ..
             } => {
                 if *hidden {
@@ -2419,7 +2429,7 @@ pub fn build_teoz_layout(sd: &SequenceDiagram, skin: &SkinParams) -> Result<SeqL
                 }
                 let ty = y.unwrap_or(0.0);
                 let cx = get_x(livings[*participant_idx].pos_c);
-                let is_left = *direction == SeqDirection::RightToLeft;
+                let is_left = !*bidirectional && *direction == SeqDirection::RightToLeft;
                 let has_bar = *active_level > 0;
 
                 // Java: CommunicationTileSelf.drawU() uses
@@ -2473,6 +2483,7 @@ pub fn build_teoz_layout(sd: &SequenceDiagram, skin: &SkinParams) -> Result<SeqL
                     circle_to: *circle_to,
                     cross_from: *cross_from,
                     cross_to: *cross_to,
+                    bidirectional: *bidirectional,
                 });
             }
             TeozTile::Note {

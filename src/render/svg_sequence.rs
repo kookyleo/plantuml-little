@@ -1455,33 +1455,19 @@ fn draw_message(
     const DIAM_CIRCLE: f64 = 8.0;
     const THIN_CIRCLE: f64 = 1.5;
 
-    // Draw circle decorations FIRST (before arrowhead and line)
-    // Java: ComponentRoseArrow.drawDressing1/drawDressing2
-    if msg.circle_from {
-        let cx = msg.from_x - 0.5;
-        let cy = msg.y - 0.75;
-        sg.push_raw(&format!(
-            r##"<ellipse cx="{}" cy="{}" fill="#000000" rx="{}" ry="{}" style="stroke:{};stroke-width:{};"/>"##,
-            fmt_coord(cx), fmt_coord(cy),
-            fmt_coord(DIAM_CIRCLE / 2.0), fmt_coord(DIAM_CIRCLE / 2.0),
-            arrow_color, fmt_coord(THIN_CIRCLE),
-        ));
-    }
-    if msg.circle_to {
-        let cx = msg.to_x - 0.5;
-        let cy = msg.y - 0.75;
-        sg.push_raw(&format!(
-            r##"<ellipse cx="{}" cy="{}" fill="#000000" rx="{}" ry="{}" style="stroke:{};stroke-width:{};"/>"##,
-            fmt_coord(cx), fmt_coord(cy),
-            fmt_coord(DIAM_CIRCLE / 2.0), fmt_coord(DIAM_CIRCLE / 2.0),
-            arrow_color, fmt_coord(THIN_CIRCLE),
-        ));
-    }
+    // Java constants for cross (X) decorations
+    const SPACE_CROSS_X: f64 = 6.0;
+    const ARROW_DELTA_X: f64 = 10.0;
 
     // Circle at target shifts the arrowhead inward by diamCircle/2 + thinCircle
     let circle_to_shift = if msg.circle_to { 4.0 + 1.5 } else { 0.0 };
-    // Circle at source shifts line start by diamCircle/2
-    let circle_from_shift = if msg.circle_from { 4.0 } else { 0.0 };
+    // Circle at source: for bidirectional, the from-end also has an arrowhead so it
+    // needs the full arrowhead shift (4.0 + 1.5). For non-bidir, only the line shifts (4.0).
+    let circle_from_shift = if msg.circle_from {
+        if msg.bidirectional { 4.0 + 1.5 } else { 4.0 }
+    } else {
+        0.0
+    };
 
     // Determine arrow tip position and line endpoints
     // Java insets the arrow tip 2px from the participant center
@@ -1493,149 +1479,241 @@ fn draw_message(
         (msg.to_x - 2.0 - circle_to_shift, msg.from_x + circle_from_shift, msg.to_x)
     };
 
-    // Java constants for cross (X) decorations
-    const SPACE_CROSS_X: f64 = 6.0;
-    const ARROW_DELTA_X: f64 = 10.0;
+    // For bidirectional arrows, Java renders decorations grouped by side (left then right).
+    // For non-bidirectional, circles are drawn first, then crosses, then arrowhead.
+    // Determine left/right x for bidirectional from-end tip
+    let bidir_from_tip_x = if msg.is_left {
+        msg.from_x - 2.0 - circle_from_shift
+    } else {
+        msg.from_x + 1.0 + circle_from_shift
+    };
 
-    // Cross (X) decoration at target end (->x): replaces arrowhead
-    if msg.cross_to {
-        let mut tmp = String::new();
-        let (x0, half) = if msg.is_left {
-            // Left-pointing: X at left end (near to_x)
-            (tip_x + SPACE_CROSS_X, ARROW_DELTA_X / 2.0)
-        } else {
-            // Right-pointing: X at right end (near to_x)
-            (tip_x - SPACE_CROSS_X - ARROW_DELTA_X, ARROW_DELTA_X / 2.0)
-        };
-        // Two crossing lines forming X, stroke-width:2
-        write!(
-            tmp,
-            r#"<line style="stroke:{color};stroke-width:2;" x1="{x1}" x2="{x2}" y1="{y1}" y2="{y2}"/>"#,
-            color = arrow_color,
-            x1 = fmt_coord(x0),
-            x2 = fmt_coord(x0 + ARROW_DELTA_X),
-            y1 = fmt_coord(msg.y - half),
-            y2 = fmt_coord(msg.y + half),
-        )
-        .unwrap();
-        write!(
-            tmp,
-            r#"<line style="stroke:{color};stroke-width:2;" x1="{x1}" x2="{x2}" y1="{y1}" y2="{y2}"/>"#,
-            color = arrow_color,
-            x1 = fmt_coord(x0),
-            x2 = fmt_coord(x0 + ARROW_DELTA_X),
-            y1 = fmt_coord(msg.y + half),
-            y2 = fmt_coord(msg.y - half),
-        )
-        .unwrap();
-        sg.push_raw(&tmp);
-    }
+    // Identify which side is "left" and which is "right" in the diagram
+    let (left_circle, right_circle) = if msg.is_left {
+        (msg.circle_to, msg.circle_from) // to is left, from is right
+    } else {
+        (msg.circle_from, msg.circle_to) // from is left, to is right
+    };
+    let (left_cross, right_cross) = if msg.is_left {
+        (msg.cross_to, msg.cross_from)
+    } else {
+        (msg.cross_from, msg.cross_to)
+    };
+    let (left_cx, right_cx) = if msg.is_left {
+        (msg.to_x, msg.from_x)
+    } else {
+        (msg.from_x, msg.to_x)
+    };
 
-    // Cross (X) decoration at source end (x->)
-    if msg.cross_from {
-        let mut tmp = String::new();
-        let (x0, half) = if msg.is_left {
-            // Left-pointing: X at right end (near from_x)
-            (msg.from_x - SPACE_CROSS_X - ARROW_DELTA_X - 1.0, ARROW_DELTA_X / 2.0)
-        } else {
-            // Right-pointing: X at left end (near from_x)
-            (msg.from_x + SPACE_CROSS_X + 1.0, ARROW_DELTA_X / 2.0)
-        };
-        write!(
-            tmp,
-            r#"<line style="stroke:{color};stroke-width:2;" x1="{x1}" x2="{x2}" y1="{y1}" y2="{y2}"/>"#,
-            color = arrow_color,
-            x1 = fmt_coord(x0),
-            x2 = fmt_coord(x0 + ARROW_DELTA_X),
-            y1 = fmt_coord(msg.y - half),
-            y2 = fmt_coord(msg.y + half),
-        )
-        .unwrap();
-        write!(
-            tmp,
-            r#"<line style="stroke:{color};stroke-width:2;" x1="{x1}" x2="{x2}" y1="{y1}" y2="{y2}"/>"#,
-            color = arrow_color,
-            x1 = fmt_coord(x0),
-            x2 = fmt_coord(x0 + ARROW_DELTA_X),
-            y1 = fmt_coord(msg.y + half),
-            y2 = fmt_coord(msg.y - half),
-        )
-        .unwrap();
-        sg.push_raw(&tmp);
-    }
-
-    // Draw inline polygon arrowhead (skip if cross_to replaces the arrowhead)
-    if !msg.cross_to {
-        if msg.has_open_head {
-            // Open arrowhead: lines forming a V (or half-V for half-arrows).
-            let arm_offset = if msg.is_left { 10.0 } else { -10.0 };
-            let arm_x = tip_x + arm_offset;
+    if msg.bidirectional {
+        // Bidirectional: draw decorations grouped by side (left then right)
+        // Left side: circle, then arrowhead/cross
+        if left_circle {
+            let cx = left_cx - 0.5;
+            let cy = msg.y - 0.75;
+            sg.push_raw(&format!(
+                r##"<ellipse cx="{}" cy="{}" fill="#000000" rx="{}" ry="{}" style="stroke:{};stroke-width:{};"/>"##,
+                fmt_coord(cx), fmt_coord(cy),
+                fmt_coord(DIAM_CIRCLE / 2.0), fmt_coord(DIAM_CIRCLE / 2.0),
+                arrow_color, fmt_coord(THIN_CIRCLE),
+            ));
+        }
+        // Left arrowhead (pointing left)
+        if left_cross {
+            // Cross at left side
+            let x0 = if msg.is_left {
+                tip_x + SPACE_CROSS_X
+            } else {
+                msg.from_x + SPACE_CROSS_X + 1.0
+            };
+            let half = ARROW_DELTA_X / 2.0;
             let mut tmp = String::new();
-            let skip_top = if msg.is_left {
-                matches!(msg.arrow_head, SeqArrowHead::HalfBottom)
-            } else {
-                matches!(msg.arrow_head, SeqArrowHead::HalfTop)
-            };
-            let skip_bottom = if msg.is_left {
-                matches!(msg.arrow_head, SeqArrowHead::HalfTop)
-            } else {
-                matches!(msg.arrow_head, SeqArrowHead::HalfBottom)
-            };
-            if !skip_top {
-                write!(
-                    tmp,
-                    r#"<line style="stroke:{color};stroke-width:{sw};" x1="{x1}" x2="{x2}" y1="{y1}" y2="{y2}"/>"#,
-                    color = arrow_color,
-                    x1 = fmt_coord(tip_x),
-                    x2 = fmt_coord(arm_x),
-                    y1 = fmt_coord(msg.y),
-                    y2 = fmt_coord(msg.y - 4.0),
-                )
-                .unwrap();
-            }
-            if !skip_bottom {
-                write!(
-                    tmp,
-                    r#"<line style="stroke:{color};stroke-width:{sw};" x1="{x1}" x2="{x2}" y1="{y1}" y2="{y2}"/>"#,
-                    color = arrow_color,
-                    x1 = fmt_coord(tip_x),
-                    x2 = fmt_coord(arm_x),
-                    y1 = fmt_coord(msg.y),
-                    y2 = fmt_coord(msg.y + 4.0),
-                )
-                .unwrap();
-            }
+            write!(tmp, r#"<line style="stroke:{color};stroke-width:2;" x1="{x1}" x2="{x2}" y1="{y1}" y2="{y2}"/>"#,
+                color = arrow_color, x1 = fmt_coord(x0), x2 = fmt_coord(x0 + ARROW_DELTA_X),
+                y1 = fmt_coord(msg.y - half), y2 = fmt_coord(msg.y + half)).unwrap();
+            write!(tmp, r#"<line style="stroke:{color};stroke-width:2;" x1="{x1}" x2="{x2}" y1="{y1}" y2="{y2}"/>"#,
+                color = arrow_color, x1 = fmt_coord(x0), x2 = fmt_coord(x0 + ARROW_DELTA_X),
+                y1 = fmt_coord(msg.y + half), y2 = fmt_coord(msg.y - half)).unwrap();
             sg.push_raw(&tmp);
         } else {
-            // Filled arrowhead polygon
-            let arm_x = if msg.is_left { tip_x + 10.0 } else { tip_x - 10.0 };
+            // Left arrowhead polygon (pointing left)
+            let left_tip = if msg.is_left { tip_x } else { bidir_from_tip_x };
+            let arm_x = left_tip + 10.0;
+            let inner_x = left_tip + 6.0;
             let mut tmp = String::new();
-            match msg.arrow_head {
-                SeqArrowHead::FilledHalfTop => {
-                    write!(tmp, r#"<polygon fill="{color}" points="{},{},{},{},{},{}" style="stroke:{color};stroke-width:1;"/>"#,
-                        fmt_coord(arm_x), fmt_coord(msg.y - 4.0),
-                        fmt_coord(tip_x), fmt_coord(msg.y),
-                        fmt_coord(arm_x), fmt_coord(msg.y),
-                        color = arrow_color).unwrap();
-                }
-                SeqArrowHead::FilledHalfBottom => {
-                    write!(tmp, r#"<polygon fill="{color}" points="{},{},{},{},{},{}" style="stroke:{color};stroke-width:1;"/>"#,
-                        fmt_coord(arm_x), fmt_coord(msg.y),
-                        fmt_coord(tip_x), fmt_coord(msg.y),
-                        fmt_coord(arm_x), fmt_coord(msg.y + 4.0),
-                        color = arrow_color).unwrap();
-                }
-                _ => {
-                    let inner_x = if msg.is_left { tip_x + 6.0 } else { tip_x - 6.0 };
-                    write!(tmp, r#"<polygon fill="{color}" points="{},{},{},{},{},{},{},{}" style="stroke:{color};stroke-width:1;"/>"#,
-                        fmt_coord(arm_x), fmt_coord(msg.y - 4.0),
-                        fmt_coord(tip_x), fmt_coord(msg.y),
-                        fmt_coord(arm_x), fmt_coord(msg.y + 4.0),
-                        fmt_coord(inner_x), fmt_coord(msg.y),
-                        color = arrow_color).unwrap();
-                }
-            }
+            write!(tmp, r#"<polygon fill="{color}" points="{},{},{},{},{},{},{},{}" style="stroke:{color};stroke-width:1;"/>"#,
+                fmt_coord(arm_x), fmt_coord(msg.y - 4.0),
+                fmt_coord(left_tip), fmt_coord(msg.y),
+                fmt_coord(arm_x), fmt_coord(msg.y + 4.0),
+                fmt_coord(inner_x), fmt_coord(msg.y),
+                color = arrow_color).unwrap();
             sg.push_raw(&tmp);
+        }
+
+        // Right side: circle, then arrowhead/cross
+        if right_circle {
+            let cx = right_cx - 0.5;
+            let cy = msg.y - 0.75;
+            sg.push_raw(&format!(
+                r##"<ellipse cx="{}" cy="{}" fill="#000000" rx="{}" ry="{}" style="stroke:{};stroke-width:{};"/>"##,
+                fmt_coord(cx), fmt_coord(cy),
+                fmt_coord(DIAM_CIRCLE / 2.0), fmt_coord(DIAM_CIRCLE / 2.0),
+                arrow_color, fmt_coord(THIN_CIRCLE),
+            ));
+        }
+        // Right arrowhead (pointing right)
+        if right_cross {
+            // Cross at right side
+            let x0 = if msg.is_left {
+                msg.from_x - SPACE_CROSS_X - ARROW_DELTA_X - 2.0
+            } else {
+                tip_x - SPACE_CROSS_X - ARROW_DELTA_X
+            };
+            let half = ARROW_DELTA_X / 2.0;
+            let mut tmp = String::new();
+            write!(tmp, r#"<line style="stroke:{color};stroke-width:2;" x1="{x1}" x2="{x2}" y1="{y1}" y2="{y2}"/>"#,
+                color = arrow_color, x1 = fmt_coord(x0), x2 = fmt_coord(x0 + ARROW_DELTA_X),
+                y1 = fmt_coord(msg.y - half), y2 = fmt_coord(msg.y + half)).unwrap();
+            write!(tmp, r#"<line style="stroke:{color};stroke-width:2;" x1="{x1}" x2="{x2}" y1="{y1}" y2="{y2}"/>"#,
+                color = arrow_color, x1 = fmt_coord(x0), x2 = fmt_coord(x0 + ARROW_DELTA_X),
+                y1 = fmt_coord(msg.y + half), y2 = fmt_coord(msg.y - half)).unwrap();
+            sg.push_raw(&tmp);
+        } else {
+            // Right arrowhead polygon (pointing right)
+            let right_tip = if msg.is_left { bidir_from_tip_x } else { tip_x };
+            let arm_x = right_tip - 10.0;
+            let inner_x = right_tip - 6.0;
+            let mut tmp = String::new();
+            write!(tmp, r#"<polygon fill="{color}" points="{},{},{},{},{},{},{},{}" style="stroke:{color};stroke-width:1;"/>"#,
+                fmt_coord(arm_x), fmt_coord(msg.y - 4.0),
+                fmt_coord(right_tip), fmt_coord(msg.y),
+                fmt_coord(arm_x), fmt_coord(msg.y + 4.0),
+                fmt_coord(inner_x), fmt_coord(msg.y),
+                color = arrow_color).unwrap();
+            sg.push_raw(&tmp);
+        }
+    } else {
+        // Non-bidirectional: Java renders left-side decorations first, then right-side.
+        // This means spatial order: leftmost elements first, rightmost last.
+
+        // Helper: draw circle at given participant x
+        let draw_circle = |sg: &mut SvgGraphic, px: f64| {
+            let cx = px - 0.5;
+            let cy = msg.y - 0.75;
+            sg.push_raw(&format!(
+                r##"<ellipse cx="{}" cy="{}" fill="#000000" rx="{}" ry="{}" style="stroke:{};stroke-width:{};"/>"##,
+                fmt_coord(cx), fmt_coord(cy),
+                fmt_coord(DIAM_CIRCLE / 2.0), fmt_coord(DIAM_CIRCLE / 2.0),
+                arrow_color, fmt_coord(THIN_CIRCLE),
+            ));
+        };
+
+        // Helper: draw cross at given position
+        let draw_cross = |sg: &mut SvgGraphic, x0: f64| {
+            let half = ARROW_DELTA_X / 2.0;
+            let mut tmp = String::new();
+            write!(tmp, r#"<line style="stroke:{color};stroke-width:2;" x1="{x1}" x2="{x2}" y1="{y1}" y2="{y2}"/>"#,
+                color = arrow_color, x1 = fmt_coord(x0), x2 = fmt_coord(x0 + ARROW_DELTA_X),
+                y1 = fmt_coord(msg.y - half), y2 = fmt_coord(msg.y + half)).unwrap();
+            write!(tmp, r#"<line style="stroke:{color};stroke-width:2;" x1="{x1}" x2="{x2}" y1="{y1}" y2="{y2}"/>"#,
+                color = arrow_color, x1 = fmt_coord(x0), x2 = fmt_coord(x0 + ARROW_DELTA_X),
+                y1 = fmt_coord(msg.y + half), y2 = fmt_coord(msg.y - half)).unwrap();
+            sg.push_raw(&tmp);
+        };
+
+        // Helper: draw arrowhead at tip_x
+        let draw_arrowhead = |sg: &mut SvgGraphic| {
+            if msg.cross_to {
+                return; // cross replaces arrowhead
+            }
+            if msg.has_open_head {
+                let arm_offset = if msg.is_left { 10.0 } else { -10.0 };
+                let arm_x = tip_x + arm_offset;
+                let mut tmp = String::new();
+                let skip_top = if msg.is_left {
+                    matches!(msg.arrow_head, SeqArrowHead::HalfBottom)
+                } else {
+                    matches!(msg.arrow_head, SeqArrowHead::HalfTop)
+                };
+                let skip_bottom = if msg.is_left {
+                    matches!(msg.arrow_head, SeqArrowHead::HalfTop)
+                } else {
+                    matches!(msg.arrow_head, SeqArrowHead::HalfBottom)
+                };
+                if !skip_top {
+                    write!(tmp, r#"<line style="stroke:{color};stroke-width:{sw};" x1="{x1}" x2="{x2}" y1="{y1}" y2="{y2}"/>"#,
+                        color = arrow_color, x1 = fmt_coord(tip_x), x2 = fmt_coord(arm_x),
+                        y1 = fmt_coord(msg.y), y2 = fmt_coord(msg.y - 4.0)).unwrap();
+                }
+                if !skip_bottom {
+                    write!(tmp, r#"<line style="stroke:{color};stroke-width:{sw};" x1="{x1}" x2="{x2}" y1="{y1}" y2="{y2}"/>"#,
+                        color = arrow_color, x1 = fmt_coord(tip_x), x2 = fmt_coord(arm_x),
+                        y1 = fmt_coord(msg.y), y2 = fmt_coord(msg.y + 4.0)).unwrap();
+                }
+                sg.push_raw(&tmp);
+            } else {
+                let arm_x = if msg.is_left { tip_x + 10.0 } else { tip_x - 10.0 };
+                let mut tmp = String::new();
+                match msg.arrow_head {
+                    SeqArrowHead::FilledHalfTop => {
+                        write!(tmp, r#"<polygon fill="{color}" points="{},{},{},{},{},{}" style="stroke:{color};stroke-width:1;"/>"#,
+                            fmt_coord(arm_x), fmt_coord(msg.y - 4.0),
+                            fmt_coord(tip_x), fmt_coord(msg.y),
+                            fmt_coord(arm_x), fmt_coord(msg.y),
+                            color = arrow_color).unwrap();
+                    }
+                    SeqArrowHead::FilledHalfBottom => {
+                        write!(tmp, r#"<polygon fill="{color}" points="{},{},{},{},{},{}" style="stroke:{color};stroke-width:1;"/>"#,
+                            fmt_coord(arm_x), fmt_coord(msg.y),
+                            fmt_coord(tip_x), fmt_coord(msg.y),
+                            fmt_coord(arm_x), fmt_coord(msg.y + 4.0),
+                            color = arrow_color).unwrap();
+                    }
+                    _ => {
+                        let inner_x = if msg.is_left { tip_x + 6.0 } else { tip_x - 6.0 };
+                        write!(tmp, r#"<polygon fill="{color}" points="{},{},{},{},{},{},{},{}" style="stroke:{color};stroke-width:1;"/>"#,
+                            fmt_coord(arm_x), fmt_coord(msg.y - 4.0),
+                            fmt_coord(tip_x), fmt_coord(msg.y),
+                            fmt_coord(arm_x), fmt_coord(msg.y + 4.0),
+                            fmt_coord(inner_x), fmt_coord(msg.y),
+                            color = arrow_color).unwrap();
+                    }
+                }
+                sg.push_raw(&tmp);
+            }
+        };
+
+        // Compute cross positions
+        let cross_from_x0 = if msg.is_left {
+            msg.from_x - SPACE_CROSS_X - ARROW_DELTA_X - 2.0
+        } else {
+            msg.from_x + SPACE_CROSS_X + 1.0
+        };
+        let cross_to_x0 = if msg.is_left {
+            tip_x + SPACE_CROSS_X
+        } else {
+            tip_x - SPACE_CROSS_X - ARROW_DELTA_X
+        };
+
+        // Draw left-side elements first, then right-side elements
+        if msg.is_left {
+            // is_left: to (arrowhead) is on LEFT, from (decorations) is on RIGHT
+            // Left side = to: circle_to, cross_to, arrowhead
+            if msg.circle_to { draw_circle(sg, msg.to_x); }
+            if msg.cross_to { draw_cross(sg, cross_to_x0); }
+            draw_arrowhead(sg);
+            // Right side = from: circle_from, cross_from
+            if msg.circle_from { draw_circle(sg, msg.from_x); }
+            if msg.cross_from { draw_cross(sg, cross_from_x0); }
+        } else {
+            // is_left=false: from is on LEFT, to (arrowhead) is on RIGHT
+            // Left side = from: circle_from, cross_from
+            if msg.circle_from { draw_circle(sg, msg.from_x); }
+            if msg.cross_from { draw_cross(sg, cross_from_x0); }
+            // Right side = to: circle_to, cross_to, arrowhead
+            if msg.circle_to { draw_circle(sg, msg.to_x); }
+            if msg.cross_to { draw_cross(sg, cross_to_x0); }
+            draw_arrowhead(sg);
         }
     }
 
@@ -1659,7 +1737,7 @@ fn draw_message(
         }
     } else if msg.has_open_head || is_half_filled {
         if msg.is_left {
-            msg.to_x
+            msg.to_x + circle_to_shift
         } else {
             tip_x + 1.0
         }
@@ -1674,6 +1752,17 @@ fn draw_message(
             line_x1 - 2.0 * SPACE_CROSS_X
         } else {
             line_x1 + 2.0 * SPACE_CROSS_X
+        }
+    } else if msg.bidirectional && !msg.cross_from {
+        // Bidirectional: "from" arrowhead also insets the line by 4px
+        if msg.is_left {
+            // from is on right, arrowhead points right: line ends 4px left of from tip
+            let from_tip = msg.from_x - 2.0 - circle_from_shift;
+            from_tip - 4.0
+        } else {
+            // from is on left, arrowhead points left: line ends 4px right of from tip
+            let from_tip = msg.from_x + 1.0 + circle_from_shift;
+            from_tip + 4.0
         }
     } else {
         line_x1
@@ -1700,10 +1789,18 @@ fn draw_message(
     // Label text above the line — each line as a separate <text> element
     let has_text = !msg.text.is_empty() || msg.autonumber.is_some();
     if has_text {
-        let cross_from_text_offset = if msg.cross_from { ARROW_DELTA_X } else { 0.0 };
+        // Cross at source shifts text only for LeftToRight (cross is on left, near text start).
+        // For RightToLeft, cross is on right side and doesn't affect text position.
+        let cross_from_text_offset = if msg.cross_from && !msg.is_left && !msg.bidirectional {
+            ARROW_DELTA_X
+        } else {
+            0.0
+        };
         let base_text_x = if msg.is_left {
-            // Left arrow: text starts after arrowhead polygon (tip + polygon_width + gap)
-            tip_x + 16.0 + cross_from_text_offset
+            // Left arrow: text positioned after the left arrowhead.
+            // Use base tip (without circle shift) — Java doesn't shift text for circles.
+            let base_tip = msg.to_x + 1.0;
+            base_tip + 16.0
         } else {
             msg.from_x + 7.0 + cross_from_text_offset
         };
@@ -1837,14 +1934,9 @@ fn draw_self_message(
 
     // Draw circle decorations for self-messages
     // circle_from → outgoing line, circle_to → return line
-    // For left self-message: circle at the right side (from_x - 0.5)
-    // For right self-message: circle at the right side (from_x + 0.5)
+    // Java always draws circles at participant_center - 0.5 regardless of direction
     if msg.circle_from {
-        let cx = if msg.is_left {
-            from_x - 0.5
-        } else {
-            from_x + 0.5
-        };
+        let cx = msg.self_center_x - 0.5;
         let cy = y - 0.75;
         sg.push_raw(&format!(
             r##"<ellipse cx="{}" cy="{}" fill="#000000" rx="{}" ry="{}" style="stroke:{};stroke-width:{};"/>"##,
@@ -1854,11 +1946,7 @@ fn draw_self_message(
         ));
     }
     if msg.circle_to {
-        let cx = if msg.is_left {
-            from_x - 0.5
-        } else {
-            from_x + 0.5
-        };
+        let cx = msg.self_center_x - 0.5;
         let cy = (y + loop_height) - 0.75;
         sg.push_raw(&format!(
             r##"<ellipse cx="{}" cy="{}" fill="#000000" rx="{}" ry="{}" style="stroke:{};stroke-width:{};"/>"##,
@@ -1890,6 +1978,15 @@ fn draw_self_message(
     // Cross offsets: Java adds 2*spaceCrossX to x1 (outgoing) or x2 (return)
     let cross_from_offset = if msg.cross_from { 2.0 * SPACE_CROSS_X } else { 0.0 };
     let cross_to_offset = if msg.cross_to { 2.0 * SPACE_CROSS_X } else { 0.0 };
+    // Circle offset: circle at from shifts outgoing line.
+    // For bidirectional (arrowhead at outgoing), full shift (diam/2 + thin).
+    // For non-bidirectional, only diam/2.
+    let circle_from_line_offset = if msg.circle_from {
+        if msg.bidirectional { DIAM_CIRCLE / 2.0 + THIN_CIRCLE } else { DIAM_CIRCLE / 2.0 }
+    } else {
+        0.0
+    };
+    let circle_to_line_offset = if msg.circle_to { DIAM_CIRCLE / 2.0 + THIN_CIRCLE } else { 0.0 };
 
     // Line 1: outgoing horizontal
     let (line1_x1, line1_x2) = if msg.is_left {
@@ -1898,8 +1995,18 @@ fn draw_self_message(
         (to_x, from_x - 1.0)
     } else {
         // Right self-msg: outgoing goes right from lifeline
-        // Java: x1 starts at 0, adjusted for cross_from
-        (from_x + cross_from_offset, to_x)
+        // For bidirectional with circle, outgoing line starts at the arrowhead tip.
+        // Without circles: from_x. With circles: return_x + circle_shift.
+        let base = if msg.bidirectional {
+            if msg.circle_from {
+                return_x + circle_to_line_offset
+            } else {
+                from_x
+            }
+        } else {
+            from_x + circle_from_line_offset
+        };
+        (base + cross_from_offset, to_x)
     };
     write!(
         tmp,
@@ -1929,13 +2036,13 @@ fn draw_self_message(
         let extraline = if msg.has_open_head { 0.0 } else { 1.0 };
         (to_x, return_x - extraline)
     } else {
-        // Right self-msg: adjust for cross_to or open head
+        // Right self-msg: adjust for cross_to, circle_to, or open head
         let base_x1 = if msg.cross_to {
             // Cross replaces arrowhead: return starts after cross space
             return_x - 1.0 + cross_to_offset
         } else {
             let extraline_r = if msg.has_open_head { 1.0 } else { 0.0 };
-            return_x - extraline_r
+            return_x - extraline_r + circle_to_line_offset
         };
         (base_x1, to_x)
     };
@@ -1974,6 +2081,38 @@ fn draw_self_message(
             x1 = fmt_coord(x0), x2 = fmt_coord(x0 + ARROW_DELTA_X_SELF),
             y1 = fmt_coord(y + half), y2 = fmt_coord(y - half),
         ).unwrap();
+    }
+
+    // Bidirectional: draw arrowhead at the outgoing (top) line, pointing toward participant
+    if msg.bidirectional && !msg.cross_from {
+        if msg.is_left {
+            // Left self-msg bidirectional: outgoing arrowhead points RIGHT at from_x
+            let bidir_tip = from_x - 1.0;
+            let bidir_arm = bidir_tip - 10.0;
+            let bidir_inner = bidir_tip - 6.0;
+            write!(tmp, r#"<polygon fill="{color}" points="{},{},{},{},{},{},{},{}" style="stroke:{color};stroke-width:1;"/>"#,
+                fmt_coord(bidir_arm), fmt_coord(y - 4.0),
+                fmt_coord(bidir_tip), fmt_coord(y),
+                fmt_coord(bidir_arm), fmt_coord(y + 4.0),
+                fmt_coord(bidir_inner), fmt_coord(y),
+                color = arrow_color).unwrap();
+        } else {
+            // Right self-msg bidirectional: outgoing arrowhead points LEFT
+            // Without circles: tip at from_x. With circles: tip at return_x + circle_shift.
+            let bidir_tip = if msg.circle_from {
+                return_x + circle_to_line_offset
+            } else {
+                from_x
+            };
+            let bidir_arm = bidir_tip + 10.0;
+            let bidir_inner = bidir_tip + 6.0;
+            write!(tmp, r#"<polygon fill="{color}" points="{},{},{},{},{},{},{},{}" style="stroke:{color};stroke-width:1;"/>"#,
+                fmt_coord(bidir_arm), fmt_coord(y - 4.0),
+                fmt_coord(bidir_tip), fmt_coord(y),
+                fmt_coord(bidir_arm), fmt_coord(y + 4.0),
+                fmt_coord(bidir_inner), fmt_coord(y),
+                color = arrow_color).unwrap();
+        }
     }
 
     // Arrowhead or cross at return
@@ -2055,9 +2194,9 @@ fn draw_self_message(
                 | SeqArrowHead::FilledHalfBottom
         );
         let tip_x = if matches!(msg.arrow_head, SeqArrowHead::FilledHalfTop | SeqArrowHead::FilledHalfBottom) {
-            return_x - 1.0
+            return_x - 1.0 + circle_to_line_offset
         } else {
-            return_x
+            return_x + circle_to_line_offset
         };
         if msg.has_open_head {
             let skip_top = if is_half {

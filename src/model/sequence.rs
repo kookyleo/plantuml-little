@@ -81,6 +81,8 @@ pub struct Message {
     pub is_reverse_define: bool,
     /// Hidden arrow: `-[hidden]->` — occupies vertical space but is not drawn
     pub hidden: bool,
+    /// Bidirectional arrow: `<->` — arrowheads at both ends
+    pub bidirectional: bool,
 }
 
 /// Combined fragment kind

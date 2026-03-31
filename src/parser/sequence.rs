@@ -1077,6 +1077,7 @@ fn parse_arrow(left: &str, arrow: &str, right: &str, text: &str) -> Option<Messa
     };
 
     let is_reverse_define = !has_right_arrow && has_left_arrow;
+    let bidirectional = has_left_arrow && has_right_arrow;
 
     Some(Message {
         from,
@@ -1094,6 +1095,7 @@ fn parse_arrow(left: &str, arrow: &str, right: &str, text: &str) -> Option<Messa
         parallel: false, // set by caller if & prefix detected
         is_reverse_define,
         hidden: is_hidden,
+        bidirectional,
     })
 }
 

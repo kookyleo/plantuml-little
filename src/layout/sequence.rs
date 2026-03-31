@@ -214,6 +214,8 @@ pub struct MessageLayout {
     pub cross_from: bool,
     /// Cross (X) decoration on the "to" end of the arrow
     pub cross_to: bool,
+    /// Bidirectional arrow: arrowheads at both ends
+    pub bidirectional: bool,
 }
 
 /// Activation bar layout
@@ -1100,7 +1102,8 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
                 let is_dashed = msg.arrow_style == SeqArrowStyle::Dashed
                     || msg.arrow_style == SeqArrowStyle::Dotted;
                 let is_left = if is_self {
-                    msg.direction == SeqDirection::RightToLeft
+                    // Bidirectional self-messages always loop RIGHT in Java
+                    !msg.bidirectional && msg.direction == SeqDirection::RightToLeft
                 } else {
                     from_x > to_x
                 };
@@ -1347,6 +1350,7 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
                     circle_to: msg.circle_to,
                     cross_from: msg.cross_from,
                     cross_to: msg.cross_to,
+                    bidirectional: msg.bidirectional,
                 });
 
                 // Compute self-message arrow preferred width (used for fragment
@@ -2531,6 +2535,7 @@ mod tests {
             parallel: false,
             is_reverse_define: false,
             hidden: false,
+            bidirectional: false,
         }
     }
 
@@ -2855,6 +2860,7 @@ mod tests {
                 parallel: false,
                 is_reverse_define: false,
                 hidden: false,
+                bidirectional: false,
             })],
             teoz_mode: false,
             hide_footbox: false,
@@ -3156,6 +3162,7 @@ mod tests {
                     parallel: false,
                     is_reverse_define: true,
                     hidden: false,
+                    bidirectional: false,
                 }),
                 SeqEvent::Deactivate("B".to_string()),
             ],
