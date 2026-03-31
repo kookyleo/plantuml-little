@@ -609,6 +609,40 @@ impl DotPath {
     pub fn is_line(&self) -> bool {
         self.beziers.iter().all(|c| c.flatness_sq() <= 0.001)
     }
+
+    /// Compute the bounding box over all bezier control points.
+    /// Java: `DotPath.getMinMax()` — uses all four points of each cubic.
+    pub fn min_max(&self) -> Option<(f64, f64, f64, f64)> {
+        if self.beziers.is_empty() {
+            return None;
+        }
+        let mut min_x = f64::INFINITY;
+        let mut min_y = f64::INFINITY;
+        let mut max_x = f64::NEG_INFINITY;
+        let mut max_y = f64::NEG_INFINITY;
+        for c in &self.beziers {
+            for &(x, y) in &[
+                (c.x1, c.y1),
+                (c.ctrlx1, c.ctrly1),
+                (c.ctrlx2, c.ctrly2),
+                (c.x2, c.y2),
+            ] {
+                if x < min_x {
+                    min_x = x;
+                }
+                if y < min_y {
+                    min_y = y;
+                }
+                if x > max_x {
+                    max_x = x;
+                }
+                if y > max_y {
+                    max_y = y;
+                }
+            }
+        }
+        Some((min_x, min_y, max_x, max_y))
+    }
 }
 
 impl fmt::Display for DotPath {

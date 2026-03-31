@@ -715,6 +715,26 @@ impl DotStringFactory {
                     }
                 }
             }
+            // Java LimitFinder.drawDotPath: adds min/max of all bezier
+            // control points. This matters when edge paths curve beyond the
+            // bounding box of nodes and labels (e.g. curved arrows in
+            // component diagrams).
+            if let Some(ref dp) = edge.dot_path {
+                if let Some((px_min, py_min, px_max, py_max)) = dp.min_max() {
+                    if px_min < lf_min_x {
+                        lf_min_x = px_min;
+                    }
+                    if py_min < lf_min_y {
+                        lf_min_y = py_min;
+                    }
+                    if px_max > lf_max_x {
+                        lf_max_x = px_max;
+                    }
+                    if py_max > lf_max_y {
+                        lf_max_y = py_max;
+                    }
+                }
+            }
         }
         for cluster in &self.bibliotekon.clusters {
             extend_lf_with_cluster(
