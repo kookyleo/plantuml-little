@@ -370,7 +370,7 @@ fn draw_lifelines_with_activations(
         // Java teoz: LiveBoxesDrawer passes null for stringsToDisplay → Display.NULL → empty tooltip
         for act in &layout.activations {
             if act.participant == p.name {
-                draw_activation(sg, act, "", shadow_attr);
+                draw_activation(sg, act, "", shadow_attr, ll_color);
             }
         }
     }
@@ -417,6 +417,8 @@ fn draw_participant_box_with_font(
     head: bool,
     link_url: Option<&str>,
     shadow_attr: &str,
+    stroke_width: f64,
+    rounded: bool,
 ) {
     let fill = p.color.as_deref().unwrap_or(bg);
 
@@ -465,6 +467,8 @@ fn draw_participant_box_with_font(
                 part_font_size,
                 link_url,
                 shadow_attr,
+                stroke_width,
+                rounded,
             );
         }
     }
@@ -482,6 +486,8 @@ fn draw_participant_rect_with_font(
     font_size: f64,
     link_url: Option<&str>,
     shadow_attr: &str,
+    stroke_width: f64,
+    rounded: bool,
 ) {
     let name = display_name.unwrap_or(&p.name);
     let lines: Vec<&str> = name
@@ -503,15 +509,18 @@ fn draw_participant_rect_with_font(
     let max_line_width = line_widths.iter().copied().fold(0.0_f64, f64::max);
 
     let fill_attrs = resolve_fill_attrs(bg);
+    let round_attrs = if rounded { r#" rx="2.5" ry="2.5""# } else { "" };
     let mut tmp = String::new();
     write!(
         tmp,
-        r#"<rect {fill_attrs}{shadow} height="{h}" rx="2.5" ry="2.5" style="stroke:{border};stroke-width:0.5;" width="{w}" x="{x}" y="{y}"/>"#,
+        r#"<rect {fill_attrs}{shadow} height="{h}"{round} style="stroke:{border};stroke-width:{sw};" width="{w}" x="{x}" y="{y}"/>"#,
         h = fmt_coord(box_height),
         w = fmt_coord(box_width),
         x = fmt_coord(x),
         y = fmt_coord(y),
         shadow = shadow_attr,
+        sw = fmt_coord(stroke_width),
+        round = round_attrs,
     )
     .unwrap();
     sg.push_raw(&tmp);
@@ -2404,7 +2413,7 @@ fn draw_self_message(
 
 // ── Activation bars ─────────────────────────────────────────────────
 
-fn draw_activation(sg: &mut SvgGraphic, act: &ActivationLayout, title: &str, shadow_attr: &str) {
+fn draw_activation(sg: &mut SvgGraphic, act: &ActivationLayout, title: &str, shadow_attr: &str, border_color: &str) {
     let width = 10.0;
     let height = act.y_end - act.y_start;
 
@@ -2426,7 +2435,7 @@ fn draw_activation(sg: &mut SvgGraphic, act: &ActivationLayout, title: &str, sha
         fmt_coord(act.y_start),
         title_tag = title_tag,
         bg = bg,
-        border = BORDER_COLOR,
+        border = border_color,
         shadow = shadow_attr,
     )
     .unwrap();
@@ -3066,6 +3075,7 @@ fn render_sequence_inner(
     // Teoz: per-participant interleaving: lifeline then its activations
     //       (Java MainTile draws each participant's components together)
     // Puma: activations first, then lifelines (Java DrawableSet draw order)
+    let act_border = skin.sequence_lifeline_border_color(BORDER_COLOR);
     if sd.teoz_mode {
         draw_lifelines_with_activations(&mut sg, layout, skin, sd, &display_names, &shadow_attr);
     } else {
@@ -3074,7 +3084,7 @@ fn render_sequence_inner(
                 .get(act.participant.as_str())
                 .copied()
                 .unwrap_or(&act.participant);
-            draw_activation(&mut sg, act, title, &shadow_attr);
+            draw_activation(&mut sg, act, title, &shadow_attr, act_border);
         }
         draw_lifelines(&mut sg, layout, skin, sd);
     }
@@ -3100,13 +3110,15 @@ fn render_sequence_inner(
     let seq_svg_font_family = svg_font_family_attr(&default_font);
 
     let monochrome = skin.is_monochrome();
+    let is_skin_rose = skin.get("_skin_rose").is_some();
     let part_bg = if monochrome {
         "#E3E3E3"
     } else {
         skin.background_color("participant", PARTICIPANT_BG)
     };
     let part_border = skin.border_color("participant", BORDER_COLOR);
-    let part_thickness = skin.line_thickness("participant", 0.5);
+    let part_thickness = skin.line_thickness("participant", if is_skin_rose { 1.5 } else { 0.5 });
+    let part_rounded = !is_skin_rose;
     let part_font = skin.font_color("participant", TEXT_COLOR);
     let part_font_size: f64 = skin
         .get("participantfontsize")
@@ -3209,6 +3221,8 @@ fn render_sequence_inner(
                 is_head,
                 part_link_url,
                 &shadow_attr,
+                part_thickness,
+                part_rounded,
             );
         }
         if !sd.teoz_mode {
@@ -3253,7 +3267,7 @@ fn render_sequence_inner(
                 .get(act.participant.as_str())
                 .copied()
                 .unwrap_or(&act.participant);
-            draw_activation(&mut sg, act, title, &shadow_attr);
+            draw_activation(&mut sg, act, title, &shadow_attr, act_border);
         }
     }
 
@@ -3509,10 +3523,12 @@ fn render_sequence_inner(
         buf = buf.replacen("<defs/>", &format!("<defs>{}</defs>", defs_content), 1);
     }
 
-    // Apply theme line thickness: replace default stroke-width:0.5 with theme value
-    let theme_thickness = skin.line_thickness("participant", 0.5);
-    if (theme_thickness - 0.5).abs() > f64::EPSILON {
-        let sw_str = fmt_stroke_width(theme_thickness);
+    // Apply root line thickness: replace default stroke-width:0.5 with root theme value.
+    // This applies to lifelines, notes, etc. — but NOT participant boxes which get
+    // their thickness explicitly from the rendering code.
+    let root_thickness = skin.line_thickness("root", 0.5);
+    if (root_thickness - 0.5).abs() > f64::EPSILON {
+        let sw_str = fmt_stroke_width(root_thickness);
         buf = buf.replace("stroke-width:0.5;", &format!("stroke-width:{sw_str};"));
     }
 

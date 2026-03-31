@@ -496,14 +496,30 @@ pub fn parse_skinparams(content: &str) -> SkinParams {
         let lower = trimmed.to_lowercase();
 
         // Handle `skin rose` directive: apply Rose theme defaults.
-        // Java Rose skin uses #A80036 for borders and stroke-width:1 for lines.
+        // Java Rose skin uses legacy ColorParam defaults (MY_RED=#A80036,
+        // MY_YELLOW=#FEFECE, COL_FBFB77 for notes). This completely replaces
+        // the modern default theme colors.
         if lower.starts_with("skin ") {
             let skin_name = lower["skin ".len()..].trim();
             if skin_name == "rose" {
+                // Border colors (Java: MY_RED = #A80036)
                 params.set("sequencelifelinebordercolor", "#A80036");
                 params.set("participant.bordercolor", "#A80036");
+                params.set("participantbordercolor", "#A80036");
                 params.set("sequence.bordercolor", "#A80036");
+                params.set("notebordercolor", "#A80036");
+                params.set("sequencegroupbordercolor", "#A80036");
+                // Background colors (Java: MY_YELLOW = #FEFECE)
+                params.set("participantbackgroundcolor", "#FEFECE");
+                params.set("participant.backgroundcolor", "#FEFECE");
+                // Note background (Java: COL_FBFB77)
+                params.set("notebackgroundcolor", "#FBFB77");
+                // Line thickness (Java: Rose skin default)
                 params.set("root.linethickness", "1");
+                // Participant stroke-width 1.5 (Java: UStroke(1.5) for participant)
+                params.set("participant.linethickness", "1.5");
+                // Flag for rendering: no rounded corners, different box layout
+                params.set("_skin_rose", "true");
             }
             continue;
         }

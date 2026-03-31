@@ -3058,6 +3058,10 @@ pub fn build_teoz_layout(sd: &SequenceDiagram, skin: &SkinParams) -> Result<SeqL
         let lifeline_top = STARTING_Y + max_preferred_height;
         let mut last_step_y: f64 = lifeline_top + PLAYINGSPACE_STARTING_Y;
         let mut last_msg_bottom_y: f64 = lifeline_top + PLAYINGSPACE_STARTING_Y;
+        // For self-message tiles, Java uses p2.y (end point) for activate events
+        // and p1.y (start point) for deactivate events. Track the end point
+        // separately so inline activates after self-messages get the correct y.
+        let mut last_step_y_self_end: Option<f64> = None;
         // Java getStairs: msg step gets indent from getLevelAt peek-ahead.
         // If a future standalone activate raises the level, the msg step
         // has higher indent and the activation box starts at msg arrowY.
@@ -3110,6 +3114,7 @@ pub fn build_teoz_layout(sd: &SequenceDiagram, skin: &SkinParams) -> Result<SeqL
                         // Step y = tile_top + arrowY = tile_top + (height - 8)
                         last_step_y = ty + (height - rose::ARROW_DELTA_Y - rose::ARROW_PADDING_Y);
                         last_msg_bottom_y = ty + height;
+                        last_step_y_self_end = None;
                     }
                     TeozTile::SelfMessage { height, y, text_lines, .. } => {
                         let ty = y.unwrap_or(0.0);
@@ -3121,7 +3126,11 @@ pub fn build_teoz_layout(sd: &SequenceDiagram, skin: &SkinParams) -> Result<SeqL
                             tp.msg_line_height * text_lines.len().max(1) as f64
                         };
                         let self_tm = TextMetrics::new(7.0, 7.0, 1.0, 0.0, self_text_h);
+                        // Java CommunicationTileSelf.callbackY_internal:
+                        //   activate → addStep(y + p2.y) (end point)
+                        //   deactivate → addStep(y + p1.y) (start point)
                         last_step_y = ty + rose::self_arrow_start_point(&self_tm).y;
+                        last_step_y_self_end = Some(ty + rose::self_arrow_end_point(&self_tm).y);
                         last_msg_bottom_y = ty + height;
                     }
                     TeozTile::LifeEvent { .. } => {
@@ -3162,7 +3171,9 @@ pub fn build_teoz_layout(sd: &SequenceDiagram, skin: &SkinParams) -> Result<SeqL
                 SeqEvent::Activate(name, act_color) => {
                     let is_inline = sd.inline_life_events.contains(&event_idx);
                     let y_stairs = if is_inline {
-                        last_step_y
+                        // Java CommunicationTileSelf: activate uses p2.y (end point),
+                        // while deactivate/destroy uses p1.y (start point).
+                        last_step_y_self_end.unwrap_or(last_step_y)
                     } else if let Some(ay) = msg_claims_activate.remove(name) {
                         ay
                     } else {
@@ -3276,6 +3287,14 @@ pub fn build_teoz_layout(sd: &SequenceDiagram, skin: &SkinParams) -> Result<SeqL
         }
         // Update lifeline_bottom to account for unclosed activations
         lifeline_bottom = extended_lifeline_bottom;
+
+        // Java LiveBoxesDrawer draws activation bars per-participant sorted by
+        // stair position (level ascending). Sort to match Java draw order.
+        activations.sort_by(|a, b| {
+            a.participant.cmp(&b.participant)
+                .then(a.level.cmp(&b.level))
+                .then(a.y_start.partial_cmp(&b.y_start).unwrap_or(std::cmp::Ordering::Equal))
+        });
     }
 
     // Java: PlayingSpaceWithParticipants.width = maxX - minX (= diagram_width)
