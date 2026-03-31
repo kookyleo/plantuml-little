@@ -403,3 +403,16 @@ fn ext_ref_state_history_simple() {
         },
     );
 }
+
+#[test]
+#[ignore = "diagnostic: concurrent region height (stacked with separator)"]
+fn ext_ref_state_concurrent_simple() {
+    assert_ext_reference_case(
+        "state_concurrent_simple",
+        "state_ext_concurrent_simple.puml",
+        CompareProfile {
+            normalize_ids: true,
+            strip_source_line: true,
+        },
+    );
+}

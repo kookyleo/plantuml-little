@@ -1248,7 +1248,7 @@ fn extend_min_with_cluster(cluster: &cluster::Cluster, min_x: &mut f64, min_y: &
 /// Parse a numeric XML attribute value near a given position.
 /// Searches forward from `from` within a reasonable range for `attr_name="value"`.
 fn parse_xml_attr_near(svg: &str, from: usize, attr_name: &str) -> Option<f64> {
-    // Search within the next ~200 bytes, but keep UTF-8 boundaries intact.
+    // Search within the current XML element only (stop at "/>", ">", or 200 bytes).
     let mut start = from.min(svg.len());
     while start < svg.len() && !svg.is_char_boundary(start) {
         start += 1;
@@ -1258,6 +1258,12 @@ fn parse_xml_attr_near(svg: &str, from: usize, attr_name: &str) -> Option<f64> {
         end -= 1;
     }
     let search = &svg[start..end];
+    // Limit search to current element: don't cross "/>" or ">" boundaries
+    let element_end = search
+        .find("/>")
+        .or_else(|| search.find('>'))
+        .unwrap_or(search.len());
+    let search = &search[..element_end];
     let needle = format!("{}=\"", attr_name);
     let pos = search.find(&needle)?;
     let val_start = pos + needle.len();
@@ -1324,6 +1330,18 @@ mod tests {
     fn parse_xml_attr_near_handles_multibyte_window_end() {
         let svg = format!("{}cx=\"54\"≤z", "a".repeat(191));
         assert_eq!(parse_xml_attr_near(&svg, 0, "cx"), Some(54.0));
+    }
+
+    #[test]
+    fn parse_xml_attr_near_stops_at_element_boundary() {
+        // Polygon followed by ellipse — must NOT find cx from the ellipse
+        let svg = "<polygon stroke=\"#010100\" points=\"92,-530 0,-82\"/></g><ellipse stroke=\"#030300\" cx=\"46\" cy=\"-11\" rx=\"11\" ry=\"11\"/>";
+        // Searching from the polygon's stroke position should NOT find cx
+        let idx = svg.find("#010100").unwrap();
+        assert_eq!(parse_xml_attr_near(svg, idx, "cx"), None);
+        // But searching from the ellipse's stroke position SHOULD find cx
+        let idx2 = svg.find("#030300").unwrap();
+        assert_eq!(parse_xml_attr_near(svg, idx2, "cx"), Some(46.0));
     }
 
     #[test]

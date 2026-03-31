@@ -108,8 +108,6 @@ const STATE_DESC_FONT_SIZE: f64 = 12.0;
 /// Minimum state dimensions matching Java PlantUML defaults.
 const STATE_MIN_WIDTH: f64 = 50.0;
 const STATE_MIN_HEIGHT: f64 = 50.0;
-/// Vertical gap between rows of states (includes arrow space) — for outer layout.
-const STATE_SPACING: f64 = 50.0;
 /// Graphviz default ranksep (0.5 inches = 36pt) — used for inner composite layouts
 /// where Java's inner graphviz runs with default parameters (no ranksep= directive).
 const INNER_RANKSEP: f64 = 36.0;
@@ -623,8 +621,15 @@ fn compute_state_node(
         }
 
         let mut all_inner_transitions: Vec<TransitionLayout> = Vec::new();
+        let mut is_concurrent = false;
         if all_regions.len() > 1 {
-            // Multiple concurrent regions
+            is_concurrent = true;
+            // Multiple concurrent regions.
+            // Java: each region produces its own SvekResult with
+            //   calculateDimension() = lf_span + delta(15, 15).
+            // ConcurrentStates.calculateDimensionSlow() sums the heights
+            // with NO extra spacing between regions.
+            // The separator line is drawn at the boundary between regions.
             let mut region_y = 0.0;
             for (i, region) in all_regions.iter().enumerate() {
                 let (mut child_layouts, mut inner_tr, child_w, child_h) = layout_children_with_graphviz(
@@ -634,19 +639,18 @@ fn compute_state_node(
                     final_ids,
                 );
                 offset_children(&mut child_layouts, 0.0, region_y);
-                // Also offset inner transitions for this region
                 for tr in &mut inner_tr {
                     offset_transition(tr, 0.0, region_y);
                 }
-                total_child_w = total_child_w.max(child_w);
-                region_y += child_h;
+                total_child_w = total_child_w.max(child_w + 15.0);
+                // Each region's SvekResult height = lf_span_h + 15.0
+                let region_h = child_h + 15.0;
+                region_y += region_h;
                 all_child_layouts.extend(child_layouts);
                 all_inner_transitions.extend(inner_tr);
 
                 if i < all_regions.len() - 1 {
-                    region_y += STATE_SPACING / 2.0;
                     region_separators.push(region_y);
-                    region_y += STATE_SPACING / 2.0;
                 }
             }
             total_child_h = region_y;
@@ -667,9 +671,12 @@ fn compute_state_node(
         //   inner_img = SvekResult.calculateDimension() = lf_span + delta(15, 15)
         //   dim = title.mergeTB(attr, inner_img)  →  (max(title_w, inner_w), title_h + inner_h)
         //   result = dim.delta(2*MARGIN + 2*MARGIN_LINE)  →  (dim_w + 20, dim_h + 20)
-        // Java: inner_img = SvekResult.calculateDimension() = LF_span + delta(15, 15)
-        let inner_img_w = total_child_w + 15.0;
-        let inner_img_h = total_child_h + 15.0;
+        //
+        // For concurrent regions, total_child already includes the +15 per region
+        // (each region's SvekResult adds delta(15,15)). For single region,
+        // total_child is the raw lf_span, so we add 15 once.
+        let inner_img_w = if is_concurrent { total_child_w } else { total_child_w + 15.0 };
+        let inner_img_h = if is_concurrent { total_child_h } else { total_child_h + 15.0 };
         let inner_height = inner_img_h + composite_height_overhead();
 
         let name_w = text_width(&state.name, STATE_NAME_FONT_SIZE);
