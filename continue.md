@@ -2,32 +2,28 @@
 
 ## Current State (2026-04-01)
 
-- **Reference tests**: 245/296 passed (82.8%)
+- **Reference tests**: 247/296 passed (83.4%)
 - **Session baseline**: 221/296 (74.7%)
-- **Net gain**: +24 tests
+- **Net gain**: +26 tests
 
-## Key bottom-up alignments done this session
+## Recent deep alignment
 
-| Area | Java alignment |
-|------|---------------|
-| svek LimitFinder | DotPath bounds, body separator ULine, note max_corr |
-| State composites | inner nodesep, concurrent regions, pin states, entity order |
-| State notes | graphviz edge endpoints for anchors, Opale path format |
-| Sequence arrows | bidirectional, cross/circle decorations, half-arrow polygons |
-| Sequence self-msg | deltaY shift, activation bars, text width (creole) |
-| Teoz fragments | hidden arrows, fragment width/height, note Y contact-point |
-| Component | hex sprites, cluster title centering, sprite bg color |
-| ERD | svek/graphviz pipeline for layout |
-| Activity | word-by-word note rendering |
-| Class | creole table rendering in rectangle bodies |
+| Commit | Java alignment |
+|--------|---------------|
+| `2a3c11a` | boundary arrow border1/border2 |
+| `9462e92` | reverse self-msg posC2 constraint |
+| `36396fc` | shadow deltaShadow in participant/note extent |
+| `343b15a` | skin rose border colors and stroke-width |
+| `e44ee0a` | self-msg text width (creole), cross offsets |
+| `60931e4` | cluster title centering, sprite bg color |
+| `95f2d3c` | teoz note Y contact-point, rendering order |
 
-## Remaining 51 failures
+## Remaining 49 failures
 
 | Domain | Count | Key blockers |
 |--------|-------|-------------|
-| Sequence (teoz) | ~14 | gate/boundary arrows, timeline height, left-msg width |
-| Component | ~8 | deployment height, subdiagram, C4 |
+| Sequence (teoz) | ~12 | SequenceArrows_0002 multi-level activation, timeline width/height |
+| Component | ~8 | deployment, subdiagram, C4 |
 | State | 3 | scxml0004 width, history001 cluster, scxml0003 precision |
-| Sprite | 3 | gradient, polyline, fill-colour |
-| Chen ERD | 3 | ChenMovie label positions |
-| Misc | ~20 | timing, handwritten, gantt, A0003/A0004 |
+| LeftMsg_0001 | 2 | skin rose activation rect positions |
+| Misc | ~24 | sprite, ERD, timing, gantt, handwritten |
