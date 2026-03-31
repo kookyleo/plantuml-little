@@ -2542,6 +2542,7 @@ mod tests {
             teoz_mode: false,
             hide_footbox: false,
             delta_shadow: 0.0,
+            inline_life_events: vec![],
         };
         let layout = layout_sequence(&sd, &crate::style::SkinParams::default()).unwrap();
 
@@ -2585,6 +2586,7 @@ mod tests {
             teoz_mode: false,
             hide_footbox: false,
             delta_shadow: 0.0,
+            inline_life_events: vec![],
         };
         let layout = layout_sequence(&sd, &crate::style::SkinParams::default()).unwrap();
 
@@ -2635,6 +2637,7 @@ mod tests {
             teoz_mode: false,
             hide_footbox: false,
             delta_shadow: 0.0,
+            inline_life_events: vec![],
         };
 
         let layout_self = layout_sequence(&sd_self, &crate::style::SkinParams::default()).unwrap();
@@ -2664,6 +2667,7 @@ mod tests {
             teoz_mode: false,
             hide_footbox: false,
             delta_shadow: 0.0,
+            inline_life_events: vec![],
         };
         let layout = layout_sequence(&sd, &crate::style::SkinParams::default()).unwrap();
 
@@ -2730,6 +2734,7 @@ mod tests {
             teoz_mode: false,
             hide_footbox: false,
             delta_shadow: 0.0,
+            inline_life_events: vec![],
         };
         let layout = layout_sequence(&sd, &crate::style::SkinParams::default()).unwrap();
 
@@ -2755,6 +2760,7 @@ mod tests {
             teoz_mode: false,
             hide_footbox: false,
             delta_shadow: 0.0,
+            inline_life_events: vec![],
         };
         let layout = layout_sequence(&sd, &crate::style::SkinParams::default()).unwrap();
 
@@ -2794,6 +2800,7 @@ mod tests {
             teoz_mode: false,
             hide_footbox: false,
             delta_shadow: 0.0,
+            inline_life_events: vec![],
         };
         let layout = layout_sequence(&sd, &crate::style::SkinParams::default()).unwrap();
 
@@ -2860,6 +2867,7 @@ mod tests {
             teoz_mode: false,
             hide_footbox: false,
             delta_shadow: 0.0,
+            inline_life_events: vec![],
         };
         let layout = layout_sequence(&sd, &crate::style::SkinParams::default()).unwrap();
 
@@ -2879,6 +2887,7 @@ mod tests {
             teoz_mode: false,
             hide_footbox: false,
             delta_shadow: 0.0,
+            inline_life_events: vec![],
         };
         let layout = layout_sequence(&sd, &crate::style::SkinParams::default()).unwrap();
 
@@ -2917,6 +2926,7 @@ mod tests {
             teoz_mode: false,
             hide_footbox: false,
             delta_shadow: 0.0,
+            inline_life_events: vec![],
         };
         let layout = layout_sequence(&sd, &crate::style::SkinParams::default()).unwrap();
 
@@ -2980,6 +2990,7 @@ mod tests {
             teoz_mode: false,
             hide_footbox: false,
             delta_shadow: 0.0,
+            inline_life_events: vec![],
         };
         let layout = layout_sequence(&sd, &crate::style::SkinParams::default()).unwrap();
 
@@ -2997,6 +3008,7 @@ mod tests {
             teoz_mode: false,
             hide_footbox: false,
             delta_shadow: 0.0,
+            inline_life_events: vec![],
         };
         let layout = layout_sequence(&sd, &crate::style::SkinParams::default()).unwrap();
 
@@ -3015,6 +3027,7 @@ mod tests {
             teoz_mode: false,
             hide_footbox: false,
             delta_shadow: 0.0,
+            inline_life_events: vec![],
         };
         let layout = layout_sequence(&sd, &crate::style::SkinParams::default()).unwrap();
 
@@ -3059,6 +3072,7 @@ mod tests {
             teoz_mode: false,
             hide_footbox: false,
             delta_shadow: 0.0,
+            inline_life_events: vec![],
         };
         let layout = layout_sequence(&sd, &crate::style::SkinParams::default()).unwrap();
 
@@ -3085,6 +3099,7 @@ mod tests {
             teoz_mode: false,
             hide_footbox: false,
             delta_shadow: 0.0,
+            inline_life_events: vec![],
         };
         let layout = layout_sequence(&sd, &crate::style::SkinParams::default()).unwrap();
 
@@ -3164,6 +3179,7 @@ mod tests {
             teoz_mode: false,
             hide_footbox: false,
             delta_shadow: 0.0,
+            inline_life_events: vec![],
         };
         let layout = layout_sequence(&sd, &crate::style::SkinParams::default()).unwrap();
 
@@ -3237,6 +3253,7 @@ mod tests {
             teoz_mode: false,
             hide_footbox: false,
             delta_shadow: 0.0,
+            inline_life_events: vec![],
         };
         let layout = layout_sequence(&sd, &crate::style::SkinParams::default()).unwrap();
 
@@ -3270,6 +3287,7 @@ mod tests {
             teoz_mode: false,
             hide_footbox: false,
             delta_shadow: 0.0,
+            inline_life_events: vec![],
         };
         let layout = layout_sequence(&sd, &crate::style::SkinParams::default()).unwrap();
 

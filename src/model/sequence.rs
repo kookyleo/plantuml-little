@@ -182,4 +182,6 @@ pub struct SequenceDiagram {
     pub hide_footbox: bool,
     /// Shadow offset from skin directive (e.g. `skin rose` sets 4.0)
     pub delta_shadow: f64,
+    /// Event indices of inline life events (from message `++`/`--` syntax).
+    pub inline_life_events: Vec<usize>,
 }

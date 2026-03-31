@@ -29,6 +29,7 @@ pub fn parse_sequence_diagram_with_original(
     let mut declared_participants: Vec<Participant> = Vec::new();
     let mut auto_participants: Vec<Participant> = Vec::new();
     let mut events: Vec<SeqEvent> = Vec::new();
+    let mut inline_life_events: Vec<usize> = Vec::new();
     let mut last_to_participant: Option<String> = None;
     let mut last_from_participant: Option<String> = None;
     let mut in_style_block = false;
@@ -627,14 +628,15 @@ pub fn parse_sequence_diagram_with_original(
                 events.push(SeqEvent::Message(msg));
                 // Java: --++ = deactivate source + activate target
                 if inline_deactivate_source {
+                    inline_life_events.push(events.len());
                     events.push(SeqEvent::Deactivate(source.clone()));
                 }
                 if inline_activate {
+                    inline_life_events.push(events.len());
                     events.push(SeqEvent::Activate(target.clone(), inline_color.clone()));
                 }
                 if inline_deactivate {
-                    // Java: `--` suffix deactivates the SOURCE, not the target.
-                    // Example: `B -->> A-- : Data` deactivates B (the sender).
+                    inline_life_events.push(events.len());
                     events.push(SeqEvent::Deactivate(source.clone()));
                 }
                 continue;
@@ -693,6 +695,7 @@ pub fn parse_sequence_diagram_with_original(
         teoz_mode,
         hide_footbox,
         delta_shadow,
+        inline_life_events,
     })
 }
 

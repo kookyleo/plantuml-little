@@ -2814,13 +2814,13 @@ pub fn build_teoz_layout(sd: &SequenceDiagram, skin: &SkinParams) -> Result<SeqL
         //   (arrowY for first-message inline, msg_bottom for parallel-message inline)
         let mut act_state: HashMap<String, Vec<(f64, f64, usize, Option<String>)>> = HashMap::new();
         let mut tile_idx = 0;
-        // The step y of the current/preceding tile.
-        // Initial: lifeline_top + PLAYINGSPACE_STARTING_Y (before any tile)
         let lifeline_top = STARTING_Y + max_preferred_height;
         let mut last_step_y: f64 = lifeline_top + PLAYINGSPACE_STARTING_Y;
-
-        // Track message bottom (msg_y + msg_height).
         let mut last_msg_bottom_y: f64 = lifeline_top + PLAYINGSPACE_STARTING_Y;
+        // Java getStairs: msg step gets indent from getLevelAt peek-ahead.
+        // If a future standalone activate raises the level, the msg step
+        // has higher indent and the activation box starts at msg arrowY.
+        let mut msg_claims_activate: HashMap<String, f64> = HashMap::new();
 
         // Pre-compute which events are "inside TileParallel first message".
         // In Java, when a non-parallel message is followed (after inline events)
@@ -2892,56 +2892,83 @@ pub fn build_teoz_layout(sd: &SequenceDiagram, skin: &SkinParams) -> Result<SeqL
                 }
             }
 
+            // Peek-ahead: if standalone activate for msg sender/receiver
+            // occurs before next message, msg "claims" the activation start.
+            if let SeqEvent::Message(msg) = event {
+                for check_name in [&msg.from, &msg.to] {
+                    let mut found = false;
+                    for (fi, future) in sd.events[(event_idx + 1)..].iter().enumerate() {
+                        let abs_idx = event_idx + 1 + fi;
+                        match future {
+                            SeqEvent::Activate(n, _)
+                                if n == check_name
+                                    && !sd.inline_life_events.contains(&abs_idx) =>
+                            {
+                                found = true;
+                                break;
+                            }
+                            SeqEvent::Message(_) => break,
+                            _ => {}
+                        }
+                    }
+                    if found {
+                        msg_claims_activate.insert(check_name.clone(), last_step_y);
+                    }
+                }
+            }
+
             match event {
                 SeqEvent::Activate(name, act_color) => {
-                    // Java getStairs: position = message arrowY (= last_step_y).
-                    let y_stairs = last_step_y;
-                    let y_addstep = if inside_tile_parallel[event_idx] {
-                        last_step_y // arrowY (inside TileParallel)
+                    let is_inline = sd.inline_life_events.contains(&event_idx);
+                    let y_stairs = if is_inline {
+                        last_step_y
+                    } else if let Some(ay) = msg_claims_activate.remove(name) {
+                        ay
                     } else {
-                        last_msg_bottom_y // msg_bottom (sequential)
+                        tiles.get(tile_idx)
+                            .and_then(|t| t.get_y())
+                            .unwrap_or(last_step_y)
+                    };
+                    let y_addstep = if inside_tile_parallel[event_idx] {
+                        last_step_y
+                    } else {
+                        last_msg_bottom_y
                     };
                     let stack = act_state.entry(name.clone()).or_default();
-                    let level = stack.len() + 1; // 1-based
-                    log::debug!("teoz activate {name} level={level} y_stairs={y_stairs:.4} y_addstep={y_addstep:.4}");
+                    let level = stack.len() + 1;
+                    log::debug!("teoz activate {name} level={level} y_stairs={y_stairs:.4} y_addstep={y_addstep:.4} inline={is_inline}");
                     stack.push((y_stairs, y_addstep, level, act_color.clone()));
                 }
                 SeqEvent::Deactivate(name) => {
+                    let deact_inline = sd.inline_life_events.contains(&event_idx);
                     if let Some(stack) = act_state.get_mut(name) {
                         if let Some((y_start, y_start_addstep, level, color)) = stack.pop() {
                             let idx = name_to_idx.get(name).copied().unwrap_or(0);
                             let cx = get_x(livings[idx].pos_c);
                             let x = cx - ACTIVATION_WIDTH / 2.0
                                 + (level - 1) as f64 * (ACTIVATION_WIDTH / 2.0);
-                            // Java getStairs: inline deactivate uses message
-                            // arrowY (= last_step_y). Standalone deactivate uses
-                            // its own tile position (= msg_bottom after TileParallel).
-                            //
-                            // Detection: if last_step_y == y_start, the deactivate
-                            // is at the same message arrowY as the activate. Check
-                            // if there is a msg_bottom available that differs:
-                            // if so, this may be a standalone deactivate.
-                            let mut y_end = last_step_y;
+                            let mut y_end = if deact_inline {
+                                last_step_y
+                            } else {
+                                tiles.get(tile_idx)
+                                    .and_then(|t| t.get_y())
+                                    .unwrap_or(last_step_y)
+                            };
                             if (y_end - y_start).abs() < 0.001 {
-                                // Both at message arrowY. Two sub-cases:
-                                if last_msg_bottom_y > y_start + 0.001 {
-                                    // Standalone deactivate: tile at msg_bottom.
-                                    // Java getStairs position = msg_bottom.
+                                if deact_inline {
+                                    y_end = y_start + rose::ARROW_DELTA_Y
+                                        + rose::ARROW_PADDING_Y + 5.0;
+                                } else if last_msg_bottom_y > y_start + 0.001 {
                                     y_end = last_msg_bottom_y;
-                                    // Java addStep collision: if the deactivate's
-                                    // tile_y (= msg_bottom) matches the activate's
-                                    // addStep y → bump +5.
                                     if (last_msg_bottom_y - y_start_addstep).abs() < 0.001 {
                                         y_end += 5.0;
                                     }
-                                } else {
-                                    // True inline collision (same message
-                                    // activate+deactivate). Minimum height 13px.
-                                    y_end = y_start + rose::ARROW_DELTA_Y
-                                        + rose::ARROW_PADDING_Y + 5.0;
                                 }
                             }
-                            log::debug!("teoz deactivate {name} level={level} y_start={y_start:.4} y_end={y_end:.4}");
+                            if !deact_inline && (y_end - y_start_addstep).abs() < 0.001 {
+                                y_end += 5.0;
+                            }
+                            log::debug!("teoz deactivate {name} level={level} y_start={y_start:.4} y_end={y_end:.4} inline={deact_inline}");
                             activations.push(ActivationLayout {
                                 participant: name.clone(),
                                 x,

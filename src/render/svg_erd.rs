@@ -308,7 +308,7 @@ fn render_edge(sg: &mut SvgGraphic, edge: &ErdEdgeLayout, link_idx: usize) {
         }
     } else if let Some(ref path_d) = edge.raw_path_d {
         sg.push_raw(&format!(
-            r#"<path d="{}" fill="none" id="{}-{}" style="stroke:{BORDER_COLOR};stroke-width:1;\"/>"#,
+            r#"<path d="{}" fill="none" id="{}-{}" style="stroke:{BORDER_COLOR};stroke-width:1;"/>"#,
             path_d,
             xml_escape(&edge.from_name), xml_escape(&edge.to_name),
         ));

@@ -393,12 +393,13 @@ pub fn layout_erd(diagram: &ErdDiagram) -> Result<ErdLayout> {
     let gl = graphviz::layout_with_svek(&graph)
         .map_err(|e| crate::error::Error::Layout(format!("ERD svek layout: {e}")))?;
 
-    // Extract node positions from svek result.
-    // Java LimitFinder.drawRectangle applies -1 correction only on x, not y.
-    // The Rust svek code applies it on both axes. Compensate by subtracting 1
-    // from render_dy for node positions. Edge paths/labels use unadjusted offset.
+    // Render offsets. Nodes and edge paths use -1 y correction because the
+    // Rust svek LF simulation applies lf_rect_correction to y (which Java
+    // doesn't for drawRectangle). Label positions use the unadjusted offset
+    // because they go through the move_delta + normalize_offset formula.
     let render_dx = gl.render_offset.0;
     let render_dy = gl.render_offset.1 - 1.0;
+    let render_dy_label = gl.render_offset.1;
     
 
     let mut positions: HashMap<String, (f64, f64, f64, f64)> = HashMap::new();
@@ -478,9 +479,14 @@ pub fn layout_erd(diagram: &ErdDiagram) -> Result<ErdLayout> {
         let raw_path_d = svek_edge
             .and_then(|e| e.raw_path_d.as_ref())
             .map(|d| shift_svg_path(d, render_dx, render_dy));
+        // label_xy from svek is pre-normalized, pre-moveDelta.
+        // Apply: label + move_delta - normalize_offset + render_offset
         let label_xy = svek_edge.and_then(|e| {
             let (lx, ly) = e.label_xy?;
-            Some((lx + render_dx, ly + render_dy))
+            Some((
+                lx + gl.move_delta.0 - gl.normalize_offset.0 + render_dx,
+                ly + gl.move_delta.1 - gl.normalize_offset.1 + render_dy_label,
+            ))
         });
 
         let (from_point, to_point) = if let (Some(fp), Some(tp)) =
