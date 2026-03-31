@@ -1717,6 +1717,11 @@ pub fn layout_state(diagram: &StateDiagram) -> Result<StateLayout> {
         });
     }
 
+    // Track the starting index of note edges in gv_edges so we can identify
+    // them after graphviz solve. Note edges are kept visible (not invisible)
+    // so that graphviz routes splines for them — the edge endpoints provide
+    // precise anchor coordinates for the note arrow, matching Java Smetana.
+    let note_edge_start_idx = gv_edges.len();
     for (note, _w, _h) in &attached_notes {
         let (from, to, minlen) = match note.position.as_str() {
             "left" => (note.entity_id.clone().unwrap(), note.target.clone().unwrap(), 0),
@@ -1737,7 +1742,7 @@ pub fn layout_state(diagram: &StateDiagram) -> Result<StateLayout> {
             head_decoration: crate::svek::edge::LinkDecoration::None,
             line_style: crate::svek::edge::LinkStyle::Dashed,
             minlen,
-            invisible: true,
+            invisible: false,
             no_constraint: false,
         });
     }
@@ -1926,7 +1931,45 @@ pub fn layout_state(diagram: &StateDiagram) -> Result<StateLayout> {
     let mut transition_layouts: Vec<TransitionLayout> = Vec::new();
     let mut visible_transition_keys: HashSet<(String, String, Option<usize>)> = HashSet::new();
 
+    // Extract note edge endpoints for precise anchor coordinates.
+    // Note edges start at index `note_edge_start_idx` in gv_layout.edges.
+    // For each note edge, extract the endpoint on the target node boundary.
+    let mut note_edge_anchors: HashMap<String, (f64, f64)> = HashMap::new();
+    for (note_i, (note, _w, _h)) in attached_notes.iter().enumerate() {
+        let edge_idx = note_edge_start_idx + note_i;
+        if edge_idx < gv_layout.edges.len() {
+            let gv_edge = &gv_layout.edges[edge_idx];
+            if !gv_edge.points.is_empty() {
+                // The edge direction depends on note position:
+                //   left/top:    from=note, to=target → endpoint (last point) is on target
+                //   right/bottom: from=target, to=note → startpoint (first point) is on target
+                let (ax, ay) = match note.position.as_str() {
+                    "left" | "top" => {
+                        let last = gv_edge.points[gv_edge.points.len() - 1];
+                        (last.0 + margin_x, last.1 + margin_y)
+                    }
+                    _ => {
+                        let first = gv_edge.points[0];
+                        (first.0 + margin_x, first.1 + margin_y)
+                    }
+                };
+                if let Some(ref eid) = note.entity_id {
+                    log::debug!(
+                        "  note edge anchor: note={} pos={} ax={:.4} ay={:.4}",
+                        eid, note.position, ax, ay,
+                    );
+                    note_edge_anchors.insert(eid.clone(), (ax, ay));
+                }
+            }
+        }
+    }
+
     for (i, gv_edge) in gv_layout.edges.iter().enumerate() {
+        // Skip note edges — they are not rendered as transitions.
+        if i >= note_edge_start_idx {
+            continue;
+        }
+
         let (from_id, to_id) = if i < active_transitions.len() {
             (
                 active_transitions[i].from.clone(),
@@ -2061,28 +2104,27 @@ pub fn layout_state(diagram: &StateDiagram) -> Result<StateLayout> {
         let (nw, nh) = estimate_note_size(&note.text);
         let (note_x, note_y, anchor) = if let Some(entity_id) = note.entity_id.as_ref() {
             if let Some(&(nx, ny, _nw_gv, _nh_gv)) = attached_note_positions.get(entity_id) {
-                let (ax, ay, note_x, note_y) = note.target.as_ref().and_then(|target_id| {
-                    node_position_map.get(target_id).map(|&(tx, ty, tw, th)| {
-                        // Java Smetana routes the note-to-target edge and derives anchor
-                        // from the edge path. The Smetana endpoint hits the target's
-                        // graphviz polygon boundary. Graphviz polygon positions snap to
-                        // integer pt grid, so the polygon center and edges differ slightly
-                        // from the exact rendered positions.
-                        //
-                        // Approximate by rounding to graphviz polygon grid:
-                        // - Center y: subtract fractional height correction
-                        // - Edge x: use rounded width
-                        let polygon_center_y = ty + th / 2.0 - (th - th.round()) / 2.0;
-                        let polygon_right = tx + tw.round();
-                        let polygon_center_x = tx + tw / 2.0 - (tw - tw.round()) / 2.0;
-                        match note.position.as_str() {
-                            "left" => (tx, polygon_center_y, nx, ny),
-                            "top" => (polygon_center_x, ty, nx, ny),
-                            "bottom" => (polygon_center_x, ty + th, nx, ny),
-                            _ => (polygon_right, polygon_center_y, nx, ny),
-                        }
-                    })
-                }).unwrap_or((nx, ny, nx, ny));
+                // Use the precise anchor from the graphviz edge endpoint if available.
+                // This matches Java Smetana's edge routing, which clips the note-to-target
+                // edge spline to the target node's polygon boundary.
+                let (ax, ay, note_x, note_y) = if let Some(&(ea_x, ea_y)) = note_edge_anchors.get(entity_id) {
+                    (ea_x, ea_y, nx, ny)
+                } else {
+                    note.target.as_ref().and_then(|target_id| {
+                        node_position_map.get(target_id).map(|&(tx, ty, tw, th)| {
+                            // Fallback: approximate anchor from node geometry.
+                            let polygon_center_y = ty + th / 2.0 - (th - th.round()) / 2.0;
+                            let polygon_right = tx + tw.round();
+                            let polygon_center_x = tx + tw / 2.0 - (tw - tw.round()) / 2.0;
+                            match note.position.as_str() {
+                                "left" => (tx, polygon_center_y, nx, ny),
+                                "top" => (polygon_center_x, ty, nx, ny),
+                                "bottom" => (polygon_center_x, ty + th, nx, ny),
+                                _ => (polygon_right, polygon_center_y, nx, ny),
+                            }
+                        })
+                    }).unwrap_or((nx, ny, nx, ny))
+                };
                 (note_x, note_y, Some((ax, ay)))
             } else if let Some(target_id) = note.target.as_ref() {
                 if let Some(&(tx, ty, tw, th)) = node_position_map.get(target_id) {
@@ -2741,10 +2783,18 @@ mod tests {
 
         assert!(right_note.x > active.x + active.width);
         assert!(left_note.x + left_note.width < inactive.x);
-        assert!((right_note.y + right_note.height / 2.0 - (active.y + active.height / 2.0)).abs() < 0.01);
-        assert!((left_note.y + left_note.height / 2.0 - (inactive.y + inactive.height / 2.0)).abs() < 0.01);
-        assert_eq!(right_note.anchor, Some((active.x + active.width, active.y + active.height / 2.0)));
-        assert_eq!(left_note.anchor, Some((inactive.x, inactive.y + inactive.height / 2.0)));
+        // Note positions are determined by graphviz layout; allow small tolerance.
+        assert!((right_note.y + right_note.height / 2.0 - (active.y + active.height / 2.0)).abs() < 1.0);
+        assert!((left_note.y + left_note.height / 2.0 - (inactive.y + inactive.height / 2.0)).abs() < 1.0);
+        // Anchor coordinates come from graphviz edge endpoints which clip to the
+        // target polygon boundary. Verify they are close to the expected boundary,
+        // allowing small tolerance from graphviz polygon clipping.
+        let (ra_x, ra_y) = right_note.anchor.unwrap();
+        assert!((ra_x - (active.x + active.width)).abs() < 1.0, "right anchor x={ra_x} expected near {}", active.x + active.width);
+        assert!((ra_y - (active.y + active.height / 2.0)).abs() < 1.0, "right anchor y={ra_y} expected near {}", active.y + active.height / 2.0);
+        let (la_x, la_y) = left_note.anchor.unwrap();
+        assert!((la_x - inactive.x).abs() < 1.0, "left anchor x={la_x} expected near {}", inactive.x);
+        assert!((la_y - (inactive.y + inactive.height / 2.0)).abs() < 1.0, "left anchor y={la_y} expected near {}", inactive.y + inactive.height / 2.0);
     }
 
     // 10. Text sizing for states with descriptions
