@@ -419,6 +419,7 @@ fn draw_participant_box_with_font(
     shadow_attr: &str,
     stroke_width: f64,
     rounded: bool,
+    delta_shadow: f64,
 ) {
     let fill = p.color.as_deref().unwrap_or(bg);
 
@@ -469,6 +470,7 @@ fn draw_participant_box_with_font(
                 shadow_attr,
                 stroke_width,
                 rounded,
+                delta_shadow,
             );
         }
     }
@@ -488,6 +490,7 @@ fn draw_participant_rect_with_font(
     shadow_attr: &str,
     stroke_width: f64,
     rounded: bool,
+    delta_shadow: f64,
 ) {
     let name = display_name.unwrap_or(&p.name);
     let lines: Vec<&str> = name
@@ -497,7 +500,10 @@ fn draw_participant_rect_with_font(
     let padding = 7.0;
     let box_width = p.box_width;
     let box_height = p.box_height;
-    let x = p.x - box_width / 2.0;
+    // Java: posC (lifeline center) = posB + preferredWidth/2 where
+    // preferredWidth = box_width + deltaShadow. The rect is drawn at posB,
+    // so rect_x = posC - preferredWidth/2 = p.x - (box_width + deltaShadow)/2.
+    let x = p.x - (box_width + delta_shadow) / 2.0;
     let text_x = x + padding;
     let text_y_base = y + 19.9951 + (font_size - 14.0) * 0.92825;
     let line_h = font_metrics::line_height(font_family, font_size, false, false);
@@ -1939,17 +1945,19 @@ fn draw_self_message(
     let y = msg.y;
     let loop_height = 13.0;
 
-    // For left self-messages at level > 1, Java's drawLeftSide shifts line endpoints
-    // and decoration positions right by (level-1)*LIVE_DELTA_SIZE to span stacked
-    // activation bars. Compute this shift and apply it to from_x/return_x.
-    // Text positioning uses unshifted msg.from_x.
+    // Java: for reverse-define left self-messages, getMinX applies a flat -5
+    // offset when level > 0. Line endpoints use x1_adj/x2_adj from drawLeftSide.
+    // But circle/decoration positions need the full level shift.
     let left_level_shift = if msg.is_left && msg.active_level > 1 {
         (msg.active_level - 1) as f64 * 5.0
     } else {
         0.0
     };
-    let from_x = msg.from_x + left_level_shift;
-    let return_x = msg.self_return_x + left_level_shift;
+    // from_x for line computations (no level shift — x1_adj handles it)
+    let from_x = msg.from_x;
+    let return_x = msg.self_return_x;
+    // from_x for decorations (circles, arrowheads, text) that need level shift
+    let from_x_decor = msg.from_x + left_level_shift;
 
     // Java teoz does not wrap messages in <g class="message">
     if !teoz_mode {
@@ -1969,9 +1977,9 @@ fn draw_self_message(
 
     // Draw circle decorations for self-messages
     // Circles are drawn at the activation bar edge - 0.5.
-    // For left self-messages, from_x already includes left_level_shift.
+    // For left self-messages, from_x_decor includes left_level_shift.
     if msg.circle_from {
-        let cx = from_x - 0.5;
+        let cx = from_x_decor - 0.5;
         let cy = y - 0.75;
         sg.push_raw(&format!(
             r##"<ellipse cx="{}" cy="{}" fill="#000000" rx="{}" ry="{}" style="stroke:{};stroke-width:{};"/>"##,
@@ -1981,7 +1989,7 @@ fn draw_self_message(
         ));
     }
     if msg.circle_to {
-        let cx = from_x - 0.5;
+        let cx = from_x_decor - 0.5;
         let cy = (y + loop_height) - 0.75;
         sg.push_raw(&format!(
             r##"<ellipse cx="{}" cy="{}" fill="#000000" rx="{}" ry="{}" style="stroke:{};stroke-width:{};"/>"##,
@@ -2042,6 +2050,38 @@ fn draw_self_message(
     };
     let circle_to_line_offset = if msg.circle_to { DIAM_CIRCLE / 2.0 + THIN_CIRCLE } else { 0.0 };
 
+    // Java ComponentRoseSelfArrow.drawLeftSide x1/x2 adjustment based on deltaX1 and level.
+    // deltaX1 = (levelIgnore - levelConsidere) * 5, level = levelIgnore.
+    // x1 adjusts outgoing right endpoint, x2 adjusts return right endpoint.
+    // Positive x1_adj means shift endpoint LEFT (away from activation bar).
+    //
+    // Java ComponentRoseSelfArrow.drawLeftSide x1/x2 adjustment.
+    // These apply to LINE ENDPOINTS only (not decorations).
+    // left_level_shift is used separately for decoration positions (circles, etc.).
+    let dx = msg.delta_x1;
+    let (x1_adj, x2_adj) = if msg.is_left {
+        let delta_size = 5.0_f64;
+        let extra_live_delta_indent = level as f64 * delta_size;
+        if dx < 0.0 {
+            // Activation starting: return line needs to accommodate new bar
+            let x2a = if level > 0 { -extra_live_delta_indent } else { delta_size };
+            (0.0, x2a)
+        } else if dx > 0.0 {
+            // Deactivation: outgoing line adjusts for shrinking bar
+            let x1a = if level > 1 { delta_size - extra_live_delta_indent } else { 0.0 };
+            let x2a = if level == 1 { -delta_size } else { 0.0 };
+            (x1a, x2a)
+        } else if level > 1 {
+            // Same level, stacked bars: both lines shift to span bars
+            let shift = -(extra_live_delta_indent - delta_size);
+            (shift, shift)
+        } else {
+            (0.0, 0.0)
+        }
+    } else {
+        (0.0, 0.0)
+    };
+
     // Line 1: outgoing horizontal
     let (line1_x1, line1_x2) = if msg.is_left {
         // Left self-msg: Java drawLeftSide x1 computation.
@@ -2049,7 +2089,7 @@ fn draw_self_message(
         // For left self-msgs (reverseDefine), outgoing end always has head=NONE,
         // so circle_from shortens by full diamCircle/2 (= 4.0).
         let circle_from_outgoing_shift = if msg.circle_from { DIAM_CIRCLE / 2.0 } else { 0.0 };
-        (to_x, from_x - 1.0 - circle_from_outgoing_shift - cross_from_offset)
+        (to_x, from_x - 1.0 - x1_adj - circle_from_outgoing_shift - cross_from_offset)
     } else {
         // Right self-msg: outgoing goes right from lifeline
         // For bidirectional with circle, outgoing line starts at the arrowhead tip.
@@ -2098,8 +2138,8 @@ fn draw_self_message(
         } else {
             0.0
         };
-        // Java drawLeftSide: return line shortened by cross_to and circle_to decoration
-        (to_x, return_x - extraline - cross_to_offset - circle_to_line_offset)
+        // Java drawLeftSide: return line shortened by cross_to, circle_to, and level adjustment
+        (to_x, return_x - x2_adj - extraline - cross_to_offset - circle_to_line_offset)
     } else {
         // Right self-msg: adjust for cross_to, circle_to, or open head
         let base_x1 = if msg.cross_to {
@@ -3258,6 +3298,7 @@ fn render_sequence_inner(
                 &shadow_attr,
                 part_thickness,
                 part_rounded,
+                sd.delta_shadow,
             );
         }
         if !sd.teoz_mode {
@@ -3267,8 +3308,14 @@ fn render_sequence_inner(
 
     if sd.teoz_mode {
         // Teoz: all heads, then all tails
+        // Java: headHeight = max(preferredHeight) = max_ph + 1 + deltaShadow.
+        // Heads drawn at base ug (STARTING_Y), lifelines at ug + dy(headHeight).
+        // For BOTTOM alignment: y = headHeight - dimHead.height = max_ph - p.box_height.
+        // So top_y = STARTING_Y + (max_ph - p.box_height).
+        // Since lifeline_top = STARTING_Y + max_ph + 1 + deltaShadow:
+        //   STARTING_Y = lifeline_top - max_ph - 1 - deltaShadow.
         for (i, p) in layout.participants.iter().enumerate() {
-            let head_base = layout.lifeline_top - max_ph - 1.0;
+            let head_base = layout.lifeline_top - max_ph - 1.0 - sd.delta_shadow;
             let top_y = head_base + max_ph - p.box_height;
             draw_part(&mut sg, i, p, top_y, true);
         }

@@ -425,6 +425,9 @@ impl SkinParams {
         if let Some(v) = self.params.get("sequencearrowcolor") {
             return v.as_str();
         }
+        if let Some(v) = self.params.get("sequence.arrowcolor") {
+            return v.as_str();
+        }
         self.arrow_color(default)
     }
 

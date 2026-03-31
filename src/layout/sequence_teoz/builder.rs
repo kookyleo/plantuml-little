@@ -133,8 +133,11 @@ enum TeozTile {
         center: RealId,
         direction: SeqDirection,
         is_reverse_define: bool,
-        /// Activation level at the time of this self-message
+        /// Activation level at the time of this self-message (levelIgnore)
         active_level: usize,
+        /// Java: area.deltaX1 = (levelIgnore - levelConsidere) * LIVE_DELTA_SIZE.
+        /// Affects drawLeftSide/drawRightSide x1/x2 line endpoint adjustments.
+        delta_x1: f64,
         /// Circle decoration on from end
         circle_from: bool,
         /// Circle decoration on to end
@@ -1196,7 +1199,33 @@ pub fn build_teoz_layout(sd: &SequenceDiagram, skin: &SkinParams) -> Result<SeqL
                     let tm = TextMetrics::new(7.0, 7.0, 1.0, text_w, text_h);
                     let height = rose::self_arrow_preferred_size(&tm).height;
 
+                    // Java: levelIgnore = getLevelAt(IGNORE_FUTURE_ACTIVATE) = current level
+                    // without counting future linked activations.
                     let level = active_levels.get(&msg.from).copied().unwrap_or(0);
+                    // Java: levelConsidere = getLevelAt(CONSIDERE_FUTURE_DEACTIVATE) =
+                    // current level with ALL linked events (activations + deactivations)
+                    // applied. We peek ahead at inline events for this message.
+                    let mut level_considere = level as i32;
+                    for peek in &sd.events[(event_idx + 1)..] {
+                        match peek {
+                            SeqEvent::Activate(name, _) if name == &msg.from => {
+                                level_considere += 1;
+                            }
+                            SeqEvent::Deactivate(name) if name == &msg.from => {
+                                level_considere = (level_considere - 1).max(0);
+                            }
+                            // Skip notes
+                            SeqEvent::NoteRight { .. }
+                            | SeqEvent::NoteLeft { .. }
+                            | SeqEvent::NoteOver { .. } => {}
+                            // Stop at next non-parallel message
+                            SeqEvent::Message(m) if !m.parallel => break,
+                            SeqEvent::Message(_) => {}
+                            _ => break,
+                        }
+                    }
+                    let delta_x1 =
+                        (level as f64 - level_considere as f64) * 5.0;
                     tiles.push(TeozTile::SelfMessage {
                         participant_idx: idx,
                         text: msg.text.clone(),
@@ -1212,6 +1241,7 @@ pub fn build_teoz_layout(sd: &SequenceDiagram, skin: &SkinParams) -> Result<SeqL
                         direction: msg.direction.clone(),
                         is_reverse_define: msg.is_reverse_define,
                         active_level: level,
+                        delta_x1,
                         circle_from: msg.circle_from,
                         circle_to: msg.circle_to,
                         cross_from: msg.cross_from,
@@ -2697,6 +2727,7 @@ pub fn build_teoz_layout(sd: &SequenceDiagram, skin: &SkinParams) -> Result<SeqL
                     bidirectional: *bidirectional,
                     text_delta_x,
                     active_level: 0,
+                    delta_x1: 0.0,
                 });
                 last_msg_idx = Some(messages.len() - 1);
             }
@@ -2712,6 +2743,7 @@ pub fn build_teoz_layout(sd: &SequenceDiagram, skin: &SkinParams) -> Result<SeqL
                 autonumber,
                 direction,
                 active_level,
+                delta_x1,
                 circle_from,
                 circle_to,
                 cross_from,
@@ -2788,6 +2820,7 @@ pub fn build_teoz_layout(sd: &SequenceDiagram, skin: &SkinParams) -> Result<SeqL
                     bidirectional: *bidirectional,
                     text_delta_x: 0.0,
                     active_level: *active_level as usize,
+                    delta_x1: *delta_x1,
                 });
                 last_msg_idx = Some(messages.len() - 1);
             }
@@ -2819,10 +2852,14 @@ pub fn build_teoz_layout(sd: &SequenceDiagram, skin: &SkinParams) -> Result<SeqL
                     if let Some((sm_pidx, sm_tw, sm_dir, sm_al)) =
                         find_preceding_self_message(&tiles, tile_i)
                     {
-                        let sm_cx = get_x(livings[sm_pidx].pos_c);
                         let sm_comp_w = self_message_comp_width(sm_tw, tp.msg_line_height);
                         let sm_cx_raw = rl.get_value(livings[sm_pidx].pos_c);
-                        let note_al = sm_al.max(1); // lifeline always has >=1 activation width
+                        // Java: getMaxX uses posC2 = posC + getMaxPosition (based on
+                        // max activation level). getMinX uses levelIgnore for adjustment.
+                        // Use max(1, sm_al) because the lifeline always occupies at
+                        // least ACTIVATION_WIDTH/2 in posC2 calculations, matching
+                        // Java's AbstractComponent.drawU paddingX offset.
+                        let note_al = sm_al.max(1);
                         let (sm_min, sm_max) =
                             self_message_extent(sm_cx_raw, sm_comp_w, note_al, &sm_dir);
                         if *is_left {
