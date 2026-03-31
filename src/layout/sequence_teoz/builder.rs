@@ -3152,6 +3152,11 @@ pub fn build_teoz_layout(sd: &SequenceDiagram, skin: &SkinParams) -> Result<SeqL
             result
         };
         for (event_idx, event) in sd.events.iter().enumerate() {
+            // AutoNumber events don't produce tiles — skip tile_idx update.
+            if matches!(event, SeqEvent::AutoNumber { .. }) {
+                continue;
+            }
+
             // Update last_step_y when we see a tile
             if let Some(tile) = tiles.get(tile_idx) {
                 match tile {
