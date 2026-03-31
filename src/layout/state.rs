@@ -1068,8 +1068,10 @@ fn layout_states_ranked_with_spacing(
             // Java inner SvekResult adds moveDelta (inner margin) on top of
             // the composite header offset.
             if node.is_composite {
-                let has_circle_child = node.children.iter().any(|c| c.is_initial || c.is_final);
-                let inner_margin = if has_circle_child { 6.0 } else { MARGIN };
+                let has_rect_child = node.children.iter().any(|c| {
+                    !c.is_initial && !c.is_final && !matches!(c.kind, StateKind::Choice)
+                });
+                let inner_margin = if has_rect_child { MARGIN } else { 6.0 };
                 let child_offset_x = x + COMPOSITE_PADDING;
                 let child_offset_y = y + composite_inner_y_offset() + inner_margin;
                 offset_children(&mut node.children, child_offset_x, child_offset_y);
@@ -1194,6 +1196,8 @@ fn layout_children_with_graphviz(
         rankdir: RankDir::TopToBottom,
         // Java inner composite graphs use Graphviz's 0.5in default ranksep.
         ranksep_override: Some(36.0),
+        // Java inner composite graphs omit nodesep, using Graphviz's default 0.25in (18pt).
+        nodesep_override: Some(INNER_NODESEP),
         use_simplier_dot_link_strategy: false,
     };
 
@@ -1758,6 +1762,7 @@ pub fn layout_state(diagram: &StateDiagram) -> Result<StateLayout> {
         clusters: cluster_specs,
         rankdir,
         ranksep_override: Some(graphviz::MIN_RANK_SEP_PX),
+        nodesep_override: None,
         use_simplier_dot_link_strategy: false,
     };
 
@@ -1860,11 +1865,17 @@ pub fn layout_state(diagram: &StateDiagram) -> Result<StateLayout> {
             // For composite states, recursively layout children within the bounds.
             // Java's InnerStateAutonom.drawU translates by (MARGIN, spaceYforURL),
             // then the inner SvekResult applies moveDelta(6 - LF_min). The inner
-            // moveDelta.y adds ~6px for circle-topped layouts or ~7 for rect-topped.
+            // moveDelta.y = 6 - LF_min_y. For rect entities, LF applies a -1
+            // correction (drawRectangle), so LF_min_y = geo_min_y - 1 and
+            // moveDelta.y = 7 - geo_min_y. After normalization (geo_min_y = 0),
+            // the effective margin is 7. For circle-only layouts (no rect
+            // correction), the margin is 6.
             if node.is_composite {
-                let has_circle_child =
-                    node.children.iter().any(|c| c.is_initial || c.is_final);
-                let inner_margin = if has_circle_child { 6.0 } else { MARGIN };
+                let has_rect_child = node
+                    .children
+                    .iter()
+                    .any(|c| !c.is_initial && !c.is_final && !matches!(c.kind, StateKind::Choice));
+                let inner_margin = if has_rect_child { MARGIN } else { 6.0 };
                 let child_offset_x = x + COMPOSITE_PADDING;
                 let child_offset_y = y + composite_inner_y_offset() + inner_margin;
                 offset_children(&mut node.children, child_offset_x, child_offset_y);

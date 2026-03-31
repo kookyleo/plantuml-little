@@ -389,6 +389,7 @@ pub fn layout_erd(diagram: &ErdDiagram) -> Result<ErdLayout> {
         clusters: vec![],
         rankdir,
         ranksep_override: None,
+        nodesep_override: None,
         use_simplier_dot_link_strategy: false,
     };
 

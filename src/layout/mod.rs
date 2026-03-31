@@ -235,6 +235,7 @@ pub fn layout(diagram: &Diagram, skin: &crate::style::SkinParams) -> Result<Diag
                 clusters: vec![],
                 rankdir: RankDir::TopToBottom,
                 ranksep_override: None,
+                nodesep_override: None,
                 use_simplier_dot_link_strategy: false,
             };
             let gl = graphviz::layout(&lg)?;
@@ -1192,6 +1193,7 @@ fn layout_class_diagram(cd: &ClassDiagram, skin: &crate::style::SkinParams) -> R
         clusters,
         rankdir,
         ranksep_override: None,
+        nodesep_override: None,
         use_simplier_dot_link_strategy: true,
     };
 

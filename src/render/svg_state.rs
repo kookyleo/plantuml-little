@@ -2,6 +2,7 @@ use std::collections::{HashMap, HashSet};
 use std::fmt::Write;
 
 use crate::font_metrics;
+use crate::klimt::sanitize_group_metadata_value;
 use crate::klimt::svg::{fmt_coord, svg_comment_escape, xml_escape, LengthAdjust, SvgGraphic};
 use crate::layout::state::{StateLayout, StateNodeLayout, StateNoteLayout, TransitionLayout};
 use crate::model::state::{State, StateDiagram, StateKind, Transition};
@@ -493,7 +494,8 @@ fn render_choice(
         .unwrap_or_else(|| "ent0000".to_string());
     sg.push_raw(&format!(
         r#"<g class="entity" data-qualified-name="{}" id="{}">"#,
-        xml_escape(&qname), ent_id,
+        xml_escape(&sanitize_group_metadata_value(&qname)),
+        ent_id,
     ));
 
     sg.set_fill_color("#F1F1F1");
@@ -596,7 +598,7 @@ fn render_simple(
         Some(p) => format!("{}.{}", p, node.id),
         None => node.id.clone(),
     };
-    let qname_escaped = xml_escape(&qname);
+    let qname_escaped = xml_escape(&sanitize_group_metadata_value(&qname));
     let ent_id = ent_id_map
         .get(&node.id)
         .cloned()
@@ -724,7 +726,7 @@ fn render_composite(
             .unwrap_or_else(|| "ent0000".to_string());
         let mut cluster_attrs = format!(
             r#" class="cluster" data-qualified-name="{}""#,
-            xml_escape(&qname)
+            xml_escape(&sanitize_group_metadata_value(&qname))
         );
         if let Some(source_line) = node.source_line {
             write!(cluster_attrs, r#" data-source-line="{}""#, source_line).unwrap();
@@ -793,17 +795,24 @@ fn render_composite(
         sg.push_raw("</g>");
     }
 
-    // Recursively render children with parent name for qualified naming
-    for child in &node.children {
+    // Recursively render children with parent name for qualified naming.
+    // Java renders non-special entities first, then special (start/end circles) last.
+    for child in node
+        .children
+        .iter()
+        .filter(|c| !c.is_initial && !c.is_final)
+    {
         render_state_node_with_parent(
-            sg,
-            tracker,
-            child,
-            bg,
-            border,
-            font_color,
-            ent_id_map,
-            Some(&qname),
+            sg, tracker, child, bg, border, font_color, ent_id_map, Some(&qname),
+        );
+    }
+    for child in node
+        .children
+        .iter()
+        .filter(|c| c.is_initial || c.is_final)
+    {
+        render_state_node_with_parent(
+            sg, tracker, child, bg, border, font_color, ent_id_map, Some(&qname),
         );
     }
 
@@ -1146,7 +1155,7 @@ fn render_note(
 
     sg.push_raw(&format!(
         r#"<g class="entity" data-qualified-name="{}""#,
-        xml_escape(&qualified_name)
+        xml_escape(&sanitize_group_metadata_value(&qualified_name))
     ));
     if let Some(source_line) = note.source_line {
         sg.push_raw(&format!(r#" data-source-line="{}""#, source_line));
