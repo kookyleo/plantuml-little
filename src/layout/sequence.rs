@@ -824,8 +824,13 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
                             .copied()
                             .unwrap_or(0);
                         let tm = rose::TextMetrics::new(7.0, 7.0, 1.0, text_w, text_h);
+                        // Java: MessageSelfArrow.getPreferredWidth = componentPrefW + liveLength
+                        // Step1Message: length = arrowOnlyWidth + liveLength
+                        //             = (componentPrefW + liveLength) + liveLength
+                        //             = componentPrefW + 2 * liveLength
+                        let live_thick = live_thickness_width(active_level);
                         let needed = rose::self_arrow_preferred_size(&tm).width
-                            + live_thickness_width(active_level);
+                            + live_thick + live_thick;
                         match msg.direction {
                             SeqDirection::LeftToRight => {
                                 if idx < min_gaps.len() && needed > min_gaps[idx] {
@@ -833,16 +838,6 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
                                 }
                             }
                             SeqDirection::RightToLeft => {
-                                // Left self-message: loop extends to the left.
-                                // The gap to the previous participant must accommodate:
-                                // loop_extent_from_center + prev_participant_half_width + margin
-                                let loop_extent = ACTIVATION_WIDTH / 2.0 + SELF_MSG_WIDTH;
-                                let neighbor_half = if idx > 0 {
-                                    box_widths[idx - 1] / 2.0
-                                } else {
-                                    0.0
-                                };
-                                let needed = needed.max(loop_extent + neighbor_half + 3.0);
                                 if idx > 0 && needed > min_gaps[idx - 1] {
                                     min_gaps[idx - 1] = needed;
                                 }

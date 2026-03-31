@@ -1934,9 +1934,11 @@ fn draw_self_message(
 
     // Draw circle decorations for self-messages
     // circle_from → outgoing line, circle_to → return line
-    // Java always draws circles at participant_center - 0.5 regardless of direction
+    // Java draws circles at the activation bar edge - 0.5:
+    //   left self-msg: centerX - leftShift - 0.5 = from_x - 0.5
+    //   right self-msg: centerX + rightShift - 0.5 = from_x - 0.5
     if msg.circle_from {
-        let cx = msg.self_center_x - 0.5;
+        let cx = from_x - 0.5;
         let cy = y - 0.75;
         sg.push_raw(&format!(
             r##"<ellipse cx="{}" cy="{}" fill="#000000" rx="{}" ry="{}" style="stroke:{};stroke-width:{};"/>"##,
@@ -1946,7 +1948,7 @@ fn draw_self_message(
         ));
     }
     if msg.circle_to {
-        let cx = msg.self_center_x - 0.5;
+        let cx = from_x - 0.5;
         let cy = (y + loop_height) - 0.75;
         sg.push_raw(&format!(
             r##"<ellipse cx="{}" cy="{}" fill="#000000" rx="{}" ry="{}" style="stroke:{};stroke-width:{};"/>"##,
@@ -1991,8 +1993,12 @@ fn draw_self_message(
     // Line 1: outgoing horizontal
     let (line1_x1, line1_x2) = if msg.is_left {
         // Left self-msg: outgoing goes left from lifeline
-        // Java: x1 starts at 0, incremented by 1 before drawing
-        (to_x, from_x - 1.0)
+        // Java: x1 starts at 0, incremented by 1 before drawing.
+        // When decoration1=CIRCLE, x1 += diamCircle/2 - thinCircle = 2.5,
+        // then x1 += 1 → total shift = 3.5 (vs 1 without circle).
+        // Net shortening from circle = diamCircle/2 (4.0) from the right end.
+        let circle_from_outgoing_shift = if msg.circle_from { DIAM_CIRCLE / 2.0 } else { 0.0 };
+        (to_x, from_x - 1.0 - circle_from_outgoing_shift)
     } else {
         // Right self-msg: outgoing goes right from lifeline
         // For bidirectional with circle, outgoing line starts at the arrowhead tip.
@@ -2033,8 +2039,15 @@ fn draw_self_message(
 
     // Line 3: return horizontal
     let (line3_x1, line3_x2) = if msg.is_left {
-        let extraline = if msg.has_open_head { 0.0 } else { 1.0 };
-        (to_x, return_x - extraline)
+        // Java: extraline = 1 only when dressing2 is FULL + NORMAL (Filled arrowhead).
+        // Half arrows and open heads do NOT get extraline.
+        let extraline = if matches!(msg.arrow_head, SeqArrowHead::Filled) && !msg.has_open_head {
+            1.0
+        } else {
+            0.0
+        };
+        // Java drawLeftSide: return line shortened by circle_to decoration
+        (to_x, return_x - extraline - circle_to_line_offset)
     } else {
         // Right self-msg: adjust for cross_to, circle_to, or open head
         let base_x1 = if msg.cross_to {
@@ -2142,7 +2155,8 @@ fn draw_self_message(
         ).unwrap();
     } else if msg.is_left {
         // Left self-message: arrowhead points RIGHT at return
-        let tip_x = return_x - 1.0;
+        // When circle_to is present, the arrowhead shifts left by circle offset
+        let tip_x = return_x - 1.0 - circle_to_line_offset;
         if msg.has_open_head {
             if !matches!(msg.arrow_head, SeqArrowHead::HalfBottom) {
                 write!(
@@ -2168,7 +2182,36 @@ fn draw_self_message(
                 )
                 .unwrap();
             }
+        } else if matches!(msg.arrow_head, SeqArrowHead::FilledHalfTop) {
+            // 3-point triangle: top half only (flat bottom at ret_y)
+            write!(
+                tmp,
+                r#"<polygon fill="{color}" points="{p1x},{p1y},{p2x},{p2y},{p3x},{p3y}" style="stroke:{color};stroke-width:1;"/>"#,
+                color = arrow_color,
+                p1x = fmt_coord(tip_x - 10.0),
+                p1y = fmt_coord(ret_y - 4.0),
+                p2x = fmt_coord(tip_x),
+                p2y = fmt_coord(ret_y),
+                p3x = fmt_coord(tip_x - 10.0),
+                p3y = fmt_coord(ret_y),
+            )
+            .unwrap();
+        } else if matches!(msg.arrow_head, SeqArrowHead::FilledHalfBottom) {
+            // 3-point triangle: bottom half only (flat top at ret_y)
+            write!(
+                tmp,
+                r#"<polygon fill="{color}" points="{p1x},{p1y},{p2x},{p2y},{p3x},{p3y}" style="stroke:{color};stroke-width:1;"/>"#,
+                color = arrow_color,
+                p1x = fmt_coord(tip_x - 10.0),
+                p1y = fmt_coord(ret_y),
+                p2x = fmt_coord(tip_x),
+                p2y = fmt_coord(ret_y),
+                p3x = fmt_coord(tip_x - 10.0),
+                p3y = fmt_coord(ret_y + 4.0),
+            )
+            .unwrap();
         } else {
+            // Full 4-point diamond arrowhead
             write!(
                 tmp,
                 r#"<polygon fill="{color}" points="{p1x},{p1y},{p2x},{p2y},{p3x},{p3y},{p4x},{p4y}" style="stroke:{color};stroke-width:1;"/>"#,
