@@ -1998,7 +1998,7 @@ fn draw_self_message(
         // then x1 += 1 → total shift = 3.5 (vs 1 without circle).
         // Net shortening from circle = diamCircle/2 (4.0) from the right end.
         let circle_from_outgoing_shift = if msg.circle_from { DIAM_CIRCLE / 2.0 } else { 0.0 };
-        (to_x, from_x - 1.0 - circle_from_outgoing_shift)
+        (to_x, from_x - 1.0 - circle_from_outgoing_shift - cross_from_offset)
     } else {
         // Right self-msg: outgoing goes right from lifeline
         // For bidirectional with circle, outgoing line starts at the arrowhead tip.
@@ -2039,20 +2039,21 @@ fn draw_self_message(
 
     // Line 3: return horizontal
     let (line3_x1, line3_x2) = if msg.is_left {
-        // Java: extraline = 1 only when dressing2 is FULL + NORMAL (Filled arrowhead).
+        // Java: extraline = 1 only when dressing2 is FULL + NORMAL (Filled arrowhead)
+        // and there's no cross replacing the arrowhead.
         // Half arrows and open heads do NOT get extraline.
-        let extraline = if matches!(msg.arrow_head, SeqArrowHead::Filled) && !msg.has_open_head {
+        let extraline = if matches!(msg.arrow_head, SeqArrowHead::Filled) && !msg.has_open_head && !msg.cross_to {
             1.0
         } else {
             0.0
         };
-        // Java drawLeftSide: return line shortened by circle_to decoration
-        (to_x, return_x - extraline - circle_to_line_offset)
+        // Java drawLeftSide: return line shortened by cross_to and circle_to decoration
+        (to_x, return_x - extraline - cross_to_offset - circle_to_line_offset)
     } else {
         // Right self-msg: adjust for cross_to, circle_to, or open head
         let base_x1 = if msg.cross_to {
             // Cross replaces arrowhead: return starts after cross space
-            return_x - 1.0 + cross_to_offset
+            return_x + cross_to_offset
         } else {
             let extraline_r = if msg.has_open_head { 1.0 } else { 0.0 };
             return_x - extraline_r + circle_to_line_offset
@@ -2315,7 +2316,7 @@ fn draw_self_message(
                 .text_lines
                 .iter()
                 .map(|line| {
-                    crate::font_metrics::text_width(
+                    crate::render::svg_richtext::creole_text_width(
                         line,
                         msg_font_family,
                         msg_font_size,

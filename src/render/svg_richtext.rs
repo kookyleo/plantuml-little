@@ -1597,9 +1597,19 @@ fn render_split_text_runs(
             let n_trailing = trimmed_start.len() - trimmed_both.len();
             (trimmed_both.to_string(), n_trailing)
         } else {
-            // First run: only strip trailing whitespace, count stripped trailing spaces
-            let trimmed = raw_text.trim_end();
-            let n_trailing = raw_text.len() - trimmed.len();
+            // First run: strip both leading and trailing whitespace.
+            // Java trims leading whitespace from text atoms, including
+            // the first monospace content after `""..""`, and advances the
+            // cursor by the trimmed leading width.
+            let trimmed_start = raw_text.trim_start();
+            if trimmed_start.len() < raw_text.len() {
+                let n_leading = raw_text.len() - trimmed_start.len();
+                let run_font = run.font_family.as_deref().unwrap_or(default_font);
+                let space_w = font_metrics::text_width(" ", run_font, font_size, false, false);
+                cursor_x += space_w * n_leading as f64;
+            }
+            let trimmed = trimmed_start.trim_end();
+            let n_trailing = trimmed_start.len() - trimmed.len();
             (trimmed.to_string(), n_trailing)
         };
         if text.is_empty() {
