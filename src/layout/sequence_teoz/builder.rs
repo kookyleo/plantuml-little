@@ -1016,6 +1016,35 @@ pub fn build_teoz_layout(sd: &SequenceDiagram, skin: &SkinParams) -> Result<SeqL
         rl.ensure_bigger_than_with_margin(curr_pos_b, prev_pos_d, 10.0);
     }
 
+    // ── Step 2c: Pre-compute per-participant max activation levels ──────
+    // Java: LivingSpace.getPosC2() uses liveboxes.getMaxPosition() which
+    // depends on the GLOBAL max activation level, not a time-specific one.
+    // We need this for self-message constraints (reverse case uses
+    // previous participant's posC2 which includes its max activation delta).
+    let mut max_activation_levels: HashMap<String, usize> = HashMap::new();
+    {
+        let mut levels: HashMap<String, usize> = HashMap::new();
+        for event in &sd.events {
+            match event {
+                SeqEvent::Activate(name, _) => {
+                    let level = levels.entry(name.clone()).or_insert(0);
+                    *level += 1;
+                    let max = max_activation_levels.entry(name.clone()).or_insert(0);
+                    if *level > *max {
+                        *max = *level;
+                    }
+                }
+                SeqEvent::Deactivate(name) => {
+                    let level = levels.entry(name.clone()).or_insert(0);
+                    if *level > 0 {
+                        *level -= 1;
+                    }
+                }
+                _ => {}
+            }
+        }
+    }
+
     // ── Step 3: Build tiles from events ──────────────────────────────────
     let mut tiles: Vec<TeozTile> = Vec::new();
     let mut autonumber_enabled = false;
@@ -1463,22 +1492,32 @@ pub fn build_teoz_layout(sd: &SequenceDiagram, skin: &SkinParams) -> Result<SeqL
                 text_width,
                 center,
                 is_reverse_define,
-                active_level,
                 ..
             } => {
                 let idx = *participant_idx;
                 let tm = TextMetrics::new(7.0, 7.0, 1.0, *text_width, tp.msg_line_height);
-                let needed =
-                    rose::self_arrow_preferred_size(&tm).width + active_right_shift(*active_level);
+                let comp_w = rose::self_arrow_preferred_size(&tm).width;
 
                 // Java CommunicationTileSelf uses isReverseDefine() (not direction)
+                // Java forward: next.posC >= self.posC2 + compWidth
+                //   posC2 = posC + maxActivationDelta (global max level)
+                // Java reverse: self.posC >= prev.posC2 + compWidth
+                //   posC2_prev uses the PREVIOUS participant's global max activation
                 if *is_reverse_define {
                     if idx > 0 {
+                        let prev_name = &sd.participants[idx - 1].name;
+                        let prev_max_level = max_activation_levels.get(prev_name).copied().unwrap_or(0);
+                        let prev_delta = active_right_shift(prev_max_level);
+                        let needed = prev_delta + comp_w;
                         let prev_center = livings[idx - 1].pos_c;
                         rl.ensure_bigger_than_with_margin(*center, prev_center, needed);
                     }
                 } else {
                     if idx + 1 < n_parts {
+                        let self_name = &sd.participants[idx].name;
+                        let self_max_level = max_activation_levels.get(self_name).copied().unwrap_or(0);
+                        let self_delta = active_right_shift(self_max_level);
+                        let needed = self_delta + comp_w;
                         let next_center = livings[idx + 1].pos_c;
                         rl.ensure_bigger_than_with_margin(next_center, *center, needed);
                     }
