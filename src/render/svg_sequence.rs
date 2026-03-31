@@ -28,6 +28,9 @@ use crate::skin::rose::{
 };
 
 const MARGIN: f64 = 5.0;
+/// Filter id for shadow effect (Java: SvgGraphics.shadowId).
+/// The actual value doesn't matter since tests normalize filter ids.
+const SHADOW_FILTER_ID: &str = "shadow1";
 
 // Fragment tab geometry (from Java AWT font metrics)
 const FRAG_TAB_LEFT_PAD: f64 = 15.0;
@@ -318,6 +321,7 @@ fn draw_lifelines_with_activations(
     skin: &SkinParams,
     sd: &SequenceDiagram,
     display_names: &std::collections::HashMap<&str, &str>,
+    shadow_attr: &str,
 ) {
     let ll_color = skin.sequence_lifeline_border_color(BORDER_COLOR);
 
@@ -366,7 +370,7 @@ fn draw_lifelines_with_activations(
         // Java teoz: LiveBoxesDrawer passes null for stringsToDisplay → Display.NULL → empty tooltip
         for act in &layout.activations {
             if act.participant == p.name {
-                draw_activation(sg, act, "");
+                draw_activation(sg, act, "", shadow_attr);
             }
         }
     }
@@ -412,6 +416,7 @@ fn draw_participant_box_with_font(
     part_font_size: f64,
     head: bool,
     link_url: Option<&str>,
+    shadow_attr: &str,
 ) {
     let fill = p.color.as_deref().unwrap_or(bg);
 
@@ -459,6 +464,7 @@ fn draw_participant_box_with_font(
                 part_font_family,
                 part_font_size,
                 link_url,
+                shadow_attr,
             );
         }
     }
@@ -475,6 +481,7 @@ fn draw_participant_rect_with_font(
     font_family: &str,
     font_size: f64,
     link_url: Option<&str>,
+    shadow_attr: &str,
 ) {
     let name = display_name.unwrap_or(&p.name);
     let lines: Vec<&str> = name
@@ -499,11 +506,12 @@ fn draw_participant_rect_with_font(
     let mut tmp = String::new();
     write!(
         tmp,
-        r#"<rect {fill_attrs} height="{h}" rx="2.5" ry="2.5" style="stroke:{border};stroke-width:0.5;" width="{w}" x="{x}" y="{y}"/>"#,
+        r#"<rect {fill_attrs}{shadow} height="{h}" rx="2.5" ry="2.5" style="stroke:{border};stroke-width:0.5;" width="{w}" x="{x}" y="{y}"/>"#,
         h = fmt_coord(box_height),
         w = fmt_coord(box_width),
         x = fmt_coord(x),
         y = fmt_coord(y),
+        shadow = shadow_attr,
     )
     .unwrap();
     sg.push_raw(&tmp);
@@ -2396,7 +2404,7 @@ fn draw_self_message(
 
 // ── Activation bars ─────────────────────────────────────────────────
 
-fn draw_activation(sg: &mut SvgGraphic, act: &ActivationLayout, title: &str) {
+fn draw_activation(sg: &mut SvgGraphic, act: &ActivationLayout, title: &str, shadow_attr: &str) {
     let width = 10.0;
     let height = act.y_end - act.y_start;
 
@@ -2411,7 +2419,7 @@ fn draw_activation(sg: &mut SvgGraphic, act: &ActivationLayout, title: &str) {
     let bg = act.color.as_deref().unwrap_or(ACTIVATION_BG);
     write!(
         tmp,
-        r#"<g>{title_tag}<rect fill="{bg}" height="{}" style="stroke:{border};stroke-width:1;" width="{}" x="{}" y="{}"/></g>"#,
+        r#"<g>{title_tag}<rect fill="{bg}"{shadow} height="{}" style="stroke:{border};stroke-width:1;" width="{}" x="{}" y="{}"/></g>"#,
         fmt_coord(height),
         fmt_coord(width),
         fmt_coord(act.x),
@@ -2419,6 +2427,7 @@ fn draw_activation(sg: &mut SvgGraphic, act: &ActivationLayout, title: &str) {
         title_tag = title_tag,
         bg = bg,
         border = BORDER_COLOR,
+        shadow = shadow_attr,
     )
     .unwrap();
     sg.push_raw(&tmp);
@@ -2439,7 +2448,7 @@ fn draw_destroy(sg: &mut SvgGraphic, d: &DestroyLayout) {
 
 // ── Notes ───────────────────────────────────────────────────────────
 
-fn draw_note(sg: &mut SvgGraphic, note: &NoteLayout) {
+fn draw_note(sg: &mut SvgGraphic, note: &NoteLayout, shadow_attr: &str) {
     let fold = 10.0; // folded corner size
     // Java NoteBox.getStartingX uses (int) truncation, and AbstractComponent.drawU
     // applies UTranslate(paddingX, paddingY). Self-msg notes have this baked into
@@ -2465,9 +2474,10 @@ fn draw_note(sg: &mut SvgGraphic, note: &NoteLayout) {
         let xf = fmt_coord(x + w - fold);
         let yf = fmt_coord(y + fold);
         sg.push_raw(&format!(
-            "<path d=\"M{x0},{y0} L{x0},{y1} L{x1},{y1} L{x1},{yf} L{xf},{y0} L{x0},{y0}\" fill=\"{bg}\" style=\"stroke:{border};stroke-width:0.5;\"/>",
+            "<path d=\"M{x0},{y0} L{x0},{y1} L{x1},{y1} L{x1},{yf} L{xf},{y0} L{x0},{y0}\" fill=\"{bg}\"{shadow} style=\"stroke:{border};stroke-width:0.5;\"/>",
             bg = NOTE_BG,
             border = NOTE_BORDER,
+            shadow = shadow_attr,
         ));
     }
 
@@ -3015,6 +3025,13 @@ fn render_sequence_inner(
         sg.push_raw(&tmp);
     }
 
+    // Shadow filter attribute for elements that support shadows (skin rose, etc.)
+    let shadow_attr = if sd.delta_shadow > 0.0 {
+        format!(r#" filter="url(#{})""#, SHADOW_FILTER_ID)
+    } else {
+        String::new()
+    };
+
     // Build participant name -> index mapping
     let part_index = build_participant_index(sd);
     let display_names: std::collections::HashMap<&str, &str> = sd
@@ -3050,14 +3067,14 @@ fn render_sequence_inner(
     //       (Java MainTile draws each participant's components together)
     // Puma: activations first, then lifelines (Java DrawableSet draw order)
     if sd.teoz_mode {
-        draw_lifelines_with_activations(&mut sg, layout, skin, sd, &display_names);
+        draw_lifelines_with_activations(&mut sg, layout, skin, sd, &display_names, &shadow_attr);
     } else {
         for act in &layout.activations {
             let title = display_names
                 .get(act.participant.as_str())
                 .copied()
                 .unwrap_or(&act.participant);
-            draw_activation(&mut sg, act, title);
+            draw_activation(&mut sg, act, title, &shadow_attr);
         }
         draw_lifelines(&mut sg, layout, skin, sd);
     }
@@ -3191,6 +3208,7 @@ fn render_sequence_inner(
                 part_font_size,
                 is_head,
                 part_link_url,
+                &shadow_attr,
             );
         }
         if !sd.teoz_mode {
@@ -3235,7 +3253,7 @@ fn render_sequence_inner(
                 .get(act.participant.as_str())
                 .copied()
                 .unwrap_or(&act.participant);
-            draw_activation(&mut sg, act, title);
+            draw_activation(&mut sg, act, title, &shadow_attr);
         }
     }
 
@@ -3395,7 +3413,7 @@ fn render_sequence_inner(
                 note.y >= msg.y - note_back_threshold && note.y < next_msg_y
             };
             if belongs {
-                draw_note(&mut sg, note);
+                draw_note(&mut sg, note, &shadow_attr);
                 drawn_notes.insert(ni);
                 has_note = true;
             }
@@ -3418,7 +3436,7 @@ fn render_sequence_inner(
     // Draw any remaining notes not yet drawn (standalone or missed by association)
     for (ni, note) in layout.notes.iter().enumerate() {
         if !drawn_notes.contains(&ni) {
-            draw_note(&mut sg, note);
+            draw_note(&mut sg, note, &shadow_attr);
             drawn_notes.insert(ni);
         }
     }
@@ -3453,11 +3471,30 @@ fn render_sequence_inner(
     // Append SvgGraphic body to the buf (which has the SVG root header)
     buf.push_str(sg.body());
 
-    // Post-process: inject gradient defs and filter definitions
+    // Post-process: inject gradient defs, shadow filter, and filter definitions
     let gradient_defs = crate::render::svg_sprite::take_gradient_defs();
     let filters = take_back_filters();
-    if !gradient_defs.is_empty() || !filters.is_empty() {
+    let has_shadow = sd.delta_shadow > 0.0;
+    if !gradient_defs.is_empty() || !filters.is_empty() || has_shadow {
         let mut defs_content = String::new();
+        // Shadow filter: Java SvgGraphics.manageShadow() — Gaussian blur + offset shadow
+        if has_shadow {
+            let ds = sd.delta_shadow as i32;
+            write!(
+                defs_content,
+                concat!(
+                    r#"<filter height="300%" id="{id}" width="300%" x="-1" y="-1">"#,
+                    r#"<feGaussianBlur result="blurOut" stdDeviation="2"/>"#,
+                    r#"<feColorMatrix in="blurOut" result="blurOut2" type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 .4 0"/>"#,
+                    r#"<feOffset dx="{ds}" dy="{ds}" in="blurOut2" result="blurOut3"/>"#,
+                    r#"<feBlend in="SourceGraphic" in2="blurOut3" mode="normal"/>"#,
+                    r#"</filter>"#,
+                ),
+                id = SHADOW_FILTER_ID,
+                ds = ds,
+            )
+            .unwrap();
+        }
         for (_id, def_xml) in &gradient_defs {
             defs_content.push_str(def_xml);
         }

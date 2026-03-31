@@ -633,6 +633,7 @@ fn compute_fragment_extent(
     livings: &[LivingSpace],
     rl: &RealLine,
     tp: &TeozParams,
+    delta_shadow: f64,
 ) -> (f64, f64) {
     let mut fmin = f64::MAX;
     let mut fmax = f64::MIN;
@@ -661,7 +662,7 @@ fn compute_fragment_extent(
                 }
                 // nested_end is now past the matching end tile
                 let (child_min, child_max) =
-                    compute_fragment_extent(tiles, nested_start, nested_end - 1, livings, rl, tp);
+                    compute_fragment_extent(tiles, nested_start, nested_end - 1, livings, rl, tp, delta_shadow);
                 // Java: parent sees nested fragment as tile.getMinX() and tile.getMaxX()
                 // getMinX = this.min - EXTERNAL_MARGINX1, getMaxX = this.max + EXTERNAL_MARGINX2
                 // Then parent applies tile.getMinX() - MARGINX and tile.getMaxX() + MARGINX
@@ -752,7 +753,8 @@ fn compute_fragment_extent(
                 ..
             } => {
                 let cx = rl.get_value(livings[*participant_idx].pos_c);
-                let extent_w = *width + NOTE_EXTENT_PADDING;
+                // Java ComponentRoseNote.getPreferredWidth includes deltaShadow
+                let extent_w = *width + NOTE_EXTENT_PADDING + delta_shadow;
                 if *is_note_on_message {
                     // Note on self-message: use self-message extent as base
                     if let Some((sm_pidx, sm_tw, sm_dir, sm_al)) =
@@ -971,6 +973,10 @@ pub fn build_teoz_layout(sd: &SequenceDiagram, skin: &SkinParams) -> Result<SeqL
             })
             .fold(0.0_f64, f64::max);
         let bw = rose::participant_preferred_width(&p.kind, max_line_w, 1.5);
+        // Java: LivingSpace positions use getPreferredWidth() which includes
+        // deltaShadow. The drawn rect uses getTextWidth() (no shadow).
+        // bw is the drawn width; bw_pos includes shadow for constraint positioning.
+        let bw_pos = bw + sd.delta_shadow;
         let participant_line_height =
             font_metrics::line_height(default_font, participant_font_size, false, false);
         let multiline_extra = if num_lines > 1 {
@@ -991,10 +997,11 @@ pub fn build_teoz_layout(sd: &SequenceDiagram, skin: &SkinParams) -> Result<SeqL
         };
 
         // Create Real variables: posB = xcurrent, posC = posB + w/2, posD = posB + w
+        // Use bw_pos (with shadow) for positioning, bw (without) for drawing.
         let pos_b = xcurrent;
-        let half_w = bw / 2.0;
+        let half_w = bw_pos / 2.0;
         let pos_c = rl.add_fixed(pos_b, half_w);
-        let pos_d = rl.add_fixed(pos_b, bw);
+        let pos_d = rl.add_fixed(pos_b, bw_pos);
 
         livings.push(LivingSpace::new(p.name.clone(), pos_b, pos_c, pos_d));
         box_widths.push(bw);
@@ -1531,7 +1538,7 @@ pub fn build_teoz_layout(sd: &SequenceDiagram, skin: &SkinParams) -> Result<SeqL
                 ..
             } => {
                 let idx = *participant_idx;
-                let note_half = (*width + NOTE_EXTENT_PADDING) / 2.0 + 5.0;
+                let note_half = (*width + NOTE_EXTENT_PADDING + sd.delta_shadow) / 2.0 + 5.0;
                 if *is_left {
                     // Note to the left: need space before this participant
                     if idx > 0 {
@@ -1570,8 +1577,11 @@ pub fn build_teoz_layout(sd: &SequenceDiagram, skin: &SkinParams) -> Result<SeqL
     // In our model, tile y represents the tile TOP (like Java), not the arrow y.
     // For Communication tiles, the arrow y = tile_y + arrowY.
     let max_box_height = box_heights.iter().copied().fold(0.0_f64, f64::max);
-    // Java layout uses preferred height (= drawn + 1) for lifeline start
-    let max_preferred_height = max_box_height + 1.0;
+    // Java layout uses preferred height (= drawn + deltaShadow + 1) for lifeline start.
+    // The deltaShadow contribution to total_height is handled separately via
+    // shadow_expansion in the final height formula, so we include it in
+    // max_preferred_height for positioning but it flows through consistently.
+    let max_preferred_height = max_box_height + 1.0 + sd.delta_shadow;
     let mut y = STARTING_Y + max_preferred_height + PLAYINGSPACE_STARTING_Y;
     // Track the previous message for note-on-message binding.
     // In Java, notes immediately following messages form a combined tile:
@@ -1993,8 +2003,8 @@ pub fn build_teoz_layout(sd: &SequenceDiagram, skin: &SkinParams) -> Result<SeqL
                 } => {
                     let cx = rl.get_value(livings[*participant_idx].pos_c);
                     // Java uses ComponentRoseNote.getPreferredWidth for extent,
-                    // which includes 2*paddingX beyond the drawn polygon width.
-                    let extent_w = *width + NOTE_EXTENT_PADDING;
+                    // which includes 2*paddingX + deltaShadow beyond the drawn polygon width.
+                    let extent_w = *width + NOTE_EXTENT_PADDING + sd.delta_shadow;
                     let level_offset = *active_level as f64 * 5.0;
                     if *is_note_on_message {
                         // Note attached to a self-message: use Java's
@@ -2076,6 +2086,7 @@ pub fn build_teoz_layout(sd: &SequenceDiagram, skin: &SkinParams) -> Result<SeqL
             livings: &[LivingSpace],
             rl: &RealLine,
             tp: &TeozParams,
+            delta_shadow: f64,
         ) -> (f64, f64, usize) {
             let mut group_min = f64::MAX;
             let mut group_max = f64::MIN;
@@ -2086,7 +2097,7 @@ pub fn build_teoz_layout(sd: &SequenceDiagram, skin: &SkinParams) -> Result<SeqL
                     TeozTile::GroupStart { .. } | TeozTile::FragmentStart { .. } => {
                         // Recurse into nested group
                         let (child_min, child_max, next_i) =
-                            compute_group_extent(tiles, i + 1, livings, rl, tp);
+                            compute_group_extent(tiles, i + 1, livings, rl, tp, delta_shadow);
                         // Child reports getMinX/getMaxX; add MARGINX for this level
                         let child_with_margin_min = child_min - GROUP_MARGINX;
                         let child_with_margin_max = child_max + GROUP_MARGINX;
@@ -2221,7 +2232,7 @@ pub fn build_teoz_layout(sd: &SequenceDiagram, skin: &SkinParams) -> Result<SeqL
                         ..
                     } => {
                         let cx = rl.get_value(livings[*participant_idx].pos_c);
-                        let extent_w = *width + NOTE_EXTENT_PADDING;
+                        let extent_w = *width + NOTE_EXTENT_PADDING + delta_shadow;
                         let (t_min, t_max) = if *is_note_on_message {
                             // Note on self-message: use self-message extent
                             if let Some((sm_pidx, sm_tw, sm_dir, sm_al)) =
@@ -2287,7 +2298,7 @@ pub fn build_teoz_layout(sd: &SequenceDiagram, skin: &SkinParams) -> Result<SeqL
             match &tiles[i] {
                 TeozTile::GroupStart { .. } | TeozTile::FragmentStart { .. } => {
                     let (g_min, g_max, next_i) =
-                        compute_group_extent(&tiles, i + 1, &livings, &rl, &tp);
+                        compute_group_extent(&tiles, i + 1, &livings, &rl, &tp, sd.delta_shadow);
                     if g_min < raw_min {
                         raw_min = g_min;
                     }
@@ -2367,6 +2378,65 @@ pub fn build_teoz_layout(sd: &SequenceDiagram, skin: &SkinParams) -> Result<SeqL
                         header_entries.clear();
                     }
                     group_depth = group_depth.saturating_sub(1);
+                }
+                _ => {}
+            }
+        }
+    }
+    // Java: posC2 = posC + getMaxPosition() uses the GLOBAL max activation level,
+    // not the per-message level. Our per-tile self_message_extent uses per-message
+    // level which works for non-shadowed cases (comp_width dominates). When shadow
+    // is active, the posC2 gap matters because (a) reverse self-messages have
+    // maxX = posC2 without comp_width, and (b) notes extend from posC2.
+    // Apply per-participant posC2 expansion to raw_max when shadow is present.
+    if sd.delta_shadow > 0.0 {
+        for living in &livings {
+            let c = rl.get_value(living.pos_c);
+            let gml = max_activation_levels.get(&living.name).copied().unwrap_or(0);
+            let global_pos_c2 = c + active_right_shift(gml);
+            // Direct posC2 contribution (Java: PlayingSpace adds posC2 to max2)
+            if global_pos_c2 > raw_max {
+                raw_max = global_pos_c2;
+            }
+        }
+        // Also expand note-on-self-message extents that use posC2 as base.
+        // The per-tile posC2 may be smaller than the global posC2.
+        let mut outer_depth: usize = 0;
+        for tile_i in 0..tiles.len() {
+            match &tiles[tile_i] {
+                TeozTile::GroupStart { .. } | TeozTile::FragmentStart { .. } => {
+                    outer_depth += 1;
+                }
+                TeozTile::GroupEnd { .. } | TeozTile::FragmentEnd { .. } => {
+                    outer_depth = outer_depth.saturating_sub(1);
+                }
+                _ if outer_depth > 0 => {}
+                TeozTile::Note {
+                    participant_idx,
+                    is_left,
+                    width,
+                    is_note_on_message,
+                    ..
+                } if *is_note_on_message && !*is_left => {
+                    // Right note on self-message: maxX = posC2_global + compWidth + noteWidth
+                    if let Some((sm_pidx, sm_tw, sm_dir, sm_al)) =
+                        find_preceding_self_message(&tiles, tile_i)
+                    {
+                        let sm_cx = rl.get_value(livings[sm_pidx].pos_c);
+                        let sm_comp_w = self_message_comp_width(sm_tw, tp.msg_line_height);
+                        let gml = max_activation_levels.get(&livings[sm_pidx].name).copied().unwrap_or(0);
+                        // Recompute with global max level
+                        let pos_c2_global = sm_cx + active_right_shift(gml);
+                        let sm_max_global = match sm_dir {
+                            SeqDirection::LeftToRight => pos_c2_global + sm_comp_w,
+                            SeqDirection::RightToLeft => pos_c2_global,
+                        };
+                        let extent_w = *width + NOTE_EXTENT_PADDING + sd.delta_shadow;
+                        let right = sm_max_global + extent_w;
+                        if right > raw_max {
+                            raw_max = right;
+                        }
+                    }
                 }
                 _ => {}
             }
@@ -2880,7 +2950,7 @@ pub fn build_teoz_layout(sd: &SequenceDiagram, skin: &SkinParams) -> Result<SeqL
                                                       // Compute per-fragment width from child tiles.
                                                       // Java GroupingTile computes its own min/max from children.
                     let (frag_min, frag_max) =
-                        compute_fragment_extent(&tiles, child_start, tile_i, &livings, &rl, &tp);
+                        compute_fragment_extent(&tiles, child_start, tile_i, &livings, &rl, &tp, sd.delta_shadow);
                     // Java: ComponentRoseGroupingHeader.getPreferredWidth():
                     //   getTextWidth() = pureTextW(kindLabel) + marginX1(15) + marginX2(30)
                     //   if condition label present:
@@ -3226,12 +3296,12 @@ pub fn build_teoz_layout(sd: &SequenceDiagram, skin: &SkinParams) -> Result<SeqL
     // total = tiles_bottom + (factor-1)*head + 20 = sum + factor*head + 38  ✓
     let show_footbox = !sd.hide_footbox;
     let factor = if show_footbox { 2 } else { 1 };
-    // Java: when skin has shadowing (e.g. `skin rose`, delta=4), the LimitFinder
-    // extends element bounds by 2*deltaShadow. Participant boxes at the bottom of
-    // the diagram push the viewport down by this amount.
-    let shadow_expansion = 2.0 * sd.delta_shadow;
+    // Java: participant getPreferredHeight includes deltaShadow, which is
+    // already folded into max_preferred_height. With factor=2 (footbox), this
+    // correctly expands the total height by 2*deltaShadow (once for head, once
+    // for tiles_bottom offset which includes one head height).
     let total_height =
-        tiles_bottom + (factor - 1) as f64 * max_preferred_height + 20.0 + shadow_expansion;
+        tiles_bottom + (factor - 1) as f64 * max_preferred_height + 20.0;
     log::debug!("teoz_layout: total_width={total_width:.4} total_height={total_height:.4} lifeline_bottom={lifeline_bottom:.4} max_preferred_height={max_preferred_height:.4}");
 
     Ok(SeqLayout {

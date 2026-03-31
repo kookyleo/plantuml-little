@@ -494,6 +494,20 @@ pub fn parse_skinparams(content: &str) -> SkinParams {
         }
 
         let lower = trimmed.to_lowercase();
+
+        // Handle `skin rose` directive: apply Rose theme defaults.
+        // Java Rose skin uses #A80036 for borders and stroke-width:1 for lines.
+        if lower.starts_with("skin ") {
+            let skin_name = lower["skin ".len()..].trim();
+            if skin_name == "rose" {
+                params.set("sequencelifelinebordercolor", "#A80036");
+                params.set("participant.bordercolor", "#A80036");
+                params.set("sequence.bordercolor", "#A80036");
+                params.set("root.linethickness", "1");
+            }
+            continue;
+        }
+
         if !lower.starts_with("skinparam") {
             continue;
         }
