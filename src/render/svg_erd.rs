@@ -1,7 +1,7 @@
 use crate::klimt::svg::{fmt_coord, xml_escape, LengthAdjust, SvgGraphic};
 use crate::layout::erd::{
     ErdAttrEdge, ErdAttrLayout, ErdEdgeLayout, ErdIsaLayout, ErdLayout, ErdNodeLayout,
-    ErdNoteLayout,
+    ErdNoteLayout, ErdIsaChildEdge,
 };
 use crate::model::erd::ErdDiagram;
 use crate::render::svg::{ensure_visible_int, write_bg_rect, write_svg_root_bg};
@@ -388,24 +388,27 @@ fn render_edge(sg: &mut SvgGraphic, edge: &ErdEdgeLayout, link_idx: usize) {
 }
 
 fn render_isa(sg: &mut SvgGraphic, isa: &ErdIsaLayout) {
-    let (cx, cy) = isa.triangle_center;
-    let s = isa.triangle_size;
-    let top_y = cy - s * 0.5;
-    let bot_y = cy + s * 0.5;
-    let left_x = cx - s * 0.6;
-    let right_x = cx + s * 0.6;
+    let (cx, cy) = isa.center;
+    let r = isa.radius;
+
+    // Render the ISA circle (Java: ellipse with rx=ry=12.5)
+    sg.push_raw("<g>");
     sg.set_fill_color(ENTITY_BG);
     sg.set_stroke_color(Some(BORDER_COLOR));
     sg.set_stroke_width(0.5, None);
-    sg.svg_polygon(0.0, &[cx, top_y, right_x, bot_y, left_x, bot_y]);
-    let label_y = cy + FONT_SIZE * 0.2;
-    let escaped = xml_escape(&isa.kind_label);
-    let text_w = escaped.len() as f64 * 7.0;
+    sg.svg_ellipse(cx, cy, r, r, 0.0);
+
+    // Label text
+    let text_w = crate::font_metrics::text_width(&isa.kind_label, "SansSerif", FONT_SIZE, false, false);
+    let asc = crate::font_metrics::ascent("SansSerif", FONT_SIZE, false, false);
+    let desc = crate::font_metrics::descent("SansSerif", FONT_SIZE, false, false);
+    let text_x = cx - text_w / 2.0;
+    let text_y = cy + (asc - desc) / 2.0;
     sg.set_fill_color(TEXT_COLOR);
     sg.svg_text(
         &isa.kind_label,
-        cx - text_w / 2.0,
-        label_y,
+        text_x,
+        text_y,
         Some("sans-serif"),
         FONT_SIZE,
         None,
@@ -417,10 +420,25 @@ fn render_isa(sg: &mut SvgGraphic, isa: &ErdIsaLayout) {
         0,
         None,
     );
-    let (ppx, ppy) = isa.parent_point;
-    render_path_line(sg, ppx, ppy, cx, top_y);
-    for (_child_id, (child_x, child_y)) in &isa.child_points {
-        render_path_line(sg, cx, bot_y, *child_x, *child_y);
+    sg.push_raw("</g>");
+
+    // Render parent→center edge
+    if let Some(ref path_d) = isa.parent_edge_path {
+        let stroke_w = if isa.is_double { 2 } else { 1 };
+        sg.push_raw(&format!(
+            r#"<path d="{}" fill="none" style="stroke:{BORDER_COLOR};stroke-width:{stroke_w};"/>"#,
+            path_d,
+        ));
+    }
+
+    // Render center→child edges
+    for child_edge in &isa.child_edges {
+        if let Some(ref path_d) = child_edge.raw_path_d {
+            sg.push_raw(&format!(
+                r#"<path d="{}" fill="none" style="stroke:{BORDER_COLOR};stroke-width:1;"/>"#,
+                path_d,
+            ));
+        }
     }
 }
 
@@ -675,21 +693,30 @@ mod tests {
         assert!(svg.matches("<path").count() >= 2);
     }
     #[test]
-    fn test_isa_triangle() {
+    fn test_isa_circle() {
         let mut l = empty_layout();
         l.isa_layouts.push(ErdIsaLayout {
             parent_id: "PARENT".into(),
             kind_label: "d".into(),
-            triangle_center: (200.0, 200.0),
-            triangle_size: 24.0,
-            parent_point: (200.0, 170.0),
-            child_points: vec![("C1".into(), (160.0, 250.0)), ("C2".into(), (240.0, 250.0))],
+            center: (200.0, 200.0),
+            radius: 12.5,
+            parent_edge_path: Some("M200,170 C200,180 200,190 200,187".to_string()),
+            child_edges: vec![
+                ErdIsaChildEdge {
+                    child_id: "C1".into(),
+                    raw_path_d: Some("M200,212 C180,230 160,240 160,250".to_string()),
+                },
+                ErdIsaChildEdge {
+                    child_id: "C2".into(),
+                    raw_path_d: Some("M200,212 C220,230 240,240 240,250".to_string()),
+                },
+            ],
             is_double: true,
         });
         let svg = render_erd(&empty_diagram(), &l, &SkinParams::default()).unwrap();
-        assert!(svg.contains("<polygon"));
-        assert!(svg.matches("<path").count() >= 3);
-        assert!(svg.contains(">d<"));
+        assert!(svg.contains("<ellipse"), "should render ISA as circle (ellipse)");
+        assert!(svg.matches("<path").count() >= 3, "should have parent+child edge paths");
+        assert!(svg.contains(">d<"), "should contain kind label");
     }
     #[test]
     fn test_attr_parent_lines() {

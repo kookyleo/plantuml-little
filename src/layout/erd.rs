@@ -106,16 +106,28 @@ pub struct ErdNoteLayout {
     pub connector: Option<(f64, f64, f64, f64)>,
 }
 
-/// A positioned ISA triangle.
+/// A positioned ISA circle node (Java renders ISA as circle, not triangle).
 #[derive(Debug, Clone)]
 pub struct ErdIsaLayout {
     pub parent_id: String,
     pub kind_label: String,
-    pub triangle_center: (f64, f64),
-    pub triangle_size: f64,
-    pub parent_point: (f64, f64),
-    pub child_points: Vec<(String, (f64, f64))>,
+    /// Center of the ISA circle node.
+    pub center: (f64, f64),
+    /// Radius of the ISA circle (Java: 12.5).
+    pub radius: f64,
+    /// Edge from parent entity to ISA center.
+    pub parent_edge_path: Option<String>,
+    /// Edges from ISA center to each child entity.
+    pub child_edges: Vec<ErdIsaChildEdge>,
+    /// Whether the parent→center edge is double-stroke (from `=>=`).
     pub is_double: bool,
+}
+
+/// An edge from an ISA center to a child entity.
+#[derive(Debug, Clone)]
+pub struct ErdIsaChildEdge {
+    pub child_id: String,
+    pub raw_path_d: Option<String>,
 }
 
 // ---------------------------------------------------------------------------
@@ -129,8 +141,8 @@ const ENTITY_HEIGHT: f64 = 36.2969;
 /// Java MARGIN constant from IEntityImage (used for diamond calculation)
 const JAVA_ENTITY_MARGIN: f64 = 5.0;
 const MARGIN: f64 = 7.0;
-const ISA_TRIANGLE_SIZE: f64 = 24.0;
-const ISA_CHILD_SPACING: f64 = 140.0;
+/// Java ISA circle node diameter = 25 (radius 12.5).
+const ISA_CIRCLE_DIAMETER: f64 = 25.0;
 const NOTE_PADDING: f64 = 10.0;
 const NOTE_LINE_HEIGHT: f64 = 16.0;
 const NOTE_GAP: f64 = 16.0;
@@ -406,30 +418,78 @@ pub fn layout_erd(diagram: &ErdDiagram) -> Result<ErdLayout> {
         }
     }
 
+    // ISA center nodes → circle nodes
+    // Java convention: id = "{parent}/{kind} {child1}, {child2}, ... /center"
+    struct IsaNodeMeta {
+        center_id: String,
+        parent_id: String,
+        child_ids: Vec<String>,
+        is_double: bool,
+    }
+    let mut isa_node_metas: Vec<IsaNodeMeta> = Vec::new();
+    for isa in &diagram.isas {
+        let kind_str = match isa.kind {
+            crate::model::erd::IsaKind::Disjoint => "d",
+            crate::model::erd::IsaKind::Union => "U",
+        };
+        let children_str = isa.children.join(", ");
+        let center_id = format!("{}/{} {} /center", isa.parent, kind_str, children_str);
+        layout_nodes.push(LayoutNode {
+            id: center_id.clone(),
+            label: kind_str.to_string(),
+            width_pt: ISA_CIRCLE_DIAMETER,
+            height_pt: ISA_CIRCLE_DIAMETER,
+            shape: Some(ShapeType::Oval),
+            shield: None,
+            entity_position: None,
+            max_label_width: None,
+            order: None,
+            image_width_pt: None,
+            lf_extra_left: 0.0,
+            lf_rect_correction: false,
+            lf_has_body_separator: false,
+        });
+        isa_node_metas.push(IsaNodeMeta {
+            center_id,
+            parent_id: isa.parent.clone(),
+            child_ids: isa.children.clone(),
+            is_double: isa.is_double,
+        });
+    }
+
     // ── Build svek layout edges ──
     let mut layout_edges: Vec<LayoutEdge> = Vec::new();
 
     // Link edges (entity↔relationship) with cardinality labels
-    let label_dims: Vec<(f64, f64)> = diagram
+    // ISA arrow links (->- and -<-) have no label in Java (Display.NULL).
+    let label_dims: Vec<Option<(f64, f64)>> = diagram
         .links
         .iter()
         .map(|link| {
-            let tw = font_metrics::text_width(&link.cardinality, "SansSerif", 11.0, false, false);
-            let th = font_metrics::line_height("SansSerif", 11.0, false, false);
-            let dim_w = (tw + 2.0).floor();
-            let dim_h = (th + 2.0).floor();
-            (dim_w, dim_h)
+            if link.isa_arrow.is_some() {
+                None // ISA arrow links have no label
+            } else {
+                let tw = font_metrics::text_width(&link.cardinality, "SansSerif", 11.0, false, false);
+                let th = font_metrics::line_height("SansSerif", 11.0, false, false);
+                let dim_w = (tw + 2.0).floor();
+                let dim_h = (th + 2.0).floor();
+                Some((dim_w, dim_h))
+            }
         })
         .collect();
 
     let num_link_edges = diagram.links.len();
     for (i, link) in diagram.links.iter().enumerate() {
-        let (lw, lh) = label_dims[i];
+        let (label, label_dimension) = if let Some((lw, lh)) = label_dims[i] {
+            (Some(link.cardinality.clone()), Some((lw, lh)))
+        } else {
+            (None, None)
+        };
         layout_edges.push(LayoutEdge {
             from: link.from.clone(),
             to: link.to.clone(),
-            label: Some(link.cardinality.clone()),
-            label_dimension: Some((lw, lh)),
+            label,
+            label_dimension,
             tail_label: None,
             tail_label_boxed: false,
             head_label: None,
@@ -461,6 +521,47 @@ pub fn layout_erd(diagram: &ErdDiagram) -> Result<ErdLayout> {
             invisible: false,
             no_constraint: false,
         });
+    }
+
+    // ISA edges: parent→center and center→child for each ISA
+    let num_pre_isa_edges = layout_edges.len();
+    for isa_meta in &isa_node_metas {
+        // Parent → ISA center edge (Java: LinkArg length=2 → DOT minlen=1)
+        layout_edges.push(LayoutEdge {
+            from: isa_meta.parent_id.clone(),
+            to: isa_meta.center_id.clone(),
+            label: None,
+            label_dimension: None,
+            tail_label: None,
+            tail_label_boxed: false,
+            head_label: None,
+            head_label_boxed: false,
+            tail_decoration: crate::svek::edge::LinkDecoration::None,
+            head_decoration: crate::svek::edge::LinkDecoration::None,
+            line_style: crate::svek::edge::LinkStyle::Normal,
+            minlen: 1,
+            invisible: false,
+            no_constraint: false,
+        });
+        // ISA center → each child (Java: LinkArg length=3 → DOT minlen=2)
+        for child_id in &isa_meta.child_ids {
+            layout_edges.push(LayoutEdge {
+                from: isa_meta.center_id.clone(),
+                to: child_id.clone(),
+                label: None,
+                label_dimension: None,
+                tail_label: None,
+                tail_label_boxed: false,
+                head_label: None,
+                head_label_boxed: false,
+                tail_decoration: crate::svek::edge::LinkDecoration::None,
+                head_decoration: crate::svek::edge::LinkDecoration::None,
+                line_style: crate::svek::edge::LinkStyle::Normal,
+                minlen: 2,
+                invisible: false,
+                no_constraint: false,
+            });
+        }
     }
 
     let graph = LayoutGraph {
@@ -653,8 +754,52 @@ pub fn layout_erd(diagram: &ErdDiagram) -> Result<ErdLayout> {
         });
     }
 
-    // Layout ISAs
-    let isa_layouts = layout_isas(&diagram.isas, &positions, is_lr);
+    // Build ISA layouts from graphviz results
+    let mut isa_layouts: Vec<ErdIsaLayout> = Vec::new();
+    let mut isa_edge_idx = num_pre_isa_edges;
+    for isa_meta in &isa_node_metas {
+        let (cx, cy) = if let Some(&(x, y, w, h)) = positions.get(&isa_meta.center_id) {
+            (x + w / 2.0, y + h / 2.0)
+        } else {
+            log::warn!("ISA center node '{}' not found in layout", isa_meta.center_id);
+            continue;
+        };
+
+        let kind_label = if isa_meta.center_id.contains("/d ") {
+            "d".to_string()
+        } else {
+            "U".to_string()
+        };
+
+        // Parent→center edge path
+        let parent_edge_path = gl.edges.get(isa_edge_idx)
+            .and_then(|e| e.raw_path_d.as_ref())
+            .map(|d| shift_svg_path(d, render_dx, render_dy));
+        isa_edge_idx += 1;
+
+        // Center→child edge paths
+        let mut child_edges = Vec::new();
+        for child_id in &isa_meta.child_ids {
+            let child_path = gl.edges.get(isa_edge_idx)
+                .and_then(|e| e.raw_path_d.as_ref())
+                .map(|d| shift_svg_path(d, render_dx, render_dy));
+            child_edges.push(ErdIsaChildEdge {
+                child_id: child_id.clone(),
+                raw_path_d: child_path,
+            });
+            isa_edge_idx += 1;
+        }
+
+        isa_layouts.push(ErdIsaLayout {
+            parent_id: isa_meta.parent_id.clone(),
+            kind_label,
+            center: (cx, cy),
+            radius: ISA_CIRCLE_DIAMETER / 2.0,
+            parent_edge_path,
+            child_edges,
+            is_double: isa_meta.is_double,
+        });
+    }
 
     // Viewport: use svek lf_span + CANVAS_DELTA + DOC_MARGIN (same as class/component)
     let is_degenerated = entity_nodes.len() + relationship_nodes.len() <= 1 && edges.is_empty();
@@ -671,11 +816,8 @@ pub fn layout_erd(diagram: &ErdDiagram) -> Result<ErdLayout> {
     let mut max_right = raw_body_w;
     let mut max_bottom = raw_body_h;
 
-    for isa in &isa_layouts {
-        let (tx, ty) = isa.triangle_center;
-        max_right = max_right.max(tx + isa.triangle_size - render_dx + DOC_MARGIN_RIGHT);
-        max_bottom = max_bottom.max(ty + isa.triangle_size - render_dy + DOC_MARGIN_BOTTOM);
-    }
+    // ISA nodes are now in graphviz, so their positions are included in lf_span.
+    // No manual ISA viewport expansion needed.
 
     let notes = layout_notes(&diagram.notes, &positions, max_right, max_bottom);
 
@@ -697,8 +839,8 @@ pub fn layout_erd(diagram: &ErdDiagram) -> Result<ErdLayout> {
     );
 
     // Extract attribute→parent edge paths from svek results.
-    // These are edges at indices [num_link_edges..] in the graphviz output.
-    let attr_edges: Vec<ErdAttrEdge> = (num_link_edges..gl.edges.len())
+    // These are edges at indices [num_link_edges..num_pre_isa_edges] in the graphviz output.
+    let attr_edges: Vec<ErdAttrEdge> = (num_link_edges..num_pre_isa_edges)
         .enumerate()
         .map(|(j, i)| {
             let raw_path_d = gl.edges.get(i)
@@ -800,78 +942,6 @@ fn clip_to_rect(cx: f64, cy: f64, w: f64, h: f64, target_x: f64, target_y: f64) 
     } else {
         (cx + dx * t, cy + dy * t)
     }
-}
-
-// ---------------------------------------------------------------------------
-// ISA layout
-// ---------------------------------------------------------------------------
-
-fn layout_isas(
-    isas: &[ErdIsa],
-    positions: &HashMap<String, (f64, f64, f64, f64)>,
-    is_lr: bool,
-) -> Vec<ErdIsaLayout> {
-    let mut result = Vec::new();
-
-    for isa in isas {
-        let (px, py, pw, ph) = match positions.get(&isa.parent) {
-            Some(p) => *p,
-            None => {
-                log::warn!("ISA parent '{}' not found", isa.parent);
-                continue;
-            }
-        };
-
-        let parent_cx = px + pw / 2.0;
-        let parent_cy = py + ph / 2.0;
-
-        let (tri_x, tri_y) = if is_lr {
-            (parent_cx + pw / 2.0 + 50.0, parent_cy)
-        } else {
-            (parent_cx, parent_cy + ph / 2.0 + 50.0)
-        };
-
-        let kind_label = match isa.kind {
-            crate::model::erd::IsaKind::Disjoint => "d".to_string(),
-            crate::model::erd::IsaKind::Union => "U".to_string(),
-        };
-
-        let child_count = isa.children.len() as f64;
-        let total_span = (child_count - 1.0) * ISA_CHILD_SPACING;
-        let parent_point = if is_lr {
-            (tri_x - ISA_TRIANGLE_SIZE, tri_y)
-        } else {
-            (tri_x, tri_y - ISA_TRIANGLE_SIZE)
-        };
-
-        let mut child_points = Vec::new();
-        for (ci, child_id) in isa.children.iter().enumerate() {
-            let (cx, cy) = if is_lr {
-                (
-                    tri_x + ISA_TRIANGLE_SIZE + 30.0,
-                    tri_y - total_span / 2.0 + ci as f64 * ISA_CHILD_SPACING,
-                )
-            } else {
-                (
-                    tri_x - total_span / 2.0 + ci as f64 * ISA_CHILD_SPACING,
-                    tri_y + ISA_TRIANGLE_SIZE + 30.0,
-                )
-            };
-            child_points.push((child_id.clone(), (cx, cy)));
-        }
-
-        result.push(ErdIsaLayout {
-            parent_id: isa.parent.clone(),
-            kind_label,
-            triangle_center: (tri_x, tri_y),
-            triangle_size: ISA_TRIANGLE_SIZE,
-            parent_point,
-            child_points,
-            is_double: isa.is_double,
-        });
-    }
-
-    result
 }
 
 // ---------------------------------------------------------------------------
@@ -1029,6 +1099,7 @@ mod tests {
             cardinality: card.to_string(),
             is_double: false,
             color: None,
+            isa_arrow: None,
         }
     }
 
@@ -1227,6 +1298,7 @@ mod tests {
                 cardinality: "N".to_string(),
                 is_double: true,
                 color: None,
+                isa_arrow: None,
             }],
             ..empty_diagram()
         };
@@ -1268,8 +1340,10 @@ mod tests {
         let layout = layout_erd(&d).unwrap();
         assert_eq!(layout.isa_layouts.len(), 1);
         assert_eq!(layout.isa_layouts[0].kind_label, "d");
-        assert_eq!(layout.isa_layouts[0].child_points.len(), 2);
+        assert_eq!(layout.isa_layouts[0].child_edges.len(), 2);
         assert!(layout.isa_layouts[0].is_double);
+        // ISA center should be positioned by graphviz
+        assert!(layout.isa_layouts[0].radius > 0.0);
     }
 
     #[test]

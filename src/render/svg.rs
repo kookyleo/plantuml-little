@@ -25,8 +25,9 @@ use crate::klimt::svg::{svg_comment_escape, LengthAdjust, SvgGraphic};
 use crate::svek::edge::LineOfSegments;
 
 use super::svg_richtext::{
-    count_creole_lines, creole_plain_text, get_default_font_family_pub, max_creole_plain_line_len,
-    render_creole_display_lines, render_creole_text, set_default_font_family,
+    count_creole_lines, creole_plain_text, creole_table_width, get_default_font_family_pub,
+    max_creole_plain_line_len, render_creole_display_lines, render_creole_text,
+    set_default_font_family,
 };
 use super::svg_sequence;
 
@@ -436,14 +437,29 @@ fn compute_meta_body_offset(meta: &DiagramMeta, skin: &SkinParams) -> (f64, f64)
     let title_text_h = if let Some(ref t) = meta.title {
         let lh = font_metrics::line_height("SansSerif", title_font_size, title_bold, false);
         let n_lines = t.split(crate::NEWLINE_CHAR).flat_map(|s| s.lines()).count().max(1);
-        n_lines as f64 * lh
+        let mut h = n_lines as f64 * lh;
+        // Java: tables inside title use AtomWithMargin(table, 2, 2) adding 4px.
+        let has_table = t.split(crate::NEWLINE_CHAR)
+            .flat_map(|s| s.lines())
+            .any(|line| {
+                let trimmed = line.trim();
+                trimmed.starts_with('|')
+                    || (trimmed.starts_with('<') && trimmed.contains(">|"))
+            });
+        if has_table {
+            h += 4.0;
+        }
+        h
     } else {
         0.0
     };
     let title_text_w = meta
         .title
         .as_ref()
-        .map(|t| creole_text_w(t, title_font_size, title_bold))
+        .map(|t| {
+            creole_table_width(t, title_font_size, title_bold)
+                .unwrap_or_else(|| creole_text_w(t, title_font_size, title_bold))
+        })
         .unwrap_or(0.0);
     let title_dim = if meta.title.is_some() {
         block_dim(title_text_w, title_text_h, TITLE_PADDING, TITLE_MARGIN)
@@ -1184,12 +1200,29 @@ fn wrap_with_meta(
     let title_text_w = meta
         .title
         .as_ref()
-        .map(|t| creole_text_w(t, title_font_size, title_bold))
+        .map(|t| {
+            // For tables, compute width from table layout (column-based) instead of raw text
+            creole_table_width(t, title_font_size, title_bold)
+                .unwrap_or_else(|| creole_text_w(t, title_font_size, title_bold))
+        })
         .unwrap_or(0.0);
     let title_text_h = if let Some(ref t) = meta.title {
         let lh = font_metrics::line_height("SansSerif", title_font_size, title_bold, false);
         let n_lines = t.split(crate::NEWLINE_CHAR).flat_map(|s| s.lines()).count().max(1);
-        n_lines as f64 * lh
+        let mut h = n_lines as f64 * lh;
+        // Java: tables inside title use AtomWithMargin(table, 2, 2) which adds 4px.
+        // Detect table content: any line starts with '|' or color prefix '<#...>|'.
+        let has_table = t.split(crate::NEWLINE_CHAR)
+            .flat_map(|s| s.lines())
+            .any(|line| {
+                let trimmed = line.trim();
+                trimmed.starts_with('|')
+                    || (trimmed.starts_with('<') && trimmed.contains(">|"))
+            });
+        if has_table {
+            h += 4.0; // TABLE_MARGIN_Y * 2 (Java AtomWithMargin top+bottom)
+        }
+        h
     } else {
         0.0
     };

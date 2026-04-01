@@ -694,12 +694,20 @@ fn try_parse_link_pattern(line: &str, is_double: bool) -> Option<ErdLink> {
 
     let (color, _) = parse_color(&rest);
 
+    // Detect ISA simple subclass arrows: `->-` gives cardinality ">" and `-<-` gives "<"
+    let isa_arrow = match cardinality {
+        ">" => Some(true),  // superset (->-)
+        "<" => Some(false), // subset (-<-)
+        _ => None,
+    };
+
     Some(ErdLink {
         from: from.to_string(),
         to: to.to_string(),
         cardinality: cardinality.to_string(),
         is_double,
         color,
+        isa_arrow,
     })
 }
 

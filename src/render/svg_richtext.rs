@@ -209,6 +209,59 @@ pub fn creole_plain_text(text: &str) -> String {
     flatten_plain_lines(&parse_creole(text)).join("")
 }
 
+/// Compute table width when title text contains a creole table.
+///
+/// Returns `Some(width)` if the text is a table, `None` otherwise.
+/// Used by the meta-wrapping code to calculate the correct title width
+/// (raw text width over-counts since cells are laid out in columns).
+pub fn creole_table_width(text: &str, font_size: f64, bold: bool) -> Option<f64> {
+    let lines: Vec<String> = text
+        .split(crate::NEWLINE_CHAR)
+        .flat_map(|s| s.lines())
+        .map(|s| s.to_string())
+        .collect();
+    // Check if any line is a table row (starts with |, possibly with color prefix)
+    let is_table = lines.iter().any(|line| {
+        let trimmed = line.trim();
+        // Strip optional color prefix: <#color> or <#color,#border>
+        let after_prefix = if trimmed.starts_with('<') {
+            if let Some(end) = trimmed.find('>') {
+                trimmed[end + 1..].trim_start()
+            } else {
+                trimmed
+            }
+        } else {
+            trimmed
+        };
+        after_prefix.starts_with('|')
+    });
+    if !is_table {
+        return None;
+    }
+    // Strip color prefixes from each line before parsing as table rows
+    let cleaned_lines: Vec<String> = lines.iter()
+        .map(|line| {
+            let trimmed = line.trim();
+            if trimmed.starts_with('<') {
+                if let Some(end) = trimmed.find('>') {
+                    trimmed[end + 1..].to_string()
+                } else {
+                    trimmed.to_string()
+                }
+            } else {
+                trimmed.to_string()
+            }
+        })
+        .collect();
+    let rows = parse_display_table_rows(&cleaned_lines, false);
+    if rows.is_empty() {
+        return None;
+    }
+    let default_font = get_default_font_family();
+    let layout = layout_display_table(&rows, &default_font, font_size, bold, false);
+    Some(layout.width)
+}
+
 /// Compute the effective line height for creole text, considering `<size:N>` markup
 /// and `<sub>`/`<sup>` elements that extend the vertical bounds.
 /// Java: `TextBlock.calculateDimension().getHeight()` uses the largest font in the display.

@@ -41,6 +41,9 @@ pub struct ErdLink {
     pub cardinality: String,
     pub is_double: bool,
     pub color: Option<String>,
+    /// Arrow direction for ISA simple subclass links (`->-` or `-<-`).
+    /// `None` for normal links, `Some(true)` for `>` (superset), `Some(false)` for `<` (subset).
+    pub isa_arrow: Option<bool>,
 }
 
 /// ISA (specialization/generalization) relationship
