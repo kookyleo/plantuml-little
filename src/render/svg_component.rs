@@ -197,6 +197,8 @@ pub fn render_component(
     }
 
     // Edges — link IDs start after entity IDs
+    // Track path ID duplicates for suffix generation (Java: "-1", "-2", etc.)
+    let mut path_id_counts: std::collections::HashMap<String, usize> = std::collections::HashMap::new();
     let mut link_counter = ent_counter;
     for (ei, edge) in layout.edges.iter().enumerate() {
         let source_line = cd.links.get(ei).and_then(|l| l.source_line);
@@ -208,6 +210,7 @@ pub fn render_component(
             &entity_ids,
             link_counter,
             source_line,
+            &mut path_id_counts,
         );
         link_counter += 1;
     }
@@ -1477,17 +1480,26 @@ fn render_edge(
     entity_ids: &std::collections::HashMap<String, String>,
     link_id: u32,
     source_line: Option<usize>,
+    path_id_counts: &mut std::collections::HashMap<String, usize>,
 ) {
     if edge.points.is_empty() {
         return;
     }
 
-    // HTML comment
-    sg.push_raw(&format!(
-        "<!--link {} to {}-->",
-        xml_escape(&edge.from),
-        xml_escape(&edge.to),
-    ));
+    // HTML comment — Java: "reverse link X to Y" when LinkType.looksLikeRevertedForSvg()
+    if edge.reversed_for_svg {
+        sg.push_raw(&format!(
+            "<!--reverse link {} to {}-->",
+            xml_escape(&edge.from),
+            xml_escape(&edge.to),
+        ));
+    } else {
+        sg.push_raw(&format!(
+            "<!--link {} to {}-->",
+            xml_escape(&edge.from),
+            xml_escape(&edge.to),
+        ));
+    }
 
     // Semantic group with data attributes matching Java format
     let from_ent = entity_ids.get(&edge.from).map(|s| s.as_str()).unwrap_or("");
@@ -1541,7 +1553,18 @@ fn render_edge(
         }
         d.trim_end().to_string()
     };
-    let path_id = format!("{}-to-{}", xml_escape(&edge.from), xml_escape(&edge.to));
+    let base_path_id = if edge.reversed_for_svg {
+        format!("{}-backto-{}", xml_escape(&edge.from), xml_escape(&edge.to))
+    } else {
+        format!("{}-to-{}", xml_escape(&edge.from), xml_escape(&edge.to))
+    };
+    let count = path_id_counts.entry(base_path_id.clone()).or_insert(0);
+    let path_id = if *count == 0 {
+        base_path_id.clone()
+    } else {
+        format!("{}-{}", base_path_id, count)
+    };
+    *count += 1;
     sg.push_raw(&format!(
         r#"<path d="{d}" fill="none" id="{path_id}" style="stroke:{arrow_color};stroke-width:1;{dash_style}"/>"#,
     ));
@@ -1949,6 +1972,7 @@ mod tests {
             raw_path_d: None,
             label: String::new(),
             dashed: false,
+            reversed_for_svg: false,
         });
         let svg =
             render_component(&diagram, &layout, &SkinParams::default()).expect("render failed");
@@ -1974,6 +1998,7 @@ mod tests {
             raw_path_d: None,
             label: String::new(),
             dashed: true,
+            reversed_for_svg: false,
         });
         let svg =
             render_component(&diagram, &layout, &SkinParams::default()).expect("render failed");
@@ -1995,6 +2020,7 @@ mod tests {
             raw_path_d: None,
             label: "uses".to_string(),
             dashed: false,
+            reversed_for_svg: false,
         });
         let svg =
             render_component(&diagram, &layout, &SkinParams::default()).expect("render failed");
@@ -2221,6 +2247,7 @@ mod tests {
             raw_path_d: None,
             label: "uses".to_string(),
             dashed: false,
+            reversed_for_svg: false,
         });
 
         let svg =
@@ -2272,6 +2299,7 @@ mod tests {
             raw_path_d: None,
             label: String::new(),
             dashed: false,
+            reversed_for_svg: false,
         });
         let svg =
             render_component(&diagram, &layout, &SkinParams::default()).expect("render failed");

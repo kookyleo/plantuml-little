@@ -288,10 +288,61 @@ fn measure_edge_text_block(text: &str, font_size: f64) -> (f64, f64) {
         .collect();
     let max_line_w = lines
         .iter()
-        .map(|l| crate::font_metrics::text_width(l, "SansSerif", font_size, false, false))
+        .map(|l| measure_creole_line_width(l, font_size))
         .fold(0.0_f64, f64::max);
     let line_h = crate::font_metrics::line_height("SansSerif", font_size, false, false);
     (max_line_w, lines.len() as f64 * line_h)
+}
+
+/// Measure a single line of text width, handling creole bold/italic/underline/strike markup.
+/// Java: CreoleParser splits the text into styled segments. Each segment is measured with its
+/// font style (bold, italic, etc.). The total width is the sum of all segments.
+fn measure_creole_line_width(line: &str, font_size: f64) -> f64 {
+    // Parse creole inline markup: **bold**, //italic//, __underline__, ~~strike~~
+    // These can be nested in Java but we handle the simple non-nested case.
+    let mut total_w = 0.0;
+    let mut pos = 0;
+    let bytes = line.as_bytes();
+    let len = bytes.len();
+
+    while pos < len {
+        // Check for markup start
+        if pos + 1 < len {
+            let two = &line[pos..pos + 2];
+            let (marker, is_bold, is_italic) = match two {
+                "**" => ("**", true, false),
+                "//" => ("//", false, true),
+                "__" => ("__", false, false), // underline: same font metrics
+                "~~" => ("~~", false, false), // strikethrough: same font metrics
+                _ => ("", false, false),
+            };
+            if !marker.is_empty() {
+                // Find closing marker
+                if let Some(end_rel) = line[pos + 2..].find(marker) {
+                    let inner = &line[pos + 2..pos + 2 + end_rel];
+                    total_w +=
+                        crate::font_metrics::text_width(inner, "SansSerif", font_size, is_bold, is_italic);
+                    pos = pos + 2 + end_rel + 2;
+                    continue;
+                }
+            }
+        }
+        // Regular character — accumulate until next potential markup
+        let seg_start = pos;
+        pos += 1;
+        while pos < len {
+            if pos + 1 < len {
+                let two = &line[pos..pos + 2];
+                if two == "**" || two == "//" || two == "__" || two == "~~" {
+                    break;
+                }
+            }
+            pos += 1;
+        }
+        let seg = &line[seg_start..pos];
+        total_w += crate::font_metrics::text_width(seg, "SansSerif", font_size, false, false);
+    }
+    total_w
 }
 
 /// Serialize a LayoutGraph into a DOT format string

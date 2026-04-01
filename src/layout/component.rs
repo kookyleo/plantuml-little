@@ -56,6 +56,9 @@ pub struct ComponentEdgeLayout {
     pub raw_path_d: Option<String>,
     pub label: String,
     pub dashed: bool,
+    /// True when the DOT edge direction was inverted from the original link direction.
+    /// Java: LinkType.looksLikeRevertedForSvg() — controls "reverse link" SVG comment.
+    pub reversed_for_svg: bool,
 }
 
 /// A positioned note.
@@ -433,28 +436,34 @@ pub fn layout_component(cd: &ComponentDiagram) -> Result<ComponentLayout> {
                     .cloned()
                     .unwrap_or_else(|| sanitize_id(&link.to))
             };
-            // Determine if direction hint is along the main axis or cross axis.
-            // Main axis (TB/BT): up/down; Cross axis: left/right
-            // Main axis (LR/RL): left/right; Cross axis: up/down
+            // Java: CommandLinkElement.executeArg() handles direction hints:
+            //   LEFT/RIGHT cross-axis → queue="-" (length=1, minlen=0), no constraint=false
+            //   LEFT/UP → link.getInv() (invert edge direction)
+            // This matches Java's behavior for description/component diagrams.
             let is_vertical = matches!(
                 cd.direction,
                 Direction::TopToBottom | Direction::BottomToTop
             );
             let hint = link.direction_hint.as_deref();
-            let is_main_axis = hint.map_or(true, |h| {
+            let is_cross_axis = hint.map_or(false, |h| {
                 if is_vertical {
-                    h == "up" || h == "down"
-                } else {
                     h == "left" || h == "right"
+                } else {
+                    h == "up" || h == "down"
                 }
             });
-            // Invert DOT edge direction for "against the flow" hints on main axis
-            let invert = is_main_axis
-                && hint.map_or(false, |h| h == "up" || h == "left");
+            // Java inverts for LEFT and UP directions (regardless of main/cross axis)
+            let invert = hint.map_or(false, |h| h == "up" || h == "left");
             let (edge_from, edge_to) = if invert {
                 (to_dot, from_dot)
             } else {
                 (from_dot, to_dot)
+            };
+            // Java: cross-axis links force queue="-" (length=1) → minlen=0
+            let minlen = if is_cross_axis {
+                0
+            } else {
+                link.arrow_len.saturating_sub(1) as u32
             };
             LayoutEdge {
                 from: edge_from,
@@ -472,9 +481,9 @@ pub fn layout_component(cd: &ComponentDiagram) -> Result<ComponentLayout> {
                 tail_decoration: crate::svek::edge::LinkDecoration::None,
                 head_decoration: crate::svek::edge::LinkDecoration::None,
                 line_style: crate::svek::edge::LinkStyle::Normal,
-                minlen: link.arrow_len.saturating_sub(1) as u32,
+                minlen,
                 invisible: false,
-                no_constraint: !is_main_axis,
+                no_constraint: false, // Java doesn't use constraint=false for component links
             }
         })
         .collect();
@@ -569,7 +578,13 @@ pub fn layout_component(cd: &ComponentDiagram) -> Result<ComponentLayout> {
         .iter()
         .map(|(k, v)| (v.clone(), k.clone()))
         .collect();
-    let edge_offset = MARGIN;
+    // Java: SvekResult applies moveDelta(6 - LF_minX, 6 - LF_minY), then nodes
+    // are drawn at (node.minX, node.minY) in the moveDelta-shifted coordinate system.
+    // Our svek solve uses moveDelta(6 - polygon_minX, 6 - polygon_minY) instead.
+    // render_offset compensates: it is (6 + polygon_min - lf_min) per axis.
+    // Using render_offset as the edge offset gives the same final positions as Java.
+    let edge_offset_x = gl.render_offset.0;
+    let edge_offset_y = gl.render_offset.1;
 
     let mut nodes: Vec<ComponentNodeLayout> = Vec::new();
     let mut node_positions: HashMap<String, (f64, f64, f64, f64)> = HashMap::new();
@@ -580,8 +595,8 @@ pub fn layout_component(cd: &ComponentDiagram) -> Result<ComponentLayout> {
             Some(e) => *e,
             None => continue,
         };
-        let x = nl.cx - nl.width / 2.0 + edge_offset;
-        let y = nl.cy - nl.height / 2.0 + edge_offset;
+        let x = nl.cx - nl.width / 2.0 + edge_offset_x;
+        let y = nl.cy - nl.height / 2.0 + edge_offset_y;
         node_positions.insert(entity_id.clone(), (x, y, nl.width, nl.height));
         nodes.push(ComponentNodeLayout {
             id: entity_id,
@@ -598,26 +613,47 @@ pub fn layout_component(cd: &ComponentDiagram) -> Result<ComponentLayout> {
         });
     }
 
+    // Pre-compute per-link inversion flags for SVG comment generation.
+    // Java: inverted links get "reverse link" comment (LinkType.looksLikeRevertedForSvg).
+    let link_inversions: Vec<bool> = cd
+        .links
+        .iter()
+        .map(|link| {
+            let hint = link.direction_hint.as_deref();
+            hint.map_or(false, |h| h == "up" || h == "left")
+        })
+        .collect();
+
     let mut edges: Vec<ComponentEdgeLayout> = gl
         .edges
         .iter()
         .zip(cd.links.iter())
-        .map(|(el, link)| {
+        .enumerate()
+        .map(|(i, (el, link))| {
             let mut points = el.points.clone();
             for pt in &mut points {
-                pt.0 += edge_offset;
-                pt.1 += edge_offset;
+                pt.0 += edge_offset_x;
+                pt.1 += edge_offset_y;
             }
+            let inverted = link_inversions.get(i).copied().unwrap_or(false);
+            let (from, to) = if inverted {
+                // When inverted, the DOT direction is (to→from), so the SVG
+                // should show "reverse link TO to FROM" matching Java.
+                (link.to.clone(), link.from.clone())
+            } else {
+                (link.from.clone(), link.to.clone())
+            };
             ComponentEdgeLayout {
-                from: link.from.clone(),
-                to: link.to.clone(),
+                from,
+                to,
                 points,
                 raw_path_d: el
                     .raw_path_d
                     .as_ref()
-                    .map(|raw_d| align_raw_path_d(raw_d, &el.points, edge_offset, edge_offset)),
+                    .map(|raw_d| align_raw_path_d(raw_d, &el.points, edge_offset_x, edge_offset_y)),
                 label: link.label.clone(),
                 dashed: link.dashed,
+                reversed_for_svg: inverted,
             }
         })
         .collect();
@@ -635,8 +671,8 @@ pub fn layout_component(cd: &ComponentDiagram) -> Result<ComponentLayout> {
                 id: group.id.clone(),
                 name: group.name.clone(),
                 kind: group.kind.clone(),
-                x: cl.x + edge_offset,
-                y: cl.y + edge_offset,
+                x: cl.x + edge_offset_x,
+                y: cl.y + edge_offset_y,
                 width: cl.width,
                 height: cl.height,
                 source_line: group.source_line,
@@ -954,6 +990,7 @@ fn layout_edges(
             raw_path_d: None,
             label: link.label.clone(),
             dashed: link.dashed,
+            reversed_for_svg: false,
         });
     }
 
