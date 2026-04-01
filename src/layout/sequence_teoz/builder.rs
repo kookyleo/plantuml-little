@@ -2856,28 +2856,54 @@ pub fn build_teoz_layout(sd: &SequenceDiagram, skin: &SkinParams) -> Result<SeqL
                 //   posC + level * LIVE_DELTA_SIZE (= 5)
                 let level_offset = *active_level as f64 * 5.0;
                 let nx = if *is_note_on_message {
-                    // Note on self-message: position relative to self-message extent.
-                    // Java CommunicationTileSelf uses posC2 = posC + rightShift,
-                    // where rightShift >= ACTIVATION_WIDTH/2 (the lifeline always
-                    // occupies at least this width). Use max(1, active_level) so
-                    // the extent always clears the lifeline.
+                    // Note on self-message: match Java CommunicationTileSelfNote{Left,Right}.
+                    //
+                    // Java note position formula (after AbstractComponent.drawU adds paddingX=5):
+                    //   Left:  tile.getMinX() - notePreferredWidth + paddingX(5)
+                    //   Right: tile.getMaxX() + paddingX(5)
+                    //
+                    // tile.getMinX/getMaxX depend on isReverseDefine (arrow direction):
+                    //   RightToLeft (reverseDefine=true):
+                    //     minX = posC - compWidth - liveDeltaAdj
+                    //     maxX = posC2_global  (posC + 5*globalMaxLevel)
+                    //   LeftToRight (reverseDefine=false):
+                    //     minX = posC
+                    //     maxX = posC2_global + compWidth
+                    //
+                    // notePreferredWidth = textWidth + 2*paddingX(5) + deltaShadow
+                    //                    = note_width + 10 + deltaShadow
                     if let Some((sm_pidx, sm_tw, sm_dir, sm_al)) =
                         find_preceding_self_message(&tiles, tile_i)
                     {
                         let sm_comp_w = self_message_comp_width(sm_tw, tp.msg_line_height);
-                        let sm_cx_raw = rl.get_value(livings[sm_pidx].pos_c);
-                        // Java: getMaxX uses posC2 = posC + getMaxPosition (based on
-                        // max activation level). getMinX uses levelIgnore for adjustment.
-                        // Use max(1, sm_al) because the lifeline always occupies at
-                        // least ACTIVATION_WIDTH/2 in posC2 calculations, matching
-                        // Java's AbstractComponent.drawU paddingX offset.
-                        let note_al = sm_al.max(1);
-                        let (sm_min, sm_max) =
-                            self_message_extent(sm_cx_raw, sm_comp_w, note_al, &sm_dir);
-                        if *is_left {
-                            sm_min + x_offset - *width
-                        } else {
-                            sm_max + x_offset
+                        let sm_cx = get_x(livings[sm_pidx].pos_c);
+                        let gml = max_activation_levels
+                            .get(&livings[sm_pidx].name)
+                            .copied()
+                            .unwrap_or(0);
+                        let pos_c2_global = sm_cx + active_right_shift(gml);
+                        let live_delta_adj = if sm_al > 0 { 5.0 } else { 0.0 };
+                        let note_preferred_w = *width + 10.0 + sd.delta_shadow;
+                        let padding_x = 5.0;
+
+                        match (&sm_dir, is_left) {
+                            (SeqDirection::RightToLeft, true) => {
+                                // tile.getMinX() = posC - compWidth - liveDeltaAdj
+                                let tile_min_x = sm_cx - sm_comp_w - live_delta_adj;
+                                tile_min_x - note_preferred_w + padding_x
+                            }
+                            (SeqDirection::RightToLeft, false) => {
+                                // tile.getMaxX() = posC2_global
+                                pos_c2_global + padding_x
+                            }
+                            (SeqDirection::LeftToRight, true) => {
+                                // tile.getMinX() = posC
+                                sm_cx - note_preferred_w + padding_x
+                            }
+                            (SeqDirection::LeftToRight, false) => {
+                                // tile.getMaxX() = posC2_global + compWidth
+                                pos_c2_global + sm_comp_w + padding_x
+                            }
                         }
                     } else {
                         // Note on regular message: shift by activation level

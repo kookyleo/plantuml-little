@@ -2532,7 +2532,7 @@ fn draw_destroy(sg: &mut SvgGraphic, d: &DestroyLayout) {
 
 // ── Notes ───────────────────────────────────────────────────────────
 
-fn draw_note(sg: &mut SvgGraphic, note: &NoteLayout, shadow_attr: &str) {
+fn draw_note(sg: &mut SvgGraphic, note: &NoteLayout, shadow_attr: &str, skin: &SkinParams) {
     let fold = 10.0; // folded corner size
     // Java NoteBox.getStartingX uses (int) truncation, and AbstractComponent.drawU
     // applies UTranslate(paddingX, paddingY). Self-msg notes have this baked into
@@ -2549,7 +2549,11 @@ fn draw_note(sg: &mut SvgGraphic, note: &NoteLayout, shadow_attr: &str) {
     let w = note.width.trunc();
     let h = note.height;
 
-    let bg = note.color.as_deref().unwrap_or(NOTE_BG);
+    // Note colors: per-note override > skinparam > constant default
+    let skin_bg = skin.background_color("note", NOTE_BG);
+    let bg = note.color.as_deref().unwrap_or(skin_bg);
+    let border = skin.border_color("note", NOTE_BORDER);
+    let stroke_w = skin.line_thickness("note", 0.5);
 
     // Body: hexagonal path with folded top-right corner (Java: Opale.getPolygonNormal)
     {
@@ -2560,10 +2564,11 @@ fn draw_note(sg: &mut SvgGraphic, note: &NoteLayout, shadow_attr: &str) {
         let xf = fmt_coord(x + w - fold);
         let yf = fmt_coord(y + fold);
         sg.push_raw(&format!(
-            "<path d=\"M{x0},{y0} L{x0},{y1} L{x1},{y1} L{x1},{yf} L{xf},{y0} L{x0},{y0}\" fill=\"{bg}\"{shadow} style=\"stroke:{border};stroke-width:0.5;\"/>",
+            "<path d=\"M{x0},{y0} L{x0},{y1} L{x1},{y1} L{x1},{yf} L{xf},{y0} L{x0},{y0}\" fill=\"{bg}\"{shadow} style=\"stroke:{border};stroke-width:{stroke_w};\"/>",
             bg = bg,
-            border = NOTE_BORDER,
+            border = border,
             shadow = shadow_attr,
+            stroke_w = stroke_w,
         ));
     }
 
@@ -2574,9 +2579,10 @@ fn draw_note(sg: &mut SvgGraphic, note: &NoteLayout, shadow_attr: &str) {
         let cy2 = fmt_coord(y + fold);
         let cx2 = fmt_coord(x + w);
         sg.push_raw(&format!(
-            "<path d=\"M{cx_s},{cy_s} L{cx_s},{cy2} L{cx2},{cy2} L{cx_s},{cy_s}\" fill=\"{bg}\" style=\"stroke:{border};stroke-width:0.5;\"/>",
+            "<path d=\"M{cx_s},{cy_s} L{cx_s},{cy2} L{cx2},{cy2} L{cx_s},{cy_s}\" fill=\"{bg}\" style=\"stroke:{border};stroke-width:{stroke_w};\"/>",
             bg = bg,
-            border = NOTE_BORDER,
+            border = border,
+            stroke_w = stroke_w,
         ));
     }
 
@@ -3511,7 +3517,7 @@ fn render_sequence_inner(
                 note.y >= msg.y - note_back_threshold && note.y < next_msg_y
             };
             if belongs {
-                draw_note(&mut sg, note, &shadow_attr);
+                draw_note(&mut sg, note, &shadow_attr, skin);
                 drawn_notes.insert(ni);
                 has_note = true;
             }
@@ -3534,7 +3540,7 @@ fn render_sequence_inner(
     // Draw any remaining notes not yet drawn (standalone or missed by association)
     for (ni, note) in layout.notes.iter().enumerate() {
         if !drawn_notes.contains(&ni) {
-            draw_note(&mut sg, note, &shadow_attr);
+            draw_note(&mut sg, note, &shadow_attr, skin);
             drawn_notes.insert(ni);
         }
     }
