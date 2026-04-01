@@ -47,23 +47,14 @@ pub fn render_erd(_ed: &ErdDiagram, layout: &ErdLayout, skin: &SkinParams) -> Re
             .push(attr);
     }
 
-    // Track which attr_edges belong to which entity/relationship by index.
-    // attr_edges follow the same order as attribute_nodes in the graphviz output.
-    let mut attr_edge_idx = 0;
 
     // Render entities interleaved with their attributes (Java order)
     for node in &layout.entity_nodes {
         render_entity(&mut sg, node, ent_bg, ent_border, ent_font);
-        // Render this entity's direct attributes
+        // Render this entity's direct attributes (render_attribute handles children recursively)
         if let Some(attrs) = attrs_by_parent.get(node.id.as_str()) {
             for attr in attrs {
                 render_attribute(&mut sg, attr);
-                if attr_edge_idx < layout.attr_edges.len() {
-                    render_attr_edge(&mut sg, &layout.attr_edges[attr_edge_idx]);
-                    attr_edge_idx += 1;
-                }
-                // Render child attributes recursively
-                render_child_attrs(&mut sg, attr, &layout.attr_edges, &mut attr_edge_idx);
             }
         }
     }
@@ -73,18 +64,11 @@ pub fn render_erd(_ed: &ErdDiagram, layout: &ErdLayout, skin: &SkinParams) -> Re
         if let Some(attrs) = attrs_by_parent.get(node.id.as_str()) {
             for attr in attrs {
                 render_attribute(&mut sg, attr);
-                if attr_edge_idx < layout.attr_edges.len() {
-                    render_attr_edge(&mut sg, &layout.attr_edges[attr_edge_idx]);
-                    attr_edge_idx += 1;
-                }
-                render_child_attrs(&mut sg, attr, &layout.attr_edges, &mut attr_edge_idx);
             }
         }
     }
-    // Render remaining attr_edges (shouldn't be any, but safety)
-    while attr_edge_idx < layout.attr_edges.len() {
-        render_attr_edge(&mut sg, &layout.attr_edges[attr_edge_idx]);
-        attr_edge_idx += 1;
+    for attr_edge in &layout.attr_edges {
+        render_attr_edge(&mut sg, attr_edge);
     }
     for (i, edge) in layout.edges.iter().enumerate() {
         render_edge(&mut sg, edge, i);
@@ -99,23 +83,6 @@ pub fn render_erd(_ed: &ErdDiagram, layout: &ErdLayout, skin: &SkinParams) -> Re
     buf.push_str(sg.body());
     buf.push_str("</g></svg>");
     Ok(buf)
-}
-
-/// Recursively render child (sub) attributes.
-fn render_child_attrs(
-    sg: &mut SvgGraphic,
-    parent: &ErdAttrLayout,
-    attr_edges: &[ErdAttrEdge],
-    attr_edge_idx: &mut usize,
-) {
-    for child in &parent.children {
-        render_attribute(sg, child);
-        if *attr_edge_idx < attr_edges.len() {
-            render_attr_edge(sg, &attr_edges[*attr_edge_idx]);
-            *attr_edge_idx += 1;
-        }
-        render_child_attrs(sg, child, attr_edges, attr_edge_idx);
-    }
 }
 
 fn render_entity(
