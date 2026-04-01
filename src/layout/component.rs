@@ -645,20 +645,16 @@ pub fn layout_component(cd: &ComponentDiagram) -> Result<ComponentLayout> {
             } else {
                 (link.from.clone(), link.to.clone())
             };
-            // label_xy from svek is in YDelta-transformed space (pre-moveDelta).
-            // Java applies moveDelta to get the final label position.
-            // For component diagrams, we also need render_offset to align with
-            // the path coordinates which go through normalization.
+            // label_xy from svek is in YDelta-transformed space (pre-moveDelta,
+            // pre-normalization). Apply the same transform as path points to put
+            // it in the final SVG coordinate space:
+            //   final = raw + moveDelta + render_offset - normalize_offset
             let label_xy = el.label_xy.map(|(lx, ly)| {
                 (
-                    lx + gl.move_delta.0 + gl.render_offset.0,
-                    ly + gl.move_delta.1 + gl.render_offset.1,
+                    lx + gl.move_delta.0 + gl.render_offset.0 - gl.normalize_offset.0,
+                    ly + gl.move_delta.1 + gl.render_offset.1 - gl.normalize_offset.1,
                 )
             });
-            log::trace!(
-                "edge {} label_xy: raw={:?} final={:?}",
-                i, el.label_xy, label_xy
-            );
             ComponentEdgeLayout {
                 from,
                 to,
