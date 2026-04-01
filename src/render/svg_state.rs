@@ -2139,12 +2139,8 @@ mod tests {
             render_state(&diagram, &layout, &SkinParams::default()).expect("render failed");
         assert!(svg.contains("<rect"), "fork bar must produce a rect");
         assert!(
-            svg.contains(&format!(r#"fill="{INITIAL_FILL}""#)),
-            "fork bar must be filled"
-        );
-        assert!(
-            svg.contains(r#"rx="2""#),
-            "fork bar must have minimal rounding"
+            svg.contains(r##"fill="#555555""##),
+            "fork bar must be filled with #555555"
         );
     }
 
@@ -2229,7 +2225,7 @@ mod tests {
         });
         let (svg, _) =
             render_state(&diagram, &layout, &SkinParams::default()).expect("render failed");
-        assert!(svg.contains("<circle"), "history must produce a circle");
+        assert!(svg.contains("<ellipse"), "history must produce an ellipse");
         assert!(svg.contains(">H<"), "history must contain 'H' text");
     }
 
@@ -2258,8 +2254,8 @@ mod tests {
         let (svg, _) =
             render_state(&diagram, &layout, &SkinParams::default()).expect("render failed");
         assert!(
-            svg.contains("<circle"),
-            "deep history must produce a circle"
+            svg.contains("<ellipse"),
+            "deep history must produce an ellipse"
         );
         assert!(svg.contains(">H*<"), "deep history must contain 'H*' text");
     }

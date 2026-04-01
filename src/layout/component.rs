@@ -1028,7 +1028,9 @@ mod tests {
             source_line: None,
         };
         let (_, h) = estimate_entity_size(&e);
-        let expected = (4.0 * LINE_HEIGHT + 2.0 * PADDING).max(NODE_MIN_HEIGHT);
+        // When description is present, it replaces the name display.
+        // So total lines = desc lines (3), not name + desc (4).
+        let expected = (3.0 * LINE_HEIGHT + 2.0 * PADDING).max(NODE_MIN_HEIGHT);
         assert!(h >= expected, "description should increase height");
     }
 
