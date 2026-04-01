@@ -68,6 +68,11 @@ pub struct ComponentNoteLayout {
     pub text: String,
     pub position: String,
     pub target: Option<String>,
+    /// Y coordinate of the connector ear tip (points towards the target entity).
+    /// For "top" notes, this is below the note body; for "bottom" notes, above.
+    pub ear_tip_y: Option<f64>,
+    /// X coordinate of the connector ear tip center.
+    pub ear_tip_x: Option<f64>,
 }
 
 /// A positioned group (rectangle container).
@@ -250,15 +255,23 @@ fn estimate_entity_size(entity: &ComponentEntity) -> (f64, f64) {
     (width, height)
 }
 
+/// Estimate note size matching Java Opale note dimensions.
+/// Java EntityImageNote uses: CORNER=10, MARGINX1=6, MARGINY1=6
 fn estimate_note_size(text: &str) -> (f64, f64) {
+    const NOTE_FONT_SIZE: f64 = 13.0;
+    const NOTE_LINE_HEIGHT: f64 = 15.1328; // SansSerif 13pt: ascent+descent
+    const CORNER: f64 = 10.0;
+    const NOTE_MARGIN_X: f64 = 6.0;
+    const NOTE_MARGIN_Y: f64 = 3.0;
+
     let lines: Vec<&str> = text.lines().collect();
     let max_line_width = lines
         .iter()
-        .map(|l| font_metrics::text_width(l, "SansSerif", FONT_SIZE, false, false))
+        .map(|l| font_metrics::text_width(l, "SansSerif", NOTE_FONT_SIZE, false, false))
         .fold(0.0_f64, f64::max);
-    let width = (max_line_width + 2.0 * PADDING).min(NOTE_MAX_WIDTH);
-    let width = width.max(60.0);
-    let height = (lines.len().max(1) as f64 * LINE_HEIGHT + 2.0 * PADDING).max(NODE_MIN_HEIGHT);
+    let text_height = lines.len().max(1) as f64 * NOTE_LINE_HEIGHT;
+    let width = (max_line_width + 2.0 * NOTE_MARGIN_X + CORNER).max(60.0);
+    let height = (CORNER + 2.0 * NOTE_MARGIN_Y + text_height).max(30.0);
     (width, height)
 }
 
@@ -533,7 +546,7 @@ pub fn layout_component(cd: &ComponentDiagram) -> Result<ComponentLayout> {
         });
     }
 
-    let edges: Vec<ComponentEdgeLayout> = gl
+    let mut edges: Vec<ComponentEdgeLayout> = gl
         .edges
         .iter()
         .zip(cd.links.iter())
@@ -560,7 +573,7 @@ pub fn layout_component(cd: &ComponentDiagram) -> Result<ComponentLayout> {
     // Build group layouts from graphviz cluster output
     let group_map: HashMap<String, &crate::model::component::ComponentGroup> =
         cd.groups.iter().map(|g| (sanitize_id(&g.id), g)).collect();
-    let group_layouts: Vec<ComponentGroupLayout> = gl
+    let mut group_layouts: Vec<ComponentGroupLayout> = gl
         .clusters
         .iter()
         .filter_map(|cl| {
@@ -586,23 +599,35 @@ pub fn layout_component(cd: &ComponentDiagram) -> Result<ComponentLayout> {
     let mut note_y = MARGIN;
     for note in &cd.notes {
         let (nw, nh) = estimate_note_size(&note.text);
-        let (nx, ny) = if let Some(ref target) = note.target {
+        let (nx, ny, ear_tip_y, ear_tip_x) = if let Some(ref target) = note.target {
             if let Some(&(tx, ty, tw, th)) = node_positions.get(target) {
+                // Ear tip X is centered on the target entity, clamped to note bounds
+                let target_cx = tx + tw / 2.0;
                 match note.position.as_str() {
-                    "top" => (tx, ty - nh - NOTE_OFFSET),
-                    "bottom" => (tx, ty + th + NOTE_OFFSET),
-                    "left" => (tx - nw - NOTE_OFFSET, ty),
-                    "right" => (tx + tw + NOTE_OFFSET, ty),
-                    _ => (note_x_default, note_y),
+                    "top" => {
+                        let note_y_pos = ty - nh - NOTE_OFFSET;
+                        // Ear tip points to the target entity's top edge
+                        let ear_y = ty - 0.23; // Java: slight offset for visual connection
+                        let ear_x = target_cx.max(tx).min(tx + tw);
+                        (tx, note_y_pos, Some(ear_y), Some(ear_x))
+                    }
+                    "bottom" => {
+                        let note_y_pos = ty + th + NOTE_OFFSET;
+                        // Ear tip points to the target entity's bottom edge
+                        let ear_y = ty + th + 0.23;
+                        let ear_x = target_cx.max(tx).min(tx + tw);
+                        (tx, note_y_pos, Some(ear_y), Some(ear_x))
+                    }
+                    "left" => (tx - nw - NOTE_OFFSET, ty, None, None),
+                    "right" => (tx + tw + NOTE_OFFSET, ty, None, None),
+                    _ => (note_x_default, note_y, None, None),
                 }
             } else {
-                (note_x_default, note_y)
+                (note_x_default, note_y, None, None)
             }
         } else {
-            (note_x_default, note_y)
+            (note_x_default, note_y, None, None)
         };
-        let nx = nx.max(MARGIN);
-        let ny = ny.max(MARGIN);
         note_layouts.push(ComponentNoteLayout {
             x: nx,
             y: ny,
@@ -611,8 +636,54 @@ pub fn layout_component(cd: &ComponentDiagram) -> Result<ComponentLayout> {
             text: note.text.clone(),
             position: note.position.clone(),
             target: note.target.clone(),
+            ear_tip_y,
+            ear_tip_x,
         });
         note_y = ny + nh + PADDING;
+    }
+
+    // Shift all elements when notes extend beyond the top/left margin.
+    // In Java, notes are included in the graphviz graph so they naturally
+    // get space allocated. Here we adjust after the fact.
+    let min_note_x = note_layouts.iter().map(|n| n.x).fold(f64::MAX, f64::min);
+    let min_note_y = note_layouts.iter().map(|n| n.y).fold(f64::MAX, f64::min);
+    let shift_x = if min_note_x < MARGIN {
+        MARGIN - min_note_x
+    } else {
+        0.0
+    };
+    let shift_y = if min_note_y < MARGIN {
+        MARGIN - min_note_y
+    } else {
+        0.0
+    };
+    if shift_x > 0.0 || shift_y > 0.0 {
+        for node in &mut nodes {
+            node.x += shift_x;
+            node.y += shift_y;
+        }
+        for edge in &mut edges {
+            for pt in &mut edge.points {
+                pt.0 += shift_x;
+                pt.1 += shift_y;
+            }
+            if let Some(ref mut d) = edge.raw_path_d {
+                *d = graphviz::transform_path_d(d, shift_x, shift_y);
+            }
+        }
+        for group in &mut group_layouts {
+            group.x += shift_x;
+            group.y += shift_y;
+        }
+        for note in &mut note_layouts {
+            note.x += shift_x;
+            note.y += shift_y;
+        }
+        // Update node_positions for viewport calculation consistency
+        for (_, pos) in node_positions.iter_mut() {
+            pos.0 += shift_x;
+            pos.1 += shift_y;
+        }
     }
 
     // Viewport calculation: match Java's degenerated vs normal path.

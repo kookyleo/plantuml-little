@@ -1619,34 +1619,111 @@ fn render_note(
     let y = note.y;
     let w = note.width;
     let h = note.height;
-    let fold = 8.0;
+    let fold = 10.0; // Java: CORNER = 10
 
+    // Java renders notes attached to entities using an "Opale" path style
+    // with a connector ear pointing towards the target entity.
+    let has_ear = note.ear_tip_y.is_some() && note.ear_tip_x.is_some();
+
+    if has_ear {
+        let ear_tip_y = note.ear_tip_y.unwrap();
+        let ear_tip_x = note.ear_tip_x.unwrap();
+        // Ear base: 8px wide centered on the ear_tip_x
+        let ear_base_left = ear_tip_x - 4.0;
+        let ear_base_right = ear_tip_x + 4.0;
+
+        // Build the Opale note path
+        let mut d = String::new();
+        if note.position == "top" {
+            // Ear on bottom edge pointing down
+            use std::fmt::Write;
+            write!(d, "M{},{}", x, y).unwrap();
+            write!(d, " L{},{}", x, y + h).unwrap();
+            write!(d, " A0,0 0 0 0 {},{}", x, y + h).unwrap();
+            write!(d, " L{},{}", ear_base_left, y + h).unwrap();
+            write!(d, " L{},{}", ear_tip_x, ear_tip_y).unwrap();
+            write!(d, " L{},{}", ear_base_right, y + h).unwrap();
+            write!(d, " L{},{}", x + w, y + h).unwrap();
+            write!(d, " A0,0 0 0 0 {},{}", x + w, y + h).unwrap();
+            write!(d, " L{},{}", x + w, y + fold).unwrap();
+            write!(d, " L{},{}", x + w - fold, y).unwrap();
+            write!(d, " L{},{}", x, y).unwrap();
+            write!(d, " A0,0 0 0 0 {},{}", x, y).unwrap();
+        } else if note.position == "bottom" {
+            // Ear on top edge pointing up
+            use std::fmt::Write;
+            write!(d, "M{},{}", x, y).unwrap();
+            write!(d, " L{},{}", x, y + h).unwrap();
+            write!(d, " A0,0 0 0 0 {},{}", x, y + h).unwrap();
+            write!(d, " L{},{}", x + w, y + h).unwrap();
+            write!(d, " A0,0 0 0 0 {},{}", x + w, y + h).unwrap();
+            write!(d, " L{},{}", x + w, y + fold).unwrap();
+            write!(d, " L{},{}", x + w - fold, y).unwrap();
+            write!(d, " L{},{}", ear_base_right, y).unwrap();
+            write!(d, " L{},{}", ear_tip_x, ear_tip_y).unwrap();
+            write!(d, " L{},{}", ear_base_left, y).unwrap();
+            write!(d, " L{},{}", x, y).unwrap();
+            write!(d, " A0,0 0 0 0 {},{}", x, y).unwrap();
+        } else {
+            // Fallback for left/right: simple polygon path without ear
+            use std::fmt::Write;
+            write!(d, "M{},{}", x, y).unwrap();
+            write!(d, " L{},{}", x, y + h).unwrap();
+            write!(d, " L{},{}", x + w, y + h).unwrap();
+            write!(d, " L{},{}", x + w, y + fold).unwrap();
+            write!(d, " L{},{}", x + w - fold, y).unwrap();
+            write!(d, " Z").unwrap();
+        }
+
+        sg.set_fill_color(bg);
+        sg.set_stroke_color(Some(border));
+        sg.set_stroke_width(0.5, None);
+        sg.push_raw(&format!(
+            r#"<path d="{}" fill="{}" style="stroke:{};stroke-width:0.5;"/>"#,
+            d, bg, border
+        ));
+    } else {
+        // Simple polygon note (no attached target)
+        sg.set_fill_color(bg);
+        sg.set_stroke_color(Some(border));
+        sg.set_stroke_width(1.0, None);
+        sg.svg_polygon(
+            0.0,
+            &[
+                x,
+                y,
+                x + w - fold,
+                y,
+                x + w,
+                y + fold,
+                x + w,
+                y + h,
+                x,
+                y + h,
+            ],
+        );
+    }
+
+    // Corner fold
     sg.set_fill_color(bg);
     sg.set_stroke_color(Some(border));
-    sg.set_stroke_width(1.0, None);
-    sg.svg_polygon(
-        0.0,
-        &[
-            x,
-            y,
-            x + w - fold,
-            y,
-            x + w,
-            y + fold,
-            x + w,
-            y + h,
-            x,
-            y + h,
-        ],
-    );
-
-    sg.set_stroke_color(Some(border));
-    sg.set_stroke_width(1.0, None);
-    sg.svg_line(x + w - fold, y, x + w - fold, y + fold, 0.0);
-    sg.svg_line(x + w - fold, y + fold, x + w, y + fold, 0.0);
+    sg.set_stroke_width(0.5, None);
+    sg.push_raw(&format!(
+        r#"<path d="M{},{} L{},{} L{},{} L{},{}" fill="{}" style="stroke:{};stroke-width:0.5;"/>"#,
+        x + w - fold,
+        y,
+        x + w - fold,
+        y + fold,
+        x + w,
+        y + fold,
+        x + w - fold,
+        y,
+        bg,
+        border,
+    ));
 
     let text_x = x + 6.0;
-    let text_y = y + fold + FONT_SIZE;
+    let text_y = y + fold + FONT_SIZE - 1.0; // Adjust for Java text baseline
     let mut tmp = String::new();
     render_creole_text(
         &mut tmp,
@@ -1896,6 +1973,8 @@ mod tests {
             text: "important note".to_string(),
             position: "top".to_string(),
             target: None,
+            ear_tip_y: None,
+            ear_tip_x: None,
         });
         let svg =
             render_component(&diagram, &layout, &SkinParams::default()).expect("render failed");
@@ -1920,6 +1999,8 @@ mod tests {
             text: "line one\nline two".to_string(),
             position: "bottom".to_string(),
             target: None,
+            ear_tip_y: None,
+            ear_tip_x: None,
         });
         let svg =
             render_component(&diagram, &layout, &SkinParams::default()).expect("render failed");
