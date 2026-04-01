@@ -333,7 +333,16 @@ pub fn layout_component(cd: &ComponentDiagram) -> Result<ComponentLayout> {
         .map(|e| (e.id.clone(), sanitize_id(&e.id)))
         .collect();
 
-    let layout_nodes: Vec<LayoutNode> = cd
+    // Collect IDs of groups that are referenced by edges (as link endpoints).
+    // These need proxy nodes inside their clusters so edges can connect.
+    let group_ids_in_edges: std::collections::HashSet<String> = cd
+        .links
+        .iter()
+        .flat_map(|link| [link.from.clone(), link.to.clone()])
+        .filter(|id| group_ids.contains(id))
+        .collect();
+
+    let mut layout_nodes: Vec<LayoutNode> = cd
         .entities
         .iter()
         .filter(|e| !group_ids.contains(&e.id))
@@ -373,18 +382,48 @@ pub fn layout_component(cd: &ComponentDiagram) -> Result<ComponentLayout> {
         })
         .collect();
 
+    // Add proxy nodes for group entities that are edge endpoints.
+    // These small nodes sit inside the cluster so graphviz can route edges to them.
+    for gid in &group_ids_in_edges {
+        let proxy_id = format!("{}_proxy", sanitize_id(gid));
+        layout_nodes.push(LayoutNode {
+            id: proxy_id,
+            label: String::new(),
+            width_pt: 0.01, // tiny invisible node
+            height_pt: 0.01,
+            shape: None,
+            shield: None,
+            entity_position: None,
+            max_label_width: None,
+            order: None,
+            image_width_pt: None,
+            lf_extra_left: 0.0,
+            lf_rect_correction: true,
+            lf_has_body_separator: false,
+        });
+    }
+
     let layout_edges: Vec<LayoutEdge> = cd
         .links
         .iter()
         .map(|link| {
-            let from_dot = id_to_dot
-                .get(&link.from)
-                .cloned()
-                .unwrap_or_else(|| sanitize_id(&link.from));
-            let to_dot = id_to_dot
-                .get(&link.to)
-                .cloned()
-                .unwrap_or_else(|| sanitize_id(&link.to));
+            // Map group entity IDs to their proxy node IDs
+            let from_dot = if group_ids_in_edges.contains(&link.from) {
+                format!("{}_proxy", sanitize_id(&link.from))
+            } else {
+                id_to_dot
+                    .get(&link.from)
+                    .cloned()
+                    .unwrap_or_else(|| sanitize_id(&link.from))
+            };
+            let to_dot = if group_ids_in_edges.contains(&link.to) {
+                format!("{}_proxy", sanitize_id(&link.to))
+            } else {
+                id_to_dot
+                    .get(&link.to)
+                    .cloned()
+                    .unwrap_or_else(|| sanitize_id(&link.to))
+            };
             // Determine if direction hint is along the main axis or cross axis.
             // Main axis (TB/BT): up/down; Cross axis: left/right
             // Main axis (LR/RL): left/right; Cross axis: up/down
@@ -443,11 +482,15 @@ pub fn layout_component(cd: &ComponentDiagram) -> Result<ComponentLayout> {
         .groups
         .iter()
         .map(|g| {
-            let node_ids: Vec<String> = g
+            let mut node_ids: Vec<String> = g
                 .children
                 .iter()
                 .filter_map(|child_id| id_to_dot.get(child_id).cloned())
                 .collect();
+            // Include proxy node if this group is an edge endpoint
+            if group_ids_in_edges.contains(&g.id) {
+                node_ids.push(format!("{}_proxy", sanitize_id(&g.id)));
+            }
             // Compute cluster label dimensions from group name.
             // Java ClusterHeader: stereoAndTitle = mergeTB(stereo, title)
             // Uses creole-aware height computation for names containing
