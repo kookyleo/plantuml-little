@@ -38,6 +38,8 @@ pub struct ErdLayout {
 #[derive(Debug, Clone)]
 pub struct ErdAttrEdge {
     pub raw_path_d: Option<String>,
+    pub from_name: String,
+    pub to_name: String,
 }
 
 /// A positioned entity or relationship node.
@@ -230,13 +232,14 @@ fn flatten_attributes(
     out: &mut Vec<AttrMeta>,
 ) {
     for attr in attrs {
-        let attr_id = format!("{}/{}", owner_id, attr.name);
         let display = attr.display_name.as_deref().unwrap_or(&attr.name);
         let full_label = if let Some(ref t) = attr.attr_type {
             format!("{} : {}", display, t)
         } else {
             display.to_string()
         };
+        // Java uses full label (including type) for attribute IDs in links
+        let attr_id = format!("{}/{}", owner_id, full_label);
         let size = attr_ellipse_size(&full_label);
 
         let child_ids: Vec<String> = attr
@@ -690,11 +693,14 @@ pub fn layout_erd(diagram: &ErdDiagram) -> Result<ErdLayout> {
     // Extract attribute→parent edge paths from svek results.
     // These are edges at indices [num_link_edges..] in the graphviz output.
     let attr_edges: Vec<ErdAttrEdge> = (num_link_edges..gl.edges.len())
-        .map(|i| {
+        .enumerate()
+        .map(|(j, i)| {
             let raw_path_d = gl.edges.get(i)
                 .and_then(|e| e.raw_path_d.as_ref())
                 .map(|d| shift_svg_path(d, render_dx, render_dy));
-            ErdAttrEdge { raw_path_d }
+            let from_name = attr_metas.get(j).map(|am| am.id.clone()).unwrap_or_default();
+            let to_name = attr_metas.get(j).map(|am| am.parent_id.clone()).unwrap_or_default();
+            ErdAttrEdge { raw_path_d, from_name, to_name }
         })
         .collect();
 

@@ -24,6 +24,8 @@ pub struct MindmapLayout {
     pub notes: Vec<MindmapNoteLayout>,
     pub width: f64,
     pub height: f64,
+    /// Caption text and its position/width.
+    pub caption: Option<(String, f64, f64, f64)>, // (text, x, y, text_width)
 }
 
 /// A positioned mindmap node.
@@ -466,6 +468,9 @@ pub fn layout_mindmap(
     let width = max_x + 2.0 * MARGIN;
     let height = max_y + MARGIN;
 
+    // Caption is handled by wrap_with_meta in the rendering pipeline.
+    let caption = None;
+
     log::debug!(
         "layout_mindmap: {} nodes, {} edges, canvas {}x{}",
         nodes.len(),
@@ -480,6 +485,7 @@ pub fn layout_mindmap(
         notes,
         width,
         height,
+        caption,
     })
 }
 
@@ -495,6 +501,7 @@ mod tests {
         MindmapDiagram {
             root,
             notes: vec![],
+            caption: None,
         }
     }
 
@@ -509,6 +516,7 @@ mod tests {
         MindmapDiagram {
             root,
             notes: vec![],
+            caption: None,
         }
     }
 
@@ -601,6 +609,7 @@ mod tests {
         let diagram = MindmapDiagram {
             root: MindmapNode::new("Alone", 1),
             notes: vec![],
+            caption: None,
         };
         let layout = layout_mindmap(&diagram, &crate::style::SkinParams::default()).unwrap();
         assert_eq!(layout.nodes.len(), 1);
@@ -677,6 +686,7 @@ mod tests {
         let diagram = MindmapDiagram {
             root,
             notes: vec![],
+            caption: None,
         };
         let layout = layout_mindmap(&diagram, &crate::style::SkinParams::default()).unwrap();
         assert_eq!(layout.nodes.len(), 2);
@@ -693,6 +703,7 @@ mod tests {
         let diagram = MindmapDiagram {
             root,
             notes: vec![],
+            caption: None,
         };
         let layout = layout_mindmap(&diagram, &crate::style::SkinParams::default()).unwrap();
         assert_eq!(layout.nodes.len(), 11);
@@ -711,6 +722,7 @@ mod tests {
                 text: "hello".to_string(),
                 position: "right".to_string(),
             }],
+            caption: None,
         };
         let layout = layout_mindmap(&diagram, &crate::style::SkinParams::default()).unwrap();
         assert_eq!(layout.notes.len(), 1);

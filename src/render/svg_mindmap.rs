@@ -269,6 +269,7 @@ mod tests {
         let diagram = MindmapDiagram {
             root,
             notes: vec![],
+            caption: None,
         };
         let layout = MindmapLayout {
             nodes: vec![
@@ -317,6 +318,7 @@ mod tests {
             notes: vec![],
             width: 320.0,
             height: 120.0,
+            caption: None,
         };
         (diagram, layout)
     }
@@ -386,6 +388,7 @@ mod tests {
         let d = MindmapDiagram {
             root: MindmapNode::new("A & B <C>", 1),
             notes: vec![],
+            caption: None,
         };
         let l = MindmapLayout {
             nodes: vec![MindmapNodeLayout {
@@ -401,6 +404,7 @@ mod tests {
             notes: vec![],
             width: 130.0,
             height: 50.0,
+            caption: None,
         };
         let svg = render_mindmap(&d, &l, &SkinParams::default()).unwrap();
         assert!(svg.contains("A &amp; B &lt;C&gt;"));
@@ -412,6 +416,7 @@ mod tests {
         let d = MindmapDiagram {
             root: MindmapNode::new("L1\\nL2", 1),
             notes: vec![],
+            caption: None,
         };
         let l = MindmapLayout {
             nodes: vec![MindmapNodeLayout {
@@ -427,6 +432,7 @@ mod tests {
             notes: vec![],
             width: 110.0,
             height: 60.0,
+            caption: None,
         };
         let svg = render_mindmap(&d, &l, &SkinParams::default()).unwrap();
         // Java renders each line as separate <text> element
@@ -439,6 +445,7 @@ mod tests {
         let d = MindmapDiagram {
             root: MindmapNode::new("Only", 1),
             notes: vec![],
+            caption: None,
         };
         let l = MindmapLayout {
             nodes: vec![MindmapNodeLayout {
@@ -454,6 +461,7 @@ mod tests {
             notes: vec![],
             width: 90.0,
             height: 50.0,
+            caption: None,
         };
         let svg = render_mindmap(&d, &l, &SkinParams::default()).unwrap();
         assert!(svg.contains("<svg"));
@@ -490,6 +498,7 @@ mod tests {
         let d = MindmapDiagram {
             root: MindmapNode::new("Root", 1),
             notes: vec![],
+            caption: None,
         };
         let l = MindmapLayout {
             nodes: vec![MindmapNodeLayout {
@@ -512,6 +521,7 @@ mod tests {
             }],
             width: 240.0,
             height: 100.0,
+            caption: None,
         };
         let svg = render_mindmap(&d, &l, &SkinParams::default()).unwrap();
         assert!(svg.contains("<polygon"));

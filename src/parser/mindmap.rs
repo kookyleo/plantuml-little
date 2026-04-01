@@ -19,6 +19,7 @@ pub fn parse_mindmap_diagram(source: &str) -> Result<MindmapDiagram> {
 
     let mut flat_nodes: Vec<MindmapNode> = Vec::new();
     let mut notes: Vec<MindmapNote> = Vec::new();
+    let mut caption: Option<String> = None;
     let mut mode = ParseMode::Normal;
     let mut in_note_block = false;
     let mut note_block_position = String::new();
@@ -60,9 +61,14 @@ pub fn parse_mindmap_diagram(source: &str) -> Result<MindmapDiagram> {
             continue;
         }
 
-        // Skip `caption` lines
-        if trimmed.starts_with("caption ") || trimmed == "caption" {
-            trace!("line {line_num}: skipping caption");
+        // Parse caption
+        if let Some(cap_text) = trimmed.strip_prefix("caption ") {
+            caption = Some(cap_text.to_string());
+            trace!("line {line_num}: captured caption '{cap_text}'");
+            continue;
+        }
+        if trimmed == "caption" {
+            trace!("line {line_num}: skipping empty caption");
             continue;
         }
 
@@ -144,7 +150,7 @@ pub fn parse_mindmap_diagram(source: &str) -> Result<MindmapDiagram> {
         root.depth()
     );
 
-    Ok(MindmapDiagram { root, notes })
+    Ok(MindmapDiagram { root, notes, caption })
 }
 
 /// Extract the content between `@startmindmap` and `@endmindmap`.

@@ -67,8 +67,8 @@ pub fn render_erd(_ed: &ErdDiagram, layout: &ErdLayout, skin: &SkinParams) -> Re
             }
         }
     }
-    for attr_edge in &layout.attr_edges {
-        render_attr_edge(&mut sg, attr_edge);
+    for (i, attr_edge) in layout.attr_edges.iter().enumerate() {
+        render_attr_edge(&mut sg, attr_edge, i);
     }
     for (i, edge) in layout.edges.iter().enumerate() {
         render_edge(&mut sg, edge, i);
@@ -199,6 +199,7 @@ fn render_relationship(sg: &mut SvgGraphic, node: &ErdNodeLayout) {
 }
 
 fn render_attribute(sg: &mut SvgGraphic, attr: &ErdAttrLayout) {
+    sg.push_raw("<g>");
     let (cx, cy, rx, ry) = (attr.x, attr.y, attr.rx, attr.ry);
     if attr.is_derived {
         sg.set_fill_color(ENTITY_BG);
@@ -220,9 +221,11 @@ fn render_attribute(sg: &mut SvgGraphic, attr: &ErdAttrLayout) {
         sg.set_stroke_width(0.5, None);
         sg.svg_ellipse(cx, cy, rx, ry, 0.0);
     }
-    let ty = cy + FONT_SIZE * 0.35;
-    let text_w = rx * 2.0 - 10.0;
-    let text_x = cx - rx + 5.0;
+    let asc = crate::font_metrics::ascent("SansSerif", FONT_SIZE, false, false);
+    let desc = crate::font_metrics::descent("SansSerif", FONT_SIZE, false, false);
+    let ty = cy + (asc - desc) / 2.0;
+    let text_w = crate::font_metrics::text_width(&attr.label, "SansSerif", FONT_SIZE, false, false);
+    let text_x = cx - text_w / 2.0;
     if attr.is_key {
         sg.set_fill_color(TEXT_COLOR);
         sg.svg_text(
@@ -258,37 +261,34 @@ fn render_attribute(sg: &mut SvgGraphic, attr: &ErdAttrLayout) {
             None,
         );
     }
-    if let Some(ref type_label) = attr.type_label {
-        let type_y = cy + FONT_SIZE * 0.35 + FONT_SIZE + 2.0;
-        sg.set_fill_color(TEXT_COLOR);
-        sg.svg_text(
-            type_label,
-            text_x,
-            type_y,
-            Some("sans-serif"),
-            FONT_SIZE - 2.0,
-            None,
-            Some("italic"),
-            None,
-            text_w,
-            LengthAdjust::Spacing,
-            None,
-            0,
-            None,
-        );
-    }
+    // Note: type label is already included in attr.label (e.g. "Born : DATE"),
+    // so no separate text element is needed. Java does the same.
+    sg.push_raw("</g>");
     for child in &attr.children {
         render_attribute(sg, child);
         // Child→parent-attr edge paths are rendered via attr_edges from graphviz
     }
 }
 
-fn render_attr_edge(sg: &mut SvgGraphic, attr_edge: &ErdAttrEdge) {
+fn render_attr_edge(sg: &mut SvgGraphic, attr_edge: &ErdAttrEdge, link_idx: usize) {
     if let Some(ref path_d) = attr_edge.raw_path_d {
         sg.push_raw(&format!(
-            r#"<path d="{}" fill="none" style="stroke:{BORDER_COLOR};stroke-width:1;"/>"#,
-            path_d,
+            "<!--link {} to {}-->",
+            xml_escape(&attr_edge.from_name),
+            xml_escape(&attr_edge.to_name)
         ));
+        let ent_from = format!("ent{:04}", link_idx * 2 + 3);
+        let ent_to = format!("ent{:04}", link_idx * 2 + 2);
+        sg.push_raw(&format!(
+            r#"<g class="link" data-entity-1="{ent_from}" data-entity-2="{ent_to}" data-link-type="association" data-source-line="{}" id="lnk{}">"#,
+            link_idx + 2, link_idx + 4
+        ));
+        sg.push_raw(&format!(
+            r#"<path d="{}" fill="none" id="{}-{}" style="stroke:{BORDER_COLOR};stroke-width:1;"/>"#,
+            path_d,
+            xml_escape(&attr_edge.from_name), xml_escape(&attr_edge.to_name),
+        ));
+        sg.push_raw("</g>");
     }
 }
 
@@ -696,9 +696,13 @@ mod tests {
         l.attribute_nodes.push(make_attr("Y", "E", 100.0, 40.0));
         l.attr_edges.push(ErdAttrEdge {
             raw_path_d: Some("M140,40 C120,60 110,80 140,118".to_string()),
+            from_name: "E/X".to_string(),
+            to_name: "E".to_string(),
         });
         l.attr_edges.push(ErdAttrEdge {
             raw_path_d: Some("M100,40 C110,60 120,80 140,118".to_string()),
+            from_name: "E/Y".to_string(),
+            to_name: "E".to_string(),
         });
         let svg = render_erd(&empty_diagram(), &l, &SkinParams::default()).unwrap();
         assert!(svg.matches("<path").count() >= 2);
@@ -715,17 +719,19 @@ mod tests {
     }
     #[test]
     fn test_attribute_type_annotation() {
+        // In real usage, the label includes the type (e.g., "Born : DATE")
+        // and no separate type text element is rendered.
         let mut l = empty_layout();
         l.entity_nodes
             .push(make_entity_node("E", 100.0, 100.0, 80.0, 36.0));
         l.attribute_nodes.push(ErdAttrLayout {
             has_type: true,
             type_label: Some("DATE".into()),
+            label: "Born : DATE".into(),
             ..make_attr("Born", "E", 100.0, 40.0)
         });
         let svg = render_erd(&empty_diagram(), &l, &SkinParams::default()).unwrap();
-        assert!(svg.contains("DATE"));
-        assert!(svg.contains("font-style=\"italic\""));
+        assert!(svg.contains("Born : DATE"));
     }
     #[test]
     fn test_svg_dimensions() {

@@ -24,6 +24,8 @@ pub struct MindmapDiagram {
     /// The root node of the mindmap tree.
     pub root: MindmapNode,
     pub notes: Vec<MindmapNote>,
+    /// Caption text displayed below the diagram.
+    pub caption: Option<String>,
 }
 
 impl MindmapNode {
@@ -131,8 +133,8 @@ mod tests {
     fn diagram_struct() {
         let diagram = MindmapDiagram {
             root: MindmapNode::new("center", 1),
-
             notes: vec![],
+            caption: None,
         };
         assert_eq!(diagram.root.text, "center");
     }
