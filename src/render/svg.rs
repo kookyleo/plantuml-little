@@ -2388,6 +2388,7 @@ const GLYPH_A_RAW: &[(char, &[(f64, f64)])] = &[
 
 /// Emit a stereotype circle glyph path element.
 /// `circle_cx` and `circle_cy` are the absolute SVG coordinates of the circle center.
+/// If `spot_char` is Some, use that character's glyph instead of the entity-kind default.
 fn emit_circle_glyph(
     sg: &mut SvgGraphic,
     tracker: &mut BoundsTracker,
@@ -2395,12 +2396,43 @@ fn emit_circle_glyph(
     circle_cx: f64,
     circle_cy: f64,
 ) {
-    let (glyph_raw, center) = match kind {
-        EntityKind::Class | EntityKind::Object => (GLYPH_C_RAW, GLYPH_C_CENTER),
-        EntityKind::Abstract => (GLYPH_A_RAW, GLYPH_A_CENTER),
-        EntityKind::Interface => (GLYPH_I_RAW, GLYPH_I_CENTER),
-        EntityKind::Enum => (GLYPH_E_RAW, GLYPH_E_CENTER),
-        EntityKind::Annotation | EntityKind::Rectangle | EntityKind::Component => return,
+    emit_circle_glyph_with_char(sg, tracker, kind, circle_cx, circle_cy, None);
+}
+
+fn emit_circle_glyph_with_char(
+    sg: &mut SvgGraphic,
+    tracker: &mut BoundsTracker,
+    kind: &EntityKind,
+    circle_cx: f64,
+    circle_cy: f64,
+    spot_char: Option<char>,
+) {
+    let (glyph_raw, center) = if let Some(ch) = spot_char {
+        match ch.to_ascii_uppercase() {
+            'C' => (GLYPH_C_RAW, GLYPH_C_CENTER),
+            'A' => (GLYPH_A_RAW, GLYPH_A_CENTER),
+            'I' => (GLYPH_I_RAW, GLYPH_I_CENTER),
+            'E' => (GLYPH_E_RAW, GLYPH_E_CENTER),
+            _ => {
+                // For characters we don't have pre-rendered glyphs for,
+                // fall back to entity kind default
+                match kind {
+                    EntityKind::Class | EntityKind::Object => (GLYPH_C_RAW, GLYPH_C_CENTER),
+                    EntityKind::Abstract => (GLYPH_A_RAW, GLYPH_A_CENTER),
+                    EntityKind::Interface => (GLYPH_I_RAW, GLYPH_I_CENTER),
+                    EntityKind::Enum => (GLYPH_E_RAW, GLYPH_E_CENTER),
+                    EntityKind::Annotation | EntityKind::Rectangle | EntityKind::Component => return,
+                }
+            }
+        }
+    } else {
+        match kind {
+            EntityKind::Class | EntityKind::Object => (GLYPH_C_RAW, GLYPH_C_CENTER),
+            EntityKind::Abstract => (GLYPH_A_RAW, GLYPH_A_CENTER),
+            EntityKind::Interface => (GLYPH_I_RAW, GLYPH_I_CENTER),
+            EntityKind::Enum => (GLYPH_E_RAW, GLYPH_E_CENTER),
+            EntityKind::Annotation | EntityKind::Rectangle | EntityKind::Component => return,
+        }
     };
 
     // Java DriverCenteredCharacterSvg algorithm:
@@ -2729,16 +2761,25 @@ fn draw_entity_box(
         let h2 = (HEADER_CIRCLE_BLOCK_WIDTH / 4.0).min(supp_width * 0.1);
         let h1 = (supp_width - h2) / 2.0;
 
-        let circle_color = stereotype_circle_color(&entity.kind);
+        let spot = extract_entity_spot(entity);
+        let circle_color = if let Some(ref sp) = spot {
+            if let Some(ref c) = sp.color {
+                crate::style::normalize_color(c)
+            } else {
+                stereotype_circle_color(&entity.kind).to_string()
+            }
+        } else {
+            stereotype_circle_color(&entity.kind).to_string()
+        };
         let circle_block_x = x + h1;
         let ecx = circle_block_x + 15.0;
         let ecy = y + header_height / 2.0;
-        sg.set_fill_color(circle_color);
+        sg.set_fill_color(&circle_color);
         sg.set_stroke_color(Some("#181818"));
         sg.set_stroke_width(1.0, None);
         sg.svg_ellipse(ecx, ecy, 11.0, 11.0, 0.0);
         tracker.track_ellipse(ecx, ecy, 11.0, 11.0);
-        emit_circle_glyph(sg, tracker, &entity.kind, ecx, ecy);
+        emit_circle_glyph_with_char(sg, tracker, &entity.kind, ecx, ecy, spot.as_ref().map(|s| s.character));
 
         let header_top_offset = (header_height - stereo_height - name_block_height) / 2.0;
         let name_block_x = x
@@ -3450,9 +3491,25 @@ fn visible_stereotype_labels(rules: &[ClassHideShowRule], entity: &Entity) -> Ve
     entity
         .stereotypes
         .iter()
-        .map(|st| st.0.clone())
-        .filter(|label| stereotype_label_visible(rules, label))
+        .map(|st| {
+            // Extract spot notation and return cleaned label
+            let (_, cleaned) = st.extract_spot();
+            cleaned
+        })
+        .filter(|label| !label.is_empty() && stereotype_label_visible(rules, label))
         .collect()
+}
+
+/// Extract spot info from entity stereotypes.
+/// Returns the first spot found (character + resolved color), if any.
+fn extract_entity_spot(entity: &Entity) -> Option<crate::model::entity::StereotypeSpot> {
+    for st in &entity.stereotypes {
+        let (spot, _) = st.extract_spot();
+        if let Some(s) = spot {
+            return Some(s);
+        }
+    }
+    None
 }
 
 fn class_group_fill_color(

@@ -45,6 +45,47 @@ pub struct Member {
 #[derive(Debug, Clone, PartialEq)]
 pub struct Stereotype(pub String);
 
+/// Spot extracted from a stereotype, e.g. `(E,White)` in `<< (E,White) Extension >>`.
+#[derive(Debug, Clone, PartialEq)]
+pub struct StereotypeSpot {
+    pub character: char,
+    pub color: Option<String>,
+}
+
+impl Stereotype {
+    /// Extract a spot `(Char,Color)` or `(Char)` from the stereotype label.
+    /// Returns the spot info and the cleaned label (without the spot notation).
+    /// Java: `StereotypeDecoration.buildComplex()` with `circleChar` regex.
+    pub fn extract_spot(&self) -> (Option<StereotypeSpot>, String) {
+        let s = self.0.trim();
+        // Look for pattern like (X,Color) or (X) at the start of the stereotype text
+        if !s.starts_with('(') {
+            return (None, self.0.clone());
+        }
+        if let Some(close) = s.find(')') {
+            let inside = &s[1..close];
+            let rest = s[close + 1..].trim().to_string();
+            let parts: Vec<&str> = inside.splitn(2, ',').collect();
+            let ch_str = parts[0].trim();
+            if ch_str.len() == 1 {
+                let ch = ch_str.chars().next().unwrap();
+                let color = if parts.len() > 1 {
+                    let c = parts[1].trim();
+                    if !c.is_empty() {
+                        Some(c.to_string())
+                    } else {
+                        None
+                    }
+                } else {
+                    None
+                };
+                return (Some(StereotypeSpot { character: ch, color }), rest);
+            }
+        }
+        (None, self.0.clone())
+    }
+}
+
 /// Entity (class, interface, enum, etc.)
 #[derive(Debug, Clone)]
 pub struct Entity {

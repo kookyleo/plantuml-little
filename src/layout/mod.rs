@@ -1026,8 +1026,12 @@ fn visible_stereotype_labels(
 ) -> Vec<String> {
     stereotypes
         .iter()
-        .map(|st| st.0.clone())
-        .filter(|label| stereotype_label_visible(rules, label))
+        .map(|st| {
+            // Extract spot notation and return cleaned label
+            let (_, cleaned) = st.extract_spot();
+            cleaned
+        })
+        .filter(|label| !label.is_empty() && stereotype_label_visible(rules, label))
         .collect()
 }
 

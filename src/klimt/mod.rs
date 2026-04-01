@@ -8,6 +8,7 @@
 pub mod color;
 pub mod font;
 pub mod geom;
+pub mod hand;
 pub mod shape;
 pub mod svg;
 
