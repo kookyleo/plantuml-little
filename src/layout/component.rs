@@ -1201,8 +1201,9 @@ mod tests {
         let (_, h) = estimate_entity_size(&e);
         // When description is present, it replaces the name display.
         // So total lines = desc lines (3), not name + desc (4).
-        let expected = (3.0 * LINE_HEIGHT + 2.0 * PADDING).max(NODE_MIN_HEIGHT);
-        assert!(h >= expected, "description should increase height");
+        let (_, _, mt, mb) = entity_margins(&ComponentKind::Rectangle);
+        let expected = (3.0 * LINE_HEIGHT + mt + mb).max(NODE_MIN_HEIGHT);
+        assert!(h >= expected, "description should increase height: h={h} expected={expected}");
     }
 
     // 7. Note layout
@@ -1344,7 +1345,7 @@ mod tests {
     fn test_note_size_estimation() {
         let (w, h) = estimate_note_size("hello");
         assert!(w >= 60.0);
-        assert!(h >= NODE_MIN_HEIGHT);
+        assert!(h >= 30.0, "note height should be >= 30 (note min height), got {h}");
 
         let (_w2, h2) = estimate_note_size("line1\nline2\nline3");
         assert!(h2 > h, "multiline note should be taller");
