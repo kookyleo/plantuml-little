@@ -718,14 +718,14 @@ pub fn layout_erd(diagram: &ErdDiagram) -> Result<ErdLayout> {
             .and_then(|e| e.raw_path_d.as_ref())
             .map(|d| shift_svg_path(d, render_dx, render_dy));
         // Java: label is drawn at label_polygon_min_xy + moveDelta.
-        // Our label_xy is from svek solve (pre-moveDelta), so just add moveDelta.
-        // No normalize_offset or render_offset — those apply to entity positions
-        // but Java draws labels directly from moveDelta'd svek coordinates.
+        // Our label_xy is from svek solve (pre-moveDelta, pre-normalize), so we
+        // need to apply moveDelta and the render-vs-normalize offset correction
+        // (same as class diagram labels: +moveDelta -normalizeOffset +renderOffset).
         let label_xy = svek_edge.and_then(|e| {
             let (lx, ly) = e.label_xy?;
             Some((
-                lx + gl.move_delta.0,
-                ly + gl.move_delta.1,
+                lx + gl.move_delta.0 - gl.normalize_offset.0 + gl.render_offset.0,
+                ly + gl.move_delta.1 - gl.normalize_offset.1 + gl.render_offset.1,
             ))
         });
 
