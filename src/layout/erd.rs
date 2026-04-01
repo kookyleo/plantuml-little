@@ -585,12 +585,13 @@ pub fn layout_erd(diagram: &ErdDiagram) -> Result<ErdLayout> {
     // When all nodes are rects (lf_rect_correction=true), the LF min has an
     // extra -1 that inflates render_offset by 1. Subtract it back to align
     // with Java's final coordinate space.
-    // When attributes (ellipses, lf_rect_correction=false) are present, the
-    // topmost node may be an ellipse with no -1 correction, so render_offset
-    // is already correct.
-    let has_ellipse_nodes = !attr_metas.is_empty();
+    // When attributes (ellipses) or diamonds are present, the topmost node
+    // may use different LF corrections (no -1 for ellipses, or polygon hack
+    // for diamonds), so render_offset is already correct.
+    let has_non_rect_nodes = !attr_metas.is_empty()
+        || !diagram.relationships.is_empty();
     let render_dx = gl.render_offset.0;
-    let render_dy = if has_ellipse_nodes {
+    let render_dy = if has_non_rect_nodes {
         gl.render_offset.1
     } else {
         gl.render_offset.1 - 1.0
