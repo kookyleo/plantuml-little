@@ -95,17 +95,23 @@ fn render_edge(sg: &mut SvgGraphic, edge: &MindmapEdgeLayout, color: &str) {
 }
 
 fn render_edge_styled(sg: &mut SvgGraphic, edge: &MindmapEdgeLayout, color: &str, stroke_w: f64) {
-    let dx = (edge.to_x - edge.from_x) / 2.0;
-    let cx1 = edge.from_x + dx;
+    // Java FtileBox draws: M start L start+10 C mid,... mid,... end-10 L end
+    // A horizontal line segment, then a cubic bezier, then another horizontal line.
+    let line_seg = 10.0;
+    let l1_x = edge.from_x + line_seg;
+    let l2_x = edge.to_x - line_seg;
+    let cx1 = (l1_x + l2_x) / 2.0;
     let cy1 = edge.from_y;
-    let cx2 = edge.to_x - dx;
+    let cx2 = (l1_x + l2_x) / 2.0;
     let cy2 = edge.to_y;
 
     sg.push_raw(&format!(
-        r#"<path d="M{},{} C{},{} {},{} {},{} " fill="none" style="stroke:{color};stroke-width:{};"/>"#,
+        r#"<path d="M{},{} L{},{} C{},{} {},{} {},{} L{},{}" fill="none" style="stroke:{color};stroke-width:{};"/>"#,
         fmt_coord(edge.from_x), fmt_coord(edge.from_y),
+        fmt_coord(l1_x), fmt_coord(edge.from_y),
         fmt_coord(cx1), fmt_coord(cy1),
         fmt_coord(cx2), fmt_coord(cy2),
+        fmt_coord(l2_x), fmt_coord(edge.to_y),
         fmt_coord(edge.to_x), fmt_coord(edge.to_y),
         fmt_coord(stroke_w),
     ));
@@ -152,27 +158,53 @@ fn render_node_styled(
         0.0,
     );
 
-    let total_text_height = count_creole_lines(&node.text) as f64 * LINE_HEIGHT;
-    let text_start_y = node.y + (node.height - total_text_height) / 2.0 + LINE_HEIGHT * 0.75;
-    let cx = node.x + node.width / 2.0;
-    // All mindmap nodes use font-size 14
-    let outer_attrs = if node.level == 1 {
-        r#"font-size="14" font-weight="700""#
-    } else {
-        r#"font-size="14""#
-    };
-    let mut tmp = String::new();
-    render_creole_text(
-        &mut tmp,
-        &node.text,
-        cx,
-        text_start_y,
-        LINE_HEIGHT,
-        font_color,
-        Some("middle"),
-        outer_attrs,
-    );
-    sg.push_raw(&tmp);
+    // Java renders each line individually with explicit x positioning.
+    // Lines are centered using their full width (including leading whitespace),
+    // but rendered with trimmed text and adjusted x.
+    let font_size = 14.0;
+    let outer_attrs = r#"font-size="14""#;
+    // Split on \n, preserving whitespace (Java behavior for width calculation)
+    let raw_lines: Vec<String> = node
+        .text
+        .split("\\n")
+        .flat_map(|s| s.split(crate::NEWLINE_CHAR))
+        .map(|s| s.to_string())
+        .collect();
+    let n_lines = raw_lines.len().max(1);
+    let text_h = crate::font_metrics::line_height("SansSerif", font_size, false, false);
+    let total_text_height = n_lines as f64 * text_h;
+    let ascent = crate::font_metrics::ascent("SansSerif", font_size, false, false);
+    let text_start_y = node.y + (node.height - total_text_height) / 2.0 + ascent;
+
+    for (idx, raw_line) in raw_lines.iter().enumerate() {
+        // Center using full width (including leading spaces)
+        let full_w = crate::font_metrics::text_width(raw_line, "SansSerif", font_size, false, false);
+        let line_x = node.x + (node.width - full_w) / 2.0;
+        // Render trimmed text at adjusted x (skip leading/trailing whitespace visually)
+        let trimmed = raw_line.trim();
+        let trimmed_w = crate::font_metrics::text_width(trimmed, "SansSerif", font_size, false, false);
+        let leading_space_w = if raw_line.starts_with(' ') {
+            let left_trimmed = raw_line.trim_start();
+            full_w - crate::font_metrics::text_width(left_trimmed, "SansSerif", font_size, false, false)
+        } else {
+            0.0
+        };
+        let _ = trimmed_w;
+        let render_x = line_x + leading_space_w;
+        let line_y = text_start_y + idx as f64 * text_h;
+        let mut tmp = String::new();
+        render_creole_text(
+            &mut tmp,
+            trimmed,
+            render_x,
+            line_y,
+            text_h,
+            font_color,
+            None,
+            outer_attrs,
+        );
+        sg.push_raw(&tmp);
+    }
 }
 
 fn render_note(sg: &mut SvgGraphic, note: &MindmapNoteLayout, font_color: &str) {
@@ -336,10 +368,11 @@ mod tests {
         assert!(svg.contains("C"));
     }
     #[test]
-    fn render_root_text_is_bold() {
+    fn render_root_text_not_bold() {
+        // Java does not bold root nodes by default
         let (d, l) = simple_layout();
         let svg = render_mindmap(&d, &l, &SkinParams::default()).unwrap();
-        assert!(svg.contains("font-weight=\"700\""));
+        assert!(!svg.contains("font-weight=\"700\""));
     }
     #[test]
     fn render_rounded_rects() {

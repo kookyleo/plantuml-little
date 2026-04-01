@@ -89,8 +89,8 @@ const SIBLING_SPACING: f64 = 20.0;
 const MIN_NODE_WIDTH: f64 = 40.0;
 /// Minimum node height.
 const MIN_NODE_HEIGHT: f64 = 24.0;
-/// Canvas margin around the diagram.
-const MARGIN: f64 = 20.0;
+/// Canvas margin around the diagram (Java: 10px).
+const MARGIN: f64 = 10.0;
 /// Gap between a node and an attached note.
 const NOTE_GAP: f64 = 16.0;
 /// Minimum note width.
@@ -103,10 +103,11 @@ const MIN_NOTE_HEIGHT: f64 = 28.0;
 // ---------------------------------------------------------------------------
 
 /// Split text on `\n` escape sequences and return individual lines.
+/// Java preserves whitespace (affects node width calculation and centering).
 fn split_text_lines(text: &str) -> Vec<String> {
     text.split("\\n")
         .flat_map(|s| s.split(crate::NEWLINE_CHAR))
-        .map(|s| s.trim().to_string())
+        .map(|s| s.to_string())
         .collect()
 }
 
@@ -461,7 +462,8 @@ pub fn layout_mindmap(
         max_y += shift_y;
     }
 
-    let width = max_x + MARGIN;
+    // Java uses 2*MARGIN for right padding, 1*MARGIN for bottom
+    let width = max_x + 2.0 * MARGIN;
     let height = max_y + MARGIN;
 
     log::debug!(
@@ -662,8 +664,9 @@ mod tests {
 
     #[test]
     fn split_text_lines_multi() {
+        // Java preserves whitespace for node width calculation
         let lines = split_text_lines("a \\n b \\n c");
-        assert_eq!(lines, vec!["a", "b", "c"]);
+        assert_eq!(lines, vec!["a ", " b ", " c"]);
     }
 
     #[test]

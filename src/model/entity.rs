@@ -60,4 +60,6 @@ pub struct Entity {
     pub source_line: Option<usize>,
     /// Entity-level visibility modifier (e.g. `-class foo` -> Private)
     pub visibility: Option<Visibility>,
+    /// Display name (when `as Alias` is used, this holds the quoted label).
+    pub display_name: Option<String>,
 }

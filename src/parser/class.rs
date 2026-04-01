@@ -54,13 +54,14 @@ pub fn parse_class_diagram_with_original(
     let mut brace_depth: usize = 0;
     let mut active_style_stereotype: Option<String> = None;
 
-    // Entity: [visibility]class/interface/abstract class/abstract/enum/annotation/static class Name <<stereo>> #color {
+    // Entity: [visibility]class/interface/abstract class/abstract/enum/annotation/static class Name [as Alias] <<stereo>> #color {
     // Visibility prefix: +/-/#/~ before the keyword (e.g. -class foo)
     let re_entity = Regex::new(concat!(
         r#"(?x)"#,
         r#"^([+\-\#~])?(class|interface|abstract\s+class|abstract|enum|annotation|static\s+class|object|rectangle|component)"#,
         r#"\s+"#,
         r#"("(?:[^"]+)"|[\w.<>,\s]+?)"#,
+        r#"(?:\s+as\s+([\w]+))?"#,
         r#"\s*"#,
         r#"(?:<<([^>]+)>>(?:\s*<<([^>]+)>>)?(?:\s*<<([^>]+)>>)?)?"#,
         r#"\s*"#,
@@ -296,17 +297,30 @@ pub fn parse_class_diagram_with_original(
             });
             let kind_str = caps.get(2).unwrap().as_str().trim();
             let raw_name = caps.get(3).unwrap().as_str().trim().trim_matches('"');
-            let stereo1 = caps.get(4).map(|m| m.as_str().to_string());
-            let stereo2 = caps.get(5).map(|m| m.as_str().to_string());
-            let stereo3 = caps.get(6).map(|m| m.as_str().to_string());
-            let color = caps.get(7).map(|m| m.as_str().to_string());
-            let has_open_brace = caps.get(8).is_some();
-            let has_close_brace = caps.get(9).is_some();
-            let has_open_bracket = caps.get(10).is_some();
+            let alias = caps.get(4).map(|m| m.as_str().to_string());
+            let stereo1 = caps.get(5).map(|m| m.as_str().to_string());
+            let stereo2 = caps.get(6).map(|m| m.as_str().to_string());
+            let stereo3 = caps.get(7).map(|m| m.as_str().to_string());
+            let color = caps.get(8).map(|m| m.as_str().to_string());
+            let has_open_brace = caps.get(9).is_some();
+            let has_close_brace = caps.get(10).is_some();
+            let has_open_bracket = caps.get(11).is_some();
 
             let kind = parse_entity_kind(kind_str);
 
-            let (name, generic) = parse_generic(raw_name);
+            // When `as Alias` is used, alias becomes the code name and raw_name is display
+            let (name, display_name) = if let Some(ref al) = alias {
+                (al.clone(), Some(raw_name.to_string()))
+            } else {
+                let (n, _gen) = parse_generic(raw_name);
+                (n, None)
+            };
+            let generic = if alias.is_none() {
+                let (_n, g) = parse_generic(raw_name);
+                g
+            } else {
+                None
+            };
 
             let mut stereotypes = Vec::new();
             for s in [stereo1, stereo2, stereo3].into_iter().flatten() {
@@ -343,6 +357,7 @@ pub fn parse_class_diagram_with_original(
                 generic,
                 source_line: entity_first_source_lines.get(&name).copied(),
                 visibility: entity_visibility,
+                display_name,
             };
 
             if has_open_brace && !has_close_brace {
@@ -1212,6 +1227,7 @@ fn auto_create_entities(
             generic: None,
             source_line: entity_first_source_lines.get(&name).copied(),
             visibility: None,
+            display_name: None,
         });
     }
 }

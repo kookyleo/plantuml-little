@@ -2599,7 +2599,12 @@ fn draw_entity_box(
         explicit_class_fs.unwrap_or_else(|| explicit_attr_fs.unwrap_or(FONT_SIZE));
 
     // Entity name WITHOUT generic parameter — generic is rendered separately in draw_generic_box
-    let name_display = crate::layout::class_entity_display_name(&entity.name);
+    // When `as Alias` is used, display_name holds the original quoted label.
+    let name_display = entity
+        .display_name
+        .as_deref()
+        .map(String::from)
+        .unwrap_or_else(|| crate::layout::class_entity_display_name(&entity.name));
     let visible_stereotypes = visible_stereotype_labels(&cd.hide_show_rules, entity);
     let raw_field_count = entity.members.iter().filter(|m| !m.is_method).count();
     let raw_method_count = entity.members.iter().filter(|m| m.is_method).count();
@@ -5060,6 +5065,7 @@ mod tests {
             generic: None,
             source_line: None,
             visibility: None,
+            display_name: None,
         };
         let entity2 = Entity {
             uid: None,
@@ -5072,6 +5078,7 @@ mod tests {
             generic: None,
             source_line: None,
             visibility: None,
+            display_name: None,
         };
         let link = Link {
             uid: None,
@@ -5212,6 +5219,7 @@ mod tests {
             generic: None,
             source_line: None,
             visibility: None,
+            display_name: None,
         };
         let mut cd = empty_class_diagram();
         cd.entities = vec![entity];
@@ -5257,6 +5265,7 @@ mod tests {
             generic: None,
             source_line: None,
             visibility: None,
+            display_name: None,
         };
         let mut cd = empty_class_diagram();
         cd.entities = vec![entity];
@@ -5530,6 +5539,7 @@ mod tests {
             generic: None,
             source_line: None,
             visibility: None,
+            display_name: None,
         };
         let mut cd = empty_class_diagram();
         cd.entities = vec![entity];

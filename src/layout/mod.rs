@@ -618,7 +618,12 @@ fn estimate_entity_size(
 
     // Entity name WITHOUT generic parameter -- generic is rendered separately.
     // Split name into display lines following Java Display semantics (\n, \r split).
-    let name_display = class_entity_display_name(&entity.name);
+    // When `as Alias` is used, display_name holds the original quoted label.
+    let name_display = entity
+        .display_name
+        .as_deref()
+        .map(String::from)
+        .unwrap_or_else(|| class_entity_display_name(&entity.name));
     let name_block = split_name_display(&name_display);
     let n_name_lines = name_block.lines.len();
 
@@ -766,7 +771,12 @@ fn estimate_object_size(entity: &Entity) -> (f64, f64) {
 
 fn estimate_entity_size_legacy(entity: &Entity) -> (f64, f64) {
     // Entity name WITHOUT generic parameter -- generic is rendered separately
-    let name_display = class_entity_display_name(&entity.name);
+    // When `as Alias` is used, display_name holds the original quoted label.
+    let name_display = entity
+        .display_name
+        .as_deref()
+        .map(String::from)
+        .unwrap_or_else(|| class_entity_display_name(&entity.name));
 
     // check if a stereotype line is needed (interface / enum / abstract / custom stereotype)
     let has_stereotype_line = !entity.stereotypes.is_empty()
@@ -1534,6 +1544,7 @@ mod tests {
             generic: None,
             source_line: None,
             visibility: None,
+            display_name: None,
         }
     }
 
@@ -1597,6 +1608,7 @@ mod tests {
             generic: None,
             source_line: None,
             visibility: None,
+            display_name: None,
         };
         let (w, h) = estimate_entity_size(
             &empty_diagram(),
@@ -1641,6 +1653,7 @@ mod tests {
             generic: None,
             source_line: None,
             visibility: None,
+            display_name: None,
         };
         let (_, h) = estimate_entity_size(
             &empty_diagram(),

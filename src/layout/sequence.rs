@@ -2778,6 +2778,7 @@ mod tests {
                     participant: "A".to_string(),
                     text: "a note".to_string(),
                     parallel: false,
+                    color: None,
                 },
                 SeqEvent::Message(make_message("A", "A", "after note")),
             ],
@@ -3121,6 +3122,7 @@ mod tests {
                 participant: "A".to_string(),
                 text: "a note".to_string(),
                 parallel: false,
+                color: None,
             }],
             teoz_mode: false,
             hide_footbox: false,
@@ -3181,6 +3183,7 @@ mod tests {
                     participant: "B".to_string(),
                     text: "Note".to_string(),
                     parallel: false,
+                    color: None,
                 },
                 SeqEvent::Activate("B".to_string(), None),
                 SeqEvent::Message(Message {
