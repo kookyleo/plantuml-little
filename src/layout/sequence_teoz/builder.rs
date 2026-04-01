@@ -589,7 +589,9 @@ fn note_preferred_height(text: &str, delta_shadow: f64) -> f64 {
 /// Estimate extra height added by creole formatting in note text.
 /// Tables get +4px padding per row + 6px border overhead.
 /// Horizontal separators (`----` or `====`) add ~8px each.
+/// Inline SVG sprites: max(sprite_height, line_height) - line_height per sprite line.
 fn creole_note_extra_height(text: &str) -> f64 {
+    let lh = font_metrics::line_height("SansSerif", NOTE_FONT_SIZE, false, false);
     let mut extra = 0.0;
     let mut in_table = false;
     let mut table_rows = 0;
@@ -612,6 +614,12 @@ fn creole_note_extra_height(text: &str) -> f64 {
                 || trimmed.starts_with("====")
             {
                 extra += 8.0;
+            }
+            // Inline SVG sprites add their viewBox height when taller than line height
+            if let Some(sprite_extra) =
+                crate::layout::sequence::estimate_sprite_line_extra_height(trimmed, lh)
+            {
+                extra += sprite_extra;
             }
         }
     }

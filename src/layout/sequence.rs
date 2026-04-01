@@ -420,7 +420,9 @@ fn count_note_lines(text: &str) -> usize {
 ///   - Table rows: each cell in a table (`|...|`) gets +4px padding (2+2)
 ///   - Horizontal separator (`----` or `====`): ~8px per separator
 ///   - Bullet items: same height as normal lines (no extra)
+///   - Inline SVG sprites: max(sprite_height, line_height) - line_height per sprite line
 fn creole_note_extra_height(text: &str) -> f64 {
+    let lh = font_metrics::line_height("SansSerif", NOTE_FONT_SIZE, false, false);
     let mut extra = 0.0;
     let mut in_table = false;
     let mut table_rows = 0;
@@ -446,12 +448,56 @@ fn creole_note_extra_height(text: &str) -> f64 {
                 // Horizontal separator line: Java CreoleHorizontalLine height
                 extra += 8.0;
             }
+            // Inline SVG sprites add their viewBox height when taller than line height
+            if let Some(sprite_extra) = estimate_sprite_line_extra_height(trimmed, lh) {
+                extra += sprite_extra;
+            }
         }
     }
     if in_table {
         extra += table_rows as f64 * 4.0 + 6.0;
     }
     extra
+}
+
+/// Estimate extra height from inline sprites on a single line.
+/// Returns Some(extra_height) if the line contains sprites that are taller than line_height.
+pub(crate) fn estimate_sprite_line_extra_height(line: &str, line_height: f64) -> Option<f64> {
+    use crate::render::svg_richtext::get_sprite_svg;
+    use crate::render::svg_sprite::sprite_info;
+
+    // Quick check: does this line contain <$...>?
+    if !line.contains("<$") {
+        return None;
+    }
+
+    let mut max_sprite_h = 0.0_f64;
+    let mut pos = 0;
+    while let Some(start) = line[pos..].find("<$") {
+        let name_start = pos + start + 2;
+        // Find closing > or {
+        let end = line[name_start..]
+            .find(|c: char| c == '>' || c == '{' || c == ',')
+            .map(|i| name_start + i)
+            .unwrap_or(line.len());
+        let name = &line[name_start..end];
+        if !name.is_empty() {
+            if let Some(svg) = get_sprite_svg(name) {
+                let info = sprite_info(&svg);
+                max_sprite_h = max_sprite_h.max(info.vb_height);
+            }
+        }
+        pos = end + 1;
+        if pos >= line.len() {
+            break;
+        }
+    }
+
+    if max_sprite_h > line_height {
+        Some(max_sprite_h - line_height)
+    } else {
+        None
+    }
 }
 
 /// Estimate note visual height (for rendering the note polygon).
