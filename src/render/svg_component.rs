@@ -220,6 +220,8 @@ pub fn render_component(
             link_counter,
             source_line,
             &mut path_id_counts,
+            direction_inverted,
+            &layout.nodes,
         );
         link_counter += 1;
     }
@@ -1490,6 +1492,8 @@ fn render_edge(
     link_id: u32,
     source_line: Option<usize>,
     path_id_counts: &mut std::collections::HashMap<String, usize>,
+    direction_inverted: bool,
+    nodes: &[ComponentNodeLayout],
 ) {
     if edge.points.is_empty() {
         return;
@@ -1639,7 +1643,36 @@ fn render_edge(
             }
         };
 
-        render_link_label(sg, &edge.label, lx, ly, font_color);
+        // Compute edge angle for TextBlockArrow2 direction indicator.
+        // Java uses dotPath.getStartPoint()/getEndPoint() AFTER extremity shortening
+        // (adjust_path_startpoint/endpoint), so we parse the rendered SVG path `d`.
+        // Java SvekEdge.solveLine() also checks whether GraphViz inverted the edge
+        // direction by comparing distances to entity centers.
+        let edge_angle = {
+            let parsed = parse_path_start_end_simple(&d);
+            if let Some(((mut sx, mut sy), (mut ex, mut ey))) = parsed {
+                // Check for Graphviz path inversion: find entity centers and compare distances.
+                let find_center = |name: &str| -> Option<(f64, f64)> {
+                    nodes.iter().find(|n| n.id == name).map(|n| (n.x + n.width / 2.0, n.y + n.height / 2.0))
+                };
+                if let (Some(pos1), Some(pos2)) = (find_center(&edge.from), find_center(&edge.to)) {
+                    let dist = |a: (f64, f64), b: (f64, f64)| -> f64 {
+                        ((a.0 - b.0).powi(2) + (a.1 - b.1).powi(2)).sqrt()
+                    };
+                    let normal = dist((sx, sy), pos1) + dist((ex, ey), pos2);
+                    let inversed = dist((sx, sy), pos2) + dist((ex, ey), pos1);
+                    if inversed < normal {
+                        std::mem::swap(&mut sx, &mut ex);
+                        std::mem::swap(&mut sy, &mut ey);
+                    }
+                }
+                Some((ex - sx).atan2(ey - sy))
+            } else {
+                None
+            }
+        };
+
+        render_link_label(sg, &edge.label, lx, ly, font_color, edge_angle, direction_inverted);
     }
 
     sg.push_raw("</g>");
@@ -1648,97 +1681,140 @@ fn render_edge(
 /// Render a link label matching Java's StringWithArrow format.
 /// Handles direction indicators (> / <) as triangular polygons and renders
 /// text segments with font-size 13. Bold (**text**) gets separate <text> elements.
+///
+/// `edge_angle`: the radian angle of the edge path (from atan2(dx, dy) like Java).
+/// `direction_inverted`: true when Java's Link.getInv() was called (UP/LEFT direction),
+/// which flips the FORWARD/BACKWARD semantics of the label arrow indicator.
 fn render_link_label(
     sg: &mut SvgGraphic,
     label: &str,
     label_x: f64,
     label_y: f64,
     font_color: &str,
+    edge_angle: Option<f64>,
+    direction_inverted: bool,
 ) {
     const LINK_FONT_SIZE: f64 = 13.0;
 
     // Parse direction indicator (> or <) from the label.
     // Java: StringWithArrow detects leading/trailing > or < characters.
     let trimmed = label.trim();
-    let (direction, text) = if trimmed.starts_with('>') {
-        ("forward", trimmed[1..].trim())
-    } else if trimmed.starts_with('<') {
-        ("backward", trimmed[1..].trim())
-    } else if trimmed.ends_with('>') {
-        ("forward", trimmed[..trimmed.len() - 1].trim())
-    } else if trimmed.ends_with('<') {
-        ("backward", trimmed[..trimmed.len() - 1].trim())
+    let (has_indicator, mut is_backward, text) = if trimmed.starts_with("> ") || trimmed == ">" {
+        (true, false, trimmed.strip_prefix("> ").or_else(|| trimmed.strip_prefix('>')).unwrap_or("").trim())
+    } else if trimmed.starts_with("< ") || trimmed == "<" {
+        (true, true, trimmed.strip_prefix("< ").or_else(|| trimmed.strip_prefix('<')).unwrap_or("").trim())
+    } else if trimmed.ends_with(" >") {
+        (true, false, trimmed.strip_suffix(" >").unwrap_or(trimmed).trim())
+    } else if trimmed.ends_with(" <") {
+        (true, true, trimmed.strip_suffix(" <").unwrap_or(trimmed).trim())
     } else {
-        ("none", trimmed)
+        (false, false, trimmed)
     };
+
+    // Java: when Link.getInv() was called (direction_inverted), getLinkArrow()
+    // reverses the arrow: FORWARD↔BACKWARD.
+    if direction_inverted {
+        is_backward = !is_backward;
+    }
 
     // Parse bold segments: **text** → bold, rest → normal
     let segments = parse_creole_bold_segments(text);
 
-    // Compute text widths for positioning
+    // Compute text widths for positioning (using advance_text when available)
     let mut total_text_width = 0.0;
     for seg in &segments {
-        total_text_width += font_metrics::text_width(seg.text, "SansSerif", LINK_FONT_SIZE, seg.bold, false);
+        let t = seg.advance_text.unwrap_or(seg.text);
+        total_text_width += font_metrics::text_width(t, "SansSerif", LINK_FONT_SIZE, seg.bold, false);
     }
 
-    // Direction indicator triangle width (Java: about 9 pixels for the triangle)
-    let indicator_width = if direction != "none" { 9.0 } else { 0.0 };
+    // Direction indicator triangle width (Java TextBlockArrow2: size = font_size)
+    let indicator_width = if has_indicator { LINK_FONT_SIZE } else { 0.0 };
 
-    // label_x, label_y is the top-left of the label bounding box.
-    // Text baseline is at label_y + ascent (ascent ≈ font_size * 0.75 + descent)
-    // Java uses specific metrics for SansSerif 13pt.
-    let text_ascent = 9.5664; // Java SansSerif 13pt ascent from metrics
-    let text_y = label_y + text_ascent;
+    // label_x, label_y is the top-left of the label bounding box from Graphviz.
+    // Java's StringWithArrow.addMagicArrow merges the arrow LEFT of the text with
+    // vertical CENTER alignment.  The text is margin-wrapped (margin=1).
+    // Merged height = max(arrow_h=13, text_h + 2*margin).
+    // dy_text = (merged_h - text_marged_h) / 2.
+    // Text baseline = label_y + dy_text + margin + ascent.
+    let text_h = font_metrics::line_height("SansSerif", LINK_FONT_SIZE, false, false);
+    let margin = 1.0;
+    let text_marged_h = text_h + 2.0 * margin;
+    let merged_h = text_marged_h.max(LINK_FONT_SIZE);
+    let dy_text = (merged_h - text_marged_h) / 2.0;
+    let text_ascent = font_metrics::ascent("SansSerif", LINK_FONT_SIZE, false, false);
+    let text_y = label_y + dy_text + margin + text_ascent;
 
-    // Render direction indicator triangle
-    if direction != "none" {
-        let tri_x = label_x;
-        let tri_y = label_y;
-        let tri_h = text_ascent;
-        let tri_w = indicator_width;
+    // Render direction indicator triangle using TextBlockArrow2 algorithm.
+    // Java TextBlockArrow2.drawU() draws a 3-point triangle rotated by the edge angle.
+    if has_indicator {
+        let mut angle = edge_angle.unwrap_or(0.0);
+        if is_backward {
+            angle += std::f64::consts::PI;
+        }
 
-        // Triangle points depend on direction
-        // For "forward" (>): triangle pointing right/down along the edge direction
-        // Java draws these as small 3-point triangles
-        let (p1x, p1y, p2x, p2y, p3x, p3y) = if direction == "forward" {
-            // Downward/rightward pointing triangle
-            (
-                tri_x + tri_w / 2.0, tri_y,               // tip (top center)
-                tri_x, tri_y + tri_h,                      // bottom left
-                tri_x + tri_w, tri_y + tri_h,              // bottom right
-            )
-        } else {
-            // Backward (<): leftward/upward pointing triangle
-            (
-                tri_x + tri_w / 2.0, tri_y + tri_h,       // tip (bottom center)
-                tri_x, tri_y,                              // top left
-                tri_x + tri_w, tri_y,                      // top right
-            )
-        };
+        let tri_size = (LINK_FONT_SIZE * 0.80) as i32;
+        let tri_size_f = tri_size as f64;
+        // Java: addMagicArrow merges TextBlockArrow2 LEFT of the margin-wrapped text.
+        // Arrow block is LINK_FONT_SIZE×LINK_FONT_SIZE (13×13).
+        // Text block is margin-wrapped: height = line_height + 2*margin.
+        // Merged height = max(arrow_h, text_marged_h).
+        // dy_arrow = (merged_h - arrow_h) / 2.
+        let text_h = font_metrics::line_height("SansSerif", LINK_FONT_SIZE, false, false);
+        let margin = 1.0; // Java standard edge label margin
+        let text_marged_h = text_h + 2.0 * margin;
+        let outer_h = text_marged_h.max(LINK_FONT_SIZE);
+        let dy_arrow = (outer_h - LINK_FONT_SIZE) / 2.0;
 
-        sg.set_fill_color("#000000");
-        sg.set_stroke_color(Some("#000000"));
-        sg.set_stroke_width(1.0, None);
-        sg.svg_polygon(0.0, &[p1x, p1y, p2x, p2y, p3x, p3y, p1x, p1y]);
+        // Java: UTranslate(triSize/2, size/2) — origin offset to center
+        let cx = label_x + tri_size_f / 2.0;
+        let cy = label_y + dy_arrow + LINK_FONT_SIZE / 2.0;
+        let radius = tri_size_f / 2.0;
+        let beta = std::f64::consts::PI * 4.0 / 5.0;
+
+        let p0x = cx + radius * angle.sin();
+        let p0y = cy + radius * angle.cos();
+        let p1x = cx + radius * (angle + beta).sin();
+        let p1y = cy + radius * (angle + beta).cos();
+        let p2x = cx + radius * (angle - beta).sin();
+        let p2y = cy + radius * (angle - beta).cos();
+
+        sg.push_raw(&format!(
+            "<polygon fill=\"#000000\" points=\"{},{},{},{},{},{},{},{}\" style=\"stroke:#000000;stroke-width:1;\"/>",
+            fmt_coord(p0x), fmt_coord(p0y),
+            fmt_coord(p1x), fmt_coord(p1y),
+            fmt_coord(p2x), fmt_coord(p2y),
+            fmt_coord(p0x), fmt_coord(p0y),
+        ));
     }
 
-    // Render text segments
-    let mut text_x = label_x + indicator_width;
+    // Render text segments.
+    // Java: the text block is margin-wrapped (TextBlockMarged, margin=1) before being
+    // merged with the arrow.  The text inside starts at arrow_width + margin.
+    let mut text_x = label_x + indicator_width + margin;
     for seg in &segments {
         let w = font_metrics::text_width(seg.text, "SansSerif", LINK_FONT_SIZE, seg.bold, false);
-        let bold_attr = if seg.bold {
-            r#" font-weight="700""#
+        // Java: trailing whitespace is trimmed from rendered text but the cursor
+        // still advances by the full (untrimmed) width.
+        let advance_w = if let Some(advance) = seg.advance_text {
+            font_metrics::text_width(advance, "SansSerif", LINK_FONT_SIZE, seg.bold, false)
         } else {
-            ""
+            w
         };
-        sg.push_raw(&format!(
-            r#"<text fill="{font_color}" font-family="sans-serif" font-size="{LINK_FONT_SIZE}"{bold_attr} lengthAdjust="spacing" textLength="{}" x="{}" y="{}">{}</text>"#,
-            fmt_coord(w),
-            fmt_coord(text_x),
-            fmt_coord(text_y),
-            xml_escape(seg.text),
-        ));
-        text_x += w;
+        if !seg.text.is_empty() {
+            let bold_attr = if seg.bold {
+                r#" font-weight="700""#
+            } else {
+                ""
+            };
+            sg.push_raw(&format!(
+                r#"<text fill="{font_color}" font-family="sans-serif" font-size="{LINK_FONT_SIZE}"{bold_attr} lengthAdjust="spacing" textLength="{}" x="{}" y="{}">{}</text>"#,
+                fmt_coord(w),
+                fmt_coord(text_x),
+                fmt_coord(text_y),
+                xml_escape(seg.text),
+            ));
+        }
+        text_x += advance_w;
     }
 }
 
@@ -1746,6 +1822,10 @@ fn render_link_label(
 struct TextSegment<'a> {
     text: &'a str,
     bold: bool,
+    /// When set, use this text for width/advance calculation instead of `text`.
+    /// Java trims trailing whitespace from rendered text but advances the cursor
+    /// by the full (untrimmed) width.
+    advance_text: Option<&'a str>,
 }
 
 /// Parse Creole bold markers (**text**) into segments of normal and bold text.
@@ -1755,11 +1835,25 @@ fn parse_creole_bold_segments(text: &str) -> Vec<TextSegment<'_>> {
 
     while !remaining.is_empty() {
         if let Some(bold_start) = remaining.find("**") {
-            // Text before the bold marker
-            if bold_start > 0 {
+            // Text before the bold marker.
+            // Java StripeSimple trims trailing whitespace from the text atom
+            // but advances the cursor by the full (untrimmed) width.
+            // We strip trailing whitespace for rendering but store the full
+            // width so the next segment is positioned correctly.
+            let pre_raw = &remaining[..bold_start];
+            let pre = pre_raw.trim_end();
+            if !pre.is_empty() {
                 segments.push(TextSegment {
-                    text: &remaining[..bold_start],
+                    text: pre,
                     bold: false,
+                    advance_text: if pre.len() != pre_raw.len() { Some(pre_raw) } else { None },
+                });
+            } else if !pre_raw.is_empty() {
+                // All whitespace: still advance cursor
+                segments.push(TextSegment {
+                    text: "",
+                    bold: false,
+                    advance_text: Some(pre_raw),
                 });
             }
             let after_start = &remaining[bold_start + 2..];
@@ -1767,6 +1861,7 @@ fn parse_creole_bold_segments(text: &str) -> Vec<TextSegment<'_>> {
                 segments.push(TextSegment {
                     text: &after_start[..bold_end],
                     bold: true,
+                    advance_text: None,
                 });
                 remaining = &after_start[bold_end + 2..];
             } else {
@@ -1774,6 +1869,7 @@ fn parse_creole_bold_segments(text: &str) -> Vec<TextSegment<'_>> {
                 segments.push(TextSegment {
                     text: after_start,
                     bold: true,
+                    advance_text: None,
                 });
                 remaining = "";
             }
@@ -1781,12 +1877,36 @@ fn parse_creole_bold_segments(text: &str) -> Vec<TextSegment<'_>> {
             segments.push(TextSegment {
                 text: remaining,
                 bold: false,
+                advance_text: None,
             });
             remaining = "";
         }
     }
 
     segments
+}
+
+/// Parse the start and end coordinates from an SVG path d-string.
+/// Returns ((start_x, start_y), (end_x, end_y)).
+fn parse_path_start_end_simple(d: &str) -> Option<((f64, f64), (f64, f64))> {
+    let d = d.trim();
+    if !d.starts_with('M') {
+        return None;
+    }
+    // Parse all numbers from the path
+    let nums: Vec<f64> = d
+        .split(|c: char| !c.is_ascii_digit() && c != '.' && c != '-')
+        .filter(|s| !s.is_empty())
+        .filter_map(|s| s.parse::<f64>().ok())
+        .collect();
+    if nums.len() < 4 {
+        return None;
+    }
+    let sx = nums[0];
+    let sy = nums[1];
+    let ex = nums[nums.len() - 2];
+    let ey = nums[nums.len() - 1];
+    Some(((sx, sy), (ex, ey)))
 }
 
 fn adjust_path_endpoint(d: &str, decoration_len: f64) -> String {

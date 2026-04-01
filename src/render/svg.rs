@@ -3895,11 +3895,36 @@ fn draw_edge(
                 // Compute arrow direction from the rendered edge path.
                 // Java uses dotPath.getStartPoint()/getEndPoint() which correspond
                 // to the rendered SVG path M start and last C/L end coordinates.
+                //
+                // Java SvekEdge.solveLine() checks whether GraphViz inverted the
+                // edge direction: if the path start is closer to entity2 than
+                // entity1, it reverses the dotPath.  We replicate this check here.
                 let angle_points = parse_path_start_end(&d).unwrap_or_else(|| {
                     (el.points[0], el.points[el.points.len() - 1])
                 });
-                let (sx, sy) = angle_points.0;
-                let (ex, ey) = angle_points.1;
+                let (mut sx, mut sy) = angle_points.0;
+                let (mut ex, mut ey) = angle_points.1;
+
+                // Check for Graphviz path inversion: find entity centers and
+                // compare distances.  If start is closer to the link's "to"
+                // entity, the path was laid out in reverse.
+                let find_center = |name: &str| -> Option<(f64, f64)> {
+                    layout.nodes.iter().find(|n| n.id == name).map(|n| (n.cx, n.cy))
+                };
+                if let (Some(pos1), Some(pos2)) =
+                    (find_center(&link.from), find_center(&link.to))
+                {
+                    let dist = |a: (f64, f64), b: (f64, f64)| -> f64 {
+                        ((a.0 - b.0).powi(2) + (a.1 - b.1).powi(2)).sqrt()
+                    };
+                    let normal = dist((sx, sy), pos1) + dist((ex, ey), pos2);
+                    let inversed = dist((sx, sy), pos2) + dist((ex, ey), pos1);
+                    if inversed < normal {
+                        std::mem::swap(&mut sx, &mut ex);
+                        std::mem::swap(&mut sy, &mut ey);
+                    }
+                }
+
                 let mut angle = (ex - sx).atan2(ey - sy);
                 if is_link_arrow_backward(label) {
                     angle += std::f64::consts::PI;
