@@ -691,33 +691,40 @@ impl DotStringFactory {
             //
             // `lf_rect_correction` is true for rect entities, false for circles/notes.
             let extra_left = if is_degenerated { 0.0 } else { node.lf_extra_left };
-            let min_corr = if node.lf_rect_correction { 1.0 } else { 0.0 };
-            // For rect entities: ULine.hline(width) overrides rect's -1 on x-axis,
-            // so max_corr_x = 0. For ellipse entities (Circle/Oval/Diamond): max_corr = 1.
-            // For UPath entities (notes, !rect_corr, non-ellipse shape): max_corr = 0.
+            let is_diamond = node.shape_type == shape_type::ShapeType::Diamond;
             let is_ellipse_shape = matches!(
                 node.shape_type,
                 shape_type::ShapeType::Circle
                     | shape_type::ShapeType::Oval
-                    | shape_type::ShapeType::Diamond
             );
+            // Java LimitFinder shape-specific corrections:
+            //
+            //   drawRectangle: addPoint(x-1, y-1), addPoint(x+w-1, y+h-1)
+            //   drawEllipse:   addPoint(x, y),     addPoint(x+w-1, y+h-1)
+            //   drawUPolygon (Diamond): addPoint(x+minX-10, y+minY), addPoint(x+maxX+10, y+maxY)
+            //     where HACK_X_FOR_POLYGON = 10 and for diamond: minX=0, maxX=w, minY=0, maxY=h
+            //   drawUPath (notes): addPoint(x+minX, y+minY), addPoint(x+maxX, y+maxY)
+            let (min_corr_x, min_corr_y) = if is_diamond {
+                (10.0, 0.0) // polygon hack: extend 10px left (HACK_X_FOR_POLYGON)
+            } else if node.lf_rect_correction {
+                (1.0, 1.0) // rect: -1 on both axes
+            } else {
+                (0.0, 0.0) // ellipse/path: no min correction
+            };
             // For rect entities with body separator (state/class): the ULine.hline(width)
             // overrides the drawRectangle -1 on max_x.
             // For rect entities without body separator (components): rect -1 stands.
-            let max_corr_x = if node.lf_has_body_separator {
-                0.0 // ULine.hline(width) overrides rect's -1 on x-axis
+            let (max_corr_x, max_corr_y) = if is_diamond {
+                (-10.0_f64, 0.0) // polygon hack: extend 10px right, no y correction
+            } else if node.lf_has_body_separator {
+                (0.0, 1.0) // ULine.hline(width) overrides rect's -1 on x-axis
             } else if node.lf_rect_correction || is_ellipse_shape {
-                1.0 // rect/ellipse: max -= 1
+                (1.0, 1.0) // rect/ellipse: max -= 1
             } else {
-                0.0 // UPath (notes): no correction
+                (0.0, 0.0) // UPath (notes): no correction
             };
-            let max_corr_y = if node.lf_rect_correction || is_ellipse_shape {
-                1.0 // rect/ellipse: max_y -= 1
-            } else {
-                0.0 // UPath (notes): no correction
-            };
-            let rx = node.min_x - min_corr - extra_left;
-            let ry = node.min_y - min_corr;
+            let rx = node.min_x - min_corr_x - extra_left;
+            let ry = node.min_y - min_corr_y;
             let rr = node.min_x + node.width - max_corr_x;
             let rb = node.min_y + node.height - max_corr_y;
             log::trace!(

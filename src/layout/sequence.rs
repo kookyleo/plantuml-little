@@ -1646,11 +1646,9 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
                         // Our tile_start_y already includes imageMargin, so:
                         last_self_msg_starting_y + note_push + NOTE_COMPONENT_PADDING_Y
                     } else {
-                        // For multiline messages, the back_offset must account
-                        // for the extra text lines above the arrow line.
                         let back_offset =
                             lp.message_spacing - NOTE_FOLD + last_message_extra_height;
-                        log::debug!("NoteRight: msg_y={msg_y}, back_offset={back_offset}, extra_h={last_message_extra_height}, note_height={note_height}, y_cursor={y_cursor}");
+                        log::debug!("NoteRight: msg_y={msg_y}, back_offset={back_offset}, note_height={note_height}, y_cursor={y_cursor}");
                         (msg_y - back_offset).max(MARGIN + max_ph)
                     }
                 } else {
@@ -1799,7 +1797,7 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
                     } else {
                         let back_offset =
                             lp.message_spacing - NOTE_FOLD + last_message_extra_height;
-                        log::debug!("NoteLeft: msg_y={msg_y}, back_offset={back_offset}, extra_h={last_message_extra_height}, note_height={note_height}, y_cursor={y_cursor}");
+                        log::debug!("NoteLeft: msg_y={msg_y}, back_offset={back_offset}, note_height={note_height}, y_cursor={y_cursor}");
                         (msg_y - back_offset).max(MARGIN + max_ph)
                     }
                 } else {

@@ -152,21 +152,24 @@ fn render_relationship(sg: &mut SvgGraphic, node: &ErdNodeLayout) {
         sg.set_stroke_color(Some(BORDER_COLOR));
         sg.set_stroke_width(0.5, None);
         sg.svg_polygon(0.0, &[x, cy, cx, y, x + w, cy, cx, y + h]);
-        let inset = 4.0;
+        // Java: UTranslate(10, 5).draw(getShape(dimTotal.delta(-20, -10)))
+        // Inner diamond has 10px inset on x, 5px inset on y.
+        let inset_x = 10.0;
+        let inset_y = 5.0;
         sg.set_fill_color(ENTITY_BG);
         sg.set_stroke_color(Some(BORDER_COLOR));
         sg.set_stroke_width(0.5, None);
         sg.svg_polygon(
             0.0,
             &[
-                x + inset * 1.5,
+                x + inset_x,
                 cy,
                 cx,
-                y + inset,
-                x + w - inset * 1.5,
+                y + inset_y,
+                x + w - inset_x,
                 cy,
                 cx,
-                y + h - inset,
+                y + h - inset_y,
             ],
         );
     } else {
