@@ -2636,11 +2636,19 @@ fn draw_entity_box(
 
     // Entity name WITHOUT generic parameter — generic is rendered separately in draw_generic_box
     // When `as Alias` is used, display_name holds the original quoted label.
-    let name_display = entity
+    let name_display_raw = entity
         .display_name
         .as_deref()
         .map(String::from)
         .unwrap_or_else(|| crate::layout::class_entity_display_name(&entity.name));
+    // Strip HTML markup tags (<b>, <i>, etc.) — Java interprets these as formatting.
+    let markup_info = crate::layout::strip_html_markup(&name_display_raw);
+    let name_display = if markup_info.bold || markup_info.italic {
+        markup_info.text.clone()
+    } else {
+        name_display_raw
+    };
+    let name_markup_bold = markup_info.bold;
     let visible_stereotypes = visible_stereotype_labels(&cd.hide_show_rules, entity);
     let raw_field_count = entity.members.iter().filter(|m| !m.is_method).count();
     let raw_method_count = entity.members.iter().filter(|m| m.is_method).count();
@@ -2659,7 +2667,8 @@ fn draw_entity_box(
         .filter(|_| show_methods)
         .collect();
     let has_kind_label = matches!(entity.kind, EntityKind::Enum | EntityKind::Annotation);
-    let italic_name = matches!(entity.kind, EntityKind::Abstract | EntityKind::Interface);
+    let italic_name =
+        markup_info.italic || matches!(entity.kind, EntityKind::Abstract | EntityKind::Interface);
 
     if has_kind_label {
         let kind_text = match entity.kind {
@@ -2717,7 +2726,12 @@ fn draw_entity_box(
             .lines
             .iter()
             .map(|line| {
-                crate::layout::display_line_metrics(line, class_font_size, false, italic_name)
+                crate::layout::display_line_metrics(
+                    line,
+                    class_font_size,
+                    name_markup_bold,
+                    italic_name,
+                )
             })
             .collect();
         let name_width = name_line_metrics
@@ -2725,8 +2739,10 @@ fn draw_entity_box(
             .map(|(visible_width, indent_width)| visible_width + indent_width)
             .fold(0.0_f64, f64::max);
         // Compute name block height and baseline dynamically from actual font size
-        let name_ascent = font_metrics::ascent("SansSerif", class_font_size, false, italic_name);
-        let name_descent = font_metrics::descent("SansSerif", class_font_size, false, italic_name);
+        let name_ascent =
+            font_metrics::ascent("SansSerif", class_font_size, name_markup_bold, italic_name);
+        let name_descent =
+            font_metrics::descent("SansSerif", class_font_size, name_markup_bold, italic_name);
         let single_line_height = name_ascent + name_descent;
         let name_block_height = n_name_lines as f64 * single_line_height;
         let name_baseline = name_ascent;
@@ -2844,6 +2860,7 @@ fn draw_entity_box(
         } else {
             None
         };
+        let font_weight = if name_markup_bold { Some("700") } else { None };
         sg.set_fill_color(font_color);
         // Render each name line as a separate <text> element
         for (line_idx, line) in name_block.lines.iter().enumerate() {
@@ -2871,7 +2888,7 @@ fn draw_entity_box(
                 line_y,
                 Some("sans-serif"),
                 class_font_size,
-                None,
+                font_weight,
                 font_style,
                 None,
                 visible_width,

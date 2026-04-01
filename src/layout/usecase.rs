@@ -493,10 +493,9 @@ fn layout_top_bottom(diagram: &UseCaseDiagram) -> Result<UseCaseLayout> {
     let mut cursor_x = MARGIN;
     let mut uc_section_height: f64 = 0.0;
 
-    // Standalone use cases in a column
+    // Standalone use cases in a row (horizontal, side by side)
     if !standalone.is_empty() {
-        let mut y = uc_start_y + UC_RY;
-        let mut col_w: f64 = 0.0;
+        let y = uc_start_y + UC_RY;
         for uc in &standalone {
             let rx = uc_rx_for_name(&uc.name);
             usecases.push(UseCaseNodeLayout {
@@ -507,11 +506,9 @@ fn layout_top_bottom(diagram: &UseCaseDiagram) -> Result<UseCaseLayout> {
                 rx,
                 ry: UC_RY,
             });
-            col_w = col_w.max(rx * 2.0);
-            y += UC_RY * 2.0 + ITEM_SPACING;
+            cursor_x += rx * 2.0 + ITEM_SPACING;
         }
-        uc_section_height = uc_section_height.max(y - uc_start_y);
-        cursor_x += col_w + ITEM_SPACING;
+        uc_section_height = uc_section_height.max(UC_RY * 2.0);
     }
 
     // Detect boundary nesting

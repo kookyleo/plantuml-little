@@ -95,6 +95,8 @@ const HEADER_CIRCLE_BLOCK_HEIGHT: f64 = 32.0;
 const HEADER_NAME_BLOCK_HEIGHT: f64 = 16.296875;
 /// Name margin: withMargin(name, 3, 3, 0, 0) → left(3) + right(3) = 6.
 const HEADER_NAME_BLOCK_MARGIN_X: f64 = 6.0;
+// Stereo margin: withMargin(stereo, 1, 0) → TextBlockMarged(0, 1, 0, 1) → left(1) + right(1) = 2.
+const HEADER_STEREO_BLOCK_MARGIN_X: f64 = 2.0;
 /// FontParam.CLASS_STEREOTYPE = 12pt.
 const HEADER_STEREO_FONT_SIZE: f64 = 12.0;
 /// SansSerif 12pt italic: ascent(11.138672) + descent(2.830078) = 13.96875.
@@ -367,6 +369,99 @@ pub(crate) fn display_line_metrics(
     (visible_width, indent_width)
 }
 
+/// Result of stripping HTML-like markup tags from a display name.
+///
+/// Java PlantUML interprets `<b>`, `<i>`, `<u>`, `<s>` etc. in display names
+/// as formatting directives. The tags are stripped and the formatting is applied
+/// to the rendered text.
+#[derive(Debug, Clone)]
+pub(crate) struct StrippedMarkup {
+    /// The plain text with all markup tags removed.
+    pub text: String,
+    /// Whether `<b>` was found → font-weight: bold
+    pub bold: bool,
+    /// Whether `<i>` was found → font-style: italic
+    pub italic: bool,
+    /// Whether `<u>` was found → text-decoration: underline
+    pub underline: bool,
+    /// Whether `<s>` or `<strike>` was found → text-decoration: line-through
+    pub strikethrough: bool,
+}
+
+/// Strip HTML-like markup tags from a display name string.
+///
+/// Recognizes `<b>`, `</b>`, `<i>`, `</i>`, `<u>`, `</u>`, `<s>`, `</s>`,
+/// `<strike>`, `</strike>`. Everything else is left as-is.
+pub(crate) fn strip_html_markup(text: &str) -> StrippedMarkup {
+    let mut result = String::with_capacity(text.len());
+    let mut bold = false;
+    let mut italic = false;
+    let mut underline = false;
+    let mut strikethrough = false;
+    let mut i = 0;
+    let bytes = text.as_bytes();
+    while i < bytes.len() {
+        if bytes[i] == b'<' {
+            // Try to match a known tag
+            if let Some((tag_len, is_open, tag_kind)) = match_html_tag(&text[i..]) {
+                match tag_kind {
+                    HtmlTag::Bold => bold |= is_open,
+                    HtmlTag::Italic => italic |= is_open,
+                    HtmlTag::Underline => underline |= is_open,
+                    HtmlTag::Strike => strikethrough |= is_open,
+                }
+                i += tag_len;
+                continue;
+            }
+        }
+        result.push(bytes[i] as char);
+        i += 1;
+    }
+    StrippedMarkup {
+        text: result,
+        bold,
+        italic,
+        underline,
+        strikethrough,
+    }
+}
+
+enum HtmlTag {
+    Bold,
+    Italic,
+    Underline,
+    Strike,
+}
+
+/// Try to match a known HTML tag at the start of `s`.
+/// Returns (byte length consumed, is_opening_tag, tag_kind).
+fn match_html_tag(s: &str) -> Option<(usize, bool, HtmlTag)> {
+    let lower = s.to_ascii_lowercase();
+    let tags: &[(&str, bool, HtmlTag)] = &[
+        ("<b>", true, HtmlTag::Bold),
+        ("</b>", false, HtmlTag::Bold),
+        ("<i>", true, HtmlTag::Italic),
+        ("</i>", false, HtmlTag::Italic),
+        ("<u>", true, HtmlTag::Underline),
+        ("</u>", false, HtmlTag::Underline),
+        ("<s>", true, HtmlTag::Strike),
+        ("</s>", false, HtmlTag::Strike),
+        ("<strike>", true, HtmlTag::Strike),
+        ("</strike>", false, HtmlTag::Strike),
+    ];
+    for (tag, is_open, kind) in tags {
+        if lower.starts_with(tag) {
+            return Some((tag.len(), *is_open, match kind {
+                HtmlTag::Bold => HtmlTag::Bold,
+                HtmlTag::Italic => HtmlTag::Italic,
+                HtmlTag::Underline => HtmlTag::Underline,
+                HtmlTag::Strike => HtmlTag::Strike,
+            }));
+        }
+    }
+    None
+}
+
 /// Convert a qualified entity name to the display name Java uses in class boxes.
 ///
 /// For `pkg1.pkg2.Class`, the rendered name is `Class` while the qualified name
@@ -619,22 +714,31 @@ fn estimate_entity_size(
     // Entity name WITHOUT generic parameter -- generic is rendered separately.
     // Split name into display lines following Java Display semantics (\n, \r split).
     // When `as Alias` is used, display_name holds the original quoted label.
-    let name_display = entity
+    let name_display_raw = entity
         .display_name
         .as_deref()
         .map(String::from)
         .unwrap_or_else(|| class_entity_display_name(&entity.name));
+    // Strip HTML markup (<b>, <i>, etc.) so width is calculated on plain text
+    let markup = strip_html_markup(&name_display_raw);
+    let name_display = if markup.bold || markup.italic {
+        markup.text.clone()
+    } else {
+        name_display_raw
+    };
+    let name_bold = markup.bold;
     let name_block = split_name_display(&name_display);
     let n_name_lines = name_block.lines.len();
 
     let visible_stereotypes = visible_stereotype_labels(&cd.hide_show_rules, &entity.stereotypes);
-    let italic_name = matches!(entity.kind, EntityKind::Abstract | EntityKind::Interface);
+    let italic_name =
+        markup.italic || matches!(entity.kind, EntityKind::Abstract | EntityKind::Interface);
     let name_width = name_block
         .lines
         .iter()
         .map(|line| {
             let (visible_width, indent_width) =
-                display_line_metrics(line, name_font_size, false, italic_name);
+                display_line_metrics(line, name_font_size, name_bold, italic_name);
             visible_width + indent_width
         })
         .fold(0.0_f64, f64::max);
@@ -650,7 +754,7 @@ fn estimate_entity_size(
                 HEADER_STEREO_FONT_SIZE,
                 false,
                 true,
-            )
+            ) + HEADER_STEREO_BLOCK_MARGIN_X
         })
         .fold(0.0_f64, f64::max);
     let vis_icon_w = if entity.visibility.is_some() {
