@@ -555,15 +555,13 @@ fn find_preceding_self_message(
 
 /// Drawn polygon height for the note (SVG rendering).
 /// Java: `(int) getTextHeight()` where `getTextHeight = textBlock.h + 2*marginY(5)`.
+///
+/// Uses the proper BodyEnhanced2 model: `----`/`====` are block separators
+/// (not content lines), tables include AtomWithMargin padding, etc.
 fn estimate_note_height(text: &str) -> f64 {
-    let lines = text
-        .split(crate::NEWLINE_CHAR)
-        .flat_map(|s| s.lines())
-        .count()
-        .max(1) as f64;
-    let lh = font_metrics::line_height("SansSerif", NOTE_FONT_SIZE, false, false);
-    let creole_extra = creole_note_extra_height(text);
-    let h = lines * lh + 10.0 + creole_extra; // marginY1(5) + marginY2(5)
+    let text_block_h =
+        crate::render::svg_richtext::compute_creole_note_text_height(text, NOTE_FONT_SIZE);
+    let h = text_block_h + 10.0; // marginY1(5) + marginY2(5)
     h.trunc().max(25.0)
 }
 
@@ -574,59 +572,9 @@ fn estimate_note_height(text: &str) -> f64 {
 ///   = `textBlock.h + 20`
 /// This is larger than the drawn polygon height by 2*paddingY(=10).
 fn note_preferred_height(text: &str, delta_shadow: f64) -> f64 {
-    let lines = text
-        .split(crate::NEWLINE_CHAR)
-        .flat_map(|s| s.lines())
-        .count()
-        .max(1) as f64;
-    let lh = font_metrics::line_height("SansSerif", NOTE_FONT_SIZE, false, false);
-    let creole_extra = creole_note_extra_height(text);
-    // getTextHeight = textBlock.h + 2*marginY(5)
-    // getPreferredHeight = getTextHeight + 2*paddingY(5) + deltaShadow
-    lines * lh + 20.0 + creole_extra + delta_shadow
-}
-
-/// Estimate extra height added by creole formatting in note text.
-/// Tables get +4px padding per row + 6px border overhead.
-/// Horizontal separators (`----` or `====`) add ~8px each.
-/// Inline SVG sprites: max(sprite_height, line_height) - line_height per sprite line.
-fn creole_note_extra_height(text: &str) -> f64 {
-    let lh = font_metrics::line_height("SansSerif", NOTE_FONT_SIZE, false, false);
-    let mut extra = 0.0;
-    let mut in_table = false;
-    let mut table_rows = 0;
-    for line in text.split(crate::NEWLINE_CHAR).flat_map(|s| s.lines()) {
-        let trimmed = line.trim();
-        if trimmed.starts_with('|') && trimmed.ends_with('|') && trimmed.len() > 2 {
-            if !in_table {
-                in_table = true;
-                table_rows = 0;
-            }
-            table_rows += 1;
-        } else {
-            if in_table {
-                extra += table_rows as f64 * 4.0 + 6.0;
-                in_table = false;
-            }
-            if trimmed == "----"
-                || trimmed == "===="
-                || trimmed.starts_with("----")
-                || trimmed.starts_with("====")
-            {
-                extra += 8.0;
-            }
-            // Inline SVG sprites add their viewBox height when taller than line height
-            if let Some(sprite_extra) =
-                crate::layout::sequence::estimate_sprite_line_extra_height(trimmed, lh)
-            {
-                extra += sprite_extra;
-            }
-        }
-    }
-    if in_table {
-        extra += table_rows as f64 * 4.0 + 6.0;
-    }
-    extra
+    let text_block_h =
+        crate::render::svg_richtext::compute_creole_note_text_height(text, NOTE_FONT_SIZE);
+    text_block_h + 20.0 + delta_shadow
 }
 
 fn estimate_note_width(text: &str) -> f64 {

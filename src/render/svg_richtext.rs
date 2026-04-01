@@ -817,6 +817,297 @@ pub fn render_creole_display_lines(
     }
 }
 
+/// Render creole note content with proper block-level elements.
+///
+/// Java's BodyEnhanced2 splits note text at `----`/`====` separators.
+/// Each segment is rendered independently; `----`/`====` produce a horizontal
+/// rule line but add NO height (they draw on top of the segment boundary).
+///
+/// Within each segment, content is categorised:
+/// - `* text` → bullet list with ellipse marker + indented text
+/// - `|...|` → table with grid lines
+/// - anything else → regular text line (inline creole)
+///
+/// Returns the rendered content height (textBlock.h in Java terms).
+pub fn render_creole_note_content(
+    buf: &mut String,
+    text: &str,
+    note_x: f64,
+    note_y: f64,
+    note_width: f64,
+    fill: &str,
+    font_size: f64,
+    border_color: &str,
+) -> f64 {
+    let margin_x = 6.0; // Java marginX1
+    let margin_y = 5.0; // Java marginY
+    let text_x = note_x + margin_x;
+    let default_font = "SansSerif";
+    let lh = font_metrics::line_height(default_font, font_size, false, false);
+    let ascent = font_metrics::ascent(default_font, font_size, false, false);
+    let outer_attrs = format!(r#"font-size="{font_size}""#);
+
+    // Split text into raw lines (NEWLINE_CHAR, real newlines, and \n escape)
+    let raw_lines: Vec<&str> = text
+        .split(crate::NEWLINE_CHAR)
+        .flat_map(|s| s.lines())
+        .flat_map(|s| s.split("\\n"))
+        .collect();
+
+    // Split at block separators (----/====)
+    let mut segments: Vec<Vec<&str>> = Vec::new();
+    let mut separator_positions: Vec<usize> = Vec::new(); // segment index where HR is drawn
+    let mut current_segment: Vec<&str> = Vec::new();
+
+    for line in &raw_lines {
+        let trimmed = line.trim();
+        if is_block_separator(trimmed) {
+            segments.push(std::mem::take(&mut current_segment));
+            separator_positions.push(segments.len()); // HR before next segment
+        } else {
+            current_segment.push(line);
+        }
+    }
+    segments.push(current_segment);
+
+    let mut cursor_y = note_y + margin_y; // top of textBlock in absolute coords
+
+    for (seg_idx, segment) in segments.iter().enumerate() {
+        // Draw HR separator if this segment follows a "----"/"===="
+        if separator_positions.contains(&seg_idx) {
+            // HR line at current cursor_y (= bottom of previous segment)
+            let hr_x1 = fmt_coord(note_x + 1.0);
+            let hr_x2 = fmt_coord(note_x + note_width - 1.0);
+            let hr_y = fmt_coord(cursor_y);
+            write!(
+                buf,
+                r#"<line style="stroke:{border_color};stroke-width:1;" x1="{hr_x1}" x2="{hr_x2}" y1="{hr_y}" y2="{hr_y}"/>"#,
+            )
+            .unwrap();
+            // Decoration margin: 4px top + 4px bottom around the next block content
+            // Java: TextBlockUtils.withMargin(block, 0, 4) adds 4 top + 4 bottom
+            cursor_y += 4.0; // top margin of decorated block
+        }
+
+        // Parse segment into note blocks
+        let blocks = parse_note_segment(segment);
+
+        for block in &blocks {
+            match block {
+                NoteBlock::TextLines(lines) => {
+                    for line_text in lines {
+                        let baseline = cursor_y + ascent;
+                        let mut tmp = String::new();
+                        render_creole_text(
+                            &mut tmp,
+                            line_text,
+                            text_x,
+                            baseline,
+                            lh,
+                            fill,
+                            None,
+                            &outer_attrs,
+                        );
+                        buf.push_str(&tmp);
+                        cursor_y += lh;
+                    }
+                }
+                NoteBlock::BulletItems(items) => {
+                    for item_text in items {
+                        let baseline = cursor_y + ascent;
+                        // Bullet ellipse: Java Bullet(order=0) draws at dx=3, UEllipse(5,5)
+                        // Sea.doAlign positions bullet at y = lh - bullet_h - |startingAltitude|
+                        // = lh - 5 - 5 = lh - 10.  Ellipse cy = bullet_y + 2.5 = lh - 7.5
+                        let ecx = text_x + 3.0 + 2.5; // cx = text_x + 5.5
+                        let ecy = cursor_y + lh - 7.5; // center from Sea alignment
+                        write!(
+                            buf,
+                            r#"<ellipse cx="{}" cy="{}" fill="{fill}" rx="2.5" ry="2.5"/>"#,
+                            fmt_coord(ecx),
+                            fmt_coord(ecy),
+                        )
+                        .unwrap();
+                        // Bullet text at x+12 (Bullet atom width=12)
+                        let bullet_text_x = text_x + 12.0;
+                        let mut tmp = String::new();
+                        render_creole_text(
+                            &mut tmp,
+                            item_text,
+                            bullet_text_x,
+                            baseline,
+                            lh,
+                            fill,
+                            None,
+                            &outer_attrs,
+                        );
+                        buf.push_str(&tmp);
+                        cursor_y += lh;
+                    }
+                }
+                NoteBlock::Table(raw_rows) => {
+                    // AtomWithMargin adds 2px top margin
+                    cursor_y += TABLE_MARGIN_Y;
+
+                    let rows = parse_display_table_rows(
+                        &raw_rows.iter().map(|s| s.to_string()).collect::<Vec<_>>(),
+                        false,
+                    );
+                    let layout =
+                        layout_display_table(&rows, default_font, font_size, false, false);
+                    render_display_table(
+                        buf,
+                        &rows,
+                        &layout,
+                        text_x,
+                        cursor_y - TABLE_MARGIN_Y, // render_display_table adds TABLE_MARGIN_Y internally
+                        fill,
+                        font_size,
+                        default_font,
+                        false,
+                        false,
+                    );
+                    cursor_y += layout.total_height;
+                }
+            }
+        }
+
+        // If this segment had a separator, add bottom decoration margin
+        if separator_positions.contains(&seg_idx) {
+            cursor_y += 4.0; // bottom margin of decorated block
+        }
+    }
+
+    // Return textBlock.h = total content height consumed
+    cursor_y - (note_y + margin_y)
+}
+
+/// Returns true if the line is a block separator in BodyEnhanced2 sense.
+fn is_block_separator(line: &str) -> bool {
+    (line.starts_with("--") && line.ends_with("--"))
+        || (line.starts_with("==") && line.ends_with("=="))
+        || (line.starts_with("..") && line.ends_with("..") && line != "...")
+        || (line.starts_with("__") && line.ends_with("__"))
+}
+
+/// Compute note textBlock height for creole content.
+///
+/// Models Java's BodyEnhanced2 + SheetBlock1 height computation:
+/// - Regular/bullet lines: line_height each
+/// - `----`/`====` separators: 0 height (but add 8px decoration margin)
+/// - Tables: AtomWithMargin(table, 2, 2) wrapping n_rows * line_height
+pub fn compute_creole_note_text_height(text: &str, font_size: f64) -> f64 {
+    let lh = font_metrics::line_height("SansSerif", font_size, false, false);
+
+    let raw_lines: Vec<&str> = text
+        .split(crate::NEWLINE_CHAR)
+        .flat_map(|s| s.lines())
+        .flat_map(|s| s.split("\\n"))
+        .collect();
+
+    // Split at block separators
+    let mut segments: Vec<Vec<&str>> = Vec::new();
+    let mut n_separators = 0usize;
+    let mut current: Vec<&str> = Vec::new();
+
+    for line in &raw_lines {
+        let trimmed = line.trim();
+        if is_block_separator(trimmed) {
+            segments.push(std::mem::take(&mut current));
+            n_separators += 1;
+        } else {
+            current.push(line);
+        }
+    }
+    segments.push(current);
+
+    let mut total = 0.0;
+    for segment in &segments {
+        let blocks = parse_note_segment(segment);
+        for block in &blocks {
+            match block {
+                NoteBlock::TextLines(lines) => {
+                    total += lines.len() as f64 * lh;
+                }
+                NoteBlock::BulletItems(items) => {
+                    total += items.len() as f64 * lh;
+                }
+                NoteBlock::Table(rows) => {
+                    // AtomWithMargin(table, 2, 2): 2px top + 2px bottom
+                    total += rows.len() as f64 * lh + 2.0 * TABLE_MARGIN_Y;
+                }
+            }
+        }
+    }
+
+    // Each separator adds 8px decoration margin (4 top + 4 bottom)
+    total += n_separators as f64 * 8.0;
+
+    total
+}
+
+enum NoteBlock<'a> {
+    TextLines(Vec<&'a str>),
+    BulletItems(Vec<&'a str>),
+    Table(Vec<&'a str>),
+}
+
+fn parse_note_segment<'a>(lines: &[&'a str]) -> Vec<NoteBlock<'a>> {
+    let mut blocks: Vec<NoteBlock<'a>> = Vec::new();
+    let mut text_lines: Vec<&'a str> = Vec::new();
+    let mut bullet_items: Vec<&'a str> = Vec::new();
+    let mut table_rows: Vec<&'a str> = Vec::new();
+
+    for &line in lines {
+        let trimmed = line.trim();
+
+        // Table line
+        if trimmed.starts_with('|') && trimmed.ends_with('|') && trimmed.len() > 2 {
+            // Flush text/bullets
+            if !text_lines.is_empty() {
+                blocks.push(NoteBlock::TextLines(std::mem::take(&mut text_lines)));
+            }
+            if !bullet_items.is_empty() {
+                blocks.push(NoteBlock::BulletItems(std::mem::take(&mut bullet_items)));
+            }
+            table_rows.push(line);
+            continue;
+        }
+
+        // Flush table if switching to non-table
+        if !table_rows.is_empty() {
+            blocks.push(NoteBlock::Table(std::mem::take(&mut table_rows)));
+        }
+
+        // Bullet line
+        if trimmed.starts_with("* ") {
+            if !text_lines.is_empty() {
+                blocks.push(NoteBlock::TextLines(std::mem::take(&mut text_lines)));
+            }
+            bullet_items.push(&trimmed[2..]);
+            continue;
+        }
+
+        // Regular text line
+        if !bullet_items.is_empty() {
+            blocks.push(NoteBlock::BulletItems(std::mem::take(&mut bullet_items)));
+        }
+        text_lines.push(trimmed);
+    }
+
+    // Flush remaining
+    if !text_lines.is_empty() {
+        blocks.push(NoteBlock::TextLines(text_lines));
+    }
+    if !bullet_items.is_empty() {
+        blocks.push(NoteBlock::BulletItems(bullet_items));
+    }
+    if !table_rows.is_empty() {
+        blocks.push(NoteBlock::Table(table_rows));
+    }
+
+    blocks
+}
+
 fn build_display_blocks(lines: &[String], preserve_backslash_n: bool) -> Vec<DisplayBlock> {
     let mut blocks = Vec::new();
     let mut idx = 0usize;

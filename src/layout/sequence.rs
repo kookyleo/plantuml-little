@@ -501,13 +501,12 @@ pub(crate) fn estimate_sprite_line_extra_height(line: &str, line_height: f64) ->
 }
 
 /// Estimate note visual height (for rendering the note polygon).
-/// Java ComponentRoseNote: marginY=5, textBlock height = lines * line_height.
+/// Java ComponentRoseNote: marginY=5, textBlock height computed via BodyEnhanced2.
 /// Visual height = (int)(textBlockH + 2*marginY), clamped to min 25.
 fn estimate_note_height(text: &str) -> f64 {
-    let lines = count_note_lines(text) as f64;
-    let lh = font_metrics::line_height("SansSerif", NOTE_FONT_SIZE, false, false);
-    let creole_extra = creole_note_extra_height(text);
-    let h = lines * lh + 10.0 + creole_extra; // marginY1(5) + marginY2(5) = 10
+    let text_block_h =
+        crate::render::svg_richtext::compute_creole_note_text_height(text, NOTE_FONT_SIZE);
+    let h = text_block_h + 10.0; // marginY1(5) + marginY2(5) = 10
     h.trunc().max(25.0)
 }
 
@@ -515,10 +514,9 @@ fn estimate_note_height(text: &str) -> f64 {
 /// Java ComponentRoseNote.getPreferredHeight = getTextHeight + 2*paddingY + deltaShadow.
 /// paddingY=5 (Rose.paddingY), deltaShadow=0 (default plantuml.skin).
 fn estimate_note_preferred_height(text: &str) -> f64 {
-    let lines = count_note_lines(text) as f64;
-    let lh = font_metrics::line_height("SansSerif", NOTE_FONT_SIZE, false, false);
-    let creole_extra = creole_note_extra_height(text);
-    let text_height = lines * lh + 10.0 + creole_extra; // textBlockH + 2*marginY(5)
+    let text_block_h =
+        crate::render::svg_richtext::compute_creole_note_text_height(text, NOTE_FONT_SIZE);
+    let text_height = text_block_h + 10.0; // textBlockH + 2*marginY(5)
     text_height + 10.0 // + 2*paddingY(5), shadow=0
 }
 
@@ -538,7 +536,10 @@ fn estimate_note_width(text: &str) -> f64 {
             continue;
         }
         if trimmed.starts_with('|') && trimmed.ends_with('|') && trimmed.len() > 2 {
-            // Table row: measure individual cell widths (Java CreoleTable)
+            // Table row: measure cell widths including space padding.
+            // Java StripeTable tokenizes on '|', preserving spaces around content.
+            // Cell width = text_width(content_with_spaces) where each cell has
+            // a leading and trailing space.
             let cells: Vec<&str> = trimmed[1..trimmed.len()-1]
                 .split('|')
                 .collect();
@@ -546,11 +547,10 @@ fn estimate_note_width(text: &str) -> f64 {
             for cell in &cells {
                 let cell_text = cell.trim().trim_start_matches('=').trim();
                 let bold = cell.trim().starts_with('=');
+                let space_w = font_metrics::text_width(" ", "SansSerif", NOTE_FONT_SIZE, bold, false);
                 let cw = font_metrics::text_width(cell_text, "SansSerif", NOTE_FONT_SIZE, bold, false);
-                row_w += cw + 10.0; // ~5px padding each side
+                row_w += cw + 2.0 * space_w; // Java: ' text ' = space + text + space
             }
-            // Add table border overhead
-            row_w += (cells.len() as f64 + 1.0) * 1.0; // border lines
             max_line_w = max_line_w.max(row_w);
         } else if trimmed.starts_with("* ") || trimmed.starts_with("# ") {
             // Bullet/numbered list: measure text after bullet marker
@@ -1757,17 +1757,17 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
                     // Arrow PH from tile start = y_cursor - note_y.
                     // If note PH > arrow PH, push y_cursor forward by the difference.
                     let arrow_ph = if last_message_extra_height > 0.0 {
-                        // Multiline: use tile preferred height, not y_cursor - note_y
-                        // which is inflated by extra_height in the back_offset.
                         lp.message_spacing + last_message_extra_height
                     } else {
-                        // Single-line: original formula works correctly
                         y_cursor - note_y
                     };
                     if note_pref_h > arrow_ph {
                         let note_push = note_pref_h - arrow_ph;
                         y_cursor += note_push;
-                        lifeline_extend_y += note_push / 2.0;
+                        // Ensure lifeline extends past the note polygon + spacing
+                        let note_bottom = note_y + note_height;
+                        lifeline_extend_y = lifeline_extend_y
+                            .max(note_bottom + lp.message_spacing / 2.0);
                     }
                 } else {
                     // Standalone note (not following a message): advance by note height

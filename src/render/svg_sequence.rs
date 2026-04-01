@@ -13,8 +13,8 @@ use crate::font_metrics;
 
 use super::svg::{ensure_visible_int, write_bg_rect, write_svg_root_bg};
 use super::svg_richtext::{
-    disable_path_sprites, enable_path_sprites, render_creole_text, set_default_font_family,
-    take_back_filters,
+    disable_path_sprites, enable_path_sprites, render_creole_note_content, render_creole_text,
+    set_default_font_family, take_back_filters,
 };
 use crate::klimt::sanitize_group_metadata_value;
 use crate::klimt::svg::{fmt_coord, xml_escape, LengthAdjust, SvgGraphic};
@@ -2586,23 +2586,19 @@ fn draw_note(sg: &mut SvgGraphic, note: &NoteLayout, shadow_attr: &str, skin: &S
         ));
     }
 
-    let text_x = x + 6.0;
-    // Java: ComponentRoseNote applies UTranslate(marginX1=6, marginY=5),
-    // then TextBlock renders first line at y = ascent.
-    let note_margin_y = 5.0; // AbstractTextualComponent.marginY for notes
-    let text_y =
-        note.y + note_margin_y + font_metrics::ascent("SansSerif", FONT_SIZE, false, false);
-    let note_line_height = font_metrics::line_height("SansSerif", FONT_SIZE, false, false);
+    // Render note content with proper block-level creole (bullets, tables, hrules).
+    // HR lines use the un-truncated width for stencil-based rendering (Java
+    // SheetBlock2 stencil uses marginX1+textBlock.width+marginX2, not truncated).
     let mut tmp = String::new();
-    render_creole_text(
+    render_creole_note_content(
         &mut tmp,
         &note.text,
-        text_x,
-        text_y,
-        note_line_height,
+        x,
+        y,
+        note.width, // un-truncated for HR stencil
         TEXT_COLOR,
-        None,
-        &format!(r#"font-size="{FONT_SIZE}""#),
+        FONT_SIZE,
+        border,
     );
     sg.push_raw(&tmp);
 }
