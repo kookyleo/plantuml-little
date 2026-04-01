@@ -1586,10 +1586,12 @@ fn test_skinparam_handwritten001() {
     let svg = convert_fixture("tests/fixtures/misc/skinparam_handwritten001.puml");
     assert_valid_svg(&svg, "skinparam_handwritten001");
     assert!(svg.contains("Alice"), "must contain Alice");
-    // Handwritten mode uses cursive font
+    // Handwritten mode does NOT change fonts in Java PlantUML.
+    // It only jiggles shapes and adds a warning banner.
+    // The font stays sans-serif for all text rendering.
     assert!(
-        svg.contains("cursive") || svg.contains("Comic"),
-        "handwritten must use cursive-style font"
+        svg.contains("sans-serif"),
+        "handwritten mode must still use sans-serif font"
     );
 }
 
