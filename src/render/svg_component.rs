@@ -1621,32 +1621,172 @@ fn render_edge(
         }
     }
 
-    // Label at midpoint
+    // Link label rendering matching Java's StringWithArrow + SvekEdge.drawMiddleDecoration().
+    // Java uses font-size 13 for link labels and renders direction indicators (> / <) as
+    // small triangular polygons. Bold segments get separate <text> elements.
     if !edge.label.is_empty() {
-        let mid = pts.len() / 2;
-        let (mx, my) = if pts.len() == 2 {
-            let (x1, y1) = pts[0];
-            let (x2, y2) = pts[1];
-            ((x1 + x2) / 2.0, (y1 + y2) / 2.0 - 6.0)
+        // Use label_xy from graphviz if available, otherwise fall back to midpoint.
+        let (lx, ly) = if let Some((lx, ly)) = edge.label_xy {
+            (lx, ly)
         } else {
-            pts[mid]
+            let mid = pts.len() / 2;
+            if pts.len() == 2 {
+                let (x1, y1) = pts[0];
+                let (x2, y2) = pts[1];
+                ((x1 + x2) / 2.0, (y1 + y2) / 2.0 - 6.0)
+            } else {
+                pts[mid]
+            }
         };
 
-        let mut tmp = String::new();
-        render_creole_text(
-            &mut tmp,
-            &edge.label,
-            mx,
-            my,
-            LINE_HEIGHT,
-            font_color,
-            Some("middle"),
-            &format!(r#"font-size="{FONT_SIZE}""#),
-        );
-        sg.push_raw(&tmp);
+        render_link_label(sg, &edge.label, lx, ly, font_color);
     }
 
     sg.push_raw("</g>");
+}
+
+/// Render a link label matching Java's StringWithArrow format.
+/// Handles direction indicators (> / <) as triangular polygons and renders
+/// text segments with font-size 13. Bold (**text**) gets separate <text> elements.
+fn render_link_label(
+    sg: &mut SvgGraphic,
+    label: &str,
+    label_x: f64,
+    label_y: f64,
+    font_color: &str,
+) {
+    const LINK_FONT_SIZE: f64 = 13.0;
+
+    // Parse direction indicator (> or <) from the label.
+    // Java: StringWithArrow detects leading/trailing > or < characters.
+    let trimmed = label.trim();
+    let (direction, text) = if trimmed.starts_with('>') {
+        ("forward", trimmed[1..].trim())
+    } else if trimmed.starts_with('<') {
+        ("backward", trimmed[1..].trim())
+    } else if trimmed.ends_with('>') {
+        ("forward", trimmed[..trimmed.len() - 1].trim())
+    } else if trimmed.ends_with('<') {
+        ("backward", trimmed[..trimmed.len() - 1].trim())
+    } else {
+        ("none", trimmed)
+    };
+
+    // Parse bold segments: **text** → bold, rest → normal
+    let segments = parse_creole_bold_segments(text);
+
+    // Compute text widths for positioning
+    let mut total_text_width = 0.0;
+    for seg in &segments {
+        total_text_width += font_metrics::text_width(seg.text, "SansSerif", LINK_FONT_SIZE, seg.bold, false);
+    }
+
+    // Direction indicator triangle width (Java: about 9 pixels for the triangle)
+    let indicator_width = if direction != "none" { 9.0 } else { 0.0 };
+
+    // label_x, label_y is the top-left of the label bounding box.
+    // Text baseline is at label_y + ascent (ascent ≈ font_size * 0.75 + descent)
+    // Java uses specific metrics for SansSerif 13pt.
+    let text_ascent = 9.5664; // Java SansSerif 13pt ascent from metrics
+    let text_y = label_y + text_ascent;
+
+    // Render direction indicator triangle
+    if direction != "none" {
+        let tri_x = label_x;
+        let tri_y = label_y;
+        let tri_h = text_ascent;
+        let tri_w = indicator_width;
+
+        // Triangle points depend on direction
+        // For "forward" (>): triangle pointing right/down along the edge direction
+        // Java draws these as small 3-point triangles
+        let (p1x, p1y, p2x, p2y, p3x, p3y) = if direction == "forward" {
+            // Downward/rightward pointing triangle
+            (
+                tri_x + tri_w / 2.0, tri_y,               // tip (top center)
+                tri_x, tri_y + tri_h,                      // bottom left
+                tri_x + tri_w, tri_y + tri_h,              // bottom right
+            )
+        } else {
+            // Backward (<): leftward/upward pointing triangle
+            (
+                tri_x + tri_w / 2.0, tri_y + tri_h,       // tip (bottom center)
+                tri_x, tri_y,                              // top left
+                tri_x + tri_w, tri_y,                      // top right
+            )
+        };
+
+        sg.set_fill_color("#000000");
+        sg.set_stroke_color(Some("#000000"));
+        sg.set_stroke_width(1.0, None);
+        sg.svg_polygon(0.0, &[p1x, p1y, p2x, p2y, p3x, p3y, p1x, p1y]);
+    }
+
+    // Render text segments
+    let mut text_x = label_x + indicator_width;
+    for seg in &segments {
+        let w = font_metrics::text_width(seg.text, "SansSerif", LINK_FONT_SIZE, seg.bold, false);
+        let bold_attr = if seg.bold {
+            r#" font-weight="700""#
+        } else {
+            ""
+        };
+        sg.push_raw(&format!(
+            r#"<text fill="{font_color}" font-family="sans-serif" font-size="{LINK_FONT_SIZE}"{bold_attr} lengthAdjust="spacing" textLength="{}" x="{}" y="{}">{}</text>"#,
+            fmt_coord(w),
+            fmt_coord(text_x),
+            fmt_coord(text_y),
+            xml_escape(seg.text),
+        ));
+        text_x += w;
+    }
+}
+
+/// A segment of text with optional bold formatting.
+struct TextSegment<'a> {
+    text: &'a str,
+    bold: bool,
+}
+
+/// Parse Creole bold markers (**text**) into segments of normal and bold text.
+fn parse_creole_bold_segments(text: &str) -> Vec<TextSegment<'_>> {
+    let mut segments = Vec::new();
+    let mut remaining = text;
+
+    while !remaining.is_empty() {
+        if let Some(bold_start) = remaining.find("**") {
+            // Text before the bold marker
+            if bold_start > 0 {
+                segments.push(TextSegment {
+                    text: &remaining[..bold_start],
+                    bold: false,
+                });
+            }
+            let after_start = &remaining[bold_start + 2..];
+            if let Some(bold_end) = after_start.find("**") {
+                segments.push(TextSegment {
+                    text: &after_start[..bold_end],
+                    bold: true,
+                });
+                remaining = &after_start[bold_end + 2..];
+            } else {
+                // No closing **, treat rest as bold
+                segments.push(TextSegment {
+                    text: after_start,
+                    bold: true,
+                });
+                remaining = "";
+            }
+        } else {
+            segments.push(TextSegment {
+                text: remaining,
+                bold: false,
+            });
+            remaining = "";
+        }
+    }
+
+    segments
 }
 
 fn adjust_path_endpoint(d: &str, decoration_len: f64) -> String {
