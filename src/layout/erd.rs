@@ -501,10 +501,12 @@ pub fn layout_erd(diagram: &ErdDiagram) -> Result<ErdLayout> {
     );
 
     // Collect all node positions: (top_left_x, top_left_y, width, height)
+    // Use min_x/min_y from graphviz (not cx-width/2) to handle ellipse nodes
+    // where graphviz rounds rx/ry, causing cx-width/2 to differ from min_x.
     let mut positions: HashMap<String, (f64, f64, f64, f64)> = HashMap::new();
     for nl in &gl.nodes {
-        let x = nl.cx - nl.width / 2.0 + render_dx;
-        let y = nl.cy - nl.height / 2.0 + render_dy;
+        let x = nl.min_x + render_dx;
+        let y = nl.min_y + render_dy;
         positions.insert(nl.id.clone(), (x, y, nl.width, nl.height));
     }
 
@@ -609,11 +611,15 @@ pub fn layout_erd(diagram: &ErdDiagram) -> Result<ErdLayout> {
         let raw_path_d = svek_edge
             .and_then(|e| e.raw_path_d.as_ref())
             .map(|d| shift_svg_path(d, render_dx, render_dy));
+        // Java: label is drawn at label_polygon_min_xy + moveDelta.
+        // Our label_xy is from svek solve (pre-moveDelta), so just add moveDelta.
+        // No normalize_offset or render_offset — those apply to entity positions
+        // but Java draws labels directly from moveDelta'd svek coordinates.
         let label_xy = svek_edge.and_then(|e| {
             let (lx, ly) = e.label_xy?;
             Some((
-                lx + gl.move_delta.0 - gl.normalize_offset.0 + render_dx,
-                ly + gl.move_delta.1 - gl.normalize_offset.1 + render_dy_label,
+                lx + gl.move_delta.0,
+                ly + gl.move_delta.1,
             ))
         });
 

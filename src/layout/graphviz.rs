@@ -132,6 +132,13 @@ pub struct NodeLayout {
     /// When Graphviz expands a node beyond the image dimensions (e.g. for
     /// qualifier shields), `image_width < width`.
     pub image_width: f64,
+    /// Top-left x from graphviz (polygon min_x or cx-rx for ellipses).
+    /// For rect nodes: min_x == cx - width/2.
+    /// For ellipse nodes: min_x may differ from cx - width/2 due to
+    /// graphviz rounding rx/ry to integers.
+    pub min_x: f64,
+    /// Top-left y from graphviz (polygon min_y or cy-ry for ellipses).
+    pub min_y: f64,
 }
 
 /// Output: edge path after layout (SVG coordinates)
@@ -711,6 +718,8 @@ pub fn layout_with_svek(graph: &LayoutGraph) -> Result<GraphLayout, Error> {
                 width: sn.width,
                 height: sn.height,
                 image_width: iw,
+                min_x: sn.min_x,
+                min_y: sn.min_y,
             }
         })
         .collect();
@@ -788,14 +797,17 @@ pub fn layout_with_svek(graph: &LayoutGraph) -> Result<GraphLayout, Error> {
     let mut clusters_out = Vec::new();
     flatten_cluster_layouts(svek_clusters, &cluster_specs_by_id, &mut clusters_out);
 
-    // Compute bounding box
+    // Use min_x/min_y from graphviz for bounding box min (not cx-width/2)
+    // to handle ellipse nodes where graphviz rounds rx/ry.
+    // Keep max using cx+width/2 to preserve the original entity dimensions
+    // for total_width/total_height calculation.
     let min_x_nodes = nodes_out
         .iter()
-        .map(|n| n.cx - n.width / 2.0)
+        .map(|n| n.min_x)
         .fold(f64::INFINITY, f64::min);
     let min_y_nodes = nodes_out
         .iter()
-        .map(|n| n.cy - n.height / 2.0)
+        .map(|n| n.min_y)
         .fold(f64::INFINITY, f64::min);
     let max_x_nodes = nodes_out
         .iter()
@@ -850,6 +862,8 @@ pub fn layout_with_svek(graph: &LayoutGraph) -> Result<GraphLayout, Error> {
     for n in &mut nodes_out {
         n.cx -= min_x;
         n.cy -= min_y;
+        n.min_x -= min_x;
+        n.min_y -= min_y;
     }
     for e in &mut edges_out {
         for p in &mut e.points {
@@ -1205,6 +1219,8 @@ fn parse_svg_node(g: &str, tx: f64, ty: f64, graph: &LayoutGraph) -> Option<Node
         width: w,
         height: h,
         image_width: w,
+        min_x,
+        min_y,
     })
 }
 

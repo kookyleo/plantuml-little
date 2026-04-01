@@ -1739,6 +1739,8 @@ mod tests {
             width: 120.0,
             height: 80.0,
             image_width: 120.0,
+            min_x: 40.0,
+            min_y: 10.0,
         }];
         let name_to_id: HashMap<String, String> = [("Foo".to_string(), "Foo".to_string())]
             .into_iter()
@@ -1776,6 +1778,8 @@ mod tests {
             width: 100.0,
             height: 60.0,
             image_width: 100.0,
+            min_x: 150.0,
+            min_y: 70.0,
         }];
         let name_to_id: HashMap<String, String> = [("Bar".to_string(), "Bar".to_string())]
             .into_iter()
@@ -1811,6 +1815,8 @@ mod tests {
             width: 80.0,
             height: 40.0,
             image_width: 80.0,
+            min_x: 10.0,
+            min_y: 30.0,
         }];
         let name_to_id: HashMap<String, String> =
             [("X".to_string(), "X".to_string())].into_iter().collect();

@@ -70,8 +70,9 @@ pub fn render_erd(_ed: &ErdDiagram, layout: &ErdLayout, skin: &SkinParams) -> Re
     for (i, attr_edge) in layout.attr_edges.iter().enumerate() {
         render_attr_edge(&mut sg, attr_edge, i);
     }
+    let edge_id_offset = layout.attr_edges.len();
     for (i, edge) in layout.edges.iter().enumerate() {
-        render_edge(&mut sg, edge, i);
+        render_edge(&mut sg, edge, i + edge_id_offset);
     }
     for isa in &layout.isa_layouts {
         render_isa(&mut sg, isa);
@@ -221,9 +222,10 @@ fn render_attribute(sg: &mut SvgGraphic, attr: &ErdAttrLayout) {
         sg.set_stroke_width(0.5, None);
         sg.svg_ellipse(cx, cy, rx, ry, 0.0);
     }
+    // Java text y: entity_top_y + MARGIN(6) + ascent (TextBlockInEllipse layout)
     let asc = crate::font_metrics::ascent("SansSerif", FONT_SIZE, false, false);
-    let desc = crate::font_metrics::descent("SansSerif", FONT_SIZE, false, false);
-    let ty = cy + (asc - desc) / 2.0;
+    let entity_top_y = cy - ry;
+    let ty = entity_top_y + 6.0 + asc;
     let text_w = crate::font_metrics::text_width(&attr.label, "SansSerif", FONT_SIZE, false, false);
     let text_x = cx - text_w / 2.0;
     if attr.is_key {
@@ -356,8 +358,10 @@ fn render_edge(sg: &mut SvgGraphic, edge: &ErdEdgeLayout, link_idx: usize) {
     }
     if !edge.label.is_empty() {
         let (mx, my) = if let Some((lx, ly)) = edge.label_xy {
+            // Java: x = label_xy.x + shield(0) + marginLabel(1)
+            //        y = label_xy.y + shield(0) + marginLabel(1) + ascent
             let asc = crate::font_metrics::ascent("SansSerif", 11.0, false, false);
-            (lx + 1.0, ly + asc)
+            (lx + 1.0, ly + 1.0 + asc)
         } else {
             ((x1 + x2) / 2.0, (y1 + y2) / 2.0 - 6.0)
         };
