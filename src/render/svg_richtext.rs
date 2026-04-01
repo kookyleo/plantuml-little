@@ -1045,6 +1045,213 @@ pub fn compute_creole_note_text_height(text: &str, font_size: f64) -> f64 {
     total
 }
 
+/// Compute the height of a creole-rendered entity name (bold, cluster title).
+///
+/// Similar to `compute_creole_note_text_height` but uses bold metrics and
+/// 10px separator margin (5 before + 5 after) matching Java's ClusterHeader
+/// rendering of TextBlockVertical with BodyEnhanced2 creole blocks.
+pub fn compute_creole_entity_name_height(text: &str, font_size: f64) -> f64 {
+    let lh = font_metrics::line_height("SansSerif", font_size, true, false);
+
+    let raw_lines: Vec<&str> = text
+        .split(crate::NEWLINE_CHAR)
+        .flat_map(|s| s.lines())
+        .collect();
+
+    let mut segments: Vec<Vec<&str>> = Vec::new();
+    let mut n_separators = 0usize;
+    let mut current: Vec<&str> = Vec::new();
+
+    for line in &raw_lines {
+        let trimmed = line.trim();
+        if is_block_separator(trimmed) {
+            segments.push(std::mem::take(&mut current));
+            n_separators += 1;
+        } else {
+            current.push(line);
+        }
+    }
+    segments.push(current);
+
+    let mut total = 0.0;
+    for segment in &segments {
+        let blocks = parse_note_segment(segment);
+        for block in &blocks {
+            match block {
+                NoteBlock::TextLines(lines) => {
+                    total += lines.len() as f64 * lh;
+                }
+                NoteBlock::BulletItems(items) => {
+                    total += items.len() as f64 * lh;
+                }
+                NoteBlock::Table(_) => {
+                    // Tables not expected in entity names; treat as line
+                    total += lh;
+                }
+            }
+        }
+    }
+
+    // Each separator adds 10px (5 before HR + 5 after HR)
+    total += n_separators as f64 * 10.0;
+
+    total
+}
+
+/// Render a creole-formatted entity name (bold, centered) into SVG.
+///
+/// Handles `----` separators (horizontal rules) and `* item` bullet lists
+/// in entity names. Returns the total rendered height.
+pub fn render_creole_entity_name(
+    buf: &mut String,
+    text: &str,
+    cluster_x: f64,
+    cluster_y: f64,
+    cluster_w: f64,
+    font_color: &str,
+    border_color: &str,
+    font_size: f64,
+) -> f64 {
+    let lh = font_metrics::line_height("SansSerif", font_size, true, false);
+    let ascent = font_metrics::ascent("SansSerif", font_size, true, false);
+
+    let raw_lines: Vec<&str> = text
+        .split(crate::NEWLINE_CHAR)
+        .flat_map(|s| s.lines())
+        .collect();
+
+    // Split at block separators
+    let mut segments: Vec<Vec<&str>> = Vec::new();
+    let mut separator_positions: Vec<usize> = Vec::new();
+    let mut current: Vec<&str> = Vec::new();
+
+    for line in &raw_lines {
+        let trimmed = line.trim();
+        if is_block_separator(trimmed) {
+            segments.push(std::mem::take(&mut current));
+            separator_positions.push(segments.len());
+        } else {
+            current.push(line);
+        }
+    }
+    segments.push(current);
+
+    // Compute the max text width across all lines (for HR width and centering)
+    let all_line_widths: Vec<f64> = raw_lines
+        .iter()
+        .filter(|l| !is_block_separator(l.trim()))
+        .map(|line| {
+            let trimmed = line.trim();
+            if let Some(bullet_text) = trimmed.strip_prefix("* ") {
+                // Bullet line width = bullet_indent(12) + text_width
+                12.0 + font_metrics::text_width(bullet_text, "SansSerif", font_size, true, false)
+            } else {
+                font_metrics::text_width(trimmed, "SansSerif", font_size, true, false)
+            }
+        })
+        .collect();
+    let max_line_w = all_line_widths.iter().cloned().fold(0.0_f64, f64::max);
+
+    let start_y = cluster_y + 2.0;
+    let mut cursor_y = start_y;
+
+    for (seg_idx, segment) in segments.iter().enumerate() {
+        // Draw HR separator if this segment follows a "----"/"===="
+        if separator_positions.contains(&seg_idx) {
+            let hr_y = cursor_y + 5.0;
+            let hr_x1 = cluster_x + (cluster_w - max_line_w) / 2.0;
+            let hr_x2 = hr_x1 + max_line_w;
+            write!(
+                buf,
+                r#"<line style="stroke:{border_color};stroke-width:1;" x1="{}" x2="{}" y1="{}" y2="{}"/>"#,
+                fmt_coord(hr_x1),
+                fmt_coord(hr_x2),
+                fmt_coord(hr_y),
+                fmt_coord(hr_y),
+            )
+            .unwrap();
+            cursor_y += 10.0; // 5 before + 5 after
+        }
+
+        let blocks = parse_note_segment(segment);
+
+        for block in &blocks {
+            match block {
+                NoteBlock::TextLines(lines) => {
+                    for line_text in lines {
+                        let tl = font_metrics::text_width(
+                            line_text,
+                            "SansSerif",
+                            font_size,
+                            true,
+                            false,
+                        );
+                        let text_x = cluster_x + (cluster_w - tl) / 2.0;
+                        let baseline = cursor_y + ascent;
+                        write!(
+                            buf,
+                            r#"<text fill="{font_color}" font-family="sans-serif" font-size="{}" font-weight="700" lengthAdjust="spacing" textLength="{}"{}>{}</text>"#,
+                            font_size as u32,
+                            fmt_coord(tl),
+                            format!(r#" x="{}" y="{}""#, fmt_coord(text_x), fmt_coord(baseline)),
+                            xml_escape(line_text),
+                        )
+                        .unwrap();
+                        cursor_y += lh;
+                    }
+                }
+                NoteBlock::BulletItems(items) => {
+                    for item_text in items {
+                        let text_w = font_metrics::text_width(
+                            item_text,
+                            "SansSerif",
+                            font_size,
+                            true,
+                            false,
+                        );
+                        // Total bullet line width = 12 (indent) + text_w
+                        let bullet_line_w = 12.0 + text_w;
+                        // Center the bullet line as a unit within the cluster
+                        let line_x = cluster_x + (cluster_w - bullet_line_w) / 2.0;
+                        let ecx = line_x + 3.0 + 2.5;
+                        let ecy = cursor_y + lh - 7.5;
+                        write!(
+                            buf,
+                            r#"<ellipse cx="{}" cy="{}" fill="{font_color}" rx="2.5" ry="2.5"/>"#,
+                            fmt_coord(ecx),
+                            fmt_coord(ecy),
+                        )
+                        .unwrap();
+                        let bullet_text_x = line_x + 12.0;
+                        let baseline = cursor_y + ascent;
+                        let tl = text_w;
+                        write!(
+                            buf,
+                            r#"<text fill="{font_color}" font-family="sans-serif" font-size="{}" font-weight="700" lengthAdjust="spacing" textLength="{}"{}>{}</text>"#,
+                            font_size as u32,
+                            fmt_coord(tl),
+                            format!(
+                                r#" x="{}" y="{}""#,
+                                fmt_coord(bullet_text_x),
+                                fmt_coord(baseline)
+                            ),
+                            xml_escape(item_text),
+                        )
+                        .unwrap();
+                        cursor_y += lh;
+                    }
+                }
+                NoteBlock::Table(_) => {
+                    // Tables not expected in entity names
+                    cursor_y += lh;
+                }
+            }
+        }
+    }
+
+    cursor_y - start_y
+}
+
 enum NoteBlock<'a> {
     TextLines(Vec<&'a str>),
     BulletItems(Vec<&'a str>),

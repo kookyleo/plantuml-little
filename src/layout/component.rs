@@ -114,10 +114,6 @@ fn text_width(text: &str) -> f64 {
     font_metrics::text_width(text, "SansSerif", FONT_SIZE, false, false)
 }
 
-/// Component icon (the small box at top-right) adds 10px to width:
-/// gap(5) + icon_width(15) + right_pad(5) - right_PADDING(15) = 10
-const COMPONENT_ICON_EXTRA: f64 = 10.0;
-
 /// Get sprite dimensions if the stereotype references a registered sprite.
 /// Returns (width, height) of the sprite, or None if not a sprite.
 fn sprite_stereo_dimensions(stereotype: &str) -> Option<(f64, f64)> {
@@ -128,6 +124,30 @@ fn sprite_stereo_dimensions(stereotype: &str) -> Option<(f64, f64)> {
     let svg = crate::render::svg_richtext::get_sprite_svg(sprite_name)?;
     let info = crate::render::svg_sprite::sprite_info(&svg);
     Some((info.vb_width, info.vb_height))
+}
+
+/// Returns (margin_left, margin_right, margin_top, margin_bottom) for each entity kind.
+/// Values from Java's USymbol subclasses `getMargin()` methods.
+pub fn entity_margins(kind: &ComponentKind) -> (f64, f64, f64, f64) {
+    match kind {
+        ComponentKind::Card => (10.0, 10.0, 3.0, 3.0),
+        // USymbolComponent2: Margin(10+5, 20+5, 15+5, 5+5)
+        ComponentKind::Component => (15.0, 25.0, 20.0, 10.0),
+        ComponentKind::Rectangle => (10.0, 10.0, 10.0, 10.0),
+        ComponentKind::Interface => (10.0, 10.0, 10.0, 10.0),
+        ComponentKind::Cloud => (15.0, 15.0, 15.0, 15.0),
+        ComponentKind::Database => (10.0, 10.0, 24.0, 5.0),
+        ComponentKind::Node => (15.0, 25.0, 20.0, 10.0),
+        ComponentKind::Package => (10.0, 10.0, 10.0, 10.0),
+        ComponentKind::Artifact => (10.0, 20.0, 13.0, 10.0),
+        ComponentKind::Storage => (10.0, 10.0, 10.0, 10.0),
+        ComponentKind::Folder => (10.0, 20.0, 13.0, 10.0),
+        ComponentKind::Frame => (15.0, 25.0, 20.0, 10.0),
+        ComponentKind::Agent => (10.0, 10.0, 10.0, 10.0),
+        ComponentKind::Stack => (25.0, 25.0, 10.0, 10.0),
+        ComponentKind::Queue => (5.0, 15.0, 5.0, 5.0),
+        ComponentKind::PortIn | ComponentKind::PortOut => (0.0, 0.0, 0.0, 0.0),
+    }
 }
 
 /// Estimate the size of a component entity.
@@ -167,34 +187,29 @@ fn estimate_entity_size(entity: &ComponentEntity) -> (f64, f64) {
         return (width, height);
     }
 
-    // Non-sprite path: original sizing logic
-    // Java: width = leftPad(15) + text + gap(5) + icon(15) + rightPad(5)
-    //     = text + 40 = text + 2*PADDING + COMPONENT_ICON_EXTRA
-    // Name may contain real newlines (from \n expansion) — split and measure each line
+    // Non-sprite path: use type-specific margins from Java USymbol classes.
+    // Card has tight margins (10,10,3,3); most others use PADDING=15 as fallback.
+    let (ml, mr, mt, mb) = entity_margins(&entity.kind);
     let name_lines: Vec<&str> = entity.name.lines().collect();
     let name_line_count = name_lines.len().max(1);
-    let icon_extra = if matches!(entity.kind, ComponentKind::Component) {
-        COMPONENT_ICON_EXTRA
-    } else {
-        0.0
-    };
+    // Component icon space is already included in the right margin (25px).
     let name_w = name_lines
         .iter()
         .map(|line| text_width(line))
         .fold(0.0_f64, f64::max)
-        + 2.0 * PADDING
-        + icon_extra;
+        + ml
+        + mr;
 
     let desc_w = entity
         .description
         .iter()
-        .map(|line| text_width(line) + 2.0 * PADDING)
+        .map(|line| text_width(line) + ml + mr)
         .fold(0.0_f64, f64::max);
 
     let stereo_w = entity
         .stereotype
         .as_ref()
-        .map_or(0.0, |s| text_width(s) + 2.0 * PADDING + 20.0);
+        .map_or(0.0, |s| text_width(s) + ml + mr + 20.0);
 
     let width = name_w.max(desc_w).max(stereo_w).max(NODE_MIN_WIDTH);
 
@@ -219,7 +234,18 @@ fn estimate_entity_size(entity: &ComponentEntity) -> (f64, f64) {
             .count() as f64;
         effective_desc_lines + stereo_lines
     };
-    let height = (total_lines * LINE_HEIGHT + 2.0 * PADDING).max(NODE_MIN_HEIGHT);
+    // Card entities have no minimum height; other types use NODE_MIN_HEIGHT.
+    let min_h = if matches!(entity.kind, ComponentKind::Card) {
+        0.0
+    } else {
+        NODE_MIN_HEIGHT
+    };
+    let height = (total_lines * LINE_HEIGHT + mt + mb).max(min_h);
+
+    log::debug!(
+        "estimate_entity_size: name={:?} kind={:?} margins=({},{},{},{}) lines={} w={:.1} h={:.1}",
+        entity.name, entity.kind, ml, mr, mt, mb, total_lines, width, height
+    );
 
     (width, height)
 }
@@ -411,18 +437,30 @@ pub fn layout_component(cd: &ComponentDiagram) -> Result<ComponentLayout> {
                 .collect();
             // Compute cluster label dimensions from group name.
             // Java ClusterHeader: stereoAndTitle = mergeTB(stereo, title)
-            //   dimLabel.getHeight() = stereo_h + title_h
-            //   titleAndAttributeHeight = (int)(dimLabel.getHeight() + ...)
-            // Then DOT label height = titleAndAttributeHeight - 5
-            // Java measures untrimmed lines for label width in DOT
+            // Uses creole-aware height computation for names containing
+            // block separators (----) and bullet items (* text).
             let name_lines: Vec<&str> = g.name.lines().collect();
-            let name_line_count = name_lines.len().max(1) as f64;
             let label_w = name_lines
                 .iter()
-                .map(|line| font_metrics::text_width(line, "SansSerif", FONT_SIZE, true, false))
+                .map(|line| {
+                    let trimmed = line.trim();
+                    if let Some(bullet_text) = trimmed.strip_prefix("* ") {
+                        // Bullet line: indent(12) + text width
+                        12.0 + font_metrics::text_width(
+                            bullet_text,
+                            "SansSerif",
+                            FONT_SIZE,
+                            true,
+                            false,
+                        )
+                    } else {
+                        font_metrics::text_width(line, "SansSerif", FONT_SIZE, true, false)
+                    }
+                })
                 .fold(0.0_f64, f64::max);
-            let title_h =
-                name_line_count * font_metrics::line_height("SansSerif", FONT_SIZE, true, false);
+            let title_h = crate::render::svg_richtext::compute_creole_entity_name_height(
+                &g.name, FONT_SIZE,
+            );
             // Add sprite height if stereotype references a sprite
             let sprite_h = g
                 .stereotype
@@ -577,8 +615,9 @@ pub fn layout_component(cd: &ComponentDiagram) -> Result<ComponentLayout> {
         note_y = ny + nh + PADDING;
     }
 
-    // Viewport calculation: match Java's degenerated vs normal path
-    let is_degenerated = nodes.len() <= 1 && edges.is_empty();
+    // Viewport calculation: match Java's degenerated vs normal path.
+    // A diagram with clusters (groups) is not degenerated even if it has ≤1 node.
+    let is_degenerated = nodes.len() <= 1 && edges.is_empty() && group_layouts.is_empty();
     let (raw_body_w, raw_body_h) = if is_degenerated && !nodes.is_empty() {
         const DEGENERATED_DELTA: f64 = 7.0;
         let entity_w = nodes[0].width;
@@ -588,8 +627,15 @@ pub fn layout_component(cd: &ComponentDiagram) -> Result<ComponentLayout> {
             entity_h + DEGENERATED_DELTA * 2.0,
         )
     } else {
-        let span_w = gl.lf_span.0;
+        let mut span_w = gl.lf_span.0;
         let span_h = gl.lf_span.1;
+        // Card groups draw a full-width separator line whose LF bound extends
+        // 1px beyond the cluster rectangle (Java LimitFinder captures
+        // ULine.hline at full cluster width vs the -1 offset rectangle).
+        let has_card_group = cd.groups.iter().any(|g| g.kind == ComponentKind::Card);
+        if has_card_group {
+            span_w += 1.0;
+        }
         (span_w + CANVAS_DELTA, span_h + CANVAS_DELTA)
     };
 
@@ -622,9 +668,11 @@ pub fn layout_component(cd: &ComponentDiagram) -> Result<ComponentLayout> {
     let total_height = ensure_visible_int(max_bottom + DOC_MARGIN_BOTTOM) as f64;
 
     log::debug!(
-        "layout_component done: {:.0}x{:.0}",
+        "layout_component done: {:.0}x{:.0} (span={:.1}x{:.1})",
         total_width,
-        total_height
+        total_height,
+        gl.lf_span.0,
+        gl.lf_span.1
     );
 
     Ok(ComponentLayout {

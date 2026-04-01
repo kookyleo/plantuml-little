@@ -403,50 +403,70 @@ fn render_group(
             // Check for sprite stereotype
             let sprite_h = render_group_sprite(sg, group, x, y, w);
 
-            // Name text — each line rendered with CENTER alignment.
-            // Java uses TextBlockVertical to stack lines, centering within the block width.
-            // Each line's untrimmed width determines centering; leading spaces shift x
-            // (Java DriverTextSvg strips leading spaces and advances x accordingly).
-            let name_lines: Vec<&str> = group.name.lines().collect();
-            let line_h =
-                font_metrics::line_height("SansSerif", FONT_SIZE, true, false);
-            let space_w =
-                font_metrics::char_width(' ', "SansSerif", FONT_SIZE, true, false);
-            // Compute untrimmed width for each line, and the max (= text block width)
-            let untrimmed_widths: Vec<f64> = name_lines
-                .iter()
-                .map(|line| font_metrics::text_width(line, "SansSerif", FONT_SIZE, true, false))
-                .collect();
-            let max_untrimmed_w = untrimmed_widths.iter().cloned().fold(0.0_f64, f64::max);
-            // Center the text block within the cluster
-            let block_x = x + (w - max_untrimmed_w) / 2.0;
-            let name_y_start = y + 2.0 + sprite_h;
-            for (li, line) in name_lines.iter().enumerate() {
-                let leading_spaces = line.len() - line.trim_start().len();
-                let leading_w = leading_spaces as f64 * space_w;
-                let display_line = line.trim();
-                let tl = text_len(display_line, 14.0, true);
-                let untrimmed_w = untrimmed_widths[li];
-                // Center this line within the block, then shift by leading space width
-                let text_x = block_x + (max_untrimmed_w - untrimmed_w) / 2.0 + leading_w;
-                let ascent = font_metrics::ascent("SansSerif", FONT_SIZE, true, false);
-                let text_y = name_y_start + li as f64 * line_h + ascent;
-                sg.set_fill_color(font_color);
-                sg.svg_text(
-                    display_line,
-                    text_x,
-                    text_y,
-                    Some("sans-serif"),
-                    14.0,
-                    Some("bold"),
-                    None,
-                    None,
-                    tl,
-                    LengthAdjust::Spacing,
-                    None,
-                    0,
-                    None,
+            if matches!(group.kind, ComponentKind::Card) {
+                // Card groups: creole-aware name rendering + full-width separator.
+                // Java USymbolCard.asBig draws separator; USymbolRectangle.asBig does not.
+                let title_h = crate::render::svg_richtext::compute_creole_entity_name_height(
+                    &group.name,
+                    FONT_SIZE,
                 );
+                let sep_y = y + 2.0 + sprite_h + title_h + 2.0;
+                sg.set_stroke_color(Some(border));
+                sg.set_stroke_width(1.0, None);
+                sg.svg_line(x, sep_y, x + w, sep_y, 0.0);
+
+                let mut name_buf = String::new();
+                crate::render::svg_richtext::render_creole_entity_name(
+                    &mut name_buf,
+                    &group.name,
+                    x,
+                    y + sprite_h,
+                    w,
+                    font_color,
+                    border,
+                    FONT_SIZE,
+                );
+                sg.push_raw(&name_buf);
+            } else {
+                // Non-card groups: plain text rendering with leading-space handling.
+                let name_lines: Vec<&str> = group.name.lines().collect();
+                let line_h =
+                    font_metrics::line_height("SansSerif", FONT_SIZE, true, false);
+                let space_w =
+                    font_metrics::char_width(' ', "SansSerif", FONT_SIZE, true, false);
+                let untrimmed_widths: Vec<f64> = name_lines
+                    .iter()
+                    .map(|line| font_metrics::text_width(line, "SansSerif", FONT_SIZE, true, false))
+                    .collect();
+                let max_untrimmed_w = untrimmed_widths.iter().cloned().fold(0.0_f64, f64::max);
+                let block_x = x + (w - max_untrimmed_w) / 2.0;
+                let name_y_start = y + 2.0 + sprite_h;
+                for (li, line) in name_lines.iter().enumerate() {
+                    let leading_spaces = line.len() - line.trim_start().len();
+                    let leading_w = leading_spaces as f64 * space_w;
+                    let display_line = line.trim();
+                    let tl = text_len(display_line, 14.0, true);
+                    let untrimmed_w = untrimmed_widths[li];
+                    let text_x = block_x + (max_untrimmed_w - untrimmed_w) / 2.0 + leading_w;
+                    let ascent = font_metrics::ascent("SansSerif", FONT_SIZE, true, false);
+                    let text_y = name_y_start + li as f64 * line_h + ascent;
+                    sg.set_fill_color(font_color);
+                    sg.svg_text(
+                        display_line,
+                        text_x,
+                        text_y,
+                        Some("sans-serif"),
+                        14.0,
+                        Some("bold"),
+                        None,
+                        None,
+                        tl,
+                        LengthAdjust::Spacing,
+                        None,
+                        0,
+                        None,
+                    );
+                }
             }
         }
     }
@@ -1311,16 +1331,20 @@ fn render_node_text(
         }
     }
 
+    // Type-specific margins (from Java USymbol subclasses)
+    let (margin_left, _margin_right, margin_top, _margin_bottom) =
+        crate::layout::component::entity_margins(&node.kind);
+
     // Name positioning
     let name_y = if let Some(sprite_h) = sprite_rendered {
-        // Java USymbolRectangle.asSmall: label drawn at margin_top + sprite_h + ascent
+        // Java USymbol.asSmall: label drawn at margin_top + sprite_h + ascent
         let ascent = font_metrics::ascent("SansSerif", FONT_SIZE, false, false);
-        node.y + 10.0 + sprite_h + ascent
+        node.y + margin_top + sprite_h + ascent
     } else if has_desc {
         node.y + FONT_SIZE + 4.0 + y_offset
     } else {
-        // Java: baseline = rect_y + 20 + ascent (15 padding + 5 component internal margin)
-        node.y + 20.0 + font_metrics::ascent("SansSerif", FONT_SIZE, false, false)
+        // Java: baseline = rect_y + margin_top + ascent
+        node.y + margin_top + font_metrics::ascent("SansSerif", FONT_SIZE, false, false)
     };
 
     // Name text — centered for sprite stereotype, left-aligned otherwise
@@ -1328,7 +1352,7 @@ fn render_node_text(
         let tl = font_metrics::text_width(&node.name, "SansSerif", FONT_SIZE, false, false);
         cx - tl / 2.0
     } else {
-        node.x + 15.0
+        node.x + margin_left
     };
     let tl = font_metrics::text_width(&node.name, "SansSerif", FONT_SIZE, false, false);
     let mut tmp = String::new();
