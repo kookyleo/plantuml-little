@@ -448,8 +448,24 @@ fn assert_no_raw_markup(svg: &str, path: &str) {
     for (pat, desc) in raw_patterns {
         assert!(!svg.contains(pat), "{path}: {desc} in SVG output");
     }
+    // Check for escaped markup only outside monospace/code text elements.
+    // Inside <code> blocks, escaped markup like &lt;color:X&gt; is legitimate
+    // literal text and should not be flagged.
     for (pat, desc) in escaped_patterns {
-        assert!(!svg.contains(pat), "{path}: {desc} in SVG output");
+        if let Some(idx) = svg.find(pat) {
+            // Check if this occurrence is inside a monospace text element
+            let before = &svg[..idx];
+            let is_in_monospace = before
+                .rfind("<text ")
+                .map(|text_start| {
+                    let text_tag = &before[text_start..];
+                    text_tag.contains("font-family=\"monospace\"")
+                })
+                .unwrap_or(false);
+            if !is_in_monospace {
+                panic!("{path}: {desc} in SVG output");
+            }
+        }
     }
     for line in svg.lines() {
         if let Some(start) = line.find('>') {
