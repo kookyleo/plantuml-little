@@ -74,8 +74,19 @@ fn assert_no_raw_markup(svg: &str, path: &str) {
     for (pat, desc) in raw_patterns {
         assert!(!svg.contains(pat), "{path}: {desc} in SVG output");
     }
+    // Escaped markup is allowed inside monospace/code text elements (Java behavior:
+    // <code> blocks render everything as literal text, including markup tags).
+    // Strip monospace text content before checking for escaped markup.
+    let svg_no_mono = {
+        let re = regex::Regex::new(r#"<text[^>]*font-family="monospace"[^>]*>[^<]*</text>"#)
+            .unwrap();
+        re.replace_all(svg, "").to_string()
+    };
     for (pat, desc) in escaped_patterns {
-        assert!(!svg.contains(pat), "{path}: {desc} in SVG output");
+        assert!(
+            !svg_no_mono.contains(pat),
+            "{path}: {desc} in SVG output"
+        );
     }
 
     // Check for unprocessed Creole bold/italic inside <text> elements.
