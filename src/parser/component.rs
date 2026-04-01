@@ -685,6 +685,10 @@ fn try_parse_forward_arrow(line: &str) -> Option<ComponentLink> {
             let dashed = arrow_str.contains("..");
             let direction_hint = extract_direction_hint(arrow_str);
             let arrow_len = count_arrow_len(arrow_str);
+            // Java calls Link.getInv() for forward arrows with UP/LEFT direction,
+            // consuming an extra UID counter value.
+            let direction_inverted = direction_hint.as_deref()
+                .is_some_and(|d| d == "up" || d == "left");
 
             return Some(ComponentLink {
                 from: from_id,
@@ -694,6 +698,7 @@ fn try_parse_forward_arrow(line: &str) -> Option<ComponentLink> {
                 direction_hint,
                 arrow_len,
                 source_line: None,
+                direction_inverted,
             });
         }
     }
@@ -745,6 +750,7 @@ fn try_parse_backward_arrow(line: &str) -> Option<ComponentLink> {
         });
         let arrow_len = count_arrow_len(&full_arrow);
 
+        // Backward arrows do NOT trigger Java's Link.getInv(), so no extra UID.
         return Some(ComponentLink {
             from: from_id,
             to: to_id,
@@ -753,6 +759,7 @@ fn try_parse_backward_arrow(line: &str) -> Option<ComponentLink> {
             direction_hint,
             arrow_len,
             source_line: None,
+            direction_inverted: false,
         });
     }
     None

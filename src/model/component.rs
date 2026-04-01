@@ -49,6 +49,11 @@ pub struct ComponentLink {
     pub arrow_len: usize,
     /// Source line number (1-based) for data-source-line attribute
     pub source_line: Option<usize>,
+    /// True when this link was a forward arrow with direction UP or LEFT,
+    /// meaning Java would call `Link.getInv()` which consumes an extra UID.
+    /// This is distinct from backward arrows like `B <-down- A` where the
+    /// parser inverts direction but Java does NOT call `getInv()`.
+    pub direction_inverted: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -114,6 +119,7 @@ mod tests {
             direction_hint: Some("right".to_string()),
             arrow_len: 2,
             source_line: Some(3),
+            direction_inverted: false,
         };
         assert_eq!(l.from, "A");
         assert_eq!(l.direction_hint, Some("right".to_string()));
@@ -204,6 +210,7 @@ mod tests {
             direction_hint: None,
             arrow_len: 2,
             source_line: None,
+            direction_inverted: false,
         };
         assert!(l.dashed);
         assert!(l.label.is_empty());

@@ -196,12 +196,21 @@ pub fn render_component(
         );
     }
 
-    // Edges — link IDs start after entity IDs
-    // Track path ID duplicates for suffix generation (Java: "-1", "-2", etc.)
+    // Edges — link IDs start after entity IDs.
+    // Java uses a shared counter for entities and links. When a forward arrow has
+    // direction UP/LEFT, Java calls Link.getInv() which creates a second Link
+    // consuming an extra counter value. We replicate that by bumping by 2 for
+    // direction-inverted links and using the second value.
     let mut path_id_counts: std::collections::HashMap<String, usize> = std::collections::HashMap::new();
     let mut link_counter = ent_counter;
     for (ei, edge) in layout.edges.iter().enumerate() {
         let source_line = cd.links.get(ei).and_then(|l| l.source_line);
+        let direction_inverted = cd.links.get(ei).is_some_and(|l| l.direction_inverted);
+        if direction_inverted {
+            // Forward arrow with UP/LEFT: Java creates original link (counter N)
+            // then getInv() (counter N+1). The inverted copy is kept.
+            link_counter += 1;
+        }
         render_edge(
             &mut sg,
             edge,
@@ -1524,8 +1533,13 @@ fn render_edge(
     };
 
     let pts = &edge.points;
+    let arrow_at_start = edge.reversed_for_svg;
     let d = if let Some(ref raw_d) = edge.raw_path_d {
-        adjust_path_endpoint(raw_d, 6.0)
+        if arrow_at_start {
+            adjust_path_startpoint(raw_d, 6.0)
+        } else {
+            adjust_path_endpoint(raw_d, 6.0)
+        }
     } else {
         let mut d = String::new();
         if !pts.is_empty() {
@@ -1570,9 +1584,16 @@ fn render_edge(
     ));
 
     // Java `ExtremityArrow`: 5-point arrowhead with a contact notch.
+    // For reversed ("backto") links the arrow points at the START of the path;
+    // for normal links the arrow points at the END.
     if pts.len() >= 2 {
-        let (tx, ty) = pts[pts.len() - 1];
-        let (fx, fy) = pts[pts.len() - 2];
+        let (tx, ty, fx, fy) = if arrow_at_start {
+            // Arrow at start: tip = pts[0], direction from pts[1] towards pts[0]
+            (pts[0].0, pts[0].1, pts[1].0, pts[1].1)
+        } else {
+            // Arrow at end: tip = last point, direction from second-to-last towards last
+            (pts[pts.len() - 1].0, pts[pts.len() - 1].1, pts[pts.len() - 2].0, pts[pts.len() - 2].1)
+        };
         let dx = tx - fx;
         let dy = ty - fy;
         let len = (dx * dx + dy * dy).sqrt();
@@ -1664,6 +1685,70 @@ fn adjust_path_endpoint(d: &str, decoration_len: f64) -> String {
         "{},{}",
         fmt_coord(tx - ux * decoration_len),
         fmt_coord(ty - uy * decoration_len)
+    );
+    out.join(" ")
+}
+
+/// Shorten the START of a raw SVG path `d` attribute by `decoration_len` pixels.
+/// Mirrors `adjust_path_endpoint` but operates on the first two coordinate tokens.
+/// Used for reversed ("backto") links where the arrowhead is at the path start.
+fn adjust_path_startpoint(d: &str, decoration_len: f64) -> String {
+    let parts: Vec<&str> = d.split_whitespace().collect();
+    if parts.len() < 2 {
+        return d.to_string();
+    }
+
+    fn strip_cmd(s: &str) -> &str {
+        if s.starts_with(|c: char| c.is_ascii_alphabetic()) {
+            &s[1..]
+        } else {
+            s
+        }
+    }
+    fn cmd_prefix(s: &str) -> &str {
+        if s.starts_with(|c: char| c.is_ascii_alphabetic()) {
+            &s[..1]
+        } else {
+            ""
+        }
+    }
+
+    let parse_pair = |s: &str| -> Option<(f64, f64)> {
+        let coords = strip_cmd(s);
+        let mut it = coords.split(',');
+        Some((it.next()?.parse().ok()?, it.next()?.parse().ok()?))
+    };
+
+    // First token is the start point (M...), second is the first control point (C... or coords)
+    let Some((sx, sy)) = parse_pair(parts[0]) else {
+        return d.to_string();
+    };
+    let Some((cx, cy)) = parse_pair(parts[1]) else {
+        return d.to_string();
+    };
+
+    // Direction from start towards first control point
+    let dx = cx - sx;
+    let dy = cy - sy;
+    let len = (dx * dx + dy * dy).sqrt();
+    if len <= 0.0 {
+        return d.to_string();
+    }
+
+    let ux = dx / len;
+    let uy = dy / len;
+    let mut out: Vec<String> = parts.iter().map(|part| (*part).to_string()).collect();
+    out[0] = format!(
+        "{}{},{}",
+        cmd_prefix(parts[0]),
+        fmt_coord(sx + ux * decoration_len),
+        fmt_coord(sy + uy * decoration_len)
+    );
+    out[1] = format!(
+        "{}{},{}",
+        cmd_prefix(parts[1]),
+        fmt_coord(cx + ux * decoration_len),
+        fmt_coord(cy + uy * decoration_len)
     );
     out.join(" ")
 }
@@ -1973,6 +2058,7 @@ mod tests {
             label: String::new(),
             dashed: false,
             reversed_for_svg: false,
+            label_xy: None,
         });
         let svg =
             render_component(&diagram, &layout, &SkinParams::default()).expect("render failed");
@@ -1999,6 +2085,7 @@ mod tests {
             label: String::new(),
             dashed: true,
             reversed_for_svg: false,
+            label_xy: None,
         });
         let svg =
             render_component(&diagram, &layout, &SkinParams::default()).expect("render failed");
@@ -2021,6 +2108,7 @@ mod tests {
             label: "uses".to_string(),
             dashed: false,
             reversed_for_svg: false,
+            label_xy: None,
         });
         let svg =
             render_component(&diagram, &layout, &SkinParams::default()).expect("render failed");
@@ -2248,6 +2336,7 @@ mod tests {
             label: "uses".to_string(),
             dashed: false,
             reversed_for_svg: false,
+            label_xy: None,
         });
 
         let svg =
@@ -2300,6 +2389,7 @@ mod tests {
             label: String::new(),
             dashed: false,
             reversed_for_svg: false,
+            label_xy: None,
         });
         let svg =
             render_component(&diagram, &layout, &SkinParams::default()).expect("render failed");

@@ -59,6 +59,8 @@ pub struct ComponentEdgeLayout {
     /// True when the DOT edge direction was inverted from the original link direction.
     /// Java: LinkType.looksLikeRevertedForSvg() — controls "reverse link" SVG comment.
     pub reversed_for_svg: bool,
+    /// Label center position from graphviz/svek solve (x, y).
+    pub label_xy: Option<(f64, f64)>,
 }
 
 /// A positioned note.
@@ -643,6 +645,14 @@ pub fn layout_component(cd: &ComponentDiagram) -> Result<ComponentLayout> {
             } else {
                 (link.from.clone(), link.to.clone())
             };
+            // label_xy from svek is pre-moveDelta. Java applies moveDelta + render_offset
+            // to position labels in the final SVG coordinate space.
+            let label_xy = el.label_xy.map(|(lx, ly)| {
+                (
+                    lx + gl.move_delta.0 + gl.render_offset.0,
+                    ly + gl.move_delta.1 + gl.render_offset.1,
+                )
+            });
             ComponentEdgeLayout {
                 from,
                 to,
@@ -654,6 +664,7 @@ pub fn layout_component(cd: &ComponentDiagram) -> Result<ComponentLayout> {
                 label: link.label.clone(),
                 dashed: link.dashed,
                 reversed_for_svg: inverted,
+                label_xy,
             }
         })
         .collect();
@@ -991,6 +1002,7 @@ fn layout_edges(
             label: link.label.clone(),
             dashed: link.dashed,
             reversed_for_svg: false,
+            label_xy: None,
         });
     }
 
@@ -1104,6 +1116,7 @@ mod tests {
             direction_hint: None,
             arrow_len: 2,
             source_line: None,
+            direction_inverted: false,
         }
     }
 
@@ -1277,6 +1290,7 @@ mod tests {
                 direction_hint: None,
                 arrow_len: 2,
                 source_line: None,
+                direction_inverted: false,
             }],
             groups: vec![],
             notes: vec![],
@@ -1299,6 +1313,7 @@ mod tests {
                 direction_hint: Some("right".to_string()),
                 arrow_len: 2,
                 source_line: None,
+                direction_inverted: false,
             }],
             groups: vec![],
             direction: Default::default(),
