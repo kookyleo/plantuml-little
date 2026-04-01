@@ -433,8 +433,10 @@ fn compute_meta_body_offset(meta: &DiagramMeta, skin: &SkinParams) -> (f64, f64)
         (0.0, 0.0)
     };
 
-    let title_text_h = if meta.title.is_some() {
-        text_block_h(title_font_size, title_bold)
+    let title_text_h = if let Some(ref t) = meta.title {
+        let lh = font_metrics::line_height("SansSerif", title_font_size, title_bold, false);
+        let n_lines = t.split(crate::NEWLINE_CHAR).flat_map(|s| s.lines()).count().max(1);
+        n_lines as f64 * lh
     } else {
         0.0
     };
@@ -1184,8 +1186,10 @@ fn wrap_with_meta(
         .as_ref()
         .map(|t| creole_text_w(t, title_font_size, title_bold))
         .unwrap_or(0.0);
-    let title_text_h = if meta.title.is_some() {
-        text_block_h(title_font_size, title_bold)
+    let title_text_h = if let Some(ref t) = meta.title {
+        let lh = font_metrics::line_height("SansSerif", title_font_size, title_bold, false);
+        let n_lines = t.split(crate::NEWLINE_CHAR).flat_map(|s| s.lines()).count().max(1);
+        n_lines as f64 * lh
     } else {
         0.0
     };
@@ -1217,8 +1221,8 @@ fn wrap_with_meta(
         .as_ref()
         .map(|t| creole_text_w(t, leg_font_size, false))
         .unwrap_or(0.0);
-    let leg_text_h = if meta.legend.is_some() {
-        text_block_h(leg_font_size, false)
+    let leg_text_h = if let Some(ref leg) = meta.legend {
+        crate::render::svg_richtext::compute_creole_note_text_height(leg, leg_font_size)
     } else {
         0.0
     };

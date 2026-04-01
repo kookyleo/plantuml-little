@@ -896,6 +896,7 @@ pub fn render_creole_note_content(
             match block {
                 NoteBlock::TextLines(lines) => {
                     for line_text in lines {
+                        let effective_lh = note_line_height_with_sprites(line_text, lh);
                         let baseline = cursor_y + ascent;
                         let mut tmp = String::new();
                         render_creole_text(
@@ -909,7 +910,7 @@ pub fn render_creole_note_content(
                             &outer_attrs,
                         );
                         buf.push_str(&tmp);
-                        cursor_y += lh;
+                        cursor_y += effective_lh;
                     }
                 }
                 NoteBlock::BulletItems(items) => {
@@ -1026,10 +1027,14 @@ pub fn compute_creole_note_text_height(text: &str, font_size: f64) -> f64 {
         for block in &blocks {
             match block {
                 NoteBlock::TextLines(lines) => {
-                    total += lines.len() as f64 * lh;
+                    for line in lines {
+                        total += note_line_height_with_sprites(line, lh);
+                    }
                 }
                 NoteBlock::BulletItems(items) => {
-                    total += items.len() as f64 * lh;
+                    for item in items {
+                        total += note_line_height_with_sprites(item, lh);
+                    }
                 }
                 NoteBlock::Table(rows) => {
                     // AtomWithMargin(table, 2, 2): 2px top + 2px bottom
@@ -1043,6 +1048,38 @@ pub fn compute_creole_note_text_height(text: &str, font_size: f64) -> f64 {
     total += n_separators as f64 * 8.0;
 
     total
+}
+
+/// Compute the effective height of a single note line, accounting for inline sprites.
+///
+/// If the line contains `<$spritename>` references, the sprite's viewBox height
+/// may exceed the normal line height. Java's BodyEnhanced2 uses
+/// `max(sprite_height, line_height)` per atom.
+fn note_line_height_with_sprites(line: &str, base_lh: f64) -> f64 {
+    if !line.contains("<$") {
+        return base_lh;
+    }
+    let mut max_sprite_h = 0.0_f64;
+    let mut pos = 0;
+    while let Some(start) = line[pos..].find("<$") {
+        let abs_start = pos + start + 2;
+        if let Some(end) = line[abs_start..].find('>') {
+            let name_part = &line[abs_start..abs_start + end];
+            let name = name_part.split(',').next().unwrap_or(name_part).trim();
+            if let Some(svg_content) = get_sprite(name) {
+                let info = crate::render::svg_sprite::sprite_info(&svg_content);
+                max_sprite_h = max_sprite_h.max(info.vb_height);
+            }
+            pos = abs_start + end + 1;
+        } else {
+            break;
+        }
+    }
+    if max_sprite_h > base_lh {
+        max_sprite_h
+    } else {
+        base_lh
+    }
 }
 
 /// Compute the height of a creole-rendered entity name (bold, cluster title).
