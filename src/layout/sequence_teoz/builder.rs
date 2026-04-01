@@ -630,11 +630,37 @@ fn creole_note_extra_height(text: &str) -> f64 {
 }
 
 fn estimate_note_width(text: &str) -> f64 {
-    let max_line_w = text
+    let mut max_line_w = 0.0_f64;
+    for line in text
         .split(crate::NEWLINE_CHAR)
         .flat_map(|s| s.lines())
-        .map(|line| font_metrics::text_width(line, "SansSerif", NOTE_FONT_SIZE, false, false))
-        .fold(0.0_f64, f64::max);
+        .flat_map(|s| s.split("\\n"))
+    {
+        let trimmed = line.trim();
+        if trimmed == "----" || trimmed == "====" || trimmed.starts_with("----") || trimmed.starts_with("====") {
+            continue;
+        }
+        if trimmed.starts_with('|') && trimmed.ends_with('|') && trimmed.len() > 2 {
+            let cells: Vec<&str> = trimmed[1..trimmed.len()-1].split('|').collect();
+            let mut row_w = 0.0_f64;
+            for cell in &cells {
+                let cell_text = cell.trim().trim_start_matches('=').trim();
+                let bold = cell.trim().starts_with('=');
+                let cw = font_metrics::text_width(cell_text, "SansSerif", NOTE_FONT_SIZE, bold, false);
+                row_w += cw + 10.0;
+            }
+            row_w += (cells.len() as f64 + 1.0) * 1.0;
+            max_line_w = max_line_w.max(row_w);
+        } else if trimmed.starts_with("* ") || trimmed.starts_with("# ") {
+            let text_part = &trimmed[2..];
+            let w = font_metrics::text_width(text_part, "SansSerif", NOTE_FONT_SIZE, false, false);
+            max_line_w = max_line_w.max(w + 12.0);
+        } else {
+            let plain = crate::render::svg_richtext::creole_plain_text(trimmed);
+            let w = font_metrics::text_width(&plain, "SansSerif", NOTE_FONT_SIZE, false, false);
+            max_line_w = max_line_w.max(w);
+        }
+    }
     let w = max_line_w + NOTE_PADDING + NOTE_PADDING / 2.0 + NOTE_FOLD + 2.0;
     w.max(30.0)
 }
