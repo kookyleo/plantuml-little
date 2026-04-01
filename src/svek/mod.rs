@@ -338,13 +338,16 @@ impl DotStringFactory {
         }
 
         if self.top_level_items.is_empty() {
-            for cluster in &self.bibliotekon.clusters {
-                self.write_cluster(&mut sb, cluster);
-            }
+            // Java: free (non-clustered) nodes are emitted before clusters.
+            // Hidden nodes (e.g. proxy/zaent special points) are emitted inside
+            // their cluster via special_point_id, not as standalone DOT nodes.
             for node in &self.bibliotekon.nodes {
-                if !clustered.contains(node.uid.as_str()) {
+                if !clustered.contains(node.uid.as_str()) && !node.hidden {
                     node.append_shape(&mut sb);
                 }
+            }
+            for cluster in &self.bibliotekon.clusters {
+                self.write_cluster(&mut sb, cluster);
             }
         } else {
             let clusters_by_id: std::collections::HashMap<&str, &cluster::Cluster> = self
@@ -465,23 +468,47 @@ impl DotStringFactory {
         // Java ClusterDotString wraps the actual cluster inside unlabeled p0/p1
         // protection clusters. Those wrappers materially affect Graphviz
         // geometry, especially for nested packages and self-loop labels.
-        sb.push_str(&format!("subgraph cluster_{}p0 {{\n", cluster.id));
-        sb.push_str("label=\"\";\n");
+        //
+        // When thereALinkFromOrToGroup (has_link_from_or_to_group), Java adds:
+        //   _a outer wrapper, special point outside p1, _i inner wrapper.
+        let has_link = cluster.has_link_from_or_to_group;
+
+        if has_link {
+            sb.push_str(&format!("subgraph cluster_{}a {{\nlabel=\"\";\n", cluster.id));
+        }
+        sb.push_str(&format!("subgraph cluster_{}p0 {{\nlabel=\"\";\n", cluster.id));
         sb.push_str(&format!("subgraph cluster_{} {{\n", cluster.id));
         sb.push_str("style=solid;\n");
         sb.push_str("color=\"#000000\";\n");
         if cluster_label != "\"\"" {
             sb.push_str("labeljust=\"c\";\n");
-            sb.push_str(&format!("label={cluster_label};\n"));
-        } else {
-            sb.push_str("label=\"\";\n");
         }
-        sb.push_str(&format!("subgraph cluster_{}p1 {{\n", cluster.id));
-        sb.push_str("label=\"\";\n");
+
+        if has_link {
+            // Java: label goes on the inner "ee" subgraph when has ports,
+            // otherwise on the main cluster + special point outside p1.
+            sb.push_str(&format!("label={cluster_label};\n"));
+            // Special point (Java: zaent) sits inside the cluster but outside p1.
+            if let Some(ref sp_id) = cluster.special_point_id {
+                sb.push_str(&format!(
+                    "{} [shape=point,width=.01,label=\"\"];\n",
+                    sp_id
+                ));
+            }
+            sb.push_str(&format!("subgraph cluster_{}i {{\nlabel=\"\";\n", cluster.id));
+        } else {
+            sb.push_str(&format!("label={cluster_label};\n"));
+        }
+
+        sb.push_str(&format!("subgraph cluster_{}p1 {{\nlabel=\"\";\n", cluster.id));
 
         // Java Cluster.printCluster2() writes normal nodes before child
         // clusters. That ordering affects nested package geometry.
         for uid in &cluster.node_uids {
+            // Skip the special point node — it was already emitted above.
+            if cluster.special_point_id.as_deref() == Some(uid.as_str()) {
+                continue;
+            }
             if let Some(node) = self.bibliotekon.find_node(uid) {
                 node.append_shape(sb);
             }
@@ -490,9 +517,15 @@ impl DotStringFactory {
             self.write_cluster(sb, sub);
         }
 
-        sb.push_str("}\n");
-        sb.push_str("}\n");
-        sb.push_str("}\n");
+        sb.push_str("}\n"); // close p1
+        if has_link {
+            sb.push_str("}\n"); // close _i
+        }
+        sb.push_str("}\n"); // close main cluster
+        sb.push_str("}\n"); // close p0
+        if has_link {
+            sb.push_str("}\n"); // close _a
+        }
     }
 
     fn write_cluster_rank<F>(

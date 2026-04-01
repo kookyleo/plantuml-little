@@ -105,7 +105,8 @@ const LINE_HEIGHT: f64 = 16.2969; // (1901 + 483) / 2048 * 14
 const PADDING: f64 = 15.0;
 // Java: no explicit minimum width for components; the name + icon determines width
 const NODE_MIN_WIDTH: f64 = 0.0;
-const NODE_MIN_HEIGHT: f64 = 40.0;
+// Java has no global minimum entity height — each type's size is purely
+// determined by its margins + text content (from USymbol.Margin.addDimension).
 // Java Smetana: nodesep ≈ 35px (0.486111 inches * 72)
 const NODE_SPACING_X: f64 = 35.0;
 const NODE_SPACING_Y: f64 = 50.0;
@@ -134,6 +135,17 @@ fn sprite_stereo_dimensions(stereotype: &str) -> Option<(f64, f64)> {
     let svg = crate::render::svg_richtext::get_sprite_svg(sprite_name)?;
     let info = crate::render::svg_sprite::sprite_info(&svg);
     Some((info.vb_width, info.vb_height))
+}
+
+/// Returns (supp_height, supp_width) for cluster labels of the given entity kind.
+/// Java: USymbol.suppHeightBecauseOfShape() / suppWidthBecauseOfShape()
+/// These values are added to the cluster label dimension in ClusterHeader.
+fn cluster_supp_for_shape(kind: &ComponentKind) -> (f64, f64) {
+    match kind {
+        ComponentKind::Node => (5.0, 60.0),
+        ComponentKind::Database => (15.0, 0.0),
+        _ => (0.0, 0.0),
+    }
 }
 
 /// Returns (margin_left, margin_right, margin_top, margin_bottom) for each entity kind.
@@ -193,7 +205,7 @@ fn estimate_entity_size(entity: &ComponentEntity) -> (f64, f64) {
         let content_h = sprite_h + label_h;
         let margin = 10.0; // Java Margin(10,10,10,10)
         let width = content_w + 2.0 * margin;
-        let height = (content_h + 2.0 * margin).max(NODE_MIN_HEIGHT);
+        let height = content_h + 2.0 * margin;
         return (width, height);
     }
 
@@ -230,7 +242,13 @@ fn estimate_entity_size(entity: &ComponentEntity) -> (f64, f64) {
         .as_ref()
         .map_or(0.0, |s| text_width(s) + ml + mr + 20.0);
 
-    let width = name_w.max(desc_w).max(stereo_w).max(NODE_MIN_WIDTH);
+    // Java USymbolFolder.getDimTitle returns min width=40 for the folder tab.
+    let folder_min_w = if matches!(entity.kind, ComponentKind::Folder) {
+        40.0 + ml + mr
+    } else {
+        0.0
+    };
+    let width = name_w.max(desc_w).max(stereo_w).max(folder_min_w).max(NODE_MIN_WIDTH);
 
     let stereo_lines = if entity.stereotype.is_some() {
         1.0
@@ -253,13 +271,16 @@ fn estimate_entity_size(entity: &ComponentEntity) -> (f64, f64) {
             .count() as f64;
         effective_desc_lines + stereo_lines
     };
-    // Card entities have no minimum height; other types use NODE_MIN_HEIGHT.
-    let min_h = if matches!(entity.kind, ComponentKind::Card) {
-        0.0
+    // Java USymbolFolder.calculateDimension adds getDimTitle() height to the
+    // merged dimension. For showTitle=false (the default): getDimTitle = (40, 15).
+    // This accounts for the folder tab visual space.
+    let folder_tab_h = if matches!(entity.kind, ComponentKind::Folder) {
+        15.0
     } else {
-        NODE_MIN_HEIGHT
+        0.0
     };
-    let height = (total_lines * LINE_HEIGHT + mt + mb).max(min_h);
+    // Java has no minimum height — size is purely margin + text content.
+    let height = total_lines * LINE_HEIGHT + mt + mb + folder_tab_h;
 
     log::debug!(
         "estimate_entity_size: name={:?} kind={:?} margins=({},{},{},{}) lines={} w={:.1} h={:.1}",
@@ -391,19 +412,23 @@ pub fn layout_component(cd: &ComponentDiagram) -> Result<ComponentLayout> {
                 image_width_pt: None,
                 lf_extra_left: 0.0,
                 lf_rect_correction: true,
-                    lf_has_body_separator: false,
+                lf_has_body_separator: false,
+                hidden: false,
             }
         })
         .collect();
 
-    // Add proxy nodes for group entities that are edge endpoints.
-    // These small nodes sit inside the cluster so graphviz can route edges to them.
+    // Proxy nodes for group edge endpoints are emitted directly in the cluster
+    // DOT (via special_point_id on LayoutClusterSpec). They must also exist as
+    // regular layout nodes so edges can reference them, but they are marked
+    // hidden so they don't participate in LimitFinder calculations.
+    // This matches Java where zaent special points are DOT artifacts.
     for gid in &group_ids_in_edges {
         let proxy_id = format!("{}_proxy", sanitize_id(gid));
         layout_nodes.push(LayoutNode {
             id: proxy_id,
             label: String::new(),
-            width_pt: 0.01, // tiny invisible node
+            width_pt: 0.01,
             height_pt: 0.01,
             shape: None,
             shield: None,
@@ -414,6 +439,7 @@ pub fn layout_component(cd: &ComponentDiagram) -> Result<ComponentLayout> {
             lf_extra_left: 0.0,
             lf_rect_correction: true,
             lf_has_body_separator: false,
+            hidden: true, // excluded from LimitFinder span
         });
     }
 
@@ -502,15 +528,13 @@ pub fn layout_component(cd: &ComponentDiagram) -> Result<ComponentLayout> {
         .groups
         .iter()
         .map(|g| {
-            let mut node_ids: Vec<String> = g
+            let node_ids: Vec<String> = g
                 .children
                 .iter()
                 .filter_map(|child_id| id_to_dot.get(child_id).cloned())
                 .collect();
-            // Include proxy node if this group is an edge endpoint
-            if group_ids_in_edges.contains(&g.id) {
-                node_ids.push(format!("{}_proxy", sanitize_id(&g.id)));
-            }
+            // Proxy nodes for edge endpoints are emitted via special_point_id
+            // in write_cluster, not as regular cluster members.
             // Compute cluster label dimensions from group name.
             // Java ClusterHeader: stereoAndTitle = mergeTB(stereo, title)
             // Uses creole-aware height computation for names containing
@@ -543,24 +567,40 @@ pub fn layout_component(cd: &ComponentDiagram) -> Result<ComponentLayout> {
                 .as_ref()
                 .and_then(|s| sprite_stereo_dimensions(s))
                 .map_or(0.0, |(_, h)| h);
-            // Java: titleAndAttributeHeight = (int)(sprite_h + title_h)
-            // The -5 adjustment is already applied in cluster_dot_label (svek/mod.rs:888).
-            let raw_h = sprite_h + title_h;
+            // Java ClusterHeader: titleAndAttributeHeight =
+            //   (int)(dimLabel.getHeight() + attributeHeight + marginForFields
+            //         + suppHeightBecauseOfShape)
+            // suppHeightBecauseOfShape: Node=5, Database=15, others=0
+            // suppWidthBecauseOfShape:  Node=60, others=0
+            // The -5 adjustment is applied in cluster_dot_label (svek/mod.rs:888).
+            let (supp_h, supp_w) = cluster_supp_for_shape(&g.kind);
+            let raw_h = sprite_h + title_h + supp_h;
             let label_h = if sprite_h > 0.0 {
                 raw_h.floor()
             } else {
                 raw_h
+            };
+            let final_label_w = label_w.floor().max(0.0) + supp_w;
+            // Java: thereALinkFromOrToGroup generates extra _a/_i wrappers
+            // and a special point node inside the cluster.
+            let is_edge_endpoint = group_ids_in_edges.contains(&g.id);
+            let special_point_id = if is_edge_endpoint {
+                Some(format!("{}_proxy", sanitize_id(&g.id)))
+            } else {
+                None
             };
             LayoutClusterSpec {
                 id: sanitize_id(&g.id),
                 qualified_name: g.id.clone(),
                 title: Some(g.name.clone()),
                 style: crate::svek::cluster::ClusterStyle::Rectangle,
-                label_width: Some(label_w.floor().max(0.0)),
+                label_width: Some(final_label_w),
                 label_height: Some(label_h.floor().max(0.0)),
                 node_ids,
                 sub_clusters: vec![],
                 order: g.source_line,
+                has_link_from_or_to_group: is_edge_endpoint,
+                special_point_id,
             }
         })
         .collect();
@@ -1148,8 +1188,9 @@ mod tests {
         assert_eq!(layout.nodes.len(), 1);
         let n = &layout.nodes[0];
         assert_eq!(n.id, "comp1");
-        assert!(n.width >= NODE_MIN_WIDTH);
-        assert!(n.height >= NODE_MIN_HEIGHT);
+        assert!(n.width > 0.0);
+        // Component kind: margin_top(20) + LINE_HEIGHT(16.2969) + margin_bottom(10) = 46.2969
+        assert!(n.height > 40.0, "Component entity should be >40px tall: {}", n.height);
         assert!(n.x >= MARGIN);
         assert!(n.y >= MARGIN);
     }
@@ -1254,7 +1295,7 @@ mod tests {
         // When description is present, it replaces the name display.
         // So total lines = desc lines (3), not name + desc (4).
         let (_, _, mt, mb) = entity_margins(&ComponentKind::Rectangle);
-        let expected = (3.0 * LINE_HEIGHT + mt + mb).max(NODE_MIN_HEIGHT);
+        let expected = 3.0 * LINE_HEIGHT + mt + mb;
         assert!(h >= expected, "description should increase height: h={h} expected={expected}");
     }
 

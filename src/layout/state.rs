@@ -1276,6 +1276,7 @@ fn layout_children_with_graphviz(
             lf_extra_left: 0.0,
             lf_rect_correction: !is_circle && !is_pin,
             lf_has_body_separator: !is_circle && !is_diamond && !is_pin,
+            hidden: false,
         });
         node_id_order.push(state.id.clone());
     }
@@ -1713,6 +1714,7 @@ pub fn layout_state(diagram: &StateDiagram) -> Result<StateLayout> {
             lf_extra_left: 0.0,
             lf_rect_correction: !is_circle,
             lf_has_body_separator: !is_circle && !is_diamond,
+            hidden: false,
         });
         node_id_order.push(state.id.clone());
     }
@@ -1749,6 +1751,7 @@ pub fn layout_state(diagram: &StateDiagram) -> Result<StateLayout> {
                         lf_extra_left: 0.0,
                         lf_rect_correction: false,
                         lf_has_body_separator: false,
+            hidden: false,
                     });
                     node_id_order.push(found.id.clone());
                 }
@@ -1777,6 +1780,7 @@ pub fn layout_state(diagram: &StateDiagram) -> Result<StateLayout> {
                 // so LimitFinder.drawRectangle's -1 correction doesn't apply.
                 lf_rect_correction: false,
                 lf_has_body_separator: false,
+            hidden: false,
             });
             node_id_order.push(entity_id.clone());
             if note.target.is_some() {
@@ -1886,6 +1890,8 @@ pub fn layout_state(diagram: &StateDiagram) -> Result<StateLayout> {
             node_ids,
             sub_clusters: vec![],
             order: state.source_line,
+            has_link_from_or_to_group: false,
+            special_point_id: None,
         });
     }
 

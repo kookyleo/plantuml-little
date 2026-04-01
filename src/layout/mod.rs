@@ -232,6 +232,7 @@ pub fn layout(diagram: &Diagram, skin: &crate::style::SkinParams) -> Result<Diag
                     lf_extra_left: 0.0,
                     lf_rect_correction: true,
                     lf_has_body_separator: false,
+                    hidden: false,
                 }],
                 edges: vec![],
                 clusters: vec![],
@@ -590,6 +591,8 @@ fn build_layout_clusters(
                 .map(|child| build_cluster_recursive(child, cd, children_by_parent, name_to_id))
                 .collect(),
             order: group.source_line,
+            has_link_from_or_to_group: false,
+            special_point_id: None,
         }
     }
 
@@ -1253,6 +1256,7 @@ fn layout_class_diagram(cd: &ClassDiagram, skin: &crate::style::SkinParams) -> R
                 lf_extra_left: lf_extra,
                 lf_rect_correction: true,
                     lf_has_body_separator: false,
+                    hidden: false,
             }
         })
         .collect();

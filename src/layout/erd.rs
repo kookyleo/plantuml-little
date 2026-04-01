@@ -358,6 +358,7 @@ pub fn layout_erd(diagram: &ErdDiagram) -> Result<ErdLayout> {
             lf_extra_left: 0.0,
             lf_rect_correction: false,
             lf_has_body_separator: false,
+                    hidden: false,
         });
         // Recursively add children
         if let Some(children) = attrs_by_parent.get(&am.id) {
@@ -384,6 +385,7 @@ pub fn layout_erd(diagram: &ErdDiagram) -> Result<ErdLayout> {
             lf_extra_left: 0.0,
             lf_rect_correction: true,
             lf_has_body_separator: false,
+                    hidden: false,
         });
         // Add this entity's direct attributes (and their children)
         if let Some(attrs) = attrs_by_parent.get(&e.id) {
@@ -410,6 +412,7 @@ pub fn layout_erd(diagram: &ErdDiagram) -> Result<ErdLayout> {
             lf_extra_left: 0.0,
             lf_rect_correction: true,
             lf_has_body_separator: false,
+                    hidden: false,
         });
         if let Some(attrs) = attrs_by_parent.get(&r.id) {
             for am in attrs {
@@ -448,6 +451,7 @@ pub fn layout_erd(diagram: &ErdDiagram) -> Result<ErdLayout> {
             lf_extra_left: 0.0,
             lf_rect_correction: false,
             lf_has_body_separator: false,
+                    hidden: false,
         });
         isa_node_metas.push(IsaNodeMeta {
             center_id,

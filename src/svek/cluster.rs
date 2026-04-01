@@ -17,6 +17,10 @@ pub struct Cluster {
     pub height: f64,
     /// Style
     pub style: ClusterStyle,
+    /// Java: thereALinkFromOrToGroup — triggers `_a` / `_i` wrapper subgraphs in DOT.
+    pub has_link_from_or_to_group: bool,
+    /// DOT node id of the special point (Java: zaent) inside the cluster.
+    pub special_point_id: Option<String>,
 }
 
 /// Visual style for cluster borders.
@@ -45,6 +49,8 @@ impl Cluster {
             width: 0.0,
             height: 0.0,
             style: ClusterStyle::default(),
+            has_link_from_or_to_group: false,
+            special_point_id: None,
         }
     }
 

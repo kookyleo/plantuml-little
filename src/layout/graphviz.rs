@@ -41,6 +41,9 @@ pub struct LayoutNode {
     /// on the max_x axis, because ULine contributes (x + width) without -1.
     /// Only applies to state/class entities with body separators.
     pub lf_has_body_separator: bool,
+    /// When true, the node is emitted in the DOT for edge routing but excluded
+    /// from the LimitFinder span. Used for internal proxy/special-point nodes.
+    pub hidden: bool,
 }
 
 /// Input: a graph edge
@@ -77,6 +80,13 @@ pub struct LayoutClusterSpec {
     pub sub_clusters: Vec<LayoutClusterSpec>,
     /// Source/declaration order used to preserve Java DOT emission ordering.
     pub order: Option<usize>,
+    /// When true, this cluster is an edge endpoint (Java: thereALinkFromOrToGroup).
+    /// Generates extra `_a` and `_i` wrapper subgraphs and a special point node
+    /// inside the cluster for edge routing, matching Java's DOT structure.
+    pub has_link_from_or_to_group: bool,
+    /// The DOT node id of the special/proxy point inside this cluster.
+    /// Only set when `has_link_from_or_to_group` is true.
+    pub special_point_id: Option<String>,
 }
 
 /// Layout direction
@@ -521,6 +531,9 @@ pub fn layout_with_svek(graph: &LayoutGraph) -> Result<GraphLayout, Error> {
         if node.lf_has_body_separator {
             ed.lf_has_body_separator = true;
         }
+        if node.hidden {
+            ed.hidden = true;
+        }
         builder.add_entity(ed);
     }
 
@@ -601,6 +614,7 @@ pub fn layout_with_svek(graph: &LayoutGraph) -> Result<GraphLayout, Error> {
     // Generate DOT
     let dot = builder.build_dot();
     log::debug!("svek dot input:\n{dot}");
+    log::debug!("DEBUG svek dot input:\n{dot}");
 
     // Run Graphviz (same subprocess approach)
     let mut child = std::process::Command::new("dot")
@@ -640,6 +654,8 @@ pub fn layout_with_svek(graph: &LayoutGraph) -> Result<GraphLayout, Error> {
     let (move_delta, lf_span, render_offset) = builder
         .solve(&svg)
         .map_err(|e| Error::Layout(format!("svek solve error: {e}")))?;
+
+    log::debug!("DEBUG move_delta={:?} lf_span={:?} render_offset={:?}", move_delta, lf_span, render_offset);
 
     // Graphviz SVG parsed edges use translate(tx,ty), while svek uses
     // YDelta(full_height) + moveDelta(dx,dy). These differ by a constant:
@@ -968,6 +984,8 @@ fn layout_cluster_to_builder(
     for sub in &cluster.sub_clusters {
         result = result.add_sub_cluster(layout_cluster_to_builder(sub));
     }
+    result.has_link_from_or_to_group = cluster.has_link_from_or_to_group;
+    result.special_point_id = cluster.special_point_id.clone();
     result
 }
 
@@ -1578,6 +1596,7 @@ mod tests {
                     lf_extra_left: 0.0,
                     lf_rect_correction: true,
                     lf_has_body_separator: false,
+                    hidden: false,
                 },
                 LayoutNode {
                     id: "B".into(),
@@ -1593,6 +1612,7 @@ mod tests {
                     lf_extra_left: 0.0,
                     lf_rect_correction: true,
                     lf_has_body_separator: false,
+                    hidden: false,
                 },
             ],
             edges: vec![LayoutEdge {
@@ -1653,8 +1673,9 @@ mod tests {
                 order: None,
                 image_width_pt: None,
                 lf_extra_left: 0.0,
-                    lf_rect_correction: true,
-                    lf_has_body_separator: false,
+                lf_rect_correction: true,
+                lf_has_body_separator: false,
+                hidden: false,
             }],
             edges: vec![],
             clusters: vec![],

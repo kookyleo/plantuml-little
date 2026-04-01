@@ -43,6 +43,9 @@ pub struct EntityDescriptor {
     /// This overrides the drawRectangle -1 on max_x because the
     /// ULine contributes (x + width) without -1.
     pub lf_has_body_separator: bool,
+    /// When true, the node appears in the DOT but is excluded from LimitFinder.
+    /// Used for internal proxy/special-point nodes (Java: zaent).
+    pub hidden: bool,
 }
 
 impl EntityDescriptor {
@@ -61,6 +64,7 @@ impl EntityDescriptor {
             lf_extra_left: 0.0,
             lf_rect_correction: true,
             lf_has_body_separator: false,
+            hidden: false,
         }
     }
 
@@ -217,6 +221,10 @@ pub struct ClusterDescriptor {
     pub entity_ids: Vec<String>,
     pub sub_clusters: Vec<ClusterDescriptor>,
     pub order: Option<usize>,
+    /// Java: thereALinkFromOrToGroup — generates `_a` / `_i` wrapper subgraphs.
+    pub has_link_from_or_to_group: bool,
+    /// DOT node id of the special point inside the cluster (Java: zaent).
+    pub special_point_id: Option<String>,
 }
 
 impl ClusterDescriptor {
@@ -229,6 +237,8 @@ impl ClusterDescriptor {
             entity_ids: Vec::new(),
             sub_clusters: Vec::new(),
             order: None,
+            has_link_from_or_to_group: false,
+            special_point_id: None,
         }
     }
 
@@ -387,6 +397,7 @@ impl GraphvizImageBuilder {
             node.lf_extra_left = ent.lf_extra_left;
             node.lf_rect_correction = ent.lf_rect_correction;
             node.lf_has_body_separator = ent.lf_has_body_separator;
+            node.hidden = ent.hidden;
             bib.add_node(node);
         }
 
@@ -506,6 +517,8 @@ impl GraphvizImageBuilder {
         cluster.title = cdesc.title.clone();
         cluster.style = cdesc.style;
         cluster.label_size = cdesc.label_size;
+        cluster.has_link_from_or_to_group = cdesc.has_link_from_or_to_group;
+        cluster.special_point_id = cdesc.special_point_id.clone();
         for eid in &cdesc.entity_ids {
             cluster.add_node(eid);
         }
