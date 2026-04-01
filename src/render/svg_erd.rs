@@ -1,6 +1,7 @@
 use crate::klimt::svg::{fmt_coord, xml_escape, LengthAdjust, SvgGraphic};
 use crate::layout::erd::{
-    ErdAttrLayout, ErdEdgeLayout, ErdIsaLayout, ErdLayout, ErdNodeLayout, ErdNoteLayout,
+    ErdAttrEdge, ErdAttrLayout, ErdEdgeLayout, ErdIsaLayout, ErdLayout, ErdNodeLayout,
+    ErdNoteLayout,
 };
 use crate::model::erd::ErdDiagram;
 use crate::render::svg::{ensure_visible_int, write_bg_rect, write_svg_root_bg};
@@ -44,12 +45,9 @@ pub fn render_erd(_ed: &ErdDiagram, layout: &ErdLayout, skin: &SkinParams) -> Re
     for attr in &layout.attribute_nodes {
         render_attribute(&mut sg, attr);
     }
-    render_attr_parent_lines(
-        &mut sg,
-        &layout.attribute_nodes,
-        &layout.entity_nodes,
-        &layout.relationship_nodes,
-    );
+    for attr_edge in &layout.attr_edges {
+        render_attr_edge(&mut sg, attr_edge);
+    }
     for (i, edge) in layout.edges.iter().enumerate() {
         render_edge(&mut sg, edge, i);
     }
@@ -259,25 +257,16 @@ fn render_attribute(sg: &mut SvgGraphic, attr: &ErdAttrLayout) {
     }
     for child in &attr.children {
         render_attribute(sg, child);
-        render_path_line(sg, cx, cy - ry, child.x, child.y + child.ry);
+        // Child→parent-attr edge paths are rendered via attr_edges from graphviz
     }
 }
 
-fn render_attr_parent_lines(
-    sg: &mut SvgGraphic,
-    attrs: &[ErdAttrLayout],
-    entities: &[ErdNodeLayout],
-    relationships: &[ErdNodeLayout],
-) {
-    for attr in attrs {
-        if let Some((px, py)) = entities
-            .iter()
-            .chain(relationships.iter())
-            .find(|n| n.id == attr.parent)
-            .map(|n| (n.x + n.width / 2.0, n.y + n.height / 2.0))
-        {
-            render_path_line(sg, attr.x, attr.y, px, py);
-        }
+fn render_attr_edge(sg: &mut SvgGraphic, attr_edge: &ErdAttrEdge) {
+    if let Some(ref path_d) = attr_edge.raw_path_d {
+        sg.push_raw(&format!(
+            r#"<path d="{}" fill="none" style="stroke:{BORDER_COLOR};stroke-width:1;"/>"#,
+            path_d,
+        ));
     }
 }
 
@@ -473,6 +462,7 @@ mod tests {
             relationship_nodes: vec![],
             attribute_nodes: vec![],
             edges: vec![],
+            attr_edges: vec![],
             isa_layouts: vec![],
             notes: vec![],
             width: 400.0,
@@ -682,6 +672,12 @@ mod tests {
             .push(make_entity_node("E", 100.0, 100.0, 80.0, 36.0));
         l.attribute_nodes.push(make_attr("X", "E", 140.0, 40.0));
         l.attribute_nodes.push(make_attr("Y", "E", 100.0, 40.0));
+        l.attr_edges.push(ErdAttrEdge {
+            raw_path_d: Some("M140,40 C120,60 110,80 140,118".to_string()),
+        });
+        l.attr_edges.push(ErdAttrEdge {
+            raw_path_d: Some("M100,40 C110,60 120,80 140,118".to_string()),
+        });
         let svg = render_erd(&empty_diagram(), &l, &SkinParams::default()).unwrap();
         assert!(svg.matches("<path").count() >= 2);
     }

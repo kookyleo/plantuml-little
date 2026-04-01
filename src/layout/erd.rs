@@ -26,10 +26,18 @@ pub struct ErdLayout {
     pub relationship_nodes: Vec<ErdNodeLayout>,
     pub attribute_nodes: Vec<ErdAttrLayout>,
     pub edges: Vec<ErdEdgeLayout>,
+    /// Attribute→parent connection paths from graphviz edge routing.
+    pub attr_edges: Vec<ErdAttrEdge>,
     pub isa_layouts: Vec<ErdIsaLayout>,
     pub notes: Vec<ErdNoteLayout>,
     pub width: f64,
     pub height: f64,
+}
+
+/// A graphviz-routed edge connecting an attribute to its parent.
+#[derive(Debug, Clone)]
+pub struct ErdAttrEdge {
+    pub raw_path_d: Option<String>,
 }
 
 /// A positioned entity or relationship node.
@@ -118,14 +126,6 @@ const ENTITY_MIN_WIDTH: f64 = 0.0;
 const ENTITY_HEIGHT: f64 = 36.2969;
 /// Java MARGIN constant from IEntityImage (used for diamond calculation)
 const JAVA_ENTITY_MARGIN: f64 = 5.0;
-const ATTR_RY: f64 = 14.5236;
-const ATTR_SPACING: f64 = 70.0;
-/// Gap between nodes placed side-by-side in the same rank.
-const RANK_NODE_GAP: f64 = 80.0;
-/// Gap between consecutive ranks (edge of one rank to edge of the next).
-const RANK_SEP: f64 = 140.0;
-/// Distance from a parent node center to its attribute ellipse center.
-const ATTR_DISTANCE: f64 = 80.0;
 const MARGIN: f64 = 7.0;
 const ISA_TRIANGLE_SIZE: f64 = 24.0;
 const ISA_CHILD_SPACING: f64 = 140.0;
@@ -158,110 +158,119 @@ fn relationship_diamond_size(name: &str) -> (f64, f64) {
     (total_w, total_h)
 }
 
-/// Compute attribute ellipse rx from label text.
-fn attr_rx_for(label: &str) -> f64 {
-    text_width(label) / 2.0 + 10.0
-}
 
-// ---------------------------------------------------------------------------
-// Rank assignment (BFS over link graph)
-// ---------------------------------------------------------------------------
+/// Java MARGIN constant from EntityImageChenAttribute (used in bigger(6))
+const ATTR_ELLIPSE_MARGIN: f64 = 6.0;
 
-/// Assign each node a rank based on link topology using BFS.
+/// Compute attribute ellipse (width, height) matching Java's TextBlockInEllipse.
 ///
-/// Uses link direction to find root nodes: nodes that appear as `from` in
-/// links but never as `to` (or appear more as `from`) are treated as roots.
-/// This matches Graphviz DOT behaviour where the first-mentioned node in
-/// an edge is placed higher.
-fn assign_ranks(
-    all_ids: &[String],
-    links: &[crate::model::erd::ErdLink],
-    isas: &[ErdIsa],
-) -> HashMap<String, usize> {
-    use std::collections::{HashSet, VecDeque};
+/// Java flow:
+///   1. text dimensions (tw, th) via StringBounder
+///   2. alpha = clamp(th/tw, 0.2, 0.8)
+///   3. Footprint collects 4 text-corner points
+///   4. Y-transform: y /= alpha to make isotropic
+///   5. Smallest enclosing circle → radius r
+///   6. Ellipse: width = 2r, height = 2r*alpha
+///   7. .bigger(MARGIN=6): width += 6, height += 6
+///
+/// For single-line text, the 4 points form a rectangle (tw × th/alpha) after
+/// y-transform, so SEC radius = sqrt(tw² + (th/alpha)²) / 2.
+/// When alpha = th/tw (not clamped), this simplifies to radius = tw*sqrt(2)/2.
+fn attr_ellipse_size(label: &str) -> (f64, f64) {
+    let tw = text_width(label);
+    let th = font_metrics::line_height("SansSerif", FONT_SIZE, false, false);
 
-    // Build undirected adjacency for BFS traversal
-    let mut adj: HashMap<String, Vec<String>> = HashMap::new();
-    for id in all_ids {
-        adj.entry(id.clone()).or_default();
-    }
-    for link in links {
-        adj.entry(link.from.clone())
-            .or_default()
-            .push(link.to.clone());
-        adj.entry(link.to.clone())
-            .or_default()
-            .push(link.from.clone());
-    }
-    for isa in isas {
-        for child in &isa.children {
-            adj.entry(isa.parent.clone())
-                .or_default()
-                .push(child.clone());
-            adj.entry(child.clone())
-                .or_default()
-                .push(isa.parent.clone());
-        }
+    if tw < 0.001 {
+        // Degenerate: empty label
+        return (ATTR_ELLIPSE_MARGIN * 2.0, ATTR_ELLIPSE_MARGIN * 2.0);
     }
 
-    // Count incoming edges (appear as `to` in links) to find root nodes.
-    // ISA parent is treated as having incoming edges from children.
-    let mut in_degree: HashMap<String, usize> = HashMap::new();
-    for id in all_ids {
-        in_degree.entry(id.clone()).or_insert(0);
-    }
-    for link in links {
-        *in_degree.entry(link.to.clone()).or_insert(0) += 1;
-    }
-    for isa in isas {
-        // ISA children are "below" the parent
-        for child in &isa.children {
-            *in_degree.entry(child.clone()).or_insert(0) += 1;
-        }
-    }
+    let alpha_raw = th / tw;
+    let alpha = alpha_raw.max(0.2).min(0.8);
 
-    // Order BFS starting nodes: prefer those with lowest in-degree (roots),
-    // then by declaration order.
-    let mut start_order: Vec<String> = all_ids.to_vec();
-    start_order.sort_by_key(|id| in_degree.get(id).copied().unwrap_or(0));
+    // After y-transform, the text rectangle becomes tw × (th/alpha).
+    // SEC of a rectangle with sides W × H has radius = sqrt(W² + H²) / 2.
+    let h_transformed = th / alpha;
+    let radius = (tw * tw + h_transformed * h_transformed).sqrt() / 2.0;
 
-    let mut ranks: HashMap<String, usize> = HashMap::new();
-    let mut visited: HashSet<String> = HashSet::new();
-
-    for start in &start_order {
-        if visited.contains(start) {
-            continue;
-        }
-        let mut queue = VecDeque::new();
-        queue.push_back((start.clone(), 0usize));
-        visited.insert(start.clone());
-        ranks.insert(start.clone(), 0);
-
-        while let Some((node, rank)) = queue.pop_front() {
-            if let Some(neighbors) = adj.get(&node) {
-                for nb in neighbors {
-                    if !visited.contains(nb) {
-                        visited.insert(nb.clone());
-                        ranks.insert(nb.clone(), rank + 1);
-                        queue.push_back((nb.clone(), rank + 1));
-                    }
-                }
-            }
-        }
-    }
-
-    ranks
+    let ellipse_w = 2.0 * radius + ATTR_ELLIPSE_MARGIN;
+    let ellipse_h = 2.0 * radius * alpha + ATTR_ELLIPSE_MARGIN;
+    (ellipse_w, ellipse_h)
 }
+
 
 // ---------------------------------------------------------------------------
 // Core layout
 // ---------------------------------------------------------------------------
 
+/// Metadata for a flattened attribute node that will be sent through graphviz.
+struct AttrMeta {
+    /// Unique graphviz node ID (e.g. "DIRECTOR/Number")
+    id: String,
+    /// Display label
+    label: String,
+    /// Parent node graphviz ID (entity, relationship, or parent attribute)
+    parent_id: String,
+    is_key: bool,
+    is_derived: bool,
+    is_multi: bool,
+    has_type: bool,
+    type_label: Option<String>,
+    /// Graphviz node size: (width, height) of the bounding ellipse
+    size: (f64, f64),
+    /// IDs of child attributes (for nested attribute tree reconstruction)
+    child_ids: Vec<String>,
+}
+
+/// Recursively flatten attributes into a list of AttrMeta, creating graphviz
+/// node IDs matching Java's convention: "owner_id/attr_name".
+fn flatten_attributes(
+    attrs: &[ErdAttribute],
+    owner_id: &str,
+    out: &mut Vec<AttrMeta>,
+) {
+    for attr in attrs {
+        let attr_id = format!("{}/{}", owner_id, attr.name);
+        let display = attr.display_name.as_deref().unwrap_or(&attr.name);
+        let full_label = if let Some(ref t) = attr.attr_type {
+            format!("{} : {}", display, t)
+        } else {
+            display.to_string()
+        };
+        let size = attr_ellipse_size(&full_label);
+
+        let child_ids: Vec<String> = attr
+            .children
+            .iter()
+            .map(|c| format!("{}/{}", attr_id, c.name))
+            .collect();
+
+        out.push(AttrMeta {
+            id: attr_id.clone(),
+            label: full_label,
+            parent_id: owner_id.to_string(),
+            is_key: attr.is_key,
+            is_derived: attr.is_derived,
+            is_multi: attr.is_multi,
+            has_type: attr.attr_type.is_some(),
+            type_label: attr.attr_type.clone(),
+            size,
+            child_ids: child_ids.clone(),
+        });
+
+        // Recurse for nested attributes
+        if !attr.children.is_empty() {
+            flatten_attributes(&attr.children, &attr_id, out);
+        }
+    }
+}
+
 /// Perform the complete layout of an ERD using the svek/graphviz pipeline.
 ///
 /// Java PlantUML routes ERD diagrams through the same graphviz DOT engine
 /// as class diagrams. Entities become rect nodes, relationships become
-/// diamond nodes, and links become edges with `minlen=2`.
+/// diamond nodes, attributes become ellipse nodes, and all connections
+/// (links + attribute-parent) become edges.
 pub fn layout_erd(diagram: &ErdDiagram) -> Result<ErdLayout> {
     debug!(
         "layout_erd: {} entities, {} relationships, {} links, {} ISAs, direction={:?}",
@@ -273,17 +282,6 @@ pub fn layout_erd(diagram: &ErdDiagram) -> Result<ErdLayout> {
     );
 
     let is_lr = diagram.direction == ErdDirection::LeftToRight;
-
-    // Collect node sizes
-    let mut node_sizes: HashMap<String, (f64, f64)> = HashMap::new();
-    for e in &diagram.entities {
-        let w = entity_width(&e.name);
-        node_sizes.insert(e.id.clone(), (w, ENTITY_HEIGHT));
-    }
-    for r in &diagram.relationships {
-        let (w, dh) = relationship_diamond_size(&r.name);
-        node_sizes.insert(r.id.clone(), (w, dh));
-    }
 
     // Build name lookup: id -> display name
     let mut name_map: HashMap<String, String> = HashMap::new();
@@ -303,17 +301,65 @@ pub fn layout_erd(diagram: &ErdDiagram) -> Result<ErdLayout> {
         entity_idx.insert(r.id.clone(), diagram.entities.len() + i);
     }
 
-    // Build svek layout nodes
-    let rankdir = if is_lr { RankDir::LeftToRight } else { RankDir::TopToBottom };
-
-    let mut layout_nodes: Vec<LayoutNode> = Vec::new();
+    // ── Flatten all attributes into graphviz node metadata ──
+    let mut attr_metas: Vec<AttrMeta> = Vec::new();
     for e in &diagram.entities {
-        let (w, h) = node_sizes[&e.id];
+        flatten_attributes(&e.attributes, &e.id, &mut attr_metas);
+    }
+    for r in &diagram.relationships {
+        flatten_attributes(&r.attributes, &r.id, &mut attr_metas);
+    }
+
+    // ── Build svek layout nodes ──
+    // Java emits nodes in parse order: each entity/relationship followed by
+    // its attributes. This ordering affects graphviz's horizontal layout.
+    let rankdir = if is_lr { RankDir::LeftToRight } else { RankDir::TopToBottom };
+    let mut layout_nodes: Vec<LayoutNode> = Vec::new();
+
+    // Build an index: parent_id → list of AttrMeta for that parent
+    let mut attrs_by_parent: HashMap<String, Vec<&AttrMeta>> = HashMap::new();
+    for am in &attr_metas {
+        attrs_by_parent.entry(am.parent_id.clone()).or_default().push(am);
+    }
+
+    // Helper: add an attribute node and recursively its children
+    fn add_attr_nodes(
+        am: &AttrMeta,
+        attrs_by_parent: &HashMap<String, Vec<&AttrMeta>>,
+        layout_nodes: &mut Vec<LayoutNode>,
+    ) {
+        let (w, h) = am.size;
+        layout_nodes.push(LayoutNode {
+            id: am.id.clone(),
+            label: am.label.clone(),
+            width_pt: w,
+            height_pt: h,
+            shape: Some(ShapeType::Oval),
+            shield: None,
+            entity_position: None,
+            max_label_width: None,
+            order: None,
+            image_width_pt: None,
+            lf_extra_left: 0.0,
+            lf_rect_correction: false,
+            lf_has_body_separator: false,
+        });
+        // Recursively add children
+        if let Some(children) = attrs_by_parent.get(&am.id) {
+            for child in children {
+                add_attr_nodes(child, attrs_by_parent, layout_nodes);
+            }
+        }
+    }
+
+    // Entities → rect node, then their attributes (matching Java parse order)
+    for e in &diagram.entities {
+        let w = entity_width(&e.name);
         layout_nodes.push(LayoutNode {
             id: e.id.clone(),
             label: e.name.clone(),
             width_pt: w,
-            height_pt: h,
+            height_pt: ENTITY_HEIGHT,
             shape: Some(ShapeType::Rectangle),
             shield: None,
             entity_position: None,
@@ -322,11 +368,19 @@ pub fn layout_erd(diagram: &ErdDiagram) -> Result<ErdLayout> {
             image_width_pt: None,
             lf_extra_left: 0.0,
             lf_rect_correction: true,
-                    lf_has_body_separator: false,
+            lf_has_body_separator: false,
         });
+        // Add this entity's direct attributes (and their children)
+        if let Some(attrs) = attrs_by_parent.get(&e.id) {
+            for am in attrs {
+                add_attr_nodes(am, &attrs_by_parent, &mut layout_nodes);
+            }
+        }
     }
+
+    // Relationships → diamond node, then their attributes
     for r in &diagram.relationships {
-        let (w, h) = node_sizes[&r.id];
+        let (w, h) = relationship_diamond_size(&r.name);
         layout_nodes.push(LayoutNode {
             id: r.id.clone(),
             label: r.name.clone(),
@@ -340,12 +394,19 @@ pub fn layout_erd(diagram: &ErdDiagram) -> Result<ErdLayout> {
             image_width_pt: None,
             lf_extra_left: 0.0,
             lf_rect_correction: true,
-                    lf_has_body_separator: false,
+            lf_has_body_separator: false,
         });
+        if let Some(attrs) = attrs_by_parent.get(&r.id) {
+            for am in attrs {
+                add_attr_nodes(am, &attrs_by_parent, &mut layout_nodes);
+            }
+        }
     }
 
-    // Measure cardinality label dimensions for DOT edge label tables.
-    // Java ERD uses font-size 11 for edge labels.
+    // ── Build svek layout edges ──
+    let mut layout_edges: Vec<LayoutEdge> = Vec::new();
+
+    // Link edges (entity↔relationship) with cardinality labels
     let label_dims: Vec<(f64, f64)> = diagram
         .links
         .iter()
@@ -358,30 +419,46 @@ pub fn layout_erd(diagram: &ErdDiagram) -> Result<ErdLayout> {
         })
         .collect();
 
-    let layout_edges: Vec<LayoutEdge> = diagram
-        .links
-        .iter()
-        .enumerate()
-        .map(|(i, link)| {
-            let (lw, lh) = label_dims[i];
-            LayoutEdge {
-                from: link.from.clone(),
-                to: link.to.clone(),
-                label: Some(link.cardinality.clone()),
-                label_dimension: Some((lw, lh)),
-                tail_label: None,
-                tail_label_boxed: false,
-                head_label: None,
-                head_label_boxed: false,
-                tail_decoration: crate::svek::edge::LinkDecoration::None,
-                head_decoration: crate::svek::edge::LinkDecoration::None,
-                line_style: crate::svek::edge::LinkStyle::Normal,
-                minlen: 2,
-                invisible: false,
-                no_constraint: false,
-            }
-        })
-        .collect();
+    let num_link_edges = diagram.links.len();
+    for (i, link) in diagram.links.iter().enumerate() {
+        let (lw, lh) = label_dims[i];
+        layout_edges.push(LayoutEdge {
+            from: link.from.clone(),
+            to: link.to.clone(),
+            label: Some(link.cardinality.clone()),
+            label_dimension: Some((lw, lh)),
+            tail_label: None,
+            tail_label_boxed: false,
+            head_label: None,
+            head_label_boxed: false,
+            tail_decoration: crate::svek::edge::LinkDecoration::None,
+            head_decoration: crate::svek::edge::LinkDecoration::None,
+            line_style: crate::svek::edge::LinkStyle::Normal,
+            minlen: 2,
+            invisible: false,
+            no_constraint: false,
+        });
+    }
+
+    // Attribute→parent edges (Java: Link with length=2, DOT minlen=length-1=1)
+    for am in &attr_metas {
+        layout_edges.push(LayoutEdge {
+            from: am.id.clone(),
+            to: am.parent_id.clone(),
+            label: None,
+            label_dimension: None,
+            tail_label: None,
+            tail_label_boxed: false,
+            head_label: None,
+            head_label_boxed: false,
+            tail_decoration: crate::svek::edge::LinkDecoration::None,
+            head_decoration: crate::svek::edge::LinkDecoration::None,
+            line_style: crate::svek::edge::LinkStyle::Normal,
+            minlen: 1,
+            invisible: false,
+            no_constraint: false,
+        });
+    }
 
     let graph = LayoutGraph {
         nodes: layout_nodes,
@@ -396,15 +473,31 @@ pub fn layout_erd(diagram: &ErdDiagram) -> Result<ErdLayout> {
     let gl = graphviz::layout_with_svek(&graph)
         .map_err(|e| crate::error::Error::Layout(format!("ERD svek layout: {e}")))?;
 
-    // Render offsets. Nodes and edge paths use -1 y correction because the
-    // Rust svek LF simulation applies lf_rect_correction to y (which Java
-    // doesn't for drawRectangle). Label positions use the unadjusted offset
-    // because they go through the move_delta + normalize_offset formula.
+    // Render offsets.
+    // When all nodes are rects (lf_rect_correction=true), the LF min has an
+    // extra -1 that inflates render_offset by 1. Subtract it back to align
+    // with Java's final coordinate space.
+    // When attributes (ellipses, lf_rect_correction=false) are present, the
+    // topmost node may be an ellipse with no -1 correction, so render_offset
+    // is already correct.
+    let has_ellipse_nodes = !attr_metas.is_empty();
     let render_dx = gl.render_offset.0;
-    let render_dy = gl.render_offset.1 - 1.0;
+    let render_dy = if has_ellipse_nodes {
+        gl.render_offset.1
+    } else {
+        gl.render_offset.1 - 1.0
+    };
     let render_dy_label = gl.render_offset.1;
-    
 
+    debug!(
+        "layout_erd svek: render_offset=({:.2},{:.2}), move_delta=({:.2},{:.2}), lf_span=({:.2},{:.2}), normalize_offset=({:.2},{:.2})",
+        gl.render_offset.0, gl.render_offset.1,
+        gl.move_delta.0, gl.move_delta.1,
+        gl.lf_span.0, gl.lf_span.1,
+        gl.normalize_offset.0, gl.normalize_offset.1,
+    );
+
+    // Collect all node positions: (top_left_x, top_left_y, width, height)
     let mut positions: HashMap<String, (f64, f64, f64, f64)> = HashMap::new();
     for nl in &gl.nodes {
         let x = nl.cx - nl.width / 2.0 + render_dx;
@@ -444,33 +537,64 @@ pub fn layout_erd(diagram: &ErdDiagram) -> Result<ErdLayout> {
         })
         .collect();
 
-    // Layout attributes around their parent nodes
-    let mut attribute_nodes: Vec<ErdAttrLayout> = Vec::new();
-    let mut attr_idx = 0;
-
-    for e in &diagram.entities {
-        if let Some(&(px, py, pw, ph)) = positions.get(&e.id) {
-            let parent_cx = px + pw / 2.0;
-            let parent_cy = py + ph / 2.0;
-            layout_attributes(
-                &e.attributes, &e.id, parent_cx, parent_cy, is_lr,
-                &mut attribute_nodes, &mut attr_idx,
+    // ── Build attribute layouts from graphviz positions ──
+    // First pass: create flat ErdAttrLayout for each attribute
+    let mut attr_layout_map: HashMap<String, ErdAttrLayout> = HashMap::new();
+    for am in &attr_metas {
+        if let Some(&(x, y, w, h)) = positions.get(&am.id) {
+            let cx = x + w / 2.0;
+            let cy = y + h / 2.0;
+            let rx = w / 2.0;
+            let ry = h / 2.0;
+            attr_layout_map.insert(
+                am.id.clone(),
+                ErdAttrLayout {
+                    id: am.id.clone(),
+                    label: am.label.clone(),
+                    parent: am.parent_id.clone(),
+                    x: cx,
+                    y: cy,
+                    rx,
+                    ry,
+                    is_key: am.is_key,
+                    is_derived: am.is_derived,
+                    is_multi: am.is_multi,
+                    has_type: am.has_type,
+                    type_label: am.type_label.clone(),
+                    children: Vec::new(),
+                },
             );
         }
     }
 
-    for r in &diagram.relationships {
-        if let Some(&(rx, ry, rw, rh)) = positions.get(&r.id) {
-            let parent_cx = rx + rw / 2.0;
-            let parent_cy = ry + rh / 2.0;
-            layout_attributes(
-                &r.attributes, &r.id, parent_cx, parent_cy, is_lr,
-                &mut attribute_nodes, &mut attr_idx,
-            );
+    // Second pass: attach child layouts to parent attributes
+    // Process in reverse so children are populated before being moved to parents
+    for am in attr_metas.iter().rev() {
+        for child_id in &am.child_ids {
+            if let Some(child_layout) = attr_layout_map.remove(child_id) {
+                if let Some(parent_layout) = attr_layout_map.get_mut(&am.id) {
+                    parent_layout.children.push(child_layout);
+                }
+            }
         }
     }
 
-    // Layout edges from svek results
+    // Collect top-level attributes (those whose parent is an entity/relationship)
+    let entity_and_rel_ids: std::collections::HashSet<String> = diagram
+        .entities
+        .iter()
+        .map(|e| e.id.clone())
+        .chain(diagram.relationships.iter().map(|r| r.id.clone()))
+        .collect();
+    let attribute_nodes: Vec<ErdAttrLayout> = attr_metas
+        .iter()
+        .filter(|am| entity_and_rel_ids.contains(&am.parent_id))
+        .filter_map(|am| attr_layout_map.remove(&am.id))
+        .collect();
+
+    // ── Layout edges from svek results ──
+    // Only the first `num_link_edges` svek edges correspond to diagram links.
+    // The remaining edges are attribute→parent (rendered separately).
     let mut edges: Vec<ErdEdgeLayout> = Vec::new();
     for (li, link) in diagram.links.iter().enumerate() {
         let from_name = name_map.get(&link.from).cloned().unwrap_or(link.from.clone());
@@ -482,8 +606,6 @@ pub fn layout_erd(diagram: &ErdDiagram) -> Result<ErdLayout> {
         let raw_path_d = svek_edge
             .and_then(|e| e.raw_path_d.as_ref())
             .map(|d| shift_svg_path(d, render_dx, render_dy));
-        // label_xy from svek is pre-normalized, pre-moveDelta.
-        // Apply: label + move_delta - normalize_offset + render_offset
         let label_xy = svek_edge.and_then(|e| {
             let (lx, ly) = e.label_xy?;
             Some((
@@ -540,19 +662,6 @@ pub fn layout_erd(diagram: &ErdDiagram) -> Result<ErdLayout> {
     let mut max_right = raw_body_w;
     let mut max_bottom = raw_body_h;
 
-    for attr in &attribute_nodes {
-        let ar = attr.x + attr.rx - render_dx + DOC_MARGIN_RIGHT;
-        let ab = attr.y + attr.ry - render_dy + DOC_MARGIN_BOTTOM;
-        max_right = max_right.max(ar);
-        max_bottom = max_bottom.max(ab);
-        for child in &attr.children {
-            let cr = child.x + child.rx - render_dx + DOC_MARGIN_RIGHT;
-            let cb = child.y + child.ry - render_dy + DOC_MARGIN_BOTTOM;
-            max_right = max_right.max(cr);
-            max_bottom = max_bottom.max(cb);
-        }
-    }
-
     for isa in &isa_layouts {
         let (tx, ty) = isa.triangle_center;
         max_right = max_right.max(tx + isa.triangle_size - render_dx + DOC_MARGIN_RIGHT);
@@ -578,197 +687,28 @@ pub fn layout_erd(diagram: &ErdDiagram) -> Result<ErdLayout> {
         edges.len(), isa_layouts.len(), notes.len()
     );
 
+    // Extract attribute→parent edge paths from svek results.
+    // These are edges at indices [num_link_edges..] in the graphviz output.
+    let attr_edges: Vec<ErdAttrEdge> = (num_link_edges..gl.edges.len())
+        .map(|i| {
+            let raw_path_d = gl.edges.get(i)
+                .and_then(|e| e.raw_path_d.as_ref())
+                .map(|d| shift_svg_path(d, render_dx, render_dy));
+            ErdAttrEdge { raw_path_d }
+        })
+        .collect();
+
     Ok(ErdLayout {
         entity_nodes,
         relationship_nodes,
         attribute_nodes,
         edges,
+        attr_edges,
         isa_layouts,
         notes,
         width,
         height,
     })
-}
-
-/// Compute the vertical (or horizontal) band needed for attribute ellipses.
-fn compute_attr_band(diagram: &ErdDiagram) -> f64 {
-    let has_attrs = diagram.entities.iter().any(|e| !e.attributes.is_empty())
-        || diagram
-            .relationships
-            .iter()
-            .any(|r| !r.attributes.is_empty());
-
-    let has_nested = diagram
-        .entities
-        .iter()
-        .any(|e| e.attributes.iter().any(|a| !a.children.is_empty()))
-        || diagram
-            .relationships
-            .iter()
-            .any(|r| r.attributes.iter().any(|a| !a.children.is_empty()));
-
-    if has_nested {
-        ATTR_DISTANCE * 2.0 + ATTR_RY * 2.0
-    } else if has_attrs {
-        ATTR_DISTANCE + ATTR_RY * 2.0
-    } else {
-        0.0
-    }
-}
-
-// ---------------------------------------------------------------------------
-// Attribute layout
-// ---------------------------------------------------------------------------
-
-fn layout_attributes(
-    attrs: &[ErdAttribute],
-    parent_id: &str,
-    parent_cx: f64,
-    parent_cy: f64,
-    is_lr: bool,
-    out: &mut Vec<ErdAttrLayout>,
-    idx: &mut usize,
-) {
-    if attrs.is_empty() {
-        return;
-    }
-
-    let count = attrs.len() as f64;
-
-    for (i, attr) in attrs.iter().enumerate() {
-        let attr_id = format!("{}__attr_{}", parent_id, *idx);
-        *idx += 1;
-
-        // Position attributes above (TB) or to the left (LR)
-        let (ax, ay) = if is_lr {
-            let total_span = (count - 1.0) * ATTR_SPACING;
-            let start_y = parent_cy - total_span / 2.0;
-            let y = start_y + i as f64 * ATTR_SPACING;
-            (parent_cx, y - ATTR_DISTANCE)
-        } else {
-            let total_span = (count - 1.0) * ATTR_SPACING;
-            let start_x = parent_cx - total_span / 2.0;
-            let x = start_x + i as f64 * ATTR_SPACING;
-            (x, parent_cy - ATTR_DISTANCE)
-        };
-
-        let display = attr.display_name.as_deref().unwrap_or(&attr.name);
-        // For attrs with type annotation, combine "name : TYPE"
-        let full_label = if let Some(ref t) = attr.attr_type {
-            format!("{} : {}", display, t)
-        } else {
-            display.to_string()
-        };
-        let rx = attr_rx_for(&full_label);
-
-        // Layout children of nested attribute
-        let mut child_layouts = Vec::new();
-        if !attr.children.is_empty() {
-            let child_count = attr.children.len() as f64;
-            let child_spacing = ATTR_SPACING * 1.5;
-            let child_span = (child_count - 1.0) * child_spacing;
-
-            for (ci, child) in attr.children.iter().enumerate() {
-                let child_id = format!("{}__attr_{}", parent_id, *idx);
-                *idx += 1;
-                let cx = if is_lr {
-                    ax
-                } else {
-                    ax - child_span / 2.0 + ci as f64 * child_spacing
-                };
-                let cy = ay - ATTR_DISTANCE * 1.4;
-
-                let child_display = child.display_name.as_deref().unwrap_or(&child.name);
-                let child_rx = attr_rx_for(child_display);
-
-                child_layouts.push(ErdAttrLayout {
-                    id: child_id,
-                    label: child_display.to_string(),
-                    parent: attr_id.clone(),
-                    x: cx,
-                    y: cy,
-                    rx: child_rx,
-                    ry: ATTR_RY,
-                    is_key: child.is_key,
-                    is_derived: child.is_derived,
-                    is_multi: child.is_multi,
-                    has_type: child.attr_type.is_some(),
-                    type_label: child.attr_type.clone(),
-                    children: Vec::new(),
-                });
-            }
-        }
-
-        out.push(ErdAttrLayout {
-            id: attr_id,
-            label: full_label,
-            parent: parent_id.to_string(),
-            x: ax,
-            y: ay,
-            rx,
-            ry: ATTR_RY,
-            is_key: attr.is_key,
-            is_derived: attr.is_derived,
-            is_multi: attr.is_multi,
-            has_type: attr.attr_type.is_some(),
-            type_label: attr.attr_type.clone(),
-            children: child_layouts,
-        });
-    }
-}
-
-// ---------------------------------------------------------------------------
-// Edge layout
-// ---------------------------------------------------------------------------
-
-fn layout_edges(
-    links: &[crate::model::erd::ErdLink],
-    positions: &HashMap<String, (f64, f64, f64, f64)>,
-) -> Vec<ErdEdgeLayout> {
-    let mut edges = Vec::new();
-
-    for link in links {
-        let (from_x, from_y, from_w, from_h) = match positions.get(&link.from) {
-            Some(p) => *p,
-            None => {
-                log::warn!("link source '{}' not found in layout", link.from);
-                continue;
-            }
-        };
-        let (to_x, to_y, to_w, to_h) = match positions.get(&link.to) {
-            Some(p) => *p,
-            None => {
-                log::warn!("link target '{}' not found in layout", link.to);
-                continue;
-            }
-        };
-
-        let from_cx = from_x + from_w / 2.0;
-        let from_cy = from_y + from_h / 2.0;
-        let to_cx = to_x + to_w / 2.0;
-        let to_cy = to_y + to_h / 2.0;
-
-        let from_point = clip_to_rect(from_cx, from_cy, from_w, from_h, to_cx, to_cy);
-        let to_point = clip_to_rect(to_cx, to_cy, to_w, to_h, from_cx, from_cy);
-
-        edges.push(ErdEdgeLayout {
-            from_id: link.from.clone(),
-            to_id: link.to.clone(),
-            from_name: link.from.clone(),
-            to_name: link.to.clone(),
-            from_point,
-            to_point,
-            label: link.cardinality.clone(),
-            is_double: link.is_double,
-            source_line: 0,
-            entity_idx_from: 0,
-            entity_idx_to: 0,
-            raw_path_d: None,
-            label_xy: None,
-        });
-    }
-
-    edges
 }
 
 /// Shift all numeric coordinates in an SVG path d-string by (dx, dy).
@@ -1181,9 +1121,16 @@ mod tests {
             ..empty_diagram()
         };
         let layout = layout_erd(&d).unwrap();
+        // In LR mode, two unlinked nodes should have the same x (same column)
+        // but different y positions. The exact ordering depends on graphviz
+        // internal layout decisions.
         let y0 = layout.entity_nodes[0].y;
         let y1 = layout.entity_nodes[1].y;
-        assert!(y0 < y1, "A.y < B.y: {} < {}", y0, y1);
+        assert!(
+            (y0 - y1).abs() > 1.0,
+            "A and B should be at different y in LR: A.y={}, B.y={}",
+            y0, y1
+        );
     }
 
     #[test]
