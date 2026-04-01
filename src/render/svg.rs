@@ -348,8 +348,8 @@ pub fn render_with_source(
         None
     };
 
-    // Apply handwritten font override if enabled
-    set_default_font_family(skin.handwritten_font_family().map(|s| s.to_string()));
+    // Note: handwritten mode does NOT change fonts, only jiggling shapes.
+    set_default_font_family(None);
     let body_result = render_body(diagram, layout, skin, activity_body_offset)?;
     set_default_font_family(None);
 

@@ -3065,16 +3065,9 @@ pub fn render_sequence(
     skin: &SkinParams,
 ) -> Result<String> {
     // Apply skinparam font overrides
-    let font = skin
-        .default_font_name()
-        .or_else(|| {
-            if skin.is_handwritten() {
-                Some("Comic Sans MS, Segoe Print, cursive")
-            } else {
-                None
-            }
-        })
-        .map(|s| s.to_string());
+    // Note: handwritten mode does NOT change fonts. It only affects shape rendering
+    // (jiggling) and adds a warning banner.
+    let font = skin.default_font_name().map(|s| s.to_string());
     set_default_font_family(font);
     enable_path_sprites();
     crate::render::svg_sprite::clear_gradient_defs();
