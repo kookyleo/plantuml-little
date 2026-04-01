@@ -10,6 +10,11 @@ pub enum TextSpan {
     Italic(Vec<TextSpan>),
     /// Underlined text: `__underline__` or `<u>underline</u>`.
     Underline(Vec<TextSpan>),
+    /// Underlined text with a specific underline color: `<u:blue>text</u>`.
+    UnderlineColored {
+        color: String,
+        content: Vec<TextSpan>,
+    },
     /// Strikethrough text: `~~strike~~` or `<s>strike</s>`.
     Strikethrough(Vec<TextSpan>),
     /// Monospaced text: `""mono""`.
@@ -142,7 +147,8 @@ fn collect_span(span: &TextSpan, buf: &mut String) {
         | TextSpan::Subscript(inner)
         | TextSpan::Superscript(inner) => collect_spans(inner, buf),
         TextSpan::Monospace(s) => buf.push_str(s),
-        TextSpan::Colored { content, .. }
+        TextSpan::UnderlineColored { content, .. }
+        | TextSpan::Colored { content, .. }
         | TextSpan::Sized { content, .. }
         | TextSpan::BackHighlight { content, .. }
         | TextSpan::FontFamily { content, .. } => {

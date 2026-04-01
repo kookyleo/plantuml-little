@@ -397,6 +397,24 @@ fn parse_inline_chars(
             }
         }
 
+        // Unicode escape: <U+XXXX> → character
+        if chars[i] == '<'
+            && i + 2 < end
+            && (chars[i + 1] == 'U' || chars[i + 1] == 'u')
+            && chars[i + 2] == '+'
+        {
+            if let Some(gt_pos) = chars[i..end].iter().position(|&c| c == '>') {
+                let hex_str: String = chars[i + 3..i + gt_pos].iter().collect();
+                if let Ok(code_point) = u32::from_str_radix(hex_str.trim(), 16) {
+                    if let Some(ch) = char::from_u32(code_point) {
+                        plain_buf.push(ch);
+                        i += gt_pos + 1;
+                        continue;
+                    }
+                }
+            }
+        }
+
         // HTML-style tags: <b>, <i>, <u>, <s>, <color:...>, <size:...>
         if chars[i] == '<' {
             if let Some((span, consumed)) = try_parse_html_tag(chars, i, end) {
@@ -453,6 +471,28 @@ fn try_parse_html_tag(chars: &[char], start: usize, end: usize) -> Option<(TextS
             let mut inner = Vec::new();
             parse_inline_chars(chars, content_start, close_pos, &mut inner, None);
             let span = make(merge_plains(inner));
+            return Some((span, consumed_end - start));
+        }
+    }
+
+    // <u:COLOR>...</u>  (underline with specific color)
+    if matches_at_ci(chars, start, "<u:") {
+        let attr_start = start + 3; // length of "<u:"
+        if let Some(gt_pos) = find_char(chars, attr_start, end, '>') {
+            let color: String = chars[attr_start..gt_pos].iter().collect();
+            let content_start = gt_pos + 1;
+            let close_pos = find_tag_close_ci(chars, content_start, end, "</u>").unwrap_or(end);
+            let consumed_end = if close_pos == end {
+                end
+            } else {
+                close_pos + 4 // 4 = "</u>".len()
+            };
+            let mut inner = Vec::new();
+            parse_inline_chars(chars, content_start, close_pos, &mut inner, None);
+            let span = TextSpan::UnderlineColored {
+                color,
+                content: merge_plains(inner),
+            };
             return Some((span, consumed_end - start));
         }
     }

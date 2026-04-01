@@ -2023,6 +2023,18 @@ impl Context {
             return Ok(Value::Str(expanded));
         }
 
+        // If the raw value was a quoted literal (e.g. `"hello+world"`), the inner
+        // text has already been extracted by evaluate_expression_text_with_funcs.
+        // Do NOT re-evaluate through arithmetic/concat, since operators like `+`
+        // inside a quoted string are literal text, not expressions.
+        let raw_trimmed = raw_val.trim();
+        if is_quoted_literal(raw_trimmed)
+            && !raw_trimmed.contains('$')
+            && !raw_trimmed.contains('%')
+        {
+            return Ok(Value::Str(expanded));
+        }
+
         if let Some(arith_str) = try_eval_arithmetic(&expanded) {
             return Ok(Value::parse_from(&arith_str));
         }

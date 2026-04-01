@@ -8,7 +8,7 @@ use crate::layout::component::{
 };
 use crate::model::component::{ComponentDiagram, ComponentKind};
 use crate::render::svg::{write_bg_rect, write_svg_root_bg};
-use crate::render::svg_richtext::{get_sprite_svg, render_creole_text};
+use crate::render::svg_richtext::{get_sprite_svg, render_creole_text, render_creole_text_opts};
 use crate::render::svg_sprite;
 use crate::style::SkinParams;
 use crate::Result;
@@ -1376,19 +1376,60 @@ fn render_node_text(
         sg.svg_line(node.x, sep_y, node.x + node.width, sep_y, 0.0);
 
         let text_x = node.x + 8.0;
-        let desc_text = node.description.join("\n");
-        let mut tmp = String::new();
-        render_creole_text(
-            &mut tmp,
-            &desc_text,
-            text_x,
-            sep_y + LINE_HEIGHT,
-            LINE_HEIGHT,
-            font_color,
-            None,
-            r#"font-size="12""#,
-        );
-        sg.push_raw(&tmp);
+
+        // Check for <code>...</code> wrapper: render as monospace literal
+        let is_code_block = node.description.len() >= 2
+            && node
+                .description
+                .first()
+                .map_or(false, |l| l.trim().eq_ignore_ascii_case("<code>"))
+            && node
+                .description
+                .last()
+                .map_or(false, |l| l.trim().eq_ignore_ascii_case("</code>"));
+
+        if is_code_block {
+            // Join inner lines as literal monospace text
+            let inner_lines = &node.description[1..node.description.len() - 1];
+            let code_text = inner_lines.join("\n");
+            let mut tmp = String::new();
+            // Render as a single monospace text element with literal content
+            let tl = crate::font_metrics::text_width(&code_text, "monospace", 14.0, false, false);
+            let text_y = sep_y + LINE_HEIGHT;
+            use crate::klimt::svg::{fmt_coord, xml_escape, LengthAdjust};
+            sg.set_fill_color(font_color);
+            sg.svg_text(
+                &code_text,
+                text_x + 23.4287,
+                text_y,
+                Some("monospace"),
+                14.0,
+                None,
+                None,
+                None,
+                tl,
+                LengthAdjust::Spacing,
+                None,
+                0,
+                None,
+            );
+        } else {
+            // Normal description: preserve literal \n (body context)
+            let desc_text = node.description.join("\n");
+            let mut tmp = String::new();
+            render_creole_text_opts(
+                &mut tmp,
+                &desc_text,
+                text_x,
+                sep_y + LINE_HEIGHT,
+                LINE_HEIGHT,
+                font_color,
+                None,
+                r#"font-size="12""#,
+                true,
+            );
+            sg.push_raw(&tmp);
+        }
     }
 }
 

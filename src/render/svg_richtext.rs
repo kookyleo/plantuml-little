@@ -298,7 +298,8 @@ fn max_font_size_in_span(span: &TextSpan, max_size: &mut f64) {
                 max_font_size_in_span(s, max_size);
             }
         }
-        TextSpan::Colored { content, .. }
+        TextSpan::UnderlineColored { content, .. }
+        | TextSpan::Colored { content, .. }
         | TextSpan::BackHighlight { content, .. }
         | TextSpan::FontFamily { content, .. } => {
             for s in content {
@@ -1872,6 +1873,7 @@ fn line_needs_split_render(spans: &[TextSpan]) -> bool {
             TextSpan::Bold(_)
             | TextSpan::Italic(_)
             | TextSpan::Underline(_)
+            | TextSpan::UnderlineColored { .. }
             | TextSpan::Strikethrough(_)
             | TextSpan::Monospace(_)
             | TextSpan::BackHighlight { .. }
@@ -1895,6 +1897,7 @@ struct TextRun {
     bold: bool,
     italic: bool,
     underline: bool,
+    underline_color: Option<String>,
     strikethrough: bool,
     color: Option<String>,
     font_size_override: Option<f64>,
@@ -1911,6 +1914,7 @@ impl TextRun {
             bold: false,
             italic: false,
             underline: false,
+            underline_color: None,
             strikethrough: false,
             color: None,
             font_size_override: None,
@@ -1929,6 +1933,7 @@ impl TextRun {
             && self.bold == other.bold
             && self.italic == other.italic
             && self.underline == other.underline
+            && opt_eq(&self.underline_color, &other.underline_color)
             && self.strikethrough == other.strikethrough
             && opt_eq(&self.color, &other.color)
             && self.font_size_override == other.font_size_override
@@ -1950,6 +1955,7 @@ struct RunStyle {
     bold: bool,
     italic: bool,
     underline: bool,
+    underline_color: Option<String>,
     strikethrough: bool,
     color: Option<String>,
     font_size_override: Option<f64>,
@@ -1963,6 +1969,7 @@ impl RunStyle {
             bold: false,
             italic: false,
             underline: false,
+            underline_color: None,
             strikethrough: false,
             color: None,
             font_size_override: None,
@@ -1992,6 +1999,7 @@ fn flatten_span_runs(spans: &[TextSpan], runs: &mut Vec<TextRun>, style: &RunSty
                 r.bold = style.bold;
                 r.italic = style.italic;
                 r.underline = style.underline;
+                r.underline_color = style.underline_color.clone();
                 r.strikethrough = style.strikethrough;
                 r.color = style.color.clone();
                 r.font_size_override = style.font_size_override;
@@ -2022,6 +2030,12 @@ fn flatten_span_runs(spans: &[TextSpan], runs: &mut Vec<TextRun>, style: &RunSty
                 let mut s = style.clone();
                 s.underline = true;
                 flatten_span_runs(inner, runs, &s);
+            }
+            TextSpan::UnderlineColored { color, content } => {
+                let mut s = style.clone();
+                s.underline = true;
+                s.underline_color = Some(color.clone());
+                flatten_span_runs(content, runs, &s);
             }
             TextSpan::Strikethrough(inner) => {
                 let mut s = style.clone();
@@ -2069,6 +2083,7 @@ fn flatten_span_runs(spans: &[TextSpan], runs: &mut Vec<TextRun>, style: &RunSty
                 r.bold = style.bold;
                 r.italic = style.italic;
                 r.underline = style.underline;
+                r.underline_color = style.underline_color.clone();
                 r.strikethrough = style.strikethrough;
                 r.color = style.color.clone();
                 r.font_size_override = style.font_size_override;
@@ -2233,7 +2248,7 @@ fn render_split_text_runs(
         write!(buf, r#" lengthAdjust="spacing""#).unwrap();
         if run.strikethrough {
             buf.push_str(r#" text-decoration="wavy underline""#);
-        } else if run.underline {
+        } else if run.underline && run.underline_color.is_none() {
             buf.push_str(r#" text-decoration="underline""#);
         }
         write!(buf, r#" textLength="{}""#, fmt_coord(text_w)).unwrap();
@@ -2246,6 +2261,25 @@ fn render_split_text_runs(
         .unwrap();
         buf.push_str(&xml_escape(&text));
         buf.push_str("</text>");
+        // Colored underline: render as a separate <line> element (Java behavior)
+        if let Some(ref ul_color) = run.underline_color {
+            let ul_color_hex =
+                crate::klimt::color::resolve_color(ul_color).map_or_else(
+                    || format!("#{}", ul_color),
+                    |c| c.to_svg(),
+                );
+            let line_y = run_y + 1.0;
+            write!(
+                buf,
+                r#"<line style="stroke:{};stroke-width:0.5;" x1="{}" x2="{}" y1="{}" y2="{}"/>"#,
+                ul_color_hex,
+                fmt_coord(cursor_x),
+                fmt_coord(cursor_x + text_w),
+                fmt_coord(line_y),
+                fmt_coord(line_y)
+            )
+            .unwrap();
+        }
         if run.link_url.is_some() {
             buf.push_str("</a>");
         }
@@ -2475,7 +2509,8 @@ fn collect_plain_span(span: &TextSpan, out: &mut String) {
                 collect_plain_span(inner_span, out);
             }
         }
-        TextSpan::Colored { content, .. }
+        TextSpan::UnderlineColored { content, .. }
+        | TextSpan::Colored { content, .. }
         | TextSpan::Sized { content, .. }
         | TextSpan::BackHighlight { content, .. }
         | TextSpan::FontFamily { content, .. } => {
@@ -2531,6 +2566,16 @@ fn render_span(buf: &mut String, span: &TextSpan, style: SpanStyle, default_fill
             render_spans(
                 buf,
                 inner,
+                &style.with_decoration("underline"),
+                default_fill,
+            );
+        }
+        TextSpan::UnderlineColored { color: _, content } => {
+            // Java renders <u:COLOR> as underline with a separate colored line,
+            // but for now we use text-decoration underline (like plain <u>).
+            render_spans(
+                buf,
+                content,
                 &style.with_decoration("underline"),
                 default_fill,
             );

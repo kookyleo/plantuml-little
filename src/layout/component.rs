@@ -205,10 +205,19 @@ fn estimate_entity_size(entity: &ComponentEntity) -> (f64, f64) {
         + ml
         + mr;
 
+    // For description width, strip creole markup to measure visible text only.
+    // Java: TextBlock.calculateDimension measures the rendered text, not raw markup.
     let desc_w = entity
         .description
         .iter()
-        .map(|line| text_width(line) + ml + mr)
+        .filter(|line| {
+            let t = line.trim();
+            !t.eq_ignore_ascii_case("<code>") && !t.eq_ignore_ascii_case("</code>")
+        })
+        .map(|line| {
+            let plain = crate::render::svg_richtext::creole_plain_text(line);
+            text_width(&plain) + ml + mr
+        })
         .fold(0.0_f64, f64::max);
 
     let stereo_w = entity
