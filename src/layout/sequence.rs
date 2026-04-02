@@ -2604,7 +2604,7 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
     );
     log::trace!("classic layout: total_width={total_width:.4} total_height={total_height:.4} left_overflow={left_overflow:.4}");
 
-    Ok(SeqLayout {
+    let mut layout = SeqLayout {
         participants,
         messages,
         activations,
@@ -2621,8 +2621,35 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
         lifeline_bottom,
         total_width,
         total_height,
-    })
+    };
+
+    if skin.is_handwritten() {
+        let dy = crate::font_metrics::line_height("Monospaced", 10.0, false, false) + 10.0;
+        layout.total_height += dy;
+        // Banner rect: 60 chars * char_width + 10 (Java TextBlock width + 10).
+        let char_w = crate::font_metrics::char_width(' ', "Monospaced", 10.0, false, false);
+        let rect_w = 60.0 * char_w + 10.0;
+        // Banner drawn at tx=3 with rx=5 (rounded corners), right edge = tx + rect_w + margin.
+        let banner_min_w = 3.0 + rect_w + 2.0 * MARGIN + 2.0;
+        if layout.total_width < banner_min_w {
+            layout.total_width = banner_min_w;
+        }
+        layout.lifeline_top += dy;
+        layout.lifeline_bottom += dy;
+        for m in &mut layout.messages { m.y += dy; }
+        for a in &mut layout.activations { a.y_start += dy; a.y_end += dy; }
+        for d in &mut layout.destroys { d.y += dy; }
+        for n in &mut layout.notes { n.y += dy; }
+        for g in &mut layout.groups { g.y_start += dy; g.y_end += dy; }
+        for f in &mut layout.fragments { f.y += dy; for (sep_y, _) in &mut f.separators { *sep_y += dy; } }
+        for div in &mut layout.dividers { div.y += dy; div.component_y += dy; }
+        for delay in &mut layout.delays { delay.y += dy; delay.lifeline_break_y += dy; }
+        for r in &mut layout.refs { r.y += dy; }
+    }
+
+    Ok(layout)
 }
+
 
 // ── Tests ────────────────────────────────────────────────────────────────────
 

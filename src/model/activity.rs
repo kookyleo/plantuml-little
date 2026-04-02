@@ -78,6 +78,10 @@ pub enum ActivityEvent {
     Detach,
     /// Synchronization bar (old-style `===NAME===`)
     SyncBar(String),
+    /// Incoming convergence to an existing sync bar (old-style target)
+    GotoSyncBar(String),
+    /// Resume layout from a sync bar (old-style source in arrow)
+    ResumeFromSyncBar(String),
 }
 
 /// Activity diagram IR
@@ -88,4 +92,6 @@ pub struct ActivityDiagram {
     pub direction: super::diagram::Direction,
     /// Maximum width for note text wrapping (from `<style>` MaximumWidth).
     pub note_max_width: Option<f64>,
+    /// True when the diagram uses old-style `(*)` / `===` activity syntax.
+    pub is_old_style: bool,
 }

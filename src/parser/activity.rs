@@ -57,6 +57,7 @@ pub fn parse_activity_diagram(source: &str) -> Result<ActivityDiagram> {
     let mut state = ParseState::Normal;
     // Track old-style node names to avoid duplicating sync bars / actions
     let mut old_seen_nodes = std::collections::HashSet::<String>::new();
+    let mut is_old_style = false;
 
     for (line_num, line) in block.lines().enumerate() {
         let line_num = line_num + 1; // 1-based for diagnostics
@@ -481,12 +482,15 @@ pub fn parse_activity_diagram(source: &str) -> Result<ActivityDiagram> {
 
         // --- Sync bar: ===NAME=== (standalone, not part of an arrow line) ---
         if let Some(name) = parse_sync_bar(trimmed) {
-            if !old_seen_nodes.contains(&format!("==={name}===")) {
+            let key = format!("==={name}===");
+            if !old_seen_nodes.contains(&key) {
                 debug!("line {line_num}: standalone sync bar: {name}");
+                is_old_style = true;
                 events.push(ActivityEvent::SyncBar(name.clone()));
-                old_seen_nodes.insert(format!("==={name}==="));
+                old_seen_nodes.insert(key);
             } else {
-                debug!("line {line_num}: skipping duplicate sync bar: {name}");
+                debug!("line {line_num}: goto existing sync bar: {name}");
+                events.push(ActivityEvent::GotoSyncBar(name));
             }
             continue;
         }
@@ -494,9 +498,23 @@ pub fn parse_activity_diagram(source: &str) -> Result<ActivityDiagram> {
         // --- Old-style arrow lines: [source] --> [label] target ---
         if let Some(parsed) = parse_old_style_arrow_line(trimmed) {
             debug!("line {line_num}: old-style arrow: {:?}", parsed);
-            // Emit source node if present and non-continuation
+            is_old_style = true;
+            // Emit source node if present and non-continuation.
+            // When the source is a sync bar that's already placed, emit
+            // ResumeFromSyncBar to reposition y_cursor without convergence.
             if let Some(ref src) = parsed.source {
-                emit_old_node(&mut events, src, line_num, &mut old_seen_nodes);
+                let src_trimmed = src.trim();
+                if let Some(name) = parse_sync_bar(src_trimmed) {
+                    let key = format!("==={name}===");
+                    if old_seen_nodes.contains(&key) {
+                        debug!("line {line_num}: resume from sync bar: {name}");
+                        events.push(ActivityEvent::ResumeFromSyncBar(name));
+                    } else {
+                        emit_old_node(&mut events, src, line_num, &mut old_seen_nodes);
+                    }
+                } else {
+                    emit_old_node(&mut events, src, line_num, &mut old_seen_nodes);
+                }
             }
             // Emit target node
             emit_old_node(&mut events, &parsed.target, line_num, &mut old_seen_nodes);
@@ -575,15 +593,17 @@ pub fn parse_activity_diagram(source: &str) -> Result<ActivityDiagram> {
     }
 
     debug!(
-        "parsed activity diagram: {} events, {} swimlanes",
+        "parsed activity diagram: {} events, {} swimlanes, old_style={}",
         events.len(),
-        swimlanes.len()
+        swimlanes.len(),
+        is_old_style
     );
     Ok(ActivityDiagram {
         events,
         swimlanes,
         direction,
         note_max_width,
+        is_old_style,
     })
 }
 
@@ -887,10 +907,11 @@ fn emit_old_node(
         let key = format!("==={name}===");
         if !seen.contains(&key) {
             debug!("line {line_num}: old-style sync bar: {name}");
-            events.push(ActivityEvent::SyncBar(name));
+            events.push(ActivityEvent::SyncBar(name.clone()));
             seen.insert(key);
         } else {
-            debug!("line {line_num}: skipping duplicate sync bar: {name}");
+            debug!("line {line_num}: goto existing sync bar: {name}");
+            events.push(ActivityEvent::GotoSyncBar(name));
         }
     } else {
         // Regular action node — only emit if not seen before

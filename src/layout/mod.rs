@@ -200,7 +200,7 @@ pub fn layout(diagram: &Diagram, skin: &crate::style::SkinParams) -> Result<Diag
             Ok(DiagramLayout::Salt(sl))
         }
         Diagram::Timing(td) => {
-            let tl = timing::layout_timing(td)?;
+            let tl = timing::layout_timing(td, skin)?;
             Ok(DiagramLayout::Timing(tl))
         }
         Diagram::Wbs(wd) => {

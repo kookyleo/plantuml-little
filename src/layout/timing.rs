@@ -22,6 +22,11 @@ pub struct TimingLayout {
     pub time_axis: TimingTimeAxis,
     pub width: f64,
     pub height: f64,
+    pub name_font_size: f64,
+    pub state_font_size: f64,
+    pub arrow_font_size: f64,
+    pub constraint_font_size: f64,
+    pub axis_font_size: f64,
 }
 
 /// A single participant track (horizontal lane).
@@ -31,6 +36,8 @@ pub struct TimingTrackLayout {
     pub y: f64,
     pub height: f64,
     pub segments: Vec<TimingSegmentLayout>,
+    pub state_labels: Vec<String>,
+    pub header_height: f64,
 }
 
 /// A horizontal segment in which a participant stays at a given state.
@@ -92,13 +99,13 @@ pub struct TimingTick {
 // ---------------------------------------------------------------------------
 
 const MARGIN: f64 = 20.0;
-const LABEL_AREA_WIDTH: f64 = 140.0;
 const FONT_SIZE: f64 = 12.0;
-const ROBUST_TRACK_HEIGHT: f64 = 40.0;
-const CONCISE_TRACK_HEIGHT: f64 = 24.0;
-const TRACK_GAP: f64 = 16.0;
+const NAME_FONT_SIZE: f64 = 14.0;
+const STATE_LEVEL_SPACING: f64 = 20.0;
+const STATE_AREA_PADDING: f64 = 28.0;
+const CONCISE_BODY_EXTRA: f64 = 39.0;
 const STATE_LEVEL_HEIGHT: f64 = 14.0;
-const TIME_AXIS_HEIGHT: f64 = 30.0;
+const LABEL_PAD: f64 = 5.0;
 const NOTE_GAP: f64 = 16.0;
 const NOTE_PAD_H: f64 = 8.0;
 const NOTE_PAD_V: f64 = 6.0;
@@ -110,7 +117,7 @@ const MIN_NOTE_HEIGHT: f64 = 28.0;
 // ---------------------------------------------------------------------------
 
 /// Perform layout for a timing diagram.
-pub fn layout_timing(td: &TimingDiagram) -> Result<TimingLayout> {
+pub fn layout_timing(td: &TimingDiagram, skin: &crate::style::SkinParams) -> Result<TimingLayout> {
     debug!(
         "layout_timing: {} participants, {} state_changes, {} messages, {} constraints",
         td.participants.len(),
@@ -119,29 +126,34 @@ pub fn layout_timing(td: &TimingDiagram) -> Result<TimingLayout> {
         td.constraints.len(),
     );
 
+    let default_fs = skin.default_font_size();
+    let name_font_size = default_fs.unwrap_or(NAME_FONT_SIZE);
+    let state_font_size = default_fs.unwrap_or(FONT_SIZE);
+    let arrow_font_size = skin.font_size("arrow", default_fs.unwrap_or(FONT_SIZE));
+    let constraint_font_size = default_fs.unwrap_or(FONT_SIZE);
+    let axis_font_size = arrow_font_size;
+    let name_lh = font_metrics::line_height("SansSerif", name_font_size, false, false);
+    let header_h = name_lh + 1.0;
+    let state_lh = font_metrics::line_height("SansSerif", state_font_size, false, false);
+    let axis_lh = font_metrics::line_height("SansSerif", axis_font_size, false, false);
+
     // Collect all unique absolute times to build the time scale
     let all_times = collect_all_times(td);
     let (time_min, time_max) = time_range(&all_times);
 
-    // Compute label area width based on longest participant name
-    let max_label_width = td
-        .participants
-        .iter()
-        .map(|p| font_metrics::text_width(&p.name, "SansSerif", FONT_SIZE, false, false))
-        .fold(0.0_f64, f64::max);
-    let label_area = (max_label_width + 2.0 * MARGIN).max(LABEL_AREA_WIDTH);
-
-    let chart_x = MARGIN + label_area;
+    let states_per_participant = collect_states(td);
+    let max_state_width = states_per_participant.values().flat_map(|s| s.iter()).map(|s| font_metrics::text_width(s, "SansSerif", state_font_size, false, false)).fold(0.0_f64, f64::max);
+    let chart_x = MARGIN + LABEL_PAD + max_state_width;
 
     // Scale: map [time_min .. time_max] to pixel range
     let time_span = (time_max - time_min).max(1) as f64;
-    let chart_width = (time_span * 0.8).max(200.0);
-    let px_per_unit = chart_width / time_span;
+    let tick_interval = compute_tick_interval(time_span);
+    let chart_time_max = ((time_max as f64 / tick_interval).ceil() * tick_interval + tick_interval) as i64;
+    let chart_time_span = (chart_time_max - time_min) as f64;
+    let px_per_unit = 0.5_f64;
+    let chart_width = (chart_time_span * px_per_unit).max(200.0);
 
     let time_to_x = |t: i64| -> f64 { chart_x + (t - time_min) as f64 * px_per_unit };
-
-    // Collect distinct states per participant for level assignment
-    let states_per_participant = collect_states(td);
 
     // --- Tracks ---
     let mut tracks: Vec<TimingTrackLayout> = Vec::new();
@@ -151,11 +163,10 @@ pub fn layout_timing(td: &TimingDiagram) -> Result<TimingLayout> {
 
     for participant in &td.participants {
         let pid = participant.id().to_string();
-        let track_h = match participant.kind {
-            TimingParticipantKind::Robust => ROBUST_TRACK_HEIGHT,
-            TimingParticipantKind::Concise => CONCISE_TRACK_HEIGHT,
-        };
         let is_robust = participant.kind == TimingParticipantKind::Robust;
+        let state_labels = states_per_participant.get(&pid).cloned().unwrap_or_default();
+        let num_states = state_labels.len().max(1);
+        let track_h = if is_robust { header_h + STATE_AREA_PADDING + (num_states as f64 - 1.0) * STATE_LEVEL_SPACING } else { header_h + state_lh + CONCISE_BODY_EXTRA };
 
         // Gather state changes for this participant, sorted by time
         let mut changes: Vec<(i64, String)> = td
@@ -166,10 +177,7 @@ pub fn layout_timing(td: &TimingDiagram) -> Result<TimingLayout> {
             .collect();
         changes.sort_by_key(|(t, _)| *t);
 
-        // Build segments from consecutive state changes
-        let state_levels = states_per_participant.get(&pid);
-        let num_levels = state_levels.map_or(1, std::vec::Vec::len).max(1);
-
+        let state_area_top = current_y + header_h + 10.0;
         let mut segments: Vec<TimingSegmentLayout> = Vec::new();
         for i in 0..changes.len() {
             let (t_start, ref state) = changes[i];
@@ -179,14 +187,8 @@ pub fn layout_timing(td: &TimingDiagram) -> Result<TimingLayout> {
                 time_max
             };
 
-            let level = state_levels
-                .and_then(|levels| levels.iter().position(|s| s == state))
-                .unwrap_or(0);
-            let level_y = if num_levels > 1 {
-                current_y + track_h - (level as f64 + 1.0) * (track_h / (num_levels as f64 + 1.0))
-            } else {
-                current_y + track_h * 0.5
-            };
+            let level = state_labels.iter().position(|s| s == state).unwrap_or(0);
+            let level_y = if is_robust { state_area_top + level as f64 * STATE_LEVEL_SPACING } else if num_states > 1 { current_y + track_h - (level as f64 + 1.0) * (track_h / (num_states as f64 + 1.0)) } else { current_y + track_h * 0.5 };
 
             let x_start = time_to_x(t_start);
             let x_end = time_to_x(t_end);
@@ -216,9 +218,11 @@ pub fn layout_timing(td: &TimingDiagram) -> Result<TimingLayout> {
             y: current_y,
             height: track_h,
             segments,
+            state_labels,
+            header_height: header_h,
         });
 
-        current_y += track_h + TRACK_GAP;
+        current_y += track_h;
     }
 
     // --- Messages ---
@@ -265,8 +269,8 @@ pub fn layout_timing(td: &TimingDiagram) -> Result<TimingLayout> {
     let mut notes = layout_notes(td, &track_rect_map, chart_x, chart_width, axis_y);
     let mut min_x = MARGIN;
     let mut min_y = MARGIN;
-    let mut total_width = chart_x + chart_width;
-    let mut total_height = axis_y + TIME_AXIS_HEIGHT;
+    let mut total_width = chart_x + chart_width + 5.0;
+    let mut total_height = axis_y + axis_lh + MARGIN;
     for note in &notes {
         min_x = min_x.min(note.x);
         min_y = min_y.min(note.y);
@@ -316,7 +320,6 @@ pub fn layout_timing(td: &TimingDiagram) -> Result<TimingLayout> {
     }
 
     total_width += MARGIN;
-    total_height += MARGIN;
 
     debug!("layout_timing done: {total_width:.0}x{total_height:.0}");
 
@@ -328,6 +331,11 @@ pub fn layout_timing(td: &TimingDiagram) -> Result<TimingLayout> {
         time_axis,
         width: total_width,
         height: total_height,
+        name_font_size,
+        state_font_size,
+        arrow_font_size,
+        constraint_font_size,
+        axis_font_size,
     })
 }
 
@@ -465,6 +473,13 @@ fn layout_notes(
     notes
 }
 
+fn compute_tick_interval(time_span: f64) -> f64 {
+    if time_span <= 0.0 { return 1.0; }
+    let mag = 10.0_f64.powf(time_span.log10().floor());
+    let r = time_span / mag;
+    if r <= 2.0 { mag / 5.0 } else if r <= 5.0 { mag / 2.0 } else { mag }
+}
+
 /// Build tick marks for the time axis from the collected time points.
 fn build_time_ticks(times: &[i64], time_to_x: &dyn Fn(i64) -> f64) -> Vec<TimingTick> {
     times
@@ -522,7 +537,7 @@ mod tests {
     #[test]
     fn test_empty_diagram() {
         let td = empty_diagram();
-        let layout = layout_timing(&td).unwrap();
+        let layout = layout_timing(&td, &crate::style::SkinParams::new()).unwrap();
         assert!(layout.tracks.is_empty());
         assert!(layout.messages.is_empty());
         assert!(layout.constraints.is_empty());
@@ -540,7 +555,7 @@ mod tests {
             TimingParticipantKind::Robust,
         ));
         td.state_changes.push(simple_state_change("DNS", 0, "Idle"));
-        let layout = layout_timing(&td).unwrap();
+        let layout = layout_timing(&td, &crate::style::SkinParams::new()).unwrap();
         assert_eq!(layout.tracks.len(), 1);
         assert_eq!(layout.tracks[0].name, "DNS Resolver");
     }
@@ -555,8 +570,9 @@ mod tests {
             TimingParticipantKind::Robust,
         ));
         td.state_changes.push(simple_state_change("A", 0, "Idle"));
-        let layout = layout_timing(&td).unwrap();
-        assert!((layout.tracks[0].height - ROBUST_TRACK_HEIGHT).abs() < 0.01);
+        let layout = layout_timing(&td, &crate::style::SkinParams::new()).unwrap();
+        let expected_rh = crate::font_metrics::line_height("SansSerif", 14.0, false, false) + 1.0 + STATE_AREA_PADDING;
+        assert!((layout.tracks[0].height - expected_rh).abs() < 0.01);
     }
 
     // 4. Concise track has expected height
@@ -569,8 +585,10 @@ mod tests {
             TimingParticipantKind::Concise,
         ));
         td.state_changes.push(simple_state_change("B", 0, "Off"));
-        let layout = layout_timing(&td).unwrap();
-        assert!((layout.tracks[0].height - CONCISE_TRACK_HEIGHT).abs() < 0.01);
+        let layout = layout_timing(&td, &crate::style::SkinParams::new()).unwrap();
+        let hh = crate::font_metrics::line_height("SansSerif", 14.0, false, false) + 1.0;
+        let slh = crate::font_metrics::line_height("SansSerif", 12.0, false, false);
+        assert!((layout.tracks[0].height - (hh + slh + CONCISE_BODY_EXTRA)).abs() < 0.01);
     }
 
     // 5. Multiple participants stack vertically
@@ -589,7 +607,7 @@ mod tests {
         ));
         td.state_changes.push(simple_state_change("A", 0, "Idle"));
         td.state_changes.push(simple_state_change("B", 0, "Off"));
-        let layout = layout_timing(&td).unwrap();
+        let layout = layout_timing(&td, &crate::style::SkinParams::new()).unwrap();
         assert_eq!(layout.tracks.len(), 2);
         assert!(
             layout.tracks[0].y < layout.tracks[1].y,
@@ -610,7 +628,7 @@ mod tests {
         td.state_changes
             .push(simple_state_change("A", 100, "Active"));
         td.state_changes.push(simple_state_change("A", 300, "Idle"));
-        let layout = layout_timing(&td).unwrap();
+        let layout = layout_timing(&td, &crate::style::SkinParams::new()).unwrap();
         assert_eq!(layout.tracks[0].segments.len(), 3);
         assert_eq!(layout.tracks[0].segments[0].state, "Idle");
         assert_eq!(layout.tracks[0].segments[1].state, "Active");
@@ -629,7 +647,7 @@ mod tests {
         td.state_changes.push(simple_state_change("A", 0, "S0"));
         td.state_changes.push(simple_state_change("A", 100, "S1"));
         td.state_changes.push(simple_state_change("A", 200, "S2"));
-        let layout = layout_timing(&td).unwrap();
+        let layout = layout_timing(&td, &crate::style::SkinParams::new()).unwrap();
         let segs = &layout.tracks[0].segments;
         assert!(segs[0].x_start < segs[1].x_start);
         assert!(segs[1].x_start < segs[2].x_start);
@@ -658,7 +676,7 @@ mod tests {
             from_time: 100,
             to_time: 100,
         });
-        let layout = layout_timing(&td).unwrap();
+        let layout = layout_timing(&td, &crate::style::SkinParams::new()).unwrap();
         assert_eq!(layout.messages.len(), 1);
         assert_eq!(layout.messages[0].label, "hello");
         assert!(layout.messages[0].from_y < layout.messages[0].to_y);
@@ -687,7 +705,7 @@ mod tests {
             from_time: 100,
             to_time: 150,
         });
-        let layout = layout_timing(&td).unwrap();
+        let layout = layout_timing(&td, &crate::style::SkinParams::new()).unwrap();
         assert_ne!(layout.messages[0].from_x, layout.messages[0].to_x);
     }
 
@@ -707,7 +725,7 @@ mod tests {
             end_time: 350,
             label: "{150 ms}".into(),
         });
-        let layout = layout_timing(&td).unwrap();
+        let layout = layout_timing(&td, &crate::style::SkinParams::new()).unwrap();
         assert_eq!(layout.constraints.len(), 1);
         assert_eq!(layout.constraints[0].label, "{150 ms}");
         assert!(layout.constraints[0].x_start < layout.constraints[0].x_end);
@@ -725,7 +743,7 @@ mod tests {
         td.state_changes.push(simple_state_change("A", 0, "S0"));
         td.state_changes.push(simple_state_change("A", 100, "S1"));
         td.state_changes.push(simple_state_change("A", 300, "S2"));
-        let layout = layout_timing(&td).unwrap();
+        let layout = layout_timing(&td, &crate::style::SkinParams::new()).unwrap();
         assert_eq!(layout.time_axis.ticks.len(), 3);
         assert_eq!(layout.time_axis.ticks[0].label, "0");
         assert_eq!(layout.time_axis.ticks[1].label, "100");
@@ -750,7 +768,7 @@ mod tests {
         td.state_changes.push(simple_state_change("B", 0, "Off"));
         td.state_changes
             .push(simple_state_change("A", 500, "Active"));
-        let layout = layout_timing(&td).unwrap();
+        let layout = layout_timing(&td, &crate::style::SkinParams::new()).unwrap();
 
         for track in &layout.tracks {
             let track_bottom = track.y + track.height;
@@ -804,12 +822,12 @@ mod tests {
             TimingParticipantKind::Robust,
         ));
         td.state_changes.push(simple_state_change("VL", 0, "Idle"));
-        let layout = layout_timing(&td).unwrap();
+        let layout = layout_timing(&td, &crate::style::SkinParams::new()).unwrap();
         // Segments should start well to the right of MARGIN
         let seg = &layout.tracks[0].segments[0];
         assert!(
-            seg.x_start > MARGIN + LABEL_AREA_WIDTH,
-            "segment x_start should be past expanded label area"
+            seg.x_start > MARGIN + LABEL_PAD,
+            "segment x_start should be past label area"
         );
     }
 
@@ -829,7 +847,7 @@ mod tests {
         ));
         td.state_changes.push(simple_state_change("R", 0, "Idle"));
         td.state_changes.push(simple_state_change("C", 0, "Off"));
-        let layout = layout_timing(&td).unwrap();
+        let layout = layout_timing(&td, &crate::style::SkinParams::new()).unwrap();
         assert!(layout.tracks[0].segments[0].is_robust);
         assert!(!layout.tracks[1].segments[0].is_robust);
     }
@@ -878,7 +896,7 @@ mod tests {
             notes: vec![],
         };
 
-        let layout = layout_timing(&td).unwrap();
+        let layout = layout_timing(&td, &crate::style::SkinParams::new()).unwrap();
         assert_eq!(layout.tracks.len(), 3);
         assert_eq!(layout.messages.len(), 2);
         assert_eq!(layout.constraints.len(), 1);
@@ -903,7 +921,7 @@ mod tests {
         td.state_changes.push(simple_state_change("A", 0, "Idle"));
         td.state_changes
             .push(simple_state_change("A", 100, "Active"));
-        let layout = layout_timing(&td).unwrap();
+        let layout = layout_timing(&td, &crate::style::SkinParams::new()).unwrap();
         let segs = &layout.tracks[0].segments;
         // The last segment's x_end should match the second segment's x_end (since time_max = 100)
         assert!((segs[1].x_start - segs[1].x_end).abs() < 0.01);
@@ -925,7 +943,7 @@ mod tests {
             TimingParticipantKind::Concise,
         ));
         td.state_changes.push(simple_state_change("B", 0, "Off"));
-        let layout = layout_timing(&td).unwrap();
+        let layout = layout_timing(&td, &crate::style::SkinParams::new()).unwrap();
         assert_eq!(layout.tracks[0].segments.len(), 0);
         assert_eq!(layout.tracks[1].segments.len(), 1);
     }
@@ -944,7 +962,7 @@ mod tests {
             position: "right".to_string(),
             target: Some("WEB".to_string()),
         });
-        let layout = layout_timing(&td).unwrap();
+        let layout = layout_timing(&td, &crate::style::SkinParams::new()).unwrap();
         assert_eq!(layout.notes.len(), 1);
         assert!(layout.notes[0].x > layout.tracks[0].segments[0].x_end);
         assert!(layout.notes[0].connector.is_some());

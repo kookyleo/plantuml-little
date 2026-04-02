@@ -9,7 +9,6 @@ use crate::render::svg_richtext::{count_creole_lines, render_creole_text};
 use crate::style::SkinParams;
 use crate::Result;
 
-const FONT_SIZE: f64 = 12.0;
 use crate::skin::rose::{BORDER_COLOR, ENTITY_BG, NOTE_BG, NOTE_BORDER, NOTE_FOLD, TEXT_COLOR};
 const CONCISE_STROKE: &str = "#2E8B57";
 const ARROW_COLOR: &str = "#555555";
@@ -38,20 +37,25 @@ pub fn render_timing(
     buf.push_str("<defs/><g>");
     write_bg_rect(&mut buf, svg_w, svg_h, bg);
     let mut sg = SvgGraphic::new(0, 1.0);
+    let name_fs = layout.name_font_size;
+    let state_fs = layout.state_font_size;
+    let arrow_fs = layout.arrow_font_size;
+    let constraint_fs = layout.constraint_font_size;
+    let axis_fs = layout.axis_font_size;
     render_tick_grid(&mut sg, layout);
     for track in &layout.tracks {
-        render_track(&mut sg, track, &timing_bg, &timing_border, &timing_font);
+        render_track(&mut sg, track, &timing_bg, &timing_border, &timing_font, name_fs, state_fs);
     }
     for msg in &layout.messages {
-        render_message(&mut sg, msg, &arrow_color, &timing_font);
+        render_message(&mut sg, msg, &arrow_color, &timing_font, arrow_fs);
     }
     for c in &layout.constraints {
-        render_constraint(&mut sg, c, &constraint_color);
+        render_constraint(&mut sg, c, &constraint_color, constraint_fs);
     }
     for note in &layout.notes {
-        render_note(&mut sg, note, &timing_font);
+        render_note(&mut sg, note, &timing_font, state_fs);
     }
-    render_time_axis(&mut sg, &layout.time_axis);
+    render_time_axis(&mut sg, &layout.time_axis, axis_fs);
     buf.push_str(sg.body());
     buf.push_str("</g></svg>");
     Ok(buf)
@@ -71,6 +75,8 @@ fn render_track(
     bg: &str,
     border: &str,
     font_color: &str,
+    name_fs: f64,
+    state_fs: f64,
 ) {
     if !track.segments.is_empty() {
         let x_min = track
@@ -91,21 +97,21 @@ fn render_track(
         .segments
         .first()
         .map_or(LABEL_PADDING, |s| s.x_start - LABEL_PADDING);
-    let label_y = track.y + track.height * 0.5 + FONT_SIZE * 0.35;
+    let label_y = track.y + track.height * 0.5 + name_fs * 0.35;
     let mut tmp = String::new();
     render_creole_text(
         &mut tmp,
         &track.name,
         label_x,
         label_y,
-        FONT_SIZE + 4.0,
+        name_fs + 4.0,
         font_color,
         Some("end"),
-        r#"font-size="14" font-weight="700""#,
+        &format!(r#"font-size="{:.0}" font-weight="700""#, name_fs),
     );
     sg.push_raw(&tmp);
     for (i, seg) in track.segments.iter().enumerate() {
-        render_segment(sg, seg, i, &track.segments);
+        render_segment(sg, seg, i, &track.segments, state_fs);
     }
 }
 
@@ -114,6 +120,7 @@ fn render_segment(
     seg: &TimingSegmentLayout,
     index: usize,
     all_segments: &[TimingSegmentLayout],
+    state_fs: f64,
 ) {
     let stroke = if seg.is_robust {
         BORDER_COLOR
@@ -131,17 +138,17 @@ fn render_segment(
         }
         if w > 10.0 {
             let cx = seg.x_start + w * 0.5;
-            let cy = seg.y + FONT_SIZE * 0.35;
+            let cy = seg.y + state_fs * 0.35;
             let mut tmp = String::new();
             render_creole_text(
                 &mut tmp,
                 &seg.state,
                 cx,
                 cy,
-                FONT_SIZE + 4.0,
+                state_fs + 4.0,
                 TEXT_COLOR,
                 Some("middle"),
-                &format!(r#"font-size="{:.0}""#, FONT_SIZE - 1.0),
+                &format!(r#"font-size="{:.0}""#, state_fs),
             );
             sg.push_raw(&tmp);
         }
@@ -173,10 +180,10 @@ fn render_segment(
                 &seg.state,
                 cx,
                 cy,
-                FONT_SIZE + 4.0,
+                state_fs + 4.0,
                 TEXT_COLOR,
                 Some("middle"),
-                &format!(r#"font-size="{:.0}""#, FONT_SIZE - 1.0),
+                &format!(r#"font-size="{:.0}""#, state_fs),
             );
             sg.push_raw(&tmp);
         }
@@ -190,7 +197,7 @@ fn render_segment(
     }
 }
 
-fn render_message(sg: &mut SvgGraphic, msg: &TimingMsgLayout, arrow_color: &str, font_color: &str) {
+fn render_message(sg: &mut SvgGraphic, msg: &TimingMsgLayout, arrow_color: &str, font_color: &str, arrow_fs: f64) {
     sg.set_stroke_color(Some(arrow_color));
     sg.set_stroke_width(1.0, None);
     sg.svg_line(msg.from_x, msg.from_y, msg.to_x, msg.to_y, 0.0);
@@ -222,16 +229,16 @@ fn render_message(sg: &mut SvgGraphic, msg: &TimingMsgLayout, arrow_color: &str,
             &msg.label,
             mx,
             my,
-            FONT_SIZE + 4.0,
+            arrow_fs + 4.0,
             font_color,
             Some("middle"),
-            &format!(r#"font-size="{:.0}""#, FONT_SIZE - 1.0),
+            &format!(r#"font-size="{:.0}""#, arrow_fs),
         );
         sg.push_raw(&tmp);
     }
 }
 
-fn render_constraint(sg: &mut SvgGraphic, c: &TimingConstraintLayout, cc: &str) {
+fn render_constraint(sg: &mut SvgGraphic, c: &TimingConstraintLayout, cc: &str, constraint_fs: f64) {
     sg.set_stroke_color(Some(cc));
     sg.set_stroke_width(1.0, None);
     sg.svg_line(c.x_start, c.y, c.x_end, c.y, 0.0);
@@ -255,15 +262,15 @@ fn render_constraint(sg: &mut SvgGraphic, c: &TimingConstraintLayout, cc: &str) 
         &c.label,
         mx,
         my,
-        FONT_SIZE + 4.0,
+        constraint_fs + 4.0,
         cc,
         Some("middle"),
-        &format!(r#"font-size="{:.0}""#, FONT_SIZE - 1.0),
+        &format!(r#"font-size="{:.0}""#, constraint_fs),
     );
     sg.push_raw(&tmp);
 }
 
-fn render_time_axis(sg: &mut SvgGraphic, axis: &TimingTimeAxis) {
+fn render_time_axis(sg: &mut SvgGraphic, axis: &TimingTimeAxis, axis_fs: f64) {
     if let (Some(first), Some(last)) = (axis.ticks.first(), axis.ticks.last()) {
         sg.set_stroke_color(Some(AXIS_LINE_COLOR));
         sg.set_stroke_width(0.5, None);
@@ -273,23 +280,23 @@ fn render_time_axis(sg: &mut SvgGraphic, axis: &TimingTimeAxis) {
         sg.set_stroke_color(Some(AXIS_LINE_COLOR));
         sg.set_stroke_width(0.5, None);
         sg.svg_line(tick.x, axis.y, tick.x, axis.y + 6.0, 0.0);
-        let ly = axis.y + 6.0 + FONT_SIZE + 2.0;
+        let ly = axis.y + 6.0 + axis_fs + 2.0;
         let mut tmp = String::new();
         render_creole_text(
             &mut tmp,
             &tick.label,
             tick.x,
             ly,
-            FONT_SIZE + 4.0,
+            axis_fs + 4.0,
             AXIS_TEXT_COLOR,
             Some("middle"),
-            &format!(r#"font-size="{:.0}""#, FONT_SIZE - 1.0),
+            &format!(r#"font-size="{:.0}""#, axis_fs),
         );
         sg.push_raw(&tmp);
     }
 }
 
-fn render_note(sg: &mut SvgGraphic, note: &TimingNoteLayout, font_color: &str) {
+fn render_note(sg: &mut SvgGraphic, note: &TimingNoteLayout, font_color: &str, note_fs: f64) {
     if let Some((x1, y1, x2, y2)) = note.connector {
         sg.set_stroke_color(Some(NOTE_BORDER));
         sg.set_stroke_width(0.5, Some((4.0, 4.0)));
@@ -310,17 +317,17 @@ fn render_note(sg: &mut SvgGraphic, note: &TimingNoteLayout, font_color: &str) {
     );
     sg.push_raw(&format!(r#"<path d="M{},{} L{},{} L{},{} " fill="none" style="stroke:{NOTE_BORDER};stroke-width:0.5;"/>"#, fmt_coord(fold_x), fmt_coord(note.y), fmt_coord(fold_x), fmt_coord(fold_y), fmt_coord(x2), fmt_coord(fold_y)));
     let lc = count_creole_lines(&note.text) as f64;
-    let sy = note.y + NOTE_FOLD + (note.height - lc * (FONT_SIZE + 4.0)).max(0.0) / 2.0 + FONT_SIZE;
+    let sy = note.y + NOTE_FOLD + (note.height - lc * (note_fs + 4.0)).max(0.0) / 2.0 + note_fs;
     let mut tmp = String::new();
     render_creole_text(
         &mut tmp,
         &note.text,
         note.x + 6.0,
         sy,
-        FONT_SIZE + 4.0,
+        note_fs + 4.0,
         font_color,
         None,
-        r#"font-size="13""#,
+        &format!(r#"font-size="{:.0}""#, note_fs + 1.0),
     );
     sg.push_raw(&tmp);
 }
@@ -354,6 +361,11 @@ mod tests {
             },
             width: 400.0,
             height: 200.0,
+            name_font_size: 14.0,
+            state_font_size: 12.0,
+            arrow_font_size: 13.0,
+            constraint_font_size: 12.0,
+            axis_font_size: 11.0,
         }
     }
     fn make_segment(
@@ -382,6 +394,8 @@ mod tests {
             y,
             height,
             segments,
+            state_labels: vec![],
+            header_height: 17.2969,
         }
     }
     #[test]
@@ -654,7 +668,7 @@ mod tests {
         use crate::parser::timing::parse_timing_diagram;
         let src = "@startuml\nrobust \"DNS Resolver\" as DNS\nrobust \"Web Browser\" as WB\nconcise \"Web User\" as WU\n\n@0\nWU is Idle\nWB is Idle\nDNS is Idle\n\n@+100\nWU is Waiting\nWB is Processing\n\n@+200\nWB is Waiting\n\n@+100\nDNS is Processing\n\n@+300\nDNS is Idle\n@enduml";
         let td = parse_timing_diagram(src).unwrap();
-        let lo = layout_timing(&td).unwrap();
+        let lo = layout_timing(&td, &SkinParams::new()).unwrap();
         let svg = render_timing(&td, &lo, &SkinParams::default()).unwrap();
         assert!(svg.contains("<svg"));
         assert!(svg.contains("</svg>"));

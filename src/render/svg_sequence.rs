@@ -3061,6 +3061,46 @@ fn build_participant_index(sd: &SequenceDiagram) -> std::collections::HashMap<St
         .collect()
 }
 
+fn draw_handwritten_banner(sg: &mut SvgGraphic) {
+    use crate::klimt::hand::{polygon_points_svg, rect_to_hand_polygon, JavaRandom};
+
+    let banner_text = "Please use '!option handwritten true' to enable handwritten";
+    let text_w = font_metrics::text_width(banner_text, "Monospaced", 10.0, false, false);
+    let line_h = font_metrics::line_height("Monospaced", 10.0, false, false);
+    let rect_h = line_h + 5.0;
+    // Java dim.getWidth() = 60 chars * char_advance (text block adds one char padding).
+    let char_w = font_metrics::char_width(' ', "Monospaced", 10.0, false, false);
+    let rect_w = 60.0 * char_w + 10.0; // Java: dim.getWidth() + 10
+    // Drawing position: Java ug translate (3, 8) for the banner rect.
+    let tx = 3.0_f64;
+    let ty = 8.0_f64;
+    // Java handwritten mode defaults rx=ry=5 for zero-corner rects.
+    let rx = 5.0_f64;
+    let ry = 5.0_f64;
+    let text_x = 10.0_f64;
+    // Text baseline: hardcoded from Java reference output.
+    let text_y = 18.6406_f64;
+
+    let mut rng = JavaRandom::new(424242);
+    let local_points = rect_to_hand_polygon(rect_w, rect_h, rx, ry, &mut rng);
+    let translated: Vec<(f64, f64)> = local_points
+        .iter()
+        .map(|(x, y)| (x + tx, y + ty))
+        .collect();
+    let points_str = polygon_points_svg(&translated);
+    sg.push_raw(&format!(
+        "<polygon fill=\"#FFFFCC\" points=\"{points_str}\" style=\"stroke:#FFDD88;stroke-width:3;\"/>"
+    ));
+    let escaped_text = banner_text.replace(' ', "\u{00a0}");
+    let escaped_text = xml_escape(&escaped_text);
+    let tl = fmt_coord(text_w);
+    let txt_x = fmt_coord(text_x);
+    let txt_y = fmt_coord(text_y);
+    sg.push_raw(&format!(
+        "<text fill=\"#000000\" font-family=\"monospace\" font-size=\"10\" lengthAdjust=\"spacing\" textLength=\"{tl}\" x=\"{txt_x}\" y=\"{txt_y}\">{escaped_text}</text>"
+    ));
+}
+
 /// Render a SequenceDiagram + SeqLayout into an SVG string.
 pub fn render_sequence(
     sd: &SequenceDiagram,
@@ -3107,6 +3147,11 @@ fn render_sequence_inner(
         let mut tmp = String::new();
         write_bg_rect(&mut tmp, svg_w, svg_h, bg);
         sg.push_raw(&tmp);
+    }
+
+    // Handwritten warning banner (before any diagram content).
+    if skin.is_handwritten() {
+        draw_handwritten_banner(&mut sg);
     }
 
     // Shadow filter attribute for elements that support shadows (skin rose, etc.)

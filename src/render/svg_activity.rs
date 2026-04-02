@@ -999,6 +999,7 @@ mod tests {
             swimlanes: vec![],
             direction: Default::default(),
             note_max_width: None,
+            is_old_style: false,
         }
     }
 
@@ -1581,6 +1582,7 @@ mod tests {
             swimlanes: vec!["Lane A".into(), "Lane B".into()],
             direction: Default::default(),
             note_max_width: None,
+            is_old_style: false,
         };
 
         let mut layout = empty_layout();

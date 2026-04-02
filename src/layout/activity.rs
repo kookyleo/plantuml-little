@@ -103,6 +103,8 @@ const FONT_SIZE: f64 = 12.0;
 const PADDING: f64 = 10.0;
 /// Gap between consecutive flow nodes (matches Java PlantUML visual output).
 const NODE_SPACING: f64 = 20.0;
+/// Gap for old-style activity diagrams (emulates DOT ranksep ≈ 40px).
+const OLD_STYLE_NODE_SPACING: f64 = 29.1;
 /// Java FtileCircleStart: SIZE = 20, so radius = 10.
 const START_RADIUS: f64 = 10.0;
 /// Java FtileCircleStop: SIZE = 22, so radius = 11.
@@ -594,7 +596,52 @@ pub fn layout_activity(diagram: &ActivityDiagram) -> Result<ActivityLayout> {
 
     // Track the index of the last *flow* node (i.e. not a note or swimlane
     // switch) so that notes can reference it.
+    let node_gap = if diagram.is_old_style { OLD_STYLE_NODE_SPACING } else { NODE_SPACING };
     let mut last_flow_node_idx: Option<usize> = None;
+    // --- Old-style sync bar deferred placement ---
+    // Pre-scan: find the LAST event index that references each sync bar name
+    // (either SyncBar or GotoSyncBar). The bar is placed when we reach that event.
+    let mut sync_bar_last_ref: std::collections::HashMap<String, usize> =
+        std::collections::HashMap::new();
+    // Count incoming references (GotoSyncBar) per sync bar name.
+    // Also find the last incoming-reference event index for deferred placement.
+    let mut sync_bar_goto_count: std::collections::HashMap<String, usize> =
+        std::collections::HashMap::new();
+    if diagram.is_old_style {
+        for (ev_idx, ev) in diagram.events.iter().enumerate() {
+            match ev {
+                ActivityEvent::GotoSyncBar(name) => {
+                    *sync_bar_goto_count.entry(name.clone()).or_insert(0) += 1;
+                    sync_bar_last_ref.insert(name.clone(), ev_idx);
+                }
+                ActivityEvent::SyncBar(name) => {
+                    // Include SyncBar in last_ref tracking only if there are
+                    // also GotoSyncBar references — this is updated by
+                    // GotoSyncBar above to the LAST incoming event.
+                    // If no GotoSyncBar exists, the bar is placed immediately.
+                    sync_bar_last_ref.entry(name.clone()).or_insert(ev_idx);
+                }
+                _ => {}
+            }
+        }
+    }
+    // For old-style diagrams, find the LAST Stop event index so intermediate
+    // stops can be skipped (Java shares a single final stop node in DOT layout).
+    let last_stop_idx: Option<usize> = if diagram.is_old_style {
+        diagram.events.iter().enumerate()
+            .filter(|(_, e)| matches!(e, ActivityEvent::Stop))
+            .map(|(i, _)| i)
+            .last()
+    } else {
+        None
+    };
+
+    // Deferred sync bar info: name → (pending, max_y_of_incoming_branches)
+    let mut deferred_sync_bars: std::collections::HashMap<String, f64> =
+        std::collections::HashMap::new();
+    // Track placed sync bar y positions: name → y_below_bar
+    let mut placed_sync_bars: std::collections::HashMap<String, f64> =
+        std::collections::HashMap::new();
 
     for event in &diagram.events {
         match event {
@@ -616,28 +663,36 @@ pub fn layout_activity(diagram: &ActivityDiagram) -> Result<ActivityLayout> {
                 });
                 last_flow_node_idx = Some(node_index);
                 node_index += 1;
-                y_cursor += diameter + NODE_SPACING;
+                y_cursor += diameter + node_gap;
             }
 
             // ---- Stop circle (Java FtileCircleStop: SIZE=22) ------------------
             ActivityEvent::Stop => {
-                let diameter = 2.0 * STOP_RADIUS;
-                let cx = swimlane_center_x(&swimlane_layouts, current_lane_idx);
-                let x = cx - STOP_RADIUS;
-                let y = y_cursor;
-                log::debug!("  node[{node_index}] Stop @ ({x:.1}, {y:.1})");
-                nodes.push(ActivityNodeLayout {
-                    index: node_index,
-                    kind: ActivityNodeKindLayout::Stop,
-                    x,
-                    y,
-                    width: diameter,
-                    height: diameter,
-                    text: String::new(),
-                });
-                last_flow_node_idx = Some(node_index);
-                node_index += 1;
-                y_cursor += diameter + NODE_SPACING;
+                let ev_idx = diagram.events.iter().position(|e| std::ptr::eq(e, event)).unwrap_or(0);
+                let is_intermediate = last_stop_idx.map_or(false, |last| ev_idx < last);
+                if diagram.is_old_style && is_intermediate {
+                    // Old-style: intermediate stops share the final stop node.
+                    // Skip placing a visual node here.
+                    log::debug!("  skipping intermediate Stop (old-style, ev_idx={ev_idx})");
+                } else {
+                    let diameter = 2.0 * STOP_RADIUS;
+                    let cx = swimlane_center_x(&swimlane_layouts, current_lane_idx);
+                    let x = cx - STOP_RADIUS;
+                    let y = y_cursor;
+                    log::debug!("  node[{node_index}] Stop @ ({x:.1}, {y:.1})");
+                    nodes.push(ActivityNodeLayout {
+                        index: node_index,
+                        kind: ActivityNodeKindLayout::Stop,
+                        x,
+                        y,
+                        width: diameter,
+                        height: diameter,
+                        text: String::new(),
+                    });
+                    last_flow_node_idx = Some(node_index);
+                    node_index += 1;
+                    y_cursor += diameter + node_gap;
+                }
             }
 
             // ---- Action box --------------------------------------------------
@@ -658,7 +713,7 @@ pub fn layout_activity(diagram: &ActivityDiagram) -> Result<ActivityLayout> {
                 });
                 last_flow_node_idx = Some(node_index);
                 node_index += 1;
-                y_cursor += h + NODE_SPACING;
+                y_cursor += h + node_gap;
             }
 
             // ---- If / ElseIf / Else / EndIf → diamonds ----------------------
@@ -687,7 +742,7 @@ pub fn layout_activity(diagram: &ActivityDiagram) -> Result<ActivityLayout> {
                 });
                 last_flow_node_idx = Some(node_index);
                 node_index += 1;
-                y_cursor += h + NODE_SPACING;
+                y_cursor += h + node_gap;
             }
 
             ActivityEvent::ElseIf { condition, label } => {
@@ -712,52 +767,60 @@ pub fn layout_activity(diagram: &ActivityDiagram) -> Result<ActivityLayout> {
                 });
                 last_flow_node_idx = Some(node_index);
                 node_index += 1;
-                y_cursor += h + NODE_SPACING;
+                y_cursor += h + node_gap;
             }
 
             ActivityEvent::Else { label } => {
-                let text = if label.is_empty() {
-                    "else".to_string()
+                if diagram.is_old_style {
+                    log::debug!("  skipping Else diamond (old-style)");
                 } else {
-                    format!("[{label}]")
-                };
-                let (w, h) = diamond_size(&text);
-                let cx = swimlane_center_x(&swimlane_layouts, current_lane_idx);
-                let x = cx - w / 2.0;
-                let y = y_cursor;
-                log::debug!("  node[{node_index}] Else diamond @ ({x:.1}, {y:.1})");
-                nodes.push(ActivityNodeLayout {
-                    index: node_index,
-                    kind: ActivityNodeKindLayout::Diamond,
-                    x,
-                    y,
-                    width: w,
-                    height: h,
-                    text,
-                });
-                last_flow_node_idx = Some(node_index);
-                node_index += 1;
-                y_cursor += h + NODE_SPACING;
+                    let text = if label.is_empty() {
+                        "else".to_string()
+                    } else {
+                        format!("[{label}]")
+                    };
+                    let (w, h) = diamond_size(&text);
+                    let cx = swimlane_center_x(&swimlane_layouts, current_lane_idx);
+                    let x = cx - w / 2.0;
+                    let y = y_cursor;
+                    log::debug!("  node[{node_index}] Else diamond @ ({x:.1}, {y:.1})");
+                    nodes.push(ActivityNodeLayout {
+                        index: node_index,
+                        kind: ActivityNodeKindLayout::Diamond,
+                        x,
+                        y,
+                        width: w,
+                        height: h,
+                        text,
+                    });
+                    last_flow_node_idx = Some(node_index);
+                    node_index += 1;
+                    y_cursor += h + node_gap;
+                }
             }
 
             ActivityEvent::EndIf => {
-                let (w, h) = (DIAMOND_SIZE * 2.0, DIAMOND_SIZE * 2.0);
-                let cx = swimlane_center_x(&swimlane_layouts, current_lane_idx);
-                let x = cx - w / 2.0;
-                let y = y_cursor;
-                log::debug!("  node[{node_index}] EndIf diamond @ ({x:.1}, {y:.1})");
-                nodes.push(ActivityNodeLayout {
-                    index: node_index,
-                    kind: ActivityNodeKindLayout::Diamond,
-                    x,
-                    y,
-                    width: w,
-                    height: h,
-                    text: String::new(),
-                });
-                last_flow_node_idx = Some(node_index);
-                node_index += 1;
-                y_cursor += h + NODE_SPACING;
+                if diagram.is_old_style {
+                    log::debug!("  skipping EndIf diamond (old-style)");
+                } else {
+                    let (w, h) = (DIAMOND_SIZE * 2.0, DIAMOND_SIZE * 2.0);
+                    let cx = swimlane_center_x(&swimlane_layouts, current_lane_idx);
+                    let x = cx - w / 2.0;
+                    let y = y_cursor;
+                    log::debug!("  node[{node_index}] EndIf diamond @ ({x:.1}, {y:.1})");
+                    nodes.push(ActivityNodeLayout {
+                        index: node_index,
+                        kind: ActivityNodeKindLayout::Diamond,
+                        x,
+                        y,
+                        width: w,
+                        height: h,
+                        text: String::new(),
+                    });
+                    last_flow_node_idx = Some(node_index);
+                    node_index += 1;
+                    y_cursor += h + node_gap;
+                }
             }
 
             // ---- While / EndWhile → diamonds ---------------------------------
@@ -783,7 +846,7 @@ pub fn layout_activity(diagram: &ActivityDiagram) -> Result<ActivityLayout> {
                 });
                 last_flow_node_idx = Some(node_index);
                 node_index += 1;
-                y_cursor += h + NODE_SPACING;
+                y_cursor += h + node_gap;
             }
 
             ActivityEvent::EndWhile { label } => {
@@ -808,7 +871,7 @@ pub fn layout_activity(diagram: &ActivityDiagram) -> Result<ActivityLayout> {
                 });
                 last_flow_node_idx = Some(node_index);
                 node_index += 1;
-                y_cursor += h + NODE_SPACING;
+                y_cursor += h + node_gap;
             }
 
             // ---- Repeat / RepeatWhile → diamond at end -----------------------
@@ -831,7 +894,7 @@ pub fn layout_activity(diagram: &ActivityDiagram) -> Result<ActivityLayout> {
                 });
                 last_flow_node_idx = Some(node_index);
                 node_index += 1;
-                y_cursor += h + NODE_SPACING;
+                y_cursor += h + node_gap;
             }
 
             ActivityEvent::RepeatWhile { condition } => {
@@ -851,7 +914,7 @@ pub fn layout_activity(diagram: &ActivityDiagram) -> Result<ActivityLayout> {
                 });
                 last_flow_node_idx = Some(node_index);
                 node_index += 1;
-                y_cursor += h + NODE_SPACING;
+                y_cursor += h + node_gap;
             }
 
             // ---- Fork / ForkAgain / EndFork → horizontal bars ----------------
@@ -873,7 +936,7 @@ pub fn layout_activity(diagram: &ActivityDiagram) -> Result<ActivityLayout> {
                 });
                 last_flow_node_idx = Some(node_index);
                 node_index += 1;
-                y_cursor += h + NODE_SPACING;
+                y_cursor += h + node_gap;
             }
 
             // ---- Swimlane switch (no node) -----------------------------------
@@ -949,7 +1012,7 @@ pub fn layout_activity(diagram: &ActivityDiagram) -> Result<ActivityLayout> {
                 node_index += 1;
 
                 // Advance y_cursor so subsequent elements don't overlap.
-                let note_bottom = ny + nh + NODE_SPACING;
+                let note_bottom = ny + nh + node_gap;
                 if note_bottom > y_cursor {
                     y_cursor = note_bottom;
                 }
@@ -1028,29 +1091,99 @@ pub fn layout_activity(diagram: &ActivityDiagram) -> Result<ActivityLayout> {
                 });
                 last_flow_node_idx = Some(node_index);
                 node_index += 1;
-                y_cursor += size + NODE_SPACING;
+                y_cursor += size + node_gap;
             }
 
             // ---- Sync bar (old-style ===NAME===) ----------------------------
-            ActivityEvent::SyncBar(_) => {
-                let w = FORK_BAR_WIDTH;
-                let h = SYNC_BAR_HEIGHT;
-                let cx = swimlane_center_x(&swimlane_layouts, current_lane_idx);
-                let x = cx - w / 2.0;
-                let y = y_cursor;
-                log::debug!("  node[{node_index}] SyncBar @ ({x:.1}, {y:.1})");
-                nodes.push(ActivityNodeLayout {
-                    index: node_index,
-                    kind: ActivityNodeKindLayout::SyncBar,
-                    x,
-                    y,
-                    width: w,
-                    height: h,
-                    text: String::new(),
-                });
-                last_flow_node_idx = Some(node_index);
-                node_index += 1;
-                y_cursor += h + NODE_SPACING;
+            ActivityEvent::SyncBar(name) => {
+                let ev_idx = diagram.events.iter().position(|e| std::ptr::eq(e, event)).unwrap_or(0);
+                let has_gotos = sync_bar_goto_count.get(name).copied().unwrap_or(0) > 0;
+                let is_last_ref = sync_bar_last_ref.get(name).copied() == Some(ev_idx);
+                if diagram.is_old_style && has_gotos && !is_last_ref {
+                    // Defer placement: just record the current y_cursor as a
+                    // candidate position for this bar.
+                    let entry = deferred_sync_bars.entry(name.clone()).or_insert(0.0_f64);
+                    *entry = entry.max(y_cursor);
+                    log::debug!("  SyncBar({name}) deferred, max_y={:.1}", *entry);
+                } else {
+                    // Place immediately (either new-style or this is the last ref)
+                    let bar_y = if diagram.is_old_style {
+                        // Use the max y from all deferred references
+                        let deferred_y = deferred_sync_bars.remove(name).unwrap_or(0.0);
+                        deferred_y.max(y_cursor)
+                    } else {
+                        y_cursor
+                    };
+                    let w = FORK_BAR_WIDTH;
+                    let h = SYNC_BAR_HEIGHT;
+                    let cx = swimlane_center_x(&swimlane_layouts, current_lane_idx);
+                    let x = cx - w / 2.0;
+                    log::debug!("  node[{node_index}] SyncBar({name}) @ ({x:.1}, {bar_y:.1})");
+                    nodes.push(ActivityNodeLayout {
+                        index: node_index,
+                        kind: ActivityNodeKindLayout::SyncBar,
+                        x,
+                        y: bar_y,
+                        width: w,
+                        height: h,
+                        text: String::new(),
+                    });
+                    placed_sync_bars.insert(name.clone(), bar_y + h + node_gap);
+                    last_flow_node_idx = Some(node_index);
+                    node_index += 1;
+                    y_cursor = bar_y + h + node_gap;
+                }
+            }
+
+            // ---- Goto sync bar (old-style convergence) ----------------------
+            ActivityEvent::GotoSyncBar(name) => {
+                let ev_idx = diagram.events.iter().position(|e| std::ptr::eq(e, event)).unwrap_or(0);
+                let is_last_ref = sync_bar_last_ref.get(name).copied() == Some(ev_idx);
+                // Update the deferred max-y for this bar
+                let entry = deferred_sync_bars.entry(name.clone()).or_insert(0.0_f64);
+                *entry = entry.max(y_cursor);
+                log::debug!("  GotoSyncBar({name}), max_y={:.1}, is_last={}", *entry, is_last_ref);
+                if is_last_ref {
+                    // This is the last reference — place the bar NOW
+                    let bar_y = *entry;
+                    deferred_sync_bars.remove(name);
+                    let w = FORK_BAR_WIDTH;
+                    let h = SYNC_BAR_HEIGHT;
+                    let cx = swimlane_center_x(&swimlane_layouts, current_lane_idx);
+                    let x = cx - w / 2.0;
+                    log::debug!("  node[{node_index}] SyncBar({name}) placed @ ({x:.1}, {bar_y:.1})");
+                    nodes.push(ActivityNodeLayout {
+                        index: node_index,
+                        kind: ActivityNodeKindLayout::SyncBar,
+                        x,
+                        y: bar_y,
+                        width: w,
+                        height: h,
+                        text: String::new(),
+                    });
+                    placed_sync_bars.insert(name.clone(), bar_y + h + node_gap);
+                    last_flow_node_idx = Some(node_index);
+                    node_index += 1;
+                    y_cursor = bar_y + h + node_gap;
+                }
+            }
+
+            // ---- Resume from sync bar (old-style source) --------------------
+            ActivityEvent::ResumeFromSyncBar(name) => {
+                // Outgoing reference: ===Y1=== --> target.
+                // In a sequential layout we cannot go backwards, so we only
+                // advance forward (y_cursor keeps its current value, or moves
+                // forward to below the bar if the bar is ahead).
+                if let Some(bar_y_below) = placed_sync_bars.get(name) {
+                    if *bar_y_below > y_cursor {
+                        log::debug!("  ResumeFromSyncBar({name}) — y_cursor {y_cursor:.1} -> {bar_y_below:.1}");
+                        y_cursor = *bar_y_below;
+                    } else {
+                        log::debug!("  ResumeFromSyncBar({name}) — bar below at {bar_y_below:.1}, keeping y_cursor at {y_cursor:.1}");
+                    }
+                } else {
+                    log::debug!("  ResumeFromSyncBar({name}) — bar not yet placed, keeping y_cursor at {y_cursor:.1}");
+                }
             }
         }
     }
@@ -1108,6 +1241,7 @@ pub fn layout_activity(diagram: &ActivityDiagram) -> Result<ActivityLayout> {
                 | ActivityEvent::SyncBar(_) => {
                     node_lane.push(cur_lane);
                 }
+                ActivityEvent::GotoSyncBar(_) | ActivityEvent::ResumeFromSyncBar(_) => {}
             }
         }
 
@@ -1690,6 +1824,7 @@ mod tests {
             swimlanes: vec![],
             direction: Default::default(),
             note_max_width: None,
+            is_old_style: false,
         }
     }
 
@@ -1806,6 +1941,7 @@ mod tests {
             swimlanes: vec!["Lane A".into(), "Lane B".into()],
             direction: Default::default(),
             note_max_width: None,
+            is_old_style: false,
         };
         let layout = layout_activity(&d).unwrap();
         assert_eq!(layout.swimlane_layouts.len(), 2);
@@ -1856,6 +1992,7 @@ mod tests {
             swimlanes: vec!["Lane A".into(), "Lane B".into()],
             direction: Default::default(),
             note_max_width: None,
+            is_old_style: false,
         };
         let layout = layout_activity(&d).unwrap();
         let lane_a = &layout.swimlane_layouts[0];
@@ -1905,6 +2042,7 @@ mod tests {
             swimlanes: vec!["Lane A".into(), "Lane B".into()],
             direction: Default::default(),
             note_max_width: None,
+            is_old_style: false,
         };
         let layout = layout_activity(&d).unwrap();
         let lane_a = &layout.swimlane_layouts[0];
@@ -1951,6 +2089,7 @@ mod tests {
             swimlanes: vec!["Swimlane1".into(), "Swimlane2".into()],
             direction: Default::default(),
             note_max_width: None,
+            is_old_style: false,
         };
         let layout = layout_activity(&d).unwrap();
         let lane_a = &layout.swimlane_layouts[0];
@@ -2263,6 +2402,7 @@ mod tests {
             swimlanes: vec!["Lane".into()],
             direction: Default::default(),
             note_max_width: None,
+            is_old_style: false,
         };
         let layout = layout_activity(&d).unwrap();
         let action = layout
@@ -2338,6 +2478,7 @@ mod tests {
             swimlanes: vec!["A".into(), "B".into()],
             direction: Default::default(),
             note_max_width: None,
+            is_old_style: false,
         };
         let layout = layout_activity(&d).unwrap();
         let cross = layout
@@ -2438,6 +2579,7 @@ mod tests {
             swimlanes: vec![],
             direction: Direction::LeftToRight,
             note_max_width: None,
+            is_old_style: false,
         };
         let layout = layout_activity(&d).unwrap();
 
@@ -2486,6 +2628,7 @@ mod tests {
             swimlanes: vec![],
             direction: Direction::TopToBottom,
             note_max_width: None,
+            is_old_style: false,
         };
         let layout = layout_activity(&d).unwrap();
 
@@ -2531,6 +2674,7 @@ mod tests {
             swimlanes: vec![],
             direction: Direction::BottomToTop,
             note_max_width: None,
+            is_old_style: false,
         };
         let layout = layout_activity(&d).unwrap();
 
@@ -2563,6 +2707,7 @@ mod tests {
             swimlanes: vec!["Lane A".into()],
             direction: Default::default(),
             note_max_width: None,
+            is_old_style: false,
         };
         let layout = layout_activity(&d).unwrap();
         // All flow nodes should start below the swimlane header
@@ -2597,6 +2742,7 @@ mod tests {
             swimlanes: vec!["Lane A".into(), "Lane B".into()],
             direction: Default::default(),
             note_max_width: None,
+            is_old_style: false,
         };
         let layout = layout_activity(&d).unwrap();
 
@@ -2651,6 +2797,7 @@ mod tests {
             swimlanes: vec!["Lane A".into()],
             direction: Default::default(),
             note_max_width: None,
+            is_old_style: false,
         };
         let layout = layout_activity(&d).unwrap();
 
@@ -2836,6 +2983,7 @@ mod tests {
             swimlanes: vec![],
             direction: Default::default(),
             note_max_width: Some(80.0),
+            is_old_style: false,
         };
         let layout = layout_activity(&d).unwrap();
         let note = &layout.nodes[1];
