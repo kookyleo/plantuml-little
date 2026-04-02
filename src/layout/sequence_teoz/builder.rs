@@ -319,6 +319,7 @@ impl TeozTile {
     fn zzz(&self) -> f64 {
         self.preferred_height() - self.contact_point_relative()
     }
+
 }
 
 /// Apply Java TileParallel contact-point alignment to a block of parallel tiles.
@@ -390,7 +391,8 @@ impl TeozParams {
         let h11 = font_metrics::line_height(font_family, 11.0, false, false);
         let frag_separator_height_teoz = h11 + 18.0;
 
-        let divider_tm = TextMetrics::new(0.0, 0.0, 5.0, 0.0, 0.0);
+        // Java ComponentRoseDivider: marginX1=4, marginX2=4, marginY=4
+        let divider_tm = TextMetrics::new(4.0, 4.0, 4.0, 0.0, 0.0);
         let divider_height = rose::divider_preferred_size(&divider_tm).height;
 
         let delay_tm = TextMetrics::new(0.0, 0.0, 5.0, 0.0, 0.0);
@@ -2102,6 +2104,8 @@ pub fn build_teoz_layout(sd: &SequenceDiagram, skin: &SkinParams) -> Result<SeqL
                         }
                     }
                 }
+                TeozTile::NoteOver { .. } => {}
+                TeozTile::Communication { is_short_gate: true, .. } => {}
                 _ => {}
             }
         }

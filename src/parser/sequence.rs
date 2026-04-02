@@ -78,12 +78,13 @@ pub fn parse_sequence_diagram_with_original(
     .unwrap();
 
     // Gate/found message: ?->X or X->?  (? is a gate/lost/found participant)
+    // Arrow patterns include [#color] annotations to match the regular arrow regex.
     let gate_left_re = Regex::new(
-        r"^\?([ox]*(?:[/\\]{1,2})?-+(?:[/\\]{1,2})?(?:>?>?)?[ox]*)(.+?)(?:\s*:\s*(.*))?$",
+        r"^\?([ox]*(?:[/\\]{1,2})?(?:\[#[^\]]+\])?-+(?:\[#[^\]]+\])?-*(?:[/\\]{1,2})?(?:>?>?)?[ox]*)(.+?)(?:\s*:\s*(.*))?$",
     )
     .unwrap();
     let gate_right_re = Regex::new(
-        r"^(.+?)([oxX]*(?:<<?)?(?:[/\\]{1,2})?-+(?:[/\\]{1,2})?(?:>?>?)?[oxX]*)\?\s*(?::\s*(.*))?$",
+        r"^(.+?)\s+([oxX]*(?:<<?)?(?:[/\\]{1,2})?(?:\[#[^\]]+\]|\[(?i:hidden)\])?-+(?:\[#[^\]]+\]|\[(?i:hidden)\])?-*(?:[/\\]{1,2})?(?:>?>?)?[oxX]*)\?\s*(?::\s*(.*))?$",
     )
     .unwrap();
 
@@ -482,14 +483,71 @@ pub fn parse_sequence_diagram_with_original(
         };
 
         // Gate/found messages: ?->X (incoming) and X->? (outgoing)
-        if let Some(caps) = gate_left_re.captures(trimmed_arrow) {
+        // Pre-strip inline activation/deactivation and color suffixes
+        // before testing gate regexes, since gate syntax like `A <-o? ++`
+        // has the `?` before inline suffixes.
+        let gate_stripped = {
+            let mut s = trimmed_arrow.to_string();
+            // Strip trailing `: text` for separate handling
+            let gate_text_part: Option<String>;
+            if let Some(colon_pos) = s.find(" : ").or_else(|| s.find(":\t")) {
+                gate_text_part = Some(s[colon_pos + 1..].trim_start_matches(':').trim().to_string());
+                s = s[..colon_pos].trim().to_string();
+            } else if s.ends_with(':') {
+                gate_text_part = Some(String::new());
+                s = s[..s.len() - 1].trim().to_string();
+            } else {
+                gate_text_part = None;
+            }
+            // Strip color suffix (e.g. " #red")
+            let gate_color: Option<String>;
+            if let Some(hash_pos) = s.rfind(" #") {
+                let color_raw = s[hash_pos + 1..].trim();
+                gate_color = crate::klimt::color::resolve_color(color_raw).map(|c| c.to_svg());
+                s = s[..hash_pos].trim().to_string();
+            } else {
+                gate_color = None;
+            }
+            // Strip inline activation/deactivation suffixes
+            let mut gate_activate = false;
+            let mut gate_deactivate_source = false;
+            let mut gate_deactivate = false;
+            if s.ends_with("--++") {
+                s = s[..s.len() - 4].trim().to_string();
+                gate_deactivate_source = true;
+                gate_activate = true;
+            } else if s.ends_with("++--") {
+                s = s[..s.len() - 4].trim().to_string();
+                gate_activate = true;
+                gate_deactivate = true;
+            } else if s.ends_with("++") {
+                s = s[..s.len() - 2].trim().to_string();
+                gate_activate = true;
+            } else if s.ends_with("--") {
+                s = s[..s.len() - 2].trim().to_string();
+                gate_deactivate = true;
+            }
+            // Re-append text part for regex matching
+            if let Some(ref t) = gate_text_part {
+                if !t.is_empty() {
+                    s = format!("{s} : {t}");
+                }
+            }
+            (s, gate_text_part, gate_color, gate_activate, gate_deactivate_source, gate_deactivate)
+        };
+        let (ref gate_stripped_line, ref _gate_text, ref gate_color, gate_activate, gate_deactivate_source, gate_deactivate) = gate_stripped;
+        if let Some(caps) = gate_left_re.captures(gate_stripped_line) {
             let arrow = caps.get(1).unwrap().as_str();
-            let right = caps.get(2).unwrap().as_str().trim();
+            let mut right = caps.get(2).unwrap().as_str().trim().to_string();
             let text = caps
                 .get(3)
                 .map(|m| m.as_str().trim().to_string())
                 .unwrap_or_default();
-            if let Some(mut msg) = parse_arrow("[", &format!("[{arrow}"), right, &text) {
+            // Strip color from right participant if present (e.g. "B #red")
+            if let Some(hash_pos) = right.rfind(" #") {
+                right = right[..hash_pos].trim().to_string();
+            }
+            if let Some(mut msg) = parse_arrow("[", &format!("[{arrow}"), &right, &text) {
                 msg.source_line = Some(source_line);
                 msg.parallel = is_parallel;
                 msg.is_short_gate = true;
@@ -501,11 +559,26 @@ pub fn parse_sequence_diagram_with_original(
                     source_line,
                 );
                 last_to_participant = Some(msg.to.clone());
+                let target = msg.to.clone();
+                let source = msg.from.clone();
                 events.push(SeqEvent::Message(msg));
+                // Emit inline life events
+                if gate_deactivate_source {
+                    inline_life_events.push(events.len());
+                    events.push(SeqEvent::Deactivate(source));
+                }
+                if gate_activate {
+                    inline_life_events.push(events.len());
+                    events.push(SeqEvent::Activate(target.clone(), gate_color.clone()));
+                }
+                if gate_deactivate {
+                    inline_life_events.push(events.len());
+                    events.push(SeqEvent::Deactivate(target));
+                }
                 continue;
             }
         }
-        if let Some(caps) = gate_right_re.captures(trimmed_arrow) {
+        if let Some(caps) = gate_right_re.captures(gate_stripped_line) {
             let left = caps.get(1).unwrap().as_str().trim();
             let arrow = caps.get(2).unwrap().as_str();
             let text = caps
@@ -516,15 +589,44 @@ pub fn parse_sequence_diagram_with_original(
                 msg.source_line = Some(source_line);
                 msg.parallel = is_parallel;
                 msg.is_short_gate = true;
+                // For RTL arrows (A <-o?), the gate is on the LEFT side.
+                // parse_arrow gives from=A, to=] due to has_right_boundary.
+                // Correct this to from=[, to=A so the gate side is right.
+                if msg.direction == SeqDirection::RightToLeft {
+                    msg.from = "[".to_string();
+                    msg.to = left.to_string();
+                    // Swap circle/cross decorators to match swapped from/to
+                    std::mem::swap(&mut msg.circle_from, &mut msg.circle_to);
+                    std::mem::swap(&mut msg.cross_from, &mut msg.cross_to);
+                }
                 debug!("parsed gate-right message: {} ->? : {}", msg.from, msg.text);
+                // The real participant is whichever is not [ or ]
+                let real_participant = if msg.from == "[" || msg.from == "]" {
+                    msg.to.clone()
+                } else {
+                    msg.from.clone()
+                };
                 ensure_participant(
                     &mut declared_participants,
                     &mut auto_participants,
-                    &msg.from,
+                    &real_participant,
                     source_line,
                 );
-                last_to_participant = Some(msg.from.clone());
+                last_to_participant = Some(real_participant.clone());
                 events.push(SeqEvent::Message(msg));
+                // Emit inline life events — activation target is the real participant
+                if gate_deactivate_source {
+                    inline_life_events.push(events.len());
+                    events.push(SeqEvent::Deactivate(real_participant.clone()));
+                }
+                if gate_activate {
+                    inline_life_events.push(events.len());
+                    events.push(SeqEvent::Activate(real_participant.clone(), gate_color.clone()));
+                }
+                if gate_deactivate {
+                    inline_life_events.push(events.len());
+                    events.push(SeqEvent::Deactivate(real_participant.clone()));
+                }
                 continue;
             }
         }
