@@ -164,6 +164,8 @@ struct FragmentStackEntry {
     msg_min_x: Option<f64>,
     /// Maximum x-extent of all messages within this fragment (includes text area)
     msg_max_x: Option<f64>,
+    /// Background color from `#color` prefix
+    color: Option<String>,
 }
 
 // ── Layout output types ──────────────────────────────────────────────────────
@@ -303,6 +305,8 @@ pub struct FragmentLayout {
     /// Index of the first message tile inside this fragment (for render ordering).
     /// Used to interleave fragment frames with messages in correct tile order.
     pub first_msg_index: Option<usize>,
+    /// Background color from `#color` prefix (e.g., `group #ffa Label`)
+    pub color: Option<String>,
 }
 
 /// Divider layout
@@ -2064,7 +2068,7 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
                 last_message_y = None;
             }
 
-            SeqEvent::FragmentStart { kind, label, .. } => {
+            SeqEvent::FragmentStart { kind, label, color, .. } => {
                 let frag_y = y_cursor - lp.frag_y_backoff;
                 let depth = fragment_stack.len();
                 fragment_stack.push(FragmentStackEntry {
@@ -2074,6 +2078,7 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
                     separators: Vec::new(),
                     min_part_idx: None,
                     max_part_idx: None,
+                    color: color.clone(),
                     depth_at_push: depth,
                     msg_min_x: None,
                     msg_max_x: None,
@@ -2104,6 +2109,7 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
                         depth_at_push,
                         msg_min_x,
                         msg_max_x,
+                        color,
                     } = fse;
                     let frag_end_y = y_cursor - lp.frag_end_backoff;
                     let frag_height = frag_end_y - y_start;
@@ -2192,6 +2198,7 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
                         height: frag_height,
                         separators,
                         first_msg_index: None,
+                        color: color.clone(),
                     });
                     lifeline_extend_y = frag_end_y + 17.0;
                     y_cursor = frag_end_y + lp.frag_after_end;
@@ -2553,6 +2560,7 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
             depth_at_push,
             msg_min_x,
             msg_max_x,
+            color,
         } = fse;
         let (frag_x, frag_w) = if let (Some(lo), Some(hi)) = (min_idx, max_idx) {
             let p_lo = &participants[lo];
@@ -2581,6 +2589,7 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
             height: frag_height,
             separators,
             first_msg_index: None,
+            color: color.clone(),
         });
         log::warn!("unclosed fragment, closing at y={y_cursor:.1}");
     }
@@ -3042,6 +3051,7 @@ mod tests {
                     kind: FragmentKind::Alt,
                     label: "success".to_string(),
                     parallel: false,
+                    color: None,
                 },
                 SeqEvent::Message(make_message("A", "B", "ok")),
                 SeqEvent::FragmentSeparator {

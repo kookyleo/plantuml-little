@@ -434,7 +434,12 @@ pub fn parse_sequence_diagram_with_original(
 
             // Fragment start keywords: alt, loop, opt, par, break, critical
             if let Some((kind, rest_start)) = parse_fragment_keyword(&lower) {
-                let label = strip_leading_colors(frag_trimmed[rest_start..].trim()).to_string();
+                let (label_str, color1, _color2) =
+                    strip_leading_colors_with_colors(frag_trimmed[rest_start..].trim());
+                let label = label_str.to_string();
+                let color = color1.and_then(|c| {
+                    crate::klimt::color::resolve_color(&c).map(|c| c.to_svg())
+                });
                 fragment_depth += 1;
                 debug!(
                     "parsed fragment start {kind:?} label={label:?} parallel={frag_parallel} (depth now {fragment_depth})"
@@ -443,6 +448,7 @@ pub fn parse_sequence_diagram_with_original(
                     kind,
                     label,
                     parallel: frag_parallel,
+                    color,
                 });
                 continue;
             }
@@ -453,19 +459,23 @@ pub fn parse_sequence_diagram_with_original(
                 // Strip leading #color spec(s) — Java regex:
                 //   COLORS = "((?<!else)(?<!also)(?<!end)#\w+)?(?:\s+(#\w+))?"
                 // Up to two #word tokens can precede the label text.
-                let rest = strip_leading_colors(rest);
+                let (rest, color1, _color2) = strip_leading_colors_with_colors(rest);
                 let label = if rest.is_empty() {
                     None
                 } else {
                     Some(rest.to_string())
                 };
+                let color = color1.and_then(|c| {
+                    crate::klimt::color::resolve_color(&c).map(|c| c.to_svg())
+                });
                 // Track as fragment for proper "end" matching
                 fragment_depth += 1;
-                debug!("parsed group start: {label:?} (depth now {fragment_depth})");
+                debug!("parsed group start: {label:?} color={color:?} (depth now {fragment_depth})");
                 events.push(SeqEvent::FragmentStart {
                     kind: FragmentKind::Group,
                     label: label.unwrap_or_default(),
                     parallel: frag_parallel,
+                    color,
                 });
                 continue;
             }
@@ -840,9 +850,10 @@ pub fn parse_sequence_diagram_with_original(
 
 /// Strip leading `#color` tokens from fragment/group labels.
 /// Java regex: `COLORS = "(#\w+)?(?:\s+(#\w+))?"` — up to two `#word` tokens
-/// can precede the actual label text.
-fn strip_leading_colors(s: &str) -> &str {
+/// can precede the actual label text. Returns (remaining_text, color1, color2).
+fn strip_leading_colors_with_colors(s: &str) -> (&str, Option<String>, Option<String>) {
     let mut rest = s;
+    let mut colors: Vec<String> = Vec::new();
     // Strip up to two leading #word tokens
     for _ in 0..2 {
         let trimmed = rest.trim_start();
@@ -852,12 +863,20 @@ fn strip_leading_colors(s: &str) -> &str {
                 .find(|c: char| !c.is_alphanumeric() && c != '_')
                 .map(|i| i + 1)
                 .unwrap_or(trimmed.len());
+            colors.push(trimmed[..end].to_string());
             rest = trimmed[end..].trim_start();
         } else {
             break;
         }
     }
-    rest
+    let c1 = colors.first().cloned();
+    let c2 = colors.get(1).cloned();
+    (rest, c1, c2)
+}
+
+/// Strip leading `#color` tokens, returning only the remaining text.
+fn strip_leading_colors(s: &str) -> &str {
+    strip_leading_colors_with_colors(s).0
 }
 
 /// Parse combined fragment keyword, return fragment kind and label start position

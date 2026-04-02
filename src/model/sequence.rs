@@ -156,6 +156,8 @@ pub enum SeqEvent {
         label: String,
         /// Teoz parallel fragment (& prefix): shares y position with previous tile
         parallel: bool,
+        /// Background color from `#color` prefix (e.g., `group #ffa Label`)
+        color: Option<String>,
     },
     /// Fragment separator (else within alt/par)
     FragmentSeparator {
