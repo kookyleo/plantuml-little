@@ -1218,7 +1218,7 @@ fn layout_class_diagram(cd: &ClassDiagram, skin: &crate::style::SkinParams) -> R
     let qualifier_margins = compute_entity_qualifier_margins(cd);
 
     // build LayoutNode list
-    let nodes: Vec<LayoutNode> = cd
+    let mut nodes: Vec<LayoutNode> = cd
         .entities
         .iter()
         .map(|e| {
@@ -1302,6 +1302,72 @@ fn layout_class_diagram(cd: &ClassDiagram, skin: &crate::style::SkinParams) -> R
     let standalone_by_container = collect_standalone_square_edges(cd, &name_to_id);
     edges.extend(standalone_by_container);
 
+    // Java: notes are real entities (LeafType.NOTE) with GMN* IDs, connected
+    // to their target via invisible dashed links. Add them as graphviz nodes
+    // so they participate in layout and push entities to proper positions.
+    let mut note_dot_ids: Vec<String> = Vec::new();
+    for (i, note) in cd.notes.iter().enumerate() {
+        let note_id = format!("GMN{}", i);
+        // Skip graphviz node for notes with embedded subdiagrams — their
+        // sizing is complex and the manual positioning already works.
+        let has_embedded = note.text.contains("{{") && note.text.contains("}}");
+        if has_embedded {
+            note_dot_ids.push(note_id);
+            continue;
+        }
+        let (nw, nh) = estimate_class_note_size(&note.text);
+        nodes.push(LayoutNode {
+            id: note_id.clone(),
+            label: String::new(),
+            width_pt: nw,
+            height_pt: nh,
+            shape: None,
+            shield: None,
+            entity_position: None,
+            max_label_width: None,
+            order: None,
+            image_width_pt: None,
+            lf_extra_left: 0.0,
+            lf_rect_correction: false,
+            lf_has_body_separator: false,
+            hidden: false,
+        });
+        // Invisible edge between note and target entity (Java link pattern).
+        if let Some(ref target) = note.target {
+            let target_id = name_to_id
+                .get(target)
+                .cloned()
+                .unwrap_or_else(|| sanitize_id(target));
+            // Java: LEFT → note→target (length=1, same rank), RIGHT → target→note (length=1, same rank)
+            //        TOP → note→target (length=2, vertical), BOTTOM → target→note (length=2, vertical)
+            let (from, to, minlen) = match note.position.as_str() {
+                "top" => (note_id.clone(), target_id, 1),
+                "bottom" => (target_id, note_id.clone(), 1),
+                "left" => (note_id.clone(), target_id, 0),
+                "right" => (target_id, note_id.clone(), 0),
+                _ => (note_id.clone(), target_id, 1),
+            };
+            let no_constraint = matches!(note.position.as_str(), "left" | "right");
+            edges.push(LayoutEdge {
+                from,
+                to,
+                label: None,
+                label_dimension: None,
+                tail_label: None,
+                tail_label_boxed: false,
+                head_label: None,
+                head_label_boxed: false,
+                tail_decoration: crate::svek::edge::LinkDecoration::None,
+                head_decoration: crate::svek::edge::LinkDecoration::None,
+                line_style: crate::svek::edge::LinkStyle::Dashed,
+                minlen,
+                invisible: true,
+                no_constraint,
+            });
+        }
+        note_dot_ids.push(note_id);
+    }
+
     // Java: rankdir=LR is only emitted when `left to right direction` was explicitly written.
     // When direction is inferred from arrow length, rankdir stays TB (default) and
     // layout is controlled via edge minlen values.
@@ -1355,8 +1421,9 @@ fn layout_class_diagram(cd: &ClassDiagram, skin: &crate::style::SkinParams) -> R
         }
     }
 
-    // compute note layout
-    layout.notes = compute_note_layouts(&cd.notes, &layout.nodes, &name_to_id);
+    // Compute note layouts using graphviz positions for notes that participated
+    // in the graphviz solve (GMN* nodes), falling back to entity-relative placement.
+    layout.notes = compute_note_layouts(&cd.notes, &layout.nodes, &name_to_id, &note_dot_ids);
 
     // expand total_width / total_height to accommodate notes
     for note in &layout.notes {
@@ -1536,18 +1603,60 @@ fn compute_square_branch(size: usize) -> usize {
     }
 }
 
+/// Estimate note size accounting for embedded subdiagrams.
+fn estimate_class_note_size(text: &str) -> (f64, f64) {
+    if let Some(block) = crate::render::embedded::extract_embedded(text) {
+        if let Some((_, ew, eh)) = crate::render::embedded::render_embedded(&block.inner_source, &block.diagram_type) {
+            let before_lines: Vec<&str> = if block.before.is_empty() {
+                vec![]
+            } else {
+                block.before.lines().collect()
+            };
+            let after_lines: Vec<&str> = if block.after.is_empty() {
+                vec![]
+            } else {
+                block.after.lines().collect()
+            };
+            let before_w = before_lines
+                .iter()
+                .map(|l| font_metrics::text_width(l, "SansSerif", NOTE_FONT_SIZE, false, false))
+                .fold(0.0_f64, f64::max);
+            let after_w = after_lines
+                .iter()
+                .map(|l| font_metrics::text_width(l, "SansSerif", NOTE_FONT_SIZE, false, false))
+                .fold(0.0_f64, f64::max);
+            let content_w = before_w.max(ew).max(after_w);
+            let w = (content_w + NOTE_PADDING * 2.0).max(60.0);
+            let before_h = before_lines.len() as f64 * NOTE_LINE_HEIGHT;
+            let after_h = after_lines.len() as f64 * NOTE_LINE_HEIGHT;
+            let h = (before_h + eh + after_h + NOTE_PADDING * 2.0).max(30.0);
+            return (w, h);
+        }
+    }
+    let lines: Vec<&str> = text.lines().collect();
+    let max_line_width = lines
+        .iter()
+        .map(|l| font_metrics::text_width(l, "SansSerif", NOTE_FONT_SIZE, false, false))
+        .fold(0.0_f64, f64::max);
+    let w = (max_line_width + NOTE_PADDING * 2.0).max(60.0);
+    let h = (lines.len() as f64 * NOTE_LINE_HEIGHT + NOTE_PADDING * 2.0).max(30.0);
+    (w, h)
+}
+
 /// Compute note layout positions
 fn compute_note_layouts(
     notes: &[crate::model::ClassNote],
     nodes: &[graphviz::NodeLayout],
     name_to_id: &HashMap<String, String>,
+    note_dot_ids: &[String],
 ) -> Vec<graphviz::ClassNoteLayout> {
     let node_map: HashMap<&str, &graphviz::NodeLayout> =
         nodes.iter().map(|n| (n.id.as_str(), n)).collect();
 
     notes
         .iter()
-        .map(|note| {
+        .enumerate()
+        .map(|(i, note)| {
             // Detect and render embedded diagrams in note text
             let embedded = crate::render::embedded::extract_embedded(&note.text).and_then(|block| {
                 crate::render::embedded::render_embedded(&block.inner_source, &block.diagram_type).map(
@@ -1585,7 +1694,6 @@ fn compute_note_layouts(
                 let before_h = before_lines.len() as f64 * NOTE_LINE_HEIGHT;
                 let after_h = after_lines.len() as f64 * NOTE_LINE_HEIGHT;
                 let h = (before_h + emb.height + after_h + NOTE_PADDING * 2.0).max(30.0);
-                // Combine all lines for the lines field (used as fallback)
                 let all_lines: Vec<String> = before_lines.into_iter()
                     .chain(std::iter::once("{{embedded}}".to_string()))
                     .chain(after_lines)
@@ -1606,7 +1714,9 @@ fn compute_note_layouts(
                 (w, h, lines)
             };
 
-            // find the layout node for the target entity
+            // Use graphviz position for this note if available
+            let note_gv_node = note_dot_ids.get(i).and_then(|nid| node_map.get(nid.as_str()).copied());
+            // Find target entity node
             let target_node = note.target.as_ref().and_then(|target| {
                 let sid = name_to_id
                     .get(target)
@@ -1615,7 +1725,28 @@ fn compute_note_layouts(
                 node_map.get(sid.as_str()).copied()
             });
 
-            let (x, y, connector) = if let Some(nl) = target_node {
+            let (x, y, connector) = if let Some(gv_note) = note_gv_node {
+                // Use graphviz-determined position (top-left corner)
+                let nx = gv_note.cx - gv_note.width / 2.0;
+                let ny = gv_note.cy - gv_note.height / 2.0;
+                // Compute connector to target entity
+                let conn = target_node.map(|nl| {
+                    let note_right = nx + note_width;
+                    let note_cx = nx + note_width / 2.0;
+                    let note_cy = ny + note_height / 2.0;
+                    let entity_left = nl.cx - nl.width / 2.0;
+                    let entity_right = nl.cx + nl.width / 2.0;
+                    match note.position.as_str() {
+                        "left" => (note_right, note_cy, entity_left, note_cy),
+                        "right" => (nx, note_cy, entity_right, note_cy),
+                        "top" => (note_cx, ny + note_height, nl.cx, nl.cy - nl.height / 2.0),
+                        "bottom" => (note_cx, ny, nl.cx, nl.cy + nl.height / 2.0),
+                        _ => (note_right, note_cy, entity_left, note_cy),
+                    }
+                });
+                (nx, ny, conn)
+            } else if let Some(nl) = target_node {
+                // Fallback: position relative to target entity
                 let entity_left = nl.cx - nl.width / 2.0;
                 let entity_right = nl.cx + nl.width / 2.0;
                 let entity_top = nl.cy - nl.height / 2.0;
@@ -1653,7 +1784,6 @@ fn compute_note_layouts(
                         (nx, ny, Some(conn))
                     }
                     _ => {
-                        // default: place on right side
                         let nx = entity_right + NOTE_GAP;
                         let ny = entity_center_y - note_height / 2.0;
                         let conn = (nx, entity_center_y, entity_right, entity_center_y);
@@ -1664,10 +1794,12 @@ fn compute_note_layouts(
                 // no target entity, place at a floating position near bottom-right
                 let max_x = nodes
                     .iter()
+                    .filter(|n| !n.id.starts_with("GMN"))
                     .map(|n| n.cx + n.width / 2.0)
                     .fold(0.0_f64, f64::max);
                 let max_y = nodes
                     .iter()
+                    .filter(|n| !n.id.starts_with("GMN"))
                     .map(|n| n.cy + n.height / 2.0)
                     .fold(0.0_f64, f64::max);
                 (max_x + NOTE_GAP, max_y + NOTE_GAP, None)
@@ -1908,7 +2040,7 @@ mod tests {
             target: Some("Foo".to_string()),
         }];
 
-        let result = compute_note_layouts(&notes, &nodes, &name_to_id);
+        let result = compute_note_layouts(&notes, &nodes, &name_to_id, &[]);
         assert_eq!(result.len(), 1);
         let nl = &result[0];
         // note x should be past entity right edge + gap
@@ -1947,7 +2079,7 @@ mod tests {
             target: Some("Bar".to_string()),
         }];
 
-        let result = compute_note_layouts(&notes, &nodes, &name_to_id);
+        let result = compute_note_layouts(&notes, &nodes, &name_to_id, &[]);
         assert_eq!(result.len(), 1);
         let nl = &result[0];
         let entity_left = 200.0 - 100.0 / 2.0; // 150
@@ -1983,7 +2115,7 @@ mod tests {
             target: None,
         }];
 
-        let result = compute_note_layouts(&notes, &nodes, &name_to_id);
+        let result = compute_note_layouts(&notes, &nodes, &name_to_id, &[]);
         assert_eq!(result.len(), 1);
         assert!(
             result[0].connector.is_none(),

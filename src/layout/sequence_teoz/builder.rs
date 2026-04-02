@@ -62,6 +62,29 @@ const GROUP_MARGINX: f64 = 16.0;
 const GROUP_EXTERNAL_MARGINX1: f64 = 3.0;
 /// Java: GroupingTile.EXTERNAL_MARGINX2 = 9 (right frame margin)
 const GROUP_EXTERNAL_MARGINX2: f64 = 9.0;
+
+/// Compute the header preferred width for a fragment/group.
+/// Java GroupingTile: for "group" kind, display = comment only;
+/// for other kinds (alt, loop, …), display = kind + comment.
+fn fragment_header_width(kind: &FragmentKind, label: &str, font: &str, font_size: f64) -> f64 {
+    if *kind == FragmentKind::Group {
+        // Java: display = Display.create(start.getComment())
+        // Header shows only the label text (or "group" if no label).
+        let display_text = if label.is_empty() { "group" } else { label };
+        let text_w = crate::font_metrics::text_width(display_text, font, font_size, true, false);
+        // marginX1(15) + marginX2(30) = 45
+        text_w + 45.0
+    } else {
+        let kind_text_w = crate::font_metrics::text_width(kind.label(), font, font_size, true, false);
+        if label.is_empty() {
+            kind_text_w + 45.0
+        } else {
+            let bracket_label = format!("[{}]", label);
+            let comment_w = crate::font_metrics::text_width(&bracket_label, font, 11.0, true, false);
+            kind_text_w + 45.0 + 15.0 + comment_w
+        }
+    }
+}
 /// Java: PlayingSpace.startingY = 8. Tiles start at this offset within the PlayingSpace.
 const PLAYINGSPACE_STARTING_Y: f64 = 8.0;
 
@@ -672,26 +695,7 @@ fn compute_fragment_extent(
                 // Also include the nested fragment's header label width
                 // Java: max candidate = min + dim1.getWidth() + 16
                 if let TeozTile::FragmentStart { label, kind, .. } = tile {
-                    let kind_text_w = crate::font_metrics::text_width(
-                        kind.label(),
-                        "sans-serif",
-                        13.0,
-                        true,
-                        false,
-                    );
-                    let header_width = if label.is_empty() {
-                        kind_text_w + 45.0
-                    } else {
-                        let bracket_label = format!("[{}]", label);
-                        let comment_w = crate::font_metrics::text_width(
-                            &bracket_label,
-                            "sans-serif",
-                            11.0,
-                            true,
-                            false,
-                        );
-                        kind_text_w + 45.0 + 15.0 + comment_w
-                    };
+                    let header_width = fragment_header_width(kind, label, "sans-serif", 13.0);
                     let header_right = child_min + header_width + 16.0;
                     if header_right > fmax {
                         fmax = header_right;
@@ -2381,25 +2385,24 @@ pub fn build_teoz_layout(sd: &SequenceDiagram, skin: &SkinParams) -> Result<SeqL
                 TeozTile::GroupEnd { .. } | TeozTile::FragmentEnd { .. } => {
                     if group_depth == 1 {
                         for (kind_lbl, condition) in &header_entries {
-                            let kind_text_w = font_metrics::text_width(
-                                kind_lbl,
-                                default_font,
-                                msg_font_size,
-                                true,
-                                false,
-                            );
-                            let header_width = if condition.is_empty() {
-                                kind_text_w + 45.0
+                            let is_group = *kind_lbl == "group";
+                            let header_width = if is_group {
+                                // Group: display text is the condition, or "group" if empty
+                                let display_text = if condition.is_empty() { "group" } else { condition.as_str() };
+                                let text_w = font_metrics::text_width(
+                                    display_text, default_font, msg_font_size, true, false);
+                                text_w + 45.0
                             } else {
-                                let bracket_label = format!("[{}]", condition);
-                                let comment_w = font_metrics::text_width(
-                                    &bracket_label,
-                                    default_font,
-                                    11.0,
-                                    true,
-                                    false,
-                                );
-                                kind_text_w + 45.0 + 15.0 + comment_w
+                                let kind_text_w = font_metrics::text_width(
+                                    kind_lbl, default_font, msg_font_size, true, false);
+                                if condition.is_empty() {
+                                    kind_text_w + 45.0
+                                } else {
+                                    let bracket_label = format!("[{}]", condition);
+                                    let comment_w = font_metrics::text_width(
+                                        &bracket_label, default_font, 11.0, true, false);
+                                    kind_text_w + 45.0 + 15.0 + comment_w
+                                }
                             };
                             // Java: this.min + headerWidth + 16 + EXTERNAL_MARGINX2(9)
                             // this.min = raw_min + EXTERNAL_MARGINX1(3)
@@ -2408,6 +2411,7 @@ pub fn build_teoz_layout(sd: &SequenceDiagram, skin: &SkinParams) -> Result<SeqL
                                 + header_width
                                 + 16.0
                                 + GROUP_EXTERNAL_MARGINX2;
+                            log::debug!("teoz header: kind={kind_lbl} cond={condition:?} hw={header_width:.2} hmax={header_max:.2} raw_max={raw_max:.2}");
                             if header_max > raw_max {
                                 raw_max = header_max;
                             }
@@ -3048,18 +3052,7 @@ pub fn build_teoz_layout(sd: &SequenceDiagram, skin: &SkinParams) -> Result<SeqL
                     //   else: sup = 0
                     //   width = getTextWidth() + sup
                     // Java GroupingTile: max candidate = this.min + width + 16
-                    let kind_text_w =
-                        font_metrics::text_width(kind.label(), default_font, msg_font_size, true, false);
-                    let header_width = if label.is_empty() {
-                        // No condition label: sup = 0
-                        kind_text_w + 45.0  // marginX1(15) + marginX2(30)
-                    } else {
-                        // Condition label present: "[label]" at 11pt bold
-                        let bracket_label = format!("[{}]", label);
-                        let comment_w =
-                            font_metrics::text_width(&bracket_label, default_font, 11.0, true, false);
-                        kind_text_w + 45.0 + 15.0 + comment_w  // + marginX1(15) + commentWidth
-                    };
+                    let header_width = fragment_header_width(&kind, &label, default_font, msg_font_size);
                     let header_right = frag_min + header_width + 16.0;
                     let effective_max = frag_max.max(header_right);
                     // Convert to document coordinates
