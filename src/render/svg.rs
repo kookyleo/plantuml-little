@@ -1369,16 +1369,36 @@ fn wrap_with_meta(
         } else {
             ""
         };
-        render_creole_text(
-            &mut buf,
-            title,
-            text_x,
-            text_y,
-            text_block_h(title_font_size, title_bold),
-            text_color,
-            None,
-            &format!(r#"font-size="{}"{}"#, title_font_size as i32, weight_str),
-        );
+        let outer_attrs = format!(r#"font-size="{}"{}"#, title_font_size as i32, weight_str);
+        // Detect table content: use block-level rendering which handles tables
+        let title_lines: Vec<String> = title
+            .split(crate::NEWLINE_CHAR)
+            .flat_map(|s| s.lines())
+            .map(|s| s.to_string())
+            .collect();
+        let has_table = creole_table_width(title, title_font_size, title_bold).is_some();
+        if has_table {
+            render_creole_display_lines(
+                &mut buf,
+                &title_lines,
+                text_x,
+                meta_dy + hdr_dim.1 + TITLE_MARGIN + TITLE_PADDING,
+                text_color,
+                &outer_attrs,
+                false,
+            );
+        } else {
+            render_creole_text(
+                &mut buf,
+                title,
+                text_x,
+                text_y,
+                text_block_h(title_font_size, title_bold),
+                text_color,
+                None,
+                &outer_attrs,
+            );
+        }
         if buf.ends_with('\n') {
             buf.pop();
         }

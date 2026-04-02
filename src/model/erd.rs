@@ -21,6 +21,8 @@ pub struct ErdEntity {
     pub attributes: Vec<ErdAttribute>,
     pub is_weak: bool,
     pub color: Option<String>,
+    /// Source declaration order (shared counter with relationships)
+    pub source_order: usize,
 }
 
 #[derive(Debug, Clone)]
@@ -32,6 +34,8 @@ pub struct ErdRelationship {
     pub attributes: Vec<ErdAttribute>,
     pub is_identifying: bool,
     pub color: Option<String>,
+    /// Source declaration order (shared counter with entities)
+    pub source_order: usize,
 }
 
 #[derive(Debug, Clone)]

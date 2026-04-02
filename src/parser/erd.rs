@@ -17,6 +17,8 @@ pub fn parse_erd_diagram(source: &str) -> Result<ErdDiagram> {
     let mut notes: Vec<ErdNote> = Vec::new();
     let mut direction = ErdDirection::TopToBottom;
 
+    let mut source_order_counter = 0usize;
+
     let mut in_note_block = false;
     let mut note_block_position = String::new();
     let mut note_block_target: Option<String> = None;
@@ -76,6 +78,9 @@ pub fn parse_erd_diagram(source: &str) -> Result<ErdDiagram> {
                 entity.is_weak,
                 entity.attributes.len()
             );
+            let mut entity = entity;
+            entity.source_order = source_order_counter;
+            source_order_counter += 1;
             entities.push(entity);
             i = next_i;
             continue;
@@ -91,6 +96,9 @@ pub fn parse_erd_diagram(source: &str) -> Result<ErdDiagram> {
                 rel.is_identifying,
                 rel.attributes.len()
             );
+            let mut rel = rel;
+            rel.source_order = source_order_counter;
+            source_order_counter += 1;
             relationships.push(rel);
             i = next_i;
             continue;
@@ -193,6 +201,7 @@ fn parse_entity(lines: &[&str], start: usize) -> Result<(ErdEntity, usize)> {
             attributes,
             is_weak,
             color,
+            source_order: 0, // set by caller
         },
         next_i,
     ))
@@ -233,6 +242,7 @@ fn parse_relationship(lines: &[&str], start: usize) -> Result<(ErdRelationship, 
             attributes,
             is_identifying,
             color,
+            source_order: 0, // set by caller
         },
         next_i,
     ))

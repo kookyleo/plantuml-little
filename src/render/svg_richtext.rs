@@ -9,6 +9,7 @@ use crate::model::richtext::{RichText, TextSpan};
 use crate::parser::creole::{parse_creole, parse_creole_opts, parse_inline};
 use crate::render::svg_hyperlink::wrap_with_link;
 
+use crate::klimt::color::resolve_color;
 use crate::parser::common::SpriteGrayData;
 
 thread_local! {
@@ -117,7 +118,10 @@ fn process_xlink_title(title: &str) -> String {
             break;
         }
     }
-    // Step 2: Replace literal \n with newline
+    // Step 2: Replace backslash-n sequences with newline.
+    // In PUML source, both `\n` and `\\n` represent a newline in tooltips.
+    // Handle `\\n` first (double-backslash+n → newline), then `\n`.
+    let result = result.replace("\\\\n", "\n");
     result.replace("\\n", "\n")
 }
 
@@ -221,39 +225,11 @@ pub fn creole_table_width(text: &str, font_size: f64, bold: bool) -> Option<f64>
         .map(|s| s.to_string())
         .collect();
     // Check if any line is a table row (starts with |, possibly with color prefix)
-    let is_table = lines.iter().any(|line| {
-        let trimmed = line.trim();
-        // Strip optional color prefix: <#color> or <#color,#border>
-        let after_prefix = if trimmed.starts_with('<') {
-            if let Some(end) = trimmed.find('>') {
-                trimmed[end + 1..].trim_start()
-            } else {
-                trimmed
-            }
-        } else {
-            trimmed
-        };
-        after_prefix.starts_with('|')
-    });
-    if !is_table {
+    if !lines.iter().any(|line| is_table_display_line(line)) {
         return None;
     }
-    // Strip color prefixes from each line before parsing as table rows
-    let cleaned_lines: Vec<String> = lines.iter()
-        .map(|line| {
-            let trimmed = line.trim();
-            if trimmed.starts_with('<') {
-                if let Some(end) = trimmed.find('>') {
-                    trimmed[end + 1..].to_string()
-                } else {
-                    trimmed.to_string()
-                }
-            } else {
-                trimmed.to_string()
-            }
-        })
-        .collect();
-    let rows = parse_display_table_rows(&cleaned_lines, false);
+    // parse_display_table_rows handles stripping <#color> prefixes internally
+    let rows = parse_display_table_rows(&lines, false);
     if rows.is_empty() {
         return None;
     }
@@ -751,11 +727,17 @@ pub fn render_creole_text_word_by_word(
 struct DisplayTableCell {
     lines: Vec<Vec<TextSpan>>,
     is_header: bool,
+    /// Cell background color from `<#color>` prefix
+    bg_color: Option<String>,
 }
 
 #[derive(Clone)]
 struct DisplayTableRow {
     cells: Vec<DisplayTableCell>,
+    /// Row background color from leading `<#color>` prefix on the row line
+    bg_color: Option<String>,
+    /// Row border color from `<#bg,#border>` prefix
+    border_color: Option<String>,
 }
 
 struct DisplayTableLayout {
@@ -1448,15 +1430,52 @@ fn split_display_line(line: &str) -> Vec<String> {
 
 fn is_table_display_line(line: &str) -> bool {
     let trimmed = line.trim();
-    trimmed.starts_with('|') && trimmed.ends_with('|') && trimmed.len() >= 2
+    // Strip optional leading color prefix: <#color> or <#color,#border>
+    let after_prefix = if trimmed.starts_with("<#") {
+        if let Some(gt) = trimmed.find('>') {
+            trimmed[gt + 1..].trim_start()
+        } else {
+            trimmed
+        }
+    } else {
+        trimmed
+    };
+    after_prefix.starts_with('|') && after_prefix.ends_with('|') && after_prefix.len() >= 2
 }
 
 fn parse_display_table_rows(lines: &[String], preserve_backslash_n: bool) -> Vec<DisplayTableRow> {
     lines.iter()
-        .map(|line| DisplayTableRow {
-            cells: parse_display_table_cells(line, preserve_backslash_n),
+        .map(|line| {
+            let (row_bg, border_color, table_line) = strip_row_color_prefix(line);
+            DisplayTableRow {
+                cells: parse_display_table_cells(&table_line, preserve_backslash_n),
+                bg_color: row_bg,
+                border_color,
+            }
         })
         .collect()
+}
+
+/// Strip leading `<#color>` or `<#color,#border>` row prefix from a table line.
+/// Returns (bg_color, border_color, remaining_line).
+fn strip_row_color_prefix(line: &str) -> (Option<String>, Option<String>, String) {
+    let trimmed = line.trim();
+    if !trimmed.starts_with("<#") {
+        return (None, None, trimmed.to_string());
+    }
+    if let Some(gt) = trimmed.find('>') {
+        let color_spec = &trimmed[2..gt]; // between <# and >
+        let rest = trimmed[gt + 1..].to_string();
+        if let Some(comma) = color_spec.find(',') {
+            let bg = color_spec[..comma].to_string();
+            let border = color_spec[comma + 1..].trim_start_matches('#').to_string();
+            (Some(bg), Some(border), rest)
+        } else {
+            (Some(color_spec.to_string()), None, rest)
+        }
+    } else {
+        (None, None, trimmed.to_string())
+    }
 }
 
 fn parse_display_table_cells(line: &str, preserve_backslash_n: bool) -> Vec<DisplayTableCell> {
@@ -1475,13 +1494,34 @@ fn parse_display_table_cells(line: &str, preserve_backslash_n: bool) -> Vec<Disp
             if is_header {
                 cell_text = cell_text.trim_start_matches('=').trim();
             }
+            // Extract cell background color prefix: <#color> or <#color,#border>
+            let (cell_bg, cell_text) = extract_cell_bg_color(cell_text);
             let lines = split_table_cell_lines(cell_text, preserve_backslash_n)
                 .into_iter()
                 .map(|cell_line| parse_inline(&cell_line))
                 .collect();
-            DisplayTableCell { lines, is_header }
+            DisplayTableCell {
+                lines,
+                is_header,
+                bg_color: cell_bg,
+            }
         })
         .collect()
+}
+
+/// Extract leading `<#color>` cell background prefix from table cell text.
+/// Returns (bg_color, remaining_text).
+fn extract_cell_bg_color(text: &str) -> (Option<String>, &str) {
+    let s = text.trim_start();
+    if !s.starts_with("<#") {
+        return (None, text);
+    }
+    if let Some(gt) = s.find('>') {
+        let color = s[2..gt].to_string();
+        (Some(color), s[gt + 1..].trim_start())
+    } else {
+        (None, text)
+    }
 }
 
 fn split_table_cell_lines(text: &str, preserve_backslash_n: bool) -> Vec<String> {
@@ -1489,18 +1529,41 @@ fn split_table_cell_lines(text: &str, preserve_backslash_n: bool) -> Vec<String>
     let chars: Vec<char> = text.chars().collect();
     let mut current = String::new();
     let mut idx = 0usize;
+    let mut bracket_depth = 0u32; // track [[...]] nesting
 
     while idx < chars.len() {
         let ch = chars[idx];
-        if ch == crate::NEWLINE_CHAR || ch == '\n' {
-            parts.push(std::mem::take(&mut current).trim().to_string());
+
+        // Track [[...]] link brackets — don't split inside them
+        if ch == '[' && idx + 1 < chars.len() && chars[idx + 1] == '[' {
+            bracket_depth += 1;
+            current.push(ch);
             idx += 1;
             continue;
         }
-        if !preserve_backslash_n && ch == '\\' && idx + 1 < chars.len() && chars[idx + 1] == 'n' {
-            parts.push(std::mem::take(&mut current).trim().to_string());
+        if ch == ']' && idx + 1 < chars.len() && chars[idx + 1] == ']' && bracket_depth > 0 {
+            bracket_depth -= 1;
+            current.push(ch);
+            current.push(chars[idx + 1]);
             idx += 2;
             continue;
+        }
+
+        if bracket_depth == 0 {
+            if ch == crate::NEWLINE_CHAR || ch == '\n' {
+                parts.push(std::mem::take(&mut current).trim().to_string());
+                idx += 1;
+                continue;
+            }
+            if !preserve_backslash_n
+                && ch == '\\'
+                && idx + 1 < chars.len()
+                && chars[idx + 1] == 'n'
+            {
+                parts.push(std::mem::take(&mut current).trim().to_string());
+                idx += 2;
+                continue;
+            }
         }
 
         current.push(ch);
@@ -1576,6 +1639,7 @@ fn measure_table_cell_width(
     width
 }
 
+
 fn render_display_table(
     buf: &mut String,
     rows: &[DisplayTableRow],
@@ -1588,12 +1652,42 @@ fn render_display_table(
     bold: bool,
     italic: bool,
 ) {
-    let mut row_top = top_y + TABLE_MARGIN_Y;
+    let grid_top = top_y + TABLE_MARGIN_Y;
+
+    // Determine grid line color: use first row's border_color if present, else default
+    let grid_color = rows.iter()
+        .find_map(|r| r.border_color.as_ref())
+        .map(|c| resolve_color_to_svg(c))
+        .unwrap_or_else(|| "#000000".to_string());
+    // Use stroke-width 1.0 when custom border color is set, else 0.5
+    let grid_stroke_w = if rows.iter().any(|r| r.border_color.is_some()) {
+        "1"
+    } else {
+        "0.5"
+    };
+
+    let mut row_top = grid_top;
 
     for (row_idx, row) in rows.iter().enumerate() {
         let row_height = layout.row_heights[row_idx];
-        let mut col_x = x;
 
+        // 1) Row background rect (rendered before all cells in this row)
+        if let Some(ref bg) = row.bg_color {
+            let bg_hex = resolve_color_to_svg(bg);
+            write!(
+                buf,
+                r#"<rect fill="{}" height="{}" style="stroke:none;stroke-width:1;" width="{}" x="{}" y="{}"/>"#,
+                bg_hex,
+                fmt_coord(row_height),
+                fmt_coord(layout.width),
+                fmt_coord(x),
+                fmt_coord(row_top),
+            )
+            .unwrap();
+        }
+
+        // 2) For each cell: render cell bg (if any), then cell text — interleaved
+        let mut col_x = x;
         for (col_idx, col_width) in layout.col_widths.iter().enumerate() {
             if let Some(cell) = row.cells.get(col_idx) {
                 let cell_bold = bold || cell.is_header;
@@ -1604,6 +1698,21 @@ fn render_display_table(
                 let cell_space =
                     font_metrics::text_width(" ", default_font, font_size, cell_bold, italic);
                 let cell_attrs = build_cell_outer_attrs(font_size, cell_bold, italic);
+
+                // Cell background rect
+                if let Some(ref bg) = cell.bg_color {
+                    let bg_hex = resolve_color_to_svg(bg);
+                    write!(
+                        buf,
+                        r#"<rect fill="{}" height="{}" style="stroke:none;stroke-width:1;" width="{}" x="{}" y="{}"/>"#,
+                        bg_hex,
+                        fmt_coord(row_height),
+                        fmt_coord(*col_width),
+                        fmt_coord(col_x),
+                        fmt_coord(row_top),
+                    )
+                    .unwrap();
+                }
 
                 for (line_idx, line) in cell.lines.iter().enumerate() {
                     let baseline = row_top + cell_ascent + line_idx as f64 * cell_line_height;
@@ -1636,12 +1745,15 @@ fn render_display_table(
         row_top += row_height;
     }
 
-    let grid_top = top_y + TABLE_MARGIN_Y;
+    // 4) Grid lines
     let grid_bottom = grid_top + layout.row_heights.iter().sum::<f64>();
     let mut y = grid_top;
+    // Horizontal lines
     write!(
         buf,
-        r#"<line style="stroke:#000000;stroke-width:0.5;" x1="{}" x2="{}" y1="{}" y2="{}"/>"#,
+        r#"<line style="stroke:{};stroke-width:{};" x1="{}" x2="{}" y1="{}" y2="{}"/>"#,
+        grid_color,
+        grid_stroke_w,
         fmt_coord(x),
         fmt_coord(x + layout.width),
         fmt_coord(y),
@@ -1652,7 +1764,9 @@ fn render_display_table(
         y += row_height;
         write!(
             buf,
-            r#"<line style="stroke:#000000;stroke-width:0.5;" x1="{}" x2="{}" y1="{}" y2="{}"/>"#,
+            r#"<line style="stroke:{};stroke-width:{};" x1="{}" x2="{}" y1="{}" y2="{}"/>"#,
+            grid_color,
+            grid_stroke_w,
             fmt_coord(x),
             fmt_coord(x + layout.width),
             fmt_coord(y),
@@ -1661,10 +1775,13 @@ fn render_display_table(
         .unwrap();
     }
 
+    // Vertical lines
     let mut vx = x;
     write!(
         buf,
-        r#"<line style="stroke:#000000;stroke-width:0.5;" x1="{}" x2="{}" y1="{}" y2="{}"/>"#,
+        r#"<line style="stroke:{};stroke-width:{};" x1="{}" x2="{}" y1="{}" y2="{}"/>"#,
+        grid_color,
+        grid_stroke_w,
         fmt_coord(vx),
         fmt_coord(vx),
         fmt_coord(grid_top),
@@ -1675,13 +1792,26 @@ fn render_display_table(
         vx += width;
         write!(
             buf,
-            r#"<line style="stroke:#000000;stroke-width:0.5;" x1="{}" x2="{}" y1="{}" y2="{}"/>"#,
+            r#"<line style="stroke:{};stroke-width:{};" x1="{}" x2="{}" y1="{}" y2="{}"/>"#,
+            grid_color,
+            grid_stroke_w,
             fmt_coord(vx),
             fmt_coord(vx),
             fmt_coord(grid_top),
             fmt_coord(grid_bottom)
         )
         .unwrap();
+    }
+}
+
+/// Resolve a color name (e.g. "lightblue", "Navy", "FF0000") to SVG hex format.
+fn resolve_color_to_svg(name: &str) -> String {
+    if let Some(hc) = resolve_color(name) {
+        hc.to_svg()
+    } else if name.starts_with('#') {
+        name.to_uppercase()
+    } else {
+        format!("#{}", name.to_uppercase())
     }
 }
 

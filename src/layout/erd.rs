@@ -368,55 +368,73 @@ pub fn layout_erd(diagram: &ErdDiagram) -> Result<ErdLayout> {
         }
     }
 
-    // Entities → rect node, then their attributes (matching Java parse order)
-    for e in &diagram.entities {
-        let w = entity_width(&e.name);
-        layout_nodes.push(LayoutNode {
-            id: e.id.clone(),
-            label: e.name.clone(),
-            width_pt: w,
-            height_pt: ENTITY_HEIGHT,
-            shape: Some(ShapeType::Rectangle),
-            shield: None,
-            entity_position: None,
-            max_label_width: None,
-            order: None,
-            image_width_pt: None,
-            lf_extra_left: 0.0,
-            lf_rect_correction: true,
-            lf_has_body_separator: false,
-                    hidden: false,
-        });
-        // Add this entity's direct attributes (and their children)
-        if let Some(attrs) = attrs_by_parent.get(&e.id) {
-            for am in attrs {
-                add_attr_nodes(am, &attrs_by_parent, &mut layout_nodes);
-            }
-        }
+    // Entities and relationships in source declaration order (interleaved).
+    // Java emits them in parse order; this ordering affects graphviz placement.
+    enum ErdItem<'a> {
+        Entity(&'a crate::model::erd::ErdEntity),
+        Relationship(&'a crate::model::erd::ErdRelationship),
     }
-
-    // Relationships → diamond node, then their attributes
+    let mut items: Vec<ErdItem> = Vec::new();
+    for e in &diagram.entities {
+        items.push(ErdItem::Entity(e));
+    }
     for r in &diagram.relationships {
-        let (w, h) = relationship_diamond_size(&r.name);
-        layout_nodes.push(LayoutNode {
-            id: r.id.clone(),
-            label: r.name.clone(),
-            width_pt: w,
-            height_pt: h,
-            shape: Some(ShapeType::Diamond),
-            shield: None,
-            entity_position: None,
-            max_label_width: None,
-            order: None,
-            image_width_pt: None,
-            lf_extra_left: 0.0,
-            lf_rect_correction: true,
-            lf_has_body_separator: false,
+        items.push(ErdItem::Relationship(r));
+    }
+    items.sort_by_key(|item| match item {
+        ErdItem::Entity(e) => e.source_order,
+        ErdItem::Relationship(r) => r.source_order,
+    });
+
+    for item in &items {
+        match item {
+            ErdItem::Entity(e) => {
+                let w = entity_width(&e.name);
+                layout_nodes.push(LayoutNode {
+                    id: e.id.clone(),
+                    label: e.name.clone(),
+                    width_pt: w,
+                    height_pt: ENTITY_HEIGHT,
+                    shape: Some(ShapeType::Rectangle),
+                    shield: None,
+                    entity_position: None,
+                    max_label_width: None,
+                    order: None,
+                    image_width_pt: None,
+                    lf_extra_left: 0.0,
+                    lf_rect_correction: true,
+                    lf_has_body_separator: false,
                     hidden: false,
-        });
-        if let Some(attrs) = attrs_by_parent.get(&r.id) {
-            for am in attrs {
-                add_attr_nodes(am, &attrs_by_parent, &mut layout_nodes);
+                });
+                if let Some(attrs) = attrs_by_parent.get(&e.id) {
+                    for am in attrs {
+                        add_attr_nodes(am, &attrs_by_parent, &mut layout_nodes);
+                    }
+                }
+            }
+            ErdItem::Relationship(r) => {
+                let (w, h) = relationship_diamond_size(&r.name);
+                layout_nodes.push(LayoutNode {
+                    id: r.id.clone(),
+                    label: r.name.clone(),
+                    width_pt: w,
+                    height_pt: h,
+                    shape: Some(ShapeType::Diamond),
+                    shield: None,
+                    entity_position: None,
+                    max_label_width: None,
+                    order: None,
+                    image_width_pt: None,
+                    lf_extra_left: 0.0,
+                    lf_rect_correction: true,
+                    lf_has_body_separator: false,
+                    hidden: false,
+                });
+                if let Some(attrs) = attrs_by_parent.get(&r.id) {
+                    for am in attrs {
+                        add_attr_nodes(am, &attrs_by_parent, &mut layout_nodes);
+                    }
+                }
             }
         }
     }
@@ -1071,6 +1089,7 @@ mod tests {
             attributes: vec![],
             is_weak: false,
             color: None,
+            source_order: 0,
         }
     }
 
@@ -1081,6 +1100,7 @@ mod tests {
             attributes: vec![],
             is_identifying: false,
             color: None,
+            source_order: 0,
         }
     }
 
@@ -1149,6 +1169,7 @@ mod tests {
                 ],
                 is_weak: false,
                 color: None,
+                source_order: 0,
             }],
             ..empty_diagram()
         };
@@ -1284,6 +1305,7 @@ mod tests {
                 }],
                 is_weak: false,
                 color: None,
+                source_order: 0,
             }],
             ..empty_diagram()
         };
@@ -1363,6 +1385,7 @@ mod tests {
                 }],
                 is_weak: false,
                 color: None,
+                source_order: 0,
             }],
             ..empty_diagram()
         };
