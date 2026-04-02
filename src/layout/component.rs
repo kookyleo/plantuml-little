@@ -280,7 +280,9 @@ fn estimate_entity_size(entity: &ComponentEntity) -> (f64, f64) {
     // Non-sprite path: use type-specific margins from Java USymbol classes.
     // Card has tight margins (10,10,3,3); most others use PADDING=15 as fallback.
     let (ml, mr, mt, mb) = entity_margins(&entity.kind);
-    let name_lines: Vec<&str> = entity.name.lines().collect();
+    // Split on creole line breaks (\n as literal backslash-n text) AND actual newlines.
+    // Java's creole parser treats `\n` as a line separator for both sizing and rendering.
+    let name_lines: Vec<&str> = entity.name.split("\\n").flat_map(|s| s.lines()).collect();
     let name_line_count = name_lines.len().max(1);
     // Component icon space is already included in the right margin (25px).
     let name_w = name_lines
