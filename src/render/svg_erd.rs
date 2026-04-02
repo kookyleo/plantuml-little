@@ -977,7 +977,15 @@ mod tests {
             edge_color: None,
         });
         let svg = render_erd(&empty_diagram(), &l, &SkinParams::default()).unwrap();
-        assert!(svg.matches("<path").count() >= 2);
+        // Double-line edges use stroke-width:2 (Java goBold), single path
+        assert!(
+            svg.contains("stroke-width:2"),
+            "double edge should use stroke-width:2"
+        );
+        assert!(
+            svg.matches("<path").count() >= 1,
+            "should have at least one path for the edge"
+        );
     }
     #[test]
     fn test_isa_circle() {
@@ -986,16 +994,20 @@ mod tests {
             parent_id: "PARENT".into(),
             kind_label: "d".into(),
             center: (200.0, 200.0),
+            center_id: "PARENT/d C1, C2 /center".into(),
             radius: 12.5,
             parent_edge_path: Some("M200,170 C200,180 200,190 200,187".to_string()),
+            parent_edge_uid: 10,
             child_edges: vec![
                 ErdIsaChildEdge {
                     child_id: "C1".into(),
                     raw_path_d: Some("M200,212 C180,230 160,240 160,250".to_string()),
+                    link_uid: 11,
                 },
                 ErdIsaChildEdge {
                     child_id: "C2".into(),
                     raw_path_d: Some("M200,212 C220,230 240,240 240,250".to_string()),
+                    link_uid: 12,
                 },
             ],
             is_double: true,
