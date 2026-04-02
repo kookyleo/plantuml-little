@@ -64,6 +64,10 @@ pub struct ErdNodeLayout {
     pub is_relationship: bool,
     /// Source declaration order (shared counter between entities and relationships).
     pub source_order: usize,
+    /// Per-entity background color override (from `#color` syntax).
+    pub bg_color: Option<String>,
+    /// Per-entity border/line color override (from `line:color` syntax).
+    pub line_color: Option<String>,
 }
 
 /// A positioned attribute ellipse.
@@ -775,6 +779,7 @@ pub fn layout_erd(diagram: &ErdDiagram) -> Result<ErdLayout> {
         .iter()
         .filter_map(|e| {
             let (x, y, w, h) = positions.get(&e.id).copied()?;
+            let (bg_color, line_color) = parse_erd_color_spec(e.color.as_deref());
             Some(ErdNodeLayout {
                 id: e.id.clone(),
                 label: e.name.clone(),
@@ -783,6 +788,8 @@ pub fn layout_erd(diagram: &ErdDiagram) -> Result<ErdLayout> {
                 is_identifying: false,
                 is_relationship: false,
                 source_order: e.source_order,
+                bg_color,
+                line_color,
             })
         })
         .collect();
@@ -793,6 +800,7 @@ pub fn layout_erd(diagram: &ErdDiagram) -> Result<ErdLayout> {
         .iter()
         .filter_map(|r| {
             let (x, y, w, h) = positions.get(&r.id).copied()?;
+            let (bg_color, line_color) = parse_erd_color_spec(r.color.as_deref());
             Some(ErdNodeLayout {
                 id: r.id.clone(),
                 label: r.name.clone(),
@@ -801,6 +809,8 @@ pub fn layout_erd(diagram: &ErdDiagram) -> Result<ErdLayout> {
                 is_identifying: r.is_identifying,
                 is_relationship: true,
                 source_order: r.source_order,
+                bg_color,
+                line_color,
             })
         })
         .collect();
@@ -1058,6 +1068,51 @@ pub fn layout_erd(diagram: &ErdDiagram) -> Result<ErdLayout> {
         svek_node_uids,
         link_uids,
     })
+}
+
+/// Parse an ERD color spec like `#lightblue;line:blue` into (bg_color, line_color).
+fn parse_erd_color_spec(spec: Option<&str>) -> (Option<String>, Option<String>) {
+    let spec = match spec {
+        Some(s) => s.trim(),
+        None => return (None, None),
+    };
+    let spec = spec.strip_prefix('#').unwrap_or(spec);
+    let mut bg = None;
+    let mut line = None;
+    for part in spec.split(';') {
+        let part = part.trim();
+        if let Some(lc) = part.strip_prefix("line:") {
+            line = Some(resolve_color_name(lc.trim()));
+        } else if !part.is_empty() {
+            bg = Some(resolve_color_name(part));
+        }
+    }
+    (bg, line)
+}
+
+/// Resolve a color name to its hex value.
+fn resolve_color_name(name: &str) -> String {
+    // If already a hex color, return as-is
+    if name.starts_with('#') {
+        return name.to_uppercase();
+    }
+    // Common HTML color names
+    match name.to_lowercase().as_str() {
+        "lightblue" => "#ADD8E6".to_string(),
+        "blue" => "#0000FF".to_string(),
+        "red" => "#FF0000".to_string(),
+        "green" => "#008000".to_string(),
+        "lime" => "#00FF00".to_string(),
+        "orange" => "#FFA500".to_string(),
+        "pink" => "#FFC0CB".to_string(),
+        "purple" => "#800080".to_string(),
+        "yellow" => "#FFFF00".to_string(),
+        "white" => "#FFFFFF".to_string(),
+        "black" => "#000000".to_string(),
+        "gray" | "grey" => "#808080".to_string(),
+        "navy" => "#000080".to_string(),
+        _ => format!("#{}", name),  // assume hex without #
+    }
 }
 
 /// Shift all numeric coordinates in an SVG path d-string by (dx, dy).

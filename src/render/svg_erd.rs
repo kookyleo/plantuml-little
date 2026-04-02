@@ -137,15 +137,18 @@ fn render_entity(
     font_color: &str,
 ) {
     let (x, y, w, h) = (node.x, node.y, node.width, node.height);
+    // Use per-entity colors if specified, otherwise defaults
+    let eff_bg = node.bg_color.as_deref().unwrap_or(bg);
+    let eff_border = node.line_color.as_deref().unwrap_or(border);
     sg.push_raw("<g>");
     if node.is_weak {
-        sg.set_fill_color(bg);
-        sg.set_stroke_color(Some(border));
+        sg.set_fill_color(eff_bg);
+        sg.set_stroke_color(Some(eff_border));
         sg.set_stroke_width(0.5, None);
         sg.svg_rectangle(x, y, w, h, 0.0, 0.0, 0.0);
         let inset = 3.0;
-        sg.set_fill_color(bg);
-        sg.set_stroke_color(Some(border));
+        sg.set_fill_color(eff_bg);
+        sg.set_stroke_color(Some(eff_border));
         sg.set_stroke_width(0.5, None);
         sg.svg_rectangle(
             x + inset,
@@ -157,8 +160,8 @@ fn render_entity(
             0.0,
         );
     } else {
-        sg.set_fill_color(bg);
-        sg.set_stroke_color(Some(border));
+        sg.set_fill_color(eff_bg);
+        sg.set_stroke_color(Some(eff_border));
         sg.set_stroke_width(0.5, None);
         sg.svg_rectangle(x, y, w, h, 0.0, 0.0, 0.0);
     }
@@ -189,18 +192,18 @@ fn render_relationship(sg: &mut SvgGraphic, node: &ErdNodeLayout) {
     let (x, y, w, h) = (node.x, node.y, node.width, node.height);
     let cx = x + w / 2.0;
     let cy = y + h / 2.0;
+    let eff_bg = node.bg_color.as_deref().unwrap_or(ENTITY_BG);
+    let eff_border = node.line_color.as_deref().unwrap_or(BORDER_COLOR);
     sg.push_raw("<g>");
     if node.is_identifying {
-        sg.set_fill_color(ENTITY_BG);
-        sg.set_stroke_color(Some(BORDER_COLOR));
+        sg.set_fill_color(eff_bg);
+        sg.set_stroke_color(Some(eff_border));
         sg.set_stroke_width(0.5, None);
         sg.svg_polygon(0.0, &[x, cy, cx, y, x + w, cy, cx, y + h]);
-        // Java: UTranslate(10, 5).draw(getShape(dimTotal.delta(-20, -10)))
-        // Inner diamond has 10px inset on x, 5px inset on y.
         let inset_x = 10.0;
         let inset_y = 5.0;
-        sg.set_fill_color(ENTITY_BG);
-        sg.set_stroke_color(Some(BORDER_COLOR));
+        sg.set_fill_color(eff_bg);
+        sg.set_stroke_color(Some(eff_border));
         sg.set_stroke_width(0.5, None);
         sg.svg_polygon(
             0.0,
@@ -216,8 +219,8 @@ fn render_relationship(sg: &mut SvgGraphic, node: &ErdNodeLayout) {
             ],
         );
     } else {
-        sg.set_fill_color(ENTITY_BG);
-        sg.set_stroke_color(Some(BORDER_COLOR));
+        sg.set_fill_color(eff_bg);
+        sg.set_stroke_color(Some(eff_border));
         sg.set_stroke_width(0.5, None);
         sg.svg_polygon(0.0, &[x, cy, cx, y, x + w, cy, cx, y + h]);
     }
@@ -742,6 +745,8 @@ mod tests {
             is_identifying: false,
             is_relationship: false,
             source_order: 0,
+            bg_color: None,
+            line_color: None,
         }
     }
     fn make_attr(id: &str, parent: &str, x: f64, y: f64) -> ErdAttrLayout {
@@ -803,6 +808,8 @@ mod tests {
             is_identifying: false,
             is_relationship: true,
             source_order: 0,
+            bg_color: None,
+            line_color: None,
         });
         let svg = render_erd(&empty_diagram(), &l, &SkinParams::default()).unwrap();
         assert!(svg.contains("<polygon"));
@@ -822,6 +829,8 @@ mod tests {
             is_identifying: true,
             is_relationship: true,
             source_order: 0,
+            bg_color: None,
+            line_color: None,
         });
         let svg = render_erd(&empty_diagram(), &l, &SkinParams::default()).unwrap();
         assert_eq!(svg.matches("<polygon").count(), 2);
