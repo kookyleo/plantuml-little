@@ -212,8 +212,11 @@ pub fn layout(diagram: &Diagram, skin: &crate::style::SkinParams) -> Result<Diag
             Ok(DiagramLayout::Yaml(yl))
         }
         Diagram::UseCase(ud) => {
-            let ul = usecase::layout_usecase(ud)?;
-            Ok(DiagramLayout::UseCase(ul))
+            // Route through the component (description diagram) layout pipeline,
+            // same as Java's CucaDiagramFileMakerSvek for usecase diagrams.
+            let cd = crate::model::component::ComponentDiagram::from(ud);
+            let cl = component::layout_component(&cd)?;
+            Ok(DiagramLayout::Component(cl))
         }
         Diagram::Dot(dd) => {
             // DOT passthrough: use a minimal placeholder layout

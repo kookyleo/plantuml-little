@@ -714,6 +714,12 @@ fn render_node(
         ComponentKind::PortIn | ComponentKind::PortOut => {
             render_port_node(sg, node, meta, comp_bg, comp_border, comp_font);
         }
+        ComponentKind::Actor => {
+            render_actor_node(sg, node, meta, comp_bg, comp_border, comp_font);
+        }
+        ComponentKind::UseCase => {
+            render_usecase_node(sg, node, meta, comp_bg, comp_border, comp_font);
+        }
     }
 }
 
@@ -2097,6 +2103,144 @@ fn render_note(
     sg.push_raw(&tmp);
 
     // Close entity group
+    sg.push_raw("</g>");
+}
+
+// ---------------------------------------------------------------------------
+// Actor (use case diagram)
+// ---------------------------------------------------------------------------
+
+/// Render a stick-figure actor matching Java ActorStickMan dimensions.
+/// Java: headDiam=16, bodyLength=27, armsY=8, armsLength=13, legsX=13, legsY=15
+fn render_actor_node(
+    sg: &mut SvgGraphic,
+    node: &ComponentNodeLayout,
+    meta: EntitySvgMeta<'_>,
+    bg: &str,
+    border: &str,
+    font_color: &str,
+) {
+    open_entity_g(sg, node, meta);
+
+    let x = node.x;
+    let y = node.y;
+    let w = node.width;
+
+    // Java ActorStickMan constants
+    const HEAD_DIAM: f64 = 16.0;
+    const BODY_LENGTH: f64 = 27.0;
+    const ARMS_Y: f64 = 8.0;
+    const ARMS_LENGTH: f64 = 13.0;
+    const LEGS_X: f64 = 13.0;
+    const LEGS_Y: f64 = 15.0;
+    const THICKNESS: f64 = 0.5;
+
+    // Java: startX = max(armsLength, legsX) - headDiam/2 + thickness
+    // centerX = startX + headDiam/2
+    // The figure width = max(armsLength, legsX) * 2 + 2*thickness = 27
+    let fig_width = ARMS_LENGTH.max(LEGS_X) * 2.0 + 2.0 * THICKNESS;
+    let fig_cx = x + w / 2.0;
+    let fig_left = fig_cx - fig_width / 2.0;
+    let start_x = fig_left + ARMS_LENGTH.max(LEGS_X) - HEAD_DIAM / 2.0 + THICKNESS;
+    let center_x = start_x + HEAD_DIAM / 2.0;
+
+    // Head
+    sg.set_fill_color(bg);
+    sg.set_stroke_color(Some(border));
+    sg.set_stroke_width(THICKNESS, None);
+    sg.svg_ellipse(
+        center_x,
+        y + THICKNESS + HEAD_DIAM / 2.0,
+        HEAD_DIAM / 2.0,
+        HEAD_DIAM / 2.0,
+        0.0,
+    );
+
+    // Body + arms + legs as a single path (matching Java format)
+    let body_top = y + HEAD_DIAM + THICKNESS;
+    let body_bottom = body_top + BODY_LENGTH;
+    let arms_y = body_top + ARMS_Y;
+    let d = format!(
+        "M{cx},{bt} L{cx},{bb} M{al},{ay} L{ar},{ay} M{cx},{bb} L{ll},{ly} M{cx},{bb} L{rl},{ly}",
+        cx = fmt_coord(center_x),
+        bt = fmt_coord(body_top),
+        bb = fmt_coord(body_bottom),
+        al = fmt_coord(center_x - ARMS_LENGTH),
+        ar = fmt_coord(center_x + ARMS_LENGTH),
+        ay = fmt_coord(arms_y),
+        ll = fmt_coord(center_x - LEGS_X),
+        rl = fmt_coord(center_x + LEGS_X),
+        ly = fmt_coord(body_bottom + LEGS_Y),
+    );
+    sg.push_raw(&format!(
+        r#"<path d="{d}" fill="none" style="stroke:{border};stroke-width:{THICKNESS};"/>"#,
+    ));
+
+    // Label below the figure
+    let text = &node.name;
+    let text_w = font_metrics::text_width(text, "SansSerif", FONT_SIZE, false, false);
+    let text_x = x + (w - text_w) / 2.0;
+    let fig_bottom = body_bottom + LEGS_Y;
+    // Java: label drawn at labelY = dimStickMan.getHeight() + dimStereo.getHeight()
+    // Text baseline: font ascent = 1901/2048 * 14 = 12.9951...
+    // Java drawU text baseline = labelY + ascent
+    let ascent = 1901.0 / 2048.0 * FONT_SIZE;
+    let text_y = fig_bottom + ascent;
+
+    sg.push_raw(&format!(
+        r#"<text fill="{font_color}" font-family="sans-serif" font-size="{FONT_SIZE}" lengthAdjust="spacing" textLength="{tl}" x="{tx}" y="{ty}">{text}</text>"#,
+        tl = fmt_coord(text_w),
+        tx = fmt_coord(text_x),
+        ty = fmt_coord(text_y),
+        text = xml_escape(text),
+    ));
+
+    sg.push_raw("</g>");
+}
+
+// ---------------------------------------------------------------------------
+// UseCase (use case diagram) — ellipse with centered text
+// ---------------------------------------------------------------------------
+
+/// Render a use case oval matching Java TextBlockInEllipse dimensions.
+fn render_usecase_node(
+    sg: &mut SvgGraphic,
+    node: &ComponentNodeLayout,
+    meta: EntitySvgMeta<'_>,
+    bg: &str,
+    border: &str,
+    font_color: &str,
+) {
+    open_entity_g(sg, node, meta);
+
+    let cx = node.x + node.width / 2.0;
+    let cy = node.y + node.height / 2.0;
+    let rx = node.width / 2.0;
+    let ry = node.height / 2.0;
+
+    sg.set_fill_color(bg);
+    sg.set_stroke_color(Some(border));
+    sg.set_stroke_width(0.5, None);
+    sg.svg_ellipse(cx, cy, rx, ry, 0.0);
+
+    // Centered text
+    let text = &node.name;
+    let text_w = font_metrics::text_width(text, "SansSerif", FONT_SIZE, false, false);
+    let text_x = cx - text_w / 2.0;
+    let ascent = 1901.0 / 2048.0 * FONT_SIZE;
+    let descent = 483.0 / 2048.0 * FONT_SIZE;
+    let text_h = ascent + descent;
+    // Center text vertically in the ellipse
+    let text_y = cy - text_h / 2.0 + ascent;
+
+    sg.push_raw(&format!(
+        r#"<text fill="{font_color}" font-family="sans-serif" font-size="{FONT_SIZE}" lengthAdjust="spacing" textLength="{tl}" x="{tx}" y="{ty}">{text}</text>"#,
+        tl = fmt_coord(text_w),
+        tx = fmt_coord(text_x),
+        ty = fmt_coord(text_y),
+        text = xml_escape(text),
+    ));
+
     sg.push_raw("</g>");
 }
 

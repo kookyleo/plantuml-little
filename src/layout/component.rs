@@ -173,6 +173,9 @@ pub fn entity_margins(kind: &ComponentKind) -> (f64, f64, f64, f64) {
         ComponentKind::Stack => (25.0, 25.0, 10.0, 10.0),
         ComponentKind::Queue => (5.0, 15.0, 5.0, 5.0),
         ComponentKind::PortIn | ComponentKind::PortOut => (0.0, 0.0, 0.0, 0.0),
+        // Actor and UseCase are handled via special sizing in estimate_entity_size
+        ComponentKind::Actor => (0.0, 0.0, 0.0, 0.0),
+        ComponentKind::UseCase => (0.0, 0.0, 0.0, 0.0),
     }
 }
 
@@ -183,6 +186,49 @@ fn estimate_entity_size(entity: &ComponentEntity) -> (f64, f64) {
     if matches!(entity.kind, ComponentKind::PortIn | ComponentKind::PortOut) {
         let port_size: f64 = 12.0;
         return (port_size, port_size);
+    }
+
+    // Actor: Java ActorStickMan dimensions + label below.
+    // Java USymbolSimpleAbstract.calculateDimension = mergeLayoutT12B3(stereo, actor, label)
+    // ActorStickMan: width = max(armsLength,legsX)*2+2*thickness = 26+1 = 27
+    //               height = headDiam+bodyLength+legsY+2*thickness+shadow+1 = 16+27+15+1+0+1 = 60
+    if entity.kind == ComponentKind::Actor {
+        const ACTOR_FIG_W: f64 = 27.0;
+        const ACTOR_FIG_H: f64 = 60.0;
+        let label_w = text_width(&entity.name);
+        let label_h = LINE_HEIGHT;
+        let w = ACTOR_FIG_W.max(label_w);
+        let h = ACTOR_FIG_H + label_h;
+        log::debug!(
+            "estimate_entity_size: ACTOR name={:?} label_w={:.4} w={:.4} h={:.4}",
+            entity.name, label_w, w, h
+        );
+        return (w, h);
+    }
+
+    // UseCase: Java TextBlockInEllipse computes a smallest-enclosing-ellipse
+    // around the text bounding rectangle. The algorithm:
+    //   1) alpha = clamp(text_h / text_w, 0.2, 0.8)
+    //   2) Points of text rect are y-scaled by 1/alpha (making it ~square)
+    //   3) Smallest enclosing circle of the scaled rectangle (= circumscribed circle)
+    //   4) Ellipse: width = 2*radius, height = 2*radius*alpha
+    //   5) bigger(6): width += 6, height += 6
+    if entity.kind == ComponentKind::UseCase {
+        let tw = text_width(&entity.name);
+        let th = LINE_HEIGHT;
+        let alpha = (th / tw).clamp(0.2, 0.8);
+        // Java Footprint.drawText: y -= dim.getHeight() - 1.5;
+        // Rect in y-scaled space: width = tw, height = th / alpha
+        let scaled_h = th / alpha;
+        let diag = (tw * tw + scaled_h * scaled_h).sqrt();
+        let radius = diag / 2.0;
+        let ellipse_w = 2.0 * radius + 6.0;
+        let ellipse_h = 2.0 * radius * alpha + 6.0;
+        log::debug!(
+            "estimate_entity_size: USECASE name={:?} tw={:.4} th={:.4} alpha={:.4} radius={:.4} w={:.4} h={:.4}",
+            entity.name, tw, th, alpha, radius, ellipse_w, ellipse_h
+        );
+        return (ellipse_w, ellipse_h);
     }
 
     // Check if stereotype references a sprite
@@ -435,6 +481,9 @@ pub fn layout_component(cd: &ComponentDiagram) -> Result<ComponentLayout> {
             };
             let shape = match e.kind {
                 ComponentKind::PortIn | ComponentKind::PortOut => Some(ShapeType::RectanglePort),
+                // Java EntityImageDescription: usecase → ShapeType.OVAL
+                ComponentKind::UseCase => Some(ShapeType::Oval),
+                // Actor: ShapeType.RECTANGLE (default)
                 _ => None,
             };
             let max_label_width = match e.kind {
@@ -456,7 +505,9 @@ pub fn layout_component(cd: &ComponentDiagram) -> Result<ComponentLayout> {
                 order: e.source_line,
                 image_width_pt: None,
                 lf_extra_left: 0.0,
-                lf_rect_correction: true,
+                // Java LimitFinder: rect entities use drawRectangle (min_corr=1),
+                // oval entities use drawEllipse (min_corr=0).
+                lf_rect_correction: !matches!(e.kind, ComponentKind::UseCase),
                 lf_has_body_separator: false,
                 hidden: false,
             }

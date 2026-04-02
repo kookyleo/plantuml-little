@@ -598,8 +598,10 @@ fn render_body(
                 raw_body_dim: None,
                 body_pre_offset: false,
             }),
-        (Diagram::UseCase(ud), DiagramLayout::UseCase(ul)) => {
-            super::svg_usecase::render_usecase(ud, ul, skin).map(|svg| BodyResult {
+        (Diagram::UseCase(ud), DiagramLayout::Component(cl)) => {
+            // Use case diagrams are routed through the component rendering pipeline.
+            let cd = crate::model::component::ComponentDiagram::from(ud);
+            super::svg_component::render_component(&cd, cl, skin).map(|svg| BodyResult {
                 svg,
                 raw_body_dim: None,
                 body_pre_offset: false,

@@ -21,6 +21,9 @@ pub enum ComponentKind {
     // Port kinds (used inside component groups)
     PortIn,
     PortOut,
+    // Use case diagram kinds
+    Actor,
+    UseCase,
 }
 
 #[derive(Debug, Clone)]
@@ -83,6 +86,99 @@ pub struct ComponentNote {
     pub target: Option<String>,
     /// Source line number (1-based) of the `note` command in the PlantUML source.
     pub source_line: Option<usize>,
+}
+
+/// Convert a UseCaseDiagram into a ComponentDiagram so it can be routed through
+/// the component (description diagram) svek/graphviz layout pipeline.
+impl From<&super::usecase::UseCaseDiagram> for ComponentDiagram {
+    fn from(uc: &super::usecase::UseCaseDiagram) -> Self {
+        let mut entities = Vec::new();
+        let mut source_line_counter: usize = 1; // approximation for ordering
+
+        // Actors -> ComponentEntity with kind=Actor
+        for actor in &uc.actors {
+            entities.push(ComponentEntity {
+                name: actor.name.clone(),
+                id: actor.id.clone(),
+                kind: ComponentKind::Actor,
+                stereotype: actor.stereotype.clone(),
+                description: vec![],
+                parent: None,
+                color: actor.color.clone(),
+                source_line: Some(source_line_counter),
+            });
+            source_line_counter += 1;
+        }
+
+        // Use cases -> ComponentEntity with kind=UseCase
+        for usecase in &uc.usecases {
+            entities.push(ComponentEntity {
+                name: usecase.name.clone(),
+                id: usecase.id.clone(),
+                kind: ComponentKind::UseCase,
+                stereotype: usecase.stereotype.clone(),
+                description: vec![],
+                parent: usecase.parent.clone(),
+                color: usecase.color.clone(),
+                source_line: Some(source_line_counter),
+            });
+            source_line_counter += 1;
+        }
+
+        // Links -> ComponentLink
+        let links: Vec<ComponentLink> = uc
+            .links
+            .iter()
+            .enumerate()
+            .map(|(i, link)| {
+                let dashed = link.style != super::usecase::UseCaseLinkStyle::Association;
+                ComponentLink {
+                    from: link.from.clone(),
+                    to: link.to.clone(),
+                    label: link.label.clone(),
+                    dashed,
+                    direction_hint: link.direction_hint.clone(),
+                    arrow_len: 2, // default vertical layout
+                    source_line: Some(source_line_counter + i),
+                    direction_inverted: false,
+                }
+            })
+            .collect();
+
+        // Boundaries -> ComponentGroup
+        let groups: Vec<ComponentGroup> = uc
+            .boundaries
+            .iter()
+            .map(|b| ComponentGroup {
+                name: b.name.clone(),
+                id: b.id.clone(),
+                kind: ComponentKind::Rectangle,
+                stereotype: None,
+                children: b.children.clone(),
+                source_line: None,
+            })
+            .collect();
+
+        // Notes -> ComponentNote
+        let notes: Vec<ComponentNote> = uc
+            .notes
+            .iter()
+            .map(|n| ComponentNote {
+                text: n.text.clone(),
+                position: n.position.clone(),
+                target: n.target.clone(),
+                source_line: None,
+            })
+            .collect();
+
+        ComponentDiagram {
+            entities,
+            links,
+            groups,
+            notes,
+            direction: uc.direction.clone(),
+        }
+    }
 }
 
 #[cfg(test)]
