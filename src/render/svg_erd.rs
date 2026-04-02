@@ -431,7 +431,7 @@ fn render_edge(
     // ISA arrow decoration for ->- and -<- links
     if let Some(is_superset) = edge.isa_arrow {
         if let Some(ref path_d) = edge.raw_path_d {
-            render_isa_arrow_decoration(sg, path_d, is_superset);
+            render_isa_arrow_decoration(sg, path_d, is_superset, edge_stroke);
         }
     } else if !edge.label.is_empty() {
         let (mx, my) = if let Some((lx, ly)) = edge.label_xy {
@@ -466,7 +466,7 @@ fn render_edge(
 
 /// Render the ISA arrow decoration (triangle arrowhead) at the midpoint of an edge.
 /// Java renders this as: arc + 2 lines forming a triangle.
-fn render_isa_arrow_decoration(sg: &mut SvgGraphic, path_d: &str, is_superset: bool) {
+fn render_isa_arrow_decoration(sg: &mut SvgGraphic, path_d: &str, is_superset: bool, stroke_color: &str) {
     // Parse the bezier curve from the path d-string to find the midpoint and tangent.
     // Path format: "Mx,y Ccx1,cy1 cx2,cy2 ex,ey" (cubic bezier)
     if let Some((mid, tangent)) = bezier_midpoint_tangent(path_d, is_superset) {
@@ -502,18 +502,21 @@ fn render_isa_arrow_decoration(sg: &mut SvgGraphic, path_d: &str, is_superset: b
 
         // Arc path - Java uses space (not comma) between arc endpoint coordinates
         sg.push_raw(&format!(
-            r#"<path d="M{},{} A{r},{r} 0 0 0 {} {}" fill="none" style="stroke:{BORDER_COLOR};stroke-width:1.5;"/>"#,
+            r#"<path d="M{},{} A{r},{r} 0 0 0 {} {}" fill="none" style="stroke:{};stroke-width:1.5;"/>"#,
             fmt_coord(ax1), fmt_coord(ay1),
             fmt_coord(ax2), fmt_coord(ay2),
+            stroke_color,
         ));
         // Line 1
         sg.push_raw(&format!(
-            r#"<line style="stroke:{BORDER_COLOR};stroke-width:1.5;" x1="{}" x2="{}" y1="{}" y2="{}"/>"#,
+            r#"<line style="stroke:{};stroke-width:1.5;" x1="{}" x2="{}" y1="{}" y2="{}"/>"#,
+            stroke_color,
             fmt_coord(ax1), fmt_coord(lx1), fmt_coord(ay1), fmt_coord(ly1),
         ));
         // Line 2
         sg.push_raw(&format!(
-            r#"<line style="stroke:{BORDER_COLOR};stroke-width:1.5;" x1="{}" x2="{}" y1="{}" y2="{}"/>"#,
+            r#"<line style="stroke:{};stroke-width:1.5;" x1="{}" x2="{}" y1="{}" y2="{}"/>"#,
+            stroke_color,
             fmt_coord(ax2), fmt_coord(lx2), fmt_coord(ay2), fmt_coord(ly2),
         ));
     }
