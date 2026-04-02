@@ -466,6 +466,36 @@ impl SkinParams {
     }
 }
 
+/// Check if a trimmed line opens an embedded `{{ }}` diagram block.
+fn is_embedded_open(trimmed: &str) -> bool {
+    if !trimmed.starts_with("{{") {
+        return false;
+    }
+    matches!(
+        trimmed,
+        "{{"
+            | "{{ditaa"
+            | "{{salt"
+            | "{{uml"
+            | "{{wbs"
+            | "{{mindmap"
+            | "{{gantt"
+            | "{{json"
+            | "{{yaml"
+            | "{{wire"
+            | "{{creole"
+            | "{{board"
+            | "{{ebnf"
+            | "{{regex"
+            | "{{files"
+            | "{{chronology"
+            | "{{chen"
+            | "{{chart"
+            | "{{nwdiag"
+            | "{{packetdiag"
+    )
+}
+
 /// Parse skinparam declarations from PlantUML source text.
 ///
 /// Supports:
@@ -477,9 +507,24 @@ pub fn parse_skinparams(content: &str) -> SkinParams {
     let mut lines = content.lines().peekable();
     let mut in_style_block = false;
     let mut style_content = String::new();
+    let mut embedded_depth: usize = 0;
 
     while let Some(line) = lines.next() {
         let trimmed = line.trim();
+
+        // Skip lines inside `{{ }}` embedded diagram blocks.
+        // Java: PSystemCommandFactory.addOneSingleLineManageEmbedded2 skips these;
+        // the embedded content has its own skinparams that should not affect the parent.
+        if is_embedded_open(trimmed) {
+            embedded_depth += 1;
+            continue;
+        }
+        if embedded_depth > 0 {
+            if trimmed == "}}" {
+                embedded_depth -= 1;
+            }
+            continue;
+        }
 
         // Collect <style> blocks for post-processing
         if trimmed.starts_with("<style>") {

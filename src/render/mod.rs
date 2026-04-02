@@ -1,3 +1,4 @@
+pub mod embedded;
 pub mod svg;
 pub mod svg_activity;
 pub mod svg_component;

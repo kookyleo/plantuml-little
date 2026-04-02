@@ -1548,18 +1548,63 @@ fn compute_note_layouts(
     notes
         .iter()
         .map(|note| {
-            let lines: Vec<String> = note
-                .text
-                .lines()
-                .map(std::string::ToString::to_string)
-                .collect();
-            let max_line_width = lines
-                .iter()
-                .map(|l| font_metrics::text_width(l, "SansSerif", NOTE_FONT_SIZE, false, false))
-                .fold(0.0_f64, f64::max);
-            let note_width = (max_line_width + NOTE_PADDING * 2.0).max(60.0);
-            let note_height =
-                (lines.len() as f64 * NOTE_LINE_HEIGHT + NOTE_PADDING * 2.0).max(30.0);
+            // Detect and render embedded diagrams in note text
+            let embedded = crate::render::embedded::extract_embedded(&note.text).and_then(|block| {
+                crate::render::embedded::render_embedded(&block.inner_source, &block.diagram_type).map(
+                    |(inner_svg, w, h)| crate::layout::component::EmbeddedDiagramData {
+                        data_uri: crate::render::embedded::svg_to_data_uri(&inner_svg),
+                        width: w,
+                        height: h,
+                        text_before: block.before,
+                        text_after: block.after,
+                    },
+                )
+            });
+
+            let (note_width, note_height, lines) = if let Some(ref emb) = embedded {
+                let before_lines: Vec<String> = if emb.text_before.is_empty() {
+                    vec![]
+                } else {
+                    emb.text_before.lines().map(String::from).collect()
+                };
+                let after_lines: Vec<String> = if emb.text_after.is_empty() {
+                    vec![]
+                } else {
+                    emb.text_after.lines().map(String::from).collect()
+                };
+                let before_w = before_lines
+                    .iter()
+                    .map(|l| font_metrics::text_width(l, "SansSerif", NOTE_FONT_SIZE, false, false))
+                    .fold(0.0_f64, f64::max);
+                let after_w = after_lines
+                    .iter()
+                    .map(|l| font_metrics::text_width(l, "SansSerif", NOTE_FONT_SIZE, false, false))
+                    .fold(0.0_f64, f64::max);
+                let content_w = before_w.max(emb.width).max(after_w);
+                let w = (content_w + NOTE_PADDING * 2.0).max(60.0);
+                let before_h = before_lines.len() as f64 * NOTE_LINE_HEIGHT;
+                let after_h = after_lines.len() as f64 * NOTE_LINE_HEIGHT;
+                let h = (before_h + emb.height + after_h + NOTE_PADDING * 2.0).max(30.0);
+                // Combine all lines for the lines field (used as fallback)
+                let all_lines: Vec<String> = before_lines.into_iter()
+                    .chain(std::iter::once("{{embedded}}".to_string()))
+                    .chain(after_lines)
+                    .collect();
+                (w, h, all_lines)
+            } else {
+                let lines: Vec<String> = note
+                    .text
+                    .lines()
+                    .map(std::string::ToString::to_string)
+                    .collect();
+                let max_line_width = lines
+                    .iter()
+                    .map(|l| font_metrics::text_width(l, "SansSerif", NOTE_FONT_SIZE, false, false))
+                    .fold(0.0_f64, f64::max);
+                let w = (max_line_width + NOTE_PADDING * 2.0).max(60.0);
+                let h = (lines.len() as f64 * NOTE_LINE_HEIGHT + NOTE_PADDING * 2.0).max(30.0);
+                (w, h, lines)
+            };
 
             // find the layout node for the target entity
             let target_node = note.target.as_ref().and_then(|target| {
@@ -1636,6 +1681,7 @@ fn compute_note_layouts(
                 height: note_height,
                 lines,
                 connector,
+                embedded,
             }
         })
         .collect()

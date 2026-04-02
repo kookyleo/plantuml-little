@@ -200,6 +200,8 @@ pub struct ClassNoteLayout {
     pub lines: Vec<String>,
     /// Connector line: from note edge to target entity edge (from_x, from_y, to_x, to_y)
     pub connector: Option<(f64, f64, f64, f64)>,
+    /// Pre-rendered embedded diagram (`{{ }}` block) data.
+    pub embedded: Option<crate::layout::component::EmbeddedDiagramData>,
 }
 
 /// Output: cluster/package bounds after Graphviz layout.

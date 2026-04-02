@@ -2087,20 +2087,73 @@ fn render_note(
     const NOTE_ASCENT: f64 = 1901.0 / 2048.0 * 13.0; // 12.0669...
     const NOTE_LINE_HEIGHT: f64 = 15.1328; // (1901+483)/2048*13
 
-    let text_x = x + NOTE_MARGIN_X1;
-    let text_y = y + NOTE_MARGIN_Y + NOTE_ASCENT;
-    let mut tmp = String::new();
-    render_creole_text(
-        &mut tmp,
-        &note.text,
-        text_x,
-        text_y,
-        NOTE_LINE_HEIGHT,
-        font_color,
-        None,
-        &format!(r#"font-size="{}""#, NOTE_FONT_SIZE as u32),
-    );
-    sg.push_raw(&tmp);
+    if let Some(ref emb) = note.embedded {
+        // Note with embedded diagram: render before-text, image, after-text.
+        let text_x = x + NOTE_MARGIN_X1;
+        let mut cursor_y = y + NOTE_MARGIN_Y;
+
+        // Render text before the embedded block
+        if !emb.text_before.is_empty() {
+            let text_y = cursor_y + NOTE_ASCENT;
+            let mut tmp = String::new();
+            let before_lines = render_creole_text(
+                &mut tmp,
+                &emb.text_before,
+                text_x,
+                text_y,
+                NOTE_LINE_HEIGHT,
+                font_color,
+                None,
+                &format!(r#"font-size="{}""#, NOTE_FONT_SIZE as u32),
+            );
+            sg.push_raw(&tmp);
+            cursor_y += before_lines as f64 * NOTE_LINE_HEIGHT;
+        }
+
+        // Render embedded diagram as <image> element
+        sg.push_raw(&format!(
+            r#"<image height="{}" width="{}" x="{}" xlink:href="{}" y="{}"/>"#,
+            emb.height as u32,
+            emb.width as u32,
+            fmt_coord(text_x),
+            emb.data_uri,
+            fmt_coord(cursor_y),
+        ));
+        cursor_y += emb.height;
+
+        // Render text after the embedded block
+        if !emb.text_after.is_empty() {
+            let text_y = cursor_y + NOTE_ASCENT;
+            let mut tmp = String::new();
+            render_creole_text(
+                &mut tmp,
+                &emb.text_after,
+                text_x,
+                text_y,
+                NOTE_LINE_HEIGHT,
+                font_color,
+                None,
+                &format!(r#"font-size="{}""#, NOTE_FONT_SIZE as u32),
+            );
+            sg.push_raw(&tmp);
+        }
+    } else {
+        // Normal note without embedded diagram
+        let text_x = x + NOTE_MARGIN_X1;
+        let text_y = y + NOTE_MARGIN_Y + NOTE_ASCENT;
+        let mut tmp = String::new();
+        render_creole_text(
+            &mut tmp,
+            &note.text,
+            text_x,
+            text_y,
+            NOTE_LINE_HEIGHT,
+            font_color,
+            None,
+            &format!(r#"font-size="{}""#, NOTE_FONT_SIZE as u32),
+        );
+        sg.push_raw(&tmp);
+    }
 
     // Close entity group
     sg.push_raw("</g>");
@@ -2489,6 +2542,7 @@ mod tests {
             ear_tip_x: None,
             qualified_name: "GMN0".to_string(),
             source_line: None,
+            embedded: None,
         });
         let svg =
             render_component(&diagram, &layout, &SkinParams::default()).expect("render failed");
@@ -2517,6 +2571,7 @@ mod tests {
             ear_tip_x: None,
             qualified_name: "GMN0".to_string(),
             source_line: None,
+            embedded: None,
         });
         let svg =
             render_component(&diagram, &layout, &SkinParams::default()).expect("render failed");

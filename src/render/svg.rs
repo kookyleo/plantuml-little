@@ -2093,7 +2093,7 @@ fn render_class(
     //    EntityImageDegenerated.java: delta = 7, calculateDimension = orig.dim + delta*2 = orig.dim + 14
     //
     // We detect the case by checking layout structure.
-    let is_degenerated = layout.nodes.len() <= 1 && layout.edges.is_empty();
+    let is_degenerated = layout.nodes.len() <= 1 && layout.edges.is_empty() && layout.notes.is_empty();
 
     // Compute raw body content dimensions (Java SvekResult.calculateDimension).
     // These preserve full fractional precision for meta-wrapping.
@@ -4969,7 +4969,54 @@ fn draw_class_note(sg: &mut SvgGraphic, tracker: &mut BoundsTracker, note: &Clas
     // text content
     let text_x = x + NOTE_TEXT_PADDING;
     let text_y = y + LINE_HEIGHT;
-    {
+    if let Some(ref emb) = note.embedded {
+        // Embedded diagram: render before-text, image, after-text
+        let mut cursor_y = y + NOTE_TEXT_PADDING;
+
+        if !emb.text_before.is_empty() {
+            let ty = cursor_y + LINE_HEIGHT - NOTE_TEXT_PADDING;
+            let mut tmp = String::new();
+            let before_lines = render_creole_text(
+                &mut tmp,
+                &emb.text_before,
+                text_x,
+                ty,
+                LINE_HEIGHT,
+                TEXT_COLOR,
+                None,
+                &format!(r#"font-size="{FONT_SIZE}""#),
+            );
+            sg.push_raw(&tmp);
+            cursor_y += before_lines as f64 * LINE_HEIGHT;
+        }
+
+        // Emit embedded SVG as <image> element
+        sg.push_raw(&format!(
+            r#"<image height="{}" width="{}" x="{}" xlink:href="{}" y="{}"/>"#,
+            emb.height as u32,
+            emb.width as u32,
+            fmt_coord(text_x),
+            emb.data_uri,
+            fmt_coord(cursor_y),
+        ));
+        cursor_y += emb.height;
+
+        if !emb.text_after.is_empty() {
+            let ty = cursor_y + LINE_HEIGHT - NOTE_TEXT_PADDING;
+            let mut tmp = String::new();
+            render_creole_text(
+                &mut tmp,
+                &emb.text_after,
+                text_x,
+                ty,
+                LINE_HEIGHT,
+                TEXT_COLOR,
+                None,
+                &format!(r#"font-size="{FONT_SIZE}""#),
+            );
+            sg.push_raw(&tmp);
+        }
+    } else {
         let mut tmp = String::new();
         render_creole_text(
             &mut tmp,
@@ -5734,6 +5781,7 @@ mod tests {
                 height: 36.0,
                 lines: vec!["test note".into()],
                 connector: Some((180.0, 50.0, 160.0, 50.0)),
+                embedded: None,
             }],
             clusters: vec![],
             total_width: 300.0,
@@ -5784,6 +5832,7 @@ mod tests {
                 height: 36.0,
                 lines: vec!["floating".into()],
                 connector: None,
+                embedded: None,
             }],
             clusters: vec![],
             total_width: 100.0,

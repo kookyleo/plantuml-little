@@ -82,6 +82,24 @@ pub struct ComponentNoteLayout {
     pub qualified_name: String,
     /// Source line of the note command in the PlantUML source.
     pub source_line: Option<usize>,
+    /// Pre-rendered embedded diagram (`{{ }}` block) as base64 data URI with dimensions.
+    /// `(data_uri, width, height, text_before, text_after)`
+    pub embedded: Option<EmbeddedDiagramData>,
+}
+
+/// Data for a rendered embedded diagram inside a note.
+#[derive(Debug, Clone)]
+pub struct EmbeddedDiagramData {
+    /// Base64 data URI (`data:image/svg+xml;base64,...`).
+    pub data_uri: String,
+    /// Width of the embedded SVG image.
+    pub width: f64,
+    /// Height of the embedded SVG image.
+    pub height: f64,
+    /// Text lines before the `{{ }}` block.
+    pub text_before: String,
+    /// Text lines after the `}}` block.
+    pub text_after: String,
 }
 
 /// A positioned group (rectangle container).
@@ -344,21 +362,64 @@ fn estimate_entity_size(entity: &ComponentEntity) -> (f64, f64) {
 /// Java EntityImageNote uses: marginX1=6, marginX2=15, marginY=5.
 /// The DOT node dimension = calculateDimension = (textWidth + 21, textHeight + 10).
 fn estimate_note_size(text: &str) -> (f64, f64) {
+    estimate_note_size_with_embedded(text, None)
+}
+
+/// Estimate note size, accounting for an embedded diagram if present.
+fn estimate_note_size_with_embedded(
+    text: &str,
+    embedded: Option<&EmbeddedDiagramData>,
+) -> (f64, f64) {
     const NOTE_FONT_SIZE: f64 = 13.0;
     const NOTE_LINE_HEIGHT: f64 = 15.1328; // SansSerif 13pt: ascent+descent
     const MARGIN_X1: f64 = 6.0;
     const MARGIN_X2: f64 = 15.0;
     const MARGIN_Y: f64 = 5.0;
 
-    let lines: Vec<&str> = text.lines().collect();
-    let max_line_width = lines
-        .iter()
-        .map(|l| font_metrics::text_width(l, "SansSerif", NOTE_FONT_SIZE, false, false))
-        .fold(0.0_f64, f64::max);
-    let text_height = lines.len().max(1) as f64 * NOTE_LINE_HEIGHT;
-    let width = max_line_width + MARGIN_X1 + MARGIN_X2;
-    let height = text_height + 2.0 * MARGIN_Y;
-    (width, height)
+    if let Some(emb) = embedded {
+        // Note contains an embedded diagram.
+        // Java: before_text + image + after_text stacked vertically.
+        let before_lines: Vec<&str> = if emb.text_before.is_empty() {
+            vec![]
+        } else {
+            emb.text_before.lines().collect()
+        };
+        let after_lines: Vec<&str> = if emb.text_after.is_empty() {
+            vec![]
+        } else {
+            emb.text_after.lines().collect()
+        };
+
+        let before_text_width = before_lines
+            .iter()
+            .map(|l| font_metrics::text_width(l, "SansSerif", NOTE_FONT_SIZE, false, false))
+            .fold(0.0_f64, f64::max);
+        let after_text_width = after_lines
+            .iter()
+            .map(|l| font_metrics::text_width(l, "SansSerif", NOTE_FONT_SIZE, false, false))
+            .fold(0.0_f64, f64::max);
+
+        let content_width = before_text_width
+            .max(emb.width)
+            .max(after_text_width);
+        let before_height = before_lines.len() as f64 * NOTE_LINE_HEIGHT;
+        let after_height = after_lines.len() as f64 * NOTE_LINE_HEIGHT;
+        let content_height = before_height + emb.height + after_height;
+
+        let width = content_width + MARGIN_X1 + MARGIN_X2;
+        let height = content_height + 2.0 * MARGIN_Y;
+        (width, height)
+    } else {
+        let lines: Vec<&str> = text.lines().collect();
+        let max_line_width = lines
+            .iter()
+            .map(|l| font_metrics::text_width(l, "SansSerif", NOTE_FONT_SIZE, false, false))
+            .fold(0.0_f64, f64::max);
+        let text_height = lines.len().max(1) as f64 * NOTE_LINE_HEIGHT;
+        let width = max_line_width + MARGIN_X1 + MARGIN_X2;
+        let height = text_height + 2.0 * MARGIN_Y;
+        (width, height)
+    }
 }
 
 fn parse_path_start(d: &str) -> Option<(f64, f64)> {
@@ -928,7 +989,21 @@ pub fn layout_component(cd: &ComponentDiagram) -> Result<ComponentLayout> {
     let mut note_layouts = Vec::new();
     for (i, note) in cd.notes.iter().enumerate() {
         let note_id = format!("GMN{}", i);
-        let (nw, nh) = estimate_note_size(&note.text);
+
+        // Detect and render embedded diagrams (`{{ }}` blocks) in note text
+        let embedded = crate::render::embedded::extract_embedded(&note.text).and_then(|block| {
+            crate::render::embedded::render_embedded(&block.inner_source, &block.diagram_type).map(
+                |(inner_svg, w, h)| EmbeddedDiagramData {
+                    data_uri: crate::render::embedded::svg_to_data_uri(&inner_svg),
+                    width: w,
+                    height: h,
+                    text_before: block.before,
+                    text_after: block.after,
+                },
+            )
+        });
+
+        let (nw, nh) = estimate_note_size_with_embedded(&note.text, embedded.as_ref());
 
         // Use graphviz position if available, else fallback
         let (nx, ny) = if let Some(&(gx, gy, _, _)) = note_node_positions.get(&note_id) {
@@ -994,6 +1069,7 @@ pub fn layout_component(cd: &ComponentDiagram) -> Result<ComponentLayout> {
             ear_tip_x,
             qualified_name: qname,
             source_line: note.source_line,
+            embedded,
         });
     }
 
