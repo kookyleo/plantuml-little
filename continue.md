@@ -7,80 +7,83 @@
 - **Net gain this session**: +39 tests
 - **Unit tests**: 2605/2605 (100%)
 
-## Remaining 36 failures — grouped by next action
+## Remaining 36 failures — root cause classification
 
-### Group A: Component body/note rendering (7 tests, ~2 sessions)
-- `deployment01` — height 460=460 ✅, width 625 vs 623 (2px)
-- `xmi0001` ×2 — note positioning with ear connector
-- `deployment_mono_multi` ×2 — `<code>` block + `<u:blue>` + `<color:green>` in node name
-- `jaws12` ×2 — C4 sprite in component body (mindmap copy)
+### Root Cause 1: Subdiagram `{{ }}` not implemented (3 tests)
+`subdiagram_theme_02`, `subdiagram_theme_01`, `dev_newline_subdiagram_theme`
 
-**Next action**: Fix component edge path coordinate transform (2px width), then note ear connector path.
+viewBox: J=640×510 R=60×68 — the inner diagram is completely missing.
+**Fix**: Parse `{{ }}`, recursively render, embed as `<g>`.
 
-### Group B: Subdiagram `{{ }}` embedding (3 tests, ~1 session)
-- `subdiagram_theme_02`, `subdiagram_theme_01`, `dev_newline_subdiagram_theme`
+### Root Cause 2: Sequence freeY not tracking sprite height (5 tests)
+`testGradientSprite` (h: 336→272, -64), `testPolylineSprites` (h: 410→346, -64), `svgFillColourTest_2174` (w: 203→640)
++ `deployment_mono_multi` ×2 (h: 232→116, body sizing)
 
-**Next action**: Parse `{{ }}` blocks, recursively render inner diagram, embed as `<g>`.
+All share the same -64px pattern: notes after sprite messages are positioned too high because `y_cursor` doesn't advance by sprite preferred height. The `svgFillColourTest` has a different width issue (sprite in stereotype).
+**Fix**: Track `freeY` properly in classic sequence layout for sprite-containing messages.
 
-### Group C: Chen ERD ISA (2 tests)
-- `chenmoviealias`, `chenmovieextended` — ISA circle implemented, width diff from node ordering
+### Root Cause 3: DOT node ordering for graphviz layout (4 tests)
+`chenmoviealias` ×2 (w: 1492→1428, -64), `chenmovieextended` ×2 (w: 1531→1475, -56)
 
-**Next action**: Match Java's entity/attribute/ISA interleaving order in DOT.
+Height matches. Width differs because graphviz places nodes at different horizontal positions depending on DOT declaration order.
+**Fix**: Match Java's source-order entity/attribute/ISA interleaving in DOT generation.
 
-### Group D: Teoz timeline (4 tests, ~1 session)
-- `TeozTimelineIssues_0007` ×2 — complex group height with `?` participant
-- `TeozTimelineIssues_0009` ×2 — group activation height model
+### Root Cause 4: Teoz group recursive height model (4 tests)
+`TeozTimelineIssues_0007` ×2 (h: 437→399, -38), `TeozTimelineIssues_0009` ×2 (w: 235→363, +128)
 
-**Next action**: Port Java GroupingTile recursive height model.
+Complex teoz with `?` participant and nested groups.
+**Fix**: Port Java GroupingTile.getPreferredHeight() recursive model.
 
-### Group E: Class features (4 tests)
-- `jaws7` ×2 — bold display_name 2px height diff (note positioning)
-- `link_url_tooltip_04` — `[[url{tooltip}]]` + title table `<#color>` cell
-- `mindmap_jaws12` — mindmap tree Y balancing (4px)
+### Root Cause 5: State composite cluster architecture (3 tests)
+`state_history001` (h: 404→454, +50), `scxml0004` (w: 266→340, +74), `scxml0003` (h: 436→435, -1)
 
-**Next action**: Fix class note positioning, implement URL link wrapper.
+Java uses 5-level cluster nesting (a/p0/main/i/p1) putting composite children in the OUTER DOT. Our code uses separate inner graphviz solve.
+**Fix**: Port Java cluster nesting for state composites (large architectural change).
 
-### Group F: State architecture (3 tests)
-- `state_history001` — Java 5-level cluster nesting (50px height diff)
-- `scxml0003` — 1px precision from render_dy
-- `scxml0004` — pin state rendering as compact 12×12 port
+### Root Cause 6: Component edge path coordinate transform (3 tests)
+`deployment01` (w: 623→625, +2), `xmi0001` ×2 (h: 267→189, note ear connector)
 
-**Next action**: Port Java cluster a/p0/i/p1 nesting for state composites.
+Edge path SVG coordinates have sub-pixel offset from the svek-to-component transform chain.
+**Fix**: Align the moveDelta → normalize → render_offset chain precisely.
 
-### Group G: Sprite rendering (3 tests)
-- `testGradientSprite` — gradient fill for sprites (64px height)
-- `testPolylineSprites` — polyline sprite shapes (64px height)
-- `svgFillColourTest_2174` — SVG fill colour test
+### Root Cause 7: Class note positioning (4 tests)
+`jaws7` ×2 (h: 78→76, -2), `jaws12`/`mindmap_jaws12` ×2 (h: 129→125, -4)
 
-**Next action**: Fix sequence layout freeY tracking for sprite messages.
+Note is positioned outside entity bounds; viewport doesn't include it. Mindmap has tree Y-balancing diff.
+**Fix**: Include notes in graphviz layout, fix mindmap Tetris algorithm.
 
-### Group H: Special engines (5 tests)
-- `TimingMessageArrowFont` ×2 — timing diagram message rendering
-- `A0003` — Gantt `printscale weekly` (scale factor)
+### Root Cause 8: Missing engine features (5 tests)
+- `TimingMessageArrowFont` ×2 — timing diagram message font height
+- `A0003` — Gantt `printscale weekly`
 - `A0004` — legacy activity `(*)` syntax
-- `handwritten001` — handwritten mode SVG post-processing
+- `handwritten001` — SVG post-processing with PRNG jiggle
 
-**Next action**: Each is an independent engine feature.
+Each is an independent engine. **Fix**: Implement each separately.
 
-### Group I: Misc (3 tests)
-- `usecase_basic` — needs svek pipeline for usecase (actor rendering)
-- `jaws1` ×2 — C4 `!include` stdlib macros
+### Root Cause 9: C4 stdlib macros (2 tests)
+`jaws1` ×2 — needs `!include <C4/C4_Container>` stdlib support.
+**Fix**: Implement C4 macro subset or bundle C4 stdlib files.
 
-**Next action**: Port usecase to svek, implement C4 stdlib subset.
+### Root Cause 10: Usecase svek pipeline (1 test)
+`usecase_basic` — needs actors/usecases routed through svek/graphviz.
+**Fix**: Port usecase layout to svek pipeline.
 
-### Group J: SCXML precision (1 test)
-- `scxml0003` — 1px from render_dy calculation
+### Root Cause 11: Title table cell color parsing (1 test)
+`link_url_tooltip_04` (w: 558→730) — `<#color>` cell background prefix inflates width.
+**Fix**: Strip `<#color>` prefix before measuring cell text width.
 
-**Next action**: Already very close, fix render_dy for mixed rect/ellipse.
+## Recommended execution order (by ROI)
 
-## Recommended execution order
-
-1. **Group A** (component 2px + note) — highest ROI, 7 tests
-2. **Group E** (class features) — 4 tests, small work
-3. **Group C** (Chen ISA order) — 2 tests
-4. **Group F** (state cluster) — 3 tests, medium work
-5. **Group G** (sprite freeY) — 3 tests
-6. **Group D** (teoz timeline) — 4 tests
-7. **Group B** (subdiagram) — 3 tests, large work
-8. **Group H** (special engines) — 5 tests, each independent
-9. **Group I** (misc) — 3 tests, large work
+| Priority | Root Cause | Tests | Effort |
+|----------|-----------|-------|--------|
+| 1 | RC11: title table cell color | 1 | Small |
+| 2 | RC3: DOT node ordering | 4 | Small |
+| 3 | RC6: component edge transform | 3 | Medium |
+| 4 | RC2: sprite freeY tracking | 5 | Medium |
+| 5 | RC7: class note + mindmap | 4 | Medium |
+| 6 | RC4: teoz group height | 4 | Medium |
+| 7 | RC1: subdiagram {{ }} | 3 | Large |
+| 8 | RC5: state cluster arch | 3 | Large |
+| 9 | RC8: engine features | 5 | Large (each) |
+| 10 | RC9: C4 stdlib | 2 | Large |
+| 11 | RC10: usecase svek | 1 | Large |
