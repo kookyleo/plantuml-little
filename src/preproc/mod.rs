@@ -629,6 +629,16 @@ impl Context {
                 continue;
             }
 
+            // ── single-line comments: `'...` — Java strips these during reading
+            // (ReadLineQuoteComment).  PlantUML treats lines beginning with
+            // `'` as comments universally, before any block parsing.
+            if trimmed.starts_with('\'') {
+                // Emit an empty line to preserve line numbering for source-line references
+                output.push(String::new());
+                i += 1;
+                continue;
+            }
+
             // ── normal line: substitute variables / defines / builtins, then emit ──
             if output.len() > 100_000 {
                 return Err(crate::Error::Parse {
@@ -5157,4 +5167,5 @@ $table
         assert!(table_lines[1].contains("1"));
         assert!(table_lines[2].contains("3"));
     }
+
 }
