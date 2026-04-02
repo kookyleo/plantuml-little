@@ -47,6 +47,8 @@ pub struct ErdAttrEdge {
     pub to_name: String,
     /// Source order of the parent entity/relationship that owns this attribute.
     pub parent_source_order: usize,
+    /// Per-attribute line color for the edge stroke.
+    pub edge_color: Option<String>,
 }
 
 /// A positioned entity or relationship node.
@@ -115,6 +117,8 @@ pub struct ErdEdgeLayout {
     pub source_order: usize,
     /// ISA arrow direction: None for normal links, Some(true) for `>`, Some(false) for `<`.
     pub isa_arrow: Option<bool>,
+    /// Per-edge line color override.
+    pub edge_color: Option<String>,
 }
 
 /// A positioned note annotation.
@@ -941,6 +945,12 @@ pub fn layout_erd(diagram: &ErdDiagram) -> Result<ErdLayout> {
             label_xy,
             source_order: link.source_order,
             isa_arrow: link.isa_arrow,
+            edge_color: {
+                // For links, the color spec sets the stroke color.
+                // `#lime` → stroke=lime; `#lime;line:green` → stroke=green
+                let (bg, lc) = parse_erd_color_spec(link.color.as_deref());
+                lc.or(bg) // prefer line_color, fall back to bg_color
+            },
         });
     }
 
@@ -1070,7 +1080,12 @@ pub fn layout_erd(diagram: &ErdDiagram) -> Result<ErdLayout> {
                     }
                 })
                 .unwrap_or(0);
-            ErdAttrEdge { raw_path_d, from_name, to_name, parent_source_order }
+            let edge_color = attr_metas.get(j)
+                .and_then(|am| {
+                    let (_, lc) = parse_erd_color_spec(am.color.as_deref());
+                    lc
+                });
+            ErdAttrEdge { raw_path_d, from_name, to_name, parent_source_order, edge_color }
         })
         .collect();
 

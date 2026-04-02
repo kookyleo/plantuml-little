@@ -345,10 +345,12 @@ fn render_attr_edge(
         sg.push_raw(&format!(
             r#"<g class="link" data-entity-1="{ent_from}" data-entity-2="{ent_to}" data-link-type="association" data-source-line="{link_uid}" id="lnk{link_uid}">"#,
         ));
+        let stroke_color = attr_edge.edge_color.as_deref().unwrap_or(BORDER_COLOR);
         sg.push_raw(&format!(
-            r#"<path d="{}" fill="none" id="{}-{}" style="stroke:{BORDER_COLOR};stroke-width:1;"/>"#,
+            r#"<path d="{}" fill="none" id="{}-{}" style="stroke:{};stroke-width:1;"/>"#,
             path_d,
             xml_escape(&attr_edge.from_name), xml_escape(&attr_edge.to_name),
+            stroke_color,
         ));
         sg.push_raw("</g>");
     }
@@ -362,6 +364,7 @@ fn render_edge(
 ) {
     let (x1, y1) = edge.from_point;
     let (x2, y2) = edge.to_point;
+    let edge_stroke = edge.edge_color.as_deref().unwrap_or(BORDER_COLOR);
     // Java wraps each link in <!--link From to To--> comment and <g class="link" ...>
     sg.push_raw(&format!(
         "<!--link {} to {}-->",
@@ -388,9 +391,10 @@ fn render_edge(
         }
     } else if let Some(ref path_d) = edge.raw_path_d {
         sg.push_raw(&format!(
-            r#"<path d="{}" fill="none" id="{}-{}" style="stroke:{BORDER_COLOR};stroke-width:1;"/>"#,
+            r#"<path d="{}" fill="none" id="{}-{}" style="stroke:{};stroke-width:1;"/>"#,
             path_d,
             xml_escape(&edge.from_name), xml_escape(&edge.to_name),
+            edge_stroke,
         ));
     } else {
         let cx1 = x1 + (x2 - x1) / 3.0;
@@ -398,12 +402,13 @@ fn render_edge(
         let cx2 = x1 + 2.0 * (x2 - x1) / 3.0;
         let cy2 = y1 + 2.0 * (y2 - y1) / 3.0;
         sg.push_raw(&format!(
-            r#"<path d="M{},{} C{},{} {},{} {},{}" fill="none" id="{}-{}" style="stroke:{BORDER_COLOR};stroke-width:1;"/>"#,
+            r#"<path d="M{},{} C{},{} {},{} {},{}" fill="none" id="{}-{}" style="stroke:{};stroke-width:1;"/>"#,
             fmt_coord(x1), fmt_coord(y1),
             fmt_coord(cx1), fmt_coord(cy1),
             fmt_coord(cx2), fmt_coord(cy2),
             fmt_coord(x2), fmt_coord(y2),
             xml_escape(&edge.from_name), xml_escape(&edge.to_name),
+            edge_stroke,
         ));
     }
     if edge.is_double {
@@ -973,12 +978,14 @@ mod tests {
             from_name: "E/X".to_string(),
             to_name: "E".to_string(),
             parent_source_order: 0,
+            edge_color: None,
         });
         l.attr_edges.push(ErdAttrEdge {
             raw_path_d: Some("M100,40 C110,60 120,80 140,118".to_string()),
             from_name: "E/Y".to_string(),
             to_name: "E".to_string(),
             parent_source_order: 0,
+            edge_color: None,
         });
         let svg = render_erd(&empty_diagram(), &l, &SkinParams::default()).unwrap();
         assert!(svg.matches("<path").count() >= 2);
