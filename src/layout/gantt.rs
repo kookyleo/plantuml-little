@@ -21,6 +21,7 @@ pub struct GanttLayout {
     pub time_axis: GanttTimeAxis,
     pub width: f64,
     pub height: f64,
+    pub font_size: f64,
 }
 
 /// A single positioned task bar.
@@ -287,17 +288,22 @@ pub fn layout_gantt(diagram: &GanttDiagram) -> Result<GanttLayout> {
 
     let scale_factor = diagram.scale.unwrap_or(1) as f64;
     let day_w = DAY_WIDTH * scale_factor;
+    let row_h = ROW_HEIGHT * scale_factor;
+    let bar_h = BAR_HEIGHT * scale_factor;
+    let margin = MARGIN * scale_factor;
+    let time_axis_h = TIME_AXIS_HEIGHT * scale_factor;
+    let font_size = FONT_SIZE * scale_factor;
 
     // Compute label area width based on longest task name
     let max_label_width = diagram
         .tasks
         .iter()
-        .map(|t| font_metrics::text_width(&t.name, "SansSerif", FONT_SIZE, false, false))
+        .map(|t| font_metrics::text_width(&t.name, "SansSerif", font_size, false, false))
         .fold(0.0_f64, f64::max);
-    let label_area = (max_label_width + 2.0 * MARGIN).max(LABEL_AREA_WIDTH);
+    let label_area = (max_label_width + 2.0 * margin).max(LABEL_AREA_WIDTH * scale_factor);
 
-    let chart_x = MARGIN + label_area;
-    let chart_y = MARGIN + TIME_AXIS_HEIGHT;
+    let chart_x = margin + label_area;
+    let chart_y = margin + time_axis_h;
 
     // --- Bars ---
     let mut bars: Vec<GanttBarLayout> = Vec::new();
@@ -308,9 +314,9 @@ pub fn layout_gantt(diagram: &GanttDiagram) -> Result<GanttLayout> {
         let start_day = schedule.get(&id).copied().unwrap_or(0);
 
         let x = chart_x + start_day as f64 * day_w;
-        let y = chart_y + row as f64 * ROW_HEIGHT;
+        let y = chart_y + row as f64 * row_h;
         let w = task.duration_days as f64 * day_w;
-        let h = BAR_HEIGHT;
+        let h = bar_h;
 
         debug!("  bar '{id}' start_day={start_day} x={x:.1} y={y:.1} w={w:.1}");
 
@@ -376,12 +382,12 @@ pub fn layout_gantt(diagram: &GanttDiagram) -> Result<GanttLayout> {
 
     let mut time_axis = GanttTimeAxis {
         labels: time_labels,
-        y: MARGIN,
+        y: margin,
     };
 
     // --- Total dimensions ---
     let chart_width = total as f64 * day_w;
-    let chart_height = diagram.tasks.len() as f64 * ROW_HEIGHT;
+    let chart_height = diagram.tasks.len() as f64 * row_h;
     let mut notes = layout_notes(
         diagram,
         &bar_positions,
@@ -392,8 +398,8 @@ pub fn layout_gantt(diagram: &GanttDiagram) -> Result<GanttLayout> {
         chart_height,
     );
 
-    let mut min_x = MARGIN;
-    let mut min_y = MARGIN;
+    let mut min_x = margin;
+    let mut min_y = margin;
     let mut max_x = chart_x + chart_width;
     let mut max_y = chart_y + chart_height;
     for note in &notes {
@@ -403,8 +409,8 @@ pub fn layout_gantt(diagram: &GanttDiagram) -> Result<GanttLayout> {
         max_y = max_y.max(note.y + note.height);
     }
 
-    let shift_x = if min_x < MARGIN { MARGIN - min_x } else { 0.0 };
-    let shift_y = if min_y < MARGIN { MARGIN - min_y } else { 0.0 };
+    let shift_x = if min_x < margin { margin - min_x } else { 0.0 };
+    let shift_y = if min_y < margin { margin - min_y } else { 0.0 };
 
     if shift_x > 0.0 || shift_y > 0.0 {
         for bar in &mut bars {
@@ -435,8 +441,8 @@ pub fn layout_gantt(diagram: &GanttDiagram) -> Result<GanttLayout> {
         max_y += shift_y;
     }
 
-    let width = max_x + MARGIN;
-    let height = max_y + MARGIN;
+    let width = max_x + margin;
+    let height = max_y + margin;
 
     debug!("layout_gantt done: {width:.0}x{height:.0}");
 
@@ -447,6 +453,7 @@ pub fn layout_gantt(diagram: &GanttDiagram) -> Result<GanttLayout> {
         time_axis,
         width,
         height,
+        font_size,
     })
 }
 
@@ -634,6 +641,8 @@ mod tests {
         let layout = layout_gantt(&d).unwrap();
         let bar = &layout.bars[0];
         assert_eq!(bar.width, 5.0 * DAY_WIDTH * 2.0);
+        assert_eq!(bar.height, BAR_HEIGHT * 2.0);
+        assert_eq!(layout.font_size, FONT_SIZE * 2.0);
     }
 
     // 7. Dependency layout produces points

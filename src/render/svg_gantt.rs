@@ -9,7 +9,7 @@ use crate::render::svg_richtext::render_creole_text;
 use crate::style::SkinParams;
 use crate::Result;
 
-const FONT_SIZE: f64 = 12.0;
+const DEFAULT_FONT_SIZE: f64 = 12.0;
 const DEFAULT_BAR_FILL: &str = "#A4C2F4";
 const DEFAULT_BAR_STROKE: &str = "#3D85C6";
 const ARROW_COLOR: &str = "#555555";
@@ -31,18 +31,19 @@ pub fn render_gantt(
     buf.push_str("<defs/><g>");
     write_bg_rect(&mut buf, svg_w, svg_h, bg);
 
+    let font_size = layout.font_size;
     let mut sg = SvgGraphic::new(0, 1.0);
     render_grid(&mut sg, layout);
-    render_time_axis(&mut sg, &layout.time_axis);
+    render_time_axis(&mut sg, &layout.time_axis, font_size);
     let gantt_font = skin.font_color("gantt", TEXT_COLOR);
     for bar in &layout.bars {
-        render_bar(&mut sg, bar, gantt_font);
+        render_bar(&mut sg, bar, gantt_font, font_size);
     }
     for dep in &layout.dependencies {
         render_dependency(&mut sg, dep);
     }
     for note in &layout.notes {
-        render_note(&mut sg, note, gantt_font);
+        render_note(&mut sg, note, gantt_font, font_size);
     }
 
     buf.push_str(sg.body());
@@ -58,15 +59,15 @@ fn render_grid(sg: &mut SvgGraphic, layout: &GanttLayout) {
     }
 }
 
-fn render_time_axis(sg: &mut SvgGraphic, axis: &GanttTimeAxis) {
-    let axis_fs = FONT_SIZE - 1.0;
+fn render_time_axis(sg: &mut SvgGraphic, axis: &GanttTimeAxis, font_size: f64) {
+    let axis_fs = font_size - 1.0;
     for label in &axis.labels {
         let tl = font_metrics::text_width(&label.text, "SansSerif", axis_fs, false, false);
         sg.set_fill_color(AXIS_TEXT_COLOR);
         sg.svg_text(
             &label.text,
             label.x,
-            axis.y + FONT_SIZE + 2.0,
+            axis.y + font_size + 2.0,
             Some("sans-serif"),
             axis_fs,
             None,
@@ -81,7 +82,7 @@ fn render_time_axis(sg: &mut SvgGraphic, axis: &GanttTimeAxis) {
     }
 }
 
-fn render_bar(sg: &mut SvgGraphic, bar: &GanttBarLayout, font_color: &str) {
+fn render_bar(sg: &mut SvgGraphic, bar: &GanttBarLayout, font_color: &str, font_size: f64) {
     let fill = bar.color.as_ref().map_or(DEFAULT_BAR_FILL, |c| {
         if let Some(p) = c.find('/') {
             &c[..p]
@@ -101,17 +102,19 @@ fn render_bar(sg: &mut SvgGraphic, bar: &GanttBarLayout, font_color: &str) {
     sg.set_stroke_width(0.5, None);
     sg.svg_rectangle(bar.x, bar.y, bar.width, bar.height, 3.0, 3.0, 0.0);
     let label_x = bar.x - LABEL_PADDING;
-    let label_y = bar.y + bar.height / 2.0 + FONT_SIZE * 0.35;
+    let label_y = bar.y + bar.height / 2.0 + font_size * 0.35;
+    let fs_int = font_size as u32;
+    let font_size_attr = format!(r#"font-size="{fs_int}""#);
     let mut tmp = String::new();
     render_creole_text(
         &mut tmp,
         &bar.label,
         label_x,
         label_y,
-        FONT_SIZE + 4.0,
+        font_size + 4.0,
         font_color,
         Some("end"),
-        r#"font-size="12""#,
+        &font_size_attr,
     );
     sg.push_raw(&tmp);
 }
@@ -156,7 +159,7 @@ fn render_dependency(sg: &mut SvgGraphic, dep: &GanttDepLayout) {
     }
 }
 
-fn render_note(sg: &mut SvgGraphic, note: &GanttNoteLayout, font_color: &str) {
+fn render_note(sg: &mut SvgGraphic, note: &GanttNoteLayout, font_color: &str, font_size: f64) {
     if let Some((x1, y1, x2, y2)) = note.connector {
         sg.set_stroke_color(Some(NOTE_BORDER));
         sg.set_stroke_width(0.5, Some((4.0, 4.0)));
@@ -177,16 +180,18 @@ fn render_note(sg: &mut SvgGraphic, note: &GanttNoteLayout, font_color: &str) {
     );
     sg.push_raw(&format!(r#"<path d="M{},{} L{},{} L{},{} " fill="none" style="stroke:{NOTE_BORDER};stroke-width:0.5;"/>"#, fmt_coord(fold_x), fmt_coord(note.y), fmt_coord(fold_x), fmt_coord(fold_y), fmt_coord(x2), fmt_coord(fold_y)));
     sg.push_raw("\n");
+    let note_fs_int = (font_size + 1.0) as u32;
+    let note_font_size_attr = format!(r#"font-size="{note_fs_int}""#);
     let mut tmp = String::new();
     render_creole_text(
         &mut tmp,
         &note.text,
         note.x + 6.0,
-        note.y + NOTE_FOLD + FONT_SIZE,
-        FONT_SIZE + 4.0,
+        note.y + NOTE_FOLD + font_size,
+        font_size + 4.0,
         font_color,
         None,
-        r#"font-size="13""#,
+        &note_font_size_attr,
     );
     sg.push_raw(&tmp);
 }
@@ -223,6 +228,7 @@ mod tests {
             },
             width: 400.0,
             height: 200.0,
+            font_size: DEFAULT_FONT_SIZE,
         }
     }
     fn make_bar(id: &str, label: &str, x: f64, y: f64, w: f64) -> GanttBarLayout {
