@@ -81,6 +81,8 @@ pub struct ComponentNote {
     pub text: String,
     pub position: String,
     pub target: Option<String>,
+    /// Source line number (1-based) of the `note` command in the PlantUML source.
+    pub source_line: Option<usize>,
 }
 
 #[cfg(test)]
@@ -131,6 +133,7 @@ mod tests {
             text: "hello\nworld".to_string(),
             position: "top".to_string(),
             target: Some("comp1".to_string()),
+            source_line: None,
         };
         assert_eq!(n.position, "top");
         assert!(n.target.is_some());
@@ -222,6 +225,7 @@ mod tests {
             text: "floating note".to_string(),
             position: "left".to_string(),
             target: None,
+            source_line: None,
         };
         assert!(n.target.is_none());
     }

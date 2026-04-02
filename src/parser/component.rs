@@ -96,6 +96,7 @@ pub fn parse_component_diagram(source: &str) -> Result<ComponentDiagram> {
                         text,
                         position: position.clone(),
                         target: target.clone(),
+                        source_line: Some(line_num),
                     });
                     mode = ParseMode::Normal;
                 } else {
@@ -194,8 +195,9 @@ pub fn parse_component_diagram(source: &str) -> Result<ComponentDiagram> {
         // Try to parse note
         if let Some(note_result) = try_parse_note(line) {
             match note_result {
-                NoteParseResult::SingleLine(note) => {
+                NoteParseResult::SingleLine(mut note) => {
                     debug!("line {}: single-line note for {:?}", line_num, note.target);
+                    note.source_line = Some(line_num);
                     notes.push(note);
                 }
                 NoteParseResult::MultiLineStart { position, target } => {
@@ -931,6 +933,7 @@ fn try_parse_note(line: &str) -> Option<NoteParseResult> {
                 text,
                 position: pos.to_string(),
                 target: Some(target),
+                source_line: None, // set by caller
             }));
         }
 

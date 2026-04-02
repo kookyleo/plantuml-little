@@ -52,16 +52,38 @@ pub fn render_component(
     let mut buf = String::with_capacity(4096);
 
     // Build entity ID map: entity name → "ent0002", "ent0003", etc.
-    // Java assigns IDs in definition order (source_line).
+    // Java assigns IDs in definition order (source_line), including notes
+    // as real entities (GMN*). We interleave entities and notes by source_line.
     let mut entity_ids: std::collections::HashMap<String, String> =
         std::collections::HashMap::new();
-    let mut entities_sorted: Vec<&crate::model::component::ComponentEntity> =
-        cd.entities.iter().collect();
-    entities_sorted.sort_by_key(|e| e.source_line.unwrap_or(usize::MAX));
+
+    // Collect all items that need ent IDs: entities + notes, sorted by source_line
+    enum EntItem<'a> {
+        Entity(&'a crate::model::component::ComponentEntity),
+        Note(usize), // index into layout.notes
+    }
+    let mut all_items: Vec<(usize, EntItem<'_>)> = Vec::new();
+    for ent in &cd.entities {
+        all_items.push((ent.source_line.unwrap_or(usize::MAX), EntItem::Entity(ent)));
+    }
+    for (i, note) in layout.notes.iter().enumerate() {
+        all_items.push((note.source_line.unwrap_or(usize::MAX), EntItem::Note(i)));
+    }
+    all_items.sort_by_key(|(sl, _)| *sl);
+
     let mut ent_counter = 2u32;
-    for ent in &entities_sorted {
+    let mut note_ent_ids: std::collections::HashMap<usize, String> =
+        std::collections::HashMap::new();
+    for (_, item) in &all_items {
         let ent_id = format!("ent{:04}", ent_counter);
-        entity_ids.insert(ent.id.clone(), ent_id);
+        match item {
+            EntItem::Entity(ent) => {
+                entity_ids.insert(ent.id.clone(), ent_id);
+            }
+            EntItem::Note(idx) => {
+                note_ent_ids.insert(*idx, ent_id);
+            }
+        }
         ent_counter += 1;
     }
     let qualified_names = build_component_qualified_names(cd);
@@ -226,9 +248,13 @@ pub fn render_component(
         link_counter += 1;
     }
 
-    // Notes
-    for note in &layout.notes {
-        render_note(&mut sg, note, note_bg, note_border, note_font);
+    // Notes — wrapped in <g class="entity"> like Java's EntityImageNote
+    for (i, note) in layout.notes.iter().enumerate() {
+        let ent_id = note_ent_ids
+            .get(&i)
+            .map(String::as_str)
+            .unwrap_or("ent9999");
+        render_note(&mut sg, note, note_bg, note_border, note_font, ent_id);
     }
 
     buf.push_str(sg.body());
@@ -2023,7 +2049,19 @@ fn render_note(
     bg: &str,
     border: &str,
     font_color: &str,
+    ent_id: &str,
 ) {
+    // Wrap note in <g class="entity"> like Java's EntityImageNote
+    let source_line_attr = note
+        .source_line
+        .map_or(String::new(), |l| format!(r#" data-source-line="{}""#, l));
+    sg.push_raw(&format!(
+        r#"<g class="entity" data-qualified-name="{}"{} id="{}">"#,
+        xml_escape(&note.qualified_name),
+        source_line_attr,
+        ent_id,
+    ));
+
     let x = note.x;
     let y = note.y;
     let w = note.width;
@@ -2041,46 +2079,49 @@ fn render_note(
         let ear_base_left = ear_tip_x - 4.0;
         let ear_base_right = ear_tip_x + 4.0;
 
+        // Use fmt_coord for Java-matching coordinate formatting (4dp, strip trailing zeros)
+        let fc = fmt_coord;
+
         // Build the Opale note path
         let mut d = String::new();
         if note.position == "top" {
             // Ear on bottom edge pointing down
             use std::fmt::Write;
-            write!(d, "M{},{}", x, y).unwrap();
-            write!(d, " L{},{}", x, y + h).unwrap();
-            write!(d, " A0,0 0 0 0 {},{}", x, y + h).unwrap();
-            write!(d, " L{},{}", ear_base_left, y + h).unwrap();
-            write!(d, " L{},{}", ear_tip_x, ear_tip_y).unwrap();
-            write!(d, " L{},{}", ear_base_right, y + h).unwrap();
-            write!(d, " L{},{}", x + w, y + h).unwrap();
-            write!(d, " A0,0 0 0 0 {},{}", x + w, y + h).unwrap();
-            write!(d, " L{},{}", x + w, y + fold).unwrap();
-            write!(d, " L{},{}", x + w - fold, y).unwrap();
-            write!(d, " L{},{}", x, y).unwrap();
-            write!(d, " A0,0 0 0 0 {},{}", x, y).unwrap();
+            write!(d, "M{},{}", fc(x), fc(y)).unwrap();
+            write!(d, " L{},{}", fc(x), fc(y + h)).unwrap();
+            write!(d, " A0,0 0 0 0 {},{}", fc(x), fc(y + h)).unwrap();
+            write!(d, " L{},{}", fc(ear_base_left), fc(y + h)).unwrap();
+            write!(d, " L{},{}", fc(ear_tip_x), fc(ear_tip_y)).unwrap();
+            write!(d, " L{},{}", fc(ear_base_right), fc(y + h)).unwrap();
+            write!(d, " L{},{}", fc(x + w), fc(y + h)).unwrap();
+            write!(d, " A0,0 0 0 0 {},{}", fc(x + w), fc(y + h)).unwrap();
+            write!(d, " L{},{}", fc(x + w), fc(y + fold)).unwrap();
+            write!(d, " L{},{}", fc(x + w - fold), fc(y)).unwrap();
+            write!(d, " L{},{}", fc(x), fc(y)).unwrap();
+            write!(d, " A0,0 0 0 0 {},{}", fc(x), fc(y)).unwrap();
         } else if note.position == "bottom" {
             // Ear on top edge pointing up
             use std::fmt::Write;
-            write!(d, "M{},{}", x, y).unwrap();
-            write!(d, " L{},{}", x, y + h).unwrap();
-            write!(d, " A0,0 0 0 0 {},{}", x, y + h).unwrap();
-            write!(d, " L{},{}", x + w, y + h).unwrap();
-            write!(d, " A0,0 0 0 0 {},{}", x + w, y + h).unwrap();
-            write!(d, " L{},{}", x + w, y + fold).unwrap();
-            write!(d, " L{},{}", x + w - fold, y).unwrap();
-            write!(d, " L{},{}", ear_base_right, y).unwrap();
-            write!(d, " L{},{}", ear_tip_x, ear_tip_y).unwrap();
-            write!(d, " L{},{}", ear_base_left, y).unwrap();
-            write!(d, " L{},{}", x, y).unwrap();
-            write!(d, " A0,0 0 0 0 {},{}", x, y).unwrap();
+            write!(d, "M{},{}", fc(x), fc(y)).unwrap();
+            write!(d, " L{},{}", fc(x), fc(y + h)).unwrap();
+            write!(d, " A0,0 0 0 0 {},{}", fc(x), fc(y + h)).unwrap();
+            write!(d, " L{},{}", fc(x + w), fc(y + h)).unwrap();
+            write!(d, " A0,0 0 0 0 {},{}", fc(x + w), fc(y + h)).unwrap();
+            write!(d, " L{},{}", fc(x + w), fc(y + fold)).unwrap();
+            write!(d, " L{},{}", fc(x + w - fold), fc(y)).unwrap();
+            write!(d, " L{},{}", fc(ear_base_right), fc(y)).unwrap();
+            write!(d, " L{},{}", fc(ear_tip_x), fc(ear_tip_y)).unwrap();
+            write!(d, " L{},{}", fc(ear_base_left), fc(y)).unwrap();
+            write!(d, " L{},{}", fc(x), fc(y)).unwrap();
+            write!(d, " A0,0 0 0 0 {},{}", fc(x), fc(y)).unwrap();
         } else {
             // Fallback for left/right: simple polygon path without ear
             use std::fmt::Write;
-            write!(d, "M{},{}", x, y).unwrap();
-            write!(d, " L{},{}", x, y + h).unwrap();
-            write!(d, " L{},{}", x + w, y + h).unwrap();
-            write!(d, " L{},{}", x + w, y + fold).unwrap();
-            write!(d, " L{},{}", x + w - fold, y).unwrap();
+            write!(d, "M{},{}", fc(x), fc(y)).unwrap();
+            write!(d, " L{},{}", fc(x), fc(y + h)).unwrap();
+            write!(d, " L{},{}", fc(x + w), fc(y + h)).unwrap();
+            write!(d, " L{},{}", fc(x + w), fc(y + fold)).unwrap();
+            write!(d, " L{},{}", fc(x + w - fold), fc(y)).unwrap();
             write!(d, " Z").unwrap();
         }
 
@@ -2119,32 +2160,44 @@ fn render_note(
     sg.set_stroke_width(0.5, None);
     sg.push_raw(&format!(
         r#"<path d="M{},{} L{},{} L{},{} L{},{}" fill="{}" style="stroke:{};stroke-width:0.5;"/>"#,
-        x + w - fold,
-        y,
-        x + w - fold,
-        y + fold,
-        x + w,
-        y + fold,
-        x + w - fold,
-        y,
+        fmt_coord(x + w - fold),
+        fmt_coord(y),
+        fmt_coord(x + w - fold),
+        fmt_coord(y + fold),
+        fmt_coord(x + w),
+        fmt_coord(y + fold),
+        fmt_coord(x + w - fold),
+        fmt_coord(y),
         bg,
         border,
     ));
 
-    let text_x = x + 6.0;
-    let text_y = y + fold + FONT_SIZE - 1.0; // Adjust for Java text baseline
+    // Java EntityImageNote: marginX1=6, marginY=5.
+    // Text baseline = note_y + marginY + ascent_13.
+    // SansSerif 13pt: ascent = 1901/2048 * 13 = 12.069...
+    const NOTE_MARGIN_X1: f64 = 6.0;
+    const NOTE_MARGIN_Y: f64 = 5.0;
+    const NOTE_FONT_SIZE: f64 = 13.0;
+    const NOTE_ASCENT: f64 = 1901.0 / 2048.0 * 13.0; // 12.0669...
+    const NOTE_LINE_HEIGHT: f64 = 15.1328; // (1901+483)/2048*13
+
+    let text_x = x + NOTE_MARGIN_X1;
+    let text_y = y + NOTE_MARGIN_Y + NOTE_ASCENT;
     let mut tmp = String::new();
     render_creole_text(
         &mut tmp,
         &note.text,
         text_x,
         text_y,
-        LINE_HEIGHT,
+        NOTE_LINE_HEIGHT,
         font_color,
         None,
-        r#"font-size="13""#,
+        &format!(r#"font-size="{}""#, NOTE_FONT_SIZE as u32),
     );
     sg.push_raw(&tmp);
+
+    // Close entity group
+    sg.push_raw("</g>");
 }
 
 // ---------------------------------------------------------------------------
@@ -2390,6 +2443,8 @@ mod tests {
             target: None,
             ear_tip_y: None,
             ear_tip_x: None,
+            qualified_name: "GMN0".to_string(),
+            source_line: None,
         });
         let svg =
             render_component(&diagram, &layout, &SkinParams::default()).expect("render failed");
@@ -2416,6 +2471,8 @@ mod tests {
             target: None,
             ear_tip_y: None,
             ear_tip_x: None,
+            qualified_name: "GMN0".to_string(),
+            source_line: None,
         });
         let svg =
             render_component(&diagram, &layout, &SkinParams::default()).expect("render failed");

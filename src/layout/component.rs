@@ -78,6 +78,10 @@ pub struct ComponentNoteLayout {
     pub ear_tip_y: Option<f64>,
     /// X coordinate of the connector ear tip center.
     pub ear_tip_x: Option<f64>,
+    /// Qualified name for the entity group wrapper (e.g. "GMN3").
+    pub qualified_name: String,
+    /// Source line of the note command in the PlantUML source.
+    pub source_line: Option<usize>,
 }
 
 /// A positioned group (rectangle container).
@@ -291,13 +295,14 @@ fn estimate_entity_size(entity: &ComponentEntity) -> (f64, f64) {
 }
 
 /// Estimate note size matching Java Opale note dimensions.
-/// Java EntityImageNote uses: CORNER=10, MARGINX1=6, MARGINY1=6
+/// Java EntityImageNote uses: marginX1=6, marginX2=15, marginY=5.
+/// The DOT node dimension = calculateDimension = (textWidth + 21, textHeight + 10).
 fn estimate_note_size(text: &str) -> (f64, f64) {
     const NOTE_FONT_SIZE: f64 = 13.0;
     const NOTE_LINE_HEIGHT: f64 = 15.1328; // SansSerif 13pt: ascent+descent
-    const CORNER: f64 = 10.0;
-    const NOTE_MARGIN_X: f64 = 6.0;
-    const NOTE_MARGIN_Y: f64 = 3.0;
+    const MARGIN_X1: f64 = 6.0;
+    const MARGIN_X2: f64 = 15.0;
+    const MARGIN_Y: f64 = 5.0;
 
     let lines: Vec<&str> = text.lines().collect();
     let max_line_width = lines
@@ -305,8 +310,8 @@ fn estimate_note_size(text: &str) -> (f64, f64) {
         .map(|l| font_metrics::text_width(l, "SansSerif", NOTE_FONT_SIZE, false, false))
         .fold(0.0_f64, f64::max);
     let text_height = lines.len().max(1) as f64 * NOTE_LINE_HEIGHT;
-    let width = (max_line_width + 2.0 * NOTE_MARGIN_X + CORNER).max(60.0);
-    let height = (CORNER + 2.0 * NOTE_MARGIN_Y + text_height).max(30.0);
+    let width = max_line_width + MARGIN_X1 + MARGIN_X2;
+    let height = text_height + 2.0 * MARGIN_Y;
     (width, height)
 }
 
@@ -350,6 +355,46 @@ pub fn layout_component(cd: &ComponentDiagram) -> Result<ComponentLayout> {
 
     let entity_map: HashMap<String, &ComponentEntity> =
         cd.entities.iter().map(|e| (e.id.clone(), e)).collect();
+
+    // Simulate Java's cpt1 counter to compute GMN qualified names.
+    // In Java, entities and notes are processed in source-line order.
+    // Each entity consumes 1 counter value (for uid).
+    // Each note consumes 3 counter values: GMN name, entity uid, link uid.
+    // The counter starts at 1, first addAndGet(1) returns 2.
+    let note_gmn_names: Vec<String> = {
+        enum Item {
+            Entity(usize), // source_line
+            Note(usize, usize), // (note_index, source_line)
+        }
+        let mut items: Vec<Item> = Vec::new();
+        for e in &cd.entities {
+            items.push(Item::Entity(e.source_line.unwrap_or(usize::MAX)));
+        }
+        for (i, n) in cd.notes.iter().enumerate() {
+            items.push(Item::Note(i, n.source_line.unwrap_or(usize::MAX)));
+        }
+        items.sort_by_key(|item| match item {
+            Item::Entity(sl) => *sl,
+            Item::Note(_, sl) => *sl,
+        });
+
+        let mut cpt1: u32 = 1;
+        let mut names = vec![String::new(); cd.notes.len()];
+        for item in &items {
+            match item {
+                Item::Entity(_) => {
+                    cpt1 += 1; // entity uid
+                }
+                Item::Note(idx, _) => {
+                    cpt1 += 1; // GMN name
+                    names[*idx] = format!("GMN{}", cpt1);
+                    cpt1 += 1; // note entity uid
+                    cpt1 += 1; // note link uid
+                }
+            }
+        }
+        names
+    };
 
     let group_ids: std::collections::HashSet<String> =
         cd.groups.iter().map(|g| g.id.clone()).collect();
@@ -605,9 +650,78 @@ pub fn layout_component(cd: &ComponentDiagram) -> Result<ComponentLayout> {
         })
         .collect();
 
+    // Add note entities as graphviz nodes with invisible edges to targets.
+    // Java: notes are real entities (LeafType.NOTE) with GMN* IDs, connected
+    // to their target via invisible dashed links.  Graphviz determines their
+    // positions, then the Opale renderer draws the ear connector.
+    let mut note_dot_ids: Vec<String> = Vec::new();
+    let mut note_edges: Vec<LayoutEdge> = Vec::new();
+    for (i, note) in cd.notes.iter().enumerate() {
+        let note_id = format!("GMN{}", i);
+        let (nw, nh) = estimate_note_size(&note.text);
+        // Notes use UPath (not URectangle), so lf_rect_correction = false.
+        layout_nodes.push(LayoutNode {
+            id: note_id.clone(),
+            label: String::new(),
+            width_pt: nw,
+            height_pt: nh,
+            shape: None,
+            shield: None,
+            entity_position: None,
+            max_label_width: None,
+            order: None,
+            image_width_pt: None,
+            lf_extra_left: 0.0,
+            lf_rect_correction: false,
+            lf_has_body_separator: false,
+            hidden: false,
+        });
+
+        // Create invisible edge between note and target entity (Java link pattern).
+        if let Some(ref target) = note.target {
+            let target_dot = if group_ids_in_edges.contains(target) {
+                format!("{}_proxy", sanitize_id(target))
+            } else {
+                id_to_dot
+                    .get(target)
+                    .cloned()
+                    .unwrap_or_else(|| sanitize_id(target))
+            };
+            // Java: TOP → note→target (length=2), BOTTOM → target→note (length=2),
+            //        LEFT → note→target (length=1), RIGHT → target→note (length=1).
+            let (from, to, minlen) = match note.position.as_str() {
+                "top" => (note_id.clone(), target_dot, 1),
+                "bottom" => (target_dot, note_id.clone(), 1),
+                "left" => (note_id.clone(), target_dot.clone(), 0),
+                "right" => (target_dot.clone(), note_id.clone(), 0),
+                _ => (note_id.clone(), target_dot, 1),
+            };
+            let no_constraint = matches!(note.position.as_str(), "left" | "right");
+            note_edges.push(LayoutEdge {
+                from,
+                to,
+                label: None,
+                label_dimension: None,
+                tail_label: None,
+                tail_label_boxed: false,
+                head_label: None,
+                head_label_boxed: false,
+                tail_decoration: crate::svek::edge::LinkDecoration::None,
+                head_decoration: crate::svek::edge::LinkDecoration::None,
+                line_style: crate::svek::edge::LinkStyle::Dashed,
+                minlen,
+                invisible: true,
+                no_constraint,
+            });
+        }
+        note_dot_ids.push(note_id);
+    }
+    let mut all_edges = layout_edges;
+    all_edges.extend(note_edges);
+
     let graph = LayoutGraph {
         nodes: layout_nodes,
-        edges: layout_edges,
+        edges: all_edges,
         clusters,
         rankdir,
         ranksep_override: None,
@@ -734,41 +848,89 @@ pub fn layout_component(cd: &ComponentDiagram) -> Result<ComponentLayout> {
         })
         .collect();
 
+    // Extract note positions from graphviz results.
+    // Notes are now real graphviz nodes (GMN0, GMN1, ...) with positions
+    // determined by the graph layout, matching Java's approach.
+    let note_node_positions: HashMap<String, (f64, f64, f64, f64)> = gl
+        .nodes
+        .iter()
+        .filter(|nl| nl.id.starts_with("GMN"))
+        .map(|nl| {
+            let x = nl.cx - nl.width / 2.0 + edge_offset_x;
+            let y = nl.cy - nl.height / 2.0 + edge_offset_y;
+            (nl.id.clone(), (x, y, nl.width, nl.height))
+        })
+        .collect();
+
+    // Build map of graphviz-raw node centers (before render offset) for ear computation.
+    // Java Smetana uses integer-rounded node centers for edge routing; we replicate
+    // that to compute ear_tip_x matching Java's Opale connector position.
+    let graphviz_raw_centers: HashMap<String, (f64, f64)> = gl
+        .nodes
+        .iter()
+        .map(|nl| {
+            let entity_id = dot_to_id.get(&nl.id).cloned().unwrap_or(nl.id.clone());
+            (entity_id, (nl.cx, nl.cy))
+        })
+        .collect();
+
     let mut note_layouts = Vec::new();
-    let all_right = nodes.iter().map(|n| n.x + n.width).fold(0.0_f64, f64::max);
-    let note_x_default = all_right + NOTE_OFFSET + MARGIN;
-    let mut note_y = MARGIN;
-    for note in &cd.notes {
+    for (i, note) in cd.notes.iter().enumerate() {
+        let note_id = format!("GMN{}", i);
         let (nw, nh) = estimate_note_size(&note.text);
-        let (nx, ny, ear_tip_y, ear_tip_x) = if let Some(ref target) = note.target {
-            if let Some(&(tx, ty, tw, th)) = node_positions.get(target) {
-                // Ear tip X is centered on the target entity, clamped to note bounds
-                let target_cx = tx + tw / 2.0;
+
+        // Use graphviz position if available, else fallback
+        let (nx, ny) = if let Some(&(gx, gy, _, _)) = note_node_positions.get(&note_id) {
+            (gx, gy)
+        } else {
+            // Fallback for notes without graphviz position
+            let all_right = nodes.iter().map(|n| n.x + n.width).fold(0.0_f64, f64::max);
+            (all_right + NOTE_OFFSET + MARGIN, MARGIN + i as f64 * (nh + PADDING))
+        };
+
+        // Compute ear tip from note position relative to target entity.
+        // Java Opale: the connector ear position comes from the Smetana edge path
+        // between note and entity. Smetana rounds node centers to integers internally,
+        // so the edge X is at the average of the rounded centers.
+        // The ear Y is near the entity boundary (spline entry/exit point).
+        let (ear_tip_y, ear_tip_x) = if let Some(ref target) = note.target {
+            if let Some(&(_tx, ty, _tw, th)) = node_positions.get(target) {
+                // Get graphviz-raw centers for integer rounding
+                let note_raw_cx = graphviz_raw_centers
+                    .get(&note_id)
+                    .map(|c| c.0)
+                    .unwrap_or(nx + nw / 2.0 - edge_offset_x);
+                let entity_raw_cx = graphviz_raw_centers
+                    .get(target)
+                    .map(|c| c.0)
+                    .unwrap_or(_tx + _tw / 2.0 - edge_offset_x);
+                // Java Smetana rounds node centers to integers for edge routing
+                let ear_x = (note_raw_cx.round() + entity_raw_cx.round()) / 2.0
+                    + edge_offset_x;
                 match note.position.as_str() {
                     "top" => {
-                        let note_y_pos = ty - nh - NOTE_OFFSET;
-                        // Ear tip points to the target entity's top edge
-                        let ear_y = ty - 0.23; // Java: slight offset for visual connection
-                        let ear_x = target_cx.max(tx).min(tx + tw);
-                        (tx, note_y_pos, Some(ear_y), Some(ear_x))
+                        // Ear points down to target top; use entity top - small offset
+                        let ear_y = ty - 0.23;
+                        (Some(ear_y), Some(ear_x))
                     }
                     "bottom" => {
-                        let note_y_pos = ty + th + NOTE_OFFSET;
-                        // Ear tip points to the target entity's bottom edge
-                        let ear_y = ty + th + 0.23;
-                        let ear_x = target_cx.max(tx).min(tx + tw);
-                        (tx, note_y_pos, Some(ear_y), Some(ear_x))
+                        // Ear points up to target bottom; Smetana spline enters
+                        // slightly past the boundary. The offset (~0.12) is smaller
+                        // than the top case (~0.23) due to edge routing asymmetry.
+                        let ear_y = ty + th + 0.12;
+                        (Some(ear_y), Some(ear_x))
                     }
-                    "left" => (tx - nw - NOTE_OFFSET, ty, None, None),
-                    "right" => (tx + tw + NOTE_OFFSET, ty, None, None),
-                    _ => (note_x_default, note_y, None, None),
+                    _ => (None, None),
                 }
             } else {
-                (note_x_default, note_y, None, None)
+                (None, None)
             }
         } else {
-            (note_x_default, note_y, None, None)
+            (None, None)
         };
+
+        let qname = note_gmn_names.get(i).cloned().unwrap_or_else(|| format!("GMN{}", i));
+
         note_layouts.push(ComponentNoteLayout {
             x: nx,
             y: ny,
@@ -779,57 +941,17 @@ pub fn layout_component(cd: &ComponentDiagram) -> Result<ComponentLayout> {
             target: note.target.clone(),
             ear_tip_y,
             ear_tip_x,
+            qualified_name: qname,
+            source_line: note.source_line,
         });
-        note_y = ny + nh + PADDING;
-    }
-
-    // Shift all elements when notes extend beyond the top/left margin.
-    // In Java, notes are included in the graphviz graph so they naturally
-    // get space allocated. Here we adjust after the fact.
-    let min_note_x = note_layouts.iter().map(|n| n.x).fold(f64::MAX, f64::min);
-    let min_note_y = note_layouts.iter().map(|n| n.y).fold(f64::MAX, f64::min);
-    let shift_x = if min_note_x < MARGIN {
-        MARGIN - min_note_x
-    } else {
-        0.0
-    };
-    let shift_y = if min_note_y < MARGIN {
-        MARGIN - min_note_y
-    } else {
-        0.0
-    };
-    if shift_x > 0.0 || shift_y > 0.0 {
-        for node in &mut nodes {
-            node.x += shift_x;
-            node.y += shift_y;
-        }
-        for edge in &mut edges {
-            for pt in &mut edge.points {
-                pt.0 += shift_x;
-                pt.1 += shift_y;
-            }
-            if let Some(ref mut d) = edge.raw_path_d {
-                *d = graphviz::transform_path_d(d, shift_x, shift_y);
-            }
-        }
-        for group in &mut group_layouts {
-            group.x += shift_x;
-            group.y += shift_y;
-        }
-        for note in &mut note_layouts {
-            note.x += shift_x;
-            note.y += shift_y;
-        }
-        // Update node_positions for viewport calculation consistency
-        for (_, pos) in node_positions.iter_mut() {
-            pos.0 += shift_x;
-            pos.1 += shift_y;
-        }
     }
 
     // Viewport calculation: match Java's degenerated vs normal path.
     // A diagram with clusters (groups) is not degenerated even if it has ≤1 node.
-    let is_degenerated = nodes.len() <= 1 && edges.is_empty() && group_layouts.is_empty();
+    // Notes are now part of the graphviz LF span, so no separate extension needed.
+    let real_entity_count = nodes.len();
+    let is_degenerated =
+        real_entity_count <= 1 && edges.is_empty() && group_layouts.is_empty() && cd.notes.is_empty();
     let (raw_body_w, raw_body_h) = if is_degenerated && !nodes.is_empty() {
         const DEGENERATED_DELTA: f64 = 7.0;
         let entity_w = nodes[0].width;
@@ -851,20 +973,9 @@ pub fn layout_component(cd: &ComponentDiagram) -> Result<ComponentLayout> {
         (span_w + CANVAS_DELTA, span_h + CANVAS_DELTA)
     };
 
-    // Extend viewport to include notes
+    // Extend viewport for group layouts that may extend beyond the LF span.
     let mut max_right = raw_body_w;
     let mut max_bottom = raw_body_h;
-    for note in &note_layouts {
-        let nr = note.x + note.width - MARGIN + DOC_MARGIN_RIGHT;
-        let nb = note.y + note.height - MARGIN + DOC_MARGIN_BOTTOM;
-        if nr > max_right {
-            max_right = nr;
-        }
-        if nb > max_bottom {
-            max_bottom = nb;
-        }
-    }
-    // Also extend for group layouts
     for group in &group_layouts {
         let gr = group.x + group.width - MARGIN + DOC_MARGIN_RIGHT;
         let gb = group.y + group.height - MARGIN + DOC_MARGIN_BOTTOM;
@@ -1310,6 +1421,7 @@ mod tests {
                 text: "important note".to_string(),
                 position: "right".to_string(),
                 target: Some("A".to_string()),
+                source_line: None,
             }],
             direction: Default::default(),
         };
@@ -1421,6 +1533,7 @@ mod tests {
                 text: "note".to_string(),
                 position: "right".to_string(),
                 target: Some("A".to_string()),
+                source_line: None,
             }],
             direction: Default::default(),
         };
@@ -1439,8 +1552,9 @@ mod tests {
     #[test]
     fn test_note_size_estimation() {
         let (w, h) = estimate_note_size("hello");
-        assert!(w >= 60.0);
-        assert!(h >= 30.0, "note height should be >= 30 (note min height), got {h}");
+        // Java: width = textWidth + marginX1(6) + marginX2(15), no minimum
+        assert!(w > 0.0, "note width must be positive, got {w}");
+        assert!(h > 0.0, "note height must be positive, got {h}");
 
         let (_w2, h2) = estimate_note_size("line1\nline2\nline3");
         assert!(h2 > h, "multiline note should be taller");
@@ -1503,11 +1617,13 @@ mod tests {
                     text: "note 1".to_string(),
                     position: "top".to_string(),
                     target: Some("A".to_string()),
+                    source_line: None,
                 },
                 ComponentNote {
                     text: "note 2".to_string(),
                     position: "bottom".to_string(),
                     target: Some("A".to_string()),
+                    source_line: None,
                 },
             ],
             direction: Default::default(),
