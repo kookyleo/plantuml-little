@@ -1662,9 +1662,72 @@ pub fn layout_state(diagram: &StateDiagram) -> Result<StateLayout> {
     // Re-classify after adding implicit states
     let (initial_ids, final_ids) = classify_special_states(&all_states, &diagram.transitions);
 
-    // Flatten all top-level states (including children of composites) for
-    // graphviz node generation. Composite children will be placed in subgraphs
-    // later if needed.
+    // ---------------------------------------------------------------
+    // Detect composites that have cross-boundary edges (Java:
+    // thereALinkFromOrToGroup). These use a single-graph cluster model
+    // where children are real nodes in the outer DOT inside a
+    // `subgraph cluster_X`, with a special point (zaent) for edge
+    // routing. Composites WITHOUT cross-boundary edges keep the
+    // existing two-level solve.
+    // ---------------------------------------------------------------
+    let top_level_ids: HashSet<&str> = all_states.iter().map(|s| s.id.as_str()).collect();
+
+    // Collect all child IDs (recursively) for each top-level composite.
+    fn collect_all_child_ids(state: &State, out: &mut HashSet<String>) {
+        for child in &state.children {
+            out.insert(child.id.clone());
+            collect_all_child_ids(child, out);
+        }
+        for region in &state.regions {
+            for child in region {
+                out.insert(child.id.clone());
+                collect_all_child_ids(child, out);
+            }
+        }
+    }
+
+    let mut composite_child_ids: HashMap<String, HashSet<String>> = HashMap::new();
+    for state in &all_states {
+        let is_composite = !state.children.is_empty() || !state.regions.is_empty();
+        if is_composite {
+            let mut child_ids = HashSet::new();
+            collect_all_child_ids(state, &mut child_ids);
+            composite_child_ids.insert(state.id.clone(), child_ids);
+        }
+    }
+
+    // Determine which composites need the cluster model. Java uses a
+    // single-graph cluster when external edges reference CHILDREN inside
+    // the composite (e.g. Paused→Active[H] where Active[H] is a child
+    // of Active). Edges to/from the composite ID itself (e.g. [*]→Active,
+    // Active→Paused) are handled by the two-level solve.
+    let mut cluster_composite_ids: HashSet<String> = HashSet::new();
+    for state in &all_states {
+        let is_composite = !state.children.is_empty() || !state.regions.is_empty();
+        if !is_composite || !state.regions.is_empty() {
+            // Skip concurrent regions — they can't be represented as simple clusters
+            continue;
+        }
+        let child_ids = composite_child_ids.get(&state.id).unwrap();
+        let has_cross_child_link = diagram.transitions.iter().any(|tr| {
+            // External node → child inside composite (not the composite itself)
+            let ext_to_child = !child_ids.contains(&tr.from)
+                && tr.from != state.id
+                && child_ids.contains(&tr.to);
+            let ext_from_child = !child_ids.contains(&tr.to)
+                && tr.to != state.id
+                && child_ids.contains(&tr.from);
+            ext_to_child || ext_from_child
+        });
+        if has_cross_child_link {
+            log::debug!("  composite '{}' has cross-child-boundary edges → cluster model", state.id);
+            cluster_composite_ids.insert(state.id.clone());
+        }
+    }
+
+    // Compute sizes for all states. For cluster-composites, we only
+    // need leaf-level sizing (children are real nodes); for non-cluster
+    // composites, compute_state_node does the inner graphviz solve.
     let mut sized_map: HashMap<String, (StateNodeLayout, f64, f64)> = HashMap::new();
     for state in &all_states {
         let (node, w, h) =
@@ -1672,14 +1735,18 @@ pub fn layout_state(diagram: &StateDiagram) -> Result<StateLayout> {
         sized_map.insert(state.id.clone(), (node, w, h));
     }
 
-    // Build graphviz LayoutNode list from all top-level states
+    // Build graphviz nodes and clusters.
     let mut gv_nodes: Vec<LayoutNode> = Vec::new();
     let mut node_id_order: Vec<String> = Vec::new();
-    for state in &all_states {
-        let (_, w, h) = sized_map.get(&state.id).unwrap();
-        // Java uses shape=circle for [*] (initial/final) and shape=rect for states.
-        // We use Circle for special states to match Java's DOT and get correct
-        // graphviz node spacing.
+
+    // Helper: add a state as a graphviz node
+    fn push_state_gv_node(
+        state: &State,
+        w: f64,
+        h: f64,
+        gv_nodes: &mut Vec<LayoutNode>,
+        node_id_order: &mut Vec<String>,
+    ) {
         let is_circle_kind = state.is_special
             || matches!(
                 state.kind,
@@ -1690,21 +1757,21 @@ pub fn layout_state(diagram: &StateDiagram) -> Result<StateLayout> {
                     | StateKind::End
             );
         let is_diamond = matches!(state.kind, StateKind::Choice);
+        let is_pin = state.stereotype.as_deref() == Some("inputPin")
+            || state.stereotype.as_deref() == Some("outputPin");
         let shape = if is_circle_kind {
             Some(crate::svek::shape_type::ShapeType::Circle)
         } else if is_diamond {
             Some(crate::svek::shape_type::ShapeType::Diamond)
         } else {
-            None // Default: ShapeType::Rectangle → shape=rect
+            None
         };
-        // Circles/ellipses use LimitFinder.drawEllipse: min(x, y), max(x+w-1, y+h-1)
-        // Rectangles use drawRectangle: min(x-1, y-1), max(x+w-1, y+h-1)
         let is_circle = is_circle_kind;
         gv_nodes.push(LayoutNode {
             id: state.id.clone(),
             label: state.name.clone(),
-            width_pt: *w,
-            height_pt: *h,
+            width_pt: w,
+            height_pt: h,
             shape,
             shield: None,
             entity_position: None,
@@ -1712,50 +1779,115 @@ pub fn layout_state(diagram: &StateDiagram) -> Result<StateLayout> {
             order: Some(node_id_order.len()),
             image_width_pt: None,
             lf_extra_left: 0.0,
-            lf_rect_correction: !is_circle,
-            lf_has_body_separator: !is_circle && !is_diamond,
+            lf_rect_correction: !is_circle && !is_pin,
+            lf_has_body_separator: !is_circle && !is_diamond && !is_pin,
             hidden: false,
         });
         node_id_order.push(state.id.clone());
     }
 
-    // Add exposed history nodes to the outer DOT so that cross-boundary
-    // transitions (e.g. Paused -> Active[H]) influence rank assignment.
-    // Java puts these inside a cluster with the parent composite; here we
-    // simply add them as standalone nodes since the position is determined
-    // by the outer solve and rendered as part of the composite.
-    let top_level_ids: HashSet<&str> = all_states.iter().map(|s| s.id.as_str()).collect();
-    let mut exposed_history_ids: HashSet<String> = HashSet::new();
-    for tr in &diagram.transitions {
-        let from_top = top_level_ids.contains(tr.from.as_str());
-        let to_top = top_level_ids.contains(tr.to.as_str());
-        if from_top == to_top {
-            continue;
-        }
-        let nested_id = if from_top { &tr.to } else { &tr.from };
-        if let Some(found) = find_nested_state_in_list(&all_states, nested_id) {
-            if matches!(found.kind, StateKind::History | StateKind::DeepHistory) {
-                if exposed_history_ids.insert(found.id.clone()) {
-                    let (_, w, h) = compute_state_node(found, &diagram.transitions, &initial_ids, &final_ids);
-                    gv_nodes.push(LayoutNode {
-                        id: found.id.clone(),
-                        label: found.name.clone(),
-                        width_pt: w,
-                        height_pt: h,
-                        shape: Some(crate::svek::shape_type::ShapeType::Circle),
-                        shield: None,
-                        entity_position: None,
-                        max_label_width: None,
-                        order: Some(node_id_order.len()),
-                        image_width_pt: None,
-                        lf_extra_left: 0.0,
-                        lf_rect_correction: false,
-                        lf_has_body_separator: false,
-            hidden: false,
-                    });
-                    node_id_order.push(found.id.clone());
-                }
+    // Recursively flatten children of a cluster-composite into gv_nodes.
+    // Returns (cluster_spec, list of child IDs added).
+    fn flatten_composite_children(
+        state: &State,
+        transitions: &[Transition],
+        initial_ids: &HashSet<String>,
+        final_ids: &HashSet<String>,
+        sized_map: &mut HashMap<String, (StateNodeLayout, f64, f64)>,
+        gv_nodes: &mut Vec<LayoutNode>,
+        node_id_order: &mut Vec<String>,
+        cluster_composite_ids: &HashSet<String>,
+    ) -> LayoutClusterSpec {
+        let mut node_ids: Vec<String> = Vec::new();
+        let mut sub_clusters: Vec<LayoutClusterSpec> = Vec::new();
+
+        for child in &state.children {
+            let is_child_composite = !child.children.is_empty() || !child.regions.is_empty();
+
+            if is_child_composite && cluster_composite_ids.contains(&child.id) {
+                // Nested cluster-composite: recurse
+                let sub_spec = flatten_composite_children(
+                    child,
+                    transitions,
+                    initial_ids,
+                    final_ids,
+                    sized_map,
+                    gv_nodes,
+                    node_id_order,
+                    cluster_composite_ids,
+                );
+                sub_clusters.push(sub_spec);
+            } else {
+                // Leaf node or non-cluster composite (pre-sized as single rect)
+                let (_, w, h) = sized_map.get(&child.id).cloned().unwrap_or_else(|| {
+                    let (node, w, h) = compute_state_node(child, transitions, initial_ids, final_ids);
+                    sized_map.insert(child.id.clone(), (node.clone(), w, h));
+                    (node, w, h)
+                });
+                push_state_gv_node(child, w, h, gv_nodes, node_id_order);
+                node_ids.push(child.id.clone());
             }
+        }
+
+        // Compute label dimensions for the cluster (composite title).
+        // Java: <TABLE BGCOLOR="..." WIDTH="tw" HEIGHT="th">
+        let title_w = text_width(&state.name, STATE_NAME_FONT_SIZE);
+        // Java: dim.getHeight() for the title text block. Java uses OS/2
+        // sTypoAscender for the text dimension height in DOT labels.
+        // For DejaVu Sans 14pt: round(1556/2048 * 14) = 11.
+        // cluster_dot_label() subtracts 5 from the height, so we add 5 here
+        // to pass through the correct DOT TABLE HEIGHT value.
+        let title_h = crate::font_metrics::typo_ascent("SansSerif", STATE_NAME_FONT_SIZE, false, false).round() + 5.0;
+        // Java divides these by 72 to pass as inches in DOT, we pass pixels
+        // and the builder converts. The label_width/height are passed through
+        // to the <TABLE WIDTH="..." HEIGHT="..."> in the DOT cluster label.
+
+        // Generate a special point ID for edge routing through this cluster.
+        let sp_id = format!("zaent_{}", state.id.replace(|c: char| !c.is_ascii_alphanumeric(), "_"));
+
+        LayoutClusterSpec {
+            id: format!("{}", state.id.replace(|c: char| !c.is_ascii_alphanumeric(), "_")),
+            qualified_name: state.id.clone(),
+            title: Some(state.name.clone()),
+            style: crate::svek::cluster::ClusterStyle::Rectangle,
+            label_width: Some(title_w),
+            label_height: Some(title_h),
+            node_ids,
+            sub_clusters,
+            order: state.source_line,
+            has_link_from_or_to_group: true,
+            special_point_id: Some(sp_id),
+        }
+    }
+
+    // Map from composite state ID → special point ID for edge rewriting.
+    let mut composite_special_points: HashMap<String, String> = HashMap::new();
+
+    // Build cluster specs and nodes.
+    let mut cluster_specs: Vec<LayoutClusterSpec> = Vec::new();
+    for state in &all_states {
+        let is_composite = !state.children.is_empty() || !state.regions.is_empty();
+
+        if is_composite && cluster_composite_ids.contains(&state.id) {
+            // Cluster-composite: flatten children into the outer DOT.
+            let spec = flatten_composite_children(
+                state,
+                &diagram.transitions,
+                &initial_ids,
+                &final_ids,
+                &mut sized_map,
+                &mut gv_nodes,
+                &mut node_id_order,
+                &cluster_composite_ids,
+            );
+            if let Some(ref sp) = spec.special_point_id {
+                composite_special_points.insert(state.id.clone(), sp.clone());
+            }
+            cluster_specs.push(spec);
+        } else {
+            // Non-cluster state: add as a regular node with pre-computed size.
+            let (_, w, h) = sized_map.get(&state.id).unwrap();
+            push_state_gv_node(state, *w, *h, &mut gv_nodes, &mut node_id_order);
         }
     }
 
@@ -1776,11 +1908,9 @@ pub fn layout_state(diagram: &StateDiagram) -> Result<StateLayout> {
                 order: Some(node_id_order.len()),
                 image_width_pt: None,
                 lf_extra_left: 0.0,
-                // Notes use UPath in Java's entity image, not URectangle,
-                // so LimitFinder.drawRectangle's -1 correction doesn't apply.
                 lf_rect_correction: false,
                 lf_has_body_separator: false,
-            hidden: false,
+                hidden: false,
             });
             node_id_order.push(entity_id.clone());
             if note.target.is_some() {
@@ -1791,18 +1921,48 @@ pub fn layout_state(diagram: &StateDiagram) -> Result<StateLayout> {
         }
     }
 
-    // Build graphviz LayoutEdge list from transitions.
-    // Only include transitions where both endpoints are top-level (outer) nodes.
-    // Inner transitions are handled by the composite's inner graphviz solve.
+    // Build graphviz edges. For cluster-composites, edges to/from
+    // the composite ID are rewritten to use the special point (zaent).
+    // Inner transitions of cluster-composites are also included since
+    // their children are now real nodes in the outer DOT.
     let outer_node_ids: HashSet<String> = gv_nodes.iter().map(|n| n.id.clone()).collect();
     let mut gv_edges: Vec<LayoutEdge> = Vec::new();
+
+    // Collect all child IDs across all cluster-composites for edge routing.
+    let mut all_cluster_child_ids: HashSet<String> = HashSet::new();
+    for cid in &cluster_composite_ids {
+        if let Some(child_ids) = composite_child_ids.get(cid) {
+            all_cluster_child_ids.extend(child_ids.iter().cloned());
+        }
+    }
+
     for tr in &diagram.transitions {
-        if !outer_node_ids.contains(&tr.from) || !outer_node_ids.contains(&tr.to) {
+        // Rewrite from/to: if an endpoint is a cluster-composite ID,
+        // route through its special point (zaent).
+        let from = if let Some(sp) = composite_special_points.get(&tr.from) {
+            sp.clone()
+        } else {
+            tr.from.clone()
+        };
+        let to = if let Some(sp) = composite_special_points.get(&tr.to) {
+            sp.clone()
+        } else {
+            tr.to.clone()
+        };
+
+        // Include edge if both endpoints are in the outer DOT (real nodes
+        // or special points). Special points are added by the cluster builder.
+        let from_known = outer_node_ids.contains(&from)
+            || composite_special_points.values().any(|sp| sp == &from);
+        let to_known = outer_node_ids.contains(&to)
+            || composite_special_points.values().any(|sp| sp == &to);
+        if !from_known || !to_known {
             continue;
         }
+
         gv_edges.push(LayoutEdge {
-            from: tr.from.clone(),
-            to: tr.to.clone(),
+            from,
+            to,
             label: if tr.label.is_empty() {
                 None
             } else {
@@ -1858,42 +2018,6 @@ pub fn layout_state(diagram: &StateDiagram) -> Result<StateLayout> {
         crate::model::diagram::Direction::BottomToTop => RankDir::BottomToTop,
         crate::model::diagram::Direction::RightToLeft => RankDir::RightToLeft,
     };
-
-    // Build clusters for composites with exposed history nodes.
-    // Groups the composite rect and its exposed history node(s) together
-    // so Graphviz treats them as a single rank unit.
-    let mut cluster_specs: Vec<LayoutClusterSpec> = Vec::new();
-    for state in &all_states {
-        let is_composite = !state.children.is_empty() || !state.regions.is_empty();
-        if !is_composite {
-            continue;
-        }
-        // Check if any exposed history node belongs to this composite
-        let mut history_ids_in_cluster: Vec<String> = Vec::new();
-        for hist_id in &exposed_history_ids {
-            if find_nested_state_in_list(std::slice::from_ref(state), hist_id).is_some() {
-                history_ids_in_cluster.push(hist_id.clone());
-            }
-        }
-        if history_ids_in_cluster.is_empty() {
-            continue;
-        }
-        let mut node_ids = vec![state.id.clone()];
-        node_ids.extend(history_ids_in_cluster);
-        cluster_specs.push(LayoutClusterSpec {
-            id: format!("state_{}", state.id.replace(|c: char| !c.is_ascii_alphanumeric(), "_")),
-            qualified_name: state.id.clone(),
-            title: None,
-            style: crate::svek::cluster::ClusterStyle::Rectangle,
-            label_width: None,
-            label_height: None,
-            node_ids,
-            sub_clusters: vec![],
-            order: state.source_line,
-            has_link_from_or_to_group: false,
-            special_point_id: None,
-        });
-    }
 
     let graph = LayoutGraph {
         nodes: gv_nodes,
@@ -2026,14 +2150,119 @@ pub fn layout_state(diagram: &StateDiagram) -> Result<StateLayout> {
         }
     }
 
+    // Reconstruct cluster-composites from graphviz cluster bounds.
+    // For each cluster-composite, find the cluster layout and children
+    // node positions, then build a StateNodeLayout with absolute child coords.
+    for state in &all_states {
+        if !cluster_composite_ids.contains(&state.id) {
+            continue;
+        }
+        let cluster_id = format!("{}", state.id.replace(|c: char| !c.is_ascii_alphanumeric(), "_"));
+        let cluster_layout = gv_layout.clusters.iter().find(|c| c.id == cluster_id);
+        if let Some(cl) = cluster_layout {
+            let cx = cl.x + margin_x;
+            let cy = cl.y + margin_y;
+            let cw = cl.width;
+            let ch = cl.height;
+
+            log::debug!(
+                "  cluster-composite '{}': cluster=({:.1},{:.1}) {:.1}x{:.0}",
+                state.id, cx, cy, cw, ch,
+            );
+
+            // Collect children from the gv_layout nodes. Children are the
+            // nodes that belong to this cluster (already positioned by graphviz).
+            let child_ids: HashSet<String> = composite_child_ids
+                .get(&state.id)
+                .cloned()
+                .unwrap_or_default();
+            let mut children: Vec<StateNodeLayout> = Vec::new();
+            for gv_node in &gv_layout.nodes {
+                if !child_ids.contains(&gv_node.id) {
+                    continue;
+                }
+                if let Some((template, _, _)) = sized_map.remove(&gv_node.id) {
+                    let x = gv_node.cx - gv_node.width / 2.0 + margin_x;
+                    let y = gv_node.cy - gv_node.height / 2.0 + margin_y;
+                    let w = gv_node.width;
+                    let h = gv_node.height;
+
+                    node_position_map.insert(gv_node.id.clone(), (x, y, w, h));
+
+                    let mut child_node = template;
+                    child_node.x = x;
+                    child_node.y = y;
+                    child_node.width = w;
+                    child_node.height = h;
+
+                    // For nested non-cluster composites, offset their children
+                    if child_node.is_composite {
+                        let inner_margin = composite_inner_margin(&child_node.children);
+                        let child_offset_x = x + COMPOSITE_PADDING;
+                        let child_offset_y = y + composite_inner_y_offset() + inner_margin;
+                        offset_children(&mut child_node.children, child_offset_x, child_offset_y);
+                        for tr in &mut child_node.internal_transitions {
+                            offset_transition(tr, child_offset_x, child_offset_y);
+                        }
+                        for sep_y in &mut child_node.region_separators {
+                            *sep_y += child_offset_y;
+                        }
+                    }
+
+                    children.push(child_node);
+                }
+            }
+
+            let is_initial = initial_ids.contains(&state.id);
+            let is_final = final_ids.contains(&state.id);
+            let composite_node = StateNodeLayout {
+                id: state.id.clone(),
+                name: state.name.clone(),
+                x: cx,
+                y: cy,
+                width: cw,
+                height: ch,
+                description: state.description.clone(),
+                stereotype: state.stereotype.clone(),
+                is_initial,
+                is_final,
+                is_composite: true,
+                children,
+                kind: state.kind.clone(),
+                internal_transitions: Vec::new(),
+                region_separators: Vec::new(),
+                source_line: state.source_line,
+            };
+            node_position_map.insert(state.id.clone(), (cx, cy, cw, ch));
+            state_layouts.push(composite_node);
+        }
+    }
+
     // Convert graphviz EdgeLayout to TransitionLayout.
     // The svek pipeline returns edges with raw SVG path data and arrow polygons.
-    // active_transitions matches gv_edges: only outer transitions.
-    let active_transitions: Vec<&Transition> = diagram
-        .transitions
+    // Build a mapping from special point IDs back to composite state IDs.
+    let sp_to_composite: HashMap<String, String> = composite_special_points
         .iter()
-        .filter(|tr| outer_node_ids.contains(&tr.from) && outer_node_ids.contains(&tr.to))
+        .map(|(composite_id, sp_id)| (sp_id.clone(), composite_id.clone()))
         .collect();
+    // Build a parallel list of original transitions corresponding to each
+    // gv_edge (excluding note edges). Each gv_edge was built from a diagram
+    // transition, possibly with from/to rewritten to a special point.
+    let active_transitions: Vec<&Transition> = {
+        let mut result = Vec::new();
+        for tr in &diagram.transitions {
+            let from = composite_special_points.get(&tr.from).unwrap_or(&tr.from);
+            let to = composite_special_points.get(&tr.to).unwrap_or(&tr.to);
+            let from_known = outer_node_ids.contains(from)
+                || composite_special_points.values().any(|sp| sp == from);
+            let to_known = outer_node_ids.contains(to)
+                || composite_special_points.values().any(|sp| sp == to);
+            if from_known && to_known {
+                result.push(tr);
+            }
+        }
+        result
+    };
     let mut transition_layouts: Vec<TransitionLayout> = Vec::new();
     let mut visible_transition_keys: HashSet<(String, String, Option<usize>)> = HashSet::new();
 

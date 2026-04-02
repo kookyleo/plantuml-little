@@ -118,6 +118,16 @@ pub fn descent(family: &str, size: f64, _bold: bool, _italic: bool) -> f64 {
     face.descender().unsigned_abs() as f64 / face.units_per_em() as f64 * size
 }
 
+/// OS/2 typographic ascent. Used for DOT cluster label dimensions which match
+/// Java's `StringBounder.calculateDimension()` text block height.
+pub fn typo_ascent(family: &str, size: f64, _bold: bool, _italic: bool) -> f64 {
+    let face = resolve_face(family, false);
+    let upem = face.units_per_em() as f64;
+    // OS/2 sTypoAscender; fallback to hhea ascender if unavailable
+    let typo_asc = face.typographic_ascender().unwrap_or(face.ascender()) as f64;
+    typo_asc / upem * size
+}
+
 // ── Tests ───────────────────────────────────────────────────────────────
 
 #[cfg(test)]

@@ -391,6 +391,7 @@ impl DotStringFactory {
             for node in &self.bibliotekon.nodes {
                 if !clustered.contains(node.uid.as_str())
                     && !emitted_nodes.contains(node.uid.as_str())
+                    && !node.hidden
                 {
                     node.append_shape(&mut sb);
                 }

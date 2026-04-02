@@ -537,6 +537,29 @@ pub fn layout_with_svek(graph: &LayoutGraph) -> Result<GraphLayout, Error> {
         builder.add_entity(ed);
     }
 
+    // Register special point entities for cluster edge routing.
+    // Special points (zaent) are defined inside cluster subgraphs but edges
+    // can reference them from outside. The builder needs them registered as
+    // entities to accept those edges.
+    {
+        fn collect_special_points(clusters: &[LayoutClusterSpec], out: &mut Vec<(String, String)>) {
+            for cluster in clusters {
+                if let Some(ref sp_id) = cluster.special_point_id {
+                    out.push((sp_id.clone(), cluster.id.clone()));
+                }
+                collect_special_points(&cluster.sub_clusters, out);
+            }
+        }
+        let mut special_points = Vec::new();
+        collect_special_points(&graph.clusters, &mut special_points);
+        for (sp_id, cluster_id) in special_points {
+            let mut ed = EntityDescriptor::new(&sp_id, 0.72, 0.72); // shape=point, .01in
+            ed = ed.with_cluster(&cluster_id);
+            ed.hidden = true;
+            builder.add_entity(ed);
+        }
+    }
+
     // Register links (including invisible edges for layout constraint)
     for edge in &graph.edges {
         let mut ld = LinkDescriptor::new(&edge.from, &edge.to);
