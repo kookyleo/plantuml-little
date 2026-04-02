@@ -235,6 +235,8 @@ enum TeozTile {
         y: Option<f64>,
         /// Teoz parallel: shares y with previous tile block
         is_parallel: bool,
+        /// Background color from `#color` prefix
+        color: Option<String>,
     },
     /// Fragment separator (else)
     FragmentSeparator {
@@ -1436,6 +1438,7 @@ pub fn build_teoz_layout(sd: &SequenceDiagram, skin: &SkinParams) -> Result<SeqL
                 kind,
                 label,
                 parallel,
+                color,
             } => {
                 // Java GroupingTile header: dim1.height + MARGINY_MAGIC/2
                 // dim1.height = frag_header_height, MARGINY_MAGIC/2 = 10
@@ -1445,6 +1448,7 @@ pub fn build_teoz_layout(sd: &SequenceDiagram, skin: &SkinParams) -> Result<SeqL
                     height: tp.frag_header_height + 10.0,
                     y: None,
                     is_parallel: *parallel,
+                    color: color.clone(),
                 });
             }
             SeqEvent::FragmentSeparator { label } => {
@@ -2182,46 +2186,22 @@ pub fn build_teoz_layout(sd: &SequenceDiagram, skin: &SkinParams) -> Result<SeqL
                         // where width = ComponentRoseGroupingHeader.getPreferredWidth()
                         // The parent FragmentStart/GroupStart is at start-1
                         if start > 0 {
-                            match &tiles[start - 1] {
+                            let header_w_opt = match &tiles[start - 1] {
                                 TeozTile::FragmentStart { kind, label, .. } => {
-                                    let kind_text_w = crate::font_metrics::text_width(
-                                        kind.label(), "sans-serif", 13.0, true, false,
-                                    );
-                                    let header_w = if label.is_empty() {
-                                        kind_text_w + 45.0
-                                    } else {
-                                        let bl = format!("[{}]", label);
-                                        let cw = crate::font_metrics::text_width(
-                                            &bl, "sans-serif", 11.0, true, false,
-                                        );
-                                        kind_text_w + 45.0 + 15.0 + cw
-                                    };
-                                    let header_max = group_min + header_w + 16.0;
-                                    if header_max > group_max {
-                                        group_max = header_max;
-                                    }
+                                    Some(fragment_header_width(kind, label, "sans-serif", 13.0))
                                 }
                                 TeozTile::GroupStart { _label, .. } => {
-                                    if let Some(lbl) = _label {
-                                        let kind_text_w = crate::font_metrics::text_width(
-                                            "group", "sans-serif", 13.0, true, false,
-                                        );
-                                        let header_w = if lbl.is_empty() {
-                                            kind_text_w + 45.0
-                                        } else {
-                                            let bl = format!("[{}]", lbl);
-                                            let cw = crate::font_metrics::text_width(
-                                                &bl, "sans-serif", 11.0, true, false,
-                                            );
-                                            kind_text_w + 45.0 + 15.0 + cw
-                                        };
-                                        let header_max = group_min + header_w + 16.0;
-                                        if header_max > group_max {
-                                            group_max = header_max;
-                                        }
-                                    }
+                                    _label.as_ref().map(|lbl| {
+                                        fragment_header_width(&FragmentKind::Group, lbl, "sans-serif", 13.0)
+                                    })
                                 }
-                                _ => {}
+                                _ => None,
+                            };
+                            if let Some(header_w) = header_w_opt {
+                                let header_max = group_min + header_w + 16.0;
+                                if header_max > group_max {
+                                    group_max = header_max;
+                                }
                             }
                         }
                         return (
@@ -2411,7 +2391,6 @@ pub fn build_teoz_layout(sd: &SequenceDiagram, skin: &SkinParams) -> Result<SeqL
                                 + header_width
                                 + 16.0
                                 + GROUP_EXTERNAL_MARGINX2;
-                            log::debug!("teoz header: kind={kind_lbl} cond={condition:?} hw={header_width:.2} hmax={header_max:.2} raw_max={raw_max:.2}");
                             if header_max > raw_max {
                                 raw_max = header_max;
                             }
@@ -2511,7 +2490,7 @@ pub fn build_teoz_layout(sd: &SequenceDiagram, skin: &SkinParams) -> Result<SeqL
     let mut delays: Vec<DelayLayout> = Vec::new();
     let mut refs: Vec<RefLayout> = Vec::new();
     let mut fragments: Vec<FragmentLayout> = Vec::new();
-    let mut fragment_stack: Vec<(f64, FragmentKind, String, Vec<(f64, String)>, usize)> =
+    let mut fragment_stack: Vec<(f64, FragmentKind, String, Vec<(f64, String)>, usize, Option<String>)> =
         Vec::new();
     let mut groups: Vec<GroupLayout> = Vec::new();
     let mut group_stack: Vec<(f64, Option<String>)> = Vec::new();
@@ -3025,9 +3004,9 @@ pub fn build_teoz_layout(sd: &SequenceDiagram, skin: &SkinParams) -> Result<SeqL
                     label: label.clone(),
                 });
             }
-            TeozTile::FragmentStart { kind, label, y, .. } => {
+            TeozTile::FragmentStart { kind, label, y, color, .. } => {
                 let ty = y.unwrap_or(0.0);
-                fragment_stack.push((ty, kind.clone(), label.clone(), Vec::new(), tile_i + 1));
+                fragment_stack.push((ty, kind.clone(), label.clone(), Vec::new(), tile_i + 1, color.clone()));
             }
             TeozTile::FragmentSeparator { label, y, .. } => {
                 let ty = y.unwrap_or(0.0);
@@ -3037,7 +3016,7 @@ pub fn build_teoz_layout(sd: &SequenceDiagram, skin: &SkinParams) -> Result<SeqL
             }
             TeozTile::FragmentEnd { y, .. } => {
                 let ty = y.unwrap_or(0.0);
-                if let Some((y_start, kind, label, separators, child_start)) = fragment_stack.pop()
+                if let Some((y_start, kind, label, separators, child_start, frag_color)) = fragment_stack.pop()
                 {
                     let depth = fragment_stack.len(); // 0 for outermost
                                                       // Compute per-fragment width from child tiles.
@@ -3092,6 +3071,7 @@ pub fn build_teoz_layout(sd: &SequenceDiagram, skin: &SkinParams) -> Result<SeqL
                         height: frame_height,
                         separators,
                         first_msg_index: first_msg_idx,
+                        color: frag_color,
                     });
                 }
             }

@@ -2673,6 +2673,9 @@ fn draw_fragment_details(sg: &mut SvgGraphic, frag: &FragmentLayout) {
     let fw = fmt_coord(frag.width);
     let fh = fmt_coord(frag.height);
 
+    // Background color rects are drawn early (before lifelines) in
+    // the render_sequence_inner step 3 to match Java's element order.
+
     // Label tab (pentagon in top-left)
     // For Group, the tab shows the label directly; for others, tab shows the keyword
     let is_group = frag.kind == FragmentKind::Group;
@@ -3121,25 +3124,42 @@ fn render_sequence_inner(
         .filter_map(|p| p.display_name.as_deref().map(|dn| (p.name.as_str(), dn)))
         .collect();
 
-    // 3. Fragment frame rects — puma only.
+    // 3. Fragment frame rects and background rects.
     // Puma: first rect BEFORE lifelines (Java DrawableSet order).
-    // Teoz: rendered in step 6b.
-    if !sd.teoz_mode {
+    // Teoz: background rects with color BEFORE lifelines (Java GroupingTile drawU order).
+    {
         let mut sorted_frags: Vec<&FragmentLayout> = layout.fragments.iter().collect();
         sorted_frags.sort_by(|a, b| {
             a.y.partial_cmp(&b.y)
                 .unwrap_or(std::cmp::Ordering::Equal)
                 .then_with(|| a.x.partial_cmp(&b.x).unwrap_or(std::cmp::Ordering::Equal))
         });
-        for frag in &sorted_frags {
-            // Draw just the frame outline rect (first of two)
-            let fx = fmt_coord(frag.x);
-            let fy = fmt_coord(frag.y);
-            let fw = fmt_coord(frag.width);
-            let fh = fmt_coord(frag.height);
-            sg.push_raw(&format!(
-                "<rect fill=\"none\" height=\"{fh}\" style=\"stroke:#000000;stroke-width:1.5;\" width=\"{fw}\" x=\"{fx}\" y=\"{fy}\"/>"
-            ));
+        if sd.teoz_mode {
+            // Teoz: draw background rects for fragments with a color, BEFORE lifelines.
+            // Java GroupingTile.drawU() emits the background rect as the first element.
+            for frag in &sorted_frags {
+                if let Some(ref color) = frag.color {
+                    let fx = fmt_coord(frag.x);
+                    let fy = fmt_coord(frag.y);
+                    let fw = fmt_coord(frag.width);
+                    let fh = fmt_coord(frag.height);
+                    // color is already in SVG format (e.g., "#FFFFAA")
+                    sg.push_raw(&format!(
+                        "<rect fill=\"{color}\" height=\"{fh}\" style=\"stroke:{color};stroke-width:1;\" width=\"{fw}\" x=\"{fx}\" y=\"{fy}\"/>"
+                    ));
+                }
+            }
+        } else {
+            // Puma: draw frame outline rects (first of two)
+            for frag in &sorted_frags {
+                let fx = fmt_coord(frag.x);
+                let fy = fmt_coord(frag.y);
+                let fw = fmt_coord(frag.width);
+                let fh = fmt_coord(frag.height);
+                sg.push_raw(&format!(
+                    "<rect fill=\"none\" height=\"{fh}\" style=\"stroke:#000000;stroke-width:1.5;\" width=\"{fw}\" x=\"{fx}\" y=\"{fy}\"/>"
+                ));
+            }
         }
     }
 
