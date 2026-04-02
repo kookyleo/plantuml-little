@@ -87,6 +87,10 @@ pub struct ErdAttrLayout {
     pub type_label: Option<String>,
     /// Sub-attributes for nested attributes
     pub children: Vec<ErdAttrLayout>,
+    /// Per-attribute background color override (from `#color` syntax).
+    pub bg_color: Option<String>,
+    /// Per-attribute border/line color override (from `line:color` syntax).
+    pub line_color: Option<String>,
 }
 
 /// An edge connecting two positioned elements.
@@ -142,6 +146,10 @@ pub struct ErdIsaLayout {
     pub is_double: bool,
     /// Source declaration order (shared counter with entities and relationships).
     pub source_order: usize,
+    /// Per-ISA background color override.
+    pub bg_color: Option<String>,
+    /// Per-ISA border/line color override.
+    pub line_color: Option<String>,
 }
 
 /// An edge from an ISA center to a child entity.
@@ -255,6 +263,8 @@ struct AttrMeta {
     size: (f64, f64),
     /// IDs of child attributes (for nested attribute tree reconstruction)
     child_ids: Vec<String>,
+    /// Per-attribute color spec (raw, e.g. "#lime;line:orange")
+    color: Option<String>,
 }
 
 /// Recursively flatten attributes into a list of AttrMeta, creating graphviz
@@ -298,6 +308,7 @@ fn flatten_attributes(
             type_label: attr.attr_type.clone(),
             size,
             child_ids: child_ids.clone(),
+            color: attr.color.clone(),
         });
 
         // Recurse for nested attributes
@@ -486,6 +497,7 @@ pub fn layout_erd(diagram: &ErdDiagram) -> Result<ErdLayout> {
         child_ids: Vec<String>,
         is_double: bool,
         source_order: usize,
+        color: Option<String>,
     }
     let mut isa_node_metas: Vec<IsaNodeMeta> = Vec::new();
     for isa in &diagram.isas {
@@ -517,6 +529,7 @@ pub fn layout_erd(diagram: &ErdDiagram) -> Result<ErdLayout> {
             child_ids: isa.children.clone(),
             is_double: isa.is_double,
             source_order: isa.source_order,
+            color: isa.color.clone(),
         });
     }
 
@@ -824,6 +837,7 @@ pub fn layout_erd(diagram: &ErdDiagram) -> Result<ErdLayout> {
             let cy = y + h / 2.0;
             let rx = w / 2.0;
             let ry = h / 2.0;
+            let (bg_color, line_color) = parse_erd_color_spec(am.color.as_deref());
             attr_layout_map.insert(
                 am.id.clone(),
                 ErdAttrLayout {
@@ -840,6 +854,8 @@ pub fn layout_erd(diagram: &ErdDiagram) -> Result<ErdLayout> {
                     has_type: am.has_type,
                     type_label: am.type_label.clone(),
                     children: Vec::new(),
+                    bg_color,
+                    line_color,
                 },
             );
         }
@@ -964,6 +980,7 @@ pub fn layout_erd(diagram: &ErdDiagram) -> Result<ErdLayout> {
             isa_edge_idx += 1;
         }
 
+        let (isa_bg, isa_line) = parse_erd_color_spec(isa_meta.color.as_deref());
         isa_layouts.push(ErdIsaLayout {
             parent_id: isa_meta.parent_id.clone(),
             kind_label,
@@ -973,6 +990,8 @@ pub fn layout_erd(diagram: &ErdDiagram) -> Result<ErdLayout> {
             child_edges,
             is_double: isa_meta.is_double,
             source_order: isa_meta.source_order,
+            bg_color: isa_bg,
+            line_color: isa_line,
         });
     }
 

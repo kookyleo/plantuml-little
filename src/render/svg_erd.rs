@@ -251,23 +251,27 @@ fn render_relationship(sg: &mut SvgGraphic, node: &ErdNodeLayout) {
 fn render_attribute(sg: &mut SvgGraphic, attr: &ErdAttrLayout) {
     sg.push_raw("<g>");
     let (cx, cy, rx, ry) = (attr.x, attr.y, attr.rx, attr.ry);
+    // For attributes, bg_color is NOT applied to the ellipse fill (stays default).
+    // Only line_color affects the stroke.
+    let eff_bg = ENTITY_BG;
+    let eff_border = attr.line_color.as_deref().unwrap_or(BORDER_COLOR);
     if attr.is_derived {
-        sg.set_fill_color(ENTITY_BG);
-        sg.set_stroke_color(Some(BORDER_COLOR));
+        sg.set_fill_color(eff_bg);
+        sg.set_stroke_color(Some(eff_border));
         sg.set_stroke_width(0.5, Some((10.0, 10.0)));
         sg.svg_ellipse(cx, cy, rx, ry, 0.0);
     } else if attr.is_multi {
-        sg.set_fill_color(ENTITY_BG);
-        sg.set_stroke_color(Some(BORDER_COLOR));
+        sg.set_fill_color(eff_bg);
+        sg.set_stroke_color(Some(eff_border));
         sg.set_stroke_width(0.5, None);
         sg.svg_ellipse(cx, cy, rx, ry, 0.0);
-        sg.set_fill_color(ENTITY_BG);
-        sg.set_stroke_color(Some(BORDER_COLOR));
+        sg.set_fill_color(eff_bg);
+        sg.set_stroke_color(Some(eff_border));
         sg.set_stroke_width(0.5, None);
         sg.svg_ellipse(cx, cy, rx - 3.0, ry - 3.0, 0.0);
     } else {
-        sg.set_fill_color(ENTITY_BG);
-        sg.set_stroke_color(Some(BORDER_COLOR));
+        sg.set_fill_color(eff_bg);
+        sg.set_stroke_color(Some(eff_border));
         sg.set_stroke_width(0.5, None);
         sg.svg_ellipse(cx, cy, rx, ry, 0.0);
     }
@@ -605,11 +609,13 @@ fn bezier_midpoint_tangent(path_d: &str, _is_superset: bool) -> Option<((f64, f6
 fn render_isa_circle(sg: &mut SvgGraphic, isa: &ErdIsaLayout) {
     let (cx, cy) = isa.center;
     let r = isa.radius;
+    let eff_bg = isa.bg_color.as_deref().unwrap_or(ENTITY_BG);
+    let eff_border = isa.line_color.as_deref().unwrap_or(BORDER_COLOR);
 
     // Render the ISA circle (Java: ellipse with rx=ry=12.5)
     sg.push_raw("<g>");
-    sg.set_fill_color(ENTITY_BG);
-    sg.set_stroke_color(Some(BORDER_COLOR));
+    sg.set_fill_color(eff_bg);
+    sg.set_stroke_color(Some(eff_border));
     sg.set_stroke_width(0.5, None);
     sg.svg_ellipse(cx, cy, r, r, 0.0);
 
@@ -764,6 +770,8 @@ mod tests {
             has_type: false,
             type_label: None,
             children: vec![],
+            bg_color: None,
+            line_color: None,
         }
     }
 
@@ -945,6 +953,8 @@ mod tests {
             ],
             is_double: true,
             source_order: 0,
+            bg_color: None,
+            line_color: None,
         });
         let svg = render_erd(&empty_diagram(), &l, &SkinParams::default()).unwrap();
         assert!(svg.contains("<ellipse"), "should render ISA as circle (ellipse)");
