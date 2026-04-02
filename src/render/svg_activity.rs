@@ -389,6 +389,7 @@ fn render_node(
         ActivityNodeKindLayout::Action => render_action(sg, node, act_bg, act_border, act_font),
         ActivityNodeKindLayout::Diamond => render_diamond(sg, node, diamond_bg, diamond_border),
         ActivityNodeKindLayout::ForkBar => render_fork_bar(sg, node),
+        ActivityNodeKindLayout::SyncBar => render_sync_bar(sg, node),
         ActivityNodeKindLayout::Note { position, mode } => {
             render_note(sg, node, position, mode, true, word_by_word_notes)
         }
@@ -633,6 +634,19 @@ fn render_diamond(sg: &mut SvgGraphic, node: &ActivityNodeLayout, bg: &str, bord
 fn render_fork_bar(sg: &mut SvgGraphic, node: &ActivityNodeLayout) {
     sg.push_raw(&format!(
         r#"<rect fill="{FORK_FILL}" height="{}" stroke="none" width="{}" x="{}" y="{}"/>"#,
+        fmt_coord(node.height),
+        fmt_coord(node.width),
+        fmt_coord(node.x),
+        fmt_coord(node.y),
+    ));
+}
+
+/// Sync bar (old-style activity `===NAME===`): dark gray horizontal bar
+const SYNC_BAR_FILL: &str = "#555555";
+
+fn render_sync_bar(sg: &mut SvgGraphic, node: &ActivityNodeLayout) {
+    sg.push_raw(&format!(
+        "<rect fill=\"{SYNC_BAR_FILL}\" height=\"{}\" style=\"stroke:none;stroke-width:1;\" width=\"{}\" x=\"{}\" y=\"{}\"/>",
         fmt_coord(node.height),
         fmt_coord(node.width),
         fmt_coord(node.x),

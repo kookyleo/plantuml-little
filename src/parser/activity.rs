@@ -55,6 +55,8 @@ pub fn parse_activity_diagram(source: &str) -> Result<ActivityDiagram> {
     let mut direction = Direction::default();
     let mut note_max_width: Option<f64> = None;
     let mut state = ParseState::Normal;
+    // Track old-style node names to avoid duplicating sync bars / actions
+    let mut old_seen_nodes = std::collections::HashSet::<String>::new();
 
     for (line_num, line) in block.lines().enumerate() {
         let line_num = line_num + 1; // 1-based for diagnostics
@@ -477,6 +479,30 @@ pub fn parse_activity_diagram(source: &str) -> Result<ActivityDiagram> {
             continue;
         }
 
+        // --- Sync bar: ===NAME=== (standalone, not part of an arrow line) ---
+        if let Some(name) = parse_sync_bar(trimmed) {
+            if !old_seen_nodes.contains(&format!("==={name}===")) {
+                debug!("line {line_num}: standalone sync bar: {name}");
+                events.push(ActivityEvent::SyncBar(name.clone()));
+                old_seen_nodes.insert(format!("==={name}==="));
+            } else {
+                debug!("line {line_num}: skipping duplicate sync bar: {name}");
+            }
+            continue;
+        }
+
+        // --- Old-style arrow lines: [source] --> [label] target ---
+        if let Some(parsed) = parse_old_style_arrow_line(trimmed) {
+            debug!("line {line_num}: old-style arrow: {:?}", parsed);
+            // Emit source node if present and non-continuation
+            if let Some(ref src) = parsed.source {
+                emit_old_node(&mut events, src, line_num, &mut old_seen_nodes);
+            }
+            // Emit target node
+            emit_old_node(&mut events, &parsed.target, line_num, &mut old_seen_nodes);
+            continue;
+        }
+
         warn!("line {line_num}: unrecognized activity diagram line: {trimmed}");
     }
 
@@ -561,6 +587,18 @@ pub fn parse_activity_diagram(source: &str) -> Result<ActivityDiagram> {
     })
 }
 
+/// Extract content inside double quotes: `"text"` -> `text`
+/// Returns None if no quotes found.
+fn extract_quoted(s: &str) -> Option<String> {
+    let s = s.trim();
+    if let Some(start) = s.find('"') {
+        if let Some(end) = s[start + 1..].find('"') {
+            return Some(s[start + 1..start + 1 + end].to_string());
+        }
+    }
+    None
+}
+
 /// Extract content inside parentheses: `(text)` -> `text`
 /// Returns None if no parentheses found.
 fn extract_parenthesized(s: &str) -> Option<String> {
@@ -573,21 +611,31 @@ fn extract_parenthesized(s: &str) -> Option<String> {
     None
 }
 
-/// Parse an `if (condition) then (label)` line
+/// Parse an `if (condition) then (label)` or `if "condition" then` line
 fn parse_if_line(line: &str) -> Option<(String, String)> {
     let lower = line.to_lowercase();
     // Find "if" then first parenthesized group for condition
     let if_pos = lower.find("if")?;
     let after_if = &line[if_pos + 2..];
-    let condition = extract_parenthesized(after_if)?;
 
-    // Find "then" keyword after the condition
-    let lower_after = after_if.to_lowercase();
-    let then_pos = lower_after.find("then")?;
-    let after_then = &after_if[then_pos + 4..];
-    let then_label = extract_parenthesized(after_then).unwrap_or_default();
+    // Try parenthesized condition first: `if (cond) then (label)`
+    if let Some(condition) = extract_parenthesized(after_if) {
+        let lower_after = after_if.to_lowercase();
+        let then_pos = lower_after.find("then")?;
+        let after_then = &after_if[then_pos + 4..];
+        let then_label = extract_parenthesized(after_then).unwrap_or_default();
+        return Some((condition, then_label));
+    }
 
-    Some((condition, then_label))
+    // Try quoted condition (old-style): `if "cond" then`
+    if let Some(condition) = extract_quoted(after_if) {
+        let lower_after = after_if.to_lowercase();
+        if lower_after.contains("then") {
+            return Some((condition, String::new()));
+        }
+    }
+
+    None
 }
 
 /// Parse an `elseif (condition) then (label)` line
@@ -715,6 +763,147 @@ fn extract_note_max_width(style_lines: &[String]) -> Option<f64> {
         }
     }
     None
+}
+
+// ---------------------------------------------------------------------------
+// Old-style activity diagram helpers
+// ---------------------------------------------------------------------------
+
+/// Try to parse `===NAME===` sync bar pattern, returning the name.
+fn parse_sync_bar(s: &str) -> Option<String> {
+    let s = s.trim();
+    if s.len() > 6 && s.starts_with("===") && s.ends_with("===") {
+        let name = s[3..s.len() - 3].trim().to_string();
+        if !name.is_empty() {
+            return Some(name);
+        }
+    }
+    None
+}
+
+/// Represents a parsed old-style arrow line.
+#[derive(Debug)]
+struct OldArrowLine {
+    source: Option<String>,
+    target: String,
+    _label: String,
+}
+
+/// Parse old-style arrow lines:
+///   `(*) --> VerifyReservation`
+///   `-> [incorrect] sendToAirport`
+///   `--> (*)`
+///   `-->[correct] getPreference`
+///   `--> ===Y1===`
+///   `===Y1=== --> PrintBoadingboard`
+fn parse_old_style_arrow_line(line: &str) -> Option<OldArrowLine> {
+    let trimmed = line.trim();
+
+    // Find the arrow (`-->` or `->`)
+    let (arrow_start, arrow_end) = find_arrow(trimmed)?;
+
+    let before_arrow = trimmed[..arrow_start].trim();
+    let after_arrow = trimmed[arrow_end..].trim();
+
+    // Extract optional label [text] from after the arrow
+    let (label, target_str) = extract_bracket_label(after_arrow);
+
+    let target = target_str.trim().to_string();
+    if target.is_empty() {
+        return None;
+    }
+
+    let source = if before_arrow.is_empty() {
+        None
+    } else {
+        Some(before_arrow.to_string())
+    };
+
+    Some(OldArrowLine {
+        source,
+        target,
+        _label: label,
+    })
+}
+
+/// Find the position of an arrow (`-->` or `->`, also `--->`, `---->`, etc.)
+/// Returns (start, end) byte offsets in the string.
+fn find_arrow(s: &str) -> Option<(usize, usize)> {
+    // Match `-+>` pattern (one or more dashes followed by `>`)
+    let bytes = s.as_bytes();
+    let mut i = 0;
+    while i < bytes.len() {
+        if bytes[i] == b'-' {
+            let start = i;
+            while i < bytes.len() && bytes[i] == b'-' {
+                i += 1;
+            }
+            if i < bytes.len() && bytes[i] == b'>' {
+                return Some((start, i + 1));
+            }
+        } else {
+            i += 1;
+        }
+    }
+    None
+}
+
+/// Extract `[label]` from the beginning of a string.
+/// Returns (label, remaining_string).
+fn extract_bracket_label(s: &str) -> (String, String) {
+    let trimmed = s.trim();
+    if trimmed.starts_with('[') {
+        if let Some(end) = trimmed.find(']') {
+            let label = trimmed[1..end].trim().to_string();
+            let rest = trimmed[end + 1..].trim().to_string();
+            return (label, rest);
+        }
+    }
+    (String::new(), trimmed.to_string())
+}
+
+/// Emit an event for an old-style node reference.
+/// Deduplicates sync bars (only first occurrence creates a node).
+fn emit_old_node(
+    events: &mut Vec<ActivityEvent>,
+    node_ref: &str,
+    line_num: usize,
+    seen: &mut std::collections::HashSet<String>,
+) {
+    let trimmed = node_ref.trim();
+    if trimmed == "(*)" {
+        // Start or stop — in old syntax, (*) at the beginning is start,
+        // (*) as a target is stop. For simplicity, we check if we already
+        // have a Start event to decide.
+        let has_start = events.iter().any(|e| matches!(e, ActivityEvent::Start));
+        if has_start {
+            debug!("line {line_num}: old-style stop: (*)");
+            events.push(ActivityEvent::Stop);
+        } else {
+            debug!("line {line_num}: old-style start: (*)");
+            events.push(ActivityEvent::Start);
+        }
+    } else if let Some(name) = parse_sync_bar(trimmed) {
+        let key = format!("==={name}===");
+        if !seen.contains(&key) {
+            debug!("line {line_num}: old-style sync bar: {name}");
+            events.push(ActivityEvent::SyncBar(name));
+            seen.insert(key);
+        } else {
+            debug!("line {line_num}: skipping duplicate sync bar: {name}");
+        }
+    } else {
+        // Regular action node — only emit if not seen before
+        if !seen.contains(trimmed) {
+            debug!("line {line_num}: old-style action: {trimmed}");
+            events.push(ActivityEvent::Action {
+                text: trimmed.to_string(),
+            });
+            seen.insert(trimmed.to_string());
+        } else {
+            debug!("line {line_num}: skipping duplicate action: {trimmed}");
+        }
+    }
 }
 
 #[cfg(test)]

@@ -76,6 +76,8 @@ pub enum ActivityEvent {
     },
     /// detach
     Detach,
+    /// Synchronization bar (old-style `===NAME===`)
+    SyncBar(String),
 }
 
 /// Activity diagram IR

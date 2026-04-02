@@ -53,6 +53,7 @@ pub enum ActivityNodeKindLayout {
     Action,
     Diamond,
     ForkBar,
+    SyncBar,
     Note {
         position: NotePositionLayout,
         mode: ActivityNoteModeLayout,
@@ -109,6 +110,8 @@ const STOP_RADIUS: f64 = 11.0;
 const DIAMOND_SIZE: f64 = 20.0;
 const FORK_BAR_HEIGHT: f64 = 6.0;
 const FORK_BAR_WIDTH: f64 = 80.0;
+/// Java sync bar height (old-style activity `===NAME===`).
+const SYNC_BAR_HEIGHT: f64 = 8.0;
 const NOTE_FONT_SIZE: f64 = 13.0;
 const NOTE_MARGIN_X1: f64 = 6.0;
 const NOTE_MARGIN_X2: f64 = 15.0;
@@ -1027,6 +1030,28 @@ pub fn layout_activity(diagram: &ActivityDiagram) -> Result<ActivityLayout> {
                 node_index += 1;
                 y_cursor += size + NODE_SPACING;
             }
+
+            // ---- Sync bar (old-style ===NAME===) ----------------------------
+            ActivityEvent::SyncBar(_) => {
+                let w = FORK_BAR_WIDTH;
+                let h = SYNC_BAR_HEIGHT;
+                let cx = swimlane_center_x(&swimlane_layouts, current_lane_idx);
+                let x = cx - w / 2.0;
+                let y = y_cursor;
+                log::debug!("  node[{node_index}] SyncBar @ ({x:.1}, {y:.1})");
+                nodes.push(ActivityNodeLayout {
+                    index: node_index,
+                    kind: ActivityNodeKindLayout::SyncBar,
+                    x,
+                    y,
+                    width: w,
+                    height: h,
+                    text: String::new(),
+                });
+                last_flow_node_idx = Some(node_index);
+                node_index += 1;
+                y_cursor += h + NODE_SPACING;
+            }
         }
     }
 
@@ -1079,7 +1104,8 @@ pub fn layout_activity(diagram: &ActivityDiagram) -> Result<ActivityLayout> {
                 | ActivityEvent::EndFork
                 | ActivityEvent::Note { .. }
                 | ActivityEvent::FloatingNote { .. }
-                | ActivityEvent::Detach => {
+                | ActivityEvent::Detach
+                | ActivityEvent::SyncBar(_) => {
                     node_lane.push(cur_lane);
                 }
             }
@@ -1518,7 +1544,9 @@ fn align_flow_groups_to_lane_columns(nodes: &mut [ActivityNodeLayout], node_lane
 /// the plain layout box, otherwise simple action lanes end up 1px too far left.
 fn limitfinder_x_bounds(node: &ActivityNodeLayout) -> (f64, f64) {
     match node.kind {
-        ActivityNodeKindLayout::Action | ActivityNodeKindLayout::ForkBar => {
+        ActivityNodeKindLayout::Action
+        | ActivityNodeKindLayout::ForkBar
+        | ActivityNodeKindLayout::SyncBar => {
             (node.x - 1.0, node.x + node.width - 1.0)
         }
         ActivityNodeKindLayout::Diamond => (node.x - 10.0, node.x + node.width + 10.0),
