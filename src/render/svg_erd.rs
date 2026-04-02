@@ -12,16 +12,6 @@ use crate::Result;
 const FONT_SIZE: f64 = 14.0;
 use crate::skin::rose::{BORDER_COLOR, ENTITY_BG, NOTE_BG, NOTE_BORDER, NOTE_FOLD, TEXT_COLOR};
 
-fn render_path_line(sg: &mut SvgGraphic, x1: f64, y1: f64, x2: f64, y2: f64) {
-    sg.push_raw(&format!(
-        r#"<path d="M{},{} L{},{} " fill="none" style="stroke:{BORDER_COLOR};stroke-width:1;"/>"#,
-        fmt_coord(x1),
-        fmt_coord(y1),
-        fmt_coord(x2),
-        fmt_coord(y2)
-    ));
-}
-
 pub fn render_erd(_ed: &ErdDiagram, layout: &ErdLayout, skin: &SkinParams) -> Result<String> {
     let mut buf = String::with_capacity(4096);
     let bg = skin.get_or("backgroundcolor", "#FFFFFF");
@@ -116,7 +106,7 @@ pub fn render_erd(_ed: &ErdDiagram, layout: &ErdLayout, skin: &SkinParams) -> Re
                 render_edge(&mut sg, le, link_uid, &layout.svek_node_uids);
             }
             EdgeItem::IsaEdges(isa) => {
-                render_isa_edges(&mut sg, isa);
+                render_isa_edges(&mut sg, isa, &layout.svek_node_uids);
             }
         }
     }
@@ -379,22 +369,14 @@ fn render_edge(
         r#"<g class="link" data-entity-1="{}" data-entity-2="{}" data-link-type="association" data-source-line="{}" id="lnk{}">"#,
         ent_from, ent_to, link_uid, link_uid
     ));
-    if edge.is_double {
-        let dx = x2 - x1;
-        let dy = y2 - y1;
-        let len = (dx * dx + dy * dy).sqrt();
-        if len > 0.001 {
-            let nx = -dy / len * 1.5;
-            let ny = dx / len * 1.5;
-            render_path_line(sg, x1 + nx, y1 + ny, x2 + nx, y2 + ny);
-            render_path_line(sg, x1 - nx, y1 - ny, x2 - nx, y2 - ny);
-        }
-    } else if let Some(ref path_d) = edge.raw_path_d {
+    // Java: double-line edges (=) use goBold() → stroke-width:2 on the curve path.
+    let stroke_w = if edge.is_double { 2 } else { 1 };
+    if let Some(ref path_d) = edge.raw_path_d {
         sg.push_raw(&format!(
-            r#"<path d="{}" fill="none" id="{}-{}" style="stroke:{};stroke-width:1;"/>"#,
+            r#"<path d="{}" fill="none" id="{}-{}" style="stroke:{};stroke-width:{};"/>"#,
             path_d,
             xml_escape(&edge.from_name), xml_escape(&edge.to_name),
-            edge_stroke,
+            edge_stroke, stroke_w,
         ));
     } else {
         let cx1 = x1 + (x2 - x1) / 3.0;
@@ -402,31 +384,14 @@ fn render_edge(
         let cx2 = x1 + 2.0 * (x2 - x1) / 3.0;
         let cy2 = y1 + 2.0 * (y2 - y1) / 3.0;
         sg.push_raw(&format!(
-            r#"<path d="M{},{} C{},{} {},{} {},{}" fill="none" id="{}-{}" style="stroke:{};stroke-width:1;"/>"#,
+            r#"<path d="M{},{} C{},{} {},{} {},{}" fill="none" id="{}-{}" style="stroke:{};stroke-width:{};"/>"#,
             fmt_coord(x1), fmt_coord(y1),
             fmt_coord(cx1), fmt_coord(cy1),
             fmt_coord(cx2), fmt_coord(cy2),
             fmt_coord(x2), fmt_coord(y2),
             xml_escape(&edge.from_name), xml_escape(&edge.to_name),
-            edge_stroke,
+            edge_stroke, stroke_w,
         ));
-    }
-    if edge.is_double {
-        let dx = x2 - x1;
-        let dy = y2 - y1;
-        let len = (dx * dx + dy * dy).sqrt();
-        if len > 0.001 {
-            let ux = dx / len;
-            let uy = dy / len;
-            let ax = x2 - ux * 8.0;
-            let ay = y2 - uy * 8.0;
-            let nx = -uy * 4.0;
-            let ny = ux * 4.0;
-            sg.set_fill_color(BORDER_COLOR);
-            sg.set_stroke_color(None);
-            sg.set_stroke_width(0.0, None);
-            sg.svg_polygon(0.0, &[x2, y2, ax + nx, ay + ny, ax - nx, ay - ny]);
-        }
     }
     // ISA arrow decoration for ->- and -<- links
     if let Some(is_superset) = edge.isa_arrow {
@@ -525,8 +490,10 @@ fn render_isa_arrow_decoration(sg: &mut SvgGraphic, path_d: &str, is_superset: b
 /// Parse a cubic bezier path and find the midpoint and tangent direction at the
 /// overall midpoint of the path length.
 /// Handles both single-segment ("M... C...") and multi-segment ("M... C... C...") paths.
+/// Java DotPath.getMiddle(): subdivide each bezier at t=0.5, check 4 candidate
+/// points per segment, pick the one minimizing distanceSq(pt, start) + distanceSq(pt, end).
+/// Returns (point, tangent_vector) at that "middle" position.
 fn bezier_midpoint_tangent(path_d: &str, _is_superset: bool) -> Option<((f64, f64), (f64, f64))> {
-    // Parse path into cubic bezier segments
     let d = path_d.trim();
     let d = d.strip_prefix('M')?;
     let parts: Vec<f64> = d
@@ -539,78 +506,95 @@ fn bezier_midpoint_tangent(path_d: &str, _is_superset: bool) -> Option<((f64, f6
         return None;
     }
 
-    // Build list of bezier segments: [(p0, p1, p2, p3), ...]
+    // Build cubic bezier segments: [(p0, ctrl1, ctrl2, p3), ...]
     let mut segments: Vec<[(f64, f64); 4]> = Vec::new();
-    let start = (parts[0], parts[1]);
-    let mut cur = start;
+    let path_start = (parts[0], parts[1]);
+    let mut cur = path_start;
     let mut i = 2;
     while i + 5 < parts.len() {
-        let p1 = (parts[i], parts[i + 1]);
-        let p2 = (parts[i + 2], parts[i + 3]);
+        let c1 = (parts[i], parts[i + 1]);
+        let c2 = (parts[i + 2], parts[i + 3]);
         let p3 = (parts[i + 4], parts[i + 5]);
-        segments.push([cur, p1, p2, p3]);
+        segments.push([cur, c1, c2, p3]);
         cur = p3;
         i += 6;
     }
-
     if segments.is_empty() {
         return None;
     }
+    let path_end = segments.last().unwrap()[3];
 
-    // Approximate arc length of each segment using linear approximation
-    fn segment_length(seg: &[(f64, f64); 4]) -> f64 {
-        let n = 10;
-        let mut total = 0.0;
-        let mut prev = seg[0];
-        for k in 1..=n {
-            let t = k as f64 / n as f64;
-            let p = bezier_point(seg, t);
-            let dx = p.0 - prev.0;
-            let dy = p.1 - prev.1;
-            total += (dx * dx + dy * dy).sqrt();
-            prev = p;
+    fn dist_sq(a: (f64, f64), b: (f64, f64)) -> f64 {
+        (a.0 - b.0).powi(2) + (a.1 - b.1).powi(2)
+    }
+
+    fn cost(pt: (f64, f64), start: (f64, f64), end: (f64, f64)) -> f64 {
+        dist_sq(pt, start) + dist_sq(pt, end)
+    }
+
+    /// Subdivide a cubic bezier at t=0.5 into two halves using de Casteljau.
+    fn subdivide(seg: &[(f64, f64); 4]) -> ([(f64, f64); 4], [(f64, f64); 4]) {
+        let [p0, p1, p2, p3] = *seg;
+        let m01 = ((p0.0 + p1.0) / 2.0, (p0.1 + p1.1) / 2.0);
+        let m12 = ((p1.0 + p2.0) / 2.0, (p1.1 + p2.1) / 2.0);
+        let m23 = ((p2.0 + p3.0) / 2.0, (p2.1 + p3.1) / 2.0);
+        let m012 = ((m01.0 + m12.0) / 2.0, (m01.1 + m12.1) / 2.0);
+        let m123 = ((m12.0 + m23.0) / 2.0, (m12.1 + m23.1) / 2.0);
+        let mid = ((m012.0 + m123.0) / 2.0, (m012.1 + m123.1) / 2.0);
+        (
+            [p0, m01, m012, mid],   // left half
+            [mid, m123, m23, p3],   // right half
+        )
+    }
+
+    /// Tangent at start of a cubic bezier (t=0).
+    fn tangent_start(seg: &[(f64, f64); 4]) -> (f64, f64) {
+        let dx = seg[1].0 - seg[0].0;
+        let dy = seg[1].1 - seg[0].1;
+        if dx.abs() > 0.001 || dy.abs() > 0.001 {
+            (dx, dy)
+        } else {
+            (seg[2].0 - seg[0].0, seg[2].1 - seg[0].1)
         }
-        total
     }
 
-    fn bezier_point(seg: &[(f64, f64); 4], t: f64) -> (f64, f64) {
-        let mt = 1.0 - t;
-        let mt2 = mt * mt;
-        let mt3 = mt2 * mt;
-        let t2 = t * t;
-        let t3 = t2 * t;
-        (
-            mt3 * seg[0].0 + 3.0 * mt2 * t * seg[1].0 + 3.0 * mt * t2 * seg[2].0 + t3 * seg[3].0,
-            mt3 * seg[0].1 + 3.0 * mt2 * t * seg[1].1 + 3.0 * mt * t2 * seg[2].1 + t3 * seg[3].1,
-        )
+    /// Tangent at end of a cubic bezier (t=1).
+    fn tangent_end(seg: &[(f64, f64); 4]) -> (f64, f64) {
+        let dx = seg[3].0 - seg[2].0;
+        let dy = seg[3].1 - seg[2].1;
+        if dx.abs() > 0.001 || dy.abs() > 0.001 {
+            (dx, dy)
+        } else {
+            (seg[3].0 - seg[1].0, seg[3].1 - seg[1].1)
+        }
     }
 
-    fn bezier_tangent(seg: &[(f64, f64); 4], t: f64) -> (f64, f64) {
-        let mt = 1.0 - t;
-        let mt2 = mt * mt;
-        let t2 = t * t;
-        (
-            3.0 * mt2 * (seg[1].0 - seg[0].0) + 6.0 * mt * t * (seg[2].0 - seg[1].0) + 3.0 * t2 * (seg[3].0 - seg[2].0),
-            3.0 * mt2 * (seg[1].1 - seg[0].1) + 6.0 * mt * t * (seg[2].1 - seg[1].1) + 3.0 * t2 * (seg[3].1 - seg[2].1),
-        )
+    // Java: for each bezier, subdivide and check 4 points (p1, p2 of left; p1, p2 of right).
+    // Pick the point with minimum cost = distSq(pt, pathStart) + distSq(pt, pathEnd).
+    let mut best_pt: Option<(f64, f64)> = None;
+    let mut best_cost = f64::INFINITY;
+    let mut best_angle: (f64, f64) = (0.0, 1.0);
+
+    for seg in &segments {
+        let (left, right) = subdivide(seg);
+        // 4 candidate points and their tangent angles
+        let candidates = [
+            (left[0], tangent_start(&left)),    // p1 of left = start of bezier
+            (left[3], tangent_end(&left)),       // p2 of left = midpoint
+            (right[0], tangent_start(&right)),   // p1 of right = midpoint (same as above)
+            (right[3], tangent_end(&right)),     // p2 of right = end of bezier
+        ];
+        for (pt, tan) in &candidates {
+            let c = cost(*pt, path_start, path_end);
+            if best_pt.is_none() || c < best_cost {
+                best_cost = c;
+                best_pt = Some(*pt);
+                best_angle = *tan;
+            }
+        }
     }
 
-    if segments.len() == 1 {
-        // Single segment: use t=0.5
-        let seg = &segments[0];
-        let mid = bezier_point(seg, 0.5);
-        let tan = bezier_tangent(seg, 0.5);
-        Some((mid, tan))
-    } else {
-        // Multi-segment: Java places the arrow at the junction between segments.
-        // Use the midpoint junction (between segment N/2-1 and N/2).
-        let junction_idx = segments.len() / 2;
-        let junction = segments[junction_idx][0]; // start of segment = end of previous
-        // Tangent: use the tangent at the end of the previous segment
-        let prev_seg = &segments[junction_idx - 1];
-        let tan = bezier_tangent(prev_seg, 1.0);
-        Some((junction, tan))
-    }
+    best_pt.map(|pt| (pt, best_angle))
 }
 
 /// Render just the ISA circle and label (no edges).
@@ -652,24 +636,73 @@ fn render_isa_circle(sg: &mut SvgGraphic, isa: &ErdIsaLayout) {
     sg.push_raw("</g>");
 }
 
-/// Render just the ISA edge paths (parent→center and center→children).
-fn render_isa_edges(sg: &mut SvgGraphic, isa: &ErdIsaLayout) {
+/// Render ISA edge paths (parent→center and center→children) as proper link groups.
+/// Java wraps each ISA edge in <!--link--> comment and <g class="link">.
+fn render_isa_edges(
+    sg: &mut SvgGraphic,
+    isa: &ErdIsaLayout,
+    uid_map: &std::collections::HashMap<String, usize>,
+) {
+    let edge_stroke = isa.line_color.as_deref().unwrap_or(BORDER_COLOR);
+    let center_name = &isa.center_id;
+    // Java: for "U" symbol, parent→center has withMiddleSuperset decoration.
+    // For "d" symbol, center→child has withMiddleSuperset decoration.
+    let decor_on_parent = isa.kind_label == "U";
+
     // Render parent→center edge
     if let Some(ref path_d) = isa.parent_edge_path {
         let stroke_w = if isa.is_double { 2 } else { 1 };
+        let parent_uid = uid_map.get(&isa.parent_id).copied().unwrap_or(0);
+        let center_uid = uid_map.get(center_name).copied().unwrap_or(0);
+        let ent_from = format!("ent{:04}", parent_uid);
+        let ent_to = format!("ent{:04}", center_uid);
+        let link_uid = isa.parent_edge_uid;
         sg.push_raw(&format!(
-            r#"<path d="{}" fill="none" style="stroke:{BORDER_COLOR};stroke-width:{stroke_w};"/>"#,
-            path_d,
+            "<!--link {} to {}-->",
+            xml_escape(&isa.parent_id),
+            xml_escape(center_name),
         ));
+        sg.push_raw(&format!(
+            r#"<g class="link" data-entity-1="{ent_from}" data-entity-2="{ent_to}" data-link-type="association" data-source-line="{link_uid}" id="lnk{link_uid}">"#,
+        ));
+        sg.push_raw(&format!(
+            r#"<path d="{}" fill="none" id="{}-{}" style="stroke:{};stroke-width:{};"/>"#,
+            path_d,
+            xml_escape(&isa.parent_id), xml_escape(center_name),
+            edge_stroke, stroke_w,
+        ));
+        if decor_on_parent {
+            render_isa_arrow_decoration(sg, path_d, true, edge_stroke);
+        }
+        sg.push_raw("</g>");
     }
 
     // Render center→child edges
     for child_edge in &isa.child_edges {
         if let Some(ref path_d) = child_edge.raw_path_d {
+            let center_uid = uid_map.get(center_name).copied().unwrap_or(0);
+            let child_uid = uid_map.get(&child_edge.child_id).copied().unwrap_or(0);
+            let ent_from = format!("ent{:04}", center_uid);
+            let ent_to = format!("ent{:04}", child_uid);
+            let link_uid = child_edge.link_uid;
             sg.push_raw(&format!(
-                r#"<path d="{}" fill="none" style="stroke:{BORDER_COLOR};stroke-width:1;"/>"#,
-                path_d,
+                "<!--link {} to {}-->",
+                xml_escape(center_name),
+                xml_escape(&child_edge.child_id),
             ));
+            sg.push_raw(&format!(
+                r#"<g class="link" data-entity-1="{ent_from}" data-entity-2="{ent_to}" data-link-type="association" data-source-line="{link_uid}" id="lnk{link_uid}">"#,
+            ));
+            sg.push_raw(&format!(
+                r#"<path d="{}" fill="none" id="{}-{}" style="stroke:{};stroke-width:1;"/>"#,
+                path_d,
+                xml_escape(center_name), xml_escape(&child_edge.child_id),
+                edge_stroke,
+            ));
+            if !decor_on_parent {
+                render_isa_arrow_decoration(sg, path_d, true, edge_stroke);
+            }
+            sg.push_raw("</g>");
         }
     }
 }

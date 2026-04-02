@@ -140,10 +140,14 @@ pub struct ErdIsaLayout {
     pub kind_label: String,
     /// Center of the ISA circle node.
     pub center: (f64, f64),
+    /// Full center node ID (e.g., "CHILD/d TODDLER, PRIMARY_AGE, TEEN /center").
+    pub center_id: String,
     /// Radius of the ISA circle (Java: 12.5).
     pub radius: f64,
     /// Edge from parent entity to ISA center.
     pub parent_edge_path: Option<String>,
+    /// Link uid for the parent→center edge.
+    pub parent_edge_uid: usize,
     /// Edges from ISA center to each child entity.
     pub child_edges: Vec<ErdIsaChildEdge>,
     /// Whether the parent→center edge is double-stroke (from `=>=`).
@@ -161,6 +165,8 @@ pub struct ErdIsaLayout {
 pub struct ErdIsaChildEdge {
     pub child_id: String,
     pub raw_path_d: Option<String>,
+    /// Link uid for this center→child edge.
+    pub link_uid: usize,
 }
 
 // ---------------------------------------------------------------------------
@@ -649,9 +655,10 @@ pub fn layout_erd(diagram: &ErdDiagram) -> Result<ErdLayout> {
     // one uid slot. UIDs start at 2 (first 2 reserved for diagram metadata).
     // Order: for each entity/relationship in source order, add the node,
     // then its attributes (each attr node + attr edge pair), then link edges.
-    let (svek_node_uids, link_uids) = {
+    let (svek_node_uids, link_uids, isa_edge_uids) = {
         let mut uid_map: HashMap<String, usize> = HashMap::new();
         let mut lnk_uids: HashMap<usize, usize> = HashMap::new();
+        let mut isa_edge_uids: HashMap<usize, (usize, Vec<usize>)> = HashMap::new();
         let mut uid = 2usize;
 
         // Build attr_metas index by parent_id for recursive uid assignment
@@ -733,13 +740,20 @@ pub fn layout_erd(diagram: &ErdDiagram) -> Result<ErdLayout> {
                     let center_id = format!("{}/{} {} /center", isa.parent, kind_str, children_str);
                     uid_map.insert(center_id, uid);
                     uid += 1;
-                    // parent→center edge + each center→child edge
-                    uid += 1; // parent→center
-                    uid += isa.children.len(); // center→children
+                    // parent→center edge uid
+                    let parent_edge_uid = uid;
+                    uid += 1;
+                    // center→child edge uids
+                    let mut child_uids = Vec::new();
+                    for _ in &isa.children {
+                        child_uids.push(uid);
+                        uid += 1;
+                    }
+                    isa_edge_uids.insert(isa.source_order, (parent_edge_uid, child_uids));
                 }
             }
         }
-        (uid_map, lnk_uids)
+        (uid_map, lnk_uids, isa_edge_uids)
     };
 
     let graph = LayoutGraph {
@@ -977,15 +991,22 @@ pub fn layout_erd(diagram: &ErdDiagram) -> Result<ErdLayout> {
             .map(|d| shift_svg_path(d, render_dx, render_dy));
         isa_edge_idx += 1;
 
+        // ISA edge UIDs
+        let (parent_edge_uid, child_edge_uids) = isa_edge_uids
+            .get(&isa_meta.source_order)
+            .cloned()
+            .unwrap_or_else(|| (0, vec![0; isa_meta.child_ids.len()]));
+
         // Center→child edge paths
         let mut child_edges = Vec::new();
-        for child_id in &isa_meta.child_ids {
+        for (ci, child_id) in isa_meta.child_ids.iter().enumerate() {
             let child_path = gl.edges.get(isa_edge_idx)
                 .and_then(|e| e.raw_path_d.as_ref())
                 .map(|d| shift_svg_path(d, render_dx, render_dy));
             child_edges.push(ErdIsaChildEdge {
                 child_id: child_id.clone(),
                 raw_path_d: child_path,
+                link_uid: child_edge_uids.get(ci).copied().unwrap_or(0),
             });
             isa_edge_idx += 1;
         }
@@ -995,8 +1016,10 @@ pub fn layout_erd(diagram: &ErdDiagram) -> Result<ErdLayout> {
             parent_id: isa_meta.parent_id.clone(),
             kind_label,
             center: (cx, cy),
+            center_id: isa_meta.center_id.clone(),
             radius: ISA_CIRCLE_DIAMETER / 2.0,
             parent_edge_path,
+            parent_edge_uid,
             child_edges,
             is_double: isa_meta.is_double,
             source_order: isa_meta.source_order,

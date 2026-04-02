@@ -639,7 +639,6 @@ pub fn layout_with_svek(graph: &LayoutGraph) -> Result<GraphLayout, Error> {
     // Generate DOT
     let dot = builder.build_dot();
     log::debug!("svek dot input:\n{dot}");
-    log::debug!("DEBUG svek dot input:\n{dot}");
 
     // Run Graphviz (same subprocess approach)
     let mut child = std::process::Command::new("dot")
