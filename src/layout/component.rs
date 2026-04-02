@@ -831,6 +831,88 @@ pub fn layout_component(cd: &ComponentDiagram) -> Result<ComponentLayout> {
     let mut all_edges = layout_edges;
     all_edges.extend(note_edges);
 
+    // Java applySingleStrategy: arrange standalone (unlinked) entities in a
+    // square grid using invisible edges.  SquareMaker.putInSquare() computes
+    // branch = ceil(sqrt(n)) and emits leftRight (minlen=0, same rank) and
+    // topDown (minlen=1, next rank) invisible links.
+    // Only applies to entities in the same group; here we handle root-level
+    // standalones (not inside any cluster).
+    {
+        let linked_ids: std::collections::HashSet<&str> = all_edges
+            .iter()
+            .flat_map(|e| [e.from.as_str(), e.to.as_str()])
+            .collect();
+        // Collect IDs of entities that are inside clusters
+        let clustered_ids: std::collections::HashSet<&str> = clusters
+            .iter()
+            .flat_map(|c| c.node_ids.iter().map(|s| s.as_str()))
+            .collect();
+        let mut standalone_ids: Vec<String> = Vec::new();
+        let mut seen_standalone = std::collections::HashSet::new();
+        for n in &layout_nodes {
+            if !n.hidden
+                && !linked_ids.contains(n.id.as_str())
+                && !clustered_ids.contains(n.id.as_str())
+                && seen_standalone.insert(n.id.clone())
+            {
+                standalone_ids.push(n.id.clone());
+            }
+        }
+        if standalone_ids.len() >= 3 {
+            let branch = {
+                let sqrt = (standalone_ids.len() as f64).sqrt();
+                let r = sqrt as usize;
+                if r * r == standalone_ids.len() {
+                    r
+                } else {
+                    r + 1
+                }
+            };
+            let mut head_branch = 0usize;
+            for i in 1..standalone_ids.len() {
+                let dist = i - head_branch;
+                if dist == branch {
+                    // topDown: first-of-row → first-of-next-row (minlen=1)
+                    all_edges.push(LayoutEdge {
+                        from: standalone_ids[head_branch].clone(),
+                        to: standalone_ids[i].clone(),
+                        label: None,
+                        label_dimension: None,
+                        tail_label: None,
+                        tail_label_boxed: false,
+                        head_label: None,
+                        head_label_boxed: false,
+                        tail_decoration: crate::svek::edge::LinkDecoration::None,
+                        head_decoration: crate::svek::edge::LinkDecoration::None,
+                        line_style: crate::svek::edge::LinkStyle::Normal,
+                        minlen: 1,
+                        invisible: true,
+                        no_constraint: false,
+                    });
+                    head_branch = i;
+                } else {
+                    // leftRight: same row, adjacent (minlen=0, same rank)
+                    all_edges.push(LayoutEdge {
+                        from: standalone_ids[i - 1].clone(),
+                        to: standalone_ids[i].clone(),
+                        label: None,
+                        label_dimension: None,
+                        tail_label: None,
+                        tail_label_boxed: false,
+                        head_label: None,
+                        head_label_boxed: false,
+                        tail_decoration: crate::svek::edge::LinkDecoration::None,
+                        head_decoration: crate::svek::edge::LinkDecoration::None,
+                        line_style: crate::svek::edge::LinkStyle::Normal,
+                        minlen: 0,
+                        invisible: true,
+                        no_constraint: false,
+                    });
+                }
+            }
+        }
+    }
+
     let graph = LayoutGraph {
         nodes: layout_nodes,
         edges: all_edges,
