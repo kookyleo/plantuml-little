@@ -61,6 +61,15 @@ pub fn parse_creole_opts(input: &str, preserve_backslash_n: bool) -> RichText {
             continue;
         }
 
+        // Heading lines: `= text`, `== text`, `=== text`
+        // Java Creole treats these as bold text (font-weight 700) with the `=` prefix stripped.
+        if let Some(rest) = strip_heading_prefix(line) {
+            let inner = parse_inline(rest);
+            blocks.push(RichText::Line(vec![TextSpan::Bold(inner)]));
+            i += 1;
+            continue;
+        }
+
         // Regular line
         let spans = parse_inline(line);
         blocks.push(RichText::Line(spans));
@@ -169,6 +178,27 @@ fn split_lines_literal(input: &str) -> Vec<String> {
 // ---------------------------------------------------------------------------
 // Block-level detection helpers
 // ---------------------------------------------------------------------------
+
+/// Strip a Creole heading prefix (`=`, `==`, `===`, etc.) followed by a space.
+/// Returns the remaining text if the line is a heading, or `None` otherwise.
+/// Java PlantUML renders heading lines as bold text at the same font size.
+fn strip_heading_prefix(line: &str) -> Option<&str> {
+    let trimmed = line.trim_start();
+    if !trimmed.starts_with('=') {
+        return None;
+    }
+    let eq_end = trimmed.find(|c: char| c != '=').unwrap_or(trimmed.len());
+    if eq_end == 0 || eq_end >= trimmed.len() {
+        return None; // all `=` chars → horizontal rule, not heading
+    }
+    let rest = &trimmed[eq_end..];
+    if rest.starts_with(' ') {
+        Some(rest.trim_start())
+    } else {
+        // `==text` without space: still treat as heading (Java does)
+        Some(rest)
+    }
+}
 
 fn is_horizontal_rule(line: &str) -> bool {
     let trimmed = line.trim();
@@ -1416,5 +1446,68 @@ mod tests {
                 .any(|item| matches!(item, RichText::HorizontalRule)),
             "==== should produce HorizontalRule, got: {items:?}"
         );
+    }
+
+    #[test]
+    fn test_heading_prefix_stripped_and_bold() {
+        // `== text` should produce Bold(Plain("text"))
+        let rt = parse_creole("== Hello World");
+        match &rt {
+            RichText::Line(spans) => {
+                assert_eq!(spans.len(), 1);
+                match &spans[0] {
+                    TextSpan::Bold(inner) => {
+                        assert_eq!(inner.len(), 1);
+                        match &inner[0] {
+                            TextSpan::Plain(s) => assert_eq!(s, "Hello World"),
+                            other => panic!("expected Plain, got: {other:?}"),
+                        }
+                    }
+                    other => panic!("expected Bold, got: {other:?}"),
+                }
+            }
+            other => panic!("expected Line, got: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn test_heading_no_space_after_equals() {
+        // `==text` should also be treated as heading
+        let rt = parse_creole("==text");
+        match &rt {
+            RichText::Line(spans) => {
+                assert!(matches!(&spans[0], TextSpan::Bold(_)));
+            }
+            other => panic!("expected Line, got: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn test_heading_multiline_with_size() {
+        // C4-style label: heading + size markup
+        let rt = parse_creole("== Sample System\\n<size:12>[system]</size>");
+        match &rt {
+            RichText::Block(items) => {
+                assert_eq!(items.len(), 2, "should have 2 lines");
+                // First line is heading
+                match &items[0] {
+                    RichText::Line(spans) => {
+                        assert!(matches!(&spans[0], TextSpan::Bold(_)));
+                    }
+                    other => panic!("first block should be Line, got: {other:?}"),
+                }
+                // Second line has size markup
+                match &items[1] {
+                    RichText::Line(spans) => {
+                        assert!(
+                            spans.iter().any(|s| matches!(s, TextSpan::Sized { .. })),
+                            "second line should contain Sized, got: {spans:?}"
+                        );
+                    }
+                    other => panic!("second block should be Line, got: {other:?}"),
+                }
+            }
+            other => panic!("expected Block, got: {other:?}"),
+        }
     }
 }
