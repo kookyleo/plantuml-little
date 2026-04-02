@@ -914,6 +914,9 @@ mod tests {
             entity_idx_to: 0,
             raw_path_d: None,
             label_xy: None,
+            source_order: 0,
+            isa_arrow: None,
+            edge_color: None,
         });
         let svg = render_erd(&empty_diagram(), &l, &SkinParams::default()).unwrap();
         assert!(svg.contains("<path"));
@@ -936,6 +939,9 @@ mod tests {
             entity_idx_to: 0,
             raw_path_d: None,
             label_xy: None,
+            source_order: 0,
+            isa_arrow: None,
+            edge_color: None,
         });
         let svg = render_erd(&empty_diagram(), &l, &SkinParams::default()).unwrap();
         assert!(svg.matches("<path").count() >= 2);
