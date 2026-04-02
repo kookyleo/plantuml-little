@@ -48,34 +48,77 @@ pub fn render_erd(_ed: &ErdDiagram, layout: &ErdLayout, skin: &SkinParams) -> Re
     }
 
 
-    // Render entities interleaved with their attributes (Java order)
-    for node in &layout.entity_nodes {
-        render_entity(&mut sg, node, ent_bg, ent_border, ent_font);
-        // Render this entity's direct attributes (render_attribute handles children recursively)
-        if let Some(attrs) = attrs_by_parent.get(node.id.as_str()) {
-            for attr in attrs {
-                render_attribute(&mut sg, attr);
-            }
-        }
+    // Merge entities, relationships, and ISAs into a single list sorted by
+    // source_order. Java renders them in declaration order, interleaved.
+    enum RenderItem<'a> {
+        Node(&'a ErdNodeLayout),
+        Isa(&'a ErdIsaLayout),
     }
-    // Render relationships interleaved with their attributes
-    for node in &layout.relationship_nodes {
-        render_relationship(&mut sg, node);
-        if let Some(attrs) = attrs_by_parent.get(node.id.as_str()) {
-            for attr in attrs {
-                render_attribute(&mut sg, attr);
-            }
-        }
-    }
-    for (i, attr_edge) in layout.attr_edges.iter().enumerate() {
-        render_attr_edge(&mut sg, attr_edge, i);
-    }
-    let edge_id_offset = layout.attr_edges.len();
-    for (i, edge) in layout.edges.iter().enumerate() {
-        render_edge(&mut sg, edge, i + edge_id_offset);
+    let mut items: Vec<(usize, RenderItem)> = Vec::new();
+    for node in layout.entity_nodes.iter().chain(layout.relationship_nodes.iter()) {
+        items.push((node.source_order, RenderItem::Node(node)));
     }
     for isa in &layout.isa_layouts {
-        render_isa(&mut sg, isa);
+        items.push((isa.source_order, RenderItem::Isa(isa)));
+    }
+    items.sort_by_key(|(order, _)| *order);
+
+    for (_, item) in &items {
+        match item {
+            RenderItem::Node(node) => {
+                if node.is_relationship {
+                    render_relationship(&mut sg, node);
+                } else {
+                    render_entity(&mut sg, node, ent_bg, ent_border, ent_font);
+                }
+                if let Some(attrs) = attrs_by_parent.get(node.id.as_str()) {
+                    for attr in attrs {
+                        render_attribute(&mut sg, attr);
+                    }
+                }
+            }
+            RenderItem::Isa(isa) => {
+                render_isa_circle(&mut sg, isa);
+            }
+        }
+    }
+    // Merge attr_edges and link_edges into a single list, sorted by source_order.
+    // Within the same source_order, attr edges come first (they belong to the
+    // entity/relationship at that order), then link edges.
+    enum EdgeItem<'a> {
+        Attr(usize, &'a ErdAttrEdge),
+        Link(usize, &'a ErdEdgeLayout),
+        IsaEdges(&'a ErdIsaLayout),
+    }
+    let mut edge_items: Vec<(usize, u8, EdgeItem)> = Vec::new();
+    for (i, ae) in layout.attr_edges.iter().enumerate() {
+        edge_items.push((ae.parent_source_order, 0, EdgeItem::Attr(i, ae)));
+    }
+    for (i, le) in layout.edges.iter().enumerate() {
+        edge_items.push((le.source_order, 1, EdgeItem::Link(i, le)));
+    }
+    for isa in &layout.isa_layouts {
+        edge_items.push((isa.source_order, 2, EdgeItem::IsaEdges(isa)));
+    }
+    // Sort by (source_order, type_priority): attrs first, then links, then ISA edges
+    edge_items.sort_by_key(|(order, prio, _)| (*order, *prio));
+
+    for (_, _, item) in &edge_items {
+        match item {
+            EdgeItem::Attr(_, ae) => {
+                render_attr_edge(&mut sg, ae, &layout.svek_node_uids);
+            }
+            EdgeItem::Link(_, le) => {
+                let link_uid = layout.link_uids
+                    .get(&le.source_order)
+                    .copied()
+                    .unwrap_or(0);
+                render_edge(&mut sg, le, link_uid, &layout.svek_node_uids);
+            }
+            EdgeItem::IsaEdges(isa) => {
+                render_isa_edges(&mut sg, isa);
+            }
+        }
     }
     for note in &layout.notes {
         render_note(&mut sg, note);
@@ -275,18 +318,25 @@ fn render_attribute(sg: &mut SvgGraphic, attr: &ErdAttrLayout) {
     }
 }
 
-fn render_attr_edge(sg: &mut SvgGraphic, attr_edge: &ErdAttrEdge, link_idx: usize) {
+fn render_attr_edge(
+    sg: &mut SvgGraphic,
+    attr_edge: &ErdAttrEdge,
+    uid_map: &std::collections::HashMap<String, usize>,
+) {
     if let Some(ref path_d) = attr_edge.raw_path_d {
         sg.push_raw(&format!(
             "<!--link {} to {}-->",
             xml_escape(&attr_edge.from_name),
             xml_escape(&attr_edge.to_name)
         ));
-        let ent_from = format!("ent{:04}", link_idx * 2 + 3);
-        let ent_to = format!("ent{:04}", link_idx * 2 + 2);
+        let from_uid = uid_map.get(&attr_edge.from_name).copied().unwrap_or(0);
+        let to_uid = uid_map.get(&attr_edge.to_name).copied().unwrap_or(0);
+        // Edge uid = from_uid + 1 (edge follows its from-node in the uid sequence)
+        let link_uid = from_uid + 1;
+        let ent_from = format!("ent{:04}", from_uid);
+        let ent_to = format!("ent{:04}", to_uid);
         sg.push_raw(&format!(
-            r#"<g class="link" data-entity-1="{ent_from}" data-entity-2="{ent_to}" data-link-type="association" data-source-line="{}" id="lnk{}">"#,
-            link_idx + 2, link_idx + 4
+            r#"<g class="link" data-entity-1="{ent_from}" data-entity-2="{ent_to}" data-link-type="association" data-source-line="{link_uid}" id="lnk{link_uid}">"#,
         ));
         sg.push_raw(&format!(
             r#"<path d="{}" fill="none" id="{}-{}" style="stroke:{BORDER_COLOR};stroke-width:1;"/>"#,
@@ -297,7 +347,12 @@ fn render_attr_edge(sg: &mut SvgGraphic, attr_edge: &ErdAttrEdge, link_idx: usiz
     }
 }
 
-fn render_edge(sg: &mut SvgGraphic, edge: &ErdEdgeLayout, link_idx: usize) {
+fn render_edge(
+    sg: &mut SvgGraphic,
+    edge: &ErdEdgeLayout,
+    link_uid: usize,
+    uid_map: &std::collections::HashMap<String, usize>,
+) {
     let (x1, y1) = edge.from_point;
     let (x2, y2) = edge.to_point;
     // Java wraps each link in <!--link From to To--> comment and <g class="link" ...>
@@ -306,11 +361,13 @@ fn render_edge(sg: &mut SvgGraphic, edge: &ErdEdgeLayout, link_idx: usize) {
         xml_escape(&edge.from_name),
         xml_escape(&edge.to_name)
     ));
-    let ent_from = format!("ent{:04}", edge.entity_idx_from + 2);
-    let ent_to = format!("ent{:04}", edge.entity_idx_to + 2);
+    let from_uid = uid_map.get(&edge.from_name).copied().unwrap_or(0);
+    let to_uid = uid_map.get(&edge.to_name).copied().unwrap_or(0);
+    let ent_from = format!("ent{:04}", from_uid);
+    let ent_to = format!("ent{:04}", to_uid);
     sg.push_raw(&format!(
         r#"<g class="link" data-entity-1="{}" data-entity-2="{}" data-link-type="association" data-source-line="{}" id="lnk{}">"#,
-        ent_from, ent_to, edge.source_line, link_idx + 5
+        ent_from, ent_to, link_uid, link_uid
     ));
     if edge.is_double {
         let dx = x2 - x1;
@@ -359,7 +416,12 @@ fn render_edge(sg: &mut SvgGraphic, edge: &ErdEdgeLayout, link_idx: usize) {
             sg.svg_polygon(0.0, &[x2, y2, ax + nx, ay + ny, ax - nx, ay - ny]);
         }
     }
-    if !edge.label.is_empty() {
+    // ISA arrow decoration for ->- and -<- links
+    if let Some(is_superset) = edge.isa_arrow {
+        if let Some(ref path_d) = edge.raw_path_d {
+            render_isa_arrow_decoration(sg, path_d, is_superset);
+        }
+    } else if !edge.label.is_empty() {
         let (mx, my) = if let Some((lx, ly)) = edge.label_xy {
             // Java: x = label_xy.x + shield(0) + marginLabel(1)
             //        y = label_xy.y + shield(0) + marginLabel(1) + ascent
@@ -390,7 +452,154 @@ fn render_edge(sg: &mut SvgGraphic, edge: &ErdEdgeLayout, link_idx: usize) {
     sg.push_raw("</g>");
 }
 
-fn render_isa(sg: &mut SvgGraphic, isa: &ErdIsaLayout) {
+/// Render the ISA arrow decoration (triangle arrowhead) at the midpoint of an edge.
+/// Java renders this as: arc + 2 lines forming a triangle.
+fn render_isa_arrow_decoration(sg: &mut SvgGraphic, path_d: &str, is_superset: bool) {
+    // Parse the bezier curve from the path d-string to find the midpoint and tangent.
+    // Path format: "Mx,y Ccx1,cy1 cx2,cy2 ex,ey" (cubic bezier)
+    if let Some((mid, tangent)) = bezier_midpoint_tangent(path_d, is_superset) {
+        let (mx, my) = mid;
+        let (tx, ty) = tangent;
+        let tlen = (tx * tx + ty * ty).sqrt();
+        if tlen < 0.001 {
+            return;
+        }
+        let ux = tx / tlen;
+        let uy = ty / tlen;
+        // Perpendicular (rotated 90° counterclockwise)
+        let nx = -uy;
+        let ny = ux;
+        // Arc radius = 6
+        let r = 6.0;
+        // Arc endpoints: midpoint ± perpendicular * radius
+        // Java always uses sweep=0 (counterclockwise arc).
+        // For ->- (superset), "from" is the positive perpendicular side.
+        // For -<- (subset), "from" is the negative perpendicular side.
+        let (ax1, ay1, ax2, ay2) = if is_superset {
+            (mx + nx * r, my + ny * r, mx - nx * r, my - ny * r)
+        } else {
+            (mx - nx * r, my - ny * r, mx + nx * r, my + ny * r)
+        };
+        // Line endpoints: for ->- go backward along tangent, for -<- go forward
+        let back = 10.0;
+        let dir = if is_superset { -1.0 } else { 1.0 };
+        let lx1 = ax1 + dir * ux * back;
+        let ly1 = ay1 + dir * uy * back;
+        let lx2 = ax2 + dir * ux * back;
+        let ly2 = ay2 + dir * uy * back;
+
+        // Arc path - Java uses space (not comma) between arc endpoint coordinates
+        sg.push_raw(&format!(
+            r#"<path d="M{},{} A{r},{r} 0 0 0 {} {}" fill="none" style="stroke:{BORDER_COLOR};stroke-width:1.5;"/>"#,
+            fmt_coord(ax1), fmt_coord(ay1),
+            fmt_coord(ax2), fmt_coord(ay2),
+        ));
+        // Line 1
+        sg.push_raw(&format!(
+            r#"<line style="stroke:{BORDER_COLOR};stroke-width:1.5;" x1="{}" x2="{}" y1="{}" y2="{}"/>"#,
+            fmt_coord(ax1), fmt_coord(lx1), fmt_coord(ay1), fmt_coord(ly1),
+        ));
+        // Line 2
+        sg.push_raw(&format!(
+            r#"<line style="stroke:{BORDER_COLOR};stroke-width:1.5;" x1="{}" x2="{}" y1="{}" y2="{}"/>"#,
+            fmt_coord(ax2), fmt_coord(lx2), fmt_coord(ay2), fmt_coord(ly2),
+        ));
+    }
+}
+
+/// Parse a cubic bezier path and find the midpoint and tangent direction at the
+/// overall midpoint of the path length.
+/// Handles both single-segment ("M... C...") and multi-segment ("M... C... C...") paths.
+fn bezier_midpoint_tangent(path_d: &str, _is_superset: bool) -> Option<((f64, f64), (f64, f64))> {
+    // Parse path into cubic bezier segments
+    let d = path_d.trim();
+    let d = d.strip_prefix('M')?;
+    let parts: Vec<f64> = d
+        .replace('C', " ")
+        .replace(',', " ")
+        .split_whitespace()
+        .filter_map(|s| s.parse().ok())
+        .collect();
+    if parts.len() < 8 {
+        return None;
+    }
+
+    // Build list of bezier segments: [(p0, p1, p2, p3), ...]
+    let mut segments: Vec<[(f64, f64); 4]> = Vec::new();
+    let start = (parts[0], parts[1]);
+    let mut cur = start;
+    let mut i = 2;
+    while i + 5 < parts.len() {
+        let p1 = (parts[i], parts[i + 1]);
+        let p2 = (parts[i + 2], parts[i + 3]);
+        let p3 = (parts[i + 4], parts[i + 5]);
+        segments.push([cur, p1, p2, p3]);
+        cur = p3;
+        i += 6;
+    }
+
+    if segments.is_empty() {
+        return None;
+    }
+
+    // Approximate arc length of each segment using linear approximation
+    fn segment_length(seg: &[(f64, f64); 4]) -> f64 {
+        let n = 10;
+        let mut total = 0.0;
+        let mut prev = seg[0];
+        for k in 1..=n {
+            let t = k as f64 / n as f64;
+            let p = bezier_point(seg, t);
+            let dx = p.0 - prev.0;
+            let dy = p.1 - prev.1;
+            total += (dx * dx + dy * dy).sqrt();
+            prev = p;
+        }
+        total
+    }
+
+    fn bezier_point(seg: &[(f64, f64); 4], t: f64) -> (f64, f64) {
+        let mt = 1.0 - t;
+        let mt2 = mt * mt;
+        let mt3 = mt2 * mt;
+        let t2 = t * t;
+        let t3 = t2 * t;
+        (
+            mt3 * seg[0].0 + 3.0 * mt2 * t * seg[1].0 + 3.0 * mt * t2 * seg[2].0 + t3 * seg[3].0,
+            mt3 * seg[0].1 + 3.0 * mt2 * t * seg[1].1 + 3.0 * mt * t2 * seg[2].1 + t3 * seg[3].1,
+        )
+    }
+
+    fn bezier_tangent(seg: &[(f64, f64); 4], t: f64) -> (f64, f64) {
+        let mt = 1.0 - t;
+        let mt2 = mt * mt;
+        let t2 = t * t;
+        (
+            3.0 * mt2 * (seg[1].0 - seg[0].0) + 6.0 * mt * t * (seg[2].0 - seg[1].0) + 3.0 * t2 * (seg[3].0 - seg[2].0),
+            3.0 * mt2 * (seg[1].1 - seg[0].1) + 6.0 * mt * t * (seg[2].1 - seg[1].1) + 3.0 * t2 * (seg[3].1 - seg[2].1),
+        )
+    }
+
+    if segments.len() == 1 {
+        // Single segment: use t=0.5
+        let seg = &segments[0];
+        let mid = bezier_point(seg, 0.5);
+        let tan = bezier_tangent(seg, 0.5);
+        Some((mid, tan))
+    } else {
+        // Multi-segment: Java places the arrow at the junction between segments.
+        // Use the midpoint junction (between segment N/2-1 and N/2).
+        let junction_idx = segments.len() / 2;
+        let junction = segments[junction_idx][0]; // start of segment = end of previous
+        // Tangent: use the tangent at the end of the previous segment
+        let prev_seg = &segments[junction_idx - 1];
+        let tan = bezier_tangent(prev_seg, 1.0);
+        Some((junction, tan))
+    }
+}
+
+/// Render just the ISA circle and label (no edges).
+fn render_isa_circle(sg: &mut SvgGraphic, isa: &ErdIsaLayout) {
     let (cx, cy) = isa.center;
     let r = isa.radius;
 
@@ -424,7 +633,10 @@ fn render_isa(sg: &mut SvgGraphic, isa: &ErdIsaLayout) {
         None,
     );
     sg.push_raw("</g>");
+}
 
+/// Render just the ISA edge paths (parent→center and center→children).
+fn render_isa_edges(sg: &mut SvgGraphic, isa: &ErdIsaLayout) {
     // Render parent→center edge
     if let Some(ref path_d) = isa.parent_edge_path {
         let stroke_w = if isa.is_double { 2 } else { 1 };
@@ -514,6 +726,8 @@ mod tests {
             notes: vec![],
             width: 400.0,
             height: 300.0,
+            svek_node_uids: std::collections::HashMap::new(),
+            link_uids: std::collections::HashMap::new(),
         }
     }
     fn make_entity_node(id: &str, x: f64, y: f64, w: f64, h: f64) -> ErdNodeLayout {
@@ -526,6 +740,8 @@ mod tests {
             height: h,
             is_weak: false,
             is_identifying: false,
+            is_relationship: false,
+            source_order: 0,
         }
     }
     fn make_attr(id: &str, parent: &str, x: f64, y: f64) -> ErdAttrLayout {
@@ -585,6 +801,8 @@ mod tests {
             height: 40.0,
             is_weak: false,
             is_identifying: false,
+            is_relationship: true,
+            source_order: 0,
         });
         let svg = render_erd(&empty_diagram(), &l, &SkinParams::default()).unwrap();
         assert!(svg.contains("<polygon"));
@@ -602,6 +820,8 @@ mod tests {
             height: 40.0,
             is_weak: false,
             is_identifying: true,
+            is_relationship: true,
+            source_order: 0,
         });
         let svg = render_erd(&empty_diagram(), &l, &SkinParams::default()).unwrap();
         assert_eq!(svg.matches("<polygon").count(), 2);
@@ -715,6 +935,7 @@ mod tests {
                 },
             ],
             is_double: true,
+            source_order: 0,
         });
         let svg = render_erd(&empty_diagram(), &l, &SkinParams::default()).unwrap();
         assert!(svg.contains("<ellipse"), "should render ISA as circle (ellipse)");
@@ -732,11 +953,13 @@ mod tests {
             raw_path_d: Some("M140,40 C120,60 110,80 140,118".to_string()),
             from_name: "E/X".to_string(),
             to_name: "E".to_string(),
+            parent_source_order: 0,
         });
         l.attr_edges.push(ErdAttrEdge {
             raw_path_d: Some("M100,40 C110,60 120,80 140,118".to_string()),
             from_name: "E/Y".to_string(),
             to_name: "E".to_string(),
+            parent_source_order: 0,
         });
         let svg = render_erd(&empty_diagram(), &l, &SkinParams::default()).unwrap();
         assert!(svg.matches("<path").count() >= 2);

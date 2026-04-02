@@ -105,14 +105,16 @@ pub fn parse_erd_diagram(source: &str) -> Result<ErdDiagram> {
         }
 
         // ISA or link line (starts with an identifier)
-        if try_parse_isa(trimmed, &mut isas) {
+        if try_parse_isa(trimmed, &mut isas, source_order_counter) {
             trace!("erd parser: parsed ISA line: {trimmed}");
+            source_order_counter += 1;
             i += 1;
             continue;
         }
 
-        if try_parse_link(trimmed, &mut links) {
+        if try_parse_link(trimmed, &mut links, source_order_counter) {
             trace!("erd parser: parsed link line: {trimmed}");
+            source_order_counter += 1;
             i += 1;
             continue;
         }
@@ -540,7 +542,7 @@ fn parse_color(s: &str) -> (Option<String>, String) {
 
 /// Try to parse an ISA line: `PARENT =>= d { CHILD1, CHILD2 }`
 /// or `PARENT ->- U { CHILD1, CHILD2 } #color`
-fn try_parse_isa(line: &str, isas: &mut Vec<ErdIsa>) -> bool {
+fn try_parse_isa(line: &str, isas: &mut Vec<ErdIsa>, source_order: usize) -> bool {
     let trimmed = line.trim();
 
     // Pattern: `PARENT =>= d { C1, C2, ... }` or `PARENT ->- U { C1, C2, ... }`
@@ -595,6 +597,7 @@ fn try_parse_isa(line: &str, isas: &mut Vec<ErdIsa>) -> bool {
         children,
         is_double,
         color,
+        source_order,
     });
 
     true
@@ -620,7 +623,7 @@ fn try_split_isa_connector<'a>(s: &'a str, connector: &str) -> Option<(&'a str, 
 ///   `FROM =N= TO`   (double-line)
 ///   `FROM ->- TO`    (ISA arrow - already handled above, but ->- without d/U is a link)
 ///   `FROM -<- TO`    (reverse ISA arrow)
-fn try_parse_link(line: &str, links: &mut Vec<ErdLink>) -> bool {
+fn try_parse_link(line: &str, links: &mut Vec<ErdLink>, source_order: usize) -> bool {
     let trimmed = line.trim();
 
     // Match link connectors: single `-X-` or double `=X=`
@@ -634,13 +637,15 @@ fn try_parse_link(line: &str, links: &mut Vec<ErdLink>) -> bool {
     // Strategy: find all `-...-` or `=...=` patterns.
 
     // Find double-line links first: `=X=`
-    if let Some(link) = try_parse_link_pattern(trimmed, true) {
+    if let Some(mut link) = try_parse_link_pattern(trimmed, true) {
+        link.source_order = source_order;
         links.push(link);
         return true;
     }
 
     // Single-line links: `-X-`
-    if let Some(link) = try_parse_link_pattern(trimmed, false) {
+    if let Some(mut link) = try_parse_link_pattern(trimmed, false) {
+        link.source_order = source_order;
         links.push(link);
         return true;
     }
@@ -718,6 +723,7 @@ fn try_parse_link_pattern(line: &str, is_double: bool) -> Option<ErdLink> {
         is_double,
         color,
         isa_arrow,
+        source_order: 0, // set by caller
     })
 }
 

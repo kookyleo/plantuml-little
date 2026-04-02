@@ -10,7 +10,7 @@ use log::debug;
 
 use crate::font_metrics;
 use crate::layout::graphviz::{self, LayoutEdge, LayoutGraph, LayoutNode, RankDir};
-use crate::model::erd::{ErdAttribute, ErdDiagram, ErdDirection, ErdIsa};
+use crate::model::erd::{ErdAttribute, ErdDiagram, ErdDirection, ErdIsa, ErdLink};
 use crate::render::svg::{CANVAS_DELTA, DOC_MARGIN_BOTTOM, DOC_MARGIN_RIGHT};
 use crate::svek::shape_type::ShapeType;
 use crate::Result;
@@ -32,6 +32,11 @@ pub struct ErdLayout {
     pub notes: Vec<ErdNoteLayout>,
     pub width: f64,
     pub height: f64,
+    /// Map from node ID to svek uid (0-based index in DOT node order).
+    /// Used for generating `entXXXX` and `lnkXX` indices in SVG output.
+    pub svek_node_uids: HashMap<String, usize>,
+    /// Map from link source_order to its uid in the DOT model.
+    pub link_uids: HashMap<usize, usize>,
 }
 
 /// A graphviz-routed edge connecting an attribute to its parent.
@@ -40,6 +45,8 @@ pub struct ErdAttrEdge {
     pub raw_path_d: Option<String>,
     pub from_name: String,
     pub to_name: String,
+    /// Source order of the parent entity/relationship that owns this attribute.
+    pub parent_source_order: usize,
 }
 
 /// A positioned entity or relationship node.
@@ -53,6 +60,10 @@ pub struct ErdNodeLayout {
     pub height: f64,
     pub is_weak: bool,
     pub is_identifying: bool,
+    /// True if this is a relationship (diamond), false if entity (rectangle).
+    pub is_relationship: bool,
+    /// Source declaration order (shared counter between entities and relationships).
+    pub source_order: usize,
 }
 
 /// A positioned attribute ellipse.
@@ -92,6 +103,10 @@ pub struct ErdEdgeLayout {
     pub raw_path_d: Option<String>,
     /// Label position from svek solve (x, y).
     pub label_xy: Option<(f64, f64)>,
+    /// Source declaration order of the originating link.
+    pub source_order: usize,
+    /// ISA arrow direction: None for normal links, Some(true) for `>`, Some(false) for `<`.
+    pub isa_arrow: Option<bool>,
 }
 
 /// A positioned note annotation.
@@ -121,6 +136,8 @@ pub struct ErdIsaLayout {
     pub child_edges: Vec<ErdIsaChildEdge>,
     /// Whether the parent→center edge is double-stroke (from `=>=`).
     pub is_double: bool,
+    /// Source declaration order (shared counter with entities and relationships).
+    pub source_order: usize,
 }
 
 /// An edge from an ISA center to a child entity.
@@ -250,8 +267,14 @@ fn flatten_attributes(
         } else {
             display.to_string()
         };
-        // Java uses full label (including type) for attribute IDs in links
-        let attr_id = format!("{}/{}", owner_id, full_label);
+        // Java uses internal name (+ optional type) for attribute IDs in links,
+        // NOT the display name. E.g. `"No." as Number` → ID uses "Number".
+        let id_name = if let Some(ref t) = attr.attr_type {
+            format!("{} : {}", attr.name, t)
+        } else {
+            attr.name.clone()
+        };
+        let attr_id = format!("{}/{}", owner_id, id_name);
         let size = attr_ellipse_size(&full_label);
 
         let child_ids: Vec<String> = attr
@@ -299,13 +322,6 @@ pub fn layout_erd(diagram: &ErdDiagram) -> Result<ErdLayout> {
     let is_lr = diagram.direction == ErdDirection::LeftToRight;
 
     // Build name lookup: id -> display name
-    let mut name_map: HashMap<String, String> = HashMap::new();
-    for e in &diagram.entities {
-        name_map.insert(e.id.clone(), e.name.clone());
-    }
-    for r in &diagram.relationships {
-        name_map.insert(r.id.clone(), r.name.clone());
-    }
 
     // Entity index map for link metadata
     let mut entity_idx: HashMap<String, usize> = HashMap::new();
@@ -317,12 +333,31 @@ pub fn layout_erd(diagram: &ErdDiagram) -> Result<ErdLayout> {
     }
 
     // ── Flatten all attributes into graphviz node metadata ──
+    // Must follow source declaration order (entities and relationships interleaved)
+    // so that edge indices align with Java's output.
     let mut attr_metas: Vec<AttrMeta> = Vec::new();
-    for e in &diagram.entities {
-        flatten_attributes(&e.attributes, &e.id, &mut attr_metas);
-    }
-    for r in &diagram.relationships {
-        flatten_attributes(&r.attributes, &r.id, &mut attr_metas);
+    {
+        enum Item<'a> {
+            E(&'a crate::model::erd::ErdEntity),
+            R(&'a crate::model::erd::ErdRelationship),
+        }
+        let mut sorted: Vec<Item> = Vec::new();
+        for e in &diagram.entities {
+            sorted.push(Item::E(e));
+        }
+        for r in &diagram.relationships {
+            sorted.push(Item::R(r));
+        }
+        sorted.sort_by_key(|item| match item {
+            Item::E(e) => e.source_order,
+            Item::R(r) => r.source_order,
+        });
+        for item in &sorted {
+            match item {
+                Item::E(e) => flatten_attributes(&e.attributes, &e.id, &mut attr_metas),
+                Item::R(r) => flatten_attributes(&r.attributes, &r.id, &mut attr_metas),
+            }
+        }
     }
 
     // ── Build svek layout nodes ──
@@ -446,6 +481,7 @@ pub fn layout_erd(diagram: &ErdDiagram) -> Result<ErdLayout> {
         parent_id: String,
         child_ids: Vec<String>,
         is_double: bool,
+        source_order: usize,
     }
     let mut isa_node_metas: Vec<IsaNodeMeta> = Vec::new();
     for isa in &diagram.isas {
@@ -476,6 +512,7 @@ pub fn layout_erd(diagram: &ErdDiagram) -> Result<ErdLayout> {
             parent_id: isa.parent.clone(),
             child_ids: isa.children.clone(),
             is_double: isa.is_double,
+            source_order: isa.source_order,
         });
     }
 
@@ -586,6 +623,104 @@ pub fn layout_erd(diagram: &ErdDiagram) -> Result<ErdLayout> {
         }
     }
 
+    // Build svek uid map: node ID → uid, matching Java's IEntity.getUid().
+    // In Java, nodes and edges interleave in the DOT model, each consuming
+    // one uid slot. UIDs start at 2 (first 2 reserved for diagram metadata).
+    // Order: for each entity/relationship in source order, add the node,
+    // then its attributes (each attr node + attr edge pair), then link edges.
+    let (svek_node_uids, link_uids) = {
+        let mut uid_map: HashMap<String, usize> = HashMap::new();
+        let mut lnk_uids: HashMap<usize, usize> = HashMap::new();
+        let mut uid = 2usize;
+
+        // Build attr_metas index by parent_id for recursive uid assignment
+        let mut ametas_by_parent: HashMap<&str, Vec<&AttrMeta>> = HashMap::new();
+        for am in &attr_metas {
+            ametas_by_parent.entry(am.parent_id.as_str()).or_default().push(am);
+        }
+
+        // Helper to recursively assign uids to an attribute and its children
+        fn assign_attr_uids(
+            am: &AttrMeta,
+            ametas_by_parent: &HashMap<&str, Vec<&AttrMeta>>,
+            uid_map: &mut HashMap<String, usize>,
+            uid: &mut usize,
+        ) {
+            uid_map.insert(am.id.clone(), *uid);
+            *uid += 1; // node uid
+            *uid += 1; // edge uid (attr→parent)
+            if let Some(children) = ametas_by_parent.get(am.id.as_str()) {
+                for child in children {
+                    assign_attr_uids(child, ametas_by_parent, uid_map, uid);
+                }
+            }
+        }
+
+        // Merge entities, relationships, links, and ISAs in source order
+        enum UidItem<'a> {
+            Entity(&'a crate::model::erd::ErdEntity),
+            Relationship(&'a crate::model::erd::ErdRelationship),
+            Link(&'a ErdLink),
+            Isa(&'a crate::model::erd::ErdIsa),
+        }
+        let mut uid_items: Vec<(usize, u8, UidItem)> = Vec::new();
+        for e in &diagram.entities {
+            uid_items.push((e.source_order, 0, UidItem::Entity(e)));
+        }
+        for r in &diagram.relationships {
+            uid_items.push((r.source_order, 0, UidItem::Relationship(r)));
+        }
+        for l in &diagram.links {
+            uid_items.push((l.source_order, 1, UidItem::Link(l)));
+        }
+        for isa in &diagram.isas {
+            uid_items.push((isa.source_order, 1, UidItem::Isa(isa)));
+        }
+        uid_items.sort_by_key(|(order, prio, _)| (*order, *prio));
+
+        for (_, _, item) in &uid_items {
+            match item {
+                UidItem::Entity(e) => {
+                    uid_map.insert(e.id.clone(), uid);
+                    uid += 1;
+                    // Assign uids to direct attributes
+                    if let Some(attrs) = ametas_by_parent.get(e.id.as_str()) {
+                        for am in attrs {
+                            assign_attr_uids(am, &ametas_by_parent, &mut uid_map, &mut uid);
+                        }
+                    }
+                }
+                UidItem::Relationship(r) => {
+                    uid_map.insert(r.id.clone(), uid);
+                    uid += 1;
+                    if let Some(attrs) = ametas_by_parent.get(r.id.as_str()) {
+                        for am in attrs {
+                            assign_attr_uids(am, &ametas_by_parent, &mut uid_map, &mut uid);
+                        }
+                    }
+                }
+                UidItem::Link(l) => {
+                    lnk_uids.insert(l.source_order, uid);
+                    uid += 1; // link edge consumes one uid
+                }
+                UidItem::Isa(isa) => {
+                    let kind_str = match isa.kind {
+                        crate::model::erd::IsaKind::Disjoint => "d",
+                        crate::model::erd::IsaKind::Union => "U",
+                    };
+                    let children_str = isa.children.join(", ");
+                    let center_id = format!("{}/{} {} /center", isa.parent, kind_str, children_str);
+                    uid_map.insert(center_id, uid);
+                    uid += 1;
+                    // parent→center edge + each center→child edge
+                    uid += 1; // parent→center
+                    uid += isa.children.len(); // center→children
+                }
+            }
+        }
+        (uid_map, lnk_uids)
+    };
+
     let graph = LayoutGraph {
         nodes: layout_nodes,
         edges: layout_edges,
@@ -646,6 +781,8 @@ pub fn layout_erd(diagram: &ErdDiagram) -> Result<ErdLayout> {
                 x, y, width: w, height: h,
                 is_weak: e.is_weak,
                 is_identifying: false,
+                is_relationship: false,
+                source_order: e.source_order,
             })
         })
         .collect();
@@ -662,6 +799,8 @@ pub fn layout_erd(diagram: &ErdDiagram) -> Result<ErdLayout> {
                 x, y, width: w, height: h,
                 is_weak: false,
                 is_identifying: r.is_identifying,
+                is_relationship: true,
+                source_order: r.source_order,
             })
         })
         .collect();
@@ -726,8 +865,8 @@ pub fn layout_erd(diagram: &ErdDiagram) -> Result<ErdLayout> {
     // The remaining edges are attribute→parent (rendered separately).
     let mut edges: Vec<ErdEdgeLayout> = Vec::new();
     for (li, link) in diagram.links.iter().enumerate() {
-        let from_name = name_map.get(&link.from).cloned().unwrap_or(link.from.clone());
-        let to_name = name_map.get(&link.to).cloned().unwrap_or(link.to.clone());
+        let from_name = link.from.clone();
+        let to_name = link.to.clone();
         let from_idx = entity_idx.get(&link.from).copied().unwrap_or(0);
         let to_idx = entity_idx.get(&link.to).copied().unwrap_or(0);
 
@@ -774,6 +913,8 @@ pub fn layout_erd(diagram: &ErdDiagram) -> Result<ErdLayout> {
             entity_idx_to: to_idx,
             raw_path_d,
             label_xy,
+            source_order: link.source_order,
+            isa_arrow: link.isa_arrow,
         });
     }
 
@@ -821,6 +962,7 @@ pub fn layout_erd(diagram: &ErdDiagram) -> Result<ErdLayout> {
             parent_edge_path,
             child_edges,
             is_double: isa_meta.is_double,
+            source_order: isa_meta.source_order,
         });
     }
 
@@ -861,6 +1003,15 @@ pub fn layout_erd(diagram: &ErdDiagram) -> Result<ErdLayout> {
         edges.len(), isa_layouts.len(), notes.len()
     );
 
+    // Build lookup: entity/relationship ID → source_order
+    let mut id_to_source_order: HashMap<String, usize> = HashMap::new();
+    for e in &diagram.entities {
+        id_to_source_order.insert(e.id.clone(), e.source_order);
+    }
+    for r in &diagram.relationships {
+        id_to_source_order.insert(r.id.clone(), r.source_order);
+    }
+
     // Extract attribute→parent edge paths from svek results.
     // These are edges at indices [num_link_edges..num_pre_isa_edges] in the graphviz output.
     let attr_edges: Vec<ErdAttrEdge> = (num_link_edges..num_pre_isa_edges)
@@ -871,7 +1022,26 @@ pub fn layout_erd(diagram: &ErdDiagram) -> Result<ErdLayout> {
                 .map(|d| shift_svg_path(d, render_dx, render_dy));
             let from_name = attr_metas.get(j).map(|am| am.id.clone()).unwrap_or_default();
             let to_name = attr_metas.get(j).map(|am| am.parent_id.clone()).unwrap_or_default();
-            ErdAttrEdge { raw_path_d, from_name, to_name }
+            // Find the source_order of the root parent entity/relationship.
+            // For nested attrs, walk up: attr parent_id → ... → entity/relationship.
+            let parent_source_order = attr_metas.get(j)
+                .and_then(|am| {
+                    // Walk up the parent chain to find the entity/relationship
+                    let mut pid = &am.parent_id;
+                    loop {
+                        if let Some(&so) = id_to_source_order.get(pid.as_str()) {
+                            return Some(so);
+                        }
+                        // Try to find this pid in attr_metas to get its parent
+                        if let Some(parent_am) = attr_metas.iter().find(|a| a.id == *pid) {
+                            pid = &parent_am.parent_id;
+                        } else {
+                            return None;
+                        }
+                    }
+                })
+                .unwrap_or(0);
+            ErdAttrEdge { raw_path_d, from_name, to_name, parent_source_order }
         })
         .collect();
 
@@ -885,6 +1055,8 @@ pub fn layout_erd(diagram: &ErdDiagram) -> Result<ErdLayout> {
         notes,
         width,
         height,
+        svek_node_uids,
+        link_uids,
     })
 }
 
@@ -1125,6 +1297,7 @@ mod tests {
             is_double: false,
             color: None,
             isa_arrow: None,
+            source_order: 0,
         }
     }
 
@@ -1326,6 +1499,7 @@ mod tests {
                 is_double: true,
                 color: None,
                 isa_arrow: None,
+                source_order: 2,
             }],
             ..empty_diagram()
         };
@@ -1361,6 +1535,7 @@ mod tests {
                 children: vec!["CHILD1".to_string(), "CHILD2".to_string()],
                 is_double: true,
                 color: None,
+                source_order: 3,
             }],
             ..empty_diagram()
         };

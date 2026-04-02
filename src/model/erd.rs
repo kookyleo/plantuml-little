@@ -48,6 +48,8 @@ pub struct ErdLink {
     /// Arrow direction for ISA simple subclass links (`->-` or `-<-`).
     /// `None` for normal links, `Some(true)` for `>` (superset), `Some(false)` for `<` (subset).
     pub isa_arrow: Option<bool>,
+    /// Source declaration order (shared counter with entities, relationships, ISAs).
+    pub source_order: usize,
 }
 
 /// ISA (specialization/generalization) relationship
@@ -61,6 +63,8 @@ pub struct ErdIsa {
     pub children: Vec<String>,
     pub is_double: bool,
     pub color: Option<String>,
+    /// Source declaration order (shared counter with entities and relationships)
+    pub source_order: usize,
 }
 
 #[derive(Debug, Clone, PartialEq)]
