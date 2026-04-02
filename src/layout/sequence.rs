@@ -1126,6 +1126,11 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
     let mut last_message_idx: Option<usize> = None;
     // Extra height from multiline message text (used to adjust note back-offset)
     let mut last_message_extra_height: f64 = 0.0;
+    // Sprite-specific extra height in the last message text. When sprites
+    // make the arrow component significantly taller, the note must be placed
+    // BELOW the message (like Java's standalone NoteBox at freeY_after),
+    // not alongside it (like Java's on-message ArrowAndNoteBox).
+    let mut last_message_sprite_extra: f64 = 0.0;
     // For self-messages: store the starting Y and preferred height of the
     // combined ArrowAndNoteBox tile so notes can be centered within it.
     let mut last_self_msg_starting_y: f64 = 0.0;
@@ -1475,6 +1480,7 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
                 last_message_y = Some(msg_y);
                 last_message_was_self = is_self;
                 last_message_extra_height = extra_height;
+                last_message_sprite_extra = sprite_extra;
                 last_message_idx = Some(messages.len() - 1);
                 // For self-messages with deactivation, the activation bar end
                 // position in Java = posYendLevel which maps to msg_y + 1 in
@@ -1645,6 +1651,17 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
                         // Java: note polygon y = imageMargin + freeY + push + paddingY
                         // Our tile_start_y already includes imageMargin, so:
                         last_self_msg_starting_y + note_push + NOTE_COMPONENT_PADDING_Y
+                    } else if last_message_sprite_extra > 0.0 {
+                        // Sprite messages have a taller arrow component.
+                        // In Java, the arrow's preferredHeight includes the
+                        // sprite height, advancing freeY past the sprite area.
+                        // A standalone note is placed at freeY_after (BELOW the
+                        // sprite), not alongside it.
+                        // y_cursor = msg_y + message_spacing, and the back_offset
+                        // from y_cursor gives freeY_after + NOTE_COMPONENT_PADDING_Y.
+                        let back_offset = lp.message_spacing - NOTE_FOLD;
+                        log::debug!("NoteRight(sprite): msg_y={msg_y}, sprite_extra={last_message_sprite_extra}, y_cursor={y_cursor}");
+                        (y_cursor - back_offset).max(MARGIN + max_ph)
                     } else {
                         let back_offset =
                             lp.message_spacing - NOTE_FOLD + last_message_extra_height;
@@ -1794,6 +1811,10 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
                         let combined_h = last_self_msg_preferred_h.max(note_preferred_h);
                         let note_push = (combined_h - note_preferred_h) / 2.0;
                         last_self_msg_starting_y + note_push + NOTE_COMPONENT_PADDING_Y
+                    } else if last_message_sprite_extra > 0.0 {
+                        let back_offset = lp.message_spacing - NOTE_FOLD;
+                        log::debug!("NoteLeft(sprite): msg_y={msg_y}, sprite_extra={last_message_sprite_extra}, y_cursor={y_cursor}");
+                        (y_cursor - back_offset).max(MARGIN + max_ph)
                     } else {
                         let back_offset =
                             lp.message_spacing - NOTE_FOLD + last_message_extra_height;
@@ -1930,6 +1951,9 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
                             let combined_h = last_self_msg_preferred_h.max(note_preferred_h);
                             let note_push = (combined_h - note_preferred_h) / 2.0;
                             last_self_msg_starting_y + note_push + NOTE_COMPONENT_PADDING_Y
+                        } else if last_message_sprite_extra > 0.0 {
+                            let back_offset = lp.message_spacing - NOTE_FOLD;
+                            (y_cursor - back_offset).max(MARGIN + max_ph)
                         } else {
                             let back_offset =
                                 lp.message_spacing - NOTE_FOLD + last_message_extra_height;
