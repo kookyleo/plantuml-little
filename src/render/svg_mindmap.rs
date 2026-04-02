@@ -1,7 +1,7 @@
 use super::svg::{ensure_visible_int, write_bg_rect, write_svg_root_bg};
 use crate::klimt::svg::{fmt_coord, SvgGraphic};
 use crate::layout::mindmap::{
-    MindmapEdgeLayout, MindmapLayout, MindmapNodeLayout, MindmapNoteLayout,
+    DrawItem, MindmapEdgeLayout, MindmapLayout, MindmapNodeLayout, MindmapNoteLayout,
 };
 use crate::model::mindmap::MindmapDiagram;
 use crate::render::svg_richtext::{count_creole_lines, render_creole_text};
@@ -58,27 +58,47 @@ pub fn render_mindmap(
         .map(|v| v / 2.0) // Java: RoundCorner N → rx/ry = N/2
         .unwrap_or(CORNER_RADIUS);
     let mm_font = skin.font_color("mindmap", TEXT_COLOR);
+    // Java: edge color comes from arrow style (root.element.mindmapDiagram.arrow),
+    // defaulting to #181818. It does NOT inherit node.LineColor.
     let edge_color = skin
-        .get("node.linecolor")
+        .get("arrow.linecolor")
         .unwrap_or_else(|| skin.arrow_color(BORDER_COLOR));
+    // Java: edge stroke width comes from arrow style, defaulting to 1.
+    let edge_stroke_width: f64 = skin
+        .get("arrow.linethickness")
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(1.0);
 
     let mut sg = SvgGraphic::new(0, 1.0);
 
-    for edge in &layout.edges {
-        render_edge_styled(&mut sg, edge, edge_color, node_border_width);
-    }
-
-    for node in &layout.nodes {
-        let bg = if node.level == 1 { root_bg } else { child_bg };
-        render_node_styled(
-            &mut sg,
-            node,
-            bg,
-            node_border,
-            mm_font,
-            node_border_width,
-            node_corner,
-        );
+    // Render in Java draw order: interleaved nodes and edges
+    if layout.draw_order.is_empty() {
+        // Fallback for test layouts without draw_order
+        for node in &layout.nodes {
+            let bg = if node.level == 1 { root_bg } else { child_bg };
+            render_node_styled(
+                &mut sg, node, bg, node_border, mm_font, node_border_width, node_corner,
+            );
+        }
+        for edge in &layout.edges {
+            render_edge_styled(&mut sg, edge, edge_color, edge_stroke_width);
+        }
+    } else {
+        for item in &layout.draw_order {
+            match item {
+                DrawItem::Node(idx) => {
+                    let node = &layout.nodes[*idx];
+                    let bg = if node.level == 1 { root_bg } else { child_bg };
+                    render_node_styled(
+                        &mut sg, node, bg, node_border, mm_font, node_border_width, node_corner,
+                    );
+                }
+                DrawItem::Edge(idx) => {
+                    let edge = &layout.edges[*idx];
+                    render_edge_styled(&mut sg, edge, edge_color, edge_stroke_width);
+                }
+            }
+        }
     }
 
     for note in &layout.notes {
@@ -115,7 +135,6 @@ fn render_edge_styled(sg: &mut SvgGraphic, edge: &MindmapEdgeLayout, color: &str
         fmt_coord(edge.to_x), fmt_coord(edge.to_y),
         fmt_coord(stroke_w),
     ));
-    sg.push_raw("\n");
 }
 
 fn render_node(
@@ -319,6 +338,8 @@ mod tests {
             width: 320.0,
             height: 120.0,
             caption: None,
+            raw_body_dim: None,
+            draw_order: vec![],
         };
         (diagram, layout)
     }
@@ -405,6 +426,8 @@ mod tests {
             width: 130.0,
             height: 50.0,
             caption: None,
+            raw_body_dim: None,
+            draw_order: vec![],
         };
         let svg = render_mindmap(&d, &l, &SkinParams::default()).unwrap();
         assert!(svg.contains("A &amp; B &lt;C&gt;"));
@@ -433,6 +456,8 @@ mod tests {
             width: 110.0,
             height: 60.0,
             caption: None,
+            raw_body_dim: None,
+            draw_order: vec![],
         };
         let svg = render_mindmap(&d, &l, &SkinParams::default()).unwrap();
         // Java renders each line as separate <text> element
@@ -462,6 +487,8 @@ mod tests {
             width: 90.0,
             height: 50.0,
             caption: None,
+            raw_body_dim: None,
+            draw_order: vec![],
         };
         let svg = render_mindmap(&d, &l, &SkinParams::default()).unwrap();
         assert!(svg.contains("<svg"));
@@ -522,6 +549,8 @@ mod tests {
             width: 240.0,
             height: 100.0,
             caption: None,
+            raw_body_dim: None,
+            draw_order: vec![],
         };
         let svg = render_mindmap(&d, &l, &SkinParams::default()).unwrap();
         assert!(svg.contains("<polygon"));

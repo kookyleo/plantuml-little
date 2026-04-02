@@ -1,8 +1,8 @@
 //! Mindmap diagram layout engine.
 //!
 //! Converts a `MindmapDiagram` into a fully positioned `MindmapLayout` ready
-//! for SVG rendering. The algorithm positions the root node on the left and
-//! spreads children horizontally to the right in a tree layout.
+//! for SVG rendering. Uses the Java PlantUML Tetris packing algorithm for
+//! compact sibling placement.
 
 use std::collections::HashMap;
 
@@ -16,6 +16,13 @@ use crate::Result;
 // Layout output types
 // ---------------------------------------------------------------------------
 
+/// Draw order item: either a node or an edge, by index.
+#[derive(Debug, Clone, Copy)]
+pub enum DrawItem {
+    Node(usize),
+    Edge(usize),
+}
+
 /// Fully positioned mindmap layout ready for rendering.
 #[derive(Debug)]
 pub struct MindmapLayout {
@@ -26,6 +33,10 @@ pub struct MindmapLayout {
     pub height: f64,
     /// Caption text and its position/width.
     pub caption: Option<(String, f64, f64, f64)>, // (text, x, y, text_width)
+    /// Raw body dimensions for wrap_with_meta (Java MindMapDiagram TextBlock size).
+    pub raw_body_dim: Option<(f64, f64)>,
+    /// Interleaved draw order matching Java rendering sequence.
+    pub draw_order: Vec<DrawItem>,
 }
 
 /// A positioned mindmap node.
@@ -83,15 +94,11 @@ const LINE_HEIGHT: f64 = 16.0;
 const H_PADDING: f64 = 8.0;
 /// Vertical padding inside nodes.
 const V_PADDING: f64 = 4.0;
-/// Horizontal indent between tree levels.
-const LEVEL_INDENT: f64 = 200.0;
-/// Vertical spacing between sibling nodes.
-const SIBLING_SPACING: f64 = 20.0;
 /// Minimum node width.
 const MIN_NODE_WIDTH: f64 = 40.0;
 /// Minimum node height.
 const MIN_NODE_HEIGHT: f64 = 24.0;
-/// Canvas margin around the diagram (Java: 10px).
+/// Canvas margin around the diagram (Java ImageBuilder default: 10px).
 const MARGIN: f64 = 10.0;
 /// Gap between a node and an attached note.
 const NOTE_GAP: f64 = 16.0;
@@ -99,6 +106,13 @@ const NOTE_GAP: f64 = 16.0;
 const MIN_NOTE_WIDTH: f64 = 60.0;
 /// Minimum note height.
 const MIN_NOTE_HEIGHT: f64 = 28.0;
+
+/// Default node Margin from plantuml.skin (mindmapDiagram.node.Margin).
+const DEFAULT_NODE_MARGIN: f64 = 10.0;
+
+/// Java FingerImpl: getX2() = margin.getRight() + 30, getX1() = margin.getLeft().
+/// Base gap added to margin.getRight() in getX2().
+const X2_BASE_GAP: f64 = 30.0;
 
 // ---------------------------------------------------------------------------
 // Text measurement helpers
@@ -188,144 +202,496 @@ fn estimate_note_size(text: &str) -> (f64, f64) {
     (width, height)
 }
 
-// ---------------------------------------------------------------------------
-// Subtree size calculation
-// ---------------------------------------------------------------------------
+// ===========================================================================
+// Tetris layout algorithm (ported from Java PlantUML)
+// ===========================================================================
 
-/// Information about a subtree's vertical extent.
+/// A T-shaped element representing a node and its children subtree.
+/// In left-to-right mode:
+///   thickness = vertical extent (height)
+///   elongation = horizontal extent (width)
 #[derive(Debug, Clone)]
-struct SubtreeInfo {
-    /// Total height of this subtree (including spacing).
-    total_height: f64,
-    /// Width of the node itself.
-    node_width: f64,
-    /// Height of the node itself.
-    node_height: f64,
-    /// Text lines for the node.
-    lines: Vec<String>,
-    /// Children subtree info.
-    children: Vec<SubtreeInfo>,
+struct SymetricalTee {
+    thickness1: f64,   // phalanx (node) thickness
+    elongation1: f64,  // phalanx (node) elongation
+    thickness2: f64,   // nail (children) thickness
+    elongation2: f64,  // nail (children) elongation
 }
 
-/// Recursively compute the subtree dimensions.
-fn compute_subtree_info(node: &MindmapNode) -> SubtreeInfo {
-    compute_subtree_info_styled(node, H_PADDING, V_PADDING)
-}
-
-/// Recursively compute subtree dimensions with custom padding.
-fn compute_subtree_info_styled(node: &MindmapNode, h_pad: f64, v_pad: f64) -> SubtreeInfo {
-    let is_root = node.level == 1;
-    let (node_width, node_height, lines) =
-        estimate_node_size_styled(&node.text, is_root, h_pad, v_pad);
-
-    if node.children.is_empty() {
-        return SubtreeInfo {
-            total_height: node_height,
-            node_width,
-            node_height,
-            lines,
-            children: Vec::new(),
-        };
+impl SymetricalTee {
+    fn full_thickness(&self) -> f64 {
+        self.thickness1.max(self.thickness2)
     }
-
-    let child_infos: Vec<SubtreeInfo> = node
-        .children
-        .iter()
-        .map(|c| compute_subtree_info_styled(c, h_pad, v_pad))
-        .collect();
-
-    let children_total_height: f64 = child_infos.iter().map(|c| c.total_height).sum::<f64>()
-        + (child_infos.len() as f64 - 1.0).max(0.0) * SIBLING_SPACING;
-
-    let total_height = children_total_height.max(node_height);
-
-    SubtreeInfo {
-        total_height,
-        node_width,
-        node_height,
-        lines,
-        children: child_infos,
+    fn full_elongation(&self) -> f64 {
+        self.elongation1 + self.elongation2
     }
 }
 
-// ---------------------------------------------------------------------------
-// Positioning
-// ---------------------------------------------------------------------------
+/// A T-shape placed at a specific y position (center of the T-shape).
+#[derive(Debug, Clone)]
+struct SymetricalTeePositioned {
+    tee: SymetricalTee,
+    y: f64,
+}
 
-/// Recursively position nodes and collect edges.
-fn position_subtree(
-    node: &MindmapNode,
-    info: &SubtreeInfo,
-    x: f64,
-    y_start: f64,
-    nodes_out: &mut Vec<MindmapNodeLayout>,
-    edges_out: &mut Vec<MindmapEdgeLayout>,
-) {
-    // Center this node vertically within its subtree span
-    let node_y = y_start + (info.total_height - info.node_height) / 2.0;
-
-    let node_center_y = node_y + info.node_height / 2.0;
-    let node_right_x = x + info.node_width;
-
-    nodes_out.push(MindmapNodeLayout {
-        text: node.text.clone(),
-        x,
-        y: node_y,
-        width: info.node_width,
-        height: info.node_height,
-        level: node.level,
-        lines: info.lines.clone(),
-    });
-
-    if node.children.is_empty() {
-        return;
+impl SymetricalTeePositioned {
+    fn new(tee: SymetricalTee) -> Self {
+        Self { tee, y: 0.0 }
     }
 
-    // Position children: parent right edge + gap
-    // Java uses a 50px gap between parent right and child left
-    const LEVEL_GAP: f64 = 50.0;
-    let child_x = x + info.node_width + LEVEL_GAP;
-    let mut child_y = y_start;
-
-    // If the children total height is less than the node height, center them
-    let children_total: f64 = info.children.iter().map(|c| c.total_height).sum::<f64>()
-        + (info.children.len() as f64 - 1.0).max(0.0) * SIBLING_SPACING;
-    if children_total < info.total_height {
-        child_y = y_start + (info.total_height - children_total) / 2.0;
+    /// Top edge of the phalanx (left part of the T).
+    fn segment_a1_y(&self) -> f64 {
+        self.y - self.tee.thickness1 / 2.0
     }
 
-    for (i, (child_node, child_info)) in node.children.iter().zip(&info.children).enumerate() {
-        // Compute child center y
-        let child_center_y = child_y + child_info.total_height / 2.0;
+    /// Bottom edge of the phalanx.
+    fn segment_b1_y(&self) -> f64 {
+        self.y + self.tee.thickness1 / 2.0
+    }
 
-        // Edge from parent right-center to child left-center
-        edges_out.push(MindmapEdgeLayout {
-            from_x: node_right_x,
-            from_y: node_center_y,
-            to_x: child_x,
-            to_y: child_center_y,
+    /// Top edge of the nail (right part of the T).
+    fn segment_a2_y(&self) -> f64 {
+        self.y - self.tee.thickness2 / 2.0
+    }
+
+    /// Bottom edge of the nail.
+    fn segment_b2_y(&self) -> f64 {
+        self.y + self.tee.thickness2 / 2.0
+    }
+
+    fn max_x(&self) -> f64 {
+        self.tee.elongation1 + self.tee.elongation2
+    }
+
+    fn min_y(&self) -> f64 {
+        self.y - self.tee.full_thickness() / 2.0
+    }
+
+    fn max_y(&self) -> f64 {
+        self.y + self.tee.full_thickness() / 2.0
+    }
+
+    fn move_so_that_segment_a1_is_on(&mut self, new_y: f64) {
+        let current = self.segment_a1_y();
+        self.y += new_y - current;
+    }
+
+    fn move_so_that_segment_a2_is_on(&mut self, new_y: f64) {
+        let current = self.segment_a2_y();
+        self.y += new_y - current;
+    }
+
+    fn shift(&mut self, delta: f64) {
+        self.y += delta;
+    }
+}
+
+/// A frontier of horizontal line segments used for Tetris packing.
+/// Tracks the lowest y-value that is "occupied" for each x-range.
+#[derive(Debug, Clone)]
+struct Stripe {
+    start: f64,
+    end: f64,
+    value: f64,
+}
+
+impl Stripe {
+    fn contains(&self, x: f64) -> bool {
+        x >= self.start && x < self.end
+    }
+}
+
+impl PartialEq for Stripe {
+    fn eq(&self, other: &Self) -> bool {
+        self.start == other.start
+    }
+}
+impl Eq for Stripe {}
+impl PartialOrd for Stripe {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+impl Ord for Stripe {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.start.partial_cmp(&other.start).unwrap_or(std::cmp::Ordering::Equal)
+    }
+}
+
+#[derive(Debug, Clone)]
+struct StripeFrontier {
+    stripes: Vec<Stripe>,
+}
+
+impl StripeFrontier {
+    fn new() -> Self {
+        Self {
+            stripes: vec![Stripe {
+                start: f64::NEG_INFINITY,
+                end: f64::INFINITY,
+                value: f64::NEG_INFINITY,
+            }],
+        }
+    }
+
+    fn is_empty(&self) -> bool {
+        self.stripes.len() == 1
+    }
+
+    /// Find the maximum y-value (frontier height) in the x-range [x1, x2).
+    fn get_contact(&self, x1: f64, x2: f64) -> f64 {
+        let collisions = self.collisionning(x1, x2);
+        collisions.iter().map(|s| s.value).fold(f64::NEG_INFINITY, f64::max)
+    }
+
+    /// Add a horizontal segment to the frontier.
+    fn add_segment(&mut self, x1: f64, x2: f64, value: f64) {
+        if x2 <= x1 {
+            return;
+        }
+        let collisions = self.collisionning(x1, x2);
+        if collisions.len() > 1 {
+            // Split into sub-segments at collision boundaries
+            let mut x = x1;
+            for i in 1..collisions.len() {
+                let boundary = collisions[i].start;
+                self.add_segment(x, boundary, value);
+                x = boundary;
+            }
+            self.add_segment(x, x2, value);
+        } else if let Some(touch) = collisions.into_iter().next() {
+            self.add_single_internal(x1, x2, value, touch);
+        }
+    }
+
+    fn add_single_internal(&mut self, x1: f64, x2: f64, value: f64, touch: Stripe) {
+        if value <= touch.value {
+            return;
+        }
+        // Remove the touched stripe
+        self.stripes.retain(|s| !(s.start == touch.start && s.end == touch.end));
+        // Add prefix (unmodified part before x1)
+        if touch.start != x1 {
+            self.stripes.push(Stripe {
+                start: touch.start,
+                end: x1,
+                value: touch.value,
+            });
+        }
+        // Add new segment
+        self.stripes.push(Stripe {
+            start: x1,
+            end: x2,
+            value,
         });
+        // Add suffix (unmodified part after x2)
+        if x2 != touch.end {
+            self.stripes.push(Stripe {
+                start: x2,
+                end: touch.end,
+                value: touch.value,
+            });
+        }
+        self.stripes.sort();
+    }
 
-        position_subtree(
-            child_node, child_info, child_x, child_y, nodes_out, edges_out,
-        );
+    /// Find all stripes that overlap with [x1, x2).
+    fn collisionning(&self, x1: f64, x2: f64) -> Vec<Stripe> {
+        let mut result = Vec::new();
+        for stripe in &self.stripes {
+            if x1 >= stripe.end {
+                continue;
+            }
+            result.push(stripe.clone());
+            if x2 <= stripe.end {
+                return result;
+            }
+        }
+        result
+    }
+}
 
-        child_y += child_info.total_height;
-        if i < node.children.len() - 1 {
-            child_y += SIBLING_SPACING;
+/// Tetris packing of T-shapes. Stacks children compactly using a frontier.
+#[derive(Debug)]
+struct Tetris {
+    frontier: StripeFrontier,
+    elements: Vec<SymetricalTeePositioned>,
+    min_y: f64,
+    max_y: f64,
+}
+
+impl Tetris {
+    fn new() -> Self {
+        Self {
+            frontier: StripeFrontier::new(),
+            elements: Vec::new(),
+            min_y: f64::MAX,
+            max_y: f64::NEG_INFINITY,
+        }
+    }
+
+    fn add(&mut self, tee: SymetricalTee) {
+        if self.frontier.is_empty() {
+            let stp = SymetricalTeePositioned::new(tee);
+            self.add_internal(stp);
+            return;
+        }
+
+        let c1 = self.frontier.get_contact(0.0, tee.elongation1);
+        let c2 = self
+            .frontier
+            .get_contact(tee.elongation1, tee.elongation1 + tee.elongation2);
+
+        let mut p1 = SymetricalTeePositioned::new(tee.clone());
+        p1.move_so_that_segment_a1_is_on(c1);
+
+        let mut p2 = SymetricalTeePositioned::new(tee);
+        p2.move_so_that_segment_a2_is_on(c2);
+
+        // Choose the one that positions lower (further down)
+        let result = if p2.y > p1.y { p2 } else { p1 };
+        self.add_internal(result);
+    }
+
+    fn add_internal(&mut self, stp: SymetricalTeePositioned) {
+        // Add phalanx bottom edge to frontier
+        let b1_y = stp.segment_b1_y();
+        self.frontier
+            .add_segment(0.0, stp.tee.elongation1, b1_y);
+
+        // Add nail bottom edge to frontier (if it has width)
+        let b2_x1 = stp.tee.elongation1;
+        let b2_x2 = stp.tee.elongation1 + stp.tee.elongation2;
+        if b2_x1 != b2_x2 {
+            let b2_y = stp.segment_b2_y();
+            self.frontier.add_segment(b2_x1, b2_x2, b2_y);
+        }
+
+        self.elements.push(stp);
+    }
+
+    /// Center-balance all elements around y=0.
+    fn balance(&mut self) {
+        if self.elements.is_empty() {
+            return;
+        }
+        for elem in &self.elements {
+            self.min_y = self.min_y.min(elem.min_y());
+            self.max_y = self.max_y.max(elem.max_y());
+        }
+        let mean = (self.min_y + self.max_y) / 2.0;
+        for elem in &mut self.elements {
+            elem.shift(-mean);
+        }
+    }
+
+    fn height(&self) -> f64 {
+        if self.elements.is_empty() {
+            return 0.0;
+        }
+        self.max_y - self.min_y
+    }
+
+    fn width(&self) -> f64 {
+        self.elements
+            .iter()
+            .map(|e| e.max_x())
+            .fold(0.0_f64, f64::max)
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Finger: a node + its children subtree
+// ---------------------------------------------------------------------------
+
+/// Recursive finger structure mirroring Java FingerImpl.
+/// Each finger has a phalanx (the node itself) and a nail (children).
+#[derive(Debug)]
+struct Finger {
+    /// Node box dimensions (width, height) — without margin.
+    box_width: f64,
+    box_height: f64,
+    /// Node text and metadata.
+    text: String,
+    lines: Vec<String>,
+    level: usize,
+    /// Node margin (top, right, bottom, left) from style.
+    margin_top: f64,
+    margin_right: f64,
+    margin_bottom: f64,
+    margin_left: f64,
+    /// Child fingers.
+    children: Vec<Finger>,
+    /// Tetris layout of children (computed lazily).
+    tetris: Option<Tetris>,
+}
+
+impl Finger {
+    fn build(node: &MindmapNode, h_pad: f64, v_pad: f64, node_margin: f64) -> Self {
+        let is_root = node.level == 1;
+        let (w, h, lines) = estimate_node_size_styled(&node.text, is_root, h_pad, v_pad);
+        let children: Vec<Finger> = node
+            .children
+            .iter()
+            .map(|c| Finger::build(c, h_pad, v_pad, node_margin))
+            .collect();
+        Finger {
+            box_width: w,
+            box_height: h,
+            text: node.text.clone(),
+            lines,
+            level: node.level,
+            margin_top: node_margin,
+            margin_right: node_margin,
+            margin_bottom: node_margin,
+            margin_left: node_margin,
+            children,
+            tetris: None,
+        }
+    }
+
+    /// Phalanx thickness in LR mode = box height + margin.top + margin.bottom.
+    /// Java: TextBlockUtils.withMargin(box, 0, 0, margin.getTop(), margin.getBottom()).
+    fn phalanx_thickness(&self) -> f64 {
+        self.box_height + self.margin_top + self.margin_bottom
+    }
+
+    /// Phalanx elongation in LR mode = box width (no left/right margin on phalanx).
+    fn phalanx_elongation(&self) -> f64 {
+        self.box_width
+    }
+
+    /// Java: getX1() = margin.getLeft() (LR mode).
+    fn x1(&self) -> f64 {
+        self.margin_left
+    }
+
+    /// Java: getX2() = margin.getRight() + 30 (LR mode).
+    fn x2(&self) -> f64 {
+        self.margin_right + X2_BASE_GAP
+    }
+
+    /// Java: getX12() = getX1() + getX2().
+    fn x12(&self) -> f64 {
+        self.x1() + self.x2()
+    }
+
+    fn ensure_tetris(&mut self) {
+        if self.tetris.is_some() {
+            return;
+        }
+        let mut tetris = Tetris::new();
+        for child in &mut self.children {
+            tetris.add(child.as_symetrical_tee());
+        }
+        tetris.balance();
+        self.tetris = Some(tetris);
+    }
+
+    /// Convert this finger to a SymetricalTee for packing in the parent's Tetris.
+    /// Java: FingerImpl.asSymetricalTee().
+    fn as_symetrical_tee(&mut self) -> SymetricalTee {
+        let thickness1 = self.phalanx_thickness();
+        let elongation1 = self.phalanx_elongation();
+
+        if self.children.is_empty() {
+            return SymetricalTee {
+                thickness1,
+                elongation1,
+                thickness2: 0.0,
+                elongation2: 0.0,
+            };
+        }
+
+        self.ensure_tetris();
+        let tetris = self.tetris.as_ref().unwrap();
+        let thickness2 = tetris.height();
+        // Java: new SymetricalTee(thickness1, elongation1 + getX1(), thickness2, getX2() + elongation2)
+        let elongation2 = self.x2() + tetris.width();
+
+        SymetricalTee {
+            thickness1,
+            elongation1: elongation1 + self.x1(),
+            thickness2,
+            elongation2,
+        }
+    }
+
+    /// Get the full thickness (max of phalanx and nail heights).
+    fn full_thickness(&mut self) -> f64 {
+        let tee = self.as_symetrical_tee();
+        tee.full_thickness()
+    }
+
+    /// Get the full elongation (phalanx width + nail width).
+    fn full_elongation(&mut self) -> f64 {
+        let tee = self.as_symetrical_tee();
+        tee.full_elongation()
+    }
+
+    /// Recursively collect positioned nodes and edges in Java draw order.
+    /// Java order: phalanx (node), then for each child: child.drawU (recurse), then edge.
+    /// `origin_x`, `origin_y` is the center point of this finger in absolute coordinates.
+    fn collect(
+        &mut self,
+        origin_x: f64,
+        origin_y: f64,
+        nodes_out: &mut Vec<MindmapNodeLayout>,
+        edges_out: &mut Vec<MindmapEdgeLayout>,
+        draw_order: &mut Vec<DrawItem>,
+    ) {
+        let phalanx_top = origin_y - self.phalanx_thickness() / 2.0;
+        let node_x = origin_x;
+        let node_y = phalanx_top + self.margin_top;
+
+        // 1. Draw phalanx (node)
+        let node_idx = nodes_out.len();
+        nodes_out.push(MindmapNodeLayout {
+            text: self.text.clone(),
+            x: node_x,
+            y: node_y,
+            width: self.box_width,
+            height: self.box_height,
+            level: self.level,
+            lines: self.lines.clone(),
+        });
+        draw_order.push(DrawItem::Node(node_idx));
+
+        if self.children.is_empty() {
+            return;
+        }
+
+        self.ensure_tetris();
+        let tetris = self.tetris.as_ref().unwrap();
+
+        let edge_from_x = origin_x + self.box_width;
+        let edge_from_y = origin_y;
+        let child_base_x = origin_x + self.box_width + self.x12();
+
+        // 2. For each child: recurse (draws child subtree), then draw edge
+        for (i, child) in self.children.iter_mut().enumerate() {
+            let stp = &tetris.elements[i];
+            let child_center_y = origin_y + stp.y;
+
+            // Recurse: draw child subtree first
+            child.collect(child_base_x, child_center_y, nodes_out, edges_out, draw_order);
+
+            // Then draw edge from parent to child
+            let edge_idx = edges_out.len();
+            edges_out.push(MindmapEdgeLayout {
+                from_x: edge_from_x,
+                from_y: edge_from_y,
+                to_x: child_base_x,
+                to_y: child_center_y,
+            });
+            draw_order.push(DrawItem::Edge(edge_idx));
         }
     }
 }
 
-/// Compute the maximum x extent of all nodes.
-fn max_right_extent(nodes: &[MindmapNodeLayout]) -> f64 {
-    nodes.iter().map(|n| n.x + n.width).fold(0.0_f64, f64::max)
-}
-
-/// Compute the maximum y extent of all nodes.
-fn max_bottom_extent(nodes: &[MindmapNodeLayout]) -> f64 {
-    nodes.iter().map(|n| n.y + n.height).fold(0.0_f64, f64::max)
-}
+// ---------------------------------------------------------------------------
+// Note layout
+// ---------------------------------------------------------------------------
 
 fn layout_notes(notes: &[MindmapNote], root: &MindmapNodeLayout) -> Vec<MindmapNoteLayout> {
     let mut counts: HashMap<&str, usize> = HashMap::new();
@@ -382,6 +748,16 @@ fn layout_notes(notes: &[MindmapNote], root: &MindmapNodeLayout) -> Vec<MindmapN
     result
 }
 
+/// Compute the maximum x extent of all nodes.
+fn max_right_extent(nodes: &[MindmapNodeLayout]) -> f64 {
+    nodes.iter().map(|n| n.x + n.width).fold(0.0_f64, f64::max)
+}
+
+/// Compute the maximum y extent of all nodes.
+fn max_bottom_extent(nodes: &[MindmapNodeLayout]) -> f64 {
+    nodes.iter().map(|n| n.y + n.height).fold(0.0_f64, f64::max)
+}
+
 // ---------------------------------------------------------------------------
 // Public entry point
 // ---------------------------------------------------------------------------
@@ -401,22 +777,29 @@ pub fn layout_mindmap(
         .and_then(|s| s.parse::<f64>().ok())
         .unwrap_or(V_PADDING);
 
-    let info = compute_subtree_info_styled(&diagram.root, h_pad, v_pad);
+    // Node margin from style (default: 10 from plantuml.skin)
+    let node_margin = skin
+        .get("node.margin")
+        .and_then(|s| s.parse::<f64>().ok())
+        .unwrap_or(DEFAULT_NODE_MARGIN);
+
+    let mut root_finger = Finger::build(&diagram.root, h_pad, v_pad, node_margin);
+
+    // Compute the tree dimensions (Java MindMap.calculateDimensionSlow)
+    let half_thickness = root_finger.full_thickness() / 2.0;
+
+    // Java MindMap.drawU applies UTranslate(x=reverse.getX12(), y=y)
+    // For right-only mindmaps: x=0, y=half_thickness.
+    // Then ImageBuilder adds margin(10,10,10,10).
+    // So the root phalanx center is at (MARGIN, MARGIN + half_thickness).
+    let origin_x = MARGIN;
+    let origin_y = MARGIN + half_thickness;
 
     let mut nodes = Vec::new();
     let mut edges = Vec::new();
+    let mut draw_order = Vec::new();
 
-    let start_x = MARGIN;
-    let start_y = MARGIN;
-
-    position_subtree(
-        &diagram.root,
-        &info,
-        start_x,
-        start_y,
-        &mut nodes,
-        &mut edges,
-    );
+    root_finger.collect(origin_x, origin_y, &mut nodes, &mut edges, &mut draw_order);
 
     let root = nodes
         .iter()
@@ -464,9 +847,26 @@ pub fn layout_mindmap(
         max_y += shift_y;
     }
 
-    // Java uses 2*MARGIN for right padding, 1*MARGIN for bottom
+    // Java canvas dimensions:
+    //   MindMap height = fullThickness (logical height of the tree)
+    //   ImageBuilder adds margin 10 on each side
+    //   Final height = fullThickness + 20
+    //
+    // Use fullThickness for height, because the Tetris layout may allocate
+    // vertical space beyond the actual node bounding boxes.
+    // Java: MindMapDiagram returns (width + 10, fullThickness).
+    //       ImageBuilder adds 10px margins → final = (w+30, fullThickness+20).
+    let full_thickness = 2.0 * half_thickness;
     let width = max_x + 2.0 * MARGIN;
-    let height = max_y + MARGIN;
+    let height = full_thickness + 2.0 * MARGIN;
+
+    // Raw body dimensions: Java MindMapDiagram.calculateDimension returns
+    // (MindMap.width + 10, MindMap.height) = (fullElongation + x12 + 10, fullThickness).
+    // This is the "TextBlock" size before ImageBuilder adds margins.
+    // wrap_with_meta will use this instead of extracting from SVG header.
+    let raw_body_w = max_x - MARGIN + MARGIN; // max_x already includes left margin
+    let raw_body_h = full_thickness;
+    let raw_body_dim = Some((raw_body_w, raw_body_h));
 
     // Caption is handled by wrap_with_meta in the rendering pipeline.
     let caption = None;
@@ -486,6 +886,8 @@ pub fn layout_mindmap(
         width,
         height,
         caption,
+        raw_body_dim,
+        draw_order,
     })
 }
 
@@ -728,5 +1130,48 @@ mod tests {
         assert_eq!(layout.notes.len(), 1);
         assert!(layout.notes[0].x > layout.nodes[0].x + layout.nodes[0].width);
         assert!(layout.notes[0].connector.is_some());
+    }
+
+    #[test]
+    fn tetris_basic_packing() {
+        // Two elements of same size should pack tightly
+        let mut tetris = Tetris::new();
+        tetris.add(SymetricalTee {
+            thickness1: 10.0,
+            elongation1: 20.0,
+            thickness2: 0.0,
+            elongation2: 0.0,
+        });
+        tetris.add(SymetricalTee {
+            thickness1: 10.0,
+            elongation1: 20.0,
+            thickness2: 0.0,
+            elongation2: 0.0,
+        });
+        tetris.balance();
+        assert_eq!(tetris.elements.len(), 2);
+        assert!((tetris.height() - 20.0).abs() < 0.001);
+    }
+
+    #[test]
+    fn tetris_t_shape_packing() {
+        // A T-shape with children should pack compactly
+        let mut tetris = Tetris::new();
+        tetris.add(SymetricalTee {
+            thickness1: 10.0,
+            elongation1: 20.0,
+            thickness2: 0.0,
+            elongation2: 0.0,
+        });
+        tetris.add(SymetricalTee {
+            thickness1: 10.0,
+            elongation1: 20.0,
+            thickness2: 30.0,
+            elongation2: 40.0,
+        });
+        tetris.balance();
+        assert_eq!(tetris.elements.len(), 2);
+        // The T-shape nail extends below, so total height should be > 20
+        assert!(tetris.height() > 20.0);
     }
 }

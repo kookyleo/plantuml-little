@@ -559,9 +559,10 @@ fn render_body(
                 body_pre_offset: false,
             }),
         (Diagram::Mindmap(md), DiagramLayout::Mindmap(ml)) => {
+            let raw_body_dim = ml.raw_body_dim;
             super::svg_mindmap::render_mindmap(md, ml, skin).map(|svg| BodyResult {
                 svg,
-                raw_body_dim: None,
+                raw_body_dim,
                 body_pre_offset: false,
             })
         }
@@ -1091,16 +1092,26 @@ fn wrap_with_meta(
     // margin budget.  title_margin_top=10 shifts meta elements down.
     // Sequence (Puma2/Teoz): margin_top=5, body includes right margin.
     // CucaDiagram (class/component/etc): margin_top=0.
+    // Java ImageBuilder default margins per diagram type.
     let doc_margin_top = match diagram_type {
         "SEQUENCE" => 5.0,
         "ACTIVITY" => 10.0,
+        // Java TitledDiagram.getDefaultMargins() = 10 all sides for mindmap.
+        "MINDMAP" => 10.0,
         _ => 0.0,
     };
     // Activity body viewport already includes right padding from compute_bounds,
     // so DOC_MARGIN_RIGHT must not be added again for the canvas width.
     let doc_margin_right = match diagram_type {
         "ACTIVITY" => 0.0,
+        // Mindmap: Java uses 10+10=20 (margin_left + margin_right).
+        "MINDMAP" => 20.0,
         _ => DOC_MARGIN_RIGHT,
+    };
+    let doc_margin_bottom = match diagram_type {
+        // Mindmap: Java uses 10+10=20 total vertical margins.
+        "MINDMAP" => 10.0,
+        _ => DOC_MARGIN_BOTTOM,
     };
 
     // Use raw body dimensions if available (avoids integer truncation loss).
@@ -1111,7 +1122,7 @@ fn wrap_with_meta(
         // Body SVG includes DOC_MARGIN + 1: recover raw textBlock dimensions.
         (
             svg_w - DOC_MARGIN_RIGHT - 1.0,
-            svg_h - doc_margin_top - DOC_MARGIN_BOTTOM - 1.0,
+            svg_h - doc_margin_top - doc_margin_bottom - 1.0,
         )
     };
     log::trace!("wrap_with_meta: svg_w={svg_w} svg_h={svg_h} body_w={body_w} body_h={body_h} doc_margin_top={doc_margin_top}");
@@ -1279,7 +1290,7 @@ fn wrap_with_meta(
     let tb_h = total_dim.1;
     // Java ensureVisible: maxX = (int)(x + 1)
     let canvas_w = ensure_visible_int(tb_w + doc_margin_right) as f64;
-    let canvas_h = ensure_visible_int(tb_h + doc_margin_top + DOC_MARGIN_BOTTOM) as f64;
+    let canvas_h = ensure_visible_int(tb_h + doc_margin_top + doc_margin_bottom) as f64;
     log::trace!(
         "wrap_with_meta: tb_w={tb_w:.6} tb_h={tb_h:.6} canvas_w={canvas_w} canvas_h={canvas_h}"
     );
@@ -1298,6 +1309,12 @@ fn wrap_with_meta(
     // The body content already has this margin baked into its internal coordinates
     // (layout MARGIN=5), so only meta elements need the shift.
     let meta_dy = doc_margin_top;
+    // Horizontal margin for meta elements. For mindmap/WBS, Java ImageBuilder
+    // shifts everything by margin_left=10, including meta elements.
+    let meta_dx = match diagram_type {
+        "MINDMAP" => 10.0,
+        _ => 0.0,
+    };
     log::trace!(
         "body_pos: body_abs_x={body_abs_x:.6} body_abs_y={body_abs_y:.6} meta_dy={meta_dy}"
     );
@@ -1498,7 +1515,7 @@ fn wrap_with_meta(
     // Caption (CENTER-aligned)
     if let Some(ref cap) = meta.caption {
         let cap_y_start = meta_dy + hdr_dim.1 + after_title.1;
-        let cap_block_x = outer_inner_x + ((after_caption.0 - cap_dim.0) / 2.0).max(0.0);
+        let cap_block_x = meta_dx + outer_inner_x + ((after_caption.0 - cap_dim.0) / 2.0).max(0.0);
         let text_x = cap_block_x + CAPTION_MARGIN + CAPTION_PADDING;
         let text_y = cap_y_start
             + CAPTION_MARGIN
