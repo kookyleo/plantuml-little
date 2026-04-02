@@ -84,7 +84,7 @@ pub fn parse_sequence_diagram_with_original(
     )
     .unwrap();
     let gate_right_re = Regex::new(
-        r"^(.+?)\s+([oxX]*(?:<<?)?(?:[/\\]{1,2})?(?:\[#[^\]]+\]|\[(?i:hidden)\])?-+(?:\[#[^\]]+\]|\[(?i:hidden)\])?-*(?:[/\\]{1,2})?(?:>?>?)?[oxX]*)\?\s*(?::\s*(.*))?$",
+        r"^(.+?)\s*([oxX]*(?:<<?)?(?:[/\\]{1,2})?(?:\[#[^\]]+\]|\[(?i:hidden)\])?-+(?:\[#[^\]]+\]|\[(?i:hidden)\])?-*(?:[/\\]{1,2})?(?:>?>?)?[oxX]*)\?\s*(?::\s*(.*))?$",
     )
     .unwrap();
 
@@ -426,7 +426,7 @@ pub fn parse_sequence_diagram_with_original(
             // "else" within a fragment
             if lower.starts_with("else") && fragment_depth > 0 {
                 let rest = frag_trimmed[4..].trim();
-                let label = rest.to_string();
+                let label = strip_leading_colors(rest).to_string();
                 debug!("parsed fragment separator: {label:?}");
                 events.push(SeqEvent::FragmentSeparator { label });
                 continue;
@@ -434,7 +434,7 @@ pub fn parse_sequence_diagram_with_original(
 
             // Fragment start keywords: alt, loop, opt, par, break, critical
             if let Some((kind, rest_start)) = parse_fragment_keyword(&lower) {
-                let label = frag_trimmed[rest_start..].trim().to_string();
+                let label = strip_leading_colors(frag_trimmed[rest_start..].trim()).to_string();
                 fragment_depth += 1;
                 debug!(
                     "parsed fragment start {kind:?} label={label:?} parallel={frag_parallel} (depth now {fragment_depth})"
@@ -450,6 +450,10 @@ pub fn parse_sequence_diagram_with_original(
             // Legacy "group" keyword
             if lower.starts_with("group") {
                 let rest = frag_trimmed[5..].trim();
+                // Strip leading #color spec(s) — Java regex:
+                //   COLORS = "((?<!else)(?<!also)(?<!end)#\w+)?(?:\s+(#\w+))?"
+                // Up to two #word tokens can precede the label text.
+                let rest = strip_leading_colors(rest);
                 let label = if rest.is_empty() {
                     None
                 } else {
@@ -713,6 +717,7 @@ pub fn parse_sequence_diagram_with_original(
             let mut inline_activate = false;
             let mut inline_deactivate_source = false;
             let mut inline_deactivate = false;
+            let mut inline_destroy = false;
             if right.ends_with("--++") {
                 right = right[..right.len() - 4].trim().to_string();
                 inline_deactivate_source = true;
@@ -727,6 +732,9 @@ pub fn parse_sequence_diagram_with_original(
             } else if right.ends_with("--") {
                 right = right[..right.len() - 2].trim().to_string();
                 inline_deactivate = true;
+            } else if right.ends_with("!!") {
+                right = right[..right.len() - 2].trim().to_string();
+                inline_destroy = true;
             }
 
             if let Some(mut msg) = parse_arrow(left, arrow, &right, &text) {
@@ -765,6 +773,10 @@ pub fn parse_sequence_diagram_with_original(
                 if inline_deactivate {
                     inline_life_events.push(events.len());
                     events.push(SeqEvent::Deactivate(source.clone()));
+                }
+                if inline_destroy {
+                    inline_life_events.push(events.len());
+                    events.push(SeqEvent::Destroy(target.clone()));
                 }
                 continue;
             }
@@ -824,6 +836,28 @@ pub fn parse_sequence_diagram_with_original(
         delta_shadow,
         inline_life_events,
     })
+}
+
+/// Strip leading `#color` tokens from fragment/group labels.
+/// Java regex: `COLORS = "(#\w+)?(?:\s+(#\w+))?"` — up to two `#word` tokens
+/// can precede the actual label text.
+fn strip_leading_colors(s: &str) -> &str {
+    let mut rest = s;
+    // Strip up to two leading #word tokens
+    for _ in 0..2 {
+        let trimmed = rest.trim_start();
+        if trimmed.starts_with('#') {
+            // Find end of #word token (word chars = alphanumeric or _)
+            let end = trimmed[1..]
+                .find(|c: char| !c.is_alphanumeric() && c != '_')
+                .map(|i| i + 1)
+                .unwrap_or(trimmed.len());
+            rest = trimmed[end..].trim_start();
+        } else {
+            break;
+        }
+    }
+    rest
 }
 
 /// Parse combined fragment keyword, return fragment kind and label start position

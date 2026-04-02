@@ -687,12 +687,8 @@ fn compute_state_node(
 
         // Java uses {rank=source}/{rank=sink} cluster constraints for
         // inputPin/outputPin children. Each pin type at a cluster boundary
-        // adds approximately (ranksep/2 + cluster_margin + pin_size) of
-        // vertical space. But this only applies to composites that have
-        // INTERNAL pin states (not composites where pins are at the cluster
-        // boundary visible to the outer layout, like the top-level module).
-        // We detect pins that are direct children of THIS composite and add
-        // a height bonus for the rank separation they would occupy.
+        // adds vertical space. We detect pins among direct children and add
+        // a height bonus to approximate Java's cluster-based rank placement.
         let pin_bonus = {
             let children = &state.children;
             let has_regular = children.iter().any(|c| {
@@ -704,45 +700,7 @@ fn compute_state_node(
                 let has_input = children.iter().any(|c| c.stereotype.as_deref() == Some("inputPin"));
                 let has_output = children.iter().any(|c| c.stereotype.as_deref() == Some("outputPin"));
                 let pin_types = (has_input as u32) + (has_output as u32);
-                // Java uses cluster {rank=source/sink} to force pins into
-                // separate ranks. In Rust's flat graph, pins may or may not
-                // end up in separate ranks depending on edges.
-                //
-                // When pins have external edges (from parent-level transitions),
-                // graphviz already produces proper rank separation within the
-                // parent's DOT, so the pin bonus only covers cluster margins.
-                // When pins are isolated (no external edges), a larger bonus
-                // is needed to approximate the full cluster rank separation.
-                let child_ids: HashSet<&str> = children.iter()
-                    .map(|c| c.id.as_str())
-                    .collect();
-                let pin_ids: HashSet<&str> = children.iter()
-                    .filter(|c| {
-                        c.stereotype.as_deref() == Some("inputPin")
-                            || c.stereotype.as_deref() == Some("outputPin")
-                    })
-                    .map(|c| c.id.as_str())
-                    .collect();
-                // Check if pins are already rank-separated by other means:
-                // 1. External edges from parent transitions reference pin children
-                // 2. Initial/final states in this composite create rank structure
-                let pins_have_external_edges = transitions.iter().any(|tr| {
-                    let from_is_pin = pin_ids.contains(tr.from.as_str());
-                    let to_is_pin = pin_ids.contains(tr.to.as_str());
-                    let from_is_child = child_ids.contains(tr.from.as_str());
-                    let to_is_child = child_ids.contains(tr.to.as_str());
-                    (from_is_pin && !to_is_child) || (to_is_pin && !from_is_child)
-                });
-                let has_initial_or_final = children.iter().any(|c| c.is_special)
-                    || initial_ids.iter().any(|id| child_ids.contains(id.as_str()));
-                let pins_rank_separated = pins_have_external_edges || has_initial_or_final;
-                let bonus_per_type = if pins_rank_separated {
-                    PIN_RANK_HEIGHT_BONUS
-                } else {
-                    // Pins are isolated: need full rank separation approximation
-                    PIN_RANK_HEIGHT_BONUS + 16.0
-                };
-                pin_types as f64 * bonus_per_type
+                pin_types as f64 * PIN_RANK_HEIGHT_BONUS
             } else {
                 0.0
             }
@@ -1262,6 +1220,13 @@ fn layout_children_with_graphviz(
         } else {
             None
         };
+        let entity_pos = if is_input_pin {
+            Some(crate::svek::node::EntityPosition::InputPin)
+        } else if is_output_pin {
+            Some(crate::svek::node::EntityPosition::OutputPin)
+        } else {
+            None
+        };
         gv_nodes.push(LayoutNode {
             id: state.id.clone(),
             label: state.name.clone(),
@@ -1269,7 +1234,7 @@ fn layout_children_with_graphviz(
             height_pt: node_h,
             shape,
             shield: None,
-            entity_position: None,
+            entity_position: entity_pos,
             max_label_width: None,
             order: Some(node_id_order.len()),
             image_width_pt: None,
@@ -1308,10 +1273,6 @@ fn layout_children_with_graphviz(
             });
         }
     }
-
-    // Pin states (inputPin/outputPin) don't get rank-forcing edges here.
-    // Instead, the composite sizing in compute_state_node adds a height
-    // bonus to account for Java's cluster-based rank=source/sink placement.
 
     let graph = LayoutGraph {
         nodes: gv_nodes,
@@ -1767,6 +1728,13 @@ pub fn layout_state(diagram: &StateDiagram) -> Result<StateLayout> {
             None
         };
         let is_circle = is_circle_kind;
+        let entity_pos = if state.stereotype.as_deref() == Some("inputPin") {
+            Some(crate::svek::node::EntityPosition::InputPin)
+        } else if state.stereotype.as_deref() == Some("outputPin") {
+            Some(crate::svek::node::EntityPosition::OutputPin)
+        } else {
+            None
+        };
         gv_nodes.push(LayoutNode {
             id: state.id.clone(),
             label: state.name.clone(),
@@ -1774,7 +1742,7 @@ pub fn layout_state(diagram: &StateDiagram) -> Result<StateLayout> {
             height_pt: h,
             shape,
             shield: None,
-            entity_position: None,
+            entity_position: entity_pos,
             max_label_width: None,
             order: Some(node_id_order.len()),
             image_width_pt: None,
