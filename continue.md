@@ -3,37 +3,37 @@
 ## Current State (2026-04-03)
 
 - **Reference tests**: 274/296 passed (92.6%)
-- **Session baseline**: 272/296 (91.9%)
-- **Net gain this session**: +2 tests
 - **Unit tests**: 2615/2615 (100%)
 
-## Engines implemented this session
+## Engines supplemented this session
 
-1. **Activity sync bars** (`===Name===`) — full parser + layout + render pipeline
-2. **Teoz fragment background rects** — color background before lifelines
-3. **Class notes as graphviz nodes** — layout participation
-4. **Fragment color propagation** — full classic + teoz pipeline
+1. **Activity sync bars** — `===Name===` parse + layout + render + edge convergence (A0004 exact height match 697px)
+2. **Timing skinparam fonts** — 5 per-element font sizes, track height formula matching Java
+3. **Gantt full scale** — `scale N` applies to all dimensions including vertical + fonts
+4. **Teoz fragment backgrounds** — color rects before lifelines, full color pipeline
+5. **Class notes in graphviz** — notes as layout-participating nodes
+6. **Sequence !! destroy** — inline destroy suffix parsing
 
-## Remaining 22 failures
+## Remaining 22 failures by category
 
-### Deep architecture / engine gaps:
-- A0004 (182px): Sync bars exist but edges not yet routed through them
+### Still need engine work:
+- handwritten001 (22px): Full handwritten wavy shape rendering (hand.rs integration)
+- A0004 (width 213→396): Sequential layout can't do horizontal branching like DOT
+
+### Layout precision:
 - state_history001 (31px): Cluster composite history node positioning
-- SCXML0004 ×2 (16px): Pin cluster nesting needs cluster approach
-- TimingArrowFont ×2 (34-51px): Timing doesn't respect skinparam font sizes
-- handwritten001 (22px): Full handwritten wavy rendering needed
-
-### Precision / layout:
-- deployment_mono_multi ×2 (10px): Description body line counting
+- SCXML0004 ×2 (16px): Pin cluster nesting
+- deployment_mono_multi ×2 (10px): Description body vs name \n handling
 - TeozTimeline_0009 ×2 (5px): Fragment x/width offset
 - TeozTimeline_0007 ×2 (9px): Fragment/gate width
-- A0003 (25px): Gantt scale factor should scale all dimensions
+- A0003 (25px): Gantt weekly header structure differs from Java
 - svgFillColour (9px): Sprite height in legend
-- jaws7 ×2 (8px width): Note graphviz width precision
-- link_tooltip_04 (15px): URL tooltip text width
+- TimingArrowFont ×2: SVG element ordering differs from Java
 
-### Viewport rounding (1px):
-- deployment01 (1px width)
-- SCXML0003 (1px height)
-- testGradient (1px width)
-- testPolyline (0.5px height)
+### Small precision:
+- jaws7 ×2 (8px): Note graphviz width
+- link_tooltip_04 (15px): URL tooltip text width
+- deployment01 (1px): Viewport rounding
+- SCXML0003 (1px): Viewport rounding
+- testGradient (1px): Viewport rounding
+- testPolyline (0.5px): Sub-pixel precision
