@@ -486,6 +486,14 @@ macro_rules! reference_test {
             let fixture = concat!("tests/", $fixture);
             let svg = convert_fixture(fixture);
             assert_no_raw_markup(&svg, fixture);
+            // UPDATE_REF=1 cargo test ... to overwrite reference SVGs with current output
+            if std::env::var("UPDATE_REF").is_ok() {
+                let ref_path = fixture
+                    .replace("fixtures/", "reference/")
+                    .replace(".puml", ".svg");
+                fs::write(&ref_path, &svg).unwrap_or_else(|e| panic!("write {ref_path}: {e}"));
+                return;
+            }
             if let Some(reference) = load_reference(fixture) {
                 assert_exact_match(&svg, &reference, fixture);
             }

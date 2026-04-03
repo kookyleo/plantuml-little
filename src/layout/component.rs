@@ -568,15 +568,26 @@ pub fn layout_component(cd: &ComponentDiagram) -> Result<ComponentLayout> {
                 order: e.source_line,
                 image_width_pt: None,
                 lf_extra_left: 0.0,
-                // Java LimitFinder: rect entities use drawRectangle (min_corr=1),
-                // oval entities use drawEllipse (min_corr=0).
-                lf_rect_correction: !matches!(e.kind, ComponentKind::UseCase),
+                // Java LimitFinder shape correction by entity draw type:
+                // - URectangle entities: drawRectangle adds (-1,-1) and (-1,-1)
+                // - UEllipse entities (UseCase): drawEllipse adds (0,0) and (-1,-1)
+                // - UPath entities (Database, Queue): drawUPath adds (0,0) and (0,0)
+                // - UPolygon entities (Node, Folder): drawUPolygon adds HACK_X_FOR_POLYGON
+                lf_rect_correction: !matches!(
+                    e.kind,
+                    ComponentKind::UseCase
+                        | ComponentKind::Database
+                        | ComponentKind::Queue
+                        | ComponentKind::Node
+                        | ComponentKind::Folder
+                ),
                 lf_has_body_separator: false,
+                // Entities that draw UEmpty(10,10) extending their bounding box:
+                // - Database: UEmpty at (width, height) → extends +10 on both X and Y
+                // - Node: UEmpty at (0, height) → extends +10 on Y only
                 lf_node_polygon: matches!(
                     e.kind,
                     ComponentKind::Node
-                        | ComponentKind::Folder
-                        | ComponentKind::Artifact
                         | ComponentKind::Database
                 ),
                 hidden: false,

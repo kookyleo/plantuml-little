@@ -687,8 +687,10 @@ fn compute_state_node(
 
         // Java uses {rank=source}/{rank=sink} cluster constraints for
         // inputPin/outputPin children. Each pin type at a cluster boundary
-        // adds vertical space. We detect pins among direct children and add
-        // a height bonus to approximate Java's cluster-based rank placement.
+        // adds vertical space via the cluster's rank separation (ranksep=60).
+        // Our inner graphviz solve runs without a cluster wrapper, so the rank
+        // constraints don't take effect. We add a height bonus to approximate
+        // the extra vertical space Java produces from the rank separation.
         let pin_bonus = {
             let children = &state.children;
             let has_regular = children.iter().any(|c| {

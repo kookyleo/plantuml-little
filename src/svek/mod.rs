@@ -732,9 +732,10 @@ impl DotStringFactory {
             let empty_ext = if node.lf_node_polygon { 10.0 } else { 0.0 };
             let rb = node.min_y + node.height - node_y_max_corr + empty_ext;
             log::trace!(
-                "  LF node uid={} min=({:.4},{:.4}) w={:.4} h={:.4} rect_corr={} body_sep={} => rx={:.4} ry={:.4} rr={:.4} rb={:.4}",
+                "  LF node uid={} min=({:.4},{:.4}) w={:.4} h={:.4} rect_corr={} body_sep={} polygon={} shape={:?} => rx={:.4} ry={:.4} rr={:.4} rb={:.4}",
                 node.uid, node.min_x, node.min_y, node.width, node.height,
                 node.lf_rect_correction, node.lf_has_body_separator,
+                node.lf_node_polygon, node.shape_type,
                 rx, ry, rr, rb,
             );
             if rx < lf_min_x {
