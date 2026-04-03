@@ -53,6 +53,7 @@ pub fn parse_class_diagram_with_original(
     let mut group_stack: Vec<Group> = Vec::new();
     let mut brace_depth: usize = 0;
     let mut active_style_stereotype: Option<String> = None;
+    let mut last_entity_name: Option<String> = None;
 
     // Entity: [visibility]class/interface/abstract class/abstract/enum/annotation/static class Name [as Alias] <<stereo>> #color {
     // Visibility prefix: +/-/#/~ before the keyword (e.g. -class foo)
@@ -226,6 +227,7 @@ pub fn parse_class_diagram_with_original(
                 if let Some(ent) = current_entity.take() {
                     debug!("finished entity body: {}", ent.name);
                     let name = ent.name.clone();
+                    last_entity_name = Some(name.clone());
                     entities.push(ent);
                     if let Some(g) = group_stack.last_mut() {
                         g.entities.push(name);
@@ -371,6 +373,7 @@ pub fn parse_class_diagram_with_original(
                 description_block_lines.clear();
             } else {
                 // No brace or inline `{}`: treat as complete entity
+                last_entity_name = Some(name.clone());
                 if let Some(g) = group_stack.last_mut() {
                     g.entities.push(name);
                 }
@@ -438,15 +441,21 @@ pub fn parse_class_diagram_with_original(
         // Note parsing: single-line or multi-line start
         if let Some(note_result) = try_parse_class_note(trimmed) {
             match note_result {
-                ClassNoteParseResult::SingleLine(note) => {
+                ClassNoteParseResult::SingleLine(mut note) => {
+                    // Java: note without "of" target auto-attaches to last entity
+                    if note.target.is_none() {
+                        note.target = last_entity_name.clone();
+                    }
                     debug!("single-line note for {:?}", note.target);
                     notes.push(note);
                 }
                 ClassNoteParseResult::MultiLineStart { position, target } => {
-                    debug!("start multi-line note for {target:?}");
+                    // Java: note without "of" target auto-attaches to last entity
+                    let effective_target = target.or_else(|| last_entity_name.clone());
+                    debug!("start multi-line note for {effective_target:?}");
                     in_note_block = true;
                     note_block_position = position;
-                    note_block_target = target;
+                    note_block_target = effective_target;
                     note_block_lines.clear();
                 }
             }
