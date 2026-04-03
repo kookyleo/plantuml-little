@@ -894,10 +894,56 @@ fn render_box_node(
 ) {
     open_entity_g(sg, node, meta);
 
-    sg.set_fill_color(bg);
-    sg.set_stroke_color(Some(border));
-    sg.set_stroke_width(0.5, None);
-    sg.svg_rectangle(node.x, node.y, node.width, node.height, 2.5, 2.5, 0.0);
+    // Java USymbolNode: 3D box with folded top-left and bottom-right corners.
+    // Tab size = 10px. Shape is a 7-point polygon.
+    let tab = 10.0;
+    let x = node.x;
+    let y = node.y;
+    let w = node.width;
+    let h = node.height;
+    let points = format!(
+        "{x},{y1},{x1},{y},{x2},{y},{x2},{y2},{x3},{y3},{x},{y3},{x},{y1}",
+        x = fmt_coord(x),
+        y1 = fmt_coord(y + tab),
+        x1 = fmt_coord(x + tab),
+        y = fmt_coord(y),
+        x2 = fmt_coord(x + w),
+        y2 = fmt_coord(y + h - tab),
+        x3 = fmt_coord(x + w - tab),
+        y3 = fmt_coord(y + h),
+    );
+    sg.push_raw(&format!(
+        "<polygon fill=\"{bg}\" points=\"{points}\" style=\"stroke:{border};stroke-width:0.5;\"/>"
+    ));
+    // Inner folded-corner lines
+    let lx1 = fmt_coord(x + w - tab);
+    let ly1 = fmt_coord(y);
+    let lx2 = fmt_coord(x + w - tab);
+    let ly2 = fmt_coord(y + tab);
+    sg.push_raw(&format!(
+        "<line style=\"stroke:{border};stroke-width:0.5;\" x1=\"{lx1}\" x2=\"{lx2}\" y1=\"{ly1}\" y2=\"{ly2}\"/>"
+    ));
+    let lx3 = fmt_coord(x);
+    let ly3 = fmt_coord(y + h - tab);
+    let lx4 = fmt_coord(x + tab);
+    let ly4 = fmt_coord(y + h - tab);
+    sg.push_raw(&format!(
+        "<line style=\"stroke:{border};stroke-width:0.5;\" x1=\"{lx3}\" x2=\"{lx4}\" y1=\"{ly3}\" y2=\"{ly4}\"/>"
+    ));
+    let lx5 = fmt_coord(x + w - tab);
+    let ly5 = fmt_coord(y + tab);
+    let lx6 = fmt_coord(x + w);
+    let ly6 = fmt_coord(y + tab);
+    sg.push_raw(&format!(
+        "<line style=\"stroke:{border};stroke-width:0.5;\" x1=\"{lx5}\" x2=\"{lx6}\" y1=\"{ly5}\" y2=\"{ly6}\"/>"
+    ));
+    let lx7 = fmt_coord(x + tab);
+    let ly7 = fmt_coord(y + h - tab);
+    let lx8 = fmt_coord(x + tab);
+    let ly8 = fmt_coord(y + h);
+    sg.push_raw(&format!(
+        "<line style=\"stroke:{border};stroke-width:0.5;\" x1=\"{lx7}\" x2=\"{lx8}\" y1=\"{ly7}\" y2=\"{ly8}\"/>"
+    ));
 
     render_node_text(sg, node, font_color, bg);
     sg.push_raw("</g>");
