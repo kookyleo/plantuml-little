@@ -566,15 +566,23 @@ pub fn render_creole_text_opts(
         return 1;
     }
 
-    // Java: underline/color lines get split rendering + leading NBSP.
+    // Java renders each line as a separate <text> element via DriverTextSvg.
+    // Each line gets its own textLength and y offset.
     for (idx, line) in lines.iter().enumerate() {
         let line_y = y + (idx as f64) * line_height;
-        if text_anchor.is_none() && line_needs_element_split(line) {
-            emit_leading_nbsp_if_styled(buf, line, x, line_y, fill, &font_family, font_size, bold);
-            render_split_text_runs(buf, line, x, line_y, fill, outer_attrs, &font_family, font_size, bold, italic);
-        } else {
-            render_prepared_line(buf, line, x, line_y, fill, text_anchor, outer_attrs, &font_family, font_size, bold, italic);
-        }
+        render_prepared_line(
+            buf,
+            line,
+            x,
+            line_y,
+            fill,
+            text_anchor,
+            outer_attrs,
+            &font_family,
+            font_size,
+            bold,
+            italic,
+        );
     }
     render_deferred_sprites(buf, &sprite_refs, x, y);
 
@@ -2144,18 +2152,6 @@ fn line_needs_split_render(spans: &[TextSpan]) -> bool {
     has_styled(spans)
 }
 
-fn line_needs_element_split(spans: &[TextSpan]) -> bool {
-    fn chk(spans: &[TextSpan]) -> bool {
-        spans.iter().any(|s| match s {
-            TextSpan::Plain(_) | TextSpan::InlineSvg { .. } | TextSpan::Monospace(_) => false,
-            TextSpan::Bold(i) | TextSpan::Italic(i) | TextSpan::Subscript(i) | TextSpan::Superscript(i) => chk(i),
-            TextSpan::Sized { content: c, .. } | TextSpan::FontFamily { content: c, .. } | TextSpan::BackHighlight { content: c, .. } => chk(c),
-            TextSpan::Underline(_) | TextSpan::UnderlineColored { .. } | TextSpan::Strikethrough(_) | TextSpan::Colored { .. } | TextSpan::Link { .. } => true,
-        })
-    }
-    chk(spans)
-}
-
 /// A text run with full styling context for split rendering.
 /// Java renders each styled atom as a separate `<text>` SVG element.
 #[derive(Clone, Debug)]
@@ -2195,9 +2191,6 @@ impl TextRun {
         let mut r = Self::new();
         r.text = text.to_string();
         r
-    }
-    fn is_styled(&self) -> bool {
-        self.underline || self.underline_color.is_some() || self.strikethrough || self.color.is_some() || self.link_url.is_some()
     }
     fn style_matches(&self, other: &RunStyle) -> bool {
         opt_eq(&self.font_family, &other.font_family)
@@ -2384,18 +2377,6 @@ fn flatten_span_runs(spans: &[TextSpan], runs: &mut Vec<TextRun>, style: &RunSty
             TextSpan::InlineSvg { .. } => {}
         }
     }
-}
-
-fn emit_leading_nbsp_if_styled(buf: &mut String, spans: &[TextSpan], x: f64, y: f64, fill: &str, font_family: &str, font_size: f64, bold: bool) {
-    let runs = flatten_to_runs(spans);
-    if !runs.first().map_or(false, |r| r.is_styled()) { return; }
-    let sw = font_metrics::text_width("\u{00A0}", font_family, font_size, bold, false);
-    let sx = x - sw;
-    write!(buf, r#"<text fill="{}""#, xml_escape(fill)).unwrap();
-    write!(buf, r#" font-family="{}""#, xml_escape(font_family)).unwrap();
-    write!(buf, r#" font-size="{}""#, font_size as u32).unwrap();
-    if bold { buf.push_str(r#" font-weight="700""#); }
-    write!(buf, r#" lengthAdjust="spacing" textLength="{}" x="{}" y="{}">&#160;</text>"#, fmt_coord(sw), fmt_coord(sx), fmt_coord(y)).unwrap();
 }
 
 #[allow(clippy::too_many_arguments)]
