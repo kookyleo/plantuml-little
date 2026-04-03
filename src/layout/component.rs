@@ -122,7 +122,7 @@ pub struct ComponentGroupLayout {
 
 const FONT_SIZE: f64 = 14.0;
 // Java: line_height = (ascent + descent) from AWT FontMetrics for SansSerif 14pt
-const LINE_HEIGHT: f64 = 16.2969; // (1901 + 483) / 2048 * 14
+const LINE_HEIGHT: f64 = 16.296875; // (1901 + 483) / 2048 * 14 — exact
                                   // Java: component node padding = 15px top + 15px bottom
 const PADDING: f64 = 15.0;
 // Java: no explicit minimum width for components; the name + icon determines width
