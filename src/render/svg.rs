@@ -2101,7 +2101,8 @@ fn render_class(
 
     // Notes — Java wraps each note in <g class="entity" data-qualified-name="GMN{i}">
     // Java note IDs start after all entities: entity count + 1 (0-indexed quark offset)
-    let note_id_base = cd.entities.len() + 1; // +1 because Java quark numbering
+    // Java quark numbering: entities are numbered from 2 (0=root, 1=diagram), notes after that
+    let note_id_base = cd.entities.len() + cd.links.len() + 2;
     for (ni, note) in layout.notes.iter().enumerate() {
         let note_qname = format!("GMN{}", note_id_base + ni);
         sg.push_raw(&format!(
