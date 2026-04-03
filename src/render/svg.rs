@@ -4937,62 +4937,150 @@ fn draw_label(sg: &mut SvgGraphic, text: &str, x: f64, y: f64) {
     }
 }
 
-/// Draw a note in class diagrams (yellow sticky box with folded corner)
+/// Draw a note in class diagrams (yellow sticky box with folded corner).
+///
+/// For left/right positioned notes with connectors (Opale style), the connector
+/// arrow is integrated into the body path shape, matching Java Opale rendering.
 fn draw_class_note(sg: &mut SvgGraphic, tracker: &mut BoundsTracker, note: &ClassNoteLayout) {
     let x = note.x + MARGIN;
     let y = note.y + MARGIN;
     let w = note.width;
     let h = note.height;
 
-    // body shape (use polygon instead of rect to clip the top-right fold area)
     let is_opale = matches!(note.position.as_str(), "left" | "right");
     let fold = if is_opale { CLASS_NOTE_FOLD } else { NOTE_FOLD };
-    // pentagon path: top-left -> top-right(minus fold) -> fold inner corner -> bottom-right -> bottom-left
-    let note_poly = [
-        (x, y),
-        (x + w - fold, y),
-        (x + w, y + fold),
-        (x + w, y + h),
-        (x, y + h),
-    ];
-    sg.set_fill_color(NOTE_BG);
-    sg.set_stroke_color(Some(NOTE_BORDER));
-    sg.set_stroke_width(1.0, None);
-    sg.svg_polygon(
-        0.0,
-        &[
-            note_poly[0].0,
-            note_poly[0].1,
-            note_poly[1].0,
-            note_poly[1].1,
-            note_poly[2].0,
-            note_poly[2].1,
-            note_poly[3].0,
-            note_poly[3].1,
-            note_poly[4].0,
-            note_poly[4].1,
-        ],
-    );
-    if is_opale { let pmin_x = note_poly.iter().map(|p| p.0).fold(f64::INFINITY, f64::min); let pmax_x = note_poly.iter().map(|p| p.0).fold(f64::NEG_INFINITY, f64::max); let pmin_y = note_poly.iter().map(|p| p.1).fold(f64::INFINITY, f64::min); let pmax_y = note_poly.iter().map(|p| p.1).fold(f64::NEG_INFINITY, f64::max); tracker.track_path_bounds(pmin_x, pmin_y, pmax_x, pmax_y); } else { tracker.track_polygon(&note_poly); }
 
-    // fold corner triangle
-    {
-        let fold_pts = [(x + w - fold, y), (x + w - fold, y + fold), (x + w, y)];
-        let cx = fmt_coord(fold_pts[0].0);
-        let cy = fmt_coord(fold_pts[0].1);
-        let cy2 = fmt_coord(fold_pts[1].1);
-        let cx2 = fmt_coord(fold_pts[2].0);
+    // Java Opale uses delta=4 for the connector arrow half-width on the body edge.
+    const OPALE_DELTA: f64 = 4.0;
+
+    if is_opale && note.connector.is_some() {
+        // Opale note with connector: render body as <path> with embedded connector arrow.
+        let (from_x_g, from_y_g, to_x_g, to_y_g) = note.connector.unwrap();
+        let from_x = from_x_g + MARGIN;
+        let from_y = from_y_g + MARGIN;
+        let to_x = to_x_g + MARGIN;
+        let to_y = to_y_g + MARGIN;
+        let pp1_y_local = from_y - y;
+        let pp2_x_local = to_x - x;
+        let pp2_y_local = to_y - y;
+
+        let mut d = String::with_capacity(512);
+        match note.position.as_str() {
+            "left" => {
+                // Note is left of entity -> connector points RIGHT
+                let mut y1 = pp1_y_local - OPALE_DELTA;
+                y1 = y1.max(fold).min(h - 2.0 * OPALE_DELTA);
+
+                write!(d, "M{},{}", fmt_coord(x), fmt_coord(y)).unwrap();
+                write!(d, " L{},{}", fmt_coord(x), fmt_coord(y + h)).unwrap();
+                write!(d, " A0,0 0 0 0 {},{}", fmt_coord(x), fmt_coord(y + h)).unwrap();
+                write!(d, " L{},{}", fmt_coord(x + w), fmt_coord(y + h)).unwrap();
+                write!(d, " A0,0 0 0 0 {},{}", fmt_coord(x + w), fmt_coord(y + h)).unwrap();
+                write!(d, " L{},{}", fmt_coord(x + w), fmt_coord(y + y1 + 2.0 * OPALE_DELTA)).unwrap();
+                write!(d, " L{},{}", fmt_coord(x + pp2_x_local), fmt_coord(y + pp2_y_local)).unwrap();
+                write!(d, " L{},{}", fmt_coord(x + w), fmt_coord(y + y1)).unwrap();
+                write!(d, " L{},{}", fmt_coord(x + w), fmt_coord(y + y1)).unwrap();
+                write!(d, " L{},{}", fmt_coord(x + w - fold), fmt_coord(y)).unwrap();
+                write!(d, " L{},{}", fmt_coord(x), fmt_coord(y)).unwrap();
+                write!(d, " A0,0 0 0 0 {},{}", fmt_coord(x), fmt_coord(y)).unwrap();
+            }
+            "right" => {
+                // Note is right of entity -> connector points LEFT
+                let mut y1 = pp1_y_local - OPALE_DELTA;
+                y1 = y1.max(0.0).min(h - 2.0 * OPALE_DELTA);
+
+                write!(d, "M{},{}", fmt_coord(x), fmt_coord(y)).unwrap();
+                write!(d, " L{},{}", fmt_coord(x), fmt_coord(y + y1)).unwrap();
+                write!(d, " L{},{}", fmt_coord(x + pp2_x_local), fmt_coord(y + pp2_y_local)).unwrap();
+                write!(d, " L{},{}", fmt_coord(x), fmt_coord(y + y1 + 2.0 * OPALE_DELTA)).unwrap();
+                write!(d, " L{},{}", fmt_coord(x), fmt_coord(y + h)).unwrap();
+                write!(d, " A0,0 0 0 0 {},{}", fmt_coord(x), fmt_coord(y + h)).unwrap();
+                write!(d, " L{},{}", fmt_coord(x + w), fmt_coord(y + h)).unwrap();
+                write!(d, " A0,0 0 0 0 {},{}", fmt_coord(x + w), fmt_coord(y + h)).unwrap();
+                write!(d, " L{},{}", fmt_coord(x + w), fmt_coord(y + fold)).unwrap();
+                write!(d, " L{},{}", fmt_coord(x + w - fold), fmt_coord(y)).unwrap();
+                write!(d, " L{},{}", fmt_coord(x), fmt_coord(y)).unwrap();
+                write!(d, " A0,0 0 0 0 {},{}", fmt_coord(x), fmt_coord(y)).unwrap();
+            }
+            _ => unreachable!(),
+        }
         sg.push_raw(&format!(
-            r#"<path d="M{cx},{cy} L{cx},{cy2} L{cx2},{cy} Z " fill="{bg}" style="stroke:{border};stroke-width:1;"/>"#,
+            r#"<path d="{d}" fill="{bg}" style="stroke:{border};stroke-width:0.5;"/>"#,
             bg = NOTE_BG,
             border = NOTE_BORDER,
         ));
+        let all_x = [x, x + w, to_x];
+        let all_y = [y, y + h, to_y];
         tracker.track_path_bounds(
-            fold_pts[0].0.min(fold_pts[2].0),
-            fold_pts[0].1.min(fold_pts[1].1),
-            fold_pts[0].0.max(fold_pts[2].0),
-            fold_pts[0].1.max(fold_pts[1].1),
+            all_x.iter().copied().fold(f64::INFINITY, f64::min),
+            all_y.iter().copied().fold(f64::INFINITY, f64::min),
+            all_x.iter().copied().fold(f64::NEG_INFINITY, f64::max),
+            all_y.iter().copied().fold(f64::NEG_INFINITY, f64::max),
         );
+    } else if is_opale {
+        // Opale note without connector: normal polygon as <path>
+        let d = format!(
+            "M{},{} L{},{} L{},{} L{},{} L{},{} L{},{}",
+            fmt_coord(x), fmt_coord(y),
+            fmt_coord(x), fmt_coord(y + h),
+            fmt_coord(x + w), fmt_coord(y + h),
+            fmt_coord(x + w), fmt_coord(y + fold),
+            fmt_coord(x + w - fold), fmt_coord(y),
+            fmt_coord(x), fmt_coord(y),
+        );
+        sg.push_raw(&format!(
+            r#"<path d="{d}" fill="{bg}" style="stroke:{border};stroke-width:0.5;"/>"#,
+            bg = NOTE_BG,
+            border = NOTE_BORDER,
+        ));
+        tracker.track_path_bounds(x, y, x + w, y + h);
+    } else {
+        // Non-opale note: use <polygon>
+        let note_poly = [
+            (x, y),
+            (x + w - fold, y),
+            (x + w, y + fold),
+            (x + w, y + h),
+            (x, y + h),
+        ];
+        sg.set_fill_color(NOTE_BG);
+        sg.set_stroke_color(Some(NOTE_BORDER));
+        sg.set_stroke_width(1.0, None);
+        sg.svg_polygon(
+            0.0,
+            &[
+                note_poly[0].0, note_poly[0].1,
+                note_poly[1].0, note_poly[1].1,
+                note_poly[2].0, note_poly[2].1,
+                note_poly[3].0, note_poly[3].1,
+                note_poly[4].0, note_poly[4].1,
+            ],
+        );
+        tracker.track_polygon(&note_poly);
+    }
+
+    // Fold corner triangle
+    {
+        let fx = fmt_coord(x + w - fold);
+        let fy_top = fmt_coord(y);
+        let fy_bot = fmt_coord(y + fold);
+        let fx_right = fmt_coord(x + w);
+        if is_opale {
+            // Opale fold: (w-fold,0) -> (w-fold,fold) -> (w,fold) matching Java Opale.getCorner
+            sg.push_raw(&format!(
+                r#"<path d="M{fx},{fy_top} L{fx},{fy_bot} L{fx_right},{fy_bot} L{fx},{fy_top}" fill="{bg}" style="stroke:{border};stroke-width:0.5;"/>"#,
+                bg = NOTE_BG,
+                border = NOTE_BORDER,
+            ));
+        } else {
+            // Non-opale fold: existing shape (w-fold,0) -> (w-fold,fold) -> (w,0)
+            sg.push_raw(&format!(
+                r#"<path d="M{fx},{fy_top} L{fx},{fy_bot} L{fx_right},{fy_top} Z " fill="{bg}" style="stroke:{border};stroke-width:1;"/>"#,
+                bg = NOTE_BG,
+                border = NOTE_BORDER,
+            ));
+        }
+        tracker.track_path_bounds(x + w - fold, y, x + w, y + fold);
     }
 
     // text content
@@ -5060,16 +5148,19 @@ fn draw_class_note(sg: &mut SvgGraphic, tracker: &mut BoundsTracker, note: &Clas
         sg.push_raw(&tmp);
     }
 
-    // connector line (dashed)
-    if let Some((from_x, from_y, to_x, to_y)) = note.connector {
-        let lx1 = from_x + MARGIN;
-        let ly1 = from_y + MARGIN;
-        let lx2 = to_x + MARGIN;
-        let ly2 = to_y + MARGIN;
-        sg.set_stroke_color(Some(NOTE_BORDER));
-        sg.set_stroke_width(1.0, Some((5.0, 3.0)));
-        sg.svg_line(lx1, ly1, lx2, ly2, 0.0);
-        tracker.track_line(lx1, ly1, lx2, ly2);
+    // For non-opale notes, draw a separate dashed connector line.
+    // Opale notes embed the connector arrow in the body path.
+    if !is_opale {
+        if let Some((from_x, from_y, to_x, to_y)) = note.connector {
+            let lx1 = from_x + MARGIN;
+            let ly1 = from_y + MARGIN;
+            let lx2 = to_x + MARGIN;
+            let ly2 = to_y + MARGIN;
+            sg.set_stroke_color(Some(NOTE_BORDER));
+            sg.set_stroke_width(1.0, Some((5.0, 3.0)));
+            sg.svg_line(lx1, ly1, lx2, ly2, 0.0);
+            tracker.track_line(lx1, ly1, lx2, ly2);
+        }
     }
 }
 
@@ -5831,13 +5922,16 @@ mod tests {
 
         assert!(svg.contains(NOTE_BG), "note should use yellow background");
         assert!(svg.contains("test note"), "note text must appear in SVG");
+        // Opale note with connector renders body as <path> with embedded connector arrow
         assert!(
-            svg.contains("<polygon"),
-            "note should render as polygon (folded corner)"
+            svg.contains("<path d=\"M"),
+            "opale note should render as <path> with connector arrow"
         );
-        assert!(
-            svg.contains("stroke-dasharray"),
-            "connector should be dashed"
+        // No separate dashed connector line for opale notes
+        assert_eq!(
+            svg.matches("stroke-dasharray").count(),
+            0,
+            "opale connector is embedded in path, not a dashed line"
         );
     }
 
