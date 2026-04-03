@@ -41,6 +41,7 @@ pub struct LayoutNode {
     /// on the max_x axis, because ULine contributes (x + width) without -1.
     /// Only applies to state/class entities with body separators.
     pub lf_has_body_separator: bool,
+    pub lf_node_polygon: bool,
     /// When true, the node is emitted in the DOT for edge routing but excluded
     /// from the LimitFinder span. Used for internal proxy/special-point nodes.
     pub hidden: bool,
@@ -532,6 +533,9 @@ pub fn layout_with_svek(graph: &LayoutGraph) -> Result<GraphLayout, Error> {
         }
         if node.lf_has_body_separator {
             ed.lf_has_body_separator = true;
+        }
+        if node.lf_node_polygon {
+            ed.lf_node_polygon = true;
         }
         if node.hidden {
             ed.hidden = true;
@@ -1619,6 +1623,7 @@ mod tests {
                     lf_extra_left: 0.0,
                     lf_rect_correction: true,
                     lf_has_body_separator: false,
+                    lf_node_polygon: false,
                     hidden: false,
                 },
                 LayoutNode {
@@ -1635,6 +1640,7 @@ mod tests {
                     lf_extra_left: 0.0,
                     lf_rect_correction: true,
                     lf_has_body_separator: false,
+                    lf_node_polygon: false,
                     hidden: false,
                 },
             ],
@@ -1698,6 +1704,7 @@ mod tests {
                 lf_extra_left: 0.0,
                 lf_rect_correction: true,
                 lf_has_body_separator: false,
+                lf_node_polygon: false,
                 hidden: false,
             }],
             edges: vec![],

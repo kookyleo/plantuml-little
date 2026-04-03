@@ -43,6 +43,7 @@ pub struct EntityDescriptor {
     /// This overrides the drawRectangle -1 on max_x because the
     /// ULine contributes (x + width) without -1.
     pub lf_has_body_separator: bool,
+    pub lf_node_polygon: bool,
     /// When true, the node appears in the DOT but is excluded from LimitFinder.
     /// Used for internal proxy/special-point nodes (Java: zaent).
     pub hidden: bool,
@@ -64,6 +65,7 @@ impl EntityDescriptor {
             lf_extra_left: 0.0,
             lf_rect_correction: true,
             lf_has_body_separator: false,
+            lf_node_polygon: false,
             hidden: false,
         }
     }
@@ -397,6 +399,7 @@ impl GraphvizImageBuilder {
             node.lf_extra_left = ent.lf_extra_left;
             node.lf_rect_correction = ent.lf_rect_correction;
             node.lf_has_body_separator = ent.lf_has_body_separator;
+            node.lf_node_polygon = ent.lf_node_polygon;
             node.hidden = ent.hidden;
             bib.add_node(node);
         }

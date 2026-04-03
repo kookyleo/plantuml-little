@@ -725,9 +725,12 @@ impl DotStringFactory {
                 (0.0, 0.0) // UPath (notes): no correction
             };
             let rx = node.min_x - min_corr_x - extra_left;
-            let ry = node.min_y - min_corr_y;
+            let node_y_corr = if node.lf_node_polygon { 0.0 } else { min_corr_y };
+            let ry = node.min_y - node_y_corr;
             let rr = node.min_x + node.width - max_corr_x;
-            let rb = node.min_y + node.height - max_corr_y;
+            let node_y_max_corr = if node.lf_node_polygon { 0.0 } else { max_corr_y };
+            let empty_ext = if node.lf_node_polygon { 10.0 } else { 0.0 };
+            let rb = node.min_y + node.height - node_y_max_corr + empty_ext;
             log::trace!(
                 "  LF node uid={} min=({:.4},{:.4}) w={:.4} h={:.4} rect_corr={} body_sep={} => rx={:.4} ry={:.4} rr={:.4} rb={:.4}",
                 node.uid, node.min_x, node.min_y, node.width, node.height,

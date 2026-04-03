@@ -1241,6 +1241,7 @@ fn layout_children_with_graphviz(
             lf_extra_left: 0.0,
             lf_rect_correction: !is_circle && !is_pin,
             lf_has_body_separator: !is_circle && !is_diamond && !is_pin,
+            lf_node_polygon: false,
             hidden: false,
         });
         node_id_order.push(state.id.clone());
@@ -1749,6 +1750,7 @@ pub fn layout_state(diagram: &StateDiagram) -> Result<StateLayout> {
             lf_extra_left: 0.0,
             lf_rect_correction: !is_circle && !is_pin,
             lf_has_body_separator: !is_circle && !is_diamond && !is_pin,
+            lf_node_polygon: false,
             hidden: false,
         });
         node_id_order.push(state.id.clone());
@@ -1878,6 +1880,7 @@ pub fn layout_state(diagram: &StateDiagram) -> Result<StateLayout> {
                 lf_extra_left: 0.0,
                 lf_rect_correction: false,
                 lf_has_body_separator: false,
+                lf_node_polygon: false,
                 hidden: false,
             });
             node_id_order.push(entity_id.clone());

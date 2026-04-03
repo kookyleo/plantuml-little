@@ -572,6 +572,13 @@ pub fn layout_component(cd: &ComponentDiagram) -> Result<ComponentLayout> {
                 // oval entities use drawEllipse (min_corr=0).
                 lf_rect_correction: !matches!(e.kind, ComponentKind::UseCase),
                 lf_has_body_separator: false,
+                lf_node_polygon: matches!(
+                    e.kind,
+                    ComponentKind::Node
+                        | ComponentKind::Folder
+                        | ComponentKind::Artifact
+                        | ComponentKind::Database
+                ),
                 hidden: false,
             }
         })
@@ -598,6 +605,7 @@ pub fn layout_component(cd: &ComponentDiagram) -> Result<ComponentLayout> {
             lf_extra_left: 0.0,
             lf_rect_correction: true,
             lf_has_body_separator: false,
+            lf_node_polygon: false,
             hidden: true, // excluded from LimitFinder span
         });
     }
@@ -788,6 +796,7 @@ pub fn layout_component(cd: &ComponentDiagram) -> Result<ComponentLayout> {
             lf_extra_left: 0.0,
             lf_rect_correction: false,
             lf_has_body_separator: false,
+            lf_node_polygon: false,
             hidden: false,
         });
 
