@@ -739,6 +739,8 @@ struct DisplayTableCell {
     is_header: bool,
     /// Cell background color from `<#color>` prefix
     bg_color: Option<String>,
+    leading_spaces: usize,
+    trailing_spaces: usize,
 }
 
 #[derive(Clone)]
@@ -1499,24 +1501,73 @@ fn parse_display_table_cells(line: &str, preserve_backslash_n: bool) -> Vec<Disp
     inner
         .split('|')
         .map(|part| {
+            let leading_spaces = part.len() - part.trim_start().len();
+            let trailing_spaces = part.len() - part.trim_end().len();
             let mut cell_text = part.trim();
             let is_header = cell_text.starts_with('=');
             if is_header {
-                cell_text = cell_text.trim_start_matches('=').trim();
+                cell_text = cell_text.trim_start_matches('=');
+                let inner_leading = cell_text.len() - cell_text.trim_start().len();
+                cell_text = cell_text.trim();
+                let mut lines: Vec<Vec<TextSpan>> = split_table_cell_lines(cell_text, preserve_backslash_n)
+                    .into_iter().map(|cell_line| parse_inline(&cell_line)).collect();
+                let mut el = 0usize; let mut et = 0usize;
+                for line in &mut lines { let (l, t) = strip_span_edge_spaces(line); el = el.max(l); et = et.max(t); }
+                return DisplayTableCell {
+                    lines, is_header, bg_color: None,
+                    leading_spaces: leading_spaces + inner_leading + el,
+                    trailing_spaces: trailing_spaces + et,
+                };
             }
-            // Extract cell background color prefix: <#color> or <#color,#border>
             let (cell_bg, cell_text) = extract_cell_bg_color(cell_text);
-            let lines = split_table_cell_lines(cell_text, preserve_backslash_n)
-                .into_iter()
-                .map(|cell_line| parse_inline(&cell_line))
-                .collect();
+            let mut lines: Vec<Vec<TextSpan>> = split_table_cell_lines(cell_text, preserve_backslash_n)
+                .into_iter().map(|cell_line| parse_inline(&cell_line)).collect();
+            let mut el = 0usize; let mut et = 0usize;
+            for line in &mut lines { let (l, t) = strip_span_edge_spaces(line); el = el.max(l); et = et.max(t); }
             DisplayTableCell {
-                lines,
-                is_header,
-                bg_color: cell_bg,
+                lines, is_header, bg_color: cell_bg,
+                leading_spaces: leading_spaces + el,
+                trailing_spaces: trailing_spaces + et,
             }
         })
         .collect()
+}
+
+fn strip_span_edge_spaces(spans: &mut Vec<TextSpan>) -> (usize, usize) {
+    let mut lead = 0usize; let mut trail = 0usize;
+    if let Some(p) = find_first_plain_mut(spans) {
+        let t = p.trim_start(); lead = p.len() - t.len();
+        if lead > 0 { *p = t.to_string(); }
+    }
+    if let Some(p) = find_last_plain_mut(spans) {
+        let t = p.trim_end(); trail = p.len() - t.len();
+        if trail > 0 { *p = t.to_string(); }
+    }
+    (lead, trail)
+}
+fn find_first_plain_mut(spans: &mut [TextSpan]) -> Option<&mut String> {
+    for span in spans.iter_mut() {
+        match span {
+            TextSpan::Plain(ref mut s) => return Some(s),
+            TextSpan::Bold(i) | TextSpan::Italic(i) | TextSpan::Underline(i) | TextSpan::Strikethrough(i) | TextSpan::Subscript(i) | TextSpan::Superscript(i) => { if let Some(s) = find_first_plain_mut(i) { return Some(s); } }
+            TextSpan::Colored { content: c, .. } | TextSpan::UnderlineColored { content: c, .. } | TextSpan::BackHighlight { content: c, .. } | TextSpan::Sized { content: c, .. } | TextSpan::FontFamily { content: c, .. } => { if let Some(s) = find_first_plain_mut(c) { return Some(s); } }
+            TextSpan::Link { label, url, .. } => { if label.is_some() || !url.is_empty() { return None; } }
+            _ => {}
+        }
+    }
+    None
+}
+fn find_last_plain_mut(spans: &mut [TextSpan]) -> Option<&mut String> {
+    for span in spans.iter_mut().rev() {
+        match span {
+            TextSpan::Plain(ref mut s) => return Some(s),
+            TextSpan::Bold(i) | TextSpan::Italic(i) | TextSpan::Underline(i) | TextSpan::Strikethrough(i) | TextSpan::Subscript(i) | TextSpan::Superscript(i) => { if let Some(s) = find_last_plain_mut(i) { return Some(s); } }
+            TextSpan::Colored { content: c, .. } | TextSpan::UnderlineColored { content: c, .. } | TextSpan::BackHighlight { content: c, .. } | TextSpan::Sized { content: c, .. } | TextSpan::FontFamily { content: c, .. } => { if let Some(s) = find_last_plain_mut(c) { return Some(s); } }
+            TextSpan::Link { label, url, .. } => { if label.is_some() || !url.is_empty() { return None; } }
+            _ => {}
+        }
+    }
+    None
 }
 
 /// Extract leading `<#color>` cell background prefix from table cell text.
@@ -1631,8 +1682,9 @@ fn measure_table_cell_width(
     bold: bool,
     italic: bool,
 ) -> f64 {
-    let space_width = font_metrics::text_width(" ", default_font, font_size, bold, italic);
     let nbsp_width = font_metrics::text_width(NBSP, default_font, font_size, bold, italic);
+    let pad_left = cell.leading_spaces.max(1) as f64 * nbsp_width;
+    let pad_right = cell.trailing_spaces.max(1) as f64 * nbsp_width;
     let mut width = 0.0_f64;
 
     for line in &cell.lines {
@@ -1641,7 +1693,7 @@ fn measure_table_cell_width(
             nbsp_width
         } else {
             measure_parsed_line_width(line, default_font, font_size, bold, italic)
-                + 2.0 * space_width
+                + pad_left + pad_right
         };
         width = width.max(candidate);
     }
@@ -1649,6 +1701,10 @@ fn measure_table_cell_width(
     width
 }
 
+
+fn cell_has_link(spans: &[TextSpan]) -> bool {
+    spans.iter().any(|span| matches!(span, TextSpan::Link { .. }))
+}
 
 fn render_display_table(
     buf: &mut String,
@@ -1705,8 +1761,6 @@ fn render_display_table(
                     font_metrics::line_height(default_font, font_size, cell_bold, italic);
                 let cell_ascent =
                     font_metrics::ascent(default_font, font_size, cell_bold, italic);
-                let cell_space =
-                    font_metrics::text_width(" ", default_font, font_size, cell_bold, italic);
                 let cell_attrs = build_cell_outer_attrs(font_size, cell_bold, italic);
 
                 // Cell background rect
@@ -1724,28 +1778,46 @@ fn render_display_table(
                     .unwrap();
                 }
 
+                let nbsp_w = font_metrics::text_width(NBSP, default_font, font_size, cell_bold, italic);
+                let lead_count = cell.leading_spaces.max(1);
+                let trail_count = cell.trailing_spaces.max(1);
+                let cell_pad_left = lead_count as f64 * nbsp_w;
+
                 for (line_idx, line) in cell.lines.iter().enumerate() {
                     let baseline = row_top + cell_ascent + line_idx as f64 * cell_line_height;
-                    let render_line = if plain_text_spans(line).is_empty() {
-                        vec![TextSpan::Plain(NBSP.to_string())]
+                    let plain = plain_text_spans(line);
+                    if plain.is_empty() {
+                        let rl = vec![TextSpan::Plain(NBSP.to_string())];
+                        render_preparsed_lines(buf, &[rl], col_x, baseline,
+                            cell_line_height, fill, None, &cell_attrs);
+                    } else if cell_has_link(line) {
+                        let wt = if cell_bold { r#" font-weight="700""# } else { "" };
+                        if lead_count > 0 {
+                            let ns = NBSP.repeat(lead_count);
+                            let nw = lead_count as f64 * nbsp_w;
+                            write!(buf,
+                                r#"<text fill="{}" font-family="{}" font-size="{}"{} lengthAdjust="spacing" textLength="{}" x="{}" y="{}">{}</text>"#,
+                                xml_escape(fill), xml_escape(default_font), font_size as i32, wt,
+                                fmt_coord(nw), fmt_coord(col_x), fmt_coord(baseline),
+                                xml_escape(&ns)).unwrap();
+                        }
+                        render_preparsed_lines(buf, &[line.clone()], col_x + cell_pad_left,
+                            baseline, cell_line_height, fill, None, &cell_attrs);
+                        if trail_count > 0 {
+                            let cw = measure_parsed_line_width(line, default_font, font_size, cell_bold, italic);
+                            let tx = col_x + cell_pad_left + cw;
+                            let ns = NBSP.repeat(trail_count);
+                            let nw = trail_count as f64 * nbsp_w;
+                            write!(buf,
+                                r#"<text fill="{}" font-family="{}" font-size="{}"{} lengthAdjust="spacing" textLength="{}" x="{}" y="{}">{}</text>"#,
+                                xml_escape(fill), xml_escape(default_font), font_size as i32, wt,
+                                fmt_coord(nw), fmt_coord(tx), fmt_coord(baseline),
+                                xml_escape(&ns)).unwrap();
+                        }
                     } else {
-                        line.clone()
-                    };
-                    let text_x = if plain_text_spans(line).is_empty() {
-                        col_x
-                    } else {
-                        col_x + cell_space
-                    };
-                    render_preparsed_lines(
-                        buf,
-                        &[render_line],
-                        text_x,
-                        baseline,
-                        cell_line_height,
-                        fill,
-                        None,
-                        &cell_attrs,
-                    );
+                        render_preparsed_lines(buf, &[line.clone()], col_x + cell_pad_left,
+                            baseline, cell_line_height, fill, None, &cell_attrs);
+                    }
                 }
             }
 

@@ -995,6 +995,7 @@ fn named_color_to_hex(name: &str) -> Option<&'static str> {
         "coral" => Some("#FF7F50"),
         "salmon" => Some("#FA8072"),
         "tomato" => Some("#FF6347"),
+        "orangered" => Some("#FF4500"),
         "crimson" => Some("#DC143C"),
         "darkblue" => Some("#00008B"),
         "darkgreen" => Some("#006400"),
