@@ -44,6 +44,7 @@ pub struct EntityDescriptor {
     /// ULine contributes (x + width) without -1.
     pub lf_has_body_separator: bool,
     pub lf_node_polygon: bool,
+    pub lf_polygon_hack: bool,
     /// When true, the node appears in the DOT but is excluded from LimitFinder.
     /// Used for internal proxy/special-point nodes (Java: zaent).
     pub hidden: bool,
@@ -66,6 +67,7 @@ impl EntityDescriptor {
             lf_rect_correction: true,
             lf_has_body_separator: false,
             lf_node_polygon: false,
+            lf_polygon_hack: false,
             hidden: false,
         }
     }
@@ -400,6 +402,7 @@ impl GraphvizImageBuilder {
             node.lf_rect_correction = ent.lf_rect_correction;
             node.lf_has_body_separator = ent.lf_has_body_separator;
             node.lf_node_polygon = ent.lf_node_polygon;
+            node.lf_polygon_hack = ent.lf_polygon_hack;
             node.hidden = ent.hidden;
             bib.add_node(node);
         }

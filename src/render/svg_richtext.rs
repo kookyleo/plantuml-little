@@ -387,8 +387,18 @@ pub fn creole_text_width(
     creole_text_width_opts(text, default_font, font_size, bold, italic, false)
 }
 
-/// Like `creole_text_width` but with `preserve_backslash_n` option.
-/// When true, literal `\n` in the text is treated as displayable text, not a line break.
+/// Like `creole_text_width` but treats literal `\n` as displayable text.
+pub fn creole_text_width_preserve_newline(
+    text: &str,
+    default_font: &str,
+    font_size: f64,
+    bold: bool,
+    italic: bool,
+) -> f64 {
+    creole_text_width_opts(text, default_font, font_size, bold, italic, true)
+}
+
+/// Internal: creole_text_width with `preserve_backslash_n` option.
 fn creole_text_width_opts(
     text: &str,
     default_font: &str,

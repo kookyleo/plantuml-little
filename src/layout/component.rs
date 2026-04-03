@@ -285,27 +285,53 @@ fn estimate_entity_size(entity: &ComponentEntity) -> (f64, f64) {
     let name_lines: Vec<&str> = entity.name.split("\\n").flat_map(|s| s.lines()).collect();
     let name_line_count = name_lines.len().max(1);
     // Component icon space is already included in the right margin (25px).
+    // For lines with creole markup, strip markup before measuring (matches Java).
+    // For plain lines, use raw text_width to preserve existing behavior.
     let name_w = name_lines
         .iter()
-        .map(|line| text_width(line))
+        .map(|line| {
+            if line.contains('<') {
+                crate::render::svg_richtext::creole_text_width_preserve_newline(
+                    line, "SansSerif", FONT_SIZE, false, false,
+                )
+            } else {
+                text_width(line)
+            }
+        })
         .fold(0.0_f64, f64::max)
         + ml
         + mr;
 
-    // For description width, strip creole markup to measure visible text only.
-    // Java: TextBlock.calculateDimension measures the rendered text, not raw markup.
-    let desc_w = entity
-        .description
-        .iter()
-        .filter(|line| {
+    // Description width: use creole_text_width for styled text measurement.
+    // Inside <code> blocks, text is literal monospace (no creole stripping).
+    let desc_w = {
+        let mut max_w = 0.0_f64;
+        let mut in_code = false;
+        for line in &entity.description {
             let t = line.trim();
-            !t.eq_ignore_ascii_case("<code>") && !t.eq_ignore_ascii_case("</code>")
-        })
-        .map(|line| {
-            let plain = crate::render::svg_richtext::creole_plain_text(line);
-            text_width(&plain) + ml + mr
-        })
-        .fold(0.0_f64, f64::max);
+            if t.eq_ignore_ascii_case("<code>") {
+                in_code = true;
+                continue;
+            }
+            if t.eq_ignore_ascii_case("</code>") {
+                in_code = false;
+                continue;
+            }
+            let w = if in_code {
+                let code_pad = font_metrics::char_width(
+                    ' ', "Monospaced", FONT_SIZE, false, false,
+                );
+                font_metrics::text_width(line, "Monospaced", FONT_SIZE, false, false)
+                    + ml + code_pad + mr
+            } else {
+                crate::render::svg_richtext::creole_text_width_preserve_newline(
+                    line, "SansSerif", FONT_SIZE, false, false,
+                ) + ml + mr
+            };
+            max_w = max_w.max(w);
+        }
+        max_w
+    };
 
     let stereo_w = entity
         .stereotype
@@ -590,6 +616,11 @@ pub fn layout_component(cd: &ComponentDiagram) -> Result<ComponentLayout> {
                     ComponentKind::Node
                         | ComponentKind::Database
                 ),
+                lf_polygon_hack: matches!(
+                    e.kind,
+                    ComponentKind::Node
+                        | ComponentKind::Folder
+                ),
                 hidden: false,
             }
         })
@@ -617,6 +648,7 @@ pub fn layout_component(cd: &ComponentDiagram) -> Result<ComponentLayout> {
             lf_rect_correction: true,
             lf_has_body_separator: false,
             lf_node_polygon: false,
+            lf_polygon_hack: false,
             hidden: true, // excluded from LimitFinder span
         });
     }
@@ -808,6 +840,7 @@ pub fn layout_component(cd: &ComponentDiagram) -> Result<ComponentLayout> {
             lf_rect_correction: false,
             lf_has_body_separator: false,
             lf_node_polygon: false,
+            lf_polygon_hack: false,
             hidden: false,
         });
 

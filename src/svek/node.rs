@@ -188,6 +188,7 @@ pub struct SvekNode {
     /// Whether the entity draws a full-width body separator ULine.
     pub lf_has_body_separator: bool,
     pub lf_node_polygon: bool,
+    pub lf_polygon_hack: bool,
 }
 
 impl SvekNode {
@@ -216,6 +217,7 @@ impl SvekNode {
             lf_rect_correction: true,
             lf_has_body_separator: false,
             lf_node_polygon: false,
+            lf_polygon_hack: false,
         }
     }
 
@@ -252,6 +254,7 @@ impl SvekNode {
             lf_rect_correction: true,
             lf_has_body_separator: false,
             lf_node_polygon: false,
+            lf_polygon_hack: false,
         }
     }
 

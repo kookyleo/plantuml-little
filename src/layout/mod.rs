@@ -236,6 +236,7 @@ pub fn layout(diagram: &Diagram, skin: &crate::style::SkinParams) -> Result<Diag
                     lf_rect_correction: true,
                     lf_has_body_separator: false,
                     lf_node_polygon: false,
+                    lf_polygon_hack: false,
                     hidden: false,
                 }],
                 edges: vec![],
@@ -1261,6 +1262,7 @@ fn layout_class_diagram(cd: &ClassDiagram, skin: &crate::style::SkinParams) -> R
                 lf_rect_correction: true,
                     lf_has_body_separator: false,
                     lf_node_polygon: false,
+                    lf_polygon_hack: false,
                     hidden: false,
             }
         })
@@ -1333,6 +1335,7 @@ fn layout_class_diagram(cd: &ClassDiagram, skin: &crate::style::SkinParams) -> R
             lf_rect_correction: false,
             lf_has_body_separator: false,
             lf_node_polygon: false,
+            lf_polygon_hack: false,
             hidden: false,
         });
         // Invisible edge between note and target entity (Java link pattern).

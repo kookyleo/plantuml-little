@@ -42,6 +42,7 @@ pub struct LayoutNode {
     /// Only applies to state/class entities with body separators.
     pub lf_has_body_separator: bool,
     pub lf_node_polygon: bool,
+    pub lf_polygon_hack: bool,
     /// When true, the node is emitted in the DOT for edge routing but excluded
     /// from the LimitFinder span. Used for internal proxy/special-point nodes.
     pub hidden: bool,
@@ -536,6 +537,9 @@ pub fn layout_with_svek(graph: &LayoutGraph) -> Result<GraphLayout, Error> {
         }
         if node.lf_node_polygon {
             ed.lf_node_polygon = true;
+        }
+        if node.lf_polygon_hack {
+            ed.lf_polygon_hack = true;
         }
         if node.hidden {
             ed.hidden = true;
@@ -1624,6 +1628,7 @@ mod tests {
                     lf_rect_correction: true,
                     lf_has_body_separator: false,
                     lf_node_polygon: false,
+                    lf_polygon_hack: false,
                     hidden: false,
                 },
                 LayoutNode {
@@ -1641,6 +1646,7 @@ mod tests {
                     lf_rect_correction: true,
                     lf_has_body_separator: false,
                     lf_node_polygon: false,
+                    lf_polygon_hack: false,
                     hidden: false,
                 },
             ],
@@ -1705,6 +1711,7 @@ mod tests {
                 lf_rect_correction: true,
                 lf_has_body_separator: false,
                 lf_node_polygon: false,
+                lf_polygon_hack: false,
                 hidden: false,
             }],
             edges: vec![],

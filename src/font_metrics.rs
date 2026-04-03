@@ -68,6 +68,7 @@ fn resolve_face(family: &str, bold: bool) -> &'static ttf_parser::Face<'static> 
 /// Computes `glyph_hor_advance / units_per_em * size`, matching Java's
 /// `font.getStringBounds(ch, frc).getWidth()` with `FRACTIONALMETRICS_ON`.
 pub fn char_width(ch: char, family: &str, size: f64, bold: bool, _italic: bool) -> f64 {
+    if ch == '\n' || ch == '\r' { return 0.0; }
     let face = resolve_face(family, bold);
     let upem = face.units_per_em() as f64;
     if let Some(gid) = face.glyph_index(ch) {

@@ -705,7 +705,8 @@ impl DotStringFactory {
             //   drawUPolygon (Diamond): addPoint(x+minX-10, y+minY), addPoint(x+maxX+10, y+maxY)
             //     where HACK_X_FOR_POLYGON = 10 and for diamond: minX=0, maxX=w, minY=0, maxY=h
             //   drawUPath (notes): addPoint(x+minX, y+minY), addPoint(x+maxX, y+maxY)
-            let (min_corr_x, min_corr_y) = if is_diamond {
+            let uses_polygon = is_diamond || node.lf_polygon_hack;
+            let (min_corr_x, min_corr_y) = if uses_polygon {
                 (10.0, 0.0) // polygon hack: extend 10px left (HACK_X_FOR_POLYGON)
             } else if node.lf_rect_correction {
                 (1.0, 1.0) // rect: -1 on both axes
@@ -715,7 +716,7 @@ impl DotStringFactory {
             // For rect entities with body separator (state/class): the ULine.hline(width)
             // overrides the drawRectangle -1 on max_x.
             // For rect entities without body separator (components): rect -1 stands.
-            let (max_corr_x, max_corr_y) = if is_diamond {
+            let (max_corr_x, max_corr_y) = if uses_polygon {
                 (-10.0_f64, 0.0) // polygon hack: extend 10px right, no y correction
             } else if node.lf_has_body_separator {
                 (0.0, 1.0) // ULine.hline(width) overrides rect's -1 on x-axis
