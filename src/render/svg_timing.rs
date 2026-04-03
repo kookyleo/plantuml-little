@@ -112,21 +112,7 @@ fn render_track(
     name_fs: f64,
     state_fs: f64,
 ) {
-    if !track.segments.is_empty() {
-        let x_min = track
-            .segments
-            .iter()
-            .map(|s| s.x_start)
-            .fold(f64::INFINITY, f64::min);
-        let x_max = track
-            .segments
-            .iter()
-            .map(|s| s.x_end)
-            .fold(f64::NEG_INFINITY, f64::max);
-        let w = (x_max - x_min).max(0.0);
-        sg.push_raw(&format!(r#"<rect fill="{bg}" height="{}" opacity="0.30000" style="stroke:{border};stroke-width:0.5;" width="{}" x="{}" y="{}"/>"#, fmt_coord(track.height), fmt_coord(w), fmt_coord(x_min), fmt_coord(track.y)));
-        sg.push_raw("\n");
-    }
+    // Participant name label first (matches Java rendering order)
     let label_x = track
         .segments
         .first()
@@ -144,6 +130,23 @@ fn render_track(
         &format!(r#"font-size="{:.0}" font-weight="700""#, name_fs),
     );
     sg.push_raw(&tmp);
+    // Track background rect
+    if !track.segments.is_empty() {
+        let x_min = track
+            .segments
+            .iter()
+            .map(|s| s.x_start)
+            .fold(f64::INFINITY, f64::min);
+        let x_max = track
+            .segments
+            .iter()
+            .map(|s| s.x_end)
+            .fold(f64::NEG_INFINITY, f64::max);
+        let w = (x_max - x_min).max(0.0);
+        sg.push_raw(&format!(r#"<rect fill="{bg}" height="{}" opacity="0.30000" style="stroke:{border};stroke-width:0.5;" width="{}" x="{}" y="{}"/>"#, fmt_coord(track.height), fmt_coord(w), fmt_coord(x_min), fmt_coord(track.y)));
+        sg.push_raw("\n");
+    }
+    // Segments (signal lines and transitions)
     for (i, seg) in track.segments.iter().enumerate() {
         render_segment(sg, seg, i, &track.segments, state_fs);
     }
