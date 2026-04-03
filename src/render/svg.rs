@@ -2099,9 +2099,17 @@ fn render_class(
         }
     }
 
-    // Notes
-    for note in &layout.notes {
+    // Notes — Java wraps each note in <g class="entity" data-qualified-name="GMN{i}">
+    // Java note IDs start after all entities: entity count + 1 (0-indexed quark offset)
+    let note_id_base = cd.entities.len() + 1; // +1 because Java quark numbering
+    for (ni, note) in layout.notes.iter().enumerate() {
+        let note_qname = format!("GMN{}", note_id_base + ni);
+        sg.push_raw(&format!(
+            "<g class=\"entity\" data-qualified-name=\"{note_qname}\" id=\"ent{:04}\">",
+            cd.entities.len() + ni
+        ));
         draw_class_note(&mut sg, &mut tracker, note);
+        sg.push_raw("</g>");
     }
 
     // Canvas size calculation depends on diagram complexity.
