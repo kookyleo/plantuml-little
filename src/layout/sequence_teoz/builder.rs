@@ -140,6 +140,9 @@ enum TeozTile {
         bidirectional: bool,
         /// Short gate arrow (?->) vs full boundary ([->)
         is_short_gate: bool,
+        /// For short gates from left (from=[): true if Java FROM_RIGHT
+        /// (reversed direction, no positioning constraint).
+        gate_right_border: bool,
         /// Per-message arrow color override
         color: Option<String>,
     },
@@ -1186,11 +1189,28 @@ pub fn build_teoz_layout(sd: &SequenceDiagram, skin: &SkinParams) -> Result<SeqL
                     } else {
                         active_levels.get(&msg.from).copied().unwrap_or(0)
                     };
-                    let tl = if is_boundary_to {
+                    let mut tl = if is_boundary_to {
                         0
                     } else {
                         active_levels.get(&msg.to).copied().unwrap_or(0)
                     };
+                    // Java CommunicationExoTile.getLevelAt(IGNORE_FUTURE_DEACTIVATE)
+                    // includes the inline activation from the message's own `++`.
+                    // Look ahead for inline Activate on the same participant.
+                    let real_participant = if is_boundary_from {
+                        &msg.to
+                    } else {
+                        &msg.from
+                    };
+                    if event_idx + 1 < sd.events.len()
+                        && sd.inline_life_events.contains(&(event_idx + 1))
+                    {
+                        if let SeqEvent::Activate(name, _) = &sd.events[event_idx + 1] {
+                            if name == real_participant {
+                                tl += 1;
+                            }
+                        }
+                    }
                     tiles.push(TeozTile::Communication {
                         from_name: msg.from.clone(),
                         to_name: msg.to.clone(),
@@ -1217,6 +1237,11 @@ pub fn build_teoz_layout(sd: &SequenceDiagram, skin: &SkinParams) -> Result<SeqL
                         hidden: msg.hidden,
                         bidirectional: msg.bidirectional,
                         is_short_gate: msg.is_short_gate,
+                        // Java FROM_RIGHT for short gate: when from=[ and
+                        // the original direction was RTL (arrow points left).
+                        gate_right_border: is_boundary_from
+                            && msg.is_short_gate
+                            && msg.direction == SeqDirection::RightToLeft,
                         color: msg.color.clone(),
                     });
                     continue;
@@ -1349,6 +1374,7 @@ pub fn build_teoz_layout(sd: &SequenceDiagram, skin: &SkinParams) -> Result<SeqL
                         hidden: msg.hidden,
                         bidirectional: msg.bidirectional,
                         is_short_gate: msg.is_short_gate,
+                        gate_right_border: false,
                         color: msg.color.clone(),
                     });
                 }
@@ -1554,16 +1580,19 @@ pub fn build_teoz_layout(sd: &SequenceDiagram, skin: &SkinParams) -> Result<SeqL
                 to_center,
                 from_level,
                 to_level,
+                gate_right_border,
                 ..
             } => {
-                if from_name == "[" {
+                if from_name == "[" && !*gate_right_border {
                     // Left-border messages: Java CommunicationExoTile.addConstraints()
-                    // posC >= xOrigin + arrowWidth
+                    // posC >= xOrigin + arrowWidth.
+                    // Except for short gate FROM_RIGHT (gate_right_border=true)
+                    // where isRightBorder()=true and no constraint is added.
                     let arrow_tm = TextMetrics::new(7.0, 7.0, 1.0, *text_width, tp.msg_line_height);
                     let arrow_w = rose::arrow_preferred_size(&arrow_tm, 0.0, 0.0).width;
                     rl.ensure_bigger_than_with_margin(*to_center, xorigin, arrow_w);
-                } else if to_name == "]" {
-                    // Right-border messages: no constraint in Java
+                } else if to_name == "]" || *gate_right_border {
+                    // Right-border messages (incl. short gate FROM_RIGHT): no constraint
                 } else {
                     let fi = *from_idx;
                     let ti = *to_idx;
@@ -2162,8 +2191,82 @@ pub fn build_teoz_layout(sd: &SequenceDiagram, skin: &SkinParams) -> Result<SeqL
                         }
                     }
                 }
-                TeozTile::NoteOver { .. } => {}
-                TeozTile::Communication { is_short_gate: true, .. } => {}
+                TeozTile::NoteOver {
+                    participants,
+                    width,
+                    ..
+                } => {
+                    // Java NoteTile.getMinX/getMaxX for OVER and OVER_SEVERAL
+                    // positions contribute to PlayingSpace extent.
+                    let preferred_w = *width + NOTE_EXTENT_PADDING + sd.delta_shadow;
+                    if participants.len() >= 2 {
+                        // OVER_SEVERAL: usedWidth = max(preferred, posD[last] - posB[first])
+                        let idx0 = name_to_idx.get(&participants[0]).copied().unwrap_or(0);
+                        let idx1 = name_to_idx
+                            .get(participants.last().unwrap())
+                            .copied()
+                            .unwrap_or(0);
+                        let pos_b_first = rl.get_value(livings[idx0].pos_b);
+                        let pos_d_last = rl.get_value(livings[idx1].pos_d);
+                        let span = pos_d_last - pos_b_first;
+                        let used_w = preferred_w.max(span);
+                        let cx1 = rl.get_value(livings[idx0].pos_c);
+                        let cx2 = rl.get_value(livings[idx1].pos_c);
+                        let mid = (cx1 + cx2) / 2.0;
+                        let note_x = mid - used_w / 2.0;
+                        let note_min = note_x.min(pos_b_first);
+                        let note_max = (note_x + used_w).max(pos_d_last);
+                        if note_min < raw_min {
+                            raw_min = note_min;
+                        }
+                        if note_max > raw_max {
+                            raw_max = note_max;
+                        }
+                    } else if participants.len() == 1 {
+                        // OVER (single participant): centered on posC
+                        let idx0 = name_to_idx.get(&participants[0]).copied().unwrap_or(0);
+                        let cx = rl.get_value(livings[idx0].pos_c);
+                        let note_min = cx - preferred_w / 2.0;
+                        let note_max = cx + preferred_w / 2.0;
+                        if note_min < raw_min {
+                            raw_min = note_min;
+                        }
+                        if note_max > raw_max {
+                            raw_max = note_max;
+                        }
+                    }
+                }
+                TeozTile::Communication {
+                    is_short_gate: true,
+                    from_name,
+                    to_name,
+                    from_idx,
+                    to_idx,
+                    text_width: tw,
+                    ..
+                } => {
+                    // Short gate tiles contribute to extent via getMinX/getMaxX.
+                    // Java: short gate from left (from=[) → FROM_RIGHT
+                    //   minX = posC, maxX = posC + preferredWidth
+                    // Java: short gate to right (to=]) → FROM_LEFT
+                    //   minX = posC - preferredWidth, maxX = posC
+                    let arrow_span = *tw + 24.0;
+                    if from_name == "[" {
+                        let cx = rl.get_value(livings[*to_idx].pos_c);
+                        // FROM_RIGHT: extends to the right
+                        let right = cx + arrow_span;
+                        if right > raw_max {
+                            raw_max = right;
+                        }
+                    } else if to_name == "]" {
+                        let cx = rl.get_value(livings[*from_idx].pos_c);
+                        // FROM_LEFT: extends to the left
+                        let left = cx - arrow_span;
+                        if left < raw_min {
+                            raw_min = left;
+                        }
+                    }
+                }
                 _ => {}
             }
         }
@@ -2643,6 +2746,8 @@ pub fn build_teoz_layout(sd: &SequenceDiagram, skin: &SkinParams) -> Result<SeqL
                 // text_width + ARROW_DELTA_X(10) + 2*paddingY(7) + inset(2).
                 let is_gate_from = from_name == "[";
                 let is_gate_to = to_name == "]";
+                // TODO: Short gate FROM_RIGHT (gate_right_border) needs rendering
+                // fix: arrow should extend right with reversed direction.
 
                 let (from_x, to_x, is_left, text_delta_x) = if (is_gate_from || is_gate_to) && !*is_short_gate {
                     // Full boundary arrows ([->  ->]) extend to diagram edges.
