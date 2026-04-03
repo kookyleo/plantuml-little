@@ -648,7 +648,8 @@ mod tests {
         let layout = layout_gantt(&d).unwrap();
         let bar = &layout.bars[0];
         assert_eq!(bar.width, 5.0 * DAY_WIDTH * 2.0);
-        assert_eq!(bar.height, BAR_HEIGHT * 2.0);
+        // Java scale N only scales horizontal day width + font sizes, not vertical heights
+        assert_eq!(bar.height, BAR_HEIGHT);
         assert_eq!(layout.font_size, FONT_SIZE * 2.0);
     }
 
