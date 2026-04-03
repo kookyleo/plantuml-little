@@ -347,6 +347,11 @@ fn parse_svg_path_to_dotpath(d: &str) -> Option<crate::klimt::shape::DotPath> {
     parse_svg_path_to_dotpath_with_fn(d, &crate::svek::IdentityFunction)
 }
 
+/// Public: parse SVG path d-string into DotPath for cluster border clipping.
+pub fn parse_svg_path_d_to_dotpath(d: &str) -> Option<crate::klimt::shape::DotPath> {
+    parse_svg_path_to_dotpath_with_fn(d, &crate::svek::IdentityFunction)
+}
+
 /// Parse SVG path `d` attribute into a DotPath, applying a coordinate transform.
 /// Java: `SvgResult.toDotPath()` logic
 ///

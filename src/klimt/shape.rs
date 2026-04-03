@@ -610,6 +610,93 @@ impl DotPath {
         self.beziers.iter().all(|c| c.flatness_sq() <= 0.001)
     }
 
+    /// Clip path to cluster boundaries.  Java: `DotPath.simulateCompound`.
+    pub fn simulate_compound(
+        &self,
+        head: Option<&super::geom::RectangleArea>,
+        tail: Option<&super::geom::RectangleArea>,
+    ) -> DotPath {
+        let mut me = self.clone();
+        if let Some(tail_rect) = tail {
+            if tail_rect.contains_point(me.start_point()) {
+                let mut result: Vec<XCubicCurve2D> = Vec::new();
+                let mut idx = 0;
+                while idx + 1 < me.beziers.len()
+                    && tail_rect.contains_point(me.beziers[idx].p2())
+                {
+                    idx += 1;
+                }
+                if !tail_rect.contains_point(me.beziers[idx].p2()) {
+                    let mut cur = me.beziers[idx].clone();
+                    for _ in 0..8 {
+                        let mut p1 = XCubicCurve2D::none();
+                        let mut p2 = XCubicCurve2D::none();
+                        cur.subdivide(&mut p1, &mut p2);
+                        if tail_rect.contains_point(p1.p2()) {
+                            cur = p2;
+                        } else {
+                            result.insert(0, p2);
+                            cur = p1;
+                        }
+                    }
+                    for i in (idx + 1)..me.beziers.len() {
+                        result.push(me.beziers[i].clone());
+                    }
+                    me = DotPath::from_beziers(result);
+                }
+            }
+        }
+        if let Some(head_rect) = head {
+            if head_rect.contains_point(me.end_point()) {
+                let mut result: Vec<XCubicCurve2D> = Vec::new();
+                for current in &me.beziers {
+                    if !head_rect.contains_point(current.p2()) {
+                        result.push(current.clone());
+                    } else {
+                        if head_rect.contains_point(current.p1()) {
+                            return me;
+                        }
+                        let mut cur = current.clone();
+                        for _ in 0..8 {
+                            let mut p1 = XCubicCurve2D::none();
+                            let mut p2 = XCubicCurve2D::none();
+                            cur.subdivide(&mut p1, &mut p2);
+                            if head_rect.contains_point(p1.p2()) {
+                                cur = p1;
+                            } else {
+                                result.push(p1);
+                                cur = p2;
+                            }
+                        }
+                        return DotPath::from_beziers(result);
+                    }
+                }
+            }
+        }
+        me
+    }
+
+    /// Convert to SVG path d-string with comma-separated fmt_coord values.
+    pub fn to_svg_d(&self) -> String {
+        use super::svg::fmt_coord;
+        use std::fmt::Write;
+        let mut d = String::new();
+        for (i, c) in self.beziers.iter().enumerate() {
+            if i == 0 {
+                write!(d, "M{},{}", fmt_coord(c.x1), fmt_coord(c.y1)).unwrap();
+            }
+            write!(
+                d,
+                " C{},{} {},{} {},{}",
+                fmt_coord(c.ctrlx1), fmt_coord(c.ctrly1),
+                fmt_coord(c.ctrlx2), fmt_coord(c.ctrly2),
+                fmt_coord(c.x2), fmt_coord(c.y2),
+            )
+            .unwrap();
+        }
+        d
+    }
+
     /// Compute the bounding box over all bezier control points.
     /// Java: `DotPath.getMinMax()` — uses all four points of each cubic.
     pub fn min_max(&self) -> Option<(f64, f64, f64, f64)> {

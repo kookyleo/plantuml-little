@@ -75,6 +75,9 @@ pub struct TransitionLayout {
     pub label_wh: Option<(f64, f64)>,
     /// Source line (0-based) for data-source-line attribute.
     pub source_line: Option<usize>,
+    /// True for transitions from inner graphviz solve (non-cluster composite).
+    /// Rendered inline after their parent composite, matching Java order.
+    pub is_inner: bool,
 }
 
 /// A positioned note.
@@ -1409,6 +1412,7 @@ fn layout_children_with_graphviz(
             label_xy,
             label_wh: gv_edge.label_wh,
             source_line,
+            is_inner: true,
         });
     }
 
@@ -1570,6 +1574,7 @@ fn layout_transitions(
             label_xy: None,
             label_wh: None,
             source_line: tr.source_line,
+            is_inner: false,
         });
     }
 
@@ -2319,13 +2324,13 @@ pub fn layout_state(diagram: &StateDiagram) -> Result<StateLayout> {
         };
 
         // Shift points by MARGIN (x) and margin_y (y) to match state positions
-        let points: Vec<(f64, f64)> = gv_edge
+        let mut points: Vec<(f64, f64)> = gv_edge
             .points
             .iter()
             .map(|&(x, y)| (x + margin_x, y + margin_y))
             .collect();
 
-        let raw_path_d = gv_edge
+        let mut raw_path_d = gv_edge
             .raw_path_d
             .as_ref()
             .map(|d| graphviz::transform_path_d(d, margin_x, margin_y));
@@ -2335,6 +2340,48 @@ pub fn layout_state(diagram: &StateDiagram) -> Result<StateLayout> {
                 .map(|&(x, y)| (x + margin_x, y + margin_y))
                 .collect()
         });
+
+        // simulateCompound: clip edge paths at cluster borders (Java DotPath.simulateCompound).
+        // Edges routed through zaent special points start/end inside the cluster.
+        // Java clips them to the cluster border for visual correctness.
+        {
+            let tail_rect = if cluster_composite_ids.contains(&from_id) {
+                gv_layout.clusters.iter().find(|c| c.qualified_name == from_id).map(|cl| {
+                    crate::klimt::geom::RectangleArea::new(
+                        cl.x + margin_x, cl.y + margin_y,
+                        cl.x + margin_x + cl.width, cl.y + margin_y + cl.height,
+                    )
+                })
+            } else { None };
+            let head_rect = if cluster_composite_ids.contains(&to_id) {
+                gv_layout.clusters.iter().find(|c| c.qualified_name == to_id).map(|cl| {
+                    crate::klimt::geom::RectangleArea::new(
+                        cl.x + margin_x, cl.y + margin_y,
+                        cl.x + margin_x + cl.width, cl.y + margin_y + cl.height,
+                    )
+                })
+            } else { None };
+            if tail_rect.is_some() || head_rect.is_some() {
+                if let Some(ref d) = raw_path_d {
+                    if let Some(dot_path) = crate::svek::svg_result::parse_svg_path_d_to_dotpath(d) {
+                        let clipped = dot_path.simulate_compound(
+                            head_rect.as_ref(), tail_rect.as_ref(),
+                        );
+                        if !clipped.beziers.is_empty() {
+                            raw_path_d = Some(clipped.to_svg_d());
+                            let mut new_pts = Vec::new();
+                            for (bi, bez) in clipped.beziers.iter().enumerate() {
+                                if bi == 0 { new_pts.push((bez.x1, bez.y1)); }
+                                new_pts.push((bez.ctrlx1, bez.ctrly1));
+                                new_pts.push((bez.ctrlx2, bez.ctrly2));
+                                new_pts.push((bez.x2, bez.y2));
+                            }
+                            points = new_pts;
+                        }
+                    }
+                }
+            }
+        }
 
         // label_xy from GraphLayout is pre-moveDelta, pre-normalization.
         // Apply moveDelta + normalization + MARGIN to match path/node coords.
@@ -2362,6 +2409,7 @@ pub fn layout_state(diagram: &StateDiagram) -> Result<StateLayout> {
             label_xy,
             label_wh,
             source_line,
+            is_inner: false,
         };
         if !layout.points.is_empty() || layout.raw_path_d.is_some() {
             visible_transition_keys.insert(transition_layout_key(&layout));

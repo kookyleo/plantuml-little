@@ -263,12 +263,15 @@ pub fn render_state(
             ent_id_map,
         );
 
-        // Render internal transitions (both endpoints are children of this composite)
+        // Render inner-solve transitions inline (non-cluster composites).
+        // Cluster-composite transitions are in the main list without is_inner
+        // and rendered at the end, matching Java's rendering order.
         if state.is_composite {
             let mut child_ids = HashSet::new();
             collect_child_ids(state, &mut child_ids);
             for (ti, transition) in layout.transition_layouts.iter().enumerate() {
                 if !rendered_transitions.contains(&ti)
+                    && transition.is_inner
                     && child_ids.contains(&transition.from_id)
                     && child_ids.contains(&transition.to_id)
                 {
