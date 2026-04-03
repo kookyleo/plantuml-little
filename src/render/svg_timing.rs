@@ -53,6 +53,7 @@ fn render_timing_inner(layout: &TimingLayout, skin: &SkinParams) -> Result<Strin
     // Only timing-specific skinparam overrides apply.
     let timing_font = skin.get("timingfontcolor")
         .or_else(|| skin.get("timing.fontcolor"))
+        .or_else(|| skin.get("defaultfontcolor"))
         .unwrap_or(TIMING_FONT_COLOR);
     let arrow_font = skin.font_color("arrow", timing_font);
     let constraint_color = skin.font_color("constraint", CONSTRAINT_COLOR);
