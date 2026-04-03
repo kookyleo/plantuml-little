@@ -3289,13 +3289,14 @@ mod tests {
         let layout = layout_sequence(&sd, &crate::style::SkinParams::default()).unwrap();
 
         let note = &layout.notes[0];
-        let note_right = note.x + note.width + MARGIN;
-        // total_width must be at least as large as note_right
+        // Java truncates note.x via (int) before computing viewport contribution
+        let note_right_truncated = (note.x as i64 as f64) + note.width + MARGIN;
+        // total_width must be at least as large as the truncated note_right
         assert!(
-            layout.total_width >= note_right - 0.01,
+            layout.total_width >= note_right_truncated - 0.01,
             "total_width {:.1} should be >= note_right {:.1}",
             layout.total_width,
-            note_right
+            note_right_truncated
         );
 
         // Also verify it's wider than participant-only width
