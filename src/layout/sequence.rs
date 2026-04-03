@@ -2343,7 +2343,11 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
                 (note.x - NOTE_COMPONENT_PADDING_X) + note.layout_width + NOTE_COMPONENT_PADDING_X + MARGIN
             }
         } else {
-            note.x + note.width + MARGIN
+            // Java NoteBox.getMaxX = (int)(pos2) + preferredWidth, where the int
+            // truncation drops the fractional centerX.  Our note.x preserves the
+            // fraction (px + ACTIVATION_WIDTH), so truncate here to match Java's
+            // viewport contribution.  Add MARGIN for the document right margin.
+            (note.x as i64 as f64) + note.width + MARGIN
         };
         if note_right > total_width {
             log::debug!(
