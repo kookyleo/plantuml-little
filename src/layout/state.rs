@@ -693,6 +693,7 @@ fn compute_state_node(
                     transitions,
                     initial_ids,
                     final_ids,
+                    false,
                 );
                 offset_children(&mut child_layouts, 0.0, region_y);
                 for tr in &mut inner_tr {
@@ -711,11 +712,13 @@ fn compute_state_node(
             }
             total_child_h = region_y;
         } else {
+            let parent_has_pins = state_has_direct_pin_child(state);
             let (child_layouts, inner_tr, child_w, child_h) = layout_children_with_graphviz(
                 &state.children,
                 transitions,
                 initial_ids,
                 final_ids,
+                parent_has_pins,
             );
             total_child_w = child_w;
             total_child_h = child_h;
@@ -1246,6 +1249,7 @@ fn layout_children_with_graphviz(
     transitions: &[Transition],
     initial_ids: &HashSet<String>,
     final_ids: &HashSet<String>,
+    parent_has_direct_pins: bool,
 ) -> (Vec<StateNodeLayout>, Vec<TransitionLayout>, f64, f64) {
     if states.is_empty() {
         return (Vec::new(), Vec::new(), 0.0, 0.0);
@@ -1263,6 +1267,7 @@ fn layout_children_with_graphviz(
         h: f64,
         gv_nodes: &mut Vec<LayoutNode>,
         node_id_order: &mut Vec<String>,
+        use_port_labels: bool,
     ) {
         let is_input_pin = state.stereotype.as_deref() == Some("inputPin");
         let is_output_pin = state.stereotype.as_deref() == Some("outputPin");
@@ -1294,6 +1299,15 @@ fn layout_children_with_graphviz(
         } else {
             None
         };
+        // Port label width is used by the LimitFinder to track pin name text
+        // extent. When the parent has direct pin children and inner clusters are
+        // disabled, compute_state_node's pin_bonus already accounts for rank
+        // spacing; tracking port labels would over-extend the bounding box.
+        let plw = if is_pin && use_port_labels {
+            Some(text_width(&state.name, STATE_NAME_FONT_SIZE))
+        } else {
+            None
+        };
         gv_nodes.push(LayoutNode {
             id: state.id.clone(),
             label: state.name.clone(),
@@ -1303,11 +1317,7 @@ fn layout_children_with_graphviz(
             shield: None,
             entity_position: entity_pos,
             max_label_width: None,
-            port_label_width: if is_pin {
-                Some(text_width(&state.name, STATE_NAME_FONT_SIZE))
-            } else {
-                None
-            },
+            port_label_width: plw,
             order: Some(node_id_order.len()),
             image_width_pt: None,
             lf_extra_left: 0.0,
@@ -1328,20 +1338,23 @@ fn layout_children_with_graphviz(
     }
 
     // Java's inner state solve exports child groups into the same DOT graph.
-    // For the remaining failing SCXML cases, the important subset is direct
-    // child composites with pin children and no cross-boundary links: those
-    // must be rendered as real clusters in the parent's inner solve rather
-    // than as pre-sized standalone nodes.
+    // For composites without direct pin children, child composites with pins
+    // are rendered as real DOT clusters in the parent's inner solve. When the
+    // parent itself has direct pin children, the pre-sized standalone approach
+    // is used instead, because compute_state_node's pin_bonus already accounts
+    // for the rank separation and inner clusters would produce different spacing.
     let mut cluster_child_ids: HashSet<String> = HashSet::new();
     let mut cluster_descendant_ids: HashMap<String, HashSet<String>> = HashMap::new();
-    for state in states {
-        if !qualifies_for_inner_pin_cluster(state, transitions) {
-            continue;
+    if !parent_has_direct_pins {
+        for state in states {
+            if !qualifies_for_inner_pin_cluster(state, transitions) {
+                continue;
+            }
+            let mut descendant_ids = HashSet::new();
+            collect_state_descendant_ids(state, &mut descendant_ids);
+            cluster_child_ids.insert(state.id.clone());
+            cluster_descendant_ids.insert(state.id.clone(), descendant_ids);
         }
-        let mut descendant_ids = HashSet::new();
-        collect_state_descendant_ids(state, &mut descendant_ids);
-        cluster_child_ids.insert(state.id.clone());
-        cluster_descendant_ids.insert(state.id.clone(), descendant_ids);
     }
 
     // Build graphviz nodes and inner cluster specs.
@@ -1365,7 +1378,7 @@ fn layout_children_with_graphviz(
                 ) {
                     has_pins = true;
                 }
-                push_state_gv_node(child, w, h, &mut gv_nodes, &mut node_id_order);
+                push_state_gv_node(child, w, h, &mut gv_nodes, &mut node_id_order, true);
                 node_ids.push(child.id.clone());
                 graph_node_ids.insert(child.id.clone());
             }
@@ -1397,7 +1410,7 @@ fn layout_children_with_graphviz(
         ) {
             has_pins = true;
         }
-        push_state_gv_node(state, *w, *h, &mut gv_nodes, &mut node_id_order);
+        push_state_gv_node(state, *w, *h, &mut gv_nodes, &mut node_id_order, !parent_has_direct_pins);
         graph_node_ids.insert(state.id.clone());
     }
 
@@ -1930,7 +1943,6 @@ pub fn layout_state(diagram: &StateDiagram) -> Result<StateLayout> {
             continue;
         }
         let child_ids = composite_child_ids.get(&state.id).unwrap();
-        let has_direct_pin_child = state_has_direct_pin_child(state);
         let has_cross_child_link = diagram.transitions.iter().any(|tr| {
             // External node → child inside composite (not the composite itself)
             let ext_to_child = !child_ids.contains(&tr.from)
@@ -1941,12 +1953,10 @@ pub fn layout_state(diagram: &StateDiagram) -> Result<StateLayout> {
                 && child_ids.contains(&tr.from);
             ext_to_child || ext_from_child
         });
-        if has_direct_pin_child || has_cross_child_link {
+        if has_cross_child_link {
             log::debug!(
-                "  composite '{}' has direct pins={} cross-child-links={} → cluster model",
+                "  composite '{}' has cross-child-links → cluster model",
                 state.id,
-                has_direct_pin_child,
-                has_cross_child_link
             );
             cluster_composite_ids.insert(state.id.clone());
         }
