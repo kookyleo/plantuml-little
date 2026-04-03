@@ -841,22 +841,21 @@ pub fn layout_with_svek(graph: &LayoutGraph) -> Result<GraphLayout, Error> {
     // to handle ellipse nodes where graphviz rounds rx/ry.
     // Keep max using cx+width/2 to preserve the original entity dimensions
     // for total_width/total_height calculation.
-    let min_x_nodes = nodes_out
-        .iter()
-        .map(|n| n.min_x)
-        .fold(f64::INFINITY, f64::min);
-    let min_y_nodes = nodes_out
-        .iter()
-        .map(|n| n.min_y)
-        .fold(f64::INFINITY, f64::min);
-    let max_x_nodes = nodes_out
-        .iter()
-        .map(|n| n.cx + n.width / 2.0)
-        .fold(f64::NEG_INFINITY, f64::max);
-    let max_y_nodes = nodes_out
-        .iter()
-        .map(|n| n.cy + n.height / 2.0)
-        .fold(f64::NEG_INFINITY, f64::max);
+    // Exclude hidden nodes (zaent special points) from bounding box
+    let visible_nodes = nodes_out.iter().enumerate().filter(|(i, _)| {
+        *i < graph.nodes.len() || !svek_nodes.get(*i).map_or(false, |sn| sn.hidden)
+    });
+    let (min_x_nodes, min_y_nodes, max_x_nodes, max_y_nodes) = visible_nodes.fold(
+        (f64::INFINITY, f64::INFINITY, f64::NEG_INFINITY, f64::NEG_INFINITY),
+        |(min_x, min_y, max_x, max_y), (_, n)| {
+            (
+                min_x.min(n.min_x),
+                min_y.min(n.min_y),
+                max_x.max(n.cx + n.width / 2.0),
+                max_y.max(n.cy + n.height / 2.0),
+            )
+        },
+    );
     let min_x_clusters = clusters_out
         .iter()
         .map(|c| c.x)

@@ -2073,6 +2073,10 @@ pub fn layout_state(diagram: &StateDiagram) -> Result<StateLayout> {
             standalone_note_positions.insert(gv_node.id.clone(), (x, y, gv_node.width, gv_node.height));
             continue;
         }
+        // Skip cluster-composite children: processed during cluster reconstruction
+        if all_cluster_child_ids.contains(&gv_node.id) {
+            continue;
+        }
         if let Some((template, _w, _h)) = sized_map.remove(&gv_node.id) {
             let x = gv_node.cx - gv_node.width / 2.0 + margin_x;
             let y = gv_node.cy - gv_node.height / 2.0 + margin_y;

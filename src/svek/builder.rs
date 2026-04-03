@@ -466,26 +466,28 @@ impl GraphvizImageBuilder {
             bib.add_cluster(cluster);
         }
 
-        let mut top_level_items: Vec<(usize, usize, TopLevelDotItem)> = Vec::new();
+        // nodes-before-clusters: see Java printCluster2()
+        let mut top_level_items: Vec<(usize, usize, usize, TopLevelDotItem)> = Vec::new();
         for (idx, ent) in self.entities.iter().enumerate() {
             if ent.removed || ent.cluster_id.is_some() {
                 continue;
             }
             if let Some(order) = ent.order {
-                top_level_items.push((order, idx, TopLevelDotItem::Node(ent.id.clone())));
+                top_level_items.push((0, order, idx, TopLevelDotItem::Node(ent.id.clone())));
             }
         }
         let cluster_base = self.entities.len();
         for (idx, cluster) in self.clusters.iter().enumerate() {
             if let Some(order) = cluster.order {
                 top_level_items.push((
+                    1,
                     order,
                     cluster_base + idx,
                     TopLevelDotItem::Cluster(cluster.id.clone()),
                 ));
             }
         }
-        top_level_items.sort_by_key(|(order, idx, _)| (*order, *idx));
+        top_level_items.sort_by_key(|(type_prio, order, idx, _)| (*type_prio, *order, *idx));
 
         // Build the factory and generate DOT
         let mut factory = DotStringFactory::new(bib)
@@ -495,7 +497,7 @@ impl GraphvizImageBuilder {
             .with_top_level_items(
                 top_level_items
                     .into_iter()
-                    .map(|(_, _, item)| item)
+                    .map(|(_, _, _, item)| item)
                     .collect(),
             );
 
