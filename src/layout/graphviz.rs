@@ -204,6 +204,8 @@ pub struct ClassNoteLayout {
     pub connector: Option<(f64, f64, f64, f64)>,
     /// Pre-rendered embedded diagram (`{{ }}` block) data.
     pub embedded: Option<crate::layout::component::EmbeddedDiagramData>,
+    /// Note position relative to target entity (left, right, top, bottom).
+    pub position: String,
 }
 
 /// Output: cluster/package bounds after Graphviz layout.

@@ -86,6 +86,7 @@ const HEADER_STEREO_LINE_HEIGHT: f64 = 13.96875;
 const HEADER_STEREO_BASELINE: f64 = 11.138672;
 /// HeaderLayout.java:77 — max(..., stereoDim.h + nameDim.h + 10, ...) → gap = 10.
 const HEADER_STEREO_NAME_GAP: f64 = 10.0;
+const HEADER_STEREO_BLOCK_MARGIN: f64 = 2.0;
 
 // ── Member area (fields/methods) constants ──────────────────────────
 //
@@ -137,6 +138,7 @@ use crate::skin::rose::{
     BORDER_COLOR, DIVIDER_COLOR, ENTITY_BG, LEGEND_BG, LEGEND_BORDER, NOTE_BG, NOTE_BORDER,
     NOTE_FOLD, NOTE_PADDING as NOTE_TEXT_PADDING, TEXT_COLOR,
 };
+const CLASS_NOTE_FOLD: f64 = 10.0;
 const LINK_COLOR: &str = BORDER_COLOR;
 /// Java PlantUML renders link labels at font-size 13 (not 14).
 const LINK_LABEL_FONT_SIZE: f64 = 13.0;
@@ -2831,7 +2833,7 @@ fn draw_entity_box(
                 )
             })
             .collect();
-        let stereo_block_width = stereo_widths.iter().copied().fold(0.0_f64, f64::max);
+        let stereo_block_width = stereo_widths.iter().copied().fold(0.0_f64, f64::max) + HEADER_STEREO_BLOCK_MARGIN;
         let width_stereo_and_name = name_block_width.max(stereo_block_width);
         let stereo_height = visible_stereotypes.len() as f64 * HEADER_STEREO_LINE_HEIGHT;
         let header_height = HEADER_CIRCLE_BLOCK_HEIGHT
@@ -4934,7 +4936,8 @@ fn draw_class_note(sg: &mut SvgGraphic, tracker: &mut BoundsTracker, note: &Clas
     let h = note.height;
 
     // body shape (use polygon instead of rect to clip the top-right fold area)
-    let fold = NOTE_FOLD;
+    let is_opale = matches!(note.position.as_str(), "left" | "right");
+    let fold = if is_opale { CLASS_NOTE_FOLD } else { NOTE_FOLD };
     // pentagon path: top-left -> top-right(minus fold) -> fold inner corner -> bottom-right -> bottom-left
     let note_poly = [
         (x, y),
@@ -4961,7 +4964,7 @@ fn draw_class_note(sg: &mut SvgGraphic, tracker: &mut BoundsTracker, note: &Clas
             note_poly[4].1,
         ],
     );
-    tracker.track_polygon(&note_poly);
+    if is_opale { let pmin_x = note_poly.iter().map(|p| p.0).fold(f64::INFINITY, f64::min); let pmax_x = note_poly.iter().map(|p| p.0).fold(f64::NEG_INFINITY, f64::max); let pmin_y = note_poly.iter().map(|p| p.1).fold(f64::INFINITY, f64::min); let pmax_y = note_poly.iter().map(|p| p.1).fold(f64::NEG_INFINITY, f64::max); tracker.track_path_bounds(pmin_x, pmin_y, pmax_x, pmax_y); } else { tracker.track_polygon(&note_poly); }
 
     // fold corner triangle
     {
@@ -5799,6 +5802,7 @@ mod tests {
                 lines: vec!["test note".into()],
                 connector: Some((180.0, 50.0, 160.0, 50.0)),
                 embedded: None,
+                position: "left".into(),
             }],
             clusters: vec![],
             total_width: 300.0,
@@ -5850,6 +5854,7 @@ mod tests {
                 lines: vec!["floating".into()],
                 connector: None,
                 embedded: None,
+                position: "left".into(),
             }],
             clusters: vec![],
             total_width: 100.0,
