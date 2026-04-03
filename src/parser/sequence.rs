@@ -603,15 +603,17 @@ pub fn parse_sequence_diagram_with_original(
                 msg.source_line = Some(source_line);
                 msg.parallel = is_parallel;
                 msg.is_short_gate = true;
-                // For RTL arrows (A <-o?), the gate is on the LEFT side.
-                // parse_arrow gives from=A, to=] due to has_right_boundary.
-                // Correct this to from=[, to=A so the gate side is right.
+                // For RTL arrows (A <-o?), the gate is on the RIGHT side
+                // of participant A. parse_arrow gives from=A, to=]
+                // (right boundary) with RightToLeft direction.
+                // Convert to from=[, to=A so the layout sees is_gate_from=true,
+                // and gate_right_border=true handles the reversed direction.
+                // Do NOT swap circle/cross: they are already correct from
+                // parse_arrow's direction-based mapping — circle_from means
+                // circle on the original "from" (which becomes the gate side).
                 if msg.direction == SeqDirection::RightToLeft {
                     msg.from = "[".to_string();
                     msg.to = left.to_string();
-                    // Swap circle/cross decorators to match swapped from/to
-                    std::mem::swap(&mut msg.circle_from, &mut msg.circle_to);
-                    std::mem::swap(&mut msg.cross_from, &mut msg.cross_to);
                 }
                 debug!("parsed gate-right message: {} ->? : {}", msg.from, msg.text);
                 // The real participant is whichever is not [ or ]

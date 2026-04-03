@@ -2727,6 +2727,7 @@ pub fn build_teoz_layout(sd: &SequenceDiagram, skin: &SkinParams) -> Result<SeqL
                 hidden,
                 bidirectional,
                 is_short_gate,
+                gate_right_border,
                 color,
                 ..
             } => {
@@ -2746,8 +2747,6 @@ pub fn build_teoz_layout(sd: &SequenceDiagram, skin: &SkinParams) -> Result<SeqL
                 // text_width + ARROW_DELTA_X(10) + 2*paddingY(7) + inset(2).
                 let is_gate_from = from_name == "[";
                 let is_gate_to = to_name == "]";
-                // TODO: Short gate FROM_RIGHT (gate_right_border) needs rendering
-                // fix: arrow should extend right with reversed direction.
 
                 let (from_x, to_x, is_left, text_delta_x) = if (is_gate_from || is_gate_to) && !*is_short_gate {
                     // Full boundary arrows ([->  ->]) extend to diagram edges.
@@ -2802,7 +2801,19 @@ pub fn build_teoz_layout(sd: &SequenceDiagram, skin: &SkinParams) -> Result<SeqL
                     // Short gate arrows (?-> ->?) use text-width-based span,
                     // NOT extending to diagram edges.
                     let arrow_span = text_width + 24.0;
-                    if is_gate_to {
+                    if *gate_right_border {
+                        // Java FROM_RIGHT: gate extends to the RIGHT of participant.
+                        // The real participant is "to" (after parser swap).
+                        // Java CommunicationExoTile drawU():
+                        //   x1 = posC + LIVE_DELTA_SIZE * level
+                        //   x2 = posC + preferredWidth
+                        //   if decoration1==CIRCLE && FROM_RIGHT: x2 -= diamCircle/2 + 2
+                        const LIVE_DELTA: f64 = 5.0;
+                        let tx = raw_to_x + LIVE_DELTA * (*to_level as f64);
+                        let circle_adj = if *circle_from { 6.0 } else { 0.0 };
+                        let fx = raw_to_x + arrow_span - circle_adj;
+                        (fx, tx, true, 0.0)
+                    } else if is_gate_to {
                         let fx = raw_from_x;
                         let tx = fx + arrow_span;
                         (fx, tx, false, 0.0)
@@ -3105,14 +3116,14 @@ pub fn build_teoz_layout(sd: &SequenceDiagram, skin: &SkinParams) -> Result<SeqL
                     color: None,
                 });
             }
-            TeozTile::Divider { text, y, .. } => {
+            TeozTile::Divider { text, height, y } => {
                 let ty = y.unwrap_or(0.0);
                 dividers.push(DividerLayout {
                     y: ty,
                     x: total_min_x,
                     width: diagram_width,
                     text: text.clone(),
-                    height: 0.0,
+                    height: *height,
                     component_y: ty,
                 });
             }
