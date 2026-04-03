@@ -90,6 +90,9 @@ pub struct TimingNoteLayout {
 #[derive(Debug)]
 pub struct TimingTimeAxis {
     pub y: f64,
+    /// Regular-interval grid ticks (evenly spaced).
+    pub grid_ticks: Vec<TimingTick>,
+    /// Axis label ticks (only at state-change times).
     pub ticks: Vec<TimingTick>,
 }
 
@@ -267,9 +270,19 @@ pub fn layout_timing(td: &TimingDiagram, skin: &crate::style::SkinParams) -> Res
 
     // --- Time axis ---
     let axis_y = current_y;
-    let ticks = build_time_ticks(&all_times, &time_to_x);
 
-    let mut time_axis = TimingTimeAxis { y: axis_y, ticks };
+    // Grid ticks: evenly spaced at tick_interval from time_min to chart_time_max
+    let grid_ticks = build_grid_ticks(time_min, chart_time_max, tick_interval, &time_to_x);
+
+    // Label ticks: only at state-change times (the @N events)
+    let label_times: BTreeSet<i64> = td.state_changes.iter().map(|sc| sc.time).collect();
+    let label_ticks = build_time_ticks(&label_times.into_iter().collect::<Vec<_>>(), &time_to_x);
+
+    let mut time_axis = TimingTimeAxis {
+        y: axis_y,
+        grid_ticks,
+        ticks: label_ticks,
+    };
 
     // --- Chart border bounds ---
     let mut chart_left = MARGIN;
@@ -311,6 +324,9 @@ pub fn layout_timing(td: &TimingDiagram, skin: &crate::style::SkinParams) -> Res
             constraint.x_start += shift_x;
             constraint.x_end += shift_x;
             constraint.y += shift_y;
+        }
+        for tick in &mut time_axis.grid_ticks {
+            tick.x += shift_x;
         }
         for tick in &mut time_axis.ticks {
             tick.x += shift_x;
@@ -495,6 +511,26 @@ fn compute_tick_interval(time_span: f64) -> f64 {
     let mag = 10.0_f64.powf(time_span.log10().floor());
     let r = time_span / mag;
     if r <= 2.0 { mag / 5.0 } else if r <= 5.0 { mag / 2.0 } else { mag }
+}
+
+/// Build evenly-spaced grid ticks from time_min to chart_time_max at tick_interval.
+fn build_grid_ticks(
+    time_min: i64,
+    chart_time_max: i64,
+    tick_interval: f64,
+    time_to_x: &dyn Fn(i64) -> f64,
+) -> Vec<TimingTick> {
+    let mut ticks = Vec::new();
+    let mut t = time_min as f64;
+    while t <= chart_time_max as f64 + 0.5 {
+        let ti = t.round() as i64;
+        ticks.push(TimingTick {
+            x: time_to_x(ti),
+            label: ti.to_string(),
+        });
+        t += tick_interval;
+    }
+    ticks
 }
 
 /// Build tick marks for the time axis from the collected time points.

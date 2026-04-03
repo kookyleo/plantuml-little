@@ -1434,7 +1434,14 @@ fn render_node_text(
         let tl = font_metrics::text_width(&node.name, "SansSerif", FONT_SIZE, false, false);
         cx - tl / 2.0
     } else {
-        node.x + margin_left
+        // Java DriverTextSvg: leading spaces in text are stripped and converted
+        // to x-offset. Compute offset from the first line's leading whitespace.
+        let first_line = node.name.lines().next().unwrap_or(&node.name);
+        let trimmed = first_line.trim_start();
+        let leading_spaces = first_line.len() - trimmed.len();
+        let space_offset = leading_spaces as f64
+            * font_metrics::char_width(' ', "SansSerif", FONT_SIZE, false, false);
+        node.x + margin_left + space_offset
     };
     let tl = font_metrics::text_width(&node.name, "SansSerif", FONT_SIZE, false, false);
     let mut tmp = String::new();

@@ -85,7 +85,7 @@ fn render_chart_borders(sg: &mut SvgGraphic, layout: &TimingLayout) {
 fn render_tick_grid(sg: &mut SvgGraphic, layout: &TimingLayout) {
     let y_top = layout.chart_top;
     let y_bot = layout.time_axis.y;
-    for tick in &layout.time_axis.ticks {
+    for tick in &layout.time_axis.grid_ticks {
         sg.push_raw(&format!(
             "<line style=\"stroke:{GRID_LINE_COLOR};stroke-width:0.5;stroke-dasharray:3,5;\" x1=\"{}\" x2=\"{}\" y1=\"{}\" y2=\"{}\"/>",
             fmt_coord(tick.x), fmt_coord(tick.x),
@@ -305,15 +305,20 @@ fn render_constraint(sg: &mut SvgGraphic, c: &TimingConstraintLayout, cc: &str, 
 }
 
 fn render_time_axis(sg: &mut SvgGraphic, axis: &TimingTimeAxis, axis_fs: f64) {
-    if let (Some(first), Some(last)) = (axis.ticks.first(), axis.ticks.last()) {
+    // Axis horizontal line spans from first to last grid tick
+    if let (Some(first), Some(last)) = (axis.grid_ticks.first(), axis.grid_ticks.last()) {
         sg.set_stroke_color(Some(AXIS_LINE_COLOR));
         sg.set_stroke_width(0.5, None);
         sg.svg_line(first.x, axis.y, last.x, axis.y, 0.0);
     }
-    for tick in &axis.ticks {
+    // Tick marks at every grid position
+    for tick in &axis.grid_ticks {
         sg.set_stroke_color(Some(AXIS_LINE_COLOR));
         sg.set_stroke_width(0.5, None);
         sg.svg_line(tick.x, axis.y, tick.x, axis.y + 6.0, 0.0);
+    }
+    // Labels only at state-change event times
+    for tick in &axis.ticks {
         let ly = axis.y + 6.0 + axis_fs + 2.0;
         let mut tmp = String::new();
         render_creole_text(
@@ -391,6 +396,7 @@ mod tests {
             notes: vec![],
             time_axis: TimingTimeAxis {
                 y: 100.0,
+                grid_ticks: vec![],
                 ticks: vec![],
             },
             width: 400.0,
@@ -528,6 +534,14 @@ mod tests {
     #[test]
     fn test_time_axis() {
         let mut l = empty_layout();
+        l.time_axis.grid_ticks.push(TimingTick {
+            x: 200.0,
+            label: "0".into(),
+        });
+        l.time_axis.grid_ticks.push(TimingTick {
+            x: 350.0,
+            label: "100".into(),
+        });
         l.time_axis.ticks.push(TimingTick {
             x: 200.0,
             label: "0".into(),
@@ -557,7 +571,7 @@ mod tests {
     #[test]
     fn test_tick_grid() {
         let mut l = empty_layout();
-        l.time_axis.ticks.push(TimingTick {
+        l.time_axis.grid_ticks.push(TimingTick {
             x: 250.0,
             label: "50".into(),
         });
