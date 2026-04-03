@@ -707,7 +707,26 @@ fn compute_state_node(
                 0.0
             }
         };
-        let inner_height = inner_img_h + composite_height_overhead() + pin_bonus;
+        // When a composite has no direct pin children but contains child
+        // composites that themselves have pins, Java's cluster-based rank
+        // constraints propagate extra vertical space to the parent level.
+        // Approximate this with a per-child-pin-type bonus (only when the
+        // parent doesn't already have its own direct pin_bonus).
+        let nested_pin_bonus = if pin_bonus == 0.0 {
+            let mut bonus = 0.0;
+            for child in &state.children {
+                if !child.children.is_empty() || !child.regions.is_empty() {
+                    let child_has_input = child.children.iter().any(|c| c.stereotype.as_deref() == Some("inputPin"));
+                    let child_has_output = child.children.iter().any(|c| c.stereotype.as_deref() == Some("outputPin"));
+                    let child_pin_types = (child_has_input as u32) + (child_has_output as u32);
+                    bonus += child_pin_types as f64 * 16.0;
+                }
+            }
+            bonus
+        } else {
+            0.0
+        };
+        let inner_height = inner_img_h + composite_height_overhead() + pin_bonus + nested_pin_bonus;
 
         let name_w = text_width(&state.name, STATE_NAME_FONT_SIZE);
         let merged_w = inner_img_w.max(name_w);

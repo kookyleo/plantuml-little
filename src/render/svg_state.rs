@@ -706,7 +706,6 @@ fn render_composite(
     parent_name: Option<&str>,
 ) {
     let r = 12.5; // corner radius
-    let sep_y = node.y + 26.2969;
     let x = node.x;
     let y = node.y;
     let w = node.width;
@@ -715,6 +714,15 @@ fn render_composite(
         .children
         .iter()
         .any(|child| matches!(child.kind, StateKind::History | StateKind::DeepHistory));
+    // Java cluster rendering (with History children) uses a tighter header:
+    //   titreHeight = text.getHeight() + MARGIN_LINE = 16.2969 + 5 = 21.2969
+    // Non-cluster composites include the leading MARGIN:
+    //   titreHeight = MARGIN + text.getHeight() + MARGIN_LINE = 5 + 16.2969 + 5 = 26.2969
+    let sep_y = if render_as_cluster {
+        node.y + 21.2969
+    } else {
+        node.y + 26.2969
+    };
     let qname = match parent_name {
         Some(parent) => format!("{}.{}", parent, node.id),
         None => node.id.clone(),
@@ -771,8 +779,14 @@ fn render_composite(
     tracker.track_line(x, sep_y, x + w, sep_y);
 
     // 4. Composite state name text
+    // Java cluster: margin_top(4) + ascent(12.9951) = 16.9951
+    // Java non-cluster: IE_MARGIN(5) + ascent(12.9951) = 17.9951
     let name_x = x + (w - name_tl) / 2.0;
-    let name_y = y + 17.9951;
+    let name_y = if render_as_cluster {
+        y + 16.9951
+    } else {
+        y + 17.9951
+    };
     sg.set_fill_color(font_color);
     sg.svg_text(
         &node.name,
