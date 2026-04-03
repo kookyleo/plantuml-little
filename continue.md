@@ -2,25 +2,34 @@
 
 ## Current State (2026-04-03)
 
-- **Reference tests**: 281/296 passed (94.9%)
-- **Unit tests**: 2615/2615 (100%)
-- **Session gain**: +9 (from 272)
+- **Reference tests**: 290/296 passed (98.0%)
+- **Unit tests**: 2616/2616 (100%)
+- **Session gain**: +18 (from 272)
 
-## Remaining 15 failures
+## Remaining 6 failures (deep layout gaps)
 
-### Rendering structural:
-- TeozTimeline_0007 ×2: Note-message interleave order
-- TimingArrowFont ×2: Font color/family in track text
-- handwritten001: RNG polygon coordinates
-- deployment01: Node polygon y-offset from graphviz
+1. **SCXML0003** (1px height): State viewport bounding box rounding
+2. **TimingArrowFont_0001** / **_0002**: Timing robust track rect-band vs Java line-signal rendering
+3. **deployment01** (33px y-offset): Component Node polygon y from graphviz positioning
+4. **A0003** (7px height): Gantt weekly header structure
+5. **A0004** (183px width): Old-style activity needs graphviz horizontal branching
 
-### Layout:
-- SCXML0004 ×2: Pin cluster width 340→266
-- A0004: Activity width 213→396
-- A0003: Gantt height 149→156
-- SCXML0003: 1px viewport height
+## Key achievements this session
 
-### Precision:
-- svgFillColour: Sprite legend height 9px
-- testGradient: Lifeline height 0.8px
-- testPolyline: Lifeline height 0.6px
+### Engines implemented:
+- Activity sync bars + edge convergence routing
+- Timing skinparam fonts (5 per-element sizes)
+- Gantt scale (horizontal + fonts)
+- Teoz fragment backgrounds + LifeEvent extent
+- Class notes as graphviz nodes with Opale path rendering
+- Handwritten warning banner + wavy lifelines
+- State cluster simulateCompound edge clipping
+
+### Structural rendering fixes:
+- Node 3D polygon with fold lines
+- Timing chart borders + grid + participant name ordering
+- Gate circle direction + divider height
+- Creole underline/color NBSP text element splitting
+- Note entity `<g>` wrapper with GMN ID numbering
+- State composite separator y conditional on cluster type
+- SCXML nested pin bonus propagation
