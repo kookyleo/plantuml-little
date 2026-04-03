@@ -3597,33 +3597,51 @@ fn render_sequence_inner(
 
         // Draw notes associated with this message. Use explicit message
         // index association when available; fall back to y-range heuristic.
-        let next_msg_y = layout
-            .messages
-            .get(msg_seq_counter)
-            .map_or(f64::MAX, |m| m.y);
-        let note_back_threshold = if msg.is_self { 200.0 } else { 100.0 };
-        let mut has_note = false;
-        for (ni, note) in layout.notes.iter().enumerate() {
-            if drawn_notes.contains(&ni) {
-                continue;
-            }
-            let belongs = if let Some(assoc_idx) = note.assoc_message_idx {
-                assoc_idx == msg_idx
-            } else {
-                // Fallback: y-range heuristic for notes without explicit association
-                note.y >= msg.y - note_back_threshold && note.y < next_msg_y
+        // Defer notes when the next message is at the same y (parallel messages):
+        // Java renders all parallel messages first, then their notes.
+        let next_msg_y_val = layout.messages.get(msg_idx + 1).map(|m| m.y);
+        let same_y_next = next_msg_y_val.map_or(false, |ny| (ny - msg.y).abs() < 0.01);
+        if !same_y_next {
+            // Find the next message that is at a DIFFERENT y position (skip parallel siblings)
+            let effective_next_y = {
+                let mut next_y = f64::MAX;
+                for future in &layout.messages[msg_idx + 1..] {
+                    if (future.y - msg.y).abs() > 0.01 {
+                        next_y = future.y;
+                        break;
+                    }
+                }
+                next_y
             };
-            if belongs {
-                draw_note(&mut sg, note, &shadow_attr, skin);
-                drawn_notes.insert(ni);
-                has_note = true;
+            let note_back_threshold = if msg.is_self { 200.0 } else { 100.0 };
+            let mut has_note = false;
+            for (ni, note) in layout.notes.iter().enumerate() {
+                if drawn_notes.contains(&ni) {
+                    continue;
+                }
+                let belongs = if let Some(assoc_idx) = note.assoc_message_idx {
+                    // Match notes associated with this message or any preceding
+                    // parallel message at the same y position.
+                    assoc_idx <= msg_idx
+                        && layout.messages.get(assoc_idx).map_or(false, |am| {
+                            (am.y - msg.y).abs() < 0.01
+                        })
+                } else {
+                    // Fallback: y-range heuristic for notes without explicit association
+                    note.y >= msg.y - note_back_threshold && note.y < effective_next_y
+                };
+                if belongs {
+                    draw_note(&mut sg, note, &shadow_attr, skin);
+                    drawn_notes.insert(ni);
+                    has_note = true;
+                }
             }
-        }
-        // In Java, when a message has notes, it's wrapped in ArrowAndNoteBox
-        // which consumes an extra counter value. Advance to match Java's
-        // msg id numbering.
-        if has_note {
-            msg_seq_counter += 1;
+            // In Java, when a message has notes, it's wrapped in ArrowAndNoteBox
+            // which consumes an extra counter value. Advance to match Java's
+            // msg id numbering.
+            if has_note {
+                msg_seq_counter += 1;
+            }
         }
     }
 

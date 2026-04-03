@@ -11,13 +11,15 @@ use crate::render::svg_richtext::{
 use crate::style::SkinParams;
 use crate::Result;
 
-use crate::skin::rose::{BORDER_COLOR, ENTITY_BG, NOTE_BG, NOTE_BORDER, NOTE_FOLD, TEXT_COLOR};
+use crate::skin::rose::{BORDER_COLOR, ENTITY_BG, NOTE_BG, NOTE_BORDER, NOTE_FOLD};
 const CONCISE_STROKE: &str = "#2E8B57";
 const ARROW_COLOR: &str = "#555555";
 const CONSTRAINT_COLOR: &str = "#FF6600";
 const AXIS_LINE_COLOR: &str = "#888888";
 const AXIS_TEXT_COLOR: &str = "#333333";
 const GRID_LINE_COLOR: &str = "#333333";
+/// Default font color for timing diagrams, from Java rose.skin `timingDiagram { FontColor #3 }`
+const TIMING_FONT_COLOR: &str = "#333333";
 const LABEL_PADDING: f64 = 8.0;
 const ROBUST_BAND_HEIGHT: f64 = 16.0;
 
@@ -46,7 +48,12 @@ fn render_timing_inner(layout: &TimingLayout, skin: &SkinParams) -> Result<Strin
     let mut buf = String::with_capacity(4096);
     let timing_bg = skin.background_color("timing", ENTITY_BG);
     let timing_border = skin.border_color("timing", BORDER_COLOR);
-    let timing_font = skin.get_or("defaultfontcolor", skin.font_color("timing", TEXT_COLOR));
+    // Java rose.skin: timingDiagram { FontColor #3 } => #333333 as base default.
+    // In Java, the style system overrides skinparam defaults (including defaultFontColor).
+    // Only timing-specific skinparam overrides apply.
+    let timing_font = skin.get("timingfontcolor")
+        .or_else(|| skin.get("timing.fontcolor"))
+        .unwrap_or(TIMING_FONT_COLOR);
     let arrow_font = skin.font_color("arrow", timing_font);
     let constraint_color = skin.font_color("constraint", CONSTRAINT_COLOR);
     let arrow_color = skin.arrow_color(ARROW_COLOR);
@@ -181,7 +188,7 @@ fn render_track(
     }
     // Segments (signal lines and transitions)
     for (i, seg) in track.segments.iter().enumerate() {
-        render_segment(sg, seg, i, &track.segments, state_fs);
+        render_segment(sg, seg, i, &track.segments, state_fs, font_color);
     }
 }
 
@@ -191,6 +198,7 @@ fn render_segment(
     index: usize,
     all_segments: &[TimingSegmentLayout],
     state_fs: f64,
+    font_color: &str,
 ) {
     let stroke = if seg.is_robust {
         BORDER_COLOR
@@ -216,7 +224,7 @@ fn render_segment(
                 cx,
                 cy,
                 state_fs + 4.0,
-                TEXT_COLOR,
+                font_color,
                 Some("middle"),
                 &format!(r#"font-size="{:.0}""#, state_fs),
             );
@@ -251,7 +259,7 @@ fn render_segment(
                 cx,
                 cy,
                 state_fs + 4.0,
-                TEXT_COLOR,
+                font_color,
                 Some("middle"),
                 &format!(r#"font-size="{:.0}""#, state_fs),
             );
