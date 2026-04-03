@@ -55,6 +55,9 @@ pub struct StateNodeLayout {
     pub region_separators: Vec<f64>,
     /// Source line (0-based) for data-source-line attribute.
     pub source_line: Option<usize>,
+    /// True when this composite came from a Graphviz cluster solve rather than
+    /// from the legacy two-level standalone composite layout.
+    pub render_as_cluster: bool,
 }
 
 /// A transition edge between two states.
@@ -198,6 +201,44 @@ fn composite_inner_margin(children: &[StateNodeLayout]) -> f64 {
         Some(c) if is_circle(c) => 6.0,
         _ => MARGIN, // 7.0
     }
+}
+
+fn collect_state_descendant_ids(state: &State, out: &mut HashSet<String>) {
+    for child in &state.children {
+        out.insert(child.id.clone());
+        collect_state_descendant_ids(child, out);
+    }
+    for region in &state.regions {
+        for child in region {
+            out.insert(child.id.clone());
+            collect_state_descendant_ids(child, out);
+        }
+    }
+}
+
+fn state_has_direct_pin_child(state: &State) -> bool {
+    state.children.iter().any(|child| {
+        matches!(
+            child.stereotype.as_deref(),
+            Some("inputPin") | Some("outputPin")
+        )
+    })
+}
+
+fn qualifies_for_inner_pin_cluster(state: &State, transitions: &[Transition]) -> bool {
+    let is_composite = !state.children.is_empty() || !state.regions.is_empty();
+    if !is_composite || !state.regions.is_empty() || !state_has_direct_pin_child(state) {
+        return false;
+    }
+
+    // Java inner state solves still export child groups with port nodes as real
+    // DOT clusters even when links cross the child-group boundary through those
+    // descendants. The only case we still cannot model in the inner solve is a
+    // transition whose endpoint is the composite group ID itself, because that
+    // needs the cluster special-point routing used by the outer solve.
+    !transitions
+        .iter()
+        .any(|tr| tr.from == state.id || tr.to == state.id)
 }
 
 // ---------------------------------------------------------------------------
@@ -503,6 +544,7 @@ fn compute_state_node(
                 internal_transitions: Vec::new(),
                 region_separators: Vec::new(),
                 source_line: state.source_line,
+                render_as_cluster: false,
             },
             diameter,
             diameter,
@@ -530,6 +572,7 @@ fn compute_state_node(
                 internal_transitions: Vec::new(),
                 region_separators: Vec::new(),
                 source_line: state.source_line,
+                render_as_cluster: false,
             },
             w,
             h,
@@ -556,6 +599,7 @@ fn compute_state_node(
                 internal_transitions: Vec::new(),
                 region_separators: Vec::new(),
                 source_line: state.source_line,
+                render_as_cluster: false,
             },
             s,
             s,
@@ -582,6 +626,7 @@ fn compute_state_node(
                 internal_transitions: Vec::new(),
                 region_separators: Vec::new(),
                 source_line: state.source_line,
+                render_as_cluster: false,
             },
             d,
             d,
@@ -608,6 +653,7 @@ fn compute_state_node(
                 internal_transitions: Vec::new(),
                 region_separators: Vec::new(),
                 source_line: state.source_line,
+                render_as_cluster: false,
             },
             diameter,
             diameter,
@@ -718,6 +764,9 @@ fn compute_state_node(
         let nested_pin_bonus = if pin_bonus == 0.0 {
             let mut bonus = 0.0;
             for child in &state.children {
+                if qualifies_for_inner_pin_cluster(child, transitions) {
+                    continue;
+                }
                 if !child.children.is_empty() || !child.regions.is_empty() {
                     let child_has_input = child.children.iter().any(|c| c.stereotype.as_deref() == Some("inputPin"));
                     let child_has_output = child.children.iter().any(|c| c.stereotype.as_deref() == Some("outputPin"));
@@ -754,6 +803,7 @@ fn compute_state_node(
                 internal_transitions: all_inner_transitions,
                 region_separators,
                 source_line: state.source_line,
+                render_as_cluster: false,
             },
             width,
             height,
@@ -780,6 +830,7 @@ fn compute_state_node(
             internal_transitions: Vec::new(),
             region_separators: Vec::new(),
             source_line: state.source_line,
+            render_as_cluster: false,
         },
         w,
         h,
@@ -1200,27 +1251,22 @@ fn layout_children_with_graphviz(
         return (Vec::new(), Vec::new(), 0.0, 0.0);
     }
 
-    // Compute sizes for all child states
-    let mut sized_map: HashMap<String, (StateNodeLayout, f64, f64)> = HashMap::new();
-    for state in states {
-        let (node, w, h) = compute_state_node(state, transitions, initial_ids, final_ids);
-        sized_map.insert(state.id.clone(), (node, w, h));
-    }
+    let state_order: HashMap<&str, usize> = states
+        .iter()
+        .enumerate()
+        .map(|(idx, state)| (state.id.as_str(), idx))
+        .collect();
 
-    // Build graphviz nodes.
-    // Detect <<inputPin>>/<<outputPin>> stereotypes: Java uses tiny 12x12
-    // EntityPosition nodes placed at cluster source/sink ranks.
-    let mut gv_nodes: Vec<LayoutNode> = Vec::new();
-    let mut node_id_order: Vec<String> = Vec::new();
-    let mut has_pins = false;
-    for state in states {
-        let (_, w, h) = sized_map.get(&state.id).unwrap();
+    fn push_state_gv_node(
+        state: &State,
+        w: f64,
+        h: f64,
+        gv_nodes: &mut Vec<LayoutNode>,
+        node_id_order: &mut Vec<String>,
+    ) {
         let is_input_pin = state.stereotype.as_deref() == Some("inputPin");
         let is_output_pin = state.stereotype.as_deref() == Some("outputPin");
         let is_pin = is_input_pin || is_output_pin;
-        if is_pin {
-            has_pins = true;
-        }
         let is_circle = state.is_special
             || matches!(
                 state.kind,
@@ -1231,14 +1277,11 @@ fn layout_children_with_graphviz(
                     | StateKind::End
             );
         let is_diamond = matches!(state.kind, StateKind::Choice);
-        // Pin states use tiny 12x12 rects in Java (EntityPosition.INPUT_PIN/OUTPUT_PIN)
-        let (node_w, node_h) = if is_pin {
-            (PIN_SIZE, PIN_SIZE)
-        } else {
-            (*w, *h)
-        };
+        let (node_w, node_h) = if is_pin { (PIN_SIZE, PIN_SIZE) } else { (w, h) };
         let shape = if is_circle {
             Some(crate::svek::shape_type::ShapeType::Circle)
+        } else if is_pin {
+            Some(crate::svek::shape_type::ShapeType::RectanglePort)
         } else if is_diamond {
             Some(crate::svek::shape_type::ShapeType::Diamond)
         } else {
@@ -1260,10 +1303,15 @@ fn layout_children_with_graphviz(
             shield: None,
             entity_position: entity_pos,
             max_label_width: None,
+            port_label_width: if is_pin {
+                Some(text_width(&state.name, STATE_NAME_FONT_SIZE))
+            } else {
+                None
+            },
             order: Some(node_id_order.len()),
             image_width_pt: None,
             lf_extra_left: 0.0,
-            lf_rect_correction: !is_circle && !is_pin,
+            lf_rect_correction: !is_circle,
             lf_has_body_separator: !is_circle && !is_diamond && !is_pin,
             lf_node_polygon: false,
             lf_polygon_hack: false,
@@ -1272,45 +1320,133 @@ fn layout_children_with_graphviz(
         node_id_order.push(state.id.clone());
     }
 
-    // Build graphviz edges for transitions involving only these child states
-    let child_ids: HashSet<&str> = states.iter().map(|s| s.id.as_str()).collect();
-    let mut gv_edges: Vec<LayoutEdge> = Vec::new();
-    for tr in transitions {
-        if child_ids.contains(tr.from.as_str()) && child_ids.contains(tr.to.as_str()) {
-            gv_edges.push(LayoutEdge {
-                from: tr.from.clone(),
-                to: tr.to.clone(),
-                label: if tr.label.is_empty() {
-                    None
-                } else {
-                    Some(tr.label.clone())
-                },
-                label_dimension: None,
-                tail_label: None,
-                tail_label_boxed: false,
-                head_label: None,
-                head_label_boxed: false,
-                tail_decoration: crate::svek::edge::LinkDecoration::None,
-                head_decoration: crate::svek::edge::LinkDecoration::None,
-                line_style: crate::svek::edge::LinkStyle::Normal,
-                minlen: if tr.length > 0 { (tr.length - 1) as u32 } else { 0 },
-                invisible: false,
-                no_constraint: false,
-            });
-        }
+    // Compute sizes for all child states
+    let mut sized_map: HashMap<String, (StateNodeLayout, f64, f64)> = HashMap::new();
+    for state in states {
+        let (node, w, h) = compute_state_node(state, transitions, initial_ids, final_ids);
+        sized_map.insert(state.id.clone(), (node, w, h));
     }
 
+    // Java's inner state solve exports child groups into the same DOT graph.
+    // For the remaining failing SCXML cases, the important subset is direct
+    // child composites with pin children and no cross-boundary links: those
+    // must be rendered as real clusters in the parent's inner solve rather
+    // than as pre-sized standalone nodes.
+    let mut cluster_child_ids: HashSet<String> = HashSet::new();
+    let mut cluster_descendant_ids: HashMap<String, HashSet<String>> = HashMap::new();
+    for state in states {
+        if !qualifies_for_inner_pin_cluster(state, transitions) {
+            continue;
+        }
+        let mut descendant_ids = HashSet::new();
+        collect_state_descendant_ids(state, &mut descendant_ids);
+        cluster_child_ids.insert(state.id.clone());
+        cluster_descendant_ids.insert(state.id.clone(), descendant_ids);
+    }
+
+    // Build graphviz nodes and inner cluster specs.
+    let mut gv_nodes: Vec<LayoutNode> = Vec::new();
+    let mut node_id_order: Vec<String> = Vec::new();
+    let mut has_pins = false;
+    let mut cluster_specs: Vec<LayoutClusterSpec> = Vec::new();
+    let mut graph_node_ids: HashSet<String> = HashSet::new();
+    for state in states {
+        if cluster_child_ids.contains(&state.id) {
+            let mut node_ids = Vec::new();
+            for child in &state.children {
+                let (_, w, h) = sized_map.get(&child.id).cloned().unwrap_or_else(|| {
+                    let (node, w, h) = compute_state_node(child, transitions, initial_ids, final_ids);
+                    sized_map.insert(child.id.clone(), (node.clone(), w, h));
+                    (node, w, h)
+                });
+                if matches!(
+                    child.stereotype.as_deref(),
+                    Some("inputPin") | Some("outputPin")
+                ) {
+                    has_pins = true;
+                }
+                push_state_gv_node(child, w, h, &mut gv_nodes, &mut node_id_order);
+                node_ids.push(child.id.clone());
+                graph_node_ids.insert(child.id.clone());
+            }
+            let title_w = text_width(&state.name, STATE_NAME_FONT_SIZE);
+            let title_h =
+                crate::font_metrics::typo_ascent("SansSerif", STATE_NAME_FONT_SIZE, false, false)
+                    .round()
+                    + 5.0;
+            cluster_specs.push(LayoutClusterSpec {
+                id: state.id.replace(|c: char| !c.is_ascii_alphanumeric(), "_"),
+                qualified_name: state.id.clone(),
+                title: Some(state.name.clone()),
+                style: crate::svek::cluster::ClusterStyle::Rectangle,
+                label_width: Some(title_w),
+                label_height: Some(title_h),
+                node_ids,
+                sub_clusters: Vec::new(),
+                order: state.source_line,
+                has_link_from_or_to_group: false,
+                special_point_id: None,
+            });
+            continue;
+        }
+
+        let (_, w, h) = sized_map.get(&state.id).unwrap();
+        if matches!(
+            state.stereotype.as_deref(),
+            Some("inputPin") | Some("outputPin")
+        ) {
+            has_pins = true;
+        }
+        push_state_gv_node(state, *w, *h, &mut gv_nodes, &mut node_id_order);
+        graph_node_ids.insert(state.id.clone());
+    }
+
+    // Build graphviz edges for transitions involving the flattened inner graph.
+    let mut gv_edges: Vec<LayoutEdge> = Vec::new();
+    let mut active_transitions: Vec<&Transition> = Vec::new();
+    for tr in transitions {
+        if !graph_node_ids.contains(&tr.from) || !graph_node_ids.contains(&tr.to) {
+            continue;
+        }
+        gv_edges.push(LayoutEdge {
+            from: tr.from.clone(),
+            to: tr.to.clone(),
+            label: if tr.label.is_empty() {
+                None
+            } else {
+                Some(tr.label.clone())
+            },
+            label_dimension: None,
+            tail_label: None,
+            tail_label_boxed: false,
+            head_label: None,
+            head_label_boxed: false,
+            tail_decoration: crate::svek::edge::LinkDecoration::None,
+            head_decoration: crate::svek::edge::LinkDecoration::None,
+            line_style: crate::svek::edge::LinkStyle::Normal,
+            minlen: if tr.length > 0 { (tr.length - 1) as u32 } else { 0 },
+            invisible: false,
+            no_constraint: false,
+        });
+        active_transitions.push(tr);
+    }
+
+    let use_legacy_pin_ranksep = has_pins && cluster_specs.is_empty();
     let graph = LayoutGraph {
         nodes: gv_nodes,
         edges: gv_edges,
-        clusters: vec![],
+        clusters: cluster_specs,
         rankdir: RankDir::TopToBottom,
         // Java uses a single flat DOT graph with clusters where all nodes share
-        // the same ranksep (60pt). For composites WITH inputPin/outputPin states,
-        // the cluster-based rank constraints produce larger vertical gaps matching
-        // the outer ranksep. For composites without pins, use the default
-        // Graphviz 0.5in (36pt) to preserve existing layout behavior.
-        ranksep_override: Some(if has_pins { graphviz::MIN_RANK_SEP_PX } else { INNER_RANKSEP }),
+        // the same ranksep (60pt) at the OUTER state solve. For this inner solve,
+        // once pin-backed child composites are represented as real clusters, Java
+        // falls back to the default Graphviz 0.5in gap. Only the legacy no-cluster
+        // path still needs the larger ranksep compensation.
+        ranksep_override: Some(if use_legacy_pin_ranksep {
+            graphviz::MIN_RANK_SEP_PX
+        } else {
+            INNER_RANKSEP
+        }),
         // Java inner composite graphs omit nodesep, using Graphviz's default 0.25in (18pt).
         nodesep_override: Some(INNER_NODESEP),
         use_simplier_dot_link_strategy: false,
@@ -1338,9 +1474,17 @@ fn layout_children_with_graphviz(
     // The outer layout adds composite header + padding offsets, so we must NOT
     // apply the render_offset here — that would double-count the moveDelta margin.
 
+    let all_cluster_descendant_ids: HashSet<String> = cluster_descendant_ids
+        .values()
+        .flat_map(|ids| ids.iter().cloned())
+        .collect();
+
     // Convert graphviz results to child node positions (relative to origin)
     let mut nodes = Vec::new();
     for gv_node in &gv_layout.nodes {
+        if all_cluster_descendant_ids.contains(&gv_node.id) {
+            continue;
+        }
         if let Some((template, _w, _h)) = sized_map.remove(&gv_node.id) {
             let x = gv_node.cx - gv_node.width / 2.0;
             let y = gv_node.cy - gv_node.height / 2.0;
@@ -1367,38 +1511,124 @@ fn layout_children_with_graphviz(
         }
     }
 
+    // Reconstruct flattened child composites from Graphviz cluster bounds.
+    for state in states {
+        if !cluster_child_ids.contains(&state.id) {
+            continue;
+        }
+        let cluster_id = state.id.replace(|c: char| !c.is_ascii_alphanumeric(), "_");
+        let Some(cl) = gv_layout.clusters.iter().find(|c| c.id == cluster_id) else {
+            continue;
+        };
+        let direct_child_ids: HashSet<&str> = state.children.iter().map(|child| child.id.as_str()).collect();
+        let child_order: HashMap<&str, usize> = state
+            .children
+            .iter()
+            .enumerate()
+            .map(|(idx, child)| (child.id.as_str(), idx))
+            .collect();
+        let mut children = Vec::new();
+        for gv_node in &gv_layout.nodes {
+            if !direct_child_ids.contains(gv_node.id.as_str()) {
+                continue;
+            }
+            if let Some((template, _, _)) = sized_map.remove(&gv_node.id) {
+                let x = gv_node.cx - gv_node.width / 2.0;
+                let y = gv_node.cy - gv_node.height / 2.0;
+                let w = gv_node.width;
+                let h = gv_node.height;
+
+                let mut child_node = template;
+                child_node.x = x;
+                child_node.y = y;
+                child_node.width = w;
+                child_node.height = h;
+
+                if child_node.is_composite {
+                    let child_offset_x = x + COMPOSITE_PADDING;
+                    let child_offset_y = y + composite_inner_y_offset();
+                    offset_children(&mut child_node.children, child_offset_x, child_offset_y);
+                    for sep_y in &mut child_node.region_separators {
+                        *sep_y += child_offset_y;
+                    }
+                }
+
+                children.push(child_node);
+            }
+        }
+        children.sort_by_key(|child| child_order.get(child.id.as_str()).copied().unwrap_or(usize::MAX));
+
+        nodes.push(StateNodeLayout {
+            id: state.id.clone(),
+            name: state.name.clone(),
+            x: cl.x,
+            y: cl.y,
+            width: cl.width,
+            height: cl.height,
+            description: state.description.clone(),
+            stereotype: state.stereotype.clone(),
+            is_initial: initial_ids.contains(&state.id),
+            is_final: final_ids.contains(&state.id),
+            is_composite: true,
+            children,
+            kind: state.kind.clone(),
+            internal_transitions: Vec::new(),
+            region_separators: Vec::new(),
+            source_line: state.source_line,
+            render_as_cluster: true,
+        });
+    }
+    nodes.sort_by_key(|node| state_order.get(node.id.as_str()).copied().unwrap_or(usize::MAX));
+
+    // Java's inner SvekResult keeps children below any extra LimitFinder-only
+    // content (for example pin labels above the cluster). Our outer composite
+    // margin already contributes the baseline 6/7px moveDelta, so only apply
+    // the excess render_offset beyond that baseline here.
+    let baseline_inner_margin = composite_inner_margin(&nodes);
+    let extra_inner_y = (gv_layout.render_offset.1 - baseline_inner_margin).max(0.0);
+    if extra_inner_y > 0.001 {
+        offset_children(&mut nodes, 0.0, extra_inner_y);
+    }
+
     // Build inner transitions from the graphviz edges.
     // These are positioned relative to (0,0) in the inner space, matching the
     // child node positions. The outer layout will offset them later.
-    let child_ids: HashSet<&str> = states.iter().map(|s| s.id.as_str()).collect();
-    let child_transitions: Vec<&Transition> = transitions
-        .iter()
-        .filter(|tr| child_ids.contains(tr.from.as_str()) && child_ids.contains(tr.to.as_str()))
-        .collect();
     let mut inner_transitions = Vec::new();
     for (i, gv_edge) in gv_layout.edges.iter().enumerate() {
-        let (from_id, to_id) = if i < child_transitions.len() {
-            (child_transitions[i].from.clone(), child_transitions[i].to.clone())
+        let (from_id, to_id) = if i < active_transitions.len() {
+            (active_transitions[i].from.clone(), active_transitions[i].to.clone())
         } else {
             (gv_edge.from.clone(), gv_edge.to.clone())
         };
-        let label = if i < child_transitions.len() {
-            child_transitions[i].label.clone()
+        let label = if i < active_transitions.len() {
+            active_transitions[i].label.clone()
         } else {
             gv_edge.label.clone().unwrap_or_default()
         };
-        let source_line = if i < child_transitions.len() {
-            child_transitions[i].source_line
+        let source_line = if i < active_transitions.len() {
+            active_transitions[i].source_line
         } else {
             None
         };
 
-        let raw_path_d = gv_edge.raw_path_d.clone();
-        let arrow_polygon = gv_edge.arrow_polygon_points.clone();
+        let points: Vec<(f64, f64)> = gv_edge
+            .points
+            .iter()
+            .map(|&(x, y)| (x, y + extra_inner_y))
+            .collect();
+        let raw_path_d = gv_edge
+            .raw_path_d
+            .as_ref()
+            .map(|d| graphviz::transform_path_d(d, 0.0, extra_inner_y));
+        let arrow_polygon = gv_edge.arrow_polygon_points.as_ref().map(|pts| {
+            pts.iter()
+                .map(|&(x, y)| (x, y + extra_inner_y))
+                .collect()
+        });
 
         let label_xy = gv_edge.label_xy.map(|(x, y)| {
             let nx = x + gv_layout.move_delta.0 - gv_layout.normalize_offset.0;
-            let ny = y + gv_layout.move_delta.1 - gv_layout.normalize_offset.1;
+            let ny = y + gv_layout.move_delta.1 - gv_layout.normalize_offset.1 + extra_inner_y;
             (nx, ny)
         });
 
@@ -1406,7 +1636,7 @@ fn layout_children_with_graphviz(
             from_id,
             to_id,
             label,
-            points: gv_edge.points.clone(),
+            points,
             raw_path_d,
             arrow_polygon,
             label_xy,
@@ -1685,11 +1915,13 @@ pub fn layout_state(diagram: &StateDiagram) -> Result<StateLayout> {
         }
     }
 
-    // Determine which composites need the cluster model. Java uses a
-    // single-graph cluster when external edges reference CHILDREN inside
-    // the composite (e.g. Paused→Active[H] where Active[H] is a child
-    // of Active). Edges to/from the composite ID itself (e.g. [*]→Active,
-    // Active→Paused) are handled by the two-level solve.
+    // Determine which composites need the cluster model. Java's outer state
+    // graph exports two important classes of groups as real DOT clusters:
+    //   1) groups with direct port children, so input/output pins sit outside
+    //      the cluster border on source/sink ranks;
+    //   2) groups whose children participate in cross-boundary links.
+    // The latter also need a cluster special point for links targeting the
+    // group entity itself.
     let mut cluster_composite_ids: HashSet<String> = HashSet::new();
     for state in &all_states {
         let is_composite = !state.children.is_empty() || !state.regions.is_empty();
@@ -1698,6 +1930,7 @@ pub fn layout_state(diagram: &StateDiagram) -> Result<StateLayout> {
             continue;
         }
         let child_ids = composite_child_ids.get(&state.id).unwrap();
+        let has_direct_pin_child = state_has_direct_pin_child(state);
         let has_cross_child_link = diagram.transitions.iter().any(|tr| {
             // External node → child inside composite (not the composite itself)
             let ext_to_child = !child_ids.contains(&tr.from)
@@ -1708,8 +1941,13 @@ pub fn layout_state(diagram: &StateDiagram) -> Result<StateLayout> {
                 && child_ids.contains(&tr.from);
             ext_to_child || ext_from_child
         });
-        if has_cross_child_link {
-            log::debug!("  composite '{}' has cross-child-boundary edges → cluster model", state.id);
+        if has_direct_pin_child || has_cross_child_link {
+            log::debug!(
+                "  composite '{}' has direct pins={} cross-child-links={} → cluster model",
+                state.id,
+                has_direct_pin_child,
+                has_cross_child_link
+            );
             cluster_composite_ids.insert(state.id.clone());
         }
     }
@@ -1750,6 +1988,8 @@ pub fn layout_state(diagram: &StateDiagram) -> Result<StateLayout> {
             || state.stereotype.as_deref() == Some("outputPin");
         let shape = if is_circle_kind {
             Some(crate::svek::shape_type::ShapeType::Circle)
+        } else if is_pin {
+            Some(crate::svek::shape_type::ShapeType::RectanglePort)
         } else if is_diamond {
             Some(crate::svek::shape_type::ShapeType::Diamond)
         } else {
@@ -1772,10 +2012,15 @@ pub fn layout_state(diagram: &StateDiagram) -> Result<StateLayout> {
             shield: None,
             entity_position: entity_pos,
             max_label_width: None,
+            port_label_width: if is_pin {
+                Some(text_width(&state.name, STATE_NAME_FONT_SIZE))
+            } else {
+                None
+            },
             order: Some(node_id_order.len()),
             image_width_pt: None,
             lf_extra_left: 0.0,
-            lf_rect_correction: !is_circle && !is_pin,
+            lf_rect_correction: !is_circle,
             lf_has_body_separator: !is_circle && !is_diamond && !is_pin,
             lf_node_polygon: false,
             lf_polygon_hack: false,
@@ -1903,6 +2148,7 @@ pub fn layout_state(diagram: &StateDiagram) -> Result<StateLayout> {
                 shield: None,
                 entity_position: None,
                 max_label_width: None,
+                port_label_width: None,
                 order: Some(node_id_order.len()),
                 image_width_pt: None,
                 lf_extra_left: 0.0,
@@ -2236,6 +2482,7 @@ pub fn layout_state(diagram: &StateDiagram) -> Result<StateLayout> {
                 internal_transitions: Vec::new(),
                 region_separators: Vec::new(),
                 source_line: state.source_line,
+                render_as_cluster: state_has_direct_pin_child(state),
             };
             node_position_map.insert(state.id.clone(), (cx, cy, cw, ch));
             state_layouts.push(composite_node);

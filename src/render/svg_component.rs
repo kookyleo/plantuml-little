@@ -1417,6 +1417,63 @@ fn render_node_text(
     let (margin_left, _margin_right, margin_top, _margin_bottom) =
         crate::layout::component::entity_margins(&node.kind);
 
+    if has_desc && node.kind == ComponentKind::Node {
+        // Java EntityImageDescription: a bracket body replaces the title display.
+        // The body is rendered directly with the entity margins, without an
+        // extra separator/header row.
+        let body_y = node.y + margin_top + font_metrics::ascent("SansSerif", FONT_SIZE, false, false);
+
+        // Check for <code>...</code> wrapper: render as monospace literal.
+        let is_code_block = node.description.len() >= 2
+            && node
+                .description
+                .first()
+                .map_or(false, |l| l.trim().eq_ignore_ascii_case("<code>"))
+            && node
+                .description
+                .last()
+                .map_or(false, |l| l.trim().eq_ignore_ascii_case("</code>"));
+
+        if is_code_block {
+            let inner_lines = &node.description[1..node.description.len() - 1];
+            let code_text = inner_lines.join("\n");
+            let tl = crate::font_metrics::text_width(&code_text, "monospace", 14.0, false, false);
+            sg.set_fill_color(font_color);
+            sg.svg_text(
+                &code_text,
+                node.x + 23.4287,
+                body_y,
+                Some("monospace"),
+                14.0,
+                None,
+                None,
+                None,
+                tl,
+                LengthAdjust::Spacing,
+                None,
+                0,
+                None,
+            );
+        } else {
+            let desc_text = node.description.join("\n");
+            let body_line_height = font_metrics::line_height("SansSerif", FONT_SIZE, false, false);
+            let mut tmp = String::new();
+            render_creole_text_opts(
+                &mut tmp,
+                &desc_text,
+                node.x + margin_left,
+                body_y,
+                body_line_height,
+                font_color,
+                None,
+                r#"font-size="14""#,
+                true,
+            );
+            sg.push_raw(&tmp);
+        }
+        return;
+    }
+
     // Name positioning
     let name_y = if let Some(sprite_h) = sprite_rendered {
         // Java USymbol.asSmall: label drawn at margin_top + sprite_h + ascent
@@ -1466,7 +1523,6 @@ fn render_node_text(
     );
     sg.push_raw(&tmp);
 
-    // Description
     if has_desc {
         let sep_y = name_y + 6.0;
         sg.set_stroke_color(Some(BORDER_COLOR));
@@ -1475,7 +1531,6 @@ fn render_node_text(
 
         let text_x = node.x + 8.0;
 
-        // Check for <code>...</code> wrapper: render as monospace literal
         let is_code_block = node.description.len() >= 2
             && node
                 .description
@@ -1487,19 +1542,14 @@ fn render_node_text(
                 .map_or(false, |l| l.trim().eq_ignore_ascii_case("</code>"));
 
         if is_code_block {
-            // Join inner lines as literal monospace text
             let inner_lines = &node.description[1..node.description.len() - 1];
             let code_text = inner_lines.join("\n");
-            let mut tmp = String::new();
-            // Render as a single monospace text element with literal content
             let tl = crate::font_metrics::text_width(&code_text, "monospace", 14.0, false, false);
-            let text_y = sep_y + LINE_HEIGHT;
-            use crate::klimt::svg::{fmt_coord, xml_escape, LengthAdjust};
             sg.set_fill_color(font_color);
             sg.svg_text(
                 &code_text,
                 text_x + 23.4287,
-                text_y,
+                sep_y + LINE_HEIGHT,
                 Some("monospace"),
                 14.0,
                 None,
@@ -1512,7 +1562,6 @@ fn render_node_text(
                 None,
             );
         } else {
-            // Normal description: preserve literal \n (body context)
             let desc_text = node.description.join("\n");
             let mut tmp = String::new();
             render_creole_text_opts(

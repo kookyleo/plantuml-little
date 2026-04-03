@@ -669,6 +669,19 @@ impl DotStringFactory {
         let mut lf_min_y = f64::INFINITY;
         let mut lf_max_x = f64::NEG_INFINITY;
         let mut lf_max_y = f64::NEG_INFINITY;
+        fn collect_cluster_center_y<'a>(
+            clusters: &'a [cluster::Cluster],
+            out: &mut std::collections::HashMap<&'a str, f64>,
+        ) {
+            for cluster in clusters {
+                out.insert(cluster.id.as_str(), cluster.y + cluster.height / 2.0);
+                collect_cluster_center_y(&cluster.sub_clusters, out);
+            }
+        }
+
+        let mut cluster_center_y = std::collections::HashMap::new();
+        collect_cluster_center_y(&self.bibliotekon.clusters, &mut cluster_center_y);
+
         for node in &self.bibliotekon.nodes {
             if node.hidden {
                 continue;
@@ -750,6 +763,48 @@ impl DotStringFactory {
             }
             if rb > lf_max_y {
                 lf_max_y = rb;
+            }
+            if node.shape_type == shape_type::ShapeType::RectanglePort && node.port_label_width > 0.0 {
+                let text_w = node.port_label_width;
+                let text_h = crate::font_metrics::line_height("SansSerif", 14.0, false, false);
+                let ascent = crate::font_metrics::ascent("SansSerif", 14.0, false, false);
+                let text_x = node.min_x - (text_w - node.width) / 2.0;
+                let up_position = node
+                    .cluster_id
+                    .as_deref()
+                    .and_then(|id| cluster_center_y.get(id))
+                    .map(|center_y| node.min_y < *center_y)
+                    .unwrap_or_else(|| node.entity_position.is_input());
+                let text_baseline_y = if up_position {
+                    node.min_y - node.height - text_h + ascent
+                } else {
+                    node.min_y + node.height + ascent
+                };
+                let text_top = text_baseline_y - text_h + 1.5;
+                let text_bottom = text_top + text_h;
+                let text_right = text_x + text_w;
+                log::trace!(
+                    "  LF port-label uid={} pos={:?} up={} tx={:.4} ty={:.4} tw={:.4} th={:.4}",
+                    node.uid,
+                    node.entity_position,
+                    up_position,
+                    text_x,
+                    text_top,
+                    text_w,
+                    text_h,
+                );
+                if text_x < lf_min_x {
+                    lf_min_x = text_x;
+                }
+                if text_top < lf_min_y {
+                    lf_min_y = text_top;
+                }
+                if text_right > lf_max_x {
+                    lf_max_x = text_right;
+                }
+                if text_bottom > lf_max_y {
+                    lf_max_y = text_bottom;
+                }
             }
         }
         for edge in &self.bibliotekon.edges {

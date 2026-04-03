@@ -18,6 +18,9 @@ pub struct LayoutNode {
     pub entity_position: Option<crate::svek::node::EntityPosition>,
     /// Java `EntityImagePort.getMaxWidthFromLabelForEntryExit()` equivalent.
     pub max_label_width: Option<f64>,
+    /// Width of a port label rendered outside the DOT node. Used only by
+    /// LimitFinder simulation, not by DOT node sizing.
+    pub port_label_width: Option<f64>,
     /// Source/declaration order used to preserve Java DOT emission ordering.
     pub order: Option<usize>,
     /// Entity image natural width before qualifier expansion (px).
@@ -521,6 +524,9 @@ pub fn layout_with_svek(graph: &LayoutGraph) -> Result<GraphLayout, Error> {
         }
         if let Some(max_label_width) = node.max_label_width {
             ed = ed.with_max_label_width(max_label_width);
+        }
+        if let Some(port_label_width) = node.port_label_width {
+            ed = ed.with_port_label_width(port_label_width);
         }
         if let Some(order) = node.order {
             ed = ed.with_order(order);
@@ -1624,6 +1630,7 @@ mod tests {
                     shield: None,
                     entity_position: None,
                     max_label_width: None,
+            port_label_width: None,
                     order: None,
                     image_width_pt: None,
                     lf_extra_left: 0.0,
@@ -1642,6 +1649,7 @@ mod tests {
                     shield: None,
                     entity_position: None,
                     max_label_width: None,
+            port_label_width: None,
                     order: None,
                     image_width_pt: None,
                     lf_extra_left: 0.0,
@@ -1707,6 +1715,7 @@ mod tests {
                 shield: None,
                 entity_position: None,
                 max_label_width: None,
+            port_label_width: None,
                 order: None,
                 image_width_pt: None,
                 lf_extra_left: 0.0,

@@ -5,7 +5,9 @@ use crate::layout::timing::{
     TimingTimeAxis, TimingTrackLayout,
 };
 use crate::model::timing::TimingDiagram;
-use crate::render::svg_richtext::{count_creole_lines, render_creole_text};
+use crate::render::svg_richtext::{
+    count_creole_lines, render_creole_text, set_default_font_family,
+};
 use crate::style::SkinParams;
 use crate::Result;
 
@@ -24,10 +26,28 @@ pub fn render_timing(
     layout: &TimingLayout,
     skin: &SkinParams,
 ) -> Result<String> {
+    let font = skin.default_font_name().map(|name| {
+        let normalized = name.trim_matches(|c| c == '"' || c == '\'');
+        if normalized.eq_ignore_ascii_case("sansserif") || normalized.eq_ignore_ascii_case("dialog") {
+            "'sans-serif'".to_string()
+        } else if normalized.eq_ignore_ascii_case("monospaced") {
+            "monospace".to_string()
+        } else {
+            normalized.to_string()
+        }
+    });
+    set_default_font_family(font);
+    let result = render_timing_inner(layout, skin);
+    set_default_font_family(None);
+    result
+}
+
+fn render_timing_inner(layout: &TimingLayout, skin: &SkinParams) -> Result<String> {
     let mut buf = String::with_capacity(4096);
     let timing_bg = skin.background_color("timing", ENTITY_BG);
     let timing_border = skin.border_color("timing", BORDER_COLOR);
-    let timing_font = skin.font_color("timing", TEXT_COLOR);
+    let timing_font = skin.get_or("defaultfontcolor", skin.font_color("timing", TEXT_COLOR));
+    let arrow_font = skin.font_color("arrow", timing_font);
     let constraint_color = skin.font_color("constraint", CONSTRAINT_COLOR);
     let arrow_color = skin.arrow_color(ARROW_COLOR);
     let bg = skin.get_or("backgroundcolor", "#FFFFFF");
@@ -49,7 +69,7 @@ pub fn render_timing(
         render_track(&mut sg, track, &timing_bg, &timing_border, &timing_font, name_fs, state_fs);
     }
     for msg in &layout.messages {
-        render_message(&mut sg, msg, &arrow_color, &timing_font, arrow_fs);
+        render_message(&mut sg, msg, &arrow_color, arrow_font, arrow_fs);
     }
     for c in &layout.constraints {
         render_constraint(&mut sg, c, &constraint_color, constraint_fs);

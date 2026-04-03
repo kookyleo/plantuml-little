@@ -160,19 +160,30 @@ fn split_lines(input: &str) -> Vec<String> {
         i += 1;
     }
     parts.push(buf);
-    // Trim leading/trailing whitespace from each line part, matching Java behavior.
-    // Java's StringUtils.trin() is applied after \n splitting.
-    parts.iter_mut().for_each(|p| {
-        let trimmed = p.trim().to_string();
-        *p = trimmed;
-    });
     parts
+        .into_iter()
+        .map(|part| {
+            let trimmed = part.trim();
+            if should_preserve_boundary_whitespace(&part, trimmed) {
+                part
+            } else {
+                trimmed.to_string()
+            }
+        })
+        .collect()
 }
 
 /// Like `split_lines` but only splits on real newlines (0x0A), not literal `\n`.
 /// Used for activity actions where Java preserves `\n` as text.
 fn split_lines_literal(input: &str) -> Vec<String> {
     input.split('\n').map(ToString::to_string).collect()
+}
+
+fn should_preserve_boundary_whitespace(raw: &str, trimmed: &str) -> bool {
+    if raw == trimmed {
+        return false;
+    }
+    trimmed.starts_with('<')
 }
 
 // ---------------------------------------------------------------------------
@@ -1036,6 +1047,24 @@ mod tests {
             RichText::Block(vec![
                 RichText::Line(vec![TextSpan::Plain("first".into())]),
                 RichText::Line(vec![TextSpan::Plain("second".into())]),
+            ])
+        );
+    }
+
+    #[test]
+    fn test_real_newline_preserves_leading_space_before_html_style_tag() {
+        let rt = parse_creole(" aaa \n <u:blue>ccc ");
+        assert_eq!(
+            rt,
+            RichText::Block(vec![
+                RichText::Line(vec![TextSpan::Plain("aaa".into())]),
+                RichText::Line(vec![
+                    TextSpan::Plain(" ".into()),
+                    TextSpan::UnderlineColored {
+                        color: "blue".into(),
+                        content: vec![TextSpan::Plain("ccc ".into())]
+                    }
+                ]),
             ])
         );
     }

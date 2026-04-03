@@ -31,6 +31,7 @@ pub struct EntityDescriptor {
     pub shield: Margins,
     pub entity_position: EntityPosition,
     pub max_label_width: f64,
+    pub port_label_width: f64,
     pub order: Option<usize>,
     /// Whether this entity has been removed/hidden
     pub removed: bool,
@@ -61,6 +62,7 @@ impl EntityDescriptor {
             shield: Margins::none(),
             entity_position: EntityPosition::Normal,
             max_label_width: 0.0,
+            port_label_width: 0.0,
             order: None,
             removed: false,
             lf_extra_left: 0.0,
@@ -94,6 +96,11 @@ impl EntityDescriptor {
 
     pub fn with_max_label_width(mut self, max_label_width: f64) -> Self {
         self.max_label_width = max_label_width;
+        self
+    }
+
+    pub fn with_port_label_width(mut self, port_label_width: f64) -> Self {
+        self.port_label_width = port_label_width;
         self
     }
 
@@ -398,6 +405,7 @@ impl GraphvizImageBuilder {
             node.shield = ent.shield;
             node.entity_position = ent.entity_position;
             node.max_label_width = ent.max_label_width;
+            node.port_label_width = ent.port_label_width;
             node.lf_extra_left = ent.lf_extra_left;
             node.lf_rect_correction = ent.lf_rect_correction;
             node.lf_has_body_separator = ent.lf_has_body_separator;

@@ -414,8 +414,7 @@ fn creole_text_width_opts(
     // For now, handle single-line case (messages are typically single line)
     let spans = &lines[0];
     if !line_needs_split_render(spans) {
-        // No font-family or back-highlight changes: measure as plain text
-        let plain = plain_text_spans(spans);
+        let plain = trimmed_plain_line_text(spans);
         return font_metrics::text_width(&plain, default_font, font_size, bold, italic);
     }
     // Styled text: measure each run with its own font/style
@@ -570,19 +569,34 @@ pub fn render_creole_text_opts(
     // Each line gets its own textLength and y offset.
     for (idx, line) in lines.iter().enumerate() {
         let line_y = y + (idx as f64) * line_height;
-        render_prepared_line(
-            buf,
-            line,
-            x,
-            line_y,
-            fill,
-            text_anchor,
-            outer_attrs,
-            &font_family,
-            font_size,
-            bold,
-            italic,
-        );
+        if text_anchor.is_none() && multiline_line_needs_split_render(line) {
+            render_split_text_runs(
+                buf,
+                line,
+                x,
+                line_y,
+                fill,
+                outer_attrs,
+                &font_family,
+                font_size,
+                bold,
+                italic,
+            );
+        } else {
+            render_prepared_line(
+                buf,
+                line,
+                x,
+                line_y,
+                fill,
+                text_anchor,
+                outer_attrs,
+                &font_family,
+                font_size,
+                bold,
+                italic,
+            );
+        }
     }
     render_deferred_sprites(buf, &sprite_refs, x, y);
 
@@ -1916,7 +1930,7 @@ fn measure_parsed_line_width(
     italic: bool,
 ) -> f64 {
     if !line_needs_split_render(spans) {
-        let plain = plain_text_spans(spans);
+        let plain = trimmed_plain_line_text(spans);
         return font_metrics::text_width(&plain, default_font, font_size, bold, italic);
     }
 
@@ -2015,28 +2029,29 @@ fn render_prepared_line(
     italic: bool,
 ) {
     let line_plain = plain_text_spans(line);
-    let is_visual_blank_line = line_plain.is_empty();
+    let trimmed_plain = line_plain.trim();
+    let is_visual_blank_line = trimmed_plain.is_empty();
     if is_visual_blank_line {
         let text_length = font_metrics::text_width(NBSP, font_family, font_size, bold, italic);
         write_text_open(buf, x, y, fill, text_anchor, outer_attrs, text_length);
         buf.push_str(&xml_escape(NBSP));
         buf.push_str("</text>");
     } else if text_anchor.is_none() {
-        let text_length = font_metrics::text_width(&line_plain, font_family, font_size, bold, italic);
+        let text_length = font_metrics::text_width(trimmed_plain, font_family, font_size, bold, italic);
         write_text_open(buf, x, y, fill, text_anchor, outer_attrs, text_length);
         if let Some(text) = simple_plain_line(line) {
-            buf.push_str(&xml_escape(text));
+            buf.push_str(&xml_escape(text.trim()));
         } else {
             render_spans(buf, line, &SpanStyle::default(), fill);
         }
         buf.push_str("</text>");
     } else if let Some(text) = simple_plain_line(line) {
-        let text_length = font_metrics::text_width(&line_plain, font_family, font_size, bold, italic);
+        let text_length = font_metrics::text_width(trimmed_plain, font_family, font_size, bold, italic);
         write_text_open(buf, x, y, fill, text_anchor, outer_attrs, text_length);
-        buf.push_str(&xml_escape(text));
+        buf.push_str(&xml_escape(text.trim()));
         buf.push_str("</text>");
     } else {
-        let text_length = font_metrics::text_width(&line_plain, font_family, font_size, bold, italic);
+        let text_length = font_metrics::text_width(trimmed_plain, font_family, font_size, bold, italic);
         write_text_open(buf, x, y, fill, text_anchor, outer_attrs, text_length);
         render_spans(buf, line, &SpanStyle::default(), fill);
         buf.push_str("</text>");
@@ -2150,6 +2165,13 @@ fn line_needs_split_render(spans: &[TextSpan]) -> bool {
         })
     }
     has_styled(spans)
+}
+
+fn multiline_line_needs_split_render(spans: &[TextSpan]) -> bool {
+    if !line_needs_split_render(spans) {
+        return false;
+    }
+    spans.len() > 1 || matches!(spans.first(), Some(TextSpan::Link { .. }))
 }
 
 /// A text run with full styling context for split rendering.
@@ -2394,70 +2416,9 @@ fn render_split_text_runs(
 ) {
     let runs = flatten_to_runs(spans);
     let mut cursor_x = x;
-    let mut first = true;
-    for run in &runs {
+
+    for (idx, run) in runs.iter().enumerate() {
         let raw_text = &run.text;
-        // Java: leading whitespace on non-first runs is stripped and converted
-        // to cursor advancement. Trailing whitespace is also stripped.
-        let (text, trailing_spaces) = if !first {
-            let trimmed_start = raw_text.trim_start();
-            if trimmed_start.len() < raw_text.len() {
-                // Add space width for each trimmed leading space
-                let n_spaces = raw_text.len() - trimmed_start.len();
-                let space_w = font_metrics::text_width(" ", default_font, font_size, false, false);
-                cursor_x += space_w * n_spaces as f64;
-            }
-            // Also strip trailing whitespace, but count stripped trailing spaces
-            let trimmed_both = trimmed_start.trim_end();
-            let n_trailing = trimmed_start.len() - trimmed_both.len();
-            (trimmed_both.to_string(), n_trailing)
-        } else {
-            // First run: strip both leading and trailing whitespace.
-            // Java trims leading whitespace from text atoms, including
-            // the first monospace content after `""..""`, and advances the
-            // cursor by the trimmed leading width.
-            let trimmed_start = raw_text.trim_start();
-            if trimmed_start.len() < raw_text.len() {
-                let n_leading = raw_text.len() - trimmed_start.len();
-                let run_font = run.font_family.as_deref().unwrap_or(default_font);
-                let space_w = font_metrics::text_width(" ", run_font, font_size, false, false);
-                cursor_x += space_w * n_leading as f64;
-            }
-            let trimmed = trimmed_start.trim_end();
-            let n_trailing = trimmed_start.len() - trimmed.len();
-            (trimmed.to_string(), n_trailing)
-        };
-        if text.is_empty() {
-            // Java: whitespace-only runs between styled segments are rendered as
-            // non-breaking space text elements. The cursor was already advanced
-            // by leading-space handling above.
-            if !first && !raw_text.is_empty() && raw_text.trim().is_empty() {
-                let n_spaces = raw_text.len();
-                let space_w = font_metrics::text_width(" ", default_font, font_size, false, false);
-                let total_space_w = space_w * n_spaces as f64;
-                let space_x = cursor_x - total_space_w;
-                let nbsp = "\u{00A0}".repeat(n_spaces);
-                write!(buf, r#"<text fill="{}""#, xml_escape(fill)).unwrap();
-                write!(buf, r#" font-family="{}""#, xml_escape(default_font)).unwrap();
-                write!(buf, r#" font-size="{}""#, fmt_coord(font_size)).unwrap();
-                if base_bold {
-                    buf.push_str(r#" font-weight="700""#);
-                }
-                write!(buf, r#" lengthAdjust="spacing""#).unwrap();
-                write!(buf, r#" textLength="{}""#, fmt_coord(total_space_w)).unwrap();
-                write!(
-                    buf,
-                    r#" x="{}" y="{}">"#,
-                    fmt_coord(space_x),
-                    fmt_coord(y)
-                )
-                .unwrap();
-                buf.push_str(&xml_escape(&nbsp));
-                buf.push_str("</text>");
-            }
-            first = false;
-            continue;
-        }
         let run_font = run.font_family.as_deref().unwrap_or(default_font);
         let run_bold = run.bold || base_bold;
         let run_italic = run.italic || base_italic;
@@ -2468,6 +2429,57 @@ fn render_split_text_runs(
             Some(v) if v > 0.0 => v,
             _ => font_size,
         };
+        if !raw_text.is_empty() && raw_text.trim().is_empty() {
+            let n_spaces = raw_text.chars().count();
+            let space_w = font_metrics::text_width(" ", run_font, run_size, run_bold, run_italic);
+            render_nbsp_text(
+                buf,
+                if idx == 0 {
+                    x - space_w * n_spaces as f64
+                } else {
+                    cursor_x
+                },
+                y,
+                n_spaces,
+                fill,
+                run_font,
+                run_size,
+                run_bold,
+                run_italic,
+            );
+            if idx != 0 {
+                cursor_x += space_w * n_spaces as f64;
+            }
+            continue;
+        }
+        // Java: leading whitespace on non-first runs is stripped and converted
+        // to cursor advancement. Trailing whitespace is also stripped.
+        let trimmed_start = raw_text.trim_start();
+        let n_leading = raw_text.len() - trimmed_start.len();
+        if n_leading > 0 {
+            let space_w = font_metrics::text_width(" ", run_font, run_size, run_bold, run_italic);
+            if idx == 0 && run_font != "monospace" {
+                render_nbsp_text(
+                    buf,
+                    x - space_w * n_leading as f64,
+                    y,
+                    n_leading,
+                    fill,
+                    run_font,
+                    run_size,
+                    run_bold,
+                    run_italic,
+                );
+            } else {
+                cursor_x += space_w * n_leading as f64;
+            }
+        }
+        let trimmed_both = trimmed_start.trim_end();
+        let n_trailing = trimmed_start.len() - trimmed_both.len();
+        let text = trimmed_both.to_string();
+        if text.is_empty() {
+            continue;
+        }
         let run_fill_normalized;
         let run_fill = if let Some(ref c) = run.color {
             run_fill_normalized = crate::style::normalize_color(c);
@@ -2550,12 +2562,44 @@ fn render_split_text_runs(
         }
         cursor_x += text_w;
         // Account for trailing whitespace that was stripped from the rendered text.
-        if trailing_spaces > 0 {
-            let space_w = font_metrics::text_width(" ", default_font, font_size, false, false);
-            cursor_x += space_w * trailing_spaces as f64;
+        if n_trailing > 0 {
+            let space_w = font_metrics::text_width(" ", run_font, run_size, run_bold, run_italic);
+            cursor_x += space_w * n_trailing as f64;
         }
-        first = false;
     }
+}
+
+fn render_nbsp_text(
+    buf: &mut String,
+    x: f64,
+    y: f64,
+    n_spaces: usize,
+    fill: &str,
+    default_font: &str,
+    font_size: f64,
+    base_bold: bool,
+    base_italic: bool,
+) {
+    if n_spaces == 0 {
+        return;
+    }
+    let space_w = font_metrics::text_width(" ", default_font, font_size, false, false);
+    let total_space_w = space_w * n_spaces as f64;
+    let nbsp = "\u{00A0}".repeat(n_spaces);
+    write!(buf, r#"<text fill="{}""#, xml_escape(fill)).unwrap();
+    write!(buf, r#" font-family="{}""#, xml_escape(default_font)).unwrap();
+    write!(buf, r#" font-size="{}""#, fmt_coord(font_size)).unwrap();
+    if base_bold {
+        buf.push_str(r#" font-weight="700""#);
+    }
+    if base_italic {
+        buf.push_str(r#" font-style="italic""#);
+    }
+    write!(buf, r#" lengthAdjust="spacing""#).unwrap();
+    write!(buf, r#" textLength="{}""#, fmt_coord(total_space_w)).unwrap();
+    write!(buf, r#" x="{}" y="{}">"#, fmt_coord(x), fmt_coord(y)).unwrap();
+    buf.push_str(&xml_escape(&nbsp));
+    buf.push_str("</text>");
 }
 
 /// Parse font properties from `outer_attrs` for `textLength` computation.
@@ -2759,6 +2803,10 @@ fn plain_text_spans(spans: &[TextSpan]) -> String {
         collect_plain_span(span, &mut out);
     }
     out
+}
+
+fn trimmed_plain_line_text(spans: &[TextSpan]) -> String {
+    plain_text_spans(spans).trim().to_string()
 }
 
 fn collect_plain_span(span: &TextSpan, out: &mut String) {

@@ -172,6 +172,8 @@ pub struct SvekNode {
     pub ports: Vec<PortGeometry>,
     /// Max label width for entry/exit ports
     pub max_label_width: f64,
+    /// Width of the external port label used by LimitFinder simulation.
+    pub port_label_width: f64,
     /// Polygon points after SVG parsing (translated to node-local coords)
     pub polygon: Option<Vec<XPoint2D>>,
     /// Center X from SVG parsing (used to derive min_x)
@@ -192,6 +194,12 @@ pub struct SvekNode {
 }
 
 impl SvekNode {
+    fn append_quoted_uid(&self, sb: &mut String) {
+        sb.push('"');
+        sb.push_str(&self.uid);
+        sb.push('"');
+    }
+
     /// Create a new node with given uid and dimensions.
     pub fn new(uid: &str, width: f64, height: f64) -> Self {
         Self {
@@ -210,6 +218,7 @@ impl SvekNode {
             hidden: false,
             ports: Vec::new(),
             max_label_width: 0.0,
+            port_label_width: 0.0,
             polygon: None,
             cx: 0.0,
             cy: 0.0,
@@ -247,6 +256,7 @@ impl SvekNode {
             hidden: false,
             ports: Vec::new(),
             max_label_width: 0.0,
+            port_label_width: 0.0,
             polygon: None,
             cx: 0.0,
             cy: 0.0,
@@ -370,9 +380,7 @@ impl SvekNode {
         }
 
         // Quote node UID to handle dots, spaces, and special characters
-        sb.push('"');
-        sb.push_str(&self.uid);
-        sb.push('"');
+        self.append_quoted_uid(sb);
         sb.push_str(" [");
         self.append_shape_internal(sb);
         sb.push(',');
@@ -430,7 +438,7 @@ impl SvekNode {
     /// Generate HTML table label for shielded/circle-inside nodes.
     /// Java: `appendHtml(StringBuilder)`
     fn append_html(&self, sb: &mut String) {
-        sb.push_str(&self.uid);
+        self.append_quoted_uid(sb);
         sb.push_str(" [");
         sb.push_str("shape=plaintext,");
         sb.push_str("label=<");
@@ -479,7 +487,7 @@ impl SvekNode {
     /// Generate HTML table label for ports (links).
     /// Java: `appendLabelHtmlSpecialForLink(StringBuilder, StringBounder)`
     fn append_label_html_special_for_link(&self, sb: &mut String) {
-        sb.push_str(&self.uid);
+        self.append_quoted_uid(sb);
         sb.push_str(" [");
         sb.push_str("shape=plaintext,");
         sb.push_str("label=<");
@@ -527,7 +535,7 @@ impl SvekNode {
             full_width = 10;
         }
 
-        sb.push_str(&self.uid);
+        self.append_quoted_uid(sb);
         sb.push_str(" [");
         sb.push_str("shape=plaintext");
         sb.push(',');
@@ -556,7 +564,7 @@ impl SvekNode {
     /// Simple rect version for port nodes with narrow labels.
     /// Java: `appendLabelHtmlSpecialForPortBasic(StringBuilder, StringBounder)`
     fn append_label_html_special_for_port_basic(&self, sb: &mut String) {
-        sb.push_str(&self.uid);
+        self.append_quoted_uid(sb);
         sb.push_str(" [");
         sb.push_str("shape=rect");
         sb.push(',');
@@ -1072,7 +1080,7 @@ mod tests {
         n.append_shape(&mut dot);
 
         // Verify HTML table structure
-        assert!(dot.starts_with("sh0100 [shape=plaintext,label=<"));
+        assert!(dot.starts_with("\"sh0100\" [shape=plaintext,label=<"));
         assert!(dot
             .contains("<TABLE BORDER=\"0\" CELLBORDER=\"0\" CELLSPACING=\"0\" CELLPADDING=\"0\">"));
         // Top row: shield.y1 = 3.0
@@ -1120,7 +1128,7 @@ mod tests {
         // Basic rect mode
         assert_eq!(
             dot,
-            "sh0300 [shape=rect,label=\"\",width=0.277778,height=0.277778,color=\"#0e0e00\"];\n"
+            "\"sh0300\" [shape=rect,label=\"\",width=0.277778,height=0.277778,color=\"#0e0e00\"];\n"
         );
     }
 

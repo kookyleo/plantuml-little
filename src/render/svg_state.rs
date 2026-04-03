@@ -321,7 +321,17 @@ fn render_state_node(
     font_color: &str,
     ent_id_map: &HashMap<String, String>,
 ) {
-    render_state_node_with_parent(sg, tracker, node, bg, border, font_color, ent_id_map, None);
+    render_state_node_with_parent(
+        sg,
+        tracker,
+        node,
+        bg,
+        border,
+        font_color,
+        ent_id_map,
+        None,
+        None,
+    );
 }
 
 fn render_state_node_with_parent(
@@ -333,6 +343,7 @@ fn render_state_node_with_parent(
     font_color: &str,
     ent_id_map: &HashMap<String, String>,
     parent_name: Option<&str>,
+    parent_cluster_center_y: Option<f64>,
 ) {
     match &node.kind {
         StateKind::Fork | StateKind::Join => {
@@ -357,7 +368,20 @@ fn render_state_node_with_parent(
             render_exit_point(sg, tracker, node, border);
         }
         StateKind::Normal => {
-            if node.is_initial {
+            let is_cluster_pin = parent_cluster_center_y.is_some()
+                && matches!(
+                    node.stereotype.as_deref(),
+                    Some("inputPin") | Some("outputPin")
+                );
+            if is_cluster_pin {
+                render_cluster_pin(
+                    sg,
+                    tracker,
+                    node,
+                    font_color,
+                    parent_cluster_center_y.unwrap(),
+                );
+            } else if node.is_initial {
                 render_initial(sg, tracker, node, ent_id_map, parent_name);
             } else if node.is_final {
                 render_final(sg, tracker, node, ent_id_map, parent_name);
@@ -697,6 +721,49 @@ fn render_simple(
     sg.push_raw("</g>");
 }
 
+fn render_cluster_pin(
+    sg: &mut SvgGraphic,
+    tracker: &mut BoundsTracker,
+    node: &StateNodeLayout,
+    font_color: &str,
+    parent_cluster_center_y: f64,
+) {
+    let text_w = font_metrics::text_width(&node.name, "SansSerif", 14.0, false, false);
+    let text_h = font_metrics::line_height("SansSerif", 14.0, false, false);
+    let text_x = node.x - (text_w - 12.0) / 2.0;
+    let text_top_y = if node.y < parent_cluster_center_y {
+        node.y - 12.0 - text_h
+    } else {
+        node.y + 12.0
+    };
+    let text_y = text_top_y + 12.9951;
+
+    sg.set_fill_color(font_color);
+    sg.svg_text(
+        &node.name,
+        text_x,
+        text_y,
+        Some("sans-serif"),
+        14.0,
+        None,
+        None,
+        None,
+        text_w,
+        LengthAdjust::Spacing,
+        None,
+        0,
+        None,
+    );
+    tracker.track_text(text_x, text_y, text_w, text_h);
+
+    sg.push_raw(&format!(
+        r##"<rect fill="#F1F1F1" height="12" style="stroke:#181818;stroke-width:1.5;" width="12" x="{}" y="{}"/>"##,
+        fmt_coord(node.x),
+        fmt_coord(node.y),
+    ));
+    tracker.track_rect(node.x, node.y, 12.0, 12.0);
+}
+
 /// Composite state: rounded rectangle containing child states
 fn render_composite(
     sg: &mut SvgGraphic,
@@ -713,10 +780,11 @@ fn render_composite(
     let y = node.y;
     let w = node.width;
     let h = node.height;
-    let render_as_cluster = node
-        .children
-        .iter()
-        .any(|child| matches!(child.kind, StateKind::History | StateKind::DeepHistory));
+    let render_as_cluster = node.render_as_cluster
+        || node
+            .children
+            .iter()
+            .any(|child| matches!(child.kind, StateKind::History | StateKind::DeepHistory));
     // Java cluster rendering (with History children) uses a tighter header:
     //   titreHeight = text.getHeight() + MARGIN_LINE = 16.2969 + 5 = 21.2969
     // Non-cluster composites include the leading MARGIN:
@@ -782,10 +850,17 @@ fn render_composite(
     tracker.track_line(x, sep_y, x + w, sep_y);
 
     // 4. Composite state name text
-    // Java cluster: margin_top(4) + ascent(12.9951) = 16.9951
-    // Java non-cluster: IE_MARGIN(5) + ascent(12.9951) = 17.9951
+    // Port-backed state clusters use the Graphviz cluster-label path and pick up
+    // the extra +1 title translation from Java's frame symbol. History-only
+    // cluster rendering keeps the older 16.9951 baseline.
     let name_x = x + (w - name_tl) / 2.0;
-    let name_y = if render_as_cluster {
+    let has_direct_port_child = node.children.iter().any(|child| {
+        matches!(
+            child.stereotype.as_deref(),
+            Some("inputPin") | Some("outputPin")
+        )
+    });
+    let name_y = if render_as_cluster && !has_direct_port_child {
         y + 16.9951
     } else {
         y + 17.9951
@@ -815,10 +890,33 @@ fn render_composite(
     // Recursively render children with parent name for qualified naming.
     // Java renders entities in LinkedHashMap insertion order (= parse order).
     // The children list already preserves the correct order from parsing.
-    for child in &node.children {
-        render_state_node_with_parent(
-            sg, tracker, child, bg, border, font_color, ent_id_map, Some(&qname),
-        );
+    let parent_cluster_center_y = if render_as_cluster {
+        Some(node.y + node.height / 2.0)
+    } else {
+        None
+    };
+    for cluster_pass in [true, false] {
+        for child in &node.children {
+            let child_cluster_like = child.render_as_cluster
+                || child
+                    .children
+                    .iter()
+                    .any(|grand| matches!(grand.kind, StateKind::History | StateKind::DeepHistory));
+            if child_cluster_like != cluster_pass {
+                continue;
+            }
+            render_state_node_with_parent(
+                sg,
+                tracker,
+                child,
+                bg,
+                border,
+                font_color,
+                ent_id_map,
+                Some(&qname),
+                parent_cluster_center_y,
+            );
+        }
     }
 
     // Render concurrent region separators (dashed lines)
@@ -1660,6 +1758,7 @@ mod tests {
             internal_transitions: Vec::new(),
             region_separators: Vec::new(),
             source_line: None,
+            render_as_cluster: false,
         }
     }
 
@@ -1681,6 +1780,7 @@ mod tests {
             kind: crate::model::state::StateKind::default(),
             internal_transitions: Vec::new(),
             region_separators: Vec::new(),
+            render_as_cluster: false,
         }
     }
 
@@ -1702,6 +1802,7 @@ mod tests {
             kind: crate::model::state::StateKind::default(),
             internal_transitions: Vec::new(),
             region_separators: Vec::new(),
+            render_as_cluster: false,
         }
     }
 
@@ -1870,6 +1971,7 @@ mod tests {
             kind: crate::model::state::StateKind::default(),
             internal_transitions: Vec::new(),
             region_separators: Vec::new(),
+            render_as_cluster: false,
         };
         layout.state_layouts.push(composite);
         let (svg, _) =
@@ -2157,6 +2259,7 @@ mod tests {
             kind: StateKind::Fork,
             internal_transitions: Vec::new(),
             region_separators: Vec::new(),
+            render_as_cluster: false,
         });
         let (svg, _) =
             render_state(&diagram, &layout, &SkinParams::default()).expect("render failed");
@@ -2188,6 +2291,7 @@ mod tests {
             kind: StateKind::Join,
             internal_transitions: Vec::new(),
             region_separators: Vec::new(),
+            render_as_cluster: false,
         });
         let (svg, _) =
             render_state(&diagram, &layout, &SkinParams::default()).expect("render failed");
@@ -2215,6 +2319,7 @@ mod tests {
             internal_transitions: Vec::new(),
             region_separators: Vec::new(),
             source_line: None,
+            render_as_cluster: false,
         });
         let (svg, _) =
             render_state(&diagram, &layout, &SkinParams::default()).expect("render failed");
@@ -2245,6 +2350,7 @@ mod tests {
             internal_transitions: Vec::new(),
             region_separators: Vec::new(),
             source_line: None,
+            render_as_cluster: false,
         });
         let (svg, _) =
             render_state(&diagram, &layout, &SkinParams::default()).expect("render failed");
@@ -2273,6 +2379,7 @@ mod tests {
             internal_transitions: Vec::new(),
             region_separators: Vec::new(),
             source_line: None,
+            render_as_cluster: false,
         });
         let (svg, _) =
             render_state(&diagram, &layout, &SkinParams::default()).expect("render failed");
@@ -2306,6 +2413,7 @@ mod tests {
             internal_transitions: Vec::new(),
             region_separators: vec![110.0],
             source_line: None,
+            render_as_cluster: false,
         };
         layout.state_layouts.push(composite);
         let (svg, _) =
