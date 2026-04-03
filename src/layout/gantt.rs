@@ -286,21 +286,28 @@ pub fn layout_gantt(diagram: &GanttDiagram) -> Result<GanttLayout> {
     let schedule = compute_schedule(diagram);
     let total = total_days(diagram, &schedule);
 
+    // Java `scale N` scales horizontal day width and font sizes, but vertical
+    // spacing (row height, margins, time axis height) stays the same.
     let scale_factor = diagram.scale.unwrap_or(1) as f64;
     let day_w = DAY_WIDTH * scale_factor;
-    let row_h = ROW_HEIGHT * scale_factor;
-    let bar_h = BAR_HEIGHT * scale_factor;
-    let margin = MARGIN * scale_factor;
-    let time_axis_h = TIME_AXIS_HEIGHT * scale_factor;
-    let font_size = FONT_SIZE * scale_factor;
+    let row_h = ROW_HEIGHT; // vertical: unscaled
+    let bar_h = BAR_HEIGHT; // vertical: unscaled
+    let margin = MARGIN;    // vertical: unscaled
+    let font_size = FONT_SIZE * scale_factor; // fonts: scaled
+    // Time axis height scales with font size (larger fonts need more header space)
+    let time_axis_h = if scale_factor > 1.0 {
+        TIME_AXIS_HEIGHT + (font_size - FONT_SIZE) * 1.5
+    } else {
+        TIME_AXIS_HEIGHT
+    };
 
-    // Compute label area width based on longest task name
+    // Compute label area width based on longest task name (scaled font)
     let max_label_width = diagram
         .tasks
         .iter()
         .map(|t| font_metrics::text_width(&t.name, "SansSerif", font_size, false, false))
         .fold(0.0_f64, f64::max);
-    let label_area = (max_label_width + 2.0 * margin).max(LABEL_AREA_WIDTH * scale_factor);
+    let label_area = (max_label_width + 2.0 * margin).max(LABEL_AREA_WIDTH);
 
     let chart_x = margin + label_area;
     let chart_y = margin + time_axis_h;
