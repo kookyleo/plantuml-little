@@ -1444,13 +1444,22 @@ fn render_node_text(
         node.x + margin_left + space_offset
     };
     let tl = font_metrics::text_width(&node.name, "SansSerif", FONT_SIZE, false, false);
+    // Java uses the full font-metric line height (ascent+descent) for standalone
+    // name-only entities without stereotypes, but the simpler 16 px constant for
+    // entities that have sprites, description blocks, or stereotypes (C4, etc.).
+    let name_line_height = if sprite_rendered.is_none() && !has_desc && node.stereotype.is_none()
+    {
+        font_metrics::line_height("SansSerif", FONT_SIZE, false, false)
+    } else {
+        LINE_HEIGHT
+    };
     let mut tmp = String::new();
     render_creole_text(
         &mut tmp,
         &node.name,
         name_x,
         name_y,
-        LINE_HEIGHT,
+        name_line_height,
         font_color,
         None,
         r#"font-size="14""#,
