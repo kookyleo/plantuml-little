@@ -16,8 +16,68 @@ use super::svg_richtext::{
     disable_path_sprites, enable_path_sprites, render_creole_note_content, render_creole_text,
     set_default_font_family, take_back_filters,
 };
+use crate::klimt::hand::{
+    line_to_hand_path, polygon_points_svg, rect_to_hand_polygon, JavaRandom, PathSegment,
+};
 use crate::klimt::sanitize_group_metadata_value;
 use crate::klimt::svg::{fmt_coord, xml_escape, LengthAdjust, SvgGraphic};
+
+// ── Handwritten helpers ─────────────────────────────────────────────
+
+/// Emit a rect as a hand-drawn polygon when `rng` is Some, or normal rect otherwise.
+fn emit_rect(
+    sg: &mut SvgGraphic,
+    x: f64, y: f64, w: f64, h: f64,
+    fill: &str, fill_opacity: Option<&str>, style: &str,
+    rng: &mut Option<JavaRandom>,
+) {
+    if let Some(ref mut r) = rng {
+        let pts = rect_to_hand_polygon(w, h, 0.0, 0.0, r);
+        let translated: Vec<(f64, f64)> = pts.iter().map(|(px, py)| (px + x, py + y)).collect();
+        let pts_str = polygon_points_svg(&translated);
+        let opacity = fill_opacity.map(|o| format!(" fill-opacity=\"{o}\"")).unwrap_or_default();
+        let style_attr = if style.is_empty() { String::new() } else { format!(" style=\"{style}\"") };
+        sg.push_raw(&format!(
+            "<polygon fill=\"{fill}\"{opacity} points=\"{pts_str}\"{style_attr}/>"
+        ));
+    } else {
+        let opacity = fill_opacity.map(|o| format!(" fill-opacity=\"{o}\"")).unwrap_or_default();
+        let style_attr = if style.is_empty() { String::new() } else { format!(" style=\"{style}\"") };
+        sg.push_raw(&format!(
+            "<rect fill=\"{fill}\"{opacity} height=\"{h}\"{style_attr} width=\"{w}\" x=\"{x}\" y=\"{y}\"/>",
+            h = fmt_coord(h), w = fmt_coord(w), x = fmt_coord(x), y = fmt_coord(y),
+        ));
+    }
+}
+
+/// Emit a line as a hand-drawn path when `rng` is Some, or normal line otherwise.
+fn emit_line(
+    sg: &mut SvgGraphic,
+    x1: f64, y1: f64, x2: f64, y2: f64,
+    style: &str,
+    rng: &mut Option<JavaRandom>,
+) {
+    if let Some(ref mut r) = rng {
+        let segs = line_to_hand_path(x2 - x1, y2 - y1, r);
+        let mut d = String::new();
+        for seg in &segs {
+            match seg {
+                PathSegment::MoveTo(sx, sy) => {
+                    write!(d, "M{},{}", fmt_coord(sx + x1), fmt_coord(sy + y1)).unwrap();
+                }
+                PathSegment::LineTo(sx, sy) => {
+                    write!(d, " L{},{}", fmt_coord(sx + x1), fmt_coord(sy + y1)).unwrap();
+                }
+            }
+        }
+        sg.push_raw(&format!("<path d=\"{d}\" fill=\"none\" style=\"{style}\"/>"));
+    } else {
+        sg.push_raw(&format!(
+            "<line style=\"{style}\" x1=\"{x1}\" x2=\"{x2}\" y1=\"{y1}\" y2=\"{y2}\"/>",
+            x1 = fmt_coord(x1), x2 = fmt_coord(x2), y1 = fmt_coord(y1), y2 = fmt_coord(y2),
+        ));
+    }
+}
 
 // ── Style constants ─────────────────────────────────────────────────
 
@@ -121,6 +181,7 @@ fn draw_lifelines(
     layout: &SeqLayout,
     skin: &SkinParams,
     sd: &SequenceDiagram,
+    hand_rng: &mut Option<JavaRandom>,
 ) {
     let ll_color = skin.sequence_lifeline_border_color(BORDER_COLOR);
     // Collect delay break segments sorted by y
@@ -169,24 +230,11 @@ fn draw_lifelines(
             write!(tmp, "<g><title>{dname}</title>", dname = title_text).unwrap();
             sg.push_raw(&tmp);
 
-            let mut tmp = String::new();
-            let _ = write!(
-                tmp,
-                "<rect fill=\"#000000\" fill-opacity=\"0.00000\" height=\"{h}\" width=\"8\" x=\"{x}\" y=\"{y}\"/>",
-                h = fmt_coord(ll_height), x = fmt_coord(rect_x), y = fmt_coord(layout.lifeline_top),
-            );
-            sg.push_raw(&tmp);
+            emit_rect(sg, rect_x, layout.lifeline_top, 8.0, ll_height,
+                "#000000", Some("0.00000"), "", hand_rng);
 
-            let mut tmp = String::new();
-            write!(
-                tmp,
-                r#"<line style="stroke:{color};stroke-width:0.5;stroke-dasharray:5,5;" x1="{x}" x2="{x}" y1="{y1}" y2="{y2}"/>"#,
-                x = fmt_coord(lifeline_x),
-                y1 = fmt_coord(layout.lifeline_top),
-                y2 = fmt_coord(layout.lifeline_bottom),
-                color = ll_color,
-            ).unwrap();
-            sg.push_raw(&tmp);
+            emit_line(sg, lifeline_x, layout.lifeline_top, lifeline_x, layout.lifeline_bottom,
+                &format!("stroke:{};stroke-width:0.5;stroke-dasharray:5,5;", ll_color), hand_rng);
             sg.push_raw("</g>");
         } else if delay_breaks.is_empty() {
             // No delays: single continuous lifeline
@@ -199,24 +247,11 @@ fn draw_lifelines(
             ).unwrap();
             sg.push_raw(&tmp);
 
-            let mut tmp = String::new();
-            let _ = write!(
-                tmp,
-                "<rect fill=\"#000000\" fill-opacity=\"0.00000\" height=\"{h}\" width=\"8\" x=\"{x}\" y=\"{y}\"/>",
-                h = fmt_coord(ll_height), x = fmt_coord(rect_x), y = fmt_coord(layout.lifeline_top),
-            );
-            sg.push_raw(&tmp);
+            emit_rect(sg, rect_x, layout.lifeline_top, 8.0, ll_height,
+                "#000000", Some("0.00000"), "", hand_rng);
 
-            let mut tmp = String::new();
-            write!(
-                tmp,
-                r#"<line style="stroke:{color};stroke-width:0.5;stroke-dasharray:5,5;" x1="{x}" x2="{x}" y1="{y1}" y2="{y2}"/>"#,
-                x = fmt_coord(lifeline_x),
-                y1 = fmt_coord(layout.lifeline_top),
-                y2 = fmt_coord(layout.lifeline_bottom),
-                color = ll_color,
-            ).unwrap();
-            sg.push_raw(&tmp);
+            emit_line(sg, lifeline_x, layout.lifeline_top, lifeline_x, layout.lifeline_bottom,
+                &format!("stroke:{};stroke-width:0.5;stroke-dasharray:5,5;", ll_color), hand_rng);
             sg.push_raw("</g></g>");
         } else {
             // Delays present: split lifeline into segments with delay-style breaks.
@@ -3061,8 +3096,7 @@ fn build_participant_index(sd: &SequenceDiagram) -> std::collections::HashMap<St
         .collect()
 }
 
-fn draw_handwritten_banner(sg: &mut SvgGraphic) {
-    use crate::klimt::hand::{polygon_points_svg, rect_to_hand_polygon, JavaRandom};
+fn draw_handwritten_banner(sg: &mut SvgGraphic, rng: &mut JavaRandom) {
 
     let banner_text = "Please use '!option handwritten true' to enable handwritten";
     let text_w = font_metrics::text_width(banner_text, "Monospaced", 10.0, false, false);
@@ -3081,8 +3115,7 @@ fn draw_handwritten_banner(sg: &mut SvgGraphic) {
     // Text baseline: hardcoded from Java reference output.
     let text_y = 18.6406_f64;
 
-    let mut rng = JavaRandom::new(424242);
-    let local_points = rect_to_hand_polygon(rect_w, rect_h, rx, ry, &mut rng);
+    let local_points = rect_to_hand_polygon(rect_w, rect_h, rx, ry, rng);
     let translated: Vec<(f64, f64)> = local_points
         .iter()
         .map(|(x, y)| (x + tx, y + ty))
@@ -3149,9 +3182,19 @@ fn render_sequence_inner(
         sg.push_raw(&tmp);
     }
 
+    // Handwritten RNG — shared across all shape drawings for deterministic output.
+    // Java: seed = StringUtils.seed(source.getPlainString("\n"))
+    let mut hand_rng: Option<JavaRandom> = if skin.is_handwritten() {
+        // Java seed computation: h = 1125899906842597L; for each char: h = 31 * h + ch;
+        // We use the diagram source to compute the seed (passed via meta or reconstructed).
+        Some(JavaRandom::new(sd.source_seed))
+    } else {
+        None
+    };
+
     // Handwritten warning banner (before any diagram content).
-    if skin.is_handwritten() {
-        draw_handwritten_banner(&mut sg);
+    if let Some(ref mut rng) = hand_rng {
+        draw_handwritten_banner(&mut sg, rng);
     }
 
     // Shadow filter attribute for elements that support shadows (skin rose, etc.)
@@ -3223,7 +3266,7 @@ fn render_sequence_inner(
                 .unwrap_or(&act.participant);
             draw_activation(&mut sg, act, title, &shadow_attr, act_border);
         }
-        draw_lifelines(&mut sg, layout, skin, sd);
+        draw_lifelines(&mut sg, layout, skin, sd, &mut hand_rng);
     }
 
     // 5b. Group frames (legacy, puma only)

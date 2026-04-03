@@ -199,4 +199,7 @@ pub struct SequenceDiagram {
     pub delta_shadow: f64,
     /// Event indices of inline life events (from message `++`/`--` syntax).
     pub inline_life_events: Vec<usize>,
+    /// Source text hash seed for deterministic handwritten rendering.
+    /// Java: `StringUtils.seed(source.getPlainString("\n"))`
+    pub source_seed: i64,
 }

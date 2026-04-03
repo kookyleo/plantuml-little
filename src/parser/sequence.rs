@@ -838,6 +838,15 @@ pub fn parse_sequence_diagram_with_original(
     let mut participants = declared_participants;
     participants.append(&mut auto_participants);
 
+    // Java: seed = StringUtils.seed(source.getPlainString("\n"))
+    let source_seed = {
+        let mut h: i64 = 1125899906842597;
+        for ch in source.chars() {
+            h = h.wrapping_mul(31).wrapping_add(ch as i64);
+        }
+        h
+    };
+
     Ok(SequenceDiagram {
         participants,
         events,
@@ -845,6 +854,7 @@ pub fn parse_sequence_diagram_with_original(
         hide_footbox,
         delta_shadow,
         inline_life_events,
+        source_seed,
     })
 }
 
