@@ -66,7 +66,7 @@ fn render_timing_inner(layout: &TimingLayout, skin: &SkinParams) -> Result<Strin
     render_tick_grid(&mut sg, layout);
     render_top_border(&mut sg, layout);
     for track in &layout.tracks {
-        render_track(&mut sg, track, &timing_bg, &timing_border, &timing_font, name_fs, state_fs);
+        render_track(&mut sg, track, &timing_bg, &timing_border, &timing_font, name_fs, state_fs, layout.chart_left);
     }
     for msg in &layout.messages {
         render_message(&mut sg, msg, &arrow_color, arrow_font, arrow_fs);
@@ -131,13 +131,12 @@ fn render_track(
     font_color: &str,
     name_fs: f64,
     state_fs: f64,
+    chart_left: f64,
 ) {
     // Participant name label first (matches Java rendering order)
-    let label_x = track
-        .segments
-        .first()
-        .map_or(LABEL_PADDING, |s| s.x_start - LABEL_PADDING);
-    let label_y = track.y + track.height * 0.5 + name_fs * 0.35;
+    // Java uses left-aligned text at chart_left + 5, with y = track.y + ascent
+    let label_x = chart_left + 5.0;
+    let label_y = track.y + crate::font_metrics::ascent("SansSerif", name_fs, false, false);
     let mut tmp = String::new();
     render_creole_text(
         &mut tmp,
@@ -146,10 +145,24 @@ fn render_track(
         label_y,
         name_fs + 4.0,
         font_color,
-        Some("end"),
+        None,
         &format!(r#"font-size="{:.0}" font-weight="700""#, name_fs),
     );
     sg.push_raw(&tmp);
+    // Tab header: underline + diagonal (matches Java's participant name tab)
+    let text_len = crate::font_metrics::text_width(&track.name, "SansSerif", name_fs, true, false);
+    let underline_y = track.y + track.header_height;
+    let tab_end_x = label_x + text_len + 1.0;
+    sg.push_raw(&format!(
+        "<line style=\"stroke:{GRID_LINE_COLOR};stroke-width:0.5;\" x1=\"{}\" x2=\"{}\" y1=\"{}\" y2=\"{}\"/>",
+        fmt_coord(chart_left), fmt_coord(tab_end_x),
+        fmt_coord(underline_y), fmt_coord(underline_y),
+    ));
+    sg.push_raw(&format!(
+        "<line style=\"stroke:{GRID_LINE_COLOR};stroke-width:0.5;\" x1=\"{}\" x2=\"{}\" y1=\"{}\" y2=\"{}\"/>",
+        fmt_coord(tab_end_x), fmt_coord(tab_end_x + 10.0),
+        fmt_coord(underline_y), fmt_coord(track.y),
+    ));
     // Track background rect
     if !track.segments.is_empty() {
         let x_min = track
