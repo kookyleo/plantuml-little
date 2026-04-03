@@ -22,6 +22,12 @@ pub struct TimingLayout {
     pub time_axis: TimingTimeAxis,
     pub width: f64,
     pub height: f64,
+    /// Left edge of the chart border (MARGIN after shift).
+    pub chart_left: f64,
+    /// Right edge of the chart border (chart_x + chart_width + 5 after shift).
+    pub chart_right: f64,
+    /// Top edge of the chart border (MARGIN after shift).
+    pub chart_top: f64,
     pub name_font_size: f64,
     pub state_font_size: f64,
     pub arrow_font_size: f64,
@@ -265,11 +271,16 @@ pub fn layout_timing(td: &TimingDiagram, skin: &crate::style::SkinParams) -> Res
 
     let mut time_axis = TimingTimeAxis { y: axis_y, ticks };
 
+    // --- Chart border bounds ---
+    let mut chart_left = MARGIN;
+    let mut chart_right = chart_x + chart_width + 5.0;
+    let mut chart_top = MARGIN;
+
     // --- Total dimensions ---
     let mut notes = layout_notes(td, &track_rect_map, chart_x, chart_width, axis_y);
     let mut min_x = MARGIN;
     let mut min_y = MARGIN;
-    let mut total_width = chart_x + chart_width + 5.0;
+    let mut total_width = chart_right;
     let mut total_height = axis_y + axis_lh + MARGIN;
     for note in &notes {
         min_x = min_x.min(note.x);
@@ -305,6 +316,9 @@ pub fn layout_timing(td: &TimingDiagram, skin: &crate::style::SkinParams) -> Res
             tick.x += shift_x;
         }
         time_axis.y += shift_y;
+        chart_left += shift_x;
+        chart_right += shift_x;
+        chart_top += shift_y;
         for note in &mut notes {
             note.x += shift_x;
             note.y += shift_y;
@@ -331,6 +345,9 @@ pub fn layout_timing(td: &TimingDiagram, skin: &crate::style::SkinParams) -> Res
         time_axis,
         width: total_width,
         height: total_height,
+        chart_left,
+        chart_right,
+        chart_top,
         name_font_size,
         state_font_size,
         arrow_font_size,

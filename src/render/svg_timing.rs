@@ -15,7 +15,7 @@ const ARROW_COLOR: &str = "#555555";
 const CONSTRAINT_COLOR: &str = "#FF6600";
 const AXIS_LINE_COLOR: &str = "#888888";
 const AXIS_TEXT_COLOR: &str = "#333333";
-const TICK_COLOR: &str = "#CCCCCC";
+const GRID_LINE_COLOR: &str = "#333333";
 const LABEL_PADDING: f64 = 8.0;
 const ROBUST_BAND_HEIGHT: f64 = 16.0;
 
@@ -42,7 +42,9 @@ pub fn render_timing(
     let arrow_fs = layout.arrow_font_size;
     let constraint_fs = layout.constraint_font_size;
     let axis_fs = layout.axis_font_size;
+    render_chart_borders(&mut sg, layout);
     render_tick_grid(&mut sg, layout);
+    render_top_border(&mut sg, layout);
     for track in &layout.tracks {
         render_track(&mut sg, track, &timing_bg, &timing_border, &timing_font, name_fs, state_fs);
     }
@@ -61,12 +63,44 @@ pub fn render_timing(
     Ok(buf)
 }
 
+/// Render solid left and right vertical border lines of the chart area.
+fn render_chart_borders(sg: &mut SvgGraphic, layout: &TimingLayout) {
+    let y_top = layout.chart_top;
+    let y_bot = layout.time_axis.y;
+    // Left vertical border
+    sg.push_raw(&format!(
+        "<line style=\"stroke:{GRID_LINE_COLOR};stroke-width:0.5;\" x1=\"{}\" x2=\"{}\" y1=\"{}\" y2=\"{}\"/>",
+        fmt_coord(layout.chart_left), fmt_coord(layout.chart_left),
+        fmt_coord(y_top), fmt_coord(y_bot),
+    ));
+    // Right vertical border
+    sg.push_raw(&format!(
+        "<line style=\"stroke:{GRID_LINE_COLOR};stroke-width:0.5;\" x1=\"{}\" x2=\"{}\" y1=\"{}\" y2=\"{}\"/>",
+        fmt_coord(layout.chart_right), fmt_coord(layout.chart_right),
+        fmt_coord(y_top), fmt_coord(y_bot),
+    ));
+}
+
+/// Render dashed vertical tick grid lines.
 fn render_tick_grid(sg: &mut SvgGraphic, layout: &TimingLayout) {
-    sg.set_stroke_color(Some(TICK_COLOR));
-    sg.set_stroke_width(0.5, Some((4.0, 4.0)));
+    let y_top = layout.chart_top;
+    let y_bot = layout.time_axis.y;
     for tick in &layout.time_axis.ticks {
-        sg.svg_line(tick.x, 0.0, tick.x, layout.time_axis.y, 0.0);
+        sg.push_raw(&format!(
+            "<line style=\"stroke:{GRID_LINE_COLOR};stroke-width:0.5;stroke-dasharray:3,5;\" x1=\"{}\" x2=\"{}\" y1=\"{}\" y2=\"{}\"/>",
+            fmt_coord(tick.x), fmt_coord(tick.x),
+            fmt_coord(y_top), fmt_coord(y_bot),
+        ));
     }
+}
+
+/// Render the solid top horizontal border line of the chart area.
+fn render_top_border(sg: &mut SvgGraphic, layout: &TimingLayout) {
+    sg.push_raw(&format!(
+        "<line style=\"stroke:{GRID_LINE_COLOR};stroke-width:0.5;\" x1=\"{}\" x2=\"{}\" y1=\"{}\" y2=\"{}\"/>",
+        fmt_coord(layout.chart_left), fmt_coord(layout.chart_right),
+        fmt_coord(layout.chart_top), fmt_coord(layout.chart_top),
+    ));
 }
 
 fn render_track(
@@ -361,6 +395,9 @@ mod tests {
             },
             width: 400.0,
             height: 200.0,
+            chart_left: 20.0,
+            chart_right: 380.0,
+            chart_top: 20.0,
             name_font_size: 14.0,
             state_font_size: 12.0,
             arrow_font_size: 13.0,

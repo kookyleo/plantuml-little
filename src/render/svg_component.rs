@@ -915,34 +915,21 @@ fn render_box_node(
     sg.push_raw(&format!(
         "<polygon fill=\"{bg}\" points=\"{points}\" style=\"stroke:{border};stroke-width:0.5;\"/>"
     ));
-    // Inner folded-corner lines
-    let lx1 = fmt_coord(x + w - tab);
-    let ly1 = fmt_coord(y);
-    let lx2 = fmt_coord(x + w - tab);
-    let ly2 = fmt_coord(y + tab);
+    // Inner folded-corner lines (Java USymbolNode: 3 lines for 3D fold effect)
+    // 1) Diagonal from fold-corner to top-right: (x+w-tab, y+tab) -> (x+w, y)
     sg.push_raw(&format!(
-        "<line style=\"stroke:{border};stroke-width:0.5;\" x1=\"{lx1}\" x2=\"{lx2}\" y1=\"{ly1}\" y2=\"{ly2}\"/>"
+        "<line style=\"stroke:{border};stroke-width:0.5;\" x1=\"{}\" x2=\"{}\" y1=\"{}\" y2=\"{}\"/>",
+        fmt_coord(x + w - tab), fmt_coord(x + w), fmt_coord(y + tab), fmt_coord(y),
     ));
-    let lx3 = fmt_coord(x);
-    let ly3 = fmt_coord(y + h - tab);
-    let lx4 = fmt_coord(x + tab);
-    let ly4 = fmt_coord(y + h - tab);
+    // 2) Horizontal inner shelf: (x, y+tab) -> (x+w-tab, y+tab)
     sg.push_raw(&format!(
-        "<line style=\"stroke:{border};stroke-width:0.5;\" x1=\"{lx3}\" x2=\"{lx4}\" y1=\"{ly3}\" y2=\"{ly4}\"/>"
+        "<line style=\"stroke:{border};stroke-width:0.5;\" x1=\"{}\" x2=\"{}\" y1=\"{}\" y2=\"{}\"/>",
+        fmt_coord(x), fmt_coord(x + w - tab), fmt_coord(y + tab), fmt_coord(y + tab),
     ));
-    let lx5 = fmt_coord(x + w - tab);
-    let ly5 = fmt_coord(y + tab);
-    let lx6 = fmt_coord(x + w);
-    let ly6 = fmt_coord(y + tab);
+    // 3) Vertical inner right wall: (x+w-tab, y+tab) -> (x+w-tab, y+h)
     sg.push_raw(&format!(
-        "<line style=\"stroke:{border};stroke-width:0.5;\" x1=\"{lx5}\" x2=\"{lx6}\" y1=\"{ly5}\" y2=\"{ly6}\"/>"
-    ));
-    let lx7 = fmt_coord(x + tab);
-    let ly7 = fmt_coord(y + h - tab);
-    let lx8 = fmt_coord(x + tab);
-    let ly8 = fmt_coord(y + h);
-    sg.push_raw(&format!(
-        "<line style=\"stroke:{border};stroke-width:0.5;\" x1=\"{lx7}\" x2=\"{lx8}\" y1=\"{ly7}\" y2=\"{ly8}\"/>"
+        "<line style=\"stroke:{border};stroke-width:0.5;\" x1=\"{}\" x2=\"{}\" y1=\"{}\" y2=\"{}\"/>",
+        fmt_coord(x + w - tab), fmt_coord(x + w - tab), fmt_coord(y + tab), fmt_coord(y + h),
     ));
 
     render_node_text(sg, node, font_color, bg);
