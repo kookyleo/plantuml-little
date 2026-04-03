@@ -2109,7 +2109,7 @@ fn render_class(
             "<g class=\"entity\" data-qualified-name=\"{note_qname}\" id=\"ent{:04}\">",
             cd.entities.len() + ni
         ));
-        draw_class_note(&mut sg, &mut tracker, note);
+        draw_class_note(&mut sg, &mut tracker, note, edge_offset_x, edge_offset_y);
         sg.push_raw("</g>");
     }
 
@@ -4941,9 +4941,9 @@ fn draw_label(sg: &mut SvgGraphic, text: &str, x: f64, y: f64) {
 ///
 /// For left/right positioned notes with connectors (Opale style), the connector
 /// arrow is integrated into the body path shape, matching Java Opale rendering.
-fn draw_class_note(sg: &mut SvgGraphic, tracker: &mut BoundsTracker, note: &ClassNoteLayout) {
-    let x = note.x + MARGIN;
-    let y = note.y + MARGIN;
+fn draw_class_note(sg: &mut SvgGraphic, tracker: &mut BoundsTracker, note: &ClassNoteLayout, offset_x: f64, offset_y: f64) {
+    let x = note.x + offset_x;
+    let y = note.y + offset_y;
     let w = note.width;
     let h = note.height;
 
@@ -4956,10 +4956,10 @@ fn draw_class_note(sg: &mut SvgGraphic, tracker: &mut BoundsTracker, note: &Clas
     if is_opale && note.connector.is_some() {
         // Opale note with connector: render body as <path> with embedded connector arrow.
         let (from_x_g, from_y_g, to_x_g, to_y_g) = note.connector.unwrap();
-        let from_x = from_x_g + MARGIN;
-        let from_y = from_y_g + MARGIN;
-        let to_x = to_x_g + MARGIN;
-        let to_y = to_y_g + MARGIN;
+        let from_x = from_x_g + offset_x;
+        let from_y = from_y_g + offset_y;
+        let to_x = to_x_g + offset_x;
+        let to_y = to_y_g + offset_y;
         let pp1_y_local = from_y - y;
         let pp2_x_local = to_x - x;
         let pp2_y_local = to_y - y;
@@ -5083,28 +5083,32 @@ fn draw_class_note(sg: &mut SvgGraphic, tracker: &mut BoundsTracker, note: &Clas
         tracker.track_path_bounds(x + w - fold, y, x + w, y + fold);
     }
 
-    // text content
+    // text content -- Java Opale: marginX1=6, marginY=5, font 13pt SansSerif
+    const NOTE_MARGIN_Y: f64 = 5.0;
+    const NOTE_FONT_SIZE: f64 = 13.0;
+    const NOTE_ASCENT: f64 = 1901.0 / 2048.0 * 13.0; // 12.0669
+    const NOTE_LINE_HT: f64 = 15.1328; // SansSerif 13pt: ascent+descent
+
     let text_x = x + NOTE_TEXT_PADDING;
-    let text_y = y + LINE_HEIGHT;
     if let Some(ref emb) = note.embedded {
         // Embedded diagram: render before-text, image, after-text
-        let mut cursor_y = y + NOTE_TEXT_PADDING;
+        let mut cursor_y = y + NOTE_MARGIN_Y;
 
         if !emb.text_before.is_empty() {
-            let ty = cursor_y + LINE_HEIGHT - NOTE_TEXT_PADDING;
+            let ty = cursor_y + NOTE_ASCENT;
             let mut tmp = String::new();
             let before_lines = render_creole_text(
                 &mut tmp,
                 &emb.text_before,
                 text_x,
                 ty,
-                LINE_HEIGHT,
+                NOTE_LINE_HT,
                 TEXT_COLOR,
                 None,
-                &format!(r#"font-size="{FONT_SIZE}""#),
+                &format!(r#"font-size="{}""#, NOTE_FONT_SIZE as u32),
             );
             sg.push_raw(&tmp);
-            cursor_y += before_lines as f64 * LINE_HEIGHT;
+            cursor_y += before_lines as f64 * NOTE_LINE_HT;
         }
 
         // Emit embedded SVG as <image> element
@@ -5119,31 +5123,32 @@ fn draw_class_note(sg: &mut SvgGraphic, tracker: &mut BoundsTracker, note: &Clas
         cursor_y += emb.height;
 
         if !emb.text_after.is_empty() {
-            let ty = cursor_y + LINE_HEIGHT - NOTE_TEXT_PADDING;
+            let ty = cursor_y + NOTE_ASCENT;
             let mut tmp = String::new();
             render_creole_text(
                 &mut tmp,
                 &emb.text_after,
                 text_x,
                 ty,
-                LINE_HEIGHT,
+                NOTE_LINE_HT,
                 TEXT_COLOR,
                 None,
-                &format!(r#"font-size="{FONT_SIZE}""#),
+                &format!(r#"font-size="{}""#, NOTE_FONT_SIZE as u32),
             );
             sg.push_raw(&tmp);
         }
     } else {
+        let text_y = y + NOTE_MARGIN_Y + NOTE_ASCENT;
         let mut tmp = String::new();
         render_creole_text(
             &mut tmp,
             &note.text,
             text_x,
             text_y,
-            LINE_HEIGHT,
+            NOTE_LINE_HT,
             TEXT_COLOR,
             None,
-            &format!(r#"font-size="{FONT_SIZE}""#),
+            &format!(r#"font-size="{}""#, NOTE_FONT_SIZE as u32),
         );
         sg.push_raw(&tmp);
     }
@@ -5152,10 +5157,10 @@ fn draw_class_note(sg: &mut SvgGraphic, tracker: &mut BoundsTracker, note: &Clas
     // Opale notes embed the connector arrow in the body path.
     if !is_opale {
         if let Some((from_x, from_y, to_x, to_y)) = note.connector {
-            let lx1 = from_x + MARGIN;
-            let ly1 = from_y + MARGIN;
-            let lx2 = to_x + MARGIN;
-            let ly2 = to_y + MARGIN;
+            let lx1 = from_x + offset_x;
+            let ly1 = from_y + offset_y;
+            let lx2 = to_x + offset_x;
+            let ly2 = to_y + offset_y;
             sg.set_stroke_color(Some(NOTE_BORDER));
             sg.set_stroke_width(1.0, Some((5.0, 3.0)));
             sg.svg_line(lx1, ly1, lx2, ly2, 0.0);

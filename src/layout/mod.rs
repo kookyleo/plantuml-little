@@ -1174,10 +1174,12 @@ fn direction_to_rankdir(dir: &Direction) -> RankDir {
 
 /// Note font size
 const NOTE_FONT_SIZE: f64 = 13.0;
-const NOTE_LINE_HEIGHT: f64 = 16.0;
+/// SansSerif 13pt: ascent(12.0669) + descent(3.0659) = 15.1328
+const NOTE_LINE_HEIGHT: f64 = 15.1328;
 const NOTE_MARGIN_X1: f64 = 6.0;
 const NOTE_MARGIN_X2: f64 = 15.0;
-const NOTE_PADDING_Y: f64 = 10.0;
+/// Java Opale marginY = 5
+const NOTE_PADDING_Y: f64 = 5.0;
 /// Gap between note and target entity
 const NOTE_GAP: f64 = 16.0;
 
@@ -1637,7 +1639,7 @@ fn estimate_class_note_size(text: &str) -> (f64, f64) {
             let w = (content_w + NOTE_MARGIN_X1 + NOTE_MARGIN_X2).max(60.0);
             let before_h = before_lines.len() as f64 * NOTE_LINE_HEIGHT;
             let after_h = after_lines.len() as f64 * NOTE_LINE_HEIGHT;
-            let h = (before_h + eh + after_h + NOTE_PADDING_Y * 2.0).max(30.0);
+            let h = (before_h + eh + after_h + NOTE_PADDING_Y * 2.0);
             return (w, h);
         }
     }
@@ -1647,7 +1649,7 @@ fn estimate_class_note_size(text: &str) -> (f64, f64) {
         .map(|l| font_metrics::text_width(l, "SansSerif", NOTE_FONT_SIZE, false, false))
         .fold(0.0_f64, f64::max);
     let w = (max_line_width + NOTE_MARGIN_X1 + NOTE_MARGIN_X2).max(60.0);
-    let h = (lines.len() as f64 * NOTE_LINE_HEIGHT + NOTE_PADDING_Y * 2.0).max(30.0);
+    let h = (lines.len() as f64 * NOTE_LINE_HEIGHT + NOTE_PADDING_Y * 2.0);
     (w, h)
 }
 
@@ -1701,7 +1703,7 @@ fn compute_note_layouts(
                 let w = (content_w + NOTE_MARGIN_X1 + NOTE_MARGIN_X2).max(60.0);
                 let before_h = before_lines.len() as f64 * NOTE_LINE_HEIGHT;
                 let after_h = after_lines.len() as f64 * NOTE_LINE_HEIGHT;
-                let h = (before_h + emb.height + after_h + NOTE_PADDING_Y * 2.0).max(30.0);
+                let h = (before_h + emb.height + after_h + NOTE_PADDING_Y * 2.0);
                 let all_lines: Vec<String> = before_lines.into_iter()
                     .chain(std::iter::once("{{embedded}}".to_string()))
                     .chain(after_lines)
@@ -1718,7 +1720,7 @@ fn compute_note_layouts(
                     .map(|l| font_metrics::text_width(l, "SansSerif", NOTE_FONT_SIZE, false, false))
                     .fold(0.0_f64, f64::max);
                 let w = (max_line_width + NOTE_MARGIN_X1 + NOTE_MARGIN_X2).max(60.0);
-                let h = (lines.len() as f64 * NOTE_LINE_HEIGHT + NOTE_PADDING_Y * 2.0).max(30.0);
+                let h = (lines.len() as f64 * NOTE_LINE_HEIGHT + NOTE_PADDING_Y * 2.0);
                 (w, h, lines)
             };
 
