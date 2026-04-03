@@ -181,7 +181,16 @@ enum TeozTile {
         color: Option<String>,
     },
     /// Activate / Deactivate / Destroy life event
-    LifeEvent { height: f64, y: Option<f64> },
+    LifeEvent {
+        height: f64,
+        y: Option<f64>,
+        /// Participant index for this life event
+        participant_idx: usize,
+        /// RealId of the participant center (pos_c)
+        center: RealId,
+        /// Activation level of this participant AFTER the event
+        level: usize,
+    },
     /// Note on a participant
     Note {
         participant_idx: usize,
@@ -814,6 +823,30 @@ fn compute_fragment_extent(
                     }
                 }
             }
+            TeozTile::LifeEvent {
+                center,
+                level,
+                ..
+            } => {
+                // Java LifeEventTile.getMinX/getMaxX: adjust extent based on
+                // activation level (LIVE_DELTA_SIZE = 5).
+                const LIVE_DELTA_SIZE: f64 = 5.0;
+                let cx = rl.get_value(*center);
+                let min_adj = if *level > 0 { LIVE_DELTA_SIZE } else { 0.0 };
+                let max_adj = if *level > 0 {
+                    *level as f64 * LIVE_DELTA_SIZE
+                } else {
+                    0.0
+                };
+                let t_min = cx - min_adj;
+                let t_max = cx + max_adj;
+                if t_min < fmin {
+                    fmin = t_min;
+                }
+                if t_max > fmax {
+                    fmax = t_max;
+                }
+            }
             _ => {}
         }
         i += 1;
@@ -1323,9 +1356,13 @@ pub fn build_teoz_layout(sd: &SequenceDiagram, skin: &SkinParams) -> Result<SeqL
             SeqEvent::Activate(name, _act_color) => {
                 let level = active_levels.entry(name.clone()).or_insert(0);
                 *level += 1;
+                let pidx = name_to_idx.get(name).copied().unwrap_or(0);
                 tiles.push(TeozTile::LifeEvent {
                     height: 0.0,
                     y: None,
+                    participant_idx: pidx,
+                    center: livings[pidx].pos_c,
+                    level: *level,
                 });
             }
             SeqEvent::Deactivate(name) => {
@@ -1333,15 +1370,28 @@ pub fn build_teoz_layout(sd: &SequenceDiagram, skin: &SkinParams) -> Result<SeqL
                 if *level > 0 {
                     *level -= 1;
                 }
+                let pidx = name_to_idx.get(name).copied().unwrap_or(0);
                 tiles.push(TeozTile::LifeEvent {
                     height: 0.0,
                     y: None,
+                    participant_idx: pidx,
+                    center: livings[pidx].pos_c,
+                    level: *level,
                 });
             }
             SeqEvent::Destroy(_name) => {
+                // Java: Destroy is isDeactivateOrDestroy(), so level is decremented
+                let level = active_levels.entry(_name.clone()).or_insert(0);
+                if *level > 0 {
+                    *level -= 1;
+                }
+                let pidx = name_to_idx.get(_name).copied().unwrap_or(0);
                 tiles.push(TeozTile::LifeEvent {
                     height: 0.0,
                     y: None,
+                    participant_idx: pidx,
+                    center: livings[pidx].pos_c,
+                    level: *level,
                 });
             }
             SeqEvent::NoteRight {
