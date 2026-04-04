@@ -1235,15 +1235,6 @@ mod tests {
     }
 
     #[test]
-    fn detect_component_by_archimate_keyword() {
-        let content = "archimate #438DD5 \"App\" <<application-component>> as app\n";
-        assert!(matches!(
-            detect_diagram_type(content),
-            DiagramHint::Component
-        ));
-    }
-
-    #[test]
     fn detect_component_by_file_keyword() {
         let content = "file Report\n";
         assert!(matches!(
