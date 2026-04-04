@@ -1,18 +1,19 @@
-# Continue: Feature Implementation
+# Continue: Java Alignment
 
-## Current State (2026-04-03)
+## Current State (2026-04-04)
 
-- **Reference tests**: 300/316 (94.9%) — all against genuine Java SVG
-- **Unit tests**: 2632/2632 (100%)
-- **Diagram types**: 25 implemented
+- **Reference tests**: 274/320 (85.6%) — ALL against genuine Java SVG
+- **Unit tests**: 2636/2636 (100%)
+- **Diagram types**: 29 implemented (all Java user-facing types)
 
-## Remaining 16 Java alignment gaps (new diagram types)
+## Diagram Types Complete
 
-- Chart ×2: Structurally different bar chart rendering
-- Files ×2: Different tree rendering structure
-- Git ×2: Different commit graph rendering
-- Packet ×2: Different bit-field grid rendering
-- Wire ×2: Different component wiring rendering
-- Regex ×3: Different railroad diagram rendering
-- EBNF ×2: Different syntax diagram rendering
-- Object map ×1: Map entity dimension/positioning
+Class, Sequence, Activity, State, Component, UseCase, ERD, Timing, Gantt,
+Mindmap, WBS, JSON, YAML, Salt, Ditaa, Nwdiag, DOT, Object+Map, Archimate,
+Chart(Bar), Files, Regex, EBNF, Git, Packet, Wire, Pie, Board, Chronology, HCL
+
+## 46 Java Alignment Gaps
+
+Spread across many types — mostly rendering structural differences
+in new diagram types and precision issues in existing types.
+All references are genuine Java PlantUML 1.2026.3beta5 output.
