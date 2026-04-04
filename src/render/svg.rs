@@ -660,6 +660,34 @@ fn render_body(
                 body_pre_offset: false,
             })
         }
+        (Diagram::Pie(pd), DiagramLayout::Pie(pl)) => {
+            super::svg_pie::render_pie(pd, pl, skin).map(|svg| BodyResult {
+                svg,
+                raw_body_dim: None,
+                body_pre_offset: false,
+            })
+        }
+        (Diagram::Board(bd), DiagramLayout::Board(bl)) => {
+            super::svg_board::render_board(bd, bl, skin).map(|svg| BodyResult {
+                svg,
+                raw_body_dim: None,
+                body_pre_offset: false,
+            })
+        }
+        (Diagram::Chronology(cd), DiagramLayout::Chronology(cl)) => {
+            super::svg_chronology::render_chronology(cd, cl, skin).map(|svg| BodyResult {
+                svg,
+                raw_body_dim: None,
+                body_pre_offset: false,
+            })
+        }
+        (Diagram::Hcl(hd), DiagramLayout::Hcl(hl)) => {
+            super::svg_hcl::render_hcl(hd, hl, skin).map(|svg| BodyResult {
+                svg,
+                raw_body_dim: None,
+                body_pre_offset: false,
+            })
+        }
         _ => Err(crate::Error::Render("diagram/layout type mismatch".into())),
     }
 }

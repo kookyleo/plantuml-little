@@ -1,0 +1,13 @@
+/// A single slice in a pie chart.
+#[derive(Debug, Clone)]
+pub struct PieSlice {
+    pub label: String,
+    pub value: f64,
+}
+
+/// Pie chart diagram model.
+#[derive(Debug, Clone)]
+pub struct PieDiagram {
+    pub title: Option<String>,
+    pub slices: Vec<PieSlice>,
+}

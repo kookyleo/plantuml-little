@@ -1,5 +1,7 @@
 pub mod activity;
+pub mod board;
 pub mod chart;
+pub mod chronology;
 pub mod component;
 pub mod ditaa;
 pub mod ebnf;
@@ -8,10 +10,12 @@ pub mod files_diagram;
 pub mod gantt;
 pub mod git;
 pub mod graphviz;
+pub mod hcl;
 pub mod json_diagram;
 pub mod mindmap;
 pub mod nwdiag;
 pub mod packet;
+pub mod pie;
 pub mod regex_diagram;
 pub mod salt;
 pub mod sequence;
@@ -53,14 +57,18 @@ pub enum DiagramLayout {
     Activity(activity::ActivityLayout),
     State(state::StateLayout),
     Component(component::ComponentLayout),
+    Board(board::BoardLayout),
     Chart(chart::ChartLayout),
+    Chronology(chronology::ChronologyLayout),
     Ditaa(ditaa::DitaaLayout),
     Erd(erd::ErdLayout),
     Files(files_diagram::FilesLayout),
     Gantt(gantt::GanttLayout),
+    Hcl(hcl::HclLayout),
     Json(json_diagram::JsonLayout),
     Mindmap(mindmap::MindmapLayout),
     Nwdiag(nwdiag::NwdiagLayout),
+    Pie(pie::PieLayout),
     Salt(salt::SaltLayout),
     Timing(timing::TimingLayout),
     Wbs(wbs::WbsLayout),
@@ -287,6 +295,22 @@ pub fn layout(diagram: &Diagram, skin: &crate::style::SkinParams) -> Result<Diag
         Diagram::Ebnf(ed) => {
             let el = ebnf::layout_ebnf(ed)?;
             Ok(DiagramLayout::Ebnf(el))
+        }
+        Diagram::Pie(pd) => {
+            let pl = pie::layout_pie(pd)?;
+            Ok(DiagramLayout::Pie(pl))
+        }
+        Diagram::Board(bd) => {
+            let bl = board::layout_board(bd)?;
+            Ok(DiagramLayout::Board(bl))
+        }
+        Diagram::Chronology(cd) => {
+            let cl = chronology::layout_chronology(cd)?;
+            Ok(DiagramLayout::Chronology(cl))
+        }
+        Diagram::Hcl(hd) => {
+            let hl = hcl::layout_hcl(hd)?;
+            Ok(DiagramLayout::Hcl(hl))
         }
     }
 }

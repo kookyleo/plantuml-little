@@ -1,5 +1,7 @@
 pub mod activity;
+pub mod board;
 pub mod chart;
+pub mod chronology;
 pub mod class;
 pub mod common;
 pub mod component;
@@ -11,10 +13,12 @@ pub mod erd;
 pub mod files_diagram;
 pub mod gantt;
 pub mod git;
+pub mod hcl;
 pub mod json_diagram;
 pub mod mindmap;
 pub mod nwdiag;
 pub mod packet;
+pub mod pie;
 pub mod regex_diagram;
 pub mod salt;
 pub mod sequence;
@@ -102,6 +106,22 @@ pub fn parse_with_original(source: &str, original_source: Option<&str>) -> Resul
                 let ed = ebnf::parse_ebnf_diagram(source)?;
                 Ok(Diagram::Ebnf(ed))
             }
+            DiagramHint::Pie => {
+                let pd = pie::parse_pie_diagram(source)?;
+                Ok(Diagram::Pie(pd))
+            }
+            DiagramHint::Board => {
+                let bd = board::parse_board_diagram(source)?;
+                Ok(Diagram::Board(bd))
+            }
+            DiagramHint::Chronology => {
+                let cd = chronology::parse_chronology_diagram(source)?;
+                Ok(Diagram::Chronology(cd))
+            }
+            DiagramHint::Hcl => {
+                let hd = hcl::parse_hcl_diagram(source)?;
+                Ok(Diagram::Hcl(hd))
+            }
             _ => unreachable!(),
         };
     }
@@ -176,7 +196,11 @@ pub fn parse_with_original(source: &str, original_source: Option<&str>) -> Resul
         | DiagramHint::Regex
         | DiagramHint::Ebnf
         | DiagramHint::Packet
-        | DiagramHint::Git => Err(crate::Error::UnsupportedDiagram(format!("{dtype:?}"))),
+        | DiagramHint::Git
+        | DiagramHint::Pie
+        | DiagramHint::Board
+        | DiagramHint::Chronology
+        | DiagramHint::Hcl => Err(crate::Error::UnsupportedDiagram(format!("{dtype:?}"))),
     }
 }
 
@@ -206,6 +230,10 @@ pub enum DiagramHint {
     Git,
     Regex,
     Ebnf,
+    Pie,
+    Board,
+    Chronology,
+    Hcl,
     Unknown(String),
 }
 

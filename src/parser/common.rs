@@ -55,6 +55,22 @@ pub fn detect_start_tag(source: &str) -> Option<DiagramHint> {
         if trimmed.starts_with("@startebnf") {
             return Some(DiagramHint::Ebnf);
         }
+        if trimmed.starts_with("@startpie") {
+            return Some(DiagramHint::Pie);
+        }
+        if trimmed.starts_with("@startboard") {
+            return Some(DiagramHint::Board);
+        }
+        if trimmed.starts_with("@startchronology") {
+            return Some(DiagramHint::Chronology);
+        }
+        if trimmed.starts_with("@starthcl") {
+            return Some(DiagramHint::Hcl);
+        }
+        if trimmed.starts_with("@startuml") {
+            // Skip @startuml — continue scanning for specialized @start tags inside
+            continue;
+        }
         if trimmed.starts_with("@start") {
             return None;
         }
@@ -88,6 +104,10 @@ pub fn extract_block(source: &str) -> Option<String> {
                 || trimmed.starts_with("@startdot")
                 || trimmed.starts_with("@startpacket")
                 || trimmed.starts_with("@startgit")
+                || trimmed.starts_with("@startpie")
+                || trimmed.starts_with("@startboard")
+                || trimmed.starts_with("@startchronology")
+                || trimmed.starts_with("@starthcl")
             {
                 inside = true;
                 continue;
