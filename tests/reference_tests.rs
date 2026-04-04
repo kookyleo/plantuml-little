@@ -506,6 +506,22 @@ reference_test!(
     "fixtures/archimate/basic.puml"
 );
 reference_test!(
+    reference_fixtures_board_basic_puml,
+    "fixtures/board/basic.puml"
+);
+reference_test!(
+    reference_fixtures_chronology_basic_puml,
+    "fixtures/chronology/basic.puml"
+);
+reference_test!(
+    reference_fixtures_hcl_basic_puml,
+    "fixtures/hcl/basic.puml"
+);
+reference_test!(
+    reference_fixtures_pie_basic_puml,
+    "fixtures/pie/basic.puml"
+);
+reference_test!(
     reference_fixtures_archimate_layers_puml,
     "fixtures/archimate/layers.puml"
 );

@@ -1,0 +1,9 @@
+@startuml
+@startboard
++ Task 1
+++ Subtask 1.1
+++ Subtask 1.2
++ Task 2
+++ Subtask 2.1
+@endboard
+@enduml
