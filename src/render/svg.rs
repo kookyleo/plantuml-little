@@ -3285,15 +3285,14 @@ fn draw_object_box(
     let sep_y = y + title_height;
     let x1 = x + 1.0;
     let x2 = x + w - 1.0;
-    sg.set_stroke_color(Some(stroke_color));
-    sg.set_stroke_width(0.5, None);
-    sg.svg_line(x1, sep_y, x2, sep_y, 0.0);
-    tracker.track_line(x1, sep_y, x2, sep_y);
 
     // Map entities: render key => value table body
+    // Java EntityImageMap: each row uses withMargin(text, 2, 2), adding 4px vertical padding.
     if entity.kind == EntityKind::Map && !entity.map_entries.is_empty() {
         let attr_font_size = skin.font_size("classattribute", class_font_size);
-        let row_h = font_metrics::line_height("SansSerif", attr_font_size, false, false);
+        let text_line_h = font_metrics::line_height("SansSerif", attr_font_size, false, false);
+        let row_margin = 4.0; // withMargin(2,2) → 2 top + 2 bottom
+        let row_h = text_line_h + row_margin;
         let ascent = font_metrics::ascent("SansSerif", attr_font_size, false, false);
         let cell_margin_left = 5.0;
         let col_a_width: f64 = entity.map_entries.iter()
@@ -3321,12 +3320,19 @@ fn draw_object_box(
         // Render object fields in the body section
         let visible_fields: Vec<&Member> = entity.members.iter().filter(|m| !m.is_method).collect();
         if !visible_fields.is_empty() {
+            // draw_member_section draws its own separator at section_y
             let attr_font_size = skin.font_size("classattribute", class_font_size);
             let x1_val = fmt_coord(x1);
             let x2_val = fmt_coord(x2);
             draw_member_section(
                 sg, tracker, &visible_fields, sep_y, x, &x1_val, &x2_val, font_color, attr_font_size, stroke_color,
             );
+        } else {
+            // No fields: draw the separator line explicitly
+            sg.set_stroke_color(Some(stroke_color));
+            sg.set_stroke_width(0.5, None);
+            sg.svg_line(x1, sep_y, x2, sep_y, 0.0);
+            tracker.track_line(x1, sep_y, x2, sep_y);
         }
     }
 }

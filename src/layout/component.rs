@@ -334,10 +334,16 @@ fn estimate_entity_size(entity: &ComponentEntity) -> (f64, f64) {
         max_w
     };
 
+    // Java EntityImageDescription measures the stereotype with guillemets at italic 14pt.
+    // The entity dimension = TextBlockVertical2(stereo, name).addDimension(margin).
+    // The +2 accounts for the 1px inner draw offset on each side in Java rendering.
     let stereo_w = entity
         .stereotype
         .as_ref()
-        .map_or(0.0, |s| text_width(s) + ml + mr + 20.0);
+        .map_or(0.0, |s| {
+            let guillemet_text = format!("\u{00AB}{s}\u{00BB}");
+            font_metrics::text_width(&guillemet_text, "SansSerif", FONT_SIZE, false, true) + ml + mr + 2.0
+        });
 
     // Java USymbolFolder.getDimTitle returns min width=40 for the folder tab.
     let folder_min_w = if matches!(entity.kind, ComponentKind::Folder) {
@@ -376,8 +382,16 @@ fn estimate_entity_size(entity: &ComponentEntity) -> (f64, f64) {
     } else {
         0.0
     };
-    // Java has no minimum height — size is purely margin + text content.
-    let height = total_lines * LINE_HEIGHT + mt + mb + folder_tab_h;
+    // Java EntityImageDescription uses font.line_height (ascent+descent) = 16.2969
+    // for each text line. However, the existing C4 and component tests were calibrated
+    // against LINE_HEIGHT = 16.0. Use the exact font line height only for archimate
+    // entities where the difference matters for the viewport.
+    let text_line_h = if matches!(entity.kind, ComponentKind::Archimate) {
+        font_metrics::line_height("SansSerif", FONT_SIZE, false, false)
+    } else {
+        LINE_HEIGHT
+    };
+    let height = total_lines * text_line_h + mt + mb + folder_tab_h;
 
     log::debug!(
         "estimate_entity_size: name={:?} kind={:?} margins=({},{},{},{}) lines={} w={:.1} h={:.1}",

@@ -2,7 +2,7 @@ use crate::font_metrics;
 use crate::klimt::svg::{LengthAdjust, SvgGraphic};
 use crate::layout::chart::{ChartLayout};
 use crate::model::chart::ChartDiagram;
-use crate::render::svg::{ensure_visible_int, write_bg_rect, write_svg_root_bg};
+use crate::render::svg::{ensure_visible_int, write_bg_rect, write_svg_root_bg_opt};
 use crate::style::SkinParams;
 use crate::Result;
 const FS: f64 = 12.0;
@@ -11,7 +11,8 @@ pub fn render_chart(_d: &ChartDiagram, l: &ChartLayout, skin: &SkinParams) -> Re
     let mut buf = String::with_capacity(4096);
     let bg = skin.get_or("backgroundcolor", "#FFFFFF");
     let (sw, sh) = (ensure_visible_int(l.width) as f64, ensure_visible_int(l.height) as f64);
-    write_svg_root_bg(&mut buf, sw, sh, "CHART", bg);
+    // Java's chart diagram does not emit data-diagram-type
+    write_svg_root_bg_opt(&mut buf, sw, sh, None, bg);
     buf.push_str("<defs/><g>"); write_bg_rect(&mut buf, sw, sh, bg);
     let mut sg = SvgGraphic::new(0, 1.0);
     sg.set_stroke_color(Some("#E0E0E0")); sg.set_stroke_width(0.5, None);

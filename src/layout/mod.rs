@@ -903,7 +903,9 @@ fn estimate_object_size(entity: &Entity, attr_font_size: f64) -> (f64, f64) {
     let vf: Vec<&Member> = entity.members.iter().filter(|m| !m.is_method).collect();
     let (body_width, body_height) = if entity.kind == EntityKind::Map && !entity.map_entries.is_empty() {
         let mx = 7.0; let (mut ca, mut cb): (f64, f64) = (0.0, 0.0);
-        let rh = font_metrics::line_height("SansSerif", attr_font_size, false, false);
+        // Java EntityImageMap: each row is wrapped in withMargin(text, 2, 2)
+        // adding 4px vertical margin per row.
+        let rh = font_metrics::line_height("SansSerif", attr_font_size, false, false) + 4.0;
         for (k, v) in &entity.map_entries {
             ca = ca.max(font_metrics::text_width(k, "SansSerif", attr_font_size, false, false) + mx);
             cb = cb.max(font_metrics::text_width(v, "SansSerif", attr_font_size, false, false) + mx);

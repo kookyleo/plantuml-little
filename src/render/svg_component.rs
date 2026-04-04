@@ -1411,20 +1411,29 @@ fn render_node_text(
     };
 
     // Stereotype text (only for non-sprite stereotypes)
+    // Java: archimate entities use 14pt italic; other component types use 12pt italic.
     let mut y_offset = 0.0;
     if sprite_rendered.is_none() {
         if let Some(ref stereotype) = node.stereotype {
             let stereo_text = format!("\u{00AB}{stereotype}\u{00BB}");
-            let sy = node.y + FONT_SIZE + 4.0;
+            let is_archimate = node.kind == ComponentKind::Archimate;
+            let stereo_font_size = if is_archimate { FONT_SIZE } else { FONT_SIZE - 2.0 };
+            let sy = if is_archimate {
+                let (_, _, margin_top_st, _) =
+                    crate::layout::component::entity_margins(&node.kind);
+                node.y + margin_top_st + font_metrics::ascent("SansSerif", stereo_font_size, false, true)
+            } else {
+                node.y + FONT_SIZE + 4.0
+            };
             let tl =
-                font_metrics::text_width(&stereo_text, "sans-serif", FONT_SIZE - 2.0, false, true);
+                font_metrics::text_width(&stereo_text, "sans-serif", stereo_font_size, false, true);
             sg.set_fill_color(font_color);
             sg.svg_text(
                 &stereo_text,
                 cx - tl / 2.0,
                 sy,
                 Some("sans-serif"),
-                FONT_SIZE - 2.0,
+                stereo_font_size,
                 None,
                 Some("italic"),
                 None,
@@ -1434,7 +1443,12 @@ fn render_node_text(
                 0,
                 None,
             );
-            y_offset = LINE_HEIGHT;
+            y_offset = if is_archimate {
+                // Java TextBlockStereoCode: line_height at 14pt
+                font_metrics::line_height("SansSerif", FONT_SIZE, false, true)
+            } else {
+                LINE_HEIGHT
+            };
         }
     }
 
@@ -1500,6 +1514,7 @@ fn render_node_text(
     }
 
     // Name positioning
+    let is_archimate = node.kind == ComponentKind::Archimate;
     let name_y = if let Some(sprite_h) = sprite_rendered {
         // Java USymbol.asSmall: label drawn at margin_top + sprite_h + ascent
         let ascent = font_metrics::ascent("SansSerif", FONT_SIZE, false, false);
@@ -1510,13 +1525,16 @@ fn render_node_text(
         node.y + 28.0 + font_metrics::ascent("SansSerif", FONT_SIZE, false, false)
     } else if has_desc {
         node.y + FONT_SIZE + 4.0 + y_offset
+    } else if is_archimate && y_offset > 0.0 {
+        // Archimate: name shifted down by stereotype block height
+        node.y + margin_top + y_offset + font_metrics::ascent("SansSerif", FONT_SIZE, false, false)
     } else {
         // Java: baseline = rect_y + margin_top + ascent
         node.y + margin_top + font_metrics::ascent("SansSerif", FONT_SIZE, false, false)
     };
 
-    // Name text — centered for sprite stereotype, left-aligned otherwise
-    let name_x = if sprite_rendered.is_some() {
+    // Name text — centered for sprite stereotype or archimate entities, left-aligned otherwise.
+    let name_x = if sprite_rendered.is_some() || (is_archimate && node.stereotype.is_some() && !has_desc) {
         let tl = font_metrics::text_width(&node.name, "SansSerif", FONT_SIZE, false, false);
         cx - tl / 2.0
     } else {

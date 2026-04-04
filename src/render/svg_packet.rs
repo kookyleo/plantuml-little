@@ -2,7 +2,7 @@ use crate::font_metrics;
 use crate::klimt::svg::{LengthAdjust, SvgGraphic};
 use crate::layout::packet::PacketLayout;
 use crate::model::packet::PacketDiagram;
-use crate::render::svg::{ensure_visible_int, write_bg_rect, write_svg_root_bg};
+use crate::render::svg::{ensure_visible_int, write_bg_rect, write_svg_root_bg_opt};
 use crate::style::SkinParams;
 use crate::Result;
 
@@ -21,7 +21,7 @@ pub fn render_packet(_d: &PacketDiagram, l: &PacketLayout, skin: &SkinParams) ->
     let sw = ensure_visible_int(l.width) as f64;
     let sh = ensure_visible_int(l.height) as f64;
 
-    write_svg_root_bg(&mut buf, sw, sh, "PACKET", &bg);
+    write_svg_root_bg_opt(&mut buf, sw, sh, None, &bg);
     buf.push_str("<defs/><g>");
     write_bg_rect(&mut buf, sw, sh, &bg);
 
