@@ -713,8 +713,8 @@ fn estimate_entity_size(
         return estimate_entity_size_legacy(entity);
     }
 
-    if entity.kind == EntityKind::Object {
-        return estimate_object_size(entity);
+    if matches!(entity.kind, EntityKind::Object | EntityKind::Map) {
+        return estimate_object_size(entity, attr_font_size);
     }
 
     if entity.kind == EntityKind::Rectangle && !entity.description.is_empty() {
@@ -855,31 +855,30 @@ fn estimate_rectangle_size(entity: &Entity) -> (f64, f64) {
     (width, height)
 }
 
-fn estimate_object_size(entity: &Entity) -> (f64, f64) {
-    let name_width =
-        font_metrics::text_width(&entity.name, "SansSerif", CLASS_FONT_SIZE, false, false);
-    // name block: text + margin(2, 2, 2, 2)
-    let name_block_width = name_width + 2.0 * OBJ_NAME_MARGIN;
+fn estimate_object_size(entity: &Entity, attr_font_size: f64) -> (f64, f64) {
+    let nd = entity.display_name.as_deref().unwrap_or(&entity.name);
+    let nw = if nd.contains("**") || nd.contains("//") {
+        crate::render::svg_richtext::measure_creole_display_lines(&[nd.to_string()], "SansSerif", CLASS_FONT_SIZE, false, false, false).0
+    } else { font_metrics::text_width(nd, "SansSerif", CLASS_FONT_SIZE, false, false) };
+    let name_block_width = nw + 2.0 * OBJ_NAME_MARGIN;
     let name_block_height = HEADER_NAME_BLOCK_HEIGHT + 2.0 * OBJ_NAME_MARGIN;
-
-    // title dim = name dim (no stereotype)
     let title_width = name_block_width;
     let title_height = name_block_height;
-
-    // body: empty fields = TextBlockEmpty(10, 16)
-    let body_width = OBJ_EMPTY_BODY_WIDTH;
-    let body_height = OBJ_EMPTY_BODY_HEIGHT;
-
+    let vf: Vec<&Member> = entity.members.iter().filter(|m| !m.is_method).collect();
+    let (body_width, body_height) = if entity.kind == EntityKind::Map && !entity.map_entries.is_empty() {
+        let mx = 7.0; let (mut ca, mut cb): (f64, f64) = (0.0, 0.0);
+        let rh = font_metrics::line_height("SansSerif", attr_font_size, false, false);
+        for (k, v) in &entity.map_entries {
+            ca = ca.max(font_metrics::text_width(k, "SansSerif", attr_font_size, false, false) + mx);
+            cb = cb.max(font_metrics::text_width(v, "SansSerif", attr_font_size, false, false) + mx);
+        }
+        (ca + cb, entity.map_entries.len() as f64 * rh)
+    } else if !vf.is_empty() {
+        (estimate_members_width(&vf, attr_font_size) + 6.0, section_height(true, &vf, MEMBER_ROW_HEIGHT))
+    } else { (OBJ_EMPTY_BODY_WIDTH, OBJ_EMPTY_BODY_HEIGHT) };
     let width = body_width.max(title_width + 2.0 * OBJ_X_MARGIN_CIRCLE);
     let height = title_height + body_height;
-
-    log::debug!(
-        "estimate_object_size: {} -> ({}, {})",
-        entity.name,
-        width,
-        height,
-    );
-
+    log::debug!("estimate_object_size: {} -> ({:.2}, {:.2})", entity.name, width, height);
     (width, height)
 }
 
@@ -1862,6 +1861,7 @@ mod tests {
             source_line: None,
             visibility: None,
             display_name: None,
+            map_entries: vec![],
         }
     }
 
@@ -1926,6 +1926,7 @@ mod tests {
             source_line: None,
             visibility: None,
             display_name: None,
+            map_entries: vec![],
         };
         let (w, h) = estimate_entity_size(
             &empty_diagram(),
@@ -1971,6 +1972,7 @@ mod tests {
             source_line: None,
             visibility: None,
             display_name: None,
+            map_entries: vec![],
         };
         let (_, h) = estimate_entity_size(
             &empty_diagram(),

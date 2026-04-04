@@ -7,6 +7,7 @@ pub enum EntityKind {
     Abstract,
     Annotation,
     Object,
+    Map,
     Rectangle,
     /// Component entity (rendered with component icon tabs)
     Component,
@@ -103,4 +104,5 @@ pub struct Entity {
     pub visibility: Option<Visibility>,
     /// Display name (when `as Alias` is used, this holds the quoted label).
     pub display_name: Option<String>,
+    pub map_entries: Vec<(String, String)>,
 }

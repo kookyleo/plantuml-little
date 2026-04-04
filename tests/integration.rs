@@ -1217,6 +1217,23 @@ fn test_object_with_fields() {
     assert!(svg.contains("age"));
 }
 
+#[test]
+fn test_object_fixture_fields() {
+    let svg = convert_fixture("tests/fixtures/object/fields.puml");
+    assert_valid_svg(&svg, "object/fields");
+    assert!(svg.contains("User"), "must contain User");
+    assert!(svg.contains("John"), "must contain John");
+}
+
+#[test]
+fn test_object_fixture_map() {
+    let svg = convert_fixture("tests/fixtures/object/map.puml");
+    assert_valid_svg(&svg, "object/map");
+    assert!(svg.contains("Server"), "must contain Server");
+    assert!(svg.contains("404"), "must contain 404");
+    assert!(svg.contains("Not Found"), "must contain Not Found");
+}
+
 // ── Preprocessor fixtures integration tests ──
 
 #[test]

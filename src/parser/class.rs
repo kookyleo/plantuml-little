@@ -59,7 +59,7 @@ pub fn parse_class_diagram_with_original(
     // Visibility prefix: +/-/#/~ before the keyword (e.g. -class foo)
     let re_entity = Regex::new(concat!(
         r#"(?x)"#,
-        r#"^([+\-\#~])?(class|interface|abstract\s+class|abstract|enum|annotation|static\s+class|object|rectangle|component)"#,
+        r#"^([+\-\#~])?(class|interface|abstract\s+class|abstract|enum|annotation|static\s+class|object|map|rectangle|component)"#,
         r#"\s+"#,
         r#"("(?:[^"]+)"|[\w.<>,\s]+?)"#,
         r#"(?:\s+as\s+([\w]+))?"#,
@@ -236,7 +236,15 @@ pub fn parse_class_diagram_with_original(
                 continue;
             }
             if let Some(ref mut ent) = current_entity {
-                if let Some(member) = parse_member(trimmed) {
+                if ent.kind == EntityKind::Map {
+                    if let Some(ap) = trimmed.find("=>") {
+                        let k = trimmed[..ap].trim().to_string();
+                        let v = trimmed[ap + 2..].trim().to_string();
+                        ent.map_entries.push((k, v));
+                    } else if !trimmed.starts_with("--") && !trimmed.starts_with("==") && !trimmed.starts_with("..") {
+                        debug!("map: ignoring non-entry line: {trimmed}");
+                    }
+                } else if let Some(member) = parse_member(trimmed) {
                     ent.members.push(member);
                 } else if !trimmed.starts_with("--")
                     && !trimmed.starts_with("==")
@@ -360,6 +368,7 @@ pub fn parse_class_diagram_with_original(
                 source_line: entity_first_source_lines.get(&name).copied(),
                 visibility: entity_visibility,
                 display_name,
+                map_entries: vec![],
             };
 
             if has_open_brace && !has_close_brace {
@@ -842,6 +851,7 @@ fn parse_entity_kind(s: &str) -> EntityKind {
         "abstract" | "abstract class" => EntityKind::Abstract,
         "annotation" => EntityKind::Annotation,
         "object" => EntityKind::Object,
+        "map" => EntityKind::Map,
         "rectangle" => EntityKind::Rectangle,
         "component" => EntityKind::Component,
         _ => EntityKind::Class,
@@ -1237,6 +1247,7 @@ fn auto_create_entities(
             source_line: entity_first_source_lines.get(&name).copied(),
             visibility: None,
             display_name: None,
+            map_entries: vec![],
         });
     }
 }

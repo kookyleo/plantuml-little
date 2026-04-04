@@ -98,6 +98,7 @@ pub fn detect_diagram_type(content: &str) -> DiagramHint {
         "extends ",
         "implements ",
         "object ",
+        "map ",
     ];
 
     let sequence_keywords_definitive = ["participant ", "boundary ", "control ", "collections "];

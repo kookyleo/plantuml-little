@@ -1933,7 +1933,7 @@ fn render_class(
 
     // Java: object diagrams do NOT emit <!--class X--> comments for entities,
     // only class diagrams do.
-    let is_object_diagram = cd.entities.iter().all(|e| e.kind == EntityKind::Object);
+    let is_object_diagram = cd.entities.iter().all(|e| matches!(e.kind, EntityKind::Object | EntityKind::Map));
 
     for cluster in &groups_by_def_order {
         let ent_id = group_ids
@@ -2516,7 +2516,7 @@ fn emit_circle_glyph_with_char(
                     EntityKind::Abstract => (GLYPH_A_RAW, GLYPH_A_CENTER),
                     EntityKind::Interface => (GLYPH_I_RAW, GLYPH_I_CENTER),
                     EntityKind::Enum => (GLYPH_E_RAW, GLYPH_E_CENTER),
-                    EntityKind::Annotation | EntityKind::Rectangle | EntityKind::Component => return,
+                    EntityKind::Annotation | EntityKind::Rectangle | EntityKind::Component | EntityKind::Map => return,
                 }
             }
         }
@@ -2526,7 +2526,7 @@ fn emit_circle_glyph_with_char(
             EntityKind::Abstract => (GLYPH_A_RAW, GLYPH_A_CENTER),
             EntityKind::Interface => (GLYPH_I_RAW, GLYPH_I_CENTER),
             EntityKind::Enum => (GLYPH_E_RAW, GLYPH_E_CENTER),
-            EntityKind::Annotation | EntityKind::Rectangle | EntityKind::Component => return,
+            EntityKind::Annotation | EntityKind::Rectangle | EntityKind::Component | EntityKind::Map => return,
         }
     };
 
@@ -2640,7 +2640,7 @@ fn stereotype_circle_color(kind: &EntityKind) -> &'static str {
         EntityKind::Enum => "#EB937F",
         EntityKind::Abstract => "#A9DCDF",
         EntityKind::Annotation => "#A9DCDF",
-        EntityKind::Object => "#ADD1B2",
+        EntityKind::Object | EntityKind::Map => "#ADD1B2",
         EntityKind::Rectangle => "#F1F1F1",
         EntityKind::Component => "#F1F1F1",
     }
@@ -2656,7 +2656,7 @@ fn draw_entity_box(
     edge_offset_x: f64,
     edge_offset_y: f64,
 ) {
-    if entity.kind == EntityKind::Object {
+    if entity.kind == EntityKind::Object || entity.kind == EntityKind::Map {
         draw_object_box(sg, tracker, entity, nl, skin, edge_offset_x, edge_offset_y);
         return;
     }
@@ -2681,7 +2681,7 @@ fn draw_entity_box(
         EntityKind::Annotation => (ENTITY_BG, BORDER_COLOR, "annotation"),
         EntityKind::Rectangle => (ENTITY_BG, BORDER_COLOR, "rectangle"),
         EntityKind::Component => (ENTITY_BG, BORDER_COLOR, "component"),
-        EntityKind::Object => unreachable!(),
+        EntityKind::Object | EntityKind::Map => unreachable!(),
     };
     let default_fill = skin.background_color(element_type, default_bg);
     let fill = entity
@@ -3248,24 +3248,44 @@ fn draw_object_box(
     sg.svg_line(x1, sep_y, x2, sep_y, 0.0);
     tracker.track_line(x1, sep_y, x2, sep_y);
 
-    // Render object fields in the body section
-    let visible_fields: Vec<&Member> = entity.members.iter().filter(|m| !m.is_method).collect();
-    if !visible_fields.is_empty() {
+    // Map entities: render key => value table body
+    if entity.kind == EntityKind::Map && !entity.map_entries.is_empty() {
         let attr_font_size = skin.font_size("classattribute", class_font_size);
-        let x1_val = fmt_coord(x1);
-        let x2_val = fmt_coord(x2);
-        draw_member_section(
-            sg,
-            tracker,
-            &visible_fields,
-            sep_y,
-            x,
-            &x1_val,
-            &x2_val,
-            font_color,
-            attr_font_size,
-            stroke_color,
-        );
+        let row_h = font_metrics::line_height("SansSerif", attr_font_size, false, false);
+        let ascent = font_metrics::ascent("SansSerif", attr_font_size, false, false);
+        let cell_margin_left = 5.0;
+        let col_a_width: f64 = entity.map_entries.iter()
+            .map(|(key, _)| font_metrics::text_width(key, "SansSerif", attr_font_size, false, false) + cell_margin_left + 2.0)
+            .fold(0.0_f64, f64::max);
+        let mut cur_y = sep_y;
+        for (key, value) in &entity.map_entries {
+            sg.set_stroke_color(Some(stroke_color));
+            sg.set_stroke_width(1.0, None);
+            sg.svg_line(x, cur_y, x + w, cur_y, 0.0);
+            tracker.track_line(x, cur_y, x + w, cur_y);
+            let key_w = font_metrics::text_width(key, "SansSerif", attr_font_size, false, false);
+            let text_y_row = cur_y + ascent;
+            sg.set_fill_color(font_color);
+            sg.svg_text(key, x + cell_margin_left, text_y_row, Some("sans-serif"), attr_font_size, None, None, None, key_w, LengthAdjust::Spacing, None, 0, None);
+            let val_w = font_metrics::text_width(value, "SansSerif", attr_font_size, false, false);
+            sg.svg_text(value, x + col_a_width + cell_margin_left, text_y_row, Some("sans-serif"), attr_font_size, None, None, None, val_w, LengthAdjust::Spacing, None, 0, None);
+            sg.set_stroke_color(Some(stroke_color));
+            sg.set_stroke_width(1.0, None);
+            sg.svg_line(x + col_a_width, cur_y, x + col_a_width, cur_y + row_h, 0.0);
+            tracker.track_line(x + col_a_width, cur_y, x + col_a_width, cur_y + row_h);
+            cur_y += row_h;
+        }
+    } else {
+        // Render object fields in the body section
+        let visible_fields: Vec<&Member> = entity.members.iter().filter(|m| !m.is_method).collect();
+        if !visible_fields.is_empty() {
+            let attr_font_size = skin.font_size("classattribute", class_font_size);
+            let x1_val = fmt_coord(x1);
+            let x2_val = fmt_coord(x2);
+            draw_member_section(
+                sg, tracker, &visible_fields, sep_y, x, &x1_val, &x2_val, font_color, attr_font_size, stroke_color,
+            );
+        }
     }
 }
 
@@ -5404,6 +5424,7 @@ mod tests {
             source_line: None,
             visibility: None,
             display_name: None,
+            map_entries: vec![],
         };
         let entity2 = Entity {
             uid: None,
@@ -5417,6 +5438,7 @@ mod tests {
             source_line: None,
             visibility: None,
             display_name: None,
+            map_entries: vec![],
         };
         let link = Link {
             uid: None,
@@ -5562,6 +5584,7 @@ mod tests {
             source_line: None,
             visibility: None,
             display_name: None,
+            map_entries: vec![],
         };
         let mut cd = empty_class_diagram();
         cd.entities = vec![entity];
@@ -5610,6 +5633,7 @@ mod tests {
             source_line: None,
             visibility: None,
             display_name: None,
+            map_entries: vec![],
         };
         let mut cd = empty_class_diagram();
         cd.entities = vec![entity];
@@ -5886,6 +5910,7 @@ mod tests {
             source_line: None,
             visibility: None,
             display_name: None,
+            map_entries: vec![],
         };
         let mut cd = empty_class_diagram();
         cd.entities = vec![entity];
