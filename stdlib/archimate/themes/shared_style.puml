@@ -3,22 +3,22 @@
 
 ' Special shapes: when true, some elements use native PlantUML shapes
 ' (actor, queue, node, file, frame, cloud, usecase) instead of archimate rectangles
-!global \$ARCH_SPECIAL_SHAPES ?= %false()
+!global $ARCH_SPECIAL_SHAPES ?= %false()
 
 ' Round corner setting (0 = sharp corners)
-!global \$ARCH_SHARP_CORNER ?= 0
+!global $ARCH_SHARP_CORNER ?= 0
 
 ' Technology type font size for boundary labels
-!global \$ARCH_TECHNOLOGY_TYPE_FONTSIZE ?= 10
+!global $ARCH_TECHNOLOGY_TYPE_FONTSIZE ?= 10
 
 ' Fill colors per ArchiMate layer
-!global \$ARCH_STRATEGY_FILLCOLOR ?= #F5DEAA
-!global \$ARCH_BUSINESS_FILLCOLOR ?= #FFFFB5
-!global \$ARCH_APPLICATION_FILLCOLOR ?= #438DD5
-!global \$ARCH_TECHNOLOGY_FILLCOLOR ?= #85BBF0
-!global \$ARCH_PHYSICAL_FILLCOLOR ?= #97FF97
-!global \$ARCH_MOTIVATION_FILLCOLOR ?= #CCCCFF
-!global \$ARCH_IMPLEMENTATION_FILLCOLOR ?= #FFE0C7
-!global \$ARCH_OTHER_FILLCOLOR ?= #F1F1F1
-!global \$ARCH_JUNCTIONOR_FILLCOLOR ?= #000000
-!global \$ARCH_JUNCTIONAND_FILLCOLOR ?= #FFFFFF
+!global $ARCH_STRATEGY_FILLCOLOR ?= #F5DEAA
+!global $ARCH_BUSINESS_FILLCOLOR ?= #FFFFB5
+!global $ARCH_APPLICATION_FILLCOLOR ?= #438DD5
+!global $ARCH_TECHNOLOGY_FILLCOLOR ?= #85BBF0
+!global $ARCH_PHYSICAL_FILLCOLOR ?= #97FF97
+!global $ARCH_MOTIVATION_FILLCOLOR ?= #CCCCFF
+!global $ARCH_IMPLEMENTATION_FILLCOLOR ?= #FFE0C7
+!global $ARCH_OTHER_FILLCOLOR ?= #F1F1F1
+!global $ARCH_JUNCTIONOR_FILLCOLOR ?= #000000
+!global $ARCH_JUNCTIONAND_FILLCOLOR ?= #FFFFFF
