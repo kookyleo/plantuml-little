@@ -1,7 +1,9 @@
 pub mod activity;
+pub mod chart;
 pub mod component;
 pub mod ditaa;
 pub mod erd;
+pub mod files_diagram;
 pub mod gantt;
 pub mod graphviz;
 pub mod json_diagram;
@@ -47,8 +49,10 @@ pub enum DiagramLayout {
     Activity(activity::ActivityLayout),
     State(state::StateLayout),
     Component(component::ComponentLayout),
+    Chart(chart::ChartLayout),
     Ditaa(ditaa::DitaaLayout),
     Erd(erd::ErdLayout),
+    Files(files_diagram::FilesLayout),
     Gantt(gantt::GanttLayout),
     Json(json_diagram::JsonLayout),
     Mindmap(mindmap::MindmapLayout),
@@ -171,6 +175,10 @@ pub fn layout(diagram: &Diagram, skin: &crate::style::SkinParams) -> Result<Diag
             let cl = component::layout_component(cd)?;
             Ok(DiagramLayout::Component(cl))
         }
+        Diagram::Chart(cd) => {
+            let cl = chart::layout_chart(cd)?;
+            Ok(DiagramLayout::Chart(cl))
+        }
         Diagram::Ditaa(dd) => {
             let dl = ditaa::layout_ditaa(dd)?;
             Ok(DiagramLayout::Ditaa(dl))
@@ -178,6 +186,10 @@ pub fn layout(diagram: &Diagram, skin: &crate::style::SkinParams) -> Result<Diag
         Diagram::Erd(ed) => {
             let el = erd::layout_erd(ed)?;
             Ok(DiagramLayout::Erd(el))
+        }
+        Diagram::Files(fd) => {
+            let fl = files_diagram::layout_files(fd)?;
+            Ok(DiagramLayout::Files(fl))
         }
         Diagram::Gantt(gd) => {
             let gl = gantt::layout_gantt(gd)?;

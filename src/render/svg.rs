@@ -533,6 +533,20 @@ fn render_body(
                 body_pre_offset: false,
             })
         }
+        (Diagram::Chart(cd), DiagramLayout::Chart(cl)) => {
+            super::svg_chart::render_chart(cd, cl, skin).map(|svg| BodyResult {
+                svg,
+                raw_body_dim: None,
+                body_pre_offset: false,
+            })
+        }
+        (Diagram::Files(fd), DiagramLayout::Files(fl)) => {
+            super::svg_files::render_files(fd, fl, skin).map(|svg| BodyResult {
+                svg,
+                raw_body_dim: None,
+                body_pre_offset: false,
+            })
+        }
         (Diagram::Ditaa(dd), DiagramLayout::Ditaa(dl)) => {
             super::svg_ditaa::render_ditaa(dd, dl, skin).map(|svg| BodyResult {
                 svg,

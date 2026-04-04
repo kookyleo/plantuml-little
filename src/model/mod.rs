@@ -1,10 +1,12 @@
 pub mod activity;
+pub mod chart;
 pub mod component;
 pub mod diagram;
 pub mod ditaa;
 pub mod dot;
 pub mod entity;
 pub mod erd;
+pub mod files_diagram;
 pub mod gantt;
 pub mod hyperlink;
 pub mod json_diagram;
@@ -42,3 +44,6 @@ pub use state::{State, StateDiagram, StateKind, StateNote, Transition};
 pub use timing::{TimingDiagram, TimingParticipant};
 pub use usecase::{UseCaseDiagram, UseCaseLink, UseCaseLinkStyle};
 pub use wbs::{WbsDiagram, WbsNode};
+
+pub use chart::{ChartDiagram, ChartSeries, ChartSeriesType};
+pub use files_diagram::{FilesDiagram, FilesEntry, FilesEntryKind};

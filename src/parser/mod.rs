@@ -1,4 +1,5 @@
 pub mod activity;
+pub mod chart;
 pub mod class;
 pub mod common;
 pub mod component;
@@ -6,6 +7,7 @@ pub mod creole;
 pub mod ditaa;
 pub mod dot;
 pub mod erd;
+pub mod files_diagram;
 pub mod gantt;
 pub mod json_diagram;
 pub mod mindmap;
@@ -31,9 +33,17 @@ pub fn parse_with_original(source: &str, original_source: Option<&str>) -> Resul
     let tag_hint = common::detect_start_tag(source);
     if let Some(hint) = tag_hint {
         return match hint {
+            DiagramHint::Chart => {
+                let cd = chart::parse_chart_diagram(source)?;
+                Ok(Diagram::Chart(cd))
+            }
             DiagramHint::Erd => {
                 let ed = erd::parse_erd_diagram(source)?;
                 Ok(Diagram::Erd(ed))
+            }
+            DiagramHint::Files => {
+                let fd = files_diagram::parse_files_diagram(source)?;
+                Ok(Diagram::Files(fd))
             }
             DiagramHint::Gantt => {
                 let gd = gantt::parse_gantt_diagram(source)?;
@@ -132,8 +142,10 @@ pub fn parse_with_original(source: &str, original_source: Option<&str>) -> Resul
             Err(crate::Error::UnsupportedDiagram(t))
         }
         // These should be handled by start tag detection above
-        DiagramHint::Ditaa
+        DiagramHint::Chart
+        | DiagramHint::Ditaa
         | DiagramHint::Erd
+        | DiagramHint::Files
         | DiagramHint::Gantt
         | DiagramHint::Json
         | DiagramHint::Mindmap
@@ -152,8 +164,10 @@ pub enum DiagramHint {
     Activity,
     State,
     Component,
+    Chart,
     Ditaa,
     Erd,
+    Files,
     Gantt,
     Json,
     Mindmap,

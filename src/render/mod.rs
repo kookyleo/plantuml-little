@@ -1,9 +1,11 @@
 pub mod embedded;
 pub mod svg;
 pub mod svg_activity;
+pub mod svg_chart;
 pub mod svg_component;
 pub mod svg_ditaa;
 pub mod svg_erd;
+pub mod svg_files;
 pub mod svg_gantt;
 pub mod svg_hyperlink;
 pub mod svg_json;

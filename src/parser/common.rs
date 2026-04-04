@@ -7,8 +7,14 @@ use crate::model::DiagramMeta;
 pub fn detect_start_tag(source: &str) -> Option<DiagramHint> {
     for line in source.lines() {
         let trimmed = line.trim();
+        if trimmed.starts_with("@startchart") {
+            return Some(DiagramHint::Chart);
+        }
         if trimmed.starts_with("@startchen") {
             return Some(DiagramHint::Erd);
+        }
+        if trimmed.starts_with("@startfiles") {
+            return Some(DiagramHint::Files);
         }
         if trimmed.starts_with("@startgantt") {
             return Some(DiagramHint::Gantt);
