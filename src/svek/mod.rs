@@ -16,6 +16,7 @@ pub mod svg_result;
 
 use crate::klimt::geom::{Rankdir, RectangleArea, XPoint2D};
 use crate::svek::edge::{append_table, LabelDimension};
+use crate::svek::shape_type::ShapeType;
 
 // ── DotMode ──────────────────────────────────────────────────────────
 
@@ -613,34 +614,88 @@ impl DotStringFactory {
             let Some(idx) = svg_result.find_by_color(node.color) else {
                 continue;
             };
-            // Try ellipse first: if cx/cy attributes exist near the color
-            // position, this is a circle node (shape=circle in DOT).
-            let svg_str = svg_result.svg();
-            let is_ellipse = parse_xml_attr_near(svg_str, idx, "cx").is_some();
-            if is_ellipse {
-                if let Some(cx) = parse_xml_attr_near(svg_str, idx, "cx") {
-                    if let Some(cy) = parse_xml_attr_near(svg_str, idx, "cy") {
-                        let rx = parse_xml_attr_near(svg_str, idx, "rx").unwrap_or(0.0);
-                        let ry = parse_xml_attr_near(svg_str, idx, "ry").unwrap_or(0.0);
-                        node.min_x = cx - rx;
-                        node.min_y = (cy + full_height) - ry;
-                        node.cx = cx;
-                        node.cy = cy + full_height;
+            match node.shape_type {
+                ShapeType::Rectangle
+                | ShapeType::RectangleHtmlForPorts
+                | ShapeType::RectangleWithCircleInside
+                | ShapeType::Folder
+                | ShapeType::Diamond
+                | ShapeType::RectanglePort => {
+                    let points = svg_result.substring_from(idx).extract_list(svg_result::POINTS_EQUALS);
+                    if !points.is_empty() {
+                        let min_x = points.iter().map(|p| p.x).fold(f64::INFINITY, f64::min);
+                        let min_y = points.iter().map(|p| p.y).fold(f64::INFINITY, f64::min);
+                        node.move_delta(min_x, min_y);
                     }
                 }
-            } else {
-                // Extract polygon points from SVG and apply Java YDelta.
-                let raw_points = svg_result.extract_points_at(idx);
-                if !raw_points.is_empty() {
-                    let points: Vec<XPoint2D> = raw_points.to_vec();
-                    let min_x = points.iter().map(|p| p.x).fold(f64::INFINITY, f64::min);
-                    let min_y = points.iter().map(|p| p.y).fold(f64::INFINITY, f64::min);
-                    node.min_x = min_x;
-                    node.min_y = min_y;
-                    node.cx = min_x + node.width / 2.0;
-                    node.cy = min_y + node.height / 2.0;
-                    node.set_polygon(min_x, min_y, &points);
+                ShapeType::RoundRectangle => {
+                    let svg_str = svg_result.svg();
+                    let idx_d = svg_str[idx + 1..]
+                        .find(svg_result::D_EQUALS)
+                        .map(|pos| idx + 1 + pos);
+                    let idx_points = svg_str[idx + 1..]
+                        .find(svg_result::POINTS_EQUALS)
+                        .map(|pos| idx + 1 + pos);
+                    let points = if let Some(path_idx) = idx_d.filter(|d| idx_points.is_none_or(|p| *d < p)) {
+                        svg_result
+                            .substring_from(path_idx)
+                            .extract_list(svg_result::D_EQUALS)
+                    } else if let Some(points_idx) = idx_points {
+                        let mut points = svg_result
+                            .substring_from(points_idx)
+                            .extract_list(svg_result::POINTS_EQUALS);
+                        let mut cursor = points_idx;
+                        for _ in 0..3 {
+                            if let Some(next_idx) = svg_str[cursor + 1..]
+                                .find(svg_result::POINTS_EQUALS)
+                                .map(|pos| cursor + 1 + pos)
+                            {
+                                points.extend(
+                                    svg_result
+                                        .substring_from(next_idx)
+                                        .extract_list(svg_result::POINTS_EQUALS),
+                                );
+                                cursor = next_idx;
+                            }
+                        }
+                        points
+                    } else {
+                        Vec::new()
+                    };
+                    if !points.is_empty() {
+                        let min_x = points.iter().map(|p| p.x).fold(f64::INFINITY, f64::min);
+                        let min_y = points.iter().map(|p| p.y).fold(f64::INFINITY, f64::min);
+                        node.move_delta(min_x, min_y);
+                    }
                 }
+                ShapeType::Octagon | ShapeType::Hexagon => {
+                    if let Some(points_idx) = svg_result
+                        .svg()
+                        .get(idx + 1..)
+                        .and_then(|s| s.find(svg_result::POINTS_EQUALS))
+                        .map(|pos| idx + 1 + pos)
+                    {
+                        let points = svg_result
+                            .substring_from(points_idx)
+                            .extract_list(svg_result::POINTS_EQUALS);
+                        if !points.is_empty() {
+                            let min_x = points.iter().map(|p| p.x).fold(f64::INFINITY, f64::min);
+                            let min_y = points.iter().map(|p| p.y).fold(f64::INFINITY, f64::min);
+                            node.move_delta(min_x, min_y);
+                            node.set_polygon(min_x, min_y, &points);
+                        }
+                    }
+                }
+                ShapeType::Circle | ShapeType::Oval => {
+                    if let Some(cx) = parse_xml_attr_near(svg_result.svg(), idx, "cx") {
+                        if let Some(cy) = parse_xml_attr_near(svg_result.svg(), idx, "cy") {
+                            let rx = parse_xml_attr_near(svg_result.svg(), idx, "rx").unwrap_or(0.0);
+                            let ry = parse_xml_attr_near(svg_result.svg(), idx, "ry").unwrap_or(0.0);
+                            node.move_delta(cx - rx, cy + full_height - ry);
+                        }
+                    }
+                }
+                ShapeType::Port => {}
             }
         }
 

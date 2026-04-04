@@ -715,9 +715,11 @@ pub fn layout_component(cd: &ComponentDiagram) -> Result<ComponentLayout> {
                 },
                 label_dimension: None,
                 tail_label: None,
-                tail_label_boxed: false,
+                tail_label_dimension: None,
+            tail_label_boxed: false,
                 head_label: None,
-                head_label_boxed: false,
+                head_label_dimension: None,
+            head_label_boxed: false,
                 tail_decoration: crate::svek::edge::LinkDecoration::None,
                 head_decoration: crate::svek::edge::LinkDecoration::None,
                 line_style: crate::svek::edge::LinkStyle::Normal,
@@ -873,9 +875,11 @@ pub fn layout_component(cd: &ComponentDiagram) -> Result<ComponentLayout> {
                 label: None,
                 label_dimension: None,
                 tail_label: None,
-                tail_label_boxed: false,
+                tail_label_dimension: None,
+            tail_label_boxed: false,
                 head_label: None,
-                head_label_boxed: false,
+                head_label_dimension: None,
+            head_label_boxed: false,
                 tail_decoration: crate::svek::edge::LinkDecoration::None,
                 head_decoration: crate::svek::edge::LinkDecoration::None,
                 line_style: crate::svek::edge::LinkStyle::Dashed,
@@ -937,9 +941,11 @@ pub fn layout_component(cd: &ComponentDiagram) -> Result<ComponentLayout> {
                         label: None,
                         label_dimension: None,
                         tail_label: None,
-                        tail_label_boxed: false,
+                        tail_label_dimension: None,
+            tail_label_boxed: false,
                         head_label: None,
-                        head_label_boxed: false,
+                        head_label_dimension: None,
+            head_label_boxed: false,
                         tail_decoration: crate::svek::edge::LinkDecoration::None,
                         head_decoration: crate::svek::edge::LinkDecoration::None,
                         line_style: crate::svek::edge::LinkStyle::Normal,
@@ -956,9 +962,11 @@ pub fn layout_component(cd: &ComponentDiagram) -> Result<ComponentLayout> {
                         label: None,
                         label_dimension: None,
                         tail_label: None,
-                        tail_label_boxed: false,
+                        tail_label_dimension: None,
+            tail_label_boxed: false,
                         head_label: None,
-                        head_label_boxed: false,
+                        head_label_dimension: None,
+            head_label_boxed: false,
                         tail_decoration: crate::svek::edge::LinkDecoration::None,
                         head_decoration: crate::svek::edge::LinkDecoration::None,
                         line_style: crate::svek::edge::LinkStyle::Normal,
@@ -976,6 +984,7 @@ pub fn layout_component(cd: &ComponentDiagram) -> Result<ComponentLayout> {
         edges: all_edges,
         clusters,
         rankdir,
+        is_activity: false,
         ranksep_override: None,
         nodesep_override: None,
         use_simplier_dot_link_strategy: false,
@@ -992,7 +1001,15 @@ pub fn layout_component(cd: &ComponentDiagram) -> Result<ComponentLayout> {
     // render_offset compensates: it is (6 + polygon_min - lf_min) per axis.
     // Using render_offset as the edge offset gives the same final positions as Java.
     let edge_offset_x = gl.render_offset.0;
-    let edge_offset_y = gl.render_offset.1;
+    // When links target groups directly (Java: thereALinkFromOrToGroup), the
+    // special-point wrapper cluster leaves the raw Y render offset 1px too low
+    // for geometry in the final SVG. Keep labels on the original offset below,
+    // but pull entity/cluster/edge bodies back by 1px for those cases only.
+    let edge_offset_y = if group_ids_in_edges.is_empty() {
+        gl.render_offset.1
+    } else {
+        gl.render_offset.1 - 1.0
+    };
 
     let mut nodes: Vec<ComponentNodeLayout> = Vec::new();
     let mut node_positions: HashMap<String, (f64, f64, f64, f64)> = HashMap::new();
@@ -1018,6 +1035,27 @@ pub fn layout_component(cd: &ComponentDiagram) -> Result<ComponentLayout> {
             stereotype: entity.stereotype.clone(),
             color: entity.color.clone(),
             source_line: entity.source_line,
+        });
+    }
+
+    if !group_ids_in_edges.is_empty() {
+        let group_order_by_id: HashMap<&str, usize> = cd
+            .groups
+            .iter()
+            .enumerate()
+            .map(|(idx, group)| (group.id.as_str(), idx))
+            .collect();
+        nodes.sort_by_key(|node| {
+            let entity = entity_map.get(&node.id).copied();
+            let parent = entity.and_then(|entity| entity.parent.as_deref());
+            let grouped = parent.is_some();
+            let group_order = parent
+                .and_then(|parent| group_order_by_id.get(parent).copied())
+                .unwrap_or(usize::MAX);
+            let source_order = entity
+                .and_then(|entity| entity.source_line)
+                .unwrap_or(usize::MAX);
+            (!grouped, group_order, source_order, node.id.clone())
         });
     }
 
@@ -1099,6 +1137,51 @@ pub fn layout_component(cd: &ComponentDiagram) -> Result<ComponentLayout> {
             })
         })
         .collect();
+
+    {
+        let group_rects: HashMap<&str, crate::klimt::geom::RectangleArea> = group_layouts
+            .iter()
+            .map(|group| {
+                (
+                    group.id.as_str(),
+                    crate::klimt::geom::RectangleArea::new(
+                        group.x,
+                        group.y,
+                        group.x + group.width,
+                        group.y + group.height,
+                    ),
+                )
+            })
+            .collect();
+        for edge in &mut edges {
+            let tail_rect = group_rects.get(edge.from.as_str());
+            let head_rect = group_rects.get(edge.to.as_str());
+            if tail_rect.is_none() && head_rect.is_none() {
+                continue;
+            }
+            let Some(raw_d) = edge.raw_path_d.as_ref() else {
+                continue;
+            };
+            let Some(dot_path) = crate::svek::svg_result::parse_svg_path_d_to_dotpath(raw_d) else {
+                continue;
+            };
+            let clipped = dot_path.simulate_compound(head_rect, tail_rect);
+            if clipped.beziers.is_empty() {
+                continue;
+            }
+            edge.raw_path_d = Some(clipped.to_svg_d());
+            let mut new_points = Vec::new();
+            for (idx, bez) in clipped.beziers.iter().enumerate() {
+                if idx == 0 {
+                    new_points.push((bez.x1, bez.y1));
+                }
+                new_points.push((bez.ctrlx1, bez.ctrly1));
+                new_points.push((bez.ctrlx2, bez.ctrly2));
+                new_points.push((bez.x2, bez.y2));
+            }
+            edge.points = new_points;
+        }
+    }
 
     // Extract note positions from graphviz results.
     // Notes are now real graphviz nodes (GMN0, GMN1, ...) with positions

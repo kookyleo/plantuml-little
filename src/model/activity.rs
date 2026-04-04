@@ -84,6 +84,45 @@ pub enum ActivityEvent {
     ResumeFromSyncBar(String),
 }
 
+/// Old-style activity node kind.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum OldActivityNodeKind {
+    Start,
+    End,
+    Action,
+    Branch,
+    SyncBar,
+}
+
+/// Old-style activity node metadata mirroring Java `activitydiagram.ActivityDiagram`.
+#[derive(Debug, Clone)]
+pub struct OldActivityNode {
+    pub id: String,
+    pub uid: String,
+    pub qualified_name: String,
+    pub kind: OldActivityNodeKind,
+    pub text: String,
+}
+
+/// Old-style activity edge metadata mirroring Java `Link` creation order.
+#[derive(Debug, Clone)]
+pub struct OldActivityLink {
+    pub uid: String,
+    pub from_id: String,
+    pub to_id: String,
+    pub label: Option<String>,
+    pub head_label: Option<String>,
+    pub source_line: usize,
+    pub length: u32,
+}
+
+/// Old-style activity graph reconstructed during parsing.
+#[derive(Debug, Clone, Default)]
+pub struct OldActivityGraph {
+    pub nodes: Vec<OldActivityNode>,
+    pub links: Vec<OldActivityLink>,
+}
+
 /// Activity diagram IR
 #[derive(Debug, Clone)]
 pub struct ActivityDiagram {
@@ -94,4 +133,6 @@ pub struct ActivityDiagram {
     pub note_max_width: Option<f64>,
     /// True when the diagram uses old-style `(*)` / `===` activity syntax.
     pub is_old_style: bool,
+    /// Old-style activity graphs are Graphviz-backed rather than sequential.
+    pub old_graph: Option<OldActivityGraph>,
 }

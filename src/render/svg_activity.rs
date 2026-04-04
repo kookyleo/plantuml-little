@@ -1,7 +1,7 @@
 use std::fmt::Write;
 
 use crate::font_metrics;
-use crate::klimt::svg::{fmt_coord, LengthAdjust, SvgGraphic};
+use crate::klimt::svg::{fmt_coord, xml_escape, LengthAdjust, SvgGraphic};
 use crate::layout::activity::{
     classify_activity_table_lines, ActivityEdgeLayout, ActivityLayout, ActivityNodeKindLayout,
     ActivityNodeLayout, ActivityNoteModeLayout, ActivityTableKind, NotePositionLayout,
@@ -78,6 +78,16 @@ pub fn render_activity(
     // wrap_with_meta can include the body content directly without lossy
     // string-level coordinate shifting.
     let (bo_x, bo_y) = body_offset.unwrap_or((0.0, 0.0));
+    log::debug!(
+        "render_activity: layout {:.2}x{:.2}, old_style_graphviz={}",
+        layout.width,
+        layout.height,
+        layout.old_style_graphviz
+    );
+
+    if layout.old_style_graphviz {
+        return render_old_style_activity(layout, skin, body_offset);
+    }
 
     // --- Build node→lane mapping (same logic as layout Pass 2c) -----------
     let mut node_lane: Vec<usize> = Vec::new();
@@ -366,6 +376,416 @@ pub fn render_activity(
     let raw_body_dim = Some((layout.width, raw_body_h));
 
     Ok((buf, raw_body_dim))
+}
+
+fn render_old_style_activity(
+    layout: &ActivityLayout,
+    skin: &SkinParams,
+    body_offset: Option<(f64, f64)>,
+) -> Result<(String, Option<(f64, f64)>)> {
+    let bg = skin.get_or("backgroundcolor", "#FFFFFF");
+    let act_bg = skin.background_color("activity", ENTITY_BG);
+    let act_border = skin.border_color("activity", BORDER_COLOR);
+    let act_font = skin.font_color("activity", TEXT_COLOR);
+    let diamond_bg = skin.background_color("activityDiamond", ENTITY_BG);
+    let diamond_border = skin.border_color("activityDiamond", BORDER_COLOR);
+    let arrow_color = skin.arrow_color(BORDER_COLOR);
+    let (bo_x, bo_y) = body_offset.unwrap_or((0.0, 0.0));
+    let old_bo_y = bo_y - 1.0;
+
+    let mut body = String::with_capacity(8192);
+    let mut max_x = 0.0_f64;
+    let mut max_y = 0.0_f64;
+
+    for (idx, node) in layout.nodes.iter().enumerate() {
+        let meta = layout.old_node_meta.get(idx).and_then(|meta| meta.as_ref());
+        render_old_style_node(
+            &mut body,
+            node,
+            meta,
+            bo_x,
+            old_bo_y,
+            act_bg,
+            act_border,
+            act_font,
+            diamond_bg,
+            diamond_border,
+            &mut max_x,
+            &mut max_y,
+        );
+    }
+
+    for (idx, edge) in layout.edges.iter().enumerate() {
+        let meta = layout.old_edge_meta.get(idx).and_then(|meta| meta.as_ref());
+        render_old_style_edge(
+            &mut body,
+            edge,
+            meta,
+            bo_x,
+            old_bo_y,
+            arrow_color,
+            &mut max_x,
+            &mut max_y,
+        );
+    }
+
+    // Old Graphviz-backed activities keep the rendered body coordinates and add
+    // the same document padding Java contributes on the right/bottom.
+    let svg_w = ensure_visible_int(max_x + 13.0) as f64;
+    let svg_h = ensure_visible_int(max_y + 13.0) as f64;
+
+    let mut buf = String::with_capacity(body.len() + 256);
+    write_svg_root_bg(&mut buf, svg_w, svg_h, "ACTIVITY", bg);
+    buf.push_str("<defs/><g>");
+    write_bg_rect(&mut buf, svg_w, svg_h, bg);
+    buf.push_str(&body);
+    buf.push_str("</g></svg>");
+
+    Ok((buf, Some((svg_w, svg_h))))
+}
+
+#[allow(clippy::too_many_arguments)]
+fn render_old_style_node(
+    buf: &mut String,
+    node: &ActivityNodeLayout,
+    meta: Option<&crate::layout::activity::ActivityGraphvizNodeMeta>,
+    bo_x: f64,
+    bo_y: f64,
+    act_bg: &str,
+    act_border: &str,
+    act_font: &str,
+    diamond_bg: &str,
+    diamond_border: &str,
+    max_x: &mut f64,
+    max_y: &mut f64,
+) {
+    let x = node.x + bo_x;
+    let y = node.y + bo_y;
+    let right = x + node.width;
+    let bottom = y + node.height;
+    *max_x = max_x.max(right);
+    *max_y = max_y.max(bottom);
+
+    let wrapper = match node.kind {
+        ActivityNodeKindLayout::Start => Some("start_entity"),
+        ActivityNodeKindLayout::Stop | ActivityNodeKindLayout::End => Some("end_entity"),
+        ActivityNodeKindLayout::Diamond => Some("entity"),
+        _ => None,
+    };
+    if let (Some(class_name), Some(meta)) = (wrapper, meta) {
+        write!(
+            buf,
+            r#"<g class="{}" data-qualified-name="{}" id="{}">"#,
+            class_name,
+            xml_escape(&meta.qualified_name),
+            meta.uid,
+        )
+        .unwrap();
+    }
+
+    match node.kind {
+        ActivityNodeKindLayout::Start => {
+            write!(
+                buf,
+                r##"<ellipse cx="{}" cy="{}" fill="#222222" rx="10" ry="10" style="stroke:#222222;stroke-width:1;"/>"##,
+                fmt_coord(x + node.width / 2.0),
+                fmt_coord(y + node.height / 2.0),
+            )
+            .unwrap();
+        }
+        ActivityNodeKindLayout::Stop | ActivityNodeKindLayout::End => {
+            let cx = x + node.width / 2.0;
+            let cy = y + node.height / 2.0;
+            write!(
+                buf,
+                r#"<ellipse cx="{}" cy="{}" fill="none" rx="11" ry="11" style="stroke:#222222;stroke-width:1.5;"/>"#,
+                fmt_coord(cx),
+                fmt_coord(cy),
+            )
+            .unwrap();
+            write!(
+                buf,
+                r##"<ellipse cx="{}" cy="{}" fill="#222222" rx="6" ry="6" style="stroke:#222222;stroke-width:1;"/>"##,
+                fmt_coord(cx),
+                fmt_coord(cy),
+            )
+            .unwrap();
+        }
+        ActivityNodeKindLayout::Action => {
+            write!(
+                buf,
+                r#"<rect fill="{}" height="{}" rx="12.5" ry="12.5" style="stroke:{};stroke-width:0.5;" width="{}" x="{}" y="{}"/>"#,
+                act_bg,
+                fmt_coord(node.height),
+                act_border,
+                fmt_coord(node.width),
+                fmt_coord(x),
+                fmt_coord(y),
+            )
+            .unwrap();
+            let text_y = y + 10.0 + font_metrics::ascent("SansSerif", ACTION_FONT_SIZE, false, false);
+            let text_w =
+                font_metrics::text_width(&node.text, "SansSerif", ACTION_FONT_SIZE, false, false);
+            write!(
+                buf,
+                r#"<text fill="{}" font-family="sans-serif" font-size="12" lengthAdjust="spacing" textLength="{}" x="{}" y="{}">{}</text>"#,
+                act_font,
+                fmt_coord(text_w),
+                fmt_coord(x + 10.0),
+                fmt_coord(text_y),
+                xml_escape(&node.text),
+            )
+            .unwrap();
+            *max_x = max_x.max(x + 10.0 + text_w);
+            *max_y = max_y.max(text_y);
+        }
+        ActivityNodeKindLayout::Diamond => {
+            let cx = x + node.width / 2.0;
+            let cy = y + node.height / 2.0;
+            write!(
+                buf,
+                r#"<polygon fill="{}" points="{},{},{},{},{},{},{},{},{},{}" style="stroke:{};stroke-width:0.5;"/>"#,
+                diamond_bg,
+                fmt_coord(cx),
+                fmt_coord(y),
+                fmt_coord(x + node.width),
+                fmt_coord(cy),
+                fmt_coord(cx),
+                fmt_coord(y + node.height),
+                fmt_coord(x),
+                fmt_coord(cy),
+                fmt_coord(cx),
+                fmt_coord(y),
+                diamond_border,
+            )
+            .unwrap();
+        }
+        ActivityNodeKindLayout::SyncBar | ActivityNodeKindLayout::ForkBar => {
+            write!(
+                buf,
+                r#"<rect fill="{SYNC_BAR_FILL}" height="{}" style="stroke:none;stroke-width:1;" width="{}" x="{}" y="{}"/>"#,
+                fmt_coord(node.height),
+                fmt_coord(node.width),
+                fmt_coord(x),
+                fmt_coord(y),
+            )
+            .unwrap();
+        }
+        _ => {}
+    }
+
+    if wrapper.is_some() && meta.is_some() {
+        buf.push_str("</g>");
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+fn render_old_style_edge(
+    buf: &mut String,
+    edge: &ActivityEdgeLayout,
+    meta: Option<&crate::layout::activity::ActivityGraphvizEdgeMeta>,
+    bo_x: f64,
+    bo_y: f64,
+    arrow_color: &str,
+    max_x: &mut f64,
+    max_y: &mut f64,
+) {
+    let Some(meta) = meta else {
+        return;
+    };
+    let edge_ascent = font_metrics::ascent("SansSerif", 11.0, false, false);
+
+    write!(buf, "<!--link {} to {}-->", meta.from_id, meta.to_id).unwrap();
+    write!(
+        buf,
+        r#"<g class="link" data-link-type="dependency" id="{}">"#,
+        meta.uid
+    )
+    .unwrap();
+
+    if let Some(path_d) = old_activity_path_d(edge, meta.raw_path_d.as_deref(), bo_x, bo_y) {
+        write!(
+            buf,
+            r#"<path d="{}" fill="none" id="{}-to-{}" style="stroke:{};stroke-width:1;"/>"#,
+            path_d,
+            meta.from_id,
+            meta.to_id,
+            arrow_color,
+        )
+        .unwrap();
+    }
+
+    if let Some(points) = old_activity_arrow_polygon(edge, bo_x, bo_y) {
+        let mut points_attr = String::new();
+        for (idx, (x, y)) in points.iter().enumerate() {
+            if idx > 0 {
+                points_attr.push(',');
+            }
+            points_attr.push_str(&fmt_coord(*x));
+            points_attr.push(',');
+            points_attr.push_str(&fmt_coord(*y));
+            *max_x = max_x.max(*x);
+            *max_y = max_y.max(*y);
+        }
+        write!(
+            buf,
+            r#"<polygon fill="{}" points="{}" style="stroke:{};stroke-width:1;"/>"#,
+            arrow_color,
+            points_attr,
+            arrow_color,
+        )
+        .unwrap();
+    }
+
+    if !edge.label.is_empty() {
+        if let Some((x, y)) = meta.label_xy {
+            let x = x + bo_x + 1.0;
+            let y = y + bo_y + edge_ascent + 1.0;
+            let text_w =
+                font_metrics::text_width(&edge.label, "SansSerif", 11.0, false, false);
+            write!(
+                buf,
+                r##"<text fill="#000000" font-family="sans-serif" font-size="11" lengthAdjust="spacing" textLength="{}" x="{}" y="{}">{}</text>"##,
+                fmt_coord(text_w),
+                fmt_coord(x),
+                fmt_coord(y),
+                xml_escape(&edge.label),
+            )
+            .unwrap();
+            *max_x = max_x.max(x + text_w);
+            *max_y = max_y.max(y);
+        }
+    }
+
+    if let (Some(head_label), Some((x, y))) = (&meta.head_label, meta.head_label_xy) {
+        let x = x + bo_x;
+        let y = y + bo_y + edge_ascent;
+        let display = if head_label.is_empty() { " " } else { head_label.as_str() };
+        let text_w = font_metrics::text_width(display, "SansSerif", 11.0, false, false);
+        let text = if head_label.is_empty() {
+            "&#160;".to_string()
+        } else {
+            xml_escape(head_label)
+        };
+        write!(
+            buf,
+            r##"<text fill="#000000" font-family="sans-serif" font-size="11" lengthAdjust="spacing" textLength="{}" x="{}" y="{}">{}</text>"##,
+            fmt_coord(text_w),
+            fmt_coord(x),
+            fmt_coord(y),
+            text,
+        )
+        .unwrap();
+        *max_x = max_x.max(x + text_w);
+        *max_y = max_y.max(y);
+    }
+
+    buf.push_str("</g>");
+}
+
+fn old_activity_path_d(
+    edge: &ActivityEdgeLayout,
+    raw_path_d: Option<&str>,
+    bo_x: f64,
+    bo_y: f64,
+) -> Option<String> {
+    if edge.points.len() >= 4 && (edge.points.len() - 1).is_multiple_of(3) {
+        let mut pts: Vec<(f64, f64)> = edge
+            .points
+            .iter()
+            .map(|&(x, y)| (x + bo_x, y + bo_y))
+            .collect();
+        let n = pts.len();
+        let (c2x, c2y) = pts[n - 2];
+        let (end_x, end_y) = pts[n - 1];
+        let dx = end_x - c2x;
+        let dy = end_y - c2y;
+        let len = (dx * dx + dy * dy).sqrt();
+        if len > f64::EPSILON {
+            let trim = 6.0_f64.min(len);
+            let ux = dx / len;
+            let uy = dy / len;
+            pts[n - 2] = (c2x - ux * trim, c2y - uy * trim);
+            pts[n - 1] = (end_x - ux * trim, end_y - uy * trim);
+        }
+
+        let mut d = String::new();
+        d.push('M');
+        d.push_str(&fmt_coord(pts[0].0));
+        d.push(',');
+        d.push_str(&fmt_coord(pts[0].1));
+        for chunk in pts[1..].chunks(3) {
+            if chunk.len() != 3 {
+                return raw_path_d.map(|raw| {
+                    if bo_x.abs() > 0.001 || bo_y.abs() > 0.001 {
+                        crate::layout::graphviz::transform_path_d(raw, bo_x, bo_y)
+                    } else {
+                        raw.to_string()
+                    }
+                });
+            }
+            d.push_str(" C");
+            d.push_str(&fmt_coord(chunk[0].0));
+            d.push(',');
+            d.push_str(&fmt_coord(chunk[0].1));
+            d.push(' ');
+            d.push_str(&fmt_coord(chunk[1].0));
+            d.push(',');
+            d.push_str(&fmt_coord(chunk[1].1));
+            d.push(' ');
+            d.push_str(&fmt_coord(chunk[2].0));
+            d.push(',');
+            d.push_str(&fmt_coord(chunk[2].1));
+        }
+        return Some(d);
+    }
+
+    raw_path_d.map(|raw| {
+        if bo_x.abs() > 0.001 || bo_y.abs() > 0.001 {
+            crate::layout::graphviz::transform_path_d(raw, bo_x, bo_y)
+        } else {
+            raw.to_string()
+        }
+    })
+}
+
+fn old_activity_arrow_polygon(
+    edge: &ActivityEdgeLayout,
+    bo_x: f64,
+    bo_y: f64,
+) -> Option<[(f64, f64); 5]> {
+    if edge.points.len() < 2 {
+        return None;
+    }
+    let (fx, fy) = edge.points[edge.points.len() - 2];
+    let (cx, cy) = edge.points[edge.points.len() - 1];
+    let dx = cx - fx;
+    let dy = cy - fy;
+    let len = (dx * dx + dy * dy).sqrt();
+    if len <= f64::EPSILON {
+        return None;
+    }
+
+    let ux = dx / len;
+    let uy = dy / len;
+    let px = -uy;
+    let py = ux;
+    let tip_x = cx + bo_x;
+    let tip_y = cy + bo_y;
+    let left_x = cx - ux * 9.0 - px * 4.0 + bo_x;
+    let left_y = cy - uy * 9.0 - py * 4.0 + bo_y;
+    let notch_x = cx - ux * 5.0 + bo_x;
+    let notch_y = cy - uy * 5.0 + bo_y;
+    let right_x = cx - ux * 9.0 + px * 4.0 + bo_x;
+    let right_y = cy - uy * 9.0 + py * 4.0 + bo_y;
+
+    Some([
+        (tip_x, tip_y),
+        (left_x, left_y),
+        (notch_x, notch_y),
+        (right_x, right_y),
+        (tip_x, tip_y),
+    ])
 }
 
 // -- Node rendering -----------------------------------------------------------
@@ -1000,6 +1420,7 @@ mod tests {
             direction: Default::default(),
             note_max_width: None,
             is_old_style: false,
+            old_graph: None,
         }
     }
 
@@ -1010,6 +1431,9 @@ mod tests {
             nodes: vec![],
             edges: vec![],
             swimlane_layouts: vec![],
+            old_style_graphviz: false,
+            old_node_meta: vec![],
+            old_edge_meta: vec![],
         }
     }
 
@@ -1583,6 +2007,7 @@ mod tests {
             direction: Default::default(),
             note_max_width: None,
             is_old_style: false,
+            old_graph: None,
         };
 
         let mut layout = empty_layout();

@@ -253,7 +253,7 @@ pub fn render_state(
         let Some(state) = top_level_nodes.get(state_id.as_str()).copied() else {
             continue;
         };
-        render_state_node(
+        render_state_node_with_parent(
             &mut sg,
             &mut tracker,
             state,
@@ -261,6 +261,27 @@ pub fn render_state(
             state_border,
             state_font,
             ent_id_map,
+            None,
+            None,
+            StateRenderPass::ClusterShells,
+        );
+    }
+
+    for state_id in &render_plan.top_level_order {
+        let Some(state) = top_level_nodes.get(state_id.as_str()).copied() else {
+            continue;
+        };
+        render_state_node_with_parent(
+            &mut sg,
+            &mut tracker,
+            state,
+            state_bg,
+            state_border,
+            state_font,
+            ent_id_map,
+            None,
+            None,
+            StateRenderPass::Content,
         );
 
         // Render inner-solve transitions inline (non-cluster composites).
@@ -296,7 +317,15 @@ pub fn render_state(
     }
 
     let (span_w, span_h) = tracker.span();
-    let raw_body_dim = (span_w + CANVAS_DELTA, span_h + CANVAS_DELTA);
+    let (min_x, min_y) = tracker.min_point();
+    let (max_x, _max_y) = tracker.max_point();
+    let raw_body_dim = if min_y > 6.5 {
+        // Java keeps the extra leading top space introduced by source-rank
+        // ports in the final Svek canvas; using pure span would collapse it.
+        (max_x + 7.0, span_h + CANVAS_DELTA + (min_y - 6.0))
+    } else {
+        (span_w + CANVAS_DELTA, span_h + CANVAS_DELTA)
+    };
     let svg_w = ensure_visible_int(raw_body_dim.0 + DOC_MARGIN_RIGHT) as f64;
     let svg_h = ensure_visible_int(raw_body_dim.1 + DOC_MARGIN_BOTTOM) as f64;
 
@@ -331,7 +360,24 @@ fn render_state_node(
         ent_id_map,
         None,
         None,
+        StateRenderPass::Full,
     );
+}
+
+fn snap_cluster_y(y: f64) -> f64 {
+    let rounded = y.round();
+    if (y - rounded).abs() < 0.125 {
+        rounded
+    } else {
+        y
+    }
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum StateRenderPass {
+    Full,
+    ClusterShells,
+    Content,
 }
 
 fn render_state_node_with_parent(
@@ -344,28 +390,46 @@ fn render_state_node_with_parent(
     ent_id_map: &HashMap<String, String>,
     parent_name: Option<&str>,
     parent_cluster_center_y: Option<f64>,
+    pass: StateRenderPass,
 ) {
+    if pass == StateRenderPass::ClusterShells && !node.is_composite {
+        return;
+    }
     match &node.kind {
         StateKind::Fork | StateKind::Join => {
+            if pass != StateRenderPass::ClusterShells {
             render_fork_join(sg, tracker, node);
+            }
         }
         StateKind::Choice => {
-            render_choice(sg, tracker, node, border, ent_id_map, parent_name);
+            if pass != StateRenderPass::ClusterShells {
+                render_choice(sg, tracker, node, border, ent_id_map, parent_name);
+            }
         }
         StateKind::History => {
-            render_history(sg, tracker, node, border, font_color, false);
+            if pass != StateRenderPass::ClusterShells {
+                render_history(sg, tracker, node, border, font_color, false);
+            }
         }
         StateKind::DeepHistory => {
-            render_history(sg, tracker, node, border, font_color, true);
+            if pass != StateRenderPass::ClusterShells {
+                render_history(sg, tracker, node, border, font_color, true);
+            }
         }
         StateKind::End => {
-            render_final(sg, tracker, node, ent_id_map, parent_name);
+            if pass != StateRenderPass::ClusterShells {
+                render_final(sg, tracker, node, ent_id_map, parent_name);
+            }
         }
         StateKind::EntryPoint => {
-            render_initial(sg, tracker, node, ent_id_map, parent_name);
+            if pass != StateRenderPass::ClusterShells {
+                render_initial(sg, tracker, node, ent_id_map, parent_name);
+            }
         }
         StateKind::ExitPoint => {
-            render_exit_point(sg, tracker, node, border);
+            if pass != StateRenderPass::ClusterShells {
+                render_exit_point(sg, tracker, node, border);
+            }
         }
         StateKind::Normal => {
             let is_cluster_pin = parent_cluster_center_y.is_some()
@@ -373,7 +437,21 @@ fn render_state_node_with_parent(
                     node.stereotype.as_deref(),
                     Some("inputPin") | Some("outputPin")
                 );
-            if is_cluster_pin {
+            if pass == StateRenderPass::ClusterShells {
+                if node.is_composite {
+                    render_composite(
+                        sg,
+                        tracker,
+                        node,
+                        bg,
+                        border,
+                        font_color,
+                        ent_id_map,
+                        parent_name,
+                        pass,
+                    );
+                }
+            } else if is_cluster_pin {
                 render_cluster_pin(
                     sg,
                     tracker,
@@ -395,6 +473,7 @@ fn render_state_node_with_parent(
                     font_color,
                     ent_id_map,
                     parent_name,
+                    pass,
                 );
             } else {
                 render_simple(
@@ -428,7 +507,10 @@ fn render_initial(
         .unwrap_or_else(|| "ent0002".to_string());
     // Java qualified name: ".start." for top-level, "Parent..start.Parent" for nested
     let qname = match parent_name {
-        Some(p) => format!("{}..start.{}", p, p),
+        Some(p) => {
+            let suffix = p.rsplit('.').next().unwrap_or(p);
+            format!("{}..start.{}", p, suffix)
+        }
         None => ".start.".to_string(),
     };
     let mut attrs = format!(r#" data-qualified-name="{}""#, xml_escape(&qname));
@@ -461,7 +543,10 @@ fn render_final(
         .unwrap_or_else(|| "ent0000".to_string());
     // Java qualified name: ".end." for top-level, "Parent..end.Parent" for nested
     let qname = match parent_name {
-        Some(p) => format!("{}..end.{}", p, p),
+        Some(p) => {
+            let suffix = p.rsplit('.').next().unwrap_or(p);
+            format!("{}..end.{}", p, suffix)
+        }
         None => ".end.".to_string(),
     };
     let mut attrs = format!(r#" data-qualified-name="{}""#, xml_escape(&qname));
@@ -728,13 +813,14 @@ fn render_cluster_pin(
     font_color: &str,
     parent_cluster_center_y: f64,
 ) {
+    let node_y = snap_cluster_y(node.y);
     let text_w = font_metrics::text_width(&node.name, "SansSerif", 14.0, false, false);
     let text_h = font_metrics::line_height("SansSerif", 14.0, false, false);
     let text_x = node.x - (text_w - 12.0) / 2.0;
-    let text_top_y = if node.y < parent_cluster_center_y {
-        node.y - 12.0 - text_h
+    let text_top_y = if node_y < parent_cluster_center_y {
+        node_y - 12.0 - text_h
     } else {
-        node.y + 12.0
+        node_y + 12.0
     };
     let text_y = text_top_y + 12.9951;
 
@@ -759,9 +845,9 @@ fn render_cluster_pin(
     sg.push_raw(&format!(
         r##"<rect fill="#F1F1F1" height="12" style="stroke:#181818;stroke-width:1.5;" width="12" x="{}" y="{}"/>"##,
         fmt_coord(node.x),
-        fmt_coord(node.y),
+        fmt_coord(node_y),
     ));
-    tracker.track_rect(node.x, node.y, 12.0, 12.0);
+    tracker.track_rect(node.x, node_y, 12.0, 12.0);
 }
 
 /// Composite state: rounded rectangle containing child states
@@ -774,10 +860,10 @@ fn render_composite(
     font_color: &str,
     ent_id_map: &HashMap<String, String>,
     parent_name: Option<&str>,
+    pass: StateRenderPass,
 ) {
     let r = 12.5; // corner radius
     let x = node.x;
-    let y = node.y;
     let w = node.width;
     let h = node.height;
     let render_as_cluster = node.render_as_cluster
@@ -785,20 +871,25 @@ fn render_composite(
             .children
             .iter()
             .any(|child| matches!(child.kind, StateKind::History | StateKind::DeepHistory));
+    let y = if render_as_cluster {
+        snap_cluster_y(node.y)
+    } else {
+        node.y
+    };
     // Java cluster rendering (with History children) uses a tighter header:
     //   titreHeight = text.getHeight() + MARGIN_LINE = 16.2969 + 5 = 21.2969
     // Non-cluster composites include the leading MARGIN:
     //   titreHeight = MARGIN + text.getHeight() + MARGIN_LINE = 5 + 16.2969 + 5 = 26.2969
     let sep_y = if render_as_cluster {
-        node.y + 21.2969
+        y + 21.2969
     } else {
-        node.y + 26.2969
+        y + 26.2969
     };
     let qname = match parent_name {
         Some(parent) => format!("{}.{}", parent, node.id),
         None => node.id.clone(),
     };
-    if render_as_cluster {
+    if matches!(pass, StateRenderPass::Full | StateRenderPass::ClusterShells) && render_as_cluster {
         let ent_id = ent_id_map
             .get(&node.id)
             .cloned()
@@ -818,93 +909,87 @@ fn render_composite(
         ));
     }
 
-    // 1. Tab header path (filled background, matching Java USymbolFrame)
-    //    Rounded top-left and right leading into a flat bottom at the separator line.
-    //    Java: path fills the header area from top to separator line.
-    let name_tl = font_metrics::text_width(&node.name, "SansSerif", 14.0, false, false);
-    // Java tab extends full width; the path traces: top-left rounded → top-right →
-    // arc down → right side to sep → left along sep → left side up → arc back.
-    sg.push_raw(&format!(
-        "<path d=\"M{},{} L{},{} A{r},{r} 0 0 1 {},{} L{},{} L{},{} L{},{} A{r},{r} 0 0 1 {},{}\" fill=\"{bg}\"/>",
-        fmt_coord(x + r), fmt_coord(y),           // start: top-left + radius
-        fmt_coord(x + w - r), fmt_coord(y),        // top-right before arc
-        fmt_coord(x + w), fmt_coord(y + r),        // arc end: right side at radius
-        fmt_coord(x + w), fmt_coord(sep_y),        // right side down to separator
-        fmt_coord(x), fmt_coord(sep_y),            // bottom-left at separator
-        fmt_coord(x), fmt_coord(y + r),            // left side up to radius
-        fmt_coord(x + r), fmt_coord(y),            // arc back to start
-    ));
-    tracker.track_path_bounds(x, y, x + w, sep_y);
-
-    // 2. Outer rounded rect (no fill, border only)
-    sg.push_raw(&format!(
-        "<rect fill=\"none\" height=\"{}\" rx=\"{r}\" ry=\"{r}\" style=\"stroke:{border};stroke-width:0.5;\" width=\"{}\" x=\"{}\" y=\"{}\"/>",
-        fmt_coord(h), fmt_coord(w), fmt_coord(x), fmt_coord(y),
-    ));
-    tracker.track_rect(x, y, w, h);
-
-    // 3. Separator line below the header
-    sg.set_stroke_color(Some(border));
-    sg.set_stroke_width(0.5, None);
-    sg.svg_line(x, sep_y, x + w, sep_y, 0.0);
-    tracker.track_line(x, sep_y, x + w, sep_y);
-
-    // 4. Composite state name text
-    // Port-backed state clusters use the Graphviz cluster-label path and pick up
-    // the extra +1 title translation from Java's frame symbol. History-only
-    // cluster rendering keeps the older 16.9951 baseline.
-    let name_x = x + (w - name_tl) / 2.0;
-    let has_direct_port_child = node.children.iter().any(|child| {
-        matches!(
-            child.stereotype.as_deref(),
-            Some("inputPin") | Some("outputPin")
-        )
-    });
-    let name_y = if render_as_cluster && !has_direct_port_child {
-        y + 16.9951
-    } else {
-        y + 17.9951
+    let should_render_shell = match pass {
+        StateRenderPass::Full => true,
+        StateRenderPass::ClusterShells => true,
+        StateRenderPass::Content => false,
     };
-    sg.set_fill_color(font_color);
-    sg.svg_text(
-        &node.name,
-        name_x,
-        name_y,
-        Some("sans-serif"),
-        14.0,
-        None,
-        None,
-        None,
-        name_tl,
-        LengthAdjust::Spacing,
-        None,
-        0,
-        None,
-    );
-    let name_text_h = font_metrics::line_height("SansSerif", 14.0, false, false);
-    tracker.track_text(name_x, name_y, name_tl, name_text_h);
-    if render_as_cluster {
-        sg.push_raw("</g>");
+
+    if should_render_shell {
+        // 1. Tab header path (filled background, matching Java USymbolFrame)
+        //    Rounded top-left and right leading into a flat bottom at the separator line.
+        //    Java: path fills the header area from top to separator line.
+        let name_tl = font_metrics::text_width(&node.name, "SansSerif", 14.0, false, false);
+        // Java tab extends full width; the path traces: top-left rounded → top-right →
+        // arc down → right side to sep → left along sep → left side up → arc back.
+        sg.push_raw(&format!(
+            "<path d=\"M{},{} L{},{} A{r},{r} 0 0 1 {},{} L{},{} L{},{} L{},{} A{r},{r} 0 0 1 {},{}\" fill=\"{bg}\"/>",
+            fmt_coord(x + r), fmt_coord(y),
+            fmt_coord(x + w - r), fmt_coord(y),
+            fmt_coord(x + w), fmt_coord(y + r),
+            fmt_coord(x + w), fmt_coord(sep_y),
+            fmt_coord(x), fmt_coord(sep_y),
+            fmt_coord(x), fmt_coord(y + r),
+            fmt_coord(x + r), fmt_coord(y),
+        ));
+        tracker.track_path_bounds(x, y, x + w, sep_y);
+
+        // 2. Outer rounded rect (no fill, border only)
+        sg.push_raw(&format!(
+            "<rect fill=\"none\" height=\"{}\" rx=\"{r}\" ry=\"{r}\" style=\"stroke:{border};stroke-width:0.5;\" width=\"{}\" x=\"{}\" y=\"{}\"/>",
+            fmt_coord(h), fmt_coord(w), fmt_coord(x), fmt_coord(y),
+        ));
+        tracker.track_rect(x, y, w, h);
+
+        // 3. Separator line below the header
+        sg.set_stroke_color(Some(border));
+        sg.set_stroke_width(0.5, None);
+        sg.svg_line(x, sep_y, x + w, sep_y, 0.0);
+        tracker.track_line(x, sep_y, x + w, sep_y);
+
+        // 4. Composite state name text
+        let name_x = x + (w - name_tl) / 2.0;
+        let has_direct_port_child = node.children.iter().any(|child| {
+            matches!(
+                child.stereotype.as_deref(),
+                Some("inputPin") | Some("outputPin")
+            )
+        });
+        let name_y = if render_as_cluster && !has_direct_port_child {
+            y + 16.9951
+        } else {
+            y + 17.9951
+        };
+        sg.set_fill_color(font_color);
+        sg.svg_text(
+            &node.name,
+            name_x,
+            name_y,
+            Some("sans-serif"),
+            14.0,
+            None,
+            None,
+            None,
+            name_tl,
+            LengthAdjust::Spacing,
+            None,
+            0,
+            None,
+        );
+        let name_text_h = font_metrics::line_height("SansSerif", 14.0, false, false);
+        tracker.track_text(name_x, name_y, name_tl, name_text_h);
+        if render_as_cluster {
+            sg.push_raw("</g>");
+        }
     }
 
-    // Recursively render children with parent name for qualified naming.
-    // Java renders entities in LinkedHashMap insertion order (= parse order).
-    // The children list already preserves the correct order from parsing.
-    let parent_cluster_center_y = if render_as_cluster {
-        Some(node.y + node.height / 2.0)
+    let next_parent_cluster_center_y = if render_as_cluster {
+        Some(y + node.height / 2.0)
     } else {
         None
     };
-    for cluster_pass in [true, false] {
+    if pass == StateRenderPass::ClusterShells {
         for child in &node.children {
-            let child_cluster_like = child.render_as_cluster
-                || child
-                    .children
-                    .iter()
-                    .any(|grand| matches!(grand.kind, StateKind::History | StateKind::DeepHistory));
-            if child_cluster_like != cluster_pass {
-                continue;
-            }
             render_state_node_with_parent(
                 sg,
                 tracker,
@@ -914,8 +999,96 @@ fn render_composite(
                 font_color,
                 ent_id_map,
                 Some(&qname),
-                parent_cluster_center_y,
+                None,
+                pass,
             );
+        }
+        return;
+    }
+    if pass == StateRenderPass::Content {
+        let render_child = |child: &StateNodeLayout,
+                            sg: &mut SvgGraphic,
+                            tracker: &mut BoundsTracker| {
+            render_state_node_with_parent(
+                sg,
+                tracker,
+                child,
+                bg,
+                border,
+                font_color,
+                ent_id_map,
+                Some(&qname),
+                next_parent_cluster_center_y,
+                pass,
+            );
+        };
+        if render_as_cluster {
+            for child in &node.children {
+                let child_cluster_like = child.render_as_cluster
+                    || child
+                        .children
+                        .iter()
+                        .any(|grand| matches!(grand.kind, StateKind::History | StateKind::DeepHistory));
+                if !child_cluster_like {
+                    render_child(child, sg, tracker);
+                }
+            }
+            for child in &node.children {
+                let child_cluster_like = child.render_as_cluster
+                    || child
+                        .children
+                        .iter()
+                        .any(|grand| matches!(grand.kind, StateKind::History | StateKind::DeepHistory));
+                if child_cluster_like {
+                    render_child(child, sg, tracker);
+                }
+            }
+        } else {
+            for child in &node.children {
+                let child_cluster_like = child.render_as_cluster
+                    || child
+                        .children
+                        .iter()
+                        .any(|grand| matches!(grand.kind, StateKind::History | StateKind::DeepHistory));
+                if child_cluster_like {
+                    render_child(child, sg, tracker);
+                }
+            }
+            for child in &node.children {
+                let child_cluster_like = child.render_as_cluster
+                    || child
+                        .children
+                        .iter()
+                        .any(|grand| matches!(grand.kind, StateKind::History | StateKind::DeepHistory));
+                if !child_cluster_like {
+                    render_child(child, sg, tracker);
+                }
+            }
+        }
+    } else {
+        for cluster_pass in [true, false] {
+            for child in &node.children {
+                let child_cluster_like = child.render_as_cluster
+                    || child
+                        .children
+                        .iter()
+                        .any(|grand| matches!(grand.kind, StateKind::History | StateKind::DeepHistory));
+                if child_cluster_like != cluster_pass {
+                    continue;
+                }
+                render_state_node_with_parent(
+                    sg,
+                    tracker,
+                    child,
+                    bg,
+                    border,
+                    font_color,
+                    ent_id_map,
+                    Some(&qname),
+                    next_parent_cluster_center_y,
+                    pass,
+                );
+            }
         }
     }
 
@@ -1202,6 +1375,10 @@ fn adjust_path_endpoint(d: &str, decoration_len: f64) -> String {
     result
 }
 
+fn normalize_special_transition_scope(scope: &str) -> &str {
+    scope.rsplit('.').next().unwrap_or(scope)
+}
+
 fn special_transition_endpoint_display(id: &str, _is_source: bool) -> Option<String> {
     // After parser split: [*]__start / [*]__end already encode direction
     if id == "[*]__start" {
@@ -1216,19 +1393,34 @@ fn special_transition_endpoint_display(id: &str, _is_source: bool) -> Option<Str
     }
     // Scoped: [*]__startActive, [*]__endActive, etc.
     if let Some(scope) = id.strip_prefix("[*]__start") {
-        return Some(format!("*start*{scope}"));
+        return Some(format!(
+            "*start*{}",
+            normalize_special_transition_scope(scope)
+        ));
     }
     if let Some(scope) = id.strip_prefix("[*]__end") {
-        return Some(format!("*end*{scope}"));
+        return Some(format!(
+            "*end*{}",
+            normalize_special_transition_scope(scope)
+        ));
     }
     if let Some(scope) = id.strip_suffix("[H*]") {
-        return Some(format!("*deephistorical*{scope}"));
+        return Some(format!(
+            "*deephistorical*{}",
+            normalize_special_transition_scope(scope)
+        ));
     }
     if let Some(scope) = id.strip_suffix("[H]") {
-        return Some(format!("*historical*{scope}"));
+        return Some(format!(
+            "*historical*{}",
+            normalize_special_transition_scope(scope)
+        ));
     }
     let scope = id.strip_prefix("[*]")?;
-    Some(format!("*start*{scope}"))
+    Some(format!(
+        "*start*{}",
+        normalize_special_transition_scope(scope)
+    ))
 }
 
 // ── Note rendering ──────────────────────────────────────────────────

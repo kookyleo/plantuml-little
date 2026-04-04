@@ -60,8 +60,10 @@ pub struct LayoutEdge {
     /// Pre-computed label dimension override.
     pub label_dimension: Option<(f64, f64)>,
     pub tail_label: Option<String>,
+    pub tail_label_dimension: Option<(f64, f64)>,
     pub tail_label_boxed: bool,
     pub head_label: Option<String>,
+    pub head_label_dimension: Option<(f64, f64)>,
     pub head_label_boxed: bool,
     pub tail_decoration: crate::svek::edge::LinkDecoration,
     pub head_decoration: crate::svek::edge::LinkDecoration,
@@ -122,6 +124,7 @@ pub struct LayoutGraph {
     pub edges: Vec<LayoutEdge>,
     pub clusters: Vec<LayoutClusterSpec>,
     pub rankdir: RankDir,
+    pub is_activity: bool,
     /// Override the default ranksep (60pt). Inner composite state layouts
     /// use Graphviz's default 0.5in (36pt) to match Java's inner solve.
     pub ranksep_override: Option<f64>,
@@ -494,6 +497,7 @@ pub fn layout_with_svek(graph: &LayoutGraph) -> Result<GraphLayout, Error> {
     let config = BuilderConfig {
         rankdir,
         dot_splines: DotSplines::Spline,
+        is_activity: graph.is_activity,
         nodesep: graph.nodesep_override.or(Some(MIN_NODE_SEP_PX)),
         ranksep: graph.ranksep_override.or(Some(MIN_RANK_SEP_PX)),
         use_simplier_dot_link_strategy: graph.use_simplier_dot_link_strategy,
@@ -612,23 +616,31 @@ pub fn layout_with_svek(graph: &LayoutGraph) -> Result<GraphLayout, Error> {
             }
         }
         if let Some(ref tail_label) = edge.tail_label {
-            let font_size = if edge.tail_label_boxed { 14.0 } else { 13.0 };
-            let (text_w, text_h) = measure_edge_text_block(tail_label, font_size);
             ld.tail_label = Some(tail_label.clone());
-            ld.tail_label_dimension = Some(if edge.tail_label_boxed {
-                (text_w + 4.0, text_h + 2.0)
+            ld.tail_label_dimension = Some(if let Some(dim) = edge.tail_label_dimension {
+                dim
             } else {
-                (text_w, text_h)
+                let font_size = if edge.tail_label_boxed { 14.0 } else { 13.0 };
+                let (text_w, text_h) = measure_edge_text_block(tail_label, font_size);
+                if edge.tail_label_boxed {
+                    (text_w + 4.0, text_h + 2.0)
+                } else {
+                    (text_w, text_h)
+                }
             });
         }
         if let Some(ref head_label) = edge.head_label {
-            let font_size = if edge.head_label_boxed { 14.0 } else { 13.0 };
-            let (text_w, text_h) = measure_edge_text_block(head_label, font_size);
             ld.head_label = Some(head_label.clone());
-            ld.head_label_dimension = Some(if edge.head_label_boxed {
-                (text_w + 4.0, text_h + 2.0)
+            ld.head_label_dimension = Some(if let Some(dim) = edge.head_label_dimension {
+                dim
             } else {
-                (text_w, text_h)
+                let font_size = if edge.head_label_boxed { 14.0 } else { 13.0 };
+                let (text_w, text_h) = measure_edge_text_block(head_label, font_size);
+                if edge.head_label_boxed {
+                    (text_w + 4.0, text_h + 2.0)
+                } else {
+                    (text_w, text_h)
+                }
             });
         }
         ld = ld.with_decorations(edge.head_decoration, edge.tail_decoration);
@@ -769,8 +781,10 @@ pub fn layout_with_svek(graph: &LayoutGraph) -> Result<GraphLayout, Error> {
             };
             NodeLayout {
                 id,
-                cx: sn.cx,
-                cy: sn.cy,
+                // Compute center from top-left: move_delta() only sets min_x/min_y,
+                // so cx/cy may be stale (0,0). Always derive from min corner.
+                cx: sn.min_x + sn.width / 2.0,
+                cy: sn.min_y + sn.height / 2.0,
                 width: sn.width,
                 height: sn.height,
                 image_width: iw,
@@ -859,7 +873,11 @@ pub fn layout_with_svek(graph: &LayoutGraph) -> Result<GraphLayout, Error> {
     // for total_width/total_height calculation.
     // Exclude hidden nodes (zaent special points) from bounding box
     let visible_nodes = nodes_out.iter().enumerate().filter(|(i, _)| {
-        *i < graph.nodes.len() || !svek_nodes.get(*i).map_or(false, |sn| sn.hidden)
+        if let Some(layout_node) = graph.nodes.get(*i) {
+            !layout_node.hidden
+        } else {
+            !svek_nodes.get(*i).map_or(false, |sn| sn.hidden)
+        }
     });
     let (min_x_nodes, min_y_nodes, max_x_nodes, max_y_nodes) = visible_nodes.fold(
         (f64::INFINITY, f64::INFINITY, f64::NEG_INFINITY, f64::NEG_INFINITY),
@@ -1666,9 +1684,11 @@ mod tests {
                 label: None,
                 label_dimension: None,
                 tail_label: None,
-                tail_label_boxed: false,
+                tail_label_dimension: None,
+            tail_label_boxed: false,
                 head_label: None,
-                head_label_boxed: false,
+                head_label_dimension: None,
+            head_label_boxed: false,
                 tail_decoration: crate::svek::edge::LinkDecoration::None,
                 head_decoration: crate::svek::edge::LinkDecoration::None,
                 line_style: crate::svek::edge::LinkStyle::Normal,
@@ -1678,6 +1698,7 @@ mod tests {
             }],
             clusters: vec![],
             rankdir: RankDir::TopToBottom,
+            is_activity: false,
             ranksep_override: None,
             nodesep_override: None,
             use_simplier_dot_link_strategy: false,
@@ -1728,6 +1749,7 @@ mod tests {
             edges: vec![],
             clusters: vec![],
             rankdir: RankDir::LeftToRight,
+            is_activity: false,
             ranksep_override: None,
             nodesep_override: None,
             use_simplier_dot_link_strategy: false,

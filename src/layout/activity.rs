@@ -6,11 +6,17 @@
 //! diagram layout works with column-based placement.
 
 use crate::font_metrics;
-use crate::model::activity::{ActivityDiagram, ActivityEvent, NotePosition};
+use crate::layout::graphviz::{
+    layout_with_svek, transform_path_d, LayoutEdge, LayoutGraph, LayoutNode, RankDir,
+};
+use crate::model::activity::{
+    ActivityDiagram, ActivityEvent, NotePosition, OldActivityGraph, OldActivityNodeKind,
+};
 use crate::render::svg_richtext::{
     creole_line_height, creole_plain_text, creole_text_width, measure_creole_display_lines,
 };
 use crate::Result;
+use std::collections::HashMap;
 
 // ---------------------------------------------------------------------------
 // Layout output types
@@ -24,6 +30,9 @@ pub struct ActivityLayout {
     pub nodes: Vec<ActivityNodeLayout>,
     pub edges: Vec<ActivityEdgeLayout>,
     pub swimlane_layouts: Vec<SwimlaneLayout>,
+    pub old_style_graphviz: bool,
+    pub old_node_meta: Vec<Option<ActivityGraphvizNodeMeta>>,
+    pub old_edge_meta: Vec<Option<ActivityGraphvizEdgeMeta>>,
 }
 
 /// A single positioned node.
@@ -79,6 +88,25 @@ pub struct ActivityEdgeLayout {
     pub to_index: usize,
     pub label: String,
     pub points: Vec<(f64, f64)>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct ActivityGraphvizNodeMeta {
+    pub id: String,
+    pub uid: String,
+    pub qualified_name: String,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct ActivityGraphvizEdgeMeta {
+    pub uid: String,
+    pub from_id: String,
+    pub to_id: String,
+    pub raw_path_d: Option<String>,
+    pub arrow_polygon_points: Option<Vec<(f64, f64)>>,
+    pub label_xy: Option<(f64, f64)>,
+    pub head_label: Option<String>,
+    pub head_label_xy: Option<(f64, f64)>,
 }
 
 /// A single swimlane column.
@@ -560,6 +588,10 @@ fn resolve_swimlane_index(swimlanes: &[String], name: &str) -> usize {
 /// The result contains absolute positions for every node and edge so that a
 /// renderer can draw them without further computation.
 pub fn layout_activity(diagram: &ActivityDiagram) -> Result<ActivityLayout> {
+    if let Some(old_graph) = diagram.old_graph.as_ref() {
+        return layout_old_style_activity_graph(diagram, old_graph);
+    }
+
     log::debug!(
         "layout_activity: {} events, {} swimlanes",
         diagram.events.len(),
@@ -1508,6 +1540,9 @@ pub fn layout_activity(diagram: &ActivityDiagram) -> Result<ActivityLayout> {
         nodes,
         edges,
         swimlane_layouts,
+        old_style_graphviz: false,
+        old_node_meta: Vec::new(),
+        old_edge_meta: Vec::new(),
     };
     apply_direction_transform(&mut layout, &diagram.direction);
 
@@ -1772,6 +1807,234 @@ fn flow_group_top(nodes: &[ActivityNodeLayout], flow_idx: usize) -> f64 {
     top
 }
 
+const OLD_ACTIVITY_BRANCH_SIZE: f64 = 24.0;
+const OLD_ACTIVITY_EDGE_FONT_SIZE: f64 = 11.0;
+
+fn old_activity_center_label_dimension(text: &str) -> (f64, f64) {
+    let line_h = font_metrics::line_height("SansSerif", OLD_ACTIVITY_EDGE_FONT_SIZE, false, false);
+    let text_w = font_metrics::text_width(text, "SansSerif", OLD_ACTIVITY_EDGE_FONT_SIZE, false, false);
+    (text_w + 2.0, line_h + 2.0)
+}
+
+fn old_activity_side_label_dimension(text: &str) -> (f64, f64) {
+    let display = if text.is_empty() { " " } else { text };
+    let line_h = font_metrics::line_height("SansSerif", OLD_ACTIVITY_EDGE_FONT_SIZE, false, false);
+    let text_w =
+        font_metrics::text_width(display, "SansSerif", OLD_ACTIVITY_EDGE_FONT_SIZE, false, false);
+    (text_w, line_h)
+}
+
+fn layout_old_style_activity_graph(
+    _diagram: &ActivityDiagram,
+    old_graph: &OldActivityGraph,
+) -> Result<ActivityLayout> {
+    let nodes: Vec<LayoutNode> = old_graph
+        .nodes
+        .iter()
+        .map(|node| {
+            let (shape, width, height, text) = match node.kind {
+                OldActivityNodeKind::Start => (
+                    Some(crate::svek::shape_type::ShapeType::Circle),
+                    20.0,
+                    20.0,
+                    String::new(),
+                ),
+                OldActivityNodeKind::End => (
+                    Some(crate::svek::shape_type::ShapeType::Circle),
+                    22.0,
+                    22.0,
+                    String::new(),
+                ),
+                OldActivityNodeKind::Action => {
+                    let (w, h) = estimate_text_size(&node.text);
+                    (
+                        Some(crate::svek::shape_type::ShapeType::RoundRectangle),
+                        w,
+                        h,
+                        node.text.clone(),
+                    )
+                }
+                OldActivityNodeKind::Branch => (
+                    Some(crate::svek::shape_type::ShapeType::Diamond),
+                    OLD_ACTIVITY_BRANCH_SIZE,
+                    OLD_ACTIVITY_BRANCH_SIZE,
+                    String::new(),
+                ),
+                OldActivityNodeKind::SyncBar => (
+                    Some(crate::svek::shape_type::ShapeType::Rectangle),
+                    80.0,
+                    8.0,
+                    String::new(),
+                ),
+            };
+            LayoutNode {
+                id: node.id.clone(),
+                label: text,
+                width_pt: width,
+                height_pt: height,
+                shape,
+                shield: None,
+                entity_position: None,
+                max_label_width: None,
+                port_label_width: None,
+                order: None,
+                image_width_pt: None,
+                lf_extra_left: 0.0,
+                lf_rect_correction: true,
+                lf_has_body_separator: false,
+                lf_node_polygon: false,
+                lf_polygon_hack: false,
+                hidden: false,
+            }
+        })
+        .collect();
+
+    let edges: Vec<LayoutEdge> = old_graph
+        .links
+        .iter()
+        .map(|link| LayoutEdge {
+            from: link.from_id.clone(),
+            to: link.to_id.clone(),
+            label: link.label.clone(),
+            label_dimension: link
+                .label
+                .as_deref()
+                .map(old_activity_center_label_dimension),
+            tail_label: None,
+            tail_label_boxed: false,
+            head_label: link.head_label.clone(),
+            head_label_boxed: false,
+            tail_decoration: crate::svek::edge::LinkDecoration::None,
+            head_decoration: crate::svek::edge::LinkDecoration::None,
+            line_style: crate::svek::edge::LinkStyle::Normal,
+            minlen: link.length.saturating_sub(1),
+            invisible: false,
+            no_constraint: false,
+            tail_label_dimension: None,
+            head_label_dimension: link
+                .head_label
+                .as_deref()
+                .map(old_activity_side_label_dimension),
+        })
+        .collect();
+
+    let graph = LayoutGraph {
+        nodes,
+        edges,
+        clusters: Vec::new(),
+        rankdir: RankDir::TopToBottom,
+        is_activity: false,
+        ranksep_override: Some(40.0),
+        nodesep_override: Some(20.0),
+        use_simplier_dot_link_strategy: false,
+    };
+
+    let gl = layout_with_svek(&graph)?;
+    let edge_offset_x = gl.render_offset.0;
+    let edge_offset_y = gl.render_offset.1;
+
+    let node_by_id: std::collections::HashMap<&str, &crate::layout::graphviz::NodeLayout> =
+        gl.nodes.iter().map(|node| (node.id.as_str(), node)).collect();
+    let mut activity_nodes = Vec::with_capacity(old_graph.nodes.len());
+    let mut old_node_meta = Vec::with_capacity(old_graph.nodes.len());
+    let mut node_layout_index = HashMap::new();
+
+    for (idx, node) in old_graph.nodes.iter().enumerate() {
+        let gv = node_by_id
+            .get(node.id.as_str())
+            .copied()
+            .ok_or_else(|| crate::Error::Layout(format!("missing old-style activity node {}", node.id)))?;
+        let kind = match node.kind {
+            OldActivityNodeKind::Start => ActivityNodeKindLayout::Start,
+            OldActivityNodeKind::End => ActivityNodeKindLayout::Stop,
+            OldActivityNodeKind::Action => ActivityNodeKindLayout::Action,
+            OldActivityNodeKind::Branch => ActivityNodeKindLayout::Diamond,
+            OldActivityNodeKind::SyncBar => ActivityNodeKindLayout::SyncBar,
+        };
+        activity_nodes.push(ActivityNodeLayout {
+            index: idx,
+            kind,
+            x: gv.min_x + edge_offset_x,
+            y: gv.min_y + edge_offset_y,
+            width: gv.width,
+            height: gv.height,
+            text: node.text.clone(),
+        });
+        old_node_meta.push(Some(ActivityGraphvizNodeMeta {
+            id: node.id.clone(),
+            uid: node.uid.clone(),
+            qualified_name: node.qualified_name.clone(),
+        }));
+        node_layout_index.insert(node.id.clone(), idx);
+    }
+
+    let mut activity_edges = Vec::with_capacity(old_graph.links.len());
+    let mut old_edge_meta = Vec::with_capacity(old_graph.links.len());
+    for (idx, link) in old_graph.links.iter().enumerate() {
+        let gv = gl
+            .edges
+            .get(idx)
+            .ok_or_else(|| crate::Error::Layout(format!("missing old-style activity edge {}", link.uid)))?;
+        let from_index = *node_layout_index
+            .get(&link.from_id)
+            .ok_or_else(|| crate::Error::Layout(format!("missing activity edge source {}", link.from_id)))?;
+        let to_index = *node_layout_index
+            .get(&link.to_id)
+            .ok_or_else(|| crate::Error::Layout(format!("missing activity edge target {}", link.to_id)))?;
+        let shifted_points: Vec<(f64, f64)> = gv
+            .points
+            .iter()
+            .map(|&(x, y)| (x + edge_offset_x, y + edge_offset_y))
+            .collect();
+        let label_xy = gv.label_xy.map(|(x, y)| {
+            (
+                x + gl.move_delta.0 - gl.normalize_offset.0 + edge_offset_x,
+                y + gl.move_delta.1 - gl.normalize_offset.1 + edge_offset_y,
+            )
+        });
+        let head_label_xy = gv.head_label_xy.map(|(x, y)| {
+            (
+                x + gl.move_delta.0 - gl.normalize_offset.0 + edge_offset_x,
+                y + gl.move_delta.1 - gl.normalize_offset.1 + edge_offset_y,
+            )
+        });
+        activity_edges.push(ActivityEdgeLayout {
+            from_index,
+            to_index,
+            label: link.label.clone().unwrap_or_default(),
+            points: shifted_points,
+        });
+        old_edge_meta.push(Some(ActivityGraphvizEdgeMeta {
+            uid: link.uid.clone(),
+            from_id: link.from_id.clone(),
+            to_id: link.to_id.clone(),
+            raw_path_d: gv
+                .raw_path_d
+                .as_ref()
+                .map(|raw| transform_path_d(raw, edge_offset_x, edge_offset_y)),
+            arrow_polygon_points: gv.arrow_polygon_points.as_ref().map(|pts| {
+                pts.iter()
+                    .map(|&(x, y)| (x + edge_offset_x, y + edge_offset_y))
+                    .collect()
+            }),
+            label_xy,
+            head_label: link.head_label.clone(),
+            head_label_xy,
+        }));
+    }
+
+    Ok(ActivityLayout {
+        width: gl.total_width + 12.0,
+        height: gl.total_height + 12.0,
+        nodes: activity_nodes,
+        edges: activity_edges,
+        swimlane_layouts: Vec::new(),
+        old_style_graphviz: true,
+        old_node_meta,
+        old_edge_meta,
+    })
+}
+
 /// Compute the total bounding box of the diagram.
 fn compute_bounds(
     nodes: &[ActivityNodeLayout],
@@ -1825,6 +2088,7 @@ mod tests {
             direction: Default::default(),
             note_max_width: None,
             is_old_style: false,
+            old_graph: None,
         }
     }
 
@@ -1942,6 +2206,7 @@ mod tests {
             direction: Default::default(),
             note_max_width: None,
             is_old_style: false,
+            old_graph: None,
         };
         let layout = layout_activity(&d).unwrap();
         assert_eq!(layout.swimlane_layouts.len(), 2);
@@ -1993,6 +2258,7 @@ mod tests {
             direction: Default::default(),
             note_max_width: None,
             is_old_style: false,
+            old_graph: None,
         };
         let layout = layout_activity(&d).unwrap();
         let lane_a = &layout.swimlane_layouts[0];
@@ -2043,6 +2309,7 @@ mod tests {
             direction: Default::default(),
             note_max_width: None,
             is_old_style: false,
+            old_graph: None,
         };
         let layout = layout_activity(&d).unwrap();
         let lane_a = &layout.swimlane_layouts[0];
@@ -2090,6 +2357,7 @@ mod tests {
             direction: Default::default(),
             note_max_width: None,
             is_old_style: false,
+            old_graph: None,
         };
         let layout = layout_activity(&d).unwrap();
         let lane_a = &layout.swimlane_layouts[0];
@@ -2403,6 +2671,7 @@ mod tests {
             direction: Default::default(),
             note_max_width: None,
             is_old_style: false,
+            old_graph: None,
         };
         let layout = layout_activity(&d).unwrap();
         let action = layout
@@ -2479,6 +2748,7 @@ mod tests {
             direction: Default::default(),
             note_max_width: None,
             is_old_style: false,
+            old_graph: None,
         };
         let layout = layout_activity(&d).unwrap();
         let cross = layout
@@ -2580,6 +2850,7 @@ mod tests {
             direction: Direction::LeftToRight,
             note_max_width: None,
             is_old_style: false,
+            old_graph: None,
         };
         let layout = layout_activity(&d).unwrap();
 
@@ -2629,6 +2900,7 @@ mod tests {
             direction: Direction::TopToBottom,
             note_max_width: None,
             is_old_style: false,
+            old_graph: None,
         };
         let layout = layout_activity(&d).unwrap();
 
@@ -2675,6 +2947,7 @@ mod tests {
             direction: Direction::BottomToTop,
             note_max_width: None,
             is_old_style: false,
+            old_graph: None,
         };
         let layout = layout_activity(&d).unwrap();
 
@@ -2708,6 +2981,7 @@ mod tests {
             direction: Default::default(),
             note_max_width: None,
             is_old_style: false,
+            old_graph: None,
         };
         let layout = layout_activity(&d).unwrap();
         // All flow nodes should start below the swimlane header
@@ -2743,6 +3017,7 @@ mod tests {
             direction: Default::default(),
             note_max_width: None,
             is_old_style: false,
+            old_graph: None,
         };
         let layout = layout_activity(&d).unwrap();
 
@@ -2798,6 +3073,7 @@ mod tests {
             direction: Default::default(),
             note_max_width: None,
             is_old_style: false,
+            old_graph: None,
         };
         let layout = layout_activity(&d).unwrap();
 
@@ -2984,6 +3260,7 @@ mod tests {
             direction: Default::default(),
             note_max_width: Some(80.0),
             is_old_style: false,
+            old_graph: None,
         };
         let layout = layout_activity(&d).unwrap();
         let note = &layout.nodes[1];

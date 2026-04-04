@@ -873,6 +873,14 @@ impl BoundsTracker {
             (0.0, 0.0)
         }
     }
+
+    pub fn max_point(&self) -> (f64, f64) {
+        if self.max_x.is_finite() && self.min_x.is_finite() {
+            (self.max_x, self.max_y)
+        } else {
+            (0.0, 0.0)
+        }
+    }
 }
 
 fn extract_svg_content(svg: &str) -> String {

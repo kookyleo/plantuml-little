@@ -1,8 +1,8 @@
 use super::svg::{ensure_visible_int, write_bg_rect, write_svg_root_bg};
 use crate::klimt::svg::{fmt_coord, SvgGraphic};
 use crate::layout::timing::{
-    TimingConstraintLayout, TimingLayout, TimingMsgLayout, TimingNoteLayout, TimingSegmentLayout,
-    TimingTimeAxis, TimingTrackLayout,
+    TimingConstraintLayout, TimingLayout, TimingMsgLayout, TimingNoteLayout, TimingTimeAxis,
+    TimingTrackLayout,
 };
 use crate::model::timing::TimingDiagram;
 use crate::render::svg_richtext::{
@@ -11,17 +11,32 @@ use crate::render::svg_richtext::{
 use crate::style::SkinParams;
 use crate::Result;
 
-use crate::skin::rose::{BORDER_COLOR, ENTITY_BG, NOTE_BG, NOTE_BORDER, NOTE_FOLD};
-const CONCISE_STROKE: &str = "#2E8B57";
-const ARROW_COLOR: &str = "#555555";
-const CONSTRAINT_COLOR: &str = "#FF6600";
-const AXIS_LINE_COLOR: &str = "#888888";
-const AXIS_TEXT_COLOR: &str = "#333333";
+use crate::skin::rose::{NOTE_BG, NOTE_BORDER, NOTE_FOLD};
+const TIMING_LINE_COLOR: &str = "#006400";
+const TIMING_FILL_COLOR: &str = "#E2E2F0";
+const ARROW_COLOR: &str = "#00008B";
+const CONSTRAINT_COLOR: &str = "#8B0000";
+const AXIS_LINE_COLOR: &str = "#333333";
 const GRID_LINE_COLOR: &str = "#333333";
 /// Default font color for timing diagrams, from Java rose.skin `timingDiagram { FontColor #3 }`
 const TIMING_FONT_COLOR: &str = "#333333";
-const LABEL_PADDING: f64 = 8.0;
-const ROBUST_BAND_HEIGHT: f64 = 16.0;
+const CONCISE_RIBBON_HEIGHT: f64 = 24.0;
+const CONCISE_SHAPE_DELTA: f64 = 12.0;
+
+fn timing_element_font_color<'a>(
+    skin: &'a SkinParams,
+    element: &str,
+    default: &'a str,
+) -> &'a str {
+    let key1 = format!("{element}fontcolor");
+    let key2 = format!("{element}.fontcolor");
+    skin.get(&key1)
+        .or_else(|| skin.get(&key2))
+        .or_else(|| skin.get("defaultfontcolor"))
+        .or_else(|| skin.get("fontcolor"))
+        .or_else(|| skin.get("root.fontcolor"))
+        .unwrap_or(default)
+}
 
 pub fn render_timing(
     _td: &TimingDiagram,
@@ -46,18 +61,40 @@ pub fn render_timing(
 
 fn render_timing_inner(layout: &TimingLayout, skin: &SkinParams) -> Result<String> {
     let mut buf = String::with_capacity(4096);
-    let timing_bg = skin.background_color("timing", ENTITY_BG);
-    let timing_border = skin.border_color("timing", BORDER_COLOR);
     // Java rose.skin: timingDiagram { FontColor #3 } => #333333 as base default.
     // In Java, the style system overrides skinparam defaults (including defaultFontColor).
     // Only timing-specific skinparam overrides apply.
     let timing_font = skin.get("timingfontcolor")
         .or_else(|| skin.get("timing.fontcolor"))
         .or_else(|| skin.get("defaultfontcolor"))
+        .or_else(|| skin.get("fontcolor"))
+        .or_else(|| skin.get("root.fontcolor"))
         .unwrap_or(TIMING_FONT_COLOR);
-    let arrow_font = skin.font_color("arrow", timing_font);
-    let constraint_color = skin.font_color("constraint", CONSTRAINT_COLOR);
-    let arrow_color = skin.arrow_color(ARROW_COLOR);
+    let timing_line = skin
+        .get("timing.linecolor")
+        .or_else(|| skin.get("timing.bordercolor"))
+        .or_else(|| skin.get("timingcolor"))
+        .unwrap_or(TIMING_LINE_COLOR);
+    let timing_fill = skin
+        .get("timing.backgroundcolor")
+        .or_else(|| skin.get("timing.backcolor"))
+        .unwrap_or(TIMING_FILL_COLOR);
+    let arrow_font = timing_element_font_color(skin, "arrow", timing_font);
+    let arrow_color = skin
+        .get("arrow.linecolor")
+        .or_else(|| skin.get("arrowcolor"))
+        .unwrap_or(ARROW_COLOR);
+    let constraint_line_color = skin
+        .get("constraintarrow.linecolor")
+        .or_else(|| skin.get("constraintarrowcolor"))
+        .unwrap_or(CONSTRAINT_COLOR);
+    let constraint_font = skin
+        .get("constraintarrowfontcolor")
+        .or_else(|| skin.get("constraintarrow.fontcolor"))
+        .or_else(|| skin.get("defaultfontcolor"))
+        .or_else(|| skin.get("fontcolor"))
+        .unwrap_or(constraint_line_color);
+    let axis_font = timing_element_font_color(skin, "timeline", timing_font);
     let bg = skin.get_or("backgroundcolor", "#FFFFFF");
     let svg_w = ensure_visible_int(layout.width) as f64;
     let svg_h = ensure_visible_int(layout.height) as f64;
@@ -74,18 +111,35 @@ fn render_timing_inner(layout: &TimingLayout, skin: &SkinParams) -> Result<Strin
     render_tick_grid(&mut sg, layout);
     render_top_border(&mut sg, layout);
     for track in &layout.tracks {
-        render_track(&mut sg, track, &timing_bg, &timing_border, &timing_font, name_fs, state_fs, layout.chart_left);
-    }
-    for msg in &layout.messages {
-        render_message(&mut sg, msg, &arrow_color, arrow_font, arrow_fs);
+        render_track(
+            &mut sg,
+            track,
+            timing_fill,
+            timing_line,
+            timing_font,
+            name_fs,
+            state_fs,
+            layout.chart_left,
+            layout.chart_right,
+            layout.chart_top,
+        );
     }
     for c in &layout.constraints {
-        render_constraint(&mut sg, c, &constraint_color, constraint_fs);
+        render_constraint(
+            &mut sg,
+            c,
+            constraint_line_color,
+            constraint_font,
+            constraint_fs,
+        );
     }
     for note in &layout.notes {
         render_note(&mut sg, note, &timing_font, state_fs);
     }
-    render_time_axis(&mut sg, &layout.time_axis, axis_fs);
+    render_time_axis(&mut sg, &layout.time_axis, axis_font, axis_fs);
+    for msg in &layout.messages {
+        render_message(&mut sg, msg, arrow_color, arrow_font, arrow_fs);
+    }
     buf.push_str(sg.body());
     buf.push_str("</g></svg>");
     Ok(buf)
@@ -134,15 +188,24 @@ fn render_top_border(sg: &mut SvgGraphic, layout: &TimingLayout) {
 fn render_track(
     sg: &mut SvgGraphic,
     track: &TimingTrackLayout,
-    bg: &str,
-    border: &str,
+    fill_color: &str,
+    line_color: &str,
     font_color: &str,
     name_fs: f64,
     state_fs: f64,
     chart_left: f64,
+    chart_right: f64,
+    chart_top: f64,
 ) {
-    // Participant name label first (matches Java rendering order)
-    // Java uses left-aligned text at chart_left + 5, with y = track.y + ascent
+    if (track.y - chart_top).abs() > f64::EPSILON {
+        sg.push_raw(&format!(
+            r#"<line style="stroke:{GRID_LINE_COLOR};stroke-width:0.5;" x1="{}" x2="{}" y1="{}" y2="{}"/>"#,
+            fmt_coord(chart_left),
+            fmt_coord(chart_right),
+            fmt_coord(track.y),
+            fmt_coord(track.y),
+        ));
+    }
     let label_x = chart_left + 5.0;
     let label_y = track.y + crate::font_metrics::ascent("SansSerif", name_fs, false, false);
     let mut tmp = String::new();
@@ -157,223 +220,385 @@ fn render_track(
         &format!(r#"font-size="{:.0}" font-weight="700""#, name_fs),
     );
     sg.push_raw(&tmp);
-    // Tab header: underline + diagonal (matches Java's participant name tab)
     let text_len = crate::font_metrics::text_width(&track.name, "SansSerif", name_fs, true, false);
     let underline_y = track.y + track.header_height;
     let tab_end_x = label_x + text_len + 1.0;
     sg.push_raw(&format!(
-        "<line style=\"stroke:{GRID_LINE_COLOR};stroke-width:0.5;\" x1=\"{}\" x2=\"{}\" y1=\"{}\" y2=\"{}\"/>",
-        fmt_coord(chart_left), fmt_coord(tab_end_x),
-        fmt_coord(underline_y), fmt_coord(underline_y),
+        r#"<line style="stroke:{GRID_LINE_COLOR};stroke-width:0.5;" x1="{}" x2="{}" y1="{}" y2="{}"/>"#,
+        fmt_coord(chart_left),
+        fmt_coord(tab_end_x),
+        fmt_coord(underline_y),
+        fmt_coord(underline_y),
     ));
     sg.push_raw(&format!(
-        "<line style=\"stroke:{GRID_LINE_COLOR};stroke-width:0.5;\" x1=\"{}\" x2=\"{}\" y1=\"{}\" y2=\"{}\"/>",
-        fmt_coord(tab_end_x), fmt_coord(tab_end_x + 10.0),
-        fmt_coord(underline_y), fmt_coord(track.y),
+        r#"<line style="stroke:{GRID_LINE_COLOR};stroke-width:0.5;" x1="{}" x2="{}" y1="{}" y2="{}"/>"#,
+        fmt_coord(tab_end_x),
+        fmt_coord(tab_end_x + 10.0),
+        fmt_coord(underline_y),
+        fmt_coord(track.y),
     ));
-    // Track background rect
-    if !track.segments.is_empty() {
-        let x_min = track
-            .segments
-            .iter()
-            .map(|s| s.x_start)
-            .fold(f64::INFINITY, f64::min);
-        let x_max = track
-            .segments
-            .iter()
-            .map(|s| s.x_end)
-            .fold(f64::NEG_INFINITY, f64::max);
-        let w = (x_max - x_min).max(0.0);
-        sg.push_raw(&format!(r#"<rect fill="{bg}" height="{}" opacity="0.30000" style="stroke:{border};stroke-width:0.5;" width="{}" x="{}" y="{}"/>"#, fmt_coord(track.height), fmt_coord(w), fmt_coord(x_min), fmt_coord(track.y)));
-        sg.push_raw("\n");
-    }
-    // Segments (signal lines and transitions)
-    for (i, seg) in track.segments.iter().enumerate() {
-        render_segment(sg, seg, i, &track.segments, state_fs, font_color);
+    if track.is_robust {
+        render_robust_track(sg, track, line_color, font_color, state_fs, chart_left);
+    } else {
+        render_concise_track(sg, track, fill_color, line_color, font_color, state_fs);
     }
 }
 
-fn render_segment(
+fn robust_state_baseline(y: f64, state_fs: f64) -> f64 {
+    let ascent = crate::font_metrics::ascent("SansSerif", state_fs, false, false);
+    let line_height = crate::font_metrics::line_height("SansSerif", state_fs, false, false);
+    y + ascent - line_height * 0.5 + 1.0
+}
+
+fn render_robust_track(
     sg: &mut SvgGraphic,
-    seg: &TimingSegmentLayout,
-    index: usize,
-    all_segments: &[TimingSegmentLayout],
-    state_fs: f64,
+    track: &TimingTrackLayout,
+    line_color: &str,
     font_color: &str,
+    state_fs: f64,
+    chart_left: f64,
 ) {
-    let stroke = if seg.is_robust {
-        BORDER_COLOR
+    let mut state_y: std::collections::HashMap<&str, f64> = std::collections::HashMap::new();
+    for seg in &track.segments {
+        state_y.entry(seg.state.as_str()).or_insert(seg.y);
+    }
+
+    let labels: Vec<&str> = if track.state_labels.is_empty() {
+        let mut labels = Vec::new();
+        for seg in &track.segments {
+            let state = seg.state.as_str();
+            if !labels.contains(&state) {
+                labels.push(state);
+            }
+        }
+        labels
     } else {
-        CONCISE_STROKE
+        track.state_labels.iter().map(String::as_str).collect()
     };
-    if seg.is_robust {
-        let band_top = seg.y - ROBUST_BAND_HEIGHT * 0.5;
-        let w = seg.x_end - seg.x_start;
-        if w > 0.0 {
-            sg.set_fill_color(ENTITY_BG);
-            sg.set_stroke_color(Some(stroke));
-            sg.set_stroke_width(0.5, None);
-            sg.svg_rectangle(seg.x_start, band_top, w, ROBUST_BAND_HEIGHT, 0.0, 0.0, 0.0);
-        }
-        if w > 10.0 {
-            let cx = seg.x_start + w * 0.5;
-            let cy = seg.y + state_fs * 0.35;
+    let state_label_x = chart_left + 5.0;
+
+    for state in labels {
+        if let Some(&y) = state_y.get(state) {
             let mut tmp = String::new();
             render_creole_text(
                 &mut tmp,
-                &seg.state,
-                cx,
-                cy,
+                state,
+                state_label_x,
+                robust_state_baseline(y, state_fs),
                 state_fs + 4.0,
                 font_color,
-                Some("middle"),
+                None,
                 &format!(r#"font-size="{:.0}""#, state_fs),
             );
             sg.push_raw(&tmp);
-        }
-        if index > 0 {
-            let prev = &all_segments[index - 1];
-            let tx = seg.x_start;
-            let pbt = prev.y - ROBUST_BAND_HEIGHT * 0.5;
-            let pbb = prev.y + ROBUST_BAND_HEIGHT * 0.5;
-            let cbt = seg.y - ROBUST_BAND_HEIGHT * 0.5;
-            let cbb = seg.y + ROBUST_BAND_HEIGHT * 0.5;
-            let yf = if seg.y < prev.y { pbt } else { pbb };
-            let yt = if seg.y < prev.y { cbb } else { cbt };
-            sg.set_stroke_color(Some(stroke));
-            sg.set_stroke_width(0.5, None);
-            sg.svg_line(tx, yf, tx, yt, 0.0);
-        }
-    } else {
-        if seg.x_end > seg.x_start {
-            sg.set_stroke_color(Some(stroke));
-            sg.set_stroke_width(0.5, None);
-            sg.svg_line(seg.x_start, seg.y, seg.x_end, seg.y, 0.0);
-        }
-        if (seg.x_end - seg.x_start) > 10.0 {
-            let cx = seg.x_start + (seg.x_end - seg.x_start) * 0.5;
-            let cy = seg.y - 4.0;
-            let mut tmp = String::new();
-            render_creole_text(
-                &mut tmp,
-                &seg.state,
-                cx,
-                cy,
-                state_fs + 4.0,
-                font_color,
-                Some("middle"),
-                &format!(r#"font-size="{:.0}""#, state_fs),
-            );
-            sg.push_raw(&tmp);
-        }
-        if index > 0 {
-            let prev = &all_segments[index - 1];
-            let tx = seg.x_start;
-            sg.set_stroke_color(Some(stroke));
-            sg.set_stroke_width(0.5, None);
-            sg.svg_line(tx, prev.y, tx, seg.y, 0.0);
         }
     }
+
+    for seg in &track.segments {
+        if seg.x_end > seg.x_start {
+            sg.push_raw(&format!(
+                r#"<line style="stroke:{line_color};stroke-width:2;" x1="{}" x2="{}" y1="{}" y2="{}"/>"#,
+                fmt_coord(seg.x_start),
+                fmt_coord(seg.x_end),
+                fmt_coord(seg.y),
+                fmt_coord(seg.y),
+            ));
+        }
+    }
+
+    for pair in track.segments.windows(2) {
+        let prev = &pair[0];
+        let curr = &pair[1];
+        if (prev.y - curr.y).abs() < f64::EPSILON {
+            continue;
+        }
+        sg.push_raw(&format!(
+            r#"<line style="stroke:{line_color};stroke-width:2;" x1="{}" x2="{}" y1="{}" y2="{}"/>"#,
+            fmt_coord(curr.x_start),
+            fmt_coord(curr.x_start),
+            fmt_coord(prev.y.min(curr.y)),
+            fmt_coord(prev.y.max(curr.y)),
+        ));
+    }
+}
+
+fn concise_state_label_baseline(track: &TimingTrackLayout, state_fs: f64) -> f64 {
+    let center_y = track.y + track.height - 22.0;
+    let line_height = crate::font_metrics::line_height("SansSerif", state_fs, true, false);
+    let ascent = crate::font_metrics::ascent("SansSerif", state_fs, true, false);
+    center_y - line_height * 0.5 + ascent
+}
+
+fn render_concise_track(
+    sg: &mut SvgGraphic,
+    track: &TimingTrackLayout,
+    fill_color: &str,
+    line_color: &str,
+    font_color: &str,
+    state_fs: f64,
+) {
+    let center_y = track.y + track.height - 22.0;
+    let top = center_y - CONCISE_RIBBON_HEIGHT * 0.5;
+    let bottom = center_y + CONCISE_RIBBON_HEIGHT * 0.5;
+    let label_y = concise_state_label_baseline(track, state_fs);
+    let mut label_positions: Vec<(String, f64)> = Vec::new();
+
+    for (index, seg) in track.segments.iter().enumerate() {
+        let len = seg.x_end - seg.x_start;
+        if len <= 0.0 {
+            continue;
+        }
+
+        if index == 0 && track.segments.len() == 1 {
+            sg.push_raw(&format!(
+                r#"<path d="M{} {} L{} {} L{} {} L{} {} Z" fill="{}" style="stroke:{};stroke-width:1.5;"/>"#,
+                fmt_coord(seg.x_start),
+                fmt_coord(top),
+                fmt_coord(seg.x_end),
+                fmt_coord(top),
+                fmt_coord(seg.x_end),
+                fmt_coord(bottom),
+                fmt_coord(seg.x_start),
+                fmt_coord(bottom),
+                fill_color,
+                line_color,
+            ));
+        } else if index == 0 {
+            sg.push_raw(&format!(
+                r#"<polygon fill="{}" points="{},{},{},{},{},{},{},{},{},{},{},{}" style="stroke:{};stroke-width:1.5;"/>"#,
+                fill_color,
+                fmt_coord(seg.x_start + CONCISE_SHAPE_DELTA),
+                fmt_coord(top),
+                fmt_coord(seg.x_end - CONCISE_SHAPE_DELTA),
+                fmt_coord(top),
+                fmt_coord(seg.x_end),
+                fmt_coord(center_y),
+                fmt_coord(seg.x_end - CONCISE_SHAPE_DELTA),
+                fmt_coord(bottom),
+                fmt_coord(seg.x_start + CONCISE_SHAPE_DELTA),
+                fmt_coord(bottom),
+                fmt_coord(seg.x_start),
+                fmt_coord(center_y),
+                line_color,
+            ));
+        } else if index + 1 == track.segments.len() {
+            sg.push_raw(&format!(
+                r#"<polygon fill="{}" points="{},{},{},{},{},{},{},{},{},{}" style="stroke:{};stroke-width:1.5;"/>"#,
+                fill_color,
+                fmt_coord(seg.x_start + CONCISE_SHAPE_DELTA),
+                fmt_coord(top),
+                fmt_coord(seg.x_end),
+                fmt_coord(top),
+                fmt_coord(seg.x_end),
+                fmt_coord(bottom),
+                fmt_coord(seg.x_start + CONCISE_SHAPE_DELTA),
+                fmt_coord(bottom),
+                fmt_coord(seg.x_start),
+                fmt_coord(center_y),
+                fill_color,
+            ));
+            sg.push_raw(&format!(
+                r#"<path d="M{},{} L{},{} L{},{} L{},{} L{},{}" fill="{}" style="stroke:{};stroke-width:1.5;"/>"#,
+                fmt_coord(seg.x_end),
+                fmt_coord(top),
+                fmt_coord(seg.x_start + CONCISE_SHAPE_DELTA),
+                fmt_coord(top),
+                fmt_coord(seg.x_start),
+                fmt_coord(center_y),
+                fmt_coord(seg.x_start + CONCISE_SHAPE_DELTA),
+                fmt_coord(bottom),
+                fmt_coord(seg.x_end),
+                fmt_coord(bottom),
+                fill_color,
+                line_color,
+            ));
+        } else {
+            sg.push_raw(&format!(
+                r#"<polygon fill="{}" points="{},{},{},{},{},{},{},{},{},{},{},{}" style="stroke:{};stroke-width:1.5;"/>"#,
+                fill_color,
+                fmt_coord(seg.x_start + CONCISE_SHAPE_DELTA),
+                fmt_coord(top),
+                fmt_coord(seg.x_end - CONCISE_SHAPE_DELTA),
+                fmt_coord(top),
+                fmt_coord(seg.x_end),
+                fmt_coord(center_y),
+                fmt_coord(seg.x_end - CONCISE_SHAPE_DELTA),
+                fmt_coord(bottom),
+                fmt_coord(seg.x_start + CONCISE_SHAPE_DELTA),
+                fmt_coord(bottom),
+                fmt_coord(seg.x_start),
+                fmt_coord(center_y),
+                line_color,
+            ));
+        }
+
+        let text_width = crate::font_metrics::text_width(&seg.state, "SansSerif", state_fs, true, false);
+        let text_x = if index + 1 == track.segments.len() {
+            seg.x_start + CONCISE_SHAPE_DELTA
+        } else {
+            (seg.x_start + seg.x_end) * 0.5 - text_width * 0.5
+        };
+        label_positions.push((seg.state.clone(), text_x));
+    }
+
+    for (state, text_x) in label_positions {
+        let mut tmp = String::new();
+        render_creole_text(
+            &mut tmp,
+            &state,
+            text_x,
+            label_y,
+            state_fs + 4.0,
+            font_color,
+            None,
+            &format!(r#"font-size="{:.0}" font-weight="700""#, state_fs),
+        );
+        sg.push_raw(&tmp);
+    }
+}
+
+fn arrow_head_points(from_x: f64, from_y: f64, to_x: f64, to_y: f64) -> Option<[(f64, f64); 3]> {
+    let dx = to_x - from_x;
+    let dy = to_y - from_y;
+    let len = (dx * dx + dy * dy).sqrt();
+    if len == 0.0 {
+        return None;
+    }
+    let angle = dx.atan2(dy);
+    let delta = 20.0_f64.to_radians();
+    let radius = 8.0;
+    let p1 = (
+        to_x - (angle + delta).sin() * radius,
+        to_y - (angle + delta).cos() * radius,
+    );
+    let p2 = (
+        to_x - (angle - delta).sin() * radius,
+        to_y - (angle - delta).cos() * radius,
+    );
+    Some([p1, p2, (to_x, to_y)])
 }
 
 fn render_message(sg: &mut SvgGraphic, msg: &TimingMsgLayout, arrow_color: &str, font_color: &str, arrow_fs: f64) {
-    sg.set_stroke_color(Some(arrow_color));
-    sg.set_stroke_width(1.0, None);
-    sg.svg_line(msg.from_x, msg.from_y, msg.to_x, msg.to_y, 0.0);
-    let dx = msg.to_x - msg.from_x;
-    let dy = msg.to_y - msg.from_y;
-    let len = (dx * dx + dy * dy).sqrt();
-    if len > 0.0 {
-        let ux = dx / len;
-        let uy = dy / len;
-        let px = -uy;
-        let py = ux;
-        let p1x = msg.to_x - ux * 9.0 + px * 4.0;
-        let p1y = msg.to_y - uy * 9.0 + py * 4.0;
-        let p2x = msg.to_x;
-        let p2y = msg.to_y;
-        let p3x = msg.to_x - ux * 9.0 - px * 4.0;
-        let p3y = msg.to_y - uy * 9.0 - py * 4.0;
-        sg.set_fill_color(arrow_color);
-        sg.set_stroke_color(Some(arrow_color));
-        sg.set_stroke_width(1.0, None);
-        sg.svg_polygon(0.0, &[p1x, p1y, p2x, p2y, p3x, p3y, p1x, p1y]);
-    }
+    sg.push_raw(&format!(
+        r#"<line style="stroke:{arrow_color};stroke-width:1.5;" x1="{}" x2="{}" y1="{}" y2="{}"/>"#,
+        fmt_coord(msg.from_x),
+        fmt_coord(msg.to_x),
+        fmt_coord(msg.from_y),
+        fmt_coord(msg.to_y),
+    ));
+    let Some([(p1x, p1y), (p2x, p2y), (p3x, p3y)]) =
+        arrow_head_points(msg.from_x, msg.from_y, msg.to_x, msg.to_y)
+    else {
+        return;
+    };
+    sg.push_raw(&format!(
+        r#"<polygon fill="{}" points="{},{},{},{},{},{}" style="stroke:{};stroke-width:1.5;"/>"#,
+        arrow_color,
+        fmt_coord(p1x),
+        fmt_coord(p1y),
+        fmt_coord(p2x),
+        fmt_coord(p2y),
+        fmt_coord(p3x),
+        fmt_coord(p3y),
+        arrow_color,
+    ));
     if !msg.label.is_empty() {
-        let mx = (msg.from_x + msg.to_x) * 0.5;
-        let my = (msg.from_y + msg.to_y) * 0.5 - 4.0;
+        let mut text_y = (p1y + p2y) * 0.5;
+        if msg.from_y < msg.to_y {
+            text_y -= crate::font_metrics::line_height("SansSerif", arrow_fs, false, false);
+        }
         let mut tmp = String::new();
         render_creole_text(
             &mut tmp,
             &msg.label,
-            mx,
-            my,
+            (p1x + p2x) * 0.5,
+            text_y + crate::font_metrics::ascent("SansSerif", arrow_fs, false, false),
             arrow_fs + 4.0,
             font_color,
-            Some("middle"),
+            None,
             &format!(r#"font-size="{:.0}""#, arrow_fs),
         );
         sg.push_raw(&tmp);
     }
 }
 
-fn render_constraint(sg: &mut SvgGraphic, c: &TimingConstraintLayout, cc: &str, constraint_fs: f64) {
-    sg.set_stroke_color(Some(cc));
-    sg.set_stroke_width(1.0, None);
-    sg.svg_line(c.x_start, c.y, c.x_end, c.y, 0.0);
+fn render_constraint(
+    sg: &mut SvgGraphic,
+    c: &TimingConstraintLayout,
+    line_color: &str,
+    font_color: &str,
+    constraint_fs: f64,
+) {
+    let long_enough = c.x_end - c.x_start > 20.0;
+    let (line_start, line_end) = if long_enough {
+        (c.x_start + 3.0, c.x_end - 3.0)
+    } else {
+        (c.x_start - 1.0, c.x_end + 1.0)
+    };
+    sg.push_raw(&format!(
+        r#"<line style="stroke:{line_color};stroke-width:1.5;" x1="{}" x2="{}" y1="{}" y2="{}"/>"#,
+        fmt_coord(line_start),
+        fmt_coord(line_end),
+        fmt_coord(c.y),
+        fmt_coord(c.y),
+    ));
     for &(tip_x, dir) in &[(c.x_start, 1.0_f64), (c.x_end, -1.0_f64)] {
-        let p1x = tip_x + dir * 7.0;
-        let p1y = c.y - 4.0;
-        let p2x = tip_x;
-        let p2y = c.y;
-        let p3x = tip_x + dir * 7.0;
-        let p3y = c.y + 4.0;
-        sg.set_fill_color(cc);
-        sg.set_stroke_color(Some(cc));
-        sg.set_stroke_width(1.0, None);
-        sg.svg_polygon(0.0, &[p1x, p1y, p2x, p2y, p3x, p3y, p1x, p1y]);
+        let p1x = tip_x + dir * 8.0;
+        let p1y = c.y + 4.0;
+        let p2x = tip_x + dir * 8.0;
+        let p2y = c.y - 4.0;
+        sg.push_raw(&format!(
+            r#"<polygon fill="{}" points="{},{},{},{},{},{}" style="stroke:{};stroke-width:1;"/>"#,
+            line_color,
+            fmt_coord(p1x),
+            fmt_coord(p1y),
+            fmt_coord(p2x),
+            fmt_coord(p2y),
+            fmt_coord(tip_x),
+            fmt_coord(c.y),
+            line_color,
+        ));
     }
-    let mx = (c.x_start + c.x_end) * 0.5;
-    let my = c.y - 4.0;
+    let text_width = crate::font_metrics::text_width(&c.label, "SansSerif", constraint_fs, false, false);
     let mut tmp = String::new();
     render_creole_text(
         &mut tmp,
         &c.label,
-        mx,
-        my,
+        c.x_start + (c.x_end - c.x_start - text_width) * 0.5,
+        c.y - (crate::font_metrics::line_height("SansSerif", constraint_fs, false, false) + 5.0)
+            + crate::font_metrics::ascent("SansSerif", constraint_fs, false, false),
         constraint_fs + 4.0,
-        cc,
-        Some("middle"),
+        font_color,
+        None,
         &format!(r#"font-size="{:.0}""#, constraint_fs),
     );
     sg.push_raw(&tmp);
 }
 
-fn render_time_axis(sg: &mut SvgGraphic, axis: &TimingTimeAxis, axis_fs: f64) {
-    // Axis horizontal line spans from first to last grid tick
-    if let (Some(first), Some(last)) = (axis.grid_ticks.first(), axis.grid_ticks.last()) {
-        sg.set_stroke_color(Some(AXIS_LINE_COLOR));
-        sg.set_stroke_width(0.5, None);
-        sg.svg_line(first.x, axis.y, last.x, axis.y, 0.0);
-    }
-    // Tick marks at every grid position
+fn render_time_axis(sg: &mut SvgGraphic, axis: &TimingTimeAxis, font_color: &str, axis_fs: f64) {
     for tick in &axis.grid_ticks {
         sg.set_stroke_color(Some(AXIS_LINE_COLOR));
-        sg.set_stroke_width(0.5, None);
-        sg.svg_line(tick.x, axis.y, tick.x, axis.y + 6.0, 0.0);
+        sg.set_stroke_width(2.0, None);
+        sg.svg_line(tick.x, axis.y, tick.x, axis.y + 5.0, 0.0);
     }
-    // Labels only at state-change event times
+    if let (Some(first), Some(last)) = (axis.grid_ticks.first(), axis.grid_ticks.last()) {
+        sg.set_stroke_color(Some(AXIS_LINE_COLOR));
+        sg.set_stroke_width(2.0, None);
+        sg.svg_line(first.x, axis.y, last.x, axis.y, 0.0);
+    }
     for tick in &axis.ticks {
-        let ly = axis.y + 6.0 + axis_fs + 2.0;
+        let ly = axis.y + 6.0 + crate::font_metrics::ascent("SansSerif", axis_fs, false, false);
+        let text_width =
+            crate::font_metrics::text_width(&tick.label, "SansSerif", axis_fs, false, false);
         let mut tmp = String::new();
         render_creole_text(
             &mut tmp,
             &tick.label,
-            tick.x,
+            tick.x - text_width * 0.5,
             ly,
             axis_fs + 4.0,
-            AXIS_TEXT_COLOR,
-            Some("middle"),
+            font_color,
+            None,
             &format!(r#"font-size="{:.0}""#, axis_fs),
         );
         sg.push_raw(&tmp);
@@ -477,10 +702,12 @@ mod tests {
         height: f64,
         segments: Vec<TimingSegmentLayout>,
     ) -> TimingTrackLayout {
+        let is_robust = segments.first().map(|seg| seg.is_robust).unwrap_or(false);
         TimingTrackLayout {
             name: name.to_string(),
             y,
             height,
+            is_robust,
             segments,
             state_labels: vec![],
             header_height: 17.2969,
@@ -518,9 +745,9 @@ mod tests {
             vec![make_segment("Idle", 200.0, 350.0, 40.0, true)],
         ));
         let svg = render_timing(&empty_model(), &l, &SkinParams::default()).unwrap();
-        assert!(svg.contains("<rect"));
         assert!(svg.contains("DNS"));
         assert!(svg.contains("Idle"));
+        assert!(svg.contains(r#"stroke:#006400;stroke-width:2;"#));
     }
     #[test]
     fn test_concise_segments() {
@@ -663,7 +890,8 @@ mod tests {
             vec![make_segment("Idle", 200.0, 400.0, 40.0, true)],
         ));
         let svg = render_timing(&empty_model(), &l, &SkinParams::default()).unwrap();
-        assert!(svg.contains("opacity=\"0.30000\""));
+        assert!(svg.contains(r#"stroke:#333333;stroke-width:0.5;"#));
+        assert!(!svg.contains("opacity=\"0.30000\""));
     }
     #[test]
     fn test_full_diagram() {
@@ -748,8 +976,7 @@ mod tests {
         });
         let skin = SkinParams::default();
         let svg = render_timing(&empty_model(), &l, &skin).unwrap();
-        let c = skin.font_color("constraint", CONSTRAINT_COLOR);
-        assert!(svg.contains(&format!(r#"fill="{}""#, c)));
+        assert!(svg.contains(&format!(r#"<text fill="{}""#, CONSTRAINT_COLOR)));
     }
     #[test]
     fn test_track_no_segments() {

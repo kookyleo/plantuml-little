@@ -806,7 +806,7 @@ fn compute_state_node(
                 internal_transitions: all_inner_transitions,
                 region_separators,
                 source_line: state.source_line,
-                render_as_cluster: false,
+                render_as_cluster: state_has_direct_pin_child(state),
             },
             width,
             height,
@@ -1431,8 +1431,10 @@ fn layout_children_with_graphviz(
             },
             label_dimension: None,
             tail_label: None,
+            tail_label_dimension: None,
             tail_label_boxed: false,
             head_label: None,
+            head_label_dimension: None,
             head_label_boxed: false,
             tail_decoration: crate::svek::edge::LinkDecoration::None,
             head_decoration: crate::svek::edge::LinkDecoration::None,
@@ -1450,6 +1452,7 @@ fn layout_children_with_graphviz(
         edges: gv_edges,
         clusters: cluster_specs,
         rankdir: RankDir::TopToBottom,
+        is_activity: false,
         // Java uses a single flat DOT graph with clusters where all nodes share
         // the same ranksep (60pt) at the OUTER state solve. For this inner solve,
         // once pin-backed child composites are represented as real clusters, Java
@@ -1902,8 +1905,6 @@ pub fn layout_state(diagram: &StateDiagram) -> Result<StateLayout> {
     // routing. Composites WITHOUT cross-boundary edges keep the
     // existing two-level solve.
     // ---------------------------------------------------------------
-    let top_level_ids: HashSet<&str> = all_states.iter().map(|s| s.id.as_str()).collect();
-
     // Collect all child IDs (recursively) for each top-level composite.
     fn collect_all_child_ids(state: &State, out: &mut HashSet<String>) {
         for child in &state.children {
@@ -1918,8 +1919,26 @@ pub fn layout_state(diagram: &StateDiagram) -> Result<StateLayout> {
         }
     }
 
-    let mut composite_child_ids: HashMap<String, HashSet<String>> = HashMap::new();
+    fn collect_recursive_states<'a>(state: &'a State, out: &mut Vec<&'a State>) {
+        out.push(state);
+        for child in &state.children {
+            collect_recursive_states(child, out);
+        }
+        for region in &state.regions {
+            for child in region {
+                collect_recursive_states(child, out);
+            }
+        }
+    }
+
+    let mut all_states_recursive: Vec<&State> = Vec::new();
     for state in &all_states {
+        collect_recursive_states(state, &mut all_states_recursive);
+    }
+
+    let mut composite_child_ids: HashMap<String, HashSet<String>> = HashMap::new();
+    for state in &all_states_recursive {
+        let state = *state;
         let is_composite = !state.children.is_empty() || !state.regions.is_empty();
         if is_composite {
             let mut child_ids = HashSet::new();
@@ -1936,12 +1955,14 @@ pub fn layout_state(diagram: &StateDiagram) -> Result<StateLayout> {
     // The latter also need a cluster special point for links targeting the
     // group entity itself.
     let mut cluster_composite_ids: HashSet<String> = HashSet::new();
-    for state in &all_states {
+    for state in &all_states_recursive {
+        let state = *state;
         let is_composite = !state.children.is_empty() || !state.regions.is_empty();
         if !is_composite || !state.regions.is_empty() {
             // Skip concurrent regions — they can't be represented as simple clusters
             continue;
         }
+        let has_direct_pin_child = state_has_direct_pin_child(state);
         let child_ids = composite_child_ids.get(&state.id).unwrap();
         let has_cross_child_link = diagram.transitions.iter().any(|tr| {
             // External node → child inside composite (not the composite itself)
@@ -1953,11 +1974,15 @@ pub fn layout_state(diagram: &StateDiagram) -> Result<StateLayout> {
                 && child_ids.contains(&tr.from);
             ext_to_child || ext_from_child
         });
-        if has_cross_child_link {
-            log::debug!(
-                "  composite '{}' has cross-child-links → cluster model",
-                state.id,
-            );
+        if has_direct_pin_child || has_cross_child_link {
+            let reason = if has_direct_pin_child && has_cross_child_link {
+                "direct pins + cross-child-links"
+            } else if has_direct_pin_child {
+                "direct pins"
+            } else {
+                "cross-child-links"
+            };
+            log::debug!("  composite '{}' has {} → cluster model", state.id, reason);
             cluster_composite_ids.insert(state.id.clone());
         }
     }
@@ -1996,6 +2021,7 @@ pub fn layout_state(diagram: &StateDiagram) -> Result<StateLayout> {
         let is_diamond = matches!(state.kind, StateKind::Choice);
         let is_pin = state.stereotype.as_deref() == Some("inputPin")
             || state.stereotype.as_deref() == Some("outputPin");
+        let (node_w, node_h) = if is_pin { (PIN_SIZE, PIN_SIZE) } else { (w, h) };
         let shape = if is_circle_kind {
             Some(crate::svek::shape_type::ShapeType::Circle)
         } else if is_pin {
@@ -2016,8 +2042,8 @@ pub fn layout_state(diagram: &StateDiagram) -> Result<StateLayout> {
         gv_nodes.push(LayoutNode {
             id: state.id.clone(),
             label: state.name.clone(),
-            width_pt: w,
-            height_pt: h,
+            width_pt: node_w,
+            height_pt: node_h,
             shape,
             shield: None,
             entity_position: entity_pos,
@@ -2226,8 +2252,10 @@ pub fn layout_state(diagram: &StateDiagram) -> Result<StateLayout> {
             },
             label_dimension: None,
             tail_label: None,
+            tail_label_dimension: None,
             tail_label_boxed: false,
             head_label: None,
+            head_label_dimension: None,
             head_label_boxed: false,
             tail_decoration: crate::svek::edge::LinkDecoration::None,
             head_decoration: crate::svek::edge::LinkDecoration::None,
@@ -2256,8 +2284,10 @@ pub fn layout_state(diagram: &StateDiagram) -> Result<StateLayout> {
             label: None,
             label_dimension: None,
             tail_label: None,
+            tail_label_dimension: None,
             tail_label_boxed: false,
             head_label: None,
+            head_label_dimension: None,
             head_label_boxed: false,
             tail_decoration: crate::svek::edge::LinkDecoration::None,
             head_decoration: crate::svek::edge::LinkDecoration::None,
@@ -2280,6 +2310,7 @@ pub fn layout_state(diagram: &StateDiagram) -> Result<StateLayout> {
         edges: gv_edges,
         clusters: cluster_specs,
         rankdir,
+        is_activity: false,
         ranksep_override: Some(graphviz::MIN_RANK_SEP_PX),
         nodesep_override: None,
         use_simplier_dot_link_strategy: false,
@@ -2304,30 +2335,65 @@ pub fn layout_state(diagram: &StateDiagram) -> Result<StateLayout> {
     // Circles don't get the -1 offset → margin_y=6. We detect which case applies
     // by checking if the topmost node is a special (circle) state.
     let margin_y = {
-        let topmost = gv_layout.nodes.iter().min_by(|a, b| {
-            let a_top = a.cy - a.height / 2.0;
-            let b_top = b.cy - b.height / 2.0;
-            a_top.partial_cmp(&b_top).unwrap()
-        });
-        if let Some(top_node) = topmost {
-            let top_state = all_states.iter().find(|s| s.id == top_node.id);
-            let is_circle = top_state.map_or(false, |s| {
-                s.is_special
-                    || matches!(
-                        s.kind,
-                        StateKind::History
-                            | StateKind::DeepHistory
-                            | StateKind::EntryPoint
-                            | StateKind::ExitPoint
-                            | StateKind::End
-                    )
+        let topmost = gv_layout
+            .nodes
+            .iter()
+            .filter_map(|node| {
+                find_nested_state_in_list(&all_states, &node.id).map(|state| (node, state))
+            })
+            .min_by(|(a, _), (b, _)| {
+                let a_top = a.cy - a.height / 2.0;
+                let b_top = b.cy - b.height / 2.0;
+                a_top.partial_cmp(&b_top).unwrap()
             });
-            if is_circle {
+        if let Some((top_node, top_state)) = topmost {
+            let is_pin = matches!(
+                top_state.stereotype.as_deref(),
+                Some("inputPin") | Some("outputPin")
+            );
+            let is_circle = top_state.is_special
+                || matches!(
+                    top_state.kind,
+                    StateKind::History
+                        | StateKind::DeepHistory
+                        | StateKind::EntryPoint
+                        | StateKind::ExitPoint
+                        | StateKind::End
+                );
+            log::debug!(
+                "  topmost node='{}' pin={} circle={} render_offset_y={:.1}",
+                top_node.id,
+                is_pin,
+                is_circle,
+                gv_layout.render_offset.1,
+            );
+            if is_pin {
+                // Java's effective outer Y margin for pin-led state graphs lands on an
+                // integer boundary; carrying the fractional render_offset here shifts the
+                // entire non-pin subtree and all routed edges by the same residue.
+                gv_layout.render_offset.1.floor() + PIN_RANK_HEIGHT_BONUS + MARGIN
+            } else if is_circle {
                 6.0
             } else {
                 7.0
             }
         } else {
+            let topmost_raw = gv_layout.nodes.iter().min_by(|a, b| {
+                let a_top = a.cy - a.height / 2.0;
+                let b_top = b.cy - b.height / 2.0;
+                a_top.partial_cmp(&b_top).unwrap()
+            });
+            if let Some(top_node) = topmost_raw {
+                let is_pin = false;
+                let is_circle = false;
+                log::debug!(
+                    "  topmost node='{}' pin={} circle={} render_offset_y={:.1}",
+                    top_node.id,
+                    is_pin,
+                    is_circle,
+                    gv_layout.render_offset.1,
+                );
+            }
             7.0
         }
     };
@@ -2338,6 +2404,42 @@ pub fn layout_state(diagram: &StateDiagram) -> Result<StateLayout> {
     // For diagrams with only rect-drawn entities, render_offset.0 = 7 (= MARGIN).
     // When note entities (UPath-drawn) determine the min, render_offset.0 = 6.
     let margin_x = gv_layout.render_offset.0;
+
+    fn position_state_node_template(
+        mut template: StateNodeLayout,
+        x: f64,
+        y: f64,
+        w: f64,
+        h: f64,
+    ) -> StateNodeLayout {
+        template.x = x;
+        template.y = y;
+        template.width = w;
+        template.height = h;
+
+        if template.is_composite {
+            let inner_margin = composite_inner_margin(&template.children);
+            let child_offset_x = x + COMPOSITE_PADDING;
+            let child_offset_y = y + composite_inner_y_offset() + inner_margin;
+            offset_children(&mut template.children, child_offset_x, child_offset_y);
+            for tr in &mut template.internal_transitions {
+                offset_transition(tr, child_offset_x, child_offset_y);
+            }
+            for sep_y in &mut template.region_separators {
+                *sep_y += child_offset_y;
+            }
+        }
+
+        template
+    }
+
+    let gv_nodes_by_id: HashMap<&str, &crate::layout::graphviz::NodeLayout> =
+        gv_layout.nodes.iter().map(|node| (node.id.as_str(), node)).collect();
+    let gv_clusters_by_qname: HashMap<&str, &crate::layout::graphviz::ClusterLayout> = gv_layout
+        .clusters
+        .iter()
+        .map(|cluster| (cluster.qualified_name.as_str(), cluster))
+        .collect();
 
     let mut state_layouts: Vec<StateNodeLayout> = Vec::new();
     let mut node_position_map: HashMap<String, (f64, f64, f64, f64)> = HashMap::new();
@@ -2378,123 +2480,123 @@ pub fn layout_state(diagram: &StateDiagram) -> Result<StateLayout> {
                 template.is_initial, template.is_final,
             );
 
-            let mut node = template;
-            node.x = x;
-            node.y = y;
-            node.width = w;
-            node.height = h;
-
-            // For composite states, recursively layout children within the bounds.
-            // Java's InnerStateAutonom.drawU translates by (MARGIN, spaceYforURL),
-            // then the inner SvekResult applies moveDelta(6 - LF_min). The inner
-            // moveDelta.y = 6 - LF_min_y. For rect entities, LF applies a -1
-            // correction (drawRectangle), so LF_min_y = geo_min_y - 1 and
-            // moveDelta.y = 7 - geo_min_y. After normalization (geo_min_y = 0),
-            // the effective margin is 7. For circle-only layouts (no rect
-            // correction), the margin is 6.
-            if node.is_composite {
-                let inner_margin = composite_inner_margin(&node.children);
-                let child_offset_x = x + COMPOSITE_PADDING;
-                let child_offset_y = y + composite_inner_y_offset() + inner_margin;
-                offset_children(&mut node.children, child_offset_x, child_offset_y);
-                // Offset the composite's own internal transitions to absolute coords
-                for tr in &mut node.internal_transitions {
-                    offset_transition(tr, child_offset_x, child_offset_y);
-                }
-                for sep_y in &mut node.region_separators {
-                    *sep_y += child_offset_y;
-                }
-            }
-
-            state_layouts.push(node);
+            state_layouts.push(position_state_node_template(template, x, y, w, h));
         }
     }
 
     // Reconstruct cluster-composites from graphviz cluster bounds.
     // For each cluster-composite, find the cluster layout and children
     // node positions, then build a StateNodeLayout with absolute child coords.
+    fn rebuild_cluster_composite(
+        state: &State,
+        cluster_composite_ids: &HashSet<String>,
+        sized_map: &mut HashMap<String, (StateNodeLayout, f64, f64)>,
+        gv_nodes_by_id: &HashMap<&str, &crate::layout::graphviz::NodeLayout>,
+        gv_clusters_by_qname: &HashMap<&str, &crate::layout::graphviz::ClusterLayout>,
+        margin_x: f64,
+        margin_y: f64,
+        initial_ids: &HashSet<String>,
+        final_ids: &HashSet<String>,
+        node_position_map: &mut HashMap<String, (f64, f64, f64, f64)>,
+    ) -> Option<StateNodeLayout> {
+        let cluster_layout = gv_clusters_by_qname.get(state.id.as_str())?;
+        let x = cluster_layout.x + margin_x;
+        let y = cluster_layout.y + margin_y;
+        let w = cluster_layout.width;
+        let h = cluster_layout.height;
+
+        let mut children: Vec<StateNodeLayout> = Vec::new();
+        let mut collect_child = |child: &State, children: &mut Vec<StateNodeLayout>| {
+            if cluster_composite_ids.contains(&child.id) {
+                if let Some(cluster_child) = rebuild_cluster_composite(
+                    child,
+                    cluster_composite_ids,
+                    sized_map,
+                    gv_nodes_by_id,
+                    gv_clusters_by_qname,
+                    margin_x,
+                    margin_y,
+                    initial_ids,
+                    final_ids,
+                    node_position_map,
+                ) {
+                    children.push(cluster_child);
+                }
+                return;
+            }
+
+            let Some(gv_node) = gv_nodes_by_id.get(child.id.as_str()) else {
+                return;
+            };
+            let Some((template, _, _)) = sized_map.remove(&child.id) else {
+                return;
+            };
+            let child_x = gv_node.cx - gv_node.width / 2.0 + margin_x;
+            let child_y = gv_node.cy - gv_node.height / 2.0 + margin_y;
+            let child_w = gv_node.width;
+            let child_h = gv_node.height;
+            node_position_map.insert(child.id.clone(), (child_x, child_y, child_w, child_h));
+            children.push(position_state_node_template(
+                template, child_x, child_y, child_w, child_h,
+            ));
+        };
+
+        for child in &state.children {
+            collect_child(child, &mut children);
+        }
+        for region in &state.regions {
+            for child in region {
+                collect_child(child, &mut children);
+            }
+        }
+
+        let composite_node = StateNodeLayout {
+            id: state.id.clone(),
+            name: state.name.clone(),
+            x,
+            y,
+            width: w,
+            height: h,
+            description: state.description.clone(),
+            stereotype: state.stereotype.clone(),
+            is_initial: initial_ids.contains(&state.id),
+            is_final: final_ids.contains(&state.id),
+            is_composite: true,
+            children,
+            kind: state.kind.clone(),
+            internal_transitions: Vec::new(),
+            region_separators: Vec::new(),
+            source_line: state.source_line,
+            render_as_cluster: true,
+        };
+        node_position_map.insert(state.id.clone(), (x, y, w, h));
+        Some(composite_node)
+    }
+
     for state in &all_states {
         if !cluster_composite_ids.contains(&state.id) {
             continue;
         }
-        let cluster_id = format!("{}", state.id.replace(|c: char| !c.is_ascii_alphanumeric(), "_"));
-        let cluster_layout = gv_layout.clusters.iter().find(|c| c.id == cluster_id);
-        if let Some(cl) = cluster_layout {
-            let cx = cl.x + margin_x;
-            let cy = cl.y + margin_y;
-            let cw = cl.width;
-            let ch = cl.height;
-
+        if let Some(composite_node) = rebuild_cluster_composite(
+            state,
+            &cluster_composite_ids,
+            &mut sized_map,
+            &gv_nodes_by_id,
+            &gv_clusters_by_qname,
+            margin_x,
+            margin_y,
+            &initial_ids,
+            &final_ids,
+            &mut node_position_map,
+        ) {
             log::debug!(
                 "  cluster-composite '{}': cluster=({:.1},{:.1}) {:.1}x{:.0}",
-                state.id, cx, cy, cw, ch,
+                state.id,
+                composite_node.x,
+                composite_node.y,
+                composite_node.width,
+                composite_node.height,
             );
-
-            // Collect children from the gv_layout nodes. Children are the
-            // nodes that belong to this cluster (already positioned by graphviz).
-            let child_ids: HashSet<String> = composite_child_ids
-                .get(&state.id)
-                .cloned()
-                .unwrap_or_default();
-            let mut children: Vec<StateNodeLayout> = Vec::new();
-            for gv_node in &gv_layout.nodes {
-                if !child_ids.contains(&gv_node.id) {
-                    continue;
-                }
-                if let Some((template, _, _)) = sized_map.remove(&gv_node.id) {
-                    let x = gv_node.cx - gv_node.width / 2.0 + margin_x;
-                    let y = gv_node.cy - gv_node.height / 2.0 + margin_y;
-                    let w = gv_node.width;
-                    let h = gv_node.height;
-
-                    node_position_map.insert(gv_node.id.clone(), (x, y, w, h));
-
-                    let mut child_node = template;
-                    child_node.x = x;
-                    child_node.y = y;
-                    child_node.width = w;
-                    child_node.height = h;
-
-                    // For nested non-cluster composites, offset their children
-                    if child_node.is_composite {
-                        let inner_margin = composite_inner_margin(&child_node.children);
-                        let child_offset_x = x + COMPOSITE_PADDING;
-                        let child_offset_y = y + composite_inner_y_offset() + inner_margin;
-                        offset_children(&mut child_node.children, child_offset_x, child_offset_y);
-                        for tr in &mut child_node.internal_transitions {
-                            offset_transition(tr, child_offset_x, child_offset_y);
-                        }
-                        for sep_y in &mut child_node.region_separators {
-                            *sep_y += child_offset_y;
-                        }
-                    }
-
-                    children.push(child_node);
-                }
-            }
-
-            let is_initial = initial_ids.contains(&state.id);
-            let is_final = final_ids.contains(&state.id);
-            let composite_node = StateNodeLayout {
-                id: state.id.clone(),
-                name: state.name.clone(),
-                x: cx,
-                y: cy,
-                width: cw,
-                height: ch,
-                description: state.description.clone(),
-                stereotype: state.stereotype.clone(),
-                is_initial,
-                is_final,
-                is_composite: true,
-                children,
-                kind: state.kind.clone(),
-                internal_transitions: Vec::new(),
-                region_separators: Vec::new(),
-                source_line: state.source_line,
-                render_as_cluster: state_has_direct_pin_child(state),
-            };
-            node_position_map.insert(state.id.clone(), (cx, cy, cw, ch));
             state_layouts.push(composite_node);
         }
     }

@@ -41,6 +41,7 @@ pub struct TimingTrackLayout {
     pub name: String,
     pub y: f64,
     pub height: f64,
+    pub is_robust: bool,
     pub segments: Vec<TimingSegmentLayout>,
     pub state_labels: Vec<String>,
     pub header_height: f64,
@@ -113,7 +114,9 @@ const NAME_FONT_SIZE: f64 = 14.0;
 const STATE_LEVEL_SPACING: f64 = 20.0;
 const STATE_AREA_PADDING: f64 = 28.0;
 const CONCISE_BODY_EXTRA: f64 = 39.0;
-const STATE_LEVEL_HEIGHT: f64 = 14.0;
+const CONCISE_RIBBON_HEIGHT: f64 = 24.0;
+const CONCISE_BOTTOM_MARGIN: f64 = 10.0;
+const CONSTRAINT_TOP_MARGIN: f64 = 5.0;
 const LABEL_PAD: f64 = 5.0;
 const NOTE_GAP: f64 = 16.0;
 const NOTE_PAD_H: f64 = 8.0;
@@ -166,7 +169,8 @@ pub fn layout_timing(td: &TimingDiagram, skin: &crate::style::SkinParams) -> Res
 
     // --- Tracks ---
     let mut tracks: Vec<TimingTrackLayout> = Vec::new();
-    let mut track_y_map: HashMap<String, (f64, f64)> = HashMap::new(); // id -> (y_center, height)
+    let mut participant_changes: HashMap<String, Vec<(i64, String)>> = HashMap::new();
+    let mut track_idx_by_id: HashMap<String, usize> = HashMap::new();
     let mut track_rect_map: HashMap<String, (f64, f64, f64, f64)> = HashMap::new();
     let mut current_y = MARGIN;
 
@@ -185,19 +189,25 @@ pub fn layout_timing(td: &TimingDiagram, skin: &crate::style::SkinParams) -> Res
             .map(|sc| (sc.time, sc.state.clone()))
             .collect();
         changes.sort_by_key(|(t, _)| *t);
+        participant_changes.insert(pid.clone(), changes.clone());
 
         let state_area_top = current_y + header_h + 10.0;
+        let concise_center_y = concise_ribbon_center(current_y, track_h);
         let mut segments: Vec<TimingSegmentLayout> = Vec::new();
         for i in 0..changes.len() {
             let (t_start, ref state) = changes[i];
             let t_end = if i + 1 < changes.len() {
                 changes[i + 1].0
             } else {
-                time_max
+                chart_time_max
             };
 
             let level = state_labels.iter().position(|s| s == state).unwrap_or(0);
-            let level_y = if is_robust { state_area_top + level as f64 * STATE_LEVEL_SPACING } else if num_states > 1 { current_y + track_h - (level as f64 + 1.0) * (track_h / (num_states as f64 + 1.0)) } else { current_y + track_h * 0.5 };
+            let level_y = if is_robust {
+                state_area_top + (num_states as f64 - 1.0 - level as f64) * STATE_LEVEL_SPACING
+            } else {
+                concise_center_y
+            };
 
             let x_start = time_to_x(t_start);
             let x_end = time_to_x(t_end);
@@ -211,8 +221,6 @@ pub fn layout_timing(td: &TimingDiagram, skin: &crate::style::SkinParams) -> Res
             });
         }
 
-        let y_center = current_y + track_h * 0.5;
-        track_y_map.insert(pid.clone(), (y_center, track_h));
         let rect_x = segments.first().map_or(chart_x, |seg| seg.x_start);
         let rect_right = segments
             .last()
@@ -222,14 +230,17 @@ pub fn layout_timing(td: &TimingDiagram, skin: &crate::style::SkinParams) -> Res
             (rect_x, current_y, rect_right - rect_x, track_h),
         );
 
+        let track_idx = tracks.len();
         tracks.push(TimingTrackLayout {
             name: participant.name.clone(),
             y: current_y,
             height: track_h,
+            is_robust,
             segments,
             state_labels,
             header_height: header_h,
         });
+        track_idx_by_id.insert(pid.clone(), track_idx);
 
         current_y += track_h;
     }
@@ -237,16 +248,27 @@ pub fn layout_timing(td: &TimingDiagram, skin: &crate::style::SkinParams) -> Res
     // --- Messages ---
     let mut messages: Vec<TimingMsgLayout> = Vec::new();
     for msg in &td.messages {
-        let from_center = track_y_map.get(&msg.from).map(|(y, _)| *y);
-        let to_center = track_y_map.get(&msg.to).map(|(y, _)| *y);
-        if let (Some(fy), Some(ty)) = (from_center, to_center) {
+        let from_idx = track_idx_by_id.get(&msg.from).copied();
+        let to_idx = track_idx_by_id.get(&msg.to).copied();
+        let from_changes = participant_changes.get(&msg.from);
+        let to_changes = participant_changes.get(&msg.to);
+        if let (Some(from_idx), Some(to_idx), Some(from_changes), Some(to_changes)) =
+            (from_idx, to_idx, from_changes, to_changes)
+        {
             let from_x = time_to_x(msg.from_time);
             let to_x = time_to_x(msg.to_time);
+            let from_ys = projection_ys(&tracks[from_idx], from_changes, msg.from_time);
+            let to_ys = projection_ys(&tracks[to_idx], to_changes, msg.to_time);
+            let Some(((from_x, from_y), (to_x, to_y))) =
+                shortest_projection_pair(from_x, &from_ys, to_x, &to_ys)
+            else {
+                continue;
+            };
             messages.push(TimingMsgLayout {
                 from_x,
-                from_y: fy,
+                from_y,
                 to_x,
-                to_y: ty,
+                to_y,
                 label: msg.label.clone(),
             });
         }
@@ -255,14 +277,25 @@ pub fn layout_timing(td: &TimingDiagram, skin: &crate::style::SkinParams) -> Res
     // --- Constraints ---
     let mut constraints: Vec<TimingConstraintLayout> = Vec::new();
     for c in &td.constraints {
-        let y = track_y_map
-            .get(&c.participant)
-            .map_or(current_y, |(center, h)| {
-                center + h * 0.5 + STATE_LEVEL_HEIGHT
-            });
+        let (y, margin_x) = if let Some(track_idx) = track_idx_by_id.get(&c.participant).copied() {
+            let track = &tracks[track_idx];
+            let y = if track.is_robust {
+                track.segments
+                    .iter()
+                    .map(|segment| segment.y)
+                    .fold(current_y, f64::min)
+                    - (state_lh + CONSTRAINT_TOP_MARGIN) * 0.5
+            } else {
+                concise_ribbon_top(track.y, track.height)
+                    - (state_lh + CONSTRAINT_TOP_MARGIN) * 0.5
+            };
+            (y, if track.is_robust { 2.5 } else { 1.0 })
+        } else {
+            (current_y, 1.0)
+        };
         constraints.push(TimingConstraintLayout {
-            x_start: time_to_x(c.start_time),
-            x_end: time_to_x(c.end_time),
+            x_start: time_to_x(c.start_time) + margin_x,
+            x_end: time_to_x(c.end_time) - margin_x,
             y,
             label: c.label.clone(),
         });
@@ -413,6 +446,88 @@ fn collect_states(td: &TimingDiagram) -> HashMap<String, Vec<String>> {
         }
     }
     map
+}
+
+fn concise_ribbon_center(track_y: f64, track_height: f64) -> f64 {
+    track_y + track_height - (CONCISE_BOTTOM_MARGIN + CONCISE_RIBBON_HEIGHT * 0.5)
+}
+
+fn concise_ribbon_top(track_y: f64, track_height: f64) -> f64 {
+    concise_ribbon_center(track_y, track_height) - CONCISE_RIBBON_HEIGHT * 0.5
+}
+
+fn projection_ys(
+    track: &TimingTrackLayout,
+    changes: &[(i64, String)],
+    tick: i64,
+) -> Vec<f64> {
+    if changes.is_empty() {
+        return Vec::new();
+    }
+
+    if !track.is_robust {
+        let center_y = concise_ribbon_center(track.y, track.height);
+        if changes.iter().any(|(when, _)| *when == tick) {
+            return vec![center_y];
+        }
+        return vec![
+            center_y - CONCISE_RIBBON_HEIGHT * 0.5,
+            center_y + CONCISE_RIBBON_HEIGHT * 0.5,
+        ];
+    }
+
+    let mut state_y: HashMap<&str, f64> = HashMap::new();
+    for segment in &track.segments {
+        state_y.entry(segment.state.as_str()).or_insert(segment.y);
+    }
+    let resolve = |state: &str| state_y.get(state).copied();
+
+    if tick == changes[0].0 {
+        return resolve(&changes[0].1).into_iter().collect();
+    }
+    for i in 1..changes.len() {
+        if tick == changes[i].0 {
+            let mut points = Vec::new();
+            if let Some(y) = resolve(&changes[i - 1].1) {
+                points.push(y);
+            }
+            if let Some(y) = resolve(&changes[i].1) {
+                if points
+                    .last()
+                    .map_or(true, |last| (*last - y).abs() > f64::EPSILON)
+                {
+                    points.push(y);
+                }
+            }
+            return points;
+        }
+        if tick < changes[i].0 {
+            return resolve(&changes[i - 1].1).into_iter().collect();
+        }
+    }
+
+    resolve(&changes[changes.len() - 1].1).into_iter().collect()
+}
+
+fn shortest_projection_pair(
+    from_x: f64,
+    from_ys: &[f64],
+    to_x: f64,
+    to_ys: &[f64],
+) -> Option<((f64, f64), (f64, f64))> {
+    let mut best: Option<((f64, f64), (f64, f64), f64)> = None;
+    for &from_y in from_ys {
+        for &to_y in to_ys {
+            let dx = to_x - from_x;
+            let dy = to_y - from_y;
+            let dist2 = dx * dx + dy * dy;
+            match best {
+                Some((_, _, best_dist2)) if dist2 >= best_dist2 => {}
+                _ => best = Some(((from_x, from_y), (to_x, to_y), dist2)),
+            }
+        }
+    }
+    best.map(|(from, to, _)| (from, to))
 }
 
 fn note_size(text: &str) -> (f64, f64) {
@@ -976,8 +1091,9 @@ mod tests {
             .push(simple_state_change("A", 100, "Active"));
         let layout = layout_timing(&td, &crate::style::SkinParams::new()).unwrap();
         let segs = &layout.tracks[0].segments;
-        // The last segment's x_end should match the second segment's x_end (since time_max = 100)
-        assert!((segs[1].x_start - segs[1].x_end).abs() < 0.01);
+        let last_grid_x = layout.time_axis.grid_ticks.last().unwrap().x;
+        assert!(segs[1].x_end > segs[1].x_start);
+        assert!((segs[1].x_end - last_grid_x).abs() < 0.01);
     }
 
     // 20. Participant without state changes gets no segments

@@ -1,8 +1,13 @@
 use log::{debug, trace, warn};
 
-use crate::model::activity::{ActivityDiagram, ActivityEvent, NotePosition};
+use crate::model::activity::{
+    ActivityDiagram, ActivityEvent, NotePosition, OldActivityGraph, OldActivityLink,
+    OldActivityNode, OldActivityNodeKind,
+};
 use crate::model::Direction;
 use crate::Result;
+
+use std::collections::HashMap;
 
 /// Parser state for multi-line constructs
 #[derive(Debug)]
@@ -58,6 +63,7 @@ pub fn parse_activity_diagram(source: &str) -> Result<ActivityDiagram> {
     // Track old-style node names to avoid duplicating sync bars / actions
     let mut old_seen_nodes = std::collections::HashSet::<String>::new();
     let mut is_old_style = false;
+    let mut old_graph = OldGraphBuilder::new();
 
     for (line_num, line) in block.lines().enumerate() {
         let line_num = line_num + 1; // 1-based for diagnostics
@@ -378,6 +384,9 @@ pub fn parse_activity_diagram(source: &str) -> Result<ActivityDiagram> {
         if lower.starts_with("if ") || lower.starts_with("if(") {
             if let Some((condition, then_label)) = parse_if_line(trimmed) {
                 debug!("line {line_num}: if ({condition}) then ({then_label})");
+                if is_old_style {
+                    old_graph.add_if(&condition, line_num)?;
+                }
                 events.push(ActivityEvent::If {
                     condition,
                     then_label,
@@ -406,6 +415,9 @@ pub fn parse_activity_diagram(source: &str) -> Result<ActivityDiagram> {
                 let rest = trimmed[4..].trim();
                 let label = extract_parenthesized(rest).unwrap_or_default();
                 debug!("line {line_num}: else ({label})");
+                if is_old_style {
+                    old_graph.enter_else(line_num)?;
+                }
                 events.push(ActivityEvent::Else { label });
                 continue;
             }
@@ -414,6 +426,9 @@ pub fn parse_activity_diagram(source: &str) -> Result<ActivityDiagram> {
         // --- endif ---
         if lower == "endif" {
             debug!("line {line_num}: endif");
+            if is_old_style {
+                old_graph.end_if(line_num)?;
+            }
             events.push(ActivityEvent::EndIf);
             continue;
         }
@@ -486,6 +501,7 @@ pub fn parse_activity_diagram(source: &str) -> Result<ActivityDiagram> {
             if !old_seen_nodes.contains(&key) {
                 debug!("line {line_num}: standalone sync bar: {name}");
                 is_old_style = true;
+                old_graph.ensure_sync_bar(&name);
                 events.push(ActivityEvent::SyncBar(name.clone()));
                 old_seen_nodes.insert(key);
             } else {
@@ -499,6 +515,7 @@ pub fn parse_activity_diagram(source: &str) -> Result<ActivityDiagram> {
         if let Some(parsed) = parse_old_style_arrow_line(trimmed) {
             debug!("line {line_num}: old-style arrow: {:?}", parsed);
             is_old_style = true;
+            old_graph.add_old_arrow(&parsed, line_num)?;
             // Emit source node if present and non-continuation.
             // When the source is a sync bar that's already placed, emit
             // ResumeFromSyncBar to reposition y_cursor without convergence.
@@ -604,6 +621,7 @@ pub fn parse_activity_diagram(source: &str) -> Result<ActivityDiagram> {
         direction,
         note_max_width,
         is_old_style,
+        old_graph: is_old_style.then(|| old_graph.finish()),
     })
 }
 
@@ -806,7 +824,8 @@ fn parse_sync_bar(s: &str) -> Option<String> {
 struct OldArrowLine {
     source: Option<String>,
     target: String,
-    _label: String,
+    label: String,
+    length: u32,
 }
 
 /// Parse old-style arrow lines:
@@ -842,7 +861,8 @@ fn parse_old_style_arrow_line(line: &str) -> Option<OldArrowLine> {
     Some(OldArrowLine {
         source,
         target,
-        _label: label,
+        label,
+        length: (arrow_end - arrow_start - 1) as u32,
     })
 }
 
@@ -924,6 +944,218 @@ fn emit_old_node(
         } else {
             debug!("line {line_num}: skipping duplicate action: {trimmed}");
         }
+    }
+}
+
+#[derive(Default)]
+struct OldGraphBuilder {
+    counter: u32,
+    nodes: Vec<OldActivityNode>,
+    node_index: HashMap<String, usize>,
+    links: Vec<OldActivityLink>,
+    last_entity_id: Option<String>,
+    if_stack: Vec<String>,
+}
+
+impl OldGraphBuilder {
+    fn new() -> Self {
+        Self {
+            counter: 1,
+            ..Default::default()
+        }
+    }
+
+    fn finish(self) -> OldActivityGraph {
+        OldActivityGraph {
+            nodes: self.nodes,
+            links: self.links,
+        }
+    }
+
+    fn next_value(&mut self) -> u32 {
+        self.counter += 1;
+        self.counter
+    }
+
+    fn next_link_uid(&mut self) -> String {
+        format!("lnk{}", self.next_value())
+    }
+
+    fn next_entity_uid(&mut self) -> String {
+        format!("ent{:04}", self.next_value())
+    }
+
+    fn next_generated_id(&mut self, prefix: &str) -> String {
+        format!("{prefix}{}", self.next_value())
+    }
+
+    fn ensure_node(
+        &mut self,
+        id: &str,
+        kind: OldActivityNodeKind,
+        text: String,
+        qualified_name: String,
+    ) -> String {
+        if let Some(idx) = self.node_index.get(id).copied() {
+            return self.nodes[idx].id.clone();
+        }
+        let node = OldActivityNode {
+            id: id.to_string(),
+            uid: self.next_entity_uid(),
+            qualified_name,
+            kind,
+            text,
+        };
+        let idx = self.nodes.len();
+        self.nodes.push(node);
+        self.node_index.insert(id.to_string(), idx);
+        id.to_string()
+    }
+
+    fn ensure_start(&mut self) -> String {
+        self.ensure_node(
+            "start",
+            OldActivityNodeKind::Start,
+            String::new(),
+            "start".to_string(),
+        )
+    }
+
+    fn ensure_end(&mut self) -> String {
+        self.ensure_node(
+            "end",
+            OldActivityNodeKind::End,
+            String::new(),
+            "end".to_string(),
+        )
+    }
+
+    fn ensure_action(&mut self, text: &str) -> String {
+        self.ensure_node(
+            text,
+            OldActivityNodeKind::Action,
+            text.to_string(),
+            text.to_string(),
+        )
+    }
+
+    fn ensure_sync_bar(&mut self, name: &str) -> String {
+        self.ensure_node(
+            name,
+            OldActivityNodeKind::SyncBar,
+            String::new(),
+            name.to_string(),
+        )
+    }
+
+    fn create_branch(&mut self) -> String {
+        let id = self.next_generated_id("#");
+        let qualified_name = format!(".{}", id.trim_start_matches('#'));
+        self.ensure_node(
+            &id,
+            OldActivityNodeKind::Branch,
+            String::new(),
+            qualified_name,
+        )
+    }
+
+    fn ensure_ref(&mut self, node_ref: &str) -> String {
+        let trimmed = node_ref.trim();
+        if trimmed == "(*)" {
+            if self.node_index.contains_key("start") && self.last_entity_id.as_deref() != Some("start")
+            {
+                return self.ensure_end();
+            }
+            return self.ensure_start();
+        }
+        if let Some(name) = parse_sync_bar(trimmed) {
+            return self.ensure_sync_bar(&name);
+        }
+        self.ensure_action(trimmed)
+    }
+
+    fn add_link(
+        &mut self,
+        from_id: String,
+        to_id: String,
+        label: Option<String>,
+        head_label: Option<String>,
+        source_line: usize,
+        length: u32,
+    ) {
+        let uid = self.next_link_uid();
+        self.links.push(OldActivityLink {
+            uid,
+            from_id,
+            to_id: to_id.clone(),
+            label,
+            head_label,
+            source_line,
+            length,
+        });
+        self.last_entity_id = Some(to_id);
+    }
+
+    fn add_old_arrow(&mut self, parsed: &OldArrowLine, line_num: usize) -> Result<()> {
+        let from_id = if let Some(source) = parsed.source.as_deref() {
+            self.ensure_ref(source)
+        } else if let Some(last) = self.last_entity_id.clone() {
+            last
+        } else {
+            return Err(crate::Error::Parse {
+                line: line_num,
+                column: Some(1),
+                message: "old-style arrow has no source".to_string(),
+            });
+        };
+        let to_id = self.ensure_ref(&parsed.target);
+        let label = (!parsed.label.is_empty()).then(|| parsed.label.clone());
+        self.add_link(from_id, to_id, label, None, line_num, parsed.length.max(1));
+        Ok(())
+    }
+
+    fn add_if(&mut self, condition: &str, line_num: usize) -> Result<()> {
+        let Some(from_id) = self.last_entity_id.clone() else {
+            return Err(crate::Error::Parse {
+                line: line_num,
+                column: Some(1),
+                message: "if has no incoming source in old-style activity".to_string(),
+            });
+        };
+        let branch_id = self.create_branch();
+        self.add_link(
+            from_id,
+            branch_id.clone(),
+            None,
+            Some(condition.to_string()),
+            line_num,
+            2,
+        );
+        self.if_stack.push(branch_id);
+        Ok(())
+    }
+
+    fn enter_else(&mut self, line_num: usize) -> Result<()> {
+        let Some(branch_id) = self.if_stack.last().cloned() else {
+            return Err(crate::Error::Parse {
+                line: line_num,
+                column: Some(1),
+                message: "else without matching if".to_string(),
+            });
+        };
+        self.last_entity_id = Some(branch_id);
+        Ok(())
+    }
+
+    fn end_if(&mut self, line_num: usize) -> Result<()> {
+        if self.if_stack.pop().is_none() {
+            return Err(crate::Error::Parse {
+                line: line_num,
+                column: Some(1),
+                message: "endif without matching if".to_string(),
+            });
+        }
+        Ok(())
     }
 }
 

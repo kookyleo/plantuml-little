@@ -359,12 +359,12 @@ fn render_group(
             sg.svg_rectangle(x, y, w, h, 2.5, 2.5, 0.0);
 
             let tl = text_len(&group.name, 14.0, true);
-            let tab_w = tl + 9.7041;
+            let tab_w = tl + 10.0;
             let tab_h = 19.2969;
             let tab_x2 = x + tab_w;
             let tab_y2 = y + tab_h;
             sg.push_raw(&format!(
-                r#"<path d="M{},{} L{},{} L{},{} L{},{} " fill="none" style="stroke:{border};stroke-width:1;"/>"#,
+                r#"<path d="M{},{} L{},{} L{},{} L{},{}" fill="none" style="stroke:{border};stroke-width:1;"/>"#,
                 fmt_coord(tab_x2), fmt_coord(y),
                 fmt_coord(tab_x2), fmt_coord(tab_y2 - 10.0),
                 fmt_coord(tab_x2 - 10.0), fmt_coord(tab_y2),
@@ -396,7 +396,7 @@ fn render_group(
             let p_tl = (x, y + depth);
             let p_tlb = (x + depth, y);
             let p_trb = (x + w, y);
-            let p_tr = (x + w, y + depth);
+            let p_tr = (x + w, y + h - depth);
             let p_br = (x + w - depth, y + h);
             let p_bl = (x, y + h);
             sg.set_fill_color("none");
@@ -406,7 +406,7 @@ fn render_group(
                 0.0,
                 &[
                     p_tl.0, p_tl.1, p_tlb.0, p_tlb.1, p_trb.0, p_trb.1, p_trb.0, p_tr.1, p_br.0,
-                    p_br.1, p_bl.0, p_bl.1,
+                    p_br.1, p_bl.0, p_bl.1, p_tl.0, p_tl.1,
                 ],
             );
 
@@ -417,7 +417,7 @@ fn render_group(
             sg.svg_line(p_br.0, p_tl.1, p_br.0, p_br.1, 0.0);
 
             let tl = text_len(&group.name, 14.0, true);
-            let text_x = x + (w - depth) / 2.0 - tl / 2.0;
+            let text_x = x + (w - depth) / 2.0 - tl / 2.0 + 1.0;
             let text_y = y + depth + 15.9951;
             sg.set_fill_color(font_color);
             sg.svg_text(
@@ -829,7 +829,7 @@ fn render_database_node(
 
     // Body
     sg.push_raw(&format!(
-        r#"<path d="M{},{} C{},{} {},{} {},{} C{},{} {},{} {},{} L{},{} C{},{} {},{} {},{} C{},{} {},{} {},{} L{},{} " fill="{bg}" style="stroke:{border};stroke-width:0.5;"/>"#,
+        r#"<path d="M{},{} C{},{} {},{} {},{} C{},{} {},{} {},{} L{},{} C{},{} {},{} {},{} C{},{} {},{} {},{} L{},{}" fill="{bg}" style="stroke:{border};stroke-width:0.5;"/>"#,
         fmt_coord(x), fmt_coord(y + ry),
         fmt_coord(x), fmt_coord(y),
         fmt_coord(cx), fmt_coord(y),
@@ -849,7 +849,7 @@ fn render_database_node(
 
     // Top ellipse
     sg.push_raw(&format!(
-        r#"<path d="M{},{} C{},{} {},{} {},{} C{},{} {},{} {},{} " fill="none" style="stroke:{border};stroke-width:0.5;"/>"#,
+        r#"<path d="M{},{} C{},{} {},{} {},{} C{},{} {},{} {},{}" fill="none" style="stroke:{border};stroke-width:0.5;"/>"#,
         fmt_coord(x), fmt_coord(y + ry),
         fmt_coord(x), fmt_coord(y + ry + ry),
         fmt_coord(cx), fmt_coord(y + ry + ry),
@@ -1017,6 +1017,8 @@ fn render_artifact_node(
             iy + fold,
             ix + fold,
             iy,
+            ix,
+            iy,
         ],
     );
 
@@ -1040,7 +1042,7 @@ fn render_storage_node(
 ) {
     open_entity_g(sg, node, meta);
 
-    let rx = 35.0_f64.min(node.width / 4.0);
+    let rx = 35.0;
     sg.set_fill_color(bg);
     sg.set_stroke_color(Some(border));
     sg.set_stroke_width(0.5, None);
@@ -1065,9 +1067,13 @@ fn render_folder_node(
     let y = node.y;
     let w = node.width;
     let h = node.height;
-    let tab_w = 41.0_f64.min(w * 0.4);
+    // Java USymbolFolder(showTitle=false): dimTitle=(40,15), margins
+    // X1/X2/X3/Y1/Y2 = 3/3/7/3/3, roundCorner=5 => r=2.5, tab arc=3.75.
+    let tab_w: f64 = 46.0;
     let tab_h: f64 = 21.0;
+    let fold_w: f64 = 7.0;
     let r: f64 = 2.5;
+    let tab_r: f64 = 3.75;
 
     sg.push_raw(&format!(
         concat!(
@@ -1080,17 +1086,18 @@ fn render_folder_node(
             r#" A{},{} 0 0 1 {},{}"#,
             r#" L{},{}"#,
             r#" A{},{} 0 0 1 {},{}"#,
-            r#" L{},{} " fill="{}" style="stroke:{};stroke-width:0.5;"/>"#,
+            r#" L{},{}"#,
+            r#" A{},{} 0 0 1 {},{}" fill="{}" style="stroke:{};stroke-width:0.5;"/>"#,
         ),
         fmt_coord(x + r),
         fmt_coord(y),
-        fmt_coord(x + tab_w),
+        fmt_coord(x + tab_w - r),
         fmt_coord(y),
-        fmt_coord(r),
-        fmt_coord(r),
-        fmt_coord(x + tab_w + r),
+        fmt_coord(tab_r),
+        fmt_coord(tab_r),
+        fmt_coord(x + tab_w),
         fmt_coord(y + r),
-        fmt_coord(x + tab_w + r + 7.0),
+        fmt_coord(x + tab_w + fold_w),
         fmt_coord(y + tab_h),
         fmt_coord(x + w - r),
         fmt_coord(y + tab_h),
@@ -1112,13 +1119,17 @@ fn render_folder_node(
         fmt_coord(y + h - r),
         fmt_coord(x),
         fmt_coord(y + r),
+        fmt_coord(r),
+        fmt_coord(r),
+        fmt_coord(x + r),
+        fmt_coord(y),
         bg,
         border,
     ));
 
     sg.set_stroke_color(Some(border));
     sg.set_stroke_width(0.5, None);
-    sg.svg_line(x, y + tab_h, x + w, y + tab_h, 0.0);
+    sg.svg_line(x, y + tab_h, x + tab_w + fold_w, y + tab_h, 0.0);
 
     render_node_text(sg, node, font_color, bg);
     sg.push_raw("</g>");
@@ -1210,27 +1221,31 @@ fn render_stack_node(
     let y = node.y;
     let w = node.width;
     let h = node.height;
+    let border_w = 15.0;
+    let rc = 2.5;
 
-    // Main body rect (stroke:none)
+    // Java USymbolStack: inner rounded rectangle inset by 15px on both sides.
     sg.set_fill_color(bg);
     sg.set_stroke_color(Some("none"));
     sg.set_stroke_width(0.5, None);
-    sg.svg_rectangle(x, y, w, h, 2.5, 2.5, 0.0);
+    sg.svg_rectangle(x + border_w, y, w - 2.0 * border_w, h, rc, rc, 0.0);
 
-    // Frame path
-    let bar_left = x - 15.0;
     sg.push_raw(&format!(
-        r#"<path d="M{},{} L{},{} A2.5,2.5 0 0 1 {},{} L{},{} A2.5,2.5 0 0 0 {},{} L{},{} A2.5,2.5 0 0 0 {},{} L{},{} A2.5,2.5 0 0 1 {},{} L{},{} " fill="none" style="stroke:{border};stroke-width:0.5;"/>"#,
-        fmt_coord(bar_left), fmt_coord(y),
-        fmt_coord(bar_left + 12.5), fmt_coord(y),
-        fmt_coord(x), fmt_coord(y + 2.5),
-        fmt_coord(x), fmt_coord(y + h - 2.5),
-        fmt_coord(x + 2.5), fmt_coord(y + h),
-        fmt_coord(x + w - 2.5), fmt_coord(y + h),
-        fmt_coord(x + w), fmt_coord(y + h - 2.5),
-        fmt_coord(x + w), fmt_coord(y + 2.5),
-        fmt_coord(x + w + 2.5), fmt_coord(y),
-        fmt_coord(x + w + 15.0), fmt_coord(y),
+        r#"<path d="M{},{} L{},{} A{},{} 0 0 1 {},{} L{},{} A{},{} 0 0 0 {},{} L{},{} A{},{} 0 0 0 {},{} L{},{} A{},{} 0 0 1 {},{} L{},{}" fill="none" style="stroke:{border};stroke-width:0.5;"/>"#,
+        fmt_coord(x), fmt_coord(y),
+        fmt_coord(x + border_w - rc), fmt_coord(y),
+        fmt_coord(rc), fmt_coord(rc),
+        fmt_coord(x + border_w), fmt_coord(y + rc),
+        fmt_coord(x + border_w), fmt_coord(y + h - rc),
+        fmt_coord(rc), fmt_coord(rc),
+        fmt_coord(x + border_w + rc), fmt_coord(y + h),
+        fmt_coord(x + w - border_w - rc), fmt_coord(y + h),
+        fmt_coord(rc), fmt_coord(rc),
+        fmt_coord(x + w - border_w), fmt_coord(y + h - rc),
+        fmt_coord(x + w - border_w), fmt_coord(y + rc),
+        fmt_coord(rc), fmt_coord(rc),
+        fmt_coord(x + w - border_w + rc), fmt_coord(y),
+        fmt_coord(x + w), fmt_coord(y),
     ));
 
     render_node_text(sg, node, font_color, bg);
@@ -1252,31 +1267,37 @@ fn render_queue_node(
     let y = node.y;
     let w = node.width;
     let h = node.height;
-    let cap: f64 = 5.0;
+    let dx: f64 = 5.0;
     let mid_y = y + h / 2.0;
 
-    // Left side curve (filled)
     sg.push_raw(&format!(
-        r#"<path d="M{},{} C{},{} {},{} {},{} C{},{} {},{} {},{} " fill="{bg}" style="stroke:{border};stroke-width:0.5;"/>"#,
-        fmt_coord(x + cap), fmt_coord(y),
-        fmt_coord(x + cap + cap), fmt_coord(y),
-        fmt_coord(x + cap + cap), fmt_coord(mid_y),
-        fmt_coord(x + cap + cap), fmt_coord(mid_y),
-        fmt_coord(x + cap + cap), fmt_coord(mid_y),
-        fmt_coord(x + cap + cap), fmt_coord(y + h),
-        fmt_coord(x + cap), fmt_coord(y + h),
+        r#"<path d="M{},{} L{},{} C{},{} {},{} {},{} C{},{} {},{} {},{} L{},{} C{},{} {},{} {},{} C{},{} {},{} {},{}" fill="{bg}" style="stroke:{border};stroke-width:0.5;"/>"#,
+        fmt_coord(x + dx), fmt_coord(y),
+        fmt_coord(x + w - dx), fmt_coord(y),
+        fmt_coord(x + w), fmt_coord(y),
+        fmt_coord(x + w), fmt_coord(mid_y),
+        fmt_coord(x + w), fmt_coord(mid_y),
+        fmt_coord(x + w), fmt_coord(mid_y),
+        fmt_coord(x + w), fmt_coord(y + h),
+        fmt_coord(x + w - dx), fmt_coord(y + h),
+        fmt_coord(x + dx), fmt_coord(y + h),
+        fmt_coord(x), fmt_coord(y + h),
+        fmt_coord(x), fmt_coord(mid_y),
+        fmt_coord(x), fmt_coord(mid_y),
+        fmt_coord(x), fmt_coord(mid_y),
+        fmt_coord(x), fmt_coord(y),
+        fmt_coord(x + dx), fmt_coord(y),
     ));
 
-    // Right endcap (open)
     sg.push_raw(&format!(
-        r#"<path d="M{},{} C{},{} {},{} {},{} C{},{} {},{} {},{} " fill="none" style="stroke:{border};stroke-width:0.5;"/>"#,
-        fmt_coord(x + w - cap), fmt_coord(y),
-        fmt_coord(x + w - cap - cap), fmt_coord(y),
-        fmt_coord(x + w - cap - cap), fmt_coord(mid_y),
-        fmt_coord(x + w - cap - cap), fmt_coord(mid_y),
-        fmt_coord(x + w - cap - cap), fmt_coord(mid_y),
-        fmt_coord(x + w - cap - cap), fmt_coord(y + h),
-        fmt_coord(x + w - cap), fmt_coord(y + h),
+        r#"<path d="M{},{} C{},{} {},{} {},{} C{},{} {},{} {},{}" fill="none" style="stroke:{border};stroke-width:0.5;"/>"#,
+        fmt_coord(x + w - dx), fmt_coord(y),
+        fmt_coord(x + w - 2.0 * dx), fmt_coord(y),
+        fmt_coord(x + w - 2.0 * dx), fmt_coord(mid_y),
+        fmt_coord(x + w - 2.0 * dx), fmt_coord(mid_y),
+        fmt_coord(x + w - 2.0 * dx), fmt_coord(y + h),
+        fmt_coord(x + w - dx), fmt_coord(y + h),
+        fmt_coord(x + w - dx), fmt_coord(y + h),
     ));
 
     render_node_text(sg, node, font_color, bg);
@@ -1479,6 +1500,10 @@ fn render_node_text(
         // Java USymbol.asSmall: label drawn at margin_top + sprite_h + ascent
         let ascent = font_metrics::ascent("SansSerif", FONT_SIZE, false, false);
         node.y + margin_top + sprite_h + ascent
+    } else if node.kind == ComponentKind::Folder && !has_desc {
+        // Java USymbolFolder(showTitle=false): label block is translated by
+        // margin_y1(13) + dimTitle.height(15).
+        node.y + 28.0 + font_metrics::ascent("SansSerif", FONT_SIZE, false, false)
     } else if has_desc {
         node.y + FONT_SIZE + 4.0 + y_offset
     } else {
