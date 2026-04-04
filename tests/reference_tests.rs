@@ -506,12 +506,24 @@ reference_test!(
     "fixtures/archimate/basic.puml"
 );
 reference_test!(
+    reference_fixtures_regex_basic_puml,
+    "fixtures/regex/basic.puml"
+);
+reference_test!(
+    reference_fixtures_ebnf_basic_puml,
+    "fixtures/ebnf/basic.puml"
+);
+reference_test!(
     reference_fixtures_chart_bar_basic_puml,
     "fixtures/chart/bar_basic.puml"
 );
 reference_test!(
     reference_fixtures_files_diagram_basic_puml,
     "fixtures/files_diagram/basic.puml"
+);
+reference_test!(
+    reference_fixtures_wire_basic_puml,
+    "fixtures/wire/basic.puml"
 );
 reference_test!(
     reference_fixtures_activity_a0002_puml,

@@ -49,6 +49,12 @@ pub fn detect_start_tag(source: &str) -> Option<DiagramHint> {
         if trimmed.starts_with("@startgit") {
             return Some(DiagramHint::Git);
         }
+        if trimmed.starts_with("@startregex") {
+            return Some(DiagramHint::Regex);
+        }
+        if trimmed.starts_with("@startebnf") {
+            return Some(DiagramHint::Ebnf);
+        }
         if trimmed.starts_with("@start") {
             return None;
         }

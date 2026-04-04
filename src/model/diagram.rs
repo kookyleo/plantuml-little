@@ -130,4 +130,6 @@ pub enum Diagram {
     UseCase(super::usecase::UseCaseDiagram),
     Packet(super::packet::PacketDiagram),
     Git(super::git::GitDiagram),
+    Regex(super::regex_diagram::RegexDiagram),
+    Ebnf(super::ebnf::EbnfDiagram),
 }

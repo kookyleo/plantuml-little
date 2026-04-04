@@ -1,0 +1,5 @@
+@startwire
+component A
+component B
+A --> B : data
+@endwire

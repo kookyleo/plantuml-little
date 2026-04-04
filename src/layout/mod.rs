@@ -2,6 +2,7 @@ pub mod activity;
 pub mod chart;
 pub mod component;
 pub mod ditaa;
+pub mod ebnf;
 pub mod erd;
 pub mod files_diagram;
 pub mod gantt;
@@ -11,6 +12,7 @@ pub mod json_diagram;
 pub mod mindmap;
 pub mod nwdiag;
 pub mod packet;
+pub mod regex_diagram;
 pub mod salt;
 pub mod sequence;
 pub mod sequence_teoz;
@@ -67,6 +69,8 @@ pub enum DiagramLayout {
     UseCase(usecase::UseCaseLayout),
     Packet(packet::PacketLayout),
     Git(git::GitLayout),
+    Regex(regex_diagram::RegexLayout),
+    Ebnf(ebnf::EbnfLayout),
 }
 
 // ── Class entity sizing constants — sourced from Java PlantUML ───────
@@ -275,6 +279,14 @@ pub fn layout(diagram: &Diagram, skin: &crate::style::SkinParams) -> Result<Diag
         Diagram::Git(gd) => {
             let gl = git::layout_git(gd)?;
             Ok(DiagramLayout::Git(gl))
+        }
+        Diagram::Regex(rd) => {
+            let rl = regex_diagram::layout_regex(rd)?;
+            Ok(DiagramLayout::Regex(rl))
+        }
+        Diagram::Ebnf(ed) => {
+            let el = ebnf::layout_ebnf(ed)?;
+            Ok(DiagramLayout::Ebnf(el))
         }
     }
 }

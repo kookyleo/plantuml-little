@@ -6,6 +6,7 @@ pub mod component;
 pub mod creole;
 pub mod ditaa;
 pub mod dot;
+pub mod ebnf;
 pub mod erd;
 pub mod files_diagram;
 pub mod gantt;
@@ -14,6 +15,7 @@ pub mod json_diagram;
 pub mod mindmap;
 pub mod nwdiag;
 pub mod packet;
+pub mod regex_diagram;
 pub mod salt;
 pub mod sequence;
 pub mod state;
@@ -92,6 +94,14 @@ pub fn parse_with_original(source: &str, original_source: Option<&str>) -> Resul
                 let gd = git::parse_git_diagram(source)?;
                 Ok(Diagram::Git(gd))
             }
+            DiagramHint::Regex => {
+                let rd = regex_diagram::parse_regex_diagram(source)?;
+                Ok(Diagram::Regex(rd))
+            }
+            DiagramHint::Ebnf => {
+                let ed = ebnf::parse_ebnf_diagram(source)?;
+                Ok(Diagram::Ebnf(ed))
+            }
             _ => unreachable!(),
         };
     }
@@ -163,6 +173,8 @@ pub fn parse_with_original(source: &str, original_source: Option<&str>) -> Resul
         | DiagramHint::Wbs
         | DiagramHint::Yaml
         | DiagramHint::Dot
+        | DiagramHint::Regex
+        | DiagramHint::Ebnf
         | DiagramHint::Packet
         | DiagramHint::Git => Err(crate::Error::UnsupportedDiagram(format!("{dtype:?}"))),
     }
@@ -192,6 +204,8 @@ pub enum DiagramHint {
     UseCase,
     Packet,
     Git,
+    Regex,
+    Ebnf,
     Unknown(String),
 }
 

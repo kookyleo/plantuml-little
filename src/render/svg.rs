@@ -646,6 +646,20 @@ fn render_body(
                 body_pre_offset: false,
             })
         }
+        (Diagram::Regex(rd), DiagramLayout::Regex(rl)) => {
+            super::svg_regex::render_regex(rd, rl, skin).map(|svg| BodyResult {
+                svg,
+                raw_body_dim: None,
+                body_pre_offset: false,
+            })
+        }
+        (Diagram::Ebnf(ed), DiagramLayout::Ebnf(el)) => {
+            super::svg_ebnf::render_ebnf(ed, el, skin).map(|svg| BodyResult {
+                svg,
+                raw_body_dim: None,
+                body_pre_offset: false,
+            })
+        }
         _ => Err(crate::Error::Render("diagram/layout type mismatch".into())),
     }
 }
