@@ -502,6 +502,18 @@ macro_rules! reference_test {
 }
 
 reference_test!(
+    reference_fixtures_archimate_basic_puml,
+    "fixtures/archimate/basic.puml"
+);
+reference_test!(
+    reference_fixtures_chart_bar_basic_puml,
+    "fixtures/chart/bar_basic.puml"
+);
+reference_test!(
+    reference_fixtures_files_diagram_basic_puml,
+    "fixtures/files_diagram/basic.puml"
+);
+reference_test!(
     reference_fixtures_activity_a0002_puml,
     "fixtures/activity/a0002.puml"
 );

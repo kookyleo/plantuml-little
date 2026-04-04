@@ -1,0 +1,7 @@
+@startuml
+archimate #Technology "App Server" <<archimate-node>> as app
+archimate #Business "Business Process" <<archimate-business-process>> as proc
+archimate #Application "Web App" <<archimate-application-component>> as web
+app --> proc
+web --> app
+@enduml

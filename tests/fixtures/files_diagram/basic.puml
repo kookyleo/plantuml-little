@@ -8,5 +8,4 @@
 /var
   /log
     syslog
-    auth.log
 @endfiles

@@ -1,0 +1,6 @@
+@startchart
+h-axis "Q1", "Q2", "Q3", "Q4"
+v-axis "Revenue" 0 --> 100
+bar "Product A" : 30, 45, 60, 80
+bar "Product B" : 20, 35, 50, 65
+@endchart
