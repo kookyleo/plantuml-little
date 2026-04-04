@@ -1703,4 +1703,13 @@ reference_test!(
     "fixtures/yaml/basic.puml"
 );
 
-// Total: 296 reference tests
+reference_test!(
+    reference_fixtures_packet_basic_puml,
+    "fixtures/packet/basic.puml"
+);
+reference_test!(
+    reference_fixtures_git_basic_puml,
+    "fixtures/git/basic.puml"
+);
+
+// Total: 298 reference tests

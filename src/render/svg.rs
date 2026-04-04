@@ -632,6 +632,20 @@ fn render_body(
                 body_pre_offset: false,
             })
         }
+        (Diagram::Packet(pd), DiagramLayout::Packet(pl)) => {
+            super::svg_packet::render_packet(pd, pl, skin).map(|svg| BodyResult {
+                svg,
+                raw_body_dim: None,
+                body_pre_offset: false,
+            })
+        }
+        (Diagram::Git(gd), DiagramLayout::Git(gl)) => {
+            super::svg_git::render_git(gd, gl, skin).map(|svg| BodyResult {
+                svg,
+                raw_body_dim: None,
+                body_pre_offset: false,
+            })
+        }
         _ => Err(crate::Error::Render("diagram/layout type mismatch".into())),
     }
 }

@@ -5,10 +5,12 @@ pub mod ditaa;
 pub mod erd;
 pub mod files_diagram;
 pub mod gantt;
+pub mod git;
 pub mod graphviz;
 pub mod json_diagram;
 pub mod mindmap;
 pub mod nwdiag;
+pub mod packet;
 pub mod salt;
 pub mod sequence;
 pub mod sequence_teoz;
@@ -63,6 +65,8 @@ pub enum DiagramLayout {
     Yaml(json_diagram::JsonLayout),
     Dot(GraphLayout),
     UseCase(usecase::UseCaseLayout),
+    Packet(packet::PacketLayout),
+    Git(git::GitLayout),
 }
 
 // ── Class entity sizing constants — sourced from Java PlantUML ───────
@@ -263,6 +267,14 @@ pub fn layout(diagram: &Diagram, skin: &crate::style::SkinParams) -> Result<Diag
             let gl = graphviz::layout(&lg)?;
             let _ = &dd.source;
             Ok(DiagramLayout::Dot(gl))
+        }
+        Diagram::Packet(pd) => {
+            let pl = packet::layout_packet(pd)?;
+            Ok(DiagramLayout::Packet(pl))
+        }
+        Diagram::Git(gd) => {
+            let gl = git::layout_git(gd)?;
+            Ok(DiagramLayout::Git(gl))
         }
     }
 }

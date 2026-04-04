@@ -9,9 +9,11 @@ pub mod dot;
 pub mod erd;
 pub mod files_diagram;
 pub mod gantt;
+pub mod git;
 pub mod json_diagram;
 pub mod mindmap;
 pub mod nwdiag;
+pub mod packet;
 pub mod salt;
 pub mod sequence;
 pub mod state;
@@ -81,6 +83,14 @@ pub fn parse_with_original(source: &str, original_source: Option<&str>) -> Resul
                 let block = common::extract_block(source).unwrap_or_default();
                 let ds = dot::parse_dot_source(&block)?;
                 Ok(Diagram::Dot(crate::model::dot::DotDiagram { source: ds }))
+            }
+            DiagramHint::Packet => {
+                let pd = packet::parse_packet_diagram(source)?;
+                Ok(Diagram::Packet(pd))
+            }
+            DiagramHint::Git => {
+                let gd = git::parse_git_diagram(source)?;
+                Ok(Diagram::Git(gd))
             }
             _ => unreachable!(),
         };
@@ -152,7 +162,9 @@ pub fn parse_with_original(source: &str, original_source: Option<&str>) -> Resul
         | DiagramHint::Nwdiag
         | DiagramHint::Wbs
         | DiagramHint::Yaml
-        | DiagramHint::Dot => Err(crate::Error::UnsupportedDiagram(format!("{dtype:?}"))),
+        | DiagramHint::Dot
+        | DiagramHint::Packet
+        | DiagramHint::Git => Err(crate::Error::UnsupportedDiagram(format!("{dtype:?}"))),
     }
 }
 
@@ -178,6 +190,8 @@ pub enum DiagramHint {
     Yaml,
     Dot,
     UseCase,
+    Packet,
+    Git,
     Unknown(String),
 }
 

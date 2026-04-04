@@ -128,4 +128,6 @@ pub enum Diagram {
     Yaml(super::json_diagram::JsonDiagram),
     Dot(super::dot::DotDiagram),
     UseCase(super::usecase::UseCaseDiagram),
+    Packet(super::packet::PacketDiagram),
+    Git(super::git::GitDiagram),
 }

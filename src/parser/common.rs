@@ -43,6 +43,12 @@ pub fn detect_start_tag(source: &str) -> Option<DiagramHint> {
         if trimmed.starts_with("@startdot") {
             return Some(DiagramHint::Dot);
         }
+        if trimmed.starts_with("@startpacket") {
+            return Some(DiagramHint::Packet);
+        }
+        if trimmed.starts_with("@startgit") {
+            return Some(DiagramHint::Git);
+        }
         if trimmed.starts_with("@start") {
             return None;
         }
@@ -74,6 +80,8 @@ pub fn extract_block(source: &str) -> Option<String> {
                 || trimmed.starts_with("@startwbs")
                 || trimmed.starts_with("@startyaml")
                 || trimmed.starts_with("@startdot")
+                || trimmed.starts_with("@startpacket")
+                || trimmed.starts_with("@startgit")
             {
                 inside = true;
                 continue;
