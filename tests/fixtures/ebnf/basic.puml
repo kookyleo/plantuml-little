@@ -1,0 +1,7 @@
+@startebnf
+title EBNF
+(* comment *)
+letter = "A" | "B" | "C" ;
+digit = "0" | "1" | "2" ;
+symbol = "[" | "]" ;
+@endebnf

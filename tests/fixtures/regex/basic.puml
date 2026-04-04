@@ -1,0 +1,3 @@
+@startregex
+a{2,3}[bc]+(xy)?
+@endregex
