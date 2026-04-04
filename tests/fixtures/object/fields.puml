@@ -1,0 +1,14 @@
+@startuml
+object User {
+  name = "John"
+  id = 42
+  active = true
+}
+
+object Address {
+  street = "123 Main St"
+  city = "Springfield"
+}
+
+User --> Address : lives at
+@enduml

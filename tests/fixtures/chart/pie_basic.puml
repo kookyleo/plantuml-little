@@ -1,0 +1,8 @@
+@startpie
+title Browser Market Share
+"Chrome" : 65
+"Firefox" : 15
+"Safari" : 10
+"Edge" : 8
+"Other" : 2
+@endpie

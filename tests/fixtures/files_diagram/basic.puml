@@ -1,0 +1,12 @@
+@startfiles
+/etc
+  /nginx
+    nginx.conf
+    mime.types
+  /ssh
+    sshd_config
+/var
+  /log
+    syslog
+    auth.log
+@endfiles

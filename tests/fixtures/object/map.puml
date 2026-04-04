@@ -1,0 +1,13 @@
+@startuml
+map "Map **Errors**" as errors {
+  404 => Not Found
+  500 => Internal Error
+  403 => Forbidden
+}
+
+object Server {
+  host = "api.example.com"
+}
+
+Server --> errors : returns
+@enduml
