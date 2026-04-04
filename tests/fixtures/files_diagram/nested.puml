@@ -1,0 +1,10 @@
+@startfiles
+/home
+  /user
+    .bashrc
+    .profile
+    /Documents
+      readme.txt
+      /projects
+        code.rs
+@endfiles

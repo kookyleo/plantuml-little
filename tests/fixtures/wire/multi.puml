@@ -1,0 +1,8 @@
+@startwire
+component CPU
+component RAM
+component Disk
+CPU --> RAM : bus
+CPU --> Disk : sata
+RAM --> Disk : dma
+@endwire

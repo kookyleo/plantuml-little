@@ -1,0 +1,15 @@
+@startuml
+object Car {
+  brand = "Toyota"
+  model = "Camry"
+}
+object Engine {
+  type = "V6"
+  hp = 301
+}
+object Wheel {
+  size = 17
+}
+Car *-- Engine
+Car o-- "4" Wheel
+@enduml

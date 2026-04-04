@@ -1,0 +1,3 @@
+@startregex
+(cat|dog|bird)+
+@endregex

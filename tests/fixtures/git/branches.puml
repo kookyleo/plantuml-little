@@ -1,0 +1,7 @@
+@startgit
+* main
+** develop
+*** feature-a
+*** feature-b
+** release-1.0
+@endgit

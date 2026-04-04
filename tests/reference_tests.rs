@@ -506,24 +506,64 @@ reference_test!(
     "fixtures/archimate/basic.puml"
 );
 reference_test!(
-    reference_fixtures_regex_basic_puml,
-    "fixtures/regex/basic.puml"
-);
-reference_test!(
-    reference_fixtures_ebnf_basic_puml,
-    "fixtures/ebnf/basic.puml"
+    reference_fixtures_archimate_layers_puml,
+    "fixtures/archimate/layers.puml"
 );
 reference_test!(
     reference_fixtures_chart_bar_basic_puml,
     "fixtures/chart/bar_basic.puml"
 );
 reference_test!(
+    reference_fixtures_chart_single_series_puml,
+    "fixtures/chart/single_series.puml"
+);
+reference_test!(
+    reference_fixtures_ebnf_basic_puml,
+    "fixtures/ebnf/basic.puml"
+);
+reference_test!(
+    reference_fixtures_ebnf_expression_puml,
+    "fixtures/ebnf/expression.puml"
+);
+reference_test!(
     reference_fixtures_files_diagram_basic_puml,
     "fixtures/files_diagram/basic.puml"
 );
 reference_test!(
+    reference_fixtures_files_diagram_nested_puml,
+    "fixtures/files_diagram/nested.puml"
+);
+reference_test!(
+    reference_fixtures_git_branches_puml,
+    "fixtures/git/branches.puml"
+);
+reference_test!(
+    reference_fixtures_object_inheritance_puml,
+    "fixtures/object/inheritance.puml"
+);
+reference_test!(
+    reference_fixtures_packet_tcp_puml,
+    "fixtures/packet/tcp.puml"
+);
+reference_test!(
+    reference_fixtures_regex_basic_puml,
+    "fixtures/regex/basic.puml"
+);
+reference_test!(
+    reference_fixtures_regex_alternation_puml,
+    "fixtures/regex/alternation.puml"
+);
+reference_test!(
+    reference_fixtures_regex_complex_puml,
+    "fixtures/regex/complex.puml"
+);
+reference_test!(
     reference_fixtures_wire_basic_puml,
     "fixtures/wire/basic.puml"
+);
+reference_test!(
+    reference_fixtures_wire_multi_puml,
+    "fixtures/wire/multi.puml"
 );
 reference_test!(
     reference_fixtures_activity_a0002_puml,

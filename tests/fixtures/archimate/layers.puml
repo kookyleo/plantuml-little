@@ -1,0 +1,11 @@
+@startuml
+archimate #Strategy "Strategy" <<archimate-business-event>> as s
+archimate #Business "Process" <<archimate-business-process>> as p
+archimate #Application "App" <<archimate-application-component>> as a
+archimate #Technology "Server" <<archimate-node>> as t
+archimate #Physical "Device" <<archimate-device>> as d
+s --> p
+p --> a
+a --> t
+t --> d
+@enduml
