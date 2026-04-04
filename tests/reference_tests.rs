@@ -1147,6 +1147,14 @@ reference_test!(
     "fixtures/object/basic.puml"
 );
 reference_test!(
+    reference_fixtures_object_fields_puml,
+    "fixtures/object/fields.puml"
+);
+reference_test!(
+    reference_fixtures_object_map_puml,
+    "fixtures/object/map.puml"
+);
+reference_test!(
     reference_fixtures_preprocessor_builtin_newline_puml,
     "fixtures/preprocessor/builtin_newline.puml"
 );
