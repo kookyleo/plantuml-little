@@ -430,7 +430,45 @@ fn try_parse_entity_decl(line: &str) -> Option<EntityDecl> {
         return Some(parse_entity_rest(rest, kind.clone()));
     }
 
+    // Archimate keyword: `archimate COLOR "LABEL" <<STEREOTYPE>> as ALIAS`
+    // The color appears before the name, unlike other keywords.
+    if line.starts_with("archimate ") {
+        let rest = line["archimate ".len()..].trim();
+        return Some(parse_archimate_rest(rest));
+    }
+
     None
+}
+
+/// Parse archimate entity declaration: `COLOR "LABEL" <<STEREO>> as ALIAS`
+/// The distinguishing feature is COLOR comes first (before the name).
+fn parse_archimate_rest(rest: &str) -> EntityDecl {
+    let mut color = None;
+    let mut remaining = rest.to_string();
+
+    // First, consume any color specification (e.g. `#RRGGBB`, `#NamedColor`)
+    let trimmed = remaining.trim();
+    if trimmed.starts_with('#') {
+        let end_pos = trimmed[1..]
+            .find(|c: char| c.is_whitespace() || c == '"' || c == '<')
+            .map(|p| p + 1)
+            .unwrap_or(trimmed.len());
+        let color_str = &trimmed[..end_pos];
+        if let Some(hcolor) = crate::klimt::color::resolve_color(color_str) {
+            color = Some(hcolor.to_svg());
+        } else {
+            color = Some(color_str.to_string());
+        }
+        remaining = trimmed[end_pos..].trim().to_string();
+    }
+
+    // Now parse the rest as a normal entity (name, stereotype, alias, etc.)
+    let mut decl = parse_entity_rest(&remaining, ComponentKind::Archimate);
+    // Archimate color from the keyword position takes precedence
+    if color.is_some() {
+        decl.color = color;
+    }
+    decl
 }
 
 fn parse_entity_rest(rest: &str, kind: ComponentKind) -> EntityDecl {
@@ -1512,5 +1550,56 @@ end note
         let jar = d.entities.iter().find(|e| e.id == "jar").unwrap();
         assert_eq!(jar.kind, ComponentKind::Artifact);
         assert_eq!(jar.parent, Some("app".to_string()));
+    }
+
+    // --- Archimate tests ---
+
+    #[test]
+    fn test_archimate_basic() {
+        let d = parse(
+            "@startuml\narchimate #438DD5 \"My App\" <<application-component>> as app\n@enduml",
+        );
+        assert_eq!(d.entities.len(), 1);
+        assert_eq!(d.entities[0].name, "My App");
+        assert_eq!(d.entities[0].id, "app");
+        assert_eq!(d.entities[0].kind, ComponentKind::Archimate);
+        assert_eq!(
+            d.entities[0].stereotype,
+            Some("application-component".to_string())
+        );
+        assert!(d.entities[0].color.is_some());
+    }
+
+    #[test]
+    fn test_archimate_with_link() {
+        let d = parse(
+            "@startuml\narchimate #438DD5 \"App\" <<application-component>> as app\narchimate #85BBF0 \"DB\" <<technology-artifact>> as db\napp --> db\n@enduml",
+        );
+        assert_eq!(d.entities.len(), 2);
+        assert_eq!(d.links.len(), 1);
+        assert_eq!(d.links[0].from, "app");
+        assert_eq!(d.links[0].to, "db");
+    }
+
+    #[test]
+    fn test_archimate_unquoted_name() {
+        let d = parse(
+            "@startuml\narchimate #F5DEAA MyResource <<strategy-resource>> as res\n@enduml",
+        );
+        assert_eq!(d.entities.len(), 1);
+        assert_eq!(d.entities[0].name, "MyResource");
+        assert_eq!(d.entities[0].id, "res");
+        assert_eq!(d.entities[0].kind, ComponentKind::Archimate);
+    }
+
+    #[test]
+    fn test_archimate_no_color() {
+        let d = parse(
+            "@startuml\narchimate \"App\" <<application-component>> as app\n@enduml",
+        );
+        assert_eq!(d.entities.len(), 1);
+        assert_eq!(d.entities[0].name, "App");
+        assert_eq!(d.entities[0].id, "app");
+        assert_eq!(d.entities[0].kind, ComponentKind::Archimate);
     }
 }

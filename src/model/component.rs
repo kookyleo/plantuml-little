@@ -16,6 +16,7 @@ pub enum ComponentKind {
     Folder,
     Frame,
     Agent,
+    Archimate,
     Stack,
     Queue,
     // Port kinds (used inside component groups)
@@ -341,11 +342,12 @@ mod tests {
             ComponentKind::Folder,
             ComponentKind::Frame,
             ComponentKind::Agent,
+            ComponentKind::Archimate,
             ComponentKind::Stack,
             ComponentKind::Queue,
             ComponentKind::PortIn,
             ComponentKind::PortOut,
         ];
-        assert_eq!(kinds.len(), 16);
+        assert_eq!(kinds.len(), 17);
     }
 }

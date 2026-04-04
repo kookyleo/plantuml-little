@@ -188,6 +188,7 @@ pub fn entity_margins(kind: &ComponentKind) -> (f64, f64, f64, f64) {
         ComponentKind::Folder => (10.0, 20.0, 13.0, 10.0),
         ComponentKind::Frame => (15.0, 25.0, 20.0, 10.0),
         ComponentKind::Agent => (10.0, 10.0, 10.0, 10.0),
+        ComponentKind::Archimate => (10.0, 10.0, 10.0, 10.0),
         ComponentKind::Stack => (25.0, 25.0, 10.0, 10.0),
         ComponentKind::Queue => (5.0, 15.0, 5.0, 5.0),
         ComponentKind::PortIn | ComponentKind::PortOut => (0.0, 0.0, 0.0, 0.0),

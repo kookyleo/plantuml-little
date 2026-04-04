@@ -279,6 +279,8 @@ pub fn detect_diagram_type(content: &str) -> DiagramHint {
             || trimmed.starts_with("folder ")
             || trimmed.starts_with("frame ")
             || trimmed.starts_with("agent ")
+            || trimmed.starts_with("archimate ")
+            || trimmed.starts_with("archimate ")
             || trimmed.starts_with("stack ");
         if is_component_kw {
             has_component_keyword_definitive = true;
@@ -1217,6 +1219,24 @@ mod tests {
     #[test]
     fn detect_component_by_keyword() {
         let content = "component A\ncomponent B\nA -> B\n";
+        assert!(matches!(
+            detect_diagram_type(content),
+            DiagramHint::Component
+        ));
+    }
+
+    #[test]
+    fn detect_component_by_archimate_keyword() {
+        let content = "archimate #438DD5 \"App\" <<application-component>> as app\n";
+        assert!(matches!(
+            detect_diagram_type(content),
+            DiagramHint::Component
+        ));
+    }
+
+    #[test]
+    fn detect_component_by_archimate_keyword() {
+        let content = "archimate #438DD5 \"App\" <<application-component>> as app\n";
         assert!(matches!(
             detect_diagram_type(content),
             DiagramHint::Component

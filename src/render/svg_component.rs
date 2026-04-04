@@ -705,6 +705,10 @@ fn render_node(
         ComponentKind::Agent => {
             render_agent_node(sg, node, meta, agent_bg, agent_border, comp_font)
         }
+        ComponentKind::Archimate => {
+            // Archimate uses the same rectangle rendering as Agent
+            render_agent_node(sg, node, meta, rect_bg, rect_border, comp_font)
+        }
         ComponentKind::Stack => {
             render_stack_node(sg, node, meta, stack_bg, stack_border, comp_font)
         }
