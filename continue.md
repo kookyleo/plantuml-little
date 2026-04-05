@@ -30,52 +30,56 @@ Any future Java/Rust parity work must target the stable `v1.2026.2` reference co
 ## Current Parity Baseline (2026-04-05)
 
 - `cargo test --lib`: `2636/2636`
-- `cargo test --test reference_tests`: `94/322`
+- `cargo test --test reference_tests`: `118/322`
 - Byte-compare authority remains the 318 stable-Java SVGs indexed by `tests/reference/INDEX.tsv`.
+
+## Latest Push (2026-04-05)
+
+- Focus area: teoz sequence vertical-budget cluster
+- Core fix: removed the stale teoz `+10` body-margin assumption and aligned both body x/y origins to the Java stable `5px` document margin in `src/layout/sequence_teoz/builder.rs`.
+- Verified guardrails:
+  - `cargo test --lib` stays green at `2636/2636`
+  - full stable reference suite moved from `94/322` to `118/322` (`+24`)
+- Direct cluster effect:
+  - `TeozAltElseParallel_*`: `12 -> 0`
+  - `SequenceLayout_0004/0005/0005b`: `6 -> 0`
+  - `TeozTimelineIssues_*`: `18 -> 6`
+  - remaining teoz tail: `9` (`TeozTimelineIssues_0001/0002/0004/0005/0007/0009`, `SequenceArrows_0001/0002`, `SequenceLeftMessageAndActiveLifeLines_0001`)
 
 ## Failure Cluster Ranking (Highest Leverage First)
 
-This ranking is based on the current stable-reference run and groups failures by likely shared implementation path, not by directory alone.
+This ranking is based on the current stable-reference run after the teoz margin fix and groups failures by likely shared implementation path, not by directory alone.
 
-### P0 — Teoz sequence vertical-budget cluster (`42` fails)
-
-- Subclusters:
-  - `TeozTimelineIssues_*`: `18`
-  - `TeozAltElseParallel_*`: `12`
-  - `SequenceLayout_0004/0005/0005b`: `6`
-  - `SequenceArrows_*`: `4`
-  - `SequenceLeftMessageAndActiveLifeLines_*`: `2`
-- Dominant symptom: root SVG height drift, usually `+5px`; the left-message activation pair is `-3px`.
-- Reason for priority: the signature is unusually consistent, the fixtures are structurally close, and they all converge on the same teoz event/tile vertical accounting path.
-- Primary files:
-  - `src/layout/sequence_teoz/builder.rs`
-  - `src/render/svg_sequence.rs`
-
-### P1 — Shared newline / multiline richtext cluster (`39` fails)
+### P0 — Shared newline / multiline richtext cluster (`34` fails)
 
 - Dominant symptom buckets:
-  - `height +14`: `11`
-  - `height -1`: `4`
-  - `height +20`: `4`
-  - `height +8`: `3`
-  - `height +9`: `3`
+  - `height +14`: still the largest bucket
+  - then `+20`, `+8`, `+9`, and `-1`
 - Seen across `dev/newline`, `preprocessor`, `component`, `misc`, `activity`, and `wbs`.
-- Reason for priority: this is a cross-family multiplier, not a single diagram bug. Fixing newline-preservation and multiline height accounting can pay down several directories at once.
+- Reason for priority: this is still the cleanest cross-family multiplier after teoz shrank. The same newline/multiline handling still leaks into several diagram stacks.
 - Primary files:
   - `src/render/svg_richtext.rs`
   - `src/preproc/`
   - per-diagram height accounting in `src/layout/`
 
-### P2 — Sprite bounds / transform / gradient cluster (`39` fails)
+### P1 — Sprite bounds / transform / gradient cluster (`39` fails)
 
 - Dominant symptom buckets:
-  - mixed structure/content diffs: `19`
-  - tiny coordinate drifts: `9`
-  - `height +14`: `5`
-- Reason for priority: large count, but less clean than teoz or newline. It likely contains multiple sprite subproblems that all live in the same rendering stack.
+  - mixed structure/content diffs: the majority
+  - tiny coordinate drifts
+  - a smaller `height +14` bucket
+- Reason for priority: still the single largest family by raw count, but less uniform than newline. Treat it as a shared rendering stack with several sprite subproblems.
 - Primary files:
   - `src/render/svg_richtext.rs`
   - `src/klimt/svg.rs`
+
+### P2 — Jaws / component / description cluster (`27` fails)
+
+- Mixed `jaws*`, `gml*`, `deployment01`, `componentextraarrows_0001`, and a few width/height component tails still remain.
+- Reason for priority: broader than the old `jaws` bucket; it now covers the remaining shared description/component path after the teoz cleanup.
+- Primary files:
+  - `src/layout/component.rs`
+  - `src/render/svg_component.rs`
 
 ### P3 — State / SCXML vertical-budget cluster (`18` fails)
 
@@ -87,13 +91,16 @@ This ranking is based on the current stable-reference run and groups failures by
   - `src/layout/state.rs`
   - `src/render/svg_state.rs`
 
-### P4 — Jaws / component cluster (`16` fails)
+### P4 — Teoz remaining tail (`9` fails)
 
-- Mixed `jaws*`, `gml*`, and component edge cases remain under the stable corpus.
-- Reason for priority: still sizable, but the signature is less uniform than teoz or SCXML.
+- Remaining fixtures:
+  - `TeozTimelineIssues_0001/0002/0004/0005/0007/0009`
+  - `SequenceArrows_0001/0002`
+  - `SequenceLeftMessageAndActiveLifeLines_0001`
+- Reason for priority: the first teoz margin pass already removed most of the cluster. What remains is narrower and no longer the biggest lever.
 - Primary files:
-  - `src/layout/component.rs`
-  - `src/render/svg_component.rs`
+  - `src/layout/sequence_teoz/builder.rs`
+  - `src/render/svg_sequence.rs`
 
 ### P5 — Activity misc cluster (`8` fails)
 

@@ -44,18 +44,16 @@ const NOTE_FOLD: f64 = rose::SEQ_NOTE_FOLD;
 /// beyond the drawn polygon width (getTextWidth). The extent calculations must use
 /// the full preferred width, not just the drawn width.
 const NOTE_EXTENT_PADDING: f64 = 10.0;
-/// Java teoz: PlayingSpace.startingY = 8 for tile positioning, but the
-/// SVG coordinates include UTranslate(5,5) + defaultMargins(5,5,5,5),
-/// giving an effective offset of 10 for participant heads and lifelines.
-/// We use 10 here so SVG y coordinates match Java's output directly.
-const STARTING_Y: f64 = 10.0;
+/// Java teoz body coordinates are shifted only by the document's top margin.
+/// The `PlayingSpace.startingY = 8` offset is internal to tile packing; the
+/// emitted SVG head/lifeline positions line up with a 5px top document margin.
+const STARTING_Y: f64 = 5.0;
 /// Minimum gap between adjacent participant right-edge and next left-edge.
 const PARTICIPANT_GAP: f64 = 5.0;
-/// Java teoz: SequenceDiagramFileMakerTeoz applies UTranslate(5,5) to
-/// the drawing, and SequenceDiagram.getDefaultMargins() returns (5,5,5,5).
-/// Combined x_offset = 5 + 5 - min1 = 10 - min1.
-/// Total viewport width = body_width + 10 + margins(5+5) = body_width + 20.
-const DOC_MARGIN_X: f64 = 10.0;
+/// Java teoz applies `dx(-min1)` inside `SequenceDiagramFileMakerTeoz`, then
+/// the SVG exporter adds the normal 5px document margin. The body coordinates
+/// therefore start 5px from the left edge, not 10px.
+const DOC_MARGIN_X: f64 = 5.0;
 /// Java: GroupingTile.MARGINX = 16 (internal padding between frame and content)
 const GROUP_MARGINX: f64 = 16.0;
 /// Java: GroupingTile.EXTERNAL_MARGINX1 = 3 (left frame margin)
