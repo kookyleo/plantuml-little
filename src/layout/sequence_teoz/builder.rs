@@ -3457,6 +3457,13 @@ pub fn build_teoz_layout(sd: &SequenceDiagram, skin: &SkinParams) -> Result<SeqL
                                     if (y_end - y_start).abs() < 0.001 {
                                         y_end = y_start + rose::ARROW_DELTA_Y
                                             + rose::ARROW_PADDING_Y + 5.0;
+                                    } else {
+                                        // Java multi-pass: the deactivate's own step
+                                        // value persists across render passes, causing
+                                        // a self-collision (+5) in even-numbered passes.
+                                        // With Java's 6 passes (even count), the final
+                                        // bar includes the +5 bump.
+                                        y_end += 5.0;
                                     }
                                 } else if last_msg_bottom_y > y_start + 0.001 {
                                     y_end = last_msg_bottom_y;
@@ -3465,7 +3472,17 @@ pub fn build_teoz_layout(sd: &SequenceDiagram, skin: &SkinParams) -> Result<SeqL
                                     }
                                 }
                             }
-                            if !deact_inline && (y_end - y_start_addstep).abs() < 0.001 {
+                            // Java LiveBoxes.addStep + multi-pass behavior:
+                            // Standalone deactivates get their eventsStep value
+                            // used in getStairs (position is updated). Java's
+                            // multi-pass rendering causes a self-collision in
+                            // addStep (+5 bump) that persists across even-numbered
+                            // passes. Since Java uses 6 passes (even), standalone
+                            // deactivates effectively always get +5.
+                            // Exception: deactivates inside a TileParallel use
+                            // the message's position in getStairs (not updated),
+                            // so the bump has no effect.
+                            if !deact_inline && !inside_tile_parallel[event_idx] {
                                 y_end += 5.0;
                             }
                             log::debug!("teoz deactivate {name} level={level} y_start={y_start:.4} y_end={y_end:.4} inline={deact_inline}");
