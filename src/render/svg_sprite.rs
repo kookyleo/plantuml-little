@@ -1,9 +1,12 @@
-//! Convert SVG sprite content to path-based elements for inline rendering.
+//! Convert SVG sprite content for inline rendering, matching Java's `SvgNanoParser`.
 //!
-//! Java PlantUML converts SVG sprite elements (rect, circle, ellipse, line,
-//! polyline, polygon) to `<path>` elements with absolute positioning. SVG
-//! `<text>` elements are preserved as `<text>` elements.  Gradients and defs
-//! are extracted and re-emitted in the parent SVG `<defs>` block.
+//! Java's regex only matches `svg|path|g|circle|ellipse|text`.
+//! - `<circle>` → native `<ellipse>` (via UEllipse)
+//! - `<ellipse>` → `<path>` with 4 arcs (via UPath)
+//! - `<path>` → translated `<path>`
+//! - `<text>` → `<text>` with Font.PLAIN (no weight/style/decoration)
+//! - `<rect>`, `<line>`, `<polyline>`, `<polygon>` → silently dropped
+//! - Gradients: `url(#...)` fill references resolve to white (no gradient hoisting)
 
 use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
@@ -93,17 +96,10 @@ pub fn convert_svg_elements_scaled(svg: &str, offset_x: f64, offset_y: f64, scal
     SPRITE_DEFS_MAP.with(|m| m.borrow_mut().clear());
     cache_defs_elements(svg);
 
-    let grad_defs = extract_gradient_defs(svg);
-    if !grad_defs.is_empty() {
-        COLLECTED_GRADIENT_DEFS.with(|collected| {
-            let mut collected = collected.borrow_mut();
-            for (id, def_xml) in &grad_defs {
-                if !collected.iter().any(|(eid, _)| eid == id) {
-                    collected.push((id.clone(), def_xml.clone()));
-                }
-            }
-        });
-    }
+    // Java's SvgNanoParser does NOT parse <defs> or gradient definitions.
+    // Gradients are resolved to their first stop-color in resolve_gradient_url().
+    // No gradient hoisting into parent <defs>.
+
     let mut buf = String::new();
     let inner = strip_svg_wrapper(svg);
     SPRITE_SCALE.with(|s| s.set(scale));
@@ -122,17 +118,10 @@ pub fn convert_svg_elements(svg: &str, offset_x: f64, offset_y: f64) -> String {
     SPRITE_DEFS_MAP.with(|m| m.borrow_mut().clear());
     cache_defs_elements(svg);
 
-    let grad_defs = extract_gradient_defs(svg);
-    if !grad_defs.is_empty() {
-        COLLECTED_GRADIENT_DEFS.with(|collected| {
-            let mut collected = collected.borrow_mut();
-            for (id, def_xml) in &grad_defs {
-                if !collected.iter().any(|(eid, _)| eid == id) {
-                    collected.push((id.clone(), def_xml.clone()));
-                }
-            }
-        });
-    }
+    // Java's SvgNanoParser does NOT parse <defs> or gradient definitions.
+    // Gradients are resolved to their first stop-color in resolve_gradient_url().
+    // No gradient hoisting into parent <defs>.
+
     let mut buf = String::new();
     let inner = strip_svg_wrapper(svg);
     convert_elements(&mut buf, inner.trim(), offset_x, offset_y, None);
@@ -750,12 +739,10 @@ fn convert_single_element_ext(
         };
 
         match tag {
-            "rect" => convert_rect(buf, element, eff_ox, eff_oy),
+            // Java SvgNanoParser regex only matches: svg|path|g|circle|ellipse|text
+            // rect, line, polyline, polygon are silently dropped.
             "circle" => convert_circle(buf, element, eff_ox, eff_oy),
             "ellipse" => convert_ellipse(buf, element, eff_ox, eff_oy),
-            "line" => convert_line(buf, element, eff_ox, eff_oy),
-            "polyline" => convert_polyline(buf, element, eff_ox, eff_oy),
-            "polygon" => convert_polygon(buf, element, eff_ox, eff_oy),
             "path" => convert_path(buf, element, eff_ox, eff_oy),
             "text" => convert_text(buf, element, text_ox, text_oy),
             "image" => convert_image(buf, element, eff_ox, eff_oy),
@@ -853,45 +840,9 @@ fn convert_element_with_affine(
         (tx * s + ox, ty * s + oy)
     };
 
+    // Java SvgNanoParser regex only matches: svg|path|g|circle|ellipse|text
+    // rect, line, polyline, polygon are silently dropped.
     match tag {
-        "rect" => {
-            let x = get_attr(element, "x")
-                .and_then(|v| v.parse::<f64>().ok())
-                .unwrap_or(0.0);
-            let y = get_attr(element, "y")
-                .and_then(|v| v.parse::<f64>().ok())
-                .unwrap_or(0.0);
-            let w = get_attr(element, "width")
-                .and_then(|v| v.parse::<f64>().ok())
-                .unwrap_or(0.0);
-            let h = get_attr(element, "height")
-                .and_then(|v| v.parse::<f64>().ok())
-                .unwrap_or(0.0);
-            let corners = [(x, y), (x + w, y), (x + w, y + h), (x, y + h)];
-            let transformed: Vec<(f64, f64)> = corners.iter().map(|&(cx, cy)| tp(cx, cy)).collect();
-            let mut d = format!(
-                "M{},{}",
-                fmt_coord(transformed[0].0),
-                fmt_coord(transformed[0].1)
-            );
-            for &(px, py) in &transformed[1..] {
-                write!(d, " L{},{}", fmt_coord(px), fmt_coord(py)).unwrap();
-            }
-            write!(
-                d,
-                " L{},{}",
-                fmt_coord(transformed[0].0),
-                fmt_coord(transformed[0].1)
-            )
-            .unwrap();
-            let fill = get_fill(element);
-            let style = get_stroke_style(element);
-            write!(buf, r#"<path d="{d}" fill="{fill}""#).unwrap();
-            if !style.is_empty() {
-                write!(buf, r#" style="{style}""#).unwrap();
-            }
-            buf.push_str("/>");
-        }
         "circle" => {
             let cx = get_attr(element, "cx")
                 .and_then(|v| v.parse::<f64>().ok())
@@ -902,56 +853,22 @@ fn convert_element_with_affine(
             let r = get_attr(element, "r")
                 .and_then(|v| v.parse::<f64>().ok())
                 .unwrap_or(0.0);
-            // Under affine transform, circle becomes ellipse. For uniform transforms
-            // (rotate), it stays a circle with scaled radius.
+            // Under affine transform, circle becomes ellipse with transformed center
             let (acx, acy) = tp(cx, cy);
-            // Approximate the transformed radius using the matrix scale factor
             let det = (matrix[0] * matrix[3] - matrix[1] * matrix[2]).abs();
             let avg_scale = det.sqrt();
             let ar = r * avg_scale * s;
-            let d = format!(
-                "M{},{} A{r},{r} 0 0 1 {},{} A{r},{r} 0 0 1 {},{} A{r},{r} 0 0 1 {},{} A{r},{r} 0 0 1 {},{} L{},{}",
-                fmt_coord(acx - ar), fmt_coord(acy),
-                fmt_coord(acx), fmt_coord(acy - ar),
-                fmt_coord(acx + ar), fmt_coord(acy),
-                fmt_coord(acx), fmt_coord(acy + ar),
-                fmt_coord(acx - ar), fmt_coord(acy),
-                fmt_coord(acx - ar), fmt_coord(acy),
-                r = fmt_coord_raw(ar),
-            );
             let fill = get_fill(element);
             let style = get_stroke_style(element);
-            write!(buf, r#"<path d="{d}" fill="{fill}""#).unwrap();
-            if !style.is_empty() {
-                write!(buf, r#" style="{style}""#).unwrap();
-            }
-            buf.push_str("/>");
-        }
-        "line" => {
-            let x1 = get_attr(element, "x1")
-                .and_then(|v| v.parse::<f64>().ok())
-                .unwrap_or(0.0);
-            let y1 = get_attr(element, "y1")
-                .and_then(|v| v.parse::<f64>().ok())
-                .unwrap_or(0.0);
-            let x2 = get_attr(element, "x2")
-                .and_then(|v| v.parse::<f64>().ok())
-                .unwrap_or(0.0);
-            let y2 = get_attr(element, "y2")
-                .and_then(|v| v.parse::<f64>().ok())
-                .unwrap_or(0.0);
-            let (ax1, ay1) = tp(x1, y1);
-            let (ax2, ay2) = tp(x2, y2);
-            let d = format!(
-                "M{},{} L{},{}",
-                fmt_coord(ax1),
-                fmt_coord(ay1),
-                fmt_coord(ax2),
-                fmt_coord(ay2)
-            );
-            let fill = get_fill_or(element, "#000000");
-            let style = get_stroke_style(element);
-            write!(buf, r#"<path d="{d}" fill="{fill}""#).unwrap();
+            write!(
+                buf,
+                r#"<ellipse cx="{}" cy="{}" fill="{fill}" rx="{}" ry="{}""#,
+                fmt_coord(acx),
+                fmt_coord(acy),
+                fmt_coord_raw(ar),
+                fmt_coord_raw(ar),
+            )
+            .unwrap();
             if !style.is_empty() {
                 write!(buf, r#" style="{style}""#).unwrap();
             }
@@ -959,10 +876,6 @@ fn convert_element_with_affine(
         }
         _ => {
             // Unsupported element under affine transform — skip
-            log::warn!(
-                "svg_sprite: unsupported element '{}' with affine transform, skipping",
-                tag
-            );
         }
     }
 }
@@ -1038,30 +951,33 @@ fn convert_circle(buf: &mut String, element: &str, ox: f64, oy: f64) {
     let r_raw = get_attr(element, "r")
         .and_then(|v| v.parse::<f64>().ok())
         .unwrap_or(0.0);
-    // Point positions use the full accumulated sprite scale
-    let r_pos = sc(r_raw);
     // Arc radii use element scale only (matching Java SAX parser behavior)
     let r_arc = sc_arc(r_raw);
 
     let acx = sc(cx) + ox;
     let acy = sc(cy) + oy;
 
-    // Circle as 4 arcs: start at left, go top, right, bottom, back to left
-    let d = format!(
-        "M{},{} A{r},{r} 0 0 1 {},{} A{r},{r} 0 0 1 {},{} A{r},{r} 0 0 1 {},{} A{r},{r} 0 0 1 {},{} L{},{}",
-        fmt_coord(acx - r_pos), fmt_coord(acy),       // start: left
-        fmt_coord(acx), fmt_coord(acy - r_pos),        // top
-        fmt_coord(acx + r_pos), fmt_coord(acy),        // right
-        fmt_coord(acx), fmt_coord(acy + r_pos),        // bottom
-        fmt_coord(acx - r_pos), fmt_coord(acy),        // back to left
-        fmt_coord(acx - r_pos), fmt_coord(acy),        // L close
-        r = fmt_coord_raw(r_arc),
-    );
-
+    // Java: circle → UEllipse → native <ellipse> element
+    // Attribute order: cx, cy, fill, rx, ry, style (matching Java SvgGraphics)
     let fill = get_fill(element);
     let style = get_stroke_style(element);
+    // Java UEllipse always emits stroke. When no explicit stroke is set,
+    // it uses the fill color with stroke-width:1.
+    let style = if style.is_empty() {
+        format!("stroke:{fill};stroke-width:1;")
+    } else {
+        style
+    };
 
-    write!(buf, r#"<path d="{d}" fill="{fill}""#).unwrap();
+    write!(
+        buf,
+        r#"<ellipse cx="{}" cy="{}" fill="{fill}" rx="{}" ry="{}""#,
+        fmt_coord(acx),
+        fmt_coord(acy),
+        fmt_coord_raw(r_arc),
+        fmt_coord_raw(r_arc),
+    )
+    .unwrap();
     if !style.is_empty() {
         write!(buf, r#" style="{style}""#).unwrap();
     }
@@ -1091,14 +1007,15 @@ fn convert_ellipse(buf: &mut String, element: &str, ox: f64, oy: f64) {
     let acx = sc(cx) + ox;
     let acy = sc(cy) + oy;
 
-    // Ellipse as 4 arcs
+    // Ellipse as 4 arcs: M(left) → top → right → bottom → left (no trailing L close)
+    // Java: UPath with moveTo + 4x arcTo + closePath — closePath produces no
+    // extra coordinate in SVG path data since start and end coincide.
     let d = format!(
-        "M{},{} A{rx},{ry} 0 0 1 {},{} A{rx},{ry} 0 0 1 {},{} A{rx},{ry} 0 0 1 {},{} A{rx},{ry} 0 0 1 {},{} L{},{}",
+        "M{},{} A{rx},{ry} 0 0 1 {},{} A{rx},{ry} 0 0 1 {},{} A{rx},{ry} 0 0 1 {},{} A{rx},{ry} 0 0 1 {},{}",
         fmt_coord(acx - rx_pos), fmt_coord(acy),
         fmt_coord(acx), fmt_coord(acy - ry_pos),
         fmt_coord(acx + rx_pos), fmt_coord(acy),
         fmt_coord(acx), fmt_coord(acy + ry_pos),
-        fmt_coord(acx - rx_pos), fmt_coord(acy),
         fmt_coord(acx - rx_pos), fmt_coord(acy),
         rx = fmt_coord_raw(rx_arc),
         ry = fmt_coord_raw(ry_arc),
@@ -1146,57 +1063,7 @@ fn convert_line(buf: &mut String, element: &str, ox: f64, oy: f64) {
     buf.push_str("/>");
 }
 
-fn convert_polyline(buf: &mut String, element: &str, ox: f64, oy: f64) {
-    let points_str = get_attr(element, "points").unwrap_or("");
-    let points = parse_points(points_str, ox, oy);
-    if points.is_empty() {
-        return;
-    }
-
-    let mut d = format!("M{},{}", fmt_coord(points[0].0), fmt_coord(points[0].1));
-    for &(px, py) in &points[1..] {
-        write!(d, " L{},{}", fmt_coord(px), fmt_coord(py)).unwrap();
-    }
-
-    let fill = get_fill_or(element, "none");
-    let style = get_stroke_style(element);
-
-    // Java PlantUML uses the original element name as id
-    let id = get_attr(element, "id").unwrap_or("polyline");
-
-    write!(buf, r#"<path d="{d}" fill="{fill}" id="{id}""#).unwrap();
-    if !style.is_empty() {
-        write!(buf, r#" style="{style}""#).unwrap();
-    }
-    buf.push_str("/>");
-}
-
-fn convert_polygon(buf: &mut String, element: &str, ox: f64, oy: f64) {
-    let points_str = get_attr(element, "points").unwrap_or("");
-    let points = parse_points(points_str, ox, oy);
-    if points.is_empty() {
-        return;
-    }
-
-    let mut d = format!("M{},{}", fmt_coord(points[0].0), fmt_coord(points[0].1));
-    for &(px, py) in &points[1..] {
-        write!(d, " L{},{}", fmt_coord(px), fmt_coord(py)).unwrap();
-    }
-    // Close the polygon — Java PlantUML does NOT use Z, it closes by repeating start point
-    write!(d, " L{},{}", fmt_coord(points[0].0), fmt_coord(points[0].1)).unwrap();
-
-    let fill = get_fill(element);
-    let style = get_stroke_style(element);
-
-    // Java PlantUML uses the original element name as id
-    let id = get_attr(element, "id").unwrap_or("polygon");
-
-    write!(buf, r#"<path d="{d}" fill="{fill}" id="{id}""#).unwrap();
-    if !style.is_empty() {
-        write!(buf, r#" style="{style}""#).unwrap();
-    }
-    buf.push_str("/>");
-}
+// NOTE: convert_polyline, convert_polygon removed — Java SvgNanoParser silently drops these.
 
 fn convert_path(buf: &mut String, element: &str, ox: f64, oy: f64) {
     let d = get_attr(element, "d").unwrap_or("");
@@ -1208,13 +1075,6 @@ fn convert_path(buf: &mut String, element: &str, ox: f64, oy: f64) {
 
     let fill = get_fill(element);
     let style = get_stroke_style(element);
-    // Java: shapes with gradient fill and no explicit stroke get a default
-    // stroke matching the fill gradient (stroke-width:1)
-    let style = if style.is_empty() && fill.starts_with("url(") {
-        format!("stroke:{fill};stroke-width:1;")
-    } else {
-        style
-    };
 
     write!(buf, r#"<path d="{translated}" fill="{fill}""#).unwrap();
     if !style.is_empty() {
@@ -1252,36 +1112,14 @@ fn convert_text(buf: &mut String, element: &str, ox: f64, oy: f64) {
     let font_size_raw = get_text_attr_or(element, "font-size", "font-size", "14");
     let font_size = font_size_raw.trim_end_matches("px");
     let font_family = font_family_raw;
-    let font_weight_str = get_text_attr_or(element, "font-weight", "font-weight", "");
-    let font_weight: Option<&str> = if font_weight_str.is_empty() {
-        None
-    } else {
-        Some(font_weight_str)
-    };
-    let font_style_str = get_text_attr_or(element, "font-style", "font-style", "");
-    let font_style_attr: Option<&str> = if font_style_str.is_empty() {
-        None
-    } else {
-        Some(font_style_str)
-    };
-    let td_str = get_text_attr_or(element, "text-decoration", "text-decoration", "");
-    let text_decoration: Option<&str> = if td_str.is_empty() {
-        None
-    } else {
-        Some(td_str)
-    };
+    // Java: sprite text always uses Font.PLAIN — no font-weight, font-style,
+    // or text-decoration attributes are emitted.
 
-    // Compute text width using font metrics
+    // Compute text width using font metrics (always plain style)
     let text_content = inner.trim();
     let size = font_size.parse::<f64>().unwrap_or(14.0);
-    let bold = font_weight
-        .map(|w| w == "bold" || w == "700" || w == "800" || w == "900")
-        .unwrap_or(false);
-    let italic = font_style_attr
-        .map(|s| s == "italic" || s == "oblique")
-        .unwrap_or(false);
-    // Java maps "oblique" to "italic" in SVG output
-    let font_style_output = font_style_attr.map(|s| if s == "oblique" { "italic" } else { s });
+    let bold = false;
+    let italic = false;
     let text_length =
         crate::font_metrics::text_width(text_content, font_family, size, bold, italic);
 
@@ -1309,31 +1147,14 @@ fn convert_text(buf: &mut String, element: &str, ox: f64, oy: f64) {
         std::borrow::Cow::Borrowed(text_content)
     };
 
+    // Java: sprite text always uses Font.PLAIN — no font-style, font-weight,
+    // or text-decoration attributes are emitted.
     write!(
         buf,
         r#"<text fill="{fill}" font-family="{font_family}" font-size="{font_size}""#,
     )
     .unwrap();
-    if let Some(fs) = font_style_output {
-        if fs != "normal" {
-            write!(buf, r#" font-style="{fs}""#).unwrap();
-        }
-    }
-    if let Some(fw) = font_weight {
-        // Java does not output font-weight for normal/400 (default)
-        // Java maps "bold" to "700"
-        if fw != "normal" && fw != "400" {
-            let fw_out = if fw == "bold" { "700" } else { fw };
-            write!(buf, r#" font-weight="{fw_out}""#).unwrap();
-        }
-    }
     write!(buf, r#" lengthAdjust="spacing""#).unwrap();
-    if let Some(td) = text_decoration {
-        // Java only supports underline and line-through (not overline or none)
-        if td == "underline" || td == "line-through" {
-            write!(buf, r#" text-decoration="{td}""#).unwrap();
-        }
-    }
     write!(
         buf,
         r#" textLength="{}" x="{}" y="{}">{}</text>"#,
@@ -1836,35 +1657,15 @@ fn get_fill_or(element: &str, default: &str) -> String {
     default.to_string()
 }
 
-/// If the fill is `url(#id)` and the referenced element is a radialGradient,
-/// resolve to the first stop color. Java's SVG sprite renderer doesn't support
-/// radialGradient in SVG output — it uses the first stop color as flat fill.
-/// LinearGradients are kept as `url(#...)` references (they're emitted in <defs>).
+/// Java's `SvgNanoParser` does NOT parse `<defs>` or gradient definitions.
+/// Its regex only matches `svg|path|g|circle|ellipse|text`, so gradient
+/// elements are never stored.  Any `url(#...)` fill reference is unresolvable
+/// and falls back to white (#FFFFFF).
 fn resolve_gradient_url(fill: &str) -> String {
-    if !fill.starts_with("url(#") {
-        return fill.to_string();
+    if fill.starts_with("url(#") {
+        return "#FFFFFF".to_string();
     }
-    let id_end = fill.find(')').unwrap_or(fill.len());
-    let ref_id = &fill[5..id_end];
-
-    SPRITE_DEFS_MAP.with(|map| {
-        let map = map.borrow();
-        if let Some(def) = map.get(ref_id) {
-            if element_tag_name(def) == "radialGradient" {
-                // Extract first stop color
-                if let Some(stop_start) = def.find("stop-color=") {
-                    let rest = &def[stop_start + 12..]; // skip `stop-color="`
-                    if let Some(quote_end) = rest.find('"') {
-                        return rest[..quote_end].to_string();
-                    }
-                }
-                // Fallback: white
-                return "#FFFFFF".to_string();
-            }
-        }
-        // Not a radialGradient or not found — keep as url()
-        fill.to_string()
-    })
+    fill.to_string()
 }
 
 fn get_stroke_style(element: &str) -> String {
@@ -1891,21 +1692,7 @@ fn get_stroke_style(element: &str) -> String {
     parts.join("")
 }
 
-fn parse_points(s: &str, ox: f64, oy: f64) -> Vec<(f64, f64)> {
-    let mut points = Vec::new();
-    let cleaned = s.replace(',', " ");
-    let nums: Vec<f64> = cleaned
-        .split_whitespace()
-        .filter_map(|n| n.parse::<f64>().ok())
-        .collect();
-
-    for pair in nums.chunks(2) {
-        if pair.len() == 2 {
-            points.push((sc(pair[0]) + ox, sc(pair[1]) + oy));
-        }
-    }
-    points
-}
+// NOTE: parse_points removed — only used by convert_polyline/convert_polygon which Java drops.
 
 /// Translate path data by adding offsets to absolute coordinates.
 /// This is a simplified translator that handles common path commands.
@@ -2095,12 +1882,13 @@ mod tests {
     }
 
     #[test]
-    fn test_circle_to_path() {
+    fn test_circle_to_ellipse() {
         let mut buf = String::new();
         let elem = "<circle cx=\"18\" cy=\"18\" r=\"10\" fill=\"#FF0000\"/>";
         convert_circle(&mut buf, elem, 71.3804, 50.2969);
-        assert!(buf.contains("<path"));
-        assert!(buf.contains("A10,10"));
+        assert!(buf.contains("<ellipse"), "expected <ellipse>, got: {buf}");
+        assert!(buf.contains("rx=\"10\""), "expected rx=10, got: {buf}");
+        assert!(buf.contains("ry=\"10\""), "expected ry=10, got: {buf}");
         assert!(buf.contains("fill=\"#FF0000\""));
     }
 

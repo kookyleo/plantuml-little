@@ -1723,7 +1723,7 @@ fn test_creole_mixed001() {
     let svg = convert_fixture("tests/fixtures/misc/creole_mixed001.puml");
     assert_valid_svg(&svg, "creole_mixed001");
     assert!(
-        svg.contains(r#"font-weight="bold""#) || svg.contains(r#"font-weight="700""#),
+        svg.contains(r#"font-weight="bold""#) || svg.contains(r#"font-weight="bold""#),
         "must contain bold formatting"
     );
     assert!(
@@ -1915,12 +1915,8 @@ fn test_sprite_all() {
 fn test_sprite_red_rect_content() {
     let svg = convert_fixture("tests/fixtures/sprite/svgRedRect.puml");
     assert_valid_svg(&svg, "sprite/svgRedRect");
-    // The sprite SVG content should be embedded inline
-    assert!(
-        svg.contains("fill=\"#FF0000\""),
-        "sprite red rect fill color must be embedded"
-    );
-    // The message text around the sprite should be present
+    // Java SvgNanoParser silently drops <rect> elements — red fill is NOT present.
+    // The message text around the sprite should be present.
     assert!(svg.contains("hello"), "must contain text before sprite ref");
     assert!(svg.contains("there"), "must contain text after sprite ref");
 }
@@ -1929,19 +1925,20 @@ fn test_sprite_red_rect_content() {
 fn test_sprite_gradient() {
     let svg = convert_fixture("tests/fixtures/sprite/testGradientSprite.puml");
     assert_valid_svg(&svg, "sprite/testGradientSprite");
+    // Java SvgNanoParser does NOT parse <defs> or gradient definitions.
+    // Gradient references are resolved to the first stop-color.
+    // No linearGradient should be hoisted into the output.
     assert!(
-        svg.contains("linearGradient"),
-        "gradient sprite must contain linearGradient"
+        !svg.contains("linearGradient"),
+        "gradient sprite must NOT contain linearGradient (Java resolves to stop-color)"
     );
 }
 
 #[test]
 fn test_sprite_transform_group() {
     let svg = convert_fixture("tests/fixtures/sprite/svgTransformGroup.puml");
-    // This is an activity diagram with <$groupTest> in action labels
+    // This is an activity diagram with <$groupTest> in action labels.
+    // Java pre-applies transforms to coordinates rather than emitting
+    // SVG transform attributes.
     assert!(svg.contains("<svg"), "must produce valid SVG");
-    assert!(
-        svg.contains("translate(30, 30)"),
-        "sprite transform must be preserved"
-    );
 }
