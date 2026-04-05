@@ -49,7 +49,7 @@ pub fn render_board(_d: &BoardDiagram, l: &BoardLayout, skin: &SkinParams) -> Re
             col.y + 4.0 + baseline,
             Some("sans-serif"),
             FONT_SIZE,
-            Some("700"),
+            Some("bold"),
             None,
             None,
             tw,

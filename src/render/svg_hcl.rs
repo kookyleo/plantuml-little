@@ -49,7 +49,7 @@ pub fn render_hcl(_d: &HclDiagram, layout: &HclLayout, skin: &SkinParams) -> Res
             text_y,
             Some("sans-serif"),
             FONT_SIZE,
-            Some("700"),
+            Some("bold"),
             None,
             None,
             key_tl,

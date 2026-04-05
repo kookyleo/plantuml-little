@@ -2854,7 +2854,7 @@ fn render_span(buf: &mut String, span: &TextSpan, style: SpanStyle, default_fill
         }
         TextSpan::Bold(inner) => {
             let mut style = style;
-            style.font_weight = Some("700");
+            style.font_weight = Some("bold");
             render_spans(buf, inner, &style, default_fill);
         }
         TextSpan::Italic(inner) => {

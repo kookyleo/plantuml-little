@@ -414,8 +414,13 @@ pub fn render_with_source(
         svg = inject_svginteractive(svg, &dtype);
     }
 
-    if let Some(source) = source {
-        svg = inject_plantuml_source(svg, source)?;
+    // Java PlantUML suppresses DOT rendering with a simple notice SVG
+    // that does not include the plantuml-src processing instruction.
+    let is_dot = matches!(diagram, Diagram::Dot(_));
+    if !is_dot {
+        if let Some(source) = source {
+            svg = inject_plantuml_source(svg, source)?;
+        }
     }
 
     Ok(svg)
@@ -3040,7 +3045,7 @@ fn draw_entity_box(
         } else {
             None
         };
-        let font_weight = if name_markup_bold { Some("700") } else { None };
+        let font_weight = if name_markup_bold { Some("bold") } else { None };
         sg.set_fill_color(font_color);
         // Render each name line as a separate <text> element
         for (line_idx, line) in name_block.lines.iter().enumerate() {

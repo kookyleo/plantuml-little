@@ -1177,7 +1177,7 @@ fn render_frame_node(
         label_cy,
         Some("sans-serif"),
         FONT_SIZE - 1.0,
-        Some("700"),
+        Some("bold"),
         None,
         None,
         tl,

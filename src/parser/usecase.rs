@@ -478,21 +478,44 @@ fn try_parse_actor_colon(line: &str) -> Option<UseCaseActor> {
     if !line.starts_with(':') {
         return None;
     }
-    // Activity actions end with `;` or `|` etc.; colon-actors end with `:`
-    if !line.ends_with(':') {
+    // Find the closing colon (the second `:` after the opening one).
+    // Handles both `:Name:` and `:Name: as ALIAS` syntax.
+    let rest = &line[1..];
+    let close_pos = rest.find(':')?;
+    let name = rest[..close_pos].trim();
+    if name.is_empty() {
         return None;
     }
-    let inner = line[1..line.len() - 1].trim();
-    if inner.is_empty() {
-        return None;
+    // Activity actions end with `;` or `|`; colon-actors have a closing `:`
+    // followed by optional `as ALIAS`, stereotype, or color — not `;`.
+    let after_close = rest[close_pos + 1..].trim();
+    if after_close.is_empty() {
+        // Simple `:Name:` form
+        let id = name_to_id(name);
+        return Some(UseCaseActor {
+            id,
+            name: name.to_string(),
+            stereotype: None,
+            color: None,
+        });
     }
-    let id = name_to_id(inner);
-    Some(UseCaseActor {
-        id,
-        name: inner.to_string(),
-        stereotype: None,
-        color: None,
-    })
+    // Check for `as ALIAS` after closing colon
+    let (base, stereotype, color) = parse_stereotype_color(after_close);
+    let base = base.trim();
+    if let Some(alias) = base.strip_prefix("as ") {
+        let alias = alias.trim();
+        if alias.is_empty() {
+            return None;
+        }
+        return Some(UseCaseActor {
+            id: alias.to_string(),
+            name: name.to_string(),
+            stereotype,
+            color,
+        });
+    }
+    // Unrecognized suffix — not a colon-actor
+    None
 }
 
 // ---------------------------------------------------------------------------
@@ -631,8 +654,26 @@ struct LinkParseResult {
 }
 
 /// Try to parse a relationship line.
+/// Normalize a link endpoint reference to its canonical id.
+/// Handles colon-actor syntax `:Name:` and paren-usecase syntax `(Name)`.
+fn normalize_link_endpoint(raw: &str) -> String {
+    let s = raw.trim();
+    // Colon-actor: `:Name:` → name_to_id(Name)
+    if s.starts_with(':') && s.ends_with(':') && s.len() > 2 {
+        let inner = s[1..s.len() - 1].trim();
+        return name_to_id(inner);
+    }
+    // Paren-usecase: `(Name)` → name_to_id(Name)
+    if s.starts_with('(') && s.ends_with(')') && s.len() > 2 {
+        let inner = s[1..s.len() - 1].trim();
+        return name_to_id(inner);
+    }
+    // Already an id (alias)
+    s.to_string()
+}
+
 fn try_parse_link(line: &str) -> Option<UseCaseLink> {
-    // Strategy: split on `:` first to separate arrow+endpoints from label
+    // Strategy: split on ` : ` to separate arrow+endpoints from label
     let (arrow_part, label) = if let Some(colon) = line.find(" : ") {
         (line[..colon].trim(), line[colon + 3..].trim().to_string())
     } else {
@@ -648,8 +689,8 @@ fn try_parse_link(line: &str) -> Option<UseCaseLink> {
     };
 
     Some(UseCaseLink {
-        from: from.trim().to_string(),
-        to: to.trim().to_string(),
+        from: normalize_link_endpoint(&from),
+        to: normalize_link_endpoint(&to),
         label: label.trim().to_string(),
         style: r.style,
         direction_hint: r.direction_hint,

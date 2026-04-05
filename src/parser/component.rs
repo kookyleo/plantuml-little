@@ -18,6 +18,7 @@ enum ParseMode {
         position: String,
         target: Option<String>,
         lines: Vec<String>,
+        start_line: usize,
     },
     /// Inside a `sprite ... { ... }` block (skip)
     SpriteBlock,
@@ -88,15 +89,18 @@ pub fn parse_component_diagram(source: &str) -> Result<ComponentDiagram> {
                 ref position,
                 ref target,
                 ref mut lines,
+                start_line,
             } => {
                 if line == "end note" {
                     let text = lines.join("\n");
                     debug!("line {line_num}: end note block, text={text:?}");
+                    // Java records source_line as start_line + 1 (the first body
+                    // line), not the "end note" line.
                     notes.push(ComponentNote {
                         text,
                         position: position.clone(),
                         target: target.clone(),
-                        source_line: Some(line_num),
+                        source_line: Some(start_line + 1),
                     });
                     mode = ParseMode::Normal;
                 } else {
@@ -206,6 +210,7 @@ pub fn parse_component_diagram(source: &str) -> Result<ComponentDiagram> {
                         position,
                         target,
                         lines: Vec::new(),
+                        start_line: line_num,
                     };
                 }
             }

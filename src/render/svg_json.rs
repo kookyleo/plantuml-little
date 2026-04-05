@@ -79,7 +79,7 @@ fn render_box(sg: &mut SvgGraphic, jbox: &JsonBox) {
                 text_y,
                 Some("sans-serif"),
                 FONT_SIZE,
-                Some("700"),
+                Some("bold"),
                 None,
                 None,
                 key_tl,

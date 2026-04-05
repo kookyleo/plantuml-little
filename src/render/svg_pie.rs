@@ -36,7 +36,7 @@ pub fn render_pie(_d: &PieDiagram, l: &PieLayout, skin: &SkinParams) -> Result<S
             l.title_y,
             Some("sans-serif"),
             FONT_SIZE,
-            Some("700"),
+            Some("bold"),
             None,
             None,
             tw,

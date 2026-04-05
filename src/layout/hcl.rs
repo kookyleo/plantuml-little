@@ -72,8 +72,10 @@ pub fn layout_hcl(d: &HclDiagram) -> Result<HclLayout> {
         });
     }
 
-    let width = MARGIN + box_w + MARGIN;
-    let height = MARGIN + box_h + MARGIN;
+    // +1 accounts for the border stroke (1.5px → ⌈0.75⌉ = 1px overshoot)
+    // matching Java's LimitFinder which tracks stroke extents.
+    let width = MARGIN + box_w + MARGIN + 1.0;
+    let height = MARGIN + box_h + MARGIN + 1.0;
 
     Ok(HclLayout {
         width,
