@@ -70,7 +70,7 @@ const PAD_V: f64 = 10.0;
 /// Vertical gap: parent bottom to connector, and connector to child top
 const EDGE_GAP: f64 = 20.0;
 const NODE_SPACING: f64 = 20.0;
-const MARGIN: f64 = 20.0;
+const MARGIN: f64 = 10.0;
 const NOTE_GAP: f64 = 16.0;
 const MIN_NOTE_WIDTH: f64 = 60.0;
 const MIN_NOTE_HEIGHT: f64 = 28.0;

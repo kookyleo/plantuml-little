@@ -5,6 +5,7 @@
 // - SvgGraphic: low-level SVG element generation (ports SvgGraphics.java)
 // - UGraphicSvg: UGraphic trait implementation for SVG output
 
+use std::cell::Cell;
 use std::collections::HashMap;
 use std::fmt::Write;
 
@@ -14,7 +15,38 @@ use super::geom::USegmentType;
 use super::shape::UPath;
 use super::{UChange, UParam, UStroke, UTranslate};
 
-const PLANTUML_VERSION: &str = "1.2026.3beta5";
+const PLANTUML_VERSION: &str = "1.2026.2";
+
+thread_local! {
+    static SVG_ID_SEED_OVERRIDE: Cell<Option<u64>> = const { Cell::new(None) };
+}
+
+/// Java: `StringUtils.seed(source.getPlainString("\n"))`.
+pub fn java_source_seed(source: &str) -> i64 {
+    let mut h: i64 = 1125899906842597;
+    for ch in source.chars() {
+        h = h.wrapping_mul(31).wrapping_add(ch as i64);
+    }
+    h
+}
+
+/// Override SVG id generation so filter/shadow ids use the Java source seed.
+pub fn set_svg_id_seed_override(seed: Option<i64>) {
+    SVG_ID_SEED_OVERRIDE.with(|cell| cell.set(seed.map(i64::unsigned_abs)));
+}
+
+pub fn current_shadow_id() -> String {
+    format!("f{}", current_seed_string())
+}
+
+pub fn current_filter_uid_prefix() -> String {
+    format!("b{}", current_seed_string())
+}
+
+fn current_seed_string() -> String {
+    let seed = SVG_ID_SEED_OVERRIDE.with(|cell| cell.get()).unwrap_or(0);
+    SvgGraphic::format_seed(seed)
+}
 
 // ── Number formatting ───────────────────────────────────────────────
 
@@ -181,6 +213,11 @@ enum GroupEntry {
 impl SvgGraphic {
     /// Create a new SvgGraphic with the given seed for unique IDs.
     pub fn new(seed: u64, scale: f64) -> Self {
+        let seed = if seed == 0 {
+            SVG_ID_SEED_OVERRIDE.with(|cell| cell.get()).unwrap_or(0)
+        } else {
+            seed
+        };
         let seed_str = Self::format_seed(seed);
         Self {
             buf: String::with_capacity(4096),
@@ -816,9 +853,8 @@ impl SvgGraphic {
         }
 
         if let Some(weight) = font_weight {
-            // Java maps "bold" to numeric "700"
-            let w = if weight == "bold" { "700" } else { weight };
-            write!(elt, " font-weight=\"{}\"", w).unwrap();
+            // Stable PlantUML 1.2026.2 emits the keyword form, not numeric 700.
+            write!(elt, " font-weight=\"{}\"", weight).unwrap();
         }
 
         match length_adjust {
@@ -944,6 +980,7 @@ impl SvgGraphic {
         let mut svg = String::with_capacity(self.buf.len() + self.defs.len() + 512);
 
         // SVG root element with attributes in alphabetical order
+        write!(svg, "<?plantuml {}?>", PLANTUML_VERSION).unwrap();
         svg.push_str("<svg xmlns=\"http://www.w3.org/2000/svg\"");
         svg.push_str(" xmlns:xlink=\"http://www.w3.org/1999/xlink\"");
         svg.push_str(" contentStyleType=\"text/css\"");
@@ -965,9 +1002,6 @@ impl SvgGraphic {
         write!(svg, " viewBox=\"0 0 {} {}\"", max_x_scaled, max_y_scaled).unwrap();
         write!(svg, " width=\"{}px\"", max_x_scaled).unwrap();
         svg.push_str(" zoomAndPan=\"magnify\">");
-
-        // PlantUML version PI
-        write!(svg, "<?plantuml {}?>", PLANTUML_VERSION).unwrap();
 
         // Defs
         if !self.defs.is_empty() {
@@ -1182,7 +1216,7 @@ impl super::UGraphic for UGraphicSvg {
                 .calculate_dimension(font_family, font_size, bold, italic, text);
         let text_length = dim.width;
 
-        let font_weight = if bold { Some("700") } else { Option::None };
+        let font_weight = if bold { Some("bold") } else { Option::None };
         let font_style = if italic { Some("italic") } else { Option::None };
 
         self.svg.svg_text(
@@ -1559,7 +1593,7 @@ mod tests {
             0.0,
             Some("sans-serif"),
             14.0,
-            Some("700"),
+            Some("bold"),
             Some("italic"),
             None,
             20.0,
@@ -1570,7 +1604,7 @@ mod tests {
         );
         let body = svg.body();
         assert!(body.contains("font-style=\"italic\""));
-        assert!(body.contains("font-weight=\"700\""));
+        assert!(body.contains("font-weight=\"bold\""));
     }
 
     #[test]
@@ -1768,7 +1802,8 @@ mod tests {
         svg.svg_rectangle(5.0, 5.0, 47.667, 30.2969, 2.5, 2.5, 0.0);
 
         let doc = svg.to_svg(Some("#FFFFFF"), "SEQUENCE");
-        assert!(doc.starts_with("<svg xmlns=\"http://www.w3.org/2000/svg\""));
+        assert!(doc.starts_with("<?plantuml "));
+        assert!(doc.contains("<svg xmlns=\"http://www.w3.org/2000/svg\""));
         assert!(doc.contains("xmlns:xlink=\"http://www.w3.org/1999/xlink\""));
         assert!(doc.contains("contentStyleType=\"text/css\""));
         assert!(doc.contains("data-diagram-type=\"SEQUENCE\""));
