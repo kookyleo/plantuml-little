@@ -151,8 +151,8 @@ const NOTE_MARGIN_Y: f64 = 5.0;
 /// calculation via note margins, not by the placement gap itself.
 const NOTE_OFFSET: f64 = 10.0;
 const SWIMLANE_MIN_WIDTH: f64 = 80.0;
-const TOP_MARGIN: f64 = 16.0;
-const BOTTOM_MARGIN: f64 = 16.0;
+const TOP_MARGIN: f64 = 11.0;
+const BOTTOM_MARGIN: f64 = 7.0;
 const SWIMLANE_HEADER_FONT_SIZE: f64 = 18.0;
 /// Java activity cross-swimlane connections keep a short fixed vertical stub
 /// before the horizontal transfer instead of routing at the arithmetic midline.
@@ -1398,7 +1398,7 @@ pub fn layout_activity(diagram: &ActivityDiagram) -> Result<ActivityLayout> {
         // Java internal lane lines start at x≈5; SVG renders them at x≈20
         // due to framework-level MinMax offset (~15px).  We apply the combined
         // left_divider + framework offset directly.
-        let global_margin = 10.0;
+        let global_margin = 5.0;
         let mut x = left_divider + global_margin;
         for i in 0..n_lanes {
             let needed = lane_widths[i];
