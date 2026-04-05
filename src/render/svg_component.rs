@@ -2854,7 +2854,7 @@ mod tests {
         });
         let svg =
             render_component(&diagram, &layout, &SkinParams::default()).expect("render failed");
-        assert!(svg.contains(r#"font-weight="700""#));
+        assert!(svg.contains(r#"font-weight="bold""#));
         assert!(svg.contains(r#"href="https://example.com""#));
         assert!(svg.contains(r#"title="hover""#));
         assert!(svg.contains("label"));
@@ -2903,7 +2903,7 @@ mod tests {
         let svg =
             render_component(&diagram, &layout, &SkinParams::default()).expect("render failed");
 
-        assert!(svg.starts_with("<svg"), "SVG must start with <svg");
+        assert!(svg.starts_with("<?plantuml "), "SVG must start with plantuml PI");
         assert!(svg.contains("</svg>"), "SVG must end with </svg>");
         assert!(
             svg.contains("viewBox=\"0 0 400 300\""),

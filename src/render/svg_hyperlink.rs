@@ -150,8 +150,8 @@ mod tests {
             tooltip: Some("tip".into()),
             label: None,
         };
-        let result = render_linked_text("hi", 5.0, 15.0, &link, r#"font-weight="700""#);
-        assert!(result.contains(r#"font-weight="700""#));
+        let result = render_linked_text("hi", 5.0, 15.0, &link, r#"font-weight="bold""#);
+        assert!(result.contains(r#"font-weight="bold""#));
         assert!(result.contains("<title>tip</title>"));
     }
 

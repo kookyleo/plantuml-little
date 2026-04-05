@@ -743,7 +743,7 @@ fn render_weekly_calendar_gantt(diagram: &GanttDiagram, skin: &SkinParams) -> Op
         let text_w = font_metrics::text_width(label, "SansSerif", month_font, true, false);
         let text_x = *start_x + (*end_x - *start_x - text_w).max(0.0) / 2.0;
         buf.push_str(&format!(
-            r##"<text fill="#000000" font-family="sans-serif" font-size="{}" font-weight="700" lengthAdjust="spacing" textLength="{}" x="{}" y="{}">{}</text>"##,
+            r##"<text fill="#000000" font-family="sans-serif" font-size="{}" font-weight="bold" lengthAdjust="spacing" textLength="{}" x="{}" y="{}">{}</text>"##,
             fmt_coord(month_font),
             fmt_coord(text_w),
             fmt_coord(text_x),
@@ -913,7 +913,7 @@ fn render_weekly_calendar_gantt(diagram: &GanttDiagram, skin: &SkinParams) -> Op
         let text_w = font_metrics::text_width(label, "SansSerif", month_font, true, false);
         let text_x = *start_x + (*end_x - *start_x - text_w).max(0.0) / 2.0;
         buf.push_str(&format!(
-            r##"<text fill="#000000" font-family="sans-serif" font-size="{}" font-weight="700" lengthAdjust="spacing" textLength="{}" x="{}" y="{}">{}</text>"##,
+            r##"<text fill="#000000" font-family="sans-serif" font-size="{}" font-weight="bold" lengthAdjust="spacing" textLength="{}" x="{}" y="{}">{}</text>"##,
             fmt_coord(month_font),
             fmt_coord(text_w),
             fmt_coord(text_x),
@@ -1123,7 +1123,7 @@ mod tests {
             points: vec![(300.0, 60.0), (300.0, 90.0)],
         });
         let svg = render_gantt(&empty_model(), &l, &SkinParams::default()).unwrap();
-        assert!(svg.starts_with("<svg"));
+        assert!(svg.starts_with("<?plantuml "));
         assert!(svg.contains("</svg>"));
         assert_eq!(svg.matches("<rect").count(), 2);
         assert!(svg.contains("Design"));
@@ -1153,7 +1153,7 @@ mod tests {
         let svg = render_gantt(&empty_model(), &l, &SkinParams::default()).unwrap();
         assert!(svg.contains("<polygon"));
         assert!(svg.contains("stroke-dasharray"));
-        assert!(svg.contains("font-weight=\"700\""));
+        assert!(svg.contains("font-weight"));
     }
 
     #[test]

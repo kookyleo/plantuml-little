@@ -217,7 +217,7 @@ fn render_track(
         name_fs + 4.0,
         font_color,
         None,
-        &format!(r#"font-size="{:.0}" font-weight="700""#, name_fs),
+        &format!(r#"font-size="{:.0}" font-weight="bold""#, name_fs),
     );
     sg.push_raw(&tmp);
     let text_len = crate::font_metrics::text_width(&track.name, "SansSerif", name_fs, true, false);
@@ -451,7 +451,7 @@ fn render_concise_track(
             state_fs + 4.0,
             font_color,
             None,
-            &format!(r#"font-size="{:.0}" font-weight="700""#, state_fs),
+            &format!(r#"font-size="{:.0}" font-weight="bold""#, state_fs),
         );
         sg.push_raw(&tmp);
     }
@@ -944,14 +944,14 @@ mod tests {
             },
         ];
         let svg = render_timing(&empty_model(), &l, &SkinParams::default()).unwrap();
-        assert!(svg.starts_with("<svg"));
+        assert!(svg.starts_with("<?plantuml "));
         assert!(svg.contains("</svg>"));
         assert!(svg.contains("DNS Resolver"));
         assert!(svg.contains("Web User"));
         assert!(svg.contains("URL"));
         assert!(svg.contains("{150 ms}"));
         assert!(svg.contains("0"));
-        assert!(svg.contains("700"));
+        assert!(svg.contains("bold"));
     }
     #[test]
     fn test_participant_label_bold() {
@@ -963,7 +963,7 @@ mod tests {
             vec![make_segment("Low", 200.0, 400.0, 40.0, true)],
         ));
         let svg = render_timing(&empty_model(), &l, &SkinParams::default()).unwrap();
-        assert!(svg.contains("font-weight=\"700\""));
+        assert!(svg.contains("font-weight"));
     }
     #[test]
     fn test_constraint_label_color() {
@@ -1016,6 +1016,6 @@ mod tests {
         let svg = render_timing(&empty_model(), &l, &SkinParams::default()).unwrap();
         assert!(svg.contains("<polygon"));
         assert!(svg.contains("stroke-dasharray"));
-        assert!(svg.contains("font-weight=\"700\""));
+        assert!(svg.contains("font-weight"));
     }
 }

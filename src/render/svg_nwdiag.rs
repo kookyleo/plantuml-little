@@ -39,7 +39,7 @@ pub fn render_nwdiag(
             LINE_HEIGHT,
             skin.font_color("nwdiag", TEXT_COLOR),
             Some("middle"),
-            r#"font-size="14" font-weight="700""#,
+            r#"font-size="14" font-weight="bold""#,
         );
         sg.push_raw(&tmp);
     }
@@ -95,7 +95,7 @@ fn render_network(sg: &mut SvgGraphic, network: &NwdiagNetworkLayout, skin: &Ski
         LINE_HEIGHT,
         font,
         None,
-        r#"font-size="14" font-weight="700""#,
+        r#"font-size="14" font-weight="bold""#,
     );
     sg.push_raw(&tmp);
 

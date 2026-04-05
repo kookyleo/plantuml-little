@@ -2296,7 +2296,11 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
     let lifeline_top = MARGIN + max_participant_height + 1.0;
     let lifeline_bottom = lifeline_extend_y;
 
-    let right_margin = 2.0 * MARGIN;
+    // Java DrawableSetInitializer tracks `freeX` directly and then ImageBuilder
+    // adds the document right margin once. The classic layout here already
+    // carries the left-side `MARGIN`, so only one trailing `MARGIN` belongs in
+    // the raw body width.
+    let right_margin = MARGIN;
     let mut total_width = participants
         .last()
         .map_or(2.0 * MARGIN, |p| p.x + effective_widths.last().unwrap_or(&p.box_width) / 2.0 + right_margin);
@@ -2357,11 +2361,29 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
         }
     }
 
-    // Expand total_width if any fragment extends beyond participants
+    // Expand total_width if any fragment extends beyond participants.
+    // Java's final SVG width is the fragment right edge plus the document
+    // right margin. The fragment geometry already includes its own 10px
+    // in-group padding, so adding FRAGMENT_PADDING here double-counts it and
+    // widens fragment-heavy diagrams by ~10px.
     for frag in &fragments {
-        let frag_right = frag.x + frag.width + MARGIN + FRAGMENT_PADDING;
+        // Fragments with `else` separators also draw a dashed line whose maxX
+        // reaches the raw frame right edge (not the rectangle's `x+w-1`
+        // LimitFinder semantics). Java's final dimension therefore picks up
+        // one extra pixel before the trailing document margin for these cases.
+        let separator_extra = if frag.separators.is_empty() { 0.0 } else { 1.0 };
+        let frag_right = frag.x + frag.width + MARGIN + separator_extra;
         if frag_right > total_width {
             total_width = frag_right;
+        }
+    }
+
+    // Ref frames contribute their visible right edge plus the same trailing
+    // document margin as the rest of the sequence body.
+    for r in &refs {
+        let ref_right = r.x + r.width + MARGIN;
+        if ref_right > total_width {
+            total_width = ref_right;
         }
     }
 
@@ -2549,8 +2571,9 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
         }
     }
 
-    // Tail box at lifeline_bottom - 1, then add box height + bottom margin (~7)
-    let total_height = (lifeline_bottom - 1.0) + max_participant_height + 7.0;
+    // Java DrawableSetInitializer.getTotalHeight() = freeY + tailHeight.
+    // For the stable Puma2 SVG baseline, the trailing tail/margin budget is 5px.
+    let total_height = (lifeline_bottom - 1.0) + max_participant_height + 5.0;
 
     // Close any remaining fragments (unmatched)
     for fse in fragment_stack.drain(..) {

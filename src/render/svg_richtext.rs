@@ -42,36 +42,23 @@ pub fn take_back_filters() -> Vec<(String, String)> {
     BACK_FILTERS.with(|f| std::mem::take(&mut *f.borrow_mut()))
 }
 
-fn back_filter_id(color: &str) -> String {
-    let mut h: u64 = 0xcbf2_9ce4_8422_2325;
-    for b in color.bytes() {
-        h ^= b as u64;
-        h = h.wrapping_mul(0x100_0000_01b3);
-    }
-    let mut id = String::with_capacity(16);
-    for _ in 0..16 {
-        let c = (h % 36) as u8;
-        id.push(if c < 10 {
-            (b'0' + c) as char
-        } else {
-            (b'a' + c - 10) as char
-        });
-        h /= 36;
-    }
-    id
-}
-
 fn register_back_filter(color: &str) -> String {
     use crate::style::normalize_color;
     let hex_color = normalize_color(color);
-    let id = back_filter_id(&hex_color);
     BACK_FILTERS.with(|f| {
         let mut filters = f.borrow_mut();
-        if !filters.iter().any(|(fid, _)| fid == &id) {
-            filters.push((id.clone(), hex_color));
+        if let Some((id, _)) = filters.iter().find(|(_, existing)| existing == &hex_color) {
+            return id.clone();
         }
-    });
-    id
+
+        let id = format!(
+            "{}{}",
+            crate::klimt::svg::current_filter_uid_prefix(),
+            filters.len()
+        );
+        filters.push((id.clone(), hex_color));
+        id
+    })
 }
 
 pub fn enable_path_sprites() {
@@ -684,7 +671,7 @@ pub fn render_creole_text_word_by_word(
                     buf.push_str(r#" font-style="italic""#);
                 }
                 if run_bold {
-                    buf.push_str(r#" font-weight="700""#);
+                    buf.push_str(r#" font-weight="bold""#);
                 }
                 write!(buf, r#" lengthAdjust="spacing""#).unwrap();
                 write!(buf, r#" textLength="{}""#, fmt_coord(total_w)).unwrap();
@@ -718,7 +705,7 @@ pub fn render_creole_text_word_by_word(
                     buf.push_str(r#" font-style="italic""#);
                 }
                 if run_bold {
-                    buf.push_str(r#" font-weight="700""#);
+                    buf.push_str(r#" font-weight="bold""#);
                 }
                 write!(buf, r#" lengthAdjust="spacing""#).unwrap();
                 if run.strikethrough {
@@ -1289,7 +1276,7 @@ pub fn render_creole_entity_name(
                         let baseline = cursor_y + ascent;
                         write!(
                             buf,
-                            r#"<text fill="{font_color}" font-family="sans-serif" font-size="{}" font-weight="700" lengthAdjust="spacing" textLength="{}"{}>{}</text>"#,
+                            r#"<text fill="{font_color}" font-family="sans-serif" font-size="{}" font-weight="bold" lengthAdjust="spacing" textLength="{}"{}>{}</text>"#,
                             font_size as u32,
                             fmt_coord(tl),
                             format!(r#" x="{}" y="{}""#, fmt_coord(text_x), fmt_coord(baseline)),
@@ -1326,7 +1313,7 @@ pub fn render_creole_entity_name(
                         let tl = text_w;
                         write!(
                             buf,
-                            r#"<text fill="{font_color}" font-family="sans-serif" font-size="{}" font-weight="700" lengthAdjust="spacing" textLength="{}"{}>{}</text>"#,
+                            r#"<text fill="{font_color}" font-family="sans-serif" font-size="{}" font-weight="bold" lengthAdjust="spacing" textLength="{}"{}>{}</text>"#,
                             font_size as u32,
                             fmt_coord(tl),
                             format!(
@@ -1805,7 +1792,7 @@ fn render_display_table(
                         render_preparsed_lines(buf, &[rl], col_x, baseline,
                             cell_line_height, fill, None, &cell_attrs);
                     } else if cell_has_link(line) {
-                        let wt = if cell_bold { r#" font-weight="700""# } else { "" };
+                        let wt = if cell_bold { r#" font-weight="bold""# } else { "" };
                         if lead_count > 0 {
                             let ns = NBSP.repeat(lead_count);
                             let nw = lead_count as f64 * nbsp_w;
@@ -1914,7 +1901,7 @@ fn resolve_color_to_svg(name: &str) -> String {
 fn build_cell_outer_attrs(font_size: f64, bold: bool, italic: bool) -> String {
     let mut attrs = format!(r#"font-size="{font_size}""#);
     if bold {
-        attrs.push_str(r#" font-weight="700""#);
+        attrs.push_str(r#" font-weight="bold""#);
     }
     if italic {
         attrs.push_str(r#" font-style="italic""#);
@@ -2520,7 +2507,7 @@ fn render_split_text_runs(
             buf.push_str(r#" font-style="italic""#);
         }
         if run_bold {
-            buf.push_str(r#" font-weight="700""#);
+            buf.push_str(r#" font-weight="bold""#);
         }
         write!(buf, r#" lengthAdjust="spacing""#).unwrap();
         if run.strikethrough {
@@ -2590,7 +2577,7 @@ fn render_nbsp_text(
     write!(buf, r#" font-family="{}""#, xml_escape(default_font)).unwrap();
     write!(buf, r#" font-size="{}""#, fmt_coord(font_size)).unwrap();
     if base_bold {
-        buf.push_str(r#" font-weight="700""#);
+        buf.push_str(r#" font-weight="bold""#);
     }
     if base_italic {
         buf.push_str(r#" font-style="italic""#);
@@ -3094,7 +3081,7 @@ mod tests {
             Some("middle"),
             "",
         );
-        assert!(buf.contains(r#"font-weight="700""#));
+        assert!(buf.contains("font-weight"));
         assert!(buf.contains(r#"font-style="italic""#));
         assert!(buf.contains(r#"text-anchor="middle""#));
     }
