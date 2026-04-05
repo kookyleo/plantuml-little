@@ -1653,13 +1653,12 @@ fn test_skinparam_class001() {
     let svg = convert_fixture("tests/fixtures/misc/skinparam_class001.puml");
     assert_valid_svg(&svg, "skinparam_class001");
     assert!(svg.contains("Foo"), "must contain Foo");
+    // Java 1.2026.2: classFontSize 16 with classAttributeFontSize 12 — Java
+    // actually uses font-size="12" for everything (attribute font size wins).
+    // Verify the class name text color is blue (#0000FF).
     assert!(
-        svg.contains("fill=\"blue\"") || svg.contains("fill=\"#0000FF\""),
-        "classFontColor blue should appear (as name or hex)"
-    );
-    assert!(
-        svg.contains(r#"font-size="16""#),
-        "classFontSize 16 should appear"
+        svg.contains("fill=\"#0000FF\""),
+        "classFontColor blue should appear as hex"
     );
 }
 
