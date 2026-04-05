@@ -103,7 +103,11 @@ pub fn render_erd(_ed: &ErdDiagram, layout: &ErdLayout, skin: &SkinParams) -> Re
                     .get(&le.source_order)
                     .copied()
                     .unwrap_or(0);
-                render_edge(&mut sg, le, link_uid, &layout.svek_node_uids);
+                let source_line = layout.link_source_lines
+                    .get(&le.source_order)
+                    .copied()
+                    .unwrap_or(link_uid);
+                render_edge(&mut sg, le, link_uid, source_line, &layout.svek_node_uids);
             }
             EdgeItem::IsaEdges(isa) => {
                 render_isa_edges(&mut sg, isa, &layout.svek_node_uids);
@@ -350,6 +354,7 @@ fn render_edge(
     sg: &mut SvgGraphic,
     edge: &ErdEdgeLayout,
     link_uid: usize,
+    source_line: usize,
     uid_map: &std::collections::HashMap<String, usize>,
 ) {
     let (x1, y1) = edge.from_point;
@@ -367,7 +372,7 @@ fn render_edge(
     let ent_to = format!("ent{:04}", to_uid);
     sg.push_raw(&format!(
         r#"<g class="link" data-entity-1="{}" data-entity-2="{}" data-link-type="association" data-source-line="{}" id="lnk{}">"#,
-        ent_from, ent_to, link_uid, link_uid
+        ent_from, ent_to, source_line, link_uid
     ));
     // Java: double-line edges (=) use goBold() → stroke-width:2 on the curve path.
     let stroke_w = if edge.is_double { 2 } else { 1 };
@@ -778,6 +783,7 @@ mod tests {
             height: 300.0,
             svek_node_uids: std::collections::HashMap::new(),
             link_uids: std::collections::HashMap::new(),
+            link_source_lines: std::collections::HashMap::new(),
         }
     }
     fn make_entity_node(id: &str, x: f64, y: f64, w: f64, h: f64) -> ErdNodeLayout {

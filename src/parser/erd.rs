@@ -10,6 +10,17 @@ use crate::Result;
 pub fn parse_erd_diagram(source: &str) -> Result<ErdDiagram> {
     let block = super::common::extract_block(source).unwrap_or_else(|| source.to_string());
 
+    // Compute the 0-indexed line offset where the block body starts in the full source.
+    // extract_block skips the @start... line, so body starts at line 1 (0-indexed).
+    let block_line_offset: usize = source
+        .lines()
+        .position(|l| {
+            let t = l.trim();
+            t.starts_with("@startchen") || t.starts_with("@startuml")
+        })
+        .map(|p| p + 1)
+        .unwrap_or(0);
+
     let mut entities: Vec<ErdEntity> = Vec::new();
     let mut relationships: Vec<ErdRelationship> = Vec::new();
     let mut links: Vec<ErdLink> = Vec::new();
@@ -112,7 +123,7 @@ pub fn parse_erd_diagram(source: &str) -> Result<ErdDiagram> {
             continue;
         }
 
-        if try_parse_link(trimmed, &mut links, source_order_counter) {
+        if try_parse_link(trimmed, &mut links, source_order_counter, i + block_line_offset) {
             trace!("erd parser: parsed link line: {trimmed}");
             source_order_counter += 1;
             i += 1;
@@ -623,7 +634,7 @@ fn try_split_isa_connector<'a>(s: &'a str, connector: &str) -> Option<(&'a str, 
 ///   `FROM =N= TO`   (double-line)
 ///   `FROM ->- TO`    (ISA arrow - already handled above, but ->- without d/U is a link)
 ///   `FROM -<- TO`    (reverse ISA arrow)
-fn try_parse_link(line: &str, links: &mut Vec<ErdLink>, source_order: usize) -> bool {
+fn try_parse_link(line: &str, links: &mut Vec<ErdLink>, source_order: usize, source_line: usize) -> bool {
     let trimmed = line.trim();
 
     // Match link connectors: single `-X-` or double `=X=`
@@ -639,6 +650,7 @@ fn try_parse_link(line: &str, links: &mut Vec<ErdLink>, source_order: usize) -> 
     // Find double-line links first: `=X=`
     if let Some(mut link) = try_parse_link_pattern(trimmed, true) {
         link.source_order = source_order;
+        link.source_line = source_line;
         links.push(link);
         return true;
     }
@@ -646,6 +658,7 @@ fn try_parse_link(line: &str, links: &mut Vec<ErdLink>, source_order: usize) -> 
     // Single-line links: `-X-`
     if let Some(mut link) = try_parse_link_pattern(trimmed, false) {
         link.source_order = source_order;
+        link.source_line = source_line;
         links.push(link);
         return true;
     }
@@ -724,6 +737,7 @@ fn try_parse_link_pattern(line: &str, is_double: bool) -> Option<ErdLink> {
         color,
         isa_arrow,
         source_order: 0, // set by caller
+        source_line: 0,  // set by caller
     })
 }
 

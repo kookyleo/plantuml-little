@@ -926,7 +926,8 @@ fn estimate_object_size(entity: &Entity, attr_font_size: f64) -> (f64, f64) {
     let title_height = name_block_height;
     let vf: Vec<&Member> = entity.members.iter().filter(|m| !m.is_method).collect();
     let (body_width, body_height) = if entity.kind == EntityKind::Map && !entity.map_entries.is_empty() {
-        let mx = 7.0; let (mut ca, mut cb): (f64, f64) = (0.0, 0.0);
+        // Java TextBlockMap: withMargin(result, 5, 2) → 5px left + 5px right = 10px per column
+        let mx = 10.0; let (mut ca, mut cb): (f64, f64) = (0.0, 0.0);
         // Java EntityImageMap: each row is wrapped in withMargin(text, 2, 2)
         // adding 4px vertical margin per row.
         let rh = font_metrics::line_height("SansSerif", attr_font_size, false, false) + 4.0;

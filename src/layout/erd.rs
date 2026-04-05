@@ -37,6 +37,8 @@ pub struct ErdLayout {
     pub svek_node_uids: HashMap<String, usize>,
     /// Map from link source_order to its uid in the DOT model.
     pub link_uids: HashMap<usize, usize>,
+    /// Map from link source_order to its 0-indexed source line in the full source.
+    pub link_source_lines: HashMap<usize, usize>,
 }
 
 /// A graphviz-routed edge connecting an attribute to its parent.
@@ -675,9 +677,10 @@ pub fn layout_erd(diagram: &ErdDiagram) -> Result<ErdLayout> {
     // one uid slot. UIDs start at 2 (first 2 reserved for diagram metadata).
     // Order: for each entity/relationship in source order, add the node,
     // then its attributes (each attr node + attr edge pair), then link edges.
-    let (svek_node_uids, link_uids, isa_edge_uids) = {
+    let (svek_node_uids, link_uids, link_source_lines, isa_edge_uids) = {
         let mut uid_map: HashMap<String, usize> = HashMap::new();
         let mut lnk_uids: HashMap<usize, usize> = HashMap::new();
+        let mut lnk_source_lines: HashMap<usize, usize> = HashMap::new();
         let mut isa_edge_uids: HashMap<usize, (usize, Vec<usize>)> = HashMap::new();
         let mut uid = 2usize;
 
@@ -749,6 +752,7 @@ pub fn layout_erd(diagram: &ErdDiagram) -> Result<ErdLayout> {
                 }
                 UidItem::Link(l) => {
                     lnk_uids.insert(l.source_order, uid);
+                    lnk_source_lines.insert(l.source_order, l.source_line);
                     uid += 1; // link edge consumes one uid
                 }
                 UidItem::Isa(isa) => {
@@ -773,7 +777,7 @@ pub fn layout_erd(diagram: &ErdDiagram) -> Result<ErdLayout> {
                 }
             }
         }
-        (uid_map, lnk_uids, isa_edge_uids)
+        (uid_map, lnk_uids, lnk_source_lines, isa_edge_uids)
     };
 
     let graph = LayoutGraph {
@@ -1149,6 +1153,7 @@ pub fn layout_erd(diagram: &ErdDiagram) -> Result<ErdLayout> {
         height,
         svek_node_uids,
         link_uids,
+        link_source_lines,
     })
 }
 
@@ -1435,6 +1440,7 @@ mod tests {
             color: None,
             isa_arrow: None,
             source_order: 0,
+            source_line: 0,
         }
     }
 
@@ -1637,6 +1643,7 @@ mod tests {
                 color: None,
                 isa_arrow: None,
                 source_order: 2,
+                source_line: 0,
             }],
             ..empty_diagram()
         };

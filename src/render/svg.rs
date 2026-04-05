@@ -203,6 +203,14 @@ pub(crate) fn write_svg_root_bg(buf: &mut String, w: f64, h: f64, diagram_type: 
     write_svg_root_bg_opt(buf, w, h, Some(diagram_type), bg);
 }
 
+/// Write an SVG `<title>` element (the document-level title, not a visible element).
+/// Java emits this via `SvgGraphics` when the diagram has a `title` directive.
+/// Must be called right after `write_svg_root_bg*`, before `<defs/>`.
+pub(crate) fn write_svg_title(buf: &mut String, title: &str) {
+    use crate::klimt::svg::xml_escape;
+    write!(buf, "<title>{}</title>", xml_escape(title)).unwrap();
+}
+
 /// Java `SvgGraphics.ensureVisible` truncation: `maxX = (int)(x + 1)`.
 /// Converts a floating-point dimension to the integer viewport value used by
 /// Java PlantUML.  Callers must pass the RAW dimension BEFORE the +1 truncation.
@@ -1412,6 +1420,14 @@ fn wrap_with_meta(
     // ── 4. Render SVG ──────────────────────────────────────────────
     let mut buf = String::with_capacity(body_svg.len() + 2048);
     write_svg_root_bg(&mut buf, canvas_w, canvas_h, diagram_type, bg);
+    // SVG document title (metadata, not the visible title block)
+    // Java joins multi-line title Display with "\n" and XML-escapes it for the <title> element.
+    // The raw text is used, preserving link/table markup — creole is NOT stripped.
+    if let Some(ref t) = meta.title {
+        if !t.is_empty() {
+            write_svg_title(&mut buf, t);
+        }
+    }
     buf.push_str("<defs/><g>");
     write_bg_rect(&mut buf, canvas_w, canvas_h, bg);
 
@@ -1449,8 +1465,12 @@ fn wrap_with_meta(
 
     // Title (CENTER-aligned)
     if let Some(ref title) = meta.title {
+        // Java centres the title using the full bordered dimension but its
+        // centering arithmetic effectively adds an extra 1px to the title
+        // block width. Compensate to avoid a 0.5px offset.
+        let title_center_w = title_dim.0 + BORDERED_EXTRA;
         let title_block_x =
-            outer_inner_x + cap_inner_x + ((after_title.0 - title_dim.0) / 2.0).max(0.0);
+            outer_inner_x + cap_inner_x + ((after_title.0 - title_center_w) / 2.0).max(0.0);
         let text_x = title_block_x + TITLE_MARGIN + TITLE_PADDING;
         let text_y = meta_dy
             + hdr_dim.1
@@ -3273,8 +3293,25 @@ fn draw_object_box(
     const OBJ_NAME_MARGIN: f64 = 2.0;
 
     let class_font_size = skin.font_size("class", FONT_SIZE);
-    let name_width =
-        font_metrics::text_width(&entity.name, "SansSerif", class_font_size, false, false);
+    // Use display_name (from `as Alias` syntax) — it includes the "Map" keyword for map entities.
+    let nd = entity
+        .display_name
+        .as_deref()
+        .unwrap_or(&entity.name);
+    let has_creole = nd.contains("**") || nd.contains("//");
+    let name_width = if has_creole {
+        crate::render::svg_richtext::measure_creole_display_lines(
+            &[nd.to_string()],
+            "SansSerif",
+            class_font_size,
+            false,
+            false,
+            false,
+        )
+        .0
+    } else {
+        font_metrics::text_width(nd, "SansSerif", class_font_size, false, false)
+    };
     let name_block_width = name_width + 2.0 * OBJ_NAME_MARGIN;
     let name_block_height = HEADER_NAME_BLOCK_HEIGHT + 2.0 * OBJ_NAME_MARGIN;
 
@@ -3284,22 +3321,39 @@ fn draw_object_box(
     let text_x = x + name_offset_x + OBJ_NAME_MARGIN;
     let text_y = y + OBJ_NAME_MARGIN + HEADER_NAME_BASELINE;
 
-    sg.set_fill_color(font_color);
-    sg.svg_text(
-        &entity.name,
-        text_x,
-        text_y,
-        Some("sans-serif"),
-        class_font_size,
-        None,
-        None,
-        None,
-        name_width,
-        LengthAdjust::Spacing,
-        None,
-        0,
-        None,
-    );
+    if has_creole {
+        // Render with creole richtext support (handles **bold**, //italic//, etc.)
+        let outer_attrs = format!(r#"font-size="{}""#, class_font_size as i32);
+        let mut tmp = String::new();
+        render_creole_text(
+            &mut tmp,
+            nd,
+            text_x,
+            text_y,
+            text_block_h(class_font_size, false),
+            font_color,
+            None,
+            &outer_attrs,
+        );
+        sg.push_raw(&tmp);
+    } else {
+        sg.set_fill_color(font_color);
+        sg.svg_text(
+            nd,
+            text_x,
+            text_y,
+            Some("sans-serif"),
+            class_font_size,
+            None,
+            None,
+            None,
+            name_width,
+            LengthAdjust::Spacing,
+            None,
+            0,
+            None,
+        );
+    }
     tracker.track_rect(
         text_x,
         text_y - HEADER_NAME_BASELINE,
@@ -3321,9 +3375,10 @@ fn draw_object_box(
         let row_margin = 4.0; // withMargin(2,2) → 2 top + 2 bottom
         let row_h = text_line_h + row_margin;
         let ascent = font_metrics::ascent("SansSerif", attr_font_size, false, false);
-        let cell_margin_left = 5.0;
+        // Java TextBlockMap: withMargin(result, 5, 2) → 5px left + 5px right per column
+        let cell_margin_lr = 5.0;
         let col_a_width: f64 = entity.map_entries.iter()
-            .map(|(key, _)| font_metrics::text_width(key, "SansSerif", attr_font_size, false, false) + cell_margin_left + 2.0)
+            .map(|(key, _)| font_metrics::text_width(key, "SansSerif", attr_font_size, false, false) + 2.0 * cell_margin_lr)
             .fold(0.0_f64, f64::max);
         let mut cur_y = sep_y;
         for (key, value) in &entity.map_entries {
@@ -3334,9 +3389,9 @@ fn draw_object_box(
             let key_w = font_metrics::text_width(key, "SansSerif", attr_font_size, false, false);
             let text_y_row = cur_y + ascent;
             sg.set_fill_color(font_color);
-            sg.svg_text(key, x + cell_margin_left, text_y_row, Some("sans-serif"), attr_font_size, None, None, None, key_w, LengthAdjust::Spacing, None, 0, None);
+            sg.svg_text(key, x + cell_margin_lr, text_y_row, Some("sans-serif"), attr_font_size, None, None, None, key_w, LengthAdjust::Spacing, None, 0, None);
             let val_w = font_metrics::text_width(value, "SansSerif", attr_font_size, false, false);
-            sg.svg_text(value, x + col_a_width + cell_margin_left, text_y_row, Some("sans-serif"), attr_font_size, None, None, None, val_w, LengthAdjust::Spacing, None, 0, None);
+            sg.svg_text(value, x + col_a_width + cell_margin_lr, text_y_row, Some("sans-serif"), attr_font_size, None, None, None, val_w, LengthAdjust::Spacing, None, 0, None);
             sg.set_stroke_color(Some(stroke_color));
             sg.set_stroke_width(1.0, None);
             sg.svg_line(x + col_a_width, cur_y, x + col_a_width, cur_y + row_h, 0.0);

@@ -50,6 +50,8 @@ pub struct ErdLink {
     pub isa_arrow: Option<bool>,
     /// Source declaration order (shared counter with entities, relationships, ISAs).
     pub source_order: usize,
+    /// 0-indexed line number in the full source (including @start... line).
+    pub source_line: usize,
 }
 
 /// ISA (specialization/generalization) relationship

@@ -23,7 +23,7 @@ pub fn render_ebnf(_d: &EbnfDiagram, l: &EbnfLayout, skin: &SkinParams) -> Resul
         match e {
             EbnfElement::Title { x, y, text } => {
                 let tw = font_metrics::text_width(text, "SansSerif", FONT_SIZE, true, false);
-                write!(buf, r#"<g class="title" data-source-line="1"><text fill="{}" font-family="sans-serif" font-size="{}" font-weight="700" lengthAdjust="spacing" textLength="{}" x="{}" y="{}">{}</text></g>"#,
+                write!(buf, r#"<g class="title" data-source-line="1"><text fill="{}" font-family="sans-serif" font-size="{}" font-weight="bold" lengthAdjust="spacing" textLength="{}" x="{}" y="{}">{}</text></g>"#,
                     TEXT_C, FONT_SIZE as i32, ff(tw), ff(*x), ff(*y), xml_escape(text)).unwrap();
             }
             EbnfElement::Comment { x, y, width, height, text } => {
@@ -39,7 +39,7 @@ pub fn render_ebnf(_d: &EbnfDiagram, l: &EbnfLayout, skin: &SkinParams) -> Resul
             }
             EbnfElement::RuleName { x, y, text } => {
                 let tw = font_metrics::text_width(text, "SansSerif", FONT_SIZE, true, false);
-                write!(buf, r#"<text fill="{}" font-family="sans-serif" font-size="{}" font-weight="700" lengthAdjust="spacing" textLength="{}" x="{}" y="{}">{}</text>"#,
+                write!(buf, r#"<text fill="{}" font-family="sans-serif" font-size="{}" font-weight="bold" lengthAdjust="spacing" textLength="{}" x="{}" y="{}">{}</text>"#,
                     TEXT_C, FONT_SIZE as i32, ff(tw), ff(*x), ff(*y), xml_escape(text)).unwrap();
             }
             EbnfElement::TerminalBox { x, y, width, height, text } => {
