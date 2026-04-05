@@ -239,8 +239,10 @@ pub struct GraphLayout {
     pub move_delta: (f64, f64),
     /// LimitFinder span (width, height) computed before moveDelta.
     /// Java: `minMax.getDimension()` from `SvekResult.calculateDimension()`.
-    /// Used for viewport calculation: `SVG_size = (int)(span + DELTA(15) + DOC_MARGIN(5) + 1)`.
     pub lf_span: (f64, f64),
+    /// LimitFinder absolute max (x, y) computed before moveDelta.
+    /// After shift: shifted_max = lf_max + move_delta.
+    pub lf_max: (f64, f64),
     /// Normalization offset: the min (x, y) subtracted during origin normalization.
     /// Used to align label_xy (which is pre-moveDelta, pre-normalization) with
     /// path/node coordinates (which are post-moveDelta, post-normalization).
@@ -703,7 +705,7 @@ pub fn layout_with_svek(graph: &LayoutGraph) -> Result<GraphLayout, Error> {
 
     // Solve: parse SVG and position nodes/edges via svek's YDelta(full_height)
     // transform, then apply moveDelta normalization.
-    let (move_delta, lf_span, render_offset) = builder
+    let (move_delta, lf_span, lf_max, render_offset) = builder
         .solve(&svg)
         .map_err(|e| Error::Layout(format!("svek solve error: {e}")))?;
 
@@ -973,6 +975,7 @@ pub fn layout_with_svek(graph: &LayoutGraph) -> Result<GraphLayout, Error> {
         total_height,
         move_delta,
         lf_span,
+        lf_max,
         normalize_offset,
         render_offset,
     })
@@ -1219,6 +1222,7 @@ fn parse_svg_output(svg: &str, graph: &LayoutGraph) -> Result<GraphLayout, Error
         total_height,
         move_delta: (0.0, 0.0),
         lf_span: (total_width, total_height),
+        lf_max: (total_width, total_height),
         normalize_offset: (0.0, 0.0),
         render_offset: (0.0, 0.0),
     })

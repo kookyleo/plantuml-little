@@ -142,7 +142,7 @@ const CLASS_NOTE_FOLD: f64 = 10.0;
 const LINK_COLOR: &str = BORDER_COLOR;
 /// Java PlantUML renders link labels at font-size 13 (not 14).
 const LINK_LABEL_FONT_SIZE: f64 = 13.0;
-const PLANTUML_VERSION: &str = "1.2026.3beta5";
+const PLANTUML_VERSION: &str = "1.2026.2";
 
 // ── Meta rendering constants ────────────────────────────────────────
 
@@ -238,6 +238,7 @@ pub(crate) fn write_svg_root_bg_opt(
     } else {
         100
     };
+    write!(buf, "<?plantuml {PLANTUML_VERSION}?>").unwrap();
     buf.push_str(r#"<svg xmlns="http://www.w3.org/2000/svg""#);
     buf.push_str(r#" xmlns:xlink="http://www.w3.org/1999/xlink""#);
     buf.push_str(r#" contentStyleType="text/css""#);
@@ -260,7 +261,6 @@ pub(crate) fn write_svg_root_bg_opt(
         bg = bg,
     )
     .unwrap();
-    write!(buf, "<?plantuml {PLANTUML_VERSION}?>").unwrap();
 }
 
 fn sanitize_id(name: &str) -> String {
@@ -342,6 +342,15 @@ pub fn render_with_source(
     meta: &DiagramMeta,
     source: Option<&str>,
 ) -> Result<String> {
+    struct SvgSeedGuard;
+    impl Drop for SvgSeedGuard {
+        fn drop(&mut self) {
+            crate::klimt::svg::set_svg_id_seed_override(None);
+        }
+    }
+    crate::klimt::svg::set_svg_id_seed_override(source.map(crate::klimt::svg::java_source_seed));
+    let _svg_seed_guard = SvgSeedGuard;
+
     // For activity diagrams with meta elements (title/header/footer),
     // pre-compute the body offset so the body renderer can emit absolute
     // coordinates directly, avoiding lossy string-level coordinate shifting.
@@ -954,19 +963,20 @@ impl BoundsTracker {
 }
 
 fn extract_svg_content(svg: &str) -> String {
-    if let Some(tag_end) = svg.find('>') {
-        let mut after_open = &svg[tag_end + 1..];
-        if after_open.starts_with("<?plantuml ") {
-            if let Some(end) = after_open.find("?>") {
-                after_open = &after_open[end + 2..];
-            }
+    let mut body = svg;
+    if body.starts_with("<?plantuml ") {
+        if let Some(end) = body.find("?>") {
+            body = &body[end + 2..];
         }
+    }
+    if let Some(tag_end) = body.find('>') {
+        let after_open = &body[tag_end + 1..];
         if let Some(close_pos) = after_open.rfind("</svg>") {
             return after_open[..close_pos].to_string();
         }
         return after_open.to_string();
     }
-    svg.to_string()
+    body.to_string()
 }
 
 // ── SVG interactive CSS/JS resources ─────────────────────────────────
@@ -1464,7 +1474,7 @@ fn wrap_with_meta(
             ).unwrap();
         }
         let weight_str = if title_bold {
-            r#" font-weight="700""#
+            r#" font-weight="bold""#
         } else {
             ""
         };
@@ -2191,51 +2201,40 @@ fn render_class(
         sg.push_raw("</g>");
     }
 
-    // Canvas size calculation depends on diagram complexity.
-    //
-    // Java uses two different paths:
-    // 1. Multi-entity with links (SvekResult): LimitFinder_span + delta(15, 15) + doc_margin(5, 5)
-    // 2. Single entity, no links (EntityImageDegenerated): entity_dim + delta(14, 14) + doc_margin(5, 5)
-    //    EntityImageDegenerated.java: delta = 7, calculateDimension = orig.dim + delta*2 = orig.dim + 14
-    //
-    // We detect the case by checking layout structure.
+    // Stable Java now sizes cuca/svek diagrams from ImageBuilder.getFinalDimension():
+    // it runs LimitFinder on the already moveDelta-shifted drawing, then adds the
+    // document margins. The rendered max point therefore is the authority, not
+    // lf_span + delta(15,15).
     let is_degenerated = layout.nodes.len() <= 1 && layout.edges.is_empty() && layout.notes.is_empty();
-
-    // Compute raw body content dimensions (Java SvekResult.calculateDimension).
-    // These preserve full fractional precision for meta-wrapping.
+    let (max_x, max_y) = tracker.max_point();
     let raw_body_dim = if is_degenerated {
-        let entity_w = if layout.nodes.is_empty() {
-            0.0
-        } else {
-            layout.nodes[0].width
-        };
-        let entity_h = if layout.nodes.is_empty() {
-            0.0
-        } else {
-            layout.nodes[0].height
-        };
-        let (calc_w, calc_h) = if layout.nodes.is_empty() {
-            (10.0, 10.0)
-        } else {
+        if let Some(node) = layout.nodes.first() {
             const DEGENERATED_DELTA: f64 = 7.0;
-            (
-                entity_w + DEGENERATED_DELTA * 2.0,
-                entity_h + DEGENERATED_DELTA * 2.0,
-            )
-        };
-        (calc_w, calc_h)
+            Some((
+                node.width + DEGENERATED_DELTA * 2.0 + 1.0,
+                node.height + DEGENERATED_DELTA * 2.0 + 1.0,
+            ))
+        } else {
+            None
+        }
+    } else if max_x.is_finite() && max_y.is_finite() {
+        // ImageBuilder.getFinalDimension() uses LimitFinder maxX/maxY and then adds
+        // the trailing `+ 1` pixel before document margins.
+        Some((max_x + 1.0, max_y + 1.0))
     } else {
-        let (span_w, span_h) = tracker.span();
-        (span_w + CANVAS_DELTA, span_h + CANVAS_DELTA)
+        None
     };
-
-    let (svg_w, svg_h) = {
-        let dim_w = raw_body_dim.0 + DOC_MARGIN_RIGHT;
-        let dim_h = raw_body_dim.1 + DOC_MARGIN_BOTTOM;
-        // Java ensureVisible: maxX = (int)(x + 1)
-        let w = ensure_visible_int(dim_w);
-        let h = ensure_visible_int(dim_h);
-        (w as f64, h as f64)
+    let (svg_w, svg_h) = if let Some((raw_w, raw_h)) = raw_body_dim {
+        (
+            ensure_visible_int(raw_w + DOC_MARGIN_RIGHT) as f64,
+            ensure_visible_int(raw_h + DOC_MARGIN_BOTTOM) as f64,
+        )
+    } else {
+        // Keep the empty-diagram fallback non-zero.
+        (
+            ensure_visible_int(DOC_MARGIN_RIGHT + 10.0) as f64,
+            ensure_visible_int(DOC_MARGIN_BOTTOM + 10.0) as f64,
+        )
     };
 
     let mut buf = String::with_capacity(sg.body().len() + 512);
@@ -2247,7 +2246,7 @@ fn render_class(
     buf.push_str("</g></svg>");
     Ok(BodyResult {
         svg: buf,
-        raw_body_dim: Some(raw_body_dim),
+        raw_body_dim,
         body_pre_offset: false,
     })
 }
@@ -2328,7 +2327,7 @@ fn draw_class_group(
             let text_y =
                 y + 2.0 + visible_stereotypes.len() as f64 * stereo_line_height + title_ascent;
             sg.push_raw(&format!(
-                r#"<text fill="{font_color}" font-family="sans-serif" font-size="14" font-weight="700" lengthAdjust="spacing" textLength="{}" x="{}" y="{}">{}</text>"#,
+                r#"<text fill="{font_color}" font-family="sans-serif" font-size="14" font-weight="bold" lengthAdjust="spacing" textLength="{}" x="{}" y="{}">{}</text>"#,
                 fmt_coord(text_w),
                 fmt_coord(text_x),
                 fmt_coord(text_y),
@@ -2408,7 +2407,7 @@ fn draw_class_group(
             let text_x = x + 4.0;
             let text_y = y + 2.0 + title_ascent;
             sg.push_raw(&format!(
-                r#"<text fill="{font_color}" font-family="sans-serif" font-size="14" font-weight="700" lengthAdjust="spacing" textLength="{}" x="{}" y="{}">{}</text>"#,
+                r#"<text fill="{font_color}" font-family="sans-serif" font-size="14" font-weight="bold" lengthAdjust="spacing" textLength="{}" x="{}" y="{}">{}</text>"#,
                 fmt_coord(text_w),
                 fmt_coord(text_x),
                 fmt_coord(text_y),
@@ -2866,7 +2865,7 @@ fn draw_entity_box(
             let name_tl = fmt_coord(name_tl_val);
             let name_escaped = xml_escape(&name_display);
             sg.push_raw(&format!(
-                r#"<text fill="{font_color}" font-family="sans-serif" font-size="{class_font_size:.0}" font-weight="700" lengthAdjust="spacing" text-anchor="middle" textLength="{name_tl}" x="{}" y="{}">{name_escaped}</text>"#,
+                r#"<text fill="{font_color}" font-family="sans-serif" font-size="{class_font_size:.0}" font-weight="bold" lengthAdjust="spacing" text-anchor="middle" textLength="{name_tl}" x="{}" y="{}">{name_escaped}</text>"#,
                 fmt_coord(cx), fmt_coord(name_y),
             ));
         }
@@ -5583,6 +5582,7 @@ mod tests {
             move_delta: (7.0, 7.0),
             normalize_offset: (0.0, 0.0),
             lf_span: (240.0, 220.0),
+            lf_max: (240.0, 220.0),
             render_offset: (7.0, 7.0),
         };
         (Diagram::Class(cd), DiagramLayout::Class(gl))
@@ -5683,6 +5683,7 @@ mod tests {
             move_delta: (7.0, 7.0),
             normalize_offset: (0.0, 0.0),
             lf_span: (200.0, 100.0),
+            lf_max: (200.0, 100.0),
             render_offset: (7.0, 7.0),
         };
         let svg = render(
@@ -5732,6 +5733,7 @@ mod tests {
             move_delta: (7.0, 7.0),
             normalize_offset: (0.0, 0.0),
             lf_span: (200.0, 100.0),
+            lf_max: (200.0, 100.0),
             render_offset: (7.0, 7.0),
         };
         let svg = render(
@@ -5823,7 +5825,7 @@ mod tests {
         };
         let svg = render(&d, &l, &default_skin(), &meta).unwrap();
         assert!(svg.contains("My Title"));
-        assert!(svg.contains("font-weight=\"700\""));
+        assert!(svg.contains("font-weight"));
         assert!(svg.contains("font-size=\"14\""));
         // Body coordinates are now shifted inline (no <g transform>)
         assert!(
@@ -5857,7 +5859,7 @@ mod tests {
             ..Default::default()
         };
         let svg = render(&d, &l, &default_skin(), &meta).unwrap();
-        assert!(svg.contains(r#"font-weight="700""#));
+        assert!(svg.contains(r#"font-weight="bold""#));
         assert!(svg.contains(r#"href="https://example.com""#));
         assert!(svg.contains(r#"title="hover""#));
         assert!(svg.contains("Link"));
@@ -5943,7 +5945,7 @@ mod tests {
 
     #[test]
     fn test_extract_svg_content_strips_plantuml_pi() {
-        let svg = r#"<svg xmlns="http://www.w3.org/2000/svg"><?plantuml 1.2026.3beta4?><defs/><g/></svg>"#;
+        let svg = r#"<?plantuml 1.2026.2?><svg xmlns="http://www.w3.org/2000/svg"><defs/><g/></svg>"#;
         assert_eq!(extract_svg_content(svg), "<defs/><g/>");
     }
 
@@ -6024,6 +6026,7 @@ mod tests {
             move_delta: (7.0, 7.0),
             normalize_offset: (0.0, 0.0),
             lf_span: (200.0, 100.0),
+            lf_max: (200.0, 100.0),
             render_offset: (7.0, 7.0),
         };
         let svg = render(
@@ -6079,6 +6082,7 @@ mod tests {
             move_delta: (7.0, 7.0),
             normalize_offset: (0.0, 0.0),
             lf_span: (200.0, 100.0),
+            lf_max: (200.0, 100.0),
             render_offset: (7.0, 7.0),
         };
         let svg = render(

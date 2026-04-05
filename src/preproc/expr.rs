@@ -102,6 +102,43 @@ pub(super) fn expand_expression_builtins(line: &str) -> String {
 
 /// Find the macro name as a whole word (not a substring of a longer identifier).
 /// Returns the byte offset of the match, or None.
+/// Java Define.apply2(): replace all occurrences of `name` at word boundaries
+/// with `replacement`.  Matches Java's `\b<name>\b` regex semantics.
+pub(super) fn replace_word_boundary(haystack: &str, name: &str, replacement: &str) -> String {
+    let mut result = String::with_capacity(haystack.len());
+    let mut search_from = 0;
+    let bytes = haystack.as_bytes();
+    while let Some(pos) = haystack[search_from..].find(name) {
+        let abs_pos = search_from + pos;
+        let end_pos = abs_pos + name.len();
+        // Check word boundary before
+        let before_ok = if abs_pos == 0 {
+            true
+        } else {
+            let prev = bytes[abs_pos - 1];
+            !prev.is_ascii_alphanumeric() && prev != b'_'
+        };
+        // Check word boundary after
+        let after_ok = if end_pos >= bytes.len() {
+            true
+        } else {
+            let next = bytes[end_pos];
+            !next.is_ascii_alphanumeric() && next != b'_'
+        };
+        if before_ok && after_ok {
+            result.push_str(&haystack[search_from..abs_pos]);
+            result.push_str(replacement);
+            search_from = end_pos;
+        } else {
+            // Not a word boundary, copy the character and continue
+            result.push_str(&haystack[search_from..abs_pos + 1]);
+            search_from = abs_pos + 1;
+        }
+    }
+    result.push_str(&haystack[search_from..]);
+    result
+}
+
 fn find_whole_word(haystack: &str, name: &str) -> Option<usize> {
     let mut search_from = 0;
     while let Some(pos) = haystack[search_from..].find(name) {

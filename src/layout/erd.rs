@@ -11,7 +11,7 @@ use log::debug;
 use crate::font_metrics;
 use crate::layout::graphviz::{self, LayoutEdge, LayoutGraph, LayoutNode, RankDir};
 use crate::model::erd::{ErdAttribute, ErdDiagram, ErdDirection, ErdIsa, ErdLink};
-use crate::render::svg::{CANVAS_DELTA, DOC_MARGIN_BOTTOM, DOC_MARGIN_RIGHT};
+use crate::render::svg::{DOC_MARGIN_BOTTOM, DOC_MARGIN_RIGHT};
 use crate::svek::shape_type::ShapeType;
 use crate::Result;
 
@@ -1049,16 +1049,20 @@ pub fn layout_erd(diagram: &ErdDiagram) -> Result<ErdLayout> {
         });
     }
 
-    // Viewport: use svek lf_span + CANVAS_DELTA + DOC_MARGIN (same as class/component)
+    // Viewport: Java ImageBuilder.getFinalDimension() — shifted LF max + 1.
     let is_degenerated = entity_nodes.len() + relationship_nodes.len() <= 1 && edges.is_empty();
     let (raw_body_w, raw_body_h) = if is_degenerated
         && (entity_nodes.len() + relationship_nodes.len()) == 1
     {
         const DEGENERATED_DELTA: f64 = 7.0;
         let n = entity_nodes.first().or(relationship_nodes.first()).unwrap();
-        (n.width + DEGENERATED_DELTA * 2.0, n.height + DEGENERATED_DELTA * 2.0)
+        (n.width + DEGENERATED_DELTA * 2.0 + 1.0, n.height + DEGENERATED_DELTA * 2.0 + 1.0)
     } else {
-        (gl.lf_span.0 + CANVAS_DELTA, gl.lf_span.1 + CANVAS_DELTA)
+        // Java moveDelta = (6 - lf_min), so shifted_max = lf_span + 6.
+        const SVEK_MOVE_DELTA: f64 = 6.0;
+        let shifted_max_x = gl.lf_span.0 + SVEK_MOVE_DELTA;
+        let shifted_max_y = gl.lf_span.1 + SVEK_MOVE_DELTA;
+        (shifted_max_x + 1.0, shifted_max_y + 1.0)
     };
 
     let mut max_right = raw_body_w;

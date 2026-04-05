@@ -7,8 +7,8 @@ use crate::klimt::svg::{fmt_coord, svg_comment_escape, xml_escape, LengthAdjust,
 use crate::layout::state::{StateLayout, StateNodeLayout, StateNoteLayout, TransitionLayout};
 use crate::model::state::{State, StateDiagram, StateKind, Transition};
 use crate::render::svg::{
-    ensure_visible_int, write_bg_rect, write_svg_root_bg, BoundsTracker, CANVAS_DELTA,
-    DOC_MARGIN_BOTTOM, DOC_MARGIN_RIGHT,
+    ensure_visible_int, write_bg_rect, write_svg_root_bg, BoundsTracker, DOC_MARGIN_BOTTOM,
+    DOC_MARGIN_RIGHT,
 };
 use crate::render::svg_richtext::render_creole_text;
 use crate::style::SkinParams;
@@ -316,16 +316,10 @@ pub fn render_state(
         }
     }
 
-    let (span_w, span_h) = tracker.span();
-    let (min_x, min_y) = tracker.min_point();
-    let (max_x, _max_y) = tracker.max_point();
-    let raw_body_dim = if min_y > 6.5 {
-        // Java keeps the extra leading top space introduced by source-rank
-        // ports in the final Svek canvas; using pure span would collapse it.
-        (max_x + 7.0, span_h + CANVAS_DELTA + (min_y - 6.0))
-    } else {
-        (span_w + CANVAS_DELTA, span_h + CANVAS_DELTA)
-    };
+    // Java ImageBuilder.getFinalDimension(): LimitFinder maxX/maxY + 1 + doc margins.
+    // Same pattern as the class/component renderer (svg.rs).
+    let (max_x, max_y) = tracker.max_point();
+    let raw_body_dim = (max_x + 1.0, max_y + 1.0);
     let svg_w = ensure_visible_int(raw_body_dim.0 + DOC_MARGIN_RIGHT) as f64;
     let svg_h = ensure_visible_int(raw_body_dim.1 + DOC_MARGIN_BOTTOM) as f64;
 
@@ -1887,7 +1881,7 @@ fn render_desc_line_bold(sg: &mut SvgGraphic, text: &str, x: f64, y: f64, fc: &s
         let e = xml_escape(display);
         let tl = font_metrics::text_width(display, "SansSerif", DESC_FONT_SIZE, ib, false);
         if ib {
-            sg.push_raw(&format!(r#"<text fill="{fc}" font-family="sans-serif" font-size="12" font-weight="700" lengthAdjust="spacing" textLength="{}" x="{}" y="{}">{e}</text>"#, fmt_coord(tl), fmt_coord(cx), fmt_coord(y)));
+            sg.push_raw(&format!(r#"<text fill="{fc}" font-family="sans-serif" font-size="12" font-weight="bold" lengthAdjust="spacing" textLength="{}" x="{}" y="{}">{e}</text>"#, fmt_coord(tl), fmt_coord(cx), fmt_coord(y)));
         } else {
             sg.push_raw(&format!(r#"<text fill="{fc}" font-family="sans-serif" font-size="12" lengthAdjust="spacing" textLength="{}" x="{}" y="{}">{e}</text>"#, fmt_coord(tl), fmt_coord(cx), fmt_coord(y)));
         }
@@ -2385,7 +2379,7 @@ mod tests {
         });
         let (svg, raw_dim) =
             render_state(&diagram, &layout, &SkinParams::default()).expect("render failed");
-        assert!(svg.starts_with("<svg"), "SVG must start with <svg");
+        assert!(svg.starts_with("<?plantuml "), "SVG must start with plantuml PI");
         assert!(svg.contains("</svg>"), "SVG must end with </svg>");
         // Viewport is computed from BoundsTracker span + CANVAS_DELTA(15) + DOC_MARGIN(5)
         assert!(raw_dim.is_some(), "raw_body_dim must be present");

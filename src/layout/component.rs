@@ -11,7 +11,7 @@ use crate::layout::graphviz::{
 };
 use crate::model::component::{ComponentDiagram, ComponentEntity, ComponentKind, ComponentLink};
 use crate::model::Direction;
-use crate::render::svg::{ensure_visible_int, CANVAS_DELTA, DOC_MARGIN_BOTTOM, DOC_MARGIN_RIGHT};
+use crate::render::svg::{ensure_visible_int, DOC_MARGIN_BOTTOM, DOC_MARGIN_RIGHT};
 use crate::svek::node::EntityPosition;
 use crate::svek::shape_type::ShapeType;
 use crate::Result;
@@ -1322,20 +1322,22 @@ pub fn layout_component(cd: &ComponentDiagram) -> Result<ComponentLayout> {
         let entity_w = nodes[0].width;
         let entity_h = nodes[0].height;
         (
-            entity_w + DEGENERATED_DELTA * 2.0,
-            entity_h + DEGENERATED_DELTA * 2.0,
+            entity_w + DEGENERATED_DELTA * 2.0 + 1.0,
+            entity_h + DEGENERATED_DELTA * 2.0 + 1.0,
         )
     } else {
-        let mut span_w = gl.lf_span.0;
-        let span_h = gl.lf_span.1;
+        // Java ImageBuilder.getFinalDimension(): shifted LF max + 1.
+        // Java moveDelta = (6 - lf_min), so shifted_max = lf_span + 6.
+        const SVEK_MOVE_DELTA: f64 = 6.0;
+        let mut shifted_max_x = gl.lf_span.0 + SVEK_MOVE_DELTA;
+        let shifted_max_y = gl.lf_span.1 + SVEK_MOVE_DELTA;
         // Card groups draw a full-width separator line whose LF bound extends
-        // 1px beyond the cluster rectangle (Java LimitFinder captures
-        // ULine.hline at full cluster width vs the -1 offset rectangle).
+        // 1px beyond the cluster rectangle.
         let has_card_group = cd.groups.iter().any(|g| g.kind == ComponentKind::Card);
         if has_card_group {
-            span_w += 1.0;
+            shifted_max_x += 1.0;
         }
-        (span_w + CANVAS_DELTA, span_h + CANVAS_DELTA)
+        (shifted_max_x + 1.0, shifted_max_y + 1.0)
     };
 
     // Extend viewport for group layouts that may extend beyond the LF span.

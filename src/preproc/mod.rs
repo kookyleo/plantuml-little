@@ -1654,8 +1654,8 @@ impl Context {
         for name in names {
             let entry = &self.defines[name];
             if entry.params.is_empty() {
-                // Simple text replacement
-                result = result.replace(name.as_str(), &entry.body);
+                // Java Define.apply2(): \b<name>\b — word-boundary matching
+                result = replace_word_boundary(&result, name, &entry.body);
             } else {
                 // Parameterised macro: NAME(arg1, arg2, ...)
                 result = expand_parameterised_define(&result, name, entry);

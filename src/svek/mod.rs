@@ -591,7 +591,7 @@ impl DotStringFactory {
     /// 2. For each edge: call `solve_line()` to extract path + labels
     /// 3. Normalize coordinates (shift so min position = (6, 6))
     /// Returns (moveDelta, limitFinder_span, render_offset) from normalization.
-    pub fn solve(&mut self, svg: &str) -> Result<((f64, f64), (f64, f64), (f64, f64)), String> {
+    pub fn solve(&mut self, svg: &str) -> Result<((f64, f64), (f64, f64), (f64, f64), (f64, f64)), String> {
         use crate::svek::svg_result::SvgResult;
 
         // Java svek uses a pure YDelta(fullHeight) transform when parsing
@@ -998,7 +998,13 @@ impl DotStringFactory {
             (0.0, 0.0)
         };
 
-        Ok(((dx, dy), lf_span, render_offset))
+        let lf_max = if lf_max_x.is_finite() && lf_max_y.is_finite() {
+            (lf_max_x, lf_max_y)
+        } else {
+            (0.0, 0.0)
+        };
+
+        Ok(((dx, dy), lf_span, lf_max, render_offset))
     }
 
     /// Move all positioned elements by delta.
