@@ -27,11 +27,26 @@ thread_local! {
     /// `scale(s)` transform, Java uses `s` (not the accumulated sprite scale)
     /// as the arc radius multiplier.  `None` means no override — use SPRITE_SCALE.
     static ELEMENT_ARC_SCALE: Cell<Option<f64>> = Cell::new(None);
+    /// Default stroke width inherited from the parent diagram context.
+    /// Java UEllipse/UPath inherit the UGraphic's current stroke thickness.
+    /// Sequence diagrams use 1.0 (UStroke.simple()), activity diagrams use 0.5.
+    static DEFAULT_STROKE_WIDTH: Cell<f64> = Cell::new(1.0);
 }
 
 /// Set monochrome mode for sprite rendering.
 pub fn set_monochrome(enabled: bool) {
     MONOCHROME_MODE.with(|m| m.set(enabled));
+}
+
+/// Set the default stroke width for sprite elements that don't specify one.
+/// Call this before converting sprite elements to match the parent diagram's context.
+pub fn set_default_stroke_width(width: f64) {
+    DEFAULT_STROKE_WIDTH.with(|w| w.set(width));
+}
+
+/// Get the default stroke width.
+fn default_stroke_width() -> f64 {
+    DEFAULT_STROKE_WIDTH.with(|w| w.get())
 }
 
 /// Get current sprite scale factor.
@@ -44,16 +59,10 @@ fn sc(v: f64) -> f64 {
     v * sprite_scale()
 }
 
-/// Scale a radius value for arc commands.  When an element carries its own
-/// `scale(s)` transform, Java's SAX sprite parser uses that element scale
-/// directly (not multiplied by the base sprite scale) for SVG arc rx/ry
-/// parameters.  Without an element transform the base sprite scale is used.
+/// Scale a radius value for arc commands.
+/// Uses the full accumulated sprite scale (including any element-level scale).
 fn sc_arc(v: f64) -> f64 {
-    let override_scale = ELEMENT_ARC_SCALE.with(|s| s.get());
-    match override_scale {
-        Some(es) => v * es,
-        None => sc(v),
-    }
+    sc(v)
 }
 
 pub fn clear_gradient_defs() {
@@ -547,28 +556,41 @@ fn convert_elements_inner(
             continue;
         }
 
-        // Skip processing instructions, closing tags, defs, style
+        // Skip processing instructions, closing tags, and style blocks.
+        // Java's SvgNanoParser regex sees through <defs> — it processes all
+        // matching elements (path, g, circle, ellipse, text) regardless of
+        // whether they're inside <defs>. So we skip only the <defs>/<symbol>
+        // wrapper tags themselves, not their content.
         if content[pos..].starts_with("</")
             || content[pos..].starts_with("<?")
             || content[pos..].starts_with("<defs")
+            || content[pos..].starts_with("<symbol")
             || content[pos..].starts_with("<style")
+            || content[pos..].starts_with("<use")
         {
             // Skip to end of tag
             if let Some(end) = content[pos..].find('>') {
                 let tag = &content[pos..pos + end + 1];
-                // For <defs> and <style>, skip to closing tag
-                if tag.starts_with("<defs") && !tag.ends_with("/>") {
-                    if let Some(close) = content[pos..].find("</defs>") {
-                        pos += close + 7;
-                        continue;
-                    }
-                }
+                // For <style>, skip the entire block including content
                 if tag.starts_with("<style") && !tag.ends_with("/>") {
                     if let Some(close) = content[pos..].find("</style>") {
                         pos += close + 8;
                         continue;
                     }
                 }
+                // For <use>, skip the element (Java's regex doesn't match <use>)
+                if tag.starts_with("<use") {
+                    if tag.ends_with("/>") {
+                        pos += end + 1;
+                    } else if let Some(close) = content[pos..].find("</use>") {
+                        pos += close + 6;
+                    } else {
+                        pos += end + 1;
+                    }
+                    continue;
+                }
+                // For <defs>, <symbol>, </defs>, </symbol>, </...>:
+                // skip just the tag, process inner content normally
                 pos += end + 1;
             } else {
                 pos += 1;
@@ -962,9 +984,14 @@ fn convert_circle(buf: &mut String, element: &str, ox: f64, oy: f64) {
     let fill = get_fill(element);
     let style = get_stroke_style(element);
     // Java UEllipse always emits stroke. When no explicit stroke is set,
-    // it uses the fill color with stroke-width:1.
+    // it inherits the current UGraphic's stroke thickness.
     let style = if style.is_empty() {
-        format!("stroke:{fill};stroke-width:1;")
+        let sw = default_stroke_width();
+        if (sw - sw.round()).abs() < f64::EPSILON {
+            format!("stroke:{fill};stroke-width:{};", sw as i32)
+        } else {
+            format!("stroke:{fill};stroke-width:{sw};")
+        }
     } else {
         style
     };
@@ -1123,14 +1150,8 @@ fn convert_text(buf: &mut String, element: &str, ox: f64, oy: f64) {
     let text_length =
         crate::font_metrics::text_width(text_content, font_family, size, bold, italic);
 
-    // SVG text-anchor: adjust x position.
-    // Java converts "middle" → x - textLength/2, "end" → x - textLength.
-    let text_anchor = get_attr(element, "text-anchor").unwrap_or("start");
-    let x = match text_anchor {
-        "middle" => x - text_length / 2.0,
-        "end" => x - text_length,
-        _ => x,
-    };
+    // Java's SvgNanoParser ignores the text-anchor attribute entirely.
+    // It uses x directly without any anchor-based adjustment.
 
     // Java: "monospaced" → "monospace"
     let font_family = if font_family.eq_ignore_ascii_case("monospaced") {
@@ -1230,22 +1251,22 @@ fn convert_group(
     css_text_props: &[(String, String)],
 ) {
     let inner = extract_element_content(element, "g");
-    // Apply transform="translate(x,y)" if present — for shapes only.
-    // Java: group transforms are applied to shape coordinates but NOT to text
-    // coordinates. Text retains its original SVG position + sprite base offset.
+    // Apply transform="translate(x,y)" to both shape and text coordinates.
+    // Java's SvgNanoParser accumulates group transforms in the affine matrix,
+    // which affects all child elements including text (via deltax/deltay).
     let (tx, ty) = if let Some(transform) = get_attr(element, "transform") {
         parse_translate(&transform)
     } else {
         (0.0, 0.0)
     };
-    // Scale the group's translation offset
+    // Scale the group's translation offset and apply to both shape and text
     convert_elements_with_text_offset(
         buf,
         inner.trim(),
         ox + sc(tx),
         oy + sc(ty),
-        text_ox,
-        text_oy,
+        text_ox + sc(tx),
+        text_oy + sc(ty),
         css_text_props,
     );
 }

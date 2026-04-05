@@ -152,12 +152,13 @@ pub fn render_activity(
     let has_swimlanes = !layout.swimlane_layouts.is_empty();
 
     if has_swimlanes {
-        // Compute header metrics matching Java precisely.
-        // header_top = 2019 font units at header size (from Java MinMax y-offset).
+        // Stable Java's swimlane title block sits 5px higher than our older
+        // approximation, so the transparent header background and the first
+        // divider line must start 5px earlier as well.
         let header_asc = font_metrics::ascent("SansSerif", 18.0, false, false);
         let header_desc = font_metrics::descent("SansSerif", 18.0, false, false);
         let titles_height = header_asc + header_desc;
-        let header_top = 2019.0 / 2048.0 * 18.0;
+        let header_top = 2019.0 / 2048.0 * 18.0 - 5.0;
 
         // Step 1: drawTitlesBackground — transparent header rect
         if let (Some(first), Some(last)) = (
@@ -918,6 +919,8 @@ fn render_action(
                 // Position sprite at base_x, current y
                 let sprite_x = node.x + padding;
                 let sprite_y = node.y + padding + y_cursor;
+                // Activity diagrams use stroke-width:0.5 as the default.
+                svg_sprite::set_default_stroke_width(0.5);
                 // Java pre-computes absolute coordinates with scale applied,
                 // instead of using <g transform> wrappers.
                 let converted = svg_sprite::convert_svg_elements_scaled(
@@ -927,6 +930,7 @@ fn render_action(
                     sprite_scale,
                 );
                 sg.push_raw(&converted);
+                svg_sprite::set_default_stroke_width(1.0); // restore default
                 y_cursor += sprite_h;
                 continue;
             }

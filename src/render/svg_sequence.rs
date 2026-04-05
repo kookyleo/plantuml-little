@@ -1,4 +1,7 @@
 use std::fmt::Write;
+use std::sync::OnceLock;
+
+use regex::Regex;
 
 use crate::layout::sequence::{
     ActivationLayout, DelayLayout, DestroyLayout, DividerLayout, FragmentLayout, GroupLayout,
@@ -11,7 +14,9 @@ use crate::Result;
 
 use crate::font_metrics;
 
-use super::svg::{ensure_visible_int, write_bg_rect, write_svg_root_bg};
+use super::svg::{
+    ensure_visible_int, write_bg_rect, write_svg_root_bg, DOC_MARGIN_BOTTOM, DOC_MARGIN_RIGHT,
+};
 use super::svg_richtext::{
     disable_path_sprites, enable_path_sprites, render_creole_note_content, render_creole_text,
     set_default_font_family, take_back_filters,
@@ -88,9 +93,6 @@ use crate::skin::rose::{
 };
 
 const MARGIN: f64 = 5.0;
-/// Filter id for shadow effect (Java: SvgGraphics.shadowId).
-/// The actual value doesn't matter since tests normalize filter ids.
-const SHADOW_FILTER_ID: &str = "shadow1";
 
 // Fragment tab geometry (from Java AWT font metrics)
 const FRAG_TAB_LEFT_PAD: f64 = 15.0;
@@ -128,6 +130,319 @@ fn svg_font_family_attr(font_family: &str) -> &str {
         "Monospaced" => "monospace",
         _ => font_family,
     }
+}
+
+fn svg_font_family_to_metrics_family(font_family: &str) -> &str {
+    match font_family {
+        "sans-serif" => "SansSerif",
+        "serif" => "Serif",
+        "monospace" => "Monospaced",
+        _ => font_family,
+    }
+}
+
+#[derive(Default)]
+struct SequenceSvgBounds {
+    max_x: f64,
+    max_y: f64,
+    seen: bool,
+}
+
+impl SequenceSvgBounds {
+    fn add_point(&mut self, x: f64, y: f64) {
+        if !x.is_finite() || !y.is_finite() {
+            return;
+        }
+        if !self.seen {
+            self.max_x = x;
+            self.max_y = y;
+            self.seen = true;
+            return;
+        }
+        self.max_x = self.max_x.max(x);
+        self.max_y = self.max_y.max(y);
+    }
+
+    fn track_rect(&mut self, x: f64, y: f64, width: f64, height: f64) {
+        if width <= 0.0 || height <= 0.0 {
+            return;
+        }
+        self.add_point(x - 1.0, y - 1.0);
+        self.add_point(x + width - 1.0, y + height - 1.0);
+    }
+
+    fn track_line(&mut self, x1: f64, y1: f64, x2: f64, y2: f64) {
+        self.add_point(x1, y1);
+        self.add_point(x2, y2);
+    }
+
+    fn track_ellipse(&mut self, cx: f64, cy: f64, rx: f64, ry: f64) {
+        self.add_point(cx - rx, cy - ry);
+        self.add_point(cx + rx - 1.0, cy + ry - 1.0);
+    }
+
+    fn track_text(
+        &mut self,
+        x: f64,
+        y: f64,
+        text_width: f64,
+        text_height: f64,
+        anchor: Option<&str>,
+    ) {
+        let left_x = match anchor {
+            Some("middle") => x - text_width / 2.0,
+            Some("end") => x - text_width,
+            _ => x,
+        };
+        let y_adj = y - text_height + 1.5;
+        self.add_point(left_x, y_adj);
+        self.add_point(left_x + text_width, y_adj + text_height);
+    }
+
+    fn track_points(&mut self, coords: &[f64]) {
+        for pair in coords.chunks_exact(2) {
+            self.add_point(pair[0], pair[1]);
+        }
+    }
+
+    fn raw_body_dim(&self) -> Option<(f64, f64)> {
+        self.seen.then_some((self.max_x + 1.0, self.max_y + 1.0))
+    }
+}
+
+fn parse_svg_number(raw: Option<&str>) -> Option<f64> {
+    raw.map(|s| s.trim_end_matches("px"))
+        .and_then(|s| s.parse::<f64>().ok())
+}
+
+/// Extract coordinate pairs from SVG path data or points attributes.
+/// For `<polygon>`/`<polyline>` `points` attributes, all numbers are coordinates.
+/// For `<path>` `d` attributes, we parse commands to extract only endpoint coordinates,
+/// skipping arc parameters (radii, flags, rotation) that would corrupt bounds.
+fn parse_svg_points(raw: Option<&str>) -> Vec<f64> {
+    static FLOAT_RE: OnceLock<Regex> = OnceLock::new();
+    let re = FLOAT_RE.get_or_init(|| Regex::new(r"-?\d+(?:\.\d+)?").unwrap());
+    raw.map(|s| {
+        re.find_iter(s)
+            .filter_map(|m| m.as_str().parse::<f64>().ok())
+            .collect()
+    })
+    .unwrap_or_default()
+}
+
+/// Extract only endpoint coordinate pairs from SVG path `d` data,
+/// properly handling arc commands to avoid treating radii/flags as points.
+fn parse_path_endpoints(d: &str) -> Vec<f64> {
+    static NUM_RE: OnceLock<Regex> = OnceLock::new();
+    let re = NUM_RE.get_or_init(|| Regex::new(r"[A-Za-z]|-?\d+(?:\.\d+)?").unwrap());
+    let tokens: Vec<&str> = re.find_iter(d).map(|m| m.as_str()).collect();
+
+    let mut coords = Vec::new();
+    let mut i = 0;
+    let mut cmd = ' ';
+
+    while i < tokens.len() {
+        let t = tokens[i];
+        if t.len() == 1 && t.as_bytes()[0].is_ascii_alphabetic() {
+            cmd = t.as_bytes()[0] as char;
+            i += 1;
+            continue;
+        }
+        match cmd {
+            'M' | 'L' | 'T' | 'l' | 'm' | 't' => {
+                // 2 numbers: x, y
+                if i + 1 < tokens.len() {
+                    if let (Ok(x), Ok(y)) = (
+                        tokens[i].parse::<f64>(),
+                        tokens[i + 1].parse::<f64>(),
+                    ) {
+                        if cmd.is_ascii_uppercase() {
+                            coords.push(x);
+                            coords.push(y);
+                        }
+                    }
+                    i += 2;
+                } else {
+                    i += 1;
+                }
+            }
+            'C' | 'c' => {
+                // 6 numbers: x1,y1 x2,y2 x,y — all are coordinates
+                for _ in 0..3 {
+                    if i + 1 < tokens.len() {
+                        if let (Ok(x), Ok(y)) = (
+                            tokens[i].parse::<f64>(),
+                            tokens[i + 1].parse::<f64>(),
+                        ) {
+                            if cmd.is_ascii_uppercase() {
+                                coords.push(x);
+                                coords.push(y);
+                            }
+                        }
+                        i += 2;
+                    } else {
+                        i += 1;
+                        break;
+                    }
+                }
+            }
+            'S' | 'Q' | 's' | 'q' => {
+                // 4 numbers: two coordinate pairs
+                for _ in 0..2 {
+                    if i + 1 < tokens.len() {
+                        if let (Ok(x), Ok(y)) = (
+                            tokens[i].parse::<f64>(),
+                            tokens[i + 1].parse::<f64>(),
+                        ) {
+                            if cmd.is_ascii_uppercase() {
+                                coords.push(x);
+                                coords.push(y);
+                            }
+                        }
+                        i += 2;
+                    } else {
+                        i += 1;
+                        break;
+                    }
+                }
+            }
+            'A' | 'a' => {
+                // 7 numbers: rx, ry, x-rotation, large-arc-flag, sweep-flag, x, y
+                // Only the last two (x, y) are actual endpoint coordinates
+                if i + 6 < tokens.len() {
+                    if let (Ok(x), Ok(y)) = (
+                        tokens[i + 5].parse::<f64>(),
+                        tokens[i + 6].parse::<f64>(),
+                    ) {
+                        if cmd.is_ascii_uppercase() {
+                            coords.push(x);
+                            coords.push(y);
+                        }
+                    }
+                    i += 7;
+                } else {
+                    i = tokens.len();
+                }
+            }
+            'H' | 'h' => {
+                // 1 number: x
+                i += 1;
+            }
+            'V' | 'v' => {
+                // 1 number: y
+                i += 1;
+            }
+            'Z' | 'z' => {
+                // no numbers
+                i += 1;
+            }
+            _ => {
+                i += 1;
+            }
+        }
+    }
+    coords
+}
+
+fn measure_sequence_body_dim(body: &str) -> Option<(f64, f64)> {
+    static TAG_RE: OnceLock<Regex> = OnceLock::new();
+    static ATTR_RE: OnceLock<Regex> = OnceLock::new();
+    let tag_re = TAG_RE.get_or_init(|| {
+        Regex::new(r#"<(rect|line|text|ellipse|circle|polygon|polyline|path)\b([^>]*)>"#).unwrap()
+    });
+    let attr_re = ATTR_RE.get_or_init(|| {
+        Regex::new(r#"([A-Za-z_:][-A-Za-z0-9_:.]*)="([^"]*)""#).unwrap()
+    });
+
+    let mut bounds = SequenceSvgBounds::default();
+
+    for cap in tag_re.captures_iter(body) {
+        let tag = &cap[1];
+        let attrs = &cap[2];
+        let attr_map: std::collections::HashMap<&str, &str> = attr_re
+            .captures_iter(attrs)
+            .map(|m| (m.get(1).unwrap().as_str(), m.get(2).unwrap().as_str()))
+            .collect();
+
+        match tag {
+            "rect" => {
+                if let (Some(x), Some(y), Some(width), Some(height)) = (
+                    parse_svg_number(attr_map.get("x").copied()),
+                    parse_svg_number(attr_map.get("y").copied()),
+                    parse_svg_number(attr_map.get("width").copied()),
+                    parse_svg_number(attr_map.get("height").copied()),
+                ) {
+                    bounds.track_rect(x, y, width, height);
+                }
+            }
+            "line" => {
+                if let (Some(x1), Some(y1), Some(x2), Some(y2)) = (
+                    parse_svg_number(attr_map.get("x1").copied()),
+                    parse_svg_number(attr_map.get("y1").copied()),
+                    parse_svg_number(attr_map.get("x2").copied()),
+                    parse_svg_number(attr_map.get("y2").copied()),
+                ) {
+                    bounds.track_line(x1, y1, x2, y2);
+                }
+            }
+            "ellipse" => {
+                if let (Some(cx), Some(cy), Some(rx), Some(ry)) = (
+                    parse_svg_number(attr_map.get("cx").copied()),
+                    parse_svg_number(attr_map.get("cy").copied()),
+                    parse_svg_number(attr_map.get("rx").copied()),
+                    parse_svg_number(attr_map.get("ry").copied()),
+                ) {
+                    bounds.track_ellipse(cx, cy, rx, ry);
+                }
+            }
+            "circle" => {
+                if let (Some(cx), Some(cy), Some(r)) = (
+                    parse_svg_number(attr_map.get("cx").copied()),
+                    parse_svg_number(attr_map.get("cy").copied()),
+                    parse_svg_number(attr_map.get("r").copied()),
+                ) {
+                    bounds.track_ellipse(cx, cy, r, r);
+                }
+            }
+            "text" => {
+                if let (Some(x), Some(y)) = (
+                    parse_svg_number(attr_map.get("x").copied()),
+                    parse_svg_number(attr_map.get("y").copied()),
+                ) {
+                    let text_width = parse_svg_number(attr_map.get("textLength").copied()).unwrap_or(0.0);
+                    let font_size =
+                        parse_svg_number(attr_map.get("font-size").copied()).unwrap_or(FONT_SIZE);
+                    let font_family = svg_font_family_to_metrics_family(
+                        attr_map.get("font-family").copied().unwrap_or("sans-serif"),
+                    );
+                    let font_weight = attr_map.get("font-weight").copied().unwrap_or("");
+                    let bold =
+                        font_weight == "bold" || font_weight.parse::<u32>().map_or(false, |w| w >= 700);
+                    let italic = attr_map.get("font-style").copied() == Some("italic");
+                    let text_height =
+                        font_metrics::line_height(font_family, font_size, bold, italic);
+                    bounds.track_text(
+                        x,
+                        y,
+                        text_width,
+                        text_height,
+                        attr_map.get("text-anchor").copied(),
+                    );
+                }
+            }
+            "polygon" | "polyline" => {
+                let coords = parse_svg_points(attr_map.get("points").copied());
+                bounds.track_points(&coords);
+            }
+            "path" => {
+                let coords = parse_path_endpoints(attr_map.get("d").copied().unwrap_or(""));
+                bounds.track_points(&coords);
+            }
+            _ => {}
+        }
+    }
+
+    bounds.raw_body_dim()
 }
 
 // ── Arrow marker defs ───────────────────────────────────────────────
@@ -205,13 +520,6 @@ fn draw_lifelines(
             encode_metadata_title(display)
         };
 
-        let src_line_attr = sd
-            .participants
-            .get(i)
-            .and_then(|pp| pp.source_line)
-            .map(|sl| format!(r#" data-source-line="{sl}""#))
-            .unwrap_or_default();
-
         // Java lifeline position: box_x + (int)(box_width) / 2 (Java integer division)
         let box_x = p.x - p.box_width / 2.0;
         // Java teoz vs classic lifeline positioning:
@@ -242,8 +550,8 @@ fn draw_lifelines(
             let mut tmp = String::new();
             write!(
                 tmp,
-                r#"<g class="participant-lifeline" data-entity-uid="part{idx}" data-qualified-name="{qname}"{src_line} id="part{idx}-lifeline"><g><title>{dname}</title>"#,
-                idx = part_idx, qname = qualified_name, src_line = src_line_attr, dname = title_text,
+                r#"<g class="participant-lifeline" data-entity-uid="part{idx}" data-qualified-name="{qname}" id="part{idx}-lifeline"><g><title>{dname}</title>"#,
+                idx = part_idx, qname = qualified_name, dname = title_text,
             ).unwrap();
             sg.push_raw(&tmp);
 
@@ -266,8 +574,8 @@ fn draw_lifelines(
             let mut tmp = String::new();
             write!(
                 tmp,
-                r#"<g class="participant-lifeline" data-entity-uid="part{idx}" data-qualified-name="{qname}"{src_line} id="part{idx}-lifeline">"#,
-                idx = part_idx, qname = qualified_name, src_line = src_line_attr,
+                r#"<g class="participant-lifeline" data-entity-uid="part{idx}" data-qualified-name="{qname}" id="part{idx}-lifeline">"#,
+                idx = part_idx, qname = qualified_name,
             ).unwrap();
             sg.push_raw(&tmp);
 
@@ -1498,12 +1806,9 @@ fn draw_message(
 ) {
     // Java teoz does not wrap messages in <g class="message">
     if !teoz_mode {
-        let src_line_attr = source_line
-            .map(|sl| format!(r#" data-source-line="{sl}""#))
-            .unwrap_or_default();
         sg.push_raw(&format!(
-            r#"<g class="message" data-entity-1="part{}" data-entity-2="part{}"{} id="msg{}">"#,
-            from_idx, to_idx, src_line_attr, msg_idx,
+            r#"<g class="message" data-entity-1="part{}" data-entity-2="part{}" id="msg{}">"#,
+            from_idx, to_idx, msg_idx,
         ));
     }
 
@@ -1914,7 +2219,7 @@ fn draw_message(
                 first_text_y,
                 Some(msg_svg_family),
                 msg_font_size,
-                Some("700"),
+                Some("bold"),
                 None,
                 None,
                 num_tl,
@@ -1996,13 +2301,9 @@ fn draw_self_message(
 
     // Java teoz does not wrap messages in <g class="message">
     if !teoz_mode {
-        let src_line_attr = msg
-            .source_line
-            .map(|sl| format!(r#" data-source-line="{sl}""#))
-            .unwrap_or_default();
         sg.push_raw(&format!(
-            r#"<g class="message" data-entity-1="part{}" data-entity-2="part{}"{} id="msg{}">"#,
-            from_idx, from_idx, src_line_attr, msg_idx,
+            r#"<g class="message" data-entity-1="part{}" data-entity-2="part{}" id="msg{}">"#,
+            from_idx, from_idx, msg_idx,
         ));
     }
 
@@ -2746,7 +3047,7 @@ fn draw_fragment_details(sg: &mut SvgGraphic, frag: &FragmentLayout) {
         text_y,
         Some("sans-serif"),
         13.0,
-        Some("700"),
+        Some("bold"),
         None,
         None,
         tab_text_w,
@@ -2770,7 +3071,7 @@ fn draw_fragment_details(sg: &mut SvgGraphic, frag: &FragmentLayout) {
             guard_y,
             Some("sans-serif"),
             FRAG_GUARD_FONT_SIZE,
-            Some("700"),
+            Some("bold"),
             None,
             None,
             guard_w,
@@ -2837,7 +3138,7 @@ fn draw_fragment_separator(
             label_y,
             Some("sans-serif"),
             11.0,
-            Some("700"),
+            Some("bold"),
             None,
             None,
             sep_tl,
@@ -3048,7 +3349,7 @@ fn draw_ref(sg: &mut SvgGraphic, r: &RefLayout) {
         r.y + REF_KIND_LABEL_Y_OFFSET,
         Some("sans-serif"),
         FONT_SIZE,
-        Some("700"),
+        Some("bold"),
         None,
         None,
         ref_text_w,
@@ -3160,27 +3461,16 @@ fn render_sequence_inner(
     layout: &SeqLayout,
     skin: &SkinParams,
 ) -> Result<String> {
-    // Layout includes margins; apply Java ensureVisible (int)(x+1) truncation
-    let svg_w = ensure_visible_int(layout.total_width) as f64;
-    let svg_h = ensure_visible_int(layout.total_height) as f64;
-
-    let mut buf = String::with_capacity(4096);
-
-    // 1. SVG header
     let bg = skin.get_or("backgroundcolor", "#FFFFFF");
-    write_svg_root_bg(&mut buf, svg_w, svg_h, "SEQUENCE", bg);
 
-    // 2. Create SvgGraphic for all rendering helpers
+    // Build the sequence body first, then measure the emitted geometry using
+    // Java-like visible-bounds semantics to derive the final SVG viewport.
     let mut sg = SvgGraphic::new(0, 1.0);
+    let shadow_filter_id = crate::klimt::svg::current_shadow_id();
 
     // Write defs placeholder and open group
     write_seq_defs(&mut sg);
     sg.push_raw("<g>");
-    {
-        let mut tmp = String::new();
-        write_bg_rect(&mut tmp, svg_w, svg_h, bg);
-        sg.push_raw(&tmp);
-    }
 
     // Handwritten RNG — shared across all shape drawings for deterministic output.
     // Java: seed = StringUtils.seed(source.getPlainString("\n"))
@@ -3199,7 +3489,7 @@ fn render_sequence_inner(
 
     // Shadow filter attribute for elements that support shadows (skin rose, etc.)
     let shadow_attr = if sd.delta_shadow > 0.0 {
-        format!(r#" filter="url(#{})""#, SHADOW_FILTER_ID)
+        format!(r#" filter="url(#{})""#, shadow_filter_id)
     } else {
         String::new()
     };
@@ -3335,12 +3625,6 @@ fn render_sequence_inner(
         let part_idx = i + 1;
         let dn = display_names.get(p.name.as_str()).copied();
         let qualified_name = xml_escape(&p.name);
-        let src_line_attr = sd
-            .participants
-            .get(i)
-            .and_then(|pp| pp.source_line)
-            .map(|sl| format!(r#" data-source-line="{sl}""#))
-            .unwrap_or_default();
         let kind = sd.participants.get(i).map(|pp| &pp.kind);
         let is_actor = matches!(kind, Some(ParticipantKind::Actor));
         let part_text_color = skin.font_color("participant", TEXT_COLOR);
@@ -3352,10 +3636,9 @@ fn render_sequence_inner(
             let mut tmp = String::new();
             write!(
                 tmp,
-                r#"<g class="participant participant-{role}" data-entity-uid="part{idx}" data-qualified-name="{name}"{src_line} id="part{idx}-{role}">"#,
+                r#"<g class="participant participant-{role}" data-entity-uid="part{idx}" data-qualified-name="{name}" id="part{idx}-{role}">"#,
                 idx = part_idx,
                 name = qualified_name,
-                src_line = src_line_attr,
                 role = role,
             )
             .unwrap();
@@ -3685,10 +3968,9 @@ fn render_sequence_inner(
         interstitial_idx += 1;
     }
 
-    sg.push_raw("</g></svg>");
+    sg.push_raw("</g>");
 
-    // Append SvgGraphic body to the buf (which has the SVG root header)
-    buf.push_str(sg.body());
+    let mut body = sg.body().to_string();
 
     // Post-process: inject gradient defs, shadow filter, and filter definitions
     let gradient_defs = crate::render::svg_sprite::take_gradient_defs();
@@ -3709,7 +3991,7 @@ fn render_sequence_inner(
                     r#"<feBlend in="SourceGraphic" in2="blurOut3" mode="normal"/>"#,
                     r#"</filter>"#,
                 ),
-                id = SHADOW_FILTER_ID,
+                id = shadow_filter_id,
                 ds = ds,
             )
             .unwrap();
@@ -3725,7 +4007,7 @@ fn render_sequence_inner(
             )
             .unwrap();
         }
-        buf = buf.replacen("<defs/>", &format!("<defs>{}</defs>", defs_content), 1);
+        body = body.replacen("<defs/>", &format!("<defs>{}</defs>", defs_content), 1);
     }
 
     // Apply root line thickness: replace default stroke-width:0.5 with root theme value.
@@ -3734,8 +4016,31 @@ fn render_sequence_inner(
     let root_thickness = skin.line_thickness("root", 0.5);
     if (root_thickness - 0.5).abs() > f64::EPSILON {
         let sw_str = fmt_stroke_width(root_thickness);
-        buf = buf.replace("stroke-width:0.5;", &format!("stroke-width:{sw_str};"));
+        body = body.replace("stroke-width:0.5;", &format!("stroke-width:{sw_str};"));
     }
+
+    let (svg_w, svg_h) = if let Some((raw_w, raw_h)) = measure_sequence_body_dim(&body) {
+        (
+            ensure_visible_int(raw_w + DOC_MARGIN_RIGHT) as f64,
+            ensure_visible_int(raw_h + DOC_MARGIN_BOTTOM) as f64,
+        )
+    } else {
+        (
+            ensure_visible_int(layout.total_width) as f64,
+            ensure_visible_int(layout.total_height) as f64,
+        )
+    };
+
+    if !bg.eq_ignore_ascii_case("#FFFFFF") {
+        let mut bg_rect = String::new();
+        write_bg_rect(&mut bg_rect, svg_w, svg_h, bg);
+        body = body.replacen("<g>", &format!("<g>{bg_rect}"), 1);
+    }
+
+    let mut buf = String::with_capacity(body.len() + 256);
+    write_svg_root_bg(&mut buf, svg_w, svg_h, "SEQUENCE", bg);
+    buf.push_str(&body);
+    buf.push_str("</svg>");
 
     Ok(buf)
 }
@@ -3790,39 +4095,39 @@ mod tests {
     #[test]
     fn smoke_simple_message() {
         let svg = convert("@startuml\nAlice -> Bob : hello\n@enduml");
-        assert!(svg.starts_with("<svg"));
+        assert!(svg.starts_with("<?plantuml "));
         assert!(svg.contains("</svg>"));
     }
 
     #[test]
     fn smoke_self_message() {
         let svg = convert("@startuml\nA -> A : self\n@enduml");
-        assert!(svg.starts_with("<svg"));
+        assert!(svg.starts_with("<?plantuml "));
     }
 
     #[test]
     fn smoke_dashed_open_head() {
         let svg = convert("@startuml\nA --> B : reply\n@enduml");
-        assert!(svg.starts_with("<svg"));
+        assert!(svg.starts_with("<?plantuml "));
     }
 
     #[test]
     fn smoke_destroy() {
         let svg = convert("@startuml\nA -> B : kill\ndestroy B\n@enduml");
-        assert!(svg.starts_with("<svg"));
+        assert!(svg.starts_with("<?plantuml "));
     }
 
     #[test]
     fn smoke_note() {
         let svg = convert("@startuml\nA -> B : msg\nnote right: a note\n@enduml");
-        assert!(svg.starts_with("<svg"));
+        assert!(svg.starts_with("<?plantuml "));
     }
 
     #[test]
     fn smoke_activation() {
         let svg =
             convert("@startuml\nA -> B : req\nactivate B\nB --> A : resp\ndeactivate B\n@enduml");
-        assert!(svg.starts_with("<svg"));
+        assert!(svg.starts_with("<?plantuml "));
     }
 
     #[test]
@@ -3831,7 +4136,7 @@ mod tests {
             "@startuml\nactor A\nboundary B\ncontrol C\ndatabase D\n\
              entity E\ncollections F\nqueue G\nparticipant H\nA -> H : msg\n@enduml",
         );
-        assert!(svg.starts_with("<svg"));
+        assert!(svg.starts_with("<?plantuml "));
     }
 
     #[test]
