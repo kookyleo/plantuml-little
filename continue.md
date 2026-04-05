@@ -30,7 +30,7 @@ Any future Java/Rust parity work must target the stable `v1.2026.2` reference co
 ## Current Parity Baseline (2026-04-05)
 
 - `cargo test --lib`: `2636/2636`
-- `cargo test --test reference_tests`: `184/322`
+- `cargo test --test reference_tests`: `188/322`
 - Byte-compare authority remains the 318 stable-Java SVGs indexed by `tests/reference/INDEX.tsv`.
 
 ## Latest Push (2026-04-05)
@@ -45,9 +45,10 @@ Any future Java/Rust parity work must target the stable `v1.2026.2` reference co
   - **flate2 zlib backend**: switched from miniz_oxide to zlib for Java-compatible deflate output in plantuml-src encoding
 - Verified guardrails:
   - `cargo test --lib` stays green at `2636/2636`
-  - full stable reference suite moved from `133/322` to `184/322` (`+51`)
-  - **Sprite renderer**: aligned with Java SvgNanoParser — drop unsupported elements, circle→ellipse, text plain, no gradient hoisting
-    - sprite tests: 1 → 23 pass
+  - full stable reference suite moved from `133/322` to `188/322` (`+55`)
+  - **Sprite renderer**: aligned with Java SvgNanoParser — drop unsupported elements, circle→ellipse, text plain, no gradient hoisting (sprite: 1→23)
+  - **WBS margin**: 20→10 matching Java ImageBuilder default (+4)
+  - **font-weight**: "700"→"bold" matching Java DriverTextSvg
     - back-highlight filter ids in `src/render/svg_richtext.rs`
     - sequence shadow filter id in `src/render/svg_sequence.rs`
 - Verified guardrails:
