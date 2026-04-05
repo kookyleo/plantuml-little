@@ -699,9 +699,10 @@ fn compute_state_node(
                 for tr in &mut inner_tr {
                     offset_transition(tr, 0.0, region_y);
                 }
-                total_child_w = total_child_w.max(child_w + 15.0);
-                // Each region's SvekResult height = lf_span_h + 15.0
-                let region_h = child_h + 15.0;
+                total_child_w = total_child_w.max(child_w);
+                // Each region's SvekResult height = lf_span_h + 12.0
+                // Java: SvekResult.calculateDimension() = lf_span.delta(0, 12)
+                let region_h = child_h + 12.0;
                 region_y += region_h;
                 all_child_layouts.extend(child_layouts);
                 all_inner_transitions.extend(inner_tr);
@@ -727,15 +728,16 @@ fn compute_state_node(
         }
 
         // Java: InnerStateAutonom.calculateDimensionSlow()
-        //   inner_img = SvekResult.calculateDimension() = lf_span + delta(15, 15)
+        //   inner_img = SvekResult.calculateDimension() = lf_span + delta(0, 12)
         //   dim = title.mergeTB(attr, inner_img)  →  (max(title_w, inner_w), title_h + inner_h)
         //   result = dim.delta(2*MARGIN + 2*MARGIN_LINE)  →  (dim_w + 20, dim_h + 20)
         //
-        // For concurrent regions, total_child already includes the +15 per region
-        // (each region's SvekResult adds delta(15,15)). For single region,
-        // total_child is the raw lf_span, so we add 15 once.
-        let inner_img_w = if is_concurrent { total_child_w } else { total_child_w + 15.0 };
-        let inner_img_h = if is_concurrent { total_child_h } else { total_child_h + 15.0 };
+        // Java SvekResult.calculateDimension() returns
+        //   minMax.getDimension().delta(0, 12)
+        // i.e. width = lf_span_w (no extra), height = lf_span_h + 12.
+        // For concurrent regions, each region individually gets delta(0, 12).
+        let inner_img_w = if is_concurrent { total_child_w } else { total_child_w };
+        let inner_img_h = if is_concurrent { total_child_h } else { total_child_h + 12.0 };
 
         // Java uses {rank=source}/{rank=sink} cluster constraints for
         // inputPin/outputPin children. Each pin type at a cluster boundary
@@ -805,7 +807,7 @@ fn compute_state_node(
                 kind: state.kind.clone(),
                 internal_transitions: all_inner_transitions,
                 region_separators,
-                source_line: state.source_line,
+                source_line: state.explicit_source_line.or(state.source_line),
                 render_as_cluster: state_has_direct_pin_child(state),
             },
             width,
@@ -2566,7 +2568,7 @@ pub fn layout_state(diagram: &StateDiagram) -> Result<StateLayout> {
             kind: state.kind.clone(),
             internal_transitions: Vec::new(),
             region_separators: Vec::new(),
-            source_line: state.source_line,
+            source_line: state.explicit_source_line.or(state.source_line),
             render_as_cluster: true,
         };
         node_position_map.insert(state.id.clone(), (x, y, w, h));

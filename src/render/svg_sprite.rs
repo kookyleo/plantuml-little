@@ -762,12 +762,11 @@ fn convert_single_element_ext(
 
         match tag {
             // Java SvgNanoParser regex only matches: svg|path|g|circle|ellipse|text
-            // rect, line, polyline, polygon are silently dropped.
+            // rect, line, polyline, polygon, image are silently dropped.
             "circle" => convert_circle(buf, element, eff_ox, eff_oy),
             "ellipse" => convert_ellipse(buf, element, eff_ox, eff_oy),
             "path" => convert_path(buf, element, eff_ox, eff_oy),
             "text" => convert_text(buf, element, text_ox, text_oy),
-            "image" => convert_image(buf, element, eff_ox, eff_oy),
             "g" => convert_group(buf, element, ox, oy, text_ox, text_oy, css_text_props),
             "use" => convert_use(buf, element, ox, oy, text_ox, text_oy, css_text_props),
             _ => {}
@@ -1127,7 +1126,7 @@ fn convert_text(buf: &mut String, element: &str, ox: f64, oy: f64) {
     let inner = extract_element_content(element, "text");
 
     // Get attributes (check both attribute and style property)
-    let x = sc(get_attr(element, "x")
+    let mut x = sc(get_attr(element, "x")
         .and_then(|v| v.parse::<f64>().ok())
         .unwrap_or(0.0));
     let y = sc(get_attr(element, "y")
@@ -1142,11 +1141,26 @@ fn convert_text(buf: &mut String, element: &str, ox: f64, oy: f64) {
     // Java: sprite text always uses Font.PLAIN — no font-weight, font-style,
     // or text-decoration attributes are emitted.
 
-    // Compute text width using font metrics (always plain style)
-    let text_content = inner.trim();
     let size = font_size.parse::<f64>().unwrap_or(14.0);
     let bold = false;
     let italic = false;
+
+    // Java joins multiline sprite SVG without newlines, so text content
+    // between <text> and </text> may have leading spaces from source
+    // indentation.  Java's DriverTextSvg.draw() advances x for each
+    // leading space using the font's space advance, then trims.
+    // Simulate this: strip newlines, count leading spaces, advance x.
+    let joined = inner.replace('\n', "").replace('\r', "");
+    let leading_spaces = joined.len() - joined.trim_start_matches(' ').len();
+    if leading_spaces > 0 {
+        let space_w = crate::font_metrics::char_width(' ', font_family, size, bold, italic);
+        x += space_w * leading_spaces as f64;
+    }
+
+    let text_content = joined.trim();
+    if text_content.is_empty() {
+        return;
+    }
     let text_length =
         crate::font_metrics::text_width(text_content, font_family, size, bold, italic);
 
@@ -1187,59 +1201,8 @@ fn convert_text(buf: &mut String, element: &str, ox: f64, oy: f64) {
     .unwrap();
 }
 
-fn convert_image(buf: &mut String, element: &str, ox: f64, oy: f64) {
-    let x = sc(get_attr(element, "x")
-        .and_then(|v| v.parse::<f64>().ok())
-        .unwrap_or(0.0));
-    let y = sc(get_attr(element, "y")
-        .and_then(|v| v.parse::<f64>().ok())
-        .unwrap_or(0.0));
-    let w = sc(get_attr(element, "width")
-        .and_then(|v| v.parse::<f64>().ok())
-        .unwrap_or(0.0));
-    let h = sc(get_attr(element, "height")
-        .and_then(|v| v.parse::<f64>().ok())
-        .unwrap_or(0.0));
-    let href = get_attr(element, "xlink:href")
-        .or_else(|| get_attr(element, "href"))
-        .unwrap_or("");
-
-    // Java wraps raster images (PNG/JPEG) inside an SVG container and
-    // base64-encodes the whole thing as data:image/svg+xml.
-    let final_href = if href.starts_with("data:image/png;") || href.starts_with("data:image/jpeg;")
-    {
-        // Always include xmlns:xlink since the inner <image> uses xlink:href
-        let svg_header = format!(
-            r#"<svg height="{}" width="{}" xmlns:xlink="http://www.w3.org/1999/xlink" xmlns="http://www.w3.org/2000/svg" >"#,
-            h as u32, w as u32
-        );
-        let inner_image = format!(
-            r#"<image x="0" y="0" width="{}" height="{}" xlink:href="{}"/>"#,
-            w as u32, h as u32, href
-        );
-        let svg_content = format!("{}{}</svg>", svg_header, inner_image);
-        use base64::Engine;
-        let encoded = base64::engine::general_purpose::STANDARD.encode(svg_content.as_bytes());
-        format!("data:image/svg+xml;base64,{}", encoded)
-    } else {
-        href.to_string()
-    };
-
-    write!(
-        buf,
-        r#"<image height="{}" width="{}" x="{}" xlink:href="{}""#,
-        h as u32,
-        w as u32,
-        fmt_coord(x + ox),
-        final_href,
-    )
-    .unwrap();
-    let final_y = y + oy;
-    if final_y != 0.0 {
-        write!(buf, r#" y="{}""#, fmt_coord(final_y)).unwrap();
-    }
-    buf.push_str("/>");
-}
+// NOTE: <image> elements are silently dropped by Java's SvgNanoParser
+// (its regex only matches svg|path|g|circle|ellipse|text).
 
 fn convert_group(
     buf: &mut String,
@@ -1715,12 +1678,19 @@ fn get_stroke_style(element: &str) -> String {
 
 // NOTE: parse_points removed — only used by convert_polyline/convert_polygon which Java drops.
 
-/// Translate path data by adding offsets to absolute coordinates.
-/// This is a simplified translator that handles common path commands.
+/// Translate path data by converting all commands to absolute, applying
+/// sprite scale + offset.  Matches Java's `SvgPath` which converts every
+/// command to absolute uppercase before rendering via `UPath`.
 fn translate_path_data(d: &str, ox: f64, oy: f64) -> String {
     let mut result = String::new();
     let mut chars = d.chars().peekable();
     let mut current_cmd = ' ';
+    // Current point (absolute, in sprite coordinate space before scale/offset).
+    let mut cur_x = 0.0_f64;
+    let mut cur_y = 0.0_f64;
+    // Start point of current sub-path (for Z).
+    let mut start_x = 0.0_f64;
+    let mut start_y = 0.0_f64;
 
     while chars.peek().is_some() {
         // Skip whitespace
@@ -1736,33 +1706,89 @@ fn translate_path_data(d: &str, ox: f64, oy: f64) -> String {
         if c.is_alphabetic() {
             current_cmd = c;
             chars.next();
-            if !result.is_empty() {
-                result.push(' ');
-            }
-            result.push(current_cmd);
         }
 
-        // Parse numbers based on command type.
-        // sc() applies the current sprite scale factor to coordinates/sizes.
-        match current_cmd {
+        // Determine if command is relative (lowercase).
+        let is_rel = current_cmd.is_ascii_lowercase();
+        let upper = current_cmd.to_ascii_uppercase();
+
+        // Emit absolute command letter.
+        match upper {
+            'Z' => {
+                if !result.is_empty() {
+                    result.push(' ');
+                }
+                result.push('Z');
+                cur_x = start_x;
+                cur_y = start_y;
+            }
             'M' | 'L' | 'T' => {
-                // Absolute move/line: scale + translate x,y
-                if let Some((x, y)) = parse_coord_pair(&mut chars) {
+                if let Some((rx, ry)) = parse_coord_pair(&mut chars) {
+                    let (ax, ay) = if is_rel {
+                        (cur_x + rx, cur_y + ry)
+                    } else {
+                        (rx, ry)
+                    };
+                    if !result.is_empty() {
+                        result.push(' ');
+                    }
+                    result.push(upper);
                     write!(
                         result,
                         "{},{}",
-                        fmt_coord(sc(x) + ox),
-                        fmt_coord(sc(y) + oy)
+                        fmt_coord(sc(ax) + ox),
+                        fmt_coord(sc(ay) + oy)
                     )
                     .unwrap();
+                    cur_x = ax;
+                    cur_y = ay;
+                    if upper == 'M' {
+                        start_x = ax;
+                        start_y = ay;
+                    }
+                }
+            }
+            'H' => {
+                if let Some(v) = parse_number(&mut chars) {
+                    let ax = if is_rel { cur_x + v } else { v };
+                    // Emit as L ax,cur_y
+                    if !result.is_empty() {
+                        result.push(' ');
+                    }
+                    result.push('L');
+                    write!(
+                        result,
+                        "{},{}",
+                        fmt_coord(sc(ax) + ox),
+                        fmt_coord(sc(cur_y) + oy)
+                    )
+                    .unwrap();
+                    cur_x = ax;
+                }
+            }
+            'V' => {
+                if let Some(v) = parse_number(&mut chars) {
+                    let ay = if is_rel { cur_y + v } else { v };
+                    // Emit as L cur_x,ay
+                    if !result.is_empty() {
+                        result.push(' ');
+                    }
+                    result.push('L');
+                    write!(
+                        result,
+                        "{},{}",
+                        fmt_coord(sc(cur_x) + ox),
+                        fmt_coord(sc(ay) + oy)
+                    )
+                    .unwrap();
+                    cur_y = ay;
                 }
             }
             'A' => {
                 // Arc: rx,ry x-rotation large-arc sweep x,y
-                // Scale radii + endpoint, leave rotation/flags unchanged
-                if let Some(rx) = parse_number(&mut chars) {
+                if let Some(rrx) = parse_number(&mut chars) {
                     skip_comma(&mut chars);
-                    if let Some(ry) = parse_number(&mut chars) {
+                    if let Some(rry) = parse_number(&mut chars) {
                         skip_whitespace_comma(&mut chars);
                         if let Some(rot) = parse_number(&mut chars) {
                             skip_whitespace_comma(&mut chars);
@@ -1770,19 +1796,30 @@ fn translate_path_data(d: &str, ox: f64, oy: f64) -> String {
                                 skip_whitespace_comma(&mut chars);
                                 if let Some(sweep) = parse_number(&mut chars) {
                                     skip_whitespace_comma(&mut chars);
-                                    if let Some((x, y)) = parse_coord_pair(&mut chars) {
+                                    if let Some((ex, ey)) = parse_coord_pair(&mut chars) {
+                                        let (ax, ay) = if is_rel {
+                                            (cur_x + ex, cur_y + ey)
+                                        } else {
+                                            (ex, ey)
+                                        };
+                                        if !result.is_empty() {
+                                            result.push(' ');
+                                        }
+                                        result.push('A');
                                         write!(
                                             result,
                                             "{},{} {} {} {} {},{}",
-                                            fmt_coord_raw(sc(rx)),
-                                            fmt_coord_raw(sc(ry)),
+                                            fmt_coord_raw(sc(rrx)),
+                                            fmt_coord_raw(sc(rry)),
                                             rot as i32,
                                             large as i32,
                                             sweep as i32,
-                                            fmt_coord(sc(x) + ox),
-                                            fmt_coord(sc(y) + oy),
+                                            fmt_coord(sc(ax) + ox),
+                                            fmt_coord(sc(ay) + oy),
                                         )
                                         .unwrap();
+                                        cur_x = ax;
+                                        cur_y = ay;
                                     }
                                 }
                             }
@@ -1791,25 +1828,112 @@ fn translate_path_data(d: &str, ox: f64, oy: f64) -> String {
                 }
             }
             'C' => {
-                // Cubic bezier: x1,y1 x2,y2 x,y (Java: no space after C)
-                for i in 0..3 {
-                    if let Some((x, y)) = parse_coord_pair(&mut chars) {
+                // Cubic bezier: x1,y1 x2,y2 x,y
+                let mut pts = [(0.0, 0.0); 3];
+                let mut ok = true;
+                for p in pts.iter_mut() {
+                    if let Some((rx, ry)) = parse_coord_pair(&mut chars) {
+                        *p = if is_rel {
+                            (cur_x + rx, cur_y + ry)
+                        } else {
+                            (rx, ry)
+                        };
+                    } else {
+                        ok = false;
+                        break;
+                    }
+                }
+                if ok {
+                    if !result.is_empty() {
+                        result.push(' ');
+                    }
+                    result.push('C');
+                    for (i, (ax, ay)) in pts.iter().enumerate() {
                         let sep = if i == 0 { "" } else { " " };
                         write!(
                             result,
                             "{sep}{},{}",
-                            fmt_coord(sc(x) + ox),
-                            fmt_coord(sc(y) + oy)
+                            fmt_coord(sc(*ax) + ox),
+                            fmt_coord(sc(*ay) + oy)
                         )
                         .unwrap();
                     }
+                    cur_x = pts[2].0;
+                    cur_y = pts[2].1;
                 }
             }
-            'Z' | 'z' => {
-                // Close path
+            'S' => {
+                // Smooth cubic: x2,y2 x,y
+                let mut pts = [(0.0, 0.0); 2];
+                let mut ok = true;
+                for p in pts.iter_mut() {
+                    if let Some((rx, ry)) = parse_coord_pair(&mut chars) {
+                        *p = if is_rel {
+                            (cur_x + rx, cur_y + ry)
+                        } else {
+                            (rx, ry)
+                        };
+                    } else {
+                        ok = false;
+                        break;
+                    }
+                }
+                if ok {
+                    if !result.is_empty() {
+                        result.push(' ');
+                    }
+                    result.push('S');
+                    for (i, (ax, ay)) in pts.iter().enumerate() {
+                        let sep = if i == 0 { "" } else { " " };
+                        write!(
+                            result,
+                            "{sep}{},{}",
+                            fmt_coord(sc(*ax) + ox),
+                            fmt_coord(sc(*ay) + oy)
+                        )
+                        .unwrap();
+                    }
+                    cur_x = pts[1].0;
+                    cur_y = pts[1].1;
+                }
+            }
+            'Q' => {
+                // Quadratic bezier: x1,y1 x,y
+                let mut pts = [(0.0, 0.0); 2];
+                let mut ok = true;
+                for p in pts.iter_mut() {
+                    if let Some((rx, ry)) = parse_coord_pair(&mut chars) {
+                        *p = if is_rel {
+                            (cur_x + rx, cur_y + ry)
+                        } else {
+                            (rx, ry)
+                        };
+                    } else {
+                        ok = false;
+                        break;
+                    }
+                }
+                if ok {
+                    if !result.is_empty() {
+                        result.push(' ');
+                    }
+                    result.push('Q');
+                    for (i, (ax, ay)) in pts.iter().enumerate() {
+                        let sep = if i == 0 { "" } else { " " };
+                        write!(
+                            result,
+                            "{sep}{},{}",
+                            fmt_coord(sc(*ax) + ox),
+                            fmt_coord(sc(*ay) + oy)
+                        )
+                        .unwrap();
+                    }
+                    cur_x = pts[1].0;
+                    cur_y = pts[1].1;
+                }
             }
             _ => {
-                // Unknown command, try to skip
+                // Unknown command, try to skip one number
                 if let Some(_) = parse_number(&mut chars) {
                     // consumed
                 }
@@ -1936,5 +2060,28 @@ mod tests {
         );
         assert_eq!(info.vb_width, 100.0);
         assert_eq!(info.vb_height, 50.0);
+    }
+
+    #[test]
+    fn test_path_relative_commands() {
+        // Relative arc + H/V/h/v commands (bootstrap icon path)
+        let d = "M16 8A8 8 0 1 1 0 8a8 8 0 0 1 16 0M9.283 4.002H7.971L6.072 5.385v1.271l1.834-1.318h.065V12h1.312z";
+        let result = translate_path_data(d, 10.0, 20.0);
+        // All commands should be absolute; M translated, arcs have absolute endpoints
+        assert!(result.starts_with("M26,28"), "expected M26,28, got: {result}");
+        // 'a' (relative arc) should become absolute 'A'
+        assert!(result.contains(" A8,8 0 0 1 26,28"), "expected absolute arc, got: {result}");
+        // 'H' should become 'L' with translated x
+        assert!(result.contains(" L17.971,24.002"), "H -> L, got: {result}");
+        // 'v' (relative vertical) should become 'L' with translated absolute y
+        assert!(result.contains("L16.072,26.656"), "v -> L, got: {result}");
+    }
+
+    #[test]
+    fn test_path_absolute_commands_unchanged() {
+        // Simple absolute M L Z: offsets applied correctly
+        let d = "M0,0 L10,0 L10,10 L0,10 Z";
+        let result = translate_path_data(d, 5.0, 3.0);
+        assert_eq!(result, "M5,3 L15,3 L15,13 L5,13 Z");
     }
 }

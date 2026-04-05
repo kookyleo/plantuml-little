@@ -1287,14 +1287,12 @@ fn test_preprocessor_fixture_jaws3() {
     let svg = convert_fixture("tests/fixtures/preprocessor/jaws3.puml");
     assert_valid_svg(&svg, "jaws3");
     assert!(svg.contains("Field1"), "jaws3: missing table header");
-    assert!(
-        svg.contains(">1</tspan><tspan> | </tspan><tspan>2</tspan>"),
-        "jaws3: missing first generated row"
-    );
-    assert!(
-        svg.contains(">3</tspan><tspan> | </tspan><tspan>4</tspan>"),
-        "jaws3: missing second generated row"
-    );
+    // Java renders expanded table rows as individual <text> elements in grid cells,
+    // not as inline tspan runs.
+    assert!(svg.contains(">1</text>"), "jaws3: missing cell value 1");
+    assert!(svg.contains(">2</text>"), "jaws3: missing cell value 2");
+    assert!(svg.contains(">3</text>"), "jaws3: missing cell value 3");
+    assert!(svg.contains(">4</text>"), "jaws3: missing cell value 4");
 }
 
 #[test]
@@ -1523,14 +1521,16 @@ fn test_misc_fixture_link_url_tooltip_04() {
     let svg = convert_fixture("tests/fixtures/misc/link_url_tooltip_04.puml");
     assert_valid_svg(&svg, "link_url_tooltip_04");
     assert_eq!(
-        svg.matches("<a").count(),
+        svg.matches("<a ").count(),
         2,
         "link_url_tooltip_04: expected two links"
     );
+    // Java produces 1 <title> (the SVG document title), not 2.
+    // Tooltips are encoded as title= attributes on <a> elements.
     assert_eq!(
         svg.matches("<title>").count(),
-        2,
-        "link_url_tooltip_04: expected two tooltips"
+        1,
+        "link_url_tooltip_04: expected one SVG doc title"
     );
     assert!(
         svg.contains("multiline label test"),
@@ -1547,14 +1547,16 @@ fn test_misc_fixture_link_url_tooltip_05() {
     let svg = convert_fixture("tests/fixtures/misc/link_url_tooltip_05.puml");
     assert_valid_svg(&svg, "link_url_tooltip_05");
     assert_eq!(
-        svg.matches("<a").count(),
+        svg.matches("<a ").count(),
         7,
-        "link_url_tooltip_05: expected seven tooltip spans"
+        "link_url_tooltip_05: expected seven link elements"
     );
+    // Java produces 1 <title> (the SVG document title).
+    // Tooltips are encoded as title= attributes on <a> elements.
     assert_eq!(
         svg.matches("<title>").count(),
-        7,
-        "link_url_tooltip_05: expected seven tooltips"
+        1,
+        "link_url_tooltip_05: expected one SVG doc title"
     );
     assert!(
         svg.contains("tooltip test on table"),

@@ -113,15 +113,37 @@ fn build_java_state_render_plan(diagram: &StateDiagram, layout: &StateLayout) ->
         .collect();
     explicit_states.sort_by_key(|(line, idx, _)| (*line, *idx));
 
+    // Also include aliased notes in pass-1 numbering — Java treats them as entities.
+    // Collect (source_line, index, id) entries for aliased notes so they interleave
+    // with explicit states in source order.
+    let note_base_idx = all_diagram_states.len();
+    let mut aliased_note_entries: Vec<(usize, usize, String)> = diagram
+        .notes
+        .iter()
+        .enumerate()
+        .filter_map(|(idx, note)| {
+            let alias = note.alias.as_ref()?;
+            Some((note.source_line.unwrap_or(usize::MAX), note_base_idx + idx, alias.clone()))
+        })
+        .collect();
+
     let mut pass1_next = 2u32;
-    for (_, _, state) in explicit_states {
-        ent_numbers.entry(state.id.clone()).or_insert_with(|| {
+    // Merge explicit states and aliased notes in source-line order
+    let mut pass1_items: Vec<(usize, usize, String)> = explicit_states
+        .into_iter()
+        .map(|(line, idx, state)| (line, idx, state.id.clone()))
+        .collect();
+    pass1_items.append(&mut aliased_note_entries);
+    pass1_items.sort_by_key(|(line, idx, _)| (*line, *idx));
+
+    for (_, _, id) in &pass1_items {
+        ent_numbers.entry(id.clone()).or_insert_with(|| {
             let assigned = pass1_next;
             pass1_next += 1;
             assigned
         });
-        if top_level_ids.contains(state.id.as_str()) {
-            explicit_top_level_order.push(state.id.clone());
+        if top_level_ids.contains(id.as_str()) {
+            explicit_top_level_order.push(id.clone());
         }
     }
 
@@ -182,8 +204,13 @@ fn build_java_state_render_plan(diagram: &StateDiagram, layout: &StateLayout) ->
         .notes
         .iter()
         .map(|note| {
-            if note.alias.is_some() {
-                return None;
+            if let Some(alias) = &note.alias {
+                // Aliased notes are standalone entities — use their entity number.
+                let ent_num = ent_numbers.get(alias).copied()?;
+                return Some(NoteRenderInfo {
+                    qualified_name: alias.clone(),
+                    ent_id: format!("ent{ent_num:04}"),
+                });
             }
             let target_id = note.target.as_deref()?;
             let target_ent = ent_numbers
@@ -230,6 +257,12 @@ pub fn render_state(
 
     let mut sg = SvgGraphic::new(0, 1.0);
     let mut tracker = BoundsTracker::new();
+    // Java SvgGraphics.svgPath calls ensureVisible(arcEndpoint + arcRadius) for
+    // arc segments in UPath. This can push the SvgGraphics maxX beyond what the
+    // LimitFinder tracks. Track the maximum arc-extended x separately so we can
+    // compute viewport = max(LF-based, arc-extended).
+    let mut svg_arc_max_x: f64 = f64::NEG_INFINITY;
+    let mut svg_arc_max_y: f64 = f64::NEG_INFINITY;
     let render_plan = build_java_state_render_plan(diagram, layout);
     let ent_id_map = &render_plan.ent_id_map;
     let lnk_id_map = &render_plan.lnk_id_map;
@@ -316,12 +349,50 @@ pub fn render_state(
         }
     }
 
+    // Compute arc-extended max from composite state header paths.
+    // Java SvgGraphics.svgPath calls ensureVisible(arcEndpoint + arcRadius) for arc
+    // segments, which can push the viewport beyond the LimitFinder-tracked bounds.
+    // Collect arc-extended max_x/max_y from all composite states (those with shells).
+    fn collect_arc_extensions(states: &[StateNodeLayout], max_x: &mut f64, max_y: &mut f64) {
+        let r = 12.5_f64;
+        for node in states {
+            if node.is_composite {
+                // Header path top-right arc endpoint (x+w, y+r) with rx=r:
+                // Java SvgGraphics: ensureVisible(x+w + r, y+r + r)
+                let arc_x = node.x + node.width + r;
+                let arc_y = node.y + r + r;
+                if arc_x > *max_x { *max_x = arc_x; }
+                if arc_y > *max_y { *max_y = arc_y; }
+                collect_arc_extensions(&node.children, max_x, max_y);
+            }
+        }
+    }
+    collect_arc_extensions(&layout.state_layouts, &mut svg_arc_max_x, &mut svg_arc_max_y);
+
     // Java ImageBuilder.getFinalDimension(): LimitFinder maxX/maxY + 1 + doc margins.
-    // Same pattern as the class/component renderer (svg.rs).
+    // Java SvgGraphics viewport = max(LF_initial, rendering_ensureVisible).
+    // LF_initial = (int)(LF_maxX + 1 + margin_left + margin_right + 1)
+    // rendering_ensureVisible = (int)(elem_x + 1) for each element
+    // CucaDiagram: margin_left=0, margin_right=5.
     let (max_x, max_y) = tracker.max_point();
+    // LF-based viewport (standard path: maxX + 1 + margin_right)
+    let lf_svg_w = ensure_visible_int(max_x + 1.0 + DOC_MARGIN_RIGHT);
+    let lf_svg_h = ensure_visible_int(max_y + 1.0 + DOC_MARGIN_BOTTOM);
+    // Arc-extended viewport (SvgGraphics rendering push)
+    // Java: maxX = (int)(x + 1) — no additional +1 from ensure_visible_int
+    let arc_svg_w = if svg_arc_max_x.is_finite() {
+        (svg_arc_max_x + 1.0) as i32
+    } else {
+        0
+    };
+    let arc_svg_h = if svg_arc_max_y.is_finite() {
+        (svg_arc_max_y + 1.0) as i32
+    } else {
+        0
+    };
+    let svg_w = lf_svg_w.max(arc_svg_w) as f64;
+    let svg_h = lf_svg_h.max(arc_svg_h) as f64;
     let raw_body_dim = (max_x + 1.0, max_y + 1.0);
-    let svg_w = ensure_visible_int(raw_body_dim.0 + DOC_MARGIN_RIGHT) as f64;
-    let svg_h = ensure_visible_int(raw_body_dim.1 + DOC_MARGIN_BOTTOM) as f64;
 
     let bg = skin.get_or("backgroundcolor", "#FFFFFF");
     write_svg_root_bg(&mut buf, svg_w, svg_h, "STATE", bg);
@@ -1582,9 +1653,12 @@ fn render_note(
         NOTE_BORDER,
     ));
 
-    // Fold corner path uses stroke-width:0.5 (Java: note fold triangle inherits note border width).
+    // Java: standalone notes (EntityImageNote) use default stroke-width:1 for the fold
+    // triangle. Linked notes (Opale shape, with anchor/connector) inherit stroke-width:0.5.
+    let is_linked = note.anchor.is_some() || note.opale_points.is_some();
+    let fold_stroke = if is_linked { "0.5" } else { "1" };
     sg.push_raw(&format!(
-        r#"<path d="M{},{} L{},{} L{},{} L{},{}" fill="{}" style="stroke:{};stroke-width:0.5;"/>"#,
+        r#"<path d="M{},{} L{},{} L{},{} L{},{}" fill="{}" style="stroke:{};stroke-width:{};"/>"#,
         fmt_coord(x + w - fold),
         fmt_coord(y),
         fmt_coord(x + w - fold),
@@ -1595,6 +1669,7 @@ fn render_note(
         fmt_coord(y),
         NOTE_BG,
         NOTE_BORDER,
+        fold_stroke,
     ));
 
     // Track note bounds — notes are drawn as UPath in Java, not UPolygon,
