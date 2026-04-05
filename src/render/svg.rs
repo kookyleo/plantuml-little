@@ -2121,8 +2121,8 @@ fn render_class(
             } else {
                 sg.push_raw(&format!(
                     "<!--{} {}--><g class=\"entity\" data-qualified-name=\"{}\"",
-                    // Java uses "class" for class entities, "entity" for others (rectangle, etc.)
-                    if entity.kind == EntityKind::Rectangle {
+                    // Java uses "class" for class entities, "entity" for others (rectangle, component, etc.)
+                    if matches!(entity.kind, EntityKind::Rectangle | EntityKind::Component) {
                         "entity"
                     } else {
                         "class"
@@ -2802,8 +2802,8 @@ fn draw_entity_box(
     // Java font resolution:
     // - classFontSize controls the class name font size
     // - classAttributeFontSize controls member (field/method) font size
-    // When only classFontSize is set, it applies to everything.
-    // When both are set, classFontSize → name, classAttributeFontSize → members.
+    // When classAttributeFontSize is set, it overrides classFontSize for both
+    // header name and attributes (matching Java style priority).
     let explicit_attr_fs = skin
         .get("classattributefontsize")
         .and_then(|s| s.parse::<f64>().ok());
@@ -2812,7 +2812,7 @@ fn draw_entity_box(
         .and_then(|s| s.parse::<f64>().ok());
     let attr_font_size = explicit_attr_fs.unwrap_or_else(|| explicit_class_fs.unwrap_or(FONT_SIZE));
     let class_font_size =
-        explicit_class_fs.unwrap_or_else(|| explicit_attr_fs.unwrap_or(FONT_SIZE));
+        explicit_attr_fs.unwrap_or_else(|| explicit_class_fs.unwrap_or(FONT_SIZE));
 
     // Entity name WITHOUT generic parameter — generic is rendered separately in draw_generic_box
     // When `as Alias` is used, display_name holds the original quoted label.
@@ -2999,7 +2999,7 @@ fn draw_entity_box(
             // merged height = max(15, name_h).
             // icon in merged: (merged_h - 15) / 2 + 4 (margin top).
             // merged in header: (header_h - merged_h) / 2.
-            let icon_margin_top = 4.0;
+            let icon_margin_top = 0.0;
             let icon_block_h = ENTITY_VIS_ICON_BLOCK_SIZE + icon_margin_top;
             let merged_h = name_block_height.max(icon_block_h);
             let merged_y = (header_height - stereo_height - merged_h) / 2.0;

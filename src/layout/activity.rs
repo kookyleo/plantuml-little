@@ -1884,6 +1884,7 @@ fn layout_old_style_activity_graph(
                 lf_has_body_separator: false,
                 lf_node_polygon: false,
                 lf_polygon_hack: false,
+                lf_actor_stickman: false,
                 hidden: false,
             }
         })

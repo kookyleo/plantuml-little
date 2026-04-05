@@ -776,6 +776,8 @@ impl DotStringFactory {
             let uses_polygon = is_diamond || node.lf_polygon_hack;
             let (min_corr_x, min_corr_y) = if uses_polygon {
                 (10.0, 0.0) // polygon hack: extend 10px left (HACK_X_FOR_POLYGON)
+            } else if node.lf_actor_stickman {
+                (0.0, -0.5) // actor head ellipse: LF addPoint includes y-0.5 from thickness
             } else if node.lf_rect_correction {
                 (1.0, 1.0) // rect: -1 on both axes
             } else {
@@ -786,6 +788,8 @@ impl DotStringFactory {
             // For rect entities without body separator (components): rect -1 stands.
             let (max_corr_x, max_corr_y) = if uses_polygon {
                 (-10.0_f64, 0.0) // polygon hack: extend 10px right, no y correction
+            } else if node.lf_actor_stickman {
+                (0.0, 0.0) // actor UPath: no max correction
             } else if node.lf_has_body_separator {
                 (0.0, 1.0) // ULine.hline(width) overrides rect's -1 on x-axis
             } else if node.lf_rect_correction || is_ellipse_shape {

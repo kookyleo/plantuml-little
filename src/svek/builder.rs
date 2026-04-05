@@ -46,6 +46,8 @@ pub struct EntityDescriptor {
     pub lf_has_body_separator: bool,
     pub lf_node_polygon: bool,
     pub lf_polygon_hack: bool,
+    /// Actor stickman: LimitFinder uses min_corr_y = -0.5, max_corr = (0, 0).
+    pub lf_actor_stickman: bool,
     /// When true, the node appears in the DOT but is excluded from LimitFinder.
     /// Used for internal proxy/special-point nodes (Java: zaent).
     pub hidden: bool,
@@ -70,6 +72,7 @@ impl EntityDescriptor {
             lf_has_body_separator: false,
             lf_node_polygon: false,
             lf_polygon_hack: false,
+            lf_actor_stickman: false,
             hidden: false,
         }
     }
@@ -411,6 +414,7 @@ impl GraphvizImageBuilder {
             node.lf_has_body_separator = ent.lf_has_body_separator;
             node.lf_node_polygon = ent.lf_node_polygon;
             node.lf_polygon_hack = ent.lf_polygon_hack;
+            node.lf_actor_stickman = ent.lf_actor_stickman;
             node.hidden = ent.hidden;
             bib.add_node(node);
         }

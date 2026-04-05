@@ -423,6 +423,7 @@ pub fn layout_erd(diagram: &ErdDiagram) -> Result<ErdLayout> {
             lf_has_body_separator: false,
             lf_node_polygon: false,
             lf_polygon_hack: false,
+            lf_actor_stickman: false,
                     hidden: false,
         });
         // Recursively add children
@@ -472,6 +473,7 @@ pub fn layout_erd(diagram: &ErdDiagram) -> Result<ErdLayout> {
                     lf_has_body_separator: false,
                     lf_node_polygon: false,
                     lf_polygon_hack: false,
+                    lf_actor_stickman: false,
                     hidden: false,
                 });
                 if let Some(attrs) = attrs_by_parent.get(&e.id) {
@@ -499,6 +501,7 @@ pub fn layout_erd(diagram: &ErdDiagram) -> Result<ErdLayout> {
                     lf_has_body_separator: false,
                     lf_node_polygon: false,
                     lf_polygon_hack: false,
+                    lf_actor_stickman: false,
                     hidden: false,
                 });
                 if let Some(attrs) = attrs_by_parent.get(&r.id) {
@@ -545,6 +548,7 @@ pub fn layout_erd(diagram: &ErdDiagram) -> Result<ErdLayout> {
             lf_has_body_separator: false,
             lf_node_polygon: false,
             lf_polygon_hack: false,
+            lf_actor_stickman: false,
                     hidden: false,
         });
         isa_node_metas.push(IsaNodeMeta {

@@ -2378,12 +2378,12 @@ fn render_actor_node(
     let text = &node.name;
     let text_w = font_metrics::text_width(text, "SansSerif", FONT_SIZE, false, false);
     let text_x = x + (w - text_w) / 2.0;
-    let fig_bottom = body_bottom + LEGS_Y;
-    // Java: label drawn at labelY = dimStickMan.getHeight() + dimStereo.getHeight()
+    // Java: label drawn at labelY = dimStickMan.getHeight() (=60) + dimStereo.getHeight()
     // Text baseline: font ascent = 1901/2048 * 14 = 12.9951...
     // Java drawU text baseline = labelY + ascent
+    const STICKMAN_HEIGHT: f64 = 60.0;
     let ascent = 1901.0 / 2048.0 * FONT_SIZE;
-    let text_y = fig_bottom + ascent;
+    let text_y = y + STICKMAN_HEIGHT + ascent;
 
     sg.push_raw(&format!(
         r#"<text fill="{font_color}" font-family="sans-serif" font-size="{FONT_SIZE}" lengthAdjust="spacing" textLength="{tl}" x="{tx}" y="{ty}">{text}</text>"#,

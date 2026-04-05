@@ -266,6 +266,7 @@ pub fn layout(diagram: &Diagram, skin: &crate::style::SkinParams) -> Result<Diag
                     lf_has_body_separator: false,
                     lf_node_polygon: false,
                     lf_polygon_hack: false,
+                    lf_actor_stickman: false,
                     hidden: false,
                 }],
                 edges: vec![],
@@ -1257,10 +1258,8 @@ fn layout_class_diagram(cd: &ClassDiagram, skin: &crate::style::SkinParams) -> R
     );
 
     // Resolve font sizes from skinparams following Java's resolution order:
-    // - classFontSize controls the class name font size
-    // - classAttributeFontSize controls member (field/method) font size
-    // When only classFontSize is set, it applies to everything.
-    // When both are set, classFontSize → name, classAttributeFontSize → members.
+    // When classAttributeFontSize is set, it overrides classFontSize for both
+    // header name and attributes (matching Java style priority).
     let explicit_attr_fs = skin
         .get("classattributefontsize")
         .and_then(|s| s.parse::<f64>().ok());
@@ -1270,7 +1269,7 @@ fn layout_class_diagram(cd: &ClassDiagram, skin: &crate::style::SkinParams) -> R
     let attr_font_size =
         explicit_attr_fs.unwrap_or_else(|| explicit_class_fs.unwrap_or(CLASS_FONT_SIZE));
     let name_font_size =
-        explicit_class_fs.unwrap_or_else(|| explicit_attr_fs.unwrap_or(CLASS_FONT_SIZE));
+        explicit_attr_fs.unwrap_or_else(|| explicit_class_fs.unwrap_or(CLASS_FONT_SIZE));
 
     // Resolve member row height from skinparams.
     // Java default: FontParam.CLASS_ATTRIBUTE renders at 14pt (same as CLASS).
@@ -1332,6 +1331,7 @@ fn layout_class_diagram(cd: &ClassDiagram, skin: &crate::style::SkinParams) -> R
                     lf_has_body_separator: false,
                     lf_node_polygon: false,
                     lf_polygon_hack: false,
+                    lf_actor_stickman: false,
                     hidden: false,
             }
         })
@@ -1408,6 +1408,7 @@ fn layout_class_diagram(cd: &ClassDiagram, skin: &crate::style::SkinParams) -> R
             lf_has_body_separator: false,
             lf_node_polygon: false,
             lf_polygon_hack: false,
+            lf_actor_stickman: false,
             hidden: false,
         });
         // Invisible edge between note and target entity (Java link pattern).

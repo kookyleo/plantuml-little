@@ -46,6 +46,11 @@ pub struct LayoutNode {
     pub lf_has_body_separator: bool,
     pub lf_node_polygon: bool,
     pub lf_polygon_hack: bool,
+    /// When true, this node is an Actor stickman figure. The LimitFinder
+    /// uses special corrections: min_corr_y = -0.5 (not -1) and max_corr = (0, 0)
+    /// because Java draws actors via UPath (no -1 rect correction) but the
+    /// head ellipse contributes cy-0.5 on min_y.
+    pub lf_actor_stickman: bool,
     /// When true, the node is emitted in the DOT for edge routing but excluded
     /// from the LimitFinder span. Used for internal proxy/special-point nodes.
     pub hidden: bool,
@@ -554,6 +559,9 @@ pub fn layout_with_svek(graph: &LayoutGraph) -> Result<GraphLayout, Error> {
         }
         if node.lf_polygon_hack {
             ed.lf_polygon_hack = true;
+        }
+        if node.lf_actor_stickman {
+            ed.lf_actor_stickman = true;
         }
         if node.hidden {
             ed.hidden = true;
@@ -1660,6 +1668,7 @@ mod tests {
                     lf_has_body_separator: false,
                     lf_node_polygon: false,
                     lf_polygon_hack: false,
+                    lf_actor_stickman: false,
                     hidden: false,
                 },
                 LayoutNode {
@@ -1679,6 +1688,7 @@ mod tests {
                     lf_has_body_separator: false,
                     lf_node_polygon: false,
                     lf_polygon_hack: false,
+                    lf_actor_stickman: false,
                     hidden: false,
                 },
             ],
@@ -1748,6 +1758,7 @@ mod tests {
                 lf_has_body_separator: false,
                 lf_node_polygon: false,
                 lf_polygon_hack: false,
+                lf_actor_stickman: false,
                 hidden: false,
             }],
             edges: vec![],

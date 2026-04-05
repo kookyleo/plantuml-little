@@ -622,6 +622,7 @@ pub fn layout_component(cd: &ComponentDiagram) -> Result<ComponentLayout> {
                         | ComponentKind::Queue
                         | ComponentKind::Node
                         | ComponentKind::Folder
+                        | ComponentKind::Actor
                 ),
                 lf_has_body_separator: false,
                 // Entities that draw UEmpty(10,10) extending their bounding box:
@@ -637,6 +638,7 @@ pub fn layout_component(cd: &ComponentDiagram) -> Result<ComponentLayout> {
                     ComponentKind::Node
                         | ComponentKind::Folder
                 ),
+                lf_actor_stickman: e.kind == ComponentKind::Actor,
                 hidden: false,
             }
         })
@@ -666,6 +668,7 @@ pub fn layout_component(cd: &ComponentDiagram) -> Result<ComponentLayout> {
             lf_has_body_separator: false,
             lf_node_polygon: false,
             lf_polygon_hack: false,
+            lf_actor_stickman: false,
             hidden: true, // excluded from LimitFinder span
         });
     }
@@ -861,6 +864,7 @@ pub fn layout_component(cd: &ComponentDiagram) -> Result<ComponentLayout> {
             lf_has_body_separator: false,
             lf_node_polygon: false,
             lf_polygon_hack: false,
+            lf_actor_stickman: false,
             hidden: false,
         });
 

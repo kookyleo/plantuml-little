@@ -191,6 +191,8 @@ pub struct SvekNode {
     pub lf_has_body_separator: bool,
     pub lf_node_polygon: bool,
     pub lf_polygon_hack: bool,
+    /// Actor stickman: LimitFinder uses min_corr_y = -0.5, max_corr = (0, 0).
+    pub lf_actor_stickman: bool,
 }
 
 impl SvekNode {
@@ -227,6 +229,7 @@ impl SvekNode {
             lf_has_body_separator: false,
             lf_node_polygon: false,
             lf_polygon_hack: false,
+            lf_actor_stickman: false,
         }
     }
 
@@ -265,6 +268,7 @@ impl SvekNode {
             lf_has_body_separator: false,
             lf_node_polygon: false,
             lf_polygon_hack: false,
+            lf_actor_stickman: false,
         }
     }
 
