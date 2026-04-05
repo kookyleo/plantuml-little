@@ -67,6 +67,17 @@ fn render_expanded(original_source: &str, expanded: &str) -> Result<String> {
 }
 
 fn render_cleaned(original_source: &str, source: &str) -> Result<String> {
+    // Set the source-seeded SVG id early, before layout, because layout may
+    // trigger richtext rendering that registers back-highlight filter ids.
+    klimt::svg::set_svg_id_seed_override(Some(klimt::svg::java_source_seed(original_source)));
+    struct EarlySeedGuard;
+    impl Drop for EarlySeedGuard {
+        fn drop(&mut self) {
+            crate::klimt::svg::set_svg_id_seed_override(None);
+        }
+    }
+    let _early_seed = EarlySeedGuard;
+
     let diagram = parser::parse_with_original(source, Some(original_source))?;
     let skin = style::parse_skinparams(source);
     let diagram_layout = layout::layout(&diagram, &skin)?;
