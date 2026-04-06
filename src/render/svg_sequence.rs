@@ -97,13 +97,23 @@ const MARGIN: f64 = 5.0;
 // Fragment tab geometry (from Java AWT font metrics)
 const FRAG_TAB_LEFT_PAD: f64 = 15.0;
 const FRAG_TAB_RIGHT_PAD: f64 = 30.0;
-const FRAG_TAB_HEIGHT: f64 = 17.1328;
+/// Fragment tab height must match layout's frag_header_height = h13 + 2.0.
+/// Computed dynamically to preserve full f64 precision and avoid rounding drift.
+fn frag_tab_height() -> f64 {
+    font_metrics::line_height("SansSerif", FONT_SIZE, false, false) + 2.0
+}
 const FRAG_TAB_NOTCH: f64 = 10.0;
 const FRAG_KIND_LABEL_Y_OFFSET: f64 = 13.0669;
 const FRAG_GUARD_FONT_SIZE: f64 = 11.0;
 const FRAG_GUARD_GAP: f64 = 15.0;
-const FRAG_GUARD_LABEL_Y_OFFSET: f64 = 12.2104;
-const FRAG_SEP_LABEL_Y_OFFSET: f64 = 10.2104;
+/// Guard label Y offset: Java uses marginY=2 + ascent(11pt).
+/// Computed dynamically via `frag_guard_label_y_offset()` to avoid
+/// precision loss from a truncated constant.
+const FRAG_GUARD_MARGIN_Y: f64 = 2.0;
+/// Guard label Y offset: marginY(2) + ascent(SansSerif, 11pt).
+fn frag_guard_label_y_offset() -> f64 {
+    FRAG_GUARD_MARGIN_Y + font_metrics::ascent("SansSerif", FRAG_GUARD_FONT_SIZE, true, false)
+}
 
 const DELAY_FONT_SIZE: f64 = 11.0;
 
@@ -3027,9 +3037,9 @@ fn draw_fragment_details(sg: &mut SvgGraphic, frag: &FragmentLayout) {
     sg.push_raw(&format!(
         "<path d=\"M{fx},{fy} L{},{fy} L{},{} L{},{} L{fx},{} L{fx},{fy}\" fill=\"#EEEEEE\" style=\"stroke:#000000;stroke-width:1.5;\"/>",
         fmt_coord(tab_right),
-        fmt_coord(tab_right), fmt_coord(frag.y + FRAG_TAB_HEIGHT - FRAG_TAB_NOTCH),
-        fmt_coord(tab_right - FRAG_TAB_NOTCH), fmt_coord(frag.y + FRAG_TAB_HEIGHT),
-        fmt_coord(frag.y + FRAG_TAB_HEIGHT),
+        fmt_coord(tab_right), fmt_coord(frag.y + frag_tab_height() - FRAG_TAB_NOTCH),
+        fmt_coord(tab_right - FRAG_TAB_NOTCH), fmt_coord(frag.y + frag_tab_height()),
+        fmt_coord(frag.y + frag_tab_height()),
     ));
 
     // Second frame rect (Java emits two)
@@ -3063,7 +3073,7 @@ fn draw_fragment_details(sg: &mut SvgGraphic, frag: &FragmentLayout) {
         let guard_w =
             font_metrics::text_width(&guard_text, "SansSerif", FRAG_GUARD_FONT_SIZE, true, false);
         let guard_x = tab_right + FRAG_GUARD_GAP;
-        let guard_y = frag.y + FRAG_GUARD_LABEL_Y_OFFSET;
+        let guard_y = frag.y + frag_guard_label_y_offset();
         sg.set_fill_color("#000000");
         sg.svg_text(
             &guard_text,
@@ -3129,7 +3139,7 @@ fn draw_fragment_separator(
             let ascent_11 = font_metrics::ascent("SansSerif", 11.0, true, false);
             sep_y + 10.0 + 3.0 + ascent_11
         } else {
-            sep_y + 10.2105
+            sep_y + font_metrics::ascent("SansSerif", 11.0, true, false)
         };
         sg.set_fill_color("#000000");
         sg.svg_text(

@@ -337,7 +337,8 @@ fn render_attr_edge(
         let ent_from = format!("ent{:04}", from_uid);
         let ent_to = format!("ent{:04}", to_uid);
         sg.push_raw(&format!(
-            r#"<g class="link" data-entity-1="{ent_from}" data-entity-2="{ent_to}" data-link-type="association" data-source-line="{link_uid}" id="lnk{link_uid}">"#,
+            r#"<g class="link" data-entity-1="{ent_from}" data-entity-2="{ent_to}" data-link-type="association" data-source-line="{}" id="lnk{link_uid}">"#,
+            attr_edge.attr_source_line,
         ));
         let stroke_color = attr_edge.edge_color.as_deref().unwrap_or(BORDER_COLOR);
         sg.push_raw(&format!(
@@ -1039,6 +1040,7 @@ mod tests {
             to_name: "E".to_string(),
             parent_source_order: 0,
             edge_color: None,
+            attr_source_line: 0,
         });
         l.attr_edges.push(ErdAttrEdge {
             raw_path_d: Some("M100,40 C110,60 120,80 140,118".to_string()),
@@ -1046,6 +1048,7 @@ mod tests {
             to_name: "E".to_string(),
             parent_source_order: 0,
             edge_color: None,
+            attr_source_line: 0,
         });
         let svg = render_erd(&empty_diagram(), &l, &SkinParams::default()).unwrap();
         assert!(svg.matches("<path").count() >= 2);

@@ -51,6 +51,8 @@ pub struct ErdAttrEdge {
     pub parent_source_order: usize,
     /// Per-attribute line color for the edge stroke.
     pub edge_color: Option<String>,
+    /// 0-based source line of the attribute declaration.
+    pub attr_source_line: usize,
 }
 
 /// A positioned entity or relationship node.
@@ -277,6 +279,8 @@ struct AttrMeta {
     child_ids: Vec<String>,
     /// Per-attribute color spec (raw, e.g. "#lime;line:orange")
     color: Option<String>,
+    /// 0-indexed source line number of the attribute declaration.
+    attr_source_line: usize,
 }
 
 /// Recursively flatten attributes into a list of AttrMeta, creating graphviz
@@ -321,6 +325,7 @@ fn flatten_attributes(
             size,
             child_ids: child_ids.clone(),
             color: attr.color.clone(),
+            attr_source_line: attr.source_line,
         });
 
         // Recurse for nested attributes
@@ -1141,7 +1146,8 @@ pub fn layout_erd(diagram: &ErdDiagram) -> Result<ErdLayout> {
                     let (_, lc) = parse_erd_color_spec(am.color.as_deref());
                     lc
                 });
-            ErdAttrEdge { raw_path_d, from_name, to_name, parent_source_order, edge_color }
+            let attr_source_line = attr_metas.get(j).map(|am| am.attr_source_line).unwrap_or(0);
+            ErdAttrEdge { raw_path_d, from_name, to_name, parent_source_order, edge_color, attr_source_line }
         })
         .collect();
 
@@ -1432,6 +1438,7 @@ mod tests {
             attr_type: None,
             children: vec![],
             color: None,
+            source_line: 0,
         }
     }
 
@@ -1622,6 +1629,7 @@ mod tests {
                     attr_type: None,
                     children: vec![simple_attr("Fname"), simple_attr("Lname")],
                     color: None,
+                    source_line: 0,
                 }],
                 is_weak: false,
                 color: None,

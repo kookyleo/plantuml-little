@@ -10,6 +10,8 @@ pub struct ErdAttribute {
     pub attr_type: Option<String>,
     pub children: Vec<ErdAttribute>,
     pub color: Option<String>,
+    /// 0-indexed line number in the full source (including @start line).
+    pub source_line: usize,
 }
 
 #[derive(Debug, Clone)]

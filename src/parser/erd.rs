@@ -162,6 +162,20 @@ pub fn parse_erd_diagram(source: &str) -> Result<ErdDiagram> {
         isas.len()
     );
 
+    // Adjust attribute source_line from body-relative index to full-source index
+    fn adjust_attr_lines(attrs: &mut [ErdAttribute], offset: usize) {
+        for attr in attrs.iter_mut() {
+            attr.source_line += offset;
+            adjust_attr_lines(&mut attr.children, offset);
+        }
+    }
+    for e in &mut entities {
+        adjust_attr_lines(&mut e.attributes, block_line_offset);
+    }
+    for r in &mut relationships {
+        adjust_attr_lines(&mut r.attributes, block_line_offset);
+    }
+
     Ok(ErdDiagram {
         entities,
         relationships,
@@ -292,7 +306,7 @@ fn parse_attributes(lines: &[&str], start: usize) -> Result<(Vec<ErdAttribute>, 
 
         // Simple attribute: `AttrName <<modifier>> #color`
         // or `AttrName : TYPE <<modifier>>`
-        if let Some(attr) = parse_simple_attr(trimmed) {
+        if let Some(attr) = parse_simple_attr(trimmed, i) {
             attrs.push(attr);
         }
 
@@ -335,6 +349,7 @@ fn try_parse_nested_attr(
                 attr_type: None,
                 children: Vec::new(),
                 color: None,
+                source_line: *i,
             })
             .collect();
 
@@ -348,6 +363,7 @@ fn try_parse_nested_attr(
             attr_type: None,
             children,
             color: None,
+            source_line: *i,
         }));
     }
 
@@ -361,7 +377,7 @@ fn try_parse_nested_attr(
             break;
         }
         if !child_trimmed.is_empty() {
-            if let Some(attr) = parse_simple_attr(child_trimmed) {
+            if let Some(attr) = parse_simple_attr(child_trimmed, *i) {
                 children.push(attr);
             }
         }
@@ -377,11 +393,12 @@ fn try_parse_nested_attr(
         attr_type: None,
         children,
         color: None,
+        source_line: *i,
     }))
 }
 
 /// Parse a simple attribute line (no nested braces).
-fn parse_simple_attr(line: &str) -> Option<ErdAttribute> {
+fn parse_simple_attr(line: &str, source_line: usize) -> Option<ErdAttribute> {
     let trimmed = line.trim();
     if trimmed.is_empty() {
         return None;
@@ -427,6 +444,7 @@ fn parse_simple_attr(line: &str) -> Option<ErdAttribute> {
         attr_type,
         children: Vec::new(),
         color,
+        source_line,
     })
 }
 
