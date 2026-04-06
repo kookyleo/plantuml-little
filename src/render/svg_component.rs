@@ -65,11 +65,15 @@ pub fn render_component(
     // Then the note entity itself consumes 1 more slot.
     enum EntItem<'a> {
         Entity(&'a crate::model::component::ComponentEntity),
+        Group(&'a crate::model::component::ComponentGroup),
         Note(usize), // index into layout.notes
     }
     let mut all_items: Vec<(usize, EntItem<'_>)> = Vec::new();
     for ent in &cd.entities {
         all_items.push((ent.source_line.unwrap_or(usize::MAX), EntItem::Entity(ent)));
+    }
+    for group in &cd.groups {
+        all_items.push((group.source_line.unwrap_or(usize::MAX), EntItem::Group(group)));
     }
     for (i, note) in layout.notes.iter().enumerate() {
         all_items.push((note.source_line.unwrap_or(usize::MAX), EntItem::Note(i)));
@@ -84,6 +88,11 @@ pub fn render_component(
             EntItem::Entity(ent) => {
                 let ent_id = format!("ent{:04}", ent_counter);
                 entity_ids.insert(ent.id.clone(), ent_id);
+                ent_counter += 1;
+            }
+            EntItem::Group(group) => {
+                let ent_id = format!("ent{:04}", ent_counter);
+                entity_ids.insert(group.id.clone(), ent_id);
                 ent_counter += 1;
             }
             EntItem::Note(idx) => {
@@ -172,7 +181,9 @@ pub fn render_component(
             .get(&group.id)
             .map(String::as_str)
             .unwrap_or_default();
-        let qualified_name = group.name.as_str();
+        // Groups use their code (alias or display name) as the qualified name.
+        // Java stores the group's Quark code for the data-qualified-name attribute.
+        let qualified_name = group.code.as_str();
         render_group(
             &mut sg,
             group,

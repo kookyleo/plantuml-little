@@ -827,7 +827,7 @@ pub fn layout_component(cd: &ComponentDiagram) -> Result<ComponentLayout> {
             };
             LayoutClusterSpec {
                 id: sanitize_id(&g.id),
-                qualified_name: { eprintln!("COMP_LAYOUT: group name='{}' id='{}'", g.name, g.id); g.name.clone() },
+                qualified_name: g.code.clone(),
                 title: Some(g.name.clone()),
                 style: crate::svek::cluster::ClusterStyle::Rectangle,
                 label_width: Some(final_label_w),
