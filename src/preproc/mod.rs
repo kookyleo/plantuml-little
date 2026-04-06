@@ -1654,8 +1654,12 @@ impl Context {
         for name in names {
             let entry = &self.defines[name];
             if entry.params.is_empty() {
-                // Java Define.apply2(): \b<name>\b — word-boundary matching
+                // Java Define.apply2(): translates \n to private-use char before
+                // word-boundary matching so that `\n` acts as a word boundary,
+                // then translates back afterwards.
+                result = translate_backslashes(&result);
                 result = replace_word_boundary(&result, name, &entry.body);
+                result = untranslate_backslashes(&result);
             } else {
                 // Parameterised macro: NAME(arg1, arg2, ...)
                 result = expand_parameterised_define(&result, name, entry);
@@ -2773,6 +2777,21 @@ fn join_continuations(source: &str) -> String {
     result.join("\n")
 }
 
+/// Translate `\n` escape sequences to private-use Unicode characters.
+///
+/// Java `BackSlash.translateBackSlashes()` replaces `\n` with `\<U+E06E>` so that
+/// `\b` regex word boundaries see the backslash-n as a non-word boundary.
+/// We use the same U+E000 private-use block offset: `\n` → U+E000 + 'n' = U+E06E.
+fn translate_backslashes(s: &str) -> String {
+    // Java only translates \n (isEnglishLetterOfBackSlash returns true only for 'n')
+    s.replace("\\n", "\\\u{E06E}")
+}
+
+/// Reverse `translate_backslashes`: restore private-use chars to original letters.
+fn untranslate_backslashes(s: &str) -> String {
+    s.replace("\\\u{E06E}", "\\n")
+}
+
 /// Strip a directive prefix case-insensitively.
 fn strip_directive_prefix<'a>(line: &'a str, prefix: &str) -> Option<&'a str> {
     if line.len() >= prefix.len() && line[..prefix.len()].eq_ignore_ascii_case(prefix) {
@@ -3646,6 +3665,15 @@ mod tests {
         let src = "!TEST=something\nresult: TEST";
         let out = preprocess(src).unwrap();
         assert!(out.contains("result: something"), "got: {}", out);
+    }
+
+    #[test]
+    fn test_legacy_var_backslash_n_boundary() {
+        // Java treats \n as a newline separator, creating a word boundary
+        let src = r"!TEST=something
+a->b: test:\nTEST";
+        let out = preprocess(src).unwrap();
+        assert!(out.contains(r"test:\nsomething"), "got: {}", out);
     }
 
     #[test]
