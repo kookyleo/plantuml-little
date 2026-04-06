@@ -430,10 +430,10 @@ fn render_old_style_activity(
         );
     }
 
-    // Old Graphviz-backed activities keep the rendered body coordinates and add
-    // the same document padding Java contributes on the right/bottom.
-    let svg_w = ensure_visible_int(max_x + 13.0) as f64;
-    let svg_h = ensure_visible_int(max_y + 13.0) as f64;
+    // Old Graphviz-backed activities: Java adds doc margins (right=5, bottom=5)
+    // plus LimitFinder's +1 compensation. Combined margin = 5 on each side.
+    let svg_w = ensure_visible_int(max_x + 5.0) as f64;
+    let svg_h = ensure_visible_int(max_y + 5.0) as f64;
 
     let mut buf = String::with_capacity(body.len() + 256);
     write_svg_root_bg(&mut buf, svg_w, svg_h, "ACTIVITY", bg);
