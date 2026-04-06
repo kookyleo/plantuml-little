@@ -1047,6 +1047,12 @@ fn strip_url_markup(s: &str) -> (String, Option<String>) {
     while let Some(start) = result.find("[[") {
         if let Some(end) = result[start..].find("]]") {
             let inner = &result[start + 2..start + end];
+            // Java: if the [[...]] content spans multiple lines (contains
+            // the %n() newline placeholder \u{E100}), the URL markup is NOT
+            // parsed — the raw text is displayed literally.
+            if inner.contains(crate::NEWLINE_CHAR) {
+                break;
+            }
             // Extract URL (first token) and text after URL
             let (url, display) = if let Some(space_pos) = inner.find(' ') {
                 (
