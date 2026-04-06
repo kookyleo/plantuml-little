@@ -1246,6 +1246,10 @@ fn wrap_with_meta(
             || meta.legend.is_some();
         let svek_delta_h = if diagram_type == "CLASS" && has_meta && rh > 0.0 {
             6.0
+        } else if diagram_type == "SEQUENCE" && has_meta && rh > 0.0 {
+            // Java's LimitFinder tracks the participant tail bottom + extra border.
+            // The layout formula undershoots by ~2.5px vs the actual drawn bounds.
+            2.5
         } else {
             0.0
         };
