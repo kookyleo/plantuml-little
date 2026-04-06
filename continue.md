@@ -29,9 +29,13 @@ Any future Java/Rust parity work must target the stable `v1.2026.2` reference co
 
 ## Current Parity Baseline (2026-04-05)
 
-- `cargo test --lib`: `2638/2638`
-- `cargo test --test reference_tests`: `268/320` (83.75%)
+- `cargo test --lib`: `2640/2640`
+- `cargo test --test reference_tests`: `271/320` (84.69%)
 - Byte-compare authority remains the 318 stable-Java SVGs indexed by `tests/reference/INDEX.tsv`.
+
+### 2026-04-05 Fixes (268→271)
+- **Preprocessor backslash boundary**: Java Define.apply2() translates `\n` to private-use Unicode before word-boundary matching so `!TEST=something` correctly substitutes in `test:\nTEST`. (src/preproc/mod.rs)
+- **CLASS body centering**: Java MinMax.getDimension() returns span (maxX-minX), not absolute max. For CLASS diagrams with meta elements, subtract the moveDelta margin (6px) from body_w to match Java's centering calculation. Fixes class/a0005, nonreg/A0005, misc/meta_title_header_footer. (src/render/svg.rs)
 
 ### 2026-04-05 Fixes (260/320)
 - **Salt data-diagram-type**: Always emit `data-diagram-type="SALT"` for both @startsalt and inline salt
