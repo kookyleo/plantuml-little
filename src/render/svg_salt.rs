@@ -18,14 +18,8 @@ pub fn render_salt(
     let bg = skin.get_or("backgroundcolor", "#FFFFFF");
     let svg_w = ensure_visible_int(layout.width) as f64;
     let svg_h = ensure_visible_int(layout.height) as f64;
-    // Java PSystemSalt via @startsalt emits data-diagram-type="SALT",
-    // but inline salt inside @startuml does not (different code path)
-    let dtype = if diagram.is_inline {
-        None
-    } else {
-        Some("SALT")
-    };
-    write_svg_root_bg_opt(&mut buf, svg_w, svg_h, dtype, bg);
+    // Java PSystemSalt emits data-diagram-type="SALT" for both @startsalt and inline salt.
+    write_svg_root_bg_opt(&mut buf, svg_w, svg_h, Some("SALT"), bg);
     buf.push_str("<defs/><g>");
     write_bg_rect(&mut buf, svg_w, svg_h, bg);
 
