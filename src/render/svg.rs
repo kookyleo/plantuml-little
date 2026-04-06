@@ -1234,26 +1234,26 @@ fn wrap_with_meta(
     // Otherwise fall back to extracting from SVG header (lossy).
     let (body_w, body_h) = if let Some((rw, rh)) = raw_body_dim {
         // Java SvekResult.calculateDimension() returns getDimension().delta(0, 12)
-        // which adds 12 to the LimitFinder span height. Our raw_body_dim already
-        // includes the moveDelta offset (MARGIN=6), so span = rh - 6 and
-        // Java's body_h = span + 12 = rh + 6.  This extra height shifts meta
-        // elements below the body in the DecorateEntityImage stacking.
-        // Apply only for CLASS diagrams (svek-based) where meta elements exist.
+        // where getDimension() = (maxX - minX, maxY - minY) is the LimitFinder span.
+        // raw_body_dim is the absolute max_point; the moveDelta(6,6) ensures minX=minY=6,
+        // so span = (rw - 6, rh - 6) and calculateDimension = (rw - 6, rh - 6 + 12).
+        // Apply span conversion only for CLASS (svek-based) diagrams with meta elements
+        // that need centering; other diagram types use raw dimensions directly.
         let has_meta = meta.title.is_some()
             || meta.header.is_some()
             || meta.footer.is_some()
             || meta.caption.is_some()
             || meta.legend.is_some();
-        let svek_delta_h = if diagram_type == "CLASS" && has_meta && rh > 0.0 {
-            6.0
+        let (svek_delta_w, svek_delta_h) = if diagram_type == "CLASS" && has_meta && rh > 0.0 {
+            (-6.0, 6.0) // span: subtract minX=6; height: span - 6 + 12 = +6
         } else if diagram_type == "SEQUENCE" && has_meta && rh > 0.0 {
             // Java's LimitFinder tracks the participant tail bottom + extra border.
             // The layout formula undershoots by ~2.5px vs the actual drawn bounds.
-            2.5
+            (0.0, 2.5)
         } else {
-            0.0
+            (0.0, 0.0)
         };
-        (rw, rh + svek_delta_h)
+        (rw + svek_delta_w, rh + svek_delta_h)
     } else {
         // Body SVG includes DOC_MARGIN + 1: recover raw textBlock dimensions.
         (
