@@ -630,6 +630,29 @@ pub fn parse_skinparams(content: &str) -> SkinParams {
 /// Extract document-level CSS properties from `<style>` content.
 /// Supports `document { BackGroundColor orange }` and nested sub-blocks like
 /// `document { title { BackGroundColor yellow } footer { FontColor red } }`.
+/// Parse a CSS-style property line into (key, value).
+/// Handles both `PropertyName value` and `PropertyName: value;` syntax.
+fn parse_css_property(line: &str) -> Option<(String, String)> {
+    // Try splitting on colon first (CSS syntax: `key: value;`)
+    if let Some(colon_pos) = line.find(':') {
+        let key = line[..colon_pos].trim().to_lowercase();
+        let value = line[colon_pos + 1..].trim().trim_end_matches(';').trim().to_string();
+        if !key.is_empty() && !value.is_empty() {
+            return Some((key, value));
+        }
+    }
+    // Fall back to whitespace splitting (PlantUML syntax: `PropertyName value`)
+    let parts: Vec<&str> = line.splitn(2, char::is_whitespace).collect();
+    if parts.len() == 2 {
+        let key = parts[0].trim().to_lowercase();
+        let value = parts[1].trim().trim_end_matches(';').trim().to_string();
+        if !key.is_empty() && !value.is_empty() {
+            return Some((key, value));
+        }
+    }
+    None
+}
+
 fn extract_document_style(css: &str, params: &mut SkinParams) {
     let mut depth = 0;
     let mut in_document = false;
@@ -721,11 +744,8 @@ fn extract_document_style(css: &str, params: &mut SkinParams) {
         // sub-selectors like `.highlight { BackGroundColor ... }`.
         if !in_document && current_section.is_some() && depth == section_depth + 1 {
             if !trimmed.contains('{') && !trimmed.starts_with('}') {
-                let parts: Vec<&str> = trimmed.splitn(2, char::is_whitespace).collect();
-                if parts.len() == 2 {
+                if let Some((key, value)) = parse_css_property(trimmed) {
                     let section = current_section.as_ref().unwrap();
-                    let key = parts[0].trim().to_lowercase();
-                    let value = parts[1].trim();
                     // Document sub-sections (title, footer, etc.) use document.{section}.{key}
                     // Element-level blocks (node, root, etc.) use {section}.{key}
                     let param_key = if matches!(
@@ -736,7 +756,7 @@ fn extract_document_style(css: &str, params: &mut SkinParams) {
                     } else {
                         format!("{section}.{key}")
                     };
-                    params.set(&param_key, value);
+                    params.set(&param_key, &value);
                     log::debug!("extracted style {param_key}: {value}");
                 }
             }
@@ -762,12 +782,9 @@ fn extract_document_style(css: &str, params: &mut SkinParams) {
             // Inside a sub-block: extract properties
             if let Some(ref section) = current_section {
                 if depth > section_depth && !trimmed.contains('{') && !trimmed.starts_with('}') {
-                    let parts: Vec<&str> = trimmed.splitn(2, char::is_whitespace).collect();
-                    if parts.len() == 2 {
-                        let key = parts[0].trim().to_lowercase();
-                        let value = parts[1].trim();
+                    if let Some((key, value)) = parse_css_property(trimmed) {
                         let param_key = format!("document.{section}.{key}");
-                        params.set(&param_key, value);
+                        params.set(&param_key, &value);
                         log::debug!("extracted document.{section}.{key}: {value}");
                     }
                 }
@@ -779,14 +796,11 @@ fn extract_document_style(css: &str, params: &mut SkinParams) {
                 && !trimmed.contains('{')
                 && !trimmed.starts_with('}')
             {
-                let parts: Vec<&str> = trimmed.splitn(2, char::is_whitespace).collect();
-                if parts.len() == 2 {
-                    let key = parts[0].trim().to_lowercase();
-                    let value = parts[1].trim();
+                if let Some((key, value)) = parse_css_property(trimmed) {
                     if key == "backgroundcolor" {
                         // Store under document-specific key so it doesn't override
                         // entity fill colors via the generic fallback chain.
-                        params.set("document.backgroundcolor", value);
+                        params.set("document.backgroundcolor", &value);
                         log::debug!("extracted document BackGroundColor: {value}");
                     }
                 }
