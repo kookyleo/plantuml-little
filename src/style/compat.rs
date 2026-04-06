@@ -660,6 +660,9 @@ fn extract_document_style(css: &str, params: &mut SkinParams) {
     // Track which sub-block we're inside (e.g., "title", "footer", "header", "legend", "caption")
     let mut current_section: Option<String> = None;
     let mut section_depth = 0;
+    // Diagram-type wrappers (e.g., `sequenceDiagram { ... }`) are transparent:
+    // inner blocks like `participant { ... }` are treated as top-level sections.
+    let mut wrapper_depth: usize = 0;
 
     for line in css.lines() {
         let trimmed = line.trim();
@@ -680,8 +683,43 @@ fn extract_document_style(css: &str, params: &mut SkinParams) {
                 continue;
             }
 
+            // Diagram-type wrapper blocks — transparent containers for element blocks.
+            // `sequenceDiagram { participant { ... } }` => `participant { ... }`
+            if current_section.is_none()
+                && wrapper_depth == 0
+                && depth == 0
+                && trimmed.contains('{')
+            {
+                let brace_pos = trimmed.find('{').unwrap();
+                let name = trimmed[..brace_pos].trim().to_lowercase();
+                if matches!(
+                    name.as_str(),
+                    "sequencediagram" | "classdiagram" | "activitydiagram"
+                        | "statediagram" | "componentdiagram" | "usecasediagram"
+                ) {
+                    wrapper_depth = 1;
+                    depth += opens;
+                    depth = depth.saturating_sub(closes);
+                    continue;
+                }
+            }
+            // Track wrapper closing brace
+            if wrapper_depth > 0 && current_section.is_none() {
+                if trimmed == "}" {
+                    wrapper_depth = 0;
+                    depth = depth.saturating_sub(closes);
+                    continue;
+                }
+            }
+
             // Top-level section blocks — not inside document {}
-            if current_section.is_none() && depth == 0 && trimmed.contains('{') {
+            // Also matches blocks inside a transparent diagram-type wrapper.
+            let effective_depth = if wrapper_depth > 0 {
+                depth.saturating_sub(wrapper_depth)
+            } else {
+                depth
+            };
+            if current_section.is_none() && effective_depth == 0 && trimmed.contains('{') {
                 let brace_pos = trimmed.find('{').unwrap();
                 let name = trimmed[..brace_pos].trim().to_lowercase();
                 if matches!(
@@ -757,6 +795,15 @@ fn extract_document_style(css: &str, params: &mut SkinParams) {
                         format!("{section}.{key}")
                     };
                     params.set(&param_key, &value);
+                    // Also store concatenated form for legacy lookups
+                    // (e.g., "participant.fontsize" => also "participantfontsize")
+                    if !matches!(
+                        section.as_str(),
+                        "title" | "footer" | "header" | "legend" | "caption"
+                    ) {
+                        let legacy_key = format!("{section}{key}");
+                        params.set(&legacy_key, &value);
+                    }
                     log::debug!("extracted style {param_key}: {value}");
                 }
             }

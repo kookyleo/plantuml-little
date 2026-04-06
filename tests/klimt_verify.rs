@@ -357,12 +357,14 @@ fn svg_root_element_matches_java_format() {
     svg.set_max(115, 122);
     let doc = svg.to_svg(Some("#FFFFFF"), "SEQUENCE");
 
-    // Compare with Java's exact output from diag0_root
-    let expected_start = r#"<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" contentStyleType="text/css" data-diagram-type="SEQUENCE""#;
+    // Compare with Java's exact output from diag0_root.
+    // The output starts with a <?plantuml ...?> processing instruction,
+    // followed by the <svg> root element.
+    let expected_fragment = r#"<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" contentStyleType="text/css" data-diagram-type="SEQUENCE""#;
     assert!(
-        doc.starts_with(expected_start),
-        "SVG root should start with:\n{}\nbut got:\n{}",
-        expected_start,
+        doc.contains(expected_fragment),
+        "SVG root should contain:\n{}\nbut got:\n{}",
+        expected_fragment,
         &doc[..doc.len().min(200)]
     );
 
