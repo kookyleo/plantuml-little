@@ -30,7 +30,7 @@ Any future Java/Rust parity work must target the stable `v1.2026.2` reference co
 ## Current Parity Baseline (2026-04-05)
 
 - `cargo test --lib`: `2636/2636`
-- `cargo test --test reference_tests`: `250/322`
+- `cargo test --test reference_tests`: `258/322`
 - Byte-compare authority remains the 318 stable-Java SVGs indexed by `tests/reference/INDEX.tsv`.
 
 ## Latest Push (2026-04-05)
