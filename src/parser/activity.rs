@@ -466,8 +466,32 @@ pub fn parse_activity_diagram(source: &str) -> Result<ActivityDiagram> {
         if lower.starts_with("repeat while") {
             let rest = trimmed[12..].trim();
             let condition = extract_parenthesized(rest).unwrap_or_default();
-            debug!("line {line_num}: repeat while ({condition})");
-            events.push(ActivityEvent::RepeatWhile { condition });
+            // Parse optional "is (label)" after the condition
+            let is_text = {
+                let after_cond = rest.strip_prefix('(')
+                    .and_then(|s| {
+                        let mut depth = 1;
+                        for (i, ch) in s.char_indices() {
+                            match ch {
+                                '(' => depth += 1,
+                                ')' => { depth -= 1; if depth == 0 { return Some(&s[i+1..]); } }
+                                _ => {}
+                            }
+                        }
+                        None
+                    })
+                    .unwrap_or("");
+                let after_trim = after_cond.trim();
+                if after_trim.to_lowercase().starts_with("is ") {
+                    let is_rest = after_trim[3..].trim();
+                    let label = extract_parenthesized(is_rest);
+                    label.filter(|s| !s.is_empty())
+                } else {
+                    None
+                }
+            };
+            debug!("line {line_num}: repeat while ({condition}) is={is_text:?}");
+            events.push(ActivityEvent::RepeatWhile { condition, is_text });
             continue;
         }
 
@@ -1331,7 +1355,18 @@ mod tests {
         assert!(matches!(&diagram.events[0], ActivityEvent::Repeat));
         assert!(matches!(
             &diagram.events[2],
-            ActivityEvent::RepeatWhile { condition } if condition == "again?"
+            ActivityEvent::RepeatWhile { condition, is_text: _ } if condition == "again?"
+        ));
+    }
+
+    #[test]
+    fn parse_repeat_while_is_label() {
+        let src = "@startuml\nrepeat\n:read;\nrepeat while (more?) is (yes)\n@enduml";
+        let diagram = parse_activity_diagram(src).unwrap();
+        assert!(matches!(
+            &diagram.events[2],
+            ActivityEvent::RepeatWhile { condition, is_text: Some(label) }
+            if condition == "more?" && label == "yes"
         ));
     }
 

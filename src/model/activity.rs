@@ -55,7 +55,7 @@ pub enum ActivityEvent {
     /// repeat
     Repeat,
     /// repeat while
-    RepeatWhile { condition: String },
+    RepeatWhile { condition: String, is_text: Option<String> },
     /// fork
     Fork,
     /// fork again

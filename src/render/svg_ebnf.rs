@@ -18,7 +18,15 @@ pub fn render_ebnf(_d: &EbnfDiagram, l: &EbnfLayout, skin: &SkinParams) -> Resul
     let bg = skin.get_or("backgroundcolor", "#FFFFFF");
     let (sw, sh) = (ensure_visible_int(l.width) as f64, ensure_visible_int(l.height) as f64);
     write_svg_root_bg(&mut buf, sw, sh, "EBNF", bg);
-    buf.push_str("<defs/><g>"); write_bg_rect(&mut buf, sw, sh, bg);
+    // Emit SVG <title> metadata from layout title (Java does this via SvgGraphics)
+    if let Some(title_text) = l.elements.iter().find_map(|e| match e {
+        EbnfElement::Title { text, .. } => Some(text.as_str()),
+        _ => None,
+    }) {
+        crate::render::svg::write_svg_title(&mut buf, title_text);
+    }
+    // Java EBNF does not draw a background rect — background is in SVG root style.
+    buf.push_str("<defs/><g>");
     for e in &l.elements {
         match e {
             EbnfElement::Title { x, y, text } => {

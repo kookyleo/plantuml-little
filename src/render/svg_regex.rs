@@ -16,7 +16,8 @@ pub fn render_regex(_d: &RegexDiagram, l: &RegexLayout, skin: &SkinParams) -> Re
     let bg = skin.get_or("backgroundcolor", "#FFFFFF");
     let (sw, sh) = (ensure_visible_int(l.width) as f64, ensure_visible_int(l.height) as f64);
     write_svg_root_bg(&mut buf, sw, sh, "REGEX", bg);
-    buf.push_str("<defs/><g>"); write_bg_rect(&mut buf, sw, sh, bg);
+    // Java Regex does not draw a background rect — background is in SVG root style.
+    buf.push_str("<defs/><g>");
     for e in &l.elements {
         match e {
             RegexElement::LiteralBox { x, y, width, height, text, dashed } => {

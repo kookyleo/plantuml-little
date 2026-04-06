@@ -385,7 +385,20 @@ pub fn render_with_source(
         })
         .unwrap_or_else(|| "CLASS".to_string());
 
-    let mut svg = if meta.is_empty() && !meta.pragmas.contains_key("svginteractive") {
+    // EBNF and Regex diagrams handle their own title rendering in the body.
+    // Clear meta.title so wrap_with_meta doesn't add a duplicate visible title.
+    let meta_for_wrap;
+    let effective_meta = if matches!(dtype.as_str(), "EBNF" | "REGEX") && meta.title.is_some() {
+        meta_for_wrap = DiagramMeta {
+            title: None,
+            title_line: None,
+            ..meta.clone()
+        };
+        &meta_for_wrap
+    } else {
+        meta
+    };
+    let mut svg = if effective_meta.is_empty() && !meta.pragmas.contains_key("svginteractive") {
         body_result.svg
     } else {
         // Document-level BackGroundColor from <style> is stored as "document.backgroundcolor";
@@ -396,7 +409,7 @@ pub fn render_with_source(
             .unwrap_or("#FFFFFF");
         wrap_with_meta(
             &body_result.svg,
-            meta,
+            effective_meta,
             &dtype,
             bg,
             body_result.raw_body_dim,
@@ -1494,12 +1507,10 @@ fn wrap_with_meta(
 
     // Title (CENTER-aligned)
     if let Some(ref title) = meta.title {
-        // Java centres the title using the full bordered dimension but its
-        // centering arithmetic effectively adds an extra 1px to the title
-        // block width. Compensate to avoid a 0.5px offset.
-        let title_center_w = title_dim.0 + BORDERED_EXTRA;
+        // Java centres the title using the bordered dimension directly.
+        // No extra BORDERED_EXTRA needed: it would shift the title 0.5px left.
         let title_block_x =
-            outer_inner_x + cap_inner_x + ((after_title.0 - title_center_w) / 2.0).max(0.0);
+            outer_inner_x + cap_inner_x + ((after_title.0 - title_dim.0) / 2.0).max(0.0);
         let text_x = title_block_x + TITLE_MARGIN + TITLE_PADDING;
         let text_y = meta_dy
             + hdr_dim.1

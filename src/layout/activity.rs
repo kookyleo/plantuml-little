@@ -929,7 +929,7 @@ pub fn layout_activity(diagram: &ActivityDiagram) -> Result<ActivityLayout> {
                 y_cursor += h + node_gap;
             }
 
-            ActivityEvent::RepeatWhile { condition } => {
+            ActivityEvent::RepeatWhile { condition, is_text: _ } => {
                 let (w, h) = diamond_size(condition);
                 let cx = swimlane_center_x(&swimlane_layouts, current_lane_idx);
                 let x = cx - w / 2.0;
@@ -2822,6 +2822,7 @@ mod tests {
             },
             ActivityEvent::RepeatWhile {
                 condition: "again?".into(),
+                is_text: None,
             },
         ]);
         let layout = layout_activity(&d).unwrap();
