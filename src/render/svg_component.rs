@@ -195,8 +195,33 @@ pub fn render_component(
         );
     }
 
-    // Nodes
-    for node in &layout.nodes {
+    // Nodes — Java renders grouped entities (inside clusters) before standalone
+    // entities.  Sort: grouped first (by group source_line, then entity
+    // source_line), then standalone (by entity source_line).
+    let group_source_lines: std::collections::HashMap<String, usize> = cd
+        .groups
+        .iter()
+        .map(|g| (g.id.clone(), g.source_line.unwrap_or(usize::MAX)))
+        .collect();
+    let entity_source_lines: std::collections::HashMap<String, usize> = cd
+        .entities
+        .iter()
+        .map(|e| (e.id.clone(), e.source_line.unwrap_or(usize::MAX)))
+        .collect();
+    let mut sorted_nodes: Vec<&crate::layout::component::ComponentNodeLayout> =
+        layout.nodes.iter().collect();
+    sorted_nodes.sort_by_key(|node| {
+        let parent = entity_parents.get(&node.id).and_then(|p| p.as_deref());
+        let has_parent = parent.is_some();
+        let group_sl = parent
+            .and_then(|pid| group_source_lines.get(pid))
+            .copied()
+            .unwrap_or(usize::MAX);
+        let ent_sl = entity_source_lines.get(&node.id).copied().unwrap_or(usize::MAX);
+        (if has_parent { 0usize } else { 1usize }, group_sl, ent_sl)
+    });
+
+    for node in &sorted_nodes {
         let parent_id = entity_parents
             .get(&node.id)
             .and_then(|parent| parent.as_deref());
@@ -1665,11 +1690,15 @@ fn build_component_qualified_names(
         .iter()
         .map(|ent| (ent.id.as_str(), ent.parent.as_deref()))
         .collect();
-    let id_to_code: std::collections::HashMap<&str, &str> = cd
+    let mut id_to_code: std::collections::HashMap<&str, &str> = cd
         .entities
         .iter()
         .map(|ent| (ent.id.as_str(), ent.code.as_str()))
         .collect();
+    // Include groups so parent resolution uses the group's display code
+    for group in &cd.groups {
+        id_to_code.insert(group.id.as_str(), group.code.as_str());
+    }
 
     fn resolve(
         id: &str,
@@ -1986,13 +2015,15 @@ fn render_link_label(
 
     // Render text using full Creole markup support.
     // This handles **bold**, //italic//, <size:N>, \n line breaks, etc.
+    // Java Display.create() converts << >> to guillemets « »
+    let text = text.replace("<<", "\u{00AB}").replace(">>", "\u{00BB}");
     let text_x = label_x + indicator_width + margin;
     let line_height = font_metrics::line_height("SansSerif", link_font_size, false, false);
     let font_size_attr = format!(r#"font-size="{}""#, fmt_coord(link_font_size));
     let mut buf = String::new();
     render_creole_text(
         &mut buf,
-        text,
+        &text,
         text_x,
         text_y,
         line_height,
@@ -2465,8 +2496,8 @@ fn render_usecase_node(
     let text = &node.name;
     let text_w = font_metrics::text_width(text, "SansSerif", FONT_SIZE, false, false);
     let text_x = cx - text_w / 2.0;
-    let ascent = 1901.0 / 2048.0 * FONT_SIZE;
-    let descent = 483.0 / 2048.0 * FONT_SIZE;
+    let ascent = font_metrics::ascent("SansSerif", FONT_SIZE, false, false);
+    let descent = font_metrics::descent("SansSerif", FONT_SIZE, false, false);
     let text_h = ascent + descent;
     // Center text vertically in the ellipse
     let text_y = cy - text_h / 2.0 + ascent;

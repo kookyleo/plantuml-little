@@ -347,7 +347,10 @@ fn strip_nonvisual_data_attrs(s: &str) -> String {
         r#" data-(?:source-line|entity-[12])="[^"]*""#,
     )
     .unwrap();
-    re.replace_all(s, "").to_string()
+    let result = re.replace_all(s, "").to_string();
+    // Collapse runs of multiple spaces left behind by attribute removal
+    let space_re = regex::Regex::new(r" {2,}").unwrap();
+    space_re.replace_all(&result, " ").to_string()
 }
 
 fn assert_exact_match(actual: &str, reference: &str, path: &str) {
