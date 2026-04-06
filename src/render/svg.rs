@@ -1220,7 +1220,23 @@ fn wrap_with_meta(
     // Use raw body dimensions if available (avoids integer truncation loss).
     // Otherwise fall back to extracting from SVG header (lossy).
     let (body_w, body_h) = if let Some((rw, rh)) = raw_body_dim {
-        (rw, rh)
+        // Java SvekResult.calculateDimension() returns getDimension().delta(0, 12)
+        // which adds 12 to the LimitFinder span height. Our raw_body_dim already
+        // includes the moveDelta offset (MARGIN=6), so span = rh - 6 and
+        // Java's body_h = span + 12 = rh + 6.  This extra height shifts meta
+        // elements below the body in the DecorateEntityImage stacking.
+        // Apply only for CLASS diagrams (svek-based) where meta elements exist.
+        let has_meta = meta.title.is_some()
+            || meta.header.is_some()
+            || meta.footer.is_some()
+            || meta.caption.is_some()
+            || meta.legend.is_some();
+        let svek_delta_h = if diagram_type == "CLASS" && has_meta && rh > 0.0 {
+            6.0
+        } else {
+            0.0
+        };
+        (rw, rh + svek_delta_h)
     } else {
         // Body SVG includes DOC_MARGIN + 1: recover raw textBlock dimensions.
         (
