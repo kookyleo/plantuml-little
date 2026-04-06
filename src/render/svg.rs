@@ -4102,6 +4102,8 @@ fn draw_edge(
             } else {
                 label.clone()
             };
+            // Java Display.create() converts << >> to guillemets « »
+            let label_text = label_text.replace("<<", "\u{00AB}").replace(">>", "\u{00BB}");
             let arrow_w = if has_arrow { LINK_LABEL_FONT_SIZE } else { 0.0 };
 
             if has_arrow {
