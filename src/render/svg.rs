@@ -1391,9 +1391,17 @@ fn wrap_with_meta(
     // textBlock dimensions for positioning
     let tb_w = total_dim.0;
     let tb_h = total_dim.1;
-    // Java ensureVisible: maxX = (int)(x + 1)
-    let canvas_w = ensure_visible_int(tb_w + doc_margin_right) as f64;
-    let canvas_h = ensure_visible_int(tb_h + doc_margin_top + doc_margin_bottom) as f64;
+    // Java viewport = SvgGraphics.ensureVisible(getFinalDimension) where:
+    //   getFinalDimension = lf_maxX + 1 + margins
+    //   ensureVisible(x) = (int)(x + 1)
+    // ensure_visible_int applies the ensureVisible +1.
+    // CucaDiagram (class/object/component): body dimension is a LimitFinder
+    // extent; Java's getFinalDimension adds +1 before margins. Other diagram
+    // types (sequence, activity, mindmap) compute raw textBlock dimensions
+    // that already absorb the +1 through their layout arithmetic.
+    let get_final_dim_extra = if matches!(diagram_type, "CLASS") { 1.0 } else { 0.0 };
+    let canvas_w = ensure_visible_int(tb_w + get_final_dim_extra + doc_margin_right) as f64;
+    let canvas_h = ensure_visible_int(tb_h + get_final_dim_extra + doc_margin_top + doc_margin_bottom) as f64;
     log::trace!(
         "wrap_with_meta: tb_w={tb_w:.6} tb_h={tb_h:.6} canvas_w={canvas_w} canvas_h={canvas_h}"
     );
@@ -2232,27 +2240,29 @@ fn render_class(
     // lf_span + delta(15,15).
     let is_degenerated = layout.nodes.len() <= 1 && layout.edges.is_empty() && layout.notes.is_empty();
     let (max_x, max_y) = tracker.max_point();
+    // raw_body_dim: the LimitFinder extent (no +1). Used by wrap_with_meta for
+    // merge_tb — the global getFinalDimension +1 is applied at the canvas level.
     let raw_body_dim = if is_degenerated {
         if let Some(node) = layout.nodes.first() {
             const DEGENERATED_DELTA: f64 = 7.0;
             Some((
-                node.width + DEGENERATED_DELTA * 2.0 + 1.0,
-                node.height + DEGENERATED_DELTA * 2.0 + 1.0,
+                node.width + DEGENERATED_DELTA * 2.0,
+                node.height + DEGENERATED_DELTA * 2.0,
             ))
         } else {
-            None
+            // Empty diagram: body draws nothing, no LimitFinder extent.
+            Some((0.0, 0.0))
         }
     } else if max_x.is_finite() && max_y.is_finite() {
-        // ImageBuilder.getFinalDimension() uses LimitFinder maxX/maxY and then adds
-        // the trailing `+ 1` pixel before document margins.
-        Some((max_x + 1.0, max_y + 1.0))
+        Some((max_x, max_y))
     } else {
         None
     };
+    // For the standalone body SVG viewport, add the getFinalDimension +1.
     let (svg_w, svg_h) = if let Some((raw_w, raw_h)) = raw_body_dim {
         (
-            ensure_visible_int(raw_w + DOC_MARGIN_RIGHT) as f64,
-            ensure_visible_int(raw_h + DOC_MARGIN_BOTTOM) as f64,
+            ensure_visible_int(raw_w + 1.0 + DOC_MARGIN_RIGHT) as f64,
+            ensure_visible_int(raw_h + 1.0 + DOC_MARGIN_BOTTOM) as f64,
         )
     } else {
         // Keep the empty-diagram fallback non-zero.
