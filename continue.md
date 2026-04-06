@@ -29,9 +29,15 @@ Any future Java/Rust parity work must target the stable `v1.2026.2` reference co
 
 ## Current Parity Baseline (2026-04-05)
 
-- `cargo test --lib`: `2636/2636`
-- `cargo test --test reference_tests`: `255/320` (79.7%)
+- `cargo test --lib`: `2638/2638`
+- `cargo test --test reference_tests`: `260/320` (81.3%)
 - Byte-compare authority remains the 318 stable-Java SVGs indexed by `tests/reference/INDEX.tsv`.
+
+### 2026-04-05 Fixes (260/320)
+- **Salt data-diagram-type**: Always emit `data-diagram-type="SALT"` for both @startsalt and inline salt
+- **CSS diagram-type wrappers**: Support `sequenceDiagram { participant { ... } }` in `<style>` blocks
+- **Legacy skinparam keys**: Store both dotted and concatenated forms for style lookup compat
+- **Old-style activity viewport**: Reduced padding from +13 to +5 to match Java margins
 
 ## Latest Push (2026-04-05)
 
