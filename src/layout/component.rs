@@ -36,6 +36,8 @@ pub struct ComponentLayout {
 pub struct ComponentNodeLayout {
     pub id: String,
     pub name: String,
+    /// Java "code": alias if given, else display name.
+    pub code: String,
     pub kind: ComponentKind,
     pub x: f64,
     pub y: f64,
@@ -107,6 +109,8 @@ pub struct EmbeddedDiagramData {
 pub struct ComponentGroupLayout {
     pub id: String,
     pub name: String,
+    /// Java "code": alias if given, else display name.
+    pub code: String,
     pub kind: ComponentKind,
     pub x: f64,
     pub y: f64,
@@ -1045,6 +1049,7 @@ pub fn layout_component(cd: &ComponentDiagram) -> Result<ComponentLayout> {
         nodes.push(ComponentNodeLayout {
             id: entity_id,
             name: entity.name.clone(),
+            code: entity.code.clone(),
             kind: entity.kind.clone(),
             x,
             y,
@@ -1146,6 +1151,7 @@ pub fn layout_component(cd: &ComponentDiagram) -> Result<ComponentLayout> {
             Some(ComponentGroupLayout {
                 id: group.id.clone(),
                 name: group.name.clone(),
+                code: group.code.clone(),
                 kind: group.kind.clone(),
                 x: cl.x + edge_offset_x,
                 y: cl.y + edge_offset_y,
@@ -1285,7 +1291,7 @@ pub fn layout_component(cd: &ComponentDiagram) -> Result<ComponentLayout> {
                         // Ear points up to target bottom; Smetana spline enters
                         // slightly past the boundary. The offset (~0.12) is smaller
                         // than the top case (~0.23) due to edge routing asymmetry.
-                        let ear_y = ty + th + 0.12;
+                        let ear_y = ty + th + 0.123125;
                         (Some(ear_y), Some(ear_x))
                     }
                     _ => (None, None),
@@ -1622,6 +1628,7 @@ mod tests {
         ComponentEntity {
             name: name.to_string(),
             id: name.to_string(),
+            code: name.to_string(),
             kind: ComponentKind::Component,
             stereotype: None,
             description: vec![],
@@ -1745,6 +1752,7 @@ mod tests {
         let e = ComponentEntity {
             name: "A very long component name".to_string(),
             id: "long".to_string(),
+            code: "long".to_string(),
             kind: ComponentKind::Component,
             stereotype: None,
             description: vec![],
@@ -1762,6 +1770,7 @@ mod tests {
         let e = ComponentEntity {
             name: "A".to_string(),
             id: "A".to_string(),
+            code: "A".to_string(),
             kind: ComponentKind::Rectangle,
             stereotype: None,
             description: vec![
@@ -1793,6 +1802,7 @@ mod tests {
                 position: "right".to_string(),
                 target: Some("A".to_string()),
                 source_line: None,
+                is_block: false,
             }],
             direction: Default::default(),
         };
@@ -1857,6 +1867,7 @@ mod tests {
                 ComponentEntity {
                     name: "Outer".to_string(),
                     id: "Outer".to_string(),
+                    code: "Outer".to_string(),
                     kind: ComponentKind::Rectangle,
                     stereotype: None,
                     description: vec![],
@@ -1867,6 +1878,7 @@ mod tests {
                 ComponentEntity {
                     name: "Inner".to_string(),
                     id: "Inner".to_string(),
+                    code: "Inner".to_string(),
                     kind: ComponentKind::Component,
                     stereotype: None,
                     description: vec![],
@@ -1879,6 +1891,7 @@ mod tests {
             groups: vec![ComponentGroup {
                 name: "Outer".to_string(),
                 id: "Outer".to_string(),
+                code: "Outer".to_string(),
                 kind: ComponentKind::Rectangle,
                 stereotype: None,
                 children: vec!["Inner".to_string()],
@@ -1905,6 +1918,7 @@ mod tests {
                 position: "right".to_string(),
                 target: Some("A".to_string()),
                 source_line: None,
+                is_block: false,
             }],
             direction: Default::default(),
         };
@@ -1963,6 +1977,7 @@ mod tests {
         let e = ComponentEntity {
             name: "A".to_string(),
             id: "A".to_string(),
+            code: "A".to_string(),
             kind: ComponentKind::Component,
             stereotype: Some("MyStereotype".to_string()),
             description: vec![],
@@ -1989,12 +2004,14 @@ mod tests {
                     position: "top".to_string(),
                     target: Some("A".to_string()),
                     source_line: None,
+                    is_block: false,
                 },
                 ComponentNote {
                     text: "note 2".to_string(),
                     position: "bottom".to_string(),
                     target: Some("A".to_string()),
                     source_line: None,
+                    is_block: false,
                 },
             ],
             direction: Default::default(),
@@ -2071,6 +2088,7 @@ mod tests {
         let multi = ComponentEntity {
             name: "Line1\nLine2\nLine3".to_string(),
             id: "multi".to_string(),
+            code: "multi".to_string(),
             kind: ComponentKind::Component,
             stereotype: None,
             description: vec![],

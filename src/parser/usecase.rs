@@ -278,11 +278,12 @@ pub fn parse_usecase_diagram(source: &str) -> Result<UseCaseDiagram> {
         }
 
         // --- relationship arrows ---
-        if let Some(link) = try_parse_link(line) {
+        if let Some(mut link) = try_parse_link(line) {
             debug!(
                 "line {}: link '{}' {:?} '{}' label='{}'",
                 line_num, link.from, link.style, link.to, link.label
             );
+            link.source_line = Some(line_num);
             // Auto-create actors/usecases referenced in links but not yet declared
             ensure_entity_exists(&link.from, &mut actors, &mut usecases);
             ensure_entity_exists(&link.to, &mut actors, &mut usecases);
@@ -346,6 +347,7 @@ fn ensure_entity_exists(id: &str, actors: &mut Vec<UseCaseActor>, usecases: &mut
         usecases.push(UseCase {
             id: uc_id,
             name: id.to_string(),
+            code: id.to_string(),
             stereotype: None,
             color: None,
             parent: None,
@@ -355,6 +357,7 @@ fn ensure_entity_exists(id: &str, actors: &mut Vec<UseCaseActor>, usecases: &mut
         actors.push(UseCaseActor {
             id: id.to_string(),
             name: id.to_string(),
+            code: id.to_string(),
             stereotype: None,
             color: None,
         });
@@ -464,9 +467,12 @@ fn try_parse_actor_decl(line: &str) -> Option<UseCaseActor> {
         return None;
     }
 
+    // For actor decl with "as", code = id (alias); otherwise code = name
+    let code = id.clone();
     Some(UseCaseActor {
         id,
         name,
+        code,
         stereotype,
         color,
     })
@@ -490,11 +496,12 @@ fn try_parse_actor_colon(line: &str) -> Option<UseCaseActor> {
     // followed by optional `as ALIAS`, stereotype, or color — not `;`.
     let after_close = rest[close_pos + 1..].trim();
     if after_close.is_empty() {
-        // Simple `:Name:` form
+        // Simple `:Name:` form — code = display name (no alias)
         let id = name_to_id(name);
         return Some(UseCaseActor {
             id,
             name: name.to_string(),
+            code: name.to_string(),
             stereotype: None,
             color: None,
         });
@@ -510,6 +517,7 @@ fn try_parse_actor_colon(line: &str) -> Option<UseCaseActor> {
         return Some(UseCaseActor {
             id: alias.to_string(),
             name: name.to_string(),
+            code: alias.to_string(),
             stereotype,
             color,
         });
@@ -555,9 +563,11 @@ fn try_parse_usecase_decl(line: &str) -> Option<UseCase> {
         return None;
     }
 
+    let code = id.clone();
     Some(UseCase {
         id,
         name,
+        code,
         stereotype,
         color,
         parent: None,
@@ -578,15 +588,17 @@ fn try_parse_usecase_paren(line: &str) -> Option<UseCase> {
     let (base_after, stereotype, color) = parse_stereotype_color(after);
     let base_after = base_after.trim();
 
-    let id = if let Some(alias) = base_after.strip_prefix("as ") {
-        alias.trim().to_string()
+    let (id, code) = if let Some(alias) = base_after.strip_prefix("as ") {
+        let a = alias.trim().to_string();
+        (a.clone(), a)
     } else {
-        name_to_id(inner)
+        (name_to_id(inner), inner.to_string())
     };
 
     Some(UseCase {
         id,
         name: inner.to_string(),
+        code,
         stereotype,
         color,
         parent: None,
@@ -694,6 +706,7 @@ fn try_parse_link(line: &str) -> Option<UseCaseLink> {
         label: label.trim().to_string(),
         style: r.style,
         direction_hint: r.direction_hint,
+        source_line: None, // set by caller
     })
 }
 

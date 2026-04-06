@@ -101,6 +101,7 @@ pub fn parse_component_diagram(source: &str) -> Result<ComponentDiagram> {
                         position: position.clone(),
                         target: target.clone(),
                         source_line: Some(start_line + 1),
+                        is_block: true,
                     });
                     mode = ParseMode::Normal;
                 } else {
@@ -184,9 +185,11 @@ pub fn parse_component_diagram(source: &str) -> Result<ComponentDiagram> {
         if line == "}" {
             if let Some(frame) = group_stack.pop() {
                 debug!("line {}: close group '{}'", line_num, frame.name);
+                let code = frame.id.clone();
                 groups.push(ComponentGroup {
                     name: frame.name,
                     id: frame.id,
+                    code,
                     kind: frame.kind,
                     stereotype: frame.stereotype,
                     children: frame.children,
@@ -231,6 +234,7 @@ pub fn parse_component_diagram(source: &str) -> Result<ComponentDiagram> {
                 entities.push(ComponentEntity {
                     name: decl.name.clone(),
                     id: decl.id.clone(),
+                    code: decl.id.clone(),
                     kind: decl.kind.clone(),
                     stereotype: decl.stereotype.clone(),
                     description: vec![],
@@ -258,6 +262,7 @@ pub fn parse_component_diagram(source: &str) -> Result<ComponentDiagram> {
                 entities.push(ComponentEntity {
                     name: decl.name.clone(),
                     id: decl.id.clone(),
+                    code: decl.id.clone(),
                     kind: decl.kind,
                     stereotype: decl.stereotype,
                     description: vec![],
@@ -280,9 +285,11 @@ pub fn parse_component_diagram(source: &str) -> Result<ComponentDiagram> {
             }
 
             let parent_id = group_stack.last().map(|f| f.id.clone());
+            let code = decl.id.clone();
             entities.push(ComponentEntity {
                 name: decl.name.clone(),
                 id: decl.id.clone(),
+                code,
                 kind: decl.kind,
                 stereotype: decl.stereotype,
                 description: decl.description,
@@ -305,6 +312,7 @@ pub fn parse_component_diagram(source: &str) -> Result<ComponentDiagram> {
                 entities.push(ComponentEntity {
                     name,
                     id: id.clone(),
+                    code: id.clone(),
                     kind: ComponentKind::Component,
                     stereotype: None,
                     description: vec![],
@@ -334,6 +342,7 @@ pub fn parse_component_diagram(source: &str) -> Result<ComponentDiagram> {
                     entities.push(ComponentEntity {
                         name: endpoint_id.clone(),
                         id: endpoint_id.clone(),
+                        code: endpoint_id.clone(),
                         kind: ComponentKind::Component,
                         stereotype: None,
                         description: vec![],
@@ -358,9 +367,11 @@ pub fn parse_component_diagram(source: &str) -> Result<ComponentDiagram> {
     // Close any unclosed groups
     while let Some(frame) = group_stack.pop() {
         warn!("unclosed group '{}', auto-closing", frame.name);
+        let code = frame.id.clone();
         groups.push(ComponentGroup {
             name: frame.name,
             id: frame.id,
+            code,
             kind: frame.kind,
             stereotype: frame.stereotype,
             children: frame.children,
@@ -977,6 +988,7 @@ fn try_parse_note(line: &str) -> Option<NoteParseResult> {
                 position: pos.to_string(),
                 target: Some(target),
                 source_line: None, // set by caller
+                is_block: false,
             }));
         }
 

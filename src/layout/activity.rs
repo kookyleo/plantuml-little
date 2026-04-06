@@ -611,12 +611,12 @@ pub fn layout_activity(diagram: &ActivityDiagram) -> Result<ActivityLayout> {
     } else {
         let ha = font_metrics::ascent("SansSerif", SWIMLANE_HEADER_FONT_SIZE, false, false);
         let hd = font_metrics::descent("SansSerif", SWIMLANE_HEADER_FONT_SIZE, false, false);
-        // Java: content_start = header_top + titles_height + 5.0
+        // Java: content_start = header_top + titles_height
         // header_top = 2019 font units at header font size (DejaVu Sans).
         // This value (=ascender(1901) + 118) comes from Java's global MinMax
         // y-offset in the rendering framework.
         let header_top = 2019.0 / 2048.0 * SWIMLANE_HEADER_FONT_SIZE;
-        header_top + (ha + hd) + 5.0
+        header_top + (ha + hd)
     };
     let mut y_cursor = if swimlane_layouts.is_empty() {
         TOP_MARGIN

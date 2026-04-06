@@ -57,7 +57,12 @@ pub fn render_component(
     let mut entity_ids: std::collections::HashMap<String, String> =
         std::collections::HashMap::new();
 
-    // Collect all items that need ent IDs: entities + notes, sorted by source_line
+    // Collect all items that need ent IDs: entities + notes, sorted by source_line.
+    // Java assigns entity IDs via a global Ident counter that increments for every
+    // Ident.of() call.  Each note causes extra Ident.of() calls:
+    //   - 1 for target entity resolution (all notes)
+    //   - 1 additional for block notes (end-note processing)
+    // Then the note entity itself consumes 1 more slot.
     enum EntItem<'a> {
         Entity(&'a crate::model::component::ComponentEntity),
         Note(usize), // index into layout.notes
@@ -75,18 +80,33 @@ pub fn render_component(
     let mut note_ent_ids: std::collections::HashMap<usize, String> =
         std::collections::HashMap::new();
     for (_, item) in &all_items {
-        let ent_id = format!("ent{:04}", ent_counter);
         match item {
             EntItem::Entity(ent) => {
+                let ent_id = format!("ent{:04}", ent_counter);
                 entity_ids.insert(ent.id.clone(), ent_id);
+                ent_counter += 1;
             }
             EntItem::Note(idx) => {
+                // Skip 1 phantom ID for target ident resolution
+                ent_counter += 1;
+                // Block notes skip 1 more phantom ID for end-note processing
+                let is_block = cd.notes.get(*idx).map_or(false, |n| n.is_block);
+                if is_block {
+                    ent_counter += 1;
+                }
+                let ent_id = format!("ent{:04}", ent_counter);
                 note_ent_ids.insert(*idx, ent_id);
+                ent_counter += 1;
             }
         }
-        ent_counter += 1;
     }
     let qualified_names = build_component_qualified_names(cd);
+    // Map entity ID → Java "code" (alias if given, else display name)
+    let entity_codes: std::collections::HashMap<String, String> = cd
+        .entities
+        .iter()
+        .map(|ent| (ent.id.clone(), ent.code.clone()))
+        .collect();
     let entity_parents: std::collections::HashMap<String, Option<String>> = cd
         .entities
         .iter()
@@ -241,6 +261,7 @@ pub fn render_component(
             arrow_color,
             arrow_font_color,
             &entity_ids,
+            &entity_codes,
             link_counter,
             source_line,
             &mut path_id_counts,
@@ -284,10 +305,10 @@ fn render_group(
     let h = group.height;
 
     // HTML comment — Java replaces non-ASCII and newlines with '?'
-    let comment_id = group.id.replace('\n', "?").replace(crate::NEWLINE_CHAR, "?");
+    let comment_code = group.code.replace('\n', "?").replace(crate::NEWLINE_CHAR, "?");
     sg.push_raw(&format!(
         "<!--cluster {}-->",
-        svg_comment_escape(&comment_id)
+        svg_comment_escape(&comment_code)
     ));
 
     // Open semantic <g> with Java-matching attributes.
@@ -732,7 +753,7 @@ fn open_entity_g(sg: &mut SvgGraphic, node: &ComponentNodeLayout, meta: EntitySv
     if meta.emit_comment {
         sg.push_raw(&format!(
             "<!--entity {}-->",
-            svg_comment_escape(&node.id)
+            svg_comment_escape(&node.code)
         ));
     }
     let source_line = node
@@ -1630,23 +1651,31 @@ fn render_node_text(
 fn build_component_qualified_names(
     cd: &ComponentDiagram,
 ) -> std::collections::HashMap<String, String> {
+    // Java uses the "code" (alias if given, else display name) in qualified paths.
     let parents: std::collections::HashMap<&str, Option<&str>> = cd
         .entities
         .iter()
         .map(|ent| (ent.id.as_str(), ent.parent.as_deref()))
         .collect();
+    let id_to_code: std::collections::HashMap<&str, &str> = cd
+        .entities
+        .iter()
+        .map(|ent| (ent.id.as_str(), ent.code.as_str()))
+        .collect();
 
     fn resolve(
         id: &str,
         parents: &std::collections::HashMap<&str, Option<&str>>,
+        id_to_code: &std::collections::HashMap<&str, &str>,
         memo: &mut std::collections::HashMap<String, String>,
     ) -> String {
         if let Some(existing) = memo.get(id) {
             return existing.clone();
         }
+        let code = id_to_code.get(id).copied().unwrap_or(id);
         let qualified = match parents.get(id).copied().flatten() {
-            Some(parent) => format!("{}.{}", resolve(parent, parents, memo), id),
-            None => id.to_string(),
+            Some(parent) => format!("{}.{}", resolve(parent, parents, id_to_code, memo), code),
+            None => code.to_string(),
         };
         memo.insert(id.to_string(), qualified.clone());
         qualified
@@ -1654,7 +1683,7 @@ fn build_component_qualified_names(
 
     let mut memo = std::collections::HashMap::new();
     for ent in &cd.entities {
-        resolve(&ent.id, &parents, &mut memo);
+        resolve(&ent.id, &parents, &id_to_code, &mut memo);
     }
     memo
 }
@@ -1669,6 +1698,7 @@ fn render_edge(
     arrow_color: &str,
     font_color: &str,
     entity_ids: &std::collections::HashMap<String, String>,
+    entity_codes: &std::collections::HashMap<String, String>,
     link_id: u32,
     source_line: Option<usize>,
     path_id_counts: &mut std::collections::HashMap<String, usize>,
@@ -1680,18 +1710,20 @@ fn render_edge(
         return;
     }
 
-    // HTML comment — Java: "reverse link X to Y" when LinkType.looksLikeRevertedForSvg()
+    // HTML comment — Java uses "code" (alias or display name) for link endpoints
+    let from_code = entity_codes.get(&edge.from).map(|s| s.as_str()).unwrap_or(&edge.from);
+    let to_code = entity_codes.get(&edge.to).map(|s| s.as_str()).unwrap_or(&edge.to);
     if edge.reversed_for_svg {
         sg.push_raw(&format!(
             "<!--reverse link {} to {}-->",
-            xml_escape(&edge.from),
-            xml_escape(&edge.to),
+            xml_escape(from_code),
+            xml_escape(to_code),
         ));
     } else {
         sg.push_raw(&format!(
             "<!--link {} to {}-->",
-            xml_escape(&edge.from),
-            xml_escape(&edge.to),
+            xml_escape(from_code),
+            xml_escape(to_code),
         ));
     }
 
@@ -1753,9 +1785,9 @@ fn render_edge(
         d.trim_end().to_string()
     };
     let base_path_id = if edge.reversed_for_svg {
-        format!("{}-backto-{}", xml_escape(&edge.from), xml_escape(&edge.to))
+        format!("{}-backto-{}", xml_escape(from_code), xml_escape(to_code))
     } else {
-        format!("{}-to-{}", xml_escape(&edge.from), xml_escape(&edge.to))
+        format!("{}-to-{}", xml_escape(from_code), xml_escape(to_code))
     };
     let count = path_id_counts.entry(base_path_id.clone()).or_insert(0);
     let path_id = if *count == 0 {
@@ -2480,6 +2512,7 @@ mod tests {
     fn make_component(id: &str, x: f64, y: f64, w: f64, h: f64) -> ComponentNodeLayout {
         ComponentNodeLayout {
             id: id.to_string(),
+            code: id.to_string(),
             name: id.to_string(),
             kind: ComponentKind::Component,
             x,
@@ -2532,6 +2565,7 @@ mod tests {
         let mut layout = empty_layout();
         layout.nodes.push(ComponentNodeLayout {
             id: "rect1".to_string(),
+            code: "rect1".to_string(),
             name: "MyRect".to_string(),
             kind: ComponentKind::Rectangle,
             x: 20.0,
@@ -2556,6 +2590,7 @@ mod tests {
         let mut layout = empty_layout();
         layout.nodes.push(ComponentNodeLayout {
             id: "db1".to_string(),
+            code: "db1".to_string(),
             name: "MyDB".to_string(),
             kind: ComponentKind::Database,
             x: 20.0,
@@ -2580,6 +2615,7 @@ mod tests {
         let mut layout = empty_layout();
         layout.nodes.push(ComponentNodeLayout {
             id: "cloud1".to_string(),
+            code: "cloud1".to_string(),
             name: "MyCloud".to_string(),
             kind: ComponentKind::Cloud,
             x: 20.0,
@@ -2732,6 +2768,7 @@ mod tests {
         let mut layout = empty_layout();
         layout.groups.push(ComponentGroupLayout {
             id: "grp1".to_string(),
+            code: "grp1".to_string(),
             name: "My Group".to_string(),
             kind: ComponentKind::Rectangle,
             x: 10.0,
@@ -2754,6 +2791,7 @@ mod tests {
         let mut layout = empty_layout();
         layout.nodes.push(ComponentNodeLayout {
             id: "test".to_string(),
+            code: "test".to_string(),
             name: "A & B < C".to_string(),
             kind: ComponentKind::Component,
             x: 10.0,
@@ -2778,6 +2816,7 @@ mod tests {
         let mut layout = empty_layout();
         layout.nodes.push(ComponentNodeLayout {
             id: "test".to_string(),
+            code: "test".to_string(),
             name: "MyComp".to_string(),
             kind: ComponentKind::Component,
             x: 10.0,
@@ -2808,6 +2847,7 @@ mod tests {
         let mut layout = empty_layout();
         layout.nodes.push(ComponentNodeLayout {
             id: "test".to_string(),
+            code: "test".to_string(),
             name: "MyComp".to_string(),
             kind: ComponentKind::Component,
             x: 10.0,
@@ -2841,6 +2881,7 @@ mod tests {
         let mut layout = empty_layout();
         layout.nodes.push(ComponentNodeLayout {
             id: "test".to_string(),
+            code: "test".to_string(),
             name: "MyComp".to_string(),
             kind: ComponentKind::Component,
             x: 10.0,
@@ -2920,6 +2961,7 @@ mod tests {
         let mut layout = empty_layout();
         layout.nodes.push(ComponentNodeLayout {
             id: "iface1".to_string(),
+            code: "iface1".to_string(),
             name: "MyInterface".to_string(),
             kind: ComponentKind::Interface,
             x: 20.0,

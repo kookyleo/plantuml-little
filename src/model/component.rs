@@ -31,6 +31,9 @@ pub enum ComponentKind {
 pub struct ComponentEntity {
     pub name: String,
     pub id: String,
+    /// Java "code": the alias if explicitly given, otherwise the display name.
+    /// Used for qualified-name attributes and HTML comments.
+    pub code: String,
     pub kind: ComponentKind,
     pub stereotype: Option<String>,
     pub description: Vec<String>,
@@ -64,6 +67,8 @@ pub struct ComponentLink {
 pub struct ComponentGroup {
     pub name: String,
     pub id: String,
+    /// Java "code": the alias if explicitly given, otherwise the display name.
+    pub code: String,
     pub kind: ComponentKind,
     pub stereotype: Option<String>,
     pub children: Vec<String>,
@@ -87,6 +92,8 @@ pub struct ComponentNote {
     pub target: Option<String>,
     /// Source line number (1-based) of the `note` command in the PlantUML source.
     pub source_line: Option<usize>,
+    /// True when parsed as a multi-line block (`note ... / end note`).
+    pub is_block: bool,
 }
 
 /// Convert a UseCaseDiagram into a ComponentDiagram so it can be routed through
@@ -101,6 +108,7 @@ impl From<&super::usecase::UseCaseDiagram> for ComponentDiagram {
             entities.push(ComponentEntity {
                 name: actor.name.clone(),
                 id: actor.id.clone(),
+                code: actor.code.clone(),
                 kind: ComponentKind::Actor,
                 stereotype: actor.stereotype.clone(),
                 description: vec![],
@@ -116,6 +124,7 @@ impl From<&super::usecase::UseCaseDiagram> for ComponentDiagram {
             entities.push(ComponentEntity {
                 name: usecase.name.clone(),
                 id: usecase.id.clone(),
+                code: usecase.code.clone(),
                 kind: ComponentKind::UseCase,
                 stereotype: usecase.stereotype.clone(),
                 description: vec![],
@@ -140,7 +149,7 @@ impl From<&super::usecase::UseCaseDiagram> for ComponentDiagram {
                     dashed,
                     direction_hint: link.direction_hint.clone(),
                     arrow_len: 2, // default vertical layout
-                    source_line: Some(source_line_counter + i),
+                    source_line: link.source_line,
                     direction_inverted: false,
                 }
             })
@@ -153,6 +162,7 @@ impl From<&super::usecase::UseCaseDiagram> for ComponentDiagram {
             .map(|b| ComponentGroup {
                 name: b.name.clone(),
                 id: b.id.clone(),
+                code: b.name.clone(),
                 kind: ComponentKind::Rectangle,
                 stereotype: None,
                 children: b.children.clone(),
@@ -169,6 +179,7 @@ impl From<&super::usecase::UseCaseDiagram> for ComponentDiagram {
                 position: n.position.clone(),
                 target: n.target.clone(),
                 source_line: None,
+                is_block: false,
             })
             .collect();
 
@@ -197,6 +208,7 @@ mod tests {
         let e = ComponentEntity {
             name: "test".to_string(),
             id: "test".to_string(),
+            code: "test".to_string(),
             kind: ComponentKind::Component,
             stereotype: None,
             description: vec![],
@@ -231,6 +243,7 @@ mod tests {
             position: "top".to_string(),
             target: Some("comp1".to_string()),
             source_line: None,
+            is_block: false,
         };
         assert_eq!(n.position, "top");
         assert!(n.target.is_some());
@@ -241,6 +254,7 @@ mod tests {
         let g = ComponentGroup {
             name: "My Group".to_string(),
             id: "my_group".to_string(),
+            code: "my_group".to_string(),
             kind: ComponentKind::Rectangle,
             stereotype: Some("$businessProcess".to_string()),
             children: vec!["src".to_string(), "tgt".to_string()],
@@ -268,6 +282,7 @@ mod tests {
         let e = ComponentEntity {
             name: "A".to_string(),
             id: "A".to_string(),
+            code: "A".to_string(),
             kind: ComponentKind::Rectangle,
             stereotype: None,
             description: vec!["line 1".to_string(), "line 2".to_string()],
@@ -283,6 +298,7 @@ mod tests {
         let e = ComponentEntity {
             name: "inner".to_string(),
             id: "inner".to_string(),
+            code: "inner".to_string(),
             kind: ComponentKind::Rectangle,
             stereotype: None,
             description: vec![],
@@ -323,6 +339,7 @@ mod tests {
             position: "left".to_string(),
             target: None,
             source_line: None,
+            is_block: false,
         };
         assert!(n.target.is_none());
     }

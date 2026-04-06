@@ -16,6 +16,8 @@ pub struct UseCaseDiagram {
 pub struct UseCaseActor {
     pub id: String,
     pub name: String,
+    /// Java "code": alias if given, else display name.
+    pub code: String,
     pub stereotype: Option<String>,
     pub color: Option<String>,
 }
@@ -25,6 +27,8 @@ pub struct UseCaseActor {
 pub struct UseCase {
     pub id: String,
     pub name: String,
+    /// Java "code": alias if given, else display name.
+    pub code: String,
     pub stereotype: Option<String>,
     pub color: Option<String>,
     /// Parent boundary id, if inside a package/rectangle
@@ -47,6 +51,8 @@ pub struct UseCaseLink {
     pub label: String,
     pub style: UseCaseLinkStyle,
     pub direction_hint: Option<String>,
+    /// 0-based source line number for data-source-line attribute.
+    pub source_line: Option<usize>,
 }
 
 /// Link style.

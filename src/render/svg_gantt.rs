@@ -674,7 +674,8 @@ fn render_weekly_calendar_gantt(diagram: &GanttDiagram, skin: &SkinParams) -> Op
     for bar in &bars {
         max_x = max_x.max(bar.label_x + bar.label_w);
     }
-    let raw_width = max_x;
+    // Java viewport includes a small right margin beyond the rightmost text.
+    let raw_width = max_x + 2.0;
     let raw_height = footer_bottom_y + 2.0;
 
     let bg = skin.get_or("backgroundcolor", "#FFFFFF");
@@ -1188,7 +1189,7 @@ mod tests {
         });
 
         let svg = render_gantt(&d, &empty_layout(), &SkinParams::default()).unwrap();
-        assert!(svg.contains(r#"width="422px""#));
+        assert!(svg.contains(r#"width="424px""#));
         assert!(svg.contains(r#"height="156px""#));
         assert!(svg.contains(">Oct 2020</text>"));
         assert!(svg.contains(">43</text>"));

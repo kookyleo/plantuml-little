@@ -108,7 +108,9 @@ pub struct TimingTick {
 // Constants
 // ---------------------------------------------------------------------------
 
-const MARGIN: f64 = 20.0;
+const MARGIN: f64 = 10.0;
+/// Java adds additional right/bottom padding beyond the chart border.
+const MARGIN_RIGHT_BOTTOM: f64 = 16.0;
 const FONT_SIZE: f64 = 12.0;
 const NAME_FONT_SIZE: f64 = 14.0;
 const STATE_LEVEL_SPACING: f64 = 20.0;
@@ -327,7 +329,7 @@ pub fn layout_timing(td: &TimingDiagram, skin: &crate::style::SkinParams) -> Res
     let mut min_x = MARGIN;
     let mut min_y = MARGIN;
     let mut total_width = chart_right;
-    let mut total_height = axis_y + axis_lh + MARGIN;
+    let mut total_height = axis_y + axis_lh + MARGIN_RIGHT_BOTTOM;
     for note in &notes {
         min_x = min_x.min(note.x);
         min_y = min_y.min(note.y);
@@ -382,7 +384,7 @@ pub fn layout_timing(td: &TimingDiagram, skin: &crate::style::SkinParams) -> Res
         total_height += shift_y;
     }
 
-    total_width += MARGIN;
+    total_width += MARGIN_RIGHT_BOTTOM;
 
     debug!("layout_timing done: {total_width:.0}x{total_height:.0}");
 

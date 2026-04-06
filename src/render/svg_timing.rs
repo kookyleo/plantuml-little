@@ -529,16 +529,11 @@ fn render_constraint(
     font_color: &str,
     constraint_fs: f64,
 ) {
-    let long_enough = c.x_end - c.x_start > 20.0;
-    let (line_start, line_end) = if long_enough {
-        (c.x_start + 3.0, c.x_end - 3.0)
-    } else {
-        (c.x_start - 1.0, c.x_end + 1.0)
-    };
+    let _long_enough = c.x_end - c.x_start > 20.0;
     sg.push_raw(&format!(
         r#"<line style="stroke:{line_color};stroke-width:1.5;" x1="{}" x2="{}" y1="{}" y2="{}"/>"#,
-        fmt_coord(line_start),
-        fmt_coord(line_end),
+        fmt_coord(c.x_start),
+        fmt_coord(c.x_end),
         fmt_coord(c.y),
         fmt_coord(c.y),
     ));

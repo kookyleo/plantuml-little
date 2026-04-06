@@ -828,12 +828,14 @@ mod tests {
         let mut diagram = make_diagram(Direction::LeftToRight);
         diagram.actors.push(UseCaseActor {
             id: "a1".into(),
+            code: "a1".into(),
             name: "User".into(),
             stereotype: None,
             color: None,
         });
         diagram.actors.push(UseCaseActor {
             id: "a2".into(),
+            code: "a2".into(),
             name: "Admin".into(),
             stereotype: None,
             color: None,
@@ -864,12 +866,14 @@ mod tests {
         let mut diagram = make_diagram(Direction::LeftToRight);
         diagram.actors.push(UseCaseActor {
             id: "a1".into(),
+            code: "a1".into(),
             name: "User".into(),
             stereotype: None,
             color: None,
         });
         diagram.usecases.push(UseCase {
             id: "uc1".into(),
+            code: "uc1".into(),
             name: "Login".into(),
             stereotype: None,
             color: None,
@@ -893,12 +897,14 @@ mod tests {
         let mut diagram = make_diagram(Direction::TopToBottom);
         diagram.actors.push(UseCaseActor {
             id: "a1".into(),
+            code: "a1".into(),
             name: "User".into(),
             stereotype: None,
             color: None,
         });
         diagram.actors.push(UseCaseActor {
             id: "a2".into(),
+            code: "a2".into(),
             name: "Admin".into(),
             stereotype: None,
             color: None,
@@ -925,12 +931,14 @@ mod tests {
         let mut diagram = make_diagram(Direction::TopToBottom);
         diagram.actors.push(UseCaseActor {
             id: "a1".into(),
+            code: "a1".into(),
             name: "User".into(),
             stereotype: None,
             color: None,
         });
         diagram.usecases.push(UseCase {
             id: "uc1".into(),
+            code: "uc1".into(),
             name: "Search".into(),
             stereotype: None,
             color: None,
@@ -952,6 +960,7 @@ mod tests {
         let mut diagram = make_diagram(Direction::LeftToRight);
         diagram.usecases.push(UseCase {
             id: "uc1".into(),
+            code: "uc1".into(),
             name: "A".into(), // very short name
             stereotype: None,
             color: None,
@@ -991,6 +1000,7 @@ mod tests {
         });
         diagram.usecases.push(UseCase {
             id: "uc1".into(),
+            code: "uc1".into(),
             name: "Login".into(),
             stereotype: None,
             color: None,
@@ -998,6 +1008,7 @@ mod tests {
         });
         diagram.usecases.push(UseCase {
             id: "uc2".into(),
+            code: "uc2".into(),
             name: "Logout".into(),
             stereotype: None,
             color: None,
@@ -1027,12 +1038,14 @@ mod tests {
         let mut diagram = make_diagram(Direction::LeftToRight);
         diagram.actors.push(UseCaseActor {
             id: "a1".into(),
+            code: "a1".into(),
             name: "User".into(),
             stereotype: None,
             color: None,
         });
         diagram.usecases.push(UseCase {
             id: "uc1".into(),
+            code: "uc1".into(),
             name: "Login".into(),
             stereotype: None,
             color: None,
@@ -1044,6 +1057,7 @@ mod tests {
             label: String::new(),
             style: UseCaseLinkStyle::Association,
             direction_hint: None,
+            source_line: None,
         });
 
         let layout = layout_usecase(&diagram).expect("layout failed");
@@ -1060,12 +1074,14 @@ mod tests {
         let mut diagram = make_diagram(Direction::LeftToRight);
         diagram.actors.push(UseCaseActor {
             id: "a1".into(),
+            code: "a1".into(),
             name: "User".into(),
             stereotype: None,
             color: None,
         });
         diagram.usecases.push(UseCase {
             id: "uc1".into(),
+            code: "uc1".into(),
             name: "Login".into(),
             stereotype: None,
             color: None,
@@ -1073,6 +1089,7 @@ mod tests {
         });
         diagram.usecases.push(UseCase {
             id: "uc2".into(),
+            code: "uc2".into(),
             name: "Verify".into(),
             stereotype: None,
             color: None,
@@ -1084,6 +1101,7 @@ mod tests {
             label: "include".into(),
             style: UseCaseLinkStyle::Dashed,
             direction_hint: None,
+            source_line: None,
         });
 
         let layout = layout_usecase(&diagram).expect("layout failed");
@@ -1107,6 +1125,7 @@ mod tests {
             label: String::new(),
             style: UseCaseLinkStyle::Association,
             direction_hint: None,
+            source_line: None,
         });
 
         let layout = layout_usecase(&diagram).expect("layout failed");
@@ -1124,6 +1143,7 @@ mod tests {
             diagram.actors.push(UseCaseActor {
                 id: format!("a{i}"),
                 name: format!("Actor {i}"),
+                code: format!("a{i}"),
                 stereotype: None,
                 color: None,
             });
@@ -1132,6 +1152,7 @@ mod tests {
             diagram.usecases.push(UseCase {
                 id: format!("uc{i}"),
                 name: format!("A fairly long use case name {i}"),
+                code: format!("uc{i}"),
                 stereotype: None,
                 color: None,
                 parent: None,
