@@ -39,10 +39,27 @@ fn parse_concat(chars: &[char], start: usize) -> Result<(RegexNode, usize)> {
             c => { let nd = RegexNode::Literal(c.to_string()); pos += 1; let (q, n) = apply_quantifier(chars, pos, nd)?; items.push(q); pos = n; }
         }
     }
-    match items.len() {
+    // Merge consecutive Literal nodes into single strings (Java renders "cat"
+    // as one box, not three separate character boxes).
+    let mut merged = Vec::new();
+    let mut lit_buf = String::new();
+    for item in items {
+        if let RegexNode::Literal(ref s) = item {
+            lit_buf.push_str(s);
+        } else {
+            if !lit_buf.is_empty() {
+                merged.push(RegexNode::Literal(std::mem::take(&mut lit_buf)));
+            }
+            merged.push(item);
+        }
+    }
+    if !lit_buf.is_empty() {
+        merged.push(RegexNode::Literal(lit_buf));
+    }
+    match merged.len() {
         0 => Ok((RegexNode::Literal(String::new()), pos)),
-        1 => Ok((items.remove(0), pos)),
-        _ => Ok((RegexNode::Concat(items), pos)),
+        1 => Ok((merged.remove(0), pos)),
+        _ => Ok((RegexNode::Concat(merged), pos)),
     }
 }
 
