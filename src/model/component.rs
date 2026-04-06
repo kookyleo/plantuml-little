@@ -101,7 +101,6 @@ pub struct ComponentNote {
 impl From<&super::usecase::UseCaseDiagram> for ComponentDiagram {
     fn from(uc: &super::usecase::UseCaseDiagram) -> Self {
         let mut entities = Vec::new();
-        let mut source_line_counter: usize = 1; // approximation for ordering
 
         // Actors -> ComponentEntity with kind=Actor
         for actor in &uc.actors {
@@ -114,9 +113,8 @@ impl From<&super::usecase::UseCaseDiagram> for ComponentDiagram {
                 description: vec![],
                 parent: None,
                 color: actor.color.clone(),
-                source_line: Some(source_line_counter),
+                source_line: actor.source_line,
             });
-            source_line_counter += 1;
         }
 
         // Use cases -> ComponentEntity with kind=UseCase
@@ -130,9 +128,8 @@ impl From<&super::usecase::UseCaseDiagram> for ComponentDiagram {
                 description: vec![],
                 parent: usecase.parent.clone(),
                 color: usecase.color.clone(),
-                source_line: Some(source_line_counter),
+                source_line: usecase.source_line,
             });
-            source_line_counter += 1;
         }
 
         // Links -> ComponentLink

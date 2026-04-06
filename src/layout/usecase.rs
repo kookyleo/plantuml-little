@@ -832,6 +832,7 @@ mod tests {
             name: "User".into(),
             stereotype: None,
             color: None,
+            source_line: None,
         });
         diagram.actors.push(UseCaseActor {
             id: "a2".into(),
@@ -839,6 +840,7 @@ mod tests {
             name: "Admin".into(),
             stereotype: None,
             color: None,
+            source_line: None,
         });
 
         let layout = layout_usecase(&diagram).expect("layout failed");
@@ -870,6 +872,7 @@ mod tests {
             name: "User".into(),
             stereotype: None,
             color: None,
+            source_line: None,
         });
         diagram.usecases.push(UseCase {
             id: "uc1".into(),
@@ -878,6 +881,7 @@ mod tests {
             stereotype: None,
             color: None,
             parent: None,
+            source_line: None,
         });
 
         let layout = layout_usecase(&diagram).expect("layout failed");
@@ -901,6 +905,7 @@ mod tests {
             name: "User".into(),
             stereotype: None,
             color: None,
+            source_line: None,
         });
         diagram.actors.push(UseCaseActor {
             id: "a2".into(),
@@ -908,6 +913,7 @@ mod tests {
             name: "Admin".into(),
             stereotype: None,
             color: None,
+            source_line: None,
         });
 
         let layout = layout_usecase(&diagram).expect("layout failed");
@@ -935,6 +941,7 @@ mod tests {
             name: "User".into(),
             stereotype: None,
             color: None,
+            source_line: None,
         });
         diagram.usecases.push(UseCase {
             id: "uc1".into(),
@@ -943,6 +950,7 @@ mod tests {
             stereotype: None,
             color: None,
             parent: None,
+            source_line: None,
         });
 
         let layout = layout_usecase(&diagram).expect("layout failed");
@@ -965,6 +973,7 @@ mod tests {
             stereotype: None,
             color: None,
             parent: None,
+            source_line: None,
         });
 
         let layout = layout_usecase(&diagram).expect("layout failed");
@@ -1005,6 +1014,7 @@ mod tests {
             stereotype: None,
             color: None,
             parent: Some("sys".into()),
+            source_line: None,
         });
         diagram.usecases.push(UseCase {
             id: "uc2".into(),
@@ -1013,6 +1023,7 @@ mod tests {
             stereotype: None,
             color: None,
             parent: Some("sys".into()),
+            source_line: None,
         });
 
         let layout = layout_usecase(&diagram).expect("layout failed");
@@ -1042,6 +1053,7 @@ mod tests {
             name: "User".into(),
             stereotype: None,
             color: None,
+            source_line: None,
         });
         diagram.usecases.push(UseCase {
             id: "uc1".into(),
@@ -1050,6 +1062,7 @@ mod tests {
             stereotype: None,
             color: None,
             parent: None,
+            source_line: None,
         });
         diagram.links.push(UseCaseLink {
             from: "a1".into(),
@@ -1078,6 +1091,7 @@ mod tests {
             name: "User".into(),
             stereotype: None,
             color: None,
+            source_line: None,
         });
         diagram.usecases.push(UseCase {
             id: "uc1".into(),
@@ -1086,6 +1100,7 @@ mod tests {
             stereotype: None,
             color: None,
             parent: None,
+            source_line: None,
         });
         diagram.usecases.push(UseCase {
             id: "uc2".into(),
@@ -1094,6 +1109,7 @@ mod tests {
             stereotype: None,
             color: None,
             parent: None,
+            source_line: None,
         });
         diagram.links.push(UseCaseLink {
             from: "uc1".into(),
@@ -1146,6 +1162,7 @@ mod tests {
                 code: format!("a{i}"),
                 stereotype: None,
                 color: None,
+            source_line: None,
             });
         }
         for i in 0..4 {
@@ -1156,6 +1173,7 @@ mod tests {
                 stereotype: None,
                 color: None,
                 parent: None,
+            source_line: None,
             });
         }
 

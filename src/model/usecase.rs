@@ -20,6 +20,8 @@ pub struct UseCaseActor {
     pub code: String,
     pub stereotype: Option<String>,
     pub color: Option<String>,
+    /// 0-based source line number for data-source-line attribute.
+    pub source_line: Option<usize>,
 }
 
 /// A use case (oval) in the diagram.
@@ -33,6 +35,8 @@ pub struct UseCase {
     pub color: Option<String>,
     /// Parent boundary id, if inside a package/rectangle
     pub parent: Option<String>,
+    /// 0-based source line number for data-source-line attribute.
+    pub source_line: Option<usize>,
 }
 
 /// A boundary (package/rectangle) grouping use cases.

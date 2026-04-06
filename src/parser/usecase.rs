@@ -202,12 +202,13 @@ pub fn parse_usecase_diagram(source: &str) -> Result<UseCaseDiagram> {
         }
 
         // --- actor "Name" as id / actor id ---
-        if let Some(actor) = try_parse_actor_decl(line) {
+        if let Some(mut actor) = try_parse_actor_decl(line) {
             debug!(
                 "line {}: actor id='{}' name='{}'",
                 line_num, actor.id, actor.name
             );
             if !actors.iter().any(|a| a.id == actor.id) {
+                actor.source_line = Some(line_num);
                 if let Some(parent) = boundary_stack.last_mut() {
                     parent.children.push(actor.id.clone());
                 }
@@ -217,12 +218,13 @@ pub fn parse_usecase_diagram(source: &str) -> Result<UseCaseDiagram> {
         }
 
         // --- :Actor Name: colon syntax ---
-        if let Some(actor) = try_parse_actor_colon(line) {
+        if let Some(mut actor) = try_parse_actor_colon(line) {
             debug!(
                 "line {}: colon-actor id='{}' name='{}'",
                 line_num, actor.id, actor.name
             );
             if !actors.iter().any(|a| a.id == actor.id) {
+                actor.source_line = Some(line_num);
                 if let Some(parent) = boundary_stack.last_mut() {
                     parent.children.push(actor.id.clone());
                 }
@@ -232,14 +234,14 @@ pub fn parse_usecase_diagram(source: &str) -> Result<UseCaseDiagram> {
         }
 
         // --- usecase "Name" as id / usecase id ---
-        if let Some(uc) = try_parse_usecase_decl(line) {
+        if let Some(mut uc) = try_parse_usecase_decl(line) {
             debug!(
                 "line {}: usecase id='{}' name='{}'",
                 line_num, uc.id, uc.name
             );
             let parent_id = boundary_stack.last().map(|f| f.id.clone());
-            let mut uc = uc;
             uc.parent = parent_id.clone();
+            uc.source_line = Some(line_num);
             if !usecases.iter().any(|u| u.id == uc.id) {
                 if let Some(parent) = boundary_stack.last_mut() {
                     parent.children.push(uc.id.clone());
@@ -250,14 +252,14 @@ pub fn parse_usecase_diagram(source: &str) -> Result<UseCaseDiagram> {
         }
 
         // --- (Use Case Name) or (Name) as id shorthand ---
-        if let Some(uc) = try_parse_usecase_paren(line) {
+        if let Some(mut uc) = try_parse_usecase_paren(line) {
             debug!(
                 "line {}: paren-usecase id='{}' name='{}'",
                 line_num, uc.id, uc.name
             );
             let parent_id = boundary_stack.last().map(|f| f.id.clone());
-            let mut uc = uc;
             uc.parent = parent_id.clone();
+            uc.source_line = Some(line_num);
             if !usecases.iter().any(|u| u.id == uc.id) {
                 if let Some(parent) = boundary_stack.last_mut() {
                     parent.children.push(uc.id.clone());
@@ -351,6 +353,7 @@ fn ensure_entity_exists(id: &str, actors: &mut Vec<UseCaseActor>, usecases: &mut
             stereotype: None,
             color: None,
             parent: None,
+            source_line: None,
         });
     } else {
         debug!("auto-creating actor '{id}'");
@@ -360,6 +363,7 @@ fn ensure_entity_exists(id: &str, actors: &mut Vec<UseCaseActor>, usecases: &mut
             code: id.to_string(),
             stereotype: None,
             color: None,
+            source_line: None,
         });
     }
 }
@@ -475,6 +479,7 @@ fn try_parse_actor_decl(line: &str) -> Option<UseCaseActor> {
         code,
         stereotype,
         color,
+        source_line: None,
     })
 }
 
@@ -504,6 +509,7 @@ fn try_parse_actor_colon(line: &str) -> Option<UseCaseActor> {
             code: name.to_string(),
             stereotype: None,
             color: None,
+            source_line: None,
         });
     }
     // Check for `as ALIAS` after closing colon
@@ -520,6 +526,7 @@ fn try_parse_actor_colon(line: &str) -> Option<UseCaseActor> {
             code: alias.to_string(),
             stereotype,
             color,
+            source_line: None,
         });
     }
     // Unrecognized suffix — not a colon-actor
@@ -571,6 +578,7 @@ fn try_parse_usecase_decl(line: &str) -> Option<UseCase> {
         stereotype,
         color,
         parent: None,
+        source_line: None,
     })
 }
 
@@ -602,6 +610,7 @@ fn try_parse_usecase_paren(line: &str) -> Option<UseCase> {
         stereotype,
         color,
         parent: None,
+        source_line: None,
     })
 }
 

@@ -252,25 +252,14 @@ fn layout_fork(
             height: main_h,
             level: node.level,
         });
-        // Java Fork draws a stub line to y0+deltay/2, but the fork dimension
-        // includes the full deltay. Use a helper edge that extends to the full
-        // deltay height so bounds calculation matches Java's dimension model.
+        // Java Fork draws a stub line to y0+deltay/2 when there are no children.
         let stub_draw_y = origin_y + main_h + FORK_DELTAY / 2.0;
-        let stub_dim_y = origin_y + main_h + FORK_DELTAY;
         let cx = origin_x + main_w / 2.0;
-        // Visible stub line (drawn)
         edges.push(WbsEdgeLayout {
             from_x: cx,
             from_y: origin_y + main_h,
             to_x: cx,
             to_y: stub_draw_y,
-        });
-        // Invisible dimension edge to make bounds match Java fork dim
-        edges.push(WbsEdgeLayout {
-            from_x: cx,
-            from_y: stub_dim_y,
-            to_x: cx,
-            to_y: stub_dim_y,
         });
         return;
     }
@@ -529,8 +518,8 @@ mod tests {
     fn test_single_root() {
         let l = layout_wbs(&mkd(leaf("Root", 1))).unwrap();
         assert_eq!(l.nodes.len(), 1);
-        // Fork with 0 children creates stub edges (visible + dimension)
-        assert_eq!(l.edges.len(), 2);
+        // Fork with 0 children creates a visible stub edge
+        assert_eq!(l.edges.len(), 1);
     }
     #[test]
     fn test_root_with_children() {
