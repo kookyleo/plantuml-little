@@ -1049,8 +1049,19 @@ fn strip_url_markup(s: &str) -> (String, Option<String>) {
             let inner = &result[start + 2..start + end];
             // Java: if the [[...]] content spans multiple lines (contains
             // the %n() newline placeholder \u{E100}), the URL markup is NOT
-            // parsed — the raw text is displayed literally.
+            // rendered as a hyperlink — the raw text is displayed literally.
+            // However, the URL IS still extracted for the lifeline <title>
+            // encoding (encode_link_title).
             if inner.contains(crate::NEWLINE_CHAR) {
+                if first_url.is_none() {
+                    let url_part = if let Some(sp) = inner.find(' ') {
+                        &inner[..sp]
+                    } else {
+                        inner
+                    };
+                    first_url = Some(url_part.to_string());
+                }
+                // Leave display text raw (with [[...]]) — rendering shows literal markup.
                 break;
             }
             // Extract URL (first token) and text after URL

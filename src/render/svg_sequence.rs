@@ -471,10 +471,27 @@ fn encode_link_title(url: &str, display_text: &str) -> String {
             _ => c,
         })
         .collect();
-    let encoded_text: String = display_text
+    // When [[url text]] was not stripped (multiline case), extract text from markup.
+    let raw_text = if display_text.starts_with("[[") {
+        if let Some(end) = display_text.find("]]") {
+            let inner = &display_text[2..end];
+            // Skip past the URL (first token)
+            if let Some(sp) = inner.find(' ') {
+                &inner[sp + 1..]
+            } else {
+                ""
+            }
+        } else {
+            display_text
+        }
+    } else {
+        display_text
+    };
+    let encoded_text: String = raw_text
         .chars()
         .map(|c| match c {
             '\\' => '.',
+            c if c == crate::NEWLINE_CHAR => '.',
             _ => c,
         })
         .collect();
@@ -3638,7 +3655,12 @@ fn render_sequence_inner(
         let kind = sd.participants.get(i).map(|pp| &pp.kind);
         let is_actor = matches!(kind, Some(ParticipantKind::Actor));
         let part_text_color = skin.font_color("participant", TEXT_COLOR);
+        // link_url is used for <a> wrapping. When [[...]] spans multiple lines
+        // (contains NEWLINE_CHAR), Java renders the raw markup text — no hyperlink.
+        // The URL is still stored in link_url for the lifeline <title> encoding.
         let part_link_url = sd.participants.get(i).and_then(|pp| pp.link_url.as_deref());
+        let display_has_raw_link = dn.map_or(false, |d| d.contains("[["));
+        let part_link_url = if display_has_raw_link { None } else { part_link_url };
 
         // Puma mode wraps in a group with class/data attributes; teoz does not
         if !sd.teoz_mode {
