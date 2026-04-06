@@ -1,0 +1,7 @@
+@startuml
+[*] --> A
+A : line1
+A : line2
+A : line3
+A --> [*]
+@enduml

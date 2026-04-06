@@ -1,0 +1,7925 @@
+[
+  {
+    "fixture": "fixtures/activity/a0002.puml",
+    "ref": "reference/activity/a0002.svg",
+    "type": "ACTIVITY",
+    "our": {
+      "vb": [
+        0,
+        0,
+        562,
+        736
+      ],
+      "width": 562,
+      "height": 736
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        548,
+        722
+      ],
+      "width": 548,
+      "height": 722
+    }
+  },
+  {
+    "fixture": "fixtures/activity/activity_creole_table_01.puml",
+    "ref": "reference/activity/activity_creole_table_01.svg",
+    "type": "ACTIVITY",
+    "our": {
+      "vb": [
+        0,
+        0,
+        168,
+        87
+      ],
+      "width": 168,
+      "height": 87
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        154,
+        73
+      ],
+      "width": 154,
+      "height": 73
+    }
+  },
+  {
+    "fixture": "fixtures/activity/activity_creole_table_02.puml",
+    "ref": "reference/activity/activity_creole_table_02.svg",
+    "type": "ACTIVITY",
+    "our": {
+      "vb": [
+        0,
+        0,
+        154,
+        301
+      ],
+      "width": 154,
+      "height": 301
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        140,
+        287
+      ],
+      "width": 140,
+      "height": 287
+    }
+  },
+  {
+    "fixture": "fixtures/activity/activity_mono_multi_line.puml",
+    "ref": "reference/activity/activity_mono_multi_line.svg",
+    "type": "ACTIVITY",
+    "our": {
+      "vb": [
+        0,
+        0,
+        225,
+        165
+      ],
+      "width": 225,
+      "height": 165
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        211,
+        151
+      ],
+      "width": 211,
+      "height": 151
+    }
+  },
+  {
+    "fixture": "fixtures/activity/activity_mono_multi_line2.puml",
+    "ref": "reference/activity/activity_mono_multi_line2.svg",
+    "type": "ACTIVITY",
+    "our": {
+      "vb": [
+        0,
+        0,
+        133,
+        97
+      ],
+      "width": 133,
+      "height": 97
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        119,
+        83
+      ],
+      "width": 119,
+      "height": 83
+    }
+  },
+  {
+    "fixture": "fixtures/activity/activity_mono_multi_line2_v2.puml",
+    "ref": "reference/activity/activity_mono_multi_line2_v2.svg",
+    "type": "ACTIVITY",
+    "our": {
+      "vb": [
+        0,
+        0,
+        225,
+        179
+      ],
+      "width": 225,
+      "height": 179
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        211,
+        165
+      ],
+      "width": 211,
+      "height": 165
+    }
+  },
+  {
+    "fixture": "fixtures/activity/activity_mono_multi_line_v2.puml",
+    "ref": "reference/activity/activity_mono_multi_line_v2.svg",
+    "type": "ACTIVITY",
+    "our": {
+      "vb": [
+        0,
+        0,
+        225,
+        165
+      ],
+      "width": 225,
+      "height": 165
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        211,
+        151
+      ],
+      "width": 211,
+      "height": 151
+    }
+  },
+  {
+    "fixture": "fixtures/activity/swimlane001.puml",
+    "ref": "reference/activity/swimlane001.svg",
+    "type": "ACTIVITY",
+    "our": {
+      "vb": [
+        0,
+        0,
+        266,
+        288
+      ],
+      "width": 266,
+      "height": 288
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        252,
+        274
+      ],
+      "width": 252,
+      "height": 274
+    }
+  },
+  {
+    "fixture": "fixtures/archimate/basic.puml",
+    "ref": "reference/archimate/basic.svg",
+    "type": "DESCRIPTION",
+    "our": {
+      "vb": [
+        0,
+        0,
+        297,
+        299
+      ],
+      "width": 297,
+      "height": 299
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        289,
+        291
+      ],
+      "width": 289,
+      "height": 291
+    }
+  },
+  {
+    "fixture": "fixtures/archimate/layers.puml",
+    "ref": "reference/archimate/layers.svg",
+    "type": "DESCRIPTION",
+    "our": {
+      "vb": [
+        0,
+        0,
+        297,
+        525
+      ],
+      "width": 297,
+      "height": 525
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        289,
+        517
+      ],
+      "width": 289,
+      "height": 517
+    }
+  },
+  {
+    "fixture": "fixtures/board/basic.puml",
+    "ref": "reference/board/basic.svg",
+    "type": "BOARD",
+    "our": {
+      "vb": [
+        0,
+        0,
+        271,
+        119
+      ],
+      "width": 271,
+      "height": 119
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        1721,
+        120
+      ],
+      "width": 1721,
+      "height": 120
+    }
+  },
+  {
+    "fixture": "fixtures/chart/bar_basic.puml",
+    "ref": "reference/chart/bar_basic.svg",
+    "type": null,
+    "our": {
+      "vb": [
+        0,
+        0,
+        491,
+        331
+      ],
+      "width": 491,
+      "height": 331
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        375,
+        120
+      ],
+      "width": 375,
+      "height": 120
+    }
+  },
+  {
+    "fixture": "fixtures/chart/single_series.puml",
+    "ref": "reference/chart/single_series.svg",
+    "type": null,
+    "our": {
+      "vb": [
+        0,
+        0,
+        281,
+        331
+      ],
+      "width": 281,
+      "height": 331
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        375,
+        120
+      ],
+      "width": 375,
+      "height": 120
+    }
+  },
+  {
+    "fixture": "fixtures/chronology/basic.puml",
+    "ref": "reference/chronology/basic.svg",
+    "type": "CHRONOLOGY",
+    "our": {
+      "vb": [
+        0,
+        0,
+        412,
+        91
+      ],
+      "width": 412,
+      "height": 91
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        422,
+        120
+      ],
+      "width": 422,
+      "height": 120
+    }
+  },
+  {
+    "fixture": "fixtures/class/a0005.puml",
+    "ref": "reference/class/a0005.svg",
+    "type": "CLASS",
+    "our": {
+      "vb": [
+        0,
+        0,
+        88,
+        333
+      ],
+      "width": 88,
+      "height": 333
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        89,
+        331
+      ],
+      "width": 89,
+      "height": 331
+    }
+  },
+  {
+    "fixture": "fixtures/class/class_funcparam_arrow_01.puml",
+    "ref": "reference/class/class_funcparam_arrow_01.svg",
+    "type": "CLASS",
+    "our": {
+      "vb": [
+        0,
+        0,
+        117,
+        535
+      ],
+      "width": 117,
+      "height": 535
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        109,
+        527
+      ],
+      "width": 109,
+      "height": 527
+    }
+  },
+  {
+    "fixture": "fixtures/class/class_funcparam_arrow_02.puml",
+    "ref": "reference/class/class_funcparam_arrow_02.svg",
+    "type": "CLASS",
+    "our": {
+      "vb": [
+        0,
+        0,
+        323,
+        133
+      ],
+      "width": 323,
+      "height": 133
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        324,
+        134
+      ],
+      "width": 324,
+      "height": 134
+    }
+  },
+  {
+    "fixture": "fixtures/class/colors001.puml",
+    "ref": "reference/class/colors001.svg",
+    "type": "CLASS",
+    "our": {
+      "vb": [
+        0,
+        0,
+        96,
+        286
+      ],
+      "width": 96,
+      "height": 286
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        88,
+        278
+      ],
+      "width": 88,
+      "height": 278
+    }
+  },
+  {
+    "fixture": "fixtures/class/generics001.puml",
+    "ref": "reference/class/generics001.svg",
+    "type": "CLASS",
+    "our": {
+      "vb": [
+        0,
+        0,
+        181,
+        246
+      ],
+      "width": 181,
+      "height": 246
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        173,
+        238
+      ],
+      "width": 173,
+      "height": 238
+    }
+  },
+  {
+    "fixture": "fixtures/class/hideshow001.puml",
+    "ref": "reference/class/hideshow001.svg",
+    "type": "CLASS",
+    "our": {
+      "vb": [
+        0,
+        0,
+        100,
+        76
+      ],
+      "width": 100,
+      "height": 76
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        101,
+        77
+      ],
+      "width": 101,
+      "height": 77
+    }
+  },
+  {
+    "fixture": "fixtures/class/hideshow002.puml",
+    "ref": "reference/class/hideshow002.svg",
+    "type": "CLASS",
+    "our": {
+      "vb": [
+        0,
+        0,
+        953,
+        303
+      ],
+      "width": 953,
+      "height": 303
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        945,
+        295
+      ],
+      "width": 945,
+      "height": 295
+    }
+  },
+  {
+    "fixture": "fixtures/class/hideshow003.puml",
+    "ref": "reference/class/hideshow003.svg",
+    "type": "CLASS",
+    "our": {
+      "vb": [
+        0,
+        0,
+        255,
+        121
+      ],
+      "width": 255,
+      "height": 121
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        247,
+        113
+      ],
+      "width": 247,
+      "height": 113
+    }
+  },
+  {
+    "fixture": "fixtures/class/hideshow004.puml",
+    "ref": "reference/class/hideshow004.svg",
+    "type": "CLASS",
+    "our": {
+      "vb": [
+        0,
+        0,
+        226,
+        170
+      ],
+      "width": 226,
+      "height": 170
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        218,
+        162
+      ],
+      "width": 218,
+      "height": 162
+    }
+  },
+  {
+    "fixture": "fixtures/class/qualifiedassoc001.puml",
+    "ref": "reference/class/qualifiedassoc001.svg",
+    "type": "CLASS",
+    "our": {
+      "vb": [
+        0,
+        0,
+        662,
+        374
+      ],
+      "width": 662,
+      "height": 374
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        654,
+        366
+      ],
+      "width": 654,
+      "height": 366
+    }
+  },
+  {
+    "fixture": "fixtures/class/qualifiedassoc002.puml",
+    "ref": "reference/class/qualifiedassoc002.svg",
+    "type": "CLASS",
+    "our": {
+      "vb": [
+        0,
+        0,
+        445,
+        312
+      ],
+      "width": 445,
+      "height": 312
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        437,
+        304
+      ],
+      "width": 437,
+      "height": 304
+    }
+  },
+  {
+    "fixture": "fixtures/class/xmi0002.puml",
+    "ref": "reference/class/xmi0002.svg",
+    "type": "CLASS",
+    "our": {
+      "vb": [
+        0,
+        0,
+        63,
+        178
+      ],
+      "width": 63,
+      "height": 178
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        55,
+        170
+      ],
+      "width": 55,
+      "height": 170
+    }
+  },
+  {
+    "fixture": "fixtures/class/xmi0003.puml",
+    "ref": "reference/class/xmi0003.svg",
+    "type": "CLASS",
+    "our": {
+      "vb": [
+        0,
+        0,
+        178,
+        194
+      ],
+      "width": 178,
+      "height": 194
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        170,
+        186
+      ],
+      "width": 170,
+      "height": 186
+    }
+  },
+  {
+    "fixture": "fixtures/class/xmi0004.puml",
+    "ref": "reference/class/xmi0004.svg",
+    "type": "CLASS",
+    "our": {
+      "vb": [
+        0,
+        0,
+        140,
+        70
+      ],
+      "width": 140,
+      "height": 70
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        132,
+        62
+      ],
+      "width": 132,
+      "height": 62
+    }
+  },
+  {
+    "fixture": "fixtures/component/buitin_newline_chr.puml",
+    "ref": "reference/component/buitin_newline_chr.svg",
+    "type": "CLASS",
+    "our": {
+      "vb": [
+        0,
+        0,
+        142,
+        154
+      ],
+      "width": 142,
+      "height": 154
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        143,
+        155
+      ],
+      "width": 143,
+      "height": 155
+    }
+  },
+  {
+    "fixture": "fixtures/component/colors001.puml",
+    "ref": "reference/component/colors001.svg",
+    "type": "DESCRIPTION",
+    "our": {
+      "vb": [
+        0,
+        0,
+        92,
+        173
+      ],
+      "width": 92,
+      "height": 173
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        84,
+        165
+      ],
+      "width": 84,
+      "height": 165
+    }
+  },
+  {
+    "fixture": "fixtures/component/componentextraarrows_0001.puml",
+    "ref": "reference/component/componentextraarrows_0001.svg",
+    "type": "DESCRIPTION",
+    "our": {
+      "vb": [
+        0,
+        0,
+        544,
+        192
+      ],
+      "width": 544,
+      "height": 192
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        536,
+        184
+      ],
+      "width": 536,
+      "height": 184
+    }
+  },
+  {
+    "fixture": "fixtures/component/deployment01.puml",
+    "ref": "reference/component/deployment01.svg",
+    "type": "DESCRIPTION",
+    "our": {
+      "vb": [
+        0,
+        0,
+        623,
+        460
+      ],
+      "width": 623,
+      "height": 460
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        615,
+        452
+      ],
+      "width": 615,
+      "height": 452
+    }
+  },
+  {
+    "fixture": "fixtures/component/deployment_last_name_multi_line.puml",
+    "ref": "reference/component/deployment_last_name_multi_line.svg",
+    "type": "CLASS",
+    "our": {
+      "vb": [
+        0,
+        0,
+        142,
+        154
+      ],
+      "width": 142,
+      "height": 154
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        143,
+        155
+      ],
+      "width": 143,
+      "height": 155
+    }
+  },
+  {
+    "fixture": "fixtures/component/gml0000.puml",
+    "ref": "reference/component/gml0000.svg",
+    "type": "DESCRIPTION",
+    "our": {
+      "vb": [
+        0,
+        0,
+        107,
+        66
+      ],
+      "width": 107,
+      "height": 66
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        108,
+        67
+      ],
+      "width": 108,
+      "height": 67
+    }
+  },
+  {
+    "fixture": "fixtures/component/gml0001.puml",
+    "ref": "reference/component/gml0001.svg",
+    "type": "DESCRIPTION",
+    "our": {
+      "vb": [
+        0,
+        0,
+        231,
+        67
+      ],
+      "width": 231,
+      "height": 67
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        223,
+        59
+      ],
+      "width": 223,
+      "height": 59
+    }
+  },
+  {
+    "fixture": "fixtures/component/jaws5.puml",
+    "ref": "reference/component/jaws5.svg",
+    "type": "DESCRIPTION",
+    "our": {
+      "vb": [
+        0,
+        0,
+        344,
+        156
+      ],
+      "width": 344,
+      "height": 156
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        336,
+        148
+      ],
+      "width": 336,
+      "height": 148
+    }
+  },
+  {
+    "fixture": "fixtures/component/subdiagram_theme_02.puml",
+    "ref": "reference/component/subdiagram_theme_02.svg",
+    "type": "CLASS",
+    "our": {
+      "vb": [
+        0,
+        0,
+        235,
+        247
+      ],
+      "width": 235,
+      "height": 247
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        632,
+        503
+      ],
+      "width": 632,
+      "height": 503
+    }
+  },
+  {
+    "fixture": "fixtures/component/svg0001.puml",
+    "ref": "reference/component/svg0001.svg",
+    "type": "SEQUENCE",
+    "our": {
+      "vb": [
+        0,
+        0,
+        850,
+        241
+      ],
+      "width": 850,
+      "height": 241
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        846,
+        240
+      ],
+      "width": 846,
+      "height": 240
+    }
+  },
+  {
+    "fixture": "fixtures/component/xmi0001.puml",
+    "ref": "reference/component/xmi0001.svg",
+    "type": "DESCRIPTION",
+    "our": {
+      "vb": [
+        0,
+        0,
+        124,
+        267
+      ],
+      "width": 124,
+      "height": 267
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        116,
+        259
+      ],
+      "width": 116,
+      "height": 259
+    }
+  },
+  {
+    "fixture": "fixtures/dev/jaws/jaws1.puml",
+    "ref": "reference/dev/jaws/jaws1.svg",
+    "type": "DESCRIPTION",
+    "our": {
+      "vb": [
+        0,
+        0,
+        429,
+        450
+      ],
+      "width": 429,
+      "height": 450
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        249,
+        521
+      ],
+      "width": 249,
+      "height": 521
+    }
+  },
+  {
+    "fixture": "fixtures/dev/jaws/jaws10.puml",
+    "ref": "reference/dev/jaws/jaws10.svg",
+    "type": "SEQUENCE",
+    "our": {
+      "vb": [
+        0,
+        0,
+        186,
+        126
+      ],
+      "width": 186,
+      "height": 126
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        181,
+        124
+      ],
+      "width": 181,
+      "height": 124
+    }
+  },
+  {
+    "fixture": "fixtures/dev/jaws/jaws11.puml",
+    "ref": "reference/dev/jaws/jaws11.svg",
+    "type": "SEQUENCE",
+    "our": {
+      "vb": [
+        0,
+        0,
+        186,
+        126
+      ],
+      "width": 186,
+      "height": 126
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        367,
+        124
+      ],
+      "width": 367,
+      "height": 124
+    }
+  },
+  {
+    "fixture": "fixtures/dev/jaws/jaws12.puml",
+    "ref": "reference/dev/jaws/jaws12.svg",
+    "type": "MINDMAP",
+    "our": {
+      "vb": [
+        0,
+        0,
+        438,
+        129
+      ],
+      "width": 438,
+      "height": 129
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        429,
+        130
+      ],
+      "width": 429,
+      "height": 130
+    }
+  },
+  {
+    "fixture": "fixtures/dev/jaws/jaws2.puml",
+    "ref": "reference/dev/jaws/jaws2.svg",
+    "type": "SEQUENCE",
+    "our": {
+      "vb": [
+        0,
+        0,
+        113,
+        137
+      ],
+      "width": 113,
+      "height": 137
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        108,
+        135
+      ],
+      "width": 108,
+      "height": 135
+    }
+  },
+  {
+    "fixture": "fixtures/dev/jaws/jaws3.puml",
+    "ref": "reference/dev/jaws/jaws3.svg",
+    "type": "CLASS",
+    "our": {
+      "vb": [
+        0,
+        0,
+        161,
+        109
+      ],
+      "width": 161,
+      "height": 109
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        242,
+        93
+      ],
+      "width": 242,
+      "height": 93
+    }
+  },
+  {
+    "fixture": "fixtures/dev/jaws/jaws4.puml",
+    "ref": "reference/dev/jaws/jaws4.svg",
+    "type": "SEQUENCE",
+    "our": {
+      "vb": [
+        0,
+        0,
+        113,
+        137
+      ],
+      "width": 113,
+      "height": 137
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        108,
+        135
+      ],
+      "width": 108,
+      "height": 135
+    }
+  },
+  {
+    "fixture": "fixtures/dev/jaws/jaws5.puml",
+    "ref": "reference/dev/jaws/jaws5.svg",
+    "type": "DESCRIPTION",
+    "our": {
+      "vb": [
+        0,
+        0,
+        344,
+        156
+      ],
+      "width": 344,
+      "height": 156
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        336,
+        148
+      ],
+      "width": 336,
+      "height": 148
+    }
+  },
+  {
+    "fixture": "fixtures/dev/jaws/jaws6.puml",
+    "ref": "reference/dev/jaws/jaws6.svg",
+    "type": "SEQUENCE",
+    "our": {
+      "vb": [
+        0,
+        0,
+        527,
+        185
+      ],
+      "width": 527,
+      "height": 185
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        517,
+        183
+      ],
+      "width": 517,
+      "height": 183
+    }
+  },
+  {
+    "fixture": "fixtures/dev/jaws/jaws7.puml",
+    "ref": "reference/dev/jaws/jaws7.svg",
+    "type": "CLASS",
+    "our": {
+      "vb": [
+        0,
+        0,
+        549,
+        78
+      ],
+      "width": 549,
+      "height": 78
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        541,
+        70
+      ],
+      "width": 541,
+      "height": 70
+    }
+  },
+  {
+    "fixture": "fixtures/dev/jaws/jaws8.puml",
+    "ref": "reference/dev/jaws/jaws8.svg",
+    "type": "ACTIVITY",
+    "our": {
+      "vb": [
+        0,
+        0,
+        153,
+        207
+      ],
+      "width": 153,
+      "height": 207
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        183,
+        274
+      ],
+      "width": 183,
+      "height": 274
+    }
+  },
+  {
+    "fixture": "fixtures/dev/jaws/jaws9.puml",
+    "ref": "reference/dev/jaws/jaws9.svg",
+    "type": "ACTIVITY",
+    "our": {
+      "vb": [
+        0,
+        0,
+        153,
+        207
+      ],
+      "width": 153,
+      "height": 207
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        333,
+        246
+      ],
+      "width": 333,
+      "height": 246
+    }
+  },
+  {
+    "fixture": "fixtures/dev/newline/WBS_arrow.puml",
+    "ref": "reference/dev/newline/WBS_arrow.svg",
+    "type": "WBS",
+    "our": {
+      "vb": [
+        0,
+        0,
+        219,
+        162
+      ],
+      "width": 219,
+      "height": 162
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        199,
+        142
+      ],
+      "width": 199,
+      "height": 142
+    }
+  },
+  {
+    "fixture": "fixtures/dev/newline/WBS_direction.puml",
+    "ref": "reference/dev/newline/WBS_direction.svg",
+    "type": "WBS",
+    "our": {
+      "vb": [
+        0,
+        0,
+        304,
+        288
+      ],
+      "width": 304,
+      "height": 288
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        284,
+        268
+      ],
+      "width": 284,
+      "height": 268
+    }
+  },
+  {
+    "fixture": "fixtures/dev/newline/activity_creole_table.puml",
+    "ref": "reference/dev/newline/activity_creole_table.svg",
+    "type": "ACTIVITY",
+    "our": {
+      "vb": [
+        0,
+        0,
+        168,
+        87
+      ],
+      "width": 168,
+      "height": 87
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        154,
+        73
+      ],
+      "width": 154,
+      "height": 73
+    }
+  },
+  {
+    "fixture": "fixtures/dev/newline/activity_mono_multi_line.puml",
+    "ref": "reference/dev/newline/activity_mono_multi_line.svg",
+    "type": "ACTIVITY",
+    "our": {
+      "vb": [
+        0,
+        0,
+        225,
+        165
+      ],
+      "width": 225,
+      "height": 165
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        211,
+        151
+      ],
+      "width": 211,
+      "height": 151
+    }
+  },
+  {
+    "fixture": "fixtures/dev/newline/activity_mono_multi_line2.puml",
+    "ref": "reference/dev/newline/activity_mono_multi_line2.svg",
+    "type": "ACTIVITY",
+    "our": {
+      "vb": [
+        0,
+        0,
+        133,
+        97
+      ],
+      "width": 133,
+      "height": 97
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        119,
+        83
+      ],
+      "width": 119,
+      "height": 83
+    }
+  },
+  {
+    "fixture": "fixtures/dev/newline/builtin_newline.puml",
+    "ref": "reference/dev/newline/builtin_newline.svg",
+    "type": "SALT",
+    "our": {
+      "vb": [
+        0,
+        0,
+        261,
+        133
+      ],
+      "width": 261,
+      "height": 133
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        96,
+        75
+      ],
+      "width": 96,
+      "height": 75
+    }
+  },
+  {
+    "fixture": "fixtures/dev/newline/buitin_newline_chr.puml",
+    "ref": "reference/dev/newline/buitin_newline_chr.svg",
+    "type": "CLASS",
+    "our": {
+      "vb": [
+        0,
+        0,
+        142,
+        154
+      ],
+      "width": 142,
+      "height": 154
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        143,
+        155
+      ],
+      "width": 143,
+      "height": 155
+    }
+  },
+  {
+    "fixture": "fixtures/dev/newline/class_funcparam_arrow.puml",
+    "ref": "reference/dev/newline/class_funcparam_arrow.svg",
+    "type": "CLASS",
+    "our": {
+      "vb": [
+        0,
+        0,
+        117,
+        535
+      ],
+      "width": 117,
+      "height": 535
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        109,
+        527
+      ],
+      "width": 109,
+      "height": 527
+    }
+  },
+  {
+    "fixture": "fixtures/dev/newline/deployment_last_name_multi_line.puml",
+    "ref": "reference/dev/newline/deployment_last_name_multi_line.svg",
+    "type": "CLASS",
+    "our": {
+      "vb": [
+        0,
+        0,
+        142,
+        154
+      ],
+      "width": 142,
+      "height": 154
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        143,
+        155
+      ],
+      "width": 143,
+      "height": 155
+    }
+  },
+  {
+    "fixture": "fixtures/dev/newline/deployment_mono_multi_line.puml",
+    "ref": "reference/dev/newline/deployment_mono_multi_line.svg",
+    "type": "DESCRIPTION",
+    "our": {
+      "vb": [
+        0,
+        0,
+        641,
+        232
+      ],
+      "width": 641,
+      "height": 232
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        633,
+        224
+      ],
+      "width": 633,
+      "height": 224
+    }
+  },
+  {
+    "fixture": "fixtures/dev/newline/deployment_on_name.puml",
+    "ref": "reference/dev/newline/deployment_on_name.svg",
+    "type": "DESCRIPTION",
+    "our": {
+      "vb": [
+        0,
+        0,
+        98,
+        136
+      ],
+      "width": 98,
+      "height": 136
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        90,
+        128
+      ],
+      "width": 90,
+      "height": 128
+    }
+  },
+  {
+    "fixture": "fixtures/dev/newline/json_escaped.puml",
+    "ref": "reference/dev/newline/json_escaped.svg",
+    "type": "JSON",
+    "our": {
+      "vb": [
+        0,
+        0,
+        303,
+        264
+      ],
+      "width": 303,
+      "height": 264
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        282,
+        284
+      ],
+      "width": 282,
+      "height": 284
+    }
+  },
+  {
+    "fixture": "fixtures/dev/newline/link_URL_tooltip.puml",
+    "ref": "reference/dev/newline/link_URL_tooltip.svg",
+    "type": "WBS",
+    "our": {
+      "vb": [
+        0,
+        0,
+        188,
+        151
+      ],
+      "width": 188,
+      "height": 151
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        762,
+        898
+      ],
+      "width": 762,
+      "height": 898
+    }
+  },
+  {
+    "fixture": "fixtures/dev/newline/preproc_functionparam_line_continuation.puml",
+    "ref": "reference/dev/newline/preproc_functionparam_line_continuation.svg",
+    "type": "CLASS",
+    "our": {
+      "vb": [
+        0,
+        0,
+        131,
+        53
+      ],
+      "width": 131,
+      "height": 53
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        132,
+        44
+      ],
+      "width": 132,
+      "height": 44
+    }
+  },
+  {
+    "fixture": "fixtures/dev/newline/seq_mono_line.puml",
+    "ref": "reference/dev/newline/seq_mono_line.svg",
+    "type": "SEQUENCE",
+    "our": {
+      "vb": [
+        0,
+        0,
+        405,
+        194
+      ],
+      "width": 405,
+      "height": 194
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        405,
+        192
+      ],
+      "width": 405,
+      "height": 192
+    }
+  },
+  {
+    "fixture": "fixtures/dev/newline/state_monoline.puml",
+    "ref": "reference/dev/newline/state_monoline.svg",
+    "type": "STATE",
+    "our": {
+      "vb": [
+        0,
+        0,
+        132,
+        99
+      ],
+      "width": 132,
+      "height": 99
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        124,
+        91
+      ],
+      "width": 124,
+      "height": 91
+    }
+  },
+  {
+    "fixture": "fixtures/dev/newline/subdiagram_theme.puml",
+    "ref": "reference/dev/newline/subdiagram_theme.svg",
+    "type": "CLASS",
+    "our": {
+      "vb": [
+        0,
+        0,
+        230,
+        232
+      ],
+      "width": 230,
+      "height": 232
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        208,
+        267
+      ],
+      "width": 208,
+      "height": 267
+    }
+  },
+  {
+    "fixture": "fixtures/dev/newlinev2/activity_mono_multi_line2_v2.puml",
+    "ref": "reference/dev/newlinev2/activity_mono_multi_line2_v2.svg",
+    "type": "ACTIVITY",
+    "our": {
+      "vb": [
+        0,
+        0,
+        225,
+        179
+      ],
+      "width": 225,
+      "height": 179
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        211,
+        165
+      ],
+      "width": 211,
+      "height": 165
+    }
+  },
+  {
+    "fixture": "fixtures/dev/newlinev2/activity_mono_multi_line_v2.puml",
+    "ref": "reference/dev/newlinev2/activity_mono_multi_line_v2.svg",
+    "type": "ACTIVITY",
+    "our": {
+      "vb": [
+        0,
+        0,
+        225,
+        165
+      ],
+      "width": 225,
+      "height": 165
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        211,
+        151
+      ],
+      "width": 211,
+      "height": 151
+    }
+  },
+  {
+    "fixture": "fixtures/ditaa/basic.puml",
+    "ref": "reference/ditaa/-r.svg",
+    "type": "DITAA",
+    "our": {
+      "vb": [
+        0,
+        0,
+        177,
+        85
+      ],
+      "width": 177,
+      "height": 85
+    },
+    "refd": null
+  },
+  {
+    "fixture": "fixtures/dot/basic.puml",
+    "ref": "reference/dot/basic.svg",
+    "type": null,
+    "our": null,
+    "refd": null
+  },
+  {
+    "fixture": "fixtures/ebnf/basic.puml",
+    "ref": "reference/ebnf/basic.svg",
+    "type": "EBNF",
+    "our": {
+      "vb": [
+        0,
+        0,
+        112,
+        553
+      ],
+      "width": 112,
+      "height": 553
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        152,
+        488
+      ],
+      "width": 152,
+      "height": 488
+    }
+  },
+  {
+    "fixture": "fixtures/ebnf/expression.puml",
+    "ref": "reference/ebnf/expression.svg",
+    "type": "EBNF",
+    "our": {
+      "vb": [
+        0,
+        0,
+        222,
+        1003
+      ],
+      "width": 222,
+      "height": 1003
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        370,
+        938
+      ],
+      "width": 370,
+      "height": 938
+    }
+  },
+  {
+    "fixture": "fixtures/erd/chenmovie.puml",
+    "ref": "reference/erd/movies.svg",
+    "type": "CHEN_EER",
+    "our": {
+      "vb": [
+        0,
+        0,
+        1235,
+        366
+      ],
+      "width": 1235,
+      "height": 366
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        1523,
+        860
+      ],
+      "width": 1523,
+      "height": 860
+    }
+  },
+  {
+    "fixture": "fixtures/erd/chenmoviealias.puml",
+    "ref": "reference/erd/movies.svg",
+    "type": "CHEN_EER",
+    "our": {
+      "vb": [
+        0,
+        0,
+        1492,
+        875
+      ],
+      "width": 1492,
+      "height": 875
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        1523,
+        860
+      ],
+      "width": 1523,
+      "height": 860
+    }
+  },
+  {
+    "fixture": "fixtures/erd/chenmovieextended.puml",
+    "ref": "reference/erd/movies.svg",
+    "type": "CHEN_EER",
+    "our": {
+      "vb": [
+        0,
+        0,
+        1531,
+        868
+      ],
+      "width": 1531,
+      "height": 868
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        1523,
+        860
+      ],
+      "width": 1523,
+      "height": 860
+    }
+  },
+  {
+    "fixture": "fixtures/erd/chenrankdir.puml",
+    "ref": "reference/erd/chenrankdir.svg",
+    "type": "CHEN_EER",
+    "our": {
+      "vb": [
+        0,
+        0,
+        556,
+        84
+      ],
+      "width": 556,
+      "height": 84
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        548,
+        76
+      ],
+      "width": 548,
+      "height": 76
+    }
+  },
+  {
+    "fixture": "fixtures/erd/weak001.puml",
+    "ref": "reference/erd/weak001.svg",
+    "type": "CHEN_EER",
+    "our": {
+      "vb": [
+        0,
+        0,
+        244,
+        723
+      ],
+      "width": 244,
+      "height": 723
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        236,
+        715
+      ],
+      "width": 236,
+      "height": 715
+    }
+  },
+  {
+    "fixture": "fixtures/files_diagram/basic.puml",
+    "ref": "reference/files_diagram/basic.svg",
+    "type": "FILES",
+    "our": {
+      "vb": [
+        0,
+        0,
+        175,
+        201
+      ],
+      "width": 175,
+      "height": 201
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        65,
+        67
+      ],
+      "width": 65,
+      "height": 67
+    }
+  },
+  {
+    "fixture": "fixtures/files_diagram/nested.puml",
+    "ref": "reference/files_diagram/nested.svg",
+    "type": "FILES",
+    "our": {
+      "vb": [
+        0,
+        0,
+        191,
+        181
+      ],
+      "width": 191,
+      "height": 181
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        82,
+        43
+      ],
+      "width": 82,
+      "height": 43
+    }
+  },
+  {
+    "fixture": "fixtures/gantt/a0003.puml",
+    "ref": "reference/gantt/a0003.svg",
+    "type": "GANTT",
+    "our": {
+      "vb": [
+        0,
+        0,
+        422,
+        156
+      ],
+      "width": 422,
+      "height": 156
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        424,
+        156
+      ],
+      "width": 424,
+      "height": 156
+    }
+  },
+  {
+    "fixture": "fixtures/git/basic.puml",
+    "ref": "reference/git/basic.svg",
+    "type": null,
+    "our": {
+      "vb": [
+        0,
+        0,
+        164,
+        127
+      ],
+      "width": 164,
+      "height": 127
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        442,
+        169
+      ],
+      "width": 442,
+      "height": 169
+    }
+  },
+  {
+    "fixture": "fixtures/git/branches.puml",
+    "ref": "reference/git/branches.svg",
+    "type": null,
+    "our": {
+      "vb": [
+        0,
+        0,
+        199,
+        207
+      ],
+      "width": 199,
+      "height": 207
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        442,
+        201
+      ],
+      "width": 442,
+      "height": 201
+    }
+  },
+  {
+    "fixture": "fixtures/hcl/basic.puml",
+    "ref": "reference/hcl/basic.svg",
+    "type": "HCL",
+    "our": {
+      "vb": [
+        0,
+        0,
+        208,
+        61
+      ],
+      "width": 208,
+      "height": 61
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        209,
+        62
+      ],
+      "width": 209,
+      "height": 62
+    }
+  },
+  {
+    "fixture": "fixtures/json/json_escaped.puml",
+    "ref": "reference/json/json_escaped.svg",
+    "type": "JSON",
+    "our": {
+      "vb": [
+        0,
+        0,
+        303,
+        264
+      ],
+      "width": 303,
+      "height": 264
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        282,
+        284
+      ],
+      "width": 282,
+      "height": 284
+    }
+  },
+  {
+    "fixture": "fixtures/mindmap/jaws12.puml",
+    "ref": "reference/mindmap/jaws12.svg",
+    "type": "MINDMAP",
+    "our": {
+      "vb": [
+        0,
+        0,
+        438,
+        129
+      ],
+      "width": 438,
+      "height": 129
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        429,
+        130
+      ],
+      "width": 429,
+      "height": 130
+    }
+  },
+  {
+    "fixture": "fixtures/misc/a0004.puml",
+    "ref": "reference/misc/a0004.svg",
+    "type": "ACTIVITY",
+    "our": {
+      "vb": [
+        0,
+        0,
+        396,
+        697
+      ],
+      "width": 396,
+      "height": 697
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        388,
+        689
+      ],
+      "width": 388,
+      "height": 689
+    }
+  },
+  {
+    "fixture": "fixtures/misc/creole_back001.puml",
+    "ref": "reference/misc/creole_back001.svg",
+    "type": "SEQUENCE",
+    "our": {
+      "vb": [
+        0,
+        0,
+        211,
+        151
+      ],
+      "width": 211,
+      "height": 151
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        206,
+        149
+      ],
+      "width": 206,
+      "height": 149
+    }
+  },
+  {
+    "fixture": "fixtures/misc/creole_font001.puml",
+    "ref": "reference/misc/creole_font001.svg",
+    "type": "SEQUENCE",
+    "our": {
+      "vb": [
+        0,
+        0,
+        194,
+        151
+      ],
+      "width": 194,
+      "height": 151
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        189,
+        149
+      ],
+      "width": 189,
+      "height": 149
+    }
+  },
+  {
+    "fixture": "fixtures/misc/creole_mixed001.puml",
+    "ref": "reference/misc/creole_mixed001.svg",
+    "type": "SEQUENCE",
+    "our": {
+      "vb": [
+        0,
+        0,
+        274,
+        186
+      ],
+      "width": 274,
+      "height": 186
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        269,
+        184
+      ],
+      "width": 269,
+      "height": 184
+    }
+  },
+  {
+    "fixture": "fixtures/misc/creole_note001.puml",
+    "ref": "reference/misc/creole_note001.svg",
+    "type": "SEQUENCE",
+    "our": {
+      "vb": [
+        0,
+        0,
+        224,
+        215
+      ],
+      "width": 224,
+      "height": 215
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        220,
+        214
+      ],
+      "width": 220,
+      "height": 214
+    }
+  },
+  {
+    "fixture": "fixtures/misc/creole_sup_sub001.puml",
+    "ref": "reference/misc/creole_sup_sub001.svg",
+    "type": "SEQUENCE",
+    "our": {
+      "vb": [
+        0,
+        0,
+        137,
+        157
+      ],
+      "width": 137,
+      "height": 157
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        132,
+        155
+      ],
+      "width": 132,
+      "height": 155
+    }
+  },
+  {
+    "fixture": "fixtures/misc/deployment_on_name.puml",
+    "ref": "reference/misc/deployment_on_name.svg",
+    "type": "DESCRIPTION",
+    "our": {
+      "vb": [
+        0,
+        0,
+        98,
+        136
+      ],
+      "width": 98,
+      "height": 136
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        90,
+        128
+      ],
+      "width": 90,
+      "height": 128
+    }
+  },
+  {
+    "fixture": "fixtures/misc/link_url_tooltip_04.puml",
+    "ref": "reference/misc/link_url_tooltip_04.svg",
+    "type": "CLASS",
+    "our": {
+      "vb": [
+        0,
+        0,
+        558,
+        73
+      ],
+      "width": 558,
+      "height": 73
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        559,
+        64
+      ],
+      "width": 559,
+      "height": 64
+    }
+  },
+  {
+    "fixture": "fixtures/misc/link_url_tooltip_05.puml",
+    "ref": "reference/misc/link_url_tooltip_05.svg",
+    "type": "CLASS",
+    "our": {
+      "vb": [
+        0,
+        0,
+        161,
+        53
+      ],
+      "width": 161,
+      "height": 53
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        192,
+        265
+      ],
+      "width": 192,
+      "height": 265
+    }
+  },
+  {
+    "fixture": "fixtures/misc/meta_title_header_footer.puml",
+    "ref": "reference/misc/meta_title_header_footer.svg",
+    "type": "CLASS",
+    "our": {
+      "vb": [
+        0,
+        0,
+        218,
+        343
+      ],
+      "width": 218,
+      "height": 343
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        219,
+        341
+      ],
+      "width": 219,
+      "height": 341
+    }
+  },
+  {
+    "fixture": "fixtures/misc/skinparam_class001.puml",
+    "ref": "reference/misc/skinparam_class001.svg",
+    "type": "CLASS",
+    "our": {
+      "vb": [
+        0,
+        0,
+        154,
+        95
+      ],
+      "width": 154,
+      "height": 95
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        155,
+        96
+      ],
+      "width": 155,
+      "height": 96
+    }
+  },
+  {
+    "fixture": "fixtures/misc/skinparam_colors001.puml",
+    "ref": "reference/misc/skinparam_colors001.svg",
+    "type": "CLASS",
+    "our": {
+      "vb": [
+        0,
+        0,
+        79,
+        178
+      ],
+      "width": 79,
+      "height": 178
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        71,
+        170
+      ],
+      "width": 71,
+      "height": 170
+    }
+  },
+  {
+    "fixture": "fixtures/misc/skinparam_font001.puml",
+    "ref": "reference/misc/skinparam_font001.svg",
+    "type": "SEQUENCE",
+    "our": {
+      "vb": [
+        0,
+        0,
+        118,
+        154
+      ],
+      "width": 118,
+      "height": 154
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        113,
+        152
+      ],
+      "width": 113,
+      "height": 152
+    }
+  },
+  {
+    "fixture": "fixtures/misc/skinparam_handwritten001.puml",
+    "ref": "reference/misc/skinparam_handwritten001.svg",
+    "type": "SEQUENCE",
+    "our": {
+      "vb": [
+        0,
+        0,
+        387,
+        173
+      ],
+      "width": 387,
+      "height": 173
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        387,
+        186
+      ],
+      "width": 387,
+      "height": 186
+    }
+  },
+  {
+    "fixture": "fixtures/misc/skinparam_monochrome001.puml",
+    "ref": "reference/misc/skinparam_monochrome001.svg",
+    "type": "SEQUENCE",
+    "our": {
+      "vb": [
+        0,
+        0,
+        115,
+        151
+      ],
+      "width": 115,
+      "height": 151
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        110,
+        149
+      ],
+      "width": 110,
+      "height": 149
+    }
+  },
+  {
+    "fixture": "fixtures/misc/skinparam_roundcorner001.puml",
+    "ref": "reference/misc/skinparam_roundcorner001.svg",
+    "type": "CLASS",
+    "our": {
+      "vb": [
+        0,
+        0,
+        112,
+        210
+      ],
+      "width": 112,
+      "height": 210
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        104,
+        202
+      ],
+      "width": 104,
+      "height": 202
+    }
+  },
+  {
+    "fixture": "fixtures/misc/skinparam_sequence001.puml",
+    "ref": "reference/misc/skinparam_sequence001.svg",
+    "type": "SEQUENCE",
+    "our": {
+      "vb": [
+        0,
+        0,
+        123,
+        156
+      ],
+      "width": 123,
+      "height": 156
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        118,
+        154
+      ],
+      "width": 118,
+      "height": 154
+    }
+  },
+  {
+    "fixture": "fixtures/misc/xmi0000.puml",
+    "ref": "reference/misc/xmi0000.svg",
+    "type": "CLASS",
+    "our": {
+      "vb": [
+        0,
+        0,
+        130,
+        84
+      ],
+      "width": 130,
+      "height": 84
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        131,
+        85
+      ],
+      "width": 131,
+      "height": 85
+    }
+  },
+  {
+    "fixture": "fixtures/nonreg/graphml/GML0000.puml",
+    "ref": "reference/nonreg/graphml/GML0000.svg",
+    "type": "DESCRIPTION",
+    "our": {
+      "vb": [
+        0,
+        0,
+        107,
+        66
+      ],
+      "width": 107,
+      "height": 66
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        108,
+        67
+      ],
+      "width": 108,
+      "height": 67
+    }
+  },
+  {
+    "fixture": "fixtures/nonreg/graphml/GML0001.puml",
+    "ref": "reference/nonreg/graphml/GML0001.svg",
+    "type": "DESCRIPTION",
+    "our": {
+      "vb": [
+        0,
+        0,
+        231,
+        67
+      ],
+      "width": 231,
+      "height": 67
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        223,
+        59
+      ],
+      "width": 223,
+      "height": 59
+    }
+  },
+  {
+    "fixture": "fixtures/nonreg/scxml/SCXML0001.puml",
+    "ref": "reference/nonreg/scxml/SCXML0001.svg",
+    "type": "STATE",
+    "our": {
+      "vb": [
+        0,
+        0,
+        76,
+        278
+      ],
+      "width": 76,
+      "height": 278
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        68,
+        270
+      ],
+      "width": 68,
+      "height": 270
+    }
+  },
+  {
+    "fixture": "fixtures/nonreg/scxml/SCXML0002.puml",
+    "ref": "reference/nonreg/scxml/SCXML0002.svg",
+    "type": "STATE",
+    "our": {
+      "vb": [
+        0,
+        0,
+        759,
+        225
+      ],
+      "width": 759,
+      "height": 225
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        743,
+        214
+      ],
+      "width": 743,
+      "height": 214
+    }
+  },
+  {
+    "fixture": "fixtures/nonreg/scxml/SCXML0003.puml",
+    "ref": "reference/nonreg/scxml/SCXML0003.svg",
+    "type": "STATE",
+    "our": {
+      "vb": [
+        0,
+        0,
+        1177,
+        436
+      ],
+      "width": 1177,
+      "height": 436
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        1177,
+        428
+      ],
+      "width": 1177,
+      "height": 428
+    }
+  },
+  {
+    "fixture": "fixtures/nonreg/scxml/SCXML0004.puml",
+    "ref": "reference/nonreg/scxml/SCXML0004.svg",
+    "type": "STATE",
+    "our": {
+      "vb": [
+        0,
+        0,
+        266,
+        234
+      ],
+      "width": 266,
+      "height": 234
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        249,
+        223
+      ],
+      "width": 249,
+      "height": 223
+    }
+  },
+  {
+    "fixture": "fixtures/nonreg/scxml/SCXML0005.puml",
+    "ref": "reference/nonreg/scxml/SCXML0005.svg",
+    "type": "STATE",
+    "our": {
+      "vb": [
+        0,
+        0,
+        332,
+        71
+      ],
+      "width": 332,
+      "height": 71
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        324,
+        63
+      ],
+      "width": 324,
+      "height": 63
+    }
+  },
+  {
+    "fixture": "fixtures/nonreg/simple/A0000.puml",
+    "ref": "reference/nonreg/simple/A0000.svg",
+    "type": "SEQUENCE",
+    "our": {
+      "vb": [
+        0,
+        0,
+        117,
+        122
+      ],
+      "width": 117,
+      "height": 122
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        112,
+        120
+      ],
+      "width": 112,
+      "height": 120
+    }
+  },
+  {
+    "fixture": "fixtures/nonreg/simple/A0001.puml",
+    "ref": "reference/nonreg/simple/A0001.svg",
+    "type": "SEQUENCE",
+    "our": {
+      "vb": [
+        0,
+        0,
+        179,
+        309
+      ],
+      "width": 179,
+      "height": 309
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        174,
+        307
+      ],
+      "width": 174,
+      "height": 307
+    }
+  },
+  {
+    "fixture": "fixtures/nonreg/simple/A0002.puml",
+    "ref": "reference/nonreg/simple/A0002.svg",
+    "type": "ACTIVITY",
+    "our": {
+      "vb": [
+        0,
+        0,
+        562,
+        736
+      ],
+      "width": 562,
+      "height": 736
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        548,
+        722
+      ],
+      "width": 548,
+      "height": 722
+    }
+  },
+  {
+    "fixture": "fixtures/nonreg/simple/A0003.puml",
+    "ref": "reference/nonreg/simple/A0003.svg",
+    "type": "GANTT",
+    "our": {
+      "vb": [
+        0,
+        0,
+        422,
+        156
+      ],
+      "width": 422,
+      "height": 156
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        424,
+        156
+      ],
+      "width": 424,
+      "height": 156
+    }
+  },
+  {
+    "fixture": "fixtures/nonreg/simple/A0004.puml",
+    "ref": "reference/nonreg/simple/A0004.svg",
+    "type": "ACTIVITY",
+    "our": {
+      "vb": [
+        0,
+        0,
+        396,
+        697
+      ],
+      "width": 396,
+      "height": 697
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        388,
+        689
+      ],
+      "width": 388,
+      "height": 689
+    }
+  },
+  {
+    "fixture": "fixtures/nonreg/simple/A0005.puml",
+    "ref": "reference/nonreg/simple/A0005.svg",
+    "type": "CLASS",
+    "our": {
+      "vb": [
+        0,
+        0,
+        88,
+        333
+      ],
+      "width": 88,
+      "height": 333
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        89,
+        331
+      ],
+      "width": 89,
+      "height": 331
+    }
+  },
+  {
+    "fixture": "fixtures/nonreg/simple/A0006.puml",
+    "ref": "reference/nonreg/simple/A0006.svg",
+    "type": "SEQUENCE",
+    "our": {
+      "vb": [
+        0,
+        0,
+        114,
+        246
+      ],
+      "width": 114,
+      "height": 246
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        115,
+        247
+      ],
+      "width": 115,
+      "height": 247
+    }
+  },
+  {
+    "fixture": "fixtures/nonreg/simple/ChenMovie.puml",
+    "ref": "reference/nonreg/simple/movies.svg",
+    "type": "CHEN_EER",
+    "our": {
+      "vb": [
+        0,
+        0,
+        1235,
+        366
+      ],
+      "width": 1235,
+      "height": 366
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        1523,
+        860
+      ],
+      "width": 1523,
+      "height": 860
+    }
+  },
+  {
+    "fixture": "fixtures/nonreg/simple/ChenMovieAlias.puml",
+    "ref": "reference/nonreg/simple/movies.svg",
+    "type": "CHEN_EER",
+    "our": {
+      "vb": [
+        0,
+        0,
+        1492,
+        875
+      ],
+      "width": 1492,
+      "height": 875
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        1523,
+        860
+      ],
+      "width": 1523,
+      "height": 860
+    }
+  },
+  {
+    "fixture": "fixtures/nonreg/simple/ChenMovieExtended.puml",
+    "ref": "reference/nonreg/simple/movies.svg",
+    "type": "CHEN_EER",
+    "our": {
+      "vb": [
+        0,
+        0,
+        1531,
+        868
+      ],
+      "width": 1531,
+      "height": 868
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        1523,
+        860
+      ],
+      "width": 1523,
+      "height": 860
+    }
+  },
+  {
+    "fixture": "fixtures/nonreg/simple/ChenRankDir.puml",
+    "ref": "reference/nonreg/simple/ChenRankDir.svg",
+    "type": "CHEN_EER",
+    "our": {
+      "vb": [
+        0,
+        0,
+        556,
+        84
+      ],
+      "width": 556,
+      "height": 84
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        548,
+        76
+      ],
+      "width": 548,
+      "height": 76
+    }
+  },
+  {
+    "fixture": "fixtures/nonreg/simple/ComponentExtraArrows_0001.puml",
+    "ref": "reference/nonreg/simple/ComponentExtraArrows_0001.svg",
+    "type": "DESCRIPTION",
+    "our": {
+      "vb": [
+        0,
+        0,
+        544,
+        192
+      ],
+      "width": 544,
+      "height": 192
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        536,
+        184
+      ],
+      "width": 536,
+      "height": 184
+    }
+  },
+  {
+    "fixture": "fixtures/nonreg/simple/HideShow001.puml",
+    "ref": "reference/nonreg/simple/HideShow001.svg",
+    "type": "CLASS",
+    "our": {
+      "vb": [
+        0,
+        0,
+        100,
+        76
+      ],
+      "width": 100,
+      "height": 76
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        101,
+        77
+      ],
+      "width": 101,
+      "height": 77
+    }
+  },
+  {
+    "fixture": "fixtures/nonreg/simple/HideShow002.puml",
+    "ref": "reference/nonreg/simple/HideShow002.svg",
+    "type": "CLASS",
+    "our": {
+      "vb": [
+        0,
+        0,
+        953,
+        303
+      ],
+      "width": 953,
+      "height": 303
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        945,
+        295
+      ],
+      "width": 945,
+      "height": 295
+    }
+  },
+  {
+    "fixture": "fixtures/nonreg/simple/HideShow003.puml",
+    "ref": "reference/nonreg/simple/HideShow003.svg",
+    "type": "CLASS",
+    "our": {
+      "vb": [
+        0,
+        0,
+        255,
+        121
+      ],
+      "width": 255,
+      "height": 121
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        247,
+        113
+      ],
+      "width": 247,
+      "height": 113
+    }
+  },
+  {
+    "fixture": "fixtures/nonreg/simple/HideShow004.puml",
+    "ref": "reference/nonreg/simple/HideShow004.svg",
+    "type": "CLASS",
+    "our": {
+      "vb": [
+        0,
+        0,
+        226,
+        170
+      ],
+      "width": 226,
+      "height": 170
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        218,
+        162
+      ],
+      "width": 218,
+      "height": 162
+    }
+  },
+  {
+    "fixture": "fixtures/nonreg/simple/QualifiedAssoc001.puml",
+    "ref": "reference/nonreg/simple/QualifiedAssoc001.svg",
+    "type": "CLASS",
+    "our": {
+      "vb": [
+        0,
+        0,
+        662,
+        374
+      ],
+      "width": 662,
+      "height": 374
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        654,
+        366
+      ],
+      "width": 654,
+      "height": 366
+    }
+  },
+  {
+    "fixture": "fixtures/nonreg/simple/QualifiedAssoc002.puml",
+    "ref": "reference/nonreg/simple/QualifiedAssoc002.svg",
+    "type": "CLASS",
+    "our": {
+      "vb": [
+        0,
+        0,
+        445,
+        312
+      ],
+      "width": 445,
+      "height": 312
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        437,
+        304
+      ],
+      "width": 437,
+      "height": 304
+    }
+  },
+  {
+    "fixture": "fixtures/nonreg/simple/SequenceArrows_0001.puml",
+    "ref": "reference/nonreg/simple/SequenceArrows_0001.svg",
+    "type": "SEQUENCE",
+    "our": {
+      "vb": [
+        0,
+        0,
+        243,
+        4286
+      ],
+      "width": 243,
+      "height": 4286
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        242,
+        4275
+      ],
+      "width": 242,
+      "height": 4275
+    }
+  },
+  {
+    "fixture": "fixtures/nonreg/simple/SequenceArrows_0002.puml",
+    "ref": "reference/nonreg/simple/SequenceArrows_0002.svg",
+    "type": "SEQUENCE",
+    "our": {
+      "vb": [
+        0,
+        0,
+        258,
+        4286
+      ],
+      "width": 258,
+      "height": 4286
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        257,
+        4275
+      ],
+      "width": 257,
+      "height": 4275
+    }
+  },
+  {
+    "fixture": "fixtures/nonreg/simple/SequenceLayout_0001.puml",
+    "ref": "reference/nonreg/simple/SequenceLayout_0001.svg",
+    "type": "SEQUENCE",
+    "our": {
+      "vb": [
+        0,
+        0,
+        274,
+        242
+      ],
+      "width": 274,
+      "height": 242
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        264,
+        240
+      ],
+      "width": 264,
+      "height": 240
+    }
+  },
+  {
+    "fixture": "fixtures/nonreg/simple/SequenceLayout_0001b.puml",
+    "ref": "reference/nonreg/simple/SequenceLayout_0001b.svg",
+    "type": "SEQUENCE",
+    "our": {
+      "vb": [
+        0,
+        0,
+        460,
+        242
+      ],
+      "width": 460,
+      "height": 242
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        450,
+        240
+      ],
+      "width": 450,
+      "height": 240
+    }
+  },
+  {
+    "fixture": "fixtures/nonreg/simple/SequenceLayout_0001c.puml",
+    "ref": "reference/nonreg/simple/SequenceLayout_0001c.svg",
+    "type": "SEQUENCE",
+    "our": {
+      "vb": [
+        0,
+        0,
+        483,
+        242
+      ],
+      "width": 483,
+      "height": 242
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        473,
+        240
+      ],
+      "width": 473,
+      "height": 240
+    }
+  },
+  {
+    "fixture": "fixtures/nonreg/simple/SequenceLayout_0002.puml",
+    "ref": "reference/nonreg/simple/SequenceLayout_0002.svg",
+    "type": "SEQUENCE",
+    "our": {
+      "vb": [
+        0,
+        0,
+        271,
+        240
+      ],
+      "width": 271,
+      "height": 240
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        261,
+        238
+      ],
+      "width": 261,
+      "height": 238
+    }
+  },
+  {
+    "fixture": "fixtures/nonreg/simple/SequenceLayout_0003.puml",
+    "ref": "reference/nonreg/simple/SequenceLayout_0003.svg",
+    "type": "SEQUENCE",
+    "our": {
+      "vb": [
+        0,
+        0,
+        716,
+        262
+      ],
+      "width": 716,
+      "height": 262
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        707,
+        260
+      ],
+      "width": 707,
+      "height": 260
+    }
+  },
+  {
+    "fixture": "fixtures/nonreg/simple/SequenceLayout_0004.puml",
+    "ref": "reference/nonreg/simple/SequenceLayout_0004.svg",
+    "type": "SEQUENCE",
+    "our": {
+      "vb": [
+        0,
+        0,
+        200,
+        204
+      ],
+      "width": 200,
+      "height": 204
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        181,
+        193
+      ],
+      "width": 181,
+      "height": 193
+    }
+  },
+  {
+    "fixture": "fixtures/nonreg/simple/SequenceLayout_0005.puml",
+    "ref": "reference/nonreg/simple/SequenceLayout_0005.svg",
+    "type": "SEQUENCE",
+    "our": {
+      "vb": [
+        0,
+        0,
+        484,
+        264
+      ],
+      "width": 484,
+      "height": 264
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        465,
+        253
+      ],
+      "width": 465,
+      "height": 253
+    }
+  },
+  {
+    "fixture": "fixtures/nonreg/simple/SequenceLayout_0005b.puml",
+    "ref": "reference/nonreg/simple/SequenceLayout_0005b.svg",
+    "type": "SEQUENCE",
+    "our": {
+      "vb": [
+        0,
+        0,
+        484,
+        264
+      ],
+      "width": 484,
+      "height": 264
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        471,
+        253
+      ],
+      "width": 471,
+      "height": 253
+    }
+  },
+  {
+    "fixture": "fixtures/nonreg/simple/SequenceLayout_0006.puml",
+    "ref": "reference/nonreg/simple/SequenceLayout_0006.svg",
+    "type": "SEQUENCE",
+    "our": {
+      "vb": [
+        0,
+        0,
+        121,
+        157
+      ],
+      "width": 121,
+      "height": 157
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        122,
+        155
+      ],
+      "width": 122,
+      "height": 155
+    }
+  },
+  {
+    "fixture": "fixtures/nonreg/simple/SequenceLeftMessageAndActiveLifeLines_0001.puml",
+    "ref": "reference/nonreg/simple/SequenceLeftMessageAndActiveLifeLines_0001.svg",
+    "type": "SEQUENCE",
+    "our": {
+      "vb": [
+        0,
+        0,
+        825,
+        488
+      ],
+      "width": 825,
+      "height": 488
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        808,
+        481
+      ],
+      "width": 808,
+      "height": 481
+    }
+  },
+  {
+    "fixture": "fixtures/nonreg/simple/SequenceLeftMessageAndActiveLifeLines_0002.puml",
+    "ref": "reference/nonreg/simple/SequenceLeftMessageAndActiveLifeLines_0002.svg",
+    "type": "SEQUENCE",
+    "our": {
+      "vb": [
+        0,
+        0,
+        130,
+        525
+      ],
+      "width": 130,
+      "height": 525
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        125,
+        523
+      ],
+      "width": 125,
+      "height": 523
+    }
+  },
+  {
+    "fixture": "fixtures/nonreg/simple/SequenceLeftMessageAndActiveLifeLines_0003.puml",
+    "ref": "reference/nonreg/simple/SequenceLeftMessageAndActiveLifeLines_0003.svg",
+    "type": "SEQUENCE",
+    "our": {
+      "vb": [
+        0,
+        0,
+        266,
+        374
+      ],
+      "width": 266,
+      "height": 374
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        261,
+        372
+      ],
+      "width": 261,
+      "height": 372
+    }
+  },
+  {
+    "fixture": "fixtures/nonreg/simple/TeozAltElseParallel_0001.puml",
+    "ref": "reference/nonreg/simple/TeozAltElseParallel_0001.svg",
+    "type": "SEQUENCE",
+    "our": {
+      "vb": [
+        0,
+        0,
+        383,
+        368
+      ],
+      "width": 383,
+      "height": 368
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        364,
+        359
+      ],
+      "width": 364,
+      "height": 359
+    }
+  },
+  {
+    "fixture": "fixtures/nonreg/simple/TeozAltElseParallel_0002.puml",
+    "ref": "reference/nonreg/simple/TeozAltElseParallel_0002.svg",
+    "type": "SEQUENCE",
+    "our": {
+      "vb": [
+        0,
+        0,
+        343,
+        237
+      ],
+      "width": 343,
+      "height": 237
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        325,
+        228
+      ],
+      "width": 325,
+      "height": 228
+    }
+  },
+  {
+    "fixture": "fixtures/nonreg/simple/TeozAltElseParallel_0003.puml",
+    "ref": "reference/nonreg/simple/TeozAltElseParallel_0003.svg",
+    "type": "SEQUENCE",
+    "our": {
+      "vb": [
+        0,
+        0,
+        329,
+        397
+      ],
+      "width": 329,
+      "height": 397
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        311,
+        386
+      ],
+      "width": 311,
+      "height": 386
+    }
+  },
+  {
+    "fixture": "fixtures/nonreg/simple/TeozAltElseParallel_0004.puml",
+    "ref": "reference/nonreg/simple/TeozAltElseParallel_0004.svg",
+    "type": "SEQUENCE",
+    "our": {
+      "vb": [
+        0,
+        0,
+        373,
+        426
+      ],
+      "width": 373,
+      "height": 426
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        355,
+        415
+      ],
+      "width": 355,
+      "height": 415
+    }
+  },
+  {
+    "fixture": "fixtures/nonreg/simple/TeozAltElseParallel_0005.puml",
+    "ref": "reference/nonreg/simple/TeozAltElseParallel_0005.svg",
+    "type": "SEQUENCE",
+    "our": {
+      "vb": [
+        0,
+        0,
+        383,
+        295
+      ],
+      "width": 383,
+      "height": 295
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        364,
+        286
+      ],
+      "width": 364,
+      "height": 286
+    }
+  },
+  {
+    "fixture": "fixtures/nonreg/simple/TeozAltElseParallel_0006.puml",
+    "ref": "reference/nonreg/simple/TeozAltElseParallel_0006.svg",
+    "type": "SEQUENCE",
+    "our": {
+      "vb": [
+        0,
+        0,
+        320,
+        188
+      ],
+      "width": 320,
+      "height": 188
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        309,
+        177
+      ],
+      "width": 309,
+      "height": 177
+    }
+  },
+  {
+    "fixture": "fixtures/nonreg/simple/TeozTimelineIssues_0001.puml",
+    "ref": "reference/nonreg/simple/TeozTimelineIssues_0001.svg",
+    "type": "SEQUENCE",
+    "our": {
+      "vb": [
+        0,
+        0,
+        262,
+        278
+      ],
+      "width": 262,
+      "height": 278
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        247,
+        268
+      ],
+      "width": 247,
+      "height": 268
+    }
+  },
+  {
+    "fixture": "fixtures/nonreg/simple/TeozTimelineIssues_0002.puml",
+    "ref": "reference/nonreg/simple/TeozTimelineIssues_0002.svg",
+    "type": "SEQUENCE",
+    "our": {
+      "vb": [
+        0,
+        0,
+        740,
+        200
+      ],
+      "width": 740,
+      "height": 200
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        726,
+        189
+      ],
+      "width": 726,
+      "height": 189
+    }
+  },
+  {
+    "fixture": "fixtures/nonreg/simple/TeozTimelineIssues_0003.puml",
+    "ref": "reference/nonreg/simple/TeozTimelineIssues_0003.svg",
+    "type": "SEQUENCE",
+    "our": {
+      "vb": [
+        0,
+        0,
+        112,
+        188
+      ],
+      "width": 112,
+      "height": 188
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        102,
+        177
+      ],
+      "width": 102,
+      "height": 177
+    }
+  },
+  {
+    "fixture": "fixtures/nonreg/simple/TeozTimelineIssues_0004.puml",
+    "ref": "reference/nonreg/simple/TeozTimelineIssues_0004.svg",
+    "type": "SEQUENCE",
+    "our": {
+      "vb": [
+        0,
+        0,
+        214,
+        283
+      ],
+      "width": 214,
+      "height": 283
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        200,
+        272
+      ],
+      "width": 200,
+      "height": 272
+    }
+  },
+  {
+    "fixture": "fixtures/nonreg/simple/TeozTimelineIssues_0005.puml",
+    "ref": "reference/nonreg/simple/TeozTimelineIssues_0005.svg",
+    "type": "SEQUENCE",
+    "our": {
+      "vb": [
+        0,
+        0,
+        347,
+        273
+      ],
+      "width": 347,
+      "height": 273
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        337,
+        262
+      ],
+      "width": 337,
+      "height": 262
+    }
+  },
+  {
+    "fixture": "fixtures/nonreg/simple/TeozTimelineIssues_0006.puml",
+    "ref": "reference/nonreg/simple/TeozTimelineIssues_0006.svg",
+    "type": "SEQUENCE",
+    "our": {
+      "vb": [
+        0,
+        0,
+        198,
+        159
+      ],
+      "width": 198,
+      "height": 159
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        188,
+        148
+      ],
+      "width": 188,
+      "height": 148
+    }
+  },
+  {
+    "fixture": "fixtures/nonreg/simple/TeozTimelineIssues_0007.puml",
+    "ref": "reference/nonreg/simple/TeozTimelineIssues_0007.svg",
+    "type": "SEQUENCE",
+    "our": {
+      "vb": [
+        0,
+        0,
+        241,
+        437
+      ],
+      "width": 241,
+      "height": 437
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        232,
+        426
+      ],
+      "width": 232,
+      "height": 426
+    }
+  },
+  {
+    "fixture": "fixtures/nonreg/simple/TeozTimelineIssues_0008.puml",
+    "ref": "reference/nonreg/simple/TeozTimelineIssues_0008.svg",
+    "type": "SEQUENCE",
+    "our": {
+      "vb": [
+        0,
+        0,
+        205,
+        190
+      ],
+      "width": 205,
+      "height": 190
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        195,
+        179
+      ],
+      "width": 195,
+      "height": 179
+    }
+  },
+  {
+    "fixture": "fixtures/nonreg/simple/TeozTimelineIssues_0009.puml",
+    "ref": "reference/nonreg/simple/TeozTimelineIssues_0009.svg",
+    "type": "SEQUENCE",
+    "our": {
+      "vb": [
+        0,
+        0,
+        235,
+        868
+      ],
+      "width": 235,
+      "height": 868
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        225,
+        857
+      ],
+      "width": 225,
+      "height": 857
+    }
+  },
+  {
+    "fixture": "fixtures/nonreg/simple/TimingMessageArrowFont_0001.puml",
+    "ref": "reference/nonreg/simple/TimingMessageArrowFont_0001.svg",
+    "type": "TIMING",
+    "our": {
+      "vb": [
+        0,
+        0,
+        504,
+        257
+      ],
+      "width": 504,
+      "height": 257
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        490,
+        243
+      ],
+      "width": 490,
+      "height": 243
+    }
+  },
+  {
+    "fixture": "fixtures/nonreg/simple/TimingMessageArrowFont_0002.puml",
+    "ref": "reference/nonreg/simple/TimingMessageArrowFont_0002.svg",
+    "type": "TIMING",
+    "our": {
+      "vb": [
+        0,
+        0,
+        515,
+        274
+      ],
+      "width": 515,
+      "height": 274
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        501,
+        260
+      ],
+      "width": 501,
+      "height": 260
+    }
+  },
+  {
+    "fixture": "fixtures/nonreg/svg/SVG0001.puml",
+    "ref": "reference/nonreg/svg/SVG0001.svg",
+    "type": "SEQUENCE",
+    "our": {
+      "vb": [
+        0,
+        0,
+        850,
+        241
+      ],
+      "width": 850,
+      "height": 241
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        846,
+        240
+      ],
+      "width": 846,
+      "height": 240
+    }
+  },
+  {
+    "fixture": "fixtures/nonreg/svg/SVG0002.puml",
+    "ref": "reference/nonreg/svg/SVG0002.svg",
+    "type": "SEQUENCE",
+    "our": {
+      "vb": [
+        0,
+        0,
+        850,
+        241
+      ],
+      "width": 850,
+      "height": 241
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        846,
+        240
+      ],
+      "width": 846,
+      "height": 240
+    }
+  },
+  {
+    "fixture": "fixtures/nonreg/svg/SVG0003.puml",
+    "ref": "reference/nonreg/svg/SVG0003.svg",
+    "type": "SEQUENCE",
+    "our": {
+      "vb": [
+        0,
+        0,
+        2976,
+        122
+      ],
+      "width": 2976,
+      "height": 122
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        2971,
+        120
+      ],
+      "width": 2971,
+      "height": 120
+    }
+  },
+  {
+    "fixture": "fixtures/nonreg/svg/SVG0004_Smetana.puml",
+    "ref": "reference/nonreg/svg/SVG0004_Smetana.svg",
+    "type": "CLASS",
+    "our": {
+      "vb": [
+        0,
+        0,
+        903,
+        214
+      ],
+      "width": 903,
+      "height": 214
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        895,
+        206
+      ],
+      "width": 895,
+      "height": 206
+    }
+  },
+  {
+    "fixture": "fixtures/nonreg/svg/SVG0004_Svek.puml",
+    "ref": "reference/nonreg/svg/SVG0004_Svek.svg",
+    "type": "CLASS",
+    "our": {
+      "vb": [
+        0,
+        0,
+        903,
+        214
+      ],
+      "width": 903,
+      "height": 214
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        895,
+        206
+      ],
+      "width": 895,
+      "height": 206
+    }
+  },
+  {
+    "fixture": "fixtures/nonreg/svg/SVG0005_Smetana.puml",
+    "ref": "reference/nonreg/svg/SVG0005_Smetana.svg",
+    "type": "DESCRIPTION",
+    "our": {
+      "vb": [
+        0,
+        0,
+        87,
+        295
+      ],
+      "width": 87,
+      "height": 295
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        79,
+        287
+      ],
+      "width": 79,
+      "height": 287
+    }
+  },
+  {
+    "fixture": "fixtures/nonreg/svg/SVG0005_Svek.puml",
+    "ref": "reference/nonreg/svg/SVG0005_Svek.svg",
+    "type": "DESCRIPTION",
+    "our": {
+      "vb": [
+        0,
+        0,
+        87,
+        295
+      ],
+      "width": 87,
+      "height": 295
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        79,
+        287
+      ],
+      "width": 79,
+      "height": 287
+    }
+  },
+  {
+    "fixture": "fixtures/nonreg/svg/SVG0006_Svek.puml",
+    "ref": "reference/nonreg/svg/SVG0006_Svek.svg",
+    "type": "CLASS",
+    "our": {
+      "vb": [
+        0,
+        0,
+        431,
+        253
+      ],
+      "width": 431,
+      "height": 253
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        423,
+        245
+      ],
+      "width": 423,
+      "height": 245
+    }
+  },
+  {
+    "fixture": "fixtures/nonreg/xmi/clazz/XMI0000.puml",
+    "ref": "reference/nonreg/xmi/clazz/XMI0000.svg",
+    "type": "CLASS",
+    "our": {
+      "vb": [
+        0,
+        0,
+        130,
+        84
+      ],
+      "width": 130,
+      "height": 84
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        131,
+        85
+      ],
+      "width": 131,
+      "height": 85
+    }
+  },
+  {
+    "fixture": "fixtures/nonreg/xmi/clazz/XMI0002.puml",
+    "ref": "reference/nonreg/xmi/clazz/XMI0002.svg",
+    "type": "CLASS",
+    "our": {
+      "vb": [
+        0,
+        0,
+        63,
+        178
+      ],
+      "width": 63,
+      "height": 178
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        55,
+        170
+      ],
+      "width": 55,
+      "height": 170
+    }
+  },
+  {
+    "fixture": "fixtures/nonreg/xmi/clazz/XMI0003.puml",
+    "ref": "reference/nonreg/xmi/clazz/XMI0003.svg",
+    "type": "CLASS",
+    "our": {
+      "vb": [
+        0,
+        0,
+        178,
+        194
+      ],
+      "width": 178,
+      "height": 194
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        170,
+        186
+      ],
+      "width": 170,
+      "height": 186
+    }
+  },
+  {
+    "fixture": "fixtures/nonreg/xmi/clazz/XMI0004.puml",
+    "ref": "reference/nonreg/xmi/clazz/XMI0004.svg",
+    "type": "CLASS",
+    "our": {
+      "vb": [
+        0,
+        0,
+        140,
+        70
+      ],
+      "width": 140,
+      "height": 70
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        132,
+        62
+      ],
+      "width": 132,
+      "height": 62
+    }
+  },
+  {
+    "fixture": "fixtures/nonreg/xmi/component/XMI0001.puml",
+    "ref": "reference/nonreg/xmi/component/XMI0001.svg",
+    "type": "DESCRIPTION",
+    "our": {
+      "vb": [
+        0,
+        0,
+        124,
+        267
+      ],
+      "width": 124,
+      "height": 267
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        116,
+        259
+      ],
+      "width": 116,
+      "height": 259
+    }
+  },
+  {
+    "fixture": "fixtures/nwdiag/basic.puml",
+    "ref": "reference/nwdiag/basic.svg",
+    "type": "NWDIAG",
+    "our": {
+      "vb": [
+        0,
+        0,
+        671,
+        276
+      ],
+      "width": 671,
+      "height": 276
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        255,
+        282
+      ],
+      "width": 255,
+      "height": 282
+    }
+  },
+  {
+    "fixture": "fixtures/object/basic.puml",
+    "ref": "reference/object/basic.svg",
+    "type": "CLASS",
+    "our": {
+      "vb": [
+        0,
+        0,
+        207,
+        153
+      ],
+      "width": 207,
+      "height": 153
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        199,
+        145
+      ],
+      "width": 199,
+      "height": 145
+    }
+  },
+  {
+    "fixture": "fixtures/object/fields.puml",
+    "ref": "reference/object/fields.svg",
+    "type": "CLASS",
+    "our": {
+      "vb": [
+        0,
+        0,
+        192,
+        236
+      ],
+      "width": 192,
+      "height": 236
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        184,
+        228
+      ],
+      "width": 184,
+      "height": 228
+    }
+  },
+  {
+    "fixture": "fixtures/object/inheritance.puml",
+    "ref": "reference/object/inheritance.svg",
+    "type": "CLASS",
+    "our": {
+      "vb": [
+        0,
+        0,
+        230,
+        203
+      ],
+      "width": 230,
+      "height": 203
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        222,
+        195
+      ],
+      "width": 222,
+      "height": 195
+    }
+  },
+  {
+    "fixture": "fixtures/object/map.puml",
+    "ref": "reference/object/map.svg",
+    "type": "CLASS",
+    "our": {
+      "vb": [
+        0,
+        0,
+        218,
+        225
+      ],
+      "width": 218,
+      "height": 225
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        210,
+        221
+      ],
+      "width": 210,
+      "height": 221
+    }
+  },
+  {
+    "fixture": "fixtures/preprocessor/builtin_newline.puml",
+    "ref": "reference/preprocessor/builtin_newline.svg",
+    "type": "SALT",
+    "our": {
+      "vb": [
+        0,
+        0,
+        261,
+        133
+      ],
+      "width": 261,
+      "height": 133
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        96,
+        75
+      ],
+      "width": 96,
+      "height": 75
+    }
+  },
+  {
+    "fixture": "fixtures/preprocessor/deployment_mono_multi_line.puml",
+    "ref": "reference/preprocessor/deployment_mono_multi_line.svg",
+    "type": "DESCRIPTION",
+    "our": {
+      "vb": [
+        0,
+        0,
+        641,
+        232
+      ],
+      "width": 641,
+      "height": 232
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        633,
+        224
+      ],
+      "width": 633,
+      "height": 224
+    }
+  },
+  {
+    "fixture": "fixtures/preprocessor/jaws1.puml",
+    "ref": "reference/preprocessor/jaws1.svg",
+    "type": "DESCRIPTION",
+    "our": {
+      "vb": [
+        0,
+        0,
+        429,
+        450
+      ],
+      "width": 429,
+      "height": 450
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        249,
+        521
+      ],
+      "width": 249,
+      "height": 521
+    }
+  },
+  {
+    "fixture": "fixtures/preprocessor/jaws3.puml",
+    "ref": "reference/preprocessor/jaws3.svg",
+    "type": "CLASS",
+    "our": {
+      "vb": [
+        0,
+        0,
+        161,
+        109
+      ],
+      "width": 161,
+      "height": 109
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        242,
+        93
+      ],
+      "width": 242,
+      "height": 93
+    }
+  },
+  {
+    "fixture": "fixtures/preprocessor/jaws6.puml",
+    "ref": "reference/preprocessor/jaws6.svg",
+    "type": "SEQUENCE",
+    "our": {
+      "vb": [
+        0,
+        0,
+        527,
+        185
+      ],
+      "width": 527,
+      "height": 185
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        517,
+        183
+      ],
+      "width": 517,
+      "height": 183
+    }
+  },
+  {
+    "fixture": "fixtures/preprocessor/jaws7.puml",
+    "ref": "reference/preprocessor/jaws7.svg",
+    "type": "CLASS",
+    "our": {
+      "vb": [
+        0,
+        0,
+        549,
+        78
+      ],
+      "width": 549,
+      "height": 78
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        541,
+        70
+      ],
+      "width": 541,
+      "height": 70
+    }
+  },
+  {
+    "fixture": "fixtures/preprocessor/jaws8.puml",
+    "ref": "reference/preprocessor/jaws8.svg",
+    "type": "ACTIVITY",
+    "our": {
+      "vb": [
+        0,
+        0,
+        153,
+        207
+      ],
+      "width": 153,
+      "height": 207
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        183,
+        274
+      ],
+      "width": 183,
+      "height": 274
+    }
+  },
+  {
+    "fixture": "fixtures/preprocessor/jaws9.puml",
+    "ref": "reference/preprocessor/jaws9.svg",
+    "type": "ACTIVITY",
+    "our": {
+      "vb": [
+        0,
+        0,
+        153,
+        207
+      ],
+      "width": 153,
+      "height": 207
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        333,
+        246
+      ],
+      "width": 333,
+      "height": 246
+    }
+  },
+  {
+    "fixture": "fixtures/preprocessor/preproc_functionparam_line_continuation.puml",
+    "ref": "reference/preprocessor/preproc_functionparam_line_continuation.svg",
+    "type": "CLASS",
+    "our": {
+      "vb": [
+        0,
+        0,
+        131,
+        53
+      ],
+      "width": 131,
+      "height": 53
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        132,
+        44
+      ],
+      "width": 132,
+      "height": 44
+    }
+  },
+  {
+    "fixture": "fixtures/preprocessor/seq_mono_line.puml",
+    "ref": "reference/preprocessor/seq_mono_line.svg",
+    "type": "SEQUENCE",
+    "our": {
+      "vb": [
+        0,
+        0,
+        405,
+        194
+      ],
+      "width": 405,
+      "height": 194
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        405,
+        192
+      ],
+      "width": 405,
+      "height": 192
+    }
+  },
+  {
+    "fixture": "fixtures/preprocessor/sequencearrows_0001.puml",
+    "ref": "reference/preprocessor/sequencearrows_0001.svg",
+    "type": "SEQUENCE",
+    "our": {
+      "vb": [
+        0,
+        0,
+        243,
+        4286
+      ],
+      "width": 243,
+      "height": 4286
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        242,
+        4275
+      ],
+      "width": 242,
+      "height": 4275
+    }
+  },
+  {
+    "fixture": "fixtures/preprocessor/sequencearrows_0002.puml",
+    "ref": "reference/preprocessor/sequencearrows_0002.svg",
+    "type": "SEQUENCE",
+    "our": {
+      "vb": [
+        0,
+        0,
+        258,
+        4286
+      ],
+      "width": 258,
+      "height": 4286
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        257,
+        4275
+      ],
+      "width": 257,
+      "height": 4275
+    }
+  },
+  {
+    "fixture": "fixtures/preprocessor/sequencelayout_0004.puml",
+    "ref": "reference/preprocessor/sequencelayout_0004.svg",
+    "type": "SEQUENCE",
+    "our": {
+      "vb": [
+        0,
+        0,
+        200,
+        204
+      ],
+      "width": 200,
+      "height": 204
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        181,
+        193
+      ],
+      "width": 181,
+      "height": 193
+    }
+  },
+  {
+    "fixture": "fixtures/preprocessor/sequencelayout_0005.puml",
+    "ref": "reference/preprocessor/sequencelayout_0005.svg",
+    "type": "SEQUENCE",
+    "our": {
+      "vb": [
+        0,
+        0,
+        484,
+        264
+      ],
+      "width": 484,
+      "height": 264
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        465,
+        253
+      ],
+      "width": 465,
+      "height": 253
+    }
+  },
+  {
+    "fixture": "fixtures/preprocessor/sequencelayout_0005b.puml",
+    "ref": "reference/preprocessor/sequencelayout_0005b.svg",
+    "type": "SEQUENCE",
+    "our": {
+      "vb": [
+        0,
+        0,
+        484,
+        264
+      ],
+      "width": 484,
+      "height": 264
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        471,
+        253
+      ],
+      "width": 471,
+      "height": 253
+    }
+  },
+  {
+    "fixture": "fixtures/preprocessor/sequenceleftmessageandactivelifelines_0001.puml",
+    "ref": "reference/preprocessor/sequenceleftmessageandactivelifelines_0001.svg",
+    "type": "SEQUENCE",
+    "our": {
+      "vb": [
+        0,
+        0,
+        825,
+        488
+      ],
+      "width": 825,
+      "height": 488
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        808,
+        481
+      ],
+      "width": 808,
+      "height": 481
+    }
+  },
+  {
+    "fixture": "fixtures/preprocessor/subdiagram_theme_01.puml",
+    "ref": "reference/preprocessor/subdiagram_theme_01.svg",
+    "type": "CLASS",
+    "our": {
+      "vb": [
+        0,
+        0,
+        230,
+        232
+      ],
+      "width": 230,
+      "height": 232
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        208,
+        267
+      ],
+      "width": 208,
+      "height": 267
+    }
+  },
+  {
+    "fixture": "fixtures/preprocessor/svg0002.puml",
+    "ref": "reference/preprocessor/svg0002.svg",
+    "type": "SEQUENCE",
+    "our": {
+      "vb": [
+        0,
+        0,
+        850,
+        241
+      ],
+      "width": 850,
+      "height": 241
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        846,
+        240
+      ],
+      "width": 846,
+      "height": 240
+    }
+  },
+  {
+    "fixture": "fixtures/preprocessor/svg0004_smetana.puml",
+    "ref": "reference/preprocessor/svg0004_smetana.svg",
+    "type": "CLASS",
+    "our": {
+      "vb": [
+        0,
+        0,
+        903,
+        214
+      ],
+      "width": 903,
+      "height": 214
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        895,
+        206
+      ],
+      "width": 895,
+      "height": 206
+    }
+  },
+  {
+    "fixture": "fixtures/preprocessor/svg0004_svek.puml",
+    "ref": "reference/preprocessor/svg0004_svek.svg",
+    "type": "CLASS",
+    "our": {
+      "vb": [
+        0,
+        0,
+        903,
+        214
+      ],
+      "width": 903,
+      "height": 214
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        895,
+        206
+      ],
+      "width": 895,
+      "height": 206
+    }
+  },
+  {
+    "fixture": "fixtures/preprocessor/svg0005_smetana.puml",
+    "ref": "reference/preprocessor/svg0005_smetana.svg",
+    "type": "DESCRIPTION",
+    "our": {
+      "vb": [
+        0,
+        0,
+        87,
+        295
+      ],
+      "width": 87,
+      "height": 295
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        79,
+        287
+      ],
+      "width": 79,
+      "height": 287
+    }
+  },
+  {
+    "fixture": "fixtures/preprocessor/svg0005_svek.puml",
+    "ref": "reference/preprocessor/svg0005_svek.svg",
+    "type": "DESCRIPTION",
+    "our": {
+      "vb": [
+        0,
+        0,
+        87,
+        295
+      ],
+      "width": 87,
+      "height": 295
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        79,
+        287
+      ],
+      "width": 79,
+      "height": 287
+    }
+  },
+  {
+    "fixture": "fixtures/preprocessor/svg0006_svek.puml",
+    "ref": "reference/preprocessor/svg0006_svek.svg",
+    "type": "CLASS",
+    "our": {
+      "vb": [
+        0,
+        0,
+        431,
+        253
+      ],
+      "width": 431,
+      "height": 253
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        423,
+        245
+      ],
+      "width": 423,
+      "height": 245
+    }
+  },
+  {
+    "fixture": "fixtures/preprocessor/teozaltelseparallel_0001.puml",
+    "ref": "reference/preprocessor/teozaltelseparallel_0001.svg",
+    "type": "SEQUENCE",
+    "our": {
+      "vb": [
+        0,
+        0,
+        383,
+        368
+      ],
+      "width": 383,
+      "height": 368
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        364,
+        359
+      ],
+      "width": 364,
+      "height": 359
+    }
+  },
+  {
+    "fixture": "fixtures/preprocessor/teozaltelseparallel_0002.puml",
+    "ref": "reference/preprocessor/teozaltelseparallel_0002.svg",
+    "type": "SEQUENCE",
+    "our": {
+      "vb": [
+        0,
+        0,
+        343,
+        237
+      ],
+      "width": 343,
+      "height": 237
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        325,
+        228
+      ],
+      "width": 325,
+      "height": 228
+    }
+  },
+  {
+    "fixture": "fixtures/preprocessor/teozaltelseparallel_0003.puml",
+    "ref": "reference/preprocessor/teozaltelseparallel_0003.svg",
+    "type": "SEQUENCE",
+    "our": {
+      "vb": [
+        0,
+        0,
+        329,
+        397
+      ],
+      "width": 329,
+      "height": 397
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        311,
+        386
+      ],
+      "width": 311,
+      "height": 386
+    }
+  },
+  {
+    "fixture": "fixtures/preprocessor/teozaltelseparallel_0004.puml",
+    "ref": "reference/preprocessor/teozaltelseparallel_0004.svg",
+    "type": "SEQUENCE",
+    "our": {
+      "vb": [
+        0,
+        0,
+        373,
+        426
+      ],
+      "width": 373,
+      "height": 426
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        355,
+        415
+      ],
+      "width": 355,
+      "height": 415
+    }
+  },
+  {
+    "fixture": "fixtures/preprocessor/teozaltelseparallel_0005.puml",
+    "ref": "reference/preprocessor/teozaltelseparallel_0005.svg",
+    "type": "SEQUENCE",
+    "our": {
+      "vb": [
+        0,
+        0,
+        383,
+        295
+      ],
+      "width": 383,
+      "height": 295
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        364,
+        286
+      ],
+      "width": 364,
+      "height": 286
+    }
+  },
+  {
+    "fixture": "fixtures/preprocessor/teozaltelseparallel_0006.puml",
+    "ref": "reference/preprocessor/teozaltelseparallel_0006.svg",
+    "type": "SEQUENCE",
+    "our": {
+      "vb": [
+        0,
+        0,
+        320,
+        188
+      ],
+      "width": 320,
+      "height": 188
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        309,
+        177
+      ],
+      "width": 309,
+      "height": 177
+    }
+  },
+  {
+    "fixture": "fixtures/preprocessor/teoztimelineissues_0001.puml",
+    "ref": "reference/preprocessor/teoztimelineissues_0001.svg",
+    "type": "SEQUENCE",
+    "our": {
+      "vb": [
+        0,
+        0,
+        262,
+        278
+      ],
+      "width": 262,
+      "height": 278
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        247,
+        268
+      ],
+      "width": 247,
+      "height": 268
+    }
+  },
+  {
+    "fixture": "fixtures/preprocessor/teoztimelineissues_0002.puml",
+    "ref": "reference/preprocessor/teoztimelineissues_0002.svg",
+    "type": "SEQUENCE",
+    "our": {
+      "vb": [
+        0,
+        0,
+        740,
+        200
+      ],
+      "width": 740,
+      "height": 200
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        726,
+        189
+      ],
+      "width": 726,
+      "height": 189
+    }
+  },
+  {
+    "fixture": "fixtures/preprocessor/teoztimelineissues_0003.puml",
+    "ref": "reference/preprocessor/teoztimelineissues_0003.svg",
+    "type": "SEQUENCE",
+    "our": {
+      "vb": [
+        0,
+        0,
+        112,
+        188
+      ],
+      "width": 112,
+      "height": 188
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        102,
+        177
+      ],
+      "width": 102,
+      "height": 177
+    }
+  },
+  {
+    "fixture": "fixtures/preprocessor/teoztimelineissues_0004.puml",
+    "ref": "reference/preprocessor/teoztimelineissues_0004.svg",
+    "type": "SEQUENCE",
+    "our": {
+      "vb": [
+        0,
+        0,
+        214,
+        283
+      ],
+      "width": 214,
+      "height": 283
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        200,
+        272
+      ],
+      "width": 200,
+      "height": 272
+    }
+  },
+  {
+    "fixture": "fixtures/preprocessor/teoztimelineissues_0005.puml",
+    "ref": "reference/preprocessor/teoztimelineissues_0005.svg",
+    "type": "SEQUENCE",
+    "our": {
+      "vb": [
+        0,
+        0,
+        347,
+        273
+      ],
+      "width": 347,
+      "height": 273
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        337,
+        262
+      ],
+      "width": 337,
+      "height": 262
+    }
+  },
+  {
+    "fixture": "fixtures/preprocessor/teoztimelineissues_0006.puml",
+    "ref": "reference/preprocessor/teoztimelineissues_0006.svg",
+    "type": "SEQUENCE",
+    "our": {
+      "vb": [
+        0,
+        0,
+        198,
+        159
+      ],
+      "width": 198,
+      "height": 159
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        188,
+        148
+      ],
+      "width": 188,
+      "height": 148
+    }
+  },
+  {
+    "fixture": "fixtures/preprocessor/teoztimelineissues_0007.puml",
+    "ref": "reference/preprocessor/teoztimelineissues_0007.svg",
+    "type": "SEQUENCE",
+    "our": {
+      "vb": [
+        0,
+        0,
+        241,
+        437
+      ],
+      "width": 241,
+      "height": 437
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        232,
+        426
+      ],
+      "width": 232,
+      "height": 426
+    }
+  },
+  {
+    "fixture": "fixtures/preprocessor/teoztimelineissues_0008.puml",
+    "ref": "reference/preprocessor/teoztimelineissues_0008.svg",
+    "type": "SEQUENCE",
+    "our": {
+      "vb": [
+        0,
+        0,
+        205,
+        190
+      ],
+      "width": 205,
+      "height": 190
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        195,
+        179
+      ],
+      "width": 195,
+      "height": 179
+    }
+  },
+  {
+    "fixture": "fixtures/preprocessor/teoztimelineissues_0009.puml",
+    "ref": "reference/preprocessor/teoztimelineissues_0009.svg",
+    "type": "SEQUENCE",
+    "our": {
+      "vb": [
+        0,
+        0,
+        235,
+        868
+      ],
+      "width": 235,
+      "height": 868
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        225,
+        857
+      ],
+      "width": 225,
+      "height": 857
+    }
+  },
+  {
+    "fixture": "fixtures/regex/alternation.puml",
+    "ref": "reference/regex/alternation.svg",
+    "type": "REGEX",
+    "our": {
+      "vb": [
+        0,
+        0,
+        174,
+        129
+      ],
+      "width": 174,
+      "height": 129
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        137,
+        131
+      ],
+      "width": 137,
+      "height": 131
+    }
+  },
+  {
+    "fixture": "fixtures/regex/basic.puml",
+    "ref": "reference/regex/basic.svg",
+    "type": "REGEX",
+    "our": {
+      "vb": [
+        0,
+        0,
+        238,
+        69
+      ],
+      "width": 238,
+      "height": 69
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        234,
+        97
+      ],
+      "width": 234,
+      "height": 97
+    }
+  },
+  {
+    "fixture": "fixtures/regex/complex.puml",
+    "ref": "reference/regex/complex.svg",
+    "type": "REGEX",
+    "our": {
+      "vb": [
+        0,
+        0,
+        312,
+        199
+      ],
+      "width": 312,
+      "height": 199
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        428,
+        143
+      ],
+      "width": 428,
+      "height": 143
+    }
+  },
+  {
+    "fixture": "fixtures/salt/basic.puml",
+    "ref": "reference/salt/basic.svg",
+    "type": "SALT",
+    "our": {
+      "vb": [
+        0,
+        0,
+        161,
+        271
+      ],
+      "width": 161,
+      "height": 271
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        205,
+        119
+      ],
+      "width": 205,
+      "height": 119
+    }
+  },
+  {
+    "fixture": "fixtures/sequence/a0000.puml",
+    "ref": "reference/sequence/a0000.svg",
+    "type": "SEQUENCE",
+    "our": {
+      "vb": [
+        0,
+        0,
+        117,
+        122
+      ],
+      "width": 117,
+      "height": 122
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        112,
+        120
+      ],
+      "width": 112,
+      "height": 120
+    }
+  },
+  {
+    "fixture": "fixtures/sequence/a0001.puml",
+    "ref": "reference/sequence/a0001.svg",
+    "type": "SEQUENCE",
+    "our": {
+      "vb": [
+        0,
+        0,
+        179,
+        309
+      ],
+      "width": 179,
+      "height": 309
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        174,
+        307
+      ],
+      "width": 174,
+      "height": 307
+    }
+  },
+  {
+    "fixture": "fixtures/sequence/a0006.puml",
+    "ref": "reference/sequence/a0006.svg",
+    "type": "SEQUENCE",
+    "our": {
+      "vb": [
+        0,
+        0,
+        114,
+        246
+      ],
+      "width": 114,
+      "height": 246
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        115,
+        247
+      ],
+      "width": 115,
+      "height": 247
+    }
+  },
+  {
+    "fixture": "fixtures/sequence/intermediatetest_0000.puml",
+    "ref": "reference/sequence/intermediatetest_0000.svg",
+    "type": "SEQUENCE",
+    "our": {
+      "vb": [
+        0,
+        0,
+        162,
+        122
+      ],
+      "width": 162,
+      "height": 122
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        157,
+        120
+      ],
+      "width": 157,
+      "height": 120
+    }
+  },
+  {
+    "fixture": "fixtures/sequence/jaws10.puml",
+    "ref": "reference/sequence/jaws10.svg",
+    "type": "SEQUENCE",
+    "our": {
+      "vb": [
+        0,
+        0,
+        186,
+        126
+      ],
+      "width": 186,
+      "height": 126
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        181,
+        124
+      ],
+      "width": 181,
+      "height": 124
+    }
+  },
+  {
+    "fixture": "fixtures/sequence/jaws11.puml",
+    "ref": "reference/sequence/jaws11.svg",
+    "type": "SEQUENCE",
+    "our": {
+      "vb": [
+        0,
+        0,
+        186,
+        126
+      ],
+      "width": 186,
+      "height": 126
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        367,
+        124
+      ],
+      "width": 367,
+      "height": 124
+    }
+  },
+  {
+    "fixture": "fixtures/sequence/jaws2.puml",
+    "ref": "reference/sequence/jaws2.svg",
+    "type": "SEQUENCE",
+    "our": {
+      "vb": [
+        0,
+        0,
+        113,
+        137
+      ],
+      "width": 113,
+      "height": 137
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        108,
+        135
+      ],
+      "width": 108,
+      "height": 135
+    }
+  },
+  {
+    "fixture": "fixtures/sequence/jaws4.puml",
+    "ref": "reference/sequence/jaws4.svg",
+    "type": "SEQUENCE",
+    "our": {
+      "vb": [
+        0,
+        0,
+        113,
+        137
+      ],
+      "width": 113,
+      "height": 137
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        108,
+        135
+      ],
+      "width": 108,
+      "height": 135
+    }
+  },
+  {
+    "fixture": "fixtures/sequence/seq_alt001.puml",
+    "ref": "reference/sequence/seq_alt001.svg",
+    "type": "SEQUENCE",
+    "our": {
+      "vb": [
+        0,
+        0,
+        184,
+        226
+      ],
+      "width": 184,
+      "height": 226
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        175,
+        224
+      ],
+      "width": 175,
+      "height": 224
+    }
+  },
+  {
+    "fixture": "fixtures/sequence/seq_autonumber001.puml",
+    "ref": "reference/sequence/seq_autonumber001.svg",
+    "type": "SEQUENCE",
+    "our": {
+      "vb": [
+        0,
+        0,
+        156,
+        180
+      ],
+      "width": 156,
+      "height": 180
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        151,
+        178
+      ],
+      "width": 151,
+      "height": 178
+    }
+  },
+  {
+    "fixture": "fixtures/sequence/seq_break001.puml",
+    "ref": "reference/sequence/seq_break001.svg",
+    "type": "SEQUENCE",
+    "our": {
+      "vb": [
+        0,
+        0,
+        199,
+        258
+      ],
+      "width": 199,
+      "height": 258
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        190,
+        256
+      ],
+      "width": 190,
+      "height": 256
+    }
+  },
+  {
+    "fixture": "fixtures/sequence/seq_critical001.puml",
+    "ref": "reference/sequence/seq_critical001.svg",
+    "type": "SEQUENCE",
+    "our": {
+      "vb": [
+        0,
+        0,
+        239,
+        212
+      ],
+      "width": 239,
+      "height": 212
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        229,
+        210
+      ],
+      "width": 229,
+      "height": 210
+    }
+  },
+  {
+    "fixture": "fixtures/sequence/seq_divider001.puml",
+    "ref": "reference/sequence/seq_divider001.svg",
+    "type": "SEQUENCE",
+    "our": {
+      "vb": [
+        0,
+        0,
+        140,
+        344
+      ],
+      "width": 140,
+      "height": 344
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        409,
+        234
+      ],
+      "width": 409,
+      "height": 234
+    }
+  },
+  {
+    "fixture": "fixtures/sequence/seq_group001.puml",
+    "ref": "reference/sequence/seq_group001.svg",
+    "type": "SEQUENCE",
+    "our": {
+      "vb": [
+        0,
+        0,
+        173,
+        212
+      ],
+      "width": 173,
+      "height": 212
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        163,
+        210
+      ],
+      "width": 163,
+      "height": 210
+    }
+  },
+  {
+    "fixture": "fixtures/sequence/seq_loop001.puml",
+    "ref": "reference/sequence/seq_loop001.svg",
+    "type": "SEQUENCE",
+    "our": {
+      "vb": [
+        0,
+        0,
+        201,
+        182
+      ],
+      "width": 201,
+      "height": 182
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        191,
+        180
+      ],
+      "width": 191,
+      "height": 180
+    }
+  },
+  {
+    "fixture": "fixtures/sequence/seq_nested001.puml",
+    "ref": "reference/sequence/seq_nested001.svg",
+    "type": "SEQUENCE",
+    "our": {
+      "vb": [
+        0,
+        0,
+        223,
+        391
+      ],
+      "width": 223,
+      "height": 391
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        214,
+        389
+      ],
+      "width": 214,
+      "height": 389
+    }
+  },
+  {
+    "fixture": "fixtures/sequence/seq_opt001.puml",
+    "ref": "reference/sequence/seq_opt001.svg",
+    "type": "SEQUENCE",
+    "our": {
+      "vb": [
+        0,
+        0,
+        291,
+        212
+      ],
+      "width": 291,
+      "height": 212
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        281,
+        210
+      ],
+      "width": 281,
+      "height": 210
+    }
+  },
+  {
+    "fixture": "fixtures/sequence/seq_par001.puml",
+    "ref": "reference/sequence/seq_par001.svg",
+    "type": "SEQUENCE",
+    "our": {
+      "vb": [
+        0,
+        0,
+        282,
+        226
+      ],
+      "width": 282,
+      "height": 226
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        273,
+        224
+      ],
+      "width": 273,
+      "height": 224
+    }
+  },
+  {
+    "fixture": "fixtures/sequence/seq_participants001.puml",
+    "ref": "reference/sequence/seq_participants001.svg",
+    "type": "SEQUENCE",
+    "our": {
+      "vb": [
+        0,
+        0,
+        495,
+        387
+      ],
+      "width": 495,
+      "height": 387
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        490,
+        386
+      ],
+      "width": 490,
+      "height": 386
+    }
+  },
+  {
+    "fixture": "fixtures/sequence/seq_ref001.puml",
+    "ref": "reference/sequence/seq_ref001.svg",
+    "type": "SEQUENCE",
+    "our": {
+      "vb": [
+        0,
+        0,
+        134,
+        195
+      ],
+      "width": 134,
+      "height": 195
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        132,
+        193
+      ],
+      "width": 132,
+      "height": 193
+    }
+  },
+  {
+    "fixture": "fixtures/sequence/sequencelayout_0001.puml",
+    "ref": "reference/sequence/sequencelayout_0001.svg",
+    "type": "SEQUENCE",
+    "our": {
+      "vb": [
+        0,
+        0,
+        274,
+        242
+      ],
+      "width": 274,
+      "height": 242
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        264,
+        240
+      ],
+      "width": 264,
+      "height": 240
+    }
+  },
+  {
+    "fixture": "fixtures/sequence/sequencelayout_0001b.puml",
+    "ref": "reference/sequence/sequencelayout_0001b.svg",
+    "type": "SEQUENCE",
+    "our": {
+      "vb": [
+        0,
+        0,
+        460,
+        242
+      ],
+      "width": 460,
+      "height": 242
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        450,
+        240
+      ],
+      "width": 450,
+      "height": 240
+    }
+  },
+  {
+    "fixture": "fixtures/sequence/sequencelayout_0001c.puml",
+    "ref": "reference/sequence/sequencelayout_0001c.svg",
+    "type": "SEQUENCE",
+    "our": {
+      "vb": [
+        0,
+        0,
+        483,
+        242
+      ],
+      "width": 483,
+      "height": 242
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        473,
+        240
+      ],
+      "width": 473,
+      "height": 240
+    }
+  },
+  {
+    "fixture": "fixtures/sequence/sequencelayout_0002.puml",
+    "ref": "reference/sequence/sequencelayout_0002.svg",
+    "type": "SEQUENCE",
+    "our": {
+      "vb": [
+        0,
+        0,
+        271,
+        240
+      ],
+      "width": 271,
+      "height": 240
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        261,
+        238
+      ],
+      "width": 261,
+      "height": 238
+    }
+  },
+  {
+    "fixture": "fixtures/sequence/sequencelayout_0003.puml",
+    "ref": "reference/sequence/sequencelayout_0003.svg",
+    "type": "SEQUENCE",
+    "our": {
+      "vb": [
+        0,
+        0,
+        716,
+        262
+      ],
+      "width": 716,
+      "height": 262
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        707,
+        260
+      ],
+      "width": 707,
+      "height": 260
+    }
+  },
+  {
+    "fixture": "fixtures/sequence/sequencelayout_0006.puml",
+    "ref": "reference/sequence/sequencelayout_0006.svg",
+    "type": "SEQUENCE",
+    "our": {
+      "vb": [
+        0,
+        0,
+        121,
+        157
+      ],
+      "width": 121,
+      "height": 157
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        122,
+        155
+      ],
+      "width": 122,
+      "height": 155
+    }
+  },
+  {
+    "fixture": "fixtures/sequence/sequenceleftmessageandactivelifelines_0002.puml",
+    "ref": "reference/sequence/sequenceleftmessageandactivelifelines_0002.svg",
+    "type": "SEQUENCE",
+    "our": {
+      "vb": [
+        0,
+        0,
+        130,
+        525
+      ],
+      "width": 130,
+      "height": 525
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        125,
+        523
+      ],
+      "width": 125,
+      "height": 523
+    }
+  },
+  {
+    "fixture": "fixtures/sequence/sequenceleftmessageandactivelifelines_0003.puml",
+    "ref": "reference/sequence/sequenceleftmessageandactivelifelines_0003.svg",
+    "type": "SEQUENCE",
+    "our": {
+      "vb": [
+        0,
+        0,
+        266,
+        374
+      ],
+      "width": 266,
+      "height": 374
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        261,
+        372
+      ],
+      "width": 261,
+      "height": 372
+    }
+  },
+  {
+    "fixture": "fixtures/sequence/svg0001.puml",
+    "ref": "reference/sequence/svg0001.svg",
+    "type": "SEQUENCE",
+    "our": {
+      "vb": [
+        0,
+        0,
+        850,
+        241
+      ],
+      "width": 850,
+      "height": 241
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        846,
+        240
+      ],
+      "width": 846,
+      "height": 240
+    }
+  },
+  {
+    "fixture": "fixtures/sequence/svg0003.puml",
+    "ref": "reference/sequence/svg0003.svg",
+    "type": "SEQUENCE",
+    "our": {
+      "vb": [
+        0,
+        0,
+        2976,
+        122
+      ],
+      "width": 2976,
+      "height": 122
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        2971,
+        120
+      ],
+      "width": 2971,
+      "height": 120
+    }
+  },
+  {
+    "fixture": "fixtures/sequence/test_0.puml",
+    "ref": "reference/sequence/test_0.svg",
+    "type": "SEQUENCE",
+    "our": {
+      "vb": [
+        0,
+        0,
+        162,
+        122
+      ],
+      "width": 162,
+      "height": 122
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        157,
+        120
+      ],
+      "width": 157,
+      "height": 120
+    }
+  },
+  {
+    "fixture": "fixtures/sprite/azureSVG.puml",
+    "ref": "reference/sprite/azureSVG.svg",
+    "type": "SEQUENCE",
+    "our": {
+      "vb": [
+        0,
+        0,
+        414,
+        349
+      ],
+      "width": 414,
+      "height": 349
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        409,
+        347
+      ],
+      "width": 409,
+      "height": 347
+    }
+  },
+  {
+    "fixture": "fixtures/sprite/linearGradientSpreadPad.puml",
+    "ref": "reference/sprite/linearGradientSpreadPad.svg",
+    "type": "SEQUENCE",
+    "our": {
+      "vb": [
+        0,
+        0,
+        384,
+        147
+      ],
+      "width": 384,
+      "height": 147
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        379,
+        145
+      ],
+      "width": 379,
+      "height": 145
+    }
+  },
+  {
+    "fixture": "fixtures/sprite/linearGradientSpreadReflect.puml",
+    "ref": "reference/sprite/linearGradientSpreadReflect.svg",
+    "type": "SEQUENCE",
+    "our": {
+      "vb": [
+        0,
+        0,
+        384,
+        147
+      ],
+      "width": 384,
+      "height": 147
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        379,
+        145
+      ],
+      "width": 379,
+      "height": 145
+    }
+  },
+  {
+    "fixture": "fixtures/sprite/linearGradientSpreadRepeat.puml",
+    "ref": "reference/sprite/linearGradientSpreadRepeat.svg",
+    "type": "SEQUENCE",
+    "our": {
+      "vb": [
+        0,
+        0,
+        384,
+        147
+      ],
+      "width": 384,
+      "height": 147
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        379,
+        145
+      ],
+      "width": 379,
+      "height": 145
+    }
+  },
+  {
+    "fixture": "fixtures/sprite/styleFontWeightRoboto.puml",
+    "ref": "reference/sprite/styleFontWeightRoboto.svg",
+    "type": "SEQUENCE",
+    "our": {
+      "vb": [
+        0,
+        0,
+        115,
+        122
+      ],
+      "width": 115,
+      "height": 122
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        161,
+        148
+      ],
+      "width": 161,
+      "height": 148
+    }
+  },
+  {
+    "fixture": "fixtures/sprite/svg2Groups.puml",
+    "ref": "reference/sprite/svg2Groups.svg",
+    "type": "SEQUENCE",
+    "our": {
+      "vb": [
+        0,
+        0,
+        278,
+        167
+      ],
+      "width": 278,
+      "height": 167
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        273,
+        165
+      ],
+      "width": 273,
+      "height": 165
+    }
+  },
+  {
+    "fixture": "fixtures/sprite/svg2GroupsInlineStyled.puml",
+    "ref": "reference/sprite/svg2GroupsInlineStyled.svg",
+    "type": "SEQUENCE",
+    "our": {
+      "vb": [
+        0,
+        0,
+        298,
+        167
+      ],
+      "width": 298,
+      "height": 167
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        293,
+        165
+      ],
+      "width": 293,
+      "height": 165
+    }
+  },
+  {
+    "fixture": "fixtures/sprite/svg2GroupsWithStyle.puml",
+    "ref": "reference/sprite/svg2GroupsWithStyle.svg",
+    "type": "SEQUENCE",
+    "our": {
+      "vb": [
+        0,
+        0,
+        298,
+        167
+      ],
+      "width": 298,
+      "height": 167
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        943,
+        1192
+      ],
+      "width": 943,
+      "height": 1192
+    }
+  },
+  {
+    "fixture": "fixtures/sprite/svgDiagonalGradientBLTR.puml",
+    "ref": "reference/sprite/svgDiagonalGradientBLTR.svg",
+    "type": "SEQUENCE",
+    "our": {
+      "vb": [
+        0,
+        0,
+        258,
+        157
+      ],
+      "width": 258,
+      "height": 157
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        253,
+        155
+      ],
+      "width": 253,
+      "height": 155
+    }
+  },
+  {
+    "fixture": "fixtures/sprite/svgDiagonalGradientBLTRMonochrome.puml",
+    "ref": "reference/sprite/svgDiagonalGradientBLTRMonochrome.svg",
+    "type": "SEQUENCE",
+    "our": {
+      "vb": [
+        0,
+        0,
+        333,
+        157
+      ],
+      "width": 333,
+      "height": 157
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        328,
+        155
+      ],
+      "width": 328,
+      "height": 155
+    }
+  },
+  {
+    "fixture": "fixtures/sprite/svgDiagonalGradientTLBR.puml",
+    "ref": "reference/sprite/svgDiagonalGradientTLBR.svg",
+    "type": "SEQUENCE",
+    "our": {
+      "vb": [
+        0,
+        0,
+        258,
+        157
+      ],
+      "width": 258,
+      "height": 157
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        253,
+        155
+      ],
+      "width": 253,
+      "height": 155
+    }
+  },
+  {
+    "fixture": "fixtures/sprite/svgEmbeddedPNG.puml",
+    "ref": "reference/sprite/svgEmbeddedPNG.svg",
+    "type": "SEQUENCE",
+    "our": {
+      "vb": [
+        0,
+        0,
+        391,
+        147
+      ],
+      "width": 391,
+      "height": 147
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        386,
+        145
+      ],
+      "width": 386,
+      "height": 145
+    }
+  },
+  {
+    "fixture": "fixtures/sprite/svgFillColourTest_2174.puml",
+    "ref": "reference/sprite/svgFillColourTest_2174.svg",
+    "type": "CLASS",
+    "our": {
+      "vb": [
+        0,
+        0,
+        305,
+        295
+      ],
+      "width": 305,
+      "height": 295
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        204,
+        305
+      ],
+      "width": 204,
+      "height": 305
+    }
+  },
+  {
+    "fixture": "fixtures/sprite/svgFontWeightMultiWeight.puml",
+    "ref": "reference/sprite/svgFontWeightMultiWeight.svg",
+    "type": "SEQUENCE",
+    "our": {
+      "vb": [
+        0,
+        0,
+        577,
+        417
+      ],
+      "width": 577,
+      "height": 417
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        572,
+        415
+      ],
+      "width": 572,
+      "height": 415
+    }
+  },
+  {
+    "fixture": "fixtures/sprite/svgFontWeightStandardFonts.puml",
+    "ref": "reference/sprite/svgFontWeightStandardFonts.svg",
+    "type": "SEQUENCE",
+    "our": {
+      "vb": [
+        0,
+        0,
+        604,
+        397
+      ],
+      "width": 604,
+      "height": 397
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        599,
+        395
+      ],
+      "width": 599,
+      "height": 395
+    }
+  },
+  {
+    "fixture": "fixtures/sprite/svgLinearGradientCircle.puml",
+    "ref": "reference/sprite/svgLinearGradientCircle.svg",
+    "type": "SEQUENCE",
+    "our": {
+      "vb": [
+        0,
+        0,
+        311,
+        207
+      ],
+      "width": 311,
+      "height": 207
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        306,
+        205
+      ],
+      "width": 306,
+      "height": 205
+    }
+  },
+  {
+    "fixture": "fixtures/sprite/svgPolygonStar.puml",
+    "ref": "reference/sprite/svgPolygonStar.svg",
+    "type": "SEQUENCE",
+    "our": {
+      "vb": [
+        0,
+        0,
+        258,
+        207
+      ],
+      "width": 258,
+      "height": 207
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        253,
+        205
+      ],
+      "width": 253,
+      "height": 205
+    }
+  },
+  {
+    "fixture": "fixtures/sprite/svgRadialGradient.puml",
+    "ref": "reference/sprite/svgRadialGradient.svg",
+    "type": "SEQUENCE",
+    "our": {
+      "vb": [
+        0,
+        0,
+        258,
+        207
+      ],
+      "width": 258,
+      "height": 207
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        253,
+        205
+      ],
+      "width": 253,
+      "height": 205
+    }
+  },
+  {
+    "fixture": "fixtures/sprite/svgRedCircle.puml",
+    "ref": "reference/sprite/svgRedCircle.svg",
+    "type": "SEQUENCE",
+    "our": {
+      "vb": [
+        0,
+        0,
+        194,
+        143
+      ],
+      "width": 194,
+      "height": 143
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        189,
+        141
+      ],
+      "width": 189,
+      "height": 141
+    }
+  },
+  {
+    "fixture": "fixtures/sprite/svgRedEllipse.puml",
+    "ref": "reference/sprite/svgRedEllipse.svg",
+    "type": "SEQUENCE",
+    "our": {
+      "vb": [
+        0,
+        0,
+        230,
+        143
+      ],
+      "width": 230,
+      "height": 143
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        225,
+        141
+      ],
+      "width": 225,
+      "height": 141
+    }
+  },
+  {
+    "fixture": "fixtures/sprite/svgRedLine.puml",
+    "ref": "reference/sprite/svgRedLine.svg",
+    "type": "SEQUENCE",
+    "our": {
+      "vb": [
+        0,
+        0,
+        258,
+        122
+      ],
+      "width": 258,
+      "height": 122
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        253,
+        120
+      ],
+      "width": 253,
+      "height": 120
+    }
+  },
+  {
+    "fixture": "fixtures/sprite/svgRedPolyLine.puml",
+    "ref": "reference/sprite/svgRedPolyLine.svg",
+    "type": "SEQUENCE",
+    "our": {
+      "vb": [
+        0,
+        0,
+        258,
+        147
+      ],
+      "width": 258,
+      "height": 147
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        253,
+        145
+      ],
+      "width": 253,
+      "height": 145
+    }
+  },
+  {
+    "fixture": "fixtures/sprite/svgRedRect.puml",
+    "ref": "reference/sprite/svgRedRect.svg",
+    "type": "SEQUENCE",
+    "our": {
+      "vb": [
+        0,
+        0,
+        258,
+        157
+      ],
+      "width": 258,
+      "height": 157
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        253,
+        155
+      ],
+      "width": 253,
+      "height": 155
+    }
+  },
+  {
+    "fixture": "fixtures/sprite/svgRedRectLinearGradient.puml",
+    "ref": "reference/sprite/svgRedRectLinearGradient.svg",
+    "type": "SEQUENCE",
+    "our": {
+      "vb": [
+        0,
+        0,
+        258,
+        157
+      ],
+      "width": 258,
+      "height": 157
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        253,
+        155
+      ],
+      "width": 253,
+      "height": 155
+    }
+  },
+  {
+    "fixture": "fixtures/sprite/svgRedStroke.puml",
+    "ref": "reference/sprite/svgRedStroke.svg",
+    "type": "SEQUENCE",
+    "our": {
+      "vb": [
+        0,
+        0,
+        258,
+        122
+      ],
+      "width": 258,
+      "height": 122
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        253,
+        120
+      ],
+      "width": 253,
+      "height": 120
+    }
+  },
+  {
+    "fixture": "fixtures/sprite/svgRedText.puml",
+    "ref": "reference/sprite/svgRedText.svg",
+    "type": "SEQUENCE",
+    "our": {
+      "vb": [
+        0,
+        0,
+        278,
+        137
+      ],
+      "width": 278,
+      "height": 137
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        273,
+        135
+      ],
+      "width": 273,
+      "height": 135
+    }
+  },
+  {
+    "fixture": "fixtures/sprite/svgTextAnchor.puml",
+    "ref": "reference/sprite/svgTextAnchor.svg",
+    "type": "SEQUENCE",
+    "our": {
+      "vb": [
+        0,
+        0,
+        354,
+        207
+      ],
+      "width": 354,
+      "height": 207
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        349,
+        205
+      ],
+      "width": 349,
+      "height": 205
+    }
+  },
+  {
+    "fixture": "fixtures/sprite/svgTextBold.puml",
+    "ref": "reference/sprite/svgTextBold.svg",
+    "type": "SEQUENCE",
+    "our": {
+      "vb": [
+        0,
+        0,
+        369,
+        197
+      ],
+      "width": 369,
+      "height": 197
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        364,
+        195
+      ],
+      "width": 364,
+      "height": 195
+    }
+  },
+  {
+    "fixture": "fixtures/sprite/svgTextDecoration.puml",
+    "ref": "reference/sprite/svgTextDecoration.svg",
+    "type": "SEQUENCE",
+    "our": {
+      "vb": [
+        0,
+        0,
+        414,
+        207
+      ],
+      "width": 414,
+      "height": 207
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        409,
+        205
+      ],
+      "width": 409,
+      "height": 205
+    }
+  },
+  {
+    "fixture": "fixtures/sprite/svgTextItalic.puml",
+    "ref": "reference/sprite/svgTextItalic.svg",
+    "type": "SEQUENCE",
+    "our": {
+      "vb": [
+        0,
+        0,
+        326,
+        187
+      ],
+      "width": 326,
+      "height": 187
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        321,
+        185
+      ],
+      "width": 321,
+      "height": 185
+    }
+  },
+  {
+    "fixture": "fixtures/sprite/svgTextStyleAttr.puml",
+    "ref": "reference/sprite/svgTextStyleAttr.svg",
+    "type": "SEQUENCE",
+    "our": {
+      "vb": [
+        0,
+        0,
+        415,
+        167
+      ],
+      "width": 415,
+      "height": 167
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        410,
+        165
+      ],
+      "width": 410,
+      "height": 165
+    }
+  },
+  {
+    "fixture": "fixtures/sprite/svgTransformGroup.puml",
+    "ref": "reference/sprite/svgTransformGroup.svg",
+    "type": "ACTIVITY",
+    "our": {
+      "vb": [
+        0,
+        0,
+        417,
+        347
+      ],
+      "width": 417,
+      "height": 347
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        403,
+        333
+      ],
+      "width": 403,
+      "height": 333
+    }
+  },
+  {
+    "fixture": "fixtures/sprite/svgTransformMatrix.puml",
+    "ref": "reference/sprite/svgTransformMatrix.svg",
+    "type": "ACTIVITY",
+    "our": {
+      "vb": [
+        0,
+        0,
+        469,
+        347
+      ],
+      "width": 469,
+      "height": 347
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        455,
+        333
+      ],
+      "width": 455,
+      "height": 333
+    }
+  },
+  {
+    "fixture": "fixtures/sprite/svgTransformRotate.puml",
+    "ref": "reference/sprite/svgTransformRotate.svg",
+    "type": "ACTIVITY",
+    "our": {
+      "vb": [
+        0,
+        0,
+        474,
+        347
+      ],
+      "width": 474,
+      "height": 347
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        460,
+        333
+      ],
+      "width": 460,
+      "height": 333
+    }
+  },
+  {
+    "fixture": "fixtures/sprite/svgTransformScale.puml",
+    "ref": "reference/sprite/svgTransformScale.svg",
+    "type": "ACTIVITY",
+    "our": {
+      "vb": [
+        0,
+        0,
+        328,
+        347
+      ],
+      "width": 328,
+      "height": 347
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        314,
+        333
+      ],
+      "width": 314,
+      "height": 333
+    }
+  },
+  {
+    "fixture": "fixtures/sprite/svgTransformTranslate.puml",
+    "ref": "reference/sprite/svgTransformTranslate.svg",
+    "type": "ACTIVITY",
+    "our": {
+      "vb": [
+        0,
+        0,
+        397,
+        293
+      ],
+      "width": 397,
+      "height": 293
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        383,
+        279
+      ],
+      "width": 383,
+      "height": 279
+    }
+  },
+  {
+    "fixture": "fixtures/sprite/svgUseDefs.puml",
+    "ref": "reference/sprite/svgUseDefs.svg",
+    "type": "SEQUENCE",
+    "our": {
+      "vb": [
+        0,
+        0,
+        278,
+        167
+      ],
+      "width": 278,
+      "height": 167
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        273,
+        165
+      ],
+      "width": 273,
+      "height": 165
+    }
+  },
+  {
+    "fixture": "fixtures/sprite/svgVerticalGradient.puml",
+    "ref": "reference/sprite/svgVerticalGradient.svg",
+    "type": "SEQUENCE",
+    "our": {
+      "vb": [
+        0,
+        0,
+        258,
+        157
+      ],
+      "width": 258,
+      "height": 157
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        253,
+        155
+      ],
+      "width": 253,
+      "height": 155
+    }
+  },
+  {
+    "fixture": "fixtures/sprite/testGradientSprite.puml",
+    "ref": "reference/sprite/testGradientSprite.svg",
+    "type": "SEQUENCE",
+    "our": {
+      "vb": [
+        0,
+        0,
+        485,
+        336
+      ],
+      "width": 485,
+      "height": 336
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        481,
+        334
+      ],
+      "width": 481,
+      "height": 334
+    }
+  },
+  {
+    "fixture": "fixtures/sprite/testPolylineSprites.puml",
+    "ref": "reference/sprite/testPolylineSprites.svg",
+    "type": "SEQUENCE",
+    "our": {
+      "vb": [
+        0,
+        0,
+        542,
+        410
+      ],
+      "width": 542,
+      "height": 410
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        537,
+        408
+      ],
+      "width": 537,
+      "height": 408
+    }
+  },
+  {
+    "fixture": "fixtures/state/scxml0001.puml",
+    "ref": "reference/state/scxml0001.svg",
+    "type": "STATE",
+    "our": {
+      "vb": [
+        0,
+        0,
+        76,
+        278
+      ],
+      "width": 76,
+      "height": 278
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        68,
+        270
+      ],
+      "width": 68,
+      "height": 270
+    }
+  },
+  {
+    "fixture": "fixtures/state/scxml0002.puml",
+    "ref": "reference/state/scxml0002.svg",
+    "type": "STATE",
+    "our": {
+      "vb": [
+        0,
+        0,
+        759,
+        225
+      ],
+      "width": 759,
+      "height": 225
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        743,
+        214
+      ],
+      "width": 743,
+      "height": 214
+    }
+  },
+  {
+    "fixture": "fixtures/state/scxml0003.puml",
+    "ref": "reference/state/scxml0003.svg",
+    "type": "STATE",
+    "our": {
+      "vb": [
+        0,
+        0,
+        1177,
+        436
+      ],
+      "width": 1177,
+      "height": 436
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        1177,
+        428
+      ],
+      "width": 1177,
+      "height": 428
+    }
+  },
+  {
+    "fixture": "fixtures/state/scxml0004.puml",
+    "ref": "reference/state/scxml0004.svg",
+    "type": "STATE",
+    "our": {
+      "vb": [
+        0,
+        0,
+        266,
+        234
+      ],
+      "width": 266,
+      "height": 234
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        249,
+        223
+      ],
+      "width": 249,
+      "height": 223
+    }
+  },
+  {
+    "fixture": "fixtures/state/scxml0005.puml",
+    "ref": "reference/state/scxml0005.svg",
+    "type": "STATE",
+    "our": {
+      "vb": [
+        0,
+        0,
+        332,
+        71
+      ],
+      "width": 332,
+      "height": 71
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        324,
+        63
+      ],
+      "width": 324,
+      "height": 63
+    }
+  },
+  {
+    "fixture": "fixtures/state/state_choice001.puml",
+    "ref": "reference/state/state_choice001.svg",
+    "type": "STATE",
+    "our": {
+      "vb": [
+        0,
+        0,
+        234,
+        363
+      ],
+      "width": 234,
+      "height": 363
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        226,
+        355
+      ],
+      "width": 226,
+      "height": 355
+    }
+  },
+  {
+    "fixture": "fixtures/state/state_concurrent001.puml",
+    "ref": "reference/state/state_concurrent001.svg",
+    "type": "STATE",
+    "our": {
+      "vb": [
+        0,
+        0,
+        113,
+        630
+      ],
+      "width": 113,
+      "height": 630
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        97,
+        616
+      ],
+      "width": 97,
+      "height": 616
+    }
+  },
+  {
+    "fixture": "fixtures/state/state_fork001.puml",
+    "ref": "reference/state/state_fork001.svg",
+    "type": "STATE",
+    "our": {
+      "vb": [
+        0,
+        0,
+        340,
+        620
+      ],
+      "width": 340,
+      "height": 620
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        320,
+        609
+      ],
+      "width": 320,
+      "height": 609
+    }
+  },
+  {
+    "fixture": "fixtures/state/state_history001.puml",
+    "ref": "reference/state/state_history001.svg",
+    "type": "STATE",
+    "our": {
+      "vb": [
+        0,
+        0,
+        210,
+        404
+      ],
+      "width": 210,
+      "height": 404
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        208,
+        396
+      ],
+      "width": 208,
+      "height": 396
+    }
+  },
+  {
+    "fixture": "fixtures/state/state_monoline_01.puml",
+    "ref": "reference/state/state_monoline_01.svg",
+    "type": "STATE",
+    "our": {
+      "vb": [
+        0,
+        0,
+        132,
+        99
+      ],
+      "width": 132,
+      "height": 99
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        124,
+        91
+      ],
+      "width": 124,
+      "height": 91
+    }
+  },
+  {
+    "fixture": "fixtures/state/state_monoline_02.puml",
+    "ref": "reference/state/state_monoline_02.svg",
+    "type": "STATE",
+    "our": {
+      "vb": [
+        0,
+        0,
+        72,
+        141
+      ],
+      "width": 72,
+      "height": 141
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        64,
+        133
+      ],
+      "width": 64,
+      "height": 133
+    }
+  },
+  {
+    "fixture": "fixtures/state/state_monoline_03.puml",
+    "ref": "reference/state/state_monoline_03.svg",
+    "type": "STATE",
+    "our": {
+      "vb": [
+        0,
+        0,
+        274,
+        288
+      ],
+      "width": 274,
+      "height": 288
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        266,
+        280
+      ],
+      "width": 266,
+      "height": 280
+    }
+  },
+  {
+    "fixture": "fixtures/state/state_note001.puml",
+    "ref": "reference/state/state_note001.svg",
+    "type": "STATE",
+    "our": {
+      "vb": [
+        0,
+        0,
+        371,
+        366
+      ],
+      "width": 371,
+      "height": 366
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        356,
+        355
+      ],
+      "width": 356,
+      "height": 355
+    }
+  },
+  {
+    "fixture": "fixtures/timing/timingmessagearrowfont_0001.puml",
+    "ref": "reference/timing/timingmessagearrowfont_0001.svg",
+    "type": "TIMING",
+    "our": {
+      "vb": [
+        0,
+        0,
+        504,
+        257
+      ],
+      "width": 504,
+      "height": 257
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        490,
+        243
+      ],
+      "width": 490,
+      "height": 243
+    }
+  },
+  {
+    "fixture": "fixtures/timing/timingmessagearrowfont_0002.puml",
+    "ref": "reference/timing/timingmessagearrowfont_0002.svg",
+    "type": "TIMING",
+    "our": {
+      "vb": [
+        0,
+        0,
+        515,
+        274
+      ],
+      "width": 515,
+      "height": 274
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        501,
+        260
+      ],
+      "width": 501,
+      "height": 260
+    }
+  },
+  {
+    "fixture": "fixtures/usecase/basic.puml",
+    "ref": "reference/usecase/basic.svg",
+    "type": "DESCRIPTION",
+    "our": {
+      "vb": [
+        0,
+        0,
+        430,
+        191
+      ],
+      "width": 430,
+      "height": 191
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        422,
+        181
+      ],
+      "width": 422,
+      "height": 181
+    }
+  },
+  {
+    "fixture": "fixtures/usecase/boundary.puml",
+    "ref": "reference/usecase/boundary.svg",
+    "type": "DESCRIPTION",
+    "our": {
+      "vb": [
+        0,
+        0,
+        644,
+        383
+      ],
+      "width": 644,
+      "height": 383
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        636,
+        373
+      ],
+      "width": 636,
+      "height": 373
+    }
+  },
+  {
+    "fixture": "fixtures/usecase/colon_actor.puml",
+    "ref": "reference/usecase/colon_actor.svg",
+    "type": "DESCRIPTION",
+    "our": {
+      "vb": [
+        0,
+        0,
+        382,
+        200
+      ],
+      "width": 382,
+      "height": 200
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        334,
+        182
+      ],
+      "width": 334,
+      "height": 182
+    }
+  },
+  {
+    "fixture": "fixtures/wbs/link_url_tooltip_01.puml",
+    "ref": "reference/wbs/link_url_tooltip_01.svg",
+    "type": "WBS",
+    "our": {
+      "vb": [
+        0,
+        0,
+        188,
+        114
+      ],
+      "width": 188,
+      "height": 114
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        751,
+        898
+      ],
+      "width": 751,
+      "height": 898
+    }
+  },
+  {
+    "fixture": "fixtures/wbs/link_url_tooltip_02.puml",
+    "ref": "reference/wbs/link_url_tooltip_02.svg",
+    "type": "WBS",
+    "our": {
+      "vb": [
+        0,
+        0,
+        188,
+        114
+      ],
+      "width": 188,
+      "height": 114
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        168,
+        75
+      ],
+      "width": 168,
+      "height": 75
+    }
+  },
+  {
+    "fixture": "fixtures/wbs/link_url_tooltip_03.puml",
+    "ref": "reference/wbs/link_url_tooltip_03.svg",
+    "type": "WBS",
+    "our": {
+      "vb": [
+        0,
+        0,
+        188,
+        114
+      ],
+      "width": 188,
+      "height": 114
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        168,
+        75
+      ],
+      "width": 168,
+      "height": 75
+    }
+  },
+  {
+    "fixture": "fixtures/wbs/wbs_arrow.puml",
+    "ref": "reference/wbs/wbs_arrow.svg",
+    "type": "WBS",
+    "our": {
+      "vb": [
+        0,
+        0,
+        219,
+        162
+      ],
+      "width": 219,
+      "height": 162
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        199,
+        142
+      ],
+      "width": 199,
+      "height": 142
+    }
+  },
+  {
+    "fixture": "fixtures/wbs/wbs_direction.puml",
+    "ref": "reference/wbs/wbs_direction.svg",
+    "type": "WBS",
+    "our": {
+      "vb": [
+        0,
+        0,
+        304,
+        288
+      ],
+      "width": 304,
+      "height": 288
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        284,
+        268
+      ],
+      "width": 284,
+      "height": 268
+    }
+  },
+  {
+    "fixture": "fixtures/wire/basic.puml",
+    "ref": "reference/wire/basic.svg",
+    "type": "DESCRIPTION",
+    "our": {
+      "vb": [
+        0,
+        0,
+        78,
+        190
+      ],
+      "width": 78,
+      "height": 190
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        368,
+        120
+      ],
+      "width": 368,
+      "height": 120
+    }
+  },
+  {
+    "fixture": "fixtures/wire/multi.puml",
+    "ref": "reference/wire/multi.svg",
+    "type": "DESCRIPTION",
+    "our": {
+      "vb": [
+        0,
+        0,
+        159,
+        313
+      ],
+      "width": 159,
+      "height": 313
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        368,
+        120
+      ],
+      "width": 368,
+      "height": 120
+    }
+  },
+  {
+    "fixture": "fixtures/yaml/basic.puml",
+    "ref": "reference/yaml/basic.svg",
+    "type": "YAML",
+    "our": {
+      "vb": [
+        0,
+        0,
+        644,
+        183
+      ],
+      "width": 644,
+      "height": 183
+    },
+    "refd": {
+      "vb": [
+        0,
+        0,
+        600,
+        240
+      ],
+      "width": 600,
+      "height": 240
+    }
+  }
+]

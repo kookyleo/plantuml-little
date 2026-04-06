@@ -1,0 +1,907 @@
+
+running 296 tests
+test reference_fixtures_activity_activity_mono_multi_line2_puml ... ok
+test reference_fixtures_activity_activity_creole_table_01_puml ... ok
+test reference_fixtures_activity_activity_mono_multi_line_puml ... ok
+test reference_fixtures_activity_activity_mono_multi_line2_v2_puml ... ok
+test reference_fixtures_activity_activity_creole_table_02_puml ... ok
+test reference_fixtures_activity_swimlane001_puml ... ok
+test reference_fixtures_activity_activity_mono_multi_line_v2_puml ... ok
+test reference_fixtures_activity_a0002_puml ... FAILED
+test reference_fixtures_class_hideshow003_puml ... ok
+test reference_fixtures_component_buitin_newline_chr_puml ... ok
+test reference_fixtures_class_hideshow004_puml ... ok
+test reference_fixtures_class_hideshow001_puml ... ok
+test reference_fixtures_class_class_funcparam_arrow_02_puml ... ok
+test reference_fixtures_class_xmi0003_puml ... ok
+test reference_fixtures_component_colors001_puml ... ok
+test reference_fixtures_class_hideshow002_puml ... ok
+test reference_fixtures_component_gml0000_puml ... ok
+test reference_fixtures_component_gml0001_puml ... ok
+test reference_fixtures_component_componentextraarrows_0001_puml ... FAILED
+test reference_fixtures_class_xmi0002_puml ... ok
+test reference_fixtures_component_xmi0001_puml ... FAILED
+test reference_fixtures_class_generics001_puml ... ok
+test reference_fixtures_component_jaws5_puml ... FAILED
+test reference_fixtures_component_deployment01_puml ... FAILED
+test reference_fixtures_class_xmi0004_puml ... ok
+test reference_fixtures_dev_jaws_jaws12_puml ... FAILED
+test reference_fixtures_component_deployment_last_name_multi_line_puml ... ok
+test reference_fixtures_dev_jaws_jaws8_puml ... ok
+test reference_fixtures_dev_jaws_jaws9_puml ... ok
+test reference_fixtures_class_a0005_puml ... ok
+test reference_fixtures_class_colors001_puml ... ok
+test reference_fixtures_dev_newline_WBS_arrow_puml ... ok
+test reference_fixtures_dev_jaws_jaws5_puml ... FAILED
+test reference_fixtures_dev_newline_activity_mono_multi_line2_puml ... ok
+test reference_fixtures_dev_newline_activity_creole_table_puml ... ok
+test reference_fixtures_dev_newline_WBS_direction_puml ... ok
+test reference_fixtures_dev_newline_activity_mono_multi_line_puml ... ok
+test reference_fixtures_dev_newline_builtin_newline_puml ... ok
+test reference_fixtures_dev_jaws_jaws11_puml ... ok
+test reference_fixtures_dev_jaws_jaws10_puml ... ok
+test reference_fixtures_component_subdiagram_theme_02_puml ... FAILED
+test reference_fixtures_class_class_funcparam_arrow_01_puml ... ok
+test reference_fixtures_dev_jaws_jaws3_puml ... FAILED
+test reference_fixtures_dev_newline_json_escaped_puml ... ok
+test reference_fixtures_class_qualifiedassoc002_puml ... ok
+test reference_fixtures_dev_jaws_jaws4_puml ... ok
+test reference_fixtures_dev_newline_link_URL_tooltip_puml ... ok
+test reference_fixtures_dev_jaws_jaws2_puml ... ok
+test reference_fixtures_ditaa_basic_puml ... ok
+test reference_fixtures_dev_newlinev2_activity_mono_multi_line2_v2_puml ... ok
+test reference_fixtures_dev_newline_deployment_on_name_puml ... FAILED
+test reference_fixtures_dev_newlinev2_activity_mono_multi_line_v2_puml ... ok
+test reference_fixtures_dev_newline_deployment_mono_multi_line_puml ... FAILED
+test reference_fixtures_dev_newline_preproc_functionparam_line_continuation_puml ... ok
+test reference_fixtures_erd_chenrankdir_puml ... ok
+test reference_fixtures_erd_chenmovie_puml ... ok
+test reference_fixtures_dev_newline_state_monoline_puml ... ok
+test reference_fixtures_dev_newline_buitin_newline_chr_puml ... ok
+test reference_fixtures_erd_weak001_puml ... ok
+test reference_fixtures_misc_a0004_puml ... ok
+test reference_fixtures_dev_newline_deployment_last_name_multi_line_puml ... ok
+test reference_fixtures_erd_chenmoviealias_puml ... ok
+test reference_fixtures_erd_chenmovieextended_puml ... ok
+test reference_fixtures_json_json_escaped_puml ... ok
+test reference_fixtures_mindmap_jaws12_puml ... FAILED
+test reference_fixtures_dev_jaws_jaws6_puml ... ok
+test reference_fixtures_dot_basic_puml ... ok
+test reference_fixtures_misc_deployment_on_name_puml ... FAILED
+test reference_fixtures_dev_newline_seq_mono_line_puml ... ok
+test reference_fixtures_misc_link_url_tooltip_04_puml ... FAILED
+test reference_fixtures_dev_jaws_jaws7_puml ... FAILED
+test reference_fixtures_gantt_a0003_puml ... ok
+test reference_fixtures_misc_creole_font001_puml ... ok
+test reference_fixtures_misc_creole_back001_puml ... ok
+test reference_fixtures_misc_creole_note001_puml ... FAILED
+test reference_fixtures_misc_skinparam_class001_puml ... ok
+test reference_fixtures_misc_creole_sup_sub001_puml ... ok
+test reference_fixtures_misc_creole_mixed001_puml ... ok
+test reference_fixtures_nonreg_graphml_GML0000_puml ... ok
+test reference_fixtures_class_qualifiedassoc001_puml ... ok
+test reference_fixtures_nonreg_graphml_GML0001_puml ... ok
+test reference_fixtures_nonreg_scxml_SCXML0001_puml ... ok
+test reference_fixtures_dev_newline_class_funcparam_arrow_puml ... ok
+test reference_fixtures_misc_skinparam_font001_puml ... ok
+test reference_fixtures_misc_meta_title_header_footer_puml ... ok
+test reference_fixtures_dev_newline_subdiagram_theme_puml ... FAILED
+test reference_fixtures_nonreg_scxml_SCXML0005_puml ... ok
+test reference_fixtures_misc_skinparam_colors001_puml ... ok
+test reference_fixtures_nonreg_scxml_SCXML0004_puml ... FAILED
+test reference_fixtures_misc_skinparam_handwritten001_puml ... FAILED
+test reference_fixtures_nonreg_scxml_SCXML0002_puml ... FAILED
+test reference_fixtures_misc_xmi0000_puml ... ok
+test reference_fixtures_nonreg_simple_A0004_puml ... FAILED
+test reference_fixtures_misc_skinparam_monochrome001_puml ... ok
+test reference_fixtures_nonreg_simple_ChenRankDir_puml ... FAILED
+test reference_fixtures_nonreg_simple_ChenMovie_puml ... FAILED
+test reference_fixtures_misc_skinparam_sequence001_puml ... ok
+test reference_fixtures_nonreg_scxml_SCXML0003_puml ... FAILED
+test reference_fixtures_nonreg_simple_ChenMovieAlias_puml ... FAILED
+test reference_fixtures_nonreg_simple_ChenMovieExtended_puml ... FAILED
+test reference_fixtures_nonreg_simple_A0002_puml ... FAILED
+test reference_fixtures_misc_skinparam_roundcorner001_puml ... ok
+test reference_fixtures_nonreg_simple_A0000_puml ... ok
+test reference_fixtures_nonreg_simple_ComponentExtraArrows_0001_puml ... FAILED
+test reference_fixtures_nonreg_simple_A0006_puml ... ok
+test reference_fixtures_nonreg_simple_A0001_puml ... ok
+test reference_fixtures_nonreg_simple_A0003_puml ... FAILED
+test reference_fixtures_nonreg_simple_HideShow001_puml ... ok
+test reference_fixtures_nonreg_simple_HideShow003_puml ... ok
+test reference_fixtures_nonreg_simple_HideShow004_puml ... ok
+test reference_fixtures_nonreg_simple_HideShow002_puml ... ok
+test reference_fixtures_nonreg_simple_A0005_puml ... ok
+test reference_fixtures_nonreg_simple_SequenceLayout_0001_puml ... ok
+test reference_fixtures_nonreg_simple_SequenceLayout_0003_puml ... ok
+test reference_fixtures_nonreg_simple_SequenceLayout_0002_puml ... ok
+test reference_fixtures_nonreg_simple_SequenceLayout_0001b_puml ... ok
+test reference_fixtures_nonreg_simple_SequenceLayout_0004_puml ... ok
+test reference_fixtures_nonreg_simple_SequenceLayout_0006_puml ... ok
+test reference_fixtures_nonreg_simple_SequenceLayout_0005_puml ... ok
+test reference_fixtures_nonreg_simple_SequenceLayout_0005b_puml ... ok
+test reference_fixtures_nonreg_simple_SequenceLayout_0001c_puml ... ok
+test reference_fixtures_misc_link_url_tooltip_05_puml ... ok
+test reference_fixtures_nonreg_simple_SequenceLeftMessageAndActiveLifeLines_0001_puml ... FAILED
+test reference_fixtures_nonreg_simple_SequenceArrows_0001_puml ... FAILED
+test reference_fixtures_nonreg_simple_QualifiedAssoc002_puml ... ok
+test reference_fixtures_nonreg_simple_SequenceArrows_0002_puml ... FAILED
+test reference_fixtures_nonreg_simple_SequenceLeftMessageAndActiveLifeLines_0002_puml ... FAILED
+test reference_fixtures_nonreg_simple_TeozAltElseParallel_0001_puml ... FAILED
+test reference_fixtures_nonreg_simple_TeozAltElseParallel_0002_puml ... FAILED
+test reference_fixtures_nonreg_simple_TeozAltElseParallel_0003_puml ... ok
+test reference_fixtures_nonreg_simple_TeozTimelineIssues_0001_puml ... ok
+test reference_fixtures_nonreg_simple_TimingMessageArrowFont_0001_puml ... FAILED
+test reference_fixtures_nonreg_simple_TeozAltElseParallel_0004_puml ... FAILED
+test reference_fixtures_nonreg_simple_TeozAltElseParallel_0006_puml ... FAILED
+test reference_fixtures_nonreg_simple_TeozAltElseParallel_0005_puml ... FAILED
+test reference_fixtures_nonreg_simple_TeozTimelineIssues_0003_puml ... ok
+test reference_fixtures_nonreg_simple_TeozTimelineIssues_0002_puml ... FAILED
+test reference_fixtures_nonreg_simple_TimingMessageArrowFont_0002_puml ... FAILED
+test reference_fixtures_nonreg_simple_TeozTimelineIssues_0004_puml ... FAILED
+test reference_fixtures_nonreg_simple_TeozTimelineIssues_0006_puml ... ok
+test reference_fixtures_nonreg_simple_TeozTimelineIssues_0005_puml ... ok
+test reference_fixtures_nonreg_simple_SequenceLeftMessageAndActiveLifeLines_0003_puml ... FAILED
+test reference_fixtures_nonreg_svg_SVG0005_Smetana_puml ... ok
+test reference_fixtures_nonreg_svg_SVG0005_Svek_puml ... ok
+test reference_fixtures_nonreg_simple_TeozTimelineIssues_0008_puml ... ok
+test reference_fixtures_nwdiag_basic_puml ... ok
+test reference_fixtures_nonreg_simple_QualifiedAssoc001_puml ... ok
+test reference_fixtures_nonreg_xmi_component_XMI0001_puml ... FAILED
+test reference_fixtures_nonreg_svg_SVG0001_puml ... ok
+test reference_fixtures_nonreg_xmi_clazz_XMI0000_puml ... ok
+test reference_fixtures_nonreg_simple_TeozTimelineIssues_0007_puml ... FAILED
+test reference_fixtures_preprocessor_builtin_newline_puml ... ok
+test reference_fixtures_nonreg_simple_TeozTimelineIssues_0009_puml ... FAILED
+test reference_fixtures_preprocessor_jaws8_puml ... ok
+test reference_fixtures_nonreg_svg_SVG0002_puml ... ok
+test reference_fixtures_nonreg_xmi_clazz_XMI0002_puml ... ok
+test reference_fixtures_preprocessor_jaws9_puml ... ok
+test reference_fixtures_nonreg_svg_SVG0003_puml ... ok
+test reference_fixtures_preprocessor_deployment_mono_multi_line_puml ... FAILED
+test reference_fixtures_nonreg_xmi_clazz_XMI0003_puml ... ok
+test reference_fixtures_preprocessor_preproc_functionparam_line_continuation_puml ... ok
+test reference_fixtures_nonreg_xmi_clazz_XMI0004_puml ... ok
+test reference_fixtures_nonreg_svg_SVG0004_Smetana_puml ... ok
+test reference_fixtures_preprocessor_jaws3_puml ... FAILED
+test reference_fixtures_nonreg_svg_SVG0004_Svek_puml ... ok
+test reference_fixtures_preprocessor_seq_mono_line_puml ... ok
+test reference_fixtures_preprocessor_sequencelayout_0004_puml ... ok
+test reference_fixtures_preprocessor_jaws6_puml ... ok
+test reference_fixtures_object_basic_puml ... ok
+test reference_fixtures_preprocessor_sequencelayout_0005_puml ... ok
+test reference_fixtures_preprocessor_svg0005_smetana_puml ... ok
+test reference_fixtures_preprocessor_svg0005_svek_puml ... ok
+test reference_fixtures_preprocessor_sequencelayout_0005b_puml ... ok
+test reference_fixtures_nonreg_svg_SVG0006_Svek_puml ... ok
+test reference_fixtures_preprocessor_jaws7_puml ... FAILED
+test reference_fixtures_preprocessor_sequenceleftmessageandactivelifelines_0001_puml ... FAILED
+test reference_fixtures_preprocessor_svg0002_puml ... ok
+test reference_fixtures_preprocessor_sequencearrows_0001_puml ... ok
+test reference_fixtures_preprocessor_sequencearrows_0002_puml ... ok
+test reference_fixtures_preprocessor_svg0004_smetana_puml ... ok
+test reference_fixtures_preprocessor_teozaltelseparallel_0001_puml ... FAILED
+test reference_fixtures_preprocessor_teozaltelseparallel_0002_puml ... FAILED
+test reference_fixtures_preprocessor_teozaltelseparallel_0003_puml ... ok
+test reference_fixtures_preprocessor_subdiagram_theme_01_puml ... FAILED
+test reference_fixtures_preprocessor_teozaltelseparallel_0004_puml ... FAILED
+test reference_fixtures_preprocessor_teoztimelineissues_0001_puml ... ok
+test reference_fixtures_salt_basic_puml ... ok
+test reference_fixtures_preprocessor_svg0004_svek_puml ... ok
+test reference_fixtures_preprocessor_teozaltelseparallel_0005_puml ... FAILED
+test reference_fixtures_preprocessor_teoztimelineissues_0002_puml ... FAILED
+test reference_fixtures_preprocessor_teozaltelseparallel_0006_puml ... FAILED
+test reference_fixtures_preprocessor_teoztimelineissues_0003_puml ... ok
+test reference_fixtures_preprocessor_teoztimelineissues_0004_puml ... FAILED
+test reference_fixtures_preprocessor_teoztimelineissues_0005_puml ... ok
+test reference_fixtures_preprocessor_teoztimelineissues_0006_puml ... ok
+test reference_fixtures_preprocessor_teoztimelineissues_0008_puml ... ok
+test reference_fixtures_preprocessor_teoztimelineissues_0007_puml ... FAILED
+test reference_fixtures_preprocessor_svg0006_svek_puml ... ok
+test reference_fixtures_sequence_intermediatetest_0000_puml ... ok
+test reference_fixtures_sequence_a0006_puml ... ok
+test reference_fixtures_sequence_a0001_puml ... ok
+test reference_fixtures_preprocessor_teoztimelineissues_0009_puml ... FAILED
+test reference_fixtures_sequence_jaws11_puml ... ok
+test reference_fixtures_sequence_a0000_puml ... ok
+test reference_fixtures_sequence_jaws10_puml ... ok
+test reference_fixtures_sequence_jaws4_puml ... ok
+test reference_fixtures_sequence_jaws2_puml ... ok
+test reference_fixtures_sequence_seq_alt001_puml ... ok
+test reference_fixtures_sequence_seq_autonumber001_puml ... ok
+test reference_fixtures_sequence_seq_break001_puml ... ok
+test reference_fixtures_sequence_seq_critical001_puml ... ok
+test reference_fixtures_sequence_seq_divider001_puml ... ok
+test reference_fixtures_sequence_seq_group001_puml ... ok
+test reference_fixtures_sequence_seq_loop001_puml ... ok
+test reference_fixtures_sequence_seq_opt001_puml ... ok
+test reference_fixtures_sequence_seq_par001_puml ... ok
+test reference_fixtures_sequence_seq_nested001_puml ... ok
+test reference_fixtures_sequence_seq_ref001_puml ... ok
+test reference_fixtures_sequence_seq_participants001_puml ... ok
+test reference_fixtures_sequence_sequencelayout_0001_puml ... ok
+test reference_fixtures_sequence_sequencelayout_0001b_puml ... ok
+test reference_fixtures_sequence_sequencelayout_0002_puml ... ok
+test reference_fixtures_sequence_sequencelayout_0003_puml ... ok
+test reference_fixtures_sequence_sequenceleftmessageandactivelifelines_0002_puml ... ok
+test reference_fixtures_sequence_sequencelayout_0006_puml ... ok
+test reference_fixtures_sequence_sequencelayout_0001c_puml ... ok
+test reference_fixtures_sequence_test_0_puml ... ok
+test reference_fixtures_sequence_svg0001_puml ... ok
+test reference_fixtures_sprite_linearGradientSpreadPad_puml ... ok
+test reference_fixtures_sprite_azureSVG_puml ... ok
+test reference_fixtures_sprite_linearGradientSpreadReflect_puml ... ok
+test reference_fixtures_sequence_svg0003_puml ... ok
+test reference_fixtures_sprite_svgFillColourTest_2174_puml ... FAILED
+test reference_fixtures_sprite_styleFontWeightRoboto_puml ... ok
+test reference_fixtures_sprite_linearGradientSpreadRepeat_puml ... ok
+test reference_fixtures_sequence_sequenceleftmessageandactivelifelines_0003_puml ... ok
+test reference_fixtures_sprite_svg2GroupsInlineStyled_puml ... ok
+test reference_fixtures_sprite_svg2GroupsWithStyle_puml ... ok
+test reference_fixtures_sprite_svg2Groups_puml ... ok
+test reference_fixtures_sprite_svgDiagonalGradientBLTR_puml ... ok
+test reference_fixtures_sprite_svgDiagonalGradientBLTRMonochrome_puml ... ok
+test reference_fixtures_sprite_svgDiagonalGradientTLBR_puml ... ok
+test reference_fixtures_sprite_svgEmbeddedPNG_puml ... ok
+test reference_fixtures_sprite_svgFontWeightMultiWeight_puml ... ok
+test reference_fixtures_sprite_svgFontWeightStandardFonts_puml ... ok
+test reference_fixtures_sprite_svgLinearGradientCircle_puml ... ok
+test reference_fixtures_sprite_svgPolygonStar_puml ... ok
+test reference_fixtures_sprite_svgRadialGradient_puml ... ok
+test reference_fixtures_sprite_svgRedCircle_puml ... ok
+test reference_fixtures_sprite_svgRedEllipse_puml ... ok
+test reference_fixtures_sprite_svgRedLine_puml ... ok
+test reference_fixtures_sprite_svgTransformRotate_puml ... ok
+test reference_fixtures_sprite_svgRedPolyLine_puml ... ok
+test reference_fixtures_sprite_svgTransformGroup_puml ... ok
+test reference_fixtures_sprite_svgTransformMatrix_puml ... ok
+test reference_fixtures_sprite_svgRedRect_puml ... ok
+test reference_fixtures_sprite_svgRedRectLinearGradient_puml ... ok
+test reference_fixtures_sprite_svgRedStroke_puml ... ok
+test reference_fixtures_sprite_svgTransformScale_puml ... ok
+test reference_fixtures_sprite_svgTransformTranslate_puml ... ok
+test reference_fixtures_sprite_svgRedText_puml ... ok
+test reference_fixtures_state_scxml0001_puml ... ok
+test reference_fixtures_sprite_svgTextAnchor_puml ... ok
+test reference_fixtures_sprite_svgTextBold_puml ... ok
+test reference_fixtures_state_scxml0004_puml ... FAILED
+test reference_fixtures_state_scxml0005_puml ... ok
+test reference_fixtures_state_scxml0002_puml ... FAILED
+test reference_fixtures_sprite_svgTextDecoration_puml ... ok
+test reference_fixtures_sprite_svgTextItalic_puml ... ok
+test reference_fixtures_sprite_svgTextStyleAttr_puml ... ok
+test reference_fixtures_state_state_choice001_puml ... FAILED
+test reference_fixtures_state_state_concurrent001_puml ... FAILED
+test reference_fixtures_state_state_monoline_02_puml ... ok
+test reference_fixtures_state_state_monoline_01_puml ... ok
+test reference_fixtures_timing_timingmessagearrowfont_0001_puml ... ok
+test reference_fixtures_usecase_boundary_puml ... ok
+test reference_fixtures_wbs_link_url_tooltip_01_puml ... ok
+test reference_fixtures_usecase_colon_actor_puml ... ok
+test reference_fixtures_state_scxml0003_puml ... FAILED
+test reference_fixtures_timing_timingmessagearrowfont_0002_puml ... ok
+test reference_fixtures_state_state_history001_puml ... FAILED
+test reference_fixtures_usecase_basic_puml ... FAILED
+test reference_fixtures_state_state_fork001_puml ... FAILED
+test reference_fixtures_sprite_svgVerticalGradient_puml ... ok
+test reference_fixtures_state_state_monoline_03_puml ... FAILED
+test reference_fixtures_sprite_svgUseDefs_puml ... ok
+test reference_fixtures_state_state_note001_puml ... FAILED
+test reference_fixtures_wbs_link_url_tooltip_02_puml ... ok
+test reference_fixtures_sprite_testGradientSprite_puml ... FAILED
+test reference_fixtures_wbs_link_url_tooltip_03_puml ... ok
+test reference_fixtures_wbs_wbs_arrow_puml ... ok
+test reference_fixtures_sprite_testPolylineSprites_puml ... FAILED
+test reference_fixtures_yaml_basic_puml ... ok
+test reference_fixtures_wbs_wbs_direction_puml ... ok
+test reference_fixtures_dev_jaws_jaws1_puml ... FAILED
+test reference_fixtures_preprocessor_jaws1_puml ... FAILED
+
+failures:
+
+---- reference_fixtures_activity_a0002_puml stdout ----
+
+thread 'reference_fixtures_activity_a0002_puml' (1939813) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/activity/a0002.puml: output differs from reference at line 1 col 1136
+expected: ..."13" lengthAdjust="spacing" textLength="26.5649" x="41" y="226.8276">This</text>...
+actual:   ..."13" lengthAdjust="spacing" textLength="86.6011" x="41" y="226.8276">This is a n...
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+---- reference_fixtures_component_componentextraarrows_0001_puml stdout ----
+
+thread 'reference_fixtures_component_componentextraarrows_0001_puml' (1939845) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/component/componentextraarrows_0001.puml: output differs from reference at line 1 col 154
+expected: ...ta-diagram-type="DESCRIPTION" height="192px" preserveAspectRatio="none" style="w...
+actual:   ...ta-diagram-type="DESCRIPTION" height="190px" preserveAspectRatio="none" style="w...
+
+---- reference_fixtures_component_xmi0001_puml stdout ----
+
+thread 'reference_fixtures_component_xmi0001_puml' (1939858) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/component/xmi0001.puml: output differs from reference at line 1 col 152
+expected: ...data-diagram-type="DESCRIPTION" height="267px" preserveAspectRatio="none" style=...
+actual:   ...data-diagram-type="DESCRIPTION" height="139px" preserveAspectRatio="none" style=...
+
+---- reference_fixtures_component_jaws5_puml stdout ----
+
+thread 'reference_fixtures_component_jaws5_puml' (1939856) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/component/jaws5.puml: output differs from reference at line 1 col 154
+expected: ...ta-diagram-type="DESCRIPTION" height="156px" preserveAspectRatio="none" style="w...
+actual:   ...ta-diagram-type="DESCRIPTION" height="151px" preserveAspectRatio="none" style="w...
+
+---- reference_fixtures_component_deployment01_puml stdout ----
+
+thread 'reference_fixtures_component_deployment01_puml' (1939847) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/component/deployment01.puml: output differs from reference at line 1 col 152
+expected: ...data-diagram-type="DESCRIPTION" height="460px" preserveAspectRatio="none" style=...
+actual:   ...data-diagram-type="DESCRIPTION" height="208px" preserveAspectRatio="none" style=...
+
+---- reference_fixtures_dev_jaws_jaws12_puml stdout ----
+
+thread 'reference_fixtures_dev_jaws_jaws12_puml' (1939865) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/dev/jaws/jaws12.puml: output differs from reference at line 1 col 149
+expected: ...s" data-diagram-type="MINDMAP" height="129px" preserveAspectRatio="none" style="...
+actual:   ...s" data-diagram-type="MINDMAP" height="145px" preserveAspectRatio="none" style="...
+
+---- reference_fixtures_dev_jaws_jaws5_puml stdout ----
+
+thread 'reference_fixtures_dev_jaws_jaws5_puml' (1939872) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/dev/jaws/jaws5.puml: output differs from reference at line 1 col 154
+expected: ...ta-diagram-type="DESCRIPTION" height="156px" preserveAspectRatio="none" style="w...
+actual:   ...ta-diagram-type="DESCRIPTION" height="151px" preserveAspectRatio="none" style="w...
+
+---- reference_fixtures_component_subdiagram_theme_02_puml stdout ----
+
+thread 'reference_fixtures_component_subdiagram_theme_02_puml' (1939857) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/component/subdiagram_theme_02.puml: output differs from reference at line 1 col 146
+expected: .../css" data-diagram-type="CLASS" height="510px" preserveAspectRatio="none" style=...
+actual:   .../css" data-diagram-type="CLASS" height="68px" preserveAspectRatio="none" style="...
+
+---- reference_fixtures_dev_jaws_jaws3_puml stdout ----
+
+thread 'reference_fixtures_dev_jaws_jaws3_puml' (1939870) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/dev/jaws/jaws3.puml: output differs from reference at line 1 col 146
+expected: .../css" data-diagram-type="CLASS" height="92px" preserveAspectRatio="none" style="...
+actual:   .../css" data-diagram-type="CLASS" height="105px" preserveAspectRatio="none" style=...
+
+---- reference_fixtures_dev_newline_deployment_on_name_puml stdout ----
+
+thread 'reference_fixtures_dev_newline_deployment_on_name_puml' (1939892) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/dev/newline/deployment_on_name.puml: output differs from reference at line 1 col 153
+expected: ...ata-diagram-type="DESCRIPTION" height="136px" preserveAspectRatio="none" style="...
+actual:   ...ata-diagram-type="DESCRIPTION" height="157px" preserveAspectRatio="none" style="...
+
+---- reference_fixtures_dev_newline_deployment_mono_multi_line_puml stdout ----
+
+thread 'reference_fixtures_dev_newline_deployment_mono_multi_line_puml' (1939891) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/dev/newline/deployment_mono_multi_line.puml: output differs from reference at line 1 col 152
+expected: ...data-diagram-type="DESCRIPTION" height="232px" preserveAspectRatio="none" style=...
+actual:   ...data-diagram-type="DESCRIPTION" height="116px" preserveAspectRatio="none" style=...
+
+---- reference_fixtures_mindmap_jaws12_puml stdout ----
+
+thread 'reference_fixtures_mindmap_jaws12_puml' (1939918) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/mindmap/jaws12.puml: output differs from reference at line 1 col 149
+expected: ...s" data-diagram-type="MINDMAP" height="129px" preserveAspectRatio="none" style="...
+actual:   ...s" data-diagram-type="MINDMAP" height="145px" preserveAspectRatio="none" style="...
+
+---- reference_fixtures_misc_deployment_on_name_puml stdout ----
+
+thread 'reference_fixtures_misc_deployment_on_name_puml' (1939925) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/misc/deployment_on_name.puml: output differs from reference at line 1 col 153
+expected: ...ata-diagram-type="DESCRIPTION" height="136px" preserveAspectRatio="none" style="...
+actual:   ...ata-diagram-type="DESCRIPTION" height="157px" preserveAspectRatio="none" style="...
+
+---- reference_fixtures_misc_link_url_tooltip_04_puml stdout ----
+
+thread 'reference_fixtures_misc_link_url_tooltip_04_puml' (1939927) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/misc/link_url_tooltip_04.puml: output differs from reference at line 1 col 146
+expected: .../css" data-diagram-type="CLASS" height="73px" preserveAspectRatio="none" style="...
+actual:   .../css" data-diagram-type="CLASS" height="53px" preserveAspectRatio="none" style="...
+
+---- reference_fixtures_dev_jaws_jaws7_puml stdout ----
+
+thread 'reference_fixtures_dev_jaws_jaws7_puml' (1939875) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/dev/jaws/jaws7.puml: output differs from reference at line 1 col 146
+expected: .../css" data-diagram-type="CLASS" height="78px" preserveAspectRatio="none" style="...
+actual:   .../css" data-diagram-type="CLASS" height="16px" preserveAspectRatio="none" style="...
+
+---- reference_fixtures_misc_creole_note001_puml stdout ----
+
+thread 'reference_fixtures_misc_creole_note001_puml' (1939923) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/misc/creole_note001.puml: output differs from reference at line 1 col 149
+expected: ...s" data-diagram-type="SEQUENCE" height="216px" preserveAspectRatio="none" style=...
+actual:   ...s" data-diagram-type="SEQUENCE" height="175px" preserveAspectRatio="none" style=...
+
+---- reference_fixtures_dev_newline_subdiagram_theme_puml stdout ----
+
+thread 'reference_fixtures_dev_newline_subdiagram_theme_puml' (1939901) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/dev/newline/subdiagram_theme.puml: output differs from reference at line 1 col 146
+expected: .../css" data-diagram-type="CLASS" height="277px" preserveAspectRatio="none" style=...
+actual:   .../css" data-diagram-type="CLASS" height="68px" preserveAspectRatio="none" style="...
+
+---- reference_fixtures_nonreg_scxml_SCXML0004_puml stdout ----
+
+thread 'reference_fixtures_nonreg_scxml_SCXML0004_puml' (1939953) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/nonreg/scxml/SCXML0004.puml: output differs from reference at line 1 col 146
+expected: .../css" data-diagram-type="STATE" height="234px" preserveAspectRatio="none" style=...
+actual:   .../css" data-diagram-type="STATE" height="343px" preserveAspectRatio="none" style=...
+
+---- reference_fixtures_misc_skinparam_handwritten001_puml stdout ----
+
+thread 'reference_fixtures_misc_skinparam_handwritten001_puml' (1939937) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/misc/skinparam_handwritten001.puml: output differs from reference at line 1 col 150
+expected: ..." data-diagram-type="SEQUENCE" height="173px" preserveAspectRatio="none" style="...
+actual:   ..." data-diagram-type="SEQUENCE" height="151px" preserveAspectRatio="none" style="...
+
+---- reference_fixtures_nonreg_scxml_SCXML0002_puml stdout ----
+
+thread 'reference_fixtures_nonreg_scxml_SCXML0002_puml' (1939951) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/nonreg/scxml/SCXML0002.puml: output differs from reference at line 1 col 147
+expected: ...css" data-diagram-type="STATE" height="225px" preserveAspectRatio="none" style="...
+actual:   ...css" data-diagram-type="STATE" height="207px" preserveAspectRatio="none" style="...
+
+---- reference_fixtures_nonreg_simple_A0004_puml stdout ----
+
+thread 'reference_fixtures_nonreg_simple_A0004_puml' (1939965) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/nonreg/simple/A0004.puml: output differs from reference at line 1 col 149
+expected: ...s" data-diagram-type="ACTIVITY" height="697px" preserveAspectRatio="none" style=...
+actual:   ...s" data-diagram-type="ACTIVITY" height="256px" preserveAspectRatio="none" style=...
+
+---- reference_fixtures_nonreg_simple_ChenRankDir_puml stdout ----
+
+thread 'reference_fixtures_nonreg_simple_ChenRankDir_puml' (1939972) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/nonreg/simple/ChenRankDir.puml: output differs from reference at line 1 col 149
+expected: ...s" data-diagram-type="CHEN_EER" height="84px" preserveAspectRatio="none" style="...
+actual:   ...s" data-diagram-type="CHEN_EER" height="78px" preserveAspectRatio="none" style="...
+
+---- reference_fixtures_nonreg_simple_ChenMovie_puml stdout ----
+
+thread 'reference_fixtures_nonreg_simple_ChenMovie_puml' (1939970) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/nonreg/simple/ChenMovie.puml: output differs from reference at line 1 col 149
+expected: ...s" data-diagram-type="CHEN_EER" height="366px" preserveAspectRatio="none" style=...
+actual:   ...s" data-diagram-type="CHEN_EER" height="449px" preserveAspectRatio="none" style=...
+
+---- reference_fixtures_nonreg_scxml_SCXML0003_puml stdout ----
+
+thread 'reference_fixtures_nonreg_scxml_SCXML0003_puml' (1939952) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/nonreg/scxml/SCXML0003.puml: output differs from reference at line 1 col 148
+expected: ...ss" data-diagram-type="STATE" height="436px" preserveAspectRatio="none" style="w...
+actual:   ...ss" data-diagram-type="STATE" height="430px" preserveAspectRatio="none" style="w...
+
+---- reference_fixtures_nonreg_simple_ChenMovieAlias_puml stdout ----
+
+thread 'reference_fixtures_nonreg_simple_ChenMovieAlias_puml' (1939968) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/nonreg/simple/ChenMovieAlias.puml: output differs from reference at line 1 col 149
+expected: ...s" data-diagram-type="CHEN_EER" height="875px" preserveAspectRatio="none" style=...
+actual:   ...s" data-diagram-type="CHEN_EER" height="1193px" preserveAspectRatio="none" style...
+
+---- reference_fixtures_nonreg_simple_ChenMovieExtended_puml stdout ----
+
+thread 'reference_fixtures_nonreg_simple_ChenMovieExtended_puml' (1939969) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/nonreg/simple/ChenMovieExtended.puml: output differs from reference at line 1 col 149
+expected: ...s" data-diagram-type="CHEN_EER" height="868px" preserveAspectRatio="none" style=...
+actual:   ...s" data-diagram-type="CHEN_EER" height="1186px" preserveAspectRatio="none" style...
+
+---- reference_fixtures_nonreg_simple_A0002_puml stdout ----
+
+thread 'reference_fixtures_nonreg_simple_A0002_puml' (1939963) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/nonreg/simple/A0002.puml: output differs from reference at line 1 col 1136
+expected: ..."13" lengthAdjust="spacing" textLength="26.5649" x="41" y="226.8276">This</text>...
+actual:   ..."13" lengthAdjust="spacing" textLength="86.6011" x="41" y="226.8276">This is a n...
+
+---- reference_fixtures_nonreg_simple_ComponentExtraArrows_0001_puml stdout ----
+
+thread 'reference_fixtures_nonreg_simple_ComponentExtraArrows_0001_puml' (1939973) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/nonreg/simple/ComponentExtraArrows_0001.puml: output differs from reference at line 1 col 154
+expected: ...ta-diagram-type="DESCRIPTION" height="192px" preserveAspectRatio="none" style="w...
+actual:   ...ta-diagram-type="DESCRIPTION" height="190px" preserveAspectRatio="none" style="w...
+
+---- reference_fixtures_nonreg_simple_A0003_puml stdout ----
+
+thread 'reference_fixtures_nonreg_simple_A0003_puml' (1939964) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/nonreg/simple/A0003.puml: output differs from reference at line 1 col 147
+expected: ...css" data-diagram-type="GANTT" height="156px" preserveAspectRatio="none" style="...
+actual:   ...css" data-diagram-type="GANTT" height="131px" preserveAspectRatio="none" style="...
+
+---- reference_fixtures_nonreg_simple_SequenceLeftMessageAndActiveLifeLines_0001_puml stdout ----
+
+thread 'reference_fixtures_nonreg_simple_SequenceLeftMessageAndActiveLifeLines_0001_puml' (1939997) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/nonreg/simple/SequenceLeftMessageAndActiveLifeLines_0001.puml: output differs from reference at line 1 col 197
+expected: ...reserveAspectRatio="none" style="width:825px;height:488px;background:#FFFFFF;" v...
+actual:   ...reserveAspectRatio="none" style="width:812px;height:488px;background:#FFFFFF;" v...
+
+---- reference_fixtures_nonreg_simple_SequenceArrows_0001_puml stdout ----
+
+thread 'reference_fixtures_nonreg_simple_SequenceArrows_0001_puml' (1939981) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/nonreg/simple/SequenceArrows_0001.puml: output differs from reference at line 1 col 4434
+expected: ...47,124.6953,155.5747,128.6953,145.5747,128.6953" style="stroke:#181818;stroke-wi...
+actual:   ...47,124.6953,155.5747,128.6953,145.5747,132.6953,149.5747,128.6953" style="stroke...
+
+---- reference_fixtures_nonreg_simple_SequenceArrows_0002_puml stdout ----
+
+thread 'reference_fixtures_nonreg_simple_SequenceArrows_0002_puml' (1939982) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/nonreg/simple/SequenceArrows_0002.puml: output differs from reference at line 1 col 198
+expected: ...reserveAspectRatio="none" style="width:258px;height:4286px;background:#FFFFFF;" ...
+actual:   ...reserveAspectRatio="none" style="width:266px;height:4286px;background:#FFFFFF;" ...
+
+---- reference_fixtures_nonreg_simple_SequenceLeftMessageAndActiveLifeLines_0002_puml stdout ----
+
+thread 'reference_fixtures_nonreg_simple_SequenceLeftMessageAndActiveLifeLines_0002_puml' (1939998) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/nonreg/simple/SequenceLeftMessageAndActiveLifeLines_0002.puml: output differs from reference at line 1 col 394
+expected: ...ob</title><rect fill="#FFFFFF" height="433" style="stroke:#181818;stroke-width:1...
+actual:   ...ob</title><rect fill="#FFFFFF" height="453.1328" style="stroke:#181818;stroke-wi...
+
+---- reference_fixtures_nonreg_simple_TeozAltElseParallel_0001_puml stdout ----
+
+thread 'reference_fixtures_nonreg_simple_TeozAltElseParallel_0001_puml' (1940000) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/nonreg/simple/TeozAltElseParallel_0001.puml: output differs from reference at line 1 col 197
+expected: ...reserveAspectRatio="none" style="width:373px;height:368px;background:#FFFFFF;" v...
+actual:   ...reserveAspectRatio="none" style="width:304px;height:368px;background:#FFFFFF;" v...
+
+---- reference_fixtures_nonreg_simple_TeozAltElseParallel_0002_puml stdout ----
+
+thread 'reference_fixtures_nonreg_simple_TeozAltElseParallel_0002_puml' (1940001) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/nonreg/simple/TeozAltElseParallel_0002.puml: output differs from reference at line 1 col 150
+expected: ..." data-diagram-type="SEQUENCE" height="237px" preserveAspectRatio="none" style="...
+actual:   ..." data-diagram-type="SEQUENCE" height="208px" preserveAspectRatio="none" style="...
+
+---- reference_fixtures_nonreg_simple_TimingMessageArrowFont_0001_puml stdout ----
+
+thread 'reference_fixtures_nonreg_simple_TimingMessageArrowFont_0001_puml' (1940017) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/nonreg/simple/TimingMessageArrowFont_0001.puml: output differs from reference at line 1 col 148
+expected: ...ss" data-diagram-type="TIMING" height="257px" preserveAspectRatio="none" style="...
+actual:   ...ss" data-diagram-type="TIMING" height="223px" preserveAspectRatio="none" style="...
+
+---- reference_fixtures_nonreg_simple_TeozAltElseParallel_0004_puml stdout ----
+
+thread 'reference_fixtures_nonreg_simple_TeozAltElseParallel_0004_puml' (1940004) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/nonreg/simple/TeozAltElseParallel_0004.puml: output differs from reference at line 1 col 149
+expected: ...s" data-diagram-type="SEQUENCE" height="426px" preserveAspectRatio="none" style=...
+actual:   ...s" data-diagram-type="SEQUENCE" height="397px" preserveAspectRatio="none" style=...
+
+---- reference_fixtures_nonreg_simple_TeozAltElseParallel_0006_puml stdout ----
+
+thread 'reference_fixtures_nonreg_simple_TeozAltElseParallel_0006_puml' (1940007) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/nonreg/simple/TeozAltElseParallel_0006.puml: output differs from reference at line 1 col 150
+expected: ..." data-diagram-type="SEQUENCE" height="188px" preserveAspectRatio="none" style="...
+actual:   ..." data-diagram-type="SEQUENCE" height="171px" preserveAspectRatio="none" style="...
+
+---- reference_fixtures_nonreg_simple_TeozAltElseParallel_0005_puml stdout ----
+
+thread 'reference_fixtures_nonreg_simple_TeozAltElseParallel_0005_puml' (1940006) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/nonreg/simple/TeozAltElseParallel_0005.puml: output differs from reference at line 1 col 150
+expected: ..." data-diagram-type="SEQUENCE" height="295px" preserveAspectRatio="none" style="...
+actual:   ..." data-diagram-type="SEQUENCE" height="271px" preserveAspectRatio="none" style="...
+
+---- reference_fixtures_nonreg_simple_TeozTimelineIssues_0002_puml stdout ----
+
+thread 'reference_fixtures_nonreg_simple_TeozTimelineIssues_0002_puml' (1940009) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/nonreg/simple/TeozTimelineIssues_0002.puml: output differs from reference at line 1 col 149
+expected: ...s" data-diagram-type="SEQUENCE" height="200px" preserveAspectRatio="none" style=...
+actual:   ...s" data-diagram-type="SEQUENCE" height="188px" preserveAspectRatio="none" style=...
+
+---- reference_fixtures_nonreg_simple_TimingMessageArrowFont_0002_puml stdout ----
+
+thread 'reference_fixtures_nonreg_simple_TimingMessageArrowFont_0002_puml' (1940018) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/nonreg/simple/TimingMessageArrowFont_0002.puml: output differs from reference at line 1 col 148
+expected: ...ss" data-diagram-type="TIMING" height="274px" preserveAspectRatio="none" style="...
+actual:   ...ss" data-diagram-type="TIMING" height="223px" preserveAspectRatio="none" style="...
+
+---- reference_fixtures_nonreg_simple_TeozTimelineIssues_0004_puml stdout ----
+
+thread 'reference_fixtures_nonreg_simple_TeozTimelineIssues_0004_puml' (1940011) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/nonreg/simple/TeozTimelineIssues_0004.puml: output differs from reference at line 1 col 150
+expected: ..." data-diagram-type="SEQUENCE" height="283px" preserveAspectRatio="none" style="...
+actual:   ..." data-diagram-type="SEQUENCE" height="218px" preserveAspectRatio="none" style="...
+
+---- reference_fixtures_nonreg_simple_SequenceLeftMessageAndActiveLifeLines_0003_puml stdout ----
+
+thread 'reference_fixtures_nonreg_simple_SequenceLeftMessageAndActiveLifeLines_0003_puml' (1939999) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/nonreg/simple/SequenceLeftMessageAndActiveLifeLines_0003.puml: output differs from reference at line 1 col 395
+expected: ...st</title><rect fill="#FFFFFF" height="265.9922" style="stroke:#181818;stroke-wi...
+actual:   ...st</title><rect fill="#FFFFFF" height="259.9922" style="stroke:#181818;stroke-wi...
+
+---- reference_fixtures_nonreg_xmi_component_XMI0001_puml stdout ----
+
+thread 'reference_fixtures_nonreg_xmi_component_XMI0001_puml' (1940034) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/nonreg/xmi/component/XMI0001.puml: output differs from reference at line 1 col 152
+expected: ...data-diagram-type="DESCRIPTION" height="267px" preserveAspectRatio="none" style=...
+actual:   ...data-diagram-type="DESCRIPTION" height="139px" preserveAspectRatio="none" style=...
+
+---- reference_fixtures_nonreg_simple_TeozTimelineIssues_0007_puml stdout ----
+
+thread 'reference_fixtures_nonreg_simple_TeozTimelineIssues_0007_puml' (1940014) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/nonreg/simple/TeozTimelineIssues_0007.puml: output differs from reference at line 1 col 149
+expected: ...s" data-diagram-type="SEQUENCE" height="437px" preserveAspectRatio="none" style=...
+actual:   ...s" data-diagram-type="SEQUENCE" height="369px" preserveAspectRatio="none" style=...
+
+---- reference_fixtures_nonreg_simple_TeozTimelineIssues_0009_puml stdout ----
+
+thread 'reference_fixtures_nonreg_simple_TeozTimelineIssues_0009_puml' (1940016) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/nonreg/simple/TeozTimelineIssues_0009.puml: output differs from reference at line 1 col 149
+expected: ...s" data-diagram-type="SEQUENCE" height="868px" preserveAspectRatio="none" style=...
+actual:   ...s" data-diagram-type="SEQUENCE" height="1307px" preserveAspectRatio="none" style...
+
+---- reference_fixtures_preprocessor_deployment_mono_multi_line_puml stdout ----
+
+thread 'reference_fixtures_preprocessor_deployment_mono_multi_line_puml' (1940040) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/preprocessor/deployment_mono_multi_line.puml: output differs from reference at line 1 col 152
+expected: ...data-diagram-type="DESCRIPTION" height="232px" preserveAspectRatio="none" style=...
+actual:   ...data-diagram-type="DESCRIPTION" height="116px" preserveAspectRatio="none" style=...
+
+---- reference_fixtures_preprocessor_jaws3_puml stdout ----
+
+thread 'reference_fixtures_preprocessor_jaws3_puml' (1940043) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/preprocessor/jaws3.puml: output differs from reference at line 1 col 146
+expected: .../css" data-diagram-type="CLASS" height="92px" preserveAspectRatio="none" style="...
+actual:   .../css" data-diagram-type="CLASS" height="105px" preserveAspectRatio="none" style=...
+
+---- reference_fixtures_preprocessor_jaws7_puml stdout ----
+
+thread 'reference_fixtures_preprocessor_jaws7_puml' (1940047) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/preprocessor/jaws7.puml: output differs from reference at line 1 col 146
+expected: .../css" data-diagram-type="CLASS" height="78px" preserveAspectRatio="none" style="...
+actual:   .../css" data-diagram-type="CLASS" height="16px" preserveAspectRatio="none" style="...
+
+---- reference_fixtures_preprocessor_sequenceleftmessageandactivelifelines_0001_puml stdout ----
+
+thread 'reference_fixtures_preprocessor_sequenceleftmessageandactivelifelines_0001_puml' (1940062) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/preprocessor/sequenceleftmessageandactivelifelines_0001.puml: output differs from reference at line 1 col 197
+expected: ...reserveAspectRatio="none" style="width:825px;height:488px;background:#FFFFFF;" v...
+actual:   ...reserveAspectRatio="none" style="width:812px;height:488px;background:#FFFFFF;" v...
+
+---- reference_fixtures_preprocessor_teozaltelseparallel_0001_puml stdout ----
+
+thread 'reference_fixtures_preprocessor_teozaltelseparallel_0001_puml' (1940074) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/preprocessor/teozaltelseparallel_0001.puml: output differs from reference at line 1 col 197
+expected: ...reserveAspectRatio="none" style="width:373px;height:368px;background:#FFFFFF;" v...
+actual:   ...reserveAspectRatio="none" style="width:304px;height:368px;background:#FFFFFF;" v...
+
+---- reference_fixtures_preprocessor_teozaltelseparallel_0002_puml stdout ----
+
+thread 'reference_fixtures_preprocessor_teozaltelseparallel_0002_puml' (1940076) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/preprocessor/teozaltelseparallel_0002.puml: output differs from reference at line 1 col 150
+expected: ..." data-diagram-type="SEQUENCE" height="237px" preserveAspectRatio="none" style="...
+actual:   ..." data-diagram-type="SEQUENCE" height="208px" preserveAspectRatio="none" style="...
+
+---- reference_fixtures_preprocessor_subdiagram_theme_01_puml stdout ----
+
+thread 'reference_fixtures_preprocessor_subdiagram_theme_01_puml' (1940063) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/preprocessor/subdiagram_theme_01.puml: output differs from reference at line 1 col 146
+expected: .../css" data-diagram-type="CLASS" height="277px" preserveAspectRatio="none" style=...
+actual:   .../css" data-diagram-type="CLASS" height="68px" preserveAspectRatio="none" style="...
+
+---- reference_fixtures_preprocessor_teozaltelseparallel_0004_puml stdout ----
+
+thread 'reference_fixtures_preprocessor_teozaltelseparallel_0004_puml' (1940078) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/preprocessor/teozaltelseparallel_0004.puml: output differs from reference at line 1 col 149
+expected: ...s" data-diagram-type="SEQUENCE" height="426px" preserveAspectRatio="none" style=...
+actual:   ...s" data-diagram-type="SEQUENCE" height="397px" preserveAspectRatio="none" style=...
+
+---- reference_fixtures_preprocessor_teozaltelseparallel_0005_puml stdout ----
+
+thread 'reference_fixtures_preprocessor_teozaltelseparallel_0005_puml' (1940080) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/preprocessor/teozaltelseparallel_0005.puml: output differs from reference at line 1 col 150
+expected: ..." data-diagram-type="SEQUENCE" height="295px" preserveAspectRatio="none" style="...
+actual:   ..." data-diagram-type="SEQUENCE" height="271px" preserveAspectRatio="none" style="...
+
+---- reference_fixtures_preprocessor_teoztimelineissues_0002_puml stdout ----
+
+thread 'reference_fixtures_preprocessor_teoztimelineissues_0002_puml' (1940083) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/preprocessor/teoztimelineissues_0002.puml: output differs from reference at line 1 col 149
+expected: ...s" data-diagram-type="SEQUENCE" height="200px" preserveAspectRatio="none" style=...
+actual:   ...s" data-diagram-type="SEQUENCE" height="188px" preserveAspectRatio="none" style=...
+
+---- reference_fixtures_preprocessor_teozaltelseparallel_0006_puml stdout ----
+
+thread 'reference_fixtures_preprocessor_teozaltelseparallel_0006_puml' (1940081) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/preprocessor/teozaltelseparallel_0006.puml: output differs from reference at line 1 col 150
+expected: ..." data-diagram-type="SEQUENCE" height="188px" preserveAspectRatio="none" style="...
+actual:   ..." data-diagram-type="SEQUENCE" height="171px" preserveAspectRatio="none" style="...
+
+---- reference_fixtures_preprocessor_teoztimelineissues_0004_puml stdout ----
+
+thread 'reference_fixtures_preprocessor_teoztimelineissues_0004_puml' (1940086) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/preprocessor/teoztimelineissues_0004.puml: output differs from reference at line 1 col 150
+expected: ..." data-diagram-type="SEQUENCE" height="283px" preserveAspectRatio="none" style="...
+actual:   ..." data-diagram-type="SEQUENCE" height="218px" preserveAspectRatio="none" style="...
+
+---- reference_fixtures_preprocessor_teoztimelineissues_0007_puml stdout ----
+
+thread 'reference_fixtures_preprocessor_teoztimelineissues_0007_puml' (1940091) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/preprocessor/teoztimelineissues_0007.puml: output differs from reference at line 1 col 149
+expected: ...s" data-diagram-type="SEQUENCE" height="437px" preserveAspectRatio="none" style=...
+actual:   ...s" data-diagram-type="SEQUENCE" height="369px" preserveAspectRatio="none" style=...
+
+---- reference_fixtures_preprocessor_teoztimelineissues_0009_puml stdout ----
+
+thread 'reference_fixtures_preprocessor_teoztimelineissues_0009_puml' (1940093) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/preprocessor/teoztimelineissues_0009.puml: output differs from reference at line 1 col 149
+expected: ...s" data-diagram-type="SEQUENCE" height="868px" preserveAspectRatio="none" style=...
+actual:   ...s" data-diagram-type="SEQUENCE" height="1307px" preserveAspectRatio="none" style...
+
+---- reference_fixtures_sprite_svgFillColourTest_2174_puml stdout ----
+
+thread 'reference_fixtures_sprite_svgFillColourTest_2174_puml' (1940140) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/sprite/svgFillColourTest_2174.puml: output differs from reference at line 1 col 146
+expected: .../css" data-diagram-type="CLASS" height="304px" preserveAspectRatio="none" style=...
+actual:   .../css" data-diagram-type="CLASS" height="67px" preserveAspectRatio="none" style="...
+
+---- reference_fixtures_state_scxml0004_puml stdout ----
+
+thread 'reference_fixtures_state_scxml0004_puml' (1940173) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/state/scxml0004.puml: output differs from reference at line 1 col 146
+expected: .../css" data-diagram-type="STATE" height="234px" preserveAspectRatio="none" style=...
+actual:   .../css" data-diagram-type="STATE" height="343px" preserveAspectRatio="none" style=...
+
+---- reference_fixtures_state_scxml0002_puml stdout ----
+
+thread 'reference_fixtures_state_scxml0002_puml' (1940170) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/state/scxml0002.puml: output differs from reference at line 1 col 147
+expected: ...css" data-diagram-type="STATE" height="225px" preserveAspectRatio="none" style="...
+actual:   ...css" data-diagram-type="STATE" height="207px" preserveAspectRatio="none" style="...
+
+---- reference_fixtures_state_state_choice001_puml stdout ----
+
+thread 'reference_fixtures_state_state_choice001_puml' (1940179) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/state/state_choice001.puml: output differs from reference at line 1 col 798
+expected: ...><g class="entity" data-qualified-name="choice1" id="__e1__"><polygon fill="#F1F...
+actual:   ...><g class="entity" data-qualified-name="State2" id="__e1__"><rect fill="#F1F1F1"...
+
+---- reference_fixtures_state_state_concurrent001_puml stdout ----
+
+thread 'reference_fixtures_state_state_concurrent001_puml' (1940181) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/state/state_concurrent001.puml: output differs from reference at line 1 col 147
+expected: ...css" data-diagram-type="STATE" height="630px" preserveAspectRatio="none" style="...
+actual:   ...css" data-diagram-type="STATE" height="665px" preserveAspectRatio="none" style="...
+
+---- reference_fixtures_state_scxml0003_puml stdout ----
+
+thread 'reference_fixtures_state_scxml0003_puml' (1940172) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/state/scxml0003.puml: output differs from reference at line 1 col 148
+expected: ...ss" data-diagram-type="STATE" height="436px" preserveAspectRatio="none" style="w...
+actual:   ...ss" data-diagram-type="STATE" height="430px" preserveAspectRatio="none" style="w...
+
+---- reference_fixtures_state_state_history001_puml stdout ----
+
+thread 'reference_fixtures_state_state_history001_puml' (1940185) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/state/state_history001.puml: output differs from reference at line 1 col 147
+expected: ...css" data-diagram-type="STATE" height="404px" preserveAspectRatio="none" style="...
+actual:   ...css" data-diagram-type="STATE" height="448px" preserveAspectRatio="none" style="...
+
+---- reference_fixtures_usecase_basic_puml stdout ----
+
+thread 'reference_fixtures_usecase_basic_puml' (1940197) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/usecase/basic.puml: output differs from reference at line 1 col 152
+expected: ...data-diagram-type="DESCRIPTION" height="189px" preserveAspectRatio="none" style=...
+actual:   ...data-diagram-type="DESCRIPTION" height="506px" preserveAspectRatio="none" style=...
+
+---- reference_fixtures_state_state_fork001_puml stdout ----
+
+thread 'reference_fixtures_state_state_fork001_puml' (1940183) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/state/state_fork001.puml: output differs from reference at line 1 col 147
+expected: ...css" data-diagram-type="STATE" height="620px" preserveAspectRatio="none" style="...
+actual:   ...css" data-diagram-type="STATE" height="601px" preserveAspectRatio="none" style="...
+
+---- reference_fixtures_state_state_monoline_03_puml stdout ----
+
+thread 'reference_fixtures_state_state_monoline_03_puml' (1940191) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/state/state_monoline_03.puml: output differs from reference at line 1 col 148
+expected: ...ss" data-diagram-type="STATE" height="288px" preserveAspectRatio="none" style="w...
+actual:   ...ss" data-diagram-type="STATE" height="287px" preserveAspectRatio="none" style="w...
+
+---- reference_fixtures_state_state_note001_puml stdout ----
+
+thread 'reference_fixtures_state_state_note001_puml' (1940192) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/state/state_note001.puml: output differs from reference at line 1 col 956
+expected: ...tart.Active" id="__e0__"><ellipse cx="153" cy="133.2969" fill="#222222" rx="10" ...
+actual:   ...tart.Active" id="__e0__"><ellipse cx="152.998" cy="133.2969" fill="#222222" rx="...
+
+---- reference_fixtures_sprite_testGradientSprite_puml stdout ----
+
+thread 'reference_fixtures_sprite_testGradientSprite_puml' (1940167) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/sprite/testGradientSprite.puml: output differs from reference at line 1 col 149
+expected: ...s" data-diagram-type="SEQUENCE" height="336px" preserveAspectRatio="none" style=...
+actual:   ...s" data-diagram-type="SEQUENCE" height="232px" preserveAspectRatio="none" style=...
+
+---- reference_fixtures_sprite_testPolylineSprites_puml stdout ----
+
+thread 'reference_fixtures_sprite_testPolylineSprites_puml' (1940168) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/sprite/testPolylineSprites.puml: output differs from reference at line 1 col 149
+expected: ...s" data-diagram-type="SEQUENCE" height="410px" preserveAspectRatio="none" style=...
+actual:   ...s" data-diagram-type="SEQUENCE" height="266px" preserveAspectRatio="none" style=...
+
+---- reference_fixtures_dev_jaws_jaws1_puml stdout ----
+
+thread 'reference_fixtures_dev_jaws_jaws1_puml' (1939866) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/dev/jaws/jaws1.puml: output differs from reference at line 1 col 152
+expected: ...data-diagram-type="DESCRIPTION" height="529px" preserveAspectRatio="none" style=...
+actual:   ...data-diagram-type="DESCRIPTION" height="480px" preserveAspectRatio="none" style=...
+
+---- reference_fixtures_preprocessor_jaws1_puml stdout ----
+
+thread 'reference_fixtures_preprocessor_jaws1_puml' (1940042) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/preprocessor/jaws1.puml: output differs from reference at line 1 col 152
+expected: ...data-diagram-type="DESCRIPTION" height="529px" preserveAspectRatio="none" style=...
+actual:   ...data-diagram-type="DESCRIPTION" height="480px" preserveAspectRatio="none" style=...
+
+
+failures:
+    reference_fixtures_activity_a0002_puml
+    reference_fixtures_component_componentextraarrows_0001_puml
+    reference_fixtures_component_deployment01_puml
+    reference_fixtures_component_jaws5_puml
+    reference_fixtures_component_subdiagram_theme_02_puml
+    reference_fixtures_component_xmi0001_puml
+    reference_fixtures_dev_jaws_jaws12_puml
+    reference_fixtures_dev_jaws_jaws1_puml
+    reference_fixtures_dev_jaws_jaws3_puml
+    reference_fixtures_dev_jaws_jaws5_puml
+    reference_fixtures_dev_jaws_jaws7_puml
+    reference_fixtures_dev_newline_deployment_mono_multi_line_puml
+    reference_fixtures_dev_newline_deployment_on_name_puml
+    reference_fixtures_dev_newline_subdiagram_theme_puml
+    reference_fixtures_mindmap_jaws12_puml
+    reference_fixtures_misc_creole_note001_puml
+    reference_fixtures_misc_deployment_on_name_puml
+    reference_fixtures_misc_link_url_tooltip_04_puml
+    reference_fixtures_misc_skinparam_handwritten001_puml
+    reference_fixtures_nonreg_scxml_SCXML0002_puml
+    reference_fixtures_nonreg_scxml_SCXML0003_puml
+    reference_fixtures_nonreg_scxml_SCXML0004_puml
+    reference_fixtures_nonreg_simple_A0002_puml
+    reference_fixtures_nonreg_simple_A0003_puml
+    reference_fixtures_nonreg_simple_A0004_puml
+    reference_fixtures_nonreg_simple_ChenMovieAlias_puml
+    reference_fixtures_nonreg_simple_ChenMovieExtended_puml
+    reference_fixtures_nonreg_simple_ChenMovie_puml
+    reference_fixtures_nonreg_simple_ChenRankDir_puml
+    reference_fixtures_nonreg_simple_ComponentExtraArrows_0001_puml
+    reference_fixtures_nonreg_simple_SequenceArrows_0001_puml
+    reference_fixtures_nonreg_simple_SequenceArrows_0002_puml
+    reference_fixtures_nonreg_simple_SequenceLeftMessageAndActiveLifeLines_0001_puml
+    reference_fixtures_nonreg_simple_SequenceLeftMessageAndActiveLifeLines_0002_puml
+    reference_fixtures_nonreg_simple_SequenceLeftMessageAndActiveLifeLines_0003_puml
+    reference_fixtures_nonreg_simple_TeozAltElseParallel_0001_puml
+    reference_fixtures_nonreg_simple_TeozAltElseParallel_0002_puml
+    reference_fixtures_nonreg_simple_TeozAltElseParallel_0004_puml
+    reference_fixtures_nonreg_simple_TeozAltElseParallel_0005_puml
+    reference_fixtures_nonreg_simple_TeozAltElseParallel_0006_puml
+    reference_fixtures_nonreg_simple_TeozTimelineIssues_0002_puml
+    reference_fixtures_nonreg_simple_TeozTimelineIssues_0004_puml
+    reference_fixtures_nonreg_simple_TeozTimelineIssues_0007_puml
+    reference_fixtures_nonreg_simple_TeozTimelineIssues_0009_puml
+    reference_fixtures_nonreg_simple_TimingMessageArrowFont_0001_puml
+    reference_fixtures_nonreg_simple_TimingMessageArrowFont_0002_puml
+    reference_fixtures_nonreg_xmi_component_XMI0001_puml
+    reference_fixtures_preprocessor_deployment_mono_multi_line_puml
+    reference_fixtures_preprocessor_jaws1_puml
+    reference_fixtures_preprocessor_jaws3_puml
+    reference_fixtures_preprocessor_jaws7_puml
+    reference_fixtures_preprocessor_sequenceleftmessageandactivelifelines_0001_puml
+    reference_fixtures_preprocessor_subdiagram_theme_01_puml
+    reference_fixtures_preprocessor_teozaltelseparallel_0001_puml
+    reference_fixtures_preprocessor_teozaltelseparallel_0002_puml
+    reference_fixtures_preprocessor_teozaltelseparallel_0004_puml
+    reference_fixtures_preprocessor_teozaltelseparallel_0005_puml
+    reference_fixtures_preprocessor_teozaltelseparallel_0006_puml
+    reference_fixtures_preprocessor_teoztimelineissues_0002_puml
+    reference_fixtures_preprocessor_teoztimelineissues_0004_puml
+    reference_fixtures_preprocessor_teoztimelineissues_0007_puml
+    reference_fixtures_preprocessor_teoztimelineissues_0009_puml
+    reference_fixtures_sprite_svgFillColourTest_2174_puml
+    reference_fixtures_sprite_testGradientSprite_puml
+    reference_fixtures_sprite_testPolylineSprites_puml
+    reference_fixtures_state_scxml0002_puml
+    reference_fixtures_state_scxml0003_puml
+    reference_fixtures_state_scxml0004_puml
+    reference_fixtures_state_state_choice001_puml
+    reference_fixtures_state_state_concurrent001_puml
+    reference_fixtures_state_state_fork001_puml
+    reference_fixtures_state_state_history001_puml
+    reference_fixtures_state_state_monoline_03_puml
+    reference_fixtures_state_state_note001_puml
+    reference_fixtures_usecase_basic_puml
+
+test result: FAILED. 221 passed; 75 failed; 0 ignored; 0 measured; 0 filtered out; finished in 13.58s
+

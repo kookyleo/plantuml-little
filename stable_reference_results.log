@@ -1,0 +1,2809 @@
+
+running 322 tests
+test reference_fixtures_chart_single_series_puml ... FAILED
+test reference_fixtures_chronology_basic_puml ... FAILED
+test reference_fixtures_chart_bar_basic_puml ... FAILED
+test reference_fixtures_board_basic_puml ... FAILED
+test reference_fixtures_activity_swimlane001_puml ... FAILED
+test reference_fixtures_activity_activity_mono_multi_line2_puml ... FAILED
+test reference_fixtures_activity_activity_mono_multi_line2_v2_puml ... FAILED
+test reference_fixtures_activity_activity_creole_table_01_puml ... FAILED
+test reference_fixtures_activity_activity_mono_multi_line_puml ... FAILED
+test reference_fixtures_activity_activity_mono_multi_line_v2_puml ... FAILED
+test reference_fixtures_activity_activity_creole_table_02_puml ... FAILED
+test reference_fixtures_archimate_basic_puml ... FAILED
+test reference_fixtures_archimate_layers_puml ... FAILED
+test reference_fixtures_chart_pie_basic_puml ... ok
+test reference_fixtures_activity_a0002_puml ... FAILED
+test reference_fixtures_class_hideshow001_puml ... FAILED
+test reference_fixtures_component_colors001_puml ... FAILED
+test reference_fixtures_class_hideshow003_puml ... FAILED
+test reference_fixtures_class_class_funcparam_arrow_02_puml ... FAILED
+test reference_fixtures_class_hideshow004_puml ... FAILED
+test reference_fixtures_class_xmi0003_puml ... FAILED
+test reference_fixtures_class_hideshow002_puml ... FAILED
+test reference_fixtures_component_componentextraarrows_0001_puml ... FAILED
+test reference_fixtures_component_gml0000_puml ... FAILED
+test reference_fixtures_component_buitin_newline_chr_puml ... FAILED
+test reference_fixtures_class_generics001_puml ... FAILED
+test reference_fixtures_component_deployment01_puml ... FAILED
+test reference_fixtures_component_gml0001_puml ... FAILED
+test reference_fixtures_class_a0005_puml ... FAILED
+test reference_fixtures_class_xmi0002_puml ... FAILED
+test reference_fixtures_dev_jaws_jaws12_puml ... FAILED
+test reference_fixtures_component_xmi0001_puml ... FAILED
+test reference_fixtures_class_xmi0004_puml ... FAILED
+test reference_fixtures_component_jaws5_puml ... FAILED
+test reference_fixtures_component_deployment_last_name_multi_line_puml ... FAILED
+test reference_fixtures_class_colors001_puml ... FAILED
+test reference_fixtures_dev_jaws_jaws8_puml ... FAILED
+test reference_fixtures_dev_jaws_jaws5_puml ... FAILED
+test reference_fixtures_dev_newline_WBS_arrow_puml ... FAILED
+test reference_fixtures_dev_jaws_jaws9_puml ... FAILED
+test reference_fixtures_dev_newline_activity_mono_multi_line2_puml ... FAILED
+test reference_fixtures_dev_newline_activity_creole_table_puml ... FAILED
+test reference_fixtures_dev_newline_WBS_direction_puml ... FAILED
+test reference_fixtures_dev_newline_activity_mono_multi_line_puml ... FAILED
+test reference_fixtures_class_class_funcparam_arrow_01_puml ... FAILED
+test reference_fixtures_dev_newline_builtin_newline_puml ... FAILED
+test reference_fixtures_dev_jaws_jaws3_puml ... FAILED
+test reference_fixtures_class_qualifiedassoc002_puml ... FAILED
+test reference_fixtures_dev_jaws_jaws10_puml ... FAILED
+test reference_fixtures_component_svg0001_puml ... FAILED
+test reference_fixtures_dev_jaws_jaws11_puml ... FAILED
+test reference_fixtures_dev_newline_json_escaped_puml ... FAILED
+test reference_fixtures_dev_jaws_jaws4_puml ... FAILED
+test reference_fixtures_dev_newline_link_URL_tooltip_puml ... FAILED
+test reference_fixtures_dev_newline_deployment_mono_multi_line_puml ... FAILED
+test reference_fixtures_dev_newline_deployment_on_name_puml ... FAILED
+test reference_fixtures_dev_jaws_jaws2_puml ... FAILED
+test reference_fixtures_ditaa_basic_puml ... ok
+test reference_fixtures_dev_newlinev2_activity_mono_multi_line2_v2_puml ... FAILED
+test reference_fixtures_dev_newline_preproc_functionparam_line_continuation_puml ... FAILED
+test reference_fixtures_dev_newlinev2_activity_mono_multi_line_v2_puml ... FAILED
+test reference_fixtures_dev_newline_state_monoline_puml ... FAILED
+test reference_fixtures_ebnf_basic_puml ... FAILED
+test reference_fixtures_dev_jaws_jaws6_puml ... FAILED
+test reference_fixtures_dev_newline_deployment_last_name_multi_line_puml ... FAILED
+test reference_fixtures_dot_basic_puml ... ok
+test reference_fixtures_dev_newline_buitin_newline_chr_puml ... FAILED
+test reference_fixtures_ebnf_expression_puml ... FAILED
+test reference_fixtures_files_diagram_basic_puml ... FAILED
+test reference_fixtures_files_diagram_nested_puml ... FAILED
+test reference_fixtures_erd_chenmovie_puml ... ok
+test reference_fixtures_erd_chenrankdir_puml ... FAILED
+test reference_fixtures_git_basic_puml ... FAILED
+test reference_fixtures_hcl_basic_puml ... FAILED
+test reference_fixtures_git_branches_puml ... FAILED
+test reference_fixtures_json_json_escaped_puml ... FAILED
+test reference_fixtures_mindmap_jaws12_puml ... FAILED
+test reference_fixtures_erd_weak001_puml ... FAILED
+test reference_fixtures_dev_jaws_jaws7_puml ... FAILED
+test reference_fixtures_dev_newline_seq_mono_line_puml ... FAILED
+test reference_fixtures_erd_chenmovieextended_puml ... ok
+test reference_fixtures_misc_deployment_on_name_puml ... FAILED
+test reference_fixtures_erd_chenmoviealias_puml ... ok
+test reference_fixtures_component_subdiagram_theme_02_puml ... FAILED
+test reference_fixtures_misc_a0004_puml ... FAILED
+test reference_fixtures_misc_link_url_tooltip_04_puml ... FAILED
+test reference_fixtures_class_qualifiedassoc001_puml ... FAILED
+test reference_fixtures_misc_creole_font001_puml ... FAILED
+test reference_fixtures_misc_creole_back001_puml ... FAILED
+test reference_fixtures_gantt_a0003_puml ... FAILED
+test reference_fixtures_misc_creole_sup_sub001_puml ... FAILED
+test reference_fixtures_dev_newline_class_funcparam_arrow_puml ... FAILED
+test reference_fixtures_misc_skinparam_class001_puml ... FAILED
+test reference_fixtures_nonreg_graphml_GML0000_puml ... FAILED
+test reference_fixtures_misc_creole_note001_puml ... FAILED
+test reference_fixtures_misc_creole_mixed001_puml ... FAILED
+test reference_fixtures_nonreg_graphml_GML0001_puml ... FAILED
+test reference_fixtures_nonreg_scxml_SCXML0001_puml ... FAILED
+test reference_fixtures_misc_skinparam_font001_puml ... FAILED
+test reference_fixtures_misc_skinparam_colors001_puml ... FAILED
+test reference_fixtures_misc_meta_title_header_footer_puml ... FAILED
+test reference_fixtures_nonreg_scxml_SCXML0005_puml ... FAILED
+test reference_fixtures_misc_skinparam_handwritten001_puml ... FAILED
+test reference_fixtures_misc_skinparam_monochrome001_puml ... FAILED
+test reference_fixtures_misc_xmi0000_puml ... FAILED
+test reference_fixtures_dev_newline_subdiagram_theme_puml ... FAILED
+test reference_fixtures_nonreg_scxml_SCXML0002_puml ... FAILED
+test reference_fixtures_nonreg_scxml_SCXML0004_puml ... FAILED
+test reference_fixtures_misc_skinparam_sequence001_puml ... FAILED
+test reference_fixtures_nonreg_simple_A0004_puml ... FAILED
+test reference_fixtures_misc_skinparam_roundcorner001_puml ... FAILED
+test reference_fixtures_nonreg_simple_A0002_puml ... FAILED
+test reference_fixtures_nonreg_simple_ChenRankDir_puml ... FAILED
+test reference_fixtures_nonreg_simple_ChenMovie_puml ... ok
+test reference_fixtures_nonreg_simple_A0000_puml ... FAILED
+test reference_fixtures_nonreg_simple_A0001_puml ... FAILED
+test reference_fixtures_nonreg_simple_ComponentExtraArrows_0001_puml ... FAILED
+test reference_fixtures_nonreg_simple_ChenMovieExtended_puml ... ok
+test reference_fixtures_nonreg_simple_ChenMovieAlias_puml ... ok
+test reference_fixtures_nonreg_simple_A0003_puml ... FAILED
+test reference_fixtures_nonreg_simple_A0006_puml ... FAILED
+test reference_fixtures_nonreg_scxml_SCXML0003_puml ... FAILED
+test reference_fixtures_nonreg_simple_HideShow003_puml ... FAILED
+test reference_fixtures_nonreg_simple_A0005_puml ... FAILED
+test reference_fixtures_nonreg_simple_HideShow001_puml ... FAILED
+test reference_fixtures_nonreg_simple_HideShow004_puml ... FAILED
+test reference_fixtures_nonreg_simple_HideShow002_puml ... FAILED
+test reference_fixtures_nonreg_simple_SequenceLayout_0002_puml ... FAILED
+test reference_fixtures_nonreg_simple_SequenceLayout_0001_puml ... FAILED
+test reference_fixtures_nonreg_simple_SequenceLayout_0003_puml ... FAILED
+test reference_fixtures_nonreg_simple_SequenceLayout_0004_puml ... FAILED
+test reference_fixtures_nonreg_simple_SequenceLayout_0006_puml ... FAILED
+test reference_fixtures_nonreg_simple_SequenceLayout_0001b_puml ... FAILED
+test reference_fixtures_nonreg_simple_SequenceLayout_0001c_puml ... FAILED
+test reference_fixtures_nonreg_simple_SequenceLayout_0005b_puml ... FAILED
+test reference_fixtures_nonreg_simple_SequenceLayout_0005_puml ... FAILED
+test reference_fixtures_nonreg_simple_QualifiedAssoc002_puml ... FAILED
+test reference_fixtures_nonreg_simple_SequenceLeftMessageAndActiveLifeLines_0001_puml ... FAILED
+test reference_fixtures_misc_link_url_tooltip_05_puml ... FAILED
+test reference_fixtures_nonreg_simple_SequenceArrows_0001_puml ... FAILED
+test reference_fixtures_nonreg_simple_SequenceArrows_0002_puml ... FAILED
+test reference_fixtures_nonreg_simple_TeozAltElseParallel_0001_puml ... FAILED
+test reference_fixtures_nonreg_simple_TeozAltElseParallel_0003_puml ... FAILED
+test reference_fixtures_nonreg_simple_TeozAltElseParallel_0002_puml ... FAILED
+test reference_fixtures_nonreg_simple_TeozAltElseParallel_0004_puml ... FAILED
+test reference_fixtures_nonreg_simple_TeozAltElseParallel_0005_puml ... FAILED
+test reference_fixtures_nonreg_simple_SequenceLeftMessageAndActiveLifeLines_0002_puml ... FAILED
+test reference_fixtures_nonreg_simple_TeozTimelineIssues_0001_puml ... FAILED
+test reference_fixtures_nonreg_simple_TimingMessageArrowFont_0001_puml ... FAILED
+test reference_fixtures_nonreg_simple_TeozTimelineIssues_0003_puml ... FAILED
+test reference_fixtures_nonreg_simple_TeozAltElseParallel_0006_puml ... FAILED
+test reference_fixtures_nonreg_simple_TimingMessageArrowFont_0002_puml ... FAILED
+test reference_fixtures_nonreg_simple_TeozTimelineIssues_0004_puml ... FAILED
+test reference_fixtures_nonreg_simple_TeozTimelineIssues_0005_puml ... FAILED
+test reference_fixtures_nonreg_simple_TeozTimelineIssues_0002_puml ... FAILED
+test reference_fixtures_nonreg_simple_SequenceLeftMessageAndActiveLifeLines_0003_puml ... FAILED
+test reference_fixtures_nonreg_simple_TeozTimelineIssues_0006_puml ... FAILED
+test reference_fixtures_nonreg_svg_SVG0005_Smetana_puml ... FAILED
+test reference_fixtures_nonreg_svg_SVG0005_Svek_puml ... FAILED
+test reference_fixtures_nonreg_simple_QualifiedAssoc001_puml ... FAILED
+test reference_fixtures_nonreg_simple_TeozTimelineIssues_0008_puml ... FAILED
+test reference_fixtures_nonreg_simple_TeozTimelineIssues_0007_puml ... FAILED
+test reference_fixtures_nwdiag_basic_puml ... FAILED
+test reference_fixtures_nonreg_xmi_component_XMI0001_puml ... FAILED
+test reference_fixtures_nonreg_svg_SVG0001_puml ... FAILED
+test reference_fixtures_nonreg_simple_TeozTimelineIssues_0009_puml ... FAILED
+test reference_fixtures_packet_basic_puml ... ok
+test reference_fixtures_packet_tcp_puml ... ok
+test reference_fixtures_nonreg_xmi_clazz_XMI0000_puml ... FAILED
+test reference_fixtures_nonreg_svg_SVG0002_puml ... FAILED
+test reference_fixtures_pie_basic_puml ... ok
+test reference_fixtures_preprocessor_builtin_newline_puml ... FAILED
+test reference_fixtures_nonreg_xmi_clazz_XMI0003_puml ... FAILED
+test reference_fixtures_preprocessor_deployment_mono_multi_line_puml ... FAILED
+test reference_fixtures_nonreg_svg_SVG0003_puml ... FAILED
+test reference_fixtures_preprocessor_jaws8_puml ... FAILED
+test reference_fixtures_preprocessor_jaws9_puml ... FAILED
+test reference_fixtures_nonreg_xmi_clazz_XMI0002_puml ... FAILED
+test reference_fixtures_nonreg_xmi_clazz_XMI0004_puml ... FAILED
+test reference_fixtures_preprocessor_preproc_functionparam_line_continuation_puml ... FAILED
+test reference_fixtures_nonreg_svg_SVG0004_Smetana_puml ... FAILED
+test reference_fixtures_nonreg_svg_SVG0004_Svek_puml ... FAILED
+test reference_fixtures_preprocessor_jaws3_puml ... FAILED
+test reference_fixtures_object_fields_puml ... FAILED
+test reference_fixtures_object_map_puml ... FAILED
+test reference_fixtures_object_basic_puml ... FAILED
+test reference_fixtures_object_inheritance_puml ... FAILED
+test reference_fixtures_preprocessor_seq_mono_line_puml ... FAILED
+test reference_fixtures_preprocessor_sequencelayout_0004_puml ... FAILED
+test reference_fixtures_preprocessor_jaws6_puml ... FAILED
+test reference_fixtures_preprocessor_jaws7_puml ... FAILED
+test reference_fixtures_preprocessor_svg0005_smetana_puml ... FAILED
+test reference_fixtures_nonreg_svg_SVG0006_Svek_puml ... FAILED
+test reference_fixtures_preprocessor_sequencelayout_0005_puml ... FAILED
+test reference_fixtures_preprocessor_svg0005_svek_puml ... FAILED
+test reference_fixtures_preprocessor_sequencelayout_0005b_puml ... FAILED
+test reference_fixtures_preprocessor_sequenceleftmessageandactivelifelines_0001_puml ... FAILED
+test reference_fixtures_preprocessor_svg0002_puml ... FAILED
+test reference_fixtures_preprocessor_sequencearrows_0001_puml ... FAILED
+test reference_fixtures_preprocessor_sequencearrows_0002_puml ... FAILED
+test reference_fixtures_preprocessor_teozaltelseparallel_0001_puml ... FAILED
+test reference_fixtures_preprocessor_teozaltelseparallel_0002_puml ... FAILED
+test reference_fixtures_preprocessor_teozaltelseparallel_0005_puml ... FAILED
+test reference_fixtures_preprocessor_teozaltelseparallel_0003_puml ... FAILED
+test reference_fixtures_preprocessor_teozaltelseparallel_0004_puml ... FAILED
+test reference_fixtures_preprocessor_svg0004_smetana_puml ... FAILED
+test reference_fixtures_preprocessor_teoztimelineissues_0001_puml ... FAILED
+test reference_fixtures_preprocessor_svg0004_svek_puml ... FAILED
+test reference_fixtures_regex_alternation_puml ... FAILED
+test reference_fixtures_regex_basic_puml ... FAILED
+test reference_fixtures_salt_basic_puml ... FAILED
+test reference_fixtures_preprocessor_teozaltelseparallel_0006_puml ... FAILED
+test reference_fixtures_regex_complex_puml ... FAILED
+test reference_fixtures_preprocessor_subdiagram_theme_01_puml ... FAILED
+test reference_fixtures_preprocessor_teoztimelineissues_0002_puml ... FAILED
+test reference_fixtures_preprocessor_teoztimelineissues_0003_puml ... FAILED
+test reference_fixtures_preprocessor_teoztimelineissues_0005_puml ... FAILED
+test reference_fixtures_preprocessor_teoztimelineissues_0004_puml ... FAILED
+test reference_fixtures_preprocessor_teoztimelineissues_0006_puml ... FAILED
+test reference_fixtures_preprocessor_teoztimelineissues_0008_puml ... FAILED
+test reference_fixtures_preprocessor_teoztimelineissues_0007_puml ... FAILED
+test reference_fixtures_sequence_a0000_puml ... FAILED
+test reference_fixtures_sequence_a0006_puml ... FAILED
+test reference_fixtures_preprocessor_teoztimelineissues_0009_puml ... FAILED
+test reference_fixtures_sequence_jaws10_puml ... FAILED
+test reference_fixtures_sequence_intermediatetest_0000_puml ... FAILED
+test reference_fixtures_preprocessor_svg0006_svek_puml ... FAILED
+test reference_fixtures_sequence_jaws11_puml ... FAILED
+test reference_fixtures_sequence_a0001_puml ... FAILED
+test reference_fixtures_sequence_jaws4_puml ... FAILED
+test reference_fixtures_sequence_jaws2_puml ... FAILED
+test reference_fixtures_sequence_seq_autonumber001_puml ... FAILED
+test reference_fixtures_sequence_seq_alt001_puml ... FAILED
+test reference_fixtures_sequence_seq_critical001_puml ... FAILED
+test reference_fixtures_sequence_seq_break001_puml ... FAILED
+test reference_fixtures_sequence_seq_divider001_puml ... FAILED
+test reference_fixtures_sequence_seq_loop001_puml ... FAILED
+test reference_fixtures_sequence_seq_group001_puml ... FAILED
+test reference_fixtures_sequence_seq_opt001_puml ... FAILED
+test reference_fixtures_sequence_seq_nested001_puml ... FAILED
+test reference_fixtures_sequence_seq_ref001_puml ... FAILED
+test reference_fixtures_sequence_seq_par001_puml ... FAILED
+test reference_fixtures_sequence_seq_participants001_puml ... FAILED
+test reference_fixtures_sequence_sequencelayout_0002_puml ... FAILED
+test reference_fixtures_sequence_sequencelayout_0001_puml ... FAILED
+test reference_fixtures_sequence_sequencelayout_0006_puml ... FAILED
+test reference_fixtures_sequence_sequencelayout_0001b_puml ... FAILED
+test reference_fixtures_sequence_sequencelayout_0003_puml ... FAILED
+test reference_fixtures_sequence_sequenceleftmessageandactivelifelines_0002_puml ... FAILED
+test reference_fixtures_sequence_sequencelayout_0001c_puml ... FAILED
+test reference_fixtures_sequence_svg0001_puml ... FAILED
+test reference_fixtures_sequence_test_0_puml ... FAILED
+test reference_fixtures_sprite_linearGradientSpreadPad_puml ... FAILED
+test reference_fixtures_sequence_svg0003_puml ... FAILED
+test reference_fixtures_sprite_svgFillColourTest_2174_puml ... FAILED
+test reference_fixtures_sprite_linearGradientSpreadReflect_puml ... FAILED
+test reference_fixtures_sprite_azureSVG_puml ... FAILED
+test reference_fixtures_sprite_linearGradientSpreadRepeat_puml ... FAILED
+test reference_fixtures_sequence_sequenceleftmessageandactivelifelines_0003_puml ... FAILED
+test reference_fixtures_sprite_styleFontWeightRoboto_puml ... FAILED
+test reference_fixtures_sprite_svg2GroupsWithStyle_puml ... FAILED
+test reference_fixtures_sprite_svg2Groups_puml ... FAILED
+test reference_fixtures_sprite_svgDiagonalGradientBLTRMonochrome_puml ... FAILED
+test reference_fixtures_sprite_svg2GroupsInlineStyled_puml ... FAILED
+test reference_fixtures_sprite_svgDiagonalGradientTLBR_puml ... FAILED
+test reference_fixtures_sprite_svgEmbeddedPNG_puml ... FAILED
+test reference_fixtures_sprite_svgDiagonalGradientBLTR_puml ... FAILED
+test reference_fixtures_sprite_svgPolygonStar_puml ... FAILED
+test reference_fixtures_sprite_svgFontWeightStandardFonts_puml ... FAILED
+test reference_fixtures_sprite_svgFontWeightMultiWeight_puml ... FAILED
+test reference_fixtures_sprite_svgLinearGradientCircle_puml ... FAILED
+test reference_fixtures_sprite_svgRedCircle_puml ... FAILED
+test reference_fixtures_sprite_svgRadialGradient_puml ... FAILED
+test reference_fixtures_sprite_svgRedEllipse_puml ... FAILED
+test reference_fixtures_sprite_svgRedLine_puml ... FAILED
+test reference_fixtures_sprite_svgRedPolyLine_puml ... FAILED
+test reference_fixtures_sprite_svgRedRectLinearGradient_puml ... FAILED
+test reference_fixtures_sprite_svgRedRect_puml ... FAILED
+test reference_fixtures_sprite_svgTransformRotate_puml ... FAILED
+test reference_fixtures_sprite_svgTransformMatrix_puml ... FAILED
+test reference_fixtures_sprite_svgTransformTranslate_puml ... FAILED
+test reference_fixtures_sprite_svgTransformScale_puml ... FAILED
+test reference_fixtures_sprite_svgTransformGroup_puml ... FAILED
+test reference_fixtures_sprite_svgRedStroke_puml ... FAILED
+test reference_fixtures_sprite_svgRedText_puml ... FAILED
+test reference_fixtures_state_scxml0001_puml ... FAILED
+test reference_fixtures_sprite_svgTextAnchor_puml ... FAILED
+test reference_fixtures_state_scxml0005_puml ... FAILED
+test reference_fixtures_sprite_svgTextBold_puml ... FAILED
+test reference_fixtures_sprite_svgTextDecoration_puml ... FAILED
+test reference_fixtures_state_state_choice001_puml ... FAILED
+test reference_fixtures_state_scxml0002_puml ... FAILED
+test reference_fixtures_state_scxml0004_puml ... FAILED
+test reference_fixtures_sprite_svgTextItalic_puml ... FAILED
+test reference_fixtures_state_state_monoline_01_puml ... FAILED
+test reference_fixtures_state_state_monoline_02_puml ... FAILED
+test reference_fixtures_timing_timingmessagearrowfont_0001_puml ... FAILED
+test reference_fixtures_sprite_svgTextStyleAttr_puml ... FAILED
+test reference_fixtures_state_state_monoline_03_puml ... FAILED
+test reference_fixtures_timing_timingmessagearrowfont_0002_puml ... FAILED
+test reference_fixtures_sprite_svgVerticalGradient_puml ... FAILED
+test reference_fixtures_wbs_link_url_tooltip_01_puml ... FAILED
+test reference_fixtures_sprite_svgUseDefs_puml ... FAILED
+test reference_fixtures_state_state_fork001_puml ... FAILED
+test reference_fixtures_state_state_history001_puml ... FAILED
+test reference_fixtures_wbs_link_url_tooltip_02_puml ... FAILED
+test reference_fixtures_wbs_link_url_tooltip_03_puml ... FAILED
+test reference_fixtures_wbs_wbs_arrow_puml ... FAILED
+test reference_fixtures_usecase_basic_puml ... FAILED
+test reference_fixtures_sprite_testPolylineSprites_puml ... FAILED
+test reference_fixtures_wbs_wbs_direction_puml ... FAILED
+test reference_fixtures_yaml_basic_puml ... FAILED
+test reference_fixtures_state_state_concurrent001_puml ... FAILED
+test reference_fixtures_usecase_colon_actor_puml ... FAILED
+test reference_fixtures_sprite_testGradientSprite_puml ... FAILED
+test reference_fixtures_wire_basic_puml ... FAILED
+test reference_fixtures_state_state_note001_puml ... FAILED
+test reference_fixtures_usecase_boundary_puml ... FAILED
+test reference_fixtures_wire_multi_puml ... FAILED
+test reference_fixtures_state_scxml0003_puml ... FAILED
+test reference_fixtures_dev_jaws_jaws1_puml ... FAILED
+test reference_fixtures_preprocessor_jaws1_puml ... FAILED
+
+failures:
+
+---- reference_fixtures_chart_single_series_puml stdout ----
+
+thread 'reference_fixtures_chart_single_series_puml' (2164081) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/chart/single_series.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_chronology_basic_puml stdout ----
+
+thread 'reference_fixtures_chronology_basic_puml' (2164082) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/chronology/basic.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+---- reference_fixtures_chart_bar_basic_puml stdout ----
+
+thread 'reference_fixtures_chart_bar_basic_puml' (2164079) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/chart/bar_basic.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_board_basic_puml stdout ----
+
+thread 'reference_fixtures_board_basic_puml' (2164078) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/board/basic.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_activity_swimlane001_puml stdout ----
+
+thread 'reference_fixtures_activity_swimlane001_puml' (2164075) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/activity/swimlane001.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_activity_activity_mono_multi_line2_puml stdout ----
+
+thread 'reference_fixtures_activity_activity_mono_multi_line2_puml' (2164071) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/activity/activity_mono_multi_line2.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_activity_activity_mono_multi_line2_v2_puml stdout ----
+
+thread 'reference_fixtures_activity_activity_mono_multi_line2_v2_puml' (2164072) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/activity/activity_mono_multi_line2_v2.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_activity_activity_creole_table_01_puml stdout ----
+
+thread 'reference_fixtures_activity_activity_creole_table_01_puml' (2164069) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/activity/activity_creole_table_01.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_activity_activity_mono_multi_line_puml stdout ----
+
+thread 'reference_fixtures_activity_activity_mono_multi_line_puml' (2164073) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/activity/activity_mono_multi_line.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_activity_activity_mono_multi_line_v2_puml stdout ----
+
+thread 'reference_fixtures_activity_activity_mono_multi_line_v2_puml' (2164074) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/activity/activity_mono_multi_line_v2.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_activity_activity_creole_table_02_puml stdout ----
+
+thread 'reference_fixtures_activity_activity_creole_table_02_puml' (2164070) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/activity/activity_creole_table_02.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_archimate_basic_puml stdout ----
+
+thread 'reference_fixtures_archimate_basic_puml' (2164076) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/archimate/basic.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_archimate_layers_puml stdout ----
+
+thread 'reference_fixtures_archimate_layers_puml' (2164077) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/archimate/layers.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_activity_a0002_puml stdout ----
+
+thread 'reference_fixtures_activity_a0002_puml' (2164068) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/activity/a0002.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_class_hideshow001_puml stdout ----
+
+thread 'reference_fixtures_class_hideshow001_puml' (2164090) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/class/hideshow001.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_component_colors001_puml stdout ----
+
+thread 'reference_fixtures_component_colors001_puml' (2164100) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/component/colors001.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_class_hideshow003_puml stdout ----
+
+thread 'reference_fixtures_class_hideshow003_puml' (2164092) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/class/hideshow003.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_class_class_funcparam_arrow_02_puml stdout ----
+
+thread 'reference_fixtures_class_class_funcparam_arrow_02_puml' (2164087) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/class/class_funcparam_arrow_02.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_class_hideshow004_puml stdout ----
+
+thread 'reference_fixtures_class_hideshow004_puml' (2164093) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/class/hideshow004.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_class_xmi0003_puml stdout ----
+
+thread 'reference_fixtures_class_xmi0003_puml' (2164097) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/class/xmi0003.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_class_hideshow002_puml stdout ----
+
+thread 'reference_fixtures_class_hideshow002_puml' (2164091) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/class/hideshow002.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_component_componentextraarrows_0001_puml stdout ----
+
+thread 'reference_fixtures_component_componentextraarrows_0001_puml' (2164107) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/component/componentextraarrows_0001.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_component_gml0000_puml stdout ----
+
+thread 'reference_fixtures_component_gml0000_puml' (2164114) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/component/gml0000.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_component_buitin_newline_chr_puml stdout ----
+
+thread 'reference_fixtures_component_buitin_newline_chr_puml' (2164099) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/component/buitin_newline_chr.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_class_generics001_puml stdout ----
+
+thread 'reference_fixtures_class_generics001_puml' (2164089) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/class/generics001.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_component_deployment01_puml stdout ----
+
+thread 'reference_fixtures_component_deployment01_puml' (2164108) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/component/deployment01.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_component_gml0001_puml stdout ----
+
+thread 'reference_fixtures_component_gml0001_puml' (2164118) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/component/gml0001.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_class_a0005_puml stdout ----
+
+thread 'reference_fixtures_class_a0005_puml' (2164083) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/class/a0005.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_class_xmi0002_puml stdout ----
+
+thread 'reference_fixtures_class_xmi0002_puml' (2164096) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/class/xmi0002.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_dev_jaws_jaws12_puml stdout ----
+
+thread 'reference_fixtures_dev_jaws_jaws12_puml' (2164130) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/dev/jaws/jaws12.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_component_xmi0001_puml stdout ----
+
+thread 'reference_fixtures_component_xmi0001_puml' (2164125) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/component/xmi0001.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_class_xmi0004_puml stdout ----
+
+thread 'reference_fixtures_class_xmi0004_puml' (2164098) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/class/xmi0004.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_component_jaws5_puml stdout ----
+
+thread 'reference_fixtures_component_jaws5_puml' (2164120) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/component/jaws5.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_component_deployment_last_name_multi_line_puml stdout ----
+
+thread 'reference_fixtures_component_deployment_last_name_multi_line_puml' (2164112) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/component/deployment_last_name_multi_line.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_class_colors001_puml stdout ----
+
+thread 'reference_fixtures_class_colors001_puml' (2164088) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/class/colors001.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_dev_jaws_jaws8_puml stdout ----
+
+thread 'reference_fixtures_dev_jaws_jaws8_puml' (2164141) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/dev/jaws/jaws8.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_dev_jaws_jaws5_puml stdout ----
+
+thread 'reference_fixtures_dev_jaws_jaws5_puml' (2164136) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/dev/jaws/jaws5.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_dev_newline_WBS_arrow_puml stdout ----
+
+thread 'reference_fixtures_dev_newline_WBS_arrow_puml' (2164143) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/dev/newline/WBS_arrow.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_dev_jaws_jaws9_puml stdout ----
+
+thread 'reference_fixtures_dev_jaws_jaws9_puml' (2164142) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/dev/jaws/jaws9.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_dev_newline_activity_mono_multi_line2_puml stdout ----
+
+thread 'reference_fixtures_dev_newline_activity_mono_multi_line2_puml' (2164147) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/dev/newline/activity_mono_multi_line2.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_dev_newline_activity_creole_table_puml stdout ----
+
+thread 'reference_fixtures_dev_newline_activity_creole_table_puml' (2164146) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/dev/newline/activity_creole_table.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_dev_newline_WBS_direction_puml stdout ----
+
+thread 'reference_fixtures_dev_newline_WBS_direction_puml' (2164145) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/dev/newline/WBS_direction.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_dev_newline_activity_mono_multi_line_puml stdout ----
+
+thread 'reference_fixtures_dev_newline_activity_mono_multi_line_puml' (2164148) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/dev/newline/activity_mono_multi_line.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_class_class_funcparam_arrow_01_puml stdout ----
+
+thread 'reference_fixtures_class_class_funcparam_arrow_01_puml' (2164086) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/class/class_funcparam_arrow_01.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_dev_newline_builtin_newline_puml stdout ----
+
+thread 'reference_fixtures_dev_newline_builtin_newline_puml' (2164150) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/dev/newline/builtin_newline.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_dev_jaws_jaws3_puml stdout ----
+
+thread 'reference_fixtures_dev_jaws_jaws3_puml' (2164133) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/dev/jaws/jaws3.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_class_qualifiedassoc002_puml stdout ----
+
+thread 'reference_fixtures_class_qualifiedassoc002_puml' (2164095) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/class/qualifiedassoc002.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_dev_jaws_jaws10_puml stdout ----
+
+thread 'reference_fixtures_dev_jaws_jaws10_puml' (2164127) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/dev/jaws/jaws10.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_component_svg0001_puml stdout ----
+
+thread 'reference_fixtures_component_svg0001_puml' (2164124) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/component/svg0001.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_dev_jaws_jaws11_puml stdout ----
+
+thread 'reference_fixtures_dev_jaws_jaws11_puml' (2164129) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/dev/jaws/jaws11.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_dev_newline_json_escaped_puml stdout ----
+
+thread 'reference_fixtures_dev_newline_json_escaped_puml' (2164161) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/dev/newline/json_escaped.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_dev_jaws_jaws4_puml stdout ----
+
+thread 'reference_fixtures_dev_jaws_jaws4_puml' (2164134) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/dev/jaws/jaws4.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_dev_newline_link_URL_tooltip_puml stdout ----
+
+thread 'reference_fixtures_dev_newline_link_URL_tooltip_puml' (2164167) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/dev/newline/link_URL_tooltip.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_dev_newline_deployment_mono_multi_line_puml stdout ----
+
+thread 'reference_fixtures_dev_newline_deployment_mono_multi_line_puml' (2164156) panicked at tests/reference_tests.rs:101:9:
+tests/fixtures/dev/newline/deployment_mono_multi_line.puml: escaped <color:X> markup in SVG output
+
+---- reference_fixtures_dev_newline_deployment_on_name_puml stdout ----
+
+thread 'reference_fixtures_dev_newline_deployment_on_name_puml' (2164159) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/dev/newline/deployment_on_name.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_dev_jaws_jaws2_puml stdout ----
+
+thread 'reference_fixtures_dev_jaws_jaws2_puml' (2164132) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/dev/jaws/jaws2.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_dev_newlinev2_activity_mono_multi_line2_v2_puml stdout ----
+
+thread 'reference_fixtures_dev_newlinev2_activity_mono_multi_line2_v2_puml' (2164177) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/dev/newlinev2/activity_mono_multi_line2_v2.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_dev_newline_preproc_functionparam_line_continuation_puml stdout ----
+
+thread 'reference_fixtures_dev_newline_preproc_functionparam_line_continuation_puml' (2164171) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/dev/newline/preproc_functionparam_line_continuation.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_dev_newlinev2_activity_mono_multi_line_v2_puml stdout ----
+
+thread 'reference_fixtures_dev_newlinev2_activity_mono_multi_line_v2_puml' (2164180) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/dev/newlinev2/activity_mono_multi_line_v2.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_dev_newline_state_monoline_puml stdout ----
+
+thread 'reference_fixtures_dev_newline_state_monoline_puml' (2164174) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/dev/newline/state_monoline.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_ebnf_basic_puml stdout ----
+
+thread 'reference_fixtures_ebnf_basic_puml' (2164189) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/ebnf/basic.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_dev_jaws_jaws6_puml stdout ----
+
+thread 'reference_fixtures_dev_jaws_jaws6_puml' (2164137) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/dev/jaws/jaws6.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_dev_newline_deployment_last_name_multi_line_puml stdout ----
+
+thread 'reference_fixtures_dev_newline_deployment_last_name_multi_line_puml' (2164155) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/dev/newline/deployment_last_name_multi_line.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_dev_newline_buitin_newline_chr_puml stdout ----
+
+thread 'reference_fixtures_dev_newline_buitin_newline_chr_puml' (2164152) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/dev/newline/buitin_newline_chr.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_ebnf_expression_puml stdout ----
+
+thread 'reference_fixtures_ebnf_expression_puml' (2164190) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/ebnf/expression.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_files_diagram_basic_puml stdout ----
+
+thread 'reference_fixtures_files_diagram_basic_puml' (2164204) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/files_diagram/basic.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_files_diagram_nested_puml stdout ----
+
+thread 'reference_fixtures_files_diagram_nested_puml' (2164206) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/files_diagram/nested.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_erd_chenrankdir_puml stdout ----
+
+thread 'reference_fixtures_erd_chenrankdir_puml' (2164199) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/erd/chenrankdir.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_git_basic_puml stdout ----
+
+thread 'reference_fixtures_git_basic_puml' (2164208) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/git/basic.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_hcl_basic_puml stdout ----
+
+thread 'reference_fixtures_hcl_basic_puml' (2164210) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/hcl/basic.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_git_branches_puml stdout ----
+
+thread 'reference_fixtures_git_branches_puml' (2164209) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/git/branches.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_json_json_escaped_puml stdout ----
+
+thread 'reference_fixtures_json_json_escaped_puml' (2164211) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/json/json_escaped.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_mindmap_jaws12_puml stdout ----
+
+thread 'reference_fixtures_mindmap_jaws12_puml' (2164212) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/mindmap/jaws12.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_erd_weak001_puml stdout ----
+
+thread 'reference_fixtures_erd_weak001_puml' (2164202) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/erd/weak001.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_dev_jaws_jaws7_puml stdout ----
+
+thread 'reference_fixtures_dev_jaws_jaws7_puml' (2164140) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/dev/jaws/jaws7.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_dev_newline_seq_mono_line_puml stdout ----
+
+thread 'reference_fixtures_dev_newline_seq_mono_line_puml' (2164172) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/dev/newline/seq_mono_line.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_misc_deployment_on_name_puml stdout ----
+
+thread 'reference_fixtures_misc_deployment_on_name_puml' (2164220) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/misc/deployment_on_name.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_component_subdiagram_theme_02_puml stdout ----
+
+thread 'reference_fixtures_component_subdiagram_theme_02_puml' (2164122) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/component/subdiagram_theme_02.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_misc_a0004_puml stdout ----
+
+thread 'reference_fixtures_misc_a0004_puml' (2164213) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/misc/a0004.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_misc_link_url_tooltip_04_puml stdout ----
+
+thread 'reference_fixtures_misc_link_url_tooltip_04_puml' (2164223) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/misc/link_url_tooltip_04.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_class_qualifiedassoc001_puml stdout ----
+
+thread 'reference_fixtures_class_qualifiedassoc001_puml' (2164094) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/class/qualifiedassoc001.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_misc_creole_font001_puml stdout ----
+
+thread 'reference_fixtures_misc_creole_font001_puml' (2164215) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/misc/creole_font001.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_misc_creole_back001_puml stdout ----
+
+thread 'reference_fixtures_misc_creole_back001_puml' (2164214) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/misc/creole_back001.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_gantt_a0003_puml stdout ----
+
+thread 'reference_fixtures_gantt_a0003_puml' (2164207) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/gantt/a0003.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_misc_creole_sup_sub001_puml stdout ----
+
+thread 'reference_fixtures_misc_creole_sup_sub001_puml' (2164219) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/misc/creole_sup_sub001.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_dev_newline_class_funcparam_arrow_puml stdout ----
+
+thread 'reference_fixtures_dev_newline_class_funcparam_arrow_puml' (2164153) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/dev/newline/class_funcparam_arrow.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_misc_skinparam_class001_puml stdout ----
+
+thread 'reference_fixtures_misc_skinparam_class001_puml' (2164227) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/misc/skinparam_class001.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_nonreg_graphml_GML0000_puml stdout ----
+
+thread 'reference_fixtures_nonreg_graphml_GML0000_puml' (2164238) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/nonreg/graphml/GML0000.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_misc_creole_note001_puml stdout ----
+
+thread 'reference_fixtures_misc_creole_note001_puml' (2164218) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/misc/creole_note001.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_misc_creole_mixed001_puml stdout ----
+
+thread 'reference_fixtures_misc_creole_mixed001_puml' (2164217) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/misc/creole_mixed001.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_nonreg_graphml_GML0001_puml stdout ----
+
+thread 'reference_fixtures_nonreg_graphml_GML0001_puml' (2164240) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/nonreg/graphml/GML0001.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_nonreg_scxml_SCXML0001_puml stdout ----
+
+thread 'reference_fixtures_nonreg_scxml_SCXML0001_puml' (2164241) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/nonreg/scxml/SCXML0001.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_misc_skinparam_font001_puml stdout ----
+
+thread 'reference_fixtures_misc_skinparam_font001_puml' (2164229) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/misc/skinparam_font001.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_misc_skinparam_colors001_puml stdout ----
+
+thread 'reference_fixtures_misc_skinparam_colors001_puml' (2164228) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/misc/skinparam_colors001.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_misc_meta_title_header_footer_puml stdout ----
+
+thread 'reference_fixtures_misc_meta_title_header_footer_puml' (2164225) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/misc/meta_title_header_footer.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_nonreg_scxml_SCXML0005_puml stdout ----
+
+thread 'reference_fixtures_nonreg_scxml_SCXML0005_puml' (2164250) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/nonreg/scxml/SCXML0005.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_misc_skinparam_handwritten001_puml stdout ----
+
+thread 'reference_fixtures_misc_skinparam_handwritten001_puml' (2164231) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/misc/skinparam_handwritten001.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_misc_skinparam_monochrome001_puml stdout ----
+
+thread 'reference_fixtures_misc_skinparam_monochrome001_puml' (2164232) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/misc/skinparam_monochrome001.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_misc_xmi0000_puml stdout ----
+
+thread 'reference_fixtures_misc_xmi0000_puml' (2164237) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/misc/xmi0000.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_dev_newline_subdiagram_theme_puml stdout ----
+
+thread 'reference_fixtures_dev_newline_subdiagram_theme_puml' (2164176) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/dev/newline/subdiagram_theme.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_nonreg_scxml_SCXML0002_puml stdout ----
+
+thread 'reference_fixtures_nonreg_scxml_SCXML0002_puml' (2164244) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/nonreg/scxml/SCXML0002.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_nonreg_scxml_SCXML0004_puml stdout ----
+
+thread 'reference_fixtures_nonreg_scxml_SCXML0004_puml' (2164248) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/nonreg/scxml/SCXML0004.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_misc_skinparam_sequence001_puml stdout ----
+
+thread 'reference_fixtures_misc_skinparam_sequence001_puml' (2164236) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/misc/skinparam_sequence001.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_nonreg_simple_A0004_puml stdout ----
+
+thread 'reference_fixtures_nonreg_simple_A0004_puml' (2164262) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/nonreg/simple/A0004.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_misc_skinparam_roundcorner001_puml stdout ----
+
+thread 'reference_fixtures_misc_skinparam_roundcorner001_puml' (2164235) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/misc/skinparam_roundcorner001.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_nonreg_simple_A0002_puml stdout ----
+
+thread 'reference_fixtures_nonreg_simple_A0002_puml' (2164260) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/nonreg/simple/A0002.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_nonreg_simple_ChenRankDir_puml stdout ----
+
+thread 'reference_fixtures_nonreg_simple_ChenRankDir_puml' (2164275) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/nonreg/simple/ChenRankDir.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_nonreg_simple_A0000_puml stdout ----
+
+thread 'reference_fixtures_nonreg_simple_A0000_puml' (2164253) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/nonreg/simple/A0000.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_nonreg_simple_A0001_puml stdout ----
+
+thread 'reference_fixtures_nonreg_simple_A0001_puml' (2164254) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/nonreg/simple/A0001.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_nonreg_simple_ComponentExtraArrows_0001_puml stdout ----
+
+thread 'reference_fixtures_nonreg_simple_ComponentExtraArrows_0001_puml' (2164278) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/nonreg/simple/ComponentExtraArrows_0001.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_nonreg_simple_A0003_puml stdout ----
+
+thread 'reference_fixtures_nonreg_simple_A0003_puml' (2164261) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/nonreg/simple/A0003.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_nonreg_simple_A0006_puml stdout ----
+
+thread 'reference_fixtures_nonreg_simple_A0006_puml' (2164264) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/nonreg/simple/A0006.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_nonreg_scxml_SCXML0003_puml stdout ----
+
+thread 'reference_fixtures_nonreg_scxml_SCXML0003_puml' (2164245) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/nonreg/scxml/SCXML0003.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_nonreg_simple_HideShow003_puml stdout ----
+
+thread 'reference_fixtures_nonreg_simple_HideShow003_puml' (2164282) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/nonreg/simple/HideShow003.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_nonreg_simple_A0005_puml stdout ----
+
+thread 'reference_fixtures_nonreg_simple_A0005_puml' (2164263) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/nonreg/simple/A0005.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_nonreg_simple_HideShow001_puml stdout ----
+
+thread 'reference_fixtures_nonreg_simple_HideShow001_puml' (2164279) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/nonreg/simple/HideShow001.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_nonreg_simple_HideShow004_puml stdout ----
+
+thread 'reference_fixtures_nonreg_simple_HideShow004_puml' (2164283) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/nonreg/simple/HideShow004.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_nonreg_simple_HideShow002_puml stdout ----
+
+thread 'reference_fixtures_nonreg_simple_HideShow002_puml' (2164280) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/nonreg/simple/HideShow002.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_nonreg_simple_SequenceLayout_0002_puml stdout ----
+
+thread 'reference_fixtures_nonreg_simple_SequenceLayout_0002_puml' (2164294) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/nonreg/simple/SequenceLayout_0002.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_nonreg_simple_SequenceLayout_0001_puml stdout ----
+
+thread 'reference_fixtures_nonreg_simple_SequenceLayout_0001_puml' (2164289) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/nonreg/simple/SequenceLayout_0001.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_nonreg_simple_SequenceLayout_0003_puml stdout ----
+
+thread 'reference_fixtures_nonreg_simple_SequenceLayout_0003_puml' (2164296) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/nonreg/simple/SequenceLayout_0003.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_nonreg_simple_SequenceLayout_0004_puml stdout ----
+
+thread 'reference_fixtures_nonreg_simple_SequenceLayout_0004_puml' (2164299) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/nonreg/simple/SequenceLayout_0004.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_nonreg_simple_SequenceLayout_0006_puml stdout ----
+
+thread 'reference_fixtures_nonreg_simple_SequenceLayout_0006_puml' (2164302) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/nonreg/simple/SequenceLayout_0006.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_nonreg_simple_SequenceLayout_0001b_puml stdout ----
+
+thread 'reference_fixtures_nonreg_simple_SequenceLayout_0001b_puml' (2164290) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/nonreg/simple/SequenceLayout_0001b.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_nonreg_simple_SequenceLayout_0001c_puml stdout ----
+
+thread 'reference_fixtures_nonreg_simple_SequenceLayout_0001c_puml' (2164292) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/nonreg/simple/SequenceLayout_0001c.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_nonreg_simple_SequenceLayout_0005b_puml stdout ----
+
+thread 'reference_fixtures_nonreg_simple_SequenceLayout_0005b_puml' (2164301) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/nonreg/simple/SequenceLayout_0005b.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_nonreg_simple_SequenceLayout_0005_puml stdout ----
+
+thread 'reference_fixtures_nonreg_simple_SequenceLayout_0005_puml' (2164300) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/nonreg/simple/SequenceLayout_0005.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_nonreg_simple_QualifiedAssoc002_puml stdout ----
+
+thread 'reference_fixtures_nonreg_simple_QualifiedAssoc002_puml' (2164285) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/nonreg/simple/QualifiedAssoc002.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_nonreg_simple_SequenceLeftMessageAndActiveLifeLines_0001_puml stdout ----
+
+thread 'reference_fixtures_nonreg_simple_SequenceLeftMessageAndActiveLifeLines_0001_puml' (2164303) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/nonreg/simple/SequenceLeftMessageAndActiveLifeLines_0001.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_misc_link_url_tooltip_05_puml stdout ----
+
+thread 'reference_fixtures_misc_link_url_tooltip_05_puml' (2164224) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/misc/link_url_tooltip_05.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_nonreg_simple_SequenceArrows_0001_puml stdout ----
+
+thread 'reference_fixtures_nonreg_simple_SequenceArrows_0001_puml' (2164287) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/nonreg/simple/SequenceArrows_0001.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_nonreg_simple_SequenceArrows_0002_puml stdout ----
+
+thread 'reference_fixtures_nonreg_simple_SequenceArrows_0002_puml' (2164288) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/nonreg/simple/SequenceArrows_0002.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_nonreg_simple_TeozAltElseParallel_0001_puml stdout ----
+
+thread 'reference_fixtures_nonreg_simple_TeozAltElseParallel_0001_puml' (2164306) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/nonreg/simple/TeozAltElseParallel_0001.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_nonreg_simple_TeozAltElseParallel_0003_puml stdout ----
+
+thread 'reference_fixtures_nonreg_simple_TeozAltElseParallel_0003_puml' (2164308) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/nonreg/simple/TeozAltElseParallel_0003.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_nonreg_simple_TeozAltElseParallel_0002_puml stdout ----
+
+thread 'reference_fixtures_nonreg_simple_TeozAltElseParallel_0002_puml' (2164307) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/nonreg/simple/TeozAltElseParallel_0002.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_nonreg_simple_TeozAltElseParallel_0004_puml stdout ----
+
+thread 'reference_fixtures_nonreg_simple_TeozAltElseParallel_0004_puml' (2164309) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/nonreg/simple/TeozAltElseParallel_0004.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_nonreg_simple_TeozAltElseParallel_0005_puml stdout ----
+
+thread 'reference_fixtures_nonreg_simple_TeozAltElseParallel_0005_puml' (2164311) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/nonreg/simple/TeozAltElseParallel_0005.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_nonreg_simple_SequenceLeftMessageAndActiveLifeLines_0002_puml stdout ----
+
+thread 'reference_fixtures_nonreg_simple_SequenceLeftMessageAndActiveLifeLines_0002_puml' (2164304) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/nonreg/simple/SequenceLeftMessageAndActiveLifeLines_0002.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_nonreg_simple_TeozTimelineIssues_0001_puml stdout ----
+
+thread 'reference_fixtures_nonreg_simple_TeozTimelineIssues_0001_puml' (2164313) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/nonreg/simple/TeozTimelineIssues_0001.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_nonreg_simple_TimingMessageArrowFont_0001_puml stdout ----
+
+thread 'reference_fixtures_nonreg_simple_TimingMessageArrowFont_0001_puml' (2164323) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/nonreg/simple/TimingMessageArrowFont_0001.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_nonreg_simple_TeozTimelineIssues_0003_puml stdout ----
+
+thread 'reference_fixtures_nonreg_simple_TeozTimelineIssues_0003_puml' (2164316) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/nonreg/simple/TeozTimelineIssues_0003.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_nonreg_simple_TeozAltElseParallel_0006_puml stdout ----
+
+thread 'reference_fixtures_nonreg_simple_TeozAltElseParallel_0006_puml' (2164312) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/nonreg/simple/TeozAltElseParallel_0006.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_nonreg_simple_TimingMessageArrowFont_0002_puml stdout ----
+
+thread 'reference_fixtures_nonreg_simple_TimingMessageArrowFont_0002_puml' (2164324) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/nonreg/simple/TimingMessageArrowFont_0002.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_nonreg_simple_TeozTimelineIssues_0004_puml stdout ----
+
+thread 'reference_fixtures_nonreg_simple_TeozTimelineIssues_0004_puml' (2164317) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/nonreg/simple/TeozTimelineIssues_0004.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_nonreg_simple_TeozTimelineIssues_0005_puml stdout ----
+
+thread 'reference_fixtures_nonreg_simple_TeozTimelineIssues_0005_puml' (2164318) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/nonreg/simple/TeozTimelineIssues_0005.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_nonreg_simple_TeozTimelineIssues_0002_puml stdout ----
+
+thread 'reference_fixtures_nonreg_simple_TeozTimelineIssues_0002_puml' (2164315) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/nonreg/simple/TeozTimelineIssues_0002.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_nonreg_simple_SequenceLeftMessageAndActiveLifeLines_0003_puml stdout ----
+
+thread 'reference_fixtures_nonreg_simple_SequenceLeftMessageAndActiveLifeLines_0003_puml' (2164305) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/nonreg/simple/SequenceLeftMessageAndActiveLifeLines_0003.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_nonreg_simple_TeozTimelineIssues_0006_puml stdout ----
+
+thread 'reference_fixtures_nonreg_simple_TeozTimelineIssues_0006_puml' (2164319) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/nonreg/simple/TeozTimelineIssues_0006.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_nonreg_svg_SVG0005_Smetana_puml stdout ----
+
+thread 'reference_fixtures_nonreg_svg_SVG0005_Smetana_puml' (2164330) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/nonreg/svg/SVG0005_Smetana.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_nonreg_svg_SVG0005_Svek_puml stdout ----
+
+thread 'reference_fixtures_nonreg_svg_SVG0005_Svek_puml' (2164333) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/nonreg/svg/SVG0005_Svek.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_nonreg_simple_QualifiedAssoc001_puml stdout ----
+
+thread 'reference_fixtures_nonreg_simple_QualifiedAssoc001_puml' (2164284) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/nonreg/simple/QualifiedAssoc001.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_nonreg_simple_TeozTimelineIssues_0008_puml stdout ----
+
+thread 'reference_fixtures_nonreg_simple_TeozTimelineIssues_0008_puml' (2164321) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/nonreg/simple/TeozTimelineIssues_0008.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_nonreg_simple_TeozTimelineIssues_0007_puml stdout ----
+
+thread 'reference_fixtures_nonreg_simple_TeozTimelineIssues_0007_puml' (2164320) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/nonreg/simple/TeozTimelineIssues_0007.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_nwdiag_basic_puml stdout ----
+
+thread 'reference_fixtures_nwdiag_basic_puml' (2164342) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/nwdiag/basic.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_nonreg_xmi_component_XMI0001_puml stdout ----
+
+thread 'reference_fixtures_nonreg_xmi_component_XMI0001_puml' (2164340) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/nonreg/xmi/component/XMI0001.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_nonreg_svg_SVG0001_puml stdout ----
+
+thread 'reference_fixtures_nonreg_svg_SVG0001_puml' (2164325) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/nonreg/svg/SVG0001.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_nonreg_simple_TeozTimelineIssues_0009_puml stdout ----
+
+thread 'reference_fixtures_nonreg_simple_TeozTimelineIssues_0009_puml' (2164322) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/nonreg/simple/TeozTimelineIssues_0009.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_nonreg_xmi_clazz_XMI0000_puml stdout ----
+
+thread 'reference_fixtures_nonreg_xmi_clazz_XMI0000_puml' (2164336) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/nonreg/xmi/clazz/XMI0000.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_nonreg_svg_SVG0002_puml stdout ----
+
+thread 'reference_fixtures_nonreg_svg_SVG0002_puml' (2164326) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/nonreg/svg/SVG0002.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_preprocessor_builtin_newline_puml stdout ----
+
+thread 'reference_fixtures_preprocessor_builtin_newline_puml' (2164352) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/preprocessor/builtin_newline.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_nonreg_xmi_clazz_XMI0003_puml stdout ----
+
+thread 'reference_fixtures_nonreg_xmi_clazz_XMI0003_puml' (2164338) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/nonreg/xmi/clazz/XMI0003.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_preprocessor_deployment_mono_multi_line_puml stdout ----
+
+thread 'reference_fixtures_preprocessor_deployment_mono_multi_line_puml' (2164353) panicked at tests/reference_tests.rs:101:9:
+tests/fixtures/preprocessor/deployment_mono_multi_line.puml: escaped <color:X> markup in SVG output
+
+---- reference_fixtures_nonreg_svg_SVG0003_puml stdout ----
+
+thread 'reference_fixtures_nonreg_svg_SVG0003_puml' (2164327) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/nonreg/svg/SVG0003.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_preprocessor_jaws8_puml stdout ----
+
+thread 'reference_fixtures_preprocessor_jaws8_puml' (2164360) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/preprocessor/jaws8.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_preprocessor_jaws9_puml stdout ----
+
+thread 'reference_fixtures_preprocessor_jaws9_puml' (2164361) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/preprocessor/jaws9.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_nonreg_xmi_clazz_XMI0002_puml stdout ----
+
+thread 'reference_fixtures_nonreg_xmi_clazz_XMI0002_puml' (2164337) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/nonreg/xmi/clazz/XMI0002.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_nonreg_xmi_clazz_XMI0004_puml stdout ----
+
+thread 'reference_fixtures_nonreg_xmi_clazz_XMI0004_puml' (2164339) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/nonreg/xmi/clazz/XMI0004.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_preprocessor_preproc_functionparam_line_continuation_puml stdout ----
+
+thread 'reference_fixtures_preprocessor_preproc_functionparam_line_continuation_puml' (2164363) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/preprocessor/preproc_functionparam_line_continuation.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_nonreg_svg_SVG0004_Smetana_puml stdout ----
+
+thread 'reference_fixtures_nonreg_svg_SVG0004_Smetana_puml' (2164328) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/nonreg/svg/SVG0004_Smetana.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_nonreg_svg_SVG0004_Svek_puml stdout ----
+
+thread 'reference_fixtures_nonreg_svg_SVG0004_Svek_puml' (2164329) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/nonreg/svg/SVG0004_Svek.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_preprocessor_jaws3_puml stdout ----
+
+thread 'reference_fixtures_preprocessor_jaws3_puml' (2164356) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/preprocessor/jaws3.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_object_fields_puml stdout ----
+
+thread 'reference_fixtures_object_fields_puml' (2164344) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/object/fields.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_object_map_puml stdout ----
+
+thread 'reference_fixtures_object_map_puml' (2164347) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/object/map.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_object_basic_puml stdout ----
+
+thread 'reference_fixtures_object_basic_puml' (2164343) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/object/basic.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_object_inheritance_puml stdout ----
+
+thread 'reference_fixtures_object_inheritance_puml' (2164345) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/object/inheritance.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_preprocessor_seq_mono_line_puml stdout ----
+
+thread 'reference_fixtures_preprocessor_seq_mono_line_puml' (2164366) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/preprocessor/seq_mono_line.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_preprocessor_sequencelayout_0004_puml stdout ----
+
+thread 'reference_fixtures_preprocessor_sequencelayout_0004_puml' (2164370) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/preprocessor/sequencelayout_0004.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_preprocessor_jaws6_puml stdout ----
+
+thread 'reference_fixtures_preprocessor_jaws6_puml' (2164357) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/preprocessor/jaws6.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_preprocessor_jaws7_puml stdout ----
+
+thread 'reference_fixtures_preprocessor_jaws7_puml' (2164358) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/preprocessor/jaws7.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_preprocessor_svg0005_smetana_puml stdout ----
+
+thread 'reference_fixtures_preprocessor_svg0005_smetana_puml' (2164384) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/preprocessor/svg0005_smetana.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_nonreg_svg_SVG0006_Svek_puml stdout ----
+
+thread 'reference_fixtures_nonreg_svg_SVG0006_Svek_puml' (2164334) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/nonreg/svg/SVG0006_Svek.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_preprocessor_sequencelayout_0005_puml stdout ----
+
+thread 'reference_fixtures_preprocessor_sequencelayout_0005_puml' (2164374) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/preprocessor/sequencelayout_0005.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_preprocessor_svg0005_svek_puml stdout ----
+
+thread 'reference_fixtures_preprocessor_svg0005_svek_puml' (2164387) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/preprocessor/svg0005_svek.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_preprocessor_sequencelayout_0005b_puml stdout ----
+
+thread 'reference_fixtures_preprocessor_sequencelayout_0005b_puml' (2164375) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/preprocessor/sequencelayout_0005b.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_preprocessor_sequenceleftmessageandactivelifelines_0001_puml stdout ----
+
+thread 'reference_fixtures_preprocessor_sequenceleftmessageandactivelifelines_0001_puml' (2164376) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/preprocessor/sequenceleftmessageandactivelifelines_0001.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_preprocessor_svg0002_puml stdout ----
+
+thread 'reference_fixtures_preprocessor_svg0002_puml' (2164380) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/preprocessor/svg0002.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_preprocessor_sequencearrows_0001_puml stdout ----
+
+thread 'reference_fixtures_preprocessor_sequencearrows_0001_puml' (2164368) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/preprocessor/sequencearrows_0001.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_preprocessor_sequencearrows_0002_puml stdout ----
+
+thread 'reference_fixtures_preprocessor_sequencearrows_0002_puml' (2164369) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/preprocessor/sequencearrows_0002.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_preprocessor_teozaltelseparallel_0001_puml stdout ----
+
+thread 'reference_fixtures_preprocessor_teozaltelseparallel_0001_puml' (2164390) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/preprocessor/teozaltelseparallel_0001.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_preprocessor_teozaltelseparallel_0002_puml stdout ----
+
+thread 'reference_fixtures_preprocessor_teozaltelseparallel_0002_puml' (2164391) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/preprocessor/teozaltelseparallel_0002.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_preprocessor_teozaltelseparallel_0005_puml stdout ----
+
+thread 'reference_fixtures_preprocessor_teozaltelseparallel_0005_puml' (2164395) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/preprocessor/teozaltelseparallel_0005.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_preprocessor_teozaltelseparallel_0003_puml stdout ----
+
+thread 'reference_fixtures_preprocessor_teozaltelseparallel_0003_puml' (2164392) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/preprocessor/teozaltelseparallel_0003.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_preprocessor_teozaltelseparallel_0004_puml stdout ----
+
+thread 'reference_fixtures_preprocessor_teozaltelseparallel_0004_puml' (2164394) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/preprocessor/teozaltelseparallel_0004.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_preprocessor_svg0004_smetana_puml stdout ----
+
+thread 'reference_fixtures_preprocessor_svg0004_smetana_puml' (2164381) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/preprocessor/svg0004_smetana.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_preprocessor_teoztimelineissues_0001_puml stdout ----
+
+thread 'reference_fixtures_preprocessor_teoztimelineissues_0001_puml' (2164397) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/preprocessor/teoztimelineissues_0001.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_preprocessor_svg0004_svek_puml stdout ----
+
+thread 'reference_fixtures_preprocessor_svg0004_svek_puml' (2164383) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/preprocessor/svg0004_svek.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_regex_alternation_puml stdout ----
+
+thread 'reference_fixtures_regex_alternation_puml' (2164408) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/regex/alternation.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_regex_basic_puml stdout ----
+
+thread 'reference_fixtures_regex_basic_puml' (2164409) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/regex/basic.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_salt_basic_puml stdout ----
+
+thread 'reference_fixtures_salt_basic_puml' (2164411) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/salt/basic.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_preprocessor_teozaltelseparallel_0006_puml stdout ----
+
+thread 'reference_fixtures_preprocessor_teozaltelseparallel_0006_puml' (2164396) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/preprocessor/teozaltelseparallel_0006.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_regex_complex_puml stdout ----
+
+thread 'reference_fixtures_regex_complex_puml' (2164410) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/regex/complex.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_preprocessor_subdiagram_theme_01_puml stdout ----
+
+thread 'reference_fixtures_preprocessor_subdiagram_theme_01_puml' (2164377) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/preprocessor/subdiagram_theme_01.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_preprocessor_teoztimelineissues_0002_puml stdout ----
+
+thread 'reference_fixtures_preprocessor_teoztimelineissues_0002_puml' (2164398) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/preprocessor/teoztimelineissues_0002.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_preprocessor_teoztimelineissues_0003_puml stdout ----
+
+thread 'reference_fixtures_preprocessor_teoztimelineissues_0003_puml' (2164399) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/preprocessor/teoztimelineissues_0003.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_preprocessor_teoztimelineissues_0005_puml stdout ----
+
+thread 'reference_fixtures_preprocessor_teoztimelineissues_0005_puml' (2164401) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/preprocessor/teoztimelineissues_0005.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_preprocessor_teoztimelineissues_0004_puml stdout ----
+
+thread 'reference_fixtures_preprocessor_teoztimelineissues_0004_puml' (2164400) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/preprocessor/teoztimelineissues_0004.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_preprocessor_teoztimelineissues_0006_puml stdout ----
+
+thread 'reference_fixtures_preprocessor_teoztimelineissues_0006_puml' (2164403) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/preprocessor/teoztimelineissues_0006.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_preprocessor_teoztimelineissues_0008_puml stdout ----
+
+thread 'reference_fixtures_preprocessor_teoztimelineissues_0008_puml' (2164406) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/preprocessor/teoztimelineissues_0008.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_preprocessor_teoztimelineissues_0007_puml stdout ----
+
+thread 'reference_fixtures_preprocessor_teoztimelineissues_0007_puml' (2164405) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/preprocessor/teoztimelineissues_0007.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_sequence_a0000_puml stdout ----
+
+thread 'reference_fixtures_sequence_a0000_puml' (2164412) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/sequence/a0000.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_sequence_a0006_puml stdout ----
+
+thread 'reference_fixtures_sequence_a0006_puml' (2164414) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/sequence/a0006.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_preprocessor_teoztimelineissues_0009_puml stdout ----
+
+thread 'reference_fixtures_preprocessor_teoztimelineissues_0009_puml' (2164407) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/preprocessor/teoztimelineissues_0009.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_sequence_jaws10_puml stdout ----
+
+thread 'reference_fixtures_sequence_jaws10_puml' (2164416) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/sequence/jaws10.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_sequence_intermediatetest_0000_puml stdout ----
+
+thread 'reference_fixtures_sequence_intermediatetest_0000_puml' (2164415) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/sequence/intermediatetest_0000.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_preprocessor_svg0006_svek_puml stdout ----
+
+thread 'reference_fixtures_preprocessor_svg0006_svek_puml' (2164388) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/preprocessor/svg0006_svek.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_sequence_jaws11_puml stdout ----
+
+thread 'reference_fixtures_sequence_jaws11_puml' (2164417) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/sequence/jaws11.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_sequence_a0001_puml stdout ----
+
+thread 'reference_fixtures_sequence_a0001_puml' (2164413) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/sequence/a0001.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_sequence_jaws4_puml stdout ----
+
+thread 'reference_fixtures_sequence_jaws4_puml' (2164419) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/sequence/jaws4.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_sequence_jaws2_puml stdout ----
+
+thread 'reference_fixtures_sequence_jaws2_puml' (2164418) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/sequence/jaws2.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_sequence_seq_autonumber001_puml stdout ----
+
+thread 'reference_fixtures_sequence_seq_autonumber001_puml' (2164421) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/sequence/seq_autonumber001.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_sequence_seq_alt001_puml stdout ----
+
+thread 'reference_fixtures_sequence_seq_alt001_puml' (2164420) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/sequence/seq_alt001.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_sequence_seq_critical001_puml stdout ----
+
+thread 'reference_fixtures_sequence_seq_critical001_puml' (2164424) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/sequence/seq_critical001.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_sequence_seq_break001_puml stdout ----
+
+thread 'reference_fixtures_sequence_seq_break001_puml' (2164423) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/sequence/seq_break001.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_sequence_seq_divider001_puml stdout ----
+
+thread 'reference_fixtures_sequence_seq_divider001_puml' (2164425) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/sequence/seq_divider001.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_sequence_seq_loop001_puml stdout ----
+
+thread 'reference_fixtures_sequence_seq_loop001_puml' (2164427) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/sequence/seq_loop001.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_sequence_seq_group001_puml stdout ----
+
+thread 'reference_fixtures_sequence_seq_group001_puml' (2164426) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/sequence/seq_group001.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_sequence_seq_opt001_puml stdout ----
+
+thread 'reference_fixtures_sequence_seq_opt001_puml' (2164429) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/sequence/seq_opt001.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_sequence_seq_nested001_puml stdout ----
+
+thread 'reference_fixtures_sequence_seq_nested001_puml' (2164428) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/sequence/seq_nested001.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_sequence_seq_ref001_puml stdout ----
+
+thread 'reference_fixtures_sequence_seq_ref001_puml' (2164432) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/sequence/seq_ref001.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_sequence_seq_par001_puml stdout ----
+
+thread 'reference_fixtures_sequence_seq_par001_puml' (2164430) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/sequence/seq_par001.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_sequence_seq_participants001_puml stdout ----
+
+thread 'reference_fixtures_sequence_seq_participants001_puml' (2164431) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/sequence/seq_participants001.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_sequence_sequencelayout_0002_puml stdout ----
+
+thread 'reference_fixtures_sequence_sequencelayout_0002_puml' (2164436) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/sequence/sequencelayout_0002.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_sequence_sequencelayout_0001_puml stdout ----
+
+thread 'reference_fixtures_sequence_sequencelayout_0001_puml' (2164433) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/sequence/sequencelayout_0001.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_sequence_sequencelayout_0006_puml stdout ----
+
+thread 'reference_fixtures_sequence_sequencelayout_0006_puml' (2164438) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/sequence/sequencelayout_0006.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_sequence_sequencelayout_0001b_puml stdout ----
+
+thread 'reference_fixtures_sequence_sequencelayout_0001b_puml' (2164434) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/sequence/sequencelayout_0001b.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_sequence_sequencelayout_0003_puml stdout ----
+
+thread 'reference_fixtures_sequence_sequencelayout_0003_puml' (2164437) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/sequence/sequencelayout_0003.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_sequence_sequenceleftmessageandactivelifelines_0002_puml stdout ----
+
+thread 'reference_fixtures_sequence_sequenceleftmessageandactivelifelines_0002_puml' (2164439) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/sequence/sequenceleftmessageandactivelifelines_0002.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_sequence_sequencelayout_0001c_puml stdout ----
+
+thread 'reference_fixtures_sequence_sequencelayout_0001c_puml' (2164435) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/sequence/sequencelayout_0001c.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_sequence_svg0001_puml stdout ----
+
+thread 'reference_fixtures_sequence_svg0001_puml' (2164441) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/sequence/svg0001.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_sequence_test_0_puml stdout ----
+
+thread 'reference_fixtures_sequence_test_0_puml' (2164443) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/sequence/test_0.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_sprite_linearGradientSpreadPad_puml stdout ----
+
+thread 'reference_fixtures_sprite_linearGradientSpreadPad_puml' (2164445) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/sprite/linearGradientSpreadPad.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_sequence_svg0003_puml stdout ----
+
+thread 'reference_fixtures_sequence_svg0003_puml' (2164442) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/sequence/svg0003.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_sprite_svgFillColourTest_2174_puml stdout ----
+
+thread 'reference_fixtures_sprite_svgFillColourTest_2174_puml' (2164456) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/sprite/svgFillColourTest_2174.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_sprite_linearGradientSpreadReflect_puml stdout ----
+
+thread 'reference_fixtures_sprite_linearGradientSpreadReflect_puml' (2164446) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/sprite/linearGradientSpreadReflect.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_sprite_azureSVG_puml stdout ----
+
+thread 'reference_fixtures_sprite_azureSVG_puml' (2164444) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/sprite/azureSVG.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_sprite_linearGradientSpreadRepeat_puml stdout ----
+
+thread 'reference_fixtures_sprite_linearGradientSpreadRepeat_puml' (2164447) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/sprite/linearGradientSpreadRepeat.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_sequence_sequenceleftmessageandactivelifelines_0003_puml stdout ----
+
+thread 'reference_fixtures_sequence_sequenceleftmessageandactivelifelines_0003_puml' (2164440) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/sequence/sequenceleftmessageandactivelifelines_0003.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_sprite_styleFontWeightRoboto_puml stdout ----
+
+thread 'reference_fixtures_sprite_styleFontWeightRoboto_puml' (2164448) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/sprite/styleFontWeightRoboto.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_sprite_svg2GroupsWithStyle_puml stdout ----
+
+thread 'reference_fixtures_sprite_svg2GroupsWithStyle_puml' (2164450) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/sprite/svg2GroupsWithStyle.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_sprite_svg2Groups_puml stdout ----
+
+thread 'reference_fixtures_sprite_svg2Groups_puml' (2164451) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/sprite/svg2Groups.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_sprite_svgDiagonalGradientBLTRMonochrome_puml stdout ----
+
+thread 'reference_fixtures_sprite_svgDiagonalGradientBLTRMonochrome_puml' (2164452) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/sprite/svgDiagonalGradientBLTRMonochrome.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_sprite_svg2GroupsInlineStyled_puml stdout ----
+
+thread 'reference_fixtures_sprite_svg2GroupsInlineStyled_puml' (2164449) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/sprite/svg2GroupsInlineStyled.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_sprite_svgDiagonalGradientTLBR_puml stdout ----
+
+thread 'reference_fixtures_sprite_svgDiagonalGradientTLBR_puml' (2164454) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/sprite/svgDiagonalGradientTLBR.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_sprite_svgEmbeddedPNG_puml stdout ----
+
+thread 'reference_fixtures_sprite_svgEmbeddedPNG_puml' (2164455) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/sprite/svgEmbeddedPNG.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_sprite_svgDiagonalGradientBLTR_puml stdout ----
+
+thread 'reference_fixtures_sprite_svgDiagonalGradientBLTR_puml' (2164453) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/sprite/svgDiagonalGradientBLTR.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_sprite_svgPolygonStar_puml stdout ----
+
+thread 'reference_fixtures_sprite_svgPolygonStar_puml' (2164461) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/sprite/svgPolygonStar.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_sprite_svgFontWeightStandardFonts_puml stdout ----
+
+thread 'reference_fixtures_sprite_svgFontWeightStandardFonts_puml' (2164459) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/sprite/svgFontWeightStandardFonts.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_sprite_svgFontWeightMultiWeight_puml stdout ----
+
+thread 'reference_fixtures_sprite_svgFontWeightMultiWeight_puml' (2164458) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/sprite/svgFontWeightMultiWeight.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_sprite_svgLinearGradientCircle_puml stdout ----
+
+thread 'reference_fixtures_sprite_svgLinearGradientCircle_puml' (2164460) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/sprite/svgLinearGradientCircle.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_sprite_svgRedCircle_puml stdout ----
+
+thread 'reference_fixtures_sprite_svgRedCircle_puml' (2164463) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/sprite/svgRedCircle.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_sprite_svgRadialGradient_puml stdout ----
+
+thread 'reference_fixtures_sprite_svgRadialGradient_puml' (2164462) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/sprite/svgRadialGradient.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_sprite_svgRedEllipse_puml stdout ----
+
+thread 'reference_fixtures_sprite_svgRedEllipse_puml' (2164464) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/sprite/svgRedEllipse.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_sprite_svgRedLine_puml stdout ----
+
+thread 'reference_fixtures_sprite_svgRedLine_puml' (2164465) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/sprite/svgRedLine.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_sprite_svgRedPolyLine_puml stdout ----
+
+thread 'reference_fixtures_sprite_svgRedPolyLine_puml' (2164466) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/sprite/svgRedPolyLine.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_sprite_svgRedRectLinearGradient_puml stdout ----
+
+thread 'reference_fixtures_sprite_svgRedRectLinearGradient_puml' (2164467) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/sprite/svgRedRectLinearGradient.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_sprite_svgRedRect_puml stdout ----
+
+thread 'reference_fixtures_sprite_svgRedRect_puml' (2164468) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/sprite/svgRedRect.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_sprite_svgTransformRotate_puml stdout ----
+
+thread 'reference_fixtures_sprite_svgTransformRotate_puml' (2164478) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/sprite/svgTransformRotate.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_sprite_svgTransformMatrix_puml stdout ----
+
+thread 'reference_fixtures_sprite_svgTransformMatrix_puml' (2164477) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/sprite/svgTransformMatrix.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_sprite_svgTransformTranslate_puml stdout ----
+
+thread 'reference_fixtures_sprite_svgTransformTranslate_puml' (2164480) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/sprite/svgTransformTranslate.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_sprite_svgTransformScale_puml stdout ----
+
+thread 'reference_fixtures_sprite_svgTransformScale_puml' (2164479) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/sprite/svgTransformScale.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_sprite_svgTransformGroup_puml stdout ----
+
+thread 'reference_fixtures_sprite_svgTransformGroup_puml' (2164476) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/sprite/svgTransformGroup.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_sprite_svgRedStroke_puml stdout ----
+
+thread 'reference_fixtures_sprite_svgRedStroke_puml' (2164469) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/sprite/svgRedStroke.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_sprite_svgRedText_puml stdout ----
+
+thread 'reference_fixtures_sprite_svgRedText_puml' (2164470) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/sprite/svgRedText.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_state_scxml0001_puml stdout ----
+
+thread 'reference_fixtures_state_scxml0001_puml' (2164485) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/state/scxml0001.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_sprite_svgTextAnchor_puml stdout ----
+
+thread 'reference_fixtures_sprite_svgTextAnchor_puml' (2164471) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/sprite/svgTextAnchor.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_state_scxml0005_puml stdout ----
+
+thread 'reference_fixtures_state_scxml0005_puml' (2164493) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/state/scxml0005.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_sprite_svgTextBold_puml stdout ----
+
+thread 'reference_fixtures_sprite_svgTextBold_puml' (2164472) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/sprite/svgTextBold.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_sprite_svgTextDecoration_puml stdout ----
+
+thread 'reference_fixtures_sprite_svgTextDecoration_puml' (2164473) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/sprite/svgTextDecoration.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_state_state_choice001_puml stdout ----
+
+thread 'reference_fixtures_state_state_choice001_puml' (2164496) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/state/state_choice001.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_state_scxml0002_puml stdout ----
+
+thread 'reference_fixtures_state_scxml0002_puml' (2164486) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/state/scxml0002.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_state_scxml0004_puml stdout ----
+
+thread 'reference_fixtures_state_scxml0004_puml' (2164488) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/state/scxml0004.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_sprite_svgTextItalic_puml stdout ----
+
+thread 'reference_fixtures_sprite_svgTextItalic_puml' (2164474) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/sprite/svgTextItalic.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_state_state_monoline_01_puml stdout ----
+
+thread 'reference_fixtures_state_state_monoline_01_puml' (2164508) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/state/state_monoline_01.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_state_state_monoline_02_puml stdout ----
+
+thread 'reference_fixtures_state_state_monoline_02_puml' (2164510) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/state/state_monoline_02.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_timing_timingmessagearrowfont_0001_puml stdout ----
+
+thread 'reference_fixtures_timing_timingmessagearrowfont_0001_puml' (2164517) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/timing/timingmessagearrowfont_0001.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_sprite_svgTextStyleAttr_puml stdout ----
+
+thread 'reference_fixtures_sprite_svgTextStyleAttr_puml' (2164475) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/sprite/svgTextStyleAttr.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_state_state_monoline_03_puml stdout ----
+
+thread 'reference_fixtures_state_state_monoline_03_puml' (2164512) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/state/state_monoline_03.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_timing_timingmessagearrowfont_0002_puml stdout ----
+
+thread 'reference_fixtures_timing_timingmessagearrowfont_0002_puml' (2164521) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/timing/timingmessagearrowfont_0002.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_sprite_svgVerticalGradient_puml stdout ----
+
+thread 'reference_fixtures_sprite_svgVerticalGradient_puml' (2164482) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/sprite/svgVerticalGradient.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_wbs_link_url_tooltip_01_puml stdout ----
+
+thread 'reference_fixtures_wbs_link_url_tooltip_01_puml' (2164529) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/wbs/link_url_tooltip_01.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_sprite_svgUseDefs_puml stdout ----
+
+thread 'reference_fixtures_sprite_svgUseDefs_puml' (2164481) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/sprite/svgUseDefs.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_state_state_fork001_puml stdout ----
+
+thread 'reference_fixtures_state_state_fork001_puml' (2164502) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/state/state_fork001.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_state_state_history001_puml stdout ----
+
+thread 'reference_fixtures_state_state_history001_puml' (2164505) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/state/state_history001.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_wbs_link_url_tooltip_02_puml stdout ----
+
+thread 'reference_fixtures_wbs_link_url_tooltip_02_puml' (2164530) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/wbs/link_url_tooltip_02.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_wbs_link_url_tooltip_03_puml stdout ----
+
+thread 'reference_fixtures_wbs_link_url_tooltip_03_puml' (2164532) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/wbs/link_url_tooltip_03.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_wbs_wbs_arrow_puml stdout ----
+
+thread 'reference_fixtures_wbs_wbs_arrow_puml' (2164533) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/wbs/wbs_arrow.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_usecase_basic_puml stdout ----
+
+thread 'reference_fixtures_usecase_basic_puml' (2164522) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/usecase/basic.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_sprite_testPolylineSprites_puml stdout ----
+
+thread 'reference_fixtures_sprite_testPolylineSprites_puml' (2164484) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/sprite/testPolylineSprites.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_wbs_wbs_direction_puml stdout ----
+
+thread 'reference_fixtures_wbs_wbs_direction_puml' (2164534) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/wbs/wbs_direction.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_yaml_basic_puml stdout ----
+
+thread 'reference_fixtures_yaml_basic_puml' (2164537) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/yaml/basic.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_state_state_concurrent001_puml stdout ----
+
+thread 'reference_fixtures_state_state_concurrent001_puml' (2164500) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/state/state_concurrent001.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_usecase_colon_actor_puml stdout ----
+
+thread 'reference_fixtures_usecase_colon_actor_puml' (2164526) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/usecase/colon_actor.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_sprite_testGradientSprite_puml stdout ----
+
+thread 'reference_fixtures_sprite_testGradientSprite_puml' (2164483) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/sprite/testGradientSprite.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_wire_basic_puml stdout ----
+
+thread 'reference_fixtures_wire_basic_puml' (2164535) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/wire/basic.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_state_state_note001_puml stdout ----
+
+thread 'reference_fixtures_state_state_note001_puml' (2164514) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/state/state_note001.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_usecase_boundary_puml stdout ----
+
+thread 'reference_fixtures_usecase_boundary_puml' (2164525) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/usecase/boundary.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_wire_multi_puml stdout ----
+
+thread 'reference_fixtures_wire_multi_puml' (2164536) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/wire/multi.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_state_scxml0003_puml stdout ----
+
+thread 'reference_fixtures_state_scxml0003_puml' (2164487) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/state/scxml0003.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_dev_jaws_jaws1_puml stdout ----
+
+thread 'reference_fixtures_dev_jaws_jaws1_puml' (2164131) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/dev/jaws/jaws1.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+---- reference_fixtures_preprocessor_jaws1_puml stdout ----
+
+thread 'reference_fixtures_preprocessor_jaws1_puml' (2164355) panicked at tests/reference_tests.rs:79:5:
+tests/fixtures/preprocessor/jaws1.puml: output differs from reference at line 1 col 2
+expected: ...<?plantuml 1.2026.2?><svg xmlns="http://w...
+actual:   ...<svg xmlns="http://www.w3.org/2000/svg" x...
+
+
+failures:
+    reference_fixtures_activity_a0002_puml
+    reference_fixtures_activity_activity_creole_table_01_puml
+    reference_fixtures_activity_activity_creole_table_02_puml
+    reference_fixtures_activity_activity_mono_multi_line2_puml
+    reference_fixtures_activity_activity_mono_multi_line2_v2_puml
+    reference_fixtures_activity_activity_mono_multi_line_puml
+    reference_fixtures_activity_activity_mono_multi_line_v2_puml
+    reference_fixtures_activity_swimlane001_puml
+    reference_fixtures_archimate_basic_puml
+    reference_fixtures_archimate_layers_puml
+    reference_fixtures_board_basic_puml
+    reference_fixtures_chart_bar_basic_puml
+    reference_fixtures_chart_single_series_puml
+    reference_fixtures_chronology_basic_puml
+    reference_fixtures_class_a0005_puml
+    reference_fixtures_class_class_funcparam_arrow_01_puml
+    reference_fixtures_class_class_funcparam_arrow_02_puml
+    reference_fixtures_class_colors001_puml
+    reference_fixtures_class_generics001_puml
+    reference_fixtures_class_hideshow001_puml
+    reference_fixtures_class_hideshow002_puml
+    reference_fixtures_class_hideshow003_puml
+    reference_fixtures_class_hideshow004_puml
+    reference_fixtures_class_qualifiedassoc001_puml
+    reference_fixtures_class_qualifiedassoc002_puml
+    reference_fixtures_class_xmi0002_puml
+    reference_fixtures_class_xmi0003_puml
+    reference_fixtures_class_xmi0004_puml
+    reference_fixtures_component_buitin_newline_chr_puml
+    reference_fixtures_component_colors001_puml
+    reference_fixtures_component_componentextraarrows_0001_puml
+    reference_fixtures_component_deployment01_puml
+    reference_fixtures_component_deployment_last_name_multi_line_puml
+    reference_fixtures_component_gml0000_puml
+    reference_fixtures_component_gml0001_puml
+    reference_fixtures_component_jaws5_puml
+    reference_fixtures_component_subdiagram_theme_02_puml
+    reference_fixtures_component_svg0001_puml
+    reference_fixtures_component_xmi0001_puml
+    reference_fixtures_dev_jaws_jaws10_puml
+    reference_fixtures_dev_jaws_jaws11_puml
+    reference_fixtures_dev_jaws_jaws12_puml
+    reference_fixtures_dev_jaws_jaws1_puml
+    reference_fixtures_dev_jaws_jaws2_puml
+    reference_fixtures_dev_jaws_jaws3_puml
+    reference_fixtures_dev_jaws_jaws4_puml
+    reference_fixtures_dev_jaws_jaws5_puml
+    reference_fixtures_dev_jaws_jaws6_puml
+    reference_fixtures_dev_jaws_jaws7_puml
+    reference_fixtures_dev_jaws_jaws8_puml
+    reference_fixtures_dev_jaws_jaws9_puml
+    reference_fixtures_dev_newline_WBS_arrow_puml
+    reference_fixtures_dev_newline_WBS_direction_puml
+    reference_fixtures_dev_newline_activity_creole_table_puml
+    reference_fixtures_dev_newline_activity_mono_multi_line2_puml
+    reference_fixtures_dev_newline_activity_mono_multi_line_puml
+    reference_fixtures_dev_newline_builtin_newline_puml
+    reference_fixtures_dev_newline_buitin_newline_chr_puml
+    reference_fixtures_dev_newline_class_funcparam_arrow_puml
+    reference_fixtures_dev_newline_deployment_last_name_multi_line_puml
+    reference_fixtures_dev_newline_deployment_mono_multi_line_puml
+    reference_fixtures_dev_newline_deployment_on_name_puml
+    reference_fixtures_dev_newline_json_escaped_puml
+    reference_fixtures_dev_newline_link_URL_tooltip_puml
+    reference_fixtures_dev_newline_preproc_functionparam_line_continuation_puml
+    reference_fixtures_dev_newline_seq_mono_line_puml
+    reference_fixtures_dev_newline_state_monoline_puml
+    reference_fixtures_dev_newline_subdiagram_theme_puml
+    reference_fixtures_dev_newlinev2_activity_mono_multi_line2_v2_puml
+    reference_fixtures_dev_newlinev2_activity_mono_multi_line_v2_puml
+    reference_fixtures_ebnf_basic_puml
+    reference_fixtures_ebnf_expression_puml
+    reference_fixtures_erd_chenrankdir_puml
+    reference_fixtures_erd_weak001_puml
+    reference_fixtures_files_diagram_basic_puml
+    reference_fixtures_files_diagram_nested_puml
+    reference_fixtures_gantt_a0003_puml
+    reference_fixtures_git_basic_puml
+    reference_fixtures_git_branches_puml
+    reference_fixtures_hcl_basic_puml
+    reference_fixtures_json_json_escaped_puml
+    reference_fixtures_mindmap_jaws12_puml
+    reference_fixtures_misc_a0004_puml
+    reference_fixtures_misc_creole_back001_puml
+    reference_fixtures_misc_creole_font001_puml
+    reference_fixtures_misc_creole_mixed001_puml
+    reference_fixtures_misc_creole_note001_puml
+    reference_fixtures_misc_creole_sup_sub001_puml
+    reference_fixtures_misc_deployment_on_name_puml
+    reference_fixtures_misc_link_url_tooltip_04_puml
+    reference_fixtures_misc_link_url_tooltip_05_puml
+    reference_fixtures_misc_meta_title_header_footer_puml
+    reference_fixtures_misc_skinparam_class001_puml
+    reference_fixtures_misc_skinparam_colors001_puml
+    reference_fixtures_misc_skinparam_font001_puml
+    reference_fixtures_misc_skinparam_handwritten001_puml
+    reference_fixtures_misc_skinparam_monochrome001_puml
+    reference_fixtures_misc_skinparam_roundcorner001_puml
+    reference_fixtures_misc_skinparam_sequence001_puml
+    reference_fixtures_misc_xmi0000_puml
+    reference_fixtures_nonreg_graphml_GML0000_puml
+    reference_fixtures_nonreg_graphml_GML0001_puml
+    reference_fixtures_nonreg_scxml_SCXML0001_puml
+    reference_fixtures_nonreg_scxml_SCXML0002_puml
+    reference_fixtures_nonreg_scxml_SCXML0003_puml
+    reference_fixtures_nonreg_scxml_SCXML0004_puml
+    reference_fixtures_nonreg_scxml_SCXML0005_puml
+    reference_fixtures_nonreg_simple_A0000_puml
+    reference_fixtures_nonreg_simple_A0001_puml
+    reference_fixtures_nonreg_simple_A0002_puml
+    reference_fixtures_nonreg_simple_A0003_puml
+    reference_fixtures_nonreg_simple_A0004_puml
+    reference_fixtures_nonreg_simple_A0005_puml
+    reference_fixtures_nonreg_simple_A0006_puml
+    reference_fixtures_nonreg_simple_ChenRankDir_puml
+    reference_fixtures_nonreg_simple_ComponentExtraArrows_0001_puml
+    reference_fixtures_nonreg_simple_HideShow001_puml
+    reference_fixtures_nonreg_simple_HideShow002_puml
+    reference_fixtures_nonreg_simple_HideShow003_puml
+    reference_fixtures_nonreg_simple_HideShow004_puml
+    reference_fixtures_nonreg_simple_QualifiedAssoc001_puml
+    reference_fixtures_nonreg_simple_QualifiedAssoc002_puml
+    reference_fixtures_nonreg_simple_SequenceArrows_0001_puml
+    reference_fixtures_nonreg_simple_SequenceArrows_0002_puml
+    reference_fixtures_nonreg_simple_SequenceLayout_0001_puml
+    reference_fixtures_nonreg_simple_SequenceLayout_0001b_puml
+    reference_fixtures_nonreg_simple_SequenceLayout_0001c_puml
+    reference_fixtures_nonreg_simple_SequenceLayout_0002_puml
+    reference_fixtures_nonreg_simple_SequenceLayout_0003_puml
+    reference_fixtures_nonreg_simple_SequenceLayout_0004_puml
+    reference_fixtures_nonreg_simple_SequenceLayout_0005_puml
+    reference_fixtures_nonreg_simple_SequenceLayout_0005b_puml
+    reference_fixtures_nonreg_simple_SequenceLayout_0006_puml
+    reference_fixtures_nonreg_simple_SequenceLeftMessageAndActiveLifeLines_0001_puml
+    reference_fixtures_nonreg_simple_SequenceLeftMessageAndActiveLifeLines_0002_puml
+    reference_fixtures_nonreg_simple_SequenceLeftMessageAndActiveLifeLines_0003_puml
+    reference_fixtures_nonreg_simple_TeozAltElseParallel_0001_puml
+    reference_fixtures_nonreg_simple_TeozAltElseParallel_0002_puml
+    reference_fixtures_nonreg_simple_TeozAltElseParallel_0003_puml
+    reference_fixtures_nonreg_simple_TeozAltElseParallel_0004_puml
+    reference_fixtures_nonreg_simple_TeozAltElseParallel_0005_puml
+    reference_fixtures_nonreg_simple_TeozAltElseParallel_0006_puml
+    reference_fixtures_nonreg_simple_TeozTimelineIssues_0001_puml
+    reference_fixtures_nonreg_simple_TeozTimelineIssues_0002_puml
+    reference_fixtures_nonreg_simple_TeozTimelineIssues_0003_puml
+    reference_fixtures_nonreg_simple_TeozTimelineIssues_0004_puml
+    reference_fixtures_nonreg_simple_TeozTimelineIssues_0005_puml
+    reference_fixtures_nonreg_simple_TeozTimelineIssues_0006_puml
+    reference_fixtures_nonreg_simple_TeozTimelineIssues_0007_puml
+    reference_fixtures_nonreg_simple_TeozTimelineIssues_0008_puml
+    reference_fixtures_nonreg_simple_TeozTimelineIssues_0009_puml
+    reference_fixtures_nonreg_simple_TimingMessageArrowFont_0001_puml
+    reference_fixtures_nonreg_simple_TimingMessageArrowFont_0002_puml
+    reference_fixtures_nonreg_svg_SVG0001_puml
+    reference_fixtures_nonreg_svg_SVG0002_puml
+    reference_fixtures_nonreg_svg_SVG0003_puml
+    reference_fixtures_nonreg_svg_SVG0004_Smetana_puml
+    reference_fixtures_nonreg_svg_SVG0004_Svek_puml
+    reference_fixtures_nonreg_svg_SVG0005_Smetana_puml
+    reference_fixtures_nonreg_svg_SVG0005_Svek_puml
+    reference_fixtures_nonreg_svg_SVG0006_Svek_puml
+    reference_fixtures_nonreg_xmi_clazz_XMI0000_puml
+    reference_fixtures_nonreg_xmi_clazz_XMI0002_puml
+    reference_fixtures_nonreg_xmi_clazz_XMI0003_puml
+    reference_fixtures_nonreg_xmi_clazz_XMI0004_puml
+    reference_fixtures_nonreg_xmi_component_XMI0001_puml
+    reference_fixtures_nwdiag_basic_puml
+    reference_fixtures_object_basic_puml
+    reference_fixtures_object_fields_puml
+    reference_fixtures_object_inheritance_puml
+    reference_fixtures_object_map_puml
+    reference_fixtures_preprocessor_builtin_newline_puml
+    reference_fixtures_preprocessor_deployment_mono_multi_line_puml
+    reference_fixtures_preprocessor_jaws1_puml
+    reference_fixtures_preprocessor_jaws3_puml
+    reference_fixtures_preprocessor_jaws6_puml
+    reference_fixtures_preprocessor_jaws7_puml
+    reference_fixtures_preprocessor_jaws8_puml
+    reference_fixtures_preprocessor_jaws9_puml
+    reference_fixtures_preprocessor_preproc_functionparam_line_continuation_puml
+    reference_fixtures_preprocessor_seq_mono_line_puml
+    reference_fixtures_preprocessor_sequencearrows_0001_puml
+    reference_fixtures_preprocessor_sequencearrows_0002_puml
+    reference_fixtures_preprocessor_sequencelayout_0004_puml
+    reference_fixtures_preprocessor_sequencelayout_0005_puml
+    reference_fixtures_preprocessor_sequencelayout_0005b_puml
+    reference_fixtures_preprocessor_sequenceleftmessageandactivelifelines_0001_puml
+    reference_fixtures_preprocessor_subdiagram_theme_01_puml
+    reference_fixtures_preprocessor_svg0002_puml
+    reference_fixtures_preprocessor_svg0004_smetana_puml
+    reference_fixtures_preprocessor_svg0004_svek_puml
+    reference_fixtures_preprocessor_svg0005_smetana_puml
+    reference_fixtures_preprocessor_svg0005_svek_puml
+    reference_fixtures_preprocessor_svg0006_svek_puml
+    reference_fixtures_preprocessor_teozaltelseparallel_0001_puml
+    reference_fixtures_preprocessor_teozaltelseparallel_0002_puml
+    reference_fixtures_preprocessor_teozaltelseparallel_0003_puml
+    reference_fixtures_preprocessor_teozaltelseparallel_0004_puml
+    reference_fixtures_preprocessor_teozaltelseparallel_0005_puml
+    reference_fixtures_preprocessor_teozaltelseparallel_0006_puml
+    reference_fixtures_preprocessor_teoztimelineissues_0001_puml
+    reference_fixtures_preprocessor_teoztimelineissues_0002_puml
+    reference_fixtures_preprocessor_teoztimelineissues_0003_puml
+    reference_fixtures_preprocessor_teoztimelineissues_0004_puml
+    reference_fixtures_preprocessor_teoztimelineissues_0005_puml
+    reference_fixtures_preprocessor_teoztimelineissues_0006_puml
+    reference_fixtures_preprocessor_teoztimelineissues_0007_puml
+    reference_fixtures_preprocessor_teoztimelineissues_0008_puml
+    reference_fixtures_preprocessor_teoztimelineissues_0009_puml
+    reference_fixtures_regex_alternation_puml
+    reference_fixtures_regex_basic_puml
+    reference_fixtures_regex_complex_puml
+    reference_fixtures_salt_basic_puml
+    reference_fixtures_sequence_a0000_puml
+    reference_fixtures_sequence_a0001_puml
+    reference_fixtures_sequence_a0006_puml
+    reference_fixtures_sequence_intermediatetest_0000_puml
+    reference_fixtures_sequence_jaws10_puml
+    reference_fixtures_sequence_jaws11_puml
+    reference_fixtures_sequence_jaws2_puml
+    reference_fixtures_sequence_jaws4_puml
+    reference_fixtures_sequence_seq_alt001_puml
+    reference_fixtures_sequence_seq_autonumber001_puml
+    reference_fixtures_sequence_seq_break001_puml
+    reference_fixtures_sequence_seq_critical001_puml
+    reference_fixtures_sequence_seq_divider001_puml
+    reference_fixtures_sequence_seq_group001_puml
+    reference_fixtures_sequence_seq_loop001_puml
+    reference_fixtures_sequence_seq_nested001_puml
+    reference_fixtures_sequence_seq_opt001_puml
+    reference_fixtures_sequence_seq_par001_puml
+    reference_fixtures_sequence_seq_participants001_puml
+    reference_fixtures_sequence_seq_ref001_puml
+    reference_fixtures_sequence_sequencelayout_0001_puml
+    reference_fixtures_sequence_sequencelayout_0001b_puml
+    reference_fixtures_sequence_sequencelayout_0001c_puml
+    reference_fixtures_sequence_sequencelayout_0002_puml
+    reference_fixtures_sequence_sequencelayout_0003_puml
+    reference_fixtures_sequence_sequencelayout_0006_puml
+    reference_fixtures_sequence_sequenceleftmessageandactivelifelines_0002_puml
+    reference_fixtures_sequence_sequenceleftmessageandactivelifelines_0003_puml
+    reference_fixtures_sequence_svg0001_puml
+    reference_fixtures_sequence_svg0003_puml
+    reference_fixtures_sequence_test_0_puml
+    reference_fixtures_sprite_azureSVG_puml
+    reference_fixtures_sprite_linearGradientSpreadPad_puml
+    reference_fixtures_sprite_linearGradientSpreadReflect_puml
+    reference_fixtures_sprite_linearGradientSpreadRepeat_puml
+    reference_fixtures_sprite_styleFontWeightRoboto_puml
+    reference_fixtures_sprite_svg2GroupsInlineStyled_puml
+    reference_fixtures_sprite_svg2GroupsWithStyle_puml
+    reference_fixtures_sprite_svg2Groups_puml
+    reference_fixtures_sprite_svgDiagonalGradientBLTRMonochrome_puml
+    reference_fixtures_sprite_svgDiagonalGradientBLTR_puml
+    reference_fixtures_sprite_svgDiagonalGradientTLBR_puml
+    reference_fixtures_sprite_svgEmbeddedPNG_puml
+    reference_fixtures_sprite_svgFillColourTest_2174_puml
+    reference_fixtures_sprite_svgFontWeightMultiWeight_puml
+    reference_fixtures_sprite_svgFontWeightStandardFonts_puml
+    reference_fixtures_sprite_svgLinearGradientCircle_puml
+    reference_fixtures_sprite_svgPolygonStar_puml
+    reference_fixtures_sprite_svgRadialGradient_puml
+    reference_fixtures_sprite_svgRedCircle_puml
+    reference_fixtures_sprite_svgRedEllipse_puml
+    reference_fixtures_sprite_svgRedLine_puml
+    reference_fixtures_sprite_svgRedPolyLine_puml
+    reference_fixtures_sprite_svgRedRectLinearGradient_puml
+    reference_fixtures_sprite_svgRedRect_puml
+    reference_fixtures_sprite_svgRedStroke_puml
+    reference_fixtures_sprite_svgRedText_puml
+    reference_fixtures_sprite_svgTextAnchor_puml
+    reference_fixtures_sprite_svgTextBold_puml
+    reference_fixtures_sprite_svgTextDecoration_puml
+    reference_fixtures_sprite_svgTextItalic_puml
+    reference_fixtures_sprite_svgTextStyleAttr_puml
+    reference_fixtures_sprite_svgTransformGroup_puml
+    reference_fixtures_sprite_svgTransformMatrix_puml
+    reference_fixtures_sprite_svgTransformRotate_puml
+    reference_fixtures_sprite_svgTransformScale_puml
+    reference_fixtures_sprite_svgTransformTranslate_puml
+    reference_fixtures_sprite_svgUseDefs_puml
+    reference_fixtures_sprite_svgVerticalGradient_puml
+    reference_fixtures_sprite_testGradientSprite_puml
+    reference_fixtures_sprite_testPolylineSprites_puml
+    reference_fixtures_state_scxml0001_puml
+    reference_fixtures_state_scxml0002_puml
+    reference_fixtures_state_scxml0003_puml
+    reference_fixtures_state_scxml0004_puml
+    reference_fixtures_state_scxml0005_puml
+    reference_fixtures_state_state_choice001_puml
+    reference_fixtures_state_state_concurrent001_puml
+    reference_fixtures_state_state_fork001_puml
+    reference_fixtures_state_state_history001_puml
+    reference_fixtures_state_state_monoline_01_puml
+    reference_fixtures_state_state_monoline_02_puml
+    reference_fixtures_state_state_monoline_03_puml
+    reference_fixtures_state_state_note001_puml
+    reference_fixtures_timing_timingmessagearrowfont_0001_puml
+    reference_fixtures_timing_timingmessagearrowfont_0002_puml
+    reference_fixtures_usecase_basic_puml
+    reference_fixtures_usecase_boundary_puml
+    reference_fixtures_usecase_colon_actor_puml
+    reference_fixtures_wbs_link_url_tooltip_01_puml
+    reference_fixtures_wbs_link_url_tooltip_02_puml
+    reference_fixtures_wbs_link_url_tooltip_03_puml
+    reference_fixtures_wbs_wbs_arrow_puml
+    reference_fixtures_wbs_wbs_direction_puml
+    reference_fixtures_wire_basic_puml
+    reference_fixtures_wire_multi_puml
+    reference_fixtures_yaml_basic_puml
+
+test result: FAILED. 12 passed; 310 failed; 0 ignored; 0 measured; 0 filtered out; finished in 13.52s
+

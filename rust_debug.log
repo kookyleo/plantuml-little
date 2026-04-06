@@ -1,0 +1,399 @@
+   Compiling plantuml-little v0.1.0 (/ext/plantuml/plantuml-little)
+warning: unused import: `NoteLinkStrategy`
+  --> src/abel/entity.rs:12:58
+   |
+12 | use super::{CucaNote, DisplayPositioned, EntityPosition, NoteLinkStrategy, Together};
+   |                                                          ^^^^^^^^^^^^^^^^
+   |
+   = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused imports: `count_creole_lines` and `max_creole_plain_line_len`
+  --> src/render/svg.rs:28:5
+   |
+28 |     count_creole_lines, creole_plain_text, get_default_font_family_pub, max_creole_plain_line_len,
+   |     ^^^^^^^^^^^^^^^^^^                                                  ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `NotePosition`
+  --> src/render/svg_activity.rs:60:49
+   |
+60 |     use crate::model::activity::{ActivityEvent, NotePosition};
+   |                                                 ^^^^^^^^^^^^
+
+warning: unused import: `std::fmt::Write`
+    --> src/render/svg_sprite.rs:1572:9
+     |
+1572 |     use std::fmt::Write;
+     |         ^^^^^^^^^^^^^^^
+
+warning: unused import: `std::fmt::Write`
+    --> src/render/svg_sprite.rs:1599:9
+     |
+1599 |     use std::fmt::Write;
+     |         ^^^^^^^^^^^^^^^
+
+warning: unused import: `std::fmt::Write`
+ --> src/render/svg_wbs.rs:2:5
+  |
+2 | use std::fmt::Write;
+  |     ^^^^^^^^^^^^^^^
+
+warning: unused import: `xml_escape`
+ --> src/render/svg_wbs.rs:5:36
+  |
+5 | use crate::klimt::svg::{fmt_coord, xml_escape, LengthAdjust, SvgGraphic};
+  |                                    ^^^^^^^^^^
+
+warning: unused import: `ArrowBody`
+  --> src/skin/rose.rs:16:5
+   |
+16 |     ArrowBody, ArrowConfiguration, ArrowDecoration, ArrowDirection, ArrowHead, ArrowPart,
+   |     ^^^^^^^^^
+
+warning: unused import: `crate::klimt::geom::XCubicCurve2D`
+   --> src/svek/svg_result.rs:359:9
+    |
+359 |     use crate::klimt::geom::XCubicCurve2D;
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+error[E0063]: missing field `ranksep_override` in initializer of `LayoutGraph`
+   --> src/layout/component.rs:389:17
+    |
+389 |     let graph = LayoutGraph {
+    |                 ^^^^^^^^^^^ missing `ranksep_override`
+
+error[E0063]: missing field `ranksep_override` in initializer of `LayoutGraph`
+    --> src/layout/state.rs:1576:17
+     |
+1576 |     let graph = LayoutGraph {
+     |                 ^^^^^^^^^^^ missing `ranksep_override`
+
+error[E0063]: missing field `ranksep_override` in initializer of `LayoutGraph`
+   --> src/layout/mod.rs:218:22
+    |
+218 |             let lg = LayoutGraph {
+    |                      ^^^^^^^^^^^ missing `ranksep_override`
+
+error[E0063]: missing field `ranksep_override` in initializer of `LayoutGraph`
+    --> src/layout/mod.rs:1182:17
+     |
+1182 |     let graph = LayoutGraph {
+     |                 ^^^^^^^^^^^ missing `ranksep_override`
+
+warning: unused variable: `i`
+   --> src/layout/activity.rs:513:10
+    |
+513 |     for (i, name) in swimlanes.iter().enumerate() {
+    |          ^
+    |
+    = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+help: if this is intentional, prefix it with an underscore
+    |
+513 |     for (_i, name) in swimlanes.iter().enumerate() {
+    |          +
+help: you might have meant to pattern match on the similarly named constant `MAX_ITERATIONS`
+    |
+513 -     for (i, name) in swimlanes.iter().enumerate() {
+513 +     for (preproc::Context::process_while::MAX_ITERATIONS, name) in swimlanes.iter().enumerate() {
+    |
+
+warning: unused variable: `old_x`
+    --> src/layout/activity.rs:1213:17
+     |
+1213 |             let old_x = swimlane_layouts[i].x;
+     |                 ^^^^^
+     |
+help: if this is intentional, prefix it with an underscore
+     |
+1213 |             let _old_x = swimlane_layouts[i].x;
+     |                 +
+help: you might have meant to pattern match on the similarly named constant `DEFAULT_RANKSEP_IN`
+     |
+1213 -             let old_x = swimlane_layouts[i].x;
+1213 +             let svek::utils::DEFAULT_RANKSEP_IN = swimlane_layouts[i].x;
+     |
+
+warning: unused variable: `y_cursor`
+    --> src/layout/activity.rs:1617:5
+     |
+1617 |     y_cursor: f64,
+     |     ^^^^^^^^
+     |
+help: if this is intentional, prefix it with an underscore
+     |
+1617 |     _y_cursor: f64,
+     |     +
+help: you might have meant to pattern match on the similarly named constant `DEFAULT_RANKSEP_IN`
+     |
+1617 -     y_cursor: f64,
+1617 +     svek::utils::DEFAULT_RANKSEP_IN: f64,
+     |
+
+warning: unused variable: `box_idx`
+   --> src/layout/json_diagram.rs:270:9
+    |
+270 |     let box_idx = boxes.len();
+    |         ^^^^^^^
+    |
+help: if this is intentional, prefix it with an underscore
+    |
+270 |     let _box_idx = boxes.len();
+    |         +
+help: you might have meant to pattern match on the similarly named constant `MAX_ITERATIONS`
+    |
+270 -     let box_idx = boxes.len();
+270 +     let preproc::Context::process_while::MAX_ITERATIONS = boxes.len();
+    |
+
+warning: unused variable: `i`
+   --> src/layout/json_diagram.rs:299:10
+    |
+299 |     for (i, row_spec) in spec.rows.iter().enumerate() {
+    |          ^
+    |
+help: if this is intentional, prefix it with an underscore
+    |
+299 |     for (_i, row_spec) in spec.rows.iter().enumerate() {
+    |          +
+help: you might have meant to pattern match on the similarly named constant `MAX_ITERATIONS`
+    |
+299 -     for (i, row_spec) in spec.rows.iter().enumerate() {
+299 +     for (preproc::Context::process_while::MAX_ITERATIONS, row_spec) in spec.rows.iter().enumerate() {
+    |
+
+warning: unused variable: `return_y`
+    --> src/layout/sequence.rs:1388:25
+     |
+1388 |                     let return_y = msg_y + lp.self_msg_height;
+     |                         ^^^^^^^^
+     |
+help: if this is intentional, prefix it with an underscore
+     |
+1388 |                     let _return_y = msg_y + lp.self_msg_height;
+     |                         +
+help: you might have meant to pattern match on the similarly named constant `DEFAULT_RANKSEP_IN`
+     |
+1388 -                     let return_y = msg_y + lp.self_msg_height;
+1388 +                     let svek::utils::DEFAULT_RANKSEP_IN = msg_y + lp.self_msg_height;
+     |
+
+warning: unused variable: `sm_cx`
+    --> src/layout/sequence_teoz/builder.rs:2480:29
+     |
+2480 |                         let sm_cx = get_x(livings[sm_pidx].pos_c);
+     |                             ^^^^^
+     |
+help: if this is intentional, prefix it with an underscore
+     |
+2480 |                         let _sm_cx = get_x(livings[sm_pidx].pos_c);
+     |                             +
+help: you might have meant to pattern match on the similarly named constant `DEFAULT_RANKSEP_IN`
+     |
+2480 -                         let sm_cx = get_x(livings[sm_pidx].pos_c);
+2480 +                         let svek::utils::DEFAULT_RANKSEP_IN = get_x(livings[sm_pidx].pos_c);
+     |
+
+warning: unused variable: `depth`
+    --> src/layout/sequence_teoz/builder.rs:2631:25
+     |
+2631 |                     let depth = fragment_stack.len(); // 0 for outermost
+     |                         ^^^^^
+     |
+help: if this is intentional, prefix it with an underscore
+     |
+2631 |                     let _depth = fragment_stack.len(); // 0 for outermost
+     |                         +
+help: you might have meant to pattern match on the similarly named constant `MAX_ITERATIONS`
+     |
+2631 -                     let depth = fragment_stack.len(); // 0 for outermost
+2631 +                     let preproc::Context::process_while::MAX_ITERATIONS = fragment_stack.len(); // 0 for outermost
+     |
+
+warning: unused variable: `margin_x`
+    --> src/layout/state.rs:1219:9
+     |
+1219 |     let margin_x = gv_layout.render_offset.0;
+     |         ^^^^^^^^
+     |
+help: if this is intentional, prefix it with an underscore
+     |
+1219 |     let _margin_x = gv_layout.render_offset.0;
+     |         +
+help: you might have meant to pattern match on the similarly named constant `DEFAULT_RANKSEP_IN`
+     |
+1219 -     let margin_x = gv_layout.render_offset.0;
+1219 +     let svek::utils::DEFAULT_RANKSEP_IN = gv_layout.render_offset.0;
+     |
+
+warning: unused variable: `margin_y`
+    --> src/layout/state.rs:1220:9
+     |
+1220 |     let margin_y = gv_layout.render_offset.1;
+     |         ^^^^^^^^
+     |
+help: if this is intentional, prefix it with an underscore
+     |
+1220 |     let _margin_y = gv_layout.render_offset.1;
+     |         +
+help: you might have meant to pattern match on the similarly named constant `DEFAULT_RANKSEP_IN`
+     |
+1220 -     let margin_y = gv_layout.render_offset.1;
+1220 +     let svek::utils::DEFAULT_RANKSEP_IN = gv_layout.render_offset.1;
+     |
+
+warning: unused variable: `has_open_left`
+    --> src/parser/sequence.rs:1012:9
+     |
+1012 |     let has_open_left =
+     |         ^^^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_has_open_left`
+
+warning: unused variable: `has_open_right`
+    --> src/parser/sequence.rs:1016:9
+     |
+1016 |     let has_open_right =
+     |         ^^^^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_has_open_right`
+
+warning: unused variable: `cx`
+    --> src/render/svg.rs:3349:17
+     |
+3349 |             let cx = fmt_coord(ecx);
+     |                 ^^ help: if this is intentional, prefix it with an underscore: `_cx`
+
+warning: unused variable: `cy`
+    --> src/render/svg.rs:3350:17
+     |
+3350 |             let cy = fmt_coord(ecy);
+     |                 ^^ help: if this is intentional, prefix it with an underscore: `_cy`
+
+warning: unused variable: `rx`
+    --> src/render/svg.rs:3362:17
+     |
+3362 |             let rx = fmt_coord(rect_x);
+     |                 ^^ help: if this is intentional, prefix it with an underscore: `_rx`
+
+warning: unused variable: `ry`
+    --> src/render/svg.rs:3363:17
+     |
+3363 |             let ry = fmt_coord(rect_y);
+     |                 ^^ help: if this is intentional, prefix it with an underscore: `_ry`
+
+warning: unused variable: `sprite_w`
+   --> src/render/svg_activity.rs:495:21
+    |
+495 |                 let sprite_w = info.vb_width * sprite_scale;
+    |                     ^^^^^^^^
+    |
+help: if this is intentional, prefix it with an underscore
+    |
+495 |                 let _sprite_w = info.vb_width * sprite_scale;
+    |                     +
+help: you might have meant to pattern match on the similarly named constant `DEFAULT_RANKSEP_IN`
+    |
+495 -                 let sprite_w = info.vb_width * sprite_scale;
+495 +                 let svek::utils::DEFAULT_RANKSEP_IN = info.vb_width * sprite_scale;
+    |
+
+warning: unused variable: `tl`
+    --> src/render/svg_component.rs:1120:9
+     |
+1120 |     let tl = font_metrics::text_width(&node.name, "SansSerif", FONT_SIZE, false, false);
+     |         ^^
+     |
+help: if this is intentional, prefix it with an underscore
+     |
+1120 |     let _tl = font_metrics::text_width(&node.name, "SansSerif", FONT_SIZE, false, false);
+     |         +
+help: you might have meant to pattern match on the similarly named constant `DEFAULT_RANKSEP_IN`
+     |
+1120 -     let tl = font_metrics::text_width(&node.name, "SansSerif", FONT_SIZE, false, false);
+1120 +     let svek::utils::DEFAULT_RANKSEP_IN = font_metrics::text_width(&node.name, "SansSerif", FONT_SIZE, false, false);
+     |
+
+warning: unused variable: `display_names`
+   --> src/render/svg_sequence.rs:320:5
+    |
+320 |     display_names: &std::collections::HashMap<&str, &str>,
+    |     ^^^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_display_names`
+
+warning: unused variable: `stickman_height`
+   --> src/render/svg_sequence.rs:716:9
+    |
+716 |     let stickman_height = head_diam + body_length + legs_y + 2.0 * thickness + 1.0;
+    |         ^^^^^^^^^^^^^^^
+    |
+help: if this is intentional, prefix it with an underscore
+    |
+716 |     let _stickman_height = head_diam + body_length + legs_y + 2.0 * thickness + 1.0;
+    |         +
+help: you might have meant to pattern match on the similarly named constant `DEFAULT_RANKSEP_IN`
+    |
+716 -     let stickman_height = head_diam + body_length + legs_y + 2.0 * thickness + 1.0;
+716 +     let svek::utils::DEFAULT_RANKSEP_IN = head_diam + body_length + legs_y + 2.0 * thickness + 1.0;
+    |
+
+warning: unused variable: `margin_y1`
+    --> src/render/svg_sequence.rs:1308:9
+     |
+1308 |     let margin_y1 = 5.0_f64;
+     |         ^^^^^^^^^
+     |
+help: if this is intentional, prefix it with an underscore
+     |
+1308 |     let _margin_y1 = 5.0_f64;
+     |         +
+help: you might have meant to pattern match on the similarly named constant `DEFAULT_RANKSEP_IN`
+     |
+1308 -     let margin_y1 = 5.0_f64;
+1308 +     let svek::utils::DEFAULT_RANKSEP_IN = 5.0_f64;
+     |
+
+warning: unused variable: `xpos`
+    --> src/render/svg_sequence.rs:2458:13
+     |
+2458 |         let xpos = divider.component_y; // dummy, we compute from area
+     |             ^^^^
+     |
+help: if this is intentional, prefix it with an underscore
+     |
+2458 |         let _xpos = divider.component_y; // dummy, we compute from area
+     |             +
+help: you might have meant to pattern match on the similarly named constant `DEFAULT_RANKSEP_IN`
+     |
+2458 -         let xpos = divider.component_y; // dummy, we compute from area
+2458 +         let svek::utils::DEFAULT_RANKSEP_IN = divider.component_y; // dummy, we compute from area
+     |
+
+warning: unused variable: `dot`
+   --> src/render/svg_sprite.rs:425:17
+    |
+425 |     if let Some(dot) = s.find('.') {
+    |                 ^^^
+    |
+help: if this is intentional, prefix it with an underscore
+    |
+425 |     if let Some(_dot) = s.find('.') {
+    |                 +
+help: you might have meant to pattern match on the similarly named constant `MAX_ITERATIONS`
+    |
+425 -     if let Some(dot) = s.find('.') {
+425 +     if let Some(preproc::Context::process_while::MAX_ITERATIONS) = s.find('.') {
+    |
+
+warning: unused variable: `y_prev`
+    --> src/render/svg_state.rs:1000:24
+     |
+1000 |     let (_, _, x_prev, y_prev) = coord_positions[n - 3];
+     |                        ^^^^^^
+     |
+help: if this is intentional, prefix it with an underscore
+     |
+1000 |     let (_, _, x_prev, _y_prev) = coord_positions[n - 3];
+     |                        +
+help: you might have meant to pattern match on the similarly named constant `DEFAULT_RANKSEP_IN`
+     |
+1000 -     let (_, _, x_prev, y_prev) = coord_positions[n - 3];
+1000 +     let (_, _, x_prev, svek::utils::DEFAULT_RANKSEP_IN) = coord_positions[n - 3];
+     |
+
+For more information about this error, try `rustc --explain E0063`.
+warning: `plantuml-little` (lib) generated 33 warnings
+error: could not compile `plantuml-little` (lib) due to 4 previous errors; 33 warnings emitted

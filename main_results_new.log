@@ -1,0 +1,3091 @@
+warning: unused import: `NoteLinkStrategy`
+  --> src/abel/entity.rs:12:58
+   |
+12 | use super::{CucaNote, DisplayPositioned, EntityPosition, NoteLinkStrategy, Together};
+   |                                                          ^^^^^^^^^^^^^^^^
+   |
+   = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused imports: `count_creole_lines` and `max_creole_plain_line_len`
+  --> src/render/svg.rs:28:5
+   |
+28 |     count_creole_lines, creole_plain_text, get_default_font_family_pub, max_creole_plain_line_len,
+   |     ^^^^^^^^^^^^^^^^^^                                                  ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `NotePosition`
+  --> src/render/svg_activity.rs:60:49
+   |
+60 |     use crate::model::activity::{ActivityEvent, NotePosition};
+   |                                                 ^^^^^^^^^^^^
+
+warning: unused import: `std::fmt::Write`
+    --> src/render/svg_sprite.rs:1572:9
+     |
+1572 |     use std::fmt::Write;
+     |         ^^^^^^^^^^^^^^^
+
+warning: unused import: `std::fmt::Write`
+    --> src/render/svg_sprite.rs:1599:9
+     |
+1599 |     use std::fmt::Write;
+     |         ^^^^^^^^^^^^^^^
+
+warning: unused import: `std::fmt::Write`
+ --> src/render/svg_wbs.rs:2:5
+  |
+2 | use std::fmt::Write;
+  |     ^^^^^^^^^^^^^^^
+
+warning: unused import: `xml_escape`
+ --> src/render/svg_wbs.rs:5:36
+  |
+5 | use crate::klimt::svg::{fmt_coord, xml_escape, LengthAdjust, SvgGraphic};
+  |                                    ^^^^^^^^^^
+
+warning: unused import: `ArrowBody`
+  --> src/skin/rose.rs:16:5
+   |
+16 |     ArrowBody, ArrowConfiguration, ArrowDecoration, ArrowDirection, ArrowHead, ArrowPart,
+   |     ^^^^^^^^^
+
+warning: unused import: `crate::klimt::geom::XCubicCurve2D`
+   --> src/svek/svg_result.rs:359:9
+    |
+359 |     use crate::klimt::geom::XCubicCurve2D;
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused variable: `i`
+   --> src/layout/activity.rs:513:10
+    |
+513 |     for (i, name) in swimlanes.iter().enumerate() {
+    |          ^
+    |
+    = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+help: if this is intentional, prefix it with an underscore
+    |
+513 |     for (_i, name) in swimlanes.iter().enumerate() {
+    |          +
+help: you might have meant to pattern match on the similarly named constant `MAX_ITERATIONS`
+    |
+513 -     for (i, name) in swimlanes.iter().enumerate() {
+513 +     for (preproc::Context::process_while::MAX_ITERATIONS, name) in swimlanes.iter().enumerate() {
+    |
+
+warning: unused variable: `old_x`
+    --> src/layout/activity.rs:1213:17
+     |
+1213 |             let old_x = swimlane_layouts[i].x;
+     |                 ^^^^^
+     |
+help: if this is intentional, prefix it with an underscore
+     |
+1213 |             let _old_x = swimlane_layouts[i].x;
+     |                 +
+help: you might have meant to pattern match on the similarly named constant `DEFAULT_RANKSEP_IN`
+     |
+1213 -             let old_x = swimlane_layouts[i].x;
+1213 +             let svek::utils::DEFAULT_RANKSEP_IN = swimlane_layouts[i].x;
+     |
+
+warning: unused variable: `y_cursor`
+    --> src/layout/activity.rs:1617:5
+     |
+1617 |     y_cursor: f64,
+     |     ^^^^^^^^
+     |
+help: if this is intentional, prefix it with an underscore
+     |
+1617 |     _y_cursor: f64,
+     |     +
+help: you might have meant to pattern match on the similarly named constant `DEFAULT_RANKSEP_IN`
+     |
+1617 -     y_cursor: f64,
+1617 +     svek::utils::DEFAULT_RANKSEP_IN: f64,
+     |
+
+warning: unused variable: `box_idx`
+   --> src/layout/json_diagram.rs:270:9
+    |
+270 |     let box_idx = boxes.len();
+    |         ^^^^^^^
+    |
+help: if this is intentional, prefix it with an underscore
+    |
+270 |     let _box_idx = boxes.len();
+    |         +
+help: you might have meant to pattern match on the similarly named constant `MAX_ITERATIONS`
+    |
+270 -     let box_idx = boxes.len();
+270 +     let preproc::Context::process_while::MAX_ITERATIONS = boxes.len();
+    |
+
+warning: unused variable: `i`
+   --> src/layout/json_diagram.rs:299:10
+    |
+299 |     for (i, row_spec) in spec.rows.iter().enumerate() {
+    |          ^
+    |
+help: if this is intentional, prefix it with an underscore
+    |
+299 |     for (_i, row_spec) in spec.rows.iter().enumerate() {
+    |          +
+help: you might have meant to pattern match on the similarly named constant `MAX_ITERATIONS`
+    |
+299 -     for (i, row_spec) in spec.rows.iter().enumerate() {
+299 +     for (preproc::Context::process_while::MAX_ITERATIONS, row_spec) in spec.rows.iter().enumerate() {
+    |
+
+warning: unused variable: `return_y`
+    --> src/layout/sequence.rs:1388:25
+     |
+1388 |                     let return_y = msg_y + lp.self_msg_height;
+     |                         ^^^^^^^^
+     |
+help: if this is intentional, prefix it with an underscore
+     |
+1388 |                     let _return_y = msg_y + lp.self_msg_height;
+     |                         +
+help: you might have meant to pattern match on the similarly named constant `DEFAULT_RANKSEP_IN`
+     |
+1388 -                     let return_y = msg_y + lp.self_msg_height;
+1388 +                     let svek::utils::DEFAULT_RANKSEP_IN = msg_y + lp.self_msg_height;
+     |
+
+warning: unused variable: `sm_cx`
+    --> src/layout/sequence_teoz/builder.rs:2477:29
+     |
+2477 |                         let sm_cx = get_x(livings[sm_pidx].pos_c);
+     |                             ^^^^^
+     |
+help: if this is intentional, prefix it with an underscore
+     |
+2477 |                         let _sm_cx = get_x(livings[sm_pidx].pos_c);
+     |                             +
+help: you might have meant to pattern match on the similarly named constant `DEFAULT_RANKSEP_IN`
+     |
+2477 -                         let sm_cx = get_x(livings[sm_pidx].pos_c);
+2477 +                         let svek::utils::DEFAULT_RANKSEP_IN = get_x(livings[sm_pidx].pos_c);
+     |
+
+warning: unused variable: `depth`
+    --> src/layout/sequence_teoz/builder.rs:2628:25
+     |
+2628 |                     let depth = fragment_stack.len(); // 0 for outermost
+     |                         ^^^^^
+     |
+help: if this is intentional, prefix it with an underscore
+     |
+2628 |                     let _depth = fragment_stack.len(); // 0 for outermost
+     |                         +
+help: you might have meant to pattern match on the similarly named constant `MAX_ITERATIONS`
+     |
+2628 -                     let depth = fragment_stack.len(); // 0 for outermost
+2628 +                     let preproc::Context::process_while::MAX_ITERATIONS = fragment_stack.len(); // 0 for outermost
+     |
+
+warning: unused variable: `has_open_left`
+    --> src/parser/sequence.rs:1012:9
+     |
+1012 |     let has_open_left =
+     |         ^^^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_has_open_left`
+
+warning: unused variable: `has_open_right`
+    --> src/parser/sequence.rs:1016:9
+     |
+1016 |     let has_open_right =
+     |         ^^^^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_has_open_right`
+
+warning: unused variable: `cx`
+    --> src/render/svg.rs:3350:17
+     |
+3350 |             let cx = fmt_coord(ecx);
+     |                 ^^ help: if this is intentional, prefix it with an underscore: `_cx`
+
+warning: unused variable: `cy`
+    --> src/render/svg.rs:3351:17
+     |
+3351 |             let cy = fmt_coord(ecy);
+     |                 ^^ help: if this is intentional, prefix it with an underscore: `_cy`
+
+warning: unused variable: `rx`
+    --> src/render/svg.rs:3363:17
+     |
+3363 |             let rx = fmt_coord(rect_x);
+     |                 ^^ help: if this is intentional, prefix it with an underscore: `_rx`
+
+warning: unused variable: `ry`
+    --> src/render/svg.rs:3364:17
+     |
+3364 |             let ry = fmt_coord(rect_y);
+     |                 ^^ help: if this is intentional, prefix it with an underscore: `_ry`
+
+warning: unused variable: `sprite_w`
+   --> src/render/svg_activity.rs:495:21
+    |
+495 |                 let sprite_w = info.vb_width * sprite_scale;
+    |                     ^^^^^^^^
+    |
+help: if this is intentional, prefix it with an underscore
+    |
+495 |                 let _sprite_w = info.vb_width * sprite_scale;
+    |                     +
+help: you might have meant to pattern match on the similarly named constant `DEFAULT_RANKSEP_IN`
+    |
+495 -                 let sprite_w = info.vb_width * sprite_scale;
+495 +                 let svek::utils::DEFAULT_RANKSEP_IN = info.vb_width * sprite_scale;
+    |
+
+warning: unused variable: `tl`
+    --> src/render/svg_component.rs:1120:9
+     |
+1120 |     let tl = font_metrics::text_width(&node.name, "SansSerif", FONT_SIZE, false, false);
+     |         ^^
+     |
+help: if this is intentional, prefix it with an underscore
+     |
+1120 |     let _tl = font_metrics::text_width(&node.name, "SansSerif", FONT_SIZE, false, false);
+     |         +
+help: you might have meant to pattern match on the similarly named constant `DEFAULT_RANKSEP_IN`
+     |
+1120 -     let tl = font_metrics::text_width(&node.name, "SansSerif", FONT_SIZE, false, false);
+1120 +     let svek::utils::DEFAULT_RANKSEP_IN = font_metrics::text_width(&node.name, "SansSerif", FONT_SIZE, false, false);
+     |
+
+warning: unused variable: `display_names`
+   --> src/render/svg_sequence.rs:320:5
+    |
+320 |     display_names: &std::collections::HashMap<&str, &str>,
+    |     ^^^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_display_names`
+
+warning: unused variable: `stickman_height`
+   --> src/render/svg_sequence.rs:716:9
+    |
+716 |     let stickman_height = head_diam + body_length + legs_y + 2.0 * thickness + 1.0;
+    |         ^^^^^^^^^^^^^^^
+    |
+help: if this is intentional, prefix it with an underscore
+    |
+716 |     let _stickman_height = head_diam + body_length + legs_y + 2.0 * thickness + 1.0;
+    |         +
+help: you might have meant to pattern match on the similarly named constant `DEFAULT_RANKSEP_IN`
+    |
+716 -     let stickman_height = head_diam + body_length + legs_y + 2.0 * thickness + 1.0;
+716 +     let svek::utils::DEFAULT_RANKSEP_IN = head_diam + body_length + legs_y + 2.0 * thickness + 1.0;
+    |
+
+warning: unused variable: `margin_y1`
+    --> src/render/svg_sequence.rs:1308:9
+     |
+1308 |     let margin_y1 = 5.0_f64;
+     |         ^^^^^^^^^
+     |
+help: if this is intentional, prefix it with an underscore
+     |
+1308 |     let _margin_y1 = 5.0_f64;
+     |         +
+help: you might have meant to pattern match on the similarly named constant `DEFAULT_RANKSEP_IN`
+     |
+1308 -     let margin_y1 = 5.0_f64;
+1308 +     let svek::utils::DEFAULT_RANKSEP_IN = 5.0_f64;
+     |
+
+warning: unused variable: `xpos`
+    --> src/render/svg_sequence.rs:2172:13
+     |
+2172 |         let xpos = divider.component_y; // dummy, we compute from area
+     |             ^^^^
+     |
+help: if this is intentional, prefix it with an underscore
+     |
+2172 |         let _xpos = divider.component_y; // dummy, we compute from area
+     |             +
+help: you might have meant to pattern match on the similarly named constant `DEFAULT_RANKSEP_IN`
+     |
+2172 -         let xpos = divider.component_y; // dummy, we compute from area
+2172 +         let svek::utils::DEFAULT_RANKSEP_IN = divider.component_y; // dummy, we compute from area
+     |
+
+warning: unused variable: `dot`
+   --> src/render/svg_sprite.rs:425:17
+    |
+425 |     if let Some(dot) = s.find('.') {
+    |                 ^^^
+    |
+help: if this is intentional, prefix it with an underscore
+    |
+425 |     if let Some(_dot) = s.find('.') {
+    |                 +
+help: you might have meant to pattern match on the similarly named constant `MAX_ITERATIONS`
+    |
+425 -     if let Some(dot) = s.find('.') {
+425 +     if let Some(preproc::Context::process_while::MAX_ITERATIONS) = s.find('.') {
+    |
+
+warning: unused variable: `y_prev`
+   --> src/render/svg_state.rs:996:24
+    |
+996 |     let (_, _, x_prev, y_prev) = coord_positions[n - 3];
+    |                        ^^^^^^
+    |
+help: if this is intentional, prefix it with an underscore
+    |
+996 |     let (_, _, x_prev, _y_prev) = coord_positions[n - 3];
+    |                        +
+help: you might have meant to pattern match on the similarly named constant `DEFAULT_RANKSEP_IN`
+    |
+996 -     let (_, _, x_prev, y_prev) = coord_positions[n - 3];
+996 +     let (_, _, x_prev, svek::utils::DEFAULT_RANKSEP_IN) = coord_positions[n - 3];
+    |
+
+warning: field `0` is never read
+   --> src/klimt/svg.rs:177:11
+    |
+177 |     Group(String),
+    |     ----- ^^^^^^
+    |     |
+    |     field in this variant
+    |
+    = note: `GroupEntry` has derived impls for the traits `Clone` and `Debug`, but these are intentionally ignored during dead code analysis
+    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+help: consider changing the field to be of unit type to suppress this warning while preserving the field numbering, or remove the field
+    |
+177 -     Group(String),
+177 +     Group(()),
+    |
+
+warning: field `0` is never read
+   --> src/klimt/svg.rs:178:10
+    |
+178 |     Link(String),
+    |     ---- ^^^^^^
+    |     |
+    |     field in this variant
+    |
+    = note: `GroupEntry` has derived impls for the traits `Clone` and `Debug`, but these are intentionally ignored during dead code analysis
+help: consider changing the field to be of unit type to suppress this warning while preserving the field numbering, or remove the field
+    |
+178 -     Link(String),
+178 +     Link(()),
+    |
+
+warning: constant `CLASS_ATTR_FONT_SIZE` is never used
+  --> src/layout/mod.rs:72:7
+   |
+72 | const CLASS_ATTR_FONT_SIZE: f64 = 10.0;
+   |       ^^^^^^^^^^^^^^^^^^^^
+
+warning: constant `MEMBER_BLOCK_HEIGHT_ONE_ROW` is never used
+   --> src/layout/mod.rs:107:7
+    |
+107 | const MEMBER_BLOCK_HEIGHT_ONE_ROW: f64 = 24.296875;
+    |       ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `split_name_display_lines` is never used
+   --> src/layout/mod.rs:583:15
+    |
+583 | pub(crate) fn split_name_display_lines(name: &str) -> Vec<String> {
+    |               ^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: constant `SWIMLANE_MIN_WIDTH` is never used
+   --> src/layout/activity.rs:120:7
+    |
+120 | const SWIMLANE_MIN_WIDTH: f64 = 80.0;
+    |       ^^^^^^^^^^^^^^^^^^
+
+warning: constant `NODE_SPACING_X` is never used
+   --> src/layout/component.rs:100:7
+    |
+100 | const NODE_SPACING_X: f64 = 35.0;
+    |       ^^^^^^^^^^^^^^
+
+warning: constant `NODE_SPACING_Y` is never used
+   --> src/layout/component.rs:101:7
+    |
+101 | const NODE_SPACING_Y: f64 = 50.0;
+    |       ^^^^^^^^^^^^^^
+
+warning: constant `GROUP_PADDING` is never used
+   --> src/layout/component.rs:102:7
+    |
+102 | const GROUP_PADDING: f64 = 20.0;
+    |       ^^^^^^^^^^^^^
+
+warning: constant `GROUP_HEADER` is never used
+   --> src/layout/component.rs:103:7
+    |
+103 | const GROUP_HEADER: f64 = 30.0;
+    |       ^^^^^^^^^^^^
+
+warning: constant `GRID_COLS` is never used
+   --> src/layout/component.rs:107:7
+    |
+107 | const GRID_COLS: usize = 3;
+    |       ^^^^^^^^^
+
+warning: function `apply_direction_transform` is never used
+   --> src/layout/component.rs:578:4
+    |
+578 | fn apply_direction_transform(
+    |    ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `layout_edges` is never used
+   --> src/layout/component.rs:664:4
+    |
+664 | fn layout_edges(
+    |    ^^^^^^^^^^^^
+
+warning: function `route_with_hint` is never used
+   --> src/layout/component.rs:724:4
+    |
+724 | fn route_with_hint(
+    |    ^^^^^^^^^^^^^^^
+
+warning: function `route_auto` is never used
+   --> src/layout/component.rs:752:4
+    |
+752 | fn route_auto(
+    |    ^^^^^^^^^^
+
+warning: constant `LEVEL_INDENT` is never used
+  --> src/layout/mindmap.rs:85:7
+   |
+85 | const LEVEL_INDENT: f64 = 200.0;
+   |       ^^^^^^^^^^^^
+
+warning: function `estimate_node_size` is never used
+   --> src/layout/mindmap.rs:114:4
+    |
+114 | fn estimate_node_size(text: &str, is_root: bool) -> (f64, f64, Vec<String>) {
+    |    ^^^^^^^^^^^^^^^^^^
+
+warning: function `compute_subtree_info` is never used
+   --> src/layout/mindmap.rs:208:4
+    |
+208 | fn compute_subtree_info(node: &MindmapNode) -> SubtreeInfo {
+    |    ^^^^^^^^^^^^^^^^^^^^
+
+warning: field `frag_header_height` is never read
+  --> src/layout/sequence.rs:63:5
+   |
+53 | struct LayoutParams {
+   |        ------------ field in this struct
+...
+63 |     frag_header_height: f64,
+   |     ^^^^^^^^^^^^^^^^^^
+
+warning: constant `PARTICIPANT_GAP` is never used
+  --> src/layout/sequence_teoz/builder.rs:53:7
+   |
+53 | const PARTICIPANT_GAP: f64 = 5.0;
+   |       ^^^^^^^^^^^^^^^
+
+warning: method `zzz` is never used
+   --> src/layout/sequence_teoz/builder.rs:292:8
+    |
+209 | impl TeozTile {
+    | ------------- method in this implementation
+...
+292 |     fn zzz(&self) -> f64 {
+    |        ^^^
+
+warning: function `active_left_shift` is never used
+   --> src/layout/sequence_teoz/builder.rs:390:4
+    |
+390 | fn active_left_shift(level: usize) -> f64 {
+    |    ^^^^^^^^^^^^^^^^^
+
+warning: function `live_thickness_width` is never used
+   --> src/layout/sequence_teoz/builder.rs:434:4
+    |
+434 | fn live_thickness_width(level: usize) -> f64 {
+    |    ^^^^^^^^^^^^^^^^^^^^
+
+warning: function `is_last_tile_self_message` is never used
+   --> src/layout/sequence_teoz/builder.rs:869:4
+    |
+869 | fn is_last_tile_self_message(tiles: &[TeozTile]) -> bool {
+    |    ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: constant `CHAR_WIDTH` is never used
+  --> src/layout/state.rs:93:7
+   |
+93 | const CHAR_WIDTH: f64 = 7.2;
+   |       ^^^^^^^^^^
+
+warning: constant `LINE_HEIGHT` is never used
+  --> src/layout/state.rs:94:7
+   |
+94 | const LINE_HEIGHT: f64 = 16.0;
+   |       ^^^^^^^^^^^
+
+warning: function `apply_direction_transform` is never used
+    --> src/layout/state.rs:1940:4
+     |
+1940 | fn apply_direction_transform(
+     |    ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `transform_state_nodes_swap_xy` is never used
+    --> src/layout/state.rs:1999:4
+     |
+1999 | fn transform_state_nodes_swap_xy(nodes: &mut [StateNodeLayout]) {
+     |    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `transform_state_nodes_mirror_x` is never used
+    --> src/layout/state.rs:2008:4
+     |
+2008 | fn transform_state_nodes_mirror_x(nodes: &mut [StateNodeLayout], total_width: f64) {
+     |    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `transform_state_nodes_mirror_y` is never used
+    --> src/layout/state.rs:2016:4
+     |
+2016 | fn transform_state_nodes_mirror_y(nodes: &mut [StateNodeLayout], total_height: f64) {
+     |    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: constant `EDGE_GAP` is never used
+  --> src/layout/wbs.rs:71:7
+   |
+71 | const EDGE_GAP: f64 = 20.0;
+   |       ^^^^^^^^
+
+warning: constant `NODE_SPACING` is never used
+  --> src/layout/wbs.rs:72:7
+   |
+72 | const NODE_SPACING: f64 = 20.0;
+   |       ^^^^^^^^^^^^
+
+warning: constant `PADDING` is never used
+  --> src/render/svg.rs:53:7
+   |
+53 | const PADDING: f64 = 3.0;
+   |       ^^^^^^^
+
+warning: constant `CIRCLE_LEFT_PAD` is never used
+  --> src/render/svg.rs:65:7
+   |
+65 | const CIRCLE_LEFT_PAD: f64 = 4.0;
+   |       ^^^^^^^^^^^^^^^
+
+warning: constant `CIRCLE_DIAMETER` is never used
+  --> src/render/svg.rs:67:7
+   |
+67 | const CIRCLE_DIAMETER: f64 = 22.0;
+   |       ^^^^^^^^^^^^^^^
+
+warning: constant `MEMBER_ROW_HEIGHT` is never used
+  --> src/render/svg.rs:99:7
+   |
+99 | const MEMBER_ROW_HEIGHT: f64 = 16.296875;
+   |       ^^^^^^^^^^^^^^^^^
+
+warning: constant `MEMBER_BLOCK_HEIGHT_ONE_ROW` is never used
+   --> src/render/svg.rs:101:7
+    |
+101 | const MEMBER_BLOCK_HEIGHT_ONE_ROW: f64 = 24.296875;
+    |       ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: constant `MEMBER_ICON_Y_FROM_SEP` is never used
+   --> src/render/svg.rs:103:7
+    |
+103 | const MEMBER_ICON_Y_FROM_SEP: f64 = 8.6484375;
+    |       ^^^^^^^^^^^^^^^^^^^^^^
+
+warning: constant `MEMBER_ICON_DRAW_OFFSET` is never used
+   --> src/render/svg.rs:105:7
+    |
+105 | const MEMBER_ICON_DRAW_OFFSET: f64 = 2.0;
+    |       ^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: constant `MEMBER_ICON_RADIUS` is never used
+   --> src/render/svg.rs:107:7
+    |
+107 | const MEMBER_ICON_RADIUS: f64 = 3.0;
+    |       ^^^^^^^^^^^^^^^^^^
+
+warning: constant `MEMBER_TEXT_Y_OFFSET` is never used
+   --> src/render/svg.rs:115:7
+    |
+115 | const MEMBER_TEXT_Y_OFFSET: f64 = 16.995117;
+    |       ^^^^^^^^^^^^^^^^^^^^
+
+warning: function `write_svg_root` is never used
+   --> src/render/svg.rs:195:15
+    |
+195 | pub(crate) fn write_svg_root(buf: &mut String, w: f64, h: f64, diagram_type: &str) {
+    |               ^^^^^^^^^^^^^^
+
+warning: function `offset_glyph_path_xy` is never used
+    --> src/render/svg.rs:2456:4
+     |
+2456 | fn offset_glyph_path_xy(path: &str, dx: f64, dy: f64) -> String {
+     |    ^^^^^^^^^^^^^^^^^^^^
+
+warning: function `format_member` is never used
+    --> src/render/svg.rs:3503:4
+     |
+3503 | fn format_member(m: &Member) -> String {
+     |    ^^^^^^^^^^^^^
+
+warning: function `render_swimlane` is never used
+   --> src/render/svg_activity.rs:937:4
+    |
+937 | fn render_swimlane(
+    |    ^^^^^^^^^^^^^^^
+
+warning: function `render_edge` is never used
+  --> src/render/svg_mindmap.rs:93:4
+   |
+93 | fn render_edge(sg: &mut SvgGraphic, edge: &MindmapEdgeLayout, color: &str) {
+   |    ^^^^^^^^^^^
+
+warning: function `render_node` is never used
+   --> src/render/svg_mindmap.rs:115:4
+    |
+115 | fn render_node(
+    |    ^^^^^^^^^^^
+
+warning: constant `FRAG_SEP_LABEL_Y_OFFSET` is never used
+  --> src/render/svg_sequence.rs:41:7
+   |
+41 | const FRAG_SEP_LABEL_Y_OFFSET: f64 = 10.2104;
+   |       ^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `convert_single_element` is never used
+   --> src/render/svg_sprite.rs:707:4
+    |
+707 | fn convert_single_element(
+    |    ^^^^^^^^^^^^^^^^^^^^^^
+
+warning: constant `FINAL_OUTER` is never used
+  --> src/render/svg_state.rs:26:7
+   |
+26 | const FINAL_OUTER: &str = "#000000";
+   |       ^^^^^^^^^^^
+
+warning: constant `FINAL_INNER` is never used
+  --> src/render/svg_state.rs:27:7
+   |
+27 | const FINAL_INNER: &str = "#000000";
+   |       ^^^^^^^^^^^
+
+warning: function `is_special_render_kind` is never used
+  --> src/render/svg_state.rs:39:4
+   |
+39 | fn is_special_render_kind(kind: &StateKind) -> bool {
+   |    ^^^^^^^^^^^^^^^^^^^^^^
+
+warning: method `is_opalisable` is never used
+   --> src/svek/edge.rs:952:8
+    |
+433 | impl SvekEdge {
+    | ------------- method in this implementation
+...
+952 |     fn is_opalisable(&self) -> bool {
+    |        ^^^^^^^^^^^^^
+
+warning: function `parse_points` is never used
+   --> src/svek/svg_result.rs:324:4
+    |
+324 | fn parse_points(s: &str) -> Vec<XPoint2D> {
+    |    ^^^^^^^^^^^^
+
+warning: function `parse_svg_path_to_dotpath` is never used
+   --> src/svek/svg_result.rs:346:4
+    |
+346 | fn parse_svg_path_to_dotpath(d: &str) -> Option<crate::klimt::shape::DotPath> {
+    |    ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: `plantuml-little` (lib) generated 86 warnings (run `cargo fix --lib -p plantuml-little` to apply 24 suggestions)
+warning: function `reference_fixtures_dev_newline_WBS_arrow_puml` should have a snake case name
+   --> tests/reference_tests.rs:545:5
+    |
+545 |     reference_fixtures_dev_newline_WBS_arrow_puml,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `reference_fixtures_dev_newline_wbs_arrow_puml`
+    |
+    = note: `#[warn(non_snake_case)]` (part of `#[warn(nonstandard_style)]`) on by default
+
+warning: function `reference_fixtures_dev_newline_WBS_direction_puml` should have a snake case name
+   --> tests/reference_tests.rs:549:5
+    |
+549 |     reference_fixtures_dev_newline_WBS_direction_puml,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `reference_fixtures_dev_newline_wbs_direction_puml`
+
+warning: function `reference_fixtures_dev_newline_link_URL_tooltip_puml` should have a snake case name
+   --> tests/reference_tests.rs:593:5
+    |
+593 |     reference_fixtures_dev_newline_link_URL_tooltip_puml,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `reference_fixtures_dev_newline_link_url_tooltip_puml`
+
+warning: function `reference_fixtures_nonreg_graphml_GML0000_puml` should have a snake case name
+   --> tests/reference_tests.rs:730:5
+    |
+730 |     reference_fixtures_nonreg_graphml_GML0000_puml,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `reference_fixtures_nonreg_graphml_gml0000_puml`
+
+warning: function `reference_fixtures_nonreg_graphml_GML0001_puml` should have a snake case name
+   --> tests/reference_tests.rs:734:5
+    |
+734 |     reference_fixtures_nonreg_graphml_GML0001_puml,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `reference_fixtures_nonreg_graphml_gml0001_puml`
+
+warning: function `reference_fixtures_nonreg_scxml_SCXML0001_puml` should have a snake case name
+   --> tests/reference_tests.rs:738:5
+    |
+738 |     reference_fixtures_nonreg_scxml_SCXML0001_puml,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `reference_fixtures_nonreg_scxml_scxml0001_puml`
+
+warning: function `reference_fixtures_nonreg_scxml_SCXML0002_puml` should have a snake case name
+   --> tests/reference_tests.rs:742:5
+    |
+742 |     reference_fixtures_nonreg_scxml_SCXML0002_puml,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `reference_fixtures_nonreg_scxml_scxml0002_puml`
+
+warning: function `reference_fixtures_nonreg_scxml_SCXML0003_puml` should have a snake case name
+   --> tests/reference_tests.rs:746:5
+    |
+746 |     reference_fixtures_nonreg_scxml_SCXML0003_puml,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `reference_fixtures_nonreg_scxml_scxml0003_puml`
+
+warning: function `reference_fixtures_nonreg_scxml_SCXML0004_puml` should have a snake case name
+   --> tests/reference_tests.rs:750:5
+    |
+750 |     reference_fixtures_nonreg_scxml_SCXML0004_puml,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `reference_fixtures_nonreg_scxml_scxml0004_puml`
+
+warning: function `reference_fixtures_nonreg_scxml_SCXML0005_puml` should have a snake case name
+   --> tests/reference_tests.rs:754:5
+    |
+754 |     reference_fixtures_nonreg_scxml_SCXML0005_puml,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `reference_fixtures_nonreg_scxml_scxml0005_puml`
+
+warning: function `reference_fixtures_nonreg_simple_A0000_puml` should have a snake case name
+   --> tests/reference_tests.rs:758:5
+    |
+758 |     reference_fixtures_nonreg_simple_A0000_puml,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `reference_fixtures_nonreg_simple_a0000_puml`
+
+warning: function `reference_fixtures_nonreg_simple_A0001_puml` should have a snake case name
+   --> tests/reference_tests.rs:762:5
+    |
+762 |     reference_fixtures_nonreg_simple_A0001_puml,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `reference_fixtures_nonreg_simple_a0001_puml`
+
+warning: function `reference_fixtures_nonreg_simple_A0002_puml` should have a snake case name
+   --> tests/reference_tests.rs:766:5
+    |
+766 |     reference_fixtures_nonreg_simple_A0002_puml,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `reference_fixtures_nonreg_simple_a0002_puml`
+
+warning: function `reference_fixtures_nonreg_simple_A0003_puml` should have a snake case name
+   --> tests/reference_tests.rs:770:5
+    |
+770 |     reference_fixtures_nonreg_simple_A0003_puml,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `reference_fixtures_nonreg_simple_a0003_puml`
+
+warning: function `reference_fixtures_nonreg_simple_A0004_puml` should have a snake case name
+   --> tests/reference_tests.rs:774:5
+    |
+774 |     reference_fixtures_nonreg_simple_A0004_puml,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `reference_fixtures_nonreg_simple_a0004_puml`
+
+warning: function `reference_fixtures_nonreg_simple_A0005_puml` should have a snake case name
+   --> tests/reference_tests.rs:778:5
+    |
+778 |     reference_fixtures_nonreg_simple_A0005_puml,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `reference_fixtures_nonreg_simple_a0005_puml`
+
+warning: function `reference_fixtures_nonreg_simple_A0006_puml` should have a snake case name
+   --> tests/reference_tests.rs:782:5
+    |
+782 |     reference_fixtures_nonreg_simple_A0006_puml,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `reference_fixtures_nonreg_simple_a0006_puml`
+
+warning: function `reference_fixtures_nonreg_simple_ChenMovie_puml` should have a snake case name
+   --> tests/reference_tests.rs:786:5
+    |
+786 |     reference_fixtures_nonreg_simple_ChenMovie_puml,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `reference_fixtures_nonreg_simple_chen_movie_puml`
+
+warning: function `reference_fixtures_nonreg_simple_ChenMovieAlias_puml` should have a snake case name
+   --> tests/reference_tests.rs:790:5
+    |
+790 |     reference_fixtures_nonreg_simple_ChenMovieAlias_puml,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `reference_fixtures_nonreg_simple_chen_movie_alias_puml`
+
+warning: function `reference_fixtures_nonreg_simple_ChenMovieExtended_puml` should have a snake case name
+   --> tests/reference_tests.rs:794:5
+    |
+794 |     reference_fixtures_nonreg_simple_ChenMovieExtended_puml,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `reference_fixtures_nonreg_simple_chen_movie_extended_puml`
+
+warning: function `reference_fixtures_nonreg_simple_ChenRankDir_puml` should have a snake case name
+   --> tests/reference_tests.rs:798:5
+    |
+798 |     reference_fixtures_nonreg_simple_ChenRankDir_puml,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `reference_fixtures_nonreg_simple_chen_rank_dir_puml`
+
+warning: function `reference_fixtures_nonreg_simple_ComponentExtraArrows_0001_puml` should have a snake case name
+   --> tests/reference_tests.rs:802:5
+    |
+802 |     reference_fixtures_nonreg_simple_ComponentExtraArrows_0001_puml,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `reference_fixtures_nonreg_simple_component_extra_arrows_0001_puml`
+
+warning: function `reference_fixtures_nonreg_simple_HideShow001_puml` should have a snake case name
+   --> tests/reference_tests.rs:806:5
+    |
+806 |     reference_fixtures_nonreg_simple_HideShow001_puml,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `reference_fixtures_nonreg_simple_hide_show001_puml`
+
+warning: function `reference_fixtures_nonreg_simple_HideShow002_puml` should have a snake case name
+   --> tests/reference_tests.rs:810:5
+    |
+810 |     reference_fixtures_nonreg_simple_HideShow002_puml,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `reference_fixtures_nonreg_simple_hide_show002_puml`
+
+warning: function `reference_fixtures_nonreg_simple_HideShow003_puml` should have a snake case name
+   --> tests/reference_tests.rs:814:5
+    |
+814 |     reference_fixtures_nonreg_simple_HideShow003_puml,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `reference_fixtures_nonreg_simple_hide_show003_puml`
+
+warning: function `reference_fixtures_nonreg_simple_HideShow004_puml` should have a snake case name
+   --> tests/reference_tests.rs:818:5
+    |
+818 |     reference_fixtures_nonreg_simple_HideShow004_puml,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `reference_fixtures_nonreg_simple_hide_show004_puml`
+
+warning: function `reference_fixtures_nonreg_simple_QualifiedAssoc001_puml` should have a snake case name
+   --> tests/reference_tests.rs:822:5
+    |
+822 |     reference_fixtures_nonreg_simple_QualifiedAssoc001_puml,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `reference_fixtures_nonreg_simple_qualified_assoc001_puml`
+
+warning: function `reference_fixtures_nonreg_simple_QualifiedAssoc002_puml` should have a snake case name
+   --> tests/reference_tests.rs:826:5
+    |
+826 |     reference_fixtures_nonreg_simple_QualifiedAssoc002_puml,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `reference_fixtures_nonreg_simple_qualified_assoc002_puml`
+
+warning: function `reference_fixtures_nonreg_simple_SequenceArrows_0001_puml` should have a snake case name
+   --> tests/reference_tests.rs:830:5
+    |
+830 |     reference_fixtures_nonreg_simple_SequenceArrows_0001_puml,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `reference_fixtures_nonreg_simple_sequence_arrows_0001_puml`
+
+warning: function `reference_fixtures_nonreg_simple_SequenceArrows_0002_puml` should have a snake case name
+   --> tests/reference_tests.rs:834:5
+    |
+834 |     reference_fixtures_nonreg_simple_SequenceArrows_0002_puml,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `reference_fixtures_nonreg_simple_sequence_arrows_0002_puml`
+
+warning: function `reference_fixtures_nonreg_simple_SequenceLayout_0001_puml` should have a snake case name
+   --> tests/reference_tests.rs:838:5
+    |
+838 |     reference_fixtures_nonreg_simple_SequenceLayout_0001_puml,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `reference_fixtures_nonreg_simple_sequence_layout_0001_puml`
+
+warning: function `reference_fixtures_nonreg_simple_SequenceLayout_0001b_puml` should have a snake case name
+   --> tests/reference_tests.rs:842:5
+    |
+842 |     reference_fixtures_nonreg_simple_SequenceLayout_0001b_puml,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `reference_fixtures_nonreg_simple_sequence_layout_0001b_puml`
+
+warning: function `reference_fixtures_nonreg_simple_SequenceLayout_0001c_puml` should have a snake case name
+   --> tests/reference_tests.rs:846:5
+    |
+846 |     reference_fixtures_nonreg_simple_SequenceLayout_0001c_puml,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `reference_fixtures_nonreg_simple_sequence_layout_0001c_puml`
+
+warning: function `reference_fixtures_nonreg_simple_SequenceLayout_0002_puml` should have a snake case name
+   --> tests/reference_tests.rs:850:5
+    |
+850 |     reference_fixtures_nonreg_simple_SequenceLayout_0002_puml,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `reference_fixtures_nonreg_simple_sequence_layout_0002_puml`
+
+warning: function `reference_fixtures_nonreg_simple_SequenceLayout_0003_puml` should have a snake case name
+   --> tests/reference_tests.rs:854:5
+    |
+854 |     reference_fixtures_nonreg_simple_SequenceLayout_0003_puml,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `reference_fixtures_nonreg_simple_sequence_layout_0003_puml`
+
+warning: function `reference_fixtures_nonreg_simple_SequenceLayout_0004_puml` should have a snake case name
+   --> tests/reference_tests.rs:858:5
+    |
+858 |     reference_fixtures_nonreg_simple_SequenceLayout_0004_puml,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `reference_fixtures_nonreg_simple_sequence_layout_0004_puml`
+
+warning: function `reference_fixtures_nonreg_simple_SequenceLayout_0005_puml` should have a snake case name
+   --> tests/reference_tests.rs:862:5
+    |
+862 |     reference_fixtures_nonreg_simple_SequenceLayout_0005_puml,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `reference_fixtures_nonreg_simple_sequence_layout_0005_puml`
+
+warning: function `reference_fixtures_nonreg_simple_SequenceLayout_0005b_puml` should have a snake case name
+   --> tests/reference_tests.rs:866:5
+    |
+866 |     reference_fixtures_nonreg_simple_SequenceLayout_0005b_puml,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `reference_fixtures_nonreg_simple_sequence_layout_0005b_puml`
+
+warning: function `reference_fixtures_nonreg_simple_SequenceLayout_0006_puml` should have a snake case name
+   --> tests/reference_tests.rs:870:5
+    |
+870 |     reference_fixtures_nonreg_simple_SequenceLayout_0006_puml,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `reference_fixtures_nonreg_simple_sequence_layout_0006_puml`
+
+warning: function `reference_fixtures_nonreg_simple_SequenceLeftMessageAndActiveLifeLines_0001_puml` should have a snake case name
+   --> tests/reference_tests.rs:874:5
+    |
+874 |     reference_fixtures_nonreg_simple_SequenceLeftMessageAndActiveLifeLines_0001_puml,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `reference_fixtures_nonreg_simple_sequence_left_message_and_active_life_lines_0001_puml`
+
+warning: function `reference_fixtures_nonreg_simple_SequenceLeftMessageAndActiveLifeLines_0002_puml` should have a snake case name
+   --> tests/reference_tests.rs:878:5
+    |
+878 |     reference_fixtures_nonreg_simple_SequenceLeftMessageAndActiveLifeLines_0002_puml,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `reference_fixtures_nonreg_simple_sequence_left_message_and_active_life_lines_0002_puml`
+
+warning: function `reference_fixtures_nonreg_simple_SequenceLeftMessageAndActiveLifeLines_0003_puml` should have a snake case name
+   --> tests/reference_tests.rs:882:5
+    |
+882 |     reference_fixtures_nonreg_simple_SequenceLeftMessageAndActiveLifeLines_0003_puml,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `reference_fixtures_nonreg_simple_sequence_left_message_and_active_life_lines_0003_puml`
+
+warning: function `reference_fixtures_nonreg_simple_TeozAltElseParallel_0001_puml` should have a snake case name
+   --> tests/reference_tests.rs:886:5
+    |
+886 |     reference_fixtures_nonreg_simple_TeozAltElseParallel_0001_puml,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `reference_fixtures_nonreg_simple_teoz_alt_else_parallel_0001_puml`
+
+warning: function `reference_fixtures_nonreg_simple_TeozAltElseParallel_0002_puml` should have a snake case name
+   --> tests/reference_tests.rs:890:5
+    |
+890 |     reference_fixtures_nonreg_simple_TeozAltElseParallel_0002_puml,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `reference_fixtures_nonreg_simple_teoz_alt_else_parallel_0002_puml`
+
+warning: function `reference_fixtures_nonreg_simple_TeozAltElseParallel_0003_puml` should have a snake case name
+   --> tests/reference_tests.rs:894:5
+    |
+894 |     reference_fixtures_nonreg_simple_TeozAltElseParallel_0003_puml,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `reference_fixtures_nonreg_simple_teoz_alt_else_parallel_0003_puml`
+
+warning: function `reference_fixtures_nonreg_simple_TeozAltElseParallel_0004_puml` should have a snake case name
+   --> tests/reference_tests.rs:898:5
+    |
+898 |     reference_fixtures_nonreg_simple_TeozAltElseParallel_0004_puml,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `reference_fixtures_nonreg_simple_teoz_alt_else_parallel_0004_puml`
+
+warning: function `reference_fixtures_nonreg_simple_TeozAltElseParallel_0005_puml` should have a snake case name
+   --> tests/reference_tests.rs:902:5
+    |
+902 |     reference_fixtures_nonreg_simple_TeozAltElseParallel_0005_puml,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `reference_fixtures_nonreg_simple_teoz_alt_else_parallel_0005_puml`
+
+warning: function `reference_fixtures_nonreg_simple_TeozAltElseParallel_0006_puml` should have a snake case name
+   --> tests/reference_tests.rs:906:5
+    |
+906 |     reference_fixtures_nonreg_simple_TeozAltElseParallel_0006_puml,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `reference_fixtures_nonreg_simple_teoz_alt_else_parallel_0006_puml`
+
+warning: function `reference_fixtures_nonreg_simple_TeozTimelineIssues_0001_puml` should have a snake case name
+   --> tests/reference_tests.rs:910:5
+    |
+910 |     reference_fixtures_nonreg_simple_TeozTimelineIssues_0001_puml,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `reference_fixtures_nonreg_simple_teoz_timeline_issues_0001_puml`
+
+warning: function `reference_fixtures_nonreg_simple_TeozTimelineIssues_0002_puml` should have a snake case name
+   --> tests/reference_tests.rs:914:5
+    |
+914 |     reference_fixtures_nonreg_simple_TeozTimelineIssues_0002_puml,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `reference_fixtures_nonreg_simple_teoz_timeline_issues_0002_puml`
+
+warning: function `reference_fixtures_nonreg_simple_TeozTimelineIssues_0003_puml` should have a snake case name
+   --> tests/reference_tests.rs:918:5
+    |
+918 |     reference_fixtures_nonreg_simple_TeozTimelineIssues_0003_puml,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `reference_fixtures_nonreg_simple_teoz_timeline_issues_0003_puml`
+
+warning: function `reference_fixtures_nonreg_simple_TeozTimelineIssues_0004_puml` should have a snake case name
+   --> tests/reference_tests.rs:922:5
+    |
+922 |     reference_fixtures_nonreg_simple_TeozTimelineIssues_0004_puml,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `reference_fixtures_nonreg_simple_teoz_timeline_issues_0004_puml`
+
+warning: function `reference_fixtures_nonreg_simple_TeozTimelineIssues_0005_puml` should have a snake case name
+   --> tests/reference_tests.rs:926:5
+    |
+926 |     reference_fixtures_nonreg_simple_TeozTimelineIssues_0005_puml,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `reference_fixtures_nonreg_simple_teoz_timeline_issues_0005_puml`
+
+warning: function `reference_fixtures_nonreg_simple_TeozTimelineIssues_0006_puml` should have a snake case name
+   --> tests/reference_tests.rs:930:5
+    |
+930 |     reference_fixtures_nonreg_simple_TeozTimelineIssues_0006_puml,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `reference_fixtures_nonreg_simple_teoz_timeline_issues_0006_puml`
+
+warning: function `reference_fixtures_nonreg_simple_TeozTimelineIssues_0007_puml` should have a snake case name
+   --> tests/reference_tests.rs:934:5
+    |
+934 |     reference_fixtures_nonreg_simple_TeozTimelineIssues_0007_puml,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `reference_fixtures_nonreg_simple_teoz_timeline_issues_0007_puml`
+
+warning: function `reference_fixtures_nonreg_simple_TeozTimelineIssues_0008_puml` should have a snake case name
+   --> tests/reference_tests.rs:938:5
+    |
+938 |     reference_fixtures_nonreg_simple_TeozTimelineIssues_0008_puml,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `reference_fixtures_nonreg_simple_teoz_timeline_issues_0008_puml`
+
+warning: function `reference_fixtures_nonreg_simple_TeozTimelineIssues_0009_puml` should have a snake case name
+   --> tests/reference_tests.rs:942:5
+    |
+942 |     reference_fixtures_nonreg_simple_TeozTimelineIssues_0009_puml,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `reference_fixtures_nonreg_simple_teoz_timeline_issues_0009_puml`
+
+warning: function `reference_fixtures_nonreg_simple_TimingMessageArrowFont_0001_puml` should have a snake case name
+   --> tests/reference_tests.rs:946:5
+    |
+946 |     reference_fixtures_nonreg_simple_TimingMessageArrowFont_0001_puml,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `reference_fixtures_nonreg_simple_timing_message_arrow_font_0001_puml`
+
+warning: function `reference_fixtures_nonreg_simple_TimingMessageArrowFont_0002_puml` should have a snake case name
+   --> tests/reference_tests.rs:950:5
+    |
+950 |     reference_fixtures_nonreg_simple_TimingMessageArrowFont_0002_puml,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `reference_fixtures_nonreg_simple_timing_message_arrow_font_0002_puml`
+
+warning: function `reference_fixtures_nonreg_svg_SVG0001_puml` should have a snake case name
+   --> tests/reference_tests.rs:954:5
+    |
+954 |     reference_fixtures_nonreg_svg_SVG0001_puml,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `reference_fixtures_nonreg_svg_svg0001_puml`
+
+warning: function `reference_fixtures_nonreg_svg_SVG0002_puml` should have a snake case name
+   --> tests/reference_tests.rs:958:5
+    |
+958 |     reference_fixtures_nonreg_svg_SVG0002_puml,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `reference_fixtures_nonreg_svg_svg0002_puml`
+
+warning: function `reference_fixtures_nonreg_svg_SVG0003_puml` should have a snake case name
+   --> tests/reference_tests.rs:962:5
+    |
+962 |     reference_fixtures_nonreg_svg_SVG0003_puml,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `reference_fixtures_nonreg_svg_svg0003_puml`
+
+warning: function `reference_fixtures_nonreg_svg_SVG0004_Smetana_puml` should have a snake case name
+   --> tests/reference_tests.rs:966:5
+    |
+966 |     reference_fixtures_nonreg_svg_SVG0004_Smetana_puml,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `reference_fixtures_nonreg_svg_svg0004_smetana_puml`
+
+warning: function `reference_fixtures_nonreg_svg_SVG0004_Svek_puml` should have a snake case name
+   --> tests/reference_tests.rs:970:5
+    |
+970 |     reference_fixtures_nonreg_svg_SVG0004_Svek_puml,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `reference_fixtures_nonreg_svg_svg0004_svek_puml`
+
+warning: function `reference_fixtures_nonreg_svg_SVG0005_Smetana_puml` should have a snake case name
+   --> tests/reference_tests.rs:974:5
+    |
+974 |     reference_fixtures_nonreg_svg_SVG0005_Smetana_puml,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `reference_fixtures_nonreg_svg_svg0005_smetana_puml`
+
+warning: function `reference_fixtures_nonreg_svg_SVG0005_Svek_puml` should have a snake case name
+   --> tests/reference_tests.rs:978:5
+    |
+978 |     reference_fixtures_nonreg_svg_SVG0005_Svek_puml,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `reference_fixtures_nonreg_svg_svg0005_svek_puml`
+
+warning: function `reference_fixtures_nonreg_svg_SVG0006_Svek_puml` should have a snake case name
+   --> tests/reference_tests.rs:982:5
+    |
+982 |     reference_fixtures_nonreg_svg_SVG0006_Svek_puml,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `reference_fixtures_nonreg_svg_svg0006_svek_puml`
+
+warning: function `reference_fixtures_nonreg_xmi_clazz_XMI0000_puml` should have a snake case name
+   --> tests/reference_tests.rs:986:5
+    |
+986 |     reference_fixtures_nonreg_xmi_clazz_XMI0000_puml,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `reference_fixtures_nonreg_xmi_clazz_xmi0000_puml`
+
+warning: function `reference_fixtures_nonreg_xmi_clazz_XMI0002_puml` should have a snake case name
+   --> tests/reference_tests.rs:990:5
+    |
+990 |     reference_fixtures_nonreg_xmi_clazz_XMI0002_puml,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `reference_fixtures_nonreg_xmi_clazz_xmi0002_puml`
+
+warning: function `reference_fixtures_nonreg_xmi_clazz_XMI0003_puml` should have a snake case name
+   --> tests/reference_tests.rs:994:5
+    |
+994 |     reference_fixtures_nonreg_xmi_clazz_XMI0003_puml,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `reference_fixtures_nonreg_xmi_clazz_xmi0003_puml`
+
+warning: function `reference_fixtures_nonreg_xmi_clazz_XMI0004_puml` should have a snake case name
+   --> tests/reference_tests.rs:998:5
+    |
+998 |     reference_fixtures_nonreg_xmi_clazz_XMI0004_puml,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `reference_fixtures_nonreg_xmi_clazz_xmi0004_puml`
+
+warning: function `reference_fixtures_nonreg_xmi_component_XMI0001_puml` should have a snake case name
+    --> tests/reference_tests.rs:1002:5
+     |
+1002 |     reference_fixtures_nonreg_xmi_component_XMI0001_puml,
+     |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `reference_fixtures_nonreg_xmi_component_xmi0001_puml`
+
+warning: function `reference_fixtures_sprite_azureSVG_puml` should have a snake case name
+    --> tests/reference_tests.rs:1294:5
+     |
+1294 |     reference_fixtures_sprite_azureSVG_puml,
+     |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `reference_fixtures_sprite_azure_svg_puml`
+
+warning: function `reference_fixtures_sprite_linearGradientSpreadPad_puml` should have a snake case name
+    --> tests/reference_tests.rs:1298:5
+     |
+1298 |     reference_fixtures_sprite_linearGradientSpreadPad_puml,
+     |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `reference_fixtures_sprite_linear_gradient_spread_pad_puml`
+
+warning: function `reference_fixtures_sprite_linearGradientSpreadReflect_puml` should have a snake case name
+    --> tests/reference_tests.rs:1302:5
+     |
+1302 |     reference_fixtures_sprite_linearGradientSpreadReflect_puml,
+     |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `reference_fixtures_sprite_linear_gradient_spread_reflect_puml`
+
+warning: function `reference_fixtures_sprite_linearGradientSpreadRepeat_puml` should have a snake case name
+    --> tests/reference_tests.rs:1306:5
+     |
+1306 |     reference_fixtures_sprite_linearGradientSpreadRepeat_puml,
+     |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `reference_fixtures_sprite_linear_gradient_spread_repeat_puml`
+
+warning: function `reference_fixtures_sprite_styleFontWeightRoboto_puml` should have a snake case name
+    --> tests/reference_tests.rs:1310:5
+     |
+1310 |     reference_fixtures_sprite_styleFontWeightRoboto_puml,
+     |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `reference_fixtures_sprite_style_font_weight_roboto_puml`
+
+warning: function `reference_fixtures_sprite_svg2Groups_puml` should have a snake case name
+    --> tests/reference_tests.rs:1314:5
+     |
+1314 |     reference_fixtures_sprite_svg2Groups_puml,
+     |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `reference_fixtures_sprite_svg2_groups_puml`
+
+warning: function `reference_fixtures_sprite_svg2GroupsInlineStyled_puml` should have a snake case name
+    --> tests/reference_tests.rs:1318:5
+     |
+1318 |     reference_fixtures_sprite_svg2GroupsInlineStyled_puml,
+     |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `reference_fixtures_sprite_svg2_groups_inline_styled_puml`
+
+warning: function `reference_fixtures_sprite_svg2GroupsWithStyle_puml` should have a snake case name
+    --> tests/reference_tests.rs:1322:5
+     |
+1322 |     reference_fixtures_sprite_svg2GroupsWithStyle_puml,
+     |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `reference_fixtures_sprite_svg2_groups_with_style_puml`
+
+warning: function `reference_fixtures_sprite_svgDiagonalGradientBLTR_puml` should have a snake case name
+    --> tests/reference_tests.rs:1326:5
+     |
+1326 |     reference_fixtures_sprite_svgDiagonalGradientBLTR_puml,
+     |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `reference_fixtures_sprite_svg_diagonal_gradient_bltr_puml`
+
+warning: function `reference_fixtures_sprite_svgDiagonalGradientBLTRMonochrome_puml` should have a snake case name
+    --> tests/reference_tests.rs:1330:5
+     |
+1330 |     reference_fixtures_sprite_svgDiagonalGradientBLTRMonochrome_puml,
+     |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `reference_fixtures_sprite_svg_diagonal_gradient_bltrmonochrome_puml`
+
+warning: function `reference_fixtures_sprite_svgDiagonalGradientTLBR_puml` should have a snake case name
+    --> tests/reference_tests.rs:1334:5
+     |
+1334 |     reference_fixtures_sprite_svgDiagonalGradientTLBR_puml,
+     |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `reference_fixtures_sprite_svg_diagonal_gradient_tlbr_puml`
+
+warning: function `reference_fixtures_sprite_svgEmbeddedPNG_puml` should have a snake case name
+    --> tests/reference_tests.rs:1338:5
+     |
+1338 |     reference_fixtures_sprite_svgEmbeddedPNG_puml,
+     |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `reference_fixtures_sprite_svg_embedded_png_puml`
+
+warning: function `reference_fixtures_sprite_svgFillColourTest_2174_puml` should have a snake case name
+    --> tests/reference_tests.rs:1342:5
+     |
+1342 |     reference_fixtures_sprite_svgFillColourTest_2174_puml,
+     |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `reference_fixtures_sprite_svg_fill_colour_test_2174_puml`
+
+warning: function `reference_fixtures_sprite_svgFontWeightMultiWeight_puml` should have a snake case name
+    --> tests/reference_tests.rs:1346:5
+     |
+1346 |     reference_fixtures_sprite_svgFontWeightMultiWeight_puml,
+     |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `reference_fixtures_sprite_svg_font_weight_multi_weight_puml`
+
+warning: function `reference_fixtures_sprite_svgFontWeightStandardFonts_puml` should have a snake case name
+    --> tests/reference_tests.rs:1350:5
+     |
+1350 |     reference_fixtures_sprite_svgFontWeightStandardFonts_puml,
+     |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `reference_fixtures_sprite_svg_font_weight_standard_fonts_puml`
+
+warning: function `reference_fixtures_sprite_svgLinearGradientCircle_puml` should have a snake case name
+    --> tests/reference_tests.rs:1354:5
+     |
+1354 |     reference_fixtures_sprite_svgLinearGradientCircle_puml,
+     |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `reference_fixtures_sprite_svg_linear_gradient_circle_puml`
+
+warning: function `reference_fixtures_sprite_svgPolygonStar_puml` should have a snake case name
+    --> tests/reference_tests.rs:1358:5
+     |
+1358 |     reference_fixtures_sprite_svgPolygonStar_puml,
+     |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `reference_fixtures_sprite_svg_polygon_star_puml`
+
+warning: function `reference_fixtures_sprite_svgRadialGradient_puml` should have a snake case name
+    --> tests/reference_tests.rs:1362:5
+     |
+1362 |     reference_fixtures_sprite_svgRadialGradient_puml,
+     |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `reference_fixtures_sprite_svg_radial_gradient_puml`
+
+warning: function `reference_fixtures_sprite_svgRedCircle_puml` should have a snake case name
+    --> tests/reference_tests.rs:1366:5
+     |
+1366 |     reference_fixtures_sprite_svgRedCircle_puml,
+     |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `reference_fixtures_sprite_svg_red_circle_puml`
+
+warning: function `reference_fixtures_sprite_svgRedEllipse_puml` should have a snake case name
+    --> tests/reference_tests.rs:1370:5
+     |
+1370 |     reference_fixtures_sprite_svgRedEllipse_puml,
+     |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `reference_fixtures_sprite_svg_red_ellipse_puml`
+
+warning: function `reference_fixtures_sprite_svgRedLine_puml` should have a snake case name
+    --> tests/reference_tests.rs:1374:5
+     |
+1374 |     reference_fixtures_sprite_svgRedLine_puml,
+     |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `reference_fixtures_sprite_svg_red_line_puml`
+
+warning: function `reference_fixtures_sprite_svgRedPolyLine_puml` should have a snake case name
+    --> tests/reference_tests.rs:1378:5
+     |
+1378 |     reference_fixtures_sprite_svgRedPolyLine_puml,
+     |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `reference_fixtures_sprite_svg_red_poly_line_puml`
+
+warning: function `reference_fixtures_sprite_svgRedRect_puml` should have a snake case name
+    --> tests/reference_tests.rs:1382:5
+     |
+1382 |     reference_fixtures_sprite_svgRedRect_puml,
+     |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `reference_fixtures_sprite_svg_red_rect_puml`
+
+warning: function `reference_fixtures_sprite_svgRedRectLinearGradient_puml` should have a snake case name
+    --> tests/reference_tests.rs:1386:5
+     |
+1386 |     reference_fixtures_sprite_svgRedRectLinearGradient_puml,
+     |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `reference_fixtures_sprite_svg_red_rect_linear_gradient_puml`
+
+warning: function `reference_fixtures_sprite_svgRedStroke_puml` should have a snake case name
+    --> tests/reference_tests.rs:1390:5
+     |
+1390 |     reference_fixtures_sprite_svgRedStroke_puml,
+     |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `reference_fixtures_sprite_svg_red_stroke_puml`
+
+warning: function `reference_fixtures_sprite_svgRedText_puml` should have a snake case name
+    --> tests/reference_tests.rs:1394:5
+     |
+1394 |     reference_fixtures_sprite_svgRedText_puml,
+     |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `reference_fixtures_sprite_svg_red_text_puml`
+
+warning: function `reference_fixtures_sprite_svgTextAnchor_puml` should have a snake case name
+    --> tests/reference_tests.rs:1398:5
+     |
+1398 |     reference_fixtures_sprite_svgTextAnchor_puml,
+     |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `reference_fixtures_sprite_svg_text_anchor_puml`
+
+warning: function `reference_fixtures_sprite_svgTextBold_puml` should have a snake case name
+    --> tests/reference_tests.rs:1402:5
+     |
+1402 |     reference_fixtures_sprite_svgTextBold_puml,
+     |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `reference_fixtures_sprite_svg_text_bold_puml`
+
+warning: function `reference_fixtures_sprite_svgTextDecoration_puml` should have a snake case name
+    --> tests/reference_tests.rs:1406:5
+     |
+1406 |     reference_fixtures_sprite_svgTextDecoration_puml,
+     |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `reference_fixtures_sprite_svg_text_decoration_puml`
+
+warning: function `reference_fixtures_sprite_svgTextItalic_puml` should have a snake case name
+    --> tests/reference_tests.rs:1410:5
+     |
+1410 |     reference_fixtures_sprite_svgTextItalic_puml,
+     |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `reference_fixtures_sprite_svg_text_italic_puml`
+
+warning: function `reference_fixtures_sprite_svgTextStyleAttr_puml` should have a snake case name
+    --> tests/reference_tests.rs:1414:5
+     |
+1414 |     reference_fixtures_sprite_svgTextStyleAttr_puml,
+     |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `reference_fixtures_sprite_svg_text_style_attr_puml`
+
+warning: function `reference_fixtures_sprite_svgTransformGroup_puml` should have a snake case name
+    --> tests/reference_tests.rs:1418:5
+     |
+1418 |     reference_fixtures_sprite_svgTransformGroup_puml,
+     |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `reference_fixtures_sprite_svg_transform_group_puml`
+
+warning: function `reference_fixtures_sprite_svgTransformMatrix_puml` should have a snake case name
+    --> tests/reference_tests.rs:1422:5
+     |
+1422 |     reference_fixtures_sprite_svgTransformMatrix_puml,
+     |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `reference_fixtures_sprite_svg_transform_matrix_puml`
+
+warning: function `reference_fixtures_sprite_svgTransformRotate_puml` should have a snake case name
+    --> tests/reference_tests.rs:1426:5
+     |
+1426 |     reference_fixtures_sprite_svgTransformRotate_puml,
+     |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `reference_fixtures_sprite_svg_transform_rotate_puml`
+
+warning: function `reference_fixtures_sprite_svgTransformScale_puml` should have a snake case name
+    --> tests/reference_tests.rs:1430:5
+     |
+1430 |     reference_fixtures_sprite_svgTransformScale_puml,
+     |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `reference_fixtures_sprite_svg_transform_scale_puml`
+
+warning: function `reference_fixtures_sprite_svgTransformTranslate_puml` should have a snake case name
+    --> tests/reference_tests.rs:1434:5
+     |
+1434 |     reference_fixtures_sprite_svgTransformTranslate_puml,
+     |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `reference_fixtures_sprite_svg_transform_translate_puml`
+
+warning: function `reference_fixtures_sprite_svgUseDefs_puml` should have a snake case name
+    --> tests/reference_tests.rs:1438:5
+     |
+1438 |     reference_fixtures_sprite_svgUseDefs_puml,
+     |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `reference_fixtures_sprite_svg_use_defs_puml`
+
+warning: function `reference_fixtures_sprite_svgVerticalGradient_puml` should have a snake case name
+    --> tests/reference_tests.rs:1442:5
+     |
+1442 |     reference_fixtures_sprite_svgVerticalGradient_puml,
+     |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `reference_fixtures_sprite_svg_vertical_gradient_puml`
+
+warning: function `reference_fixtures_sprite_testGradientSprite_puml` should have a snake case name
+    --> tests/reference_tests.rs:1446:5
+     |
+1446 |     reference_fixtures_sprite_testGradientSprite_puml,
+     |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `reference_fixtures_sprite_test_gradient_sprite_puml`
+
+warning: function `reference_fixtures_sprite_testPolylineSprites_puml` should have a snake case name
+    --> tests/reference_tests.rs:1450:5
+     |
+1450 |     reference_fixtures_sprite_testPolylineSprites_puml,
+     |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `reference_fixtures_sprite_test_polyline_sprites_puml`
+
+warning: `plantuml-little` (test "reference_tests") generated 112 warnings
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.20s
+     Running tests/reference_tests.rs (target/debug/deps/reference_tests-69b2c048eac2359d)
+
+running 296 tests
+test reference_fixtures_activity_activity_mono_multi_line2_puml ... ok
+test reference_fixtures_activity_activity_creole_table_01_puml ... ok
+test reference_fixtures_activity_activity_mono_multi_line_puml ... ok
+test reference_fixtures_activity_swimlane001_puml ... ok
+test reference_fixtures_activity_activity_mono_multi_line2_v2_puml ... ok
+test reference_fixtures_activity_activity_mono_multi_line_v2_puml ... ok
+test reference_fixtures_activity_activity_creole_table_02_puml ... ok
+test reference_fixtures_activity_a0002_puml ... ok
+test reference_fixtures_class_hideshow003_puml ... ok
+test reference_fixtures_class_hideshow001_puml ... ok
+test reference_fixtures_class_hideshow004_puml ... ok
+test reference_fixtures_component_buitin_newline_chr_puml ... ok
+test reference_fixtures_class_hideshow002_puml ... ok
+test reference_fixtures_class_class_funcparam_arrow_02_puml ... ok
+test reference_fixtures_component_colors001_puml ... ok
+test reference_fixtures_component_gml0000_puml ... ok
+test reference_fixtures_component_gml0001_puml ... ok
+test reference_fixtures_class_xmi0003_puml ... ok
+test reference_fixtures_component_componentextraarrows_0001_puml ... FAILED
+test reference_fixtures_component_deployment01_puml ... FAILED
+test reference_fixtures_class_xmi0002_puml ... ok
+test reference_fixtures_class_generics001_puml ... ok
+test reference_fixtures_class_xmi0004_puml ... ok
+test reference_fixtures_dev_jaws_jaws12_puml ... FAILED
+test reference_fixtures_component_xmi0001_puml ... FAILED
+test reference_fixtures_component_jaws5_puml ... FAILED
+test reference_fixtures_component_deployment_last_name_multi_line_puml ... ok
+test reference_fixtures_dev_jaws_jaws8_puml ... ok
+test reference_fixtures_dev_jaws_jaws9_puml ... ok
+test reference_fixtures_class_colors001_puml ... ok
+test reference_fixtures_class_a0005_puml ... ok
+test reference_fixtures_dev_newline_activity_creole_table_puml ... ok
+test reference_fixtures_dev_newline_activity_mono_multi_line2_puml ... ok
+test reference_fixtures_dev_newline_WBS_arrow_puml ... ok
+test reference_fixtures_dev_jaws_jaws5_puml ... FAILED
+test reference_fixtures_dev_newline_WBS_direction_puml ... ok
+test reference_fixtures_dev_newline_activity_mono_multi_line_puml ... ok
+test reference_fixtures_dev_newline_builtin_newline_puml ... ok
+test reference_fixtures_class_class_funcparam_arrow_01_puml ... ok
+test reference_fixtures_dev_jaws_jaws11_puml ... ok
+test reference_fixtures_dev_jaws_jaws10_puml ... ok
+test reference_fixtures_component_subdiagram_theme_02_puml ... FAILED
+test reference_fixtures_dev_jaws_jaws3_puml ... FAILED
+test reference_fixtures_dev_newline_json_escaped_puml ... ok
+test reference_fixtures_dev_newline_deployment_mono_multi_line_puml ... FAILED
+test reference_fixtures_dev_newline_deployment_on_name_puml ... FAILED
+test reference_fixtures_class_qualifiedassoc002_puml ... ok
+test reference_fixtures_dev_jaws_jaws4_puml ... FAILED
+test reference_fixtures_dev_newline_link_URL_tooltip_puml ... ok
+test reference_fixtures_ditaa_basic_puml ... ok
+test reference_fixtures_dev_newline_buitin_newline_chr_puml ... ok
+test reference_fixtures_dev_newline_deployment_last_name_multi_line_puml ... ok
+test reference_fixtures_erd_chenmovie_puml ... ok
+test reference_fixtures_dev_jaws_jaws2_puml ... FAILED
+test reference_fixtures_dev_newline_preproc_functionparam_line_continuation_puml ... ok
+test reference_fixtures_dev_newlinev2_activity_mono_multi_line2_v2_puml ... ok
+test reference_fixtures_dev_newlinev2_activity_mono_multi_line_v2_puml ... ok
+test reference_fixtures_erd_chenrankdir_puml ... ok
+test reference_fixtures_erd_weak001_puml ... ok
+test reference_fixtures_dev_newline_state_monoline_puml ... ok
+test reference_fixtures_misc_a0004_puml ... ok
+test reference_fixtures_erd_chenmoviealias_puml ... ok
+test reference_fixtures_json_json_escaped_puml ... ok
+test reference_fixtures_erd_chenmovieextended_puml ... ok
+test reference_fixtures_dev_jaws_jaws6_puml ... ok
+test reference_fixtures_mindmap_jaws12_puml ... FAILED
+test reference_fixtures_dot_basic_puml ... ok
+test reference_fixtures_misc_deployment_on_name_puml ... FAILED
+test reference_fixtures_misc_link_url_tooltip_04_puml ... FAILED
+test reference_fixtures_dev_jaws_jaws7_puml ... FAILED
+test reference_fixtures_dev_newline_seq_mono_line_puml ... FAILED
+test reference_fixtures_gantt_a0003_puml ... ok
+test reference_fixtures_misc_creole_back001_puml ... FAILED
+test reference_fixtures_misc_creole_font001_puml ... FAILED
+test reference_fixtures_misc_skinparam_class001_puml ... ok
+test reference_fixtures_misc_creole_sup_sub001_puml ... FAILED
+test reference_fixtures_misc_creole_mixed001_puml ... FAILED
+test reference_fixtures_misc_creole_note001_puml ... FAILED
+test reference_fixtures_class_qualifiedassoc001_puml ... ok
+test reference_fixtures_nonreg_graphml_GML0000_puml ... ok
+test reference_fixtures_nonreg_graphml_GML0001_puml ... ok
+test reference_fixtures_dev_newline_class_funcparam_arrow_puml ... ok
+test reference_fixtures_nonreg_scxml_SCXML0001_puml ... ok
+test reference_fixtures_misc_skinparam_font001_puml ... FAILED
+test reference_fixtures_nonreg_scxml_SCXML0005_puml ... ok
+test reference_fixtures_misc_skinparam_colors001_puml ... ok
+test reference_fixtures_misc_meta_title_header_footer_puml ... ok
+test reference_fixtures_dev_newline_subdiagram_theme_puml ... FAILED
+test reference_fixtures_misc_skinparam_handwritten001_puml ... FAILED
+test reference_fixtures_misc_xmi0000_puml ... ok
+test reference_fixtures_nonreg_simple_A0004_puml ... FAILED
+test reference_fixtures_nonreg_scxml_SCXML0002_puml ... FAILED
+test reference_fixtures_misc_skinparam_monochrome001_puml ... FAILED
+test reference_fixtures_nonreg_scxml_SCXML0004_puml ... FAILED
+test reference_fixtures_nonreg_simple_ChenRankDir_puml ... FAILED
+test reference_fixtures_nonreg_simple_ChenMovie_puml ... FAILED
+test reference_fixtures_misc_skinparam_roundcorner001_puml ... ok
+test reference_fixtures_misc_skinparam_sequence001_puml ... FAILED
+test reference_fixtures_nonreg_simple_ChenMovieExtended_puml ... FAILED
+test reference_fixtures_nonreg_simple_ChenMovieAlias_puml ... FAILED
+test reference_fixtures_nonreg_simple_A0002_puml ... ok
+test reference_fixtures_nonreg_simple_A0000_puml ... FAILED
+test reference_fixtures_nonreg_simple_ComponentExtraArrows_0001_puml ... FAILED
+test reference_fixtures_nonreg_simple_A0001_puml ... FAILED
+test reference_fixtures_nonreg_scxml_SCXML0003_puml ... FAILED
+test reference_fixtures_nonreg_simple_A0003_puml ... FAILED
+test reference_fixtures_nonreg_simple_A0006_puml ... FAILED
+test reference_fixtures_nonreg_simple_HideShow004_puml ... ok
+test reference_fixtures_nonreg_simple_HideShow002_puml ... ok
+test reference_fixtures_nonreg_simple_HideShow003_puml ... ok
+test reference_fixtures_nonreg_simple_A0005_puml ... ok
+test reference_fixtures_nonreg_simple_HideShow001_puml ... ok
+test reference_fixtures_nonreg_simple_SequenceLayout_0002_puml ... FAILED
+test reference_fixtures_nonreg_simple_SequenceLayout_0001_puml ... FAILED
+test reference_fixtures_nonreg_simple_SequenceLayout_0004_puml ... FAILED
+test reference_fixtures_nonreg_simple_SequenceLayout_0003_puml ... FAILED
+test reference_fixtures_nonreg_simple_SequenceLayout_0001c_puml ... FAILED
+test reference_fixtures_nonreg_simple_SequenceLayout_0001b_puml ... FAILED
+test reference_fixtures_misc_link_url_tooltip_05_puml ... ok
+test reference_fixtures_nonreg_simple_SequenceLayout_0006_puml ... FAILED
+test reference_fixtures_nonreg_simple_SequenceLayout_0005_puml ... FAILED
+test reference_fixtures_nonreg_simple_QualifiedAssoc002_puml ... ok
+test reference_fixtures_nonreg_simple_SequenceLayout_0005b_puml ... FAILED
+test reference_fixtures_nonreg_simple_SequenceArrows_0001_puml ... FAILED
+test reference_fixtures_nonreg_simple_SequenceArrows_0002_puml ... FAILED
+test reference_fixtures_nonreg_simple_SequenceLeftMessageAndActiveLifeLines_0001_puml ... FAILED
+test reference_fixtures_nonreg_simple_TeozAltElseParallel_0002_puml ... FAILED
+test reference_fixtures_nonreg_simple_SequenceLeftMessageAndActiveLifeLines_0002_puml ... FAILED
+test reference_fixtures_nonreg_simple_TeozAltElseParallel_0005_puml ... FAILED
+test reference_fixtures_nonreg_simple_TeozAltElseParallel_0006_puml ... FAILED
+test reference_fixtures_nonreg_simple_TeozAltElseParallel_0003_puml ... FAILED
+test reference_fixtures_nonreg_simple_TeozTimelineIssues_0003_puml ... FAILED
+test reference_fixtures_nonreg_simple_TeozAltElseParallel_0001_puml ... FAILED
+test reference_fixtures_nonreg_simple_TeozTimelineIssues_0001_puml ... FAILED
+test reference_fixtures_nonreg_simple_TeozAltElseParallel_0004_puml ... FAILED
+test reference_fixtures_nonreg_simple_TeozTimelineIssues_0002_puml ... FAILED
+test reference_fixtures_nonreg_simple_TimingMessageArrowFont_0001_puml ... FAILED
+test reference_fixtures_nonreg_simple_TimingMessageArrowFont_0002_puml ... FAILED
+test reference_fixtures_nonreg_simple_TeozTimelineIssues_0004_puml ... FAILED
+test reference_fixtures_nonreg_simple_TeozTimelineIssues_0005_puml ... FAILED
+test reference_fixtures_nonreg_simple_TeozTimelineIssues_0006_puml ... FAILED
+test reference_fixtures_nonreg_svg_SVG0005_Svek_puml ... ok
+test reference_fixtures_nonreg_simple_SequenceLeftMessageAndActiveLifeLines_0003_puml ... FAILED
+test reference_fixtures_nonreg_svg_SVG0005_Smetana_puml ... ok
+test reference_fixtures_nonreg_simple_QualifiedAssoc001_puml ... ok
+test reference_fixtures_nwdiag_basic_puml ... ok
+test reference_fixtures_nonreg_simple_TeozTimelineIssues_0008_puml ... FAILED
+test reference_fixtures_nonreg_simple_TeozTimelineIssues_0007_puml ... FAILED
+test reference_fixtures_nonreg_xmi_component_XMI0001_puml ... FAILED
+test reference_fixtures_preprocessor_builtin_newline_puml ... ok
+test reference_fixtures_nonreg_xmi_clazz_XMI0000_puml ... ok
+test reference_fixtures_nonreg_simple_TeozTimelineIssues_0009_puml ... FAILED
+test reference_fixtures_nonreg_svg_SVG0001_puml ... FAILED
+test reference_fixtures_preprocessor_jaws8_puml ... ok
+test reference_fixtures_preprocessor_deployment_mono_multi_line_puml ... FAILED
+test reference_fixtures_nonreg_svg_SVG0002_puml ... FAILED
+test reference_fixtures_preprocessor_jaws9_puml ... ok
+test reference_fixtures_nonreg_xmi_clazz_XMI0002_puml ... ok
+test reference_fixtures_nonreg_xmi_clazz_XMI0003_puml ... ok
+test reference_fixtures_nonreg_svg_SVG0003_puml ... FAILED
+test reference_fixtures_preprocessor_preproc_functionparam_line_continuation_puml ... ok
+test reference_fixtures_nonreg_svg_SVG0004_Svek_puml ... ok
+test reference_fixtures_nonreg_xmi_clazz_XMI0004_puml ... ok
+test reference_fixtures_nonreg_svg_SVG0004_Smetana_puml ... ok
+test reference_fixtures_preprocessor_jaws3_puml ... FAILED
+test reference_fixtures_object_basic_puml ... ok
+test reference_fixtures_preprocessor_seq_mono_line_puml ... FAILED
+test reference_fixtures_preprocessor_sequencelayout_0004_puml ... FAILED
+test reference_fixtures_preprocessor_jaws6_puml ... ok
+test reference_fixtures_preprocessor_sequencelayout_0005_puml ... FAILED
+test reference_fixtures_preprocessor_svg0005_smetana_puml ... ok
+test reference_fixtures_preprocessor_sequencelayout_0005b_puml ... FAILED
+test reference_fixtures_nonreg_svg_SVG0006_Svek_puml ... ok
+test reference_fixtures_preprocessor_jaws7_puml ... FAILED
+test reference_fixtures_preprocessor_svg0005_svek_puml ... ok
+test reference_fixtures_preprocessor_sequenceleftmessageandactivelifelines_0001_puml ... FAILED
+test reference_fixtures_preprocessor_svg0002_puml ... FAILED
+test reference_fixtures_preprocessor_svg0004_smetana_puml ... ok
+test reference_fixtures_preprocessor_sequencearrows_0001_puml ... FAILED
+test reference_fixtures_preprocessor_sequencearrows_0002_puml ... FAILED
+test reference_fixtures_preprocessor_teozaltelseparallel_0002_puml ... FAILED
+test reference_fixtures_preprocessor_teozaltelseparallel_0001_puml ... FAILED
+test reference_fixtures_preprocessor_teozaltelseparallel_0004_puml ... FAILED
+test reference_fixtures_preprocessor_subdiagram_theme_01_puml ... FAILED
+test reference_fixtures_preprocessor_teozaltelseparallel_0003_puml ... FAILED
+test reference_fixtures_preprocessor_svg0004_svek_puml ... ok
+test reference_fixtures_salt_basic_puml ... ok
+test reference_fixtures_preprocessor_teozaltelseparallel_0006_puml ... FAILED
+test reference_fixtures_preprocessor_teozaltelseparallel_0005_puml ... FAILED
+test reference_fixtures_preprocessor_teoztimelineissues_0001_puml ... FAILED
+test reference_fixtures_preprocessor_teoztimelineissues_0002_puml ... FAILED
+test reference_fixtures_preprocessor_teoztimelineissues_0003_puml ... FAILED
+test reference_fixtures_preprocessor_teoztimelineissues_0004_puml ... FAILED
+test reference_fixtures_preprocessor_teoztimelineissues_0005_puml ... FAILED
+test reference_fixtures_preprocessor_teoztimelineissues_0006_puml ... FAILED
+test reference_fixtures_preprocessor_teoztimelineissues_0007_puml ... FAILED
+test reference_fixtures_preprocessor_svg0006_svek_puml ... ok
+test reference_fixtures_sequence_a0000_puml ... FAILED
+test reference_fixtures_sequence_a0001_puml ... FAILED
+test reference_fixtures_sequence_intermediatetest_0000_puml ... FAILED
+test reference_fixtures_sequence_jaws11_puml ... ok
+test reference_fixtures_preprocessor_teoztimelineissues_0008_puml ... FAILED
+test reference_fixtures_sequence_a0006_puml ... FAILED
+test reference_fixtures_preprocessor_teoztimelineissues_0009_puml ... FAILED
+test reference_fixtures_sequence_jaws10_puml ... ok
+test reference_fixtures_sequence_jaws2_puml ... FAILED
+test reference_fixtures_sequence_seq_alt001_puml ... FAILED
+test reference_fixtures_sequence_jaws4_puml ... FAILED
+test reference_fixtures_sequence_seq_autonumber001_puml ... FAILED
+test reference_fixtures_sequence_seq_critical001_puml ... FAILED
+test reference_fixtures_sequence_seq_break001_puml ... FAILED
+test reference_fixtures_sequence_seq_group001_puml ... FAILED
+test reference_fixtures_sequence_seq_divider001_puml ... FAILED
+test reference_fixtures_sequence_seq_opt001_puml ... FAILED
+test reference_fixtures_sequence_seq_nested001_puml ... FAILED
+test reference_fixtures_sequence_seq_par001_puml ... FAILED
+test reference_fixtures_sequence_seq_loop001_puml ... FAILED
+test reference_fixtures_sequence_seq_participants001_puml ... FAILED
+test reference_fixtures_sequence_seq_ref001_puml ... FAILED
+test reference_fixtures_sequence_sequencelayout_0001_puml ... FAILED
+test reference_fixtures_sequence_sequencelayout_0002_puml ... FAILED
+test reference_fixtures_sequence_sequencelayout_0006_puml ... FAILED
+test reference_fixtures_sequence_sequencelayout_0003_puml ... FAILED
+test reference_fixtures_sequence_sequencelayout_0001c_puml ... FAILED
+test reference_fixtures_sequence_sequencelayout_0001b_puml ... FAILED
+test reference_fixtures_sequence_sequenceleftmessageandactivelifelines_0002_puml ... FAILED
+test reference_fixtures_sequence_test_0_puml ... FAILED
+test reference_fixtures_sequence_svg0001_puml ... FAILED
+test reference_fixtures_sprite_linearGradientSpreadReflect_puml ... FAILED
+test reference_fixtures_sequence_svg0003_puml ... FAILED
+test reference_fixtures_sprite_linearGradientSpreadPad_puml ... FAILED
+test reference_fixtures_sprite_azureSVG_puml ... FAILED
+test reference_fixtures_sprite_svgFillColourTest_2174_puml ... FAILED
+test reference_fixtures_sprite_styleFontWeightRoboto_puml ... FAILED
+test reference_fixtures_sprite_svg2GroupsInlineStyled_puml ... FAILED
+test reference_fixtures_sequence_sequenceleftmessageandactivelifelines_0003_puml ... FAILED
+test reference_fixtures_sprite_svg2GroupsWithStyle_puml ... FAILED
+test reference_fixtures_sprite_svgDiagonalGradientBLTRMonochrome_puml ... FAILED
+test reference_fixtures_sprite_linearGradientSpreadRepeat_puml ... FAILED
+test reference_fixtures_sprite_svgDiagonalGradientBLTR_puml ... FAILED
+test reference_fixtures_sprite_svg2Groups_puml ... FAILED
+test reference_fixtures_sprite_svgDiagonalGradientTLBR_puml ... FAILED
+test reference_fixtures_sprite_svgEmbeddedPNG_puml ... FAILED
+test reference_fixtures_sprite_svgFontWeightMultiWeight_puml ... FAILED
+test reference_fixtures_sprite_svgLinearGradientCircle_puml ... FAILED
+test reference_fixtures_sprite_svgFontWeightStandardFonts_puml ... FAILED
+test reference_fixtures_sprite_svgRedCircle_puml ... FAILED
+test reference_fixtures_sprite_svgPolygonStar_puml ... FAILED
+test reference_fixtures_sprite_svgRadialGradient_puml ... FAILED
+test reference_fixtures_sprite_svgRedEllipse_puml ... FAILED
+test reference_fixtures_sprite_svgRedLine_puml ... FAILED
+test reference_fixtures_sprite_svgRedPolyLine_puml ... FAILED
+test reference_fixtures_sprite_svgTransformRotate_puml ... ok
+test reference_fixtures_sprite_svgRedRectLinearGradient_puml ... FAILED
+test reference_fixtures_sprite_svgTransformGroup_puml ... ok
+test reference_fixtures_sprite_svgTransformMatrix_puml ... ok
+test reference_fixtures_sprite_svgTransformScale_puml ... ok
+test reference_fixtures_sprite_svgRedStroke_puml ... FAILED
+test reference_fixtures_sprite_svgTransformTranslate_puml ... ok
+test reference_fixtures_sprite_svgRedRect_puml ... FAILED
+test reference_fixtures_sprite_svgRedText_puml ... FAILED
+test reference_fixtures_state_scxml0001_puml ... ok
+test reference_fixtures_sprite_svgTextAnchor_puml ... FAILED
+test reference_fixtures_sprite_svgTextDecoration_puml ... FAILED
+test reference_fixtures_sprite_svgTextBold_puml ... FAILED
+test reference_fixtures_sprite_svgTextStyleAttr_puml ... FAILED
+test reference_fixtures_sprite_svgTextItalic_puml ... FAILED
+test reference_fixtures_state_scxml0005_puml ... ok
+test reference_fixtures_state_state_choice001_puml ... ok
+test reference_fixtures_state_state_monoline_01_puml ... ok
+test reference_fixtures_state_state_monoline_02_puml ... ok
+test reference_fixtures_state_scxml0002_puml ... FAILED
+test reference_fixtures_timing_timingmessagearrowfont_0001_puml ... ok
+test reference_fixtures_sprite_svgUseDefs_puml ... FAILED
+test reference_fixtures_timing_timingmessagearrowfont_0002_puml ... ok
+test reference_fixtures_wbs_link_url_tooltip_01_puml ... ok
+test reference_fixtures_state_state_history001_puml ... FAILED
+test reference_fixtures_usecase_colon_actor_puml ... ok
+test reference_fixtures_state_scxml0004_puml ... FAILED
+test reference_fixtures_state_state_fork001_puml ... FAILED
+test reference_fixtures_usecase_basic_puml ... FAILED
+test reference_fixtures_usecase_boundary_puml ... ok
+test reference_fixtures_sprite_svgVerticalGradient_puml ... FAILED
+test reference_fixtures_wbs_link_url_tooltip_02_puml ... ok
+test reference_fixtures_wbs_link_url_tooltip_03_puml ... ok
+test reference_fixtures_sprite_testGradientSprite_puml ... FAILED
+test reference_fixtures_wbs_wbs_arrow_puml ... ok
+test reference_fixtures_state_state_concurrent001_puml ... FAILED
+test reference_fixtures_yaml_basic_puml ... ok
+test reference_fixtures_state_state_monoline_03_puml ... ok
+test reference_fixtures_sprite_testPolylineSprites_puml ... FAILED
+test reference_fixtures_wbs_wbs_direction_puml ... ok
+test reference_fixtures_state_state_note001_puml ... FAILED
+test reference_fixtures_state_scxml0003_puml ... FAILED
+test reference_fixtures_preprocessor_jaws1_puml ... FAILED
+test reference_fixtures_dev_jaws_jaws1_puml ... FAILED
+
+failures:
+
+---- reference_fixtures_component_componentextraarrows_0001_puml stdout ----
+
+thread 'reference_fixtures_component_componentextraarrows_0001_puml' (2160398) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/component/componentextraarrows_0001.puml: output differs from reference at line 1 col 154
+expected: ...ta-diagram-type="DESCRIPTION" height="192px" preserveAspectRatio="none" style="w...
+actual:   ...ta-diagram-type="DESCRIPTION" height="190px" preserveAspectRatio="none" style="w...
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+---- reference_fixtures_component_deployment01_puml stdout ----
+
+thread 'reference_fixtures_component_deployment01_puml' (2160400) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/component/deployment01.puml: output differs from reference at line 1 col 152
+expected: ...data-diagram-type="DESCRIPTION" height="460px" preserveAspectRatio="none" style=...
+actual:   ...data-diagram-type="DESCRIPTION" height="208px" preserveAspectRatio="none" style=...
+
+---- reference_fixtures_dev_jaws_jaws12_puml stdout ----
+
+thread 'reference_fixtures_dev_jaws_jaws12_puml' (2160419) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/dev/jaws/jaws12.puml: output differs from reference at line 1 col 149
+expected: ...s" data-diagram-type="MINDMAP" height="129px" preserveAspectRatio="none" style="...
+actual:   ...s" data-diagram-type="MINDMAP" height="145px" preserveAspectRatio="none" style="...
+
+---- reference_fixtures_component_xmi0001_puml stdout ----
+
+thread 'reference_fixtures_component_xmi0001_puml' (2160414) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/component/xmi0001.puml: output differs from reference at line 1 col 152
+expected: ...data-diagram-type="DESCRIPTION" height="267px" preserveAspectRatio="none" style=...
+actual:   ...data-diagram-type="DESCRIPTION" height="139px" preserveAspectRatio="none" style=...
+
+---- reference_fixtures_component_jaws5_puml stdout ----
+
+thread 'reference_fixtures_component_jaws5_puml' (2160410) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/component/jaws5.puml: output differs from reference at line 1 col 154
+expected: ...ta-diagram-type="DESCRIPTION" height="156px" preserveAspectRatio="none" style="w...
+actual:   ...ta-diagram-type="DESCRIPTION" height="151px" preserveAspectRatio="none" style="w...
+
+---- reference_fixtures_dev_jaws_jaws5_puml stdout ----
+
+thread 'reference_fixtures_dev_jaws_jaws5_puml' (2160426) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/dev/jaws/jaws5.puml: output differs from reference at line 1 col 154
+expected: ...ta-diagram-type="DESCRIPTION" height="156px" preserveAspectRatio="none" style="w...
+actual:   ...ta-diagram-type="DESCRIPTION" height="151px" preserveAspectRatio="none" style="w...
+
+---- reference_fixtures_component_subdiagram_theme_02_puml stdout ----
+
+thread 'reference_fixtures_component_subdiagram_theme_02_puml' (2160411) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/component/subdiagram_theme_02.puml: output differs from reference at line 1 col 146
+expected: .../css" data-diagram-type="CLASS" height="510px" preserveAspectRatio="none" style=...
+actual:   .../css" data-diagram-type="CLASS" height="68px" preserveAspectRatio="none" style="...
+
+---- reference_fixtures_dev_jaws_jaws3_puml stdout ----
+
+thread 'reference_fixtures_dev_jaws_jaws3_puml' (2160424) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/dev/jaws/jaws3.puml: output differs from reference at line 1 col 146
+expected: .../css" data-diagram-type="CLASS" height="92px" preserveAspectRatio="none" style="...
+actual:   .../css" data-diagram-type="CLASS" height="105px" preserveAspectRatio="none" style=...
+
+---- reference_fixtures_dev_newline_deployment_mono_multi_line_puml stdout ----
+
+thread 'reference_fixtures_dev_newline_deployment_mono_multi_line_puml' (2160445) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/dev/newline/deployment_mono_multi_line.puml: output differs from reference at line 1 col 152
+expected: ...data-diagram-type="DESCRIPTION" height="232px" preserveAspectRatio="none" style=...
+actual:   ...data-diagram-type="DESCRIPTION" height="116px" preserveAspectRatio="none" style=...
+
+---- reference_fixtures_dev_newline_deployment_on_name_puml stdout ----
+
+thread 'reference_fixtures_dev_newline_deployment_on_name_puml' (2160447) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/dev/newline/deployment_on_name.puml: output differs from reference at line 1 col 153
+expected: ...ata-diagram-type="DESCRIPTION" height="136px" preserveAspectRatio="none" style="...
+actual:   ...ata-diagram-type="DESCRIPTION" height="157px" preserveAspectRatio="none" style="...
+
+---- reference_fixtures_dev_jaws_jaws4_puml stdout ----
+
+thread 'reference_fixtures_dev_jaws_jaws4_puml' (2160425) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/dev/jaws/jaws4.puml: output differs from reference at line 1 col 2589
+expected: .../text></g><g class="message" id="msg1"><polygon fill="#181818" points="69.8384,7...
+actual:   .../text></g><g class="message" id="msg1"><text fill="#000000" font-family="sans-se...
+
+---- reference_fixtures_dev_jaws_jaws2_puml stdout ----
+
+thread 'reference_fixtures_dev_jaws_jaws2_puml' (2160423) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/dev/jaws/jaws2.puml: output differs from reference at line 1 col 2589
+expected: .../text></g><g class="message" id="msg1"><polygon fill="#181818" points="69.8384,7...
+actual:   .../text></g><g class="message" id="msg1"><text fill="#000000" font-family="sans-se...
+
+---- reference_fixtures_mindmap_jaws12_puml stdout ----
+
+thread 'reference_fixtures_mindmap_jaws12_puml' (2160471) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/mindmap/jaws12.puml: output differs from reference at line 1 col 149
+expected: ...s" data-diagram-type="MINDMAP" height="129px" preserveAspectRatio="none" style="...
+actual:   ...s" data-diagram-type="MINDMAP" height="145px" preserveAspectRatio="none" style="...
+
+---- reference_fixtures_misc_deployment_on_name_puml stdout ----
+
+thread 'reference_fixtures_misc_deployment_on_name_puml' (2160479) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/misc/deployment_on_name.puml: output differs from reference at line 1 col 153
+expected: ...ata-diagram-type="DESCRIPTION" height="136px" preserveAspectRatio="none" style="...
+actual:   ...ata-diagram-type="DESCRIPTION" height="157px" preserveAspectRatio="none" style="...
+
+---- reference_fixtures_misc_link_url_tooltip_04_puml stdout ----
+
+thread 'reference_fixtures_misc_link_url_tooltip_04_puml' (2160481) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/misc/link_url_tooltip_04.puml: output differs from reference at line 1 col 146
+expected: .../css" data-diagram-type="CLASS" height="73px" preserveAspectRatio="none" style="...
+actual:   .../css" data-diagram-type="CLASS" height="53px" preserveAspectRatio="none" style="...
+
+---- reference_fixtures_dev_jaws_jaws7_puml stdout ----
+
+thread 'reference_fixtures_dev_jaws_jaws7_puml' (2160428) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/dev/jaws/jaws7.puml: output differs from reference at line 1 col 146
+expected: .../css" data-diagram-type="CLASS" height="78px" preserveAspectRatio="none" style="...
+actual:   .../css" data-diagram-type="CLASS" height="16px" preserveAspectRatio="none" style="...
+
+---- reference_fixtures_dev_newline_seq_mono_line_puml stdout ----
+
+thread 'reference_fixtures_dev_newline_seq_mono_line_puml' (2160453) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/dev/newline/seq_mono_line.puml: output differs from reference at line 1 col 2569
+expected: .../text></g><g class="message" id="msg1"><polygon fill="#0000FF" points="234.1172,...
+actual:   .../text></g><g class="message" id="msg1"><text fill="#000000" font-family="sans-se...
+
+---- reference_fixtures_misc_creole_back001_puml stdout ----
+
+thread 'reference_fixtures_misc_creole_back001_puml' (2160474) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/misc/creole_back001.puml: output differs from reference at line 1 col 2770
+expected: .../text></g><g class="message" id="msg1"><polygon fill="#181818" points="167.6152,...
+actual:   .../text></g><g class="message" id="msg1"><text fill="#000000" filter="url(#__f0__)...
+
+---- reference_fixtures_misc_creole_font001_puml stdout ----
+
+thread 'reference_fixtures_misc_creole_font001_puml' (2160475) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/misc/creole_font001.puml: output differs from reference at line 1 col 2594
+expected: .../text></g><g class="message" id="msg1"><polygon fill="#181818" points="150.6416,...
+actual:   .../text></g><g class="message" id="msg1"><text fill="#000000" font-family="courier...
+
+---- reference_fixtures_misc_creole_sup_sub001_puml stdout ----
+
+thread 'reference_fixtures_misc_creole_sup_sub001_puml' (2160478) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/misc/creole_sup_sub001.puml: output differs from reference at line 1 col 528
+expected: ...0" fill-opacity="0.00000" height="83.7734" width="8" x="24.8335" y="36.2969"/><l...
+actual:   ...0" fill-opacity="0.00000" height="83.7733" width="8" x="24.8335" y="36.2969"/><l...
+
+---- reference_fixtures_misc_creole_mixed001_puml stdout ----
+
+thread 'reference_fixtures_misc_creole_mixed001_puml' (2160476) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/misc/creole_mixed001.puml: output differs from reference at line 1 col 2596
+expected: .../text></g><g class="message" id="msg1"><polygon fill="#181818" points="230.8569,...
+actual:   .../text></g><g class="message" id="msg1"><text fill="#000000" font-family="sans-se...
+
+---- reference_fixtures_misc_creole_note001_puml stdout ----
+
+thread 'reference_fixtures_misc_creole_note001_puml' (2160477) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/misc/creole_note001.puml: output differs from reference at line 1 col 149
+expected: ...s" data-diagram-type="SEQUENCE" height="216px" preserveAspectRatio="none" style=...
+actual:   ...s" data-diagram-type="SEQUENCE" height="175px" preserveAspectRatio="none" style=...
+
+---- reference_fixtures_misc_skinparam_font001_puml stdout ----
+
+thread 'reference_fixtures_misc_skinparam_font001_puml' (2160489) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/misc/skinparam_font001.puml: output differs from reference at line 1 col 2567
+expected: .../text></g><g class="message" id="msg1"><polygon fill="#181818" points="74.6646,6...
+actual:   .../text></g><g class="message" id="msg1"><text fill="#000000" font-family="Arial" ...
+
+---- reference_fixtures_dev_newline_subdiagram_theme_puml stdout ----
+
+thread 'reference_fixtures_dev_newline_subdiagram_theme_puml' (2160458) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/dev/newline/subdiagram_theme.puml: output differs from reference at line 1 col 146
+expected: .../css" data-diagram-type="CLASS" height="277px" preserveAspectRatio="none" style=...
+actual:   .../css" data-diagram-type="CLASS" height="68px" preserveAspectRatio="none" style="...
+
+---- reference_fixtures_misc_skinparam_handwritten001_puml stdout ----
+
+thread 'reference_fixtures_misc_skinparam_handwritten001_puml' (2160490) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/misc/skinparam_handwritten001.puml: output differs from reference at line 1 col 150
+expected: ..." data-diagram-type="SEQUENCE" height="173px" preserveAspectRatio="none" style="...
+actual:   ..." data-diagram-type="SEQUENCE" height="151px" preserveAspectRatio="none" style="...
+
+---- reference_fixtures_nonreg_simple_A0004_puml stdout ----
+
+thread 'reference_fixtures_nonreg_simple_A0004_puml' (2160522) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/nonreg/simple/A0004.puml: output differs from reference at line 1 col 149
+expected: ...s" data-diagram-type="ACTIVITY" height="697px" preserveAspectRatio="none" style=...
+actual:   ...s" data-diagram-type="ACTIVITY" height="256px" preserveAspectRatio="none" style=...
+
+---- reference_fixtures_nonreg_scxml_SCXML0002_puml stdout ----
+
+thread 'reference_fixtures_nonreg_scxml_SCXML0002_puml' (2160505) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/nonreg/scxml/SCXML0002.puml: output differs from reference at line 1 col 147
+expected: ...css" data-diagram-type="STATE" height="225px" preserveAspectRatio="none" style="...
+actual:   ...css" data-diagram-type="STATE" height="249px" preserveAspectRatio="none" style="...
+
+---- reference_fixtures_misc_skinparam_monochrome001_puml stdout ----
+
+thread 'reference_fixtures_misc_skinparam_monochrome001_puml' (2160494) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/misc/skinparam_monochrome001.puml: output differs from reference at line 1 col 2586
+expected: .../text></g><g class="message" id="msg1"><polygon fill="#181818" points="72.248,63...
+actual:   .../text></g><g class="message" id="msg1"><text fill="#000000" font-family="sans-se...
+
+---- reference_fixtures_nonreg_scxml_SCXML0004_puml stdout ----
+
+thread 'reference_fixtures_nonreg_scxml_SCXML0004_puml' (2160510) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/nonreg/scxml/SCXML0004.puml: output differs from reference at line 1 col 146
+expected: .../css" data-diagram-type="STATE" height="234px" preserveAspectRatio="none" style=...
+actual:   .../css" data-diagram-type="STATE" height="173px" preserveAspectRatio="none" style=...
+
+---- reference_fixtures_nonreg_simple_ChenRankDir_puml stdout ----
+
+thread 'reference_fixtures_nonreg_simple_ChenRankDir_puml' (2160532) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/nonreg/simple/ChenRankDir.puml: output differs from reference at line 1 col 149
+expected: ...s" data-diagram-type="CHEN_EER" height="84px" preserveAspectRatio="none" style="...
+actual:   ...s" data-diagram-type="CHEN_EER" height="78px" preserveAspectRatio="none" style="...
+
+---- reference_fixtures_nonreg_simple_ChenMovie_puml stdout ----
+
+thread 'reference_fixtures_nonreg_simple_ChenMovie_puml' (2160530) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/nonreg/simple/ChenMovie.puml: output differs from reference at line 1 col 149
+expected: ...s" data-diagram-type="CHEN_EER" height="366px" preserveAspectRatio="none" style=...
+actual:   ...s" data-diagram-type="CHEN_EER" height="449px" preserveAspectRatio="none" style=...
+
+---- reference_fixtures_misc_skinparam_sequence001_puml stdout ----
+
+thread 'reference_fixtures_misc_skinparam_sequence001_puml' (2160496) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/misc/skinparam_sequence001.puml: output differs from reference at line 1 col 2583
+expected: .../text></g><g class="message" id="msg1"><polygon fill="#00008B" points="77.9375,6...
+actual:   .../text></g><g class="message" id="msg1"><text fill="#000000" font-family="sans-se...
+
+---- reference_fixtures_nonreg_simple_ChenMovieExtended_puml stdout ----
+
+thread 'reference_fixtures_nonreg_simple_ChenMovieExtended_puml' (2160529) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/nonreg/simple/ChenMovieExtended.puml: output differs from reference at line 1 col 149
+expected: ...s" data-diagram-type="CHEN_EER" height="868px" preserveAspectRatio="none" style=...
+actual:   ...s" data-diagram-type="CHEN_EER" height="1186px" preserveAspectRatio="none" style...
+
+---- reference_fixtures_nonreg_simple_ChenMovieAlias_puml stdout ----
+
+thread 'reference_fixtures_nonreg_simple_ChenMovieAlias_puml' (2160527) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/nonreg/simple/ChenMovieAlias.puml: output differs from reference at line 1 col 149
+expected: ...s" data-diagram-type="CHEN_EER" height="875px" preserveAspectRatio="none" style=...
+actual:   ...s" data-diagram-type="CHEN_EER" height="1193px" preserveAspectRatio="none" style...
+
+---- reference_fixtures_nonreg_simple_A0000_puml stdout ----
+
+thread 'reference_fixtures_nonreg_simple_A0000_puml' (2160513) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/nonreg/simple/A0000.puml: output differs from reference at line 1 col 2583
+expected: .../text></g><g class="message" id="msg1"><polygon fill="#181818" points="73.7842,6...
+actual:   .../text></g><g class="message" id="msg1"><text fill="#000000" font-family="sans-se...
+
+---- reference_fixtures_nonreg_simple_ComponentExtraArrows_0001_puml stdout ----
+
+thread 'reference_fixtures_nonreg_simple_ComponentExtraArrows_0001_puml' (2160533) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/nonreg/simple/ComponentExtraArrows_0001.puml: output differs from reference at line 1 col 154
+expected: ...ta-diagram-type="DESCRIPTION" height="192px" preserveAspectRatio="none" style="w...
+actual:   ...ta-diagram-type="DESCRIPTION" height="190px" preserveAspectRatio="none" style="w...
+
+---- reference_fixtures_nonreg_simple_A0001_puml stdout ----
+
+thread 'reference_fixtures_nonreg_simple_A0001_puml' (2160519) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/nonreg/simple/A0001.puml: output differs from reference at line 1 col 393
+expected: ...Bob</title><rect fill="#FFFFFF" height="40.1328" style="stroke:#181818;stroke-wi...
+actual:   ...Bob</title><rect fill="#FFFFFF" height="35.1328" style="stroke:#181818;stroke-wi...
+
+---- reference_fixtures_nonreg_scxml_SCXML0003_puml stdout ----
+
+thread 'reference_fixtures_nonreg_scxml_SCXML0003_puml' (2160507) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/nonreg/scxml/SCXML0003.puml: output differs from reference at line 1 col 147
+expected: ...css" data-diagram-type="STATE" height="436px" preserveAspectRatio="none" style="...
+actual:   ...css" data-diagram-type="STATE" height="412px" preserveAspectRatio="none" style="...
+
+---- reference_fixtures_nonreg_simple_A0003_puml stdout ----
+
+thread 'reference_fixtures_nonreg_simple_A0003_puml' (2160521) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/nonreg/simple/A0003.puml: output differs from reference at line 1 col 147
+expected: ...css" data-diagram-type="GANTT" height="156px" preserveAspectRatio="none" style="...
+actual:   ...css" data-diagram-type="GANTT" height="131px" preserveAspectRatio="none" style="...
+
+---- reference_fixtures_nonreg_simple_A0006_puml stdout ----
+
+thread 'reference_fixtures_nonreg_simple_A0006_puml' (2160526) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/nonreg/simple/A0006.puml: output differs from reference at line 1 col 3256
+expected: .../text></g><g class="message" id="msg1"><polygon fill="#181818" points="71.0586,9...
+actual:   .../text></g><g class="message" id="msg1"><line style="stroke:#181818;stroke-width:...
+
+---- reference_fixtures_nonreg_simple_SequenceLayout_0002_puml stdout ----
+
+thread 'reference_fixtures_nonreg_simple_SequenceLayout_0002_puml' (2160552) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/nonreg/simple/SequenceLayout_0002.puml: output differs from reference at line 1 col 2173
+expected: ...oup</text><g class="message" id="msg1"><line style="stroke:#181818;stroke-width:...
+actual:   ...oup</text><g class="message" id="msg1"><text fill="#000000" font-family="sans-se...
+
+---- reference_fixtures_nonreg_simple_SequenceLayout_0001_puml stdout ----
+
+thread 'reference_fixtures_nonreg_simple_SequenceLayout_0001_puml' (2160544) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/nonreg/simple/SequenceLayout_0001.puml: output differs from reference at line 1 col 2058
+expected: ...ges</text><g class="message" id="msg1"><line style="stroke:#181818;stroke-width:...
+actual:   ...ges</text><g class="message" id="msg1"><text fill="#000000" font-family="sans-se...
+
+---- reference_fixtures_nonreg_simple_SequenceLayout_0004_puml stdout ----
+
+thread 'reference_fixtures_nonreg_simple_SequenceLayout_0004_puml' (2160554) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/nonreg/simple/SequenceLayout_0004.puml: output differs from reference at line 1 col 4463
+expected: ...-width:1.5;"/><rect fill="none" height="85.3984" style="stroke:#000000;stroke-wi...
+actual:   ...-width:1.5;"/><rect fill="none" height="75.3984" style="stroke:#000000;stroke-wi...
+
+---- reference_fixtures_nonreg_simple_SequenceLayout_0003_puml stdout ----
+
+thread 'reference_fixtures_nonreg_simple_SequenceLayout_0003_puml' (2160553) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/nonreg/simple/SequenceLayout_0003.puml: output differs from reference at line 1 col 1501
+expected: .../text></g><g class="message" id="msg1"><line style="stroke:#181818;stroke-width:...
+actual:   .../text></g><g class="message" id="msg1"><text fill="#000000" font-family="sans-se...
+
+---- reference_fixtures_nonreg_simple_SequenceLayout_0001c_puml stdout ----
+
+thread 'reference_fixtures_nonreg_simple_SequenceLayout_0001c_puml' (2160550) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/nonreg/simple/SequenceLayout_0001c.puml: output differs from reference at line 1 col 2083
+expected: ...ges</text><g class="message" id="msg1"><line style="stroke:#181818;stroke-width:...
+actual:   ...ges</text><g class="message" id="msg1"><text fill="#000000" font-family="sans-se...
+
+---- reference_fixtures_nonreg_simple_SequenceLayout_0001b_puml stdout ----
+
+thread 'reference_fixtures_nonreg_simple_SequenceLayout_0001b_puml' (2160548) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/nonreg/simple/SequenceLayout_0001b.puml: output differs from reference at line 1 col 2056
+expected: ...ges</text><g class="message" id="msg1"><line style="stroke:#181818;stroke-width:...
+actual:   ...ges</text><g class="message" id="msg1"><text fill="#000000" font-family="sans-se...
+
+---- reference_fixtures_nonreg_simple_SequenceLayout_0006_puml stdout ----
+
+thread 'reference_fixtures_nonreg_simple_SequenceLayout_0006_puml' (2160557) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/nonreg/simple/SequenceLayout_0006.puml: output differs from reference at line 1 col 2823
+expected: ...297"/></g><g class="message" id="msg1"><polygon fill="#181818" points="37.0405,6...
+actual:   ...297"/></g><g class="message" id="msg1"><text fill="#000000" font-family="sans-se...
+
+---- reference_fixtures_nonreg_simple_SequenceLayout_0005_puml stdout ----
+
+thread 'reference_fixtures_nonreg_simple_SequenceLayout_0005_puml' (2160555) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/nonreg/simple/SequenceLayout_0005.puml: output differs from reference at line 1 col 1332
+expected: ...width:1.5;"/><rect fill="none" height="144.9297" style="stroke:#000000;stroke-wi...
+actual:   ...width:1.5;"/><rect fill="none" height="134.9297" style="stroke:#000000;stroke-wi...
+
+---- reference_fixtures_nonreg_simple_SequenceLayout_0005b_puml stdout ----
+
+thread 'reference_fixtures_nonreg_simple_SequenceLayout_0005b_puml' (2160556) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/nonreg/simple/SequenceLayout_0005b.puml: output differs from reference at line 1 col 1329
+expected: ...width:1.5;"/><rect fill="none" height="144.9297" style="stroke:#000000;stroke-wi...
+actual:   ...width:1.5;"/><rect fill="none" height="134.9297" style="stroke:#000000;stroke-wi...
+
+---- reference_fixtures_nonreg_simple_SequenceArrows_0001_puml stdout ----
+
+thread 'reference_fixtures_nonreg_simple_SequenceArrows_0001_puml' (2160542) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/nonreg/simple/SequenceArrows_0001.puml: output differs from reference at line 1 col 3535
+expected: ...9" x="195.103" y="4263.7607">Tom</text><polygon fill="#181818" points="145.5747,...
+actual:   ...9" x="195.103" y="4263.7607">Tom</text><text fill="#000000" font-family="monospa...
+
+---- reference_fixtures_nonreg_simple_SequenceArrows_0002_puml stdout ----
+
+thread 'reference_fixtures_nonreg_simple_SequenceArrows_0002_puml' (2160543) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/nonreg/simple/SequenceArrows_0002.puml: output differs from reference at line 1 col 198
+expected: ...reserveAspectRatio="none" style="width:258px;height:4286px;background:#FFFFFF;" ...
+actual:   ...reserveAspectRatio="none" style="width:266px;height:4286px;background:#FFFFFF;" ...
+
+---- reference_fixtures_nonreg_simple_SequenceLeftMessageAndActiveLifeLines_0001_puml stdout ----
+
+thread 'reference_fixtures_nonreg_simple_SequenceLeftMessageAndActiveLifeLines_0001_puml' (2160558) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/nonreg/simple/SequenceLeftMessageAndActiveLifeLines_0001.puml: output differs from reference at line 1 col 197
+expected: ...reserveAspectRatio="none" style="width:825px;height:488px;background:#FFFFFF;" v...
+actual:   ...reserveAspectRatio="none" style="width:812px;height:488px;background:#FFFFFF;" v...
+
+---- reference_fixtures_nonreg_simple_TeozAltElseParallel_0002_puml stdout ----
+
+thread 'reference_fixtures_nonreg_simple_TeozAltElseParallel_0002_puml' (2160564) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/nonreg/simple/TeozAltElseParallel_0002.puml: output differs from reference at line 1 col 151
+expected: ... data-diagram-type="SEQUENCE" height="237px" preserveAspectRatio="none" style="w...
+actual:   ... data-diagram-type="SEQUENCE" height="233px" preserveAspectRatio="none" style="w...
+
+---- reference_fixtures_nonreg_simple_SequenceLeftMessageAndActiveLifeLines_0002_puml stdout ----
+
+thread 'reference_fixtures_nonreg_simple_SequenceLeftMessageAndActiveLifeLines_0002_puml' (2160560) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/nonreg/simple/SequenceLeftMessageAndActiveLifeLines_0002.puml: output differs from reference at line 1 col 394
+expected: ...ob</title><rect fill="#FFFFFF" height="433" style="stroke:#181818;stroke-width:1...
+actual:   ...ob</title><rect fill="#FFFFFF" height="453.1328" style="stroke:#181818;stroke-wi...
+
+---- reference_fixtures_nonreg_simple_TeozAltElseParallel_0005_puml stdout ----
+
+thread 'reference_fixtures_nonreg_simple_TeozAltElseParallel_0005_puml' (2160567) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/nonreg/simple/TeozAltElseParallel_0005.puml: output differs from reference at line 1 col 1399
+expected: ...="145.0225" y="29.9951">bossrpcp</text><line style="stroke:#181818;stroke-width:...
+actual:   ...="145.0225" y="29.9951">bossrpcp</text><text fill="#000000" font-family="sans-se...
+
+---- reference_fixtures_nonreg_simple_TeozAltElseParallel_0006_puml stdout ----
+
+thread 'reference_fixtures_nonreg_simple_TeozAltElseParallel_0006_puml' (2160568) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/nonreg/simple/TeozAltElseParallel_0006.puml: output differs from reference at line 1 col 3551
+expected: ... x="267.6431" y="166.6904">Alice</text><polygon fill="#181818" points="46.9653,6...
+actual:   ... x="267.6431" y="166.6904">Alice</text><text fill="#000000" font-family="sans-se...
+
+---- reference_fixtures_nonreg_simple_TeozAltElseParallel_0003_puml stdout ----
+
+thread 'reference_fixtures_nonreg_simple_TeozAltElseParallel_0003_puml' (2160565) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/nonreg/simple/TeozAltElseParallel_0003.puml: output differs from reference at line 1 col 3679
+expected: ...-width:1.5;"/><rect fill="none" height="56.2656" style="stroke:#000000;stroke-wi...
+actual:   ...-width:1.5;"/><rect fill="none" height="46.2656" style="stroke:#000000;stroke-wi...
+
+---- reference_fixtures_nonreg_simple_TeozTimelineIssues_0003_puml stdout ----
+
+thread 'reference_fixtures_nonreg_simple_TeozTimelineIssues_0003_puml' (2160571) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/nonreg/simple/TeozTimelineIssues_0003.puml: output differs from reference at line 1 col 2396
+expected: ...5791" x="85.8394" y="166.6904">a</text><polygon fill="#181818" points="73.1289,6...
+actual:   ...5791" x="85.8394" y="166.6904">a</text><text fill="#000000" font-family="sans-se...
+
+---- reference_fixtures_nonreg_simple_TeozAltElseParallel_0001_puml stdout ----
+
+thread 'reference_fixtures_nonreg_simple_TeozAltElseParallel_0001_puml' (2160563) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/nonreg/simple/TeozAltElseParallel_0001.puml: output differs from reference at line 1 col 151
+expected: ... data-diagram-type="SEQUENCE" height="368px" preserveAspectRatio="none" style="w...
+actual:   ... data-diagram-type="SEQUENCE" height="364px" preserveAspectRatio="none" style="w...
+
+---- reference_fixtures_nonreg_simple_TeozTimelineIssues_0001_puml stdout ----
+
+thread 'reference_fixtures_nonreg_simple_TeozTimelineIssues_0001_puml' (2160569) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/nonreg/simple/TeozTimelineIssues_0001.puml: output differs from reference at line 1 col 4362
+expected: ...le="stroke:#181818;stroke-width:0.5;"/><line style="stroke:#181818;stroke-width:...
+actual:   ...le="stroke:#181818;stroke-width:0.5;"/><text fill="#000000" font-family="sans-se...
+
+---- reference_fixtures_nonreg_simple_TeozAltElseParallel_0004_puml stdout ----
+
+thread 'reference_fixtures_nonreg_simple_TeozAltElseParallel_0004_puml' (2160566) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/nonreg/simple/TeozAltElseParallel_0004.puml: output differs from reference at line 1 col 3675
+expected: ...-width:1.5;"/><rect fill="none" height="56.2656" style="stroke:#000000;stroke-wi...
+actual:   ...-width:1.5;"/><rect fill="none" height="46.2656" style="stroke:#000000;stroke-wi...
+
+---- reference_fixtures_nonreg_simple_TeozTimelineIssues_0002_puml stdout ----
+
+thread 'reference_fixtures_nonreg_simple_TeozTimelineIssues_0002_puml' (2160570) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/nonreg/simple/TeozTimelineIssues_0002.puml: output differs from reference at line 1 col 196
+expected: ...preserveAspectRatio="none" style="width:740px;height:200px;background:#FFFFFF;" ...
+actual:   ...preserveAspectRatio="none" style="width:818px;height:200px;background:#FFFFFF;" ...
+
+---- reference_fixtures_nonreg_simple_TimingMessageArrowFont_0001_puml stdout ----
+
+thread 'reference_fixtures_nonreg_simple_TimingMessageArrowFont_0001_puml' (2160578) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/nonreg/simple/TimingMessageArrowFont_0001.puml: output differs from reference at line 1 col 148
+expected: ...ss" data-diagram-type="TIMING" height="257px" preserveAspectRatio="none" style="...
+actual:   ...ss" data-diagram-type="TIMING" height="223px" preserveAspectRatio="none" style="...
+
+---- reference_fixtures_nonreg_simple_TimingMessageArrowFont_0002_puml stdout ----
+
+thread 'reference_fixtures_nonreg_simple_TimingMessageArrowFont_0002_puml' (2160579) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/nonreg/simple/TimingMessageArrowFont_0002.puml: output differs from reference at line 1 col 148
+expected: ...ss" data-diagram-type="TIMING" height="274px" preserveAspectRatio="none" style="...
+actual:   ...ss" data-diagram-type="TIMING" height="223px" preserveAspectRatio="none" style="...
+
+---- reference_fixtures_nonreg_simple_TeozTimelineIssues_0004_puml stdout ----
+
+thread 'reference_fixtures_nonreg_simple_TeozTimelineIssues_0004_puml' (2160572) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/nonreg/simple/TeozTimelineIssues_0004.puml: output differs from reference at line 1 col 151
+expected: ... data-diagram-type="SEQUENCE" height="283px" preserveAspectRatio="none" style="w...
+actual:   ... data-diagram-type="SEQUENCE" height="284px" preserveAspectRatio="none" style="w...
+
+---- reference_fixtures_nonreg_simple_TeozTimelineIssues_0005_puml stdout ----
+
+thread 'reference_fixtures_nonreg_simple_TeozTimelineIssues_0005_puml' (2160573) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/nonreg/simple/TeozTimelineIssues_0005.puml: output differs from reference at line 1 col 2913
+expected: ..." textLength="53.3203" x="17" y="250.9561">dummy</text><rect fill="#E2E2F0" heig...
+actual:   ..." textLength="53.3203" x="17" y="250.956">dummy</text><rect fill="#E2E2F0" heigh...
+
+---- reference_fixtures_nonreg_simple_TeozTimelineIssues_0006_puml stdout ----
+
+thread 'reference_fixtures_nonreg_simple_TeozTimelineIssues_0006_puml' (2160574) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/nonreg/simple/TeozTimelineIssues_0006.puml: output differs from reference at line 1 col 3876
+expected: ...803" x="169.9492" y="137.5576">D</text><polygon fill="#181818" points="90.3716,6...
+actual:   ...803" x="169.9492" y="137.5576">D</text><text fill="#000000" font-family="sans-se...
+
+---- reference_fixtures_nonreg_simple_SequenceLeftMessageAndActiveLifeLines_0003_puml stdout ----
+
+thread 'reference_fixtures_nonreg_simple_SequenceLeftMessageAndActiveLifeLines_0003_puml' (2160562) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/nonreg/simple/SequenceLeftMessageAndActiveLifeLines_0003.puml: output differs from reference at line 1 col 1788
+expected: ...969"/></g><g class="message" id="msg1"><line style="stroke:#181818;stroke-width:...
+actual:   ...969"/></g><g class="message" id="msg1"><text fill="#000000" font-family="sans-se...
+
+---- reference_fixtures_nonreg_simple_TeozTimelineIssues_0008_puml stdout ----
+
+thread 'reference_fixtures_nonreg_simple_TeozTimelineIssues_0008_puml' (2160576) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/nonreg/simple/TeozTimelineIssues_0008.puml: output differs from reference at line 1 col 3880
+expected: ...803" x="176.5234" y="167.8232">D</text><polygon fill="#181818" points="90.3716,8...
+actual:   ...803" x="176.5234" y="167.8232">D</text><text fill="#000000" font-family="sans-se...
+
+---- reference_fixtures_nonreg_simple_TeozTimelineIssues_0007_puml stdout ----
+
+thread 'reference_fixtures_nonreg_simple_TeozTimelineIssues_0007_puml' (2160575) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/nonreg/simple/TeozTimelineIssues_0007.puml: output differs from reference at line 1 col 149
+expected: ...s" data-diagram-type="SEQUENCE" height="437px" preserveAspectRatio="none" style=...
+actual:   ...s" data-diagram-type="SEQUENCE" height="399px" preserveAspectRatio="none" style=...
+
+---- reference_fixtures_nonreg_xmi_component_XMI0001_puml stdout ----
+
+thread 'reference_fixtures_nonreg_xmi_component_XMI0001_puml' (2160595) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/nonreg/xmi/component/XMI0001.puml: output differs from reference at line 1 col 152
+expected: ...data-diagram-type="DESCRIPTION" height="267px" preserveAspectRatio="none" style=...
+actual:   ...data-diagram-type="DESCRIPTION" height="139px" preserveAspectRatio="none" style=...
+
+---- reference_fixtures_nonreg_simple_TeozTimelineIssues_0009_puml stdout ----
+
+thread 'reference_fixtures_nonreg_simple_TeozTimelineIssues_0009_puml' (2160577) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/nonreg/simple/TeozTimelineIssues_0009.puml: output differs from reference at line 1 col 149
+expected: ...s" data-diagram-type="SEQUENCE" height="868px" preserveAspectRatio="none" style=...
+actual:   ...s" data-diagram-type="SEQUENCE" height="1307px" preserveAspectRatio="none" style...
+
+---- reference_fixtures_nonreg_svg_SVG0001_puml stdout ----
+
+thread 'reference_fixtures_nonreg_svg_SVG0001_puml' (2160580) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/nonreg/svg/SVG0001.puml: output differs from reference at line 1 col 12524
+expected: ...297"/></g><g class="message" id="msg1"><polygon fill="#181818" points="460.6982,...
+actual:   ...297"/></g><g class="message" id="msg1"><text fill="#000000" font-family="sans-se...
+
+---- reference_fixtures_preprocessor_deployment_mono_multi_line_puml stdout ----
+
+thread 'reference_fixtures_preprocessor_deployment_mono_multi_line_puml' (2160601) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/preprocessor/deployment_mono_multi_line.puml: output differs from reference at line 1 col 152
+expected: ...data-diagram-type="DESCRIPTION" height="232px" preserveAspectRatio="none" style=...
+actual:   ...data-diagram-type="DESCRIPTION" height="116px" preserveAspectRatio="none" style=...
+
+---- reference_fixtures_nonreg_svg_SVG0002_puml stdout ----
+
+thread 'reference_fixtures_nonreg_svg_SVG0002_puml' (2160581) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/nonreg/svg/SVG0002.puml: output differs from reference at line 309 col 11913
+expected: .../text></g><g class="message" id="msg1"><polygon fill="#181818" points="460.6982,...
+actual:   .../text></g><g class="message" id="msg1"><text fill="#000000" font-family="sans-se...
+
+---- reference_fixtures_nonreg_svg_SVG0003_puml stdout ----
+
+thread 'reference_fixtures_nonreg_svg_SVG0003_puml' (2160582) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/nonreg/svg/SVG0003.puml: output differs from reference at line 1 col 20537
+expected: .../text></g><g class="message" id="msg1"><polygon fill="#181818" points="433.4375,...
+actual:   .../text></g><g class="message" id="msg1"><text fill="#000000" font-family="sans-se...
+
+---- reference_fixtures_preprocessor_jaws3_puml stdout ----
+
+thread 'reference_fixtures_preprocessor_jaws3_puml' (2160605) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/preprocessor/jaws3.puml: output differs from reference at line 1 col 146
+expected: .../css" data-diagram-type="CLASS" height="92px" preserveAspectRatio="none" style="...
+actual:   .../css" data-diagram-type="CLASS" height="105px" preserveAspectRatio="none" style=...
+
+---- reference_fixtures_preprocessor_seq_mono_line_puml stdout ----
+
+thread 'reference_fixtures_preprocessor_seq_mono_line_puml' (2160612) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/preprocessor/seq_mono_line.puml: output differs from reference at line 1 col 2569
+expected: .../text></g><g class="message" id="msg1"><polygon fill="#0000FF" points="234.1172,...
+actual:   .../text></g><g class="message" id="msg1"><text fill="#000000" font-family="sans-se...
+
+---- reference_fixtures_preprocessor_sequencelayout_0004_puml stdout ----
+
+thread 'reference_fixtures_preprocessor_sequencelayout_0004_puml' (2160618) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/preprocessor/sequencelayout_0004.puml: output differs from reference at line 1 col 4463
+expected: ...-width:1.5;"/><rect fill="none" height="85.3984" style="stroke:#000000;stroke-wi...
+actual:   ...-width:1.5;"/><rect fill="none" height="75.3984" style="stroke:#000000;stroke-wi...
+
+---- reference_fixtures_preprocessor_sequencelayout_0005_puml stdout ----
+
+thread 'reference_fixtures_preprocessor_sequencelayout_0005_puml' (2160619) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/preprocessor/sequencelayout_0005.puml: output differs from reference at line 1 col 1332
+expected: ...width:1.5;"/><rect fill="none" height="144.9297" style="stroke:#000000;stroke-wi...
+actual:   ...width:1.5;"/><rect fill="none" height="134.9297" style="stroke:#000000;stroke-wi...
+
+---- reference_fixtures_preprocessor_sequencelayout_0005b_puml stdout ----
+
+thread 'reference_fixtures_preprocessor_sequencelayout_0005b_puml' (2160621) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/preprocessor/sequencelayout_0005b.puml: output differs from reference at line 1 col 1329
+expected: ...width:1.5;"/><rect fill="none" height="144.9297" style="stroke:#000000;stroke-wi...
+actual:   ...width:1.5;"/><rect fill="none" height="134.9297" style="stroke:#000000;stroke-wi...
+
+---- reference_fixtures_preprocessor_jaws7_puml stdout ----
+
+thread 'reference_fixtures_preprocessor_jaws7_puml' (2160607) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/preprocessor/jaws7.puml: output differs from reference at line 1 col 146
+expected: .../css" data-diagram-type="CLASS" height="78px" preserveAspectRatio="none" style="...
+actual:   .../css" data-diagram-type="CLASS" height="16px" preserveAspectRatio="none" style="...
+
+---- reference_fixtures_preprocessor_sequenceleftmessageandactivelifelines_0001_puml stdout ----
+
+thread 'reference_fixtures_preprocessor_sequenceleftmessageandactivelifelines_0001_puml' (2160623) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/preprocessor/sequenceleftmessageandactivelifelines_0001.puml: output differs from reference at line 1 col 197
+expected: ...reserveAspectRatio="none" style="width:825px;height:488px;background:#FFFFFF;" v...
+actual:   ...reserveAspectRatio="none" style="width:812px;height:488px;background:#FFFFFF;" v...
+
+---- reference_fixtures_preprocessor_svg0002_puml stdout ----
+
+thread 'reference_fixtures_preprocessor_svg0002_puml' (2160625) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/preprocessor/svg0002.puml: output differs from reference at line 309 col 11913
+expected: .../text></g><g class="message" id="msg1"><polygon fill="#181818" points="460.6982,...
+actual:   .../text></g><g class="message" id="msg1"><text fill="#000000" font-family="sans-se...
+
+---- reference_fixtures_preprocessor_sequencearrows_0001_puml stdout ----
+
+thread 'reference_fixtures_preprocessor_sequencearrows_0001_puml' (2160615) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/preprocessor/sequencearrows_0001.puml: output differs from reference at line 1 col 3535
+expected: ...9" x="195.103" y="4263.7607">Tom</text><polygon fill="#181818" points="145.5747,...
+actual:   ...9" x="195.103" y="4263.7607">Tom</text><text fill="#000000" font-family="monospa...
+
+---- reference_fixtures_preprocessor_sequencearrows_0002_puml stdout ----
+
+thread 'reference_fixtures_preprocessor_sequencearrows_0002_puml' (2160617) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/preprocessor/sequencearrows_0002.puml: output differs from reference at line 1 col 198
+expected: ...reserveAspectRatio="none" style="width:258px;height:4286px;background:#FFFFFF;" ...
+actual:   ...reserveAspectRatio="none" style="width:266px;height:4286px;background:#FFFFFF;" ...
+
+---- reference_fixtures_preprocessor_teozaltelseparallel_0002_puml stdout ----
+
+thread 'reference_fixtures_preprocessor_teozaltelseparallel_0002_puml' (2160637) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/preprocessor/teozaltelseparallel_0002.puml: output differs from reference at line 1 col 151
+expected: ... data-diagram-type="SEQUENCE" height="237px" preserveAspectRatio="none" style="w...
+actual:   ... data-diagram-type="SEQUENCE" height="233px" preserveAspectRatio="none" style="w...
+
+---- reference_fixtures_preprocessor_teozaltelseparallel_0001_puml stdout ----
+
+thread 'reference_fixtures_preprocessor_teozaltelseparallel_0001_puml' (2160636) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/preprocessor/teozaltelseparallel_0001.puml: output differs from reference at line 1 col 151
+expected: ... data-diagram-type="SEQUENCE" height="368px" preserveAspectRatio="none" style="w...
+actual:   ... data-diagram-type="SEQUENCE" height="364px" preserveAspectRatio="none" style="w...
+
+---- reference_fixtures_preprocessor_teozaltelseparallel_0004_puml stdout ----
+
+thread 'reference_fixtures_preprocessor_teozaltelseparallel_0004_puml' (2160639) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/preprocessor/teozaltelseparallel_0004.puml: output differs from reference at line 1 col 3675
+expected: ...-width:1.5;"/><rect fill="none" height="56.2656" style="stroke:#000000;stroke-wi...
+actual:   ...-width:1.5;"/><rect fill="none" height="46.2656" style="stroke:#000000;stroke-wi...
+
+---- reference_fixtures_preprocessor_subdiagram_theme_01_puml stdout ----
+
+thread 'reference_fixtures_preprocessor_subdiagram_theme_01_puml' (2160624) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/preprocessor/subdiagram_theme_01.puml: output differs from reference at line 1 col 146
+expected: .../css" data-diagram-type="CLASS" height="277px" preserveAspectRatio="none" style=...
+actual:   .../css" data-diagram-type="CLASS" height="68px" preserveAspectRatio="none" style="...
+
+---- reference_fixtures_preprocessor_teozaltelseparallel_0003_puml stdout ----
+
+thread 'reference_fixtures_preprocessor_teozaltelseparallel_0003_puml' (2160638) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/preprocessor/teozaltelseparallel_0003.puml: output differs from reference at line 1 col 3679
+expected: ...-width:1.5;"/><rect fill="none" height="56.2656" style="stroke:#000000;stroke-wi...
+actual:   ...-width:1.5;"/><rect fill="none" height="46.2656" style="stroke:#000000;stroke-wi...
+
+---- reference_fixtures_preprocessor_teozaltelseparallel_0006_puml stdout ----
+
+thread 'reference_fixtures_preprocessor_teozaltelseparallel_0006_puml' (2160642) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/preprocessor/teozaltelseparallel_0006.puml: output differs from reference at line 1 col 3551
+expected: ... x="267.6431" y="166.6904">Alice</text><polygon fill="#181818" points="46.9653,6...
+actual:   ... x="267.6431" y="166.6904">Alice</text><text fill="#000000" font-family="sans-se...
+
+---- reference_fixtures_preprocessor_teozaltelseparallel_0005_puml stdout ----
+
+thread 'reference_fixtures_preprocessor_teozaltelseparallel_0005_puml' (2160641) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/preprocessor/teozaltelseparallel_0005.puml: output differs from reference at line 1 col 1399
+expected: ...="145.0225" y="29.9951">bossrpcp</text><line style="stroke:#181818;stroke-width:...
+actual:   ...="145.0225" y="29.9951">bossrpcp</text><text fill="#000000" font-family="sans-se...
+
+---- reference_fixtures_preprocessor_teoztimelineissues_0001_puml stdout ----
+
+thread 'reference_fixtures_preprocessor_teoztimelineissues_0001_puml' (2160644) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/preprocessor/teoztimelineissues_0001.puml: output differs from reference at line 1 col 4362
+expected: ...le="stroke:#181818;stroke-width:0.5;"/><line style="stroke:#181818;stroke-width:...
+actual:   ...le="stroke:#181818;stroke-width:0.5;"/><text fill="#000000" font-family="sans-se...
+
+---- reference_fixtures_preprocessor_teoztimelineissues_0002_puml stdout ----
+
+thread 'reference_fixtures_preprocessor_teoztimelineissues_0002_puml' (2160645) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/preprocessor/teoztimelineissues_0002.puml: output differs from reference at line 1 col 196
+expected: ...preserveAspectRatio="none" style="width:740px;height:200px;background:#FFFFFF;" ...
+actual:   ...preserveAspectRatio="none" style="width:818px;height:200px;background:#FFFFFF;" ...
+
+---- reference_fixtures_preprocessor_teoztimelineissues_0003_puml stdout ----
+
+thread 'reference_fixtures_preprocessor_teoztimelineissues_0003_puml' (2160646) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/preprocessor/teoztimelineissues_0003.puml: output differs from reference at line 1 col 2396
+expected: ...5791" x="85.8394" y="166.6904">a</text><polygon fill="#181818" points="73.1289,6...
+actual:   ...5791" x="85.8394" y="166.6904">a</text><text fill="#000000" font-family="sans-se...
+
+---- reference_fixtures_preprocessor_teoztimelineissues_0004_puml stdout ----
+
+thread 'reference_fixtures_preprocessor_teoztimelineissues_0004_puml' (2160647) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/preprocessor/teoztimelineissues_0004.puml: output differs from reference at line 1 col 151
+expected: ... data-diagram-type="SEQUENCE" height="283px" preserveAspectRatio="none" style="w...
+actual:   ... data-diagram-type="SEQUENCE" height="284px" preserveAspectRatio="none" style="w...
+
+---- reference_fixtures_preprocessor_teoztimelineissues_0005_puml stdout ----
+
+thread 'reference_fixtures_preprocessor_teoztimelineissues_0005_puml' (2160648) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/preprocessor/teoztimelineissues_0005.puml: output differs from reference at line 1 col 2913
+expected: ..." textLength="53.3203" x="17" y="250.9561">dummy</text><rect fill="#E2E2F0" heig...
+actual:   ..." textLength="53.3203" x="17" y="250.956">dummy</text><rect fill="#E2E2F0" heigh...
+
+---- reference_fixtures_preprocessor_teoztimelineissues_0006_puml stdout ----
+
+thread 'reference_fixtures_preprocessor_teoztimelineissues_0006_puml' (2160650) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/preprocessor/teoztimelineissues_0006.puml: output differs from reference at line 1 col 3876
+expected: ...803" x="169.9492" y="137.5576">D</text><polygon fill="#181818" points="90.3716,6...
+actual:   ...803" x="169.9492" y="137.5576">D</text><text fill="#000000" font-family="sans-se...
+
+---- reference_fixtures_preprocessor_teoztimelineissues_0007_puml stdout ----
+
+thread 'reference_fixtures_preprocessor_teoztimelineissues_0007_puml' (2160651) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/preprocessor/teoztimelineissues_0007.puml: output differs from reference at line 1 col 149
+expected: ...s" data-diagram-type="SEQUENCE" height="437px" preserveAspectRatio="none" style=...
+actual:   ...s" data-diagram-type="SEQUENCE" height="399px" preserveAspectRatio="none" style=...
+
+---- reference_fixtures_sequence_a0000_puml stdout ----
+
+thread 'reference_fixtures_sequence_a0000_puml' (2160655) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/sequence/a0000.puml: output differs from reference at line 1 col 2583
+expected: .../text></g><g class="message" id="msg1"><polygon fill="#181818" points="73.7842,6...
+actual:   .../text></g><g class="message" id="msg1"><text fill="#000000" font-family="sans-se...
+
+---- reference_fixtures_sequence_a0001_puml stdout ----
+
+thread 'reference_fixtures_sequence_a0001_puml' (2160656) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/sequence/a0001.puml: output differs from reference at line 1 col 393
+expected: ...Bob</title><rect fill="#FFFFFF" height="40.1328" style="stroke:#181818;stroke-wi...
+actual:   ...Bob</title><rect fill="#FFFFFF" height="35.1328" style="stroke:#181818;stroke-wi...
+
+---- reference_fixtures_sequence_intermediatetest_0000_puml stdout ----
+
+thread 'reference_fixtures_sequence_intermediatetest_0000_puml' (2160658) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/sequence/intermediatetest_0000.puml: output differs from reference at line 1 col 2593
+expected: .../text></g><g class="message" id="msg1"><polygon fill="#181818" points="119.769,6...
+actual:   .../text></g><g class="message" id="msg1"><text fill="#000000" font-family="sans-se...
+
+---- reference_fixtures_preprocessor_teoztimelineissues_0008_puml stdout ----
+
+thread 'reference_fixtures_preprocessor_teoztimelineissues_0008_puml' (2160652) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/preprocessor/teoztimelineissues_0008.puml: output differs from reference at line 1 col 3880
+expected: ...803" x="176.5234" y="167.8232">D</text><polygon fill="#181818" points="90.3716,8...
+actual:   ...803" x="176.5234" y="167.8232">D</text><text fill="#000000" font-family="sans-se...
+
+---- reference_fixtures_sequence_a0006_puml stdout ----
+
+thread 'reference_fixtures_sequence_a0006_puml' (2160657) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/sequence/a0006.puml: output differs from reference at line 1 col 3256
+expected: .../text></g><g class="message" id="msg1"><polygon fill="#181818" points="71.0586,9...
+actual:   .../text></g><g class="message" id="msg1"><line style="stroke:#181818;stroke-width:...
+
+---- reference_fixtures_preprocessor_teoztimelineissues_0009_puml stdout ----
+
+thread 'reference_fixtures_preprocessor_teoztimelineissues_0009_puml' (2160653) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/preprocessor/teoztimelineissues_0009.puml: output differs from reference at line 1 col 149
+expected: ...s" data-diagram-type="SEQUENCE" height="868px" preserveAspectRatio="none" style=...
+actual:   ...s" data-diagram-type="SEQUENCE" height="1307px" preserveAspectRatio="none" style...
+
+---- reference_fixtures_sequence_jaws2_puml stdout ----
+
+thread 'reference_fixtures_sequence_jaws2_puml' (2160662) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/sequence/jaws2.puml: output differs from reference at line 1 col 2589
+expected: .../text></g><g class="message" id="msg1"><polygon fill="#181818" points="69.8384,7...
+actual:   .../text></g><g class="message" id="msg1"><text fill="#000000" font-family="sans-se...
+
+---- reference_fixtures_sequence_seq_alt001_puml stdout ----
+
+thread 'reference_fixtures_sequence_seq_alt001_puml' (2160664) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/sequence/seq_alt001.puml: output differs from reference at line 1 col 2709
+expected: .../text></g><g class="message" id="msg1"><polygon fill="#181818" points="105.5356,...
+actual:   .../text></g><g class="message" id="msg1"><text fill="#000000" font-family="sans-se...
+
+---- reference_fixtures_sequence_jaws4_puml stdout ----
+
+thread 'reference_fixtures_sequence_jaws4_puml' (2160663) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/sequence/jaws4.puml: output differs from reference at line 1 col 2589
+expected: .../text></g><g class="message" id="msg1"><polygon fill="#181818" points="69.8384,7...
+actual:   .../text></g><g class="message" id="msg1"><text fill="#000000" font-family="sans-se...
+
+---- reference_fixtures_sequence_seq_autonumber001_puml stdout ----
+
+thread 'reference_fixtures_sequence_seq_autonumber001_puml' (2160665) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/sequence/seq_autonumber001.puml: output differs from reference at line 1 col 2596
+expected: .../text></g><g class="message" id="msg1"><polygon fill="#181818" points="113.2104,...
+actual:   .../text></g><g class="message" id="msg1"><text fill="#000000" font-family="sans-se...
+
+---- reference_fixtures_sequence_seq_critical001_puml stdout ----
+
+thread 'reference_fixtures_sequence_seq_critical001_puml' (2160667) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/sequence/seq_critical001.puml: output differs from reference at line 1 col 3860
+expected: .../text></g><g class="message" id="msg1"><polygon fill="#181818" points="90.5356,6...
+actual:   .../text></g><g class="message" id="msg1"><text fill="#000000" font-family="sans-se...
+
+---- reference_fixtures_sequence_seq_break001_puml stdout ----
+
+thread 'reference_fixtures_sequence_seq_break001_puml' (2160666) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/sequence/seq_break001.puml: output differs from reference at line 1 col 2823
+expected: .../text></g><g class="message" id="msg1"><polygon fill="#181818" points="131.1699,...
+actual:   .../text></g><g class="message" id="msg1"><text fill="#000000" font-family="sans-se...
+
+---- reference_fixtures_sequence_seq_group001_puml stdout ----
+
+thread 'reference_fixtures_sequence_seq_group001_puml' (2160669) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/sequence/seq_group001.puml: output differs from reference at line 1 col 2710
+expected: .../text></g><g class="message" id="msg1"><polygon fill="#181818" points="115.165,6...
+actual:   .../text></g><g class="message" id="msg1"><text fill="#000000" font-family="sans-se...
+
+---- reference_fixtures_sequence_seq_divider001_puml stdout ----
+
+thread 'reference_fixtures_sequence_seq_divider001_puml' (2160668) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/sequence/seq_divider001.puml: output differs from reference at line 1 col 3299
+expected: .../text></g><g class="message" id="msg1"><polygon fill="#181818" points="97.3594,6...
+actual:   .../text></g><g class="message" id="msg1"><text fill="#000000" font-family="sans-se...
+
+---- reference_fixtures_sequence_seq_opt001_puml stdout ----
+
+thread 'reference_fixtures_sequence_seq_opt001_puml' (2160672) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/sequence/seq_opt001.puml: output differs from reference at line 1 col 3849
+expected: .../text></g><g class="message" id="msg1"><polygon fill="#181818" points="90.5356,6...
+actual:   .../text></g><g class="message" id="msg1"><text fill="#000000" font-family="sans-se...
+
+---- reference_fixtures_sequence_seq_nested001_puml stdout ----
+
+thread 'reference_fixtures_sequence_seq_nested001_puml' (2160671) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/sequence/seq_nested001.puml: output differs from reference at line 1 col 2941
+expected: .../text></g><g class="message" id="msg1"><polygon fill="#181818" points="145.3848,...
+actual:   .../text></g><g class="message" id="msg1"><text fill="#000000" font-family="sans-se...
+
+---- reference_fixtures_sequence_seq_par001_puml stdout ----
+
+thread 'reference_fixtures_sequence_seq_par001_puml' (2160673) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/sequence/seq_par001.puml: output differs from reference at line 1 col 4982
+expected: .../text></g><g class="message" id="msg1"><polygon fill="#181818" points="90.5356,6...
+actual:   .../text></g><g class="message" id="msg1"><text fill="#000000" font-family="sans-se...
+
+---- reference_fixtures_sequence_seq_loop001_puml stdout ----
+
+thread 'reference_fixtures_sequence_seq_loop001_puml' (2160670) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/sequence/seq_loop001.puml: output differs from reference at line 1 col 2711
+expected: .../text></g><g class="message" id="msg1"><polygon fill="#181818" points="128.6411,...
+actual:   .../text></g><g class="message" id="msg1"><text fill="#000000" font-family="sans-se...
+
+---- reference_fixtures_sequence_seq_participants001_puml stdout ----
+
+thread 'reference_fixtures_sequence_seq_participants001_puml' (2160674) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/sequence/seq_participants001.puml: output differs from reference at line 1 col 11891
+expected: .../text></g><g class="message" id="msg1"><polygon fill="#181818" points="68.248,10...
+actual:   .../text></g><g class="message" id="msg1"><text fill="#000000" font-family="sans-se...
+
+---- reference_fixtures_sequence_seq_ref001_puml stdout ----
+
+thread 'reference_fixtures_sequence_seq_ref001_puml' (2160675) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/sequence/seq_ref001.puml: output differs from reference at line 1 col 2591
+expected: .../text></g><g class="message" id="msg1"><polygon fill="#181818" points="90.5356,6...
+actual:   .../text></g><g class="message" id="msg1"><text fill="#000000" font-family="sans-se...
+
+---- reference_fixtures_sequence_sequencelayout_0001_puml stdout ----
+
+thread 'reference_fixtures_sequence_sequencelayout_0001_puml' (2160676) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/sequence/sequencelayout_0001.puml: output differs from reference at line 1 col 2058
+expected: ...ges</text><g class="message" id="msg1"><line style="stroke:#181818;stroke-width:...
+actual:   ...ges</text><g class="message" id="msg1"><text fill="#000000" font-family="sans-se...
+
+---- reference_fixtures_sequence_sequencelayout_0002_puml stdout ----
+
+thread 'reference_fixtures_sequence_sequencelayout_0002_puml' (2160679) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/sequence/sequencelayout_0002.puml: output differs from reference at line 1 col 2173
+expected: ...oup</text><g class="message" id="msg1"><line style="stroke:#181818;stroke-width:...
+actual:   ...oup</text><g class="message" id="msg1"><text fill="#000000" font-family="sans-se...
+
+---- reference_fixtures_sequence_sequencelayout_0006_puml stdout ----
+
+thread 'reference_fixtures_sequence_sequencelayout_0006_puml' (2160681) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/sequence/sequencelayout_0006.puml: output differs from reference at line 1 col 2823
+expected: ...297"/></g><g class="message" id="msg1"><polygon fill="#181818" points="37.0405,6...
+actual:   ...297"/></g><g class="message" id="msg1"><text fill="#000000" font-family="sans-se...
+
+---- reference_fixtures_sequence_sequencelayout_0003_puml stdout ----
+
+thread 'reference_fixtures_sequence_sequencelayout_0003_puml' (2160680) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/sequence/sequencelayout_0003.puml: output differs from reference at line 1 col 1501
+expected: .../text></g><g class="message" id="msg1"><line style="stroke:#181818;stroke-width:...
+actual:   .../text></g><g class="message" id="msg1"><text fill="#000000" font-family="sans-se...
+
+---- reference_fixtures_sequence_sequencelayout_0001c_puml stdout ----
+
+thread 'reference_fixtures_sequence_sequencelayout_0001c_puml' (2160678) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/sequence/sequencelayout_0001c.puml: output differs from reference at line 1 col 2083
+expected: ...ges</text><g class="message" id="msg1"><line style="stroke:#181818;stroke-width:...
+actual:   ...ges</text><g class="message" id="msg1"><text fill="#000000" font-family="sans-se...
+
+---- reference_fixtures_sequence_sequencelayout_0001b_puml stdout ----
+
+thread 'reference_fixtures_sequence_sequencelayout_0001b_puml' (2160677) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/sequence/sequencelayout_0001b.puml: output differs from reference at line 1 col 2056
+expected: ...ges</text><g class="message" id="msg1"><line style="stroke:#181818;stroke-width:...
+actual:   ...ges</text><g class="message" id="msg1"><text fill="#000000" font-family="sans-se...
+
+---- reference_fixtures_sequence_sequenceleftmessageandactivelifelines_0002_puml stdout ----
+
+thread 'reference_fixtures_sequence_sequenceleftmessageandactivelifelines_0002_puml' (2160682) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/sequence/sequenceleftmessageandactivelifelines_0002.puml: output differs from reference at line 1 col 6030
+expected: ...e="stroke:#181818;stroke-width:1;" x1="80.0566" x2="90.0566" y1="142.2969" y2="1...
+actual:   ...e="stroke:#181818;stroke-width:1;" x1="89.0566" x2="79.0566" y1="146.2969" y2="1...
+
+---- reference_fixtures_sequence_test_0_puml stdout ----
+
+thread 'reference_fixtures_sequence_test_0_puml' (2160686) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/sequence/test_0.puml: output differs from reference at line 1 col 2593
+expected: .../text></g><g class="message" id="msg1"><polygon fill="#181818" points="119.769,6...
+actual:   .../text></g><g class="message" id="msg1"><text fill="#000000" font-family="sans-se...
+
+---- reference_fixtures_sequence_svg0001_puml stdout ----
+
+thread 'reference_fixtures_sequence_svg0001_puml' (2160684) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/sequence/svg0001.puml: output differs from reference at line 1 col 12524
+expected: ...297"/></g><g class="message" id="msg1"><polygon fill="#181818" points="460.6982,...
+actual:   ...297"/></g><g class="message" id="msg1"><text fill="#000000" font-family="sans-se...
+
+---- reference_fixtures_sprite_linearGradientSpreadReflect_puml stdout ----
+
+thread 'reference_fixtures_sprite_linearGradientSpreadReflect_puml' (2160689) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/sprite/linearGradientSpreadReflect.puml: output differs from reference at line 1 col 2814
+expected: ...text></g><g class="message" id="msg1"><polygon fill="#181818" points="340.8335,8...
+actual:   ...text></g><g class="message" id="msg1"><path d="M35.8335,50.2969 L335.8335,50.296...
+
+---- reference_fixtures_sequence_svg0003_puml stdout ----
+
+thread 'reference_fixtures_sequence_svg0003_puml' (2160685) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/sequence/svg0003.puml: output differs from reference at line 1 col 20537
+expected: .../text></g><g class="message" id="msg1"><polygon fill="#181818" points="433.4375,...
+actual:   .../text></g><g class="message" id="msg1"><text fill="#000000" font-family="sans-se...
+
+---- reference_fixtures_sprite_linearGradientSpreadPad_puml stdout ----
+
+thread 'reference_fixtures_sprite_linearGradientSpreadPad_puml' (2160688) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/sprite/linearGradientSpreadPad.puml: output differs from reference at line 1 col 2791
+expected: ...text></g><g class="message" id="msg1"><polygon fill="#181818" points="340.8335,8...
+actual:   ...text></g><g class="message" id="msg1"><path d="M35.8335,50.2969 L335.8335,50.296...
+
+---- reference_fixtures_sprite_azureSVG_puml stdout ----
+
+thread 'reference_fixtures_sprite_azureSVG_puml' (2160687) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/sprite/azureSVG.puml: output differs from reference at line 1 col 3371
+expected: .../text></g><g class="message" id="msg1"><polygon fill="#181818" points="371.1899,...
+actual:   .../text></g><g class="message" id="msg1"><text fill="#000000" font-family="sans-se...
+
+---- reference_fixtures_sprite_svgFillColourTest_2174_puml stdout ----
+
+thread 'reference_fixtures_sprite_svgFillColourTest_2174_puml' (2160699) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/sprite/svgFillColourTest_2174.puml: output differs from reference at line 1 col 146
+expected: .../css" data-diagram-type="CLASS" height="304px" preserveAspectRatio="none" style=...
+actual:   .../css" data-diagram-type="CLASS" height="67px" preserveAspectRatio="none" style="...
+
+---- reference_fixtures_sprite_styleFontWeightRoboto_puml stdout ----
+
+thread 'reference_fixtures_sprite_styleFontWeightRoboto_puml' (2160691) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/sprite/styleFontWeightRoboto.puml: output differs from reference at line 1 col 2582
+expected: .../text></g><g class="message" id="msg1"><polygon fill="#181818" points="72.248,63...
+actual:   .../text></g><g class="message" id="msg1"><text fill="#000000" font-family="sans-se...
+
+---- reference_fixtures_sprite_svg2GroupsInlineStyled_puml stdout ----
+
+thread 'reference_fixtures_sprite_svg2GroupsInlineStyled_puml' (2160692) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/sprite/svg2GroupsInlineStyled.puml: output differs from reference at line 1 col 2582
+expected: .../text></g><g class="message" id="msg1"><polygon fill="#181818" points="255.1899,...
+actual:   .../text></g><g class="message" id="msg1"><text fill="#000000" font-family="sans-se...
+
+---- reference_fixtures_sequence_sequenceleftmessageandactivelifelines_0003_puml stdout ----
+
+thread 'reference_fixtures_sequence_sequenceleftmessageandactivelifelines_0003_puml' (2160683) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/sequence/sequenceleftmessageandactivelifelines_0003.puml: output differs from reference at line 1 col 1788
+expected: ...969"/></g><g class="message" id="msg1"><line style="stroke:#181818;stroke-width:...
+actual:   ...969"/></g><g class="message" id="msg1"><text fill="#000000" font-family="sans-se...
+
+---- reference_fixtures_sprite_svg2GroupsWithStyle_puml stdout ----
+
+thread 'reference_fixtures_sprite_svg2GroupsWithStyle_puml' (2160693) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/sprite/svg2GroupsWithStyle.puml: output differs from reference at line 1 col 2582
+expected: .../text></g><g class="message" id="msg1"><polygon fill="#181818" points="255.1899,...
+actual:   .../text></g><g class="message" id="msg1"><text fill="#000000" font-family="sans-se...
+
+---- reference_fixtures_sprite_svgDiagonalGradientBLTRMonochrome_puml stdout ----
+
+thread 'reference_fixtures_sprite_svgDiagonalGradientBLTRMonochrome_puml' (2160695) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/sprite/svgDiagonalGradientBLTRMonochrome.puml: output differs from reference at line 1 col 2792
+expected: .../text></g><g class="message" id="msg1"><polygon fill="#181818" points="290.0161,...
+actual:   .../text></g><g class="message" id="msg1"><text fill="#000000" font-family="sans-se...
+
+---- reference_fixtures_sprite_linearGradientSpreadRepeat_puml stdout ----
+
+thread 'reference_fixtures_sprite_linearGradientSpreadRepeat_puml' (2160690) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/sprite/linearGradientSpreadRepeat.puml: output differs from reference at line 1 col 2813
+expected: ...text></g><g class="message" id="msg1"><polygon fill="#181818" points="340.8335,8...
+actual:   ...text></g><g class="message" id="msg1"><path d="M35.8335,50.2969 L335.8335,50.296...
+
+---- reference_fixtures_sprite_svgDiagonalGradientBLTR_puml stdout ----
+
+thread 'reference_fixtures_sprite_svgDiagonalGradientBLTR_puml' (2160696) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/sprite/svgDiagonalGradientBLTR.puml: output differs from reference at line 1 col 2792
+expected: .../text></g><g class="message" id="msg1"><polygon fill="#181818" points="215.1899,...
+actual:   .../text></g><g class="message" id="msg1"><text fill="#000000" font-family="sans-se...
+
+---- reference_fixtures_sprite_svg2Groups_puml stdout ----
+
+thread 'reference_fixtures_sprite_svg2Groups_puml' (2160694) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/sprite/svg2Groups.puml: output differs from reference at line 1 col 2582
+expected: .../text></g><g class="message" id="msg1"><polygon fill="#181818" points="235.1899,...
+actual:   .../text></g><g class="message" id="msg1"><text fill="#000000" font-family="sans-se...
+
+---- reference_fixtures_sprite_svgDiagonalGradientTLBR_puml stdout ----
+
+thread 'reference_fixtures_sprite_svgDiagonalGradientTLBR_puml' (2160697) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/sprite/svgDiagonalGradientTLBR.puml: output differs from reference at line 1 col 2792
+expected: .../text></g><g class="message" id="msg1"><polygon fill="#181818" points="215.1899,...
+actual:   .../text></g><g class="message" id="msg1"><text fill="#000000" font-family="sans-se...
+
+---- reference_fixtures_sprite_svgEmbeddedPNG_puml stdout ----
+
+thread 'reference_fixtures_sprite_svgEmbeddedPNG_puml' (2160698) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/sprite/svgEmbeddedPNG.puml: output differs from reference at line 1 col 2582
+expected: .../text></g><g class="message" id="msg1"><polygon fill="#181818" points="347.9121,...
+actual:   .../text></g><g class="message" id="msg1"><text fill="#000000" font-family="sans-se...
+
+---- reference_fixtures_sprite_svgFontWeightMultiWeight_puml stdout ----
+
+thread 'reference_fixtures_sprite_svgFontWeightMultiWeight_puml' (2160700) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/sprite/svgFontWeightMultiWeight.puml: output differs from reference at line 1 col 2584
+expected: .../text></g><g class="message" id="msg1"><polygon fill="#181818" points="533.4829,...
+actual:   .../text></g><g class="message" id="msg1"><text fill="#1A1A2E" font-family="Open Sa...
+
+---- reference_fixtures_sprite_svgLinearGradientCircle_puml stdout ----
+
+thread 'reference_fixtures_sprite_svgLinearGradientCircle_puml' (2160703) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/sprite/svgLinearGradientCircle.puml: output differs from reference at line 1 col 2739
+expected: .../text></g><g class="message" id="msg1"><polygon fill="#181818" points="267.8184,...
+actual:   .../text></g><g class="message" id="msg1"><text fill="#000000" font-family="sans-se...
+
+---- reference_fixtures_sprite_svgFontWeightStandardFonts_puml stdout ----
+
+thread 'reference_fixtures_sprite_svgFontWeightStandardFonts_puml' (2160701) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/sprite/svgFontWeightStandardFonts.puml: output differs from reference at line 1 col 2584
+expected: .../text></g><g class="message" id="msg1"><polygon fill="#181818" points="560.7588,...
+actual:   .../text></g><g class="message" id="msg1"><text fill="#212529" font-family="Arial,H...
+
+---- reference_fixtures_sprite_svgRedCircle_puml stdout ----
+
+thread 'reference_fixtures_sprite_svgRedCircle_puml' (2160706) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/sprite/svgRedCircle.puml: output differs from reference at line 1 col 2582
+expected: .../text></g><g class="message" id="msg1"><polygon fill="#181818" points="151.1899,...
+actual:   .../text></g><g class="message" id="msg1"><text fill="#000000" font-family="sans-se...
+
+---- reference_fixtures_sprite_svgPolygonStar_puml stdout ----
+
+thread 'reference_fixtures_sprite_svgPolygonStar_puml' (2160704) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/sprite/svgPolygonStar.puml: output differs from reference at line 1 col 2751
+expected: .../text></g><g class="message" id="msg1"><polygon fill="#181818" points="215.1899,...
+actual:   .../text></g><g class="message" id="msg1"><text fill="#000000" font-family="sans-se...
+
+---- reference_fixtures_sprite_svgRadialGradient_puml stdout ----
+
+thread 'reference_fixtures_sprite_svgRadialGradient_puml' (2160705) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/sprite/svgRadialGradient.puml: output differs from reference at line 1 col 2584
+expected: .../text></g><g class="message" id="msg1"><polygon fill="#181818" points="215.1899,...
+actual:   .../text></g><g class="message" id="msg1"><text fill="#000000" font-family="sans-se...
+
+---- reference_fixtures_sprite_svgRedEllipse_puml stdout ----
+
+thread 'reference_fixtures_sprite_svgRedEllipse_puml' (2160707) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/sprite/svgRedEllipse.puml: output differs from reference at line 1 col 2582
+expected: .../text></g><g class="message" id="msg1"><polygon fill="#181818" points="187.1899,...
+actual:   .../text></g><g class="message" id="msg1"><text fill="#000000" font-family="sans-se...
+
+---- reference_fixtures_sprite_svgRedLine_puml stdout ----
+
+thread 'reference_fixtures_sprite_svgRedLine_puml' (2160708) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/sprite/svgRedLine.puml: output differs from reference at line 1 col 2590
+expected: .../text></g><g class="message" id="msg1"><polygon fill="#181818" points="215.1899,...
+actual:   .../text></g><g class="message" id="msg1"><text fill="#000000" font-family="sans-se...
+
+---- reference_fixtures_sprite_svgRedPolyLine_puml stdout ----
+
+thread 'reference_fixtures_sprite_svgRedPolyLine_puml' (2160709) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/sprite/svgRedPolyLine.puml: output differs from reference at line 1 col 2582
+expected: .../text></g><g class="message" id="msg1"><polygon fill="#181818" points="215.1899,...
+actual:   .../text></g><g class="message" id="msg1"><text fill="#000000" font-family="sans-se...
+
+---- reference_fixtures_sprite_svgRedRectLinearGradient_puml stdout ----
+
+thread 'reference_fixtures_sprite_svgRedRectLinearGradient_puml' (2160710) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/sprite/svgRedRectLinearGradient.puml: output differs from reference at line 1 col 2790
+expected: .../text></g><g class="message" id="msg1"><polygon fill="#181818" points="215.1899,...
+actual:   .../text></g><g class="message" id="msg1"><text fill="#000000" font-family="sans-se...
+
+---- reference_fixtures_sprite_svgRedStroke_puml stdout ----
+
+thread 'reference_fixtures_sprite_svgRedStroke_puml' (2160712) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/sprite/svgRedStroke.puml: output differs from reference at line 1 col 2590
+expected: .../text></g><g class="message" id="msg1"><polygon fill="#181818" points="215.1899,...
+actual:   .../text></g><g class="message" id="msg1"><text fill="#000000" font-family="sans-se...
+
+---- reference_fixtures_sprite_svgRedRect_puml stdout ----
+
+thread 'reference_fixtures_sprite_svgRedRect_puml' (2160711) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/sprite/svgRedRect.puml: output differs from reference at line 1 col 2582
+expected: .../text></g><g class="message" id="msg1"><polygon fill="#181818" points="215.1899,...
+actual:   .../text></g><g class="message" id="msg1"><text fill="#000000" font-family="sans-se...
+
+---- reference_fixtures_sprite_svgRedText_puml stdout ----
+
+thread 'reference_fixtures_sprite_svgRedText_puml' (2160713) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/sprite/svgRedText.puml: output differs from reference at line 1 col 2580
+expected: .../text></g><g class="message" id="msg1"><polygon fill="#181818" points="235.1899,...
+actual:   .../text></g><g class="message" id="msg1"><text fill="#000000" font-family="sans-se...
+
+---- reference_fixtures_sprite_svgTextAnchor_puml stdout ----
+
+thread 'reference_fixtures_sprite_svgTextAnchor_puml' (2160714) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/sprite/svgTextAnchor.puml: output differs from reference at line 1 col 2584
+expected: ...text></g><g class="message" id="msg1"><polygon fill="#181818" points="310.645,14...
+actual:   ...text></g><g class="message" id="msg1"><path d="M135.8335,50.2969 L135.8335,150.2...
+
+---- reference_fixtures_sprite_svgTextDecoration_puml stdout ----
+
+thread 'reference_fixtures_sprite_svgTextDecoration_puml' (2160716) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/sprite/svgTextDecoration.puml: output differs from reference at line 1 col 2584
+expected: .../text></g><g class="message" id="msg1"><polygon fill="#181818" points="371.3027,...
+actual:   .../text></g><g class="message" id="msg1"><text fill="#000000" font-family="sans-se...
+
+---- reference_fixtures_sprite_svgTextBold_puml stdout ----
+
+thread 'reference_fixtures_sprite_svgTextBold_puml' (2160715) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/sprite/svgTextBold.puml: output differs from reference at line 1 col 2572
+expected: .../text></g><g class="message" id="msg1"><polygon fill="#181818" points="325.5684,...
+actual:   .../text></g><g class="message" id="msg1"><text fill="#000000" font-family="Arial" ...
+
+---- reference_fixtures_sprite_svgTextStyleAttr_puml stdout ----
+
+thread 'reference_fixtures_sprite_svgTextStyleAttr_puml' (2160718) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/sprite/svgTextStyleAttr.puml: output differs from reference at line 1 col 2582
+expected: .../text></g><g class="message" id="msg1"><polygon fill="#181818" points="372.3564,...
+actual:   .../text></g><g class="message" id="msg1"><text fill="#FF0000" font-family="Arial" ...
+
+---- reference_fixtures_sprite_svgTextItalic_puml stdout ----
+
+thread 'reference_fixtures_sprite_svgTextItalic_puml' (2160717) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/sprite/svgTextItalic.puml: output differs from reference at line 1 col 2584
+expected: .../text></g><g class="message" id="msg1"><polygon fill="#181818" points="282.9121,...
+actual:   .../text></g><g class="message" id="msg1"><text fill="#000000" font-family="Arial" ...
+
+---- reference_fixtures_state_scxml0002_puml stdout ----
+
+thread 'reference_fixtures_state_scxml0002_puml' (2160730) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/state/scxml0002.puml: output differs from reference at line 1 col 147
+expected: ...css" data-diagram-type="STATE" height="225px" preserveAspectRatio="none" style="...
+actual:   ...css" data-diagram-type="STATE" height="249px" preserveAspectRatio="none" style="...
+
+---- reference_fixtures_sprite_svgUseDefs_puml stdout ----
+
+thread 'reference_fixtures_sprite_svgUseDefs_puml' (2160724) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/sprite/svgUseDefs.puml: output differs from reference at line 1 col 2582
+expected: .../text></g><g class="message" id="msg1"><polygon fill="#181818" points="235.1899,...
+actual:   .../text></g><g class="message" id="msg1"><text fill="#000000" font-family="sans-se...
+
+---- reference_fixtures_state_state_history001_puml stdout ----
+
+thread 'reference_fixtures_state_state_history001_puml' (2160745) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/state/state_history001.puml: output differs from reference at line 1 col 146
+expected: .../css" data-diagram-type="STATE" height="404px" preserveAspectRatio="none" style=...
+actual:   .../css" data-diagram-type="STATE" height="582px" preserveAspectRatio="none" style=...
+
+---- reference_fixtures_state_scxml0004_puml stdout ----
+
+thread 'reference_fixtures_state_scxml0004_puml' (2160733) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/state/scxml0004.puml: output differs from reference at line 1 col 146
+expected: .../css" data-diagram-type="STATE" height="234px" preserveAspectRatio="none" style=...
+actual:   .../css" data-diagram-type="STATE" height="173px" preserveAspectRatio="none" style=...
+
+---- reference_fixtures_state_state_fork001_puml stdout ----
+
+thread 'reference_fixtures_state_state_fork001_puml' (2160740) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/state/state_fork001.puml: output differs from reference at line 1 col 147
+expected: ...css" data-diagram-type="STATE" height="620px" preserveAspectRatio="none" style="...
+actual:   ...css" data-diagram-type="STATE" height="668px" preserveAspectRatio="none" style="...
+
+---- reference_fixtures_usecase_basic_puml stdout ----
+
+thread 'reference_fixtures_usecase_basic_puml' (2160765) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/usecase/basic.puml: output differs from reference at line 1 col 152
+expected: ...data-diagram-type="DESCRIPTION" height="189px" preserveAspectRatio="none" style=...
+actual:   ...data-diagram-type="DESCRIPTION" height="506px" preserveAspectRatio="none" style=...
+
+---- reference_fixtures_sprite_svgVerticalGradient_puml stdout ----
+
+thread 'reference_fixtures_sprite_svgVerticalGradient_puml' (2160725) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/sprite/svgVerticalGradient.puml: output differs from reference at line 1 col 2790
+expected: .../text></g><g class="message" id="msg1"><polygon fill="#181818" points="215.1899,...
+actual:   .../text></g><g class="message" id="msg1"><text fill="#000000" font-family="sans-se...
+
+---- reference_fixtures_sprite_testGradientSprite_puml stdout ----
+
+thread 'reference_fixtures_sprite_testGradientSprite_puml' (2160726) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/sprite/testGradientSprite.puml: output differs from reference at line 1 col 149
+expected: ...s" data-diagram-type="SEQUENCE" height="336px" preserveAspectRatio="none" style=...
+actual:   ...s" data-diagram-type="SEQUENCE" height="232px" preserveAspectRatio="none" style=...
+
+---- reference_fixtures_state_state_concurrent001_puml stdout ----
+
+thread 'reference_fixtures_state_state_concurrent001_puml' (2160739) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/state/state_concurrent001.puml: output differs from reference at line 1 col 146
+expected: .../css" data-diagram-type="STATE" height="630px" preserveAspectRatio="none" style=...
+actual:   .../css" data-diagram-type="STATE" height="761px" preserveAspectRatio="none" style=...
+
+---- reference_fixtures_sprite_testPolylineSprites_puml stdout ----
+
+thread 'reference_fixtures_sprite_testPolylineSprites_puml' (2160727) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/sprite/testPolylineSprites.puml: output differs from reference at line 1 col 149
+expected: ...s" data-diagram-type="SEQUENCE" height="410px" preserveAspectRatio="none" style=...
+actual:   ...s" data-diagram-type="SEQUENCE" height="266px" preserveAspectRatio="none" style=...
+
+---- reference_fixtures_state_state_note001_puml stdout ----
+
+thread 'reference_fixtures_state_state_note001_puml' (2160759) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/state/state_note001.puml: output differs from reference at line 1 col 147
+expected: ...css" data-diagram-type="STATE" height="366px" preserveAspectRatio="none" style="...
+actual:   ...css" data-diagram-type="STATE" height="390px" preserveAspectRatio="none" style="...
+
+---- reference_fixtures_state_scxml0003_puml stdout ----
+
+thread 'reference_fixtures_state_scxml0003_puml' (2160732) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/state/scxml0003.puml: output differs from reference at line 1 col 147
+expected: ...css" data-diagram-type="STATE" height="436px" preserveAspectRatio="none" style="...
+actual:   ...css" data-diagram-type="STATE" height="412px" preserveAspectRatio="none" style="...
+
+---- reference_fixtures_preprocessor_jaws1_puml stdout ----
+
+thread 'reference_fixtures_preprocessor_jaws1_puml' (2160603) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/preprocessor/jaws1.puml: output differs from reference at line 1 col 152
+expected: ...data-diagram-type="DESCRIPTION" height="529px" preserveAspectRatio="none" style=...
+actual:   ...data-diagram-type="DESCRIPTION" height="480px" preserveAspectRatio="none" style=...
+
+---- reference_fixtures_dev_jaws_jaws1_puml stdout ----
+
+thread 'reference_fixtures_dev_jaws_jaws1_puml' (2160421) panicked at tests/reference_tests.rs:307:9:
+tests/fixtures/dev/jaws/jaws1.puml: output differs from reference at line 1 col 152
+expected: ...data-diagram-type="DESCRIPTION" height="529px" preserveAspectRatio="none" style=...
+actual:   ...data-diagram-type="DESCRIPTION" height="480px" preserveAspectRatio="none" style=...
+
+
+failures:
+    reference_fixtures_component_componentextraarrows_0001_puml
+    reference_fixtures_component_deployment01_puml
+    reference_fixtures_component_jaws5_puml
+    reference_fixtures_component_subdiagram_theme_02_puml
+    reference_fixtures_component_xmi0001_puml
+    reference_fixtures_dev_jaws_jaws12_puml
+    reference_fixtures_dev_jaws_jaws1_puml
+    reference_fixtures_dev_jaws_jaws2_puml
+    reference_fixtures_dev_jaws_jaws3_puml
+    reference_fixtures_dev_jaws_jaws4_puml
+    reference_fixtures_dev_jaws_jaws5_puml
+    reference_fixtures_dev_jaws_jaws7_puml
+    reference_fixtures_dev_newline_deployment_mono_multi_line_puml
+    reference_fixtures_dev_newline_deployment_on_name_puml
+    reference_fixtures_dev_newline_seq_mono_line_puml
+    reference_fixtures_dev_newline_subdiagram_theme_puml
+    reference_fixtures_mindmap_jaws12_puml
+    reference_fixtures_misc_creole_back001_puml
+    reference_fixtures_misc_creole_font001_puml
+    reference_fixtures_misc_creole_mixed001_puml
+    reference_fixtures_misc_creole_note001_puml
+    reference_fixtures_misc_creole_sup_sub001_puml
+    reference_fixtures_misc_deployment_on_name_puml
+    reference_fixtures_misc_link_url_tooltip_04_puml
+    reference_fixtures_misc_skinparam_font001_puml
+    reference_fixtures_misc_skinparam_handwritten001_puml
+    reference_fixtures_misc_skinparam_monochrome001_puml
+    reference_fixtures_misc_skinparam_sequence001_puml
+    reference_fixtures_nonreg_scxml_SCXML0002_puml
+    reference_fixtures_nonreg_scxml_SCXML0003_puml
+    reference_fixtures_nonreg_scxml_SCXML0004_puml
+    reference_fixtures_nonreg_simple_A0000_puml
+    reference_fixtures_nonreg_simple_A0001_puml
+    reference_fixtures_nonreg_simple_A0003_puml
+    reference_fixtures_nonreg_simple_A0004_puml
+    reference_fixtures_nonreg_simple_A0006_puml
+    reference_fixtures_nonreg_simple_ChenMovieAlias_puml
+    reference_fixtures_nonreg_simple_ChenMovieExtended_puml
+    reference_fixtures_nonreg_simple_ChenMovie_puml
+    reference_fixtures_nonreg_simple_ChenRankDir_puml
+    reference_fixtures_nonreg_simple_ComponentExtraArrows_0001_puml
+    reference_fixtures_nonreg_simple_SequenceArrows_0001_puml
+    reference_fixtures_nonreg_simple_SequenceArrows_0002_puml
+    reference_fixtures_nonreg_simple_SequenceLayout_0001_puml
+    reference_fixtures_nonreg_simple_SequenceLayout_0001b_puml
+    reference_fixtures_nonreg_simple_SequenceLayout_0001c_puml
+    reference_fixtures_nonreg_simple_SequenceLayout_0002_puml
+    reference_fixtures_nonreg_simple_SequenceLayout_0003_puml
+    reference_fixtures_nonreg_simple_SequenceLayout_0004_puml
+    reference_fixtures_nonreg_simple_SequenceLayout_0005_puml
+    reference_fixtures_nonreg_simple_SequenceLayout_0005b_puml
+    reference_fixtures_nonreg_simple_SequenceLayout_0006_puml
+    reference_fixtures_nonreg_simple_SequenceLeftMessageAndActiveLifeLines_0001_puml
+    reference_fixtures_nonreg_simple_SequenceLeftMessageAndActiveLifeLines_0002_puml
+    reference_fixtures_nonreg_simple_SequenceLeftMessageAndActiveLifeLines_0003_puml
+    reference_fixtures_nonreg_simple_TeozAltElseParallel_0001_puml
+    reference_fixtures_nonreg_simple_TeozAltElseParallel_0002_puml
+    reference_fixtures_nonreg_simple_TeozAltElseParallel_0003_puml
+    reference_fixtures_nonreg_simple_TeozAltElseParallel_0004_puml
+    reference_fixtures_nonreg_simple_TeozAltElseParallel_0005_puml
+    reference_fixtures_nonreg_simple_TeozAltElseParallel_0006_puml
+    reference_fixtures_nonreg_simple_TeozTimelineIssues_0001_puml
+    reference_fixtures_nonreg_simple_TeozTimelineIssues_0002_puml
+    reference_fixtures_nonreg_simple_TeozTimelineIssues_0003_puml
+    reference_fixtures_nonreg_simple_TeozTimelineIssues_0004_puml
+    reference_fixtures_nonreg_simple_TeozTimelineIssues_0005_puml
+    reference_fixtures_nonreg_simple_TeozTimelineIssues_0006_puml
+    reference_fixtures_nonreg_simple_TeozTimelineIssues_0007_puml
+    reference_fixtures_nonreg_simple_TeozTimelineIssues_0008_puml
+    reference_fixtures_nonreg_simple_TeozTimelineIssues_0009_puml
+    reference_fixtures_nonreg_simple_TimingMessageArrowFont_0001_puml
+    reference_fixtures_nonreg_simple_TimingMessageArrowFont_0002_puml
+    reference_fixtures_nonreg_svg_SVG0001_puml
+    reference_fixtures_nonreg_svg_SVG0002_puml
+    reference_fixtures_nonreg_svg_SVG0003_puml
+    reference_fixtures_nonreg_xmi_component_XMI0001_puml
+    reference_fixtures_preprocessor_deployment_mono_multi_line_puml
+    reference_fixtures_preprocessor_jaws1_puml
+    reference_fixtures_preprocessor_jaws3_puml
+    reference_fixtures_preprocessor_jaws7_puml
+    reference_fixtures_preprocessor_seq_mono_line_puml
+    reference_fixtures_preprocessor_sequencearrows_0001_puml
+    reference_fixtures_preprocessor_sequencearrows_0002_puml
+    reference_fixtures_preprocessor_sequencelayout_0004_puml
+    reference_fixtures_preprocessor_sequencelayout_0005_puml
+    reference_fixtures_preprocessor_sequencelayout_0005b_puml
+    reference_fixtures_preprocessor_sequenceleftmessageandactivelifelines_0001_puml
+    reference_fixtures_preprocessor_subdiagram_theme_01_puml
+    reference_fixtures_preprocessor_svg0002_puml
+    reference_fixtures_preprocessor_teozaltelseparallel_0001_puml
+    reference_fixtures_preprocessor_teozaltelseparallel_0002_puml
+    reference_fixtures_preprocessor_teozaltelseparallel_0003_puml
+    reference_fixtures_preprocessor_teozaltelseparallel_0004_puml
+    reference_fixtures_preprocessor_teozaltelseparallel_0005_puml
+    reference_fixtures_preprocessor_teozaltelseparallel_0006_puml
+    reference_fixtures_preprocessor_teoztimelineissues_0001_puml
+    reference_fixtures_preprocessor_teoztimelineissues_0002_puml
+    reference_fixtures_preprocessor_teoztimelineissues_0003_puml
+    reference_fixtures_preprocessor_teoztimelineissues_0004_puml
+    reference_fixtures_preprocessor_teoztimelineissues_0005_puml
+    reference_fixtures_preprocessor_teoztimelineissues_0006_puml
+    reference_fixtures_preprocessor_teoztimelineissues_0007_puml
+    reference_fixtures_preprocessor_teoztimelineissues_0008_puml
+    reference_fixtures_preprocessor_teoztimelineissues_0009_puml
+    reference_fixtures_sequence_a0000_puml
+    reference_fixtures_sequence_a0001_puml
+    reference_fixtures_sequence_a0006_puml
+    reference_fixtures_sequence_intermediatetest_0000_puml
+    reference_fixtures_sequence_jaws2_puml
+    reference_fixtures_sequence_jaws4_puml
+    reference_fixtures_sequence_seq_alt001_puml
+    reference_fixtures_sequence_seq_autonumber001_puml
+    reference_fixtures_sequence_seq_break001_puml
+    reference_fixtures_sequence_seq_critical001_puml
+    reference_fixtures_sequence_seq_divider001_puml
+    reference_fixtures_sequence_seq_group001_puml
+    reference_fixtures_sequence_seq_loop001_puml
+    reference_fixtures_sequence_seq_nested001_puml
+    reference_fixtures_sequence_seq_opt001_puml
+    reference_fixtures_sequence_seq_par001_puml
+    reference_fixtures_sequence_seq_participants001_puml
+    reference_fixtures_sequence_seq_ref001_puml
+    reference_fixtures_sequence_sequencelayout_0001_puml
+    reference_fixtures_sequence_sequencelayout_0001b_puml
+    reference_fixtures_sequence_sequencelayout_0001c_puml
+    reference_fixtures_sequence_sequencelayout_0002_puml
+    reference_fixtures_sequence_sequencelayout_0003_puml
+    reference_fixtures_sequence_sequencelayout_0006_puml
+    reference_fixtures_sequence_sequenceleftmessageandactivelifelines_0002_puml
+    reference_fixtures_sequence_sequenceleftmessageandactivelifelines_0003_puml
+    reference_fixtures_sequence_svg0001_puml
+    reference_fixtures_sequence_svg0003_puml
+    reference_fixtures_sequence_test_0_puml
+    reference_fixtures_sprite_azureSVG_puml
+    reference_fixtures_sprite_linearGradientSpreadPad_puml
+    reference_fixtures_sprite_linearGradientSpreadReflect_puml
+    reference_fixtures_sprite_linearGradientSpreadRepeat_puml
+    reference_fixtures_sprite_styleFontWeightRoboto_puml
+    reference_fixtures_sprite_svg2GroupsInlineStyled_puml
+    reference_fixtures_sprite_svg2GroupsWithStyle_puml
+    reference_fixtures_sprite_svg2Groups_puml
+    reference_fixtures_sprite_svgDiagonalGradientBLTRMonochrome_puml
+    reference_fixtures_sprite_svgDiagonalGradientBLTR_puml
+    reference_fixtures_sprite_svgDiagonalGradientTLBR_puml
+    reference_fixtures_sprite_svgEmbeddedPNG_puml
+    reference_fixtures_sprite_svgFillColourTest_2174_puml
+    reference_fixtures_sprite_svgFontWeightMultiWeight_puml
+    reference_fixtures_sprite_svgFontWeightStandardFonts_puml
+    reference_fixtures_sprite_svgLinearGradientCircle_puml
+    reference_fixtures_sprite_svgPolygonStar_puml
+    reference_fixtures_sprite_svgRadialGradient_puml
+    reference_fixtures_sprite_svgRedCircle_puml
+    reference_fixtures_sprite_svgRedEllipse_puml
+    reference_fixtures_sprite_svgRedLine_puml
+    reference_fixtures_sprite_svgRedPolyLine_puml
+    reference_fixtures_sprite_svgRedRectLinearGradient_puml
+    reference_fixtures_sprite_svgRedRect_puml
+    reference_fixtures_sprite_svgRedStroke_puml
+    reference_fixtures_sprite_svgRedText_puml
+    reference_fixtures_sprite_svgTextAnchor_puml
+    reference_fixtures_sprite_svgTextBold_puml
+    reference_fixtures_sprite_svgTextDecoration_puml
+    reference_fixtures_sprite_svgTextItalic_puml
+    reference_fixtures_sprite_svgTextStyleAttr_puml
+    reference_fixtures_sprite_svgUseDefs_puml
+    reference_fixtures_sprite_svgVerticalGradient_puml
+    reference_fixtures_sprite_testGradientSprite_puml
+    reference_fixtures_sprite_testPolylineSprites_puml
+    reference_fixtures_state_scxml0002_puml
+    reference_fixtures_state_scxml0003_puml
+    reference_fixtures_state_scxml0004_puml
+    reference_fixtures_state_state_concurrent001_puml
+    reference_fixtures_state_state_fork001_puml
+    reference_fixtures_state_state_history001_puml
+    reference_fixtures_state_state_note001_puml
+    reference_fixtures_usecase_basic_puml
+
+test result: FAILED. 120 passed; 176 failed; 0 ignored; 0 measured; 0 filtered out; finished in 13.75s
+
+error: test failed, to rerun pass `--test reference_tests`

@@ -1,0 +1,993 @@
+warning: unused import: `ErdIsa`
+  --> src/layout/erd.rs:13:65
+   |
+13 | use crate::model::erd::{ErdAttribute, ErdDiagram, ErdDirection, ErdIsa, ErdLink};
+   |                                                                 ^^^^^^
+   |
+   = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unnecessary parentheses around assigned value
+    --> src/layout/mod.rs:1716:21
+     |
+1716 |             let h = (before_h + eh + after_h + NOTE_PADDING_Y * 2.0);
+     |                     ^                                              ^
+     |
+     = note: `#[warn(unused_parens)]` (part of `#[warn(unused)]`) on by default
+help: remove these parentheses
+     |
+1716 -             let h = (before_h + eh + after_h + NOTE_PADDING_Y * 2.0);
+1716 +             let h = before_h + eh + after_h + NOTE_PADDING_Y * 2.0;
+     |
+
+warning: unnecessary parentheses around assigned value
+    --> src/layout/mod.rs:1726:13
+     |
+1726 |     let h = (lines.len() as f64 * NOTE_LINE_HEIGHT + NOTE_PADDING_Y * 2.0);
+     |             ^                                                            ^
+     |
+help: remove these parentheses
+     |
+1726 -     let h = (lines.len() as f64 * NOTE_LINE_HEIGHT + NOTE_PADDING_Y * 2.0);
+1726 +     let h = lines.len() as f64 * NOTE_LINE_HEIGHT + NOTE_PADDING_Y * 2.0;
+     |
+
+warning: unnecessary parentheses around assigned value
+    --> src/layout/mod.rs:1780:25
+     |
+1780 |                 let h = (before_h + emb.height + after_h + NOTE_PADDING_Y * 2.0);
+     |                         ^                                                      ^
+     |
+help: remove these parentheses
+     |
+1780 -                 let h = (before_h + emb.height + after_h + NOTE_PADDING_Y * 2.0);
+1780 +                 let h = before_h + emb.height + after_h + NOTE_PADDING_Y * 2.0;
+     |
+
+warning: unnecessary parentheses around assigned value
+    --> src/layout/mod.rs:1797:25
+     |
+1797 |                 let h = (lines.len() as f64 * NOTE_LINE_HEIGHT + NOTE_PADDING_Y * 2.0);
+     |                         ^                                                            ^
+     |
+help: remove these parentheses
+     |
+1797 -                 let h = (lines.len() as f64 * NOTE_LINE_HEIGHT + NOTE_PADDING_Y * 2.0);
+1797 +                 let h = lines.len() as f64 * NOTE_LINE_HEIGHT + NOTE_PADDING_Y * 2.0;
+     |
+
+warning: unused imports: `count_creole_lines` and `max_creole_plain_line_len`
+  --> src/render/svg.rs:28:5
+   |
+28 |     count_creole_lines, creole_plain_text, creole_table_width, get_default_font_family_pub,
+   |     ^^^^^^^^^^^^^^^^^^
+29 |     max_creole_plain_line_len, render_creole_display_lines, render_creole_text,
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `NotePosition`
+  --> src/render/svg_activity.rs:60:49
+   |
+60 |     use crate::model::activity::{ActivityEvent, NotePosition};
+   |                                                 ^^^^^^^^^^^^
+
+warning: unused import: `ErdIsaChildEdge`
+ --> src/render/svg_erd.rs:4:20
+  |
+4 |     ErdNoteLayout, ErdIsaChildEdge,
+  |                    ^^^^^^^^^^^^^^^
+
+warning: unused import: `fmt_coord`
+ --> src/render/svg_hcl.rs:2:25
+  |
+2 | use crate::klimt::svg::{fmt_coord, LengthAdjust, SvgGraphic};
+  |                         ^^^^^^^^^
+
+warning: unused import: `count_creole_lines`
+ --> src/render/svg_mindmap.rs:7:35
+  |
+7 | use crate::render::svg_richtext::{count_creole_lines, render_creole_text};
+  |                                   ^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `std::fmt::Write`
+ --> src/render/svg_pie.rs:1:5
+  |
+1 | use std::fmt::Write;
+  |     ^^^^^^^^^^^^^^^
+
+warning: unused import: `std::fmt::Write`
+    --> src/render/svg_sprite.rs:1572:9
+     |
+1572 |     use std::fmt::Write;
+     |         ^^^^^^^^^^^^^^^
+
+warning: unused import: `std::fmt::Write`
+    --> src/render/svg_sprite.rs:1599:9
+     |
+1599 |     use std::fmt::Write;
+     |         ^^^^^^^^^^^^^^^
+
+warning: unused import: `std::fmt::Write`
+ --> src/render/svg_wbs.rs:2:5
+  |
+2 | use std::fmt::Write;
+  |     ^^^^^^^^^^^^^^^
+
+warning: unused import: `xml_escape`
+ --> src/render/svg_wbs.rs:5:36
+  |
+5 | use crate::klimt::svg::{fmt_coord, xml_escape, LengthAdjust, SvgGraphic};
+  |                                    ^^^^^^^^^^
+
+warning: unused import: `WbsNoteLayout`
+   --> src/render/svg_wbs.rs:398:71
+    |
+398 |     use crate::layout::wbs::{WbsEdgeLayout, WbsLayout, WbsNodeLayout, WbsNoteLayout};
+    |                                                                       ^^^^^^^^^^^^^
+
+warning: unused import: `crate::klimt::geom::XCubicCurve2D`
+   --> src/svek/svg_result.rs:364:9
+    |
+364 |     use crate::klimt::geom::XCubicCurve2D;
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused variable: `b`
+    --> src/klimt/color.rs:1531:20
+     |
+1531 |         let (r, g, b) = l.rgb_components();
+     |                    ^ help: if this is intentional, prefix it with an underscore: `_b`
+     |
+     = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: value assigned to `points` is never read
+   --> src/klimt/hand.rs:179:13
+    |
+179 |     let mut points = Vec::new();
+    |             ^^^^^^
+    |
+    = help: maybe it is overwritten before being read?
+    = note: `#[warn(unused_assignments)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused variable: `i`
+   --> src/layout/activity.rs:546:10
+    |
+546 |     for (i, name) in swimlanes.iter().enumerate() {
+    |          ^
+    |
+help: if this is intentional, prefix it with an underscore
+    |
+546 |     for (_i, name) in swimlanes.iter().enumerate() {
+    |          +
+help: you might have meant to pattern match on the similarly named constant `MAX_ITERATIONS`
+    |
+546 -     for (i, name) in swimlanes.iter().enumerate() {
+546 +     for (preproc::Context::process_while::MAX_ITERATIONS, name) in swimlanes.iter().enumerate() {
+    |
+
+warning: unused variable: `old_x`
+    --> src/layout/activity.rs:1405:17
+     |
+1405 |             let old_x = swimlane_layouts[i].x;
+     |                 ^^^^^
+     |
+help: if this is intentional, prefix it with an underscore
+     |
+1405 |             let _old_x = swimlane_layouts[i].x;
+     |                 +
+help: you might have meant to pattern match on the similarly named constant `DEFAULT_RANKSEP_IN`
+     |
+1405 -             let old_x = swimlane_layouts[i].x;
+1405 +             let svek::utils::DEFAULT_RANKSEP_IN = swimlane_layouts[i].x;
+     |
+
+warning: unused variable: `y_cursor`
+    --> src/layout/activity.rs:2042:5
+     |
+2042 |     y_cursor: f64,
+     |     ^^^^^^^^
+     |
+help: if this is intentional, prefix it with an underscore
+     |
+2042 |     _y_cursor: f64,
+     |     +
+help: you might have meant to pattern match on the similarly named constant `DEFAULT_RANKSEP_IN`
+     |
+2042 -     y_cursor: f64,
+2042 +     svek::utils::DEFAULT_RANKSEP_IN: f64,
+     |
+
+warning: variable does not need to be mutable
+    --> src/layout/component.rs:1136:9
+     |
+1136 |     let mut group_layouts: Vec<ComponentGroupLayout> = gl
+     |         ----^^^^^^^^^^^^^
+     |         |
+     |         help: remove this `mut`
+     |
+     = note: `#[warn(unused_mut)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused variable: `render_dy_label`
+   --> src/layout/erd.rs:808:9
+    |
+808 |     let render_dy_label = gl.render_offset.1;
+    |         ^^^^^^^^^^^^^^^
+    |
+help: if this is intentional, prefix it with an underscore
+    |
+808 |     let _render_dy_label = gl.render_offset.1;
+    |         +
+help: you might have meant to pattern match on the similarly named constant `DEFAULT_RANKSEP_IN`
+    |
+808 -     let render_dy_label = gl.render_offset.1;
+808 +     let svek::utils::DEFAULT_RANKSEP_IN = gl.render_offset.1;
+    |
+
+warning: unused variable: `box_idx`
+   --> src/layout/json_diagram.rs:270:9
+    |
+270 |     let box_idx = boxes.len();
+    |         ^^^^^^^
+    |
+help: if this is intentional, prefix it with an underscore
+    |
+270 |     let _box_idx = boxes.len();
+    |         +
+help: you might have meant to pattern match on the similarly named constant `MAX_ITERATIONS`
+    |
+270 -     let box_idx = boxes.len();
+270 +     let preproc::Context::process_while::MAX_ITERATIONS = boxes.len();
+    |
+
+warning: unused variable: `i`
+   --> src/layout/json_diagram.rs:299:10
+    |
+299 |     for (i, row_spec) in spec.rows.iter().enumerate() {
+    |          ^
+    |
+help: if this is intentional, prefix it with an underscore
+    |
+299 |     for (_i, row_spec) in spec.rows.iter().enumerate() {
+    |          +
+help: you might have meant to pattern match on the similarly named constant `MAX_ITERATIONS`
+    |
+299 -     for (i, row_spec) in spec.rows.iter().enumerate() {
+299 +     for (preproc::Context::process_while::MAX_ITERATIONS, row_spec) in spec.rows.iter().enumerate() {
+    |
+
+warning: value assigned to `max_y` is never read
+   --> src/layout/mindmap.rs:847:9
+    |
+847 |         max_y += shift_y;
+    |         ^^^^^
+    |
+    = help: maybe it is overwritten before being read?
+
+warning: unused variable: `participant_idx`
+    --> src/layout/sequence_teoz/builder.rs:2588:21
+     |
+2588 |                     participant_idx,
+     |                     ^^^^^^^^^^^^^^^-
+     |                     |
+     |                     help: try removing the field
+
+warning: unused variable: `sm_al`
+    --> src/layout/sequence_teoz/builder.rs:2595:58
+     |
+2595 |                     if let Some((sm_pidx, sm_tw, sm_dir, sm_al)) =
+     |                                                          ^^^^^
+     |
+help: if this is intentional, prefix it with an underscore
+     |
+2595 |                     if let Some((sm_pidx, sm_tw, sm_dir, _sm_al)) =
+     |                                                          +
+help: you might have meant to pattern match on the similarly named constant `MAX_ITERATIONS`
+     |
+2595 -                     if let Some((sm_pidx, sm_tw, sm_dir, sm_al)) =
+2595 +                     if let Some((sm_pidx, sm_tw, sm_dir, preproc::Context::process_while::MAX_ITERATIONS)) =
+     |
+
+warning: unused variable: `depth`
+    --> src/layout/sequence_teoz/builder.rs:3187:25
+     |
+3187 |                     let depth = fragment_stack.len(); // 0 for outermost
+     |                         ^^^^^
+     |
+help: if this is intentional, prefix it with an underscore
+     |
+3187 |                     let _depth = fragment_stack.len(); // 0 for outermost
+     |                         +
+help: you might have meant to pattern match on the similarly named constant `MAX_ITERATIONS`
+     |
+3187 -                     let depth = fragment_stack.len(); // 0 for outermost
+3187 +                     let preproc::Context::process_while::MAX_ITERATIONS = fragment_stack.len(); // 0 for outermost
+     |
+
+warning: unused variable: `sp_to_composite`
+    --> src/layout/state.rs:2607:9
+     |
+2607 |     let sp_to_composite: HashMap<String, String> = composite_special_points
+     |         ^^^^^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_sp_to_composite`
+
+warning: unused variable: `has_open_left`
+    --> src/parser/sequence.rs:1219:9
+     |
+1219 |     let has_open_left =
+     |         ^^^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_has_open_left`
+
+warning: unused variable: `has_open_right`
+    --> src/parser/sequence.rs:1223:9
+     |
+1223 |     let has_open_right =
+     |         ^^^^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_has_open_right`
+
+warning: unused variable: `cx`
+    --> src/render/svg.rs:3582:17
+     |
+3582 |             let cx = fmt_coord(ecx);
+     |                 ^^ help: if this is intentional, prefix it with an underscore: `_cx`
+
+warning: unused variable: `cy`
+    --> src/render/svg.rs:3583:17
+     |
+3583 |             let cy = fmt_coord(ecy);
+     |                 ^^ help: if this is intentional, prefix it with an underscore: `_cy`
+
+warning: unused variable: `rx`
+    --> src/render/svg.rs:3595:17
+     |
+3595 |             let rx = fmt_coord(rect_x);
+     |                 ^^ help: if this is intentional, prefix it with an underscore: `_rx`
+
+warning: unused variable: `ry`
+    --> src/render/svg.rs:3596:17
+     |
+3596 |             let ry = fmt_coord(rect_y);
+     |                 ^^ help: if this is intentional, prefix it with an underscore: `_ry`
+
+warning: unused variable: `from_x`
+    --> src/render/svg.rs:5053:13
+     |
+5053 |         let from_x = from_x_g + offset_x;
+     |             ^^^^^^
+     |
+help: if this is intentional, prefix it with an underscore
+     |
+5053 |         let _from_x = from_x_g + offset_x;
+     |             +
+help: you might have meant to pattern match on the similarly named constant `DEFAULT_RANKSEP_IN`
+     |
+5053 -         let from_x = from_x_g + offset_x;
+5053 +         let svek::utils::DEFAULT_RANKSEP_IN = from_x_g + offset_x;
+     |
+
+warning: unused variable: `sprite_w`
+   --> src/render/svg_activity.rs:916:21
+    |
+916 |                 let sprite_w = info.vb_width * sprite_scale;
+    |                     ^^^^^^^^
+    |
+help: if this is intentional, prefix it with an underscore
+    |
+916 |                 let _sprite_w = info.vb_width * sprite_scale;
+    |                     +
+help: you might have meant to pattern match on the similarly named constant `DEFAULT_RANKSEP_IN`
+    |
+916 -                 let sprite_w = info.vb_width * sprite_scale;
+916 +                 let svek::utils::DEFAULT_RANKSEP_IN = info.vb_width * sprite_scale;
+    |
+
+warning: unused variable: `tl`
+    --> src/render/svg_component.rs:1550:9
+     |
+1550 |     let tl = font_metrics::text_width(&node.name, "SansSerif", FONT_SIZE, false, false);
+     |         ^^
+     |
+help: if this is intentional, prefix it with an underscore
+     |
+1550 |     let _tl = font_metrics::text_width(&node.name, "SansSerif", FONT_SIZE, false, false);
+     |         +
+help: you might have meant to pattern match on the similarly named constant `DEFAULT_RANKSEP_IN`
+     |
+1550 -     let tl = font_metrics::text_width(&node.name, "SansSerif", FONT_SIZE, false, false);
+1550 +     let svek::utils::DEFAULT_RANKSEP_IN = font_metrics::text_width(&node.name, "SansSerif", FONT_SIZE, false, false);
+     |
+
+warning: unused variable: `i`
+  --> src/render/svg_git.rs:38:10
+   |
+38 |     for (i, node) in l.nodes.iter().enumerate() {
+   |          ^
+   |
+help: if this is intentional, prefix it with an underscore
+   |
+38 |     for (_i, node) in l.nodes.iter().enumerate() {
+   |          +
+help: you might have meant to pattern match on the similarly named constant `MAX_ITERATIONS`
+   |
+38 -     for (i, node) in l.nodes.iter().enumerate() {
+38 +     for (preproc::Context::process_while::MAX_ITERATIONS, node) in l.nodes.iter().enumerate() {
+   |
+
+warning: unused variable: `display_names`
+   --> src/render/svg_sequence.rs:351:5
+    |
+351 |     display_names: &std::collections::HashMap<&str, &str>,
+    |     ^^^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_display_names`
+
+warning: unused variable: `stickman_height`
+   --> src/render/svg_sequence.rs:767:9
+    |
+767 |     let stickman_height = head_diam + body_length + legs_y + 2.0 * thickness + 1.0;
+    |         ^^^^^^^^^^^^^^^
+    |
+help: if this is intentional, prefix it with an underscore
+    |
+767 |     let _stickman_height = head_diam + body_length + legs_y + 2.0 * thickness + 1.0;
+    |         +
+help: you might have meant to pattern match on the similarly named constant `DEFAULT_RANKSEP_IN`
+    |
+767 -     let stickman_height = head_diam + body_length + legs_y + 2.0 * thickness + 1.0;
+767 +     let svek::utils::DEFAULT_RANKSEP_IN = head_diam + body_length + legs_y + 2.0 * thickness + 1.0;
+    |
+
+warning: unused variable: `margin_y1`
+    --> src/render/svg_sequence.rs:1359:9
+     |
+1359 |     let margin_y1 = 5.0_f64;
+     |         ^^^^^^^^^
+     |
+help: if this is intentional, prefix it with an underscore
+     |
+1359 |     let _margin_y1 = 5.0_f64;
+     |         +
+help: you might have meant to pattern match on the similarly named constant `DEFAULT_RANKSEP_IN`
+     |
+1359 -     let margin_y1 = 5.0_f64;
+1359 +     let svek::utils::DEFAULT_RANKSEP_IN = 5.0_f64;
+     |
+
+warning: unused variable: `source_line`
+    --> src/render/svg_sequence.rs:1488:5
+     |
+1488 |     source_line: Option<usize>,
+     |     ^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_source_line`
+
+warning: unused variable: `xpos`
+    --> src/render/svg_sequence.rs:2916:13
+     |
+2916 |         let xpos = divider.component_y; // dummy, we compute from area
+     |             ^^^^
+     |
+help: if this is intentional, prefix it with an underscore
+     |
+2916 |         let _xpos = divider.component_y; // dummy, we compute from area
+     |             +
+help: you might have meant to pattern match on the similarly named constant `DEFAULT_RANKSEP_IN`
+     |
+2916 -         let xpos = divider.component_y; // dummy, we compute from area
+2916 +         let svek::utils::DEFAULT_RANKSEP_IN = divider.component_y; // dummy, we compute from area
+     |
+
+warning: unused variable: `dot`
+   --> src/render/svg_sprite.rs:425:17
+    |
+425 |     if let Some(dot) = s.find('.') {
+    |                 ^^^
+    |
+help: if this is intentional, prefix it with an underscore
+    |
+425 |     if let Some(_dot) = s.find('.') {
+    |                 +
+help: you might have meant to pattern match on the similarly named constant `MAX_ITERATIONS`
+    |
+425 -     if let Some(dot) = s.find('.') {
+425 +     if let Some(preproc::Context::process_while::MAX_ITERATIONS) = s.find('.') {
+    |
+
+warning: unused variable: `min_x`
+   --> src/render/svg_state.rs:320:10
+    |
+320 |     let (min_x, min_y) = tracker.min_point();
+    |          ^^^^^
+    |
+help: if this is intentional, prefix it with an underscore
+    |
+320 |     let (_min_x, min_y) = tracker.min_point();
+    |          +
+help: you might have meant to pattern match on the similarly named constant `DEFAULT_RANKSEP_IN`
+    |
+320 -     let (min_x, min_y) = tracker.min_point();
+320 +     let (svek::utils::DEFAULT_RANKSEP_IN, min_y) = tracker.min_point();
+    |
+
+warning: unused variable: `y_prev`
+    --> src/render/svg_state.rs:1346:24
+     |
+1346 |     let (_, _, x_prev, y_prev) = coord_positions[n - 3];
+     |                        ^^^^^^
+     |
+help: if this is intentional, prefix it with an underscore
+     |
+1346 |     let (_, _, x_prev, _y_prev) = coord_positions[n - 3];
+     |                        +
+help: you might have meant to pattern match on the similarly named constant `DEFAULT_RANKSEP_IN`
+     |
+1346 -     let (_, _, x_prev, y_prev) = coord_positions[n - 3];
+1346 +     let (_, _, x_prev, svek::utils::DEFAULT_RANKSEP_IN) = coord_positions[n - 3];
+     |
+
+warning: field `0` is never read
+   --> src/klimt/svg.rs:177:11
+    |
+177 |     Group(String),
+    |     ----- ^^^^^^
+    |     |
+    |     field in this variant
+    |
+    = note: `GroupEntry` has derived impls for the traits `Clone` and `Debug`, but these are intentionally ignored during dead code analysis
+    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+help: consider changing the field to be of unit type to suppress this warning while preserving the field numbering, or remove the field
+    |
+177 -     Group(String),
+177 +     Group(()),
+    |
+
+warning: field `0` is never read
+   --> src/klimt/svg.rs:178:10
+    |
+178 |     Link(String),
+    |     ---- ^^^^^^
+    |     |
+    |     field in this variant
+    |
+    = note: `GroupEntry` has derived impls for the traits `Clone` and `Debug`, but these are intentionally ignored during dead code analysis
+help: consider changing the field to be of unit type to suppress this warning while preserving the field numbering, or remove the field
+    |
+178 -     Link(String),
+178 +     Link(()),
+    |
+
+warning: constant `MEMBER_BLOCK_HEIGHT_ONE_ROW` is never used
+   --> src/layout/mod.rs:129:7
+    |
+129 | const MEMBER_BLOCK_HEIGHT_ONE_ROW: f64 = 24.296875;
+    |       ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: fields `underline` and `strikethrough` are never read
+   --> src/layout/mod.rs:454:9
+    |
+446 | pub(crate) struct StrippedMarkup {
+    |                   -------------- fields in this struct
+...
+454 |     pub underline: bool,
+    |         ^^^^^^^^^
+455 |     /// Whether `<s>` or `<strike>` was found → text-decoration: line-through
+456 |     pub strikethrough: bool,
+    |         ^^^^^^^^^^^^^
+    |
+    = note: `StrippedMarkup` has derived impls for the traits `Clone` and `Debug`, but these are intentionally ignored during dead code analysis
+
+warning: constant `SWIMLANE_MIN_WIDTH` is never used
+   --> src/layout/activity.rs:153:7
+    |
+153 | const SWIMLANE_MIN_WIDTH: f64 = 80.0;
+    |       ^^^^^^^^^^^^^^^^^^
+
+warning: constant `MARKER_RADIUS` is never used
+  --> src/layout/chronology.rs:10:7
+   |
+10 | const MARKER_RADIUS: f64 = 6.0;
+   |       ^^^^^^^^^^^^^
+
+warning: constant `NODE_SPACING_X` is never used
+   --> src/layout/component.rs:133:7
+    |
+133 | const NODE_SPACING_X: f64 = 35.0;
+    |       ^^^^^^^^^^^^^^
+
+warning: constant `NODE_SPACING_Y` is never used
+   --> src/layout/component.rs:134:7
+    |
+134 | const NODE_SPACING_Y: f64 = 50.0;
+    |       ^^^^^^^^^^^^^^
+
+warning: constant `GROUP_PADDING` is never used
+   --> src/layout/component.rs:135:7
+    |
+135 | const GROUP_PADDING: f64 = 20.0;
+    |       ^^^^^^^^^^^^^
+
+warning: constant `GROUP_HEADER` is never used
+   --> src/layout/component.rs:136:7
+    |
+136 | const GROUP_HEADER: f64 = 30.0;
+    |       ^^^^^^^^^^^^
+
+warning: constant `NOTE_MAX_WIDTH` is never used
+   --> src/layout/component.rs:138:7
+    |
+138 | const NOTE_MAX_WIDTH: f64 = 200.0;
+    |       ^^^^^^^^^^^^^^
+
+warning: constant `GRID_COLS` is never used
+   --> src/layout/component.rs:140:7
+    |
+140 | const GRID_COLS: usize = 3;
+    |       ^^^^^^^^^
+
+warning: function `apply_direction_transform` is never used
+    --> src/layout/component.rs:1383:4
+     |
+1383 | fn apply_direction_transform(
+     |    ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `layout_edges` is never used
+    --> src/layout/component.rs:1469:4
+     |
+1469 | fn layout_edges(
+     |    ^^^^^^^^^^^^
+
+warning: function `route_with_hint` is never used
+    --> src/layout/component.rs:1531:4
+     |
+1531 | fn route_with_hint(
+     |    ^^^^^^^^^^^^^^^
+
+warning: function `route_auto` is never used
+    --> src/layout/component.rs:1559:4
+     |
+1559 | fn route_auto(
+     |    ^^^^^^^^^^
+
+warning: method `full_elongation` is never used
+   --> src/layout/mindmap.rs:225:8
+    |
+221 | impl SymetricalTee {
+    | ------------------ method in this implementation
+...
+225 |     fn full_elongation(&self) -> f64 {
+    |        ^^^^^^^^^^^^^^^
+
+warning: method `contains` is never used
+   --> src/layout/mindmap.rs:299:8
+    |
+298 | impl Stripe {
+    | ----------- method in this implementation
+299 |     fn contains(&self, x: f64) -> bool {
+    |        ^^^^^^^^
+
+warning: method `full_elongation` is never used
+   --> src/layout/mindmap.rs:627:8
+    |
+529 | impl Finger {
+    | ----------- method in this implementation
+...
+627 |     fn full_elongation(&mut self) -> f64 {
+    |        ^^^^^^^^^^^^^^^
+
+warning: constant `FONT_SIZE` is never used
+  --> src/layout/packet.rs:36:7
+   |
+36 | const FONT_SIZE: f64 = 12.0;
+   |       ^^^^^^^^^
+
+warning: field `frag_header_height` is never read
+  --> src/layout/sequence.rs:63:5
+   |
+53 | struct LayoutParams {
+   |        ------------ field in this struct
+...
+63 |     frag_header_height: f64,
+   |     ^^^^^^^^^^^^^^^^^^
+
+warning: function `count_note_lines` is never used
+   --> src/layout/sequence.rs:414:4
+    |
+414 | fn count_note_lines(text: &str) -> usize {
+    |    ^^^^^^^^^^^^^^^^
+
+warning: function `creole_note_extra_height` is never used
+   --> src/layout/sequence.rs:428:4
+    |
+428 | fn creole_note_extra_height(text: &str) -> f64 {
+    |    ^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `estimate_sprite_line_extra_height` is never used
+   --> src/layout/sequence.rs:469:15
+    |
+469 | pub(crate) fn estimate_sprite_line_extra_height(line: &str, line_height: f64) -> Option<f64> {
+    |               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: constant `PARTICIPANT_GAP` is never used
+  --> src/layout/sequence_teoz/builder.rs:53:7
+   |
+53 | const PARTICIPANT_GAP: f64 = 5.0;
+   |       ^^^^^^^^^^^^^^^
+
+warning: function `active_left_shift` is never used
+   --> src/layout/sequence_teoz/builder.rs:456:4
+    |
+456 | fn active_left_shift(level: usize) -> f64 {
+    |    ^^^^^^^^^^^^^^^^^
+
+warning: function `live_thickness_width` is never used
+   --> src/layout/sequence_teoz/builder.rs:500:4
+    |
+500 | fn live_thickness_width(level: usize) -> f64 {
+    |    ^^^^^^^^^^^^^^^^^^^^
+
+warning: function `is_last_tile_self_message` is never used
+   --> src/layout/sequence_teoz/builder.rs:924:4
+    |
+924 | fn is_last_tile_self_message(tiles: &[TeozTile]) -> bool {
+    |    ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: constant `CHAR_WIDTH` is never used
+   --> src/layout/state.rs:107:7
+    |
+107 | const CHAR_WIDTH: f64 = 7.2;
+    |       ^^^^^^^^^^
+
+warning: constant `LINE_HEIGHT` is never used
+   --> src/layout/state.rs:108:7
+    |
+108 | const LINE_HEIGHT: f64 = 16.0;
+    |       ^^^^^^^^^^^
+
+warning: function `apply_direction_transform` is never used
+    --> src/layout/state.rs:3004:4
+     |
+3004 | fn apply_direction_transform(
+     |    ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `transform_state_nodes_swap_xy` is never used
+    --> src/layout/state.rs:3063:4
+     |
+3063 | fn transform_state_nodes_swap_xy(nodes: &mut [StateNodeLayout]) {
+     |    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `transform_state_nodes_mirror_x` is never used
+    --> src/layout/state.rs:3072:4
+     |
+3072 | fn transform_state_nodes_mirror_x(nodes: &mut [StateNodeLayout], total_width: f64) {
+     |    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `transform_state_nodes_mirror_y` is never used
+    --> src/layout/state.rs:3080:4
+     |
+3080 | fn transform_state_nodes_mirror_y(nodes: &mut [StateNodeLayout], total_height: f64) {
+     |    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: constant `EDGE_GAP` is never used
+  --> src/layout/wbs.rs:71:7
+   |
+71 | const EDGE_GAP: f64 = 20.0;
+   |       ^^^^^^^^
+
+warning: constant `NODE_SPACING` is never used
+  --> src/layout/wbs.rs:72:7
+   |
+72 | const NODE_SPACING: f64 = 20.0;
+   |       ^^^^^^^^^^^^
+
+warning: function `skip_note_color` is never used
+    --> src/parser/sequence.rs:1402:4
+     |
+1402 | fn skip_note_color(s: &str) -> &str {
+     |    ^^^^^^^^^^^^^^^
+
+warning: function `find_state` is never used
+    --> src/parser/state.rs:1098:4
+     |
+1098 | fn find_state<'a>(states: &'a [State], id: &str) -> Option<&'a State> {
+     |    ^^^^^^^^^^
+
+warning: constant `LINE_HEIGHT` is never used
+  --> src/render/svg.rs:52:7
+   |
+52 | const LINE_HEIGHT: f64 = 8.0;
+   |       ^^^^^^^^^^^
+
+warning: constant `PADDING` is never used
+  --> src/render/svg.rs:54:7
+   |
+54 | const PADDING: f64 = 3.0;
+   |       ^^^^^^^
+
+warning: constant `MARGIN` is never used
+  --> src/render/svg.rs:58:7
+   |
+58 | const MARGIN: f64 = 6.0;
+   |       ^^^^^^
+
+warning: constant `CIRCLE_LEFT_PAD` is never used
+  --> src/render/svg.rs:66:7
+   |
+66 | const CIRCLE_LEFT_PAD: f64 = 4.0;
+   |       ^^^^^^^^^^^^^^^
+
+warning: constant `CIRCLE_DIAMETER` is never used
+  --> src/render/svg.rs:68:7
+   |
+68 | const CIRCLE_DIAMETER: f64 = 22.0;
+   |       ^^^^^^^^^^^^^^^
+
+warning: constant `MEMBER_ROW_HEIGHT` is never used
+   --> src/render/svg.rs:101:7
+    |
+101 | const MEMBER_ROW_HEIGHT: f64 = 16.296875;
+    |       ^^^^^^^^^^^^^^^^^
+
+warning: constant `MEMBER_BLOCK_HEIGHT_ONE_ROW` is never used
+   --> src/render/svg.rs:103:7
+    |
+103 | const MEMBER_BLOCK_HEIGHT_ONE_ROW: f64 = 24.296875;
+    |       ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: constant `MEMBER_ICON_Y_FROM_SEP` is never used
+   --> src/render/svg.rs:105:7
+    |
+105 | const MEMBER_ICON_Y_FROM_SEP: f64 = 8.6484375;
+    |       ^^^^^^^^^^^^^^^^^^^^^^
+
+warning: constant `MEMBER_ICON_DRAW_OFFSET` is never used
+   --> src/render/svg.rs:107:7
+    |
+107 | const MEMBER_ICON_DRAW_OFFSET: f64 = 2.0;
+    |       ^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: constant `MEMBER_ICON_RADIUS` is never used
+   --> src/render/svg.rs:109:7
+    |
+109 | const MEMBER_ICON_RADIUS: f64 = 3.0;
+    |       ^^^^^^^^^^^^^^^^^^
+
+warning: constant `MEMBER_TEXT_Y_OFFSET` is never used
+   --> src/render/svg.rs:117:7
+    |
+117 | const MEMBER_TEXT_Y_OFFSET: f64 = 16.995117;
+    |       ^^^^^^^^^^^^^^^^^^^^
+
+warning: function `write_svg_root` is never used
+   --> src/render/svg.rs:198:15
+    |
+198 | pub(crate) fn write_svg_root(buf: &mut String, w: f64, h: f64, diagram_type: &str) {
+    |               ^^^^^^^^^^^^^^
+
+warning: function `emit_circle_glyph` is never used
+    --> src/render/svg.rs:2547:4
+     |
+2547 | fn emit_circle_glyph(
+     |    ^^^^^^^^^^^^^^^^^
+
+warning: function `offset_glyph_path_xy` is never used
+    --> src/render/svg.rs:2642:4
+     |
+2642 | fn offset_glyph_path_xy(path: &str, dx: f64, dy: f64) -> String {
+     |    ^^^^^^^^^^^^^^^^^^^^
+
+warning: function `render_swimlane` is never used
+    --> src/render/svg_activity.rs:1371:4
+     |
+1371 | fn render_swimlane(
+     |    ^^^^^^^^^^^^^^^
+
+warning: field `0` is never read
+  --> src/render/svg_erd.rs:79:14
+   |
+79 |         Attr(usize, &'a ErdAttrEdge),
+   |         ---- ^^^^^
+   |         |
+   |         field in this variant
+   |
+help: consider changing the field to be of unit type to suppress this warning while preserving the field numbering, or remove the field
+   |
+79 -         Attr(usize, &'a ErdAttrEdge),
+79 +         Attr((), &'a ErdAttrEdge),
+   |
+
+warning: field `0` is never read
+  --> src/render/svg_erd.rs:80:14
+   |
+80 |         Link(usize, &'a ErdEdgeLayout),
+   |         ---- ^^^^^
+   |         |
+   |         field in this variant
+   |
+help: consider changing the field to be of unit type to suppress this warning while preserving the field numbering, or remove the field
+   |
+80 -         Link(usize, &'a ErdEdgeLayout),
+80 +         Link((), &'a ErdEdgeLayout),
+   |
+
+warning: function `render_edge` is never used
+   --> src/render/svg_mindmap.rs:113:4
+    |
+113 | fn render_edge(sg: &mut SvgGraphic, edge: &MindmapEdgeLayout, color: &str) {
+    |    ^^^^^^^^^^^
+
+warning: function `render_node` is never used
+   --> src/render/svg_mindmap.rs:140:4
+    |
+140 | fn render_node(
+    |    ^^^^^^^^^^^
+
+warning: constant `FRAG_SEP_LABEL_Y_OFFSET` is never used
+   --> src/render/svg_sequence.rs:104:7
+    |
+104 | const FRAG_SEP_LABEL_Y_OFFSET: f64 = 10.2104;
+    |       ^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `convert_single_element` is never used
+   --> src/render/svg_sprite.rs:707:4
+    |
+707 | fn convert_single_element(
+    |    ^^^^^^^^^^^^^^^^^^^^^^
+
+warning: constant `FINAL_OUTER` is never used
+  --> src/render/svg_state.rs:27:7
+   |
+27 | const FINAL_OUTER: &str = "#000000";
+   |       ^^^^^^^^^^^
+
+warning: constant `FINAL_INNER` is never used
+  --> src/render/svg_state.rs:28:7
+   |
+28 | const FINAL_INNER: &str = "#000000";
+   |       ^^^^^^^^^^^
+
+warning: function `is_special_render_kind` is never used
+  --> src/render/svg_state.rs:46:4
+   |
+46 | fn is_special_render_kind(kind: &StateKind) -> bool {
+   |    ^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `render_state_node` is never used
+   --> src/render/svg_state.rs:344:4
+    |
+344 | fn render_state_node(
+    |    ^^^^^^^^^^^^^^^^^
+
+warning: variant `Full` is never constructed
+   --> src/render/svg_state.rs:378:5
+    |
+377 | enum StateRenderPass {
+    |      --------------- variant in this enum
+378 |     Full,
+    |     ^^^^
+    |
+    = note: `StateRenderPass` has a derived impl for the trait `Clone`, but this is intentionally ignored during dead code analysis
+
+
+running 2636 tests
+....................................................................................... 87/2636
+....................................................................................... 174/2636
+....................................................................................... 261/2636
+....................................................................................... 348/2636
+....................................................................................... 435/2636
+....................................................................................... 522/2636
+....................................................................................... 609/2636
+....................................................................................... 696/2636
+....................................................................................... 783/2636
+....................................................................................... 870/2636
+....................................................................................... 957/2636
+....................................................................................... 1044/2636
+....................................................................................... 1131/2636
+....................................................................................... 1218/2636
+....................................................................................... 1305/2636
+....................................................................................... 1392/2636
+....................................................................................... 1479/2636
+....................................................................................... 1566/2636
+....................................................................................... 1653/2636
+....................................................................................... 1740/2636
+....................................................................................... 1827/2636
+....................................................................................... 1914/2636
+....................................................................................... 2001/2636
+....................................................................................... 2088/2636
+....................................................................................... 2175/2636
+....................................................................................... 2262/2636
+....................................................................................... 2349/2636
+....................................................................................... 2436/2636
+....................................................................................... 2523/2636
+....................................................................................... 2610/2636
+..........................
+test result: ok. 2636 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 13.34s
+

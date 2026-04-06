@@ -172,10 +172,7 @@ pub fn render_component(
             .get(&group.id)
             .map(String::as_str)
             .unwrap_or_default();
-        let qualified_name = qualified_names
-            .get(&group.id)
-            .map(String::as_str)
-            .unwrap_or(group.id.as_str());
+        let qualified_name = group.name.as_str();
         render_group(
             &mut sg,
             group,

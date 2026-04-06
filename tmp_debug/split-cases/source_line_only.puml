@@ -1,0 +1,6 @@
+@startuml
+[*] --> A
+A : adding bold:\n\
+second line
+A -> B
+@enduml
