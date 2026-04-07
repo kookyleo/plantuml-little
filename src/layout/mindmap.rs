@@ -860,11 +860,26 @@ pub fn layout_mindmap(
     let width = max_x + 2.0 * MARGIN;
     let height = full_thickness + 2.0 * MARGIN;
 
-    // Raw body dimensions: Java MindMapDiagram.calculateDimension returns
-    // (MindMap.width + 10, MindMap.height) = (fullElongation + x12 + 10, fullThickness).
-    // This is the "TextBlock" size before ImageBuilder adds margins.
-    // wrap_with_meta will use this instead of extracting from SVG header.
-    let raw_body_w = max_x - MARGIN + MARGIN; // max_x already includes left margin
+    // Raw body dimensions: mirror Java's MindMap.calculateDimension(), which
+    // is what AnnotatedWorker / DecorateEntityImage use for caption stacking.
+    //
+    //   width  = Branch.getX12()  = root.fullElongation + root.finger.x12()
+    //          = the actual rightmost drawn x in logical coords (before
+    //            ImageBuilder margin shift)
+    //   height = full_thickness   = root.fullThickness() (Tetris allocation,
+    //            slightly larger than the rightmost drawn box bottom because
+    //            it includes the node's bottom margin)
+    //
+    // The extra +1 that Java's ImageBuilder.getFinalDimension applies to
+    // limitFinder.maxX/Y is added in wrap_with_meta via get_final_dim_extra
+    // for MINDMAP, so it must NOT be baked into raw_body_dim here (otherwise
+    // the caption centering would shift by 0.5 px and the caption baseline by
+    // 1 px).
+    //
+    // Our `max_x` is the rightmost node right edge in SVG coords (already
+    // shifted by +MARGIN), so subtract MARGIN to recover the logical extent.
+    let logical_max_x = (max_x - MARGIN).max(0.0);
+    let raw_body_w = logical_max_x;
     let raw_body_h = full_thickness;
     let raw_body_dim = Some((raw_body_w, raw_body_h));
 

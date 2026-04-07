@@ -1468,11 +1468,14 @@ fn wrap_with_meta(
     //   getFinalDimension = lf_maxX + 1 + margins
     //   ensureVisible(x) = (int)(x + 1)
     // ensure_visible_int applies the ensureVisible +1.
-    // CucaDiagram (class/object/component): body dimension is a LimitFinder
-    // extent; Java's getFinalDimension adds +1 before margins. Other diagram
-    // types (sequence, activity, mindmap) compute raw textBlock dimensions
-    // that already absorb the +1 through their layout arithmetic.
-    let get_final_dim_extra = if matches!(diagram_type, "CLASS") { 1.0 } else { 0.0 };
+    // CucaDiagram (class/object/component) and MINDMAP both expose raw
+    // textBlock dimensions that mirror Java's MindMap.calculateDimension /
+    // svek limitFinder span; the extra +1 from Java's getFinalDimension must
+    // be added here so the canvas size grows by 1px while keeping caption
+    // centering aligned to the unpadded body width.
+    // Other diagram types (sequence, activity) bake the +1 into their layout
+    // arithmetic already.
+    let get_final_dim_extra = if matches!(diagram_type, "CLASS" | "MINDMAP") { 1.0 } else { 0.0 };
     let canvas_w = ensure_visible_int(tb_w + get_final_dim_extra + doc_margin_right) as f64;
     let canvas_h = ensure_visible_int(tb_h + get_final_dim_extra + doc_margin_top + doc_margin_bottom) as f64;
     log::trace!(
