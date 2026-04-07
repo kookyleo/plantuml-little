@@ -215,6 +215,34 @@ impl SequenceSvgBounds {
         }
     }
 
+    /// Track polygon bounds with Java's `HACK_X_FOR_POLYGON = 10` horizontal
+    /// padding. Java `LimitFinder.drawUPolygon` extends polygon bounds by 10
+    /// on both ends of the x axis so that arrow-head triangles at the right
+    /// edge of a sequence diagram don't clip the viewport. Mirroring this
+    /// is required for byte-exact viewport widths to match Java output
+    /// (notably for teoz diagrams with `->]` boundary arrows).
+    fn track_polygon_points(&mut self, coords: &[f64]) {
+        const HACK_X_FOR_POLYGON: f64 = 10.0;
+        if coords.len() < 2 {
+            return;
+        }
+        let mut min_x = f64::INFINITY;
+        let mut max_x = f64::NEG_INFINITY;
+        let mut min_y = f64::INFINITY;
+        let mut max_y = f64::NEG_INFINITY;
+        for pair in coords.chunks_exact(2) {
+            min_x = min_x.min(pair[0]);
+            max_x = max_x.max(pair[0]);
+            min_y = min_y.min(pair[1]);
+            max_y = max_y.max(pair[1]);
+        }
+        if !min_x.is_finite() || !max_x.is_finite() {
+            return;
+        }
+        self.add_point(min_x - HACK_X_FOR_POLYGON, min_y);
+        self.add_point(max_x + HACK_X_FOR_POLYGON, max_y);
+    }
+
     fn raw_body_dim(&self) -> Option<(f64, f64)> {
         self.seen.then_some((self.max_x + 1.0, self.max_y + 1.0))
     }
@@ -442,7 +470,7 @@ fn measure_sequence_body_dim(body: &str) -> Option<(f64, f64)> {
             }
             "polygon" | "polyline" => {
                 let coords = parse_svg_points(attr_map.get("points").copied());
-                bounds.track_points(&coords);
+                bounds.track_polygon_points(&coords);
             }
             "path" => {
                 let coords = parse_path_endpoints(attr_map.get("d").copied().unwrap_or(""));
