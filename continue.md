@@ -30,8 +30,22 @@ Any future Java/Rust parity work must target the stable `v1.2026.2` reference co
 ## Current Parity Baseline (2026-04-07)
 
 - `cargo test --lib`: `2641/2641`
-- `cargo test --test reference_tests`: `293/320` (91.56%)
+- `cargo test --test reference_tests`: `294/320` (91.88%)
 - Byte-compare authority remains the 318 stable-Java SVGs indexed by `tests/reference/INDEX.tsv`.
+
+### 2026-04-07 Fixes (293 → 294)
+- **class/map plaintext padding (layout/mod.rs, layout/graphviz.rs, render/svg.rs)**:
+  Java's `EntityImageMap` uses `ShapeType.RECTANGLE_HTML_FOR_PORTS`, which
+  emits `shape=plaintext` with an HTML table label. Graphviz's default
+  plaintext margin (`0.055in` ≈ 4pt) inflates the node bbox by ~8px
+  (4 top + 4 bottom), widening the rank gap. Mirror this by inflating the
+  DOT `height_pt` by 8 for Map entities while tracking the natural render
+  height in a new `image_height_pt` field; `parse_svg_node` and the
+  svek-fast-path now use `image_height_pt` so the rendered rect stays the
+  natural size but sits centered within the larger DOT bbox. Also fix the
+  map row text baseline: Java's `TextBlockMap` wraps each cell in
+  `withMargin(2,2)` so the baseline needs a +2 top inset. Fixes
+  `object/map`.
 
 ### 2026-04-07 Fixes (290 → 291)
 - **ArrowAndNoteBox arrow centering (layout/sequence.rs)**: Mirror Java's
