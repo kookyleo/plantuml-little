@@ -62,9 +62,15 @@ pub enum RichText {
     /// Numbered list (`# item`).
     NumberedList(Vec<RichText>),
     /// Table with optional header row and data rows.
+    ///
+    /// Every cell is a `Vec<Vec<TextSpan>>` — an ordered list of lines
+    /// where each line is a span sequence.  Java `StripeTable` splits
+    /// cell content on `U+E100` (the Jaws newline placeholder), so a
+    /// single-line cell is `vec![vec![spans]]` while a multi-line cell
+    /// stacks its lines vertically.
     Table {
-        headers: Vec<Vec<TextSpan>>,
-        rows: Vec<Vec<Vec<TextSpan>>>,
+        headers: Vec<Vec<Vec<TextSpan>>>,
+        rows: Vec<Vec<Vec<Vec<TextSpan>>>>,
     },
     /// Horizontal rule (`----`).
     HorizontalRule,
@@ -99,29 +105,34 @@ fn collect_rich_text(rich: &RichText, buf: &mut String) {
             }
         }
         RichText::Table { headers, rows } => {
-            let mut first = true;
-            for cells in headers.iter() {
-                if !first {
-                    buf.push('\n');
-                }
-                first = false;
-                for (j, cell) in cells.iter().enumerate() {
+            // `headers` is a single header row of multi-line cells.
+            if !headers.is_empty() {
+                for (j, cell) in headers.iter().enumerate() {
                     if j > 0 {
                         buf.push('\t');
                     }
-                    collect_span(cell, buf);
+                    for (li, line) in cell.iter().enumerate() {
+                        if li > 0 {
+                            buf.push(' ');
+                        }
+                        collect_spans(line, buf);
+                    }
                 }
             }
             for row in rows {
-                if !first {
+                if !headers.is_empty() || !buf.is_empty() {
                     buf.push('\n');
                 }
-                first = false;
                 for (j, cell) in row.iter().enumerate() {
                     if j > 0 {
                         buf.push('\t');
                     }
-                    collect_spans(cell, buf);
+                    for (li, line) in cell.iter().enumerate() {
+                        if li > 0 {
+                            buf.push(' ');
+                        }
+                        collect_spans(line, buf);
+                    }
                 }
             }
         }

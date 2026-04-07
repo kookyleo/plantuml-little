@@ -259,8 +259,8 @@ fn parse_list(lines: &[String], marker: char) -> (RichText, usize) {
 
 /// Parse consecutive table lines.
 fn parse_table(lines: &[String]) -> (RichText, usize) {
-    let mut headers: Vec<Vec<TextSpan>> = Vec::new();
-    let mut rows: Vec<Vec<Vec<TextSpan>>> = Vec::new();
+    let mut headers: Vec<Vec<Vec<TextSpan>>> = Vec::new();
+    let mut rows: Vec<Vec<Vec<Vec<TextSpan>>>> = Vec::new();
     let mut consumed = 0;
 
     for line in lines {
@@ -285,8 +285,13 @@ fn parse_table(lines: &[String]) -> (RichText, usize) {
 }
 
 /// Parse cells from a table line like `| cell1 | cell2 |` or `|= hdr1 |= hdr2 |`.
-fn parse_table_cells(line: &str, is_header: bool) -> Vec<Vec<TextSpan>> {
-    let mut cells = Vec::new();
+///
+/// Java `StripeTable.analyzeAndAddInternal` tokenises the line on `|` and
+/// then runs `StripeTable.getWithNewlinesInternal` on each cell content to
+/// split it on `U+E100` (the Jaws newline placeholder).  Empty lines are
+/// preserved so a cell that contains only `U+E100` becomes two empty lines.
+fn parse_table_cells(line: &str, is_header: bool) -> Vec<Vec<Vec<TextSpan>>> {
+    let mut cells: Vec<Vec<Vec<TextSpan>>> = Vec::new();
     let trimmed = line.trim();
 
     // Remove leading '|'
@@ -302,7 +307,12 @@ fn parse_table_cells(line: &str, is_header: bool) -> Vec<Vec<TextSpan>> {
         } else {
             cell_text
         };
-        cells.push(parse_inline(cell_text));
+        // Split cell content on U+E100 → one `Vec<TextSpan>` per line.
+        let sublines: Vec<Vec<TextSpan>> = cell_text
+            .split(crate::NEWLINE_CHAR)
+            .map(|sub| parse_inline(sub.trim()))
+            .collect();
+        cells.push(sublines);
     }
 
     cells
@@ -1136,12 +1146,12 @@ mod tests {
             rt,
             RichText::Table {
                 headers: vec![
-                    vec![TextSpan::Plain("Name".into())],
-                    vec![TextSpan::Plain("Age".into())],
+                    vec![vec![TextSpan::Plain("Name".into())]],
+                    vec![vec![TextSpan::Plain("Age".into())]],
                 ],
                 rows: vec![vec![
-                    vec![TextSpan::Plain("Alice".into())],
-                    vec![TextSpan::Plain("30".into())],
+                    vec![vec![TextSpan::Plain("Alice".into())]],
+                    vec![vec![TextSpan::Plain("30".into())]],
                 ]],
             }
         );
@@ -1156,12 +1166,12 @@ mod tests {
                 headers: vec![],
                 rows: vec![
                     vec![
-                        vec![TextSpan::Plain("a".into())],
-                        vec![TextSpan::Plain("b".into())],
+                        vec![vec![TextSpan::Plain("a".into())]],
+                        vec![vec![TextSpan::Plain("b".into())]],
                     ],
                     vec![
-                        vec![TextSpan::Plain("c".into())],
-                        vec![TextSpan::Plain("d".into())],
+                        vec![vec![TextSpan::Plain("c".into())]],
+                        vec![vec![TextSpan::Plain("d".into())]],
                     ],
                 ],
             }

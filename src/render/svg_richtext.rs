@@ -2748,10 +2748,10 @@ fn flatten_rich_lines_into(rich: &RichText, out: &mut Vec<Vec<TextSpan>>) {
         }
         RichText::Table { headers, rows } => {
             if !headers.is_empty() {
-                out.push(join_cells(headers));
+                out.push(join_multiline_cells(headers));
             }
             for row in rows {
-                out.push(join_cells(row));
+                out.push(join_multiline_cells(row));
             }
         }
         RichText::HorizontalRule => out.push(vec![TextSpan::Plain("----".to_string())]),
@@ -2780,6 +2780,25 @@ fn join_cells(cells: &[Vec<TextSpan>]) -> Vec<TextSpan> {
             line.push(TextSpan::Plain(" | ".to_string()));
         }
         line.extend(cell.clone());
+    }
+    line
+}
+
+/// Like `join_cells` but each cell is a `Vec<Vec<TextSpan>>` (lines).
+/// Joins the cell's sub-lines with a single space when flattening to a
+/// single display line.
+fn join_multiline_cells(cells: &[Vec<Vec<TextSpan>>]) -> Vec<TextSpan> {
+    let mut line = Vec::new();
+    for (idx, cell) in cells.iter().enumerate() {
+        if idx > 0 {
+            line.push(TextSpan::Plain(" | ".to_string()));
+        }
+        for (li, sub) in cell.iter().enumerate() {
+            if li > 0 {
+                line.push(TextSpan::Plain(" ".to_string()));
+            }
+            line.extend(sub.clone());
+        }
     }
     line
 }

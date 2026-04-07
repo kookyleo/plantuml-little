@@ -163,18 +163,19 @@ pub fn parse_class_diagram_with_original(
         if in_description_block {
             if trimmed == "]" {
                 if let Some(ref mut ent) = current_entity {
-                    // Java: each physical line becomes a Display line.
-                    // Within each line, %chr(10) and %newline() (U+E100) expand to newlines,
-                    // but literal \n stays as text (Java Display.create for bracket bodies).
+                    // Java `CommandCreateElementMultilines.executeNow`:
+                    //   lines = lines.trimSmart(1).expandsNewline(false);
+                    //   Display display = lines.toDisplay();
+                    // so each physical line becomes one Display entry with
+                    // U+E100 preserved in-place.  Downstream, `StripeTable`
+                    // splits individual table cells on U+E100, while
+                    // non-table lines handle newline expansion themselves.
+                    // We therefore keep U+E100 (and `%chr(10)`) intact in the
+                    // description lines and let the Creole renderer split as
+                    // needed per-line.
                     ent.description = description_block_lines
                         .iter()
-                        .flat_map(|l| {
-                            l.replace(crate::NEWLINE_CHAR, "\n")
-                                .replace("%chr(10)", "\n")
-                                .split('\n')
-                                .map(|s| s.trim_end().to_string())
-                                .collect::<Vec<_>>()
-                        })
+                        .map(|l| l.replace("%chr(10)", "\n").trim_end().to_string())
                         .collect();
                     let name = ent.name.clone();
                     entities.push(current_entity.take().unwrap());
