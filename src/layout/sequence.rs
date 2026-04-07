@@ -1131,6 +1131,12 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
     let mut last_message_was_self: bool = false;
     // Index of the last message in the messages array (for note association)
     let mut last_message_idx: Option<usize> = None;
+    // Name of the last message's target participant (for note activation
+    // look-ahead: Java's LifeLine stairs records activate at message y, so a
+    // note between a message and the following `activate target` sees
+    // level >= 1 even though the activate event comes after the note.)
+    let mut last_message_to: Option<String> = None;
+    let mut last_message_from: Option<String> = None;
     // Extra height from multiline message text (used to adjust note back-offset)
     let mut last_message_extra_height: f64 = 0.0;
     // Sprite-specific extra height in the last message text. When sprites
@@ -1489,6 +1495,8 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
                 last_message_extra_height = extra_height;
                 last_message_sprite_extra = sprite_extra;
                 last_message_idx = Some(messages.len() - 1);
+                last_message_to = Some(msg.to.clone());
+                last_message_from = Some(msg.from.clone());
                 // For self-messages with deactivation, the activation bar end
                 // position in Java = posYendLevel which maps to msg_y + 1 in
                 // SVG coordinates. For non-self messages, msg_y_unshifted works.
@@ -1690,6 +1698,18 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
                 let note_layout_width = note_width + 2.0 * NOTE_COMPONENT_PADDING_X;
                 // Java NoteBox.getStartingX for RIGHT: (int)(pos2) + delta
                 // polygon_x = startingX + paddingX(5) = (int)(pos2) + delta + paddingX
+                //
+                // For non-self messages, delta = 0 (NoteBox has no pushToRight
+                // applied outside the create-arrow path). xStart = (int)(pos2)
+                // where pos2 = posC + rightShift(y). Then AbstractComponent.drawU
+                // applies (paddingX, paddingY) translate before drawInternalU,
+                // so the polygon's visual x = (int)(posC + rightShift) + paddingX.
+                //
+                // Java's LifeLine.stairs records activate events at the MESSAGE
+                // y (DrawableSetInitializer line 495: pos = message.getPosYstartLevel()),
+                // not at the `activate` event y. So a note between a message and
+                // a following `activate target` sees level >= 1 at its y,
+                // shifting xStart right by `level * 5`.
                 let note_x = if last_message_was_self {
                     let base = px as i64 as f64; // (int)(pos2)
                     if !last_self_msg_is_left {
@@ -1700,7 +1720,35 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
                         base + NOTE_COMPONENT_PADDING_X
                     }
                 } else {
-                    px + ACTIVATION_WIDTH
+                    // Detect upcoming activation on the note target: the note
+                    // attaches to the last message's TARGET participant, and
+                    // Java shifts xStart by activation level at message y.
+                    //
+                    // Current activation_stack state covers levels already
+                    // opened. A look-ahead through events until the next
+                    // Message catches `activate target` pending for the
+                    // target — Java's LifeLine stairs will have recorded this
+                    // activation at the message y (≤ note y).
+                    let target_name = participant.as_str();
+                    let mut look_ahead_level: usize = activation_stack
+                        .get(target_name)
+                        .map(|s| s.len())
+                        .unwrap_or(0);
+                    if last_message_to.as_deref() == Some(target_name) {
+                        for look_evt in sd.events[event_idx + 1..].iter() {
+                            match look_evt {
+                                SeqEvent::Message(_) => break,
+                                SeqEvent::Activate(name, _) if name == target_name => {
+                                    look_ahead_level += 1;
+                                    break;
+                                }
+                                _ => {}
+                            }
+                        }
+                    }
+                    let right_shift = active_right_shift(look_ahead_level);
+                    let base = (px + right_shift) as i64 as f64;
+                    base + NOTE_COMPONENT_PADDING_X
                 };
                 let note_right_idx = notes.len();
                 notes.push(NoteLayout {
