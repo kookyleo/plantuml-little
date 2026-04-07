@@ -30,7 +30,7 @@ Any future Java/Rust parity work must target the stable `v1.2026.2` reference co
 ## Current Parity Baseline (2026-04-07)
 
 - `cargo test --lib`: `2641/2641`
-- `cargo test --test reference_tests`: `291/320` (90.94%)
+- `cargo test --test reference_tests`: `293/320` (91.56%)
 - Byte-compare authority remains the 318 stable-Java SVGs indexed by `tests/reference/INDEX.tsv`.
 
 ### 2026-04-07 Fixes (290 → 291)
@@ -44,6 +44,61 @@ Any future Java/Rust parity work must target the stable `v1.2026.2` reference co
   double-count it. Also extend the lifeline to `note_y + note_pref_h + 5`
   to match Java's Frontier advance after the centered tile. Fixes
   `misc/creole_note001`.
+
+### 2026-04-07 Investigation Notes (291/320 plateau)
+
+Triaged remaining 29 failures and confirmed all are non-trivial:
+
+- **sprite/styleFontWeightRoboto, testGradientSprite, testPolylineSprites**:
+  All fail due to inline `<$sprite>` in sequence message text. Java's
+  `AtomSprite.calculateDimension` returns full sprite (`UImageSvg`) height,
+  and `Sea.doAlign` lays atoms with text/sprite vertical centering.
+  Currently `message_sprite_extra_height()` adds `(sprite_h - 15.13)` to the
+  arrow `msg_y`, but Java's actual `textBlock` height is computed by
+  `Sea.getMaxY - getMinY` which includes the AtomText `startingAltitude`
+  (font space). Reproducing this requires implementing the full sea-style
+  layout: see `Sea.java`, `AtomSprite.java`, `SpriteSvg.java` and
+  `AbstractTextualComponent.getTextHeight()`. The styleFontWeightRoboto case
+  also needs `<style>@import url(...)</style>` defs emission for fonts +
+  honoring style sheet `stroke`/`font-family`/`font-style` overrides.
+- **mindmap_jaws12, dev_jaws_jaws12, dev_jaws_jaws1, preprocessor_jaws1**:
+  total mindmap/C4 width differs by `~9 px` from Java. Width is
+  `fullElongation + getX12(30) + 2*MARGIN(10)`, and Java's
+  `FingerImpl.getPhalanxElongation` calls phalanx `calculateDimension`
+  width which uses creole text block sizing (different padding). Our
+  `Finger::full_elongation` accumulates per-level box widths but the
+  spacing math drifts. Needs side-by-side trace against
+  `FingerImpl.getFullElongation`.
+- **sprite_svgFillColourTest_2174, svgFillColourTest_2174 (legend)**:
+  20-line diff because we render legend sprites as nested `<svg>` tags
+  while Java emits raw `<path>` from the sprite SAX parser. The sprite
+  renderer (`svg_sprite.rs`) needs to inline path data via the SAX nano
+  parser instead of wrapping in inline SVG.
+- **dev_newline_subdiagram_theme, component_subdiagram_theme_02,
+  preprocessor_subdiagram_theme_01**: subdiagram embedded as base64
+  `<image>` of an inner SVG. We render the inner SVG with substantially
+  fewer elements (no fallback theme info, missing syntax error block).
+  The subdiagram renderer (`render_subdiagram` path) needs a sequence
+  fallback for failed theme parses.
+- **misc_link_url_tooltip_05**: file note shape needs the path
+  `M7,46.7969 L7,249.0625 A2.5,2.5 0 0 0 9.5,251.5625 L...`-style fold
+  rectangle (Java `BlockBoxStyle.create`) instead of plain rounded rect.
+  Also `\\nb` (literal backslash) tooltips need different escape handling.
+- **dev_newline_json_escaped, json_json_escaped**: JSON entry rendering
+  emits extra ellipses on table rows our renderer omits, and link path
+  geometry differs. JSON is currently using a simplified renderer.
+- **builtin_newline (dev/newline + preprocessor)**: our SALT/grid
+  renderer paints background rect+gridlines while Java only emits text
+  cells with line strokes. SALT uses a fundamentally different approach
+  in our codebase (`svg_richtext`-style grid).
+- **Skip permanently**: ebnf, regex, salt/basic, nwdiag, files_diagram,
+  yaml_basic, object_map, sprite_svg2GroupsWithStyle (Java NPE),
+  skinparam_handwritten001 (major handwritten/sketch theme).
+
+The remaining fixable failures require either: implementing the full
+Java `Sea`/`Atom` layout for inline sprites in text, or porting the
+sprite SAX parser to emit raw SVG primitives. Both are multi-day
+efforts beyond a single short session.
 
 ### 2026-04-07 Fixes (280 → 286)
 - **Sequence polygon HACK_X_FOR_POLYGON (svg_sequence.rs)**: Java's LimitFinder
