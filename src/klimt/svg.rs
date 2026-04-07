@@ -22,10 +22,36 @@ thread_local! {
 }
 
 /// Java: `StringUtils.seed(source.getPlainString("\n"))`.
+///
+/// Java's `UmlSource.getPlainString("\n")` iterates over the diagram lines
+/// held in the `source` list (after the preprocessor has dropped comment
+/// lines that begin with a single quote) and appends each line followed by
+/// `\n`. The resulting string is hashed with `h = 31 * h + ch`, starting
+/// from the Java prime `1125899906842597L`.
+///
+/// To match byte-exact, we:
+/// 1. Split the raw source on `\n` and drop the trailing empty segment that
+///    `split` produces for a file ending in `\n`.
+/// 2. Skip lines whose first non-whitespace character is `'` (Java's
+///    single-line comment marker).
+/// 3. For each surviving line, fold each character into `h`, then fold a
+///    trailing `\n` regardless of whether the original file had one after
+///    that line.
 pub fn java_source_seed(source: &str) -> i64 {
     let mut h: i64 = 1125899906842597;
-    for ch in source.chars() {
-        h = h.wrapping_mul(31).wrapping_add(ch as i64);
+    let mut lines: Vec<&str> = source.split('\n').collect();
+    if matches!(lines.last(), Some(&"")) {
+        // split yields a trailing empty segment when source ends with '\n'
+        lines.pop();
+    }
+    for line in lines {
+        if line.trim_start().starts_with('\'') {
+            continue;
+        }
+        for ch in line.chars() {
+            h = h.wrapping_mul(31).wrapping_add(ch as i64);
+        }
+        h = h.wrapping_mul(31).wrapping_add('\n' as i64);
     }
     h
 }
