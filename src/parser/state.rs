@@ -42,6 +42,10 @@ struct CompositeFrame {
     /// Source location of the opening `state ... {` line.
     start_line: usize,
     start_column: usize,
+    /// Java-style CONC<N> name for the current concurrent region. None for
+    /// the first region (which uses the parent state directly). Set to
+    /// `CONC<N>` after each `--` separator inside this frame.
+    current_conc_scope: Option<String>,
 }
 
 /// Parse state diagram source text into a StateDiagram IR
@@ -61,6 +65,9 @@ pub fn parse_state_diagram(source: &str) -> Result<StateDiagram> {
 
     // Stack for composite state nesting
     let mut stack: Vec<CompositeFrame> = Vec::new();
+    // Java cpt2 starts at 1 and addAndGet(1) returns the next, so the first
+    // CONC scope is CONC2. Mirror that here so qualified names match.
+    let mut conc_counter: u32 = 1;
 
     for (line_num, line) in joined {
 
@@ -202,9 +209,13 @@ pub fn parse_state_diagram(source: &str) -> Result<StateDiagram> {
                 // Move current children into a new region, start fresh for the next region
                 let current_children = std::mem::take(&mut frame.state.children);
                 frame.state.regions.push(current_children);
+                // Java getUniqueSequence2("CONC") returns CONC<n+1> for the
+                // next region. Each `--` advances the per-diagram counter.
+                conc_counter += 1;
+                frame.current_conc_scope = Some(format!("CONC{conc_counter}"));
                 debug!(
-                    "line {}: concurrent region separator in composite '{}'",
-                    line_num, frame.state.id
+                    "line {}: concurrent region separator in composite '{}' → scope {}",
+                    line_num, frame.state.id, frame.current_conc_scope.as_deref().unwrap_or("")
                 );
             } else {
                 warn!("line {line_num}: `--` separator outside composite state");
@@ -322,6 +333,7 @@ pub fn parse_state_diagram(source: &str) -> Result<StateDiagram> {
                     transitions: Vec::new(),
                     start_line: line_num,
                     start_column: line.to_lowercase().find("state").unwrap_or(0) + 1,
+                    current_conc_scope: None,
                 });
                 continue;
             }
@@ -903,12 +915,21 @@ fn scoped_special_state_id(stack: &[CompositeFrame], is_start: bool) -> String {
     if stack.is_empty() {
         return format!("[*]{suffix}");
     }
-    let scope = stack
+    // Java's StateDiagram.concurrentState wraps each non-first region in an
+    // anonymous CONCURRENT_STATE group named CONC<N>. Mirror that by tacking
+    // the current frame's current_conc_scope onto the scope so the special
+    // state id (e.g. `[*]__startActive.CONC2`) is unique per region.
+    let mut scope: Vec<&str> = stack
         .iter()
         .map(|frame| frame.state.id.as_str())
-        .collect::<Vec<_>>()
-        .join(".");
-    format!("[*]{suffix}{scope}")
+        .collect();
+    if let Some(frame) = stack.last() {
+        if let Some(conc) = frame.current_conc_scope.as_deref() {
+            scope.push(conc);
+        }
+    }
+    let scope_str = scope.join(".");
+    format!("[*]{suffix}{scope_str}")
 }
 
 /// Try to parse a description-addition line: `StateName : text`

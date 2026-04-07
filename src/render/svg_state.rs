@@ -294,6 +294,7 @@ pub fn render_state(
             state_border,
             state_font,
             ent_id_map,
+            lnk_id_map,
             None,
             None,
             StateRenderPass::ClusterShells,
@@ -312,6 +313,7 @@ pub fn render_state(
             state_border,
             state_font,
             ent_id_map,
+            lnk_id_map,
             None,
             None,
             StateRenderPass::Content,
@@ -321,6 +323,16 @@ pub fn render_state(
         // Cluster-composite transitions are in the main list without is_inner
         // and rendered at the end, matching Java's rendering order.
         if state.is_composite {
+            // For concurrent composites, render_composite has already
+            // emitted the per-region inner transitions inline (between
+            // region entities and the next separator). Skip those here
+            // by collecting their (from_id, to_id) keys.
+            let mut already_rendered_keys: HashSet<(String, String)> = HashSet::new();
+            for region_trs in &state.region_inner_transitions {
+                for tr in region_trs {
+                    already_rendered_keys.insert((tr.from_id.clone(), tr.to_id.clone()));
+                }
+            }
             let mut child_ids = HashSet::new();
             collect_child_ids(state, &mut child_ids);
             for (ti, transition) in layout.transition_layouts.iter().enumerate() {
@@ -329,6 +341,12 @@ pub fn render_state(
                     && child_ids.contains(&transition.from_id)
                     && child_ids.contains(&transition.to_id)
                 {
+                    if already_rendered_keys
+                        .contains(&(transition.from_id.clone(), transition.to_id.clone()))
+                    {
+                        rendered_transitions.insert(ti);
+                        continue;
+                    }
                     render_transition(&mut sg, &mut tracker, transition, ent_id_map, lnk_id_map);
                     rendered_transitions.insert(ti);
                 }
@@ -406,6 +424,7 @@ pub fn render_state(
 
 // ── State node rendering ────────────────────────────────────────────
 
+#[allow(dead_code)]
 fn render_state_node(
     sg: &mut SvgGraphic,
     tracker: &mut BoundsTracker,
@@ -414,6 +433,7 @@ fn render_state_node(
     border: &str,
     font_color: &str,
     ent_id_map: &HashMap<String, String>,
+    lnk_id_map: &HashMap<TransitionKey, String>,
 ) {
     render_state_node_with_parent(
         sg,
@@ -423,6 +443,7 @@ fn render_state_node(
         border,
         font_color,
         ent_id_map,
+        lnk_id_map,
         None,
         None,
         StateRenderPass::Full,
@@ -453,6 +474,7 @@ fn render_state_node_with_parent(
     border: &str,
     font_color: &str,
     ent_id_map: &HashMap<String, String>,
+    lnk_id_map: &HashMap<TransitionKey, String>,
     parent_name: Option<&str>,
     parent_cluster_center_y: Option<f64>,
     pass: StateRenderPass,
@@ -512,6 +534,7 @@ fn render_state_node_with_parent(
                         border,
                         font_color,
                         ent_id_map,
+                        lnk_id_map,
                         parent_name,
                         pass,
                     );
@@ -537,6 +560,7 @@ fn render_state_node_with_parent(
                     border,
                     font_color,
                     ent_id_map,
+                    lnk_id_map,
                     parent_name,
                     pass,
                 );
@@ -924,6 +948,7 @@ fn render_composite(
     border: &str,
     font_color: &str,
     ent_id_map: &HashMap<String, String>,
+    lnk_id_map: &HashMap<TransitionKey, String>,
     parent_name: Option<&str>,
     pass: StateRenderPass,
 ) {
@@ -1063,6 +1088,7 @@ fn render_composite(
                 border,
                 font_color,
                 ent_id_map,
+                lnk_id_map,
                 Some(&qname),
                 None,
                 pass,
@@ -1071,62 +1097,110 @@ fn render_composite(
         return;
     }
     if pass == StateRenderPass::Content {
-        let render_child = |child: &StateNodeLayout,
-                            sg: &mut SvgGraphic,
-                            tracker: &mut BoundsTracker| {
-            render_state_node_with_parent(
-                sg,
-                tracker,
-                child,
-                bg,
-                border,
-                font_color,
-                ent_id_map,
-                Some(&qname),
-                next_parent_cluster_center_y,
-                pass,
-            );
-        };
-        if render_as_cluster {
-            for child in &node.children {
-                let child_cluster_like = child.render_as_cluster
-                    || child
-                        .children
-                        .iter()
-                        .any(|grand| matches!(grand.kind, StateKind::History | StateKind::DeepHistory));
-                if !child_cluster_like {
-                    render_child(child, sg, tracker);
+        // Build per-region scope ranges and parent_name overrides for the
+        // concurrent-region case. Java wraps each region past the first in
+        // an anonymous CONCURRENT_STATE group named CONC<N> so its children
+        // qualify under "Active.CONC<N>" instead of just "Active".
+        let region_ranges: Vec<(usize, usize, String)> = if !node.region_child_starts.is_empty() {
+            let mut ranges = Vec::new();
+            // Region 0 uses the parent qname directly.
+            let first_end = node.region_child_starts[0];
+            ranges.push((0, first_end, qname.clone()));
+            let conc_for_region = |region_children: &[StateNodeLayout]| -> Option<String> {
+                for c in region_children {
+                    if c.is_initial || c.is_final {
+                        if let Some(rest) = c.id.strip_prefix("[*]__start").or_else(|| c.id.strip_prefix("[*]__end")) {
+                            if let Some(idx) = rest.rfind('.') {
+                                return Some(rest[idx + 1..].to_string());
+                            }
+                        }
+                    }
                 }
+                None
+            };
+            let region_count = node.region_child_starts.len() + 1;
+            for region_idx in 1..region_count {
+                let region_start = if region_idx == 1 {
+                    first_end
+                } else {
+                    node.region_child_starts[region_idx - 1]
+                };
+                let region_end = node.region_child_starts.get(region_idx).copied().unwrap_or(node.children.len());
+                let region_children = &node.children[region_start..region_end];
+                let conc_name = conc_for_region(region_children).unwrap_or_else(|| format!("CONC{region_idx}"));
+                ranges.push((region_start, region_end, format!("{}.{}", qname, conc_name)));
             }
-            for child in &node.children {
-                let child_cluster_like = child.render_as_cluster
-                    || child
-                        .children
-                        .iter()
-                        .any(|grand| matches!(grand.kind, StateKind::History | StateKind::DeepHistory));
-                if child_cluster_like {
-                    render_child(child, sg, tracker);
-                }
-            }
+            ranges
         } else {
-            for child in &node.children {
-                let child_cluster_like = child.render_as_cluster
-                    || child
-                        .children
-                        .iter()
-                        .any(|grand| matches!(grand.kind, StateKind::History | StateKind::DeepHistory));
-                if child_cluster_like {
-                    render_child(child, sg, tracker);
+            vec![(0, node.children.len(), qname.clone())]
+        };
+
+        let cluster_like = |child: &StateNodeLayout| -> bool {
+            child.render_as_cluster
+                || child
+                    .children
+                    .iter()
+                    .any(|grand| matches!(grand.kind, StateKind::History | StateKind::DeepHistory))
+        };
+        for (region_idx, (rstart, rend, region_parent)) in region_ranges.iter().enumerate() {
+            // Region separator before each region after the first.
+            if region_idx > 0 {
+                if let Some(&sep_y) = node.region_separators.get(region_idx - 1) {
+                    sg.set_stroke_color(Some(border));
+                    sg.set_stroke_width(1.5, Some((8.0, 10.0)));
+                    sg.svg_line(x + 5.0, sep_y, x + w - 7.0, sep_y, 0.0);
                 }
             }
-            for child in &node.children {
-                let child_cluster_like = child.render_as_cluster
-                    || child
-                        .children
-                        .iter()
-                        .any(|grand| matches!(grand.kind, StateKind::History | StateKind::DeepHistory));
-                if !child_cluster_like {
-                    render_child(child, sg, tracker);
+            let region_slice = &node.children[*rstart..*rend];
+            let mut render_child_with_parent = |child: &StateNodeLayout,
+                                                parent: &str,
+                                                sg: &mut SvgGraphic,
+                                                tracker: &mut BoundsTracker| {
+                render_state_node_with_parent(
+                    sg,
+                    tracker,
+                    child,
+                    bg,
+                    border,
+                    font_color,
+                    ent_id_map,
+                    lnk_id_map,
+                    Some(parent),
+                    next_parent_cluster_center_y,
+                    pass,
+                );
+            };
+            if render_as_cluster {
+                for child in region_slice {
+                    if !cluster_like(child) {
+                        render_child_with_parent(child, region_parent, sg, tracker);
+                    }
+                }
+                for child in region_slice {
+                    if cluster_like(child) {
+                        render_child_with_parent(child, region_parent, sg, tracker);
+                    }
+                }
+            } else {
+                for child in region_slice {
+                    if cluster_like(child) {
+                        render_child_with_parent(child, region_parent, sg, tracker);
+                    }
+                }
+                for child in region_slice {
+                    if !cluster_like(child) {
+                        render_child_with_parent(child, region_parent, sg, tracker);
+                    }
+                }
+            }
+            // After this region's entities, render the inner transitions
+            // belonging to this region. Java emits them between region
+            // entities and the next separator.
+            if !node.region_inner_transitions.is_empty() {
+                if let Some(region_trs) = node.region_inner_transitions.get(region_idx) {
+                    for tr in region_trs {
+                        render_transition(sg, tracker, tr, ent_id_map, lnk_id_map);
+                    }
                 }
             }
         }
@@ -1149,6 +1223,7 @@ fn render_composite(
                     border,
                     font_color,
                     ent_id_map,
+                    lnk_id_map,
                     Some(&qname),
                     next_parent_cluster_center_y,
                     pass,
@@ -1157,12 +1232,17 @@ fn render_composite(
         }
     }
 
-    // Render concurrent region separators (dashed lines)
-    // Java: ConcurrentStates renders separator as ULine with stroke(1.5) dashVisible=8 dashSpace=10
-    for &sep_y in &node.region_separators {
-        sg.set_stroke_color(Some(border));
-        sg.set_stroke_width(1.5, Some((8.0, 10.0)));
-        sg.svg_line(x + 5.0, sep_y, x + w - 7.0, sep_y, 0.0);
+    // Concurrent region separators are normally drawn inline within the
+    // per-region child render loop above so they appear in the right order
+    // relative to each region's entities. If the composite doesn't carry
+    // region_child_starts (e.g. legacy fixtures with raw region_separators),
+    // emit them here as a fallback.
+    if pass != StateRenderPass::ClusterShells && node.region_child_starts.is_empty() {
+        for &sep_y in &node.region_separators {
+            sg.set_stroke_color(Some(border));
+            sg.set_stroke_width(1.5, Some((8.0, 10.0)));
+            sg.svg_line(x + 5.0, sep_y, x + w - 7.0, sep_y, 0.0);
+        }
     }
 }
 
@@ -2018,6 +2098,8 @@ mod tests {
             kind: crate::model::state::StateKind::default(),
             internal_transitions: Vec::new(),
             region_separators: Vec::new(),
+            region_child_starts: Vec::new(),
+            region_inner_transitions: Vec::new(),
             source_line: None,
             render_as_cluster: false,
         }
@@ -2041,6 +2123,8 @@ mod tests {
             kind: crate::model::state::StateKind::default(),
             internal_transitions: Vec::new(),
             region_separators: Vec::new(),
+            region_child_starts: Vec::new(),
+            region_inner_transitions: Vec::new(),
             render_as_cluster: false,
         }
     }
@@ -2063,6 +2147,8 @@ mod tests {
             kind: crate::model::state::StateKind::default(),
             internal_transitions: Vec::new(),
             region_separators: Vec::new(),
+            region_child_starts: Vec::new(),
+            region_inner_transitions: Vec::new(),
             render_as_cluster: false,
         }
     }
@@ -2232,6 +2318,8 @@ mod tests {
             kind: crate::model::state::StateKind::default(),
             internal_transitions: Vec::new(),
             region_separators: Vec::new(),
+            region_child_starts: Vec::new(),
+            region_inner_transitions: Vec::new(),
             render_as_cluster: false,
         };
         layout.state_layouts.push(composite);
@@ -2520,6 +2608,8 @@ mod tests {
             kind: StateKind::Fork,
             internal_transitions: Vec::new(),
             region_separators: Vec::new(),
+            region_child_starts: Vec::new(),
+            region_inner_transitions: Vec::new(),
             render_as_cluster: false,
         });
         let (svg, _) =
@@ -2552,6 +2642,8 @@ mod tests {
             kind: StateKind::Join,
             internal_transitions: Vec::new(),
             region_separators: Vec::new(),
+            region_child_starts: Vec::new(),
+            region_inner_transitions: Vec::new(),
             render_as_cluster: false,
         });
         let (svg, _) =
@@ -2579,6 +2671,8 @@ mod tests {
             kind: StateKind::Choice,
             internal_transitions: Vec::new(),
             region_separators: Vec::new(),
+            region_child_starts: Vec::new(),
+            region_inner_transitions: Vec::new(),
             source_line: None,
             render_as_cluster: false,
         });
@@ -2610,6 +2704,8 @@ mod tests {
             kind: StateKind::History,
             internal_transitions: Vec::new(),
             region_separators: Vec::new(),
+            region_child_starts: Vec::new(),
+            region_inner_transitions: Vec::new(),
             source_line: None,
             render_as_cluster: false,
         });
@@ -2639,6 +2735,8 @@ mod tests {
             kind: StateKind::DeepHistory,
             internal_transitions: Vec::new(),
             region_separators: Vec::new(),
+            region_child_starts: Vec::new(),
+            region_inner_transitions: Vec::new(),
             source_line: None,
             render_as_cluster: false,
         });
@@ -2673,6 +2771,8 @@ mod tests {
             kind: StateKind::Normal,
             internal_transitions: Vec::new(),
             region_separators: vec![110.0],
+            region_child_starts: Vec::new(),
+            region_inner_transitions: Vec::new(),
             source_line: None,
             render_as_cluster: false,
         };

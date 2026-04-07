@@ -53,6 +53,14 @@ pub struct StateNodeLayout {
     pub internal_transitions: Vec<TransitionLayout>,
     /// Y positions of concurrent region separators (dashed lines)
     pub region_separators: Vec<f64>,
+    /// Indices into `children` where each concurrent region (after the first)
+    /// starts. Empty for non-concurrent composites. For a composite with two
+    /// regions [r0, r1], `children` is r0 followed by r1 and this vector
+    /// holds [len(r0)] so `children[..region_child_starts[0]]` is region 0.
+    pub region_child_starts: Vec<usize>,
+    /// Inner transitions split per concurrent region. Empty when not
+    /// concurrent. For two regions, holds [region0_transitions, region1_transitions].
+    pub region_inner_transitions: Vec<Vec<TransitionLayout>>,
     /// Source line (0-based) for data-source-line attribute.
     pub source_line: Option<usize>,
     /// True when this composite came from a Graphviz cluster solve rather than
@@ -543,6 +551,8 @@ fn compute_state_node(
                 kind: state.kind.clone(),
                 internal_transitions: Vec::new(),
                 region_separators: Vec::new(),
+                region_child_starts: Vec::new(),
+                region_inner_transitions: Vec::new(),
                 source_line: state.source_line,
                 render_as_cluster: false,
             },
@@ -571,6 +581,8 @@ fn compute_state_node(
                 kind: state.kind.clone(),
                 internal_transitions: Vec::new(),
                 region_separators: Vec::new(),
+                region_child_starts: Vec::new(),
+                region_inner_transitions: Vec::new(),
                 source_line: state.source_line,
                 render_as_cluster: false,
             },
@@ -598,6 +610,8 @@ fn compute_state_node(
                 kind: state.kind.clone(),
                 internal_transitions: Vec::new(),
                 region_separators: Vec::new(),
+                region_child_starts: Vec::new(),
+                region_inner_transitions: Vec::new(),
                 source_line: state.source_line,
                 render_as_cluster: false,
             },
@@ -625,6 +639,8 @@ fn compute_state_node(
                 kind: state.kind.clone(),
                 internal_transitions: Vec::new(),
                 region_separators: Vec::new(),
+                region_child_starts: Vec::new(),
+                region_inner_transitions: Vec::new(),
                 source_line: state.source_line,
                 render_as_cluster: false,
             },
@@ -652,6 +668,8 @@ fn compute_state_node(
                 kind: state.kind.clone(),
                 internal_transitions: Vec::new(),
                 region_separators: Vec::new(),
+                region_child_starts: Vec::new(),
+                region_inner_transitions: Vec::new(),
                 source_line: state.source_line,
                 render_as_cluster: false,
             },
@@ -677,6 +695,8 @@ fn compute_state_node(
         }
 
         let mut all_inner_transitions: Vec<TransitionLayout> = Vec::new();
+        let mut region_inner_transitions_per_region: Vec<Vec<TransitionLayout>> = Vec::new();
+        let mut region_child_starts: Vec<usize> = Vec::new();
         let mut is_concurrent = false;
         if all_regions.len() > 1 {
             is_concurrent = true;
@@ -704,7 +724,11 @@ fn compute_state_node(
                 // Java: SvekResult.calculateDimension() = lf_span.delta(0, 12)
                 let region_h = child_h + 12.0;
                 region_y += region_h;
+                if i > 0 {
+                    region_child_starts.push(all_child_layouts.len());
+                }
                 all_child_layouts.extend(child_layouts);
+                region_inner_transitions_per_region.push(inner_tr.clone());
                 all_inner_transitions.extend(inner_tr);
 
                 if i < all_regions.len() - 1 {
@@ -807,6 +831,8 @@ fn compute_state_node(
                 kind: state.kind.clone(),
                 internal_transitions: all_inner_transitions,
                 region_separators,
+                region_child_starts,
+                region_inner_transitions: region_inner_transitions_per_region,
                 source_line: state.explicit_source_line.or(state.source_line),
                 render_as_cluster: state_has_direct_pin_child(state),
             },
@@ -834,6 +860,8 @@ fn compute_state_node(
             kind: state.kind.clone(),
             internal_transitions: Vec::new(),
             region_separators: Vec::new(),
+            region_child_starts: Vec::new(),
+            region_inner_transitions: Vec::new(),
             source_line: state.source_line,
             render_as_cluster: false,
         },
@@ -1217,8 +1245,20 @@ fn layout_states_ranked_with_spacing(
                 let child_offset_x = x + COMPOSITE_PADDING;
                 let child_offset_y = y + composite_inner_y_offset() + inner_margin;
                 offset_children(&mut node.children, child_offset_x, child_offset_y);
+                // Java ConcurrentStates separators sit at the SvekResult origin
+                // (composite_inner_y_offset, no inner_margin) plus each
+                // region's dimension. Children, however, were offset by the
+                // moveDelta (= inner_margin), so they appear below the
+                // separator origin even though the separator y is computed
+                // without the inner_margin.
+                let sep_offset_y = y + composite_inner_y_offset();
                 for sep_y in &mut node.region_separators {
-                    *sep_y += child_offset_y;
+                    *sep_y += sep_offset_y;
+                }
+                for region_trs in &mut node.region_inner_transitions {
+                    for tr in region_trs {
+                        offset_transition(tr, child_offset_x, child_offset_y);
+                    }
                 }
             }
 
@@ -1593,6 +1633,8 @@ fn layout_children_with_graphviz(
             kind: state.kind.clone(),
             internal_transitions: Vec::new(),
             region_separators: Vec::new(),
+            region_child_starts: Vec::new(),
+            region_inner_transitions: Vec::new(),
             source_line: state.source_line,
             render_as_cluster: true,
         });
@@ -2430,8 +2472,19 @@ pub fn layout_state(diagram: &StateDiagram) -> Result<StateLayout> {
             for tr in &mut template.internal_transitions {
                 offset_transition(tr, child_offset_x, child_offset_y);
             }
+            for region_trs in &mut template.region_inner_transitions {
+                for tr in region_trs {
+                    offset_transition(tr, child_offset_x, child_offset_y);
+                }
+            }
+            // Java: ConcurrentStates draws separators at the SvekResult origin
+            // (composite_inner_y_offset, no extra inner_margin) + each inner's
+            // dimension. The children themselves were offset by the moveDelta
+            // (= inner_margin) so they're below the separator origin. Subtract
+            // the inner_margin here so the separator y matches Java.
+            let sep_offset_y = y + composite_inner_y_offset();
             for sep_y in &mut template.region_separators {
-                *sep_y += child_offset_y;
+                *sep_y += sep_offset_y;
             }
         }
 
@@ -2571,6 +2624,8 @@ pub fn layout_state(diagram: &StateDiagram) -> Result<StateLayout> {
             kind: state.kind.clone(),
             internal_transitions: Vec::new(),
             region_separators: Vec::new(),
+            region_child_starts: Vec::new(),
+            region_inner_transitions: Vec::new(),
             source_line: state.explicit_source_line.or(state.source_line),
             render_as_cluster: true,
         };
