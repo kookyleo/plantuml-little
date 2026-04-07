@@ -661,14 +661,29 @@ fn extract_quoted(s: &str) -> Option<String> {
     None
 }
 
-/// Extract content inside parentheses: `(text)` -> `text`
-/// Returns None if no parentheses found.
+/// Extract the content of the first balanced parenthesized group in `s`.
+///
+/// Supports nested parentheses so that labels like `(a(b)c)` or `(a%n()b)`
+/// (from substituted variable values containing `%n()` literals) are parsed
+/// correctly. Returns `None` if no balanced group is found.
 fn extract_parenthesized(s: &str) -> Option<String> {
     let s = s.trim();
-    if let Some(start) = s.find('(') {
-        if let Some(end) = s[start..].find(')') {
-            return Some(s[start + 1..start + end].trim().to_string());
+    let start = s.find('(')?;
+    let bytes = s.as_bytes();
+    let mut depth = 0i32;
+    let mut i = start;
+    while i < bytes.len() {
+        match bytes[i] {
+            b'(' => depth += 1,
+            b')' => {
+                depth -= 1;
+                if depth == 0 {
+                    return Some(s[start + 1..i].trim().to_string());
+                }
+            }
+            _ => {}
         }
+        i += 1;
     }
     None
 }

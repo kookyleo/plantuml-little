@@ -1622,17 +1622,25 @@ impl Context {
 
         let mut result = line.to_string();
 
-        // Expand define macros (with params)
-        result = self.expand_defines(&result);
-
         // Expand built-in functions that depend on preprocessor state first.
         result = self.expand_context_builtins(&result);
 
+        // Expand stateless built-in functions BEFORE variable/define substitution.
+        // 这与 Java applyFunctionsAndVariables 的单次扫描语义对齐：Java 在替换
+        // 变量时只推进输入串的指针，替换进来的值不会被再次扫描。所以源码里
+        // 写的 `%n()` 会被展开，而来自引号字符串字面量的变量值里保留的
+        // `%n()` 字面量会被原样保留下来。
+        //
+        // Example: `!t="a%n()b"` stores literal `a%n()b` as the value. Then
+        // `while (t)` becomes `while (a%n()b)` after substitution and the
+        // literal %n() survives into the rendered label.
+        result = expand_builtins(&result);
+
+        // Expand define macros (with params)
+        result = self.expand_defines(&result);
+
         // Expand $variables
         result = self.expand_vars(&result);
-
-        // Expand stateless built-in functions.
-        result = expand_builtins(&result);
 
         // Keep line-level callable expansion out of !function bodies.
         // Their assignments / returns are evaluated through expression helpers,
