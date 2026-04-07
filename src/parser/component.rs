@@ -1021,10 +1021,12 @@ fn expand_newlines(s: &str) -> String {
 
 /// Expand newlines in bracket-display body `[...]` content.
 /// Literal `\n` is preserved as display text (Java compatibility).
-/// Only U+E100 (from `%newline()`) and leftover `%chr(10)` are expanded.
+/// Only leftover `%chr(10)` is expanded; the U+E100 placeholder from
+/// `%newline()` is preserved verbatim so the downstream renderer (Display
+/// layer) decides how to interpret it. In particular table parsers treat
+/// U+E100 as ordinary cell content while text renderers split lines on it.
 fn expand_body_newlines(s: &str) -> String {
-    s.replace(crate::NEWLINE_CHAR, "\n")
-        .replace("%chr(10)", "\n")
+    s.replace("%chr(10)", "\n")
 }
 
 // ---------------------------------------------------------------------------
@@ -1422,9 +1424,11 @@ end note
 
     #[test]
     fn test_expand_body_newlines() {
-        // Bracket-display body: literal `\n` preserved (Java compat)
+        // Bracket-display body: literal `\n` preserved (Java compat).
+        // U+E100 placeholder is also preserved so downstream table parsers
+        // can keep it as cell content; text renderers split on it later.
         assert_eq!(expand_body_newlines("a\\nb"), "a\\nb");
-        assert_eq!(expand_body_newlines("a\u{E100}b"), "a\nb");
+        assert_eq!(expand_body_newlines("a\u{E100}b"), "a\u{E100}b");
         assert_eq!(expand_body_newlines("a%chr(10)b"), "a\nb");
     }
 

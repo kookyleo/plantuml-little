@@ -2027,13 +2027,17 @@ impl Context {
         let trimmed = expanded.trim();
 
         if matches!(trimmed, "%newline()" | "%n()") {
-            return Ok(Value::Str("\n".to_string()));
+            return Ok(Value::Str(crate::NEWLINE_CHAR.to_string()));
         }
 
         // Preserve evaluated multiline strings verbatim. Re-parsing through
         // Value::parse_from() trims line endings, which breaks helpers that
         // intentionally build text with %newline() inside loops.
-        if expanded.contains('\n') || expanded.contains('\r') {
+        // Note: U+E100 (NEWLINE_CHAR) is the placeholder for %newline() expansions.
+        if expanded.contains('\n')
+            || expanded.contains('\r')
+            || expanded.contains(crate::NEWLINE_CHAR)
+        {
             return Ok(Value::Str(expanded));
         }
 
@@ -3587,23 +3591,27 @@ mod tests {
 
     #[test]
     fn test_function_with_while_concat_and_newline() {
+        // Java's %newline() returns U+E100 (Jaws.BLOCK_E1_NEWLINE), not real '\n'.
         let src = "!function $rows()\n  !$n = 2\n  !$i = 0\n  !$res = \"\"\n  !while $i < $n\n    !$res = $res + \"row\" + $i + %newline()\n    !$i = $i + 1\n  !endwhile\n  !return $res\n!endfunction\n$rows()";
         let out = preprocess(src).unwrap();
-        assert!(out.contains("row0\nrow1"), "got: {}", out);
+        let nl = crate::NEWLINE_CHAR;
+        let expected = format!("row0{nl}row1{nl}");
+        assert!(out.contains(&expected), "got: {}", out);
     }
 
     #[test]
     fn test_expression_concat_preserves_existing_newlines() {
         let mut ctx = Context::new();
         let mut scope = HashMap::new();
-        scope.insert("$res".to_string(), Value::Str("row0\n".to_string()));
+        let nl = crate::NEWLINE_CHAR;
+        scope.insert("$res".to_string(), Value::Str(format!("row0{nl}")));
         scope.insert("$i".to_string(), Value::Int(1));
         ctx.local_scopes.push(scope);
 
         let out = ctx
             .evaluate_expression_text_with_funcs(r#"$res + "row" + $i + %newline()"#)
             .unwrap();
-        assert_eq!(out, "row0\nrow1\n");
+        assert_eq!(out, format!("row0{nl}row1{nl}"));
     }
 
     #[test]
@@ -3625,7 +3633,8 @@ mod tests {
         };
 
         let out = ctx.eval_func(&func, &[]).unwrap();
-        assert_eq!(out, "row0\nrow1\n");
+        let nl = crate::NEWLINE_CHAR;
+        assert_eq!(out, format!("row0{nl}row1{nl}"));
     }
 
     #[test]
@@ -3650,7 +3659,8 @@ mod tests {
         );
 
         let out = ctx.expand_line("$rows()").unwrap();
-        assert_eq!(out, "row0\nrow1\n");
+        let nl = crate::NEWLINE_CHAR;
+        assert_eq!(out, format!("row0{nl}row1{nl}"));
     }
 
     #[test]
@@ -5183,17 +5193,22 @@ $table
 ]
 @enduml"#;
         let expanded = preprocess(source).unwrap();
-        // %newline() in expression context produces \n (actual newline), which
-        // causes lines() to split the table rows into separate lines.
-        // This is the expected Rust behavior matching the visual result.
+        // %newline() returns the U+E100 placeholder (matches Java's
+        // Jaws.BLOCK_E1_NEWLINE), so the table value stays on a single line and
+        // contains the placeholder between the row fragments. The downstream
+        // table parser sees one row with cells separated by '|' rather than
+        // splitting on newlines.
+        let nl = crate::NEWLINE_CHAR;
         let table_lines: Vec<&str> = expanded
             .lines()
             .filter(|l| l.trim_start().starts_with('|'))
             .collect();
-        assert_eq!(table_lines.len(), 3, "table should produce 3 separate rows");
-        assert!(table_lines[0].contains("Field1"));
-        assert!(table_lines[1].contains("1"));
-        assert!(table_lines[2].contains("3"));
+        assert_eq!(table_lines.len(), 1, "table should remain on a single line");
+        let single = table_lines[0];
+        assert!(single.contains("Field1"), "got: {single}");
+        assert!(single.contains(nl), "should contain U+E100 placeholder, got: {single}");
+        assert!(single.contains("| 1 | 2 |"), "got: {single}");
+        assert!(single.contains("| 3 | 4 |"), "got: {single}");
     }
 
 }

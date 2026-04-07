@@ -56,6 +56,9 @@ fn extract_inline_salt_block(source: &str) -> Option<String> {
 pub fn parse_salt_diagram(source: &str) -> Result<SaltDiagram> {
     let (block, is_inline) =
         extract_salt_block(source).unwrap_or_else(|| (source.to_string(), false));
+    // Java's %newline() puts a U+E100 placeholder into preprocessor output. Salt
+    // uses real newlines for layout, so expand the placeholder before splitting.
+    let block = block.replace(crate::NEWLINE_CHAR, "\n");
     let lines: Vec<&str> = block.lines().collect();
     let mut pos = 0;
 

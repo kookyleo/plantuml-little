@@ -93,8 +93,14 @@ pub(super) fn expand_expression_builtins(line: &str) -> String {
         );
     }
 
-    result = result.replace("%newline()", "\"\n\"");
-    result = result.replace("%n()", "\"\n\"");
+    // Java's %newline() returns the U+E100 placeholder character (Jaws.BLOCK_E1_NEWLINE),
+    // not a literal '\n'. The placeholder lets the value flow through line-based
+    // parsing without splitting, while still being interpreted as a soft line break
+    // by downstream renderers (Display.create handles U+E100).
+    let nl = crate::NEWLINE_CHAR.to_string();
+    let nl_quoted = format!("\"{nl}\"");
+    result = result.replace("%newline()", &nl_quoted);
+    result = result.replace("%n()", &nl_quoted);
     result = result.replace("%true()", "true");
     result = result.replace("%false()", "false");
     result
