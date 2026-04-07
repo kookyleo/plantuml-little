@@ -3,10 +3,9 @@ use std::fmt::Write;
 use crate::font_metrics;
 use crate::klimt::svg::{fmt_coord, xml_escape, LengthAdjust, SvgGraphic};
 use crate::layout::activity::{
-    classify_activity_table_lines, ActivityEdgeLayout, ActivityLayout, ActivityNodeKindLayout,
-    ActivityNodeLayout, ActivityNoteModeLayout, ActivityTableKind, NotePositionLayout,
-    SwimlaneLayout,
-    TABLE_CELL_PADDING,
+    classify_activity_table_lines, ActivityEdgeKindLayout, ActivityEdgeLayout, ActivityLayout,
+    ActivityNodeKindLayout, ActivityNodeLayout, ActivityNoteModeLayout, ActivityTableKind,
+    NotePositionLayout, SwimlaneLayout, TABLE_CELL_PADDING,
 };
 use crate::model::activity::ActivityDiagram;
 use crate::render::svg::{ensure_visible_int, write_bg_rect, write_svg_root_bg};
@@ -316,19 +315,40 @@ pub fn render_activity(
             );
         }
     } else {
-        // No swimlanes: Java draws nodes first, then edges (connections)
-        for node in nodes_ref {
-            render_node(
-                &mut sg,
-                node,
-                act_bg,
-                act_border,
-                act_font,
-                diamond_bg,
-                diamond_border,
-                arrow_color,
-                word_by_word_notes,
-            );
+        // No swimlanes: Java draws nodes first, then edges (connections).
+        // When a `render_order` permutation is present (e.g. for `repeat`
+        // blocks), walk nodes in that order so the repeat body is drawn
+        // before diamond1/hex — matching Java `FtileRepeat.drawU`.
+        if let Some(order) = layout.render_order.as_ref() {
+            for &pos in order {
+                if let Some(node) = nodes_ref.get(pos) {
+                    render_node(
+                        &mut sg,
+                        node,
+                        act_bg,
+                        act_border,
+                        act_font,
+                        diamond_bg,
+                        diamond_border,
+                        arrow_color,
+                        word_by_word_notes,
+                    );
+                }
+            }
+        } else {
+            for node in nodes_ref {
+                render_node(
+                    &mut sg,
+                    node,
+                    act_bg,
+                    act_border,
+                    act_font,
+                    diamond_bg,
+                    diamond_border,
+                    arrow_color,
+                    word_by_word_notes,
+                );
+            }
         }
         for edge in edges_ref {
             render_edge(&mut sg, edge, arrow_color, act_font);
@@ -1415,6 +1435,12 @@ fn render_edge(
         return;
     }
 
+    // Special handling for `FtileRepeat.ConnectionBackSimple2` loop-back edges.
+    if let ActivityEdgeKindLayout::LoopBackSimple2 { up_arrow_y } = edge.kind {
+        render_loopback_simple2(sg, &edge.points, up_arrow_y, arrow_color);
+        return;
+    }
+
     // Render line segments
     if edge.points.len() == 2 {
         let (x1, y1) = edge.points[0];
@@ -1462,6 +1488,92 @@ fn render_edge(
             Some("middle"),
         );
     }
+}
+
+/// Render the 4-point `FtileRepeat.ConnectionBackSimple2` loop-back path.
+///
+/// Matches Java's `Snake(..., asToLeft()).emphasizeDirection(Direction.UP)`
+/// output byte-for-byte:
+///   1. horizontal line from the hex east side to `xmax`;
+///   2. a mid-segment UP arrow polygon at `(xmax, up_arrow_y)` (drawn *before*
+///      the vertical line in the XML output, matching Java's draw order);
+///   3. the vertical line, with Y endpoints normalised so `y1 ≤ y2` (Java's
+///      `UGraphicCompressOnXorY.drawLine` flips any UP segment);
+///   4. horizontal line from `xmax` back into the diamond1 right edge;
+///   5. the end LEFT arrow polygon at the final point.
+fn render_loopback_simple2(
+    sg: &mut SvgGraphic,
+    points: &[(f64, f64)],
+    up_arrow_y: f64,
+    color: &str,
+) {
+    if points.len() != 4 {
+        return;
+    }
+    let (x1, y1) = points[0];
+    let (x2, y2) = points[1];
+    let (x3, y3) = points[2];
+    let (x4, y4) = points[3];
+
+    // Segment 1: horizontal from hex east.
+    sg.set_stroke_color(Some(color));
+    sg.set_stroke_width(1.0, None);
+    sg.svg_line(x1, y1, x2, y2, 0.0);
+
+    // Mid-segment UP arrow polygon (drawn BEFORE the vertical line, matching
+    // Java's `Worm.drawLine` order: polygon, then line).  Uses Java
+    // `ArrowsRegular.asToUp()` shape: tip at (0, 0), base at (±4, 10), notch
+    // at (0, 6) — delta1=10, delta2=4.
+    sg.set_fill_color(color);
+    sg.set_stroke_color(Some(color));
+    sg.set_stroke_width(1.0, None);
+    let ox = x2; // arrow x sits on the vertical segment
+    let oy = up_arrow_y;
+    sg.svg_polygon(
+        0.0,
+        &[
+            ox - 4.0,
+            oy + 10.0,
+            ox,
+            oy,
+            ox + 4.0,
+            oy + 10.0,
+            ox,
+            oy + 6.0,
+        ],
+    );
+
+    // Segment 2: vertical with Y normalisation (Java UGraphicCompressOnXorY).
+    sg.set_stroke_color(Some(color));
+    sg.set_stroke_width(1.0, None);
+    let (vy1, vy2) = if y2 > y3 { (y3, y2) } else { (y2, y3) };
+    sg.svg_line(x2, vy1, x3, vy2, 0.0);
+
+    // Segment 3: horizontal back into diamond1 right.
+    sg.set_stroke_color(Some(color));
+    sg.set_stroke_width(1.0, None);
+    sg.svg_line(x3, y3, x4, y4, 0.0);
+
+    // End LEFT arrow polygon at the final point.  Java `asToLeft()` shape:
+    // tip at (0, 0), points at (10, ±4), notch at (6, 0).
+    let tx = x4;
+    let ty = y4;
+    sg.set_fill_color(color);
+    sg.set_stroke_color(Some(color));
+    sg.set_stroke_width(1.0, None);
+    sg.svg_polygon(
+        0.0,
+        &[
+            tx + 10.0,
+            ty - 4.0,
+            tx,
+            ty,
+            tx + 10.0,
+            ty + 4.0,
+            tx + 6.0,
+            ty,
+        ],
+    );
 }
 
 /// Render an inline arrowhead polygon at the tip of an edge.
@@ -1531,8 +1643,8 @@ fn render_swimlane(
 mod tests {
     use super::*;
     use crate::layout::activity::{
-        ActivityEdgeLayout, ActivityLayout, ActivityNodeKindLayout, ActivityNodeLayout,
-        NotePositionLayout, SwimlaneLayout,
+        ActivityEdgeKindLayout, ActivityEdgeLayout, ActivityLayout, ActivityNodeKindLayout,
+        ActivityNodeLayout, NotePositionLayout, SwimlaneLayout,
     };
     use crate::model::activity::ActivityDiagram;
     use crate::style::SkinParams;
@@ -1558,6 +1670,7 @@ mod tests {
             old_style_graphviz: false,
             old_node_meta: vec![],
             old_edge_meta: vec![],
+            render_order: None,
         }
     }
 
@@ -1846,6 +1959,7 @@ mod tests {
             to_index: 1,
             label: String::new(),
             points: vec![(100.0, 30.0), (100.0, 80.0)],
+            kind: ActivityEdgeKindLayout::Normal,
         });
         let (svg, _raw_dim) = render_activity(&diagram, &layout, &SkinParams::default(), None)
             .expect("render failed");
@@ -1870,6 +1984,7 @@ mod tests {
             to_index: 1,
             label: "yes".to_string(),
             points: vec![(100.0, 30.0), (100.0, 80.0)],
+            kind: ActivityEdgeKindLayout::Normal,
         });
         let (svg, _raw_dim) = render_activity(&diagram, &layout, &SkinParams::default(), None)
             .expect("render failed");
@@ -1885,6 +2000,7 @@ mod tests {
             to_index: 1,
             label: String::new(),
             points: vec![(50.0, 20.0), (50.0, 50.0), (100.0, 50.0), (100.0, 80.0)],
+            kind: ActivityEdgeKindLayout::Normal,
         });
         let (svg, _raw_dim) = render_activity(&diagram, &layout, &SkinParams::default(), None)
             .expect("render failed");
@@ -2086,6 +2202,7 @@ mod tests {
             to_index: 1,
             label: String::new(),
             points: vec![(100.0, 50.0), (100.0, 80.0), (300.0, 80.0), (300.0, 110.0)],
+            kind: ActivityEdgeKindLayout::Normal,
         });
         let (svg, _raw_dim) = render_activity(&diagram, &layout, &SkinParams::default(), None)
             .expect("render failed");
@@ -2197,24 +2314,28 @@ mod tests {
             to_index: 1,
             label: String::new(),
             points: vec![(60.0, 40.0), (60.0, 60.0)],
+            kind: ActivityEdgeKindLayout::Normal,
         });
         layout.edges.push(ActivityEdgeLayout {
             from_index: 1,
             to_index: 2,
             label: String::new(),
             points: vec![(60.0, 80.0), (60.0, 85.0), (180.0, 85.0), (180.0, 100.0)],
+            kind: ActivityEdgeKindLayout::Normal,
         });
         layout.edges.push(ActivityEdgeLayout {
             from_index: 2,
             to_index: 3,
             label: String::new(),
             points: vec![(180.0, 120.0), (180.0, 125.0), (60.0, 125.0), (60.0, 140.0)],
+            kind: ActivityEdgeKindLayout::Normal,
         });
         layout.edges.push(ActivityEdgeLayout {
             from_index: 3,
             to_index: 4,
             label: String::new(),
             points: vec![(60.0, 160.0), (60.0, 180.0)],
+            kind: ActivityEdgeKindLayout::Normal,
         });
 
         let (svg, _raw_dim) = render_activity(&diagram, &layout, &SkinParams::default(), None)
