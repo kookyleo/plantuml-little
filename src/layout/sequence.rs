@@ -1835,10 +1835,44 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
                     if note_pref_h > arrow_ph {
                         let note_push = note_pref_h - arrow_ph;
                         y_cursor += note_push;
+                        // Java ArrowAndNoteBox: when noteH > arrowH, the arrow is
+                        // pushed DOWN by (notePH - arrowPH)/2 to vertically center
+                        // it within the combined tile.  The arrow_ph used here is
+                        // `lp.message_spacing` (Java's arrow.getPreferredHeight),
+                        // not the inflated `y_cursor - note_y` that includes
+                        // back_offset double-counting.  When a centering push is
+                        // applied, also subtract any `note_extra` baseline offset
+                        // (3 px), which is otherwise compensating for the lack of
+                        // centering at the basic msg_y baseline.
+                        let center_arrow_ph = lp.message_spacing + last_message_extra_height;
+                        let mut centered = false;
+                        if note_pref_h > center_arrow_ph {
+                            let arrow_push = (note_pref_h - center_arrow_ph) / 2.0 - note_extra;
+                            if arrow_push > 0.0 {
+                                centered = true;
+                                if let Some(midx) = last_message_idx {
+                                    if let Some(m) = messages.get_mut(midx) {
+                                        m.y += arrow_push;
+                                    }
+                                }
+                                if let Some(y) = last_event_msg_y.as_mut() {
+                                    *y += arrow_push;
+                                }
+                            }
+                        }
                         // Ensure lifeline extends past the note polygon + spacing
                         let note_bottom = note_y + note_height;
-                        lifeline_extend_y = lifeline_extend_y
-                            .max(note_bottom + lp.message_spacing / 2.0);
+                        if centered {
+                            // Java: after the centered ArrowAndNoteBox tile, the
+                            // lifeline reaches NoteBox.startingY + notePH + 5
+                            //   = (note_y - 5) + note_pref_h + 10
+                            //   = note_y + note_pref_h + 5
+                            lifeline_extend_y = lifeline_extend_y
+                                .max(note_y + note_pref_h + 5.0);
+                        } else {
+                            lifeline_extend_y = lifeline_extend_y
+                                .max(note_bottom + lp.message_spacing / 2.0);
+                        }
                     }
                 } else {
                     // Standalone note (not following a message): advance by note height
@@ -1973,7 +2007,29 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
                     if note_pref_h > arrow_ph {
                         let note_push = note_pref_h - arrow_ph;
                         y_cursor += note_push;
-                        lifeline_extend_y += note_push / 2.0;
+                        // Java ArrowAndNoteBox arrow centering (mirror NoteRight).
+                        let center_arrow_ph = lp.message_spacing + last_message_extra_height;
+                        let mut centered = false;
+                        if note_pref_h > center_arrow_ph {
+                            let arrow_push = (note_pref_h - center_arrow_ph) / 2.0 - note_extra;
+                            if arrow_push > 0.0 {
+                                centered = true;
+                                if let Some(midx) = last_message_idx {
+                                    if let Some(m) = messages.get_mut(midx) {
+                                        m.y += arrow_push;
+                                    }
+                                }
+                                if let Some(y) = last_event_msg_y.as_mut() {
+                                    *y += arrow_push;
+                                }
+                            }
+                        }
+                        if centered {
+                            lifeline_extend_y = lifeline_extend_y
+                                .max(note_y + note_pref_h + 5.0);
+                        } else {
+                            lifeline_extend_y += note_push / 2.0;
+                        }
                     }
                 } else {
                     let note_bottom = note_y + note_height;
