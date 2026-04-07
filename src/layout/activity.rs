@@ -1787,6 +1787,29 @@ pub fn layout_activity(diagram: &ActivityDiagram) -> Result<ActivityLayout> {
         total_width += loopback_extra_right;
     }
 
+    // A `repeat while` hex can have an `is (...)` East label that is much
+    // wider than any flow-chart element.  Java sizes the SVG viewport via
+    // `LimitFinder.maxX + 1 + margin_right (= 10)`, so grow `total_width`
+    // to match when the East label protrudes past the current bounds.
+    for node in &nodes {
+        if let ActivityNodeKindLayout::Hexagon { east_lines } = &node.kind {
+            if east_lines.is_empty() {
+                continue;
+            }
+            let east_font_size = HEXAGON_LABEL_FONT_SIZE;
+            let max_line_w = east_lines
+                .iter()
+                .map(|line| {
+                    font_metrics::text_width(line, "SansSerif", east_font_size, false, false)
+                })
+                .fold(0.0_f64, f64::max);
+            let east_right = node.x + node.width + max_line_w + 11.0;
+            if east_right > total_width {
+                total_width = east_right;
+            }
+        }
+    }
+
     log::debug!(
         "layout_activity: placed {} nodes, {} edges, total {}x{}",
         nodes.len(),
