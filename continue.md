@@ -27,11 +27,33 @@ The following fixtures currently produce no SVG with official PlantUML `v1.2026.
 
 Any future Java/Rust parity work must target the stable `v1.2026.2` reference corpus now checked into `tests/reference/`.
 
-## Current Parity Baseline (2026-04-05)
+## Current Parity Baseline (2026-04-07)
 
-- `cargo test --lib`: `2640/2640`
-- `cargo test --test reference_tests`: `284/320` (88.75%)
+- `cargo test --lib`: `2641/2641`
+- `cargo test --test reference_tests`: `286/320` (89.375%)
 - Byte-compare authority remains the 318 stable-Java SVGs indexed by `tests/reference/INDEX.tsv`.
+
+### 2026-04-07 Fixes (280 → 286)
+- **Sequence polygon HACK_X_FOR_POLYGON (svg_sequence.rs)**: Java's LimitFinder
+  inflates polygon bounds by 10px on both ends of x. Mirror this in
+  `track_polygon_points` so teoz diagrams with `->]` / `[->` boundary arrows
+  match Java viewport width (fixed SequenceArrows_0001/0002 + preprocessor
+  mirrors).
+- **SvgGraphics ensureVisible shadow padding (svg_sequence.rs)**: Track two
+  extents in parallel — LimitFinder-style and SvgGraphics-ensureVisible-style
+  — so shadowed paths/rects/lines push the viewport the way Java's
+  SvgGraphics does via `2*deltaShadow`. Final viewport = max of both
+  (fixes SequenceLeftMessageAndActiveLifeLines_0001 + preprocessor mirror).
+- **Note right x-offset (layout/sequence.rs)**: Java's NoteBox.getStartingX
+  uses `(int)(posC + rightShift)`, then AbstractComponent.drawU adds
+  `paddingX=5`. Changed from `posC + ACTIVATION_WIDTH(10)` to
+  `(int)(posC + active_right_shift) + NOTE_COMPONENT_PADDING_X` with a
+  look-ahead for pending `activate target` (matches Java DrawableSet-
+  Initializer line 495 which records activation stairs at the message y).
+- **SVG seed source hashing (klimt/svg.rs)**: Strip comment lines (leading
+  `'`) and concatenate each surviving line + `\n` before hashing, matching
+  Java's `getPlainString("\n")` on the preprocessor-filtered source list.
+  Aligns filter/shadow/gradient IDs byte-exact with Java.
 
 ### 2026-04-05 Fixes (268→271)
 - **Preprocessor backslash boundary**: Java Define.apply2() translates `\n` to private-use Unicode before word-boundary matching so `!TEST=something` correctly substitutes in `test:\nTEST`. (src/preproc/mod.rs)
