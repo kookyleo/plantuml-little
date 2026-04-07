@@ -61,6 +61,14 @@ pub enum ActivityNodeKindLayout {
     End,
     Action,
     Diamond,
+    /// Hexagonal diamond (Java's `FtileDiamondInside`) used by
+    /// `repeat while (cond) is (label)` — the test condition lives inside
+    /// the hexagon (in `node.text`) and the optional `is` label is rendered
+    /// to the right of the shape (East label).  Each entry in `east_lines`
+    /// is rendered as a separate line of text.
+    Hexagon {
+        east_lines: Vec<String>,
+    },
     ForkBar,
     SyncBar,
     Note {
@@ -138,6 +146,20 @@ const START_RADIUS: f64 = 10.0;
 /// Java FtileCircleStop: SIZE = 22, so radius = 11.
 const STOP_RADIUS: f64 = 11.0;
 const DIAMOND_SIZE: f64 = 20.0;
+/// Java `Hexagon.hexagonHalfSize`.  Drives `FtileDiamond` (square diamond used
+/// at `repeat` start) and `FtileDiamondInside` (hexagon used at `repeat while`).
+const HEXAGON_HALF_SIZE: f64 = 12.0;
+/// Font size for the test condition rendered inside the `repeat while` hexagon
+/// and for the East `is` label rendered to its right.  Matches Java's
+/// `activity.diamond.FontSize` (11pt).
+const HEXAGON_LABEL_FONT_SIZE: f64 = 11.0;
+/// Extra vertical gap inserted before a `repeat while` hexagon when an East
+/// label is present.  Java's `FtileRepeat.calculateDimensionInternal` reserves
+/// `8 * hexagonHalfSize = 96` total padding around the inner sequence, half of
+/// which (48px) sits above the closing hexagon.  Without an East label the
+/// usual 20px arrow gap is enough; with one we add 28px to reach the 48px
+/// clearance Java provides.
+const REPEAT_WHILE_EXTRA_GAP: f64 = 28.0;
 const FORK_BAR_HEIGHT: f64 = 6.0;
 const FORK_BAR_WIDTH: f64 = 80.0;
 /// Java sync bar height (old-style activity `===NAME===`).
@@ -908,9 +930,9 @@ pub fn layout_activity(diagram: &ActivityDiagram) -> Result<ActivityLayout> {
 
             // ---- Repeat / RepeatWhile → diamond at end -----------------------
             ActivityEvent::Repeat => {
-                // `repeat` is simply a label-less merge point — draw a small
-                // diamond identical to EndIf.
-                let (w, h) = (DIAMOND_SIZE * 2.0, DIAMOND_SIZE * 2.0);
+                // `repeat` start: Java `FtileDiamond` — small empty square
+                // diamond sized 24×24 (`Hexagon.hexagonHalfSize * 2`).
+                let (w, h) = (HEXAGON_HALF_SIZE * 2.0, HEXAGON_HALF_SIZE * 2.0);
                 let cx = swimlane_center_x(&swimlane_layouts, current_lane_idx);
                 let x = cx - w / 2.0;
                 let y = y_cursor;
@@ -929,24 +951,71 @@ pub fn layout_activity(diagram: &ActivityDiagram) -> Result<ActivityLayout> {
                 y_cursor += h + node_gap;
             }
 
-            ActivityEvent::RepeatWhile { condition, is_text: _ } => {
-                let (w, h) = diamond_size(condition);
+            ActivityEvent::RepeatWhile { condition, is_text } => {
+                // Java `FtileDiamondInside`: hexagonal shape sized
+                // (label_w + 24) × max(label_h, 24) where the test condition
+                // sits inside.  An optional `is (label)` becomes the East
+                // label, rendered to the right.
+                let cond_w = font_metrics::text_width(
+                    condition,
+                    "SansSerif",
+                    HEXAGON_LABEL_FONT_SIZE,
+                    false,
+                    false,
+                );
+                let cond_h = if condition.is_empty() {
+                    0.0
+                } else {
+                    font_metrics::line_height(
+                        "SansSerif",
+                        HEXAGON_LABEL_FONT_SIZE,
+                        false,
+                        false,
+                    )
+                };
+                let hex_w = if cond_w == 0.0 || cond_h == 0.0 {
+                    HEXAGON_HALF_SIZE * 2.0
+                } else {
+                    cond_w.max(HEXAGON_HALF_SIZE * 2.0) + HEXAGON_HALF_SIZE * 2.0
+                };
+                let hex_h = if cond_w == 0.0 || cond_h == 0.0 {
+                    HEXAGON_HALF_SIZE * 2.0
+                } else {
+                    cond_h.max(HEXAGON_HALF_SIZE * 2.0)
+                };
+
+                let east_lines: Vec<String> = match is_text {
+                    Some(label) => split_label_lines(label),
+                    None => Vec::new(),
+                };
+
+                // East label clears space ABOVE the hexagon.  Java's
+                // `FtileRepeat` builds in `8 * hexagonHalfSize = 96` total
+                // padding around the inner sequence so the East label
+                // (typically ≤ 48px) overlaps the spare 48px gap above the
+                // hexagon.  We apply that same extra cushion here.
+                if !east_lines.is_empty() {
+                    y_cursor += REPEAT_WHILE_EXTRA_GAP;
+                }
+
                 let cx = swimlane_center_x(&swimlane_layouts, current_lane_idx);
-                let x = cx - w / 2.0;
+                let x = cx - hex_w / 2.0;
                 let y = y_cursor;
-                log::debug!("  node[{node_index}] RepeatWhile diamond @ ({x:.1}, {y:.1})");
+                log::debug!(
+                    "  node[{node_index}] RepeatWhile hexagon @ ({x:.1}, {y:.1}) {hex_w}x{hex_h} east_lines={east_lines:?}"
+                );
                 nodes.push(ActivityNodeLayout {
                     index: node_index,
-                    kind: ActivityNodeKindLayout::Diamond,
+                    kind: ActivityNodeKindLayout::Hexagon { east_lines },
                     x,
                     y,
-                    width: w,
-                    height: h,
+                    width: hex_w,
+                    height: hex_h,
                     text: condition.clone(),
                 });
                 last_flow_node_idx = Some(node_index);
                 node_index += 1;
-                y_cursor += h + node_gap;
+                y_cursor += hex_h + node_gap;
             }
 
             // ---- Fork / ForkAgain / EndFork → horizontal bars ----------------
@@ -1562,6 +1631,20 @@ fn diamond_size(label: &str) -> (f64, f64) {
     (w, h)
 }
 
+/// Split a multi-line label coming out of the parser into individual lines.
+///
+/// The parser preserves both the literal `\n` escape (Java's
+/// `BackSlash.translateBackSlashes` converts it to a real newline at
+/// `Display.create` time) and the U+E100 placeholder used for `%newline()` /
+/// `%n()` macro expansions.  We normalise both into U+E100, then split.
+///
+/// A trailing separator yields a trailing empty entry, matching Java's
+/// `Display` (e.g. `"a\nb\n"` produces three lines `["a", "b", ""]`).
+pub(crate) fn split_label_lines(text: &str) -> Vec<String> {
+    let normalised = text.replace("\\n", "\u{E100}");
+    normalised.split('\u{E100}').map(|s| s.to_string()).collect()
+}
+
 /// Apply a coordinate transform to the entire layout based on the diagram
 /// direction.  The layout algorithm always computes positions in top-to-bottom
 /// orientation; for other directions we transform after the fact.
@@ -1712,13 +1795,16 @@ fn align_flow_groups_to_lane_columns(nodes: &mut [ActivityNodeLayout], node_lane
 /// `MinMax`.  Activity swimlane centering must follow those bounds rather than
 /// the plain layout box, otherwise simple action lanes end up 1px too far left.
 fn limitfinder_x_bounds(node: &ActivityNodeLayout) -> (f64, f64) {
-    match node.kind {
+    match &node.kind {
         ActivityNodeKindLayout::Action
         | ActivityNodeKindLayout::ForkBar
         | ActivityNodeKindLayout::SyncBar => {
             (node.x - 1.0, node.x + node.width - 1.0)
         }
         ActivityNodeKindLayout::Diamond => (node.x - 10.0, node.x + node.width + 10.0),
+        ActivityNodeKindLayout::Hexagon { .. } => {
+            (node.x - 1.0, node.x + node.width - 1.0)
+        }
         ActivityNodeKindLayout::Start
         | ActivityNodeKindLayout::Stop
         | ActivityNodeKindLayout::End
@@ -2827,9 +2913,47 @@ mod tests {
         ]);
         let layout = layout_activity(&d).unwrap();
         assert_eq!(layout.nodes.len(), 3);
+        // `repeat` start is a small square diamond (Java FtileDiamond).
         assert_eq!(layout.nodes[0].kind, ActivityNodeKindLayout::Diamond);
-        assert_eq!(layout.nodes[2].kind, ActivityNodeKindLayout::Diamond);
+        // `repeat while` end is a hexagonal diamond (Java FtileDiamondInside)
+        // with no East label since `is (...)` is absent.
+        assert!(matches!(
+            &layout.nodes[2].kind,
+            ActivityNodeKindLayout::Hexagon { east_lines } if east_lines.is_empty()
+        ));
         assert!(layout.nodes[2].text.contains("again?"));
+    }
+
+    #[test]
+    fn repeat_while_with_is_label() {
+        let d = diagram(vec![
+            ActivityEvent::Repeat,
+            ActivityEvent::Action { text: "do".into() },
+            ActivityEvent::RepeatWhile {
+                condition: "x".into(),
+                is_text: Some("a\\nb\\nc\\n".into()),
+            },
+        ]);
+        let layout = layout_activity(&d).unwrap();
+        assert_eq!(layout.nodes.len(), 3);
+        let hex_node = &layout.nodes[2];
+        match &hex_node.kind {
+            ActivityNodeKindLayout::Hexagon { east_lines } => {
+                // Trailing `\n` produces an empty trailing line, matching
+                // Java's `Display.create()` behaviour.
+                assert_eq!(east_lines, &vec![
+                    "a".to_string(),
+                    "b".to_string(),
+                    "c".to_string(),
+                    "".to_string(),
+                ]);
+            }
+            other => panic!("expected Hexagon kind, got {other:?}"),
+        }
+        assert_eq!(hex_node.text, "x");
+        // Hexagon width = label_w + 24, height = 24 (label fits in min height).
+        assert!(hex_node.width > 24.0);
+        assert_eq!(hex_node.height, 24.0);
     }
 
     // 17. LeftToRight direction: width > height (wider than tall) ----------

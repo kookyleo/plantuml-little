@@ -809,6 +809,9 @@ fn render_node(
         ActivityNodeKindLayout::End => render_stop(sg, node),
         ActivityNodeKindLayout::Action => render_action(sg, node, act_bg, act_border, act_font),
         ActivityNodeKindLayout::Diamond => render_diamond(sg, node, diamond_bg, diamond_border),
+        ActivityNodeKindLayout::Hexagon { east_lines } => {
+            render_hexagon(sg, node, east_lines, diamond_bg, diamond_border, act_font)
+        }
         ActivityNodeKindLayout::ForkBar => render_fork_bar(sg, node),
         ActivityNodeKindLayout::SyncBar => render_sync_bar(sg, node),
         ActivityNodeKindLayout::Note { position, mode } => {
@@ -1040,7 +1043,12 @@ fn render_single_column_table_action(
     sg.push_raw(&tmp);
 }
 
-/// Diamond node: rotated square for if/while conditions
+/// Diamond node: rotated square for if/while conditions and `repeat` start.
+///
+/// Java `FtileDiamond` emits a `UPolygon` with the first vertex repeated to
+/// close the shape, drawn through `borderColor.apply(stroke).bg(backColor)`.
+/// stroke-width comes from the activity diamond style (0.5px in stable
+/// PlantUML 1.2026.x).
 fn render_diamond(sg: &mut SvgGraphic, node: &ActivityNodeLayout, bg: &str, border: &str) {
     let x = node.x;
     let y = node.y;
@@ -1050,9 +1058,121 @@ fn render_diamond(sg: &mut SvgGraphic, node: &ActivityNodeLayout, bg: &str, bord
     let cy = y + h / 2.0;
     sg.set_fill_color(bg);
     sg.set_stroke_color(Some(border));
-    sg.set_stroke_width(1.5, None);
-    sg.svg_polygon(0.0, &[cx, y, x + w, cy, cx, y + h, x, cy]);
+    sg.set_stroke_width(0.5, None);
+    sg.svg_polygon(
+        0.0,
+        &[cx, y, x + w, cy, cx, y + h, x, cy, cx, y],
+    );
 }
+
+/// Hexagonal diamond used by `repeat while (cond) is (label)`.
+///
+/// Java's `FtileDiamondInside` draws:
+///   1. A six-vertex hexagon (`Hexagon.asPolygon(0, w, h)`).
+///   2. The test condition (label) centred inside the hexagon — font 11pt.
+///   3. The optional `is (...)` text as the East label, drawn line by line to
+///      the right of the hexagon at `y = -dimEast.h + dimTotal.h / 2`.
+fn render_hexagon(
+    sg: &mut SvgGraphic,
+    node: &ActivityNodeLayout,
+    east_lines: &[String],
+    bg: &str,
+    border: &str,
+    font_color: &str,
+) {
+    let x = node.x;
+    let y = node.y;
+    let w = node.width;
+    let h = node.height;
+    let half = HEXAGON_RENDER_HALF_SIZE;
+
+    // 1. Hexagon polygon (closed: first vertex repeated at the end).
+    sg.set_fill_color(bg);
+    sg.set_stroke_color(Some(border));
+    sg.set_stroke_width(0.5, None);
+    sg.svg_polygon(
+        0.0,
+        &[
+            x + half, y,
+            x + w - half, y,
+            x + w, y + h / 2.0,
+            x + w - half, y + h,
+            x + half, y + h,
+            x, y + h / 2.0,
+            x + half, y,
+        ],
+    );
+
+    // 2. Inside test condition, centred inside the hexagon.  Font size matches
+    //    Java's `FtileDiamondInside.label` (11pt sans-serif).
+    if !node.text.is_empty() {
+        let font_size = HEXAGON_LABEL_FONT_SIZE_RENDER;
+        let text_w = font_metrics::text_width(&node.text, "SansSerif", font_size, false, false);
+        let line_h = font_metrics::line_height("SansSerif", font_size, false, false);
+        let ascent = font_metrics::ascent("SansSerif", font_size, false, false);
+        let text_x = x + (w - text_w) / 2.0;
+        let text_y = y + (h - line_h) / 2.0 + ascent;
+        sg.set_fill_color(font_color);
+        sg.svg_text(
+            &node.text,
+            text_x,
+            text_y,
+            Some("sans-serif"),
+            font_size,
+            None,
+            None,
+            None,
+            text_w,
+            crate::klimt::svg::LengthAdjust::Spacing,
+            None,
+            0,
+            None,
+        );
+    }
+
+    // 3. East label: each entry from `east_lines` is rendered as its own
+    //    `<text>` to the right of the hexagon.  Java's
+    //    `east.drawU(translate(dimTotal.w, -dimEast.h + dimTotal.h / 2))`
+    //    places the text block above the hexagon vertical centre.
+    if !east_lines.is_empty() {
+        let font_size = HEXAGON_LABEL_FONT_SIZE_RENDER;
+        let line_h = font_metrics::line_height("SansSerif", font_size, false, false);
+        let ascent = font_metrics::ascent("SansSerif", font_size, false, false);
+        let east_h = line_h * east_lines.len() as f64;
+        let east_top_y = y + h / 2.0 - east_h;
+        let east_x = x + w;
+        for (i, line) in east_lines.iter().enumerate() {
+            let baseline_y = east_top_y + ascent + i as f64 * line_h;
+            // Empty trailing lines are emitted as a non-breaking space so the
+            // viewport calculation matches Java's `LimitFinder` (which
+            // measures the glyph box of the rendered space).
+            let display_text = if line.is_empty() { " " } else { line.as_str() };
+            let text_w =
+                font_metrics::text_width(display_text, "SansSerif", font_size, false, false);
+            sg.set_fill_color(font_color);
+            sg.svg_text(
+                if line.is_empty() { "\u{00A0}" } else { line },
+                east_x,
+                baseline_y,
+                Some("sans-serif"),
+                font_size,
+                None,
+                None,
+                None,
+                text_w,
+                crate::klimt::svg::LengthAdjust::Spacing,
+                None,
+                0,
+                None,
+            );
+        }
+    }
+}
+
+/// Java `Hexagon.hexagonHalfSize` — duplicated here so the renderer is
+/// independent of the layout module.
+const HEXAGON_RENDER_HALF_SIZE: f64 = 12.0;
+const HEXAGON_LABEL_FONT_SIZE_RENDER: f64 = 11.0;
 
 /// Fork bar: thin black horizontal rectangle
 fn render_fork_bar(sg: &mut SvgGraphic, node: &ActivityNodeLayout) {
