@@ -4009,6 +4009,7 @@ fn draw_object_box(
     if entity.kind == EntityKind::Map && !entity.map_entries.is_empty() {
         let attr_font_size = skin.font_size("classattribute", class_font_size);
         let text_line_h = font_metrics::line_height("SansSerif", attr_font_size, false, false);
+        let row_margin_top = 2.0; // withMargin(2,2): top inset before text baseline
         let row_margin = 4.0; // withMargin(2,2) → 2 top + 2 bottom
         let row_h = text_line_h + row_margin;
         let ascent = font_metrics::ascent("SansSerif", attr_font_size, false, false);
@@ -4024,7 +4025,7 @@ fn draw_object_box(
             sg.svg_line(x, cur_y, x + w, cur_y, 0.0);
             tracker.track_line(x, cur_y, x + w, cur_y);
             let key_w = font_metrics::text_width(key, "SansSerif", attr_font_size, false, false);
-            let text_y_row = cur_y + ascent;
+            let text_y_row = cur_y + row_margin_top + ascent;
             sg.set_fill_color(font_color);
             sg.svg_text(key, x + cell_margin_lr, text_y_row, Some("sans-serif"), attr_font_size, None, None, None, key_w, LengthAdjust::Spacing, None, 0, None);
             let val_w = font_metrics::text_width(value, "SansSerif", attr_font_size, false, false);

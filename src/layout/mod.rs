@@ -261,6 +261,7 @@ pub fn layout(diagram: &Diagram, skin: &crate::style::SkinParams) -> Result<Diag
             port_label_width: None,
                     order: None,
                     image_width_pt: None,
+                    image_height_pt: None,
                     lf_extra_left: 0.0,
                     lf_rect_correction: true,
                     lf_has_body_separator: false,
@@ -1311,6 +1312,15 @@ fn layout_class_diagram(cd: &ClassDiagram, skin: &crate::style::SkinParams) -> R
             // for visibility modifier polygons (PROTECTED/PACKAGE triangles/diamonds).
             // This pushes lf_min_x 2px beyond the rect's (node_x - 1).
             let lf_extra = entity_lf_extra_left(cd, e);
+            // Java: EntityImageMap uses ShapeType.RECTANGLE_HTML_FOR_PORTS which
+            // emits a shape=plaintext HTML table. Graphviz adds a default plaintext
+            // margin of 0.055in ~= 4pt on top/bottom, inflating the node bbox by
+            // ~8px total (4 above, 4 below). Mirror that by inflating the DOT node
+            // height for Map entities; the renderer still uses the natural image
+            // height from image_height_pt.
+            let is_map = e.kind == EntityKind::Map && !e.map_entries.is_empty();
+            let dot_h = if is_map { h + 8.0 } else { h };
+            let natural_h = h;
             LayoutNode {
                 id: name_to_id
                     .get(&e.name)
@@ -1318,7 +1328,7 @@ fn layout_class_diagram(cd: &ClassDiagram, skin: &crate::style::SkinParams) -> R
                     .unwrap_or_else(|| sanitize_id(&e.name)),
                 label: e.name.clone(),
                 width_pt: w,
-                height_pt: h,
+                height_pt: dot_h,
                 shape: None,
                 shield,
                 entity_position: None,
@@ -1326,6 +1336,7 @@ fn layout_class_diagram(cd: &ClassDiagram, skin: &crate::style::SkinParams) -> R
             port_label_width: None,
                 order: e.source_line,
                 image_width_pt: if (natural_w - w).abs() > 0.01 { Some(natural_w) } else { None },
+                image_height_pt: if (natural_h - dot_h).abs() > 0.01 { Some(natural_h) } else { None },
                 lf_extra_left: lf_extra,
                 lf_rect_correction: true,
                     lf_has_body_separator: false,
@@ -1403,6 +1414,7 @@ fn layout_class_diagram(cd: &ClassDiagram, skin: &crate::style::SkinParams) -> R
             port_label_width: None,
             order: None,
             image_width_pt: None,
+            image_height_pt: None,
             lf_extra_left: 0.0,
             lf_rect_correction: false,
             lf_has_body_separator: false,

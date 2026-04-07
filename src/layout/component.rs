@@ -613,6 +613,7 @@ pub fn layout_component(cd: &ComponentDiagram) -> Result<ComponentLayout> {
                 port_label_width: None,
                 order: e.source_line,
                 image_width_pt: None,
+                image_height_pt: None,
                 lf_extra_left: 0.0,
                 // Java LimitFinder shape correction by entity draw type:
                 // - URectangle entities: drawRectangle adds (-1,-1) and (-1,-1)
@@ -667,6 +668,7 @@ pub fn layout_component(cd: &ComponentDiagram) -> Result<ComponentLayout> {
             port_label_width: None,
             order: None,
             image_width_pt: None,
+            image_height_pt: None,
             lf_extra_left: 0.0,
             lf_rect_correction: true,
             lf_has_body_separator: false,
@@ -863,6 +865,7 @@ pub fn layout_component(cd: &ComponentDiagram) -> Result<ComponentLayout> {
             port_label_width: None,
             order: None,
             image_width_pt: None,
+            image_height_pt: None,
             lf_extra_left: 0.0,
             lf_rect_correction: false,
             lf_has_body_separator: false,

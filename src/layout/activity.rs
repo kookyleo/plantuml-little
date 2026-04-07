@@ -2464,6 +2464,7 @@ fn layout_old_style_activity_graph(
                 port_label_width: None,
                 order: None,
                 image_width_pt: None,
+                image_height_pt: None,
                 lf_extra_left: 0.0,
                 lf_rect_correction: true,
                 lf_has_body_separator: false,

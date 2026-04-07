@@ -27,6 +27,10 @@ pub struct LayoutNode {
     /// Java's LimitFinder uses this for separator line bounds instead of
     /// the expanded DOT node width.
     pub image_width_pt: Option<f64>,
+    /// Entity image natural height (px). Mirrors image_width_pt for vertical
+    /// adjustments such as Map entities whose DOT height is inflated for the
+    /// plaintext margin but whose rendered rect uses the natural height.
+    pub image_height_pt: Option<f64>,
     /// Extra LimitFinder min_x extension from entity image content.
     /// Java's HACK_X_FOR_POLYGON=10 pushes polygon visibility modifiers
     /// 10px left of their actual min_x, extending the LF boundary beyond
@@ -789,14 +793,21 @@ pub fn layout_with_svek(graph: &LayoutGraph) -> Result<GraphLayout, Error> {
             } else {
                 sn.width
             };
+            let ih = if i < graph.nodes.len() {
+                graph.nodes[i].image_height_pt.unwrap_or(graph.nodes[i].height_pt)
+            } else {
+                sn.height
+            };
             NodeLayout {
                 id,
                 // Compute center from top-left: move_delta() only sets min_x/min_y,
                 // so cx/cy may be stale (0,0). Always derive from min corner.
+                // Use the DOT-inflated dims for the center so the rendered rect
+                // (image size) sits centered within the larger DOT node bbox.
                 cx: sn.min_x + sn.width / 2.0,
                 cy: sn.min_y + sn.height / 2.0,
                 width: sn.width,
-                height: sn.height,
+                height: ih,
                 image_width: iw,
                 min_x: sn.min_x,
                 min_y: sn.min_y,
@@ -1288,24 +1299,34 @@ fn parse_svg_node(g: &str, tx: f64, ty: f64, graph: &LayoutGraph) -> Option<Node
     let min_x = tx + gviz_min_x;
     let min_y = ty + gviz_min_y;
 
-    // Use original precise size from the input graph (not Graphviz's rounded values)
+    // Use original precise size from the input graph (not Graphviz's rounded values).
+    // Prefer `image_*` natural dimensions when present; those represent the rendered
+    // rect while `width_pt`/`height_pt` are the inflated values used to tell DOT about
+    // qualifier shields or plaintext margins.
     let orig_size = graph.nodes.iter().find(|n| n.id == id);
-    let (w, h) = match orig_size {
+    let (dot_w, dot_h) = match orig_size {
         Some(n) => (n.width_pt, n.height_pt),
         None => {
             log::warn!("node {id}: not found in input graph, using graphviz size");
             (36.0, 36.0)
         }
     };
+    let image_w = orig_size.and_then(|n| n.image_width_pt).unwrap_or(dot_w);
+    let image_h = orig_size.and_then(|n| n.image_height_pt).unwrap_or(dot_h);
+
+    // Center cy on the DOT bbox center so the rendered rect is vertically centered
+    // within the larger DOT node (DOT pads plaintext nodes equally top/bottom).
+    let cx = min_x + dot_w / 2.0;
+    let cy = min_y + dot_h / 2.0;
 
     // Store as center point (NodeLayout uses cx/cy convention)
     Some(NodeLayout {
         id,
-        cx: min_x + w / 2.0,
-        cy: min_y + h / 2.0,
-        width: w,
-        height: h,
-        image_width: w,
+        cx,
+        cy,
+        width: image_w,
+        height: image_h,
+        image_width: image_w,
         min_x,
         min_y,
     })
@@ -1663,6 +1684,7 @@ mod tests {
             port_label_width: None,
                     order: None,
                     image_width_pt: None,
+                    image_height_pt: None,
                     lf_extra_left: 0.0,
                     lf_rect_correction: true,
                     lf_has_body_separator: false,
@@ -1683,6 +1705,7 @@ mod tests {
             port_label_width: None,
                     order: None,
                     image_width_pt: None,
+                    image_height_pt: None,
                     lf_extra_left: 0.0,
                     lf_rect_correction: true,
                     lf_has_body_separator: false,
@@ -1753,6 +1776,7 @@ mod tests {
             port_label_width: None,
                 order: None,
                 image_width_pt: None,
+                image_height_pt: None,
                 lf_extra_left: 0.0,
                 lf_rect_correction: true,
                 lf_has_body_separator: false,
