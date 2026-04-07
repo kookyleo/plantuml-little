@@ -153,8 +153,17 @@ fn svg_font_family_to_metrics_family(font_family: &str) -> &str {
 
 #[derive(Default)]
 struct SequenceSvgBounds {
+    // LimitFinder-style extent: used with `+1 + marginL + marginR` for
+    // Java's getFinalDimension pass. Polygons contribute HACK_X_FOR_POLYGON
+    // padding but no shadow padding (rect shadows use `2*deltaShadow` too,
+    // mirroring LimitFinder.drawRectangle).
     max_x: f64,
     max_y: f64,
+    // SvgGraphics ensureVisible-style extent: used with just `+1` for Java's
+    // SvgGraphics.maxX which tracks the largest drawn coord inflated by
+    // `2*deltaShadow` for shadowed shapes. No polygon HACK on this axis.
+    sg_max_x: f64,
+    sg_max_y: f64,
     seen: bool,
 }
 
@@ -166,11 +175,32 @@ impl SequenceSvgBounds {
         if !self.seen {
             self.max_x = x;
             self.max_y = y;
+            self.sg_max_x = x;
+            self.sg_max_y = y;
             self.seen = true;
             return;
         }
         self.max_x = self.max_x.max(x);
         self.max_y = self.max_y.max(y);
+        self.sg_max_x = self.sg_max_x.max(x);
+        self.sg_max_y = self.sg_max_y.max(y);
+    }
+
+    /// Add a point to only the SvgGraphics-style tracker (ensureVisible).
+    fn add_sg_point(&mut self, x: f64, y: f64) {
+        if !x.is_finite() || !y.is_finite() {
+            return;
+        }
+        if !self.seen {
+            self.sg_max_x = x;
+            self.sg_max_y = y;
+            // Don't mark `seen` without also updating LimitFinder-style;
+            // the caller is responsible for also calling `add_point` for
+            // the unshadowed extent.
+            return;
+        }
+        self.sg_max_x = self.sg_max_x.max(x);
+        self.sg_max_y = self.sg_max_y.max(y);
     }
 
     fn track_rect(&mut self, x: f64, y: f64, width: f64, height: f64) {
@@ -181,9 +211,48 @@ impl SequenceSvgBounds {
         self.add_point(x + width - 1.0, y + height - 1.0);
     }
 
+    /// Track a rectangle that carries a drop-shadow filter. Java's
+    /// LimitFinder.drawRectangle records `x + width - 1 + 2*deltaShadow` for
+    /// getFinalDimension, while SvgGraphics.svgRectangle independently calls
+    /// `ensureVisible(x + width + 2*deltaShadow, ...)` during draw. We track
+    /// both: the LimitFinder value feeds `+1 + marginL + marginR`, and the
+    /// ensureVisible value feeds `+1`.
+    fn track_rect_shadowed(&mut self, x: f64, y: f64, width: f64, height: f64, delta_shadow: f64) {
+        if width <= 0.0 || height <= 0.0 {
+            return;
+        }
+        self.add_point(x - 1.0, y - 1.0);
+        self.add_point(
+            x + width + 2.0 * delta_shadow - 1.0,
+            y + height + 2.0 * delta_shadow - 1.0,
+        );
+        // SvgGraphics.svgRectangle ensureVisible: no -1 offset.
+        self.add_sg_point(
+            x + width + 2.0 * delta_shadow,
+            y + height + 2.0 * delta_shadow,
+        );
+    }
+
     fn track_line(&mut self, x1: f64, y1: f64, x2: f64, y2: f64) {
         self.add_point(x1, y1);
         self.add_point(x2, y2);
+    }
+
+    fn track_line_shadowed(
+        &mut self,
+        x1: f64,
+        y1: f64,
+        x2: f64,
+        y2: f64,
+        delta_shadow: f64,
+    ) {
+        // LimitFinder side: raw line bounds (no shadow pad).
+        self.add_point(x1, y1);
+        self.add_point(x2, y2);
+        // Draw side: SvgGraphics.svgLine ensureVisible adds 2*deltaShadow.
+        let pad = 2.0 * delta_shadow;
+        self.add_sg_point(x1 + pad, y1 + pad);
+        self.add_sg_point(x2 + pad, y2 + pad);
     }
 
     fn track_ellipse(&mut self, cx: f64, cy: f64, rx: f64, ry: f64) {
@@ -215,6 +284,22 @@ impl SequenceSvgBounds {
         }
     }
 
+    /// Track path segment endpoints with Java's `2*deltaShadow` padding.
+    /// LimitFinder.drawUPath records raw UPath min/max; SvgGraphics.svgPath
+    /// independently calls `ensureVisible(coord + 2*deltaShadow, ...)` for
+    /// every segment endpoint when the path carries a drop-shadow filter.
+    fn track_points_shadowed(&mut self, coords: &[f64], delta_shadow: f64) {
+        // LimitFinder side: raw coords.
+        for pair in coords.chunks_exact(2) {
+            self.add_point(pair[0], pair[1]);
+        }
+        // Draw side: SvgGraphics.svgPath ensureVisible adds 2*deltaShadow.
+        let pad = 2.0 * delta_shadow;
+        for pair in coords.chunks_exact(2) {
+            self.add_sg_point(pair[0] + pad, pair[1] + pad);
+        }
+    }
+
     /// Track polygon bounds with Java's `HACK_X_FOR_POLYGON = 10` horizontal
     /// padding. Java `LimitFinder.drawUPolygon` extends polygon bounds by 10
     /// on both ends of the x axis so that arrow-head triangles at the right
@@ -243,8 +328,49 @@ impl SequenceSvgBounds {
         self.add_point(max_x + HACK_X_FOR_POLYGON, max_y);
     }
 
+    /// Track polygon bounds for a shadowed polygon. Java's LimitFinder applies
+    /// `HACK_X_FOR_POLYGON = 10` on the x axis; its SvgGraphics separately
+    /// calls `ensureVisible(point + 2*deltaShadow)` per vertex when a drop
+    /// shadow is present. We track both so the caller can take the final max.
+    fn track_polygon_points_shadowed(&mut self, coords: &[f64], delta_shadow: f64) {
+        const HACK_X_FOR_POLYGON: f64 = 10.0;
+        if coords.len() < 2 {
+            return;
+        }
+        let pad = 2.0 * delta_shadow;
+        let mut min_x = f64::INFINITY;
+        let mut max_x = f64::NEG_INFINITY;
+        let mut min_y = f64::INFINITY;
+        let mut max_y = f64::NEG_INFINITY;
+        for pair in coords.chunks_exact(2) {
+            min_x = min_x.min(pair[0]);
+            max_x = max_x.max(pair[0]);
+            min_y = min_y.min(pair[1]);
+            max_y = max_y.max(pair[1]);
+        }
+        if !min_x.is_finite() || !max_x.is_finite() {
+            return;
+        }
+        // LimitFinder side: HACK_X_FOR_POLYGON on x axis only.
+        self.add_point(min_x - HACK_X_FOR_POLYGON, min_y);
+        self.add_point(max_x + HACK_X_FOR_POLYGON, max_y);
+        // Draw side: SvgGraphics.svgPolygon ensureVisible per vertex.
+        for pair in coords.chunks_exact(2) {
+            self.add_sg_point(pair[0] + pad, pair[1] + pad);
+        }
+    }
+
+    /// LimitFinder-style dimensions to feed `+1 + marginL + marginR`.
     fn raw_body_dim(&self) -> Option<(f64, f64)> {
         self.seen.then_some((self.max_x + 1.0, self.max_y + 1.0))
+    }
+
+    /// SvgGraphics.ensureVisible-style dimensions to feed `+1`. These track
+    /// shape extents inflated by `2*deltaShadow` for shadowed elements, which
+    /// can exceed the LimitFinder extent (e.g. shadowed note paths on teoz
+    /// sequence diagrams).
+    fn sg_body_dim(&self) -> Option<(f64, f64)> {
+        self.seen.then_some((self.sg_max_x, self.sg_max_y))
     }
 }
 
@@ -382,7 +508,21 @@ fn parse_path_endpoints(d: &str) -> Vec<f64> {
     coords
 }
 
-fn measure_sequence_body_dim(body: &str) -> Option<(f64, f64)> {
+/// Measure the final SVG body dimensions.
+///
+/// Returns `(limit_finder_dim, sg_graphics_dim)` where:
+/// - `limit_finder_dim` = `(max_x + 1, max_y + 1)` in the style of Java's
+///   LimitFinder (polygon HACK applied, no draw-time shadow padding). Feed
+///   this to `+ marginL + marginR` to match Java's getFinalDimension.
+/// - `sg_graphics_dim` = `(sg_max_x, sg_max_y)` tracking Java's SvgGraphics
+///   ensureVisible calls during draw (shadow padding applied per shape). Feed
+///   this to `+ 1` to match Java's `maxX = (int)(x + 1)` rounding.
+///
+/// Callers combine both via `max(limit_finder_dim_with_margins,
+/// sg_graphics_dim_with_rounding)` to pick the larger of the two widths,
+/// matching Java's two-pass behaviour where either pass can dominate
+/// depending on which shapes carry drop shadows.
+fn measure_sequence_body_dim_full(body: &str) -> Option<((f64, f64), (f64, f64))> {
     static TAG_RE: OnceLock<Regex> = OnceLock::new();
     static ATTR_RE: OnceLock<Regex> = OnceLock::new();
     let tag_re = TAG_RE.get_or_init(|| {
@@ -394,6 +534,12 @@ fn measure_sequence_body_dim(body: &str) -> Option<(f64, f64)> {
 
     let mut bounds = SequenceSvgBounds::default();
 
+    // Java's default drop-shadow delta for sequence diagrams. Matches
+    // ComponentRoseParticipant.deltaShadow (4) and ComponentRoseNote shadows.
+    // Elements carrying `filter="url(#fXXX)"` in the emitted SVG were drawn by
+    // SvgGraphics.svgPath / svgPolygon / svgRectangle with deltaShadow=4,
+    // whose ensureVisible calls inflate the viewport by 2*deltaShadow = 8.
+    const DEFAULT_SHADOW: f64 = 4.0;
     for cap in tag_re.captures_iter(body) {
         let tag = &cap[1];
         let attrs = &cap[2];
@@ -401,6 +547,13 @@ fn measure_sequence_body_dim(body: &str) -> Option<(f64, f64)> {
             .captures_iter(attrs)
             .map(|m| (m.get(1).unwrap().as_str(), m.get(2).unwrap().as_str()))
             .collect();
+
+        // Detect shadow: an element with a `filter="url(#fXXX)"` attribute was
+        // drawn via the deltaShadow-aware path in Java's SvgGraphics.
+        let has_shadow = attr_map
+            .get("filter")
+            .copied()
+            .is_some_and(|f| f.starts_with("url(#f"));
 
         match tag {
             "rect" => {
@@ -410,7 +563,11 @@ fn measure_sequence_body_dim(body: &str) -> Option<(f64, f64)> {
                     parse_svg_number(attr_map.get("width").copied()),
                     parse_svg_number(attr_map.get("height").copied()),
                 ) {
-                    bounds.track_rect(x, y, width, height);
+                    if has_shadow {
+                        bounds.track_rect_shadowed(x, y, width, height, DEFAULT_SHADOW);
+                    } else {
+                        bounds.track_rect(x, y, width, height);
+                    }
                 }
             }
             "line" => {
@@ -420,7 +577,11 @@ fn measure_sequence_body_dim(body: &str) -> Option<(f64, f64)> {
                     parse_svg_number(attr_map.get("x2").copied()),
                     parse_svg_number(attr_map.get("y2").copied()),
                 ) {
-                    bounds.track_line(x1, y1, x2, y2);
+                    if has_shadow {
+                        bounds.track_line_shadowed(x1, y1, x2, y2, DEFAULT_SHADOW);
+                    } else {
+                        bounds.track_line(x1, y1, x2, y2);
+                    }
                 }
             }
             "ellipse" => {
@@ -470,17 +631,31 @@ fn measure_sequence_body_dim(body: &str) -> Option<(f64, f64)> {
             }
             "polygon" | "polyline" => {
                 let coords = parse_svg_points(attr_map.get("points").copied());
-                bounds.track_polygon_points(&coords);
+                if has_shadow {
+                    bounds.track_polygon_points_shadowed(&coords, DEFAULT_SHADOW);
+                } else {
+                    bounds.track_polygon_points(&coords);
+                }
             }
             "path" => {
                 let coords = parse_path_endpoints(attr_map.get("d").copied().unwrap_or(""));
-                bounds.track_points(&coords);
+                if has_shadow {
+                    bounds.track_points_shadowed(&coords, DEFAULT_SHADOW);
+                } else {
+                    bounds.track_points(&coords);
+                }
             }
             _ => {}
         }
     }
 
-    bounds.raw_body_dim()
+    let lf = bounds.raw_body_dim()?;
+    let sg = bounds.sg_body_dim()?;
+    Some((lf, sg))
+}
+
+fn measure_sequence_body_dim(body: &str) -> Option<(f64, f64)> {
+    measure_sequence_body_dim_full(body).map(|(lf, _)| lf)
 }
 
 // ── Arrow marker defs ───────────────────────────────────────────────
@@ -4097,11 +4272,19 @@ fn render_sequence_inner(
         body = body.replace("stroke-width:0.5;", &format!("stroke-width:{sw_str};"));
     }
 
-    let (svg_w, svg_h) = if let Some((raw_w, raw_h)) = measure_sequence_body_dim(&body) {
-        (
-            ensure_visible_int(raw_w + DOC_MARGIN_RIGHT) as f64,
-            ensure_visible_int(raw_h + DOC_MARGIN_BOTTOM) as f64,
-        )
+    let (svg_w, svg_h) = if let Some(((raw_w, raw_h), (sg_w, sg_h))) =
+        measure_sequence_body_dim_full(&body)
+    {
+        // LimitFinder-style: `(max_x + 1) + marginR + 1 rounding`.
+        let lf_w = ensure_visible_int(raw_w + DOC_MARGIN_RIGHT) as f64;
+        let lf_h = ensure_visible_int(raw_h + DOC_MARGIN_BOTTOM) as f64;
+        // SvgGraphics-style: `ensureVisible_maxX + 1`, without extra margins
+        // since the body coords already include the left/top margin offset.
+        let sg_w_int = ensure_visible_int(sg_w) as f64;
+        let sg_h_int = ensure_visible_int(sg_h) as f64;
+        // Final viewport = max of both (Java uses whichever pass produced the
+        // larger maxX during SvgGraphics.ensureVisible + initial minDim).
+        (lf_w.max(sg_w_int), lf_h.max(sg_h_int))
     } else {
         (
             ensure_visible_int(layout.total_width) as f64,
