@@ -1193,6 +1193,22 @@ fn wrap_with_meta(
     body_pre_offset: bool,
     skin: &crate::style::SkinParams,
 ) -> Result<String> {
+    // SEQUENCE diagrams have a distinct chrome layout (SequenceDiagramArea) that
+    // differs from the TextBlockExporter path used by other diagram types.
+    // Java disables the annotation/chrome wrapping in SequenceDiagram.createImageBuilder
+    // (annotations(false)) and instead lets SequenceDiagramFileMakerPuma2.createUDrawable
+    // compose the chrome directly around the body.  Route to a dedicated function.
+    if diagram_type == "SEQUENCE" {
+        let has_meta = meta.title.is_some()
+            || meta.header.is_some()
+            || meta.footer.is_some()
+            || meta.caption.is_some()
+            || meta.legend.is_some();
+        if has_meta {
+            return wrap_with_meta_sequence(body_svg, meta, bg, raw_body_dim, skin);
+        }
+    }
+
     let (svg_w, svg_h) = extract_dimensions(body_svg);
     let body_content = extract_svg_content(body_svg);
 
@@ -1738,6 +1754,554 @@ fn wrap_with_meta(
             buf.pop();
         }
         buf.push_str("</g>");
+    }
+
+    buf.push_str("</g></svg>");
+    Ok(buf)
+}
+
+/// Sequence diagram chrome wrapping — mirrors Java's `SequenceDiagramFileMakerPuma2`
+/// + `SequenceDiagramArea` composition.  Key differences from the generic
+/// `wrap_with_meta` code path:
+///
+/// 1. Drawing order (top-to-bottom in SVG DOM): title → caption → body → header
+///    → footer → legend.  Java draws them in exactly this order (see
+///    `SequenceDiagramFileMakerPuma2.createUDrawable`, lines 214-233).
+/// 2. Chrome elements (title/caption/header/footer/legend) are rendered as bare
+///    `<rect>` + `<text>` without a surrounding `<g class="...">` wrapper.  Java
+///    does NOT wrap annotation chrome for sequence because
+///    `SequenceDiagram.createImageBuilder` disables `AnnotatedWorker` via
+///    `annotations(false)` (SequenceDiagram.java:308-311).
+/// 3. Canvas width model: `sequenceWidth = drawableSet.getDimension().width` which,
+///    for Puma2, equals `lastParticipant.startX + headWidth + 2*outMargin`.
+///    Rust's `svg.rs::BodyResult` builds `raw_body_dim = (sl.total_width - 5,
+///    sl.total_height - 10)` from the layout (subtracting doc margins), and
+///    `sl.total_width` already equals Java's `freeX`.  So `sequenceWidth =
+///    raw_body_dim.0 + 5`.  Empirically `sequenceHeight = raw_body_dim.1 + 2`
+///    (the 2px accounts for a layout-vs-render accounting difference).
+/// 4. `area.getWidth() = max(sequenceWidth, headerWidth, titleWidth, footerWidth,
+///    captionWidth)` — this is what Java's LimitFinder reads as `maxX` because any
+///    `TextBlockMarged` inside chrome draws a `UEmpty` spanning its full (margined)
+///    dimension.  Right-aligned header in particular ensures `lf.maxX >= area.getWidth()`.
+/// 5. Final canvas width = `(int)(area.getWidth() + 1 + margin.left + margin.right + 1)`
+///    = `(int)(area.getWidth() + 7)` for Puma2 (margin left=0, right=5) because
+///    `getFinalDimension` adds +1 and `SvgGraphics.ensureVisible` adds another +1
+///    via `(int)(x + 1)`.
+///
+/// Y positioning mirrors `SequenceDiagramArea` getters (lines 133-178):
+/// ```text
+/// headerY   = 0
+/// titleY    = headerHeight + headerMargin
+/// seqAreaY  = titleY + titleHeight           (+legendHeight if legend-top)
+/// legendY   = sequenceHeight + headerHeight + titleHeight
+/// captionY  = legendY + legendHeight
+/// footerY   = captionY + captionHeight
+/// ```
+/// The ImageBuilder applies `UTranslate(margin.left, margin.top)` = `(0, 5)` to the
+/// whole drawable, so every drawn element gets +5 on Y.  Each chrome element's own
+/// margin is added on top (e.g. title margin 5, legend margin 12, caption margin 1).
+#[allow(clippy::too_many_arguments)]
+fn wrap_with_meta_sequence(
+    body_svg: &str,
+    meta: &DiagramMeta,
+    bg: &str,
+    raw_body_dim: Option<(f64, f64)>,
+    skin: &crate::style::SkinParams,
+) -> Result<String> {
+    let body_content = extract_svg_content(body_svg);
+
+    // ── Document margins (SequenceDiagram.getDefaultMargins for Puma2 mode) ──
+    // Puma2: ClockwiseTopRightBottomLeft(top=5, right=5, bottom=5, left=0).
+    let doc_margin_top = 5.0;
+    let doc_margin_left = 0.0;
+    let doc_margin_right = 5.0;
+    let doc_margin_bottom = 5.0;
+
+    // ── Resolve document section styles ─────────────────────────────
+    let hdr_font_size = skin
+        .get("document.header.fontsize")
+        .and_then(|s| s.parse::<f64>().ok())
+        .unwrap_or(META_HF_FONT_SIZE);
+    let hdr_font_color = skin.get("document.header.fontcolor").map(|s| s.to_string());
+    let hdr_bg_color = skin
+        .get("document.header.backgroundcolor")
+        .map(|s| s.to_string());
+
+    let ftr_font_size = skin
+        .get("document.footer.fontsize")
+        .and_then(|s| s.parse::<f64>().ok())
+        .unwrap_or(META_HF_FONT_SIZE);
+    let ftr_font_color = skin.get("document.footer.fontcolor").map(|s| s.to_string());
+    let ftr_bg_color = skin
+        .get("document.footer.backgroundcolor")
+        .map(|s| s.to_string());
+
+    let title_font_size = skin
+        .get("document.title.fontsize")
+        .and_then(|s| s.parse::<f64>().ok())
+        .unwrap_or(META_TITLE_FONT_SIZE);
+    let title_font_color = skin.get("document.title.fontcolor").map(|s| s.to_string());
+    let title_bg_color = skin
+        .get("document.title.backgroundcolor")
+        .map(|s| s.to_string());
+
+    let leg_font_size = skin
+        .get("document.legend.fontsize")
+        .and_then(|s| s.parse::<f64>().ok())
+        .unwrap_or(META_LEGEND_FONT_SIZE);
+    let leg_font_color = skin.get("document.legend.fontcolor").map(|s| s.to_string());
+    let leg_bg_color = skin
+        .get("document.legend.backgroundcolor")
+        .map(|s| s.to_string());
+
+    let cap_font_size = skin
+        .get("document.caption.fontsize")
+        .and_then(|s| s.parse::<f64>().ok())
+        .unwrap_or(META_CAPTION_FONT_SIZE);
+    let cap_font_color = skin.get("document.caption.fontcolor").map(|s| s.to_string());
+    let cap_bg_color = skin
+        .get("document.caption.backgroundcolor")
+        .map(|s| s.to_string());
+
+    let title_bold = title_font_size == META_TITLE_FONT_SIZE;
+
+    // ── Chrome block dimensions (matches Java TextBlockBordered+Marged) ──
+    // For each block:
+    //   bordered_dim = text + 2*padding + 1  (TextBlockBordered +1)
+    //   full_dim     = bordered_dim + 2*margin (TextBlockMarged)
+    let hdr_text_w = meta
+        .header
+        .as_ref()
+        .map(|t| creole_text_w(t, hdr_font_size, false))
+        .unwrap_or(0.0);
+    let hdr_text_h = if meta.header.is_some() {
+        text_block_h(hdr_font_size, false)
+    } else {
+        0.0
+    };
+    let hdr_dim = if meta.header.is_some() {
+        block_dim(hdr_text_w, hdr_text_h, 0.0, 0.0)
+    } else {
+        (0.0, 0.0)
+    };
+
+    let ftr_text_w = meta
+        .footer
+        .as_ref()
+        .map(|t| creole_text_w(t, ftr_font_size, false))
+        .unwrap_or(0.0);
+    let ftr_text_h = if meta.footer.is_some() {
+        text_block_h(ftr_font_size, false)
+    } else {
+        0.0
+    };
+    let ftr_dim = if meta.footer.is_some() {
+        block_dim(ftr_text_w, ftr_text_h, 0.0, 0.0)
+    } else {
+        (0.0, 0.0)
+    };
+
+    let title_text_w = meta
+        .title
+        .as_ref()
+        .map(|t| {
+            creole_table_width(t, title_font_size, title_bold)
+                .unwrap_or_else(|| creole_text_w(t, title_font_size, title_bold))
+        })
+        .unwrap_or(0.0);
+    let title_text_h = if let Some(ref t) = meta.title {
+        let lh = font_metrics::line_height("SansSerif", title_font_size, title_bold, false);
+        let n_lines = t.split(crate::NEWLINE_CHAR).flat_map(|s| s.lines()).count().max(1);
+        let mut h = n_lines as f64 * lh;
+        let has_table = t.split(crate::NEWLINE_CHAR).flat_map(|s| s.lines()).any(|line| {
+            let trimmed = line.trim();
+            trimmed.starts_with('|') || (trimmed.starts_with('<') && trimmed.contains(">|"))
+        });
+        if has_table {
+            h += 4.0;
+        }
+        h
+    } else {
+        0.0
+    };
+    let title_dim = if meta.title.is_some() {
+        block_dim(title_text_w, title_text_h, TITLE_PADDING, TITLE_MARGIN)
+    } else {
+        (0.0, 0.0)
+    };
+
+    let cap_text_w = meta
+        .caption
+        .as_ref()
+        .map(|t| creole_text_w(t, cap_font_size, false))
+        .unwrap_or(0.0);
+    let cap_text_h = if meta.caption.is_some() {
+        text_block_h(cap_font_size, false)
+    } else {
+        0.0
+    };
+    let cap_dim = if meta.caption.is_some() {
+        block_dim(cap_text_w, cap_text_h, CAPTION_PADDING, CAPTION_MARGIN)
+    } else {
+        (0.0, 0.0)
+    };
+
+    let leg_text_w = meta
+        .legend
+        .as_ref()
+        .map(|t| creole_text_w(t, leg_font_size, false))
+        .unwrap_or(0.0);
+    let leg_text_h = if let Some(ref leg) = meta.legend {
+        crate::render::svg_richtext::compute_creole_note_text_height(leg, leg_font_size)
+    } else {
+        0.0
+    };
+    let leg_dim = if meta.legend.is_some() {
+        block_dim(leg_text_w, leg_text_h, LEGEND_PADDING, LEGEND_MARGIN)
+    } else {
+        (0.0, 0.0)
+    };
+
+    // ── Body dimensions ──────────────────────────────────────────────
+    // `raw_body_dim` for SEQUENCE is populated by `render::svg::body_result`
+    // from `SeqLayout.total_{width,height}` minus doc margins:
+    //   raw_w = sl.total_width  - DOC_MARGIN_RIGHT   (= total_width - 5)
+    //   raw_h = sl.total_height - DOC_MARGIN_TOP - DOC_MARGIN_BOTTOM (= total_height - 10)
+    // Empirically (verified by instrumenting Java's `SequenceDiagramFileMakerPuma2`
+    // on `sequence/a0006.puml`), `sl.total_width == drawableSet.getDimension().width`
+    // == Java's `freeX` (for Puma2 mode).  So:
+    //   Java sequenceWidth  = raw_w + 5
+    //   Java sequenceHeight = raw_h + 2   (2px layout-vs-render accounting delta)
+    let (raw_w, raw_h) = raw_body_dim.unwrap_or((0.0, 0.0));
+    let sequence_width = raw_w + 5.0;
+    let sequence_height_java = raw_h + 2.0;
+
+    // ── area.getWidth() = max(sequenceWidth, chrome widths) ─────────
+    // Each chrome's dim.0 here is the post-margin width (what TextBlockMarged
+    // reports via calculateDimension), matching Java's area width inputs.
+    let area_width = sequence_width
+        .max(hdr_dim.0)
+        .max(title_dim.0)
+        .max(ftr_dim.0)
+        .max(cap_dim.0);
+
+    // ── Y positions in SequenceDiagramArea coordinates (pre margin shift) ──
+    // See SequenceDiagramArea.java:133-178.  Legend is assumed non-top
+    // (isLegendTop == false) which matches default behaviour when legend has
+    // no explicit vertical alignment.  TODO: handle top-aligned legend.
+    let is_legend_top = false;
+    let header_height = hdr_dim.1;
+    let header_margin_internal = 0.0; // initHeader sets headerMargin=0
+    let title_height = title_dim.1;
+    let legend_height = leg_dim.1;
+    let caption_height = cap_dim.1;
+    let footer_height = ftr_dim.1;
+    let footer_margin_internal = 0.0; // initFooter sets footerMargin=0
+    let sequence_height = sequence_height_java;
+
+    let title_y_area = header_height + header_margin_internal;
+    let sequence_area_y = if is_legend_top {
+        title_y_area + title_height + legend_height
+    } else {
+        title_y_area + title_height
+    };
+    let legend_y_area = if is_legend_top {
+        title_height + header_height + header_margin_internal
+    } else {
+        sequence_height + header_height + header_margin_internal + title_height
+    };
+    let caption_y_area =
+        sequence_height + header_height + header_margin_internal + title_height + legend_height;
+    let footer_y_area = sequence_height
+        + header_height
+        + header_margin_internal
+        + title_height
+        + footer_margin_internal
+        + caption_height
+        + legend_height;
+
+    // ── Canvas dimensions ────────────────────────────────────────────
+    // Java: getFinalDimension = lf.maxX + 1 + margin.left + margin.right.
+    // SvgGraphics.ensureVisible(dim) sets maxX = (int)(dim + 1).
+    // lf.maxX = area.getWidth() when a header is present (it draws a UEmpty
+    // spanning full area width); for other cases the max drawn element sets it.
+    // We conservatively use area_width, which is >= any drawn extent.
+    let body_end_y =
+        sequence_height + header_height + header_margin_internal + title_height + legend_height
+            + caption_height + footer_height + footer_margin_internal;
+    let final_dim_w = area_width + 1.0 + doc_margin_left + doc_margin_right;
+    let final_dim_h = body_end_y + 1.0 + doc_margin_top + doc_margin_bottom;
+    let canvas_w = ensure_visible_int(final_dim_w) as f64;
+    let canvas_h = ensure_visible_int(final_dim_h) as f64;
+
+    log::trace!(
+        "wrap_with_meta_sequence: sequence_width={sequence_width:.4} area_width={area_width:.4} \
+        canvas_w={canvas_w} canvas_h={canvas_h} sequence_height={sequence_height}"
+    );
+
+    // ── Render SVG ───────────────────────────────────────────────────
+    let mut buf = String::with_capacity(body_svg.len() + 2048);
+    write_svg_root_bg(&mut buf, canvas_w, canvas_h, "SEQUENCE", bg);
+    if let Some(ref t) = meta.title {
+        if !t.is_empty() {
+            write_svg_title(&mut buf, t);
+        }
+    }
+    buf.push_str("<defs/><g>");
+    write_bg_rect(&mut buf, canvas_w, canvas_h, bg);
+
+    // ── Draw order (matches Java SequenceDiagramFileMakerPuma2.createUDrawable):
+    //   1. title, 2. caption, 3. body, 4. header, 5. footer, 6. legend.
+    // No <g class="..."> wrappers — Java emits raw rect+text for chrome when
+    // annotations(false) is set in the ImageBuilder.
+
+    // 1. Title (CENTER-aligned, drawn at area coords + (0, img_margin_top))
+    if let Some(ref title) = meta.title {
+        // area.getTitleX() = (getWidth() - titleWidth) / 2; then + title margin (5).
+        let title_x_area = ((area_width - title_dim.0) / 2.0).max(0.0);
+        let rect_x = doc_margin_left + title_x_area + TITLE_MARGIN;
+        let rect_y = doc_margin_top + title_y_area + TITLE_MARGIN;
+        let rect_w = title_text_w + 2.0 * TITLE_PADDING;
+        let rect_h = title_text_h + 2.0 * TITLE_PADDING;
+        let title_fill = title_bg_color.as_deref();
+        if let Some(fill) = title_fill {
+            write!(
+                buf,
+                r#"<rect fill="{}" height="{}" style="stroke:none;stroke-width:1;" width="{}" x="{}" y="{}"/>"#,
+                fill,
+                fmt_coord(rect_h),
+                fmt_coord(rect_w),
+                fmt_coord(rect_x),
+                fmt_coord(rect_y),
+            )
+            .unwrap();
+        }
+        let text_x = rect_x + TITLE_PADDING;
+        let text_y =
+            rect_y + TITLE_PADDING + font_metrics::ascent("SansSerif", title_font_size, title_bold, false);
+        let text_color = title_font_color.as_deref().unwrap_or(TEXT_COLOR);
+        let weight_str = if title_bold { r#" font-weight="bold""# } else { "" };
+        let outer_attrs = format!(r#"font-size="{}"{}"#, title_font_size as i32, weight_str);
+        let title_lines: Vec<String> = title
+            .split(crate::NEWLINE_CHAR)
+            .flat_map(|s| s.lines())
+            .map(|s| s.to_string())
+            .collect();
+        let has_table = creole_table_width(title, title_font_size, title_bold).is_some();
+        if has_table {
+            render_creole_display_lines(
+                &mut buf,
+                &title_lines,
+                text_x,
+                rect_y + TITLE_PADDING,
+                text_color,
+                &outer_attrs,
+                false,
+            );
+        } else {
+            render_creole_text(
+                &mut buf,
+                title,
+                text_x,
+                text_y,
+                text_block_h(title_font_size, title_bold),
+                text_color,
+                None,
+                &outer_attrs,
+            );
+        }
+        if buf.ends_with('\n') {
+            buf.pop();
+        }
+    }
+
+    // 2. Caption (CENTER-aligned)
+    if let Some(ref cap) = meta.caption {
+        let cap_x_area = ((area_width - cap_dim.0) / 2.0).max(0.0);
+        let rect_x = doc_margin_left + cap_x_area + CAPTION_MARGIN;
+        let rect_y = doc_margin_top + caption_y_area + CAPTION_MARGIN;
+        let rect_w = cap_text_w + 2.0 * CAPTION_PADDING;
+        let rect_h = cap_text_h + 2.0 * CAPTION_PADDING;
+        if let Some(ref fill) = cap_bg_color {
+            write!(
+                buf,
+                r#"<rect fill="{}" height="{}" style="stroke:none;stroke-width:1;" width="{}" x="{}" y="{}"/>"#,
+                fill,
+                fmt_coord(rect_h),
+                fmt_coord(rect_w),
+                fmt_coord(rect_x),
+                fmt_coord(rect_y),
+            )
+            .unwrap();
+        }
+        let text_x = rect_x + CAPTION_PADDING;
+        let text_y =
+            rect_y + CAPTION_PADDING + font_metrics::ascent("SansSerif", cap_font_size, false, false);
+        let text_color = cap_font_color.as_deref().unwrap_or(TEXT_COLOR);
+        render_creole_text(
+            &mut buf,
+            cap,
+            text_x,
+            text_y,
+            text_block_h(cap_font_size, false),
+            text_color,
+            None,
+            &format!(r#"font-size="{}""#, cap_font_size as i32),
+        );
+        if buf.ends_with('\n') {
+            buf.pop();
+        }
+    }
+
+    // 3. Body (rendered by svg_sequence::render_sequence).  Java draws at
+    //    (sequenceAreaX + delta1/2, sequenceAreaY).  For Puma2 with no wide
+    //    legend, delta1=0 and sequenceAreaX = (area_width - sequenceWidth)/2.
+    let body_inner = body_content
+        .strip_prefix("<defs/><g>")
+        .unwrap_or(&body_content);
+    let body_inner = body_inner.strip_suffix("</g>").unwrap_or(body_inner);
+    let body_inner = if body_inner.starts_with("<rect fill=\"") {
+        if let Some(end) = body_inner.find("/>") {
+            let rect_tag = &body_inner[..end + 2];
+            if rect_tag.contains("stroke:none")
+                && rect_tag.contains("x=\"0\"")
+                && rect_tag.contains("y=\"0\"")
+            {
+                &body_inner[end + 2..]
+            } else {
+                body_inner
+            }
+        } else {
+            body_inner
+        }
+    } else {
+        body_inner
+    };
+    let delta1 = (leg_dim.0 - area_width).max(0.0);
+    let sequence_area_x = ((area_width - sequence_width) / 2.0).max(0.0);
+    // Rust's svg_sequence already bakes in a 5px top/left margin into the body
+    // internal coordinates (layout MARGIN=5).  This coincidentally equals Java's
+    // ImageBuilder top margin (=5) and left margin (=0).  So we DO NOT add
+    // doc_margin_top here — the internal +5 already provides the image margin
+    // shift.  For X, doc_margin_left=0 so it doesn't matter.
+    let body_abs_x = doc_margin_left + sequence_area_x + delta1 / 2.0;
+    let body_abs_y = sequence_area_y;
+    if !body_inner.trim().is_empty() {
+        if body_abs_x.abs() < 0.001 && body_abs_y.abs() < 0.001 {
+            buf.push_str(body_inner);
+        } else {
+            let shifted = offset_svg_coords(body_inner, body_abs_x, body_abs_y);
+            buf.push_str(&shifted);
+        }
+    }
+
+    // 4. Header (RIGHT-aligned)
+    if let Some(ref hdr) = meta.header {
+        // area.getHeaderX(RIGHT) = getWidth() - headerWidth.  Header has no margin/pad.
+        let hdr_x_area = area_width - hdr_dim.0;
+        let rect_x = doc_margin_left + hdr_x_area;
+        let rect_y = doc_margin_top + 0.0; // headerY = 0
+        if let Some(ref fill) = hdr_bg_color {
+            write!(
+                buf,
+                r#"<rect fill="{}" height="{}" style="stroke:none;stroke-width:1;" width="{}" x="{}" y="{}"/>"#,
+                fill,
+                fmt_coord(hdr_text_h),
+                fmt_coord(hdr_text_w),
+                fmt_coord(rect_x),
+                fmt_coord(rect_y),
+            )
+            .unwrap();
+        }
+        let text_y = rect_y + font_metrics::ascent("SansSerif", hdr_font_size, false, false);
+        let text_color = hdr_font_color.as_deref().unwrap_or(DIVIDER_COLOR);
+        render_creole_text(
+            &mut buf,
+            hdr,
+            rect_x,
+            text_y,
+            text_block_h(hdr_font_size, false),
+            text_color,
+            None,
+            &format!(r#"font-size="{}""#, hdr_font_size as i32),
+        );
+        if buf.ends_with('\n') {
+            buf.pop();
+        }
+    }
+
+    // 5. Footer (CENTER-aligned by default)
+    if let Some(ref ftr) = meta.footer {
+        let ftr_x_area = ((area_width - ftr_dim.0) / 2.0).max(0.0);
+        let rect_x = doc_margin_left + ftr_x_area;
+        let rect_y = doc_margin_top + footer_y_area;
+        if let Some(ref fill) = ftr_bg_color {
+            write!(
+                buf,
+                r#"<rect fill="{}" height="{}" style="stroke:none;stroke-width:1;" width="{}" x="{}" y="{}"/>"#,
+                fill,
+                fmt_coord(ftr_text_h),
+                fmt_coord(ftr_text_w),
+                fmt_coord(rect_x),
+                fmt_coord(rect_y),
+            )
+            .unwrap();
+        }
+        let text_y = rect_y + font_metrics::ascent("SansSerif", ftr_font_size, false, false);
+        let text_color = ftr_font_color.as_deref().unwrap_or(DIVIDER_COLOR);
+        render_creole_text(
+            &mut buf,
+            ftr,
+            rect_x,
+            text_y,
+            text_block_h(ftr_font_size, false),
+            text_color,
+            None,
+            &format!(r#"font-size="{}""#, ftr_font_size as i32),
+        );
+        if buf.ends_with('\n') {
+            buf.pop();
+        }
+    }
+
+    // 6. Legend (CENTER-aligned by default; rounded rect + border)
+    if let Some(ref leg) = meta.legend {
+        let leg_x_area = ((area_width - leg_dim.0) / 2.0).max(0.0);
+        let rect_x = doc_margin_left + leg_x_area + LEGEND_MARGIN;
+        let rect_y = doc_margin_top + legend_y_area + LEGEND_MARGIN;
+        let draw_w = leg_text_w + 2.0 * LEGEND_PADDING;
+        let draw_h = leg_text_h + 2.0 * LEGEND_PADDING;
+        let half_rc = LEGEND_ROUND_CORNER / 2.0;
+        let legend_fill = leg_bg_color.as_deref().unwrap_or(LEGEND_BG);
+        let text_color = leg_font_color.as_deref().unwrap_or(TEXT_COLOR);
+        write!(
+            buf,
+            r#"<rect fill="{}" height="{}" rx="{}" ry="{}" style="stroke:{LEGEND_BORDER};stroke-width:1;" width="{}" x="{}" y="{}"/>"#,
+            legend_fill,
+            fmt_coord(draw_h),
+            fmt_coord(half_rc),
+            fmt_coord(half_rc),
+            fmt_coord(draw_w),
+            fmt_coord(rect_x),
+            fmt_coord(rect_y),
+        )
+        .unwrap();
+        let text_x = rect_x + LEGEND_PADDING;
+        let text_y =
+            rect_y + LEGEND_PADDING + font_metrics::ascent("SansSerif", leg_font_size, false, false);
+        render_creole_text(
+            &mut buf,
+            leg,
+            text_x,
+            text_y,
+            text_block_h(leg_font_size, false),
+            text_color,
+            None,
+            &format!(r#"font-size="{}""#, leg_font_size as i32),
+        );
+        if buf.ends_with('\n') {
+            buf.pop();
+        }
     }
 
     buf.push_str("</g></svg>");
