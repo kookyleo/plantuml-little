@@ -535,14 +535,38 @@ fn render_body(
             let margin_top = 5.0;
             let margin_right = DOC_MARGIN_RIGHT;
             let margin_bottom = DOC_MARGIN_BOTTOM;
-            let raw_dim = Some((
-                sl.total_width - margin_right,
-                sl.total_height - margin_top - margin_bottom,
-            ));
-            svg_sequence::render_sequence(sd, sl, skin).map(|svg| BodyResult {
-                svg,
-                raw_body_dim: raw_dim,
-                body_pre_offset: false,
+            // For diagrams with right-boundary arrows (`A ->]`), the layout's
+            // `total_width` does not include the trailing arrow-head polygon
+            // (Java's LimitFinder HACK_X_FOR_POLYGON = 10). `render_sequence`
+            // runs a LimitFinder-style bounds pass and bakes the correct width
+            // into the inner SVG header — we pick that up here. Guard on the
+            // presence of `]` (right-border) or `[` (left-border) endpoints so
+            // normal diagrams keep using `sl.total_width` and avoid the
+            // off-by-one ceiling slop that measure_sequence_body_dim can
+            // introduce for tightly packed layouts.
+            let has_boundary_arrow =
+                sd.events.iter().any(|e| matches!(e,
+                    crate::model::sequence::SeqEvent::Message(m)
+                        if m.to == "]" || m.from == "["));
+            svg_sequence::render_sequence(sd, sl, skin).map(|svg| {
+                let (body_w, body_h) = if has_boundary_arrow {
+                    let (rendered_w, rendered_h) = extract_dimensions(&svg);
+                    (
+                        (rendered_w - margin_right).max(sl.total_width - margin_right),
+                        (rendered_h - margin_top - margin_bottom)
+                            .max(sl.total_height - margin_top - margin_bottom),
+                    )
+                } else {
+                    (
+                        sl.total_width - margin_right,
+                        sl.total_height - margin_top - margin_bottom,
+                    )
+                };
+                BodyResult {
+                    svg,
+                    raw_body_dim: Some((body_w, body_h)),
+                    body_pre_offset: false,
+                }
             })
         }
         (Diagram::Activity(ad), DiagramLayout::Activity(al)) => {
