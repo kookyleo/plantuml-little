@@ -250,6 +250,9 @@ pub struct ActivationLayout {
 pub struct DestroyLayout {
     pub x: f64,
     pub y: f64,
+    /// Owning participant name (for teoz per-participant draw order).
+    /// Empty string when the destroy is not bound to a specific participant.
+    pub participant: String,
 }
 
 /// Note layout
@@ -1603,6 +1606,7 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
                 destroys.push(DestroyLayout {
                     x: px,
                     y: destroy_y,
+                    participant: name.clone(),
                 });
 
                 // Also close any active activation bar for this participant.

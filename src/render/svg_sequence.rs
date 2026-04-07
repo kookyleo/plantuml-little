@@ -736,11 +736,24 @@ fn draw_lifelines_with_activations(
         sg.push_raw(&tmp);
         sg.push_raw("</g>");
 
-        // Draw activation bars belonging to this participant
+        // Draw activation bars belonging to this participant.
+        // Java teoz LiveBoxes.drawOneLevel iterates per level. After each
+        // bar's doDrawing, drawDestroyIfNeeded emits the destroy cross at the
+        // bar's terminating Y. We approximate this by emitting the destroy
+        // cross right after the activation bar that ends at the destroy Y.
+        //
         // Java teoz: LiveBoxesDrawer passes null for stringsToDisplay → Display.NULL → empty tooltip
         for act in &layout.activations {
             if act.participant == p.name {
                 draw_activation(sg, act, "", shadow_attr, ll_color);
+                // If this bar ends exactly at a destroy for the same
+                // participant, emit the destroy cross immediately after
+                // (matches Java drawDestroyIfNeeded order).
+                for d in &layout.destroys {
+                    if d.participant == p.name && (d.y - act.y_end).abs() < 0.001 {
+                        draw_destroy(sg, d);
+                    }
+                }
             }
         }
     }
@@ -3816,8 +3829,13 @@ fn render_sequence_inner(
     for r in &layout.refs {
         interstitials.push((r.y, InterstitialEvent::Ref(r)));
     }
-    for d in &layout.destroys {
-        interstitials.push((d.y, InterstitialEvent::Destroy(d)));
+    // In teoz mode, destroy crosses are drawn per-participant alongside
+    // activation bars (matching Java LiveBoxesDrawer.drawDestroyIfNeeded
+    // order). Only puma mode emits destroys via interstitials.
+    if !sd.teoz_mode {
+        for d in &layout.destroys {
+            interstitials.push((d.y, InterstitialEvent::Destroy(d)));
+        }
     }
     for div in &layout.dividers {
         interstitials.push((div.y, InterstitialEvent::Divider(div)));

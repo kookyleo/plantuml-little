@@ -3284,6 +3284,9 @@ pub fn build_teoz_layout(sd: &SequenceDiagram, skin: &SkinParams) -> Result<SeqL
         let lifeline_top = STARTING_Y + max_preferred_height;
         let mut last_step_y: f64 = lifeline_top + PLAYINGSPACE_STARTING_Y;
         let mut last_msg_bottom_y: f64 = lifeline_top + PLAYINGSPACE_STARTING_Y;
+        // Map from event_idx → (arrow_y, p1, p2) for each Message event so
+        // LifeEvents can look up their owning message's arrow position.
+        let mut msg_arrow_y_by_event: HashMap<usize, (f64, String, String)> = HashMap::new();
         // For self-message tiles, Java uses p2.y (end point) for activate events
         // and p1.y (start point) for deactivate events. Track the end point
         // separately so inline activates after self-messages get the correct y.
@@ -3292,6 +3295,55 @@ pub fn build_teoz_layout(sd: &SequenceDiagram, skin: &SkinParams) -> Result<SeqL
         // If a future standalone activate raises the level, the msg step
         // has higher indent and the activation box starts at msg arrowY.
         let mut msg_claims_activate: HashMap<String, f64> = HashMap::new();
+
+        // Per-participant tracking that mirrors Java LiveBoxes.getStairs state:
+        // - msg_arrow_y: the arrow_y of the most recent Communication that this
+        //   participant was involved in (the "lastMessage" position).
+        // - seen_act / seen_deact: whether an activate / deactivate LifeEvent
+        //   attached to that message has already been seen for this participant.
+        //
+        // Java's getStairs keeps the stair `position` pointing at the last
+        // message's arrow_y until the (deactivate && seenAct) or (activate &&
+        // seenDeact) condition flips it to the LifeEvent's own potentialPosition.
+        #[derive(Default, Clone)]
+        struct LifeEventScope {
+            msg_arrow_y: Option<f64>,
+            seen_act: bool,
+            seen_deact: bool,
+            // Java LiveBoxes.eventsStep tracks every addStep call's y per
+            // participant. The +5 collision bump fires when a deactivate's
+            // step y matches a previously seen activate y. Track the most
+            // recent activate's tile_y so we can replicate the bump.
+            last_act_tile_y: Option<f64>,
+        }
+        let mut le_scope: HashMap<String, LifeEventScope> = HashMap::new();
+
+        // Java SequenceDiagram.activate auto-attaches every LifeEvent to the
+        // most recent message added (lastEventWithDeactivate). For each
+        // LifeEvent (inline or standalone) compute the owning message index.
+        // - Inline LifeEvents: owned by the message they were parsed with
+        //   (the previous Message in the events list).
+        // - Standalone LifeEvents: owned by the most recent Message in the
+        //   events list at parse time, regardless of intervening notes/etc.
+        // Both reduce to "most recent SeqEvent::Message before this index".
+        let life_event_owner_msg: Vec<Option<usize>> = {
+            let mut owner = vec![None; sd.events.len()];
+            let mut last_msg: Option<usize> = None;
+            for (i, ev) in sd.events.iter().enumerate() {
+                match ev {
+                    SeqEvent::Message(_) => {
+                        last_msg = Some(i);
+                    }
+                    SeqEvent::Activate(..)
+                    | SeqEvent::Deactivate(_)
+                    | SeqEvent::Destroy(_) => {
+                        owner[i] = last_msg;
+                    }
+                    _ => {}
+                }
+            }
+            owner
+        };
 
         // Pre-compute which events are "inside TileParallel first message".
         // In Java, when a non-parallel message is followed (after inline events)
@@ -3373,6 +3425,52 @@ pub fn build_teoz_layout(sd: &SequenceDiagram, skin: &SkinParams) -> Result<SeqL
                 }
             }
 
+            // Mirror Java LiveBoxes.getStairs per-participant state machine.
+            // Java iterates ALL events: when an AbstractMessage is encountered
+            // it resets seenActivate/seenDeactivate for the current participant
+            // and updates lastMessage; if the message involves the participant,
+            // the participant's `position` becomes the message's arrow_y.
+            // Otherwise the participant's `position` becomes null (potentialPosition is null).
+            //
+            // Java also resets lastMessage and seen state when a Note event
+            // is encountered (any kind of standalone note, not message-attached).
+            //
+            // We track only the bits we need: msg_arrow_y (last message arrow_y
+            // when this participant was involved, or None if msg doesn't involve
+            // them) and seen_act/seen_deact since the last message.
+            match event {
+                SeqEvent::Message(msg) => {
+                    let arrow_y = last_step_y;
+                    let msg_self = msg.from == msg.to;
+                    msg_arrow_y_by_event.insert(event_idx, (arrow_y, msg.from.clone(), msg.to.clone()));
+                    // For self messages, Java's CommunicationTileSelf only
+                    // calls addStepForLivebox on livingSpace1 (the source).
+                    // Other participants get their msg_arrow_y cleared.
+                    for entry in le_scope.values_mut() {
+                        entry.seen_act = false;
+                        entry.seen_deact = false;
+                        entry.msg_arrow_y = None;
+                    }
+                    let part1 = le_scope.entry(msg.from.clone()).or_default();
+                    part1.msg_arrow_y = Some(arrow_y);
+                    if !msg_self {
+                        let part2 = le_scope.entry(msg.to.clone()).or_default();
+                        part2.msg_arrow_y = Some(arrow_y);
+                    }
+                }
+                SeqEvent::NoteOver { .. } | SeqEvent::NoteLeft { .. } | SeqEvent::NoteRight { .. } => {
+                    // Java getStairs: a standalone Note resets lastMessage
+                    // and seen flags, forcing position to null for any
+                    // subsequent LifeEvent.
+                    for entry in le_scope.values_mut() {
+                        entry.seen_act = false;
+                        entry.seen_deact = false;
+                        entry.msg_arrow_y = None;
+                    }
+                }
+                _ => {}
+            }
+
             // Peek-ahead: if standalone activate for msg sender/receiver
             // occurs before next message, msg "claims" the activation start.
             if let SeqEvent::Message(msg) = event {
@@ -3401,17 +3499,58 @@ pub fn build_teoz_layout(sd: &SequenceDiagram, skin: &SkinParams) -> Result<SeqL
             match event {
                 SeqEvent::Activate(name, act_color) => {
                     let is_inline = sd.inline_life_events.contains(&event_idx);
-                    let y_stairs = if is_inline {
-                        // Java CommunicationTileSelf: activate uses p2.y (end point),
-                        // while deactivate/destroy uses p1.y (start point).
-                        last_step_y_self_end.unwrap_or(last_step_y)
-                    } else if let Some(ay) = msg_claims_activate.remove(name) {
-                        ay
+                    // Java SequenceDiagram.activate auto-attaches every
+                    // activate to the previous message via lifeEvent.setMessage.
+                    // LiveBoxes.getStairs then keeps the stair `position` at
+                    // that message's arrow_y unless this LifeEvent's pair has
+                    // already seen its complement: when a deactivate has been
+                    // seen first for the same message scope, an activate gets
+                    // the LifeEvent's own potentialPosition (= tile_y). Also
+                    // when the prior message in the iteration did not involve
+                    // this participant Java's `position` is null and the
+                    // LifeEvent's tile_y is used directly.
+                    //
+                    // The "owning message" of a LifeEvent (Java
+                    // lifeEvent.getMessage()) is the most recent message at
+                    // parse time, even if there are intervening notes. The
+                    // owner determines the bar's anchor when this LifeEvent
+                    // is the first activate of its scope.
+                    let scope = le_scope.entry(name.clone()).or_default();
+                    // If a previous message in the events list peek-ahead
+                    // identified this activate as the level rise (Java's
+                    // getLevelAt CONSIDERE_FUTURE_DEACTIVATE), the bar's
+                    // visible start is that message's arrow_y. Otherwise
+                    // the position uses the standard Java getStairs rules.
+                    let claimed = msg_claims_activate.remove(name);
+                    let use_tile_y = scope.seen_deact || (scope.msg_arrow_y.is_none() && claimed.is_none());
+                    let y_stairs = if let Some(claim_y) = claimed {
+                        claim_y
+                    } else if is_inline {
+                        if use_tile_y {
+                            tiles.get(tile_idx)
+                                .and_then(|t| t.get_y())
+                                .unwrap_or(last_step_y)
+                        } else {
+                            // Java CommunicationTileSelf: inline activate uses p2.y
+                            // (end point); regular inline uses the arrow_y.
+                            last_step_y_self_end.unwrap_or(last_step_y)
+                        }
+                    } else if use_tile_y {
+                        tiles.get(tile_idx)
+                            .and_then(|t| t.get_y())
+                            .unwrap_or(last_step_y)
+                    } else if let Some(arrow_y) = scope.msg_arrow_y {
+                        arrow_y
                     } else {
                         tiles.get(tile_idx)
                             .and_then(|t| t.get_y())
                             .unwrap_or(last_step_y)
                     };
+                    scope.seen_act = true;
+                    // Track activate's eventsStep tile_y for the collision
+                    // bump check on a subsequent deactivate.
+                    let act_tile_y = tiles.get(tile_idx).and_then(|t| t.get_y()).unwrap_or(last_step_y);
+                    scope.last_act_tile_y = Some(act_tile_y);
                     let y_addstep = if inside_tile_parallel[event_idx] {
                         last_step_y
                     } else {
@@ -3424,23 +3563,37 @@ pub fn build_teoz_layout(sd: &SequenceDiagram, skin: &SkinParams) -> Result<SeqL
                 }
                 SeqEvent::Deactivate(name) => {
                     let deact_inline = sd.inline_life_events.contains(&event_idx);
+                    let scope = le_scope.entry(name.clone()).or_default();
+                    let use_tile_y = scope.seen_act || scope.msg_arrow_y.is_none();
+                    scope.seen_deact = true;
                     if let Some(stack) = act_state.get_mut(name) {
                         if let Some((y_start, y_start_addstep, level, color)) = stack.pop() {
                             let idx = name_to_idx.get(name).copied().unwrap_or(0);
                             let cx = get_x(livings[idx].pos_c);
                             let x = cx - ACTIVATION_WIDTH / 2.0
                                 + (level - 1) as f64 * (ACTIVATION_WIDTH / 2.0);
-                            let mut y_end = if deact_inline {
-                                last_step_y
-                            } else if inside_tile_parallel[event_idx] {
-                                // Java TileParallel adjusts LifeEvent callbackY
-                                // by the max contact point offset, placing it at
-                                // the preceding message's arrow y (= last_step_y).
-                                last_step_y
+                            // Java auto-attaches every deactivate to the previous
+                            // message. LiveBoxes.getStairs uses that message's
+                            // arrow_y as the bar end position UNLESS an activate
+                            // for the same scope was already seen (or the prior
+                            // message did not involve this participant, which
+                            // sets Java's `position` to null and forces use of
+                            // potentialPosition = LifeEvent tile_y).
+                            let deact_tile_y = tiles.get(tile_idx)
+                                .and_then(|t| t.get_y())
+                                .unwrap_or(last_step_y);
+                            // Java LiveBoxes.addStep applies +5 to a
+                            // deactivate's step y when it collides with an
+                            // existing eventsStep value. Across Java's
+                            // 6 multi-pass renders the deactivate's first-pass
+                            // value populates eventsStep so subsequent even
+                            // passes always re-collide and bump by 5. The
+                            // final (sixth) pass therefore always reflects
+                            // the bumped position when use_tile_y is true.
+                            let mut y_end = if use_tile_y {
+                                deact_tile_y + 5.0
                             } else {
-                                tiles.get(tile_idx)
-                                    .and_then(|t| t.get_y())
-                                    .unwrap_or(last_step_y)
+                                scope.msg_arrow_y.unwrap_or(last_step_y)
                             };
                             if (y_end - y_start).abs() < 0.001 {
                                 if deact_inline {
@@ -3472,19 +3625,12 @@ pub fn build_teoz_layout(sd: &SequenceDiagram, skin: &SkinParams) -> Result<SeqL
                                     }
                                 }
                             }
-                            // Java LiveBoxes.addStep + multi-pass behavior:
-                            // Standalone deactivates get their eventsStep value
-                            // used in getStairs (position is updated). Java's
-                            // multi-pass rendering causes a self-collision in
-                            // addStep (+5 bump) that persists across even-numbered
-                            // passes. Since Java uses 6 passes (even), standalone
-                            // deactivates effectively always get +5.
-                            // Exception: deactivates inside a TileParallel use
-                            // the message's position in getStairs (not updated),
-                            // so the bump has no effect.
-                            if !deact_inline && !inside_tile_parallel[event_idx] {
-                                y_end += 5.0;
-                            }
+                            // Java LiveBoxes.addStep applies a +5 collision
+                            // bump only to the eventsStep value, but standalone
+                            // deactivates following a message use the message's
+                            // arrow_y as the bar position (via the LiveBoxes
+                            // attached-LifeEvent path), so the bump does not
+                            // affect the rendered bar end.
                             log::debug!("teoz deactivate {name} level={level} y_start={y_start:.4} y_end={y_end:.4} inline={deact_inline}");
                             activations.push(ActivationLayout {
                                 participant: name.clone(),
@@ -3498,13 +3644,25 @@ pub fn build_teoz_layout(sd: &SequenceDiagram, skin: &SkinParams) -> Result<SeqL
                     }
                 }
                 SeqEvent::Destroy(name) => {
-                    let ty = tiles
-                        .get(tile_idx)
-                        .and_then(|t| t.get_y())
-                        .unwrap_or(last_step_y);
+                    // Java auto-attaches the destroy LifeEvent to the
+                    // preceding message, so the bar end and cross center
+                    // both fall on the message's arrow_y (= last_step_y),
+                    // not the LifeEvent tile_y.
+                    let destroy_inline = sd.inline_life_events.contains(&event_idx);
+                    let ty = if destroy_inline || matches!(tiles.get(tile_idx), Some(TeozTile::LifeEvent { .. })) {
+                        last_step_y
+                    } else {
+                        tiles.get(tile_idx)
+                            .and_then(|t| t.get_y())
+                            .unwrap_or(last_step_y)
+                    };
                     let idx = name_to_idx.get(name).copied().unwrap_or(0);
                     let cx = get_x(livings[idx].pos_c);
-                    destroys.push(DestroyLayout { x: cx, y: ty });
+                    destroys.push(DestroyLayout {
+                        x: cx,
+                        y: ty,
+                        participant: name.clone(),
+                    });
                     // Close any open activations
                     if let Some(stack) = act_state.get_mut(name) {
                         while let Some((y_start, _y_addstep, level, color)) = stack.pop() {
