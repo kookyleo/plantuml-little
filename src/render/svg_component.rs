@@ -1588,18 +1588,14 @@ fn render_node_text(
     };
 
     // Name text — centered for sprite stereotype or archimate entities, left-aligned otherwise.
+    // Java DriverTextSvg strips leading spaces and shifts x per-line at render
+    // time; `render_creole_text` (via `render_prepared_line`) emulates that
+    // behaviour, so we pass the untrimmed base x directly.
     let name_x = if sprite_rendered.is_some() || (is_archimate && node.stereotype.is_some() && !has_desc) {
         let tl = font_metrics::text_width(&node.name, "SansSerif", FONT_SIZE, false, false);
         cx - tl / 2.0
     } else {
-        // Java DriverTextSvg: leading spaces in text are stripped and converted
-        // to x-offset. Compute offset from the first line's leading whitespace.
-        let first_line = node.name.lines().next().unwrap_or(&node.name);
-        let trimmed = first_line.trim_start();
-        let leading_spaces = first_line.len() - trimmed.len();
-        let space_offset = leading_spaces as f64
-            * font_metrics::char_width(' ', "SansSerif", FONT_SIZE, false, false);
-        node.x + margin_left + space_offset
+        node.x + margin_left
     };
     let tl = font_metrics::text_width(&node.name, "SansSerif", FONT_SIZE, false, false);
     // Java uses the full font-metric line height (ascent+descent) for standalone

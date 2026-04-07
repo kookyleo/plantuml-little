@@ -1107,10 +1107,29 @@ pub fn layout_activity(diagram: &ActivityDiagram) -> Result<ActivityLayout> {
                 // East label clears space ABOVE the hexagon.  Java's
                 // `FtileRepeat` builds in `8 * hexagonHalfSize = 96` total
                 // padding around the inner sequence so the East label
-                // (typically ≤ 48px) overlaps the spare 48px gap above the
-                // hexagon.  We apply that same extra cushion here.
+                // (centered vertically on the hexagon) overlaps the 48 px
+                // above-hex gap.  Java then Y-compresses empty slots down to
+                // the default 20 px arrow gap.  We emulate this by only
+                // keeping the extra cushion when the label actually extends
+                // above the hex top — i.e. when label_h/2 exceeds hex_h/2.
                 if !east_lines.is_empty() {
-                    y_cursor += REPEAT_WHILE_EXTRA_GAP;
+                    let east_line_h = font_metrics::line_height(
+                        "SansSerif",
+                        HEXAGON_LABEL_FONT_SIZE,
+                        false,
+                        false,
+                    );
+                    let east_label_h = east_line_h * east_lines.len() as f64;
+                    // `ext_above` = how far the centered label's top extends
+                    // above the hex top.  When the label sits entirely
+                    // between hex_center and hex_bottom Java compresses the
+                    // 48 px gap down to the normal arrow gap and we emit no
+                    // extra.  When the label pushes past the hex top we keep
+                    // the full 48 px cushion (= 20 px arrow + 28 px extra).
+                    let ext_above = (east_label_h - hex_h) / 2.0;
+                    if ext_above > HEXAGON_HALF_SIZE / 2.0 {
+                        y_cursor += REPEAT_WHILE_EXTRA_GAP;
+                    }
                 }
 
                 let cx = swimlane_center_x(&swimlane_layouts, current_lane_idx);

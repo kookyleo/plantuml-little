@@ -398,11 +398,16 @@ fn creole_text_width_opts(
     if lines.is_empty() {
         return 0.0;
     }
-    // For now, handle single-line case (messages are typically single line)
+    // For now, handle single-line case (messages are typically single line).
+    // Java's `StringBounder.calculateDimension(font, text)` measures the raw
+    // text including leading whitespace, so layout widths (used to size
+    // boxes and arrows) must match.  Rendering separately trims leading
+    // spaces and shifts x accordingly.
     let spans = &lines[0];
     if !line_needs_split_render(spans) {
-        let plain = trimmed_plain_line_text(spans);
-        return font_metrics::text_width(&plain, default_font, font_size, bold, italic);
+        let plain = plain_text_spans(spans);
+        let plain = plain.trim_end();
+        return font_metrics::text_width(plain, default_font, font_size, bold, italic);
     }
     // Styled text: measure each run with its own font/style
     let runs = flatten_to_runs(spans);
@@ -1380,11 +1385,13 @@ fn parse_note_segment<'a>(lines: &[&'a str]) -> Vec<NoteBlock<'a>> {
             continue;
         }
 
-        // Regular text line
+        // Regular text line: preserve leading whitespace so render_prepared_line
+        // can emulate Java's DriverTextSvg `x += space_w * n` shift. Only strip
+        // trailing whitespace via trim_end.
         if !bullet_items.is_empty() {
             blocks.push(NoteBlock::BulletItems(std::mem::take(&mut bullet_items)));
         }
-        text_lines.push(trimmed);
+        text_lines.push(line.trim_end());
     }
 
     // Flush remaining
@@ -2018,6 +2025,26 @@ fn render_prepared_line(
     let line_plain = plain_text_spans(line);
     let trimmed_plain = line_plain.trim();
     let is_visual_blank_line = trimmed_plain.is_empty();
+    // Java DriverTextSvg (DriverTextSvg.draw, lines 110–116): when the text
+    // starts with a space, each leading space is stripped and `x` is shifted
+    // right by `stringBounder.calculateDimension(font, " ").getWidth()`.
+    // Trailing spaces are also removed (StringUtils.trin).  Only the trimmed
+    // text is measured and written to the SVG, but the element x-attribute
+    // reflects the leading-space shift.  `text_anchor="middle"` uses the
+    // original x unchanged (the centering already accounts for the full
+    // untrimmed width upstream).
+    let x_shifted = if text_anchor.is_none() && !is_visual_blank_line {
+        let leading_spaces = line_plain.chars().take_while(|c| *c == ' ').count();
+        if leading_spaces > 0 {
+            let space_w =
+                font_metrics::text_width(" ", font_family, font_size, bold, italic);
+            x + space_w * leading_spaces as f64
+        } else {
+            x
+        }
+    } else {
+        x
+    };
     if is_visual_blank_line {
         let text_length = font_metrics::text_width(NBSP, font_family, font_size, bold, italic);
         write_text_open(buf, x, y, fill, text_anchor, outer_attrs, text_length);
@@ -2025,7 +2052,7 @@ fn render_prepared_line(
         buf.push_str("</text>");
     } else if text_anchor.is_none() {
         let text_length = font_metrics::text_width(trimmed_plain, font_family, font_size, bold, italic);
-        write_text_open(buf, x, y, fill, text_anchor, outer_attrs, text_length);
+        write_text_open(buf, x_shifted, y, fill, text_anchor, outer_attrs, text_length);
         if let Some(text) = simple_plain_line(line) {
             buf.push_str(&xml_escape(text.trim()));
         } else {
@@ -2421,11 +2448,7 @@ fn render_split_text_runs(
             let space_w = font_metrics::text_width(" ", run_font, run_size, run_bold, run_italic);
             render_nbsp_text(
                 buf,
-                if idx == 0 {
-                    x - space_w * n_spaces as f64
-                } else {
-                    cursor_x
-                },
+                cursor_x,
                 y,
                 n_spaces,
                 fill,
@@ -2434,9 +2457,7 @@ fn render_split_text_runs(
                 run_bold,
                 run_italic,
             );
-            if idx != 0 {
-                cursor_x += space_w * n_spaces as f64;
-            }
+            cursor_x += space_w * n_spaces as f64;
             continue;
         }
         // Java: leading whitespace on non-first runs is stripped and converted
@@ -2448,7 +2469,7 @@ fn render_split_text_runs(
             if idx == 0 && run_font != "monospace" {
                 render_nbsp_text(
                     buf,
-                    x - space_w * n_leading as f64,
+                    cursor_x,
                     y,
                     n_leading,
                     fill,
@@ -2457,9 +2478,8 @@ fn render_split_text_runs(
                     run_bold,
                     run_italic,
                 );
-            } else {
-                cursor_x += space_w * n_leading as f64;
             }
+            cursor_x += space_w * n_leading as f64;
         }
         let trimmed_both = trimmed_start.trim_end();
         let n_trailing = trimmed_start.len() - trimmed_both.len();

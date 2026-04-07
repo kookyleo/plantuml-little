@@ -166,8 +166,15 @@ fn split_lines(input: &str) -> Vec<String> {
             let trimmed = part.trim();
             if should_preserve_boundary_whitespace(&part, trimmed) {
                 part
-            } else {
+            } else if trimmed.is_empty() {
                 trimmed.to_string()
+            } else {
+                // Java's DriverTextSvg strips leading spaces at render time and
+                // shifts x accordingly (see render_prepared_line).  Parse-time
+                // trimming would lose that positional information, so we
+                // preserve leading whitespace and only strip the trailing
+                // side here.
+                part.trim_end().to_string()
             }
         })
         .collect()
@@ -1063,11 +1070,14 @@ mod tests {
 
     #[test]
     fn test_real_newline_preserves_leading_space_before_html_style_tag() {
+        // Leading spaces are preserved at parse time so render_prepared_line
+        // can emulate Java's DriverTextSvg `x += space_w * n` shift.  Only
+        // trailing whitespace is stripped here.
         let rt = parse_creole(" aaa \n <u:blue>ccc ");
         assert_eq!(
             rt,
             RichText::Block(vec![
-                RichText::Line(vec![TextSpan::Plain("aaa".into())]),
+                RichText::Line(vec![TextSpan::Plain(" aaa".into())]),
                 RichText::Line(vec![
                     TextSpan::Plain(" ".into()),
                     TextSpan::UnderlineColored {
