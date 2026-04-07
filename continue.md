@@ -30,8 +30,20 @@ Any future Java/Rust parity work must target the stable `v1.2026.2` reference co
 ## Current Parity Baseline (2026-04-07)
 
 - `cargo test --lib`: `2641/2641`
-- `cargo test --test reference_tests`: `290/320` (90.625%)
+- `cargo test --test reference_tests`: `291/320` (90.94%)
 - Byte-compare authority remains the 318 stable-Java SVGs indexed by `tests/reference/INDEX.tsv`.
+
+### 2026-04-07 Fixes (290 → 291)
+- **ArrowAndNoteBox arrow centering (layout/sequence.rs)**: Mirror Java's
+  `ArrowAndNoteBox.pushToDown`: when notePH > arrowPH, the arrow line is
+  shifted down by `(notePH - arrowPH) / 2` so it sits at the vertical
+  midpoint of the combined tile. Use `lp.message_spacing` (Java's
+  `arrow.getPreferredHeight`) as the centering arrow_ph rather than the
+  back-offset-inflated `y_cursor - note_y` value, and subtract the
+  `note_extra` baseline shift (3 px) so the centered arrow does not
+  double-count it. Also extend the lifeline to `note_y + note_pref_h + 5`
+  to match Java's Frontier advance after the centered tile. Fixes
+  `misc/creole_note001`.
 
 ### 2026-04-07 Fixes (280 → 286)
 - **Sequence polygon HACK_X_FOR_POLYGON (svg_sequence.rs)**: Java's LimitFinder
