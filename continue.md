@@ -29,9 +29,72 @@ Any future Java/Rust parity work must target the stable `v1.2026.2` reference co
 
 ## Current Parity Baseline (2026-04-08)
 
-- `cargo test --lib`: `2653/2653`
-- `cargo test --test reference_tests`: `301/320` (94.06%)
+- `cargo test --lib`: `2655/2655`
+- `cargo test --test reference_tests`: `301/320` (94.06%) + 1 ignored (Java NPE)
 - Byte-compare authority remains the 318 stable-Java SVGs indexed by `tests/reference/INDEX.tsv`.
+
+### 2026-04-08 Investigation: Why Each Remaining Test Still Fails
+
+After deep tracing by multiple agents, the precise blockers for each
+remaining failure are now known:
+
+**JSON / YAML cluster (2 tests: json/json_escaped, dev/newline/json_escaped)**:
+- JSON layout dimensions, box positions, indicator spots all match Java
+  byte-exact ✓
+- yaml/basic dimensions also match ✓
+- **Real blocker**: arrow spline control points. Graphviz dot computes
+  bezier spline routing for edges; Rust uses simple right-angle cubics
+  whose control point y values are 8-13 off from Java's routed splines.
+  Each arrow contributes ~10 numeric mismatches beyond 0.51 tolerance.
+  Fix requires porting dot's spline routing algorithm.
+- yaml additionally trips on `1.0` rendered as `1` (json_diagram.rs:226).
+
+**subdiagram_theme cluster (3 tests)**:
+The `{{...}}` embedding machinery already works end-to-end via
+`render::embedded::render_embedded`. Five distinct blockers remain:
+1. `==title==` Java SECTION_TITLE renders as TWO horizontal lines with
+   text between (UHorizontalLine style `=`). Rust treats it as bold
+   heading. Needs new RichText::SectionTitle variant.
+2. `component a {}` in CLASS pipeline routes to `EntityKind::Component`
+   but `draw_entity_box` falls through to default class header (ellipse
+   + C glyph) instead of Java's description shape (main rect + 15×10
+   icon + two 4×2 tabs). Needs `draw_component_description_box` mirror
+   of `draw_rectangle_entity_box`.
+3. Opale ear path on top/bottom notes: `draw_class_note` only emits
+   Opale `<path>` for left/right; uses polygon fallback for top/bottom.
+   Java uses Opale path with embedded ear for all 4 positions.
+4. `component/subdiagram_theme_02` specifically: Java keeps literal
+   `\n` inside `{{...}}` causing inner sub-diagram parse to fail and
+   emit "Welcome to PlantUML" syntax-error block. Rust expands `\n`
+   everywhere. Need to skip `{{...}}` regions in note text expansion +
+   implement PSystemError fallback render.
+5. `dev/newline/subdiagram_theme.puml` has TWO `@startuml...@enduml`
+   blocks. `parser::common::extract_block` only reads the first; Java
+   emits two concatenated SVGs. Need multi-document loop in
+   `lib::render_cleaned`.
+
+**C4/jaws1 cluster (2 tests)**:
+- Cluster c1 now renders correctly (commit bf62465 + b6f8a18)
+- `==Sample System` heading prefix now stripped (commit b6f8a18)
+- **Real blocker**: C4 stdlib `<style>` block defines stereotype-based
+  styling (#444444 cluster border + dashed, #438DD5 container blue
+  fill, #FFFFFF white text). Rust doesn't apply stereotype styles to
+  cluster/entities. Also missing word-by-word text rendering for
+  "Web Application" (Java emits 3 separate text spans for each word).
+
+**SALT cluster (3 tests: salt/basic, dev/newline/builtin_newline,
+preprocessor/builtin_newline)**:
+- Different rendering model entirely. Java emits text cells + edge
+  lines; Rust draws background rectangles + grid lines. Substantial
+  renderer rewrite required.
+
+**EBNF/regex cluster (5 tests)**:
+- Different rendering algorithm. Java uses RailGroup/RailPermitter
+  railroad diagrams; Rust simplified flow. Layout rewrite required.
+
+**nwdiag (1)**: Different table-of-fields layout engine
+**handwritten (1)**: Major jiggle effect feature missing
+**sprite/svg2GroupsWithStyle**: IGNORED (Java NPE bug, not fixable)
 
 ### 2026-04-08 Fixes (300 → 301)
 - **legend-only class meta + multiline inline-sprite spacing
