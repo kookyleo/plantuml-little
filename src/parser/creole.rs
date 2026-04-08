@@ -200,6 +200,10 @@ fn should_preserve_boundary_whitespace(raw: &str, trimmed: &str) -> bool {
 /// Strip a Creole heading prefix (`=`, `==`, `===`, etc.) followed by a space.
 /// Returns the remaining text if the line is a heading, or `None` otherwise.
 /// Java PlantUML renders heading lines as bold text at the same font size.
+///
+/// Also handles the Java `SECTION_TITLE_PATTERN = ^==([^=]*)==$` form where
+/// the title is bracketed by `==` on both sides — the trailing `==` is
+/// stripped from the returned text.
 pub(crate) fn strip_heading_prefix(line: &str) -> Option<&str> {
     let trimmed = line.trim_start();
     if !trimmed.starts_with('=') {
@@ -210,11 +214,24 @@ pub(crate) fn strip_heading_prefix(line: &str) -> Option<&str> {
         return None; // all `=` chars → horizontal rule, not heading
     }
     let rest = &trimmed[eq_end..];
-    if rest.starts_with(' ') {
-        Some(rest.trim_start())
+    // Java `CreoleStripeSimpleParser.SECTION_TITLE_PATTERN = ^==([^=]*)==$`
+    // matches a title bracketed by `==` on both sides. When the rest ends
+    // with `==` (and no other `=` in between), strip the trailing markers
+    // so the visible title text mirrors Java exactly.
+    let body = if let Some(inner) = rest.strip_suffix("==") {
+        if !inner.contains('=') {
+            inner
+        } else {
+            rest
+        }
+    } else {
+        rest
+    };
+    if body.starts_with(' ') {
+        Some(body.trim_start())
     } else {
         // `==text` without space: still treat as heading (Java does)
-        Some(rest)
+        Some(body)
     }
 }
 
@@ -1648,6 +1665,49 @@ mod tests {
         match &rt {
             RichText::Line(spans) => {
                 assert!(matches!(&spans[0], TextSpan::Bold(_)));
+            }
+            other => panic!("expected Line, got: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn test_heading_with_trailing_equals() {
+        // `==text==` (Java SECTION_TITLE_PATTERN): bracketed title.
+        // The trailing `==` markers must be stripped from the visible text
+        // so it matches Java's bold title rendering.
+        let rt = parse_creole("==theme fail==");
+        match &rt {
+            RichText::Line(spans) => {
+                assert_eq!(spans.len(), 1);
+                match &spans[0] {
+                    TextSpan::Bold(inner) => {
+                        assert_eq!(inner.len(), 1);
+                        match &inner[0] {
+                            TextSpan::Plain(s) => assert_eq!(s, "theme fail"),
+                            other => panic!("expected Plain, got: {other:?}"),
+                        }
+                    }
+                    other => panic!("expected Bold, got: {other:?}"),
+                }
+            }
+            other => panic!("expected Line, got: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn test_heading_with_spaces_and_trailing_equals() {
+        // `== title ==` with spaces: bracketed title with leading space.
+        let rt = parse_creole("== My Title ==");
+        match &rt {
+            RichText::Line(spans) => {
+                assert_eq!(spans.len(), 1);
+                match &spans[0] {
+                    TextSpan::Bold(inner) => match &inner[0] {
+                        TextSpan::Plain(s) => assert_eq!(s, "My Title "),
+                        other => panic!("expected Plain, got: {other:?}"),
+                    },
+                    other => panic!("expected Bold, got: {other:?}"),
+                }
             }
             other => panic!("expected Line, got: {other:?}"),
         }
