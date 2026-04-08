@@ -899,6 +899,7 @@ pub fn render_creole_note_content(
     let default_font = "SansSerif";
     let lh = font_metrics::line_height(default_font, font_size, false, false);
     let ascent = font_metrics::ascent(default_font, font_size, false, false);
+    let descent = font_metrics::descent(default_font, font_size, false, false);
     let outer_attrs = format!(r#"font-size="{font_size}""#);
 
     // Split text into raw lines (NEWLINE_CHAR, real newlines, and \n escape)
@@ -951,7 +952,11 @@ pub fn render_creole_note_content(
                 NoteBlock::TextLines(lines) => {
                     for line_text in lines {
                         let effective_lh = note_line_height_with_sprites(line_text, lh);
-                        let baseline = cursor_y + ascent;
+                        // Java SeaSheet aligns text to the row's bottom: baseline
+                        // = row_top + row_h - descent. For text-only rows this
+                        // reduces to row_top + ascent (since row_h = ascent + descent),
+                        // so single-line text rendering is unchanged.
+                        let baseline = cursor_y + effective_lh - descent;
                         let mut tmp = String::new();
                         render_creole_text(
                             &mut tmp,

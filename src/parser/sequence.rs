@@ -177,7 +177,12 @@ pub fn parse_sequence_diagram_with_original(
                 note_lines.clear();
                 note_is_parallel = false;
             } else {
-                note_lines.push(trimmed.to_string());
+                // Java BodyEnhanced2 preserves trailing whitespace inside
+                // multi-line notes (a sprite atom followed by " text  " has
+                // measurable trailing spaces). Strip only the leading
+                // indentation, never the trailing run.
+                let preserved = line.trim_start().trim_end_matches(['\r']).to_string();
+                note_lines.push(preserved);
             }
             continue;
         }

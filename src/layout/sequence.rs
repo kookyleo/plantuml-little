@@ -564,8 +564,45 @@ fn estimate_note_width(text: &str) -> f64 {
             let text_part = &trimmed[2..];
             let w = font_metrics::text_width(text_part, "SansSerif", NOTE_FONT_SIZE, false, false);
             max_line_w = max_line_w.max(w + 12.0); // bullet icon + gap
+        } else if line.contains("<$") {
+            // Sprite-bearing line: Java BodyEnhanced2 sums atom widths
+            // (sprite atoms + text atoms) without trimming whitespace, so
+            // any trailing/leading spaces in the source line contribute
+            // to the measured line width.
+            let raw = line.trim_end_matches('\r');
+            let mut sprite_w = 0.0_f64;
+            let mut text_segments_w = 0.0_f64;
+            let mut pos = 0;
+            while let Some(start) = raw[pos..].find("<$") {
+                let abs_start = pos + start;
+                // Text segment before this sprite
+                if abs_start > pos {
+                    let seg = &raw[pos..abs_start];
+                    text_segments_w +=
+                        font_metrics::text_width(seg, "SansSerif", NOTE_FONT_SIZE, false, false);
+                }
+                let name_start = abs_start + 2;
+                if let Some(end) = raw[name_start..].find('>') {
+                    let name_part = &raw[name_start..name_start + end];
+                    let name = name_part.split(',').next().unwrap_or(name_part).trim();
+                    if let Some(svg) = crate::render::svg_richtext::get_sprite_svg(name) {
+                        let (sw, _) = parse_sprite_viewbox(&svg);
+                        sprite_w += sw;
+                    }
+                    pos = name_start + end + 1;
+                } else {
+                    break;
+                }
+            }
+            // Trailing text segment after the last sprite
+            if pos < raw.len() {
+                let seg = &raw[pos..];
+                text_segments_w +=
+                    font_metrics::text_width(seg, "SansSerif", NOTE_FONT_SIZE, false, false);
+            }
+            max_line_w = max_line_w.max(sprite_w + text_segments_w);
         } else {
-            // Regular text: strip creole markup for width measurement
+            // Regular text: strip creole markup for width measurement.
             let plain = crate::render::svg_richtext::creole_plain_text(trimmed);
             let w = font_metrics::text_width(&plain, "SansSerif", NOTE_FONT_SIZE, false, false);
             max_line_w = max_line_w.max(w);
@@ -619,7 +656,13 @@ fn wrap_text_to_width(
 fn sprite_text_gap() -> f64 {
     crate::font_metrics::char_width(' ', "SansSerif", 13.0, false, false)
 }
-const SPRITE_HEIGHT_THRESHOLD: f64 = 15.1328;
+/// The line height that an inline sprite replaces in a message body.
+/// Uses the actual SansSerif size-13 line height (Java's BodyEnhanced2 uses
+/// the same metric), preserving full f64 precision rather than a 4-decimal
+/// constant — important to keep lifeline math byte-exact with Java.
+fn sprite_height_threshold() -> f64 {
+    crate::font_metrics::line_height("SansSerif", 13.0, false, false)
+}
 
 fn message_line_width(line: &str, font_family: &str, font_size: f64) -> f64 {
     if !line.contains("<$") {
@@ -709,7 +752,7 @@ fn message_sprite_extra_height(line: &str) -> f64 {
             let name = name_part.split(',').next().unwrap_or(name_part).trim();
             if let Some(svg) = crate::render::svg_richtext::get_sprite_svg(name) {
                 let (_, h) = parse_sprite_viewbox(&svg);
-                let extra = (h - SPRITE_HEIGHT_THRESHOLD).max(0.0);
+                let extra = (h - sprite_height_threshold()).max(0.0);
                 max_extra = max_extra.max(extra);
             }
             pos = abs_start + end + 1;
@@ -1093,16 +1136,31 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
 
     // Pre-scan: check if any note immediately follows a non-self message.
     // Java PlantUML adds ~3px extra initial spacing when notes overlay
-    // regular (non-self) messages.
+    // regular (non-self) messages. Sprite-bearing messages place the
+    // following note BELOW the sprite (standalone NoteBox), so they do
+    // not contribute to this overlay-extra spacing.
     let has_regular_msg_note = sd.events.windows(2).any(|w| {
         if let SeqEvent::Message(msg) = &w[0] {
-            msg.from != msg.to
-                && matches!(
-                    &w[1],
-                    SeqEvent::NoteRight { .. }
-                        | SeqEvent::NoteLeft { .. }
-                        | SeqEvent::NoteOver { .. }
-                )
+            if msg.from == msg.to {
+                return false;
+            }
+            if !matches!(
+                &w[1],
+                SeqEvent::NoteRight { .. }
+                    | SeqEvent::NoteLeft { .. }
+                    | SeqEvent::NoteOver { .. }
+            ) {
+                return false;
+            }
+            // Skip if the message text contains a sprite tall enough to
+            // push the following note below it (standalone path).
+            let msg_sprite_extra = msg
+                .text
+                .split("\\n")
+                .flat_map(|s| s.split(crate::NEWLINE_CHAR))
+                .map(message_sprite_extra_height)
+                .fold(0.0_f64, f64::max);
+            msg_sprite_extra <= 0.0
         } else {
             false
         }
@@ -1671,13 +1729,19 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
                         // Sprite messages have a taller arrow component.
                         // In Java, the arrow's preferredHeight includes the
                         // sprite height, advancing freeY past the sprite area.
-                        // A standalone note is placed at freeY_after (BELOW the
-                        // sprite), not alongside it.
-                        // y_cursor = msg_y + message_spacing, and the back_offset
-                        // from y_cursor gives freeY_after + NOTE_COMPONENT_PADDING_Y.
-                        let back_offset = lp.message_spacing - NOTE_FOLD;
-                        log::debug!("NoteRight(sprite): msg_y={msg_y}, sprite_extra={last_message_sprite_extra}, y_cursor={y_cursor}");
-                        (y_cursor - back_offset).max(MARGIN + max_ph)
+                        // A standalone NoteBox is placed at freeY_after_arrow,
+                        // and its polygon Y = freeY_after + NOTE_COMPONENT_PADDING_Y.
+                        // freeY_after = msg.y + (preferred - textHeight)
+                        //             = msg.y + ARROW_DELTA_Y(4) + 2*ARROW_PADDING_Y(8)
+                        //             = msg.y + 12.
+                        // Distance from arrow LINE y to standalone NoteBox top:
+                        // freeY_after_arrow - arrow_line_y
+                        //   = (freeY + preferred) - (freeY + textHeight + paddingY)
+                        //   = arrowDeltaY + paddingY = 4 + 4 = 8
+                        let arrow_advance = rose::ARROW_DELTA_Y + rose::ARROW_PADDING_Y;
+                        let computed = msg_y + arrow_advance + NOTE_COMPONENT_PADDING_Y;
+                        log::debug!("NoteRight(sprite): msg_y={msg_y}, sprite_extra={last_message_sprite_extra}, computed={computed}");
+                        computed.max(MARGIN + max_ph)
                     } else {
                         let back_offset =
                             lp.message_spacing - NOTE_FOLD + last_message_extra_height;
@@ -1824,6 +1888,19 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
                         y_cursor = note_tile_bottom;
                     }
                 } else if let Some(_msg_y) = last_message_y {
+                    // Sprite-bearing messages render the note as a standalone
+                    // NoteBox below (not as ArrowAndNoteBox), so skip the
+                    // arrow-centering logic that combines them into one tile.
+                    if last_message_sprite_extra > 0.0 {
+                        let note_bottom = note_y + note_height;
+                        if note_bottom > y_cursor {
+                            y_cursor = note_bottom;
+                        }
+                        // Java standalone NoteBox after sprite arrow: the
+                        // lifeline reaches notePolygonTop + notePreferredHeight + 5.
+                        lifeline_extend_y = lifeline_extend_y
+                            .max(note_y + note_pref_h + 5.0);
+                    } else {
                     // For non-self messages: tile start = note_y.
                     // Arrow PH from tile start = y_cursor - note_y.
                     // If note PH > arrow PH, push y_cursor forward by the difference.
@@ -1874,6 +1951,7 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
                                 .max(note_bottom + lp.message_spacing / 2.0);
                         }
                     }
+                    }
                 } else {
                     // Standalone note (not following a message): advance by note height
                     let note_bottom = note_y + note_height;
@@ -1902,9 +1980,15 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
                         let note_push = (combined_h - note_preferred_h) / 2.0;
                         last_self_msg_starting_y + note_push + NOTE_COMPONENT_PADDING_Y
                     } else if last_message_sprite_extra > 0.0 {
-                        let back_offset = lp.message_spacing - NOTE_FOLD;
-                        log::debug!("NoteLeft(sprite): msg_y={msg_y}, sprite_extra={last_message_sprite_extra}, y_cursor={y_cursor}");
-                        (y_cursor - back_offset).max(MARGIN + max_ph)
+                        // Standalone NoteBox below sprite arrow.
+                        // Distance from arrow LINE y to standalone NoteBox top:
+                        // freeY_after_arrow - arrow_line_y
+                        //   = (freeY + preferred) - (freeY + textHeight + paddingY)
+                        //   = arrowDeltaY + paddingY = 4 + 4 = 8
+                        let arrow_advance = rose::ARROW_DELTA_Y + rose::ARROW_PADDING_Y;
+                        let computed = msg_y + arrow_advance + NOTE_COMPONENT_PADDING_Y;
+                        log::debug!("NoteLeft(sprite): msg_y={msg_y}, sprite_extra={last_message_sprite_extra}, computed={computed}");
+                        computed.max(MARGIN + max_ph)
                     } else {
                         let back_offset =
                             lp.message_spacing - NOTE_FOLD + last_message_extra_height;
@@ -2064,8 +2148,10 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
                             let note_push = (combined_h - note_preferred_h) / 2.0;
                             last_self_msg_starting_y + note_push + NOTE_COMPONENT_PADDING_Y
                         } else if last_message_sprite_extra > 0.0 {
-                            let back_offset = lp.message_spacing - NOTE_FOLD;
-                            (y_cursor - back_offset).max(MARGIN + max_ph)
+                            let arrow_advance =
+                                rose::ARROW_DELTA_Y + 2.0 * rose::ARROW_PADDING_Y;
+                            (msg_y + arrow_advance + NOTE_COMPONENT_PADDING_Y)
+                                .max(MARGIN + max_ph)
                         } else {
                             let back_offset =
                                 lp.message_spacing - NOTE_FOLD + last_message_extra_height;
