@@ -264,6 +264,17 @@ impl SkinParams {
         if let Some(v) = self.params.get(key3) {
             return v.as_str();
         }
+        // Java's PName only has LineColor (no BorderColor); element <style>
+        // blocks set LineColor, which becomes the visible border for
+        // bounded shapes. Fall back to it after the legacy bordercolor keys.
+        let line_key1 = format!("{element}linecolor");
+        let line_key2 = format!("{element}.linecolor");
+        if let Some(v) = self.params.get(&line_key1) {
+            return v.as_str();
+        }
+        if let Some(v) = self.params.get(&line_key2) {
+            return v.as_str();
+        }
         if let Some(v) = self.params.get("root.bordercolor") {
             return v.as_str();
         }
