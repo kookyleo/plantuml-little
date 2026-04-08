@@ -1,6 +1,6 @@
 use std::fmt::Write;
 use crate::font_metrics;
-use crate::klimt::svg::xml_escape;
+use crate::klimt::svg::{fmt_coord, xml_escape};
 use crate::layout::ebnf::{EbnfElement, EbnfLayout};
 use crate::model::ebnf::EbnfDiagram;
 use crate::render::svg::{ensure_visible_int, write_bg_rect, write_svg_root_bg};
@@ -81,4 +81,5 @@ pub fn render_ebnf(_d: &EbnfDiagram, l: &EbnfLayout, skin: &SkinParams) -> Resul
     buf.push_str("</g></svg>"); Ok(buf)
 }
 
-fn ff(v: f64) -> String { let i = v as i64; if (v - i as f64).abs() < 0.0001 { format!("{}", i) } else { format!("{:.4}", v) } }
+#[inline]
+fn ff(v: f64) -> String { fmt_coord(v) }
