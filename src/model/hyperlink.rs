@@ -119,19 +119,29 @@ fn find_closing_brackets(s: &str) -> Option<usize> {
 ///   `{tooltip} label`                                   (tooltip + label)
 ///   `url {tooltip}`                                     (link + tooltip, no label)
 ///   `url` + optional `{tooltip}` + optional `label`     (unquoted URL)
+///
+/// Java's `UrlBuilder` regex (`[^\\[\\]]*`) preserves trailing whitespace
+/// inside the captured label, so the surrounding atom layout reserves space
+/// for it even though `DriverTextSvg` later trims it before SVG rendering.
+/// We mirror that by leaving trailing whitespace on the label here; render
+/// code is responsible for trimming the visible glyphs.
 fn parse_inner(inner: &str) -> (&str, Option<&str>, Option<&str>) {
-    let trimmed = inner.trim();
+    // Only strip leading whitespace; trailing whitespace must be preserved
+    // so that callers can reproduce Java's atom width allocation (the label
+    // width is computed including trailing spaces, even though those spaces
+    // are stripped from the rendered glyph string by `DriverTextSvg`).
+    let trimmed = inner.trim_start();
 
     // 1. Quoted URL: "url" {tooltip}? label?
     if let Some(after_open_quote) = trimmed.strip_prefix('"') {
         if let Some(close_quote) = after_open_quote.find('"') {
             let url = &after_open_quote[..close_quote];
-            let after_quote = after_open_quote[close_quote + 1..].trim();
+            let after_quote = after_open_quote[close_quote + 1..].trim_start();
             // Check for optional {tooltip}
             if let Some(after_brace_open) = after_quote.strip_prefix('{') {
                 if let Some(brace_end) = after_brace_open.find('}') {
                     let tooltip = &after_brace_open[..brace_end];
-                    let after_brace = after_brace_open[brace_end + 1..].trim();
+                    let after_brace = after_brace_open[brace_end + 1..].trim_start();
                     let label = if after_brace.is_empty() {
                         None
                     } else {
@@ -160,7 +170,7 @@ fn parse_inner(inner: &str) -> (&str, Option<&str>, Option<&str>) {
     if let Some(after_open) = trimmed.strip_prefix('{') {
         if let Some(brace_end) = after_open.find('}') {
             let tooltip = &after_open[..brace_end];
-            let after_brace = after_open[brace_end + 1..].trim();
+            let after_brace = after_open[brace_end + 1..].trim_start();
             let label = if after_brace.is_empty() {
                 None
             } else {
@@ -182,7 +192,7 @@ fn parse_inner(inner: &str) -> (&str, Option<&str>, Option<&str>) {
 
         if let Some(brace_end) = after_url.find('}') {
             let tooltip = &after_url[1..brace_end];
-            let after_brace = after_url[brace_end + 1..].trim();
+            let after_brace = after_url[brace_end + 1..].trim_start();
             let label = if after_brace.is_empty() {
                 None
             } else {
@@ -200,7 +210,7 @@ fn parse_inner(inner: &str) -> (&str, Option<&str>, Option<&str>) {
     // No tooltip — check for label (first whitespace after url)
     if let Some(space_idx) = trimmed.find(|c: char| c.is_whitespace()) {
         let url = &trimmed[..space_idx];
-        let label = trimmed[space_idx..].trim();
+        let label = trimmed[space_idx..].trim_start();
         let label = if label.is_empty() { None } else { Some(label) };
         (url, None, label)
     } else {

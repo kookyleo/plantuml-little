@@ -368,9 +368,26 @@ pub fn render_with_source(
         None
     };
 
+    // Class diagrams use the same offset_svg_coords post-shift path; for
+    // a degenerated svek result (single entity, no edges/notes) we know the
+    // offset upfront and can pre-shift the body, avoiding the
+    // format→parse→add→format double-round that otherwise drifts y values
+    // by ±0.0001 from Java.
+    let class_body_offset = if matches!(diagram, Diagram::Class(_)) && !meta.is_empty() {
+        let is_degen = matches!(layout, DiagramLayout::Class(gl)
+            if gl.nodes.len() <= 1 && gl.edges.is_empty() && gl.notes.is_empty());
+        if is_degen {
+            Some(compute_meta_body_offset(meta, skin))
+        } else {
+            None
+        }
+    } else {
+        None
+    };
+
     // Note: handwritten mode does NOT change fonts, only jiggling shapes.
     set_default_font_family(None);
-    let body_result = render_body(diagram, layout, skin, activity_body_offset)?;
+    let body_result = render_body(diagram, layout, skin, activity_body_offset, class_body_offset)?;
     set_default_font_family(None);
 
     // Extract diagram type from body SVG
@@ -414,6 +431,7 @@ pub fn render_with_source(
             bg,
             body_result.raw_body_dim,
             body_result.body_pre_offset,
+            body_result.body_degenerated,
             skin,
         )?
     };
@@ -519,6 +537,12 @@ struct BodyResult {
     /// When true, body coordinates already include the meta offset (body_abs_x/y).
     /// wrap_with_meta should NOT apply offset_svg_coords.
     body_pre_offset: bool,
+    /// When true, the body has at most one entity and no edges/notes.  In that
+    /// "degenerated" svek case, raw_body_dim is computed from `node.width + 14`
+    /// (DEGENERATED_DELTA*2) directly rather than from a moveDelta-shifted
+    /// LimitFinder span, so wrap_with_meta must not subtract the +6 minX
+    /// offset that the normal svek code path needs.
+    body_degenerated: bool,
 }
 
 fn render_body(
@@ -526,9 +550,10 @@ fn render_body(
     layout: &DiagramLayout,
     skin: &SkinParams,
     activity_body_offset: Option<(f64, f64)>,
+    class_body_offset: Option<(f64, f64)>,
 ) -> Result<BodyResult> {
     match (diagram, layout) {
-        (Diagram::Class(cd), DiagramLayout::Class(gl)) => render_class(cd, gl, skin),
+        (Diagram::Class(cd), DiagramLayout::Class(gl)) => render_class(cd, gl, skin, class_body_offset),
         (Diagram::Sequence(sd), DiagramLayout::Sequence(sl)) => {
             // Sequence layout total_width/total_height include document margins
             // (top=5, right=5, bottom=5 for Puma2). Recover raw textBlock dimensions.
@@ -566,6 +591,7 @@ fn render_body(
                     svg,
                     raw_body_dim: Some((body_w, body_h)),
                     body_pre_offset: false,
+                    body_degenerated: false,
                 }
             })
         }
@@ -575,6 +601,7 @@ fn render_body(
                     svg,
                     raw_body_dim,
                     body_pre_offset: activity_body_offset.is_some(),
+                    body_degenerated: false,
                 },
             )
         }
@@ -583,6 +610,7 @@ fn render_body(
                 svg,
                 raw_body_dim,
                 body_pre_offset: false,
+                body_degenerated: false,
             })
         }
         (Diagram::Component(cd), DiagramLayout::Component(cl)) => {
@@ -590,6 +618,7 @@ fn render_body(
                 svg,
                 raw_body_dim: None,
                 body_pre_offset: false,
+                body_degenerated: false,
             })
         }
         (Diagram::Chart(cd), DiagramLayout::Chart(cl)) => {
@@ -597,6 +626,7 @@ fn render_body(
                 svg,
                 raw_body_dim: None,
                 body_pre_offset: false,
+                body_degenerated: false,
             })
         }
         (Diagram::Files(fd), DiagramLayout::Files(fl)) => {
@@ -604,6 +634,7 @@ fn render_body(
                 svg,
                 raw_body_dim: None,
                 body_pre_offset: false,
+                body_degenerated: false,
             })
         }
         (Diagram::Ditaa(dd), DiagramLayout::Ditaa(dl)) => {
@@ -611,6 +642,7 @@ fn render_body(
                 svg,
                 raw_body_dim: None,
                 body_pre_offset: false,
+                body_degenerated: false,
             })
         }
         (Diagram::Erd(ed), DiagramLayout::Erd(el)) => {
@@ -618,6 +650,7 @@ fn render_body(
                 svg,
                 raw_body_dim: None,
                 body_pre_offset: false,
+                body_degenerated: false,
             })
         }
         (Diagram::Gantt(gd), DiagramLayout::Gantt(gl)) => {
@@ -625,6 +658,7 @@ fn render_body(
                 svg,
                 raw_body_dim: None,
                 body_pre_offset: false,
+                body_degenerated: false,
             })
         }
         (Diagram::Json(jd), DiagramLayout::Json(jl)) => super::svg_json::render_json(jd, jl, skin)
@@ -632,6 +666,7 @@ fn render_body(
                 svg,
                 raw_body_dim: None,
                 body_pre_offset: false,
+                body_degenerated: false,
             }),
         (Diagram::Mindmap(md), DiagramLayout::Mindmap(ml)) => {
             let raw_body_dim = ml.raw_body_dim;
@@ -639,6 +674,7 @@ fn render_body(
                 svg,
                 raw_body_dim,
                 body_pre_offset: false,
+                body_degenerated: false,
             })
         }
         (Diagram::Nwdiag(nd), DiagramLayout::Nwdiag(nl)) => {
@@ -646,6 +682,7 @@ fn render_body(
                 svg,
                 raw_body_dim: None,
                 body_pre_offset: false,
+                body_degenerated: false,
             })
         }
         (Diagram::Salt(sd), DiagramLayout::Salt(sl)) => super::svg_salt::render_salt(sd, sl, skin)
@@ -653,12 +690,14 @@ fn render_body(
                 svg,
                 raw_body_dim: None,
                 body_pre_offset: false,
+                body_degenerated: false,
             }),
         (Diagram::Timing(td), DiagramLayout::Timing(tl)) => {
             super::svg_timing::render_timing(td, tl, skin).map(|svg| BodyResult {
                 svg,
                 raw_body_dim: None,
                 body_pre_offset: false,
+                body_degenerated: false,
             })
         }
         (Diagram::Wbs(wd), DiagramLayout::Wbs(wl)) => {
@@ -666,6 +705,7 @@ fn render_body(
                 svg,
                 raw_body_dim: None,
                 body_pre_offset: false,
+                body_degenerated: false,
             })
         }
         (Diagram::Yaml(yd), DiagramLayout::Yaml(yl)) => super::svg_json::render_yaml(yd, yl, skin)
@@ -673,6 +713,7 @@ fn render_body(
                 svg,
                 raw_body_dim: None,
                 body_pre_offset: false,
+                body_degenerated: false,
             }),
         (Diagram::UseCase(ud), DiagramLayout::Component(cl)) => {
             // Use case diagrams are routed through the component rendering pipeline.
@@ -681,6 +722,7 @@ fn render_body(
                 svg,
                 raw_body_dim: None,
                 body_pre_offset: false,
+                body_degenerated: false,
             })
         }
         (Diagram::Dot(_dd), DiagramLayout::Dot(_gl)) => {
@@ -689,6 +731,7 @@ fn render_body(
                 svg: render_dot_suppressed(),
                 raw_body_dim: None,
                 body_pre_offset: false,
+                body_degenerated: false,
             })
         }
         (Diagram::Packet(pd), DiagramLayout::Packet(pl)) => {
@@ -696,6 +739,7 @@ fn render_body(
                 svg,
                 raw_body_dim: None,
                 body_pre_offset: false,
+                body_degenerated: false,
             })
         }
         (Diagram::Git(gd), DiagramLayout::Git(gl)) => {
@@ -703,6 +747,7 @@ fn render_body(
                 svg,
                 raw_body_dim: None,
                 body_pre_offset: false,
+                body_degenerated: false,
             })
         }
         (Diagram::Regex(rd), DiagramLayout::Regex(rl)) => {
@@ -710,6 +755,7 @@ fn render_body(
                 svg,
                 raw_body_dim: None,
                 body_pre_offset: false,
+                body_degenerated: false,
             })
         }
         (Diagram::Ebnf(ed), DiagramLayout::Ebnf(el)) => {
@@ -717,6 +763,7 @@ fn render_body(
                 svg,
                 raw_body_dim: None,
                 body_pre_offset: false,
+                body_degenerated: false,
             })
         }
         (Diagram::Pie(pd), DiagramLayout::Pie(pl)) => {
@@ -724,6 +771,7 @@ fn render_body(
                 svg,
                 raw_body_dim: None,
                 body_pre_offset: false,
+                body_degenerated: false,
             })
         }
         (Diagram::Board(bd), DiagramLayout::Board(bl)) => {
@@ -731,6 +779,7 @@ fn render_body(
                 svg,
                 raw_body_dim: None,
                 body_pre_offset: false,
+                body_degenerated: false,
             })
         }
         (Diagram::Chronology(cd), DiagramLayout::Chronology(cl)) => {
@@ -738,6 +787,7 @@ fn render_body(
                 svg,
                 raw_body_dim: None,
                 body_pre_offset: false,
+                body_degenerated: false,
             })
         }
         (Diagram::Hcl(hd), DiagramLayout::Hcl(hl)) => {
@@ -745,6 +795,7 @@ fn render_body(
                 svg,
                 raw_body_dim: None,
                 body_pre_offset: false,
+                body_degenerated: false,
             })
         }
         _ => Err(crate::Error::Render("diagram/layout type mismatch".into())),
@@ -1215,6 +1266,7 @@ fn wrap_with_meta(
     bg: &str,
     raw_body_dim: Option<(f64, f64)>,
     body_pre_offset: bool,
+    body_degenerated: bool,
     skin: &crate::style::SkinParams,
 ) -> Result<String> {
     // SEQUENCE diagrams have a distinct chrome layout (SequenceDiagramArea) that
@@ -1285,7 +1337,16 @@ fn wrap_with_meta(
             || meta.caption.is_some()
             || meta.legend.is_some();
         let (svek_delta_w, svek_delta_h) = if diagram_type == "CLASS" && has_meta && rh > 0.0 {
-            (-6.0, 6.0) // span: subtract minX=6; height: span - 6 + 12 = +6
+            // Degenerated svek path (single entity, no edges/notes) already
+            // returns (node.width + 14, node.height + 14) which is the
+            // pre-margin textBlock dimension that wrap_with_meta expects.
+            // The normal -6 / +6 correction only applies to the moveDelta-shifted
+            // LimitFinder span used by the multi-node code path.
+            if body_degenerated {
+                (0.0, 0.0)
+            } else {
+                (-6.0, 6.0) // span: subtract minX=6; height: span - 6 + 12 = +6
+            }
         } else if diagram_type == "SEQUENCE" && has_meta && rh > 0.0 {
             // Java's LimitFinder tracks the participant tail bottom + extra border.
             // The layout formula undershoots by ~2.5px vs the actual drawn bounds.
@@ -2561,13 +2622,19 @@ fn render_class(
     cd: &crate::model::ClassDiagram,
     layout: &GraphLayout,
     skin: &SkinParams,
+    class_body_offset: Option<(f64, f64)>,
 ) -> Result<BodyResult> {
     let node_map: HashMap<&str, &NodeLayout> =
         layout.nodes.iter().map(|n| (n.id.as_str(), n)).collect();
+    // Pre-shift offset (degenerated svek case): when the wrap_with_meta layer
+    // already knows the body's final position, we add it directly here so the
+    // emitted coordinates skip the lossy format→parse→shift→reformat round
+    // trip in `offset_svg_coords`.
+    let (pre_off_x, pre_off_y) = class_body_offset.unwrap_or((0.0, 0.0));
     // Rust normalizes Svek coordinates back to the origin for rendering, but
     // Java renders at the post-Svek coordinates directly. `render_offset`
     // re-applies the exact per-axis delta needed to reconstruct the Java space.
-    let edge_offset_x = layout.render_offset.0;
+    let edge_offset_x = layout.render_offset.0 + pre_off_x;
     // Java's LimitFinder sees generic boxes protruding above the owning entity
     // header. That only changes the global min_y when a generic entity is also
     // on the diagram's topmost entity row; lower generic entities do not affect
@@ -2596,7 +2663,7 @@ fn render_class(
     } else {
         0.0
     };
-    let edge_offset_y = layout.render_offset.1 + generic_y_adjust;
+    let edge_offset_y = layout.render_offset.1 + generic_y_adjust + pre_off_y;
     let mut tracker = BoundsTracker::new();
     let mut sg = SvgGraphic::new(0, 1.0);
     let arrow_color = skin.arrow_color(LINK_COLOR);
@@ -2904,7 +2971,8 @@ fn render_class(
     Ok(BodyResult {
         svg: buf,
         raw_body_dim,
-        body_pre_offset: false,
+        body_pre_offset: class_body_offset.is_some(),
+        body_degenerated: is_degenerated,
     })
 }
 
@@ -6568,7 +6636,7 @@ mod tests {
     #[test]
     fn test_meta_title_can_expand_canvas_width() {
         let (d, l) = simple_diagram();
-        let body_result = render_body(&d, &l, &default_skin(), None).unwrap();
+        let body_result = render_body(&d, &l, &default_skin(), None, None).unwrap();
         let (body_w, _) = extract_dimensions(&body_result.svg);
         let meta = DiagramMeta {
             title: Some(

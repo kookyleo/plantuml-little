@@ -106,9 +106,13 @@ fn process_xlink_title(title: &str) -> String {
         }
     }
     // Step 2: Replace backslash-n sequences with newline.
-    // In PUML source, both `\n` and `\\n` represent a newline in tooltips.
-    // Handle `\\n` first (double-backslash+n → newline), then `\n`.
-    let result = result.replace("\\\\n", "\n");
+    // Java `SvgGraphics.LinkData.getXlinkTitle()` uses
+    // `replaceAll("\\\\n", "\n")` — i.e. the regex matches the literal
+    // 2-char sequence `\n` and replaces it with a newline. Backslashes
+    // themselves are preserved, so `\\n` becomes `\` + newline (the first
+    // backslash stays literal, the trailing `\n` becomes a newline).
+    // Do NOT collapse `\\n` to a single newline — that would drop the
+    // user-visible escape backslash that Java keeps in the output.
     result.replace("\\n", "\n")
 }
 
@@ -1503,6 +1507,37 @@ fn strip_row_color_prefix(line: &str) -> (Option<String>, Option<String>, String
     }
 }
 
+/// Apply Java `StripeTable.getWithNewlinesInternal` collapses to a table
+/// cell text. In legacy mode (always on), each `\\` is replaced with a single
+/// `\` and each remaining `\n` will later be split by `split_table_cell_lines`.
+///
+/// We must collapse `\\` BEFORE the link parser runs, otherwise the tooltip
+/// extracted from `[[{a\\nb}...]]` would still contain the doubled backslash
+/// and `process_xlink_title` would emit the literal `\` (instead of dropping
+/// it the way Java does for table cells).
+fn collapse_table_cell_escapes(text: &str) -> String {
+    let chars: Vec<char> = text.chars().collect();
+    let mut out = String::with_capacity(text.len());
+    let mut i = 0;
+    while i < chars.len() {
+        let c = chars[i];
+        if c == '\\' && i + 1 < chars.len() {
+            let c2 = chars[i + 1];
+            if c2 == '\\' {
+                // `\\` → `\`
+                out.push('\\');
+                i += 2;
+                continue;
+            }
+            // `\n` and other `\X` sequences are left intact so the cell
+            // splitter / inline parser can handle them.
+        }
+        out.push(c);
+        i += 1;
+    }
+    out
+}
+
 fn parse_display_table_cells(line: &str, preserve_backslash_n: bool) -> Vec<DisplayTableCell> {
     let trimmed = line.trim();
     let inner = trimmed
@@ -1522,7 +1557,8 @@ fn parse_display_table_cells(line: &str, preserve_backslash_n: bool) -> Vec<Disp
                 cell_text = cell_text.trim_start_matches('=');
                 let inner_leading = cell_text.len() - cell_text.trim_start().len();
                 cell_text = cell_text.trim();
-                let mut lines: Vec<Vec<TextSpan>> = split_table_cell_lines(cell_text, preserve_backslash_n)
+                let collapsed = collapse_table_cell_escapes(cell_text);
+                let mut lines: Vec<Vec<TextSpan>> = split_table_cell_lines(&collapsed, preserve_backslash_n)
                     .into_iter().map(|cell_line| parse_inline(&cell_line)).collect();
                 let mut el = 0usize; let mut et = 0usize;
                 for line in &mut lines { let (l, t) = strip_span_edge_spaces(line); el = el.max(l); et = et.max(t); }
@@ -1533,7 +1569,8 @@ fn parse_display_table_cells(line: &str, preserve_backslash_n: bool) -> Vec<Disp
                 };
             }
             let (cell_bg, cell_text) = extract_cell_bg_color(cell_text);
-            let mut lines: Vec<Vec<TextSpan>> = split_table_cell_lines(cell_text, preserve_backslash_n)
+            let collapsed = collapse_table_cell_escapes(cell_text);
+            let mut lines: Vec<Vec<TextSpan>> = split_table_cell_lines(&collapsed, preserve_backslash_n)
                 .into_iter().map(|cell_line| parse_inline(&cell_line)).collect();
             let mut el = 0usize; let mut et = 0usize;
             for line in &mut lines { let (l, t) = strip_span_edge_spaces(line); el = el.max(l); et = et.max(t); }
