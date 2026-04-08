@@ -3555,6 +3555,11 @@ fn draw_entity_box(
         return;
     }
 
+    if entity.kind == EntityKind::Component {
+        draw_component_description_box(sg, tracker, cd, entity, nl, skin, edge_offset_x, edge_offset_y);
+        return;
+    }
+
     // Java: after `layout_with_svek()` re-normalizes to origin, class entities
     // render back at the plain Svek margin offset (= 6).
     let x = nl.cx - nl.width / 2.0 + edge_offset_x;
@@ -4064,6 +4069,197 @@ fn draw_rectangle_entity_box(
         true,
     );
     sg.push_raw(&tmp);
+}
+
+/// Draw a description-style `component` entity as it appears in the class
+/// pipeline (Java `USymbolComponent2.asSmall`):
+///
+/// 1. Main rounded rectangle (rx = roundCorner/2, default 2.5)
+/// 2. UML 2 component icon at top-right of the rect:
+///    - Outer 15x10 rect at (w-20, 5)
+///    - Two 4x2 tab rects on the left of the icon at (w-22, 7) and (w-22, 11)
+/// 3. Centered label (and optional stereotypes stacked above the name)
+///
+/// Java margin: `Margin(10+5, 20+5, 15+5, 5+5)` → (left=15, right=25, top=20, bottom=10).
+fn draw_component_description_box(
+    sg: &mut SvgGraphic,
+    tracker: &mut BoundsTracker,
+    cd: &ClassDiagram,
+    entity: &Entity,
+    nl: &NodeLayout,
+    skin: &SkinParams,
+    edge_offset_x: f64,
+    edge_offset_y: f64,
+) {
+    const MARGIN_LEFT: f64 = 15.0;
+    const MARGIN_TOP: f64 = 20.0;
+
+    let x = nl.cx - nl.width / 2.0 + edge_offset_x;
+    let y = nl.cy - nl.height / 2.0 + edge_offset_y;
+    let w = nl.width;
+    let h = nl.height;
+
+    let default_fill = skin.background_color("component", ENTITY_BG);
+    let fill = entity
+        .color
+        .as_deref()
+        .map(crate::style::normalize_color)
+        .or_else(|| class_stereotype_fill_color(&cd.stereotype_backgrounds, &entity.stereotypes))
+        .unwrap_or_else(|| default_fill.to_string());
+    let stroke = skin.border_color("component", BORDER_COLOR);
+    let font_color = skin.font_color("component", TEXT_COLOR);
+    let rx = skin.round_corner().map(|rc| rc / 2.0).unwrap_or(2.5);
+
+    // Main rect
+    sg.set_fill_color(&fill);
+    sg.set_stroke_color(Some(stroke));
+    sg.set_stroke_width(0.5, None);
+    sg.svg_rectangle(x, y, w, h, rx, rx, 0.0);
+    tracker.track_rect(x, y, w, h);
+
+    // Component icon at top-right of the rect.
+    // Java translate offsets: small at (w-20, 5), tabs at (w-22, 7) and (w-22, 11).
+    let icon_w: f64 = 15.0;
+    let icon_h: f64 = 10.0;
+    let icon_x = x + w - 20.0;
+    let icon_y = y + 5.0;
+    sg.set_fill_color(&fill);
+    sg.set_stroke_color(Some(stroke));
+    sg.set_stroke_width(0.5, None);
+    sg.svg_rectangle(icon_x, icon_y, icon_w, icon_h, 0.0, 0.0, 0.0);
+    tracker.track_rect(icon_x, icon_y, icon_w, icon_h);
+
+    let tab_w: f64 = 4.0;
+    let tab_h: f64 = 2.0;
+    let tab_x = x + w - 22.0;
+    sg.set_fill_color(&fill);
+    sg.set_stroke_color(Some(stroke));
+    sg.set_stroke_width(0.5, None);
+    sg.svg_rectangle(tab_x, y + 7.0, tab_w, tab_h, 0.0, 0.0, 0.0);
+    tracker.track_rect(tab_x, y + 7.0, tab_w, tab_h);
+
+    sg.set_fill_color(&fill);
+    sg.set_stroke_color(Some(stroke));
+    sg.set_stroke_width(0.5, None);
+    sg.svg_rectangle(tab_x, y + 11.0, tab_w, tab_h, 0.0, 0.0, 0.0);
+    tracker.track_rect(tab_x, y + 11.0, tab_w, tab_h);
+
+    // Resolve display name and font sizes.
+    let class_font_size = skin
+        .get("classfontsize")
+        .and_then(|s| s.parse::<f64>().ok())
+        .unwrap_or(FONT_SIZE);
+
+    let name_display_raw = entity
+        .display_name
+        .as_deref()
+        .map(String::from)
+        .unwrap_or_else(|| crate::layout::class_entity_display_name(&entity.name));
+    let markup_info = crate::layout::strip_html_markup(&name_display_raw);
+    let name_display = if markup_info.bold || markup_info.italic {
+        markup_info.text.clone()
+    } else {
+        name_display_raw
+    };
+    let name_bold = markup_info.bold;
+    let name_italic = markup_info.italic;
+
+    let visible_stereotypes = visible_stereotype_labels(&cd.hide_show_rules, entity);
+
+    // Java mergeTB(stereotype, label, CENTER) draws stereotype above the label.
+    // Both blocks are drawn at translate(MARGIN_LEFT, MARGIN_TOP) from the rect origin.
+    let stereo_line_h = font_metrics::line_height(
+        "SansSerif",
+        HEADER_STEREO_FONT_SIZE,
+        false,
+        true,
+    );
+    let stereo_ascent =
+        font_metrics::ascent("SansSerif", HEADER_STEREO_FONT_SIZE, false, true);
+    let mut cur_top = y + MARGIN_TOP;
+    for label in &visible_stereotypes {
+        let stereo_text = format!("\u{00AB}{label}\u{00BB}");
+        let tw = font_metrics::text_width(
+            &stereo_text,
+            "SansSerif",
+            HEADER_STEREO_FONT_SIZE,
+            false,
+            true,
+        );
+        // Center horizontally within inner region (x + MARGIN_LEFT .. x + w - MARGIN_RIGHT).
+        // Java mergeTB CENTER aligns each row to the wider block; we approximate by
+        // centering each line on the inner region center.
+        let inner_left = x + MARGIN_LEFT;
+        let inner_right = x + w - 25.0;
+        let line_x = inner_left + ((inner_right - inner_left) - tw) / 2.0;
+        let baseline = cur_top + stereo_ascent;
+        sg.push_raw(&format!(
+            r#"<text fill="{font_color}" font-family="sans-serif" font-size="{fs:.0}" font-style="italic" lengthAdjust="spacing" textLength="{tl}" x="{x_}" y="{y_}">{txt}</text>"#,
+            fs = HEADER_STEREO_FONT_SIZE,
+            tl = fmt_coord(tw),
+            x_ = fmt_coord(line_x),
+            y_ = fmt_coord(baseline),
+            txt = xml_escape(&stereo_text),
+        ));
+        tracker.track_rect(line_x, cur_top, tw, stereo_line_h);
+        cur_top += stereo_line_h;
+    }
+
+    // Label block.
+    let name_block = crate::layout::split_name_display(&name_display);
+    let line_h = font_metrics::line_height("SansSerif", class_font_size, name_bold, name_italic);
+    let ascent = font_metrics::ascent("SansSerif", class_font_size, name_bold, name_italic);
+    let label_widths: Vec<(f64, f64)> = name_block
+        .lines
+        .iter()
+        .map(|line| {
+            crate::layout::display_line_metrics(line, class_font_size, name_bold, name_italic)
+        })
+        .collect();
+    let label_max_w = label_widths
+        .iter()
+        .map(|(vw, iw)| vw + iw)
+        .fold(0.0_f64, f64::max);
+
+    // Java draws the label at the same translate(MARGIN_LEFT, MARGIN_TOP). When
+    // there is no stereotype the label sits at MARGIN_TOP. Otherwise the label
+    // is stacked under the stereotype block (cur_top after the loop).
+    let font_style = if name_italic { Some("italic") } else { None };
+    let font_weight = if name_bold { Some("bold") } else { None };
+    sg.set_fill_color(font_color);
+    for (idx, line) in name_block.lines.iter().enumerate() {
+        let display_line = if line.text.is_empty() {
+            "\u{00A0}".to_string()
+        } else {
+            line.text.clone()
+        };
+        let (visible_w, indent_w) = label_widths[idx];
+        let measured_w = visible_w + indent_w;
+        // mergeTB CENTER: each line centered relative to label_max_w
+        let inner_offset = match name_block.alignment {
+            crate::layout::DisplayAlignment::Left => 0.0,
+            crate::layout::DisplayAlignment::Center => (label_max_w - measured_w) / 2.0,
+            crate::layout::DisplayAlignment::Right => label_max_w - measured_w,
+        };
+        let line_x = x + MARGIN_LEFT + inner_offset + indent_w;
+        let baseline = cur_top + ascent + idx as f64 * line_h;
+        sg.svg_text(
+            &display_line,
+            line_x,
+            baseline,
+            Some("sans-serif"),
+            class_font_size,
+            font_weight,
+            font_style,
+            None,
+            visible_w,
+            LengthAdjust::Spacing,
+            None,
+            0,
+            None,
+        );
+        tracker.track_rect(line_x, baseline - ascent, visible_w, line_h);
+    }
 }
 
 /// Render a `file` symbol outline — rectangle with a folded top-right corner.

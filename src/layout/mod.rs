@@ -783,6 +783,10 @@ fn estimate_entity_size(
         return estimate_rectangle_size(entity);
     }
 
+    if entity.kind == EntityKind::Component {
+        return estimate_component_size(cd, entity, name_font_size);
+    }
+
     // Entity name WITHOUT generic parameter -- generic is rendered separately.
     // Split name into display lines following Java Display semantics (\n, \r split).
     // When `as Alias` is used, display_name holds the original quoted label.
@@ -913,6 +917,95 @@ fn estimate_rectangle_size(entity: &Entity) -> (f64, f64) {
         entity.description.len(),
         content_w,
         content_h,
+    );
+    (width, height)
+}
+
+/// Estimate size for `component` entities in the class pipeline.
+///
+/// Mirrors Java `USymbolComponent2.asSmall.calculateDimension`:
+///   margin = (x1=15, x2=25, y1=20, y2=10)
+///   dim    = mergeTB(stereotype, label) + margin
+///
+/// The label is the entity display name rendered at the class font size
+/// (default 14pt). When stereotypes are present, their height stacks above
+/// the name and the wider of the two drives the inner width.
+fn estimate_component_size(
+    cd: &ClassDiagram,
+    entity: &Entity,
+    name_font_size: f64,
+) -> (f64, f64) {
+    // Java margin for USymbolComponent2: Margin(10+5, 20+5, 15+5, 5+5)
+    // = (x1 left=15, x2 right=25, y1 top=20, y2 bottom=10)
+    const MARGIN_LEFT: f64 = 15.0;
+    const MARGIN_RIGHT: f64 = 25.0;
+    const MARGIN_TOP: f64 = 20.0;
+    const MARGIN_BOTTOM: f64 = 10.0;
+
+    let name_display_raw = entity
+        .display_name
+        .as_deref()
+        .map(String::from)
+        .unwrap_or_else(|| class_entity_display_name(&entity.name));
+    let markup = strip_html_markup(&name_display_raw);
+    let name_display = if markup.bold || markup.italic {
+        markup.text.clone()
+    } else {
+        name_display_raw
+    };
+    let name_bold = markup.bold;
+    let name_italic = markup.italic;
+    let name_block = split_name_display(&name_display);
+    let n_name_lines = name_block.lines.len().max(1);
+    let label_width = name_block
+        .lines
+        .iter()
+        .map(|line| {
+            let (visible_width, indent_width) =
+                display_line_metrics(line, name_font_size, name_bold, name_italic);
+            visible_width + indent_width
+        })
+        .fold(0.0_f64, f64::max);
+    let line_h = font_metrics::line_height("SansSerif", name_font_size, name_bold, name_italic);
+    let label_height = n_name_lines as f64 * line_h;
+
+    let visible_stereotypes = visible_stereotype_labels(&cd.hide_show_rules, &entity.stereotypes);
+    let stereo_width = visible_stereotypes
+        .iter()
+        .map(|label| {
+            let stereo_text = format!("\u{00AB}{label}\u{00BB}");
+            font_metrics::text_width(
+                &stereo_text,
+                "SansSerif",
+                HEADER_STEREO_FONT_SIZE,
+                false,
+                true,
+            )
+        })
+        .fold(0.0_f64, f64::max);
+    let stereo_line_h = font_metrics::line_height(
+        "SansSerif",
+        HEADER_STEREO_FONT_SIZE,
+        false,
+        true,
+    );
+    let stereo_height = visible_stereotypes.len() as f64 * stereo_line_h;
+
+    let inner_w = label_width.max(stereo_width);
+    let inner_h = label_height + stereo_height;
+
+    let width = inner_w + MARGIN_LEFT + MARGIN_RIGHT;
+    let height = inner_h + MARGIN_TOP + MARGIN_BOTTOM;
+
+    log::debug!(
+        "estimate_component_size: {} -> ({:.4}, {:.4}) [label {:.4}x{:.4}, stereo {:.4}x{:.4}]",
+        entity.name,
+        width,
+        height,
+        label_width,
+        label_height,
+        stereo_width,
+        stereo_height,
     );
     (width, height)
 }
