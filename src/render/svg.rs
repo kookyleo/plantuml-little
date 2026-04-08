@@ -14,7 +14,7 @@ use crate::layout::split_member_lines;
 use crate::layout::DiagramLayout;
 use crate::model::{
     ArrowHead, ClassDiagram, ClassHideShowRule, ClassPortion, ClassRuleTarget, Diagram,
-    DiagramMeta, Entity, EntityKind, GroupKind, LineStyle, Link, Member, Visibility,
+    DiagramMeta, Entity, EntityKind, GroupKind, LineStyle, Link, Member, RectSymbol, Visibility,
 };
 use crate::style::SkinParams;
 use crate::Result;
@@ -3867,11 +3867,22 @@ fn draw_rectangle_entity_box(
     let font_color = skin.font_color("rectangle", TEXT_COLOR);
     let rx = skin.round_corner().map(|rc| rc / 2.0).unwrap_or(2.5);
 
-    sg.set_fill_color(fill);
-    sg.set_stroke_color(Some(stroke));
-    sg.set_stroke_width(0.5, None);
-    sg.svg_rectangle(x, y, w, h, rx, rx, 0.0);
-    tracker.track_rect(x, y, w, h);
+    match entity.rect_symbol {
+        RectSymbol::File => {
+            draw_file_shape(sg, x, y, w, h, rx, fill, stroke);
+            // Java USymbolFile draws the outline as a UPath, so LimitFinder uses
+            // the drawDotPath path — no -1 adjustment. Use track_path_bounds to
+            // match the +1 extent versus track_rect.
+            tracker.track_path_bounds(x, y, x + w, y + h);
+        }
+        _ => {
+            sg.set_fill_color(fill);
+            sg.set_stroke_color(Some(stroke));
+            sg.set_stroke_width(0.5, None);
+            sg.svg_rectangle(x, y, w, h, rx, rx, 0.0);
+            tracker.track_rect(x, y, w, h);
+        }
+    }
 
     // Java: description text at font-size 14, left-aligned, padding 10px.
     // Use creole rendering to handle inline markup (<i>, <b>, etc.) and table syntax (|= ... |).
@@ -3890,6 +3901,68 @@ fn draw_rectangle_entity_box(
         true,
     );
     sg.push_raw(&tmp);
+}
+
+/// Render a `file` symbol outline — rectangle with a folded top-right corner.
+/// Java: `USymbolFile.drawFile()` with rounded path (cornersize=10, r=roundCorner/2).
+fn draw_file_shape(
+    sg: &mut SvgGraphic,
+    x: f64,
+    y: f64,
+    w: f64,
+    h: f64,
+    r: f64,
+    fill: &str,
+    stroke: &str,
+) {
+    const CORNERSIZE: f64 = 10.0;
+    // Outer body path. Matches Java `drawFile(...)` with roundCorner != 0 branch:
+    //   M 0, r
+    //   L 0, h-r
+    //   A r,r 0 0 0 r, h
+    //   L w-r, h
+    //   A r,r 0 0 0 w, h-r
+    //   L w, cornersize
+    //   L w-cornersize, 0
+    //   L r, 0
+    //   A r,r 0 0 0 0, r
+    let d_outer = format!(
+        "M{},{} L{},{} A{},{} 0 0 0 {},{} L{},{} A{},{} 0 0 0 {},{} L{},{} L{},{} L{},{} A{},{} 0 0 0 {},{}",
+        fmt_coord(x),              fmt_coord(y + r),
+        fmt_coord(x),              fmt_coord(y + h - r),
+        fmt_coord(r),              fmt_coord(r),
+        fmt_coord(x + r),          fmt_coord(y + h),
+        fmt_coord(x + w - r),      fmt_coord(y + h),
+        fmt_coord(r),              fmt_coord(r),
+        fmt_coord(x + w),          fmt_coord(y + h - r),
+        fmt_coord(x + w),          fmt_coord(y + CORNERSIZE),
+        fmt_coord(x + w - CORNERSIZE), fmt_coord(y),
+        fmt_coord(x + r),          fmt_coord(y),
+        fmt_coord(r),              fmt_coord(r),
+        fmt_coord(x),              fmt_coord(y + r),
+    );
+    sg.push_raw(&format!(
+        r#"<path d="{d_outer}" fill="{fill}" style="stroke:{stroke};stroke-width:0.5;"/>"#,
+    ));
+
+    // Fold dog-ear decoration path (the small cut that visually separates the
+    // corner from the main body). Java uses the same fill as body, so the
+    // triangle is painted over the upper-right cut-off area.
+    //   M w-cornersize, 0
+    //   L w-cornersize, cornersize - r
+    //   A r,r 0 0 0 w-cornersize+r, cornersize
+    //   L w, cornersize
+    let d_fold = format!(
+        "M{},{} L{},{} A{},{} 0 0 0 {},{} L{},{}",
+        fmt_coord(x + w - CORNERSIZE), fmt_coord(y),
+        fmt_coord(x + w - CORNERSIZE), fmt_coord(y + CORNERSIZE - r),
+        fmt_coord(r),                  fmt_coord(r),
+        fmt_coord(x + w - CORNERSIZE + r), fmt_coord(y + CORNERSIZE),
+        fmt_coord(x + w),              fmt_coord(y + CORNERSIZE),
+    );
+    sg.push_raw(&format!(
+        r#"<path d="{d_fold}" fill="{fill}" style="stroke:{stroke};stroke-width:0.5;"/>"#,
+    ));
 }
 
 ///
@@ -6163,10 +6236,7 @@ mod tests {
 
     fn simple_diagram() -> (Diagram, DiagramLayout) {
         let entity = Entity {
-            uid: None,
             name: "Foo".into(),
-            kind: EntityKind::Class,
-            stereotypes: vec![],
             members: vec![
                 Member {
                     visibility: Some(Visibility::Public),
@@ -6188,27 +6258,12 @@ mod tests {
                     display: None,
                 },
             ],
-            description: vec![],
-            color: None,
-            generic: None,
-            source_line: None,
-            visibility: None,
-            display_name: None,
-            map_entries: vec![],
+            ..Entity::default()
         };
         let entity2 = Entity {
-            uid: None,
             name: "Bar".into(),
             kind: EntityKind::Interface,
-            stereotypes: vec![],
-            members: vec![],
-            description: vec![],
-            color: None,
-            generic: None,
-            source_line: None,
-            visibility: None,
-            display_name: None,
-            map_entries: vec![],
+            ..Entity::default()
         };
         let link = Link {
             uid: None,
@@ -6344,18 +6399,8 @@ mod tests {
     #[test]
     fn test_entity_with_special_chars() {
         let entity = Entity {
-            uid: None,
             name: "Map<K, V>".into(),
-            kind: EntityKind::Class,
-            stereotypes: vec![],
-            members: vec![],
-            description: vec![],
-            color: None,
-            generic: None,
-            source_line: None,
-            visibility: None,
-            display_name: None,
-            map_entries: vec![],
+            ..Entity::default()
         };
         let mut cd = empty_class_diagram();
         cd.entities = vec![entity];
@@ -6394,18 +6439,9 @@ mod tests {
     #[test]
     fn test_object_entity_renders_without_circle_icon() {
         let entity = Entity {
-            uid: None,
             name: "myObj".into(),
             kind: EntityKind::Object,
-            stereotypes: vec![],
-            members: vec![],
-            description: vec![],
-            color: None,
-            generic: None,
-            source_line: None,
-            visibility: None,
-            display_name: None,
-            map_entries: vec![],
+            ..Entity::default()
         };
         let mut cd = empty_class_diagram();
         cd.entities = vec![entity];
@@ -6672,18 +6708,8 @@ mod tests {
         use crate::layout::graphviz::ClassNoteLayout;
 
         let entity = Entity {
-            uid: None,
             name: "Foo".into(),
-            kind: EntityKind::Class,
-            stereotypes: vec![],
-            members: vec![],
-            description: vec![],
-            color: None,
-            generic: None,
-            source_line: None,
-            visibility: None,
-            display_name: None,
-            map_entries: vec![],
+            ..Entity::default()
         };
         let mut cd = empty_class_diagram();
         cd.entities = vec![entity];

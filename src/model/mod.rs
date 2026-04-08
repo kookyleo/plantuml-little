@@ -36,7 +36,7 @@ pub use diagram::{
     DiagramMeta, Direction, Group, GroupKind,
 };
 pub use ditaa::{DitaaDiagram, DitaaOptions};
-pub use entity::{Entity, EntityKind, Member, MemberModifiers, Stereotype, Visibility};
+pub use entity::{Entity, EntityKind, Member, MemberModifiers, RectSymbol, Stereotype, Visibility};
 pub use erd::{ErdDiagram, ErdEntity, ErdIsa, ErdRelationship, IsaKind};
 pub use gantt::{GanttDiagram, GanttTask};
 pub use json_diagram::{JsonDiagram, JsonValue};

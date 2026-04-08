@@ -1,6 +1,7 @@
 /// Entity kind
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Default)]
 pub enum EntityKind {
+    #[default]
     Class,
     Interface,
     Enum,
@@ -11,6 +12,31 @@ pub enum EntityKind {
     Rectangle,
     /// Component entity (rendered with component icon tabs)
     Component,
+}
+
+/// Rectangle-family symbol variant — Java USymbol sub-type for entities that
+/// all map to `EntityKind::Rectangle` but need distinct rendered shapes.
+/// See Java `USymbols`/`USymbolFile`/`USymbolFolder` etc.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RectSymbol {
+    Rectangle,
+    File,
+    Folder,
+    Frame,
+    Card,
+    Agent,
+    Storage,
+    Artifact,
+    Node,
+    Cloud,
+    Stack,
+    Queue,
+}
+
+impl Default for RectSymbol {
+    fn default() -> Self {
+        RectSymbol::Rectangle
+    }
 }
 
 /// Member visibility
@@ -88,7 +114,7 @@ impl Stereotype {
 }
 
 /// Entity (class, interface, enum, etc.)
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct Entity {
     pub uid: Option<String>,
     pub name: String,
@@ -105,4 +131,7 @@ pub struct Entity {
     /// Display name (when `as Alias` is used, this holds the quoted label).
     pub display_name: Option<String>,
     pub map_entries: Vec<(String, String)>,
+    /// Rectangle-family symbol variant (file / folder / card / …).
+    /// Only meaningful when `kind == EntityKind::Rectangle`; ignored otherwise.
+    pub rect_symbol: RectSymbol,
 }

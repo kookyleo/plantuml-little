@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use crate::model::{
     ArrowHead, ClassDiagram, ClassHideShowRule, ClassNote, ClassPortion, ClassRuleTarget,
     Direction, Entity, EntityKind, Group, GroupKind, LineStyle, Link, Member, MemberModifiers,
-    Stereotype, Visibility,
+    RectSymbol, Stereotype, Visibility,
 };
 use crate::Result;
 use log::{debug, warn};
@@ -154,12 +154,10 @@ pub fn parse_class_diagram_with_original(
             continue;
         }
 
-        // Skip empty and comment lines
-        if trimmed.is_empty() || trimmed.starts_with('\'') {
-            continue;
-        }
-
         // Handle multi-line description block (rectangle A [...])
+        // NOTE: blank lines inside `[...]` must be preserved (Java keeps them
+        // as empty Display entries rendered as &#160;), so this check sits
+        // BEFORE the generic empty/comment skip below.
         if in_description_block {
             if trimmed == "]" {
                 if let Some(ref mut ent) = current_entity {
@@ -189,6 +187,12 @@ pub fn parse_class_diagram_with_original(
             } else {
                 description_block_lines.push(trimmed.to_string());
             }
+            continue;
+        }
+
+        // Skip empty and comment lines (AFTER in_description_block check so
+        // blank lines inside bracket-body survive as nbsp rows).
+        if trimmed.is_empty() || trimmed.starts_with('\'') {
             continue;
         }
 
@@ -318,6 +322,7 @@ pub fn parse_class_diagram_with_original(
             let has_open_bracket = caps.get(11).is_some();
 
             let kind = parse_entity_kind(kind_str);
+            let rect_symbol = parse_rect_symbol(kind_str);
 
             // When `as Alias` is used, alias becomes the code name and raw_name is display
             let (name, display_name) = if let Some(ref al) = alias {
@@ -370,6 +375,7 @@ pub fn parse_class_diagram_with_original(
                 visibility: entity_visibility,
                 display_name,
                 map_entries: vec![],
+                rect_symbol,
             };
 
             if has_open_brace && !has_close_brace {
@@ -860,6 +866,25 @@ fn parse_entity_kind(s: &str) -> EntityKind {
     }
 }
 
+/// Map a parser keyword to the concrete rectangle symbol variant.
+/// Only meaningful when `parse_entity_kind` returned `EntityKind::Rectangle`.
+fn parse_rect_symbol(s: &str) -> RectSymbol {
+    match s {
+        "file" => RectSymbol::File,
+        "folder" => RectSymbol::Folder,
+        "frame" => RectSymbol::Frame,
+        "card" => RectSymbol::Card,
+        "agent" => RectSymbol::Agent,
+        "storage" => RectSymbol::Storage,
+        "artifact" => RectSymbol::Artifact,
+        "node" => RectSymbol::Node,
+        "cloud" => RectSymbol::Cloud,
+        "stack" => RectSymbol::Stack,
+        "queue" => RectSymbol::Queue,
+        _ => RectSymbol::Rectangle,
+    }
+}
+
 /// Parse generic from entity name, e.g. "HashMap<K,V>" -> ("HashMap", Some("K,V"))
 fn parse_generic(name: &str) -> (String, Option<String>) {
     if let Some(idx) = name.find('<') {
@@ -1250,6 +1275,7 @@ fn auto_create_entities(
             visibility: None,
             display_name: None,
             map_entries: vec![],
+            rect_symbol: RectSymbol::Rectangle,
         });
     }
 }

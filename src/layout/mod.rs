@@ -1926,18 +1926,8 @@ mod tests {
 
     fn empty_entity(name: &str) -> Entity {
         Entity {
-            uid: None,
             name: name.to_string(),
-            kind: EntityKind::Class,
-            stereotypes: vec![],
-            members: vec![],
-            description: vec![],
-            color: None,
-            generic: None,
-            source_line: None,
-            visibility: None,
-            display_name: None,
-            map_entries: vec![],
+            ..Entity::default()
         }
     }
 
@@ -1984,10 +1974,7 @@ mod tests {
     #[test]
     fn estimate_size_accounts_for_members() {
         let e = Entity {
-            uid: None,
             name: "A".to_string(),
-            kind: EntityKind::Class,
-            stereotypes: vec![],
             members: vec![
                 make_member(
                     Some(Visibility::Private),
@@ -1996,13 +1983,7 @@ mod tests {
                 ),
                 make_member(Some(Visibility::Public), "id", Some("i32")),
             ],
-            description: vec![],
-            color: None,
-            generic: None,
-            source_line: None,
-            visibility: None,
-            display_name: None,
-            map_entries: vec![],
+            ..Entity::default()
         };
         let (w, h) = estimate_entity_size(
             &empty_diagram(),
@@ -2037,18 +2018,9 @@ mod tests {
     #[test]
     fn estimate_size_interface_uses_standard_header_height() {
         let e = Entity {
-            uid: None,
             name: "Runnable".to_string(),
             kind: EntityKind::Interface,
-            stereotypes: vec![],
-            members: vec![],
-            description: vec![],
-            color: None,
-            generic: None,
-            source_line: None,
-            visibility: None,
-            display_name: None,
-            map_entries: vec![],
+            ..Entity::default()
         };
         let (_, h) = estimate_entity_size(
             &empty_diagram(),
