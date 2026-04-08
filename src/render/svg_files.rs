@@ -11,7 +11,7 @@
 //! a tiny rounding drift in the 4th decimal because Java's internal floats differ
 //! by ±1 ULP — noted in the unit test below).
 
-use crate::klimt::svg::{fmt_coord, xml_escape, LengthAdjust, SvgGraphic};
+use crate::klimt::svg::{fmt_coord, LengthAdjust, SvgGraphic};
 use crate::layout::files_diagram::{FilesEntryLayout, FilesLayout};
 use crate::model::files_diagram::{FilesDiagram, FilesEntryKind};
 use crate::render::svg::write_svg_root_bg;
@@ -428,11 +428,8 @@ fn render_text(buf: &mut String, e: &FilesEntryLayout, fc: &str) {
         0,
         None,
     );
-    // Extract the body; discard the `<svg>` wrapper.
-    // SvgGraphic holds only the pending elements when used like this.
+    // SvgGraphic buffers the element; copy into the output buffer.
     buf.push_str(sg.body());
-    // Note: xml_escape is applied inside svg_text.
-    let _ = xml_escape;
 }
 
 #[cfg(test)]

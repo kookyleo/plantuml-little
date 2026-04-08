@@ -1196,28 +1196,57 @@ fn encode_plantuml_source(source: &str) -> Result<String> {
 }
 
 fn compress_plantuml_source_for_pi(source: &str) -> String {
-    let mut body = Vec::new();
-    let mut in_diagram = false;
+    // Java emits the plantuml-src processing instruction with two distinct
+    // normalisations, depending on the diagram family:
+    //
+    // * `@startuml`/`@enduml` — the surrounding markers are stripped and only
+    //   the body is deflated; no version footer.
+    // * Every other `@startXxx`/`@endXxx` (yaml, json, files, regex, ebnf,
+    //   salt, …) — the full source including the delimiters is deflated, and
+    //   Java appends an empty line followed by the PlantUML version literal
+    //   (`1.2026.2`). We replicate that trailer here to stay byte-identical.
+    let trimmed = source.trim_matches(|c| matches!(c, ' ' | '\t' | '\r' | '\n' | '\0'));
 
-    for line in source.lines() {
-        if !in_diagram {
-            if line.starts_with("@startuml") {
-                in_diagram = true;
+    // Detect which family we're in by scanning for the first `@start...` marker.
+    let (start_line, _end_line) = trimmed
+        .lines()
+        .find(|l| l.starts_with('@'))
+        .map(|l| {
+            let name = l.trim_start_matches('@').split_whitespace().next().unwrap_or("");
+            (name.to_string(), name.replace("start", "end"))
+        })
+        .unwrap_or_default();
+
+    if start_line == "startuml" {
+        // Strip the markers and return the body only. Matches pre-existing behaviour.
+        let mut body = Vec::new();
+        let mut in_diagram = false;
+        for line in source.lines() {
+            if !in_diagram {
+                if line.starts_with("@startuml") {
+                    in_diagram = true;
+                }
+                continue;
             }
-            continue;
+            if line.starts_with("@enduml") {
+                break;
+            }
+            body.push(line);
         }
-        if line.starts_with("@enduml") {
-            break;
-        }
-        body.push(line);
+        return if in_diagram {
+            trim_plantuml_source(&body.join("\n"))
+        } else {
+            trim_plantuml_source(source)
+        };
     }
 
-    let body = if in_diagram {
-        body.join("\n")
-    } else {
-        source.to_string()
-    };
-    trim_plantuml_source(&body)
+    // Non-uml family: keep the delimiters intact and append the Java version footer.
+    // We still trim stray whitespace around the outside to avoid format drift.
+    let mut out = String::with_capacity(trimmed.len() + 16);
+    out.push_str(trimmed);
+    out.push_str("\n\n");
+    out.push_str(PLANTUML_VERSION);
+    out
 }
 
 fn trim_plantuml_source(source: &str) -> String {

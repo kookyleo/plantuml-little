@@ -29,9 +29,22 @@ Any future Java/Rust parity work must target the stable `v1.2026.2` reference co
 
 ## Current Parity Baseline (2026-04-08)
 
-- `cargo test --lib`: `2641/2641`
+- `cargo test --lib`: `2649/2649`
 - `cargo test --test reference_tests`: `299/320` (93.44%)
 - Byte-compare authority remains the 318 stable-Java SVGs indexed by `tests/reference/INDEX.tsv`.
+
+### 2026-04-08 Fixes (297 → 299, continued)
+After the earlier `3507b08` rewrite of files-diagram that closed the two
+files-diagram byte-compare tests:
+
+- **non-uml `<?plantuml-src ?>` trailer (render/svg.rs)**:
+  Java normalises the source for the `<?plantuml-src ?>` processing
+  instruction differently depending on the diagram family. For `@startuml`
+  the markers are stripped; for every other `@startXxx` family (yaml, json,
+  files, regex, ebnf, salt, …) the source is deflated verbatim WITH the
+  markers, followed by `\n\n1.2026.2` (version literal). The Rust side now
+  mirrors that so the trailer is byte-identical even though the harness
+  currently strips it before diffing.
 
 ### 2026-04-08 Fixes (294 → 296)
 - **sequence sprite-bearing messages and notes (layout/sequence.rs, parser/sequence.rs, render/svg_richtext.rs)**:
