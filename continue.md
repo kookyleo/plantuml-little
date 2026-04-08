@@ -30,8 +30,18 @@ Any future Java/Rust parity work must target the stable `v1.2026.2` reference co
 ## Current Parity Baseline (2026-04-08)
 
 - `cargo test --lib`: `2649/2649`
-- `cargo test --test reference_tests`: `299/320` (93.44%)
+- `cargo test --test reference_tests`: `300/320` (93.75%)
 - Byte-compare authority remains the 318 stable-Java SVGs indexed by `tests/reference/INDEX.tsv`.
+
+### 2026-04-08 Fixes (299 → 300)
+- **sequence participant FontName / FontStyle + Roboto @import
+  (render/svg.rs, render/svg_sequence.rs)**:
+  Sequence rendering now respects `participant.fontname` and
+  `participant.fontstyle` from `<style>` blocks, and italic propagates to
+  width measurement. When the SVG references `font-family="Roboto"`, a
+  `<style>@import url(... googleapis ...)</style>` block is injected
+  into `<defs>` so the SVG renders with Roboto in a browser. Closes
+  the `sprite/styleFontWeightRoboto` reference test.
 
 ### 2026-04-08 Fixes (297 → 299, continued)
 After the earlier `3507b08` rewrite of files-diagram that closed the two
