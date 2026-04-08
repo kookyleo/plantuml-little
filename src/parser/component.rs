@@ -143,6 +143,19 @@ pub fn parse_component_diagram(source: &str) -> Result<ComponentDiagram> {
 
         // Skip directives
         if line.starts_with("skinparam ") && line.contains('{') {
+            // Single-line skinparam (or several concatenated ones) where every
+            // `{` has a matching `}` on the same line — preprocessor stdlib
+            // styles often emit this layout, e.g. C4_*.puml. Skip the whole
+            // line instead of entering a multi-line block we'd never close.
+            let opens = line.matches('{').count();
+            let closes = line.matches('}').count();
+            if opens > 0 && opens == closes {
+                trace!(
+                    "line {line_num}: skip single-line skinparam ({} braces)",
+                    opens
+                );
+                continue;
+            }
             mode = ParseMode::SkinparamBlock;
             continue;
         }
@@ -1253,6 +1266,28 @@ mod tests {
     fn test_skip_sprite() {
         let d = parse("@startuml\nsprite $bp [16x16/16] {\nFFFF\nFFFF\n}\ncomponent A\n@enduml");
         assert_eq!(d.entities.len(), 1);
+    }
+
+    // 14b. Single-line skinparam (preprocessor stdlib emit) must NOT consume
+    // following declarations as block content. Reproduces a regression where
+    // C4 stdlib's compact one-line skinparam would swallow the rest of the
+    // file.
+    #[test]
+    fn test_skip_single_line_skinparam_block() {
+        let src = concat!(
+            "@startuml\n",
+            "skinparam rectangle<<boundary>> {    FontColor #444444    BackgroundColor transparent    BorderColor #444444}skinparam database<<boundary>> {    FontColor #444444}\n",
+            "rectangle \"Outer\" <<system_boundary>> as c1 {\n",
+            "  rectangle \"Inner\" <<container>> as c2\n",
+            "}\n",
+            "@enduml\n",
+        );
+        let d = parse(src);
+        // 2 entities (c1 group container + c2 inner) and 1 group
+        assert_eq!(d.entities.len(), 2);
+        assert_eq!(d.groups.len(), 1);
+        assert_eq!(d.groups[0].id, "c1");
+        assert_eq!(d.groups[0].children, vec!["c2".to_string()]);
     }
 
     // 15. Multiple arrows
