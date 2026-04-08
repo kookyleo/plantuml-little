@@ -2845,7 +2845,12 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
     };
 
     if skin.is_handwritten() {
-        let dy = crate::font_metrics::line_height("Monospaced", 10.0, false, false) + 10.0;
+        // Java ImageBuilder warning flow:
+        //   dimWarning = textDim.delta(10, 5)
+        //   final image dimension = dim.delta(15, dimWarning.height + 20)
+        // For the single handwritten warning line, that means shifting the
+        // whole diagram down by lineHeight(monospaced-10) + 25.
+        let dy = crate::font_metrics::line_height("Monospaced", 10.0, false, false) + 25.0;
         layout.total_height += dy;
         // Banner rect: 60 chars * char_width + 10 (Java TextBlock width + 10).
         let char_w = crate::font_metrics::char_width(' ', "Monospaced", 10.0, false, false);

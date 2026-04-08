@@ -63,10 +63,10 @@ fn render_expanded(original_source: &str, expanded: &str) -> Result<String> {
         }
     }
     let _guard = SpriteGuard;
-    render_cleaned(original_source, &cleaned)
+    render_cleaned(original_source, &cleaned, expanded)
 }
 
-fn render_cleaned(original_source: &str, source: &str) -> Result<String> {
+fn render_cleaned(original_source: &str, source: &str, meta_source: &str) -> Result<String> {
     // Set the source-seeded SVG id early, before layout, because layout may
     // trigger richtext rendering that registers back-highlight filter ids.
     klimt::svg::set_svg_id_seed_override(Some(klimt::svg::java_source_seed(original_source)));
@@ -81,8 +81,8 @@ fn render_cleaned(original_source: &str, source: &str) -> Result<String> {
     let diagram = parser::parse_with_original(source, Some(original_source))?;
     let skin = style::parse_skinparams(source);
     let diagram_layout = layout::layout(&diagram, &skin)?;
-    let mut meta = parser::common::parse_meta(source);
-    enrich_meta_source_lines(&mut meta, source);
+    let mut meta = parser::common::parse_meta_with_original(meta_source, Some(original_source));
+    enrich_meta_source_lines(&mut meta, meta_source);
     let svg = render::svg::render_with_source(
         &diagram,
         &diagram_layout,

@@ -574,7 +574,9 @@ pub fn has_meaningful_uml_content(content: &str) -> bool {
 
         match trimmed {
             "title" => {
-                if let Some((_, end)) = collect_block(&lines, i + 1, "end title", "endtitle") {
+                if let Some((_, end)) =
+                    collect_block(&lines, None, i + 1, "end title", "endtitle")
+                {
                     i = end + 1;
                 } else {
                     i += 1;
@@ -582,7 +584,9 @@ pub fn has_meaningful_uml_content(content: &str) -> bool {
                 continue;
             }
             "header" => {
-                if let Some((_, end)) = collect_block(&lines, i + 1, "end header", "endheader") {
+                if let Some((_, end)) =
+                    collect_block(&lines, None, i + 1, "end header", "endheader")
+                {
                     i = end + 1;
                 } else {
                     i += 1;
@@ -590,7 +594,9 @@ pub fn has_meaningful_uml_content(content: &str) -> bool {
                 continue;
             }
             "footer" => {
-                if let Some((_, end)) = collect_block(&lines, i + 1, "end footer", "endfooter") {
+                if let Some((_, end)) =
+                    collect_block(&lines, None, i + 1, "end footer", "endfooter")
+                {
                     i = end + 1;
                 } else {
                     i += 1;
@@ -598,7 +604,9 @@ pub fn has_meaningful_uml_content(content: &str) -> bool {
                 continue;
             }
             "legend" => {
-                if let Some((_, end)) = collect_block(&lines, i + 1, "end legend", "endlegend") {
+                if let Some((_, end)) =
+                    collect_block(&lines, None, i + 1, "end legend", "endlegend")
+                {
                     i = end + 1;
                 } else {
                     i += 1;
@@ -669,8 +677,13 @@ pub fn has_meaningful_uml_content(content: &str) -> bool {
 /// - Single-line: `title My Title`
 /// - Multi-line: `title\n...\nend title`
 pub fn parse_meta(source: &str) -> DiagramMeta {
+    parse_meta_with_original(source, None)
+}
+
+pub fn parse_meta_with_original(source: &str, original_source: Option<&str>) -> DiagramMeta {
     let mut meta = DiagramMeta::default();
     let lines: Vec<&str> = source.lines().collect();
+    let original_lines: Option<Vec<&str>> = original_source.map(|src| src.lines().collect());
     let mut i = 0;
     let mut in_style_block = false;
 
@@ -696,7 +709,13 @@ pub fn parse_meta(source: &str) -> DiagramMeta {
 
         // title
         if trimmed == "title" {
-            if let Some((block, end)) = collect_block(&lines, i + 1, "end title", "endtitle") {
+            if let Some((block, end)) = collect_block(
+                &lines,
+                original_lines.as_deref(),
+                i + 1,
+                "end title",
+                "endtitle",
+            ) {
                 meta.title = Some(block);
                 i = end + 1;
                 continue;
@@ -710,7 +729,13 @@ pub fn parse_meta(source: &str) -> DiagramMeta {
 
         // header
         if trimmed == "header" {
-            if let Some((block, end)) = collect_block(&lines, i + 1, "end header", "endheader") {
+            if let Some((block, end)) = collect_block(
+                &lines,
+                original_lines.as_deref(),
+                i + 1,
+                "end header",
+                "endheader",
+            ) {
                 meta.header = Some(block);
                 i = end + 1;
                 continue;
@@ -724,7 +749,13 @@ pub fn parse_meta(source: &str) -> DiagramMeta {
 
         // footer
         if trimmed == "footer" {
-            if let Some((block, end)) = collect_block(&lines, i + 1, "end footer", "endfooter") {
+            if let Some((block, end)) = collect_block(
+                &lines,
+                original_lines.as_deref(),
+                i + 1,
+                "end footer",
+                "endfooter",
+            ) {
                 meta.footer = Some(block);
                 i = end + 1;
                 continue;
@@ -738,7 +769,13 @@ pub fn parse_meta(source: &str) -> DiagramMeta {
 
         // legend
         if trimmed == "legend" || trimmed.starts_with("legend ") {
-            if let Some((block, end)) = collect_block(&lines, i + 1, "end legend", "endlegend") {
+            if let Some((block, end)) = collect_block(
+                &lines,
+                original_lines.as_deref(),
+                i + 1,
+                "end legend",
+                "endlegend",
+            ) {
                 meta.legend = Some(block);
                 i = end + 1;
                 continue;
@@ -776,6 +813,7 @@ pub fn parse_meta(source: &str) -> DiagramMeta {
 /// Collect a multi-line block from lines[start_idx..] until end_marker or end_marker_alt is found.
 fn collect_block(
     lines: &[&str],
+    original_lines: Option<&[&str]>,
     start_idx: usize,
     end_marker: &str,
     end_marker_alt: &str,
@@ -785,6 +823,14 @@ fn collect_block(
         let t = line.trim();
         if t.eq_ignore_ascii_case(end_marker) || t.eq_ignore_ascii_case(end_marker_alt) {
             return Some((collected.join("\n"), start_idx + offset));
+        }
+        if t.is_empty()
+            && original_lines
+                .and_then(|orig| orig.get(start_idx + offset))
+                .map(|orig| orig.trim_start().starts_with('\''))
+                .unwrap_or(false)
+        {
+            continue;
         }
         collected.push(t);
     }
@@ -1417,6 +1463,14 @@ mod tests {
         let src = "legend\nLegend line 1\nLegend line 2\nend legend\nclass Foo";
         let meta = parse_meta(src);
         assert_eq!(meta.legend.as_deref(), Some("Legend line 1\nLegend line 2"));
+    }
+
+    #[test]
+    fn parse_meta_legend_skips_preproc_comment_blank_lines_when_original_available() {
+        let expanded = "legend\nFirst\n\nSecond\n\nThird\nendlegend";
+        let original = "legend\nFirst\n'comment\nSecond\n'comment\nThird\nendlegend";
+        let meta = parse_meta_with_original(expanded, Some(original));
+        assert_eq!(meta.legend.as_deref(), Some("First\nSecond\nThird"));
     }
 
     #[test]

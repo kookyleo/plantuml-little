@@ -697,6 +697,7 @@ fn try_parse_sprite_ref(chars: &[char], start: usize, end: usize) -> Option<(Tex
         return None;
     }
     let name: String = chars[name_start..i].iter().collect::<String>().trim().to_string();
+    let params_start = i;
     // Skip optional scale/color parameters until closing '>'
     while i < end && chars[i] != '>' {
         i += 1;
@@ -707,7 +708,85 @@ fn try_parse_sprite_ref(chars: &[char], start: usize, end: usize) -> Option<(Tex
     if name.is_empty() {
         return None;
     }
-    Some((TextSpan::InlineSvg { name }, i + 1 - start))
+    let raw_params: String = chars[params_start..i].iter().collect();
+    let (scale, color) = parse_sprite_ref_params(&raw_params);
+    Some((
+        TextSpan::InlineSvg { name, scale, color },
+        i + 1 - start,
+    ))
+}
+
+fn parse_sprite_ref_params(raw: &str) -> (Option<f64>, Option<String>) {
+    let trimmed = raw.trim();
+    if trimmed.is_empty() {
+        return (None, None);
+    }
+    let body = if trimmed.starts_with('{') && trimmed.ends_with('}') && trimmed.len() >= 2 {
+        &trimmed[1..trimmed.len() - 1]
+    } else if let Some(rest) = trimmed.strip_prefix(',') {
+        rest
+    } else {
+        trimmed
+    };
+
+    let mut scale = None;
+    let mut color = None;
+    for part in body.split(',') {
+        let part = part.trim();
+        if part.is_empty() {
+            continue;
+        }
+        let Some((key, value)) = part.split_once('=') else {
+            continue;
+        };
+        let key = key.trim().to_ascii_lowercase();
+        let value = value.trim();
+        if value.is_empty() {
+            continue;
+        }
+        match key.as_str() {
+            "scale" => {
+                if let Ok(parsed) = value.parse::<f64>() {
+                    scale = Some(parsed);
+                }
+            }
+            "color" => {
+                color = Some(normalize_sprite_ref_color(value));
+            }
+            _ => {}
+        }
+    }
+    (scale, color)
+}
+
+fn normalize_sprite_ref_color(value: &str) -> String {
+    let trimmed = value.trim();
+    if let Some(hex) = trimmed.strip_prefix('#') {
+        let hex_clean: String = hex
+            .chars()
+            .filter(char::is_ascii_hexdigit)
+            .map(|c| c.to_ascii_uppercase())
+            .collect();
+        return match hex_clean.len() {
+            1 => {
+                let c = hex_clean.chars().next().unwrap();
+                format!("#{c}{c}{c}{c}{c}{c}")
+            }
+            3 => {
+                let mut expanded = String::with_capacity(7);
+                expanded.push('#');
+                for c in hex_clean.chars() {
+                    expanded.push(c);
+                    expanded.push(c);
+                }
+                expanded
+            }
+            6 => format!("#{hex_clean}"),
+            8 => format!("#{}", &hex_clean[..6]),
+            _ => trimmed.to_string(),
+        };
+    }
+    crate::style::normalize_color(trimmed)
 }
 
 // ---------------------------------------------------------------------------
@@ -1458,6 +1537,8 @@ mod tests {
                 TextSpan::Plain("hello ".into()),
                 TextSpan::InlineSvg {
                     name: "redrect".into(),
+                    scale: None,
+                    color: None,
                 },
                 TextSpan::Plain(" there".into()),
             ])
@@ -1471,6 +1552,47 @@ mod tests {
             rt,
             RichText::Line(vec![TextSpan::InlineSvg {
                 name: "icon".into(),
+                scale: Some(2.0),
+                color: None,
+            }])
+        );
+    }
+
+    #[test]
+    fn test_sprite_ref_with_brace_color() {
+        let rt = parse_creole("<$icon{color=#00990055}>");
+        assert_eq!(
+            rt,
+            RichText::Line(vec![TextSpan::InlineSvg {
+                name: "icon".into(),
+                scale: None,
+                color: Some("#009900".into()),
+            }])
+        );
+    }
+
+    #[test]
+    fn test_sprite_ref_with_short_gray_color() {
+        let rt = parse_creole("<$icon,color=#5>");
+        assert_eq!(
+            rt,
+            RichText::Line(vec![TextSpan::InlineSvg {
+                name: "icon".into(),
+                scale: None,
+                color: Some("#555555".into()),
+            }])
+        );
+    }
+
+    #[test]
+    fn test_sprite_ref_with_scale_and_color() {
+        let rt = parse_creole("<$icon{scale=2,color=red}>");
+        assert_eq!(
+            rt,
+            RichText::Line(vec![TextSpan::InlineSvg {
+                name: "icon".into(),
+                scale: Some(2.0),
+                color: Some("#FF0000".into()),
             }])
         );
     }

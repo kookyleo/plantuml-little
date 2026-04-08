@@ -46,8 +46,12 @@ pub enum TextSpan {
         tooltip: Option<String>,
         label: Option<String>,
     },
-    /// Inline SVG sprite reference: `<$name>`.
-    InlineSvg { name: String },
+    /// Inline SVG sprite reference: `<$name>`, optionally with scale/color params.
+    InlineSvg {
+        name: String,
+        scale: Option<f64>,
+        color: Option<String>,
+    },
 }
 
 /// A block-level rich text element.

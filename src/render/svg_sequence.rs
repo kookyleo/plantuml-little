@@ -3982,8 +3982,10 @@ fn render_sequence_inner(
         }
     } else {
         // Puma: interleaved head + tail per participant
+        // Use lifeline_top as anchor (accounts for handwritten banner dy).
+        // Equivalent to MARGIN + max_ph - p.box_height when lifeline_top = MARGIN + max_ph + 1.
         for (i, p) in layout.participants.iter().enumerate() {
-            let top_y = MARGIN + max_ph - p.box_height;
+            let top_y = layout.lifeline_top - 1.0 - p.box_height;
             draw_part(&mut sg, i, p, top_y, true);
             if !sd.hide_footbox {
                 draw_part(&mut sg, i, p, bottom_y, false);

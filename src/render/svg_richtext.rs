@@ -402,12 +402,100 @@ fn creole_text_width_opts(
     if lines.is_empty() {
         return 0.0;
     }
-    // For now, handle single-line case (messages are typically single line).
+    measure_line_width(&lines[0], default_font, font_size, bold, italic)
+}
+
+pub fn creole_max_line_width(
+    text: &str,
+    default_font: &str,
+    font_size: f64,
+    bold: bool,
+    italic: bool,
+) -> f64 {
+    flatten_rich_lines(&parse_creole(text))
+        .iter()
+        .map(|line| measure_line_width(line, default_font, font_size, bold, italic))
+        .fold(0.0, f64::max)
+}
+
+fn measure_line_width(
+    spans: &[TextSpan],
+    default_font: &str,
+    font_size: f64,
+    bold: bool,
+    italic: bool,
+) -> f64 {
+    let gap = crate::render::svg_sprite::sprite_text_gap(default_font, font_size, bold, italic);
+
+    let mut total = 0.0;
+    let mut pending_gap = false;
+    let mut text_buf: Vec<TextSpan> = Vec::new();
+
+    for span in spans {
+        match span {
+            TextSpan::InlineSvg { name, scale, .. } => {
+                if let Some(TextSpan::Plain(text)) = text_buf.last_mut() {
+                    *text = text.trim_end().to_string();
+                }
+                let text_w =
+                    measure_text_runs_width(&text_buf, default_font, font_size, bold, italic);
+                if text_w > 0.0 {
+                    total += text_w;
+                    pending_gap = true;
+                }
+                text_buf.clear();
+
+                if let Some(sprite_w) = sprite_display_width(name, *scale, font_size) {
+                    if pending_gap {
+                        total += gap;
+                    }
+                    total += sprite_w;
+                    pending_gap = true;
+                }
+            }
+            other => {
+                let adjusted = if pending_gap && text_buf.is_empty() {
+                    match other {
+                        TextSpan::Plain(text) => {
+                            let trimmed = text.trim_start();
+                            if trimmed.is_empty() {
+                                continue;
+                            }
+                            total += gap;
+                            pending_gap = false;
+                            TextSpan::Plain(trimmed.to_string())
+                        }
+                        _ => {
+                            total += gap;
+                            pending_gap = false;
+                            other.clone()
+                        }
+                    }
+                } else {
+                    other.clone()
+                };
+                text_buf.push(adjusted);
+            }
+        }
+    }
+
+    total + measure_text_runs_width(&text_buf, default_font, font_size, bold, italic)
+}
+
+fn measure_text_runs_width(
+    spans: &[TextSpan],
+    default_font: &str,
+    font_size: f64,
+    bold: bool,
+    italic: bool,
+) -> f64 {
+    if spans.is_empty() {
+        return 0.0;
+    }
     // Java's `StringBounder.calculateDimension(font, text)` measures the raw
     // text including leading whitespace, so layout widths (used to size
-    // boxes and arrows) must match.  Rendering separately trims leading
+    // boxes and arrows) must match. Rendering separately trims leading
     // spaces and shifts x accordingly.
-    let spans = &lines[0];
     if !line_needs_split_render(spans) {
         let plain = plain_text_spans(spans);
         let plain = plain.trim_end();
@@ -445,6 +533,16 @@ fn creole_text_width_opts(
         first = false;
     }
     total
+}
+
+fn sprite_scale_for_font(font_size: f64, scale: Option<f64>) -> f64 {
+    scale.unwrap_or(1.0) * font_size / 13.0
+}
+
+fn sprite_display_width(name: &str, scale: Option<f64>, font_size: f64) -> Option<f64> {
+    let svg = get_sprite(name)?;
+    let info = crate::render::svg_sprite::sprite_info(&svg);
+    Some(info.vb_width * sprite_scale_for_font(font_size, scale))
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -491,34 +589,12 @@ pub fn render_creole_text_opts(
         lines
     };
 
-    // Check if any line contains sprites
-    let has_sprites = lines.iter().any(|line| {
-        line.iter()
-            .any(|span| matches!(span, TextSpan::InlineSvg { .. }))
-    });
+    let has_sprites = lines.iter().any(|line| line_has_sprites(line));
 
     // Path-based sprite rendering for sequence diagrams
     if has_sprites && is_path_sprites_enabled() && lines.len() == 1 {
         return render_line_with_sprites(buf, &lines[0], x, y, fill, outer_attrs);
     }
-
-    // Legacy sprite rendering: collect for deferred rendering after text
-    let sprite_refs: Vec<(String, Option<String>)> = if has_sprites {
-        lines
-            .iter()
-            .flat_map(|line| {
-                line.iter().filter_map(|span| {
-                    if let TextSpan::InlineSvg { name } = span {
-                        Some((name.clone(), get_sprite(name)))
-                    } else {
-                        None
-                    }
-                })
-            })
-            .collect()
-    } else {
-        Vec::new()
-    };
 
     let (font_family, font_size, bold, italic) = parse_font_props(outer_attrs);
 
@@ -543,6 +619,22 @@ pub fn render_creole_text_opts(
     }
 
     // Compute textLength for the <text> element.
+    if lines.len() == 1 && line_has_sprites(&lines[0]) && text_anchor.is_none() {
+        render_text_line_with_sprites(
+            buf,
+            &lines[0],
+            x,
+            y,
+            fill,
+            outer_attrs,
+            &font_family,
+            font_size,
+            bold,
+            italic,
+        );
+        return 1;
+    }
+
     if lines.len() == 1 {
         render_prepared_line(
             buf,
@@ -557,15 +649,28 @@ pub fn render_creole_text_opts(
             bold,
             italic,
         );
-        render_deferred_sprites(buf, &sprite_refs, x, y);
         return 1;
     }
 
-    // Java renders each line as a separate <text> element via DriverTextSvg.
-    // Each line gets its own textLength and y offset.
-    for (idx, line) in lines.iter().enumerate() {
-        let line_y = y + (idx as f64) * line_height;
-        if text_anchor.is_none() && multiline_line_needs_split_render(line) {
+    // Java advances the baseline by the actual line box height. When a line
+    // contains an inline sprite, that line box grows to the sprite height
+    // instead of the nominal text line height.
+    let mut line_y = y;
+    for line in lines.iter() {
+        if text_anchor.is_none() && line_has_sprites(line) {
+            render_text_line_with_sprites(
+                buf,
+                line,
+                x,
+                line_y,
+                fill,
+                outer_attrs,
+                &font_family,
+                font_size,
+                bold,
+                italic,
+            );
+        } else if text_anchor.is_none() && multiline_line_needs_split_render(line) {
             render_split_text_runs(
                 buf,
                 line,
@@ -593,8 +698,8 @@ pub fn render_creole_text_opts(
                 italic,
             );
         }
+        line_y += line_height_with_inline_sprites(line, font_size, line_height);
     }
-    render_deferred_sprites(buf, &sprite_refs, x, y);
 
     lines.len()
 }
@@ -909,7 +1014,7 @@ pub fn render_creole_note_content(
     // Split text into raw lines (NEWLINE_CHAR, real newlines, and \n escape)
     let raw_lines: Vec<&str> = text
         .split(crate::NEWLINE_CHAR)
-        .flat_map(|s| s.lines())
+        .flat_map(|s| s.split('\n'))
         .flat_map(|s| s.split("\\n"))
         .collect();
 
@@ -955,7 +1060,7 @@ pub fn render_creole_note_content(
             match block {
                 NoteBlock::TextLines(lines) => {
                     for line_text in lines {
-                        let effective_lh = note_line_height_with_sprites(line_text, lh);
+                        let effective_lh = note_line_height_with_sprites(line_text, font_size, lh);
                         // Java SeaSheet aligns text to the row's bottom: baseline
                         // = row_top + row_h - descent. For text-only rows this
                         // reduces to row_top + ascent (since row_h = ascent + descent),
@@ -1064,7 +1169,7 @@ pub fn compute_creole_note_text_height(text: &str, font_size: f64) -> f64 {
 
     let raw_lines: Vec<&str> = text
         .split(crate::NEWLINE_CHAR)
-        .flat_map(|s| s.lines())
+        .flat_map(|s| s.split('\n'))
         .flat_map(|s| s.split("\\n"))
         .collect();
 
@@ -1091,12 +1196,12 @@ pub fn compute_creole_note_text_height(text: &str, font_size: f64) -> f64 {
             match block {
                 NoteBlock::TextLines(lines) => {
                     for line in lines {
-                        total += note_line_height_with_sprites(line, lh);
+                        total += note_line_height_with_sprites(line, font_size, lh);
                     }
                 }
                 NoteBlock::BulletItems(items) => {
                     for item in items {
-                        total += note_line_height_with_sprites(item, lh);
+                        total += note_line_height_with_sprites(item, font_size, lh);
                     }
                 }
                 NoteBlock::Table(rows) => {
@@ -1118,31 +1223,34 @@ pub fn compute_creole_note_text_height(text: &str, font_size: f64) -> f64 {
 /// If the line contains `<$spritename>` references, the sprite's viewBox height
 /// may exceed the normal line height. Java's BodyEnhanced2 uses
 /// `max(sprite_height, line_height)` per atom.
-fn note_line_height_with_sprites(line: &str, base_lh: f64) -> f64 {
+fn note_line_height_with_sprites(line: &str, font_size: f64, base_lh: f64) -> f64 {
     if !line.contains("<$") {
         return base_lh;
     }
     let mut max_sprite_h = 0.0_f64;
-    let mut pos = 0;
-    while let Some(start) = line[pos..].find("<$") {
-        let abs_start = pos + start + 2;
-        if let Some(end) = line[abs_start..].find('>') {
-            let name_part = &line[abs_start..abs_start + end];
-            // Strip both legacy comma-suffix and brace-suffix forms:
-            //   <$name,scale=2>   → "name"
-            //   <$name{scale=2}>  → "name"
-            let name = name_part
-                .split(|c: char| c == ',' || c == '{' || c == ' ')
-                .next()
-                .unwrap_or(name_part)
-                .trim();
+    for span in flatten_rich_lines(&parse_creole(line)).into_iter().flatten() {
+        if let TextSpan::InlineSvg { name, scale, .. } = span {
+            if let Some(svg_content) = get_sprite(&name) {
+                let info = crate::render::svg_sprite::sprite_info(&svg_content);
+                max_sprite_h = max_sprite_h.max(info.vb_height * sprite_scale_for_font(font_size, scale));
+            }
+        }
+    }
+    if max_sprite_h > base_lh {
+        max_sprite_h
+    } else {
+        base_lh
+    }
+}
+
+fn line_height_with_inline_sprites(spans: &[TextSpan], font_size: f64, base_lh: f64) -> f64 {
+    let mut max_sprite_h = 0.0_f64;
+    for span in spans {
+        if let TextSpan::InlineSvg { name, scale, .. } = span {
             if let Some(svg_content) = get_sprite(name) {
                 let info = crate::render::svg_sprite::sprite_info(&svg_content);
-                max_sprite_h = max_sprite_h.max(info.vb_height);
+                max_sprite_h = max_sprite_h.max(info.vb_height * sprite_scale_for_font(font_size, *scale));
             }
-            pos = abs_start + end + 1;
-        } else {
-            break;
         }
     }
     if max_sprite_h > base_lh {
@@ -2121,6 +2229,122 @@ fn render_prepared_line(
     }
 }
 
+fn line_has_sprites(spans: &[TextSpan]) -> bool {
+    spans.iter()
+        .any(|span| matches!(span, TextSpan::InlineSvg { .. }))
+}
+
+#[allow(clippy::too_many_arguments)]
+fn render_text_line_with_sprites(
+    buf: &mut String,
+    spans: &[TextSpan],
+    x: f64,
+    y: f64,
+    fill: &str,
+    outer_attrs: &str,
+    font_family: &str,
+    font_size: f64,
+    bold: bool,
+    italic: bool,
+) {
+    use crate::render::svg_sprite;
+
+    let gap = svg_sprite::sprite_text_gap(font_family, font_size, bold, italic);
+    let ascent = font_metrics::ascent(font_family, font_size, bold, italic);
+    let mut cursor_x = x;
+    let mut pending_gap = false;
+    let mut text_buf: Vec<TextSpan> = Vec::new();
+
+    for span in spans {
+        match span {
+            TextSpan::InlineSvg { name, scale, color } => {
+                if let Some(TextSpan::Plain(text)) = text_buf.last_mut() {
+                    *text = text.trim_end().to_string();
+                }
+                let text_w = measure_text_runs_width(&text_buf, font_family, font_size, bold, italic);
+                if text_w > 0.0 {
+                    render_prepared_line(
+                        buf,
+                        &text_buf,
+                        cursor_x,
+                        y,
+                        fill,
+                        None,
+                        outer_attrs,
+                        font_family,
+                        font_size,
+                        bold,
+                        italic,
+                    );
+                    cursor_x += text_w;
+                    pending_gap = true;
+                }
+                text_buf.clear();
+
+                if let Some(svg_content) = get_sprite(name) {
+                    let info = svg_sprite::sprite_info(&svg_content);
+                    if info.vb_height > 0.0 {
+                        if pending_gap {
+                            cursor_x += gap;
+                        }
+                        let display_scale = sprite_scale_for_font(font_size, *scale);
+                        let sprite_top_y = y - ascent;
+                        let converted = svg_sprite::convert_svg_elements_scaled_with_options(
+                            &svg_content,
+                            cursor_x,
+                            sprite_top_y,
+                            display_scale,
+                            color.as_deref(),
+                        );
+                        buf.push_str(&converted);
+                        cursor_x += info.vb_width * display_scale;
+                        pending_gap = true;
+                    }
+                }
+            }
+            other => {
+                let adjusted = if pending_gap && text_buf.is_empty() {
+                    match other {
+                        TextSpan::Plain(text) => {
+                            let trimmed = text.trim_start();
+                            if trimmed.is_empty() {
+                                continue;
+                            }
+                            cursor_x += gap;
+                            pending_gap = false;
+                            TextSpan::Plain(trimmed.to_string())
+                        }
+                        _ => {
+                            cursor_x += gap;
+                            pending_gap = false;
+                            other.clone()
+                        }
+                    }
+                } else {
+                    other.clone()
+                };
+                text_buf.push(adjusted);
+            }
+        }
+    }
+
+    if !text_buf.is_empty() {
+        render_prepared_line(
+            buf,
+            &text_buf,
+            cursor_x,
+            y,
+            fill,
+            None,
+            outer_attrs,
+            font_family,
+            font_size,
+            bold,
+            italic,
+        );
+    }
+}
+
 fn render_line_with_sprites(
     buf: &mut String,
     spans: &[TextSpan],
@@ -2138,7 +2362,7 @@ fn render_line_with_sprites(
     let mut text_buf: Vec<TextSpan> = Vec::new();
     for span in spans {
         match span {
-            TextSpan::InlineSvg { name } => {
+            TextSpan::InlineSvg { name, .. } => {
                 if !text_buf.is_empty() {
                     if let Some(TextSpan::Plain(t)) = text_buf.last_mut() {
                         *t = t.trim_end().to_string();
@@ -3319,7 +3543,8 @@ mod tests {
         let mut sprites = HashMap::new();
         sprites.insert(
             "test".to_string(),
-            r#"<svg viewBox="0 0 100 50"><rect fill="red"/></svg>"#.to_string(),
+            r#"<svg viewBox="0 0 100 50"><ellipse cx="50" cy="25" rx="10" ry="5" fill="red"/></svg>"#
+                .to_string(),
         );
         set_sprites(sprites);
 
@@ -3338,10 +3563,14 @@ mod tests {
         assert!(buf.contains("before"), "text before sprite");
         assert!(buf.contains("after"), "text after sprite");
         assert!(
-            buf.contains(r#"fill="red""#),
+            buf.contains("fill=\"red\"") || buf.contains("fill=\"#FF0000\""),
             "sprite SVG content must be embedded"
         );
-        assert!(buf.contains("<g transform="), "sprite must be in a group");
+        assert!(
+            buf.contains("<ellipse") || buf.contains("<path"),
+            "sprite primitives must be embedded directly"
+        );
+        assert!(!buf.contains("<svg"), "inline sprite must not emit nested svg wrappers");
 
         clear_sprites();
     }

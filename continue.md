@@ -29,9 +29,107 @@ Any future Java/Rust parity work must target the stable `v1.2026.2` reference co
 
 ## Current Parity Baseline (2026-04-08)
 
-- `cargo test --lib`: `2649/2649`
-- `cargo test --test reference_tests`: `300/320` (93.75%)
+- `cargo test --lib`: `2653/2653`
+- `cargo test --test reference_tests`: `301/320` (94.06%)
 - Byte-compare authority remains the 318 stable-Java SVGs indexed by `tests/reference/INDEX.tsv`.
+
+### 2026-04-08 Fixes (300 → 301)
+- **legend-only class meta + multiline inline-sprite spacing
+  (render/svg.rs, render/svg_richtext.rs)**:
+  Fixed the last truly near-pass legend sprite case:
+  `sprite/svgFillColourTest_2174`.
+  Two exact root causes were closed together:
+  1. `wrap_with_meta()` collapsed empty CLASS bodies to zero even when Java
+     keeps a 10x10 empty-body reserve for legend-only meta composition; that
+     lifted the legend block and shrank the viewport.
+  2. multi-line creole rows containing inline `<$sprite>` were advanced using
+     a fixed line height, while Java advances each row by the actual sprite-
+     expanded line box height; terminal blank lines inside the legend body also
+     need to count toward note/legend height.
+  Net effect: the last legend-sprite viewport mismatch now passes byte-exact.
+
+### 2026-04-08 Recheck of Remaining 19
+
+Re-ran the full suite after the latest sprite/legend fix and then traced the
+smallest remaining deltas case-by-case. The important conclusion is that the
+current remaining set is **not** "19 viewport-only near-passes". Several small
+height deltas were masking deeper structure drift.
+
+Current failures:
+
+- `component/subdiagram_theme_02`
+- `dev/jaws/jaws1`
+- `dev/newline/builtin_newline`
+- `dev/newline/json_escaped`
+- `dev/newline/subdiagram_theme`
+- `ebnf/basic`
+- `ebnf/expression`
+- `json/json_escaped`
+- `misc/skinparam_handwritten001`
+- `nwdiag/basic`
+- `preprocessor/builtin_newline`
+- `preprocessor/jaws1`
+- `preprocessor/subdiagram_theme_01`
+- `regex/alternation`
+- `regex/basic`
+- `regex/complex`
+- `salt/basic`
+- `sprite/svg2GroupsWithStyle`
+- `yaml/basic`
+
+Re-audited "looks-close" cases:
+
+- **not actually near-pass despite small delta**:
+  - `json/json_escaped`, `dev/newline/json_escaped`: same text counts as Java,
+    but child-box placement and connector geometry diverge; width is `+21`,
+    height `-20`.
+  - `nwdiag/basic`: height only `-6`, but structure is fundamentally different
+    (`671x276` vs `255x282`, extra nodes/text labels).
+  - `regex/alternation`: height only `-2`, but Rust emits extra text (`+`) and
+    fewer path segments than Java.
+  - `misc/skinparam_handwritten001`: width only `+4`, but handwritten shapes
+    still diverge heavily (rect/path/polygon counts differ).
+
+- **next genuinely actionable shared roots**:
+  - `dev/jaws/jaws1` + `preprocessor/jaws1`:
+    C4/Creole label assembly is still collapsing Java's multi-line rich text
+    into fewer rendered text nodes (`14` vs `40`), with heading markers leaking
+    into visible text.
+  - `dev/newline/subdiagram_theme` + `preprocessor/subdiagram_theme_01` +
+    `component/subdiagram_theme_02`:
+    embedded subdiagram notes still diverge structurally. Rust misses Java's
+    attached-note/Opale path behavior for these notes, and the embedded inner
+    sequence/theme content is not yet equivalent.
+  - `dev/newline/builtin_newline` + `preprocessor/builtin_newline` + `salt/basic`:
+    SALT rendering is still a different renderer family, not a padding issue.
+
+### 2026-04-08 Next Push Plan
+
+From the remaining 19, the next one-by-one order should be:
+
+1. **C4/Jaws shared richtext chain** (`dev/jaws/jaws1`, `preprocessor/jaws1`)
+   - Why first: only 2 tests, same fixture family, same root cause, and the
+     trace clearly shows shared text assembly drift rather than graphviz noise.
+   - Focus files:
+     `src/render/svg.rs`, `src/render/svg_richtext.rs`, `src/layout/mod.rs`
+
+2. **embedded subdiagram notes** (`dev/newline/subdiagram_theme`,
+   `preprocessor/subdiagram_theme_01`, `component/subdiagram_theme_02`)
+   - Why second: 3 tests share one feature boundary (`{{ ... }}` in attached
+     notes). Need to make the note body + embedded SVG + connector path match
+     Java as one unit.
+   - Focus files:
+     `src/layout/component.rs`, `src/render/embedded.rs`,
+     `src/render/svg_component.rs`
+
+3. **JSON self-layout** (`dev/newline/json_escaped`, `json/json_escaped`)
+   - Why third: 2 tests, same fixture, same child-box/arrow placement drift.
+   - Focus files:
+     `src/layout/json_diagram.rs`, `src/render/svg_json.rs`
+
+4. **Leave for last / deep-family work**:
+   `salt/basic`, `builtin_newline*`, `ebnf/*`, `regex/*`, `nwdiag/basic`,
+   `yaml/basic`, `misc/skinparam_handwritten001`, `sprite/svg2GroupsWithStyle`
 
 ### 2026-04-08 Fixes (299 → 300)
 - **sequence participant FontName / FontStyle + Roboto @import

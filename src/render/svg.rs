@@ -824,8 +824,13 @@ fn render_dot_suppressed() -> String {
 // ── Meta wrapping ───────────────────────────────────────────────────
 
 fn creole_text_w(text: &str, font_size: f64, bold: bool) -> f64 {
-    let plain = creole_plain_text(text);
-    font_metrics::text_width(&plain, "SansSerif", font_size, bold, false)
+    crate::render::svg_richtext::creole_max_line_width(
+        text,
+        "SansSerif",
+        font_size,
+        bold,
+        false,
+    )
 }
 fn text_block_h(font_size: f64, bold: bool) -> f64 {
     font_metrics::ascent("SansSerif", font_size, bold, false)
@@ -1396,6 +1401,9 @@ fn wrap_with_meta(
 
     // Use raw body dimensions if available (avoids integer truncation loss).
     // Otherwise fall back to extracting from SVG header (lossy).
+    let body_is_empty = body_content.trim().is_empty()
+        || body_content.trim() == "<defs/><g></g>"
+        || body_content.trim() == "<defs/><g/>";
     let (body_w, body_h) = if let Some((rw, rh)) = raw_body_dim {
         // Java SvekResult.calculateDimension() returns getDimension().delta(0, 12)
         // where getDimension() = (maxX - minX, maxY - minY) is the LimitFinder span.
@@ -1408,25 +1416,38 @@ fn wrap_with_meta(
             || meta.footer.is_some()
             || meta.caption.is_some()
             || meta.legend.is_some();
-        let (svek_delta_w, svek_delta_h) = if diagram_type == "CLASS" && has_meta && rh > 0.0 {
+        if diagram_type == "CLASS"
+            && meta.legend.is_some()
+            && has_meta
+            && body_is_empty
+            && rw == 0.0
+            && rh == 0.0
+        {
+            // Empty svek graphs still carry a 10x10 SVG canvas in Java's meta
+            // composition path; collapsing that to zero lifts a legend-only block
+            // by 10px and shrinks the final viewport.
+            (svg_w, svg_h)
+        } else {
+            let (svek_delta_w, svek_delta_h) = if diagram_type == "CLASS" && has_meta && rh > 0.0 {
             // Degenerated svek path (single entity, no edges/notes) already
             // returns (node.width + 14, node.height + 14) which is the
             // pre-margin textBlock dimension that wrap_with_meta expects.
             // The normal -6 / +6 correction only applies to the moveDelta-shifted
             // LimitFinder span used by the multi-node code path.
-            if body_degenerated {
-                (0.0, 0.0)
-            } else {
-                (-6.0, 6.0) // span: subtract minX=6; height: span - 6 + 12 = +6
-            }
-        } else if diagram_type == "SEQUENCE" && has_meta && rh > 0.0 {
+                if body_degenerated {
+                    (0.0, 0.0)
+                } else {
+                    (-6.0, 6.0) // span: subtract minX=6; height: span - 6 + 12 = +6
+                }
+            } else if diagram_type == "SEQUENCE" && has_meta && rh > 0.0 {
             // Java's LimitFinder tracks the participant tail bottom + extra border.
             // The layout formula undershoots by ~2.5px vs the actual drawn bounds.
-            (0.0, 2.5)
-        } else {
-            (0.0, 0.0)
-        };
-        (rw + svek_delta_w, rh + svek_delta_h)
+                (0.0, 2.5)
+            } else {
+                (0.0, 0.0)
+            };
+            (rw + svek_delta_w, rh + svek_delta_h)
+        }
     } else {
         // Body SVG includes DOC_MARGIN + 1: recover raw textBlock dimensions.
         (

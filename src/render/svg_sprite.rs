@@ -31,6 +31,8 @@ thread_local! {
     /// Java UEllipse/UPath inherit the UGraphic's current stroke thickness.
     /// Sequence diagrams use 1.0 (UStroke.simple()), activity diagrams use 0.5.
     static DEFAULT_STROKE_WIDTH: Cell<f64> = Cell::new(1.0);
+    /// Optional color override from inline sprite parameters like `<$x{color=red}>`.
+    static SPRITE_COLOR_OVERRIDE: RefCell<Option<String>> = const { RefCell::new(None) };
 }
 
 /// Set monochrome mode for sprite rendering.
@@ -102,6 +104,16 @@ pub fn sprite_text_gap(font_family: &str, font_size: f64, bold: bool, italic: bo
 /// This matches Java's approach of pre-computing absolute coordinates instead of
 /// using `<g transform>` wrappers.
 pub fn convert_svg_elements_scaled(svg: &str, offset_x: f64, offset_y: f64, scale: f64) -> String {
+    convert_svg_elements_scaled_with_options(svg, offset_x, offset_y, scale, None)
+}
+
+pub fn convert_svg_elements_scaled_with_options(
+    svg: &str,
+    offset_x: f64,
+    offset_y: f64,
+    scale: f64,
+    color_override: Option<&str>,
+) -> String {
     SPRITE_DEFS_MAP.with(|m| m.borrow_mut().clear());
     cache_defs_elements(svg);
 
@@ -111,9 +123,11 @@ pub fn convert_svg_elements_scaled(svg: &str, offset_x: f64, offset_y: f64, scal
 
     let mut buf = String::new();
     let inner = strip_svg_wrapper(svg);
+    SPRITE_COLOR_OVERRIDE.with(|c| *c.borrow_mut() = color_override.map(|v| v.to_string()));
     SPRITE_SCALE.with(|s| s.set(scale));
     convert_elements(&mut buf, inner.trim(), offset_x, offset_y, None);
     SPRITE_SCALE.with(|s| s.set(1.0));
+    SPRITE_COLOR_OVERRIDE.with(|c| *c.borrow_mut() = None);
     buf
 }
 
@@ -1637,6 +1651,9 @@ fn get_fill_or(element: &str, default: &str) -> String {
             let resolved = resolve_gradient_url(fill);
             return normalize_hex_color(&resolved);
         }
+    }
+    if let Some(color) = SPRITE_COLOR_OVERRIDE.with(|c| c.borrow().clone()) {
+        return color;
     }
     default.to_string()
 }
