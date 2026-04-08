@@ -92,6 +92,27 @@ pub fn parse_class_diagram_with_original(
         let source_line = *source_line;
         let trimmed = line.trim();
 
+        // Handle multi-line note accumulation FIRST: lines inside a note body
+        // (e.g. embedded `{{ ... }}` sub-diagrams) may legitimately contain
+        // tokens like `<style>` or `legend` that must be preserved verbatim,
+        // not interpreted as outer-diagram constructs.
+        if in_note_block {
+            if trimmed == "end note" || trimmed == "endnote" {
+                let text = note_block_lines.join("\n");
+                debug!("end note block: text={text:?}");
+                notes.push(ClassNote {
+                    text,
+                    position: note_block_position.clone(),
+                    target: note_block_target.take(),
+                });
+                note_block_lines.clear();
+                in_note_block = false;
+            } else {
+                note_block_lines.push(trimmed.to_string());
+            }
+            continue;
+        }
+
         // Handle style blocks
         if trimmed.starts_with("<style>") {
             in_style_block = true;
@@ -132,24 +153,6 @@ pub fn parse_class_diagram_with_original(
         if in_legend {
             if trimmed == "end legend" || trimmed == "endlegend" {
                 in_legend = false;
-            }
-            continue;
-        }
-
-        // Handle multi-line note accumulation
-        if in_note_block {
-            if trimmed == "end note" || trimmed == "endnote" {
-                let text = note_block_lines.join("\n");
-                debug!("end note block: text={text:?}");
-                notes.push(ClassNote {
-                    text,
-                    position: note_block_position.clone(),
-                    target: note_block_target.take(),
-                });
-                note_block_lines.clear();
-                in_note_block = false;
-            } else {
-                note_block_lines.push(trimmed.to_string());
             }
             continue;
         }
