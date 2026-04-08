@@ -51,6 +51,55 @@ pub fn convert_with_input_path(puml_source: &str, input_path: &Path) -> Result<S
 }
 
 fn render_expanded(original_source: &str, expanded: &str) -> Result<String> {
+    // Java emits one SVG per @startuml block. When the source has multiple
+    // standard @startuml/@enduml blocks (no @startwbs/@startsalt mixed in),
+    // detect them and render each separately, concatenating the SVGs.
+    let blocks = split_uml_only_blocks(original_source);
+    let expanded_blocks = split_uml_only_blocks(expanded);
+    if blocks.len() > 1 && blocks.len() == expanded_blocks.len() {
+        let mut combined = String::new();
+        for (orig_blk, exp_blk) in blocks.iter().zip(expanded_blocks.iter()) {
+            let svg = render_one_block(orig_blk, exp_blk)?;
+            combined.push_str(&svg);
+        }
+        return Ok(combined);
+    }
+    render_one_block(original_source, expanded)
+}
+
+/// Split source into @startuml/@enduml blocks. Returns single-element vector
+/// if any non-uml block (@startwbs etc) is present, since those have
+/// different reference handling.
+fn split_uml_only_blocks(source: &str) -> Vec<String> {
+    let mut blocks: Vec<String> = Vec::new();
+    let mut current: Option<String> = None;
+    for line in source.lines() {
+        let trimmed = line.trim();
+        // Bail out: any non-@startuml block disqualifies multi-block mode.
+        if trimmed.starts_with("@start") && !trimmed.starts_with("@startuml") {
+            return vec![source.to_string()];
+        }
+        if trimmed.starts_with("@startuml") {
+            current = Some(String::new());
+        }
+        if let Some(buf) = current.as_mut() {
+            buf.push_str(line);
+            buf.push('\n');
+        }
+        if trimmed.starts_with("@enduml") {
+            if let Some(buf) = current.take() {
+                blocks.push(buf);
+            }
+        }
+    }
+    if blocks.len() <= 1 {
+        vec![source.to_string()]
+    } else {
+        blocks
+    }
+}
+
+fn render_one_block(original_source: &str, expanded: &str) -> Result<String> {
     // Extract SVG sprite definitions before parsing (sprite lines would confuse parsers)
     let (cleaned, sprites, gray_data) = parser::common::extract_sprites(expanded);
     render::svg_richtext::set_sprites(sprites);
