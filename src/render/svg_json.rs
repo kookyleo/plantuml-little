@@ -128,16 +128,11 @@ fn render_box(sg: &mut SvgGraphic, jbox: &JsonBox) {
             );
         }
 
-        // Draw node indicator circle for rows with child boxes
-        // Java: EntityImageJson draws a small filled circle at the row center
-        if row.has_child && has_keys {
-            let cx = jbox.separator_x;
-            let cy = row.y_top + bl;
-            sg.push_raw(&format!(
-                r##"<ellipse cx="{}" cy="{}" fill="{}" rx="3" ry="3" style="stroke:{};stroke-width:1;"/>"##,
-                fmt_coord(cx), fmt_coord(cy), BORDER_COLOR, BORDER_COLOR,
-            ));
-        }
+        // Note: Java does NOT draw indicator ellipses inside the main JSON box.
+        // It only draws ellipses at arrow source points (rendered in render_arrow).
+        // The previous code drew dots at separator_x for every has_child row,
+        // which doesn't match Java's actual output.
+        let _ = (row.has_child, has_keys); // suppress unused-warning
 
         if i < jbox.rows.len() - 1 {
             let ly = row.y_top + row.height;
@@ -156,13 +151,37 @@ fn render_box(sg: &mut SvgGraphic, jbox: &JsonBox) {
 
 fn render_arrow(sg: &mut SvgGraphic, arrow: &JsonArrow) {
     let (fx, fy, tx, ty) = (arrow.from_x, arrow.from_y, arrow.to_x, arrow.to_y);
-    let mid_x = (fx + tx) / 2.0;
+
+    // Java's JsonCurve draws:
+    //   1. A path `M veryFirst L points[0] C ... (arrowhead)`  — the dashed curve
+    //   2. A filled arrowhead polygon (via Arrow)
+    //   3. A small "spot" ellipse at `veryFirst`
+    //
+    // `points[0]` is the graphviz spline's first control point, which sits
+    // slightly outside the parent's right edge (~1.25 pts offset, observed).
+    // `veryFirst` is 13 pts back along the curve-entry direction, which for
+    // the first horizontal segment is simply points[0] - 13 in the x axis.
+    // We do not have real graphviz splines, so we approximate: place points[0]
+    // a small fixed offset past the parent's right edge and draw a cubic
+    // through the vertical midpoint, matching Java's stable-1.2026.2 layout
+    // within the 0.51 per-number tolerance of the reference tests.
+    const POINTS0_OFFSET: f64 = 1.25; // parent_right → points[0]
+    const VERY_FIRST_LEN: f64 = 13.0; // points[0] → spot, backwards
+
+    let p0_x = fx + POINTS0_OFFSET;
+    let very_first_x = p0_x - VERY_FIRST_LEN;
+    let mid_x = (p0_x + tx) / 2.0;
+
+    // Dashed cubic curve from spot → control points → arrow tip.
     sg.push_raw(&format!(
         r#"<path d="M{},{} L{},{} C{},{} {},{} {},{}" fill="none" style="stroke:{BORDER_COLOR};stroke-width:1;stroke-dasharray:3,3;"/>"#,
-        fmt_coord(fx), fmt_coord(fy), fmt_coord(fx + 13.0), fmt_coord(fy),
-        fmt_coord(mid_x), fmt_coord(fy), fmt_coord(mid_x), fmt_coord(ty),
+        fmt_coord(very_first_x), fmt_coord(fy),
+        fmt_coord(p0_x), fmt_coord(fy),
+        fmt_coord(mid_x), fmt_coord(fy),
+        fmt_coord(mid_x), fmt_coord(ty),
         fmt_coord(tx - 7.0), fmt_coord(ty)));
 
+    // Filled arrowhead polygon at the tip.
     let sz = 3.1073;
     sg.push_raw(&format!(
         r#"<path d="M{},{} L{},{} L{},{} L{},{} L{},{}" fill="{BORDER_COLOR}"/>"#,
@@ -176,6 +195,15 @@ fn render_arrow(sg: &mut SvgGraphic, arrow: &JsonArrow) {
         fmt_coord(ty),
         fmt_coord(tx - 7.0),
         fmt_coord(ty + sz)
+    ));
+
+    // "Spot" ellipse at the curve's starting point.
+    sg.push_raw(&format!(
+        r##"<ellipse cx="{}" cy="{}" fill="{}" rx="3" ry="3" style="stroke:{};stroke-width:1;"/>"##,
+        fmt_coord(very_first_x),
+        fmt_coord(fy),
+        BORDER_COLOR,
+        BORDER_COLOR,
     ));
 }
 

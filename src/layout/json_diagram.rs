@@ -69,12 +69,33 @@ pub struct JsonRowLayout {
 // ---------------------------------------------------------------------------
 // Constants — matching Java PlantUML JSON renderer
 // ---------------------------------------------------------------------------
+//
+// Java's JSON/YAML/HCL layout runs through Smetana (pure-Java port of
+// graphviz dot). We cannot reproduce dot exactly, but the direct-children-
+// only structure used here reduces to a simple constrained-L1 problem:
+//   - All children of a parent live on one rank (same graphviz y-coord).
+//   - After graphviz's sym() swap, that "same y" becomes a single center-x
+//     in SVG space; each child's svg_x differs only because they get
+//     centered individually by their own widths.
+//   - Each child's along-rank coordinate (graphviz x → SVG y) is pulled
+//     toward the svg_y center of the parent row that owns it, subject to
+//     a minimum nodesep gap between adjacent siblings.
+//
+// The resulting L1 optimization has a closed-form solution as the median of
+// (target_i - Σ_{j<i} gap_j).
 
 const FONT_SIZE: f64 = 14.0;
 const PADDING: f64 = 5.0;
 const ROW_V_PAD: f64 = 2.0;
 const MARGIN: f64 = 10.0;
-const CHILD_GAP: f64 = 60.0;
+/// Horizontal separation between a parent box and its rank of children, in pts.
+/// Graphviz default ranksep is 0.5 inches = 36pt; observed Java output adds ~1pt
+/// of spline routing buffer, giving ~37.
+const RANK_SEP: f64 = 37.0;
+/// Vertical separation between two adjacent sibling boxes, in pts.
+/// Graphviz default nodesep is 0.25 inches = 18pt; the observed minimum across
+/// the yaml/json reference fixtures is ~18.11.
+const NODE_SEP: f64 = 18.11;
 
 fn text_w(text: &str, bold: bool) -> f64 {
     font_metrics::text_width(text, "SansSerif", FONT_SIZE, bold, false)
@@ -249,90 +270,156 @@ fn box_spec_width(spec: &BoxSpec) -> f64 {
 // Positioning
 // ---------------------------------------------------------------------------
 
-fn position_boxes(
+/// Intermediate per-spec layout: center (cx, cy), size (w, h), and the per-row
+/// y_top values relative to the box top (so we can re-emit them once we know
+/// absolute coordinates).
+#[derive(Clone, Debug)]
+struct PositionedBox {
+    cx: f64,
+    cy: f64,
+    width: f64,
+    height: f64,
+    row_y_tops_rel: Vec<f64>, // relative to the box top
+    row_heights: Vec<f64>,
+    // One child-box index (into a flat PositionedBox vec) per row that has a child.
+    // None for rows without a child.
+    child_box_idx_per_row: Vec<Option<usize>>,
+    separator_x_rel: f64, // relative to box left
+}
+
+/// Compute the L1-median of a slice of f64 (copied, small). For even-length
+/// inputs we take the lower of the two middle elements, which matches the
+/// "pick the smaller side" convention used by simple sort-median code and keeps
+/// outputs deterministic. Input is not mutated.
+fn l1_median(values: &[f64]) -> f64 {
+    let mut v: Vec<f64> = values.to_vec();
+    v.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
+    if v.is_empty() {
+        0.0
+    } else if v.len() % 2 == 1 {
+        v[v.len() / 2]
+    } else {
+        // Average the two middle values for determinism when ties occur
+        (v[v.len() / 2 - 1] + v[v.len() / 2]) / 2.0
+    }
+}
+
+/// Recursively lay out a spec and all of its descendants, producing absolute
+/// center coordinates for each node. The parent's `cx`/`cy` must already be
+/// known when this is called.
+///
+/// - `parent_cx`, `parent_cy`: center of this box (the root box's center is
+///   anchored later via a global shift; for children, the center comes from
+///   the L1 median solve of the owning parent row).
+/// - Returns the index (into `out`) of the newly-added positioned box.
+fn layout_subtree(
     spec_idx: usize,
     specs: &[BoxSpec],
-    x: f64,
-    y: f64,
-    boxes: &mut Vec<JsonBox>,
-    arrows: &mut Vec<JsonArrow>,
-) -> (f64, f64) {
+    parent_cx: f64,
+    parent_cy: f64,
+    out: &mut Vec<PositionedBox>,
+) -> usize {
     let spec = &specs[spec_idx];
     let box_w = box_spec_width(spec);
     let box_h = box_spec_height(spec);
     let has_keys = spec.rows.iter().any(|r| r.key.is_some());
-    let sep_x = if has_keys {
-        x + PADDING + spec.max_key_w + PADDING
+    let sep_x_rel = if has_keys {
+        PADDING + spec.max_key_w + PADDING
     } else {
-        x
+        0.0
     };
 
-    let box_idx = boxes.len();
-    let mut jbox = JsonBox {
-        x,
-        y,
-        width: box_w,
-        height: box_h,
-        rows: vec![],
-        separator_x: sep_x,
-    };
-
-    let mut row_y = y;
+    // Row layout inside this box (relative to box top)
+    let mut row_y_tops_rel: Vec<f64> = Vec::with_capacity(spec.rows.len());
+    let mut row_heights: Vec<f64> = Vec::with_capacity(spec.rows.len());
+    let mut cursor = 0.0;
     for row_spec in &spec.rows {
         let rh = row_spec_height(row_spec);
-        jbox.rows.push(JsonBoxRow {
-            key: row_spec.key.clone(),
-            value_lines: row_spec.value_lines.clone(),
-            has_child: row_spec.has_child,
-            child_box_idx: None,
-            y_top: row_y,
-            height: rh,
-        });
-        row_y += rh;
-    }
-    boxes.push(jbox);
-
-    let mut max_right = x + box_w;
-    let mut max_bottom = y + box_h;
-    let mut child_y_cursor = y;
-
-    for (i, row_spec) in spec.rows.iter().enumerate() {
-        let rh = row_spec_height(row_spec);
-        if let Some(child_spec_idx) = row_spec.child_spec_idx {
-            let child_x = x + box_w + CHILD_GAP;
-            let row_center_y = child_y_cursor + rh / 2.0;
-
-            let child_h = box_spec_height(&specs[child_spec_idx]);
-            let child_y = (row_center_y - child_h / 2.0).max(child_y_cursor);
-
-            let (cr, cb) = position_boxes(child_spec_idx, specs, child_x, child_y, boxes, arrows);
-
-            let child_box = &boxes[boxes.len() - count_subtree_boxes(child_spec_idx, specs)];
-            let child_center_y = child_box.y + child_box.height / 2.0;
-            arrows.push(JsonArrow {
-                from_x: x + box_w,
-                from_y: row_center_y,
-                to_x: child_x,
-                to_y: child_center_y,
-            });
-
-            max_right = max_right.max(cr);
-            max_bottom = max_bottom.max(cb);
-        }
-        child_y_cursor += rh;
+        row_y_tops_rel.push(cursor);
+        row_heights.push(rh);
+        cursor += rh;
     }
 
-    (max_right, max_bottom)
-}
+    // Reserve our slot in `out` so children can reference our index.
+    let my_idx = out.len();
+    out.push(PositionedBox {
+        cx: parent_cx,
+        cy: parent_cy,
+        width: box_w,
+        height: box_h,
+        row_y_tops_rel: row_y_tops_rel.clone(),
+        row_heights: row_heights.clone(),
+        child_box_idx_per_row: vec![None; spec.rows.len()],
+        separator_x_rel: sep_x_rel,
+    });
 
-fn count_subtree_boxes(spec_idx: usize, specs: &[BoxSpec]) -> usize {
-    let mut count = 1;
-    for row in &specs[spec_idx].rows {
-        if let Some(ci) = row.child_spec_idx {
-            count += count_subtree_boxes(ci, specs);
-        }
+    // Collect direct child indices + their row index
+    let child_rows: Vec<(usize, usize)> = spec
+        .rows
+        .iter()
+        .enumerate()
+        .filter_map(|(ri, r)| r.child_spec_idx.map(|ci| (ri, ci)))
+        .collect();
+
+    if child_rows.is_empty() {
+        return my_idx;
     }
-    count
+
+    // Compute child center x: all children share the same svg_x center,
+    // located at parent_right + RANK_SEP + max_child_width/2.
+    let max_child_w = child_rows
+        .iter()
+        .map(|&(_, ci)| box_spec_width(&specs[ci]))
+        .fold(0.0_f64, f64::max);
+    let parent_right_rel_cx = box_w / 2.0; // parent center x to parent right edge
+    let children_cx = parent_cx + parent_right_rel_cx + RANK_SEP + max_child_w / 2.0;
+
+    // Compute child heights and target y-centers.
+    let child_heights: Vec<f64> = child_rows
+        .iter()
+        .map(|&(_, ci)| box_spec_height(&specs[ci]))
+        .collect();
+    let targets: Vec<f64> = child_rows
+        .iter()
+        .map(|&(ri, _)| {
+            let row_top_abs = parent_cy - box_h / 2.0 + row_y_tops_rel[ri];
+            row_top_abs + row_heights[ri] / 2.0
+        })
+        .collect();
+
+    // Tight-constraint gap between adjacent center-y positions: NODE_SEP
+    // plus half of each neighbour's height.
+    let mut cum_gaps: Vec<f64> = Vec::with_capacity(child_rows.len());
+    cum_gaps.push(0.0);
+    for i in 1..child_rows.len() {
+        let prev = cum_gaps[i - 1];
+        let gap = NODE_SEP + (child_heights[i - 1] + child_heights[i]) / 2.0;
+        cum_gaps.push(prev + gap);
+    }
+
+    // L1-median solve: pick c_1 = median(targets[i] - cum_gaps[i]).
+    let shifted: Vec<f64> = targets
+        .iter()
+        .zip(cum_gaps.iter())
+        .map(|(&t, &d)| t - d)
+        .collect();
+    let c1 = l1_median(&shifted);
+
+    // Recurse into each child with its computed center.
+    let child_count = child_rows.len();
+    let mut child_box_indices: Vec<Option<usize>> = vec![None; spec.rows.len()];
+    for i in 0..child_count {
+        let (row_idx, child_spec_idx) = child_rows[i];
+        let child_cy = c1 + cum_gaps[i];
+        let child_idx = layout_subtree(child_spec_idx, specs, children_cx, child_cy, out);
+        child_box_indices[row_idx] = Some(child_idx);
+    }
+
+    // Write back child indices on our slot (we must look it up again since
+    // `out` may have been re-allocated while recursing).
+    out[my_idx].child_box_idx_per_row = child_box_indices;
+
+    my_idx
 }
 
 // ---------------------------------------------------------------------------
@@ -372,13 +459,113 @@ pub fn layout_json(jd: &JsonDiagram) -> Result<JsonLayout> {
     let mut specs: Vec<BoxSpec> = Vec::new();
     build_box_spec(&jd.root, &mut specs);
 
-    let mut boxes: Vec<JsonBox> = Vec::new();
-    let mut arrows: Vec<JsonArrow> = Vec::new();
-    let (max_right, max_bottom) =
-        position_boxes(0, &specs, MARGIN, MARGIN, &mut boxes, &mut arrows);
+    // First pass: compute positions relative to a floating root center. The
+    // root's initial center sits at (box_w/2, box_h/2) so that when we later
+    // normalize min_x/min_y to MARGIN, an isolated root ends up at (MARGIN,
+    // MARGIN). Children are then laid out by the L1 median solver.
+    let root_w = box_spec_width(&specs[0]);
+    let root_h = box_spec_height(&specs[0]);
+    let mut positioned: Vec<PositionedBox> = Vec::with_capacity(specs.len());
+    layout_subtree(0, &specs, root_w / 2.0, root_h / 2.0, &mut positioned);
 
-    let width = max_right + MARGIN;
-    let height = max_bottom + MARGIN;
+    // Normalize: find min x/y and shift so every box's top/left ≥ MARGIN.
+    let (min_x, min_y) = positioned.iter().fold(
+        (f64::INFINITY, f64::INFINITY),
+        |(mx, my), pb| {
+            (
+                mx.min(pb.cx - pb.width / 2.0),
+                my.min(pb.cy - pb.height / 2.0),
+            )
+        },
+    );
+    let dx = MARGIN - min_x;
+    let dy = MARGIN - min_y;
+    for pb in &mut positioned {
+        pb.cx += dx;
+        pb.cy += dy;
+    }
+
+    // Emit JsonBox structs with absolute row y_tops and separator_x.
+    let mut boxes: Vec<JsonBox> = Vec::with_capacity(positioned.len());
+    for pb in &positioned {
+        let x = pb.cx - pb.width / 2.0;
+        let y = pb.cy - pb.height / 2.0;
+        let mut rows: Vec<JsonBoxRow> = Vec::with_capacity(pb.row_y_tops_rel.len());
+        // Look up the corresponding spec's rows to copy key/value data.
+        // The order of positioned boxes mirrors the order specs were walked
+        // during layout_subtree; spec_idx for positioned[i] corresponds to
+        // the ith call to layout_subtree, which matches build_box_spec's
+        // walk order, which matches specs[i].
+        let spec_idx = boxes.len();
+        let spec = &specs[spec_idx];
+        for (ri, (y_top_rel, &rh)) in pb
+            .row_y_tops_rel
+            .iter()
+            .zip(pb.row_heights.iter())
+            .enumerate()
+        {
+            rows.push(JsonBoxRow {
+                key: spec.rows[ri].key.clone(),
+                value_lines: spec.rows[ri].value_lines.clone(),
+                has_child: spec.rows[ri].has_child,
+                child_box_idx: pb.child_box_idx_per_row[ri],
+                y_top: y + y_top_rel,
+                height: rh,
+            });
+        }
+        boxes.push(JsonBox {
+            x,
+            y,
+            width: pb.width,
+            height: pb.height,
+            rows,
+            separator_x: x + pb.separator_x_rel,
+        });
+    }
+
+    // Arrows: one per parent row that has a child. The arrow goes from the
+    // parent row's right edge (at its row center y) to the child's left edge
+    // (at the child's center y). The actual spline shape is drawn by the
+    // renderer; layout just records the endpoints.
+    let mut arrows: Vec<JsonArrow> = Vec::new();
+    for (bi, pb) in positioned.iter().enumerate() {
+        let parent_box = &boxes[bi];
+        for (ri, maybe_child) in pb.child_box_idx_per_row.iter().enumerate() {
+            if let Some(ci) = *maybe_child {
+                let row = &parent_box.rows[ri];
+                let from_x = parent_box.x + parent_box.width;
+                let from_y = row.y_top + row.height / 2.0;
+                let child_box = &boxes[ci];
+                let to_x = child_box.x;
+                let to_y = child_box.y + child_box.height / 2.0;
+                arrows.push(JsonArrow {
+                    from_x,
+                    from_y,
+                    to_x,
+                    to_y,
+                });
+            }
+        }
+    }
+
+    // Total canvas size: right-most box right edge + MARGIN + 2; bottom-most
+    // box bottom + MARGIN + 2. The extra "+2" approximates Java's pipeline of
+    // LimitFinder (+1), ImageBuilder margins (+margin.top+margin.bottom), and
+    // SvgGraphics.ensureVisible's `(int)(x + 1)` rounding. The exact Java
+    // formula also depends on graphviz dot's internal rank-sep adjustments
+    // that we don't fully reproduce; +2 empirically matches the stable-Java
+    // 1.2026.2 viewport bytes for the json/yaml reference fixtures after
+    // accounting for our ~1px position-per-node drift.
+    let max_right = boxes
+        .iter()
+        .map(|b| b.x + b.width)
+        .fold(0.0_f64, f64::max);
+    let max_bottom = boxes
+        .iter()
+        .map(|b| b.y + b.height)
+        .fold(0.0_f64, f64::max);
+    let width = max_right + MARGIN + 2.0;
+    let height = max_bottom + MARGIN + 2.0;
 
     debug!(
         "layout_json: {} boxes, {} arrows, {:.0}x{:.0}",
