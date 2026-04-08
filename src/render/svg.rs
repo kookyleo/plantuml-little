@@ -3140,7 +3140,9 @@ fn draw_class_group(
                     stereo_line_height,
                 );
             }
-            let text_w = font_metrics::text_width(title, "SansSerif", 14.0, true, false);
+            // Strip Creole `==heading==` prefix if present (Java parses this).
+            let display_title = crate::parser::creole::strip_heading_prefix(title).unwrap_or(title);
+            let text_w = font_metrics::text_width(display_title, "SansSerif", 14.0, true, false);
             let text_x = x + (w - text_w) / 2.0;
             let text_y =
                 y + 2.0 + visible_stereotypes.len() as f64 * stereo_line_height + title_ascent;
@@ -3149,7 +3151,7 @@ fn draw_class_group(
                 fmt_coord(text_w),
                 fmt_coord(text_x),
                 fmt_coord(text_y),
-                xml_escape(title),
+                xml_escape(display_title),
             ));
             tracker.track_rect(
                 text_x,

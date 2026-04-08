@@ -200,7 +200,7 @@ fn should_preserve_boundary_whitespace(raw: &str, trimmed: &str) -> bool {
 /// Strip a Creole heading prefix (`=`, `==`, `===`, etc.) followed by a space.
 /// Returns the remaining text if the line is a heading, or `None` otherwise.
 /// Java PlantUML renders heading lines as bold text at the same font size.
-fn strip_heading_prefix(line: &str) -> Option<&str> {
+pub(crate) fn strip_heading_prefix(line: &str) -> Option<&str> {
     let trimmed = line.trim_start();
     if !trimmed.starts_with('=') {
         return None;
