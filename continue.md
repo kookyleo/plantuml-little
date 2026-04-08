@@ -27,11 +27,33 @@ The following fixtures currently produce no SVG with official PlantUML `v1.2026.
 
 Any future Java/Rust parity work must target the stable `v1.2026.2` reference corpus now checked into `tests/reference/`.
 
-## Current Parity Baseline (2026-04-07)
+## Current Parity Baseline (2026-04-08)
 
 - `cargo test --lib`: `2641/2641`
-- `cargo test --test reference_tests`: `294/320` (91.88%)
+- `cargo test --test reference_tests`: `296/320` (92.50%)
 - Byte-compare authority remains the 318 stable-Java SVGs indexed by `tests/reference/INDEX.tsv`.
+
+### 2026-04-08 Fixes (294 → 296)
+- **sequence sprite-bearing messages and notes (layout/sequence.rs, parser/sequence.rs, render/svg_richtext.rs)**:
+  When a sequence message contains an inline `<$sprite>` taller than the
+  default text line height, Java places any following note as a standalone
+  `NoteBox` below the arrow tile (not as a combined `ArrowAndNoteBox`).
+  Apply that path for sprite messages: skip arrow centering, position the
+  note polygon at `msg_y + (arrowDeltaY + paddingY) + notePaddingY`,
+  finalize the lifeline at `note_y + note_pref_h + 5`, and skip the +3px
+  overlay-baseline tweak. Note text rendering aligns each row's text
+  baseline to `row.bottom - descent` so sprite-bearing rows space
+  correctly. Note width measurement now sums sprite atom widths and
+  preserves trailing whitespace inside multi-line note text (Java
+  `BodyEnhanced2` does not trim). Use the runtime sans-13 line height for
+  the sprite-replacement threshold (was a 4-decimal constant) so
+  `sprite_extra` math stays byte-exact with Java. Fixes
+  `sprite/testGradientSprite` and `sprite/testPolylineSprites`.
+- **style block: BorderColor falls back to LineColor (style/compat.rs)**:
+  Java's PName has only `LineColor` (no separate `BorderColor`); element
+  `<style>` blocks set `LineColor` which becomes the visible border for
+  bounded shapes. `border_color()` now picks up `participantlinecolor` /
+  `participant.linecolor` before reaching the root/theme defaults.
 
 ### 2026-04-07 Fixes (293 → 294)
 - **class/map plaintext padding (layout/mod.rs, layout/graphviz.rs, render/svg.rs)**:
