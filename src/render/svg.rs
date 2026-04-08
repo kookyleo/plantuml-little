@@ -445,6 +445,11 @@ pub fn render_with_source(
         svg = inject_svginteractive(svg, &dtype);
     }
 
+    // Inject Google Fonts @import for non-built-in font families used in the SVG.
+    // Java PlantUML emits an @import URL into <defs> when text elements reference
+    // fonts that need to be loaded from Google Fonts (e.g. Roboto).
+    svg = inject_google_fonts(svg);
+
     // Java PlantUML suppresses DOT rendering with a simple notice SVG
     // that does not include the plantuml-src processing instruction.
     let is_dot = matches!(diagram, Diagram::Dot(_));
@@ -1112,6 +1117,44 @@ fn xml_escape_js(s: &str) -> String {
         }
     }
     out
+}
+
+/// Inject Google Fonts @import directives into `<defs>` for non-builtin fonts.
+///
+/// Java PlantUML detects when text elements reference fonts that should be
+/// loaded from Google Fonts (currently Roboto, with all weights/styles) and
+/// emits a `<style type="text/css">@import url(...);</style>` block into the
+/// SVG `<defs>`. This ensures the SVG renders correctly when opened in a browser.
+fn inject_google_fonts(svg: String) -> String {
+    // Detect Roboto usage. Java emits the @import once per SVG when any text
+    // element uses font-family="Roboto".
+    let needs_roboto = svg.contains(r#"font-family="Roboto""#);
+    if !needs_roboto {
+        return svg;
+    }
+
+    let import_block = r#"<style type="text/css">@import url('https://fonts.googleapis.com/css?family=Roboto:400,100,100italic,300,300italic,400italic,500,500italic,700,700italic,900,900italic');</style>"#;
+
+    // Replace empty <defs/> with populated <defs>
+    if let Some(pos) = svg.find("<defs/>") {
+        let mut result = String::with_capacity(svg.len() + import_block.len());
+        result.push_str(&svg[..pos]);
+        result.push_str("<defs>");
+        result.push_str(import_block);
+        result.push_str("</defs>");
+        result.push_str(&svg[pos + 7..]);
+        result
+    } else if let Some(pos) = svg.find("<defs>") {
+        // Already has <defs>...</defs> — inject at start of defs content
+        let insert_pos = pos + 6;
+        let mut result = String::with_capacity(svg.len() + import_block.len());
+        result.push_str(&svg[..insert_pos]);
+        result.push_str(import_block);
+        result.push_str(&svg[insert_pos..]);
+        result
+    } else {
+        svg
+    }
 }
 
 /// Inject interactive CSS and JS into the SVG `<defs>` section.

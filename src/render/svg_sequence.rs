@@ -1000,6 +1000,7 @@ fn draw_participant_box_with_font(
     text_color: &str,
     part_font_family: &str,
     part_font_size: f64,
+    part_font_style: Option<&str>,
     head: bool,
     link_url: Option<&str>,
     shadow_attr: &str,
@@ -1052,6 +1053,7 @@ fn draw_participant_box_with_font(
                 text_color,
                 part_font_family,
                 part_font_size,
+                part_font_style,
                 link_url,
                 shadow_attr,
                 stroke_width,
@@ -1072,6 +1074,7 @@ fn draw_participant_rect_with_font(
     text_color: &str,
     font_family: &str,
     font_size: f64,
+    font_style: Option<&str>,
     link_url: Option<&str>,
     shadow_attr: &str,
     stroke_width: f64,
@@ -1091,12 +1094,13 @@ fn draw_participant_rect_with_font(
     // so rect_x = posC - preferredWidth/2 = p.x - (box_width + deltaShadow)/2.
     let x = p.x - (box_width + delta_shadow) / 2.0;
     let text_x = x + padding;
+    let italic = font_style == Some("italic");
     let text_y_base = y + 19.9951 + (font_size - 14.0) * 0.92825;
-    let line_h = font_metrics::line_height(font_family, font_size, false, false);
+    let line_h = font_metrics::line_height(font_family, font_size, false, italic);
     let svg_font_family = svg_font_family_attr(font_family);
     let line_widths: Vec<f64> = lines
         .iter()
-        .map(|line| font_metrics::text_width(line, font_family, font_size, false, false))
+        .map(|line| font_metrics::text_width(line, font_family, font_size, false, italic))
         .collect();
     let max_line_width = line_widths.iter().copied().fold(0.0_f64, f64::max);
 
@@ -1146,7 +1150,7 @@ fn draw_participant_rect_with_font(
             Some(svg_font_family),
             font_size,
             None,
-            None,
+            font_style,
             text_decoration,
             line_w,
             LengthAdjust::Spacing,
@@ -3816,6 +3820,19 @@ fn render_sequence_inner(
         .get("defaultfontname")
         .map(|s| s.to_string())
         .unwrap_or_else(|| "SansSerif".to_string());
+    // Participant-specific font (for participant labels). Java's
+    // ParticipantBox uses FontParam.PARTICIPANT which falls back to
+    // defaultFontName when not set. Web fonts (Roboto, etc.) only need to
+    // be picked up here so that participant text emits the right family.
+    let participant_font = skin
+        .get("participantfontname")
+        .map(|s| s.to_string())
+        .unwrap_or_else(|| default_font.clone());
+    // Participant font style (italic / bold). Java FontParam.PARTICIPANT
+    // resolves the same key as participant.fontstyle.
+    let participant_font_style: Option<String> = skin
+        .get("participantfontstyle")
+        .map(std::string::ToString::to_string);
     let msg_font_size: f64 = skin
         .get("defaultfontsize")
         .and_then(|s| s.parse::<f64>().ok())
@@ -3903,7 +3920,7 @@ fn render_sequence_inner(
                     part_border,
                     part_text_color,
                     part_thickness,
-                    &default_font,
+                    &participant_font,
                 );
             } else {
                 draw_participant_actor_tail(
@@ -3915,7 +3932,7 @@ fn render_sequence_inner(
                     part_border,
                     part_text_color,
                     part_thickness,
-                    &default_font,
+                    &participant_font,
                 );
             }
         } else {
@@ -3927,8 +3944,9 @@ fn render_sequence_inner(
                 part_bg,
                 part_border,
                 part_font,
-                &default_font,
+                &participant_font,
                 part_font_size,
+                participant_font_style.as_deref(),
                 is_head,
                 part_link_url,
                 &shadow_attr,
