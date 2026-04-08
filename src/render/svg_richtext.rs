@@ -1128,7 +1128,14 @@ fn note_line_height_with_sprites(line: &str, base_lh: f64) -> f64 {
         let abs_start = pos + start + 2;
         if let Some(end) = line[abs_start..].find('>') {
             let name_part = &line[abs_start..abs_start + end];
-            let name = name_part.split(',').next().unwrap_or(name_part).trim();
+            // Strip both legacy comma-suffix and brace-suffix forms:
+            //   <$name,scale=2>   → "name"
+            //   <$name{scale=2}>  → "name"
+            let name = name_part
+                .split(|c: char| c == ',' || c == '{' || c == ' ')
+                .next()
+                .unwrap_or(name_part)
+                .trim();
             if let Some(svg_content) = get_sprite(name) {
                 let info = crate::render::svg_sprite::sprite_info(&svg_content);
                 max_sprite_h = max_sprite_h.max(info.vb_height);

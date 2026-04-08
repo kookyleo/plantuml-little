@@ -677,33 +677,33 @@ fn try_parse_html_tag(chars: &[char], start: usize, end: usize) -> Option<(TextS
 
 fn try_parse_sprite_ref(chars: &[char], start: usize, end: usize) -> Option<(TextSpan, usize)> {
     // Expected pattern: <$name> where name is [-\w/]+
+    // Optional suffixes:
+    //   <$name,scale=2>             legacy comma form
+    //   <$name{scale=2,color=red}>  brace form
     if !matches_at(chars, start, "<$") {
         return None;
     }
     let name_start = start + 2;
     let mut i = name_start;
-    while i < end && chars[i] != '>' && chars[i] != ',' && chars[i] != ' ' {
+    while i < end
+        && chars[i] != '>'
+        && chars[i] != ','
+        && chars[i] != ' '
+        && chars[i] != '{'
+    {
         i += 1;
     }
     if i >= end || i == name_start {
         return None;
     }
-    // Skip optional scale/color parameters: <$name,scale=2> or <#color $name>
+    let name: String = chars[name_start..i].iter().collect::<String>().trim().to_string();
+    // Skip optional scale/color parameters until closing '>'
     while i < end && chars[i] != '>' {
         i += 1;
     }
     if i >= end {
         return None;
     }
-    // chars[i] == '>'
-    let name: String = chars[name_start..i]
-        .iter()
-        .collect::<String>()
-        .split(',')
-        .next()
-        .unwrap_or("")
-        .trim()
-        .to_string();
     if name.is_empty() {
         return None;
     }
