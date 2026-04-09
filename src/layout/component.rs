@@ -365,13 +365,15 @@ fn estimate_entity_size(entity: &ComponentEntity, wrap_width: Option<f64>) -> (f
             }
             // Sprite reference: `<$name>` — uses the sprite's pixel
             // dimensions instead of text metrics.
+            // Java: CommandCreoleSprite sets scale = fc.getSize2D() / 13.0
+            // where fc is the enclosing text block's base font (FONT_SIZE=14pt).
             let trimmed_l = raw_line.trim();
             if trimmed_l.starts_with("<$") && trimmed_l.ends_with('>') {
                 let sprite_name = &trimmed_l[2..trimmed_l.len() - 1];
                 if let Some((sw, sh)) = sprite_stereo_dimensions(&format!("${sprite_name}")) {
-                    // Java SpriteMonochrome.toUImage adds 2px border padding per side
-                    let rendered_w = sw + 4.0;
-                    let rendered_h = sh + 4.0;
+                    let sprite_scale = FONT_SIZE / 13.0;
+                    let rendered_w = sw * sprite_scale;
+                    let rendered_h = sh * sprite_scale;
                     max_content_w = max_content_w.max(rendered_w);
                     sprite_height += rendered_h;
                     continue;

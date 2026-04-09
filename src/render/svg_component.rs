@@ -233,6 +233,7 @@ pub fn render_component(
             eff_font,
             border_style,
             group_rc,
+            skin,
         );
     }
 
@@ -504,6 +505,7 @@ fn render_group(
     font_color: &str,
     border_style: Option<&str>,
     round_corner: Option<f64>,
+    skin: &SkinParams,
 ) {
     // Map skinparam BorderStyle to SVG stroke-dasharray (Java LinkStyle).
     let dash_pattern: Option<(f64, f64)> = match border_style
@@ -686,6 +688,24 @@ fn render_group(
             // Check for sprite stereotype
             let sprite_h = render_group_sprite(sg, group, x, y, w);
 
+            // Java USymbolRectangle.asBig positions the title at
+            // y + 2 + dimStereo.getHeight(). For C4 boundaries the
+            // stereo text is invisible (transparent color) but still
+            // takes up vertical space. Compute that height here.
+            let stereo_h = if sprite_h > 0.0 || group.stereotypes.is_empty() {
+                0.0
+            } else {
+                let stereo_refs: Vec<&str> =
+                    group.stereotypes.iter().map(|s| s.as_str()).collect();
+                let stereo_fs = skin
+                    .stereotype_font_size_for("rectangle", &stereo_refs)
+                    .unwrap_or(FONT_SIZE);
+                let line_h =
+                    font_metrics::line_height("SansSerif", stereo_fs, false, true)
+                        .max(10.0); // Java AtomText: if (h < 10) h = 10
+                group.stereotypes.len() as f64 * line_h
+            };
+
             if matches!(group.kind, ComponentKind::Card) {
                 // Card groups: creole-aware name rendering + full-width separator.
                 // Java USymbolCard.asBig draws separator; USymbolRectangle.asBig does not.
@@ -789,7 +809,7 @@ fn render_group(
                     .collect();
                 let max_untrimmed_w = untrimmed_widths.iter().cloned().fold(0.0_f64, f64::max);
                 let block_x = x + (w - max_untrimmed_w) / 2.0;
-                let name_y_start = y + 2.0 + sprite_h;
+                let name_y_start = y + 2.0 + sprite_h + stereo_h;
                 // Use per-line line heights (heading lines use bumped font size).
                 let mut cumulative_y = 0.0_f64;
                 for (li, gl) in group_lines.iter().enumerate() {
@@ -1752,36 +1772,46 @@ fn render_c4_word_by_word(
     let content_left = node.x + ml;
 
     // Stereotype line (e.g. «container»)
-    let mut y_cursor = node.y;
+    // Java USymbolRectangle.asSmall: mergeTB(stereo, label) drawn at margin(10,10,10,10)
+    // The stereo block is rendered at margin_top, then the label (body) starts at
+    // margin_top + stereo_line_height.
+    let mut y_cursor = node.y + mt;
     let stereo_font_size = FONT_SIZE - 2.0; // 12pt
     if let Some(ref stereo) = node.stereotype {
         let stereo_text = format!("\u{00AB}{stereo}\u{00BB}");
         let stereo_ascent = font_metrics::ascent("SansSerif", stereo_font_size, false, true);
-        y_cursor += stereo_ascent;
+        let stereo_baseline = y_cursor + stereo_ascent;
         let tl = font_metrics::text_width(&stereo_text, "SansSerif", stereo_font_size, false, true);
         let sx = cx - tl / 2.0;
         sg.set_fill_color(font_color);
         sg.svg_text(
-            &stereo_text, sx, y_cursor, Some("sans-serif"), stereo_font_size,
+            &stereo_text, sx, stereo_baseline, Some("sans-serif"), stereo_font_size,
             None, Some("italic"), None, tl, LengthAdjust::Spacing, None, 0, None,
         );
+        // Advance cursor past the full stereo line height
+        let stereo_lh = font_metrics::line_height("SansSerif", stereo_font_size, false, true);
+        y_cursor += stereo_lh;
     }
 
     // Parse entity name into lines and render each with word-by-word emission.
+    // y_cursor tracks the TOP of each stripe slot (not the baseline).
     let (bg_r, bg_g, bg_b) = parse_hex_color(entity_bg).unwrap_or((255, 255, 255));
     let name_lines: Vec<&str> = node.name.split("\\n").flat_map(|s| s.lines()).collect();
     for raw_line in &name_lines {
         let trimmed = raw_line.trim();
         if trimmed.is_empty() {
-            // Blank line: emit a single nbsp spacer
-            y_cursor += LINE_HEIGHT;
+            // Blank line: Java AtomText dimension has height from font metrics.
+            // Use the default 14pt line_height for blank lines.
+            let base_lh = font_metrics::line_height("SansSerif", FONT_SIZE, false, false);
+            let blank_ascent = font_metrics::ascent("SansSerif", FONT_SIZE, false, false);
             let sp_w = font_metrics::char_width('\u{00A0}', "SansSerif", FONT_SIZE, false, false);
             let sp_x = cx - sp_w / 2.0;
             sg.set_fill_color(font_color);
             sg.svg_text(
-                "\u{00A0}", sp_x, y_cursor, Some("sans-serif"), FONT_SIZE,
+                "\u{00A0}", sp_x, y_cursor + blank_ascent, Some("sans-serif"), FONT_SIZE,
                 None, None, None, sp_w, LengthAdjust::Spacing, None, 0, None,
             );
+            y_cursor += base_lh;
             continue;
         }
         // Sprite reference: <$name>
@@ -1789,22 +1819,33 @@ fn render_c4_word_by_word(
             let sprite_name = &trimmed[2..trimmed.len() - 1];
             if let Some(svg_content) = crate::render::svg_richtext::get_sprite_svg(sprite_name) {
                 let info = crate::render::svg_sprite::sprite_info(&svg_content);
-                // Java SpriteMonochrome.toUImage adds 2px border padding per side
-                let sprite_w = info.vb_width + 4.0;
-                let sprite_h = info.vb_height + 4.0;
-                let sprite_x = cx - sprite_w / 2.0;
+                // Java: sprite dimension = (rawWidth * scale, rawHeight * scale)
+                // where scale = fc.getSize2D() / 13.0 (body font is 14pt)
+                let sprite_scale = FONT_SIZE / 13.0;
+                let sprite_layout_w = info.vb_width * sprite_scale;
+                let sprite_layout_h = info.vb_height * sprite_scale;
+                // The rendered image uses the actual pixel size (+4 border padding)
+                let sprite_render_w = info.vb_width + 4.0;
+                let sprite_render_h = info.vb_height + 4.0;
+                // Center using layout width (Java centers based on calculateDimension)
+                let sprite_x = cx - sprite_layout_w / 2.0;
                 let sprite_y = y_cursor;
                 render_sprite_with_bg(
                     sg, sprite_name, &svg_content, sprite_x, sprite_y,
-                    sprite_w, sprite_h, bg_r, bg_g, bg_b,
+                    sprite_render_w, sprite_render_h, bg_r, bg_g, bg_b,
                 );
-                y_cursor += sprite_h;
+                // Advance cursor by the LAYOUT height (matches Java calculateDimension)
+                y_cursor += sprite_layout_h;
                 continue;
             }
         }
         let (text, font_size, bold, italic) =
             crate::layout::component::parse_c4_line_props(raw_line);
-        y_cursor += LINE_HEIGHT;
+        // Use actual per-font line height (Java Sea stripe height = atom calculateDimension height)
+        let line_lh = font_metrics::line_height("SansSerif", font_size, bold, italic);
+        let line_ascent = font_metrics::ascent("SansSerif", font_size, bold, italic);
+        // Text baseline = stripe_top + ascent (= height - descent)
+        let text_baseline = y_cursor + line_ascent;
 
         // Word-by-word rendering: emit each word and space as separate <text>.
         let words: Vec<&str> = text.split(' ').collect();
@@ -1826,9 +1867,12 @@ fn render_c4_word_by_word(
             }
         }
 
+        let mut cur_baseline = text_baseline;
         for (li, lw) in line_words.iter().enumerate() {
             if li > 0 {
-                y_cursor += LINE_HEIGHT;
+                // Wrapped continuation lines advance by the same line height
+                y_cursor += line_lh;
+                cur_baseline = y_cursor + line_ascent;
             }
             // Compute this line's total width for centering
             let line_w: f64 = lw.iter().enumerate().map(|(j, w)| {
@@ -1844,7 +1888,7 @@ fn render_c4_word_by_word(
                     let sp_tl = font_metrics::char_width('\u{00A0}', "SansSerif", font_size, bold, italic);
                     sg.set_fill_color(font_color);
                     sg.svg_text(
-                        "\u{00A0}", x_cur, y_cursor, Some("sans-serif"), font_size,
+                        "\u{00A0}", x_cur, cur_baseline, Some("sans-serif"), font_size,
                         if bold { Some("bold") } else { None },
                         if italic { Some("italic") } else { None },
                         None, sp_tl, LengthAdjust::Spacing, None, 0, None,
@@ -1854,7 +1898,7 @@ fn render_c4_word_by_word(
                 let ww = font_metrics::text_width(word, "SansSerif", font_size, bold, italic);
                 sg.set_fill_color(font_color);
                 sg.svg_text(
-                    word, x_cur, y_cursor, Some("sans-serif"), font_size,
+                    word, x_cur, cur_baseline, Some("sans-serif"), font_size,
                     if bold { Some("bold") } else { None },
                     if italic { Some("italic") } else { None },
                     None, ww, LengthAdjust::Spacing, None, 0, None,
@@ -1862,6 +1906,8 @@ fn render_c4_word_by_word(
                 x_cur += ww;
             }
         }
+        // Advance y_cursor past this text stripe
+        y_cursor += line_lh;
     }
 }
 
