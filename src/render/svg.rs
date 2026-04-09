@@ -803,6 +803,38 @@ fn render_body(
                 body_degenerated: false,
             })
         }
+        (Diagram::Wire(wd), DiagramLayout::Wire(wl)) => {
+            super::svg_wire::render_wire(wd, wl, skin).map(|svg| BodyResult {
+                svg,
+                raw_body_dim: None,
+                body_pre_offset: false,
+                body_degenerated: false,
+            })
+        }
+        (Diagram::Math(md), DiagramLayout::Math(ml)) => {
+            super::svg_math::render_math(md, ml, skin).map(|svg| BodyResult {
+                svg,
+                raw_body_dim: None,
+                body_pre_offset: false,
+                body_degenerated: false,
+            })
+        }
+        (Diagram::Latex(ld), DiagramLayout::Latex(ll)) => {
+            super::svg_math::render_math(ld, ll, skin).map(|svg| BodyResult {
+                svg,
+                raw_body_dim: None,
+                body_pre_offset: false,
+                body_degenerated: false,
+            })
+        }
+        (Diagram::Creole(cd), DiagramLayout::Creole(cl)) => {
+            super::svg_creole::render_creole(cd, cl, skin).map(|svg| BodyResult {
+                svg,
+                raw_body_dim: None,
+                body_pre_offset: false,
+                body_degenerated: false,
+            })
+        }
         _ => Err(crate::Error::Render("diagram/layout type mismatch".into())),
     }
 }

@@ -650,6 +650,18 @@ reference_test!(
     "fixtures/wire/multi.puml"
 );
 reference_test!(
+    reference_fixtures_math_basic_puml,
+    "fixtures/math/basic.puml"
+);
+reference_test!(
+    reference_fixtures_latex_basic_puml,
+    "fixtures/latex/basic.puml"
+);
+reference_test!(
+    reference_fixtures_creole_basic_puml,
+    "fixtures/creole/basic.puml"
+);
+reference_test!(
     reference_fixtures_activity_a0002_puml,
     "fixtures/activity/a0002.puml"
 );

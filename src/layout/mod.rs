@@ -3,6 +3,7 @@ pub mod board;
 pub mod chart;
 pub mod chronology;
 pub mod component;
+pub mod creole_diagram;
 pub mod ditaa;
 pub mod ebnf;
 pub mod erd;
@@ -12,6 +13,7 @@ pub mod git;
 pub mod graphviz;
 pub mod hcl;
 pub mod json_diagram;
+pub mod math;
 pub mod mindmap;
 pub mod nwdiag;
 pub mod packet;
@@ -24,6 +26,7 @@ pub mod state;
 pub mod timing;
 pub mod usecase;
 pub mod wbs;
+pub mod wire;
 
 pub use graphviz::{
     layout as layout_graph, layout_with_svek, ClassNoteLayout, EdgeLayout, GraphLayout,
@@ -79,6 +82,10 @@ pub enum DiagramLayout {
     Git(git::GitLayout),
     Regex(ebnf::EbnfLayout),
     Ebnf(ebnf::EbnfLayout),
+    Wire(wire::WireLayout),
+    Math(math::MathLayout),
+    Latex(math::MathLayout),
+    Creole(creole_diagram::CreoleLayout),
 }
 
 // ── Class entity sizing constants — sourced from Java PlantUML ───────
@@ -315,6 +322,22 @@ pub fn layout(diagram: &Diagram, skin: &crate::style::SkinParams) -> Result<Diag
         Diagram::Hcl(hd) => {
             let hl = hcl::layout_hcl(hd)?;
             Ok(DiagramLayout::Hcl(hl))
+        }
+        Diagram::Wire(wd) => {
+            let wl = wire::layout_wire(wd)?;
+            Ok(DiagramLayout::Wire(wl))
+        }
+        Diagram::Math(md) => {
+            let ml = math::layout_math(md)?;
+            Ok(DiagramLayout::Math(ml))
+        }
+        Diagram::Latex(ld) => {
+            let ll = math::layout_math(ld)?;
+            Ok(DiagramLayout::Latex(ll))
+        }
+        Diagram::Creole(cd) => {
+            let cl = creole_diagram::layout_creole(cd)?;
+            Ok(DiagramLayout::Creole(cl))
         }
     }
 }

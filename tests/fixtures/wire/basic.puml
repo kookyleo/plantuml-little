@@ -1,5 +1,4 @@
 @startwire
-component A
-component B
-A --> B : data
+* A
+* B
 @endwire

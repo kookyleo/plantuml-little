@@ -136,4 +136,8 @@ pub enum Diagram {
     Git(super::git::GitDiagram),
     Regex(super::regex_diagram::RegexDiagram),
     Ebnf(super::ebnf::EbnfDiagram),
+    Wire(super::wire::WireDiagram),
+    Math(super::math::MathDiagram),
+    Latex(super::math::MathDiagram),
+    Creole(super::creole_diagram::CreoleDiagram),
 }

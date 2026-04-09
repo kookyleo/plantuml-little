@@ -315,4 +315,7 @@ fixtures/wbs/wbs_arrow.puml	reference/wbs/wbs_arrow.svg
 fixtures/wbs/wbs_direction.puml	reference/wbs/wbs_direction.svg
 fixtures/wire/basic.puml	reference/wire/basic.svg
 fixtures/wire/multi.puml	reference/wire/multi.svg
+fixtures/math/basic.puml	reference/math/basic.svg
+fixtures/latex/basic.puml	reference/latex/basic.svg
+fixtures/creole/basic.puml	reference/creole/basic.svg
 fixtures/yaml/basic.puml	reference/yaml/basic.svg

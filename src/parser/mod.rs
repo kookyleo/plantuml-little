@@ -6,6 +6,7 @@ pub mod class;
 pub mod common;
 pub mod component;
 pub mod creole;
+pub mod creole_diagram;
 pub mod ditaa;
 pub mod dot;
 pub mod ebnf;
@@ -15,6 +16,7 @@ pub mod gantt;
 pub mod git;
 pub mod hcl;
 pub mod json_diagram;
+pub mod math;
 pub mod mindmap;
 pub mod nwdiag;
 pub mod packet;
@@ -26,6 +28,7 @@ pub mod state;
 pub mod timing;
 pub mod usecase;
 pub mod wbs;
+pub mod wire;
 pub mod yaml;
 
 use crate::model::diagram::ClassDiagram;
@@ -122,6 +125,22 @@ pub fn parse_with_original(source: &str, original_source: Option<&str>) -> Resul
                 let hd = hcl::parse_hcl_diagram(source)?;
                 Ok(Diagram::Hcl(hd))
             }
+            DiagramHint::Wire => {
+                let wd = wire::parse_wire_diagram(source)?;
+                Ok(Diagram::Wire(wd))
+            }
+            DiagramHint::Math => {
+                let md = math::parse_math_diagram(source)?;
+                Ok(Diagram::Math(md))
+            }
+            DiagramHint::Latex => {
+                let ld = math::parse_latex_diagram(source)?;
+                Ok(Diagram::Latex(ld))
+            }
+            DiagramHint::Creole => {
+                let cd = creole_diagram::parse_creole_diagram(source)?;
+                Ok(Diagram::Creole(cd))
+            }
             _ => unreachable!(),
         };
     }
@@ -200,7 +219,11 @@ pub fn parse_with_original(source: &str, original_source: Option<&str>) -> Resul
         | DiagramHint::Pie
         | DiagramHint::Board
         | DiagramHint::Chronology
-        | DiagramHint::Hcl => Err(crate::Error::UnsupportedDiagram(format!("{dtype:?}"))),
+        | DiagramHint::Hcl
+        | DiagramHint::Wire
+        | DiagramHint::Math
+        | DiagramHint::Latex
+        | DiagramHint::Creole => Err(crate::Error::UnsupportedDiagram(format!("{dtype:?}"))),
     }
 }
 
@@ -234,6 +257,10 @@ pub enum DiagramHint {
     Board,
     Chronology,
     Hcl,
+    Wire,
+    Math,
+    Latex,
+    Creole,
     Unknown(String),
 }
 
