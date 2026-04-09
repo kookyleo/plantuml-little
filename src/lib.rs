@@ -99,6 +99,16 @@ fn split_uml_only_blocks(source: &str) -> Vec<String> {
     }
 }
 
+/// Convert PlantUML text to SVG WITHOUT running the preprocessor.
+///
+/// Java's embedded subdiagram renderer (`{{ }}` blocks) does NOT invoke the
+/// preprocessor on the inner content.  Directives like `!theme` are therefore
+/// unrecognised syntax and produce the "Welcome to PlantUML" error page.
+/// This function replicates that behaviour.
+pub(crate) fn convert_no_preproc(puml_source: &str) -> Result<String> {
+    render_expanded(puml_source, puml_source)
+}
+
 fn render_one_block(original_source: &str, expanded: &str) -> Result<String> {
     // Extract SVG sprite definitions before parsing (sprite lines would confuse parsers)
     let (cleaned, sprites, gray_data) = parser::common::extract_sprites(expanded);

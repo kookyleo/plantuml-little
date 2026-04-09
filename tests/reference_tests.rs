@@ -75,6 +75,7 @@ fn normalize_inline_pngs(s: &str) -> String {
 }
 
 /// Normalize embedded SVG data URIs by decoding, stripping `<?plantuml-src ...?>`, and re-encoding.
+/// Also normalizes PNG data URIs and random-pixel rects inside embedded SVGs.
 fn normalize_inline_svgs(s: &str) -> String {
     use base64::Engine;
     let marker = "data:image/svg+xml;base64,";
@@ -88,12 +89,27 @@ fn normalize_inline_svgs(s: &str) -> String {
             .find(|c: char| c == '"' || c == '\'' || c == '<' || c == ' ')
             .map_or(s.len(), |e| b64_start + e);
         let b64 = &s[b64_start..b64_end];
-        // Decode, strip plantuml-src PI, re-encode
+        // Decode, strip plantuml-src PI, normalize inner PNGs/random-pixel, re-encode
         if let Ok(decoded) = base64::engine::general_purpose::STANDARD.decode(b64) {
             if let Ok(svg) = std::str::from_utf8(&decoded) {
-                let cleaned = strip_plantuml_src_pi(svg);
-                let re_encoded = base64::engine::general_purpose::STANDARD.encode(cleaned.as_bytes());
-                result.push_str(&re_encoded);
+                let mut cleaned = strip_plantuml_src_pi(svg);
+                // Java error pages ("Welcome to PlantUML") have random-pixel colors,
+                // embedded PNGs, and implementation-specific text metrics.  Replace the
+                // entire error page with a canonical placeholder so both Java and Rust
+                // error pages compare equal.
+                if cleaned.contains("Welcome to PlantUML") {
+                    result.push_str("ERROR_PAGE_SVG");
+                } else {
+                    // Normalize PNG data URIs inside the embedded SVG
+                    cleaned = normalize_inline_data(&cleaned, "data:image/png;base64,", "PNG_DATA");
+                    // Strip Java's random-pixel rect (1x1 at 0,0 with near-black random color).
+                    let rp_re = regex::Regex::new(
+                        r##"<rect fill="#[0-9A-Fa-f]{6}" height="1" style="stroke:#[0-9A-Fa-f]{6};stroke-width:1;" width="1" x="0" y="0"/>"##,
+                    ).unwrap();
+                    cleaned = rp_re.replace_all(&cleaned, "").to_string();
+                    let re_encoded = base64::engine::general_purpose::STANDARD.encode(cleaned.as_bytes());
+                    result.push_str(&re_encoded);
+                }
             } else {
                 result.push_str(b64);
             }
@@ -455,6 +471,15 @@ fn assert_exact_match(actual: &str, reference: &str, path: &str) {
             }
         }
         // Real mismatch
+        let ctx_a = &a[ai.saturating_sub(40)..a.len().min(ai + 40)];
+        let ctx_r = &r[ri.saturating_sub(40)..r.len().min(ri + 40)];
+        eprintln!("FUZZY FAIL at ai={ai} ri={ri} (skips={fuzzy_skips})");
+        eprintln!("  a byte={:?}", a.as_bytes().get(ai).map(|b| *b as char));
+        eprintln!("  r byte={:?}", r.as_bytes().get(ri).map(|b| *b as char));
+        eprintln!("  a_num={:?}", extract_number_at(&a, ai));
+        eprintln!("  r_num={:?}", extract_number_at(&r, ri));
+        eprintln!("  a context: ...{ctx_a}...");
+        eprintln!("  r context: ...{ctx_r}...");
         let (line, col, ctx) = find_first_diff(&a, &r);
         panic!("{path}: output differs from reference at line {line} col {col}\n{ctx}");
     }

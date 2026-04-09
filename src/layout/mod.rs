@@ -1826,7 +1826,13 @@ fn estimate_class_note_size(text: &str) -> (f64, f64) {
                 block.before.lines().collect()
             };
             let after_lines: Vec<&str> = if block.after.is_empty() {
-                vec![]
+                // Check for trailing newline after `}}` in the original text.
+                // Java counts this as one blank line for note height.
+                if text.trim_end().ends_with("}}") && text.ends_with('\n') {
+                    vec![""]
+                } else {
+                    vec![]
+                }
             } else {
                 block.after.lines().collect()
             };
@@ -1894,7 +1900,13 @@ fn compute_note_layouts(
                     emb.text_before.lines().map(String::from).collect()
                 };
                 let after_lines: Vec<String> = if emb.text_after.is_empty() {
-                    vec![]
+                    // Check if the original note text has a trailing newline after `}}`.
+                    // Java counts this as one blank line for note height calculation.
+                    if note.text.trim_end().ends_with("}}") && note.text.ends_with('\n') {
+                        vec![String::new()]
+                    } else {
+                        vec![]
+                    }
                 } else {
                     emb.text_after.lines().map(String::from).collect()
                 };

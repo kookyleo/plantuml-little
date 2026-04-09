@@ -2867,7 +2867,7 @@ fn render_note(
             None
         };
 
-        // Render embedded diagram as <image> element (emitted FIRST like Java)
+        // Render embedded diagram as <image> element first (matching Java order)
         sg.push_raw(&format!(
             r#"<image height="{}" width="{}" x="{}" xlink:href="{}" y="{}"/>"#,
             emb.height as u32,
@@ -2878,7 +2878,7 @@ fn render_note(
         ));
         cursor_y += emb.height;
 
-        // Now emit the before-text lines (already rendered, just deferred)
+        // Now emit the deferred before-text lines
         if let Some(before_text) = before_lines {
             sg.push_raw(&before_text);
         }

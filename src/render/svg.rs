@@ -142,7 +142,7 @@ const CLASS_NOTE_FOLD: f64 = 10.0;
 const LINK_COLOR: &str = BORDER_COLOR;
 /// Java PlantUML renders link labels at font-size 13 (not 14).
 const LINK_LABEL_FONT_SIZE: f64 = 13.0;
-const PLANTUML_VERSION: &str = "1.2026.2";
+pub(crate) const PLANTUML_VERSION: &str = "1.2026.2";
 
 // ── Meta rendering constants ────────────────────────────────────────
 
@@ -6430,7 +6430,34 @@ fn draw_class_note(sg: &mut SvgGraphic, tracker: &mut BoundsTracker, note: &Clas
             None
         };
 
-        // Emit embedded SVG as <image> element (first, matching Java order)
+        // Java note body rendering order with embedded diagrams:
+        // 1. Blank &#160; lines from before-text (if any)
+        // 2. <image> element
+        // 3. After-text &#160; lines (if trailing newline after }})
+        // 4. Heading separator lines from before-text (if any)
+        let has_blank_before = emb.text_before.starts_with('\n');
+        let has_trailing = note.text.trim_end().ends_with("}}") && note.text.ends_with('\n');
+
+        // Split before-text into blank prefix and heading suffix
+        let (blank_part, heading_part) = if has_blank_before {
+            if let Some(ref text) = before_text {
+                let split_pos = text.find("<line").unwrap_or(text.len());
+                (Some(text[..split_pos].to_string()), Some(text[split_pos..].to_string()))
+            } else {
+                (None, None)
+            }
+        } else {
+            (None, before_text.clone())
+        };
+
+        // 1. Blank before-text
+        if let Some(ref blanks) = blank_part {
+            if !blanks.is_empty() {
+                sg.push_raw(blanks);
+            }
+        }
+
+        // 2. Image
         sg.push_raw(&format!(
             r#"<image height="{}" width="{}" x="{}" xlink:href="{}" y="{}"/>"#,
             emb.height as u32,
@@ -6441,25 +6468,41 @@ fn draw_class_note(sg: &mut SvgGraphic, tracker: &mut BoundsTracker, note: &Clas
         ));
         cursor_y += emb.height;
 
-        // Now emit the deferred before-text
-        if let Some(text) = before_text {
-            sg.push_raw(&text);
+        // 3. After-text
+        if !emb.text_after.is_empty() || has_trailing {
+            let ty = cursor_y + NOTE_ASCENT;
+            if emb.text_after.is_empty() {
+                // Trailing blank line: emit a single &#160; spacer directly
+                sg.push_raw(&format!(
+                    r##"<text fill="{}" font-family="sans-serif" font-size="{}" lengthAdjust="spacing" textLength="4.1323" x="{}" y="{}">&#160;</text>"##,
+                    TEXT_COLOR, NOTE_FONT_SIZE as u32, fmt_coord(text_x), fmt_coord(ty),
+                ));
+            } else {
+                let mut tmp = String::new();
+                render_creole_text(
+                    &mut tmp,
+                    &emb.text_after,
+                    text_x,
+                    ty,
+                    NOTE_LINE_HT,
+                    TEXT_COLOR,
+                    None,
+                    &format!(r#"font-size="{}""#, NOTE_FONT_SIZE as u32),
+                );
+                sg.push_raw(&tmp);
+            }
         }
 
-        if !emb.text_after.is_empty() {
-            let ty = cursor_y + NOTE_ASCENT;
-            let mut tmp = String::new();
-            render_creole_text(
-                &mut tmp,
-                &emb.text_after,
-                text_x,
-                ty,
-                NOTE_LINE_HT,
-                TEXT_COLOR,
-                None,
-                &format!(r#"font-size="{}""#, NOTE_FONT_SIZE as u32),
-            );
-            sg.push_raw(&tmp);
+        // 4. Heading before-text (separator lines etc.)
+        if let Some(ref heading) = heading_part {
+            if !heading.is_empty() {
+                sg.push_raw(heading);
+            }
+        } else if !has_blank_before {
+            // No blank prefix: all before-text comes after image
+            if let Some(text) = before_text {
+                sg.push_raw(&text);
+            }
         }
     } else {
         let text_y = y + NOTE_MARGIN_Y + NOTE_ASCENT;

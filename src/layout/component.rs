@@ -572,7 +572,13 @@ fn estimate_note_size_with_embedded(
             emb.text_before.lines().collect()
         };
         let after_lines: Vec<&str> = if emb.text_after.is_empty() {
-            vec![]
+            // Check if the original note text has a trailing `\n` after `}}`.
+            // Java counts this as one blank line for note height calculation.
+            if text.trim_end().ends_with("}}") && text.ends_with('\n') {
+                vec![""]
+            } else {
+                vec![]
+            }
         } else {
             emb.text_after.lines().collect()
         };
@@ -1454,6 +1460,7 @@ pub fn layout_component(cd: &ComponentDiagram, skin: &crate::style::SkinParams) 
             )
         });
 
+        log::debug!("component note text: {:?} (ends_newline={})", &note.text[note.text.len().saturating_sub(20)..], note.text.ends_with('\n'));
         let (nw, nh) = estimate_note_size_with_embedded(&note.text, embedded.as_ref());
 
         // Use graphviz position if available, else fallback
