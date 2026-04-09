@@ -18,6 +18,39 @@ thread_local! {
     static DEFAULT_FONT_FAMILY: RefCell<Option<String>> = const { RefCell::new(None) };
     static PATH_BASED_SPRITES: RefCell<bool> = const { RefCell::new(false) };
     static BACK_FILTERS: RefCell<Vec<(String, String)>> = RefCell::new(Vec::new());
+    /// Stencil + stroke for Creole section titles (`==title==`).
+    /// Caller installs this before invoking a `render_creole_text*` call
+    /// on content that may contain a section title, so the renderer knows
+    /// how wide to draw the decorating horizontal lines and which stroke
+    /// color to use.  Cleared via `clear_section_title_bounds`.
+    static SECTION_TITLE_BOUNDS: RefCell<Option<SectionTitleBounds>> = const { RefCell::new(None) };
+}
+
+/// Horizontal-line bounds and stroke for rendering a Creole section title
+/// (`==text==`) inside a richtext block.  `x_start`/`x_end` span the full
+/// decorating line range (Java `UHorizontalLine` stencil).
+#[derive(Debug, Clone)]
+pub struct SectionTitleBounds {
+    pub x_start: f64,
+    pub x_end: f64,
+    pub stroke: String,
+}
+
+/// Install the stencil used by the section-title renderer for the next
+/// `render_creole_text*` call.  Must be followed by
+/// `clear_section_title_bounds` once the rendering pass is complete, so
+/// later callers are not accidentally picked up.
+pub fn set_section_title_bounds(bounds: SectionTitleBounds) {
+    SECTION_TITLE_BOUNDS.with(|b| *b.borrow_mut() = Some(bounds));
+}
+
+/// Drop any previously installed section-title stencil.
+pub fn clear_section_title_bounds() {
+    SECTION_TITLE_BOUNDS.with(|b| *b.borrow_mut() = None);
+}
+
+fn current_section_title_bounds() -> Option<SectionTitleBounds> {
+    SECTION_TITLE_BOUNDS.with(|b| b.borrow().clone())
 }
 
 /// Set the sprite registry for the current rendering pass.
@@ -582,11 +615,16 @@ pub fn render_creole_text_opts(
     outer_attrs: &str,
     preserve_backslash_n: bool,
 ) -> usize {
-    let lines = flatten_rich_lines(&parse_creole_opts(text, preserve_backslash_n));
-    let lines = if lines.is_empty() {
-        vec![vec![TextSpan::Plain(String::new())]]
+    let parsed = parse_creole_opts(text, preserve_backslash_n);
+    let lines = flatten_rich_lines(&parsed);
+    let kinds = flatten_rich_display_lines(&parsed);
+    let (lines, kinds) = if lines.is_empty() {
+        (
+            vec![vec![TextSpan::Plain(String::new())]],
+            vec![DisplayLineKind::Text],
+        )
     } else {
-        lines
+        (lines, kinds)
     };
 
     let has_sprites = lines.iter().any(|line| line_has_sprites(line));
@@ -597,6 +635,28 @@ pub fn render_creole_text_opts(
     }
 
     let (font_family, font_size, bold, italic) = parse_font_props(outer_attrs);
+
+    // Section title rendered as horizontal lines + centered title text.
+    // Only activated when the caller installed section-title bounds via
+    // `set_section_title_bounds`; otherwise it falls back to plain text.
+    if lines.len() == 1 && kinds[0] == DisplayLineKind::SectionTitle {
+        if let Some(bounds) = current_section_title_bounds() {
+            render_section_title_line(
+                buf,
+                &lines[0],
+                y,
+                line_height,
+                fill,
+                outer_attrs,
+                &font_family,
+                font_size,
+                bold,
+                italic,
+                &bounds,
+            );
+            return 1;
+        }
+    }
 
     // Split rendering: each styled span becomes a separate <text> element.
     // This matches Java's DriverTextSvg which renders each atom separately.
@@ -655,8 +715,29 @@ pub fn render_creole_text_opts(
     // Java advances the baseline by the actual line box height. When a line
     // contains an inline sprite, that line box grows to the sprite height
     // instead of the nominal text line height.
+    let section_bounds = current_section_title_bounds();
     let mut line_y = y;
-    for line in lines.iter() {
+    for (idx, line) in lines.iter().enumerate() {
+        let kind = kinds.get(idx).copied().unwrap_or(DisplayLineKind::Text);
+        if kind == DisplayLineKind::SectionTitle {
+            if let Some(ref bounds) = section_bounds {
+                render_section_title_line(
+                    buf,
+                    line,
+                    line_y,
+                    line_height,
+                    fill,
+                    outer_attrs,
+                    &font_family,
+                    font_size,
+                    bold,
+                    italic,
+                    bounds,
+                );
+                line_y += line_height_with_inline_sprites(line, font_size, line_height);
+                continue;
+            }
+        }
         if text_anchor.is_none() && line_has_sprites(line) {
             render_text_line_with_sprites(
                 buf,
@@ -2229,6 +2310,136 @@ fn render_prepared_line(
     }
 }
 
+/// Render a Creole section title (`==text==`) as two horizontal strokes
+/// with the title text centered between them.  Mirrors Java's
+/// `UHorizontalLine.drawLineInternal` when the stripe style is `=`: it
+/// draws a stencil-wide line at y_center and another at y_center+2, with
+/// the title painted between the left-half and right-half segments.
+///
+/// Geometry (see Java `UHorizontalLine.drawTitleInternal` and
+/// `CreoleHorizontalLine.drawU`):
+///   row_top    = y_baseline - ascent
+///   y_center   = row_top + line_height / 2
+///   text_y     = y_center - line_height/2 - 0.5 + ascent
+///              = y_baseline - 0.5
+///   title_x1   = stencil_start + (stencil_width - title_width) / 2
+///   title_x2   = title_x1 + title_width
+#[allow(clippy::too_many_arguments)]
+fn render_section_title_line(
+    buf: &mut String,
+    line: &[TextSpan],
+    y_baseline: f64,
+    line_height: f64,
+    fill: &str,
+    outer_attrs: &str,
+    font_family: &str,
+    font_size: f64,
+    bold: bool,
+    italic: bool,
+    bounds: &SectionTitleBounds,
+) {
+    let ascent = font_metrics::ascent(font_family, font_size, bold, italic);
+    let row_top = y_baseline - ascent;
+    let y_center = row_top + line_height / 2.0;
+    let y1 = y_center;
+    let y2 = y_center + 2.0;
+
+    let stencil_start = bounds.x_start;
+    let stencil_end = bounds.x_end;
+    let stroke = &bounds.stroke;
+
+    // Measure the title text (trimmed of leading/trailing whitespace so the
+    // centering uses the visible width only, matching Java's
+    // AtomTextUtils.createLegacy pipeline).
+    let trimmed_title = trimmed_plain_line_text(line);
+
+    if trimmed_title.is_empty() {
+        // No title → single continuous line pair (Java `drawHLine` with
+        // null title).
+        write!(
+            buf,
+            r#"<line style="stroke:{stroke};stroke-width:1;" x1="{}" x2="{}" y1="{}" y2="{}"/>"#,
+            fmt_coord(stencil_start),
+            fmt_coord(stencil_end),
+            fmt_coord(y1),
+            fmt_coord(y1),
+        )
+        .unwrap();
+        write!(
+            buf,
+            r#"<line style="stroke:{stroke};stroke-width:1;" x1="{}" x2="{}" y1="{}" y2="{}"/>"#,
+            fmt_coord(stencil_start),
+            fmt_coord(stencil_end),
+            fmt_coord(y2),
+            fmt_coord(y2),
+        )
+        .unwrap();
+        return;
+    }
+
+    let title_width =
+        font_metrics::text_width(&trimmed_title, font_family, font_size, bold, italic);
+    let stencil_width = stencil_end - stencil_start;
+    let space = (stencil_width - title_width) / 2.0;
+    let title_x1 = stencil_start + space;
+    let title_x2 = title_x1 + title_width;
+
+    // Left half: two strokes (y and y+2).
+    write!(
+        buf,
+        r#"<line style="stroke:{stroke};stroke-width:1;" x1="{}" x2="{}" y1="{}" y2="{}"/>"#,
+        fmt_coord(stencil_start),
+        fmt_coord(title_x1),
+        fmt_coord(y1),
+        fmt_coord(y1),
+    )
+    .unwrap();
+    write!(
+        buf,
+        r#"<line style="stroke:{stroke};stroke-width:1;" x1="{}" x2="{}" y1="{}" y2="{}"/>"#,
+        fmt_coord(stencil_start),
+        fmt_coord(title_x1),
+        fmt_coord(y2),
+        fmt_coord(y2),
+    )
+    .unwrap();
+
+    // Title text: baseline sits 0.5px above the normal text baseline so it
+    // matches Java's UHorizontalLine.drawTitleInternal offset.
+    let text_y = y_baseline - 0.5;
+    write_text_open(
+        buf,
+        title_x1,
+        text_y,
+        fill,
+        None,
+        outer_attrs,
+        title_width,
+    );
+    buf.push_str(&xml_escape(&trimmed_title));
+    buf.push_str("</text>");
+
+    // Right half: two strokes (y and y+2).
+    write!(
+        buf,
+        r#"<line style="stroke:{stroke};stroke-width:1;" x1="{}" x2="{}" y1="{}" y2="{}"/>"#,
+        fmt_coord(title_x2),
+        fmt_coord(stencil_end),
+        fmt_coord(y1),
+        fmt_coord(y1),
+    )
+    .unwrap();
+    write!(
+        buf,
+        r#"<line style="stroke:{stroke};stroke-width:1;" x1="{}" x2="{}" y1="{}" y2="{}"/>"#,
+        fmt_coord(title_x2),
+        fmt_coord(stencil_end),
+        fmt_coord(y2),
+        fmt_coord(y2),
+    )
+    .unwrap();
+}
+
 fn line_has_sprites(spans: &[TextSpan]) -> bool {
     spans.iter()
         .any(|span| matches!(span, TextSpan::InlineSvg { .. }))
@@ -3017,6 +3228,51 @@ fn flatten_rich_lines(rich: &RichText) -> Vec<Vec<TextSpan>> {
     out
 }
 
+/// Tag produced alongside each flattened display line so the renderer can
+/// distinguish ordinary text lines from Creole section titles that need
+/// decorating horizontal lines.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum DisplayLineKind {
+    Text,
+    SectionTitle,
+}
+
+fn flatten_rich_display_lines(rich: &RichText) -> Vec<DisplayLineKind> {
+    let mut out = Vec::new();
+    flatten_rich_display_lines_into(rich, &mut out);
+    out
+}
+
+fn flatten_rich_display_lines_into(rich: &RichText, out: &mut Vec<DisplayLineKind>) {
+    match rich {
+        RichText::Line(_) => out.push(DisplayLineKind::Text),
+        RichText::Block(items) => {
+            for item in items {
+                flatten_rich_display_lines_into(item, out);
+            }
+        }
+        RichText::BulletList(items) | RichText::NumberedList(items) => {
+            for item in items {
+                let kinds = flatten_rich_display_lines(item);
+                // Mirror `flatten_rich_lines_into`: bullet/numbered lists
+                // add each sub-line as-is (without special tagging).  Any
+                // nested section title keeps its SectionTitle kind.
+                out.extend(kinds);
+            }
+        }
+        RichText::Table { headers, rows } => {
+            if !headers.is_empty() {
+                out.push(DisplayLineKind::Text);
+            }
+            for _ in rows {
+                out.push(DisplayLineKind::Text);
+            }
+        }
+        RichText::HorizontalRule => out.push(DisplayLineKind::Text),
+        RichText::SectionTitle(_) => out.push(DisplayLineKind::SectionTitle),
+    }
+}
+
 fn flatten_rich_lines_into(rich: &RichText, out: &mut Vec<Vec<TextSpan>>) {
     match rich {
         RichText::Line(spans) => out.push(spans.clone()),
@@ -3048,6 +3304,11 @@ fn flatten_rich_lines_into(rich: &RichText, out: &mut Vec<Vec<TextSpan>>) {
             }
         }
         RichText::HorizontalRule => out.push(vec![TextSpan::Plain("----".to_string())]),
+        // Section title flattens to just the title text.  The decorating
+        // horizontal lines are drawn by the dedicated section-title render
+        // path (see `render_section_title_line`); non-rendering callsites
+        // such as width measurement only need the text content here.
+        RichText::SectionTitle(spans) => out.push(spans.clone()),
     }
 }
 

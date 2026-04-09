@@ -25,9 +25,9 @@ use crate::klimt::svg::{svg_comment_escape, LengthAdjust, SvgGraphic};
 use crate::svek::edge::LineOfSegments;
 
 use super::svg_richtext::{
-    count_creole_lines, creole_plain_text, creole_table_width, get_default_font_family_pub,
-    max_creole_plain_line_len, render_creole_display_lines, render_creole_text,
-    set_default_font_family,
+    clear_section_title_bounds, count_creole_lines, creole_plain_text, creole_table_width,
+    get_default_font_family_pub, max_creole_plain_line_len, render_creole_display_lines,
+    render_creole_text, set_default_font_family, set_section_title_bounds, SectionTitleBounds,
 };
 use super::svg_sequence;
 
@@ -6319,6 +6319,15 @@ fn draw_class_note(sg: &mut SvgGraphic, tracker: &mut BoundsTracker, note: &Clas
     const NOTE_ASCENT: f64 = 1901.0 / 2048.0 * 13.0; // 12.0669
     const NOTE_LINE_HT: f64 = 15.1328; // SansSerif 13pt: ascent+descent
 
+    // Creole section titles (`==title==`) inside note bodies render as
+    // horizontal lines spanning the note content width (1px inset on each
+    // side) with the title centered between the two half-lines.
+    set_section_title_bounds(SectionTitleBounds {
+        x_start: x + 1.0,
+        x_end: x + w - 1.0,
+        stroke: NOTE_BORDER.to_string(),
+    });
+
     let text_x = x + NOTE_TEXT_PADDING;
     if let Some(ref emb) = note.embedded {
         // Embedded diagram: render before-text, image, after-text
@@ -6382,6 +6391,8 @@ fn draw_class_note(sg: &mut SvgGraphic, tracker: &mut BoundsTracker, note: &Clas
         );
         sg.push_raw(&tmp);
     }
+
+    clear_section_title_bounds();
 
     // For non-opale notes, draw a separate dashed connector line.
     // Opale notes embed the connector arrow in the body path.

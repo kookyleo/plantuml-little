@@ -78,6 +78,11 @@ pub enum RichText {
     },
     /// Horizontal rule (`----`).
     HorizontalRule,
+    /// Creole section title: a horizontal line with the title text centered
+    /// between a left half-line and a right half-line, drawn as two thin
+    /// strokes (at y and y+2) matching Java's `UHorizontalLine` with style
+    /// `=`.  Source pattern: `^==([^=]*)==$` (no `=` allowed in the title).
+    SectionTitle(Vec<TextSpan>),
 }
 
 /// Extract plain text content from a `RichText` tree, stripping all formatting.
@@ -142,6 +147,9 @@ fn collect_rich_text(rich: &RichText, buf: &mut String) {
         }
         RichText::HorizontalRule => {
             buf.push_str("----");
+        }
+        RichText::SectionTitle(spans) => {
+            collect_spans(spans, buf);
         }
     }
 }

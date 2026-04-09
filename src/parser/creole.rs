@@ -61,6 +61,15 @@ pub fn parse_creole_opts(input: &str, preserve_backslash_n: bool) -> RichText {
             continue;
         }
 
+        // Section title: `==title==` (Java `SECTION_TITLE_PATTERN = ^==([^=]*)==$`).
+        // Rendered as two horizontal lines with the title centered between them.
+        if let Some(title) = strip_section_title(line) {
+            let inner = parse_inline(title);
+            blocks.push(RichText::SectionTitle(inner));
+            i += 1;
+            continue;
+        }
+
         // Heading lines: `= text`, `== text`, `=== text`
         // Java Creole treats these as bold text (font-weight 700) with the `=` prefix stripped.
         if let Some(rest) = strip_heading_prefix(line) {
@@ -196,6 +205,31 @@ fn should_preserve_boundary_whitespace(raw: &str, trimmed: &str) -> bool {
 // ---------------------------------------------------------------------------
 // Block-level detection helpers
 // ---------------------------------------------------------------------------
+
+/// Detect Java's `SECTION_TITLE_PATTERN = ^==([^=]*)==$` — a title bracketed by
+/// `==` on both sides with no other `=` in between.  Returns the inner title
+/// text (possibly empty or whitespace).  Java `StripeSimple` then trims the
+/// rendered title (via `StringUtils.trin`) when using it for heading-style
+/// rendering, but the SECTION_TITLE path keeps the inner text as-is so
+/// whitespace around the title is preserved by the horizontal-line renderer.
+pub(crate) fn strip_section_title(line: &str) -> Option<&str> {
+    let trimmed = line.trim();
+    // Must start with exactly `==` (not `===` or more).
+    if !trimmed.starts_with("==") {
+        return None;
+    }
+    if trimmed.len() < 4 {
+        return None; // "==" or "==" alone — handled as heading/empty.
+    }
+    // After the leading `==`, the rest must contain no `=` until the trailing `==`.
+    let inner = &trimmed[2..];
+    let stripped = inner.strip_suffix("==")?;
+    if stripped.contains('=') {
+        return None;
+    }
+    // `==$=` (e.g. `====` five or more) is handled by is_horizontal_rule.
+    Some(stripped)
+}
 
 /// Strip a Creole heading prefix (`=`, `==`, `===`, etc.) followed by a space.
 /// Returns the remaining text if the line is a heading, or `None` otherwise.
@@ -1671,45 +1705,55 @@ mod tests {
     }
 
     #[test]
-    fn test_heading_with_trailing_equals() {
-        // `==text==` (Java SECTION_TITLE_PATTERN): bracketed title.
-        // The trailing `==` markers must be stripped from the visible text
-        // so it matches Java's bold title rendering.
-        let rt = parse_creole("==theme fail==");
+    fn test_section_title_with_leading_newline() {
+        // Embedded-note text_before typically starts with an empty line.
+        let rt = parse_creole("\n==theme fail==");
+        println!("{:#?}", rt);
         match &rt {
-            RichText::Line(spans) => {
-                assert_eq!(spans.len(), 1);
-                match &spans[0] {
-                    TextSpan::Bold(inner) => {
-                        assert_eq!(inner.len(), 1);
-                        match &inner[0] {
-                            TextSpan::Plain(s) => assert_eq!(s, "theme fail"),
-                            other => panic!("expected Plain, got: {other:?}"),
-                        }
-                    }
-                    other => panic!("expected Bold, got: {other:?}"),
+            RichText::Block(items) => {
+                assert_eq!(items.len(), 2, "expected 2 items");
+                match &items[1] {
+                    RichText::SectionTitle(inner) => match &inner[0] {
+                        TextSpan::Plain(s) => assert_eq!(s, "theme fail"),
+                        other => panic!("expected Plain, got: {other:?}"),
+                    },
+                    other => panic!("expected SectionTitle, got: {other:?}"),
                 }
             }
-            other => panic!("expected Line, got: {other:?}"),
+            other => panic!("expected Block, got: {other:?}"),
         }
     }
 
     #[test]
-    fn test_heading_with_spaces_and_trailing_equals() {
-        // `== title ==` with spaces: bracketed title with leading space.
-        let rt = parse_creole("== My Title ==");
+    fn test_section_title_simple() {
+        // `==text==` (Java SECTION_TITLE_PATTERN): bracketed title → SectionTitle
+        // with the inner text preserved verbatim.  Rendered as horizontal
+        // lines with centered title by the svg_richtext layer.
+        let rt = parse_creole("==theme fail==");
         match &rt {
-            RichText::Line(spans) => {
-                assert_eq!(spans.len(), 1);
-                match &spans[0] {
-                    TextSpan::Bold(inner) => match &inner[0] {
-                        TextSpan::Plain(s) => assert_eq!(s, "My Title "),
-                        other => panic!("expected Plain, got: {other:?}"),
-                    },
-                    other => panic!("expected Bold, got: {other:?}"),
+            RichText::SectionTitle(inner) => {
+                assert_eq!(inner.len(), 1);
+                match &inner[0] {
+                    TextSpan::Plain(s) => assert_eq!(s, "theme fail"),
+                    other => panic!("expected Plain, got: {other:?}"),
                 }
             }
-            other => panic!("expected Line, got: {other:?}"),
+            other => panic!("expected SectionTitle, got: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn test_section_title_with_spaces() {
+        // `== title ==` with spaces: bracketed title. Inner text keeps its
+        // leading/trailing spaces so the horizontal-line renderer can lay
+        // them out exactly like Java.
+        let rt = parse_creole("== My Title ==");
+        match &rt {
+            RichText::SectionTitle(inner) => match &inner[0] {
+                TextSpan::Plain(s) => assert_eq!(s, " My Title "),
+                other => panic!("expected Plain, got: {other:?}"),
+            },
+            other => panic!("expected SectionTitle, got: {other:?}"),
         }
     }
 

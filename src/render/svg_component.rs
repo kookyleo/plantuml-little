@@ -8,7 +8,10 @@ use crate::layout::component::{
 };
 use crate::model::component::{ComponentDiagram, ComponentKind};
 use crate::render::svg::{write_bg_rect, write_svg_root_bg};
-use crate::render::svg_richtext::{get_sprite_svg, render_creole_text, render_creole_text_opts};
+use crate::render::svg_richtext::{
+    clear_section_title_bounds, get_sprite_svg, render_creole_text, render_creole_text_opts,
+    set_section_title_bounds, SectionTitleBounds,
+};
 use crate::render::svg_sprite;
 use crate::style::SkinParams;
 use crate::Result;
@@ -2299,6 +2302,17 @@ fn render_note(
     const NOTE_ASCENT: f64 = 1901.0 / 2048.0 * 13.0; // 12.0669...
     const NOTE_LINE_HEIGHT: f64 = 15.1328; // (1901+483)/2048*13
 
+    // Creole section titles (`==title==`) inside note bodies render as
+    // horizontal lines spanning the full note content width (1px inset on
+    // each side) with the title centered between them.  Java's
+    // `UHorizontalLine` uses the sheet stencil which covers the textBlock
+    // width; for component notes that stencil is the internal content area.
+    set_section_title_bounds(SectionTitleBounds {
+        x_start: x + 1.0,
+        x_end: x + w - 1.0,
+        stroke: border.to_string(),
+    });
+
     if let Some(ref emb) = note.embedded {
         // Note with embedded diagram: render before-text, image, after-text.
         let text_x = x + NOTE_MARGIN_X1;
@@ -2366,6 +2380,8 @@ fn render_note(
         );
         sg.push_raw(&tmp);
     }
+
+    clear_section_title_bounds();
 
     // Close entity group
     sg.push_raw("</g>");

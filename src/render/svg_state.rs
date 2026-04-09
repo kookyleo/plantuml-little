@@ -1758,6 +1758,16 @@ fn render_note(
 
     let text_x = x + 6.0;
     let text_y = y + 17.0669;
+    // Install section-title stencil so any Creole `==title==` line inside
+    // the body renders as Java's UHorizontalLine (two strokes + centered
+    // title) across the note content width.
+    crate::render::svg_richtext::set_section_title_bounds(
+        crate::render::svg_richtext::SectionTitleBounds {
+            x_start: x + 1.0,
+            x_end: x + w - 1.0,
+            stroke: NOTE_BORDER.to_string(),
+        },
+    );
     let mut tmp = String::new();
     render_creole_text(
         &mut tmp,
@@ -1769,6 +1779,7 @@ fn render_note(
         None,
         r#"font-size="13""#,
     );
+    crate::render::svg_richtext::clear_section_title_bounds();
     sg.push_raw(&tmp);
     sg.push_raw("</g>");
 }
