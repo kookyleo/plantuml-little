@@ -1868,5 +1868,9 @@ reference_test!(
     reference_fixtures_bpm_basic_puml,
     "fixtures/bpm/basic.puml"
 );
+reference_test!(
+    reference_fixtures_def_basic_puml,
+    "fixtures/def/basic.puml"
+);
 
-// Total: 299 reference tests
+// Total: 300 reference tests

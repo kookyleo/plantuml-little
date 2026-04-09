@@ -88,6 +88,7 @@ pub enum DiagramLayout {
     Math(math::MathLayout),
     Latex(math::MathLayout),
     Creole(creole_diagram::CreoleLayout),
+    Def(math::MathLayout),
 }
 
 // ── Class entity sizing constants — sourced from Java PlantUML ───────
@@ -344,6 +345,10 @@ pub fn layout(diagram: &Diagram, skin: &crate::style::SkinParams) -> Result<Diag
         Diagram::Creole(cd) => {
             let cl = creole_diagram::layout_creole(cd)?;
             Ok(DiagramLayout::Creole(cl))
+        }
+        Diagram::Def(dd) => {
+            let dl = math::layout_def(dd)?;
+            Ok(DiagramLayout::Def(dl))
         }
     }
 }

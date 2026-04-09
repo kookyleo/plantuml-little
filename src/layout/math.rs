@@ -103,3 +103,40 @@ pub fn layout_math(d: &MathDiagram) -> Result<MathLayout> {
         text_y,
     })
 }
+
+/// Layout for a @startdef diagram — renders the start tag as sans-serif 14pt text.
+///
+/// Java PSystemDefinition creates a creole text block from the @startdef line.
+/// No margin is applied (AbstractDiagram.getDefaultMargins = 0).
+pub fn layout_def(d: &MathDiagram) -> Result<MathLayout> {
+    const DEF_FONT_SIZE: f64 = 14.0;
+
+    let display_text = d.formula.clone();
+    let tw = font_metrics::text_width(&display_text, "SansSerif", DEF_FONT_SIZE, false, false);
+    let ascent = font_metrics::ascent("SansSerif", DEF_FONT_SIZE, false, false);
+    let line_h = font_metrics::line_height("SansSerif", DEF_FONT_SIZE, false, false);
+
+    // Text at (0, ascent), no margin
+    let text_x = 0.0;
+    let text_y = ascent;
+
+    // Java's creole textblock calculateDimension returns (tw + delta, lineH - delta)
+    // where delta accounts for the Java creole text block's internal representation.
+    // From the reference SVG: width=71 for text "@startdef" with tw=69.0361.
+    // ensureVisible(tw, lineH) gives maxX = (int)(tw+1), maxY = (int)(lineH+1).
+    // But SVG width=71 = (int)(70.0361+1) = 71, so the textblock dim width = tw + 1.
+    // Height=16 vs lineH=16.2969: ensureVisible(lineH-1) = (int)(15.2969+1) = 16.
+    // The -1 aligns with Java's creole textblock tracking that excludes the last
+    // descent fraction.
+    let width = tw + 1.0;
+    let height = line_h - 1.0;
+
+    Ok(MathLayout {
+        width,
+        height,
+        display_text,
+        text_width: tw,
+        text_x,
+        text_y,
+    })
+}

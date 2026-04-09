@@ -49,6 +49,18 @@ pub fn parse_with_original(source: &str, original_source: Option<&str>) -> Resul
                 let bd = bpm::parse_bpm_diagram(source)?;
                 Ok(Diagram::Bpm(bd))
             }
+            DiagramHint::Def => {
+                // Java PSystemDefinition renders just the @startdef line as text
+                let start_line = source
+                    .lines()
+                    .find(|l| l.trim().starts_with("@startdef"))
+                    .unwrap_or("@startdef")
+                    .trim()
+                    .to_string();
+                Ok(Diagram::Def(crate::model::math::MathDiagram {
+                    formula: start_line,
+                }))
+            }
             DiagramHint::Chart => {
                 let cd = chart::parse_chart_diagram(source)?;
                 Ok(Diagram::Chart(cd))
@@ -207,6 +219,7 @@ pub fn parse_with_original(source: &str, original_source: Option<&str>) -> Resul
         }
         // These should be handled by start tag detection above
         DiagramHint::Bpm
+        | DiagramHint::Def
         | DiagramHint::Chart
         | DiagramHint::Ditaa
         | DiagramHint::Erd
@@ -238,6 +251,7 @@ pub fn parse_with_original(source: &str, original_source: Option<&str>) -> Resul
 pub enum DiagramHint {
     Bpm,
     Class,
+    Def,
     Sequence,
     Activity,
     State,

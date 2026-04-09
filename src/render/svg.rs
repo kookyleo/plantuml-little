@@ -843,6 +843,14 @@ fn render_body(
                 body_degenerated: false,
             })
         }
+        (Diagram::Def(dd), DiagramLayout::Def(dl)) => {
+            super::svg_math::render_def(dd, dl, skin).map(|svg| BodyResult {
+                svg,
+                raw_body_dim: None,
+                body_pre_offset: false,
+                body_degenerated: false,
+            })
+        }
         _ => Err(crate::Error::Render("diagram/layout type mismatch".into())),
     }
 }

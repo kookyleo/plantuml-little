@@ -141,4 +141,6 @@ pub enum Diagram {
     Math(super::math::MathDiagram),
     Latex(super::math::MathDiagram),
     Creole(super::creole_diagram::CreoleDiagram),
+    /// Definition diagram — raw text display of the @startdef tag.
+    Def(super::math::MathDiagram),
 }

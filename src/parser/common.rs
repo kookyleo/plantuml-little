@@ -13,6 +13,9 @@ pub fn detect_start_tag(source: &str) -> Option<DiagramHint> {
         if trimmed.starts_with("@startchart") {
             return Some(DiagramHint::Chart);
         }
+        if trimmed.starts_with("@startdef") {
+            return Some(DiagramHint::Def);
+        }
         if trimmed.starts_with("@startchen") {
             return Some(DiagramHint::Erd);
         }
