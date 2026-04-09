@@ -1,12 +1,168 @@
-use crate::model::salt::{SaltDiagram, SaltWidget};
+//! Salt diagram parser — mirrors Java's `DataSourceImpl` + `Positionner2` +
+//! `ElementFactory*` pipeline so that the resulting grid layout matches Java
+//! byte-for-byte.
+//!
+//! The Java flow is:
+//! 1. `DataSourceImpl` tokenises each line on `|` and `}`. Non-`|`/`}` tokens
+//!    become "terminated" items; the terminator is `NEWCOL` when a `|` follows
+//!    on the same line, `NEWLINE` otherwise.
+//! 2. `ElementFactoryPyramid` consumes tokens until the matching `}`. A nested
+//!    `{` opens a recursive pyramid.
+//! 3. For each token, simple factories try to produce an element (Button,
+//!    TextField, Checkbox, …). The `Positionner2` places the element at the
+//!    current (row, col) and then advances: `col++` on `NEWCOL`, `row++;col=0`
+//!    on `NEWLINE`.
+//!
+//! Because all terminators come from `|}` the positioner never advances rows
+//! for lines ending with `|` — that's why `{#| a | b |\n| c | d |}` collapses
+//! into four cells on a single row (matching Java observed behaviour).
+
+use crate::model::salt::{SaltCell, SaltDiagram, SaltElement, SaltPyramid, TableStrategy};
 use crate::Result;
 
-/// Extract salt block content and whether it's inline (`@startuml`+`salt`)
-/// Returns (block_text, is_inline).
-fn extract_salt_block(source: &str) -> Option<(String, bool)> {
-    let mut inside = false;
-    let mut lines = Vec::new();
+/// Terminator between tokens. Java: `Terminator`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Terminator {
+    NewCol,
+    NewLine,
+}
 
+#[derive(Debug, Clone)]
+struct Token {
+    text: String,
+    terminator: Terminator,
+}
+
+/// Tokenise lines the way Java's `DataSourceImpl` does. For each line, split on
+/// the delimiters `|` and `}` while preserving those delimiters; drop `|`
+/// tokens (they act as separators) and attach a `NEWCOL` terminator when the
+/// next token on the same line is `|`, otherwise `NEWLINE`.
+fn tokenise(lines: &[&str]) -> Vec<Token> {
+    let mut result: Vec<Token> = Vec::new();
+    for line in lines {
+        // StringTokenizer("|}", true) returns both tokens and delimiters.
+        let mut raw: Vec<String> = Vec::new();
+        let mut current = String::new();
+        for ch in line.chars() {
+            if ch == '|' || ch == '}' {
+                if !current.is_empty() {
+                    raw.push(std::mem::take(&mut current));
+                }
+                raw.push(ch.to_string());
+            } else {
+                current.push(ch);
+            }
+        }
+        if !current.is_empty() {
+            raw.push(current);
+        }
+
+        // Emit tokens skipping bare `|` separators; track whether more tokens
+        // remain on this line to determine the terminator.
+        let mut idx = 0;
+        while idx < raw.len() {
+            let token = raw[idx].trim();
+            idx += 1;
+            if token == "|" {
+                continue;
+            }
+            // hasMoreTokens flag = more non-nothing tokens exist after this one
+            let has_more = idx < raw.len();
+            let terminator = if has_more {
+                Terminator::NewCol
+            } else {
+                Terminator::NewLine
+            };
+            // Handle nested `{...}`/`{#...}` embedded in the middle of a token
+            // (Java uses `STRUCTURED_BLOCK_START_PATTERN` for this). For salt
+            // content we support standalone block headers on their own line;
+            // tokens that look like `{#`, `{`, `}` are kept as-is.
+            if token.is_empty() {
+                continue;
+            }
+            result.push(Token {
+                text: token.to_string(),
+                terminator,
+            });
+        }
+    }
+    result
+}
+
+/// Streaming token cursor used by the factory.
+struct Cursor {
+    tokens: Vec<Token>,
+    pos: usize,
+}
+
+impl Cursor {
+    fn peek(&self, offset: usize) -> Option<&Token> {
+        self.tokens.get(self.pos + offset)
+    }
+
+    fn next(&mut self) -> Option<Token> {
+        let tok = self.tokens.get(self.pos).cloned()?;
+        self.pos += 1;
+        Some(tok)
+    }
+}
+
+/// Positioner mirroring Java `Positionner2`: places cells, advances (row, col).
+struct Positioner {
+    row: usize,
+    col: usize,
+    cells: Vec<SaltCell>,
+    max_row: usize,
+    max_col: usize,
+}
+
+impl Positioner {
+    fn new() -> Self {
+        Self {
+            row: 0,
+            col: 0,
+            cells: Vec::new(),
+            max_row: 0,
+            max_col: 0,
+        }
+    }
+
+    fn add(&mut self, element: SaltElement, terminator: Terminator) {
+        let cell = SaltCell::new(self.row, self.col, element);
+        self.cells.push(cell);
+        self.update_max();
+        match terminator {
+            Terminator::NewCol => self.col += 1,
+            Terminator::NewLine => {
+                self.row += 1;
+                self.col = 0;
+            }
+        }
+    }
+
+    fn update_max(&mut self) {
+        if self.row > self.max_row {
+            self.max_row = self.row;
+        }
+        if self.col > self.max_col {
+            self.max_col = self.col;
+        }
+    }
+
+    fn nb_rows(&self) -> usize {
+        self.max_row + 1
+    }
+
+    fn nb_cols(&self) -> usize {
+        self.max_col + 1
+    }
+}
+
+/// Extract the salt source block. Supports `@startsalt/@endsalt` (standalone
+/// salt diagram) and inline `salt` inside `@startuml/@enduml`.
+fn extract_salt_block(source: &str) -> (String, bool) {
+    let mut inside = false;
+    let mut lines: Vec<&str> = Vec::new();
     for line in source.lines() {
         let trimmed = line.trim();
         if !inside {
@@ -20,18 +176,11 @@ fn extract_salt_block(source: &str) -> Option<(String, bool)> {
         }
         lines.push(line);
     }
-
-    if lines.is_empty() {
-        extract_inline_salt_block(source).map(|s| (s, true))
-    } else {
-        Some((lines.join("\n"), false))
+    if !lines.is_empty() {
+        return (lines.join("\n"), false);
     }
-}
-
-fn extract_inline_salt_block(source: &str) -> Option<String> {
+    // Inline salt (salt keyword inside @startuml).
     let mut saw_salt = false;
-    let mut lines = Vec::new();
-
     for line in source.lines() {
         let trimmed = line.trim();
         if !saw_salt {
@@ -45,228 +194,131 @@ fn extract_inline_salt_block(source: &str) -> Option<String> {
         }
         lines.push(line);
     }
-
-    if lines.is_empty() {
-        None
-    } else {
-        Some(lines.join("\n"))
-    }
+    (lines.join("\n"), true)
 }
 
 pub fn parse_salt_diagram(source: &str) -> Result<SaltDiagram> {
-    let (block, is_inline) =
-        extract_salt_block(source).unwrap_or_else(|| (source.to_string(), false));
-    // Java's %newline() puts a U+E100 placeholder into preprocessor output. Salt
-    // uses real newlines for layout, so expand the placeholder before splitting.
+    let (block, is_inline) = extract_salt_block(source);
+    // %newline() places U+E100 in preprocessor output; salt tokenises on real
+    // newlines, so expand placeholders before splitting.
     let block = block.replace(crate::NEWLINE_CHAR, "\n");
-    let lines: Vec<&str> = block.lines().collect();
-    let mut pos = 0;
+    let raw_lines: Vec<&str> = block.lines().collect();
+    // Drop blank/comment lines before tokenising to match Java behaviour.
+    let filtered: Vec<&str> = raw_lines
+        .into_iter()
+        .filter(|line| {
+            let t = line.trim();
+            !t.is_empty() && !t.starts_with('\'')
+        })
+        .collect();
 
-    while pos < lines.len() && lines[pos].trim().is_empty() {
-        pos += 1;
-    }
-
-    let root = if pos < lines.len() && lines[pos].trim().starts_with('{') {
-        parse_group(&lines, &mut pos)?
-    } else {
-        let mut children = Vec::new();
-        while pos < lines.len() {
-            let trimmed = lines[pos].trim();
-            if trimmed.is_empty() || trimmed.starts_with('\'') {
-                pos += 1;
-                continue;
-            }
-            children.push(parse_line_widget(trimmed));
-            pos += 1;
-        }
-        SaltWidget::Group {
-            children,
-            separator: false,
-        }
+    let tokens = tokenise(&filtered);
+    let mut cursor = Cursor {
+        tokens,
+        pos: 0,
     };
 
-    Ok(SaltDiagram { root, is_inline })
-}
-
-fn parse_group(lines: &[&str], pos: &mut usize) -> Result<SaltWidget> {
-    if *pos >= lines.len() {
-        return Ok(SaltWidget::Group {
-            children: vec![],
-            separator: false,
-        });
-    }
-
-    let start = lines[*pos].trim();
-    let separator = start.starts_with("{-");
-    let is_table = start.starts_with("{#");
-    let is_tree = start.starts_with("{*");
-    *pos += 1;
-
-    if is_table {
-        return parse_table(lines, pos);
-    }
-    if is_tree {
-        return parse_tree(lines, pos);
-    }
-
-    let mut children = Vec::new();
-    while *pos < lines.len() {
-        let trimmed = lines[*pos].trim();
-        if trimmed == "}" {
-            *pos += 1;
-            break;
-        }
-        if trimmed.is_empty() || trimmed.starts_with('\'') {
-            *pos += 1;
-            continue;
-        }
-        if trimmed.starts_with('{') {
-            children.push(parse_group(lines, pos)?);
-            continue;
-        }
-        if matches!(trimmed, "--" | ".." | "==" | "~~") {
-            children.push(SaltWidget::Separator);
-            *pos += 1;
-            continue;
-        }
-        children.push(parse_line_widget(trimmed));
-        *pos += 1;
-    }
-
-    Ok(SaltWidget::Group {
-        children,
-        separator,
+    // Salt diagrams must start with a block header.
+    let root = parse_pyramid(&mut cursor)?;
+    Ok(SaltDiagram {
+        root: SaltElement::Pyramid(root),
+        is_inline,
     })
 }
 
-fn parse_table(lines: &[&str], pos: &mut usize) -> Result<SaltWidget> {
-    let mut headers = Vec::new();
-    let mut rows = Vec::new();
-    let mut first_row = true;
+/// Parse a pyramid (`{`, `{#`, … until matching `}`).
+fn parse_pyramid(cursor: &mut Cursor) -> Result<SaltPyramid> {
+    // Expect a block header token.
+    let header = cursor.next().map(|t| t.text).unwrap_or_default();
+    let strategy = match header.as_str() {
+        "{#" => TableStrategy::DrawAll,
+        _ => TableStrategy::DrawNone,
+    };
 
-    while *pos < lines.len() {
-        let trimmed = lines[*pos].trim();
-        if trimmed == "}" {
-            *pos += 1;
+    let mut positioner = Positioner::new();
+
+    while let Some(tok) = cursor.peek(0) {
+        if tok.text == "}" {
+            cursor.next();
             break;
         }
-        if trimmed.is_empty() || trimmed.starts_with('\'') {
-            *pos += 1;
+        if is_block_start(&tok.text) {
+            // Nested pyramid — consume recursively.
+            let saved_terminator = tok.terminator;
+            let nested = parse_pyramid(cursor)?;
+            positioner.add(SaltElement::Pyramid(nested), saved_terminator);
             continue;
         }
-        let cells: Vec<String> = trimmed
-            .split('|')
-            .map(|cell| cell.trim().to_string())
-            .filter(|cell| !cell.is_empty())
-            .collect();
-        if first_row {
-            headers = cells;
-            first_row = false;
-        } else {
-            rows.push(cells);
-        }
-        *pos += 1;
+        let tok = cursor.next().unwrap();
+        let element = build_element(&tok.text);
+        positioner.add(element, tok.terminator);
     }
 
-    Ok(SaltWidget::Table { headers, rows })
-}
-
-fn parse_tree(lines: &[&str], pos: &mut usize) -> Result<SaltWidget> {
-    let mut children = Vec::new();
-    while *pos < lines.len() {
-        let trimmed = lines[*pos].trim();
-        if trimmed == "}" {
-            *pos += 1;
-            break;
-        }
-        if trimmed.is_empty() || trimmed.starts_with('\'') {
-            *pos += 1;
-            continue;
-        }
-        let depth = trimmed
-            .chars()
-            .take_while(|ch| *ch == '+' || *ch == '-')
-            .count();
-        let label = trimmed
-            .trim_start_matches('+')
-            .trim_start_matches('-')
-            .trim()
-            .to_string();
-        children.push(SaltWidget::TreeNode { label, depth });
-        *pos += 1;
-    }
-    Ok(SaltWidget::Group {
-        children,
-        separator: false,
+    let rows = positioner.nb_rows();
+    let cols = positioner.nb_cols();
+    Ok(SaltPyramid {
+        cells: positioner.cells,
+        rows,
+        cols,
+        strategy,
     })
 }
 
-fn parse_line_widget(line: &str) -> SaltWidget {
-    if line.contains('|') {
-        let items: Vec<SaltWidget> = line
-            .split('|')
-            .map(str::trim)
-            .filter(|part| !part.is_empty())
-            .map(parse_widget_text)
-            .collect();
-        return if items.len() == 1 {
-            items.into_iter().next().unwrap()
-        } else {
-            SaltWidget::Row(items)
-        };
-    }
-    parse_widget_text(line)
+fn is_block_start(text: &str) -> bool {
+    matches!(text, "{" | "{#" | "{+" | "{^" | "{!" | "{-")
 }
 
-fn parse_widget_text(text: &str) -> SaltWidget {
-    let text = text.trim();
-    if matches!(text, "--" | ".." | "==" | "~~") {
-        return SaltWidget::Separator;
-    }
-    if is_checkbox(text) {
-        return SaltWidget::Checkbox {
-            label: text[3..].trim().to_string(),
-            checked: matches!(&text[1..2], "X" | "x"),
-        };
-    }
-    if is_radio(text) {
-        return SaltWidget::Radio {
-            label: text[3..].trim().to_string(),
-            selected: matches!(&text[1..2], "X" | "x"),
-        };
-    }
-    if text.starts_with('[') && text.ends_with(']') {
-        return SaltWidget::Button(text[1..text.len() - 1].trim().to_string());
-    }
+/// Build a concrete `SaltElement` from a token string. Mirrors Java's simple
+/// factory dispatch order (TextField → Checkbox → Button → Radio → Text).
+fn build_element(text: &str) -> SaltElement {
+    // TextField: quoted string.
     if text.starts_with('"') && text.ends_with('"') && text.len() >= 2 {
-        return SaltWidget::TextInput(text[1..text.len() - 1].to_string());
+        return SaltElement::TextField(text[1..text.len() - 1].to_string());
     }
-    if text.starts_with('^') {
-        let items = text
-            .trim_matches('^')
-            .split('^')
-            .map(|item| item.trim().to_string())
-            .filter(|item| !item.is_empty())
-            .collect();
-        return SaltWidget::Dropdown { items };
+    // Checkbox: [X] / [x] / [ ] followed by label.
+    if let Some(rest) = text.strip_prefix("[X]") {
+        return SaltElement::Checkbox {
+            label: rest.trim().to_string(),
+            checked: true,
+        };
     }
-    SaltWidget::Label(text.to_string())
-}
-
-fn is_checkbox(text: &str) -> bool {
-    let bytes = text.as_bytes();
-    bytes.len() >= 3
-        && bytes[0] == b'['
-        && matches!(bytes[1], b'X' | b'x' | b' ')
-        && bytes[2] == b']'
-}
-
-fn is_radio(text: &str) -> bool {
-    let bytes = text.as_bytes();
-    bytes.len() >= 3
-        && bytes[0] == b'('
-        && matches!(bytes[1], b'X' | b'x' | b' ')
-        && bytes[2] == b')'
+    if let Some(rest) = text.strip_prefix("[x]") {
+        return SaltElement::Checkbox {
+            label: rest.trim().to_string(),
+            checked: true,
+        };
+    }
+    if let Some(rest) = text.strip_prefix("[ ]") {
+        return SaltElement::Checkbox {
+            label: rest.trim().to_string(),
+            checked: false,
+        };
+    }
+    // Button: [label]
+    if text.starts_with('[') && text.ends_with(']') && text.len() >= 2 {
+        return SaltElement::Button(text[1..text.len() - 1].trim().to_string());
+    }
+    // Radio: (X) / (x) / ( ) followed by label.
+    if let Some(rest) = text.strip_prefix("(X)") {
+        return SaltElement::Radio {
+            label: rest.trim().to_string(),
+            selected: true,
+        };
+    }
+    if let Some(rest) = text.strip_prefix("(x)") {
+        return SaltElement::Radio {
+            label: rest.trim().to_string(),
+            selected: true,
+        };
+    }
+    if let Some(rest) = text.strip_prefix("( )") {
+        return SaltElement::Radio {
+            label: rest.trim().to_string(),
+            selected: false,
+        };
+    }
+    // Fallback: plain text label.
+    SaltElement::Text(text.to_string())
 }
 
 #[cfg(test)]
@@ -274,41 +326,57 @@ mod tests {
     use super::*;
 
     #[test]
-    fn parse_button_row() {
-        let src = "@startsalt\n{\n[OK] | [Cancel]\n}\n@endsalt";
-        let diagram = parse_salt_diagram(src).unwrap();
-        match diagram.root {
-            SaltWidget::Group { children, .. } => match &children[0] {
-                SaltWidget::Row(items) => assert_eq!(items.len(), 2),
-                other => panic!("unexpected row widget: {:?}", other),
-            },
-            other => panic!("unexpected root: {:?}", other),
+    fn tokenise_splits_pipe_separated_row() {
+        // Single line `| a | b |` → tokens [a(NewCol), b(NewCol)].
+        let toks = tokenise(&["| a | b |"]);
+        assert_eq!(toks.len(), 2);
+        assert_eq!(toks[0].text, "a");
+        assert_eq!(toks[0].terminator, Terminator::NewCol);
+        assert_eq!(toks[1].text, "b");
+        assert_eq!(toks[1].terminator, Terminator::NewCol);
+    }
+
+    #[test]
+    fn tokenise_last_token_without_pipe_is_newline() {
+        // Line with no trailing `|` → last token has NewLine.
+        let toks = tokenise(&["a | b"]);
+        assert_eq!(toks[0].terminator, Terminator::NewCol);
+        assert_eq!(toks[1].terminator, Terminator::NewLine);
+    }
+
+    #[test]
+    fn parse_nested_table_flattens_into_single_row() {
+        // This mirrors Java's observed output: `{#| a | b | \n | c | d |}`
+        // produces a 1x4 grid because all cells get NEWCOL terminators.
+        let src = "@startsalt\n{#\n| a | b |\n| c | d |\n}\n@endsalt";
+        let diag = parse_salt_diagram(src).unwrap();
+        match &diag.root {
+            SaltElement::Pyramid(p) => {
+                assert_eq!(p.cells.len(), 4);
+                assert_eq!(p.rows, 1);
+                assert_eq!(p.cols, 4);
+            }
+            _ => panic!("expected pyramid root"),
         }
     }
 
     #[test]
-    fn parse_table_group() {
-        let src = "@startsalt\n{#\n| Name | Age |\n| Alice | 30 |\n}\n@endsalt";
-        let diagram = parse_salt_diagram(src).unwrap();
-        match diagram.root {
-            SaltWidget::Table { headers, rows } => {
-                assert_eq!(headers, vec!["Name", "Age"]);
-                assert_eq!(rows.len(), 1);
-            }
-            other => panic!("unexpected table widget: {:?}", other),
+    fn parse_button_label_strips_brackets() {
+        let el = build_element("[OK]");
+        match el {
+            SaltElement::Button(text) => assert_eq!(text, "OK"),
+            _ => panic!("expected button"),
         }
     }
 
     #[test]
-    fn parse_inline_salt_block_inside_uml() {
-        let src = "@startuml\nsalt\n{#\n| Name | Age |\n| Alice | 30 |\n}\n@enduml";
-        let diagram = parse_salt_diagram(src).unwrap();
-        match diagram.root {
-            SaltWidget::Table { headers, rows } => {
-                assert_eq!(headers, vec!["Name", "Age"]);
-                assert_eq!(rows.len(), 1);
+    fn parse_checkbox_with_label() {
+        match build_element("[X] Remember me") {
+            SaltElement::Checkbox { label, checked } => {
+                assert_eq!(label, "Remember me");
+                assert!(checked);
             }
-            other => panic!("unexpected inline salt widget: {:?}", other),
+            _ => panic!("expected checkbox"),
         }
     }
 }

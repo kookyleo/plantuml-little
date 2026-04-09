@@ -43,7 +43,7 @@ pub use json_diagram::{JsonDiagram, JsonValue};
 pub use link::{ArrowHead, LineStyle, Link};
 pub use mindmap::{MindmapDiagram, MindmapNode};
 pub use nwdiag::{Network as NwdiagNetwork, NwdiagDiagram, ServerRef as NwdiagServerRef};
-pub use salt::{SaltDiagram, SaltWidget};
+pub use salt::{SaltCell, SaltDiagram, SaltElement, SaltPyramid, TableStrategy};
 pub use sequence::{
     FragmentKind, Message, Participant, ParticipantKind, SeqArrowHead, SeqArrowStyle, SeqDirection,
     SeqEvent, SequenceDiagram,
