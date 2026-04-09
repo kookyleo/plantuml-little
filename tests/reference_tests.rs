@@ -471,15 +471,6 @@ fn assert_exact_match(actual: &str, reference: &str, path: &str) {
             }
         }
         // Real mismatch
-        let ctx_a = &a[ai.saturating_sub(40)..a.len().min(ai + 40)];
-        let ctx_r = &r[ri.saturating_sub(40)..r.len().min(ri + 40)];
-        eprintln!("FUZZY FAIL at ai={ai} ri={ri} (skips={fuzzy_skips})");
-        eprintln!("  a byte={:?}", a.as_bytes().get(ai).map(|b| *b as char));
-        eprintln!("  r byte={:?}", r.as_bytes().get(ri).map(|b| *b as char));
-        eprintln!("  a_num={:?}", extract_number_at(&a, ai));
-        eprintln!("  r_num={:?}", extract_number_at(&r, ri));
-        eprintln!("  a context: ...{ctx_a}...");
-        eprintln!("  r context: ...{ctx_r}...");
         let (line, col, ctx) = find_first_diff(&a, &r);
         panic!("{path}: output differs from reference at line {line} col {col}\n{ctx}");
     }

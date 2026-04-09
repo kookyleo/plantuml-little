@@ -1460,7 +1460,6 @@ pub fn layout_component(cd: &ComponentDiagram, skin: &crate::style::SkinParams) 
             )
         });
 
-        log::debug!("component note text: {:?} (ends_newline={})", &note.text[note.text.len().saturating_sub(20)..], note.text.ends_with('\n'));
         let (nw, nh) = estimate_note_size_with_embedded(&note.text, embedded.as_ref());
 
         // Use graphviz position if available, else fallback
