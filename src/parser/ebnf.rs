@@ -52,11 +52,23 @@ fn parse_expr(input: &str) -> Result<EbnfExpr> {
         return Ok(EbnfExpr::Terminal(input[1..input.len() - 1].to_string()));
     }
     if input.starts_with('[') && input.ends_with(']') { return Ok(EbnfExpr::Optional(Box::new(parse_expr(&input[1..input.len() - 1])?))); }
-    if input.starts_with('{') && input.ends_with('}') { return Ok(EbnfExpr::Repetition(Box::new(parse_expr(&input[1..input.len() - 1])?))); }
+    // Java: { inner } → ETileZeroOrMore = ETileOptional2(ETileOneOrMore(inner))
+    if input.starts_with('{') && input.ends_with('}') {
+        let inner = parse_expr(&input[1..input.len() - 1])?;
+        return Ok(EbnfExpr::Optional(Box::new(EbnfExpr::Repetition(Box::new(inner)))));
+    }
     if input.starts_with('(') && input.ends_with(')') {
         let inner = &input[1..input.len() - 1];
         if inner.starts_with('*') && inner.ends_with('*') { return Ok(EbnfExpr::Special(inner[1..inner.len() - 1].trim().to_string())); }
         return Ok(EbnfExpr::Group(Box::new(parse_expr(inner)?)));
+    }
+    // Bare identifiers (no quotes) are non-terminal references
+    if input.chars().all(|c| c.is_alphanumeric() || c == '_' || c == ' ') && !input.is_empty() {
+        // Check if it looks like a non-terminal (starts with letter, no spaces except in identifiers)
+        let trimmed = input.trim();
+        if trimmed.chars().next().map_or(false, |c| c.is_alphabetic() || c == '_') {
+            return Ok(EbnfExpr::NonTerminal(trimmed.to_string()));
+        }
     }
     Ok(EbnfExpr::Terminal(input.to_string()))
 }

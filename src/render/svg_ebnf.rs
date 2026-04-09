@@ -78,9 +78,22 @@ pub fn render_ebnf(_d: &EbnfDiagram, l: &EbnfLayout, skin: &SkinParams) -> Resul
             EbnfElement::EndCircle { cx, cy, r } => {
                 write!(buf, r#"<ellipse cx="{}" cy="{}" fill="{}" rx="{}" ry="{}" style="stroke:{};stroke-width:1;"/>"#, ff(*cx), ff(*cy), STROKE, ff(*r), ff(*r), STROKE).unwrap();
             }
+            EbnfElement::NonTerminalBox { x, y, width, height, text } => {
+                // Rounded rect with fill #F1F1F1, stroke 1.5, corner 10
+                write!(buf, r##"<rect fill="#F1F1F1" height="{}" rx="5" ry="5" style="stroke:{};stroke-width:1.5;" width="{}" x="{}" y="{}"/>"##,
+                    ff(*height), STROKE, ff(*width), ff(*x), ff(*y)).unwrap();
+                let asc = font_metrics::ascent("SansSerif", FONT_SIZE, false, false);
+                let tw = font_metrics::text_width(text, "SansSerif", FONT_SIZE, false, false);
+                write!(buf, r#"<text fill="{}" font-family="sans-serif" font-size="{}" lengthAdjust="spacing" textLength="{}" x="{}" y="{}">{}</text>"#,
+                    TEXT_C, FONT_SIZE as i32, ff(tw), ff(*x + 5.0), ff(*y + asc + 5.0), xml_escape(text)).unwrap();
+            }
             EbnfElement::Arrow { x, y } => {
                 write!(buf, r#"<path d="M{},{} L{},{} L{},{} L{},{} L{},{}" fill="{}"/>"#,
                     ff(*x), ff(*y), ff(*x), ff(*y - 3.0), ff(*x + 6.0), ff(*y), ff(*x), ff(*y + 3.0), ff(*x), ff(*y), STROKE).unwrap();
+            }
+            EbnfElement::LeftArrow { x, y } => {
+                write!(buf, r#"<path d="M{},{} L{},{} L{},{} L{},{} L{},{}" fill="{}"/>"#,
+                    ff(*x), ff(*y), ff(*x), ff(*y - 3.0), ff(*x - 6.0), ff(*y), ff(*x), ff(*y + 3.0), ff(*x), ff(*y), STROKE).unwrap();
             }
         }
     }

@@ -15,12 +15,14 @@ pub enum EbnfElement {
     Comment { x: f64, y: f64, width: f64, height: f64, text: String },
     RuleName { x: f64, y: f64, text: String },
     TerminalBox { x: f64, y: f64, width: f64, height: f64, text: String },
+    NonTerminalBox { x: f64, y: f64, width: f64, height: f64, text: String },
     HLine { x1: f64, y1: f64, x2: f64, y2: f64, stroke_width: f64 },
     VLine { x1: f64, y1: f64, x2: f64, y2: f64, stroke_width: f64 },
     Path { d: String, fill: bool, stroke_width: f64 },
     StartCircle { cx: f64, cy: f64, r: f64 },
     EndCircle { cx: f64, cy: f64, r: f64 },
     Arrow { x: f64, y: f64 },
+    LeftArrow { x: f64, y: f64 },
 }
 
 // ── Java ETile constants ──────────────────────────────────────────
@@ -38,6 +40,20 @@ const ALT_GAP: f64 = 10.0;
 
 /// ETileConcatenation.marginx = 20
 const CONCAT_MARGINX: f64 = 20.0;
+
+/// ETileOptional2.deltax = 24
+const OPT2_DELTAX: f64 = 24.0;
+/// ETileOptional2.h1 = 10 (no notes)
+const OPT2_H1: f64 = 10.0;
+/// ETileOptional2.deltay = 20 (no notes)
+const OPT2_DELTAY: f64 = 20.0;
+
+/// ETileOneOrMore.deltax = 15
+const OOM_DELTAX: f64 = 15.0;
+/// ETileOneOrMore.deltay = 12
+const OOM_DELTAY: f64 = 12.0;
+/// ETileOneOrMore corner delta = 8
+const OOM_CORNER: f64 = 8.0;
 
 /// ETileWithCircles.deltax = 30
 const WC_DELTAX: f64 = 30.0;
@@ -119,20 +135,22 @@ fn tile_dim(expr: &EbnfExpr) -> TileDim {
             TileDim { width, h1: max_h1, h2: max_h2 }
         }
         EbnfExpr::Optional(inner) => {
-            // ETileOptional2: adds deltax=24 each side, deltay=20 below
+            // ETileOptional2: h1=10, h2=10+orig.h1+orig.h2, width=orig.w+2*24
             let d = tile_dim(inner);
-            let width = d.width + 2.0 * 24.0;
-            let h1 = d.h1;
-            let h2 = d.h2 + 20.0;
-            TileDim { width, h1, h2 }
+            TileDim {
+                width: d.width + 2.0 * OPT2_DELTAX,
+                h1: OPT2_H1,
+                h2: OPT2_H1 + d.h1 + d.h2,
+            }
         }
         EbnfExpr::Repetition(inner) => {
-            // ETileOneOrMore: adds deltax=15 each side, deltay=12 above
+            // ETileOneOrMore: h1=deltay(12)+orig.h1, h2=orig.h2, width=orig.w+2*deltax(15)
             let d = tile_dim(inner);
-            let width = d.width + 2.0 * 15.0;
-            let h1 = d.h1 + 12.0;
-            let h2 = d.h2;
-            TileDim { width, h1, h2 }
+            TileDim {
+                width: d.width + 2.0 * OOM_DELTAX,
+                h1: OOM_DELTAY + d.h1,
+                h2: d.h2,
+            }
         }
         EbnfExpr::Group(inner) => tile_dim(inner),
     }
@@ -317,12 +335,9 @@ fn layout_rule(rule: &EbnfRule, start_y: f64) -> Result<(Vec<EbnfElement>, f64, 
         stroke_width: STROKE,
     });
 
-    // Arrow on the end connecting line (coef=0.5)
-    let arrow_x = hline_end_x1 * 0.5 + hline_end_x2 * 0.5 - 2.0;
+    // Arrow on the end connecting line (coef=0.5, threshold=25)
     if hline_end_x2 > hline_end_x1 + 25.0 {
-        elements.push(EbnfElement::Arrow { x: arrow_x, y: line_pos });
-    } else if hline_end_x2 > hline_end_x1 {
-        // Still draw arrow if line exists
+        let arrow_x = hline_end_x1 * 0.5 + hline_end_x2 * 0.5 - 2.0;
         elements.push(EbnfElement::Arrow { x: arrow_x, y: line_pos });
     }
 
@@ -343,7 +358,7 @@ fn draw_tile(
     elements: &mut Vec<EbnfElement>,
 ) -> Result<()> {
     match expr {
-        EbnfExpr::Terminal(text) | EbnfExpr::NonTerminal(text) | EbnfExpr::Special(text) => {
+        EbnfExpr::Terminal(text) | EbnfExpr::Special(text) => {
             let tw = font_metrics::text_width(text, "SansSerif", FONT_SIZE, false, false);
             let bw = tw + 2.0 * BOX_PAD;
             let bh = font_metrics::ascent("SansSerif", FONT_SIZE, false, false)
@@ -351,6 +366,21 @@ fn draw_tile(
                 + 2.0 * BOX_PAD;
             let box_y = line_pos - bh / 2.0;
             elements.push(EbnfElement::TerminalBox {
+                x,
+                y: box_y,
+                width: bw,
+                height: bh,
+                text: text.clone(),
+            });
+        }
+        EbnfExpr::NonTerminal(text) => {
+            let tw = font_metrics::text_width(text, "SansSerif", FONT_SIZE, false, false);
+            let bw = tw + 2.0 * BOX_PAD;
+            let bh = font_metrics::ascent("SansSerif", FONT_SIZE, false, false)
+                + font_metrics::descent("SansSerif", FONT_SIZE, false, false)
+                + 2.0 * BOX_PAD;
+            let box_y = line_pos - bh / 2.0;
+            elements.push(EbnfElement::NonTerminalBox {
                 x,
                 y: box_y,
                 width: bw,
@@ -448,9 +478,14 @@ fn draw_tile(
             corner_nw(elements, ALT_MARGINX, x + q, alt_line_pos);
         }
         EbnfExpr::Sequence(parts) => {
+            // Java Concatenation.drawU: drawHline(ug, fullLinePos, 0, x=0) first (zero-length)
             let full_dim = tile_dim(expr);
             let full_line_pos = line_pos;
             let mut cx = x;
+            // Initial zero-length hline (Java: drawHline(ug, fullLinePos, 0, 0))
+            elements.push(EbnfElement::HLine {
+                x1: cx, y1: full_line_pos, x2: cx, y2: full_line_pos, stroke_width: STROKE,
+            });
             for (i, part) in parts.iter().enumerate() {
                 let d = tile_dim(part);
                 let part_top = top_y + (full_dim.h1 - d.h1);
@@ -458,7 +493,8 @@ fn draw_tile(
                 draw_tile(part, cx, part_top, part_line, d.width, &d, elements)?;
                 cx += d.width;
                 if i < parts.len() - 1 {
-                    // Connecting line between tiles
+                    // drawHlineDirected(ug, fullLinePos, x, x+marginx, 0.5, 25)
+                    // marginx=20 < 25, so no arrow
                     elements.push(EbnfElement::HLine {
                         x1: cx, y1: full_line_pos,
                         x2: cx + CONCAT_MARGINX, y2: full_line_pos,
@@ -469,64 +505,149 @@ fn draw_tile(
             }
         }
         EbnfExpr::Optional(inner) => {
+            // ETileOptional2 drawU order:
+            // 1. HlineDirected at linePos from 0 to fullW (coef=0.4, threshold=25)
+            // 2. Zigzag pathDown at (0, linePos)
+            // 3. Zigzag pathUp at (fullW - 2*corner, linePos) where corner=12
+            // 4. Inner at (deltax=24, getDeltaY=20)
             let d = tile_dim(inner);
-            // Optional draws inner and adds bypass below
-            let inner_x = x + 24.0; // ETileOptional2 deltax=24
-            draw_tile(inner, inner_x, top_y, line_pos, d.width, &d, elements)?;
-            // Bypass line below: from (x, linePos) curve down to (x+inner_w/2, linePos+d.h2+10)
-            // and back up to (x+inner_w, linePos)
-            let by = line_pos + d.h2 + 10.0;
-            let full_w = d.width + 2.0 * 24.0;
-            elements.push(EbnfElement::Path {
-                d: format!("M{},{} C{},{} {},{} {},{}",
-                    ff(x), ff(line_pos),
-                    ff(x), ff(by),
-                    ff(x + 6.0), ff(by),
-                    ff(x + full_w / 2.0), ff(by)),
-                fill: false,
-                stroke_width: STROKE,
+            let full_w = d.width + 2.0 * OPT2_DELTAX;
+            let lp = line_pos; // linePos = top_y + h1 = top_y + 10
+
+            // 1. Hline at linePos across full width
+            elements.push(EbnfElement::HLine {
+                x1: x, y1: lp, x2: x + full_w, y2: lp, stroke_width: STROKE,
             });
-            elements.push(EbnfElement::Path {
-                d: format!("M{},{} C{},{} {},{} {},{}",
-                    ff(x + full_w / 2.0), ff(by),
-                    ff(x + full_w - 6.0), ff(by),
-                    ff(x + full_w), ff(by),
-                    ff(x + full_w), ff(line_pos)),
-                fill: false,
-                stroke_width: STROKE,
-            });
+            // Arrow on the hline (coef=0.4, threshold=25)
+            if full_w > 25.0 {
+                let arrow_x = x * 0.6 + (x + full_w) * 0.4 - 2.0;
+                elements.push(EbnfElement::Arrow { x: arrow_x, y: lp });
+            }
+
+            // 2. Zigzag pathDown at (0, linePos): S-curve from rail down to inner start
+            // Zigzag(ctrl=9, width=2*corner=24, height=getDeltaY+orig.h1-linePos_relative)
+            // getDeltaY = OPT2_DELTAY = 20 (no notes)
+            // linePos_relative = OPT2_H1 = 10
+            // height = 20 + d.h1 - 10 = 10 + d.h1
+            let corner = OPT2_DELTAX / 2.0; // 12
+            let zw = 2.0 * corner; // 24
+            let zh = OPT2_DELTAY + d.h1 - OPT2_H1; // 10 + d.h1
+            let ctrl = 9.0;
+            zigzag_down(elements, x, lp, zw, zh, ctrl);
+
+            // 3. Zigzag pathUp at (fullW - 2*corner, linePos)
+            zigzag_up(elements, x + full_w - zw, lp, zw, zh, ctrl);
+
+            // 4. Inner at (deltax=24, getDeltaY=20)
+            let inner_x = x + OPT2_DELTAX;
+            let inner_top = top_y + OPT2_DELTAY;
+            let inner_lp = inner_top + d.h1;
+            draw_tile(inner, inner_x, inner_top, inner_lp, d.width, &d, elements)?;
         }
         EbnfExpr::Repetition(inner) => {
+            // ETileOneOrMore drawU order (no loop text, getBraceHeight=0):
+            // 1. SW(8) at (8, h1)
+            // 2. VLine at x=8 from y=13 to y=h1-8
+            // 3. NW(8) at (8, 5)
+            // 4. HlineAntiDirected at y=5 from x=deltax to x=fullW-deltax (coef=0.6)
+            // 5. SE(8) at (fullW-8, h1)
+            // 6. VLine at x=fullW-8 from y=13 to y=h1-8
+            // 7. NE(8) at (fullW-8, 5)
+            // 8. HLine at h1 from 0 to deltax
+            // 9. HLine at h1 from fullW-deltax to fullW
+            // 10. Inner at (deltax, deltay)
             let d = tile_dim(inner);
-            let inner_x = x + 15.0; // ETileOneOrMore deltax=15
-            draw_tile(inner, inner_x, top_y + 12.0, line_pos, d.width, &d, elements)?;
-            // Loop back line above
-            let ly = line_pos - d.h1 - 12.0;
-            let full_w = d.width + 2.0 * 15.0;
-            elements.push(EbnfElement::Path {
-                d: format!("M{},{} C{},{} {},{} {},{}",
-                    ff(x), ff(line_pos),
-                    ff(x), ff(ly),
-                    ff(x + 6.0), ff(ly),
-                    ff(x + full_w / 2.0), ff(ly)),
-                fill: false,
-                stroke_width: STROKE,
+            let full_w = d.width + 2.0 * OOM_DELTAX;
+            let h1 = OOM_DELTAY + d.h1;
+            let lp = top_y + h1; // absolute linePos
+
+            // 1. SW(8) at (8, h1)
+            corner_sw(elements, OOM_CORNER, x + 8.0, lp);
+            // 2. VLine at x=8 from y=8+5=13 to y=h1-8
+            if h1 > 21.0 {
+                elements.push(EbnfElement::VLine {
+                    x1: x + 8.0, y1: top_y + 13.0,
+                    x2: x + 8.0, y2: top_y + h1 - 8.0,
+                    stroke_width: STROKE,
+                });
+            }
+            // 3. NW(8) at (8, 5)
+            corner_nw(elements, OOM_CORNER, x + 8.0, top_y + 5.0);
+            // 4. HlineAntiDirected at y=5 from x=deltax(15) to x=fullW-deltax(15)
+            let hline_y = top_y + 5.0;
+            let hline_x1 = x + OOM_DELTAX;
+            let hline_x2 = x + full_w - OOM_DELTAX;
+            elements.push(EbnfElement::HLine {
+                x1: hline_x1, y1: hline_y, x2: hline_x2, y2: hline_y, stroke_width: STROKE,
             });
-            elements.push(EbnfElement::Path {
-                d: format!("M{},{} C{},{} {},{} {},{}",
-                    ff(x + full_w / 2.0), ff(ly),
-                    ff(x + full_w - 6.0), ff(ly),
-                    ff(x + full_w), ff(ly),
-                    ff(x + full_w), ff(line_pos)),
-                fill: false,
-                stroke_width: STROKE,
+            // Anti-directed arrow (points LEFT, coef=0.6)
+            let anti_arrow_x = hline_x1 * (1.0 - 0.6) + hline_x2 * 0.6 - 2.0;
+            elements.push(EbnfElement::LeftArrow { x: anti_arrow_x, y: hline_y });
+
+            // 5. SE(8) at (fullW-8, h1)
+            corner_se(elements, OOM_CORNER, x + full_w - 8.0, lp);
+            // 6. VLine at x=fullW-8 from y=13 to y=h1-8
+            if h1 > 21.0 {
+                elements.push(EbnfElement::VLine {
+                    x1: x + full_w - 8.0, y1: top_y + 13.0,
+                    x2: x + full_w - 8.0, y2: top_y + h1 - 8.0,
+                    stroke_width: STROKE,
+                });
+            }
+            // 7. NE(8) at (fullW-8, 5)
+            corner_ne(elements, OOM_CORNER, x + full_w - 8.0, top_y + 5.0);
+            // 8. HLine at h1 from 0 to deltax
+            elements.push(EbnfElement::HLine {
+                x1: x, y1: lp, x2: x + OOM_DELTAX, y2: lp, stroke_width: STROKE,
             });
+            // 9. HLine at h1 from fullW-deltax to fullW
+            elements.push(EbnfElement::HLine {
+                x1: x + full_w - OOM_DELTAX, y1: lp, x2: x + full_w, y2: lp, stroke_width: STROKE,
+            });
+            // 10. Inner at (deltax, deltay)
+            let inner_top = top_y + OOM_DELTAY;
+            let inner_lp = inner_top + d.h1;
+            draw_tile(inner, x + OOM_DELTAX, inner_top, inner_lp, d.width, &d, elements)?;
         }
         EbnfExpr::Group(inner) => {
             draw_tile(inner, x, top_y, line_pos, _tile_w, _dim, elements)?;
         }
     }
     Ok(())
+}
+
+// ── Zigzag S-curve paths (match Java Zigzag.java) ────────────────
+
+fn zigzag_down(elements: &mut Vec<EbnfElement>, ox: f64, oy: f64, width: f64, height: f64, ctrl: f64) {
+    let xm = width / 2.0;
+    let ym = height / 2.0;
+    let d = format!(
+        "M{},{} C{},{} {},{} {},{} C{},{} {},{} {},{}",
+        ff(ox), ff(oy),
+        ff(ox + ctrl), ff(oy),
+        ff(ox + xm), ff(oy + ym - ctrl),
+        ff(ox + xm), ff(oy + ym),
+        ff(ox + xm), ff(oy + ym + ctrl),
+        ff(ox + width - ctrl), ff(oy + height),
+        ff(ox + width), ff(oy + height)
+    );
+    elements.push(EbnfElement::Path { d, fill: false, stroke_width: STROKE });
+}
+
+fn zigzag_up(elements: &mut Vec<EbnfElement>, ox: f64, oy: f64, width: f64, height: f64, ctrl: f64) {
+    let xm = width / 2.0;
+    let ym = height / 2.0;
+    let d = format!(
+        "M{},{} C{},{} {},{} {},{} C{},{} {},{} {},{}",
+        ff(ox), ff(oy + height),
+        ff(ox + ctrl), ff(oy + height),
+        ff(ox + xm), ff(oy + ym + ctrl),
+        ff(ox + xm), ff(oy + ym),
+        ff(ox + xm), ff(oy + ym - ctrl),
+        ff(ox + width - ctrl), ff(oy),
+        ff(ox + width), ff(oy)
+    );
+    elements.push(EbnfElement::Path { d, fill: false, stroke_width: STROKE });
 }
 
 // ── CornerCurved path helpers (match Java CornerCurved.java) ─────
