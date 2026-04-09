@@ -40,6 +40,7 @@ struct GroupFrame {
     id: String,
     kind: ComponentKind,
     stereotype: Option<String>,
+    stereotypes: Vec<String>,
     children: Vec<String>,
     source_line: Option<usize>,
 }
@@ -205,6 +206,7 @@ pub fn parse_component_diagram(source: &str) -> Result<ComponentDiagram> {
                     code,
                     kind: frame.kind,
                     stereotype: frame.stereotype,
+                    stereotypes: frame.stereotypes,
                     children: frame.children,
                     source_line: frame.source_line,
                 });
@@ -250,6 +252,7 @@ pub fn parse_component_diagram(source: &str) -> Result<ComponentDiagram> {
                     code: decl.id.clone(),
                     kind: decl.kind.clone(),
                     stereotype: decl.stereotype.clone(),
+                    stereotypes: decl.stereotypes.clone(),
                     description: vec![],
                     parent: parent_id.clone(),
                     color: decl.color.clone(),
@@ -263,6 +266,7 @@ pub fn parse_component_diagram(source: &str) -> Result<ComponentDiagram> {
                     id: decl.id,
                     kind: decl.kind,
                     stereotype: decl.stereotype,
+                    stereotypes: decl.stereotypes,
                     children: Vec::new(),
                     source_line: Some(line_num),
                 });
@@ -278,6 +282,7 @@ pub fn parse_component_diagram(source: &str) -> Result<ComponentDiagram> {
                     code: decl.id.clone(),
                     kind: decl.kind,
                     stereotype: decl.stereotype,
+                    stereotypes: decl.stereotypes,
                     description: vec![],
                     parent: parent_id,
                     color: decl.color,
@@ -305,6 +310,7 @@ pub fn parse_component_diagram(source: &str) -> Result<ComponentDiagram> {
                 code,
                 kind: decl.kind,
                 stereotype: decl.stereotype,
+                stereotypes: decl.stereotypes,
                 description: decl.description,
                 parent: parent_id,
                 color: decl.color,
@@ -328,6 +334,7 @@ pub fn parse_component_diagram(source: &str) -> Result<ComponentDiagram> {
                     code: id.clone(),
                     kind: ComponentKind::Component,
                     stereotype: None,
+                    stereotypes: Vec::new(),
                     description: vec![],
                     parent: parent_id,
                     color: None,
@@ -358,6 +365,7 @@ pub fn parse_component_diagram(source: &str) -> Result<ComponentDiagram> {
                         code: endpoint_id.clone(),
                         kind: ComponentKind::Component,
                         stereotype: None,
+                        stereotypes: Vec::new(),
                         description: vec![],
                         parent: parent_id,
                         color: None,
@@ -387,6 +395,7 @@ pub fn parse_component_diagram(source: &str) -> Result<ComponentDiagram> {
             code,
             kind: frame.kind,
             stereotype: frame.stereotype,
+            stereotypes: frame.stereotypes,
             children: frame.children,
             source_line: frame.source_line,
         });
@@ -419,6 +428,10 @@ struct EntityDecl {
     id: String,
     kind: ComponentKind,
     stereotype: Option<String>,
+    /// Full stereotype list in declaration order. Used for stereotype-keyed
+    /// skinparam lookups when the C4 stdlib emits chained tags like
+    /// `<<container>><<boundary>>`.
+    stereotypes: Vec<String>,
     description: Vec<String>,
     opens_group: bool,
     opens_description: bool,
@@ -504,6 +517,7 @@ fn parse_entity_rest(rest: &str, kind: ComponentKind) -> EntityDecl {
     let mut name;
     let mut id;
     let mut stereotype = None;
+    let mut stereotypes: Vec<String> = Vec::new();
     let mut color = None;
     let mut opens_group = false;
     let mut opens_description = false;
@@ -522,6 +536,7 @@ fn parse_entity_rest(rest: &str, kind: ComponentKind) -> EntityDecl {
                 after_open_quote[end_quote + 1..].trim(),
                 &mut id,
                 &mut stereotype,
+                &mut stereotypes,
                 &mut color,
             );
             parse_entity_tail(
@@ -547,6 +562,7 @@ fn parse_entity_rest(rest: &str, kind: ComponentKind) -> EntityDecl {
             trimmed[end_pos..].trim(),
             &mut id,
             &mut stereotype,
+            &mut stereotypes,
             &mut color,
         );
         parse_entity_tail(
@@ -565,6 +581,7 @@ fn parse_entity_rest(rest: &str, kind: ComponentKind) -> EntityDecl {
         id,
         kind,
         stereotype,
+        stereotypes,
         description: vec![],
         opens_group,
         opens_description,
@@ -591,13 +608,17 @@ fn parse_entity_modifiers(
     after: &str,
     id: &mut String,
     stereotype: &mut Option<String>,
+    stereotypes: &mut Vec<String>,
     color: &mut Option<String>,
 ) -> String {
     let mut remaining = after.trim().to_string();
 
     loop {
         let after_alias = parse_as_alias(&remaining, id);
-        let after_stereotype = parse_stereotypes(&after_alias, stereotype);
+        let after_stereotype = parse_all_stereotypes(&after_alias, stereotypes);
+        if stereotype.is_none() && !stereotypes.is_empty() {
+            *stereotype = stereotypes.first().cloned();
+        }
         let after_color = parse_color_spec(&after_stereotype, color);
         if after_color == remaining {
             return remaining;
@@ -630,9 +651,22 @@ fn parse_color_spec(after: &str, color: &mut Option<String>) -> String {
     trimmed[end_pos..].trim().to_string()
 }
 
+#[allow(dead_code)]
 fn parse_stereotypes(after: &str, stereotype: &mut Option<String>) -> String {
-    let mut remaining = after.trim().to_string();
+    // Thin wrapper that ignores the full list — kept for callers that only
+    // need the primary stereotype and trailing text.
+    let mut list: Vec<String> = Vec::new();
+    let rest = parse_all_stereotypes(after, &mut list);
+    if stereotype.is_none() {
+        *stereotype = list.first().cloned();
+    }
+    rest
+}
 
+/// Parse every `<<stereotype>>` marker at the start of `after`, populating
+/// the `list` in declaration order and returning the remaining trailing text.
+fn parse_all_stereotypes(after: &str, list: &mut Vec<String>) -> String {
+    let mut remaining = after.trim().to_string();
     loop {
         let trimmed = remaining.trim();
         if !trimmed.starts_with("<<") {
@@ -641,9 +675,7 @@ fn parse_stereotypes(after: &str, stereotype: &mut Option<String>) -> String {
         let Some(end) = trimmed.find(">>") else {
             return trimmed.to_string();
         };
-        if stereotype.is_none() {
-            *stereotype = Some(trimmed[2..end].to_string());
-        }
+        list.push(trimmed[2..end].to_string());
         remaining = trimmed[end + 2..].trim().to_string();
     }
 }

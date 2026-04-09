@@ -46,6 +46,9 @@ pub struct ComponentNodeLayout {
     pub description: Vec<String>,
     pub source_line: Option<usize>,
     pub stereotype: Option<String>,
+    /// Full stereotype list (C4 stdlib: `<<container>>`, `<<system>>`, etc.).
+    /// The first element equals `stereotype` for backwards compatibility.
+    pub stereotypes: Vec<String>,
     pub color: Option<String>,
 }
 
@@ -118,6 +121,10 @@ pub struct ComponentGroupLayout {
     pub height: f64,
     pub source_line: Option<usize>,
     pub stereotype: Option<String>,
+    /// Full stereotype list (C4 stdlib produces chained stereotypes
+    /// like `<<system_boundary>><<boundary>>`). The first element equals
+    /// `stereotype` for backwards compatibility.
+    pub stereotypes: Vec<String>,
 }
 
 // ---------------------------------------------------------------------------
@@ -1060,6 +1067,7 @@ pub fn layout_component(cd: &ComponentDiagram) -> Result<ComponentLayout> {
             height: nl.height,
             description: entity.description.clone(),
             stereotype: entity.stereotype.clone(),
+            stereotypes: entity.stereotypes.clone(),
             color: entity.color.clone(),
             source_line: entity.source_line,
         });
@@ -1162,6 +1170,7 @@ pub fn layout_component(cd: &ComponentDiagram) -> Result<ComponentLayout> {
                 height: cl.height,
                 source_line: group.source_line,
                 stereotype: group.stereotype.clone(),
+                stereotypes: group.stereotypes.clone(),
             })
         })
         .collect();
@@ -1634,6 +1643,7 @@ mod tests {
             code: name.to_string(),
             kind: ComponentKind::Component,
             stereotype: None,
+            stereotypes: Vec::new(),
             description: vec![],
             parent: None,
             color: None,
@@ -1758,6 +1768,7 @@ mod tests {
             code: "long".to_string(),
             kind: ComponentKind::Component,
             stereotype: None,
+            stereotypes: Vec::new(),
             description: vec![],
             parent: None,
             color: None,
@@ -1776,6 +1787,7 @@ mod tests {
             code: "A".to_string(),
             kind: ComponentKind::Rectangle,
             stereotype: None,
+            stereotypes: Vec::new(),
             description: vec![
                 "line1".to_string(),
                 "line2".to_string(),
@@ -1873,6 +1885,7 @@ mod tests {
                     code: "Outer".to_string(),
                     kind: ComponentKind::Rectangle,
                     stereotype: None,
+                    stereotypes: Vec::new(),
                     description: vec![],
                     parent: None,
                     color: None,
@@ -1884,6 +1897,7 @@ mod tests {
                     code: "Inner".to_string(),
                     kind: ComponentKind::Component,
                     stereotype: None,
+                    stereotypes: Vec::new(),
                     description: vec![],
                     parent: Some("Outer".to_string()),
                     color: None,
@@ -1897,6 +1911,7 @@ mod tests {
                 code: "Outer".to_string(),
                 kind: ComponentKind::Rectangle,
                 stereotype: None,
+                stereotypes: Vec::new(),
                 children: vec!["Inner".to_string()],
                 source_line: None,
             }],
@@ -1983,6 +1998,7 @@ mod tests {
             code: "A".to_string(),
             kind: ComponentKind::Component,
             stereotype: Some("MyStereotype".to_string()),
+            stereotypes: vec!["MyStereotype".to_string()],
             description: vec![],
             parent: None,
             color: None,
@@ -2094,6 +2110,7 @@ mod tests {
             code: "multi".to_string(),
             kind: ComponentKind::Component,
             stereotype: None,
+            stereotypes: Vec::new(),
             description: vec![],
             parent: None,
             color: None,

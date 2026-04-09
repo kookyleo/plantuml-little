@@ -36,6 +36,11 @@ pub struct ComponentEntity {
     pub code: String,
     pub kind: ComponentKind,
     pub stereotype: Option<String>,
+    /// Full list of stereotypes in declaration order. Includes the value
+    /// stored in `stereotype` (the first one) plus any additional
+    /// `<<tag>>` markers. Used for stereotype-keyed skinparam lookups
+    /// (C4 stdlib emits chained stereotypes like `<<container>><<boundary>>`).
+    pub stereotypes: Vec<String>,
     pub description: Vec<String>,
     /// Parent group name (if nested inside a rectangle/package)
     pub parent: Option<String>,
@@ -71,6 +76,10 @@ pub struct ComponentGroup {
     pub code: String,
     pub kind: ComponentKind,
     pub stereotype: Option<String>,
+    /// Full list of stereotypes in declaration order. Used for
+    /// stereotype-keyed skinparam lookups on clusters
+    /// (C4 stdlib: `<<system_boundary>><<boundary>>`).
+    pub stereotypes: Vec<String>,
     pub children: Vec<String>,
     /// Source line number (1-based) for data-source-line attribute
     pub source_line: Option<usize>,
@@ -104,12 +113,15 @@ impl From<&super::usecase::UseCaseDiagram> for ComponentDiagram {
 
         // Actors -> ComponentEntity with kind=Actor
         for actor in &uc.actors {
+            let stereo_list: Vec<String> =
+                actor.stereotype.iter().cloned().collect();
             entities.push(ComponentEntity {
                 name: actor.name.clone(),
                 id: actor.id.clone(),
                 code: actor.code.clone(),
                 kind: ComponentKind::Actor,
                 stereotype: actor.stereotype.clone(),
+                stereotypes: stereo_list,
                 description: vec![],
                 parent: None,
                 color: actor.color.clone(),
@@ -119,12 +131,15 @@ impl From<&super::usecase::UseCaseDiagram> for ComponentDiagram {
 
         // Use cases -> ComponentEntity with kind=UseCase
         for usecase in &uc.usecases {
+            let stereo_list: Vec<String> =
+                usecase.stereotype.iter().cloned().collect();
             entities.push(ComponentEntity {
                 name: usecase.name.clone(),
                 id: usecase.id.clone(),
                 code: usecase.code.clone(),
                 kind: ComponentKind::UseCase,
                 stereotype: usecase.stereotype.clone(),
+                stereotypes: stereo_list,
                 description: vec![],
                 parent: usecase.parent.clone(),
                 color: usecase.color.clone(),
@@ -162,6 +177,7 @@ impl From<&super::usecase::UseCaseDiagram> for ComponentDiagram {
                 code: b.name.clone(),
                 kind: ComponentKind::Rectangle,
                 stereotype: None,
+                stereotypes: Vec::new(),
                 children: b.children.clone(),
                 source_line: None,
             })
@@ -208,6 +224,7 @@ mod tests {
             code: "test".to_string(),
             kind: ComponentKind::Component,
             stereotype: None,
+            stereotypes: Vec::new(),
             description: vec![],
             parent: None,
             color: None,
@@ -254,6 +271,7 @@ mod tests {
             code: "my_group".to_string(),
             kind: ComponentKind::Rectangle,
             stereotype: Some("$businessProcess".to_string()),
+            stereotypes: vec!["$businessProcess".to_string()],
             children: vec!["src".to_string(), "tgt".to_string()],
             source_line: Some(3),
         };
@@ -282,6 +300,7 @@ mod tests {
             code: "A".to_string(),
             kind: ComponentKind::Rectangle,
             stereotype: None,
+            stereotypes: Vec::new(),
             description: vec!["line 1".to_string(), "line 2".to_string()],
             parent: None,
             color: None,
@@ -298,6 +317,7 @@ mod tests {
             code: "inner".to_string(),
             kind: ComponentKind::Rectangle,
             stereotype: None,
+            stereotypes: Vec::new(),
             description: vec![],
             parent: Some("outer".to_string()),
             color: None,

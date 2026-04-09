@@ -3112,13 +3112,33 @@ fn draw_class_group(
 
     match group_kind {
         GroupKind::Rectangle => {
-            let border = skin.border_color("rectangle", "#181818");
-            let font_color = skin.font_color("rectangle", "#000000");
+            // Stereotype-keyed skinparams (C4 stdlib: rectangle<<system_boundary>>,
+            // etc.) take precedence when the cluster carries stereotypes.
+            let stereo_names: Vec<&str> = group
+                .map(|g| g.stereotypes.iter().map(|s| s.0.as_str()).collect())
+                .unwrap_or_default();
+            let border = skin.border_color_for("rectangle", &stereo_names, "#181818");
+            let font_color = skin.font_color_for("rectangle", &stereo_names, "#000000");
+            let border_style = skin.border_style_for("rectangle", &stereo_names);
             let fill = class_group_fill_color(cd, group).unwrap_or_else(|| "none".to_string());
             sg.set_fill_color(&fill);
             sg.set_stroke_color(Some(border));
             sg.set_stroke_width(1.0, None);
+            // Map skinparam BorderStyle values to SVG stroke-dasharray (Java
+            // LinkStyle): dashed -> "7,7", dotted -> "1,3", solid (or unset)
+            // -> no dasharray.
+            let dash_pattern = match border_style.map(str::to_ascii_lowercase).as_deref() {
+                Some("dashed") => Some((7.0_f64, 7.0_f64)),
+                Some("dotted") => Some((1.0_f64, 3.0_f64)),
+                _ => None,
+            };
+            if let Some((on, off)) = dash_pattern {
+                sg.set_stroke_width(1.0, Some((on, off)));
+            }
             sg.svg_rectangle(x, y, w, h, 2.5, 2.5, 0.0);
+            if dash_pattern.is_some() {
+                sg.set_stroke_width(1.0, None);
+            }
             tracker.track_rect(x, y, w, h);
             for (idx, label) in visible_stereotypes.iter().enumerate() {
                 let stereo_text = format!("\u{00AB}{label}\u{00BB}");
@@ -4030,9 +4050,15 @@ fn draw_rectangle_entity_box(
     let w = nl.width;
     let h = nl.height;
 
-    let fill = entity.color.as_deref().unwrap_or(ENTITY_BG);
-    let stroke = skin.border_color("rectangle", BORDER_COLOR);
-    let font_color = skin.font_color("rectangle", TEXT_COLOR);
+    // Stereotype-keyed skinparams (C4 stdlib: rectangle<<container>>, etc.)
+    // take precedence over generic element styling.
+    let stereo_names: Vec<&str> =
+        entity.stereotypes.iter().map(|s| s.0.as_str()).collect();
+    let explicit_color = entity.color.as_deref();
+    let bg_lookup = skin.background_color_for("rectangle", &stereo_names, ENTITY_BG);
+    let fill: &str = explicit_color.unwrap_or(bg_lookup);
+    let stroke = skin.border_color_for("rectangle", &stereo_names, BORDER_COLOR);
+    let font_color = skin.font_color_for("rectangle", &stereo_names, TEXT_COLOR);
     let rx = skin.round_corner().map(|rc| rc / 2.0).unwrap_or(2.5);
 
     match entity.rect_symbol {

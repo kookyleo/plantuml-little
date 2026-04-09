@@ -30,6 +30,32 @@ fn text_len(text: &str, size: f64, bold: bool) -> f64 {
     font_metrics::text_width(text, "sans-serif", size, bold, false)
 }
 
+/// Map a `ComponentKind` to the skinparam element keyword used for its
+/// `element<<stereo>>` skinparam lookups (C4 stdlib / Java PlantUML naming).
+fn component_kind_skin_element(kind: &ComponentKind) -> &'static str {
+    match kind {
+        ComponentKind::Component => "component",
+        ComponentKind::Database => "database",
+        ComponentKind::Cloud => "cloud",
+        ComponentKind::Node => "node",
+        ComponentKind::Rectangle => "rectangle",
+        ComponentKind::Package => "package",
+        ComponentKind::Card => "card",
+        ComponentKind::Archimate => "rectangle",
+        ComponentKind::Interface => "interface",
+        ComponentKind::Artifact => "artifact",
+        ComponentKind::Storage => "storage",
+        ComponentKind::Folder => "folder",
+        ComponentKind::Frame => "frame",
+        ComponentKind::Agent => "agent",
+        ComponentKind::Stack => "stack",
+        ComponentKind::Queue => "queue",
+        ComponentKind::PortIn | ComponentKind::PortOut => "component",
+        ComponentKind::Actor => "actor",
+        ComponentKind::UseCase => "usecase",
+    }
+}
+
 /// Parse a CSS hex color string like "#F1F1F1" into (r, g, b) components.
 fn parse_hex_color(color: &str) -> Option<(u8, u8, u8)> {
     let hex = color.strip_prefix('#')?;
@@ -187,14 +213,23 @@ pub fn render_component(
         // Groups use their code (alias or display name) as the qualified name.
         // Java stores the group's Quark code for the data-qualified-name attribute.
         let qualified_name = group.code.as_str();
+        // Stereotype-keyed skinparams (C4 stdlib: rectangle<<system_boundary>>,
+        // etc.) take precedence over the generic `package` element lookups.
+        let stereo_refs: Vec<&str> =
+            group.stereotypes.iter().map(String::as_str).collect();
+        let eff_bg = skin.background_color_for("rectangle", &stereo_refs, group_bg);
+        let eff_border = skin.border_color_for("rectangle", &stereo_refs, group_border);
+        let eff_font = skin.font_color_for("rectangle", &stereo_refs, group_font);
+        let border_style = skin.border_style_for("rectangle", &stereo_refs);
         render_group(
             &mut sg,
             group,
             ent_id,
             qualified_name,
-            group_bg,
-            group_border,
-            group_font,
+            eff_bg,
+            eff_border,
+            eff_font,
+            border_style,
         );
     }
 
@@ -244,35 +279,162 @@ pub fn render_component(
             emit_comment: !matches!(node.kind, ComponentKind::PortIn | ComponentKind::PortOut),
             port_label_above,
         };
+        // Stereotype-keyed skinparams (C4 stdlib: rectangle<<container>>, etc.)
+        // take precedence over generic element styling for the matching shape.
+        // Compute per-node overrides once and splice them into the relevant
+        // slot passed to `render_node` depending on the node's kind.
+        let stereo_refs: Vec<&str> =
+            node.stereotypes.iter().map(String::as_str).collect();
+        let element_key = component_kind_skin_element(&node.kind);
+        let eff_bg = skin.background_color_for(element_key, &stereo_refs, match node.kind {
+            ComponentKind::Component => comp_bg,
+            ComponentKind::Database => db_bg,
+            ComponentKind::Cloud => cloud_bg,
+            ComponentKind::Node => node_bg,
+            ComponentKind::Rectangle | ComponentKind::Package | ComponentKind::Card
+                | ComponentKind::Archimate => rect_bg,
+            ComponentKind::Artifact => artifact_bg,
+            ComponentKind::Storage => storage_bg,
+            ComponentKind::Folder => folder_bg,
+            ComponentKind::Frame => frame_bg,
+            ComponentKind::Agent => agent_bg,
+            ComponentKind::Stack => stack_bg,
+            ComponentKind::Queue => queue_bg,
+            _ => comp_bg,
+        });
+        let eff_border = skin.border_color_for(element_key, &stereo_refs, match node.kind {
+            ComponentKind::Component => comp_border,
+            ComponentKind::Database => db_border,
+            ComponentKind::Cloud => cloud_border,
+            ComponentKind::Node => node_border,
+            ComponentKind::Rectangle | ComponentKind::Package | ComponentKind::Card
+                | ComponentKind::Archimate => rect_border,
+            ComponentKind::Artifact => artifact_border,
+            ComponentKind::Storage => storage_border,
+            ComponentKind::Folder => folder_border,
+            ComponentKind::Frame => frame_border,
+            ComponentKind::Agent => agent_border,
+            ComponentKind::Stack => stack_border,
+            ComponentKind::Queue => queue_border,
+            _ => comp_border,
+        });
+        let eff_font = skin.font_color_for(element_key, &stereo_refs, comp_font);
+
+        // Splice effective colors into the matching slot so render_node
+        // picks them up. Non-matching slots keep their default values to
+        // preserve the existing behavior for other shapes in the same
+        // diagram.
+        let mut comp_bg_o = comp_bg;
+        let mut comp_border_o = comp_border;
+        let mut comp_font_o = comp_font;
+        let mut rect_bg_o = rect_bg;
+        let mut rect_border_o = rect_border;
+        let mut db_bg_o = db_bg;
+        let mut db_border_o = db_border;
+        let mut cloud_bg_o = cloud_bg;
+        let mut cloud_border_o = cloud_border;
+        let mut node_bg_o = node_bg;
+        let mut node_border_o = node_border;
+        let mut artifact_bg_o = artifact_bg;
+        let mut artifact_border_o = artifact_border;
+        let mut storage_bg_o = storage_bg;
+        let mut storage_border_o = storage_border;
+        let mut folder_bg_o = folder_bg;
+        let mut folder_border_o = folder_border;
+        let mut frame_bg_o = frame_bg;
+        let mut frame_border_o = frame_border;
+        let mut agent_bg_o = agent_bg;
+        let mut agent_border_o = agent_border;
+        let mut stack_bg_o = stack_bg;
+        let mut stack_border_o = stack_border;
+        let mut queue_bg_o = queue_bg;
+        let mut queue_border_o = queue_border;
+        if !stereo_refs.is_empty() {
+            comp_font_o = eff_font;
+            match node.kind {
+                ComponentKind::Component => {
+                    comp_bg_o = eff_bg;
+                    comp_border_o = eff_border;
+                }
+                ComponentKind::Rectangle
+                | ComponentKind::Package
+                | ComponentKind::Card
+                | ComponentKind::Archimate => {
+                    rect_bg_o = eff_bg;
+                    rect_border_o = eff_border;
+                }
+                ComponentKind::Database => {
+                    db_bg_o = eff_bg;
+                    db_border_o = eff_border;
+                }
+                ComponentKind::Cloud => {
+                    cloud_bg_o = eff_bg;
+                    cloud_border_o = eff_border;
+                }
+                ComponentKind::Node => {
+                    node_bg_o = eff_bg;
+                    node_border_o = eff_border;
+                }
+                ComponentKind::Artifact => {
+                    artifact_bg_o = eff_bg;
+                    artifact_border_o = eff_border;
+                }
+                ComponentKind::Storage => {
+                    storage_bg_o = eff_bg;
+                    storage_border_o = eff_border;
+                }
+                ComponentKind::Folder => {
+                    folder_bg_o = eff_bg;
+                    folder_border_o = eff_border;
+                }
+                ComponentKind::Frame => {
+                    frame_bg_o = eff_bg;
+                    frame_border_o = eff_border;
+                }
+                ComponentKind::Agent => {
+                    agent_bg_o = eff_bg;
+                    agent_border_o = eff_border;
+                }
+                ComponentKind::Stack => {
+                    stack_bg_o = eff_bg;
+                    stack_border_o = eff_border;
+                }
+                ComponentKind::Queue => {
+                    queue_bg_o = eff_bg;
+                    queue_border_o = eff_border;
+                }
+                _ => {}
+            }
+        }
         render_node(
             &mut sg,
             node,
             meta,
-            comp_bg,
-            comp_border,
-            comp_font,
-            rect_bg,
-            rect_border,
-            db_bg,
-            db_border,
-            cloud_bg,
-            cloud_border,
-            node_bg,
-            node_border,
-            artifact_bg,
-            artifact_border,
-            storage_bg,
-            storage_border,
-            folder_bg,
-            folder_border,
-            frame_bg,
-            frame_border,
-            agent_bg,
-            agent_border,
-            stack_bg,
-            stack_border,
-            queue_bg,
-            queue_border,
+            comp_bg_o,
+            comp_border_o,
+            comp_font_o,
+            rect_bg_o,
+            rect_border_o,
+            db_bg_o,
+            db_border_o,
+            cloud_bg_o,
+            cloud_border_o,
+            node_bg_o,
+            node_border_o,
+            artifact_bg_o,
+            artifact_border_o,
+            storage_bg_o,
+            storage_border_o,
+            folder_bg_o,
+            folder_border_o,
+            frame_bg_o,
+            frame_border_o,
+            agent_bg_o,
+            agent_border_o,
+            stack_bg_o,
+            stack_border_o,
+            queue_bg_o,
+            queue_border_o,
         );
     }
 
@@ -334,7 +496,17 @@ fn render_group(
     _bg: &str,
     border: &str,
     font_color: &str,
+    border_style: Option<&str>,
 ) {
+    // Map skinparam BorderStyle to SVG stroke-dasharray (Java LinkStyle).
+    let dash_pattern: Option<(f64, f64)> = match border_style
+        .map(str::to_ascii_lowercase)
+        .as_deref()
+    {
+        Some("dashed") => Some((7.0, 7.0)),
+        Some("dotted") => Some((1.0, 3.0)),
+        _ => None,
+    };
     let x = group.x;
     let y = group.y;
     let w = group.width;
@@ -497,8 +669,11 @@ fn render_group(
             // Default package/rectangle/card: simple rect
             sg.set_fill_color("none");
             sg.set_stroke_color(Some(border));
-            sg.set_stroke_width(1.0, None);
+            sg.set_stroke_width(1.0, dash_pattern);
             sg.svg_rectangle(x, y, w, h, 2.5, 2.5, 0.0);
+            if dash_pattern.is_some() {
+                sg.set_stroke_width(1.0, None);
+            }
 
             // Check for sprite stereotype
             let sprite_h = render_group_sprite(sg, group, x, y, w);
@@ -2572,6 +2747,7 @@ mod tests {
             height: h,
             description: vec![],
             stereotype: None,
+            stereotypes: Vec::new(),
             color: None,
             source_line: None,
         }
@@ -2625,6 +2801,7 @@ mod tests {
             height: 40.0,
             description: vec![],
             stereotype: None,
+            stereotypes: Vec::new(),
             color: None,
             source_line: None,
         });
@@ -2650,6 +2827,7 @@ mod tests {
             height: 60.0,
             description: vec![],
             stereotype: None,
+            stereotypes: Vec::new(),
             color: None,
             source_line: None,
         });
@@ -2675,6 +2853,7 @@ mod tests {
             height: 60.0,
             description: vec![],
             stereotype: None,
+            stereotypes: Vec::new(),
             color: None,
             source_line: None,
         });
@@ -2828,6 +3007,7 @@ mod tests {
             height: 150.0,
             source_line: None,
             stereotype: None,
+            stereotypes: Vec::new(),
         });
         let svg =
             render_component(&diagram, &layout, &SkinParams::default()).expect("render failed");
@@ -2851,6 +3031,7 @@ mod tests {
             height: 40.0,
             description: vec!["x > y".to_string()],
             stereotype: None,
+            stereotypes: Vec::new(),
             color: None,
             source_line: None,
         });
@@ -2876,6 +3057,7 @@ mod tests {
             height: 60.0,
             description: vec![],
             stereotype: Some("service".to_string()),
+            stereotypes: vec!["service".to_string()],
             color: None,
             source_line: None,
         });
@@ -2907,6 +3089,7 @@ mod tests {
             height: 80.0,
             description: vec!["desc line 1".to_string(), "desc line 2".to_string()],
             stereotype: None,
+            stereotypes: Vec::new(),
             color: None,
             source_line: None,
         });
@@ -2941,6 +3124,7 @@ mod tests {
             height: 90.0,
             description: vec!["**bold** [[https://example.com{hover} label]]".to_string()],
             stereotype: None,
+            stereotypes: Vec::new(),
             color: None,
             source_line: None,
         });
@@ -3021,6 +3205,7 @@ mod tests {
             height: 50.0,
             description: vec![],
             stereotype: None,
+            stereotypes: Vec::new(),
             color: None,
             source_line: None,
         });

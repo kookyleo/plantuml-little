@@ -187,6 +187,82 @@ impl SkinParams {
             .map_or(default, |s| s.as_str())
     }
 
+    /// Look up a stereotype-keyed param for a specific element.
+    ///
+    /// Stereotype-keyed skinparams are written as
+    /// `skinparam element<<stereo>> { Key value }` in PlantUML source.
+    /// Our parser stores these under `element<<stereo>>.key`.
+    ///
+    /// This helper accepts a list of stereotype labels (from the entity's
+    /// `stereotypes` field) and returns the first matching value, so the
+    /// first stereotype in the list takes precedence — matching how Java
+    /// PlantUML resolves tag-based styling.
+    fn stereotype_param(&self, element: &str, stereotypes: &[&str], key: &str) -> Option<&str> {
+        for stereo in stereotypes {
+            let full = format!("{element}<<{stereo}>>.{key}").to_lowercase();
+            if let Some(v) = self.params.get(&full) {
+                return Some(v.as_str());
+            }
+        }
+        None
+    }
+
+    /// Stereotype-aware background color lookup. Falls back to the regular
+    /// element lookup chain when no stereotype override matches.
+    pub fn background_color_for<'a>(
+        &'a self,
+        element: &str,
+        stereotypes: &[&str],
+        default: &'a str,
+    ) -> &'a str {
+        if let Some(v) = self.stereotype_param(element, stereotypes, "backgroundcolor") {
+            return v;
+        }
+        self.background_color(element, default)
+    }
+
+    /// Stereotype-aware border color lookup.
+    pub fn border_color_for<'a>(
+        &'a self,
+        element: &str,
+        stereotypes: &[&str],
+        default: &'a str,
+    ) -> &'a str {
+        if let Some(v) = self.stereotype_param(element, stereotypes, "bordercolor") {
+            return v;
+        }
+        self.border_color(element, default)
+    }
+
+    /// Stereotype-aware font color lookup.
+    pub fn font_color_for<'a>(
+        &'a self,
+        element: &str,
+        stereotypes: &[&str],
+        default: &'a str,
+    ) -> &'a str {
+        if let Some(v) = self.stereotype_param(element, stereotypes, "fontcolor") {
+            return v;
+        }
+        self.font_color(element, default)
+    }
+
+    /// Stereotype-aware border style lookup. Returns the raw style string
+    /// (`dashed`, `dotted`, `solid`, etc.) as provided in the skinparam.
+    pub fn border_style_for(&self, element: &str, stereotypes: &[&str]) -> Option<&str> {
+        self.stereotype_param(element, stereotypes, "borderstyle")
+    }
+
+    /// Stereotype-aware stereotype-font-color lookup (used when rendering
+    /// the `«stereo»` label above an element title).
+    pub fn stereotype_font_color_for<'a>(
+        &'a self,
+        element: &str,
+        stereotypes: &[&str],
+    ) -> Option<&'a str> {
+        self.stereotype_param(element, stereotypes, "stereotypefontcolor")
+    }
+
     /// Get background color for an element type (e.g., "class", "component").
     ///
     /// Lookup order:
@@ -507,6 +583,71 @@ fn is_embedded_open(trimmed: &str) -> bool {
     )
 }
 
+/// Normalize the content before line-based skinparam parsing.
+///
+/// 1. Replace the private-use `%newline()` / `%n()` marker (U+E100) with a
+///    real newline. The C4 stdlib preprocessor uses this marker to join
+///    multi-line helper output onto a single physical line, so the skinparam
+///    tokenizer must unwrap them before splitting by whitespace.
+/// 2. Insert a newline between any `}` and a subsequent `skinparam` keyword so
+///    that chained inline blocks (as emitted by the C4 stdlib preprocessor)
+///    are handled by the line-based parser below.
+///
+/// Example input chunk (C4 stdlib output, single line):
+///   `skinparam rectangle<<container>> { ... }skinparam database<<container>> { ... }`
+/// After normalization:
+///   `skinparam rectangle<<container>> { ... }`
+///   `skinparam database<<container>> { ... }`
+fn split_chained_skinparams(content: &str) -> String {
+    // Fast path: no chained occurrences and no private-use marker.
+    let has_chained = content.contains("}skinparam") || content.contains("} skinparam");
+    let has_pnl = content.contains(crate::NEWLINE_CHAR);
+    if !has_chained && !has_pnl {
+        return content.to_string();
+    }
+    // Replace the private-use newline marker with a real newline first so the
+    // chained-skinparam split (and the downstream line-based parser) can
+    // consume them uniformly.
+    let stage1 = if has_pnl {
+        content.replace(crate::NEWLINE_CHAR, "\n")
+    } else {
+        content.to_string()
+    };
+    if !stage1.contains("}skinparam") && !stage1.contains("} skinparam") {
+        return stage1;
+    }
+    // Byte-level walk is safe here because we only look at ASCII markers
+    // (`}`, space, tab, `skinparam`), and UTF-8 multi-byte sequences never
+    // contain ASCII bytes in their continuation bytes. We still copy the
+    // full run verbatim via `push_str` to preserve any multi-byte content.
+    let mut out = String::with_capacity(stage1.len() + 64);
+    let bytes = stage1.as_bytes();
+    let mut start = 0usize;
+    let mut i = 0usize;
+    while i < bytes.len() {
+        if bytes[i] == b'}' {
+            let mut j = i + 1;
+            while j < bytes.len() && (bytes[j] == b' ' || bytes[j] == b'\t') {
+                j += 1;
+            }
+            if bytes[j..].starts_with(b"skinparam") {
+                // Copy [start, i] (inclusive of the '}') then insert a newline
+                // and resume at the 'skinparam' keyword.
+                out.push_str(&stage1[start..=i]);
+                out.push('\n');
+                start = j;
+                i = j;
+                continue;
+            }
+        }
+        i += 1;
+    }
+    if start < bytes.len() {
+        out.push_str(&stage1[start..]);
+    }
+    out
+}
+
 /// Parse skinparam declarations from PlantUML source text.
 ///
 /// Supports:
@@ -515,7 +656,15 @@ fn is_embedded_open(trimmed: &str) -> bool {
 /// - Nested: `skinparam { component { BackgroundColor #FEFECE } }`
 pub fn parse_skinparams(content: &str) -> SkinParams {
     let mut params = SkinParams::new();
-    let mut lines = content.lines().peekable();
+    // Pre-normalize: the C4 stdlib preprocessor emits multiple chained inline
+    // `skinparam element<<stereo>> { ... }skinparam ...` blocks on the same
+    // line. Split such chained occurrences into individual lines so the
+    // line-based parser below can handle them. We only split between `}` and
+    // a subsequent `skinparam` keyword, which is safe because:
+    //   - A closing `}` terminates a block.
+    //   - The `skinparam` keyword always starts a new statement.
+    let normalized = split_chained_skinparams(content);
+    let mut lines = normalized.lines().peekable();
     let mut in_style_block = false;
     let mut style_content = String::new();
     let mut embedded_depth: usize = 0;
@@ -1236,6 +1385,61 @@ mod tests {
         let params = parse_skinparams(src);
         assert_eq!(params.get("class.backgroundcolor"), Some("#FEFECE"));
         assert_eq!(params.get("class.bordercolor"), Some("#A80036"));
+    }
+
+    #[test]
+    fn parse_stereotype_keyed_block() {
+        // C4 stdlib stores container styling as rectangle<<container>> { ... }.
+        let src = concat!(
+            "skinparam rectangle<<container>> {\n",
+            "    FontColor #FFFFFF\n",
+            "    BackgroundColor #438DD5\n",
+            "    BorderColor #3C7FC0\n",
+            "}\n",
+        );
+        let params = parse_skinparams(src);
+        assert_eq!(
+            params.get("rectangle<<container>>.fontcolor"),
+            Some("#FFFFFF")
+        );
+        assert_eq!(
+            params.get("rectangle<<container>>.backgroundcolor"),
+            Some("#438DD5")
+        );
+        assert_eq!(
+            params.background_color_for("rectangle", &["container"], "#000000"),
+            "#438DD5"
+        );
+    }
+
+    #[test]
+    fn parse_stereotype_chained_inline_blocks() {
+        // C4 stdlib emits chained inline blocks on a single line. The
+        // normalization step should split these into individual statements.
+        let src = "skinparam rectangle<<container>> {    FontColor #FFFFFF    BackgroundColor #438DD5    BorderColor #3C7FC0}skinparam database<<container>> {    FontColor #FFFFFF    BackgroundColor #438DD5    BorderColor #3C7FC0}";
+        let params = parse_skinparams(src);
+        assert_eq!(
+            params.get("rectangle<<container>>.backgroundcolor"),
+            Some("#438DD5")
+        );
+        assert_eq!(
+            params.get("database<<container>>.backgroundcolor"),
+            Some("#438DD5")
+        );
+    }
+
+    #[test]
+    fn parse_stereotype_boundary_block_dashed() {
+        let src = "skinparam rectangle<<system_boundary>> {    FontColor #444444    BackgroundColor transparent    BorderColor #444444    BorderStyle dashed}";
+        let params = parse_skinparams(src);
+        assert_eq!(
+            params.border_color_for("rectangle", &["system_boundary"], "#181818"),
+            "#444444"
+        );
+        assert_eq!(
+            params.border_style_for("rectangle", &["system_boundary"]),
+            Some("dashed")
+        );
     }
 
     #[test]
