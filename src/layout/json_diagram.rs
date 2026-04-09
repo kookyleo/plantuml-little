@@ -527,15 +527,23 @@ pub fn layout_json(jd: &JsonDiagram) -> Result<JsonLayout> {
         });
     }
 
-    // Arrows: one per parent row that has a child. The arrow goes from the
-    // parent row's right edge (at its row center y) to the child's left edge
-    // (at the child's center y). The actual spline shape is drawn by the
-    // renderer; layout just records the endpoints.
+    // Arrows: one per parent row that has a child. Emitted in post-order
+    // matching Java SmetanaForJson.manageOneNode() which recurses into each
+    // child BEFORE adding the parent→child edge.
     let mut arrows: Vec<JsonArrow> = Vec::new();
-    for (bi, pb) in positioned.iter().enumerate() {
+    fn emit_arrows_postorder(
+        bi: usize,
+        positioned: &[PositionedBox],
+        boxes: &[JsonBox],
+        arrows: &mut Vec<JsonArrow>,
+    ) {
+        let pb = &positioned[bi];
         let parent_box = &boxes[bi];
         for (ri, maybe_child) in pb.child_box_idx_per_row.iter().enumerate() {
             if let Some(ci) = *maybe_child {
+                // Recurse into child subtree first (post-order)
+                emit_arrows_postorder(ci, positioned, boxes, arrows);
+                // Then emit the parent→child edge
                 let row = &parent_box.rows[ri];
                 let from_x = parent_box.x + parent_box.width;
                 let from_y = row.y_top + row.height / 2.0;
@@ -551,6 +559,7 @@ pub fn layout_json(jd: &JsonDiagram) -> Result<JsonLayout> {
             }
         }
     }
+    emit_arrows_postorder(0, &positioned, &boxes, &mut arrows);
 
     // Total canvas size: right-most box right edge + MARGIN + 1; bottom-most
     // box bottom + MARGIN + 1. The extra "+1" reproduces Java's pipeline of

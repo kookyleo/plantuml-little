@@ -342,6 +342,13 @@ impl<'a> YamlParser<'a> {
     }
 
     /// Parse a scalar value from a string.
+    ///
+    /// Java's YAML parser stores ALL scalars as raw strings via
+    /// `MonomorphToJson.convert()` which calls `Json.value(String)`.
+    /// We replicate this: unquoted scalars (including numbers, booleans,
+    /// null) become `JsonValue::Str` with their original text.
+    /// Only flow collections `[...]` / `{...}` and quoted strings get
+    /// special handling.
     fn parse_scalar(&self, s: &str) -> Result<JsonValue> {
         let s = s.trim();
 
@@ -355,47 +362,9 @@ impl<'a> YamlParser<'a> {
             return self.parse_flow_value(s);
         }
 
-        // Null
-        if s == "null" || s == "~" || s.is_empty() {
+        // Null — empty value only
+        if s.is_empty() {
             return Ok(JsonValue::Null);
-        }
-
-        // Boolean
-        if s == "true"
-            || s == "True"
-            || s == "TRUE"
-            || s == "yes"
-            || s == "Yes"
-            || s == "YES"
-            || s == "on"
-            || s == "On"
-            || s == "ON"
-        {
-            return Ok(JsonValue::Bool(true));
-        }
-        if s == "false"
-            || s == "False"
-            || s == "FALSE"
-            || s == "no"
-            || s == "No"
-            || s == "NO"
-            || s == "off"
-            || s == "Off"
-            || s == "OFF"
-        {
-            return Ok(JsonValue::Bool(false));
-        }
-
-        // Number
-        if let Ok(n) = s.parse::<f64>() {
-            // Make sure it's a valid number representation (not NaN/Inf from YAML words)
-            if n.is_finite() {
-                // Verify it looks like a number, not a random string that parses as f64
-                let first = s.as_bytes()[0];
-                if first == b'-' || first == b'+' || first.is_ascii_digit() || first == b'.' {
-                    return Ok(JsonValue::Number(n));
-                }
-            }
         }
 
         // Quoted string (single or double)
@@ -404,7 +373,7 @@ impl<'a> YamlParser<'a> {
             return Ok(JsonValue::Str(unescape_string(inner)));
         }
 
-        // Unquoted string
+        // Everything else is a raw string — matches Java behavior
         Ok(JsonValue::Str(s.to_string()))
     }
 
@@ -559,6 +528,7 @@ mod tests {
     }
 
     // 1. Simple key-value mapping
+    // YAML scalars are always stored as raw strings (matching Java MonomorphToJson)
     #[test]
     fn test_simple_mapping() {
         let yd = parse("name: Alice\nage: 30");
@@ -568,7 +538,7 @@ mod tests {
                 assert_eq!(entries[0].0, "name");
                 assert_eq!(entries[0].1, JsonValue::Str("Alice".into()));
                 assert_eq!(entries[1].0, "age");
-                assert_eq!(entries[1].1, JsonValue::Number(30.0));
+                assert_eq!(entries[1].1, JsonValue::Str("30".into()));
             }
             _ => panic!("expected object"),
         }
@@ -610,44 +580,44 @@ mod tests {
         }
     }
 
-    // 4. List with numbers
+    // 4. List with numbers — stored as raw strings (Java YAML behavior)
     #[test]
     fn test_list_numbers() {
         let yd = parse("- 1\n- 2.5\n- -3");
         match &yd.root {
             JsonValue::Array(items) => {
                 assert_eq!(items.len(), 3);
-                assert_eq!(items[0], JsonValue::Number(1.0));
-                assert_eq!(items[1], JsonValue::Number(2.5));
-                assert_eq!(items[2], JsonValue::Number(-3.0));
+                assert_eq!(items[0], JsonValue::Str("1".into()));
+                assert_eq!(items[1], JsonValue::Str("2.5".into()));
+                assert_eq!(items[2], JsonValue::Str("-3".into()));
             }
             _ => panic!("expected array"),
         }
     }
 
-    // 5. Boolean values
+    // 5. Boolean values — stored as raw strings (Java YAML behavior)
     #[test]
     fn test_booleans() {
         let yd = parse("a: true\nb: false\nc: yes\nd: no");
         match &yd.root {
             JsonValue::Object(entries) => {
-                assert_eq!(entries[0].1, JsonValue::Bool(true));
-                assert_eq!(entries[1].1, JsonValue::Bool(false));
-                assert_eq!(entries[2].1, JsonValue::Bool(true));
-                assert_eq!(entries[3].1, JsonValue::Bool(false));
+                assert_eq!(entries[0].1, JsonValue::Str("true".into()));
+                assert_eq!(entries[1].1, JsonValue::Str("false".into()));
+                assert_eq!(entries[2].1, JsonValue::Str("yes".into()));
+                assert_eq!(entries[3].1, JsonValue::Str("no".into()));
             }
             _ => panic!("expected object"),
         }
     }
 
-    // 6. Null values
+    // 6. Null values — "null" and "~" are raw strings; only empty becomes Null
     #[test]
     fn test_null_values() {
         let yd = parse("a: null\nb: ~\nc:");
         match &yd.root {
             JsonValue::Object(entries) => {
-                assert_eq!(entries[0].1, JsonValue::Null);
-                assert_eq!(entries[1].1, JsonValue::Null);
+                assert_eq!(entries[0].1, JsonValue::Str("null".into()));
+                assert_eq!(entries[1].1, JsonValue::Str("~".into()));
                 assert_eq!(entries[2].1, JsonValue::Null);
             }
             _ => panic!("expected object"),
@@ -697,7 +667,7 @@ mod tests {
                     _ => panic!("expected array for fruits"),
                 }
                 assert_eq!(entries[1].0, "count");
-                assert_eq!(entries[1].1, JsonValue::Number(2.0));
+                assert_eq!(entries[1].1, JsonValue::Str("2".into()));
             }
             _ => panic!("expected object"),
         }
@@ -712,7 +682,7 @@ mod tests {
                 JsonValue::Object(l2) => match &l2[0].1 {
                     JsonValue::Object(l3) => match &l3[0].1 {
                         JsonValue::Object(l4) => {
-                            assert_eq!(l4[0].1, JsonValue::Number(42.0));
+                            assert_eq!(l4[0].1, JsonValue::Str("42".into()));
                         }
                         _ => panic!("expected l4 object"),
                     },
@@ -758,7 +728,7 @@ mod tests {
         }
     }
 
-    // 14. Flow sequence (inline list)
+    // 14. Flow sequence (inline list) — items are raw strings
     #[test]
     fn test_flow_sequence() {
         let yd = parse("items: [1, 2, 3]");
@@ -768,9 +738,9 @@ mod tests {
                 match &entries[0].1 {
                     JsonValue::Array(items) => {
                         assert_eq!(items.len(), 3);
-                        assert_eq!(items[0], JsonValue::Number(1.0));
-                        assert_eq!(items[1], JsonValue::Number(2.0));
-                        assert_eq!(items[2], JsonValue::Number(3.0));
+                        assert_eq!(items[0], JsonValue::Str("1".into()));
+                        assert_eq!(items[1], JsonValue::Str("2".into()));
+                        assert_eq!(items[2], JsonValue::Str("3".into()));
                     }
                     _ => panic!("expected array"),
                 }
@@ -779,7 +749,7 @@ mod tests {
         }
     }
 
-    // 15. Flow mapping (inline object)
+    // 15. Flow mapping (inline object) — values are raw strings
     #[test]
     fn test_flow_mapping() {
         let yd = parse("point: {x: 1, y: 2}");
@@ -790,9 +760,9 @@ mod tests {
                     JsonValue::Object(inner) => {
                         assert_eq!(inner.len(), 2);
                         assert_eq!(inner[0].0, "x");
-                        assert_eq!(inner[0].1, JsonValue::Number(1.0));
+                        assert_eq!(inner[0].1, JsonValue::Str("1".into()));
                         assert_eq!(inner[1].0, "y");
-                        assert_eq!(inner[1].1, JsonValue::Number(2.0));
+                        assert_eq!(inner[1].1, JsonValue::Str("2".into()));
                     }
                     _ => panic!("expected inner object"),
                 }
@@ -813,7 +783,7 @@ mod tests {
                         assert_eq!(e[0].0, "name");
                         assert_eq!(e[0].1, JsonValue::Str("Alice".into()));
                         assert_eq!(e[1].0, "age");
-                        assert_eq!(e[1].1, JsonValue::Number(30.0));
+                        assert_eq!(e[1].1, JsonValue::Str("30".into()));
                     }
                     _ => panic!("expected object in list"),
                 }
@@ -829,16 +799,16 @@ mod tests {
         }
     }
 
-    // 17. Mixed types in mapping
+    // 17. Mixed types in mapping — all unquoted scalars are strings
     #[test]
     fn test_mixed_types() {
         let yd = parse("str: hello\nnum: 42\nbool: true\nnull_val: null");
         match &yd.root {
             JsonValue::Object(entries) => {
                 assert_eq!(entries[0].1, JsonValue::Str("hello".into()));
-                assert_eq!(entries[1].1, JsonValue::Number(42.0));
-                assert_eq!(entries[2].1, JsonValue::Bool(true));
-                assert_eq!(entries[3].1, JsonValue::Null);
+                assert_eq!(entries[1].1, JsonValue::Str("42".into()));
+                assert_eq!(entries[2].1, JsonValue::Str("true".into()));
+                assert_eq!(entries[3].1, JsonValue::Str("null".into()));
             }
             _ => panic!("expected object"),
         }
@@ -856,30 +826,30 @@ mod tests {
         }
     }
 
-    // 19. Boolean edge cases (yes/no/on/off)
+    // 19. Boolean edge cases — all stored as raw strings (Java YAML behavior)
     #[test]
     fn test_boolean_variants() {
         let yd = parse("a: Yes\nb: No\nc: on\nd: off\ne: TRUE\nf: FALSE");
         match &yd.root {
             JsonValue::Object(entries) => {
-                assert_eq!(entries[0].1, JsonValue::Bool(true));
-                assert_eq!(entries[1].1, JsonValue::Bool(false));
-                assert_eq!(entries[2].1, JsonValue::Bool(true));
-                assert_eq!(entries[3].1, JsonValue::Bool(false));
-                assert_eq!(entries[4].1, JsonValue::Bool(true));
-                assert_eq!(entries[5].1, JsonValue::Bool(false));
+                assert_eq!(entries[0].1, JsonValue::Str("Yes".into()));
+                assert_eq!(entries[1].1, JsonValue::Str("No".into()));
+                assert_eq!(entries[2].1, JsonValue::Str("on".into()));
+                assert_eq!(entries[3].1, JsonValue::Str("off".into()));
+                assert_eq!(entries[4].1, JsonValue::Str("TRUE".into()));
+                assert_eq!(entries[5].1, JsonValue::Str("FALSE".into()));
             }
             _ => panic!("expected object"),
         }
     }
 
-    // 20. Tilde as null
+    // 20. Tilde — stored as raw string (Java YAML behavior)
     #[test]
-    fn test_tilde_null() {
+    fn test_tilde() {
         let yd = parse("val: ~");
         match &yd.root {
             JsonValue::Object(entries) => {
-                assert_eq!(entries[0].1, JsonValue::Null);
+                assert_eq!(entries[0].1, JsonValue::Str("~".into()));
             }
             _ => panic!("expected object"),
         }
@@ -898,13 +868,13 @@ mod tests {
         }
     }
 
-    // 22. Float number
+    // 22. Float number — stored as raw string
     #[test]
     fn test_float_number() {
         let yd = parse("pi: 3.15159");
         match &yd.root {
             JsonValue::Object(entries) => {
-                assert_eq!(entries[0].1, JsonValue::Number(3.15159));
+                assert_eq!(entries[0].1, JsonValue::Str("3.15159".into()));
             }
             _ => panic!("expected object"),
         }
@@ -925,7 +895,7 @@ mod tests {
                         assert_eq!(db[0].0, "host");
                         assert_eq!(db[0].1, JsonValue::Str("localhost".into()));
                         assert_eq!(db[1].0, "port");
-                        assert_eq!(db[1].1, JsonValue::Number(5432.0));
+                        assert_eq!(db[1].1, JsonValue::Str("5432".into()));
                         assert_eq!(db[2].0, "tables");
                         match &db[2].1 {
                             JsonValue::Array(tables) => {
@@ -937,7 +907,7 @@ mod tests {
                     _ => panic!("expected object for database"),
                 }
                 assert_eq!(entries[1].0, "debug");
-                assert_eq!(entries[1].1, JsonValue::Bool(false));
+                assert_eq!(entries[1].1, JsonValue::Str("false".into()));
             }
             _ => panic!("expected root object"),
         }
@@ -955,13 +925,13 @@ mod tests {
         }
     }
 
-    // 25. Negative float
+    // 25. Negative float — stored as raw string
     #[test]
     fn test_negative_float() {
         let yd = parse("temp: -12.5");
         match &yd.root {
             JsonValue::Object(entries) => {
-                assert_eq!(entries[0].1, JsonValue::Number(-12.5));
+                assert_eq!(entries[0].1, JsonValue::Str("-12.5".into()));
             }
             _ => panic!("expected object"),
         }

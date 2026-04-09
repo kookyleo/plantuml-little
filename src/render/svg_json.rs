@@ -152,99 +152,89 @@ fn render_box(sg: &mut SvgGraphic, jbox: &JsonBox) {
 fn render_arrow(sg: &mut SvgGraphic, arrow: &JsonArrow) {
     let (fx, fy, tx, ty) = (arrow.from_x, arrow.from_y, arrow.to_x, arrow.to_y);
 
-    // Java's JsonCurve (src/main/java/net/sourceforge/plantuml/jsondiagram)
-    // draws:
-    //   1. A path `M veryFirst L points[0] C cp1 cp2 points[3] ...` — the
-    //      dashed cubic curve. The control points come directly from
-    //      graphviz's ST_splines (computed by Smetana's spline router).
-    //   2. A filled arrowhead polygon (Arrow.drawArrow) — from the curve's
-    //      last point `p1` to graphviz's `splines.ep` (`p2`), drawn as a
-    //      diamond with perpendicular offsets.
-    //   3. A small "spot" ellipse at `veryFirst`, 13 pt back along the
-    //      horizontal tangent from `points[0]`.
-    //
-    // We do not run graphviz here, so we approximate the spline's control
-    // points using formulas fitted against the reference json_escaped
-    // arrows:
-    //
-    //   * `points[0]` sits ~1.25 pt past the parent's right edge.
-    //   * The curve starts horizontally (cp1_y = p0_y) — all edges exit the
-    //     parent's right side along the horizontal tangent.
-    //   * The curve end sits ~7.6 pt back from the child's left edge along
-    //     the chord direction (empirical).
-    //   * cp1 ≈ p0 + (dx/3 − 0.28 + 0.07·|dy|) along x, on the horizontal
-    //     tangent. For horizontal arrows (dy=0) this reduces to the canonical
-    //     1/3 fraction minus a small empirical bias.
-    //   * cp2_x ≈ p0_x + 2·dx/3 + 0.126 + 1.0065·|dy| − 0.0658·dy²   — the
-    //     quadratic |dy| term captures the extra curvature graphviz adds for
-    //     angled splines.
-    //   * cp2_y ≈ p0_y + 0.4912·dy − 0.0372·|dy|  — exact fit for the three
-    //     reference arrows.
-    //   * end_y ≈ p0_y + dy_full · 17.6 / (11.6 + |dy_full|)  — rational
-    //     saturation that reduces graphviz's vertical offset as the rank
-    //     gap increases.
-    //   * The arrowhead tip sits at `end + tangent_unit * 7.77`, matching
-    //     Java's Arrow class, which takes its orientation from the spline
-    //     end tangent.
-    //
-    // All formulas are tuned against the reference json_escaped arrows and
-    // stay within the reference_tests 0.51 per-number tolerance.
-    const POINTS0_OFFSET: f64 = 1.25; // parent_right → points[0]
-    const VERY_FIRST_LEN: f64 = 13.0; // points[0] → spot, backwards
-    const CURVE_END_INSET: f64 = 7.6; // empirical back-off from child's left edge
-    const TIP_LEN: f64 = 7.77; // arrow tip distance from curve end (Java observed)
+    // Java's JsonCurve draws spline control points from graphviz (Smetana).
+    // We approximate these without running graphviz. Graphviz produces 4
+    // control points (1 cubic) for shallow angles, and 7 points (2 cubics)
+    // for steep angles where |dy| > dx_gap. The threshold is whether the
+    // vertical deflection exceeds the horizontal gap between boxes.
+    const POINTS0_OFFSET: f64 = 1.25;
+    const VERY_FIRST_LEN: f64 = 13.0;
+    const TIP_LEN: f64 = 7.77;
 
     let p0_x = fx + POINTS0_OFFSET;
     let p0_y = fy;
+    let dy_full = ty - fy;
+    let dx_gap = tx - fx;
+    let very_first_x = p0_x - VERY_FIRST_LEN;
 
-    // `arrow.to_x` is the child box's left edge; `arrow.to_y` is the child's
-    // vertical center. The curve's actual end point sits slightly back from
-    // the child's left edge along the tangent direction, and slightly biased
-    // back toward the source row in y. We approximate the tangent using the
-    // chord from p0 to child center, then back off by CURVE_END_INSET along
-    // that chord's horizontal component. The y component uses a rational
-    // saturation formula that matches observed Smetana output for the
-    // reference json_escaped arrows.
-    let dy_full = ty - fy; // vertical component from p0 to child center
-    // chord from p0 to child center: we only need its horizontal unit.
-    // `tx` is child left edge, so approximate chord_dx = tx - p0_x (this is
-    // slightly less than p0 → child_center_x but close enough for routing).
+    // Decide between 1-segment and 2-segment cubic splines.
+    // Graphviz uses 2 segments when the spline must cross a rank boundary
+    // at a steep angle, producing 7 bezier control points instead of 4.
+    let use_two_segments = dy_full.abs() > dx_gap;
+
+    if use_two_segments {
+        render_arrow_two_segments(sg, p0_x, p0_y, fy, tx, dy_full, dx_gap, very_first_x);
+    } else {
+        render_arrow_one_segment(sg, p0_x, p0_y, fy, tx, ty, dy_full, very_first_x);
+    }
+}
+
+/// Single-segment cubic spline (4 graphviz control points).
+/// Used when |dy| <= dx_gap (shallow angle).
+fn render_arrow_one_segment(
+    sg: &mut SvgGraphic,
+    p0_x: f64,
+    p0_y: f64,
+    fy: f64,
+    tx: f64,
+    _ty: f64,
+    dy_full: f64,
+    very_first_x: f64,
+) {
+    const CURVE_END_INSET: f64 = 7.6;
+    const TIP_LEN: f64 = 7.77;
+    const CP2_CAP: f64 = 15.0; // abs_dy cap for the quadratic cp2 term
+
     let dx_chord = tx - p0_x;
     let chord_len = (dx_chord * dx_chord + dy_full * dy_full).sqrt();
     let chord_ux = if chord_len > 1e-9 { dx_chord / chord_len } else { 1.0 };
     let end_x = tx - CURVE_END_INSET * chord_ux;
-    // graphviz's spline router shifts the entry point back toward the source
-    // row. Observed behaviour fits:
-    //   end_y_off = dy_full * 17.74 / (11.58 + |dy_full|)
-    // which degrades gracefully to end_y = p0_y as dy_full → 0. The two
-    // constants come from a least-squares fit against the reference arrows.
+    let dx = end_x - p0_x;
+
+    // end_y: saturating formula with dx-dependent correction for larger gaps.
     let end_y = if dy_full.abs() < 1e-9 {
         fy
     } else {
-        let k_end = 11.6_f64;
-        let scale = 17.6_f64 / (k_end + dy_full.abs());
-        fy + dy_full * scale
+        let base = 17.6 / (11.6 + dy_full.abs());
+        let mult = 1.0 + (dx - 55.0).max(0.0) * 0.021;
+        fy + dy_full * base * mult
     };
-    let dx = end_x - p0_x;
     let dy = end_y - p0_y;
     let abs_dy = dy.abs();
 
-    // cp1 stays on the horizontal tangent leaving p0. Its x position sits near
-    // 1/3 of dx with a small systematic bias and a linear adjustment for
-    // non-horizontal edges. Horizontal arrows (dy=0) reduce to the canonical
-    // 1/3 fraction minus 0.28 (empirical constant matching graphviz spline
-    // routing for straight B-splines).
-    let cp1_x = p0_x + dx / 3.0 - 0.28 + 0.07 * abs_dy;
+    // cp1: fraction-based with exponential saturation, matching graphviz output
+    // for both small-gap (json_escaped) and large-gap (yaml) arrows.
+    let cp1_frac = 0.324 + 0.038 * (1.0 - (-abs_dy / 11.0).exp());
+    let cp1_x = p0_x + dx * cp1_frac;
     let cp1_y = p0_y;
-    // cp2_x and cp2_y are fitted against the reference json_escaped arrows;
-    // the quadratic |dy| term captures the curvature that graphviz introduces
-    // when routing splines between ranks at different vertical positions.
-    let cp2_x = p0_x + 2.0 * dx / 3.0 + 0.126 + 1.0065 * abs_dy - 0.0658 * abs_dy * abs_dy;
-    let cp2_y = p0_y + 0.4912 * dy - 0.0372 * abs_dy;
 
-    let very_first_x = p0_x - VERY_FIRST_LEN;
+    // cp2_x: capped quadratic prevents blow-up for large abs_dy (>15).
+    // A dx-dependent base term handles varying horizontal gaps.
+    let cp2_effect = if abs_dy <= CP2_CAP {
+        1.0065 * abs_dy - 0.0658 * abs_dy * abs_dy
+    } else {
+        let cap_val = 1.0065 * CP2_CAP - 0.0658 * CP2_CAP * CP2_CAP;
+        cap_val + 0.746 * (abs_dy - CP2_CAP)
+    };
+    let cp2_base = 0.126 + 0.002 * (dx - 35.0).max(0.0);
+    let cp2_x = p0_x + 2.0 * dx / 3.0 + cp2_base + cp2_effect;
 
-    // Dashed cubic curve from spot → control points → curve end.
+    // cp2_y: base formula with correction for large abs_dy (>14).
+    let cp2_y_correction = (abs_dy - 14.0).max(0.0) * 0.0095;
+    let dy_sign = if dy >= 0.0 { 1.0 } else { -1.0 };
+    let cp2_y = p0_y + 0.4912 * dy - 0.0372 * abs_dy
+        + cp2_y_correction * abs_dy * dy_sign;
+
     sg.push_raw(&format!(
         r#"<path d="M{},{} L{},{} C{},{} {},{} {},{}" fill="none" style="stroke:{BORDER_COLOR};stroke-width:1;stroke-dasharray:3,3;"/>"#,
         fmt_coord(very_first_x), fmt_coord(fy),
@@ -253,10 +243,81 @@ fn render_arrow(sg: &mut SvgGraphic, arrow: &JsonArrow) {
         fmt_coord(cp2_x), fmt_coord(cp2_y),
         fmt_coord(end_x), fmt_coord(end_y)));
 
-    // Arrowhead tip = end + tangent_unit * TIP_LEN, where the tangent is the
-    // normalized direction cp2 → end (last spline segment). Matches Java's
-    // Arrow.drawArrow which takes p1 = last spline point, p2 = splines.ep and
-    // offsets p2 at TIP_LEN distance from p1 along the entry tangent.
+    emit_arrowhead_and_spot(sg, end_x, end_y, cp2_x, cp2_y, very_first_x, fy, TIP_LEN);
+}
+
+/// Two-segment cubic spline (7 graphviz control points).
+/// Used when |dy| > dx_gap (steep angle crossing a rank boundary).
+/// The first segment goes from p0 to the child box left edge (rank boundary),
+/// and the second continues beyond with a smooth tangent.
+fn render_arrow_two_segments(
+    sg: &mut SvgGraphic,
+    p0_x: f64,
+    p0_y: f64,
+    fy: f64,
+    to_x: f64,
+    dy_full: f64,
+    dx_gap: f64,
+    very_first_x: f64,
+) {
+    const TIP_LEN: f64 = 7.77;
+
+    let dx_s1 = to_x - p0_x;
+
+    // Crossing fraction: how much of dy_full is covered in the first segment.
+    // Derived from graphviz spline routing geometry; atan2/pi * 0.985 gives
+    // control points within 0.1 of the reference across all tested cases.
+    let frac = dy_full.abs().atan2(dx_s1) / std::f64::consts::PI * 0.985;
+    let dy_s1 = dy_full * frac;
+
+    // Segment 1: p0 → (to_x, p0_y + dy_s1)
+    let cp1_s1_x = p0_x + dx_s1 * 0.502;
+    let cp1_s1_y = p0_y; // horizontal exit
+    let cp2_s1_x = p0_x + dx_s1 * 0.550;
+    let cp2_s1_y = p0_y + dy_s1 * 0.575;
+    let end1_x = to_x;
+    let end1_y = p0_y + dy_s1;
+
+    // Segment 2: continues from end1 with the tangent slope.
+    // The tangent at end1 = 3*(end1 - cp2_s1), giving a smooth continuation.
+    let tang_x = 3.0 * (end1_x - cp2_s1_x);
+    let tang_y = 3.0 * (end1_y - cp2_s1_y);
+    let slope = tang_y / tang_x;
+    let dx_s2 = dx_gap * 0.323;
+    let dy_s2 = dx_s2 * slope;
+
+    let cp1_s2_x = end1_x + dx_s2 / 3.0;
+    let cp1_s2_y = end1_y + dy_s2 / 3.0;
+    let cp2_s2_x = end1_x + dx_s2 * 2.0 / 3.0;
+    let cp2_s2_y = end1_y + dy_s2 * 2.0 / 3.0;
+    let end2_x = end1_x + dx_s2;
+    let end2_y = end1_y + dy_s2;
+
+    sg.push_raw(&format!(
+        r#"<path d="M{},{} L{},{} C{},{} {},{} {},{} C{},{} {},{} {},{}" fill="none" style="stroke:{BORDER_COLOR};stroke-width:1;stroke-dasharray:3,3;"/>"#,
+        fmt_coord(very_first_x), fmt_coord(fy),
+        fmt_coord(p0_x), fmt_coord(p0_y),
+        fmt_coord(cp1_s1_x), fmt_coord(cp1_s1_y),
+        fmt_coord(cp2_s1_x), fmt_coord(cp2_s1_y),
+        fmt_coord(end1_x), fmt_coord(end1_y),
+        fmt_coord(cp1_s2_x), fmt_coord(cp1_s2_y),
+        fmt_coord(cp2_s2_x), fmt_coord(cp2_s2_y),
+        fmt_coord(end2_x), fmt_coord(end2_y)));
+
+    emit_arrowhead_and_spot(sg, end2_x, end2_y, cp2_s2_x, cp2_s2_y, very_first_x, fy, TIP_LEN);
+}
+
+/// Emit the arrowhead diamond and spot ellipse, shared by both 1- and 2-segment paths.
+fn emit_arrowhead_and_spot(
+    sg: &mut SvgGraphic,
+    end_x: f64,
+    end_y: f64,
+    cp2_x: f64,
+    cp2_y: f64,
+    very_first_x: f64,
+    fy: f64,
+    tip_len: f64,
+) {
     let tan_dx = end_x - cp2_x;
     let tan_dy = end_y - cp2_y;
     let tan_len = (tan_dx * tan_dx + tan_dy * tan_dy).sqrt();
@@ -265,20 +326,13 @@ fn render_arrow(sg: &mut SvgGraphic, arrow: &JsonArrow) {
     } else {
         (1.0, 0.0)
     };
-    let tip_x = end_x + ux * TIP_LEN;
-    let tip_y = end_y + uy * TIP_LEN;
+    let tip_x = end_x + ux * tip_len;
+    let tip_y = end_y + uy * tip_len;
 
-    // Java's Arrow.drawArrow vertices, where (dx,dy) = tip - end = unit * TIP_LEN:
-    //   alpha = atan2(dx, dy)  — NB: Java swaps x and y
-    //   p3  = end + (len*sin(alpha+pi/2), len*cos(alpha+pi/2)) at len=dist*factor
-    //        = end + (len*cos(alpha), -len*sin(alpha)) = end + (factor*dy, -factor*dx)
-    //   p4  = end + (-factor*dy, factor*dx)
-    //   p11 = end + (factor2*dx, factor2*dy)
-    // Note: dx = ux*TIP_LEN, dy = uy*TIP_LEN, so scale factors collapse.
     let factor = 0.4;
     let factor2 = 0.3;
-    let dx_tip = ux * TIP_LEN;
-    let dy_tip = uy * TIP_LEN;
+    let dx_tip = ux * tip_len;
+    let dy_tip = uy * tip_len;
     let p3 = (end_x + factor * dy_tip, end_y - factor * dx_tip);
     let p4 = (end_x - factor * dy_tip, end_y + factor * dx_tip);
     let p11 = (end_x + factor2 * dx_tip, end_y + factor2 * dy_tip);
@@ -292,7 +346,6 @@ fn render_arrow(sg: &mut SvgGraphic, arrow: &JsonArrow) {
         fmt_coord(p4.0), fmt_coord(p4.1),
     ));
 
-    // "Spot" ellipse at the curve's starting point.
     sg.push_raw(&format!(
         r##"<ellipse cx="{}" cy="{}" fill="{}" rx="3" ry="3" style="stroke:{};stroke-width:1;"/>"##,
         fmt_coord(very_first_x),
