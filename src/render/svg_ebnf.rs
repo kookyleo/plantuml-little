@@ -42,8 +42,14 @@ pub fn render_ebnf(_d: &EbnfDiagram, l: &EbnfLayout, skin: &SkinParams) -> Resul
                     ff(*x + *width - fold), ff(*y), ff(*x + *width - fold), ff(*y + fold), ff(*x + *width), ff(*y + fold), ff(*x + *width - fold), ff(*y), NOTE_BG, STROKE).unwrap();
                 let asc = font_metrics::ascent("SansSerif", COMMENT_FS, false, false);
                 let tw = font_metrics::text_width(text, "SansSerif", COMMENT_FS, false, false);
+                // Opale draws textBlock at (marginX1=6, marginY=5).
+                // The text " comment " (with spaces from parser) has the leading space width
+                // offset. Text x = note_x + marginX1 + space_width.
+                let space_w = font_metrics::text_width(" ", "SansSerif", COMMENT_FS, false, false);
+                let text_x = *x + 6.0 + space_w; // Opale marginX1 + space offset
+                let text_y = *y + 5.0 + asc; // Opale marginY + ascent
                 write!(buf, r#"<text fill="{}" font-family="sans-serif" font-size="{}" lengthAdjust="spacing" textLength="{}" x="{}" y="{}">{}</text>"#,
-                    TEXT_C, COMMENT_FS as i32, ff(tw), ff(*x + 10.0), ff(*y + asc + 7.0), xml_escape(text)).unwrap();
+                    TEXT_C, COMMENT_FS as i32, ff(tw), ff(text_x), ff(text_y), xml_escape(text)).unwrap();
             }
             EbnfElement::RuleName { x, y, text } => {
                 let tw = font_metrics::text_width(text, "SansSerif", FONT_SIZE, true, false);
@@ -73,8 +79,8 @@ pub fn render_ebnf(_d: &EbnfDiagram, l: &EbnfLayout, skin: &SkinParams) -> Resul
                 write!(buf, r#"<ellipse cx="{}" cy="{}" fill="{}" rx="{}" ry="{}" style="stroke:{};stroke-width:1;"/>"#, ff(*cx), ff(*cy), STROKE, ff(*r), ff(*r), STROKE).unwrap();
             }
             EbnfElement::Arrow { x, y } => {
-                write!(buf, r#"<path d="M{},{} L{},{} L{},{} L{},{}" fill="{}"/>"#,
-                    ff(*x), ff(*y), ff(*x), ff(*y - 3.0), ff(*x + 6.0), ff(*y), ff(*x), ff(*y + 3.0), STROKE).unwrap();
+                write!(buf, r#"<path d="M{},{} L{},{} L{},{} L{},{} L{},{}" fill="{}"/>"#,
+                    ff(*x), ff(*y), ff(*x), ff(*y - 3.0), ff(*x + 6.0), ff(*y), ff(*x), ff(*y + 3.0), ff(*x), ff(*y), STROKE).unwrap();
             }
         }
     }
