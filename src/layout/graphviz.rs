@@ -145,6 +145,9 @@ pub struct LayoutGraph {
     /// still rely on legacy Graphviz arrow emission until their svek pipelines
     /// are ported far enough to render decorations purely from bezier geometry.
     pub use_simplier_dot_link_strategy: bool,
+    /// Arrow/link label font size (default 13pt).
+    /// C4 diagrams set `skinparam arrow.FontSize 12`.
+    pub arrow_font_size: Option<f64>,
 }
 
 /// Output: node position after layout (SVG coordinates, origin top-left, Y downward)
@@ -360,6 +363,19 @@ fn measure_creole_line_width(line: &str, font_size: f64) -> f64 {
                 // Find closing marker
                 if let Some(end_rel) = line[pos + 2..].find(marker) {
                     let inner = &line[pos + 2..pos + 2 + end_rel];
+                    // Handle nested <size:N>text</size> within styled text
+                    if let Some(after_size) = inner.strip_prefix("<size:") {
+                        if let Some(gt) = after_size.find('>') {
+                            let sz = after_size[..gt].parse::<f64>().unwrap_or(font_size);
+                            let rest = &after_size[gt + 1..];
+                            let text = rest.strip_suffix("</size>").unwrap_or(rest);
+                            total_w += crate::font_metrics::text_width(
+                                text, "SansSerif", sz, is_bold, is_italic,
+                            );
+                            pos = pos + 2 + end_rel + 2;
+                            continue;
+                        }
+                    }
                     total_w +=
                         crate::font_metrics::text_width(inner, "SansSerif", font_size, is_bold, is_italic);
                     pos = pos + 2 + end_rel + 2;
@@ -367,6 +383,23 @@ fn measure_creole_line_width(line: &str, font_size: f64) -> f64 {
                 }
             }
         }
+        // Check for <size:N>text</size> markup
+        if line[pos..].starts_with("<size:") {
+            if let Some(gt_pos) = line[pos + 6..].find('>') {
+                let size_str = &line[pos + 6..pos + 6 + gt_pos];
+                let inner_font_size = size_str.parse::<f64>().unwrap_or(font_size);
+                let content_start = pos + 6 + gt_pos + 1;
+                if let Some(end_tag) = line[content_start..].find("</size>") {
+                    let inner_text = &line[content_start..content_start + end_tag];
+                    total_w += crate::font_metrics::text_width(
+                        inner_text, "SansSerif", inner_font_size, false, false,
+                    );
+                    pos = content_start + end_tag + 7; // skip </size>
+                    continue;
+                }
+            }
+        }
+
         // Regular character — accumulate until next potential markup
         let seg_start = pos;
         pos += 1;
@@ -376,6 +409,9 @@ fn measure_creole_line_width(line: &str, font_size: f64) -> f64 {
                 if two == "**" || two == "//" || two == "__" || two == "~~" {
                     break;
                 }
+            }
+            if line[pos..].starts_with("<size:") {
+                break;
             }
             pos += 1;
         }
@@ -617,7 +653,8 @@ pub fn layout_with_svek(graph: &LayoutGraph) -> Result<GraphLayout, Error> {
             // Result: (text_w + arrow_w + 2*margin) × (max(text_h, arrow_h) + 2*margin)
             let has_arrow = has_link_arrow_indicator(label);
             let label_text = strip_link_arrow_text(label);
-            let (text_w, text_h) = measure_edge_text_block(&label_text, 13.0);
+            let edge_font_size = graph.arrow_font_size.unwrap_or(13.0);
+            let (text_w, text_h) = measure_edge_text_block(&label_text, edge_font_size);
             let arrow_w = if has_arrow { 13.0 } else { 0.0 };
             let margin_label = if edge.from == edge.to { 6.0 } else { 1.0 };
             let inner_w = text_w + arrow_w;
@@ -1739,6 +1776,7 @@ mod tests {
             ranksep_override: None,
             nodesep_override: None,
             use_simplier_dot_link_strategy: false,
+        arrow_font_size: None,
         }
     }
 
@@ -1792,6 +1830,7 @@ mod tests {
             ranksep_override: None,
             nodesep_override: None,
             use_simplier_dot_link_strategy: false,
+        arrow_font_size: None,
         };
         let result = layout(&graph).expect("single node layout failed");
         assert_eq!(result.nodes.len(), 1);

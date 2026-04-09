@@ -209,8 +209,63 @@ pub fn entity_margins(kind: &ComponentKind) -> (f64, f64, f64, f64) {
     }
 }
 
+/// Parse a C4 entity name line into its effective font properties.
+/// Returns (display_text, font_size, bold, italic).
+pub fn parse_c4_line_props(line: &str) -> (&str, f64, bool, bool) {
+    // Check for `== Heading` (creole heading order 1 → FONT_SIZE+2, bold)
+    if let Some(rest) = line.strip_prefix("== ").or_else(|| line.strip_prefix("==")) {
+        return (rest.trim(), FONT_SIZE + 2.0, true, false);
+    }
+    // Check for `//<size:N>text</size>//` (italic + explicit size)
+    let trimmed = line.trim();
+    let inner = trimmed.strip_prefix("//").and_then(|s| s.strip_suffix("//")).unwrap_or(trimmed);
+    if let Some(after_size) = inner.strip_prefix("<size:") {
+        if let Some(end) = after_size.find('>') {
+            let size_str = &after_size[..end];
+            if let Ok(sz) = size_str.parse::<f64>() {
+                let rest = &after_size[end + 1..];
+                let text = rest.strip_suffix("</size>").unwrap_or(rest);
+                let is_italic = trimmed.starts_with("//") && trimmed.ends_with("//");
+                return (text, sz, false, is_italic);
+            }
+        }
+    }
+    // Check for italic wrapper `//text//`
+    if let Some(inner) = trimmed.strip_prefix("//").and_then(|s| s.strip_suffix("//")) {
+        return (inner, FONT_SIZE, false, true);
+    }
+    (trimmed, FONT_SIZE, false, false)
+}
+
+/// Count how many wrapped lines a text segment produces at the given font,
+/// and the maximum line width. Returns (num_lines, max_line_width).
+fn wrapped_line_metrics(text: &str, font_size: f64, bold: bool, italic: bool, max_w: f64) -> (usize, f64) {
+    let words: Vec<&str> = text.split(' ').collect();
+    if words.is_empty() {
+        return (1, 0.0);
+    }
+    let space_w = font_metrics::char_width(' ', "SansSerif", font_size, bold, italic);
+    let mut lines = 1usize;
+    let mut cur_w = 0.0_f64;
+    let mut max_line_w = 0.0_f64;
+
+    for (i, word) in words.iter().enumerate() {
+        let ww = font_metrics::text_width(word, "SansSerif", font_size, bold, italic);
+        let needed = if i == 0 || cur_w == 0.0 { ww } else { space_w + ww };
+        if cur_w > 0.0 && cur_w + needed > max_w {
+            max_line_w = max_line_w.max(cur_w);
+            lines += 1;
+            cur_w = ww;
+        } else {
+            cur_w += needed;
+        }
+    }
+    max_line_w = max_line_w.max(cur_w);
+    (lines, max_line_w)
+}
+
 /// Estimate the size of a component entity.
-fn estimate_entity_size(entity: &ComponentEntity) -> (f64, f64) {
+fn estimate_entity_size(entity: &ComponentEntity, wrap_width: Option<f64>) -> (f64, f64) {
     // Ports are small: 12x12 square (Java EntityPosition.RADIUS * 2)
     // The text label is rendered outside the graphviz node, so the DOT node is just the port square.
     if matches!(entity.kind, ComponentKind::PortIn | ComponentKind::PortOut) {
@@ -286,6 +341,80 @@ fn estimate_entity_size(entity: &ComponentEntity) -> (f64, f64) {
         let margin = 10.0; // Java Margin(10,10,10,10)
         let width = content_w + 2.0 * margin;
         let height = content_h + 2.0 * margin;
+        return (width, height);
+    }
+
+    // When wrapWidth is active (e.g. C4 `skinparam wrapWidth 200`), the entity
+    // body text wraps at that pixel width. Java: SheetBlock1 uses MaximumWidth
+    // to constrain each stripe. This produces narrower, taller entities.
+    if let Some(max_w) = wrap_width {
+        let (ml, mr, mt, mb) = entity_margins(&entity.kind);
+        let content_max = max_w; // Java wraps text at wrapWidth, margins are outside
+
+        let name_lines: Vec<&str> = entity.name.split("\\n").flat_map(|s| s.lines()).collect();
+        let stereo_lines_count: f64 = if entity.stereotype.is_some() { 1.0 } else { 0.0 };
+
+        // Java SheetBlock1 uses a constant line stride from the base font (14pt).
+        let base_lh = font_metrics::line_height("SansSerif", FONT_SIZE, false, false);
+
+        let mut total_text_lines = 0usize;
+        let mut max_content_w = 0.0_f64;
+        let mut sprite_height = 0.0_f64;
+
+        for raw_line in &name_lines {
+            if raw_line.trim().is_empty() {
+                total_text_lines += 1;
+                continue;
+            }
+            // Sprite reference: `<$name>` — uses the sprite's pixel
+            // dimensions instead of text metrics.
+            let trimmed_l = raw_line.trim();
+            if trimmed_l.starts_with("<$") && trimmed_l.ends_with('>') {
+                let sprite_name = &trimmed_l[2..trimmed_l.len() - 1];
+                if let Some((sw, sh)) = sprite_stereo_dimensions(&format!("${sprite_name}")) {
+                    // Java SpriteMonochrome.toUImage adds 2px border padding per side
+                    let rendered_w = sw + 4.0;
+                    let rendered_h = sh + 4.0;
+                    max_content_w = max_content_w.max(rendered_w);
+                    sprite_height += rendered_h;
+                    continue;
+                }
+            }
+            let (text, font_size, bold, italic) = parse_c4_line_props(raw_line);
+            if text.is_empty() {
+                total_text_lines += 1;
+                continue;
+            }
+            let full_w = font_metrics::text_width(text, "SansSerif", font_size, bold, italic);
+            if full_w > content_max {
+                let (wrapped_count, wrapped_max) =
+                    wrapped_line_metrics(text, font_size, bold, italic, content_max);
+                total_text_lines += wrapped_count;
+                max_content_w = max_content_w.max(wrapped_max);
+            } else {
+                total_text_lines += 1;
+                max_content_w = max_content_w.max(full_w);
+            }
+        }
+
+        // Stereotype line (e.g. «container»).
+        let stereo_font_size = FONT_SIZE - 2.0;
+        let stereo_w = entity.stereotype.as_ref().map_or(0.0, |s| {
+            let gt = format!("\u{00AB}{s}\u{00BB}");
+            font_metrics::text_width(&gt, "SansSerif", stereo_font_size, false, true)
+        });
+        max_content_w = max_content_w.max(stereo_w);
+        // The stereo line is rendered above the body but counted separately
+        // in the entity dimension. Java: stereo.mergeTB(desc) → 1 extra line.
+        let stereo_line_h = if entity.stereotype.is_some() { base_lh } else { 0.0 };
+
+        let width = max_content_w + ml + mr;
+        let height = total_text_lines as f64 * base_lh + stereo_line_h + sprite_height + mt + mb;
+
+        log::debug!(
+            "estimate_entity_size(wrapped): name={:?} wrapWidth={} content_w={:.1} total_h={:.1} w={:.1} h={:.1}",
+            entity.name, max_w, max_content_w, total_text_lines, width, height
+        );
         return (width, height);
     }
 
@@ -505,7 +634,7 @@ fn align_raw_path_d(raw_d: &str, points: &[(f64, f64)], dx: f64, dy: f64) -> Str
 // Public entry point
 // ---------------------------------------------------------------------------
 
-pub fn layout_component(cd: &ComponentDiagram) -> Result<ComponentLayout> {
+pub fn layout_component(cd: &ComponentDiagram, skin: &crate::style::SkinParams) -> Result<ComponentLayout> {
     log::debug!(
         "layout_component: {} entities, {} links, {} groups, {} notes",
         cd.entities.len(),
@@ -583,12 +712,14 @@ pub fn layout_component(cd: &ComponentDiagram) -> Result<ComponentLayout> {
         .filter(|id| group_ids.contains(id))
         .collect();
 
+    let wrap_width = skin.wrap_width();
+
     let mut layout_nodes: Vec<LayoutNode> = cd
         .entities
         .iter()
         .filter(|e| !group_ids.contains(&e.id))
         .map(|e| {
-            let (w, h) = estimate_entity_size(e);
+            let (w, h) = estimate_entity_size(e, wrap_width);
             let entity_position = match e.kind {
                 ComponentKind::PortIn => Some(EntityPosition::PortIn),
                 ComponentKind::PortOut => Some(EntityPosition::PortOut),
@@ -812,6 +943,14 @@ pub fn layout_component(cd: &ComponentDiagram) -> Result<ComponentLayout> {
                 .as_ref()
                 .and_then(|s| sprite_stereo_dimensions(s))
                 .map_or(0.0, |(_, h)| h);
+            // C4 boundary subtitle: extra line for "[system]" etc.
+            let boundary_subtitle_h = if !g.name.contains("<size:")
+                && g.stereotypes.iter().any(|s| s.ends_with("_boundary"))
+            {
+                font_metrics::line_height("SansSerif", FONT_SIZE, true, false)
+            } else {
+                0.0
+            };
             // Java ClusterHeader: titleAndAttributeHeight =
             //   (int)(dimLabel.getHeight() + attributeHeight + marginForFields
             //         + suppHeightBecauseOfShape)
@@ -819,7 +958,7 @@ pub fn layout_component(cd: &ComponentDiagram) -> Result<ComponentLayout> {
             // suppWidthBecauseOfShape:  Node=60, others=0
             // The -5 adjustment is applied in cluster_dot_label (svek/mod.rs:888).
             let (supp_h, supp_w) = cluster_supp_for_shape(&g.kind);
-            let raw_h = sprite_h + title_h + supp_h;
+            let raw_h = sprite_h + title_h + boundary_subtitle_h + supp_h;
             let label_h = if sprite_h > 0.0 {
                 raw_h.floor()
             } else {
@@ -1021,6 +1160,7 @@ pub fn layout_component(cd: &ComponentDiagram) -> Result<ComponentLayout> {
         ranksep_override: None,
         nodesep_override: None,
         use_simplier_dot_link_strategy: false,
+        arrow_font_size: skin.font_size_opt("arrow"),
     };
     let gl = graphviz::layout_with_svek(&graph)?;
 
@@ -1668,7 +1808,7 @@ mod tests {
     #[test]
     fn test_empty_diagram() {
         let d = empty_diagram();
-        let layout = layout_component(&d).unwrap();
+        let layout = layout_component(&d, &crate::style::SkinParams::default()).unwrap();
         assert!(layout.nodes.is_empty());
         assert!(layout.edges.is_empty());
         assert!(layout.notes.is_empty());
@@ -1686,7 +1826,7 @@ mod tests {
             notes: vec![],
             direction: Default::default(),
         };
-        let layout = layout_component(&d).unwrap();
+        let layout = layout_component(&d, &crate::style::SkinParams::default()).unwrap();
         assert_eq!(layout.nodes.len(), 1);
         let n = &layout.nodes[0];
         assert_eq!(n.id, "comp1");
@@ -1707,7 +1847,7 @@ mod tests {
             notes: vec![],
             direction: Default::default(),
         };
-        let layout = layout_component(&d).unwrap();
+        let layout = layout_component(&d, &crate::style::SkinParams::default()).unwrap();
         assert_eq!(layout.nodes.len(), 2);
         assert_eq!(layout.edges.len(), 1);
         assert_eq!(layout.edges[0].label, "uses");
@@ -1749,7 +1889,7 @@ mod tests {
             notes: vec![],
             direction: Default::default(),
         };
-        let layout = layout_component(&d).unwrap();
+        let layout = layout_component(&d, &crate::style::SkinParams::default()).unwrap();
         assert_eq!(layout.nodes.len(), 5);
 
         // All nodes should have valid positions
@@ -1774,7 +1914,7 @@ mod tests {
             color: None,
             source_line: None,
         };
-        let (w, _) = estimate_entity_size(&e);
+        let (w, _) = estimate_entity_size(&e, None);
         assert!(w > NODE_MIN_WIDTH, "long name should produce wider node");
     }
 
@@ -1797,7 +1937,7 @@ mod tests {
             color: None,
             source_line: None,
         };
-        let (_, h) = estimate_entity_size(&e);
+        let (_, h) = estimate_entity_size(&e, None);
         // When description is present, it replaces the name display.
         // So total lines = desc lines (3), not name + desc (4).
         let (_, _, mt, mb) = entity_margins(&ComponentKind::Rectangle);
@@ -1821,7 +1961,7 @@ mod tests {
             }],
             direction: Default::default(),
         };
-        let layout = layout_component(&d).unwrap();
+        let layout = layout_component(&d, &crate::style::SkinParams::default()).unwrap();
         assert_eq!(layout.notes.len(), 1);
         let note = &layout.notes[0];
         assert!(note.width > 0.0);
@@ -1847,7 +1987,7 @@ mod tests {
             notes: vec![],
             direction: Default::default(),
         };
-        let layout = layout_component(&d).unwrap();
+        let layout = layout_component(&d, &crate::style::SkinParams::default()).unwrap();
         assert!(layout.edges[0].dashed);
     }
 
@@ -1870,7 +2010,7 @@ mod tests {
             direction: Default::default(),
             notes: vec![],
         };
-        let layout = layout_component(&d).unwrap();
+        let layout = layout_component(&d, &crate::style::SkinParams::default()).unwrap();
         assert!(!layout.edges[0].points.is_empty());
     }
 
@@ -1918,7 +2058,7 @@ mod tests {
             notes: vec![],
             direction: Default::default(),
         };
-        let layout = layout_component(&d).unwrap();
+        let layout = layout_component(&d, &crate::style::SkinParams::default()).unwrap();
         let inner = layout.nodes.iter().find(|n| n.id == "Inner").unwrap();
         assert!(inner.width > 0.0);
         assert!(inner.height > 0.0);
@@ -1940,7 +2080,7 @@ mod tests {
             }],
             direction: Default::default(),
         };
-        let layout = layout_component(&d).unwrap();
+        let layout = layout_component(&d, &crate::style::SkinParams::default()).unwrap();
         for node in &layout.nodes {
             assert!(
                 node.x + node.width <= layout.width,
@@ -1984,7 +2124,7 @@ mod tests {
             notes: vec![],
             direction: Default::default(),
         };
-        let layout = layout_component(&d).unwrap();
+        let layout = layout_component(&d, &crate::style::SkinParams::default()).unwrap();
         // Edge should be skipped for missing target
         assert_eq!(layout.edges.len(), 0);
     }
@@ -2004,9 +2144,9 @@ mod tests {
             color: None,
             source_line: None,
         };
-        let (_, h) = estimate_entity_size(&e);
+        let (_, h) = estimate_entity_size(&e, None);
         let plain_e = simple_entity("A");
-        let (_, h_plain) = estimate_entity_size(&plain_e);
+        let (_, h_plain) = estimate_entity_size(&plain_e, None);
         assert!(h > h_plain, "stereotype should increase height");
     }
 
@@ -2035,7 +2175,7 @@ mod tests {
             ],
             direction: Default::default(),
         };
-        let layout = layout_component(&d).unwrap();
+        let layout = layout_component(&d, &crate::style::SkinParams::default()).unwrap();
         assert_eq!(layout.notes.len(), 2);
     }
 
@@ -2050,7 +2190,7 @@ mod tests {
             notes: vec![],
             direction: Direction::LeftToRight,
         };
-        let layout = layout_component(&d).unwrap();
+        let layout = layout_component(&d, &crate::style::SkinParams::default()).unwrap();
         assert_eq!(layout.nodes.len(), 2);
         assert!(layout.width > 0.0);
         assert!(layout.height > 0.0);
@@ -2074,8 +2214,8 @@ mod tests {
             notes: vec![],
             direction: Default::default(),
         };
-        let l1 = layout_component(&d1).unwrap();
-        let l2 = layout_component(&d2).unwrap();
+        let l1 = layout_component(&d1, &crate::style::SkinParams::default()).unwrap();
+        let l2 = layout_component(&d2, &crate::style::SkinParams::default()).unwrap();
 
         // Default should match TopToBottom
         assert!((l1.width - l2.width).abs() < 0.01);
@@ -2093,7 +2233,7 @@ mod tests {
             notes: vec![],
             direction: Direction::BottomToTop,
         };
-        let layout = layout_component(&d).unwrap();
+        let layout = layout_component(&d, &crate::style::SkinParams::default()).unwrap();
         assert_eq!(layout.nodes.len(), 2);
         assert!(layout.width > 0.0);
         assert!(layout.height > 0.0);
@@ -2102,7 +2242,7 @@ mod tests {
     #[test]
     fn test_multiline_name_sizing() {
         let single = simple_entity("Web");
-        let (_, h_single) = estimate_entity_size(&single);
+        let (_, h_single) = estimate_entity_size(&single, None);
 
         let multi = ComponentEntity {
             name: "Line1\nLine2\nLine3".to_string(),
@@ -2116,7 +2256,7 @@ mod tests {
             color: None,
             source_line: None,
         };
-        let (_, h_multi) = estimate_entity_size(&multi);
+        let (_, h_multi) = estimate_entity_size(&multi, None);
         // 3 name lines should be taller than 1 name line
         assert!(
             h_multi > h_single,

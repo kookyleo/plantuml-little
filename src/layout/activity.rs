@@ -2514,6 +2514,7 @@ fn layout_old_style_activity_graph(
         ranksep_override: Some(40.0),
         nodesep_override: Some(20.0),
         use_simplier_dot_link_strategy: false,
+        arrow_font_size: None,
     };
 
     let gl = layout_with_svek(&graph)?;

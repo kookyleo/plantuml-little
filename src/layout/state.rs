@@ -1510,6 +1510,7 @@ fn layout_children_with_graphviz(
         // Java inner composite graphs omit nodesep, using Graphviz's default 0.25in (18pt).
         nodesep_override: Some(INNER_NODESEP),
         use_simplier_dot_link_strategy: false,
+        arrow_font_size: None,
     };
 
     // Run graphviz for inner composite content
@@ -2364,6 +2365,7 @@ pub fn layout_state(diagram: &StateDiagram) -> Result<StateLayout> {
         ranksep_override: Some(graphviz::MIN_RANK_SEP_PX),
         nodesep_override: None,
         use_simplier_dot_link_strategy: false,
+        arrow_font_size: None,
     };
 
     // Run graphviz via svek pipeline

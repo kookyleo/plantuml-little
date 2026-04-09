@@ -188,7 +188,7 @@ pub fn layout(diagram: &Diagram, skin: &crate::style::SkinParams) -> Result<Diag
             Ok(DiagramLayout::State(sl))
         }
         Diagram::Component(cd) => {
-            let cl = component::layout_component(cd)?;
+            let cl = component::layout_component(cd, skin)?;
             Ok(DiagramLayout::Component(cl))
         }
         Diagram::Chart(cd) => {
@@ -243,7 +243,7 @@ pub fn layout(diagram: &Diagram, skin: &crate::style::SkinParams) -> Result<Diag
             // Route through the component (description diagram) layout pipeline,
             // same as Java's CucaDiagramFileMakerSvek for usecase diagrams.
             let cd = crate::model::component::ComponentDiagram::from(ud);
-            let cl = component::layout_component(&cd)?;
+            let cl = component::layout_component(&cd, skin)?;
             Ok(DiagramLayout::Component(cl))
         }
         Diagram::Dot(dd) => {
@@ -277,6 +277,7 @@ pub fn layout(diagram: &Diagram, skin: &crate::style::SkinParams) -> Result<Diag
                 ranksep_override: None,
                 nodesep_override: None,
                 use_simplier_dot_link_strategy: false,
+        arrow_font_size: None,
             };
             let gl = graphviz::layout(&lg)?;
             let _ = &dd.source;
@@ -1574,6 +1575,7 @@ fn layout_class_diagram(cd: &ClassDiagram, skin: &crate::style::SkinParams) -> R
         ranksep_override: None,
         nodesep_override: None,
         use_simplier_dot_link_strategy: true,
+        arrow_font_size: None,
     };
 
     let mut layout = layout_with_svek(&graph)?;

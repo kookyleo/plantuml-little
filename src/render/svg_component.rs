@@ -221,6 +221,7 @@ pub fn render_component(
         let eff_border = skin.border_color_for("rectangle", &stereo_refs, group_border);
         let eff_font = skin.font_color_for("rectangle", &stereo_refs, group_font);
         let border_style = skin.border_style_for("rectangle", &stereo_refs);
+        let group_rc = skin.round_corner_for("rectangle", &stereo_refs);
         render_group(
             &mut sg,
             group,
@@ -230,6 +231,7 @@ pub fn render_component(
             eff_border,
             eff_font,
             border_style,
+            group_rc,
         );
     }
 
@@ -267,6 +269,14 @@ pub fn render_component(
             && parent_id
                 .and_then(|parent| group_center_y.get(parent))
                 .is_some_and(|center_y| node.y < *center_y);
+        // Stereotype-keyed skinparams (C4 stdlib: rectangle<<container>>, etc.)
+        // take precedence over generic element styling for the matching shape.
+        // Compute per-node overrides once and splice them into the relevant
+        // slot passed to `render_node` depending on the node's kind.
+        let stereo_refs: Vec<&str> =
+            node.stereotypes.iter().map(String::as_str).collect();
+        let element_key = component_kind_skin_element(&node.kind);
+        let round_corner = skin.round_corner_for(element_key, &stereo_refs);
         let meta = EntitySvgMeta {
             ent_id: entity_ids
                 .get(&node.id)
@@ -278,14 +288,9 @@ pub fn render_component(
                 .unwrap_or(node.id.as_str()),
             emit_comment: !matches!(node.kind, ComponentKind::PortIn | ComponentKind::PortOut),
             port_label_above,
+            round_corner,
+            wrap_width: skin.wrap_width(),
         };
-        // Stereotype-keyed skinparams (C4 stdlib: rectangle<<container>>, etc.)
-        // take precedence over generic element styling for the matching shape.
-        // Compute per-node overrides once and splice them into the relevant
-        // slot passed to `render_node` depending on the node's kind.
-        let stereo_refs: Vec<&str> =
-            node.stereotypes.iter().map(String::as_str).collect();
-        let element_key = component_kind_skin_element(&node.kind);
         let eff_bg = skin.background_color_for(element_key, &stereo_refs, match node.kind {
             ComponentKind::Component => comp_bg,
             ComponentKind::Database => db_bg,
@@ -497,6 +502,7 @@ fn render_group(
     border: &str,
     font_color: &str,
     border_style: Option<&str>,
+    round_corner: Option<f64>,
 ) {
     // Map skinparam BorderStyle to SVG stroke-dasharray (Java LinkStyle).
     let dash_pattern: Option<(f64, f64)> = match border_style
@@ -667,10 +673,11 @@ fn render_group(
         }
         _ => {
             // Default package/rectangle/card: simple rect
+            let rc = round_corner.unwrap_or(2.5);
             sg.set_fill_color("none");
             sg.set_stroke_color(Some(border));
             sg.set_stroke_width(1.0, dash_pattern);
-            sg.svg_rectangle(x, y, w, h, 2.5, 2.5, 0.0);
+            sg.svg_rectangle(x, y, w, h, rc, rc, 0.0);
             if dash_pattern.is_some() {
                 sg.set_stroke_width(1.0, None);
             }
@@ -735,6 +742,26 @@ fn render_group(
                                 font_size: bumped,
                                 bold: true,
                             }
+                        } else if let Some(after) = line.trim().strip_prefix("<size:") {
+                            // Parse `<size:N>text</size>` markup (e.g. C4 boundary subtitle)
+                            if let Some(end) = after.find('>') {
+                                let sz = after[..end].parse::<f64>().unwrap_or(FONT_SIZE);
+                                let rest = &after[end + 1..];
+                                let text = rest.strip_suffix("</size>").unwrap_or(rest);
+                                GroupLine {
+                                    raw: line,
+                                    display: text.to_string(),
+                                    font_size: sz,
+                                    bold: true,
+                                }
+                            } else {
+                                GroupLine {
+                                    raw: line,
+                                    display: line.to_string(),
+                                    font_size: FONT_SIZE,
+                                    bold: true,
+                                }
+                            }
                         } else {
                             GroupLine {
                                 raw: line,
@@ -797,6 +824,45 @@ fn render_group(
                         0,
                         None,
                     );
+                }
+
+                // C4 boundary subtitle: derive `[system]` etc. from stereotype.
+                // Java: `$getBoundary` appends `\n<size:12>[$type]</size>`.
+                // If the preprocessor omits this, render it from the stereotype.
+                let boundary_type = group.stereotypes.iter().find_map(|s| {
+                    s.strip_suffix("_boundary")
+                });
+                // Only emit the subtitle if the group name doesn't already
+                // contain a `<size:` line (from the preprocessor).
+                let name_has_size = group.name.contains("<size:");
+                if let Some(btype) = boundary_type {
+                    if !name_has_size {
+                        let subtitle = format!("[{btype}]");
+                        let sub_size = FONT_SIZE - 2.0; // 12pt
+                        let sub_tl = font_metrics::text_width(
+                            &subtitle, "SansSerif", sub_size, true, false,
+                        );
+                        let sub_x = x + (w - sub_tl) / 2.0;
+                        let sub_y = name_y_start
+                            + group_lines.len() as f64 * line_h
+                            + font_metrics::ascent("SansSerif", sub_size, true, false);
+                        sg.set_fill_color(font_color);
+                        sg.svg_text(
+                            &subtitle,
+                            sub_x,
+                            sub_y,
+                            Some("sans-serif"),
+                            sub_size,
+                            Some("bold"),
+                            None,
+                            None,
+                            sub_tl,
+                            LengthAdjust::Spacing,
+                            None,
+                            0,
+                            None,
+                        );
+                    }
                 }
             }
         }
@@ -910,6 +976,24 @@ struct EntitySvgMeta<'a> {
     qualified_name: &'a str,
     emit_comment: bool,
     port_label_above: bool,
+    /// Effective `RoundCorner` from skinparam (0 = sharp corners).
+    /// `None` falls back to the per-shape default.
+    round_corner: Option<f64>,
+    /// Global `wrapWidth` skinparam (C4: 200).
+    wrap_width: Option<f64>,
+}
+
+impl<'a> EntitySvgMeta<'a> {
+    fn default_for(ent_id: &'a str, qualified_name: &'a str) -> Self {
+        Self {
+            ent_id,
+            qualified_name,
+            emit_comment: true,
+            port_label_above: false,
+            round_corner: None,
+            wrap_width: None,
+        }
+    }
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -1077,7 +1161,7 @@ fn render_component_node(
     sg.set_stroke_width(0.5, None);
     sg.svg_rectangle(icon_x - 2.0, icon_y1 + 6.0, 4.0, 2.0, 0.0, 0.0, 0.0);
 
-    render_node_text(sg, node, font_color, bg);
+    render_node_text(sg, node, font_color, bg, meta);
     sg.push_raw("</g>");
 }
 
@@ -1092,12 +1176,13 @@ fn render_rectangle_node(
 ) {
     open_entity_g(sg, node, meta);
 
+    let rc = meta.round_corner.unwrap_or(2.5);
     sg.set_fill_color(bg);
     sg.set_stroke_color(Some(border));
     sg.set_stroke_width(0.5, None);
-    sg.svg_rectangle(node.x, node.y, node.width, node.height, 2.5, 2.5, 0.0);
+    sg.svg_rectangle(node.x, node.y, node.width, node.height, rc, rc, 0.0);
 
-    render_node_text(sg, node, font_color, bg);
+    render_node_text(sg, node, font_color, bg, meta);
     sg.push_raw("</g>");
 }
 
@@ -1151,7 +1236,7 @@ fn render_database_node(
         fmt_coord(x + w), fmt_coord(y + ry),
     ));
 
-    render_node_text(sg, node, font_color, bg);
+    render_node_text(sg, node, font_color, bg, meta);
     sg.push_raw("</g>");
 }
 
@@ -1171,7 +1256,7 @@ fn render_cloud_node(
     sg.set_stroke_width(0.5, None);
     sg.svg_rectangle(node.x, node.y, node.width, node.height, 20.0, 20.0, 0.0);
 
-    render_node_text(sg, node, font_color, bg);
+    render_node_text(sg, node, font_color, bg, meta);
     sg.push_raw("</g>");
 }
 
@@ -1224,7 +1309,7 @@ fn render_box_node(
         fmt_coord(x + w - tab), fmt_coord(x + w - tab), fmt_coord(y + tab), fmt_coord(y + h),
     ));
 
-    render_node_text(sg, node, font_color, bg);
+    render_node_text(sg, node, font_color, bg, meta);
     sg.push_raw("</g>");
 }
 
@@ -1319,7 +1404,7 @@ fn render_artifact_node(
     sg.svg_line(ix + fold, iy, ix + fold, iy + fold, 0.0);
     sg.svg_line(ix + 12.0, iy + fold, ix + fold, iy + fold, 0.0);
 
-    render_node_text(sg, node, font_color, bg);
+    render_node_text(sg, node, font_color, bg, meta);
     sg.push_raw("</g>");
 }
 
@@ -1340,7 +1425,7 @@ fn render_storage_node(
     sg.set_stroke_width(0.5, None);
     sg.svg_rectangle(node.x, node.y, node.width, node.height, rx, rx, 0.0);
 
-    render_node_text(sg, node, font_color, bg);
+    render_node_text(sg, node, font_color, bg, meta);
     sg.push_raw("</g>");
 }
 
@@ -1423,7 +1508,7 @@ fn render_folder_node(
     sg.set_stroke_width(0.5, None);
     sg.svg_line(x, y + tab_h, x + tab_w + fold_w, y + tab_h, 0.0);
 
-    render_node_text(sg, node, font_color, bg);
+    render_node_text(sg, node, font_color, bg, meta);
     sg.push_raw("</g>");
 }
 
@@ -1494,7 +1579,7 @@ fn render_agent_node(
     sg.set_stroke_width(0.5, None);
     sg.svg_rectangle(node.x, node.y, node.width, node.height, 2.5, 2.5, 0.0);
 
-    render_node_text(sg, node, font_color, bg);
+    render_node_text(sg, node, font_color, bg, meta);
     sg.push_raw("</g>");
 }
 
@@ -1540,7 +1625,7 @@ fn render_stack_node(
         fmt_coord(x + w), fmt_coord(y),
     ));
 
-    render_node_text(sg, node, font_color, bg);
+    render_node_text(sg, node, font_color, bg, meta);
     sg.push_raw("</g>");
 }
 
@@ -1592,7 +1677,7 @@ fn render_queue_node(
         fmt_coord(x + w - dx), fmt_coord(y + h),
     ));
 
-    render_node_text(sg, node, font_color, bg);
+    render_node_text(sg, node, font_color, bg, meta);
     sg.push_raw("</g>");
 }
 
@@ -1648,13 +1733,148 @@ fn render_port_node(
     sg.push_raw("</g>");
 }
 
+/// Render C4 entity body with word-by-word text emission.
+/// Java: DriverTextSvg emits each word and space as a separate `<text>` element
+/// when MaximumWidth is active.
+fn render_c4_word_by_word(
+    sg: &mut SvgGraphic,
+    node: &ComponentNodeLayout,
+    font_color: &str,
+    entity_bg: &str,
+    wrap_width: f64,
+) {
+    let cx = node.x + node.width / 2.0;
+    let (ml, _mr, mt, _mb) = crate::layout::component::entity_margins(&node.kind);
+    let content_left = node.x + ml;
+
+    // Stereotype line (e.g. «container»)
+    let mut y_cursor = node.y;
+    let stereo_font_size = FONT_SIZE - 2.0; // 12pt
+    if let Some(ref stereo) = node.stereotype {
+        let stereo_text = format!("\u{00AB}{stereo}\u{00BB}");
+        let stereo_ascent = font_metrics::ascent("SansSerif", stereo_font_size, false, true);
+        y_cursor += stereo_ascent;
+        let tl = font_metrics::text_width(&stereo_text, "SansSerif", stereo_font_size, false, true);
+        let sx = cx - tl / 2.0;
+        sg.set_fill_color(font_color);
+        sg.svg_text(
+            &stereo_text, sx, y_cursor, Some("sans-serif"), stereo_font_size,
+            None, Some("italic"), None, tl, LengthAdjust::Spacing, None, 0, None,
+        );
+    }
+
+    // Parse entity name into lines and render each with word-by-word emission.
+    let (bg_r, bg_g, bg_b) = parse_hex_color(entity_bg).unwrap_or((255, 255, 255));
+    let name_lines: Vec<&str> = node.name.split("\\n").flat_map(|s| s.lines()).collect();
+    for raw_line in &name_lines {
+        let trimmed = raw_line.trim();
+        if trimmed.is_empty() {
+            // Blank line: emit a single nbsp spacer
+            y_cursor += LINE_HEIGHT;
+            let sp_w = font_metrics::char_width('\u{00A0}', "SansSerif", FONT_SIZE, false, false);
+            let sp_x = cx - sp_w / 2.0;
+            sg.set_fill_color(font_color);
+            sg.svg_text(
+                "\u{00A0}", sp_x, y_cursor, Some("sans-serif"), FONT_SIZE,
+                None, None, None, sp_w, LengthAdjust::Spacing, None, 0, None,
+            );
+            continue;
+        }
+        // Sprite reference: <$name>
+        if trimmed.starts_with("<$") && trimmed.ends_with('>') {
+            let sprite_name = &trimmed[2..trimmed.len() - 1];
+            if let Some(svg_content) = crate::render::svg_richtext::get_sprite_svg(sprite_name) {
+                let info = crate::render::svg_sprite::sprite_info(&svg_content);
+                // Java SpriteMonochrome.toUImage adds 2px border padding per side
+                let sprite_w = info.vb_width + 4.0;
+                let sprite_h = info.vb_height + 4.0;
+                let sprite_x = cx - sprite_w / 2.0;
+                let sprite_y = y_cursor;
+                render_sprite_with_bg(
+                    sg, sprite_name, &svg_content, sprite_x, sprite_y,
+                    sprite_w, sprite_h, bg_r, bg_g, bg_b,
+                );
+                y_cursor += sprite_h;
+                continue;
+            }
+        }
+        let (text, font_size, bold, italic) =
+            crate::layout::component::parse_c4_line_props(raw_line);
+        y_cursor += LINE_HEIGHT;
+
+        // Word-by-word rendering: emit each word and space as separate <text>.
+        let words: Vec<&str> = text.split(' ').collect();
+        let space_w = font_metrics::char_width(' ', "SansSerif", font_size, bold, italic);
+
+        // Calculate full-line width to center it
+        let mut line_words: Vec<Vec<&str>> = vec![vec![]];
+        let mut cur_line_w = 0.0_f64;
+        for (i, word) in words.iter().enumerate() {
+            let ww = font_metrics::text_width(word, "SansSerif", font_size, bold, italic);
+            let needed = if cur_line_w == 0.0 { ww } else { space_w + ww };
+            if cur_line_w > 0.0 && cur_line_w + needed > wrap_width {
+                // Wrap to next line
+                line_words.push(vec![*word]);
+                cur_line_w = ww;
+            } else {
+                line_words.last_mut().unwrap().push(word);
+                cur_line_w += needed;
+            }
+        }
+
+        for (li, lw) in line_words.iter().enumerate() {
+            if li > 0 {
+                y_cursor += LINE_HEIGHT;
+            }
+            // Compute this line's total width for centering
+            let line_w: f64 = lw.iter().enumerate().map(|(j, w)| {
+                let ww = font_metrics::text_width(w, "SansSerif", font_size, bold, italic);
+                if j == 0 { ww } else { space_w + ww }
+            }).sum();
+            let line_x = cx - line_w / 2.0;
+
+            let mut x_cur = line_x;
+            for (j, word) in lw.iter().enumerate() {
+                if j > 0 {
+                    // Emit space as &#160;
+                    let sp_tl = font_metrics::char_width('\u{00A0}', "SansSerif", font_size, bold, italic);
+                    sg.set_fill_color(font_color);
+                    sg.svg_text(
+                        "\u{00A0}", x_cur, y_cursor, Some("sans-serif"), font_size,
+                        if bold { Some("bold") } else { None },
+                        if italic { Some("italic") } else { None },
+                        None, sp_tl, LengthAdjust::Spacing, None, 0, None,
+                    );
+                    x_cur += sp_tl;
+                }
+                let ww = font_metrics::text_width(word, "SansSerif", font_size, bold, italic);
+                sg.set_fill_color(font_color);
+                sg.svg_text(
+                    word, x_cur, y_cursor, Some("sans-serif"), font_size,
+                    if bold { Some("bold") } else { None },
+                    if italic { Some("italic") } else { None },
+                    None, ww, LengthAdjust::Spacing, None, 0, None,
+                );
+                x_cur += ww;
+            }
+        }
+    }
+}
+
 /// Render name, stereotype, and description text for a node
 fn render_node_text(
     sg: &mut SvgGraphic,
     node: &ComponentNodeLayout,
     font_color: &str,
     entity_bg: &str,
+    meta: EntitySvgMeta<'_>,
 ) {
+    // When wrapWidth is active (C4 diagrams), use word-by-word rendering.
+    if let Some(ww) = meta.wrap_width {
+        render_c4_word_by_word(sg, node, font_color, entity_bg, ww);
+        return;
+    }
+
     let cx = node.x + node.width / 2.0;
     let has_desc = !node.description.is_empty();
 

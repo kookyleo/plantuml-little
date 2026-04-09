@@ -802,6 +802,7 @@ pub fn layout_erd(diagram: &ErdDiagram) -> Result<ErdLayout> {
         ranksep_override: None,
         nodesep_override: None,
         use_simplier_dot_link_strategy: false,
+        arrow_font_size: None,
     };
 
     let gl = graphviz::layout_with_svek(&graph)

@@ -263,6 +263,25 @@ impl SkinParams {
         self.stereotype_param(element, stereotypes, "stereotypefontcolor")
     }
 
+    /// Stereotype-aware `RoundCorner` lookup.
+    /// Returns `Some(0.0)` when `RoundCorner 0` is set (sharp corners),
+    /// `Some(N)` for an explicit radius, or `None` when no value is
+    /// specified (caller decides the default).
+    pub fn round_corner_for(&self, element: &str, stereotypes: &[&str]) -> Option<f64> {
+        if let Some(v) = self.stereotype_param(element, stereotypes, "roundcorner") {
+            return v.parse::<f64>().ok();
+        }
+        None
+    }
+
+    /// Lookup the global `wrapWidth` skinparam (C4 stdlib sets `skinparam
+    /// wrapWidth 200`). Returns `None` when unset.
+    pub fn wrap_width(&self) -> Option<f64> {
+        self.params
+            .get("wrapwidth")
+            .and_then(|v| v.parse::<f64>().ok())
+    }
+
     /// Get background color for an element type (e.g., "class", "component").
     ///
     /// Lookup order:
@@ -366,7 +385,13 @@ impl SkinParams {
     /// 1. `ArrowColor`
     /// 2. Theme arrow color
     pub fn arrow_color<'a>(&'a self, default: &'a str) -> &'a str {
+        // Java: `skinparam arrowColor` or `skinparam arrow { Color }` both
+        // resolve to the same value.  Our parser stores the block form as
+        // `arrow.color` (dot notation) and the flat form as `arrowcolor`.
         if let Some(v) = self.params.get("arrowcolor") {
+            return v.as_str();
+        }
+        if let Some(v) = self.params.get("arrow.color") {
             return v.as_str();
         }
         if default == self.theme.arrow_color {
@@ -478,6 +503,19 @@ impl SkinParams {
             return v;
         }
         default
+    }
+
+    /// Get font size for an element, returning None when unset.
+    pub fn font_size_opt(&self, element: &str) -> Option<f64> {
+        let key1 = format!("{element}fontsize");
+        let key2 = format!("{element}.fontsize");
+        if let Some(v) = self.params.get(&key1).and_then(|s| s.parse::<f64>().ok()) {
+            return Some(v);
+        }
+        if let Some(v) = self.params.get(&key2).and_then(|s| s.parse::<f64>().ok()) {
+            return Some(v);
+        }
+        None
     }
 
     /// Get the line thickness for a given element type.
