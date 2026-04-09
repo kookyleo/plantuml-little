@@ -1007,6 +1007,7 @@ fn draw_participant_box_with_font(
     stroke_width: f64,
     rounded: bool,
     delta_shadow: f64,
+    hand_rng: &mut Option<JavaRandom>,
 ) {
     let fill = p.color.as_deref().unwrap_or(bg);
 
@@ -1059,6 +1060,7 @@ fn draw_participant_box_with_font(
                 stroke_width,
                 rounded,
                 delta_shadow,
+                hand_rng,
             );
         }
     }
@@ -1080,6 +1082,7 @@ fn draw_participant_rect_with_font(
     stroke_width: f64,
     rounded: bool,
     delta_shadow: f64,
+    hand_rng: &mut Option<JavaRandom>,
 ) {
     let name = display_name.unwrap_or(&p.name);
     let lines: Vec<&str> = name
@@ -1105,21 +1108,36 @@ fn draw_participant_rect_with_font(
     let max_line_width = line_widths.iter().copied().fold(0.0_f64, f64::max);
 
     let fill_attrs = resolve_fill_attrs(bg);
-    let round_attrs = if rounded { r#" rx="2.5" ry="2.5""# } else { "" };
-    let mut tmp = String::new();
-    write!(
-        tmp,
-        r#"<rect {fill_attrs}{shadow} height="{h}"{round} style="stroke:{border};stroke-width:{sw};" width="{w}" x="{x}" y="{y}"/>"#,
-        h = fmt_coord(box_height),
-        w = fmt_coord(box_width),
-        x = fmt_coord(x),
-        y = fmt_coord(y),
-        shadow = shadow_attr,
-        sw = fmt_coord(stroke_width),
-        round = round_attrs,
-    )
-    .unwrap();
-    sg.push_raw(&tmp);
+    if let Some(ref mut rng) = hand_rng {
+        // Handwritten: draw as a jiggled polygon.
+        // Java: UGraphicHandwritten delegates to URectangle drawing which
+        // uses HandJiggle to produce jiggled vertices.
+        let rx_val = if rounded { 2.5 } else { 0.0 };
+        let ry_val = rx_val;
+        let pts = rect_to_hand_polygon(box_width, box_height, rx_val, ry_val, rng);
+        let translated: Vec<(f64, f64)> = pts.iter().map(|(px, py)| (px + x, py + y)).collect();
+        let pts_str = polygon_points_svg(&translated);
+        let sw_str = fmt_coord(stroke_width);
+        sg.push_raw(&format!(
+            "<polygon {fill_attrs}{shadow_attr} points=\"{pts_str}\" style=\"stroke:{border};stroke-width:{sw_str};\"/>"
+        ));
+    } else {
+        let round_attrs = if rounded { r#" rx="2.5" ry="2.5""# } else { "" };
+        let mut tmp = String::new();
+        write!(
+            tmp,
+            r#"<rect {fill_attrs}{shadow} height="{h}"{round} style="stroke:{border};stroke-width:{sw};" width="{w}" x="{x}" y="{y}"/>"#,
+            h = fmt_coord(box_height),
+            w = fmt_coord(box_width),
+            x = fmt_coord(x),
+            y = fmt_coord(y),
+            shadow = shadow_attr,
+            sw = fmt_coord(stroke_width),
+            round = round_attrs,
+        )
+        .unwrap();
+        sg.push_raw(&tmp);
+    }
 
     let effective_text_color = if link_url.is_some() {
         "#0000FF"
@@ -3645,33 +3663,45 @@ fn build_participant_index(sd: &SequenceDiagram) -> std::collections::HashMap<St
         .collect()
 }
 
-fn draw_handwritten_banner(sg: &mut SvgGraphic, rng: &mut JavaRandom) {
-
+/// Draw the handwritten-mode warning banner.
+///
+/// Java renders this at the `ImageBuilder` level **before** enabling the
+/// handwritten UGraphic wrapper, so it produces a plain `<rect>` — not a
+/// jiggled polygon.  The rect width is `diagramBodyWidth - 10` (matching
+/// the main diagram width) and the text baseline is calculated from the
+/// font metrics.  We need to consume RNG calls so that subsequent
+/// handwritten shapes stay deterministic.
+fn draw_handwritten_banner(sg: &mut SvgGraphic, rng: &mut JavaRandom, diagram_width: f64) {
     let banner_text = "Please use '!option handwritten true' to enable handwritten";
     let text_w = font_metrics::text_width(banner_text, "Monospaced", 10.0, false, false);
     let line_h = font_metrics::line_height("Monospaced", 10.0, false, false);
-    let rect_h = line_h + 5.0;
-    // Java dim.getWidth() = 60 chars * char_advance (text block adds one char padding).
-    let char_w = font_metrics::char_width(' ', "Monospaced", 10.0, false, false);
-    let rect_w = 60.0 * char_w + 10.0; // Java: dim.getWidth() + 10
-    // Drawing position: Java ug translate (3, 8) for the banner rect.
-    let tx = 3.0_f64;
-    let ty = 8.0_f64;
-    // Java handwritten mode defaults rx=ry=5 for zero-corner rects.
-    let rx = 5.0_f64;
-    let ry = 5.0_f64;
+    // Java: dimWarning = textDim.delta(10, 5) → height = lineHeight + 5
+    //        rect height = dimWarning.getHeight() + 10 = lineHeight + 15
+    let rect_h = line_h + 15.0;
+    // Java: URectangle.build(fullWidth - 10, ...).rounded(5)
+    // fullWidth = dim.getWidth() = diagram body content width.
+    // In the final SVG, the rect width is diagramBodyWidth - 10.
+    let rect_w = diagram_width - 10.0;
     let text_x = 10.0_f64;
-    // Text baseline: hardcoded from Java reference output.
-    let text_y = 18.6406_f64;
+    // Java: text baseline = UTranslate.dy(5) + font ascent at Monospaced 10.
+    // Reference output shows y="20", which is 5 (dy) + 15 (ascent baseline).
+    let text_y = 20.0_f64;
 
-    let local_points = rect_to_hand_polygon(rect_w, rect_h, rx, ry, rng);
-    let translated: Vec<(f64, f64)> = local_points
-        .iter()
-        .map(|(x, y)| (x + tx, y + ty))
-        .collect();
-    let points_str = polygon_points_svg(&translated);
+    // Consume the RNG calls that the old polygon code would have made,
+    // so that participant/arrow jiggle stays in sync with Java.
+    // Java: the banner is drawn BEFORE handwriting is enabled, so
+    // no RNG consumption for the banner rect.  But we created the RNG
+    // before drawing the banner.  Actually in Java, the seed is computed
+    // from the diagram source and the handwritten UG is created AFTER
+    // the banner.  Our RNG was just created, no calls consumed yet.
+    // The rect_to_hand_polygon would consume calls — we must NOT
+    // consume them to stay in sync with Java.
+    // (No RNG calls here — the banner is plain.)
+
+    let h_str = fmt_coord(rect_h);
+    let w_str = fmt_coord(rect_w);
     sg.push_raw(&format!(
-        "<polygon fill=\"#FFFFCC\" points=\"{points_str}\" style=\"stroke:#FFDD88;stroke-width:3;\"/>"
+        "<rect fill=\"#FFFFCC\" height=\"{h_str}\" rx=\"2.5\" ry=\"2.5\" style=\"stroke:#FFDD88;stroke-width:3;\" width=\"{w_str}\" x=\"5\" y=\"5\"/>"
     ));
     let escaped_text = banner_text.replace(' ', "\u{00a0}");
     let escaped_text = xml_escape(&escaped_text);
@@ -3723,16 +3753,17 @@ fn render_sequence_inner(
     // Handwritten RNG — shared across all shape drawings for deterministic output.
     // Java: seed = StringUtils.seed(source.getPlainString("\n"))
     let mut hand_rng: Option<JavaRandom> = if skin.is_handwritten() {
-        // Java seed computation: h = 1125899906842597L; for each char: h = 31 * h + ch;
-        // We use the diagram source to compute the seed (passed via meta or reconstructed).
-        Some(JavaRandom::new(sd.source_seed))
+        // Java: UGraphicHandwritten uses `new Random(424242L)` — hardcoded seed.
+        Some(JavaRandom::new(424242))
     } else {
         None
     };
 
     // Handwritten warning banner (before any diagram content).
+    // Java draws this at the ImageBuilder level BEFORE enabling the handwritten
+    // UGraphic, so it is a plain rect (no jiggle).
     if let Some(ref mut rng) = hand_rng {
-        draw_handwritten_banner(&mut sg, rng);
+        draw_handwritten_banner(&mut sg, rng, layout.total_width as f64);
     }
 
     // Shadow filter attribute for elements that support shadows (skin rose, etc.)
@@ -3882,7 +3913,8 @@ fn render_sequence_inner(
                      i: usize,
                      p: &ParticipantLayout,
                      y: f64,
-                     is_head: bool| {
+                     is_head: bool,
+                     hand_rng: &mut Option<JavaRandom>| {
         let part_idx = i + 1;
         let dn = display_names.get(p.name.as_str()).copied();
         let qualified_name = xml_escape(&p.name);
@@ -3954,6 +3986,7 @@ fn render_sequence_inner(
                 part_thickness,
                 part_rounded,
                 sd.delta_shadow,
+                hand_rng,
             );
         }
         if !sd.teoz_mode {
@@ -3972,13 +4005,13 @@ fn render_sequence_inner(
         for (i, p) in layout.participants.iter().enumerate() {
             let head_base = layout.lifeline_top - max_ph - 1.0 - sd.delta_shadow;
             let top_y = head_base + max_ph - p.box_height;
-            draw_part(&mut sg, i, p, top_y, true);
+            draw_part(&mut sg, i, p, top_y, true, &mut hand_rng);
         }
         if !sd.hide_footbox {
             for (i, p) in layout.participants.iter().enumerate() {
                 // Java teoz: LivingSpace.drawHead() always uses headType (not tailType),
                 // so all participant types render with head=true layout (icon on top, text below).
-                draw_part(&mut sg, i, p, bottom_y, true);
+                draw_part(&mut sg, i, p, bottom_y, true, &mut hand_rng);
             }
         }
     } else {
@@ -3987,9 +4020,9 @@ fn render_sequence_inner(
         // Equivalent to MARGIN + max_ph - p.box_height when lifeline_top = MARGIN + max_ph + 1.
         for (i, p) in layout.participants.iter().enumerate() {
             let top_y = layout.lifeline_top - 1.0 - p.box_height;
-            draw_part(&mut sg, i, p, top_y, true);
+            draw_part(&mut sg, i, p, top_y, true, &mut hand_rng);
             if !sd.hide_footbox {
-                draw_part(&mut sg, i, p, bottom_y, false);
+                draw_part(&mut sg, i, p, bottom_y, false, &mut hand_rng);
             }
         }
     }
