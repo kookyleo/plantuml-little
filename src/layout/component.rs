@@ -352,18 +352,15 @@ fn estimate_entity_size(entity: &ComponentEntity, wrap_width: Option<f64>) -> (f
         let content_max = max_w; // Java wraps text at wrapWidth, margins are outside
 
         let name_lines: Vec<&str> = entity.name.split("\\n").flat_map(|s| s.lines()).collect();
-        let stereo_lines_count: f64 = if entity.stereotype.is_some() { 1.0 } else { 0.0 };
-
-        // Java SheetBlock1 uses a constant line stride from the base font (14pt).
         let base_lh = font_metrics::line_height("SansSerif", FONT_SIZE, false, false);
 
-        let mut total_text_lines = 0usize;
+        let mut total_text_h = 0.0_f64; // cumulative text height (per-line)
         let mut max_content_w = 0.0_f64;
         let mut sprite_height = 0.0_f64;
 
         for raw_line in &name_lines {
             if raw_line.trim().is_empty() {
-                total_text_lines += 1;
+                total_text_h += base_lh;
                 continue;
             }
             // Sprite reference: `<$name>` — uses the sprite's pixel
@@ -382,17 +379,19 @@ fn estimate_entity_size(entity: &ComponentEntity, wrap_width: Option<f64>) -> (f
             }
             let (text, font_size, bold, italic) = parse_c4_line_props(raw_line);
             if text.is_empty() {
-                total_text_lines += 1;
+                total_text_h += base_lh;
                 continue;
             }
+            // Use per-line line_height matching Java's per-stripe dimension.
+            let line_lh = font_metrics::line_height("SansSerif", font_size, bold, italic);
             let full_w = font_metrics::text_width(text, "SansSerif", font_size, bold, italic);
             if full_w > content_max {
                 let (wrapped_count, wrapped_max) =
                     wrapped_line_metrics(text, font_size, bold, italic, content_max);
-                total_text_lines += wrapped_count;
+                total_text_h += wrapped_count as f64 * line_lh;
                 max_content_w = max_content_w.max(wrapped_max);
             } else {
-                total_text_lines += 1;
+                total_text_h += line_lh;
                 max_content_w = max_content_w.max(full_w);
             }
         }
@@ -404,16 +403,19 @@ fn estimate_entity_size(entity: &ComponentEntity, wrap_width: Option<f64>) -> (f
             font_metrics::text_width(&gt, "SansSerif", stereo_font_size, false, true)
         });
         max_content_w = max_content_w.max(stereo_w);
-        // The stereo line is rendered above the body but counted separately
-        // in the entity dimension. Java: stereo.mergeTB(desc) → 1 extra line.
-        let stereo_line_h = if entity.stereotype.is_some() { base_lh } else { 0.0 };
+        // The stereo line is rendered above the body but counted separately.
+        let stereo_line_h = if entity.stereotype.is_some() {
+            font_metrics::line_height("SansSerif", stereo_font_size, false, true)
+        } else {
+            0.0
+        };
 
         let width = max_content_w + ml + mr;
-        let height = total_text_lines as f64 * base_lh + stereo_line_h + sprite_height + mt + mb;
+        let height = total_text_h + stereo_line_h + sprite_height + mt + mb;
 
         log::debug!(
-            "estimate_entity_size(wrapped): name={:?} wrapWidth={} content_w={:.1} total_h={:.1} w={:.1} h={:.1}",
-            entity.name, max_w, max_content_w, total_text_lines, width, height
+            "estimate_entity_size(wrapped): name={:?} wrapWidth={} content_w={:.1} text_h={:.1} w={:.1} h={:.1}",
+            entity.name, max_w, max_content_w, total_text_h, width, height
         );
         return (width, height);
     }
@@ -934,9 +936,32 @@ pub fn layout_component(cd: &ComponentDiagram, skin: &crate::style::SkinParams) 
                     }
                 })
                 .fold(0.0_f64, f64::max);
-            let title_h = crate::render::svg_richtext::compute_creole_entity_name_height(
-                &g.name, FONT_SIZE,
-            );
+            let is_boundary = g.stereotypes.iter().any(|s| s.ends_with("_boundary"));
+            // Compute title height.
+            // C4 boundaries use heading-aware per-line heights (== prefix bumps font).
+            // Other groups use the general creole height computation which handles
+            // separators (----) and bullet items (* text) correctly.
+            let title_h = if is_boundary {
+                g.name.lines().map(|line| {
+                    let fs = if let Some((_, order)) =
+                        crate::parser::creole::strip_heading_prefix_ordered(line)
+                    {
+                        match order {
+                            0 => FONT_SIZE + 4.0,
+                            1 => FONT_SIZE + 2.0,
+                            2 => FONT_SIZE + 1.0,
+                            _ => FONT_SIZE,
+                        }
+                    } else {
+                        FONT_SIZE
+                    };
+                    font_metrics::line_height("SansSerif", fs, true, false)
+                }).sum()
+            } else {
+                crate::render::svg_richtext::compute_creole_entity_name_height(
+                    &g.name, FONT_SIZE,
+                )
+            };
             // Add sprite height if stereotype references a sprite
             let sprite_h = g
                 .stereotype
@@ -944,10 +969,9 @@ pub fn layout_component(cd: &ComponentDiagram, skin: &crate::style::SkinParams) 
                 .and_then(|s| sprite_stereo_dimensions(s))
                 .map_or(0.0, |(_, h)| h);
             // C4 boundary subtitle: extra line for "[system]" etc.
-            let boundary_subtitle_h = if !g.name.contains("<size:")
-                && g.stereotypes.iter().any(|s| s.ends_with("_boundary"))
-            {
-                font_metrics::line_height("SansSerif", FONT_SIZE, true, false)
+            // Java renders this at FONT_SIZE - 2 (12pt for base 14).
+            let boundary_subtitle_h = if !g.name.contains("<size:") && is_boundary {
+                font_metrics::line_height("SansSerif", FONT_SIZE - 2.0, true, false)
             } else {
                 0.0
             };

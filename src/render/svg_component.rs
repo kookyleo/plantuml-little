@@ -9,8 +9,9 @@ use crate::layout::component::{
 use crate::model::component::{ComponentDiagram, ComponentKind};
 use crate::render::svg::{write_bg_rect, write_svg_root_bg};
 use crate::render::svg_richtext::{
-    clear_section_title_bounds, get_sprite_svg, render_creole_text, render_creole_text_opts,
-    set_section_title_bounds, SectionTitleBounds,
+    clear_section_title_bounds, creole_text_width, get_sprite_svg, render_creole_text,
+    render_creole_text_opts, render_creole_text_word_by_word, set_section_title_bounds,
+    SectionTitleBounds,
 };
 use crate::render::svg_sprite;
 use crate::style::SkinParams;
@@ -772,8 +773,6 @@ fn render_group(
                         }
                     })
                     .collect();
-                let line_h =
-                    font_metrics::line_height("SansSerif", FONT_SIZE, true, false);
                 let space_w =
                     font_metrics::char_width(' ', "SansSerif", FONT_SIZE, true, false);
                 let untrimmed_widths: Vec<f64> = group_lines
@@ -791,6 +790,8 @@ fn render_group(
                 let max_untrimmed_w = untrimmed_widths.iter().cloned().fold(0.0_f64, f64::max);
                 let block_x = x + (w - max_untrimmed_w) / 2.0;
                 let name_y_start = y + 2.0 + sprite_h;
+                // Use per-line line heights (heading lines use bumped font size).
+                let mut cumulative_y = 0.0_f64;
                 for (li, gl) in group_lines.iter().enumerate() {
                     let raw_line = gl.raw;
                     let leading_spaces = raw_line.len() - raw_line.trim_start().len();
@@ -807,7 +808,7 @@ fn render_group(
                     let text_x = block_x + (max_untrimmed_w - untrimmed_w) / 2.0 + leading_w;
                     let ascent =
                         font_metrics::ascent("SansSerif", gl.font_size, gl.bold, false);
-                    let text_y = name_y_start + li as f64 * line_h + ascent;
+                    let text_y = name_y_start + cumulative_y + ascent;
                     sg.set_fill_color(font_color);
                     sg.svg_text(
                         display_line,
@@ -823,6 +824,9 @@ fn render_group(
                         None,
                         0,
                         None,
+                    );
+                    cumulative_y += font_metrics::line_height(
+                        "SansSerif", gl.font_size, gl.bold, false,
                     );
                 }
 
@@ -844,7 +848,7 @@ fn render_group(
                         );
                         let sub_x = x + (w - sub_tl) / 2.0;
                         let sub_y = name_y_start
-                            + group_lines.len() as f64 * line_h
+                            + cumulative_y
                             + font_metrics::ascent("SansSerif", sub_size, true, false);
                         sg.set_fill_color(font_color);
                         sg.svg_text(
@@ -2463,24 +2467,51 @@ fn render_link_label(
         ));
     }
 
-    // Render text using full Creole markup support.
-    // This handles **bold**, //italic//, <size:N>, \n line breaks, etc.
     // Java Display.create() converts << >> to guillemets « »
     let text = text.replace("<<", "\u{00AB}").replace(">>", "\u{00BB}");
     let text_x = label_x + indicator_width + margin;
     let line_height = font_metrics::line_height("SansSerif", link_font_size, false, false);
     let font_size_attr = format!(r#"font-size="{}""#, fmt_coord(link_font_size));
+
     let mut buf = String::new();
-    render_creole_text(
-        &mut buf,
-        &text,
-        text_x,
-        text_y,
-        line_height,
-        font_color,
-        None,
-        &font_size_attr,
-    );
+    if text.contains("\\n") {
+        // Multi-line labels (e.g. C4 "**label**\n//[tech]//") use word-by-word rendering.
+        // Java processes these through TextBlockUtils.withMaximumWidth which emits
+        // each word as a separate <text> element. Lines are centered within max width.
+        let raw_lines: Vec<&str> = text.split("\\n").collect();
+        let line_widths: Vec<f64> = raw_lines
+            .iter()
+            .map(|line| creole_text_width(line, "SansSerif", link_font_size, false, false))
+            .collect();
+        let max_w = line_widths.iter().cloned().fold(0.0_f64, f64::max);
+
+        let mut line_y = text_y;
+        for (i, raw_line) in raw_lines.iter().enumerate() {
+            let dx = (max_w - line_widths[i]) / 2.0;
+            render_creole_text_word_by_word(
+                &mut buf,
+                raw_line,
+                text_x + dx,
+                line_y,
+                line_height,
+                font_color,
+                &font_size_attr,
+            );
+            line_y += line_height;
+        }
+    } else {
+        // Single-line labels use style-run rendering (one <text> per styled span).
+        render_creole_text(
+            &mut buf,
+            &text,
+            text_x,
+            text_y,
+            line_height,
+            font_color,
+            None,
+            &font_size_attr,
+        );
+    }
     sg.push_raw(&buf);
 }
 

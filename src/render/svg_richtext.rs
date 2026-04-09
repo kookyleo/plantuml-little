@@ -819,7 +819,6 @@ pub fn render_creole_text_word_by_word(
 
     let (default_font, font_size, base_bold, base_italic) = parse_font_props(outer_attrs);
     let runs = flatten_to_runs(&line);
-    let space_w = font_metrics::text_width(" ", &default_font, font_size, false, false);
 
     let mut cursor_x = x;
 
@@ -842,6 +841,9 @@ pub fn render_creole_text_word_by_word(
         } else {
             fill
         };
+
+        // Compute space width using the run's actual font properties (bold changes advance).
+        let run_space_w = font_metrics::text_width(" ", run_font, run_size, run_bold, run_italic);
 
         // Split the run text into words and spaces
         let mut chars = run.text.chars().peekable();
@@ -866,7 +868,7 @@ pub fn render_creole_text_word_by_word(
             if *is_space {
                 // Render spaces as &#160; elements
                 let n_spaces = piece.len();
-                let total_w = space_w * n_spaces as f64;
+                let total_w = run_space_w * n_spaces as f64;
                 let nbsp = "\u{00A0}".repeat(n_spaces);
                 write!(buf, r#"<text fill="{}""#, xml_escape(run_fill)).unwrap();
                 if let Some(ref fid) = run.filter_id {
