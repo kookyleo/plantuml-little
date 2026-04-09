@@ -1391,11 +1391,15 @@ fn wrap_with_meta(
         "ACTIVITY" => 0.0,
         // Mindmap: Java uses 10+10=20 (margin_left + margin_right).
         "MINDMAP" => 20.0,
+        // Java NwDiagram.getDefaultMargins() = none → 0 all sides.
+        "NWDIAG" => 0.0,
         _ => DOC_MARGIN_RIGHT,
     };
     let doc_margin_bottom = match diagram_type {
         // Mindmap: Java uses 10+10=20 total vertical margins.
         "MINDMAP" => 10.0,
+        // Java NwDiagram.getDefaultMargins() = none → 0 all sides.
+        "NWDIAG" => 0.0,
         _ => DOC_MARGIN_BOTTOM,
     };
 
@@ -1451,7 +1455,7 @@ fn wrap_with_meta(
     } else {
         // Body SVG includes DOC_MARGIN + 1: recover raw textBlock dimensions.
         (
-            svg_w - DOC_MARGIN_RIGHT - 1.0,
+            svg_w - doc_margin_right - 1.0,
             svg_h - doc_margin_top - doc_margin_bottom - 1.0,
         )
     };

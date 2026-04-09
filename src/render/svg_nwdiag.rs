@@ -1,17 +1,22 @@
-use crate::klimt::svg::SvgGraphic;
-use crate::layout::nwdiag::{
-    NwdiagConnectorLayout, NwdiagLayout, NwdiagNetworkLayout, NwdiagServerLayout,
-};
+use std::fmt::Write;
+
+use crate::klimt::svg::{fmt_coord, SvgGraphic};
+use crate::layout::nwdiag::NwdiagLayout;
 use crate::model::nwdiag::NwdiagDiagram;
-use crate::render::svg::{ensure_visible_int, write_bg_rect, write_svg_root_bg};
-use crate::render::svg_richtext::render_creole_text;
+use crate::render::svg::{ensure_visible_int, write_svg_root_bg};
 use crate::style::SkinParams;
 use crate::Result;
 
-const LINE_HEIGHT: f64 = 16.0;
-use crate::skin::rose::{BORDER_COLOR, DIVIDER_COLOR, ENTITY_BG, TEXT_COLOR};
-const NETWORK_FILL: &str = "#F5F5F5";
-const NETWORK_BORDER: &str = "#A0A0A0";
+/// Default fill for network tubes (Java style SName.network BackGroundColor).
+const TUBE_FILL: &str = "#E2E2F0";
+/// Default stroke for tubes and links (Java style SName.network/arrow LineColor).
+const LINE_COLOR: &str = "#181818";
+/// Server box fill (Java style SName.server BackGroundColor).
+const BOX_FILL: &str = "#F1F1F1";
+/// Server box stroke.
+const BOX_STROKE: &str = "#181818";
+/// Text color.
+const TEXT_COLOR: &str = "#000000";
 
 pub fn render_nwdiag(
     diagram: &NwdiagDiagram,
@@ -24,186 +29,246 @@ pub fn render_nwdiag(
     let svg_w = ensure_visible_int(layout.width) as f64;
     let svg_h = ensure_visible_int(layout.height) as f64;
     write_svg_root_bg(&mut buf, svg_w, svg_h, "NWDIAG", bg);
+
+    // The <title> element and visible title are handled by wrap_with_meta
+    // (from DiagramMeta.title), so we do NOT emit them here.
+
     buf.push_str("<defs/><g>");
-    write_bg_rect(&mut buf, svg_w, svg_h, bg);
 
-    let mut sg = SvgGraphic::new(0, 1.0);
+    // --- Network labels ---
+    for nl in &layout.net_labels {
+        // Name text (font-size=12, left-aligned).
+        write!(
+            buf,
+            r#"<text fill="{}" font-family="sans-serif" font-size="12" lengthAdjust="spacing" textLength="{}" x="{}" y="{}">{}</text>"#,
+            TEXT_COLOR,
+            fmt_coord(crate::font_metrics::text_width(&nl.name, "SansSerif", 12.0, false, false)),
+            fmt_coord(nl.x),
+            fmt_coord(nl.y),
+            crate::klimt::svg::xml_escape(&nl.name),
+        )
+        .unwrap();
 
-    if let Some(title) = &diagram.title {
-        let mut tmp = String::new();
-        render_creole_text(
-            &mut tmp,
-            title,
-            layout.width / 2.0,
-            20.0,
-            LINE_HEIGHT,
-            skin.font_color("nwdiag", TEXT_COLOR),
-            Some("middle"),
-            r#"font-size="14" font-weight="bold""#,
-        );
-        sg.push_raw(&tmp);
+        // Address text (font-size=12, left-aligned).
+        if let Some(addr) = &nl.address {
+            let addr_w = crate::font_metrics::text_width(addr, "SansSerif", 12.0, false, false);
+            let addr_x = nl.x + crate::font_metrics::text_width(&nl.name, "SansSerif", 12.0, false, false) - addr_w;
+            // Actually, the address x is right-aligned to the same right edge as the name.
+            // In Java, the entire text block (name+address) is right-aligned.
+            // The right edge of the block is at nl.x + name_w.
+            // So addr_x = right_edge - addr_w... but wait, the reference shows addr at x=5.
+            // Let me re-check.
+            //
+            // In the reference: "dmz" at x=48.3242, "10.0.0.0/24" at x=5.
+            // The label block width = max(25.6055, 68.9297) = 68.9297.
+            // deltaX = 68.9297. Labels drawn at (deltaX - dim.getWidth(), y).
+            // "dmz" block: dim.getWidth() = 68.9297 (width of entire block, which is max of lines).
+            // Wait, no. In Java, the TextBlock containing "dmz\n10.0.0.0/24" has width = max line width = 68.9297.
+            // Drawing right-aligned: x = deltaX - block_width = 68.9297 - 68.9297 = 0.
+            // But with margin translate: +5 → x_origin = 5.
+            //
+            // The text within the block: "dmz" is right-aligned within the block.
+            // Java's HorizontalAlignment.RIGHT means each line is right-aligned within the block width.
+            // So "dmz" (width 25.6055) is drawn at x_offset = 68.9297 - 25.6055 = 43.3242.
+            // Absolute: 5 + 43.3242 = 48.3242. ✓ Matches reference.
+            // "10.0.0.0/24" (width 68.9297) is drawn at x_offset = 68.9297 - 68.9297 = 0.
+            // Absolute: 5 + 0 = 5. ✓ Matches reference.
+
+            // I need to recalculate. The label x I stored is for the name.
+            // Let me just compute fresh here.
+            // Actually, my layout stores nl.x as the name text x position.
+            // For the address, I need to compute it from the block layout.
+            // The block left edge = margin + deltaX - block_width = margin + deltaX - max(name_w, addr_w).
+            // For right-aligned text within the block:
+            //   name_x = block_left + (block_width - name_w)
+            //   addr_x = block_left + (block_width - addr_w)
+
+            // Hmm, this means I need to restructure the layout output.
+            // For now, let me compute addr_x directly.
+            let name_w = crate::font_metrics::text_width(&nl.name, "SansSerif", 12.0, false, false);
+            let block_w = name_w.max(addr_w);
+            // nl.x was computed as mx + delta_x - name_w in layout.
+            // block_left = mx + delta_x - block_w.
+            // addr_x = block_left + (block_w - addr_w) = mx + delta_x - addr_w.
+            // Which is: nl.x + name_w - addr_w... no.
+            // nl.x = mx + delta_x - name_w. So mx + delta_x = nl.x + name_w.
+            let right_edge = nl.x + name_w;
+            let actual_addr_x = right_edge - addr_w;
+
+            write!(
+                buf,
+                r#"<text fill="{}" font-family="sans-serif" font-size="12" lengthAdjust="spacing" textLength="{}" x="{}" y="{}">{}</text>"#,
+                TEXT_COLOR,
+                fmt_coord(addr_w),
+                fmt_coord(actual_addr_x),
+                fmt_coord(nl.addr_y),
+                crate::klimt::svg::xml_escape(addr),
+            )
+            .unwrap();
+        }
     }
 
-    for connector in &layout.connectors {
-        render_connector(&mut sg, connector);
-    }
-    for network in &layout.networks {
-        render_network(&mut sg, network, skin);
-    }
-    for server in &layout.servers {
-        render_server(&mut sg, server, skin);
+    // --- Network tubes ---
+    for tube in &layout.tubes {
+        let fill = tube.color.as_deref().unwrap_or(TUBE_FILL);
+        write!(
+            buf,
+            r#"<rect fill="{}" height="{}" style="stroke:{};stroke-width:1;" width="{}" x="{}" y="{}"/>"#,
+            fill,
+            tube.height as i32,
+            LINE_COLOR,
+            fmt_coord(tube.width),
+            fmt_coord(tube.x),
+            fmt_coord(tube.y),
+        )
+        .unwrap();
     }
 
-    buf.push_str(sg.body());
+    // --- Per-server links and address labels (interleaved, matching Java order) ---
+    for group in &layout.server_link_groups {
+        for item in &group.links_and_labels {
+            match item {
+                crate::layout::nwdiag::LinkOrLabel::Link(link) => {
+                    write!(
+                        buf,
+                        r#"<path d="M{},{} L{},{}" fill="none" style="stroke:{};stroke-width:1;"/>"#,
+                        fmt_coord(link.x),
+                        fmt_coord(link.y1),
+                        fmt_coord(link.x),
+                        fmt_coord(link.y2),
+                        LINE_COLOR,
+                    )
+                    .unwrap();
+                }
+                crate::layout::nwdiag::LinkOrLabel::Label(al) => {
+                    let text_w = crate::font_metrics::text_width(&al.text, "SansSerif", 11.0, false, false);
+                    write!(
+                        buf,
+                        r#"<text fill="{}" font-family="sans-serif" font-size="11" lengthAdjust="spacing" textLength="{}" x="{}" y="{}">{}</text>"#,
+                        TEXT_COLOR,
+                        fmt_coord(text_w),
+                        fmt_coord(al.x),
+                        fmt_coord(al.y),
+                        crate::klimt::svg::xml_escape(&al.text),
+                    )
+                    .unwrap();
+                }
+            }
+        }
+    }
+
+    // --- Server boxes ---
+    for sb in &layout.server_boxes {
+        write!(
+            buf,
+            r#"<rect fill="{}" height="{}" style="stroke:{};stroke-width:0.5;" width="{}" x="{}" y="{}"/>"#,
+            BOX_FILL,
+            fmt_coord(sb.rect_h),
+            BOX_STROKE,
+            fmt_coord(sb.rect_w),
+            fmt_coord(sb.rect_x),
+            fmt_coord(sb.rect_y),
+        )
+        .unwrap();
+
+        write!(
+            buf,
+            r#"<text fill="{}" font-family="sans-serif" font-size="12" lengthAdjust="spacing" textLength="{}" x="{}" y="{}">{}</text>"#,
+            TEXT_COLOR,
+            fmt_coord(crate::font_metrics::text_width(&sb.label, "SansSerif", 12.0, false, false)),
+            fmt_coord(sb.text_x),
+            fmt_coord(sb.text_y),
+            crate::klimt::svg::xml_escape(&sb.label),
+        )
+        .unwrap();
+    }
+
     buf.push_str("</g></svg>");
     Ok(buf)
-}
-
-fn render_connector(sg: &mut SvgGraphic, connector: &NwdiagConnectorLayout) {
-    sg.set_stroke_color(Some(DIVIDER_COLOR));
-    sg.set_stroke_width(0.5, Some((4.0, 4.0)));
-    sg.svg_line(connector.x, connector.y1, connector.x, connector.y2, 0.0);
-}
-
-fn render_network(sg: &mut SvgGraphic, network: &NwdiagNetworkLayout, skin: &SkinParams) {
-    let fill = network
-        .color
-        .as_deref()
-        .unwrap_or_else(|| skin.background_color("nwdiag", NETWORK_FILL));
-    let border = skin.border_color("nwdiag", NETWORK_BORDER);
-    let font = skin.font_color("nwdiag", TEXT_COLOR);
-
-    sg.set_fill_color(fill);
-    sg.set_stroke_color(Some(border));
-    sg.set_stroke_width(0.5, None);
-    sg.svg_rectangle(
-        network.x,
-        network.y,
-        network.width,
-        network.height,
-        8.0,
-        8.0,
-        0.0,
-    );
-
-    let mut tmp = String::new();
-    render_creole_text(
-        &mut tmp,
-        &network.name,
-        network.x + 12.0,
-        network.y + 22.0,
-        LINE_HEIGHT,
-        font,
-        None,
-        r#"font-size="14" font-weight="bold""#,
-    );
-    sg.push_raw(&tmp);
-
-    if let Some(address) = &network.address {
-        tmp.clear();
-        render_creole_text(
-            &mut tmp,
-            address,
-            network.x + 12.0,
-            network.y + 40.0,
-            LINE_HEIGHT,
-            font,
-            None,
-            r#"font-size="11""#,
-        );
-        sg.push_raw(&tmp);
-    }
-}
-
-fn render_server(sg: &mut SvgGraphic, server: &NwdiagServerLayout, skin: &SkinParams) {
-    let fill = skin.background_color("server", ENTITY_BG);
-    let border = skin.border_color("server", BORDER_COLOR);
-    let font = skin.font_color("server", TEXT_COLOR);
-
-    sg.set_fill_color(fill);
-    sg.set_stroke_color(Some(border));
-    sg.set_stroke_width(0.5, None);
-    sg.svg_rectangle(
-        server.x,
-        server.y,
-        server.width,
-        server.height,
-        4.0,
-        4.0,
-        0.0,
-    );
-
-    let mut tmp = String::new();
-    render_creole_text(
-        &mut tmp,
-        &server.label,
-        server.x + server.width / 2.0,
-        server.y + 18.0,
-        LINE_HEIGHT,
-        font,
-        Some("middle"),
-        r#"font-size="12""#,
-    );
-    sg.push_raw(&tmp);
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::layout::nwdiag::{
-        NwdiagConnectorLayout, NwdiagLayout, NwdiagNetworkLayout, NwdiagServerLayout,
-    };
-    use crate::style::SkinParams;
+    use crate::layout::nwdiag::layout_nwdiag;
+    use crate::model::nwdiag::{Network, NwdiagDiagram, ServerRef};
 
-    fn sample_layout() -> (NwdiagDiagram, NwdiagLayout) {
-        let diagram = NwdiagDiagram {
-            title: Some("Infra".to_string()),
-            networks: vec![],
-        };
-        let layout = NwdiagLayout {
-            title_height: 28.0,
-            networks: vec![NwdiagNetworkLayout {
-                name: "dmz".to_string(),
-                address: Some("10.0.0.0/24".to_string()),
-                color: Some("#E8F4FF".to_string()),
-                x: 20.0,
-                y: 48.0,
-                width: 360.0,
-                height: 76.0,
-            }],
-            servers: vec![NwdiagServerLayout {
-                network_name: "dmz".to_string(),
-                name: "web01".to_string(),
-                label: "web01\n10.0.0.10".to_string(),
-                x: 220.0,
-                y: 64.0,
-                width: 100.0,
-                height: 42.0,
-            }],
-            connectors: vec![NwdiagConnectorLayout {
-                x: 270.0,
-                y1: 84.0,
-                y2: 150.0,
-            }],
-            width: 420.0,
-            height: 180.0,
-        };
-        (diagram, layout)
+    fn basic_diagram() -> NwdiagDiagram {
+        NwdiagDiagram {
+            title: Some("Infrastructure".to_string()),
+            networks: vec![
+                Network {
+                    name: "dmz".to_string(),
+                    address: Some("10.0.0.0/24".to_string()),
+                    color: None,
+                    servers: vec![
+                        ServerRef {
+                            name: "web01".to_string(),
+                            address: Some("10.0.0.10".to_string()),
+                            description: Some("frontend".to_string()),
+                        },
+                        ServerRef {
+                            name: "db01".to_string(),
+                            address: None,
+                            description: None,
+                        },
+                    ],
+                },
+                Network {
+                    name: "lan".to_string(),
+                    address: None,
+                    color: None,
+                    servers: vec![
+                        ServerRef {
+                            name: "web01".to_string(),
+                            address: None,
+                            description: Some("app".to_string()),
+                        },
+                        ServerRef {
+                            name: "app01".to_string(),
+                            address: None,
+                            description: None,
+                        },
+                    ],
+                },
+            ],
+        }
     }
 
     #[test]
-    fn render_contains_network_and_server() {
-        let (diagram, layout) = sample_layout();
-        let svg = render_nwdiag(&diagram, &layout, &SkinParams::default()).unwrap();
+    fn render_contains_svg_root() {
+        let d = basic_diagram();
+        let layout = layout_nwdiag(&d).unwrap();
+        let svg = render_nwdiag(&d, &layout, &SkinParams::default()).unwrap();
         assert!(svg.contains("<svg"));
-        assert!(svg.contains("dmz"));
-        assert!(svg.contains("web01"));
+        assert!(svg.contains("NWDIAG"));
     }
 
     #[test]
-    fn render_contains_connector() {
-        let (diagram, layout) = sample_layout();
-        let svg = render_nwdiag(&diagram, &layout, &SkinParams::default()).unwrap();
-        assert!(svg.contains("stroke-dasharray:4,4;"));
+    fn render_contains_server_labels() {
+        let d = basic_diagram();
+        let layout = layout_nwdiag(&d).unwrap();
+        let svg = render_nwdiag(&d, &layout, &SkinParams::default()).unwrap();
+        // Server boxes should use resolved descriptions.
+        assert!(svg.contains(">app<"));
+        assert!(svg.contains(">db01<"));
+        assert!(svg.contains(">app01<"));
+    }
+
+    #[test]
+    fn render_contains_network_tubes() {
+        let d = basic_diagram();
+        let layout = layout_nwdiag(&d).unwrap();
+        let svg = render_nwdiag(&d, &layout, &SkinParams::default()).unwrap();
+        // Two network tubes.
+        assert!(svg.contains(&format!(r#"fill="{}""#, TUBE_FILL)));
+    }
+
+    #[test]
+    fn render_contains_address_label() {
+        let d = basic_diagram();
+        let layout = layout_nwdiag(&d).unwrap();
+        let svg = render_nwdiag(&d, &layout, &SkinParams::default()).unwrap();
+        assert!(svg.contains("10.0.0.10"));
     }
 }
