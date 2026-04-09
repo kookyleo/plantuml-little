@@ -975,6 +975,31 @@ pub fn layout_component(cd: &ComponentDiagram, skin: &crate::style::SkinParams) 
             } else {
                 0.0
             };
+            // Java ClusterHeader: dimLabel = mergeTB(stereo, title).calculateDimension()
+            // The stereo block is either:
+            //   1. A sprite image (when stereotype references a sprite) — handled by sprite_h
+            //   2. Text labels for each visible stereotype — computed here as stereo_h
+            // When stereotype is a sprite, getSprite() returns the image and the
+            // text label path is skipped. Only add text-label stereo height when
+            // there is NO sprite.
+            //
+            // For C4 boundaries `StereotypeFontSize` is typically 6 (transparent),
+            // and Java AtomText enforces a minimum height of 10px per line, making
+            // each stereo line exactly 10px.
+            let has_sprite_stereo = sprite_h > 0.0;
+            let stereo_h = if has_sprite_stereo || g.stereotypes.is_empty() {
+                0.0 // sprite already counted in sprite_h, or no stereotypes
+            } else {
+                let stereo_refs: Vec<&str> =
+                    g.stereotypes.iter().map(|s| s.as_str()).collect();
+                let stereo_fs = skin
+                    .stereotype_font_size_for("rectangle", &stereo_refs)
+                    .unwrap_or(FONT_SIZE);
+                let line_h =
+                    font_metrics::line_height("SansSerif", stereo_fs, false, true)
+                        .max(10.0); // Java AtomText: if (h < 10) h = 10
+                g.stereotypes.len() as f64 * line_h
+            };
             // Java ClusterHeader: titleAndAttributeHeight =
             //   (int)(dimLabel.getHeight() + attributeHeight + marginForFields
             //         + suppHeightBecauseOfShape)
@@ -982,7 +1007,7 @@ pub fn layout_component(cd: &ComponentDiagram, skin: &crate::style::SkinParams) 
             // suppWidthBecauseOfShape:  Node=60, others=0
             // The -5 adjustment is applied in cluster_dot_label (svek/mod.rs:888).
             let (supp_h, supp_w) = cluster_supp_for_shape(&g.kind);
-            let raw_h = sprite_h + title_h + boundary_subtitle_h + supp_h;
+            let raw_h = stereo_h + sprite_h + title_h + boundary_subtitle_h + supp_h;
             let label_h = if sprite_h > 0.0 {
                 raw_h.floor()
             } else {

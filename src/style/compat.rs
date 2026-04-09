@@ -263,6 +263,26 @@ impl SkinParams {
         self.stereotype_param(element, stereotypes, "stereotypefontcolor")
     }
 
+    /// Stereotype-aware stereotype-font-size lookup.
+    /// Returns the font size used for rendering stereotype labels above
+    /// the element title. Used by ClusterHeader to include the stereo block
+    /// height in the cluster label dimension.
+    pub fn stereotype_font_size_for(
+        &self,
+        element: &str,
+        stereotypes: &[&str],
+    ) -> Option<f64> {
+        if let Some(v) = self.stereotype_param(element, stereotypes, "stereotypefontsize") {
+            return v.parse::<f64>().ok();
+        }
+        // Fall back to the undecorated element param
+        let key = format!("{element}.stereotypefontsize");
+        if let Some(v) = self.params.get(&key) {
+            return v.parse::<f64>().ok();
+        }
+        None
+    }
+
     /// Stereotype-aware `RoundCorner` lookup.
     /// Returns `Some(0.0)` when `RoundCorner 0` is set (sharp corners),
     /// `Some(N)` for an explicit radius, or `None` when no value is
