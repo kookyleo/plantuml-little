@@ -71,10 +71,34 @@ pub fn parse_creole_opts(input: &str, preserve_backslash_n: bool) -> RichText {
         }
 
         // Heading lines: `= text`, `== text`, `=== text`
-        // Java Creole treats these as bold text (font-weight 700) with the `=` prefix stripped.
-        if let Some(rest) = strip_heading_prefix(line) {
+        // Java `StripeSimple.fontConfigurationForHeading`:
+        //   order 0 (`= `)  → base size + 4, bold
+        //   order 1 (`== `) → base size + 2, bold
+        //   order 2 (`=== `)→ base size + 1, bold
+        //   order >= 3       → italic (no size bump)
+        // We encode the relative size bump via `TextSpan::Sized` using a
+        // NEGATIVE SENTINEL offset from -100: `size = -100 - delta`.
+        // The render/measure paths detect `size <= -100` and compute
+        // `effective = base + delta`.  We avoid -1/-2 because those are
+        // already used as subscript/superscript sentinels.
+        if let Some((rest, order)) = strip_heading_prefix_ordered(line) {
             let inner = parse_inline(rest);
-            blocks.push(RichText::Line(vec![TextSpan::Bold(inner)]));
+            let span = match order {
+                0 => TextSpan::Sized {
+                    size: -104.0, // base + 4
+                    content: vec![TextSpan::Bold(inner)],
+                },
+                1 => TextSpan::Sized {
+                    size: -102.0, // base + 2
+                    content: vec![TextSpan::Bold(inner)],
+                },
+                2 => TextSpan::Sized {
+                    size: -101.0, // base + 1
+                    content: vec![TextSpan::Bold(inner)],
+                },
+                _ => TextSpan::Italic(inner),
+            };
+            blocks.push(RichText::Line(vec![span]));
             i += 1;
             continue;
         }
@@ -229,6 +253,24 @@ pub(crate) fn strip_section_title(line: &str) -> Option<&str> {
     }
     // `==$=` (e.g. `====` five or more) is handled by is_horizontal_rule.
     Some(stripped)
+}
+
+/// Strip a Creole heading prefix and also return the heading "order"
+/// (number of leading `=` minus 1).  Java `StripeSimple` uses the order to
+/// compute the heading-specific font bigger delta (`= ` → order 0, `== ` →
+/// order 1, `=== ` → order 2, …).
+pub(crate) fn strip_heading_prefix_ordered(line: &str) -> Option<(&str, usize)> {
+    let trimmed = line.trim_start();
+    if !trimmed.starts_with('=') {
+        return None;
+    }
+    let eq_end = trimmed.find(|c: char| c != '=').unwrap_or(trimmed.len());
+    if eq_end == 0 || eq_end >= trimmed.len() {
+        return None;
+    }
+    let rest = strip_heading_prefix(line)?;
+    // Order is (number of leading '=') - 1.
+    Some((rest, eq_end.saturating_sub(1)))
 }
 
 /// Strip a Creole heading prefix (`=`, `==`, `===`, etc.) followed by a space.
@@ -1672,20 +1714,29 @@ mod tests {
 
     #[test]
     fn test_heading_prefix_stripped_and_bold() {
-        // `== text` should produce Bold(Plain("text"))
+        // `== text` should produce Sized(-102, Bold(Plain("text"))) to
+        // mirror Java `StripeSimple.fontConfigurationForHeading` which uses
+        // `fontConfiguration.bigger(2).bold()` for order-1 (== ) headings.
         let rt = parse_creole("== Hello World");
         match &rt {
             RichText::Line(spans) => {
                 assert_eq!(spans.len(), 1);
                 match &spans[0] {
-                    TextSpan::Bold(inner) => {
-                        assert_eq!(inner.len(), 1);
-                        match &inner[0] {
-                            TextSpan::Plain(s) => assert_eq!(s, "Hello World"),
-                            other => panic!("expected Plain, got: {other:?}"),
+                    TextSpan::Sized { size, content } => {
+                        assert_eq!(*size, -102.0);
+                        assert_eq!(content.len(), 1);
+                        match &content[0] {
+                            TextSpan::Bold(inner) => {
+                                assert_eq!(inner.len(), 1);
+                                match &inner[0] {
+                                    TextSpan::Plain(s) => assert_eq!(s, "Hello World"),
+                                    other => panic!("expected Plain, got: {other:?}"),
+                                }
+                            }
+                            other => panic!("expected Bold, got: {other:?}"),
                         }
                     }
-                    other => panic!("expected Bold, got: {other:?}"),
+                    other => panic!("expected Sized, got: {other:?}"),
                 }
             }
             other => panic!("expected Line, got: {other:?}"),
@@ -1694,11 +1745,18 @@ mod tests {
 
     #[test]
     fn test_heading_no_space_after_equals() {
-        // `==text` should also be treated as heading
+        // `==text` should also be treated as an order-1 heading,
+        // encoded as Sized(-102, Bold(...)).
         let rt = parse_creole("==text");
         match &rt {
             RichText::Line(spans) => {
-                assert!(matches!(&spans[0], TextSpan::Bold(_)));
+                match &spans[0] {
+                    TextSpan::Sized { size, content } => {
+                        assert_eq!(*size, -102.0);
+                        assert!(matches!(&content[0], TextSpan::Bold(_)));
+                    }
+                    other => panic!("expected Sized, got: {other:?}"),
+                }
             }
             other => panic!("expected Line, got: {other:?}"),
         }
@@ -1764,10 +1822,18 @@ mod tests {
         match &rt {
             RichText::Block(items) => {
                 assert_eq!(items.len(), 2, "should have 2 lines");
-                // First line is heading
+                // First line is a Sized (heading +2) wrapping a Bold, matching
+                // Java `StripeSimple.fontConfigurationForHeading` which produces
+                // `bigger(2).bold()` for an `==` heading.
                 match &items[0] {
                     RichText::Line(spans) => {
-                        assert!(matches!(&spans[0], TextSpan::Bold(_)));
+                        match &spans[0] {
+                            TextSpan::Sized { size, content } => {
+                                assert_eq!(*size, -102.0, "== should encode as -102 sentinel");
+                                assert!(matches!(content[0], TextSpan::Bold(_)));
+                            }
+                            other => panic!("first span should be Sized, got: {other:?}"),
+                        }
                     }
                     other => panic!("first block should be Line, got: {other:?}"),
                 }

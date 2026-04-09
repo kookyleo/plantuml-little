@@ -210,6 +210,10 @@ struct SpanStyle {
     fill: Option<String>,
     background: Option<String>,
     decorations: Vec<&'static str>,
+    /// Ambient font size inherited from the enclosing `<text>` element.
+    /// Used to resolve heading-sentinel `Sized` spans (`size = -100 - delta`)
+    /// into their effective absolute size (`ambient + delta`).
+    ambient_font_size: Option<f64>,
 }
 
 impl SpanStyle {
@@ -334,7 +338,11 @@ fn max_font_size_in_creole(text: &str, default_font_size: f64) -> f64 {
 fn max_font_size_in_span(span: &TextSpan, max_size: &mut f64) {
     match span {
         TextSpan::Sized { size, content } => {
-            if *size > *max_size {
+            // Heading sentinel: size = -100 - delta → effective = current max + delta.
+            if *size <= -100.0 {
+                let delta = -100.0 - *size;
+                *max_size += delta;
+            } else if *size > *max_size {
                 *max_size = *size;
             }
             for inner in content {
@@ -559,6 +567,8 @@ fn measure_text_runs_width(
         let run_italic = run.italic || italic;
         let run_size = match run.font_size_override {
             Some(v) if v == -1.0 || v == -2.0 => (font_size * 0.77).round(),
+            // Heading sentinel: size = -100 - delta → effective = base + delta.
+            Some(v) if v <= -100.0 => font_size + (-100.0 - v),
             Some(v) if v > 0.0 => v,
             _ => font_size,
         };
@@ -820,6 +830,8 @@ pub fn render_creole_text_word_by_word(
         let run_size = match run.font_size_override {
             Some(v) if v == -1.0 => (font_size * 0.77).round(), // subscript
             Some(v) if v == -2.0 => (font_size * 0.77).round(), // superscript
+            // Heading sentinel: size = -100 - delta → effective = base + delta.
+            Some(v) if v <= -100.0 => font_size + (-100.0 - v),
             Some(v) if v > 0.0 => v,
             _ => font_size,
         };
@@ -2189,6 +2201,8 @@ fn measure_parsed_line_width(
         let run_italic = run.italic || italic;
         let run_size = match run.font_size_override {
             Some(v) if v == -1.0 || v == -2.0 => (font_size * 0.77).round(),
+            // Heading sentinel: size = -100 - delta → effective = base + delta.
+            Some(v) if v <= -100.0 => font_size + (-100.0 - v),
             Some(v) if v > 0.0 => v,
             _ => font_size,
         };
@@ -2294,7 +2308,11 @@ fn render_prepared_line(
         if let Some(text) = simple_plain_line(line) {
             buf.push_str(&xml_escape(text.trim()));
         } else {
-            render_spans(buf, line, &SpanStyle::default(), fill);
+            let style = SpanStyle {
+                ambient_font_size: Some(font_size),
+                ..Default::default()
+            };
+            render_spans(buf, line, &style, fill);
         }
         buf.push_str("</text>");
     } else if let Some(text) = simple_plain_line(line) {
@@ -2305,7 +2323,11 @@ fn render_prepared_line(
     } else {
         let text_length = font_metrics::text_width(trimmed_plain, font_family, font_size, bold, italic);
         write_text_open(buf, x, y, fill, text_anchor, outer_attrs, text_length);
-        render_spans(buf, line, &SpanStyle::default(), fill);
+        let style = SpanStyle {
+            ambient_font_size: Some(font_size),
+            ..Default::default()
+        };
+        render_spans(buf, line, &style, fill);
         buf.push_str("</text>");
     }
 }
@@ -2924,6 +2946,8 @@ fn render_split_text_runs(
         let run_size = match run.font_size_override {
             Some(v) if v == -1.0 => (font_size * 0.77).round(), // subscript
             Some(v) if v == -2.0 => (font_size * 0.77).round(), // superscript
+            // Heading sentinel: size = -100 - delta → effective = base + delta.
+            Some(v) if v <= -100.0 => font_size + (-100.0 - v),
             Some(v) if v > 0.0 => v,
             _ => font_size,
         };
@@ -3468,7 +3492,20 @@ fn render_span(buf: &mut String, span: &TextSpan, style: SpanStyle, default_fill
         }
         TextSpan::Sized { size, content } => {
             let mut style = style;
-            style.font_size = Some(*size);
+            // Heading sentinel: size = -100 - delta → effective = ambient base + delta.
+            // Java StripeSimple.fontConfigurationForHeading uses `bigger(N)`
+            // which is relative to the current font-config size.  We read
+            // the ambient size set by `render_prepared_line` and add the
+            // encoded delta.  If no ambient size is known, fall back to the
+            // 14pt default used by the class/component pipeline.
+            let effective = if *size <= -100.0 {
+                let delta = -100.0 - *size;
+                let base = style.font_size.or(style.ambient_font_size).unwrap_or(14.0);
+                base + delta
+            } else {
+                *size
+            };
+            style.font_size = Some(effective);
             render_spans(buf, content, &style, default_fill);
         }
         TextSpan::Subscript(inner) => {

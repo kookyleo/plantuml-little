@@ -704,26 +704,82 @@ fn render_group(
                 sg.push_raw(&name_buf);
             } else {
                 // Non-card groups: plain text rendering with leading-space handling.
-                let name_lines: Vec<&str> = group.name.lines().collect();
+                //
+                // Each line may be a Creole heading (`== Title`).  Java
+                // `StripeSimple.fontConfigurationForHeading` transforms `==`
+                // (order 1) into `bigger(2).bold()`, so the rendered size is
+                // `FONT_SIZE + 2` while non-heading lines stay at `FONT_SIZE`.
+                // The leading `=` markers are stripped before measuring.
+                struct GroupLine<'a> {
+                    raw: &'a str,
+                    display: String,
+                    font_size: f64,
+                    bold: bool,
+                }
+                let group_lines: Vec<GroupLine<'_>> = group
+                    .name
+                    .lines()
+                    .map(|line| {
+                        if let Some((rest, order)) =
+                            crate::parser::creole::strip_heading_prefix_ordered(line)
+                        {
+                            let bumped = match order {
+                                0 => FONT_SIZE + 4.0,
+                                1 => FONT_SIZE + 2.0,
+                                2 => FONT_SIZE + 1.0,
+                                _ => FONT_SIZE,
+                            };
+                            GroupLine {
+                                raw: line,
+                                display: rest.to_string(),
+                                font_size: bumped,
+                                bold: true,
+                            }
+                        } else {
+                            GroupLine {
+                                raw: line,
+                                display: line.to_string(),
+                                font_size: FONT_SIZE,
+                                bold: true,
+                            }
+                        }
+                    })
+                    .collect();
                 let line_h =
                     font_metrics::line_height("SansSerif", FONT_SIZE, true, false);
                 let space_w =
                     font_metrics::char_width(' ', "SansSerif", FONT_SIZE, true, false);
-                let untrimmed_widths: Vec<f64> = name_lines
+                let untrimmed_widths: Vec<f64> = group_lines
                     .iter()
-                    .map(|line| font_metrics::text_width(line, "SansSerif", FONT_SIZE, true, false))
+                    .map(|gl| {
+                        font_metrics::text_width(
+                            gl.display.trim_end(),
+                            "SansSerif",
+                            gl.font_size,
+                            gl.bold,
+                            false,
+                        )
+                    })
                     .collect();
                 let max_untrimmed_w = untrimmed_widths.iter().cloned().fold(0.0_f64, f64::max);
                 let block_x = x + (w - max_untrimmed_w) / 2.0;
                 let name_y_start = y + 2.0 + sprite_h;
-                for (li, line) in name_lines.iter().enumerate() {
-                    let leading_spaces = line.len() - line.trim_start().len();
+                for (li, gl) in group_lines.iter().enumerate() {
+                    let raw_line = gl.raw;
+                    let leading_spaces = raw_line.len() - raw_line.trim_start().len();
                     let leading_w = leading_spaces as f64 * space_w;
-                    let display_line = line.trim();
-                    let tl = text_len(display_line, 14.0, true);
+                    let display_line = gl.display.trim();
+                    let tl = font_metrics::text_width(
+                        display_line,
+                        "SansSerif",
+                        gl.font_size,
+                        gl.bold,
+                        false,
+                    );
                     let untrimmed_w = untrimmed_widths[li];
                     let text_x = block_x + (max_untrimmed_w - untrimmed_w) / 2.0 + leading_w;
-                    let ascent = font_metrics::ascent("SansSerif", FONT_SIZE, true, false);
+                    let ascent =
+                        font_metrics::ascent("SansSerif", gl.font_size, gl.bold, false);
                     let text_y = name_y_start + li as f64 * line_h + ascent;
                     sg.set_fill_color(font_color);
                     sg.svg_text(
@@ -731,8 +787,8 @@ fn render_group(
                         text_x,
                         text_y,
                         Some("sans-serif"),
-                        14.0,
-                        Some("bold"),
+                        gl.font_size,
+                        if gl.bold { Some("bold") } else { None },
                         None,
                         None,
                         tl,
