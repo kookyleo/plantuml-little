@@ -192,13 +192,50 @@ fn strip_to_inner_svg(svg: &str, width: f64, height: f64) -> String {
     // Also strip trailing PI like <?plantuml-src ...?>
     let content = &svg[content_start..content_end];
 
-    // Build the inner SVG
+    // Java adds a style-rect with `width:...px;height:...px;background:...` for non-white
+    // diagram backgrounds. Extract background from outer SVG `style="...background:..."`.
+    let bg_rect = extract_background_style_rect(svg, width, height);
+
+    // Build the inner SVG. The background style rect goes right after <g>
+    // to match Java's SVG structure: <g><rect style=... />[rest of content]</g>
+    let adjusted_content = if !bg_rect.is_empty() && content.starts_with("<g>") {
+        format!("<g>{}{}", bg_rect, &content[3..])
+    } else {
+        content.to_string()
+    };
+
     format!(
         r#"<svg height="{}" width="{}" xmlns:xlink="http://www.w3.org/1999/xlink" xmlns="http://www.w3.org/2000/svg" ><defs/>{}</svg>"#,
         height as u32,
         width as u32,
-        content,
+        adjusted_content,
     )
+}
+
+/// Extract background color from SVG root style attribute and produce a Java-style
+/// background rect if the background is not white.
+fn extract_background_style_rect(svg: &str, width: f64, height: f64) -> String {
+    // Look for style="...background:#XXXXXX..." in the SVG root element
+    if let Some(style_start) = svg.find("style=\"") {
+        let rest = &svg[style_start + 7..];
+        if let Some(style_end) = rest.find('"') {
+            let style = &rest[..style_end];
+            if let Some(bg_pos) = style.find("background:") {
+                let bg_rest = &style[bg_pos + 11..];
+                let bg_end = bg_rest.find(';').unwrap_or(bg_rest.len());
+                let bg_color = &bg_rest[..bg_end];
+                if bg_color != "#FFFFFF" {
+                    return format!(
+                        r#"<rect fill="{bg}" style="width:{w}px;height:{h}px;background:{bg};" width="{w}" height="{h}"/> "#,
+                        bg = bg_color,
+                        w = width as u32,
+                        h = height as u32,
+                    );
+                }
+            }
+        }
+    }
+    String::new()
 }
 
 /// Encode the inner SVG as a base64 data URI for use in `<image xlink:href="...">`.

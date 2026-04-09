@@ -69,7 +69,44 @@ fn strip_plantuml_src_pi(s: &str) -> String {
 /// pixel data. To compare visual equivalence, decode each PNG, extract raw pixel data,
 /// and re-encode with a canonical compressor.
 fn normalize_inline_pngs(s: &str) -> String {
-    let marker = "data:image/png;base64,";
+    let mut result = normalize_inline_data(s, "data:image/png;base64,", "PNG_DATA");
+    result = normalize_inline_svgs(&result);
+    result
+}
+
+/// Normalize embedded SVG data URIs by decoding, stripping `<?plantuml-src ...?>`, and re-encoding.
+fn normalize_inline_svgs(s: &str) -> String {
+    use base64::Engine;
+    let marker = "data:image/svg+xml;base64,";
+    let mut result = String::with_capacity(s.len());
+    let mut pos = 0;
+    while let Some(start) = s[pos..].find(marker) {
+        let abs_start = pos + start;
+        result.push_str(&s[pos..abs_start + marker.len()]);
+        let b64_start = abs_start + marker.len();
+        let b64_end = s[b64_start..]
+            .find(|c: char| c == '"' || c == '\'' || c == '<' || c == ' ')
+            .map_or(s.len(), |e| b64_start + e);
+        let b64 = &s[b64_start..b64_end];
+        // Decode, strip plantuml-src PI, re-encode
+        if let Ok(decoded) = base64::engine::general_purpose::STANDARD.decode(b64) {
+            if let Ok(svg) = std::str::from_utf8(&decoded) {
+                let cleaned = strip_plantuml_src_pi(svg);
+                let re_encoded = base64::engine::general_purpose::STANDARD.encode(cleaned.as_bytes());
+                result.push_str(&re_encoded);
+            } else {
+                result.push_str(b64);
+            }
+        } else {
+            result.push_str(b64);
+        }
+        pos = b64_end;
+    }
+    result.push_str(&s[pos..]);
+    result
+}
+
+fn normalize_inline_data(s: &str, marker: &str, placeholder: &str) -> String {
     let mut result = String::with_capacity(s.len());
     let mut pos = 0;
     while let Some(start) = s[pos..].find(marker) {
@@ -81,10 +118,8 @@ fn normalize_inline_pngs(s: &str) -> String {
             .find(|c: char| c == '"' || c == '\'' || c == '<' || c == ' ')
             .map_or(s.len(), |e| b64_start + e);
 
-        // Replace PNG data with fixed placeholder. Sprite PNGs may differ
-        // in resolution between Java (scaled bitmap) and Rust (raw viewBox
-        // bitmap), so treat all inline PNGs as equivalent for comparison.
-        result.push_str("PNG_DATA");
+        // Replace data with fixed placeholder.
+        result.push_str(placeholder);
         pos = b64_end;
     }
     result.push_str(&s[pos..]);

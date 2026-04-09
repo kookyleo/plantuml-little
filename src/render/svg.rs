@@ -6407,27 +6407,30 @@ fn draw_class_note(sg: &mut SvgGraphic, tracker: &mut BoundsTracker, note: &Clas
 
     let text_x = x + NOTE_TEXT_PADDING;
     if let Some(ref emb) = note.embedded {
-        // Embedded diagram: render before-text, image, after-text
+        // Embedded diagram: Java emits image first, then text elements.
         let mut cursor_y = y + NOTE_MARGIN_Y;
 
-        if !emb.text_before.is_empty() {
-            let ty = cursor_y + NOTE_ASCENT;
+        // Calculate before-text y and advance cursor, but defer emitting
+        let before_text_y = cursor_y + NOTE_ASCENT;
+        let before_text = if !emb.text_before.is_empty() {
             let mut tmp = String::new();
             let before_lines = render_creole_text(
                 &mut tmp,
                 &emb.text_before,
                 text_x,
-                ty,
+                before_text_y,
                 NOTE_LINE_HT,
                 TEXT_COLOR,
                 None,
                 &format!(r#"font-size="{}""#, NOTE_FONT_SIZE as u32),
             );
-            sg.push_raw(&tmp);
             cursor_y += before_lines as f64 * NOTE_LINE_HT;
-        }
+            Some(tmp)
+        } else {
+            None
+        };
 
-        // Emit embedded SVG as <image> element
+        // Emit embedded SVG as <image> element (first, matching Java order)
         sg.push_raw(&format!(
             r#"<image height="{}" width="{}" x="{}" xlink:href="{}" y="{}"/>"#,
             emb.height as u32,
@@ -6437,6 +6440,11 @@ fn draw_class_note(sg: &mut SvgGraphic, tracker: &mut BoundsTracker, note: &Clas
             fmt_coord(cursor_y),
         ));
         cursor_y += emb.height;
+
+        // Now emit the deferred before-text
+        if let Some(text) = before_text {
+            sg.push_raw(&text);
+        }
 
         if !emb.text_after.is_empty() {
             let ty = cursor_y + NOTE_ASCENT;

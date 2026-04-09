@@ -1112,7 +1112,9 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
     let mut prev_center: Option<f64> = None;
     for (i, p) in sd.participants.iter().enumerate() {
         let center_x = match prev_center {
-            None => (left_margin + box_widths[i] / 2.0).max(min_first_center),
+            // Java: first participant center uses effective width (including
+            // ParticipantPadding) so the padded box edge sits at left_margin.
+            None => (left_margin + effective_widths[i] / 2.0).max(min_first_center),
             Some(pc) => pc + min_gaps[i - 1],
         };
 

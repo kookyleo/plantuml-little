@@ -2842,29 +2842,32 @@ fn render_note(
     });
 
     if let Some(ref emb) = note.embedded {
-        // Note with embedded diagram: render before-text, image, after-text.
+        // Note with embedded diagram: Java emits image first, then text elements.
+        // The y-coordinates ensure correct visual positioning regardless of SVG order.
         let text_x = x + NOTE_MARGIN_X1;
         let mut cursor_y = y + NOTE_MARGIN_Y;
 
-        // Render text before the embedded block
-        if !emb.text_before.is_empty() {
-            let text_y = cursor_y + NOTE_ASCENT;
+        // Calculate before-text position and advance cursor
+        let before_text_y = cursor_y + NOTE_ASCENT;
+        let before_lines = if !emb.text_before.is_empty() {
             let mut tmp = String::new();
-            let before_lines = render_creole_text(
+            let lines = render_creole_text(
                 &mut tmp,
                 &emb.text_before,
                 text_x,
-                text_y,
+                before_text_y,
                 NOTE_LINE_HEIGHT,
                 font_color,
                 None,
                 &format!(r#"font-size="{}""#, NOTE_FONT_SIZE as u32),
             );
-            sg.push_raw(&tmp);
-            cursor_y += before_lines as f64 * NOTE_LINE_HEIGHT;
-        }
+            cursor_y += lines as f64 * NOTE_LINE_HEIGHT;
+            Some(tmp)
+        } else {
+            None
+        };
 
-        // Render embedded diagram as <image> element
+        // Render embedded diagram as <image> element (emitted FIRST like Java)
         sg.push_raw(&format!(
             r#"<image height="{}" width="{}" x="{}" xlink:href="{}" y="{}"/>"#,
             emb.height as u32,
@@ -2874,6 +2877,11 @@ fn render_note(
             fmt_coord(cursor_y),
         ));
         cursor_y += emb.height;
+
+        // Now emit the before-text lines (already rendered, just deferred)
+        if let Some(before_text) = before_lines {
+            sg.push_raw(&before_text);
+        }
 
         // Render text after the embedded block
         if !emb.text_after.is_empty() {

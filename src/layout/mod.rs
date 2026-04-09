@@ -1344,6 +1344,32 @@ const NOTE_PADDING_Y: f64 = 5.0;
 /// Gap between note and target entity
 const NOTE_GAP: f64 = 16.0;
 
+/// Compute the height of a single note text line, accounting for creole headings.
+///
+/// Java headings (`==text==`) use `bigger(2).bold()` which increases font size
+/// and adds horizontal rule lines. Measurement from Java reference shows the
+/// heading stripe is exactly 4px taller than a normal 13pt text line (19.1328
+/// vs 15.1328).
+fn note_line_height(line: &str) -> f64 {
+    if crate::parser::creole::strip_heading_prefix_ordered(line).is_some() {
+        NOTE_LINE_HEIGHT + 4.0
+    } else {
+        NOTE_LINE_HEIGHT
+    }
+}
+
+/// Compute the text width of a note line, accounting for creole heading stripping.
+///
+/// Note headings (`==text==`) render at the same font size (13pt) as normal text
+/// in Java, so we only strip the heading markers for width measurement.
+fn note_line_width(line: &str) -> f64 {
+    if let Some((rest, _order)) = crate::parser::creole::strip_heading_prefix_ordered(line) {
+        font_metrics::text_width(rest.trim(), "SansSerif", NOTE_FONT_SIZE, false, false)
+    } else {
+        font_metrics::text_width(line, "SansSerif", NOTE_FONT_SIZE, false, false)
+    }
+}
+
 /// Perform layout on a class diagram
 fn layout_class_diagram(cd: &ClassDiagram, skin: &crate::style::SkinParams) -> Result<GraphLayout> {
     log::debug!(
@@ -1489,13 +1515,6 @@ fn layout_class_diagram(cd: &ClassDiagram, skin: &crate::style::SkinParams) -> R
     let mut note_dot_ids: Vec<String> = Vec::new();
     for (i, note) in cd.notes.iter().enumerate() {
         let note_id = format!("GMN{}", i);
-        // Skip graphviz node for notes with embedded subdiagrams — their
-        // sizing is complex and the manual positioning already works.
-        let has_embedded = note.text.contains("{{") && note.text.contains("}}");
-        if has_embedded {
-            note_dot_ids.push(note_id);
-            continue;
-        }
         let (nw, nh) = estimate_class_note_size(&note.text);
         nodes.push(LayoutNode {
             id: note_id.clone(),
@@ -1811,19 +1830,23 @@ fn estimate_class_note_size(text: &str) -> (f64, f64) {
             } else {
                 block.after.lines().collect()
             };
-            let before_w = before_lines
+            let has_heading = before_lines.iter().chain(after_lines.iter())
+                .any(|l| crate::parser::creole::strip_heading_prefix_ordered(l).is_some());
+            let before_w: f64 = before_lines
                 .iter()
-                .map(|l| font_metrics::text_width(l, "SansSerif", NOTE_FONT_SIZE, false, false))
+                .map(|l| note_line_width(l))
                 .fold(0.0_f64, f64::max);
-            let after_w = after_lines
+            let after_w: f64 = after_lines
                 .iter()
-                .map(|l| font_metrics::text_width(l, "SansSerif", NOTE_FONT_SIZE, false, false))
+                .map(|l| note_line_width(l))
                 .fold(0.0_f64, f64::max);
             let content_w = before_w.max(ew).max(after_w);
-            let w = (content_w + NOTE_MARGIN_X1 + NOTE_MARGIN_X2).max(60.0);
-            let before_h = before_lines.len() as f64 * NOTE_LINE_HEIGHT;
-            let after_h = after_lines.len() as f64 * NOTE_LINE_HEIGHT;
-            let h = (before_h + eh + after_h + NOTE_PADDING_Y * 2.0);
+            // Java: heading horizontal rule stripes add 6px extra width
+            let heading_extra = if has_heading { 6.0 } else { 0.0 };
+            let w = (content_w + NOTE_MARGIN_X1 + NOTE_MARGIN_X2 + heading_extra).max(60.0);
+            let before_h: f64 = before_lines.iter().map(|l| note_line_height(l)).sum();
+            let after_h: f64 = after_lines.iter().map(|l| note_line_height(l)).sum();
+            let h = before_h + eh + after_h + NOTE_PADDING_Y * 2.0;
             return (w, h);
         }
     }
@@ -1875,19 +1898,23 @@ fn compute_note_layouts(
                 } else {
                     emb.text_after.lines().map(String::from).collect()
                 };
-                let before_w = before_lines
+                let before_w: f64 = before_lines
                     .iter()
-                    .map(|l| font_metrics::text_width(l, "SansSerif", NOTE_FONT_SIZE, false, false))
+                    .map(|l| note_line_width(l))
                     .fold(0.0_f64, f64::max);
-                let after_w = after_lines
+                let after_w: f64 = after_lines
                     .iter()
-                    .map(|l| font_metrics::text_width(l, "SansSerif", NOTE_FONT_SIZE, false, false))
+                    .map(|l| note_line_width(l))
                     .fold(0.0_f64, f64::max);
+                let has_heading = before_lines.iter().chain(after_lines.iter())
+                    .any(|l| crate::parser::creole::strip_heading_prefix_ordered(&l).is_some());
                 let content_w = before_w.max(emb.width).max(after_w);
-                let w = (content_w + NOTE_MARGIN_X1 + NOTE_MARGIN_X2).max(60.0);
-                let before_h = before_lines.len() as f64 * NOTE_LINE_HEIGHT;
-                let after_h = after_lines.len() as f64 * NOTE_LINE_HEIGHT;
-                let h = (before_h + emb.height + after_h + NOTE_PADDING_Y * 2.0);
+                let heading_extra = if has_heading { 6.0 } else { 0.0 };
+                let w = (content_w + NOTE_MARGIN_X1 + NOTE_MARGIN_X2 + heading_extra).max(60.0);
+                let before_h: f64 = before_lines.iter().map(|l| note_line_height(l)).sum();
+                let after_h: f64 = after_lines.iter().map(|l| note_line_height(l)).sum();
+                let h = before_h + emb.height + after_h + NOTE_PADDING_Y * 2.0;
+                log::debug!("embedded note layout: before_h={before_h}, emb_h={}, after_h={after_h}, total_h={h}, w={w}, before_lines={:?}", emb.height, before_lines);
                 let all_lines: Vec<String> = before_lines.into_iter()
                     .chain(std::iter::once("{{embedded}}".to_string()))
                     .chain(after_lines)

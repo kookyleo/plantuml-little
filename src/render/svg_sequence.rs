@@ -2044,6 +2044,7 @@ fn draw_message(
     msg_font_family: &str,
     msg_svg_family: &str,
     msg_font_size: f64,
+    msg_text_color: &str,
     from_idx: usize,
     to_idx: usize,
     msg_idx: usize,
@@ -2459,7 +2460,7 @@ fn draw_message(
         if let Some(ref num_str) = msg.autonumber {
             let num_tl =
                 font_metrics::text_width(num_str, msg_font_family, msg_font_size, true, false);
-            sg.set_fill_color(TEXT_COLOR);
+            sg.set_fill_color(msg_text_color);
             sg.svg_text(
                 num_str,
                 base_text_x,
@@ -2501,7 +2502,7 @@ fn draw_message(
                     text_x,
                     line_y,
                     msg_line_spacing,
-                    TEXT_COLOR,
+                    msg_text_color,
                     None,
                     &format!(r#"font-size="{msg_font_size}""#),
                 );
@@ -4014,6 +4015,8 @@ fn render_sequence_inner(
     // that should be emitted between messages at the appropriate y positions.
     let seq_arrow_color = skin.sequence_arrow_color(BORDER_COLOR);
     let seq_arrow_thickness = skin.sequence_arrow_thickness().unwrap_or(1.0);
+    // Java: message text uses root.fontcolor (from theme style) for the text fill.
+    let seq_msg_text_color = skin.font_color("sequence", TEXT_COLOR);
     let word_by_word = skin.get("maxmessagesize").is_some();
     let mut msg_seq_counter: usize = 0;
 
@@ -4142,6 +4145,7 @@ fn render_sequence_inner(
                 &default_font,
                 seq_svg_font_family,
                 msg_font_size,
+                seq_msg_text_color,
                 from_idx,
                 to_idx,
                 msg_seq_counter,

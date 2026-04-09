@@ -402,8 +402,9 @@ impl SkinParams {
     /// Get arrow color.
     ///
     /// Lookup order:
-    /// 1. `ArrowColor`
-    /// 2. Theme arrow color
+    /// 1. `ArrowColor` skinparam
+    /// 2. `root.linecolor` from style block
+    /// 3. Theme arrow color / default
     pub fn arrow_color<'a>(&'a self, default: &'a str) -> &'a str {
         // Java: `skinparam arrowColor` or `skinparam arrow { Color }` both
         // resolve to the same value.  Our parser stores the block form as
@@ -412,6 +413,10 @@ impl SkinParams {
             return v.as_str();
         }
         if let Some(v) = self.params.get("arrow.color") {
+            return v.as_str();
+        }
+        // Java style system: arrows inherit from root { LineColor }
+        if let Some(v) = self.params.get("root.linecolor") {
             return v.as_str();
         }
         if default == self.theme.arrow_color {
