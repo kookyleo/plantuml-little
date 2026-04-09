@@ -558,6 +558,14 @@ fn render_body(
     class_body_offset: Option<(f64, f64)>,
 ) -> Result<BodyResult> {
     match (diagram, layout) {
+        (Diagram::Bpm(bd), DiagramLayout::Bpm(bl)) => {
+            super::svg_bpm::render_bpm(bd, bl, skin).map(|svg| BodyResult {
+                svg,
+                raw_body_dim: None,
+                body_pre_offset: false,
+                body_degenerated: false,
+            })
+        }
         (Diagram::Class(cd), DiagramLayout::Class(gl)) => render_class(cd, gl, skin, class_body_offset),
         (Diagram::Sequence(sd), DiagramLayout::Sequence(sl)) => {
             // Sequence layout total_width/total_height include document margins

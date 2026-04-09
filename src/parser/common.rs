@@ -7,6 +7,9 @@ use crate::model::DiagramMeta;
 pub fn detect_start_tag(source: &str) -> Option<DiagramHint> {
     for line in source.lines() {
         let trimmed = line.trim();
+        if trimmed.starts_with("@startbpm") {
+            return Some(DiagramHint::Bpm);
+        }
         if trimmed.starts_with("@startchart") {
             return Some(DiagramHint::Chart);
         }

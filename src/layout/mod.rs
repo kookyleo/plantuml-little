@@ -1,5 +1,6 @@
 pub mod activity;
 pub mod board;
+pub mod bpm;
 pub mod chart;
 pub mod chronology;
 pub mod component;
@@ -55,6 +56,7 @@ pub(crate) struct QualifierMargins {
 /// Unified layout result
 #[derive(Debug)]
 pub enum DiagramLayout {
+    Bpm(bpm::BpmLayout),
     Class(GraphLayout),
     Sequence(sequence::SeqLayout),
     Activity(activity::ActivityLayout),
@@ -174,6 +176,10 @@ const OBJ_EMPTY_BODY_WIDTH: f64 = 10.0;
 /// Perform layout on a Diagram
 pub fn layout(diagram: &Diagram, skin: &crate::style::SkinParams) -> Result<DiagramLayout> {
     match diagram {
+        Diagram::Bpm(bd) => {
+            let bl = bpm::layout_bpm(bd)?;
+            Ok(DiagramLayout::Bpm(bl))
+        }
         Diagram::Class(cd) => {
             let gl = layout_class_diagram(cd, skin)?;
             Ok(DiagramLayout::Class(gl))

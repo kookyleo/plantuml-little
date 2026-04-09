@@ -1864,4 +1864,9 @@ reference_test!(
     "fixtures/git/basic.puml"
 );
 
-// Total: 298 reference tests
+reference_test!(
+    reference_fixtures_bpm_basic_puml,
+    "fixtures/bpm/basic.puml"
+);
+
+// Total: 299 reference tests

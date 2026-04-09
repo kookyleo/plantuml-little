@@ -1,0 +1,9 @@
+@startbpm
+:Task A;
+new branch
+:Task B;
+else
+:Task C;
+end branch
+:Task D;
+@endbpm

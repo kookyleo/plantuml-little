@@ -2,6 +2,7 @@ pub mod embedded;
 pub mod svg;
 pub mod svg_activity;
 pub mod svg_board;
+pub mod svg_bpm;
 pub mod svg_chart;
 pub mod svg_creole;
 pub mod svg_chronology;

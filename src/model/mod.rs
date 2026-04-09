@@ -1,5 +1,6 @@
 pub mod activity;
 pub mod board;
+pub mod bpm;
 pub mod chart;
 pub mod chronology;
 pub mod component;

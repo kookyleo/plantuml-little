@@ -109,6 +109,7 @@ pub struct ClassDiagram {
 /// Diagram type enum
 #[derive(Debug)]
 pub enum Diagram {
+    Bpm(super::bpm::BpmDiagram),
     Class(ClassDiagram),
     Sequence(super::sequence::SequenceDiagram),
     Activity(super::activity::ActivityDiagram),

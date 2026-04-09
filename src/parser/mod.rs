@@ -1,5 +1,6 @@
 pub mod activity;
 pub mod board;
+pub mod bpm;
 pub mod chart;
 pub mod chronology;
 pub mod class;
@@ -44,6 +45,10 @@ pub fn parse_with_original(source: &str, original_source: Option<&str>) -> Resul
     let tag_hint = common::detect_start_tag(source);
     if let Some(hint) = tag_hint {
         return match hint {
+            DiagramHint::Bpm => {
+                let bd = bpm::parse_bpm_diagram(source)?;
+                Ok(Diagram::Bpm(bd))
+            }
             DiagramHint::Chart => {
                 let cd = chart::parse_chart_diagram(source)?;
                 Ok(Diagram::Chart(cd))
@@ -201,7 +206,8 @@ pub fn parse_with_original(source: &str, original_source: Option<&str>) -> Resul
             Err(crate::Error::UnsupportedDiagram(t))
         }
         // These should be handled by start tag detection above
-        DiagramHint::Chart
+        DiagramHint::Bpm
+        | DiagramHint::Chart
         | DiagramHint::Ditaa
         | DiagramHint::Erd
         | DiagramHint::Files
@@ -230,6 +236,7 @@ pub fn parse_with_original(source: &str, original_source: Option<&str>) -> Resul
 /// Internal diagram type hint
 #[derive(Debug)]
 pub enum DiagramHint {
+    Bpm,
     Class,
     Sequence,
     Activity,
