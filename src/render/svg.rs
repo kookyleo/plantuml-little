@@ -6177,7 +6177,13 @@ fn draw_class_note(sg: &mut SvgGraphic, tracker: &mut BoundsTracker, note: &Clas
     let w = note.width;
     let h = note.height;
 
-    let is_opale = matches!(note.position.as_str(), "left" | "right");
+    // All four positions (left/right/top/bottom) use the Java Opale path
+    // style for class-diagram notes.  Floating notes (no position) still
+    // render as a simple polygon.
+    let is_opale = matches!(
+        note.position.as_str(),
+        "left" | "right" | "top" | "bottom"
+    );
     let fold = if is_opale { CLASS_NOTE_FOLD } else { NOTE_FOLD };
 
     // Java Opale uses delta=4 for the connector arrow half-width on the body edge.
@@ -6190,6 +6196,7 @@ fn draw_class_note(sg: &mut SvgGraphic, tracker: &mut BoundsTracker, note: &Clas
         let from_y = from_y_g + offset_y;
         let to_x = to_x_g + offset_x;
         let to_y = to_y_g + offset_y;
+        let pp1_x_local = from_x - x;
         let pp1_y_local = from_y - y;
         let pp2_x_local = to_x - x;
         let pp2_y_local = to_y - y;
@@ -6229,6 +6236,46 @@ fn draw_class_note(sg: &mut SvgGraphic, tracker: &mut BoundsTracker, note: &Clas
                 write!(d, " A0,0 0 0 0 {},{}", fmt_coord(x + w), fmt_coord(y + h)).unwrap();
                 write!(d, " L{},{}", fmt_coord(x + w), fmt_coord(y + fold)).unwrap();
                 write!(d, " L{},{}", fmt_coord(x + w - fold), fmt_coord(y)).unwrap();
+                write!(d, " L{},{}", fmt_coord(x), fmt_coord(y)).unwrap();
+                write!(d, " A0,0 0 0 0 {},{}", fmt_coord(x), fmt_coord(y)).unwrap();
+            }
+            "top" => {
+                // Note is above entity -> ear on bottom edge pointing DOWN.
+                // Java Opale.getPolygonDown: x1 = pp1.x - delta, clamped to [0, width].
+                // The ear base spans [x1, x1 + 2*delta] along the note bottom edge.
+                let mut x1 = pp1_x_local - OPALE_DELTA;
+                x1 = x1.max(0.0).min(w - 2.0 * OPALE_DELTA);
+
+                write!(d, "M{},{}", fmt_coord(x), fmt_coord(y)).unwrap();
+                write!(d, " L{},{}", fmt_coord(x), fmt_coord(y + h)).unwrap();
+                write!(d, " A0,0 0 0 0 {},{}", fmt_coord(x), fmt_coord(y + h)).unwrap();
+                write!(d, " L{},{}", fmt_coord(x + x1), fmt_coord(y + h)).unwrap();
+                write!(d, " L{},{}", fmt_coord(x + pp2_x_local), fmt_coord(y + pp2_y_local)).unwrap();
+                write!(d, " L{},{}", fmt_coord(x + x1 + 2.0 * OPALE_DELTA), fmt_coord(y + h)).unwrap();
+                write!(d, " L{},{}", fmt_coord(x + w), fmt_coord(y + h)).unwrap();
+                write!(d, " A0,0 0 0 0 {},{}", fmt_coord(x + w), fmt_coord(y + h)).unwrap();
+                write!(d, " L{},{}", fmt_coord(x + w), fmt_coord(y + fold)).unwrap();
+                write!(d, " L{},{}", fmt_coord(x + w - fold), fmt_coord(y)).unwrap();
+                write!(d, " L{},{}", fmt_coord(x), fmt_coord(y)).unwrap();
+                write!(d, " A0,0 0 0 0 {},{}", fmt_coord(x), fmt_coord(y)).unwrap();
+            }
+            "bottom" => {
+                // Note is below entity -> ear on top edge pointing UP.
+                // Java Opale.getPolygonUp: x1 = pp1.x - delta,
+                // clamped to [0, width - cornersize] so the ear never overlaps the fold.
+                let mut x1 = pp1_x_local - OPALE_DELTA;
+                x1 = x1.max(0.0).min(w - fold);
+
+                write!(d, "M{},{}", fmt_coord(x), fmt_coord(y)).unwrap();
+                write!(d, " L{},{}", fmt_coord(x), fmt_coord(y + h)).unwrap();
+                write!(d, " A0,0 0 0 0 {},{}", fmt_coord(x), fmt_coord(y + h)).unwrap();
+                write!(d, " L{},{}", fmt_coord(x + w), fmt_coord(y + h)).unwrap();
+                write!(d, " A0,0 0 0 0 {},{}", fmt_coord(x + w), fmt_coord(y + h)).unwrap();
+                write!(d, " L{},{}", fmt_coord(x + w), fmt_coord(y + fold)).unwrap();
+                write!(d, " L{},{}", fmt_coord(x + w - fold), fmt_coord(y)).unwrap();
+                write!(d, " L{},{}", fmt_coord(x + x1 + 2.0 * OPALE_DELTA), fmt_coord(y)).unwrap();
+                write!(d, " L{},{}", fmt_coord(x + pp2_x_local), fmt_coord(y + pp2_y_local)).unwrap();
+                write!(d, " L{},{}", fmt_coord(x + x1), fmt_coord(y)).unwrap();
                 write!(d, " L{},{}", fmt_coord(x), fmt_coord(y)).unwrap();
                 write!(d, " A0,0 0 0 0 {},{}", fmt_coord(x), fmt_coord(y)).unwrap();
             }

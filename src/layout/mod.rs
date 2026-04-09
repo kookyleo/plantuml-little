@@ -1916,6 +1916,13 @@ fn compute_note_layouts(
                 node_map.get(sid.as_str()).copied()
             });
 
+            // Ear-tip offsets for top/bottom notes. Java Opale uses Smetana
+            // spline endpoints which land slightly inside the entity bounding
+            // box; these small deltas match the component renderer values
+            // (see src/layout/component.rs near ear_tip_y computation).
+            const TOP_EAR_OFFSET: f64 = 0.23;
+            const BOTTOM_EAR_OFFSET: f64 = 0.123125;
+
             let (x, y, connector) = if let Some(gv_note) = note_gv_node {
                 // Use graphviz-determined position (top-left corner)
                 let nx = gv_note.cx - gv_note.width / 2.0;
@@ -1927,11 +1934,23 @@ fn compute_note_layouts(
                     let note_cy = ny + note_height / 2.0;
                     let entity_left = nl.cx - nl.width / 2.0;
                     let entity_right = nl.cx + nl.width / 2.0;
+                    let entity_top = nl.cy - nl.height / 2.0;
+                    let entity_bottom = nl.cy + nl.height / 2.0;
                     match note.position.as_str() {
                         "left" => (note_right, note_cy, entity_left, note_cy),
                         "right" => (nx, note_cy, entity_right, note_cy),
-                        "top" => (note_cx, ny + note_height, nl.cx, nl.cy - nl.height / 2.0),
-                        "bottom" => (note_cx, ny, nl.cx, nl.cy + nl.height / 2.0),
+                        "top" => (
+                            note_cx,
+                            ny + note_height,
+                            nl.cx,
+                            entity_top - TOP_EAR_OFFSET,
+                        ),
+                        "bottom" => (
+                            note_cx,
+                            ny,
+                            nl.cx,
+                            entity_bottom + BOTTOM_EAR_OFFSET,
+                        ),
                         _ => (note_right, note_cy, entity_left, note_cy),
                     }
                 });
@@ -1965,13 +1984,13 @@ fn compute_note_layouts(
                     "top" => {
                         let nx = nl.cx - note_width / 2.0;
                         let ny = entity_top - NOTE_GAP - note_height;
-                        let conn = (nl.cx, ny + note_height, nl.cx, entity_top);
+                        let conn = (nl.cx, ny + note_height, nl.cx, entity_top - TOP_EAR_OFFSET);
                         (nx, ny, Some(conn))
                     }
                     "bottom" => {
                         let nx = nl.cx - note_width / 2.0;
                         let ny = entity_bottom + NOTE_GAP;
-                        let conn = (nl.cx, ny, nl.cx, entity_bottom);
+                        let conn = (nl.cx, ny, nl.cx, entity_bottom + BOTTOM_EAR_OFFSET);
                         (nx, ny, Some(conn))
                     }
                     _ => {
