@@ -755,8 +755,8 @@ fn render_body(
                 body_degenerated: false,
             })
         }
-        (Diagram::Regex(rd), DiagramLayout::Regex(rl)) => {
-            super::svg_regex::render_regex(rd, rl, skin).map(|svg| BodyResult {
+        (Diagram::Regex(_rd), DiagramLayout::Regex(rl)) => {
+            super::svg_regex::render_regex_ebnf(rl, skin).map(|svg| BodyResult {
                 svg,
                 raw_body_dim: None,
                 body_pre_offset: false,

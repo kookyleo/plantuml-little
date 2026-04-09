@@ -77,7 +77,7 @@ pub enum DiagramLayout {
     UseCase(usecase::UseCaseLayout),
     Packet(packet::PacketLayout),
     Git(git::GitLayout),
-    Regex(regex_diagram::RegexLayout),
+    Regex(ebnf::EbnfLayout),
     Ebnf(ebnf::EbnfLayout),
 }
 
@@ -291,7 +291,8 @@ pub fn layout(diagram: &Diagram, skin: &crate::style::SkinParams) -> Result<Diag
             Ok(DiagramLayout::Git(gl))
         }
         Diagram::Regex(rd) => {
-            let rl = regex_diagram::layout_regex(rd)?;
+            let expr = crate::parser::regex_diagram::regex_node_to_ebnf(&rd.node);
+            let rl = ebnf::layout_regex_as_ebnf(&expr)?;
             Ok(DiagramLayout::Regex(rl))
         }
         Diagram::Ebnf(ed) => {

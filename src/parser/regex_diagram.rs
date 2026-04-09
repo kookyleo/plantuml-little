@@ -1,3 +1,4 @@
+use crate::model::ebnf::EbnfExpr;
 use crate::model::regex_diagram::{RegexDiagram, RegexNode};
 use crate::Result;
 
@@ -35,7 +36,19 @@ fn parse_concat(chars: &[char], start: usize) -> Result<(RegexNode, usize)> {
             '(' => { let (g, n) = parse_group(chars, pos)?; let (q, n) = apply_quantifier(chars, n, g)?; items.push(q); pos = n; }
             '[' => { let (c, n) = parse_char_class(chars, pos)?; let (q, n) = apply_quantifier(chars, n, c)?; items.push(q); pos = n; }
             '.' => { let nd = RegexNode::Literal(".".into()); pos += 1; let (q, n) = apply_quantifier(chars, pos, nd)?; items.push(q); pos = n; }
-            '\\' if pos + 1 < chars.len() => { let nd = RegexNode::Literal(format!("\\{}", chars[pos + 1])); pos += 2; let (q, n) = apply_quantifier(chars, pos, nd)?; items.push(q); pos = n; }
+            '\\' if pos + 1 < chars.len() => {
+                let c1 = chars[pos + 1];
+                // Java isEscapedChar: these become just the character (ESCAPED_CHAR token)
+                let nd = if matches!(c1, '.' | '*' | '\\' | '?' | '^' | '$' | '|' | '(' | ')' | '[' | ']' | '{' | '}' | '<' | '>') {
+                    RegexNode::Literal(c1.to_string())
+                } else {
+                    // CLASS token: \d, \w, etc. — display with backslash
+                    RegexNode::Literal(format!("\\{}", c1))
+                };
+                pos += 2;
+                let (q, n) = apply_quantifier(chars, pos, nd)?;
+                items.push(q); pos = n;
+            }
             c => { let nd = RegexNode::Literal(c.to_string()); pos += 1; let (q, n) = apply_quantifier(chars, pos, nd)?; items.push(q); pos = n; }
         }
     }
@@ -70,13 +83,22 @@ fn parse_group(chars: &[char], start: usize) -> Result<(RegexNode, usize)> {
 }
 
 fn parse_char_class(chars: &[char], start: usize) -> Result<(RegexNode, usize)> {
+    // Collect raw content between [ and ], handling backslash escapes
     let mut pos = start + 1;
-    let mut items = Vec::new();
+    let mut raw = String::new();
     while pos < chars.len() && chars[pos] != ']' {
-        if chars[pos] == '\\' && pos + 1 < chars.len() { items.push(format!("\\{}", chars[pos + 1])); pos += 2; }
-        else { items.push(chars[pos].to_string()); pos += 1; }
+        if chars[pos] == '\\' && pos + 1 < chars.len() {
+            raw.push(chars[pos]);
+            raw.push(chars[pos + 1]);
+            pos += 2;
+        } else {
+            raw.push(chars[pos]);
+            pos += 1;
+        }
     }
     if pos < chars.len() { pos += 1; }
+    // Apply Java GroupSplitter logic: recognize "x-y" ranges as single items
+    let items = group_split(&raw);
     Ok((RegexNode::CharClass(items), pos))
 }
 
@@ -103,5 +125,61 @@ fn apply_quantifier(chars: &[char], start: usize, inner: RegexNode) -> Result<(R
             Ok((RegexNode::Quantifier { inner: Box::new(inner), min, max, label }, pos))
         }
         _ => Ok((inner, start)),
+    }
+}
+
+/// Split a character class body into display elements, matching Java GroupSplitter.
+/// Recognizes "x-y" ranges as single items and "\x" escape sequences.
+fn group_split(group: &str) -> Vec<String> {
+    let chars: Vec<char> = group.chars().collect();
+    let mut result = Vec::new();
+    let mut i = 0;
+    while i < chars.len() {
+        if i + 2 < chars.len() && chars[i + 1] == '-' {
+            // Range: "x-y"
+            result.push(format!("{}-{}", chars[i], chars[i + 2]));
+            i += 3;
+        } else if i + 1 < chars.len() && chars[i] == '\\' {
+            result.push(format!("\\{}", chars[i + 1]));
+            i += 2;
+        } else {
+            result.push(chars[i].to_string());
+            i += 1;
+        }
+    }
+    result
+}
+
+/// Convert a parsed RegexNode tree into an EbnfExpr tree so the EBNF tile
+/// layout and renderer can be reused for regex railroad diagrams.
+pub fn regex_node_to_ebnf(node: &RegexNode) -> EbnfExpr {
+    match node {
+        RegexNode::Literal(text) => EbnfExpr::Terminal(text.clone()),
+        RegexNode::CharClass(items) => EbnfExpr::RegexGroup(items.clone()),
+        RegexNode::Concat(nodes) => {
+            EbnfExpr::Sequence(nodes.iter().map(regex_node_to_ebnf).collect())
+        }
+        RegexNode::Alternate(branches) => {
+            EbnfExpr::Alternation(branches.iter().map(regex_node_to_ebnf).collect())
+        }
+        RegexNode::Quantifier { inner, min, max, label } => {
+            let inner_expr = regex_node_to_ebnf(inner);
+            if *min == 0 && max.is_none() {
+                // `*` → ZeroOrMore = Optional(Repetition(inner))
+                EbnfExpr::Optional(Box::new(EbnfExpr::Repetition(Box::new(inner_expr))))
+            } else if *min == 1 && max.is_none() && label == "+" {
+                // `+` → OneOrMore (no label)
+                EbnfExpr::Repetition(Box::new(inner_expr))
+            } else {
+                // `{n}`, `{n,m}`, `{n,}` → OneOrMore with label
+                EbnfExpr::RepetitionLabeled(Box::new(inner_expr), label.clone())
+            }
+        }
+        RegexNode::Optional(inner) => {
+            EbnfExpr::Optional(Box::new(regex_node_to_ebnf(inner)))
+        }
+        RegexNode::Group(inner) => {
+            EbnfExpr::Group(Box::new(regex_node_to_ebnf(inner)))
+        }
     }
 }

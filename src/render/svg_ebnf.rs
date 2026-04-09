@@ -95,6 +95,10 @@ pub fn render_ebnf(_d: &EbnfDiagram, l: &EbnfLayout, skin: &SkinParams) -> Resul
                 write!(buf, r#"<path d="M{},{} L{},{} L{},{} L{},{} L{},{}" fill="{}"/>"#,
                     ff(*x), ff(*y), ff(*x), ff(*y - 3.0), ff(*x - 6.0), ff(*y), ff(*x), ff(*y + 3.0), ff(*x), ff(*y), STROKE).unwrap();
             }
+            // Regex-specific elements — not used by EBNF, ignore
+            EbnfElement::DashedBox { .. }
+            | EbnfElement::TerminalText { .. }
+            | EbnfElement::RepetitionLabel { .. } => {}
         }
     }
     buf.push_str("</g></svg>"); Ok(buf)

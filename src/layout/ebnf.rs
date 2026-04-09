@@ -23,6 +23,12 @@ pub enum EbnfElement {
     EndCircle { cx: f64, cy: f64, r: f64 },
     Arrow { x: f64, y: f64 },
     LeftArrow { x: f64, y: f64 },
+    /// Dashed rectangle for regex character groups (stroke-dasharray:5,5, stroke-width:1)
+    DashedBox { x: f64, y: f64, width: f64, height: f64 },
+    /// Plain text (for regex group element entries — no surrounding box)
+    TerminalText { x: f64, y: f64, width: f64, text: String },
+    /// Repetition label text (smaller font, e.g. "{2,3}")
+    RepetitionLabel { x: f64, y: f64, width: f64, text: String, font_size: f64 },
 }
 
 // ── Java ETile constants ──────────────────────────────────────────
@@ -79,6 +85,11 @@ const FW_MARGIN: f64 = 10.0;
 /// Document title style: Padding=5, Margin=5
 const TITLE_PAD: f64 = 5.0;
 const TITLE_MARGIN: f64 = 5.0;
+
+/// ETileOneOrMore.getBraceHeight() when loop label is present
+const BRACE_HEIGHT: f64 = 15.0;
+/// Brace corner delta (cinq in Brace.java)
+const BRACE_CORNER: f64 = 5.0;
 
 /// Line stroke for rail lines
 const STROKE: f64 = 1.5;
@@ -153,6 +164,33 @@ fn tile_dim(expr: &EbnfExpr) -> TileDim {
             }
         }
         EbnfExpr::Group(inner) => tile_dim(inner),
+        EbnfExpr::RegexGroup(elements) => {
+            // ETileRegexGroup: textDim = (max element width, sum of element heights)
+            // width = textDim.width + 10, h1 = h2 = textDim.height / 2
+            let mut max_w = 0.0f64;
+            let mut total_h = 0.0;
+            let elem_h = font_metrics::ascent("SansSerif", FONT_SIZE, false, false)
+                + font_metrics::descent("SansSerif", FONT_SIZE, false, false);
+            for el in elements {
+                let ew = font_metrics::text_width(el, "SansSerif", FONT_SIZE, false, false);
+                max_w = max_w.max(ew);
+                total_h += elem_h;
+            }
+            let half = total_h / 2.0;
+            TileDim { width: max_w + 10.0, h1: half, h2: half }
+        }
+        EbnfExpr::RepetitionLabeled(inner, _label) => {
+            // ETileOneOrMore with loop label: braceHeight=15
+            // h1 = deltay(12) + orig.h1 + braceHeight(15)
+            // h2 = orig.h2
+            // width = orig.width + 2*deltax(15)
+            let d = tile_dim(inner);
+            TileDim {
+                width: d.width + 2.0 * OOM_DELTAX,
+                h1: OOM_DELTAY + d.h1 + BRACE_HEIGHT,
+                h2: d.h2,
+            }
+        }
     }
 }
 
@@ -257,6 +295,54 @@ pub fn layout_ebnf(diagram: &EbnfDiagram) -> Result<EbnfLayout> {
         elements,
     })
 }
+
+/// Layout a regex diagram by converting its AST to EbnfExpr and using the
+/// EBNF tile layout engine.  The tile is drawn at offset (10,10), matching
+/// Java PSystemRegex (framework margin 10 + UTranslate(5,5) → content at
+/// (10+5=15)? — empirically content sits at x=10).  Canvas dimensions are
+/// computed by tracking all drawn element bounds (Java ensureVisible).
+pub fn layout_regex_as_ebnf(expr: &EbnfExpr) -> Result<EbnfLayout> {
+    let dim = tile_dim(expr);
+    let tile_w = dim.width;
+    let tile_h = dim.h1 + dim.h2;
+
+    let offset = FW_MARGIN; // 10, matching Java framework
+    let mut elements = Vec::new();
+
+    let top_y = offset;
+    let line_pos = top_y + dim.h1;
+    draw_tile(expr, offset, top_y, line_pos, tile_w, &dim, &mut elements)?;
+
+    // Java regex uses default stroke thickness 1.0 (not EBNF's 1.5).
+    // Post-process all elements to change stroke from 1.5 to 1.0.
+    for e in &mut elements {
+        match e {
+            EbnfElement::HLine { stroke_width, .. }
+            | EbnfElement::VLine { stroke_width, .. }
+            | EbnfElement::Path { stroke_width, .. } => {
+                if (*stroke_width - STROKE).abs() < 0.01 {
+                    *stroke_width = 1.0;
+                }
+            }
+            _ => {}
+        }
+    }
+
+    // Canvas dimensions match Java's ensureVisible(minDim) where:
+    // - TextBlock dimension = tile_dim + delta(10) (UTranslate(5,5) + 5px padding)
+    // - Framework margin = 5 on each side (from root.document style)
+    // - ensureVisible(x) → maxDim = (int)(x + 1)
+    // Empirically: width = ensure_visible_int(tile_w + 21), height = ensure_visible_int(tile_h + 20)
+    let canvas_w = tile_w + 21.0;
+    let canvas_h = tile_h + 20.0;
+
+    Ok(EbnfLayout {
+        width: canvas_w,
+        height: canvas_h,
+        elements,
+    })
+}
+
 
 fn layout_rule(rule: &EbnfRule, start_y: f64) -> Result<(Vec<EbnfElement>, f64, f64)> {
     let mut elements = Vec::new();
@@ -563,14 +649,12 @@ fn draw_tile(
 
             // 1. SW(8) at (8, h1)
             corner_sw(elements, OOM_CORNER, x + 8.0, lp);
-            // 2. VLine at x=8 from y=8+5=13 to y=h1-8
-            if h1 > 21.0 {
-                elements.push(EbnfElement::VLine {
-                    x1: x + 8.0, y1: top_y + 13.0,
-                    x2: x + 8.0, y2: top_y + h1 - 8.0,
-                    stroke_width: STROKE,
-                });
-            }
+            // 2. VLine at x=8 from y=8+5=13 to y=h1-8 (Java always draws, even if short)
+            elements.push(EbnfElement::VLine {
+                x1: x + 8.0, y1: top_y + 13.0,
+                x2: x + 8.0, y2: top_y + h1 - 8.0,
+                stroke_width: STROKE,
+            });
             // 3. NW(8) at (8, 5)
             corner_nw(elements, OOM_CORNER, x + 8.0, top_y + 5.0);
             // 4. HlineAntiDirected at y=5 from x=deltax(15) to x=fullW-deltax(15)
@@ -586,14 +670,12 @@ fn draw_tile(
 
             // 5. SE(8) at (fullW-8, h1)
             corner_se(elements, OOM_CORNER, x + full_w - 8.0, lp);
-            // 6. VLine at x=fullW-8 from y=13 to y=h1-8
-            if h1 > 21.0 {
-                elements.push(EbnfElement::VLine {
-                    x1: x + full_w - 8.0, y1: top_y + 13.0,
-                    x2: x + full_w - 8.0, y2: top_y + h1 - 8.0,
-                    stroke_width: STROKE,
-                });
-            }
+            // 6. VLine at x=fullW-8 from y=13 to y=h1-8 (Java always draws)
+            elements.push(EbnfElement::VLine {
+                x1: x + full_w - 8.0, y1: top_y + 13.0,
+                x2: x + full_w - 8.0, y2: top_y + h1 - 8.0,
+                stroke_width: STROKE,
+            });
             // 7. NE(8) at (fullW-8, 5)
             corner_ne(elements, OOM_CORNER, x + full_w - 8.0, top_y + 5.0);
             // 8. HLine at h1 from 0 to deltax
@@ -611,6 +693,120 @@ fn draw_tile(
         }
         EbnfExpr::Group(inner) => {
             draw_tile(inner, x, top_y, line_pos, _tile_w, _dim, elements)?;
+        }
+        EbnfExpr::RegexGroup(items) => {
+            // ETileRegexGroup: dashed box with stacked text entries.
+            // textDim = (max_elem_w, sum_elem_h), boxDim = textDim.delta(10,0)
+            // posxBox = (dim.width - boxDim.width) / 2  (always 0 since widths match)
+            let elem_h = font_metrics::ascent("SansSerif", FONT_SIZE, false, false)
+                + font_metrics::descent("SansSerif", FONT_SIZE, false, false);
+            let mut max_ew = 0.0f64;
+            for el in items {
+                let ew = font_metrics::text_width(el, "SansSerif", FONT_SIZE, false, false);
+                max_ew = max_ew.max(ew);
+            }
+            let text_h = elem_h * items.len() as f64;
+            let box_w = max_ew + 10.0;
+            let box_h = text_h;
+            let box_x = x; // posxBox = 0
+            let box_y = line_pos - text_h / 2.0;
+
+            // Dashed rect
+            elements.push(EbnfElement::DashedBox {
+                x: box_x, y: box_y, width: box_w, height: box_h,
+            });
+
+            // Text for each element + separator hlines
+            let asc = font_metrics::ascent("SansSerif", FONT_SIZE, false, false);
+            let desc = font_metrics::descent("SansSerif", FONT_SIZE, false, false);
+            let mut ey = 0.0;
+            for (i, el) in items.iter().enumerate() {
+                let tw = font_metrics::text_width(el, "SansSerif", FONT_SIZE, false, false);
+                let text_y = box_y + ey + asc + desc - desc; // = box_y + ey + asc
+                elements.push(EbnfElement::TerminalText {
+                    x: box_x + 5.0, y: text_y, width: tw, text: el.clone(),
+                });
+                if i > 0 {
+                    // Thin separator hline at y=ey
+                    elements.push(EbnfElement::HLine {
+                        x1: box_x, y1: box_y + ey, x2: box_x + box_w, y2: box_y + ey,
+                        stroke_width: 0.3,
+                    });
+                }
+                ey += elem_h;
+            }
+        }
+        EbnfExpr::RepetitionLabeled(inner, label) => {
+            // ETileOneOrMore with loop label (e.g. "{2,3}")
+            // Same as Repetition but with brace + label text above the loop line.
+            let d = tile_dim(inner);
+            let full_w = d.width + 2.0 * OOM_DELTAX;
+            let h1 = OOM_DELTAY + d.h1 + BRACE_HEIGHT;
+            let lp = top_y + h1; // absolute linePos
+
+            // 1. SW(8) at (8, h1)
+            corner_sw(elements, OOM_CORNER, x + 8.0, lp);
+            // 2. VLine at x=8 from y=8+5+braceHeight to y=h1-8 (Java always draws)
+            let vline_top = top_y + 8.0 + 5.0 + BRACE_HEIGHT;
+            let vline_bot = top_y + h1 - 8.0;
+            elements.push(EbnfElement::VLine {
+                x1: x + 8.0, y1: vline_top,
+                x2: x + 8.0, y2: vline_bot,
+                stroke_width: STROKE,
+            });
+            // 3. NW(8) at (8, 5+braceHeight)
+            corner_nw(elements, OOM_CORNER, x + 8.0, top_y + 5.0 + BRACE_HEIGHT);
+            // 4. HlineAntiDirected at y=5+braceHeight from deltax to fullW-deltax
+            let hline_y = top_y + 5.0 + BRACE_HEIGHT;
+            let hline_x1 = x + OOM_DELTAX;
+            let hline_x2 = x + full_w - OOM_DELTAX;
+            elements.push(EbnfElement::HLine {
+                x1: hline_x1, y1: hline_y, x2: hline_x2, y2: hline_y, stroke_width: STROKE,
+            });
+            // Anti-directed arrow (points LEFT, coef=0.6)
+            let anti_arrow_x = hline_x1 * (1.0 - 0.6) + hline_x2 * 0.6 - 2.0;
+            elements.push(EbnfElement::LeftArrow { x: anti_arrow_x, y: hline_y });
+
+            // 5. SE(8) at (fullW-8, h1)
+            corner_se(elements, OOM_CORNER, x + full_w - 8.0, lp);
+            // 6. VLine at x=fullW-8 from y=8+5+braceHeight to y=h1-8 (Java always draws)
+            elements.push(EbnfElement::VLine {
+                x1: x + full_w - 8.0, y1: vline_top,
+                x2: x + full_w - 8.0, y2: vline_bot,
+                stroke_width: STROKE,
+            });
+            // 7. NE(8) at (fullW-8, 5+braceHeight)
+            corner_ne(elements, OOM_CORNER, x + full_w - 8.0, top_y + 5.0 + BRACE_HEIGHT);
+            // 8. HLine at h1 from 0 to deltax
+            elements.push(EbnfElement::HLine {
+                x1: x, y1: lp, x2: x + OOM_DELTAX, y2: lp, stroke_width: STROKE,
+            });
+            // 9. HLine at h1 from fullW-deltax to fullW
+            elements.push(EbnfElement::HLine {
+                x1: x + full_w - OOM_DELTAX, y1: lp, x2: x + full_w, y2: lp, stroke_width: STROKE,
+            });
+            // 10. Inner at (deltax, deltay + braceHeight)
+            let inner_top = top_y + OOM_DELTAY + BRACE_HEIGHT;
+            let inner_lp = inner_top + d.h1;
+            draw_tile(inner, x + OOM_DELTAX, inner_top, inner_lp, d.width, &d, elements)?;
+
+            // 11. Brace at (0, 10) — Brace.drawU
+            let brace_y = top_y + 10.0;
+            draw_brace(elements, x, brace_y, full_w);
+
+            // 12. Label text at ((fullW - textW) / 2, descent)
+            // In Java: ug.apply(UTranslate((fullW - dimText.width) / 2, descent)).draw(loop)
+            // This means the text baseline is at top_y + descent.
+            let label_font_size = FONT_SIZE - 2.0; // fc.bigger(-2)
+            let label_tw = font_metrics::text_width(label, "SansSerif", label_font_size, false, false);
+            let label_desc = font_metrics::descent("SansSerif", label_font_size, false, false);
+            elements.push(EbnfElement::RepetitionLabel {
+                x: x + (full_w - label_tw) / 2.0,
+                y: top_y + label_desc,
+                width: label_tw,
+                text: label.clone(),
+                font_size: label_font_size,
+            });
         }
     }
     Ok(())
@@ -698,6 +894,65 @@ fn corner_nw(elements: &mut Vec<EbnfElement>, delta: f64, cx: f64, cy: f64) {
         ff(cx + delta), ff(cy)
     );
     elements.push(EbnfElement::Path { d, fill: false, stroke_width: STROKE });
+}
+
+/// Draw a horizontal brace (curly bracket) at (ox, oy) with given width.
+/// Matches Java Brace.java drawn with strokeWidth=0.5, cornerDelta=5.
+fn draw_brace(elements: &mut Vec<EbnfElement>, ox: f64, oy: f64, width: f64) {
+    let c = BRACE_CORNER;
+    // NW corner at (0, 0)
+    corner_nw_thin(elements, c, ox, oy);
+    // SE corner at (width/2, 0)
+    corner_se_thin(elements, c, ox + width / 2.0, oy);
+    // SW corner at (width/2, 0)
+    corner_sw_thin(elements, c, ox + width / 2.0, oy);
+    // NE corner at (width, 0)
+    corner_ne_thin(elements, c, ox + width, oy);
+    // Left hline from c to width/2 - 2*c
+    elements.push(EbnfElement::HLine {
+        x1: ox + c, y1: oy, x2: ox + width / 2.0 - c, y2: oy, stroke_width: 0.5,
+    });
+    // Right hline from width/2 + c to width - c
+    elements.push(EbnfElement::HLine {
+        x1: ox + width / 2.0 + c, y1: oy, x2: ox + width - c, y2: oy, stroke_width: 0.5,
+    });
+}
+
+// Thin (stroke-width:0.5) corner helpers for brace drawing
+fn corner_nw_thin(elements: &mut Vec<EbnfElement>, delta: f64, cx: f64, cy: f64) {
+    let a = delta / 4.0;
+    let d = format!(
+        "M{},{} C{},{} {},{} {},{}",
+        ff(cx), ff(cy + delta), ff(cx), ff(cy + a), ff(cx + a), ff(cy), ff(cx + delta), ff(cy)
+    );
+    elements.push(EbnfElement::Path { d, fill: false, stroke_width: 0.5 });
+}
+
+fn corner_se_thin(elements: &mut Vec<EbnfElement>, delta: f64, cx: f64, cy: f64) {
+    let a = delta / 4.0;
+    let d = format!(
+        "M{},{} C{},{} {},{} {},{}",
+        ff(cx), ff(cy - delta), ff(cx), ff(cy - a), ff(cx - a), ff(cy), ff(cx - delta), ff(cy)
+    );
+    elements.push(EbnfElement::Path { d, fill: false, stroke_width: 0.5 });
+}
+
+fn corner_sw_thin(elements: &mut Vec<EbnfElement>, delta: f64, cx: f64, cy: f64) {
+    let a = delta / 4.0;
+    let d = format!(
+        "M{},{} C{},{} {},{} {},{}",
+        ff(cx), ff(cy - delta), ff(cx), ff(cy - a), ff(cx + a), ff(cy), ff(cx + delta), ff(cy)
+    );
+    elements.push(EbnfElement::Path { d, fill: false, stroke_width: 0.5 });
+}
+
+fn corner_ne_thin(elements: &mut Vec<EbnfElement>, delta: f64, cx: f64, cy: f64) {
+    let a = delta / 4.0;
+    let d = format!(
+        "M{},{} C{},{} {},{} {},{}",
+        ff(cx - delta), ff(cy), ff(cx - a), ff(cy), ff(cx), ff(cy + a), ff(cx), ff(cy + delta)
+    );
+    elements.push(EbnfElement::Path { d, fill: false, stroke_width: 0.5 });
 }
 
 #[inline]

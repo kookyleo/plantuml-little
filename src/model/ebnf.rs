@@ -21,4 +21,8 @@ pub enum EbnfExpr {
     Repetition(Box<EbnfExpr>),
     Group(Box<EbnfExpr>),
     Special(String),
+    /// Regex character class group `[abc]`, rendered as dashed box with stacked entries
+    RegexGroup(Vec<String>),
+    /// Regex OneOrMore with a label (e.g. `{2,3}`), drawn with brace
+    RepetitionLabeled(Box<EbnfExpr>, String),
 }
