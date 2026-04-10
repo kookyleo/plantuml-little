@@ -857,6 +857,15 @@ fn render_node(
             render_note(sg, node, position, mode, false, word_by_word_notes)
         }
         ActivityNodeKindLayout::Detach => render_detach(sg, node, arrow_color),
+        ActivityNodeKindLayout::IfDiamond { left_label, right_label, bottom_label } => {
+            render_if_diamond(sg, node, left_label, right_label, bottom_label, diamond_bg, diamond_border, act_font)
+        }
+        ActivityNodeKindLayout::GotoLines { segments } => {
+            let line_style = DrawStyle::outline(arrow_color, 1.0);
+            for &(x1, y1, x2, y2) in segments {
+                LineShape { x1, y1, x2, y2 }.draw(sg, &line_style);
+            }
+        }
     }
 }
 
@@ -1266,6 +1275,159 @@ fn render_hexagon(
 const HEXAGON_RENDER_HALF_SIZE: f64 = 12.0;
 const HEXAGON_LABEL_FONT_SIZE_RENDER: f64 = 11.0;
 
+/// If-diamond: hexagonal shape with condition text inside and branch labels.
+///
+/// Java's `FtileDiamondInside` draws the same hexagon as `Hexagon` but with
+/// additional branch labels (left/right/bottom) for if/else conditions.
+#[allow(clippy::too_many_arguments)]
+fn render_if_diamond(
+    sg: &mut SvgGraphic,
+    node: &ActivityNodeLayout,
+    left_label: &str,
+    right_label: &str,
+    bottom_label: &str,
+    bg: &str,
+    border: &str,
+    font_color: &str,
+) {
+    let x = node.x;
+    let y = node.y;
+    let w = node.width;
+    let h = node.height;
+    let half = HEXAGON_RENDER_HALF_SIZE;
+
+    // 1. Hexagon polygon (closed: first vertex repeated at the end).
+    PolygonShape {
+        points: vec![
+            x + half,
+            y,
+            x + w - half,
+            y,
+            x + w,
+            y + h / 2.0,
+            x + w - half,
+            y + h,
+            x + half,
+            y + h,
+            x,
+            y + h / 2.0,
+            x + half,
+            y,
+        ],
+    }
+    .draw(sg, &DrawStyle::filled(bg, border, 0.5));
+
+    // 2. Condition text, centred inside the hexagon (11pt sans-serif).
+    if !node.text.is_empty() {
+        let font_size = HEXAGON_LABEL_FONT_SIZE_RENDER;
+        let text_w = font_metrics::text_width(&node.text, "SansSerif", font_size, false, false);
+        let line_h = font_metrics::line_height("SansSerif", font_size, false, false);
+        let ascent = font_metrics::ascent("SansSerif", font_size, false, false);
+        let text_x = x + (w - text_w) / 2.0;
+        let text_y = y + (h - line_h) / 2.0 + ascent;
+        sg.set_fill_color(font_color);
+        sg.svg_text(
+            &node.text,
+            text_x,
+            text_y,
+            Some("sans-serif"),
+            font_size,
+            None,
+            None,
+            None,
+            text_w,
+            crate::klimt::svg::LengthAdjust::Spacing,
+            None,
+            0,
+            None,
+        );
+    }
+
+    // 3. Bottom label (south): rendered below the diamond center.
+    //    Java: x = cx + 4, y = diamond_bottom + ascent
+    if !bottom_label.is_empty() {
+        let font_size = HEXAGON_LABEL_FONT_SIZE_RENDER;
+        let text_w = font_metrics::text_width(bottom_label, "SansSerif", font_size, false, false);
+        let ascent = font_metrics::ascent("SansSerif", font_size, false, false);
+        let text_x = x + w / 2.0 + 4.0;
+        let text_y = y + h + ascent;
+        sg.set_fill_color(font_color);
+        sg.svg_text(
+            bottom_label,
+            text_x,
+            text_y,
+            Some("sans-serif"),
+            font_size,
+            None,
+            None,
+            None,
+            text_w,
+            crate::klimt::svg::LengthAdjust::Spacing,
+            None,
+            0,
+            None,
+        );
+    }
+
+    // 4. Left label (west): rendered to the left of the diamond.
+    //    Java: west label at translate(-dimWest.w, -dimWest.h) from diamond center.
+    //    baseline = cy - line_height + ascent
+    if !left_label.is_empty() {
+        let font_size = HEXAGON_LABEL_FONT_SIZE_RENDER;
+        let text_w = font_metrics::text_width(left_label, "SansSerif", font_size, false, false);
+        let ascent = font_metrics::ascent("SansSerif", font_size, false, false);
+        let line_h = font_metrics::line_height("SansSerif", font_size, false, false);
+        let cy = y + h / 2.0;
+        let text_x = x - text_w;
+        let text_y = cy - line_h + ascent;
+        sg.set_fill_color(font_color);
+        sg.svg_text(
+            left_label,
+            text_x,
+            text_y,
+            Some("sans-serif"),
+            font_size,
+            None,
+            None,
+            None,
+            text_w,
+            crate::klimt::svg::LengthAdjust::Spacing,
+            None,
+            0,
+            None,
+        );
+    }
+
+    // 5. Right label (east): rendered to the right of the diamond.
+    //    Java: east label at translate(dimTotal.w, -dimEast.h) from diamond center.
+    //    baseline = cy - line_height + ascent
+    if !right_label.is_empty() {
+        let font_size = HEXAGON_LABEL_FONT_SIZE_RENDER;
+        let text_w = font_metrics::text_width(right_label, "SansSerif", font_size, false, false);
+        let ascent = font_metrics::ascent("SansSerif", font_size, false, false);
+        let line_h = font_metrics::line_height("SansSerif", font_size, false, false);
+        let cy = y + h / 2.0;
+        let text_x = x + w;
+        let text_y = cy - line_h + ascent;
+        sg.set_fill_color(font_color);
+        sg.svg_text(
+            right_label,
+            text_x,
+            text_y,
+            Some("sans-serif"),
+            font_size,
+            None,
+            None,
+            None,
+            text_w,
+            crate::klimt::svg::LengthAdjust::Spacing,
+            None,
+            0,
+            None,
+        );
+    }
+}
+
 /// Fork bar: thin black horizontal rectangle
 fn render_fork_bar(sg: &mut SvgGraphic, node: &ActivityNodeLayout) {
     sg.push_raw(&format!(
@@ -1542,6 +1704,26 @@ fn render_edge(
             | ActivityEdgeKindLayout::BreakEdge
     ) {
         render_polyline_with_arrow(sg, &edge.points, arrow_color);
+        return;
+    }
+
+    // If-branch and if-merge edges: polyline with arrow at end
+    if matches!(
+        edge.kind,
+        ActivityEdgeKindLayout::IfBranch | ActivityEdgeKindLayout::IfMerge
+    ) {
+        render_polyline_with_arrow(sg, &edge.points, arrow_color);
+        return;
+    }
+
+    // Goto no-arrow: polyline with no arrowhead
+    if matches!(edge.kind, ActivityEdgeKindLayout::GotoNoArrow) {
+        let line_style = DrawStyle::outline(arrow_color, 1.0);
+        for pair in edge.points.windows(2) {
+            let (x1, y1) = pair[0];
+            let (x2, y2) = pair[1];
+            LineShape { x1, y1, x2, y2 }.draw(sg, &line_style);
+        }
         return;
     }
 
@@ -1834,6 +2016,7 @@ mod tests {
             width: w,
             height: h,
             text: text.to_string(),
+            skip_in_flow: false,
         }
     }
 
