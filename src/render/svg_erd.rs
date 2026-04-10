@@ -1,3 +1,4 @@
+use crate::klimt::drawable::{DrawStyle, Drawable, EllipseShape, LineShape, PolygonShape, RectShape};
 use crate::klimt::svg::{fmt_coord, xml_escape, LengthAdjust, SvgGraphic};
 use crate::layout::erd::{
     ErdAttrEdge, ErdAttrLayout, ErdEdgeLayout, ErdIsaLayout, ErdLayout, ErdNodeLayout,
@@ -136,29 +137,20 @@ fn render_entity(
     let eff_bg = node.bg_color.as_deref().unwrap_or(bg);
     let eff_border = node.line_color.as_deref().unwrap_or(border);
     sg.push_raw("<g>");
+    let entity_style = DrawStyle::filled(eff_bg, eff_border, 0.5);
     if node.is_weak {
-        sg.set_fill_color(eff_bg);
-        sg.set_stroke_color(Some(eff_border));
-        sg.set_stroke_width(0.5, None);
-        sg.svg_rectangle(x, y, w, h, 0.0, 0.0, 0.0);
+        RectShape { x, y, w, h, rx: 0.0, ry: 0.0 }
+            .draw(sg, &entity_style);
         let inset = 3.0;
-        sg.set_fill_color(eff_bg);
-        sg.set_stroke_color(Some(eff_border));
-        sg.set_stroke_width(0.5, None);
-        sg.svg_rectangle(
-            x + inset,
-            y + inset,
-            w - 2.0 * inset,
-            h - 2.0 * inset,
-            0.0,
-            0.0,
-            0.0,
-        );
+        RectShape {
+            x: x + inset, y: y + inset,
+            w: w - 2.0 * inset, h: h - 2.0 * inset,
+            rx: 0.0, ry: 0.0,
+        }
+        .draw(sg, &entity_style);
     } else {
-        sg.set_fill_color(eff_bg);
-        sg.set_stroke_color(Some(eff_border));
-        sg.set_stroke_width(0.5, None);
-        sg.svg_rectangle(x, y, w, h, 0.0, 0.0, 0.0);
+        RectShape { x, y, w, h, rx: 0.0, ry: 0.0 }
+            .draw(sg, &entity_style);
     }
     let tx = x + 10.0;
     let asc = crate::font_metrics::ascent("SansSerif", FONT_SIZE, false, false);
@@ -190,34 +182,26 @@ fn render_relationship(sg: &mut SvgGraphic, node: &ErdNodeLayout) {
     let eff_bg = node.bg_color.as_deref().unwrap_or(ENTITY_BG);
     let eff_border = node.line_color.as_deref().unwrap_or(BORDER_COLOR);
     sg.push_raw("<g>");
+    let rel_style = DrawStyle::filled(eff_bg, eff_border, 0.5);
     if node.is_identifying {
-        sg.set_fill_color(eff_bg);
-        sg.set_stroke_color(Some(eff_border));
-        sg.set_stroke_width(0.5, None);
-        sg.svg_polygon(0.0, &[x, cy, cx, y, x + w, cy, cx, y + h]);
+        PolygonShape {
+            points: vec![x, cy, cx, y, x + w, cy, cx, y + h],
+        }
+        .draw(sg, &rel_style);
         let inset_x = 10.0;
         let inset_y = 5.0;
-        sg.set_fill_color(eff_bg);
-        sg.set_stroke_color(Some(eff_border));
-        sg.set_stroke_width(0.5, None);
-        sg.svg_polygon(
-            0.0,
-            &[
-                x + inset_x,
-                cy,
-                cx,
-                y + inset_y,
-                x + w - inset_x,
-                cy,
-                cx,
-                y + h - inset_y,
+        PolygonShape {
+            points: vec![
+                x + inset_x, cy, cx, y + inset_y,
+                x + w - inset_x, cy, cx, y + h - inset_y,
             ],
-        );
+        }
+        .draw(sg, &rel_style);
     } else {
-        sg.set_fill_color(eff_bg);
-        sg.set_stroke_color(Some(eff_border));
-        sg.set_stroke_width(0.5, None);
-        sg.svg_polygon(0.0, &[x, cy, cx, y, x + w, cy, cx, y + h]);
+        PolygonShape {
+            points: vec![x, cy, cx, y, x + w, cy, cx, y + h],
+        }
+        .draw(sg, &rel_style);
     }
     let asc = crate::font_metrics::ascent("SansSerif", FONT_SIZE, false, false);
     let desc = crate::font_metrics::descent("SansSerif", FONT_SIZE, false, false);
@@ -250,25 +234,21 @@ fn render_attribute(sg: &mut SvgGraphic, attr: &ErdAttrLayout) {
     // Only line_color affects the stroke.
     let eff_bg = ENTITY_BG;
     let eff_border = attr.line_color.as_deref().unwrap_or(BORDER_COLOR);
+    let attr_style = DrawStyle::filled(eff_bg, eff_border, 0.5);
     if attr.is_derived {
-        sg.set_fill_color(eff_bg);
-        sg.set_stroke_color(Some(eff_border));
-        sg.set_stroke_width(0.5, Some((10.0, 10.0)));
-        sg.svg_ellipse(cx, cy, rx, ry, 0.0);
+        EllipseShape { cx, cy, rx, ry }
+            .draw(sg, &DrawStyle {
+                dash_array: Some((10.0, 10.0)),
+                ..attr_style.clone()
+            });
     } else if attr.is_multi {
-        sg.set_fill_color(eff_bg);
-        sg.set_stroke_color(Some(eff_border));
-        sg.set_stroke_width(0.5, None);
-        sg.svg_ellipse(cx, cy, rx, ry, 0.0);
-        sg.set_fill_color(eff_bg);
-        sg.set_stroke_color(Some(eff_border));
-        sg.set_stroke_width(0.5, None);
-        sg.svg_ellipse(cx, cy, rx - 3.0, ry - 3.0, 0.0);
+        EllipseShape { cx, cy, rx, ry }
+            .draw(sg, &attr_style);
+        EllipseShape { cx, cy, rx: rx - 3.0, ry: ry - 3.0 }
+            .draw(sg, &attr_style);
     } else {
-        sg.set_fill_color(eff_bg);
-        sg.set_stroke_color(Some(eff_border));
-        sg.set_stroke_width(0.5, None);
-        sg.svg_ellipse(cx, cy, rx, ry, 0.0);
+        EllipseShape { cx, cy, rx, ry }
+            .draw(sg, &attr_style);
     }
     // Java text y: entity_top_y + MARGIN(6) + ascent (TextBlockInEllipse layout)
     let asc = crate::font_metrics::ascent("SansSerif", FONT_SIZE, false, false);
@@ -613,10 +593,8 @@ fn render_isa_circle(sg: &mut SvgGraphic, isa: &ErdIsaLayout) {
 
     // Render the ISA circle (Java: ellipse with rx=ry=12.5)
     sg.push_raw("<g>");
-    sg.set_fill_color(eff_bg);
-    sg.set_stroke_color(Some(eff_border));
-    sg.set_stroke_width(0.5, None);
-    sg.svg_ellipse(cx, cy, r, r, 0.0);
+    EllipseShape { cx, cy, rx: r, ry: r }
+        .draw(sg, &DrawStyle::filled(eff_bg, eff_border, 0.5));
 
     // Label text
     let text_w = crate::font_metrics::text_width(&isa.kind_label, "SansSerif", FONT_SIZE, false, false);
@@ -716,30 +694,21 @@ fn render_isa_edges(
 
 fn render_note(sg: &mut SvgGraphic, note: &ErdNoteLayout) {
     if let Some((x1, y1, x2, y2)) = note.connector {
-        sg.set_stroke_color(Some(NOTE_BORDER));
-        sg.set_stroke_width(1.0, Some((5.0, 3.0)));
-        sg.svg_line(x1, y1, x2, y2, 0.0);
+        LineShape { x1, y1, x2, y2 }
+            .draw(sg, &DrawStyle {
+                fill: None,
+                stroke: Some(NOTE_BORDER.into()),
+                stroke_width: 1.0,
+                dash_array: Some((5.0, 3.0)),
+                delta_shadow: 0.0,
+            });
     }
     let (x, y, w, h) = (note.x, note.y, note.width, note.height);
     let fold = NOTE_FOLD;
-    sg.set_fill_color(NOTE_BG);
-    sg.set_stroke_color(Some(NOTE_BORDER));
-    sg.set_stroke_width(0.5, None);
-    sg.svg_polygon(
-        0.0,
-        &[
-            x,
-            y,
-            x + w - fold,
-            y,
-            x + w,
-            y + fold,
-            x + w,
-            y + h,
-            x,
-            y + h,
-        ],
-    );
+    PolygonShape {
+        points: vec![x, y, x + w - fold, y, x + w, y + fold, x + w, y + h, x, y + h],
+    }
+    .draw(sg, &DrawStyle::filled(NOTE_BG, NOTE_BORDER, 0.5));
     sg.push_raw(&format!(r#"<path d="M{},{} L{},{} L{},{} " fill="none" style="stroke:{NOTE_BORDER};stroke-width:0.5;"/>"#, fmt_coord(x + w - fold), fmt_coord(y), fmt_coord(x + w - fold), fmt_coord(y + fold), fmt_coord(x + w), fmt_coord(y + fold)));
     let mut tmp = String::new();
     render_creole_text(

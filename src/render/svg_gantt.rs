@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 
 use crate::font_metrics;
+use crate::klimt::drawable::{DrawStyle, Drawable, LineShape, PolygonShape, RectShape};
 use crate::klimt::svg::{fmt_coord, xml_escape, LengthAdjust, SvgGraphic};
 use crate::layout::gantt::{
     GanttBarLayout, GanttDepLayout, GanttLayout, GanttNoteLayout, GanttTimeAxis,
@@ -64,10 +65,12 @@ pub fn render_gantt(
 }
 
 fn render_grid(sg: &mut SvgGraphic, layout: &GanttLayout) {
-    sg.set_stroke_color(Some(GRID_COLOR));
-    sg.set_stroke_width(0.5, None);
+    let grid_style = DrawStyle::outline(GRID_COLOR, 0.5);
     for label in &layout.time_axis.labels {
-        sg.svg_line(label.x, layout.time_axis.y, label.x, layout.height, 0.0);
+        LineShape {
+            x1: label.x, y1: layout.time_axis.y, x2: label.x, y2: layout.height,
+        }
+        .draw(sg, &grid_style);
     }
 }
 
@@ -109,10 +112,10 @@ fn render_bar(sg: &mut SvgGraphic, bar: &GanttBarLayout, font_color: &str, font_
             DEFAULT_BAR_STROKE
         }
     });
-    sg.set_fill_color(fill);
-    sg.set_stroke_color(Some(stroke));
-    sg.set_stroke_width(0.5, None);
-    sg.svg_rectangle(bar.x, bar.y, bar.width, bar.height, 3.0, 3.0, 0.0);
+    RectShape {
+        x: bar.x, y: bar.y, w: bar.width, h: bar.height, rx: 3.0, ry: 3.0,
+    }
+    .draw(sg, &DrawStyle::filled(fill, stroke, 0.5));
     let label_x = bar.x - LABEL_PADDING;
     let label_y = bar.y + bar.height / 2.0 + font_size * 0.35;
     let fs_int = font_size as u32;
@@ -135,12 +138,12 @@ fn render_dependency(sg: &mut SvgGraphic, dep: &GanttDepLayout) {
     if dep.points.is_empty() {
         return;
     }
+    let arrow_style = DrawStyle::outline(ARROW_COLOR, 1.0);
     if dep.points.len() == 2 {
         let (x1, y1) = dep.points[0];
         let (x2, y2) = dep.points[1];
-        sg.set_stroke_color(Some(ARROW_COLOR));
-        sg.set_stroke_width(1.0, None);
-        sg.svg_line(x1, y1, x2, y2, 0.0);
+        LineShape { x1, y1, x2, y2 }
+            .draw(sg, &arrow_style);
     } else {
         let flat: Vec<f64> = dep.points.iter().flat_map(|(px, py)| [*px, *py]).collect();
         sg.set_fill_color("none");
@@ -163,33 +166,33 @@ fn render_dependency(sg: &mut SvgGraphic, dep: &GanttDepLayout) {
             let p1y = ty - uy * 9.0 + py * 4.0;
             let p3x = tx - ux * 9.0 - px * 4.0;
             let p3y = ty - uy * 9.0 - py * 4.0;
-            sg.set_fill_color(ARROW_COLOR);
-            sg.set_stroke_color(Some(ARROW_COLOR));
-            sg.set_stroke_width(1.0, None);
-            sg.svg_polygon(0.0, &[p1x, p1y, tx, ty, p3x, p3y, p1x, p1y]);
+            PolygonShape {
+                points: vec![p1x, p1y, tx, ty, p3x, p3y, p1x, p1y],
+            }
+            .draw(sg, &DrawStyle::filled(ARROW_COLOR, ARROW_COLOR, 1.0));
         }
     }
 }
 
 fn render_note(sg: &mut SvgGraphic, note: &GanttNoteLayout, font_color: &str, font_size: f64) {
     if let Some((x1, y1, x2, y2)) = note.connector {
-        sg.set_stroke_color(Some(NOTE_BORDER));
-        sg.set_stroke_width(0.5, Some((4.0, 4.0)));
-        sg.svg_line(x1, y1, x2, y2, 0.0);
+        LineShape { x1, y1, x2, y2 }
+            .draw(sg, &DrawStyle {
+                fill: None,
+                stroke: Some(NOTE_BORDER.into()),
+                stroke_width: 0.5,
+                dash_array: Some((4.0, 4.0)),
+                delta_shadow: 0.0,
+            });
     }
     let fold_x = note.x + note.width - NOTE_FOLD;
     let fold_y = note.y + NOTE_FOLD;
     let x2 = note.x + note.width;
     let y2 = note.y + note.height;
-    sg.set_fill_color(NOTE_BG);
-    sg.set_stroke_color(Some(NOTE_BORDER));
-    sg.set_stroke_width(0.5, None);
-    sg.svg_polygon(
-        0.0,
-        &[
-            note.x, note.y, fold_x, note.y, x2, fold_y, x2, y2, note.x, y2,
-        ],
-    );
+    PolygonShape {
+        points: vec![note.x, note.y, fold_x, note.y, x2, fold_y, x2, y2, note.x, y2],
+    }
+    .draw(sg, &DrawStyle::filled(NOTE_BG, NOTE_BORDER, 0.5));
     sg.push_raw(&format!(r#"<path d="M{},{} L{},{} L{},{} " fill="none" style="stroke:{NOTE_BORDER};stroke-width:0.5;"/>"#, fmt_coord(fold_x), fmt_coord(note.y), fmt_coord(fold_x), fmt_coord(fold_y), fmt_coord(x2), fmt_coord(fold_y)));
     sg.push_raw("\n");
     let note_fs_int = (font_size + 1.0) as u32;

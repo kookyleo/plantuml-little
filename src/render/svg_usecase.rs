@@ -1,4 +1,7 @@
 use crate::font_metrics;
+use crate::klimt::drawable::{
+    CircleShape, DrawStyle, Drawable, EllipseShape, LineShape, PolygonShape, RectShape,
+};
 use crate::klimt::svg::{LengthAdjust, SvgGraphic};
 use crate::layout::usecase::{
     ActorLayout, BoundaryLayout, UseCaseEdgeLayout, UseCaseLayout, UseCaseNodeLayout,
@@ -101,44 +104,39 @@ fn render_actor(sg: &mut SvgGraphic, actor: &ActorLayout, stroke: &str, font_col
     let leg_y = body_bot_y;
     let name_y = leg_y + LEG_DROP + NAME_OFFSET + FONT_SIZE;
 
+    let actor_style = DrawStyle::outline(stroke, 0.5);
+
     // Head circle
-    sg.set_fill_color("none");
-    sg.set_stroke_color(Some(stroke));
-    sg.set_stroke_width(0.5, None);
-    sg.svg_circle(cx, head_cy, HEAD_R, 0.0);
+    CircleShape { cx, cy: head_cy, r: HEAD_R }
+        .draw(sg, &actor_style);
 
     // Body
-    sg.set_stroke_color(Some(stroke));
-    sg.set_stroke_width(0.5, None);
-    sg.svg_line(cx, body_top_y, cx, body_bot_y, 0.0);
+    LineShape { x1: cx, y1: body_top_y, x2: cx, y2: body_bot_y }
+        .draw(sg, &actor_style);
 
     // Left arm
     let la_x = cx - ARM_SPREAD;
     let la_y = arm_y - ARM_RAISE;
-    sg.set_stroke_color(Some(stroke));
-    sg.set_stroke_width(0.5, None);
-    sg.svg_line(cx, arm_y, la_x, la_y, 0.0);
+    LineShape { x1: cx, y1: arm_y, x2: la_x, y2: la_y }
+        .draw(sg, &actor_style);
 
     // Right arm
     let ra_x = cx + ARM_SPREAD;
     let ra_y = arm_y - ARM_RAISE;
-    sg.set_stroke_color(Some(stroke));
-    sg.set_stroke_width(0.5, None);
-    sg.svg_line(cx, arm_y, ra_x, ra_y, 0.0);
+    LineShape { x1: cx, y1: arm_y, x2: ra_x, y2: ra_y }
+        .draw(sg, &actor_style);
 
     // Left leg
     let ll_x = cx - LEG_SPREAD;
     let ll_y = leg_y + LEG_DROP;
-    sg.set_stroke_color(Some(stroke));
-    sg.set_stroke_width(0.5, None);
-    sg.svg_line(cx, leg_y, ll_x, ll_y, 0.0);
+    LineShape { x1: cx, y1: leg_y, x2: ll_x, y2: ll_y }
+        .draw(sg, &actor_style);
 
     // Right leg
     let rl_x = cx + LEG_SPREAD;
     let rl_y = leg_y + LEG_DROP;
-    sg.set_stroke_color(Some(stroke));
-    sg.set_stroke_width(0.5, None);
-    sg.svg_line(cx, leg_y, rl_x, rl_y, 0.0);
+    LineShape { x1: cx, y1: leg_y, x2: rl_x, y2: rl_y }
+        .draw(sg, &actor_style);
 
     // Name label centered below
     let tl = font_metrics::text_width(&actor.name, "SansSerif", FONT_SIZE, false, false);
@@ -171,10 +169,8 @@ fn render_usecase_oval(
     border: &str,
     font_color: &str,
 ) {
-    sg.set_fill_color(bg);
-    sg.set_stroke_color(Some(border));
-    sg.set_stroke_width(0.5, None);
-    sg.svg_ellipse(uc.cx, uc.cy, uc.rx, uc.ry, 0.0);
+    EllipseShape { cx: uc.cx, cy: uc.cy, rx: uc.rx, ry: uc.ry }
+        .draw(sg, &DrawStyle::filled(bg, border, 0.5));
 
     let text_y = uc.cy + FONT_SIZE * 0.35;
     let tl = font_metrics::text_width(&uc.name, "SansSerif", FONT_SIZE, false, false);
@@ -207,18 +203,17 @@ fn render_boundary(sg: &mut SvgGraphic, boundary: &BoundaryLayout, border: &str,
         ("none", Some((8.0, 4.0)))
     };
 
-    sg.set_fill_color(fill);
-    sg.set_stroke_color(Some(border));
-    sg.set_stroke_width(0.5, dash);
-    sg.svg_rectangle(
-        boundary.x,
-        boundary.y,
-        boundary.width,
-        boundary.height,
-        4.0,
-        4.0,
-        0.0,
-    );
+    RectShape {
+        x: boundary.x, y: boundary.y, w: boundary.width, h: boundary.height,
+        rx: 4.0, ry: 4.0,
+    }
+    .draw(sg, &DrawStyle {
+        fill: Some(fill.into()),
+        stroke: Some(border.into()),
+        stroke_width: 0.5,
+        dash_array: dash,
+        delta_shadow: 0.0,
+    });
 
     let name_x = boundary.x + 8.0;
     let name_y = boundary.y + FONT_SIZE + 4.0;
@@ -248,9 +243,16 @@ fn render_boundary(sg: &mut SvgGraphic, boundary: &BoundaryLayout, border: &str,
 fn render_edge(sg: &mut SvgGraphic, edge: &UseCaseEdgeLayout, arrow_color: &str, font_color: &str) {
     let dash = if edge.dashed { Some((7.0, 5.0)) } else { None };
 
-    sg.set_stroke_color(Some(arrow_color));
-    sg.set_stroke_width(1.0, dash);
-    sg.svg_line(edge.from_x, edge.from_y, edge.to_x, edge.to_y, 0.0);
+    LineShape {
+        x1: edge.from_x, y1: edge.from_y, x2: edge.to_x, y2: edge.to_y,
+    }
+    .draw(sg, &DrawStyle {
+        fill: None,
+        stroke: Some(arrow_color.into()),
+        stroke_width: 1.0,
+        dash_array: dash,
+        delta_shadow: 0.0,
+    });
 
     // Inline polygon arrowhead
     if edge.has_arrow {
@@ -269,10 +271,10 @@ fn render_edge(sg: &mut SvgGraphic, edge: &UseCaseEdgeLayout, arrow_color: &str,
             let p3x = edge.to_x - ux * 9.0 - px * 4.0;
             let p3y = edge.to_y - uy * 9.0 - py * 4.0;
 
-            sg.set_fill_color(arrow_color);
-            sg.set_stroke_color(Some(arrow_color));
-            sg.set_stroke_width(1.0, None);
-            sg.svg_polygon(0.0, &[p1x, p1y, p2x, p2y, p3x, p3y, p1x, p1y]);
+            PolygonShape {
+                points: vec![p1x, p1y, p2x, p2y, p3x, p3y, p1x, p1y],
+            }
+            .draw(sg, &DrawStyle::filled(arrow_color, arrow_color, 1.0));
         }
     }
 

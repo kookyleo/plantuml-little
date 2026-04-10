@@ -1,6 +1,9 @@
 use std::fmt::Write;
 
 use crate::font_metrics;
+use crate::klimt::drawable::{
+    CircleShape, DrawStyle, Drawable, EllipseShape, LineShape, PolygonShape, RectShape,
+};
 use crate::klimt::svg::{fmt_coord, svg_comment_escape, xml_escape, LengthAdjust, SvgGraphic};
 use crate::layout::component::{
     ComponentEdgeLayout, ComponentGroupLayout, ComponentLayout, ComponentNodeLayout,
@@ -481,28 +484,20 @@ fn render_group(
     match group.kind {
         ComponentKind::Component => {
             // Component cluster: rect with component icon (two small rects)
-            sg.set_fill_color("none");
-            sg.set_stroke_color(Some(border));
-            sg.set_stroke_width(1.0, None);
-            sg.svg_rectangle(x, y, w, h, 2.5, 2.5, 0.0);
+            let icon_style = DrawStyle::outline(border, 1.0);
+            RectShape { x, y, w, h, rx: 2.5, ry: 2.5 }.draw(sg, &icon_style);
 
             // Component icon on right side
             let icon_w: f64 = 15.0;
             let icon_h: f64 = 10.0;
             let icon_x = x + w - icon_w - 5.0;
             let icon_y1 = y + 5.0;
-            sg.set_fill_color("none");
-            sg.set_stroke_color(Some(border));
-            sg.set_stroke_width(1.0, None);
-            sg.svg_rectangle(icon_x, icon_y1, icon_w, icon_h, 0.0, 0.0, 0.0);
-            sg.set_fill_color("none");
-            sg.set_stroke_color(Some(border));
-            sg.set_stroke_width(1.0, None);
-            sg.svg_rectangle(icon_x - 2.0, icon_y1 + 2.0, 4.0, 2.0, 0.0, 0.0, 0.0);
-            sg.set_fill_color("none");
-            sg.set_stroke_color(Some(border));
-            sg.set_stroke_width(1.0, None);
-            sg.svg_rectangle(icon_x - 2.0, icon_y1 + 6.0, 4.0, 2.0, 0.0, 0.0, 0.0);
+            RectShape { x: icon_x, y: icon_y1, w: icon_w, h: icon_h, rx: 0.0, ry: 0.0 }
+                .draw(sg, &icon_style);
+            RectShape { x: icon_x - 2.0, y: icon_y1 + 2.0, w: 4.0, h: 2.0, rx: 0.0, ry: 0.0 }
+                .draw(sg, &icon_style);
+            RectShape { x: icon_x - 2.0, y: icon_y1 + 6.0, w: 4.0, h: 2.0, rx: 0.0, ry: 0.0 }
+                .draw(sg, &icon_style);
 
             let tl = text_len(&group.name, 14.0, true);
             let text_x = x + (w - tl) / 2.0;
@@ -526,10 +521,8 @@ fn render_group(
         }
         ComponentKind::Frame => {
             // Frame: rect with rx/ry 2.5, path-based label tab
-            sg.set_fill_color("none");
-            sg.set_stroke_color(Some(border));
-            sg.set_stroke_width(1.0, None);
-            sg.svg_rectangle(x, y, w, h, 2.5, 2.5, 0.0);
+            RectShape { x, y, w, h, rx: 2.5, ry: 2.5 }
+                .draw(sg, &DrawStyle::outline(border, 1.0));
 
             let tl = text_len(&group.name, 14.0, true);
             let tab_w = tl + 10.0;
@@ -572,22 +565,18 @@ fn render_group(
             let p_tr = (x + w, y + h - depth);
             let p_br = (x + w - depth, y + h);
             let p_bl = (x, y + h);
-            sg.set_fill_color("none");
-            sg.set_stroke_color(Some(border));
-            sg.set_stroke_width(1.0, None);
-            sg.svg_polygon(
-                0.0,
-                &[
+            let node_style = DrawStyle::outline(border, 1.0);
+            PolygonShape {
+                points: vec![
                     p_tl.0, p_tl.1, p_tlb.0, p_tlb.1, p_trb.0, p_trb.1, p_trb.0, p_tr.1, p_br.0,
                     p_br.1, p_bl.0, p_bl.1, p_tl.0, p_tl.1,
                 ],
-            );
+            }
+            .draw(sg, &node_style);
 
-            sg.set_stroke_color(Some(border));
-            sg.set_stroke_width(1.0, None);
-            sg.svg_line(p_br.0, p_tl.1, p_trb.0, p_tlb.1, 0.0);
-            sg.svg_line(p_tl.0, p_tl.1, p_br.0, p_tl.1, 0.0);
-            sg.svg_line(p_br.0, p_tl.1, p_br.0, p_br.1, 0.0);
+            LineShape { x1: p_br.0, y1: p_tl.1, x2: p_trb.0, y2: p_tlb.1 }.draw(sg, &node_style);
+            LineShape { x1: p_tl.0, y1: p_tl.1, x2: p_br.0, y2: p_tl.1 }.draw(sg, &node_style);
+            LineShape { x1: p_br.0, y1: p_tl.1, x2: p_br.0, y2: p_br.1 }.draw(sg, &node_style);
 
             let tl = text_len(&group.name, 14.0, true);
             let text_x = x + (w - depth) / 2.0 - tl / 2.0 + 1.0;
@@ -612,10 +601,14 @@ fn render_group(
         _ => {
             // Default package/rectangle/card: simple rect
             let rc = round_corner.unwrap_or(2.5);
-            sg.set_fill_color("none");
-            sg.set_stroke_color(Some(border));
-            sg.set_stroke_width(1.0, dash_pattern);
-            sg.svg_rectangle(x, y, w, h, rc, rc, 0.0);
+            RectShape { x, y, w, h, rx: rc, ry: rc }
+                .draw(sg, &DrawStyle {
+                    fill: Some("none".into()),
+                    stroke: Some(border.into()),
+                    stroke_width: 1.0,
+                    dash_array: dash_pattern,
+                    delta_shadow: 0.0,
+                });
             if dash_pattern.is_some() {
                 sg.set_stroke_width(1.0, None);
             }
@@ -649,9 +642,8 @@ fn render_group(
                     FONT_SIZE,
                 );
                 let sep_y = y + 2.0 + sprite_h + title_h + 2.0;
-                sg.set_stroke_color(Some(border));
-                sg.set_stroke_width(1.0, None);
-                sg.svg_line(x, sep_y, x + w, sep_y, 0.0);
+                LineShape { x1: x, y1: sep_y, x2: x + w, y2: sep_y }
+                    .draw(sg, &DrawStyle::outline(border, 1.0));
 
                 let mut name_buf = String::new();
                 crate::render::svg_richtext::render_creole_entity_name(
@@ -1057,28 +1049,20 @@ fn render_component_node(
     let w = node.width;
     let h = node.height;
 
-    sg.set_fill_color(bg);
-    sg.set_stroke_color(Some(border));
-    sg.set_stroke_width(0.5, None);
-    sg.svg_rectangle(x, y, w, h, 2.5, 2.5, 0.0);
+    let comp_style = DrawStyle::filled(bg, border, 0.5);
+    RectShape { x, y, w, h, rx: 2.5, ry: 2.5 }.draw(sg, &comp_style);
 
     // Component icon on right side
     let icon_w: f64 = 15.0;
     let icon_h: f64 = 10.0;
     let icon_x = x + w - icon_w - 5.0;
     let icon_y1 = y + 5.0;
-    sg.set_fill_color(bg);
-    sg.set_stroke_color(Some(border));
-    sg.set_stroke_width(0.5, None);
-    sg.svg_rectangle(icon_x, icon_y1, icon_w, icon_h, 0.0, 0.0, 0.0);
-    sg.set_fill_color(bg);
-    sg.set_stroke_color(Some(border));
-    sg.set_stroke_width(0.5, None);
-    sg.svg_rectangle(icon_x - 2.0, icon_y1 + 2.0, 4.0, 2.0, 0.0, 0.0, 0.0);
-    sg.set_fill_color(bg);
-    sg.set_stroke_color(Some(border));
-    sg.set_stroke_width(0.5, None);
-    sg.svg_rectangle(icon_x - 2.0, icon_y1 + 6.0, 4.0, 2.0, 0.0, 0.0, 0.0);
+    RectShape { x: icon_x, y: icon_y1, w: icon_w, h: icon_h, rx: 0.0, ry: 0.0 }
+        .draw(sg, &comp_style);
+    RectShape { x: icon_x - 2.0, y: icon_y1 + 2.0, w: 4.0, h: 2.0, rx: 0.0, ry: 0.0 }
+        .draw(sg, &comp_style);
+    RectShape { x: icon_x - 2.0, y: icon_y1 + 6.0, w: 4.0, h: 2.0, rx: 0.0, ry: 0.0 }
+        .draw(sg, &comp_style);
 
     render_node_text(sg, node, font_color, bg, meta);
     sg.push_raw("</g>");
@@ -1097,10 +1081,10 @@ fn render_rounded_rect_node(
 ) {
     open_entity_g(sg, node, meta);
 
-    sg.set_fill_color(bg);
-    sg.set_stroke_color(Some(border));
-    sg.set_stroke_width(0.5, None);
-    sg.svg_rectangle(node.x, node.y, node.width, node.height, rx, rx, 0.0);
+    RectShape {
+        x: node.x, y: node.y, w: node.width, h: node.height, rx, ry: rx,
+    }
+    .draw(sg, &DrawStyle::filled(bg, border, 0.5));
 
     render_node_text(sg, node, font_color, bg, meta);
     sg.push_raw("</g>");
@@ -1226,10 +1210,8 @@ fn render_interface_node(
 
     let cx = node.x + node.width / 2.0;
     let cy = node.y + 12.0;
-    sg.set_fill_color(bg);
-    sg.set_stroke_color(Some(border));
-    sg.set_stroke_width(0.5, None);
-    sg.svg_circle(cx, cy, 8.0, 0.0);
+    CircleShape { cx, cy, r: 8.0 }
+        .draw(sg, &DrawStyle::filled(bg, border, 0.5));
 
     let name_y = cy + 20.0;
     let tl = text_len(&node.name, 14.0, false);
@@ -1269,40 +1251,24 @@ fn render_artifact_node(
     let w = node.width;
     let h = node.height;
 
-    sg.set_fill_color(bg);
-    sg.set_stroke_color(Some(border));
-    sg.set_stroke_width(0.5, None);
-    sg.svg_rectangle(x, y, w, h, 2.5, 2.5, 0.0);
+    let note_style = DrawStyle::filled(bg, border, 0.5);
+    RectShape { x, y, w, h, rx: 2.5, ry: 2.5 }.draw(sg, &note_style);
 
     // Folded corner icon (small polygon at top right)
     let fold: f64 = 6.0;
     let ix = x + w - 17.0;
     let iy = y + 5.0;
-    sg.set_fill_color(bg);
-    sg.set_stroke_color(Some(border));
-    sg.set_stroke_width(0.5, None);
-    sg.svg_polygon(
-        0.0,
-        &[
-            ix,
-            iy,
-            ix,
-            iy + 14.0,
-            ix + 12.0,
-            iy + 14.0,
-            ix + 12.0,
-            iy + fold,
-            ix + fold,
-            iy,
-            ix,
-            iy,
+    PolygonShape {
+        points: vec![
+            ix, iy, ix, iy + 14.0, ix + 12.0, iy + 14.0,
+            ix + 12.0, iy + fold, ix + fold, iy, ix, iy,
         ],
-    );
+    }
+    .draw(sg, &note_style);
 
-    sg.set_stroke_color(Some(border));
-    sg.set_stroke_width(0.5, None);
-    sg.svg_line(ix + fold, iy, ix + fold, iy + fold, 0.0);
-    sg.svg_line(ix + 12.0, iy + fold, ix + fold, iy + fold, 0.0);
+    let fold_line_style = DrawStyle::outline(border, 0.5);
+    LineShape { x1: ix + fold, y1: iy, x2: ix + fold, y2: iy + fold }.draw(sg, &fold_line_style);
+    LineShape { x1: ix + 12.0, y1: iy + fold, x2: ix + fold, y2: iy + fold }.draw(sg, &fold_line_style);
 
     render_node_text(sg, node, font_color, bg, meta);
     sg.push_raw("</g>");
@@ -1383,9 +1349,8 @@ fn render_folder_node(
         border,
     ));
 
-    sg.set_stroke_color(Some(border));
-    sg.set_stroke_width(0.5, None);
-    sg.svg_line(x, y + tab_h, x + tab_w + fold_w, y + tab_h, 0.0);
+    LineShape { x1: x, y1: y + tab_h, x2: x + tab_w + fold_w, y2: y + tab_h }
+        .draw(sg, &DrawStyle::outline(border, 0.5));
 
     render_node_text(sg, node, font_color, bg, meta);
     sg.push_raw("</g>");
@@ -1409,15 +1374,11 @@ fn render_frame_node(
     let tab_w = (w * 0.4).min(70.0);
     let tab_h = FONT_SIZE + 6.0;
 
-    sg.set_fill_color(bg);
-    sg.set_stroke_color(Some(border));
-    sg.set_stroke_width(0.5, None);
-    sg.svg_rectangle(x, y, w, h, 2.5, 2.5, 0.0);
+    let frame_style = DrawStyle::filled(bg, border, 0.5);
+    RectShape { x, y, w, h, rx: 2.5, ry: 2.5 }.draw(sg, &frame_style);
 
-    sg.set_fill_color(border);
-    sg.set_stroke_color(Some(border));
-    sg.set_stroke_width(0.5, None);
-    sg.svg_rectangle(x, y, tab_w, tab_h, 0.0, 0.0, 0.0);
+    RectShape { x, y, w: tab_w, h: tab_h, rx: 0.0, ry: 0.0 }
+        .draw(sg, &DrawStyle::filled(border, border, 0.5));
 
     let label_cx = x + tab_w / 2.0;
     let label_cy = y + tab_h / 2.0 + FONT_SIZE * 0.35;
@@ -1461,10 +1422,10 @@ fn render_stack_node(
     let rc = 2.5;
 
     // Java USymbolStack: inner rounded rectangle inset by 15px on both sides.
-    sg.set_fill_color(bg);
-    sg.set_stroke_color(Some("none"));
-    sg.set_stroke_width(0.5, None);
-    sg.svg_rectangle(x + border_w, y, w - 2.0 * border_w, h, rc, rc, 0.0);
+    RectShape {
+        x: x + border_w, y, w: w - 2.0 * border_w, h, rx: rc, ry: rc,
+    }
+    .draw(sg, &DrawStyle::filled(bg, "none", 0.5));
 
     sg.push_raw(&format!(
         r#"<path d="M{},{} L{},{} A{},{} 0 0 1 {},{} L{},{} A{},{} 0 0 0 {},{} L{},{} A{},{} 0 0 0 {},{} L{},{} A{},{} 0 0 1 {},{} L{},{}" fill="none" style="stroke:{border};stroke-width:0.5;"/>"#,
@@ -1584,10 +1545,8 @@ fn render_port_node(
     // Port square
     let port_x = cx - port_size / 2.0;
     let port_y = node.y;
-    sg.set_fill_color(bg);
-    sg.set_stroke_color(Some(border));
-    sg.set_stroke_width(1.5, None);
-    sg.svg_rectangle(port_x, port_y, port_size, port_size, 0.0, 0.0, 0.0);
+    RectShape { x: port_x, y: port_y, w: port_size, h: port_size, rx: 0.0, ry: 0.0 }
+        .draw(sg, &DrawStyle::filled(bg, border, 1.5));
 
     sg.push_raw("</g>");
 }
@@ -1961,9 +1920,8 @@ fn render_node_text(
 
     if has_desc {
         let sep_y = name_y + 6.0;
-        sg.set_stroke_color(Some(BORDER_COLOR));
-        sg.set_stroke_width(1.0, None);
-        sg.svg_line(node.x, sep_y, node.x + node.width, sep_y, 0.0);
+        LineShape { x1: node.x, y1: sep_y, x2: node.x + node.width, y2: sep_y }
+            .draw(sg, &DrawStyle::outline(BORDER_COLOR, 1.0));
 
         let text_x = node.x + 8.0;
 
@@ -2203,10 +2161,10 @@ fn render_edge(
             let p4x = tx - ux * back + px * side;
             let p4y = ty - uy * back + py * side;
 
-            sg.set_fill_color(arrow_color);
-            sg.set_stroke_color(Some(arrow_color));
-            sg.set_stroke_width(1.0, None);
-            sg.svg_polygon(0.0, &[p1x, p1y, p2x, p2y, p3x, p3y, p4x, p4y, p1x, p1y]);
+            PolygonShape {
+                points: vec![p1x, p1y, p2x, p2y, p3x, p3y, p4x, p4y, p1x, p1y],
+            }
+            .draw(sg, &DrawStyle::filled(arrow_color, arrow_color, 1.0));
         }
     }
 
@@ -2618,24 +2576,12 @@ fn render_note(
         ));
     } else {
         // Simple polygon note (no attached target)
-        sg.set_fill_color(bg);
-        sg.set_stroke_color(Some(border));
-        sg.set_stroke_width(1.0, None);
-        sg.svg_polygon(
-            0.0,
-            &[
-                x,
-                y,
-                x + w - fold,
-                y,
-                x + w,
-                y + fold,
-                x + w,
-                y + h,
-                x,
-                y + h,
+        PolygonShape {
+            points: vec![
+                x, y, x + w - fold, y, x + w, y + fold, x + w, y + h, x, y + h,
             ],
-        );
+        }
+        .draw(sg, &DrawStyle::filled(bg, border, 1.0));
     }
 
     // Corner fold
@@ -2797,16 +2743,13 @@ fn render_actor_node(
     let center_x = start_x + HEAD_DIAM / 2.0;
 
     // Head
-    sg.set_fill_color(bg);
-    sg.set_stroke_color(Some(border));
-    sg.set_stroke_width(THICKNESS, None);
-    sg.svg_ellipse(
-        center_x,
-        y + THICKNESS + HEAD_DIAM / 2.0,
-        HEAD_DIAM / 2.0,
-        HEAD_DIAM / 2.0,
-        0.0,
-    );
+    EllipseShape {
+        cx: center_x,
+        cy: y + THICKNESS + HEAD_DIAM / 2.0,
+        rx: HEAD_DIAM / 2.0,
+        ry: HEAD_DIAM / 2.0,
+    }
+    .draw(sg, &DrawStyle::filled(bg, border, THICKNESS));
 
     // Body + arms + legs as a single path (matching Java format)
     let body_top = y + HEAD_DIAM + THICKNESS;
@@ -2870,10 +2813,8 @@ fn render_usecase_node(
     let rx = node.width / 2.0;
     let ry = node.height / 2.0;
 
-    sg.set_fill_color(bg);
-    sg.set_stroke_color(Some(border));
-    sg.set_stroke_width(0.5, None);
-    sg.svg_ellipse(cx, cy, rx, ry, 0.0);
+    EllipseShape { cx, cy, rx, ry }
+        .draw(sg, &DrawStyle::filled(bg, border, 0.5));
 
     // Centered text
     let text = &node.name;

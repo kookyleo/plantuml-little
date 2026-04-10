@@ -3,6 +3,9 @@ use std::fmt::Write;
 
 use crate::font_metrics;
 use crate::klimt::sanitize_group_metadata_value;
+use crate::klimt::drawable::{
+    CircleShape, DrawStyle, Drawable, EllipseShape, LineShape, PolygonShape, RectShape,
+};
 use crate::klimt::svg::{fmt_coord, svg_comment_escape, xml_escape, LengthAdjust, SvgGraphic};
 use crate::layout::state::{StateLayout, StateNodeLayout, StateNoteLayout, TransitionLayout};
 use crate::model::state::{State, StateDiagram, StateKind, Transition};
@@ -703,15 +706,11 @@ fn render_choice(
         ent_id,
     ));
 
-    sg.set_fill_color("#F1F1F1");
-    sg.set_stroke_color(Some(border));
-    // Java: style.getStroke() default for state diamond is 0.5
-    sg.set_stroke_width(0.5, None);
     // Java: EntityImageBranch.drawU adds 5 points (last = first to close polygon)
-    sg.svg_polygon(
-        0.0,
-        &[cx, cy - half, cx + half, cy, cx, cy + half, cx - half, cy, cx, cy - half],
-    );
+    PolygonShape {
+        points: vec![cx, cy - half, cx + half, cy, cx, cy + half, cx - half, cy, cx, cy - half],
+    }
+    .draw(sg, &DrawStyle::filled("#F1F1F1", border, 0.5));
     // Java LimitFinder.drawUPolygon with HACK_X_FOR_POLYGON=10
     tracker.track_polygon(&[
         (cx, cy - half),
@@ -736,10 +735,8 @@ fn render_history(
     let cy = node.y + node.height / 2.0;
     let r = node.width / 2.0;
     let font_size = 14.0;
-    sg.set_fill_color(ENTITY_BG);
-    sg.set_stroke_color(Some(border));
-    sg.set_stroke_width(0.5, None);
-    sg.svg_ellipse(cx, cy, r, r, 0.0);
+    EllipseShape { cx, cy, rx: r, ry: r }
+        .draw(sg, &DrawStyle::filled(ENTITY_BG, border, 0.5));
     let label = if deep { "H*" } else { "H" };
     let tl = font_metrics::text_width(label, "SansSerif", font_size, false, false);
     sg.set_fill_color(font_color);
@@ -771,18 +768,15 @@ fn render_exit_point(
     let cx = node.x + node.width / 2.0;
     let cy = node.y + node.height / 2.0;
     let r = node.width / 2.0;
-    sg.set_fill_color("none");
-    sg.set_stroke_color(Some(border));
-    sg.set_stroke_width(1.5, None);
-    sg.svg_circle(cx, cy, r, 0.0);
+    let exit_style = DrawStyle::outline(border, 1.5);
+    CircleShape { cx, cy, r }
+        .draw(sg, &exit_style);
     // X cross inside
     let d = r * 0.5;
-    sg.set_stroke_color(Some(border));
-    sg.set_stroke_width(1.5, None);
-    sg.svg_line(cx - d, cy - d, cx + d, cy + d, 0.0);
-    sg.set_stroke_color(Some(border));
-    sg.set_stroke_width(1.5, None);
-    sg.svg_line(cx + d, cy - d, cx - d, cy + d, 0.0);
+    LineShape { x1: cx - d, y1: cy - d, x2: cx + d, y2: cy + d }
+        .draw(sg, &exit_style);
+    LineShape { x1: cx + d, y1: cy - d, x2: cx - d, y2: cy + d }
+        .draw(sg, &exit_style);
     tracker.track_ellipse(cx, cy, r, r);
 }
 
@@ -814,10 +808,10 @@ fn render_simple(
     ));
 
     // Background rounded rectangle
-    sg.set_fill_color(bg);
-    sg.set_stroke_color(Some(border));
-    sg.set_stroke_width(0.5, None);
-    sg.svg_rectangle(node.x, node.y, node.width, node.height, 12.5, 12.5, 0.0);
+    RectShape {
+        x: node.x, y: node.y, w: node.width, h: node.height, rx: 12.5, ry: 12.5,
+    }
+    .draw(sg, &DrawStyle::filled(bg, border, 0.5));
     // Java LimitFinder.drawRectangle: addPoint(x-1, y-1), addPoint(x+w-1, y+h-1)
     tracker.track_rect(node.x, node.y, node.width, node.height);
 
@@ -851,9 +845,10 @@ fn render_simple(
     // Fixed header layout matching Java PlantUML
     let sep_y = node.y + 26.2969 + name_y_offset;
     let name_y = node.y + 17.9951 + name_y_offset;
-    sg.set_stroke_color(Some(border));
-    sg.set_stroke_width(0.5, None);
-    sg.svg_line(node.x, sep_y, node.x + node.width, sep_y, 0.0);
+    LineShape {
+        x1: node.x, y1: sep_y, x2: node.x + node.width, y2: sep_y,
+    }
+    .draw(sg, &DrawStyle::outline(border, 0.5));
     tracker.track_line(node.x, sep_y, node.x + node.width, sep_y);
 
     // State name text (centered)
@@ -1036,9 +1031,8 @@ fn render_composite(
         tracker.track_rect(x, y, w, h);
 
         // 3. Separator line below the header
-        sg.set_stroke_color(Some(border));
-        sg.set_stroke_width(0.5, None);
-        sg.svg_line(x, sep_y, x + w, sep_y, 0.0);
+        LineShape { x1: x, y1: sep_y, x2: x + w, y2: sep_y }
+            .draw(sg, &DrawStyle::outline(border, 0.5));
         tracker.track_line(x, sep_y, x + w, sep_y);
 
         // 4. Composite state name text
@@ -1150,9 +1144,14 @@ fn render_composite(
             // Region separator before each region after the first.
             if region_idx > 0 {
                 if let Some(&sep_y) = node.region_separators.get(region_idx - 1) {
-                    sg.set_stroke_color(Some(border));
-                    sg.set_stroke_width(1.5, Some((8.0, 10.0)));
-                    sg.svg_line(x + 5.0, sep_y, x + w - 7.0, sep_y, 0.0);
+                    LineShape { x1: x + 5.0, y1: sep_y, x2: x + w - 7.0, y2: sep_y }
+                        .draw(sg, &DrawStyle {
+                            fill: None,
+                            stroke: Some(border.into()),
+                            stroke_width: 1.5,
+                            dash_array: Some((8.0, 10.0)),
+                            delta_shadow: 0.0,
+                        });
                 }
             }
             let region_slice = &node.children[*rstart..*rend];
@@ -1242,10 +1241,16 @@ fn render_composite(
     // region_child_starts (e.g. legacy fixtures with raw region_separators),
     // emit them here as a fallback.
     if pass != StateRenderPass::ClusterShells && node.region_child_starts.is_empty() {
+        let sep_style = DrawStyle {
+            fill: None,
+            stroke: Some(border.into()),
+            stroke_width: 1.5,
+            dash_array: Some((8.0, 10.0)),
+            delta_shadow: 0.0,
+        };
         for &sep_y in &node.region_separators {
-            sg.set_stroke_color(Some(border));
-            sg.set_stroke_width(1.5, Some((8.0, 10.0)));
-            sg.svg_line(x + 5.0, sep_y, x + w - 7.0, sep_y, 0.0);
+            LineShape { x1: x + 5.0, y1: sep_y, x2: x + w - 7.0, y2: sep_y }
+                .draw(sg, &sep_style);
         }
     }
 }
@@ -1394,10 +1399,10 @@ fn render_transition(
             let p4x = tx - ux * back + px * side;
             let p4y = ty - uy * back + py * side;
 
-            sg.set_fill_color(BORDER_COLOR);
-            sg.set_stroke_color(Some(BORDER_COLOR));
-            sg.set_stroke_width(1.0, None);
-            sg.svg_polygon(0.0, &[p1x, p1y, p2x, p2y, p3x, p3y, p4x, p4y, p1x, p1y]);
+            PolygonShape {
+                points: vec![p1x, p1y, p2x, p2y, p3x, p3y, p4x, p4y, p1x, p1y],
+            }
+            .draw(sg, &DrawStyle::filled(BORDER_COLOR, BORDER_COLOR, 1.0));
             tracker.track_polygon(&[(p1x, p1y), (p2x, p2y), (p3x, p3y), (p4x, p4y)]);
         }
     }

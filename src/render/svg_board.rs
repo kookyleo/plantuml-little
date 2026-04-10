@@ -1,4 +1,5 @@
 use crate::font_metrics;
+use crate::klimt::drawable::{DrawStyle, Drawable, RectShape};
 use crate::klimt::svg::{LengthAdjust, SvgGraphic};
 use crate::layout::board::BoardLayout;
 use crate::model::board::BoardDiagram;
@@ -26,18 +27,28 @@ pub fn render_board(_d: &BoardDiagram, l: &BoardLayout, skin: &SkinParams) -> Re
 
     let mut sg = SvgGraphic::new(0, 1.0);
 
+    let col_style = DrawStyle::filled(COL_BG, BORDER_COLOR, 1.0);
+    let header_style = DrawStyle {
+        fill: Some(HEADER_BG.into()),
+        stroke: None,
+        stroke_width: 0.0,
+        dash_array: None,
+        delta_shadow: 0.0,
+    };
+    let card_style = DrawStyle::filled(CARD_BG, BORDER_COLOR, 0.5);
+
     for col in &l.columns {
         // Column background
-        sg.set_fill_color(COL_BG);
-        sg.set_stroke_color(Some(BORDER_COLOR));
-        sg.set_stroke_width(1.0, None);
-        sg.svg_rectangle(col.x, col.y, col.width, col.height, 5.0, 5.0, 0.0);
+        RectShape {
+            x: col.x, y: col.y, w: col.width, h: col.height, rx: 5.0, ry: 5.0,
+        }
+        .draw(&mut sg, &col_style);
 
         // Column header
-        sg.set_fill_color(HEADER_BG);
-        sg.set_stroke_color(None);
-        sg.set_stroke_width(0.0, None);
-        sg.svg_rectangle(col.x, col.y, col.width, 24.0, 5.0, 5.0, 0.0);
+        RectShape {
+            x: col.x, y: col.y, w: col.width, h: 24.0, rx: 5.0, ry: 5.0,
+        }
+        .draw(&mut sg, &header_style);
 
         let tw = font_metrics::text_width(&col.header, "SansSerif", FONT_SIZE, true, false);
         let baseline =
@@ -61,10 +72,10 @@ pub fn render_board(_d: &BoardDiagram, l: &BoardLayout, skin: &SkinParams) -> Re
 
         // Cards
         for card in &col.cards {
-            sg.set_fill_color(CARD_BG);
-            sg.set_stroke_color(Some(BORDER_COLOR));
-            sg.set_stroke_width(0.5, None);
-            sg.svg_rectangle(card.x + 4.0, card.y, card.width - 8.0, card.height, 3.0, 3.0, 0.0);
+            RectShape {
+                x: card.x + 4.0, y: card.y, w: card.width - 8.0, h: card.height, rx: 3.0, ry: 3.0,
+            }
+            .draw(&mut sg, &card_style);
 
             let ctw =
                 font_metrics::text_width(&card.label, "SansSerif", FONT_SIZE, false, false);

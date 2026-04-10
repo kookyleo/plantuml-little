@@ -1,4 +1,5 @@
 use crate::font_metrics;
+use crate::klimt::drawable::{DrawStyle, Drawable, LineShape, RectShape};
 use crate::klimt::svg::{fmt_coord, LengthAdjust, SvgGraphic};
 use crate::layout::json_diagram::{JsonArrow, JsonBox, JsonLayout};
 use crate::model::json_diagram::JsonDiagram;
@@ -57,10 +58,8 @@ fn render_box(sg: &mut SvgGraphic, jbox: &JsonBox) {
     let (x, y, w, h) = (jbox.x, jbox.y, jbox.width, jbox.height);
 
     // Background fill
-    sg.set_fill_color(ENTITY_BG);
-    sg.set_stroke_color(Some(ENTITY_BG));
-    sg.set_stroke_width(1.5, None);
-    sg.svg_rectangle(x, y, w, h, 5.0, 5.0, 0.0);
+    RectShape { x, y, w, h, rx: 5.0, ry: 5.0 }
+        .draw(sg, &DrawStyle::filled(ENTITY_BG, ENTITY_BG, 1.5));
 
     let has_keys = jbox.rows.iter().any(|r| r.key.is_some());
     let bl = baseline_offset();
@@ -117,15 +116,11 @@ fn render_box(sg: &mut SvgGraphic, jbox: &JsonBox) {
         }
 
         if has_keys {
-            sg.set_stroke_color(Some(BORDER_COLOR));
-            sg.set_stroke_width(1.0, None);
-            sg.svg_line(
-                jbox.separator_x,
-                row.y_top,
-                jbox.separator_x,
-                row.y_top + row.height,
-                0.0,
-            );
+            LineShape {
+                x1: jbox.separator_x, y1: row.y_top,
+                x2: jbox.separator_x, y2: row.y_top + row.height,
+            }
+            .draw(sg, &DrawStyle::outline(BORDER_COLOR, 1.0));
         }
 
         // Note: Java does NOT draw indicator ellipses inside the main JSON box.
@@ -136,17 +131,14 @@ fn render_box(sg: &mut SvgGraphic, jbox: &JsonBox) {
 
         if i < jbox.rows.len() - 1 {
             let ly = row.y_top + row.height;
-            sg.set_stroke_color(Some(BORDER_COLOR));
-            sg.set_stroke_width(1.0, None);
-            sg.svg_line(x, ly, x + w, ly, 0.0);
+            LineShape { x1: x, y1: ly, x2: x + w, y2: ly }
+                .draw(sg, &DrawStyle::outline(BORDER_COLOR, 1.0));
         }
     }
 
     // Border rect
-    sg.set_fill_color("none");
-    sg.set_stroke_color(Some(BORDER_COLOR));
-    sg.set_stroke_width(1.5, None);
-    sg.svg_rectangle(x, y, w, h, 5.0, 5.0, 0.0);
+    RectShape { x, y, w, h, rx: 5.0, ry: 5.0 }
+        .draw(sg, &DrawStyle::outline(BORDER_COLOR, 1.5));
 }
 
 fn render_arrow(sg: &mut SvgGraphic, arrow: &JsonArrow) {

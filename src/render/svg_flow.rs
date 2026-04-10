@@ -1,3 +1,4 @@
+use crate::klimt::drawable::{DrawStyle, Drawable, EllipseShape, LineShape, RectShape};
 use crate::klimt::svg::{LengthAdjust, SvgGraphic};
 use crate::layout::flow::FlowLayout;
 use crate::model::flow::FlowDiagram;
@@ -27,19 +28,18 @@ pub fn render_flow(
     buf.push_str("<defs/><g>");
 
     let mut sg = SvgGraphic::new(0, 1.0);
+    let box_style = DrawStyle::filled(BOX_FILL, BOX_STROKE, 1.5);
+    let text_style = DrawStyle::fill_only(TEXT_COLOR);
+    let line_style = DrawStyle::outline(BOX_STROKE, 1.0);
+    let dot_style = DrawStyle::filled(BOX_STROKE, BOX_STROKE, 1.0);
+
     for node in layout.nodes.iter().rev() {
-        sg.set_fill_color(BOX_FILL);
-        sg.set_stroke_color(Some(BOX_STROKE));
-        sg.set_stroke_width(1.5, None);
-        sg.svg_rectangle(
-            node.x,
-            node.y,
-            node.width,
-            node.height,
-            CORNER_RADIUS,
-            CORNER_RADIUS,
-            0.0,
-        );
+        RectShape {
+            x: node.x, y: node.y, w: node.width, h: node.height,
+            rx: CORNER_RADIUS, ry: CORNER_RADIUS,
+        }
+        .draw(&mut sg, &box_style);
+
         sg.set_fill_color(TEXT_COLOR);
         sg.set_stroke_color(None);
         sg.svg_text(
@@ -60,16 +60,18 @@ pub fn render_flow(
     }
 
     for path in &layout.paths {
-        sg.set_fill_color("none");
-        sg.set_stroke_color(Some(BOX_STROKE));
-        sg.set_stroke_width(1.0, None);
-        sg.svg_line(path.x1, path.y1, path.x2, path.y2, 0.0);
-        sg.set_fill_color(BOX_STROKE);
-        sg.set_stroke_color(Some(BOX_STROKE));
-        sg.set_stroke_width(1.0, None);
-        sg.svg_ellipse(path.ellipse_cx, path.ellipse_cy, 3.5, 3.5, 0.0);
+        LineShape {
+            x1: path.x1, y1: path.y1, x2: path.x2, y2: path.y2,
+        }
+        .draw(&mut sg, &DrawStyle { fill: Some("none".into()), ..line_style.clone() });
+
+        EllipseShape {
+            cx: path.ellipse_cx, cy: path.ellipse_cy, rx: 3.5, ry: 3.5,
+        }
+        .draw(&mut sg, &dot_style);
     }
 
+    let _ = text_style;
     buf.push_str(sg.body());
     buf.push_str("</g></svg>");
     inject_plantuml_source(buf, &flow_source(diagram))

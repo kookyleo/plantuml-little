@@ -1,6 +1,9 @@
 use std::fmt::Write;
 
 use crate::font_metrics;
+use crate::klimt::drawable::{
+    DrawStyle, Drawable, EllipseShape, LineShape, PolygonShape, RectShape,
+};
 use crate::klimt::svg::{fmt_coord, xml_escape, LengthAdjust, SvgGraphic};
 use crate::layout::activity::{
     classify_activity_table_lines, ActivityEdgeKindLayout, ActivityEdgeLayout, ActivityLayout,
@@ -258,16 +261,19 @@ pub fn render_activity(
                 }
             }
             // 2b: Divider line (Java: y1=header_top, y2=content_bottom)
-            sg.set_stroke_color(Some(swimlane_border));
-            sg.set_stroke_width(1.5, None);
-            sg.svg_line(sw.x, header_top, sw.x, content_bottom, 0.0);
+            let swim_border_style = DrawStyle::outline(swimlane_border, 1.5);
+            LineShape {
+                x1: sw.x, y1: header_top, x2: sw.x, y2: content_bottom,
+            }
+            .draw(&mut sg, &swim_border_style);
         }
         // Right border line
         if let Some(last) = layout.swimlane_layouts.last() {
             let right_x = last.x + last.width;
-            sg.set_stroke_color(Some(swimlane_border));
-            sg.set_stroke_width(1.5, None);
-            sg.svg_line(right_x, header_top, right_x, content_bottom, 0.0);
+            LineShape {
+                x1: right_x, y1: header_top, x2: right_x, y2: content_bottom,
+            }
+            .draw(&mut sg, &DrawStyle::outline(swimlane_border, 1.5));
         }
 
         // Step 3: same-lane edges are emitted during the per-lane draw pass;
@@ -847,24 +853,18 @@ fn render_node(
 fn render_start(sg: &mut SvgGraphic, node: &ActivityNodeLayout) {
     let cx = node.x + node.width / 2.0;
     let cy = node.y + node.height / 2.0;
-    sg.set_fill_color(INITIAL_FILL);
-    sg.set_stroke_color(Some(INITIAL_FILL));
-    sg.set_stroke_width(1.0, None);
-    sg.svg_ellipse(cx, cy, 10.0, 10.0, 0.0);
+    EllipseShape { cx, cy, rx: 10.0, ry: 10.0 }
+        .draw(sg, &DrawStyle::filled(INITIAL_FILL, INITIAL_FILL, 1.0));
 }
 
 /// Stop / End node: double ellipse (outer ring + inner filled)
 fn render_stop(sg: &mut SvgGraphic, node: &ActivityNodeLayout) {
     let cx = node.x + node.width / 2.0;
     let cy = node.y + node.height / 2.0;
-    sg.set_fill_color("none");
-    sg.set_stroke_color(Some(INITIAL_FILL));
-    sg.set_stroke_width(1.0, None);
-    sg.svg_ellipse(cx, cy, 11.0, 11.0, 0.0);
-    sg.set_fill_color(INITIAL_FILL);
-    sg.set_stroke_color(Some(INITIAL_FILL));
-    sg.set_stroke_width(1.0, None);
-    sg.svg_ellipse(cx, cy, 6.0, 6.0, 0.0);
+    EllipseShape { cx, cy, rx: 11.0, ry: 11.0 }
+        .draw(sg, &DrawStyle::outline(INITIAL_FILL, 1.0));
+    EllipseShape { cx, cy, rx: 6.0, ry: 6.0 }
+        .draw(sg, &DrawStyle::filled(INITIAL_FILL, INITIAL_FILL, 1.0));
 }
 
 /// Action node: rounded rectangle with (possibly multi-line) text
@@ -875,10 +875,10 @@ fn render_action(
     border: &str,
     font_color: &str,
 ) {
-    sg.set_fill_color(bg);
-    sg.set_stroke_color(Some(border));
-    sg.set_stroke_width(0.5, None);
-    sg.svg_rectangle(node.x, node.y, node.width, node.height, 12.5, 12.5, 0.0);
+    RectShape {
+        x: node.x, y: node.y, w: node.width, h: node.height, rx: 12.5, ry: 12.5,
+    }
+    .draw(sg, &DrawStyle::filled(bg, border, 0.5));
 
     // Java: each line is a separate <text> element (not one <text> with <tspan>).
     // This matches Java's FtileBox rendering where SheetBlock1 draws each
@@ -1075,13 +1075,10 @@ fn render_diamond(sg: &mut SvgGraphic, node: &ActivityNodeLayout, bg: &str, bord
     let h = node.height;
     let cx = x + w / 2.0;
     let cy = y + h / 2.0;
-    sg.set_fill_color(bg);
-    sg.set_stroke_color(Some(border));
-    sg.set_stroke_width(0.5, None);
-    sg.svg_polygon(
-        0.0,
-        &[cx, y, x + w, cy, cx, y + h, x, cy, cx, y],
-    );
+    PolygonShape {
+        points: vec![cx, y, x + w, cy, cx, y + h, x, cy, cx, y],
+    }
+    .draw(sg, &DrawStyle::filled(bg, border, 0.5));
 }
 
 /// Hexagonal diamond used by `repeat while (cond) is (label)`.
@@ -1106,12 +1103,8 @@ fn render_hexagon(
     let half = HEXAGON_RENDER_HALF_SIZE;
 
     // 1. Hexagon polygon (closed: first vertex repeated at the end).
-    sg.set_fill_color(bg);
-    sg.set_stroke_color(Some(border));
-    sg.set_stroke_width(0.5, None);
-    sg.svg_polygon(
-        0.0,
-        &[
+    PolygonShape {
+        points: vec![
             x + half, y,
             x + w - half, y,
             x + w, y + h / 2.0,
@@ -1120,7 +1113,8 @@ fn render_hexagon(
             x, y + h / 2.0,
             x + half, y,
         ],
-    );
+    }
+    .draw(sg, &DrawStyle::filled(bg, border, 0.5));
 
     // 2. Inside test condition, centred inside the hexagon.  Font size matches
     //    Java's `FtileDiamondInside.label` (11pt sans-serif).
@@ -1222,12 +1216,11 @@ fn render_detach(sg: &mut SvgGraphic, node: &ActivityNodeLayout, arrow_color: &s
     let cx = node.x + node.width / 2.0;
     let cy = node.y + node.height / 2.0;
     let r = node.width / 2.0;
-    sg.set_stroke_color(Some(arrow_color));
-    sg.set_stroke_width(2.0, None);
-    sg.svg_line(cx - r, cy - r, cx + r, cy + r, 0.0);
-    sg.set_stroke_color(Some(arrow_color));
-    sg.set_stroke_width(2.0, None);
-    sg.svg_line(cx + r, cy - r, cx - r, cy + r, 0.0);
+    let detach_style = DrawStyle::outline(arrow_color, 2.0);
+    LineShape { x1: cx - r, y1: cy - r, x2: cx + r, y2: cy + r }
+        .draw(sg, &detach_style);
+    LineShape { x1: cx + r, y1: cy - r, x2: cx - r, y2: cy + r }
+        .draw(sg, &detach_style);
 }
 
 /// Note (or floating note): path-based note shape with folded corner + text.
@@ -1366,10 +1359,9 @@ fn render_note(
             let sep_top = text_y - note_lh + note_descent;
             let sep_y1 = sep_top + 5.0;
             let sep_y2 = sep_y1 + 2.0;
-            sg.set_stroke_color(Some(NOTE_BORDER));
-            sg.set_stroke_width(1.0, None);
-            sg.svg_line(x, sep_y1, x + w, sep_y1, 0.0);
-            sg.svg_line(x, sep_y2, x + w, sep_y2, 0.0);
+            let sep_style = DrawStyle::outline(NOTE_BORDER, 1.0);
+            LineShape { x1: x, y1: sep_y1, x2: x + w, y2: sep_y1 }.draw(sg, &sep_style);
+            LineShape { x1: x, y1: sep_y2, x2: x + w, y2: sep_y2 }.draw(sg, &sep_style);
             in_bullet_item = false;
             text_y += crate::layout::activity::NOTE_SEPARATOR_HEIGHT;
             continue;
@@ -1441,20 +1433,17 @@ fn render_edge(
     }
 
     // Render line segments
+    let edge_line_style = DrawStyle::outline(arrow_color, 1.0);
     if edge.points.len() == 2 {
         let (x1, y1) = edge.points[0];
         let (x2, y2) = edge.points[1];
-        sg.set_stroke_color(Some(arrow_color));
-        sg.set_stroke_width(1.0, None);
-        sg.svg_line(x1, y1, x2, y2, 0.0);
+        LineShape { x1, y1, x2, y2 }.draw(sg, &edge_line_style);
     } else {
         // Multi-segment: render each segment as a separate <line>
         for pair in edge.points.windows(2) {
             let (x1, y1) = pair[0];
             let (x2, y2) = pair[1];
-            sg.set_stroke_color(Some(arrow_color));
-            sg.set_stroke_width(1.0, None);
-            sg.svg_line(x1, y1, x2, y2, 0.0);
+            LineShape { x1, y1, x2, y2 }.draw(sg, &edge_line_style);
         }
     }
 
@@ -1514,65 +1503,38 @@ fn render_loopback_simple2(
     let (x3, y3) = points[2];
     let (x4, y4) = points[3];
 
+    let line_style = DrawStyle::outline(color, 1.0);
+    let poly_style = DrawStyle::filled(color, color, 1.0);
+
     // Segment 1: horizontal from hex east.
-    sg.set_stroke_color(Some(color));
-    sg.set_stroke_width(1.0, None);
-    sg.svg_line(x1, y1, x2, y2, 0.0);
+    LineShape { x1, y1, x2, y2 }.draw(sg, &line_style);
 
     // Mid-segment UP arrow polygon (drawn BEFORE the vertical line, matching
     // Java's `Worm.drawLine` order: polygon, then line).  Uses Java
     // `ArrowsRegular.asToUp()` shape: tip at (0, 0), base at (±4, 10), notch
     // at (0, 6) — delta1=10, delta2=4.
-    sg.set_fill_color(color);
-    sg.set_stroke_color(Some(color));
-    sg.set_stroke_width(1.0, None);
     let ox = x2; // arrow x sits on the vertical segment
     let oy = up_arrow_y;
-    sg.svg_polygon(
-        0.0,
-        &[
-            ox - 4.0,
-            oy + 10.0,
-            ox,
-            oy,
-            ox + 4.0,
-            oy + 10.0,
-            ox,
-            oy + 6.0,
-        ],
-    );
+    PolygonShape {
+        points: vec![ox - 4.0, oy + 10.0, ox, oy, ox + 4.0, oy + 10.0, ox, oy + 6.0],
+    }
+    .draw(sg, &poly_style);
 
     // Segment 2: vertical with Y normalisation (Java UGraphicCompressOnXorY).
-    sg.set_stroke_color(Some(color));
-    sg.set_stroke_width(1.0, None);
     let (vy1, vy2) = if y2 > y3 { (y3, y2) } else { (y2, y3) };
-    sg.svg_line(x2, vy1, x3, vy2, 0.0);
+    LineShape { x1: x2, y1: vy1, x2: x3, y2: vy2 }.draw(sg, &line_style);
 
     // Segment 3: horizontal back into diamond1 right.
-    sg.set_stroke_color(Some(color));
-    sg.set_stroke_width(1.0, None);
-    sg.svg_line(x3, y3, x4, y4, 0.0);
+    LineShape { x1: x3, y1: y3, x2: x4, y2: y4 }.draw(sg, &line_style);
 
     // End LEFT arrow polygon at the final point.  Java `asToLeft()` shape:
     // tip at (0, 0), points at (10, ±4), notch at (6, 0).
     let tx = x4;
     let ty = y4;
-    sg.set_fill_color(color);
-    sg.set_stroke_color(Some(color));
-    sg.set_stroke_width(1.0, None);
-    sg.svg_polygon(
-        0.0,
-        &[
-            tx + 10.0,
-            ty - 4.0,
-            tx,
-            ty,
-            tx + 10.0,
-            ty + 4.0,
-            tx + 6.0,
-            ty,
-        ],
-    );
+    PolygonShape {
+        points: vec![tx + 10.0, ty - 4.0, tx, ty, tx + 10.0, ty + 4.0, tx + 6.0, ty],
+    }
+    .draw(sg, &poly_style);
 }
 
 /// Render an inline arrowhead polygon at the tip of an edge.
@@ -1595,10 +1557,10 @@ fn render_arrowhead(sg: &mut SvgGraphic, fx: f64, fy: f64, tx: f64, ty: f64, col
     let ry = ty - uy * arrow_len - py * arrow_half;
     let mx = tx - ux * (arrow_len - 4.0);
     let my = ty - uy * (arrow_len - 4.0);
-    sg.set_fill_color(color);
-    sg.set_stroke_color(Some(color));
-    sg.set_stroke_width(1.0, None);
-    sg.svg_polygon(0.0, &[lx, ly, tx, ty, rx, ry, mx, my]);
+    PolygonShape {
+        points: vec![lx, ly, tx, ty, rx, ry, mx, my],
+    }
+    .draw(sg, &DrawStyle::filled(color, color, 1.0));
 }
 
 // -- Swimlane rendering -------------------------------------------------------
@@ -1612,9 +1574,8 @@ fn render_swimlane(
     font_color: &str,
 ) {
     // Vertical divider line
-    sg.set_stroke_color(Some(border));
-    sg.set_stroke_width(1.5, None);
-    sg.svg_line(sw.x, 0.0, sw.x, total_height, 0.0);
+    LineShape { x1: sw.x, y1: 0.0, x2: sw.x, y2: total_height }
+        .draw(sg, &DrawStyle::outline(border, 1.5));
 
     // Header label text (font-size 18 to match Java PlantUML)
     let label_x = sw.x + sw.width / 2.0;

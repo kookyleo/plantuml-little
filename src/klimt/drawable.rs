@@ -172,6 +172,24 @@ impl Drawable for PathShape {
     }
 }
 
+// ── CircleShape ───────────────────────────────────────────────────
+
+/// A circle centered at (cx, cy) with radius r.
+/// Maps to `SvgGraphic::svg_circle`.
+#[derive(Debug, Clone)]
+pub struct CircleShape {
+    pub cx: f64,
+    pub cy: f64,
+    pub r: f64,
+}
+
+impl Drawable for CircleShape {
+    fn draw(&self, sg: &mut SvgGraphic, style: &DrawStyle) {
+        style.apply(sg);
+        sg.svg_circle(self.cx, self.cy, self.r, style.delta_shadow);
+    }
+}
+
 // ── PolygonShape ───────────────────────────────────────────────────
 
 /// A closed polygon defined by a flat list of coordinate pairs [x0,y0,x1,y1,...].

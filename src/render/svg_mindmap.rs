@@ -1,4 +1,5 @@
 use super::svg::{ensure_visible_int, write_bg_rect, write_svg_root_bg};
+use crate::klimt::drawable::{DrawStyle, Drawable, LineShape, PolygonShape, RectShape};
 use crate::klimt::svg::{fmt_coord, SvgGraphic};
 use crate::layout::mindmap::{
     DrawItem, MindmapEdgeLayout, MindmapLayout, MindmapNodeLayout, MindmapNoteLayout,
@@ -166,18 +167,11 @@ fn render_node_styled(
     stroke_w: f64,
     corner_r: f64,
 ) {
-    sg.set_fill_color(bg);
-    sg.set_stroke_color(Some(border));
-    sg.set_stroke_width(stroke_w, None);
-    sg.svg_rectangle(
-        node.x,
-        node.y,
-        node.width,
-        node.height,
-        corner_r,
-        corner_r,
-        0.0,
-    );
+    RectShape {
+        x: node.x, y: node.y, w: node.width, h: node.height,
+        rx: corner_r, ry: corner_r,
+    }
+    .draw(sg, &DrawStyle::filled(bg, border, stroke_w));
 
     // Java renders each line individually with explicit x positioning.
     // Lines are centered using their full width (including leading whitespace),
@@ -230,9 +224,14 @@ fn render_node_styled(
 
 fn render_note(sg: &mut SvgGraphic, note: &MindmapNoteLayout, font_color: &str) {
     if let Some((x1, y1, x2, y2)) = note.connector {
-        sg.set_stroke_color(Some(NOTE_BORDER));
-        sg.set_stroke_width(0.5, Some((4.0, 4.0)));
-        sg.svg_line(x1, y1, x2, y2, 0.0);
+        LineShape { x1, y1, x2, y2 }
+            .draw(sg, &DrawStyle {
+                fill: None,
+                stroke: Some(NOTE_BORDER.into()),
+                stroke_width: 0.5,
+                dash_array: Some((4.0, 4.0)),
+                delta_shadow: 0.0,
+            });
     }
 
     let fold_x = note.x + note.width - NOTE_FOLD;
@@ -240,15 +239,10 @@ fn render_note(sg: &mut SvgGraphic, note: &MindmapNoteLayout, font_color: &str) 
     let x2 = note.x + note.width;
     let y2 = note.y + note.height;
 
-    sg.set_fill_color(NOTE_BG);
-    sg.set_stroke_color(Some(NOTE_BORDER));
-    sg.set_stroke_width(0.5, None);
-    sg.svg_polygon(
-        0.0,
-        &[
-            note.x, note.y, fold_x, note.y, x2, fold_y, x2, y2, note.x, y2,
-        ],
-    );
+    PolygonShape {
+        points: vec![note.x, note.y, fold_x, note.y, x2, fold_y, x2, y2, note.x, y2],
+    }
+    .draw(sg, &DrawStyle::filled(NOTE_BG, NOTE_BORDER, 0.5));
 
     sg.push_raw(&format!(
         r#"<path d="M{},{} L{},{} L{},{} " fill="none" style="stroke:{NOTE_BORDER};stroke-width:0.5;"/>"#,

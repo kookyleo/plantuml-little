@@ -1,4 +1,5 @@
 use crate::font_metrics;
+use crate::klimt::drawable::{DrawStyle, Drawable, LineShape, RectShape};
 use crate::klimt::svg::{LengthAdjust, SvgGraphic};
 use crate::layout::hcl::HclLayout;
 use crate::model::hcl::HclDiagram;
@@ -30,10 +31,12 @@ pub fn render_hcl(_d: &HclDiagram, layout: &HclLayout, skin: &SkinParams) -> Res
     let (bx, by, bw, bh) = (layout.box_x, layout.box_y, layout.box_w, layout.box_h);
 
     // Background fill
-    sg.set_fill_color(ENTITY_BG);
-    sg.set_stroke_color(Some(ENTITY_BG));
-    sg.set_stroke_width(1.5, None);
-    sg.svg_rectangle(bx, by, bw, bh, 5.0, 5.0, 0.0);
+    RectShape {
+        x: bx, y: by, w: bw, h: bh, rx: 5.0, ry: 5.0,
+    }
+    .draw(&mut sg, &DrawStyle::filled(ENTITY_BG, ENTITY_BG, 1.5));
+
+    let separator_style = DrawStyle::outline(BORDER_COLOR, 1.0);
 
     // Rows
     for (i, row) in layout.rows.iter().enumerate() {
@@ -80,30 +83,29 @@ pub fn render_hcl(_d: &HclDiagram, layout: &HclLayout, skin: &SkinParams) -> Res
         );
 
         // Vertical separator
-        sg.set_stroke_color(Some(BORDER_COLOR));
-        sg.set_stroke_width(1.0, None);
-        sg.svg_line(
-            layout.separator_x,
-            row.y_top,
-            layout.separator_x,
-            row.y_top + row.height,
-            0.0,
-        );
+        LineShape {
+            x1: layout.separator_x,
+            y1: row.y_top,
+            x2: layout.separator_x,
+            y2: row.y_top + row.height,
+        }
+        .draw(&mut sg, &separator_style);
 
         // Horizontal separator between rows
         if i < layout.rows.len() - 1 {
             let ly = row.y_top + row.height;
-            sg.set_stroke_color(Some(BORDER_COLOR));
-            sg.set_stroke_width(1.0, None);
-            sg.svg_line(bx, ly, bx + bw, ly, 0.0);
+            LineShape {
+                x1: bx, y1: ly, x2: bx + bw, y2: ly,
+            }
+            .draw(&mut sg, &separator_style);
         }
     }
 
     // Border rect
-    sg.set_fill_color("none");
-    sg.set_stroke_color(Some(BORDER_COLOR));
-    sg.set_stroke_width(1.5, None);
-    sg.svg_rectangle(bx, by, bw, bh, 5.0, 5.0, 0.0);
+    RectShape {
+        x: bx, y: by, w: bw, h: bh, rx: 5.0, ry: 5.0,
+    }
+    .draw(&mut sg, &DrawStyle::outline(BORDER_COLOR, 1.5));
 
     buf.push_str(sg.body());
     buf.push_str("</g></svg>");

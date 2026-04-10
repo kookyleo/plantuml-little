@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 
 use crate::font_metrics;
+use crate::klimt::drawable::{DrawStyle, Drawable, LineShape, PolygonShape, RectShape};
 use crate::klimt::svg::{fmt_coord, LengthAdjust, SvgGraphic};
 use crate::layout::wbs::{WbsEdgeLayout, WbsLayout, WbsNodeLayout, WbsNoteLayout};
 use crate::model::wbs::WbsDiagram;
@@ -83,9 +84,10 @@ pub fn render_wbs(_wd: &WbsDiagram, layout: &WbsLayout, skin: &SkinParams) -> Re
             if dx < 0.01 && dy < 0.01 {
                 continue;
             }
-            sg.set_stroke_color(Some(edge_color));
-            sg.set_stroke_width(STROKE_WIDTH, None);
-            sg.svg_line(edge.from_x, edge.from_y, edge.to_x, edge.to_y, 0.0);
+            LineShape {
+                x1: edge.from_x, y1: edge.from_y, x2: edge.to_x, y2: edge.to_y,
+            }
+            .draw(&mut sg, &DrawStyle::outline(edge_color, STROKE_WIDTH));
         }
     }
 
@@ -123,11 +125,13 @@ fn render_fork_root(
         let connector_y = (edges[0].from_y + edges[0].to_y) / 2.0;
 
         // For each child: vertical drop from bar, then child subtree
+        let edge_style = DrawStyle::outline(edge_color, STROKE_WIDTH);
         for &(ei, ci) in child_list {
             let edge = &layout.edges[ei];
-            sg.set_stroke_color(Some(edge_color));
-            sg.set_stroke_width(STROKE_WIDTH, None);
-            sg.svg_line(edge.to_x, connector_y, edge.to_x, edge.to_y, 0.0);
+            LineShape {
+                x1: edge.to_x, y1: connector_y, x2: edge.to_x, y2: edge.to_y,
+            }
+            .draw(sg, &edge_style);
             render_itf_subtree(
                 sg,
                 layout,
@@ -152,24 +156,21 @@ fn render_fork_root(
         let bar_left = min_x.min(root_cx);
         let bar_right = max_x.max(root_cx);
         if (bar_right - bar_left).abs() > 0.01 {
-            sg.set_stroke_color(Some(edge_color));
-            sg.set_stroke_width(STROKE_WIDTH, None);
-            sg.svg_line(bar_left, connector_y, bar_right, connector_y, 0.0);
+            LineShape {
+                x1: bar_left, y1: connector_y, x2: bar_right, y2: connector_y,
+            }
+            .draw(sg, &edge_style);
         }
 
         // Root rect + text
         render_node(sg, root_node, bg, border, font_color);
 
         // Root vertical connector (from root bottom to bar)
-        sg.set_stroke_color(Some(edge_color));
-        sg.set_stroke_width(STROKE_WIDTH, None);
-        sg.svg_line(
-            root_cx,
-            root_node.y + root_node.height,
-            root_cx,
-            connector_y,
-            0.0,
-        );
+        LineShape {
+            x1: root_cx, y1: root_node.y + root_node.height,
+            x2: root_cx, y2: connector_y,
+        }
+        .draw(sg, &edge_style);
     } else {
         render_node(sg, &layout.nodes[node_idx], bg, border, font_color);
     }
@@ -205,14 +206,16 @@ fn render_itf_subtree(
         }
 
         // Left children: horizontal line from child right edge to parent_cx
+        let edge_style = DrawStyle::outline(edge_color, STROKE_WIDTH);
         let mut last_child_y_mid = 0.0_f64;
         for &(_ei, ci) in &left_children {
             let child = &layout.nodes[ci];
             let child_mid_y = child.y + child.height / 2.0;
             let child_right = child.x + child.width;
-            sg.set_stroke_color(Some(edge_color));
-            sg.set_stroke_width(STROKE_WIDTH, None);
-            sg.svg_line(child_right, child_mid_y, parent_cx, child_mid_y, 0.0);
+            LineShape {
+                x1: child_right, y1: child_mid_y, x2: parent_cx, y2: child_mid_y,
+            }
+            .draw(sg, &edge_style);
             render_itf_subtree(
                 sg,
                 layout,
@@ -230,9 +233,10 @@ fn render_itf_subtree(
         for &(_ei, ci) in &right_children {
             let child = &layout.nodes[ci];
             let child_mid_y = child.y + child.height / 2.0;
-            sg.set_stroke_color(Some(edge_color));
-            sg.set_stroke_width(STROKE_WIDTH, None);
-            sg.svg_line(parent_cx, child_mid_y, child.x, child_mid_y, 0.0);
+            LineShape {
+                x1: parent_cx, y1: child_mid_y, x2: child.x, y2: child_mid_y,
+            }
+            .draw(sg, &edge_style);
             render_itf_subtree(
                 sg,
                 layout,
@@ -248,9 +252,10 @@ fn render_itf_subtree(
 
         // Vertical connector line from node bottom to last child midpoint
         let from_y = layout.nodes[node_idx].y + layout.nodes[node_idx].height;
-        sg.set_stroke_color(Some(edge_color));
-        sg.set_stroke_width(STROKE_WIDTH, None);
-        sg.svg_line(parent_cx, from_y, parent_cx, last_child_y_mid, 0.0);
+        LineShape {
+            x1: parent_cx, y1: from_y, x2: parent_cx, y2: last_child_y_mid,
+        }
+        .draw(sg, &edge_style);
     }
 }
 
@@ -261,10 +266,10 @@ fn render_node(
     border: &str,
     font_color: &str,
 ) {
-    sg.set_fill_color(bg);
-    sg.set_stroke_color(Some(border));
-    sg.set_stroke_width(STROKE_WIDTH, None);
-    sg.svg_rectangle(node.x, node.y, node.width, node.height, 0.0, 0.0, 0.0);
+    RectShape {
+        x: node.x, y: node.y, w: node.width, h: node.height, rx: 0.0, ry: 0.0,
+    }
+    .draw(sg, &DrawStyle::filled(bg, border, STROKE_WIDTH));
 
     // For nodes with hyperlinks or complex creole, use render_creole_text
     if node.text.contains("[[") {
@@ -314,9 +319,14 @@ fn render_node(
 
 fn render_note(sg: &mut SvgGraphic, note: &WbsNoteLayout, font_color: &str) {
     if let Some((x1, y1, x2, y2)) = note.connector {
-        sg.set_stroke_color(Some(NOTE_BORDER));
-        sg.set_stroke_width(0.5, Some((4.0, 4.0)));
-        sg.svg_line(x1, y1, x2, y2, 0.0);
+        LineShape { x1, y1, x2, y2 }
+            .draw(sg, &DrawStyle {
+                fill: None,
+                stroke: Some(NOTE_BORDER.into()),
+                stroke_width: 0.5,
+                dash_array: Some((4.0, 4.0)),
+                delta_shadow: 0.0,
+            });
     }
 
     // Note polygon
@@ -324,15 +334,10 @@ fn render_note(sg: &mut SvgGraphic, note: &WbsNoteLayout, font_color: &str) {
     let fold_y = note.y + NOTE_FOLD;
     let x2 = note.x + note.width;
     let y2 = note.y + note.height;
-    sg.set_fill_color(NOTE_BG);
-    sg.set_stroke_color(Some(NOTE_BORDER));
-    sg.set_stroke_width(0.5, None);
-    sg.svg_polygon(
-        0.0,
-        &[
-            note.x, note.y, fold_x, note.y, x2, fold_y, x2, y2, note.x, y2,
-        ],
-    );
+    PolygonShape {
+        points: vec![note.x, note.y, fold_x, note.y, x2, fold_y, x2, y2, note.x, y2],
+    }
+    .draw(sg, &DrawStyle::filled(NOTE_BG, NOTE_BORDER, 0.5));
 
     // Fold path
     sg.push_raw(&format!(
@@ -357,9 +362,10 @@ fn render_note(sg: &mut SvgGraphic, note: &WbsNoteLayout, font_color: &str) {
 }
 
 fn render_extra_link(sg: &mut SvgGraphic, link: &WbsEdgeLayout, color: &str) {
-    sg.set_stroke_color(Some(color));
-    sg.set_stroke_width(1.0, None);
-    sg.svg_line(link.from_x, link.from_y, link.to_x, link.to_y, 0.0);
+    LineShape {
+        x1: link.from_x, y1: link.from_y, x2: link.to_x, y2: link.to_y,
+    }
+    .draw(sg, &DrawStyle::outline(color, 1.0));
 
     let dx = link.to_x - link.from_x;
     let dy = link.to_y - link.from_y;
@@ -379,15 +385,12 @@ fn render_extra_link(sg: &mut SvgGraphic, link: &WbsEdgeLayout, color: &str) {
         let mid_y = tip_y - uy * (back - 4.0);
         let right_x = base_x - uy * spread;
         let right_y = base_y + ux * spread;
-        sg.set_fill_color(color);
-        sg.set_stroke_color(Some(color));
-        sg.set_stroke_width(1.0, None);
-        sg.svg_polygon(
-            0.0,
-            &[
+        PolygonShape {
+            points: vec![
                 tip_x, tip_y, left_x, left_y, mid_x, mid_y, right_x, right_y, tip_x, tip_y,
             ],
-        );
+        }
+        .draw(sg, &DrawStyle::filled(color, color, 1.0));
     }
 }
 

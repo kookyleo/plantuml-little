@@ -3,6 +3,9 @@ use std::fmt::Write;
 
 use crate::font_metrics;
 use crate::klimt::sanitize_group_metadata_value;
+use crate::klimt::drawable::{
+    DrawStyle, Drawable, EllipseShape, LineShape, PolygonShape, RectShape,
+};
 use crate::klimt::svg::{fmt_coord, svg_comment_escape, xml_escape, LengthAdjust, SvgGraphic};
 use crate::layout::class_group_header_metrics;
 use crate::layout::graphviz::{
@@ -594,9 +597,6 @@ fn draw_class_group(
             let font_color = skin.font_color_for("rectangle", &stereo_names, "#000000");
             let border_style = skin.border_style_for("rectangle", &stereo_names);
             let fill = class_group_fill_color(cd, group).unwrap_or_else(|| "none".to_string());
-            sg.set_fill_color(&fill);
-            sg.set_stroke_color(Some(border));
-            sg.set_stroke_width(1.0, None);
             // Map skinparam BorderStyle values to SVG stroke-dasharray (Java
             // LinkStyle): dashed -> "7,7", dotted -> "1,3", solid (or unset)
             // -> no dasharray.
@@ -605,10 +605,14 @@ fn draw_class_group(
                 Some("dotted") => Some((1.0_f64, 3.0_f64)),
                 _ => None,
             };
-            if let Some((on, off)) = dash_pattern {
-                sg.set_stroke_width(1.0, Some((on, off)));
-            }
-            sg.svg_rectangle(x, y, w, h, 2.5, 2.5, 0.0);
+            RectShape { x, y, w, h, rx: 2.5, ry: 2.5 }
+                .draw(sg, &DrawStyle {
+                    fill: Some(fill.clone()),
+                    stroke: Some(border.to_string()),
+                    stroke_width: 1.0,
+                    dash_array: dash_pattern,
+                    delta_shadow: 0.0,
+                });
             if dash_pattern.is_some() {
                 sg.set_stroke_width(1.0, None);
             }
@@ -1088,10 +1092,8 @@ fn draw_entity_box(
     let rx = skin.round_corner().map(|rc| rc / 2.0).unwrap_or(2.5);
 
     // Rect with rx="2.5" ry="2.5" to match Java PlantUML
-    sg.set_fill_color(&fill);
-    sg.set_stroke_color(Some(stroke));
-    sg.set_stroke_width(0.5, None);
-    sg.svg_rectangle(x, y, w, h, rx, rx, 0.0);
+    RectShape { x: x, y: y, w: w, h: h, rx: rx, ry: rx }
+        .draw(sg, &DrawStyle::filled(&fill, stroke, 0.5));
     tracker.track_rect(x, y, w, h);
     // Java entity image wrapper draws UEmpty(imageDim) at translate position,
     // which LimitFinder tracks with addPoint(x+w, y+h) — NO -1 adjustment.
@@ -1274,10 +1276,8 @@ fn draw_entity_box(
         let circle_block_x = x + h1;
         let ecx = circle_block_x + 15.0;
         let ecy = y + header_height / 2.0;
-        sg.set_fill_color(&circle_color);
-        sg.set_stroke_color(Some("#181818"));
-        sg.set_stroke_width(1.0, None);
-        sg.svg_ellipse(ecx, ecy, 11.0, 11.0, 0.0);
+        EllipseShape { cx: ecx, cy: ecy, rx: 11.0, ry: 11.0 }
+            .draw(sg, &DrawStyle::filled(&circle_color, "#181818", 1.0));
         tracker.track_ellipse(ecx, ecy, 11.0, 11.0);
         emit_circle_glyph_with_char(sg, tracker, &entity.kind, ecx, ecy, spot.as_ref().map(|s| s.character));
 
@@ -1473,10 +1473,14 @@ fn draw_generic_box(
     let rect_x = x_generic + GENERIC_OUTER_MARGIN;
     let rect_y = y_generic + GENERIC_OUTER_MARGIN;
 
-    sg.set_fill_color("#FFFFFF");
-    sg.set_stroke_color(Some("#181818"));
-    sg.set_stroke_width(1.0, Some((2.0, 2.0)));
-    sg.svg_rectangle(rect_x, rect_y, rect_w, rect_h, 0.0, 0.0, 0.0);
+    RectShape { x: rect_x, y: rect_y, w: rect_w, h: rect_h, rx: 0.0, ry: 0.0 }
+        .draw(sg, &DrawStyle {
+            fill: Some("#FFFFFF".into()),
+            stroke: Some("#181818".into()),
+            stroke_width: 1.0,
+            dash_array: Some((2.0, 2.0)),
+            delta_shadow: 0.0,
+        });
     tracker.track_rect(rect_x, rect_y, rect_w, rect_h);
 
     let text_x = rect_x + GENERIC_INNER_MARGIN;
@@ -1545,10 +1549,8 @@ fn draw_rectangle_entity_box(
             tracker.track_path_bounds(x, y, x + w, y + h);
         }
         _ => {
-            sg.set_fill_color(fill);
-            sg.set_stroke_color(Some(stroke));
-            sg.set_stroke_width(0.5, None);
-            sg.svg_rectangle(x, y, w, h, rx, rx, 0.0);
+            RectShape { x: x, y: y, w: w, h: h, rx: rx, ry: rx }
+                .draw(sg, &DrawStyle::filled(fill, stroke, 0.5));
             tracker.track_rect(x, y, w, h);
         }
     }
@@ -1612,10 +1614,8 @@ fn draw_component_description_box(
     let rx = skin.round_corner().map(|rc| rc / 2.0).unwrap_or(2.5);
 
     // Main rect
-    sg.set_fill_color(&fill);
-    sg.set_stroke_color(Some(stroke));
-    sg.set_stroke_width(0.5, None);
-    sg.svg_rectangle(x, y, w, h, rx, rx, 0.0);
+    RectShape { x: x, y: y, w: w, h: h, rx: rx, ry: rx }
+        .draw(sg, &DrawStyle::filled(&fill, stroke, 0.5));
     tracker.track_rect(x, y, w, h);
 
     // Component icon at top-right of the rect.
@@ -1624,25 +1624,19 @@ fn draw_component_description_box(
     let icon_h: f64 = 10.0;
     let icon_x = x + w - 20.0;
     let icon_y = y + 5.0;
-    sg.set_fill_color(&fill);
-    sg.set_stroke_color(Some(stroke));
-    sg.set_stroke_width(0.5, None);
-    sg.svg_rectangle(icon_x, icon_y, icon_w, icon_h, 0.0, 0.0, 0.0);
+    RectShape { x: icon_x, y: icon_y, w: icon_w, h: icon_h, rx: 0.0, ry: 0.0 }
+        .draw(sg, &DrawStyle::filled(&fill, stroke, 0.5));
     tracker.track_rect(icon_x, icon_y, icon_w, icon_h);
 
     let tab_w: f64 = 4.0;
     let tab_h: f64 = 2.0;
     let tab_x = x + w - 22.0;
-    sg.set_fill_color(&fill);
-    sg.set_stroke_color(Some(stroke));
-    sg.set_stroke_width(0.5, None);
-    sg.svg_rectangle(tab_x, y + 7.0, tab_w, tab_h, 0.0, 0.0, 0.0);
+    RectShape { x: tab_x, y: y + 7.0, w: tab_w, h: tab_h, rx: 0.0, ry: 0.0 }
+        .draw(sg, &DrawStyle::filled(&fill, stroke, 0.5));
     tracker.track_rect(tab_x, y + 7.0, tab_w, tab_h);
 
-    sg.set_fill_color(&fill);
-    sg.set_stroke_color(Some(stroke));
-    sg.set_stroke_width(0.5, None);
-    sg.svg_rectangle(tab_x, y + 11.0, tab_w, tab_h, 0.0, 0.0, 0.0);
+    RectShape { x: tab_x, y: y + 11.0, w: tab_w, h: tab_h, rx: 0.0, ry: 0.0 }
+        .draw(sg, &DrawStyle::filled(&fill, stroke, 0.5));
     tracker.track_rect(tab_x, y + 11.0, tab_w, tab_h);
 
     // Resolve display name and font sizes.
@@ -1852,10 +1846,8 @@ fn draw_object_box(
     let rx = skin.round_corner().map(|rc| rc / 2.0).unwrap_or(2.5);
 
     // Rect
-    sg.set_fill_color(fill);
-    sg.set_stroke_color(Some(stroke_color));
-    sg.set_stroke_width(0.5, None);
-    sg.svg_rectangle(x, y, w, h, rx, rx, 0.0);
+    RectShape { x: x, y: y, w: w, h: h, rx: rx, ry: rx }
+        .draw(sg, &DrawStyle::filled(fill, stroke_color, 0.5));
     tracker.track_rect(x, y, w, h);
 
     // Object name constants — EntityImageObject.java
@@ -1953,9 +1945,8 @@ fn draw_object_box(
             .fold(0.0_f64, f64::max);
         let mut cur_y = sep_y;
         for (key, value) in &entity.map_entries {
-            sg.set_stroke_color(Some(stroke_color));
-            sg.set_stroke_width(1.0, None);
-            sg.svg_line(x, cur_y, x + w, cur_y, 0.0);
+            LineShape { x1: x, y1: cur_y, x2: x + w, y2: cur_y }
+                .draw(sg, &DrawStyle::outline(stroke_color, 1.0));
             tracker.track_line(x, cur_y, x + w, cur_y);
             let key_w = font_metrics::text_width(key, "SansSerif", attr_font_size, false, false);
             let text_y_row = cur_y + row_margin_top + ascent;
@@ -1963,9 +1954,8 @@ fn draw_object_box(
             sg.svg_text(key, x + cell_margin_lr, text_y_row, Some("sans-serif"), attr_font_size, None, None, None, key_w, LengthAdjust::Spacing, None, 0, None);
             let val_w = font_metrics::text_width(value, "SansSerif", attr_font_size, false, false);
             sg.svg_text(value, x + col_a_width + cell_margin_lr, text_y_row, Some("sans-serif"), attr_font_size, None, None, None, val_w, LengthAdjust::Spacing, None, 0, None);
-            sg.set_stroke_color(Some(stroke_color));
-            sg.set_stroke_width(1.0, None);
-            sg.svg_line(x + col_a_width, cur_y, x + col_a_width, cur_y + row_h, 0.0);
+            LineShape { x1: x + col_a_width, y1: cur_y, x2: x + col_a_width, y2: cur_y + row_h }
+                .draw(sg, &DrawStyle::outline(stroke_color, 1.0));
             tracker.track_line(x + col_a_width, cur_y, x + col_a_width, cur_y + row_h);
             cur_y += row_h;
         }
@@ -1982,9 +1972,8 @@ fn draw_object_box(
             );
         } else {
             // No fields: draw the separator line explicitly
-            sg.set_stroke_color(Some(stroke_color));
-            sg.set_stroke_width(0.5, None);
-            sg.svg_line(x1, sep_y, x2, sep_y, 0.0);
+            LineShape { x1: x1, y1: sep_y, x2: x2, y2: sep_y }
+                .draw(sg, &DrawStyle::outline(stroke_color, 0.5));
             tracker.track_line(x1, sep_y, x2, sep_y);
         }
     }
@@ -2013,9 +2002,8 @@ fn draw_member_section(
     // Parse x1/x2 for line tracking
     let x1_f: f64 = x1_val.parse().unwrap_or(x + 1.0);
     let x2_f: f64 = x2_val.parse().unwrap_or(x);
-    sg.set_stroke_color(Some(sep_color));
-    sg.set_stroke_width(0.5, None);
-    sg.svg_line(x1_f, section_y, x2_f, section_y, 0.0);
+    LineShape { x1: x1_f, y1: section_y, x2: x2_f, y2: section_y }
+        .draw(sg, &DrawStyle::outline(sep_color, 0.5));
     tracker.track_line(x1_f, section_y, x2_f, section_y);
     let (section_w, section_h) = member_section_block_dimensions(members, attr_font_size);
     tracker.track_empty(x, section_y, section_w, section_h);
@@ -2215,10 +2203,8 @@ fn draw_visibility_icon(
             let ecx = x + 2.0 + 3.0;
             let ecy = y + 2.0 + 3.0;
             let fill = if is_method { "#84BE84" } else { "none" };
-            sg.set_fill_color(fill);
-            sg.set_stroke_color(Some("#038048"));
-            sg.set_stroke_width(1.0, None);
-            sg.svg_ellipse(ecx, ecy, 3.0, 3.0, 0.0);
+            EllipseShape { cx: ecx, cy: ecy, rx: 3.0, ry: 3.0 }
+                .draw(sg, &DrawStyle::filled(fill, "#038048", 1.0));
             tracker.track_ellipse(ecx, ecy, 3.0, 3.0);
         }
         Visibility::Private => {
@@ -2226,10 +2212,8 @@ fn draw_visibility_icon(
             let rect_x = x + 2.0;
             let rect_y = y + 2.0;
             let fill = if is_method { "#F24D5C" } else { "none" };
-            sg.set_fill_color(fill);
-            sg.set_stroke_color(Some("#C82930"));
-            sg.set_stroke_width(1.0, None);
-            sg.svg_rectangle(rect_x, rect_y, 6.0, 6.0, 0.0, 0.0, 0.0);
+            RectShape { x: rect_x, y: rect_y, w: 6.0, h: 6.0, rx: 0.0, ry: 0.0 }
+                .draw(sg, &DrawStyle::filled(fill, "#C82930", 1.0));
             tracker.track_rect(rect_x, rect_y, 6.0, 6.0);
         }
         Visibility::Protected => {
@@ -2244,22 +2228,15 @@ fn draw_visibility_icon(
                 (ox + 4.0, oy + 8.0),
                 (ox, oy + 4.0),
             ];
-            sg.set_fill_color(fill);
-            sg.set_stroke_color(Some("#B38D22"));
-            sg.set_stroke_width(1.0, None);
-            sg.svg_polygon(
-                0.0,
-                &[
-                    poly_pts[0].0,
-                    poly_pts[0].1,
-                    poly_pts[1].0,
-                    poly_pts[1].1,
-                    poly_pts[2].0,
-                    poly_pts[2].1,
-                    poly_pts[3].0,
-                    poly_pts[3].1,
+            PolygonShape {
+                points: vec![
+                    poly_pts[0].0, poly_pts[0].1,
+                    poly_pts[1].0, poly_pts[1].1,
+                    poly_pts[2].0, poly_pts[2].1,
+                    poly_pts[3].0, poly_pts[3].1,
                 ],
-            );
+            }
+            .draw(sg, &DrawStyle::filled(fill, "#B38D22", 1.0));
             tracker.track_polygon(&poly_pts);
         }
         Visibility::Package => {
@@ -2273,20 +2250,14 @@ fn draw_visibility_icon(
                 (ox, oy + 7.0),       // (0, size-1=7)
                 (ox + 8.0, oy + 7.0), // (size=8, size-1=7)
             ];
-            sg.set_fill_color(fill);
-            sg.set_stroke_color(Some("#1963A0"));
-            sg.set_stroke_width(1.0, None);
-            sg.svg_polygon(
-                0.0,
-                &[
-                    poly_pts[0].0,
-                    poly_pts[0].1,
-                    poly_pts[1].0,
-                    poly_pts[1].1,
-                    poly_pts[2].0,
-                    poly_pts[2].1,
+            PolygonShape {
+                points: vec![
+                    poly_pts[0].0, poly_pts[0].1,
+                    poly_pts[1].0, poly_pts[1].1,
+                    poly_pts[2].0, poly_pts[2].1,
                 ],
-            );
+            }
+            .draw(sg, &DrawStyle::filled(fill, "#1963A0", 1.0));
             tracker.track_polygon(&poly_pts);
         }
     }
@@ -3123,17 +3094,17 @@ fn emit_rotated_polygon(
         write!(pts, "{},{}", fmt_coord(rx), fmt_coord(ry)).unwrap();
         rotated_points.push((rx, ry));
     }
-    sg.set_fill_color(fill);
-    sg.set_stroke_color(Some(stroke));
-    sg.set_stroke_width(1.0, None);
-    sg.svg_polygon(0.0, &{
-        let mut flat = Vec::with_capacity(rotated_points.len() * 2);
-        for &(rx, ry) in &rotated_points {
-            flat.push(rx);
-            flat.push(ry);
-        }
-        flat
-    });
+    PolygonShape {
+        points: {
+            let mut flat = Vec::with_capacity(rotated_points.len() * 2);
+            for &(rx, ry) in &rotated_points {
+                flat.push(rx);
+                flat.push(ry);
+            }
+            flat
+        },
+    }
+    .draw(sg, &DrawStyle::filled(fill, stroke, 1.0));
     tracker.track_polygon(&rotated_points);
 }
 
@@ -3149,10 +3120,8 @@ pub(super) fn emit_plus_head(
     let center_x = tip_x - radius * angle.cos();
     let center_y = tip_y - radius * angle.sin();
     let cross_angle = angle - std::f64::consts::FRAC_PI_2;
-    sg.set_fill_color("#FFFFFF");
-    sg.set_stroke_color(Some(link_color));
-    sg.set_stroke_width(1.0, None);
-    sg.svg_ellipse(center_x, center_y, radius, radius, 0.0);
+    EllipseShape { cx: center_x, cy: center_y, rx: radius, ry: radius }
+        .draw(sg, &DrawStyle::filled("#FFFFFF", link_color, 1.0));
     tracker.track_ellipse(center_x, center_y, radius, radius);
 
     let p1 = point_on_circle(
@@ -3174,11 +3143,11 @@ pub(super) fn emit_plus_head(
         radius,
         cross_angle + std::f64::consts::PI,
     );
-    sg.set_stroke_color(Some(link_color));
-    sg.set_stroke_width(1.0, None);
-    sg.svg_line(p1.0, p1.1, p2.0, p2.1, 0.0);
+    LineShape { x1: p1.0, y1: p1.1, x2: p2.0, y2: p2.1 }
+        .draw(sg, &DrawStyle::outline(link_color, 1.0));
     tracker.track_line(p1.0, p1.1, p2.0, p2.1);
-    sg.svg_line(p3.0, p3.1, p4.0, p4.1, 0.0);
+    LineShape { x1: p3.0, y1: p3.1, x2: p4.0, y2: p4.1 }
+        .draw(sg, &DrawStyle::outline(link_color, 1.0));
     tracker.track_line(p3.0, p3.1, p4.0, p4.1);
 }
 
@@ -3492,10 +3461,8 @@ fn draw_kal_box(
     let border = skin.border_color("class", "#181818");
     let default_font = get_default_font_family_pub();
 
-    sg.set_fill_color(&fill);
-    sg.set_stroke_color(Some(border));
-    sg.set_stroke_width(0.5, None);
-    sg.svg_rectangle(x, y, width, height, 0.0, 0.0, 0.0);
+    RectShape { x: x, y: y, w: width, h: height, rx: 0.0, ry: 0.0 }
+        .draw(sg, &DrawStyle::filled(&fill, border, 0.5));
     tracker.track_rect(x, y, width, height);
 
     for (idx, (line_text, _)) in split_label_lines(text).iter().enumerate() {
@@ -3551,10 +3518,8 @@ fn draw_edge_label_block(
     if boxed {
         let fill = skin.background_color("class", "#F1F1F1");
         let border = skin.border_color("class", "#181818");
-        sg.set_fill_color(&fill);
-        sg.set_stroke_color(Some(border));
-        sg.set_stroke_width(0.5, None);
-        sg.svg_rectangle(x, y, outer_width, outer_height, 0.0, 0.0, 0.0);
+        RectShape { x: x, y: y, w: outer_width, h: outer_height, rx: 0.0, ry: 0.0 }
+            .draw(sg, &DrawStyle::filled(&fill, border, 0.5));
         tracker.track_rect(x, y, outer_width, outer_height);
     } else if let Some((bw, bh)) = block_wh {
         tracker.track_empty(x, y, bw, bh);
@@ -3818,19 +3783,16 @@ fn draw_class_note(sg: &mut SvgGraphic, tracker: &mut BoundsTracker, note: &Clas
             (x + w, y + h),
             (x, y + h),
         ];
-        sg.set_fill_color(NOTE_BG);
-        sg.set_stroke_color(Some(NOTE_BORDER));
-        sg.set_stroke_width(1.0, None);
-        sg.svg_polygon(
-            0.0,
-            &[
+        PolygonShape {
+            points: vec![
                 note_poly[0].0, note_poly[0].1,
                 note_poly[1].0, note_poly[1].1,
                 note_poly[2].0, note_poly[2].1,
                 note_poly[3].0, note_poly[3].1,
                 note_poly[4].0, note_poly[4].1,
             ],
-        );
+        }
+        .draw(sg, &DrawStyle::filled(NOTE_BG, NOTE_BORDER, 1.0));
         tracker.track_polygon(&note_poly);
     }
 
@@ -3998,9 +3960,14 @@ fn draw_class_note(sg: &mut SvgGraphic, tracker: &mut BoundsTracker, note: &Clas
             let ly1 = from_y + offset_y;
             let lx2 = to_x + offset_x;
             let ly2 = to_y + offset_y;
-            sg.set_stroke_color(Some(NOTE_BORDER));
-            sg.set_stroke_width(1.0, Some((5.0, 3.0)));
-            sg.svg_line(lx1, ly1, lx2, ly2, 0.0);
+            LineShape { x1: lx1, y1: ly1, x2: lx2, y2: ly2 }
+                .draw(sg, &DrawStyle {
+                    fill: None,
+                    stroke: Some(NOTE_BORDER.into()),
+                    stroke_width: 1.0,
+                    dash_array: Some((5.0, 3.0)),
+                    delta_shadow: 0.0,
+                });
             tracker.track_line(lx1, ly1, lx2, ly2);
         }
     }

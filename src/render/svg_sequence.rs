@@ -13,6 +13,7 @@ use crate::style::SkinParams;
 use crate::Result;
 
 use crate::font_metrics;
+use crate::klimt::drawable::{DrawStyle, Drawable, LineShape};
 
 use super::svg::{
     ensure_visible_int, write_bg_rect, write_svg_root_bg,
@@ -3126,13 +3127,18 @@ fn draw_activation(sg: &mut SvgGraphic, act: &ActivationLayout, title: &str, sha
 
 fn draw_destroy(sg: &mut SvgGraphic, d: &DestroyLayout) {
     let size = 9.0;
+    let style = DrawStyle::outline(DESTROY_COLOR, 2.0);
     // First diagonal: top-left to bottom-right
-    sg.set_stroke_color(Some(DESTROY_COLOR));
-    sg.set_stroke_width(2.0, None);
-    sg.svg_line(d.x - size, d.y - size, d.x + size, d.y + size, 0.0);
+    LineShape {
+        x1: d.x - size, y1: d.y - size, x2: d.x + size, y2: d.y + size,
+    }
+    .draw(sg, &style);
 
     // Second diagonal: bottom-left to top-right (matching Java PlantUML order)
-    sg.svg_line(d.x - size, d.y + size, d.x + size, d.y - size, 0.0);
+    LineShape {
+        x1: d.x - size, y1: d.y + size, x2: d.x + size, y2: d.y - size,
+    }
+    .draw(sg, &style);
 }
 
 // ── Notes ───────────────────────────────────────────────────────────

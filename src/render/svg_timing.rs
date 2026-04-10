@@ -1,4 +1,5 @@
 use super::svg::{ensure_visible_int, write_bg_rect, write_svg_root_bg};
+use crate::klimt::drawable::{DrawStyle, Drawable, LineShape, PolygonShape};
 use crate::klimt::svg::{fmt_coord, SvgGraphic};
 use crate::layout::timing::{
     TimingConstraintLayout, TimingLayout, TimingMsgLayout, TimingNoteLayout, TimingTimeAxis,
@@ -571,15 +572,14 @@ fn render_constraint(
 }
 
 fn render_time_axis(sg: &mut SvgGraphic, axis: &TimingTimeAxis, font_color: &str, axis_fs: f64) {
+    let axis_style = DrawStyle::outline(AXIS_LINE_COLOR, 2.0);
     for tick in &axis.grid_ticks {
-        sg.set_stroke_color(Some(AXIS_LINE_COLOR));
-        sg.set_stroke_width(2.0, None);
-        sg.svg_line(tick.x, axis.y, tick.x, axis.y + 5.0, 0.0);
+        LineShape { x1: tick.x, y1: axis.y, x2: tick.x, y2: axis.y + 5.0 }
+            .draw(sg, &axis_style);
     }
     if let (Some(first), Some(last)) = (axis.grid_ticks.first(), axis.grid_ticks.last()) {
-        sg.set_stroke_color(Some(AXIS_LINE_COLOR));
-        sg.set_stroke_width(2.0, None);
-        sg.svg_line(first.x, axis.y, last.x, axis.y, 0.0);
+        LineShape { x1: first.x, y1: axis.y, x2: last.x, y2: axis.y }
+            .draw(sg, &axis_style);
     }
     for tick in &axis.ticks {
         let ly = axis.y + 6.0 + crate::font_metrics::ascent("SansSerif", axis_fs, false, false);
@@ -602,23 +602,23 @@ fn render_time_axis(sg: &mut SvgGraphic, axis: &TimingTimeAxis, font_color: &str
 
 fn render_note(sg: &mut SvgGraphic, note: &TimingNoteLayout, font_color: &str, note_fs: f64) {
     if let Some((x1, y1, x2, y2)) = note.connector {
-        sg.set_stroke_color(Some(NOTE_BORDER));
-        sg.set_stroke_width(0.5, Some((4.0, 4.0)));
-        sg.svg_line(x1, y1, x2, y2, 0.0);
+        LineShape { x1, y1, x2, y2 }
+            .draw(sg, &DrawStyle {
+                fill: None,
+                stroke: Some(NOTE_BORDER.into()),
+                stroke_width: 0.5,
+                dash_array: Some((4.0, 4.0)),
+                delta_shadow: 0.0,
+            });
     }
     let fold_x = note.x + note.width - NOTE_FOLD;
     let fold_y = note.y + NOTE_FOLD;
     let x2 = note.x + note.width;
     let y2 = note.y + note.height;
-    sg.set_fill_color(NOTE_BG);
-    sg.set_stroke_color(Some(NOTE_BORDER));
-    sg.set_stroke_width(0.5, None);
-    sg.svg_polygon(
-        0.0,
-        &[
-            note.x, note.y, fold_x, note.y, x2, fold_y, x2, y2, note.x, y2,
-        ],
-    );
+    PolygonShape {
+        points: vec![note.x, note.y, fold_x, note.y, x2, fold_y, x2, y2, note.x, y2],
+    }
+    .draw(sg, &DrawStyle::filled(NOTE_BG, NOTE_BORDER, 0.5));
     sg.push_raw(&format!(r#"<path d="M{},{} L{},{} L{},{} " fill="none" style="stroke:{NOTE_BORDER};stroke-width:0.5;"/>"#, fmt_coord(fold_x), fmt_coord(note.y), fmt_coord(fold_x), fmt_coord(fold_y), fmt_coord(x2), fmt_coord(fold_y)));
     let lc = count_creole_lines(&note.text) as f64;
     let sy = note.y + NOTE_FOLD + (note.height - lc * (note_fs + 4.0)).max(0.0) / 2.0 + note_fs;

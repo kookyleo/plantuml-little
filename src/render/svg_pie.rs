@@ -1,4 +1,5 @@
 use crate::font_metrics;
+use crate::klimt::drawable::{DrawStyle, Drawable, RectShape};
 use crate::klimt::svg::{LengthAdjust, SvgGraphic};
 use crate::layout::pie::PieLayout;
 use crate::model::pie::PieDiagram;
@@ -45,7 +46,7 @@ pub fn render_pie(_d: &PieDiagram, l: &PieLayout, skin: &SkinParams) -> Result<S
         );
     }
 
-    // Pie slices
+    // Pie slices (complex arc paths — keep as push_raw)
     let (cx, cy, r) = (l.cx, l.cy, l.radius);
     for slice in &l.slices {
         let color = COLORS[slice.color_index % COLORS.len()];
@@ -71,10 +72,10 @@ pub fn render_pie(_d: &PieDiagram, l: &PieLayout, skin: &SkinParams) -> Result<S
     // Legend
     for entry in &l.legend {
         let color = COLORS[entry.color_index % COLORS.len()];
-        sg.set_fill_color(color);
-        sg.set_stroke_color(Some("#333333"));
-        sg.set_stroke_width(0.5, None);
-        sg.svg_rectangle(entry.x, entry.y, LEGEND_BOX, LEGEND_BOX, 0.0, 0.0, 0.0);
+        RectShape {
+            x: entry.x, y: entry.y, w: LEGEND_BOX, h: LEGEND_BOX, rx: 0.0, ry: 0.0,
+        }
+        .draw(&mut sg, &DrawStyle::filled(color, "#333333", 0.5));
 
         let tw = font_metrics::text_width(&entry.label, "SansSerif", FONT_SIZE, false, false);
         sg.set_fill_color("#000000");

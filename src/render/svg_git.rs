@@ -1,5 +1,6 @@
 use crate::font_metrics;
-use crate::klimt::svg::{LengthAdjust, SvgGraphic};
+use crate::klimt::drawable::{DrawStyle, Drawable, EllipseShape, LineShape, TextShape};
+use crate::klimt::svg::SvgGraphic;
 use crate::layout::git::GitLayout;
 use crate::model::git::GitDiagram;
 use crate::render::svg::{ensure_visible_int, write_bg_rect, write_svg_root_bg_opt};
@@ -28,10 +29,12 @@ pub fn render_git(_d: &GitDiagram, l: &GitLayout, skin: &SkinParams) -> Result<S
     let mut sg = SvgGraphic::new(0, 1.0);
 
     // Draw edges first (behind nodes)
-    sg.set_stroke_color(Some(EDGE_COLOR));
-    sg.set_stroke_width(2.0, None);
+    let edge_style = DrawStyle::outline(EDGE_COLOR, 2.0);
     for edge in &l.edges {
-        sg.svg_line(edge.x1, edge.y1, edge.x2, edge.y2, 0.0);
+        LineShape {
+            x1: edge.x1, y1: edge.y1, x2: edge.x2, y2: edge.y2,
+        }
+        .draw(&mut sg, &edge_style);
     }
 
     // Draw nodes
@@ -39,37 +42,24 @@ pub fn render_git(_d: &GitDiagram, l: &GitLayout, skin: &SkinParams) -> Result<S
         let color = COLORS[(node.depth - 1) % COLORS.len()];
 
         // Draw filled circle
-        sg.set_fill_color(color);
-        sg.set_stroke_color(Some("#333333"));
-        sg.set_stroke_width(1.5, None);
-        sg.svg_ellipse(
-            node.cx,
-            node.cy,
-            node.radius,
-            node.radius,
-            0.0,
-        );
+        EllipseShape {
+            cx: node.cx, cy: node.cy, rx: node.radius, ry: node.radius,
+        }
+        .draw(&mut sg, &DrawStyle::filled(color, "#333333", 1.5));
 
         // Draw label
         let tw = font_metrics::text_width(&node.label, "SansSerif", FONT_SIZE, false, false);
-        sg.set_fill_color(TEXT_COLOR);
-        sg.set_stroke_color(None);
-        sg.set_stroke_width(0.0, None);
-        sg.svg_text(
-            &node.label,
-            node.label_x,
-            node.label_y,
-            Some("sans-serif"),
-            FONT_SIZE,
-            None,
-            None,
-            None,
-            tw,
-            LengthAdjust::Spacing,
-            None,
-            0,
-            None,
-        );
+        TextShape {
+            x: node.label_x,
+            y: node.label_y,
+            text: node.label.clone(),
+            font_family: "sans-serif".into(),
+            font_size: FONT_SIZE,
+            text_length: tw,
+            bold: false,
+            italic: false,
+        }
+        .draw(&mut sg, &DrawStyle::fill_only(TEXT_COLOR));
     }
 
     buf.push_str(sg.body());

@@ -1,5 +1,6 @@
 use std::fmt::Write;
 
+use crate::klimt::drawable::{DrawStyle, Drawable, RectShape};
 use crate::klimt::svg::{fmt_coord, SvgGraphic};
 use crate::layout::ditaa::{DitaaBox, DitaaLayout, DitaaLine, DitaaText};
 use crate::model::ditaa::DitaaDiagram;
@@ -87,18 +88,15 @@ fn render_box(
     }
 
     // Box rect
-    sg.set_fill_color(fill);
-    sg.set_stroke_color(Some(border));
-    sg.set_stroke_width(1.5, None);
-    sg.svg_rectangle(
-        ditaa_box.x,
-        ditaa_box.y,
-        ditaa_box.width,
-        ditaa_box.height,
-        radius,
-        radius,
-        0.0,
-    );
+    RectShape {
+        x: ditaa_box.x,
+        y: ditaa_box.y,
+        w: ditaa_box.width,
+        h: ditaa_box.height,
+        rx: radius,
+        ry: radius,
+    }
+    .draw(sg, &DrawStyle::filled(fill, border, 1.5));
     sg.push_raw("\n");
 
     if let Some(text) = &ditaa_box.text {

@@ -1,3 +1,4 @@
+use crate::klimt::drawable::{DrawStyle, Drawable, EllipseShape};
 use crate::klimt::svg::{LengthAdjust, SvgGraphic};
 use crate::layout::creole_diagram::{CreoleLayout, CreoleLayoutElement};
 use crate::model::creole_diagram::CreoleDiagram;
@@ -19,6 +20,14 @@ pub fn render_creole(_d: &CreoleDiagram, l: &CreoleLayout, skin: &SkinParams) ->
     buf.push_str("<defs/><g>");
 
     let mut sg = SvgGraphic::new(0, 1.0);
+
+    let bullet_style = DrawStyle {
+        fill: Some(TEXT_COLOR.into()),
+        stroke: None,
+        stroke_width: 0.0,
+        dash_array: None,
+        delta_shadow: 0.0,
+    };
 
     for elem in &l.elements {
         match elem {
@@ -55,10 +64,10 @@ pub fn render_creole(_d: &CreoleDiagram, l: &CreoleLayout, skin: &SkinParams) ->
                 text_width,
             } => {
                 // Bullet circle
-                sg.set_fill_color(TEXT_COLOR);
-                sg.set_stroke_color(None);
-                sg.set_stroke_width(0.0, None);
-                sg.svg_ellipse(*cx, *cy, BULLET_RADIUS, BULLET_RADIUS, 0.0);
+                EllipseShape {
+                    cx: *cx, cy: *cy, rx: BULLET_RADIUS, ry: BULLET_RADIUS,
+                }
+                .draw(&mut sg, &bullet_style);
 
                 // Bullet text
                 sg.set_fill_color(TEXT_COLOR);
