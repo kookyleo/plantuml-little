@@ -1161,6 +1161,14 @@ pub fn layout_activity(diagram: &ActivityDiagram) -> Result<ActivityLayout> {
                     let diamond_left_x = hex_x;
                     let diamond_right_x = hex_x + hex_w;
                     let diamond_bottom_y = hex_y + hex_h;
+                    // Consume repeat frame's second-inner extra gap flag (the
+                    // if-diamond sits between the first and second interior
+                    // actions, absorbing the extra gap).
+                    if let Some(frame) = repeat_stack.last_mut() {
+                        if frame.second_inner_needs_extra {
+                            frame.second_inner_needs_extra = false;
+                        }
+                    }
                     node_index += 1;
 
                     // Push if-frame
@@ -2019,7 +2027,15 @@ pub fn layout_activity(diagram: &ActivityDiagram) -> Result<ActivityLayout> {
                 max_half_w = max_half_w.max(diamond.width / 2.0);
             }
         }
-        let cx = TOP_MARGIN + max_half_w;
+        // When there are break edges, the break path extends to x=10 which
+        // needs more left margin (20px instead of 10px).
+        let left_margin = if !deferred_break_edges.is_empty() {
+            20.0 // break path extends to x=10; Java needs 20px left margin
+        } else {
+            TOP_MARGIN
+        };
+        let cx = left_margin + max_half_w;
+        log::debug!("  centering: left_margin={left_margin:.1}, max_half_w={max_half_w:.1}, cx={cx:.1}");
         // First pass: center non-if-branch nodes
         for node in &mut nodes {
             if is_flow_node(&node.kind) && !node.skip_in_flow {
