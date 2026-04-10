@@ -1,6 +1,0 @@
-@startuml
-[*] --> A
-A : first\n\\
-second
-A -> B
-@enduml

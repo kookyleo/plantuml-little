@@ -1,4 +1,0 @@
-@startuml
-Test <<-- Test ++ : hello
-Test <<-- Test -- : bye
-@enduml

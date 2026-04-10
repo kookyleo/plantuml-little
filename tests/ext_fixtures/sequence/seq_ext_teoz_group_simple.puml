@@ -1,7 +1,0 @@
-@startuml
-!pragma teoz true
-group Group 1
-    A -> B
-    A <- B
-end
-@enduml

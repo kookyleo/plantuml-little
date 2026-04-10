@@ -1,4 +1,0 @@
-@startuml
-state A
-A -> A
-@enduml

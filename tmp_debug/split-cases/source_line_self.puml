@@ -1,6 +1,0 @@
-@startuml
-state A
-A : adding bold:\n\
-second line
-A -> A
-@enduml

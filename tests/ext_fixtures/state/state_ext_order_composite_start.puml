@@ -1,7 +1,0 @@
-@startuml
-[*] --> Active
-state Active {
-  [*] --> Running
-}
-Active --> Inactive
-@enduml
