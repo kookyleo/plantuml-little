@@ -1299,14 +1299,23 @@ pub fn layout_activity(diagram: &ActivityDiagram) -> Result<ActivityLayout> {
                         frame.then_branch.last_node_idx = last_flow_node_idx;
                     }
 
-                    // Merge y = max of both branches' bottom_y
+                    // Merge y = max of both branches' bottom_y.
+                    // When the then-branch has a break, the implicit else path
+                    // needs extra descent (break_gap + 17px for the merge path).
                     let then_bottom = frame.then_branch.bottom_y;
                     let else_bottom = frame
                         .else_branch
                         .as_ref()
                         .map(|b| b.bottom_y)
                         .unwrap_or(frame.diamond_bottom_y);
-                    let merge_y = then_bottom.max(else_bottom);
+                    let merge_y = if frame.then_branch.has_break && frame.else_branch.is_none() {
+                        // The else merge y needs to account for break path
+                        let break_y = then_bottom - node_gap + 6.5157;
+                        let else_merge_y = break_y + 17.0;
+                        else_merge_y.max(then_bottom)
+                    } else {
+                        then_bottom.max(else_bottom)
+                    };
 
                     // Restore y_cursor and last_flow_node_idx for main flow.
                     // The next node after the if-block is placed at merge_y + node_gap,
@@ -1553,9 +1562,10 @@ pub fn layout_activity(diagram: &ActivityDiagram) -> Result<ActivityLayout> {
                     // If there are break sources, create an exit diamond node.
                     let has_breaks = !frame.break_sources.is_empty();
                     let exit_diamond_idx = if has_breaks {
-                        let (dw, dh) = (DIAMOND_SIZE * 2.0, DIAMOND_SIZE * 2.0);
+                        // Java's exit diamond is hexagonHalfSize*2 = 24x24
+                        let (dw, dh) = (HEXAGON_HALF_SIZE * 2.0, HEXAGON_HALF_SIZE * 2.0);
                         let dx = cx - dw / 2.0;
-                        let dy = y_cursor - node_gap; // place just after hex+south gap
+                        let dy = y_cursor; // place after hex+south gap+node_gap
                         let exit_y = dy;
                         log::debug!("  node[{node_index}] Repeat exit diamond @ ({dx:.1}, {exit_y:.1})");
                         nodes.push(ActivityNodeLayout {
@@ -3265,6 +3275,7 @@ fn build_repeat_loopback_edge(
             ActivityNodeKindLayout::Action
                 | ActivityNodeKindLayout::Diamond
                 | ActivityNodeKindLayout::Hexagon { .. }
+                | ActivityNodeKindLayout::IfDiamond { .. }
                 | ActivityNodeKindLayout::Start
                 | ActivityNodeKindLayout::Stop
                 | ActivityNodeKindLayout::End
@@ -3277,7 +3288,11 @@ fn build_repeat_loopback_edge(
             max_right = right;
         }
     }
-    let xmax = max_right + HEXAGON_HALF_SIZE;
+    // If the repeat body contains an IfDiamond, the implicit else path
+    // extends HEXAGON_HALF_SIZE beyond the diamond right edge.
+    let has_if_diamond = nodes.iter().any(|n| matches!(n.kind, ActivityNodeKindLayout::IfDiamond { .. }));
+    let if_else_extra = if has_if_diamond { HEXAGON_HALF_SIZE } else { 0.0 };
+    let xmax = max_right + HEXAGON_HALF_SIZE + if_else_extra;
 
     // Locate the gap between the first two interior actions of the enclosing
     // repeat; the UP arrow's polygon sits anchored 10px below the first
