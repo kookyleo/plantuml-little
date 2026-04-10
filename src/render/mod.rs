@@ -1,6 +1,8 @@
 pub mod embedded;
 pub mod error_page;
 pub mod svg;
+pub mod svg_class;
+pub mod svg_meta;
 pub mod svg_activity;
 pub mod svg_board;
 pub mod svg_bpm;
