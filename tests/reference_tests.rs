@@ -1981,3 +1981,17 @@ reference_test!(
     reference_fixtures_misc_openiconic_puml,
     "fixtures/misc/openiconic.puml"
 );
+
+// ── P4/P5/P6 tests ──
+reference_test!(
+    reference_fixtures_misc_skinparam_handwritten_seq_puml,
+    "fixtures/misc/skinparam_handwritten_seq.puml"
+);
+reference_test!(
+    reference_fixtures_sequence_puma_basic_puml,
+    "fixtures/sequence_puma/basic.puml"
+);
+reference_test!(
+    reference_fixtures_misc_gradient_basic_puml,
+    "fixtures/misc/gradient_basic.puml"
+);

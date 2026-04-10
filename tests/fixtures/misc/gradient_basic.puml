@@ -1,0 +1,7 @@
+@startuml
+skinparam classBorderColor #FF0000
+skinparam classBackgroundColor #AAFFAA/#55AA55
+class Foo {
+  +method()
+}
+@enduml

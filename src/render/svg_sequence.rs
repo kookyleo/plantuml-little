@@ -2269,7 +2269,9 @@ fn draw_message(
                 (inner_x, msg.y),
             ];
             emit_polygon(
-                sg, &pts, arrow_color,
+                sg,
+                &pts,
+                arrow_color,
                 &format!("stroke:{};stroke-width:1;", arrow_color),
                 handwritten,
             );
@@ -2315,7 +2317,9 @@ fn draw_message(
                 (inner_x, msg.y),
             ];
             emit_polygon(
-                sg, &pts, arrow_color,
+                sg,
+                &pts,
+                arrow_color,
                 &format!("stroke:{};stroke-width:1;", arrow_color),
                 handwritten,
             );
@@ -2369,14 +2373,22 @@ fn draw_message(
                 };
                 if !skip_top {
                     emit_line(
-                        sg, tip_x, msg.y, arm_x, msg.y - 4.0,
+                        sg,
+                        tip_x,
+                        msg.y,
+                        arm_x,
+                        msg.y - 4.0,
                         &format!("stroke:{};stroke-width:{};", arrow_color, sw),
                         handwritten,
                     );
                 }
                 if !skip_bottom {
                     emit_line(
-                        sg, tip_x, msg.y, arm_x, msg.y + 4.0,
+                        sg,
+                        tip_x,
+                        msg.y,
+                        arm_x,
+                        msg.y + 4.0,
                         &format!("stroke:{};stroke-width:{};", arrow_color, sw),
                         handwritten,
                     );
@@ -2389,25 +2401,21 @@ fn draw_message(
                 };
                 match msg.arrow_head {
                     SeqArrowHead::FilledHalfTop => {
-                        let pts = vec![
-                            (arm_x, msg.y - 4.0),
-                            (tip_x, msg.y),
-                            (arm_x, msg.y),
-                        ];
+                        let pts = vec![(arm_x, msg.y - 4.0), (tip_x, msg.y), (arm_x, msg.y)];
                         emit_polygon(
-                            sg, &pts, arrow_color,
+                            sg,
+                            &pts,
+                            arrow_color,
                             &format!("stroke:{};stroke-width:1;", arrow_color),
                             handwritten,
                         );
                     }
                     SeqArrowHead::FilledHalfBottom => {
-                        let pts = vec![
-                            (arm_x, msg.y),
-                            (tip_x, msg.y),
-                            (arm_x, msg.y + 4.0),
-                        ];
+                        let pts = vec![(arm_x, msg.y), (tip_x, msg.y), (arm_x, msg.y + 4.0)];
                         emit_polygon(
-                            sg, &pts, arrow_color,
+                            sg,
+                            &pts,
+                            arrow_color,
                             &format!("stroke:{};stroke-width:1;", arrow_color),
                             handwritten,
                         );
@@ -2425,7 +2433,9 @@ fn draw_message(
                             (inner_x, msg.y),
                         ];
                         emit_polygon(
-                            sg, &pts, arrow_color,
+                            sg,
+                            &pts,
+                            arrow_color,
                             &format!("stroke:{};stroke-width:1;", arrow_color),
                             handwritten,
                         );
