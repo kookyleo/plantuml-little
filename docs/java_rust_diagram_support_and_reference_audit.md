@@ -1,260 +1,172 @@
 # Java/Rust Stable-Reference Audit
 
-> Generated 2026-04-04.
-> This document supersedes earlier beta-based authority notes.
+> Updated 2026-04-10.
+> Authority: official PlantUML stable `v1.2026.2`.
 
-## 1. Executive Summary
+## 1. Current Verdict
 
-- The repository now uses the official PlantUML stable release `v1.2026.2` as its only Java reference authority.
-- The authority checkout is `/ext/plantuml/plantuml-official-stable-v1.2026.2` at Git SHA `bb8550d720e93f3e7f016a987848fb769e0222f5`.
-- `tests/reference/` was regenerated from that stable checkout in file mode, not `-pipe` mode.
-- `tests/reference/VERSION` now records the stable jar path, Git SHA, Java version, Graphviz version, and generation time.
-- `tests/reference/INDEX.tsv` is now the fixture-to-reference source of truth. It captures nontrivial Java output names such as `ditaa/-r.svg` and `movies.svg`.
-- `tests/reference_tests.rs` was regenerated and now contains 322 tests, one per fixture.
-- Of the 322 fixtures under `tests/fixtures/`, 318 now have a stable-Java SVG that can be byte-compared by the Rust harness.
-- 4 fixtures currently produce no SVG at all with official PlantUML `v1.2026.2`, so they are outside the byte-compare corpus for now:
-  - `tests/fixtures/chart/pie_basic.puml`
-  - `tests/fixtures/packet/basic.puml`
-  - `tests/fixtures/packet/tcp.puml`
-  - `tests/fixtures/pie/basic.puml`
-- Rust still does not cover the full stable Java surface. Major non-UML gaps remain: `BPM`, `PROJECT`, `JCCKIT`, `FLOW`, standalone `CREOLE`, `MATH`, `LATEX`, `DEFINITION`, and `WIRE`.
+- Java authority is `/ext/plantuml/plantuml-official-stable-v1.2026.2`.
+- The current reference suite result is:
+  - `cargo test --test reference_tests`
+  - `326 passed / 0 failed / 2 ignored`
+- The ignored cases are:
+  - `tests/reference_tests.rs:1628` — Java stable NPE on `sprite/svg2GroupsWithStyle`
+  - `tests/reference_tests.rs:973` — Java stable `ditaa` emits raw PNG bytes under `--svg`; impossible to byte-compare inside the SVG-only `String` API
+- The active harness now consults `tests/reference/INDEX.tsv`, so indexed alternate-name references are genuinely byte-compared.
+- Remaining coverage ambiguity is limited to fixtures for which stable Java still does not provide an SVG authority file, plus the `DITAA` binary-output blocker.
 
-## 2. Authority Definition
+Therefore the statement
 
-The project now has a single Java authority:
+> "all implementable Java PlantUML diagram types are fully implemented in Rust and pass byte-exact alignment tests"
 
-- checkout: `/ext/plantuml/plantuml-official-stable-v1.2026.2`
-- release: `v1.2026.2`
-- Git SHA: `bb8550d720e93f3e7f016a987848fb769e0222f5`
-- built jar: `/ext/plantuml/plantuml-official-stable-v1.2026.2/build/libs/plantuml-1.2026.2.jar`
+is **false**.
 
-Development rule:
+There are still three unfinished buckets:
 
-- Rust SVG parity work must target the stable `v1.2026.2` reference corpus checked into `tests/reference/`.
-- The local dirty checkout at `/ext/plantuml/plantuml` is no longer a reference authority.
-- Earlier beta-based notes are historical only and should not guide current parity work.
+1. stable Java diagram types that Rust does not implement yet
+2. stable Java diagram types that Rust implements, but which are not fully covered by active byte-exact reference comparison in the current harness
+3. stable Java paths whose authority output is incompatible with the product contract
 
-## 3. Reference Generation Rules
+## 2. Authoritative Evidence
 
-Reference generation is now anchored in `tests/generate_reference.sh`.
-
-Key rules:
-
-- default Java source: `/ext/plantuml/plantuml-official-stable-v1.2026.2`
-- generation mode: file mode via `--svg --output-dir`, not `-pipe`
-- output retention rule: if Java emits an SVG, the SVG is kept even when Java exits nonzero
-- mapping source: `tests/reference/INDEX.tsv`
-
-Why this matters:
-
-- file mode matches real fixture execution better than `-pipe`
-- error SVGs are part of actual Java output and therefore part of the authority corpus
-- alternate Java output names are preserved instead of being normalized away
-
-## 4. Stable Java Taxonomy vs Rust Support
-
-The stable Java taxonomy comes from:
+Java stable taxonomy:
 
 - `/ext/plantuml/plantuml-official-stable-v1.2026.2/src/main/java/net/sourceforge/plantuml/core/DiagramType.java`
 
-The main Rust entry points remain:
+Rust diagram entry points:
 
-- `src/model/diagram.rs`
 - `src/parser/common.rs`
 - `src/parser/mod.rs`
+- `src/model/diagram.rs`
+- `src/render/svg.rs`
+
+Current reference-test compare rule:
+
+- `tests/reference_tests.rs:15`
+- `tests/reference_tests.rs:17`
+- `tests/reference_tests.rs:607`
+
+Those lines matter because `load_reference()` now resolves references in two steps:
+
+- direct same-path lookup under `tests/reference/`
+- fallback lookup through `tests/reference/INDEX.tsv`
+
+## 3. Stable Java Taxonomy vs Rust Status
 
 Legend:
 
-- `Implemented`: Rust has a dedicated or clearly folded parse/layout/render path.
-- `Partial`: behavior exists, but the Java stable surface is not matched cleanly.
-- `Missing`: no first-class Rust support was found for that stable Java type.
+- `Implemented`: Rust has parse/layout/render support for this stable Java type.
+- `Missing`: stable Java has the type, but Rust has no first-class support.
+- `Coverage gap`: Rust has implementation, but current repo state does not put all fixture coverage for that type under active byte-exact comparison.
 
-| Stable Java type | Rust status | Notes |
-|------------------|-------------|-------|
-| `UML` | Partial | Rust implements the major UML families, but Java stable groups them under one umbrella while Rust models them separately |
-| `BPM` | Missing | No `@startbpm` handling found |
-| `DITAA` | Implemented | Stable Java emits `-r.svg`; mapped through `tests/reference/INDEX.tsv` |
-| `DOT` | Implemented | Dedicated Rust path exists |
-| `PROJECT` | Missing | No first-class Rust project/gantt-style project parser found |
-| `JCCKIT` | Missing | No Rust `@startjcckit` handling found |
-| `SALT` | Implemented | Dedicated Rust path exists |
-| `FLOW` | Missing | No Rust `@startflow` handling found |
-| `CREOLE` | Missing | Rich text exists in Rust, but not as a standalone Java diagram type |
-| `MATH` | Missing | No Rust `@startmath` handling found |
-| `LATEX` | Missing | No Rust `@startlatex` handling found |
-| `DEFINITION` | Missing | No Rust `@startdef` handling found |
-| `GANTT` | Implemented | Dedicated Rust path exists |
-| `CHRONOLOGY` | Implemented | Dedicated Rust path exists; the stable Java fixture currently emits an error SVG |
-| `NW` | Implemented | Rust `Nwdiag` path exists |
-| `MINDMAP` | Implemented | Dedicated Rust path exists |
-| `WBS` | Implemented | Dedicated Rust path exists |
-| `WIRE` | Missing | Stable Java recognizes it; Rust still lacks real `@startwire` support |
-| `JSON` | Implemented | Dedicated Rust path exists |
-| `GIT` | Implemented | Dedicated Rust path exists; current stable fixture emits an error SVG |
-| `BOARD` | Implemented | Dedicated Rust path exists; current stable fixture emits an error SVG |
-| `YAML` | Implemented | Dedicated Rust path exists |
-| `HCL` | Implemented | Dedicated Rust path exists |
-| `EBNF` | Implemented | Dedicated Rust path exists |
-| `REGEX` | Implemented | Dedicated Rust path exists |
-| `FILES` | Implemented | Dedicated Rust path exists |
-| `CHEN_EER` | Implemented | Rust models this as `Erd` |
-| `CHART` | Implemented | Rust chart path exists; one chart fixture has no stable Java SVG output |
-| `PACKET` | Implemented | Rust packet path exists; current stable Java produces no SVG for the repo fixtures |
-| `UNKNOWN` | Sentinel only | Not a user-facing support target |
+| Stable Java type | Status | Notes |
+|------------------|--------|-------|
+| `UML` | Implemented | Major UML subfamilies are implemented and the active suite is green, but one sequence fixture lacks direct reference coverage and one sprite fixture is ignored due to Java NPE |
+| `BPM` | Implemented | Stable Java BPM mini-DSL is matched by Rust and covered by ref tests |
+| `DITAA` | Authority-format blocker | Stable Java writes PNG bytes for this family even under `--svg`; Rust is intentionally SVG-only and returns `String` |
+| `DOT` | Implemented | Direct parser/render path exists and is covered |
+| `PROJECT` | Missing | No `@startproject` detection or parser path in current Rust entry points |
+| `JCCKIT` | Missing | No `@startjcckit` detection or parser path in current Rust entry points |
+| `SALT` | Implemented | Covered |
+| `FLOW` | Missing | No `@startflow` detection or parser path in current Rust entry points |
+| `CREOLE` | Implemented | Standalone `@startcreole` path exists and has a ref test |
+| `MATH` | Implemented | Standalone `@startmath` path exists and has a ref test |
+| `LATEX` | Implemented | Standalone `@startlatex` path exists and has a ref test |
+| `DEFINITION` | Implemented | `@startdef` path exists and has a ref test |
+| `GANTT` | Implemented | Covered |
+| `CHRONOLOGY` | Implemented | Current fixture is byte-compared and green |
+| `NW` | Implemented | Rust `Nwdiag` path exists and is covered |
+| `MINDMAP` | Implemented | Covered |
+| `WBS` | Implemented | Covered |
+| `WIRE` | Implemented | `@startwire` path exists and both current wire fixtures have direct refs |
+| `JSON` | Implemented | Covered |
+| `GIT` | Implemented | Current fixtures are byte-compared and green |
+| `BOARD` | Implemented | Current fixture is byte-compared and green |
+| `YAML` | Implemented | Covered |
+| `HCL` | Implemented | Covered |
+| `EBNF` | Implemented | Covered |
+| `REGEX` | Implemented | Covered |
+| `FILES` | Implemented | Covered |
+| `CHEN_EER` | Implemented | Implemented as Rust `Erd`; covered |
+| `CHART` | Coverage gap | `bar_basic` and `single_series` are now byte-compared and green; `pie_basic` still has no stable-Java SVG |
+| `PACKET` | Coverage gap | Implemented in Rust, but both current packet fixtures have no direct same-path reference SVG |
+| `UNKNOWN` | Sentinel only | Not a product surface target |
 
-## 5. Reference Coverage Audit
+## 4. Unfinished Diagram Types
 
-Current repository counts:
+This is the actionable list.
 
-- fixtures: 322 `.puml`
-- generated reference tests: 322
-- generated reference SVG files: 323
-- indexed primary byte-compare mappings: 318
+### 4.1 Not Implemented In Rust
 
-Primary byte-compare coverage is therefore:
+These stable Java diagram types are still genuinely missing:
 
-- `318 / 322 = 98.76%`
+1. `PROJECT`
+2. `JCCKIT`
+3. `FLOW`
 
-The remaining 4 fixtures have no stable Java SVG output and therefore no byte-compare reference mapping:
+Root cause:
 
-- `tests/fixtures/chart/pie_basic.puml`
-- `tests/fixtures/packet/basic.puml`
-- `tests/fixtures/packet/tcp.puml`
-- `tests/fixtures/pie/basic.puml`
+- `src/parser/common.rs` has no start-tag detection for these types.
+- `src/parser/mod.rs` has no `DiagramHint` variants or parse dispatch for these types.
+- `src/model/diagram.rs` has no corresponding `Diagram` variants.
 
-## 6. Nontrivial Reference Mapping Cases
+### 4.2 Implemented, But Not Fully Under Byte-Exact Protection
 
-Stable Java does not always name output files after the input `.puml`.
+These types are implemented in Rust, but the current repository state does not fully prove byte-exact parity for them:
 
-The current authoritative examples are:
+1. `CHART`
+2. `PACKET`
 
-- `tests/fixtures/ditaa/basic.puml` -> `tests/reference/ditaa/-r.svg`
-- `tests/fixtures/erd/chenmovie.puml` -> `tests/reference/erd/movies.svg`
-- `tests/fixtures/erd/chenmoviealias.puml` -> `tests/reference/erd/movies.svg`
-- `tests/fixtures/erd/chenmovieextended.puml` -> `tests/reference/erd/movies.svg`
-- `tests/fixtures/nonreg/simple/ChenMovie.puml` -> `tests/reference/nonreg/simple/movies.svg`
-- `tests/fixtures/nonreg/simple/ChenMovieAlias.puml` -> `tests/reference/nonreg/simple/movies.svg`
-- `tests/fixtures/nonreg/simple/ChenMovieExtended.puml` -> `tests/reference/nonreg/simple/movies.svg`
+Why they are still unfinished from a parity-audit perspective:
 
-These mappings are recorded in `tests/reference/INDEX.tsv` and consumed by `tests/reference_tests.rs`.
+- the current `reference_test!` macro only compares against a direct same-path SVG
+- these fixtures currently do not have that direct same-path SVG in `tests/reference/`
+- so those tests pass without executing a byte-for-byte SVG comparison
 
-## 7. Stable Java Error-SVG Cases
+Concrete gaps:
 
-Official PlantUML `v1.2026.2` sometimes exits nonzero but still emits an SVG. Those SVGs are now preserved as authoritative outputs.
+- `tests/fixtures/chart/pie_basic.puml` -> missing `tests/reference/chart/pie_basic.svg`
+- `tests/fixtures/packet/basic.puml` -> missing `tests/reference/packet/basic.svg`
+- `tests/fixtures/packet/tcp.puml` -> missing `tests/reference/packet/tcp.svg`
 
-Confirmed fixture set:
+### 4.3 Fixture-Level Byte-Exact Gaps Inside Otherwise Implemented Families
 
-- `tests/fixtures/board/basic.puml`
-- `tests/fixtures/chart/bar_basic.puml`
-- `tests/fixtures/chart/single_series.puml`
-- `tests/fixtures/chronology/basic.puml`
-- `tests/fixtures/git/basic.puml`
-- `tests/fixtures/git/branches.puml`
-- `tests/fixtures/sequence/seq_divider001.puml`
-- `tests/fixtures/wire/basic.puml`
-- `tests/fixtures/wire/multi.puml`
+These are not missing top-level Java `DiagramType` values, but they still block the stronger claim that every covered family is fully protected by byte-exact tests:
 
-Development rule:
+- `tests/fixtures/pie/basic.puml` has no direct `tests/reference/pie/basic.svg`
+- `tests/fixtures/sequence/seq_divider001.puml` is now byte-compared and green
+- `tests/reference_tests.rs:1628` ignores `sprite/svg2GroupsWithStyle` because Java stable itself throws `NullPointerException`
 
-- If stable Java emits an SVG, Rust is expected to match that SVG, even when Java also returns a nonzero exit code.
+### 4.4 Authority-Format Blocker
 
-## 8. Secondary Multi-SVG Outputs
+`DITAA` is a separate blocker from ordinary parser/render gaps.
 
-The regenerated stable corpus also contains additional secondary SVG pages from some fixtures. These files are preserved in `tests/reference/`, but the current harness only byte-compares the primary SVG selected by `tests/reference/INDEX.tsv`.
+- Official PlantUML stable `v1.2026.2` emits raw PNG bytes for `ditaa` even when invoked with `--svg` / `-tsvg`
+- The current stable reference is `tests/reference/ditaa/-r.svg`, but the file content is PNG, not UTF-8 SVG
+- `plantuml-little` is intentionally SVG-only, and its public API returns `String`
+- Therefore true byte-exact parity for `DITAA` is impossible without changing the product contract
 
-Current secondary-only preserved outputs:
+## 5. Practical Conclusion
 
-- `tests/reference/dev/newline/activity_creole_table_001.svg`
-- `tests/reference/dev/newline/class_funcparam_arrow_001.svg`
-- `tests/reference/dev/newline/link_URL_tooltip_001.svg`
-- `tests/reference/dev/newline/link_URL_tooltip_002.svg`
-- `tests/reference/dev/newline/link_URL_tooltip_003.svg`
-- `tests/reference/dev/newline/link_URL_tooltip_004.svg`
-- `tests/reference/dev/newline/state_monoline_001.svg`
-- `tests/reference/dev/newline/state_monoline_002.svg`
-- `tests/reference/dev/newline/subdiagram_theme_001.svg`
+If the question is:
 
-This is a known harness limitation, not a reference-authority ambiguity.
+> "Is Rust now green on the active reference suite?"
 
-## 9. Repository Files Updated for the Stable Baseline
+The answer is:
 
-- `Cargo.toml`
-- `Cargo.lock`
-- `tests/generate_reference.sh`
-- `tests/generate_test_list.py`
-- `tests/reference/VERSION`
-- `tests/reference/INDEX.tsv`
-- `tests/reference/`
-- `tests/reference_tests.rs`
-- `continue.md`
-- `AGENTS.md`
+- yes, except for one intentionally ignored Java-crash fixture
 
-## 10. Audit Artifacts
+If the question is:
 
-Supporting audit data for the stable-baseline transition is stored at:
+> "Have all implementable Java PlantUML diagram types been completely implemented and proven by byte-exact comparison?"
 
-- `tmp_debug/java_ref_audit_official_stable_v1_2026_2_20260404.json`
+The answer is:
 
-## 11. Next Development Rules
+- no
 
-1. Do not reintroduce beta or dirty-local Java baselines into reference generation.
-2. Use `tests/reference/INDEX.tsv` whenever Java output names do not match fixture names.
-3. Treat the 4 no-SVG fixtures as unsupported by the current stable authority unless and until the authority version changes.
-4. When fixing Rust parity, compare against the stable `v1.2026.2` SVGs now committed in `tests/reference/`.
+The remaining unfinished work is:
 
-## 12. Current Failure-Priority Ranking (2026-04-05)
-
-The stable-baseline transition reset the parity scoreboard. After the latest sequence viewport alignment pass, the live baseline is:
-
-- `cargo test --lib`: `2636/2636`
-- `cargo test --test reference_tests`: `94/322`
-
-The remaining failures are not equally valuable. For development planning, the current work should be ranked by shared-root-cause leverage, not by fixture path.
-
-### 12.1 Highest-Leverage Clusters
-
-| Priority | Cluster | Failures | Common signature | Primary Rust path |
-|----------|---------|----------|------------------|-------------------|
-| `P0` | Teoz sequence vertical-budget | `42` | mostly root height `+5px`; left-message activation `-3px` | `src/layout/sequence_teoz/builder.rs`, `src/render/svg_sequence.rs` |
-| `P1` | Shared newline / multiline richtext | `39` | repeated height drift: `+14`, `+20`, `+8`, `+9`, `-1` | `src/render/svg_richtext.rs`, `src/preproc/`, multiline layout callers |
-| `P2` | Sprite bounds / transform / gradient | `39` | mixed structure/content diffs plus tiny coordinate drift | `src/render/svg_richtext.rs`, `src/klimt/svg.rs` |
-| `P3` | State / SCXML vertical-budget | `18` | mostly height `+8px` or `+11px` | `src/layout/state.rs`, `src/render/svg_state.rs` |
-| `P4` | Jaws / component | `16` | heterogeneous component/layout mismatches | `src/layout/component.rs`, `src/render/svg_component.rs` |
-| `P5` | Activity misc | `8` | repeated height `+14px` / `+8px` | `src/layout/activity.rs`, `src/render/svg_activity.rs` |
-| `P6` | Timing arrow-font | `4` | height `+14px` in the two mirrored arrow-font fixtures | `src/render/svg_timing.rs` |
-
-### 12.2 Cluster Notes
-
-#### Teoz sequence vertical-budget
-
-This is the cleanest next target. The subclusters are:
-
-- `TeozTimelineIssues_*`: `18`
-- `TeozAltElseParallel_*`: `12`
-- `SequenceLayout_0004/0005/0005b`: `6`
-- `SequenceArrows_*`: `4`
-- `SequenceLeftMessageAndActiveLifeLines_*`: `2`
-
-These cases are structurally similar and mostly differ only in final root height. That is strong evidence for one remaining teoz tile/event vertical-accounting mismatch rather than many independent bugs.
-
-#### Shared newline / multiline richtext
-
-This cluster spans `dev/newline`, `preprocessor`, `component`, `misc`, `activity`, and `wbs`. It is a high-payoff cross-family target because the failures likely come from shared newline preservation and multiline height accounting, not from diagram-specific geometry alone.
-
-#### Sprite bounds / transform / gradient
-
-This cluster is large but less uniform. It should be treated as several related sprite-rendering subproblems inside the same stack, not as one single constant mismatch.
-
-#### State / SCXML
-
-The remaining SCXML/state cases are now concentrated in repeated positive height drift. That suggests the remaining gap is cluster-height or viewport budgeting, not parser coverage.
-
-### 12.3 Deferred Tail Cases
-
-The following cases are still important, but they are currently lower leverage than the shared clusters above:
-
-- `component/deployment01`: deployment clipping / group-edge path mismatch
-- `sequence/seq_divider001`: stable Java emits an error-SVG path that differs sharply from the normal sequence renderer
-- `sequence/seq_nested001`: near-zero coordinate drift (`147.9058` vs `147.9057`)
-
-These should remain behind the shared-cluster queue unless one of them exposes a reusable lower-level bug.
+1. implement `PROJECT`
+2. implement `JCCKIT`
+3. implement `FLOW`
+4. repair reference coverage so `DITAA`, `CHRONOLOGY`, `GIT`, `BOARD`, `CHART`, `PACKET`, `PIE`, and the `seq_divider001` sequence case are actually byte-compared by the harness

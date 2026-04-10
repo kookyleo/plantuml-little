@@ -33,24 +33,24 @@ pub fn convert(puml_source: &str) -> Result<String> {
     } else {
         preproc::preprocess(puml_source)?
     };
-    render_expanded(puml_source, &expanded)
+    render_expanded(puml_source, &expanded, None)
 }
 
 /// Convert PlantUML text to SVG using an explicit base directory for relative
 /// preprocessor includes.
 pub fn convert_with_base_dir(puml_source: &str, base_dir: &Path) -> Result<String> {
     let expanded = preproc::preprocess_with_base_dir(puml_source, base_dir)?;
-    render_expanded(puml_source, &expanded)
+    render_expanded(puml_source, &expanded, None)
 }
 
 /// Convert PlantUML text to SVG using the original input file path.
 /// This preserves filename/dirpath preprocessor context.
 pub fn convert_with_input_path(puml_source: &str, input_path: &Path) -> Result<String> {
     let expanded = preproc::preprocess_with_source_path(puml_source, input_path)?;
-    render_expanded(puml_source, &expanded)
+    render_expanded(puml_source, &expanded, Some(input_path))
 }
 
-fn render_expanded(original_source: &str, expanded: &str) -> Result<String> {
+fn render_expanded(original_source: &str, expanded: &str, input_path: Option<&Path>) -> Result<String> {
     // Java emits one SVG per @startuml block. When the source has multiple
     // standard @startuml/@enduml blocks (no @startwbs/@startsalt mixed in),
     // detect them and render each separately, concatenating the SVGs.
@@ -59,12 +59,12 @@ fn render_expanded(original_source: &str, expanded: &str) -> Result<String> {
     if blocks.len() > 1 && blocks.len() == expanded_blocks.len() {
         let mut combined = String::new();
         for (orig_blk, exp_blk) in blocks.iter().zip(expanded_blocks.iter()) {
-            let svg = render_one_block(orig_blk, exp_blk)?;
+            let svg = render_one_block(orig_blk, exp_blk, input_path)?;
             combined.push_str(&svg);
         }
         return Ok(combined);
     }
-    render_one_block(original_source, expanded)
+    render_one_block(original_source, expanded, input_path)
 }
 
 /// Split source into @startuml/@enduml blocks. Returns single-element vector
@@ -106,10 +106,10 @@ fn split_uml_only_blocks(source: &str) -> Vec<String> {
 /// unrecognised syntax and produce the "Welcome to PlantUML" error page.
 /// This function replicates that behaviour.
 pub(crate) fn convert_no_preproc(puml_source: &str) -> Result<String> {
-    render_expanded(puml_source, puml_source)
+    render_expanded(puml_source, puml_source, None)
 }
 
-fn render_one_block(original_source: &str, expanded: &str) -> Result<String> {
+fn render_one_block(original_source: &str, expanded: &str, input_path: Option<&Path>) -> Result<String> {
     // Extract SVG sprite definitions before parsing (sprite lines would confuse parsers)
     let (cleaned, sprites, gray_data) = parser::common::extract_sprites(expanded);
     render::svg_richtext::set_sprites(sprites);
@@ -122,10 +122,15 @@ fn render_one_block(original_source: &str, expanded: &str) -> Result<String> {
         }
     }
     let _guard = SpriteGuard;
-    render_cleaned(original_source, &cleaned, expanded)
+    render_cleaned(original_source, &cleaned, expanded, input_path)
 }
 
-fn render_cleaned(original_source: &str, source: &str, meta_source: &str) -> Result<String> {
+fn render_cleaned(
+    original_source: &str,
+    source: &str,
+    meta_source: &str,
+    input_path: Option<&Path>,
+) -> Result<String> {
     // Set the source-seeded SVG id early, before layout, because layout may
     // trigger richtext rendering that registers back-highlight filter ids.
     klimt::svg::set_svg_id_seed_override(Some(klimt::svg::java_source_seed(original_source)));
@@ -137,7 +142,18 @@ fn render_cleaned(original_source: &str, source: &str, meta_source: &str) -> Res
     }
     let _early_seed = EarlySeedGuard;
 
-    let diagram = parser::parse_with_original(source, Some(original_source))?;
+    let diagram = match parser::parse_with_original(source, Some(original_source)) {
+        Ok(diagram) => diagram,
+        Err(crate::Error::JavaErrorPage { line, message }) => {
+            return crate::render::error_page::render_compact_error_svg(
+                meta_source,
+                input_path,
+                line,
+                &message,
+            )
+        }
+        Err(err) => return Err(err),
+    };
     let skin = style::parse_skinparams(source);
     let diagram_layout = layout::layout(&diagram, &skin)?;
     let mut meta = parser::common::parse_meta_with_original(meta_source, Some(original_source));

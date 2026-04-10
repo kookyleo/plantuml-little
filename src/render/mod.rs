@@ -1,4 +1,5 @@
 pub mod embedded;
+pub mod error_page;
 pub mod svg;
 pub mod svg_activity;
 pub mod svg_board;

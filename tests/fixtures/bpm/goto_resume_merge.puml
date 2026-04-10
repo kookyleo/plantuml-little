@@ -1,0 +1,9 @@
+@startbpm
+:Task A;
+join1:<+>
+:Task B;
+goto join1
+:Task C;
+resume join1
+:Task D;
+@endbpm

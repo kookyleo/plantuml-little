@@ -25,6 +25,26 @@ fn extract_chronology_block(source: &str) -> Option<String> {
 }
 
 pub fn parse_chronology_diagram(source: &str) -> Result<ChronologyDiagram> {
+    let mut inside = false;
+    for (idx, line) in source.lines().enumerate() {
+        let t = line.trim();
+        if t.starts_with("@startchronology") {
+            inside = true;
+            continue;
+        }
+        if inside {
+            if t.starts_with("@endchronology") {
+                break;
+            }
+            if !t.is_empty() && !t.starts_with('\'') {
+                return Err(crate::Error::JavaErrorPage {
+                    line: idx + 1,
+                    message: "Syntax Error? (Assumed diagram type: chronology)".into(),
+                });
+            }
+        }
+    }
+
     let block = extract_chronology_block(source).unwrap_or_else(|| source.to_string());
     debug!("parse_chronology_diagram: {} bytes", block.len());
 
@@ -54,11 +74,15 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_parse_basic_chronology() {
+    fn test_chronology_fixture_syntax_errors_like_java_stable() {
         let src = "@startchronology\n[2020-01-01] Task A\n[2020-06-01] Task B\n@endchronology";
-        let d = parse_chronology_diagram(src).unwrap();
-        assert_eq!(d.events.len(), 2);
-        assert_eq!(d.events[0].date, "2020-01-01");
-        assert_eq!(d.events[0].label, "Task A");
+        let err = parse_chronology_diagram(src).unwrap_err();
+        match err {
+            crate::Error::JavaErrorPage { line, message } => {
+                assert_eq!(line, 2);
+                assert_eq!(message, "Syntax Error? (Assumed diagram type: chronology)");
+            }
+            other => panic!("unexpected error: {other:?}"),
+        }
     }
 }

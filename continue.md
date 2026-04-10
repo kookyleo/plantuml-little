@@ -12,13 +12,17 @@
 - Reference SVGs were regenerated from the stable Java checkout in file mode.
 - `tests/reference/VERSION` records the exact jar, Git SHA, Java version, Graphviz version, and generation time.
 - `tests/reference/INDEX.tsv` is the source of truth for fixture-to-reference mapping.
-- `tests/reference_tests.rs` is regenerated and now covers all 322 fixtures; 318 fixtures have a stable Java SVG to byte-compare against.
+- `tests/reference_tests.rs` currently contains 328 reference tests for 330 fixtures.
+- Two fixtures are intentionally ignored in the active suite:
+  - `sprite/svg2GroupsWithStyle` (Java stable NPE)
+  - `ditaa/basic` (Java stable emits PNG bytes, not SVG)
 
 ## Known Stable-Java Coverage Gaps
 
-The following fixtures currently produce no SVG with official PlantUML `v1.2026.2`, so they are not part of the byte-compare corpus:
+The following fixtures currently have no direct stable-Java SVG authority under the current contract:
 
 - `tests/fixtures/chart/pie_basic.puml`
+- `tests/fixtures/ditaa/basic.puml` (Java emits PNG bytes instead of SVG)
 - `tests/fixtures/packet/basic.puml`
 - `tests/fixtures/packet/tcp.puml`
 - `tests/fixtures/pie/basic.puml`
@@ -26,6 +30,49 @@ The following fixtures currently produce no SVG with official PlantUML `v1.2026.
 ## Development Rule
 
 Any future Java/Rust parity work must target the stable `v1.2026.2` reference corpus now checked into `tests/reference/`.
+
+## 2026-04-10 Error-Page Parity + Real-Coverage Pass
+
+- Fixed the reference harness to actually consult `tests/reference/INDEX.tsv`, so previously fake-green families are now truly byte-compared.
+- Regenerated the 7 missing stable-Java reference files that were already listed in `INDEX.tsv` but absent on disk:
+  - `board/basic.svg`
+  - `chart/bar_basic.svg`
+  - `chart/single_series.svg`
+  - `chronology/basic.svg`
+  - `git/basic.svg`
+  - `git/branches.svg`
+  - `sequence/seq_divider001.svg`
+- Added compact Java-style error-page rendering for the current stable-authority cases where Java intentionally produces syntax/crash SVGs instead of diagrams:
+  - `board/basic`
+  - `chart/bar_basic`
+  - `chart/single_series`
+  - `chronology/basic`
+  - `git/basic`
+  - `git/branches`
+  - `sequence/seq_divider001`
+- Current verified baseline:
+  - `cargo test --lib` -> `2679/2679`
+  - `cargo test --test reference_tests` -> `326 passed / 0 failed / 2 ignored`
+- Remaining ignored cases:
+  - `sprite/svg2GroupsWithStyle`: Java stable NPE
+  - `ditaa/basic`: Java stable emits raw PNG bytes under `--svg`, which is incompatible with the SVG-only `String` API
+
+## 2026-04-10 BPM Parity Audit
+
+- Stable Java BPM is implemented in PlantUML `v1.2026.2`, but it is a small 7-command DSL rather than full BPMN.
+- Rust already had BPM model/layout/render support; the missing parser surface was `ID:<+>` / `ID<+>`, `goto ID`, and `resume ID`.
+- Added stable-Java BPM parity fixtures:
+  - `tests/fixtures/bpm/simple.puml`
+  - `tests/fixtures/bpm/goto_resume_merge.puml`
+  - `tests/fixtures/bpm/merge_without_colon.puml`
+- Added matching stable-Java references:
+  - `tests/reference/bpm/simple.svg`
+  - `tests/reference/bpm/goto_resume_merge.svg`
+  - `tests/reference/bpm/merge_without_colon.svg`
+- Refreshed `tests/reference/bpm/basic.svg` from the stable authority because the checked-in file had drifted from current `v1.2026.2` output.
+- Verification after the BPM parity pass:
+  - `cargo test --lib` -> `2679/2679`
+  - `cargo test --test reference_tests reference_fixtures_bpm_ -- --nocapture` -> `4/4`
 
 ## Current Parity Baseline (2026-04-08)
 

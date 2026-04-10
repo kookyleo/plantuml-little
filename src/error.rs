@@ -8,6 +8,10 @@ pub enum Error {
         column: Option<usize>,
         message: String,
     },
+    JavaErrorPage {
+        line: usize,
+        message: String,
+    },
     UnsupportedDiagram(String),
     Render(String),
     Layout(String),
@@ -27,6 +31,9 @@ impl fmt::Display for Error {
                 column: None,
                 message,
             } => write!(f, "Parse error at line {line}: {message}"),
+            Error::JavaErrorPage { line, message } => {
+                write!(f, "Java-style error page at line {line}: {message}")
+            }
             Error::UnsupportedDiagram(s) => write!(f, "Unsupported diagram type: {s}"),
             Error::Render(s) => write!(f, "Render error: {s}"),
             Error::Layout(s) => write!(f, "Layout error: {s}"),

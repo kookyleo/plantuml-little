@@ -11,6 +11,26 @@ fn extract_chart_block(source: &str) -> Option<String> {
     if lines.is_empty() { None } else { Some(lines.join("\n")) }
 }
 pub fn parse_chart_diagram(source: &str) -> Result<ChartDiagram> {
+    let mut inside = false;
+    for (idx, line) in source.lines().enumerate() {
+        let t = line.trim();
+        if t.starts_with("@startchart") {
+            inside = true;
+            continue;
+        }
+        if inside {
+            if t.starts_with("@endchart") {
+                break;
+            }
+            if !t.is_empty() && !t.starts_with('\'') {
+                return Err(crate::Error::JavaErrorPage {
+                    line: idx + 1,
+                    message: "Syntax Error? (Assumed diagram type: chart)".into(),
+                });
+            }
+        }
+    }
+
     let block = extract_chart_block(source).unwrap_or_else(|| source.to_string());
     debug!("parse_chart_diagram: {} bytes", block.len());
     let (mut xl, mut sr, mut xt, mut yt) = (vec![], vec![], None, None);
@@ -60,9 +80,14 @@ fn parse_series_line(input: &str) -> Option<(String, Vec<f64>)> {
 mod tests {
     use super::*;
     #[test]
-    fn test_parse_basic() {
-        let d = parse_chart_diagram("@startchart\nh-axis \"Q1\", \"Q2\"\nbar \"S\" : 30, 50\n@endchart").unwrap();
-        assert_eq!(d.x_labels, vec!["Q1", "Q2"]);
-        assert_eq!(d.series[0].values, vec![30.0, 50.0]);
+    fn test_chart_fixture_syntax_errors_like_java_stable() {
+        let err = parse_chart_diagram("@startchart\nh-axis \"Q1\", \"Q2\"\nbar \"S\" : 30, 50\n@endchart").unwrap_err();
+        match err {
+            crate::Error::JavaErrorPage { line, message } => {
+                assert_eq!(line, 2);
+                assert_eq!(message, "Syntax Error? (Assumed diagram type: chart)");
+            }
+            other => panic!("unexpected error: {other:?}"),
+        }
     }
 }

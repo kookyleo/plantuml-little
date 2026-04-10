@@ -1,7 +1,7 @@
 use std::fmt::Write;
 
 use crate::font_metrics;
-use crate::klimt::svg::{LengthAdjust, SvgGraphic};
+use crate::klimt::svg::{fmt_coord, LengthAdjust, SvgGraphic};
 use crate::layout::bpm::{BpmCellLayout, BpmLayout};
 use crate::model::bpm::{BpmDiagram, BpmElementType, Where};
 use crate::render::svg::{ensure_visible_int, write_svg_root_bg};
@@ -59,10 +59,10 @@ pub fn render_bpm(_d: &BpmDiagram, l: &BpmLayout, skin: &SkinParams) -> Result<S
             buf,
             r#"<line style="stroke:{};stroke-width:1;" x1="{}" x2="{}" y1="{}" y2="{}"/>"#,
             GRID_COLOR,
-            format_coord(gl.x1 + MARGIN),
-            format_coord(gl.x2 + MARGIN),
-            format_coord(gl.y1 + MARGIN),
-            format_coord(gl.y2 + MARGIN),
+            fmt_coord(gl.x1 + MARGIN),
+            fmt_coord(gl.x2 + MARGIN),
+            fmt_coord(gl.y1 + MARGIN),
+            fmt_coord(gl.y2 + MARGIN),
         )
         .unwrap();
     }
@@ -108,11 +108,11 @@ fn render_element(buf: &mut String, cell: &BpmCellLayout) {
             write!(
                 buf,
                 r#"<ellipse cx="{}" cy="{}" fill="{}" rx="{}" ry="{}" style="stroke:{};stroke-width:{};"/>"#,
-                format_coord(cx),
-                format_coord(cy),
+                fmt_coord(cx),
+                fmt_coord(cy),
                 START_FILL,
-                format_coord(START_RADIUS),
-                format_coord(START_RADIUS),
+                fmt_coord(START_RADIUS),
+                fmt_coord(START_RADIUS),
                 START_STROKE,
                 START_STROKE_WIDTH,
             )
@@ -128,11 +128,11 @@ fn render_element(buf: &mut String, cell: &BpmCellLayout) {
                 buf,
                 r#"<polygon fill="{}" points="{},{},{},{},{},{},{},{},{},{}" style="stroke:{};stroke-width:{};"/>"#,
                 DIAMOND_FILL,
-                format_coord(top.0), format_coord(top.1),
-                format_coord(right.0), format_coord(right.1),
-                format_coord(bottom.0), format_coord(bottom.1),
-                format_coord(left.0), format_coord(left.1),
-                format_coord(top.0), format_coord(top.1),
+                fmt_coord(top.0), fmt_coord(top.1),
+                fmt_coord(right.0), fmt_coord(right.1),
+                fmt_coord(bottom.0), fmt_coord(bottom.1),
+                fmt_coord(left.0), fmt_coord(left.1),
+                fmt_coord(top.0), fmt_coord(top.1),
                 DIAMOND_STROKE,
                 DIAMOND_STROKE_WIDTH,
             )
@@ -144,14 +144,14 @@ fn render_element(buf: &mut String, cell: &BpmCellLayout) {
                 buf,
                 r#"<rect fill="{}" height="{}" rx="{}" ry="{}" style="stroke:{};stroke-width:{};" width="{}" x="{}" y="{}"/>"#,
                 BOX_FILL,
-                format_coord(cell.height),
-                format_coord(BOX_CORNER_RADIUS),
-                format_coord(BOX_CORNER_RADIUS),
+                fmt_coord(cell.height),
+                fmt_coord(BOX_CORNER_RADIUS),
+                fmt_coord(BOX_CORNER_RADIUS),
                 BOX_STROKE,
                 BOX_STROKE_WIDTH,
-                format_coord(cell.width),
-                format_coord(cell.x),
-                format_coord(cell.y),
+                fmt_coord(cell.width),
+                fmt_coord(cell.x),
+                fmt_coord(cell.y),
             )
             .unwrap();
 
@@ -188,11 +188,11 @@ fn render_element(buf: &mut String, cell: &BpmCellLayout) {
             write!(
                 buf,
                 r#"<ellipse cx="{}" cy="{}" fill="{}" rx="{}" ry="{}" style="stroke:{};stroke-width:{};"/>"#,
-                format_coord(cx),
-                format_coord(cy),
+                fmt_coord(cx),
+                fmt_coord(cy),
                 START_FILL,
-                format_coord(START_RADIUS),
-                format_coord(START_RADIUS),
+                fmt_coord(START_RADIUS),
+                fmt_coord(START_RADIUS),
                 START_STROKE,
                 START_STROKE_WIDTH * 3.0,
             )
@@ -214,7 +214,11 @@ fn render_connector_puzzle(buf: &mut String, conn: &crate::layout::bpm::BpmConne
     let ox = conn.x + MARGIN; // puzzle origin x
     let oy = conn.y + MARGIN; // puzzle origin y
 
-    for dir in &conn.directions {
+    let nesw_order = [Where::North, Where::East, Where::South, Where::West];
+    for dir in &nesw_order {
+        if !conn.directions.contains(dir) {
+            continue;
+        }
         let (x1, y1, x2, y2) = match dir {
             Where::West => (ox, oy + 10.0, ox + 10.0, oy + 10.0),
             Where::East => (ox + 10.0, oy + 10.0, ox + 20.0, oy + 10.0),
@@ -225,10 +229,10 @@ fn render_connector_puzzle(buf: &mut String, conn: &crate::layout::bpm::BpmConne
             buf,
             r#"<line style="stroke:{};stroke-width:1;" x1="{}" x2="{}" y1="{}" y2="{}"/>"#,
             CONNECTOR_BLUE,
-            format_coord(x1),
-            format_coord(x2),
-            format_coord(y1),
-            format_coord(y2),
+            fmt_coord(x1),
+            fmt_coord(x2),
+            fmt_coord(y1),
+            fmt_coord(y2),
         )
         .unwrap();
     }
@@ -255,22 +259,10 @@ fn draw_connector_line(
         buf,
         r#"<line style="stroke:{};stroke-width:1;" x1="{}" x2="{}" y1="{}" y2="{}"/>"#,
         color,
-        format_coord(x1),
-        format_coord(x2),
-        format_coord(y1),
-        format_coord(y2),
+        fmt_coord(x1),
+        fmt_coord(x2),
+        fmt_coord(y1),
+        fmt_coord(y2),
     )
     .unwrap();
-}
-
-fn format_coord(v: f64) -> String {
-    // Match Java's decimal format: remove trailing zeros after decimal point
-    if v.fract().abs() < 1e-10 {
-        format!("{}", v as i64)
-    } else {
-        let s = format!("{:.4}", v);
-        let s = s.trim_end_matches('0');
-        let s = s.trim_end_matches('.');
-        s.to_string()
-    }
 }

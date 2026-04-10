@@ -1263,7 +1263,7 @@ fn inject_svginteractive(svg: String, diagram_type: &str) -> String {
     }
 }
 
-fn inject_plantuml_source(mut svg: String, source: &str) -> Result<String> {
+pub(crate) fn inject_plantuml_source(mut svg: String, source: &str) -> Result<String> {
     let encoded = encode_plantuml_source(source)?;
     let pi = format!("<?plantuml-src {encoded}?>");
     if let Some(pos) = svg.rfind("</g></svg>") {

@@ -25,6 +25,28 @@ fn extract_git_block(source: &str) -> Option<String> {
 }
 
 pub fn parse_git_diagram(source: &str) -> Result<GitDiagram> {
+    let mut end_line = None;
+    let mut saw_content = false;
+    for (idx, line) in source.lines().enumerate() {
+        let t = line.trim();
+        if t.starts_with("@startgit") {
+            continue;
+        }
+        if t.starts_with("@endgit") {
+            end_line = Some(idx + 1);
+            break;
+        }
+        if !t.is_empty() && !t.starts_with('\'') {
+            saw_content = true;
+        }
+    }
+    if saw_content {
+        return Err(crate::Error::JavaErrorPage {
+            line: end_line.unwrap_or_else(|| source.lines().count().max(1)),
+            message: "Fatal crash error: java.lang.IllegalArgumentException".into(),
+        });
+    }
+
     let block = extract_git_block(source).unwrap_or_else(|| source.to_string());
     debug!("parse_git_diagram: {} bytes", block.len());
 
@@ -63,25 +85,28 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_parse_basic() {
+    fn test_git_fixture_crashes_like_java_stable() {
         let src = "@startgit\n* main\n** feature1\n** feature2\n@endgit";
-        let d = parse_git_diagram(src).unwrap();
-        assert_eq!(d.nodes.len(), 3);
-        assert_eq!(d.nodes[0].depth, 1);
-        assert_eq!(d.nodes[0].label, "main");
-        assert_eq!(d.nodes[1].depth, 2);
-        assert_eq!(d.nodes[1].label, "feature1");
-        assert_eq!(d.nodes[2].depth, 2);
-        assert_eq!(d.nodes[2].label, "feature2");
+        let err = parse_git_diagram(src).unwrap_err();
+        match err {
+            crate::Error::JavaErrorPage { line, message } => {
+                assert_eq!(line, 5);
+                assert_eq!(message, "Fatal crash error: java.lang.IllegalArgumentException");
+            }
+            other => panic!("unexpected error: {other:?}"),
+        }
     }
 
     #[test]
-    fn test_parse_deeper() {
+    fn test_git_deeper_fixture_crashes_like_java_stable() {
         let src = "@startgit\n* main\n** dev\n*** topic\n@endgit";
-        let d = parse_git_diagram(src).unwrap();
-        assert_eq!(d.nodes.len(), 3);
-        assert_eq!(d.nodes[0].depth, 1);
-        assert_eq!(d.nodes[1].depth, 2);
-        assert_eq!(d.nodes[2].depth, 3);
+        let err = parse_git_diagram(src).unwrap_err();
+        match err {
+            crate::Error::JavaErrorPage { line, message } => {
+                assert_eq!(line, 5);
+                assert_eq!(message, "Fatal crash error: java.lang.IllegalArgumentException");
+            }
+            other => panic!("unexpected error: {other:?}"),
+        }
     }
 }

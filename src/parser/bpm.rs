@@ -1,4 +1,7 @@
+use std::sync::OnceLock;
+
 use log::debug;
+use regex::Regex;
 
 use crate::model::bpm::{BpmDiagram, BpmElement, BpmElementType, BpmEvent};
 use crate::Result;
@@ -7,6 +10,9 @@ use crate::Result;
 ///
 /// Java BPM syntax (from CommandDockedEvent, CommandNewBranch, etc.):
 ///   `:Label;`     — docked event (task)
+///   `ID:<+>`      — merge point (colon optional in Java)
+///   `goto ID`     — jump to merge point
+///   `resume ID`   — continue from merge point on a new row
 ///   `new branch`  — start a new branch
 ///   `else`        — else branch
 ///   `end branch`  — end branch
@@ -34,6 +40,30 @@ pub fn parse_bpm_diagram(source: &str) -> Result<BpmDiagram> {
                 connectors: Vec::new(),
             };
             events.push(BpmEvent::Add(element));
+            continue;
+        }
+
+        // Merge point: ID:<+> or ID<+>
+        if let Some(id) = parse_merge_id(t) {
+            let element = BpmElement {
+                id: Some(id),
+                element_type: BpmElementType::Merge,
+                label: None,
+                connectors: Vec::new(),
+            };
+            events.push(BpmEvent::Add(element));
+            continue;
+        }
+
+        // goto ID
+        if let Some(id) = parse_keyword_id(t, "goto") {
+            events.push(BpmEvent::Goto(id));
+            continue;
+        }
+
+        // resume ID
+        if let Some(id) = parse_keyword_id(t, "resume") {
+            events.push(BpmEvent::Resume(id));
             continue;
         }
 
@@ -85,6 +115,36 @@ pub fn parse_bpm_diagram(source: &str) -> Result<BpmDiagram> {
     }
 
     Ok(BpmDiagram { events })
+}
+
+fn parse_keyword_id(line: &str, keyword: &str) -> Option<String> {
+    let mut parts = line.split_whitespace();
+    if parts.next()? != keyword {
+        return None;
+    }
+    let id = parts.next()?;
+    if parts.next().is_some() || !is_valid_bpm_id(id) {
+        return None;
+    }
+    Some(id.to_string())
+}
+
+fn parse_merge_id(line: &str) -> Option<String> {
+    static MERGE_RE: OnceLock<Regex> = OnceLock::new();
+    let re = MERGE_RE.get_or_init(|| {
+        Regex::new(r"^([\p{L}\p{N}_.@]+):?<\+>$").expect("valid BPM merge regex")
+    });
+    re.captures(line)
+        .and_then(|caps| caps.get(1))
+        .map(|m| m.as_str().to_string())
+}
+
+fn is_valid_bpm_id(id: &str) -> bool {
+    static ID_RE: OnceLock<Regex> = OnceLock::new();
+    let re = ID_RE.get_or_init(|| {
+        Regex::new(r"^[\p{L}\p{N}_.@]+$").expect("valid BPM id regex")
+    });
+    re.is_match(id)
 }
 
 /// Helper for branch ID generation, mirroring Java BpmBranch.
@@ -152,5 +212,38 @@ mod tests {
             }
             _ => panic!("expected Add event"),
         }
+    }
+
+    #[test]
+    fn test_parse_merge_goto_resume() {
+        let src = "@startbpm\njoin1:<+>\n:Task B;\ngoto join1\n:Task C;\nresume join1\n:Task D;\n@endbpm";
+        let d = parse_bpm_diagram(src).unwrap();
+        assert_eq!(d.events.len(), 6);
+        match &d.events[0] {
+            BpmEvent::Add(e) => {
+                assert_eq!(e.element_type, BpmElementType::Merge);
+                assert_eq!(e.id.as_deref(), Some("join1"));
+            }
+            _ => panic!("expected merge Add event"),
+        }
+        assert!(matches!(&d.events[2], BpmEvent::Goto(id) if id == "join1"));
+        assert!(matches!(&d.events[4], BpmEvent::Resume(id) if id == "join1"));
+    }
+
+    #[test]
+    fn test_parse_merge_without_colon_and_extended_id_chars() {
+        let src =
+            "@startbpm\njoin_1.@x<+>\ngoto join_1.@x\nresume join_1.@x\n@endbpm";
+        let d = parse_bpm_diagram(src).unwrap();
+        assert_eq!(d.events.len(), 3);
+        match &d.events[0] {
+            BpmEvent::Add(e) => {
+                assert_eq!(e.element_type, BpmElementType::Merge);
+                assert_eq!(e.id.as_deref(), Some("join_1.@x"));
+            }
+            _ => panic!("expected merge Add event"),
+        }
+        assert!(matches!(&d.events[1], BpmEvent::Goto(id) if id == "join_1.@x"));
+        assert!(matches!(&d.events[2], BpmEvent::Resume(id) if id == "join_1.@x"));
     }
 }

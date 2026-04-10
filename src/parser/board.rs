@@ -25,6 +25,28 @@ fn extract_board_block(source: &str) -> Option<String> {
 }
 
 pub fn parse_board_diagram(source: &str) -> Result<BoardDiagram> {
+    let has_outer_uml = source.lines().any(|line| line.trim().starts_with("@startuml"));
+    if has_outer_uml {
+        let mut inside_board = false;
+        for (idx, line) in source.lines().enumerate() {
+            let t = line.trim();
+            if t.starts_with("@startboard") {
+                inside_board = true;
+                continue;
+            }
+            if inside_board && !t.is_empty() && !t.starts_with('\'') {
+                let message = format!(
+                    "You should send a mail to plantuml@gmail.com or post to https://plantuml.com/qa with this log (V{ver}) java.lang.IndexOutOfBoundsException: Index -1 out of bounds for length 0 (Assumed diagram type: board)",
+                    ver = crate::render::svg::PLANTUML_VERSION
+                );
+                return Err(crate::Error::JavaErrorPage {
+                    line: idx + 1,
+                    message,
+                });
+            }
+        }
+    }
+
     let block = extract_board_block(source).unwrap_or_else(|| source.to_string());
     debug!("parse_board_diagram: {} bytes", block.len());
 

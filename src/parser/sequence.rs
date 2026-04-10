@@ -92,8 +92,8 @@ pub fn parse_sequence_diagram_with_original(
     let delay_re = Regex::new(r"^\|\|\|$|^\|\|(\d+)\|\|$").unwrap();
     // Delay with text: ...text... or just ...
     let delay_text_re = Regex::new(r"^\.\.\.(.*)?\.\.\.$|^\.\.\.$").unwrap();
-    // Spacing: || N || (with space around number)
-    let spacing_re = Regex::new(r"^\|\|\s*(\d+)\s*\|\|$").unwrap();
+    // Spacing: || N || (with mandatory space around number)
+    let spacing_re = Regex::new(r"^\|\|\s+(\d+)\s+\|\|$").unwrap();
     // Ref over: ref over A, B : label
     let ref_re = Regex::new(r"(?i)^ref\s+over\s+(.+?)\s*:\s*(.+)$").unwrap();
     // Autonumber: autonumber or autonumber N
@@ -241,15 +241,23 @@ pub fn parse_sequence_diagram_with_original(
 
         // Parse spacing: || N || (must check before delay_re since ||| overlaps)
         if let Some(caps) = spacing_re.captures(trimmed) {
-            let pixels: u32 = caps.get(1).unwrap().as_str().parse().unwrap_or(20);
-            debug!("parsed spacing: {pixels} px");
-            events.push(SeqEvent::Spacing { pixels });
-            continue;
+            return Err(crate::Error::JavaErrorPage {
+                line: source_line + 1,
+                message: "Syntax Error? (Assumed diagram type: sequence)".into(),
+            });
         }
 
         // Parse delay: ||| or ||N|| (legacy, N treated as spacing)
         if let Some(caps) = delay_re.captures(trimmed) {
             let text = caps.get(1).map(|m| m.as_str().to_string());
+            if let Some(digits) = text.as_deref() {
+                if digits.chars().all(|c| c.is_ascii_digit()) {
+                    let pixels = digits.parse().unwrap_or(20);
+                    debug!("parsed legacy spacing: {pixels} px");
+                    events.push(SeqEvent::Spacing { pixels });
+                    continue;
+                }
+            }
             debug!("parsed delay: {text:?}");
             events.push(SeqEvent::Delay { text });
             continue;
@@ -1943,10 +1951,14 @@ Sally --> Bob
     #[test]
     fn parse_spacing() {
         let src = "@startuml\n|| 50 ||\n@enduml";
-        let diagram = parse_sequence_diagram(src).unwrap();
-
-        assert_eq!(diagram.events.len(), 1);
-        assert!(matches!(&diagram.events[0], SeqEvent::Spacing { pixels } if *pixels == 50));
+        let err = parse_sequence_diagram(src).unwrap_err();
+        match err {
+            crate::Error::JavaErrorPage { line, message } => {
+                assert_eq!(line, 2);
+                assert_eq!(message, "Syntax Error? (Assumed diagram type: sequence)");
+            }
+            other => panic!("unexpected error: {other:?}"),
+        }
     }
 
     /// 32. Parse autonumber
