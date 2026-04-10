@@ -267,7 +267,7 @@ mod style_port_tests {
     fn string_trie_put_and_get() {
         // Mirrors: put_skeleton / get_skeleton
         // Rust analog: SkinParams stores keys in lowercase.
-        use plantuml_little::style::ISkinParam; // bring trait into scope only if needed
+        // bring trait into scope only if needed
         use std::collections::HashMap;
 
         // Direct analogy: a HashMap<String, String> lowercasing on insert.
@@ -1329,7 +1329,7 @@ mod style_port_tests {
         // Rust idiomatic: .chain()
         let first = vec!["a", "b"];
         let second = vec!["c"];
-        let mut it = first.into_iter().chain(second.into_iter());
+        let mut it = first.into_iter().chain(second);
         assert_eq!(it.next(), Some("a"));
         assert_eq!(it.next(), Some("b"));
         assert_eq!(it.next(), Some("c"));
@@ -1341,7 +1341,7 @@ mod style_port_tests {
         // Mirrors: next_skeleton integers
         let first = vec![1i32, 2];
         let second = vec![3i32, 4];
-        let collected: Vec<i32> = first.into_iter().chain(second.into_iter()).collect();
+        let collected: Vec<i32> = first.into_iter().chain(second).collect();
         assert_eq!(collected, vec![1, 2, 3, 4]);
     }
 
@@ -1350,7 +1350,7 @@ mod style_port_tests {
         // Mirrors: next_throws_when_exhausted
         let empty1: Vec<&str> = vec![];
         let empty2: Vec<&str> = vec![];
-        let mut it = empty1.into_iter().chain(empty2.into_iter());
+        let mut it = empty1.into_iter().chain(empty2);
         assert_eq!(it.next(), None);
     }
 

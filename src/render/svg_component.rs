@@ -151,8 +151,10 @@ impl<'a> NodeColorTable<'a> {
             ComponentKind::Database => (self.db_bg, self.db_border),
             ComponentKind::Cloud => (self.cloud_bg, self.cloud_border),
             ComponentKind::Node => (self.node_bg, self.node_border),
-            ComponentKind::Rectangle | ComponentKind::Package | ComponentKind::Card
-                | ComponentKind::Archimate => (self.rect_bg, self.rect_border),
+            ComponentKind::Rectangle
+            | ComponentKind::Package
+            | ComponentKind::Card
+            | ComponentKind::Archimate => (self.rect_bg, self.rect_border),
             ComponentKind::Artifact => (self.artifact_bg, self.artifact_border),
             ComponentKind::Storage => (self.storage_bg, self.storage_border),
             ComponentKind::Folder => (self.folder_bg, self.folder_border),
@@ -217,7 +219,10 @@ pub fn render_component(
         all_items.push((ent.source_line.unwrap_or(usize::MAX), EntItem::Entity(ent)));
     }
     for group in &cd.groups {
-        all_items.push((group.source_line.unwrap_or(usize::MAX), EntItem::Group(group)));
+        all_items.push((
+            group.source_line.unwrap_or(usize::MAX),
+            EntItem::Group(group),
+        ));
     }
     for (i, note) in layout.notes.iter().enumerate() {
         all_items.push((note.source_line.unwrap_or(usize::MAX), EntItem::Note(i)));
@@ -243,7 +248,7 @@ pub fn render_component(
                 // Skip 1 phantom ID for target ident resolution
                 ent_counter += 1;
                 // Block notes skip 1 more phantom ID for end-note processing
-                let is_block = cd.notes.get(*idx).map_or(false, |n| n.is_block);
+                let is_block = cd.notes.get(*idx).is_some_and(|n| n.is_block);
                 if is_block {
                     ent_counter += 1;
                 }
@@ -305,8 +310,7 @@ pub fn render_component(
         let qualified_name = group.code.as_str();
         // Stereotype-keyed skinparams (C4 stdlib: rectangle<<system_boundary>>,
         // etc.) take precedence over the generic `package` element lookups.
-        let stereo_refs: Vec<&str> =
-            group.stereotypes.iter().map(String::as_str).collect();
+        let stereo_refs: Vec<&str> = group.stereotypes.iter().map(String::as_str).collect();
         let eff_bg = skin.background_color_for("rectangle", &stereo_refs, group_bg);
         let eff_border = skin.border_color_for("rectangle", &stereo_refs, group_border);
         let eff_font = skin.font_color_for("rectangle", &stereo_refs, group_font);
@@ -348,7 +352,10 @@ pub fn render_component(
             .and_then(|pid| group_source_lines.get(pid))
             .copied()
             .unwrap_or(usize::MAX);
-        let ent_sl = entity_source_lines.get(&node.id).copied().unwrap_or(usize::MAX);
+        let ent_sl = entity_source_lines
+            .get(&node.id)
+            .copied()
+            .unwrap_or(usize::MAX);
         (if has_parent { 0usize } else { 1usize }, group_sl, ent_sl)
     });
 
@@ -360,8 +367,7 @@ pub fn render_component(
             && parent_id
                 .and_then(|parent| group_center_y.get(parent))
                 .is_some_and(|center_y| node.y < *center_y);
-        let stereo_refs: Vec<&str> =
-            node.stereotypes.iter().map(String::as_str).collect();
+        let stereo_refs: Vec<&str> = node.stereotypes.iter().map(String::as_str).collect();
         let element_key = component_kind_skin_element(&node.kind);
         let round_corner = skin.round_corner_for(element_key, &stereo_refs);
         let meta = EntitySvgMeta {
@@ -388,7 +394,8 @@ pub fn render_component(
     // direction UP/LEFT, Java calls Link.getInv() which creates a second Link
     // consuming an extra counter value. We replicate that by bumping by 2 for
     // direction-inverted links and using the second value.
-    let mut path_id_counts: std::collections::HashMap<String, usize> = std::collections::HashMap::new();
+    let mut path_id_counts: std::collections::HashMap<String, usize> =
+        std::collections::HashMap::new();
     let mut link_counter = ent_counter;
     for (ei, edge) in layout.edges.iter().enumerate() {
         let source_line = cd.links.get(ei).and_then(|l| l.source_line);
@@ -446,21 +453,19 @@ fn render_group(
     skin: &SkinParams,
 ) {
     // Map skinparam BorderStyle to SVG stroke-dasharray (Java LinkStyle).
-    let dash_pattern: Option<(f64, f64)> = match border_style
-        .map(str::to_ascii_lowercase)
-        .as_deref()
-    {
-        Some("dashed") => Some((7.0, 7.0)),
-        Some("dotted") => Some((1.0, 3.0)),
-        _ => None,
-    };
+    let dash_pattern: Option<(f64, f64)> =
+        match border_style.map(str::to_ascii_lowercase).as_deref() {
+            Some("dashed") => Some((7.0, 7.0)),
+            Some("dotted") => Some((1.0, 3.0)),
+            _ => None,
+        };
     let x = group.x;
     let y = group.y;
     let w = group.width;
     let h = group.height;
 
     // HTML comment — Java replaces non-ASCII and newlines with '?'
-    let comment_code = group.code.replace('\n', "?").replace(crate::NEWLINE_CHAR, "?");
+    let comment_code = group.code.replace(['\n', crate::NEWLINE_CHAR], "?");
     sg.push_raw(&format!(
         "<!--cluster {}-->",
         svg_comment_escape(&comment_code)
@@ -468,9 +473,7 @@ fn render_group(
 
     // Open semantic <g> with Java-matching attributes.
     // Java uses '.' for newlines in qualified names (from entity code/name).
-    let qn_for_attr = qualified_name
-        .replace('\n', ".")
-        .replace(crate::NEWLINE_CHAR, ".");
+    let qn_for_attr = qualified_name.replace(['\n', crate::NEWLINE_CHAR], ".");
     let mut g_open = format!(
         r#"<g class="cluster" data-qualified-name="{}""#,
         xml_escape(&qn_for_attr)
@@ -485,19 +488,48 @@ fn render_group(
         ComponentKind::Component => {
             // Component cluster: rect with component icon (two small rects)
             let icon_style = DrawStyle::outline(border, 1.0);
-            RectShape { x, y, w, h, rx: 2.5, ry: 2.5 }.draw(sg, &icon_style);
+            RectShape {
+                x,
+                y,
+                w,
+                h,
+                rx: 2.5,
+                ry: 2.5,
+            }
+            .draw(sg, &icon_style);
 
             // Component icon on right side
             let icon_w: f64 = 15.0;
             let icon_h: f64 = 10.0;
             let icon_x = x + w - icon_w - 5.0;
             let icon_y1 = y + 5.0;
-            RectShape { x: icon_x, y: icon_y1, w: icon_w, h: icon_h, rx: 0.0, ry: 0.0 }
-                .draw(sg, &icon_style);
-            RectShape { x: icon_x - 2.0, y: icon_y1 + 2.0, w: 4.0, h: 2.0, rx: 0.0, ry: 0.0 }
-                .draw(sg, &icon_style);
-            RectShape { x: icon_x - 2.0, y: icon_y1 + 6.0, w: 4.0, h: 2.0, rx: 0.0, ry: 0.0 }
-                .draw(sg, &icon_style);
+            RectShape {
+                x: icon_x,
+                y: icon_y1,
+                w: icon_w,
+                h: icon_h,
+                rx: 0.0,
+                ry: 0.0,
+            }
+            .draw(sg, &icon_style);
+            RectShape {
+                x: icon_x - 2.0,
+                y: icon_y1 + 2.0,
+                w: 4.0,
+                h: 2.0,
+                rx: 0.0,
+                ry: 0.0,
+            }
+            .draw(sg, &icon_style);
+            RectShape {
+                x: icon_x - 2.0,
+                y: icon_y1 + 6.0,
+                w: 4.0,
+                h: 2.0,
+                rx: 0.0,
+                ry: 0.0,
+            }
+            .draw(sg, &icon_style);
 
             let tl = text_len(&group.name, 14.0, true);
             let text_x = x + (w - tl) / 2.0;
@@ -521,8 +553,15 @@ fn render_group(
         }
         ComponentKind::Frame => {
             // Frame: rect with rx/ry 2.5, path-based label tab
-            RectShape { x, y, w, h, rx: 2.5, ry: 2.5 }
-                .draw(sg, &DrawStyle::outline(border, 1.0));
+            RectShape {
+                x,
+                y,
+                w,
+                h,
+                rx: 2.5,
+                ry: 2.5,
+            }
+            .draw(sg, &DrawStyle::outline(border, 1.0));
 
             let tl = text_len(&group.name, 14.0, true);
             let tab_w = tl + 10.0;
@@ -574,9 +613,27 @@ fn render_group(
             }
             .draw(sg, &node_style);
 
-            LineShape { x1: p_br.0, y1: p_tl.1, x2: p_trb.0, y2: p_tlb.1 }.draw(sg, &node_style);
-            LineShape { x1: p_tl.0, y1: p_tl.1, x2: p_br.0, y2: p_tl.1 }.draw(sg, &node_style);
-            LineShape { x1: p_br.0, y1: p_tl.1, x2: p_br.0, y2: p_br.1 }.draw(sg, &node_style);
+            LineShape {
+                x1: p_br.0,
+                y1: p_tl.1,
+                x2: p_trb.0,
+                y2: p_tlb.1,
+            }
+            .draw(sg, &node_style);
+            LineShape {
+                x1: p_tl.0,
+                y1: p_tl.1,
+                x2: p_br.0,
+                y2: p_tl.1,
+            }
+            .draw(sg, &node_style);
+            LineShape {
+                x1: p_br.0,
+                y1: p_tl.1,
+                x2: p_br.0,
+                y2: p_br.1,
+            }
+            .draw(sg, &node_style);
 
             let tl = text_len(&group.name, 14.0, true);
             let text_x = x + (w - depth) / 2.0 - tl / 2.0 + 1.0;
@@ -601,14 +658,24 @@ fn render_group(
         _ => {
             // Default package/rectangle/card: simple rect
             let rc = round_corner.unwrap_or(2.5);
-            RectShape { x, y, w, h, rx: rc, ry: rc }
-                .draw(sg, &DrawStyle {
+            RectShape {
+                x,
+                y,
+                w,
+                h,
+                rx: rc,
+                ry: rc,
+            }
+            .draw(
+                sg,
+                &DrawStyle {
                     fill: Some("none".into()),
                     stroke: Some(border.into()),
                     stroke_width: 1.0,
                     dash_array: dash_pattern,
                     delta_shadow: 0.0,
-                });
+                },
+            );
             if dash_pattern.is_some() {
                 sg.set_stroke_width(1.0, None);
             }
@@ -623,14 +690,12 @@ fn render_group(
             let stereo_h = if sprite_h > 0.0 || group.stereotypes.is_empty() {
                 0.0
             } else {
-                let stereo_refs: Vec<&str> =
-                    group.stereotypes.iter().map(|s| s.as_str()).collect();
+                let stereo_refs: Vec<&str> = group.stereotypes.iter().map(|s| s.as_str()).collect();
                 let stereo_fs = skin
                     .stereotype_font_size_for("rectangle", &stereo_refs)
                     .unwrap_or(FONT_SIZE);
                 let line_h =
-                    font_metrics::line_height("SansSerif", stereo_fs, false, true)
-                        .max(10.0); // Java AtomText: if (h < 10) h = 10
+                    font_metrics::line_height("SansSerif", stereo_fs, false, true).max(10.0); // Java AtomText: if (h < 10) h = 10
                 group.stereotypes.len() as f64 * line_h
             };
 
@@ -642,8 +707,13 @@ fn render_group(
                     FONT_SIZE,
                 );
                 let sep_y = y + 2.0 + sprite_h + title_h + 2.0;
-                LineShape { x1: x, y1: sep_y, x2: x + w, y2: sep_y }
-                    .draw(sg, &DrawStyle::outline(border, 1.0));
+                LineShape {
+                    x1: x,
+                    y1: sep_y,
+                    x2: x + w,
+                    y2: sep_y,
+                }
+                .draw(sg, &DrawStyle::outline(border, 1.0));
 
                 let mut name_buf = String::new();
                 crate::render::svg_richtext::render_creole_entity_name(
@@ -720,8 +790,7 @@ fn render_group(
                         }
                     })
                     .collect();
-                let space_w =
-                    font_metrics::char_width(' ', "SansSerif", FONT_SIZE, true, false);
+                let space_w = font_metrics::char_width(' ', "SansSerif", FONT_SIZE, true, false);
                 let untrimmed_widths: Vec<f64> = group_lines
                     .iter()
                     .map(|gl| {
@@ -753,8 +822,7 @@ fn render_group(
                     );
                     let untrimmed_w = untrimmed_widths[li];
                     let text_x = block_x + (max_untrimmed_w - untrimmed_w) / 2.0 + leading_w;
-                    let ascent =
-                        font_metrics::ascent("SansSerif", gl.font_size, gl.bold, false);
+                    let ascent = font_metrics::ascent("SansSerif", gl.font_size, gl.bold, false);
                     let text_y = name_y_start + cumulative_y + ascent;
                     sg.set_fill_color(font_color);
                     sg.svg_text(
@@ -772,17 +840,17 @@ fn render_group(
                         0,
                         None,
                     );
-                    cumulative_y += font_metrics::line_height(
-                        "SansSerif", gl.font_size, gl.bold, false,
-                    );
+                    cumulative_y +=
+                        font_metrics::line_height("SansSerif", gl.font_size, gl.bold, false);
                 }
 
                 // C4 boundary subtitle: derive `[system]` etc. from stereotype.
                 // Java: `$getBoundary` appends `\n<size:12>[$type]</size>`.
                 // If the preprocessor omits this, render it from the stereotype.
-                let boundary_type = group.stereotypes.iter().find_map(|s| {
-                    s.strip_suffix("_boundary")
-                });
+                let boundary_type = group
+                    .stereotypes
+                    .iter()
+                    .find_map(|s| s.strip_suffix("_boundary"));
                 // Only emit the subtitle if the group name doesn't already
                 // contain a `<size:` line (from the preprocessor).
                 let name_has_size = group.name.contains("<size:");
@@ -790,9 +858,8 @@ fn render_group(
                     if !name_has_size {
                         let subtitle = format!("[{btype}]");
                         let sub_size = FONT_SIZE - 2.0; // 12pt
-                        let sub_tl = font_metrics::text_width(
-                            &subtitle, "SansSerif", sub_size, true, false,
-                        );
+                        let sub_tl =
+                            font_metrics::text_width(&subtitle, "SansSerif", sub_size, true, false);
                         let sub_x = x + (w - sub_tl) / 2.0;
                         let sub_y = name_y_start
                             + cumulative_y
@@ -852,14 +919,7 @@ fn render_group_sprite(
 /// Render a sprite as an `<image>` element with inline PNG data URI.
 /// Java PlantUML renders monochrome sprites directly as PNG `<image>` elements
 /// (not wrapped in SVG containers like stdlib SVG sprites).
-fn render_sprite_image(
-    sg: &mut SvgGraphic,
-    svg_content: &str,
-    x: f64,
-    y: f64,
-    w: f64,
-    h: f64,
-) {
+fn render_sprite_image(sg: &mut SvgGraphic, svg_content: &str, x: f64, y: f64, w: f64, h: f64) {
     // Extract the PNG data URI from the sprite SVG.
     // The sprite SVG format: <svg ...><image ... xlink:href="data:image/png;base64,..."/></svg>
     if let Some(href_start) = svg_content.find("xlink:href=\"") {
@@ -963,7 +1023,15 @@ fn render_node(
             render_component_node(sg, node, meta, bg, border, font);
         }
         ComponentKind::Rectangle | ComponentKind::Card => {
-            render_rounded_rect_node(sg, node, meta, bg, border, font, meta.round_corner.unwrap_or(2.5));
+            render_rounded_rect_node(
+                sg,
+                node,
+                meta,
+                bg,
+                border,
+                font,
+                meta.round_corner.unwrap_or(2.5),
+            );
         }
         ComponentKind::Database => {
             render_database_node(sg, node, meta, bg, border, font);
@@ -1013,10 +1081,7 @@ fn render_node(
 /// Emit HTML comment + open `<g class="entity">` with Java-matching attributes.
 fn open_entity_g(sg: &mut SvgGraphic, node: &ComponentNodeLayout, meta: EntitySvgMeta<'_>) {
     if meta.emit_comment {
-        sg.push_raw(&format!(
-            "<!--entity {}-->",
-            svg_comment_escape(&node.code)
-        ));
+        sg.push_raw(&format!("<!--entity {}-->", svg_comment_escape(&node.code)));
     }
     let source_line = node
         .source_line
@@ -1024,8 +1089,7 @@ fn open_entity_g(sg: &mut SvgGraphic, node: &ComponentNodeLayout, meta: EntitySv
     // Java uses '.' for newlines in qualified names (from entity code/name).
     let qn_for_attr = meta
         .qualified_name
-        .replace('\n', ".")
-        .replace(crate::NEWLINE_CHAR, ".");
+        .replace(['\n', crate::NEWLINE_CHAR], ".");
     sg.push_raw(&format!(
         r#"<g class="entity" data-qualified-name="{}"{source_line} id="{ent_id}">"#,
         xml_escape(&qn_for_attr),
@@ -1050,19 +1114,48 @@ fn render_component_node(
     let h = node.height;
 
     let comp_style = DrawStyle::filled(bg, border, 0.5);
-    RectShape { x, y, w, h, rx: 2.5, ry: 2.5 }.draw(sg, &comp_style);
+    RectShape {
+        x,
+        y,
+        w,
+        h,
+        rx: 2.5,
+        ry: 2.5,
+    }
+    .draw(sg, &comp_style);
 
     // Component icon on right side
     let icon_w: f64 = 15.0;
     let icon_h: f64 = 10.0;
     let icon_x = x + w - icon_w - 5.0;
     let icon_y1 = y + 5.0;
-    RectShape { x: icon_x, y: icon_y1, w: icon_w, h: icon_h, rx: 0.0, ry: 0.0 }
-        .draw(sg, &comp_style);
-    RectShape { x: icon_x - 2.0, y: icon_y1 + 2.0, w: 4.0, h: 2.0, rx: 0.0, ry: 0.0 }
-        .draw(sg, &comp_style);
-    RectShape { x: icon_x - 2.0, y: icon_y1 + 6.0, w: 4.0, h: 2.0, rx: 0.0, ry: 0.0 }
-        .draw(sg, &comp_style);
+    RectShape {
+        x: icon_x,
+        y: icon_y1,
+        w: icon_w,
+        h: icon_h,
+        rx: 0.0,
+        ry: 0.0,
+    }
+    .draw(sg, &comp_style);
+    RectShape {
+        x: icon_x - 2.0,
+        y: icon_y1 + 2.0,
+        w: 4.0,
+        h: 2.0,
+        rx: 0.0,
+        ry: 0.0,
+    }
+    .draw(sg, &comp_style);
+    RectShape {
+        x: icon_x - 2.0,
+        y: icon_y1 + 6.0,
+        w: 4.0,
+        h: 2.0,
+        rx: 0.0,
+        ry: 0.0,
+    }
+    .draw(sg, &comp_style);
 
     render_node_text(sg, node, font_color, bg, meta);
     sg.push_raw("</g>");
@@ -1082,7 +1175,12 @@ fn render_rounded_rect_node(
     open_entity_g(sg, node, meta);
 
     RectShape {
-        x: node.x, y: node.y, w: node.width, h: node.height, rx, ry: rx,
+        x: node.x,
+        y: node.y,
+        w: node.width,
+        h: node.height,
+        rx,
+        ry: rx,
     }
     .draw(sg, &DrawStyle::filled(bg, border, 0.5));
 
@@ -1210,8 +1308,7 @@ fn render_interface_node(
 
     let cx = node.x + node.width / 2.0;
     let cy = node.y + 12.0;
-    CircleShape { cx, cy, r: 8.0 }
-        .draw(sg, &DrawStyle::filled(bg, border, 0.5));
+    CircleShape { cx, cy, r: 8.0 }.draw(sg, &DrawStyle::filled(bg, border, 0.5));
 
     let name_y = cy + 20.0;
     let tl = text_len(&node.name, 14.0, false);
@@ -1252,7 +1349,15 @@ fn render_artifact_node(
     let h = node.height;
 
     let note_style = DrawStyle::filled(bg, border, 0.5);
-    RectShape { x, y, w, h, rx: 2.5, ry: 2.5 }.draw(sg, &note_style);
+    RectShape {
+        x,
+        y,
+        w,
+        h,
+        rx: 2.5,
+        ry: 2.5,
+    }
+    .draw(sg, &note_style);
 
     // Folded corner icon (small polygon at top right)
     let fold: f64 = 6.0;
@@ -1260,15 +1365,37 @@ fn render_artifact_node(
     let iy = y + 5.0;
     PolygonShape {
         points: vec![
-            ix, iy, ix, iy + 14.0, ix + 12.0, iy + 14.0,
-            ix + 12.0, iy + fold, ix + fold, iy, ix, iy,
+            ix,
+            iy,
+            ix,
+            iy + 14.0,
+            ix + 12.0,
+            iy + 14.0,
+            ix + 12.0,
+            iy + fold,
+            ix + fold,
+            iy,
+            ix,
+            iy,
         ],
     }
     .draw(sg, &note_style);
 
     let fold_line_style = DrawStyle::outline(border, 0.5);
-    LineShape { x1: ix + fold, y1: iy, x2: ix + fold, y2: iy + fold }.draw(sg, &fold_line_style);
-    LineShape { x1: ix + 12.0, y1: iy + fold, x2: ix + fold, y2: iy + fold }.draw(sg, &fold_line_style);
+    LineShape {
+        x1: ix + fold,
+        y1: iy,
+        x2: ix + fold,
+        y2: iy + fold,
+    }
+    .draw(sg, &fold_line_style);
+    LineShape {
+        x1: ix + 12.0,
+        y1: iy + fold,
+        x2: ix + fold,
+        y2: iy + fold,
+    }
+    .draw(sg, &fold_line_style);
 
     render_node_text(sg, node, font_color, bg, meta);
     sg.push_raw("</g>");
@@ -1349,8 +1476,13 @@ fn render_folder_node(
         border,
     ));
 
-    LineShape { x1: x, y1: y + tab_h, x2: x + tab_w + fold_w, y2: y + tab_h }
-        .draw(sg, &DrawStyle::outline(border, 0.5));
+    LineShape {
+        x1: x,
+        y1: y + tab_h,
+        x2: x + tab_w + fold_w,
+        y2: y + tab_h,
+    }
+    .draw(sg, &DrawStyle::outline(border, 0.5));
 
     render_node_text(sg, node, font_color, bg, meta);
     sg.push_raw("</g>");
@@ -1375,10 +1507,25 @@ fn render_frame_node(
     let tab_h = FONT_SIZE + 6.0;
 
     let frame_style = DrawStyle::filled(bg, border, 0.5);
-    RectShape { x, y, w, h, rx: 2.5, ry: 2.5 }.draw(sg, &frame_style);
+    RectShape {
+        x,
+        y,
+        w,
+        h,
+        rx: 2.5,
+        ry: 2.5,
+    }
+    .draw(sg, &frame_style);
 
-    RectShape { x, y, w: tab_w, h: tab_h, rx: 0.0, ry: 0.0 }
-        .draw(sg, &DrawStyle::filled(border, border, 0.5));
+    RectShape {
+        x,
+        y,
+        w: tab_w,
+        h: tab_h,
+        rx: 0.0,
+        ry: 0.0,
+    }
+    .draw(sg, &DrawStyle::filled(border, border, 0.5));
 
     let label_cx = x + tab_w / 2.0;
     let label_cy = y + tab_h / 2.0 + FONT_SIZE * 0.35;
@@ -1423,7 +1570,12 @@ fn render_stack_node(
 
     // Java USymbolStack: inner rounded rectangle inset by 15px on both sides.
     RectShape {
-        x: x + border_w, y, w: w - 2.0 * border_w, h, rx: rc, ry: rc,
+        x: x + border_w,
+        y,
+        w: w - 2.0 * border_w,
+        h,
+        rx: rc,
+        ry: rc,
     }
     .draw(sg, &DrawStyle::filled(bg, "none", 0.5));
 
@@ -1545,8 +1697,15 @@ fn render_port_node(
     // Port square
     let port_x = cx - port_size / 2.0;
     let port_y = node.y;
-    RectShape { x: port_x, y: port_y, w: port_size, h: port_size, rx: 0.0, ry: 0.0 }
-        .draw(sg, &DrawStyle::filled(bg, border, 1.5));
+    RectShape {
+        x: port_x,
+        y: port_y,
+        w: port_size,
+        h: port_size,
+        rx: 0.0,
+        ry: 0.0,
+    }
+    .draw(sg, &DrawStyle::filled(bg, border, 1.5));
 
     sg.push_raw("</g>");
 }
@@ -1579,8 +1738,19 @@ fn render_c4_word_by_word(
         let sx = cx - tl / 2.0;
         sg.set_fill_color(font_color);
         sg.svg_text(
-            &stereo_text, sx, stereo_baseline, Some("sans-serif"), stereo_font_size,
-            None, Some("italic"), None, tl, LengthAdjust::Spacing, None, 0, None,
+            &stereo_text,
+            sx,
+            stereo_baseline,
+            Some("sans-serif"),
+            stereo_font_size,
+            None,
+            Some("italic"),
+            None,
+            tl,
+            LengthAdjust::Spacing,
+            None,
+            0,
+            None,
         );
         // Advance cursor past the full stereo line height
         let stereo_lh = font_metrics::line_height("SansSerif", stereo_font_size, false, true);
@@ -1602,8 +1772,19 @@ fn render_c4_word_by_word(
             let sp_x = cx - sp_w / 2.0;
             sg.set_fill_color(font_color);
             sg.svg_text(
-                "\u{00A0}", sp_x, y_cursor + blank_ascent, Some("sans-serif"), FONT_SIZE,
-                None, None, None, sp_w, LengthAdjust::Spacing, None, 0, None,
+                "\u{00A0}",
+                sp_x,
+                y_cursor + blank_ascent,
+                Some("sans-serif"),
+                FONT_SIZE,
+                None,
+                None,
+                None,
+                sp_w,
+                LengthAdjust::Spacing,
+                None,
+                0,
+                None,
             );
             y_cursor += base_lh;
             continue;
@@ -1625,8 +1806,16 @@ fn render_c4_word_by_word(
                 let sprite_x = cx - sprite_layout_w / 2.0;
                 let sprite_y = y_cursor;
                 render_sprite_with_bg(
-                    sg, sprite_name, &svg_content, sprite_x, sprite_y,
-                    sprite_render_w, sprite_render_h, bg_r, bg_g, bg_b,
+                    sg,
+                    sprite_name,
+                    &svg_content,
+                    sprite_x,
+                    sprite_y,
+                    sprite_render_w,
+                    sprite_render_h,
+                    bg_r,
+                    bg_g,
+                    bg_b,
                 );
                 // Advance cursor by the LAYOUT height (matches Java calculateDimension)
                 y_cursor += sprite_layout_h;
@@ -1648,7 +1837,7 @@ fn render_c4_word_by_word(
         // Calculate full-line width to center it
         let mut line_words: Vec<Vec<&str>> = vec![vec![]];
         let mut cur_line_w = 0.0_f64;
-        for (_i, word) in words.iter().enumerate() {
+        for word in words.iter() {
             let ww = font_metrics::text_width(word, "SansSerif", font_size, bold, italic);
             let needed = if cur_line_w == 0.0 { ww } else { space_w + ww };
             if cur_line_w > 0.0 && cur_line_w + needed > wrap_width {
@@ -1669,33 +1858,60 @@ fn render_c4_word_by_word(
                 cur_baseline = y_cursor + line_ascent;
             }
             // Compute this line's total width for centering
-            let line_w: f64 = lw.iter().enumerate().map(|(j, w)| {
-                let ww = font_metrics::text_width(w, "SansSerif", font_size, bold, italic);
-                if j == 0 { ww } else { space_w + ww }
-            }).sum();
+            let line_w: f64 = lw
+                .iter()
+                .enumerate()
+                .map(|(j, w)| {
+                    let ww = font_metrics::text_width(w, "SansSerif", font_size, bold, italic);
+                    if j == 0 {
+                        ww
+                    } else {
+                        space_w + ww
+                    }
+                })
+                .sum();
             let line_x = cx - line_w / 2.0;
 
             let mut x_cur = line_x;
             for (j, word) in lw.iter().enumerate() {
                 if j > 0 {
                     // Emit space as &#160;
-                    let sp_tl = font_metrics::char_width('\u{00A0}', "SansSerif", font_size, bold, italic);
+                    let sp_tl =
+                        font_metrics::char_width('\u{00A0}', "SansSerif", font_size, bold, italic);
                     sg.set_fill_color(font_color);
                     sg.svg_text(
-                        "\u{00A0}", x_cur, cur_baseline, Some("sans-serif"), font_size,
+                        "\u{00A0}",
+                        x_cur,
+                        cur_baseline,
+                        Some("sans-serif"),
+                        font_size,
                         if bold { Some("bold") } else { None },
                         if italic { Some("italic") } else { None },
-                        None, sp_tl, LengthAdjust::Spacing, None, 0, None,
+                        None,
+                        sp_tl,
+                        LengthAdjust::Spacing,
+                        None,
+                        0,
+                        None,
                     );
                     x_cur += sp_tl;
                 }
                 let ww = font_metrics::text_width(word, "SansSerif", font_size, bold, italic);
                 sg.set_fill_color(font_color);
                 sg.svg_text(
-                    word, x_cur, cur_baseline, Some("sans-serif"), font_size,
+                    word,
+                    x_cur,
+                    cur_baseline,
+                    Some("sans-serif"),
+                    font_size,
                     if bold { Some("bold") } else { None },
                     if italic { Some("italic") } else { None },
-                    None, ww, LengthAdjust::Spacing, None, 0, None,
+                    None,
+                    ww,
+                    LengthAdjust::Spacing,
+                    None,
+                    0,
+                    None,
                 );
                 x_cur += ww;
             }
@@ -1729,8 +1945,7 @@ fn render_node_text(
 
     // Check for sprite stereotype
     let sprite_rendered = if let Some(ref stereotype) = node.stereotype {
-        if stereotype.starts_with('$') {
-            let sprite_name = &stereotype[1..];
+        if let Some(sprite_name) = stereotype.strip_prefix('$') {
             if let Some(svg_content) = get_sprite_svg(sprite_name) {
                 let info = svg_sprite::sprite_info(&svg_content);
                 let sprite_w = info.vb_width;
@@ -1769,11 +1984,16 @@ fn render_node_text(
         if let Some(ref stereotype) = node.stereotype {
             let stereo_text = format!("\u{00AB}{stereotype}\u{00BB}");
             let is_archimate = node.kind == ComponentKind::Archimate;
-            let stereo_font_size = if is_archimate { FONT_SIZE } else { FONT_SIZE - 2.0 };
+            let stereo_font_size = if is_archimate {
+                FONT_SIZE
+            } else {
+                FONT_SIZE - 2.0
+            };
             let sy = if is_archimate {
-                let (_, _, margin_top_st, _) =
-                    crate::layout::component::entity_margins(&node.kind);
-                node.y + margin_top_st + font_metrics::ascent("SansSerif", stereo_font_size, false, true)
+                let (_, _, margin_top_st, _) = crate::layout::component::entity_margins(&node.kind);
+                node.y
+                    + margin_top_st
+                    + font_metrics::ascent("SansSerif", stereo_font_size, false, true)
             } else {
                 node.y + FONT_SIZE + 4.0
             };
@@ -1812,18 +2032,19 @@ fn render_node_text(
         // Java EntityImageDescription: a bracket body replaces the title display.
         // The body is rendered directly with the entity margins, without an
         // extra separator/header row.
-        let body_y = node.y + margin_top + font_metrics::ascent("SansSerif", FONT_SIZE, false, false);
+        let body_y =
+            node.y + margin_top + font_metrics::ascent("SansSerif", FONT_SIZE, false, false);
 
         // Check for <code>...</code> wrapper: render as monospace literal.
         let is_code_block = node.description.len() >= 2
             && node
                 .description
                 .first()
-                .map_or(false, |l| l.trim().eq_ignore_ascii_case("<code>"))
+                .is_some_and(|l| l.trim().eq_ignore_ascii_case("<code>"))
             && node
                 .description
                 .last()
-                .map_or(false, |l| l.trim().eq_ignore_ascii_case("</code>"));
+                .is_some_and(|l| l.trim().eq_ignore_ascii_case("</code>"));
 
         if is_code_block {
             let inner_lines = &node.description[1..node.description.len() - 1];
@@ -1889,18 +2110,18 @@ fn render_node_text(
     // Java DriverTextSvg strips leading spaces and shifts x per-line at render
     // time; `render_creole_text` (via `render_prepared_line`) emulates that
     // behaviour, so we pass the untrimmed base x directly.
-    let name_x = if sprite_rendered.is_some() || (is_archimate && node.stereotype.is_some() && !has_desc) {
-        let tl = font_metrics::text_width(&node.name, "SansSerif", FONT_SIZE, false, false);
-        cx - tl / 2.0
-    } else {
-        node.x + margin_left
-    };
+    let name_x =
+        if sprite_rendered.is_some() || (is_archimate && node.stereotype.is_some() && !has_desc) {
+            let tl = font_metrics::text_width(&node.name, "SansSerif", FONT_SIZE, false, false);
+            cx - tl / 2.0
+        } else {
+            node.x + margin_left
+        };
     let _tl = font_metrics::text_width(&node.name, "SansSerif", FONT_SIZE, false, false);
     // Java uses the full font-metric line height (ascent+descent) for standalone
     // name-only entities without stereotypes, but the simpler 16 px constant for
     // entities that have sprites, description blocks, or stereotypes (C4, etc.).
-    let name_line_height = if sprite_rendered.is_none() && !has_desc && node.stereotype.is_none()
-    {
+    let name_line_height = if sprite_rendered.is_none() && !has_desc && node.stereotype.is_none() {
         font_metrics::line_height("SansSerif", FONT_SIZE, false, false)
     } else {
         LINE_HEIGHT
@@ -1920,8 +2141,13 @@ fn render_node_text(
 
     if has_desc {
         let sep_y = name_y + 6.0;
-        LineShape { x1: node.x, y1: sep_y, x2: node.x + node.width, y2: sep_y }
-            .draw(sg, &DrawStyle::outline(BORDER_COLOR, 1.0));
+        LineShape {
+            x1: node.x,
+            y1: sep_y,
+            x2: node.x + node.width,
+            y2: sep_y,
+        }
+        .draw(sg, &DrawStyle::outline(BORDER_COLOR, 1.0));
 
         let text_x = node.x + 8.0;
 
@@ -1929,11 +2155,11 @@ fn render_node_text(
             && node
                 .description
                 .first()
-                .map_or(false, |l| l.trim().eq_ignore_ascii_case("<code>"))
+                .is_some_and(|l| l.trim().eq_ignore_ascii_case("<code>"))
             && node
                 .description
                 .last()
-                .map_or(false, |l| l.trim().eq_ignore_ascii_case("</code>"));
+                .is_some_and(|l| l.trim().eq_ignore_ascii_case("</code>"));
 
         if is_code_block {
             let inner_lines = &node.description[1..node.description.len() - 1];
@@ -2041,8 +2267,14 @@ fn render_edge(
     }
 
     // HTML comment — Java uses "code" (alias or display name) for link endpoints
-    let from_code = entity_codes.get(&edge.from).map(|s| s.as_str()).unwrap_or(&edge.from);
-    let to_code = entity_codes.get(&edge.to).map(|s| s.as_str()).unwrap_or(&edge.to);
+    let from_code = entity_codes
+        .get(&edge.from)
+        .map(|s| s.as_str())
+        .unwrap_or(&edge.from);
+    let to_code = entity_codes
+        .get(&edge.to)
+        .map(|s| s.as_str())
+        .unwrap_or(&edge.to);
     if edge.reversed_for_svg {
         sg.push_raw(&format!(
             "<!--reverse link {} to {}-->",
@@ -2139,7 +2371,12 @@ fn render_edge(
             (pts[0].0, pts[0].1, pts[1].0, pts[1].1)
         } else {
             // Arrow at end: tip = last point, direction from second-to-last towards last
-            (pts[pts.len() - 1].0, pts[pts.len() - 1].1, pts[pts.len() - 2].0, pts[pts.len() - 2].1)
+            (
+                pts[pts.len() - 1].0,
+                pts[pts.len() - 1].1,
+                pts[pts.len() - 2].0,
+                pts[pts.len() - 2].1,
+            )
         };
         let dx = tx - fx;
         let dy = ty - fy;
@@ -2196,7 +2433,10 @@ fn render_edge(
             if let Some(((mut sx, mut sy), (mut ex, mut ey))) = parsed {
                 // Check for Graphviz path inversion: find entity centers and compare distances.
                 let find_center = |name: &str| -> Option<(f64, f64)> {
-                    nodes.iter().find(|n| n.id == name).map(|n| (n.x + n.width / 2.0, n.y + n.height / 2.0))
+                    nodes
+                        .iter()
+                        .find(|n| n.id == name)
+                        .map(|n| (n.x + n.width / 2.0, n.y + n.height / 2.0))
                 };
                 if let (Some(pos1), Some(pos2)) = (find_center(&edge.from), find_center(&edge.to)) {
                     let dist = |a: (f64, f64), b: (f64, f64)| -> f64 {
@@ -2215,7 +2455,16 @@ fn render_edge(
             }
         };
 
-        render_link_label(sg, &edge.label, lx, ly, font_color, edge_angle, direction_inverted, link_font_size);
+        render_link_label(
+            sg,
+            &edge.label,
+            lx,
+            ly,
+            font_color,
+            edge_angle,
+            direction_inverted,
+            link_font_size,
+        );
     }
 
     sg.push_raw("</g>");
@@ -2242,13 +2491,37 @@ fn render_link_label(
     // Java: StringWithArrow detects leading/trailing > or < characters.
     let trimmed = label.trim();
     let (has_indicator, mut is_backward, text) = if trimmed.starts_with("> ") || trimmed == ">" {
-        (true, false, trimmed.strip_prefix("> ").or_else(|| trimmed.strip_prefix('>')).unwrap_or("").trim())
+        (
+            true,
+            false,
+            trimmed
+                .strip_prefix("> ")
+                .or_else(|| trimmed.strip_prefix('>'))
+                .unwrap_or("")
+                .trim(),
+        )
     } else if trimmed.starts_with("< ") || trimmed == "<" {
-        (true, true, trimmed.strip_prefix("< ").or_else(|| trimmed.strip_prefix('<')).unwrap_or("").trim())
+        (
+            true,
+            true,
+            trimmed
+                .strip_prefix("< ")
+                .or_else(|| trimmed.strip_prefix('<'))
+                .unwrap_or("")
+                .trim(),
+        )
     } else if trimmed.ends_with(" >") {
-        (true, false, trimmed.strip_suffix(" >").unwrap_or(trimmed).trim())
+        (
+            true,
+            false,
+            trimmed.strip_suffix(" >").unwrap_or(trimmed).trim(),
+        )
     } else if trimmed.ends_with(" <") {
-        (true, true, trimmed.strip_suffix(" <").unwrap_or(trimmed).trim())
+        (
+            true,
+            true,
+            trimmed.strip_suffix(" <").unwrap_or(trimmed).trim(),
+        )
     } else {
         (false, false, trimmed)
     };
@@ -2578,7 +2851,16 @@ fn render_note(
         // Simple polygon note (no attached target)
         PolygonShape {
             points: vec![
-                x, y, x + w - fold, y, x + w, y + fold, x + w, y + h, x, y + h,
+                x,
+                y,
+                x + w - fold,
+                y,
+                x + w,
+                y + fold,
+                x + w,
+                y + h,
+                x,
+                y + h,
             ],
         }
         .draw(sg, &DrawStyle::filled(bg, border, 1.0));
@@ -2813,8 +3095,7 @@ fn render_usecase_node(
     let rx = node.width / 2.0;
     let ry = node.height / 2.0;
 
-    EllipseShape { cx, cy, rx, ry }
-        .draw(sg, &DrawStyle::filled(bg, border, 0.5));
+    EllipseShape { cx, cy, rx, ry }.draw(sg, &DrawStyle::filled(bg, border, 0.5));
 
     // Centered text
     let text = &node.name;
@@ -3316,7 +3597,10 @@ mod tests {
         let svg =
             render_component(&diagram, &layout, &SkinParams::default()).expect("render failed");
 
-        assert!(svg.starts_with("<?plantuml "), "SVG must start with plantuml PI");
+        assert!(
+            svg.starts_with("<?plantuml "),
+            "SVG must start with plantuml PI"
+        );
         assert!(svg.contains("</svg>"), "SVG must end with </svg>");
         assert!(
             svg.contains("viewBox=\"0 0 400 300\""),

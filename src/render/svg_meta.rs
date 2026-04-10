@@ -12,12 +12,10 @@ use crate::style::SkinParams;
 use crate::Result;
 
 use super::svg::{
-    ensure_visible_int, write_bg_rect, write_svg_root_bg, write_svg_title,
-    DOC_MARGIN_BOTTOM, DOC_MARGIN_RIGHT, PLANTUML_VERSION,
+    ensure_visible_int, write_bg_rect, write_svg_root_bg, write_svg_title, DOC_MARGIN_BOTTOM,
+    DOC_MARGIN_RIGHT, PLANTUML_VERSION,
 };
-use super::svg_richtext::{
-    creole_table_width, render_creole_display_lines, render_creole_text,
-};
+use super::svg_richtext::{creole_table_width, render_creole_display_lines, render_creole_text};
 
 // ── Meta rendering constants ────────────────────────────────────────
 
@@ -36,15 +34,8 @@ const LEGEND_PADDING: f64 = 5.0;
 const LEGEND_MARGIN: f64 = 12.0;
 const LEGEND_ROUND_CORNER: f64 = 15.0;
 
-
 pub(super) fn creole_text_w(text: &str, font_size: f64, bold: bool) -> f64 {
-    crate::render::svg_richtext::creole_max_line_width(
-        text,
-        "SansSerif",
-        font_size,
-        bold,
-        false,
-    )
+    crate::render::svg_richtext::creole_max_line_width(text, "SansSerif", font_size, bold, false)
 }
 pub(super) fn text_block_h(font_size: f64, bold: bool) -> f64 {
     font_metrics::ascent("SansSerif", font_size, bold, false)
@@ -92,7 +83,6 @@ pub(super) fn extract_attr(svg: &str, attr: &str) -> Option<f64> {
     None
 }
 
-
 /// Compute the body (dx, dy) offset for meta wrapping.
 ///
 /// This is the offset from SVG origin to the body content start, accounting
@@ -127,15 +117,19 @@ pub(super) fn compute_meta_body_offset(meta: &DiagramMeta, skin: &SkinParams) ->
 
     let title_text_h = if let Some(ref t) = meta.title {
         let lh = font_metrics::line_height("SansSerif", title_font_size, title_bold, false);
-        let n_lines = t.split(crate::NEWLINE_CHAR).flat_map(|s| s.lines()).count().max(1);
+        let n_lines = t
+            .split(crate::NEWLINE_CHAR)
+            .flat_map(|s| s.lines())
+            .count()
+            .max(1);
         let mut h = n_lines as f64 * lh;
         // Java: tables inside title use AtomWithMargin(table, 2, 2) adding 4px.
-        let has_table = t.split(crate::NEWLINE_CHAR)
+        let has_table = t
+            .split(crate::NEWLINE_CHAR)
             .flat_map(|s| s.lines())
             .any(|line| {
                 let trimmed = line.trim();
-                trimmed.starts_with('|')
-                    || (trimmed.starts_with('<') && trimmed.contains(">|"))
+                trimmed.starts_with('|') || (trimmed.starts_with('<') && trimmed.contains(">|"))
             });
         if has_table {
             h += 4.0;
@@ -350,7 +344,11 @@ fn compress_plantuml_source_for_pi(source: &str) -> String {
         .lines()
         .find(|l| l.starts_with('@'))
         .map(|l| {
-            let name = l.trim_start_matches('@').split_whitespace().next().unwrap_or("");
+            let name = l
+                .trim_start_matches('@')
+                .split_whitespace()
+                .next()
+                .unwrap_or("");
             (name.to_string(), name.replace("start", "end"))
         })
         .unwrap_or_default();
@@ -394,7 +392,7 @@ fn trim_plantuml_source(source: &str) -> String {
 }
 
 fn encode_plantuml_ascii(data: &[u8]) -> String {
-    let mut result = String::with_capacity((data.len() * 4 + 2) / 3);
+    let mut result = String::with_capacity((data.len() * 4).div_ceil(3));
     for chunk in data.chunks(3) {
         let b1 = chunk[0];
         let b2 = *chunk.get(1).unwrap_or(&0);
@@ -523,19 +521,19 @@ pub(super) fn wrap_with_meta(
             (svg_w, svg_h)
         } else {
             let (svek_delta_w, svek_delta_h) = if diagram_type == "CLASS" && has_meta && rh > 0.0 {
-            // Degenerated svek path (single entity, no edges/notes) already
-            // returns (node.width + 14, node.height + 14) which is the
-            // pre-margin textBlock dimension that wrap_with_meta expects.
-            // The normal -6 / +6 correction only applies to the moveDelta-shifted
-            // LimitFinder span used by the multi-node code path.
+                // Degenerated svek path (single entity, no edges/notes) already
+                // returns (node.width + 14, node.height + 14) which is the
+                // pre-margin textBlock dimension that wrap_with_meta expects.
+                // The normal -6 / +6 correction only applies to the moveDelta-shifted
+                // LimitFinder span used by the multi-node code path.
                 if body_degenerated {
                     (0.0, 0.0)
                 } else {
                     (-6.0, 6.0) // span: subtract minX=6; height: span - 6 + 12 = +6
                 }
             } else if diagram_type == "SEQUENCE" && has_meta && rh > 0.0 {
-            // Java's LimitFinder tracks the participant tail bottom + extra border.
-            // The layout formula undershoots by ~2.5px vs the actual drawn bounds.
+                // Java's LimitFinder tracks the participant tail bottom + extra border.
+                // The layout formula undershoots by ~2.5px vs the actual drawn bounds.
                 (0.0, 2.5)
             } else {
                 (0.0, 0.0)
@@ -645,16 +643,20 @@ pub(super) fn wrap_with_meta(
         .unwrap_or(0.0);
     let title_text_h = if let Some(ref t) = meta.title {
         let lh = font_metrics::line_height("SansSerif", title_font_size, title_bold, false);
-        let n_lines = t.split(crate::NEWLINE_CHAR).flat_map(|s| s.lines()).count().max(1);
+        let n_lines = t
+            .split(crate::NEWLINE_CHAR)
+            .flat_map(|s| s.lines())
+            .count()
+            .max(1);
         let mut h = n_lines as f64 * lh;
         // Java: tables inside title use AtomWithMargin(table, 2, 2) which adds 4px.
         // Detect table content: any line starts with '|' or color prefix '<#...>|'.
-        let has_table = t.split(crate::NEWLINE_CHAR)
+        let has_table = t
+            .split(crate::NEWLINE_CHAR)
             .flat_map(|s| s.lines())
             .any(|line| {
                 let trimmed = line.trim();
-                trimmed.starts_with('|')
-                    || (trimmed.starts_with('<') && trimmed.contains(">|"))
+                trimmed.starts_with('|') || (trimmed.starts_with('<') && trimmed.contains(">|"))
             });
         if has_table {
             h += 4.0; // TABLE_MARGIN_Y * 2 (Java AtomWithMargin top+bottom)
@@ -723,9 +725,14 @@ pub(super) fn wrap_with_meta(
     // centering aligned to the unpadded body width.
     // Other diagram types (sequence, activity) bake the +1 into their layout
     // arithmetic already.
-    let get_final_dim_extra = if matches!(diagram_type, "CLASS" | "MINDMAP") { 1.0 } else { 0.0 };
+    let get_final_dim_extra = if matches!(diagram_type, "CLASS" | "MINDMAP") {
+        1.0
+    } else {
+        0.0
+    };
     let canvas_w = ensure_visible_int(tb_w + get_final_dim_extra + doc_margin_right) as f64;
-    let canvas_h = ensure_visible_int(tb_h + get_final_dim_extra + doc_margin_top + doc_margin_bottom) as f64;
+    let canvas_h =
+        ensure_visible_int(tb_h + get_final_dim_extra + doc_margin_top + doc_margin_bottom) as f64;
     log::trace!(
         "wrap_with_meta: tb_w={tb_w:.6} tb_h={tb_h:.6} canvas_w={canvas_w} canvas_h={canvas_h}"
     );
@@ -1133,7 +1140,9 @@ pub(super) fn wrap_with_meta_sequence(
         .get("document.caption.fontsize")
         .and_then(|s| s.parse::<f64>().ok())
         .unwrap_or(META_CAPTION_FONT_SIZE);
-    let cap_font_color = skin.get("document.caption.fontcolor").map(|s| s.to_string());
+    let cap_font_color = skin
+        .get("document.caption.fontcolor")
+        .map(|s| s.to_string());
     let cap_bg_color = skin
         .get("document.caption.backgroundcolor")
         .map(|s| s.to_string());
@@ -1186,12 +1195,19 @@ pub(super) fn wrap_with_meta_sequence(
         .unwrap_or(0.0);
     let title_text_h = if let Some(ref t) = meta.title {
         let lh = font_metrics::line_height("SansSerif", title_font_size, title_bold, false);
-        let n_lines = t.split(crate::NEWLINE_CHAR).flat_map(|s| s.lines()).count().max(1);
+        let n_lines = t
+            .split(crate::NEWLINE_CHAR)
+            .flat_map(|s| s.lines())
+            .count()
+            .max(1);
         let mut h = n_lines as f64 * lh;
-        let has_table = t.split(crate::NEWLINE_CHAR).flat_map(|s| s.lines()).any(|line| {
-            let trimmed = line.trim();
-            trimmed.starts_with('|') || (trimmed.starts_with('<') && trimmed.contains(">|"))
-        });
+        let has_table = t
+            .split(crate::NEWLINE_CHAR)
+            .flat_map(|s| s.lines())
+            .any(|line| {
+                let trimmed = line.trim();
+                trimmed.starts_with('|') || (trimmed.starts_with('<') && trimmed.contains(">|"))
+            });
         if has_table {
             h += 4.0;
         }
@@ -1301,9 +1317,14 @@ pub(super) fn wrap_with_meta_sequence(
     // lf.maxX = area.getWidth() when a header is present (it draws a UEmpty
     // spanning full area width); for other cases the max drawn element sets it.
     // We conservatively use area_width, which is >= any drawn extent.
-    let body_end_y =
-        sequence_height + header_height + header_margin_internal + title_height + legend_height
-            + caption_height + footer_height + footer_margin_internal;
+    let body_end_y = sequence_height
+        + header_height
+        + header_margin_internal
+        + title_height
+        + legend_height
+        + caption_height
+        + footer_height
+        + footer_margin_internal;
     let final_dim_w = area_width + 1.0 + doc_margin_left + doc_margin_right;
     let final_dim_h = body_end_y + 1.0 + doc_margin_top + doc_margin_bottom;
     let canvas_w = ensure_visible_int(final_dim_w) as f64;
@@ -1352,10 +1373,15 @@ pub(super) fn wrap_with_meta_sequence(
             .unwrap();
         }
         let text_x = rect_x + TITLE_PADDING;
-        let text_y =
-            rect_y + TITLE_PADDING + font_metrics::ascent("SansSerif", title_font_size, title_bold, false);
+        let text_y = rect_y
+            + TITLE_PADDING
+            + font_metrics::ascent("SansSerif", title_font_size, title_bold, false);
         let text_color = title_font_color.as_deref().unwrap_or(TEXT_COLOR);
-        let weight_str = if title_bold { r#" font-weight="bold""# } else { "" };
+        let weight_str = if title_bold {
+            r#" font-weight="bold""#
+        } else {
+            ""
+        };
         let outer_attrs = format!(r#"font-size="{}"{}"#, title_font_size as i32, weight_str);
         let title_lines: Vec<String> = title
             .split(crate::NEWLINE_CHAR)
@@ -1410,8 +1436,9 @@ pub(super) fn wrap_with_meta_sequence(
             .unwrap();
         }
         let text_x = rect_x + CAPTION_PADDING;
-        let text_y =
-            rect_y + CAPTION_PADDING + font_metrics::ascent("SansSerif", cap_font_size, false, false);
+        let text_y = rect_y
+            + CAPTION_PADDING
+            + font_metrics::ascent("SansSerif", cap_font_size, false, false);
         let text_color = cap_font_color.as_deref().unwrap_or(TEXT_COLOR);
         render_creole_text(
             &mut buf,
@@ -1562,8 +1589,9 @@ pub(super) fn wrap_with_meta_sequence(
         )
         .unwrap();
         let text_x = rect_x + LEGEND_PADDING;
-        let text_y =
-            rect_y + LEGEND_PADDING + font_metrics::ascent("SansSerif", leg_font_size, false, false);
+        let text_y = rect_y
+            + LEGEND_PADDING
+            + font_metrics::ascent("SansSerif", leg_font_size, false, false);
         render_creole_text(
             &mut buf,
             leg,
@@ -1668,7 +1696,7 @@ fn offset_path_data(d: &str, dx: f64, dy: f64) -> String {
 
     while chars.peek().is_some() {
         // Skip whitespace
-        while chars.peek().map_or(false, |c| c.is_whitespace()) {
+        while chars.peek().is_some_and(|c| c.is_whitespace()) {
             result.push(chars.next().unwrap());
         }
         if chars.peek().is_none() {
@@ -1783,7 +1811,7 @@ fn parse_path_number(chars: &mut std::iter::Peekable<std::str::Chars>) -> Option
     }
     while chars
         .peek()
-        .map_or(false, |c| c.is_ascii_digit() || *c == '.')
+        .is_some_and(|c| c.is_ascii_digit() || *c == '.')
     {
         s.push(chars.next().unwrap());
     }
@@ -1795,10 +1823,7 @@ fn parse_path_number(chars: &mut std::iter::Peekable<std::str::Chars>) -> Option
 }
 
 fn skip_path_sep(chars: &mut std::iter::Peekable<std::str::Chars>, result: &mut String) {
-    while chars
-        .peek()
-        .map_or(false, |c| *c == ',' || c.is_whitespace())
-    {
+    while chars.peek().is_some_and(|c| *c == ',' || c.is_whitespace()) {
         result.push(chars.next().unwrap());
     }
 }

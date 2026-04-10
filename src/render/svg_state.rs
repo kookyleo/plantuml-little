@@ -2,16 +2,15 @@ use std::collections::{HashMap, HashSet};
 use std::fmt::Write;
 
 use crate::font_metrics;
-use crate::klimt::sanitize_group_metadata_value;
 use crate::klimt::drawable::{
     CircleShape, DrawStyle, Drawable, EllipseShape, LineShape, PolygonShape, RectShape,
 };
+use crate::klimt::sanitize_group_metadata_value;
 use crate::klimt::svg::{fmt_coord, svg_comment_escape, xml_escape, LengthAdjust, SvgGraphic};
 use crate::layout::state::{StateLayout, StateNodeLayout, StateNoteLayout, TransitionLayout};
 use crate::model::state::{State, StateDiagram, StateKind, Transition};
 use crate::render::svg::{
-    write_bg_rect, write_svg_root_bg, BoundsTracker,
-    ViewportConfig, compute_viewport,
+    compute_viewport, write_bg_rect, write_svg_root_bg, BoundsTracker, ViewportConfig,
 };
 use crate::render::svg_richtext::render_creole_text;
 use crate::style::SkinParams;
@@ -63,7 +62,10 @@ fn is_special_render_kind(kind: &StateKind) -> bool {
     )
 }
 
-fn collect_all_layout_states<'a>(states: &'a [StateNodeLayout], out: &mut Vec<&'a StateNodeLayout>) {
+fn collect_all_layout_states<'a>(
+    states: &'a [StateNodeLayout],
+    out: &mut Vec<&'a StateNodeLayout>,
+) {
     for state in states {
         out.push(state);
         collect_all_layout_states(&state.children, out);
@@ -95,14 +97,21 @@ fn is_explicit_pass1_state(state: &State) -> bool {
     !state.is_special && state.explicit_source_line.is_some()
 }
 
-fn build_java_state_render_plan(diagram: &StateDiagram, layout: &StateLayout) -> JavaStateRenderPlan {
+fn build_java_state_render_plan(
+    diagram: &StateDiagram,
+    layout: &StateLayout,
+) -> JavaStateRenderPlan {
     let mut all_layout_states = Vec::new();
     collect_all_layout_states(&layout.state_layouts, &mut all_layout_states);
 
     let mut all_diagram_states = Vec::new();
     collect_all_diagram_states(&diagram.states, &mut all_diagram_states);
 
-    let top_level_ids: HashSet<&str> = layout.state_layouts.iter().map(|state| state.id.as_str()).collect();
+    let top_level_ids: HashSet<&str> = layout
+        .state_layouts
+        .iter()
+        .map(|state| state.id.as_str())
+        .collect();
 
     let mut ent_numbers: HashMap<String, u32> = HashMap::new();
     let mut explicit_top_level_order = Vec::new();
@@ -111,7 +120,11 @@ fn build_java_state_render_plan(diagram: &StateDiagram, layout: &StateLayout) ->
         .enumerate()
         .filter_map(|(idx, state)| {
             if is_explicit_pass1_state(state) {
-                Some((state.explicit_source_line.unwrap_or(usize::MAX), idx, *state))
+                Some((
+                    state.explicit_source_line.unwrap_or(usize::MAX),
+                    idx,
+                    *state,
+                ))
             } else {
                 None
             }
@@ -129,7 +142,11 @@ fn build_java_state_render_plan(diagram: &StateDiagram, layout: &StateLayout) ->
         .enumerate()
         .filter_map(|(idx, note)| {
             let alias = note.alias.as_ref()?;
-            Some((note.source_line.unwrap_or(usize::MAX), note_base_idx + idx, alias.clone()))
+            Some((
+                note.source_line.unwrap_or(usize::MAX),
+                note_base_idx + idx,
+                alias.clone(),
+            ))
         })
         .collect();
 
@@ -219,9 +236,7 @@ fn build_java_state_render_plan(diagram: &StateDiagram, layout: &StateLayout) ->
                 });
             }
             let target_id = note.target.as_deref()?;
-            let target_ent = ent_numbers
-                .get(target_id)
-                .copied()?;
+            let target_ent = ent_numbers.get(target_id).copied()?;
             let qnum = target_ent + anonymous_attached_seen;
             anonymous_attached_seen += 1;
             Some(NoteRenderInfo {
@@ -362,7 +377,10 @@ pub fn render_state(
 
     // Notes
     for (idx, note) in layout.note_layouts.iter().enumerate() {
-        let note_info = render_plan.note_infos.get(idx).and_then(|info| info.as_ref());
+        let note_info = render_plan
+            .note_infos
+            .get(idx)
+            .and_then(|info| info.as_ref());
         render_note(&mut sg, &mut tracker, note, note_info);
     }
 
@@ -385,13 +403,21 @@ pub fn render_state(
                 // Java SvgGraphics: ensureVisible(x+w + r, y+r + r)
                 let arc_x = node.x + node.width + r;
                 let arc_y = node.y + r + r;
-                if arc_x > *max_x { *max_x = arc_x; }
-                if arc_y > *max_y { *max_y = arc_y; }
+                if arc_x > *max_x {
+                    *max_x = arc_x;
+                }
+                if arc_y > *max_y {
+                    *max_y = arc_y;
+                }
                 collect_arc_extensions(&node.children, max_x, max_y);
             }
         }
     }
-    collect_arc_extensions(&layout.state_layouts, &mut svg_arc_max_x, &mut svg_arc_max_y);
+    collect_arc_extensions(
+        &layout.state_layouts,
+        &mut svg_arc_max_x,
+        &mut svg_arc_max_y,
+    );
 
     // Java ImageBuilder.getFinalDimension(): LimitFinder maxX/maxY + 1 + doc margins.
     // Java SvgGraphics viewport = max(LF_initial, rendering_ensureVisible).
@@ -492,7 +518,7 @@ fn render_state_node_with_parent(
     match &node.kind {
         StateKind::Fork | StateKind::Join => {
             if pass != StateRenderPass::ClusterShells {
-            render_fork_join(sg, tracker, node);
+                render_fork_join(sg, tracker, node);
             }
         }
         StateKind::Choice => {
@@ -708,7 +734,18 @@ fn render_choice(
 
     // Java: EntityImageBranch.drawU adds 5 points (last = first to close polygon)
     PolygonShape {
-        points: vec![cx, cy - half, cx + half, cy, cx, cy + half, cx - half, cy, cx, cy - half],
+        points: vec![
+            cx,
+            cy - half,
+            cx + half,
+            cy,
+            cx,
+            cy + half,
+            cx - half,
+            cy,
+            cx,
+            cy - half,
+        ],
     }
     .draw(sg, &DrawStyle::filled("#F1F1F1", border, 0.5));
     // Java LimitFinder.drawUPolygon with HACK_X_FOR_POLYGON=10
@@ -735,8 +772,13 @@ fn render_history(
     let cy = node.y + node.height / 2.0;
     let r = node.width / 2.0;
     let font_size = 14.0;
-    EllipseShape { cx, cy, rx: r, ry: r }
-        .draw(sg, &DrawStyle::filled(ENTITY_BG, border, 0.5));
+    EllipseShape {
+        cx,
+        cy,
+        rx: r,
+        ry: r,
+    }
+    .draw(sg, &DrawStyle::filled(ENTITY_BG, border, 0.5));
     let label = if deep { "H*" } else { "H" };
     let tl = font_metrics::text_width(label, "SansSerif", font_size, false, false);
     sg.set_fill_color(font_color);
@@ -769,14 +811,23 @@ fn render_exit_point(
     let cy = node.y + node.height / 2.0;
     let r = node.width / 2.0;
     let exit_style = DrawStyle::outline(border, 1.5);
-    CircleShape { cx, cy, r }
-        .draw(sg, &exit_style);
+    CircleShape { cx, cy, r }.draw(sg, &exit_style);
     // X cross inside
     let d = r * 0.5;
-    LineShape { x1: cx - d, y1: cy - d, x2: cx + d, y2: cy + d }
-        .draw(sg, &exit_style);
-    LineShape { x1: cx + d, y1: cy - d, x2: cx - d, y2: cy + d }
-        .draw(sg, &exit_style);
+    LineShape {
+        x1: cx - d,
+        y1: cy - d,
+        x2: cx + d,
+        y2: cy + d,
+    }
+    .draw(sg, &exit_style);
+    LineShape {
+        x1: cx + d,
+        y1: cy - d,
+        x2: cx - d,
+        y2: cy + d,
+    }
+    .draw(sg, &exit_style);
     tracker.track_ellipse(cx, cy, r, r);
 }
 
@@ -809,7 +860,12 @@ fn render_simple(
 
     // Background rounded rectangle
     RectShape {
-        x: node.x, y: node.y, w: node.width, h: node.height, rx: 12.5, ry: 12.5,
+        x: node.x,
+        y: node.y,
+        w: node.width,
+        h: node.height,
+        rx: 12.5,
+        ry: 12.5,
     }
     .draw(sg, &DrawStyle::filled(bg, border, 0.5));
     // Java LimitFinder.drawRectangle: addPoint(x-1, y-1), addPoint(x+w-1, y+h-1)
@@ -846,7 +902,10 @@ fn render_simple(
     let sep_y = node.y + 26.2969 + name_y_offset;
     let name_y = node.y + 17.9951 + name_y_offset;
     LineShape {
-        x1: node.x, y1: sep_y, x2: node.x + node.width, y2: sep_y,
+        x1: node.x,
+        y1: sep_y,
+        x2: node.x + node.width,
+        y2: sep_y,
     }
     .draw(sg, &DrawStyle::outline(border, 0.5));
     tracker.track_line(node.x, sep_y, node.x + node.width, sep_y);
@@ -1031,8 +1090,13 @@ fn render_composite(
         tracker.track_rect(x, y, w, h);
 
         // 3. Separator line below the header
-        LineShape { x1: x, y1: sep_y, x2: x + w, y2: sep_y }
-            .draw(sg, &DrawStyle::outline(border, 0.5));
+        LineShape {
+            x1: x,
+            y1: sep_y,
+            x2: x + w,
+            y2: sep_y,
+        }
+        .draw(sg, &DrawStyle::outline(border, 0.5));
         tracker.track_line(x, sep_y, x + w, sep_y);
 
         // 4. Composite state name text
@@ -1107,7 +1171,10 @@ fn render_composite(
             let conc_for_region = |region_children: &[StateNodeLayout]| -> Option<String> {
                 for c in region_children {
                     if c.is_initial || c.is_final {
-                        if let Some(rest) = c.id.strip_prefix("[*]__start").or_else(|| c.id.strip_prefix("[*]__end")) {
+                        if let Some(rest) =
+                            c.id.strip_prefix("[*]__start")
+                                .or_else(|| c.id.strip_prefix("[*]__end"))
+                        {
                             if let Some(idx) = rest.rfind('.') {
                                 return Some(rest[idx + 1..].to_string());
                             }
@@ -1123,9 +1190,14 @@ fn render_composite(
                 } else {
                     node.region_child_starts[region_idx - 1]
                 };
-                let region_end = node.region_child_starts.get(region_idx).copied().unwrap_or(node.children.len());
+                let region_end = node
+                    .region_child_starts
+                    .get(region_idx)
+                    .copied()
+                    .unwrap_or(node.children.len());
                 let region_children = &node.children[region_start..region_end];
-                let conc_name = conc_for_region(region_children).unwrap_or_else(|| format!("CONC{region_idx}"));
+                let conc_name =
+                    conc_for_region(region_children).unwrap_or_else(|| format!("CONC{region_idx}"));
                 ranges.push((region_start, region_end, format!("{}.{}", qname, conc_name)));
             }
             ranges
@@ -1144,35 +1216,44 @@ fn render_composite(
             // Region separator before each region after the first.
             if region_idx > 0 {
                 if let Some(&sep_y) = node.region_separators.get(region_idx - 1) {
-                    LineShape { x1: x + 5.0, y1: sep_y, x2: x + w - 7.0, y2: sep_y }
-                        .draw(sg, &DrawStyle {
+                    LineShape {
+                        x1: x + 5.0,
+                        y1: sep_y,
+                        x2: x + w - 7.0,
+                        y2: sep_y,
+                    }
+                    .draw(
+                        sg,
+                        &DrawStyle {
                             fill: None,
                             stroke: Some(border.into()),
                             stroke_width: 1.5,
                             dash_array: Some((8.0, 10.0)),
                             delta_shadow: 0.0,
-                        });
+                        },
+                    );
                 }
             }
             let region_slice = &node.children[*rstart..*rend];
-            let render_child_with_parent = |child: &StateNodeLayout,
-                                                parent: &str,
-                                                sg: &mut SvgGraphic,
-                                                tracker: &mut BoundsTracker| {
-                render_state_node_with_parent(
-                    sg,
-                    tracker,
-                    child,
-                    bg,
-                    border,
-                    font_color,
-                    ent_id_map,
-                    lnk_id_map,
-                    Some(parent),
-                    next_parent_cluster_center_y,
-                    pass,
-                );
-            };
+            let render_child_with_parent =
+                |child: &StateNodeLayout,
+                 parent: &str,
+                 sg: &mut SvgGraphic,
+                 tracker: &mut BoundsTracker| {
+                    render_state_node_with_parent(
+                        sg,
+                        tracker,
+                        child,
+                        bg,
+                        border,
+                        font_color,
+                        ent_id_map,
+                        lnk_id_map,
+                        Some(parent),
+                        next_parent_cluster_center_y,
+                        pass,
+                    );
+                };
             if render_as_cluster {
                 for child in region_slice {
                     if !cluster_like(child) {
@@ -1211,10 +1292,9 @@ fn render_composite(
         for cluster_pass in [true, false] {
             for child in &node.children {
                 let child_cluster_like = child.render_as_cluster
-                    || child
-                        .children
-                        .iter()
-                        .any(|grand| matches!(grand.kind, StateKind::History | StateKind::DeepHistory));
+                    || child.children.iter().any(|grand| {
+                        matches!(grand.kind, StateKind::History | StateKind::DeepHistory)
+                    });
                 if child_cluster_like != cluster_pass {
                     continue;
                 }
@@ -1249,8 +1329,13 @@ fn render_composite(
             delta_shadow: 0.0,
         };
         for &sep_y in &node.region_separators {
-            LineShape { x1: x + 5.0, y1: sep_y, x2: x + w - 7.0, y2: sep_y }
-                .draw(sg, &sep_style);
+            LineShape {
+                x1: x + 5.0,
+                y1: sep_y,
+                x2: x + w - 7.0,
+                y2: sep_y,
+            }
+            .draw(sg, &sep_style);
         }
     }
 }
@@ -1369,7 +1454,7 @@ fn render_transition(
                 r#"<polygon fill="{BORDER_COLOR}" points="{points_str}" style="stroke:{BORDER_COLOR};stroke-width:1;"/>"#,
             ));
             // Track polygon bounds (Java LimitFinder.drawUPolygon with HACK_X_FOR_POLYGON)
-            let pts: Vec<(f64, f64)> = poly_pts.iter().copied().collect();
+            let pts: Vec<(f64, f64)> = poly_pts.to_vec();
             tracker.track_polygon(&pts);
         }
     } else if transition.points.len() >= 2 {
@@ -1595,9 +1680,9 @@ fn render_note(
         (info.qualified_name.clone(), info.ent_id.clone())
     } else {
         let qualified_name = note.entity_id.as_deref().unwrap_or("GMN");
-        let note_id_seed = qualified_name
-            .bytes()
-            .fold(0u32, |acc, byte| acc.wrapping_mul(131).wrapping_add(byte as u32));
+        let note_id_seed = qualified_name.bytes().fold(0u32, |acc, byte| {
+            acc.wrapping_mul(131).wrapping_add(byte as u32)
+        });
         let ent_id = format!("ent{}", 9000 + (note_id_seed % 1000));
         (qualified_name.to_string(), ent_id)
     };
@@ -1737,9 +1822,7 @@ fn render_note(
 
     sg.push_raw(&format!(
         r#"<path d="{}" fill="{}" style="stroke:{};stroke-width:0.5;"/>"#,
-        body_path,
-        NOTE_BG,
-        NOTE_BORDER,
+        body_path, NOTE_BG, NOTE_BORDER,
     ));
 
     // Java: standalone notes (EntityImageNote) use default stroke-width:1 for the fold
@@ -2014,8 +2097,7 @@ fn render_desc_line(sg: &mut SvgGraphic, text: &str, x: f64, y: f64, fc: &str) {
     // Only strip ASCII spaces (0x20), not Unicode whitespace like NBSP (\u00A0).
     let n_leading = text.bytes().take_while(|&b| b == b' ').count();
     let x = if n_leading > 0 {
-        let space_w =
-            font_metrics::text_width(" ", "SansSerif", DESC_FONT_SIZE, false, false);
+        let space_w = font_metrics::text_width(" ", "SansSerif", DESC_FONT_SIZE, false, false);
         x + space_w * n_leading as f64
     } else {
         x
@@ -2063,8 +2145,7 @@ fn render_desc_line_bold(sg: &mut SvgGraphic, text: &str, x: f64, y: f64, fc: &s
         cx += tl;
         // Advance cursor for stripped trailing spaces
         if n_trailing > 0 && !trimmed.is_empty() {
-            let space_w =
-                font_metrics::text_width(" ", "SansSerif", DESC_FONT_SIZE, false, false);
+            let space_w = font_metrics::text_width(" ", "SansSerif", DESC_FONT_SIZE, false, false);
             cx += space_w * n_trailing as f64;
         }
         ib = !ib;
@@ -2229,8 +2310,14 @@ mod tests {
             2,
             "final state must produce two ellipses"
         );
-        assert!(svg.contains(r#"rx="11""#), "final outer ring must have rx=11");
-        assert!(svg.contains(r#"rx="6""#), "final inner ellipse must have rx=6");
+        assert!(
+            svg.contains(r#"rx="11""#),
+            "final outer ring must have rx=11"
+        );
+        assert!(
+            svg.contains(r#"rx="6""#),
+            "final inner ellipse must have rx=6"
+        );
         assert!(
             svg.contains("stroke-width:1;"),
             "outer ring must have stroke-width=1"
@@ -2562,13 +2649,20 @@ mod tests {
         });
         let (svg, raw_dim) =
             render_state(&diagram, &layout, &SkinParams::default()).expect("render failed");
-        assert!(svg.starts_with("<?plantuml "), "SVG must start with plantuml PI");
+        assert!(
+            svg.starts_with("<?plantuml "),
+            "SVG must start with plantuml PI"
+        );
         assert!(svg.contains("</svg>"), "SVG must end with </svg>");
         // Viewport is computed from BoundsTracker span + CANVAS_DELTA(15) + DOC_MARGIN(5)
         assert!(raw_dim.is_some(), "raw_body_dim must be present");
         assert!(svg.contains("viewBox="), "must have viewBox");
         assert!(svg.contains("<defs/>"), "must have <defs/>");
-        assert_eq!(svg.matches("<ellipse").count(), 3, "3 ellipses expected (1 initial + 2 final)");
+        assert_eq!(
+            svg.matches("<ellipse").count(),
+            3,
+            "3 ellipses expected (1 initial + 2 final)"
+        );
         assert_eq!(svg.matches("<circle").count(), 0, "0 circles expected");
         assert_eq!(svg.matches("<rect").count(), 1, "1 rect expected");
         assert_eq!(

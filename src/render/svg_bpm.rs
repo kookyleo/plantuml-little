@@ -107,9 +107,15 @@ fn render_element(sg: &mut SvgGraphic, cell: &BpmCellLayout) {
     match cell.element_type {
         BpmElementType::Start => {
             EllipseShape {
-                cx, cy, rx: START_RADIUS, ry: START_RADIUS,
+                cx,
+                cy,
+                rx: START_RADIUS,
+                ry: START_RADIUS,
             }
-            .draw(sg, &DrawStyle::filled(START_FILL, START_STROKE, START_STROKE_WIDTH));
+            .draw(
+                sg,
+                &DrawStyle::filled(START_FILL, START_STROKE, START_STROKE_WIDTH),
+            );
         }
         BpmElementType::Merge => {
             let top = (cx, cy - DIAMOND_HALF);
@@ -118,19 +124,28 @@ fn render_element(sg: &mut SvgGraphic, cell: &BpmCellLayout) {
             let left = (cx - DIAMOND_HALF, cy);
             PolygonShape {
                 points: vec![
-                    top.0, top.1, right.0, right.1,
-                    bottom.0, bottom.1, left.0, left.1,
-                    top.0, top.1,
+                    top.0, top.1, right.0, right.1, bottom.0, bottom.1, left.0, left.1, top.0,
+                    top.1,
                 ],
             }
-            .draw(sg, &DrawStyle::filled(DIAMOND_FILL, DIAMOND_STROKE, DIAMOND_STROKE_WIDTH));
+            .draw(
+                sg,
+                &DrawStyle::filled(DIAMOND_FILL, DIAMOND_STROKE, DIAMOND_STROKE_WIDTH),
+            );
         }
         BpmElementType::DockedEvent => {
             RectShape {
-                x: cell.x, y: cell.y, w: cell.width, h: cell.height,
-                rx: BOX_CORNER_RADIUS, ry: BOX_CORNER_RADIUS,
+                x: cell.x,
+                y: cell.y,
+                w: cell.width,
+                h: cell.height,
+                rx: BOX_CORNER_RADIUS,
+                ry: BOX_CORNER_RADIUS,
             }
-            .draw(sg, &DrawStyle::filled(BOX_FILL, BOX_STROKE, BOX_STROKE_WIDTH));
+            .draw(
+                sg,
+                &DrawStyle::filled(BOX_FILL, BOX_STROKE, BOX_STROKE_WIDTH),
+            );
 
             if let Some(ref label) = cell.label {
                 let ascent = font_metrics::ascent("SansSerif", BOX_FONT_SIZE, false, false);
@@ -152,9 +167,15 @@ fn render_element(sg: &mut SvgGraphic, cell: &BpmCellLayout) {
         }
         BpmElementType::End => {
             EllipseShape {
-                cx, cy, rx: START_RADIUS, ry: START_RADIUS,
+                cx,
+                cy,
+                rx: START_RADIUS,
+                ry: START_RADIUS,
             }
-            .draw(sg, &DrawStyle::filled(START_FILL, START_STROKE, START_STROKE_WIDTH * 3.0));
+            .draw(
+                sg,
+                &DrawStyle::filled(START_FILL, START_STROKE, START_STROKE_WIDTH * 3.0),
+            );
         }
     }
 
@@ -197,7 +218,11 @@ fn draw_connector_line(
     dir: Where,
     is_puzzle: bool,
 ) {
-    let color = if is_puzzle { CONNECTOR_BLUE } else { CONNECTOR_RED };
+    let color = if is_puzzle {
+        CONNECTOR_BLUE
+    } else {
+        CONNECTOR_RED
+    };
     let (x1, y1, x2, y2) = match dir {
         Where::East => (cx + width / 2.0, cy, cx + width / 2.0 + CONNECTOR_LEN, cy),
         Where::West => (cx - width / 2.0 - CONNECTOR_LEN, cy, cx - width / 2.0, cy),

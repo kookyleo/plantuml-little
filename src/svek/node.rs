@@ -516,7 +516,7 @@ impl SvekNode {
         Self::append_tr(sb, None, diff, self.width);
 
         sb.push_str("</TABLE>");
-        sb.push_str(">");
+        sb.push('>');
         sb.push_str("];");
         sb.push('\n');
     }

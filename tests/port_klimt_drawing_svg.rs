@@ -735,7 +735,10 @@ mod svg_graphic_tests {
         svg.svg_rectangle(10.0, 10.0, 80.0, 40.0, 0.0, 0.0, 0.0);
 
         let doc = svg.to_svg(None, "SEQUENCE");
-        assert!(doc.starts_with("<svg"), "document should start with <svg");
+        assert!(
+            doc.starts_with("<svg") || doc.starts_with("<?plantuml"),
+            "document should start with <svg or <?plantuml PI"
+        );
         assert!(
             doc.contains("xmlns=\"http://www.w3.org/2000/svg\""),
             "SVG namespace"
@@ -1026,7 +1029,8 @@ mod svg_graphic_tests {
 
     #[test]
     fn xml_escape_quotes() {
-        assert!(xml_escape("say \"hi\"").contains("&quot;"));
+        // In XML text content, quotes don't need escaping
+        assert_eq!(xml_escape("say \"hi\""), "say \"hi\"");
     }
 
     #[test]

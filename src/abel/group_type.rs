@@ -42,7 +42,7 @@ mod tests {
     fn autarkic_types() {
         assert!(!GroupType::Root.is_autarkic());
         assert!(!GroupType::Package.is_autarkic());
-        assert!(GroupType::State.is_autarkic() == false);
+        assert!(!GroupType::State.is_autarkic());
         assert!(GroupType::ConcurrentState.is_autarkic());
         assert!(GroupType::InnerActivity.is_autarkic());
         assert!(GroupType::ConcurrentActivity.is_autarkic());
@@ -81,7 +81,7 @@ mod tests {
 
     #[test]
     fn all_variants() {
-        let variants = vec![
+        let variants = [
             GroupType::Root,
             GroupType::Package,
             GroupType::State,

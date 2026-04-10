@@ -78,7 +78,13 @@ pub fn render_mindmap(
         for node in &layout.nodes {
             let bg = if node.level == 1 { root_bg } else { child_bg };
             render_node_styled(
-                &mut sg, node, bg, node_border, mm_font, node_border_width, node_corner,
+                &mut sg,
+                node,
+                bg,
+                node_border,
+                mm_font,
+                node_border_width,
+                node_corner,
             );
         }
         for edge in &layout.edges {
@@ -91,7 +97,13 @@ pub fn render_mindmap(
                     let node = &layout.nodes[*idx];
                     let bg = if node.level == 1 { root_bg } else { child_bg };
                     render_node_styled(
-                        &mut sg, node, bg, node_border, mm_font, node_border_width, node_corner,
+                        &mut sg,
+                        node,
+                        bg,
+                        node_border,
+                        mm_font,
+                        node_border_width,
+                        node_corner,
                     );
                 }
                 DrawItem::Edge(idx) => {
@@ -168,8 +180,12 @@ fn render_node_styled(
     corner_r: f64,
 ) {
     RectShape {
-        x: node.x, y: node.y, w: node.width, h: node.height,
-        rx: corner_r, ry: corner_r,
+        x: node.x,
+        y: node.y,
+        w: node.width,
+        h: node.height,
+        rx: corner_r,
+        ry: corner_r,
     }
     .draw(sg, &DrawStyle::filled(bg, border, stroke_w));
 
@@ -193,14 +209,23 @@ fn render_node_styled(
 
     for (idx, raw_line) in raw_lines.iter().enumerate() {
         // Center using full width (including leading spaces)
-        let full_w = crate::font_metrics::text_width(raw_line, "SansSerif", font_size, false, false);
+        let full_w =
+            crate::font_metrics::text_width(raw_line, "SansSerif", font_size, false, false);
         let line_x = node.x + (node.width - full_w) / 2.0;
         // Render trimmed text at adjusted x (skip leading/trailing whitespace visually)
         let trimmed = raw_line.trim();
-        let trimmed_w = crate::font_metrics::text_width(trimmed, "SansSerif", font_size, false, false);
+        let trimmed_w =
+            crate::font_metrics::text_width(trimmed, "SansSerif", font_size, false, false);
         let leading_space_w = if raw_line.starts_with(' ') {
             let left_trimmed = raw_line.trim_start();
-            full_w - crate::font_metrics::text_width(left_trimmed, "SansSerif", font_size, false, false)
+            full_w
+                - crate::font_metrics::text_width(
+                    left_trimmed,
+                    "SansSerif",
+                    font_size,
+                    false,
+                    false,
+                )
         } else {
             0.0
         };
@@ -224,14 +249,16 @@ fn render_node_styled(
 
 fn render_note(sg: &mut SvgGraphic, note: &MindmapNoteLayout, font_color: &str) {
     if let Some((x1, y1, x2, y2)) = note.connector {
-        LineShape { x1, y1, x2, y2 }
-            .draw(sg, &DrawStyle {
+        LineShape { x1, y1, x2, y2 }.draw(
+            sg,
+            &DrawStyle {
                 fill: None,
                 stroke: Some(NOTE_BORDER.into()),
                 stroke_width: 0.5,
                 dash_array: Some((4.0, 4.0)),
                 delta_shadow: 0.0,
-            });
+            },
+        );
     }
 
     let fold_x = note.x + note.width - NOTE_FOLD;
@@ -240,7 +267,9 @@ fn render_note(sg: &mut SvgGraphic, note: &MindmapNoteLayout, font_color: &str) 
     let y2 = note.y + note.height;
 
     PolygonShape {
-        points: vec![note.x, note.y, fold_x, note.y, x2, fold_y, x2, y2, note.x, y2],
+        points: vec![
+            note.x, note.y, fold_x, note.y, x2, fold_y, x2, y2, note.x, y2,
+        ],
     }
     .draw(sg, &DrawStyle::filled(NOTE_BG, NOTE_BORDER, 0.5));
 

@@ -165,7 +165,10 @@ fn build_connections(
                 server_order.push(srv.name.clone());
             }
             let addr = srv.address.clone().unwrap_or_default();
-            conns.entry(srv.name.clone()).or_default().push((net_idx, addr));
+            conns
+                .entry(srv.name.clone())
+                .or_default()
+                .push((net_idx, addr));
         }
     }
 
@@ -305,8 +308,7 @@ fn natural_dimension(
         link1_w + 2.0 * MARGIN_AD,
         f64::max(box_w + 2.0 * MARGIN_BOX_W, link2_w + 2.0 * MARGIN_AD),
     );
-    let height =
-        link1_h + 2.0 * MARGIN_AD + 2.0 * top_margin + box_h + link2_h + 2.0 * MARGIN_AD;
+    let height = link1_h + 2.0 * MARGIN_AD + 2.0 * top_margin + box_h + link2_h + 2.0 * MARGIN_AD;
 
     (width, height)
 }
@@ -414,10 +416,7 @@ pub fn layout_nwdiag(diagram: &NwdiagDiagram) -> Result<NwdiagLayout> {
         net_label_heights.push(h);
     }
 
-    let delta_x = net_label_widths
-        .iter()
-        .copied()
-        .fold(0.0_f64, f64::max);
+    let delta_x = net_label_widths.iter().copied().fold(0.0_f64, f64::max);
     let delta_y = (net_label_heights[0] - NETWORK_THIN) / 2.0;
 
     // Grid origin (in body-local coords, after margin translate).
@@ -572,8 +571,7 @@ pub fn layout_nwdiag(diagram: &NwdiagDiagram) -> Result<NwdiagLayout> {
 
         // Address label on top link (immediately after top link, matching Java order).
         if !main_addr.is_empty() {
-            let pos_link1 =
-                (y_middle - bh / 2.0 - top_margin + MAGIC) / 2.0;
+            let pos_link1 = (y_middle - bh / 2.0 - top_margin + MAGIC) / 2.0;
             let addr_text_w = tw(main_addr, FONT_SIZE_11);
             let addr_text_h = lh(FONT_SIZE_11);
             let addr_cx = abs_cell_x + x_middle + magic_delta_main;
@@ -704,7 +702,7 @@ fn magic_delta(net_idx: usize) -> f64 {
     // magicDelta: S0 is even → +2, S1 is odd → -2.
 
     let stage_number = net_idx; // For simple cases, network[i] gets stage i.
-    if stage_number % 2 == 0 {
+    if stage_number.is_multiple_of(2) {
         2.0
     } else {
         -2.0
@@ -789,7 +787,11 @@ mod tests {
         let layout = layout_nwdiag(&d).unwrap();
         assert_eq!(layout.server_boxes.len(), 3);
         // Labels should use resolved descriptions.
-        let labels: Vec<&str> = layout.server_boxes.iter().map(|b| b.label.as_str()).collect();
+        let labels: Vec<&str> = layout
+            .server_boxes
+            .iter()
+            .map(|b| b.label.as_str())
+            .collect();
         assert!(labels.contains(&"app"));
         assert!(labels.contains(&"db01"));
         assert!(labels.contains(&"app01"));

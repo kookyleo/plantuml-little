@@ -65,7 +65,10 @@ fn emit_command(sg: &mut SvgGraphic, cmd: &DrawCmd) {
         }
         DrawCmd::Line { x1, y1, x2, y2 } => {
             LineShape {
-                x1: *x1, y1: *y1, x2: *x2, y2: *y2,
+                x1: *x1,
+                y1: *y1,
+                x2: *x2,
+                y2: *y2,
             }
             .draw(sg, &DrawStyle::outline("#000000", 1.0));
         }
@@ -77,7 +80,12 @@ fn emit_command(sg: &mut SvgGraphic, cmd: &DrawCmd) {
             stroke_width,
         } => {
             RectShape {
-                x: *x, y: *y, w: *w, h: *h, rx: 0.0, ry: 0.0,
+                x: *x,
+                y: *y,
+                w: *w,
+                h: *h,
+                rx: 0.0,
+                ry: 0.0,
             }
             .draw(sg, &DrawStyle::outline("#000000", *stroke_width));
         }
@@ -91,7 +99,12 @@ fn emit_command(sg: &mut SvgGraphic, cmd: &DrawCmd) {
             stroke_width,
         } => {
             RectShape {
-                x: *x, y: *y, w: *w, h: *h, rx: *rx, ry: *rx,
+                x: *x,
+                y: *y,
+                w: *w,
+                h: *h,
+                rx: *rx,
+                ry: *rx,
             }
             .draw(sg, &DrawStyle::filled(fill, "#000000", *stroke_width));
         }
@@ -103,7 +116,10 @@ fn emit_command(sg: &mut SvgGraphic, cmd: &DrawCmd) {
             stroke_width,
         } => {
             EllipseShape {
-                cx: *cx, cy: *cy, rx: *rx, ry: *ry,
+                cx: *cx,
+                cy: *cy,
+                rx: *rx,
+                ry: *ry,
             }
             .draw(sg, &DrawStyle::outline("#000000", *stroke_width));
         }
@@ -115,7 +131,10 @@ fn emit_command(sg: &mut SvgGraphic, cmd: &DrawCmd) {
             stroke_width,
         } => {
             EllipseShape {
-                cx: *cx, cy: *cy, rx: *rx, ry: *ry,
+                cx: *cx,
+                cy: *cy,
+                rx: *rx,
+                ry: *ry,
             }
             .draw(sg, &DrawStyle::filled("#000000", "#000000", *stroke_width));
         }

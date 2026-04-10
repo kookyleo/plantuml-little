@@ -32,7 +32,12 @@ pub fn render_hcl(_d: &HclDiagram, layout: &HclLayout, skin: &SkinParams) -> Res
 
     // Background fill
     RectShape {
-        x: bx, y: by, w: bw, h: bh, rx: 5.0, ry: 5.0,
+        x: bx,
+        y: by,
+        w: bw,
+        h: bh,
+        rx: 5.0,
+        ry: 5.0,
     }
     .draw(&mut sg, &DrawStyle::filled(ENTITY_BG, ENTITY_BG, 1.5));
 
@@ -95,7 +100,10 @@ pub fn render_hcl(_d: &HclDiagram, layout: &HclLayout, skin: &SkinParams) -> Res
         if i < layout.rows.len() - 1 {
             let ly = row.y_top + row.height;
             LineShape {
-                x1: bx, y1: ly, x2: bx + bw, y2: ly,
+                x1: bx,
+                y1: ly,
+                x2: bx + bw,
+                y2: ly,
             }
             .draw(&mut sg, &separator_style);
         }
@@ -103,7 +111,12 @@ pub fn render_hcl(_d: &HclDiagram, layout: &HclLayout, skin: &SkinParams) -> Res
 
     // Border rect
     RectShape {
-        x: bx, y: by, w: bw, h: bh, rx: 5.0, ry: 5.0,
+        x: bx,
+        y: by,
+        w: bw,
+        h: bh,
+        rx: 5.0,
+        ry: 5.0,
     }
     .draw(&mut sg, &DrawStyle::outline(BORDER_COLOR, 1.5));
 

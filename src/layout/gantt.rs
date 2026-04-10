@@ -292,9 +292,9 @@ pub fn layout_gantt(diagram: &GanttDiagram) -> Result<GanttLayout> {
     let day_w = DAY_WIDTH * scale_factor;
     let row_h = ROW_HEIGHT; // vertical: unscaled
     let bar_h = BAR_HEIGHT; // vertical: unscaled
-    let margin = MARGIN;    // vertical: unscaled
+    let margin = MARGIN; // vertical: unscaled
     let font_size = FONT_SIZE * scale_factor; // fonts: scaled
-    // Time axis height scales with font size (larger fonts need more header space)
+                                              // Time axis height scales with font size (larger fonts need more header space)
     let time_axis_h = if scale_factor > 1.0 {
         TIME_AXIS_HEIGHT + (font_size - FONT_SIZE) * 1.5
     } else {

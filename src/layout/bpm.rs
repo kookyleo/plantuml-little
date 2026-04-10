@@ -277,8 +277,14 @@ impl Grid {
     /// Check if two adjacent lines can be merged.
     fn lines_mergeable(&self, line1: LineId, line2: LineId) -> bool {
         for col in &self.cols {
-            let c1 = self.cells.get(&Coord { line: line1, col: *col });
-            let c2 = self.cells.get(&Coord { line: line2, col: *col });
+            let c1 = self.cells.get(&Coord {
+                line: line1,
+                col: *col,
+            });
+            let c2 = self.cells.get(&Coord {
+                line: line2,
+                col: *col,
+            });
             if !self.cells_mergeable(c1, c2) {
                 return false;
             }
@@ -366,8 +372,7 @@ fn element_size(etype: &BpmElementType, label: Option<&str>) -> (f64, f64) {
             let text = label.unwrap_or("");
             let tw = font_metrics::text_width(text, "SansSerif", BOX_FONT_SIZE, false, false);
             let w = BOX_PADDING_LEFT + tw + BOX_PADDING_RIGHT;
-            let line_h =
-                font_metrics::line_height("SansSerif", BOX_FONT_SIZE, false, false);
+            let line_h = font_metrics::line_height("SansSerif", BOX_FONT_SIZE, false, false);
             let h = BOX_PADDING_TOP + line_h + BOX_PADDING_BOTTOM;
             (w, h)
         }

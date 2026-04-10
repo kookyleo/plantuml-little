@@ -1,5 +1,8 @@
 #[derive(Debug, Clone, PartialEq)]
-pub enum FilesEntryKind { Folder, File }
+pub enum FilesEntryKind {
+    Folder,
+    File,
+}
 #[derive(Debug, Clone)]
 pub struct FilesEntry {
     pub name: String,
@@ -7,4 +10,6 @@ pub struct FilesEntry {
     pub children: Vec<FilesEntry>,
 }
 #[derive(Debug, Clone)]
-pub struct FilesDiagram { pub entries: Vec<FilesEntry> }
+pub struct FilesDiagram {
+    pub entries: Vec<FilesEntry>,
+}

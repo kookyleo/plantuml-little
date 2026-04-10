@@ -84,7 +84,7 @@ impl ClockwiseTopRightBottomLeft {
             return Self::none();
         }
 
-        let parts: Vec<&str> = value.trim().split_whitespace().collect();
+        let parts: Vec<&str> = value.split_whitespace().collect();
         match parts.len() {
             1 => {
                 if let Ok(v) = parts[0].parse::<f64>() {

@@ -50,7 +50,11 @@ pub fn convert_with_input_path(puml_source: &str, input_path: &Path) -> Result<S
     render_expanded(puml_source, &expanded, Some(input_path))
 }
 
-fn render_expanded(original_source: &str, expanded: &str, input_path: Option<&Path>) -> Result<String> {
+fn render_expanded(
+    original_source: &str,
+    expanded: &str,
+    input_path: Option<&Path>,
+) -> Result<String> {
     // Java emits one SVG per @startuml block. When the source has multiple
     // standard @startuml/@enduml blocks (no @startwbs/@startsalt mixed in),
     // detect them and render each separately, concatenating the SVGs.
@@ -109,7 +113,11 @@ pub(crate) fn convert_no_preproc(puml_source: &str) -> Result<String> {
     render_expanded(puml_source, puml_source, None)
 }
 
-fn render_one_block(original_source: &str, expanded: &str, input_path: Option<&Path>) -> Result<String> {
+fn render_one_block(
+    original_source: &str,
+    expanded: &str,
+    input_path: Option<&Path>,
+) -> Result<String> {
     // Extract SVG sprite definitions before parsing (sprite lines would confuse parsers)
     let (cleaned, sprites, gray_data) = parser::common::extract_sprites(expanded);
     render::svg_richtext::set_sprites(sprites);

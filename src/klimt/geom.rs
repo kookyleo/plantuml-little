@@ -281,7 +281,7 @@ impl XLine2D {
         }
         let s = (-s1y * (self.x1 - other.x1) + s1x * (self.y1 - other.y1)) / denom;
         let t = (s2x * (self.y1 - other.y1) - s2y * (self.x1 - other.x1)) / denom;
-        if s >= 0.0 && s <= 1.0 && t >= 0.0 && t <= 1.0 {
+        if (0.0..=1.0).contains(&s) && (0.0..=1.0).contains(&t) {
             Some(XPoint2D::new(self.x1 + t * s1x, self.y1 + t * s1y))
         } else {
             None

@@ -156,13 +156,18 @@ pub fn layout_timing(td: &TimingDiagram, skin: &crate::style::SkinParams) -> Res
     let (time_min, time_max) = time_range(&all_times);
 
     let states_per_participant = collect_states(td);
-    let max_state_width = states_per_participant.values().flat_map(|s| s.iter()).map(|s| font_metrics::text_width(s, "SansSerif", state_font_size, false, false)).fold(0.0_f64, f64::max);
+    let max_state_width = states_per_participant
+        .values()
+        .flat_map(|s| s.iter())
+        .map(|s| font_metrics::text_width(s, "SansSerif", state_font_size, false, false))
+        .fold(0.0_f64, f64::max);
     let chart_x = MARGIN + LABEL_PAD + max_state_width;
 
     // Scale: map [time_min .. time_max] to pixel range
     let time_span = (time_max - time_min).max(1) as f64;
     let tick_interval = compute_tick_interval(time_span);
-    let chart_time_max = ((time_max as f64 / tick_interval).ceil() * tick_interval + tick_interval) as i64;
+    let chart_time_max =
+        ((time_max as f64 / tick_interval).ceil() * tick_interval + tick_interval) as i64;
     let chart_time_span = (chart_time_max - time_min) as f64;
     let px_per_unit = 0.5_f64;
     let chart_width = (chart_time_span * px_per_unit).max(200.0);
@@ -179,9 +184,16 @@ pub fn layout_timing(td: &TimingDiagram, skin: &crate::style::SkinParams) -> Res
     for participant in &td.participants {
         let pid = participant.id().to_string();
         let is_robust = participant.kind == TimingParticipantKind::Robust;
-        let state_labels = states_per_participant.get(&pid).cloned().unwrap_or_default();
+        let state_labels = states_per_participant
+            .get(&pid)
+            .cloned()
+            .unwrap_or_default();
         let num_states = state_labels.len().max(1);
-        let track_h = if is_robust { header_h + STATE_AREA_PADDING + (num_states as f64 - 1.0) * STATE_LEVEL_SPACING } else { header_h + state_lh + CONCISE_BODY_EXTRA };
+        let track_h = if is_robust {
+            header_h + STATE_AREA_PADDING + (num_states as f64 - 1.0) * STATE_LEVEL_SPACING
+        } else {
+            header_h + state_lh + CONCISE_BODY_EXTRA
+        };
 
         // Gather state changes for this participant, sorted by time
         let mut changes: Vec<(i64, String)> = td
@@ -282,14 +294,14 @@ pub fn layout_timing(td: &TimingDiagram, skin: &crate::style::SkinParams) -> Res
         let (y, margin_x) = if let Some(track_idx) = track_idx_by_id.get(&c.participant).copied() {
             let track = &tracks[track_idx];
             let y = if track.is_robust {
-                track.segments
+                track
+                    .segments
                     .iter()
                     .map(|segment| segment.y)
                     .fold(current_y, f64::min)
                     - (state_lh + CONSTRAINT_TOP_MARGIN) * 0.5
             } else {
-                concise_ribbon_top(track.y, track.height)
-                    - (state_lh + CONSTRAINT_TOP_MARGIN) * 0.5
+                concise_ribbon_top(track.y, track.height) - (state_lh + CONSTRAINT_TOP_MARGIN) * 0.5
             };
             (y, if track.is_robust { 2.5 } else { 1.0 })
         } else {
@@ -458,11 +470,7 @@ fn concise_ribbon_top(track_y: f64, track_height: f64) -> f64 {
     concise_ribbon_center(track_y, track_height) - CONCISE_RIBBON_HEIGHT * 0.5
 }
 
-fn projection_ys(
-    track: &TimingTrackLayout,
-    changes: &[(i64, String)],
-    tick: i64,
-) -> Vec<f64> {
+fn projection_ys(track: &TimingTrackLayout, changes: &[(i64, String)], tick: i64) -> Vec<f64> {
     if changes.is_empty() {
         return Vec::new();
     }
@@ -496,7 +504,7 @@ fn projection_ys(
             if let Some(y) = resolve(&changes[i].1) {
                 if points
                     .last()
-                    .map_or(true, |last| (*last - y).abs() > f64::EPSILON)
+                    .is_none_or(|last| (*last - y).abs() > f64::EPSILON)
                 {
                     points.push(y);
                 }
@@ -624,10 +632,18 @@ fn layout_notes(
 }
 
 fn compute_tick_interval(time_span: f64) -> f64 {
-    if time_span <= 0.0 { return 1.0; }
+    if time_span <= 0.0 {
+        return 1.0;
+    }
     let mag = 10.0_f64.powf(time_span.log10().floor());
     let r = time_span / mag;
-    if r <= 2.0 { mag / 5.0 } else if r <= 5.0 { mag / 2.0 } else { mag }
+    if r <= 2.0 {
+        mag / 5.0
+    } else if r <= 5.0 {
+        mag / 2.0
+    } else {
+        mag
+    }
 }
 
 /// Build evenly-spaced grid ticks from time_min to chart_time_max at tick_interval.
@@ -741,7 +757,9 @@ mod tests {
         ));
         td.state_changes.push(simple_state_change("A", 0, "Idle"));
         let layout = layout_timing(&td, &crate::style::SkinParams::new()).unwrap();
-        let expected_rh = crate::font_metrics::line_height("SansSerif", 14.0, false, false) + 1.0 + STATE_AREA_PADDING;
+        let expected_rh = crate::font_metrics::line_height("SansSerif", 14.0, false, false)
+            + 1.0
+            + STATE_AREA_PADDING;
         assert!((layout.tracks[0].height - expected_rh).abs() < 0.01);
     }
 

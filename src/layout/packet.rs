@@ -118,9 +118,21 @@ mod tests {
     fn test_layout_basic() {
         let d = PacketDiagram {
             fields: vec![
-                PacketField { start: 0, end: 15, label: "Source Port".into() },
-                PacketField { start: 16, end: 31, label: "Dest Port".into() },
-                PacketField { start: 32, end: 63, label: "Seq Number".into() },
+                PacketField {
+                    start: 0,
+                    end: 15,
+                    label: "Source Port".into(),
+                },
+                PacketField {
+                    start: 16,
+                    end: 31,
+                    label: "Dest Port".into(),
+                },
+                PacketField {
+                    start: 32,
+                    end: 63,
+                    label: "Seq Number".into(),
+                },
             ],
             bits_per_row: 32,
         };

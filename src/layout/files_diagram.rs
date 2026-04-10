@@ -66,8 +66,7 @@ pub fn layout_files(d: &FilesDiagram) -> Result<FilesLayout> {
         entry.y_base = y_base;
         entry.text_y = y_base + TEXT_BASELINE_DY;
         entry.text_x = TEXT_BASE_X + (entry.level as f64) * DEPTH_DX;
-        entry.text_length =
-            font_metrics::text_width(&entry.name, "SansSerif", 14.0, false, false);
+        entry.text_length = font_metrics::text_width(&entry.name, "SansSerif", 14.0, false, false);
         let right = entry.text_x + entry.text_length;
         if right > max_text_right {
             max_text_right = right;

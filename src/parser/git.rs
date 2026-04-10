@@ -91,7 +91,10 @@ mod tests {
         match err {
             crate::Error::JavaErrorPage { line, message } => {
                 assert_eq!(line, 5);
-                assert_eq!(message, "Fatal crash error: java.lang.IllegalArgumentException");
+                assert_eq!(
+                    message,
+                    "Fatal crash error: java.lang.IllegalArgumentException"
+                );
             }
             other => panic!("unexpected error: {other:?}"),
         }
@@ -104,7 +107,10 @@ mod tests {
         match err {
             crate::Error::JavaErrorPage { line, message } => {
                 assert_eq!(line, 5);
-                assert_eq!(message, "Fatal crash error: java.lang.IllegalArgumentException");
+                assert_eq!(
+                    message,
+                    "Fatal crash error: java.lang.IllegalArgumentException"
+                );
             }
             other => panic!("unexpected error: {other:?}"),
         }

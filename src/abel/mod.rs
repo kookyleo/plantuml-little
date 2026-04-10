@@ -365,11 +365,9 @@ impl EntityGender {
             Self::ByEntityAlone(uid) => entity.uid() == uid,
             Self::ByStereotype(stereo) => entity
                 .stereotype()
-                .map_or(false, |s| s.contains(stereo.as_str())),
+                .is_some_and(|s| s.contains(stereo.as_str())),
             Self::ByClassName(name) => entity.name() == name,
-            Self::ByPackage(parent_name) => {
-                entity.parent_name().map_or(false, |p| p == parent_name)
-            }
+            Self::ByPackage(parent_name) => entity.parent_name().is_some_and(|p| p == parent_name),
             Self::All => true,
             Self::And(g1, g2) => g1.contains(entity) && g2.contains(entity),
         }

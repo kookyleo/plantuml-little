@@ -32,6 +32,12 @@ pub struct Oscillator {
     values: Vec<f64>,
 }
 
+impl Default for Oscillator {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Oscillator {
     pub fn new() -> Self {
         Self { values: Vec::new() }

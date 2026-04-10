@@ -22,9 +22,9 @@ pub fn render_git(_d: &GitDiagram, l: &GitLayout, skin: &SkinParams) -> Result<S
     let sw = ensure_visible_int(l.width) as f64;
     let sh = ensure_visible_int(l.height) as f64;
 
-    write_svg_root_bg_opt(&mut buf, sw, sh, None, &bg);
+    write_svg_root_bg_opt(&mut buf, sw, sh, None, bg);
     buf.push_str("<defs/><g>");
-    write_bg_rect(&mut buf, sw, sh, &bg);
+    write_bg_rect(&mut buf, sw, sh, bg);
 
     let mut sg = SvgGraphic::new(0, 1.0);
 
@@ -32,18 +32,24 @@ pub fn render_git(_d: &GitDiagram, l: &GitLayout, skin: &SkinParams) -> Result<S
     let edge_style = DrawStyle::outline(EDGE_COLOR, 2.0);
     for edge in &l.edges {
         LineShape {
-            x1: edge.x1, y1: edge.y1, x2: edge.x2, y2: edge.y2,
+            x1: edge.x1,
+            y1: edge.y1,
+            x2: edge.x2,
+            y2: edge.y2,
         }
         .draw(&mut sg, &edge_style);
     }
 
     // Draw nodes
-    for (_i, node) in l.nodes.iter().enumerate() {
+    for node in l.nodes.iter() {
         let color = COLORS[(node.depth - 1) % COLORS.len()];
 
         // Draw filled circle
         EllipseShape {
-            cx: node.cx, cy: node.cy, rx: node.radius, ry: node.radius,
+            cx: node.cx,
+            cy: node.cy,
+            rx: node.radius,
+            ry: node.radius,
         }
         .draw(&mut sg, &DrawStyle::filled(color, "#333333", 1.5));
 

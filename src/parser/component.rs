@@ -788,7 +788,8 @@ fn try_parse_forward_arrow(line: &str) -> Option<ComponentLink> {
             let arrow_len = count_arrow_len(arrow_str);
             // Java calls Link.getInv() for forward arrows with UP/LEFT direction,
             // consuming an extra UID counter value.
-            let direction_inverted = direction_hint.as_deref()
+            let direction_inverted = direction_hint
+                .as_deref()
                 .is_some_and(|d| d == "up" || d == "left");
 
             return Some(ComponentLink {
@@ -929,8 +930,7 @@ fn count_arrow_len(arrow: &str) -> usize {
         .replace("down", "")
         .replace("left", "")
         .replace("right", "")
-        .replace('<', "")
-        .replace('>', "");
+        .replace(['<', '>'], "");
     cleaned.chars().filter(|c| *c == '-' || *c == '.').count()
 }
 
@@ -1671,9 +1671,8 @@ end note
 
     #[test]
     fn test_archimate_unquoted_name() {
-        let d = parse(
-            "@startuml\narchimate #F5DEAA MyResource <<strategy-resource>> as res\n@enduml",
-        );
+        let d =
+            parse("@startuml\narchimate #F5DEAA MyResource <<strategy-resource>> as res\n@enduml");
         assert_eq!(d.entities.len(), 1);
         assert_eq!(d.entities[0].name, "MyResource");
         assert_eq!(d.entities[0].id, "res");
@@ -1682,9 +1681,7 @@ end note
 
     #[test]
     fn test_archimate_no_color() {
-        let d = parse(
-            "@startuml\narchimate \"App\" <<application-component>> as app\n@enduml",
-        );
+        let d = parse("@startuml\narchimate \"App\" <<application-component>> as app\n@enduml");
         assert_eq!(d.entities.len(), 1);
         assert_eq!(d.entities[0].name, "App");
         assert_eq!(d.entities[0].id, "app");

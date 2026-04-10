@@ -112,7 +112,8 @@ pub fn layout_git(d: &GitDiagram) -> Result<GitLayout> {
     }
 
     let width = max_x + MARGIN;
-    let height = MARGIN * 2.0 + NODE_RADIUS * 2.0 + (d.nodes.len().saturating_sub(1)) as f64 * ROW_HEIGHT;
+    let height =
+        MARGIN * 2.0 + NODE_RADIUS * 2.0 + (d.nodes.len().saturating_sub(1)) as f64 * ROW_HEIGHT;
 
     Ok(GitLayout {
         nodes,
@@ -131,9 +132,21 @@ mod tests {
     fn test_layout_basic() {
         let d = GitDiagram {
             nodes: vec![
-                GitNode { depth: 1, label: "main".into(), index: 0 },
-                GitNode { depth: 2, label: "feature1".into(), index: 1 },
-                GitNode { depth: 2, label: "feature2".into(), index: 2 },
+                GitNode {
+                    depth: 1,
+                    label: "main".into(),
+                    index: 0,
+                },
+                GitNode {
+                    depth: 2,
+                    label: "feature1".into(),
+                    index: 1,
+                },
+                GitNode {
+                    depth: 2,
+                    label: "feature2".into(),
+                    index: 2,
+                },
             ],
         };
         let l = layout_git(&d).unwrap();

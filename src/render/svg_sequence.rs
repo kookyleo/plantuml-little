@@ -16,8 +16,7 @@ use crate::font_metrics;
 use crate::klimt::drawable::{DrawStyle, Drawable, LineShape};
 
 use super::svg::{
-    ensure_visible_int, write_bg_rect, write_svg_root_bg,
-    ViewportConfig, compute_viewport,
+    compute_viewport, ensure_visible_int, write_bg_rect, write_svg_root_bg, ViewportConfig,
 };
 use super::svg_richtext::{
     disable_path_sprites, enable_path_sprites, render_creole_note_content, render_creole_text,
@@ -34,22 +33,39 @@ use crate::klimt::svg::{fmt_coord, xml_escape, LengthAdjust, SvgGraphic};
 /// Emit a rect as a hand-drawn polygon when `rng` is Some, or normal rect otherwise.
 fn emit_rect(
     sg: &mut SvgGraphic,
-    x: f64, y: f64, w: f64, h: f64,
-    fill: &str, fill_opacity: Option<&str>, style: &str,
+    x: f64,
+    y: f64,
+    w: f64,
+    h: f64,
+    fill: &str,
+    fill_opacity: Option<&str>,
+    style: &str,
     rng: &mut Option<JavaRandom>,
 ) {
     if let Some(ref mut r) = rng {
         let pts = rect_to_hand_polygon(w, h, 0.0, 0.0, r);
         let translated: Vec<(f64, f64)> = pts.iter().map(|(px, py)| (px + x, py + y)).collect();
         let pts_str = polygon_points_svg(&translated);
-        let opacity = fill_opacity.map(|o| format!(" fill-opacity=\"{o}\"")).unwrap_or_default();
-        let style_attr = if style.is_empty() { String::new() } else { format!(" style=\"{style}\"") };
+        let opacity = fill_opacity
+            .map(|o| format!(" fill-opacity=\"{o}\""))
+            .unwrap_or_default();
+        let style_attr = if style.is_empty() {
+            String::new()
+        } else {
+            format!(" style=\"{style}\"")
+        };
         sg.push_raw(&format!(
             "<polygon fill=\"{fill}\"{opacity} points=\"{pts_str}\"{style_attr}/>"
         ));
     } else {
-        let opacity = fill_opacity.map(|o| format!(" fill-opacity=\"{o}\"")).unwrap_or_default();
-        let style_attr = if style.is_empty() { String::new() } else { format!(" style=\"{style}\"") };
+        let opacity = fill_opacity
+            .map(|o| format!(" fill-opacity=\"{o}\""))
+            .unwrap_or_default();
+        let style_attr = if style.is_empty() {
+            String::new()
+        } else {
+            format!(" style=\"{style}\"")
+        };
         sg.push_raw(&format!(
             "<rect fill=\"{fill}\"{opacity} height=\"{h}\"{style_attr} width=\"{w}\" x=\"{x}\" y=\"{y}\"/>",
             h = fmt_coord(h), w = fmt_coord(w), x = fmt_coord(x), y = fmt_coord(y),
@@ -60,7 +76,10 @@ fn emit_rect(
 /// Emit a line as a hand-drawn path when `rng` is Some, or normal line otherwise.
 fn emit_line(
     sg: &mut SvgGraphic,
-    x1: f64, y1: f64, x2: f64, y2: f64,
+    x1: f64,
+    y1: f64,
+    x2: f64,
+    y2: f64,
     style: &str,
     rng: &mut Option<JavaRandom>,
 ) {
@@ -77,11 +96,16 @@ fn emit_line(
                 }
             }
         }
-        sg.push_raw(&format!("<path d=\"{d}\" fill=\"none\" style=\"{style}\"/>"));
+        sg.push_raw(&format!(
+            "<path d=\"{d}\" fill=\"none\" style=\"{style}\"/>"
+        ));
     } else {
         sg.push_raw(&format!(
             "<line style=\"{style}\" x1=\"{x1}\" x2=\"{x2}\" y1=\"{y1}\" y2=\"{y2}\"/>",
-            x1 = fmt_coord(x1), x2 = fmt_coord(x2), y1 = fmt_coord(y1), y2 = fmt_coord(y2),
+            x1 = fmt_coord(x1),
+            x2 = fmt_coord(x2),
+            y1 = fmt_coord(y1),
+            y2 = fmt_coord(y2),
         ));
     }
 }
@@ -241,14 +265,7 @@ impl SequenceSvgBounds {
         self.add_point(x2, y2);
     }
 
-    fn track_line_shadowed(
-        &mut self,
-        x1: f64,
-        y1: f64,
-        x2: f64,
-        y2: f64,
-        delta_shadow: f64,
-    ) {
+    fn track_line_shadowed(&mut self, x1: f64, y1: f64, x2: f64, y2: f64, delta_shadow: f64) {
         // LimitFinder side: raw line bounds (no shadow pad).
         self.add_point(x1, y1);
         self.add_point(x2, y2);
@@ -419,10 +436,8 @@ fn parse_path_endpoints(d: &str) -> Vec<f64> {
             'M' | 'L' | 'T' | 'l' | 'm' | 't' => {
                 // 2 numbers: x, y
                 if i + 1 < tokens.len() {
-                    if let (Ok(x), Ok(y)) = (
-                        tokens[i].parse::<f64>(),
-                        tokens[i + 1].parse::<f64>(),
-                    ) {
+                    if let (Ok(x), Ok(y)) = (tokens[i].parse::<f64>(), tokens[i + 1].parse::<f64>())
+                    {
                         if cmd.is_ascii_uppercase() {
                             coords.push(x);
                             coords.push(y);
@@ -437,10 +452,9 @@ fn parse_path_endpoints(d: &str) -> Vec<f64> {
                 // 6 numbers: x1,y1 x2,y2 x,y — all are coordinates
                 for _ in 0..3 {
                     if i + 1 < tokens.len() {
-                        if let (Ok(x), Ok(y)) = (
-                            tokens[i].parse::<f64>(),
-                            tokens[i + 1].parse::<f64>(),
-                        ) {
+                        if let (Ok(x), Ok(y)) =
+                            (tokens[i].parse::<f64>(), tokens[i + 1].parse::<f64>())
+                        {
                             if cmd.is_ascii_uppercase() {
                                 coords.push(x);
                                 coords.push(y);
@@ -457,10 +471,9 @@ fn parse_path_endpoints(d: &str) -> Vec<f64> {
                 // 4 numbers: two coordinate pairs
                 for _ in 0..2 {
                     if i + 1 < tokens.len() {
-                        if let (Ok(x), Ok(y)) = (
-                            tokens[i].parse::<f64>(),
-                            tokens[i + 1].parse::<f64>(),
-                        ) {
+                        if let (Ok(x), Ok(y)) =
+                            (tokens[i].parse::<f64>(), tokens[i + 1].parse::<f64>())
+                        {
                             if cmd.is_ascii_uppercase() {
                                 coords.push(x);
                                 coords.push(y);
@@ -477,10 +490,9 @@ fn parse_path_endpoints(d: &str) -> Vec<f64> {
                 // 7 numbers: rx, ry, x-rotation, large-arc-flag, sweep-flag, x, y
                 // Only the last two (x, y) are actual endpoint coordinates
                 if i + 6 < tokens.len() {
-                    if let (Ok(x), Ok(y)) = (
-                        tokens[i + 5].parse::<f64>(),
-                        tokens[i + 6].parse::<f64>(),
-                    ) {
+                    if let (Ok(x), Ok(y)) =
+                        (tokens[i + 5].parse::<f64>(), tokens[i + 6].parse::<f64>())
+                    {
                         if cmd.is_ascii_uppercase() {
                             coords.push(x);
                             coords.push(y);
@@ -531,9 +543,8 @@ fn measure_sequence_body_dim_full(body: &str) -> Option<((f64, f64), (f64, f64))
     let tag_re = TAG_RE.get_or_init(|| {
         Regex::new(r#"<(rect|line|text|ellipse|circle|polygon|polyline|path)\b([^>]*)>"#).unwrap()
     });
-    let attr_re = ATTR_RE.get_or_init(|| {
-        Regex::new(r#"([A-Za-z_:][-A-Za-z0-9_:.]*)="([^"]*)""#).unwrap()
-    });
+    let attr_re =
+        ATTR_RE.get_or_init(|| Regex::new(r#"([A-Za-z_:][-A-Za-z0-9_:.]*)="([^"]*)""#).unwrap());
 
     let mut bounds = SequenceSvgBounds::default();
 
@@ -611,7 +622,8 @@ fn measure_sequence_body_dim_full(body: &str) -> Option<((f64, f64), (f64, f64))
                     parse_svg_number(attr_map.get("x").copied()),
                     parse_svg_number(attr_map.get("y").copied()),
                 ) {
-                    let text_width = parse_svg_number(attr_map.get("textLength").copied()).unwrap_or(0.0);
+                    let text_width =
+                        parse_svg_number(attr_map.get("textLength").copied()).unwrap_or(0.0);
                     let font_size =
                         parse_svg_number(attr_map.get("font-size").copied()).unwrap_or(FONT_SIZE);
                     let font_family = svg_font_family_to_metrics_family(
@@ -619,7 +631,7 @@ fn measure_sequence_body_dim_full(body: &str) -> Option<((f64, f64), (f64, f64))
                     );
                     let font_weight = attr_map.get("font-weight").copied().unwrap_or("");
                     let bold =
-                        font_weight == "bold" || font_weight.parse::<u32>().map_or(false, |w| w >= 700);
+                        font_weight == "bold" || font_weight.parse::<u32>().is_ok_and(|w| w >= 700);
                     let italic = attr_map.get("font-style").copied() == Some("italic");
                     let text_height =
                         font_metrics::line_height(font_family, font_size, bold, italic);
@@ -715,7 +727,9 @@ fn first_metadata_title_line(display_text: &str) -> &str {
 }
 
 fn encode_metadata_title(display_text: &str) -> String {
-    xml_escape(&sanitize_group_metadata_value(first_metadata_title_line(display_text)))
+    xml_escape(&sanitize_group_metadata_value(first_metadata_title_line(
+        display_text,
+    )))
 }
 
 // ── Lifelines ───────────────────────────────────────────────────────
@@ -772,11 +786,27 @@ fn draw_lifelines(
             write!(tmp, "<g><title>{dname}</title>", dname = title_text).unwrap();
             sg.push_raw(&tmp);
 
-            emit_rect(sg, rect_x, layout.lifeline_top, 8.0, ll_height,
-                "#000000", Some("0.00000"), "", hand_rng);
+            emit_rect(
+                sg,
+                rect_x,
+                layout.lifeline_top,
+                8.0,
+                ll_height,
+                "#000000",
+                Some("0.00000"),
+                "",
+                hand_rng,
+            );
 
-            emit_line(sg, lifeline_x, layout.lifeline_top, lifeline_x, layout.lifeline_bottom,
-                &format!("stroke:{};stroke-width:0.5;stroke-dasharray:5,5;", ll_color), hand_rng);
+            emit_line(
+                sg,
+                lifeline_x,
+                layout.lifeline_top,
+                lifeline_x,
+                layout.lifeline_bottom,
+                &format!("stroke:{};stroke-width:0.5;stroke-dasharray:5,5;", ll_color),
+                hand_rng,
+            );
             sg.push_raw("</g>");
         } else if delay_breaks.is_empty() {
             // No delays: single continuous lifeline
@@ -789,11 +819,27 @@ fn draw_lifelines(
             ).unwrap();
             sg.push_raw(&tmp);
 
-            emit_rect(sg, rect_x, layout.lifeline_top, 8.0, ll_height,
-                "#000000", Some("0.00000"), "", hand_rng);
+            emit_rect(
+                sg,
+                rect_x,
+                layout.lifeline_top,
+                8.0,
+                ll_height,
+                "#000000",
+                Some("0.00000"),
+                "",
+                hand_rng,
+            );
 
-            emit_line(sg, lifeline_x, layout.lifeline_top, lifeline_x, layout.lifeline_bottom,
-                &format!("stroke:{};stroke-width:0.5;stroke-dasharray:5,5;", ll_color), hand_rng);
+            emit_line(
+                sg,
+                lifeline_x,
+                layout.lifeline_top,
+                lifeline_x,
+                layout.lifeline_bottom,
+                &format!("stroke:{};stroke-width:0.5;stroke-dasharray:5,5;", ll_color),
+                hand_rng,
+            );
             sg.push_raw("</g></g>");
         } else {
             // Delays present: split lifeline into segments with delay-style breaks.
@@ -2097,7 +2143,11 @@ fn draw_message(
     // Circle at source: for bidirectional, the from-end also has an arrowhead so it
     // needs the full arrowhead shift (4.0 + 1.5). For non-bidir, only the line shifts (4.0).
     let circle_from_shift = if msg.circle_from {
-        if msg.bidirectional { 4.0 + 1.5 } else { 4.0 }
+        if msg.bidirectional {
+            4.0 + 1.5
+        } else {
+            4.0
+        }
     } else {
         0.0
     };
@@ -2106,10 +2156,18 @@ fn draw_message(
     // Java insets the arrow tip 2px from the participant center
     let (tip_x, line_x1, _line_x2) = if msg.is_left {
         // Right-to-left: arrow points left, tip 1px inset from target center
-        (msg.to_x + 1.0 + circle_to_shift, msg.from_x - 1.0 - circle_from_shift, msg.to_x)
+        (
+            msg.to_x + 1.0 + circle_to_shift,
+            msg.from_x - 1.0 - circle_from_shift,
+            msg.to_x,
+        )
     } else {
         // Left-to-right: arrow points right, tip 2px inset from target center
-        (msg.to_x - 2.0 - circle_to_shift, msg.from_x + circle_from_shift, msg.to_x)
+        (
+            msg.to_x - 2.0 - circle_to_shift,
+            msg.from_x + circle_from_shift,
+            msg.to_x,
+        )
     };
 
     // For bidirectional arrows, Java renders decorations grouped by side (left then right).
@@ -2285,7 +2343,11 @@ fn draw_message(
                 }
                 sg.push_raw(&tmp);
             } else {
-                let arm_x = if msg.is_left { tip_x + 10.0 } else { tip_x - 10.0 };
+                let arm_x = if msg.is_left {
+                    tip_x + 10.0
+                } else {
+                    tip_x - 10.0
+                };
                 let mut tmp = String::new();
                 match msg.arrow_head {
                     SeqArrowHead::FilledHalfTop => {
@@ -2303,7 +2365,11 @@ fn draw_message(
                             color = arrow_color).unwrap();
                     }
                     _ => {
-                        let inner_x = if msg.is_left { tip_x + 6.0 } else { tip_x - 6.0 };
+                        let inner_x = if msg.is_left {
+                            tip_x + 6.0
+                        } else {
+                            tip_x - 6.0
+                        };
                         write!(tmp, r#"<polygon fill="{color}" points="{},{},{},{},{},{},{},{}" style="stroke:{color};stroke-width:1;"/>"#,
                             fmt_coord(arm_x), fmt_coord(msg.y - 4.0),
                             fmt_coord(tip_x), fmt_coord(msg.y),
@@ -2332,20 +2398,36 @@ fn draw_message(
         if msg.is_left {
             // is_left: to (arrowhead) is on LEFT, from (decorations) is on RIGHT
             // Left side = to: circle_to, cross_to, arrowhead
-            if msg.circle_to { draw_circle(sg, msg.to_x); }
-            if msg.cross_to { draw_cross(sg, cross_to_x0); }
+            if msg.circle_to {
+                draw_circle(sg, msg.to_x);
+            }
+            if msg.cross_to {
+                draw_cross(sg, cross_to_x0);
+            }
             draw_arrowhead(sg);
             // Right side = from: circle_from, cross_from
-            if msg.circle_from { draw_circle(sg, msg.from_x); }
-            if msg.cross_from { draw_cross(sg, cross_from_x0); }
+            if msg.circle_from {
+                draw_circle(sg, msg.from_x);
+            }
+            if msg.cross_from {
+                draw_cross(sg, cross_from_x0);
+            }
         } else {
             // is_left=false: from is on LEFT, to (arrowhead) is on RIGHT
             // Left side = from: circle_from, cross_from
-            if msg.circle_from { draw_circle(sg, msg.from_x); }
-            if msg.cross_from { draw_cross(sg, cross_from_x0); }
+            if msg.circle_from {
+                draw_circle(sg, msg.from_x);
+            }
+            if msg.cross_from {
+                draw_cross(sg, cross_from_x0);
+            }
             // Right side = to: circle_to, cross_to, arrowhead
-            if msg.circle_to { draw_circle(sg, msg.to_x); }
-            if msg.cross_to { draw_cross(sg, cross_to_x0); }
+            if msg.circle_to {
+                draw_circle(sg, msg.to_x);
+            }
+            if msg.cross_to {
+                draw_cross(sg, cross_to_x0);
+            }
             draw_arrowhead(sg);
         }
     }
@@ -2427,13 +2509,12 @@ fn draw_message(
         // - cross_from (dressing1.head = CROSSX, makes direction2 = BOTH)
         // - bidirectional (both dressing heads non-NONE, makes direction2 = BOTH)
         // Cross/bidir at source shifts text only for LeftToRight.
-        let from_decoration_text_offset = if !msg.is_left
-            && ((!msg.bidirectional && msg.cross_from) || msg.bidirectional)
-        {
-            ARROW_DELTA_X
-        } else {
-            0.0
-        };
+        let from_decoration_text_offset =
+            if !msg.is_left && ((!msg.bidirectional && msg.cross_from) || msg.bidirectional) {
+                ARROW_DELTA_X
+            } else {
+                0.0
+            };
         let base_text_x = if msg.is_left {
             // Left arrow: text positioned after the left arrowhead.
             // Use base tip (without circle shift) — Java doesn't shift text for circles.
@@ -2630,7 +2711,12 @@ fn draw_self_message(
     let extra_live_delta_indent = level as f64 * 5.0;
     let cross_from_offset = if msg.cross_from {
         if msg.is_left {
-            SPACE_CROSS_X + if level > 0 { extra_live_delta_indent } else { SPACE_CROSS_X }
+            SPACE_CROSS_X
+                + if level > 0 {
+                    extra_live_delta_indent
+                } else {
+                    SPACE_CROSS_X
+                }
         } else {
             2.0 * SPACE_CROSS_X
         }
@@ -2639,7 +2725,12 @@ fn draw_self_message(
     };
     let cross_to_offset = if msg.cross_to {
         if msg.is_left {
-            SPACE_CROSS_X + if level > 0 { extra_live_delta_indent } else { SPACE_CROSS_X }
+            SPACE_CROSS_X
+                + if level > 0 {
+                    extra_live_delta_indent
+                } else {
+                    SPACE_CROSS_X
+                }
         } else {
             2.0 * SPACE_CROSS_X
         }
@@ -2650,11 +2741,19 @@ fn draw_self_message(
     // For bidirectional (arrowhead at outgoing), full shift (diam/2 + thin).
     // For non-bidirectional, only diam/2.
     let circle_from_line_offset = if msg.circle_from {
-        if msg.bidirectional { DIAM_CIRCLE / 2.0 + THIN_CIRCLE } else { DIAM_CIRCLE / 2.0 }
+        if msg.bidirectional {
+            DIAM_CIRCLE / 2.0 + THIN_CIRCLE
+        } else {
+            DIAM_CIRCLE / 2.0
+        }
     } else {
         0.0
     };
-    let circle_to_line_offset = if msg.circle_to { DIAM_CIRCLE / 2.0 + THIN_CIRCLE } else { 0.0 };
+    let circle_to_line_offset = if msg.circle_to {
+        DIAM_CIRCLE / 2.0 + THIN_CIRCLE
+    } else {
+        0.0
+    };
 
     // Java ComponentRoseSelfArrow.drawLeftSide x1/x2 adjustment based on deltaX1 and level.
     // deltaX1 = (levelIgnore - levelConsidere) * 5, level = levelIgnore.
@@ -2670,11 +2769,19 @@ fn draw_self_message(
         let extra_live_delta_indent = level as f64 * delta_size;
         if dx < 0.0 {
             // Activation starting: return line needs to accommodate new bar
-            let x2a = if level > 0 { -extra_live_delta_indent } else { delta_size };
+            let x2a = if level > 0 {
+                -extra_live_delta_indent
+            } else {
+                delta_size
+            };
             (0.0, x2a)
         } else if dx > 0.0 {
             // Deactivation: outgoing line adjusts for shrinking bar
-            let x1a = if level > 1 { delta_size - extra_live_delta_indent } else { 0.0 };
+            let x1a = if level > 1 {
+                delta_size - extra_live_delta_indent
+            } else {
+                0.0
+            };
             let x2a = if level == 1 { -delta_size } else { 0.0 };
             (x1a, x2a)
         } else if level > 1 {
@@ -2694,8 +2801,15 @@ fn draw_self_message(
         // For circle_from: x1 += diamCircle/2 - thinCircle + (head1==NONE ? thinCircle : 0)
         // For left self-msgs (reverseDefine), outgoing end always has head=NONE,
         // so circle_from shortens by full diamCircle/2 (= 4.0).
-        let circle_from_outgoing_shift = if msg.circle_from { DIAM_CIRCLE / 2.0 } else { 0.0 };
-        (to_x, from_x - 1.0 - x1_adj - circle_from_outgoing_shift - cross_from_offset)
+        let circle_from_outgoing_shift = if msg.circle_from {
+            DIAM_CIRCLE / 2.0
+        } else {
+            0.0
+        };
+        (
+            to_x,
+            from_x - 1.0 - x1_adj - circle_from_outgoing_shift - cross_from_offset,
+        )
     } else {
         // Right self-msg: outgoing goes right from lifeline
         // For bidirectional with circle, outgoing line starts at the arrowhead tip.
@@ -2739,13 +2853,19 @@ fn draw_self_message(
         // Java: extraline = 1 only when dressing2 is FULL + NORMAL (Filled arrowhead)
         // and there's no cross replacing the arrowhead.
         // Half arrows and open heads do NOT get extraline.
-        let extraline = if matches!(msg.arrow_head, SeqArrowHead::Filled) && !msg.has_open_head && !msg.cross_to {
+        let extraline = if matches!(msg.arrow_head, SeqArrowHead::Filled)
+            && !msg.has_open_head
+            && !msg.cross_to
+        {
             1.0
         } else {
             0.0
         };
         // Java drawLeftSide: return line shortened by cross_to, circle_to, and level adjustment
-        (to_x, return_x - x2_adj - extraline - cross_to_offset - circle_to_line_offset)
+        (
+            to_x,
+            return_x - x2_adj - extraline - cross_to_offset - circle_to_line_offset,
+        )
     } else {
         // Right self-msg: adjust for cross_to, circle_to, or open head
         let base_x1 = if msg.cross_to {
@@ -2858,10 +2978,13 @@ fn draw_self_message(
         // Left self-message: arrowhead points RIGHT at return
         // Java polygon vertex for full arrow: tip at (0,0) → line3_x2.
         // Half arrows and open heads: tip at (-1,0) → line3_x2 - 1.
-        let is_full_filled = matches!(msg.arrow_head, SeqArrowHead::Filled)
-            && !msg.has_open_head
-            && !msg.cross_to;
-        let tip_x = if is_full_filled { line3_x2 } else { line3_x2 - 1.0 };
+        let is_full_filled =
+            matches!(msg.arrow_head, SeqArrowHead::Filled) && !msg.has_open_head && !msg.cross_to;
+        let tip_x = if is_full_filled {
+            line3_x2
+        } else {
+            line3_x2 - 1.0
+        };
         if msg.has_open_head {
             if !matches!(msg.arrow_head, SeqArrowHead::HalfBottom) {
                 write!(
@@ -2941,7 +3064,10 @@ fn draw_self_message(
                 | SeqArrowHead::FilledHalfTop
                 | SeqArrowHead::FilledHalfBottom
         );
-        let tip_x = if matches!(msg.arrow_head, SeqArrowHead::FilledHalfTop | SeqArrowHead::FilledHalfBottom) {
+        let tip_x = if matches!(
+            msg.arrow_head,
+            SeqArrowHead::FilledHalfTop | SeqArrowHead::FilledHalfBottom
+        ) {
             return_x - 1.0 + circle_to_line_offset
         } else {
             return_x + circle_to_line_offset
@@ -3094,7 +3220,13 @@ fn draw_self_message(
 
 // ── Activation bars ─────────────────────────────────────────────────
 
-fn draw_activation(sg: &mut SvgGraphic, act: &ActivationLayout, title: &str, shadow_attr: &str, border_color: &str) {
+fn draw_activation(
+    sg: &mut SvgGraphic,
+    act: &ActivationLayout,
+    title: &str,
+    shadow_attr: &str,
+    border_color: &str,
+) {
     let width = 10.0;
     let height = act.y_end - act.y_start;
 
@@ -3130,13 +3262,19 @@ fn draw_destroy(sg: &mut SvgGraphic, d: &DestroyLayout) {
     let style = DrawStyle::outline(DESTROY_COLOR, 2.0);
     // First diagonal: top-left to bottom-right
     LineShape {
-        x1: d.x - size, y1: d.y - size, x2: d.x + size, y2: d.y + size,
+        x1: d.x - size,
+        y1: d.y - size,
+        x2: d.x + size,
+        y2: d.y + size,
     }
     .draw(sg, &style);
 
     // Second diagonal: bottom-left to top-right (matching Java PlantUML order)
     LineShape {
-        x1: d.x - size, y1: d.y + size, x2: d.x + size, y2: d.y - size,
+        x1: d.x - size,
+        y1: d.y + size,
+        x2: d.x + size,
+        y2: d.y - size,
     }
     .draw(sg, &style);
 }
@@ -3145,10 +3283,10 @@ fn draw_destroy(sg: &mut SvgGraphic, d: &DestroyLayout) {
 
 fn draw_note(sg: &mut SvgGraphic, note: &NoteLayout, shadow_attr: &str, skin: &SkinParams) {
     let fold = 10.0; // folded corner size
-    // Java NoteBox.getStartingX uses (int) truncation, and AbstractComponent.drawU
-    // applies UTranslate(paddingX, paddingY). Self-msg notes have this baked into
-    // note.x during layout. For non-self notes in classic mode, truncation is
-    // applied here to match Java's rendering.
+                     // Java NoteBox.getStartingX uses (int) truncation, and AbstractComponent.drawU
+                     // applies UTranslate(paddingX, paddingY). Self-msg notes have this baked into
+                     // note.x during layout. For non-self notes in classic mode, truncation is
+                     // applied here to match Java's rendering.
     let x = if note.teoz_mode || note.is_self_msg_note {
         note.x
     } else {
@@ -3202,14 +3340,8 @@ fn draw_note(sg: &mut SvgGraphic, note: &NoteLayout, shadow_attr: &str, skin: &S
     // SheetBlock2 stencil uses marginX1+textBlock.width+marginX2, not truncated).
     let mut tmp = String::new();
     render_creole_note_content(
-        &mut tmp,
-        &note.text,
-        x,
-        y,
-        note.width, // un-truncated for HR stencil
-        TEXT_COLOR,
-        FONT_SIZE,
-        border,
+        &mut tmp, &note.text, x, y, note.width, // un-truncated for HR stencil
+        TEXT_COLOR, FONT_SIZE, border,
     );
     sg.push_raw(&tmp);
 }
@@ -3772,7 +3904,7 @@ fn render_sequence_inner(
     // Java draws this at the ImageBuilder level BEFORE enabling the handwritten
     // UGraphic, so it is a plain rect (no jiggle).
     if let Some(ref mut rng) = hand_rng {
-        draw_handwritten_banner(&mut sg, rng, layout.total_width as f64);
+        draw_handwritten_banner(&mut sg, rng, layout.total_width);
     }
 
     // Shadow filter attribute for elements that support shadows (skin rose, etc.)
@@ -3934,8 +4066,12 @@ fn render_sequence_inner(
         // (contains NEWLINE_CHAR), Java renders the raw markup text — no hyperlink.
         // The URL is still stored in link_url for the lifeline <title> encoding.
         let part_link_url = sd.participants.get(i).and_then(|pp| pp.link_url.as_deref());
-        let display_has_raw_link = dn.map_or(false, |d| d.contains("[["));
-        let part_link_url = if display_has_raw_link { None } else { part_link_url };
+        let display_has_raw_link = dn.is_some_and(|d| d.contains("[["));
+        let part_link_url = if display_has_raw_link {
+            None
+        } else {
+            part_link_url
+        };
 
         // Puma mode wraps in a group with class/data attributes; teoz does not
         if !sd.teoz_mode {
@@ -4202,7 +4338,7 @@ fn render_sequence_inner(
         // Defer notes when the next message is at the same y (parallel messages):
         // Java renders all parallel messages first, then their notes.
         let next_msg_y_val = layout.messages.get(msg_idx + 1).map(|m| m.y);
-        let same_y_next = next_msg_y_val.map_or(false, |ny| (ny - msg.y).abs() < 0.01);
+        let same_y_next = next_msg_y_val.is_some_and(|ny| (ny - msg.y).abs() < 0.01);
         if !same_y_next {
             // Find the next message that is at a DIFFERENT y position (skip parallel siblings)
             let effective_next_y = {
@@ -4225,9 +4361,10 @@ fn render_sequence_inner(
                     // Match notes associated with this message or any preceding
                     // parallel message at the same y position.
                     assoc_idx <= msg_idx
-                        && layout.messages.get(assoc_idx).map_or(false, |am| {
-                            (am.y - msg.y).abs() < 0.01
-                        })
+                        && layout
+                            .messages
+                            .get(assoc_idx)
+                            .is_some_and(|am| (am.y - msg.y).abs() < 0.01)
                 } else {
                     // Fallback: y-range heuristic for notes without explicit association
                     note.y >= msg.y - note_back_threshold && note.y < effective_next_y
@@ -4338,24 +4475,23 @@ fn render_sequence_inner(
         body = body.replace("stroke-width:0.5;", &format!("stroke-width:{sw_str};"));
     }
 
-    let (svg_w, svg_h) = if let Some(((raw_w, raw_h), (sg_w, sg_h))) =
-        measure_sequence_body_dim_full(&body)
-    {
-        // LimitFinder-style: `(max_x + 1) + marginR + 1 rounding`.
-        let (lf_w, lf_h) = compute_viewport(raw_w, raw_h, &ViewportConfig::SEQUENCE_LF);
-        // SvgGraphics-style: `ensureVisible_maxX + 1`, without extra margins
-        // since the body coords already include the left/top margin offset.
-        let sg_w_int = ensure_visible_int(sg_w) as f64;
-        let sg_h_int = ensure_visible_int(sg_h) as f64;
-        // Final viewport = max of both (Java uses whichever pass produced the
-        // larger maxX during SvgGraphics.ensureVisible + initial minDim).
-        (lf_w.max(sg_w_int), lf_h.max(sg_h_int))
-    } else {
-        (
-            ensure_visible_int(layout.total_width) as f64,
-            ensure_visible_int(layout.total_height) as f64,
-        )
-    };
+    let (svg_w, svg_h) =
+        if let Some(((raw_w, raw_h), (sg_w, sg_h))) = measure_sequence_body_dim_full(&body) {
+            // LimitFinder-style: `(max_x + 1) + marginR + 1 rounding`.
+            let (lf_w, lf_h) = compute_viewport(raw_w, raw_h, &ViewportConfig::SEQUENCE_LF);
+            // SvgGraphics-style: `ensureVisible_maxX + 1`, without extra margins
+            // since the body coords already include the left/top margin offset.
+            let sg_w_int = ensure_visible_int(sg_w) as f64;
+            let sg_h_int = ensure_visible_int(sg_h) as f64;
+            // Final viewport = max of both (Java uses whichever pass produced the
+            // larger maxX during SvgGraphics.ensureVisible + initial minDim).
+            (lf_w.max(sg_w_int), lf_h.max(sg_h_int))
+        } else {
+            (
+                ensure_visible_int(layout.total_width) as f64,
+                ensure_visible_int(layout.total_height) as f64,
+            )
+        };
 
     if !bg.eq_ignore_ascii_case("#FFFFFF") {
         let mut bg_rect = String::new();
@@ -4481,9 +4617,8 @@ mod tests {
 
     #[test]
     fn theme_plain_renders_white_actor_head_and_participant_boxes() {
-        let svg = convert(
-            "@startuml\n!theme plain\nactor Alice\nparticipant Bob\nAlice -> Bob\n@enduml",
-        );
+        let svg =
+            convert("@startuml\n!theme plain\nactor Alice\nparticipant Bob\nAlice -> Bob\n@enduml");
         assert!(svg.contains(r#"<ellipse cx=""#));
         assert!(svg.contains("fill=\"#FFFFFF\""));
         assert!(svg.contains("<rect fill=\"#FFFFFF\""));
@@ -4497,7 +4632,8 @@ mod tests {
         let datastore_idx = svg.find("&#171;datastore&#187;</text>").unwrap();
         let datastore_prefix = &svg[..datastore_idx];
         let datastore_x_start = datastore_prefix.rfind(" x=\"").unwrap() + 4;
-        let datastore_x_end = datastore_prefix[datastore_x_start..].find('"').unwrap() + datastore_x_start;
+        let datastore_x_end =
+            datastore_prefix[datastore_x_start..].find('"').unwrap() + datastore_x_start;
         let datastore_x: f64 = datastore_prefix[datastore_x_start..datastore_x_end]
             .parse()
             .unwrap();

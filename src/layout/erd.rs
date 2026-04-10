@@ -215,7 +215,6 @@ fn relationship_diamond_size(name: &str) -> (f64, f64) {
     (total_w, total_h)
 }
 
-
 /// Java MARGIN constant from EntityImageChenAttribute (used in bigger(6))
 const ATTR_ELLIPSE_MARGIN: f64 = 6.0;
 
@@ -255,7 +254,6 @@ fn attr_ellipse_size(label: &str) -> (f64, f64) {
     (ellipse_w, ellipse_h)
 }
 
-
 // ---------------------------------------------------------------------------
 // Core layout
 // ---------------------------------------------------------------------------
@@ -285,11 +283,7 @@ struct AttrMeta {
 
 /// Recursively flatten attributes into a list of AttrMeta, creating graphviz
 /// node IDs matching Java's convention: "owner_id/attr_name".
-fn flatten_attributes(
-    attrs: &[ErdAttribute],
-    owner_id: &str,
-    out: &mut Vec<AttrMeta>,
-) {
+fn flatten_attributes(attrs: &[ErdAttribute], owner_id: &str, out: &mut Vec<AttrMeta>) {
     for attr in attrs {
         let display = attr.display_name.as_deref().unwrap_or(&attr.name);
         let full_label = if let Some(ref t) = attr.attr_type {
@@ -395,13 +389,20 @@ pub fn layout_erd(diagram: &ErdDiagram) -> Result<ErdLayout> {
     // ── Build svek layout nodes ──
     // Java emits nodes in parse order: each entity/relationship followed by
     // its attributes. This ordering affects graphviz's horizontal layout.
-    let rankdir = if is_lr { RankDir::LeftToRight } else { RankDir::TopToBottom };
+    let rankdir = if is_lr {
+        RankDir::LeftToRight
+    } else {
+        RankDir::TopToBottom
+    };
     let mut layout_nodes: Vec<LayoutNode> = Vec::new();
 
     // Build an index: parent_id → list of AttrMeta for that parent
     let mut attrs_by_parent: HashMap<String, Vec<&AttrMeta>> = HashMap::new();
     for am in &attr_metas {
-        attrs_by_parent.entry(am.parent_id.clone()).or_default().push(am);
+        attrs_by_parent
+            .entry(am.parent_id.clone())
+            .or_default()
+            .push(am);
     }
 
     // Helper: add an attribute node and recursively its children
@@ -430,7 +431,7 @@ pub fn layout_erd(diagram: &ErdDiagram) -> Result<ErdLayout> {
             lf_node_polygon: false,
             lf_polygon_hack: false,
             lf_actor_stickman: false,
-                    hidden: false,
+            hidden: false,
         });
         // Recursively add children
         if let Some(children) = attrs_by_parent.get(&am.id) {
@@ -471,7 +472,7 @@ pub fn layout_erd(diagram: &ErdDiagram) -> Result<ErdLayout> {
                     shield: None,
                     entity_position: None,
                     max_label_width: None,
-            port_label_width: None,
+                    port_label_width: None,
                     order: None,
                     image_width_pt: None,
                     image_height_pt: None,
@@ -500,7 +501,7 @@ pub fn layout_erd(diagram: &ErdDiagram) -> Result<ErdLayout> {
                     shield: None,
                     entity_position: None,
                     max_label_width: None,
-            port_label_width: None,
+                    port_label_width: None,
                     order: None,
                     image_width_pt: None,
                     image_height_pt: None,
@@ -558,7 +559,7 @@ pub fn layout_erd(diagram: &ErdDiagram) -> Result<ErdLayout> {
             lf_node_polygon: false,
             lf_polygon_hack: false,
             lf_actor_stickman: false,
-                    hidden: false,
+            hidden: false,
         });
         isa_node_metas.push(IsaNodeMeta {
             center_id,
@@ -582,7 +583,8 @@ pub fn layout_erd(diagram: &ErdDiagram) -> Result<ErdLayout> {
             if link.isa_arrow.is_some() {
                 None // ISA arrow links have no label
             } else {
-                let tw = font_metrics::text_width(&link.cardinality, "SansSerif", 11.0, false, false);
+                let tw =
+                    font_metrics::text_width(&link.cardinality, "SansSerif", 11.0, false, false);
                 let th = font_metrics::line_height("SansSerif", 11.0, false, false);
                 let dim_w = (tw + 2.0).floor();
                 let dim_h = (th + 2.0).floor();
@@ -671,10 +673,10 @@ pub fn layout_erd(diagram: &ErdDiagram) -> Result<ErdLayout> {
                 label_dimension: None,
                 tail_label: None,
                 tail_label_dimension: None,
-            tail_label_boxed: false,
+                tail_label_boxed: false,
                 head_label: None,
                 head_label_dimension: None,
-            head_label_boxed: false,
+                head_label_boxed: false,
                 tail_decoration: crate::svek::edge::LinkDecoration::None,
                 head_decoration: crate::svek::edge::LinkDecoration::None,
                 line_style: crate::svek::edge::LinkStyle::Normal,
@@ -700,7 +702,10 @@ pub fn layout_erd(diagram: &ErdDiagram) -> Result<ErdLayout> {
         // Build attr_metas index by parent_id for recursive uid assignment
         let mut ametas_by_parent: HashMap<&str, Vec<&AttrMeta>> = HashMap::new();
         for am in &attr_metas {
-            ametas_by_parent.entry(am.parent_id.as_str()).or_default().push(am);
+            ametas_by_parent
+                .entry(am.parent_id.as_str())
+                .or_default()
+                .push(am);
         }
 
         // Helper to recursively assign uids to an attribute and its children
@@ -815,8 +820,7 @@ pub fn layout_erd(diagram: &ErdDiagram) -> Result<ErdLayout> {
     // When attributes (ellipses) or diamonds are present, the topmost node
     // may use different LF corrections (no -1 for ellipses, or polygon hack
     // for diamonds), so render_offset is already correct.
-    let has_non_rect_nodes = !attr_metas.is_empty()
-        || !diagram.relationships.is_empty();
+    let has_non_rect_nodes = !attr_metas.is_empty() || !diagram.relationships.is_empty();
     let render_dx = gl.render_offset.0;
     let render_dy = if has_non_rect_nodes {
         gl.render_offset.1
@@ -853,7 +857,10 @@ pub fn layout_erd(diagram: &ErdDiagram) -> Result<ErdLayout> {
             Some(ErdNodeLayout {
                 id: e.id.clone(),
                 label: e.name.clone(),
-                x, y, width: w, height: h,
+                x,
+                y,
+                width: w,
+                height: h,
                 is_weak: e.is_weak,
                 is_identifying: false,
                 is_relationship: false,
@@ -874,7 +881,10 @@ pub fn layout_erd(diagram: &ErdDiagram) -> Result<ErdLayout> {
             Some(ErdNodeLayout {
                 id: r.id.clone(),
                 label: r.name.clone(),
-                x, y, width: w, height: h,
+                x,
+                y,
+                width: w,
+                height: h,
                 is_weak: false,
                 is_identifying: r.is_identifying,
                 is_relationship: true,
@@ -969,26 +979,27 @@ pub fn layout_erd(diagram: &ErdDiagram) -> Result<ErdLayout> {
             ))
         });
 
-        let (from_point, to_point) = if let (Some(fp), Some(tp)) =
-            (positions.get(&link.from), positions.get(&link.to))
-        {
-            let (fx, fy, fw, fh) = *fp;
-            let (tx, ty, tw, th) = *tp;
-            let fc = (fx + fw / 2.0, fy + fh / 2.0);
-            let tc = (tx + tw / 2.0, ty + th / 2.0);
-            (
-                clip_to_rect(fc.0, fc.1, fw, fh, tc.0, tc.1),
-                clip_to_rect(tc.0, tc.1, tw, th, fc.0, fc.1),
-            )
-        } else {
-            ((0.0, 0.0), (0.0, 0.0))
-        };
+        let (from_point, to_point) =
+            if let (Some(fp), Some(tp)) = (positions.get(&link.from), positions.get(&link.to)) {
+                let (fx, fy, fw, fh) = *fp;
+                let (tx, ty, tw, th) = *tp;
+                let fc = (fx + fw / 2.0, fy + fh / 2.0);
+                let tc = (tx + tw / 2.0, ty + th / 2.0);
+                (
+                    clip_to_rect(fc.0, fc.1, fw, fh, tc.0, tc.1),
+                    clip_to_rect(tc.0, tc.1, tw, th, fc.0, fc.1),
+                )
+            } else {
+                ((0.0, 0.0), (0.0, 0.0))
+            };
 
         edges.push(ErdEdgeLayout {
             from_id: link.from.clone(),
             to_id: link.to.clone(),
-            from_name, to_name,
-            from_point, to_point,
+            from_name,
+            to_name,
+            from_point,
+            to_point,
             label: link.cardinality.clone(),
             is_double: link.is_double,
             source_line: 0,
@@ -1014,7 +1025,10 @@ pub fn layout_erd(diagram: &ErdDiagram) -> Result<ErdLayout> {
         let (cx, cy) = if let Some(&(x, y, w, h)) = positions.get(&isa_meta.center_id) {
             (x + w / 2.0, y + h / 2.0)
         } else {
-            log::warn!("ISA center node '{}' not found in layout", isa_meta.center_id);
+            log::warn!(
+                "ISA center node '{}' not found in layout",
+                isa_meta.center_id
+            );
             continue;
         };
 
@@ -1025,7 +1039,9 @@ pub fn layout_erd(diagram: &ErdDiagram) -> Result<ErdLayout> {
         };
 
         // Parent→center edge path
-        let parent_edge_path = gl.edges.get(isa_edge_idx)
+        let parent_edge_path = gl
+            .edges
+            .get(isa_edge_idx)
             .and_then(|e| e.raw_path_d.as_ref())
             .map(|d| shift_svg_path(d, render_dx, render_dy));
         isa_edge_idx += 1;
@@ -1039,7 +1055,9 @@ pub fn layout_erd(diagram: &ErdDiagram) -> Result<ErdLayout> {
         // Center→child edge paths
         let mut child_edges = Vec::new();
         for (ci, child_id) in isa_meta.child_ids.iter().enumerate() {
-            let child_path = gl.edges.get(isa_edge_idx)
+            let child_path = gl
+                .edges
+                .get(isa_edge_idx)
                 .and_then(|e| e.raw_path_d.as_ref())
                 .map(|d| shift_svg_path(d, render_dx, render_dy));
             child_edges.push(ErdIsaChildEdge {
@@ -1069,19 +1087,21 @@ pub fn layout_erd(diagram: &ErdDiagram) -> Result<ErdLayout> {
 
     // Viewport: Java ImageBuilder.getFinalDimension() — shifted LF max + 1.
     let is_degenerated = entity_nodes.len() + relationship_nodes.len() <= 1 && edges.is_empty();
-    let (raw_body_w, raw_body_h) = if is_degenerated
-        && (entity_nodes.len() + relationship_nodes.len()) == 1
-    {
-        const DEGENERATED_DELTA: f64 = 7.0;
-        let n = entity_nodes.first().or(relationship_nodes.first()).unwrap();
-        (n.width + DEGENERATED_DELTA * 2.0 + 1.0, n.height + DEGENERATED_DELTA * 2.0 + 1.0)
-    } else {
-        // Java moveDelta = (6 - lf_min), so shifted_max = lf_span + 6.
-        const SVEK_MOVE_DELTA: f64 = 6.0;
-        let shifted_max_x = gl.lf_span.0 + SVEK_MOVE_DELTA;
-        let shifted_max_y = gl.lf_span.1 + SVEK_MOVE_DELTA;
-        (shifted_max_x + 1.0, shifted_max_y + 1.0)
-    };
+    let (raw_body_w, raw_body_h) =
+        if is_degenerated && (entity_nodes.len() + relationship_nodes.len()) == 1 {
+            const DEGENERATED_DELTA: f64 = 7.0;
+            let n = entity_nodes.first().or(relationship_nodes.first()).unwrap();
+            (
+                n.width + DEGENERATED_DELTA * 2.0 + 1.0,
+                n.height + DEGENERATED_DELTA * 2.0 + 1.0,
+            )
+        } else {
+            // Java moveDelta = (6 - lf_min), so shifted_max = lf_span + 6.
+            const SVEK_MOVE_DELTA: f64 = 6.0;
+            let shifted_max_x = gl.lf_span.0 + SVEK_MOVE_DELTA;
+            let shifted_max_y = gl.lf_span.1 + SVEK_MOVE_DELTA;
+            (shifted_max_x + 1.0, shifted_max_y + 1.0)
+        };
 
     let mut max_right = raw_body_w;
     let mut max_bottom = raw_body_h;
@@ -1122,14 +1142,23 @@ pub fn layout_erd(diagram: &ErdDiagram) -> Result<ErdLayout> {
     let attr_edges: Vec<ErdAttrEdge> = (num_link_edges..num_pre_isa_edges)
         .enumerate()
         .map(|(j, i)| {
-            let raw_path_d = gl.edges.get(i)
+            let raw_path_d = gl
+                .edges
+                .get(i)
                 .and_then(|e| e.raw_path_d.as_ref())
                 .map(|d| shift_svg_path(d, render_dx, render_dy));
-            let from_name = attr_metas.get(j).map(|am| am.id.clone()).unwrap_or_default();
-            let to_name = attr_metas.get(j).map(|am| am.parent_id.clone()).unwrap_or_default();
+            let from_name = attr_metas
+                .get(j)
+                .map(|am| am.id.clone())
+                .unwrap_or_default();
+            let to_name = attr_metas
+                .get(j)
+                .map(|am| am.parent_id.clone())
+                .unwrap_or_default();
             // Find the source_order of the root parent entity/relationship.
             // For nested attrs, walk up: attr parent_id → ... → entity/relationship.
-            let parent_source_order = attr_metas.get(j)
+            let parent_source_order = attr_metas
+                .get(j)
                 .and_then(|am| {
                     // Walk up the parent chain to find the entity/relationship
                     let mut pid = &am.parent_id;
@@ -1146,13 +1175,19 @@ pub fn layout_erd(diagram: &ErdDiagram) -> Result<ErdLayout> {
                     }
                 })
                 .unwrap_or(0);
-            let edge_color = attr_metas.get(j)
-                .and_then(|am| {
-                    let (_, lc) = parse_erd_color_spec(am.color.as_deref());
-                    lc
-                });
+            let edge_color = attr_metas.get(j).and_then(|am| {
+                let (_, lc) = parse_erd_color_spec(am.color.as_deref());
+                lc
+            });
             let attr_source_line = attr_metas.get(j).map(|am| am.attr_source_line).unwrap_or(0);
-            ErdAttrEdge { raw_path_d, from_name, to_name, parent_source_order, edge_color, attr_source_line }
+            ErdAttrEdge {
+                raw_path_d,
+                from_name,
+                to_name,
+                parent_source_order,
+                edge_color,
+                attr_source_line,
+            }
         })
         .collect();
 
@@ -1213,7 +1248,7 @@ fn resolve_color_name(name: &str) -> String {
         "black" => "#000000".to_string(),
         "gray" | "grey" => "#808080".to_string(),
         "navy" => "#000080".to_string(),
-        _ => format!("#{}", name),  // assume hex without #
+        _ => format!("#{}", name), // assume hex without #
     }
 }
 
@@ -1570,7 +1605,8 @@ mod tests {
         assert!(
             (y0 - y1).abs() > 1.0,
             "A and B should be at different y in LR: A.y={}, B.y={}",
-            y0, y1
+            y0,
+            y1
         );
     }
 

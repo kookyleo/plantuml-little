@@ -24,11 +24,7 @@ const TIMING_FONT_COLOR: &str = "#333333";
 const CONCISE_RIBBON_HEIGHT: f64 = 24.0;
 const CONCISE_SHAPE_DELTA: f64 = 12.0;
 
-fn timing_element_font_color<'a>(
-    skin: &'a SkinParams,
-    element: &str,
-    default: &'a str,
-) -> &'a str {
+fn timing_element_font_color<'a>(skin: &'a SkinParams, element: &str, default: &'a str) -> &'a str {
     let key1 = format!("{element}fontcolor");
     let key2 = format!("{element}.fontcolor");
     skin.get(&key1)
@@ -46,7 +42,8 @@ pub fn render_timing(
 ) -> Result<String> {
     let font = skin.default_font_name().map(|name| {
         let normalized = name.trim_matches(|c| c == '"' || c == '\'');
-        if normalized.eq_ignore_ascii_case("sansserif") || normalized.eq_ignore_ascii_case("dialog") {
+        if normalized.eq_ignore_ascii_case("sansserif") || normalized.eq_ignore_ascii_case("dialog")
+        {
             "'sans-serif'".to_string()
         } else if normalized.eq_ignore_ascii_case("monospaced") {
             "monospace".to_string()
@@ -65,7 +62,8 @@ fn render_timing_inner(layout: &TimingLayout, skin: &SkinParams) -> Result<Strin
     // Java rose.skin: timingDiagram { FontColor #3 } => #333333 as base default.
     // In Java, the style system overrides skinparam defaults (including defaultFontColor).
     // Only timing-specific skinparam overrides apply.
-    let timing_font = skin.get("timingfontcolor")
+    let timing_font = skin
+        .get("timingfontcolor")
         .or_else(|| skin.get("timing.fontcolor"))
         .or_else(|| skin.get("defaultfontcolor"))
         .or_else(|| skin.get("fontcolor"))
@@ -135,7 +133,7 @@ fn render_timing_inner(layout: &TimingLayout, skin: &SkinParams) -> Result<Strin
         );
     }
     for note in &layout.notes {
-        render_note(&mut sg, note, &timing_font, state_fs);
+        render_note(&mut sg, note, timing_font, state_fs);
     }
     render_time_axis(&mut sg, &layout.time_axis, axis_font, axis_fs);
     for msg in &layout.messages {
@@ -433,7 +431,8 @@ fn render_concise_track(
             ));
         }
 
-        let text_width = crate::font_metrics::text_width(&seg.state, "SansSerif", state_fs, true, false);
+        let text_width =
+            crate::font_metrics::text_width(&seg.state, "SansSerif", state_fs, true, false);
         let text_x = if index + 1 == track.segments.len() {
             seg.x_start + CONCISE_SHAPE_DELTA
         } else {
@@ -479,7 +478,13 @@ fn arrow_head_points(from_x: f64, from_y: f64, to_x: f64, to_y: f64) -> Option<[
     Some([p1, p2, (to_x, to_y)])
 }
 
-fn render_message(sg: &mut SvgGraphic, msg: &TimingMsgLayout, arrow_color: &str, font_color: &str, arrow_fs: f64) {
+fn render_message(
+    sg: &mut SvgGraphic,
+    msg: &TimingMsgLayout,
+    arrow_color: &str,
+    font_color: &str,
+    arrow_fs: f64,
+) {
     sg.push_raw(&format!(
         r#"<line style="stroke:{arrow_color};stroke-width:1.5;" x1="{}" x2="{}" y1="{}" y2="{}"/>"#,
         fmt_coord(msg.from_x),
@@ -555,7 +560,8 @@ fn render_constraint(
             line_color,
         ));
     }
-    let text_width = crate::font_metrics::text_width(&c.label, "SansSerif", constraint_fs, false, false);
+    let text_width =
+        crate::font_metrics::text_width(&c.label, "SansSerif", constraint_fs, false, false);
     let mut tmp = String::new();
     render_creole_text(
         &mut tmp,
@@ -574,12 +580,22 @@ fn render_constraint(
 fn render_time_axis(sg: &mut SvgGraphic, axis: &TimingTimeAxis, font_color: &str, axis_fs: f64) {
     let axis_style = DrawStyle::outline(AXIS_LINE_COLOR, 2.0);
     for tick in &axis.grid_ticks {
-        LineShape { x1: tick.x, y1: axis.y, x2: tick.x, y2: axis.y + 5.0 }
-            .draw(sg, &axis_style);
+        LineShape {
+            x1: tick.x,
+            y1: axis.y,
+            x2: tick.x,
+            y2: axis.y + 5.0,
+        }
+        .draw(sg, &axis_style);
     }
     if let (Some(first), Some(last)) = (axis.grid_ticks.first(), axis.grid_ticks.last()) {
-        LineShape { x1: first.x, y1: axis.y, x2: last.x, y2: axis.y }
-            .draw(sg, &axis_style);
+        LineShape {
+            x1: first.x,
+            y1: axis.y,
+            x2: last.x,
+            y2: axis.y,
+        }
+        .draw(sg, &axis_style);
     }
     for tick in &axis.ticks {
         let ly = axis.y + 6.0 + crate::font_metrics::ascent("SansSerif", axis_fs, false, false);
@@ -602,21 +618,25 @@ fn render_time_axis(sg: &mut SvgGraphic, axis: &TimingTimeAxis, font_color: &str
 
 fn render_note(sg: &mut SvgGraphic, note: &TimingNoteLayout, font_color: &str, note_fs: f64) {
     if let Some((x1, y1, x2, y2)) = note.connector {
-        LineShape { x1, y1, x2, y2 }
-            .draw(sg, &DrawStyle {
+        LineShape { x1, y1, x2, y2 }.draw(
+            sg,
+            &DrawStyle {
                 fill: None,
                 stroke: Some(NOTE_BORDER.into()),
                 stroke_width: 0.5,
                 dash_array: Some((4.0, 4.0)),
                 delta_shadow: 0.0,
-            });
+            },
+        );
     }
     let fold_x = note.x + note.width - NOTE_FOLD;
     let fold_y = note.y + NOTE_FOLD;
     let x2 = note.x + note.width;
     let y2 = note.y + note.height;
     PolygonShape {
-        points: vec![note.x, note.y, fold_x, note.y, x2, fold_y, x2, y2, note.x, y2],
+        points: vec![
+            note.x, note.y, fold_x, note.y, x2, fold_y, x2, y2, note.x, y2,
+        ],
     }
     .draw(sg, &DrawStyle::filled(NOTE_BG, NOTE_BORDER, 0.5));
     sg.push_raw(&format!(r#"<path d="M{},{} L{},{} L{},{} " fill="none" style="stroke:{NOTE_BORDER};stroke-width:0.5;"/>"#, fmt_coord(fold_x), fmt_coord(note.y), fmt_coord(fold_x), fmt_coord(fold_y), fmt_coord(x2), fmt_coord(fold_y)));

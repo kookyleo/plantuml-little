@@ -1162,7 +1162,7 @@ mod tests {
                 code: format!("a{i}"),
                 stereotype: None,
                 color: None,
-            source_line: None,
+                source_line: None,
             });
         }
         for i in 0..4 {
@@ -1173,7 +1173,7 @@ mod tests {
                 stereotype: None,
                 color: None,
                 parent: None,
-            source_line: None,
+                source_line: None,
             });
         }
 

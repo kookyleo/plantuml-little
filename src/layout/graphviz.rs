@@ -8,7 +8,7 @@ use std::process::{Command, Stdio};
 pub struct LayoutNode {
     pub id: String,
     pub label: String,
-    pub width_pt: f64,  // node width in pt (72pt = 1 inch), may be expanded for qualifiers
+    pub width_pt: f64, // node width in pt (72pt = 1 inch), may be expanded for qualifiers
     pub height_pt: f64, // node height in pt
     /// DOT shape override (default: Rectangle → "rect").
     pub shape: Option<crate::svek::shape_type::ShapeType>,
@@ -286,9 +286,12 @@ fn px_to_inches(px: f64) -> f64 {
 /// Java: `StringWithArrow` recognizes " >", " <", "> ", "< ", ">", "<".
 pub(crate) fn has_link_arrow_indicator(label: &str) -> bool {
     let s = label.trim();
-    s == ">" || s == "<"
-        || s.ends_with(" >") || s.ends_with(" <")
-        || s.starts_with("> ") || s.starts_with("< ")
+    s == ">"
+        || s == "<"
+        || s.ends_with(" >")
+        || s.ends_with(" <")
+        || s.starts_with("> ")
+        || s.starts_with("< ")
 }
 
 /// Strip link arrow direction indicators from label text.
@@ -370,14 +373,23 @@ fn measure_creole_line_width(line: &str, font_size: f64) -> f64 {
                             let rest = &after_size[gt + 1..];
                             let text = rest.strip_suffix("</size>").unwrap_or(rest);
                             total_w += crate::font_metrics::text_width(
-                                text, "SansSerif", sz, is_bold, is_italic,
+                                text,
+                                "SansSerif",
+                                sz,
+                                is_bold,
+                                is_italic,
                             );
                             pos = pos + 2 + end_rel + 2;
                             continue;
                         }
                     }
-                    total_w +=
-                        crate::font_metrics::text_width(inner, "SansSerif", font_size, is_bold, is_italic);
+                    total_w += crate::font_metrics::text_width(
+                        inner,
+                        "SansSerif",
+                        font_size,
+                        is_bold,
+                        is_italic,
+                    );
                     pos = pos + 2 + end_rel + 2;
                     continue;
                 }
@@ -392,7 +404,11 @@ fn measure_creole_line_width(line: &str, font_size: f64) -> f64 {
                 if let Some(end_tag) = line[content_start..].find("</size>") {
                     let inner_text = &line[content_start..content_start + end_tag];
                     total_w += crate::font_metrics::text_width(
-                        inner_text, "SansSerif", inner_font_size, false, false,
+                        inner_text,
+                        "SansSerif",
+                        inner_font_size,
+                        false,
+                        false,
                     );
                     pos = content_start + end_tag + 7; // skip </size>
                     continue;
@@ -640,30 +656,37 @@ pub fn layout_with_svek(graph: &LayoutGraph) -> Result<GraphLayout, Error> {
             if let Some(dim) = edge.label_dimension {
                 ld.label_dimension = Some(dim);
             } else {
-            // Compute label dimensions from font metrics for DOT sizing.
-            // Java: labelText = StringWithArrow.addMagicArrow(label, guide, font)
-            //   then addVisibilityModifier wraps with TextBlockMarged(marginLabel).
-            // Edge labels use SansSerif 13pt (FontParam.CLASS = 13 for links).
-            //
-            // Java label dimension breakdown:
-            // 1. Raw text block: text_width × text_height
-            // 2. If link has direction arrow (" >", " <", etc.): mergeLR with
-            //    TextBlockArrow2(size=fontSize=13) → adds 13px width
-            // 3. TextBlockMarged(marginLabel=1 for normal, 6 for self): adds 2*margin
-            // Result: (text_w + arrow_w + 2*margin) × (max(text_h, arrow_h) + 2*margin)
-            let has_arrow = has_link_arrow_indicator(label);
-            let label_text = strip_link_arrow_text(label);
-            let edge_font_size = graph.arrow_font_size.unwrap_or(13.0);
-            let (text_w, text_h) = measure_edge_text_block(&label_text, edge_font_size);
-            let arrow_w = if has_arrow { 13.0 } else { 0.0 };
-            let margin_label = if edge.from == edge.to { 6.0 } else { 1.0 };
-            let inner_w = text_w + arrow_w;
-            let inner_h = if has_arrow { text_h.max(13.0) } else { text_h };
-            let dim_w = inner_w + 2.0 * margin_label;
-            let dim_h = inner_h + 2.0 * margin_label;
-            log::debug!("edge label={:?} text_w={:.4} arrow_w={} margin={} dim=({:.4},{:.4})",
-                label, text_w, arrow_w, margin_label, dim_w, dim_h);
-            ld.label_dimension = Some((dim_w, dim_h));
+                // Compute label dimensions from font metrics for DOT sizing.
+                // Java: labelText = StringWithArrow.addMagicArrow(label, guide, font)
+                //   then addVisibilityModifier wraps with TextBlockMarged(marginLabel).
+                // Edge labels use SansSerif 13pt (FontParam.CLASS = 13 for links).
+                //
+                // Java label dimension breakdown:
+                // 1. Raw text block: text_width × text_height
+                // 2. If link has direction arrow (" >", " <", etc.): mergeLR with
+                //    TextBlockArrow2(size=fontSize=13) → adds 13px width
+                // 3. TextBlockMarged(marginLabel=1 for normal, 6 for self): adds 2*margin
+                // Result: (text_w + arrow_w + 2*margin) × (max(text_h, arrow_h) + 2*margin)
+                let has_arrow = has_link_arrow_indicator(label);
+                let label_text = strip_link_arrow_text(label);
+                let edge_font_size = graph.arrow_font_size.unwrap_or(13.0);
+                let (text_w, text_h) = measure_edge_text_block(&label_text, edge_font_size);
+                let arrow_w = if has_arrow { 13.0 } else { 0.0 };
+                let margin_label = if edge.from == edge.to { 6.0 } else { 1.0 };
+                let inner_w = text_w + arrow_w;
+                let inner_h = if has_arrow { text_h.max(13.0) } else { text_h };
+                let dim_w = inner_w + 2.0 * margin_label;
+                let dim_h = inner_h + 2.0 * margin_label;
+                log::debug!(
+                    "edge label={:?} text_w={:.4} arrow_w={} margin={} dim=({:.4},{:.4})",
+                    label,
+                    text_w,
+                    arrow_w,
+                    margin_label,
+                    dim_w,
+                    dim_h
+                );
+                ld.label_dimension = Some((dim_w, dim_h));
             }
         }
         if let Some(ref tail_label) = edge.tail_label {
@@ -696,7 +719,9 @@ pub fn layout_with_svek(graph: &LayoutGraph) -> Result<GraphLayout, Error> {
         }
         ld = ld.with_decorations(edge.head_decoration, edge.tail_decoration);
         ld = ld.with_style(edge.line_style);
-        let from_port = shielded_node_ids.contains(edge.from.as_str()).then_some("h");
+        let from_port = shielded_node_ids
+            .contains(edge.from.as_str())
+            .then_some("h");
         let to_port = shielded_node_ids.contains(edge.to.as_str()).then_some("h");
         if from_port.is_some() || to_port.is_some() {
             ld = ld.with_ports(from_port, to_port);
@@ -758,7 +783,12 @@ pub fn layout_with_svek(graph: &LayoutGraph) -> Result<GraphLayout, Error> {
         .solve(&svg)
         .map_err(|e| Error::Layout(format!("svek solve error: {e}")))?;
 
-    log::debug!("DEBUG move_delta={:?} lf_span={:?} render_offset={:?}", move_delta, lf_span, render_offset);
+    log::debug!(
+        "DEBUG move_delta={:?} lf_span={:?} render_offset={:?}",
+        move_delta,
+        lf_span,
+        render_offset
+    );
 
     // Graphviz SVG parsed edges use translate(tx,ty), while svek uses
     // YDelta(full_height) + moveDelta(dx,dy). These differ by a constant:
@@ -806,7 +836,10 @@ pub fn layout_with_svek(graph: &LayoutGraph) -> Result<GraphLayout, Error> {
             strip_entity_port(&edge.from).to_string(),
             strip_entity_port(&edge.to).to_string(),
         );
-        parsed_svg_edges_by_key.entry(key).or_default().push_back(edge);
+        parsed_svg_edges_by_key
+            .entry(key)
+            .or_default()
+            .push_back(edge);
     }
 
     // Convert svek results to GraphLayout, normalizing to origin (0,0)
@@ -826,12 +859,16 @@ pub fn layout_with_svek(graph: &LayoutGraph) -> Result<GraphLayout, Error> {
                 sn.uid.clone()
             };
             let iw = if i < graph.nodes.len() {
-                graph.nodes[i].image_width_pt.unwrap_or(graph.nodes[i].width_pt)
+                graph.nodes[i]
+                    .image_width_pt
+                    .unwrap_or(graph.nodes[i].width_pt)
             } else {
                 sn.width
             };
             let ih = if i < graph.nodes.len() {
-                graph.nodes[i].image_height_pt.unwrap_or(graph.nodes[i].height_pt)
+                graph.nodes[i]
+                    .image_height_pt
+                    .unwrap_or(graph.nodes[i].height_pt)
             } else {
                 sn.height
             };
@@ -878,7 +915,10 @@ pub fn layout_with_svek(graph: &LayoutGraph) -> Result<GraphLayout, Error> {
                 raw_path_d = Some(dp.to_upath().to_svg_path_d());
             }
             let parsed_edge = parsed_svg_edges_by_key
-                .get_mut(&(strip_entity_port(&from).to_string(), strip_entity_port(&to).to_string()))
+                .get_mut(&(
+                    strip_entity_port(&from).to_string(),
+                    strip_entity_port(&to).to_string(),
+                ))
                 .and_then(|edges| edges.pop_front());
             EdgeLayout {
                 from,
@@ -899,11 +939,15 @@ pub fn layout_with_svek(graph: &LayoutGraph) -> Result<GraphLayout, Error> {
                 tail_label: se.start_tail_text.clone(),
                 tail_label_xy: se.start_tail_label_xy.map(|p| (p.x, p.y)),
                 tail_label_wh: se.start_tail_dimension.map(|d| (d.width, d.height)),
-                tail_label_boxed: active_edges.get(i).is_some_and(|edge| edge.tail_label_boxed),
+                tail_label_boxed: active_edges
+                    .get(i)
+                    .is_some_and(|edge| edge.tail_label_boxed),
                 head_label: se.end_head_text.clone(),
                 head_label_xy: se.end_head_label_xy.map(|p| (p.x, p.y)),
                 head_label_wh: se.end_head_dimension.map(|d| (d.width, d.height)),
-                head_label_boxed: active_edges.get(i).is_some_and(|edge| edge.head_label_boxed),
+                head_label_boxed: active_edges
+                    .get(i)
+                    .is_some_and(|edge| edge.head_label_boxed),
                 label_xy: se.label_xy.map(|p| (p.x, p.y)),
                 label_wh: se.label_dimension.map(|d| {
                     let dim_w = if se.divide_label_width_by_two {
@@ -934,11 +978,16 @@ pub fn layout_with_svek(graph: &LayoutGraph) -> Result<GraphLayout, Error> {
         if let Some(layout_node) = graph.nodes.get(*i) {
             !layout_node.hidden
         } else {
-            !svek_nodes.get(*i).map_or(false, |sn| sn.hidden)
+            !svek_nodes.get(*i).is_some_and(|sn| sn.hidden)
         }
     });
     let (min_x_nodes, min_y_nodes, max_x_nodes, max_y_nodes) = visible_nodes.fold(
-        (f64::INFINITY, f64::INFINITY, f64::NEG_INFINITY, f64::NEG_INFINITY),
+        (
+            f64::INFINITY,
+            f64::INFINITY,
+            f64::NEG_INFINITY,
+            f64::NEG_INFINITY,
+        ),
         |(min_x, min_y, max_x, max_y), (_, n)| {
             (
                 min_x.min(n.min_x),
@@ -1084,7 +1133,8 @@ fn collect_node_cluster_assignments(
 fn layout_cluster_to_builder(
     cluster: &LayoutClusterSpec,
 ) -> crate::svek::builder::ClusterDescriptor {
-    let mut result = crate::svek::builder::ClusterDescriptor::new(&cluster.id).with_style(cluster.style);
+    let mut result =
+        crate::svek::builder::ClusterDescriptor::new(&cluster.id).with_style(cluster.style);
     if let Some(ref title) = cluster.title {
         result = result.with_title(title);
     }
@@ -1292,7 +1342,7 @@ fn parse_transform_translate(svg: &str) -> (f64, f64) {
         if let Some(end) = after.find(')') {
             let inner = &after[..end];
             // May be separated by space or comma
-            let parts: Vec<&str> = inner.split(|c: char| c == ' ' || c == ',').collect();
+            let parts: Vec<&str> = inner.split([' ', ',']).collect();
             if parts.len() >= 2 {
                 let tx: f64 = parts[0].trim().parse().unwrap_or(0.0);
                 let ty: f64 = parts[1].trim().parse().unwrap_or(0.0);
@@ -1318,7 +1368,7 @@ fn parse_svg_node(g: &str, tx: f64, ty: f64, graph: &LayoutGraph) -> Option<Node
     let (gviz_min_x, gviz_min_y) = if let Some(polygon_pos) = g.find("<polygon") {
         let polygon = &g[polygon_pos..];
         let points_str = parse_xml_attr_str(polygon, "points")?;
-        let (min_x, min_y, _max_x, _max_y) = polygon_bounding_box(&points_str)?;
+        let (min_x, min_y, _max_x, _max_y) = polygon_bounding_box(points_str)?;
         (min_x, min_y)
     } else if let Some(ellipse_pos) = g.find("<ellipse") {
         let ellipse = &g[ellipse_pos..];
@@ -1406,11 +1456,9 @@ fn parse_svg_edge(g: &str, tx: f64, ty: f64) -> Option<EdgeLayout> {
             // Skip label background polygons with transparent stroke
             let is_label_bg = polygon
                 .find("stroke=\"transparent\"")
-                .map_or(false, |s| s < tag_end);
+                .is_some_and(|s| s < tag_end);
             // Skip label table border polygons with fill="none"
-            let is_table_border = polygon
-                .find("fill=\"none\"")
-                .map_or(false, |s| s < tag_end);
+            let is_table_border = polygon.find("fill=\"none\"").is_some_and(|s| s < tag_end);
             if !is_label_bg && !is_table_border {
                 if let Some(pts_str) = parse_xml_attr_str(polygon, "points") {
                     let poly_pts = parse_polygon_points(pts_str, tx, ty);
@@ -1585,7 +1633,7 @@ pub fn transform_path_d(d: &str, tx: f64, ty: f64) -> String {
                 if let (Some(x), Some(y)) = (x, y) {
                     // Check if we need to emit a new command letter
                     let pps = pairs_per_segment(current_cmd);
-                    if coord_pairs_in_segment % pps == 0 {
+                    if coord_pairs_in_segment.is_multiple_of(pps) {
                         // Start of a new segment — emit command letter
                         if !result.is_empty() && !result.ends_with(' ') {
                             result.push(' ');
@@ -1718,7 +1766,7 @@ mod tests {
                     shield: None,
                     entity_position: None,
                     max_label_width: None,
-            port_label_width: None,
+                    port_label_width: None,
                     order: None,
                     image_width_pt: None,
                     image_height_pt: None,
@@ -1739,7 +1787,7 @@ mod tests {
                     shield: None,
                     entity_position: None,
                     max_label_width: None,
-            port_label_width: None,
+                    port_label_width: None,
                     order: None,
                     image_width_pt: None,
                     image_height_pt: None,
@@ -1759,10 +1807,10 @@ mod tests {
                 label_dimension: None,
                 tail_label: None,
                 tail_label_dimension: None,
-            tail_label_boxed: false,
+                tail_label_boxed: false,
                 head_label: None,
                 head_label_dimension: None,
-            head_label_boxed: false,
+                head_label_boxed: false,
                 tail_decoration: crate::svek::edge::LinkDecoration::None,
                 head_decoration: crate::svek::edge::LinkDecoration::None,
                 line_style: crate::svek::edge::LinkStyle::Normal,
@@ -1776,7 +1824,7 @@ mod tests {
             ranksep_override: None,
             nodesep_override: None,
             use_simplier_dot_link_strategy: false,
-        arrow_font_size: None,
+            arrow_font_size: None,
         }
     }
 
@@ -1811,7 +1859,7 @@ mod tests {
                 shield: None,
                 entity_position: None,
                 max_label_width: None,
-            port_label_width: None,
+                port_label_width: None,
                 order: None,
                 image_width_pt: None,
                 image_height_pt: None,
@@ -1830,7 +1878,7 @@ mod tests {
             ranksep_override: None,
             nodesep_override: None,
             use_simplier_dot_link_strategy: false,
-        arrow_font_size: None,
+            arrow_font_size: None,
         };
         let result = layout(&graph).expect("single node layout failed");
         assert_eq!(result.nodes.len(), 1);

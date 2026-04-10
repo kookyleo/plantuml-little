@@ -9,7 +9,12 @@ pub enum RegexNode {
     CharClass(Vec<String>),
     Concat(Vec<RegexNode>),
     Alternate(Vec<RegexNode>),
-    Quantifier { inner: Box<RegexNode>, min: u32, max: Option<u32>, label: String },
+    Quantifier {
+        inner: Box<RegexNode>,
+        min: u32,
+        max: Option<u32>,
+        label: String,
+    },
     Optional(Box<RegexNode>),
     Group(Box<RegexNode>),
 }

@@ -142,38 +142,38 @@ mod entity_position {
     fn is_normal() {
         // Java: assertTrue(NORMAL.isNormal()); assertFalse(ENTRY_POINT.isNormal()) etc.
         assert!(EntityPosition::Normal.is_normal());
-        assert!(EntityPosition::EntryPoint.is_normal() == false);
-        assert!(EntityPosition::ExitPoint.is_normal() == false);
-        assert!(EntityPosition::InputPin.is_normal() == false);
-        assert!(EntityPosition::PortIn.is_normal() == false);
+        assert!(!EntityPosition::EntryPoint.is_normal());
+        assert!(!EntityPosition::ExitPoint.is_normal());
+        assert!(!EntityPosition::InputPin.is_normal());
+        assert!(!EntityPosition::PortIn.is_normal());
     }
 
     #[test]
     fn is_input() {
         // Java: assertFalse(NORMAL.isInput()); assertTrue(ENTRY_POINT.isInput()) etc.
-        assert!(EntityPosition::Normal.is_input() == false);
+        assert!(!EntityPosition::Normal.is_input());
         assert!(EntityPosition::EntryPoint.is_input());
         assert!(EntityPosition::InputPin.is_input());
         assert!(EntityPosition::ExpansionInput.is_input());
         assert!(EntityPosition::PortIn.is_input());
-        assert!(EntityPosition::ExitPoint.is_input() == false);
-        assert!(EntityPosition::OutputPin.is_input() == false);
-        assert!(EntityPosition::ExpansionOutput.is_input() == false);
-        assert!(EntityPosition::PortOut.is_input() == false);
+        assert!(!EntityPosition::ExitPoint.is_input());
+        assert!(!EntityPosition::OutputPin.is_input());
+        assert!(!EntityPosition::ExpansionOutput.is_input());
+        assert!(!EntityPosition::PortOut.is_input());
     }
 
     #[test]
     fn is_output() {
         // Java: assertFalse(NORMAL.isOutput()); assertTrue(EXIT_POINT.isOutput()) etc.
-        assert!(EntityPosition::Normal.is_output() == false);
+        assert!(!EntityPosition::Normal.is_output());
         assert!(EntityPosition::ExitPoint.is_output());
         assert!(EntityPosition::OutputPin.is_output());
         assert!(EntityPosition::ExpansionOutput.is_output());
         assert!(EntityPosition::PortOut.is_output());
-        assert!(EntityPosition::EntryPoint.is_output() == false);
-        assert!(EntityPosition::InputPin.is_output() == false);
-        assert!(EntityPosition::ExpansionInput.is_output() == false);
-        assert!(EntityPosition::PortIn.is_output() == false);
+        assert!(!EntityPosition::EntryPoint.is_output());
+        assert!(!EntityPosition::InputPin.is_output());
+        assert!(!EntityPosition::ExpansionInput.is_output());
+        assert!(!EntityPosition::PortIn.is_output());
     }
 
     // Java: @Ignore("drawSymbol requires a live UGraphic renderer — skip")
@@ -252,11 +252,11 @@ mod entity_position {
         // Java: assertTrue(PORTIN.isPort()); assertTrue(PORTOUT.isPort()); assertFalse rest
         assert!(EntityPosition::PortIn.is_port());
         assert!(EntityPosition::PortOut.is_port());
-        assert!(EntityPosition::Normal.is_port() == false);
-        assert!(EntityPosition::EntryPoint.is_port() == false);
-        assert!(EntityPosition::ExitPoint.is_port() == false);
-        assert!(EntityPosition::InputPin.is_port() == false);
-        assert!(EntityPosition::OutputPin.is_port() == false);
+        assert!(!EntityPosition::Normal.is_port());
+        assert!(!EntityPosition::EntryPoint.is_port());
+        assert!(!EntityPosition::ExitPoint.is_port());
+        assert!(!EntityPosition::InputPin.is_port());
+        assert!(!EntityPosition::OutputPin.is_port());
     }
 
     #[test]
@@ -267,11 +267,11 @@ mod entity_position {
         assert!(EntityPosition::PortOut.use_port_p());
         assert!(EntityPosition::EntryPoint.use_port_p());
         assert!(EntityPosition::ExitPoint.use_port_p());
-        assert!(EntityPosition::Normal.use_port_p() == false);
-        assert!(EntityPosition::InputPin.use_port_p() == false);
-        assert!(EntityPosition::OutputPin.use_port_p() == false);
-        assert!(EntityPosition::ExpansionInput.use_port_p() == false);
-        assert!(EntityPosition::ExpansionOutput.use_port_p() == false);
+        assert!(!EntityPosition::Normal.use_port_p());
+        assert!(!EntityPosition::InputPin.use_port_p());
+        assert!(!EntityPosition::OutputPin.use_port_p());
+        assert!(!EntityPosition::ExpansionInput.use_port_p());
+        assert!(!EntityPosition::ExpansionOutput.use_port_p());
     }
 }
 
@@ -441,11 +441,11 @@ mod leaf_type {
     #[test]
     fn is_like_class_false_cases() {
         // Java: assertFalse for each of these
-        assert!(LeafType::Note.is_like_class() == false);
-        assert!(LeafType::Usecase.is_like_class() == false);
-        assert!(LeafType::State.is_like_class() == false);
-        assert!(LeafType::Activity.is_like_class() == false);
-        assert!(LeafType::StillUnknown.is_like_class() == false);
+        assert!(!LeafType::Note.is_like_class());
+        assert!(!LeafType::Usecase.is_like_class());
+        assert!(!LeafType::State.is_like_class());
+        assert!(!LeafType::Activity.is_like_class());
+        assert!(!LeafType::StillUnknown.is_like_class());
     }
 
     #[test]
@@ -562,7 +562,7 @@ mod link_arg {
         // Java: build(label, 2) → getLength()==2, getLabel() non-null
         let arg = LinkArg::new(vec!["myLabel".to_string()], 2);
         assert_eq!(arg.length(), 2);
-        assert!(arg.label().is_empty() == false);
+        assert!(!arg.label().is_empty());
     }
 
     #[test]
@@ -971,7 +971,7 @@ mod display_positioned {
             HorizontalAlignment::Left,
             VerticalAlignment::Bottom,
         );
-        assert!(dp.is_null() == false);
+        assert!(!dp.is_null());
         assert_eq!(dp.display, make_display());
         assert_eq!(dp.horizontal_alignment, HorizontalAlignment::Left);
         assert_eq!(dp.vertical_alignment, VerticalAlignment::Bottom);
@@ -986,7 +986,7 @@ mod display_positioned {
             HorizontalAlignment::Right,
             VerticalAlignment::Top,
         );
-        assert!(dp.is_null() == false);
+        assert!(!dp.is_null());
         assert_eq!(dp.horizontal_alignment, HorizontalAlignment::Right);
     }
 
@@ -1039,7 +1039,7 @@ mod display_positioned {
             HorizontalAlignment::Left,
             VerticalAlignment::Top,
         );
-        assert!(dp.is_null() == false);
+        assert!(!dp.is_null());
     }
 
     #[test]
@@ -1089,7 +1089,7 @@ mod entity_gender {
         // → use ByClassName with name that will never match
         let none_gender = EntityGender::ByClassName("__nonexistent_xyz__".to_string());
         let e = Entity::new_leaf("SomeClass", LeafType::Class);
-        assert!(none_gender.contains(&e) == false);
+        assert!(!none_gender.contains(&e));
     }
 
     #[test]
@@ -1120,7 +1120,7 @@ mod entity_gender_utils {
         let class_entity = Entity::new_leaf("C", LeafType::Class);
         let iface_entity = Entity::new_leaf("I", LeafType::Interface);
         assert!(gender.contains(&class_entity));
-        assert!(gender.contains(&iface_entity) == false);
+        assert!(!gender.contains(&iface_entity));
         // Verify variant matches CLASS
         match &gender {
             EntityGender::ByEntityType(lt) => assert_eq!(*lt, LeafType::Class),
@@ -1139,7 +1139,7 @@ mod entity_gender_utils {
         assert_eq!(gender.gender(), Some(uid.as_str()));
 
         let other = Entity::new_leaf("O", LeafType::Class);
-        assert!(gender.contains(&other) == false);
+        assert!(!gender.contains(&other));
     }
 
     #[test]
@@ -1158,7 +1158,7 @@ mod entity_gender_utils {
 
         // Entity with no stereotype → false
         let no_stereo = Entity::new_leaf("NoStereo", LeafType::Class);
-        assert!(gender.contains(&no_stereo) == false);
+        assert!(!gender.contains(&no_stereo));
     }
 
     #[test]
@@ -1176,7 +1176,7 @@ mod entity_gender_utils {
         let class_only = EntityGender::ByEntityType(LeafType::Class);
         let and_gender = EntityGender::And(Box::new(EntityGender::All), Box::new(class_only));
         let non_class = Entity::new_leaf("I", LeafType::Interface);
-        assert!(and_gender.contains(&non_class) == false);
+        assert!(!and_gender.contains(&non_class));
 
         let class_entity = Entity::new_leaf("C", LeafType::Class);
         assert!(and_gender.contains(&class_entity));
@@ -1201,7 +1201,7 @@ mod entity_gender_utils {
         let match_e = Entity::new_leaf("MyClass", LeafType::Class);
         let no_match = Entity::new_leaf("OtherClass", LeafType::Class);
         assert!(gender.contains(&match_e));
-        assert!(gender.contains(&no_match) == false);
+        assert!(!gender.contains(&no_match));
         assert_eq!(gender.gender(), Some("MyClass"));
     }
 }

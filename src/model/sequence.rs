@@ -39,12 +39,12 @@ pub enum SeqArrowStyle {
 #[derive(Debug, Clone, PartialEq, Default)]
 pub enum SeqArrowHead {
     #[default]
-    Filled,          // > — filled diamond arrowhead (4 points)
-    FilledHalfTop,   // \\ on right (or / on left) — filled top-half triangle
+    Filled, // > — filled diamond arrowhead (4 points)
+    FilledHalfTop,    // \\ on right (or / on left) — filled top-half triangle
     FilledHalfBottom, // / on right (or \\ on left) — filled bottom-half triangle
-    Open,       // >> or << — open V-shaped head (2 lines)
-    HalfTop,    // // — open half-arrow, upper line only
-    HalfBottom, // \\ — open half-arrow, lower line only
+    Open,             // >> or << — open V-shaped head (2 lines)
+    HalfTop,          // // — open half-arrow, upper line only
+    HalfBottom,       // \\ — open half-arrow, lower line only
 }
 
 /// Message direction

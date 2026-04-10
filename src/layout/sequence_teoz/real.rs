@@ -736,7 +736,7 @@ mod tests {
         assert_eq!(rl.len(), 0);
 
         let _a = rl.create_base(0.0);
-        assert!(rl.is_empty() == false);
+        assert!(!rl.is_empty());
         assert_eq!(rl.len(), 1);
     }
 

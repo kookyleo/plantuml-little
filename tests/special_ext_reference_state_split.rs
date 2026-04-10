@@ -20,7 +20,10 @@ fn find_java_jar() -> PathBuf {
         .unwrap_or_else(|e| panic!("cannot read {}: {e}", libs_dir.display()))
         .filter_map(|entry| entry.ok().map(|e| e.path()))
         .filter(|path| {
-            let name = path.file_name().and_then(|s| s.to_str()).unwrap_or_default();
+            let name = path
+                .file_name()
+                .and_then(|s| s.to_str())
+                .unwrap_or_default();
             name.starts_with("plantuml-")
                 && name.ends_with(".jar")
                 && !name.contains("-sources")
@@ -71,8 +74,12 @@ fn render_java(fixture: &Path) -> String {
             String::from_utf8_lossy(&output.stderr)
         );
     }
-    String::from_utf8(output.stdout)
-        .unwrap_or_else(|e| panic!("java stdout was not valid UTF-8 for {}: {e}", fixture.display()))
+    String::from_utf8(output.stdout).unwrap_or_else(|e| {
+        panic!(
+            "java stdout was not valid UTF-8 for {}: {e}",
+            fixture.display()
+        )
+    })
 }
 
 fn strip_plantuml_src_pi(s: &str) -> String {
@@ -100,8 +107,8 @@ fn normalize_entity_link_ids(s: &str) -> String {
             let abs = pos + idx + 4;
             if let Some(end) = result[abs..].find('"') {
                 let old_id = result[abs..abs + end].to_string();
-                if !ent_map.contains_key(&old_id) {
-                    ent_map.insert(old_id, format!("__e{}__", ent_counter));
+                if let std::collections::hash_map::Entry::Vacant(e) = ent_map.entry(old_id) {
+                    e.insert(format!("__e{}__", ent_counter));
                     ent_counter += 1;
                 }
                 pos = abs + end + 1;
@@ -119,8 +126,8 @@ fn normalize_entity_link_ids(s: &str) -> String {
             let abs = pos + idx + 4;
             if let Some(end) = result[abs..].find('"') {
                 let old_id = result[abs..abs + end].to_string();
-                if !lnk_map.contains_key(&old_id) {
-                    lnk_map.insert(old_id, format!("__l{}__", lnk_counter));
+                if let std::collections::hash_map::Entry::Vacant(e) = lnk_map.entry(old_id) {
+                    e.insert(format!("__l{}__", lnk_counter));
                     lnk_counter += 1;
                 }
                 pos = abs + end + 1;
@@ -203,8 +210,17 @@ fn canonicalize(svg: &str, profile: CompareProfile) -> String {
     out
 }
 
-fn write_case_artifacts(case: &str, rust_svg: &str, java_svg: &str, rust_cmp: &str, java_cmp: &str) {
-    let out_dir = repo_root().join("tmp_debug").join("special-ext-ref").join(case);
+fn write_case_artifacts(
+    case: &str,
+    rust_svg: &str,
+    java_svg: &str,
+    rust_cmp: &str,
+    java_cmp: &str,
+) {
+    let out_dir = repo_root()
+        .join("tmp_debug")
+        .join("special-ext-ref")
+        .join(case);
     fs::create_dir_all(&out_dir)
         .unwrap_or_else(|e| panic!("cannot create {}: {e}", out_dir.display()));
     fs::write(out_dir.join("rust.raw.svg"), rust_svg)

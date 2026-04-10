@@ -525,7 +525,9 @@ mod public_xml_escape_tests {
 
     #[test]
     fn xml_escape_quotes() {
-        assert_eq!(xml_escape("say \"hello\""), "say &quot;hello&quot;");
+        // In XML text content, quotes don't need escaping (only in attributes).
+        // xml_escape_attr() handles attribute contexts.
+        assert_eq!(xml_escape("say \"hello\""), "say \"hello\"");
     }
 
     #[test]
@@ -578,8 +580,8 @@ mod public_uclip_drawing_interaction_tests {
     #[test]
     fn uclip_outside_points() {
         let clip = UClip::new(0.0, 0.0, 100.0, 50.0);
-        assert!(clip.is_inside(-0.1, 25.0) == false);
-        assert!(clip.is_inside(50.0, 50.1) == false);
+        assert!(!clip.is_inside(-0.1, 25.0));
+        assert!(!clip.is_inside(50.0, 50.1));
     }
 
     /// Verify clipping coordinates used by drawing code.
@@ -611,7 +613,7 @@ mod public_uclip_drawing_interaction_tests {
         assert_eq!(moved.width, 100.0);
         assert_eq!(moved.height, 50.0);
         // Point that was inside at origin is now outside
-        assert!(moved.is_inside(5.0, 5.0) == false);
+        assert!(!moved.is_inside(5.0, 5.0));
         // Point at new origin is inside
         assert!(moved.is_inside(10.0, 20.0));
     }

@@ -621,13 +621,11 @@ impl DotPath {
             if tail_rect.contains_point(me.start_point()) {
                 let mut result: Vec<XCubicCurve2D> = Vec::new();
                 let mut idx = 0;
-                while idx + 1 < me.beziers.len()
-                    && tail_rect.contains_point(me.beziers[idx].p2())
-                {
+                while idx + 1 < me.beziers.len() && tail_rect.contains_point(me.beziers[idx].p2()) {
                     idx += 1;
                 }
                 if !tail_rect.contains_point(me.beziers[idx].p2()) {
-                    let mut cur = me.beziers[idx].clone();
+                    let mut cur = me.beziers[idx];
                     for _ in 0..8 {
                         let mut p1 = XCubicCurve2D::none();
                         let mut p2 = XCubicCurve2D::none();
@@ -640,7 +638,7 @@ impl DotPath {
                         }
                     }
                     for i in (idx + 1)..me.beziers.len() {
-                        result.push(me.beziers[i].clone());
+                        result.push(me.beziers[i]);
                     }
                     me = DotPath::from_beziers(result);
                 }
@@ -651,12 +649,12 @@ impl DotPath {
                 let mut result: Vec<XCubicCurve2D> = Vec::new();
                 for current in &me.beziers {
                     if !head_rect.contains_point(current.p2()) {
-                        result.push(current.clone());
+                        result.push(*current);
                     } else {
                         if head_rect.contains_point(current.p1()) {
                             return me;
                         }
-                        let mut cur = current.clone();
+                        let mut cur = *current;
                         for _ in 0..8 {
                             let mut p1 = XCubicCurve2D::none();
                             let mut p2 = XCubicCurve2D::none();
@@ -688,9 +686,12 @@ impl DotPath {
             write!(
                 d,
                 " C{},{} {},{} {},{}",
-                fmt_coord(c.ctrlx1), fmt_coord(c.ctrly1),
-                fmt_coord(c.ctrlx2), fmt_coord(c.ctrly2),
-                fmt_coord(c.x2), fmt_coord(c.y2),
+                fmt_coord(c.ctrlx1),
+                fmt_coord(c.ctrly1),
+                fmt_coord(c.ctrlx2),
+                fmt_coord(c.ctrly2),
+                fmt_coord(c.x2),
+                fmt_coord(c.y2),
             )
             .unwrap();
         }

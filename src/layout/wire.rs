@@ -63,8 +63,16 @@ pub fn layout_wire(d: &WireDiagram) -> Result<WireLayout> {
     let mut added_to_cursor: Option<usize> = None; // index into blocks
 
     for block in &d.blocks {
-        let bw = if block.width > 0.0 { block.width } else { DEFAULT_SIZE };
-        let bh = if block.height > 0.0 { block.height } else { DEFAULT_SIZE };
+        let bw = if block.width > 0.0 {
+            block.width
+        } else {
+            DEFAULT_SIZE
+        };
+        let bh = if block.height > 0.0 {
+            block.height
+        } else {
+            DEFAULT_SIZE
+        };
 
         // Java addBlock: cursor += dy(10)
         cursor_y += BLOCK_GAP;
@@ -98,7 +106,8 @@ pub fn layout_wire(d: &WireDiagram) -> Result<WireLayout> {
     let mut vlinks = Vec::new();
 
     // Track per-block out-vertical counters
-    let mut block_out_count: std::collections::HashMap<String, usize> = std::collections::HashMap::new();
+    let mut block_out_count: std::collections::HashMap<String, usize> =
+        std::collections::HashMap::new();
 
     for vl in &d.vlinks {
         let from_block = blocks.iter().find(|b| b.name == vl.from);

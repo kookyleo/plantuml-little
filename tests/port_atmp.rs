@@ -657,7 +657,10 @@ mod cuca_diagram_tests {
         let src = "@startuml\nclass A\nnote right of A : a note\n@enduml";
         let cd = parse_class(src);
         assert_eq!(cd.entities.len(), 1);
-        assert!(cd.notes.len() >= 1, "diagram should have at least one note");
+        assert!(
+            !cd.notes.is_empty(),
+            "diagram should have at least one note"
+        );
     }
 
     // ── Dashed link style ───────────────────────────────────────────

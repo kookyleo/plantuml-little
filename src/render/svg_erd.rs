@@ -1,4 +1,6 @@
-use crate::klimt::drawable::{DrawStyle, Drawable, EllipseShape, LineShape, PolygonShape, RectShape};
+use crate::klimt::drawable::{
+    DrawStyle, Drawable, EllipseShape, LineShape, PolygonShape, RectShape,
+};
 use crate::klimt::svg::{fmt_coord, xml_escape, LengthAdjust, SvgGraphic};
 use crate::layout::erd::{
     ErdAttrEdge, ErdAttrLayout, ErdEdgeLayout, ErdIsaLayout, ErdLayout, ErdNodeLayout,
@@ -38,7 +40,6 @@ pub fn render_erd(_ed: &ErdDiagram, layout: &ErdLayout, skin: &SkinParams) -> Re
             .push(attr);
     }
 
-
     // Merge entities, relationships, and ISAs into a single list sorted by
     // source_order. Java renders them in declaration order, interleaved.
     enum RenderItem<'a> {
@@ -46,7 +47,11 @@ pub fn render_erd(_ed: &ErdDiagram, layout: &ErdLayout, skin: &SkinParams) -> Re
         Isa(&'a ErdIsaLayout),
     }
     let mut items: Vec<(usize, RenderItem)> = Vec::new();
-    for node in layout.entity_nodes.iter().chain(layout.relationship_nodes.iter()) {
+    for node in layout
+        .entity_nodes
+        .iter()
+        .chain(layout.relationship_nodes.iter())
+    {
         items.push((node.source_order, RenderItem::Node(node)));
     }
     for isa in &layout.isa_layouts {
@@ -101,11 +106,9 @@ pub fn render_erd(_ed: &ErdDiagram, layout: &ErdLayout, skin: &SkinParams) -> Re
                 render_attr_edge(&mut sg, ae, &layout.svek_node_uids);
             }
             EdgeItem::Link(_, le) => {
-                let link_uid = layout.link_uids
-                    .get(&le.source_order)
-                    .copied()
-                    .unwrap_or(0);
-                let source_line = layout.link_source_lines
+                let link_uid = layout.link_uids.get(&le.source_order).copied().unwrap_or(0);
+                let source_line = layout
+                    .link_source_lines
                     .get(&le.source_order)
                     .copied()
                     .unwrap_or(link_uid);
@@ -139,18 +142,35 @@ fn render_entity(
     sg.push_raw("<g>");
     let entity_style = DrawStyle::filled(eff_bg, eff_border, 0.5);
     if node.is_weak {
-        RectShape { x, y, w, h, rx: 0.0, ry: 0.0 }
-            .draw(sg, &entity_style);
+        RectShape {
+            x,
+            y,
+            w,
+            h,
+            rx: 0.0,
+            ry: 0.0,
+        }
+        .draw(sg, &entity_style);
         let inset = 3.0;
         RectShape {
-            x: x + inset, y: y + inset,
-            w: w - 2.0 * inset, h: h - 2.0 * inset,
-            rx: 0.0, ry: 0.0,
+            x: x + inset,
+            y: y + inset,
+            w: w - 2.0 * inset,
+            h: h - 2.0 * inset,
+            rx: 0.0,
+            ry: 0.0,
         }
         .draw(sg, &entity_style);
     } else {
-        RectShape { x, y, w, h, rx: 0.0, ry: 0.0 }
-            .draw(sg, &entity_style);
+        RectShape {
+            x,
+            y,
+            w,
+            h,
+            rx: 0.0,
+            ry: 0.0,
+        }
+        .draw(sg, &entity_style);
     }
     let tx = x + 10.0;
     let asc = crate::font_metrics::ascent("SansSerif", FONT_SIZE, false, false);
@@ -192,8 +212,14 @@ fn render_relationship(sg: &mut SvgGraphic, node: &ErdNodeLayout) {
         let inset_y = 5.0;
         PolygonShape {
             points: vec![
-                x + inset_x, cy, cx, y + inset_y,
-                x + w - inset_x, cy, cx, y + h - inset_y,
+                x + inset_x,
+                cy,
+                cx,
+                y + inset_y,
+                x + w - inset_x,
+                cy,
+                cx,
+                y + h - inset_y,
             ],
         }
         .draw(sg, &rel_style);
@@ -236,19 +262,24 @@ fn render_attribute(sg: &mut SvgGraphic, attr: &ErdAttrLayout) {
     let eff_border = attr.line_color.as_deref().unwrap_or(BORDER_COLOR);
     let attr_style = DrawStyle::filled(eff_bg, eff_border, 0.5);
     if attr.is_derived {
-        EllipseShape { cx, cy, rx, ry }
-            .draw(sg, &DrawStyle {
+        EllipseShape { cx, cy, rx, ry }.draw(
+            sg,
+            &DrawStyle {
                 dash_array: Some((10.0, 10.0)),
                 ..attr_style.clone()
-            });
+            },
+        );
     } else if attr.is_multi {
-        EllipseShape { cx, cy, rx, ry }
-            .draw(sg, &attr_style);
-        EllipseShape { cx, cy, rx: rx - 3.0, ry: ry - 3.0 }
-            .draw(sg, &attr_style);
+        EllipseShape { cx, cy, rx, ry }.draw(sg, &attr_style);
+        EllipseShape {
+            cx,
+            cy,
+            rx: rx - 3.0,
+            ry: ry - 3.0,
+        }
+        .draw(sg, &attr_style);
     } else {
-        EllipseShape { cx, cy, rx, ry }
-            .draw(sg, &attr_style);
+        EllipseShape { cx, cy, rx, ry }.draw(sg, &attr_style);
     }
     // Java text y: entity_top_y + MARGIN(6) + ascent (TextBlockInEllipse layout)
     let asc = crate::font_metrics::ascent("SansSerif", FONT_SIZE, false, false);
@@ -325,7 +356,8 @@ fn render_attr_edge(
         sg.push_raw(&format!(
             r#"<path d="{}" fill="none" id="{}-{}" style="stroke:{};stroke-width:1;"/>"#,
             path_d,
-            xml_escape(&attr_edge.from_name), xml_escape(&attr_edge.to_name),
+            xml_escape(&attr_edge.from_name),
+            xml_escape(&attr_edge.to_name),
             stroke_color,
         ));
         sg.push_raw("</g>");
@@ -362,8 +394,10 @@ fn render_edge(
         sg.push_raw(&format!(
             r#"<path d="{}" fill="none" id="{}-{}" style="stroke:{};stroke-width:{};"/>"#,
             path_d,
-            xml_escape(&edge.from_name), xml_escape(&edge.to_name),
-            edge_stroke, stroke_w,
+            xml_escape(&edge.from_name),
+            xml_escape(&edge.to_name),
+            edge_stroke,
+            stroke_w,
         ));
     } else {
         let cx1 = x1 + (x2 - x1) / 3.0;
@@ -418,7 +452,12 @@ fn render_edge(
 
 /// Render the ISA arrow decoration (triangle arrowhead) at the midpoint of an edge.
 /// Java renders this as: arc + 2 lines forming a triangle.
-fn render_isa_arrow_decoration(sg: &mut SvgGraphic, path_d: &str, is_superset: bool, stroke_color: &str) {
+fn render_isa_arrow_decoration(
+    sg: &mut SvgGraphic,
+    path_d: &str,
+    is_superset: bool,
+    stroke_color: &str,
+) {
     // Parse the bezier curve from the path d-string to find the midpoint and tangent.
     // Path format: "Mx,y Ccx1,cy1 cx2,cy2 ex,ey" (cubic bezier)
     if let Some((mid, tangent)) = bezier_midpoint_tangent(path_d, is_superset) {
@@ -463,13 +502,19 @@ fn render_isa_arrow_decoration(sg: &mut SvgGraphic, path_d: &str, is_superset: b
         sg.push_raw(&format!(
             r#"<line style="stroke:{};stroke-width:1.5;" x1="{}" x2="{}" y1="{}" y2="{}"/>"#,
             stroke_color,
-            fmt_coord(ax1), fmt_coord(lx1), fmt_coord(ay1), fmt_coord(ly1),
+            fmt_coord(ax1),
+            fmt_coord(lx1),
+            fmt_coord(ay1),
+            fmt_coord(ly1),
         ));
         // Line 2
         sg.push_raw(&format!(
             r#"<line style="stroke:{};stroke-width:1.5;" x1="{}" x2="{}" y1="{}" y2="{}"/>"#,
             stroke_color,
-            fmt_coord(ax2), fmt_coord(lx2), fmt_coord(ay2), fmt_coord(ly2),
+            fmt_coord(ax2),
+            fmt_coord(lx2),
+            fmt_coord(ay2),
+            fmt_coord(ly2),
         ));
     }
 }
@@ -484,8 +529,7 @@ fn bezier_midpoint_tangent(path_d: &str, _is_superset: bool) -> Option<((f64, f6
     let d = path_d.trim();
     let d = d.strip_prefix('M')?;
     let parts: Vec<f64> = d
-        .replace('C', " ")
-        .replace(',', " ")
+        .replace(['C', ','], " ")
         .split_whitespace()
         .filter_map(|s| s.parse().ok())
         .collect();
@@ -529,8 +573,8 @@ fn bezier_midpoint_tangent(path_d: &str, _is_superset: bool) -> Option<((f64, f6
         let m123 = ((m12.0 + m23.0) / 2.0, (m12.1 + m23.1) / 2.0);
         let mid = ((m012.0 + m123.0) / 2.0, (m012.1 + m123.1) / 2.0);
         (
-            [p0, m01, m012, mid],   // left half
-            [mid, m123, m23, p3],   // right half
+            [p0, m01, m012, mid], // left half
+            [mid, m123, m23, p3], // right half
         )
     }
 
@@ -566,10 +610,10 @@ fn bezier_midpoint_tangent(path_d: &str, _is_superset: bool) -> Option<((f64, f6
         let (left, right) = subdivide(seg);
         // 4 candidate points and their tangent angles
         let candidates = [
-            (left[0], tangent_start(&left)),    // p1 of left = start of bezier
-            (left[3], tangent_end(&left)),       // p2 of left = midpoint
-            (right[0], tangent_start(&right)),   // p1 of right = midpoint (same as above)
-            (right[3], tangent_end(&right)),     // p2 of right = end of bezier
+            (left[0], tangent_start(&left)),   // p1 of left = start of bezier
+            (left[3], tangent_end(&left)),     // p2 of left = midpoint
+            (right[0], tangent_start(&right)), // p1 of right = midpoint (same as above)
+            (right[3], tangent_end(&right)),   // p2 of right = end of bezier
         ];
         for (pt, tan) in &candidates {
             let c = cost(*pt, path_start, path_end);
@@ -593,11 +637,17 @@ fn render_isa_circle(sg: &mut SvgGraphic, isa: &ErdIsaLayout) {
 
     // Render the ISA circle (Java: ellipse with rx=ry=12.5)
     sg.push_raw("<g>");
-    EllipseShape { cx, cy, rx: r, ry: r }
-        .draw(sg, &DrawStyle::filled(eff_bg, eff_border, 0.5));
+    EllipseShape {
+        cx,
+        cy,
+        rx: r,
+        ry: r,
+    }
+    .draw(sg, &DrawStyle::filled(eff_bg, eff_border, 0.5));
 
     // Label text
-    let text_w = crate::font_metrics::text_width(&isa.kind_label, "SansSerif", FONT_SIZE, false, false);
+    let text_w =
+        crate::font_metrics::text_width(&isa.kind_label, "SansSerif", FONT_SIZE, false, false);
     let asc = crate::font_metrics::ascent("SansSerif", FONT_SIZE, false, false);
     let desc = crate::font_metrics::descent("SansSerif", FONT_SIZE, false, false);
     let text_x = cx - text_w / 2.0;
@@ -653,8 +703,10 @@ fn render_isa_edges(
         sg.push_raw(&format!(
             r#"<path d="{}" fill="none" id="{}-{}" style="stroke:{};stroke-width:{};"/>"#,
             path_d,
-            xml_escape(&isa.parent_id), xml_escape(center_name),
-            edge_stroke, stroke_w,
+            xml_escape(&isa.parent_id),
+            xml_escape(center_name),
+            edge_stroke,
+            stroke_w,
         ));
         if decor_on_parent {
             render_isa_arrow_decoration(sg, path_d, true, edge_stroke);
@@ -681,7 +733,8 @@ fn render_isa_edges(
             sg.push_raw(&format!(
                 r#"<path d="{}" fill="none" id="{}-{}" style="stroke:{};stroke-width:1;"/>"#,
                 path_d,
-                xml_escape(center_name), xml_escape(&child_edge.child_id),
+                xml_escape(center_name),
+                xml_escape(&child_edge.child_id),
                 edge_stroke,
             ));
             if !decor_on_parent {
@@ -694,19 +747,32 @@ fn render_isa_edges(
 
 fn render_note(sg: &mut SvgGraphic, note: &ErdNoteLayout) {
     if let Some((x1, y1, x2, y2)) = note.connector {
-        LineShape { x1, y1, x2, y2 }
-            .draw(sg, &DrawStyle {
+        LineShape { x1, y1, x2, y2 }.draw(
+            sg,
+            &DrawStyle {
                 fill: None,
                 stroke: Some(NOTE_BORDER.into()),
                 stroke_width: 1.0,
                 dash_array: Some((5.0, 3.0)),
                 delta_shadow: 0.0,
-            });
+            },
+        );
     }
     let (x, y, w, h) = (note.x, note.y, note.width, note.height);
     let fold = NOTE_FOLD;
     PolygonShape {
-        points: vec![x, y, x + w - fold, y, x + w, y + fold, x + w, y + h, x, y + h],
+        points: vec![
+            x,
+            y,
+            x + w - fold,
+            y,
+            x + w,
+            y + fold,
+            x + w,
+            y + h,
+            x,
+            y + h,
+        ],
     }
     .draw(sg, &DrawStyle::filled(NOTE_BG, NOTE_BORDER, 0.5));
     sg.push_raw(&format!(r#"<path d="M{},{} L{},{} L{},{} " fill="none" style="stroke:{NOTE_BORDER};stroke-width:0.5;"/>"#, fmt_coord(x + w - fold), fmt_coord(y), fmt_coord(x + w - fold), fmt_coord(y + fold), fmt_coord(x + w), fmt_coord(y + fold)));
@@ -993,8 +1059,14 @@ mod tests {
             line_color: None,
         });
         let svg = render_erd(&empty_diagram(), &l, &SkinParams::default()).unwrap();
-        assert!(svg.contains("<ellipse"), "should render ISA as circle (ellipse)");
-        assert!(svg.matches("<path").count() >= 3, "should have parent+child edge paths");
+        assert!(
+            svg.contains("<ellipse"),
+            "should render ISA as circle (ellipse)"
+        );
+        assert!(
+            svg.matches("<path").count() >= 3,
+            "should have parent+child edge paths"
+        );
         assert!(svg.contains(">d<"), "should contain kind label");
     }
     #[test]

@@ -56,10 +56,8 @@ pub fn layout_chronology(d: &ChronologyDiagram) -> Result<ChronologyLayout> {
         let x = MARGIN + 30.0 + i as f64 * EVENT_SPACING;
         let y = LINE_Y;
 
-        let label_w =
-            font_metrics::text_width(&ev.label, "SansSerif", FONT_SIZE, false, false);
-        let date_w =
-            font_metrics::text_width(&ev.date, "SansSerif", DATE_FONT_SIZE, false, false);
+        let label_w = font_metrics::text_width(&ev.label, "SansSerif", FONT_SIZE, false, false);
+        let date_w = font_metrics::text_width(&ev.date, "SansSerif", DATE_FONT_SIZE, false, false);
 
         let label_x = x - label_w / 2.0;
         let label_y = y + LABEL_OFFSET_Y;

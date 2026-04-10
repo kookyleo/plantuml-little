@@ -152,12 +152,8 @@ impl LayoutBuilder {
             SaltElement::Text(text) => self.draw_text_element(text, x, y),
             SaltElement::Button(text) => self.draw_button(text, x, y),
             SaltElement::TextField(text) => self.draw_textfield(text, x, y),
-            SaltElement::Checkbox { label, checked } => {
-                self.draw_checkbox(label, *checked, x, y)
-            }
-            SaltElement::Radio { label, selected } => {
-                self.draw_radio(label, *selected, x, y)
-            }
+            SaltElement::Checkbox { label, checked } => self.draw_checkbox(label, *checked, x, y),
+            SaltElement::Radio { label, selected } => self.draw_radio(label, *selected, x, y),
         }
     }
 
@@ -620,7 +616,12 @@ fn init_pyramid_grid(pyr: &SaltPyramid) -> (Vec<f64>, Vec<f64>) {
     by_left.sort_by_key(|c| c.min_col);
     for cell in &by_left {
         let dim = preferred_dim(&cell.element);
-        ensure_col_width(&mut cols_start, cell.min_col, cell.max_col + 1, dim.0 + PYRAMID_PAD);
+        ensure_col_width(
+            &mut cols_start,
+            cell.min_col,
+            cell.max_col + 1,
+            dim.0 + PYRAMID_PAD,
+        );
     }
 
     let mut by_top: Vec<&SaltCell> = pyr.cells.iter().collect();
@@ -682,7 +683,10 @@ fn preferred_dim(element: &SaltElement) -> (f64, f64) {
             let margin_x = 2.0;
             let margin_y = 2.0;
             let (tw, th) = text_dim_with_min_width(text, char_length(text));
-            (tw + 2.0 * margin_x + 2.0 * stroke, th + 2.0 * margin_y + 2.0 * stroke)
+            (
+                tw + 2.0 * margin_x + 2.0 * stroke,
+                th + 2.0 * margin_y + 2.0 * stroke,
+            )
         }
         SaltElement::TextField(text) => {
             let (tw, th) = text_dim_with_min_width(text, char_length_quoted(text));

@@ -73,7 +73,12 @@ pub fn render_pie(_d: &PieDiagram, l: &PieLayout, skin: &SkinParams) -> Result<S
     for entry in &l.legend {
         let color = COLORS[entry.color_index % COLORS.len()];
         RectShape {
-            x: entry.x, y: entry.y, w: LEGEND_BOX, h: LEGEND_BOX, rx: 0.0, ry: 0.0,
+            x: entry.x,
+            y: entry.y,
+            w: LEGEND_BOX,
+            h: LEGEND_BOX,
+            rx: 0.0,
+            ry: 0.0,
         }
         .draw(&mut sg, &DrawStyle::filled(color, "#333333", 0.5));
 

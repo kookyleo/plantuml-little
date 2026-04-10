@@ -1,6 +1,6 @@
-use log::{debug, trace};
 use crate::model::files_diagram::{FilesDiagram, FilesEntry, FilesEntryKind};
 use crate::Result;
+use log::{debug, trace};
 
 fn extract_files_block(source: &str) -> Option<String> {
     let mut inside = false;
@@ -71,10 +71,7 @@ fn add_raw_entry(children: &mut Vec<FilesEntry>, raw: &str) {
     }
 }
 
-fn get_or_create_folder<'a>(
-    children: &'a mut Vec<FilesEntry>,
-    name: &str,
-) -> &'a mut FilesEntry {
+fn get_or_create_folder<'a>(children: &'a mut Vec<FilesEntry>, name: &str) -> &'a mut FilesEntry {
     let existing = children
         .iter()
         .position(|c| c.kind == FilesEntryKind::Folder && c.name == name);

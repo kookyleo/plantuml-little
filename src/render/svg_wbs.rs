@@ -85,7 +85,10 @@ pub fn render_wbs(_wd: &WbsDiagram, layout: &WbsLayout, skin: &SkinParams) -> Re
                 continue;
             }
             LineShape {
-                x1: edge.from_x, y1: edge.from_y, x2: edge.to_x, y2: edge.to_y,
+                x1: edge.from_x,
+                y1: edge.from_y,
+                x2: edge.to_x,
+                y2: edge.to_y,
             }
             .draw(&mut sg, &DrawStyle::outline(edge_color, STROKE_WIDTH));
         }
@@ -129,7 +132,10 @@ fn render_fork_root(
         for &(ei, ci) in child_list {
             let edge = &layout.edges[ei];
             LineShape {
-                x1: edge.to_x, y1: connector_y, x2: edge.to_x, y2: edge.to_y,
+                x1: edge.to_x,
+                y1: connector_y,
+                x2: edge.to_x,
+                y2: edge.to_y,
             }
             .draw(sg, &edge_style);
             render_itf_subtree(
@@ -157,7 +163,10 @@ fn render_fork_root(
         let bar_right = max_x.max(root_cx);
         if (bar_right - bar_left).abs() > 0.01 {
             LineShape {
-                x1: bar_left, y1: connector_y, x2: bar_right, y2: connector_y,
+                x1: bar_left,
+                y1: connector_y,
+                x2: bar_right,
+                y2: connector_y,
             }
             .draw(sg, &edge_style);
         }
@@ -167,8 +176,10 @@ fn render_fork_root(
 
         // Root vertical connector (from root bottom to bar)
         LineShape {
-            x1: root_cx, y1: root_node.y + root_node.height,
-            x2: root_cx, y2: connector_y,
+            x1: root_cx,
+            y1: root_node.y + root_node.height,
+            x2: root_cx,
+            y2: connector_y,
         }
         .draw(sg, &edge_style);
     } else {
@@ -213,7 +224,10 @@ fn render_itf_subtree(
             let child_mid_y = child.y + child.height / 2.0;
             let child_right = child.x + child.width;
             LineShape {
-                x1: child_right, y1: child_mid_y, x2: parent_cx, y2: child_mid_y,
+                x1: child_right,
+                y1: child_mid_y,
+                x2: parent_cx,
+                y2: child_mid_y,
             }
             .draw(sg, &edge_style);
             render_itf_subtree(
@@ -234,7 +248,10 @@ fn render_itf_subtree(
             let child = &layout.nodes[ci];
             let child_mid_y = child.y + child.height / 2.0;
             LineShape {
-                x1: parent_cx, y1: child_mid_y, x2: child.x, y2: child_mid_y,
+                x1: parent_cx,
+                y1: child_mid_y,
+                x2: child.x,
+                y2: child_mid_y,
             }
             .draw(sg, &edge_style);
             render_itf_subtree(
@@ -253,7 +270,10 @@ fn render_itf_subtree(
         // Vertical connector line from node bottom to last child midpoint
         let from_y = layout.nodes[node_idx].y + layout.nodes[node_idx].height;
         LineShape {
-            x1: parent_cx, y1: from_y, x2: parent_cx, y2: last_child_y_mid,
+            x1: parent_cx,
+            y1: from_y,
+            x2: parent_cx,
+            y2: last_child_y_mid,
         }
         .draw(sg, &edge_style);
     }
@@ -267,7 +287,12 @@ fn render_node(
     font_color: &str,
 ) {
     RectShape {
-        x: node.x, y: node.y, w: node.width, h: node.height, rx: 0.0, ry: 0.0,
+        x: node.x,
+        y: node.y,
+        w: node.width,
+        h: node.height,
+        rx: 0.0,
+        ry: 0.0,
     }
     .draw(sg, &DrawStyle::filled(bg, border, STROKE_WIDTH));
 
@@ -319,14 +344,16 @@ fn render_node(
 
 fn render_note(sg: &mut SvgGraphic, note: &WbsNoteLayout, font_color: &str) {
     if let Some((x1, y1, x2, y2)) = note.connector {
-        LineShape { x1, y1, x2, y2 }
-            .draw(sg, &DrawStyle {
+        LineShape { x1, y1, x2, y2 }.draw(
+            sg,
+            &DrawStyle {
                 fill: None,
                 stroke: Some(NOTE_BORDER.into()),
                 stroke_width: 0.5,
                 dash_array: Some((4.0, 4.0)),
                 delta_shadow: 0.0,
-            });
+            },
+        );
     }
 
     // Note polygon
@@ -335,7 +362,9 @@ fn render_note(sg: &mut SvgGraphic, note: &WbsNoteLayout, font_color: &str) {
     let x2 = note.x + note.width;
     let y2 = note.y + note.height;
     PolygonShape {
-        points: vec![note.x, note.y, fold_x, note.y, x2, fold_y, x2, y2, note.x, y2],
+        points: vec![
+            note.x, note.y, fold_x, note.y, x2, fold_y, x2, y2, note.x, y2,
+        ],
     }
     .draw(sg, &DrawStyle::filled(NOTE_BG, NOTE_BORDER, 0.5));
 
@@ -363,7 +392,10 @@ fn render_note(sg: &mut SvgGraphic, note: &WbsNoteLayout, font_color: &str) {
 
 fn render_extra_link(sg: &mut SvgGraphic, link: &WbsEdgeLayout, color: &str) {
     LineShape {
-        x1: link.from_x, y1: link.from_y, x2: link.to_x, y2: link.to_y,
+        x1: link.from_x,
+        y1: link.from_y,
+        x2: link.to_x,
+        y2: link.to_y,
     }
     .draw(sg, &DrawStyle::outline(color, 1.0));
 

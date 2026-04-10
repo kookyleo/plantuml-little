@@ -19,7 +19,8 @@ fn reference_index() -> &'static HashMap<String, String> {
     INDEX.get_or_init(|| {
         let mut map = HashMap::new();
         let path = "tests/reference/INDEX.tsv";
-        let content = fs::read_to_string(path).unwrap_or_else(|e| panic!("read {path} failed: {e}"));
+        let content =
+            fs::read_to_string(path).unwrap_or_else(|e| panic!("read {path} failed: {e}"));
         for (lineno, line) in content.lines().enumerate() {
             if line.trim().is_empty() {
                 continue;
@@ -48,9 +49,7 @@ fn load_reference(fixture_path: &str) -> Option<String> {
     let bytes = fs::read(&reference_path)
         .unwrap_or_else(|e| panic!("read {reference_path} failed for {fixture_path}: {e}"));
     Some(String::from_utf8(bytes).unwrap_or_else(|e| {
-        panic!(
-            "{fixture_path}: reference {reference_path} is not UTF-8 SVG: {e}"
-        )
+        panic!("{fixture_path}: reference {reference_path} is not UTF-8 SVG: {e}")
     }))
 }
 
@@ -121,7 +120,7 @@ fn normalize_inline_svgs(s: &str) -> String {
         result.push_str(&s[pos..abs_start + marker.len()]);
         let b64_start = abs_start + marker.len();
         let b64_end = s[b64_start..]
-            .find(|c: char| c == '"' || c == '\'' || c == '<' || c == ' ')
+            .find(['"', '\'', '<', ' '])
             .map_or(s.len(), |e| b64_start + e);
         let b64 = &s[b64_start..b64_end];
         // Decode, strip plantuml-src PI, normalize inner PNGs/random-pixel, re-encode
@@ -142,7 +141,8 @@ fn normalize_inline_svgs(s: &str) -> String {
                         r##"<rect fill="#[0-9A-Fa-f]{6}" height="1" style="stroke:#[0-9A-Fa-f]{6};stroke-width:1;" width="1" x="0" y="0"/>"##,
                     ).unwrap();
                     cleaned = rp_re.replace_all(&cleaned, "").to_string();
-                    let re_encoded = base64::engine::general_purpose::STANDARD.encode(cleaned.as_bytes());
+                    let re_encoded =
+                        base64::engine::general_purpose::STANDARD.encode(cleaned.as_bytes());
                     result.push_str(&re_encoded);
                 }
             } else {
@@ -166,7 +166,7 @@ fn normalize_inline_data(s: &str, marker: &str, placeholder: &str) -> String {
         let b64_start = abs_start + marker.len();
         // Find end of base64 (next '"' or non-base64 char)
         let b64_end = s[b64_start..]
-            .find(|c: char| c == '"' || c == '\'' || c == '<' || c == ' ')
+            .find(['"', '\'', '<', ' '])
             .map_or(s.len(), |e| b64_start + e);
 
         // Replace data with fixed placeholder.
@@ -185,7 +185,7 @@ fn canonicalize_png(png: &[u8]) -> Option<Vec<u8>> {
     use std::io::Write;
 
     // Verify PNG signature
-    if png.len() < 8 || &png[..8] != &[137, 80, 78, 71, 13, 10, 26, 10] {
+    if png.len() < 8 || png[..8] != [137, 80, 78, 71, 13, 10, 26, 10] {
         return None;
     }
 
@@ -363,8 +363,8 @@ fn normalize_entity_link_ids(s: &str) -> String {
             let abs = pos + idx + 4; // start of "ent..."
             if let Some(end) = result[abs..].find('"') {
                 let old_id = result[abs..abs + end].to_string();
-                if !ent_map.contains_key(&old_id) {
-                    ent_map.insert(old_id, format!("__e{}__", ent_counter));
+                if let std::collections::hash_map::Entry::Vacant(e) = ent_map.entry(old_id) {
+                    e.insert(format!("__e{}__", ent_counter));
                     ent_counter += 1;
                 }
                 pos = abs + end + 1;
@@ -383,8 +383,8 @@ fn normalize_entity_link_ids(s: &str) -> String {
             let abs = pos + idx + 4; // start of "lnk..."
             if let Some(end) = result[abs..].find('"') {
                 let old_id = result[abs..abs + end].to_string();
-                if !lnk_map.contains_key(&old_id) {
-                    lnk_map.insert(old_id, format!("__l{}__", lnk_counter));
+                if let std::collections::hash_map::Entry::Vacant(e) = lnk_map.entry(old_id) {
+                    e.insert(format!("__l{}__", lnk_counter));
                     lnk_counter += 1;
                 }
                 pos = abs + end + 1;
@@ -420,10 +420,7 @@ fn normalize_entity_link_ids(s: &str) -> String {
 /// - `data-source-line="N"`: line number references differ due to counting differences
 /// - `data-entity-1/2="X"`: entity ID references depend on rendering order which may differ
 fn strip_nonvisual_data_attrs(s: &str) -> String {
-    let re = regex::Regex::new(
-        r#" data-(?:source-line|entity-[12])="[^"]*""#,
-    )
-    .unwrap();
+    let re = regex::Regex::new(r#" data-(?:source-line|entity-[12])="[^"]*""#).unwrap();
     let result = re.replace_all(s, "").to_string();
     // Collapse runs of multiple spaces left behind by attribute removal
     let space_re = regex::Regex::new(r" {2,}").unwrap();
@@ -434,10 +431,8 @@ fn strip_nonvisual_data_attrs(s: &str) -> String {
 /// 4-point diamonds. Both are valid arrow representations. Replace polygon elements
 /// with their fill color only, discarding the exact points.
 fn normalize_arrow_polygons(s: &str) -> String {
-    let re = regex::Regex::new(
-        r#"<polygon fill="([^"]*)" points="[^"]*" style="[^"]*"/>"#,
-    )
-    .unwrap();
+    let re =
+        regex::Regex::new(r#"<polygon fill="([^"]*)" points="[^"]*" style="[^"]*"/>"#).unwrap();
     re.replace_all(s, r#"<polygon fill="$1"/>"#).to_string()
 }
 
@@ -461,8 +456,16 @@ fn assert_exact_match(actual: &str, reference: &str, path: &str) {
         return;
     }
     // Allow deflate-encoding differences in <?plantuml-src?> PI and inline PNGs
-    let a = normalize_error_page_noise(&normalize_arrow_polygons(&normalize_inline_pngs(&normalize_entity_link_ids(&normalize_filter_ids(&strip_nonvisual_data_attrs(&strip_plantuml_src_pi(actual)))))));
-    let r = normalize_error_page_noise(&normalize_arrow_polygons(&normalize_inline_pngs(&normalize_entity_link_ids(&normalize_filter_ids(&strip_nonvisual_data_attrs(&strip_plantuml_src_pi(reference)))))));
+    let a = normalize_error_page_noise(&normalize_arrow_polygons(&normalize_inline_pngs(
+        &normalize_entity_link_ids(&normalize_filter_ids(&strip_nonvisual_data_attrs(
+            &strip_plantuml_src_pi(actual),
+        ))),
+    )));
+    let r = normalize_error_page_noise(&normalize_arrow_polygons(&normalize_inline_pngs(
+        &normalize_entity_link_ids(&normalize_filter_ids(&strip_nonvisual_data_attrs(
+            &strip_plantuml_src_pi(reference),
+        ))),
+    )));
     if a == r {
         return;
     }
@@ -638,14 +641,8 @@ reference_test!(
     reference_fixtures_chronology_basic_puml,
     "fixtures/chronology/basic.puml"
 );
-reference_test!(
-    reference_fixtures_hcl_basic_puml,
-    "fixtures/hcl/basic.puml"
-);
-reference_test!(
-    reference_fixtures_pie_basic_puml,
-    "fixtures/pie/basic.puml"
-);
+reference_test!(reference_fixtures_hcl_basic_puml, "fixtures/hcl/basic.puml");
+reference_test!(reference_fixtures_pie_basic_puml, "fixtures/pie/basic.puml");
 reference_test!(
     reference_fixtures_archimate_layers_puml,
     "fixtures/archimate/layers.puml"
@@ -674,7 +671,10 @@ reference_test!(
     reference_fixtures_files_diagram_nested_puml,
     "fixtures/files_diagram/nested.puml"
 );
-reference_test!(reference_fixtures_flow_basic_puml, "fixtures/flow/basic.puml");
+reference_test!(
+    reference_fixtures_flow_basic_puml,
+    "fixtures/flow/basic.puml"
+);
 reference_test!(
     reference_fixtures_flow_link_back_puml,
     "fixtures/flow/link_back.puml"
@@ -1939,15 +1939,9 @@ reference_test!(
     reference_fixtures_packet_basic_puml,
     "fixtures/packet/basic.puml"
 );
-reference_test!(
-    reference_fixtures_git_basic_puml,
-    "fixtures/git/basic.puml"
-);
+reference_test!(reference_fixtures_git_basic_puml, "fixtures/git/basic.puml");
 
-reference_test!(
-    reference_fixtures_bpm_basic_puml,
-    "fixtures/bpm/basic.puml"
-);
+reference_test!(reference_fixtures_bpm_basic_puml, "fixtures/bpm/basic.puml");
 reference_test!(
     reference_fixtures_bpm_goto_resume_merge_puml,
     "fixtures/bpm/goto_resume_merge.puml"
@@ -1960,9 +1954,6 @@ reference_test!(
     reference_fixtures_bpm_simple_puml,
     "fixtures/bpm/simple.puml"
 );
-reference_test!(
-    reference_fixtures_def_basic_puml,
-    "fixtures/def/basic.puml"
-);
+reference_test!(reference_fixtures_def_basic_puml, "fixtures/def/basic.puml");
 
 // Total: 328 reference tests

@@ -55,6 +55,12 @@ pub struct ColorSequence {
     current: u32,
 }
 
+impl Default for ColorSequence {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl ColorSequence {
     pub fn new() -> Self {
         Self {
@@ -294,11 +300,11 @@ impl DotStringFactory {
 
         let nodesep = self
             .nodesep_override
-            .map(|px| utils::pixel_to_inches(px))
+            .map(utils::pixel_to_inches)
             .unwrap_or(utils::DEFAULT_NODESEP_IN);
         let ranksep = self
             .ranksep_override
-            .map(|px| utils::pixel_to_inches(px))
+            .map(utils::pixel_to_inches)
             .unwrap_or(utils::DEFAULT_RANKSEP_IN);
         sb.push_str(&format!("nodesep={:.6};\n", nodesep));
         sb.push_str(&format!("ranksep={:.6};\n", ranksep));
@@ -476,9 +482,15 @@ impl DotStringFactory {
         let has_link = cluster.has_link_from_or_to_group;
 
         if has_link {
-            sb.push_str(&format!("subgraph cluster_{}a {{\nlabel=\"\";\n", cluster.id));
+            sb.push_str(&format!(
+                "subgraph cluster_{}a {{\nlabel=\"\";\n",
+                cluster.id
+            ));
         }
-        sb.push_str(&format!("subgraph cluster_{}p0 {{\nlabel=\"\";\n", cluster.id));
+        sb.push_str(&format!(
+            "subgraph cluster_{}p0 {{\nlabel=\"\";\n",
+            cluster.id
+        ));
         sb.push_str(&format!("subgraph cluster_{} {{\n", cluster.id));
         sb.push_str("style=solid;\n");
         sb.push_str("color=\"#000000\";\n");
@@ -492,17 +504,20 @@ impl DotStringFactory {
             sb.push_str(&format!("label={cluster_label};\n"));
             // Special point (Java: zaent) sits inside the cluster but outside p1.
             if let Some(ref sp_id) = cluster.special_point_id {
-                sb.push_str(&format!(
-                    "{} [shape=point,width=.01,label=\"\"];\n",
-                    sp_id
-                ));
+                sb.push_str(&format!("{} [shape=point,width=.01,label=\"\"];\n", sp_id));
             }
-            sb.push_str(&format!("subgraph cluster_{}i {{\nlabel=\"\";\n", cluster.id));
+            sb.push_str(&format!(
+                "subgraph cluster_{}i {{\nlabel=\"\";\n",
+                cluster.id
+            ));
         } else {
             sb.push_str(&format!("label={cluster_label};\n"));
         }
 
-        sb.push_str(&format!("subgraph cluster_{}p1 {{\nlabel=\"\";\n", cluster.id));
+        sb.push_str(&format!(
+            "subgraph cluster_{}p1 {{\nlabel=\"\";\n",
+            cluster.id
+        ));
 
         // Java Cluster.printCluster2() writes normal nodes before child
         // clusters. That ordering affects nested package geometry.
@@ -591,7 +606,10 @@ impl DotStringFactory {
     /// 2. For each edge: call `solve_line()` to extract path + labels
     /// 3. Normalize coordinates (shift so min position = (6, 6))
     /// Returns (moveDelta, limitFinder_span, render_offset) from normalization.
-    pub fn solve(&mut self, svg: &str) -> Result<((f64, f64), (f64, f64), (f64, f64), (f64, f64)), String> {
+    pub fn solve(
+        &mut self,
+        svg: &str,
+    ) -> Result<((f64, f64), (f64, f64), (f64, f64), (f64, f64)), String> {
         use crate::svek::svg_result::SvgResult;
 
         // Java svek uses a pure YDelta(fullHeight) transform when parsing
@@ -621,7 +639,9 @@ impl DotStringFactory {
                 | ShapeType::Folder
                 | ShapeType::Diamond
                 | ShapeType::RectanglePort => {
-                    let points = svg_result.substring_from(idx).extract_list(svg_result::POINTS_EQUALS);
+                    let points = svg_result
+                        .substring_from(idx)
+                        .extract_list(svg_result::POINTS_EQUALS);
                     if !points.is_empty() {
                         let min_x = points.iter().map(|p| p.x).fold(f64::INFINITY, f64::min);
                         let min_y = points.iter().map(|p| p.y).fold(f64::INFINITY, f64::min);
@@ -636,7 +656,9 @@ impl DotStringFactory {
                     let idx_points = svg_str[idx + 1..]
                         .find(svg_result::POINTS_EQUALS)
                         .map(|pos| idx + 1 + pos);
-                    let points = if let Some(path_idx) = idx_d.filter(|d| idx_points.is_none_or(|p| *d < p)) {
+                    let points = if let Some(path_idx) =
+                        idx_d.filter(|d| idx_points.is_none_or(|p| *d < p))
+                    {
                         svg_result
                             .substring_from(path_idx)
                             .extract_list(svg_result::D_EQUALS)
@@ -689,8 +711,10 @@ impl DotStringFactory {
                 ShapeType::Circle | ShapeType::Oval => {
                     if let Some(cx) = parse_xml_attr_near(svg_result.svg(), idx, "cx") {
                         if let Some(cy) = parse_xml_attr_near(svg_result.svg(), idx, "cy") {
-                            let rx = parse_xml_attr_near(svg_result.svg(), idx, "rx").unwrap_or(0.0);
-                            let ry = parse_xml_attr_near(svg_result.svg(), idx, "ry").unwrap_or(0.0);
+                            let rx =
+                                parse_xml_attr_near(svg_result.svg(), idx, "rx").unwrap_or(0.0);
+                            let ry =
+                                parse_xml_attr_near(svg_result.svg(), idx, "ry").unwrap_or(0.0);
                             node.move_delta(cx - rx, cy + full_height - ry);
                         }
                     }
@@ -759,12 +783,15 @@ impl DotStringFactory {
             //     → min_corr = 0, max_corr = 0
             //
             // `lf_rect_correction` is true for rect entities, false for circles/notes.
-            let extra_left = if is_degenerated { 0.0 } else { node.lf_extra_left };
+            let extra_left = if is_degenerated {
+                0.0
+            } else {
+                node.lf_extra_left
+            };
             let is_diamond = node.shape_type == shape_type::ShapeType::Diamond;
             let is_ellipse_shape = matches!(
                 node.shape_type,
-                shape_type::ShapeType::Circle
-                    | shape_type::ShapeType::Oval
+                shape_type::ShapeType::Circle | shape_type::ShapeType::Oval
             );
             // Java LimitFinder shape-specific corrections:
             //
@@ -798,10 +825,18 @@ impl DotStringFactory {
                 (0.0, 0.0) // UPath (notes): no correction
             };
             let rx = node.min_x - min_corr_x - extra_left;
-            let node_y_corr = if node.lf_node_polygon { 0.0 } else { min_corr_y };
+            let node_y_corr = if node.lf_node_polygon {
+                0.0
+            } else {
+                min_corr_y
+            };
             let ry = node.min_y - node_y_corr;
             let rr = node.min_x + node.width - max_corr_x;
-            let node_y_max_corr = if node.lf_node_polygon { 0.0 } else { max_corr_y };
+            let node_y_max_corr = if node.lf_node_polygon {
+                0.0
+            } else {
+                max_corr_y
+            };
             let empty_ext = if node.lf_node_polygon { 10.0 } else { 0.0 };
             let rb = node.min_y + node.height - node_y_max_corr + empty_ext;
             log::trace!(
@@ -823,7 +858,9 @@ impl DotStringFactory {
             if rb > lf_max_y {
                 lf_max_y = rb;
             }
-            if node.shape_type == shape_type::ShapeType::RectanglePort && node.port_label_width > 0.0 {
+            if node.shape_type == shape_type::ShapeType::RectanglePort
+                && node.port_label_width > 0.0
+            {
                 let text_w = node.port_label_width;
                 let text_h = crate::font_metrics::line_height("SansSerif", 14.0, false, false);
                 let ascent = crate::font_metrics::ascent("SansSerif", 14.0, false, false);
@@ -913,8 +950,7 @@ impl DotStringFactory {
                     } else {
                         1.0
                     };
-                    let descent =
-                        crate::font_metrics::descent("SansSerif", 13.0, false, false);
+                    let descent = crate::font_metrics::descent("SansSerif", 13.0, false, false);
                     let ly_text = ly + margin_label + 1.5 - descent;
                     if ly_text < lf_min_y {
                         lf_min_y = ly_text;

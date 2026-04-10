@@ -15,22 +15,22 @@ use std::fmt::Write;
 use crate::klimt::svg::{fmt_coord, xml_escape};
 
 thread_local! {
-    static COLLECTED_GRADIENT_DEFS: RefCell<Vec<(String, String)>> = RefCell::new(Vec::new());
+    static COLLECTED_GRADIENT_DEFS: RefCell<Vec<(String, String)>> = const { RefCell::new(Vec::new()) };
     /// Map of id -> element content for `<use>` resolution within the current sprite.
     static SPRITE_DEFS_MAP: RefCell<HashMap<String, String>> = RefCell::new(HashMap::new());
     /// When true, all colors are converted to grayscale (skinparam monochrome true).
-    static MONOCHROME_MODE: Cell<bool> = Cell::new(false);
+    static MONOCHROME_MODE: Cell<bool> = const { Cell::new(false) };
     /// Scale factor for coordinate conversion (1.0 = no scaling).
     /// Used by `convert_svg_elements_scaled` to pre-apply transforms.
-    static SPRITE_SCALE: Cell<f64> = Cell::new(1.0);
+    static SPRITE_SCALE: Cell<f64> = const { Cell::new(1.0) };
     /// Element-level scale override for arc radii.  When an element has a
     /// `scale(s)` transform, Java uses `s` (not the accumulated sprite scale)
     /// as the arc radius multiplier.  `None` means no override — use SPRITE_SCALE.
-    static ELEMENT_ARC_SCALE: Cell<Option<f64>> = Cell::new(None);
+    static ELEMENT_ARC_SCALE: Cell<Option<f64>> = const { Cell::new(None) };
     /// Default stroke width inherited from the parent diagram context.
     /// Java UEllipse/UPath inherit the UGraphic's current stroke thickness.
     /// Sequence diagrams use 1.0 (UStroke.simple()), activity diagrams use 0.5.
-    static DEFAULT_STROKE_WIDTH: Cell<f64> = Cell::new(1.0);
+    static DEFAULT_STROKE_WIDTH: Cell<f64> = const { Cell::new(1.0) };
     /// Optional color override from inline sprite parameters like `<$x{color=red}>`.
     static SPRITE_COLOR_OVERRIDE: RefCell<Option<String>> = const { RefCell::new(None) };
 }
@@ -387,9 +387,8 @@ fn normalize_gradient(raw: &str, tag: &str) -> String {
             }
             if let Some(v) = get_attr(&stop_raw, "stop-color") {
                 let color = if MONOCHROME_MODE.with(|m| m.get()) {
-                    let normalized = normalize_hex_color(v);
                     // normalize_hex_color already applies monochrome
-                    normalized
+                    normalize_hex_color(v)
                 } else {
                     v.to_string()
                 };
@@ -762,14 +761,14 @@ fn convert_single_element_ext(
     };
 
     // Check for affine transforms (rotate, matrix) that need full matrix application
-    let affine_matrix = elem_transform.as_deref().and_then(parse_affine_transform);
+    let affine_matrix = elem_transform.and_then(parse_affine_transform);
 
     if let Some(ref matrix) = affine_matrix {
         // Full affine transform: convert the element by transforming each point
         convert_element_with_affine(buf, element, tag, ox, oy, matrix);
     } else {
         // Simple translate/scale or no transform
-        let (eff_ox, eff_oy, saved_scale) = if let Some(ref transform) = elem_transform {
+        let (eff_ox, eff_oy, saved_scale) = if let Some(transform) = elem_transform {
             apply_element_transform(transform, ox, oy)
         } else {
             (ox, oy, None)
@@ -837,7 +836,7 @@ fn parse_affine_transform(transform: &str) -> Option<[f64; 6]> {
             .filter(|s| !s.is_empty())
             .filter_map(|s| s.trim().parse().ok())
             .collect();
-        if vals.len() >= 1 {
+        if !vals.is_empty() {
             let angle = vals[0] * std::f64::consts::PI / 180.0;
             let (sin_a, cos_a) = angle.sin_cos();
             let (cx, cy) = if vals.len() >= 3 {
@@ -1167,7 +1166,7 @@ fn convert_text(buf: &mut String, element: &str, ox: f64, oy: f64) {
     // indentation.  Java's DriverTextSvg.draw() advances x for each
     // leading space using the font's space advance, then trims.
     // Simulate this: strip newlines, count leading spaces, advance x.
-    let joined = inner.replace('\n', "").replace('\r', "");
+    let joined = inner.replace(['\n', '\r'], "");
     let leading_spaces = joined.len() - joined.trim_start_matches(' ').len();
     if leading_spaces > 0 {
         let space_w = crate::font_metrics::char_width(' ', font_family, size, bold, italic);
@@ -1235,7 +1234,7 @@ fn convert_group(
     // Java's SvgNanoParser accumulates group transforms in the affine matrix,
     // which affects all child elements including text (via deltax/deltay).
     let (tx, ty) = if let Some(transform) = get_attr(element, "transform") {
-        parse_translate(&transform)
+        parse_translate(transform)
     } else {
         (0.0, 0.0)
     };
@@ -1282,14 +1281,14 @@ fn convert_use(
     let mut scale_factor = 1.0_f64;
     let (tx, ty) = if let Some(transform) = get_attr(element, "transform") {
         // Handle scale transform by adjusting positions
-        if let Some(scale) = parse_scale(&transform) {
+        if let Some(scale) = parse_scale(transform) {
             // For scale, we adjust the position and scale the content
             // Java processes <use> by inlining the referenced content at the
             // scaled position
             scale_factor = scale;
             (use_x * scale, use_y * scale)
         } else {
-            let (ptx, pty) = parse_translate(&transform);
+            let (ptx, pty) = parse_translate(transform);
             (use_x + ptx, use_y + pty)
         }
     } else {
@@ -1712,7 +1711,7 @@ fn translate_path_data(d: &str, ox: f64, oy: f64) -> String {
 
     while chars.peek().is_some() {
         // Skip whitespace
-        while chars.peek().map_or(false, |c| c.is_whitespace()) {
+        while chars.peek().is_some_and(|c| c.is_whitespace()) {
             chars.next();
         }
 
@@ -1952,7 +1951,7 @@ fn translate_path_data(d: &str, ox: f64, oy: f64) -> String {
             }
             _ => {
                 // Unknown command, try to skip one number
-                if let Some(_) = parse_number(&mut chars) {
+                if parse_number(&mut chars).is_some() {
                     // consumed
                 }
             }
@@ -1974,13 +1973,13 @@ fn parse_number(chars: &mut std::iter::Peekable<std::str::Chars>) -> Option<f64>
     skip_whitespace_comma(chars);
     let mut s = String::new();
     // Optional sign
-    if chars.peek().map_or(false, |&c| c == '-' || c == '+') {
+    if chars.peek().is_some_and(|&c| c == '-' || c == '+') {
         s.push(chars.next().unwrap());
     }
     // Digits and decimal point
     while chars
         .peek()
-        .map_or(false, |&c| c.is_ascii_digit() || c == '.')
+        .is_some_and(|&c| c.is_ascii_digit() || c == '.')
     {
         s.push(chars.next().unwrap());
     }
@@ -1991,19 +1990,13 @@ fn parse_number(chars: &mut std::iter::Peekable<std::str::Chars>) -> Option<f64>
 }
 
 fn skip_comma(chars: &mut std::iter::Peekable<std::str::Chars>) {
-    while chars
-        .peek()
-        .map_or(false, |&c| c == ',' || c.is_whitespace())
-    {
+    while chars.peek().is_some_and(|&c| c == ',' || c.is_whitespace()) {
         chars.next();
     }
 }
 
 fn skip_whitespace_comma(chars: &mut std::iter::Peekable<std::str::Chars>) {
-    while chars
-        .peek()
-        .map_or(false, |&c| c.is_whitespace() || c == ',')
-    {
+    while chars.peek().is_some_and(|&c| c.is_whitespace() || c == ',') {
         chars.next();
     }
 }
@@ -2086,9 +2079,15 @@ mod tests {
         let d = "M16 8A8 8 0 1 1 0 8a8 8 0 0 1 16 0M9.283 4.002H7.971L6.072 5.385v1.271l1.834-1.318h.065V12h1.312z";
         let result = translate_path_data(d, 10.0, 20.0);
         // All commands should be absolute; M translated, arcs have absolute endpoints
-        assert!(result.starts_with("M26,28"), "expected M26,28, got: {result}");
+        assert!(
+            result.starts_with("M26,28"),
+            "expected M26,28, got: {result}"
+        );
         // 'a' (relative arc) should become absolute 'A'
-        assert!(result.contains(" A8,8 0 0 1 26,28"), "expected absolute arc, got: {result}");
+        assert!(
+            result.contains(" A8,8 0 0 1 26,28"),
+            "expected absolute arc, got: {result}"
+        );
         // 'H' should become 'L' with translated x
         assert!(result.contains(" L17.971,24.002"), "H -> L, got: {result}");
         // 'v' (relative vertical) should become 'L' with translated absolute y

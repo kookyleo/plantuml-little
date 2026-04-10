@@ -11,8 +11,7 @@ use crate::svek::edge::{LabelDimension, SvekEdge};
 use crate::svek::node::{EntityPosition, SvekNode};
 use crate::svek::shape_type::ShapeType;
 use crate::svek::{
-    Bibliotekon, ColorSequence, DotMode, DotSplines, DotStringFactory, Margins,
-    TopLevelDotItem,
+    Bibliotekon, ColorSequence, DotMode, DotSplines, DotStringFactory, Margins, TopLevelDotItem,
 };
 
 use log::{debug, trace, warn};
@@ -553,7 +552,10 @@ impl GraphvizImageBuilder {
     ///
     /// Call this after running Graphviz externally and obtaining the SVG output.
     /// Returns (moveDelta, limitFinder_span, lf_max, render_offset) from normalization.
-    pub fn solve(&mut self, svg: &str) -> Result<((f64, f64), (f64, f64), (f64, f64), (f64, f64)), String> {
+    pub fn solve(
+        &mut self,
+        svg: &str,
+    ) -> Result<((f64, f64), (f64, f64), (f64, f64), (f64, f64)), String> {
         let factory = self
             .factory
             .as_mut()
@@ -774,8 +776,7 @@ mod tests {
     fn builder_build_dot_with_shielded_rectangle() {
         let mut builder = GraphvizImageBuilder::new(BuilderConfig::default());
         builder.add_entity(
-            EntityDescriptor::new("A", 100.0, 50.0)
-                .with_shield(Margins::new(5.0, 10.0, 3.0, 7.0)),
+            EntityDescriptor::new("A", 100.0, 50.0).with_shield(Margins::new(5.0, 10.0, 3.0, 7.0)),
         );
 
         let dot = builder.build_dot();

@@ -42,16 +42,15 @@ pub struct BoardLayout {
 }
 
 pub fn layout_board(d: &BoardDiagram) -> Result<BoardLayout> {
-    let card_h =
-        font_metrics::line_height("SansSerif", FONT_SIZE, false, false) + CARD_PAD_V * 2.0;
+    let card_h = font_metrics::line_height("SansSerif", FONT_SIZE, false, false) + CARD_PAD_V * 2.0;
 
     let mut columns = Vec::new();
     let mut x = MARGIN;
 
     for task in &d.tasks {
         let header = task.label.clone();
-        let header_w =
-            font_metrics::text_width(&header, "SansSerif", FONT_SIZE, true, false) + CARD_PAD_H * 2.0;
+        let header_w = font_metrics::text_width(&header, "SansSerif", FONT_SIZE, true, false)
+            + CARD_PAD_H * 2.0;
         let mut cards = Vec::new();
         let mut max_w = header_w.max(MIN_COL_W);
         let mut cy = MARGIN + HEADER_H + ROW_GAP;
@@ -93,11 +92,7 @@ pub fn layout_board(d: &BoardDiagram) -> Result<BoardLayout> {
     }
 
     let total_w = x - COL_GAP + MARGIN;
-    let total_h = columns
-        .iter()
-        .map(|c| c.height)
-        .fold(0.0_f64, f64::max)
-        + MARGIN;
+    let total_h = columns.iter().map(|c| c.height).fold(0.0_f64, f64::max) + MARGIN;
 
     Ok(BoardLayout {
         width: total_w.max(100.0),

@@ -1,7 +1,5 @@
 use crate::font_metrics;
-use crate::klimt::drawable::{
-    DrawStyle, Drawable, LineShape, PathShape, RectShape, TextShape,
-};
+use crate::klimt::drawable::{DrawStyle, Drawable, LineShape, PathShape, RectShape, TextShape};
 use crate::klimt::shape::UPath;
 use crate::klimt::svg::SvgGraphic;
 use crate::layout::wire::WireLayout;
@@ -39,7 +37,12 @@ pub fn render_wire(_d: &WireDiagram, l: &WireLayout, skin: &SkinParams) -> Resul
 
         // Rect with no fill, black stroke (matches Java WBlock.drawBox)
         RectShape {
-            x: rx, y: ry, w: bl.width, h: bl.height, rx: 0.0, ry: 0.0,
+            x: rx,
+            y: ry,
+            w: bl.width,
+            h: bl.height,
+            rx: 0.0,
+            ry: 0.0,
         }
         .draw(&mut sg, &outline_style);
 
@@ -92,11 +95,19 @@ pub fn render_wire(_d: &WireDiagram, l: &WireLayout, skin: &SkinParams) -> Resul
         path.line_to(-5.0, -5.0);
         path.line_to(0.0, 0.0);
         path.close();
-        PathShape { x: vx, y: arrow_y, path }.draw(&mut sg, &arrow_style);
+        PathShape {
+            x: vx,
+            y: arrow_y,
+            path,
+        }
+        .draw(&mut sg, &arrow_style);
 
         // Line from (vx, line_y_start) of length (line_y_end - line_y_start)
         LineShape {
-            x1: vx, y1: line_y_start, x2: vx, y2: line_y_end,
+            x1: vx,
+            y1: line_y_start,
+            x2: vx,
+            y2: line_y_end,
         }
         .draw(&mut sg, &outline_style);
     }

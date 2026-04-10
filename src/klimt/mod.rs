@@ -425,9 +425,10 @@ impl Fashion {
 
 /// Text wrapping strategy: none, auto, or a fixed max width.
 /// Java: `klimt.LineBreakStrategy`
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Default)]
 pub enum LineBreakStrategy {
     /// No line breaking.
+    #[default]
     None,
     /// Automatic line breaking.
     Auto,
@@ -466,12 +467,6 @@ impl LineBreakStrategy {
             Self::MaxWidth(w) => *w,
             _ => 0.0,
         }
-    }
-}
-
-impl Default for LineBreakStrategy {
-    fn default() -> Self {
-        Self::None
     }
 }
 

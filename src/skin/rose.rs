@@ -1555,7 +1555,7 @@ pub fn draw_note_hexagonal(
 
     let cs = CORNER_SIZE;
     let th2 = text_height as f64 / 2.0;
-    let points = vec![
+    let points = [
         (cs, 0.0),
         (x2 as f64 - cs, 0.0),
         (x2 as f64, th2),

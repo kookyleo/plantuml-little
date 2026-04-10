@@ -70,7 +70,6 @@ pub fn parse_state_diagram(source: &str) -> Result<StateDiagram> {
     let mut conc_counter: u32 = 1;
 
     for (line_num, line) in joined {
-
         match mode {
             ParseMode::StyleBlock { .. } => {
                 if line.trim().to_lowercase().starts_with("</style>") {
@@ -215,7 +214,9 @@ pub fn parse_state_diagram(source: &str) -> Result<StateDiagram> {
                 frame.current_conc_scope = Some(format!("CONC{conc_counter}"));
                 debug!(
                     "line {}: concurrent region separator in composite '{}' → scope {}",
-                    line_num, frame.state.id, frame.current_conc_scope.as_deref().unwrap_or("")
+                    line_num,
+                    frame.state.id,
+                    frame.current_conc_scope.as_deref().unwrap_or("")
                 );
             } else {
                 warn!("line {line_num}: `--` separator outside composite state");
@@ -919,10 +920,7 @@ fn scoped_special_state_id(stack: &[CompositeFrame], is_start: bool) -> String {
     // anonymous CONCURRENT_STATE group named CONC<N>. Mirror that by tacking
     // the current frame's current_conc_scope onto the scope so the special
     // state id (e.g. `[*]__startActive.CONC2`) is unique per region.
-    let mut scope: Vec<&str> = stack
-        .iter()
-        .map(|frame| frame.state.id.as_str())
-        .collect();
+    let mut scope: Vec<&str> = stack.iter().map(|frame| frame.state.id.as_str()).collect();
     if let Some(frame) = stack.last() {
         if let Some(conc) = frame.current_conc_scope.as_deref() {
             scope.push(conc);
@@ -1183,10 +1181,8 @@ fn merge_or_add_state(states: &mut Vec<State>, new_state: State) {
             (None, Some(b)) => Some(b),
             (None, None) => None,
         };
-        existing.explicit_source_line = match (
-            existing.explicit_source_line,
-            explicit_source_line,
-        ) {
+        existing.explicit_source_line = match (existing.explicit_source_line, explicit_source_line)
+        {
             (Some(a), Some(b)) => Some(a.min(b)),
             (Some(a), None) => Some(a),
             (None, Some(b)) => Some(b),
@@ -1356,7 +1352,11 @@ mod tests {
         assert_eq!(diagram.transitions[1].from, "s1");
         assert_eq!(diagram.transitions[1].to, "[*]__end");
         // Both should be auto-created as special
-        let start = diagram.states.iter().find(|s| s.id == "[*]__start").unwrap();
+        let start = diagram
+            .states
+            .iter()
+            .find(|s| s.id == "[*]__start")
+            .unwrap();
         assert!(start.is_special);
         let end = diagram.states.iter().find(|s| s.id == "[*]__end").unwrap();
         assert!(end.is_special);
@@ -1539,7 +1539,10 @@ mod tests {
         assert_eq!(diagram.states.len(), 3);
         assert!(diagram.states.iter().any(|s| s.id == "s1"));
         assert!(diagram.states.iter().any(|s| s.id == "s2"));
-        assert!(diagram.states.iter().any(|s| s.id == "[*]__start" && s.is_special));
+        assert!(diagram
+            .states
+            .iter()
+            .any(|s| s.id == "[*]__start" && s.is_special));
 
         // Transitions: [*]__start --> s1, s1 --> s2 : play
         assert_eq!(diagram.transitions.len(), 2);

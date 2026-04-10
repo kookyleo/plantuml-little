@@ -710,13 +710,14 @@ fn compute_state_node(
             // The separator line is drawn at the boundary between regions.
             let mut region_y = 0.0;
             for (i, region) in all_regions.iter().enumerate() {
-                let (mut child_layouts, mut inner_tr, child_w, child_h) = layout_children_with_graphviz(
-                    region,
-                    transitions,
-                    initial_ids,
-                    final_ids,
-                    false,
-                );
+                let (mut child_layouts, mut inner_tr, child_w, child_h) =
+                    layout_children_with_graphviz(
+                        region,
+                        transitions,
+                        initial_ids,
+                        final_ids,
+                        false,
+                    );
                 offset_children(&mut child_layouts, 0.0, region_y);
                 for tr in &mut inner_tr {
                     offset_transition(tr, 0.0, region_y);
@@ -762,8 +763,16 @@ fn compute_state_node(
         //   minMax.getDimension().delta(0, 12)
         // i.e. width = lf_span_w (no extra), height = lf_span_h + 12.
         // For concurrent regions, each region individually gets delta(0, 12).
-        let inner_img_w = if is_concurrent { total_child_w } else { total_child_w };
-        let inner_img_h = if is_concurrent { total_child_h } else { total_child_h + 12.0 };
+        let inner_img_w = if is_concurrent {
+            total_child_w
+        } else {
+            total_child_w
+        };
+        let inner_img_h = if is_concurrent {
+            total_child_h
+        } else {
+            total_child_h + 12.0
+        };
 
         // Java uses {rank=source}/{rank=sink} cluster constraints for
         // inputPin/outputPin children. Each pin type at a cluster boundary
@@ -779,8 +788,12 @@ fn compute_state_node(
                     && !c.is_special
             });
             if has_regular {
-                let has_input = children.iter().any(|c| c.stereotype.as_deref() == Some("inputPin"));
-                let has_output = children.iter().any(|c| c.stereotype.as_deref() == Some("outputPin"));
+                let has_input = children
+                    .iter()
+                    .any(|c| c.stereotype.as_deref() == Some("inputPin"));
+                let has_output = children
+                    .iter()
+                    .any(|c| c.stereotype.as_deref() == Some("outputPin"));
                 let pin_types = (has_input as u32) + (has_output as u32);
                 pin_types as f64 * PIN_RANK_HEIGHT_BONUS
             } else {
@@ -799,8 +812,14 @@ fn compute_state_node(
                     continue;
                 }
                 if !child.children.is_empty() || !child.regions.is_empty() {
-                    let child_has_input = child.children.iter().any(|c| c.stereotype.as_deref() == Some("inputPin"));
-                    let child_has_output = child.children.iter().any(|c| c.stereotype.as_deref() == Some("outputPin"));
+                    let child_has_input = child
+                        .children
+                        .iter()
+                        .any(|c| c.stereotype.as_deref() == Some("inputPin"));
+                    let child_has_output = child
+                        .children
+                        .iter()
+                        .any(|c| c.stereotype.as_deref() == Some("outputPin"));
                     let child_pin_types = (child_has_input as u32) + (child_has_output as u32);
                     bonus += child_pin_types as f64 * 16.0;
                 }
@@ -1414,7 +1433,8 @@ fn layout_children_with_graphviz(
             let mut node_ids = Vec::new();
             for child in &state.children {
                 let (_, w, h) = sized_map.get(&child.id).cloned().unwrap_or_else(|| {
-                    let (node, w, h) = compute_state_node(child, transitions, initial_ids, final_ids);
+                    let (node, w, h) =
+                        compute_state_node(child, transitions, initial_ids, final_ids);
                     sized_map.insert(child.id.clone(), (node.clone(), w, h));
                     (node, w, h)
                 });
@@ -1456,7 +1476,14 @@ fn layout_children_with_graphviz(
         ) {
             has_pins = true;
         }
-        push_state_gv_node(state, *w, *h, &mut gv_nodes, &mut node_id_order, !parent_has_direct_pins);
+        push_state_gv_node(
+            state,
+            *w,
+            *h,
+            &mut gv_nodes,
+            &mut node_id_order,
+            !parent_has_direct_pins,
+        );
         graph_node_ids.insert(state.id.clone());
     }
 
@@ -1485,7 +1512,11 @@ fn layout_children_with_graphviz(
             tail_decoration: crate::svek::edge::LinkDecoration::None,
             head_decoration: crate::svek::edge::LinkDecoration::None,
             line_style: crate::svek::edge::LinkStyle::Normal,
-            minlen: if tr.length > 0 { (tr.length - 1) as u32 } else { 0 },
+            minlen: if tr.length > 0 {
+                (tr.length - 1) as u32
+            } else {
+                0
+            },
             invisible: false,
             no_constraint: false,
         });
@@ -1520,15 +1551,19 @@ fn layout_children_with_graphviz(
         Ok(layout) => {
             log::debug!(
                 "inner graphviz: {}x{}, lf_span=({:.1},{:.1}), move_delta=({:.1},{:.1})",
-                layout.total_width, layout.total_height,
-                layout.lf_span.0, layout.lf_span.1,
-                layout.move_delta.0, layout.move_delta.1,
+                layout.total_width,
+                layout.total_height,
+                layout.lf_span.0,
+                layout.lf_span.1,
+                layout.move_delta.0,
+                layout.move_delta.1,
             );
             layout
         }
         Err(e) => {
             log::warn!("graphviz inner layout failed: {e}, falling back to ranked layout");
-            let (nodes, w, h) = layout_states_ranked(states, transitions, initial_ids, final_ids, 0.0, 0.0);
+            let (nodes, w, h) =
+                layout_states_ranked(states, transitions, initial_ids, final_ids, 0.0, 0.0);
             return (nodes, Vec::new(), w, h);
         }
     };
@@ -1583,7 +1618,11 @@ fn layout_children_with_graphviz(
         let Some(cl) = gv_layout.clusters.iter().find(|c| c.id == cluster_id) else {
             continue;
         };
-        let direct_child_ids: HashSet<&str> = state.children.iter().map(|child| child.id.as_str()).collect();
+        let direct_child_ids: HashSet<&str> = state
+            .children
+            .iter()
+            .map(|child| child.id.as_str())
+            .collect();
         let child_order: HashMap<&str, usize> = state
             .children
             .iter()
@@ -1619,7 +1658,12 @@ fn layout_children_with_graphviz(
                 children.push(child_node);
             }
         }
-        children.sort_by_key(|child| child_order.get(child.id.as_str()).copied().unwrap_or(usize::MAX));
+        children.sort_by_key(|child| {
+            child_order
+                .get(child.id.as_str())
+                .copied()
+                .unwrap_or(usize::MAX)
+        });
 
         nodes.push(StateNodeLayout {
             id: state.id.clone(),
@@ -1643,7 +1687,12 @@ fn layout_children_with_graphviz(
             render_as_cluster: true,
         });
     }
-    nodes.sort_by_key(|node| state_order.get(node.id.as_str()).copied().unwrap_or(usize::MAX));
+    nodes.sort_by_key(|node| {
+        state_order
+            .get(node.id.as_str())
+            .copied()
+            .unwrap_or(usize::MAX)
+    });
 
     // Java's inner SvekResult keeps children below any extra LimitFinder-only
     // content (for example pin labels above the cluster). Our outer composite
@@ -1661,7 +1710,10 @@ fn layout_children_with_graphviz(
     let mut inner_transitions = Vec::new();
     for (i, gv_edge) in gv_layout.edges.iter().enumerate() {
         let (from_id, to_id) = if i < active_transitions.len() {
-            (active_transitions[i].from.clone(), active_transitions[i].to.clone())
+            (
+                active_transitions[i].from.clone(),
+                active_transitions[i].to.clone(),
+            )
         } else {
             (gv_edge.from.clone(), gv_edge.to.clone())
         };
@@ -1685,11 +1737,10 @@ fn layout_children_with_graphviz(
             .raw_path_d
             .as_ref()
             .map(|d| graphviz::transform_path_d(d, 0.0, extra_inner_y));
-        let arrow_polygon = gv_edge.arrow_polygon_points.as_ref().map(|pts| {
-            pts.iter()
-                .map(|&(x, y)| (x, y + extra_inner_y))
-                .collect()
-        });
+        let arrow_polygon = gv_edge
+            .arrow_polygon_points
+            .as_ref()
+            .map(|pts| pts.iter().map(|&(x, y)| (x, y + extra_inner_y)).collect());
 
         let label_xy = gv_edge.label_xy.map(|(x, y)| {
             let nx = x + gv_layout.move_delta.0 - gv_layout.normalize_offset.0;
@@ -1884,7 +1935,6 @@ fn transition_layout_key(tr: &TransitionLayout) -> (String, String, Option<usize
     (tr.from_id.clone(), tr.to_id.clone(), tr.source_line)
 }
 
-
 /// Search for a nested state by ID within a list of top-level states.
 fn find_nested_state_in_list<'a>(states: &'a [State], target_id: &str) -> Option<&'a State> {
     fn search<'a>(state: &'a State, target: &str) -> Option<&'a State> {
@@ -2015,12 +2065,10 @@ pub fn layout_state(diagram: &StateDiagram) -> Result<StateLayout> {
         let child_ids = composite_child_ids.get(&state.id).unwrap();
         let has_cross_child_link = diagram.transitions.iter().any(|tr| {
             // External node → child inside composite (not the composite itself)
-            let ext_to_child = !child_ids.contains(&tr.from)
-                && tr.from != state.id
-                && child_ids.contains(&tr.to);
-            let ext_from_child = !child_ids.contains(&tr.to)
-                && tr.to != state.id
-                && child_ids.contains(&tr.from);
+            let ext_to_child =
+                !child_ids.contains(&tr.from) && tr.from != state.id && child_ids.contains(&tr.to);
+            let ext_from_child =
+                !child_ids.contains(&tr.to) && tr.to != state.id && child_ids.contains(&tr.from);
             ext_to_child || ext_from_child
         });
         if has_direct_pin_child || has_cross_child_link {
@@ -2150,7 +2198,8 @@ pub fn layout_state(diagram: &StateDiagram) -> Result<StateLayout> {
             } else {
                 // Leaf node or non-cluster composite (pre-sized as single rect)
                 let (_, w, h) = sized_map.get(&child.id).cloned().unwrap_or_else(|| {
-                    let (node, w, h) = compute_state_node(child, transitions, initial_ids, final_ids);
+                    let (node, w, h) =
+                        compute_state_node(child, transitions, initial_ids, final_ids);
                     sized_map.insert(child.id.clone(), (node.clone(), w, h));
                     (node, w, h)
                 });
@@ -2167,16 +2216,25 @@ pub fn layout_state(diagram: &StateDiagram) -> Result<StateLayout> {
         // For DejaVu Sans 14pt: round(1556/2048 * 14) = 11.
         // cluster_dot_label() subtracts 5 from the height, so we add 5 here
         // to pass through the correct DOT TABLE HEIGHT value.
-        let title_h = crate::font_metrics::typo_ascent("SansSerif", STATE_NAME_FONT_SIZE, false, false).round() + 5.0;
+        let title_h =
+            crate::font_metrics::typo_ascent("SansSerif", STATE_NAME_FONT_SIZE, false, false)
+                .round()
+                + 5.0;
         // Java divides these by 72 to pass as inches in DOT, we pass pixels
         // and the builder converts. The label_width/height are passed through
         // to the <TABLE WIDTH="..." HEIGHT="..."> in the DOT cluster label.
 
         // Generate a special point ID for edge routing through this cluster.
-        let sp_id = format!("zaent_{}", state.id.replace(|c: char| !c.is_ascii_alphanumeric(), "_"));
+        let sp_id = format!(
+            "zaent_{}",
+            state.id.replace(|c: char| !c.is_ascii_alphanumeric(), "_")
+        );
 
         LayoutClusterSpec {
-            id: format!("{}", state.id.replace(|c: char| !c.is_ascii_alphanumeric(), "_")),
+            id: state
+                .id
+                .replace(|c: char| !c.is_ascii_alphanumeric(), "_")
+                .to_string(),
             qualified_name: state.id.clone(),
             title: Some(state.name.clone()),
             style: crate::svek::cluster::ClusterStyle::Rectangle,
@@ -2222,7 +2280,8 @@ pub fn layout_state(diagram: &StateDiagram) -> Result<StateLayout> {
     }
 
     let mut attached_notes: Vec<(&crate::model::state::StateNote, f64, f64)> = Vec::new();
-    let mut standalone_note_ids: std::collections::HashSet<String> = std::collections::HashSet::new();
+    let mut standalone_note_ids: std::collections::HashSet<String> =
+        std::collections::HashSet::new();
     for note in &diagram.notes {
         if let Some(entity_id) = note.entity_id.as_ref() {
             let (w, h) = estimate_note_size(&note.text);
@@ -2289,8 +2348,8 @@ pub fn layout_state(diagram: &StateDiagram) -> Result<StateLayout> {
         // or special points). Special points are added by the cluster builder.
         let from_known = outer_node_ids.contains(&from)
             || composite_special_points.values().any(|sp| sp == &from);
-        let to_known = outer_node_ids.contains(&to)
-            || composite_special_points.values().any(|sp| sp == &to);
+        let to_known =
+            outer_node_ids.contains(&to) || composite_special_points.values().any(|sp| sp == &to);
         if !from_known || !to_known {
             continue;
         }
@@ -2313,7 +2372,11 @@ pub fn layout_state(diagram: &StateDiagram) -> Result<StateLayout> {
             tail_decoration: crate::svek::edge::LinkDecoration::None,
             head_decoration: crate::svek::edge::LinkDecoration::None,
             line_style: crate::svek::edge::LinkStyle::Normal,
-            minlen: if tr.length > 0 { (tr.length - 1) as u32 } else { 0 },
+            minlen: if tr.length > 0 {
+                (tr.length - 1) as u32
+            } else {
+                0
+            },
             invisible: false,
             no_constraint: false,
         });
@@ -2326,10 +2389,26 @@ pub fn layout_state(diagram: &StateDiagram) -> Result<StateLayout> {
     let note_edge_start_idx = gv_edges.len();
     for (note, _w, _h) in &attached_notes {
         let (from, to, minlen) = match note.position.as_str() {
-            "left" => (note.entity_id.clone().unwrap(), note.target.clone().unwrap(), 0),
-            "top" => (note.entity_id.clone().unwrap(), note.target.clone().unwrap(), 2),
-            "bottom" => (note.target.clone().unwrap(), note.entity_id.clone().unwrap(), 2),
-            _ => (note.target.clone().unwrap(), note.entity_id.clone().unwrap(), 0),
+            "left" => (
+                note.entity_id.clone().unwrap(),
+                note.target.clone().unwrap(),
+                0,
+            ),
+            "top" => (
+                note.entity_id.clone().unwrap(),
+                note.target.clone().unwrap(),
+                2,
+            ),
+            "bottom" => (
+                note.target.clone().unwrap(),
+                note.entity_id.clone().unwrap(),
+                2,
+            ),
+            _ => (
+                note.target.clone().unwrap(),
+                note.entity_id.clone().unwrap(),
+                0,
+            ),
         };
         gv_edges.push(LayoutEdge {
             from,
@@ -2498,8 +2577,11 @@ pub fn layout_state(diagram: &StateDiagram) -> Result<StateLayout> {
         template
     }
 
-    let gv_nodes_by_id: HashMap<&str, &crate::layout::graphviz::NodeLayout> =
-        gv_layout.nodes.iter().map(|node| (node.id.as_str(), node)).collect();
+    let gv_nodes_by_id: HashMap<&str, &crate::layout::graphviz::NodeLayout> = gv_layout
+        .nodes
+        .iter()
+        .map(|node| (node.id.as_str(), node))
+        .collect();
     let gv_clusters_by_qname: HashMap<&str, &crate::layout::graphviz::ClusterLayout> = gv_layout
         .clusters
         .iter()
@@ -2519,13 +2601,15 @@ pub fn layout_state(diagram: &StateDiagram) -> Result<StateLayout> {
         if attached_note_ids.contains(gv_node.id.as_str()) {
             let x = gv_node.cx - gv_node.width / 2.0 + margin_x;
             let y = gv_node.cy - gv_node.height / 2.0 + margin_y;
-            attached_note_positions.insert(gv_node.id.clone(), (x, y, gv_node.width, gv_node.height));
+            attached_note_positions
+                .insert(gv_node.id.clone(), (x, y, gv_node.width, gv_node.height));
             continue;
         }
         if standalone_note_ids.contains(gv_node.id.as_str()) {
             let x = gv_node.cx - gv_node.width / 2.0 + margin_x;
             let y = gv_node.cy - gv_node.height / 2.0 + margin_y;
-            standalone_note_positions.insert(gv_node.id.clone(), (x, y, gv_node.width, gv_node.height));
+            standalone_note_positions
+                .insert(gv_node.id.clone(), (x, y, gv_node.width, gv_node.height));
             continue;
         }
         // Skip cluster-composite children: processed during cluster reconstruction
@@ -2685,8 +2769,8 @@ pub fn layout_state(diagram: &StateDiagram) -> Result<StateLayout> {
             let to = composite_special_points.get(&tr.to).unwrap_or(&tr.to);
             let from_known = outer_node_ids.contains(from)
                 || composite_special_points.values().any(|sp| sp == from);
-            let to_known = outer_node_ids.contains(to)
-                || composite_special_points.values().any(|sp| sp == to);
+            let to_known =
+                outer_node_ids.contains(to) || composite_special_points.values().any(|sp| sp == to);
             if from_known && to_known {
                 result.push(tr);
             }
@@ -2721,7 +2805,10 @@ pub fn layout_state(diagram: &StateDiagram) -> Result<StateLayout> {
                 if let Some(ref eid) = note.entity_id {
                     log::debug!(
                         "  note edge anchor: note={} pos={} ax={:.4} ay={:.4}",
-                        eid, note.position, ax, ay,
+                        eid,
+                        note.position,
+                        ax,
+                        ay,
                     );
                     note_edge_anchors.insert(eid.clone(), (ax, ay));
                 }
@@ -2772,32 +2859,50 @@ pub fn layout_state(diagram: &StateDiagram) -> Result<StateLayout> {
         // Java clips them to the cluster border for visual correctness.
         {
             let tail_rect = if cluster_composite_ids.contains(&from_id) {
-                gv_layout.clusters.iter().find(|c| c.qualified_name == from_id).map(|cl| {
-                    crate::klimt::geom::RectangleArea::new(
-                        cl.x + margin_x, cl.y + margin_y,
-                        cl.x + margin_x + cl.width, cl.y + margin_y + cl.height,
-                    )
-                })
-            } else { None };
+                gv_layout
+                    .clusters
+                    .iter()
+                    .find(|c| c.qualified_name == from_id)
+                    .map(|cl| {
+                        crate::klimt::geom::RectangleArea::new(
+                            cl.x + margin_x,
+                            cl.y + margin_y,
+                            cl.x + margin_x + cl.width,
+                            cl.y + margin_y + cl.height,
+                        )
+                    })
+            } else {
+                None
+            };
             let head_rect = if cluster_composite_ids.contains(&to_id) {
-                gv_layout.clusters.iter().find(|c| c.qualified_name == to_id).map(|cl| {
-                    crate::klimt::geom::RectangleArea::new(
-                        cl.x + margin_x, cl.y + margin_y,
-                        cl.x + margin_x + cl.width, cl.y + margin_y + cl.height,
-                    )
-                })
-            } else { None };
+                gv_layout
+                    .clusters
+                    .iter()
+                    .find(|c| c.qualified_name == to_id)
+                    .map(|cl| {
+                        crate::klimt::geom::RectangleArea::new(
+                            cl.x + margin_x,
+                            cl.y + margin_y,
+                            cl.x + margin_x + cl.width,
+                            cl.y + margin_y + cl.height,
+                        )
+                    })
+            } else {
+                None
+            };
             if tail_rect.is_some() || head_rect.is_some() {
                 if let Some(ref d) = raw_path_d {
-                    if let Some(dot_path) = crate::svek::svg_result::parse_svg_path_d_to_dotpath(d) {
-                        let clipped = dot_path.simulate_compound(
-                            head_rect.as_ref(), tail_rect.as_ref(),
-                        );
+                    if let Some(dot_path) = crate::svek::svg_result::parse_svg_path_d_to_dotpath(d)
+                    {
+                        let clipped =
+                            dot_path.simulate_compound(head_rect.as_ref(), tail_rect.as_ref());
                         if !clipped.beziers.is_empty() {
                             raw_path_d = Some(clipped.to_svg_d());
                             let mut new_pts = Vec::new();
                             for (bi, bez) in clipped.beziers.iter().enumerate() {
-                                if bi == 0 { new_pts.push((bez.x1, bez.y1)); }
+                                if bi == 0 {
+                                    new_pts.push((bez.x1, bez.y1));
+                                }
                                 new_pts.push((bez.ctrlx1, bez.ctrly1));
                                 new_pts.push((bez.ctrlx2, bez.ctrly2));
                                 new_pts.push((bez.x2, bez.y2));
@@ -2845,7 +2950,11 @@ pub fn layout_state(diagram: &StateDiagram) -> Result<StateLayout> {
 
     // Inject internal transitions from composite states (resolved by inner graphviz).
     // These have proper Bezier paths from the inner solve, unlike synthesized transitions.
-    fn collect_internal_transitions(node: &mut StateNodeLayout, out: &mut Vec<TransitionLayout>, keys: &mut HashSet<(String, String, Option<usize>)>) {
+    fn collect_internal_transitions(
+        node: &mut StateNodeLayout,
+        out: &mut Vec<TransitionLayout>,
+        keys: &mut HashSet<(String, String, Option<usize>)>,
+    ) {
         let drained: Vec<TransitionLayout> = node.internal_transitions.drain(..).collect();
         for tr in drained {
             let key = transition_layout_key(&tr);
@@ -2915,24 +3024,28 @@ pub fn layout_state(diagram: &StateDiagram) -> Result<StateLayout> {
                 // Use the precise anchor from the graphviz edge endpoint if available.
                 // This matches Java Smetana's edge routing, which clips the note-to-target
                 // edge spline to the target node's polygon boundary.
-                let (ax, ay, note_x, note_y) = if let Some(&(ea_x, ea_y)) = note_edge_anchors.get(entity_id) {
-                    (ea_x, ea_y, nx, ny)
-                } else {
-                    note.target.as_ref().and_then(|target_id| {
-                        node_position_map.get(target_id).map(|&(tx, ty, tw, th)| {
-                            // Fallback: approximate anchor from node geometry.
-                            let polygon_center_y = ty + th / 2.0 - (th - th.round()) / 2.0;
-                            let polygon_right = tx + tw.round();
-                            let polygon_center_x = tx + tw / 2.0 - (tw - tw.round()) / 2.0;
-                            match note.position.as_str() {
-                                "left" => (tx, polygon_center_y, nx, ny),
-                                "top" => (polygon_center_x, ty, nx, ny),
-                                "bottom" => (polygon_center_x, ty + th, nx, ny),
-                                _ => (polygon_right, polygon_center_y, nx, ny),
-                            }
-                        })
-                    }).unwrap_or((nx, ny, nx, ny))
-                };
+                let (ax, ay, note_x, note_y) =
+                    if let Some(&(ea_x, ea_y)) = note_edge_anchors.get(entity_id) {
+                        (ea_x, ea_y, nx, ny)
+                    } else {
+                        note.target
+                            .as_ref()
+                            .and_then(|target_id| {
+                                node_position_map.get(target_id).map(|&(tx, ty, tw, th)| {
+                                    // Fallback: approximate anchor from node geometry.
+                                    let polygon_center_y = ty + th / 2.0 - (th - th.round()) / 2.0;
+                                    let polygon_right = tx + tw.round();
+                                    let polygon_center_x = tx + tw / 2.0 - (tw - tw.round()) / 2.0;
+                                    match note.position.as_str() {
+                                        "left" => (tx, polygon_center_y, nx, ny),
+                                        "top" => (polygon_center_x, ty, nx, ny),
+                                        "bottom" => (polygon_center_x, ty + th, nx, ny),
+                                        _ => (polygon_right, polygon_center_y, nx, ny),
+                                    }
+                                })
+                            })
+                            .unwrap_or((nx, ny, nx, ny))
+                    };
                 (note_x, note_y, Some((ax, ay)))
             } else if let Some(target_id) = note.target.as_ref() {
                 if let Some(&(tx, ty, tw, th)) = node_position_map.get(target_id) {
@@ -2940,17 +3053,17 @@ pub fn layout_state(diagram: &StateDiagram) -> Result<StateLayout> {
                     let center_y = ty + th / 2.0;
                     match note.position.as_str() {
                         "left" => (tx - 35.0 - nw, center_y - nh / 2.0, Some((tx, center_y))),
-                        "top" => (
-                            center_x - nw / 2.0,
-                            ty - 35.0 - nh,
-                            Some((center_x, ty)),
-                        ),
+                        "top" => (center_x - nw / 2.0, ty - 35.0 - nh, Some((center_x, ty))),
                         "bottom" => (
                             center_x - nw / 2.0,
                             ty + th + 35.0,
                             Some((center_x, ty + th)),
                         ),
-                        _ => (tx + tw + 35.0, center_y - nh / 2.0, Some((tx + tw, center_y))),
+                        _ => (
+                            tx + tw + 35.0,
+                            center_y - nh / 2.0,
+                            Some((tx + tw, center_y)),
+                        ),
                     }
                 } else {
                     (detached_note_x, detached_note_y, None)
@@ -2967,17 +3080,17 @@ pub fn layout_state(diagram: &StateDiagram) -> Result<StateLayout> {
                 let center_y = ty + th / 2.0;
                 match note.position.as_str() {
                     "left" => (tx - 35.0 - nw, center_y - nh / 2.0, Some((tx, center_y))),
-                    "top" => (
-                        center_x - nw / 2.0,
-                        ty - 35.0 - nh,
-                        Some((center_x, ty)),
-                    ),
+                    "top" => (center_x - nw / 2.0, ty - 35.0 - nh, Some((center_x, ty))),
                     "bottom" => (
                         center_x - nw / 2.0,
                         ty + th + 35.0,
                         Some((center_x, ty + th)),
                     ),
-                    _ => (tx + tw + 35.0, center_y - nh / 2.0, Some((tx + tw, center_y))),
+                    _ => (
+                        tx + tw + 35.0,
+                        center_y - nh / 2.0,
+                        Some((tx + tw, center_y)),
+                    ),
                 }
             } else {
                 (detached_note_x, detached_note_y, None)
@@ -3020,8 +3133,9 @@ pub fn layout_state(diagram: &StateDiagram) -> Result<StateLayout> {
     let non_gv_notes: Vec<&StateNoteLayout> = note_layouts
         .iter()
         .filter(|n| {
-            n.entity_id.as_ref().map_or(true, |id| {
-                !attached_note_positions.contains_key(id) && !standalone_note_positions.contains_key(id)
+            n.entity_id.as_ref().is_none_or(|id| {
+                !attached_note_positions.contains_key(id)
+                    && !standalone_note_positions.contains_key(id)
             })
         })
         .collect();
@@ -3596,17 +3710,38 @@ mod tests {
         assert!(right_note.x > active.x + active.width);
         assert!(left_note.x + left_note.width < inactive.x);
         // Note positions are determined by graphviz layout; allow small tolerance.
-        assert!((right_note.y + right_note.height / 2.0 - (active.y + active.height / 2.0)).abs() < 1.0);
-        assert!((left_note.y + left_note.height / 2.0 - (inactive.y + inactive.height / 2.0)).abs() < 1.0);
+        assert!(
+            (right_note.y + right_note.height / 2.0 - (active.y + active.height / 2.0)).abs() < 1.0
+        );
+        assert!(
+            (left_note.y + left_note.height / 2.0 - (inactive.y + inactive.height / 2.0)).abs()
+                < 1.0
+        );
         // Anchor coordinates come from graphviz edge endpoints which clip to the
         // target polygon boundary. Verify they are close to the expected boundary,
         // allowing small tolerance from graphviz polygon clipping.
         let (ra_x, ra_y) = right_note.anchor.unwrap();
-        assert!((ra_x - (active.x + active.width)).abs() < 1.0, "right anchor x={ra_x} expected near {}", active.x + active.width);
-        assert!((ra_y - (active.y + active.height / 2.0)).abs() < 1.0, "right anchor y={ra_y} expected near {}", active.y + active.height / 2.0);
+        assert!(
+            (ra_x - (active.x + active.width)).abs() < 1.0,
+            "right anchor x={ra_x} expected near {}",
+            active.x + active.width
+        );
+        assert!(
+            (ra_y - (active.y + active.height / 2.0)).abs() < 1.0,
+            "right anchor y={ra_y} expected near {}",
+            active.y + active.height / 2.0
+        );
         let (la_x, la_y) = left_note.anchor.unwrap();
-        assert!((la_x - inactive.x).abs() < 1.0, "left anchor x={la_x} expected near {}", inactive.x);
-        assert!((la_y - (inactive.y + inactive.height / 2.0)).abs() < 1.0, "left anchor y={la_y} expected near {}", inactive.y + inactive.height / 2.0);
+        assert!(
+            (la_x - inactive.x).abs() < 1.0,
+            "left anchor x={la_x} expected near {}",
+            inactive.x
+        );
+        assert!(
+            (la_y - (inactive.y + inactive.height / 2.0)).abs() < 1.0,
+            "left anchor y={la_y} expected near {}",
+            inactive.y + inactive.height / 2.0
+        );
     }
 
     // 10. Text sizing for states with descriptions
@@ -3920,5 +4055,4 @@ mod tests {
             y1
         );
     }
-
 }

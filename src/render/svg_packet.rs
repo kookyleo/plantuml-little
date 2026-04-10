@@ -22,9 +22,9 @@ pub fn render_packet(_d: &PacketDiagram, l: &PacketLayout, skin: &SkinParams) ->
     let sw = ensure_visible_int(l.width) as f64;
     let sh = ensure_visible_int(l.height) as f64;
 
-    write_svg_root_bg_opt(&mut buf, sw, sh, None, &bg);
+    write_svg_root_bg_opt(&mut buf, sw, sh, None, bg);
     buf.push_str("<defs/><g>");
-    write_bg_rect(&mut buf, sw, sh, &bg);
+    write_bg_rect(&mut buf, sw, sh, bg);
 
     let mut sg = SvgGraphic::new(0, 1.0);
 
@@ -51,14 +51,18 @@ pub fn render_packet(_d: &PacketDiagram, l: &PacketLayout, skin: &SkinParams) ->
     for cell in &l.cells {
         // Fill rectangle
         RectShape {
-            x: cell.x, y: cell.y, w: cell.width, h: cell.height, rx: 0.0, ry: 0.0,
+            x: cell.x,
+            y: cell.y,
+            w: cell.width,
+            h: cell.height,
+            rx: 0.0,
+            ry: 0.0,
         }
         .draw(&mut sg, &cell_rect_style);
 
         // Draw label text centered in cell
         if !cell.label.is_empty() {
-            let tw =
-                font_metrics::text_width(&cell.label, "SansSerif", FONT_SIZE, false, false);
+            let tw = font_metrics::text_width(&cell.label, "SansSerif", FONT_SIZE, false, false);
             let tx = cell.x + (cell.width - tw) / 2.0;
             let ty = cell.y + cell.height / 2.0 + FONT_SIZE / 3.0;
             TextShape {

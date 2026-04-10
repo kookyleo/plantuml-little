@@ -778,18 +778,17 @@ fn try_parse_sprite_ref(chars: &[char], start: usize, end: usize) -> Option<(Tex
     }
     let name_start = start + 2;
     let mut i = name_start;
-    while i < end
-        && chars[i] != '>'
-        && chars[i] != ','
-        && chars[i] != ' '
-        && chars[i] != '{'
-    {
+    while i < end && chars[i] != '>' && chars[i] != ',' && chars[i] != ' ' && chars[i] != '{' {
         i += 1;
     }
     if i >= end || i == name_start {
         return None;
     }
-    let name: String = chars[name_start..i].iter().collect::<String>().trim().to_string();
+    let name: String = chars[name_start..i]
+        .iter()
+        .collect::<String>()
+        .trim()
+        .to_string();
     let params_start = i;
     // Skip optional scale/color parameters until closing '>'
     while i < end && chars[i] != '>' {
@@ -803,10 +802,7 @@ fn try_parse_sprite_ref(chars: &[char], start: usize, end: usize) -> Option<(Tex
     }
     let raw_params: String = chars[params_start..i].iter().collect();
     let (scale, color) = parse_sprite_ref_params(&raw_params);
-    Some((
-        TextSpan::InlineSvg { name, scale, color },
-        i + 1 - start,
-    ))
+    Some((TextSpan::InlineSvg { name, scale, color }, i + 1 - start))
 }
 
 fn parse_sprite_ref_params(raw: &str) -> (Option<f64>, Option<String>) {
@@ -1749,15 +1745,13 @@ mod tests {
         // encoded as Sized(-102, Bold(...)).
         let rt = parse_creole("==text");
         match &rt {
-            RichText::Line(spans) => {
-                match &spans[0] {
-                    TextSpan::Sized { size, content } => {
-                        assert_eq!(*size, -102.0);
-                        assert!(matches!(&content[0], TextSpan::Bold(_)));
-                    }
-                    other => panic!("expected Sized, got: {other:?}"),
+            RichText::Line(spans) => match &spans[0] {
+                TextSpan::Sized { size, content } => {
+                    assert_eq!(*size, -102.0);
+                    assert!(matches!(&content[0], TextSpan::Bold(_)));
                 }
-            }
+                other => panic!("expected Sized, got: {other:?}"),
+            },
             other => panic!("expected Line, got: {other:?}"),
         }
     }
@@ -1826,15 +1820,13 @@ mod tests {
                 // Java `StripeSimple.fontConfigurationForHeading` which produces
                 // `bigger(2).bold()` for an `==` heading.
                 match &items[0] {
-                    RichText::Line(spans) => {
-                        match &spans[0] {
-                            TextSpan::Sized { size, content } => {
-                                assert_eq!(*size, -102.0, "== should encode as -102 sentinel");
-                                assert!(matches!(content[0], TextSpan::Bold(_)));
-                            }
-                            other => panic!("first span should be Sized, got: {other:?}"),
+                    RichText::Line(spans) => match &spans[0] {
+                        TextSpan::Sized { size, content } => {
+                            assert_eq!(*size, -102.0, "== should encode as -102 sentinel");
+                            assert!(matches!(content[0], TextSpan::Bold(_)));
                         }
-                    }
+                        other => panic!("first span should be Sized, got: {other:?}"),
+                    },
                     other => panic!("first block should be Line, got: {other:?}"),
                 }
                 // Second line has size markup

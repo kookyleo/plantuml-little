@@ -123,7 +123,12 @@ pub fn parse_erd_diagram(source: &str) -> Result<ErdDiagram> {
             continue;
         }
 
-        if try_parse_link(trimmed, &mut links, source_order_counter, i + block_line_offset) {
+        if try_parse_link(
+            trimmed,
+            &mut links,
+            source_order_counter,
+            i + block_line_offset,
+        ) {
             trace!("erd parser: parsed link line: {trimmed}");
             source_order_counter += 1;
             i += 1;
@@ -652,7 +657,12 @@ fn try_split_isa_connector<'a>(s: &'a str, connector: &str) -> Option<(&'a str, 
 ///   `FROM =N= TO`   (double-line)
 ///   `FROM ->- TO`    (ISA arrow - already handled above, but ->- without d/U is a link)
 ///   `FROM -<- TO`    (reverse ISA arrow)
-fn try_parse_link(line: &str, links: &mut Vec<ErdLink>, source_order: usize, source_line: usize) -> bool {
+fn try_parse_link(
+    line: &str,
+    links: &mut Vec<ErdLink>,
+    source_order: usize,
+    source_line: usize,
+) -> bool {
     let trimmed = line.trim();
 
     // Match link connectors: single `-X-` or double `=X=`

@@ -65,7 +65,10 @@ pub fn render_creole(_d: &CreoleDiagram, l: &CreoleLayout, skin: &SkinParams) ->
             } => {
                 // Bullet circle
                 EllipseShape {
-                    cx: *cx, cy: *cy, rx: BULLET_RADIUS, ry: BULLET_RADIUS,
+                    cx: *cx,
+                    cy: *cy,
+                    rx: BULLET_RADIUS,
+                    ry: BULLET_RADIUS,
                 }
                 .draw(&mut sg, &bullet_style);
 

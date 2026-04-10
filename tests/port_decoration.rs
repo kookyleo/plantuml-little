@@ -218,47 +218,47 @@ mod link_decor_tests {
 
     #[test]
     fn none_is_not_fill() {
-        assert_eq!(LinkDecor::None.is_fill(), false);
+        assert!(!LinkDecor::None.is_fill());
     }
 
     #[test]
     fn extends_is_not_fill() {
-        assert_eq!(LinkDecor::Extends.is_fill(), false);
+        assert!(!LinkDecor::Extends.is_fill());
     }
 
     #[test]
     fn composition_is_fill() {
-        assert_eq!(LinkDecor::Composition.is_fill(), true);
+        assert!(LinkDecor::Composition.is_fill());
     }
 
     #[test]
     fn agregation_is_not_fill() {
-        assert_eq!(LinkDecor::Agregation.is_fill(), false);
+        assert!(!LinkDecor::Agregation.is_fill());
     }
 
     #[test]
     fn crowfoot_is_fill() {
-        assert_eq!(LinkDecor::Crowfoot.is_fill(), true);
+        assert!(LinkDecor::Crowfoot.is_fill());
     }
 
     #[test]
     fn arrow_is_fill() {
-        assert_eq!(LinkDecor::Arrow.is_fill(), true);
+        assert!(LinkDecor::Arrow.is_fill());
     }
 
     #[test]
     fn arrow_triangle_is_fill() {
-        assert_eq!(LinkDecor::ArrowTriangle.is_fill(), true);
+        assert!(LinkDecor::ArrowTriangle.is_fill());
     }
 
     #[test]
     fn circle_crowfoot_is_not_fill() {
-        assert_eq!(LinkDecor::CircleCrowfoot.is_fill(), false);
+        assert!(!LinkDecor::CircleCrowfoot.is_fill());
     }
 
     #[test]
     fn plus_is_not_fill() {
-        assert_eq!(LinkDecor::Plus.is_fill(), false);
+        assert!(!LinkDecor::Plus.is_fill());
     }
 
     // ── Arrow-size metadata ────────────────────────────────────────────────
@@ -332,22 +332,22 @@ mod link_decor_tests {
 
     #[test]
     fn arrow_is_not_extends_like() {
-        assert_eq!(LinkDecor::Arrow.is_extends_like(), false);
+        assert!(!LinkDecor::Arrow.is_extends_like());
     }
 
     #[test]
     fn none_is_not_extends_like() {
-        assert_eq!(LinkDecor::None.is_extends_like(), false);
+        assert!(!LinkDecor::None.is_extends_like());
     }
 
     #[test]
     fn composition_is_not_extends_like() {
-        assert_eq!(LinkDecor::Composition.is_extends_like(), false);
+        assert!(!LinkDecor::Composition.is_extends_like());
     }
 
     #[test]
     fn crowfoot_is_not_extends_like() {
-        assert_eq!(LinkDecor::Crowfoot.is_extends_like(), false);
+        assert!(!LinkDecor::Crowfoot.is_extends_like());
     }
 
     // ── lookup_decors1 ─────────────────────────────────────────────────────
@@ -884,28 +884,28 @@ mod link_style_tests {
     fn normal_is_normal_and_not_invisible() {
         let s = LinkStyle::normal();
         assert!(s.is_normal());
-        assert_eq!(s.is_invisible(), false);
+        assert!(!s.is_invisible());
     }
 
     #[test]
     fn invisible_is_invisible_and_not_normal() {
         let s = LinkStyle::invisible();
         assert!(s.is_invisible());
-        assert_eq!(s.is_normal(), false);
+        assert!(!s.is_normal());
     }
 
     #[test]
     fn dashed_is_not_normal_and_not_invisible() {
         let s = LinkStyle::dashed();
-        assert_eq!(s.is_normal(), false);
-        assert_eq!(s.is_invisible(), false);
+        assert!(!s.is_normal());
+        assert!(!s.is_invisible());
     }
 
     #[test]
     fn thickness_not_overridden_by_default() {
-        assert_eq!(LinkStyle::normal().is_thickness_overridden(), false);
-        assert_eq!(LinkStyle::dashed().is_thickness_overridden(), false);
-        assert_eq!(LinkStyle::bold().is_thickness_overridden(), false);
+        assert!(!LinkStyle::normal().is_thickness_overridden());
+        assert!(!LinkStyle::dashed().is_thickness_overridden());
+        assert!(!LinkStyle::bold().is_thickness_overridden());
     }
 
     #[test]
@@ -1108,26 +1108,17 @@ mod link_type_tests {
 
     #[test]
     fn both_none_is_not_double_decorated() {
-        assert_eq!(
-            LinkType::new(LinkDecor::None, LinkDecor::None).is_double_decorated(),
-            false
-        );
+        assert!(!LinkType::new(LinkDecor::None, LinkDecor::None).is_double_decorated());
     }
 
     #[test]
     fn only_decor1_is_not_double_decorated() {
-        assert_eq!(
-            LinkType::new(LinkDecor::Arrow, LinkDecor::None).is_double_decorated(),
-            false
-        );
+        assert!(!LinkType::new(LinkDecor::Arrow, LinkDecor::None).is_double_decorated());
     }
 
     #[test]
     fn only_decor2_is_not_double_decorated() {
-        assert_eq!(
-            LinkType::new(LinkDecor::None, LinkDecor::Arrow).is_double_decorated(),
-            false
-        );
+        assert!(!LinkType::new(LinkDecor::None, LinkDecor::Arrow).is_double_decorated());
     }
 
     #[test]
@@ -1144,26 +1135,17 @@ mod link_type_tests {
 
     #[test]
     fn only_decor1_does_not_look_reverted() {
-        assert_eq!(
-            LinkType::new(LinkDecor::Arrow, LinkDecor::None).looks_like_reverted_for_svg(),
-            false
-        );
+        assert!(!LinkType::new(LinkDecor::Arrow, LinkDecor::None).looks_like_reverted_for_svg());
     }
 
     #[test]
     fn both_present_does_not_look_reverted() {
-        assert_eq!(
-            LinkType::new(LinkDecor::Arrow, LinkDecor::Extends).looks_like_reverted_for_svg(),
-            false
-        );
+        assert!(!LinkType::new(LinkDecor::Arrow, LinkDecor::Extends).looks_like_reverted_for_svg());
     }
 
     #[test]
     fn both_none_does_not_look_reverted() {
-        assert_eq!(
-            LinkType::new(LinkDecor::None, LinkDecor::None).looks_like_reverted_for_svg(),
-            false
-        );
+        assert!(!LinkType::new(LinkDecor::None, LinkDecor::None).looks_like_reverted_for_svg());
     }
 
     // ── looks_like_no_decor_at_all_svg ────────────────────────────────────
@@ -1182,24 +1164,15 @@ mod link_type_tests {
 
     #[test]
     fn only_one_side_does_not_look_like_no_decor() {
-        assert_eq!(
-            LinkType::new(LinkDecor::Arrow, LinkDecor::None).looks_like_no_decor_at_all_svg(),
-            false
-        );
-        assert_eq!(
-            LinkType::new(LinkDecor::None, LinkDecor::Arrow).looks_like_no_decor_at_all_svg(),
-            false
-        );
+        assert!(!LinkType::new(LinkDecor::Arrow, LinkDecor::None).looks_like_no_decor_at_all_svg());
+        assert!(!LinkType::new(LinkDecor::None, LinkDecor::Arrow).looks_like_no_decor_at_all_svg());
     }
 
     // ── is_invisible / is_extends ─────────────────────────────────────────
 
     #[test]
     fn normal_style_is_not_invisible() {
-        assert_eq!(
-            LinkType::new(LinkDecor::Arrow, LinkDecor::None).is_invisible(),
-            false
-        );
+        assert!(!LinkType::new(LinkDecor::Arrow, LinkDecor::None).is_invisible());
     }
 
     #[test]
@@ -1221,10 +1194,7 @@ mod link_type_tests {
 
     #[test]
     fn arrow_on_both_is_not_extends() {
-        assert_eq!(
-            LinkType::new(LinkDecor::Arrow, LinkDecor::Arrow).is_extends(),
-            false
-        );
+        assert!(!LinkType::new(LinkDecor::Arrow, LinkDecor::Arrow).is_extends());
     }
 
     // ── Style derivation ───────────────────────────────────────────────────

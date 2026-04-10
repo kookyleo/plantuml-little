@@ -15,11 +15,9 @@ fn extract_wbs_block(source: &str) -> Option<String> {
                 break;
             }
             lines.push(line);
-        } else {
-            if trimmed.starts_with("@startwbs") {
-                inside = true;
-                continue;
-            }
+        } else if trimmed.starts_with("@startwbs") {
+            inside = true;
+            continue;
         }
     }
 

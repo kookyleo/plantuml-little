@@ -36,7 +36,8 @@ pub fn parse_class_diagram_with_original(
     let mut next_uid_value: u32 = 1;
     let mut entity_uids: HashMap<String, String> = HashMap::new();
     let mut entity_first_source_lines: HashMap<String, usize> = HashMap::new();
-    let mut known_implicit_groups: std::collections::HashSet<String> = std::collections::HashSet::new();
+    let mut known_implicit_groups: std::collections::HashSet<String> =
+        std::collections::HashSet::new();
 
     let mut notes: Vec<ClassNote> = Vec::new();
 
@@ -249,7 +250,10 @@ pub fn parse_class_diagram_with_original(
                         let k = trimmed[..ap].trim().to_string();
                         let v = trimmed[ap + 2..].trim().to_string();
                         ent.map_entries.push((k, v));
-                    } else if !trimmed.starts_with("--") && !trimmed.starts_with("==") && !trimmed.starts_with("..") {
+                    } else if !trimmed.starts_with("--")
+                        && !trimmed.starts_with("==")
+                        && !trimmed.starts_with("..")
+                    {
                         debug!("map: ignoring non-entry line: {trimmed}");
                     }
                 } else if let Some(member) = parse_member(trimmed) {
@@ -447,11 +451,9 @@ pub fn parse_class_diagram_with_original(
             // Java: first link's arrow length determines rankdir.
             // Single dash/dot (len=1) = horizontal (LR).
             // Double+ dash/dot (len>=2) = vertical (TB).
-            if links.is_empty() && direction == Direction::TopToBottom {
-                if arrow_len == 1 {
-                    direction = Direction::LeftToRight;
-                    debug!("direction inferred from arrow: LeftToRight");
-                }
+            if links.is_empty() && direction == Direction::TopToBottom && arrow_len == 1 {
+                direction = Direction::LeftToRight;
+                debug!("direction inferred from arrow: LeftToRight");
             }
             links.push(link);
             continue;
@@ -644,7 +646,10 @@ fn build_line_mapping(
 /// Merge continuation lines: a line ending with `\` (backslash at end) joins
 /// with the next line, keeping the first original source line number for the
 /// combined logical line.
-fn merge_continuation_lines_with_mapping(content: &str, line_mapping: &[usize]) -> Vec<(String, usize)> {
+fn merge_continuation_lines_with_mapping(
+    content: &str,
+    line_mapping: &[usize],
+) -> Vec<(String, usize)> {
     let mut result = Vec::new();
     let mut carry = String::new();
     let mut carry_source_line: Option<usize> = None;
@@ -1028,10 +1033,10 @@ fn parse_link(line: &str, source_line: usize) -> Option<(Link, usize, bool)> {
         r"\s*",
         r#"(?:"([^"]*)"\s*)?"#, // optional from-label "..."
         r"(",                   // arrow group start
-        r"(?:<\||\*|o|\+|<)?", // optional left head
+        r"(?:<\||\*|o|\+|<)?",  // optional left head
         r"(?:-+[udlr]*-*|\.+[udlr]*\.*)",
         r"(?:\|>|>|\*|o|\+)?", // optional right head
-        r")", // arrow group end
+        r")",                  // arrow group end
         r"\s*",
         r#"(?:"([^"]*)"\s*)?"#, // optional to-label "..."
         r"(?:\[([^\]]*)\])?",   // optional to qualifier [...]
@@ -1659,7 +1664,11 @@ mod tests {
         assert_eq!(entity_uids.get("Shop"), Some(&Some("ent0005")));
         assert_eq!(entity_uids.get("Customer"), Some(&Some("ent0006")));
 
-        let shop = cd.entities.iter().find(|entity| entity.name == "Shop").unwrap();
+        let shop = cd
+            .entities
+            .iter()
+            .find(|entity| entity.name == "Shop")
+            .unwrap();
         let customer = cd
             .entities
             .iter()
@@ -1675,8 +1684,16 @@ mod tests {
     #[test]
     fn explicit_entity_after_link_keeps_implicit_uid_and_source_line() {
         let cd = parse("A --> B\nclass A");
-        let a = cd.entities.iter().find(|entity| entity.name == "A").unwrap();
-        let b = cd.entities.iter().find(|entity| entity.name == "B").unwrap();
+        let a = cd
+            .entities
+            .iter()
+            .find(|entity| entity.name == "A")
+            .unwrap();
+        let b = cd
+            .entities
+            .iter()
+            .find(|entity| entity.name == "B")
+            .unwrap();
         assert_eq!(a.uid.as_deref(), Some("ent0002"));
         assert_eq!(b.uid.as_deref(), Some("ent0003"));
         assert_eq!(a.source_line, Some(1));
@@ -1687,8 +1704,16 @@ mod tests {
     #[test]
     fn reversed_direction_link_burns_intermediate_uid_like_java_get_inv() {
         let cd = parse("class HashMap\nHashMap [a1] <|-u-> [e] V1\nHashMap [b2] *.r.> [f] V2");
-        let v1 = cd.entities.iter().find(|entity| entity.name == "V1").unwrap();
-        let v2 = cd.entities.iter().find(|entity| entity.name == "V2").unwrap();
+        let v1 = cd
+            .entities
+            .iter()
+            .find(|entity| entity.name == "V1")
+            .unwrap();
+        let v2 = cd
+            .entities
+            .iter()
+            .find(|entity| entity.name == "V2")
+            .unwrap();
         assert_eq!(v1.uid.as_deref(), Some("ent0003"));
         assert_eq!(cd.links[0].uid.as_deref(), Some("lnk5"));
         assert_eq!(v2.uid.as_deref(), Some("ent0006"));
@@ -1768,7 +1793,11 @@ mod tests {
         .unwrap();
         let expanded = crate::preproc::preprocess(&original).unwrap();
         let cd = parse_class_diagram_with_original(&expanded, Some(&original)).unwrap();
-        let rectangle = cd.entities.iter().find(|entity| entity.name == "r").unwrap();
+        let rectangle = cd
+            .entities
+            .iter()
+            .find(|entity| entity.name == "r")
+            .unwrap();
         assert_eq!(rectangle.source_line, Some(9));
     }
 

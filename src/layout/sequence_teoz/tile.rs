@@ -77,6 +77,12 @@ pub struct TileState {
     pub hook_type: HookType,
 }
 
+impl Default for TileState {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl TileState {
     pub fn new() -> Self {
         Self {

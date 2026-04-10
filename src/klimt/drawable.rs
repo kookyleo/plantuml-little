@@ -112,7 +112,15 @@ pub struct RectShape {
 impl Drawable for RectShape {
     fn draw(&self, sg: &mut SvgGraphic, style: &DrawStyle) {
         style.apply(sg);
-        sg.svg_rectangle(self.x, self.y, self.w, self.h, self.rx, self.ry, style.delta_shadow);
+        sg.svg_rectangle(
+            self.x,
+            self.y,
+            self.w,
+            self.h,
+            self.rx,
+            self.ry,
+            style.delta_shadow,
+        );
     }
 }
 

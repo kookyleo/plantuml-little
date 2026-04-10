@@ -113,8 +113,7 @@ impl From<&super::usecase::UseCaseDiagram> for ComponentDiagram {
 
         // Actors -> ComponentEntity with kind=Actor
         for actor in &uc.actors {
-            let stereo_list: Vec<String> =
-                actor.stereotype.iter().cloned().collect();
+            let stereo_list: Vec<String> = actor.stereotype.iter().cloned().collect();
             entities.push(ComponentEntity {
                 name: actor.name.clone(),
                 id: actor.id.clone(),
@@ -131,8 +130,7 @@ impl From<&super::usecase::UseCaseDiagram> for ComponentDiagram {
 
         // Use cases -> ComponentEntity with kind=UseCase
         for usecase in &uc.usecases {
-            let stereo_list: Vec<String> =
-                usecase.stereotype.iter().cloned().collect();
+            let stereo_list: Vec<String> = usecase.stereotype.iter().cloned().collect();
             entities.push(ComponentEntity {
                 name: usecase.name.clone(),
                 id: usecase.id.clone(),
@@ -151,8 +149,7 @@ impl From<&super::usecase::UseCaseDiagram> for ComponentDiagram {
         let links: Vec<ComponentLink> = uc
             .links
             .iter()
-            .enumerate()
-            .map(|(_i, link)| {
+            .map(|link| {
                 let dashed = link.style != super::usecase::UseCaseLinkStyle::Association;
                 ComponentLink {
                     from: link.from.clone(),

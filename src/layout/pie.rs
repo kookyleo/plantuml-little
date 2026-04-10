@@ -110,8 +110,7 @@ pub fn layout_pie(d: &PieDiagram) -> Result<PieLayout> {
     let h = MARGIN * 2.0 + title_h + RADIUS * 2.0;
 
     let title_x = w / 2.0;
-    let title_y = MARGIN
-        + font_metrics::ascent("SansSerif", TITLE_FONT_SIZE, true, false);
+    let title_y = MARGIN + font_metrics::ascent("SansSerif", TITLE_FONT_SIZE, true, false);
 
     Ok(PieLayout {
         width: w,

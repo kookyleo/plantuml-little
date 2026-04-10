@@ -142,9 +142,15 @@ fn get_embedded_type(trimmed: &str) -> Option<&'static str> {
 ///
 /// Returns `(inner_svg, width, height)` or `None` on failure.
 pub fn render_embedded(inner_source: &str, diagram_type: &str) -> Option<(String, f64, f64)> {
-    let full_source = format!("@start{}\n{}\n@end{}", diagram_type, inner_source, diagram_type);
+    let full_source = format!(
+        "@start{}\n{}\n@end{}",
+        diagram_type, inner_source, diagram_type
+    );
 
-    debug!("render_embedded: rendering inner diagram type={}", diagram_type);
+    debug!(
+        "render_embedded: rendering inner diagram type={}",
+        diagram_type
+    );
 
     // Check for unprocessed preprocessor directives in the inner source.
     // Lines starting with `!` (like `!theme`, `!include`) are preprocessor
@@ -240,21 +246,32 @@ fn generate_error_page_svg(full_source: &str) -> String {
     // bold "Welcome to PlantUML!"
     write!(svg, r##"<text fill="#000000" font-family="sans-serif" font-size="12" font-weight="bold" lengthAdjust="spacing" textLength="153.9141" x="5" y="{}">Welcome to PlantUML!</text>"##, fc(y)).unwrap();
     y += lh;
-    ss12!("3.8145", "&#160;"); y += lh;
-    ss12!("277.1074", "You can start with a simple UML Diagram like:"); y += lh;
-    ss12!("3.8145", "&#160;"); y += lh;
+    ss12!("3.8145", "&#160;");
+    y += lh;
+    ss12!("277.1074", "You can start with a simple UML Diagram like:");
+    y += lh;
+    ss12!("3.8145", "&#160;");
+    y += lh;
     write!(svg, r##"<text fill="#000000" font-family="monospace" font-size="12" lengthAdjust="spacing" textLength="122.8184" x="5" y="{}">Bob-&gt;Alice:&#160;Hello</text>"##, fc(y)).unwrap();
     y += lh;
-    ss12!("3.8145", "&#160;"); y += lh;
-    ss12!("14.3789", "Or"); y += lh;
-    ss12!("3.8145", "&#160;"); y += lh;
+    ss12!("3.8145", "&#160;");
+    y += lh;
+    ss12!("14.3789", "Or");
+    y += lh;
+    ss12!("3.8145", "&#160;");
+    y += lh;
     write!(svg, r##"<text fill="#000000" font-family="monospace" font-size="12" lengthAdjust="spacing" textLength="93.9199" x="5" y="{}">class&#160;Example</text>"##, fc(y)).unwrap();
     y += lh;
-    ss12!("3.8145", "&#160;"); y += lh;
-    ss12!("341.9531", "You will find more information about PlantUML syntax on");
+    ss12!("3.8145", "&#160;");
+    y += lh;
+    ss12!(
+        "341.9531",
+        "You will find more information about PlantUML syntax on"
+    );
     write!(svg, r##"<text fill="#000000" font-family="sans-serif" font-size="12" lengthAdjust="spacing" text-decoration="underline" textLength="125.7012" x="350.7676" y="{}">https://plantuml.com</text>"##, fc(y)).unwrap();
     y += lh;
-    ss12!("3.8145", "&#160;"); y += lh;
+    ss12!("3.8145", "&#160;");
+    y += lh;
     ss12!("106.6113", "(Details by typing");
     write!(svg, r##"<text fill="#000000" font-family="monospace" font-size="12" lengthAdjust="spacing" textLength="50.5723" x="115.4258" y="{}">license</text>"##, fc(y)).unwrap();
     write!(svg, r##"<text fill="#000000" font-family="sans-serif" font-size="12" lengthAdjust="spacing" textLength="55.8223" x="169.8125" y="{}">keyword)</text>"##, fc(y)).unwrap();
@@ -301,7 +318,7 @@ fn generate_error_page_svg(full_source: &str) -> String {
     sy += slh;
 
     for src_line in &source_lines {
-        let is_err = error_line.map_or(false, |el| *src_line == el);
+        let is_err = error_line == Some(*src_line);
         let escaped = crate::klimt::svg::xml_escape(src_line);
         let tw = crate::font_metrics::text_width(src_line, "sans-serif", 14.0, true, false);
         if is_err {
@@ -384,9 +401,7 @@ fn strip_to_inner_svg(svg: &str, width: f64, height: f64) -> String {
 
     format!(
         r#"<svg height="{}" width="{}" xmlns:xlink="http://www.w3.org/1999/xlink" xmlns="http://www.w3.org/2000/svg" ><defs/>{}</svg>"#,
-        height as u32,
-        width as u32,
-        adjusted_content,
+        height as u32, width as u32, adjusted_content,
     )
 }
 

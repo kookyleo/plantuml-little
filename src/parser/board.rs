@@ -25,7 +25,9 @@ fn extract_board_block(source: &str) -> Option<String> {
 }
 
 pub fn parse_board_diagram(source: &str) -> Result<BoardDiagram> {
-    let has_outer_uml = source.lines().any(|line| line.trim().starts_with("@startuml"));
+    let has_outer_uml = source
+        .lines()
+        .any(|line| line.trim().starts_with("@startuml"));
     if has_outer_uml {
         let mut inside_board = false;
         for (idx, line) in source.lines().enumerate() {

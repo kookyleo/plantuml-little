@@ -20,7 +20,10 @@ fn find_java_jar() -> PathBuf {
         .unwrap_or_else(|e| panic!("cannot read {}: {e}", libs_dir.display()))
         .filter_map(|entry| entry.ok().map(|e| e.path()))
         .filter(|path| {
-            let name = path.file_name().and_then(|s| s.to_str()).unwrap_or_default();
+            let name = path
+                .file_name()
+                .and_then(|s| s.to_str())
+                .unwrap_or_default();
             name.starts_with("plantuml-")
                 && name.ends_with(".jar")
                 && !name.contains("-sources")
@@ -71,13 +74,12 @@ fn render_java(fixture: &Path) -> String {
             String::from_utf8_lossy(&output.stderr)
         );
     }
-    String::from_utf8(output.stdout)
-        .unwrap_or_else(|e| {
-            panic!(
-                "java stdout was not valid UTF-8 for {}: {e}",
-                fixture.display()
-            )
-        })
+    String::from_utf8(output.stdout).unwrap_or_else(|e| {
+        panic!(
+            "java stdout was not valid UTF-8 for {}: {e}",
+            fixture.display()
+        )
+    })
 }
 
 fn strip_plantuml_src_pi(s: &str) -> String {
@@ -163,14 +165,24 @@ fn find_first_diff(a: &str, b: &str) -> (usize, usize, String) {
     }
     let la = a.len();
     let lb = b.len();
-    (line, col, format!("length differs: actual={la}, expected={lb}"))
+    (
+        line,
+        col,
+        format!("length differs: actual={la}, expected={lb}"),
+    )
 }
 
 fn canonicalize(svg: &str) -> String {
     normalize_filter_ids(&strip_plantuml_src_pi(svg))
 }
 
-fn write_case_artifacts(case: &str, rust_svg: &str, java_svg: &str, rust_cmp: &str, java_cmp: &str) {
+fn write_case_artifacts(
+    case: &str,
+    rust_svg: &str,
+    java_svg: &str,
+    rust_cmp: &str,
+    java_cmp: &str,
+) {
     let out_dir = repo_root()
         .join("tmp_debug")
         .join("special-ext-ref-activity")

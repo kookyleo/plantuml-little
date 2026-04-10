@@ -74,12 +74,14 @@ fn fragment_header_width(kind: &FragmentKind, label: &str, font: &str, font_size
         // marginX1(15) + marginX2(30) = 45
         text_w + 45.0
     } else {
-        let kind_text_w = crate::font_metrics::text_width(kind.label(), font, font_size, true, false);
+        let kind_text_w =
+            crate::font_metrics::text_width(kind.label(), font, font_size, true, false);
         if label.is_empty() {
             kind_text_w + 45.0
         } else {
             let bracket_label = format!("[{}]", label);
-            let comment_w = crate::font_metrics::text_width(&bracket_label, font, 11.0, true, false);
+            let comment_w =
+                crate::font_metrics::text_width(&bracket_label, font, 11.0, true, false);
             kind_text_w + 45.0 + 15.0 + comment_w
         }
     }
@@ -343,7 +345,9 @@ impl TeozTile {
                 // height = tm.text_height() + ARROW_DELTA_Y + SELF_ARROW_ONLY_HEIGHT + 2*ARROW_PADDING_Y
                 // Java: contact = getYPoint = (text_h + text_h + arrowOnly) / 2 + getPaddingX()
                 // getPaddingX() = 0 for ComponentRoseSelfArrow (not ARROW_PADDING_X)
-                let tm_text_h = height - rose::ARROW_DELTA_Y - rose::SELF_ARROW_ONLY_HEIGHT
+                let tm_text_h = height
+                    - rose::ARROW_DELTA_Y
+                    - rose::SELF_ARROW_ONLY_HEIGHT
                     - 2.0 * rose::ARROW_PADDING_Y;
                 tm_text_h + rose::SELF_ARROW_ONLY_HEIGHT / 2.0
             }
@@ -355,7 +359,6 @@ impl TeozTile {
     fn zzz(&self) -> f64 {
         self.preferred_height() - self.contact_point_relative()
     }
-
 }
 
 /// Apply Java TileParallel contact-point alignment to a block of parallel tiles.
@@ -625,16 +628,21 @@ fn estimate_note_width(text: &str) -> f64 {
         .flat_map(|s| s.split("\\n"))
     {
         let trimmed = line.trim();
-        if trimmed == "----" || trimmed == "====" || trimmed.starts_with("----") || trimmed.starts_with("====") {
+        if trimmed == "----"
+            || trimmed == "===="
+            || trimmed.starts_with("----")
+            || trimmed.starts_with("====")
+        {
             continue;
         }
         if trimmed.starts_with('|') && trimmed.ends_with('|') && trimmed.len() > 2 {
-            let cells: Vec<&str> = trimmed[1..trimmed.len()-1].split('|').collect();
+            let cells: Vec<&str> = trimmed[1..trimmed.len() - 1].split('|').collect();
             let mut row_w = 0.0_f64;
             for cell in &cells {
                 let cell_text = cell.trim().trim_start_matches('=').trim();
                 let bold = cell.trim().starts_with('=');
-                let cw = font_metrics::text_width(cell_text, "SansSerif", NOTE_FONT_SIZE, bold, false);
+                let cw =
+                    font_metrics::text_width(cell_text, "SansSerif", NOTE_FONT_SIZE, bold, false);
                 row_w += cw + 10.0;
             }
             row_w += (cells.len() as f64 + 1.0) * 1.0;
@@ -692,8 +700,15 @@ fn compute_fragment_extent(
                     nested_end += 1;
                 }
                 // nested_end is now past the matching end tile
-                let (child_min, child_max) =
-                    compute_fragment_extent(tiles, nested_start, nested_end - 1, livings, rl, tp, delta_shadow);
+                let (child_min, child_max) = compute_fragment_extent(
+                    tiles,
+                    nested_start,
+                    nested_end - 1,
+                    livings,
+                    rl,
+                    tp,
+                    delta_shadow,
+                );
                 // Java: parent sees nested fragment as tile.getMinX() and tile.getMaxX()
                 // getMinX = this.min - EXTERNAL_MARGINX1, getMaxX = this.max + EXTERNAL_MARGINX2
                 // Then parent applies tile.getMinX() - MARGINX and tile.getMaxX() + MARGINX
@@ -807,31 +822,25 @@ fn compute_fragment_extent(
                             }
                         }
                     }
+                } else if *is_left {
+                    let left = cx - extent_w - 5.0;
+                    if left < fmin {
+                        fmin = left;
+                    }
+                    if cx > fmax {
+                        fmax = cx;
+                    }
                 } else {
-                    if *is_left {
-                        let left = cx - extent_w - 5.0;
-                        if left < fmin {
-                            fmin = left;
-                        }
-                        if cx > fmax {
-                            fmax = cx;
-                        }
-                    } else {
-                        let right = cx + extent_w;
-                        if right > fmax {
-                            fmax = right;
-                        }
-                        if cx < fmin {
-                            fmin = cx;
-                        }
+                    let right = cx + extent_w;
+                    if right > fmax {
+                        fmax = right;
+                    }
+                    if cx < fmin {
+                        fmin = cx;
                     }
                 }
             }
-            TeozTile::LifeEvent {
-                center,
-                level,
-                ..
-            } => {
+            TeozTile::LifeEvent { center, level, .. } => {
                 // Java LifeEventTile.getMinX/getMaxX: adjust extent based on
                 // activation level (LIVE_DELTA_SIZE = 5).
                 const LIVE_DELTA_SIZE: f64 = 5.0;
@@ -868,9 +877,7 @@ fn compute_fragment_extent(
                     sep_depth += 1;
                 }
                 TeozTile::FragmentEnd { .. } | TeozTile::GroupEnd { .. } => {
-                    if sep_depth > 0 {
-                        sep_depth -= 1;
-                    }
+                    sep_depth = sep_depth.saturating_sub(1);
                 }
                 TeozTile::FragmentSeparator { label, .. } if sep_depth == 0 => {
                     else_labels.push(label.clone());
@@ -963,7 +970,7 @@ pub fn build_teoz_layout(sd: &SequenceDiagram, skin: &SkinParams) -> Result<SeqL
     // ── Resolve font/skin params ─────────────────────────────────────────
     let default_font = skin
         .get("defaultfontname")
-        .map(|s| s.as_ref())
+        .map(|s| s)
         .unwrap_or("SansSerif");
     let default_font_size: Option<f64> = skin
         .get("defaultfontsize")
@@ -1122,7 +1129,7 @@ pub fn build_teoz_layout(sd: &SequenceDiagram, skin: &SkinParams) -> Result<SeqL
                     .text
                     .split("\\n")
                     .flat_map(|s| s.split(crate::NEWLINE_CHAR))
-                    .map(|s| unescape_backslash(s))
+                    .map(unescape_backslash)
                     .collect();
                 if let Some(max_w) = max_message_size {
                     text_lines = text_lines
@@ -1148,8 +1155,7 @@ pub fn build_teoz_layout(sd: &SequenceDiagram, skin: &SkinParams) -> Result<SeqL
 
                 // Java: when display has a single empty string, AbstractTextualComponent
                 // creates a TextBlockEmpty with height 0.  Only non-empty text contributes.
-                let is_text_empty =
-                    text_lines.len() == 1 && text_lines[0].is_empty();
+                let is_text_empty = text_lines.len() == 1 && text_lines[0].is_empty();
                 let text_h = if is_text_empty {
                     0.0
                 } else {
@@ -1199,11 +1205,7 @@ pub fn build_teoz_layout(sd: &SequenceDiagram, skin: &SkinParams) -> Result<SeqL
                     // Java CommunicationExoTile.getLevelAt(IGNORE_FUTURE_DEACTIVATE)
                     // includes the inline activation from the message's own `++`.
                     // Look ahead for inline Activate on the same participant.
-                    let real_participant = if is_boundary_from {
-                        &msg.to
-                    } else {
-                        &msg.from
-                    };
+                    let real_participant = if is_boundary_from { &msg.to } else { &msg.from };
                     if event_idx + 1 < sd.events.len()
                         && sd.inline_life_events.contains(&(event_idx + 1))
                     {
@@ -1281,8 +1283,7 @@ pub fn build_teoz_layout(sd: &SequenceDiagram, skin: &SkinParams) -> Result<SeqL
                             _ => break,
                         }
                     }
-                    let delta_x1 =
-                        (level as f64 - level_considere as f64) * 5.0;
+                    let delta_x1 = (level as f64 - level_considere as f64) * 5.0;
                     tiles.push(TeozTile::SelfMessage {
                         participant_idx: idx,
                         text: msg.text.clone(),
@@ -1473,9 +1474,7 @@ pub fn build_teoz_layout(sd: &SequenceDiagram, skin: &SkinParams) -> Result<SeqL
                 });
             }
             SeqEvent::NoteOver {
-                participants,
-                text,
-                ..
+                participants, text, ..
             } => {
                 let w = estimate_note_width(text);
                 let h = note_preferred_height(text, sd.delta_shadow);
@@ -1641,21 +1640,20 @@ pub fn build_teoz_layout(sd: &SequenceDiagram, skin: &SkinParams) -> Result<SeqL
                 if *is_reverse_define {
                     if idx > 0 {
                         let prev_name = &sd.participants[idx - 1].name;
-                        let prev_max_level = max_activation_levels.get(prev_name).copied().unwrap_or(0);
+                        let prev_max_level =
+                            max_activation_levels.get(prev_name).copied().unwrap_or(0);
                         let prev_delta = active_right_shift(prev_max_level);
                         let needed = prev_delta + comp_w;
                         let prev_center = livings[idx - 1].pos_c;
                         rl.ensure_bigger_than_with_margin(*center, prev_center, needed);
                     }
-                } else {
-                    if idx + 1 < n_parts {
-                        let self_name = &sd.participants[idx].name;
-                        let self_max_level = max_activation_levels.get(self_name).copied().unwrap_or(0);
-                        let self_delta = active_right_shift(self_max_level);
-                        let needed = self_delta + comp_w;
-                        let next_center = livings[idx + 1].pos_c;
-                        rl.ensure_bigger_than_with_margin(next_center, *center, needed);
-                    }
+                } else if idx + 1 < n_parts {
+                    let self_name = &sd.participants[idx].name;
+                    let self_max_level = max_activation_levels.get(self_name).copied().unwrap_or(0);
+                    let self_delta = active_right_shift(self_max_level);
+                    let needed = self_delta + comp_w;
+                    let next_center = livings[idx + 1].pos_c;
+                    rl.ensure_bigger_than_with_margin(next_center, *center, needed);
                 }
             }
             TeozTile::Note { .. } => {
@@ -1961,7 +1959,8 @@ pub fn build_teoz_layout(sd: &SequenceDiagram, skin: &SkinParams) -> Result<SeqL
                     // Current fragment height from base, excluding trailing padding.
                     // y already includes FRAG_BOTTOM_PADDING(10) added above;
                     // exclude it along with this tile's height (EmptyTile equivalent).
-                    let _trailing_padding = FRAG_BOTTOM_PADDING + tiles[tile_idx].preferred_height();
+                    let _trailing_padding =
+                        FRAG_BOTTOM_PADDING + tiles[tile_idx].preferred_height();
                     let this_frag_height = y - base_y; // y includes the 10px padding
                     let this_effective = this_frag_height - FRAG_BOTTOM_PADDING;
                     // Use max of previous block height and this parallel fragment height
@@ -2331,8 +2330,7 @@ pub fn build_teoz_layout(sd: &SequenceDiagram, skin: &SkinParams) -> Result<SeqL
                                 false,
                             );
                             let else_width = pure_text_w + 10.0; // marginX1(5) + marginX2(5)
-                            let else_max =
-                                (group_min - GROUP_EXTERNAL_MARGINX1) + else_width;
+                            let else_max = (group_min - GROUP_EXTERNAL_MARGINX1) + else_width;
                             if else_max > group_max {
                                 group_max = else_max;
                             }
@@ -2345,11 +2343,14 @@ pub fn build_teoz_layout(sd: &SequenceDiagram, skin: &SkinParams) -> Result<SeqL
                                 TeozTile::FragmentStart { kind, label, .. } => {
                                     Some(fragment_header_width(kind, label, "sans-serif", 13.0))
                                 }
-                                TeozTile::GroupStart { _label, .. } => {
-                                    _label.as_ref().map(|lbl| {
-                                        fragment_header_width(&FragmentKind::Group, lbl, "sans-serif", 13.0)
-                                    })
-                                }
+                                TeozTile::GroupStart { _label, .. } => _label.as_ref().map(|lbl| {
+                                    fragment_header_width(
+                                        &FragmentKind::Group,
+                                        lbl,
+                                        "sans-serif",
+                                        13.0,
+                                    )
+                                }),
                                 _ => None,
                             };
                             if let Some(header_w) = header_w_opt {
@@ -2523,19 +2524,38 @@ pub fn build_teoz_layout(sd: &SequenceDiagram, skin: &SkinParams) -> Result<SeqL
                             let is_group = *kind_lbl == "group";
                             let header_width = if is_group {
                                 // Group: display text is the condition, or "group" if empty
-                                let display_text = if condition.is_empty() { "group" } else { condition.as_str() };
+                                let display_text = if condition.is_empty() {
+                                    "group"
+                                } else {
+                                    condition.as_str()
+                                };
                                 let text_w = font_metrics::text_width(
-                                    display_text, default_font, msg_font_size, true, false);
+                                    display_text,
+                                    default_font,
+                                    msg_font_size,
+                                    true,
+                                    false,
+                                );
                                 text_w + 45.0
                             } else {
                                 let kind_text_w = font_metrics::text_width(
-                                    kind_lbl, default_font, msg_font_size, true, false);
+                                    kind_lbl,
+                                    default_font,
+                                    msg_font_size,
+                                    true,
+                                    false,
+                                );
                                 if condition.is_empty() {
                                     kind_text_w + 45.0
                                 } else {
                                     let bracket_label = format!("[{}]", condition);
                                     let comment_w = font_metrics::text_width(
-                                        &bracket_label, default_font, 11.0, true, false);
+                                        &bracket_label,
+                                        default_font,
+                                        11.0,
+                                        true,
+                                        false,
+                                    );
                                     kind_text_w + 45.0 + 15.0 + comment_w
                                 }
                             };
@@ -2567,7 +2587,10 @@ pub fn build_teoz_layout(sd: &SequenceDiagram, skin: &SkinParams) -> Result<SeqL
     if sd.delta_shadow > 0.0 {
         for living in &livings {
             let c = rl.get_value(living.pos_c);
-            let gml = max_activation_levels.get(&living.name).copied().unwrap_or(0);
+            let gml = max_activation_levels
+                .get(&living.name)
+                .copied()
+                .unwrap_or(0);
             let global_pos_c2 = c + active_right_shift(gml);
             // Direct posC2 contribution (Java: PlayingSpace adds posC2 to max2)
             if global_pos_c2 > raw_max {
@@ -2599,7 +2622,10 @@ pub fn build_teoz_layout(sd: &SequenceDiagram, skin: &SkinParams) -> Result<SeqL
                     {
                         let sm_cx = rl.get_value(livings[sm_pidx].pos_c);
                         let sm_comp_w = self_message_comp_width(sm_tw, tp.msg_line_height);
-                        let gml = max_activation_levels.get(&livings[sm_pidx].name).copied().unwrap_or(0);
+                        let gml = max_activation_levels
+                            .get(&livings[sm_pidx].name)
+                            .copied()
+                            .unwrap_or(0);
                         // Recompute with global max level
                         let pos_c2_global = sm_cx + active_right_shift(gml);
                         let sm_max_global = match sm_dir {
@@ -2645,8 +2671,14 @@ pub fn build_teoz_layout(sd: &SequenceDiagram, skin: &SkinParams) -> Result<SeqL
     let mut delays: Vec<DelayLayout> = Vec::new();
     let mut refs: Vec<RefLayout> = Vec::new();
     let mut fragments: Vec<FragmentLayout> = Vec::new();
-    let mut fragment_stack: Vec<(f64, FragmentKind, String, Vec<(f64, String)>, usize, Option<String>)> =
-        Vec::new();
+    let mut fragment_stack: Vec<(
+        f64,
+        FragmentKind,
+        String,
+        Vec<(f64, String)>,
+        usize,
+        Option<String>,
+    )> = Vec::new();
     let mut groups: Vec<GroupLayout> = Vec::new();
     let mut group_stack: Vec<(f64, Option<String>)> = Vec::new();
 
@@ -2750,107 +2782,108 @@ pub fn build_teoz_layout(sd: &SequenceDiagram, skin: &SkinParams) -> Result<SeqL
                 let is_gate_from = from_name == "[";
                 let is_gate_to = to_name == "]";
 
-                let (from_x, to_x, is_left, text_delta_x) = if (is_gate_from || is_gate_to) && !*is_short_gate {
-                    // Full boundary arrows ([->  ->]) extend to diagram edges.
-                    // Java CommunicationExoTile with !isShortArrow():
-                    // border1 = leftmost participant posB (head box left edge)
-                    // border2 = rightmost participant posD (head box right edge)
-                    //
-                    // For left boundary [->:
-                    //   from_x = border1, to_x = participant center
-                    //   text is positioned relative to the computed arrow span,
-                    //   not from border1, so text_delta_x adjusts it.
-                    //
-                    // For right boundary ->]:
-                    //   from_x = participant center, to_x = border2
-                    //   text is relative to from_x (unchanged), no delta needed.
-                    //
-                    // Java CommunicationExoTile also adjusts x1/x2 for circle
-                    // decorations at boundary edges (diamCircle/2 + 2 = 6).
-                    const CIRCLE_BOUNDARY_SHIFT: f64 = 6.0; // diamCircle/2 + thinCircle + 0.5
+                let (from_x, to_x, is_left, text_delta_x) =
+                    if (is_gate_from || is_gate_to) && !*is_short_gate {
+                        // Full boundary arrows ([->  ->]) extend to diagram edges.
+                        // Java CommunicationExoTile with !isShortArrow():
+                        // border1 = leftmost participant posB (head box left edge)
+                        // border2 = rightmost participant posD (head box right edge)
+                        //
+                        // For left boundary [->:
+                        //   from_x = border1, to_x = participant center
+                        //   text is positioned relative to the computed arrow span,
+                        //   not from border1, so text_delta_x adjusts it.
+                        //
+                        // For right boundary ->]:
+                        //   from_x = participant center, to_x = border2
+                        //   text is relative to from_x (unchanged), no delta needed.
+                        //
+                        // Java CommunicationExoTile also adjusts x1/x2 for circle
+                        // decorations at boundary edges (diamCircle/2 + 2 = 6).
+                        const CIRCLE_BOUNDARY_SHIFT: f64 = 6.0; // diamCircle/2 + thinCircle + 0.5
 
-                    if is_gate_to {
-                        // Right boundary (->]): arrow extends to the right diagram edge
-                        // Java: x1 += LIVE_DELTA_SIZE * level
-                        let mut fx = raw_from_x;
-                        fx += 5.0 * (*from_level as f64);
-                        let mut tx = border2;
-                        // Java: decoration2==CIRCLE && TO_RIGHT → x2 -= 6
-                        if *circle_to {
-                            tx -= CIRCLE_BOUNDARY_SHIFT;
+                        if is_gate_to {
+                            // Right boundary (->]): arrow extends to the right diagram edge
+                            // Java: x1 += LIVE_DELTA_SIZE * level
+                            let mut fx = raw_from_x;
+                            fx += 5.0 * (*from_level as f64);
+                            let mut tx = border2;
+                            // Java: decoration2==CIRCLE && TO_RIGHT → x2 -= 6
+                            if *circle_to {
+                                tx -= CIRCLE_BOUNDARY_SHIFT;
+                            }
+                            (fx, tx, false, 0.0)
+                        } else {
+                            // Left boundary ([->): arrow extends from the left diagram edge
+                            // Java: x2 += LIVE_DELTA_SIZE * (level - 2)
+                            let mut tx = raw_to_x;
+                            if *to_level > 0 {
+                                tx += 5.0 * (*to_level as f64 - 2.0);
+                            }
+                            // Java CommunicationExoTile: textDeltaX is computed BEFORE
+                            // circle adjustment, then x1 is shifted for circle.
+                            let arrow_span = text_width + 24.0;
+                            let computed_fx = tx - arrow_span;
+                            let delta = computed_fx - border1;
+                            let mut fx = border1;
+                            // Java: decoration1==CIRCLE && FROM_LEFT → x1 += 6
+                            if *circle_from {
+                                fx += CIRCLE_BOUNDARY_SHIFT;
+                            }
+                            (fx, tx, false, delta)
                         }
-                        (fx, tx, false, 0.0)
-                    } else {
-                        // Left boundary ([->): arrow extends from the left diagram edge
-                        // Java: x2 += LIVE_DELTA_SIZE * (level - 2)
-                        let mut tx = raw_to_x;
-                        if *to_level > 0 {
-                            tx += 5.0 * (*to_level as f64 - 2.0);
-                        }
-                        // Java CommunicationExoTile: textDeltaX is computed BEFORE
-                        // circle adjustment, then x1 is shifted for circle.
+                    } else if (is_gate_from || is_gate_to) && *is_short_gate {
+                        // Short gate arrows (?-> ->?) use text-width-based span,
+                        // NOT extending to diagram edges.
                         let arrow_span = text_width + 24.0;
-                        let computed_fx = tx - arrow_span;
-                        let delta = computed_fx - border1;
-                        let mut fx = border1;
-                        // Java: decoration1==CIRCLE && FROM_LEFT → x1 += 6
-                        if *circle_from {
-                            fx += CIRCLE_BOUNDARY_SHIFT;
+                        if *gate_right_border {
+                            // Java FROM_RIGHT: gate extends to the RIGHT of participant.
+                            // The real participant is "to" (after parser swap).
+                            // Java CommunicationExoTile drawU():
+                            //   x1 = posC + LIVE_DELTA_SIZE * level
+                            //   x2 = posC + preferredWidth
+                            //   if decoration1==CIRCLE && FROM_RIGHT: x2 -= diamCircle/2 + 2
+                            const LIVE_DELTA: f64 = 5.0;
+                            let tx = raw_to_x + LIVE_DELTA * (*to_level as f64);
+                            let circle_adj = if *circle_from { 6.0 } else { 0.0 };
+                            let fx = raw_to_x + arrow_span - circle_adj;
+                            (fx, tx, true, 0.0)
+                        } else if is_gate_to {
+                            let fx = raw_from_x;
+                            let tx = fx + arrow_span;
+                            (fx, tx, false, 0.0)
+                        } else {
+                            let tx = raw_to_x;
+                            let fx = tx - arrow_span;
+                            (fx, tx, false, 0.0)
                         }
-                        (fx, tx, false, delta)
-                    }
-                } else if (is_gate_from || is_gate_to) && *is_short_gate {
-                    // Short gate arrows (?-> ->?) use text-width-based span,
-                    // NOT extending to diagram edges.
-                    let arrow_span = text_width + 24.0;
-                    if *gate_right_border {
-                        // Java FROM_RIGHT: gate extends to the RIGHT of participant.
-                        // The real participant is "to" (after parser swap).
-                        // Java CommunicationExoTile drawU():
-                        //   x1 = posC + LIVE_DELTA_SIZE * level
-                        //   x2 = posC + preferredWidth
-                        //   if decoration1==CIRCLE && FROM_RIGHT: x2 -= diamCircle/2 + 2
+                    } else {
+                        let is_left = raw_to_x < raw_from_x;
+                        // Java CommunicationTile.drawU(): adjust x positions
+                        // based on activation levels (LIVE_DELTA_SIZE = 5).
                         const LIVE_DELTA: f64 = 5.0;
-                        let tx = raw_to_x + LIVE_DELTA * (*to_level as f64);
-                        let circle_adj = if *circle_from { 6.0 } else { 0.0 };
-                        let fx = raw_to_x + arrow_span - circle_adj;
-                        (fx, tx, true, 0.0)
-                    } else if is_gate_to {
-                        let fx = raw_from_x;
-                        let tx = fx + arrow_span;
-                        (fx, tx, false, 0.0)
-                    } else {
-                        let tx = raw_to_x;
-                        let fx = tx - arrow_span;
-                        (fx, tx, false, 0.0)
-                    }
-                } else {
-                    let is_left = raw_to_x < raw_from_x;
-                    // Java CommunicationTile.drawU(): adjust x positions
-                    // based on activation levels (LIVE_DELTA_SIZE = 5).
-                    const LIVE_DELTA: f64 = 5.0;
-                    if is_left {
-                        // Reverse direction (right-to-left)
-                        let mut x1 = raw_from_x;
-                        let level1 = *from_level;
-                        if level1 == 1 {
-                            x1 -= LIVE_DELTA;
-                        } else if level1 > 2 {
-                            x1 += LIVE_DELTA * (level1 as f64 - 2.0);
+                        if is_left {
+                            // Reverse direction (right-to-left)
+                            let mut x1 = raw_from_x;
+                            let level1 = *from_level;
+                            if level1 == 1 {
+                                x1 -= LIVE_DELTA;
+                            } else if level1 > 2 {
+                                x1 += LIVE_DELTA * (level1 as f64 - 2.0);
+                            }
+                            let x2 = raw_to_x + LIVE_DELTA * (*to_level as f64);
+                            (x1, x2, true, 0.0)
+                        } else {
+                            // Normal direction (left-to-right)
+                            let x1 = raw_from_x + LIVE_DELTA * (*from_level as f64);
+                            let mut adjusted_tl = *to_level as i64;
+                            if adjusted_tl > 0 {
+                                adjusted_tl -= 2;
+                            }
+                            let x2 = raw_to_x + LIVE_DELTA * (adjusted_tl as f64);
+                            (x1, x2, false, 0.0)
                         }
-                        let x2 = raw_to_x + LIVE_DELTA * (*to_level as f64);
-                        (x1, x2, true, 0.0)
-                    } else {
-                        // Normal direction (left-to-right)
-                        let x1 = raw_from_x + LIVE_DELTA * (*from_level as f64);
-                        let mut adjusted_tl = *to_level as i64;
-                        if adjusted_tl > 0 {
-                            adjusted_tl -= 2;
-                        }
-                        let x2 = raw_to_x + LIVE_DELTA * (adjusted_tl as f64);
-                        (x1, x2, false, 0.0)
-                    }
-                };
+                    };
                 messages.push(MessageLayout {
                     from_x,
                     to_x,
@@ -2921,7 +2954,7 @@ pub fn build_teoz_layout(sd: &SequenceDiagram, skin: &SkinParams) -> Result<SeqL
                 // Right side: Java shifts origin by level * LIVE_DELTA_SIZE.
                 // Left side: leftShift is always ACTIVATION_WIDTH/2 (5) when active;
                 //   level-based adjustments for lines/decorations are applied in the renderer.
-                let al = *active_level as usize;
+                let al = *active_level;
                 let (self_from_x, self_return_x, self_to_x) = if is_left {
                     let act_left = if has_bar {
                         cx - ACTIVATION_WIDTH / 2.0
@@ -2967,7 +3000,7 @@ pub fn build_teoz_layout(sd: &SequenceDiagram, skin: &SkinParams) -> Result<SeqL
                     cross_to: *cross_to,
                     bidirectional: *bidirectional,
                     text_delta_x: 0.0,
-                    active_level: *active_level as usize,
+                    active_level: *active_level,
                     delta_x1: *delta_x1,
                 });
                 last_msg_idx = Some(messages.len() - 1);
@@ -3172,9 +3205,22 @@ pub fn build_teoz_layout(sd: &SequenceDiagram, skin: &SkinParams) -> Result<SeqL
                     label: label.clone(),
                 });
             }
-            TeozTile::FragmentStart { kind, label, y, color, .. } => {
+            TeozTile::FragmentStart {
+                kind,
+                label,
+                y,
+                color,
+                ..
+            } => {
                 let ty = y.unwrap_or(0.0);
-                fragment_stack.push((ty, kind.clone(), label.clone(), Vec::new(), tile_i + 1, color.clone()));
+                fragment_stack.push((
+                    ty,
+                    kind.clone(),
+                    label.clone(),
+                    Vec::new(),
+                    tile_i + 1,
+                    color.clone(),
+                ));
             }
             TeozTile::FragmentSeparator { label, y, .. } => {
                 let ty = y.unwrap_or(0.0);
@@ -3184,13 +3230,21 @@ pub fn build_teoz_layout(sd: &SequenceDiagram, skin: &SkinParams) -> Result<SeqL
             }
             TeozTile::FragmentEnd { y, .. } => {
                 let ty = y.unwrap_or(0.0);
-                if let Some((y_start, kind, label, separators, child_start, frag_color)) = fragment_stack.pop()
+                if let Some((y_start, kind, label, separators, child_start, frag_color)) =
+                    fragment_stack.pop()
                 {
                     let _depth = fragment_stack.len(); // 0 for outermost
-                                                      // Compute per-fragment width from child tiles.
-                                                      // Java GroupingTile computes its own min/max from children.
-                    let (frag_min, frag_max) =
-                        compute_fragment_extent(&tiles, child_start, tile_i, &livings, &rl, &tp, sd.delta_shadow);
+                                                       // Compute per-fragment width from child tiles.
+                                                       // Java GroupingTile computes its own min/max from children.
+                    let (frag_min, frag_max) = compute_fragment_extent(
+                        &tiles,
+                        child_start,
+                        tile_i,
+                        &livings,
+                        &rl,
+                        &tp,
+                        sd.delta_shadow,
+                    );
                     // Java: ComponentRoseGroupingHeader.getPreferredWidth():
                     //   getTextWidth() = pureTextW(kindLabel) + marginX1(15) + marginX2(30)
                     //   if condition label present:
@@ -3199,7 +3253,8 @@ pub fn build_teoz_layout(sd: &SequenceDiagram, skin: &SkinParams) -> Result<SeqL
                     //   else: sup = 0
                     //   width = getTextWidth() + sup
                     // Java GroupingTile: max candidate = this.min + width + 16
-                    let header_width = fragment_header_width(&kind, &label, default_font, msg_font_size);
+                    let header_width =
+                        fragment_header_width(&kind, &label, default_font, msg_font_size);
                     let header_right = frag_min + header_width + 16.0;
                     let effective_max = frag_max.max(header_right);
                     // Convert to document coordinates
@@ -3338,9 +3393,7 @@ pub fn build_teoz_layout(sd: &SequenceDiagram, skin: &SkinParams) -> Result<SeqL
                     SeqEvent::Message(_) => {
                         last_msg = Some(i);
                     }
-                    SeqEvent::Activate(..)
-                    | SeqEvent::Deactivate(_)
-                    | SeqEvent::Destroy(_) => {
+                    SeqEvent::Activate(..) | SeqEvent::Deactivate(_) | SeqEvent::Destroy(_) => {
                         owner[i] = last_msg;
                     }
                     _ => {}
@@ -3403,7 +3456,12 @@ pub fn build_teoz_layout(sd: &SequenceDiagram, skin: &SkinParams) -> Result<SeqL
                         last_msg_bottom_y = ty + height;
                         last_step_y_self_end = None;
                     }
-                    TeozTile::SelfMessage { height, y, text_lines, .. } => {
+                    TeozTile::SelfMessage {
+                        height,
+                        y,
+                        text_lines,
+                        ..
+                    } => {
                         let ty = y.unwrap_or(0.0);
                         // Java: when text is a single empty string, TextBlockEmpty gives height 0.
                         let is_text_empty = text_lines.len() == 1 && text_lines[0].is_empty();
@@ -3446,7 +3504,8 @@ pub fn build_teoz_layout(sd: &SequenceDiagram, skin: &SkinParams) -> Result<SeqL
                 SeqEvent::Message(msg) => {
                     let arrow_y = last_step_y;
                     let msg_self = msg.from == msg.to;
-                    msg_arrow_y_by_event.insert(event_idx, (arrow_y, msg.from.clone(), msg.to.clone()));
+                    msg_arrow_y_by_event
+                        .insert(event_idx, (arrow_y, msg.from.clone(), msg.to.clone()));
                     // For self messages, Java's CommunicationTileSelf only
                     // calls addStepForLivebox on livingSpace1 (the source).
                     // Other participants get their msg_arrow_y cleared.
@@ -3462,7 +3521,9 @@ pub fn build_teoz_layout(sd: &SequenceDiagram, skin: &SkinParams) -> Result<SeqL
                         part2.msg_arrow_y = Some(arrow_y);
                     }
                 }
-                SeqEvent::NoteOver { .. } | SeqEvent::NoteLeft { .. } | SeqEvent::NoteRight { .. } => {
+                SeqEvent::NoteOver { .. }
+                | SeqEvent::NoteLeft { .. }
+                | SeqEvent::NoteRight { .. } => {
                     // Java getStairs: a standalone Note resets lastMessage
                     // and seen flags, forcing position to null for any
                     // subsequent LifeEvent.
@@ -3484,8 +3545,7 @@ pub fn build_teoz_layout(sd: &SequenceDiagram, skin: &SkinParams) -> Result<SeqL
                         let abs_idx = event_idx + 1 + fi;
                         match future {
                             SeqEvent::Activate(n, _)
-                                if n == check_name
-                                    && !sd.inline_life_events.contains(&abs_idx) =>
+                                if n == check_name && !sd.inline_life_events.contains(&abs_idx) =>
                             {
                                 found = true;
                                 break;
@@ -3526,12 +3586,14 @@ pub fn build_teoz_layout(sd: &SequenceDiagram, skin: &SkinParams) -> Result<SeqL
                     // visible start is that message's arrow_y. Otherwise
                     // the position uses the standard Java getStairs rules.
                     let claimed = msg_claims_activate.remove(name);
-                    let use_tile_y = scope.seen_deact || (scope.msg_arrow_y.is_none() && claimed.is_none());
+                    let use_tile_y =
+                        scope.seen_deact || (scope.msg_arrow_y.is_none() && claimed.is_none());
                     let y_stairs = if let Some(claim_y) = claimed {
                         claim_y
                     } else if is_inline {
                         if use_tile_y {
-                            tiles.get(tile_idx)
+                            tiles
+                                .get(tile_idx)
                                 .and_then(|t| t.get_y())
                                 .unwrap_or(last_step_y)
                         } else {
@@ -3540,20 +3602,25 @@ pub fn build_teoz_layout(sd: &SequenceDiagram, skin: &SkinParams) -> Result<SeqL
                             last_step_y_self_end.unwrap_or(last_step_y)
                         }
                     } else if use_tile_y {
-                        tiles.get(tile_idx)
+                        tiles
+                            .get(tile_idx)
                             .and_then(|t| t.get_y())
                             .unwrap_or(last_step_y)
                     } else if let Some(arrow_y) = scope.msg_arrow_y {
                         arrow_y
                     } else {
-                        tiles.get(tile_idx)
+                        tiles
+                            .get(tile_idx)
                             .and_then(|t| t.get_y())
                             .unwrap_or(last_step_y)
                     };
                     scope.seen_act = true;
                     // Track activate's eventsStep tile_y for the collision
                     // bump check on a subsequent deactivate.
-                    let act_tile_y = tiles.get(tile_idx).and_then(|t| t.get_y()).unwrap_or(last_step_y);
+                    let act_tile_y = tiles
+                        .get(tile_idx)
+                        .and_then(|t| t.get_y())
+                        .unwrap_or(last_step_y);
                     scope.last_act_tile_y = Some(act_tile_y);
                     let y_addstep = if inside_tile_parallel[event_idx] {
                         last_step_y
@@ -3583,7 +3650,8 @@ pub fn build_teoz_layout(sd: &SequenceDiagram, skin: &SkinParams) -> Result<SeqL
                             // message did not involve this participant, which
                             // sets Java's `position` to null and forces use of
                             // potentialPosition = LifeEvent tile_y).
-                            let deact_tile_y = tiles.get(tile_idx)
+                            let deact_tile_y = tiles
+                                .get(tile_idx)
                                 .and_then(|t| t.get_y())
                                 .unwrap_or(last_step_y);
                             // Java LiveBoxes.addStep applies +5 to a
@@ -3605,15 +3673,20 @@ pub fn build_teoz_layout(sd: &SequenceDiagram, skin: &SkinParams) -> Result<SeqL
                                     // naturally advances past the message/note
                                     // combined tile height, producing correct bar
                                     // height. Use tile y as the bar end position.
-                                    let tile_y = tiles.get(tile_idx)
-                                        .and_then(|t| t.get_y())
-                                        .unwrap_or(y_start + rose::ARROW_DELTA_Y
-                                            + rose::ARROW_PADDING_Y + 5.0);
+                                    let tile_y =
+                                        tiles.get(tile_idx).and_then(|t| t.get_y()).unwrap_or(
+                                            y_start
+                                                + rose::ARROW_DELTA_Y
+                                                + rose::ARROW_PADDING_Y
+                                                + 5.0,
+                                        );
                                     y_end = tile_y;
                                     // If tile y also matches start, apply minimum
                                     if (y_end - y_start).abs() < 0.001 {
-                                        y_end = y_start + rose::ARROW_DELTA_Y
-                                            + rose::ARROW_PADDING_Y + 5.0;
+                                        y_end = y_start
+                                            + rose::ARROW_DELTA_Y
+                                            + rose::ARROW_PADDING_Y
+                                            + 5.0;
                                     } else {
                                         // Java multi-pass: the deactivate's own step
                                         // value persists across render passes, causing
@@ -3653,10 +3726,13 @@ pub fn build_teoz_layout(sd: &SequenceDiagram, skin: &SkinParams) -> Result<SeqL
                     // both fall on the message's arrow_y (= last_step_y),
                     // not the LifeEvent tile_y.
                     let destroy_inline = sd.inline_life_events.contains(&event_idx);
-                    let ty = if destroy_inline || matches!(tiles.get(tile_idx), Some(TeozTile::LifeEvent { .. })) {
+                    let ty = if destroy_inline
+                        || matches!(tiles.get(tile_idx), Some(TeozTile::LifeEvent { .. }))
+                    {
                         last_step_y
                     } else {
-                        tiles.get(tile_idx)
+                        tiles
+                            .get(tile_idx)
                             .and_then(|t| t.get_y())
                             .unwrap_or(last_step_y)
                     };
@@ -3718,9 +3794,14 @@ pub fn build_teoz_layout(sd: &SequenceDiagram, skin: &SkinParams) -> Result<SeqL
         // Java LiveBoxesDrawer draws activation bars per-participant sorted by
         // stair position (level ascending). Sort to match Java draw order.
         activations.sort_by(|a, b| {
-            a.participant.cmp(&b.participant)
+            a.participant
+                .cmp(&b.participant)
                 .then(a.level.cmp(&b.level))
-                .then(a.y_start.partial_cmp(&b.y_start).unwrap_or(std::cmp::Ordering::Equal))
+                .then(
+                    a.y_start
+                        .partial_cmp(&b.y_start)
+                        .unwrap_or(std::cmp::Ordering::Equal),
+                )
         });
     }
 
@@ -3746,8 +3827,7 @@ pub fn build_teoz_layout(sd: &SequenceDiagram, skin: &SkinParams) -> Result<SeqL
     // already folded into max_preferred_height. With factor=2 (footbox), this
     // correctly expands the total height by 2*deltaShadow (once for head, once
     // for tiles_bottom offset which includes one head height).
-    let total_height =
-        tiles_bottom + (factor - 1) as f64 * max_preferred_height + 20.0;
+    let total_height = tiles_bottom + (factor - 1) as f64 * max_preferred_height + 20.0;
     log::debug!("teoz_layout: total_width={total_width:.4} total_height={total_height:.4} lifeline_bottom={lifeline_bottom:.4} max_preferred_height={max_preferred_height:.4}");
 
     Ok(SeqLayout {
@@ -3764,7 +3844,11 @@ pub fn build_teoz_layout(sd: &SequenceDiagram, skin: &SkinParams) -> Result<SeqL
             sorted.sort_by(|a, b| {
                 a.y.partial_cmp(&b.y)
                     .unwrap_or(std::cmp::Ordering::Equal)
-                    .then_with(|| b.height.partial_cmp(&a.height).unwrap_or(std::cmp::Ordering::Equal))
+                    .then_with(|| {
+                        b.height
+                            .partial_cmp(&a.height)
+                            .unwrap_or(std::cmp::Ordering::Equal)
+                    })
             });
             sorted
         },

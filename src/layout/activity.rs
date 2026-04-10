@@ -107,9 +107,7 @@ pub enum ActivityEdgeKindLayout {
     /// → right → up → diamond1 right) with an end-arrow and an extra
     /// mid-segment UP arrow drawn over the vertical stretch.  `up_arrow_y`
     /// gives the polygon origin (tip) Y coordinate.
-    LoopBackSimple2 {
-        up_arrow_y: f64,
-    },
+    LoopBackSimple2 { up_arrow_y: f64 },
 }
 
 /// A directed edge between two nodes.
@@ -597,7 +595,7 @@ fn compute_swimlane_layouts(swimlanes: &[String]) -> Vec<SwimlaneLayout> {
     let mut layouts = Vec::new();
     // Java: first LaneDivider starts at edge half-space (5px each side = 10px)
     let mut x = LANE_DIVIDER_HALF * 2.0; // left divider width = 10
-    for (_i, name) in swimlanes.iter().enumerate() {
+    for name in swimlanes.iter() {
         let title_width =
             font_metrics::text_width(name, "SansSerif", SWIMLANE_HEADER_FONT_SIZE, false, false);
         // Initial lane width from header text (no min-width — Java doesn't use one)
@@ -682,9 +680,7 @@ pub fn layout_activity(diagram: &ActivityDiagram) -> Result<ActivityLayout> {
     let first_is_diamond_like = diagram.events.iter().any(|e| {
         matches!(
             e,
-            ActivityEvent::Repeat
-                | ActivityEvent::If { .. }
-                | ActivityEvent::While { .. }
+            ActivityEvent::Repeat | ActivityEvent::If { .. } | ActivityEvent::While { .. }
         )
     }) && diagram
         .events
@@ -699,7 +695,7 @@ pub fn layout_activity(diagram: &ActivityDiagram) -> Result<ActivityLayout> {
                     | ActivityEvent::Repeat
             )
         })
-        .map_or(false, |e| {
+        .is_some_and(|e| {
             matches!(
                 e,
                 ActivityEvent::Repeat | ActivityEvent::If { .. } | ActivityEvent::While { .. }
@@ -720,7 +716,11 @@ pub fn layout_activity(diagram: &ActivityDiagram) -> Result<ActivityLayout> {
 
     // Track the index of the last *flow* node (i.e. not a note or swimlane
     // switch) so that notes can reference it.
-    let node_gap = if diagram.is_old_style { OLD_STYLE_NODE_SPACING } else { NODE_SPACING };
+    let node_gap = if diagram.is_old_style {
+        OLD_STYLE_NODE_SPACING
+    } else {
+        NODE_SPACING
+    };
     let mut last_flow_node_idx: Option<usize> = None;
 
     // --- Repeat / RepeatWhile tracking --------------------------------------
@@ -773,10 +773,13 @@ pub fn layout_activity(diagram: &ActivityDiagram) -> Result<ActivityLayout> {
     // For old-style diagrams, find the LAST Stop event index so intermediate
     // stops can be skipped (Java shares a single final stop node in DOT layout).
     let last_stop_idx: Option<usize> = if diagram.is_old_style {
-        diagram.events.iter().enumerate()
+        diagram
+            .events
+            .iter()
+            .enumerate()
             .filter(|(_, e)| matches!(e, ActivityEvent::Stop))
             .map(|(i, _)| i)
-            .last()
+            .next_back()
     } else {
         None
     };
@@ -813,8 +816,12 @@ pub fn layout_activity(diagram: &ActivityDiagram) -> Result<ActivityLayout> {
 
             // ---- Stop circle (Java FtileCircleStop: SIZE=22) ------------------
             ActivityEvent::Stop => {
-                let ev_idx = diagram.events.iter().position(|e| std::ptr::eq(e, event)).unwrap_or(0);
-                let is_intermediate = last_stop_idx.map_or(false, |last| ev_idx < last);
+                let ev_idx = diagram
+                    .events
+                    .iter()
+                    .position(|e| std::ptr::eq(e, event))
+                    .unwrap_or(0);
+                let is_intermediate = last_stop_idx.is_some_and(|last| ev_idx < last);
                 if diagram.is_old_style && is_intermediate {
                     // Old-style: intermediate stops share the final stop node.
                     // Skip placing a visual node here.
@@ -1082,12 +1089,7 @@ pub fn layout_activity(diagram: &ActivityDiagram) -> Result<ActivityLayout> {
                 let cond_h = if condition.is_empty() {
                     0.0
                 } else {
-                    font_metrics::line_height(
-                        "SansSerif",
-                        HEXAGON_LABEL_FONT_SIZE,
-                        false,
-                        false,
-                    )
+                    font_metrics::line_height("SansSerif", HEXAGON_LABEL_FONT_SIZE, false, false)
                 };
                 let hex_w = if cond_w == 0.0 || cond_h == 0.0 {
                     HEXAGON_HALF_SIZE * 2.0
@@ -1343,7 +1345,11 @@ pub fn layout_activity(diagram: &ActivityDiagram) -> Result<ActivityLayout> {
 
             // ---- Sync bar (old-style ===NAME===) ----------------------------
             ActivityEvent::SyncBar(name) => {
-                let ev_idx = diagram.events.iter().position(|e| std::ptr::eq(e, event)).unwrap_or(0);
+                let ev_idx = diagram
+                    .events
+                    .iter()
+                    .position(|e| std::ptr::eq(e, event))
+                    .unwrap_or(0);
                 let has_gotos = sync_bar_goto_count.get(name).copied().unwrap_or(0) > 0;
                 let is_last_ref = sync_bar_last_ref.get(name).copied() == Some(ev_idx);
                 if diagram.is_old_style && has_gotos && !is_last_ref {
@@ -1384,12 +1390,20 @@ pub fn layout_activity(diagram: &ActivityDiagram) -> Result<ActivityLayout> {
 
             // ---- Goto sync bar (old-style convergence) ----------------------
             ActivityEvent::GotoSyncBar(name) => {
-                let ev_idx = diagram.events.iter().position(|e| std::ptr::eq(e, event)).unwrap_or(0);
+                let ev_idx = diagram
+                    .events
+                    .iter()
+                    .position(|e| std::ptr::eq(e, event))
+                    .unwrap_or(0);
                 let is_last_ref = sync_bar_last_ref.get(name).copied() == Some(ev_idx);
                 // Update the deferred max-y for this bar
                 let entry = deferred_sync_bars.entry(name.clone()).or_insert(0.0_f64);
                 *entry = entry.max(y_cursor);
-                log::debug!("  GotoSyncBar({name}), max_y={:.1}, is_last={}", *entry, is_last_ref);
+                log::debug!(
+                    "  GotoSyncBar({name}), max_y={:.1}, is_last={}",
+                    *entry,
+                    is_last_ref
+                );
                 if is_last_ref {
                     // This is the last reference — place the bar NOW
                     let bar_y = *entry;
@@ -1398,7 +1412,9 @@ pub fn layout_activity(diagram: &ActivityDiagram) -> Result<ActivityLayout> {
                     let h = SYNC_BAR_HEIGHT;
                     let cx = swimlane_center_x(&swimlane_layouts, current_lane_idx);
                     let x = cx - w / 2.0;
-                    log::debug!("  node[{node_index}] SyncBar({name}) placed @ ({x:.1}, {bar_y:.1})");
+                    log::debug!(
+                        "  node[{node_index}] SyncBar({name}) placed @ ({x:.1}, {bar_y:.1})"
+                    );
                     nodes.push(ActivityNodeLayout {
                         index: node_index,
                         kind: ActivityNodeKindLayout::SyncBar,
@@ -1575,11 +1591,12 @@ pub fn layout_activity(diagram: &ActivityDiagram) -> Result<ActivityLayout> {
             // calculateDimension for single-side note lanes (from Opale
             // stencil rendering offset in SheetBlock). FtileWithNotes
             // (both-side notes) doesn't have this offset.
-            let stencil_correction = if lane_max_composite_w[i] > 0.0 && lane_max_composite_single[i] {
-                1.0
-            } else {
-                0.0
-            };
+            let stencil_correction =
+                if lane_max_composite_w[i] > 0.0 && lane_max_composite_single[i] {
+                    1.0
+                } else {
+                    0.0
+                };
             let content_width = if lane_max_composite_w[i] > 0.0 {
                 lane_max_composite_w[i] + stencil_correction
             } else if lane_max_x[i] > lane_min_x[i] {
@@ -1710,7 +1727,11 @@ pub fn layout_activity(diagram: &ActivityDiagram) -> Result<ActivityLayout> {
             let group_left = group_center - group_width / 2.0;
 
             if has_left {
-                let left_x = if single_group { group_left } else { group_left + 10.0 };
+                let left_x = if single_group {
+                    group_left
+                } else {
+                    group_left + 10.0
+                };
                 for &idx in &left_indices {
                     nodes[idx].x = left_x;
                 }
@@ -1782,8 +1803,7 @@ pub fn layout_activity(diagram: &ActivityDiagram) -> Result<ActivityLayout> {
     };
 
     // --- Compute total bounding box -----------------------------------------
-    let (mut total_width, total_height) =
-        compute_bounds(&nodes, &swimlane_layouts, y_cursor);
+    let (mut total_width, total_height) = compute_bounds(&nodes, &swimlane_layouts, y_cursor);
     if loopback_extra_right > 0.0 {
         total_width += loopback_extra_right;
     }
@@ -1859,7 +1879,10 @@ fn diamond_size(label: &str) -> (f64, f64) {
 /// `Display` (e.g. `"a\nb\n"` produces three lines `["a", "b", ""]`).
 pub(crate) fn split_label_lines(text: &str) -> Vec<String> {
     let normalised = text.replace("\\n", "\u{E100}");
-    normalised.split('\u{E100}').map(|s| s.to_string()).collect()
+    normalised
+        .split('\u{E100}')
+        .map(|s| s.to_string())
+        .collect()
 }
 
 /// Apply a coordinate transform to the entire layout based on the diagram
@@ -1944,7 +1967,8 @@ fn assign_note_modes(nodes: &mut [ActivityNodeLayout]) {
         let mut j = i + 1;
         while j < nodes.len() {
             match nodes[j].kind {
-                ActivityNodeKindLayout::Note { .. } | ActivityNodeKindLayout::FloatingNote { .. } => {
+                ActivityNodeKindLayout::Note { .. }
+                | ActivityNodeKindLayout::FloatingNote { .. } => {
                     note_indices.push(j);
                 }
                 _ => break,
@@ -1959,7 +1983,9 @@ fn assign_note_modes(nodes: &mut [ActivityNodeLayout]) {
         };
         for idx in note_indices {
             match &mut nodes[idx].kind {
-                ActivityNodeKindLayout::Note { mode: note_mode, .. }
+                ActivityNodeKindLayout::Note {
+                    mode: note_mode, ..
+                }
                 | ActivityNodeKindLayout::FloatingNote {
                     mode: note_mode, ..
                 } => *note_mode = mode,
@@ -1972,7 +1998,12 @@ fn assign_note_modes(nodes: &mut [ActivityNodeLayout]) {
 }
 
 fn align_flow_groups_to_lane_columns(nodes: &mut [ActivityNodeLayout], node_lane: &[usize]) {
-    let lane_count = node_lane.iter().copied().max().map(|idx| idx + 1).unwrap_or(0);
+    let lane_count = node_lane
+        .iter()
+        .copied()
+        .max()
+        .map(|idx| idx + 1)
+        .unwrap_or(0);
     let mut lane_flow_centers: Vec<Option<f64>> = vec![None; lane_count];
     let mut i = 0usize;
 
@@ -1985,7 +2016,8 @@ fn align_flow_groups_to_lane_columns(nodes: &mut [ActivityNodeLayout], node_lane
         let mut j = i + 1;
         while j < nodes.len() {
             match nodes[j].kind {
-                ActivityNodeKindLayout::Note { .. } | ActivityNodeKindLayout::FloatingNote { .. } => {
+                ActivityNodeKindLayout::Note { .. }
+                | ActivityNodeKindLayout::FloatingNote { .. } => {
                     j += 1;
                 }
                 _ => break,
@@ -2015,13 +2047,9 @@ fn limitfinder_x_bounds(node: &ActivityNodeLayout) -> (f64, f64) {
     match &node.kind {
         ActivityNodeKindLayout::Action
         | ActivityNodeKindLayout::ForkBar
-        | ActivityNodeKindLayout::SyncBar => {
-            (node.x - 1.0, node.x + node.width - 1.0)
-        }
+        | ActivityNodeKindLayout::SyncBar => (node.x - 1.0, node.x + node.width - 1.0),
         ActivityNodeKindLayout::Diamond => (node.x - 10.0, node.x + node.width + 10.0),
-        ActivityNodeKindLayout::Hexagon { .. } => {
-            (node.x - 1.0, node.x + node.width - 1.0)
-        }
+        ActivityNodeKindLayout::Hexagon { .. } => (node.x - 1.0, node.x + node.width - 1.0),
         ActivityNodeKindLayout::Start
         | ActivityNodeKindLayout::Stop
         | ActivityNodeKindLayout::End
@@ -2194,8 +2222,7 @@ fn compute_render_order_for_repeat(
         return (0..nodes.len()).collect();
     }
     // Build a map `diamond1_idx -> hex_idx`.
-    let mut hex_for_d1: std::collections::HashMap<usize, usize> =
-        std::collections::HashMap::new();
+    let mut hex_for_d1: std::collections::HashMap<usize, usize> = std::collections::HashMap::new();
     for &(hex, d1) in repeat_loopbacks {
         hex_for_d1.insert(d1, hex);
     }
@@ -2361,13 +2388,13 @@ fn reorder_edges_for_repeat(
 /// block — empirically matching Java's SlotFinder/CompressionTransform result
 /// on these fixtures.  Falls back to the vertical-segment midpoint when no
 /// suitable interior node can be located.
-fn repeat_up_arrow_y(
-    nodes: &[ActivityNodeLayout],
-    diamond1_idx: usize,
-    hex_idx: usize,
-) -> f64 {
+fn repeat_up_arrow_y(nodes: &[ActivityNodeLayout], diamond1_idx: usize, hex_idx: usize) -> f64 {
     // Look for the first interior flow action between diamond1 and hex.
-    for n in nodes.iter().skip(diamond1_idx + 1).take(hex_idx - diamond1_idx - 1) {
+    for n in nodes
+        .iter()
+        .skip(diamond1_idx + 1)
+        .take(hex_idx - diamond1_idx - 1)
+    {
         if matches!(n.kind, ActivityNodeKindLayout::Action) {
             return n.y + n.height + 10.0;
         }
@@ -2398,15 +2425,21 @@ const OLD_ACTIVITY_EDGE_FONT_SIZE: f64 = 11.0;
 
 fn old_activity_center_label_dimension(text: &str) -> (f64, f64) {
     let line_h = font_metrics::line_height("SansSerif", OLD_ACTIVITY_EDGE_FONT_SIZE, false, false);
-    let text_w = font_metrics::text_width(text, "SansSerif", OLD_ACTIVITY_EDGE_FONT_SIZE, false, false);
+    let text_w =
+        font_metrics::text_width(text, "SansSerif", OLD_ACTIVITY_EDGE_FONT_SIZE, false, false);
     (text_w + 2.0, line_h + 2.0)
 }
 
 fn old_activity_side_label_dimension(text: &str) -> (f64, f64) {
     let display = if text.is_empty() { " " } else { text };
     let line_h = font_metrics::line_height("SansSerif", OLD_ACTIVITY_EDGE_FONT_SIZE, false, false);
-    let text_w =
-        font_metrics::text_width(display, "SansSerif", OLD_ACTIVITY_EDGE_FONT_SIZE, false, false);
+    let text_w = font_metrics::text_width(
+        display,
+        "SansSerif",
+        OLD_ACTIVITY_EDGE_FONT_SIZE,
+        false,
+        false,
+    );
     (text_w, line_h)
 }
 
@@ -2522,17 +2555,19 @@ fn layout_old_style_activity_graph(
     let edge_offset_x = gl.render_offset.0;
     let edge_offset_y = gl.render_offset.1;
 
-    let node_by_id: std::collections::HashMap<&str, &crate::layout::graphviz::NodeLayout> =
-        gl.nodes.iter().map(|node| (node.id.as_str(), node)).collect();
+    let node_by_id: std::collections::HashMap<&str, &crate::layout::graphviz::NodeLayout> = gl
+        .nodes
+        .iter()
+        .map(|node| (node.id.as_str(), node))
+        .collect();
     let mut activity_nodes = Vec::with_capacity(old_graph.nodes.len());
     let mut old_node_meta = Vec::with_capacity(old_graph.nodes.len());
     let mut node_layout_index = HashMap::new();
 
     for (idx, node) in old_graph.nodes.iter().enumerate() {
-        let gv = node_by_id
-            .get(node.id.as_str())
-            .copied()
-            .ok_or_else(|| crate::Error::Layout(format!("missing old-style activity node {}", node.id)))?;
+        let gv = node_by_id.get(node.id.as_str()).copied().ok_or_else(|| {
+            crate::Error::Layout(format!("missing old-style activity node {}", node.id))
+        })?;
         let kind = match node.kind {
             OldActivityNodeKind::Start => ActivityNodeKindLayout::Start,
             OldActivityNodeKind::End => ActivityNodeKindLayout::Stop,
@@ -2560,16 +2595,15 @@ fn layout_old_style_activity_graph(
     let mut activity_edges = Vec::with_capacity(old_graph.links.len());
     let mut old_edge_meta = Vec::with_capacity(old_graph.links.len());
     for (idx, link) in old_graph.links.iter().enumerate() {
-        let gv = gl
-            .edges
-            .get(idx)
-            .ok_or_else(|| crate::Error::Layout(format!("missing old-style activity edge {}", link.uid)))?;
-        let from_index = *node_layout_index
-            .get(&link.from_id)
-            .ok_or_else(|| crate::Error::Layout(format!("missing activity edge source {}", link.from_id)))?;
-        let to_index = *node_layout_index
-            .get(&link.to_id)
-            .ok_or_else(|| crate::Error::Layout(format!("missing activity edge target {}", link.to_id)))?;
+        let gv = gl.edges.get(idx).ok_or_else(|| {
+            crate::Error::Layout(format!("missing old-style activity edge {}", link.uid))
+        })?;
+        let from_index = *node_layout_index.get(&link.from_id).ok_or_else(|| {
+            crate::Error::Layout(format!("missing activity edge source {}", link.from_id))
+        })?;
+        let to_index = *node_layout_index.get(&link.to_id).ok_or_else(|| {
+            crate::Error::Layout(format!("missing activity edge target {}", link.to_id))
+        })?;
         let shifted_points: Vec<(f64, f64)> = gv
             .points
             .iter()
@@ -3445,12 +3479,15 @@ mod tests {
             ActivityNodeKindLayout::Hexagon { east_lines } => {
                 // Trailing `\n` produces an empty trailing line, matching
                 // Java's `Display.create()` behaviour.
-                assert_eq!(east_lines, &vec![
-                    "a".to_string(),
-                    "b".to_string(),
-                    "c".to_string(),
-                    "".to_string(),
-                ]);
+                assert_eq!(
+                    east_lines,
+                    &vec![
+                        "a".to_string(),
+                        "b".to_string(),
+                        "c".to_string(),
+                        "".to_string(),
+                    ]
+                );
             }
             other => panic!("expected Hexagon kind, got {other:?}"),
         }
@@ -3862,10 +3899,15 @@ mod tests {
 
     #[test]
     fn wrap_note_text_carries_unclosed_back_highlight_to_continuation_lines() {
-        let wrapped = wrap_note_text(r#"* Calling the method is <back:red>prohibited overlap"#, 100.0);
+        let wrapped = wrap_note_text(
+            r#"* Calling the method is <back:red>prohibited overlap"#,
+            100.0,
+        );
         let lines: Vec<&str> = wrapped.split('\n').collect();
         assert!(
-            lines.iter().any(|line| line.contains("<back:red>prohibited")),
+            lines
+                .iter()
+                .any(|line| line.contains("<back:red>prohibited")),
             "first wrapped highlight line should keep the opening tag: {lines:?}"
         );
         assert!(

@@ -131,9 +131,8 @@ fn parse_keyword_id(line: &str, keyword: &str) -> Option<String> {
 
 fn parse_merge_id(line: &str) -> Option<String> {
     static MERGE_RE: OnceLock<Regex> = OnceLock::new();
-    let re = MERGE_RE.get_or_init(|| {
-        Regex::new(r"^([\p{L}\p{N}_.@]+):?<\+>$").expect("valid BPM merge regex")
-    });
+    let re = MERGE_RE
+        .get_or_init(|| Regex::new(r"^([\p{L}\p{N}_.@]+):?<\+>$").expect("valid BPM merge regex"));
     re.captures(line)
         .and_then(|caps| caps.get(1))
         .map(|m| m.as_str().to_string())
@@ -141,9 +140,7 @@ fn parse_merge_id(line: &str) -> Option<String> {
 
 fn is_valid_bpm_id(id: &str) -> bool {
     static ID_RE: OnceLock<Regex> = OnceLock::new();
-    let re = ID_RE.get_or_init(|| {
-        Regex::new(r"^[\p{L}\p{N}_.@]+$").expect("valid BPM id regex")
-    });
+    let re = ID_RE.get_or_init(|| Regex::new(r"^[\p{L}\p{N}_.@]+$").expect("valid BPM id regex"));
     re.is_match(id)
 }
 
@@ -216,7 +213,8 @@ mod tests {
 
     #[test]
     fn test_parse_merge_goto_resume() {
-        let src = "@startbpm\njoin1:<+>\n:Task B;\ngoto join1\n:Task C;\nresume join1\n:Task D;\n@endbpm";
+        let src =
+            "@startbpm\njoin1:<+>\n:Task B;\ngoto join1\n:Task C;\nresume join1\n:Task D;\n@endbpm";
         let d = parse_bpm_diagram(src).unwrap();
         assert_eq!(d.events.len(), 6);
         match &d.events[0] {
@@ -232,8 +230,7 @@ mod tests {
 
     #[test]
     fn test_parse_merge_without_colon_and_extended_id_chars() {
-        let src =
-            "@startbpm\njoin_1.@x<+>\ngoto join_1.@x\nresume join_1.@x\n@endbpm";
+        let src = "@startbpm\njoin_1.@x<+>\ngoto join_1.@x\nresume join_1.@x\n@endbpm";
         let d = parse_bpm_diagram(src).unwrap();
         assert_eq!(d.events.len(), 3);
         match &d.events[0] {

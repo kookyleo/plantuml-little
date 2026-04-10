@@ -450,9 +450,8 @@ pub fn parse_sequence_diagram_with_original(
                 let (label_str, color1, _color2) =
                     strip_leading_colors_with_colors(frag_trimmed[rest_start..].trim());
                 let label = label_str.to_string();
-                let color = color1.and_then(|c| {
-                    crate::klimt::color::resolve_color(&c).map(|c| c.to_svg())
-                });
+                let color =
+                    color1.and_then(|c| crate::klimt::color::resolve_color(&c).map(|c| c.to_svg()));
                 fragment_depth += 1;
                 debug!(
                     "parsed fragment start {kind:?} label={label:?} parallel={frag_parallel} (depth now {fragment_depth})"
@@ -478,12 +477,13 @@ pub fn parse_sequence_diagram_with_original(
                 } else {
                     Some(rest.to_string())
                 };
-                let color = color1.and_then(|c| {
-                    crate::klimt::color::resolve_color(&c).map(|c| c.to_svg())
-                });
+                let color =
+                    color1.and_then(|c| crate::klimt::color::resolve_color(&c).map(|c| c.to_svg()));
                 // Track as fragment for proper "end" matching
                 fragment_depth += 1;
-                debug!("parsed group start: {label:?} color={color:?} (depth now {fragment_depth})");
+                debug!(
+                    "parsed group start: {label:?} color={color:?} (depth now {fragment_depth})"
+                );
                 events.push(SeqEvent::FragmentStart {
                     kind: FragmentKind::Group,
                     label: label.unwrap_or_default(),
@@ -518,7 +518,12 @@ pub fn parse_sequence_diagram_with_original(
             // Strip trailing `: text` for separate handling
             let gate_text_part: Option<String>;
             if let Some(colon_pos) = s.find(" : ").or_else(|| s.find(":\t")) {
-                gate_text_part = Some(s[colon_pos + 1..].trim_start_matches(':').trim().to_string());
+                gate_text_part = Some(
+                    s[colon_pos + 1..]
+                        .trim_start_matches(':')
+                        .trim()
+                        .to_string(),
+                );
                 s = s[..colon_pos].trim().to_string();
             } else if s.ends_with(':') {
                 gate_text_part = Some(String::new());
@@ -560,9 +565,23 @@ pub fn parse_sequence_diagram_with_original(
                     s = format!("{s} : {t}");
                 }
             }
-            (s, gate_text_part, gate_color, gate_activate, gate_deactivate_source, gate_deactivate)
+            (
+                s,
+                gate_text_part,
+                gate_color,
+                gate_activate,
+                gate_deactivate_source,
+                gate_deactivate,
+            )
         };
-        let (ref gate_stripped_line, ref _gate_text, ref gate_color, gate_activate, gate_deactivate_source, gate_deactivate) = gate_stripped;
+        let (
+            ref gate_stripped_line,
+            ref _gate_text,
+            ref gate_color,
+            gate_activate,
+            gate_deactivate_source,
+            gate_deactivate,
+        ) = gate_stripped;
         if let Some(caps) = gate_left_re.captures(gate_stripped_line) {
             let arrow = caps.get(1).unwrap().as_str();
             let mut right = caps.get(2).unwrap().as_str().trim().to_string();
@@ -650,7 +669,10 @@ pub fn parse_sequence_diagram_with_original(
                 }
                 if gate_activate {
                     inline_life_events.push(events.len());
-                    events.push(SeqEvent::Activate(real_participant.clone(), gate_color.clone()));
+                    events.push(SeqEvent::Activate(
+                        real_participant.clone(),
+                        gate_color.clone(),
+                    ));
                 }
                 if gate_deactivate {
                     inline_life_events.push(events.len());
@@ -1240,8 +1262,8 @@ fn parse_arrow(left: &str, arrow: &str, right: &str, text: &str) -> Option<Messa
     let has_right_cross = after_boundary.ends_with('x') || after_boundary.ends_with('X');
 
     // Strip outer decorators (o, x, X)
-    let stripped = after_boundary.trim_start_matches(|c: char| c == 'o' || c == 'x' || c == 'X');
-    let stripped = stripped.trim_end_matches(|c: char| c == 'o' || c == 'x' || c == 'X');
+    let stripped = after_boundary.trim_start_matches(['o', 'x', 'X']);
+    let stripped = stripped.trim_end_matches(['o', 'x', 'X']);
 
     // Check for arrow heads / half-arrows on left and right
     let has_left_arrow =
@@ -1282,8 +1304,8 @@ fn parse_arrow(left: &str, arrow: &str, right: &str, text: &str) -> Option<Messa
 
     // Shaft style: -- is dashed, - is solid
     let shaft = stripped
-        .trim_start_matches(|c: char| c == '<' || c == '/' || c == '\\')
-        .trim_end_matches(|c: char| c == '>' || c == '/' || c == '\\');
+        .trim_start_matches(['<', '/', '\\'])
+        .trim_end_matches(['>', '/', '\\']);
     let arrow_style = if shaft.contains("--") {
         SeqArrowStyle::Dashed
     } else {
@@ -1342,7 +1364,11 @@ fn parse_arrow(left: &str, arrow: &str, right: &str, text: &str) -> Option<Messa
 /// - `note right : text`       — note on last message target
 /// - `note right of Bob : text` — note on explicit participant
 /// - `note right #color : text` — note with background color
-fn parse_note(line: &str, last_to: &Option<String>, last_from: &Option<String>) -> Option<SeqEvent> {
+fn parse_note(
+    line: &str,
+    last_to: &Option<String>,
+    last_from: &Option<String>,
+) -> Option<SeqEvent> {
     let rest = line.trim().strip_prefix("note ")?.trim_start();
     let lower = rest.to_lowercase();
 
@@ -2090,10 +2116,7 @@ Sally --> Bob
     fn parse_no_pragma_teoz_defaults_false() {
         let src = "@startuml\nA -> B : msg\n@enduml";
         let diagram = parse_sequence_diagram(src).unwrap();
-        assert!(
-            diagram.teoz_mode == false,
-            "teoz_mode should default to false"
-        );
+        assert!(!diagram.teoz_mode, "teoz_mode should default to false");
     }
 
     #[test]
@@ -2101,7 +2124,7 @@ Sally --> Bob
         let src = "@startuml\n!pragma graphviz_dot jdot\nA -> B : msg\n@enduml";
         let diagram = parse_sequence_diagram(src).unwrap();
         assert!(
-            diagram.teoz_mode == false,
+            !diagram.teoz_mode,
             "other pragmas should not enable teoz_mode"
         );
     }
@@ -2117,10 +2140,7 @@ Sally --> Bob
     fn hide_footbox_default_false() {
         let src = "@startuml\nA -> B : msg\n@enduml";
         let diagram = parse_sequence_diagram(src).unwrap();
-        assert!(
-            diagram.hide_footbox == false,
-            "hide footbox defaults to false"
-        );
+        assert!(!diagram.hide_footbox, "hide footbox defaults to false");
     }
 
     #[test]

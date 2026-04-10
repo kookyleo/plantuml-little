@@ -488,7 +488,7 @@ pub(crate) fn estimate_sprite_line_extra_height(line: &str, line_height: f64) ->
         let name_start = pos + start + 2;
         // Find closing > or {
         let end = line[name_start..]
-            .find(|c: char| c == '>' || c == '{' || c == ',')
+            .find(['>', '{', ','])
             .map(|i| name_start + i)
             .unwrap_or(line.len());
         let name = &line[name_start..end];
@@ -542,7 +542,11 @@ fn estimate_note_width(text: &str) -> f64 {
         .flat_map(|s| s.split("\\n"))
     {
         let trimmed = line.trim();
-        if trimmed == "----" || trimmed == "====" || trimmed.starts_with("----") || trimmed.starts_with("====") {
+        if trimmed == "----"
+            || trimmed == "===="
+            || trimmed.starts_with("----")
+            || trimmed.starts_with("====")
+        {
             // Horizontal rule: width is determined by other content, not by the rule itself
             continue;
         }
@@ -551,15 +555,15 @@ fn estimate_note_width(text: &str) -> f64 {
             // Java StripeTable tokenizes on '|', preserving spaces around content.
             // Cell width = text_width(content_with_spaces) where each cell has
             // a leading and trailing space.
-            let cells: Vec<&str> = trimmed[1..trimmed.len()-1]
-                .split('|')
-                .collect();
+            let cells: Vec<&str> = trimmed[1..trimmed.len() - 1].split('|').collect();
             let mut row_w = 0.0_f64;
             for cell in &cells {
                 let cell_text = cell.trim().trim_start_matches('=').trim();
                 let bold = cell.trim().starts_with('=');
-                let space_w = font_metrics::text_width(" ", "SansSerif", NOTE_FONT_SIZE, bold, false);
-                let cw = font_metrics::text_width(cell_text, "SansSerif", NOTE_FONT_SIZE, bold, false);
+                let space_w =
+                    font_metrics::text_width(" ", "SansSerif", NOTE_FONT_SIZE, bold, false);
+                let cw =
+                    font_metrics::text_width(cell_text, "SansSerif", NOTE_FONT_SIZE, bold, false);
                 row_w += cw + 2.0 * space_w; // Java: ' text ' = space + text + space
             }
             max_line_w = max_line_w.max(row_w);
@@ -796,7 +800,7 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
     // Resolve font family and sizes from skin params
     let default_font = skin
         .get("defaultfontname")
-        .map(|s| s.as_ref())
+        .map(|s| s)
         .unwrap_or("SansSerif");
     let default_font_size: Option<f64> = skin
         .get("defaultfontsize")
@@ -976,8 +980,8 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
                         //             = (componentPrefW + liveLength) + liveLength
                         //             = componentPrefW + 2 * liveLength
                         let live_thick = live_thickness_width(active_level);
-                        let needed = rose::self_arrow_preferred_size(&tm).width
-                            + live_thick + live_thick;
+                        let needed =
+                            rose::self_arrow_preferred_size(&tm).width + live_thick + live_thick;
                         match msg.direction {
                             SeqDirection::LeftToRight => {
                                 if idx < min_gaps.len() && needed > min_gaps[idx] {
@@ -1152,9 +1156,7 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
             }
             if !matches!(
                 &w[1],
-                SeqEvent::NoteRight { .. }
-                    | SeqEvent::NoteLeft { .. }
-                    | SeqEvent::NoteOver { .. }
+                SeqEvent::NoteRight { .. } | SeqEvent::NoteLeft { .. } | SeqEvent::NoteOver { .. }
             ) {
                 return false;
             }
@@ -1287,10 +1289,8 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
                 if !is_self {
                     let from_active = activation_stack
                         .get(&msg.from)
-                        .map_or(false, |s| !s.is_empty());
-                    let to_active = activation_stack
-                        .get(&msg.to)
-                        .map_or(false, |s| !s.is_empty());
+                        .is_some_and(|s| !s.is_empty());
+                    let to_active = activation_stack.get(&msg.to).is_some_and(|s| !s.is_empty());
                     // Look-ahead: will the target be activated before the next message?
                     let to_will_activate = !to_active
                         && sd.events[event_idx + 1..]
@@ -1385,7 +1385,7 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
                     .text
                     .split("\\n")
                     .flat_map(|s| s.split(crate::NEWLINE_CHAR))
-                    .map(|line| message_sprite_extra_height(line))
+                    .map(message_sprite_extra_height)
                     .fold(0.0_f64, f64::max);
                 let extra_height = multiline_extra + sprite_extra + size_extra;
                 // Java: arrow position = freeY + textHeight, where textHeight
@@ -1470,11 +1470,7 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
                         } else {
                             from_x
                         };
-                        let ret_edge = if has_bar_at_return {
-                            act_left
-                        } else {
-                            from_x
-                        };
+                        let ret_edge = if has_bar_at_return { act_left } else { from_x };
                         let outgoing_x = if is_activated { act_left } else { from_x };
                         let ret_x = ret_edge - 1.0;
                         let to = act_left - SELF_MSG_WIDTH;
@@ -1486,11 +1482,7 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
                         } else {
                             from_x
                         };
-                        let ret_edge = if has_bar_at_return {
-                            act_right
-                        } else {
-                            from_x
-                        };
+                        let ret_edge = if has_bar_at_return { act_right } else { from_x };
                         let outgoing_x = if is_activated { act_right } else { from_x };
                         let ret_x = ret_edge + 1.0;
                         let to = act_right + SELF_MSG_WIDTH;
@@ -1632,7 +1624,11 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
                     let base = last_event_msg_y.unwrap_or(MARGIN + max_ph + 1.0 + 10.0);
                     // Java STRICT_SELFMESSAGE_POSITION: when activation follows
                     // a self-message, add delta1=8 to the posYstartLevel.
-                    if last_message_was_self { base + 8.0 } else { base }
+                    if last_message_was_self {
+                        base + 8.0
+                    } else {
+                        base
+                    }
                 };
                 let stack = activation_stack.entry(name.clone()).or_default();
                 let level = stack.len() + 1; // 1-based nesting level
@@ -1832,7 +1828,8 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
                     is_self_msg_note: last_message_was_self,
                     is_note_on_message: last_message_was_self,
                     assoc_message_idx: last_message_idx,
-                    teoz_mode: false, color: None,
+                    teoz_mode: false,
+                    color: None,
                 });
                 // Record self-msg notes for post-shift x recomputation
                 if last_message_was_self {
@@ -1862,17 +1859,13 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
                         let starting_x = note_x - NOTE_COMPONENT_PADDING_X;
                         let frag_min = if last_self_msg_is_left {
                             // Reverse: arrow at centerX - arrowPW
-                            (px - last_self_msg_preferred_w).min(starting_x as f64)
+                            (px - last_self_msg_preferred_w).min(starting_x)
                         } else {
-                            starting_x as f64
+                            starting_x
                         };
                         // max uses untruncated px to avoid int truncation error
                         let frag_max = px + note_layout_width + note_right_shift;
-                        update_fragment_message_extent(
-                            &mut fragment_stack,
-                            frag_min,
-                            frag_max,
-                        );
+                        update_fragment_message_extent(&mut fragment_stack, frag_min, frag_max);
                     } else {
                         update_fragment_message_extent(
                             &mut fragment_stack,
@@ -1904,59 +1897,58 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
                         }
                         // Java standalone NoteBox after sprite arrow: the
                         // lifeline reaches notePolygonTop + notePreferredHeight + 5.
-                        lifeline_extend_y = lifeline_extend_y
-                            .max(note_y + note_pref_h + 5.0);
+                        lifeline_extend_y = lifeline_extend_y.max(note_y + note_pref_h + 5.0);
                     } else {
-                    // For non-self messages: tile start = note_y.
-                    // Arrow PH from tile start = y_cursor - note_y.
-                    // If note PH > arrow PH, push y_cursor forward by the difference.
-                    let arrow_ph = if last_message_extra_height > 0.0 {
-                        lp.message_spacing + last_message_extra_height
-                    } else {
-                        y_cursor - note_y
-                    };
-                    if note_pref_h > arrow_ph {
-                        let note_push = note_pref_h - arrow_ph;
-                        y_cursor += note_push;
-                        // Java ArrowAndNoteBox: when noteH > arrowH, the arrow is
-                        // pushed DOWN by (notePH - arrowPH)/2 to vertically center
-                        // it within the combined tile.  The arrow_ph used here is
-                        // `lp.message_spacing` (Java's arrow.getPreferredHeight),
-                        // not the inflated `y_cursor - note_y` that includes
-                        // back_offset double-counting.  When a centering push is
-                        // applied, also subtract any `note_extra` baseline offset
-                        // (3 px), which is otherwise compensating for the lack of
-                        // centering at the basic msg_y baseline.
-                        let center_arrow_ph = lp.message_spacing + last_message_extra_height;
-                        let mut centered = false;
-                        if note_pref_h > center_arrow_ph {
-                            let arrow_push = (note_pref_h - center_arrow_ph) / 2.0 - note_extra;
-                            if arrow_push > 0.0 {
-                                centered = true;
-                                if let Some(midx) = last_message_idx {
-                                    if let Some(m) = messages.get_mut(midx) {
-                                        m.y += arrow_push;
+                        // For non-self messages: tile start = note_y.
+                        // Arrow PH from tile start = y_cursor - note_y.
+                        // If note PH > arrow PH, push y_cursor forward by the difference.
+                        let arrow_ph = if last_message_extra_height > 0.0 {
+                            lp.message_spacing + last_message_extra_height
+                        } else {
+                            y_cursor - note_y
+                        };
+                        if note_pref_h > arrow_ph {
+                            let note_push = note_pref_h - arrow_ph;
+                            y_cursor += note_push;
+                            // Java ArrowAndNoteBox: when noteH > arrowH, the arrow is
+                            // pushed DOWN by (notePH - arrowPH)/2 to vertically center
+                            // it within the combined tile.  The arrow_ph used here is
+                            // `lp.message_spacing` (Java's arrow.getPreferredHeight),
+                            // not the inflated `y_cursor - note_y` that includes
+                            // back_offset double-counting.  When a centering push is
+                            // applied, also subtract any `note_extra` baseline offset
+                            // (3 px), which is otherwise compensating for the lack of
+                            // centering at the basic msg_y baseline.
+                            let center_arrow_ph = lp.message_spacing + last_message_extra_height;
+                            let mut centered = false;
+                            if note_pref_h > center_arrow_ph {
+                                let arrow_push = (note_pref_h - center_arrow_ph) / 2.0 - note_extra;
+                                if arrow_push > 0.0 {
+                                    centered = true;
+                                    if let Some(midx) = last_message_idx {
+                                        if let Some(m) = messages.get_mut(midx) {
+                                            m.y += arrow_push;
+                                        }
+                                    }
+                                    if let Some(y) = last_event_msg_y.as_mut() {
+                                        *y += arrow_push;
                                     }
                                 }
-                                if let Some(y) = last_event_msg_y.as_mut() {
-                                    *y += arrow_push;
-                                }
+                            }
+                            // Ensure lifeline extends past the note polygon + spacing
+                            let note_bottom = note_y + note_height;
+                            if centered {
+                                // Java: after the centered ArrowAndNoteBox tile, the
+                                // lifeline reaches NoteBox.startingY + notePH + 5
+                                //   = (note_y - 5) + note_pref_h + 10
+                                //   = note_y + note_pref_h + 5
+                                lifeline_extend_y =
+                                    lifeline_extend_y.max(note_y + note_pref_h + 5.0);
+                            } else {
+                                lifeline_extend_y =
+                                    lifeline_extend_y.max(note_bottom + lp.message_spacing / 2.0);
                             }
                         }
-                        // Ensure lifeline extends past the note polygon + spacing
-                        let note_bottom = note_y + note_height;
-                        if centered {
-                            // Java: after the centered ArrowAndNoteBox tile, the
-                            // lifeline reaches NoteBox.startingY + notePH + 5
-                            //   = (note_y - 5) + note_pref_h + 10
-                            //   = note_y + note_pref_h + 5
-                            lifeline_extend_y = lifeline_extend_y
-                                .max(note_y + note_pref_h + 5.0);
-                        } else {
-                            lifeline_extend_y = lifeline_extend_y
-                                .max(note_bottom + lp.message_spacing / 2.0);
-                        }
-                    }
                     }
                 } else {
                     // Standalone note (not following a message): advance by note height
@@ -2044,7 +2036,8 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
                     is_self_msg_note: last_message_was_self,
                     is_note_on_message: last_message_was_self,
                     assoc_message_idx: last_message_idx,
-                    teoz_mode: false, color: None,
+                    teoz_mode: false,
+                    color: None,
                 });
                 // Record self-msg notes for post-shift x recomputation
                 if last_message_was_self {
@@ -2070,7 +2063,10 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
                         // note_x is polygon position (startingX + paddingX); subtract
                         // paddingX to get startingX for fragment bounds.
                         let starting_x = note_x - NOTE_COMPONENT_PADDING_X;
-                        (starting_x, starting_x + note_layout_width + last_self_msg_preferred_w)
+                        (
+                            starting_x,
+                            starting_x + note_layout_width + last_self_msg_preferred_w,
+                        )
                     } else {
                         (
                             note_x - NOTE_COMPONENT_PADDING_X,
@@ -2115,8 +2111,7 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
                             }
                         }
                         if centered {
-                            lifeline_extend_y = lifeline_extend_y
-                                .max(note_y + note_pref_h + 5.0);
+                            lifeline_extend_y = lifeline_extend_y.max(note_y + note_pref_h + 5.0);
                         } else {
                             lifeline_extend_y += note_push / 2.0;
                         }
@@ -2154,10 +2149,8 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
                             let note_push = (combined_h - note_preferred_h) / 2.0;
                             last_self_msg_starting_y + note_push + NOTE_COMPONENT_PADDING_Y
                         } else if last_message_sprite_extra > 0.0 {
-                            let arrow_advance =
-                                rose::ARROW_DELTA_Y + 2.0 * rose::ARROW_PADDING_Y;
-                            (msg_y + arrow_advance + NOTE_COMPONENT_PADDING_Y)
-                                .max(MARGIN + max_ph)
+                            let arrow_advance = rose::ARROW_DELTA_Y + 2.0 * rose::ARROW_PADDING_Y;
+                            (msg_y + arrow_advance + NOTE_COMPONENT_PADDING_Y).max(MARGIN + max_ph)
                         } else {
                             let back_offset =
                                 lp.message_spacing - NOTE_FOLD + last_message_extra_height;
@@ -2178,7 +2171,8 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
                         is_self_msg_note: false,
                         is_note_on_message: false,
                         assoc_message_idx: last_message_idx,
-                        teoz_mode: false, color: None,
+                        teoz_mode: false,
+                        color: None,
                     });
                     let note_bottom = note_y + note_height;
                     if note_bottom > y_cursor {
@@ -2268,7 +2262,9 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
                 last_message_y = None;
             }
 
-            SeqEvent::FragmentStart { kind, label, color, .. } => {
+            SeqEvent::FragmentStart {
+                kind, label, color, ..
+            } => {
                 let frag_y = y_cursor - lp.frag_y_backoff;
                 let depth = fragment_stack.len();
                 fragment_stack.push(FragmentStackEntry {
@@ -2501,9 +2497,9 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
     // carries the left-side `MARGIN`, so only one trailing `MARGIN` belongs in
     // the raw body width.
     let right_margin = MARGIN;
-    let mut total_width = participants
-        .last()
-        .map_or(2.0 * MARGIN, |p| p.x + effective_widths.last().unwrap_or(&p.box_width) / 2.0 + right_margin);
+    let mut total_width = participants.last().map_or(2.0 * MARGIN, |p| {
+        p.x + effective_widths.last().unwrap_or(&p.box_width) / 2.0 + right_margin
+    });
 
     // Expand total_width if any note extends beyond the participant area.
     // For self-message RIGHT notes, Java ArrowAndNoteBox uses the combined
@@ -2528,7 +2524,9 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
                 let msg = &messages[mi];
                 let pos2 = msg.from_x; // un-truncated participant center
                 let arrow_pw = {
-                    let text_w: f64 = msg.text_lines.iter()
+                    let text_w: f64 = msg
+                        .text_lines
+                        .iter()
                         .map(|line| message_line_width(line, default_font, msg_font_size))
                         .fold(0.0_f64, f64::max);
                     f64::max(text_w + 14.0, rose::SELF_ARROW_WIDTH + 5.0)
@@ -2544,7 +2542,10 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
                 }
             } else {
                 // Fallback if no associated message
-                (note.x - NOTE_COMPONENT_PADDING_X) + note.layout_width + NOTE_COMPONENT_PADDING_X + MARGIN
+                (note.x - NOTE_COMPONENT_PADDING_X)
+                    + note.layout_width
+                    + NOTE_COMPONENT_PADDING_X
+                    + MARGIN
             }
         } else {
             // Java NoteBox.getMaxX = (int)(pos2) + preferredWidth, where the int
@@ -2682,7 +2683,11 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
         .map(|n| {
             // Java: startingX = note.x - paddingX for all note types
             let sx = n.x - NOTE_COMPONENT_PADDING_X;
-            if sx < 0.0 { -sx } else { 0.0 }
+            if sx < 0.0 {
+                -sx
+            } else {
+                0.0
+            }
         })
         .fold(0.0_f64, f64::max);
     let left_overflow = msg_overflow.max(frag_overflow).max(note_overflow);
@@ -2741,8 +2746,7 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
                     notes[note_idx].x = new_polygon_x;
                     // Update fragment bounds using startingX (not polygon_x)
                     for frag in &mut fragments {
-                        if frag.y <= notes[note_idx].y
-                            && notes[note_idx].y <= frag.y + frag.height
+                        if frag.y <= notes[note_idx].y && notes[note_idx].y <= frag.y + frag.height
                         {
                             // Java InGroupableList: min = member.getMinX - MARGIN5
                             // For LEFT notes: ArrowAndNoteBox.min = noteStartX, max = noteStartX + combinedPW
@@ -2750,10 +2754,16 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
                             // For RIGHT notes: ArrowAndNoteBox extent doesn't add arrowPW to the RIGHT
                             //   since the arrow is to the LEFT of the note
                             let (note_frag_min, note_frag_max) = if notes[note_idx].is_left {
-                                (new_starting_x - MARGIN, new_starting_x + note_lw + arrow_pw + MARGIN)
+                                (
+                                    new_starting_x - MARGIN,
+                                    new_starting_x + note_lw + arrow_pw + MARGIN,
+                                )
                             } else {
                                 let right_shift = NOTE_COMPONENT_PADDING_X;
-                                (new_starting_x - MARGIN, new_starting_x + note_lw + right_shift + MARGIN)
+                                (
+                                    new_starting_x - MARGIN,
+                                    new_starting_x + note_lw + right_shift + MARGIN,
+                                )
                             };
                             if note_frag_min < frag.x {
                                 let expand = frag.x - note_frag_min;
@@ -2868,20 +2878,44 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
         }
         layout.lifeline_top += dy;
         layout.lifeline_bottom += dy;
-        for m in &mut layout.messages { m.y += dy; }
-        for a in &mut layout.activations { a.y_start += dy; a.y_end += dy; }
-        for d in &mut layout.destroys { d.y += dy; }
-        for n in &mut layout.notes { n.y += dy; }
-        for g in &mut layout.groups { g.y_start += dy; g.y_end += dy; }
-        for f in &mut layout.fragments { f.y += dy; for (sep_y, _) in &mut f.separators { *sep_y += dy; } }
-        for div in &mut layout.dividers { div.y += dy; div.component_y += dy; }
-        for delay in &mut layout.delays { delay.y += dy; delay.lifeline_break_y += dy; }
-        for r in &mut layout.refs { r.y += dy; }
+        for m in &mut layout.messages {
+            m.y += dy;
+        }
+        for a in &mut layout.activations {
+            a.y_start += dy;
+            a.y_end += dy;
+        }
+        for d in &mut layout.destroys {
+            d.y += dy;
+        }
+        for n in &mut layout.notes {
+            n.y += dy;
+        }
+        for g in &mut layout.groups {
+            g.y_start += dy;
+            g.y_end += dy;
+        }
+        for f in &mut layout.fragments {
+            f.y += dy;
+            for (sep_y, _) in &mut f.separators {
+                *sep_y += dy;
+            }
+        }
+        for div in &mut layout.dividers {
+            div.y += dy;
+            div.component_y += dy;
+        }
+        for delay in &mut layout.delays {
+            delay.y += dy;
+            delay.lifeline_break_y += dy;
+        }
+        for r in &mut layout.refs {
+            r.y += dy;
+        }
     }
 
     Ok(layout)
 }
-
 
 // ── Tests ────────────────────────────────────────────────────────────────────
 

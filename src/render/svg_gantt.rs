@@ -68,7 +68,10 @@ fn render_grid(sg: &mut SvgGraphic, layout: &GanttLayout) {
     let grid_style = DrawStyle::outline(GRID_COLOR, 0.5);
     for label in &layout.time_axis.labels {
         LineShape {
-            x1: label.x, y1: layout.time_axis.y, x2: label.x, y2: layout.height,
+            x1: label.x,
+            y1: layout.time_axis.y,
+            x2: label.x,
+            y2: layout.height,
         }
         .draw(sg, &grid_style);
     }
@@ -113,7 +116,12 @@ fn render_bar(sg: &mut SvgGraphic, bar: &GanttBarLayout, font_color: &str, font_
         }
     });
     RectShape {
-        x: bar.x, y: bar.y, w: bar.width, h: bar.height, rx: 3.0, ry: 3.0,
+        x: bar.x,
+        y: bar.y,
+        w: bar.width,
+        h: bar.height,
+        rx: 3.0,
+        ry: 3.0,
     }
     .draw(sg, &DrawStyle::filled(fill, stroke, 0.5));
     let label_x = bar.x - LABEL_PADDING;
@@ -142,8 +150,7 @@ fn render_dependency(sg: &mut SvgGraphic, dep: &GanttDepLayout) {
     if dep.points.len() == 2 {
         let (x1, y1) = dep.points[0];
         let (x2, y2) = dep.points[1];
-        LineShape { x1, y1, x2, y2 }
-            .draw(sg, &arrow_style);
+        LineShape { x1, y1, x2, y2 }.draw(sg, &arrow_style);
     } else {
         let flat: Vec<f64> = dep.points.iter().flat_map(|(px, py)| [*px, *py]).collect();
         sg.set_fill_color("none");
@@ -176,21 +183,25 @@ fn render_dependency(sg: &mut SvgGraphic, dep: &GanttDepLayout) {
 
 fn render_note(sg: &mut SvgGraphic, note: &GanttNoteLayout, font_color: &str, font_size: f64) {
     if let Some((x1, y1, x2, y2)) = note.connector {
-        LineShape { x1, y1, x2, y2 }
-            .draw(sg, &DrawStyle {
+        LineShape { x1, y1, x2, y2 }.draw(
+            sg,
+            &DrawStyle {
                 fill: None,
                 stroke: Some(NOTE_BORDER.into()),
                 stroke_width: 0.5,
                 dash_array: Some((4.0, 4.0)),
                 delta_shadow: 0.0,
-            });
+            },
+        );
     }
     let fold_x = note.x + note.width - NOTE_FOLD;
     let fold_y = note.y + NOTE_FOLD;
     let x2 = note.x + note.width;
     let y2 = note.y + note.height;
     PolygonShape {
-        points: vec![note.x, note.y, fold_x, note.y, x2, fold_y, x2, y2, note.x, y2],
+        points: vec![
+            note.x, note.y, fold_x, note.y, x2, fold_y, x2, y2, note.x, y2,
+        ],
     }
     .draw(sg, &DrawStyle::filled(NOTE_BG, NOTE_BORDER, 0.5));
     sg.push_raw(&format!(r#"<path d="M{},{} L{},{} L{},{} " fill="none" style="stroke:{NOTE_BORDER};stroke-width:0.5;"/>"#, fmt_coord(fold_x), fmt_coord(note.y), fmt_coord(fold_x), fmt_coord(fold_y), fmt_coord(x2), fmt_coord(fold_y)));
@@ -318,7 +329,10 @@ fn add_open_days(start: CalendarDate, days: u32, closed_days: &[String]) -> Cale
     let mut current = start;
     let mut remaining = days;
     while remaining > 0 {
-        if !closed_days.iter().any(|name| day_matches_name(current, name)) {
+        if !closed_days
+            .iter()
+            .any(|name| day_matches_name(current, name))
+        {
             remaining -= 1;
         }
         current = current.add_days(1);
@@ -335,7 +349,10 @@ fn task_fill_and_stroke(color_spec: Option<&str>) -> (String, String) {
         if let Some((fill, stroke)) = color_spec.split_once('/') {
             return (normalized_color(fill), normalized_color(stroke));
         }
-        return (normalized_color(color_spec), CALENDAR_DEFAULT_STROKE.to_string());
+        return (
+            normalized_color(color_spec),
+            CALENDAR_DEFAULT_STROKE.to_string(),
+        );
     }
     (
         CALENDAR_DEFAULT_FILL.to_string(),
@@ -435,7 +452,11 @@ fn render_weekly_calendar_gantt(diagram: &GanttDiagram, skin: &SkinParams) -> Op
         .tasks
         .iter()
         .map(|task| {
-            let id = task.alias.as_ref().cloned().unwrap_or_else(|| task.name.clone());
+            let id = task
+                .alias
+                .as_ref()
+                .cloned()
+                .unwrap_or_else(|| task.name.clone());
             let start = task
                 .start_date
                 .as_deref()
@@ -450,16 +471,29 @@ fn render_weekly_calendar_gantt(diagram: &GanttDiagram, skin: &SkinParams) -> Op
             .tasks
             .iter()
             .map(|task| {
-                let id = task.alias.as_ref().cloned().unwrap_or_else(|| task.name.clone());
+                let id = task
+                    .alias
+                    .as_ref()
+                    .cloned()
+                    .unwrap_or_else(|| task.name.clone());
                 let start = starts.get(&id).copied().unwrap_or(project_start);
-                (id, add_open_days(start, task.duration_days, &diagram.closed_days))
+                (
+                    id,
+                    add_open_days(start, task.duration_days, &diagram.closed_days),
+                )
             })
             .collect();
 
         let mut changed = false;
         for dep in &diagram.dependencies {
-            let from_id = name_to_id.get(&dep.from).cloned().unwrap_or_else(|| dep.from.clone());
-            let to_id = name_to_id.get(&dep.to).cloned().unwrap_or_else(|| dep.to.clone());
+            let from_id = name_to_id
+                .get(&dep.from)
+                .cloned()
+                .unwrap_or_else(|| dep.from.clone());
+            let to_id = name_to_id
+                .get(&dep.to)
+                .cloned()
+                .unwrap_or_else(|| dep.to.clone());
             let from_end = ends.get(&from_id).copied()?;
             let current_to = starts.get(&to_id).copied().unwrap_or(project_start);
             if from_end > current_to {
@@ -476,9 +510,16 @@ fn render_weekly_calendar_gantt(diagram: &GanttDiagram, skin: &SkinParams) -> Op
         .tasks
         .iter()
         .map(|task| {
-            let id = task.alias.as_ref().cloned().unwrap_or_else(|| task.name.clone());
+            let id = task
+                .alias
+                .as_ref()
+                .cloned()
+                .unwrap_or_else(|| task.name.clone());
             let start = starts.get(&id).copied().unwrap_or(project_start);
-            (id, add_open_days(start, task.duration_days, &diagram.closed_days))
+            (
+                id,
+                add_open_days(start, task.duration_days, &diagram.closed_days),
+            )
         })
         .collect();
 
@@ -523,7 +564,11 @@ fn render_weekly_calendar_gantt(diagram: &GanttDiagram, skin: &SkinParams) -> Op
 
         if color != pending_color {
             if let Some(prev_color) = pending_color.take() {
-                backgrounds.push((prev_color, x_of(pending_start), x_of(day) - x_of(pending_start)));
+                backgrounds.push((
+                    prev_color,
+                    x_of(pending_start),
+                    x_of(day) - x_of(pending_start),
+                ));
             }
             pending_start = day;
             pending_color = color.clone();
@@ -556,17 +601,29 @@ fn render_weekly_calendar_gantt(diagram: &GanttDiagram, skin: &SkinParams) -> Op
     let mut day = project_start;
     while day <= max_day {
         if day.month != span_start_day.month || day.year != span_start_day.year {
-            month_spans.push((span_start_day.month_label(), x_of(span_start_day), x_of(day)));
+            month_spans.push((
+                span_start_day.month_label(),
+                x_of(span_start_day),
+                x_of(day),
+            ));
             span_start_day = day;
         }
         day = day.add_days(1);
     }
-    month_spans.push((span_start_day.month_label(), x_of(span_start_day), chart_end_x));
+    month_spans.push((
+        span_start_day.month_label(),
+        x_of(span_start_day),
+        chart_end_x,
+    ));
 
     let mut bars = Vec::new();
     let mut task_bar_lookup: HashMap<String, usize> = HashMap::new();
     for (index, task) in diagram.tasks.iter().enumerate() {
-        let id = task.alias.as_ref().cloned().unwrap_or_else(|| task.name.clone());
+        let id = task
+            .alias
+            .as_ref()
+            .cloned()
+            .unwrap_or_else(|| task.name.clone());
         let start = starts.get(&id).copied().unwrap_or(project_start);
         let end = ends.get(&id).copied().unwrap_or(start);
         let bar_start = x_of(start) + 4.0;
@@ -661,10 +718,16 @@ fn render_weekly_calendar_gantt(diagram: &GanttDiagram, skin: &SkinParams) -> Op
 
     let mut deps = Vec::new();
     for dep in &diagram.dependencies {
-        let from_id = name_to_id.get(&dep.from).cloned().unwrap_or_else(|| dep.from.clone());
-        let to_id = name_to_id.get(&dep.to).cloned().unwrap_or_else(|| dep.to.clone());
-        let from_bar = bars.get(*task_bar_lookup.get(&from_id)? )?;
-        let to_bar = bars.get(*task_bar_lookup.get(&to_id)? )?;
+        let from_id = name_to_id
+            .get(&dep.from)
+            .cloned()
+            .unwrap_or_else(|| dep.from.clone());
+        let to_id = name_to_id
+            .get(&dep.to)
+            .cloned()
+            .unwrap_or_else(|| dep.to.clone());
+        let from_bar = bars.get(*task_bar_lookup.get(&from_id)?)?;
+        let to_bar = bars.get(*task_bar_lookup.get(&to_id)?)?;
         deps.push(CalendarDependency {
             x1: from_bar.bar_end - 12.0,
             y1: from_bar.bar_bottom,
@@ -1168,11 +1231,12 @@ mod tests {
         d.print_scale = Some("weekly".into());
         d.project_start = Some("2020-10-15".into());
         d.closed_days = vec!["sunday".into(), "saturday".into()];
-        d.colored_ranges.push(crate::model::gantt::GanttColoredRange {
-            start: "2020/10/26".into(),
-            end: "2020/11/01".into(),
-            color: "salmon".into(),
-        });
+        d.colored_ranges
+            .push(crate::model::gantt::GanttColoredRange {
+                start: "2020/10/26".into(),
+                end: "2020/11/01".into(),
+                color: "salmon".into(),
+            });
         d.tasks.push(crate::model::gantt::GanttTask {
             name: "Prototype design".into(),
             alias: Some("TASK1".into()),

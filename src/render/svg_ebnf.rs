@@ -1,4 +1,3 @@
-use std::fmt::Write;
 use crate::font_metrics;
 use crate::klimt::svg::{fmt_coord, xml_escape};
 use crate::layout::ebnf::{EbnfElement, EbnfLayout};
@@ -6,6 +5,7 @@ use crate::model::ebnf::EbnfDiagram;
 use crate::render::svg::{ensure_visible_int, write_svg_root_bg};
 use crate::style::SkinParams;
 use crate::Result;
+use std::fmt::Write;
 
 const FONT_SIZE: f64 = 14.0;
 const COMMENT_FS: f64 = 13.0;
@@ -16,7 +16,10 @@ const NOTE_BG: &str = "#FEFFDD";
 pub fn render_ebnf(_d: &EbnfDiagram, l: &EbnfLayout, skin: &SkinParams) -> Result<String> {
     let mut buf = String::with_capacity(8192);
     let bg = skin.get_or("backgroundcolor", "#FFFFFF");
-    let (sw, sh) = (ensure_visible_int(l.width) as f64, ensure_visible_int(l.height) as f64);
+    let (sw, sh) = (
+        ensure_visible_int(l.width) as f64,
+        ensure_visible_int(l.height) as f64,
+    );
     write_svg_root_bg(&mut buf, sw, sh, "EBNF", bg);
     // Emit SVG <title> metadata from layout title (Java does this via SvgGraphics)
     if let Some(title_text) = l.elements.iter().find_map(|e| match e {
@@ -34,7 +37,13 @@ pub fn render_ebnf(_d: &EbnfDiagram, l: &EbnfLayout, skin: &SkinParams) -> Resul
                 write!(buf, r#"<g class="title" data-source-line="1"><text fill="{}" font-family="sans-serif" font-size="{}" font-weight="bold" lengthAdjust="spacing" textLength="{}" x="{}" y="{}">{}</text></g>"#,
                     TEXT_C, FONT_SIZE as i32, ff(tw), ff(*x), ff(*y), xml_escape(text)).unwrap();
             }
-            EbnfElement::Comment { x, y, width, height, text } => {
+            EbnfElement::Comment {
+                x,
+                y,
+                width,
+                height,
+                text,
+            } => {
                 let fold = 10.0;
                 write!(buf, r#"<path d="M{},{} L{},{} L{},{} L{},{} L{},{} L{},{}" fill="{}" style="stroke:{};stroke-width:0.5;"/>"#,
                     ff(*x), ff(*y), ff(*x), ff(*y + *height), ff(*x + *width), ff(*y + *height), ff(*x + *width), ff(*y + fold), ff(*x + *width - fold), ff(*y), ff(*x), ff(*y), NOTE_BG, STROKE).unwrap();
@@ -56,7 +65,13 @@ pub fn render_ebnf(_d: &EbnfDiagram, l: &EbnfLayout, skin: &SkinParams) -> Resul
                 write!(buf, r#"<text fill="{}" font-family="sans-serif" font-size="{}" font-weight="bold" lengthAdjust="spacing" textLength="{}" x="{}" y="{}">{}</text>"#,
                     TEXT_C, FONT_SIZE as i32, ff(tw), ff(*x), ff(*y), xml_escape(text)).unwrap();
             }
-            EbnfElement::TerminalBox { x, y, width, height, text } => {
+            EbnfElement::TerminalBox {
+                x,
+                y,
+                width,
+                height,
+                text,
+            } => {
                 write!(buf, r#"<rect fill="none" height="{}" style="stroke:{};stroke-width:0.5;" width="{}" x="{}" y="{}"/>"#,
                     ff(*height), STROKE, ff(*width), ff(*x), ff(*y)).unwrap();
                 let asc = font_metrics::ascent("SansSerif", FONT_SIZE, false, false);
@@ -64,13 +79,47 @@ pub fn render_ebnf(_d: &EbnfDiagram, l: &EbnfLayout, skin: &SkinParams) -> Resul
                 write!(buf, r#"<text fill="{}" font-family="sans-serif" font-size="{}" lengthAdjust="spacing" textLength="{}" x="{}" y="{}">{}</text>"#,
                     TEXT_C, FONT_SIZE as i32, ff(tw), ff(*x + 5.0), ff(*y + asc + 5.0), xml_escape(text)).unwrap();
             }
-            EbnfElement::HLine { x1, y1, x2, y2, stroke_width } | EbnfElement::VLine { x1, y1, x2, y2, stroke_width } => {
-                write!(buf, r#"<line style="stroke:{};stroke-width:{};" x1="{}" x2="{}" y1="{}" y2="{}"/>"#,
-                    STROKE, ff(*stroke_width), ff(*x1), ff(*x2), ff(*y1), ff(*y2)).unwrap();
+            EbnfElement::HLine {
+                x1,
+                y1,
+                x2,
+                y2,
+                stroke_width,
             }
-            EbnfElement::Path { d, fill, stroke_width } => {
+            | EbnfElement::VLine {
+                x1,
+                y1,
+                x2,
+                y2,
+                stroke_width,
+            } => {
+                write!(
+                    buf,
+                    r#"<line style="stroke:{};stroke-width:{};" x1="{}" x2="{}" y1="{}" y2="{}"/>"#,
+                    STROKE,
+                    ff(*stroke_width),
+                    ff(*x1),
+                    ff(*x2),
+                    ff(*y1),
+                    ff(*y2)
+                )
+                .unwrap();
+            }
+            EbnfElement::Path {
+                d,
+                fill,
+                stroke_width,
+            } => {
                 let f = if *fill { STROKE } else { "none" };
-                write!(buf, r#"<path d="{}" fill="{}" style="stroke:{};stroke-width:{};"/>"#, d, f, STROKE, ff(*stroke_width)).unwrap();
+                write!(
+                    buf,
+                    r#"<path d="{}" fill="{}" style="stroke:{};stroke-width:{};"/>"#,
+                    d,
+                    f,
+                    STROKE,
+                    ff(*stroke_width)
+                )
+                .unwrap();
             }
             EbnfElement::StartCircle { cx, cy, r } => {
                 write!(buf, r#"<ellipse cx="{}" cy="{}" fill="none" rx="{}" ry="{}" style="stroke:{};stroke-width:2;"/>"#, ff(*cx), ff(*cy), ff(*r), ff(*r), STROKE).unwrap();
@@ -78,7 +127,13 @@ pub fn render_ebnf(_d: &EbnfDiagram, l: &EbnfLayout, skin: &SkinParams) -> Resul
             EbnfElement::EndCircle { cx, cy, r } => {
                 write!(buf, r#"<ellipse cx="{}" cy="{}" fill="{}" rx="{}" ry="{}" style="stroke:{};stroke-width:1;"/>"#, ff(*cx), ff(*cy), STROKE, ff(*r), ff(*r), STROKE).unwrap();
             }
-            EbnfElement::NonTerminalBox { x, y, width, height, text } => {
+            EbnfElement::NonTerminalBox {
+                x,
+                y,
+                width,
+                height,
+                text,
+            } => {
                 // Rounded rect with fill #F1F1F1, stroke 1.5, corner 10
                 write!(buf, r##"<rect fill="#F1F1F1" height="{}" rx="5" ry="5" style="stroke:{};stroke-width:1.5;" width="{}" x="{}" y="{}"/>"##,
                     ff(*height), STROKE, ff(*width), ff(*x), ff(*y)).unwrap();
@@ -88,12 +143,40 @@ pub fn render_ebnf(_d: &EbnfDiagram, l: &EbnfLayout, skin: &SkinParams) -> Resul
                     TEXT_C, FONT_SIZE as i32, ff(tw), ff(*x + 5.0), ff(*y + asc + 5.0), xml_escape(text)).unwrap();
             }
             EbnfElement::Arrow { x, y } => {
-                write!(buf, r#"<path d="M{},{} L{},{} L{},{} L{},{} L{},{}" fill="{}"/>"#,
-                    ff(*x), ff(*y), ff(*x), ff(*y - 3.0), ff(*x + 6.0), ff(*y), ff(*x), ff(*y + 3.0), ff(*x), ff(*y), STROKE).unwrap();
+                write!(
+                    buf,
+                    r#"<path d="M{},{} L{},{} L{},{} L{},{} L{},{}" fill="{}"/>"#,
+                    ff(*x),
+                    ff(*y),
+                    ff(*x),
+                    ff(*y - 3.0),
+                    ff(*x + 6.0),
+                    ff(*y),
+                    ff(*x),
+                    ff(*y + 3.0),
+                    ff(*x),
+                    ff(*y),
+                    STROKE
+                )
+                .unwrap();
             }
             EbnfElement::LeftArrow { x, y } => {
-                write!(buf, r#"<path d="M{},{} L{},{} L{},{} L{},{} L{},{}" fill="{}"/>"#,
-                    ff(*x), ff(*y), ff(*x), ff(*y - 3.0), ff(*x - 6.0), ff(*y), ff(*x), ff(*y + 3.0), ff(*x), ff(*y), STROKE).unwrap();
+                write!(
+                    buf,
+                    r#"<path d="M{},{} L{},{} L{},{} L{},{} L{},{}" fill="{}"/>"#,
+                    ff(*x),
+                    ff(*y),
+                    ff(*x),
+                    ff(*y - 3.0),
+                    ff(*x - 6.0),
+                    ff(*y),
+                    ff(*x),
+                    ff(*y + 3.0),
+                    ff(*x),
+                    ff(*y),
+                    STROKE
+                )
+                .unwrap();
             }
             // Regex-specific elements — not used by EBNF, ignore
             EbnfElement::DashedBox { .. }
@@ -101,8 +184,11 @@ pub fn render_ebnf(_d: &EbnfDiagram, l: &EbnfLayout, skin: &SkinParams) -> Resul
             | EbnfElement::RepetitionLabel { .. } => {}
         }
     }
-    buf.push_str("</g></svg>"); Ok(buf)
+    buf.push_str("</g></svg>");
+    Ok(buf)
 }
 
 #[inline]
-fn ff(v: f64) -> String { fmt_coord(v) }
+fn ff(v: f64) -> String {
+    fmt_coord(v)
+}

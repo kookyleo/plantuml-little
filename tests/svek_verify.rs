@@ -772,11 +772,7 @@ fn dot_factory_with_cluster() {
         dot
     );
     // Java uses HTML table label (cluster_dot_label), not plain string
-    assert!(
-        dot.contains("label=<"),
-        "HTML table label in: {}",
-        dot
-    );
+    assert!(dot.contains("label=<"), "HTML table label in: {}", dot);
     // Node A should be inside cluster hierarchy
     let cluster_pos = dot.find("subgraph cluster_pkg").unwrap();
     let node_pos = dot.find("\"A\" [").unwrap();

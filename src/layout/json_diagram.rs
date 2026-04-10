@@ -473,15 +473,14 @@ pub fn layout_json(jd: &JsonDiagram) -> Result<JsonLayout> {
     layout_subtree(0, &specs, root_w / 2.0, root_h / 2.0, &mut positioned);
 
     // Normalize: find min x/y and shift so every box's top/left ≥ MARGIN.
-    let (min_x, min_y) = positioned.iter().fold(
-        (f64::INFINITY, f64::INFINITY),
-        |(mx, my), pb| {
+    let (min_x, min_y) = positioned
+        .iter()
+        .fold((f64::INFINITY, f64::INFINITY), |(mx, my), pb| {
             (
                 mx.min(pb.cx - pb.width / 2.0),
                 my.min(pb.cy - pb.height / 2.0),
             )
-        },
-    );
+        });
     let dx = MARGIN - min_x;
     let dy = MARGIN - min_y;
     for pb in &mut positioned {
@@ -567,14 +566,8 @@ pub fn layout_json(jd: &JsonDiagram) -> Result<JsonLayout> {
     // SvgGraphics.ensureVisible's `(int)(x + 1)` rounding. `ensure_visible_int`
     // in the renderer adds the final "+1 then floor", matching Java's
     // `(int)(x + 1)` on the viewBox dimension.
-    let max_right = boxes
-        .iter()
-        .map(|b| b.x + b.width)
-        .fold(0.0_f64, f64::max);
-    let max_bottom = boxes
-        .iter()
-        .map(|b| b.y + b.height)
-        .fold(0.0_f64, f64::max);
+    let max_right = boxes.iter().map(|b| b.x + b.width).fold(0.0_f64, f64::max);
+    let max_bottom = boxes.iter().map(|b| b.y + b.height).fold(0.0_f64, f64::max);
     let width = max_right + MARGIN + 1.0;
     let height = max_bottom + MARGIN + 1.0;
 

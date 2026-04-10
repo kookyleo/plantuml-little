@@ -9,8 +9,9 @@ use std::sync::LazyLock;
 ///
 /// Each variant carries metadata identical to the Java enum fields:
 /// `(margin, fill, arrow_size)`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
 pub enum LinkDecor {
+    #[default]
     None,
     Extends,
     Composition,
@@ -36,12 +37,6 @@ pub enum LinkDecor {
     HalfArrowUp,
     HalfArrowDown,
     SquareToBeRemoved,
-}
-
-impl Default for LinkDecor {
-    fn default() -> Self {
-        Self::None
-    }
 }
 
 /// Metadata for each `LinkDecor` variant.

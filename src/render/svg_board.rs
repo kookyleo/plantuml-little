@@ -40,19 +40,28 @@ pub fn render_board(_d: &BoardDiagram, l: &BoardLayout, skin: &SkinParams) -> Re
     for col in &l.columns {
         // Column background
         RectShape {
-            x: col.x, y: col.y, w: col.width, h: col.height, rx: 5.0, ry: 5.0,
+            x: col.x,
+            y: col.y,
+            w: col.width,
+            h: col.height,
+            rx: 5.0,
+            ry: 5.0,
         }
         .draw(&mut sg, &col_style);
 
         // Column header
         RectShape {
-            x: col.x, y: col.y, w: col.width, h: 24.0, rx: 5.0, ry: 5.0,
+            x: col.x,
+            y: col.y,
+            w: col.width,
+            h: 24.0,
+            rx: 5.0,
+            ry: 5.0,
         }
         .draw(&mut sg, &header_style);
 
         let tw = font_metrics::text_width(&col.header, "SansSerif", FONT_SIZE, true, false);
-        let baseline =
-            font_metrics::ascent("SansSerif", FONT_SIZE, true, false);
+        let baseline = font_metrics::ascent("SansSerif", FONT_SIZE, true, false);
         sg.set_fill_color(HEADER_FG);
         sg.svg_text(
             &col.header,
@@ -73,14 +82,17 @@ pub fn render_board(_d: &BoardDiagram, l: &BoardLayout, skin: &SkinParams) -> Re
         // Cards
         for card in &col.cards {
             RectShape {
-                x: card.x + 4.0, y: card.y, w: card.width - 8.0, h: card.height, rx: 3.0, ry: 3.0,
+                x: card.x + 4.0,
+                y: card.y,
+                w: card.width - 8.0,
+                h: card.height,
+                rx: 3.0,
+                ry: 3.0,
             }
             .draw(&mut sg, &card_style);
 
-            let ctw =
-                font_metrics::text_width(&card.label, "SansSerif", FONT_SIZE, false, false);
-            let cbl =
-                font_metrics::ascent("SansSerif", FONT_SIZE, false, false);
+            let ctw = font_metrics::text_width(&card.label, "SansSerif", FONT_SIZE, false, false);
+            let cbl = font_metrics::ascent("SansSerif", FONT_SIZE, false, false);
             sg.set_fill_color(TEXT_COLOR);
             sg.svg_text(
                 &card.label,

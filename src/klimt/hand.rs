@@ -24,7 +24,11 @@ impl JavaRandom {
 
     /// Generate next n bits (Java's `next(int bits)`)
     fn next(&mut self, bits: u32) -> i32 {
-        self.seed = (self.seed.wrapping_mul(Self::MULTIPLIER).wrapping_add(Self::INCREMENT)) & Self::MASK;
+        self.seed = (self
+            .seed
+            .wrapping_mul(Self::MULTIPLIER)
+            .wrapping_add(Self::INCREMENT))
+            & Self::MASK;
         (self.seed >> (48 - bits)) as i32
     }
 
@@ -201,14 +205,7 @@ pub fn rect_to_hand_polygon(
             rnd: take_rng(rnd),
         };
         jiggle.line_to(width - rx, 0.0);
-        jiggle.arc_to(
-            -std::f64::consts::FRAC_PI_2,
-            0.0,
-            width - rx,
-            ry,
-            rx,
-            ry,
-        );
+        jiggle.arc_to(-std::f64::consts::FRAC_PI_2, 0.0, width - rx, ry, rx, ry);
         jiggle.line_to(width, height - ry);
         jiggle.arc_to(
             0.0,
@@ -245,11 +242,7 @@ pub fn rect_to_hand_polygon(
 
 /// Convert a line to a hand-drawn path.
 /// Port of Java `ULineHand`.
-pub fn line_to_hand_path(
-    end_x: f64,
-    end_y: f64,
-    rnd: &mut JavaRandom,
-) -> Vec<PathSegment> {
+pub fn line_to_hand_path(end_x: f64, end_y: f64, rnd: &mut JavaRandom) -> Vec<PathSegment> {
     let mut jiggle = HandJiggle {
         points: vec![(0.0, 0.0)],
         start_x: 0.0,
@@ -265,10 +258,7 @@ pub fn line_to_hand_path(
 
 /// Re-jiggle polygon points for hand-drawn effect.
 /// Port of Java `UPolygonHand`.
-pub fn polygon_to_hand(
-    points: &[(f64, f64)],
-    rnd: &mut JavaRandom,
-) -> Vec<(f64, f64)> {
+pub fn polygon_to_hand(points: &[(f64, f64)], rnd: &mut JavaRandom) -> Vec<(f64, f64)> {
     if points.is_empty() {
         return Vec::new();
     }
@@ -342,10 +332,7 @@ mod tests {
         ];
         for &exp in &expected {
             let got = rnd.next_double();
-            assert!(
-                (got - exp).abs() < 1e-15,
-                "expected {exp}, got {got}"
-            );
+            assert!((got - exp).abs() < 1e-15, "expected {exp}, got {got}");
         }
     }
 

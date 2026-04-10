@@ -38,7 +38,9 @@ pub(crate) fn render_compact_error_svg(
     message: &str,
 ) -> Result<String> {
     let all_lines: Vec<&str> = source.lines().collect();
-    let highlight_idx = line.saturating_sub(1).min(all_lines.len().saturating_sub(1));
+    let highlight_idx = line
+        .saturating_sub(1)
+        .min(all_lines.len().saturating_sub(1));
     let start_idx = all_lines[..=highlight_idx]
         .iter()
         .rposition(|line| line.trim().starts_with("@start"))

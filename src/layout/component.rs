@@ -11,7 +11,7 @@ use crate::layout::graphviz::{
 };
 use crate::model::component::{ComponentDiagram, ComponentEntity, ComponentKind, ComponentLink};
 use crate::model::Direction;
-use crate::render::svg::{ViewportConfig, compute_viewport};
+use crate::render::svg::{compute_viewport, ViewportConfig};
 use crate::svek::node::EntityPosition;
 use crate::svek::shape_type::ShapeType;
 use crate::Result;
@@ -134,7 +134,7 @@ pub struct ComponentGroupLayout {
 const FONT_SIZE: f64 = 14.0;
 // Java: line_height = (ascent + descent) from AWT FontMetrics for SansSerif 14pt
 const LINE_HEIGHT: f64 = 16.296875; // (1901 + 483) / 2048 * 14 — exact
-                                  // Java: component node padding = 15px top + 15px bottom
+                                    // Java: component node padding = 15px top + 15px bottom
 const PADDING: f64 = 15.0;
 // Java: no explicit minimum width for components; the name + icon determines width
 const NODE_MIN_WIDTH: f64 = 0.0;
@@ -224,7 +224,10 @@ pub fn parse_c4_line_props(line: &str) -> (&str, f64, bool, bool) {
     }
     // Check for `//<size:N>text</size>//` (italic + explicit size)
     let trimmed = line.trim();
-    let inner = trimmed.strip_prefix("//").and_then(|s| s.strip_suffix("//")).unwrap_or(trimmed);
+    let inner = trimmed
+        .strip_prefix("//")
+        .and_then(|s| s.strip_suffix("//"))
+        .unwrap_or(trimmed);
     if let Some(after_size) = inner.strip_prefix("<size:") {
         if let Some(end) = after_size.find('>') {
             let size_str = &after_size[..end];
@@ -237,7 +240,10 @@ pub fn parse_c4_line_props(line: &str) -> (&str, f64, bool, bool) {
         }
     }
     // Check for italic wrapper `//text//`
-    if let Some(inner) = trimmed.strip_prefix("//").and_then(|s| s.strip_suffix("//")) {
+    if let Some(inner) = trimmed
+        .strip_prefix("//")
+        .and_then(|s| s.strip_suffix("//"))
+    {
         return (inner, FONT_SIZE, false, true);
     }
     (trimmed, FONT_SIZE, false, false)
@@ -245,7 +251,13 @@ pub fn parse_c4_line_props(line: &str) -> (&str, f64, bool, bool) {
 
 /// Count how many wrapped lines a text segment produces at the given font,
 /// and the maximum line width. Returns (num_lines, max_line_width).
-fn wrapped_line_metrics(text: &str, font_size: f64, bold: bool, italic: bool, max_w: f64) -> (usize, f64) {
+fn wrapped_line_metrics(
+    text: &str,
+    font_size: f64,
+    bold: bool,
+    italic: bool,
+    max_w: f64,
+) -> (usize, f64) {
     let words: Vec<&str> = text.split(' ').collect();
     if words.is_empty() {
         return (1, 0.0);
@@ -257,7 +269,11 @@ fn wrapped_line_metrics(text: &str, font_size: f64, bold: bool, italic: bool, ma
 
     for (i, word) in words.iter().enumerate() {
         let ww = font_metrics::text_width(word, "SansSerif", font_size, bold, italic);
-        let needed = if i == 0 || cur_w == 0.0 { ww } else { space_w + ww };
+        let needed = if i == 0 || cur_w == 0.0 {
+            ww
+        } else {
+            space_w + ww
+        };
         if cur_w > 0.0 && cur_w + needed > max_w {
             max_line_w = max_line_w.max(cur_w);
             lines += 1;
@@ -292,7 +308,10 @@ fn estimate_entity_size(entity: &ComponentEntity, wrap_width: Option<f64>) -> (f
         let h = ACTOR_FIG_H + label_h;
         log::debug!(
             "estimate_entity_size: ACTOR name={:?} label_w={:.4} w={:.4} h={:.4}",
-            entity.name, label_w, w, h
+            entity.name,
+            label_w,
+            w,
+            h
         );
         return (w, h);
     }
@@ -443,7 +462,11 @@ fn estimate_entity_size(entity: &ComponentEntity, wrap_width: Option<f64>) -> (f
         .map(|line| {
             if line.contains('<') {
                 crate::render::svg_richtext::creole_text_width_preserve_newline(
-                    line, "SansSerif", FONT_SIZE, false, false,
+                    line,
+                    "SansSerif",
+                    FONT_SIZE,
+                    false,
+                    false,
                 )
             } else {
                 text_width(line)
@@ -469,15 +492,20 @@ fn estimate_entity_size(entity: &ComponentEntity, wrap_width: Option<f64>) -> (f
                 continue;
             }
             let w = if in_code {
-                let code_pad = font_metrics::char_width(
-                    ' ', "Monospaced", FONT_SIZE, false, false,
-                );
+                let code_pad = font_metrics::char_width(' ', "Monospaced", FONT_SIZE, false, false);
                 font_metrics::text_width(line, "Monospaced", FONT_SIZE, false, false)
-                    + ml + code_pad + mr
+                    + ml
+                    + code_pad
+                    + mr
             } else {
                 crate::render::svg_richtext::creole_text_width_preserve_newline(
-                    line, "SansSerif", FONT_SIZE, false, false,
-                ) + ml + mr
+                    line,
+                    "SansSerif",
+                    FONT_SIZE,
+                    false,
+                    false,
+                ) + ml
+                    + mr
             };
             max_w = max_w.max(w);
         }
@@ -487,13 +515,13 @@ fn estimate_entity_size(entity: &ComponentEntity, wrap_width: Option<f64>) -> (f
     // Java EntityImageDescription measures the stereotype with guillemets at italic 14pt.
     // The entity dimension = TextBlockVertical2(stereo, name).addDimension(margin).
     // The +2 accounts for the 1px inner draw offset on each side in Java rendering.
-    let stereo_w = entity
-        .stereotype
-        .as_ref()
-        .map_or(0.0, |s| {
-            let guillemet_text = format!("\u{00AB}{s}\u{00BB}");
-            font_metrics::text_width(&guillemet_text, "SansSerif", FONT_SIZE, false, true) + ml + mr + 2.0
-        });
+    let stereo_w = entity.stereotype.as_ref().map_or(0.0, |s| {
+        let guillemet_text = format!("\u{00AB}{s}\u{00BB}");
+        font_metrics::text_width(&guillemet_text, "SansSerif", FONT_SIZE, false, true)
+            + ml
+            + mr
+            + 2.0
+    });
 
     // Java USymbolFolder.getDimTitle returns min width=40 for the folder tab.
     let folder_min_w = if matches!(entity.kind, ComponentKind::Folder) {
@@ -501,7 +529,11 @@ fn estimate_entity_size(entity: &ComponentEntity, wrap_width: Option<f64>) -> (f
     } else {
         0.0
     };
-    let width = name_w.max(desc_w).max(stereo_w).max(folder_min_w).max(NODE_MIN_WIDTH);
+    let width = name_w
+        .max(desc_w)
+        .max(stereo_w)
+        .max(folder_min_w)
+        .max(NODE_MIN_WIDTH);
 
     let stereo_lines = if entity.stereotype.is_some() {
         1.0
@@ -545,7 +577,15 @@ fn estimate_entity_size(entity: &ComponentEntity, wrap_width: Option<f64>) -> (f
 
     log::debug!(
         "estimate_entity_size: name={:?} kind={:?} margins=({},{},{},{}) lines={} w={:.1} h={:.1}",
-        entity.name, entity.kind, ml, mr, mt, mb, total_lines, width, height
+        entity.name,
+        entity.kind,
+        ml,
+        mr,
+        mt,
+        mb,
+        total_lines,
+        width,
+        height
     );
 
     (width, height)
@@ -598,9 +638,7 @@ fn estimate_note_size_with_embedded(
             .map(|l| font_metrics::text_width(l, "SansSerif", NOTE_FONT_SIZE, false, false))
             .fold(0.0_f64, f64::max);
 
-        let content_width = before_text_width
-            .max(emb.width)
-            .max(after_text_width);
+        let content_width = before_text_width.max(emb.width).max(after_text_width);
         let before_height = before_lines.len() as f64 * NOTE_LINE_HEIGHT;
         let after_height = after_lines.len() as f64 * NOTE_LINE_HEIGHT;
         let content_height = before_height + emb.height + after_height;
@@ -650,7 +688,10 @@ fn align_raw_path_d(raw_d: &str, points: &[(f64, f64)], dx: f64, dy: f64) -> Str
 // Public entry point
 // ---------------------------------------------------------------------------
 
-pub fn layout_component(cd: &ComponentDiagram, skin: &crate::style::SkinParams) -> Result<ComponentLayout> {
+pub fn layout_component(
+    cd: &ComponentDiagram,
+    skin: &crate::style::SkinParams,
+) -> Result<ComponentLayout> {
     log::debug!(
         "layout_component: {} entities, {} links, {} groups, {} notes",
         cd.entities.len(),
@@ -669,7 +710,7 @@ pub fn layout_component(cd: &ComponentDiagram, skin: &crate::style::SkinParams) 
     // The counter starts at 1, first addAndGet(1) returns 2.
     let note_gmn_names: Vec<String> = {
         enum Item {
-            Entity(usize), // source_line
+            Entity(usize),      // source_line
             Note(usize, usize), // (note_index, source_line)
         }
         let mut items: Vec<Item> = Vec::new();
@@ -787,16 +828,8 @@ pub fn layout_component(cd: &ComponentDiagram, skin: &crate::style::SkinParams) 
                 // Entities that draw UEmpty(10,10) extending their bounding box:
                 // - Database: UEmpty at (width, height) → extends +10 on both X and Y
                 // - Node: UEmpty at (0, height) → extends +10 on Y only
-                lf_node_polygon: matches!(
-                    e.kind,
-                    ComponentKind::Node
-                        | ComponentKind::Database
-                ),
-                lf_polygon_hack: matches!(
-                    e.kind,
-                    ComponentKind::Node
-                        | ComponentKind::Folder
-                ),
+                lf_node_polygon: matches!(e.kind, ComponentKind::Node | ComponentKind::Database),
+                lf_polygon_hack: matches!(e.kind, ComponentKind::Node | ComponentKind::Folder),
                 lf_actor_stickman: e.kind == ComponentKind::Actor,
                 hidden: false,
             }
@@ -863,7 +896,7 @@ pub fn layout_component(cd: &ComponentDiagram, skin: &crate::style::SkinParams) 
                 Direction::TopToBottom | Direction::BottomToTop
             );
             let hint = link.direction_hint.as_deref();
-            let is_cross_axis = hint.map_or(false, |h| {
+            let is_cross_axis = hint.is_some_and(|h| {
                 if is_vertical {
                     h == "left" || h == "right"
                 } else {
@@ -871,7 +904,7 @@ pub fn layout_component(cd: &ComponentDiagram, skin: &crate::style::SkinParams) 
                 }
             });
             // Java inverts for LEFT and UP directions (regardless of main/cross axis)
-            let invert = hint.map_or(false, |h| h == "up" || h == "left");
+            let invert = hint.is_some_and(|h| h == "up" || h == "left");
             let (edge_from, edge_to) = if invert {
                 (to_dot, from_dot)
             } else {
@@ -894,10 +927,10 @@ pub fn layout_component(cd: &ComponentDiagram, skin: &crate::style::SkinParams) 
                 label_dimension: None,
                 tail_label: None,
                 tail_label_dimension: None,
-            tail_label_boxed: false,
+                tail_label_boxed: false,
                 head_label: None,
                 head_label_dimension: None,
-            head_label_boxed: false,
+                head_label_boxed: false,
                 tail_decoration: crate::svek::edge::LinkDecoration::None,
                 head_decoration: crate::svek::edge::LinkDecoration::None,
                 line_style: crate::svek::edge::LinkStyle::Normal,
@@ -956,25 +989,26 @@ pub fn layout_component(cd: &ComponentDiagram, skin: &crate::style::SkinParams) 
             // Other groups use the general creole height computation which handles
             // separators (----) and bullet items (* text) correctly.
             let title_h = if is_boundary {
-                g.name.lines().map(|line| {
-                    let fs = if let Some((_, order)) =
-                        crate::parser::creole::strip_heading_prefix_ordered(line)
-                    {
-                        match order {
-                            0 => FONT_SIZE + 4.0,
-                            1 => FONT_SIZE + 2.0,
-                            2 => FONT_SIZE + 1.0,
-                            _ => FONT_SIZE,
-                        }
-                    } else {
-                        FONT_SIZE
-                    };
-                    font_metrics::line_height("SansSerif", fs, true, false)
-                }).sum()
+                g.name
+                    .lines()
+                    .map(|line| {
+                        let fs = if let Some((_, order)) =
+                            crate::parser::creole::strip_heading_prefix_ordered(line)
+                        {
+                            match order {
+                                0 => FONT_SIZE + 4.0,
+                                1 => FONT_SIZE + 2.0,
+                                2 => FONT_SIZE + 1.0,
+                                _ => FONT_SIZE,
+                            }
+                        } else {
+                            FONT_SIZE
+                        };
+                        font_metrics::line_height("SansSerif", fs, true, false)
+                    })
+                    .sum()
             } else {
-                crate::render::svg_richtext::compute_creole_entity_name_height(
-                    &g.name, FONT_SIZE,
-                )
+                crate::render::svg_richtext::compute_creole_entity_name_height(&g.name, FONT_SIZE)
             };
             // Add sprite height if stereotype references a sprite
             let sprite_h = g
@@ -1004,14 +1038,12 @@ pub fn layout_component(cd: &ComponentDiagram, skin: &crate::style::SkinParams) 
             let stereo_h = if has_sprite_stereo || g.stereotypes.is_empty() {
                 0.0 // sprite already counted in sprite_h, or no stereotypes
             } else {
-                let stereo_refs: Vec<&str> =
-                    g.stereotypes.iter().map(|s| s.as_str()).collect();
+                let stereo_refs: Vec<&str> = g.stereotypes.iter().map(|s| s.as_str()).collect();
                 let stereo_fs = skin
                     .stereotype_font_size_for("rectangle", &stereo_refs)
                     .unwrap_or(FONT_SIZE);
                 let line_h =
-                    font_metrics::line_height("SansSerif", stereo_fs, false, true)
-                        .max(10.0); // Java AtomText: if (h < 10) h = 10
+                    font_metrics::line_height("SansSerif", stereo_fs, false, true).max(10.0); // Java AtomText: if (h < 10) h = 10
                 g.stereotypes.len() as f64 * line_h
             };
             // Java ClusterHeader: titleAndAttributeHeight =
@@ -1022,11 +1054,7 @@ pub fn layout_component(cd: &ComponentDiagram, skin: &crate::style::SkinParams) 
             // The -5 adjustment is applied in cluster_dot_label (svek/mod.rs:888).
             let (supp_h, supp_w) = cluster_supp_for_shape(&g.kind);
             let raw_h = stereo_h + sprite_h + title_h + boundary_subtitle_h + supp_h;
-            let label_h = if sprite_h > 0.0 {
-                raw_h.floor()
-            } else {
-                raw_h
-            };
+            let label_h = if sprite_h > 0.0 { raw_h.floor() } else { raw_h };
             let final_label_w = label_w.floor().max(0.0) + supp_w;
             // Java: thereALinkFromOrToGroup generates extra _a/_i wrappers
             // and a special point node inside the cluster.
@@ -1111,10 +1139,10 @@ pub fn layout_component(cd: &ComponentDiagram, skin: &crate::style::SkinParams) 
                 label_dimension: None,
                 tail_label: None,
                 tail_label_dimension: None,
-            tail_label_boxed: false,
+                tail_label_boxed: false,
                 head_label: None,
                 head_label_dimension: None,
-            head_label_boxed: false,
+                head_label_boxed: false,
                 tail_decoration: crate::svek::edge::LinkDecoration::None,
                 head_decoration: crate::svek::edge::LinkDecoration::None,
                 line_style: crate::svek::edge::LinkStyle::Dashed,
@@ -1177,10 +1205,10 @@ pub fn layout_component(cd: &ComponentDiagram, skin: &crate::style::SkinParams) 
                         label_dimension: None,
                         tail_label: None,
                         tail_label_dimension: None,
-            tail_label_boxed: false,
+                        tail_label_boxed: false,
                         head_label: None,
                         head_label_dimension: None,
-            head_label_boxed: false,
+                        head_label_boxed: false,
                         tail_decoration: crate::svek::edge::LinkDecoration::None,
                         head_decoration: crate::svek::edge::LinkDecoration::None,
                         line_style: crate::svek::edge::LinkStyle::Normal,
@@ -1198,10 +1226,10 @@ pub fn layout_component(cd: &ComponentDiagram, skin: &crate::style::SkinParams) 
                         label_dimension: None,
                         tail_label: None,
                         tail_label_dimension: None,
-            tail_label_boxed: false,
+                        tail_label_boxed: false,
                         head_label: None,
                         head_label_dimension: None,
-            head_label_boxed: false,
+                        head_label_boxed: false,
                         tail_decoration: crate::svek::edge::LinkDecoration::None,
                         head_decoration: crate::svek::edge::LinkDecoration::None,
                         line_style: crate::svek::edge::LinkStyle::Normal,
@@ -1304,54 +1332,53 @@ pub fn layout_component(cd: &ComponentDiagram, skin: &crate::style::SkinParams) 
         .iter()
         .map(|link| {
             let hint = link.direction_hint.as_deref();
-            hint.map_or(false, |h| h == "up" || h == "left")
+            hint.is_some_and(|h| h == "up" || h == "left")
         })
         .collect();
 
-    let mut edges: Vec<ComponentEdgeLayout> = gl
-        .edges
-        .iter()
-        .zip(cd.links.iter())
-        .enumerate()
-        .map(|(i, (el, link))| {
-            let mut points = el.points.clone();
-            for pt in &mut points {
-                pt.0 += edge_offset_x;
-                pt.1 += edge_offset_y;
-            }
-            let inverted = link_inversions.get(i).copied().unwrap_or(false);
-            let (from, to) = if inverted {
-                // When inverted, the DOT direction is (to→from), so the SVG
-                // should show "reverse link TO to FROM" matching Java.
-                (link.to.clone(), link.from.clone())
-            } else {
-                (link.from.clone(), link.to.clone())
-            };
-            // label_xy from svek is in YDelta-transformed space (pre-moveDelta,
-            // pre-normalization). Apply the same transform as path points to put
-            // it in the final SVG coordinate space:
-            //   final = raw + moveDelta + render_offset - normalize_offset
-            let label_xy = el.label_xy.map(|(lx, ly)| {
-                (
-                    lx + gl.move_delta.0 + gl.render_offset.0 - gl.normalize_offset.0,
-                    ly + gl.move_delta.1 + gl.render_offset.1 - gl.normalize_offset.1,
-                )
-            });
-            ComponentEdgeLayout {
-                from,
-                to,
-                points,
-                raw_path_d: el
-                    .raw_path_d
-                    .as_ref()
-                    .map(|raw_d| align_raw_path_d(raw_d, &el.points, edge_offset_x, edge_offset_y)),
-                label: link.label.clone(),
-                dashed: link.dashed,
-                reversed_for_svg: inverted,
-                label_xy,
-            }
-        })
-        .collect();
+    let mut edges: Vec<ComponentEdgeLayout> =
+        gl.edges
+            .iter()
+            .zip(cd.links.iter())
+            .enumerate()
+            .map(|(i, (el, link))| {
+                let mut points = el.points.clone();
+                for pt in &mut points {
+                    pt.0 += edge_offset_x;
+                    pt.1 += edge_offset_y;
+                }
+                let inverted = link_inversions.get(i).copied().unwrap_or(false);
+                let (from, to) = if inverted {
+                    // When inverted, the DOT direction is (to→from), so the SVG
+                    // should show "reverse link TO to FROM" matching Java.
+                    (link.to.clone(), link.from.clone())
+                } else {
+                    (link.from.clone(), link.to.clone())
+                };
+                // label_xy from svek is in YDelta-transformed space (pre-moveDelta,
+                // pre-normalization). Apply the same transform as path points to put
+                // it in the final SVG coordinate space:
+                //   final = raw + moveDelta + render_offset - normalize_offset
+                let label_xy = el.label_xy.map(|(lx, ly)| {
+                    (
+                        lx + gl.move_delta.0 + gl.render_offset.0 - gl.normalize_offset.0,
+                        ly + gl.move_delta.1 + gl.render_offset.1 - gl.normalize_offset.1,
+                    )
+                });
+                ComponentEdgeLayout {
+                    from,
+                    to,
+                    points,
+                    raw_path_d: el.raw_path_d.as_ref().map(|raw_d| {
+                        align_raw_path_d(raw_d, &el.points, edge_offset_x, edge_offset_y)
+                    }),
+                    label: link.label.clone(),
+                    dashed: link.dashed,
+                    reversed_for_svg: inverted,
+                    label_xy,
+                }
+            })
+            .collect();
 
     // Build group layouts from graphviz cluster output
     let group_map: HashMap<String, &crate::model::component::ComponentGroup> =
@@ -1474,7 +1501,10 @@ pub fn layout_component(cd: &ComponentDiagram, skin: &crate::style::SkinParams) 
         } else {
             // Fallback for notes without graphviz position
             let all_right = nodes.iter().map(|n| n.x + n.width).fold(0.0_f64, f64::max);
-            (all_right + NOTE_OFFSET + MARGIN, MARGIN + i as f64 * (nh + PADDING))
+            (
+                all_right + NOTE_OFFSET + MARGIN,
+                MARGIN + i as f64 * (nh + PADDING),
+            )
         };
 
         // Compute ear tip from note position relative to target entity.
@@ -1494,8 +1524,7 @@ pub fn layout_component(cd: &ComponentDiagram, skin: &crate::style::SkinParams) 
                     .map(|c| c.0)
                     .unwrap_or(_tx + _tw / 2.0 - edge_offset_x);
                 // Java Smetana rounds node centers to integers for edge routing
-                let ear_x = (note_raw_cx.round() + entity_raw_cx.round()) / 2.0
-                    + edge_offset_x;
+                let ear_x = (note_raw_cx.round() + entity_raw_cx.round()) / 2.0 + edge_offset_x;
                 match note.position.as_str() {
                     "top" => {
                         // Ear points down to target top; use entity top - small offset
@@ -1518,7 +1547,10 @@ pub fn layout_component(cd: &ComponentDiagram, skin: &crate::style::SkinParams) 
             (None, None)
         };
 
-        let qname = note_gmn_names.get(i).cloned().unwrap_or_else(|| format!("GMN{}", i));
+        let qname = note_gmn_names
+            .get(i)
+            .cloned()
+            .unwrap_or_else(|| format!("GMN{}", i));
 
         note_layouts.push(ComponentNoteLayout {
             x: nx,
@@ -1540,8 +1572,10 @@ pub fn layout_component(cd: &ComponentDiagram, skin: &crate::style::SkinParams) 
     // A diagram with clusters (groups) is not degenerated even if it has ≤1 node.
     // Notes are now part of the graphviz LF span, so no separate extension needed.
     let real_entity_count = nodes.len();
-    let is_degenerated =
-        real_entity_count <= 1 && edges.is_empty() && group_layouts.is_empty() && cd.notes.is_empty();
+    let is_degenerated = real_entity_count <= 1
+        && edges.is_empty()
+        && group_layouts.is_empty()
+        && cd.notes.is_empty();
     let (raw_body_w, raw_body_h) = if is_degenerated && !nodes.is_empty() {
         const DEGENERATED_DELTA: f64 = 7.0;
         let entity_w = nodes[0].width;
@@ -1579,7 +1613,8 @@ pub fn layout_component(cd: &ComponentDiagram, skin: &crate::style::SkinParams) 
         }
     }
 
-    let (total_width, total_height) = compute_viewport(max_right, max_bottom, &ViewportConfig::COMPONENT);
+    let (total_width, total_height) =
+        compute_viewport(max_right, max_bottom, &ViewportConfig::COMPONENT);
 
     log::debug!(
         "layout_component done: {:.0}x{:.0} (span={:.1}x{:.1})",
@@ -1898,7 +1933,11 @@ mod tests {
         assert_eq!(n.id, "comp1");
         assert!(n.width > 0.0);
         // Component kind: margin_top(20) + LINE_HEIGHT(16.2969) + margin_bottom(10) = 46.2969
-        assert!(n.height > 40.0, "Component entity should be >40px tall: {}", n.height);
+        assert!(
+            n.height > 40.0,
+            "Component entity should be >40px tall: {}",
+            n.height
+        );
         assert!(n.x >= MARGIN);
         assert!(n.y >= MARGIN);
     }
@@ -2008,7 +2047,10 @@ mod tests {
         // So total lines = desc lines (3), not name + desc (4).
         let (_, _, mt, mb) = entity_margins(&ComponentKind::Rectangle);
         let expected = 3.0 * LINE_HEIGHT + mt + mb;
-        assert!(h >= expected, "description should increase height: h={h} expected={expected}");
+        assert!(
+            h >= expected,
+            "description should increase height: h={h} expected={expected}"
+        );
     }
 
     // 7. Note layout

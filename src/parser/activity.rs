@@ -468,13 +468,19 @@ pub fn parse_activity_diagram(source: &str) -> Result<ActivityDiagram> {
             let condition = extract_parenthesized(rest).unwrap_or_default();
             // Parse optional "is (label)" after the condition
             let is_text = {
-                let after_cond = rest.strip_prefix('(')
+                let after_cond = rest
+                    .strip_prefix('(')
                     .and_then(|s| {
                         let mut depth = 1;
                         for (i, ch) in s.char_indices() {
                             match ch {
                                 '(' => depth += 1,
-                                ')' => { depth -= 1; if depth == 0 { return Some(&s[i+1..]); } }
+                                ')' => {
+                                    depth -= 1;
+                                    if depth == 0 {
+                                        return Some(&s[i + 1..]);
+                                    }
+                                }
                                 _ => {}
                             }
                         }
@@ -1101,7 +1107,8 @@ impl OldGraphBuilder {
     fn ensure_ref(&mut self, node_ref: &str) -> String {
         let trimmed = node_ref.trim();
         if trimmed == "(*)" {
-            if self.node_index.contains_key("start") && self.last_entity_id.as_deref() != Some("start")
+            if self.node_index.contains_key("start")
+                && self.last_entity_id.as_deref() != Some("start")
             {
                 return self.ensure_end();
             }

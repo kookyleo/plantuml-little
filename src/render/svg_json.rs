@@ -58,8 +58,15 @@ fn render_box(sg: &mut SvgGraphic, jbox: &JsonBox) {
     let (x, y, w, h) = (jbox.x, jbox.y, jbox.width, jbox.height);
 
     // Background fill
-    RectShape { x, y, w, h, rx: 5.0, ry: 5.0 }
-        .draw(sg, &DrawStyle::filled(ENTITY_BG, ENTITY_BG, 1.5));
+    RectShape {
+        x,
+        y,
+        w,
+        h,
+        rx: 5.0,
+        ry: 5.0,
+    }
+    .draw(sg, &DrawStyle::filled(ENTITY_BG, ENTITY_BG, 1.5));
 
     let has_keys = jbox.rows.iter().any(|r| r.key.is_some());
     let bl = baseline_offset();
@@ -117,8 +124,10 @@ fn render_box(sg: &mut SvgGraphic, jbox: &JsonBox) {
 
         if has_keys {
             LineShape {
-                x1: jbox.separator_x, y1: row.y_top,
-                x2: jbox.separator_x, y2: row.y_top + row.height,
+                x1: jbox.separator_x,
+                y1: row.y_top,
+                x2: jbox.separator_x,
+                y2: row.y_top + row.height,
             }
             .draw(sg, &DrawStyle::outline(BORDER_COLOR, 1.0));
         }
@@ -131,14 +140,26 @@ fn render_box(sg: &mut SvgGraphic, jbox: &JsonBox) {
 
         if i < jbox.rows.len() - 1 {
             let ly = row.y_top + row.height;
-            LineShape { x1: x, y1: ly, x2: x + w, y2: ly }
-                .draw(sg, &DrawStyle::outline(BORDER_COLOR, 1.0));
+            LineShape {
+                x1: x,
+                y1: ly,
+                x2: x + w,
+                y2: ly,
+            }
+            .draw(sg, &DrawStyle::outline(BORDER_COLOR, 1.0));
         }
     }
 
     // Border rect
-    RectShape { x, y, w, h, rx: 5.0, ry: 5.0 }
-        .draw(sg, &DrawStyle::outline(BORDER_COLOR, 1.5));
+    RectShape {
+        x,
+        y,
+        w,
+        h,
+        rx: 5.0,
+        ry: 5.0,
+    }
+    .draw(sg, &DrawStyle::outline(BORDER_COLOR, 1.5));
 }
 
 fn render_arrow(sg: &mut SvgGraphic, arrow: &JsonArrow) {
@@ -188,7 +209,11 @@ fn render_arrow_one_segment(
 
     let dx_chord = tx - p0_x;
     let chord_len = (dx_chord * dx_chord + dy_full * dy_full).sqrt();
-    let chord_ux = if chord_len > 1e-9 { dx_chord / chord_len } else { 1.0 };
+    let chord_ux = if chord_len > 1e-9 {
+        dx_chord / chord_len
+    } else {
+        1.0
+    };
     let end_x = tx - CURVE_END_INSET * chord_ux;
     let dx = end_x - p0_x;
 
@@ -223,8 +248,7 @@ fn render_arrow_one_segment(
     // cp2_y: base formula with correction for large abs_dy (>14).
     let cp2_y_correction = (abs_dy - 14.0).max(0.0) * 0.0095;
     let dy_sign = if dy >= 0.0 { 1.0 } else { -1.0 };
-    let cp2_y = p0_y + 0.4912 * dy - 0.0372 * abs_dy
-        + cp2_y_correction * abs_dy * dy_sign;
+    let cp2_y = p0_y + 0.4912 * dy - 0.0372 * abs_dy + cp2_y_correction * abs_dy * dy_sign;
 
     sg.push_raw(&format!(
         r#"<path d="M{},{} L{},{} C{},{} {},{} {},{}" fill="none" style="stroke:{BORDER_COLOR};stroke-width:1;stroke-dasharray:3,3;"/>"#,
@@ -295,7 +319,16 @@ fn render_arrow_two_segments(
         fmt_coord(cp2_s2_x), fmt_coord(cp2_s2_y),
         fmt_coord(end2_x), fmt_coord(end2_y)));
 
-    emit_arrowhead_and_spot(sg, end2_x, end2_y, cp2_s2_x, cp2_s2_y, very_first_x, fy, TIP_LEN);
+    emit_arrowhead_and_spot(
+        sg,
+        end2_x,
+        end2_y,
+        cp2_s2_x,
+        cp2_s2_y,
+        very_first_x,
+        fy,
+        TIP_LEN,
+    );
 }
 
 /// Emit the arrowhead diamond and spot ellipse, shared by both 1- and 2-segment paths.
@@ -330,11 +363,16 @@ fn emit_arrowhead_and_spot(
 
     sg.push_raw(&format!(
         r#"<path d="M{},{} L{},{} L{},{} L{},{} L{},{}" fill="{BORDER_COLOR}"/>"#,
-        fmt_coord(p4.0), fmt_coord(p4.1),
-        fmt_coord(p11.0), fmt_coord(p11.1),
-        fmt_coord(p3.0), fmt_coord(p3.1),
-        fmt_coord(tip_x), fmt_coord(tip_y),
-        fmt_coord(p4.0), fmt_coord(p4.1),
+        fmt_coord(p4.0),
+        fmt_coord(p4.1),
+        fmt_coord(p11.0),
+        fmt_coord(p11.1),
+        fmt_coord(p3.0),
+        fmt_coord(p3.1),
+        fmt_coord(tip_x),
+        fmt_coord(tip_y),
+        fmt_coord(p4.0),
+        fmt_coord(p4.1),
     ));
 
     sg.push_raw(&format!(

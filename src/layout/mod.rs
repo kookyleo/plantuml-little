@@ -39,8 +39,8 @@ use std::collections::HashMap;
 
 use crate::font_metrics;
 use crate::model::{
-    ArrowHead, ClassDiagram, ClassHideShowRule, ClassPortion, ClassRuleTarget, Diagram,
-    Direction, Entity, EntityKind, GroupKind, LineStyle, Member, Stereotype, Visibility,
+    ArrowHead, ClassDiagram, ClassHideShowRule, ClassPortion, ClassRuleTarget, Diagram, Direction,
+    Entity, EntityKind, GroupKind, LineStyle, Member, Stereotype, Visibility,
 };
 use crate::Result;
 
@@ -280,7 +280,7 @@ pub fn layout(diagram: &Diagram, skin: &crate::style::SkinParams) -> Result<Diag
                     shield: None,
                     entity_position: None,
                     max_label_width: None,
-            port_label_width: None,
+                    port_label_width: None,
                     order: None,
                     image_width_pt: None,
                     image_height_pt: None,
@@ -299,7 +299,7 @@ pub fn layout(diagram: &Diagram, skin: &crate::style::SkinParams) -> Result<Diag
                 ranksep_override: None,
                 nodesep_override: None,
                 use_simplier_dot_link_strategy: false,
-        arrow_font_size: None,
+                arrow_font_size: None,
             };
             let gl = graphviz::layout(&lg)?;
             let _ = &dd.source;
@@ -567,12 +567,16 @@ fn match_html_tag(s: &str) -> Option<(usize, bool, HtmlTag)> {
     ];
     for (tag, is_open, kind) in tags {
         if lower.starts_with(tag) {
-            return Some((tag.len(), *is_open, match kind {
-                HtmlTag::Bold => HtmlTag::Bold,
-                HtmlTag::Italic => HtmlTag::Italic,
-                HtmlTag::Underline => HtmlTag::Underline,
-                HtmlTag::Strike => HtmlTag::Strike,
-            }));
+            return Some((
+                tag.len(),
+                *is_open,
+                match kind {
+                    HtmlTag::Bold => HtmlTag::Bold,
+                    HtmlTag::Italic => HtmlTag::Italic,
+                    HtmlTag::Underline => HtmlTag::Underline,
+                    HtmlTag::Strike => HtmlTag::Strike,
+                },
+            ));
         }
     }
     None
@@ -900,17 +904,41 @@ fn estimate_entity_size(
         .members
         .iter()
         .filter(|m| !m.is_method)
-        .filter(|_| show_portion(&cd.hide_show_rules, ClassPortion::Field, &entity.name, raw_field_count))
+        .filter(|_| {
+            show_portion(
+                &cd.hide_show_rules,
+                ClassPortion::Field,
+                &entity.name,
+                raw_field_count,
+            )
+        })
         .collect();
     let visible_methods: Vec<&Member> = entity
         .members
         .iter()
         .filter(|m| m.is_method)
-        .filter(|_| show_portion(&cd.hide_show_rules, ClassPortion::Method, &entity.name, raw_method_count))
+        .filter(|_| {
+            show_portion(
+                &cd.hide_show_rules,
+                ClassPortion::Method,
+                &entity.name,
+                raw_method_count,
+            )
+        })
         .collect();
 
-    let show_fields = show_portion(&cd.hide_show_rules, ClassPortion::Field, &entity.name, raw_field_count);
-    let show_methods = show_portion(&cd.hide_show_rules, ClassPortion::Method, &entity.name, raw_method_count);
+    let show_fields = show_portion(
+        &cd.hide_show_rules,
+        ClassPortion::Field,
+        &entity.name,
+        raw_field_count,
+    );
+    let show_methods = show_portion(
+        &cd.hide_show_rules,
+        ClassPortion::Method,
+        &entity.name,
+        raw_method_count,
+    );
 
     let body_width = estimate_members_width(&visible_fields, attr_font_size)
         .max(estimate_members_width(&visible_methods, attr_font_size));
@@ -977,11 +1005,7 @@ fn estimate_rectangle_size(entity: &Entity) -> (f64, f64) {
 /// The label is the entity display name rendered at the class font size
 /// (default 14pt). When stereotypes are present, their height stacks above
 /// the name and the wider of the two drives the inner width.
-fn estimate_component_size(
-    cd: &ClassDiagram,
-    entity: &Entity,
-    name_font_size: f64,
-) -> (f64, f64) {
+fn estimate_component_size(cd: &ClassDiagram, entity: &Entity, name_font_size: f64) -> (f64, f64) {
     // Java margin for USymbolComponent2: Margin(10+5, 20+5, 15+5, 5+5)
     // = (x1 left=15, x2 right=25, y1 top=20, y2 bottom=10)
     const MARGIN_LEFT: f64 = 15.0;
@@ -1030,12 +1054,8 @@ fn estimate_component_size(
             )
         })
         .fold(0.0_f64, f64::max);
-    let stereo_line_h = font_metrics::line_height(
-        "SansSerif",
-        HEADER_STEREO_FONT_SIZE,
-        false,
-        true,
-    );
+    let stereo_line_h =
+        font_metrics::line_height("SansSerif", HEADER_STEREO_FONT_SIZE, false, true);
     let stereo_height = visible_stereotypes.len() as f64 * stereo_line_h;
 
     let inner_w = label_width.max(stereo_width);
@@ -1060,30 +1080,55 @@ fn estimate_component_size(
 fn estimate_object_size(entity: &Entity, attr_font_size: f64) -> (f64, f64) {
     let nd = entity.display_name.as_deref().unwrap_or(&entity.name);
     let nw = if nd.contains("**") || nd.contains("//") {
-        crate::render::svg_richtext::measure_creole_display_lines(&[nd.to_string()], "SansSerif", CLASS_FONT_SIZE, false, false, false).0
-    } else { font_metrics::text_width(nd, "SansSerif", CLASS_FONT_SIZE, false, false) };
+        crate::render::svg_richtext::measure_creole_display_lines(
+            &[nd.to_string()],
+            "SansSerif",
+            CLASS_FONT_SIZE,
+            false,
+            false,
+            false,
+        )
+        .0
+    } else {
+        font_metrics::text_width(nd, "SansSerif", CLASS_FONT_SIZE, false, false)
+    };
     let name_block_width = nw + 2.0 * OBJ_NAME_MARGIN;
     let name_block_height = HEADER_NAME_BLOCK_HEIGHT + 2.0 * OBJ_NAME_MARGIN;
     let title_width = name_block_width;
     let title_height = name_block_height;
     let vf: Vec<&Member> = entity.members.iter().filter(|m| !m.is_method).collect();
-    let (body_width, body_height) = if entity.kind == EntityKind::Map && !entity.map_entries.is_empty() {
+    let (body_width, body_height) = if entity.kind == EntityKind::Map
+        && !entity.map_entries.is_empty()
+    {
         // Java TextBlockMap: withMargin(result, 5, 2) → 5px left + 5px right = 10px per column
-        let mx = 10.0; let (mut ca, mut cb): (f64, f64) = (0.0, 0.0);
+        let mx = 10.0;
+        let (mut ca, mut cb): (f64, f64) = (0.0, 0.0);
         // Java EntityImageMap: each row is wrapped in withMargin(text, 2, 2)
         // adding 4px vertical margin per row.
         let rh = font_metrics::line_height("SansSerif", attr_font_size, false, false) + 4.0;
         for (k, v) in &entity.map_entries {
-            ca = ca.max(font_metrics::text_width(k, "SansSerif", attr_font_size, false, false) + mx);
-            cb = cb.max(font_metrics::text_width(v, "SansSerif", attr_font_size, false, false) + mx);
+            ca =
+                ca.max(font_metrics::text_width(k, "SansSerif", attr_font_size, false, false) + mx);
+            cb =
+                cb.max(font_metrics::text_width(v, "SansSerif", attr_font_size, false, false) + mx);
         }
         (ca + cb, entity.map_entries.len() as f64 * rh)
     } else if !vf.is_empty() {
-        (estimate_members_width(&vf, attr_font_size) + 6.0, section_height(true, &vf, MEMBER_ROW_HEIGHT))
-    } else { (OBJ_EMPTY_BODY_WIDTH, OBJ_EMPTY_BODY_HEIGHT) };
+        (
+            estimate_members_width(&vf, attr_font_size) + 6.0,
+            section_height(true, &vf, MEMBER_ROW_HEIGHT),
+        )
+    } else {
+        (OBJ_EMPTY_BODY_WIDTH, OBJ_EMPTY_BODY_HEIGHT)
+    };
     let width = body_width.max(title_width + 2.0 * OBJ_X_MARGIN_CIRCLE);
     let height = title_height + body_height;
-    log::debug!("estimate_object_size: {} -> ({:.2}, {:.2})", entity.name, width, height);
+    log::debug!(
+        "estimate_object_size: {} -> ({:.2}, {:.2})",
+        entity.name,
+        width,
+        height
+    );
     (width, height)
 }
 
@@ -1323,11 +1368,25 @@ fn show_portion(
 fn entity_lf_extra_left(cd: &ClassDiagram, entity: &Entity) -> f64 {
     let raw_field_count = entity.members.iter().filter(|m| !m.is_method).count();
     let raw_method_count = entity.members.iter().filter(|m| m.is_method).count();
-    let show_fields = show_portion(&cd.hide_show_rules, ClassPortion::Field, &entity.name, raw_field_count);
-    let show_methods = show_portion(&cd.hide_show_rules, ClassPortion::Method, &entity.name, raw_method_count);
+    let show_fields = show_portion(
+        &cd.hide_show_rules,
+        ClassPortion::Field,
+        &entity.name,
+        raw_field_count,
+    );
+    let show_methods = show_portion(
+        &cd.hide_show_rules,
+        ClassPortion::Method,
+        &entity.name,
+        raw_method_count,
+    );
 
     let has_polygon_modifier = entity.members.iter().any(|m| {
-        let visible = if m.is_method { show_methods } else { show_fields };
+        let visible = if m.is_method {
+            show_methods
+        } else {
+            show_fields
+        };
         visible
             && matches!(
                 m.visibility,
@@ -1335,7 +1394,11 @@ fn entity_lf_extra_left(cd: &ClassDiagram, entity: &Entity) -> f64 {
             )
     });
 
-    if has_polygon_modifier { 2.0 } else { 0.0 }
+    if has_polygon_modifier {
+        2.0
+    } else {
+        0.0
+    }
 }
 
 fn visible_stereotype_labels(
@@ -1472,7 +1535,11 @@ fn layout_class_diagram(cd: &ClassDiagram, skin: &crate::style::SkinParams) -> R
                     margins.top,
                     margins.bottom,
                 );
-                if shield.is_zero() { None } else { Some(shield) }
+                if shield.is_zero() {
+                    None
+                } else {
+                    Some(shield)
+                }
             });
             // Java's HACK_X_FOR_POLYGON=10 extends the LimitFinder boundary
             // for visibility modifier polygons (PROTECTED/PACKAGE triangles/diamonds).
@@ -1499,17 +1566,25 @@ fn layout_class_diagram(cd: &ClassDiagram, skin: &crate::style::SkinParams) -> R
                 shield,
                 entity_position: None,
                 max_label_width: None,
-            port_label_width: None,
+                port_label_width: None,
                 order: e.source_line,
-                image_width_pt: if (natural_w - w).abs() > 0.01 { Some(natural_w) } else { None },
-                image_height_pt: if (natural_h - dot_h).abs() > 0.01 { Some(natural_h) } else { None },
+                image_width_pt: if (natural_w - w).abs() > 0.01 {
+                    Some(natural_w)
+                } else {
+                    None
+                },
+                image_height_pt: if (natural_h - dot_h).abs() > 0.01 {
+                    Some(natural_h)
+                } else {
+                    None
+                },
                 lf_extra_left: lf_extra,
                 lf_rect_correction: true,
-                    lf_has_body_separator: false,
-                    lf_node_polygon: false,
-                    lf_polygon_hack: false,
-                    lf_actor_stickman: false,
-                    hidden: false,
+                lf_has_body_separator: false,
+                lf_node_polygon: false,
+                lf_polygon_hack: false,
+                lf_actor_stickman: false,
+                hidden: false,
             }
         })
         .collect();
@@ -1537,10 +1612,10 @@ fn layout_class_diagram(cd: &ClassDiagram, skin: &crate::style::SkinParams) -> R
                 label_dimension: None,
                 tail_label: link.from_label.clone(),
                 tail_label_dimension: None,
-            tail_label_boxed: false,
+                tail_label_boxed: false,
                 head_label: link.to_label.clone(),
                 head_label_dimension: None,
-            head_label_boxed: false,
+                head_label_boxed: false,
                 tail_decoration: arrow_head_to_svek_decoration(&link.left_head),
                 head_decoration: arrow_head_to_svek_decoration(&link.right_head),
                 line_style: link_style_to_svek(&link.line_style),
@@ -1605,10 +1680,10 @@ fn layout_class_diagram(cd: &ClassDiagram, skin: &crate::style::SkinParams) -> R
                 label_dimension: None,
                 tail_label: None,
                 tail_label_dimension: None,
-            tail_label_boxed: false,
+                tail_label_boxed: false,
                 head_label: None,
                 head_label_dimension: None,
-            head_label_boxed: false,
+                head_label_boxed: false,
                 tail_decoration: crate::svek::edge::LinkDecoration::None,
                 head_decoration: crate::svek::edge::LinkDecoration::None,
                 line_style: crate::svek::edge::LinkStyle::Dashed,
@@ -1815,10 +1890,10 @@ fn square_edges_for_entities(
                 label_dimension: None,
                 tail_label: None,
                 tail_label_dimension: None,
-            tail_label_boxed: false,
+                tail_label_boxed: false,
                 head_label: None,
                 head_label_dimension: None,
-            head_label_boxed: false,
+                head_label_boxed: false,
                 tail_decoration: crate::svek::edge::LinkDecoration::None,
                 head_decoration: crate::svek::edge::LinkDecoration::None,
                 line_style: crate::svek::edge::LinkStyle::Normal,
@@ -1835,10 +1910,10 @@ fn square_edges_for_entities(
                 label_dimension: None,
                 tail_label: None,
                 tail_label_dimension: None,
-            tail_label_boxed: false,
+                tail_label_boxed: false,
                 head_label: None,
                 head_label_dimension: None,
-            head_label_boxed: false,
+                head_label_boxed: false,
                 tail_decoration: crate::svek::edge::LinkDecoration::None,
                 head_decoration: crate::svek::edge::LinkDecoration::None,
                 line_style: crate::svek::edge::LinkStyle::Normal,
@@ -1864,7 +1939,9 @@ fn compute_square_branch(size: usize) -> usize {
 /// Estimate note size accounting for embedded subdiagrams.
 fn estimate_class_note_size(text: &str) -> (f64, f64) {
     if let Some(block) = crate::render::embedded::extract_embedded(text) {
-        if let Some((_, ew, eh)) = crate::render::embedded::render_embedded(&block.inner_source, &block.diagram_type) {
+        if let Some((_, ew, eh)) =
+            crate::render::embedded::render_embedded(&block.inner_source, &block.diagram_type)
+        {
             let before_lines: Vec<&str> = if block.before.is_empty() {
                 vec![]
             } else {
@@ -1881,7 +1958,9 @@ fn estimate_class_note_size(text: &str) -> (f64, f64) {
             } else {
                 block.after.lines().collect()
             };
-            let has_heading = before_lines.iter().chain(after_lines.iter())
+            let has_heading = before_lines
+                .iter()
+                .chain(after_lines.iter())
                 .any(|l| crate::parser::creole::strip_heading_prefix_ordered(l).is_some());
             let before_w: f64 = before_lines
                 .iter()
@@ -1964,7 +2043,7 @@ fn compute_note_layouts(
                     .map(|l| note_line_width(l))
                     .fold(0.0_f64, f64::max);
                 let has_heading = before_lines.iter().chain(after_lines.iter())
-                    .any(|l| crate::parser::creole::strip_heading_prefix_ordered(&l).is_some());
+                    .any(|l| crate::parser::creole::strip_heading_prefix_ordered(l).is_some());
                 let content_w = before_w.max(emb.width).max(after_w);
                 let heading_extra = if has_heading { 6.0 } else { 0.0 };
                 let w = (content_w + NOTE_MARGIN_X1 + NOTE_MARGIN_X2 + heading_extra).max(60.0);
@@ -2230,7 +2309,10 @@ mod tests {
         );
 
         let expected = HEADER_HEIGHT_PT + 2.0 * EMPTY_COMPARTMENT;
-        assert_eq!(h, expected, "interface height should follow the standard class header path");
+        assert_eq!(
+            h, expected,
+            "interface height should follow the standard class header path"
+        );
     }
 
     #[test]

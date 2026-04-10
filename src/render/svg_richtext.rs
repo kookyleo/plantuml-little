@@ -17,7 +17,7 @@ thread_local! {
     static SPRITE_GRAY: RefCell<HashMap<String, SpriteGrayData>> = RefCell::new(HashMap::new());
     static DEFAULT_FONT_FAMILY: RefCell<Option<String>> = const { RefCell::new(None) };
     static PATH_BASED_SPRITES: RefCell<bool> = const { RefCell::new(false) };
-    static BACK_FILTERS: RefCell<Vec<(String, String)>> = RefCell::new(Vec::new());
+    static BACK_FILTERS: RefCell<Vec<(String, String)>> = const { RefCell::new(Vec::new()) };
     /// Stencil + stroke for Creole section titles (`==title==`).
     /// Caller installs this before invoking a `render_creole_text*` call
     /// on content that may contain a section title, so the renderer knows
@@ -183,9 +183,9 @@ pub fn get_sprite_svg(name: &str) -> Option<String> {
 pub fn get_sprite_data_uri_with_bg(name: &str, bg_r: u8, bg_g: u8, bg_b: u8) -> Option<String> {
     // Try gray data first (hex-encoded monochrome sprites)
     let from_gray = SPRITE_GRAY.with(|s| {
-        s.borrow().get(name).and_then(|data| {
-            crate::parser::common::sprite_gray_to_data_uri(data, bg_r, bg_g, bg_b)
-        })
+        s.borrow()
+            .get(name)
+            .and_then(|data| crate::parser::common::sprite_gray_to_data_uri(data, bg_r, bg_g, bg_b))
     });
     if from_gray.is_some() {
         return from_gray;
@@ -275,12 +275,8 @@ pub fn creole_line_height(text: &str, default_font: &str, default_font_size: f64
     // Check for sub/sup which adds extra vertical space
     let parsed = parse_creole(text);
     let lines = flatten_rich_lines(&parsed);
-    let has_sub = lines
-        .iter()
-        .any(|line| line.iter().any(|s| has_subscript(s)));
-    let has_sup = lines
-        .iter()
-        .any(|line| line.iter().any(|s| has_superscript(s)));
+    let has_sub = lines.iter().any(|line| line.iter().any(has_subscript));
+    let has_sup = lines.iter().any(|line| line.iter().any(has_superscript));
     let mut extra = 0.0_f64;
     let sub_size = (default_font_size * 0.77).round();
     if has_sub {
@@ -308,9 +304,7 @@ pub fn creole_line_height(text: &str, default_font: &str, default_font_size: f64
 pub fn creole_sub_extra_height(text: &str, default_font: &str, default_font_size: f64) -> f64 {
     let parsed = parse_creole(text);
     let lines = flatten_rich_lines(&parsed);
-    let has_sub = lines
-        .iter()
-        .any(|line| line.iter().any(|s| has_subscript(s)));
+    let has_sub = lines.iter().any(|line| line.iter().any(has_subscript));
     if has_sub {
         let sub_size = (default_font_size * 0.77).round();
         let sub_shift = default_font_size * 0.2852;
@@ -381,11 +375,11 @@ fn has_subscript(span: &TextSpan) -> bool {
         | TextSpan::Italic(inner)
         | TextSpan::Underline(inner)
         | TextSpan::Strikethrough(inner)
-        | TextSpan::Superscript(inner) => inner.iter().any(|s| has_subscript(s)),
+        | TextSpan::Superscript(inner) => inner.iter().any(has_subscript),
         TextSpan::Colored { content, .. }
         | TextSpan::BackHighlight { content, .. }
         | TextSpan::FontFamily { content, .. }
-        | TextSpan::Sized { content, .. } => content.iter().any(|s| has_subscript(s)),
+        | TextSpan::Sized { content, .. } => content.iter().any(has_subscript),
         _ => false,
     }
 }
@@ -397,11 +391,11 @@ fn has_superscript(span: &TextSpan) -> bool {
         | TextSpan::Italic(inner)
         | TextSpan::Underline(inner)
         | TextSpan::Strikethrough(inner)
-        | TextSpan::Subscript(inner) => inner.iter().any(|s| has_superscript(s)),
+        | TextSpan::Subscript(inner) => inner.iter().any(has_superscript),
         TextSpan::Colored { content, .. }
         | TextSpan::BackHighlight { content, .. }
         | TextSpan::FontFamily { content, .. }
-        | TextSpan::Sized { content, .. } => content.iter().any(|s| has_superscript(s)),
+        | TextSpan::Sized { content, .. } => content.iter().any(has_superscript),
         _ => false,
     }
 }
@@ -814,7 +808,10 @@ pub fn render_creole_text_word_by_word(
         vec![TextSpan::Plain(String::new())]
     } else {
         // word-by-word mode processes only one line at a time
-        lines.into_iter().next().unwrap_or_else(|| vec![TextSpan::Plain(String::new())])
+        lines
+            .into_iter()
+            .next()
+            .unwrap_or_else(|| vec![TextSpan::Plain(String::new())])
     };
 
     let (default_font, font_size, base_bold, base_italic) = parse_font_props(outer_attrs);
@@ -884,13 +881,7 @@ pub fn render_creole_text_word_by_word(
                 }
                 write!(buf, r#" lengthAdjust="spacing""#).unwrap();
                 write!(buf, r#" textLength="{}""#, fmt_coord(total_w)).unwrap();
-                write!(
-                    buf,
-                    r#" x="{}" y="{}">"#,
-                    fmt_coord(cursor_x),
-                    fmt_coord(y)
-                )
-                .unwrap();
+                write!(buf, r#" x="{}" y="{}">"#, fmt_coord(cursor_x), fmt_coord(y)).unwrap();
                 buf.push_str(&xml_escape(&nbsp));
                 buf.push_str("</text>");
                 cursor_x += total_w;
@@ -923,13 +914,7 @@ pub fn render_creole_text_word_by_word(
                     buf.push_str(r#" text-decoration="underline""#);
                 }
                 write!(buf, r#" textLength="{}""#, fmt_coord(word_w)).unwrap();
-                write!(
-                    buf,
-                    r#" x="{}" y="{}">"#,
-                    fmt_coord(cursor_x),
-                    fmt_coord(y)
-                )
-                .unwrap();
+                write!(buf, r#" x="{}" y="{}">"#, fmt_coord(cursor_x), fmt_coord(y)).unwrap();
                 buf.push_str(&xml_escape(piece));
                 buf.push_str("</text>");
                 if run.link_url.is_some() {
@@ -1216,8 +1201,7 @@ pub fn render_creole_note_content(
                         &raw_rows.iter().map(|s| s.to_string()).collect::<Vec<_>>(),
                         false,
                     );
-                    let layout =
-                        layout_display_table(&rows, default_font, font_size, false, false);
+                    let layout = layout_display_table(&rows, default_font, font_size, false, false);
                     render_display_table(
                         buf,
                         &rows,
@@ -1323,11 +1307,15 @@ fn note_line_height_with_sprites(line: &str, font_size: f64, base_lh: f64) -> f6
         return base_lh;
     }
     let mut max_sprite_h = 0.0_f64;
-    for span in flatten_rich_lines(&parse_creole(line)).into_iter().flatten() {
+    for span in flatten_rich_lines(&parse_creole(line))
+        .into_iter()
+        .flatten()
+    {
         if let TextSpan::InlineSvg { name, scale, .. } = span {
             if let Some(svg_content) = get_sprite(&name) {
                 let info = crate::render::svg_sprite::sprite_info(&svg_content);
-                max_sprite_h = max_sprite_h.max(info.vb_height * sprite_scale_for_font(font_size, scale));
+                max_sprite_h =
+                    max_sprite_h.max(info.vb_height * sprite_scale_for_font(font_size, scale));
             }
         }
     }
@@ -1344,7 +1332,8 @@ fn line_height_with_inline_sprites(spans: &[TextSpan], font_size: f64, base_lh: 
         if let TextSpan::InlineSvg { name, scale, .. } = span {
             if let Some(svg_content) = get_sprite(name) {
                 let info = crate::render::svg_sprite::sprite_info(&svg_content);
-                max_sprite_h = max_sprite_h.max(info.vb_height * sprite_scale_for_font(font_size, *scale));
+                max_sprite_h =
+                    max_sprite_h.max(info.vb_height * sprite_scale_for_font(font_size, *scale));
             }
         }
     }
@@ -1683,7 +1672,8 @@ fn is_table_display_line(line: &str) -> bool {
 }
 
 fn parse_display_table_rows(lines: &[String], preserve_backslash_n: bool) -> Vec<DisplayTableRow> {
-    lines.iter()
+    lines
+        .iter()
         .map(|line| {
             let (row_bg, border_color, table_line) = strip_row_color_prefix(line);
             DisplayTableRow {
@@ -1768,24 +1758,44 @@ fn parse_display_table_cells(line: &str, preserve_backslash_n: bool) -> Vec<Disp
                 let inner_leading = cell_text.len() - cell_text.trim_start().len();
                 cell_text = cell_text.trim();
                 let collapsed = collapse_table_cell_escapes(cell_text);
-                let mut lines: Vec<Vec<TextSpan>> = split_table_cell_lines(&collapsed, preserve_backslash_n)
-                    .into_iter().map(|cell_line| parse_inline(&cell_line)).collect();
-                let mut el = 0usize; let mut et = 0usize;
-                for line in &mut lines { let (l, t) = strip_span_edge_spaces(line); el = el.max(l); et = et.max(t); }
+                let mut lines: Vec<Vec<TextSpan>> =
+                    split_table_cell_lines(&collapsed, preserve_backslash_n)
+                        .into_iter()
+                        .map(|cell_line| parse_inline(&cell_line))
+                        .collect();
+                let mut el = 0usize;
+                let mut et = 0usize;
+                for line in &mut lines {
+                    let (l, t) = strip_span_edge_spaces(line);
+                    el = el.max(l);
+                    et = et.max(t);
+                }
                 return DisplayTableCell {
-                    lines, is_header, bg_color: None,
+                    lines,
+                    is_header,
+                    bg_color: None,
                     leading_spaces: leading_spaces + inner_leading + el,
                     trailing_spaces: trailing_spaces + et,
                 };
             }
             let (cell_bg, cell_text) = extract_cell_bg_color(cell_text);
             let collapsed = collapse_table_cell_escapes(cell_text);
-            let mut lines: Vec<Vec<TextSpan>> = split_table_cell_lines(&collapsed, preserve_backslash_n)
-                .into_iter().map(|cell_line| parse_inline(&cell_line)).collect();
-            let mut el = 0usize; let mut et = 0usize;
-            for line in &mut lines { let (l, t) = strip_span_edge_spaces(line); el = el.max(l); et = et.max(t); }
+            let mut lines: Vec<Vec<TextSpan>> =
+                split_table_cell_lines(&collapsed, preserve_backslash_n)
+                    .into_iter()
+                    .map(|cell_line| parse_inline(&cell_line))
+                    .collect();
+            let mut el = 0usize;
+            let mut et = 0usize;
+            for line in &mut lines {
+                let (l, t) = strip_span_edge_spaces(line);
+                el = el.max(l);
+                et = et.max(t);
+            }
             DisplayTableCell {
-                lines, is_header, bg_color: cell_bg,
+                lines,
+                is_header,
+                bg_color: cell_bg,
                 leading_spaces: leading_spaces + el,
                 trailing_spaces: trailing_spaces + et,
             }
@@ -1794,14 +1804,21 @@ fn parse_display_table_cells(line: &str, preserve_backslash_n: bool) -> Vec<Disp
 }
 
 fn strip_span_edge_spaces(spans: &mut Vec<TextSpan>) -> (usize, usize) {
-    let mut lead = 0usize; let mut trail = 0usize;
+    let mut lead = 0usize;
+    let mut trail = 0usize;
     if let Some(p) = find_first_plain_mut(spans) {
-        let t = p.trim_start(); lead = p.len() - t.len();
-        if lead > 0 { *p = t.to_string(); }
+        let t = p.trim_start();
+        lead = p.len() - t.len();
+        if lead > 0 {
+            *p = t.to_string();
+        }
     }
     if let Some(p) = find_last_plain_mut(spans) {
-        let t = p.trim_end(); trail = p.len() - t.len();
-        if trail > 0 { *p = t.to_string(); }
+        let t = p.trim_end();
+        trail = p.len() - t.len();
+        if trail > 0 {
+            *p = t.to_string();
+        }
     }
     (lead, trail)
 }
@@ -1809,9 +1826,30 @@ fn find_first_plain_mut(spans: &mut [TextSpan]) -> Option<&mut String> {
     for span in spans.iter_mut() {
         match span {
             TextSpan::Plain(ref mut s) => return Some(s),
-            TextSpan::Bold(i) | TextSpan::Italic(i) | TextSpan::Underline(i) | TextSpan::Strikethrough(i) | TextSpan::Subscript(i) | TextSpan::Superscript(i) => { if let Some(s) = find_first_plain_mut(i) { return Some(s); } }
-            TextSpan::Colored { content: c, .. } | TextSpan::UnderlineColored { content: c, .. } | TextSpan::BackHighlight { content: c, .. } | TextSpan::Sized { content: c, .. } | TextSpan::FontFamily { content: c, .. } => { if let Some(s) = find_first_plain_mut(c) { return Some(s); } }
-            TextSpan::Link { label, url, .. } => { if label.is_some() || !url.is_empty() { return None; } }
+            TextSpan::Bold(i)
+            | TextSpan::Italic(i)
+            | TextSpan::Underline(i)
+            | TextSpan::Strikethrough(i)
+            | TextSpan::Subscript(i)
+            | TextSpan::Superscript(i) => {
+                if let Some(s) = find_first_plain_mut(i) {
+                    return Some(s);
+                }
+            }
+            TextSpan::Colored { content: c, .. }
+            | TextSpan::UnderlineColored { content: c, .. }
+            | TextSpan::BackHighlight { content: c, .. }
+            | TextSpan::Sized { content: c, .. }
+            | TextSpan::FontFamily { content: c, .. } => {
+                if let Some(s) = find_first_plain_mut(c) {
+                    return Some(s);
+                }
+            }
+            TextSpan::Link { label, url, .. } => {
+                if label.is_some() || !url.is_empty() {
+                    return None;
+                }
+            }
             _ => {}
         }
     }
@@ -1821,9 +1859,30 @@ fn find_last_plain_mut(spans: &mut [TextSpan]) -> Option<&mut String> {
     for span in spans.iter_mut().rev() {
         match span {
             TextSpan::Plain(ref mut s) => return Some(s),
-            TextSpan::Bold(i) | TextSpan::Italic(i) | TextSpan::Underline(i) | TextSpan::Strikethrough(i) | TextSpan::Subscript(i) | TextSpan::Superscript(i) => { if let Some(s) = find_last_plain_mut(i) { return Some(s); } }
-            TextSpan::Colored { content: c, .. } | TextSpan::UnderlineColored { content: c, .. } | TextSpan::BackHighlight { content: c, .. } | TextSpan::Sized { content: c, .. } | TextSpan::FontFamily { content: c, .. } => { if let Some(s) = find_last_plain_mut(c) { return Some(s); } }
-            TextSpan::Link { label, url, .. } => { if label.is_some() || !url.is_empty() { return None; } }
+            TextSpan::Bold(i)
+            | TextSpan::Italic(i)
+            | TextSpan::Underline(i)
+            | TextSpan::Strikethrough(i)
+            | TextSpan::Subscript(i)
+            | TextSpan::Superscript(i) => {
+                if let Some(s) = find_last_plain_mut(i) {
+                    return Some(s);
+                }
+            }
+            TextSpan::Colored { content: c, .. }
+            | TextSpan::UnderlineColored { content: c, .. }
+            | TextSpan::BackHighlight { content: c, .. }
+            | TextSpan::Sized { content: c, .. }
+            | TextSpan::FontFamily { content: c, .. } => {
+                if let Some(s) = find_last_plain_mut(c) {
+                    return Some(s);
+                }
+            }
+            TextSpan::Link { label, url, .. } => {
+                if label.is_some() || !url.is_empty() {
+                    return None;
+                }
+            }
             _ => {}
         }
     }
@@ -1876,10 +1935,7 @@ fn split_table_cell_lines(text: &str, preserve_backslash_n: bool) -> Vec<String>
                 idx += 1;
                 continue;
             }
-            if !preserve_backslash_n
-                && ch == '\\'
-                && idx + 1 < chars.len()
-                && chars[idx + 1] == 'n'
+            if !preserve_backslash_n && ch == '\\' && idx + 1 < chars.len() && chars[idx + 1] == 'n'
             {
                 parts.push(std::mem::take(&mut current).trim().to_string());
                 idx += 2;
@@ -1953,7 +2009,8 @@ fn measure_table_cell_width(
             nbsp_width
         } else {
             measure_parsed_line_width(line, default_font, font_size, bold, italic)
-                + pad_left + pad_right
+                + pad_left
+                + pad_right
         };
         width = width.max(candidate);
     }
@@ -1961,9 +2018,10 @@ fn measure_table_cell_width(
     width
 }
 
-
 fn cell_has_link(spans: &[TextSpan]) -> bool {
-    spans.iter().any(|span| matches!(span, TextSpan::Link { .. }))
+    spans
+        .iter()
+        .any(|span| matches!(span, TextSpan::Link { .. }))
 }
 
 fn render_display_table(
@@ -1981,7 +2039,8 @@ fn render_display_table(
     let grid_top = top_y + TABLE_MARGIN_Y;
 
     // Determine grid line color: use first row's border_color if present, else default
-    let grid_color = rows.iter()
+    let grid_color = rows
+        .iter()
         .find_map(|r| r.border_color.as_ref())
         .map(|c| resolve_color_to_svg(c))
         .unwrap_or_else(|| "#000000".to_string());
@@ -2019,8 +2078,7 @@ fn render_display_table(
                 let cell_bold = bold || cell.is_header;
                 let cell_line_height =
                     font_metrics::line_height(default_font, font_size, cell_bold, italic);
-                let cell_ascent =
-                    font_metrics::ascent(default_font, font_size, cell_bold, italic);
+                let cell_ascent = font_metrics::ascent(default_font, font_size, cell_bold, italic);
                 let cell_attrs = build_cell_outer_attrs(font_size, cell_bold, italic);
 
                 // Cell background rect
@@ -2038,7 +2096,8 @@ fn render_display_table(
                     .unwrap();
                 }
 
-                let nbsp_w = font_metrics::text_width(NBSP, default_font, font_size, cell_bold, italic);
+                let nbsp_w =
+                    font_metrics::text_width(NBSP, default_font, font_size, cell_bold, italic);
                 let lead_count = cell.leading_spaces.max(1);
                 let trail_count = cell.trailing_spaces.max(1);
                 let cell_pad_left = lead_count as f64 * nbsp_w;
@@ -2048,10 +2107,22 @@ fn render_display_table(
                     let plain = plain_text_spans(line);
                     if plain.is_empty() {
                         let rl = vec![TextSpan::Plain(NBSP.to_string())];
-                        render_preparsed_lines(buf, &[rl], col_x, baseline,
-                            cell_line_height, fill, None, &cell_attrs);
+                        render_preparsed_lines(
+                            buf,
+                            &[rl],
+                            col_x,
+                            baseline,
+                            cell_line_height,
+                            fill,
+                            None,
+                            &cell_attrs,
+                        );
                     } else if cell_has_link(line) {
-                        let wt = if cell_bold { r#" font-weight="bold""# } else { "" };
+                        let wt = if cell_bold {
+                            r#" font-weight="bold""#
+                        } else {
+                            ""
+                        };
                         if lead_count > 0 {
                             let ns = NBSP.repeat(lead_count);
                             let nw = lead_count as f64 * nbsp_w;
@@ -2061,10 +2132,24 @@ fn render_display_table(
                                 fmt_coord(nw), fmt_coord(col_x), fmt_coord(baseline),
                                 xml_escape(&ns)).unwrap();
                         }
-                        render_preparsed_lines(buf, &[line.clone()], col_x + cell_pad_left,
-                            baseline, cell_line_height, fill, None, &cell_attrs);
+                        render_preparsed_lines(
+                            buf,
+                            &[line.clone()],
+                            col_x + cell_pad_left,
+                            baseline,
+                            cell_line_height,
+                            fill,
+                            None,
+                            &cell_attrs,
+                        );
                         if trail_count > 0 {
-                            let cw = measure_parsed_line_width(line, default_font, font_size, cell_bold, italic);
+                            let cw = measure_parsed_line_width(
+                                line,
+                                default_font,
+                                font_size,
+                                cell_bold,
+                                italic,
+                            );
                             let tx = col_x + cell_pad_left + cw;
                             let ns = NBSP.repeat(trail_count);
                             let nw = trail_count as f64 * nbsp_w;
@@ -2075,8 +2160,16 @@ fn render_display_table(
                                 xml_escape(&ns)).unwrap();
                         }
                     } else {
-                        render_preparsed_lines(buf, &[line.clone()], col_x + cell_pad_left,
-                            baseline, cell_line_height, fill, None, &cell_attrs);
+                        render_preparsed_lines(
+                            buf,
+                            &[line.clone()],
+                            col_x + cell_pad_left,
+                            baseline,
+                            cell_line_height,
+                            fill,
+                            None,
+                            &cell_attrs,
+                        );
                     }
                 }
             }
@@ -2290,8 +2383,7 @@ fn render_prepared_line(
     let x_shifted = if text_anchor.is_none() && !is_visual_blank_line {
         let leading_spaces = line_plain.chars().take_while(|c| *c == ' ').count();
         if leading_spaces > 0 {
-            let space_w =
-                font_metrics::text_width(" ", font_family, font_size, bold, italic);
+            let space_w = font_metrics::text_width(" ", font_family, font_size, bold, italic);
             x + space_w * leading_spaces as f64
         } else {
             x
@@ -2305,8 +2397,17 @@ fn render_prepared_line(
         buf.push_str(&xml_escape(NBSP));
         buf.push_str("</text>");
     } else if text_anchor.is_none() {
-        let text_length = font_metrics::text_width(trimmed_plain, font_family, font_size, bold, italic);
-        write_text_open(buf, x_shifted, y, fill, text_anchor, outer_attrs, text_length);
+        let text_length =
+            font_metrics::text_width(trimmed_plain, font_family, font_size, bold, italic);
+        write_text_open(
+            buf,
+            x_shifted,
+            y,
+            fill,
+            text_anchor,
+            outer_attrs,
+            text_length,
+        );
         if let Some(text) = simple_plain_line(line) {
             buf.push_str(&xml_escape(text.trim()));
         } else {
@@ -2318,12 +2419,14 @@ fn render_prepared_line(
         }
         buf.push_str("</text>");
     } else if let Some(text) = simple_plain_line(line) {
-        let text_length = font_metrics::text_width(trimmed_plain, font_family, font_size, bold, italic);
+        let text_length =
+            font_metrics::text_width(trimmed_plain, font_family, font_size, bold, italic);
         write_text_open(buf, x, y, fill, text_anchor, outer_attrs, text_length);
         buf.push_str(&xml_escape(text.trim()));
         buf.push_str("</text>");
     } else {
-        let text_length = font_metrics::text_width(trimmed_plain, font_family, font_size, bold, italic);
+        let text_length =
+            font_metrics::text_width(trimmed_plain, font_family, font_size, bold, italic);
         write_text_open(buf, x, y, fill, text_anchor, outer_attrs, text_length);
         let style = SpanStyle {
             ambient_font_size: Some(font_size),
@@ -2431,15 +2534,7 @@ fn render_section_title_line(
     // Title text: baseline sits 0.5px above the normal text baseline so it
     // matches Java's UHorizontalLine.drawTitleInternal offset.
     let text_y = y_baseline - 0.5;
-    write_text_open(
-        buf,
-        title_x1,
-        text_y,
-        fill,
-        None,
-        outer_attrs,
-        title_width,
-    );
+    write_text_open(buf, title_x1, text_y, fill, None, outer_attrs, title_width);
     buf.push_str(&xml_escape(&trimmed_title));
     buf.push_str("</text>");
 
@@ -2465,7 +2560,8 @@ fn render_section_title_line(
 }
 
 fn line_has_sprites(spans: &[TextSpan]) -> bool {
-    spans.iter()
+    spans
+        .iter()
         .any(|span| matches!(span, TextSpan::InlineSvg { .. }))
 }
 
@@ -2496,7 +2592,8 @@ fn render_text_line_with_sprites(
                 if let Some(TextSpan::Plain(text)) = text_buf.last_mut() {
                     *text = text.trim_end().to_string();
                 }
-                let text_w = measure_text_runs_width(&text_buf, font_family, font_size, bold, italic);
+                let text_w =
+                    measure_text_runs_width(&text_buf, font_family, font_size, bold, italic);
                 if text_w > 0.0 {
                     render_prepared_line(
                         buf,
@@ -2858,7 +2955,7 @@ fn flatten_span_runs(spans: &[TextSpan], runs: &mut Vec<TextRun>, style: &RunSty
             }
             TextSpan::Sized { size, content } => {
                 let mut s = style.clone();
-                s.font_size_override = Some(*size as f64);
+                s.font_size_override = Some(*size);
                 flatten_span_runs(content, runs, &s);
             }
             TextSpan::Subscript(inner) => {
@@ -2957,15 +3054,7 @@ fn render_split_text_runs(
             let n_spaces = raw_text.chars().count();
             let space_w = font_metrics::text_width(" ", run_font, run_size, run_bold, run_italic);
             render_nbsp_text(
-                buf,
-                cursor_x,
-                y,
-                n_spaces,
-                fill,
-                run_font,
-                run_size,
-                run_bold,
-                run_italic,
+                buf, cursor_x, y, n_spaces, fill, run_font, run_size, run_bold, run_italic,
             );
             cursor_x += space_w * n_spaces as f64;
             continue;
@@ -2978,15 +3067,7 @@ fn render_split_text_runs(
             let space_w = font_metrics::text_width(" ", run_font, run_size, run_bold, run_italic);
             if idx == 0 && run_font != "monospace" {
                 render_nbsp_text(
-                    buf,
-                    cursor_x,
-                    y,
-                    n_leading,
-                    fill,
-                    run_font,
-                    run_size,
-                    run_bold,
-                    run_italic,
+                    buf, cursor_x, y, n_leading, fill, run_font, run_size, run_bold, run_italic,
                 );
             }
             cursor_x += space_w * n_leading as f64;
@@ -3057,11 +3138,8 @@ fn render_split_text_runs(
         buf.push_str("</text>");
         // Colored underline: render as a separate <line> element (Java behavior)
         if let Some(ref ul_color) = run.underline_color {
-            let ul_color_hex =
-                crate::klimt::color::resolve_color(ul_color).map_or_else(
-                    || format!("#{}", ul_color),
-                    |c| c.to_svg(),
-                );
+            let ul_color_hex = crate::klimt::color::resolve_color(ul_color)
+                .map_or_else(|| format!("#{}", ul_color), |c| c.to_svg());
             let line_y = run_y + 1.0;
             write!(
                 buf,
@@ -3142,8 +3220,7 @@ fn parse_font_props(outer_attrs: &str) -> (String, f64, bool, bool) {
                         }
                         "font-weight" => {
                             // CSS: bold = 700; Java uses numeric weights >= 700 as bold
-                            bold =
-                                value == "bold" || value.parse::<u32>().map_or(false, |w| w >= 700);
+                            bold = value == "bold" || value.parse::<u32>().is_ok_and(|w| w >= 700);
                         }
                         "font-style" => {
                             italic = value == "italic";
@@ -3874,7 +3951,10 @@ mod tests {
             buf.contains("<ellipse") || buf.contains("<path"),
             "sprite primitives must be embedded directly"
         );
-        assert!(!buf.contains("<svg"), "inline sprite must not emit nested svg wrappers");
+        assert!(
+            !buf.contains("<svg"),
+            "inline sprite must not emit nested svg wrappers"
+        );
 
         clear_sprites();
     }

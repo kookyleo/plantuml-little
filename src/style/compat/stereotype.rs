@@ -87,11 +87,7 @@ impl SkinParams {
     /// Returns the font size used for rendering stereotype labels above
     /// the element title. Used by ClusterHeader to include the stereo block
     /// height in the cluster label dimension.
-    pub fn stereotype_font_size_for(
-        &self,
-        element: &str,
-        stereotypes: &[&str],
-    ) -> Option<f64> {
+    pub fn stereotype_font_size_for(&self, element: &str, stereotypes: &[&str]) -> Option<f64> {
         if let Some(v) = self.stereotype_param(element, stereotypes, "stereotypefontsize") {
             return v.parse::<f64>().ok();
         }

@@ -24,6 +24,12 @@ pub struct Stairs {
     steps: Vec<Step>,
 }
 
+impl Default for Stairs {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Stairs {
     pub fn new() -> Self {
         Self { steps: Vec::new() }
@@ -44,6 +50,12 @@ impl Stairs {
 pub struct LiveBoxes {
     /// Event index → Y position mapping
     events_y: Vec<(usize, f64)>,
+}
+
+impl Default for LiveBoxes {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl LiveBoxes {

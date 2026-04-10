@@ -1,6 +1,6 @@
 use std::fmt::Write;
 
-use crate::klimt::svg::{fmt_coord};
+use crate::klimt::svg::fmt_coord;
 use crate::layout::nwdiag::NwdiagLayout;
 use crate::model::nwdiag::NwdiagDiagram;
 use crate::render::svg::{ensure_visible_int, write_svg_root_bg};
@@ -52,7 +52,9 @@ pub fn render_nwdiag(
         // Address text (font-size=12, left-aligned).
         if let Some(addr) = &nl.address {
             let addr_w = crate::font_metrics::text_width(addr, "SansSerif", 12.0, false, false);
-            let _addr_x = nl.x + crate::font_metrics::text_width(&nl.name, "SansSerif", 12.0, false, false) - addr_w;
+            let _addr_x = nl.x
+                + crate::font_metrics::text_width(&nl.name, "SansSerif", 12.0, false, false)
+                - addr_w;
             // Actually, the address x is right-aligned to the same right edge as the name.
             // In Java, the entire text block (name+address) is right-aligned.
             // The right edge of the block is at nl.x + name_w.
@@ -141,7 +143,8 @@ pub fn render_nwdiag(
                     .unwrap();
                 }
                 crate::layout::nwdiag::LinkOrLabel::Label(al) => {
-                    let text_w = crate::font_metrics::text_width(&al.text, "SansSerif", 11.0, false, false);
+                    let text_w =
+                        crate::font_metrics::text_width(&al.text, "SansSerif", 11.0, false, false);
                     write!(
                         buf,
                         r#"<text fill="{}" font-family="sans-serif" font-size="11" lengthAdjust="spacing" textLength="{}" x="{}" y="{}">{}</text>"#,

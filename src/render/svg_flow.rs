@@ -35,8 +35,12 @@ pub fn render_flow(
 
     for node in layout.nodes.iter().rev() {
         RectShape {
-            x: node.x, y: node.y, w: node.width, h: node.height,
-            rx: CORNER_RADIUS, ry: CORNER_RADIUS,
+            x: node.x,
+            y: node.y,
+            w: node.width,
+            h: node.height,
+            rx: CORNER_RADIUS,
+            ry: CORNER_RADIUS,
         }
         .draw(&mut sg, &box_style);
 
@@ -61,12 +65,24 @@ pub fn render_flow(
 
     for path in &layout.paths {
         LineShape {
-            x1: path.x1, y1: path.y1, x2: path.x2, y2: path.y2,
+            x1: path.x1,
+            y1: path.y1,
+            x2: path.x2,
+            y2: path.y2,
         }
-        .draw(&mut sg, &DrawStyle { fill: Some("none".into()), ..line_style.clone() });
+        .draw(
+            &mut sg,
+            &DrawStyle {
+                fill: Some("none".into()),
+                ..line_style.clone()
+            },
+        );
 
         EllipseShape {
-            cx: path.ellipse_cx, cy: path.ellipse_cy, rx: 3.5, ry: 3.5,
+            cx: path.ellipse_cx,
+            cy: path.ellipse_cy,
+            rx: 3.5,
+            ry: 3.5,
         }
         .draw(&mut sg, &dot_style);
     }

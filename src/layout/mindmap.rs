@@ -213,10 +213,10 @@ fn estimate_note_size(text: &str) -> (f64, f64) {
 ///   elongation = horizontal extent (width)
 #[derive(Debug, Clone)]
 struct SymetricalTee {
-    thickness1: f64,   // phalanx (node) thickness
-    elongation1: f64,  // phalanx (node) elongation
-    thickness2: f64,   // nail (children) thickness
-    elongation2: f64,  // nail (children) elongation
+    thickness1: f64,  // phalanx (node) thickness
+    elongation1: f64, // phalanx (node) elongation
+    thickness2: f64,  // nail (children) thickness
+    elongation2: f64, // nail (children) elongation
 }
 
 impl SymetricalTee {
@@ -317,7 +317,9 @@ impl PartialOrd for Stripe {
 }
 impl Ord for Stripe {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        self.start.partial_cmp(&other.start).unwrap_or(std::cmp::Ordering::Equal)
+        self.start
+            .partial_cmp(&other.start)
+            .unwrap_or(std::cmp::Ordering::Equal)
     }
 }
 
@@ -344,7 +346,10 @@ impl StripeFrontier {
     /// Find the maximum y-value (frontier height) in the x-range [x1, x2).
     fn get_contact(&self, x1: f64, x2: f64) -> f64 {
         let collisions = self.collisionning(x1, x2);
-        collisions.iter().map(|s| s.value).fold(f64::NEG_INFINITY, f64::max)
+        collisions
+            .iter()
+            .map(|s| s.value)
+            .fold(f64::NEG_INFINITY, f64::max)
     }
 
     /// Add a horizontal segment to the frontier.
@@ -372,7 +377,8 @@ impl StripeFrontier {
             return;
         }
         // Remove the touched stripe
-        self.stripes.retain(|s| !(s.start == touch.start && s.end == touch.end));
+        self.stripes
+            .retain(|s| !(s.start == touch.start && s.end == touch.end));
         // Add prefix (unmodified part before x1)
         if touch.start != x1 {
             self.stripes.push(Stripe {
@@ -459,8 +465,7 @@ impl Tetris {
     fn add_internal(&mut self, stp: SymetricalTeePositioned) {
         // Add phalanx bottom edge to frontier
         let b1_y = stp.segment_b1_y();
-        self.frontier
-            .add_segment(0.0, stp.tee.elongation1, b1_y);
+        self.frontier.add_segment(0.0, stp.tee.elongation1, b1_y);
 
         // Add nail bottom edge to frontier (if it has width)
         let b2_x1 = stp.tee.elongation1;
@@ -678,7 +683,13 @@ impl Finger {
             let child_center_y = origin_y + stp.y;
 
             // Recurse: draw child subtree first
-            child.collect(child_base_x, child_center_y, nodes_out, edges_out, draw_order);
+            child.collect(
+                child_base_x,
+                child_center_y,
+                nodes_out,
+                edges_out,
+                draw_order,
+            );
 
             // Then draw edge from parent to child
             let edge_idx = edges_out.len();

@@ -9,8 +9,7 @@ fn is_embedded_open(trimmed: &str) -> bool {
     }
     matches!(
         trimmed,
-        "{{"
-            | "{{ditaa"
+        "{{" | "{{ditaa"
             | "{{salt"
             | "{{uml"
             | "{{wbs"
@@ -245,7 +244,11 @@ fn parse_css_property(line: &str) -> Option<(String, String)> {
     // Try splitting on colon first (CSS syntax: `key: value;`)
     if let Some(colon_pos) = line.find(':') {
         let key = line[..colon_pos].trim().to_lowercase();
-        let value = line[colon_pos + 1..].trim().trim_end_matches(';').trim().to_string();
+        let value = line[colon_pos + 1..]
+            .trim()
+            .trim_end_matches(';')
+            .trim()
+            .to_string();
         if !key.is_empty() && !value.is_empty() {
             return Some((key, value));
         }
@@ -303,8 +306,12 @@ fn extract_document_style(css: &str, params: &mut SkinParams) {
                 let name = trimmed[..brace_pos].trim().to_lowercase();
                 if matches!(
                     name.as_str(),
-                    "sequencediagram" | "classdiagram" | "activitydiagram"
-                        | "statediagram" | "componentdiagram" | "usecasediagram"
+                    "sequencediagram"
+                        | "classdiagram"
+                        | "activitydiagram"
+                        | "statediagram"
+                        | "componentdiagram"
+                        | "usecasediagram"
                 ) {
                     wrapper_depth = 1;
                     depth += opens;
@@ -313,12 +320,10 @@ fn extract_document_style(css: &str, params: &mut SkinParams) {
                 }
             }
             // Track wrapper closing brace
-            if wrapper_depth > 0 && current_section.is_none() {
-                if trimmed == "}" {
-                    wrapper_depth = 0;
-                    depth = depth.saturating_sub(closes);
-                    continue;
-                }
+            if wrapper_depth > 0 && current_section.is_none() && trimmed == "}" {
+                wrapper_depth = 0;
+                depth = depth.saturating_sub(closes);
+                continue;
             }
 
             // Top-level section blocks — not inside document {}
@@ -389,32 +394,35 @@ fn extract_document_style(css: &str, params: &mut SkinParams) {
         // Extract properties from top-level section blocks (not inside document).
         // Only pick up direct properties (depth == section_depth + 1), not nested
         // sub-selectors like `.highlight { BackGroundColor ... }`.
-        if !in_document && current_section.is_some() && depth == section_depth + 1 {
-            if !trimmed.contains('{') && !trimmed.starts_with('}') {
-                if let Some((key, value)) = parse_css_property(trimmed) {
-                    let section = current_section.as_ref().unwrap();
-                    // Document sub-sections (title, footer, etc.) use document.{section}.{key}
-                    // Element-level blocks (node, root, etc.) use {section}.{key}
-                    let param_key = if matches!(
-                        section.as_str(),
-                        "title" | "footer" | "header" | "legend" | "caption"
-                    ) {
-                        format!("document.{section}.{key}")
-                    } else {
-                        format!("{section}.{key}")
-                    };
-                    params.set(&param_key, &value);
-                    // Also store concatenated form for legacy lookups
-                    // (e.g., "participant.fontsize" => also "participantfontsize")
-                    if !matches!(
-                        section.as_str(),
-                        "title" | "footer" | "header" | "legend" | "caption"
-                    ) {
-                        let legacy_key = format!("{section}{key}");
-                        params.set(&legacy_key, &value);
-                    }
-                    log::debug!("extracted style {param_key}: {value}");
+        if !in_document
+            && current_section.is_some()
+            && depth == section_depth + 1
+            && !trimmed.contains('{')
+            && !trimmed.starts_with('}')
+        {
+            if let Some((key, value)) = parse_css_property(trimmed) {
+                let section = current_section.as_ref().unwrap();
+                // Document sub-sections (title, footer, etc.) use document.{section}.{key}
+                // Element-level blocks (node, root, etc.) use {section}.{key}
+                let param_key = if matches!(
+                    section.as_str(),
+                    "title" | "footer" | "header" | "legend" | "caption"
+                ) {
+                    format!("document.{section}.{key}")
+                } else {
+                    format!("{section}.{key}")
+                };
+                params.set(&param_key, &value);
+                // Also store concatenated form for legacy lookups
+                // (e.g., "participant.fontsize" => also "participantfontsize")
+                if !matches!(
+                    section.as_str(),
+                    "title" | "footer" | "header" | "legend" | "caption"
+                ) {
+                    let legacy_key = format!("{section}{key}");
+                    params.set(&legacy_key, &value);
                 }
+                log::debug!("extracted style {param_key}: {value}");
             }
         }
 

@@ -4,12 +4,33 @@ use crate::Result;
 
 pub fn parse_regex_diagram(source: &str) -> Result<RegexDiagram> {
     let lines: Vec<&str> = source.lines().collect();
-    let start_idx = lines.iter().position(|line| line.trim().starts_with("@startregex"))
-        .ok_or_else(|| crate::Error::Parse { line: 1, column: Some(1), message: "missing @startregex".into() })?;
-    let end_idx = lines.iter().position(|line| line.trim().starts_with("@endregex"))
-        .ok_or_else(|| crate::Error::Parse { line: lines.len().max(1), column: Some(1), message: "missing @endregex".into() })?;
-    let body: String = lines[start_idx + 1..end_idx].iter().map(|l| l.trim()).filter(|l| !l.is_empty()).collect::<Vec<&str>>().join("");
-    if body.is_empty() { return Ok(RegexDiagram { node: RegexNode::Literal(String::new()) }); }
+    let start_idx = lines
+        .iter()
+        .position(|line| line.trim().starts_with("@startregex"))
+        .ok_or_else(|| crate::Error::Parse {
+            line: 1,
+            column: Some(1),
+            message: "missing @startregex".into(),
+        })?;
+    let end_idx = lines
+        .iter()
+        .position(|line| line.trim().starts_with("@endregex"))
+        .ok_or_else(|| crate::Error::Parse {
+            line: lines.len().max(1),
+            column: Some(1),
+            message: "missing @endregex".into(),
+        })?;
+    let body: String = lines[start_idx + 1..end_idx]
+        .iter()
+        .map(|l| l.trim())
+        .filter(|l| !l.is_empty())
+        .collect::<Vec<&str>>()
+        .join("");
+    if body.is_empty() {
+        return Ok(RegexDiagram {
+            node: RegexNode::Literal(String::new()),
+        });
+    }
     let chars: Vec<char> = body.chars().collect();
     let (node, _) = parse_alternation(&chars, 0)?;
     Ok(RegexDiagram { node })
@@ -22,9 +43,14 @@ fn parse_alternation(chars: &[char], start: usize) -> Result<(RegexNode, usize)>
     while pos < chars.len() && chars[pos] == '|' {
         pos += 1;
         let (branch, next) = parse_concat(chars, pos)?;
-        branches.push(branch); pos = next;
+        branches.push(branch);
+        pos = next;
     }
-    if branches.len() == 1 { Ok((branches.remove(0), pos)) } else { Ok((RegexNode::Alternate(branches), pos)) }
+    if branches.len() == 1 {
+        Ok((branches.remove(0), pos))
+    } else {
+        Ok((RegexNode::Alternate(branches), pos))
+    }
 }
 
 fn parse_concat(chars: &[char], start: usize) -> Result<(RegexNode, usize)> {
@@ -33,13 +59,45 @@ fn parse_concat(chars: &[char], start: usize) -> Result<(RegexNode, usize)> {
     while pos < chars.len() {
         match chars[pos] {
             '|' | ')' => break,
-            '(' => { let (g, n) = parse_group(chars, pos)?; let (q, n) = apply_quantifier(chars, n, g)?; items.push(q); pos = n; }
-            '[' => { let (c, n) = parse_char_class(chars, pos)?; let (q, n) = apply_quantifier(chars, n, c)?; items.push(q); pos = n; }
-            '.' => { let nd = RegexNode::Literal(".".into()); pos += 1; let (q, n) = apply_quantifier(chars, pos, nd)?; items.push(q); pos = n; }
+            '(' => {
+                let (g, n) = parse_group(chars, pos)?;
+                let (q, n) = apply_quantifier(chars, n, g)?;
+                items.push(q);
+                pos = n;
+            }
+            '[' => {
+                let (c, n) = parse_char_class(chars, pos)?;
+                let (q, n) = apply_quantifier(chars, n, c)?;
+                items.push(q);
+                pos = n;
+            }
+            '.' => {
+                let nd = RegexNode::Literal(".".into());
+                pos += 1;
+                let (q, n) = apply_quantifier(chars, pos, nd)?;
+                items.push(q);
+                pos = n;
+            }
             '\\' if pos + 1 < chars.len() => {
                 let c1 = chars[pos + 1];
                 // Java isEscapedChar: these become just the character (ESCAPED_CHAR token)
-                let nd = if matches!(c1, '.' | '*' | '\\' | '?' | '^' | '$' | '|' | '(' | ')' | '[' | ']' | '{' | '}' | '<' | '>') {
+                let nd = if matches!(
+                    c1,
+                    '.' | '*'
+                        | '\\'
+                        | '?'
+                        | '^'
+                        | '$'
+                        | '|'
+                        | '('
+                        | ')'
+                        | '['
+                        | ']'
+                        | '{'
+                        | '}'
+                        | '<'
+                        | '>'
+                ) {
                     RegexNode::Literal(c1.to_string())
                 } else {
                     // CLASS token: \d, \w, etc. — display with backslash
@@ -47,9 +105,16 @@ fn parse_concat(chars: &[char], start: usize) -> Result<(RegexNode, usize)> {
                 };
                 pos += 2;
                 let (q, n) = apply_quantifier(chars, pos, nd)?;
-                items.push(q); pos = n;
+                items.push(q);
+                pos = n;
             }
-            c => { let nd = RegexNode::Literal(c.to_string()); pos += 1; let (q, n) = apply_quantifier(chars, pos, nd)?; items.push(q); pos = n; }
+            c => {
+                let nd = RegexNode::Literal(c.to_string());
+                pos += 1;
+                let (q, n) = apply_quantifier(chars, pos, nd)?;
+                items.push(q);
+                pos = n;
+            }
         }
     }
     // Merge consecutive Literal nodes into single strings (Java renders "cat"
@@ -78,7 +143,11 @@ fn parse_concat(chars: &[char], start: usize) -> Result<(RegexNode, usize)> {
 
 fn parse_group(chars: &[char], start: usize) -> Result<(RegexNode, usize)> {
     let (inner, pos) = parse_alternation(chars, start + 1)?;
-    let pos = if pos < chars.len() && chars[pos] == ')' { pos + 1 } else { pos };
+    let pos = if pos < chars.len() && chars[pos] == ')' {
+        pos + 1
+    } else {
+        pos
+    };
     Ok((RegexNode::Group(Box::new(inner)), pos))
 }
 
@@ -96,33 +165,83 @@ fn parse_char_class(chars: &[char], start: usize) -> Result<(RegexNode, usize)> 
             pos += 1;
         }
     }
-    if pos < chars.len() { pos += 1; }
+    if pos < chars.len() {
+        pos += 1;
+    }
     // Apply Java GroupSplitter logic: recognize "x-y" ranges as single items
     let items = group_split(&raw);
     Ok((RegexNode::CharClass(items), pos))
 }
 
 fn apply_quantifier(chars: &[char], start: usize, inner: RegexNode) -> Result<(RegexNode, usize)> {
-    if start >= chars.len() { return Ok((inner, start)); }
+    if start >= chars.len() {
+        return Ok((inner, start));
+    }
     match chars[start] {
         '?' => Ok((RegexNode::Optional(Box::new(inner)), start + 1)),
-        '*' => Ok((RegexNode::Quantifier { inner: Box::new(inner), min: 0, max: None, label: "*".into() }, start + 1)),
-        '+' => Ok((RegexNode::Quantifier { inner: Box::new(inner), min: 1, max: None, label: "+".into() }, start + 1)),
+        '*' => Ok((
+            RegexNode::Quantifier {
+                inner: Box::new(inner),
+                min: 0,
+                max: None,
+                label: "*".into(),
+            },
+            start + 1,
+        )),
+        '+' => Ok((
+            RegexNode::Quantifier {
+                inner: Box::new(inner),
+                min: 1,
+                max: None,
+                label: "+".into(),
+            },
+            start + 1,
+        )),
         '{' => {
             let mut pos = start + 1;
             let mut ns = String::new();
-            while pos < chars.len() && chars[pos].is_ascii_digit() { ns.push(chars[pos]); pos += 1; }
-            let min: u32 = ns.parse().unwrap_or(0);
-            let mut max = Some(min); let mut has_comma = false;
-            if pos < chars.len() && chars[pos] == ',' {
-                has_comma = true; pos += 1;
-                let mut ms = String::new();
-                while pos < chars.len() && chars[pos].is_ascii_digit() { ms.push(chars[pos]); pos += 1; }
-                max = if ms.is_empty() { None } else { Some(ms.parse().unwrap_or(0)) };
+            while pos < chars.len() && chars[pos].is_ascii_digit() {
+                ns.push(chars[pos]);
+                pos += 1;
             }
-            if pos < chars.len() && chars[pos] == '}' { pos += 1; }
-            let label = if has_comma { if let Some(m) = max { format!("{{{},{}}}", min, m) } else { format!("{{{},}}", min) } } else { format!("{{{}}}", min) };
-            Ok((RegexNode::Quantifier { inner: Box::new(inner), min, max, label }, pos))
+            let min: u32 = ns.parse().unwrap_or(0);
+            let mut max = Some(min);
+            let mut has_comma = false;
+            if pos < chars.len() && chars[pos] == ',' {
+                has_comma = true;
+                pos += 1;
+                let mut ms = String::new();
+                while pos < chars.len() && chars[pos].is_ascii_digit() {
+                    ms.push(chars[pos]);
+                    pos += 1;
+                }
+                max = if ms.is_empty() {
+                    None
+                } else {
+                    Some(ms.parse().unwrap_or(0))
+                };
+            }
+            if pos < chars.len() && chars[pos] == '}' {
+                pos += 1;
+            }
+            let label = if has_comma {
+                if let Some(m) = max {
+                    format!("{{{},{}}}", min, m)
+                } else {
+                    format!("{{{},}}", min)
+                }
+            } else {
+                format!("{{{}}}", min)
+            };
+            Ok((
+                RegexNode::Quantifier {
+                    inner: Box::new(inner),
+                    min,
+                    max,
+                    label,
+                },
+                pos,
+            ))
         }
         _ => Ok((inner, start)),
     }
@@ -162,7 +281,12 @@ pub fn regex_node_to_ebnf(node: &RegexNode) -> EbnfExpr {
         RegexNode::Alternate(branches) => {
             EbnfExpr::Alternation(branches.iter().map(regex_node_to_ebnf).collect())
         }
-        RegexNode::Quantifier { inner, min, max, label } => {
+        RegexNode::Quantifier {
+            inner,
+            min,
+            max,
+            label,
+        } => {
             let inner_expr = regex_node_to_ebnf(inner);
             if *min == 0 && max.is_none() {
                 // `*` → ZeroOrMore = Optional(Repetition(inner))
@@ -175,11 +299,7 @@ pub fn regex_node_to_ebnf(node: &RegexNode) -> EbnfExpr {
                 EbnfExpr::RepetitionLabeled(Box::new(inner_expr), label.clone())
             }
         }
-        RegexNode::Optional(inner) => {
-            EbnfExpr::Optional(Box::new(regex_node_to_ebnf(inner)))
-        }
-        RegexNode::Group(inner) => {
-            EbnfExpr::Group(Box::new(regex_node_to_ebnf(inner)))
-        }
+        RegexNode::Optional(inner) => EbnfExpr::Optional(Box::new(regex_node_to_ebnf(inner))),
+        RegexNode::Group(inner) => EbnfExpr::Group(Box::new(regex_node_to_ebnf(inner))),
     }
 }

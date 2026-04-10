@@ -755,7 +755,8 @@ impl SvekEdge {
                 }
             }
 
-            if let (Some(ref mut pos), Some(dim)) = (&mut self.end_head_label_xy, self.end_head_dimension)
+            if let (Some(ref mut pos), Some(dim)) =
+                (&mut self.end_head_label_xy, self.end_head_dimension)
             {
                 let rect = XRectangle2D::new(pos.x, pos.y, dim.width, dim.height);
                 if expanded.intersects(&rect) {
@@ -788,8 +789,8 @@ impl SvekEdge {
         let ang = (end.x - start.x).atan2(end.y - start.y);
         if ang > -std::f64::consts::FRAC_PI_4 && ang < std::f64::consts::FRAC_PI_4 {
             Direction::Down
-        } else if ang > std::f64::consts::FRAC_PI_4 * 3.0
-            || ang < -std::f64::consts::FRAC_PI_4 * 3.0
+        } else if !(-std::f64::consts::FRAC_PI_4 * 3.0..=std::f64::consts::FRAC_PI_4 * 3.0)
+            .contains(&ang)
         {
             Direction::Up
         } else if end.x > start.x {
@@ -1504,7 +1505,11 @@ mod tests {
             "expected arrowtail=none, got: {}",
             sb
         );
-        assert!(!sb.contains("dir=both"), "did not expect dir=both, got: {}", sb);
+        assert!(
+            !sb.contains("dir=both"),
+            "did not expect dir=both, got: {}",
+            sb
+        );
     }
 
     #[test]

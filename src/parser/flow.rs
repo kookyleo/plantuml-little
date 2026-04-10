@@ -52,7 +52,11 @@ pub fn parse_flow_diagram(source: &str) -> Result<FlowDiagram> {
             nodes.push(FlowNode {
                 id: id.to_string(),
                 label: label.to_string(),
-                placement: if nodes.is_empty() { None } else { Some(direction) },
+                placement: if nodes.is_empty() {
+                    None
+                } else {
+                    Some(direction)
+                },
             });
             if let Some(from) = last_id.take() {
                 links.push(FlowLink {
@@ -122,8 +126,9 @@ mod tests {
 
     #[test]
     fn parses_flow_nodes_and_links() {
-        let diagram = parse_flow_diagram("@startflow\none \"Start\"\ns two \"Second\"\nn one\n@endflow")
-            .unwrap();
+        let diagram =
+            parse_flow_diagram("@startflow\none \"Start\"\ns two \"Second\"\nn one\n@endflow")
+                .unwrap();
         assert_eq!(diagram.nodes.len(), 2);
         assert_eq!(diagram.links.len(), 2);
         assert_eq!(diagram.nodes[1].placement, Some(FlowDirection::South));

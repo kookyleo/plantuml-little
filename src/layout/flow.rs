@@ -181,8 +181,18 @@ pub fn layout_flow(diagram: &FlowDiagram) -> Result<FlowLayout> {
         );
         let from_node = &nodes[from_idx];
         let to_node = &nodes[to_idx];
-        let (x1, y1) = move_point(start_center, from_node.width, from_node.height, link.direction);
-        let (x2, y2) = move_point(dest_center, to_node.width, to_node.height, link.direction.opposite());
+        let (x1, y1) = move_point(
+            start_center,
+            from_node.width,
+            from_node.height,
+            link.direction,
+        );
+        let (x2, y2) = move_point(
+            dest_center,
+            to_node.width,
+            to_node.height,
+            link.direction.opposite(),
+        );
         paths.push(FlowPathLayout {
             x1,
             y1,
@@ -255,12 +265,7 @@ fn opposite(direction: FlowDirection) -> FlowDirection {
     direction.opposite()
 }
 
-fn move_point(
-    center: (f64, f64),
-    width: f64,
-    height: f64,
-    direction: FlowDirection,
-) -> (f64, f64) {
+fn move_point(center: (f64, f64), width: f64, height: f64, direction: FlowDirection) -> (f64, f64) {
     match direction {
         FlowDirection::South => (center.0, center.1 + height / 2.0),
         FlowDirection::North => (center.0, center.1 - height / 2.0),

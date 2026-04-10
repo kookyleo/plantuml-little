@@ -213,10 +213,7 @@ pub fn parse_salt_diagram(source: &str) -> Result<SaltDiagram> {
         .collect();
 
     let tokens = tokenise(&filtered);
-    let mut cursor = Cursor {
-        tokens,
-        pos: 0,
-    };
+    let mut cursor = Cursor { tokens, pos: 0 };
 
     // Salt diagrams must start with a block header.
     let root = parse_pyramid(&mut cursor)?;

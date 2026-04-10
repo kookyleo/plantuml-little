@@ -150,7 +150,11 @@ pub fn parse_mindmap_diagram(source: &str) -> Result<MindmapDiagram> {
         root.depth()
     );
 
-    Ok(MindmapDiagram { root, notes, caption })
+    Ok(MindmapDiagram {
+        root,
+        notes,
+        caption,
+    })
 }
 
 /// Extract the content between `@startmindmap` and `@endmindmap`.
@@ -165,11 +169,9 @@ fn extract_mindmap_block(source: &str) -> Option<String> {
                 break;
             }
             lines.push(line);
-        } else {
-            if trimmed.starts_with("@startmindmap") {
-                inside = true;
-                continue;
-            }
+        } else if trimmed.starts_with("@startmindmap") {
+            inside = true;
+            continue;
         }
     }
 

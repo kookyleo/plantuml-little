@@ -68,13 +68,13 @@ mod tfunction_type_tests {
     #[test]
     fn is_legacy_procedure_false() {
         // Java: assertFalse(PROCEDURE.isLegacy())
-        assert!(TFunctionType::Procedure.is_legacy() == false);
+        assert!(!TFunctionType::Procedure.is_legacy());
     }
 
     #[test]
     fn is_legacy_return_function_false() {
         // Java: assertFalse(RETURN_FUNCTION.isLegacy())
-        assert!(TFunctionType::ReturnFunction.is_legacy() == false);
+        assert!(!TFunctionType::ReturnFunction.is_legacy());
     }
 
     #[test]
@@ -194,7 +194,7 @@ mod tfunction_signature_tests {
         // Java: sig1.sameFunctionNameAs(sig2) == false when names differ
         let a = TFunctionSignature::new("%strlen", 1);
         let b = TFunctionSignature::new("%upper", 1);
-        assert!(a.same_function_name_as(&b) == false);
+        assert!(!a.same_function_name_as(&b));
     }
 
     #[test]
@@ -458,7 +458,7 @@ mod tmemory_local_tests {
     fn is_empty_false_when_global_has_variables() {
         let global = make_global_with("$x", TValue::from_int(0));
         let local = TMemoryLocal::new(global);
-        assert!(local.is_empty() == false);
+        assert!(!local.is_empty());
     }
 
     #[test]
@@ -704,8 +704,8 @@ mod tvalue_tests {
         let v = TValue::from_int(42);
         assert_eq!(v.to_int(), 42);
         assert!(v.is_number());
-        assert!(v.is_string() == false);
-        assert!(v.is_json() == false);
+        assert!(!v.is_string());
+        assert!(!v.is_json());
     }
 
     #[test]
@@ -732,7 +732,7 @@ mod tvalue_tests {
         let v = TValue::from_string("hello");
         assert_eq!(v.to_string(), "hello");
         assert!(v.is_string());
-        assert!(v.is_number() == false);
+        assert!(!v.is_number());
     }
 
     #[test]
@@ -747,7 +747,7 @@ mod tvalue_tests {
 
     #[test]
     fn to_bool_zero_is_false() {
-        assert!(TValue::from_int(0).to_bool() == false);
+        assert!(!TValue::from_int(0).to_bool());
     }
 
     #[test]
@@ -758,7 +758,7 @@ mod tvalue_tests {
 
     #[test]
     fn to_bool_empty_string_is_false() {
-        assert!(TValue::from_string("").to_bool() == false);
+        assert!(!TValue::from_string("").to_bool());
     }
 
     #[test]

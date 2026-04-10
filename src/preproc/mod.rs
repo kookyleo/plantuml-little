@@ -5214,9 +5214,11 @@ $table
         assert_eq!(table_lines.len(), 1, "table should remain on a single line");
         let single = table_lines[0];
         assert!(single.contains("Field1"), "got: {single}");
-        assert!(single.contains(nl), "should contain U+E100 placeholder, got: {single}");
+        assert!(
+            single.contains(nl),
+            "should contain U+E100 placeholder, got: {single}"
+        );
         assert!(single.contains("| 1 | 2 |"), "got: {single}");
         assert!(single.contains("| 3 | 4 |"), "got: {single}");
     }
-
 }

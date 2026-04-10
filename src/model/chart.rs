@@ -5,7 +5,9 @@ pub struct ChartSeries {
     pub series_type: ChartSeriesType,
 }
 #[derive(Debug, Clone, PartialEq)]
-pub enum ChartSeriesType { Bar }
+pub enum ChartSeriesType {
+    Bar,
+}
 #[derive(Debug, Clone)]
 pub struct ChartDiagram {
     pub x_labels: Vec<String>,

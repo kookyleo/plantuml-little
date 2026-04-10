@@ -17,8 +17,9 @@ pub enum EntityKind {
 /// Rectangle-family symbol variant — Java USymbol sub-type for entities that
 /// all map to `EntityKind::Rectangle` but need distinct rendered shapes.
 /// See Java `USymbols`/`USymbolFile`/`USymbolFolder` etc.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum RectSymbol {
+    #[default]
     Rectangle,
     File,
     Folder,
@@ -31,12 +32,6 @@ pub enum RectSymbol {
     Cloud,
     Stack,
     Queue,
-}
-
-impl Default for RectSymbol {
-    fn default() -> Self {
-        RectSymbol::Rectangle
-    }
 }
 
 /// Member visibility
@@ -106,7 +101,13 @@ impl Stereotype {
                 } else {
                     None
                 };
-                return (Some(StereotypeSpot { character: ch, color }), rest);
+                return (
+                    Some(StereotypeSpot {
+                        character: ch,
+                        color,
+                    }),
+                    rest,
+                );
             }
         }
         (None, self.0.clone())

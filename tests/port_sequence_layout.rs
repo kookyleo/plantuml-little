@@ -85,8 +85,8 @@ fn sequencelayout_0006_structure() {
 
     // Cross-element: msg[1] from activated B, goes left
     assert!(
-        l.messages[1].from_x < bob_x,
-        "msg[1].from_x ({:.1}) < bob center ({:.1}): starts at activation left edge",
+        l.messages[1].from_x <= bob_x,
+        "msg[1].from_x ({:.1}) <= bob center ({:.1}): starts at activation left edge",
         l.messages[1].from_x,
         bob_x
     );

@@ -329,7 +329,7 @@ fn parse_points(s: &str) -> Vec<XPoint2D> {
         .split_whitespace()
         .filter_map(|t| {
             // Skip path commands (single alphabetic characters)
-            if t.len() == 1 && t.chars().next().map_or(false, |c| c.is_ascii_alphabetic()) {
+            if t.len() == 1 && t.chars().next().is_some_and(|c| c.is_ascii_alphabetic()) {
                 return None;
             }
             t.parse::<f64>().ok()
@@ -374,12 +374,7 @@ fn parse_svg_path_to_dotpath_with_fn(
     let tokens = tokenize_svg_path(d);
 
     for tok in &tokens {
-        if tok.len() == 1
-            && tok
-                .chars()
-                .next()
-                .map_or(false, |c| c.is_ascii_alphabetic())
-        {
+        if tok.len() == 1 && tok.chars().next().is_some_and(|c| c.is_ascii_alphabetic()) {
             // Process accumulated numbers before switching command
             process_path_cmd(
                 cmd,
@@ -584,7 +579,8 @@ mod tests {
     fn svg_result_substring_preserves_transform() {
         use crate::svek::snake::YDelta;
 
-        let sr = SvgResult::with_function("x 10,20 30,40".to_string(), Box::new(YDelta::new(100.0)));
+        let sr =
+            SvgResult::with_function("x 10,20 30,40".to_string(), Box::new(YDelta::new(100.0)));
         let sub = sr.substring_from(2);
         let pts = sub.get_points(" ");
         assert_eq!(pts.len(), 2);
@@ -762,7 +758,10 @@ mod tests {
         let sr = SvgResult::with_function(svg.to_string(), Box::new(YDelta::new(100.0)));
         let mut iter = sr.get_points_with_this_color(0x010200);
         let first = iter.next().unwrap();
-        assert_eq!(first, vec![XPoint2D::new(10.0, 120.0), XPoint2D::new(30.0, 140.0)]);
+        assert_eq!(
+            first,
+            vec![XPoint2D::new(10.0, 120.0), XPoint2D::new(30.0, 140.0)]
+        );
     }
 
     // ── split_by_chars ───────────────────────────────────────────────

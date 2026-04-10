@@ -350,20 +350,15 @@ impl HColor {
 // ── HColorLinearGradient: SVG multi-stop gradient ────────────────────
 
 /// Spread method for linear gradients (mirrors SVG spreadMethod).
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum SpreadMethod {
     /// Extend edge colors (default).
+    #[default]
     Pad,
     /// Reflect the gradient back and forth.
     Reflect,
     /// Repeat the gradient in the same direction.
     Repeat,
-}
-
-impl Default for SpreadMethod {
-    fn default() -> Self {
-        Self::Pad
-    }
 }
 
 /// A single gradient stop with offset, color, and opacity.

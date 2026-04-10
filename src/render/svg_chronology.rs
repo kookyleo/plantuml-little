@@ -31,7 +31,10 @@ pub fn render_chronology(
 
     // Main horizontal line
     LineShape {
-        x1: l.line_x1, y1: l.line_y, x2: l.line_x2, y2: l.line_y,
+        x1: l.line_x1,
+        y1: l.line_y,
+        x2: l.line_x2,
+        y2: l.line_y,
     }
     .draw(&mut sg, &DrawStyle::outline(LINE_COLOR, 2.0));
 
@@ -47,7 +50,10 @@ pub fn render_chronology(
 
         // Vertical connector line
         LineShape {
-            x1: ev.x, y1: ev.y - MARKER_RADIUS, x2: ev.x, y2: ev.label_y + 4.0,
+            x1: ev.x,
+            y1: ev.y - MARKER_RADIUS,
+            x2: ev.x,
+            y2: ev.label_y + 4.0,
         }
         .draw(&mut sg, &DrawStyle::outline(LINE_COLOR, 1.0));
 
@@ -67,8 +73,7 @@ pub fn render_chronology(
         .draw(&mut sg, &label_style);
 
         // Date
-        let date_w =
-            font_metrics::text_width(&ev.date, "SansSerif", DATE_FONT_SIZE, false, false);
+        let date_w = font_metrics::text_width(&ev.date, "SansSerif", DATE_FONT_SIZE, false, false);
         TextShape {
             x: ev.date_x,
             y: ev.date_y,

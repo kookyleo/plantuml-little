@@ -11,7 +11,9 @@ use crate::layout::activity::{
     NotePositionLayout, SwimlaneLayout, TABLE_CELL_PADDING,
 };
 use crate::model::activity::ActivityDiagram;
-use crate::render::svg::{ensure_visible_int, write_bg_rect, write_svg_root_bg, ViewportConfig, compute_viewport};
+use crate::render::svg::{
+    compute_viewport, ensure_visible_int, write_bg_rect, write_svg_root_bg, ViewportConfig,
+};
 use crate::render::svg_richtext::{
     creole_line_height, creole_text_width, get_sprite_svg, render_creole_display_lines,
     render_creole_text, render_creole_text_opts, render_creole_text_word_by_word,
@@ -223,10 +225,12 @@ pub fn render_activity(
                             }
                             match &nodes_ref[j].kind {
                                 ActivityNodeKindLayout::Note { position, .. }
-                                | ActivityNodeKindLayout::FloatingNote { position, .. } => match position {
-                                    NotePositionLayout::Left => left_notes.push(j),
-                                    NotePositionLayout::Right => right_notes.push(j),
-                                },
+                                | ActivityNodeKindLayout::FloatingNote { position, .. } => {
+                                    match position {
+                                        NotePositionLayout::Left => left_notes.push(j),
+                                        NotePositionLayout::Right => right_notes.push(j),
+                                    }
+                                }
                                 _ => break,
                             }
                             j += 1;
@@ -263,7 +267,10 @@ pub fn render_activity(
             // 2b: Divider line (Java: y1=header_top, y2=content_bottom)
             let swim_border_style = DrawStyle::outline(swimlane_border, 1.5);
             LineShape {
-                x1: sw.x, y1: header_top, x2: sw.x, y2: content_bottom,
+                x1: sw.x,
+                y1: header_top,
+                x2: sw.x,
+                y2: content_bottom,
             }
             .draw(&mut sg, &swim_border_style);
         }
@@ -271,7 +278,10 @@ pub fn render_activity(
         if let Some(last) = layout.swimlane_layouts.last() {
             let right_x = last.x + last.width;
             LineShape {
-                x1: right_x, y1: header_top, x2: right_x, y2: content_bottom,
+                x1: right_x,
+                y1: header_top,
+                x2: right_x,
+                y2: content_bottom,
             }
             .draw(&mut sg, &DrawStyle::outline(swimlane_border, 1.5));
         }
@@ -549,7 +559,8 @@ fn render_old_style_node(
                 fmt_coord(y),
             )
             .unwrap();
-            let text_y = y + 10.0 + font_metrics::ascent("SansSerif", ACTION_FONT_SIZE, false, false);
+            let text_y =
+                y + 10.0 + font_metrics::ascent("SansSerif", ACTION_FONT_SIZE, false, false);
             let text_w =
                 font_metrics::text_width(&node.text, "SansSerif", ACTION_FONT_SIZE, false, false);
             write!(
@@ -633,10 +644,7 @@ fn render_old_style_edge(
         write!(
             buf,
             r#"<path d="{}" fill="none" id="{}-to-{}" style="stroke:{};stroke-width:1;"/>"#,
-            path_d,
-            meta.from_id,
-            meta.to_id,
-            arrow_color,
+            path_d, meta.from_id, meta.to_id, arrow_color,
         )
         .unwrap();
     }
@@ -656,9 +664,7 @@ fn render_old_style_edge(
         write!(
             buf,
             r#"<polygon fill="{}" points="{}" style="stroke:{};stroke-width:1;"/>"#,
-            arrow_color,
-            points_attr,
-            arrow_color,
+            arrow_color, points_attr, arrow_color,
         )
         .unwrap();
     }
@@ -667,8 +673,7 @@ fn render_old_style_edge(
         if let Some((x, y)) = meta.label_xy {
             let x = x + bo_x + 1.0;
             let y = y + bo_y + edge_ascent + 1.0;
-            let text_w =
-                font_metrics::text_width(&edge.label, "SansSerif", 11.0, false, false);
+            let text_w = font_metrics::text_width(&edge.label, "SansSerif", 11.0, false, false);
             write!(
                 buf,
                 r##"<text fill="#000000" font-family="sans-serif" font-size="11" lengthAdjust="spacing" textLength="{}" x="{}" y="{}">{}</text>"##,
@@ -686,7 +691,11 @@ fn render_old_style_edge(
     if let (Some(head_label), Some((x, y))) = (&meta.head_label, meta.head_label_xy) {
         let x = x + bo_x;
         let y = y + bo_y + edge_ascent;
-        let display = if head_label.is_empty() { " " } else { head_label.as_str() };
+        let display = if head_label.is_empty() {
+            " "
+        } else {
+            head_label.as_str()
+        };
         let text_w = font_metrics::text_width(display, "SansSerif", 11.0, false, false);
         let text = if head_label.is_empty() {
             "&#160;".to_string()
@@ -853,18 +862,33 @@ fn render_node(
 fn render_start(sg: &mut SvgGraphic, node: &ActivityNodeLayout) {
     let cx = node.x + node.width / 2.0;
     let cy = node.y + node.height / 2.0;
-    EllipseShape { cx, cy, rx: 10.0, ry: 10.0 }
-        .draw(sg, &DrawStyle::filled(INITIAL_FILL, INITIAL_FILL, 1.0));
+    EllipseShape {
+        cx,
+        cy,
+        rx: 10.0,
+        ry: 10.0,
+    }
+    .draw(sg, &DrawStyle::filled(INITIAL_FILL, INITIAL_FILL, 1.0));
 }
 
 /// Stop / End node: double ellipse (outer ring + inner filled)
 fn render_stop(sg: &mut SvgGraphic, node: &ActivityNodeLayout) {
     let cx = node.x + node.width / 2.0;
     let cy = node.y + node.height / 2.0;
-    EllipseShape { cx, cy, rx: 11.0, ry: 11.0 }
-        .draw(sg, &DrawStyle::outline(INITIAL_FILL, 1.0));
-    EllipseShape { cx, cy, rx: 6.0, ry: 6.0 }
-        .draw(sg, &DrawStyle::filled(INITIAL_FILL, INITIAL_FILL, 1.0));
+    EllipseShape {
+        cx,
+        cy,
+        rx: 11.0,
+        ry: 11.0,
+    }
+    .draw(sg, &DrawStyle::outline(INITIAL_FILL, 1.0));
+    EllipseShape {
+        cx,
+        cy,
+        rx: 6.0,
+        ry: 6.0,
+    }
+    .draw(sg, &DrawStyle::filled(INITIAL_FILL, INITIAL_FILL, 1.0));
 }
 
 /// Action node: rounded rectangle with (possibly multi-line) text
@@ -876,7 +900,12 @@ fn render_action(
     font_color: &str,
 ) {
     RectShape {
-        x: node.x, y: node.y, w: node.width, h: node.height, rx: 12.5, ry: 12.5,
+        x: node.x,
+        y: node.y,
+        w: node.width,
+        h: node.height,
+        rx: 12.5,
+        ry: 12.5,
     }
     .draw(sg, &DrawStyle::filled(bg, border, 0.5));
 
@@ -923,7 +952,7 @@ fn render_action(
     let sprite_scale = ACTION_FONT_SIZE / (ACTION_FONT_SIZE + 1.0);
 
     let mut y_cursor = 0.0_f64; // content height accumulated (relative to first_baseline area)
-    for (_i, line) in lines.iter().enumerate() {
+    for line in lines.iter() {
         let display_text = line.trim();
         if display_text.is_empty() {
             y_cursor += lh;
@@ -995,7 +1024,13 @@ fn render_single_column_table_action(
         .map(|row| creole_line_height(row, "SansSerif", ACTION_FONT_SIZE))
         .collect();
     let content_width = rows.iter().fold(0.0_f64, |acc, row| {
-        acc.max(creole_text_width(row, "SansSerif", ACTION_FONT_SIZE, false, false))
+        acc.max(creole_text_width(
+            row,
+            "SansSerif",
+            ACTION_FONT_SIZE,
+            false,
+            false,
+        ))
     });
     let ascent = font_metrics::ascent("SansSerif", ACTION_FONT_SIZE, false, false);
     let grid_top = top_y + TABLE_CELL_PADDING;
@@ -1105,13 +1140,20 @@ fn render_hexagon(
     // 1. Hexagon polygon (closed: first vertex repeated at the end).
     PolygonShape {
         points: vec![
-            x + half, y,
-            x + w - half, y,
-            x + w, y + h / 2.0,
-            x + w - half, y + h,
-            x + half, y + h,
-            x, y + h / 2.0,
-            x + half, y,
+            x + half,
+            y,
+            x + w - half,
+            y,
+            x + w,
+            y + h / 2.0,
+            x + w - half,
+            y + h,
+            x + half,
+            y + h,
+            x,
+            y + h / 2.0,
+            x + half,
+            y,
         ],
     }
     .draw(sg, &DrawStyle::filled(bg, border, 0.5));
@@ -1217,10 +1259,20 @@ fn render_detach(sg: &mut SvgGraphic, node: &ActivityNodeLayout, arrow_color: &s
     let cy = node.y + node.height / 2.0;
     let r = node.width / 2.0;
     let detach_style = DrawStyle::outline(arrow_color, 2.0);
-    LineShape { x1: cx - r, y1: cy - r, x2: cx + r, y2: cy + r }
-        .draw(sg, &detach_style);
-    LineShape { x1: cx + r, y1: cy - r, x2: cx - r, y2: cy + r }
-        .draw(sg, &detach_style);
+    LineShape {
+        x1: cx - r,
+        y1: cy - r,
+        x2: cx + r,
+        y2: cy + r,
+    }
+    .draw(sg, &detach_style);
+    LineShape {
+        x1: cx + r,
+        y1: cy - r,
+        x2: cx - r,
+        y2: cy + r,
+    }
+    .draw(sg, &detach_style);
 }
 
 /// Note (or floating note): path-based note shape with folded corner + text.
@@ -1360,8 +1412,20 @@ fn render_note(
             let sep_y1 = sep_top + 5.0;
             let sep_y2 = sep_y1 + 2.0;
             let sep_style = DrawStyle::outline(NOTE_BORDER, 1.0);
-            LineShape { x1: x, y1: sep_y1, x2: x + w, y2: sep_y1 }.draw(sg, &sep_style);
-            LineShape { x1: x, y1: sep_y2, x2: x + w, y2: sep_y2 }.draw(sg, &sep_style);
+            LineShape {
+                x1: x,
+                y1: sep_y1,
+                x2: x + w,
+                y2: sep_y1,
+            }
+            .draw(sg, &sep_style);
+            LineShape {
+                x1: x,
+                y1: sep_y2,
+                x2: x + w,
+                y2: sep_y2,
+            }
+            .draw(sg, &sep_style);
             in_bullet_item = false;
             text_y += crate::layout::activity::NOTE_SEPARATOR_HEIGHT;
             continue;
@@ -1516,23 +1580,53 @@ fn render_loopback_simple2(
     let ox = x2; // arrow x sits on the vertical segment
     let oy = up_arrow_y;
     PolygonShape {
-        points: vec![ox - 4.0, oy + 10.0, ox, oy, ox + 4.0, oy + 10.0, ox, oy + 6.0],
+        points: vec![
+            ox - 4.0,
+            oy + 10.0,
+            ox,
+            oy,
+            ox + 4.0,
+            oy + 10.0,
+            ox,
+            oy + 6.0,
+        ],
     }
     .draw(sg, &poly_style);
 
     // Segment 2: vertical with Y normalisation (Java UGraphicCompressOnXorY).
     let (vy1, vy2) = if y2 > y3 { (y3, y2) } else { (y2, y3) };
-    LineShape { x1: x2, y1: vy1, x2: x3, y2: vy2 }.draw(sg, &line_style);
+    LineShape {
+        x1: x2,
+        y1: vy1,
+        x2: x3,
+        y2: vy2,
+    }
+    .draw(sg, &line_style);
 
     // Segment 3: horizontal back into diamond1 right.
-    LineShape { x1: x3, y1: y3, x2: x4, y2: y4 }.draw(sg, &line_style);
+    LineShape {
+        x1: x3,
+        y1: y3,
+        x2: x4,
+        y2: y4,
+    }
+    .draw(sg, &line_style);
 
     // End LEFT arrow polygon at the final point.  Java `asToLeft()` shape:
     // tip at (0, 0), points at (10, ±4), notch at (6, 0).
     let tx = x4;
     let ty = y4;
     PolygonShape {
-        points: vec![tx + 10.0, ty - 4.0, tx, ty, tx + 10.0, ty + 4.0, tx + 6.0, ty],
+        points: vec![
+            tx + 10.0,
+            ty - 4.0,
+            tx,
+            ty,
+            tx + 10.0,
+            ty + 4.0,
+            tx + 6.0,
+            ty,
+        ],
     }
     .draw(sg, &poly_style);
 }
@@ -1574,8 +1668,13 @@ fn render_swimlane(
     font_color: &str,
 ) {
     // Vertical divider line
-    LineShape { x1: sw.x, y1: 0.0, x2: sw.x, y2: total_height }
-        .draw(sg, &DrawStyle::outline(border, 1.5));
+    LineShape {
+        x1: sw.x,
+        y1: 0.0,
+        x2: sw.x,
+        y2: total_height,
+    }
+    .draw(sg, &DrawStyle::outline(border, 1.5));
 
     // Header label text (font-size 18 to match Java PlantUML)
     let label_x = sw.x + sw.width / 2.0;
@@ -2188,21 +2287,15 @@ mod tests {
                     name: "Lane A".into(),
                 },
                 ActivityEvent::Start,
-                ActivityEvent::Action {
-                    text: "A1".into(),
-                },
+                ActivityEvent::Action { text: "A1".into() },
                 ActivityEvent::Swimlane {
                     name: "Lane B".into(),
                 },
-                ActivityEvent::Action {
-                    text: "B1".into(),
-                },
+                ActivityEvent::Action { text: "B1".into() },
                 ActivityEvent::Swimlane {
                     name: "Lane A".into(),
                 },
-                ActivityEvent::Action {
-                    text: "A2".into(),
-                },
+                ActivityEvent::Action { text: "A2".into() },
                 ActivityEvent::Stop,
             ],
             swimlanes: vec!["Lane A".into(), "Lane B".into()],

@@ -11,20 +11,19 @@ use super::svg_sequence;
 // Re-export from svg_meta for backward compatibility and internal use
 pub(crate) use super::svg_meta::inject_plantuml_source;
 use super::svg_meta::{
-    compute_meta_body_offset, extract_dimensions, inject_google_fonts,
-    inject_svginteractive, wrap_with_meta,
+    compute_meta_body_offset, extract_dimensions, inject_google_fonts, inject_svginteractive,
+    wrap_with_meta,
 };
 #[cfg(test)]
 use super::svg_meta::{encode_plantuml_source, extract_svg_content};
 
 // Re-export from svg_class for tests
+use super::svg_class::render_class;
 #[cfg(test)]
 use super::svg_class::{
-    sanitize_id, format_member,
-    QualifierEndpoint, KalPlacement, qualifier_edge_translation,
-    move_edge_start_point, move_edge_end_point, emit_arrowhead, emit_plus_head,
+    emit_arrowhead, emit_plus_head, format_member, move_edge_end_point, move_edge_start_point,
+    qualifier_edge_translation, sanitize_id, KalPlacement, QualifierEndpoint,
 };
-use super::svg_class::render_class;
 
 // Test-only imports for items that moved to sub-modules
 #[cfg(test)]
@@ -268,7 +267,13 @@ pub fn render_with_source(
 
     // Note: handwritten mode does NOT change fonts, only jiggling shapes.
     set_default_font_family(None);
-    let body_result = render_body(diagram, layout, skin, activity_body_offset, class_body_offset)?;
+    let body_result = render_body(
+        diagram,
+        layout,
+        skin,
+        activity_body_offset,
+        class_body_offset,
+    )?;
     set_default_font_family(None);
 
     // Extract diagram type from body SVG
@@ -321,7 +326,7 @@ pub fn render_with_source(
     if meta
         .pragmas
         .get("svginteractive")
-        .map_or(false, |v| v == "true")
+        .is_some_and(|v| v == "true")
     {
         svg = inject_svginteractive(svg, &dtype);
     }
@@ -377,7 +382,9 @@ fn render_body(
                 body_degenerated: false,
             })
         }
-        (Diagram::Class(cd), DiagramLayout::Class(gl)) => render_class(cd, gl, skin, class_body_offset),
+        (Diagram::Class(cd), DiagramLayout::Class(gl)) => {
+            render_class(cd, gl, skin, class_body_offset)
+        }
         (Diagram::Sequence(sd), DiagramLayout::Sequence(sl)) => {
             // Sequence layout total_width/total_height include document margins
             // (top=5, right=5, bottom=5 for Puma2). Recover raw textBlock dimensions.
@@ -393,10 +400,11 @@ fn render_body(
             // normal diagrams keep using `sl.total_width` and avoid the
             // off-by-one ceiling slop that measure_sequence_body_dim can
             // introduce for tightly packed layouts.
-            let has_boundary_arrow =
-                sd.events.iter().any(|e| matches!(e,
+            let has_boundary_arrow = sd.events.iter().any(|e| {
+                matches!(e,
                     crate::model::sequence::SeqEvent::Message(m)
-                        if m.to == "]" || m.from == "["));
+                        if m.to == "]" || m.from == "[")
+            });
             svg_sequence::render_sequence(sd, sl, skin).map(|svg| {
                 let (body_w, body_h) = if has_boundary_arrow {
                     let (rendered_w, rendered_h) = extract_dimensions(&svg);
@@ -461,14 +469,13 @@ fn render_body(
                 body_degenerated: false,
             })
         }
-        (Diagram::Flow(fd), DiagramLayout::Flow(fl)) => {
-            super::svg_flow::render_flow(fd, fl, skin).map(|svg| BodyResult {
+        (Diagram::Flow(fd), DiagramLayout::Flow(fl)) => super::svg_flow::render_flow(fd, fl, skin)
+            .map(|svg| BodyResult {
                 svg,
                 raw_body_dim: None,
                 body_pre_offset: false,
                 body_degenerated: false,
-            })
-        }
+            }),
         (Diagram::Ditaa(dd), DiagramLayout::Ditaa(dl)) => {
             super::svg_ditaa::render_ditaa(dd, dl, skin).map(|svg| BodyResult {
                 svg,
@@ -590,14 +597,13 @@ fn render_body(
                 body_degenerated: false,
             })
         }
-        (Diagram::Ebnf(ed), DiagramLayout::Ebnf(el)) => {
-            super::svg_ebnf::render_ebnf(ed, el, skin).map(|svg| BodyResult {
+        (Diagram::Ebnf(ed), DiagramLayout::Ebnf(el)) => super::svg_ebnf::render_ebnf(ed, el, skin)
+            .map(|svg| BodyResult {
                 svg,
                 raw_body_dim: None,
                 body_pre_offset: false,
                 body_degenerated: false,
-            })
-        }
+            }),
         (Diagram::Pie(pd), DiagramLayout::Pie(pl)) => {
             super::svg_pie::render_pie(pd, pl, skin).map(|svg| BodyResult {
                 svg,
@@ -630,22 +636,20 @@ fn render_body(
                 body_degenerated: false,
             })
         }
-        (Diagram::Wire(wd), DiagramLayout::Wire(wl)) => {
-            super::svg_wire::render_wire(wd, wl, skin).map(|svg| BodyResult {
+        (Diagram::Wire(wd), DiagramLayout::Wire(wl)) => super::svg_wire::render_wire(wd, wl, skin)
+            .map(|svg| BodyResult {
                 svg,
                 raw_body_dim: None,
                 body_pre_offset: false,
                 body_degenerated: false,
-            })
-        }
-        (Diagram::Math(md), DiagramLayout::Math(ml)) => {
-            super::svg_math::render_math(md, ml, skin).map(|svg| BodyResult {
+            }),
+        (Diagram::Math(md), DiagramLayout::Math(ml)) => super::svg_math::render_math(md, ml, skin)
+            .map(|svg| BodyResult {
                 svg,
                 raw_body_dim: None,
                 body_pre_offset: false,
                 body_degenerated: false,
-            })
-        }
+            }),
         (Diagram::Latex(ld), DiagramLayout::Latex(ll)) => {
             super::svg_math::render_math(ld, ll, skin).map(|svg| BodyResult {
                 svg,
@@ -662,14 +666,13 @@ fn render_body(
                 body_degenerated: false,
             })
         }
-        (Diagram::Def(dd), DiagramLayout::Def(dl)) => {
-            super::svg_math::render_def(dd, dl, skin).map(|svg| BodyResult {
+        (Diagram::Def(dd), DiagramLayout::Def(dl)) => super::svg_math::render_def(dd, dl, skin)
+            .map(|svg| BodyResult {
                 svg,
                 raw_body_dim: None,
                 body_pre_offset: false,
                 body_degenerated: false,
-            })
-        }
+            }),
         _ => Err(crate::Error::Render("diagram/layout type mismatch".into())),
     }
 }
@@ -885,7 +888,6 @@ impl BoundsTracker {
     }
 }
 
-
 #[cfg(test)]
 mod tests {
     use std::collections::HashMap;
@@ -984,7 +986,12 @@ mod tests {
             &mut sg,
             &mut tracker,
             &ArrowHead::DiamondHollow,
-            &[(201.0, 237.4069), (201.0, 265.5069), (201.0, 258.0931), (201.0, 286.3231)],
+            &[
+                (201.0, 237.4069),
+                (201.0, 265.5069),
+                (201.0, 258.0931),
+                (201.0, 286.3231),
+            ],
             true,
             "#181818",
             0.0,
@@ -1522,7 +1529,8 @@ mod tests {
 
     #[test]
     fn test_extract_svg_content_strips_plantuml_pi() {
-        let svg = r#"<?plantuml 1.2026.2?><svg xmlns="http://www.w3.org/2000/svg"><defs/><g/></svg>"#;
+        let svg =
+            r#"<?plantuml 1.2026.2?><svg xmlns="http://www.w3.org/2000/svg"><defs/><g/></svg>"#;
         assert_eq!(extract_svg_content(svg), "<defs/><g/>");
     }
 

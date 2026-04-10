@@ -2,10 +2,10 @@ use std::collections::HashMap;
 use std::fmt::Write;
 
 use crate::font_metrics;
-use crate::klimt::sanitize_group_metadata_value;
 use crate::klimt::drawable::{
     DrawStyle, Drawable, EllipseShape, LineShape, PolygonShape, RectShape,
 };
+use crate::klimt::sanitize_group_metadata_value;
 use crate::klimt::svg::{fmt_coord, svg_comment_escape, xml_escape, LengthAdjust, SvgGraphic};
 use crate::layout::class_group_header_metrics;
 use crate::layout::graphviz::{
@@ -26,8 +26,7 @@ use crate::svek::edge::LineOfSegments;
 use crate::Result;
 
 use super::svg::{
-    write_bg_rect, write_svg_root_bg, BoundsTracker, BodyResult,
-    ViewportConfig, compute_viewport,
+    compute_viewport, write_bg_rect, write_svg_root_bg, BodyResult, BoundsTracker, ViewportConfig,
 };
 use super::svg_meta::text_block_h;
 use super::svg_richtext::{
@@ -156,7 +155,6 @@ pub(super) struct KalPlacement {
     pub(super) height: f64,
     pub(super) shift_x: f64,
 }
-
 
 pub(super) fn sanitize_id(name: &str) -> String {
     name.replace('<', "_LT_")
@@ -310,7 +308,10 @@ pub(super) fn render_class(
 
     // Java: object diagrams do NOT emit <!--class X--> comments for entities,
     // only class diagrams do.
-    let is_object_diagram = cd.entities.iter().all(|e| matches!(e.kind, EntityKind::Object | EntityKind::Map));
+    let is_object_diagram = cd
+        .entities
+        .iter()
+        .all(|e| matches!(e.kind, EntityKind::Object | EntityKind::Map));
 
     for cluster in &groups_by_def_order {
         let ent_id = group_ids
@@ -437,7 +438,10 @@ pub(super) fn render_class(
     for (link_idx, link) in cd.links.iter().enumerate() {
         let from_id = sanitize_id(&link.from);
         let to_id = sanitize_id(&link.to);
-        if let Some(el) = layout.edges.get(link_idx).filter(|e| e.from == from_id && e.to == to_id)
+        if let Some(el) = layout
+            .edges
+            .get(link_idx)
+            .filter(|e| e.from == from_id && e.to == to_id)
         {
             let from_ent = entity_ids.get(&from_id).map(|s| s.as_str()).unwrap_or("");
             let to_ent = entity_ids.get(&to_id).map(|s| s.as_str()).unwrap_or("");
@@ -502,7 +506,8 @@ pub(super) fn render_class(
     // it runs LimitFinder on the already moveDelta-shifted drawing, then adds the
     // document margins. The rendered max point therefore is the authority, not
     // lf_span + delta(15,15).
-    let is_degenerated = layout.nodes.len() <= 1 && layout.edges.is_empty() && layout.notes.is_empty();
+    let is_degenerated =
+        layout.nodes.len() <= 1 && layout.edges.is_empty() && layout.notes.is_empty();
     let (max_x, max_y) = tracker.max_point();
     // raw_body_dim: the LimitFinder extent (no +1). Used by wrap_with_meta for
     // merge_tb — the global getFinalDimension +1 is applied at the canvas level.
@@ -605,14 +610,24 @@ fn draw_class_group(
                 Some("dotted") => Some((1.0_f64, 3.0_f64)),
                 _ => None,
             };
-            RectShape { x, y, w, h, rx: 2.5, ry: 2.5 }
-                .draw(sg, &DrawStyle {
+            RectShape {
+                x,
+                y,
+                w,
+                h,
+                rx: 2.5,
+                ry: 2.5,
+            }
+            .draw(
+                sg,
+                &DrawStyle {
                     fill: Some(fill.clone()),
                     stroke: Some(border.to_string()),
                     stroke_width: 1.0,
                     dash_array: dash_pattern,
                     delta_shadow: 0.0,
-                });
+                },
+            );
             if dash_pattern.is_some() {
                 sg.set_stroke_width(1.0, None);
             }
@@ -903,7 +918,10 @@ fn emit_circle_glyph_with_char(
                     EntityKind::Abstract => (GLYPH_A_RAW, GLYPH_A_CENTER),
                     EntityKind::Interface => (GLYPH_I_RAW, GLYPH_I_CENTER),
                     EntityKind::Enum => (GLYPH_E_RAW, GLYPH_E_CENTER),
-                    EntityKind::Annotation | EntityKind::Rectangle | EntityKind::Component | EntityKind::Map => return,
+                    EntityKind::Annotation
+                    | EntityKind::Rectangle
+                    | EntityKind::Component
+                    | EntityKind::Map => return,
                 }
             }
         }
@@ -913,7 +931,10 @@ fn emit_circle_glyph_with_char(
             EntityKind::Abstract => (GLYPH_A_RAW, GLYPH_A_CENTER),
             EntityKind::Interface => (GLYPH_I_RAW, GLYPH_I_CENTER),
             EntityKind::Enum => (GLYPH_E_RAW, GLYPH_E_CENTER),
-            EntityKind::Annotation | EntityKind::Rectangle | EntityKind::Component | EntityKind::Map => return,
+            EntityKind::Annotation
+            | EntityKind::Rectangle
+            | EntityKind::Component
+            | EntityKind::Map => return,
         }
     };
 
@@ -1055,7 +1076,16 @@ fn draw_entity_box(
     }
 
     if entity.kind == EntityKind::Component {
-        draw_component_description_box(sg, tracker, cd, entity, nl, skin, edge_offset_x, edge_offset_y);
+        draw_component_description_box(
+            sg,
+            tracker,
+            cd,
+            entity,
+            nl,
+            skin,
+            edge_offset_x,
+            edge_offset_y,
+        );
         return;
     }
 
@@ -1092,8 +1122,15 @@ fn draw_entity_box(
     let rx = skin.round_corner().map(|rc| rc / 2.0).unwrap_or(2.5);
 
     // Rect with rx="2.5" ry="2.5" to match Java PlantUML
-    RectShape { x: x, y: y, w: w, h: h, rx: rx, ry: rx }
-        .draw(sg, &DrawStyle::filled(&fill, stroke, 0.5));
+    RectShape {
+        x,
+        y,
+        w,
+        h,
+        rx,
+        ry: rx,
+    }
+    .draw(sg, &DrawStyle::filled(&fill, stroke, 0.5));
     tracker.track_rect(x, y, w, h);
     // Java entity image wrapper draws UEmpty(imageDim) at translate position,
     // which LimitFinder tracks with addPoint(x+w, y+h) — NO -1 adjustment.
@@ -1134,8 +1171,18 @@ fn draw_entity_box(
     let visible_stereotypes = visible_stereotype_labels(&cd.hide_show_rules, entity);
     let raw_field_count = entity.members.iter().filter(|m| !m.is_method).count();
     let raw_method_count = entity.members.iter().filter(|m| m.is_method).count();
-    let show_fields = show_portion(&cd.hide_show_rules, ClassPortion::Field, &entity.name, raw_field_count);
-    let show_methods = show_portion(&cd.hide_show_rules, ClassPortion::Method, &entity.name, raw_method_count);
+    let show_fields = show_portion(
+        &cd.hide_show_rules,
+        ClassPortion::Field,
+        &entity.name,
+        raw_field_count,
+    );
+    let show_methods = show_portion(
+        &cd.hide_show_rules,
+        ClassPortion::Method,
+        &entity.name,
+        raw_method_count,
+    );
     let visible_fields: Vec<&Member> = entity
         .members
         .iter()
@@ -1241,7 +1288,8 @@ fn draw_entity_box(
                 )
             })
             .collect();
-        let stereo_block_width = stereo_widths.iter().copied().fold(0.0_f64, f64::max) + HEADER_STEREO_BLOCK_MARGIN;
+        let stereo_block_width =
+            stereo_widths.iter().copied().fold(0.0_f64, f64::max) + HEADER_STEREO_BLOCK_MARGIN;
         let width_stereo_and_name = name_block_width.max(stereo_block_width);
         let stereo_height = visible_stereotypes.len() as f64 * HEADER_STEREO_LINE_HEIGHT;
         let header_height = HEADER_CIRCLE_BLOCK_HEIGHT
@@ -1276,10 +1324,22 @@ fn draw_entity_box(
         let circle_block_x = x + h1;
         let ecx = circle_block_x + 15.0;
         let ecy = y + header_height / 2.0;
-        EllipseShape { cx: ecx, cy: ecy, rx: 11.0, ry: 11.0 }
-            .draw(sg, &DrawStyle::filled(&circle_color, "#181818", 1.0));
+        EllipseShape {
+            cx: ecx,
+            cy: ecy,
+            rx: 11.0,
+            ry: 11.0,
+        }
+        .draw(sg, &DrawStyle::filled(&circle_color, "#181818", 1.0));
         tracker.track_ellipse(ecx, ecy, 11.0, 11.0);
-        emit_circle_glyph_with_char(sg, tracker, &entity.kind, ecx, ecy, spot.as_ref().map(|s| s.character));
+        emit_circle_glyph_with_char(
+            sg,
+            tracker,
+            &entity.kind,
+            ecx,
+            ecy,
+            spot.as_ref().map(|s| s.character),
+        );
 
         let header_top_offset = (header_height - stereo_height - name_block_height) / 2.0;
         let name_block_x = x
@@ -1335,11 +1395,7 @@ fn draw_entity_box(
             );
         }
 
-        let font_style = if italic_name {
-            Some("italic")
-        } else {
-            None
-        };
+        let font_style = if italic_name { Some("italic") } else { None };
         let font_weight = if name_markup_bold { Some("bold") } else { None };
         sg.set_fill_color(font_color);
         // Render each name line as a separate <text> element
@@ -1473,14 +1529,24 @@ fn draw_generic_box(
     let rect_x = x_generic + GENERIC_OUTER_MARGIN;
     let rect_y = y_generic + GENERIC_OUTER_MARGIN;
 
-    RectShape { x: rect_x, y: rect_y, w: rect_w, h: rect_h, rx: 0.0, ry: 0.0 }
-        .draw(sg, &DrawStyle {
+    RectShape {
+        x: rect_x,
+        y: rect_y,
+        w: rect_w,
+        h: rect_h,
+        rx: 0.0,
+        ry: 0.0,
+    }
+    .draw(
+        sg,
+        &DrawStyle {
             fill: Some("#FFFFFF".into()),
             stroke: Some("#181818".into()),
             stroke_width: 1.0,
             dash_array: Some((2.0, 2.0)),
             delta_shadow: 0.0,
-        });
+        },
+    );
     tracker.track_rect(rect_x, rect_y, rect_w, rect_h);
 
     let text_x = rect_x + GENERIC_INNER_MARGIN;
@@ -1531,8 +1597,7 @@ fn draw_rectangle_entity_box(
 
     // Stereotype-keyed skinparams (C4 stdlib: rectangle<<container>>, etc.)
     // take precedence over generic element styling.
-    let stereo_names: Vec<&str> =
-        entity.stereotypes.iter().map(|s| s.0.as_str()).collect();
+    let stereo_names: Vec<&str> = entity.stereotypes.iter().map(|s| s.0.as_str()).collect();
     let explicit_color = entity.color.as_deref();
     let bg_lookup = skin.background_color_for("rectangle", &stereo_names, ENTITY_BG);
     let fill: &str = explicit_color.unwrap_or(bg_lookup);
@@ -1549,8 +1614,15 @@ fn draw_rectangle_entity_box(
             tracker.track_path_bounds(x, y, x + w, y + h);
         }
         _ => {
-            RectShape { x: x, y: y, w: w, h: h, rx: rx, ry: rx }
-                .draw(sg, &DrawStyle::filled(fill, stroke, 0.5));
+            RectShape {
+                x,
+                y,
+                w,
+                h,
+                rx,
+                ry: rx,
+            }
+            .draw(sg, &DrawStyle::filled(fill, stroke, 0.5));
             tracker.track_rect(x, y, w, h);
         }
     }
@@ -1614,8 +1686,15 @@ fn draw_component_description_box(
     let rx = skin.round_corner().map(|rc| rc / 2.0).unwrap_or(2.5);
 
     // Main rect
-    RectShape { x: x, y: y, w: w, h: h, rx: rx, ry: rx }
-        .draw(sg, &DrawStyle::filled(&fill, stroke, 0.5));
+    RectShape {
+        x,
+        y,
+        w,
+        h,
+        rx,
+        ry: rx,
+    }
+    .draw(sg, &DrawStyle::filled(&fill, stroke, 0.5));
     tracker.track_rect(x, y, w, h);
 
     // Component icon at top-right of the rect.
@@ -1624,19 +1703,40 @@ fn draw_component_description_box(
     let icon_h: f64 = 10.0;
     let icon_x = x + w - 20.0;
     let icon_y = y + 5.0;
-    RectShape { x: icon_x, y: icon_y, w: icon_w, h: icon_h, rx: 0.0, ry: 0.0 }
-        .draw(sg, &DrawStyle::filled(&fill, stroke, 0.5));
+    RectShape {
+        x: icon_x,
+        y: icon_y,
+        w: icon_w,
+        h: icon_h,
+        rx: 0.0,
+        ry: 0.0,
+    }
+    .draw(sg, &DrawStyle::filled(&fill, stroke, 0.5));
     tracker.track_rect(icon_x, icon_y, icon_w, icon_h);
 
     let tab_w: f64 = 4.0;
     let tab_h: f64 = 2.0;
     let tab_x = x + w - 22.0;
-    RectShape { x: tab_x, y: y + 7.0, w: tab_w, h: tab_h, rx: 0.0, ry: 0.0 }
-        .draw(sg, &DrawStyle::filled(&fill, stroke, 0.5));
+    RectShape {
+        x: tab_x,
+        y: y + 7.0,
+        w: tab_w,
+        h: tab_h,
+        rx: 0.0,
+        ry: 0.0,
+    }
+    .draw(sg, &DrawStyle::filled(&fill, stroke, 0.5));
     tracker.track_rect(tab_x, y + 7.0, tab_w, tab_h);
 
-    RectShape { x: tab_x, y: y + 11.0, w: tab_w, h: tab_h, rx: 0.0, ry: 0.0 }
-        .draw(sg, &DrawStyle::filled(&fill, stroke, 0.5));
+    RectShape {
+        x: tab_x,
+        y: y + 11.0,
+        w: tab_w,
+        h: tab_h,
+        rx: 0.0,
+        ry: 0.0,
+    }
+    .draw(sg, &DrawStyle::filled(&fill, stroke, 0.5));
     tracker.track_rect(tab_x, y + 11.0, tab_w, tab_h);
 
     // Resolve display name and font sizes.
@@ -1663,14 +1763,9 @@ fn draw_component_description_box(
 
     // Java mergeTB(stereotype, label, CENTER) draws stereotype above the label.
     // Both blocks are drawn at translate(MARGIN_LEFT, MARGIN_TOP) from the rect origin.
-    let stereo_line_h = font_metrics::line_height(
-        "SansSerif",
-        HEADER_STEREO_FONT_SIZE,
-        false,
-        true,
-    );
-    let stereo_ascent =
-        font_metrics::ascent("SansSerif", HEADER_STEREO_FONT_SIZE, false, true);
+    let stereo_line_h =
+        font_metrics::line_height("SansSerif", HEADER_STEREO_FONT_SIZE, false, true);
+    let stereo_ascent = font_metrics::ascent("SansSerif", HEADER_STEREO_FONT_SIZE, false, true);
     let mut cur_top = y + MARGIN_TOP;
     for label in &visible_stereotypes {
         let stereo_text = format!("\u{00AB}{label}\u{00BB}");
@@ -1808,11 +1903,16 @@ fn draw_file_shape(
     //   L w, cornersize
     let d_fold = format!(
         "M{},{} L{},{} A{},{} 0 0 0 {},{} L{},{}",
-        fmt_coord(x + w - CORNERSIZE), fmt_coord(y),
-        fmt_coord(x + w - CORNERSIZE), fmt_coord(y + CORNERSIZE - r),
-        fmt_coord(r),                  fmt_coord(r),
-        fmt_coord(x + w - CORNERSIZE + r), fmt_coord(y + CORNERSIZE),
-        fmt_coord(x + w),              fmt_coord(y + CORNERSIZE),
+        fmt_coord(x + w - CORNERSIZE),
+        fmt_coord(y),
+        fmt_coord(x + w - CORNERSIZE),
+        fmt_coord(y + CORNERSIZE - r),
+        fmt_coord(r),
+        fmt_coord(r),
+        fmt_coord(x + w - CORNERSIZE + r),
+        fmt_coord(y + CORNERSIZE),
+        fmt_coord(x + w),
+        fmt_coord(y + CORNERSIZE),
     );
     sg.push_raw(&format!(
         r#"<path d="{d_fold}" fill="{fill}" style="stroke:{stroke};stroke-width:0.5;"/>"#,
@@ -1846,8 +1946,15 @@ fn draw_object_box(
     let rx = skin.round_corner().map(|rc| rc / 2.0).unwrap_or(2.5);
 
     // Rect
-    RectShape { x: x, y: y, w: w, h: h, rx: rx, ry: rx }
-        .draw(sg, &DrawStyle::filled(fill, stroke_color, 0.5));
+    RectShape {
+        x,
+        y,
+        w,
+        h,
+        rx,
+        ry: rx,
+    }
+    .draw(sg, &DrawStyle::filled(fill, stroke_color, 0.5));
     tracker.track_rect(x, y, w, h);
 
     // Object name constants — EntityImageObject.java
@@ -1856,10 +1963,7 @@ fn draw_object_box(
 
     let class_font_size = skin.font_size("class", FONT_SIZE);
     // Use display_name (from `as Alias` syntax) — it includes the "Map" keyword for map entities.
-    let nd = entity
-        .display_name
-        .as_deref()
-        .unwrap_or(&entity.name);
+    let nd = entity.display_name.as_deref().unwrap_or(&entity.name);
     let has_creole = nd.contains("**") || nd.contains("//");
     let name_width = if has_creole {
         crate::render::svg_richtext::measure_creole_display_lines(
@@ -1940,22 +2044,65 @@ fn draw_object_box(
         let ascent = font_metrics::ascent("SansSerif", attr_font_size, false, false);
         // Java TextBlockMap: withMargin(result, 5, 2) → 5px left + 5px right per column
         let cell_margin_lr = 5.0;
-        let col_a_width: f64 = entity.map_entries.iter()
-            .map(|(key, _)| font_metrics::text_width(key, "SansSerif", attr_font_size, false, false) + 2.0 * cell_margin_lr)
+        let col_a_width: f64 = entity
+            .map_entries
+            .iter()
+            .map(|(key, _)| {
+                font_metrics::text_width(key, "SansSerif", attr_font_size, false, false)
+                    + 2.0 * cell_margin_lr
+            })
             .fold(0.0_f64, f64::max);
         let mut cur_y = sep_y;
         for (key, value) in &entity.map_entries {
-            LineShape { x1: x, y1: cur_y, x2: x + w, y2: cur_y }
-                .draw(sg, &DrawStyle::outline(stroke_color, 1.0));
+            LineShape {
+                x1: x,
+                y1: cur_y,
+                x2: x + w,
+                y2: cur_y,
+            }
+            .draw(sg, &DrawStyle::outline(stroke_color, 1.0));
             tracker.track_line(x, cur_y, x + w, cur_y);
             let key_w = font_metrics::text_width(key, "SansSerif", attr_font_size, false, false);
             let text_y_row = cur_y + row_margin_top + ascent;
             sg.set_fill_color(font_color);
-            sg.svg_text(key, x + cell_margin_lr, text_y_row, Some("sans-serif"), attr_font_size, None, None, None, key_w, LengthAdjust::Spacing, None, 0, None);
+            sg.svg_text(
+                key,
+                x + cell_margin_lr,
+                text_y_row,
+                Some("sans-serif"),
+                attr_font_size,
+                None,
+                None,
+                None,
+                key_w,
+                LengthAdjust::Spacing,
+                None,
+                0,
+                None,
+            );
             let val_w = font_metrics::text_width(value, "SansSerif", attr_font_size, false, false);
-            sg.svg_text(value, x + col_a_width + cell_margin_lr, text_y_row, Some("sans-serif"), attr_font_size, None, None, None, val_w, LengthAdjust::Spacing, None, 0, None);
-            LineShape { x1: x + col_a_width, y1: cur_y, x2: x + col_a_width, y2: cur_y + row_h }
-                .draw(sg, &DrawStyle::outline(stroke_color, 1.0));
+            sg.svg_text(
+                value,
+                x + col_a_width + cell_margin_lr,
+                text_y_row,
+                Some("sans-serif"),
+                attr_font_size,
+                None,
+                None,
+                None,
+                val_w,
+                LengthAdjust::Spacing,
+                None,
+                0,
+                None,
+            );
+            LineShape {
+                x1: x + col_a_width,
+                y1: cur_y,
+                x2: x + col_a_width,
+                y2: cur_y + row_h,
+            }
+            .draw(sg, &DrawStyle::outline(stroke_color, 1.0));
             tracker.track_line(x + col_a_width, cur_y, x + col_a_width, cur_y + row_h);
             cur_y += row_h;
         }
@@ -1968,12 +2115,26 @@ fn draw_object_box(
             let x1_val = fmt_coord(x1);
             let x2_val = fmt_coord(x2);
             draw_member_section(
-                sg, tracker, &visible_fields, sep_y, x, &x1_val, &x2_val, font_color, attr_font_size, stroke_color,
+                sg,
+                tracker,
+                &visible_fields,
+                sep_y,
+                x,
+                &x1_val,
+                &x2_val,
+                font_color,
+                attr_font_size,
+                stroke_color,
             );
         } else {
             // No fields: draw the separator line explicitly
-            LineShape { x1: x1, y1: sep_y, x2: x2, y2: sep_y }
-                .draw(sg, &DrawStyle::outline(stroke_color, 0.5));
+            LineShape {
+                x1,
+                y1: sep_y,
+                x2,
+                y2: sep_y,
+            }
+            .draw(sg, &DrawStyle::outline(stroke_color, 0.5));
             tracker.track_line(x1, sep_y, x2, sep_y);
         }
     }
@@ -2002,8 +2163,13 @@ fn draw_member_section(
     // Parse x1/x2 for line tracking
     let x1_f: f64 = x1_val.parse().unwrap_or(x + 1.0);
     let x2_f: f64 = x2_val.parse().unwrap_or(x);
-    LineShape { x1: x1_f, y1: section_y, x2: x2_f, y2: section_y }
-        .draw(sg, &DrawStyle::outline(sep_color, 0.5));
+    LineShape {
+        x1: x1_f,
+        y1: section_y,
+        x2: x2_f,
+        y2: section_y,
+    }
+    .draw(sg, &DrawStyle::outline(sep_color, 0.5));
     tracker.track_line(x1_f, section_y, x2_f, section_y);
     let (section_w, section_h) = member_section_block_dimensions(members, attr_font_size);
     tracker.track_empty(x, section_y, section_w, section_h);
@@ -2131,7 +2297,11 @@ fn member_section_block_dimensions(members: &[&Member], attr_font_size: f64) -> 
                         false,
                         member.modifiers.is_abstract,
                     );
-                    if idx == 0 { line_w } else { indent + line_w }
+                    if idx == 0 {
+                        line_w
+                    } else {
+                        indent + line_w
+                    }
                 })
                 .fold(0.0_f64, f64::max)
         })
@@ -2203,8 +2373,13 @@ fn draw_visibility_icon(
             let ecx = x + 2.0 + 3.0;
             let ecy = y + 2.0 + 3.0;
             let fill = if is_method { "#84BE84" } else { "none" };
-            EllipseShape { cx: ecx, cy: ecy, rx: 3.0, ry: 3.0 }
-                .draw(sg, &DrawStyle::filled(fill, "#038048", 1.0));
+            EllipseShape {
+                cx: ecx,
+                cy: ecy,
+                rx: 3.0,
+                ry: 3.0,
+            }
+            .draw(sg, &DrawStyle::filled(fill, "#038048", 1.0));
             tracker.track_ellipse(ecx, ecy, 3.0, 3.0);
         }
         Visibility::Private => {
@@ -2212,8 +2387,15 @@ fn draw_visibility_icon(
             let rect_x = x + 2.0;
             let rect_y = y + 2.0;
             let fill = if is_method { "#F24D5C" } else { "none" };
-            RectShape { x: rect_x, y: rect_y, w: 6.0, h: 6.0, rx: 0.0, ry: 0.0 }
-                .draw(sg, &DrawStyle::filled(fill, "#C82930", 1.0));
+            RectShape {
+                x: rect_x,
+                y: rect_y,
+                w: 6.0,
+                h: 6.0,
+                rx: 0.0,
+                ry: 0.0,
+            }
+            .draw(sg, &DrawStyle::filled(fill, "#C82930", 1.0));
             tracker.track_rect(rect_x, rect_y, 6.0, 6.0);
         }
         Visibility::Protected => {
@@ -2230,10 +2412,14 @@ fn draw_visibility_icon(
             ];
             PolygonShape {
                 points: vec![
-                    poly_pts[0].0, poly_pts[0].1,
-                    poly_pts[1].0, poly_pts[1].1,
-                    poly_pts[2].0, poly_pts[2].1,
-                    poly_pts[3].0, poly_pts[3].1,
+                    poly_pts[0].0,
+                    poly_pts[0].1,
+                    poly_pts[1].0,
+                    poly_pts[1].1,
+                    poly_pts[2].0,
+                    poly_pts[2].1,
+                    poly_pts[3].0,
+                    poly_pts[3].1,
                 ],
             }
             .draw(sg, &DrawStyle::filled(fill, "#B38D22", 1.0));
@@ -2252,9 +2438,12 @@ fn draw_visibility_icon(
             ];
             PolygonShape {
                 points: vec![
-                    poly_pts[0].0, poly_pts[0].1,
-                    poly_pts[1].0, poly_pts[1].1,
-                    poly_pts[2].0, poly_pts[2].1,
+                    poly_pts[0].0,
+                    poly_pts[0].1,
+                    poly_pts[1].0,
+                    poly_pts[1].1,
+                    poly_pts[2].0,
+                    poly_pts[2].1,
                 ],
             }
             .draw(sg, &DrawStyle::filled(fill, "#1963A0", 1.0));
@@ -2332,7 +2521,7 @@ fn class_stereotype_fill_color(
         .iter()
         .filter_map(|stereotype| stereotype_backgrounds.get(&stereotype.0))
         .map(|color| crate::style::normalize_color(color))
-        .last()
+        .next_back()
 }
 
 fn stereotype_label_visible(rules: &[ClassHideShowRule], label: &str) -> bool {
@@ -2520,8 +2709,7 @@ fn draw_edge(
         link_idx,
         endpoint: QualifierEndpoint::Tail,
     }) {
-        if let Some((dx, dy)) =
-            qualifier_edge_translation(link, QualifierEndpoint::Tail, placement)
+        if let Some((dx, dy)) = qualifier_edge_translation(link, QualifierEndpoint::Tail, placement)
         {
             move_edge_start_point(&mut decor_points, dx, dy);
         }
@@ -2530,8 +2718,7 @@ fn draw_edge(
         link_idx,
         endpoint: QualifierEndpoint::Head,
     }) {
-        if let Some((dx, dy)) =
-            qualifier_edge_translation(link, QualifierEndpoint::Head, placement)
+        if let Some((dx, dy)) = qualifier_edge_translation(link, QualifierEndpoint::Head, placement)
         {
             move_edge_end_point(&mut decor_points, dx, dy);
         }
@@ -2637,7 +2824,9 @@ fn draw_edge(
                 label.clone()
             };
             // Java Display.create() converts << >> to guillemets « »
-            let label_text = label_text.replace("<<", "\u{00AB}").replace(">>", "\u{00BB}");
+            let label_text = label_text
+                .replace("<<", "\u{00AB}")
+                .replace(">>", "\u{00BB}");
             let arrow_w = if has_arrow { LINK_LABEL_FONT_SIZE } else { 0.0 };
 
             if has_arrow {
@@ -2648,9 +2837,8 @@ fn draw_edge(
                 // Java SvekEdge.solveLine() checks whether GraphViz inverted the
                 // edge direction: if the path start is closer to entity2 than
                 // entity1, it reverses the dotPath.  We replicate this check here.
-                let angle_points = parse_path_start_end(&d).unwrap_or_else(|| {
-                    (el.points[0], el.points[el.points.len() - 1])
-                });
+                let angle_points = parse_path_start_end(&d)
+                    .unwrap_or_else(|| (el.points[0], el.points[el.points.len() - 1]));
                 let (mut sx, mut sy) = angle_points.0;
                 let (mut ex, mut ey) = angle_points.1;
 
@@ -2658,11 +2846,13 @@ fn draw_edge(
                 // compare distances.  If start is closer to the link's "to"
                 // entity, the path was laid out in reverse.
                 let find_center = |name: &str| -> Option<(f64, f64)> {
-                    layout.nodes.iter().find(|n| n.id == name).map(|n| (n.cx, n.cy))
+                    layout
+                        .nodes
+                        .iter()
+                        .find(|n| n.id == name)
+                        .map(|n| (n.cx, n.cy))
                 };
-                if let (Some(pos1), Some(pos2)) =
-                    (find_center(&link.from), find_center(&link.to))
-                {
+                if let (Some(pos1), Some(pos2)) = (find_center(&link.from), find_center(&link.to)) {
                     let dist = |a: (f64, f64), b: (f64, f64)| -> f64 {
                         ((a.0 - b.0).powi(2) + (a.1 - b.1).powi(2)).sqrt()
                     };
@@ -2682,22 +2872,12 @@ fn draw_edge(
                 // The arrow is NOT inside the margin — only the text has the margin.
                 // Outer height = max(arrow_h=13, text_h + 2*margin).
                 // dy_arrow = (outer_h - 13) / 2.
-                let text_h = font_metrics::line_height(
-                    "SansSerif",
-                    LINK_LABEL_FONT_SIZE,
-                    false,
-                    false,
-                );
+                let text_h =
+                    font_metrics::line_height("SansSerif", LINK_LABEL_FONT_SIZE, false, false);
                 let text_marged_h = text_h + 2.0 * margin_label;
                 let outer_h = text_marged_h.max(LINK_LABEL_FONT_SIZE);
                 let dy_arrow = (outer_h - LINK_LABEL_FONT_SIZE) / 2.0;
-                draw_label_arrow_polygon(
-                    sg,
-                    lx,
-                    ly + dy_arrow,
-                    angle,
-                    LINK_LABEL_FONT_SIZE,
-                );
+                draw_label_arrow_polygon(sg, lx, ly + dy_arrow, angle, LINK_LABEL_FONT_SIZE);
             }
 
             draw_edge_label_block(
@@ -2756,7 +2936,11 @@ fn draw_edge(
             y,
             el.tail_label_wh,
             if el.tail_label_boxed { 2.0 } else { 0.0 },
-            if el.tail_label_boxed { 14.0 } else { LINK_LABEL_FONT_SIZE },
+            if el.tail_label_boxed {
+                14.0
+            } else {
+                LINK_LABEL_FONT_SIZE
+            },
             el.tail_label_boxed,
             skin,
         );
@@ -2777,7 +2961,11 @@ fn draw_edge(
             y,
             el.head_label_wh,
             if el.head_label_boxed { 2.0 } else { 0.0 },
-            if el.head_label_boxed { 14.0 } else { LINK_LABEL_FONT_SIZE },
+            if el.head_label_boxed {
+                14.0
+            } else {
+                LINK_LABEL_FONT_SIZE
+            },
             el.head_label_boxed,
             skin,
         );
@@ -3120,8 +3308,13 @@ pub(super) fn emit_plus_head(
     let center_x = tip_x - radius * angle.cos();
     let center_y = tip_y - radius * angle.sin();
     let cross_angle = angle - std::f64::consts::FRAC_PI_2;
-    EllipseShape { cx: center_x, cy: center_y, rx: radius, ry: radius }
-        .draw(sg, &DrawStyle::filled("#FFFFFF", link_color, 1.0));
+    EllipseShape {
+        cx: center_x,
+        cy: center_y,
+        rx: radius,
+        ry: radius,
+    }
+    .draw(sg, &DrawStyle::filled("#FFFFFF", link_color, 1.0));
     tracker.track_ellipse(center_x, center_y, radius, radius);
 
     let p1 = point_on_circle(
@@ -3143,11 +3336,21 @@ pub(super) fn emit_plus_head(
         radius,
         cross_angle + std::f64::consts::PI,
     );
-    LineShape { x1: p1.0, y1: p1.1, x2: p2.0, y2: p2.1 }
-        .draw(sg, &DrawStyle::outline(link_color, 1.0));
+    LineShape {
+        x1: p1.0,
+        y1: p1.1,
+        x2: p2.0,
+        y2: p2.1,
+    }
+    .draw(sg, &DrawStyle::outline(link_color, 1.0));
     tracker.track_line(p1.0, p1.1, p2.0, p2.1);
-    LineShape { x1: p3.0, y1: p3.1, x2: p4.0, y2: p4.1 }
-        .draw(sg, &DrawStyle::outline(link_color, 1.0));
+    LineShape {
+        x1: p3.0,
+        y1: p3.1,
+        x2: p4.0,
+        y2: p4.1,
+    }
+    .draw(sg, &DrawStyle::outline(link_color, 1.0));
     tracker.track_line(p3.0, p3.1, p4.0, p4.1);
 }
 
@@ -3238,7 +3441,13 @@ fn kal_block_dimensions(text: &str) -> (f64, f64) {
     (max_width + 4.0, height + 2.0)
 }
 
-fn kal_origin(anchor_x: f64, anchor_y: f64, width: f64, height: f64, pos: KalPosition) -> (f64, f64) {
+fn kal_origin(
+    anchor_x: f64,
+    anchor_y: f64,
+    width: f64,
+    height: f64,
+    pos: KalPosition,
+) -> (f64, f64) {
     match pos {
         KalPosition::Right => (anchor_x, anchor_y - height / 2.0),
         KalPosition::Left => (anchor_x - width + 0.5, anchor_y - height / 2.0),
@@ -3348,13 +3557,7 @@ fn compute_qualifier_placements(
             kal_position_for_link(link, QualifierEndpoint::Tail),
         ) {
             let (width, height) = kal_block_dimensions(text);
-            let (x, y) = kal_origin(
-                sx + edge_offset_x,
-                sy + edge_offset_y,
-                width,
-                height,
-                pos,
-            );
+            let (x, y) = kal_origin(sx + edge_offset_x, sy + edge_offset_y, width, height, pos);
             pending.push(PendingKal {
                 key: QualifierKey {
                     link_idx,
@@ -3375,13 +3578,7 @@ fn compute_qualifier_placements(
             kal_position_for_link(link, QualifierEndpoint::Head),
         ) {
             let (width, height) = kal_block_dimensions(text);
-            let (x, y) = kal_origin(
-                ex + edge_offset_x,
-                ey + edge_offset_y,
-                width,
-                height,
-                pos,
-            );
+            let (x, y) = kal_origin(ex + edge_offset_x, ey + edge_offset_y, width, height, pos);
             pending.push(PendingKal {
                 key: QualifierKey {
                     link_idx,
@@ -3461,8 +3658,15 @@ fn draw_kal_box(
     let border = skin.border_color("class", "#181818");
     let default_font = get_default_font_family_pub();
 
-    RectShape { x: x, y: y, w: width, h: height, rx: 0.0, ry: 0.0 }
-        .draw(sg, &DrawStyle::filled(&fill, border, 0.5));
+    RectShape {
+        x,
+        y,
+        w: width,
+        h: height,
+        rx: 0.0,
+        ry: 0.0,
+    }
+    .draw(sg, &DrawStyle::filled(fill, border, 0.5));
     tracker.track_rect(x, y, width, height);
 
     for (idx, (line_text, _)) in split_label_lines(text).iter().enumerate() {
@@ -3518,8 +3722,15 @@ fn draw_edge_label_block(
     if boxed {
         let fill = skin.background_color("class", "#F1F1F1");
         let border = skin.border_color("class", "#181818");
-        RectShape { x: x, y: y, w: outer_width, h: outer_height, rx: 0.0, ry: 0.0 }
-            .draw(sg, &DrawStyle::filled(&fill, border, 0.5));
+        RectShape {
+            x,
+            y,
+            w: outer_width,
+            h: outer_height,
+            rx: 0.0,
+            ry: 0.0,
+        }
+        .draw(sg, &DrawStyle::filled(fill, border, 0.5));
         tracker.track_rect(x, y, outer_width, outer_height);
     } else if let Some((bw, bh)) = block_wh {
         tracker.track_empty(x, y, bw, bh);
@@ -3634,7 +3845,13 @@ fn draw_label(sg: &mut SvgGraphic, text: &str, x: f64, y: f64) {
 ///
 /// For left/right positioned notes with connectors (Opale style), the connector
 /// arrow is integrated into the body path shape, matching Java Opale rendering.
-fn draw_class_note(sg: &mut SvgGraphic, tracker: &mut BoundsTracker, note: &ClassNoteLayout, offset_x: f64, offset_y: f64) {
+fn draw_class_note(
+    sg: &mut SvgGraphic,
+    tracker: &mut BoundsTracker,
+    note: &ClassNoteLayout,
+    offset_x: f64,
+    offset_y: f64,
+) {
     let x = note.x + offset_x;
     let y = note.y + offset_y;
     let w = note.width;
@@ -3643,10 +3860,7 @@ fn draw_class_note(sg: &mut SvgGraphic, tracker: &mut BoundsTracker, note: &Clas
     // All four positions (left/right/top/bottom) use the Java Opale path
     // style for class-diagram notes.  Floating notes (no position) still
     // render as a simple polygon.
-    let is_opale = matches!(
-        note.position.as_str(),
-        "left" | "right" | "top" | "bottom"
-    );
+    let is_opale = matches!(note.position.as_str(), "left" | "right" | "top" | "bottom");
     let fold = if is_opale { CLASS_NOTE_FOLD } else { NOTE_FOLD };
 
     // Java Opale uses delta=4 for the connector arrow half-width on the body edge.
@@ -3676,8 +3890,20 @@ fn draw_class_note(sg: &mut SvgGraphic, tracker: &mut BoundsTracker, note: &Clas
                 write!(d, " A0,0 0 0 0 {},{}", fmt_coord(x), fmt_coord(y + h)).unwrap();
                 write!(d, " L{},{}", fmt_coord(x + w), fmt_coord(y + h)).unwrap();
                 write!(d, " A0,0 0 0 0 {},{}", fmt_coord(x + w), fmt_coord(y + h)).unwrap();
-                write!(d, " L{},{}", fmt_coord(x + w), fmt_coord(y + y1 + 2.0 * OPALE_DELTA)).unwrap();
-                write!(d, " L{},{}", fmt_coord(x + pp2_x_local), fmt_coord(y + pp2_y_local)).unwrap();
+                write!(
+                    d,
+                    " L{},{}",
+                    fmt_coord(x + w),
+                    fmt_coord(y + y1 + 2.0 * OPALE_DELTA)
+                )
+                .unwrap();
+                write!(
+                    d,
+                    " L{},{}",
+                    fmt_coord(x + pp2_x_local),
+                    fmt_coord(y + pp2_y_local)
+                )
+                .unwrap();
                 write!(d, " L{},{}", fmt_coord(x + w), fmt_coord(y + y1)).unwrap();
                 write!(d, " L{},{}", fmt_coord(x + w), fmt_coord(y + y1)).unwrap();
                 write!(d, " L{},{}", fmt_coord(x + w - fold), fmt_coord(y)).unwrap();
@@ -3691,8 +3917,20 @@ fn draw_class_note(sg: &mut SvgGraphic, tracker: &mut BoundsTracker, note: &Clas
 
                 write!(d, "M{},{}", fmt_coord(x), fmt_coord(y)).unwrap();
                 write!(d, " L{},{}", fmt_coord(x), fmt_coord(y + y1)).unwrap();
-                write!(d, " L{},{}", fmt_coord(x + pp2_x_local), fmt_coord(y + pp2_y_local)).unwrap();
-                write!(d, " L{},{}", fmt_coord(x), fmt_coord(y + y1 + 2.0 * OPALE_DELTA)).unwrap();
+                write!(
+                    d,
+                    " L{},{}",
+                    fmt_coord(x + pp2_x_local),
+                    fmt_coord(y + pp2_y_local)
+                )
+                .unwrap();
+                write!(
+                    d,
+                    " L{},{}",
+                    fmt_coord(x),
+                    fmt_coord(y + y1 + 2.0 * OPALE_DELTA)
+                )
+                .unwrap();
                 write!(d, " L{},{}", fmt_coord(x), fmt_coord(y + h)).unwrap();
                 write!(d, " A0,0 0 0 0 {},{}", fmt_coord(x), fmt_coord(y + h)).unwrap();
                 write!(d, " L{},{}", fmt_coord(x + w), fmt_coord(y + h)).unwrap();
@@ -3713,8 +3951,20 @@ fn draw_class_note(sg: &mut SvgGraphic, tracker: &mut BoundsTracker, note: &Clas
                 write!(d, " L{},{}", fmt_coord(x), fmt_coord(y + h)).unwrap();
                 write!(d, " A0,0 0 0 0 {},{}", fmt_coord(x), fmt_coord(y + h)).unwrap();
                 write!(d, " L{},{}", fmt_coord(x + x1), fmt_coord(y + h)).unwrap();
-                write!(d, " L{},{}", fmt_coord(x + pp2_x_local), fmt_coord(y + pp2_y_local)).unwrap();
-                write!(d, " L{},{}", fmt_coord(x + x1 + 2.0 * OPALE_DELTA), fmt_coord(y + h)).unwrap();
+                write!(
+                    d,
+                    " L{},{}",
+                    fmt_coord(x + pp2_x_local),
+                    fmt_coord(y + pp2_y_local)
+                )
+                .unwrap();
+                write!(
+                    d,
+                    " L{},{}",
+                    fmt_coord(x + x1 + 2.0 * OPALE_DELTA),
+                    fmt_coord(y + h)
+                )
+                .unwrap();
                 write!(d, " L{},{}", fmt_coord(x + w), fmt_coord(y + h)).unwrap();
                 write!(d, " A0,0 0 0 0 {},{}", fmt_coord(x + w), fmt_coord(y + h)).unwrap();
                 write!(d, " L{},{}", fmt_coord(x + w), fmt_coord(y + fold)).unwrap();
@@ -3736,8 +3986,20 @@ fn draw_class_note(sg: &mut SvgGraphic, tracker: &mut BoundsTracker, note: &Clas
                 write!(d, " A0,0 0 0 0 {},{}", fmt_coord(x + w), fmt_coord(y + h)).unwrap();
                 write!(d, " L{},{}", fmt_coord(x + w), fmt_coord(y + fold)).unwrap();
                 write!(d, " L{},{}", fmt_coord(x + w - fold), fmt_coord(y)).unwrap();
-                write!(d, " L{},{}", fmt_coord(x + x1 + 2.0 * OPALE_DELTA), fmt_coord(y)).unwrap();
-                write!(d, " L{},{}", fmt_coord(x + pp2_x_local), fmt_coord(y + pp2_y_local)).unwrap();
+                write!(
+                    d,
+                    " L{},{}",
+                    fmt_coord(x + x1 + 2.0 * OPALE_DELTA),
+                    fmt_coord(y)
+                )
+                .unwrap();
+                write!(
+                    d,
+                    " L{},{}",
+                    fmt_coord(x + pp2_x_local),
+                    fmt_coord(y + pp2_y_local)
+                )
+                .unwrap();
                 write!(d, " L{},{}", fmt_coord(x + x1), fmt_coord(y)).unwrap();
                 write!(d, " L{},{}", fmt_coord(x), fmt_coord(y)).unwrap();
                 write!(d, " A0,0 0 0 0 {},{}", fmt_coord(x), fmt_coord(y)).unwrap();
@@ -3761,12 +4023,18 @@ fn draw_class_note(sg: &mut SvgGraphic, tracker: &mut BoundsTracker, note: &Clas
         // Opale note without connector: normal polygon as <path>
         let d = format!(
             "M{},{} L{},{} L{},{} L{},{} L{},{} L{},{}",
-            fmt_coord(x), fmt_coord(y),
-            fmt_coord(x), fmt_coord(y + h),
-            fmt_coord(x + w), fmt_coord(y + h),
-            fmt_coord(x + w), fmt_coord(y + fold),
-            fmt_coord(x + w - fold), fmt_coord(y),
-            fmt_coord(x), fmt_coord(y),
+            fmt_coord(x),
+            fmt_coord(y),
+            fmt_coord(x),
+            fmt_coord(y + h),
+            fmt_coord(x + w),
+            fmt_coord(y + h),
+            fmt_coord(x + w),
+            fmt_coord(y + fold),
+            fmt_coord(x + w - fold),
+            fmt_coord(y),
+            fmt_coord(x),
+            fmt_coord(y),
         );
         sg.push_raw(&format!(
             r#"<path d="{d}" fill="{bg}" style="stroke:{border};stroke-width:0.5;"/>"#,
@@ -3785,11 +4053,16 @@ fn draw_class_note(sg: &mut SvgGraphic, tracker: &mut BoundsTracker, note: &Clas
         ];
         PolygonShape {
             points: vec![
-                note_poly[0].0, note_poly[0].1,
-                note_poly[1].0, note_poly[1].1,
-                note_poly[2].0, note_poly[2].1,
-                note_poly[3].0, note_poly[3].1,
-                note_poly[4].0, note_poly[4].1,
+                note_poly[0].0,
+                note_poly[0].1,
+                note_poly[1].0,
+                note_poly[1].1,
+                note_poly[2].0,
+                note_poly[2].1,
+                note_poly[3].0,
+                note_poly[3].1,
+                note_poly[4].0,
+                note_poly[4].1,
             ],
         }
         .draw(sg, &DrawStyle::filled(NOTE_BG, NOTE_BORDER, 1.0));
@@ -3872,7 +4145,10 @@ fn draw_class_note(sg: &mut SvgGraphic, tracker: &mut BoundsTracker, note: &Clas
         let (blank_part, heading_part) = if has_blank_before {
             if let Some(ref text) = before_text {
                 let split_pos = text.find("<line").unwrap_or(text.len());
-                (Some(text[..split_pos].to_string()), Some(text[split_pos..].to_string()))
+                (
+                    Some(text[..split_pos].to_string()),
+                    Some(text[split_pos..].to_string()),
+                )
             } else {
                 (None, None)
             }
@@ -3960,16 +4236,23 @@ fn draw_class_note(sg: &mut SvgGraphic, tracker: &mut BoundsTracker, note: &Clas
             let ly1 = from_y + offset_y;
             let lx2 = to_x + offset_x;
             let ly2 = to_y + offset_y;
-            LineShape { x1: lx1, y1: ly1, x2: lx2, y2: ly2 }
-                .draw(sg, &DrawStyle {
+            LineShape {
+                x1: lx1,
+                y1: ly1,
+                x2: lx2,
+                y2: ly2,
+            }
+            .draw(
+                sg,
+                &DrawStyle {
                     fill: None,
                     stroke: Some(NOTE_BORDER.into()),
                     stroke_width: 1.0,
                     dash_array: Some((5.0, 3.0)),
                     delta_shadow: 0.0,
-                });
+                },
+            );
             tracker.track_line(lx1, ly1, lx2, ly2);
         }
     }
 }
-

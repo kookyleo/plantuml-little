@@ -117,35 +117,33 @@ pub fn extract_block(source: &str) -> Option<String> {
                 break;
             }
             lines.push(line);
-        } else {
-            if trimmed.starts_with("@startuml")
-                || trimmed.starts_with("@startchen")
-                || trimmed.starts_with("@startflow")
-                || trimmed.starts_with("@startgantt")
-                || trimmed.starts_with("@startjcckit")
-                || trimmed.starts_with("@startproject")
-                || trimmed.starts_with("@startditaa")
-                || trimmed.starts_with("@startjson")
-                || trimmed.starts_with("@startmindmap")
-                || trimmed.starts_with("@startnwdiag")
-                || trimmed.starts_with("@startsalt")
-                || trimmed.starts_with("@startwbs")
-                || trimmed.starts_with("@startyaml")
-                || trimmed.starts_with("@startdot")
-                || trimmed.starts_with("@startpacket")
-                || trimmed.starts_with("@startgit")
-                || trimmed.starts_with("@startpie")
-                || trimmed.starts_with("@startboard")
-                || trimmed.starts_with("@startchronology")
-                || trimmed.starts_with("@starthcl")
-                || trimmed.starts_with("@startwire")
-                || trimmed.starts_with("@startmath")
-                || trimmed.starts_with("@startlatex")
-                || trimmed.starts_with("@startcreole")
-            {
-                inside = true;
-                continue;
-            }
+        } else if trimmed.starts_with("@startuml")
+            || trimmed.starts_with("@startchen")
+            || trimmed.starts_with("@startflow")
+            || trimmed.starts_with("@startgantt")
+            || trimmed.starts_with("@startjcckit")
+            || trimmed.starts_with("@startproject")
+            || trimmed.starts_with("@startditaa")
+            || trimmed.starts_with("@startjson")
+            || trimmed.starts_with("@startmindmap")
+            || trimmed.starts_with("@startnwdiag")
+            || trimmed.starts_with("@startsalt")
+            || trimmed.starts_with("@startwbs")
+            || trimmed.starts_with("@startyaml")
+            || trimmed.starts_with("@startdot")
+            || trimmed.starts_with("@startpacket")
+            || trimmed.starts_with("@startgit")
+            || trimmed.starts_with("@startpie")
+            || trimmed.starts_with("@startboard")
+            || trimmed.starts_with("@startchronology")
+            || trimmed.starts_with("@starthcl")
+            || trimmed.starts_with("@startwire")
+            || trimmed.starts_with("@startmath")
+            || trimmed.starts_with("@startlatex")
+            || trimmed.starts_with("@startcreole")
+        {
+            inside = true;
+            continue;
         }
     }
 
@@ -608,8 +606,7 @@ pub fn has_meaningful_uml_content(content: &str) -> bool {
 
         match trimmed {
             "title" => {
-                if let Some((_, end)) =
-                    collect_block(&lines, None, i + 1, "end title", "endtitle")
+                if let Some((_, end)) = collect_block(&lines, None, i + 1, "end title", "endtitle")
                 {
                     i = end + 1;
                 } else {
@@ -879,7 +876,11 @@ fn collect_block(
 /// with sprite definitions removed.
 pub fn extract_sprites(
     source: &str,
-) -> (String, HashMap<String, String>, HashMap<String, SpriteGrayData>) {
+) -> (
+    String,
+    HashMap<String, String>,
+    HashMap<String, SpriteGrayData>,
+) {
     let mut sprites = HashMap::new();
     let mut gray_data_map: HashMap<String, SpriteGrayData> = HashMap::new();
     let mut cleaned = Vec::new();
@@ -962,9 +963,7 @@ pub fn extract_sprites(
                     }
 
                     // Convert hex data to PNG and wrap in SVG
-                    if let Some((svg, gdata)) =
-                        hex_sprite_to_svg(&hex_rows, width, height, depth)
-                    {
+                    if let Some((svg, gdata)) = hex_sprite_to_svg(&hex_rows, width, height, depth) {
                         sprites.insert(name.clone(), svg);
                         gray_data_map.insert(name, gdata);
                     }
@@ -1672,7 +1671,10 @@ mod tests {
         assert_eq!(sprites.len(), 1);
         assert!(sprites.contains_key("businessProcess"));
         let svg = &sprites["businessProcess"];
-        assert!(svg.contains("viewBox=\"0 0 16 16\""), "viewBox should be 16x16");
+        assert!(
+            svg.contains("viewBox=\"0 0 16 16\""),
+            "viewBox should be 16x16"
+        );
         assert!(!cleaned.contains("sprite"));
         assert!(cleaned.contains("rectangle A"));
     }

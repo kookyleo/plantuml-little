@@ -73,8 +73,14 @@ mod tests {
         let src = "@startcreole\n= Title\n* bullet 1\n* bullet 2\n@endcreole";
         let d = parse_creole_diagram(src).unwrap();
         assert_eq!(d.elements.len(), 3);
-        assert!(matches!(&d.elements[0], CreoleElement::Heading { text, level: 1 } if text == "Title"));
-        assert!(matches!(&d.elements[1], CreoleElement::Bullet { text, level: 1 } if text == "bullet 1"));
-        assert!(matches!(&d.elements[2], CreoleElement::Bullet { text, level: 1 } if text == "bullet 2"));
+        assert!(
+            matches!(&d.elements[0], CreoleElement::Heading { text, level: 1 } if text == "Title")
+        );
+        assert!(
+            matches!(&d.elements[1], CreoleElement::Bullet { text, level: 1 } if text == "bullet 1")
+        );
+        assert!(
+            matches!(&d.elements[2], CreoleElement::Bullet { text, level: 1 } if text == "bullet 2")
+        );
     }
 }

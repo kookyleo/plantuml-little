@@ -107,36 +107,65 @@ fn render_actor(sg: &mut SvgGraphic, actor: &ActorLayout, stroke: &str, font_col
     let actor_style = DrawStyle::outline(stroke, 0.5);
 
     // Head circle
-    CircleShape { cx, cy: head_cy, r: HEAD_R }
-        .draw(sg, &actor_style);
+    CircleShape {
+        cx,
+        cy: head_cy,
+        r: HEAD_R,
+    }
+    .draw(sg, &actor_style);
 
     // Body
-    LineShape { x1: cx, y1: body_top_y, x2: cx, y2: body_bot_y }
-        .draw(sg, &actor_style);
+    LineShape {
+        x1: cx,
+        y1: body_top_y,
+        x2: cx,
+        y2: body_bot_y,
+    }
+    .draw(sg, &actor_style);
 
     // Left arm
     let la_x = cx - ARM_SPREAD;
     let la_y = arm_y - ARM_RAISE;
-    LineShape { x1: cx, y1: arm_y, x2: la_x, y2: la_y }
-        .draw(sg, &actor_style);
+    LineShape {
+        x1: cx,
+        y1: arm_y,
+        x2: la_x,
+        y2: la_y,
+    }
+    .draw(sg, &actor_style);
 
     // Right arm
     let ra_x = cx + ARM_SPREAD;
     let ra_y = arm_y - ARM_RAISE;
-    LineShape { x1: cx, y1: arm_y, x2: ra_x, y2: ra_y }
-        .draw(sg, &actor_style);
+    LineShape {
+        x1: cx,
+        y1: arm_y,
+        x2: ra_x,
+        y2: ra_y,
+    }
+    .draw(sg, &actor_style);
 
     // Left leg
     let ll_x = cx - LEG_SPREAD;
     let ll_y = leg_y + LEG_DROP;
-    LineShape { x1: cx, y1: leg_y, x2: ll_x, y2: ll_y }
-        .draw(sg, &actor_style);
+    LineShape {
+        x1: cx,
+        y1: leg_y,
+        x2: ll_x,
+        y2: ll_y,
+    }
+    .draw(sg, &actor_style);
 
     // Right leg
     let rl_x = cx + LEG_SPREAD;
     let rl_y = leg_y + LEG_DROP;
-    LineShape { x1: cx, y1: leg_y, x2: rl_x, y2: rl_y }
-        .draw(sg, &actor_style);
+    LineShape {
+        x1: cx,
+        y1: leg_y,
+        x2: rl_x,
+        y2: rl_y,
+    }
+    .draw(sg, &actor_style);
 
     // Name label centered below
     let tl = font_metrics::text_width(&actor.name, "SansSerif", FONT_SIZE, false, false);
@@ -169,8 +198,13 @@ fn render_usecase_oval(
     border: &str,
     font_color: &str,
 ) {
-    EllipseShape { cx: uc.cx, cy: uc.cy, rx: uc.rx, ry: uc.ry }
-        .draw(sg, &DrawStyle::filled(bg, border, 0.5));
+    EllipseShape {
+        cx: uc.cx,
+        cy: uc.cy,
+        rx: uc.rx,
+        ry: uc.ry,
+    }
+    .draw(sg, &DrawStyle::filled(bg, border, 0.5));
 
     let text_y = uc.cy + FONT_SIZE * 0.35;
     let tl = font_metrics::text_width(&uc.name, "SansSerif", FONT_SIZE, false, false);
@@ -204,16 +238,23 @@ fn render_boundary(sg: &mut SvgGraphic, boundary: &BoundaryLayout, border: &str,
     };
 
     RectShape {
-        x: boundary.x, y: boundary.y, w: boundary.width, h: boundary.height,
-        rx: 4.0, ry: 4.0,
+        x: boundary.x,
+        y: boundary.y,
+        w: boundary.width,
+        h: boundary.height,
+        rx: 4.0,
+        ry: 4.0,
     }
-    .draw(sg, &DrawStyle {
-        fill: Some(fill.into()),
-        stroke: Some(border.into()),
-        stroke_width: 0.5,
-        dash_array: dash,
-        delta_shadow: 0.0,
-    });
+    .draw(
+        sg,
+        &DrawStyle {
+            fill: Some(fill.into()),
+            stroke: Some(border.into()),
+            stroke_width: 0.5,
+            dash_array: dash,
+            delta_shadow: 0.0,
+        },
+    );
 
     let name_x = boundary.x + 8.0;
     let name_y = boundary.y + FONT_SIZE + 4.0;
@@ -244,15 +285,21 @@ fn render_edge(sg: &mut SvgGraphic, edge: &UseCaseEdgeLayout, arrow_color: &str,
     let dash = if edge.dashed { Some((7.0, 5.0)) } else { None };
 
     LineShape {
-        x1: edge.from_x, y1: edge.from_y, x2: edge.to_x, y2: edge.to_y,
+        x1: edge.from_x,
+        y1: edge.from_y,
+        x2: edge.to_x,
+        y2: edge.to_y,
     }
-    .draw(sg, &DrawStyle {
-        fill: None,
-        stroke: Some(arrow_color.into()),
-        stroke_width: 1.0,
-        dash_array: dash,
-        delta_shadow: 0.0,
-    });
+    .draw(
+        sg,
+        &DrawStyle {
+            fill: None,
+            stroke: Some(arrow_color.into()),
+            stroke_width: 1.0,
+            dash_array: dash,
+            delta_shadow: 0.0,
+        },
+    );
 
     // Inline polygon arrowhead
     if edge.has_arrow {

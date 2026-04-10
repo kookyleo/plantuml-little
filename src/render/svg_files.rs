@@ -402,11 +402,7 @@ fn render_entry(buf: &mut String, e: &FilesEntryLayout) {
 
 fn write_path(buf: &mut String, segments: &[(Cmd, &[Pt])], dx: f64, dy: f64, fill: &str) {
     let d = emit_path(segments, dx, dy);
-    let _ = write!(
-        buf,
-        r#"<path d="{}" fill="{}"/>"#,
-        d, fill
-    );
+    let _ = write!(buf, r#"<path d="{}" fill="{}"/>"#, d, fill);
 }
 
 fn render_text(buf: &mut String, e: &FilesEntryLayout, fc: &str) {
