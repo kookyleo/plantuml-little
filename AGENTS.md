@@ -23,6 +23,11 @@
 - ELK layout engine
 - TeaVM / JS compilation
 - PNG metadata embedding/extraction
+- **DITAA** (@startditaa): Java delegates to a third-party bitmap-only library
+  (ASCII art → BufferedImage). No SVG output exists. Would require building a
+  full ASCII art → SVG renderer from scratch.
+- **JCCKIT** (@startjcckit): Java AWT charting library, raster-only, no SVG
+  mode, extremely low adoption.
 
 ## Architecture
 

@@ -13,15 +13,27 @@
 - `cargo test --test reference_tests` -> `329 passed / 0 failed / 3 ignored`
 - The reference harness uses `tests/reference/INDEX.tsv` as the authoritative fixture-to-reference map.
 
-## Active Blockers
+## Intentionally Unsupported Diagram Types
 
-These are the only remaining non-green items, and none are ordinary Rust parser/layout/render gaps.
+These are the only remaining non-green items, and none are ordinary Rust
+parser/layout/render gaps. They are **out of scope** for this project.
 
 - `tests/fixtures/ditaa/basic.puml`
-  - Ignored because Java stable writes raw PNG bytes even under `-tsvg`.
-  - This repo is SVG-only and `convert*()` returns `String`, so there is no byte-exact SVG authority to compare.
+  - **DITAA** (DIagrams Through Ascii Art) converts ASCII character art into
+    graphics. Java PlantUML delegates to an embedded third-party DITAA library
+    that only renders to `BufferedImage` (Java bitmap) — it has no SVG output
+    mode. Even under `-tsvg`, Java writes raw PNG bytes.
+  - Supporting DITAA would require implementing a full ASCII art → SVG
+    rendering engine from scratch (parsing `+--+` as rounded rectangles,
+    `-->` as arrows, etc.), not porting existing Java code.
+  - **Decision: not supported.** Test ignored.
 - `tests/fixtures/jcckit/basic.puml`
-  - Ignored for the same reason: Java stable writes PNG bytes instead of UTF-8 SVG under `-tsvg`.
+  - **JCCKIT** (Java Chart Construction Kit) is a Java AWT charting library
+    that generates scientific/mathematical charts. It renders to `Graphics2D`
+    (Java raster canvas) — no SVG mode. Java writes raw PNG bytes under `-tsvg`.
+  - This is a Java-specific library with no meaningful Rust equivalent and
+    extremely low adoption in the PlantUML ecosystem.
+  - **Decision: not supported.** Test ignored.
 - `tests/fixtures/sprite/svg2GroupsWithStyle.puml`
   - Ignored because Java stable `v1.2026.2` throws `NullPointerException` on the fixture.
 
