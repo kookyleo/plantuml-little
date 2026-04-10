@@ -1,7 +1,8 @@
-use std::fmt::Write;
-
 use crate::font_metrics;
-use crate::klimt::svg::{fmt_coord, LengthAdjust, SvgGraphic};
+use crate::klimt::drawable::{
+    DrawStyle, Drawable, EllipseShape, LineShape, PolygonShape, RectShape, TextShape,
+};
+use crate::klimt::svg::SvgGraphic;
 use crate::layout::bpm::{BpmCellLayout, BpmLayout};
 use crate::model::bpm::{BpmDiagram, BpmElementType, Where};
 use crate::render::svg::{ensure_visible_int, write_svg_root_bg};
@@ -53,18 +54,18 @@ pub fn render_bpm(_d: &BpmDiagram, l: &BpmLayout, skin: &SkinParams) -> Result<S
     write_svg_root_bg(&mut buf, sw, sh, "BPM", bg);
     buf.push_str("<defs/><g>");
 
+    let mut sg = SvgGraphic::new(0, 1.0);
+    let grid_style = DrawStyle::outline(GRID_COLOR, 1.0);
+
     // Draw internal grid lines (shifted by MARGIN)
     for gl in &l.grid_lines {
-        write!(
-            buf,
-            r#"<line style="stroke:{};stroke-width:1;" x1="{}" x2="{}" y1="{}" y2="{}"/>"#,
-            GRID_COLOR,
-            fmt_coord(gl.x1 + MARGIN),
-            fmt_coord(gl.x2 + MARGIN),
-            fmt_coord(gl.y1 + MARGIN),
-            fmt_coord(gl.y2 + MARGIN),
-        )
-        .unwrap();
+        LineShape {
+            x1: gl.x1 + MARGIN,
+            y1: gl.y1 + MARGIN,
+            x2: gl.x2 + MARGIN,
+            y2: gl.y2 + MARGIN,
+        }
+        .draw(&mut sg, &grid_style);
     }
 
     // Render cells in grid order (row, col) — matching Java GridArray.drawU
@@ -87,116 +88,73 @@ pub fn render_bpm(_d: &BpmDiagram, l: &BpmLayout, skin: &SkinParams) -> Result<S
                 y: cell.y + MARGIN,
                 ..cell.clone()
             };
-            render_element(&mut buf, &shifted);
+            render_element(&mut sg, &shifted);
         } else {
             let conn = &l.connectors[idx];
-            render_connector_puzzle(&mut buf, conn);
+            render_connector_puzzle(&mut sg, conn);
         }
     }
 
+    buf.push_str(sg.body());
     buf.push_str("</g></svg>");
     Ok(buf)
 }
 
-fn render_element(buf: &mut String, cell: &BpmCellLayout) {
+fn render_element(sg: &mut SvgGraphic, cell: &BpmCellLayout) {
     let cx = cell.x + cell.width / 2.0;
     let cy = cell.y + cell.height / 2.0;
 
     match cell.element_type {
         BpmElementType::Start => {
-            // Draw filled ellipse
-            write!(
-                buf,
-                r#"<ellipse cx="{}" cy="{}" fill="{}" rx="{}" ry="{}" style="stroke:{};stroke-width:{};"/>"#,
-                fmt_coord(cx),
-                fmt_coord(cy),
-                START_FILL,
-                fmt_coord(START_RADIUS),
-                fmt_coord(START_RADIUS),
-                START_STROKE,
-                START_STROKE_WIDTH,
-            )
-            .unwrap();
+            EllipseShape {
+                cx, cy, rx: START_RADIUS, ry: START_RADIUS,
+            }
+            .draw(sg, &DrawStyle::filled(START_FILL, START_STROKE, START_STROKE_WIDTH));
         }
         BpmElementType::Merge => {
-            // Draw diamond polygon
             let top = (cx, cy - DIAMOND_HALF);
             let right = (cx + DIAMOND_HALF, cy);
             let bottom = (cx, cy + DIAMOND_HALF);
             let left = (cx - DIAMOND_HALF, cy);
-            write!(
-                buf,
-                r#"<polygon fill="{}" points="{},{},{},{},{},{},{},{},{},{}" style="stroke:{};stroke-width:{};"/>"#,
-                DIAMOND_FILL,
-                fmt_coord(top.0), fmt_coord(top.1),
-                fmt_coord(right.0), fmt_coord(right.1),
-                fmt_coord(bottom.0), fmt_coord(bottom.1),
-                fmt_coord(left.0), fmt_coord(left.1),
-                fmt_coord(top.0), fmt_coord(top.1),
-                DIAMOND_STROKE,
-                DIAMOND_STROKE_WIDTH,
-            )
-            .unwrap();
+            PolygonShape {
+                points: vec![
+                    top.0, top.1, right.0, right.1,
+                    bottom.0, bottom.1, left.0, left.1,
+                    top.0, top.1,
+                ],
+            }
+            .draw(sg, &DrawStyle::filled(DIAMOND_FILL, DIAMOND_STROKE, DIAMOND_STROKE_WIDTH));
         }
         BpmElementType::DockedEvent => {
-            // Draw rounded rect + text
-            write!(
-                buf,
-                r#"<rect fill="{}" height="{}" rx="{}" ry="{}" style="stroke:{};stroke-width:{};" width="{}" x="{}" y="{}"/>"#,
-                BOX_FILL,
-                fmt_coord(cell.height),
-                fmt_coord(BOX_CORNER_RADIUS),
-                fmt_coord(BOX_CORNER_RADIUS),
-                BOX_STROKE,
-                BOX_STROKE_WIDTH,
-                fmt_coord(cell.width),
-                fmt_coord(cell.x),
-                fmt_coord(cell.y),
-            )
-            .unwrap();
+            RectShape {
+                x: cell.x, y: cell.y, w: cell.width, h: cell.height,
+                rx: BOX_CORNER_RADIUS, ry: BOX_CORNER_RADIUS,
+            }
+            .draw(sg, &DrawStyle::filled(BOX_FILL, BOX_STROKE, BOX_STROKE_WIDTH));
 
             if let Some(ref label) = cell.label {
-                let ascent =
-                    font_metrics::ascent("SansSerif", BOX_FONT_SIZE, false, false);
+                let ascent = font_metrics::ascent("SansSerif", BOX_FONT_SIZE, false, false);
                 let tw = font_metrics::text_width(label, "SansSerif", BOX_FONT_SIZE, false, false);
-                // Java FtileBox draws text at padding.getTop() + ascent from box origin
                 let text_x = cell.x + 10.0; // padding_left
                 let text_y = cell.y + 10.0 + ascent; // padding_top + ascent
-
-                let mut sg = SvgGraphic::new(0, 1.0);
-                sg.set_fill_color(BOX_TEXT_COLOR);
-                sg.svg_text(
-                    label,
-                    text_x,
-                    text_y,
-                    Some("sans-serif"),
-                    BOX_FONT_SIZE,
-                    None,
-                    None,
-                    None,
-                    tw,
-                    LengthAdjust::Spacing,
-                    None,
-                    0,
-                    None,
-                );
-                buf.push_str(sg.body());
+                TextShape {
+                    x: text_x,
+                    y: text_y,
+                    text: label.clone(),
+                    font_family: "sans-serif".into(),
+                    font_size: BOX_FONT_SIZE,
+                    text_length: tw,
+                    bold: false,
+                    italic: false,
+                }
+                .draw(sg, &DrawStyle::fill_only(BOX_TEXT_COLOR));
             }
         }
         BpmElementType::End => {
-            // Similar to start but with different style
-            write!(
-                buf,
-                r#"<ellipse cx="{}" cy="{}" fill="{}" rx="{}" ry="{}" style="stroke:{};stroke-width:{};"/>"#,
-                fmt_coord(cx),
-                fmt_coord(cy),
-                START_FILL,
-                fmt_coord(START_RADIUS),
-                fmt_coord(START_RADIUS),
-                START_STROKE,
-                START_STROKE_WIDTH * 3.0,
-            )
-            .unwrap();
+            EllipseShape {
+                cx, cy, rx: START_RADIUS, ry: START_RADIUS,
+            }
+            .draw(sg, &DrawStyle::filled(START_FILL, START_STROKE, START_STROKE_WIDTH * 3.0));
         }
     }
 
@@ -204,15 +162,16 @@ fn render_element(buf: &mut String, cell: &BpmCellLayout) {
     let nesw_order = [Where::North, Where::East, Where::South, Where::West];
     for dir in &nesw_order {
         if cell.connectors.contains(dir) {
-            draw_connector_line(buf, cx, cy, cell.width, cell.height, *dir, false);
+            draw_connector_line(sg, cx, cy, cell.width, cell.height, *dir, false);
         }
     }
 }
 
-fn render_connector_puzzle(buf: &mut String, conn: &crate::layout::bpm::BpmConnectorLayout) {
+fn render_connector_puzzle(sg: &mut SvgGraphic, conn: &crate::layout::bpm::BpmConnectorLayout) {
     // Java ConnectorPuzzleEmpty: 20x20 cell, draws blue lines at specific offsets.
     let ox = conn.x + MARGIN; // puzzle origin x
     let oy = conn.y + MARGIN; // puzzle origin y
+    let blue_style = DrawStyle::outline(CONNECTOR_BLUE, 1.0);
 
     let nesw_order = [Where::North, Where::East, Where::South, Where::West];
     for dir in &nesw_order {
@@ -225,21 +184,12 @@ fn render_connector_puzzle(buf: &mut String, conn: &crate::layout::bpm::BpmConne
             Where::North => (ox + 10.0, oy, ox + 10.0, oy + 10.0),
             Where::South => (ox + 10.0, oy + 10.0, ox + 10.0, oy + 20.0),
         };
-        write!(
-            buf,
-            r#"<line style="stroke:{};stroke-width:1;" x1="{}" x2="{}" y1="{}" y2="{}"/>"#,
-            CONNECTOR_BLUE,
-            fmt_coord(x1),
-            fmt_coord(x2),
-            fmt_coord(y1),
-            fmt_coord(y2),
-        )
-        .unwrap();
+        LineShape { x1, y1, x2, y2 }.draw(sg, &blue_style);
     }
 }
 
 fn draw_connector_line(
-    buf: &mut String,
+    sg: &mut SvgGraphic,
     cx: f64,
     cy: f64,
     width: f64,
@@ -255,14 +205,5 @@ fn draw_connector_line(
         Where::South => (cx, cy + height / 2.0, cx, cy + height / 2.0 + CONNECTOR_LEN),
     };
 
-    write!(
-        buf,
-        r#"<line style="stroke:{};stroke-width:1;" x1="{}" x2="{}" y1="{}" y2="{}"/>"#,
-        color,
-        fmt_coord(x1),
-        fmt_coord(x2),
-        fmt_coord(y1),
-        fmt_coord(y2),
-    )
-    .unwrap();
+    LineShape { x1, y1, x2, y2 }.draw(sg, &DrawStyle::outline(color, 1.0));
 }

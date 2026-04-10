@@ -2,7 +2,10 @@
 //! `layout::salt` and emits exactly the SVG Java PlantUML emits for salt
 //! diagrams (text + line + rect + ellipse + polygon only).
 
-use crate::klimt::svg::{fmt_coord, LengthAdjust, SvgGraphic};
+use crate::klimt::drawable::{
+    DrawStyle, Drawable, EllipseShape, LineShape, PolygonShape, RectShape, TextShape,
+};
+use crate::klimt::svg::SvgGraphic;
 use crate::layout::salt::{DrawCmd, SaltLayout};
 use crate::model::salt::SaltDiagram;
 use crate::render::svg::write_svg_root_bg_opt;
@@ -41,28 +44,30 @@ fn emit_command(sg: &mut SvgGraphic, cmd: &DrawCmd) {
             text,
             text_length,
         } => {
-            sg.set_fill_color("#000000");
-            sg.set_stroke_width(0.0, None);
-            sg.svg_text(
-                text,
-                *x,
-                *y,
-                Some("sans-serif"),
-                12.0,
-                None,
-                None,
-                None,
-                *text_length,
-                LengthAdjust::Spacing,
-                None,
-                0,
-                None,
-            );
+            let style = DrawStyle {
+                fill: Some("#000000".into()),
+                stroke: None,
+                stroke_width: 0.0,
+                dash_array: None,
+                delta_shadow: 0.0,
+            };
+            TextShape {
+                x: *x,
+                y: *y,
+                text: text.clone(),
+                font_family: "sans-serif".into(),
+                font_size: 12.0,
+                text_length: *text_length,
+                bold: false,
+                italic: false,
+            }
+            .draw(sg, &style);
         }
         DrawCmd::Line { x1, y1, x2, y2 } => {
-            sg.set_stroke_color(Some("#000000"));
-            sg.set_stroke_width(1.0, None);
-            sg.svg_line(*x1, *y1, *x2, *y2, 0.0);
+            LineShape {
+                x1: *x1, y1: *y1, x2: *x2, y2: *y2,
+            }
+            .draw(sg, &DrawStyle::outline("#000000", 1.0));
         }
         DrawCmd::RectOutline {
             x,
@@ -71,10 +76,10 @@ fn emit_command(sg: &mut SvgGraphic, cmd: &DrawCmd) {
             h,
             stroke_width,
         } => {
-            sg.set_fill_color("none");
-            sg.set_stroke_color(Some("#000000"));
-            sg.set_stroke_width(*stroke_width, None);
-            sg.svg_rectangle(*x, *y, *w, *h, 0.0, 0.0, 0.0);
+            RectShape {
+                x: *x, y: *y, w: *w, h: *h, rx: 0.0, ry: 0.0,
+            }
+            .draw(sg, &DrawStyle::outline("#000000", *stroke_width));
         }
         DrawCmd::RectFilled {
             x,
@@ -85,10 +90,10 @@ fn emit_command(sg: &mut SvgGraphic, cmd: &DrawCmd) {
             fill,
             stroke_width,
         } => {
-            sg.set_fill_color(fill);
-            sg.set_stroke_color(Some("#000000"));
-            sg.set_stroke_width(*stroke_width, None);
-            sg.svg_rectangle(*x, *y, *w, *h, *rx, *rx, 0.0);
+            RectShape {
+                x: *x, y: *y, w: *w, h: *h, rx: *rx, ry: *rx,
+            }
+            .draw(sg, &DrawStyle::filled(fill, "#000000", *stroke_width));
         }
         DrawCmd::Ellipse {
             cx,
@@ -97,10 +102,10 @@ fn emit_command(sg: &mut SvgGraphic, cmd: &DrawCmd) {
             ry,
             stroke_width,
         } => {
-            sg.set_fill_color("none");
-            sg.set_stroke_color(Some("#000000"));
-            sg.set_stroke_width(*stroke_width, None);
-            sg.svg_ellipse(*cx, *cy, *rx, *ry, 0.0);
+            EllipseShape {
+                cx: *cx, cy: *cy, rx: *rx, ry: *ry,
+            }
+            .draw(sg, &DrawStyle::outline("#000000", *stroke_width));
         }
         DrawCmd::EllipseFilled {
             cx,
@@ -109,24 +114,20 @@ fn emit_command(sg: &mut SvgGraphic, cmd: &DrawCmd) {
             ry,
             stroke_width,
         } => {
-            sg.set_fill_color("#000000");
-            sg.set_stroke_color(Some("#000000"));
-            sg.set_stroke_width(*stroke_width, None);
-            sg.svg_ellipse(*cx, *cy, *rx, *ry, 0.0);
+            EllipseShape {
+                cx: *cx, cy: *cy, rx: *rx, ry: *ry,
+            }
+            .draw(sg, &DrawStyle::filled("#000000", "#000000", *stroke_width));
         }
         DrawCmd::Polygon {
             points,
             stroke_width,
         } => {
-            sg.set_fill_color("#000000");
-            sg.set_stroke_color(Some("#000000"));
-            sg.set_stroke_width(*stroke_width, None);
             let flat: Vec<f64> = points.iter().flat_map(|(x, y)| [*x, *y]).collect();
-            sg.svg_polygon(0.0, &flat);
+            PolygonShape { points: flat }
+                .draw(sg, &DrawStyle::filled("#000000", "#000000", *stroke_width));
         }
     }
-    // The Java polygon output uses integer-valued points, so fmt_coord suffices.
-    let _ = fmt_coord;
 }
 
 #[cfg(test)]

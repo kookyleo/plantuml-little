@@ -6,6 +6,7 @@
 // with Java PlantUML's internal graphics API.
 
 pub mod color;
+pub mod drawable;
 pub mod font;
 pub mod geom;
 pub mod hand;
