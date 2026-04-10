@@ -547,7 +547,7 @@ fn render_old_style_node(
             )
             .unwrap();
         }
-        ActivityNodeKindLayout::Action => {
+        ActivityNodeKindLayout::Action | ActivityNodeKindLayout::BackwardAction => {
             write!(
                 buf,
                 r#"<rect fill="{}" height="{}" rx="12.5" ry="12.5" style="stroke:{};stroke-width:0.5;" width="{}" x="{}" y="{}"/>"#,
@@ -841,7 +841,9 @@ fn render_node(
         ActivityNodeKindLayout::Start => render_start(sg, node),
         ActivityNodeKindLayout::Stop => render_stop(sg, node),
         ActivityNodeKindLayout::End => render_stop(sg, node),
-        ActivityNodeKindLayout::Action => render_action(sg, node, act_bg, act_border, act_font),
+        ActivityNodeKindLayout::Action | ActivityNodeKindLayout::BackwardAction => {
+            render_action(sg, node, act_bg, act_border, act_font)
+        }
         ActivityNodeKindLayout::Diamond => render_diamond(sg, node, diamond_bg, diamond_border),
         ActivityNodeKindLayout::Hexagon { east_lines, south_lines } => {
             render_hexagon(sg, node, east_lines, south_lines, diamond_bg, diamond_border, act_font)
@@ -1600,11 +1602,17 @@ fn render_polyline_with_arrow(
         return;
     }
     let edge_line_style = DrawStyle::outline(arrow_color, 1.0);
+
+    // Draw line segments with Java's vertical normalization (y1 <= y2).
     for pair in points.windows(2) {
-        let (x1, y1) = pair[0];
-        let (x2, y2) = pair[1];
+        let (mut x1, mut y1) = pair[0];
+        let (mut x2, mut y2) = pair[1];
+        if x1 == x2 && y1 > y2 {
+            std::mem::swap(&mut y1, &mut y2);
+        }
         LineShape { x1, y1, x2, y2 }.draw(sg, &edge_line_style);
     }
+
     // Arrow at the last point, direction from second-to-last to last.
     let (tx, ty) = *points.last().unwrap();
     let (fx, fy) = points[points.len() - 2];
@@ -1710,10 +1718,16 @@ fn render_arrowhead(sg: &mut SvgGraphic, fx: f64, fy: f64, tx: f64, ty: f64, col
     }
     let ux = dx / len;
     let uy = dy / len;
-    let px = -uy;
-    let py = ux;
     let arrow_len = 10.0;
     let arrow_half = 4.0;
+
+    // Java's UPolygon always puts the "negative cross-offset" point first.
+    // For vertical arrows: first point is LEFT (x - 4).
+    // For horizontal arrows: first point is TOP (y - 4).
+    // We compute the perpendicular as (-|uy|, -|ux|) to ensure this.
+    let px = if uy.abs() > 0.5 { -1.0 } else { 0.0 };
+    let py = if ux.abs() > 0.5 { -1.0 } else { 0.0 };
+
     let lx = tx - ux * arrow_len + px * arrow_half;
     let ly = ty - uy * arrow_len + py * arrow_half;
     let rx = tx - ux * arrow_len - px * arrow_half;

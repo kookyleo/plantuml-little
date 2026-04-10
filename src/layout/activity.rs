@@ -88,6 +88,9 @@ pub enum ActivityNodeKindLayout {
         mode: ActivityNoteModeLayout,
     },
     Detach,
+    /// Backward action box on the repeat loop-back path.
+    /// Rendered like an Action but excluded from flow edges.
+    BackwardAction,
 }
 
 /// Note position in the layout coordinate space.
@@ -1947,7 +1950,7 @@ pub fn layout_activity(diagram: &ActivityDiagram) -> Result<ActivityLayout> {
         );
         nodes.push(ActivityNodeLayout {
             index: node_index,
-            kind: ActivityNodeKindLayout::Action,
+            kind: ActivityNodeKindLayout::BackwardAction,
             x: bx,
             y: by,
             width: db.width,
@@ -2180,7 +2183,9 @@ fn apply_direction_transform(
 fn is_flow_node(kind: &ActivityNodeKindLayout) -> bool {
     !matches!(
         kind,
-        ActivityNodeKindLayout::Note { .. } | ActivityNodeKindLayout::FloatingNote { .. }
+        ActivityNodeKindLayout::Note { .. }
+            | ActivityNodeKindLayout::FloatingNote { .. }
+            | ActivityNodeKindLayout::BackwardAction
     )
 }
 
@@ -2275,6 +2280,7 @@ fn align_flow_groups_to_lane_columns(nodes: &mut [ActivityNodeLayout], node_lane
 fn limitfinder_x_bounds(node: &ActivityNodeLayout) -> (f64, f64) {
     match &node.kind {
         ActivityNodeKindLayout::Action
+        | ActivityNodeKindLayout::BackwardAction
         | ActivityNodeKindLayout::ForkBar
         | ActivityNodeKindLayout::SyncBar => (node.x - 1.0, node.x + node.width - 1.0),
         ActivityNodeKindLayout::Diamond => (node.x - 10.0, node.x + node.width + 10.0),
@@ -2626,17 +2632,41 @@ fn reorder_edges_for_repeat(
     // hit an edge tied to a repeat frame, emit the whole frame in Java order
     // the first time we encounter it, then skip any later edges from the
     // same frame.
+    // Collect edges that enter/leave a frame from/to outside.
+    // These are deferred until after the frame's internal edges.
+    let frame_d1s: std::collections::HashSet<usize> =
+        frames.iter().map(|(d1, _, _)| *d1).collect();
+    let frame_hexs: std::collections::HashSet<usize> =
+        frames.iter().map(|(_, hex, _)| *hex).collect();
+    let mut deferred_outer: Vec<usize> = Vec::new();
+
     let mut emitted_frame = std::collections::HashSet::new();
     for (ei, edge) in edges.iter().enumerate() {
         if consumed[ei] {
             continue;
         }
+        // Check if this is an outer edge (from outside → diamond1, or hex → outside)
+        if frame_d1s.contains(&edge.to_index)
+            && !frame_d1s.contains(&edge.from_index)
+            && edge.from_index < edge.to_index
+        {
+            deferred_outer.push(ei);
+            consumed[ei] = true;
+            continue;
+        }
+        if frame_hexs.contains(&edge.from_index)
+            && !frame_hexs.contains(&edge.to_index)
+            && edge.to_index > edge.from_index
+        {
+            deferred_outer.push(ei);
+            consumed[ei] = true;
+            continue;
+        }
         // Does this edge belong to a repeat frame?
         let mut owner: Option<usize> = None;
         for (d1, hex, _) in &frames {
-            if (edge.from_index == *d1 && edge.to_index <= *hex)
-                || (edge.to_index == *hex && edge.from_index >= *d1)
-                || (edge.from_index >= *d1 && edge.to_index <= *hex)
+            if edge.from_index >= *d1 && edge.to_index <= *hex
+                && (edge.from_index != edge.to_index)
             {
                 owner = Some(*d1);
                 break;
@@ -2676,6 +2706,11 @@ fn reorder_edges_for_repeat(
         // Non-repeat edge: emit as-is.
         result.push(edge.clone());
         consumed[ei] = true;
+    }
+
+    // Emit deferred outer edges (Start→Diamond1, Hex→Stop) in their natural order
+    for &ei in &deferred_outer {
+        result.push(edges[ei].clone());
     }
 
     result
