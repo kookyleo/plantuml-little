@@ -854,6 +854,8 @@ pub fn layout_activity(diagram: &ActivityDiagram) -> Result<ActivityLayout> {
         post_merge_node_idx: Option<usize>,
     }
     let mut deferred_if_edges: Vec<DeferredIfEdges> = Vec::new();
+    // Deferred break edges: (from_node_idx, from_y, exit_diamond_idx)
+    let mut deferred_break_edges: Vec<(usize, f64, usize)> = Vec::new();
     // Pre-scan: for each `If` event, determine whether it has a matching `Else`.
     // This is needed so we can decide the branch layout direction up front.
     let if_has_else: HashMap<usize, bool> = {
@@ -1540,8 +1542,33 @@ pub fn layout_activity(diagram: &ActivityDiagram) -> Result<ActivityLayout> {
 
                 // Close the repeat frame and schedule the loop-back edge.
                 if let Some(frame) = repeat_stack.pop() {
+                    // If there are break sources, create an exit diamond node.
+                    let has_breaks = !frame.break_sources.is_empty();
+                    let exit_diamond_idx = if has_breaks {
+                        let (dw, dh) = (DIAMOND_SIZE * 2.0, DIAMOND_SIZE * 2.0);
+                        let dx = cx - dw / 2.0;
+                        let dy = y_cursor - node_gap; // place just after hex+south gap
+                        let exit_y = dy;
+                        log::debug!("  node[{node_index}] Repeat exit diamond @ ({dx:.1}, {exit_y:.1})");
+                        nodes.push(ActivityNodeLayout {
+                            index: node_index,
+                            kind: ActivityNodeKindLayout::Diamond,
+                            x: dx,
+                            y: exit_y,
+                            width: dw,
+                            height: dh,
+                            text: String::new(),
+                            skip_in_flow: false,
+                        });
+                        let idx = node_index;
+                        node_index += 1;
+                        y_cursor = exit_y + dh + node_gap;
+                        Some(idx)
+                    } else {
+                        None
+                    };
+
                     if frame.backward_text.is_some() {
-                        // Defer backward node creation until after centering.
                         deferred_backward.push(DeferredBackward {
                             hex_idx,
                             diamond1_idx: frame.diamond1_idx,
@@ -1561,6 +1588,17 @@ pub fn layout_activity(diagram: &ActivityDiagram) -> Result<ActivityLayout> {
                             hex_idx
                         );
                         repeat_loopbacks.push((hex_idx, frame.diamond1_idx));
+                    }
+
+                    // Store deferred break edges for post-centering resolution
+                    if has_breaks {
+                        if let Some(exit_idx) = exit_diamond_idx {
+                            for bs in &frame.break_sources {
+                                if let Some(from_idx) = bs.from_node_idx {
+                                    deferred_break_edges.push((from_idx, bs.from_y, exit_idx));
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -2745,6 +2783,35 @@ pub fn layout_activity(diagram: &ActivityDiagram) -> Result<ActivityLayout> {
                 });
             }
         }
+    }
+
+    // --- Pass 3a3: break edges ------------------------------------------------
+    // Break edges connect from a break source (inside an if-block within a repeat)
+    // to the repeat's exit diamond.  The edge routes: from_cx → down short →
+    // left to edge (x=10) → down to exit_diamond_cy → right with arrow.
+    for &(from_idx, from_y, exit_idx) in &deferred_break_edges {
+        let from_node = &nodes[from_idx];
+        let from_cx = from_node.x + from_node.width / 2.0;
+        let from_bottom = from_node.y + from_node.height;
+        let exit_node = &nodes[exit_idx];
+        let exit_cy = exit_node.y + exit_node.height / 2.0;
+        let exit_left = exit_node.x;
+        // Short downward segment, then left to x=10, down to exit, right
+        let break_y = from_bottom + 6.5157; // Java welding-point gap
+        let left_x = 10.0;
+        edges.push(ActivityEdgeLayout {
+            from_index: from_idx,
+            to_index: exit_idx,
+            label: String::new(),
+            points: vec![
+                (from_cx, from_bottom),
+                (from_cx, break_y),
+                (left_x, break_y),
+                (left_x, exit_cy),
+                (exit_left, exit_cy),
+            ],
+            kind: ActivityEdgeKindLayout::BreakEdge,
+        });
     }
 
     // --- Pass 3b: `repeat`/`repeat while` loop-back edges -------------------
