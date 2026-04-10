@@ -506,9 +506,12 @@ fn to_absolute(movements: &[Movement]) -> Vec<Movement> {
                 Movement {
                     letter: 'C',
                     args: vec![
-                        dx + mv.args[0], dy + mv.args[1],
-                        dx + mv.args[2], dy + mv.args[3],
-                        dx + mv.args[4], dy + mv.args[5],
+                        dx + mv.args[0],
+                        dy + mv.args[1],
+                        dx + mv.args[2],
+                        dy + mv.args[3],
+                        dx + mv.args[4],
+                        dy + mv.args[5],
                     ],
                 }
             }
@@ -518,8 +521,10 @@ fn to_absolute(movements: &[Movement]) -> Vec<Movement> {
                 Movement {
                     letter: 'Q',
                     args: vec![
-                        dx + mv.args[0], dy + mv.args[1],
-                        dx + mv.args[2], dy + mv.args[3],
+                        dx + mv.args[0],
+                        dy + mv.args[1],
+                        dx + mv.args[2],
+                        dy + mv.args[3],
                     ],
                 }
             }
@@ -529,8 +534,10 @@ fn to_absolute(movements: &[Movement]) -> Vec<Movement> {
                 Movement {
                     letter: 'S',
                     args: vec![
-                        dx + mv.args[0], dy + mv.args[1],
-                        dx + mv.args[2], dy + mv.args[3],
+                        dx + mv.args[0],
+                        dy + mv.args[1],
+                        dx + mv.args[2],
+                        dy + mv.args[3],
                     ],
                 }
             }
@@ -539,9 +546,13 @@ fn to_absolute(movements: &[Movement]) -> Vec<Movement> {
                 Movement {
                     letter: 'A',
                     args: vec![
-                        mv.args[0], mv.args[1], mv.args[2],
-                        mv.args[3], mv.args[4],
-                        last.0 + lp.0, last.1 + lp.1,
+                        mv.args[0],
+                        mv.args[1],
+                        mv.args[2],
+                        mv.args[3],
+                        mv.args[4],
+                        last.0 + lp.0,
+                        last.1 + lp.1,
                     ],
                 }
             }
@@ -667,9 +678,12 @@ fn render_movements_as_path(
                 let py = (y + translate_y) * factor + offset_y;
                 d.push_str(&format!(
                     "C{},{} {},{} {},{} ",
-                    fmt4(pcx1), fmt4(pcy1),
-                    fmt4(pcx2), fmt4(pcy2),
-                    fmt4(px), fmt4(py),
+                    fmt4(pcx1),
+                    fmt4(pcy1),
+                    fmt4(pcx2),
+                    fmt4(pcy2),
+                    fmt4(px),
+                    fmt4(py),
                 ));
             }
             'Q' => {
@@ -682,9 +696,12 @@ fn render_movements_as_path(
                 let py = (y + translate_y) * factor + offset_y;
                 d.push_str(&format!(
                     "C{},{} {},{} {},{} ",
-                    fmt4(pcx), fmt4(pcy),
-                    fmt4(pcx), fmt4(pcy),
-                    fmt4(px), fmt4(py),
+                    fmt4(pcx),
+                    fmt4(pcy),
+                    fmt4(pcx),
+                    fmt4(pcy),
+                    fmt4(px),
+                    fmt4(py),
                 ));
             }
             'A' => {
@@ -698,11 +715,13 @@ fn render_movements_as_path(
                 let py = (y + translate_y) * factor + offset_y;
                 d.push_str(&format!(
                     "A{},{} {} {} {} {},{} ",
-                    fmt4(rx), fmt4(ry),
+                    fmt4(rx),
+                    fmt4(ry),
                     fmt4(x_rot),
                     large_arc as i32,
                     sweep as i32,
-                    fmt4(px), fmt4(py),
+                    fmt4(px),
+                    fmt4(py),
                 ));
             }
             'Z' => {
@@ -714,11 +733,7 @@ fn render_movements_as_path(
     }
     let _ = prev_letter; // suppress unused warning
 
-    format!(
-        r#"<path d="{}" fill="{}"/>"#,
-        d.trim_end(),
-        fill,
-    )
+    format!(r#"<path d="{}" fill="{}"/>"#, d.trim_end(), fill,)
 }
 
 /// Format a coordinate to 4 decimal places, stripping trailing zeros.

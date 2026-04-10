@@ -61,10 +61,7 @@ pub enum TextSpan {
     },
     /// Inline image: `<img:url>`, optionally with scale.
     /// Renders as `<image>` element with the image data.
-    Image {
-        url: String,
-        scale: f64,
-    },
+    Image { url: String, scale: f64 },
 }
 
 /// A block-level rich text element.

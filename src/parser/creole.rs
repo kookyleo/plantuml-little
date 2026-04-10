@@ -550,8 +550,7 @@ fn parse_inline_chars(
 
         // OpenIconic icon: <&name> or <#color&name>
         if chars[i] == '<' && i + 2 < end {
-            let maybe_icon =
-                (chars[i + 1] == '&') || (chars[i + 1] == '#');
+            let maybe_icon = (chars[i + 1] == '&') || (chars[i + 1] == '#');
             if maybe_icon {
                 if let Some((span, consumed)) = try_parse_openicon(chars, i, end) {
                     flush_plain(&mut plain_buf, out);
@@ -1006,7 +1005,10 @@ fn try_parse_img(chars: &[char], start: usize, end: usize) -> Option<(TextSpan, 
 
 fn parse_img_scale(brace_part: &str) -> f64 {
     // Expected: {scale=1.5} or similar
-    let trimmed = brace_part.trim().trim_start_matches('{').trim_end_matches('}');
+    let trimmed = brace_part
+        .trim()
+        .trim_start_matches('{')
+        .trim_end_matches('}');
     if let Some(val) = trimmed.strip_prefix("scale=") {
         val.trim().parse::<f64>().unwrap_or(1.0)
     } else {

@@ -727,21 +727,18 @@ pub fn layout_activity(diagram: &ActivityDiagram) -> Result<ActivityLayout> {
     // Java ImageBuilder.calculateMargin = 10 for all diagrams.
     // FtileBox (Action) adds an internal 1px top padding → first rect at y=11.
     // FtileDiamond/FtileCircleStart have no extra padding → first shape at y=10.
-    let first_flow_event = diagram
-        .events
-        .iter()
-        .find(|e| {
-            matches!(
-                e,
-                ActivityEvent::Start
-                    | ActivityEvent::Action { .. }
-                    | ActivityEvent::If { .. }
-                    | ActivityEvent::While { .. }
-                    | ActivityEvent::Repeat
-            )
-        });
-    let first_is_action = first_flow_event
-        .is_some_and(|e| matches!(e, ActivityEvent::Action { .. }));
+    let first_flow_event = diagram.events.iter().find(|e| {
+        matches!(
+            e,
+            ActivityEvent::Start
+                | ActivityEvent::Action { .. }
+                | ActivityEvent::If { .. }
+                | ActivityEvent::While { .. }
+                | ActivityEvent::Repeat
+        )
+    });
+    let first_is_action =
+        first_flow_event.is_some_and(|e| matches!(e, ActivityEvent::Action { .. }));
 
     let mut y_cursor = if swimlane_layouts.is_empty() {
         if first_is_action {
@@ -817,19 +814,19 @@ pub fn layout_activity(diagram: &ActivityDiagram) -> Result<ActivityLayout> {
     // Stack of open `if` blocks. Each entry tracks the diamond node and
     // the nodes/edges for each branch (then / else).
     struct IfBranch {
-        nodes: Vec<usize>,          // node indices in this branch
+        nodes: Vec<usize>, // node indices in this branch
         last_node_idx: Option<usize>,
-        bottom_y: f64,              // y_cursor at end of branch
-        has_goto: bool,             // branch ends with goto (no merge)
-        has_break: bool,            // branch ends with break
+        bottom_y: f64,   // y_cursor at end of branch
+        has_goto: bool,  // branch ends with goto (no merge)
+        has_break: bool, // branch ends with break
     }
     struct IfFrame {
         diamond_idx: usize,
-        diamond_cx: f64,            // center x of the diamond
-        diamond_cy: f64,            // center y of the diamond
-        diamond_left_x: f64,        // left point x of diamond
-        diamond_right_x: f64,       // right point x of diamond
-        diamond_bottom_y: f64,      // bottom y of diamond
+        diamond_cx: f64,       // center x of the diamond
+        diamond_cy: f64,       // center y of the diamond
+        diamond_left_x: f64,   // left point x of diamond
+        diamond_right_x: f64,  // right point x of diamond
+        diamond_bottom_y: f64, // bottom y of diamond
         then_label: String,
         else_label: String,
         has_else: bool,
@@ -853,7 +850,7 @@ pub fn layout_activity(diagram: &ActivityDiagram) -> Result<ActivityLayout> {
         has_else: bool,
         then_branch: IfBranch,
         else_branch: Option<IfBranch>,
-        merge_y: f64,              // y where branches merge
+        merge_y: f64, // y where branches merge
         post_merge_node_idx: Option<usize>,
     }
     let mut deferred_if_edges: Vec<DeferredIfEdges> = Vec::new();
@@ -1024,9 +1021,7 @@ pub fn layout_activity(diagram: &ActivityDiagram) -> Result<ActivityLayout> {
                 // the backward box height instead.
                 if let Some(frame) = repeat_stack.last_mut() {
                     if frame.second_inner_needs_extra {
-                        if let Some(&bh) =
-                            repeat_backward_heights.get(&frame.repeat_event_idx)
-                        {
+                        if let Some(&bh) = repeat_backward_heights.get(&frame.repeat_event_idx) {
                             let extra = (bh.ceil() + 1.0 - node_gap).max(0.0);
                             y_cursor += extra;
                         } else {
@@ -1126,13 +1121,8 @@ pub fn layout_activity(diagram: &ActivityDiagram) -> Result<ActivityLayout> {
                     // New-style: hexagonal diamond with branching
                     let has_else = if_has_else.get(&event_idx).copied().unwrap_or(false);
                     let font_size = HEXAGON_LABEL_FONT_SIZE;
-                    let cond_w = font_metrics::text_width(
-                        condition,
-                        "SansSerif",
-                        font_size,
-                        false,
-                        false,
-                    );
+                    let cond_w =
+                        font_metrics::text_width(condition, "SansSerif", font_size, false, false);
                     let hex_half = HEXAGON_HALF_SIZE;
                     let hex_w = cond_w + 2.0 * hex_half;
                     let hex_h = 24.0_f64; // Java FtileDiamondInside default height
@@ -1158,7 +1148,7 @@ pub fn layout_activity(diagram: &ActivityDiagram) -> Result<ActivityLayout> {
                         width: hex_w,
                         height: hex_h,
                         text: condition.clone(),
-                        skip_in_flow: true,  // edges built manually
+                        skip_in_flow: true, // edges built manually
                     });
                     let diamond_idx = node_index;
                     let diamond_left_x = hex_x;
@@ -1247,7 +1237,11 @@ pub fn layout_activity(diagram: &ActivityDiagram) -> Result<ActivityLayout> {
                     frame.then_branch.last_node_idx = last_flow_node_idx;
                     frame.else_label = label.clone();
                     // Update the diamond node's right_label
-                    if let ActivityNodeKindLayout::IfDiamond { ref mut right_label, .. } = nodes[frame.diamond_idx].kind {
+                    if let ActivityNodeKindLayout::IfDiamond {
+                        ref mut right_label,
+                        ..
+                    } = nodes[frame.diamond_idx].kind
+                    {
                         *right_label = label.clone();
                     }
                     log::debug!("  Else: then-branch finalized at y={y_cursor:.1}");
@@ -1456,7 +1450,12 @@ pub fn layout_activity(diagram: &ActivityDiagram) -> Result<ActivityLayout> {
                 y_cursor += h + node_gap;
             }
 
-            ActivityEvent::RepeatWhile { condition, is_text, not_text, .. } => {
+            ActivityEvent::RepeatWhile {
+                condition,
+                is_text,
+                not_text,
+                ..
+            } => {
                 // Java `FtileDiamondInside`: hexagonal shape sized
                 // (label_w + 24) × max(label_h, 24) where the test condition
                 // sits inside.  An optional `is (label)` becomes the East
@@ -1533,12 +1532,8 @@ pub fn layout_activity(diagram: &ActivityDiagram) -> Result<ActivityLayout> {
                 // The exact amount comes from Java's Y-compression pass
                 // which squeezes the 96px padding down to the used space.
                 let south_label_extra = if !south_lines.is_empty() {
-                    let ascent = font_metrics::ascent(
-                        "SansSerif",
-                        HEXAGON_LABEL_FONT_SIZE,
-                        false,
-                        false,
-                    );
+                    let ascent =
+                        font_metrics::ascent("SansSerif", HEXAGON_LABEL_FONT_SIZE, false, false);
                     // Java Y-compression gives south text extra ≈ ascent * 1.147
                     // per line, matching the observed reference output.
                     (ascent * 1.1469) * south_lines.len() as f64
@@ -1547,7 +1542,10 @@ pub fn layout_activity(diagram: &ActivityDiagram) -> Result<ActivityLayout> {
                 };
                 nodes.push(ActivityNodeLayout {
                     index: node_index,
-                    kind: ActivityNodeKindLayout::Hexagon { east_lines, south_lines },
+                    kind: ActivityNodeKindLayout::Hexagon {
+                        east_lines,
+                        south_lines,
+                    },
                     x,
                     y,
                     width: hex_w,
@@ -1570,7 +1568,9 @@ pub fn layout_activity(diagram: &ActivityDiagram) -> Result<ActivityLayout> {
                         let dx = cx - dw / 2.0;
                         let dy = y_cursor; // place after hex+south gap+node_gap
                         let exit_y = dy;
-                        log::debug!("  node[{node_index}] Repeat exit diamond @ ({dx:.1}, {exit_y:.1})");
+                        log::debug!(
+                            "  node[{node_index}] Repeat exit diamond @ ({dx:.1}, {exit_y:.1})"
+                        );
                         nodes.push(ActivityNodeLayout {
                             index: node_index,
                             kind: ActivityNodeKindLayout::Diamond,
@@ -1985,7 +1985,9 @@ pub fn layout_activity(diagram: &ActivityDiagram) -> Result<ActivityLayout> {
                     frame.backward_text = Some(text.clone());
                     frame.backward_width = bw;
                     frame.backward_height = bh;
-                    log::debug!("  backward '{text}' registered on repeat frame, size {bw:.1}x{bh:.1}");
+                    log::debug!(
+                        "  backward '{text}' registered on repeat frame, size {bw:.1}x{bh:.1}"
+                    );
                 } else {
                     log::warn!("  backward outside repeat block, ignoring");
                 }
@@ -2028,8 +2030,22 @@ pub fn layout_activity(diagram: &ActivityDiagram) -> Result<ActivityLayout> {
             if die.has_else {
                 let diamond = &nodes[die.diamond_idx];
                 // Left branch width
-                let left_w = die.then_branch.nodes.iter().map(|&idx| nodes[idx].width).fold(0.0_f64, f64::max);
-                let right_w = die.else_branch.as_ref().map(|b| b.nodes.iter().map(|&idx| nodes[idx].width).fold(0.0_f64, f64::max)).unwrap_or(0.0);
+                let left_w = die
+                    .then_branch
+                    .nodes
+                    .iter()
+                    .map(|&idx| nodes[idx].width)
+                    .fold(0.0_f64, f64::max);
+                let right_w = die
+                    .else_branch
+                    .as_ref()
+                    .map(|b| {
+                        b.nodes
+                            .iter()
+                            .map(|&idx| nodes[idx].width)
+                            .fold(0.0_f64, f64::max)
+                    })
+                    .unwrap_or(0.0);
                 // Total if-block half-width: left_branch_center_to_diamond_center + right
                 let left_half = 10.0 + left_w / 2.0 + diamond.width / 2.0;
                 let right_half = 10.0 + right_w / 2.0 + diamond.width / 2.0;
@@ -2048,7 +2064,9 @@ pub fn layout_activity(diagram: &ActivityDiagram) -> Result<ActivityLayout> {
             TOP_MARGIN
         };
         let cx = left_margin + max_half_w;
-        log::debug!("  centering: left_margin={left_margin:.1}, max_half_w={max_half_w:.1}, cx={cx:.1}");
+        log::debug!(
+            "  centering: left_margin={left_margin:.1}, max_half_w={max_half_w:.1}, cx={cx:.1}"
+        );
         // First pass: center non-if-branch nodes
         for node in &mut nodes {
             if is_flow_node(&node.kind) && !node.skip_in_flow {
@@ -2097,8 +2115,7 @@ pub fn layout_activity(diagram: &ActivityDiagram) -> Result<ActivityLayout> {
             // Find the GotoLines node that was created for this goto source.
             // It's the first GotoLines node after from_idx.
             if let Some(goto_node_idx) = nodes.iter().position(|n| {
-                matches!(n.kind, ActivityNodeKindLayout::GotoLines { .. })
-                    && n.index > from_idx
+                matches!(n.kind, ActivityNodeKindLayout::GotoLines { .. }) && n.index > from_idx
             }) {
                 if let Some(label_y) = label_positions.get(&gs.label_name).copied() {
                     let goto_y = gs.from_y;
@@ -2107,7 +2124,11 @@ pub fn layout_activity(diagram: &ActivityDiagram) -> Result<ActivityLayout> {
                         .iter()
                         .find(|die| {
                             die.then_branch.nodes.contains(&from_idx)
-                                || die.else_branch.as_ref().map(|b| b.nodes.contains(&from_idx)).unwrap_or(false)
+                                || die
+                                    .else_branch
+                                    .as_ref()
+                                    .map(|b| b.nodes.contains(&from_idx))
+                                    .unwrap_or(false)
                         })
                         .map(|die| nodes[die.diamond_idx].x + nodes[die.diamond_idx].width / 2.0)
                         .unwrap_or(from_cx);
@@ -2115,7 +2136,10 @@ pub fn layout_activity(diagram: &ActivityDiagram) -> Result<ActivityLayout> {
                         (from_cx, goto_y, main_cx, goto_y),
                         (main_cx, label_y, main_cx, goto_y),
                     ];
-                    if let ActivityNodeKindLayout::GotoLines { segments: ref mut segs } = nodes[goto_node_idx].kind {
+                    if let ActivityNodeKindLayout::GotoLines {
+                        segments: ref mut segs,
+                    } = nodes[goto_node_idx].kind
+                    {
                         *segs = segments;
                     }
                 }
@@ -2432,7 +2456,9 @@ pub fn layout_activity(diagram: &ActivityDiagram) -> Result<ActivityLayout> {
         let by = (d1_mid_y + hex_mid_y) / 2.0 - db.height / 2.0;
         log::debug!(
             "  node[{node_index}] Backward action '{}' @ ({bx:.1}, {by:.1}) {:.1}x{:.1}",
-            db.text, db.width, db.height
+            db.text,
+            db.width,
+            db.height
         );
         nodes.push(ActivityNodeLayout {
             index: node_index,
@@ -2462,11 +2488,7 @@ pub fn layout_activity(diagram: &ActivityDiagram) -> Result<ActivityLayout> {
                 // Find the first non-skip flow node after this if-block
                 let post_idx = nodes
                     .iter()
-                    .find(|n| {
-                        n.index > die.diamond_idx
-                            && is_flow_node(&n.kind)
-                            && !n.skip_in_flow
-                    })
+                    .find(|n| n.index > die.diamond_idx && is_flow_node(&n.kind) && !n.skip_in_flow)
                     .map(|n| n.index)
                     .unwrap_or(die.diamond_idx);
                 (die.diamond_idx, post_idx)
@@ -2635,7 +2657,8 @@ pub fn layout_activity(diagram: &ActivityDiagram) -> Result<ActivityLayout> {
 
                 // 4. Else merge
                 if !else_branch.has_goto && !else_branch.has_break {
-                    if let (Some(last_idx), Some(next)) = (else_branch.nodes.last(), next_flow_idx) {
+                    if let (Some(last_idx), Some(next)) = (else_branch.nodes.last(), next_flow_idx)
+                    {
                         let last = &nodes[*last_idx];
                         let last_cx = last.x + last.width / 2.0;
                         let last_bottom = last.y + last.height;
@@ -2668,10 +2691,7 @@ pub fn layout_activity(diagram: &ActivityDiagram) -> Result<ActivityLayout> {
                     from_index: prev,
                     to_index: die.diamond_idx,
                     label: String::new(),
-                    points: vec![
-                        (prev_cx, prev_bottom),
-                        (diamond_cx, diamond_top_y),
-                    ],
+                    points: vec![(prev_cx, prev_bottom), (diamond_cx, diamond_top_y)],
                     kind: ActivityEdgeKindLayout::Normal,
                 });
             }
@@ -2688,10 +2708,7 @@ pub fn layout_activity(diagram: &ActivityDiagram) -> Result<ActivityLayout> {
                         from_index: die.diamond_idx,
                         to_index: *node_idx,
                         label: String::new(),
-                        points: vec![
-                            (diamond_cx, diamond_bottom_y),
-                            (node_cx, node_top),
-                        ],
+                        points: vec![(diamond_cx, diamond_bottom_y), (node_cx, node_top)],
                         kind: ActivityEdgeKindLayout::Normal,
                     });
                 }
@@ -2736,10 +2753,7 @@ pub fn layout_activity(diagram: &ActivityDiagram) -> Result<ActivityLayout> {
                             from_index: *last_idx,
                             to_index: next,
                             label: String::new(),
-                            points: vec![
-                                (last_cx, last_bottom),
-                                (next_cx, next_top),
-                            ],
+                            points: vec![(last_cx, last_bottom), (next_cx, next_top)],
                             kind: ActivityEdgeKindLayout::Normal,
                         });
                     }
@@ -2791,10 +2805,7 @@ pub fn layout_activity(diagram: &ActivityDiagram) -> Result<ActivityLayout> {
                     from_index: prev,
                     to_index: die.diamond_idx,
                     label: String::new(),
-                    points: vec![
-                        (prev_cx, prev_bottom),
-                        (diamond_cx, diamond_top_y),
-                    ],
+                    points: vec![(prev_cx, prev_bottom), (diamond_cx, diamond_top_y)],
                     kind: ActivityEdgeKindLayout::Normal,
                 });
             }
@@ -2807,7 +2818,7 @@ pub fn layout_activity(diagram: &ActivityDiagram) -> Result<ActivityLayout> {
         nodes.iter().any(|n| {
             matches!(n.kind, ActivityNodeKindLayout::GotoLines { .. })
                 && n.index > from_idx
-                && n.index < from_idx + 5  // GotoLines is created shortly after the source
+                && n.index < from_idx + 5 // GotoLines is created shortly after the source
         })
     };
     for gs in &goto_sources {
@@ -3294,8 +3305,14 @@ fn build_repeat_loopback_edge(
     }
     // If the repeat body contains an IfDiamond, the implicit else path
     // extends HEXAGON_HALF_SIZE beyond the diamond right edge.
-    let has_if_diamond = nodes.iter().any(|n| matches!(n.kind, ActivityNodeKindLayout::IfDiamond { .. }));
-    let if_else_extra = if has_if_diamond { HEXAGON_HALF_SIZE } else { 0.0 };
+    let has_if_diamond = nodes
+        .iter()
+        .any(|n| matches!(n.kind, ActivityNodeKindLayout::IfDiamond { .. }));
+    let if_else_extra = if has_if_diamond {
+        HEXAGON_HALF_SIZE
+    } else {
+        0.0
+    };
     let xmax = max_right + HEXAGON_HALF_SIZE + if_else_extra;
 
     // Locate the gap between the first two interior actions of the enclosing
@@ -3558,16 +3575,16 @@ fn reorder_edges_for_repeat(
                 frame_exit.insert(*d1, ei);
             } else if edge.from_index == *hex
                 && edge.to_index == *hex + 1
-                && nodes.get(*hex + 1).map_or(false, |n| {
-                    matches!(n.kind, ActivityNodeKindLayout::Diamond)
-                })
+                && nodes
+                    .get(*hex + 1)
+                    .map_or(false, |n| matches!(n.kind, ActivityNodeKindLayout::Diamond))
             {
                 // hex → exit diamond: continuation edge within repeat
                 // (only when the next node is actually a Diamond, not a Stop etc.)
                 frame_continuation.insert(*d1, ei);
-            } else if edge.from_index > *d1 && edge.from_index < *hex
-                && (edge.to_index < *hex
-                    || matches!(edge.kind, ActivityEdgeKindLayout::BreakEdge))
+            } else if edge.from_index > *d1
+                && edge.from_index < *hex
+                && (edge.to_index < *hex || matches!(edge.kind, ActivityEdgeKindLayout::BreakEdge))
             {
                 // Inner edges include break edges that exit the repeat body
                 // to the exit diamond — Java draws these as part of the
@@ -3583,8 +3600,7 @@ fn reorder_edges_for_repeat(
     // same frame.
     // Collect edges that enter/leave a frame from/to outside.
     // These are deferred until after the frame's internal edges.
-    let frame_d1s: std::collections::HashSet<usize> =
-        frames.iter().map(|(d1, _, _)| *d1).collect();
+    let frame_d1s: std::collections::HashSet<usize> = frames.iter().map(|(d1, _, _)| *d1).collect();
     let frame_hexs: std::collections::HashSet<usize> =
         frames.iter().map(|(_, hex, _)| *hex).collect();
     let mut deferred_outer: Vec<usize> = Vec::new();
@@ -3621,9 +3637,9 @@ fn reorder_edges_for_repeat(
         {
             let is_exit_diamond_source = frames.iter().any(|(_, hex, _)| {
                 edge.from_index == *hex + 1
-                    && nodes.get(*hex + 1).map_or(false, |n| {
-                        matches!(n.kind, ActivityNodeKindLayout::Diamond)
-                    })
+                    && nodes
+                        .get(*hex + 1)
+                        .map_or(false, |n| matches!(n.kind, ActivityNodeKindLayout::Diamond))
             });
             if is_exit_diamond_source && edge.to_index > edge.from_index {
                 deferred_outer.push(ei);
@@ -3634,8 +3650,7 @@ fn reorder_edges_for_repeat(
         // Does this edge belong to a repeat frame?
         let mut owner: Option<usize> = None;
         for (d1, hex, _) in &frames {
-            if edge.from_index >= *d1 && edge.to_index <= *hex
-                && (edge.from_index != edge.to_index)
+            if edge.from_index >= *d1 && edge.to_index <= *hex && (edge.from_index != edge.to_index)
             {
                 owner = Some(*d1);
                 break;
@@ -4404,7 +4419,10 @@ mod tests {
         assert_eq!(layout.nodes.len(), 2);
 
         let if_node = &layout.nodes[0];
-        assert!(matches!(if_node.kind, ActivityNodeKindLayout::IfDiamond { .. }));
+        assert!(matches!(
+            if_node.kind,
+            ActivityNodeKindLayout::IfDiamond { .. }
+        ));
 
         let action = &layout.nodes[1];
         assert!(action.y > if_node.y + if_node.height);
@@ -4741,7 +4759,11 @@ mod tests {
         // IfDiamond + "do a" in then-branch, then ElseIf (Diamond), "do b",
         // Else switches to else-branch, "do c", EndIf.
         // The exact node count depends on the if/elseif/else handling.
-        assert!(layout.nodes.len() >= 4, "expected at least 4 nodes, got {}", layout.nodes.len());
+        assert!(
+            layout.nodes.len() >= 4,
+            "expected at least 4 nodes, got {}",
+            layout.nodes.len()
+        );
     }
 
     // 16. Repeat / RepeatWhile -----------------------------------------------

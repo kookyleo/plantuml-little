@@ -485,14 +485,10 @@ fn measure_line_width(
             TextSpan::InlineSvg { name, scale, .. } => {
                 sprite_display_width(name, *scale, font_size)
             }
-            TextSpan::OpenIcon {
-                name, scale, ..
-            } => {
+            TextSpan::OpenIcon { name, scale, .. } => {
                 openicon_display_width(name, *scale, font_size)
             }
-            TextSpan::Image { url, scale } => {
-                image_display_width(url, *scale)
-            }
+            TextSpan::Image { url, scale } => image_display_width(url, *scale),
             _ => None,
         };
         match span {
@@ -1475,9 +1471,7 @@ fn note_line_height_with_sprites(line: &str, font_size: f64, base_lh: f64) -> f6
                         max_sprite_h.max(info.vb_height * sprite_scale_for_font(font_size, scale));
                 }
             }
-            TextSpan::OpenIcon {
-                name, scale, ..
-            } => {
+            TextSpan::OpenIcon { name, scale, .. } => {
                 if let Some(h) = openicon_display_height(&name, scale, font_size) {
                     max_sprite_h = max_sprite_h.max(h);
                 }
@@ -1504,13 +1498,11 @@ fn line_height_with_inline_sprites(spans: &[TextSpan], font_size: f64, base_lh: 
             TextSpan::InlineSvg { name, scale, .. } => {
                 if let Some(svg_content) = get_sprite(name) {
                     let info = crate::render::svg_sprite::sprite_info(&svg_content);
-                    max_sprite_h = max_sprite_h
-                        .max(info.vb_height * sprite_scale_for_font(font_size, *scale));
+                    max_sprite_h =
+                        max_sprite_h.max(info.vb_height * sprite_scale_for_font(font_size, *scale));
                 }
             }
-            TextSpan::OpenIcon {
-                name, scale, ..
-            } => {
+            TextSpan::OpenIcon { name, scale, .. } => {
                 if let Some(h) = openicon_display_height(name, *scale, font_size) {
                     max_sprite_h = max_sprite_h.max(h);
                 }
@@ -2785,8 +2777,7 @@ fn render_text_line_with_sprites(
             if let Some(TextSpan::Plain(text)) = text_buf.last_mut() {
                 *text = text.trim_end().to_string();
             }
-            let text_w =
-                measure_text_runs_width(&text_buf, font_family, font_size, bold, italic);
+            let text_w = measure_text_runs_width(&text_buf, font_family, font_size, bold, italic);
             if text_w > 0.0 {
                 render_prepared_line(
                     buf,
@@ -2829,11 +2820,7 @@ fn render_text_line_with_sprites(
                     }
                 }
             }
-            TextSpan::OpenIcon {
-                name,
-                scale,
-                color,
-            } => {
+            TextSpan::OpenIcon { name, scale, color } => {
                 if let Some(icon) = crate::openiconic::find_icon(name) {
                     let factor = *scale * font_size / 12.0;
                     if pending_gap {
@@ -2862,8 +2849,7 @@ fn render_text_line_with_sprites(
                 // Image position: Java Sea.doAlign places images at row top.
                 // baseline = row_top + img_height - descent, so:
                 // row_top = baseline - img_height + descent
-                let descent =
-                    font_metrics::descent(font_family, font_size, bold, italic);
+                let descent = font_metrics::descent(font_family, font_size, bold, italic);
                 let img_h = image_display_height(url, *scale).unwrap_or(0.0);
                 let img_y = y - img_h + descent;
                 render_inline_image(buf, url, *scale, cursor_x, img_y);
@@ -2973,11 +2959,7 @@ fn render_line_with_sprites(
                 }
                 in_sprite = true;
             }
-            TextSpan::OpenIcon {
-                name,
-                scale,
-                color,
-            } => {
+            TextSpan::OpenIcon { name, scale, color } => {
                 if let Some(icon) = crate::openiconic::find_icon(name) {
                     let factor = *scale * font_size / 12.0;
                     let icon_x = cursor_x + 1.0;
@@ -3291,9 +3273,7 @@ fn flatten_span_runs(spans: &[TextSpan], runs: &mut Vec<TextRun>, style: &RunSty
                 r.link_tooltip = tooltip.clone();
                 runs.push(r);
             }
-            TextSpan::InlineSvg { .. }
-            | TextSpan::OpenIcon { .. }
-            | TextSpan::Image { .. } => {}
+            TextSpan::InlineSvg { .. } | TextSpan::OpenIcon { .. } | TextSpan::Image { .. } => {}
         }
     }
 }
@@ -3780,9 +3760,7 @@ fn collect_plain_span(span: &TextSpan, out: &mut String) {
                 out.push_str(url);
             }
         }
-        TextSpan::InlineSvg { .. }
-        | TextSpan::OpenIcon { .. }
-        | TextSpan::Image { .. } => {}
+        TextSpan::InlineSvg { .. } | TextSpan::OpenIcon { .. } | TextSpan::Image { .. } => {}
     }
 }
 
@@ -3903,9 +3881,7 @@ fn render_span(buf: &mut String, span: &TextSpan, style: SpanStyle, default_fill
             };
             render_leaf(buf, visible, Some(&link), &style, default_fill);
         }
-        TextSpan::InlineSvg { .. }
-        | TextSpan::OpenIcon { .. }
-        | TextSpan::Image { .. } => {
+        TextSpan::InlineSvg { .. } | TextSpan::OpenIcon { .. } | TextSpan::Image { .. } => {
             // Sprite SVGs / icons / images are rendered after the <text> element.
         }
     }

@@ -845,9 +845,18 @@ fn render_node(
             render_action(sg, node, act_bg, act_border, act_font)
         }
         ActivityNodeKindLayout::Diamond => render_diamond(sg, node, diamond_bg, diamond_border),
-        ActivityNodeKindLayout::Hexagon { east_lines, south_lines } => {
-            render_hexagon(sg, node, east_lines, south_lines, diamond_bg, diamond_border, act_font)
-        }
+        ActivityNodeKindLayout::Hexagon {
+            east_lines,
+            south_lines,
+        } => render_hexagon(
+            sg,
+            node,
+            east_lines,
+            south_lines,
+            diamond_bg,
+            diamond_border,
+            act_font,
+        ),
         ActivityNodeKindLayout::ForkBar => render_fork_bar(sg, node),
         ActivityNodeKindLayout::SyncBar => render_sync_bar(sg, node),
         ActivityNodeKindLayout::Note { position, mode } => {
@@ -857,9 +866,20 @@ fn render_node(
             render_note(sg, node, position, mode, false, word_by_word_notes)
         }
         ActivityNodeKindLayout::Detach => render_detach(sg, node, arrow_color),
-        ActivityNodeKindLayout::IfDiamond { left_label, right_label, bottom_label } => {
-            render_if_diamond(sg, node, left_label, right_label, bottom_label, diamond_bg, diamond_border, act_font)
-        }
+        ActivityNodeKindLayout::IfDiamond {
+            left_label,
+            right_label,
+            bottom_label,
+        } => render_if_diamond(
+            sg,
+            node,
+            left_label,
+            right_label,
+            bottom_label,
+            diamond_bg,
+            diamond_border,
+            act_font,
+        ),
         ActivityNodeKindLayout::GotoLines { segments } => {
             let line_style = DrawStyle::outline(arrow_color, 1.0);
             for &(x1, y1, x2, y2) in segments {
@@ -1180,8 +1200,7 @@ fn render_hexagon(
         let south_top_y = y + h;
         for (i, line) in south_lines.iter().enumerate() {
             let baseline_y = south_top_y + ascent + i as f64 * line_h;
-            let text_w =
-                font_metrics::text_width(line, "SansSerif", font_size, false, false);
+            let text_w = font_metrics::text_width(line, "SansSerif", font_size, false, false);
             // Java: text left-aligned at hex_x + hex_w/2 + 4
             let text_x = x + w / 2.0 + 4.0;
             sg.set_fill_color(font_color);
@@ -1267,7 +1286,6 @@ fn render_hexagon(
             );
         }
     }
-
 }
 
 /// Java `Hexagon.hexagonHalfSize` — duplicated here so the renderer is
@@ -1783,11 +1801,7 @@ fn render_edge(
 
 /// Render a polyline with an arrow at the end (last segment direction).
 /// Used for backward, goto, and break edges.
-fn render_polyline_with_arrow(
-    sg: &mut SvgGraphic,
-    points: &[(f64, f64)],
-    arrow_color: &str,
-) {
+fn render_polyline_with_arrow(sg: &mut SvgGraphic, points: &[(f64, f64)], arrow_color: &str) {
     if points.len() < 2 {
         return;
     }
@@ -1812,11 +1826,7 @@ fn render_polyline_with_arrow(
 /// Render an IfMerge edge: polyline segments with a DOWN emphasize-direction
 /// arrow on the first long vertical descending segment, plus a final arrow
 /// at the end.  Matches Java's `Snake.emphasizeDirection(Direction.DOWN)`.
-fn render_if_merge_edge(
-    sg: &mut SvgGraphic,
-    points: &[(f64, f64)],
-    arrow_color: &str,
-) {
+fn render_if_merge_edge(sg: &mut SvgGraphic, points: &[(f64, f64)], arrow_color: &str) {
     if points.len() < 2 {
         return;
     }

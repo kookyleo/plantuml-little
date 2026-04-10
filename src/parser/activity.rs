@@ -523,16 +523,13 @@ pub fn parse_activity_diagram(source: &str) -> Result<ActivityDiagram> {
                     (is_label.filter(|s| !s.is_empty()), not_label)
                 } else if lower_after.starts_with("not ") {
                     let not_rest = after_trim[4..].trim();
-                    let not_label =
-                        extract_parenthesized(not_rest).filter(|s| !s.is_empty());
+                    let not_label = extract_parenthesized(not_rest).filter(|s| !s.is_empty());
                     (None, not_label)
                 } else {
                     (None, None)
                 }
             };
-            debug!(
-                "line {line_num}: repeat while ({condition}) is={is_text:?} not={not_text:?}"
-            );
+            debug!("line {line_num}: repeat while ({condition}) is={is_text:?} not={not_text:?}");
             events.push(ActivityEvent::RepeatWhile {
                 condition,
                 is_text,
