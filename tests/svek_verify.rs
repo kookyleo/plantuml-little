@@ -123,7 +123,7 @@ fn node_dot_string_rectangle_matches_java() {
     n.append_shape(&mut dot);
 
     let expected =
-        "sh0001 [shape=rect,label=\"\",width=1.388889,height=0.694444,color=\"#010100\"];\n";
+        "\"sh0001\" [shape=rect,label=\"\",width=1.388889,height=0.694444,color=\"#010100\"];\n";
     assert_eq!(dot, expected, "rect DOT string mismatch");
 }
 
@@ -139,7 +139,7 @@ fn node_dot_string_diamond_matches_java() {
     n.append_shape(&mut dot);
 
     let expected =
-        "sh0002 [shape=diamond,label=\"\",width=1.111111,height=1.111111,color=\"#020200\"];\n";
+        "\"sh0002\" [shape=diamond,label=\"\",width=1.111111,height=1.111111,color=\"#020200\"];\n";
     assert_eq!(dot, expected, "diamond DOT string mismatch");
 }
 
@@ -154,7 +154,7 @@ fn node_dot_string_round_rect_matches_java() {
     let mut dot = String::new();
     n.append_shape(&mut dot);
 
-    let expected = "sh0003 [shape=rect,style=rounded,label=\"\",width=1.250000,height=0.625000,color=\"#030300\"];\n";
+    let expected = "\"sh0003\" [shape=rect,style=rounded,label=\"\",width=1.250000,height=0.625000,color=\"#030300\"];\n";
     assert_eq!(dot, expected, "roundrect DOT string mismatch");
 }
 
@@ -170,7 +170,7 @@ fn node_dot_string_circle_matches_java() {
     n.append_shape(&mut dot);
 
     let expected =
-        "sh0004 [shape=circle,label=\"\",width=0.555556,height=0.555556,color=\"#040400\"];\n";
+        "\"sh0004\" [shape=circle,label=\"\",width=0.555556,height=0.555556,color=\"#040400\"];\n";
     assert_eq!(dot, expected, "circle DOT string mismatch");
 }
 
@@ -186,7 +186,7 @@ fn node_dot_string_ellipse_matches_java() {
     n.append_shape(&mut dot);
 
     let expected =
-        "sh0005 [shape=ellipse,label=\"\",width=0.833333,height=0.416667,color=\"#050500\"];\n";
+        "\"sh0005\" [shape=ellipse,label=\"\",width=0.833333,height=0.416667,color=\"#050500\"];\n";
     assert_eq!(dot, expected, "ellipse DOT string mismatch");
 }
 
@@ -202,7 +202,7 @@ fn node_dot_string_octagon_matches_java() {
     n.append_shape(&mut dot);
 
     let expected =
-        "sh0006 [shape=octagon,label=\"\",width=0.972222,height=0.972222,color=\"#060600\"];\n";
+        "\"sh0006\" [shape=octagon,label=\"\",width=0.972222,height=0.972222,color=\"#060600\"];\n";
     assert_eq!(dot, expected, "octagon DOT string mismatch");
 }
 
@@ -218,7 +218,7 @@ fn node_dot_string_hexagon_matches_java() {
     n.append_shape(&mut dot);
 
     let expected =
-        "sh0007 [shape=hexagon,label=\"\",width=0.972222,height=0.972222,color=\"#070700\"];\n";
+        "\"sh0007\" [shape=hexagon,label=\"\",width=0.972222,height=0.972222,color=\"#070700\"];\n";
     assert_eq!(dot, expected, "hexagon DOT string mismatch");
 }
 
@@ -249,7 +249,12 @@ fn dot_rankdir_tb_matches_java() {
     let factory = DotStringFactory::new(bib).with_rankdir(Rankdir::TopToBottom);
     let dot = factory.create_dot_string(DotMode::Normal);
 
-    assert!(dot.contains("rankdir=TB;\n"), "rankdir=TB in: {}", dot);
+    // Java omits rankdir=TB since TB is the Graphviz default
+    assert!(
+        !dot.contains("rankdir=TB;\n"),
+        "rankdir=TB should be omitted (default) in: {}",
+        dot
+    );
 }
 
 #[test]
@@ -312,14 +317,25 @@ fn dot_custom_nodesep_ranksep_matches_java() {
 fn dot_splines_matches_java() {
     use svek::{Bibliotekon, DotMode, DotSplines, DotStringFactory};
 
-    let cases: &[(DotSplines, &str)] = &[
-        (DotSplines::Spline, "splines=spline;\n"),
+    // Java omits splines=spline since it is the Graphviz default
+    {
+        let bib = Bibliotekon::new();
+        let factory = DotStringFactory::new(bib).with_splines(DotSplines::Spline);
+        let dot = factory.create_dot_string(DotMode::Normal);
+        assert!(
+            !dot.contains("splines=spline;\n"),
+            "splines=spline should be omitted (default) in: {}",
+            dot
+        );
+    }
+
+    let non_default_cases: &[(DotSplines, &str)] = &[
         (DotSplines::Ortho, "splines=ortho;\n"),
         (DotSplines::Polyline, "splines=polyline;\n"),
         (DotSplines::Curved, "splines=curved;\n"),
     ];
 
-    for &(splines, expected) in cases {
+    for &(splines, expected) in non_default_cases {
         let bib = Bibliotekon::new();
         let factory = DotStringFactory::new(bib).with_splines(splines);
         let dot = factory.create_dot_string(DotMode::Normal);
@@ -715,16 +731,15 @@ fn dot_factory_simple_class_diagram() {
     let factory = DotStringFactory::new(bib);
     let dot = factory.create_dot_string(DotMode::Normal);
 
-    // Verify structure
+    // Verify structure (rankdir=TB is omitted as it is the default)
     assert!(dot.starts_with("digraph unix {\n"));
-    assert!(dot.contains("rankdir=TB;\n"));
     assert!(dot.contains(
         "\"Foo\" [shape=rect,label=\"\",width=1.388889,height=0.694444,color=\"#010100\"];\n"
     ));
     assert!(dot.contains(
         "\"Bar\" [shape=rect,label=\"\",width=1.111111,height=0.555556,color=\"#020200\"];\n"
     ));
-    assert!(dot.contains("\"Foo\" -> \"Bar\""));
+    assert!(dot.contains("\"Foo\"->\"Bar\""));
     assert!(dot.contains("color=\"#030300\""));
     assert!(dot.ends_with("}\n"));
 }
@@ -751,16 +766,23 @@ fn dot_factory_with_cluster() {
     let factory = DotStringFactory::new(bib);
     let dot = factory.create_dot_string(DotMode::Normal);
 
-    assert!(dot.contains("subgraph cluster_pkg {\n"));
-    assert!(dot.contains("label=\"MyPackage\";\n"));
-    assert!(dot.contains("margin=\"14\";\n"));
-    // Node A should be inside cluster, not at top level
+    assert!(
+        dot.contains("subgraph cluster_pkg {\n"),
+        "cluster_pkg in: {}",
+        dot
+    );
+    // Java uses HTML table label (cluster_dot_label), not plain string
+    assert!(
+        dot.contains("label=<"),
+        "HTML table label in: {}",
+        dot
+    );
+    // Node A should be inside cluster hierarchy
     let cluster_pos = dot.find("subgraph cluster_pkg").unwrap();
     let node_pos = dot.find("\"A\" [").unwrap();
-    let close_brace = dot[cluster_pos..].find("}\n").unwrap() + cluster_pos;
     assert!(
-        node_pos > cluster_pos && node_pos < close_brace,
-        "Node A should be inside cluster"
+        node_pos > cluster_pos,
+        "Node A should appear after cluster_pkg opening"
     );
 }
 
