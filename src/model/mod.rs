@@ -12,6 +12,7 @@ pub mod ebnf;
 pub mod entity;
 pub mod erd;
 pub mod files_diagram;
+pub mod flow;
 pub mod gantt;
 pub mod git;
 pub mod hcl;
@@ -42,6 +43,7 @@ pub use diagram::{
 pub use ditaa::{DitaaDiagram, DitaaOptions};
 pub use entity::{Entity, EntityKind, Member, MemberModifiers, RectSymbol, Stereotype, Visibility};
 pub use erd::{ErdDiagram, ErdEntity, ErdIsa, ErdRelationship, IsaKind};
+pub use flow::{FlowDiagram, FlowDirection, FlowLink, FlowNode};
 pub use gantt::{GanttDiagram, GanttTask};
 pub use json_diagram::{JsonDiagram, JsonValue};
 pub use link::{ArrowHead, LineStyle, Link};

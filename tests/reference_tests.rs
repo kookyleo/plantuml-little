@@ -674,6 +674,11 @@ reference_test!(
     reference_fixtures_files_diagram_nested_puml,
     "fixtures/files_diagram/nested.puml"
 );
+reference_test!(reference_fixtures_flow_basic_puml, "fixtures/flow/basic.puml");
+reference_test!(
+    reference_fixtures_flow_link_back_puml,
+    "fixtures/flow/link_back.puml"
+);
 reference_test!(
     reference_fixtures_git_branches_puml,
     "fixtures/git/branches.puml"
@@ -685,6 +690,10 @@ reference_test!(
 reference_test!(
     reference_fixtures_packet_tcp_puml,
     "fixtures/packet/tcp.puml"
+);
+reference_test!(
+    reference_fixtures_project_basic_puml,
+    "fixtures/project/basic.puml"
 );
 reference_test!(
     reference_fixtures_regex_basic_puml,
@@ -1008,6 +1017,15 @@ reference_test!(
     reference_fixtures_json_json_escaped_puml,
     "fixtures/json/json_escaped.puml"
 );
+// IGNORED: under Java stable v1.2026.2, `jcckit` writes raw PNG bytes even
+// when invoked with `--svg` / `-tsvg`. plantuml-little is intentionally
+// SVG-only and its public API returns `String`, so byte-exact parity against
+// Java's binary PNG payload is impossible without changing the product contract.
+#[ignore = "Java stable jcckit emits PNG bytes, not UTF-8 SVG"]
+#[test]
+fn reference_fixtures_jcckit_basic_puml() {
+    // intentionally empty — see ignore reason
+}
 reference_test!(
     reference_fixtures_mindmap_jaws12_puml,
     "fixtures/mindmap/jaws12.puml"

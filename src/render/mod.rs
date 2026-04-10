@@ -12,6 +12,7 @@ pub mod svg_ditaa;
 pub mod svg_ebnf;
 pub mod svg_erd;
 pub mod svg_files;
+pub mod svg_flow;
 pub mod svg_gantt;
 pub mod svg_git;
 pub mod svg_hcl;

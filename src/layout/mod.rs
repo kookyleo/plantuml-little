@@ -9,6 +9,7 @@ pub mod ditaa;
 pub mod ebnf;
 pub mod erd;
 pub mod files_diagram;
+pub mod flow;
 pub mod gantt;
 pub mod git;
 pub mod graphviz;
@@ -68,6 +69,7 @@ pub enum DiagramLayout {
     Ditaa(ditaa::DitaaLayout),
     Erd(erd::ErdLayout),
     Files(files_diagram::FilesLayout),
+    Flow(flow::FlowLayout),
     Gantt(gantt::GanttLayout),
     Hcl(hcl::HclLayout),
     Json(json_diagram::JsonLayout),
@@ -220,6 +222,10 @@ pub fn layout(diagram: &Diagram, skin: &crate::style::SkinParams) -> Result<Diag
         Diagram::Files(fd) => {
             let fl = files_diagram::layout_files(fd)?;
             Ok(DiagramLayout::Files(fl))
+        }
+        Diagram::Flow(fd) => {
+            let fl = flow::layout_flow(fd)?;
+            Ok(DiagramLayout::Flow(fl))
         }
         Diagram::Gantt(gd) => {
             let gl = gantt::layout_gantt(gd)?;

@@ -12,6 +12,8 @@ pub enum Error {
         line: usize,
         message: String,
     },
+    UnsupportedReleasePage,
+    BinaryPngDiagram(String),
     UnsupportedDiagram(String),
     Render(String),
     Layout(String),
@@ -33,6 +35,12 @@ impl fmt::Display for Error {
             } => write!(f, "Parse error at line {line}: {message}"),
             Error::JavaErrorPage { line, message } => {
                 write!(f, "Java-style error page at line {line}: {message}")
+            }
+            Error::UnsupportedReleasePage => {
+                write!(f, "Java stable unsupported-release page")
+            }
+            Error::BinaryPngDiagram(s) => {
+                write!(f, "Java stable emits raw PNG bytes for {s}")
             }
             Error::UnsupportedDiagram(s) => write!(f, "Unsupported diagram type: {s}"),
             Error::Render(s) => write!(f, "Render error: {s}"),

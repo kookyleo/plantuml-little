@@ -152,6 +152,9 @@ fn render_cleaned(
                 &message,
             )
         }
+        Err(crate::Error::UnsupportedReleasePage) => {
+            return crate::render::error_page::render_unsupported_release_svg(meta_source)
+        }
         Err(err) => return Err(err),
     };
     let skin = style::parse_skinparams(source);

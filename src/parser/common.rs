@@ -16,14 +16,23 @@ pub fn detect_start_tag(source: &str) -> Option<DiagramHint> {
         if trimmed.starts_with("@startdef") {
             return Some(DiagramHint::Def);
         }
+        if trimmed.starts_with("@startflow") {
+            return Some(DiagramHint::Flow);
+        }
         if trimmed.starts_with("@startchen") {
             return Some(DiagramHint::Erd);
         }
         if trimmed.starts_with("@startfiles") {
             return Some(DiagramHint::Files);
         }
+        if trimmed.starts_with("@startjcckit") {
+            return Some(DiagramHint::Jcckit);
+        }
         if trimmed.starts_with("@startgantt") {
             return Some(DiagramHint::Gantt);
+        }
+        if trimmed.starts_with("@startproject") {
+            return Some(DiagramHint::Project);
         }
         if trimmed.starts_with("@startditaa") {
             return Some(DiagramHint::Ditaa);
@@ -111,7 +120,10 @@ pub fn extract_block(source: &str) -> Option<String> {
         } else {
             if trimmed.starts_with("@startuml")
                 || trimmed.starts_with("@startchen")
+                || trimmed.starts_with("@startflow")
                 || trimmed.starts_with("@startgantt")
+                || trimmed.starts_with("@startjcckit")
+                || trimmed.starts_with("@startproject")
                 || trimmed.starts_with("@startditaa")
                 || trimmed.starts_with("@startjson")
                 || trimmed.starts_with("@startmindmap")

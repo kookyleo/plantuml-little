@@ -1,0 +1,5 @@
+@startjcckit(320,180)
+data/curves = curve1
+data/curve1/x = 1 2 3
+data/curve1/y = 1 4 9
+@endjcckit

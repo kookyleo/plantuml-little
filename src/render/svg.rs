@@ -650,6 +650,14 @@ fn render_body(
                 body_degenerated: false,
             })
         }
+        (Diagram::Flow(fd), DiagramLayout::Flow(fl)) => {
+            super::svg_flow::render_flow(fd, fl, skin).map(|svg| BodyResult {
+                svg,
+                raw_body_dim: None,
+                body_pre_offset: false,
+                body_degenerated: false,
+            })
+        }
         (Diagram::Ditaa(dd), DiagramLayout::Ditaa(dl)) => {
             super::svg_ditaa::render_ditaa(dd, dl, skin).map(|svg| BodyResult {
                 svg,

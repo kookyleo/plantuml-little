@@ -5,168 +5,99 @@
 
 ## 1. Current Verdict
 
-- Java authority is `/ext/plantuml/plantuml-official-stable-v1.2026.2`.
-- The current reference suite result is:
-  - `cargo test --test reference_tests`
-  - `326 passed / 0 failed / 2 ignored`
-- The ignored cases are:
-  - `tests/reference_tests.rs:1628` — Java stable NPE on `sprite/svg2GroupsWithStyle`
-  - `tests/reference_tests.rs:973` — Java stable `ditaa` emits raw PNG bytes under `--svg`; impossible to byte-compare inside the SVG-only `String` API
-- The active harness now consults `tests/reference/INDEX.tsv`, so indexed alternate-name references are genuinely byte-compared.
-- Remaining coverage ambiguity is limited to fixtures for which stable Java still does not provide an SVG authority file, plus the `DITAA` binary-output blocker.
+- Java authority checkout: `/ext/plantuml/plantuml-official-stable-v1.2026.2`
+- Stable authority SHA: `bb8550d720e93f3e7f016a987848fb769e0222f5`
+- Current results:
+  - `cargo test --lib` -> `2681/2681`
+  - `cargo test --test reference_tests` -> `329 passed / 0 failed / 3 ignored`
+- The active harness resolves references through direct same-path lookup plus `tests/reference/INDEX.tsv` fallback.
 
-Therefore the statement
+Current ignored cases:
 
-> "all implementable Java PlantUML diagram types are fully implemented in Rust and pass byte-exact alignment tests"
+1. `tests/reference_tests.rs:986` — `ditaa/basic`: Java stable writes raw PNG bytes under `-tsvg`
+2. `tests/reference_tests.rs:1024` — `jcckit/basic`: Java stable writes raw PNG bytes under `-tsvg`
+3. `tests/reference_tests.rs:1708` — `sprite/svg2GroupsWithStyle`: Java stable throws `NullPointerException`
 
-is **false**.
+## 2. Meaning Of "Done"
 
-There are still three unfinished buckets:
+For this repository, a diagram family is considered done only when all of the following hold:
 
-1. stable Java diagram types that Rust does not implement yet
-2. stable Java diagram types that Rust implements, but which are not fully covered by active byte-exact reference comparison in the current harness
-3. stable Java paths whose authority output is incompatible with the product contract
+1. Rust accepts the Java-stable start tag and syntax actually used by the fixture corpus.
+2. Rust produces SVG, not an approximation or fallback-specific custom output.
+3. The result is byte-exact against the checked-in stable Java authority SVG.
+4. The case is exercised by `tests/reference_tests.rs` through either a direct same-path SVG or an `INDEX.tsv` mapping.
 
-## 2. Authoritative Evidence
-
-Java stable taxonomy:
-
-- `/ext/plantuml/plantuml-official-stable-v1.2026.2/src/main/java/net/sourceforge/plantuml/core/DiagramType.java`
-
-Rust diagram entry points:
-
-- `src/parser/common.rs`
-- `src/parser/mod.rs`
-- `src/model/diagram.rs`
-- `src/render/svg.rs`
-
-Current reference-test compare rule:
-
-- `tests/reference_tests.rs:15`
-- `tests/reference_tests.rs:17`
-- `tests/reference_tests.rs:607`
-
-Those lines matter because `load_reference()` now resolves references in two steps:
-
-- direct same-path lookup under `tests/reference/`
-- fallback lookup through `tests/reference/INDEX.tsv`
+Under that definition, all Java stable families that currently provide UTF-8 SVG authority within the product boundary are done.
 
 ## 3. Stable Java Taxonomy vs Rust Status
 
-Legend:
-
-- `Implemented`: Rust has parse/layout/render support for this stable Java type.
-- `Missing`: stable Java has the type, but Rust has no first-class support.
-- `Coverage gap`: Rust has implementation, but current repo state does not put all fixture coverage for that type under active byte-exact comparison.
-
 | Stable Java type | Status | Notes |
 |------------------|--------|-------|
-| `UML` | Implemented | Major UML subfamilies are implemented and the active suite is green, but one sequence fixture lacks direct reference coverage and one sprite fixture is ignored due to Java NPE |
-| `BPM` | Implemented | Stable Java BPM mini-DSL is matched by Rust and covered by ref tests |
-| `DITAA` | Authority-format blocker | Stable Java writes PNG bytes for this family even under `--svg`; Rust is intentionally SVG-only and returns `String` |
-| `DOT` | Implemented | Direct parser/render path exists and is covered |
-| `PROJECT` | Missing | No `@startproject` detection or parser path in current Rust entry points |
-| `JCCKIT` | Missing | No `@startjcckit` detection or parser path in current Rust entry points |
-| `SALT` | Implemented | Covered |
-| `FLOW` | Missing | No `@startflow` detection or parser path in current Rust entry points |
-| `CREOLE` | Implemented | Standalone `@startcreole` path exists and has a ref test |
-| `MATH` | Implemented | Standalone `@startmath` path exists and has a ref test |
-| `LATEX` | Implemented | Standalone `@startlatex` path exists and has a ref test |
-| `DEFINITION` | Implemented | `@startdef` path exists and has a ref test |
-| `GANTT` | Implemented | Covered |
-| `CHRONOLOGY` | Implemented | Current fixture is byte-compared and green |
-| `NW` | Implemented | Rust `Nwdiag` path exists and is covered |
-| `MINDMAP` | Implemented | Covered |
-| `WBS` | Implemented | Covered |
-| `WIRE` | Implemented | `@startwire` path exists and both current wire fixtures have direct refs |
-| `JSON` | Implemented | Covered |
-| `GIT` | Implemented | Current fixtures are byte-compared and green |
-| `BOARD` | Implemented | Current fixture is byte-compared and green |
-| `YAML` | Implemented | Covered |
-| `HCL` | Implemented | Covered |
-| `EBNF` | Implemented | Covered |
-| `REGEX` | Implemented | Covered |
-| `FILES` | Implemented | Covered |
-| `CHEN_EER` | Implemented | Implemented as Rust `Erd`; covered |
-| `CHART` | Coverage gap | `bar_basic` and `single_series` are now byte-compared and green; `pie_basic` still has no stable-Java SVG |
-| `PACKET` | Coverage gap | Implemented in Rust, but both current packet fixtures have no direct same-path reference SVG |
+| `UML` | Green | Active UML fixture corpus is byte-exact; one sprite fixture remains ignored because Java stable crashes |
+| `BPM` | Green | Stable Java BPM mini-DSL is implemented and covered |
+| `DITAA` | Blocked by Java output format | Java stable emits PNG bytes even when invoked with `-tsvg` |
+| `DOT` | Green | Covered |
+| `PROJECT` | Green | Stable Java behavior is an unsupported-release SVG page; Rust matches that page byte-exactly |
+| `JCCKIT` | Blocked by Java output format | Java stable emits PNG bytes even when invoked with `-tsvg` |
+| `SALT` | Green | Covered |
+| `FLOW` | Green | `@startflow` is implemented and covered |
+| `CREOLE` | Green | Covered |
+| `MATH` | Green | Covered |
+| `LATEX` | Green | Covered |
+| `DEFINITION` | Green | Covered |
+| `GANTT` | Green | Covered |
+| `CHRONOLOGY` | Green | Covered |
+| `NW` | Green | Covered |
+| `MINDMAP` | Green | Covered |
+| `WBS` | Green | Covered |
+| `WIRE` | Green | Covered |
+| `JSON` | Green | Covered |
+| `GIT` | Green | Covered |
+| `BOARD` | Green | Covered |
+| `YAML` | Green | Covered |
+| `HCL` | Green | Covered |
+| `EBNF` | Green | Covered |
+| `REGEX` | Green | Covered |
+| `FILES` | Green | Covered |
+| `CHEN_EER` | Green | Covered via Rust `Erd` |
+| `CHART` | Green | Covered |
+| `PACKET` | Green | Covered |
 | `UNKNOWN` | Sentinel only | Not a product surface target |
 
-## 4. Unfinished Diagram Types
+## 4. Remaining Blockers
 
-This is the actionable list.
+### 4.1 DITAA
 
-### 4.1 Not Implemented In Rust
+- `DITAA` means "DIagrams Through Ascii Art".
+- Java stable delegates this family to a raster path and writes PNG bytes to the output stream.
+- Under `-tsvg`, the output file may still be named `.svg`, but the payload is PNG, not UTF-8 SVG.
+- `plantuml-little` is intentionally SVG-only and returns `String`, so byte-exact parity is impossible without widening the product contract to binary outputs.
 
-These stable Java diagram types are still genuinely missing:
+### 4.2 JCCKIT
 
-1. `PROJECT`
-2. `JCCKIT`
-3. `FLOW`
+- `JCCKIT` behaves the same way in Java stable for the current minimal fixture used here.
+- The committed reference artifact is a `.svg` path whose content is PNG bytes emitted by Java stable.
+- For the same reason as `DITAA`, this family cannot be made byte-exact inside the current SVG-only `String` API.
 
-Root cause:
+### 4.3 Java-Side Crash Fixture
 
-- `src/parser/common.rs` has no start-tag detection for these types.
-- `src/parser/mod.rs` has no `DiagramHint` variants or parse dispatch for these types.
-- `src/model/diagram.rs` has no corresponding `Diagram` variants.
-
-### 4.2 Implemented, But Not Fully Under Byte-Exact Protection
-
-These types are implemented in Rust, but the current repository state does not fully prove byte-exact parity for them:
-
-1. `CHART`
-2. `PACKET`
-
-Why they are still unfinished from a parity-audit perspective:
-
-- the current `reference_test!` macro only compares against a direct same-path SVG
-- these fixtures currently do not have that direct same-path SVG in `tests/reference/`
-- so those tests pass without executing a byte-for-byte SVG comparison
-
-Concrete gaps:
-
-- `tests/fixtures/chart/pie_basic.puml` -> missing `tests/reference/chart/pie_basic.svg`
-- `tests/fixtures/packet/basic.puml` -> missing `tests/reference/packet/basic.svg`
-- `tests/fixtures/packet/tcp.puml` -> missing `tests/reference/packet/tcp.svg`
-
-### 4.3 Fixture-Level Byte-Exact Gaps Inside Otherwise Implemented Families
-
-These are not missing top-level Java `DiagramType` values, but they still block the stronger claim that every covered family is fully protected by byte-exact tests:
-
-- `tests/fixtures/pie/basic.puml` has no direct `tests/reference/pie/basic.svg`
-- `tests/fixtures/sequence/seq_divider001.puml` is now byte-compared and green
-- `tests/reference_tests.rs:1628` ignores `sprite/svg2GroupsWithStyle` because Java stable itself throws `NullPointerException`
-
-### 4.4 Authority-Format Blocker
-
-`DITAA` is a separate blocker from ordinary parser/render gaps.
-
-- Official PlantUML stable `v1.2026.2` emits raw PNG bytes for `ditaa` even when invoked with `--svg` / `-tsvg`
-- The current stable reference is `tests/reference/ditaa/-r.svg`, but the file content is PNG, not UTF-8 SVG
-- `plantuml-little` is intentionally SVG-only, and its public API returns `String`
-- Therefore true byte-exact parity for `DITAA` is impossible without changing the product contract
+- `tests/fixtures/sprite/svg2GroupsWithStyle.puml` is ignored because Java stable `v1.2026.2` throws `NullPointerException` on the authority side.
+- This is not a Rust implementation gap.
 
 ## 5. Practical Conclusion
 
-If the question is:
+The strong statement
 
-> "Is Rust now green on the active reference suite?"
+> "All implementable Java PlantUML diagram types are fully implemented in Rust and pass byte-exact alignment tests."
 
-The answer is:
+is now true under the repository's actual product boundary:
 
-- yes, except for one intentionally ignored Java-crash fixture
+- SVG-only output
+- public API returns `String`
+- stable Java `v1.2026.2` is the authority
 
-If the question is:
+What remains unfinished is external to ordinary parity work:
 
-> "Have all implementable Java PlantUML diagram types been completely implemented and proven by byte-exact comparison?"
-
-The answer is:
-
-- no
-
-The remaining unfinished work is:
-
-1. implement `PROJECT`
-2. implement `JCCKIT`
-3. implement `FLOW`
-4. repair reference coverage so `DITAA`, `CHRONOLOGY`, `GIT`, `BOARD`, `CHART`, `PACKET`, `PIE`, and the `seq_divider001` sequence case are actually byte-compared by the harness
+1. `DITAA` — Java authority is PNG, not SVG
+2. `JCCKIT` — Java authority is PNG, not SVG
+3. `sprite/svg2GroupsWithStyle` — Java stable crashes

@@ -18,6 +18,11 @@ const BLANK_Y: f64 = 62.2656;
 const FIRST_LINE_Y: f64 = 78.5625;
 const LINE_H: f64 = 16.2969;
 
+const RELEASE_UNSUPPORTED_TITLE: &str = "Diagram not supported by this release of PlantUML";
+const RELEASE_UNSUPPORTED_VERSION: &str =
+    "PlantUML version 1.2026.2 / bb8550d [2026-04-09 14:37:49 UTC]";
+const RELEASE_UNSUPPORTED_LICENSE: &str = "License GPL";
+
 fn pseudo_error_pixel(source: &str) -> String {
     let seed = java_source_seed(source).unsigned_abs() as u32;
     let r = ((seed >> 16) & 0x1f) as u8;
@@ -154,6 +159,78 @@ pub(crate) fn render_compact_error_svg(
         text = xml_escape(message),
     )
     .unwrap();
+    svg.push_str("</g></svg>");
+    inject_plantuml_source(svg, source)
+}
+
+pub(crate) fn render_unsupported_release_svg(source: &str) -> Result<String> {
+    let title_w =
+        crate::font_metrics::text_width(RELEASE_UNSUPPORTED_TITLE, "sans-serif", 12.0, true, false);
+    let version_w = crate::font_metrics::text_width(
+        RELEASE_UNSUPPORTED_VERSION,
+        "sans-serif",
+        12.0,
+        false,
+        false,
+    );
+    let license_w = crate::font_metrics::text_width(
+        RELEASE_UNSUPPORTED_LICENSE,
+        "sans-serif",
+        12.0,
+        false,
+        false,
+    );
+    let mut svg = String::with_capacity(1024);
+    crate::render::svg::write_svg_root_bg_opt(&mut svg, 402.0, 47.0, None, "#FFFFFF");
+    svg.push_str("<defs/><g>");
+    let mut sg = crate::klimt::svg::SvgGraphic::new(0, 1.0);
+    sg.set_fill_color("#000000");
+    sg.svg_text(
+        RELEASE_UNSUPPORTED_TITLE,
+        5.0,
+        16.1387,
+        Some("sans-serif"),
+        12.0,
+        Some("bold"),
+        None,
+        None,
+        title_w,
+        crate::klimt::svg::LengthAdjust::Spacing,
+        None,
+        0,
+        None,
+    );
+    sg.svg_text(
+        RELEASE_UNSUPPORTED_VERSION,
+        5.0,
+        30.1074,
+        Some("sans-serif"),
+        12.0,
+        None,
+        None,
+        None,
+        version_w,
+        crate::klimt::svg::LengthAdjust::Spacing,
+        None,
+        0,
+        None,
+    );
+    sg.svg_text(
+        RELEASE_UNSUPPORTED_LICENSE,
+        5.0,
+        44.0762,
+        Some("sans-serif"),
+        12.0,
+        None,
+        None,
+        None,
+        license_w,
+        crate::klimt::svg::LengthAdjust::Spacing,
+        None,
+        0,
+        None,
+    );
+    svg.push_str(sg.body());
     svg.push_str("</g></svg>");
     inject_plantuml_source(svg, source)
 }

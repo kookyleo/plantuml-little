@@ -13,6 +13,7 @@ pub mod dot;
 pub mod ebnf;
 pub mod erd;
 pub mod files_diagram;
+pub mod flow;
 pub mod gantt;
 pub mod git;
 pub mod hcl;
@@ -73,10 +74,15 @@ pub fn parse_with_original(source: &str, original_source: Option<&str>) -> Resul
                 let fd = files_diagram::parse_files_diagram(source)?;
                 Ok(Diagram::Files(fd))
             }
+            DiagramHint::Flow => {
+                let fd = flow::parse_flow_diagram(source)?;
+                Ok(Diagram::Flow(fd))
+            }
             DiagramHint::Gantt => {
                 let gd = gantt::parse_gantt_diagram(source)?;
                 Ok(Diagram::Gantt(gd))
             }
+            DiagramHint::Jcckit => Err(crate::Error::BinaryPngDiagram("JCCKIT".into())),
             DiagramHint::Ditaa => {
                 let dd = ditaa::parse_ditaa(source)?;
                 Ok(Diagram::Ditaa(dd))
@@ -138,6 +144,7 @@ pub fn parse_with_original(source: &str, original_source: Option<&str>) -> Resul
                 let cd = chronology::parse_chronology_diagram(source)?;
                 Ok(Diagram::Chronology(cd))
             }
+            DiagramHint::Project => Err(crate::Error::UnsupportedReleasePage),
             DiagramHint::Hcl => {
                 let hd = hcl::parse_hcl_diagram(source)?;
                 Ok(Diagram::Hcl(hd))
@@ -224,7 +231,9 @@ pub fn parse_with_original(source: &str, original_source: Option<&str>) -> Resul
         | DiagramHint::Ditaa
         | DiagramHint::Erd
         | DiagramHint::Files
+        | DiagramHint::Flow
         | DiagramHint::Gantt
+        | DiagramHint::Jcckit
         | DiagramHint::Json
         | DiagramHint::Mindmap
         | DiagramHint::Nwdiag
@@ -238,6 +247,7 @@ pub fn parse_with_original(source: &str, original_source: Option<&str>) -> Resul
         | DiagramHint::Pie
         | DiagramHint::Board
         | DiagramHint::Chronology
+        | DiagramHint::Project
         | DiagramHint::Hcl
         | DiagramHint::Wire
         | DiagramHint::Math
@@ -260,7 +270,9 @@ pub enum DiagramHint {
     Ditaa,
     Erd,
     Files,
+    Flow,
     Gantt,
+    Jcckit,
     Json,
     Mindmap,
     Nwdiag,
@@ -277,6 +289,7 @@ pub enum DiagramHint {
     Pie,
     Board,
     Chronology,
+    Project,
     Hcl,
     Wire,
     Math,

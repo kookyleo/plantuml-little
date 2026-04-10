@@ -121,6 +121,7 @@ pub enum Diagram {
     Ditaa(super::ditaa::DitaaDiagram),
     Erd(super::erd::ErdDiagram),
     Files(super::files_diagram::FilesDiagram),
+    Flow(super::flow::FlowDiagram),
     Gantt(super::gantt::GanttDiagram),
     Hcl(super::hcl::HclDiagram),
     Json(super::json_diagram::JsonDiagram),
