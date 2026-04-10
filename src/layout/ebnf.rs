@@ -270,7 +270,7 @@ pub fn layout_ebnf(diagram: &EbnfDiagram) -> Result<EbnfLayout> {
     let centering_width = body_width.max(title_block_w);
     if diagram.title.is_some() {
         if let Some(EbnfElement::Title { x, text, .. }) = elements.first_mut() {
-            let tw = font_metrics::text_width(text, "SansSerif", TITLE_FONT_SIZE, true, false);
+            let _tw = font_metrics::text_width(text, "SansSerif", TITLE_FONT_SIZE, true, false);
             // title_block x within centering area:
             let title_block_x = (centering_width - title_block_w) / 2.0;
             // text x within title_block: margin + padding

@@ -4,7 +4,7 @@ use crate::layout::mindmap::{
     DrawItem, MindmapEdgeLayout, MindmapLayout, MindmapNodeLayout, MindmapNoteLayout,
 };
 use crate::model::mindmap::MindmapDiagram;
-use crate::render::svg_richtext::{count_creole_lines, render_creole_text};
+use crate::render::svg_richtext::render_creole_text;
 use crate::style::SkinParams;
 use crate::Result;
 
@@ -110,6 +110,7 @@ pub fn render_mindmap(
     Ok(buf)
 }
 
+#[allow(dead_code)] // convenience wrapper for default stroke
 fn render_edge(sg: &mut SvgGraphic, edge: &MindmapEdgeLayout, color: &str) {
     render_edge_styled(sg, edge, color, BORDER_WIDTH);
 }
@@ -137,6 +138,7 @@ fn render_edge_styled(sg: &mut SvgGraphic, edge: &MindmapEdgeLayout, color: &str
     ));
 }
 
+#[allow(dead_code)] // convenience wrapper for default style
 fn render_node(
     sg: &mut SvgGraphic,
     node: &MindmapNodeLayout,

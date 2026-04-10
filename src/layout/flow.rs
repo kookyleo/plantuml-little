@@ -11,6 +11,7 @@ static DEJAVU_SERIF: LazyLock<ttf_parser::Face<'static>> =
 const SINGLE_SIZE_X: f64 = 100.0;
 const SINGLE_SIZE_Y: f64 = 35.0;
 const BOX_MARGIN: f64 = 10.0;
+#[allow(dead_code)] // Java-ported layout constant
 const CORNER_RADIUS: f64 = 25.0;
 const FONT_SIZE: f64 = 14.0;
 

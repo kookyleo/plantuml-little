@@ -176,7 +176,7 @@ pub fn rect_to_hand_polygon(
     // We need to pass the RNG to HandJiggle, but we still need it after.
     // Use a temporary clone approach: consume the jiggle and get back the RNG.
     // Actually, HandJiggle takes ownership. We'll create inline.
-    let mut points = Vec::new();
+    let points;
 
     if rx == 0.0 && ry == 0.0 {
         let mut jiggle = HandJiggle {

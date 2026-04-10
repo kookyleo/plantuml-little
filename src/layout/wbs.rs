@@ -68,7 +68,9 @@ const LINE_HEIGHT: f64 = 13.96875;
 const PAD_H: f64 = 10.0;
 const PAD_V: f64 = 10.0;
 /// Vertical gap: parent bottom to connector, and connector to child top
+#[allow(dead_code)] // Java-ported layout constant
 const EDGE_GAP: f64 = 20.0;
+#[allow(dead_code)] // Java-ported layout constant
 const NODE_SPACING: f64 = 20.0;
 const MARGIN: f64 = 10.0;
 const NOTE_GAP: f64 = 16.0;

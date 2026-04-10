@@ -13,7 +13,7 @@ use crate::klimt::{Fashion, UStroke};
 use crate::model::sequence::ParticipantKind;
 use crate::skin::actor::ActorStickMan;
 use crate::skin::arrow::{
-    ArrowBody, ArrowConfiguration, ArrowDecoration, ArrowDirection, ArrowHead, ArrowPart,
+    ArrowConfiguration, ArrowDecoration, ArrowDirection, ArrowHead, ArrowPart,
 };
 
 // ── Rose constants ──────────────────────────────────────────────────
@@ -1611,6 +1611,7 @@ pub fn draw_englober(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::skin::arrow::ArrowBody;
 
     fn make_text(pure_w: f64, h: f64) -> TextMetrics {
         TextMetrics::new(7.0, 7.0, 1.0, pure_w, h)

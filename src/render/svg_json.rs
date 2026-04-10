@@ -159,7 +159,6 @@ fn render_arrow(sg: &mut SvgGraphic, arrow: &JsonArrow) {
     // vertical deflection exceeds the horizontal gap between boxes.
     const POINTS0_OFFSET: f64 = 1.25;
     const VERY_FIRST_LEN: f64 = 13.0;
-    const TIP_LEN: f64 = 7.77;
 
     let p0_x = fx + POINTS0_OFFSET;
     let p0_y = fy;

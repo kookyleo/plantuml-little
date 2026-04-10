@@ -1008,6 +1008,7 @@ struct EntitySvgMeta<'a> {
 }
 
 impl<'a> EntitySvgMeta<'a> {
+    #[allow(dead_code)] // convenience constructor
     fn default_for(ent_id: &'a str, qualified_name: &'a str) -> Self {
         Self {
             ent_id,
@@ -1769,7 +1770,7 @@ fn render_c4_word_by_word(
 ) {
     let cx = node.x + node.width / 2.0;
     let (ml, _mr, mt, _mb) = crate::layout::component::entity_margins(&node.kind);
-    let content_left = node.x + ml;
+    let _content_left = node.x + ml;
 
     // Stereotype line (e.g. «container»)
     // Java USymbolRectangle.asSmall: mergeTB(stereo, label) drawn at margin(10,10,10,10)
@@ -1854,7 +1855,7 @@ fn render_c4_word_by_word(
         // Calculate full-line width to center it
         let mut line_words: Vec<Vec<&str>> = vec![vec![]];
         let mut cur_line_w = 0.0_f64;
-        for (i, word) in words.iter().enumerate() {
+        for (_i, word) in words.iter().enumerate() {
             let ww = font_metrics::text_width(word, "SansSerif", font_size, bold, italic);
             let needed = if cur_line_w == 0.0 { ww } else { space_w + ww };
             if cur_line_w > 0.0 && cur_line_w + needed > wrap_width {
@@ -2101,7 +2102,7 @@ fn render_node_text(
     } else {
         node.x + margin_left
     };
-    let tl = font_metrics::text_width(&node.name, "SansSerif", FONT_SIZE, false, false);
+    let _tl = font_metrics::text_width(&node.name, "SansSerif", FONT_SIZE, false, false);
     // Java uses the full font-metric line height (ascent+descent) for standalone
     // name-only entities without stereotypes, but the simpler 16 px constant for
     // entities that have sprites, description blocks, or stereotypes (C4, etc.).

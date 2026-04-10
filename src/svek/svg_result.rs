@@ -321,6 +321,7 @@ fn split_by_chars<'a>(s: &'a str, chars: &str) -> Vec<&'a str> {
 
 /// Parse SVG coordinate string into points (identity transform).
 /// Handles formats: "x1,y1 x2,y2 ..." and "M x y C x1 y1 x2 y2 x y ..."
+#[allow(dead_code)] // reserved for polygon point parsing
 fn parse_points(s: &str) -> Vec<XPoint2D> {
     let mut points = Vec::new();
     let clean = s.replace(',', " ");
@@ -343,6 +344,7 @@ fn parse_points(s: &str) -> Vec<XPoint2D> {
 }
 
 /// Parse SVG path `d` attribute into a DotPath (series of cubic beziers).
+#[allow(dead_code)] // convenience wrapper for identity transform
 fn parse_svg_path_to_dotpath(d: &str) -> Option<crate::klimt::shape::DotPath> {
     parse_svg_path_to_dotpath_with_fn(d, &crate::svek::IdentityFunction)
 }
@@ -361,8 +363,6 @@ fn parse_svg_path_to_dotpath_with_fn(
     d: &str,
     function: &dyn Point2DFunction,
 ) -> Option<crate::klimt::shape::DotPath> {
-    use crate::klimt::geom::XCubicCurve2D;
-
     let mut beziers = Vec::new();
     let mut current_x = 0.0_f64;
     let mut current_y = 0.0_f64;

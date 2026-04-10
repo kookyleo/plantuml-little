@@ -141,13 +141,19 @@ const NODE_MIN_WIDTH: f64 = 0.0;
 // Java has no global minimum entity height — each type's size is purely
 // determined by its margins + text content (from USymbol.Margin.addDimension).
 // Java Smetana: nodesep ≈ 35px (0.486111 inches * 72)
+#[allow(dead_code)] // Java-ported layout constant
 const NODE_SPACING_X: f64 = 35.0;
+#[allow(dead_code)] // Java-ported layout constant
 const NODE_SPACING_Y: f64 = 50.0;
+#[allow(dead_code)] // Java-ported layout constant
 const GROUP_PADDING: f64 = 20.0;
+#[allow(dead_code)] // Java-ported layout constant
 const GROUP_HEADER: f64 = 30.0;
 const NOTE_OFFSET: f64 = 20.0;
+#[allow(dead_code)] // Java-ported layout constant
 const NOTE_MAX_WIDTH: f64 = 200.0;
 const MARGIN: f64 = 7.0;
+#[allow(dead_code)] // Java-ported layout constant
 const GRID_COLS: usize = 3;
 
 // ---------------------------------------------------------------------------
@@ -1350,7 +1356,7 @@ pub fn layout_component(cd: &ComponentDiagram, skin: &crate::style::SkinParams) 
     // Build group layouts from graphviz cluster output
     let group_map: HashMap<String, &crate::model::component::ComponentGroup> =
         cd.groups.iter().map(|g| (sanitize_id(&g.id), g)).collect();
-    let mut group_layouts: Vec<ComponentGroupLayout> = gl
+    let group_layouts: Vec<ComponentGroupLayout> = gl
         .clusters
         .iter()
         .filter_map(|cl| {
@@ -1601,6 +1607,7 @@ pub fn layout_component(cd: &ComponentDiagram, skin: &crate::style::SkinParams) 
 /// Apply a coordinate transform based on the diagram direction.
 /// The layout algorithm always computes in top-to-bottom orientation;
 /// for other directions we transform after the fact.
+#[allow(dead_code)] // reserved for multi-direction layout
 fn apply_direction_transform(
     layout: &mut ComponentLayout,
     direction: &crate::model::diagram::Direction,
@@ -1687,6 +1694,7 @@ fn apply_direction_transform(
 // Edge routing
 // ---------------------------------------------------------------------------
 
+#[allow(dead_code)] // reserved for non-svek edge routing
 fn layout_edges(
     links: &[ComponentLink],
     pos_map: &HashMap<String, (f64, f64, f64, f64)>,
@@ -1749,6 +1757,7 @@ fn layout_edges(
 }
 
 #[allow(clippy::too_many_arguments)]
+#[allow(dead_code)] // reserved for non-svek edge routing
 fn route_with_hint(
     fx: f64,
     fy: f64,
@@ -1777,6 +1786,7 @@ fn route_with_hint(
 }
 
 #[allow(clippy::too_many_arguments)]
+#[allow(dead_code)] // reserved for non-svek edge routing
 fn route_auto(
     from_cx: f64,
     from_cy: f64,

@@ -1,5 +1,5 @@
 use crate::font_metrics;
-use crate::klimt::svg::{fmt_coord, LengthAdjust, SvgGraphic};
+use crate::klimt::svg::{LengthAdjust, SvgGraphic};
 use crate::layout::hcl::HclLayout;
 use crate::model::hcl::HclDiagram;
 use crate::render::svg::{ensure_visible_int, write_svg_root_bg};

@@ -101,6 +101,7 @@ pub enum DiagramLayout {
 /// FontParam.CLASS = 12pt but EntityImageClassHeader renders name at 14pt.
 const CLASS_FONT_SIZE: f64 = 14.0;
 /// FontParam.CLASS_ATTRIBUTE = 10pt.
+#[allow(dead_code)] // Java-ported constant for class attribute sizing
 const CLASS_ATTR_FONT_SIZE: f64 = 10.0;
 /// MethodsOrFieldsArea: empty compartment = margin_top(4) + margin_bottom(4).
 const LINE_HEIGHT_PT: f64 = 8.0;
@@ -138,6 +139,7 @@ const HEADER_STEREO_NAME_GAP: f64 = 10.0;
 /// SansSerif 14pt height = 16.296875 (used for member row layout).
 const MEMBER_ROW_HEIGHT: f64 = 16.296875;
 /// margin_top(4) + MEMBER_ROW_HEIGHT(16.296875) + margin_bottom(4) = 24.296875.
+#[allow(dead_code)] // Java-ported constant for class member sizing
 const MEMBER_BLOCK_HEIGHT_ONE_ROW: f64 = 24.296875;
 const MEMBER_TEXT_LEFT_WITH_ICON: f64 = 26.0;
 const MEMBER_TEXT_LEFT_NO_ICON: f64 = 6.0;
@@ -495,8 +497,10 @@ pub(crate) struct StrippedMarkup {
     /// Whether `<i>` was found → font-style: italic
     pub italic: bool,
     /// Whether `<u>` was found → text-decoration: underline
+    #[allow(dead_code)] // parsed for future text-decoration rendering
     pub underline: bool,
     /// Whether `<s>` or `<strike>` was found → text-decoration: line-through
+    #[allow(dead_code)] // parsed for future text-decoration rendering
     pub strikethrough: bool,
 }
 
@@ -792,6 +796,7 @@ pub(crate) fn split_name_display(name: &str) -> DisplayBlock {
     DisplayBlock { alignment, lines }
 }
 
+#[allow(dead_code)] // utility for future name splitting
 pub(crate) fn split_name_display_lines(name: &str) -> Vec<String> {
     let block = split_name_display(name);
     let mut lines = Vec::new();
@@ -1902,7 +1907,7 @@ fn estimate_class_note_size(text: &str) -> (f64, f64) {
         .map(|l| font_metrics::text_width(l, "SansSerif", NOTE_FONT_SIZE, false, false))
         .fold(0.0_f64, f64::max);
     let w = (max_line_width + NOTE_MARGIN_X1 + NOTE_MARGIN_X2).max(60.0);
-    let h = (lines.len() as f64 * NOTE_LINE_HEIGHT + NOTE_PADDING_Y * 2.0);
+    let h = lines.len() as f64 * NOTE_LINE_HEIGHT + NOTE_PADDING_Y * 2.0;
     (w, h)
 }
 
@@ -1983,7 +1988,7 @@ fn compute_note_layouts(
                     .map(|l| font_metrics::text_width(l, "SansSerif", NOTE_FONT_SIZE, false, false))
                     .fold(0.0_f64, f64::max);
                 let w = (max_line_width + NOTE_MARGIN_X1 + NOTE_MARGIN_X2).max(60.0);
-                let h = (lines.len() as f64 * NOTE_LINE_HEIGHT + NOTE_PADDING_Y * 2.0);
+                let h = lines.len() as f64 * NOTE_LINE_HEIGHT + NOTE_PADDING_Y * 2.0;
                 (w, h, lines)
             };
 

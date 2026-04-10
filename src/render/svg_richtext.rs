@@ -3353,6 +3353,7 @@ fn prefix_first_line(lines: &mut Vec<Vec<TextSpan>>, prefix: &str) {
     lines[0].insert(0, TextSpan::Plain(prefix.to_string()));
 }
 
+#[allow(dead_code)] // reserved for creole table cell joining
 fn join_cells(cells: &[Vec<TextSpan>]) -> Vec<TextSpan> {
     let mut line = Vec::new();
     for (idx, cell) in cells.iter().enumerate() {
@@ -3617,6 +3618,7 @@ fn style_attrs(style: &SpanStyle, default_fill: &str) -> String {
 ///
 /// Each sprite is rendered as a `<g>` element positioned relative to the
 /// text anchor, with the SVG content embedded directly.
+#[allow(dead_code)] // reserved for deferred sprite rendering
 fn render_deferred_sprites(
     buf: &mut String,
     sprite_refs: &[(String, Option<String>)],
@@ -3646,6 +3648,7 @@ fn render_deferred_sprites(
 }
 
 /// Parse `viewBox` attribute from an SVG element to extract width and height.
+#[allow(dead_code)] // reserved for SVG viewBox parsing
 fn parse_viewbox(svg: &str) -> (f64, f64) {
     if let Some(vb_start) = svg.find("viewBox=\"") {
         let rest = &svg[vb_start + 9..];
@@ -3665,6 +3668,7 @@ fn parse_viewbox(svg: &str) -> (f64, f64) {
     (w, h)
 }
 
+#[allow(dead_code)] // used by parse_viewbox
 fn parse_svg_attr(svg: &str, attr: &str) -> Option<f64> {
     let pattern = format!("{attr}=\"");
     if let Some(start) = svg.find(&pattern) {

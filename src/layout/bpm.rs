@@ -1,13 +1,14 @@
 use std::collections::HashMap;
 
 use crate::font_metrics;
-use crate::model::bpm::{BpmDiagram, BpmElement, BpmElementType, BpmEvent, Where};
+use crate::model::bpm::{BpmDiagram, BpmElementType, BpmEvent, Where};
 use crate::Result;
 
 /// Java GridArray margin between cells.
 const CELL_MARGIN: f64 = 30.0;
 
 /// Connector line length (10px).
+#[allow(dead_code)] // reserved for future BPM connector rendering
 const CONNECTOR_LEN: f64 = 10.0;
 
 /// Start circle radius (Java FtileCircleStart: circledCharacterRadius from SkinParam = 10).
@@ -17,6 +18,7 @@ const START_RADIUS: f64 = 10.0;
 const DIAMOND_HALF: f64 = 12.0;
 
 /// Task box corner radius.
+#[allow(dead_code)] // reserved for future BPM box rendering
 const BOX_CORNER_RADIUS: f64 = 12.5;
 
 /// Task box font size (Java FtileBox uses SansSerif 12pt).
@@ -167,6 +169,7 @@ impl Grid {
         self.cells.insert(coord, data);
     }
 
+    #[allow(dead_code)] // reserved for future BPM layout queries
     fn get_cell(&self, coord: &Coord) -> Option<&CellData> {
         self.cells.get(coord)
     }
@@ -659,7 +662,7 @@ fn draw_start_horizontal(grid: &mut Grid, src: Coord, dest: Coord) {
 
     if src.line != dest.line && src.col != dest.col {
         // Corner: add puzzle at (src.line, dest.col)
-        let corner = Coord {
+        let _corner = Coord {
             line: src.line,
             col: dest.col,
         };

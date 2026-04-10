@@ -35,7 +35,7 @@ pub fn render_git(_d: &GitDiagram, l: &GitLayout, skin: &SkinParams) -> Result<S
     }
 
     // Draw nodes
-    for (i, node) in l.nodes.iter().enumerate() {
+    for (_i, node) in l.nodes.iter().enumerate() {
         let color = COLORS[(node.depth - 1) % COLORS.len()];
 
         // Draw filled circle

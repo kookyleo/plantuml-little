@@ -9,7 +9,7 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use super::group_type::GroupType;
 use super::leaf_type::LeafType;
-use super::{CucaNote, DisplayPositioned, EntityPosition, NoteLinkStrategy, Together};
+use super::{CucaNote, DisplayPositioned, EntityPosition, Together};
 use crate::klimt::color::HColor;
 
 // ── Unique-ID generator ──────────────────────────────────────────────
@@ -606,6 +606,7 @@ impl std::fmt::Display for Entity {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::abel::NoteLinkStrategy;
 
     #[test]
     fn new_leaf_basic() {

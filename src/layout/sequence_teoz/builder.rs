@@ -49,6 +49,7 @@ const NOTE_EXTENT_PADDING: f64 = 10.0;
 /// emitted SVG head/lifeline positions line up with a 5px top document margin.
 const STARTING_Y: f64 = 5.0;
 /// Minimum gap between adjacent participant right-edge and next left-edge.
+#[allow(dead_code)] // Java-ported teoz constant
 const PARTICIPANT_GAP: f64 = 5.0;
 /// Java teoz applies `dx(-min1)` inside `SequenceDiagramFileMakerTeoz`, then
 /// the SVG exporter adds the normal 5px document margin. The body coordinates
@@ -451,6 +452,7 @@ impl TeozParams {
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
+#[allow(dead_code)] // Java-ported teoz helper
 fn active_left_shift(level: usize) -> f64 {
     if level == 0 {
         0.0
@@ -495,6 +497,7 @@ fn unescape_backslash(s: &str) -> String {
     result
 }
 
+#[allow(dead_code)] // Java-ported teoz helper
 fn live_thickness_width(level: usize) -> f64 {
     active_left_shift(level) + active_right_shift(level)
 }
@@ -919,6 +922,7 @@ fn message_text_width(text: &str, font_family: &str, font_size: f64) -> f64 {
 // ── Note-on-message helper ───────────────────────────────────────────────────
 
 /// Check if the last non-LifeEvent tile in the list is a SelfMessage.
+#[allow(dead_code)] // reserved for teoz self-message detection
 fn is_last_tile_self_message(tiles: &[TeozTile]) -> bool {
     for tile in tiles.iter().rev() {
         match tile {
@@ -2583,14 +2587,14 @@ pub fn build_teoz_layout(sd: &SequenceDiagram, skin: &SkinParams) -> Result<SeqL
                 }
                 _ if outer_depth > 0 => {}
                 TeozTile::Note {
-                    participant_idx,
+                    participant_idx: _,
                     is_left,
                     width,
                     is_note_on_message,
                     ..
                 } if *is_note_on_message && !*is_left => {
                     // Right note on self-message: maxX = posC2_global + compWidth + noteWidth
-                    if let Some((sm_pidx, sm_tw, sm_dir, sm_al)) =
+                    if let Some((sm_pidx, sm_tw, sm_dir, _sm_al)) =
                         find_preceding_self_message(&tiles, tile_i)
                     {
                         let sm_cx = rl.get_value(livings[sm_pidx].pos_c);
@@ -3182,7 +3186,7 @@ pub fn build_teoz_layout(sd: &SequenceDiagram, skin: &SkinParams) -> Result<SeqL
                 let ty = y.unwrap_or(0.0);
                 if let Some((y_start, kind, label, separators, child_start, frag_color)) = fragment_stack.pop()
                 {
-                    let depth = fragment_stack.len(); // 0 for outermost
+                    let _depth = fragment_stack.len(); // 0 for outermost
                                                       // Compute per-fragment width from child tiles.
                                                       // Java GroupingTile computes its own min/max from children.
                     let (frag_min, frag_max) =
@@ -3326,7 +3330,7 @@ pub fn build_teoz_layout(sd: &SequenceDiagram, skin: &SkinParams) -> Result<SeqL
         // - Standalone LifeEvents: owned by the most recent Message in the
         //   events list at parse time, regardless of intervening notes/etc.
         // Both reduce to "most recent SeqEvent::Message before this index".
-        let life_event_owner_msg: Vec<Option<usize>> = {
+        let _life_event_owner_msg: Vec<Option<usize>> = {
             let mut owner = vec![None; sd.events.len()];
             let mut last_msg: Option<usize> = None;
             for (i, ev) in sd.events.iter().enumerate() {

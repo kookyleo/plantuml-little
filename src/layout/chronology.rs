@@ -7,6 +7,7 @@ const DATE_FONT_SIZE: f64 = 11.0;
 const MARGIN: f64 = 10.0;
 const LINE_Y: f64 = 50.0;
 const EVENT_SPACING: f64 = 150.0;
+#[allow(dead_code)] // Java-ported layout constant
 const MARKER_RADIUS: f64 = 6.0;
 const LABEL_OFFSET_Y: f64 = -20.0;
 const DATE_OFFSET_Y: f64 = 18.0;

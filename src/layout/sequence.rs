@@ -60,6 +60,7 @@ struct LayoutParams {
     /// Message text line height (SansSerif 13pt)
     msg_line_height: f64,
     /// Fragment header height (Java: ComponentRoseGroupingHeader)
+    #[allow(dead_code)] // stored for future fragment rendering
     frag_header_height: f64,
     /// Divider component height
     divider_height: f64,
@@ -414,6 +415,7 @@ fn update_fragment_message_extent(
 /// multiline note text already uses real newlines as separators.  The `\n`
 /// escape is only relevant for inline text rendering, handled by the SVG
 /// renderer.
+#[allow(dead_code)] // reserved for sequence note sizing
 fn count_note_lines(text: &str) -> usize {
     text.split(crate::NEWLINE_CHAR)
         .flat_map(|s| s.lines())
@@ -428,6 +430,7 @@ fn count_note_lines(text: &str) -> usize {
 ///   - Horizontal separator (`----` or `====`): ~8px per separator
 ///   - Bullet items: same height as normal lines (no extra)
 ///   - Inline SVG sprites: max(sprite_height, line_height) - line_height per sprite line
+#[allow(dead_code)] // reserved for sequence note sizing
 fn creole_note_extra_height(text: &str) -> f64 {
     let lh = font_metrics::line_height("SansSerif", NOTE_FONT_SIZE, false, false);
     let mut extra = 0.0;
@@ -469,6 +472,7 @@ fn creole_note_extra_height(text: &str) -> f64 {
 
 /// Estimate extra height from inline sprites on a single line.
 /// Returns Some(extra_height) if the line contains sprites that are taller than line_height.
+#[allow(dead_code)] // reserved for sequence sprite sizing
 pub(crate) fn estimate_sprite_line_extra_height(line: &str, line_height: f64) -> Option<f64> {
     use crate::render::svg_richtext::get_sprite_svg;
     use crate::render::svg_sprite::sprite_info;
@@ -1196,7 +1200,7 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
     // note between a message and the following `activate target` sees
     // level >= 1 even though the activate event comes after the note.)
     let mut last_message_to: Option<String> = None;
-    let mut last_message_from: Option<String> = None;
+    let mut _last_message_from: Option<String> = None;
     // Extra height from multiline message text (used to adjust note back-offset)
     let mut last_message_extra_height: f64 = 0.0;
     // Sprite-specific extra height in the last message text. When sprites
@@ -1556,7 +1560,7 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
                 last_message_sprite_extra = sprite_extra;
                 last_message_idx = Some(messages.len() - 1);
                 last_message_to = Some(msg.to.clone());
-                last_message_from = Some(msg.from.clone());
+                _last_message_from = Some(msg.from.clone());
                 // For self-messages with deactivation, the activation bar end
                 // position in Java = posYendLevel which maps to msg_y + 1 in
                 // SVG coordinates. For non-self messages, msg_y_unshifted works.

@@ -3,7 +3,7 @@ use crate::font_metrics;
 use crate::klimt::svg::{fmt_coord, xml_escape};
 use crate::layout::ebnf::{EbnfElement, EbnfLayout};
 use crate::model::ebnf::EbnfDiagram;
-use crate::render::svg::{ensure_visible_int, write_bg_rect, write_svg_root_bg};
+use crate::render::svg::{ensure_visible_int, write_svg_root_bg};
 use crate::style::SkinParams;
 use crate::Result;
 

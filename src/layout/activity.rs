@@ -203,6 +203,7 @@ const NOTE_MARGIN_Y: f64 = 5.0;
 /// note body. Wider spacing is handled separately in the lane composite-width
 /// calculation via note margins, not by the placement gap itself.
 const NOTE_OFFSET: f64 = 10.0;
+#[allow(dead_code)] // reserved for future swimlane min-width enforcement
 const SWIMLANE_MIN_WIDTH: f64 = 80.0;
 const TOP_MARGIN: f64 = 11.0;
 const BOTTOM_MARGIN: f64 = 7.0;
@@ -596,7 +597,7 @@ fn compute_swimlane_layouts(swimlanes: &[String]) -> Vec<SwimlaneLayout> {
     let mut layouts = Vec::new();
     // Java: first LaneDivider starts at edge half-space (5px each side = 10px)
     let mut x = LANE_DIVIDER_HALF * 2.0; // left divider width = 10
-    for (i, name) in swimlanes.iter().enumerate() {
+    for (_i, name) in swimlanes.iter().enumerate() {
         let title_width =
             font_metrics::text_width(name, "SansSerif", SWIMLANE_HEADER_FONT_SIZE, false, false);
         // Initial lane width from header text (no min-width — Java doesn't use one)
@@ -1616,7 +1617,7 @@ pub fn layout_activity(diagram: &ActivityDiagram) -> Result<ActivityLayout> {
         let mut x = left_divider + global_margin;
         for i in 0..n_lanes {
             let needed = lane_widths[i];
-            let old_x = swimlane_layouts[i].x;
+            let _old_x = swimlane_layouts[i].x;
             swimlane_layouts[i].x = x;
             swimlane_layouts[i].width = needed;
 
@@ -2629,7 +2630,7 @@ fn layout_old_style_activity_graph(
 fn compute_bounds(
     nodes: &[ActivityNodeLayout],
     swimlane_layouts: &[SwimlaneLayout],
-    y_cursor: f64,
+    _y_cursor: f64,
 ) -> (f64, f64) {
     if nodes.is_empty() && swimlane_layouts.is_empty() {
         return (2.0 * TOP_MARGIN, 2.0 * TOP_MARGIN);

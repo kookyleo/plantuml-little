@@ -434,7 +434,7 @@ fn truncate_gradient_value(v: &str) -> String {
 /// Matches Java's DecimalFormat("0.####"): "58.9717389" → "58.9717", "0.0" → "0".
 fn format_4dp(n: f64) -> String {
     let s = format!("{:.4}", n);
-    if let Some(dot) = s.find('.') {
+    if s.find('.').is_some() {
         let trimmed = s.trim_end_matches('0');
         if trimmed.ends_with('.') {
             trimmed[..trimmed.len() - 1].to_string()
@@ -729,6 +729,7 @@ fn parse_element(s: &str) -> Option<(String, usize)> {
 }
 
 /// Convert a single SVG element to path-based output.
+#[allow(dead_code)] // reserved for sprite path conversion
 fn convert_single_element(
     buf: &mut String,
     element: &str,
@@ -925,6 +926,7 @@ fn element_tag_name(element: &str) -> &str {
 
 // ── Element converters ──────────────────────────────────────────────────────
 
+#[allow(dead_code)] // used by convert_single_element
 fn convert_rect(buf: &mut String, element: &str, ox: f64, oy: f64) {
     let x = get_attr(element, "x")
         .and_then(|v| v.parse::<f64>().ok())
@@ -1071,6 +1073,7 @@ fn convert_ellipse(buf: &mut String, element: &str, ox: f64, oy: f64) {
     buf.push_str("/>");
 }
 
+#[allow(dead_code)] // used by convert_single_element
 fn convert_line(buf: &mut String, element: &str, ox: f64, oy: f64) {
     let x1 = get_attr(element, "x1")
         .and_then(|v| v.parse::<f64>().ok())
@@ -1388,7 +1391,6 @@ fn parse_translate(transform: &str) -> (f64, f64) {
 /// Scale coordinate/size attributes in SVG content by a factor.
 /// Uses regex-based approach to reliably scale attributes within SVG elements.
 fn scale_svg_content(content: &str, scale: f64) -> String {
-    use std::fmt::Write;
     let mut result = String::with_capacity(content.len() * 2);
     let bytes = content.as_bytes();
     let mut i = 0;
@@ -1415,7 +1417,6 @@ fn scale_svg_content(content: &str, scale: f64) -> String {
 }
 
 fn scale_tag_attributes(tag: &str, scale: f64) -> String {
-    use std::fmt::Write;
     let coord_attrs = [
         "cx",
         "cy",

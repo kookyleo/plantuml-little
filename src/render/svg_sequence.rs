@@ -92,6 +92,7 @@ use crate::skin::rose::{
     TEXT_COLOR,
 };
 
+#[allow(dead_code)] // Java-ported rendering constant
 const MARGIN: f64 = 5.0;
 
 // Fragment tab geometry (from Java AWT font metrics)
@@ -654,6 +655,7 @@ fn measure_sequence_body_dim_full(body: &str) -> Option<((f64, f64), (f64, f64))
     Some((lf, sg))
 }
 
+#[allow(dead_code)] // convenience wrapper
 fn measure_sequence_body_dim(body: &str) -> Option<(f64, f64)> {
     measure_sequence_body_dim_full(body).map(|(lf, _)| lf)
 }
@@ -893,7 +895,7 @@ fn draw_lifelines_with_activations(
     layout: &SeqLayout,
     skin: &SkinParams,
     sd: &SequenceDiagram,
-    display_names: &std::collections::HashMap<&str, &str>,
+    _display_names: &std::collections::HashMap<&str, &str>,
     shadow_attr: &str,
 ) {
     let ll_color = skin.sequence_lifeline_border_color(BORDER_COLOR);
@@ -1344,7 +1346,7 @@ fn draw_participant_actor_tail(
     let legs_x = 13.0_f64;
     let legs_y = 15.0_f64;
     let stickman_width = arms_length.max(legs_x) * 2.0 + 2.0 * thickness;
-    let stickman_height = head_diam + body_length + legs_y + 2.0 * thickness + 1.0;
+    let _stickman_height = head_diam + body_length + legs_y + 2.0 * thickness + 1.0;
     let start_x = arms_length.max(legs_x) - head_diam / 2.0 + thickness;
     let center_x = start_x + head_diam / 2.0;
 
@@ -1936,7 +1938,7 @@ fn draw_participant_queue(
     // Queue margin: x1=5, x2=15, y1=5, y2=5
     let margin_x1 = 5.0_f64;
     let margin_x2 = 15.0_f64;
-    let margin_y1 = 5.0_f64;
+    let _margin_y1 = 5.0_f64;
     let w = tl + margin_x1 + margin_x2; // shape width
     let h = text_height + 10.0; // shape height (margin_y1 + margin_y2)
 
@@ -2066,7 +2068,7 @@ fn draw_message(
     from_idx: usize,
     to_idx: usize,
     msg_idx: usize,
-    source_line: Option<usize>,
+    _source_line: Option<usize>,
     word_by_word: bool,
     teoz_mode: bool,
 ) {
@@ -3494,7 +3496,7 @@ fn draw_divider(sg: &mut SvgGraphic, divider: &DividerLayout) {
         let delta_x = 6.0;
 
         // Position centered in area
-        let xpos = divider.component_y; // dummy, we compute from area
+        let _xpos = divider.component_y; // dummy, we compute from area
         let area_width = divider.width;
         let rect_x = (area_width - text_width - delta_x) / 2.0 + divider.x;
         let rect_y = divider.component_y + (divider.height - text_height) / 2.0;
@@ -3671,7 +3673,7 @@ fn build_participant_index(sd: &SequenceDiagram) -> std::collections::HashMap<St
 /// the main diagram width) and the text baseline is calculated from the
 /// font metrics.  We need to consume RNG calls so that subsequent
 /// handwritten shapes stay deterministic.
-fn draw_handwritten_banner(sg: &mut SvgGraphic, rng: &mut JavaRandom, diagram_width: f64) {
+fn draw_handwritten_banner(sg: &mut SvgGraphic, _rng: &mut JavaRandom, diagram_width: f64) {
     let banner_text = "Please use '!option handwritten true' to enable handwritten";
     let text_w = font_metrics::text_width(banner_text, "Monospaced", 10.0, false, false);
     let line_h = font_metrics::line_height("Monospaced", 10.0, false, false);

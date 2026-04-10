@@ -33,6 +33,7 @@ const HEADER_HEIGHT: f64 = 20.0;
 /// Left/top margin.
 const MARGIN: f64 = 10.0;
 /// Font size for labels.
+#[allow(dead_code)] // Java-ported layout constant
 const FONT_SIZE: f64 = 12.0;
 
 pub fn layout_packet(d: &PacketDiagram) -> Result<PacketLayout> {

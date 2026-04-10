@@ -1,5 +1,3 @@
-use std::fmt::Write;
-
 use crate::font_metrics;
 use crate::klimt::svg::{LengthAdjust, SvgGraphic};
 use crate::layout::pie::PieLayout;

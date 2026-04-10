@@ -1116,6 +1116,7 @@ fn ensure_state(states: &mut Vec<State>, id: &str, source_line: Option<usize>) {
 }
 
 /// Find a state by ID in the list (non-recursive, current level only)
+#[allow(dead_code)] // immutable counterpart of find_state_mut
 fn find_state<'a>(states: &'a [State], id: &str) -> Option<&'a State> {
     states.iter().find(|s| s.id == id)
 }

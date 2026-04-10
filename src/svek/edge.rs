@@ -949,6 +949,7 @@ impl SvekEdge {
     }
 
     /// Check if the path is simple enough for opale treatment.
+    #[allow(dead_code)] // reserved for opale path simplification
     fn is_opalisable(&self) -> bool {
         match &self.dot_path {
             Some(path) => path.beziers.len() <= 1,

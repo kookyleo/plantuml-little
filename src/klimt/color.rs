@@ -1528,7 +1528,7 @@ mod tests {
     fn lighten_hsl() {
         let c = HColor::rgb(100, 50, 25);
         let l = c.lighten_hsl(50);
-        let (r, g, b) = l.rgb_components();
+        let (r, g, _b) = l.rgb_components();
         // The lightened color should be noticeably lighter
         assert!(r > 100);
         assert!(g > 50);

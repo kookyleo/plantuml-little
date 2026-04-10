@@ -10,7 +10,7 @@ use log::debug;
 
 use crate::font_metrics;
 use crate::layout::graphviz::{self, LayoutEdge, LayoutGraph, LayoutNode, RankDir};
-use crate::model::erd::{ErdAttribute, ErdDiagram, ErdDirection, ErdIsa, ErdLink};
+use crate::model::erd::{ErdAttribute, ErdDiagram, ErdDirection, ErdLink};
 use crate::render::svg::{DOC_MARGIN_BOTTOM, DOC_MARGIN_RIGHT};
 use crate::svek::shape_type::ShapeType;
 use crate::Result;
@@ -823,7 +823,7 @@ pub fn layout_erd(diagram: &ErdDiagram) -> Result<ErdLayout> {
     } else {
         gl.render_offset.1 - 1.0
     };
-    let render_dy_label = gl.render_offset.1;
+    let _render_dy_label = gl.render_offset.1;
 
     debug!(
         "layout_erd svek: render_offset=({:.2},{:.2}), move_delta=({:.2},{:.2}), lf_span=({:.2},{:.2}), normalize_offset=({:.2},{:.2})",

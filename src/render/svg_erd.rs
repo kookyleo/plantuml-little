@@ -1,7 +1,7 @@
 use crate::klimt::svg::{fmt_coord, xml_escape, LengthAdjust, SvgGraphic};
 use crate::layout::erd::{
     ErdAttrEdge, ErdAttrLayout, ErdEdgeLayout, ErdIsaLayout, ErdLayout, ErdNodeLayout,
-    ErdNoteLayout, ErdIsaChildEdge,
+    ErdNoteLayout,
 };
 use crate::model::erd::ErdDiagram;
 use crate::render::svg::{ensure_visible_int, write_bg_rect, write_svg_root_bg};
@@ -75,6 +75,7 @@ pub fn render_erd(_ed: &ErdDiagram, layout: &ErdLayout, skin: &SkinParams) -> Re
     // Merge attr_edges and link_edges into a single list, sorted by source_order.
     // Within the same source_order, attr edges come first (they belong to the
     // entity/relationship at that order), then link edges.
+    #[allow(dead_code)] // index fields stored for debugging
     enum EdgeItem<'a> {
         Attr(usize, &'a ErdAttrEdge),
         Link(usize, &'a ErdEdgeLayout),

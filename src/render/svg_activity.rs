@@ -56,7 +56,7 @@ pub fn render_activity(
     skin: &SkinParams,
     body_offset: Option<(f64, f64)>,
 ) -> Result<(String, Option<(f64, f64)>)> {
-    use crate::model::activity::{ActivityEvent, NotePosition};
+    use crate::model::activity::ActivityEvent;
 
     // Skin color lookups
     let bg = skin.get_or("backgroundcolor", "#FFFFFF");
@@ -937,7 +937,7 @@ fn render_action(
             let name = inner.split(',').next().unwrap_or(inner).trim();
             if let Some(svg_content) = get_sprite_svg(name) {
                 let info = svg_sprite::sprite_info(&svg_content);
-                let sprite_w = info.vb_width * sprite_scale;
+                let _sprite_w = info.vb_width * sprite_scale;
                 let sprite_h = info.vb_height * sprite_scale;
                 // Position sprite at base_x, current y
                 let sprite_x = node.x + padding;
@@ -1604,6 +1604,7 @@ fn render_arrowhead(sg: &mut SvgGraphic, fx: f64, fy: f64, tx: f64, ty: f64, col
 
 // -- Swimlane rendering -------------------------------------------------------
 
+#[allow(dead_code)] // reserved for swimlane rendering
 fn render_swimlane(
     sg: &mut SvgGraphic,
     sw: &SwimlaneLayout,

@@ -128,6 +128,7 @@ fn split_text_lines(text: &str) -> Vec<String> {
 }
 
 /// Estimate the rendered size of a node based on its text.
+#[allow(dead_code)] // convenience wrapper for default padding
 fn estimate_node_size(text: &str, is_root: bool) -> (f64, f64, Vec<String>) {
     estimate_node_size_styled(text, is_root, H_PADDING, V_PADDING)
 }
@@ -222,6 +223,7 @@ impl SymetricalTee {
     fn full_thickness(&self) -> f64 {
         self.thickness1.max(self.thickness2)
     }
+    #[allow(dead_code)] // Java-ported method
     fn full_elongation(&self) -> f64 {
         self.elongation1 + self.elongation2
     }
@@ -296,6 +298,7 @@ struct Stripe {
 }
 
 impl Stripe {
+    #[allow(dead_code)] // Java-ported method
     fn contains(&self, x: f64) -> bool {
         x >= self.start && x < self.end
     }
@@ -624,6 +627,7 @@ impl Finger {
     }
 
     /// Get the full elongation (phalanx width + nail width).
+    #[allow(dead_code)] // Java-ported method
     fn full_elongation(&mut self) -> f64 {
         let tee = self.as_symetrical_tee();
         tee.full_elongation()
@@ -844,7 +848,7 @@ pub fn layout_mindmap(
             }
         }
         max_x += shift_x;
-        max_y += shift_y;
+        // max_y shifted but not needed after this point
     }
 
     // Java canvas dimensions:

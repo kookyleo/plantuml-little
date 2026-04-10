@@ -231,6 +231,7 @@ pub struct SvgGraphic {
 }
 
 #[derive(Debug, Clone)]
+#[allow(dead_code)] // variant fields stored for future group/link context
 enum GroupEntry {
     Group(String),
     Link(String),

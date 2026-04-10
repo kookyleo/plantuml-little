@@ -1,6 +1,6 @@
 use std::fmt::Write;
 
-use crate::klimt::svg::{fmt_coord, SvgGraphic};
+use crate::klimt::svg::{fmt_coord};
 use crate::layout::nwdiag::NwdiagLayout;
 use crate::model::nwdiag::NwdiagDiagram;
 use crate::render::svg::{ensure_visible_int, write_svg_root_bg};
@@ -19,7 +19,7 @@ const BOX_STROKE: &str = "#181818";
 const TEXT_COLOR: &str = "#000000";
 
 pub fn render_nwdiag(
-    diagram: &NwdiagDiagram,
+    _diagram: &NwdiagDiagram,
     layout: &NwdiagLayout,
     skin: &SkinParams,
 ) -> Result<String> {
@@ -52,7 +52,7 @@ pub fn render_nwdiag(
         // Address text (font-size=12, left-aligned).
         if let Some(addr) = &nl.address {
             let addr_w = crate::font_metrics::text_width(addr, "SansSerif", 12.0, false, false);
-            let addr_x = nl.x + crate::font_metrics::text_width(&nl.name, "SansSerif", 12.0, false, false) - addr_w;
+            let _addr_x = nl.x + crate::font_metrics::text_width(&nl.name, "SansSerif", 12.0, false, false) - addr_w;
             // Actually, the address x is right-aligned to the same right edge as the name.
             // In Java, the entire text block (name+address) is right-aligned.
             // The right edge of the block is at nl.x + name_w.
@@ -86,7 +86,7 @@ pub fn render_nwdiag(
             // Hmm, this means I need to restructure the layout output.
             // For now, let me compute addr_x directly.
             let name_w = crate::font_metrics::text_width(&nl.name, "SansSerif", 12.0, false, false);
-            let block_w = name_w.max(addr_w);
+            let _block_w = name_w.max(addr_w);
             // nl.x was computed as mx + delta_x - name_w in layout.
             // block_left = mx + delta_x - block_w.
             // addr_x = block_left + (block_w - addr_w) = mx + delta_x - addr_w.

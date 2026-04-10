@@ -25,8 +25,8 @@ use crate::klimt::svg::{svg_comment_escape, LengthAdjust, SvgGraphic};
 use crate::svek::edge::LineOfSegments;
 
 use super::svg_richtext::{
-    clear_section_title_bounds, count_creole_lines, creole_plain_text, creole_table_width,
-    get_default_font_family_pub, max_creole_plain_line_len, render_creole_display_lines,
+    clear_section_title_bounds, creole_table_width,
+    get_default_font_family_pub, render_creole_display_lines,
     render_creole_text, set_default_font_family, set_section_title_bounds, SectionTitleBounds,
 };
 use super::svg_sequence;
@@ -49,22 +49,28 @@ use super::svg_sequence;
 /// FontParam.CLASS = 12, but class name renders at 14 in SVG (EntityImageClassHeader uses 14pt).
 const FONT_SIZE: f64 = 14.0;
 /// MethodsOrFieldsArea: empty compartment margin_top(4) + margin_bottom(4) = 8.
+#[allow(dead_code)] // Java-ported rendering constant
 const LINE_HEIGHT: f64 = 8.0;
 /// EntityImageClassHeader name margin: withMargin(name, 3, 3, 0, 0) → right padding = 3.
+#[allow(dead_code)] // Java-ported rendering constant
 const PADDING: f64 = 3.0;
 /// HeaderLayout height when no stereotype: max(circleDim.h(32), nameDim.h(16.3)+10=26.3) = 32.
 const HEADER_HEIGHT: f64 = 32.0;
 /// SvekResult.java:133 — moveDelta(6 - minMax.getMinX(), 6 - minMax.getMinY()).
+#[allow(dead_code)] // Java-ported rendering constant
 const MARGIN: f64 = 6.0;
 /// SvekResult.java:135 — minMax.getDimension().delta(15, 15).
+#[allow(dead_code)] // Java-ported rendering constant
 pub(crate) const CANVAS_DELTA: f64 = 15.0;
 /// TextBlockExporter12026.java:196 — margin from plantuml.skin root.document style: right=5.
 pub(crate) const DOC_MARGIN_RIGHT: f64 = 5.0;
 /// TextBlockExporter12026.java:197 — margin from plantuml.skin root.document style: bottom=5.
 pub(crate) const DOC_MARGIN_BOTTOM: f64 = 5.0;
 /// EntityImageClassHeader.java:150 — withMargin(circledChar, left=4, right=0, top=5, bottom=5).
+#[allow(dead_code)] // Java-ported rendering constant
 const CIRCLE_LEFT_PAD: f64 = 4.0;
 /// SkinParam.circledCharacterRadius = 17/3+6 = 11. Diameter = 22.
+#[allow(dead_code)] // Java-ported rendering constant
 const CIRCLE_DIAMETER: f64 = 22.0;
 /// MethodsOrFieldsArea: empty compartment = margin_top(4) + margin_bottom(4).
 const EMPTY_COMPARTMENT: f64 = 8.0;
@@ -98,14 +104,19 @@ const HEADER_STEREO_BLOCK_MARGIN: f64 = 2.0;
 // DriverEllipseSvg: cx = x + width/2, cy = y + height/2.
 
 /// SansSerif 14pt height from Java AWT FontMetrics. Used as row height in member area.
+#[allow(dead_code)] // Java-ported rendering constant
 const MEMBER_ROW_HEIGHT: f64 = 16.296875;
 /// margin_top(4) + MEMBER_ROW_HEIGHT + margin_bottom(4).
+#[allow(dead_code)] // Java-ported rendering constant
 const MEMBER_BLOCK_HEIGHT_ONE_ROW: f64 = 24.296875;
 /// Icon y from section separator: margin_top(4) + nudge(2) + (16.296875 - 11) / 2 = 8.6484375.
+#[allow(dead_code)] // Java-ported rendering constant
 const MEMBER_ICON_Y_FROM_SEP: f64 = 8.6484375;
 /// VisibilityModifier.drawCircle: UTranslate offset (+2, +2).
+#[allow(dead_code)] // Java-ported rendering constant
 const MEMBER_ICON_DRAW_OFFSET: f64 = 2.0;
 /// UEllipse(6, 6): rx = ry = 3.
+#[allow(dead_code)] // Java-ported rendering constant
 const MEMBER_ICON_RADIUS: f64 = 3.0;
 /// MethodsOrFieldsArea margin left = 6.
 const MEMBER_ICON_X_OFFSET: f64 = 6.0;
@@ -114,6 +125,7 @@ const MEMBER_TEXT_X_WITH_ICON: f64 = 20.0;
 /// margin_left(6) when no visibility icon column.
 const MEMBER_TEXT_X_NO_ICON: f64 = 6.0;
 /// margin_top(4) + SansSerif 14pt ascent(12.995117) = 16.995117.
+#[allow(dead_code)] // Java-ported rendering constant
 const MEMBER_TEXT_Y_OFFSET: f64 = 16.995117;
 
 /// Entity-level visibility icon block size (SkinParam.circledCharacterRadius = 11).
@@ -195,6 +207,7 @@ struct KalPlacement {
 pub(crate) use crate::klimt::svg::fmt_coord;
 
 /// Write a Java PlantUML-compatible SVG root element and open a `<g>` wrapper.
+#[allow(dead_code)] // convenience wrapper for write_svg_root_bg
 pub(crate) fn write_svg_root(buf: &mut String, w: f64, h: f64, diagram_type: &str) {
     write_svg_root_bg(buf, w, h, diagram_type, "#FFFFFF");
 }
@@ -1104,6 +1117,7 @@ impl BoundsTracker {
 
     /// Span: max - min in each dimension. Used with CANVAS_DELTA + DOC_MARGIN
     /// to compute final SVG dimensions matching Java's ensureVisible.
+    #[allow(dead_code)] // Java-ported BoundsTracker method
     pub fn span(&self) -> (f64, f64) {
         if self.max_x.is_finite() && self.min_x.is_finite() {
             (self.max_x - self.min_x, self.max_y - self.min_y)
@@ -1112,6 +1126,7 @@ impl BoundsTracker {
         }
     }
 
+    #[allow(dead_code)] // Java-ported BoundsTracker method
     pub fn min_point(&self) -> (f64, f64) {
         if self.max_x.is_finite() && self.min_x.is_finite() {
             (self.min_x, self.min_y)
@@ -3453,6 +3468,7 @@ const GLYPH_A_RAW: &[(char, &[(f64, f64)])] = &[
 /// Emit a stereotype circle glyph path element.
 /// `circle_cx` and `circle_cy` are the absolute SVG coordinates of the circle center.
 /// If `spot_char` is Some, use that character's glyph instead of the entity-kind default.
+#[allow(dead_code)] // reserved for circle glyph rendering
 fn emit_circle_glyph(
     sg: &mut SvgGraphic,
     tracker: &mut BoundsTracker,
@@ -3548,6 +3564,7 @@ fn emit_circle_glyph_with_char(
 /// Offset all coordinates in a glyph path string by (dx, dy).
 /// The path uses M, Q, L, Z commands with absolute coordinates.
 /// Format: "Mx,y Qx,y x,y Lx,y Z"
+#[allow(dead_code)] // reserved for glyph rendering
 fn offset_glyph_path_xy(path: &str, dx: f64, dy: f64) -> String {
     if dx == 0.0 && dy == 0.0 {
         return path.to_string();
@@ -4799,8 +4816,6 @@ fn draw_visibility_icon(
             // VisibilityModifier.drawCircle: translate(x+2,y+2), UEllipse(6,6)
             let ecx = x + 2.0 + 3.0;
             let ecy = y + 2.0 + 3.0;
-            let cx = fmt_coord(ecx);
-            let cy = fmt_coord(ecy);
             let fill = if is_method { "#84BE84" } else { "none" };
             sg.set_fill_color(fill);
             sg.set_stroke_color(Some("#038048"));
@@ -4812,8 +4827,6 @@ fn draw_visibility_icon(
             // VisibilityModifier.drawSquare: translate(x+2,y+2), URectangle(6,6)
             let rect_x = x + 2.0;
             let rect_y = y + 2.0;
-            let rx = fmt_coord(rect_x);
-            let ry = fmt_coord(rect_y);
             let fill = if is_method { "#F24D5C" } else { "none" };
             sg.set_fill_color(fill);
             sg.set_stroke_color(Some("#C82930"));
@@ -4968,6 +4981,7 @@ fn stereotype_label_visible(rules: &[ClassHideShowRule], label: &str) -> bool {
     result
 }
 
+#[allow(dead_code)] // reserved for class member formatting
 fn format_member(m: &Member) -> String {
     let vis = match &m.visibility {
         Some(Visibility::Public) => "+ ",

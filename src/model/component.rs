@@ -152,7 +152,7 @@ impl From<&super::usecase::UseCaseDiagram> for ComponentDiagram {
             .links
             .iter()
             .enumerate()
-            .map(|(i, link)| {
+            .map(|(_i, link)| {
                 let dashed = link.style != super::usecase::UseCaseLinkStyle::Association;
                 ComponentLink {
                     from: link.from.clone(),

@@ -11,6 +11,7 @@ use crate::render::svg_richtext::render_creole_text;
 use crate::style::SkinParams;
 use crate::Result;
 
+#[allow(dead_code)] // Java-ported rendering constant
 const DEFAULT_FONT_SIZE: f64 = 12.0;
 const DEFAULT_BAR_FILL: &str = "#A4C2F4";
 const DEFAULT_BAR_STROKE: &str = "#3D85C6";

@@ -240,7 +240,7 @@ pub fn parse_sequence_diagram_with_original(
         }
 
         // Parse spacing: || N || (must check before delay_re since ||| overlaps)
-        if let Some(caps) = spacing_re.captures(trimmed) {
+        if let Some(_caps) = spacing_re.captures(trimmed) {
             return Err(crate::Error::JavaErrorPage {
                 line: source_line + 1,
                 message: "Syntax Error? (Assumed diagram type: sequence)".into(),
@@ -1246,11 +1246,11 @@ fn parse_arrow(left: &str, arrow: &str, right: &str, text: &str) -> Option<Messa
     // Check for arrow heads / half-arrows on left and right
     let has_left_arrow =
         stripped.starts_with('<') || stripped.starts_with('/') || stripped.starts_with('\\');
-    let has_open_left =
+    let _has_open_left =
         stripped.starts_with("<<") || stripped.starts_with("//") || stripped.starts_with("\\\\");
     let has_right_arrow =
         stripped.ends_with('>') || stripped.ends_with('/') || stripped.ends_with('\\');
-    let has_open_right =
+    let _has_open_right =
         stripped.ends_with(">>") || stripped.ends_with("//") || stripped.ends_with("\\\\");
 
     // Must have at least one arrowhead, half-arrow, or boundary marker
@@ -1429,6 +1429,7 @@ fn extract_note_color(s: &str) -> (&str, Option<String>) {
 }
 
 /// Skip optional note background color specifier (backward compat wrapper).
+#[allow(dead_code)] // backward compat helper
 fn skip_note_color(s: &str) -> &str {
     extract_note_color(s).0
 }

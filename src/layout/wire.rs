@@ -73,7 +73,7 @@ pub fn layout_wire(d: &WireDiagram) -> Result<WireLayout> {
         if let Some(prev_idx) = added_to_cursor {
             cursor_y += blocks[prev_idx].height;
         }
-        added_to_cursor = None;
+        let _ = added_to_cursor;
 
         let block_y = cursor_y;
 
@@ -134,7 +134,7 @@ pub fn layout_wire(d: &WireDiagram) -> Result<WireLayout> {
     let mut max_y: f64 = 0.0;
 
     let ascent = font_metrics::ascent("SansSerif", FONT_SIZE, false, false);
-    let line_h = font_metrics::line_height("SansSerif", FONT_SIZE, false, false);
+    let _line_h = font_metrics::line_height("SansSerif", FONT_SIZE, false, false);
 
     for bl in &blocks {
         // Rect at (bl.x, bl.y): LimitFinder addPoint(x+w-1, y+h-1)

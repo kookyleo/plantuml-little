@@ -1,8 +1,7 @@
 use std::collections::HashMap;
-use std::fmt::Write;
 
 use crate::font_metrics;
-use crate::klimt::svg::{fmt_coord, xml_escape, LengthAdjust, SvgGraphic};
+use crate::klimt::svg::{fmt_coord, LengthAdjust, SvgGraphic};
 use crate::layout::wbs::{WbsEdgeLayout, WbsLayout, WbsNodeLayout, WbsNoteLayout};
 use crate::model::wbs::WbsDiagram;
 use crate::render::svg::{ensure_visible_int, write_bg_rect, write_svg_root_bg};
@@ -395,7 +394,7 @@ fn render_extra_link(sg: &mut SvgGraphic, link: &WbsEdgeLayout, color: &str) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::layout::wbs::{WbsEdgeLayout, WbsLayout, WbsNodeLayout, WbsNoteLayout};
+    use crate::layout::wbs::{WbsEdgeLayout, WbsLayout, WbsNodeLayout};
     use crate::model::wbs::{WbsDiagram, WbsDirection, WbsNode};
     use crate::style::SkinParams;
 

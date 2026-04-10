@@ -112,7 +112,9 @@ pub struct StateNoteLayout {
 // Constants
 // ---------------------------------------------------------------------------
 
+#[allow(dead_code)] // Java-ported layout constant
 const CHAR_WIDTH: f64 = 7.2;
+#[allow(dead_code)] // Java-ported layout constant
 const LINE_HEIGHT: f64 = 16.0;
 const PADDING: f64 = 10.0;
 /// Java: state name uses FontParam.STATE = SansSerif 14pt.
@@ -2669,7 +2671,7 @@ pub fn layout_state(diagram: &StateDiagram) -> Result<StateLayout> {
     // Convert graphviz EdgeLayout to TransitionLayout.
     // The svek pipeline returns edges with raw SVG path data and arrow polygons.
     // Build a mapping from special point IDs back to composite state IDs.
-    let sp_to_composite: HashMap<String, String> = composite_special_points
+    let _sp_to_composite: HashMap<String, String> = composite_special_points
         .iter()
         .map(|(composite_id, sp_id)| (sp_id.clone(), composite_id.clone()))
         .collect();
@@ -3066,6 +3068,7 @@ pub fn layout_state(diagram: &StateDiagram) -> Result<StateLayout> {
 /// Apply a coordinate transform based on the diagram direction.
 /// The layout algorithm always computes in top-to-bottom orientation;
 /// for other directions we transform after the fact.
+#[allow(dead_code)] // reserved for multi-direction state layout
 fn apply_direction_transform(
     layout: &mut StateLayout,
     direction: &crate::model::diagram::Direction,
@@ -3125,6 +3128,7 @@ fn apply_direction_transform(
 }
 
 /// Recursively swap x <-> y for state nodes and their children.
+#[allow(dead_code)] // used by apply_direction_transform
 fn transform_state_nodes_swap_xy(nodes: &mut [StateNodeLayout]) {
     for node in nodes.iter_mut() {
         std::mem::swap(&mut node.x, &mut node.y);
@@ -3134,6 +3138,7 @@ fn transform_state_nodes_swap_xy(nodes: &mut [StateNodeLayout]) {
 }
 
 /// Recursively mirror state nodes horizontally.
+#[allow(dead_code)] // used by apply_direction_transform
 fn transform_state_nodes_mirror_x(nodes: &mut [StateNodeLayout], total_width: f64) {
     for node in nodes.iter_mut() {
         node.x = total_width - node.x - node.width;
@@ -3142,6 +3147,7 @@ fn transform_state_nodes_mirror_x(nodes: &mut [StateNodeLayout], total_width: f6
 }
 
 /// Recursively mirror state nodes vertically.
+#[allow(dead_code)] // used by apply_direction_transform
 fn transform_state_nodes_mirror_y(nodes: &mut [StateNodeLayout], total_height: f64) {
     for node in nodes.iter_mut() {
         node.y = total_height - node.y - node.height;

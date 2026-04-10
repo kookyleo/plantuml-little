@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use log::debug;
 
 use crate::font_metrics;
-use crate::model::nwdiag::{NwdiagDiagram, ServerRef};
+use crate::model::nwdiag::NwdiagDiagram;
 use crate::Result;
 
 // ---------------------------------------------------------------------------
@@ -434,7 +434,7 @@ pub fn layout_nwdiag(diagram: &NwdiagDiagram) -> Result<NwdiagLayout> {
     let mut y_acc = 0.0;
     for (i, net) in diagram.networks.iter().enumerate() {
         let name_w = tw(&net.name, FONT_SIZE_12);
-        let addr_w = net
+        let _addr_w = net
             .address
             .as_ref()
             .map(|a| tw(a, FONT_SIZE_12))

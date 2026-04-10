@@ -24,7 +24,9 @@ const LINE_HEIGHT: f64 = 16.0;
 /// 8 spaces at 12pt SansSerif: 8 × (651/2048 × 12) = 30.515625
 const TAB_WIDTH: f64 = 30.515625;
 use crate::skin::rose::{BORDER_COLOR, ENTITY_BG, INITIAL_FILL, NOTE_BG, NOTE_BORDER, TEXT_COLOR};
+#[allow(dead_code)] // Java-ported rendering constant
 const FINAL_OUTER: &str = "#000000";
+#[allow(dead_code)] // Java-ported rendering constant
 const FINAL_INNER: &str = "#000000";
 /// Java ExtremityArrow.getDecorationLength() = 6.
 const ARROW_DECORATION_LEN: f64 = 6.0;
@@ -43,6 +45,7 @@ struct JavaStateRenderPlan {
     top_level_order: Vec<String>,
 }
 
+#[allow(dead_code)] // reserved for special state kind detection
 fn is_special_render_kind(kind: &StateKind) -> bool {
     matches!(
         kind,
@@ -1152,7 +1155,7 @@ fn render_composite(
                 }
             }
             let region_slice = &node.children[*rstart..*rend];
-            let mut render_child_with_parent = |child: &StateNodeLayout,
+            let render_child_with_parent = |child: &StateNodeLayout,
                                                 parent: &str,
                                                 sg: &mut SvgGraphic,
                                                 tracker: &mut BoundsTracker| {
@@ -1488,7 +1491,7 @@ fn adjust_path_endpoint(d: &str, decoration_len: f64) -> String {
     let (_, _, x_end, y_end) = coord_positions[n - 1];
     let (_, _, x_ctrl2, _y_ctrl2) = coord_positions[n - 2];
     // Use the first control point to endpoint direction for angle computation
-    let (_, _, x_prev, y_prev) = coord_positions[n - 3];
+    let (_, _, x_prev, _y_prev) = coord_positions[n - 3];
     _ = x_ctrl2; // the 2nd control point, not used for direction
     _ = x_prev;
 
