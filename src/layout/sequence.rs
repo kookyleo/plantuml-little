@@ -572,6 +572,28 @@ fn estimate_note_width(text: &str) -> f64 {
             let text_part = &trimmed[2..];
             let w = font_metrics::text_width(text_part, "SansSerif", NOTE_FONT_SIZE, false, false);
             max_line_w = max_line_w.max(w + 12.0); // bullet icon + gap
+        } else if line.contains("<&") {
+            // OpenIconic icon line: measure icon width + text segments.
+            // Java AtomOpenIcon: factor = scale * fontSize / 12.0
+            // TextBlockUtils.withMargin(block, 1, 0) adds 1+1 margin.
+            let raw = line.trim_end_matches('\r');
+            let parsed = crate::parser::creole::parse_inline(raw);
+            let w = crate::render::svg_richtext::measure_line_width_with_icons(
+                &parsed,
+                "SansSerif",
+                NOTE_FONT_SIZE,
+            );
+            max_line_w = max_line_w.max(w);
+        } else if line.contains("<img") {
+            // Inline image line: measure image width
+            let raw = line.trim_end_matches('\r');
+            let parsed = crate::parser::creole::parse_inline(raw);
+            let w = crate::render::svg_richtext::measure_line_width_with_icons(
+                &parsed,
+                "SansSerif",
+                NOTE_FONT_SIZE,
+            );
+            max_line_w = max_line_w.max(w);
         } else if line.contains("<$") {
             // Sprite-bearing line: Java BodyEnhanced2 sums atom widths
             // (sprite atoms + text atoms) without trimming whitespace, so
@@ -673,6 +695,15 @@ fn sprite_height_threshold() -> f64 {
 }
 
 fn message_line_width(line: &str, font_family: &str, font_size: f64) -> f64 {
+    // Lines with OpenIconic icons or images: use parsed measurement
+    if line.contains("<&") || line.contains("<img") {
+        let parsed = crate::parser::creole::parse_inline(line);
+        return crate::render::svg_richtext::measure_line_width_with_icons(
+            &parsed,
+            font_family,
+            font_size,
+        );
+    }
     if !line.contains("<$") {
         // Compute width respecting font-family changes in creole markup
         return crate::render::svg_richtext::creole_text_width(

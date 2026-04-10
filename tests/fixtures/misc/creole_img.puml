@@ -1,0 +1,6 @@
+@startuml
+Alice -> Bob : hello
+note right
+  <img:https://plantuml.com/logo3.png>
+end note
+@enduml

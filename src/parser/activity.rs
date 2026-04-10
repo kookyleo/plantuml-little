@@ -462,12 +462,12 @@ pub fn parse_activity_diagram(source: &str) -> Result<ActivityDiagram> {
             continue;
         }
 
-        // --- repeat while (condition) is (label) ---
+        // --- repeat while (condition) is (label) not (label) ---
         if lower.starts_with("repeat while") {
             let rest = trimmed[12..].trim();
             let condition = extract_parenthesized(rest).unwrap_or_default();
-            // Parse optional "is (label)" after the condition
-            let is_text = {
+            // Parse optional "is (label)" and "not (label)" after the condition
+            let (is_text, not_text) = {
                 let after_cond = rest
                     .strip_prefix('(')
                     .and_then(|s| {
@@ -488,16 +488,56 @@ pub fn parse_activity_diagram(source: &str) -> Result<ActivityDiagram> {
                     })
                     .unwrap_or("");
                 let after_trim = after_cond.trim();
-                if after_trim.to_lowercase().starts_with("is ") {
+                let lower_after = after_trim.to_lowercase();
+                if lower_after.starts_with("is ") {
                     let is_rest = after_trim[3..].trim();
-                    let label = extract_parenthesized(is_rest);
-                    label.filter(|s| !s.is_empty())
+                    let is_label = extract_parenthesized(is_rest);
+                    // Look for "not (label)" after the is clause
+                    let not_label = is_rest
+                        .strip_prefix('(')
+                        .and_then(|s| {
+                            let mut depth = 1;
+                            for (i, ch) in s.char_indices() {
+                                match ch {
+                                    '(' => depth += 1,
+                                    ')' => {
+                                        depth -= 1;
+                                        if depth == 0 {
+                                            return Some(&s[i + 1..]);
+                                        }
+                                    }
+                                    _ => {}
+                                }
+                            }
+                            None
+                        })
+                        .and_then(|after_is_paren| {
+                            let t = after_is_paren.trim();
+                            if t.to_lowercase().starts_with("not ") {
+                                let not_rest = t[4..].trim();
+                                extract_parenthesized(not_rest).filter(|s| !s.is_empty())
+                            } else {
+                                None
+                            }
+                        });
+                    (is_label.filter(|s| !s.is_empty()), not_label)
+                } else if lower_after.starts_with("not ") {
+                    let not_rest = after_trim[4..].trim();
+                    let not_label =
+                        extract_parenthesized(not_rest).filter(|s| !s.is_empty());
+                    (None, not_label)
                 } else {
-                    None
+                    (None, None)
                 }
             };
-            debug!("line {line_num}: repeat while ({condition}) is={is_text:?}");
-            events.push(ActivityEvent::RepeatWhile { condition, is_text });
+            debug!(
+                "line {line_num}: repeat while ({condition}) is={is_text:?} not={not_text:?}"
+            );
+            events.push(ActivityEvent::RepeatWhile {
+                condition,
+                is_text,
+                not_text,
+            });
             continue;
         }
 
@@ -522,6 +562,43 @@ pub fn parse_activity_diagram(source: &str) -> Result<ActivityDiagram> {
         if lower == "detach" {
             debug!("line {line_num}: detach");
             events.push(ActivityEvent::Detach);
+            continue;
+        }
+
+        // --- label NAME ---
+        if lower.starts_with("label ") {
+            let name = trimmed[6..].trim().trim_end_matches(';').trim().to_string();
+            if !name.is_empty() {
+                debug!("line {line_num}: label {name}");
+                events.push(ActivityEvent::Label { name });
+                continue;
+            }
+        }
+
+        // --- goto NAME ---
+        if lower.starts_with("goto ") {
+            let name = trimmed[5..].trim().trim_end_matches(';').trim().to_string();
+            if !name.is_empty() {
+                debug!("line {line_num}: goto {name}");
+                events.push(ActivityEvent::Goto { name });
+                continue;
+            }
+        }
+
+        // --- backward:text; ---
+        if lower.starts_with("backward:") || lower.starts_with("backward :") {
+            let colon_pos = trimmed.find(':').unwrap();
+            let rest = &trimmed[colon_pos + 1..];
+            let text = rest.trim_end_matches(';').trim().to_string();
+            debug!("line {line_num}: backward: {text}");
+            events.push(ActivityEvent::Backward { text });
+            continue;
+        }
+
+        // --- break ---
+        if lower == "break" || lower == "break;" {
+            debug!("line {line_num}: break");
+            events.push(ActivityEvent::Break);
             continue;
         }
 
@@ -1377,7 +1454,7 @@ mod tests {
         assert!(matches!(&diagram.events[0], ActivityEvent::Repeat));
         assert!(matches!(
             &diagram.events[2],
-            ActivityEvent::RepeatWhile { condition, is_text: _ } if condition == "again?"
+            ActivityEvent::RepeatWhile { condition, is_text: _, .. } if condition == "again?"
         ));
     }
 
@@ -1387,7 +1464,7 @@ mod tests {
         let diagram = parse_activity_diagram(src).unwrap();
         assert!(matches!(
             &diagram.events[2],
-            ActivityEvent::RepeatWhile { condition, is_text: Some(label) }
+            ActivityEvent::RepeatWhile { condition, is_text: Some(label), .. }
             if condition == "more?" && label == "yes"
         ));
     }

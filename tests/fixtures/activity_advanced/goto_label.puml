@@ -1,0 +1,13 @@
+@startuml
+start
+:Step 1;
+label lab1
+:Step 2;
+if (condition?) then (yes)
+  :Step 3;
+  goto lab1
+else (no)
+  :Step 4;
+endif
+stop
+@enduml

@@ -8,6 +8,7 @@ pub mod font_metrics;
 pub mod klimt;
 pub mod layout;
 pub mod model;
+pub mod openiconic;
 pub mod parser;
 pub mod preproc;
 pub mod render;

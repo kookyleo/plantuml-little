@@ -71,9 +71,11 @@ pub enum ActivityNodeKindLayout {
     /// `repeat while (cond) is (label)` — the test condition lives inside
     /// the hexagon (in `node.text`) and the optional `is` label is rendered
     /// to the right of the shape (East label).  Each entry in `east_lines`
-    /// is rendered as a separate line of text.
+    /// is rendered as a separate line of text.  The optional `not` label
+    /// is rendered below the shape (South label).
     Hexagon {
         east_lines: Vec<String>,
+        south_lines: Vec<String>,
     },
     ForkBar,
     SyncBar,
@@ -108,6 +110,16 @@ pub enum ActivityEdgeKindLayout {
     /// mid-segment UP arrow drawn over the vertical stretch.  `up_arrow_y`
     /// gives the polygon origin (tip) Y coordinate.
     LoopBackSimple2 { up_arrow_y: f64 },
+    /// `FtileRepeat.ConnectionBackBackward1`: hex east → backward bottom.
+    /// 3-point snake (right, then up) with UP arrow at end.
+    LoopBackBackward1,
+    /// `FtileRepeat.ConnectionBackBackward2`: backward top → diamond1 right.
+    /// 3-point snake (up, then left) with LEFT arrow at end.
+    LoopBackBackward2,
+    /// Goto loop-back edge: from a node to a label position (up+left).
+    GotoLoopBack,
+    /// Break edge: from a break point to the repeat exit diamond.
+    BreakEdge,
 }
 
 /// A directed edge between two nodes.
@@ -677,12 +689,11 @@ pub fn layout_activity(diagram: &ActivityDiagram) -> Result<ActivityLayout> {
     // lead `repeat`/`repeat while` blocks, skip that extra 1px so their
     // top vertex lands at svg y=10.  We emulate this by dropping the top
     // margin by 1 whenever the first flow node is a diamond/hex.
-    let first_is_diamond_like = diagram.events.iter().any(|e| {
-        matches!(
-            e,
-            ActivityEvent::Repeat | ActivityEvent::If { .. } | ActivityEvent::While { .. }
-        )
-    }) && diagram
+    // Determine the first visual flow element to set the correct top margin.
+    // Java ImageBuilder.calculateMargin = 10 for all diagrams.
+    // FtileBox (Action) adds an internal 1px top padding → first rect at y=11.
+    // FtileDiamond/FtileCircleStart have no extra padding → first shape at y=10.
+    let first_flow_event = diagram
         .events
         .iter()
         .find(|e| {
@@ -694,19 +705,15 @@ pub fn layout_activity(diagram: &ActivityDiagram) -> Result<ActivityLayout> {
                     | ActivityEvent::While { .. }
                     | ActivityEvent::Repeat
             )
-        })
-        .is_some_and(|e| {
-            matches!(
-                e,
-                ActivityEvent::Repeat | ActivityEvent::If { .. } | ActivityEvent::While { .. }
-            )
         });
+    let first_is_action = first_flow_event
+        .is_some_and(|e| matches!(e, ActivityEvent::Action { .. }));
 
     let mut y_cursor = if swimlane_layouts.is_empty() {
-        if first_is_diamond_like {
-            TOP_MARGIN - 1.0
+        if first_is_action {
+            TOP_MARGIN // 11 = 10 + 1px FtileBox padding
         } else {
-            TOP_MARGIN
+            TOP_MARGIN - 1.0 // 10 = pure ImageBuilder margin
         }
     } else {
         swimlane_header_height
@@ -734,15 +741,44 @@ pub fn layout_activity(diagram: &ActivityDiagram) -> Result<ActivityLayout> {
     // arrow polygon; we compensate by bumping the gap before the second
     // interior node by `REPEAT_INNER_ARROW_GAP_EXTRA` when the loop-back is
     // active.
+    struct BreakSource {
+        from_node_idx: Option<usize>,
+        from_y: f64,
+    }
+    struct GotoSource {
+        label_name: String,
+        from_node_idx: Option<usize>,
+        from_y: f64,
+    }
     struct RepeatFrame {
         diamond1_idx: usize,
         first_inner_idx: Option<usize>,
         second_inner_needs_extra: bool,
+        backward_text: Option<String>,
+        backward_width: f64,
+        backward_height: f64,
+        break_sources: Vec<BreakSource>,
+        /// Event index of the Repeat event (for backward height lookup).
+        repeat_event_idx: usize,
     }
     let mut repeat_stack: Vec<RepeatFrame> = Vec::new();
     // Deferred loop-back edges: filled when we hit `RepeatWhile` and then
     // appended after `build_edges` so the normal edges list stays linear.
     let mut repeat_loopbacks: Vec<(usize, usize)> = Vec::new();
+    // Backward loop-backs: (hex_idx, diamond1_idx, backward_action_idx)
+    let mut repeat_loopbacks_with_backward: Vec<(usize, usize, usize)> = Vec::new();
+    // Deferred backward nodes: created after centering pass so x is correct.
+    struct DeferredBackward {
+        hex_idx: usize,
+        diamond1_idx: usize,
+        text: String,
+        width: f64,
+        height: f64,
+    }
+    let mut deferred_backward: Vec<DeferredBackward> = Vec::new();
+    // Label positions and goto sources for goto/label feature.
+    let mut label_positions: HashMap<String, f64> = HashMap::new();
+    let mut goto_sources: Vec<GotoSource> = Vec::new();
     // --- Old-style sync bar deferred placement ---
     // Pre-scan: find the LAST event index that references each sync bar name
     // (either SyncBar or GotoSyncBar). The bar is placed when we reach that event.
@@ -784,6 +820,31 @@ pub fn layout_activity(diagram: &ActivityDiagram) -> Result<ActivityLayout> {
         None
     };
 
+    // Pre-scan: find backward heights for repeat blocks.
+    // This maps the event index of a Repeat event to the backward box height
+    // (if the block contains a backward event).
+    let mut repeat_backward_heights: HashMap<usize, f64> = HashMap::new();
+    {
+        let mut repeat_starts: Vec<usize> = Vec::new();
+        for (ev_idx, ev) in diagram.events.iter().enumerate() {
+            match ev {
+                ActivityEvent::Repeat => {
+                    repeat_starts.push(ev_idx);
+                }
+                ActivityEvent::Backward { text } => {
+                    if let Some(&start_idx) = repeat_starts.last() {
+                        let (_, bh) = estimate_text_size(text);
+                        repeat_backward_heights.insert(start_idx, bh);
+                    }
+                }
+                ActivityEvent::RepeatWhile { .. } => {
+                    repeat_starts.pop();
+                }
+                _ => {}
+            }
+        }
+    }
+
     // Deferred sync bar info: name → (pending, max_y_of_incoming_branches)
     let mut deferred_sync_bars: std::collections::HashMap<String, f64> =
         std::collections::HashMap::new();
@@ -791,7 +852,7 @@ pub fn layout_activity(diagram: &ActivityDiagram) -> Result<ActivityLayout> {
     let mut placed_sync_bars: std::collections::HashMap<String, f64> =
         std::collections::HashMap::new();
 
-    for event in &diagram.events {
+    for (event_idx, event) in diagram.events.iter().enumerate() {
         match event {
             // ---- Start circle ------------------------------------------------
             ActivityEvent::Start => {
@@ -853,9 +914,22 @@ pub fn layout_activity(diagram: &ActivityDiagram) -> Result<ActivityLayout> {
                 // second interior actions is widened so that the loop-back
                 // arrow's UP polygon (drawn along the right stretch) has room
                 // to sit in the free slot without overlapping the tiles.
+                // When a backward box is registered, the gap must accommodate
+                // the backward box height instead.
                 if let Some(frame) = repeat_stack.last_mut() {
                     if frame.second_inner_needs_extra {
-                        y_cursor += REPEAT_INNER_ARROW_GAP_EXTRA;
+                        if let Some(&bh) =
+                            repeat_backward_heights.get(&frame.repeat_event_idx)
+                        {
+                            // When a backward box exists, the gap between the
+                            // first two interior actions must fit the backward
+                            // box height.  Java's Y-compression rounds up to
+                            // the next integer, giving ceil(bh) + 1 total gap.
+                            let extra = (bh.ceil() + 1.0 - node_gap).max(0.0);
+                            y_cursor += extra;
+                        } else {
+                            y_cursor += REPEAT_INNER_ARROW_GAP_EXTRA;
+                        }
                         frame.second_inner_needs_extra = false;
                     }
                 }
@@ -1068,13 +1142,18 @@ pub fn layout_activity(diagram: &ActivityDiagram) -> Result<ActivityLayout> {
                     diamond1_idx: node_index,
                     first_inner_idx: None,
                     second_inner_needs_extra: false,
+                    backward_text: None,
+                    backward_width: 0.0,
+                    backward_height: 0.0,
+                    break_sources: Vec::new(),
+                    repeat_event_idx: event_idx,
                 });
                 last_flow_node_idx = Some(node_index);
                 node_index += 1;
                 y_cursor += h + node_gap;
             }
 
-            ActivityEvent::RepeatWhile { condition, is_text } => {
+            ActivityEvent::RepeatWhile { condition, is_text, not_text, .. } => {
                 // Java `FtileDiamondInside`: hexagonal shape sized
                 // (label_w + 24) × max(label_h, 24) where the test condition
                 // sits inside.  An optional `is (label)` becomes the East
@@ -1103,6 +1182,10 @@ pub fn layout_activity(diagram: &ActivityDiagram) -> Result<ActivityLayout> {
                 };
 
                 let east_lines: Vec<String> = match is_text {
+                    Some(label) => split_label_lines(label),
+                    None => Vec::new(),
+                };
+                let south_lines: Vec<String> = match not_text {
                     Some(label) => split_label_lines(label),
                     None => Vec::new(),
                 };
@@ -1141,9 +1224,27 @@ pub fn layout_activity(diagram: &ActivityDiagram) -> Result<ActivityLayout> {
                 log::debug!(
                     "  node[{node_index}] RepeatWhile hexagon @ ({x:.1}, {y:.1}) {hex_w}x{hex_h} east_lines={east_lines:?}"
                 );
+                // Compute south label height before moving south_lines.
+                // Java: the south label is drawn at hex bottom and occupies
+                // ~ascent + partial descent worth of vertical space.
+                // The exact amount comes from Java's Y-compression pass
+                // which squeezes the 96px padding down to the used space.
+                let south_label_extra = if !south_lines.is_empty() {
+                    let ascent = font_metrics::ascent(
+                        "SansSerif",
+                        HEXAGON_LABEL_FONT_SIZE,
+                        false,
+                        false,
+                    );
+                    // Java Y-compression gives south text extra ≈ ascent * 1.147
+                    // per line, matching the observed reference output.
+                    (ascent * 1.1469) * south_lines.len() as f64
+                } else {
+                    0.0
+                };
                 nodes.push(ActivityNodeLayout {
                     index: node_index,
-                    kind: ActivityNodeKindLayout::Hexagon { east_lines },
+                    kind: ActivityNodeKindLayout::Hexagon { east_lines, south_lines },
                     x,
                     y,
                     width: hex_w,
@@ -1153,16 +1254,32 @@ pub fn layout_activity(diagram: &ActivityDiagram) -> Result<ActivityLayout> {
                 let hex_idx = node_index;
                 last_flow_node_idx = Some(hex_idx);
                 node_index += 1;
-                y_cursor += hex_h + node_gap;
+                y_cursor += hex_h + south_label_extra + node_gap;
 
                 // Close the repeat frame and schedule the loop-back edge.
                 if let Some(frame) = repeat_stack.pop() {
-                    log::debug!(
-                        "  closing repeat frame: diamond1={}, hex={}",
-                        frame.diamond1_idx,
-                        hex_idx
-                    );
-                    repeat_loopbacks.push((hex_idx, frame.diamond1_idx));
+                    if frame.backward_text.is_some() {
+                        // Defer backward node creation until after centering.
+                        deferred_backward.push(DeferredBackward {
+                            hex_idx,
+                            diamond1_idx: frame.diamond1_idx,
+                            text: frame.backward_text.unwrap(),
+                            width: frame.backward_width,
+                            height: frame.backward_height,
+                        });
+                        log::debug!(
+                            "  closing repeat frame with backward (deferred): diamond1={}, hex={}",
+                            frame.diamond1_idx,
+                            hex_idx
+                        );
+                    } else {
+                        log::debug!(
+                            "  closing repeat frame: diamond1={}, hex={}",
+                            frame.diamond1_idx,
+                            hex_idx
+                        );
+                        repeat_loopbacks.push((hex_idx, frame.diamond1_idx));
+                    }
                 }
             }
 
@@ -1448,6 +1565,53 @@ pub fn layout_activity(diagram: &ActivityDiagram) -> Result<ActivityLayout> {
                     log::debug!("  ResumeFromSyncBar({name}) — bar not yet placed, keeping y_cursor at {y_cursor:.1}");
                 }
             }
+
+            // ---- Label: no visual element, records y_cursor position --------
+            ActivityEvent::Label { name } => {
+                label_positions.insert(name.clone(), y_cursor);
+                log::debug!("  label '{name}' recorded at y={y_cursor:.1}");
+            }
+
+            // ---- Goto: no visual element, terminates current branch ---------
+            ActivityEvent::Goto { name } => {
+                log::debug!("  goto '{name}' — flow terminates (loop-back edge deferred)");
+                goto_sources.push(GotoSource {
+                    label_name: name.clone(),
+                    from_node_idx: last_flow_node_idx,
+                    from_y: y_cursor,
+                });
+                // Goto kills the current branch flow (like FtileGoto which
+                // has no pointOut).  Subsequent events until endif/else will
+                // not be connected by normal edges.
+            }
+
+            // ---- Backward: action box on the repeat loop-back path ----------
+            ActivityEvent::Backward { text } => {
+                // The backward box is an action rendered on the right side of
+                // the repeat loop-back path (between the hex and diamond1).
+                if let Some(frame) = repeat_stack.last_mut() {
+                    let (bw, bh) = estimate_text_size(text);
+                    frame.backward_text = Some(text.clone());
+                    frame.backward_width = bw;
+                    frame.backward_height = bh;
+                    log::debug!("  backward '{text}' registered on repeat frame, size {bw:.1}x{bh:.1}");
+                } else {
+                    log::warn!("  backward outside repeat block, ignoring");
+                }
+            }
+
+            // ---- Break: exits enclosing repeat loop -------------------------
+            ActivityEvent::Break => {
+                if let Some(frame) = repeat_stack.last_mut() {
+                    frame.break_sources.push(BreakSource {
+                        from_node_idx: last_flow_node_idx,
+                        from_y: y_cursor,
+                    });
+                    log::debug!("  break registered on repeat frame");
+                } else {
+                    log::warn!("  break outside repeat block, ignoring");
+                }
+            }
         }
     }
 
@@ -1504,7 +1668,12 @@ pub fn layout_activity(diagram: &ActivityDiagram) -> Result<ActivityLayout> {
                 | ActivityEvent::SyncBar(_) => {
                     node_lane.push(cur_lane);
                 }
-                ActivityEvent::GotoSyncBar(_) | ActivityEvent::ResumeFromSyncBar(_) => {}
+                ActivityEvent::GotoSyncBar(_)
+                | ActivityEvent::ResumeFromSyncBar(_)
+                | ActivityEvent::Label { .. }
+                | ActivityEvent::Goto { .. }
+                | ActivityEvent::Backward { .. }
+                | ActivityEvent::Break => {}
             }
         }
 
@@ -1756,6 +1925,40 @@ pub fn layout_activity(diagram: &ActivityDiagram) -> Result<ActivityLayout> {
         align_flow_groups_to_lane_columns(&mut nodes, &node_lane);
     }
 
+    // --- Pass 2d: create deferred backward nodes (after centering) ----------
+    for db in &deferred_backward {
+        let diamond1 = &nodes[db.diamond1_idx];
+        let hex_node = &nodes[db.hex_idx];
+        // Java: backward box x = right of repeat body + hexagonHalfSize gap
+        let body_right = nodes[db.diamond1_idx..=db.hex_idx]
+            .iter()
+            .filter(|n| is_flow_node(&n.kind))
+            .map(|n| n.x + n.width)
+            .fold(0.0_f64, f64::max);
+        // Java gap between body right and backward box = 10 (ImageBuilder margin)
+        let bx = body_right + (TOP_MARGIN - 1.0);
+        // Vertical center between diamond1 mid-y and hex mid-y
+        let d1_mid_y = diamond1.y + diamond1.height / 2.0;
+        let hex_mid_y = hex_node.y + hex_node.height / 2.0;
+        let by = (d1_mid_y + hex_mid_y) / 2.0 - db.height / 2.0;
+        log::debug!(
+            "  node[{node_index}] Backward action '{}' @ ({bx:.1}, {by:.1}) {:.1}x{:.1}",
+            db.text, db.width, db.height
+        );
+        nodes.push(ActivityNodeLayout {
+            index: node_index,
+            kind: ActivityNodeKindLayout::Action,
+            x: bx,
+            y: by,
+            width: db.width,
+            height: db.height,
+            text: db.text.clone(),
+        });
+        let backward_idx = node_index;
+        node_index += 1;
+        repeat_loopbacks_with_backward.push((db.hex_idx, db.diamond1_idx, backward_idx));
+    }
+
     // --- Pass 3: edges connecting consecutive flow nodes --------------------
     let mut edges = build_edges(&nodes);
 
@@ -1765,7 +1968,7 @@ pub fn layout_activity(diagram: &ActivityDiagram) -> Result<ActivityLayout> {
     // Y for the mid-segment UP arrow is pinned to the free slot between the
     // first and second interior actions (matches Java's SlotFinder output).
     let mut loopback_extra_right: f64 = 0.0;
-    let mut loopback_info: Vec<(usize, usize, ActivityEdgeLayout)> = Vec::new();
+    let mut loopback_info: Vec<(usize, usize, Vec<ActivityEdgeLayout>)> = Vec::new();
     for &(hex_idx, diamond1_idx) in &repeat_loopbacks {
         if let Some((loopback_edge, extra_right)) =
             build_repeat_loopback_edge(&nodes, hex_idx, diamond1_idx)
@@ -1776,7 +1979,23 @@ pub fn layout_activity(diagram: &ActivityDiagram) -> Result<ActivityLayout> {
             if extra_right > loopback_extra_right {
                 loopback_extra_right = extra_right;
             }
-            loopback_info.push((diamond1_idx, hex_idx, loopback_edge));
+            loopback_info.push((diamond1_idx, hex_idx, vec![loopback_edge]));
+        }
+    }
+
+    // --- Pass 3c: backward loop-back edges ------------------------------------
+    for &(hex_idx, diamond1_idx, backward_idx) in &repeat_loopbacks_with_backward {
+        if let Some((edges_pair, extra)) =
+            build_backward_loopback_edges(&nodes, hex_idx, diamond1_idx, backward_idx)
+        {
+            log::debug!(
+                "  backward loop-back hex={hex_idx} → backward={backward_idx} → diamond1={diamond1_idx} extra_right={extra}"
+            );
+            if extra > loopback_extra_right {
+                loopback_extra_right = extra;
+            }
+            // Add both edges as a single frame entry
+            loopback_info.push((diamond1_idx, hex_idx, edges_pair));
         }
     }
 
@@ -1792,12 +2011,22 @@ pub fn layout_activity(diagram: &ActivityDiagram) -> Result<ActivityLayout> {
     //   2. diamond1 → first interior action
     //   3. loop-back
     //   4. last interior action → hex
+    let all_repeat_loopbacks: Vec<(usize, usize)> = repeat_loopbacks
+        .iter()
+        .copied()
+        .chain(
+            repeat_loopbacks_with_backward
+                .iter()
+                .map(|&(hex, d1, _)| (hex, d1)),
+        )
+        .collect();
     let render_order = if !loopback_info.is_empty() {
         edges = reorder_edges_for_repeat(edges, &loopback_info, &nodes);
-        // Compute a node render permutation that draws the interior body
-        // BEFORE diamond1/hex, matching Java `FtileRepeat.drawU`'s order:
-        //   repeat (inner body), diamond1, diamond2 (hex), ...stop.
-        Some(compute_render_order_for_repeat(&nodes, &repeat_loopbacks))
+        Some(compute_render_order_for_repeat(
+            &nodes,
+            &all_repeat_loopbacks,
+            &repeat_loopbacks_with_backward,
+        ))
     } else {
         None
     };
@@ -1813,7 +2042,7 @@ pub fn layout_activity(diagram: &ActivityDiagram) -> Result<ActivityLayout> {
     // `LimitFinder.maxX + 1 + margin_right (= 10)`, so grow `total_width`
     // to match when the East label protrudes past the current bounds.
     for node in &nodes {
-        if let ActivityNodeKindLayout::Hexagon { east_lines } = &node.kind {
+        if let ActivityNodeKindLayout::Hexagon { east_lines, .. } = &node.kind {
             if east_lines.is_empty() {
                 continue;
             }
@@ -2207,6 +2436,56 @@ fn build_repeat_loopback_edge(
     ))
 }
 
+/// Build backward loop-back edges: hex→backward (going right+up) and
+/// backward→diamond1 (going up+left).  Returns two edges plus the extra
+/// right-side width needed.
+///
+/// Java `ConnectionBackBackward1`: hex East → backward bottom (3 points: right, then up)
+/// Java `ConnectionBackBackward2`: backward top → diamond1 right (3 points: up, then left)
+fn build_backward_loopback_edges(
+    nodes: &[ActivityNodeLayout],
+    hex_idx: usize,
+    diamond1_idx: usize,
+    backward_idx: usize,
+) -> Option<(Vec<ActivityEdgeLayout>, f64)> {
+    let hex = nodes.get(hex_idx)?;
+    let diamond1 = nodes.get(diamond1_idx)?;
+    let backward = nodes.get(backward_idx)?;
+
+    // Edge 1: hex East → backward bottom (ConnectionBackBackward1)
+    // x1 = hex right edge, y1 = hex vertical center
+    let x1 = hex.x + hex.width;
+    let y1 = hex.y + hex.height / 2.0;
+    // p2 = backward center-x, backward bottom (outY)
+    let bw_cx = backward.x + backward.width / 2.0;
+    let bw_bottom = backward.y + backward.height;
+
+    let edge1 = ActivityEdgeLayout {
+        from_index: hex_idx,
+        to_index: backward_idx,
+        label: String::new(),
+        points: vec![(x1, y1), (bw_cx, y1), (bw_cx, bw_bottom)],
+        kind: ActivityEdgeKindLayout::LoopBackBackward1,
+    };
+
+    // Edge 2: backward top → diamond1 right (ConnectionBackBackward2)
+    let bw_top = backward.y;
+    let d1_right = diamond1.x + diamond1.width;
+    let d1_mid_y = diamond1.y + diamond1.height / 2.0;
+
+    let edge2 = ActivityEdgeLayout {
+        from_index: backward_idx,
+        to_index: diamond1_idx,
+        label: String::new(),
+        points: vec![(bw_cx, bw_top), (bw_cx, d1_mid_y), (d1_right, d1_mid_y)],
+        kind: ActivityEdgeKindLayout::LoopBackBackward2,
+    };
+
+    // The backward box is already in the node bounds, so no extra width
+    // is needed beyond what compute_bounds already provides.
+    Some((vec![edge1, edge2], 0.0))
+}
+
 /// Compute a render-order permutation so the inner repeat body (the interior
 /// actions between `diamond1` and `hex`) is drawn BEFORE `diamond1`, which
 /// matches Java `FtileRepeat.drawU`'s order: `repeat` (body), then
@@ -2216,15 +2495,23 @@ fn build_repeat_loopback_edge(
 fn compute_render_order_for_repeat(
     nodes: &[ActivityNodeLayout],
     repeat_loopbacks: &[(usize, usize)],
+    backward_loopbacks: &[(usize, usize, usize)],
 ) -> Vec<usize> {
     // Default order = identity.
-    if repeat_loopbacks.is_empty() {
+    if repeat_loopbacks.is_empty() && backward_loopbacks.is_empty() {
         return (0..nodes.len()).collect();
     }
     // Build a map `diamond1_idx -> hex_idx`.
     let mut hex_for_d1: std::collections::HashMap<usize, usize> = std::collections::HashMap::new();
     for &(hex, d1) in repeat_loopbacks {
         hex_for_d1.insert(d1, hex);
+    }
+    // Build backward map: diamond1_idx -> backward_idx
+    let mut backward_for_d1: std::collections::HashMap<usize, usize> =
+        std::collections::HashMap::new();
+    for &(hex, d1, bw) in backward_loopbacks {
+        hex_for_d1.insert(d1, hex);
+        backward_for_d1.insert(d1, bw);
     }
 
     let mut result: Vec<usize> = Vec::with_capacity(nodes.len());
@@ -2237,7 +2524,7 @@ fn compute_render_order_for_repeat(
         }
         let node = &nodes[i];
         if let Some(&hex_idx) = hex_for_d1.get(&node.index) {
-            // Emit inner body first, then diamond1, then hex.
+            // Emit inner body first, then diamond1, then hex, then backward.
             for j in (i + 1)..nodes.len() {
                 if nodes[j].index == hex_idx {
                     break;
@@ -2255,6 +2542,16 @@ fn compute_render_order_for_repeat(
                     result.push(j);
                     consumed[j] = true;
                     break;
+                }
+            }
+            // Emit backward node if present.
+            if let Some(&bw_idx) = backward_for_d1.get(&node.index) {
+                for j in 0..nodes.len() {
+                    if nodes[j].index == bw_idx && !consumed[j] {
+                        result.push(j);
+                        consumed[j] = true;
+                        break;
+                    }
                 }
             }
             i += 1;
@@ -2276,7 +2573,7 @@ fn compute_render_order_for_repeat(
 /// Edges outside any repeat block keep their natural top-to-bottom order.
 fn reorder_edges_for_repeat(
     edges: Vec<ActivityEdgeLayout>,
-    loopbacks: &[(usize, usize, ActivityEdgeLayout)],
+    loopbacks: &[(usize, usize, Vec<ActivityEdgeLayout>)],
     _nodes: &[ActivityNodeLayout],
 ) -> Vec<ActivityEdgeLayout> {
     // Build a lookup: for each repeat frame (diamond1, hex), collect the
@@ -2288,9 +2585,9 @@ fn reorder_edges_for_repeat(
 
     // Maintain a stack of open frames keyed by diamond1 index so that
     // enter-edges and exit-edges can be identified.
-    let mut frames: Vec<(usize, usize, &ActivityEdgeLayout)> = loopbacks
+    let mut frames: Vec<(usize, usize, &Vec<ActivityEdgeLayout>)> = loopbacks
         .iter()
-        .map(|(d1, hex, edge)| (*d1, *hex, edge))
+        .map(|(d1, hex, edges)| (*d1, *hex, edges))
         .collect();
     frames.sort_by_key(|f| f.0);
 
@@ -2360,9 +2657,11 @@ fn reorder_edges_for_repeat(
                     result.push(edges[enter_ei].clone());
                     consumed[enter_ei] = true;
                 }
-                // 3) Loop-back edge.
-                if let Some((_, _, loopback_edge)) = frames.iter().find(|f| f.0 == d1) {
-                    result.push((*loopback_edge).clone());
+                // 3) Loop-back edge(s) (may be multiple for backward).
+                if let Some((_, _, loopback_edges)) = frames.iter().find(|f| f.0 == d1) {
+                    for e in loopback_edges.iter() {
+                        result.push(e.clone());
+                    }
                 }
                 // 4) Exit edge (last interior → hex).
                 if let Some(&exit_ei) = frame_exit.get(&d1) {
@@ -3447,6 +3746,7 @@ mod tests {
             ActivityEvent::RepeatWhile {
                 condition: "again?".into(),
                 is_text: None,
+                not_text: None,
             },
         ]);
         let layout = layout_activity(&d).unwrap();
@@ -3457,7 +3757,7 @@ mod tests {
         // with no East label since `is (...)` is absent.
         assert!(matches!(
             &layout.nodes[2].kind,
-            ActivityNodeKindLayout::Hexagon { east_lines } if east_lines.is_empty()
+            ActivityNodeKindLayout::Hexagon { east_lines, .. } if east_lines.is_empty()
         ));
         assert!(layout.nodes[2].text.contains("again?"));
     }
@@ -3470,13 +3770,14 @@ mod tests {
             ActivityEvent::RepeatWhile {
                 condition: "x".into(),
                 is_text: Some("a\\nb\\nc\\n".into()),
+                not_text: None,
             },
         ]);
         let layout = layout_activity(&d).unwrap();
         assert_eq!(layout.nodes.len(), 3);
         let hex_node = &layout.nodes[2];
         match &hex_node.kind {
-            ActivityNodeKindLayout::Hexagon { east_lines } => {
+            ActivityNodeKindLayout::Hexagon { east_lines, .. } => {
                 // Trailing `\n` produces an empty trailing line, matching
                 // Java's `Display.create()` behaviour.
                 assert_eq!(

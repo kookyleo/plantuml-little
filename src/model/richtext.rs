@@ -52,6 +52,19 @@ pub enum TextSpan {
         scale: Option<f64>,
         color: Option<String>,
     },
+    /// OpenIconic icon: `<&name>`, optionally with scale/color.
+    /// Renders as inline SVG `<path>` elements.
+    OpenIcon {
+        name: String,
+        scale: f64,
+        color: Option<String>,
+    },
+    /// Inline image: `<img:url>`, optionally with scale.
+    /// Renders as `<image>` element with the image data.
+    Image {
+        url: String,
+        scale: f64,
+    },
 }
 
 /// A block-level rich text element.
@@ -185,5 +198,7 @@ fn collect_span(span: &TextSpan, buf: &mut String) {
             }
         }
         TextSpan::InlineSvg { .. } => {}
+        TextSpan::OpenIcon { .. } => {}
+        TextSpan::Image { .. } => {}
     }
 }

@@ -58,6 +58,7 @@ pub enum ActivityEvent {
     RepeatWhile {
         condition: String,
         is_text: Option<String>,
+        not_text: Option<String>,
     },
     /// fork
     Fork,
@@ -79,6 +80,14 @@ pub enum ActivityEvent {
     },
     /// detach
     Detach,
+    /// label NAME — marks a goto target (no visual element)
+    Label { name: String },
+    /// goto NAME — jumps to a label
+    Goto { name: String },
+    /// backward:text; — action rendered on the repeat loop-back path
+    Backward { text: String },
+    /// break — exits the enclosing repeat loop
+    Break,
     /// Synchronization bar (old-style `===NAME===`)
     SyncBar(String),
     /// Incoming convergence to an existing sync bar (old-style target)

@@ -1957,3 +1957,27 @@ reference_test!(
 reference_test!(reference_fixtures_def_basic_puml, "fixtures/def/basic.puml");
 
 // Total: 328 reference tests
+
+// ── Activity Advanced ──
+reference_test!(
+    reference_fixtures_activity_advanced_goto_label_puml,
+    "fixtures/activity_advanced/goto_label.puml"
+);
+reference_test!(
+    reference_fixtures_activity_advanced_backward_puml,
+    "fixtures/activity_advanced/backward.puml"
+);
+reference_test!(
+    reference_fixtures_activity_advanced_break_puml,
+    "fixtures/activity_advanced/break.puml"
+);
+
+// ── Creole Advanced ──
+reference_test!(
+    reference_fixtures_misc_creole_img_puml,
+    "fixtures/misc/creole_img.puml"
+);
+reference_test!(
+    reference_fixtures_misc_openiconic_puml,
+    "fixtures/misc/openiconic.puml"
+);

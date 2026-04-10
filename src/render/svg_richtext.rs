@@ -364,7 +364,9 @@ fn max_font_size_in_span(span: &TextSpan, max_size: &mut f64) {
         TextSpan::Plain(_)
         | TextSpan::Monospace(_)
         | TextSpan::Link { .. }
-        | TextSpan::InlineSvg { .. } => {}
+        | TextSpan::InlineSvg { .. }
+        | TextSpan::OpenIcon { .. }
+        | TextSpan::Image { .. } => {}
     }
 }
 
@@ -453,6 +455,17 @@ pub fn creole_max_line_width(
         .fold(0.0, f64::max)
 }
 
+/// Public measurement function for lines containing inline elements
+/// (OpenIconic icons, images, sprites). Used by layout code to estimate
+/// note/label widths when the line contains `<&icon>` or `<img:...>`.
+pub fn measure_line_width_with_icons(
+    spans: &[TextSpan],
+    default_font: &str,
+    font_size: f64,
+) -> f64 {
+    measure_line_width(spans, default_font, font_size, false, false)
+}
+
 fn measure_line_width(
     spans: &[TextSpan],
     default_font: &str,
@@ -467,8 +480,23 @@ fn measure_line_width(
     let mut text_buf: Vec<TextSpan> = Vec::new();
 
     for span in spans {
-        match span {
+        // Check for inline non-text elements (sprites, icons, images)
+        let inline_w = match span {
             TextSpan::InlineSvg { name, scale, .. } => {
+                sprite_display_width(name, *scale, font_size)
+            }
+            TextSpan::OpenIcon {
+                name, scale, ..
+            } => {
+                openicon_display_width(name, *scale, font_size)
+            }
+            TextSpan::Image { url, scale } => {
+                image_display_width(url, *scale)
+            }
+            _ => None,
+        };
+        match span {
+            TextSpan::InlineSvg { .. } | TextSpan::OpenIcon { .. } | TextSpan::Image { .. } => {
                 if let Some(TextSpan::Plain(text)) = text_buf.last_mut() {
                     *text = text.trim_end().to_string();
                 }
@@ -480,11 +508,11 @@ fn measure_line_width(
                 }
                 text_buf.clear();
 
-                if let Some(sprite_w) = sprite_display_width(name, *scale, font_size) {
+                if let Some(w) = inline_w {
                     if pending_gap {
                         total += gap;
                     }
-                    total += sprite_w;
+                    total += w;
                     pending_gap = true;
                 }
             }
@@ -580,6 +608,134 @@ fn sprite_display_width(name: &str, scale: Option<f64>, font_size: f64) -> Optio
     let svg = get_sprite(name)?;
     let info = crate::render::svg_sprite::sprite_info(&svg);
     Some(info.vb_width * sprite_scale_for_font(font_size, scale))
+}
+
+/// Compute display width for an OpenIconic icon.
+/// Java AtomOpenIcon: factor = scale * fontSize / 12.0
+/// Java TextBlockUtils.withMargin(block, 1, 0) adds 1px left + 1px right margin.
+fn openicon_display_width(name: &str, scale: f64, font_size: f64) -> Option<f64> {
+    let icon = crate::openiconic::find_icon(name)?;
+    let factor = scale * font_size / 12.0;
+    let (w, _h) = crate::openiconic::icon_dimensions(icon, factor);
+    Some(w)
+}
+
+/// Compute display height for an OpenIconic icon.
+fn openicon_display_height(name: &str, scale: f64, font_size: f64) -> Option<f64> {
+    let icon = crate::openiconic::find_icon(name)?;
+    let factor = scale * font_size / 12.0;
+    let (_w, h) = crate::openiconic::icon_dimensions(icon, factor);
+    Some(h)
+}
+
+/// Compute display width for an inline image.
+/// Fetches the image (caching the result) to determine actual dimensions.
+fn image_display_width(url: &str, scale: f64) -> Option<f64> {
+    let info = fetch_image_info(url)?;
+    Some(info.width as f64 * scale)
+}
+
+fn image_display_height(url: &str, scale: f64) -> Option<f64> {
+    let info = fetch_image_info(url)?;
+    Some(info.height as f64 * scale)
+}
+
+/// Cached image info (dimensions + base64 data).
+#[derive(Clone)]
+struct ImageInfo {
+    width: u32,
+    height: u32,
+    base64_data: String,
+}
+
+thread_local! {
+    static IMAGE_CACHE: RefCell<HashMap<String, Option<ImageInfo>>> = RefCell::new(HashMap::new());
+}
+
+/// Fetch image from URL, cache it, and return its info.
+fn fetch_image_info(url: &str) -> Option<ImageInfo> {
+    IMAGE_CACHE.with(|cache| {
+        let mut cache = cache.borrow_mut();
+        if let Some(entry) = cache.get(url) {
+            return entry.clone();
+        }
+        let info = do_fetch_image(url);
+        cache.insert(url.to_string(), info.clone());
+        info
+    })
+}
+
+fn do_fetch_image(url: &str) -> Option<ImageInfo> {
+    use base64::Engine;
+
+    if url.starts_with("http:") || url.starts_with("https:") {
+        match reqwest::blocking::get(url) {
+            Ok(resp) => {
+                if let Ok(bytes) = resp.bytes() {
+                    return decode_image_bytes(&bytes);
+                }
+            }
+            Err(e) => {
+                log::warn!("Failed to fetch image {url}: {e}");
+            }
+        }
+    }
+
+    if url.starts_with("data:image/png;base64,") {
+        let b64 = &url["data:image/png;base64,".len()..];
+        if let Ok(bytes) = base64::engine::general_purpose::STANDARD.decode(b64) {
+            return decode_image_bytes(&bytes);
+        }
+    }
+
+    if let Ok(bytes) = std::fs::read(url) {
+        return decode_image_bytes(&bytes);
+    }
+
+    log::warn!("Cannot resolve image: {url}");
+    None
+}
+
+fn decode_image_bytes(bytes: &[u8]) -> Option<ImageInfo> {
+    use base64::Engine;
+    let (width, height) = png_dimensions(bytes)?;
+    let base64_data = base64::engine::general_purpose::STANDARD.encode(bytes);
+    Some(ImageInfo {
+        width,
+        height,
+        base64_data,
+    })
+}
+
+/// Extract width and height from PNG header (IHDR chunk).
+fn png_dimensions(data: &[u8]) -> Option<(u32, u32)> {
+    if data.len() < 24 {
+        return None;
+    }
+    if &data[0..8] != b"\x89PNG\r\n\x1a\n" {
+        return None;
+    }
+    let width = u32::from_be_bytes([data[16], data[17], data[18], data[19]]);
+    let height = u32::from_be_bytes([data[20], data[21], data[22], data[23]]);
+    Some((width, height))
+}
+
+/// Render an inline `<image>` element with fetched image data.
+fn render_inline_image(buf: &mut String, url: &str, scale: f64, x: f64, y: f64) {
+    if let Some(info) = fetch_image_info(url) {
+        let w = info.width as f64 * scale;
+        let h = info.height as f64 * scale;
+        write!(
+            buf,
+            r#"<image height="{}" width="{}" x="{}" xlink:href="data:image/png;base64,{}" y="{}"/>"#,
+            h as u32,
+            w as u32,
+            fmt_coord(x),
+            info.base64_data,
+            fmt_coord(y),
+        )
+        .unwrap();
+    }
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -1303,7 +1459,7 @@ pub fn compute_creole_note_text_height(text: &str, font_size: f64) -> f64 {
 /// may exceed the normal line height. Java's BodyEnhanced2 uses
 /// `max(sprite_height, line_height)` per atom.
 fn note_line_height_with_sprites(line: &str, font_size: f64, base_lh: f64) -> f64 {
-    if !line.contains("<$") {
+    if !line.contains("<$") && !line.contains("<&") && !line.contains("<img") {
         return base_lh;
     }
     let mut max_sprite_h = 0.0_f64;
@@ -1311,12 +1467,27 @@ fn note_line_height_with_sprites(line: &str, font_size: f64, base_lh: f64) -> f6
         .into_iter()
         .flatten()
     {
-        if let TextSpan::InlineSvg { name, scale, .. } = span {
-            if let Some(svg_content) = get_sprite(&name) {
-                let info = crate::render::svg_sprite::sprite_info(&svg_content);
-                max_sprite_h =
-                    max_sprite_h.max(info.vb_height * sprite_scale_for_font(font_size, scale));
+        match span {
+            TextSpan::InlineSvg { name, scale, .. } => {
+                if let Some(svg_content) = get_sprite(&name) {
+                    let info = crate::render::svg_sprite::sprite_info(&svg_content);
+                    max_sprite_h =
+                        max_sprite_h.max(info.vb_height * sprite_scale_for_font(font_size, scale));
+                }
             }
+            TextSpan::OpenIcon {
+                name, scale, ..
+            } => {
+                if let Some(h) = openicon_display_height(&name, scale, font_size) {
+                    max_sprite_h = max_sprite_h.max(h);
+                }
+            }
+            TextSpan::Image { ref url, scale } => {
+                if let Some(h) = image_display_height(url, scale) {
+                    max_sprite_h = max_sprite_h.max(h);
+                }
+            }
+            _ => {}
         }
     }
     if max_sprite_h > base_lh {
@@ -1329,12 +1500,27 @@ fn note_line_height_with_sprites(line: &str, font_size: f64, base_lh: f64) -> f6
 fn line_height_with_inline_sprites(spans: &[TextSpan], font_size: f64, base_lh: f64) -> f64 {
     let mut max_sprite_h = 0.0_f64;
     for span in spans {
-        if let TextSpan::InlineSvg { name, scale, .. } = span {
-            if let Some(svg_content) = get_sprite(name) {
-                let info = crate::render::svg_sprite::sprite_info(&svg_content);
-                max_sprite_h =
-                    max_sprite_h.max(info.vb_height * sprite_scale_for_font(font_size, *scale));
+        match span {
+            TextSpan::InlineSvg { name, scale, .. } => {
+                if let Some(svg_content) = get_sprite(name) {
+                    let info = crate::render::svg_sprite::sprite_info(&svg_content);
+                    max_sprite_h = max_sprite_h
+                        .max(info.vb_height * sprite_scale_for_font(font_size, *scale));
+                }
             }
+            TextSpan::OpenIcon {
+                name, scale, ..
+            } => {
+                if let Some(h) = openicon_display_height(name, *scale, font_size) {
+                    max_sprite_h = max_sprite_h.max(h);
+                }
+            }
+            TextSpan::Image { url, scale } => {
+                if let Some(h) = image_display_height(url, *scale) {
+                    max_sprite_h = max_sprite_h.max(h);
+                }
+            }
+            _ => {}
         }
     }
     if max_sprite_h > base_lh {
@@ -2560,9 +2746,12 @@ fn render_section_title_line(
 }
 
 fn line_has_sprites(spans: &[TextSpan]) -> bool {
-    spans
-        .iter()
-        .any(|span| matches!(span, TextSpan::InlineSvg { .. }))
+    spans.iter().any(|span| {
+        matches!(
+            span,
+            TextSpan::InlineSvg { .. } | TextSpan::OpenIcon { .. } | TextSpan::Image { .. }
+        )
+    })
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -2587,32 +2776,38 @@ fn render_text_line_with_sprites(
     let mut text_buf: Vec<TextSpan> = Vec::new();
 
     for span in spans {
+        let is_inline = matches!(
+            span,
+            TextSpan::InlineSvg { .. } | TextSpan::OpenIcon { .. } | TextSpan::Image { .. }
+        );
+        if is_inline {
+            // Flush pending text buffer
+            if let Some(TextSpan::Plain(text)) = text_buf.last_mut() {
+                *text = text.trim_end().to_string();
+            }
+            let text_w =
+                measure_text_runs_width(&text_buf, font_family, font_size, bold, italic);
+            if text_w > 0.0 {
+                render_prepared_line(
+                    buf,
+                    &text_buf,
+                    cursor_x,
+                    y,
+                    fill,
+                    None,
+                    outer_attrs,
+                    font_family,
+                    font_size,
+                    bold,
+                    italic,
+                );
+                cursor_x += text_w;
+                pending_gap = true;
+            }
+            text_buf.clear();
+        }
         match span {
             TextSpan::InlineSvg { name, scale, color } => {
-                if let Some(TextSpan::Plain(text)) = text_buf.last_mut() {
-                    *text = text.trim_end().to_string();
-                }
-                let text_w =
-                    measure_text_runs_width(&text_buf, font_family, font_size, bold, italic);
-                if text_w > 0.0 {
-                    render_prepared_line(
-                        buf,
-                        &text_buf,
-                        cursor_x,
-                        y,
-                        fill,
-                        None,
-                        outer_attrs,
-                        font_family,
-                        font_size,
-                        bold,
-                        italic,
-                    );
-                    cursor_x += text_w;
-                    pending_gap = true;
-                }
-                text_buf.clear();
-
                 if let Some(svg_content) = get_sprite(name) {
                     let info = svg_sprite::sprite_info(&svg_content);
                     if info.vb_height > 0.0 {
@@ -2633,6 +2828,49 @@ fn render_text_line_with_sprites(
                         pending_gap = true;
                     }
                 }
+            }
+            TextSpan::OpenIcon {
+                name,
+                scale,
+                color,
+            } => {
+                if let Some(icon) = crate::openiconic::find_icon(name) {
+                    let factor = *scale * font_size / 12.0;
+                    if pending_gap {
+                        cursor_x += gap;
+                    }
+                    // Java AtomOpenIcon: getStartingAltitude = -3 * factor
+                    // The icon is rendered starting at (cursor_x + 1 margin, y - ascent + starting_altitude_offset)
+                    // Looking at the reference SVG, the icon path starts at the text baseline area.
+                    // Java: icon is drawn at UGraphic position, with startingAltitude = -3 * factor
+                    // shifting it up from the baseline.
+                    let icon_x = cursor_x + 1.0; // 1px left margin
+                    let icon_y = y - ascent + 3.0 * factor;
+                    let icon_fill = color.as_deref().unwrap_or(fill);
+                    let path_svg =
+                        crate::openiconic::render_icon_svg(icon, icon_x, icon_y, factor, icon_fill);
+                    buf.push_str(&path_svg);
+                    let (w, _h) = crate::openiconic::icon_dimensions(icon, factor);
+                    cursor_x += w;
+                    pending_gap = true;
+                }
+            }
+            TextSpan::Image { url, scale } => {
+                if pending_gap {
+                    cursor_x += gap;
+                }
+                // Image position: Java Sea.doAlign places images at row top.
+                // baseline = row_top + img_height - descent, so:
+                // row_top = baseline - img_height + descent
+                let descent =
+                    font_metrics::descent(font_family, font_size, bold, italic);
+                let img_h = image_display_height(url, *scale).unwrap_or(0.0);
+                let img_y = y - img_h + descent;
+                render_inline_image(buf, url, *scale, cursor_x, img_y);
+                if let Some(w) = image_display_width(url, *scale) {
+                    cursor_x += w;
+                }
+                pending_gap = true;
             }
             other => {
                 let adjusted = if pending_gap && text_buf.is_empty() {
@@ -2693,31 +2931,38 @@ fn render_line_with_sprites(
     let mut in_sprite = false;
     let mut text_buf: Vec<TextSpan> = Vec::new();
     for span in spans {
-        match span {
-            TextSpan::InlineSvg { name, .. } => {
-                if !text_buf.is_empty() {
-                    if let Some(TextSpan::Plain(t)) = text_buf.last_mut() {
-                        *t = t.trim_end().to_string();
-                    }
-                    let plain = plain_text_spans(&text_buf);
-                    let text_w =
-                        font_metrics::text_width(&plain, &font_family, font_size, bold, italic);
-                    if !plain.is_empty() {
-                        write_text_open(buf, cursor_x, y, fill, None, outer_attrs, text_w);
-                        if text_buf.len() == 1 {
-                            if let Some(t) = simple_plain_line(&text_buf) {
-                                buf.push_str(&xml_escape(t));
-                            } else {
-                                render_spans(buf, &text_buf, &SpanStyle::default(), fill);
-                            }
+        let is_inline = matches!(
+            span,
+            TextSpan::InlineSvg { .. } | TextSpan::OpenIcon { .. } | TextSpan::Image { .. }
+        );
+        if is_inline {
+            // Flush pending text
+            if !text_buf.is_empty() {
+                if let Some(TextSpan::Plain(t)) = text_buf.last_mut() {
+                    *t = t.trim_end().to_string();
+                }
+                let plain = plain_text_spans(&text_buf);
+                let text_w =
+                    font_metrics::text_width(&plain, &font_family, font_size, bold, italic);
+                if !plain.is_empty() {
+                    write_text_open(buf, cursor_x, y, fill, None, outer_attrs, text_w);
+                    if text_buf.len() == 1 {
+                        if let Some(t) = simple_plain_line(&text_buf) {
+                            buf.push_str(&xml_escape(t));
                         } else {
                             render_spans(buf, &text_buf, &SpanStyle::default(), fill);
                         }
-                        buf.push_str("</text>");
-                        cursor_x += text_w + gap;
+                    } else {
+                        render_spans(buf, &text_buf, &SpanStyle::default(), fill);
                     }
-                    text_buf.clear();
+                    buf.push_str("</text>");
+                    cursor_x += text_w + gap;
                 }
+                text_buf.clear();
+            }
+        }
+        match span {
+            TextSpan::InlineSvg { name, .. } => {
                 if let Some(svg_content) = get_sprite(name) {
                     let info = svg_sprite::sprite_info(&svg_content);
                     let sprite_y_offset = arrow_y - 2.0 - info.vb_height;
@@ -2725,6 +2970,35 @@ fn render_line_with_sprites(
                         svg_sprite::convert_svg_elements(&svg_content, cursor_x, sprite_y_offset);
                     buf.push_str(&converted);
                     cursor_x += info.vb_width + gap;
+                }
+                in_sprite = true;
+            }
+            TextSpan::OpenIcon {
+                name,
+                scale,
+                color,
+            } => {
+                if let Some(icon) = crate::openiconic::find_icon(name) {
+                    let factor = *scale * font_size / 12.0;
+                    let icon_x = cursor_x + 1.0;
+                    let ascent = font_metrics::ascent(&font_family, font_size, bold, italic);
+                    let icon_y = y - ascent + 3.0 * factor;
+                    let icon_fill = color.as_deref().unwrap_or(fill);
+                    let path_svg =
+                        crate::openiconic::render_icon_svg(icon, icon_x, icon_y, factor, icon_fill);
+                    buf.push_str(&path_svg);
+                    let (w, _h) = crate::openiconic::icon_dimensions(icon, factor);
+                    cursor_x += w + gap;
+                }
+                in_sprite = true;
+            }
+            TextSpan::Image { url, scale } => {
+                let descent = font_metrics::descent(&font_family, font_size, bold, italic);
+                let img_h = image_display_height(url, *scale).unwrap_or(0.0);
+                let img_y = y - img_h + descent;
+                render_inline_image(buf, url, *scale, cursor_x, img_y);
+                if let Some(w) = image_display_width(url, *scale) {
+                    cursor_x += w + gap;
                 }
                 in_sprite = true;
             }
@@ -2780,7 +3054,9 @@ fn line_needs_split_render(spans: &[TextSpan]) -> bool {
             | TextSpan::Colored { .. }
             | TextSpan::Sized { .. }
             | TextSpan::Subscript(_)
-            | TextSpan::Superscript(_) => true,
+            | TextSpan::Superscript(_)
+            | TextSpan::OpenIcon { .. }
+            | TextSpan::Image { .. } => true,
         })
     }
     has_styled(spans)
@@ -3015,7 +3291,9 @@ fn flatten_span_runs(spans: &[TextSpan], runs: &mut Vec<TextRun>, style: &RunSty
                 r.link_tooltip = tooltip.clone();
                 runs.push(r);
             }
-            TextSpan::InlineSvg { .. } => {}
+            TextSpan::InlineSvg { .. }
+            | TextSpan::OpenIcon { .. }
+            | TextSpan::Image { .. } => {}
         }
     }
 }
@@ -3502,7 +3780,9 @@ fn collect_plain_span(span: &TextSpan, out: &mut String) {
                 out.push_str(url);
             }
         }
-        TextSpan::InlineSvg { .. } => {}
+        TextSpan::InlineSvg { .. }
+        | TextSpan::OpenIcon { .. }
+        | TextSpan::Image { .. } => {}
     }
 }
 
@@ -3623,9 +3903,10 @@ fn render_span(buf: &mut String, span: &TextSpan, style: SpanStyle, default_fill
             };
             render_leaf(buf, visible, Some(&link), &style, default_fill);
         }
-        TextSpan::InlineSvg { .. } => {
-            // Sprite SVGs are rendered after the <text> element, not inline.
-            // See render_deferred_sprites() called from render_creole_text().
+        TextSpan::InlineSvg { .. }
+        | TextSpan::OpenIcon { .. }
+        | TextSpan::Image { .. } => {
+            // Sprite SVGs / icons / images are rendered after the <text> element.
         }
     }
 }

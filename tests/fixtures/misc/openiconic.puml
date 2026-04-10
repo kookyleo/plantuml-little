@@ -1,0 +1,7 @@
+@startuml
+Alice -> Bob : <&check> done
+note right
+  <&warning> Watch out!
+  <&heart> Love
+end note
+@enduml

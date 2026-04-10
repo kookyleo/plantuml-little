@@ -548,6 +548,30 @@ fn parse_inline_chars(
             }
         }
 
+        // OpenIconic icon: <&name> or <#color&name>
+        if chars[i] == '<' && i + 2 < end {
+            let maybe_icon =
+                (chars[i + 1] == '&') || (chars[i + 1] == '#');
+            if maybe_icon {
+                if let Some((span, consumed)) = try_parse_openicon(chars, i, end) {
+                    flush_plain(&mut plain_buf, out);
+                    out.push(span);
+                    i += consumed;
+                    continue;
+                }
+            }
+        }
+
+        // Inline image: <img:url> or <img src=url>
+        if chars[i] == '<' && i + 4 < end {
+            if let Some((span, consumed)) = try_parse_img(chars, i, end) {
+                flush_plain(&mut plain_buf, out);
+                out.push(span);
+                i += consumed;
+                continue;
+            }
+        }
+
         // Unicode escape: <U+XXXX> → character
         if chars[i] == '<'
             && i + 2 < end
@@ -876,6 +900,118 @@ fn normalize_sprite_ref_color(value: &str) -> String {
         };
     }
     crate::style::normalize_color(trimmed)
+}
+
+// ---------------------------------------------------------------------------
+// OpenIconic icon parsing: <&name>, <#color&name>, <&name{scale=2,color=red}>
+// Java pattern: \<(#\w+)?&([-\w]+)(scaleOrColor)?\>
+// ---------------------------------------------------------------------------
+
+fn try_parse_openicon(chars: &[char], start: usize, end: usize) -> Option<(TextSpan, usize)> {
+    if chars[start] != '<' {
+        return None;
+    }
+    let mut i = start + 1;
+    // Optional leading color: #color
+    let mut color1: Option<String> = None;
+    if i < end && chars[i] == '#' {
+        let hash_start = i;
+        i += 1;
+        while i < end && (chars[i].is_alphanumeric() || chars[i] == '_') {
+            i += 1;
+        }
+        if i > hash_start + 1 {
+            color1 = Some(chars[hash_start..i].iter().collect());
+        }
+    }
+    // Must have '&'
+    if i >= end || chars[i] != '&' {
+        return None;
+    }
+    i += 1; // skip '&'
+    let name_start = i;
+    while i < end && (chars[i].is_alphanumeric() || chars[i] == '-' || chars[i] == '_') {
+        i += 1;
+    }
+    if i == name_start {
+        return None;
+    }
+    let name: String = chars[name_start..i].iter().collect();
+
+    // Optional scale/color params before '>'
+    let mut scale = 1.0;
+    let mut color2: Option<String> = None;
+    if i < end && chars[i] != '>' {
+        let params_start = i;
+        while i < end && chars[i] != '>' {
+            i += 1;
+        }
+        let raw_params: String = chars[params_start..i].iter().collect();
+        let (s, c) = parse_sprite_ref_params(&raw_params);
+        if let Some(s) = s {
+            scale = s;
+        }
+        color2 = c;
+    }
+    if i >= end || chars[i] != '>' {
+        return None;
+    }
+    let color = color1.or(color2);
+    Some((TextSpan::OpenIcon { name, scale, color }, i + 1 - start))
+}
+
+// ---------------------------------------------------------------------------
+// Inline image parsing: <img:url>, <img:url{scale=N}>
+// Java pattern: \<img[\s:]+([^>{}]+)(\{scale=([0-9.]+)\})?\>
+// ---------------------------------------------------------------------------
+
+fn try_parse_img(chars: &[char], start: usize, end: usize) -> Option<(TextSpan, usize)> {
+    // Must start with <img followed by ':' or whitespace
+    if !matches_at_ci(chars, start, "<img") {
+        return None;
+    }
+    let after_img = start + 4;
+    if after_img >= end {
+        return None;
+    }
+    let sep = chars[after_img];
+    if sep != ':' && sep != ' ' && sep != '\t' {
+        return None;
+    }
+    let url_start = after_img + 1;
+    // Find closing '>'
+    let mut gt_pos = None;
+    for j in url_start..end {
+        if chars[j] == '>' {
+            gt_pos = Some(j);
+            break;
+        }
+    }
+    let gt_pos = gt_pos?;
+    let inner: String = chars[url_start..gt_pos].iter().collect();
+    // Check for {scale=N} suffix
+    let (url, scale) = if let Some(brace_pos) = inner.rfind('{') {
+        let url_part = inner[..brace_pos].trim();
+        let brace_part = &inner[brace_pos..];
+        let s = parse_img_scale(brace_part);
+        (url_part.to_string(), s)
+    } else {
+        (inner.trim().to_string(), 1.0)
+    };
+    if url.is_empty() {
+        return None;
+    }
+    Some((TextSpan::Image { url, scale }, gt_pos + 1 - start))
+}
+
+fn parse_img_scale(brace_part: &str) -> f64 {
+    // Expected: {scale=1.5} or similar
+    let trimmed = brace_part.trim().trim_start_matches('{').trim_end_matches('}');
+    if let Some(val) = trimmed.strip_prefix("scale=") {
+        val.trim().parse::<f64>().unwrap_or(1.0)
+    } else {
+        1.0
+    }
 }
 
 // ---------------------------------------------------------------------------

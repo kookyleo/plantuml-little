@@ -843,8 +843,8 @@ fn render_node(
         ActivityNodeKindLayout::End => render_stop(sg, node),
         ActivityNodeKindLayout::Action => render_action(sg, node, act_bg, act_border, act_font),
         ActivityNodeKindLayout::Diamond => render_diamond(sg, node, diamond_bg, diamond_border),
-        ActivityNodeKindLayout::Hexagon { east_lines } => {
-            render_hexagon(sg, node, east_lines, diamond_bg, diamond_border, act_font)
+        ActivityNodeKindLayout::Hexagon { east_lines, south_lines } => {
+            render_hexagon(sg, node, east_lines, south_lines, diamond_bg, diamond_border, act_font)
         }
         ActivityNodeKindLayout::ForkBar => render_fork_bar(sg, node),
         ActivityNodeKindLayout::SyncBar => render_sync_bar(sg, node),
@@ -1127,6 +1127,7 @@ fn render_hexagon(
     sg: &mut SvgGraphic,
     node: &ActivityNodeLayout,
     east_lines: &[String],
+    south_lines: &[String],
     bg: &str,
     border: &str,
     font_color: &str,
@@ -1158,7 +1159,40 @@ fn render_hexagon(
     }
     .draw(sg, &DrawStyle::filled(bg, border, 0.5));
 
-    // 2. Inside test condition, centred inside the hexagon.  Font size matches
+    // 2. South label: rendered before condition text (matches Java draw order).
+    //    Java: `south.drawU(ug.apply(new UTranslate(4 + dimTotal.w/2, dimTotal.h)))`
+    //    The text is left-aligned at x = hex_x + hex_w/2 + 4.
+    if !south_lines.is_empty() {
+        let font_size = HEXAGON_LABEL_FONT_SIZE_RENDER;
+        let line_h = font_metrics::line_height("SansSerif", font_size, false, false);
+        let ascent = font_metrics::ascent("SansSerif", font_size, false, false);
+        let south_top_y = y + h;
+        for (i, line) in south_lines.iter().enumerate() {
+            let baseline_y = south_top_y + ascent + i as f64 * line_h;
+            let text_w =
+                font_metrics::text_width(line, "SansSerif", font_size, false, false);
+            // Java: text left-aligned at hex_x + hex_w/2 + 4
+            let text_x = x + w / 2.0 + 4.0;
+            sg.set_fill_color(font_color);
+            sg.svg_text(
+                line,
+                text_x,
+                baseline_y,
+                Some("sans-serif"),
+                font_size,
+                None,
+                None,
+                None,
+                text_w,
+                crate::klimt::svg::LengthAdjust::Spacing,
+                None,
+                0,
+                None,
+            );
+        }
+    }
+
+    // 3. Inside test condition, centred inside the hexagon.  Font size matches
     //    Java's `FtileDiamondInside.label` (11pt sans-serif).
     if !node.text.is_empty() {
         let font_size = HEXAGON_LABEL_FONT_SIZE_RENDER;
@@ -1185,7 +1219,7 @@ fn render_hexagon(
         );
     }
 
-    // 3. East label: each entry from `east_lines` is rendered as its own
+    // 4. East label: each entry from `east_lines` is rendered as its own
     //    `<text>` to the right of the hexagon.  Java's
     //    `east.drawU(translate(dimTotal.w, -dimEast.h + dimTotal.h / 2))`
     //    places the text block above the hexagon vertical centre.
@@ -1222,6 +1256,7 @@ fn render_hexagon(
             );
         }
     }
+
 }
 
 /// Java `Hexagon.hexagonHalfSize` — duplicated here so the renderer is
@@ -1496,6 +1531,18 @@ fn render_edge(
         return;
     }
 
+    // Backward loop-back edges: hex→backward (up arrow) and backward→diamond1 (left arrow)
+    if matches!(
+        edge.kind,
+        ActivityEdgeKindLayout::LoopBackBackward1
+            | ActivityEdgeKindLayout::LoopBackBackward2
+            | ActivityEdgeKindLayout::GotoLoopBack
+            | ActivityEdgeKindLayout::BreakEdge
+    ) {
+        render_polyline_with_arrow(sg, &edge.points, arrow_color);
+        return;
+    }
+
     // Render line segments
     let edge_line_style = DrawStyle::outline(arrow_color, 1.0);
     if edge.points.len() == 2 {
@@ -1540,6 +1587,28 @@ fn render_edge(
             Some("middle"),
         );
     }
+}
+
+/// Render a polyline with an arrow at the end (last segment direction).
+/// Used for backward, goto, and break edges.
+fn render_polyline_with_arrow(
+    sg: &mut SvgGraphic,
+    points: &[(f64, f64)],
+    arrow_color: &str,
+) {
+    if points.len() < 2 {
+        return;
+    }
+    let edge_line_style = DrawStyle::outline(arrow_color, 1.0);
+    for pair in points.windows(2) {
+        let (x1, y1) = pair[0];
+        let (x2, y2) = pair[1];
+        LineShape { x1, y1, x2, y2 }.draw(sg, &edge_line_style);
+    }
+    // Arrow at the last point, direction from second-to-last to last.
+    let (tx, ty) = *points.last().unwrap();
+    let (fx, fy) = points[points.len() - 2];
+    render_arrowhead(sg, fx, fy, tx, ty, arrow_color);
 }
 
 /// Render the 4-point `FtileRepeat.ConnectionBackSimple2` loop-back path.

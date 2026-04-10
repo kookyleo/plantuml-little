@@ -1,0 +1,12 @@
+@startuml
+start
+repeat
+  :Test something;
+  if (Something went wrong?) then (no)
+    :Succeed;
+    break
+  endif
+  :Repeat;
+repeat while (more?)
+stop
+@enduml
