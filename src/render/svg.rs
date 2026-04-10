@@ -43,6 +43,67 @@ pub(crate) const DOC_MARGIN_RIGHT: f64 = 5.0;
 pub(crate) const DOC_MARGIN_BOTTOM: f64 = 5.0;
 pub(crate) const PLANTUML_VERSION: &str = "1.2026.2";
 
+// ── Viewport computation ────────────────────────────────────────────
+
+/// Per-diagram-type viewport margin configuration.
+///
+/// Java computes the final SVG viewport as:
+///   `(int)(max_point + extra + margin_right + 1)`           (ensureVisible)
+/// where `extra` is 1.0 for svek diagrams (getFinalDimension) and 0.0 otherwise.
+///
+/// This struct captures those margin parameters so every renderer uses the
+/// same `compute_viewport()` helper instead of inline arithmetic.
+pub(crate) struct ViewportConfig {
+    /// Document right margin (Java root.document style margin-right).
+    pub margin_right: f64,
+    /// Document bottom margin (Java root.document style margin-bottom).
+    pub margin_bottom: f64,
+    /// Extra +1 from Java's `getFinalDimension = lf_maxX + 1 + margins`.
+    /// Svek-backed diagrams (class, state) set this to 1.0; others use 0.0.
+    pub extra: f64,
+}
+
+impl ViewportConfig {
+    /// Svek-backed cuca diagrams (class, state): max_point + 1 + margin.
+    pub const SVEK: Self = Self {
+        margin_right: DOC_MARGIN_RIGHT,
+        margin_bottom: DOC_MARGIN_BOTTOM,
+        extra: 1.0,
+    };
+
+    /// Component diagrams: max_point + margin (no extra +1).
+    pub const COMPONENT: Self = Self {
+        margin_right: DOC_MARGIN_RIGHT,
+        margin_bottom: DOC_MARGIN_BOTTOM,
+        extra: 0.0,
+    };
+
+    /// Old-style activity diagrams: max + 5 (hardcoded margin, no extra).
+    pub const ACTIVITY_OLD: Self = Self {
+        margin_right: 5.0,
+        margin_bottom: 5.0,
+        extra: 0.0,
+    };
+
+    /// Sequence LimitFinder path: raw_w already includes the +1 from layout.
+    pub const SEQUENCE_LF: Self = Self {
+        margin_right: DOC_MARGIN_RIGHT,
+        margin_bottom: DOC_MARGIN_BOTTOM,
+        extra: 0.0,
+    };
+}
+
+/// Compute viewport (w, h) from max-point and config.
+///
+/// Applies the Java `ensureVisible` formula:
+///   `(int)(max_point + extra + margin + 1)`
+/// and returns integer-valued f64 suitable for SVG width/height attributes.
+pub(crate) fn compute_viewport(max_x: f64, max_y: f64, config: &ViewportConfig) -> (f64, f64) {
+    let w = ensure_visible_int(max_x + config.extra + config.margin_right) as f64;
+    let h = ensure_visible_int(max_y + config.extra + config.margin_bottom) as f64;
+    (w, h)
+}
+
 pub(crate) use crate::klimt::svg::fmt_coord;
 
 /// Write a Java PlantUML-compatible SVG root element and open a `<g>` wrapper.

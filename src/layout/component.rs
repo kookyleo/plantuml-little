@@ -11,7 +11,7 @@ use crate::layout::graphviz::{
 };
 use crate::model::component::{ComponentDiagram, ComponentEntity, ComponentKind, ComponentLink};
 use crate::model::Direction;
-use crate::render::svg::{ensure_visible_int, DOC_MARGIN_BOTTOM, DOC_MARGIN_RIGHT};
+use crate::render::svg::{ViewportConfig, compute_viewport};
 use crate::svek::node::EntityPosition;
 use crate::svek::shape_type::ShapeType;
 use crate::Result;
@@ -1569,8 +1569,8 @@ pub fn layout_component(cd: &ComponentDiagram, skin: &crate::style::SkinParams) 
     let mut max_right = raw_body_w;
     let mut max_bottom = raw_body_h;
     for group in &group_layouts {
-        let gr = group.x + group.width - MARGIN + DOC_MARGIN_RIGHT;
-        let gb = group.y + group.height - MARGIN + DOC_MARGIN_BOTTOM;
+        let gr = group.x + group.width - MARGIN + ViewportConfig::COMPONENT.margin_right;
+        let gb = group.y + group.height - MARGIN + ViewportConfig::COMPONENT.margin_bottom;
         if gr > max_right {
             max_right = gr;
         }
@@ -1579,8 +1579,7 @@ pub fn layout_component(cd: &ComponentDiagram, skin: &crate::style::SkinParams) 
         }
     }
 
-    let total_width = ensure_visible_int(max_right + DOC_MARGIN_RIGHT) as f64;
-    let total_height = ensure_visible_int(max_bottom + DOC_MARGIN_BOTTOM) as f64;
+    let (total_width, total_height) = compute_viewport(max_right, max_bottom, &ViewportConfig::COMPONENT);
 
     log::debug!(
         "layout_component done: {:.0}x{:.0} (span={:.1}x{:.1})",

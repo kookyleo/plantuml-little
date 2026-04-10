@@ -8,7 +8,7 @@ use crate::layout::activity::{
     NotePositionLayout, SwimlaneLayout, TABLE_CELL_PADDING,
 };
 use crate::model::activity::ActivityDiagram;
-use crate::render::svg::{ensure_visible_int, write_bg_rect, write_svg_root_bg};
+use crate::render::svg::{ensure_visible_int, write_bg_rect, write_svg_root_bg, ViewportConfig, compute_viewport};
 use crate::render::svg_richtext::{
     creole_line_height, creole_text_width, get_sprite_svg, render_creole_display_lines,
     render_creole_text, render_creole_text_opts, render_creole_text_word_by_word,
@@ -452,8 +452,7 @@ fn render_old_style_activity(
 
     // Old Graphviz-backed activities: Java adds doc margins (right=5, bottom=5)
     // plus LimitFinder's +1 compensation. Combined margin = 5 on each side.
-    let svg_w = ensure_visible_int(max_x + 5.0) as f64;
-    let svg_h = ensure_visible_int(max_y + 5.0) as f64;
+    let (svg_w, svg_h) = compute_viewport(max_x, max_y, &ViewportConfig::ACTIVITY_OLD);
 
     let mut buf = String::with_capacity(body.len() + 256);
     write_svg_root_bg(&mut buf, svg_w, svg_h, "ACTIVITY", bg);

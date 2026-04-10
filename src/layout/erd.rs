@@ -11,7 +11,7 @@ use log::debug;
 use crate::font_metrics;
 use crate::layout::graphviz::{self, LayoutEdge, LayoutGraph, LayoutNode, RankDir};
 use crate::model::erd::{ErdAttribute, ErdDiagram, ErdDirection, ErdLink};
-use crate::render::svg::{DOC_MARGIN_BOTTOM, DOC_MARGIN_RIGHT};
+use crate::render::svg::ViewportConfig;
 use crate::svek::shape_type::ShapeType;
 use crate::Result;
 
@@ -1092,14 +1092,14 @@ pub fn layout_erd(diagram: &ErdDiagram) -> Result<ErdLayout> {
     let notes = layout_notes(&diagram.notes, &positions, max_right, max_bottom);
 
     for note in &notes {
-        let nr = note.x + note.width - render_dx + DOC_MARGIN_RIGHT;
-        let nb = note.y + note.height - render_dy + DOC_MARGIN_BOTTOM;
+        let nr = note.x + note.width - render_dx + ViewportConfig::COMPONENT.margin_right;
+        let nb = note.y + note.height - render_dy + ViewportConfig::COMPONENT.margin_bottom;
         max_right = max_right.max(nr);
         max_bottom = max_bottom.max(nb);
     }
 
-    let width = max_right + DOC_MARGIN_RIGHT;
-    let height = max_bottom + DOC_MARGIN_BOTTOM;
+    let width = max_right + ViewportConfig::COMPONENT.margin_right;
+    let height = max_bottom + ViewportConfig::COMPONENT.margin_bottom;
 
     debug!(
         "layout_erd done: {:.0}x{:.0} (lf_span={:.1}x{:.1}), {} ents, {} rels, {} attrs, {} edges, {} ISAs, {} notes",

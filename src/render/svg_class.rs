@@ -23,8 +23,8 @@ use crate::svek::edge::LineOfSegments;
 use crate::Result;
 
 use super::svg::{
-    ensure_visible_int, write_bg_rect, write_svg_root_bg, BoundsTracker, BodyResult,
-    DOC_MARGIN_BOTTOM, DOC_MARGIN_RIGHT,
+    write_bg_rect, write_svg_root_bg, BoundsTracker, BodyResult,
+    ViewportConfig, compute_viewport,
 };
 use super::svg_meta::text_block_h;
 use super::svg_richtext::{
@@ -521,16 +521,10 @@ pub(super) fn render_class(
     };
     // For the standalone body SVG viewport, add the getFinalDimension +1.
     let (svg_w, svg_h) = if let Some((raw_w, raw_h)) = raw_body_dim {
-        (
-            ensure_visible_int(raw_w + 1.0 + DOC_MARGIN_RIGHT) as f64,
-            ensure_visible_int(raw_h + 1.0 + DOC_MARGIN_BOTTOM) as f64,
-        )
+        compute_viewport(raw_w, raw_h, &ViewportConfig::SVEK)
     } else {
         // Keep the empty-diagram fallback non-zero.
-        (
-            ensure_visible_int(DOC_MARGIN_RIGHT + 10.0) as f64,
-            ensure_visible_int(DOC_MARGIN_BOTTOM + 10.0) as f64,
-        )
+        compute_viewport(10.0, 10.0, &ViewportConfig::COMPONENT)
     };
 
     let mut buf = String::with_capacity(sg.body().len() + 512);

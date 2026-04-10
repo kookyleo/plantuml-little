@@ -15,7 +15,8 @@ use crate::Result;
 use crate::font_metrics;
 
 use super::svg::{
-    ensure_visible_int, write_bg_rect, write_svg_root_bg, DOC_MARGIN_BOTTOM, DOC_MARGIN_RIGHT,
+    ensure_visible_int, write_bg_rect, write_svg_root_bg,
+    ViewportConfig, compute_viewport,
 };
 use super::svg_richtext::{
     disable_path_sprites, enable_path_sprites, render_creole_note_content, render_creole_text,
@@ -4335,8 +4336,7 @@ fn render_sequence_inner(
         measure_sequence_body_dim_full(&body)
     {
         // LimitFinder-style: `(max_x + 1) + marginR + 1 rounding`.
-        let lf_w = ensure_visible_int(raw_w + DOC_MARGIN_RIGHT) as f64;
-        let lf_h = ensure_visible_int(raw_h + DOC_MARGIN_BOTTOM) as f64;
+        let (lf_w, lf_h) = compute_viewport(raw_w, raw_h, &ViewportConfig::SEQUENCE_LF);
         // SvgGraphics-style: `ensureVisible_maxX + 1`, without extra margins
         // since the body coords already include the left/top margin offset.
         let sg_w_int = ensure_visible_int(sg_w) as f64;

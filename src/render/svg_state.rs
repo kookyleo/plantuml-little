@@ -7,8 +7,8 @@ use crate::klimt::svg::{fmt_coord, svg_comment_escape, xml_escape, LengthAdjust,
 use crate::layout::state::{StateLayout, StateNodeLayout, StateNoteLayout, TransitionLayout};
 use crate::model::state::{State, StateDiagram, StateKind, Transition};
 use crate::render::svg::{
-    ensure_visible_int, write_bg_rect, write_svg_root_bg, BoundsTracker, DOC_MARGIN_BOTTOM,
-    DOC_MARGIN_RIGHT,
+    write_bg_rect, write_svg_root_bg, BoundsTracker,
+    ViewportConfig, compute_viewport,
 };
 use crate::render::svg_richtext::render_creole_text;
 use crate::style::SkinParams;
@@ -397,8 +397,9 @@ pub fn render_state(
     // CucaDiagram: margin_left=0, margin_right=5.
     let (max_x, max_y) = tracker.max_point();
     // LF-based viewport (standard path: maxX + 1 + margin_right)
-    let lf_svg_w = ensure_visible_int(max_x + 1.0 + DOC_MARGIN_RIGHT);
-    let lf_svg_h = ensure_visible_int(max_y + 1.0 + DOC_MARGIN_BOTTOM);
+    let (lf_w, lf_h) = compute_viewport(max_x, max_y, &ViewportConfig::SVEK);
+    let lf_svg_w = lf_w as i32;
+    let lf_svg_h = lf_h as i32;
     // Arc-extended viewport (SvgGraphics rendering push)
     // Java: maxX = (int)(x + 1) — no additional +1 from ensure_visible_int
     let arc_svg_w = if svg_arc_max_x.is_finite() {
