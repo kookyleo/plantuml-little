@@ -538,7 +538,15 @@ pub(super) fn render_class(
     let mut buf = String::with_capacity(sg.body().len() + 512);
     let bg = skin.get_or("backgroundcolor", "#FFFFFF");
     write_svg_root_bg(&mut buf, svg_w, svg_h, "CLASS", bg);
-    buf.push_str("<defs/><g>");
+    let defs = sg.defs();
+    if defs.is_empty() {
+        buf.push_str("<defs/>");
+    } else {
+        buf.push_str("<defs>");
+        buf.push_str(defs);
+        buf.push_str("</defs>");
+    }
+    buf.push_str("<g>");
     write_bg_rect(&mut buf, svg_w, svg_h, bg);
     buf.push_str(sg.body());
     buf.push_str("</g></svg>");
@@ -1121,23 +1129,6 @@ fn draw_entity_box(
     // Java URectangle.rounded(roundCorner): SVG rx = roundCorner / 2.
     let rx = skin.round_corner().map(|rc| rc / 2.0).unwrap_or(2.5);
 
-    // Rect with rx="2.5" ry="2.5" to match Java PlantUML
-    RectShape {
-        x,
-        y,
-        w,
-        h,
-        rx,
-        ry: rx,
-    }
-    .draw(sg, &DrawStyle::filled(&fill, stroke, 0.5));
-    tracker.track_rect(x, y, w, h);
-    // Java entity image wrapper draws UEmpty(imageDim) at translate position,
-    // which LimitFinder tracks with addPoint(x+w, y+h) — NO -1 adjustment.
-    // This pushes max_y 1px beyond what the URectangle alone contributes.
-    // Use image_width (not expanded DOT width) to match Java's calculateDimension.
-    tracker.track_empty(x, y, nl.image_width, h);
-
     // Java font resolution:
     // - classFontSize controls the class name font size
     // - classAttributeFontSize controls member (field/method) font size
@@ -1198,6 +1189,86 @@ fn draw_entity_box(
     let has_kind_label = matches!(entity.kind, EntityKind::Enum | EntityKind::Annotation);
     let italic_name =
         markup_info.italic || matches!(entity.kind, EntityKind::Abstract | EntityKind::Interface);
+
+    // Compute header height early (needed for gradient header rects).
+    // This duplicates the logic at the separator-line section below.
+    let header_height_early = if has_kind_label {
+        HEADER_HEIGHT
+    } else {
+        let n_lines = crate::layout::split_name_display(&name_display).lines.len();
+        let single_h = font_metrics::ascent("SansSerif", class_font_size, false, italic_name)
+            + font_metrics::descent("SansSerif", class_font_size, false, italic_name);
+        let dynamic_name_h = n_lines as f64 * single_h;
+        HEADER_CIRCLE_BLOCK_HEIGHT.max(
+            visible_stereotypes.len() as f64 * HEADER_STEREO_LINE_HEIGHT
+                + dynamic_name_h
+                + HEADER_STEREO_NAME_GAP,
+        )
+    };
+
+    // Java EntityImageClass.drawInternal: when the background is a gradient
+    // and roundCorner != 0, Java draws 4 layered rects:
+    // 1. Body rect with gradient fill + border stroke
+    // 2. Header rect with gradient fill + gradient stroke (rounded)
+    // 3. Separator rect with gradient fill + gradient stroke (no rounding)
+    // 4. Outline rect with no fill + border stroke
+    // When the background is a plain color, a single rect suffices.
+    let is_gradient = crate::klimt::color::resolve_color(&fill)
+        .map(|c| c.is_gradient())
+        .unwrap_or(false);
+
+    // Rect 1: body rect with fill + border stroke
+    RectShape {
+        x,
+        y,
+        w,
+        h,
+        rx,
+        ry: rx,
+    }
+    .draw(sg, &DrawStyle::filled(&fill, stroke, 0.5));
+
+    if is_gradient {
+        // Rect 2: header rect with gradient fill + gradient stroke (rounded)
+        RectShape {
+            x,
+            y,
+            w,
+            h: header_height_early,
+            rx,
+            ry: rx,
+        }
+        .draw(sg, &DrawStyle::filled(&fill, &fill, 0.5));
+
+        // Rect 3: separator rect (height = rx, positioned at header bottom - rx)
+        RectShape {
+            x,
+            y: y + header_height_early - rx,
+            w,
+            h: rx,
+            rx: 0.0,
+            ry: 0.0,
+        }
+        .draw(sg, &DrawStyle::filled(&fill, &fill, 0.5));
+
+        // Rect 4: outline rect with no fill + border stroke
+        RectShape {
+            x,
+            y,
+            w,
+            h,
+            rx,
+            ry: rx,
+        }
+        .draw(sg, &DrawStyle::filled("none", stroke, 0.5));
+    }
+
+    tracker.track_rect(x, y, w, h);
+    // Java entity image wrapper draws UEmpty(imageDim) at translate position,
+    // which LimitFinder tracks with addPoint(x+w, y+h) — NO -1 adjustment.
+    // This pushes max_y 1px beyond what the URectangle alone contributes.
+    // Use image_width (not expanded DOT width) to match Java's calculateDimension.
+    tracker.track_empty(x, y, nl.image_width, h);
 
     if has_kind_label {
         let kind_text = match entity.kind {

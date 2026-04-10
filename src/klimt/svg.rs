@@ -330,10 +330,45 @@ impl SvgGraphic {
         }
     }
 
+    /// Parse a gradient color string like `#AAFFAA/#55AA55` into
+    /// `(color1_svg, color2_svg, policy)`. Gradient separators: `/`, `|`,
+    /// `-`, `\`. Returns `None` for plain colors.
+    ///
+    /// Java: `HColorGradient` stores two `HColor` values plus a policy
+    /// char. The policy character equals the separator used in the
+    /// skinparam value (`/` = diagonal, `|` = horizontal, `-` = vertical,
+    /// `\` = reverse diagonal).
+    fn parse_gradient_str(s: &str) -> Option<(String, String, char)> {
+        // Skip already-resolved values
+        if s.starts_with("url(") || s == "none" || s.is_empty() {
+            return None;
+        }
+        let raw = s.strip_prefix('#').unwrap_or(s);
+        for (i, ch) in raw.char_indices() {
+            if (ch == '/' || ch == '|' || ch == '-' || ch == '\\') && i > 0 {
+                let left = &raw[..i];
+                let right = &raw[i + ch.len_utf8()..];
+                // Validate both sides look like colors (hex or named)
+                if !left.is_empty() && !right.is_empty() {
+                    let c1 = super::color::resolve_color(left)?;
+                    let c2 = super::color::resolve_color(right)?;
+                    return Some((c1.to_svg(), c2.to_svg(), ch));
+                }
+            }
+        }
+        None
+    }
+
     // ── State setters ───────────────────────────────────────────────
 
     pub fn set_fill_color(&mut self, fill: &str) {
-        self.fill = Self::fix_color(Some(fill)).to_string();
+        let fixed = Self::fix_color(Some(fill));
+        if let Some((c1, c2, policy)) = Self::parse_gradient_str(fixed) {
+            let id = self.create_svg_gradient(&c1, &c2, policy);
+            self.fill = format!("url(#{})", id);
+        } else {
+            self.fill = fixed.to_string();
+        }
     }
 
     pub fn set_fill_color_with_opacity(&mut self, fill: &str) {
@@ -342,7 +377,13 @@ impl SvgGraphic {
     }
 
     pub fn set_stroke_color(&mut self, stroke: Option<&str>) {
-        self.stroke = Self::fix_color(stroke).to_string();
+        let fixed = Self::fix_color(stroke);
+        if let Some((c1, c2, policy)) = Self::parse_gradient_str(fixed) {
+            let id = self.create_svg_gradient(&c1, &c2, policy);
+            self.stroke = format!("url(#{})", id);
+        } else {
+            self.stroke = fixed.to_string();
+        }
     }
 
     pub fn set_stroke_width(&mut self, width: f64, dasharray: Option<(f64, f64)>) {
