@@ -1317,17 +1317,18 @@ fn render_if_diamond(
     }
     .draw(sg, &DrawStyle::filled(bg, border, 0.5));
 
-    // 2. Condition text, centred inside the hexagon (11pt sans-serif).
-    if !node.text.is_empty() {
+    // 2. Bottom label (south): rendered below the diamond center.
+    //    Java's FtileDiamondInside draws south labels before the inner text.
+    //    Java: x = cx + 4, y = diamond_bottom + ascent
+    if !bottom_label.is_empty() {
         let font_size = HEXAGON_LABEL_FONT_SIZE_RENDER;
-        let text_w = font_metrics::text_width(&node.text, "SansSerif", font_size, false, false);
-        let line_h = font_metrics::line_height("SansSerif", font_size, false, false);
+        let text_w = font_metrics::text_width(bottom_label, "SansSerif", font_size, false, false);
         let ascent = font_metrics::ascent("SansSerif", font_size, false, false);
-        let text_x = x + (w - text_w) / 2.0;
-        let text_y = y + (h - line_h) / 2.0 + ascent;
+        let text_x = x + w / 2.0 + 4.0;
+        let text_y = y + h + ascent;
         sg.set_fill_color(font_color);
         sg.svg_text(
-            &node.text,
+            bottom_label,
             text_x,
             text_y,
             Some("sans-serif"),
@@ -1343,17 +1344,17 @@ fn render_if_diamond(
         );
     }
 
-    // 3. Bottom label (south): rendered below the diamond center.
-    //    Java: x = cx + 4, y = diamond_bottom + ascent
-    if !bottom_label.is_empty() {
+    // 3. Condition text, centred inside the hexagon (11pt sans-serif).
+    if !node.text.is_empty() {
         let font_size = HEXAGON_LABEL_FONT_SIZE_RENDER;
-        let text_w = font_metrics::text_width(bottom_label, "SansSerif", font_size, false, false);
+        let text_w = font_metrics::text_width(&node.text, "SansSerif", font_size, false, false);
+        let line_h = font_metrics::line_height("SansSerif", font_size, false, false);
         let ascent = font_metrics::ascent("SansSerif", font_size, false, false);
-        let text_x = x + w / 2.0 + 4.0;
-        let text_y = y + h + ascent;
+        let text_x = x + (w - text_w) / 2.0;
+        let text_y = y + (h - line_h) / 2.0 + ascent;
         sg.set_fill_color(font_color);
         sg.svg_text(
-            bottom_label,
+            &node.text,
             text_x,
             text_y,
             Some("sans-serif"),
@@ -1716,6 +1717,13 @@ fn render_edge(
         return;
     }
 
+    // If-merge with emphasize-direction DOWN arrow on the first long vertical
+    // segment (implicit else when then-branch has break/goto).
+    if matches!(edge.kind, ActivityEdgeKindLayout::IfMergeEmphasize) {
+        render_if_merge_edge(sg, &edge.points, arrow_color);
+        return;
+    }
+
     // Goto no-arrow: polyline with no arrowhead
     if matches!(edge.kind, ActivityEdgeKindLayout::GotoNoArrow) {
         let line_style = DrawStyle::outline(arrow_color, 1.0);
@@ -1789,6 +1797,75 @@ fn render_polyline_with_arrow(
     for pair in points.windows(2) {
         let (mut x1, mut y1) = pair[0];
         let (mut x2, mut y2) = pair[1];
+        if x1 == x2 && y1 > y2 {
+            std::mem::swap(&mut y1, &mut y2);
+        }
+        LineShape { x1, y1, x2, y2 }.draw(sg, &edge_line_style);
+    }
+
+    // Arrow at the last point, direction from second-to-last to last.
+    let (tx, ty) = *points.last().unwrap();
+    let (fx, fy) = points[points.len() - 2];
+    render_arrowhead(sg, fx, fy, tx, ty, arrow_color);
+}
+
+/// Render an IfMerge edge: polyline segments with a DOWN emphasize-direction
+/// arrow on the first long vertical descending segment, plus a final arrow
+/// at the end.  Matches Java's `Snake.emphasizeDirection(Direction.DOWN)`.
+fn render_if_merge_edge(
+    sg: &mut SvgGraphic,
+    points: &[(f64, f64)],
+    arrow_color: &str,
+) {
+    if points.len() < 2 {
+        return;
+    }
+    let edge_line_style = DrawStyle::outline(arrow_color, 1.0);
+    let poly_style = DrawStyle::filled(arrow_color, arrow_color, 1.0);
+
+    // Find the first long vertical descending segment for emphasize arrow
+    let mut emphasize_seg: Option<usize> = None;
+    for (i, pair) in points.windows(2).enumerate() {
+        let (x1, y1) = pair[0];
+        let (x2, y2) = pair[1];
+        if x1 == x2 && y2 > y1 && (y2 - y1) > 20.0 {
+            emphasize_seg = Some(i);
+            break;
+        }
+    }
+
+    // Draw the first line segment (horizontal from diamond right)
+    let (x1, y1) = points[0];
+    let (x2, y2) = points[1];
+    LineShape { x1, y1, x2, y2 }.draw(sg, &edge_line_style);
+
+    // If the emphasize segment is the second segment (index 1), draw the
+    // DOWN arrow polygon before the vertical line (matching Java's draw order).
+    if let Some(seg_idx) = emphasize_seg {
+        let (sx, _sy1) = points[seg_idx];
+        let (_sx2, sy2) = points[seg_idx + 1];
+        // Place the arrow tip near the bottom of the segment, 26px from bottom
+        let arrow_tip_y = sy2 - 26.0;
+        // DOWN arrow: tip at bottom, base 10px above tip
+        PolygonShape {
+            points: vec![
+                sx - 4.0,
+                arrow_tip_y - 10.0,
+                sx,
+                arrow_tip_y,
+                sx + 4.0,
+                arrow_tip_y - 10.0,
+                sx,
+                arrow_tip_y - 4.0,
+            ],
+        }
+        .draw(sg, &poly_style);
+    }
+
+    // Draw remaining line segments with Java's vertical normalization (y1 <= y2)
+    for pair in points.windows(2).skip(1) {
+        let (x1, mut y1) = pair[0];
+        let (x2, mut y2) = pair[1];
         if x1 == x2 && y1 > y2 {
             std::mem::swap(&mut y1, &mut y2);
         }

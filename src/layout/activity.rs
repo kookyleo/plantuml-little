@@ -149,6 +149,9 @@ pub enum ActivityEdgeKindLayout {
     /// If-merge connection from branch end back to center.
     /// Multi-segment polyline with a down-arrow at end.
     IfMerge,
+    /// If-merge with an emphasize-direction DOWN arrow on the first long
+    /// vertical segment (used for implicit else when then-branch has break/goto).
+    IfMergeEmphasize,
     /// Goto loop-back plain lines (no arrow).
     GotoNoArrow,
 }
@@ -2476,6 +2479,36 @@ pub fn layout_activity(diagram: &ActivityDiagram) -> Result<ActivityLayout> {
         });
     }
 
+    // --- Pass 3-break: break edges (before if-branch edges) ------------------
+    // Break edges connect from a break source (inside an if-block within a
+    // repeat) to the repeat's exit diamond.  In Java these are drawn as part
+    // of the if-tile's connections, which are emitted before the if-diamond's
+    // own branch connections.  Generating them before Pass 3a ensures the
+    // correct draw order when inner edges are collected.
+    for &(from_idx, _from_y, exit_idx) in &deferred_break_edges {
+        let from_node = &nodes[from_idx];
+        let from_cx = from_node.x + from_node.width / 2.0;
+        let from_bottom = from_node.y + from_node.height;
+        let exit_node = &nodes[exit_idx];
+        let exit_cy = exit_node.y + exit_node.height / 2.0;
+        let exit_left = exit_node.x;
+        let break_y = from_bottom + 6.5157; // Java welding-point gap
+        let left_x = 10.0;
+        edges.push(ActivityEdgeLayout {
+            from_index: from_idx,
+            to_index: exit_idx,
+            label: String::new(),
+            points: vec![
+                (from_cx, from_bottom),
+                (from_cx, break_y),
+                (left_x, break_y),
+                (left_x, exit_cy),
+                (exit_left, exit_cy),
+            ],
+            kind: ActivityEdgeKindLayout::BreakEdge,
+        });
+    }
+
     // --- Pass 3a: if/else branch edges ----------------------------------------
     for die in &deferred_if_edges {
         let diamond = &nodes[die.diamond_idx];
@@ -2744,7 +2777,7 @@ pub fn layout_activity(diagram: &ActivityDiagram) -> Result<ActivityLayout> {
                             (next_cx, merge_mid_y),
                             (next_cx, next_top),
                         ],
-                        kind: ActivityEdgeKindLayout::IfMerge,
+                        kind: ActivityEdgeKindLayout::IfMergeEmphasize,
                     });
                 }
             }
@@ -2809,35 +2842,6 @@ pub fn layout_activity(diagram: &ActivityDiagram) -> Result<ActivityLayout> {
                 });
             }
         }
-    }
-
-    // --- Pass 3a3: break edges ------------------------------------------------
-    // Break edges connect from a break source (inside an if-block within a repeat)
-    // to the repeat's exit diamond.  The edge routes: from_cx → down short →
-    // left to edge (x=10) → down to exit_diamond_cy → right with arrow.
-    for &(from_idx, from_y, exit_idx) in &deferred_break_edges {
-        let from_node = &nodes[from_idx];
-        let from_cx = from_node.x + from_node.width / 2.0;
-        let from_bottom = from_node.y + from_node.height;
-        let exit_node = &nodes[exit_idx];
-        let exit_cy = exit_node.y + exit_node.height / 2.0;
-        let exit_left = exit_node.x;
-        // Short downward segment, then left to x=10, down to exit, right
-        let break_y = from_bottom + 6.5157; // Java welding-point gap
-        let left_x = 10.0;
-        edges.push(ActivityEdgeLayout {
-            from_index: from_idx,
-            to_index: exit_idx,
-            label: String::new(),
-            points: vec![
-                (from_cx, from_bottom),
-                (from_cx, break_y),
-                (left_x, break_y),
-                (left_x, exit_cy),
-                (exit_left, exit_cy),
-            ],
-            kind: ActivityEdgeKindLayout::BreakEdge,
-        });
     }
 
     // --- Pass 3b: `repeat`/`repeat while` loop-back edges -------------------
@@ -3414,14 +3418,23 @@ fn compute_render_order_for_repeat(
         let node = &nodes[i];
         if let Some(&hex_idx) = hex_for_d1.get(&node.index) {
             // Emit inner body first, then diamond1, then hex, then backward.
-            for j in (i + 1)..nodes.len() {
-                if nodes[j].index == hex_idx {
-                    break;
-                }
+            // Java's FtileIfWithDiamonds draws the inner ftile (then-branch)
+            // before the diamond shapes, so when we encounter an IfDiamond
+            // node, we first emit its then-branch actions, then the diamond.
+            let body_end = (i + 1..nodes.len())
+                .find(|&j| nodes[j].index == hex_idx)
+                .unwrap_or(nodes.len());
+            let mut body: Vec<usize> = Vec::new();
+            for j in (i + 1)..body_end {
                 if !consumed[j] {
-                    result.push(j);
-                    consumed[j] = true;
+                    body.push(j);
                 }
+            }
+            // Reorder if-blocks: move then-branch actions before their IfDiamond
+            let reordered = reorder_if_nodes_for_draw(nodes, &body);
+            for j in reordered {
+                result.push(j);
+                consumed[j] = true;
             }
             result.push(i);
             consumed[i] = true;
@@ -3453,6 +3466,41 @@ fn compute_render_order_for_repeat(
     result
 }
 
+/// Reorder nodes within a repeat body so that Java's `FtileIfWithDiamonds`
+/// draw order is matched: when an IfDiamond node is encountered, its
+/// then-branch actions (immediately following nodes with `skip_in_flow=true`)
+/// are emitted *before* the IfDiamond itself.
+fn reorder_if_nodes_for_draw(nodes: &[ActivityNodeLayout], body: &[usize]) -> Vec<usize> {
+    let mut result = Vec::with_capacity(body.len());
+    let mut k = 0;
+    while k < body.len() {
+        let j = body[k];
+        if matches!(nodes[j].kind, ActivityNodeKindLayout::IfDiamond { .. }) {
+            // Collect then-branch actions: consecutive nodes after the
+            // IfDiamond that have skip_in_flow=true (they are inside the if).
+            let mut then_end = k + 1;
+            while then_end < body.len() {
+                let nj = body[then_end];
+                if nodes[nj].skip_in_flow {
+                    then_end += 1;
+                } else {
+                    break;
+                }
+            }
+            // Emit then-branch first, then the IfDiamond
+            for t in (k + 1)..then_end {
+                result.push(body[t]);
+            }
+            result.push(j);
+            k = then_end;
+        } else {
+            result.push(j);
+            k += 1;
+        }
+    }
+    result
+}
+
 /// Reorder the edges list so that every closed `repeat`/`repeat while`
 /// block renders its connections in Java's order:
 ///   1. inner → inner body edges (between interior actions)
@@ -3463,7 +3511,7 @@ fn compute_render_order_for_repeat(
 fn reorder_edges_for_repeat(
     edges: Vec<ActivityEdgeLayout>,
     loopbacks: &[(usize, usize, Vec<ActivityEdgeLayout>)],
-    _nodes: &[ActivityNodeLayout],
+    nodes: &[ActivityNodeLayout],
 ) -> Vec<ActivityEdgeLayout> {
     // Build a lookup: for each repeat frame (diamond1, hex), collect the
     // interior edge indices and emit them in the required order.
@@ -3498,6 +3546,9 @@ fn reorder_edges_for_repeat(
     let mut frame_exit: std::collections::HashMap<usize, usize> = std::collections::HashMap::new();
     let mut frame_inner: std::collections::HashMap<usize, Vec<usize>> =
         std::collections::HashMap::new();
+    // hex→exit_diamond continuation edge (emitted after exit edge, before outer edges)
+    let mut frame_continuation: std::collections::HashMap<usize, usize> =
+        std::collections::HashMap::new();
 
     for (ei, edge) in edges.iter().enumerate() {
         for (d1, hex, _) in &frames {
@@ -3505,7 +3556,22 @@ fn reorder_edges_for_repeat(
                 frame_enter.insert(*d1, ei);
             } else if edge.to_index == *hex && edge.from_index > *d1 && edge.from_index < *hex {
                 frame_exit.insert(*d1, ei);
-            } else if edge.from_index > *d1 && edge.to_index < *hex && edge.from_index < *hex {
+            } else if edge.from_index == *hex
+                && edge.to_index == *hex + 1
+                && nodes.get(*hex + 1).map_or(false, |n| {
+                    matches!(n.kind, ActivityNodeKindLayout::Diamond)
+                })
+            {
+                // hex → exit diamond: continuation edge within repeat
+                // (only when the next node is actually a Diamond, not a Stop etc.)
+                frame_continuation.insert(*d1, ei);
+            } else if edge.from_index > *d1 && edge.from_index < *hex
+                && (edge.to_index < *hex
+                    || matches!(edge.kind, ActivityEdgeKindLayout::BreakEdge))
+            {
+                // Inner edges include break edges that exit the repeat body
+                // to the exit diamond — Java draws these as part of the
+                // if-block connections within the repeat body.
                 frame_inner.entry(*d1).or_default().push(ei);
             }
         }
@@ -3541,9 +3607,29 @@ fn reorder_edges_for_repeat(
             && !frame_hexs.contains(&edge.to_index)
             && edge.to_index > edge.from_index
         {
-            deferred_outer.push(ei);
-            consumed[ei] = true;
-            continue;
+            // Don't defer continuation edges (hex→exit_diamond); they are
+            // part of the repeat frame and handled via frame_continuation.
+            if !frame_continuation.values().any(|&ci| ci == ei) {
+                deferred_outer.push(ei);
+                consumed[ei] = true;
+                continue;
+            }
+        }
+        // Also defer edges starting from the exit diamond (hex+1) that go
+        // further out — these are outer assembly connections (e.g., exit→stop).
+        // Only applies when hex+1 is actually a Diamond (exit diamond).
+        {
+            let is_exit_diamond_source = frames.iter().any(|(_, hex, _)| {
+                edge.from_index == *hex + 1
+                    && nodes.get(*hex + 1).map_or(false, |n| {
+                        matches!(n.kind, ActivityNodeKindLayout::Diamond)
+                    })
+            });
+            if is_exit_diamond_source && edge.to_index > edge.from_index {
+                deferred_outer.push(ei);
+                consumed[ei] = true;
+                continue;
+            }
         }
         // Does this edge belong to a repeat frame?
         let mut owner: Option<usize> = None;
@@ -3580,6 +3666,11 @@ fn reorder_edges_for_repeat(
                 if let Some(&exit_ei) = frame_exit.get(&d1) {
                     result.push(edges[exit_ei].clone());
                     consumed[exit_ei] = true;
+                }
+                // 5) Continuation edge (hex → exit diamond).
+                if let Some(&cont_ei) = frame_continuation.get(&d1) {
+                    result.push(edges[cont_ei].clone());
+                    consumed[cont_ei] = true;
                 }
             }
             // Already emitted via the frame — skip.
