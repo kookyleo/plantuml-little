@@ -9,8 +9,8 @@
 
 ## Verified Results
 
-- `cargo test --lib` -> `2681/2681`
-- `cargo test --test reference_tests` -> `329 passed / 0 failed / 3 ignored`
+- `cargo test --lib` -> `2693/2693`
+- `cargo test --test reference_tests` -> `337 passed / 0 failed / 3 ignored`
 - The reference harness uses `tests/reference/INDEX.tsv` as the authoritative fixture-to-reference map.
 
 ## Intentionally Unsupported Diagram Types
