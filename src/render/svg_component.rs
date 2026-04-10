@@ -71,6 +71,117 @@ fn parse_hex_color(color: &str) -> Option<(u8, u8, u8)> {
 }
 
 // ---------------------------------------------------------------------------
+// Per-node resolved colors
+// ---------------------------------------------------------------------------
+
+/// Resolved fill/stroke/font colors for a single node.
+struct NodeColors<'a> {
+    bg: &'a str,
+    border: &'a str,
+    font: &'a str,
+}
+
+/// Base skin colors for all element types, looked up once per diagram.
+struct NodeColorTable<'a> {
+    comp_bg: &'a str,
+    comp_border: &'a str,
+    comp_font: &'a str,
+    rect_bg: &'a str,
+    rect_border: &'a str,
+    db_bg: &'a str,
+    db_border: &'a str,
+    cloud_bg: &'a str,
+    cloud_border: &'a str,
+    node_bg: &'a str,
+    node_border: &'a str,
+    artifact_bg: &'a str,
+    artifact_border: &'a str,
+    storage_bg: &'a str,
+    storage_border: &'a str,
+    folder_bg: &'a str,
+    folder_border: &'a str,
+    frame_bg: &'a str,
+    frame_border: &'a str,
+    agent_bg: &'a str,
+    agent_border: &'a str,
+    stack_bg: &'a str,
+    stack_border: &'a str,
+    queue_bg: &'a str,
+    queue_border: &'a str,
+}
+
+impl<'a> NodeColorTable<'a> {
+    fn from_skin(skin: &'a SkinParams) -> Self {
+        Self {
+            comp_bg: skin.background_color("component", ENTITY_BG),
+            comp_border: skin.border_color("component", BORDER_COLOR),
+            comp_font: skin.font_color("component", TEXT_COLOR),
+            rect_bg: skin.background_color("rectangle", ENTITY_BG),
+            rect_border: skin.border_color("rectangle", BORDER_COLOR),
+            db_bg: skin.background_color("database", ENTITY_BG),
+            db_border: skin.border_color("database", BORDER_COLOR),
+            cloud_bg: skin.background_color("cloud", ENTITY_BG),
+            cloud_border: skin.border_color("cloud", BORDER_COLOR),
+            node_bg: skin.background_color("node", ENTITY_BG),
+            node_border: skin.border_color("node", BORDER_COLOR),
+            artifact_bg: skin.background_color("artifact", ENTITY_BG),
+            artifact_border: skin.border_color("artifact", BORDER_COLOR),
+            storage_bg: skin.background_color("storage", ENTITY_BG),
+            storage_border: skin.border_color("storage", BORDER_COLOR),
+            folder_bg: skin.background_color("folder", ENTITY_BG),
+            folder_border: skin.border_color("folder", BORDER_COLOR),
+            frame_bg: skin.background_color("frame", ACTIVATION_BG),
+            frame_border: skin.border_color("frame", BORDER_COLOR),
+            agent_bg: skin.background_color("agent", ENTITY_BG),
+            agent_border: skin.border_color("agent", BORDER_COLOR),
+            stack_bg: skin.background_color("stack", ENTITY_BG),
+            stack_border: skin.border_color("stack", BORDER_COLOR),
+            queue_bg: skin.background_color("queue", ENTITY_BG),
+            queue_border: skin.border_color("queue", BORDER_COLOR),
+        }
+    }
+
+    /// Look up the base (bg, border) pair for a given kind.
+    fn base_for_kind(&self, kind: &ComponentKind) -> (&'a str, &'a str) {
+        match kind {
+            ComponentKind::Component => (self.comp_bg, self.comp_border),
+            ComponentKind::Database => (self.db_bg, self.db_border),
+            ComponentKind::Cloud => (self.cloud_bg, self.cloud_border),
+            ComponentKind::Node => (self.node_bg, self.node_border),
+            ComponentKind::Rectangle | ComponentKind::Package | ComponentKind::Card
+                | ComponentKind::Archimate => (self.rect_bg, self.rect_border),
+            ComponentKind::Artifact => (self.artifact_bg, self.artifact_border),
+            ComponentKind::Storage => (self.storage_bg, self.storage_border),
+            ComponentKind::Folder => (self.folder_bg, self.folder_border),
+            ComponentKind::Frame => (self.frame_bg, self.frame_border),
+            ComponentKind::Agent => (self.agent_bg, self.agent_border),
+            ComponentKind::Stack => (self.stack_bg, self.stack_border),
+            ComponentKind::Queue => (self.queue_bg, self.queue_border),
+            _ => (self.comp_bg, self.comp_border),
+        }
+    }
+
+    /// Resolve effective colors for one node, applying stereotype overrides
+    /// and per-entity color.
+    fn resolve_for(
+        &self,
+        skin: &'a SkinParams,
+        node: &'a ComponentNodeLayout,
+        stereo_refs: &[&str],
+    ) -> NodeColors<'a> {
+        let element_key = component_kind_skin_element(&node.kind);
+        let (base_bg, base_border) = self.base_for_kind(&node.kind);
+        let bg = node
+            .color
+            .as_deref()
+            .unwrap_or_else(|| skin.background_color_for(element_key, stereo_refs, base_bg));
+        let border = skin.border_color_for(element_key, stereo_refs, base_border);
+        let font = skin.font_color_for(element_key, stereo_refs, self.comp_font);
+        NodeColors { bg, border, font }
+    }
+}
+
+// ---------------------------------------------------------------------------
 // Public entry point
 // ---------------------------------------------------------------------------
 
@@ -157,18 +268,8 @@ pub fn render_component(
         .map(|group| (group.id.clone(), group.y + group.height / 2.0))
         .collect();
 
-    // Skin color lookups
-    let comp_bg = skin.background_color("component", ENTITY_BG);
-    let comp_border = skin.border_color("component", BORDER_COLOR);
-    let comp_font = skin.font_color("component", TEXT_COLOR);
-    let rect_bg = skin.background_color("rectangle", ENTITY_BG);
-    let rect_border = skin.border_color("rectangle", BORDER_COLOR);
-    let db_bg = skin.background_color("database", ENTITY_BG);
-    let db_border = skin.border_color("database", BORDER_COLOR);
-    let cloud_bg = skin.background_color("cloud", ENTITY_BG);
-    let cloud_border = skin.border_color("cloud", BORDER_COLOR);
-    let node_bg = skin.background_color("node", ENTITY_BG);
-    let node_border = skin.border_color("node", BORDER_COLOR);
+    // Skin color lookups — base defaults per element type
+    let base_colors = NodeColorTable::from_skin(skin);
     let note_bg = skin.background_color("note", NOTE_BG);
     let note_border = skin.border_color("note", NOTE_BORDER);
     let note_font = skin.font_color("note", TEXT_COLOR);
@@ -178,21 +279,6 @@ pub fn render_component(
     let arrow_color = skin.arrow_color(BORDER_COLOR);
     let arrow_font_color = skin.font_color("arrow", TEXT_COLOR);
     let arrow_font_size = skin.font_size("arrow", 13.0);
-    // Deployment diagram skin lookups
-    let artifact_bg = skin.background_color("artifact", ENTITY_BG);
-    let artifact_border = skin.border_color("artifact", BORDER_COLOR);
-    let storage_bg = skin.background_color("storage", ENTITY_BG);
-    let storage_border = skin.border_color("storage", BORDER_COLOR);
-    let folder_bg = skin.background_color("folder", ENTITY_BG);
-    let folder_border = skin.border_color("folder", BORDER_COLOR);
-    let frame_bg = skin.background_color("frame", ACTIVATION_BG);
-    let frame_border = skin.border_color("frame", BORDER_COLOR);
-    let agent_bg = skin.background_color("agent", ENTITY_BG);
-    let agent_border = skin.border_color("agent", BORDER_COLOR);
-    let stack_bg = skin.background_color("stack", ENTITY_BG);
-    let stack_border = skin.border_color("stack", BORDER_COLOR);
-    let queue_bg = skin.background_color("queue", ENTITY_BG);
-    let queue_border = skin.border_color("queue", BORDER_COLOR);
 
     // SVG header
     let bg = skin.get_or("backgroundcolor", "#FFFFFF");
@@ -271,10 +357,6 @@ pub fn render_component(
             && parent_id
                 .and_then(|parent| group_center_y.get(parent))
                 .is_some_and(|center_y| node.y < *center_y);
-        // Stereotype-keyed skinparams (C4 stdlib: rectangle<<container>>, etc.)
-        // take precedence over generic element styling for the matching shape.
-        // Compute per-node overrides once and splice them into the relevant
-        // slot passed to `render_node` depending on the node's kind.
         let stereo_refs: Vec<&str> =
             node.stereotypes.iter().map(String::as_str).collect();
         let element_key = component_kind_skin_element(&node.kind);
@@ -293,156 +375,9 @@ pub fn render_component(
             round_corner,
             wrap_width: skin.wrap_width(),
         };
-        let eff_bg = skin.background_color_for(element_key, &stereo_refs, match node.kind {
-            ComponentKind::Component => comp_bg,
-            ComponentKind::Database => db_bg,
-            ComponentKind::Cloud => cloud_bg,
-            ComponentKind::Node => node_bg,
-            ComponentKind::Rectangle | ComponentKind::Package | ComponentKind::Card
-                | ComponentKind::Archimate => rect_bg,
-            ComponentKind::Artifact => artifact_bg,
-            ComponentKind::Storage => storage_bg,
-            ComponentKind::Folder => folder_bg,
-            ComponentKind::Frame => frame_bg,
-            ComponentKind::Agent => agent_bg,
-            ComponentKind::Stack => stack_bg,
-            ComponentKind::Queue => queue_bg,
-            _ => comp_bg,
-        });
-        let eff_border = skin.border_color_for(element_key, &stereo_refs, match node.kind {
-            ComponentKind::Component => comp_border,
-            ComponentKind::Database => db_border,
-            ComponentKind::Cloud => cloud_border,
-            ComponentKind::Node => node_border,
-            ComponentKind::Rectangle | ComponentKind::Package | ComponentKind::Card
-                | ComponentKind::Archimate => rect_border,
-            ComponentKind::Artifact => artifact_border,
-            ComponentKind::Storage => storage_border,
-            ComponentKind::Folder => folder_border,
-            ComponentKind::Frame => frame_border,
-            ComponentKind::Agent => agent_border,
-            ComponentKind::Stack => stack_border,
-            ComponentKind::Queue => queue_border,
-            _ => comp_border,
-        });
-        let eff_font = skin.font_color_for(element_key, &stereo_refs, comp_font);
-
-        // Splice effective colors into the matching slot so render_node
-        // picks them up. Non-matching slots keep their default values to
-        // preserve the existing behavior for other shapes in the same
-        // diagram.
-        let mut comp_bg_o = comp_bg;
-        let mut comp_border_o = comp_border;
-        let mut comp_font_o = comp_font;
-        let mut rect_bg_o = rect_bg;
-        let mut rect_border_o = rect_border;
-        let mut db_bg_o = db_bg;
-        let mut db_border_o = db_border;
-        let mut cloud_bg_o = cloud_bg;
-        let mut cloud_border_o = cloud_border;
-        let mut node_bg_o = node_bg;
-        let mut node_border_o = node_border;
-        let mut artifact_bg_o = artifact_bg;
-        let mut artifact_border_o = artifact_border;
-        let mut storage_bg_o = storage_bg;
-        let mut storage_border_o = storage_border;
-        let mut folder_bg_o = folder_bg;
-        let mut folder_border_o = folder_border;
-        let mut frame_bg_o = frame_bg;
-        let mut frame_border_o = frame_border;
-        let mut agent_bg_o = agent_bg;
-        let mut agent_border_o = agent_border;
-        let mut stack_bg_o = stack_bg;
-        let mut stack_border_o = stack_border;
-        let mut queue_bg_o = queue_bg;
-        let mut queue_border_o = queue_border;
-        if !stereo_refs.is_empty() {
-            comp_font_o = eff_font;
-            match node.kind {
-                ComponentKind::Component => {
-                    comp_bg_o = eff_bg;
-                    comp_border_o = eff_border;
-                }
-                ComponentKind::Rectangle
-                | ComponentKind::Package
-                | ComponentKind::Card
-                | ComponentKind::Archimate => {
-                    rect_bg_o = eff_bg;
-                    rect_border_o = eff_border;
-                }
-                ComponentKind::Database => {
-                    db_bg_o = eff_bg;
-                    db_border_o = eff_border;
-                }
-                ComponentKind::Cloud => {
-                    cloud_bg_o = eff_bg;
-                    cloud_border_o = eff_border;
-                }
-                ComponentKind::Node => {
-                    node_bg_o = eff_bg;
-                    node_border_o = eff_border;
-                }
-                ComponentKind::Artifact => {
-                    artifact_bg_o = eff_bg;
-                    artifact_border_o = eff_border;
-                }
-                ComponentKind::Storage => {
-                    storage_bg_o = eff_bg;
-                    storage_border_o = eff_border;
-                }
-                ComponentKind::Folder => {
-                    folder_bg_o = eff_bg;
-                    folder_border_o = eff_border;
-                }
-                ComponentKind::Frame => {
-                    frame_bg_o = eff_bg;
-                    frame_border_o = eff_border;
-                }
-                ComponentKind::Agent => {
-                    agent_bg_o = eff_bg;
-                    agent_border_o = eff_border;
-                }
-                ComponentKind::Stack => {
-                    stack_bg_o = eff_bg;
-                    stack_border_o = eff_border;
-                }
-                ComponentKind::Queue => {
-                    queue_bg_o = eff_bg;
-                    queue_border_o = eff_border;
-                }
-                _ => {}
-            }
-        }
-        render_node(
-            &mut sg,
-            node,
-            meta,
-            comp_bg_o,
-            comp_border_o,
-            comp_font_o,
-            rect_bg_o,
-            rect_border_o,
-            db_bg_o,
-            db_border_o,
-            cloud_bg_o,
-            cloud_border_o,
-            node_bg_o,
-            node_border_o,
-            artifact_bg_o,
-            artifact_border_o,
-            storage_bg_o,
-            storage_border_o,
-            folder_bg_o,
-            folder_border_o,
-            frame_bg_o,
-            frame_border_o,
-            agent_bg_o,
-            agent_border_o,
-            stack_bg_o,
-            stack_border_o,
-            queue_bg_o,
-            queue_border_o,
-        );
+        // Resolve effective colors: stereotype overrides > per-entity color > base skin
+        let colors = base_colors.resolve_for(skin, node, &stereo_refs);
+        render_node(&mut sg, node, meta, &colors);
     }
 
     // Edges — link IDs start after entity IDs.
@@ -1021,105 +956,64 @@ impl<'a> EntitySvgMeta<'a> {
     }
 }
 
-#[allow(clippy::too_many_arguments)]
 fn render_node(
     sg: &mut SvgGraphic,
     node: &ComponentNodeLayout,
     meta: EntitySvgMeta<'_>,
-    comp_bg: &str,
-    comp_border: &str,
-    comp_font: &str,
-    rect_bg: &str,
-    rect_border: &str,
-    db_bg: &str,
-    db_border: &str,
-    cloud_bg: &str,
-    cloud_border: &str,
-    node_bg: &str,
-    node_border: &str,
-    artifact_bg: &str,
-    artifact_border: &str,
-    storage_bg: &str,
-    storage_border: &str,
-    folder_bg: &str,
-    folder_border: &str,
-    frame_bg: &str,
-    frame_border: &str,
-    agent_bg: &str,
-    agent_border: &str,
-    stack_bg: &str,
-    stack_border: &str,
-    queue_bg: &str,
-    queue_border: &str,
+    colors: &NodeColors<'_>,
 ) {
-    let color_ref = node.color.as_deref();
-    let comp_bg = color_ref.unwrap_or(comp_bg);
-    let rect_bg = color_ref.unwrap_or(rect_bg);
-    let db_bg = color_ref.unwrap_or(db_bg);
-    let cloud_bg = color_ref.unwrap_or(cloud_bg);
-    let node_bg = color_ref.unwrap_or(node_bg);
-    let artifact_bg = color_ref.unwrap_or(artifact_bg);
-    let storage_bg = color_ref.unwrap_or(storage_bg);
-    let folder_bg = color_ref.unwrap_or(folder_bg);
-    let frame_bg = color_ref.unwrap_or(frame_bg);
-    let agent_bg = color_ref.unwrap_or(agent_bg);
-    let stack_bg = color_ref.unwrap_or(stack_bg);
-    let queue_bg = color_ref.unwrap_or(queue_bg);
+    let bg = colors.bg;
+    let border = colors.border;
+    let font = colors.font;
 
     match node.kind {
         ComponentKind::Component => {
-            render_component_node(sg, node, meta, comp_bg, comp_border, comp_font);
+            render_component_node(sg, node, meta, bg, border, font);
         }
-        ComponentKind::Rectangle => {
-            render_rectangle_node(sg, node, meta, rect_bg, rect_border, comp_font);
+        ComponentKind::Rectangle | ComponentKind::Card => {
+            render_rounded_rect_node(sg, node, meta, bg, border, font, meta.round_corner.unwrap_or(2.5));
         }
         ComponentKind::Database => {
-            render_database_node(sg, node, meta, db_bg, db_border, comp_font)
+            render_database_node(sg, node, meta, bg, border, font);
         }
         ComponentKind::Cloud => {
-            render_cloud_node(sg, node, meta, cloud_bg, cloud_border, comp_font)
+            render_rounded_rect_node(sg, node, meta, bg, border, font, 20.0);
         }
-        ComponentKind::Node => render_box_node(sg, node, meta, node_bg, node_border, comp_font),
-        ComponentKind::Package => render_box_node(sg, node, meta, rect_bg, rect_border, comp_font),
+        ComponentKind::Node | ComponentKind::Package => {
+            render_box_node(sg, node, meta, bg, border, font);
+        }
         ComponentKind::Interface => {
-            render_interface_node(sg, node, meta, comp_bg, comp_border, comp_font);
-        }
-        ComponentKind::Card => {
-            render_rectangle_node(sg, node, meta, rect_bg, rect_border, comp_font)
+            render_interface_node(sg, node, meta, bg, border, font);
         }
         ComponentKind::Artifact => {
-            render_artifact_node(sg, node, meta, artifact_bg, artifact_border, comp_font);
+            render_artifact_node(sg, node, meta, bg, border, font);
         }
         ComponentKind::Storage => {
-            render_storage_node(sg, node, meta, storage_bg, storage_border, comp_font);
+            render_rounded_rect_node(sg, node, meta, bg, border, font, 35.0);
         }
         ComponentKind::Folder => {
-            render_folder_node(sg, node, meta, folder_bg, folder_border, comp_font)
+            render_folder_node(sg, node, meta, bg, border, font);
         }
         ComponentKind::Frame => {
-            render_frame_node(sg, node, meta, frame_bg, frame_border, comp_font)
+            render_frame_node(sg, node, meta, bg, border, font);
         }
-        ComponentKind::Agent => {
-            render_agent_node(sg, node, meta, agent_bg, agent_border, comp_font)
-        }
-        ComponentKind::Archimate => {
-            // Archimate uses the same rectangle rendering as Agent
-            render_agent_node(sg, node, meta, rect_bg, rect_border, comp_font)
+        ComponentKind::Agent | ComponentKind::Archimate => {
+            render_rounded_rect_node(sg, node, meta, bg, border, font, 2.5);
         }
         ComponentKind::Stack => {
-            render_stack_node(sg, node, meta, stack_bg, stack_border, comp_font)
+            render_stack_node(sg, node, meta, bg, border, font);
         }
         ComponentKind::Queue => {
-            render_queue_node(sg, node, meta, queue_bg, queue_border, comp_font)
+            render_queue_node(sg, node, meta, bg, border, font);
         }
         ComponentKind::PortIn | ComponentKind::PortOut => {
-            render_port_node(sg, node, meta, comp_bg, comp_border, comp_font);
+            render_port_node(sg, node, meta, bg, border, font);
         }
         ComponentKind::Actor => {
-            render_actor_node(sg, node, meta, comp_bg, comp_border, comp_font);
+            render_actor_node(sg, node, meta, bg, border, font);
         }
         ComponentKind::UseCase => {
-            render_usecase_node(sg, node, meta, comp_bg, comp_border, comp_font);
+            render_usecase_node(sg, node, meta, bg, border, font);
         }
     }
 }
@@ -1190,22 +1084,23 @@ fn render_component_node(
     sg.push_raw("</g>");
 }
 
-/// Rectangle: simple rectangle
-fn render_rectangle_node(
+/// Rounded rectangle: shared by Rectangle, Card, Cloud, Agent, Archimate, Storage.
+/// Each caller passes the appropriate corner radius.
+fn render_rounded_rect_node(
     sg: &mut SvgGraphic,
     node: &ComponentNodeLayout,
     meta: EntitySvgMeta<'_>,
     bg: &str,
     border: &str,
     font_color: &str,
+    rx: f64,
 ) {
     open_entity_g(sg, node, meta);
 
-    let rc = meta.round_corner.unwrap_or(2.5);
     sg.set_fill_color(bg);
     sg.set_stroke_color(Some(border));
     sg.set_stroke_width(0.5, None);
-    sg.svg_rectangle(node.x, node.y, node.width, node.height, rc, rc, 0.0);
+    sg.svg_rectangle(node.x, node.y, node.width, node.height, rx, rx, 0.0);
 
     render_node_text(sg, node, font_color, bg, meta);
     sg.push_raw("</g>");
@@ -1260,26 +1155,6 @@ fn render_database_node(
         fmt_coord(x + w), fmt_coord(y + ry + ry),
         fmt_coord(x + w), fmt_coord(y + ry),
     ));
-
-    render_node_text(sg, node, font_color, bg, meta);
-    sg.push_raw("</g>");
-}
-
-/// Cloud: rounded rect with large radius
-fn render_cloud_node(
-    sg: &mut SvgGraphic,
-    node: &ComponentNodeLayout,
-    meta: EntitySvgMeta<'_>,
-    bg: &str,
-    border: &str,
-    font_color: &str,
-) {
-    open_entity_g(sg, node, meta);
-
-    sg.set_fill_color(bg);
-    sg.set_stroke_color(Some(border));
-    sg.set_stroke_width(0.5, None);
-    sg.svg_rectangle(node.x, node.y, node.width, node.height, 20.0, 20.0, 0.0);
 
     render_node_text(sg, node, font_color, bg, meta);
     sg.push_raw("</g>");
@@ -1433,27 +1308,6 @@ fn render_artifact_node(
     sg.push_raw("</g>");
 }
 
-/// Storage: rounded rect with large rx/ry
-fn render_storage_node(
-    sg: &mut SvgGraphic,
-    node: &ComponentNodeLayout,
-    meta: EntitySvgMeta<'_>,
-    bg: &str,
-    border: &str,
-    font_color: &str,
-) {
-    open_entity_g(sg, node, meta);
-
-    let rx = 35.0;
-    sg.set_fill_color(bg);
-    sg.set_stroke_color(Some(border));
-    sg.set_stroke_width(0.5, None);
-    sg.svg_rectangle(node.x, node.y, node.width, node.height, rx, rx, 0.0);
-
-    render_node_text(sg, node, font_color, bg, meta);
-    sg.push_raw("</g>");
-}
-
 /// Folder: path with tab, body rect, separator line
 fn render_folder_node(
     sg: &mut SvgGraphic,
@@ -1585,26 +1439,6 @@ fn render_frame_node(
         Some("middle"),
     );
 
-    sg.push_raw("</g>");
-}
-
-/// Agent: rounded rect with rx 2.5
-fn render_agent_node(
-    sg: &mut SvgGraphic,
-    node: &ComponentNodeLayout,
-    meta: EntitySvgMeta<'_>,
-    bg: &str,
-    border: &str,
-    font_color: &str,
-) {
-    open_entity_g(sg, node, meta);
-
-    sg.set_fill_color(bg);
-    sg.set_stroke_color(Some(border));
-    sg.set_stroke_width(0.5, None);
-    sg.svg_rectangle(node.x, node.y, node.width, node.height, 2.5, 2.5, 0.0);
-
-    render_node_text(sg, node, font_color, bg, meta);
     sg.push_raw("</g>");
 }
 
