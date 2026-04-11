@@ -1591,11 +1591,11 @@ pub fn layout_activity(diagram: &ActivityDiagram) -> Result<ActivityLayout> {
                         None
                     };
 
-                    if frame.backward_text.is_some() {
+                    if let Some(text) = frame.backward_text {
                         deferred_backward.push(DeferredBackward {
                             hex_idx,
                             diamond1_idx: frame.diamond1_idx,
-                            text: frame.backward_text.unwrap(),
+                            text,
                             width: frame.backward_width,
                             height: frame.backward_height,
                         });

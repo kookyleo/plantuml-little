@@ -3937,9 +3937,8 @@ fn draw_class_note(
     // Java Opale uses delta=4 for the connector arrow half-width on the body edge.
     const OPALE_DELTA: f64 = 4.0;
 
-    if is_opale && note.connector.is_some() {
+    if let Some((from_x_g, from_y_g, to_x_g, to_y_g)) = note.connector.filter(|_| is_opale) {
         // Opale note with connector: render body as <path> with embedded connector arrow.
-        let (from_x_g, from_y_g, to_x_g, to_y_g) = note.connector.unwrap();
         let from_x = from_x_g + offset_x;
         let from_y = from_y_g + offset_y;
         let to_x = to_x_g + offset_x;
