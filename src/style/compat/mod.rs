@@ -4,6 +4,7 @@ mod lookup;
 mod normalize;
 mod parse;
 mod stereotype;
+#[cfg(test)]
 mod tests;
 mod theme;
 

@@ -871,8 +871,8 @@ fn compute_fragment_extent(
     let mut else_labels: Vec<String> = Vec::new();
     {
         let mut sep_depth: usize = 0;
-        for j in start_idx..end_idx {
-            match &tiles[j] {
+        for tile in &tiles[start_idx..end_idx] {
+            match tile {
                 TeozTile::FragmentStart { .. } | TeozTile::GroupStart { .. } => {
                     sep_depth += 1;
                 }
@@ -968,10 +968,7 @@ pub fn build_teoz_layout(sd: &SequenceDiagram, skin: &SkinParams) -> Result<SeqL
     );
 
     // ── Resolve font/skin params ─────────────────────────────────────────
-    let default_font = skin
-        .get("defaultfontname")
-        .map(|s| s)
-        .unwrap_or("SansSerif");
+    let default_font = skin.get("defaultfontname").unwrap_or("SansSerif");
     let default_font_size: Option<f64> = skin
         .get("defaultfontsize")
         .and_then(|s| s.parse::<f64>().ok());
@@ -1865,9 +1862,9 @@ pub fn build_teoz_layout(sd: &SequenceDiagram, skin: &SkinParams) -> Result<SeqL
             // Retroactively adjust those LifeEvent tiles to use combined_h.
             if combined_h > msg_h {
                 let new_y_after = msg_y + combined_h;
-                for adj_idx in (preceding_msg_idx + 1)..tile_idx {
-                    if matches!(tiles[adj_idx], TeozTile::LifeEvent { .. }) {
-                        tiles[adj_idx].set_y(new_y_after);
+                for tile in &mut tiles[(preceding_msg_idx + 1)..tile_idx] {
+                    if matches!(tile, TeozTile::LifeEvent { .. }) {
+                        tile.set_y(new_y_after);
                     }
                 }
             }
@@ -1888,9 +1885,9 @@ pub fn build_teoz_layout(sd: &SequenceDiagram, skin: &SkinParams) -> Result<SeqL
                     let selfmsg_contact =
                         compute_selfmsg_contact(&tiles[tile_idx], tp.msg_line_height);
                     // Shift all fragment tiles down by selfmsg_contact
-                    for shift_idx in frag_start_idx..tile_idx {
-                        if let Some(old_y) = tiles[shift_idx].get_y() {
-                            tiles[shift_idx].set_y(old_y + selfmsg_contact);
+                    for tile in &mut tiles[frag_start_idx..tile_idx] {
+                        if let Some(old_y) = tile.get_y() {
+                            tile.set_y(old_y + selfmsg_contact);
                         }
                     }
                     // Place parallel message at original block start
@@ -2671,14 +2668,16 @@ pub fn build_teoz_layout(sd: &SequenceDiagram, skin: &SkinParams) -> Result<SeqL
     let mut delays: Vec<DelayLayout> = Vec::new();
     let mut refs: Vec<RefLayout> = Vec::new();
     let mut fragments: Vec<FragmentLayout> = Vec::new();
-    let mut fragment_stack: Vec<(
+    // (y, kind, label, dividers, start_tile_idx, color)
+    type FragmentStackEntry = (
         f64,
         FragmentKind,
         String,
         Vec<(f64, String)>,
         usize,
         Option<String>,
-    )> = Vec::new();
+    );
+    let mut fragment_stack: Vec<FragmentStackEntry> = Vec::new();
     let mut groups: Vec<GroupLayout> = Vec::new();
     let mut group_stack: Vec<(f64, Option<String>)> = Vec::new();
 
@@ -3268,6 +3267,7 @@ pub fn build_teoz_layout(sd: &SequenceDiagram, skin: &SkinParams) -> Result<SeqL
                     let first_msg_idx = {
                         let mut msg_count_before = 0;
                         let mut found = None;
+                        #[allow(clippy::needless_range_loop)]
                         for ti in 0..tiles.len() {
                             let is_msg = matches!(
                                 tiles[ti],
@@ -3338,7 +3338,9 @@ pub fn build_teoz_layout(sd: &SequenceDiagram, skin: &SkinParams) -> Result<SeqL
         // y_start_stairs = position used in getStairs (message arrowY)
         // y_start_addstep = position used in addStep collision check
         //   (arrowY for first-message inline, msg_bottom for parallel-message inline)
-        let mut act_state: HashMap<String, Vec<(f64, f64, usize, Option<String>)>> = HashMap::new();
+        // (y_start_stairs, y_start_addstep, level, color)
+        type ActEntry = (f64, f64, usize, Option<String>);
+        let mut act_state: HashMap<String, Vec<ActEntry>> = HashMap::new();
         let mut tile_idx = 0;
         let lifeline_top = STARTING_Y + max_preferred_height;
         let mut last_step_y: f64 = lifeline_top + PLAYINGSPACE_STARTING_Y;

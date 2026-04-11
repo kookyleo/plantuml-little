@@ -18,6 +18,9 @@ use crate::klimt::geom::{Rankdir, RectangleArea, XPoint2D};
 use crate::svek::edge::{append_table, LabelDimension};
 use crate::svek::shape_type::ShapeType;
 
+/// Four (f64, f64) pairs: (moveDelta, limitFinder_span, render_offset, dim).
+pub type SolveResult = Result<((f64, f64), (f64, f64), (f64, f64), (f64, f64)), String>;
+
 // ── DotMode ──────────────────────────────────────────────────────────
 
 /// Controls DOT generation mode.
@@ -605,11 +608,8 @@ impl DotStringFactory {
     /// 1. For each node: find polygon/ellipse by color → extract position
     /// 2. For each edge: call `solve_line()` to extract path + labels
     /// 3. Normalize coordinates (shift so min position = (6, 6))
-    /// Returns (moveDelta, limitFinder_span, render_offset) from normalization.
-    pub fn solve(
-        &mut self,
-        svg: &str,
-    ) -> Result<((f64, f64), (f64, f64), (f64, f64), (f64, f64)), String> {
+    ///    Returns (moveDelta, limitFinder_span, render_offset) from normalization.
+    pub fn solve(&mut self, svg: &str) -> SolveResult {
         use crate::svek::svg_result::SvgResult;
 
         // Java svek uses a pure YDelta(fullHeight) transform when parsing

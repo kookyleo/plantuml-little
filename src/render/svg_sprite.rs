@@ -435,8 +435,8 @@ fn format_4dp(n: f64) -> String {
     let s = format!("{:.4}", n);
     if s.find('.').is_some() {
         let trimmed = s.trim_end_matches('0');
-        if trimmed.ends_with('.') {
-            trimmed[..trimmed.len() - 1].to_string()
+        if let Some(stripped) = trimmed.strip_suffix('.') {
+            stripped.to_string()
         } else {
             trimmed.to_string()
         }

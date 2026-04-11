@@ -155,8 +155,8 @@ pub fn parse_skinparams(content: &str) -> SkinParams {
         // Java Rose skin uses legacy ColorParam defaults (MY_RED=#A80036,
         // MY_YELLOW=#FEFECE, COL_FBFB77 for notes). This completely replaces
         // the modern default theme colors.
-        if lower.starts_with("skin ") {
-            let skin_name = lower["skin ".len()..].trim();
+        if let Some(stripped) = lower.strip_prefix("skin ") {
+            let skin_name = stripped.trim();
             if skin_name == "rose" {
                 // Border colors (Java: MY_RED = #A80036)
                 params.set("sequencelifelinebordercolor", "#A80036");
@@ -395,13 +395,13 @@ fn extract_document_style(css: &str, params: &mut SkinParams) {
         // Only pick up direct properties (depth == section_depth + 1), not nested
         // sub-selectors like `.highlight { BackGroundColor ... }`.
         if !in_document
-            && current_section.is_some()
             && depth == section_depth + 1
             && !trimmed.contains('{')
             && !trimmed.starts_with('}')
         {
-            if let Some((key, value)) = parse_css_property(trimmed) {
-                let section = current_section.as_ref().unwrap();
+            if let (Some(section), Some((key, value))) =
+                (current_section.as_ref(), parse_css_property(trimmed))
+            {
                 // Document sub-sections (title, footer, etc.) use document.{section}.{key}
                 // Element-level blocks (node, root, etc.) use {section}.{key}
                 let param_key = if matches!(

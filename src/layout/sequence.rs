@@ -829,10 +829,7 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
     );
 
     // Resolve font family and sizes from skin params
-    let default_font = skin
-        .get("defaultfontname")
-        .map(|s| s)
-        .unwrap_or("SansSerif");
+    let default_font = skin.get("defaultfontname").unwrap_or("SansSerif");
     let default_font_size: Option<f64> = skin
         .get("defaultfontsize")
         .and_then(|s| s.parse::<f64>().ok());
@@ -1050,9 +1047,9 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
                     let span = hi - lo; // number of gaps this message spans
                     if span > 0 {
                         let per_gap = needed / span as f64;
-                        for g in lo..hi {
-                            if per_gap > min_gaps[g] {
-                                min_gaps[g] = per_gap;
+                        for min_gap in &mut min_gaps[lo..hi] {
+                            if per_gap > *min_gap {
+                                *min_gap = per_gap;
                             }
                         }
                     }
@@ -1126,9 +1123,9 @@ pub fn layout_sequence(sd: &SequenceDiagram, skin: &crate::style::SkinParams) ->
                     if let Some((min_idx, max_idx, _depth)) = prescan_stack.pop() {
                         let frag_depth = prescan_stack.len() + 1; // 1-based depth
                         if let (Some(lo), Some(hi)) = (min_idx, max_idx) {
-                            for pidx in lo..=hi {
-                                if frag_depth > max_frag_depth[pidx] {
-                                    max_frag_depth[pidx] = frag_depth;
+                            for depth_val in &mut max_frag_depth[lo..=hi] {
+                                if frag_depth > *depth_val {
+                                    *depth_val = frag_depth;
                                 }
                             }
                         }

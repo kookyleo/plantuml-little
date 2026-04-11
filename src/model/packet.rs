@@ -1,11 +1,11 @@
-/// Packet diagram model — visualizes network packet structure (bit fields).
-///
-/// Input format:
-///   `0-15: Source Port`
-///   `16-31: Destination Port`
-///   `32-63: Sequence Number`
-///
-/// Each field specifies a bit range and a label.
+// Packet diagram model — visualizes network packet structure (bit fields).
+//
+// Input format:
+//   `0-15: Source Port`
+//   `16-31: Destination Port`
+//   `32-63: Sequence Number`
+//
+// Each field specifies a bit range and a label.
 
 /// A single field in the packet diagram.
 #[derive(Debug, Clone)]

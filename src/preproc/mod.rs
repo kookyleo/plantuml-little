@@ -4477,7 +4477,9 @@ a->b: test:\nTEST";
     #[test]
     fn upstream_eval_math_decimal_literal() {
         let r = eval_arith_expr("3.14").unwrap();
-        assert!((r - 3.14).abs() < 0.0001, "3.14 = {}", r);
+        #[allow(clippy::approx_constant)]
+        let expected = 3.14;
+        assert!((r - expected).abs() < 0.0001, "3.14 = {}", r);
     }
 
     // Ported from upstream: EvalMathTest.testDecimalNumbers

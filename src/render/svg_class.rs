@@ -3159,7 +3159,7 @@ fn build_edge_path_d(points: &[(f64, f64)], offset_x: f64, offset_y: f64) -> Str
 }
 
 fn is_cubic_edge_path(points: &[(f64, f64)]) -> bool {
-    points.len() >= 4 && (points.len() - 1).is_multiple_of(3)
+    points.len() >= 4 && (points.len() - 1) % 3 == 0
 }
 
 fn edge_start_angle(points: &[(f64, f64)]) -> f64 {

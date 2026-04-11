@@ -820,6 +820,7 @@ pub fn layout_activity(diagram: &ActivityDiagram) -> Result<ActivityLayout> {
         has_goto: bool,  // branch ends with goto (no merge)
         has_break: bool, // branch ends with break
     }
+    #[allow(dead_code)] // fields match Java structure
     struct IfFrame {
         diamond_idx: usize,
         diamond_cx: f64,       // center x of the diamond
@@ -838,6 +839,7 @@ pub fn layout_activity(diagram: &ActivityDiagram) -> Result<ActivityLayout> {
     }
     let mut if_stack: Vec<IfFrame> = Vec::new();
     // Deferred if-branch edges: generated after all nodes are placed.
+    #[allow(dead_code)] // fields match Java structure
     struct DeferredIfEdges {
         diamond_idx: usize,
         diamond_cx: f64,
@@ -2220,14 +2222,14 @@ pub fn layout_activity(diagram: &ActivityDiagram) -> Result<ActivityLayout> {
                 let mut left_note_w = 0.0_f64;
                 let mut right_note_w = 0.0_f64;
                 let mut note_count = 0usize;
-                for j in (ni + 1)..nodes.len() {
-                    match &nodes[j].kind {
+                for node_j in &nodes[(ni + 1)..] {
+                    match &node_j.kind {
                         ActivityNodeKindLayout::Note { position, .. }
                         | ActivityNodeKindLayout::FloatingNote { position, .. } => {
                             note_count += 1;
                             match position {
-                                NotePositionLayout::Left => left_note_w += nodes[j].width,
-                                NotePositionLayout::Right => right_note_w += nodes[j].width,
+                                NotePositionLayout::Left => left_note_w += node_j.width,
+                                NotePositionLayout::Right => right_note_w += node_j.width,
                             }
                         }
                         _ => break, // next flow node — stop looking
@@ -3442,6 +3444,7 @@ fn compute_render_order_for_repeat(
                 .find(|&j| nodes[j].index == hex_idx)
                 .unwrap_or(nodes.len());
             let mut body: Vec<usize> = Vec::new();
+            #[allow(clippy::needless_range_loop)]
             for j in (i + 1)..body_end {
                 if !consumed[j] {
                     body.push(j);
@@ -3505,8 +3508,8 @@ fn reorder_if_nodes_for_draw(nodes: &[ActivityNodeLayout], body: &[usize]) -> Ve
                 }
             }
             // Emit then-branch first, then the IfDiamond
-            for t in (k + 1)..then_end {
-                result.push(body[t]);
+            for &b in &body[(k + 1)..then_end] {
+                result.push(b);
             }
             result.push(j);
             k = then_end;
@@ -3524,6 +3527,7 @@ fn reorder_if_nodes_for_draw(nodes: &[ActivityNodeLayout], body: &[usize]) -> Ve
 ///   2. diamond1 → first interior action (ConnectionIn)
 ///   3. loop-back edge (ConnectionBackSimple2)
 ///   4. last interior action → hex (ConnectionOut)
+///
 /// Edges outside any repeat block keep their natural top-to-bottom order.
 fn reorder_edges_for_repeat(
     edges: Vec<ActivityEdgeLayout>,
@@ -3577,7 +3581,7 @@ fn reorder_edges_for_repeat(
                 && edge.to_index == *hex + 1
                 && nodes
                     .get(*hex + 1)
-                    .map_or(false, |n| matches!(n.kind, ActivityNodeKindLayout::Diamond))
+                    .is_some_and(|n| matches!(n.kind, ActivityNodeKindLayout::Diamond))
             {
                 // hex → exit diamond: continuation edge within repeat
                 // (only when the next node is actually a Diamond, not a Stop etc.)
@@ -3639,7 +3643,7 @@ fn reorder_edges_for_repeat(
                 edge.from_index == *hex + 1
                     && nodes
                         .get(*hex + 1)
-                        .map_or(false, |n| matches!(n.kind, ActivityNodeKindLayout::Diamond))
+                        .is_some_and(|n| matches!(n.kind, ActivityNodeKindLayout::Diamond))
             });
             if is_exit_diamond_source && edge.to_index > edge.from_index {
                 deferred_outer.push(ei);

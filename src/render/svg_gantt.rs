@@ -847,14 +847,15 @@ fn render_weekly_calendar_gantt(diagram: &GanttDiagram, skin: &SkinParams) -> Op
             fmt_coord(dep.y2),
         ));
         buf.push_str(&format!(
-            r#"<polygon fill="{CALENDAR_ARROW_COLOR}" points="{},{},{},{},{},{},{}" style="stroke:{CALENDAR_ARROW_COLOR};stroke-width:2;"/>"#,
+            r#"<polygon fill="{CALENDAR_ARROW_COLOR}" points="{},{},{},{},{},{},{},{}" style="stroke:{CALENDAR_ARROW_COLOR};stroke-width:2;"/>"#,
             fmt_coord(dep.head_tip_x - 8.0),
             fmt_coord(dep.y2 - 8.0),
             fmt_coord(dep.head_tip_x),
             fmt_coord(dep.y2),
             fmt_coord(dep.head_tip_x - 8.0),
             fmt_coord(dep.y2 + 8.0),
-            format!("{},{}", fmt_coord(dep.head_tip_x - 8.0), fmt_coord(dep.y2 - 8.0)),
+            fmt_coord(dep.head_tip_x - 8.0),
+            fmt_coord(dep.y2 - 8.0),
         ));
     }
 

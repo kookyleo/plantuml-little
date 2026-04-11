@@ -2292,11 +2292,7 @@ fn render_edge(
     // Semantic group with data attributes matching Java format
     let from_ent = entity_ids.get(&edge.from).map(|s| s.as_str()).unwrap_or("");
     let to_ent = entity_ids.get(&edge.to).map(|s| s.as_str()).unwrap_or("");
-    let link_type = if edge.dashed {
-        "dependency"
-    } else {
-        "dependency"
-    };
+    let link_type = "dependency";
     sg.push_raw(&format!(
         r#"<g class="link" data-entity-1="{from_ent}" data-entity-2="{to_ent}" data-link-type="{link_type}""#,
     ));

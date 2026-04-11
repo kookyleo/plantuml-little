@@ -2568,12 +2568,11 @@ fn draw_message(
         // - cross_from (dressing1.head = CROSSX, makes direction2 = BOTH)
         // - bidirectional (both dressing heads non-NONE, makes direction2 = BOTH)
         // Cross/bidir at source shifts text only for LeftToRight.
-        let from_decoration_text_offset =
-            if !msg.is_left && ((!msg.bidirectional && msg.cross_from) || msg.bidirectional) {
-                ARROW_DELTA_X
-            } else {
-                0.0
-            };
+        let from_decoration_text_offset = if !msg.is_left && (msg.cross_from || msg.bidirectional) {
+            ARROW_DELTA_X
+        } else {
+            0.0
+        };
         let base_text_x = if msg.is_left {
             // Left arrow: text positioned after the left arrowhead.
             // Use base tip (without circle shift) — Java doesn't shift text for circles.

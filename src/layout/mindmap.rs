@@ -361,8 +361,8 @@ impl StripeFrontier {
         if collisions.len() > 1 {
             // Split into sub-segments at collision boundaries
             let mut x = x1;
-            for i in 1..collisions.len() {
-                let boundary = collisions[i].start;
+            for coll in &collisions[1..] {
+                let boundary = coll.start;
                 self.add_segment(x, boundary, value);
                 x = boundary;
             }

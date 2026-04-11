@@ -678,7 +678,7 @@ impl SvgGraphic {
     /// Points are given as a flat array [x0,y0,x1,y1,...].
     /// Attribute order: fill, [fill-opacity], [filter], points, [style]
     pub fn svg_polygon(&mut self, delta_shadow: f64, points: &[f64]) {
-        debug_assert!(points.len().is_multiple_of(2));
+        debug_assert!(points.len() % 2 == 0);
         self.manage_shadow(delta_shadow);
         if !self.hidden {
             let mut pts = String::with_capacity(points.len() * 8);
@@ -730,7 +730,7 @@ impl SvgGraphic {
     /// Points are given as a flat array [x0,y0,x1,y1,...].
     /// Attribute order (alphabetical): fill, [fill-opacity], points, [style]
     pub fn svg_polyline(&mut self, points: &[f64]) {
-        debug_assert!(points.len().is_multiple_of(2));
+        debug_assert!(points.len() % 2 == 0);
         if !self.hidden {
             let mut pts = String::with_capacity(points.len() * 8);
             for (i, coord) in points.iter().enumerate() {

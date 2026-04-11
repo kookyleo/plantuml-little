@@ -525,7 +525,8 @@ fn shortest_projection_pair(
     to_x: f64,
     to_ys: &[f64],
 ) -> Option<((f64, f64), (f64, f64))> {
-    let mut best: Option<((f64, f64), (f64, f64), f64)> = None;
+    type Candidate = ((f64, f64), (f64, f64), f64);
+    let mut best: Option<Candidate> = None;
     for &from_y in from_ys {
         for &to_y in to_ys {
             let dx = to_x - from_x;

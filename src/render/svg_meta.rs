@@ -1044,7 +1044,7 @@ pub(super) fn wrap_with_meta(
 
 /// Sequence diagram chrome wrapping — mirrors Java's `SequenceDiagramFileMakerPuma2`
 /// + `SequenceDiagramArea` composition.  Key differences from the generic
-/// `wrap_with_meta` code path:
+///   `wrap_with_meta` code path:
 ///
 /// 1. Drawing order (top-to-bottom in SVG DOM): title → caption → body → header
 ///    → footer → legend.  Java draws them in exactly this order (see

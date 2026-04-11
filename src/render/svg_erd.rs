@@ -563,8 +563,10 @@ fn bezier_midpoint_tangent(path_d: &str, _is_superset: bool) -> Option<((f64, f6
         dist_sq(pt, start) + dist_sq(pt, end)
     }
 
+    type CubicSeg = [(f64, f64); 4];
+
     /// Subdivide a cubic bezier at t=0.5 into two halves using de Casteljau.
-    fn subdivide(seg: &[(f64, f64); 4]) -> ([(f64, f64); 4], [(f64, f64); 4]) {
+    fn subdivide(seg: &CubicSeg) -> (CubicSeg, CubicSeg) {
         let [p0, p1, p2, p3] = *seg;
         let m01 = ((p0.0 + p1.0) / 2.0, (p0.1 + p1.1) / 2.0);
         let m12 = ((p1.0 + p2.0) / 2.0, (p1.1 + p2.1) / 2.0);

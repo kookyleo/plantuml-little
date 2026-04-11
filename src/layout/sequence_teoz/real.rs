@@ -198,8 +198,8 @@ impl RealLine {
             RealKind::Delta { base, delta } => self.get_value_with_depth(*base, depth + 1) + delta,
             RealKind::Max { children } => {
                 let mut result = self.get_value_with_depth(children[0], depth + 1);
-                for i in 1..children.len() {
-                    let v = self.get_value_with_depth(children[i], depth + 1);
+                for &child in &children[1..] {
+                    let v = self.get_value_with_depth(child, depth + 1);
                     if v > result {
                         result = v;
                     }
@@ -208,8 +208,8 @@ impl RealLine {
             }
             RealKind::Min { children } => {
                 let mut result = self.get_value_with_depth(children[0], depth + 1);
-                for i in 1..children.len() {
-                    let v = self.get_value_with_depth(children[i], depth + 1);
+                for &child in &children[1..] {
+                    let v = self.get_value_with_depth(child, depth + 1);
                     if v < result {
                         result = v;
                     }

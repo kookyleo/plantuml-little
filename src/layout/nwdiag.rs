@@ -6,6 +6,9 @@ use crate::font_metrics;
 use crate::model::nwdiag::NwdiagDiagram;
 use crate::Result;
 
+/// Server-name → list of (network_index, address).
+type ConnectionMap = (Vec<String>, HashMap<String, Vec<(usize, String)>>);
+
 // ---------------------------------------------------------------------------
 // Public layout result types
 // ---------------------------------------------------------------------------
@@ -153,9 +156,7 @@ fn resolve_description(name: &str, diagram: &NwdiagDiagram) -> String {
 
 /// Build per-server connection map: server_name -> Vec<(network_index, address)>.
 /// The first entry is the "main network" (first network the server appears in).
-fn build_connections(
-    diagram: &NwdiagDiagram,
-) -> (Vec<String>, HashMap<String, Vec<(usize, String)>>) {
+fn build_connections(diagram: &NwdiagDiagram) -> ConnectionMap {
     let mut server_order: Vec<String> = Vec::new();
     let mut conns: HashMap<String, Vec<(usize, String)>> = HashMap::new();
 
@@ -240,6 +241,7 @@ fn tetris_layout(
             // Check if all stages in [start, end] are free at this column.
             let fits = (bar.start..=bar.end).all(|stage| !grid[stage][col]);
             if fits {
+                #[allow(clippy::needless_range_loop)]
                 for stage in bar.start..=bar.end {
                     grid[stage][col] = true;
                 }
@@ -376,6 +378,7 @@ pub fn layout_nwdiag(diagram: &NwdiagDiagram) -> Result<NwdiagLayout> {
 
     // Compute column widths and row heights.
     let mut col_widths = vec![0.0_f64; num_cols];
+    #[allow(clippy::needless_range_loop)]
     for j in 0..num_cols {
         for i in 0..num_networks {
             if let Some((w, _)) = grid[i][j] {
@@ -385,6 +388,7 @@ pub fn layout_nwdiag(diagram: &NwdiagDiagram) -> Result<NwdiagLayout> {
     }
 
     let mut row_heights = vec![MIN_LINE_HEIGHT; num_networks];
+    #[allow(clippy::needless_range_loop)]
     for i in 0..num_networks {
         for j in 0..num_cols {
             if let Some((_, h)) = grid[i][j] {
@@ -470,6 +474,7 @@ pub fn layout_nwdiag(diagram: &NwdiagDiagram) -> Result<NwdiagLayout> {
         let mut xmin = -1.0_f64;
         let mut xmax = 0.0_f64;
         let mut x = 0.0;
+        #[allow(clippy::needless_range_loop)]
         for j in 0..num_cols {
             let is_linked = is_server_linked_to_network(j, i, &grid_servers, &conns);
             if is_linked && xmin < 0.0 {
@@ -702,7 +707,7 @@ fn magic_delta(net_idx: usize) -> f64 {
     // magicDelta: S0 is even → +2, S1 is odd → -2.
 
     let stage_number = net_idx; // For simple cases, network[i] gets stage i.
-    if stage_number.is_multiple_of(2) {
+    if stage_number % 2 == 0 {
         2.0
     } else {
         -2.0

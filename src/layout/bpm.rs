@@ -544,8 +544,7 @@ pub fn layout_bpm(d: &BpmDiagram) -> Result<BpmLayout> {
     // Build grid lines
     let mut grid_lines = Vec::new();
     // Horizontal lines at each row boundary
-    for li in 0..num_lines {
-        let y = row_starts[li];
+    for &y in &row_starts {
         grid_lines.push(GridLine {
             x1: 0.0,
             y1: y,
@@ -554,8 +553,7 @@ pub fn layout_bpm(d: &BpmDiagram) -> Result<BpmLayout> {
         });
     }
     // Vertical lines at each column boundary
-    for ci in 0..num_cols {
-        let x = col_starts[ci];
+    for &x in &col_starts {
         grid_lines.push(GridLine {
             x1: x,
             y1: 0.0,

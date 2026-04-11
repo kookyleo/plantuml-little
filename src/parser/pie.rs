@@ -43,9 +43,9 @@ pub fn parse_pie_diagram(source: &str) -> Result<PieDiagram> {
         }
 
         // Parse "Label" : value
-        if t.starts_with('"') {
-            if let Some(end_quote) = t[1..].find('"') {
-                let label = t[1..1 + end_quote].to_string();
+        if let Some(after_quote) = t.strip_prefix('"') {
+            if let Some(end_quote) = after_quote.find('"') {
+                let label = after_quote[..end_quote].to_string();
                 let rest = t[2 + end_quote..].trim();
                 if let Some(val_str) = rest.strip_prefix(':') {
                     if let Ok(value) = val_str.trim().parse::<f64>() {

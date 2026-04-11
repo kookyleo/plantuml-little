@@ -625,17 +625,14 @@ fn build_line_mapping(
             mapping.push(start_pos + 1 + mapping.len());
             continue;
         }
-        let mut found = false;
-        for orig_idx in search_from..orig_lines.len() {
-            let orig_trimmed = orig_lines[orig_idx].trim();
-            if lines_match_for_mapping(trimmed, orig_trimmed) {
-                mapping.push(orig_idx);
-                search_from = orig_idx + 1;
-                found = true;
-                break;
-            }
-        }
-        if !found {
+        let found_idx = orig_lines[search_from..]
+            .iter()
+            .position(|ol| lines_match_for_mapping(trimmed, ol.trim()))
+            .map(|i| i + search_from);
+        if let Some(orig_idx) = found_idx {
+            mapping.push(orig_idx);
+            search_from = orig_idx + 1;
+        } else {
             mapping.push(start_pos + 1 + mapping.len());
         }
     }

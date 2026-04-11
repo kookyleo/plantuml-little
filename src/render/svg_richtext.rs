@@ -677,8 +677,7 @@ fn do_fetch_image(url: &str) -> Option<ImageInfo> {
         }
     }
 
-    if url.starts_with("data:image/png;base64,") {
-        let b64 = &url["data:image/png;base64,".len()..];
+    if let Some(b64) = url.strip_prefix("data:image/png;base64,") {
         if let Ok(bytes) = base64::engine::general_purpose::STANDARD.decode(b64) {
             return decode_image_bytes(&bytes);
         }
@@ -976,8 +975,8 @@ pub fn render_creole_text_word_by_word(
         let run_bold = run.bold || base_bold;
         let run_italic = run.italic || base_italic;
         let run_size = match run.font_size_override {
-            Some(v) if v == -1.0 => (font_size * 0.77).round(), // subscript
-            Some(v) if v == -2.0 => (font_size * 0.77).round(), // superscript
+            Some(-1.0) => (font_size * 0.77).round(), // subscript
+            Some(-2.0) => (font_size * 0.77).round(), // superscript
             // Heading sentinel: size = -100 - delta → effective = base + delta.
             Some(v) if v <= -100.0 => font_size + (-100.0 - v),
             Some(v) if v > 0.0 => v,
@@ -1667,10 +1666,11 @@ pub fn render_creole_entity_name(
                         let baseline = cursor_y + ascent;
                         write!(
                             buf,
-                            r#"<text fill="{font_color}" font-family="sans-serif" font-size="{}" font-weight="bold" lengthAdjust="spacing" textLength="{}"{}>{}</text>"#,
+                            r#"<text fill="{font_color}" font-family="sans-serif" font-size="{}" font-weight="bold" lengthAdjust="spacing" textLength="{}" x="{}" y="{}">{}</text>"#,
                             font_size as u32,
                             fmt_coord(tl),
-                            format!(r#" x="{}" y="{}""#, fmt_coord(text_x), fmt_coord(baseline)),
+                            fmt_coord(text_x),
+                            fmt_coord(baseline),
                             xml_escape(line_text),
                         )
                         .unwrap();
@@ -1704,14 +1704,11 @@ pub fn render_creole_entity_name(
                         let tl = text_w;
                         write!(
                             buf,
-                            r#"<text fill="{font_color}" font-family="sans-serif" font-size="{}" font-weight="bold" lengthAdjust="spacing" textLength="{}"{}>{}</text>"#,
+                            r#"<text fill="{font_color}" font-family="sans-serif" font-size="{}" font-weight="bold" lengthAdjust="spacing" textLength="{}" x="{}" y="{}">{}</text>"#,
                             font_size as u32,
                             fmt_coord(tl),
-                            format!(
-                                r#" x="{}" y="{}""#,
-                                fmt_coord(bullet_text_x),
-                                fmt_coord(baseline)
-                            ),
+                            fmt_coord(bullet_text_x),
+                            fmt_coord(baseline),
                             xml_escape(item_text),
                         )
                         .unwrap();
@@ -1763,11 +1760,11 @@ fn parse_note_segment<'a>(lines: &[&'a str]) -> Vec<NoteBlock<'a>> {
         }
 
         // Bullet line
-        if trimmed.starts_with("* ") {
+        if let Some(stripped) = trimmed.strip_prefix("* ") {
             if !text_lines.is_empty() {
                 blocks.push(NoteBlock::TextLines(std::mem::take(&mut text_lines)));
             }
-            bullet_items.push(&trimmed[2..]);
+            bullet_items.push(stripped);
             continue;
         }
 
@@ -1981,7 +1978,7 @@ fn parse_display_table_cells(line: &str, preserve_backslash_n: bool) -> Vec<Disp
         .collect()
 }
 
-fn strip_span_edge_spaces(spans: &mut Vec<TextSpan>) -> (usize, usize) {
+fn strip_span_edge_spaces(spans: &mut [TextSpan]) -> (usize, usize) {
     let mut lead = 0usize;
     let mut trail = 0usize;
     if let Some(p) = find_first_plain_mut(spans) {
@@ -2312,7 +2309,7 @@ fn render_display_table(
                         }
                         render_preparsed_lines(
                             buf,
-                            &[line.clone()],
+                            std::slice::from_ref(line),
                             col_x + cell_pad_left,
                             baseline,
                             cell_line_height,
@@ -2340,7 +2337,7 @@ fn render_display_table(
                     } else {
                         render_preparsed_lines(
                             buf,
-                            &[line.clone()],
+                            std::slice::from_ref(line),
                             col_x + cell_pad_left,
                             baseline,
                             cell_line_height,
@@ -3301,8 +3298,8 @@ fn render_split_text_runs(
         let run_italic = run.italic || base_italic;
         // Handle subscript/superscript size markers
         let run_size = match run.font_size_override {
-            Some(v) if v == -1.0 => (font_size * 0.77).round(), // subscript
-            Some(v) if v == -2.0 => (font_size * 0.77).round(), // superscript
+            Some(-1.0) => (font_size * 0.77).round(), // subscript
+            Some(-2.0) => (font_size * 0.77).round(), // superscript
             // Heading sentinel: size = -100 - delta → effective = base + delta.
             Some(v) if v <= -100.0 => font_size + (-100.0 - v),
             Some(v) if v > 0.0 => v,

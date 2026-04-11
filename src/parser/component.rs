@@ -474,8 +474,8 @@ fn try_parse_entity_decl(line: &str) -> Option<EntityDecl> {
 
     // Archimate keyword: `archimate COLOR "LABEL" <<STEREOTYPE>> as ALIAS`
     // The color appears before the name, unlike other keywords.
-    if line.starts_with("archimate ") {
-        let rest = line["archimate ".len()..].trim();
+    if let Some(stripped) = line.strip_prefix("archimate ") {
+        let rest = stripped.trim();
         return Some(parse_archimate_rest(rest));
     }
 
@@ -490,8 +490,8 @@ fn parse_archimate_rest(rest: &str) -> EntityDecl {
 
     // First, consume any color specification (e.g. `#RRGGBB`, `#NamedColor`)
     let trimmed = remaining.trim();
-    if trimmed.starts_with('#') {
-        let end_pos = trimmed[1..]
+    if let Some(after_hash) = trimmed.strip_prefix('#') {
+        let end_pos = after_hash
             .find(|c: char| c.is_whitespace() || c == '"' || c == '<')
             .map(|p| p + 1)
             .unwrap_or(trimmed.len());

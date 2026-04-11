@@ -2009,6 +2009,7 @@ mod tests {
 
     #[test]
     fn manage_round_non_cardinal() {
+        #[allow(clippy::approx_constant)]
         let angle = 0.7854; // ~45 degrees
         assert!((manage_round(angle) - angle).abs() < 1e-9);
     }

@@ -1,11 +1,11 @@
-/// Git log diagram model — visualizes a git commit graph.
-///
-/// Input format:
-///   `* main`
-///   `** feature1`
-///   `** feature2`
-///
-/// Asterisks indicate depth/nesting level.
+// Git log diagram model — visualizes a git commit graph.
+//
+// Input format:
+//   `* main`
+//   `** feature1`
+//   `** feature2`
+//
+// Asterisks indicate depth/nesting level.
 
 /// A single node in the git commit graph.
 #[derive(Debug, Clone)]

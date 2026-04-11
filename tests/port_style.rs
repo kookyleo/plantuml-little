@@ -580,6 +580,7 @@ mod style_port_tests {
     }
 
     #[test]
+    #[allow(clippy::approx_constant)]
     fn value_null_as_double_default_to_returns_default() {
         // Mirrors: asDoubleDefaultTo_skeleton
         assert!((ValueNull::NULL.as_double_default_to(3.14) - 3.14).abs() < DELTA);

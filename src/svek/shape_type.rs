@@ -60,7 +60,7 @@ pub enum PackageStyle {
 }
 
 impl PackageStyle {
-    pub fn from_str(s: &str) -> Option<Self> {
+    pub fn parse(s: &str) -> Option<Self> {
         match s.to_lowercase().as_str() {
             "folder" => Some(Self::Folder),
             "rectangle" | "rect" => Some(Self::Rectangle),
@@ -111,12 +111,9 @@ mod tests {
 
     #[test]
     fn package_style_parse() {
-        assert_eq!(PackageStyle::from_str("folder"), Some(PackageStyle::Folder));
-        assert_eq!(
-            PackageStyle::from_str("RECT"),
-            Some(PackageStyle::Rectangle)
-        );
-        assert_eq!(PackageStyle::from_str("Cloud"), Some(PackageStyle::Cloud));
-        assert!(PackageStyle::from_str("unknown").is_none());
+        assert_eq!(PackageStyle::parse("folder"), Some(PackageStyle::Folder));
+        assert_eq!(PackageStyle::parse("RECT"), Some(PackageStyle::Rectangle));
+        assert_eq!(PackageStyle::parse("Cloud"), Some(PackageStyle::Cloud));
+        assert!(PackageStyle::parse("unknown").is_none());
     }
 }

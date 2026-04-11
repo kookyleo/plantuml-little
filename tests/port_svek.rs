@@ -415,25 +415,19 @@ fn package_style_value_of_skeleton_for_string() {
 #[test]
 fn package_style_from_string_skeleton_for_string() {
     // Java: PackageStyle.fromString("FOLDER") == FOLDER (case-insensitive)
-    assert_eq!(PackageStyle::from_str("FOLDER"), Some(PackageStyle::Folder));
-    assert_eq!(PackageStyle::from_str("folder"), Some(PackageStyle::Folder));
+    assert_eq!(PackageStyle::parse("FOLDER"), Some(PackageStyle::Folder));
+    assert_eq!(PackageStyle::parse("folder"), Some(PackageStyle::Folder));
     assert_eq!(
-        PackageStyle::from_str("RECTANGLE"),
+        PackageStyle::parse("RECTANGLE"),
         Some(PackageStyle::Rectangle)
     );
-    assert_eq!(PackageStyle::from_str("cloud"), Some(PackageStyle::Cloud));
+    assert_eq!(PackageStyle::parse("cloud"), Some(PackageStyle::Cloud));
     // special alias: "rect" -> RECTANGLE
-    assert_eq!(
-        PackageStyle::from_str("rect"),
-        Some(PackageStyle::Rectangle)
-    );
-    assert_eq!(
-        PackageStyle::from_str("RECT"),
-        Some(PackageStyle::Rectangle)
-    );
+    assert_eq!(PackageStyle::parse("rect"), Some(PackageStyle::Rectangle));
+    assert_eq!(PackageStyle::parse("RECT"), Some(PackageStyle::Rectangle));
     // unknown
-    assert_eq!(PackageStyle::from_str("unknown"), None);
-    assert_eq!(PackageStyle::from_str(""), None);
+    assert_eq!(PackageStyle::parse("unknown"), None);
+    assert_eq!(PackageStyle::parse(""), None);
 }
 
 #[test]

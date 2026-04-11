@@ -763,11 +763,7 @@ fn compute_state_node(
         //   minMax.getDimension().delta(0, 12)
         // i.e. width = lf_span_w (no extra), height = lf_span_h + 12.
         // For concurrent regions, each region individually gets delta(0, 12).
-        let inner_img_w = if is_concurrent {
-            total_child_w
-        } else {
-            total_child_w
-        };
+        let inner_img_w = total_child_w;
         let inner_img_h = if is_concurrent {
             total_child_h
         } else {

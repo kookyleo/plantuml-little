@@ -10,6 +10,7 @@ use crate::svek::cluster::Cluster;
 use crate::svek::edge::{LabelDimension, SvekEdge};
 use crate::svek::node::{EntityPosition, SvekNode};
 use crate::svek::shape_type::ShapeType;
+use crate::svek::SolveResult;
 use crate::svek::{
     Bibliotekon, ColorSequence, DotMode, DotSplines, DotStringFactory, Margins, TopLevelDotItem,
 };
@@ -552,10 +553,7 @@ impl GraphvizImageBuilder {
     ///
     /// Call this after running Graphviz externally and obtaining the SVG output.
     /// Returns (moveDelta, limitFinder_span, lf_max, render_offset) from normalization.
-    pub fn solve(
-        &mut self,
-        svg: &str,
-    ) -> Result<((f64, f64), (f64, f64), (f64, f64), (f64, f64)), String> {
+    pub fn solve(&mut self, svg: &str) -> SolveResult {
         let factory = self
             .factory
             .as_mut()

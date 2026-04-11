@@ -1633,7 +1633,7 @@ pub fn transform_path_d(d: &str, tx: f64, ty: f64) -> String {
                 if let (Some(x), Some(y)) = (x, y) {
                     // Check if we need to emit a new command letter
                     let pps = pairs_per_segment(current_cmd);
-                    if coord_pairs_in_segment.is_multiple_of(pps) {
+                    if pps > 0 && coord_pairs_in_segment % pps == 0 {
                         // Start of a new segment — emit command letter
                         if !result.is_empty() && !result.ends_with(' ') {
                             result.push(' ');

@@ -555,7 +555,9 @@ mod tests {
     fn value_impl_as_double() {
         let v = ValueImpl::regular("3.14", 1);
         let d = v.as_double();
-        assert!((d - 3.14).abs() < 1e-9);
+        #[allow(clippy::approx_constant)]
+        let expected = 3.14;
+        assert!((d - expected).abs() < 1e-9);
     }
 
     #[test]

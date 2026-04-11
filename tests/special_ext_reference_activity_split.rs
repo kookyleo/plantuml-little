@@ -101,11 +101,8 @@ fn normalize_filter_ids(s: &str) -> String {
     let mut counter = 0usize;
     for tag_prefix in &["<filter ", "<linearGradient ", "<radialGradient "] {
         let mut search_from = 0;
-        loop {
-            let tag_pos = match result[search_from..].find(tag_prefix) {
-                Some(p) => search_from + p,
-                None => break,
-            };
+        while let Some(p) = result[search_from..].find(tag_prefix) {
+            let tag_pos = search_from + p;
             let id_pos = match result[tag_pos..].find("id=\"") {
                 Some(p) => tag_pos + p + 4,
                 None => {

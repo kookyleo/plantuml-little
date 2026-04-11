@@ -724,7 +724,7 @@ fn old_activity_path_d(
     bo_x: f64,
     bo_y: f64,
 ) -> Option<String> {
-    if edge.points.len() >= 4 && (edge.points.len() - 1).is_multiple_of(3) {
+    if edge.points.len() >= 4 && (edge.points.len() - 1) % 3 == 0 {
         let mut pts: Vec<(f64, f64)> = edge
             .points
             .iter()
@@ -1809,8 +1809,8 @@ fn render_polyline_with_arrow(sg: &mut SvgGraphic, points: &[(f64, f64)], arrow_
 
     // Draw line segments with Java's vertical normalization (y1 <= y2).
     for pair in points.windows(2) {
-        let (mut x1, mut y1) = pair[0];
-        let (mut x2, mut y2) = pair[1];
+        let (x1, mut y1) = pair[0];
+        let (x2, mut y2) = pair[1];
         if x1 == x2 && y1 > y2 {
             std::mem::swap(&mut y1, &mut y2);
         }

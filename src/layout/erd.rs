@@ -242,7 +242,7 @@ fn attr_ellipse_size(label: &str) -> (f64, f64) {
     }
 
     let alpha_raw = th / tw;
-    let alpha = alpha_raw.max(0.2).min(0.8);
+    let alpha = alpha_raw.clamp(0.2, 0.8);
 
     // After y-transform, the text rectangle becomes tw × (th/alpha).
     // SEC of a rectangle with sides W × H has radius = sqrt(W² + H²) / 2.

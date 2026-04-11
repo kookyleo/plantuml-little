@@ -979,14 +979,10 @@ fn try_parse_img(chars: &[char], start: usize, end: usize) -> Option<(TextSpan, 
     }
     let url_start = after_img + 1;
     // Find closing '>'
-    let mut gt_pos = None;
-    for j in url_start..end {
-        if chars[j] == '>' {
-            gt_pos = Some(j);
-            break;
-        }
-    }
-    let gt_pos = gt_pos?;
+    let gt_pos = chars[url_start..end]
+        .iter()
+        .position(|&c| c == '>')
+        .map(|i| i + url_start)?;
     let inner: String = chars[url_start..gt_pos].iter().collect();
     // Check for {scale=N} suffix
     let (url, scale) = if let Some(brace_pos) = inner.rfind('{') {

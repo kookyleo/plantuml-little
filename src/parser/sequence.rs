@@ -190,9 +190,9 @@ pub fn parse_sequence_diagram_with_original(
         // Skip title, legend, footer, header, caption, hide, show, !pragma
         {
             let lower = trimmed.to_lowercase();
-            if lower.starts_with("!pragma") {
+            if let Some(stripped) = lower.strip_prefix("!pragma") {
                 // Capture `!pragma teoz true`
-                let rest = lower["!pragma".len()..].trim();
+                let rest = stripped.trim();
                 if rest == "teoz true" {
                     debug!("pragma teoz true enabled");
                     teoz_mode = true;
@@ -218,8 +218,8 @@ pub fn parse_sequence_diagram_with_original(
                 debug!("hide footbox enabled");
                 continue;
             }
-            if lower.starts_with("skin ") {
-                let skin_name = lower["skin ".len()..].trim();
+            if let Some(stripped) = lower.strip_prefix("skin ") {
+                let skin_name = stripped.trim();
                 if skin_name == "rose" {
                     delta_shadow = 4.0;
                     debug!("skin rose: delta_shadow=4");
@@ -416,8 +416,8 @@ pub fn parse_sequence_diagram_with_original(
         {
             // Teoz parallel fragment prefix: "& opt ..." means this fragment
             // is parallel with the previous tile block.
-            let (frag_parallel, frag_trimmed) = if trimmed.starts_with("& ") {
-                (true, trimmed[2..].trim())
+            let (frag_parallel, frag_trimmed) = if let Some(stripped) = trimmed.strip_prefix("& ") {
+                (true, stripped.trim())
             } else {
                 (false, trimmed)
             };
@@ -904,14 +904,13 @@ fn strip_leading_colors_with_colors(s: &str) -> (&str, Option<String>, Option<St
     // Strip up to two leading #word tokens
     for _ in 0..2 {
         let trimmed = rest.trim_start();
-        if trimmed.starts_with('#') {
+        if let Some(after_hash) = trimmed.strip_prefix('#') {
             // Find end of #word token (word chars = alphanumeric or _)
-            let end = trimmed[1..]
+            let word_end = after_hash
                 .find(|c: char| !c.is_alphanumeric() && c != '_')
-                .map(|i| i + 1)
-                .unwrap_or(trimmed.len());
-            colors.push(trimmed[..end].to_string());
-            rest = trimmed[end..].trim_start();
+                .unwrap_or(after_hash.len());
+            colors.push(format!("#{}", &after_hash[..word_end]));
+            rest = after_hash[word_end..].trim_start();
         } else {
             break;
         }
@@ -1053,19 +1052,18 @@ fn build_line_mapping(
             mapping.push(start_pos + 1 + mapping.len());
             continue;
         }
-        let mut found = false;
-        for oi in search_from..orig_lines.len() {
-            let orig_trimmed = orig_lines[oi].trim();
-            // Exact match, or match after expanding %newline() / %n() macros,
-            // or prefix match before `\n` to tolerate variable substitution.
-            if lines_match_for_mapping(trimmed, orig_trimmed) {
-                mapping.push(oi);
-                search_from = oi + 1;
-                found = true;
-                break;
-            }
-        }
-        if !found {
+        let found_idx = orig_lines[search_from..]
+            .iter()
+            .position(|ol| {
+                // Exact match, or match after expanding %newline() / %n() macros,
+                // or prefix match before `\n` to tolerate variable substitution.
+                lines_match_for_mapping(trimmed, ol.trim())
+            })
+            .map(|i| i + search_from);
+        if let Some(oi) = found_idx {
+            mapping.push(oi);
+            search_from = oi + 1;
+        } else {
             // Fallback: use sequential offset from @startuml
             mapping.push(start_pos + 1 + mapping.len());
         }

@@ -211,8 +211,6 @@ pub(crate) fn write_bg_rect(buf: &mut String, w: f64, h: f64, bg: &str) {
 
 // ── Public entry point ───────────────────────────────────────────────
 
-/// Return the `data-diagram-type` string for a `Diagram` variant.
-
 /// Render a Diagram + DiagramLayout into an SVG string.
 pub fn render(
     diagram: &Diagram,

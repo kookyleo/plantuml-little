@@ -13,7 +13,7 @@ pub enum ActorStyle {
 
 impl ActorStyle {
     /// Parse actor style from a string (case-insensitive).
-    pub fn from_str(s: &str) -> Option<Self> {
+    pub fn parse(s: &str) -> Option<Self> {
         match s.to_lowercase().as_str() {
             "stickman" | "stick" => Some(Self::Stickman),
             "stickman_business" | "stickman-business" => Some(Self::StickmanBusiness),
@@ -106,31 +106,31 @@ impl ActorStickMan {
     /// Returns a list of line segments: each is (from_x, from_y, to_x, to_y).
     /// Caller translates by (center_x, head_diam + thickness).
     pub fn body_segments(&self) -> Vec<(f64, f64, f64, f64)> {
-        let mut segs = Vec::new();
-        // spine
-        segs.push((0.0, 0.0, 0.0, self.body_length));
-        // arms
-        segs.push((
-            -self.arms_length,
-            self.arms_y,
-            self.arms_length,
-            self.arms_y,
-        ));
-        // left leg
-        segs.push((
-            0.0,
-            self.body_length,
-            -self.legs_x,
-            self.body_length + self.legs_y,
-        ));
-        // right leg
-        segs.push((
-            0.0,
-            self.body_length,
-            self.legs_x,
-            self.body_length + self.legs_y,
-        ));
-        segs
+        vec![
+            // spine
+            (0.0, 0.0, 0.0, self.body_length),
+            // arms
+            (
+                -self.arms_length,
+                self.arms_y,
+                self.arms_length,
+                self.arms_y,
+            ),
+            // left leg
+            (
+                0.0,
+                self.body_length,
+                -self.legs_x,
+                self.body_length + self.legs_y,
+            ),
+            // right leg
+            (
+                0.0,
+                self.body_length,
+                self.legs_x,
+                self.body_length + self.legs_y,
+            ),
+        ]
     }
 
     /// Compute the business line endpoints for the "business" actor style.
@@ -360,37 +360,37 @@ mod tests {
 
     #[test]
     fn parse_style_stickman() {
-        assert_eq!(ActorStyle::from_str("stickman"), Some(ActorStyle::Stickman));
-        assert_eq!(ActorStyle::from_str("stick"), Some(ActorStyle::Stickman));
-        assert_eq!(ActorStyle::from_str("STICKMAN"), Some(ActorStyle::Stickman));
+        assert_eq!(ActorStyle::parse("stickman"), Some(ActorStyle::Stickman));
+        assert_eq!(ActorStyle::parse("stick"), Some(ActorStyle::Stickman));
+        assert_eq!(ActorStyle::parse("STICKMAN"), Some(ActorStyle::Stickman));
     }
 
     #[test]
     fn parse_style_stickman_business() {
         assert_eq!(
-            ActorStyle::from_str("stickman_business"),
+            ActorStyle::parse("stickman_business"),
             Some(ActorStyle::StickmanBusiness)
         );
         assert_eq!(
-            ActorStyle::from_str("stickman-business"),
+            ActorStyle::parse("stickman-business"),
             Some(ActorStyle::StickmanBusiness)
         );
     }
 
     #[test]
     fn parse_style_awesome() {
-        assert_eq!(ActorStyle::from_str("awesome"), Some(ActorStyle::Awesome));
+        assert_eq!(ActorStyle::parse("awesome"), Some(ActorStyle::Awesome));
     }
 
     #[test]
     fn parse_style_hollow() {
-        assert_eq!(ActorStyle::from_str("hollow"), Some(ActorStyle::Hollow));
+        assert_eq!(ActorStyle::parse("hollow"), Some(ActorStyle::Hollow));
     }
 
     #[test]
     fn parse_style_unknown() {
-        assert!(ActorStyle::from_str("unknown").is_none());
-        assert!(ActorStyle::from_str("").is_none());
+        assert!(ActorStyle::parse("unknown").is_none());
+        assert!(ActorStyle::parse("").is_none());
     }
 
     #[test]

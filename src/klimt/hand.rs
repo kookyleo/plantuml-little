@@ -263,8 +263,8 @@ pub fn polygon_to_hand(points: &[(f64, f64)], rnd: &mut JavaRandom) -> Vec<(f64,
         return Vec::new();
     }
     let mut jiggle = HandJiggle::create(points[0], 1.5, take_rng(rnd));
-    for i in 1..points.len() {
-        jiggle.line_to_pt(points[i]);
+    for &pt in &points[1..] {
+        jiggle.line_to_pt(pt);
     }
     jiggle.line_to_pt(points[0]);
     let result = jiggle.to_polygon();
