@@ -1,0 +1,109 @@
+name: Bug Report
+description: Report an SVG rendering issue or incorrect output
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting! Please provide the PlantUML source and expected vs actual output so we can reproduce the issue.
+
+  - type: textarea
+    id: puml-source
+    attributes:
+      label: PlantUML Source
+      description: The `.puml` source text that triggers the bug.
+      placeholder: |
+        @startuml
+        Alice -> Bob : hello
+        @enduml
+      render: text
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected Behavior
+      description: What the output should look like. Attach the Java PlantUML SVG if possible.
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual Behavior
+      description: What plantuml-little actually produces. Attach the SVG or paste the diff.
+    validations:
+      required: true
+
+  - type: dropdown
+    id: diagram-type
+    attributes:
+      label: Diagram Type
+      options:
+        - Class
+        - Sequence
+        - Activity
+        - State
+        - Component / Deployment
+        - Use Case
+        - Object
+        - Timing
+        - ERD (Chen)
+        - Gantt
+        - JSON
+        - YAML
+        - Mindmap
+        - WBS
+        - NWDiag
+        - Salt / Wireframe
+        - DOT
+        - EBNF
+        - Regex
+        - BPM
+        - Board
+        - Chronology
+        - Chart
+        - Pie
+        - HCL
+        - Flow
+        - Wire
+        - Archimate
+        - Packet
+        - Other
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: plantuml-little Version
+      description: Output of `plantuml-little --version` or cargo package version.
+      placeholder: "1.2026.2"
+    validations:
+      required: true
+
+  - type: input
+    id: java-version
+    attributes:
+      label: Java PlantUML Version (if compared)
+      description: The upstream Java version you compared against.
+      placeholder: "v1.2026.2"
+    validations:
+      required: false
+
+  - type: input
+    id: os
+    attributes:
+      label: OS / Platform
+      placeholder: "Ubuntu 24.04 / macOS 15 / Windows 11"
+    validations:
+      required: false
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional Context
+      description: Anything else — skinparam settings, theme, preprocessor directives, etc.
+    validations:
+      required: false
