@@ -63,7 +63,7 @@ pub struct Member {
     pub display: Option<String>,
 }
 
-/// Stereotype (e.g. <<Entity>>)
+/// Stereotype (e.g. `<<Entity>>`)
 #[derive(Debug, Clone, PartialEq)]
 pub struct Stereotype(pub String);
 
@@ -122,7 +122,7 @@ pub struct Entity {
     pub kind: EntityKind,
     pub stereotypes: Vec<Stereotype>,
     pub members: Vec<Member>,
-    /// Bracket-body description lines for rectangle entities (Java: [text])
+    /// Bracket-body description lines for rectangle entities (Java: `[text]`)
     pub description: Vec<String>,
     pub color: Option<String>,
     pub generic: Option<String>,

@@ -37,7 +37,7 @@ pub(crate) fn reset_uid_counter() {
 /// leaf/group typing, hierarchy (parent/children via name-based paths),
 /// colors, notes, etc.
 ///
-/// In the Rust port the heavy "Quark<Entity>" tree from Java is replaced
+/// In the Rust port the heavy `Quark<Entity>` tree from Java is replaced
 /// by simple name strings; the tree structure is managed externally
 /// (e.g. by the diagram container).
 #[derive(Debug, Clone)]

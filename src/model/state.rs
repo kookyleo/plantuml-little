@@ -10,7 +10,7 @@ pub enum StateKind {
     Join,
     /// Choice pseudo-state (diamond).
     Choice,
-    /// End pseudo-state (<<end>> stereotype).
+    /// End pseudo-state (`<<end>>` stereotype).
     End,
     /// Shallow history (H).
     History,
@@ -31,11 +31,11 @@ pub struct State {
     pub id: String,
     /// Description lines
     pub description: Vec<String>,
-    /// Stereotype (e.g. <<inputPin>>)
+    /// Stereotype (e.g. `<<inputPin>>`)
     pub stereotype: Option<String>,
     /// Child states (composite state)
     pub children: Vec<State>,
-    /// Whether this is a special state [*]
+    /// Whether this is a special state `[*]`
     pub is_special: bool,
     /// Pseudo-state kind (fork, join, choice, history, etc.)
     pub kind: StateKind,

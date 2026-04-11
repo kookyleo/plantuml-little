@@ -28,7 +28,7 @@ fn extract_wire_block(source: &str) -> Option<String> {
 ///
 /// Java wire syntax:
 ///   * ComponentName           — define a block (100x100 default)
-///   * ComponentName [WxH]     — define a block with explicit size
+///   * ComponentName `[WxH]`   — define a block with explicit size
 ///   * Name1 --> Name2 : label — vertical link
 pub fn parse_wire_diagram(source: &str) -> Result<WireDiagram> {
     let block = extract_wire_block(source).unwrap_or_else(|| source.to_string());

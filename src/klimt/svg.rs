@@ -546,7 +546,7 @@ impl SvgGraphic {
     /// Java: SvgGraphics.svgRectangle()
     ///
     /// Attribute order matches Java DOM alphabetical output:
-    /// fill, [fill-opacity], [filter], height, [rx], [ry], [style], width, x, y
+    /// `fill`, `fill-opacity`, `filter`, `height`, `rx`, `ry`, `style`, `width`, `x`, `y`
     pub fn svg_rectangle(
         &mut self,
         x: f64,
@@ -598,7 +598,7 @@ impl SvgGraphic {
     /// Emit an `<ellipse>` element.
     /// Java: SvgGraphics.svgEllipse()
     ///
-    /// Attribute order: cx, cy, fill, [fill-opacity], [filter], rx, ry, [style]
+    /// Attribute order: `cx`, `cy`, `fill`, `fill-opacity`, `filter`, `rx`, `ry`, `style`
     pub fn svg_ellipse(&mut self, cx: f64, cy: f64, rx: f64, ry: f64, delta_shadow: f64) {
         self.manage_shadow(delta_shadow);
         if !self.hidden {
@@ -645,7 +645,7 @@ impl SvgGraphic {
     /// Emit a `<line>` element.
     /// Java: SvgGraphics.svgLine()
     ///
-    /// Attribute order: [filter], [style], x1, x2, y1, y2
+    /// Attribute order: `filter`, `style`, `x1`, `x2`, `y1`, `y2`
     pub fn svg_line(&mut self, x1: f64, y1: f64, x2: f64, y2: f64, delta_shadow: f64) {
         log::trace!(
             "svg_line: x1={}, y1={}, x2={}, y2={}, stroke={}",
@@ -676,7 +676,7 @@ impl SvgGraphic {
     /// Java: SvgGraphics.svgPolygon()
     ///
     /// Points are given as a flat array [x0,y0,x1,y1,...].
-    /// Attribute order: fill, [fill-opacity], [filter], points, [style]
+    /// Attribute order: `fill`, `fill-opacity`, `filter`, `points`, `style`
     pub fn svg_polygon(&mut self, delta_shadow: f64, points: &[f64]) {
         debug_assert!(points.len() % 2 == 0);
         self.manage_shadow(delta_shadow);
@@ -707,7 +707,7 @@ impl SvgGraphic {
 
     /// Emit a `<circle>` element.
     ///
-    /// Attribute order (alphabetical): cx, cy, fill, [fill-opacity], [filter], r, [style]
+    /// Attribute order (alphabetical): `cx`, `cy`, `fill`, `fill-opacity`, `filter`, `r`, `style`
     pub fn svg_circle(&mut self, cx: f64, cy: f64, r: f64, delta_shadow: f64) {
         self.manage_shadow(delta_shadow);
         if !self.hidden {
@@ -728,7 +728,7 @@ impl SvgGraphic {
     /// Emit a `<polyline>` element.
     ///
     /// Points are given as a flat array [x0,y0,x1,y1,...].
-    /// Attribute order (alphabetical): fill, [fill-opacity], points, [style]
+    /// Attribute order (alphabetical): `fill`, `fill-opacity`, `points`, `style`
     pub fn svg_polyline(&mut self, points: &[f64]) {
         debug_assert!(points.len() % 2 == 0);
         if !self.hidden {
@@ -755,7 +755,7 @@ impl SvgGraphic {
     /// Emit a `<path>` element from a UPath.
     /// Java: SvgGraphics.svgPath()
     ///
-    /// Attribute order: [codeLine], d, fill, [fill-opacity], [filter], [id], [style]
+    /// Attribute order: `codeLine`, `d`, `fill`, `fill-opacity`, `filter`, `id`, `style`
     pub fn svg_path(&mut self, x: f64, y: f64, path: &UPath, delta_shadow: f64) {
         self.manage_shadow(delta_shadow);
         self.ensure_visible(x, y);
@@ -847,9 +847,9 @@ impl SvgGraphic {
     /// Java: SvgGraphics.text()
     ///
     /// Attribute order (alphabetical):
-    /// fill, [fill-opacity], [filter], [font-family], [font-size], [font-style],
-    /// [font-weight], [lengthAdjust], [style], [text-anchor], [text-decoration],
-    /// [textLength], [transform], x, y
+    /// `fill`, `fill-opacity`, `filter`, `font-family`, `font-size`, `font-style`,
+    /// `font-weight`, `lengthAdjust`, `style`, `text-anchor`, `text-decoration`,
+    /// `textLength`, `transform`, `x`, `y`
     #[allow(clippy::too_many_arguments)]
     pub fn svg_text(
         &mut self,

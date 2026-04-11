@@ -158,7 +158,7 @@ impl IEntityImage for EntityImageSimpleEmpty {
 /// Java: `svek.HeaderLayout`
 ///
 /// Arranges up to four blocks horizontally:
-///   [circledCharacter] [stereotype/name] [generic]
+///   \[circledCharacter\] \[stereotype/name\] \[generic\]
 /// with appropriate spacing.
 #[derive(Debug, Clone)]
 pub struct HeaderLayout {
