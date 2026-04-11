@@ -5,16 +5,78 @@ on:
     branches: [main]
   pull_request:
 
+env:
+  CARGO_TERM_COLOR: always
+
 jobs:
-  test:
+  fmt:
+    name: Format
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
         with:
-          components: clippy, rustfmt
-      - uses: Swatinem/rust-cache@v2
+          components: rustfmt
       - run: cargo fmt --check
-      - run: cargo clippy -- -D warnings
-      - run: cargo test
+
+  clippy:
+    name: Clippy
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+      - uses: Swatinem/rust-cache@v2
+      - run: sudo apt-get update && sudo apt-get install -y graphviz
+      - run: cargo clippy --all-targets -- -D warnings
+
+  test-lib:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo test --lib
+
+  test-reference:
+    name: Reference Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: sudo apt-get update && sudo apt-get install -y graphviz
+      - run: cargo test --test reference_tests -- --nocapture 2>&1 | tee ref_results.txt
+      - name: Verify zero failures
+        run: |
+          if grep -q "FAILED" ref_results.txt; then
+            echo "::error::Reference tests have failures"
+            exit 1
+          fi
+          # Also check the standard test result line
+          grep "test result: ok" ref_results.txt
+
+  test-integration:
+    name: Integration Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: sudo apt-get update && sudo apt-get install -y graphviz
+      - run: cargo test --test integration
+
+  build-release:
+    name: Release Build
+    runs-on: ubuntu-latest
+    needs: [fmt, clippy, test-lib, test-reference, test-integration]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: sudo apt-get update && sudo apt-get install -y graphviz
       - run: cargo build --release
+      - name: Binary size
+        run: ls -lh target/release/plantuml-little
