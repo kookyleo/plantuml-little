@@ -1439,7 +1439,7 @@ checksum = "accd4ea62f7bb7a82fe23066fb0957d48ef677f6eeb8215f372f52e48bb32426"
 [[package]]
 name = "vizoxide"
 version = "1.0.5"
-source = "git+https://github.com/kookyleo/vizoxide.git?branch=fix%2Flifetime-elision-warnings#13b7dcc835c05a2daaff799ee232bdb64a0d73cf"
+source = "git+https://github.com/kookyleo/vizoxide.git?rev=13b7dcc#13b7dcc835c05a2daaff799ee232bdb64a0d73cf"
 dependencies = [
  "base64",
  "graphviz-sys",

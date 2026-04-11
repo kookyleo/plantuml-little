@@ -42,5 +42,8 @@ flate2 = { version = "1", features = ["zlib"], default-features = false }
 serde_json = "1"
 base64 = "0.22"
 
+# vizoxide 1.0.5 on crates.io has const/mut pointer cast errors on Rust 1.82+.
+# Upstream merged the fix (19h/vizoxide#5) but has not yet published 1.0.6.
+# Remove this patch once vizoxide >= 1.0.6 is on crates.io.
 [patch.crates-io]
-vizoxide = { git = "https://github.com/kookyleo/vizoxide.git", branch = "fix/lifetime-elision-warnings" }
+vizoxide = { git = "https://github.com/kookyleo/vizoxide.git", rev = "13b7dcc" }
