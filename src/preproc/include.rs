@@ -257,7 +257,7 @@ pub(super) fn make_archive_temp_dir(archive_path: &Path) -> PathBuf {
         .unwrap_or("import");
     let suffix = SystemTime::now()
         .duration_since(UNIX_EPOCH)
-        .expect("clock before unix epoch")
+        .unwrap_or_default()
         .as_nanos();
     std::env::temp_dir().join(format!(
         "plantuml-little-import-{stem}-{}-{suffix}",

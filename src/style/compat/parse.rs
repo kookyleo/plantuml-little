@@ -198,10 +198,9 @@ pub fn parse_skinparams(content: &str) -> SkinParams {
             //   - key value pairs (global)
             //   - element { key value } blocks
             parse_nested_block(&mut lines, "", &mut params);
-        } else if after.contains('{') {
+        } else if let Some(brace_pos) = after.find('{') {
             // Element block: skinparam element { ... }
             // Extract element name (everything before '{')
-            let brace_pos = after.find('{').unwrap();
             let element = after[..brace_pos].trim();
             let after_brace = after[brace_pos + 1..].trim();
 
@@ -297,12 +296,10 @@ fn extract_document_style(css: &str, params: &mut SkinParams) {
 
             // Diagram-type wrapper blocks — transparent containers for element blocks.
             // `sequenceDiagram { participant { ... } }` => `participant { ... }`
-            if current_section.is_none()
-                && wrapper_depth == 0
-                && depth == 0
-                && trimmed.contains('{')
+            if let Some(brace_pos) = trimmed
+                .find('{')
+                .filter(|_| current_section.is_none() && wrapper_depth == 0 && depth == 0)
             {
-                let brace_pos = trimmed.find('{').unwrap();
                 let name = trimmed[..brace_pos].trim().to_lowercase();
                 if matches!(
                     name.as_str(),
@@ -333,8 +330,10 @@ fn extract_document_style(css: &str, params: &mut SkinParams) {
             } else {
                 depth
             };
-            if current_section.is_none() && effective_depth == 0 && trimmed.contains('{') {
-                let brace_pos = trimmed.find('{').unwrap();
+            if let Some(brace_pos) = trimmed
+                .find('{')
+                .filter(|_| current_section.is_none() && effective_depth == 0)
+            {
                 let name = trimmed[..brace_pos].trim().to_lowercase();
                 if matches!(
                     name.as_str(),
@@ -428,8 +427,10 @@ fn extract_document_style(css: &str, params: &mut SkinParams) {
 
         if in_document && depth > doc_depth {
             // Check for sub-block opening (title {, footer {, etc.)
-            if current_section.is_none() && depth == doc_depth + 1 && trimmed.contains('{') {
-                let brace_pos = trimmed.find('{').unwrap();
+            if let Some(brace_pos) = trimmed
+                .find('{')
+                .filter(|_| current_section.is_none() && depth == doc_depth + 1)
+            {
                 let name = trimmed[..brace_pos].trim().to_lowercase();
                 if matches!(
                     name.as_str(),
@@ -506,8 +507,7 @@ where
             continue;
         }
 
-        if trimmed.contains('{') {
-            let brace_pos = trimmed.find('{').unwrap();
+        if let Some(brace_pos) = trimmed.find('{') {
             let element = trimmed[..brace_pos].trim();
             let after_brace = trimmed[brace_pos + 1..].trim();
 

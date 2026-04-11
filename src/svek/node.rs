@@ -1,6 +1,8 @@
 // svek::node - Graph node representation for Graphviz layout
 // Port of Java PlantUML's svek.SvekNode
 
+use log::warn;
+
 use crate::klimt::geom::{RectangleArea, XDimension2D, XPoint2D};
 
 use super::shape_type::ShapeType;
@@ -406,14 +408,19 @@ impl SvekNode {
     fn append_shape_internal(&self, sb: &mut String) {
         match self.shape_type {
             ShapeType::Rectangle if self.is_shielded() => {
-                // Should not reach here - handled in append_shape
-                panic!("shielded Rectangle should use HTML label");
+                // Unreachable: handled in append_shape; fall back to rect
+                warn!(
+                    "shielded Rectangle reached append_shape_internal, falling back to shape=rect"
+                );
+                sb.push_str("shape=rect");
             }
             ShapeType::Rectangle | ShapeType::RectangleWithCircleInside | ShapeType::Folder => {
                 sb.push_str("shape=rect");
             }
             ShapeType::RectangleHtmlForPorts => {
-                panic!("RectangleHtmlForPorts should use HTML label");
+                // Unreachable: handled in append_shape; fall back to rect
+                warn!("RectangleHtmlForPorts reached append_shape_internal, falling back to shape=rect");
+                sb.push_str("shape=rect");
             }
             ShapeType::Octagon => {
                 sb.push_str("shape=octagon");
@@ -434,7 +441,11 @@ impl SvekNode {
                 sb.push_str("shape=rect,style=rounded");
             }
             _ => {
-                panic!("unsupported shape type: {:?}", self.shape_type);
+                warn!(
+                    "unsupported shape type {:?}, falling back to shape=rect",
+                    self.shape_type
+                );
+                sb.push_str("shape=rect");
             }
         }
     }

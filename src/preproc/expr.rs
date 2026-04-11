@@ -168,8 +168,10 @@ fn find_whole_word(haystack: &str, name: &str) -> Option<usize> {
 
 /// Expand a parameterised `!define` macro within a line.
 pub(super) fn expand_parameterised_define(line: &str, name: &str, entry: &DefineEntry) -> String {
+    use std::sync::OnceLock;
+    static CONCAT_RE: OnceLock<regex::Regex> = OnceLock::new();
     let mut result = line.to_string();
-    let concat_re = regex::Regex::new(r"\s*##\s*").unwrap();
+    let concat_re = CONCAT_RE.get_or_init(|| regex::Regex::new(r"\s*##\s*").unwrap());
 
     while let Some(start) = find_whole_word(&result, name) {
         let after_name = start + name.len();

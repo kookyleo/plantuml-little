@@ -165,7 +165,7 @@ pub fn parse_with_original(source: &str, original_source: Option<&str>) -> Resul
                 let cd = creole_diagram::parse_creole_diagram(source)?;
                 Ok(Diagram::Creole(cd))
             }
-            _ => unreachable!(),
+            other => return Err(crate::Error::UnsupportedDiagram(format!("{other:?}"))),
         };
     }
 
