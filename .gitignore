@@ -5,26 +5,31 @@
 .DS_Store
 .idea/
 .vscode/
-.claude/worktrees/
-scripts/failures.json
-scripts/__pycache__/
-our_*.svg
-tests/fixtures/**/*.svg
+.claude/
+.trace-skill/
+
+# Build artifacts
+*.rlib
+*.log
+
+# Test outputs
 actual.svg
 actual_*.svg
-claude-loop.log
-failures_analysis.log
-main_results.log
+our_*.svg
 out.svg
-patch_*.patch
 svek.dot
 svek.svg
 test_newline.*
 test_output.txt
 test_parse
 test_parse.rs
-tmp_debug/
+tests/fixtures/**/*.svg
 tests/ext_fixtures/
-patch_java.py
-*.log
-.trace-skill/
+tmp_debug/
+
+# Dev scripts/patches
+patch_*.patch
+patch_*.py
+gen_font_data.py
+scripts/failures.json
+scripts/__pycache__/
