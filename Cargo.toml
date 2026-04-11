@@ -2,9 +2,27 @@
 name = "plantuml-little"
 version = "1.2026.2"
 edition = "2021"
+rust-version = "1.70"
 license = "GPL-3.0-or-later OR LGPL-3.0-or-later OR Apache-2.0 OR EPL-2.0 OR MIT"
 authors = ["kookyleo <kookyleo@gmail.com>"]
-description = "Lightweight .puml to .svg converter"
+description = "Lightweight .puml to .svg converter — byte-exact SVG parity with Java PlantUML"
+homepage = "https://github.com/kookyleo/plantuml-little"
+repository = "https://github.com/kookyleo/plantuml-little"
+keywords = ["plantuml", "puml", "svg", "diagram", "uml"]
+categories = ["graphics", "command-line-utilities"]
+exclude = [
+    "AGENTS.md",
+    "PLAN.md",
+    "continue.md",
+    "*.log",
+    "*.rlib",
+    "tmp_debug/",
+    "tests/ext_fixtures/",
+    ".trace-skill/",
+    ".claude/",
+    "scripts/",
+    "patch_java.py",
+]
 
 [[bin]]
 name = "plantuml-little"
