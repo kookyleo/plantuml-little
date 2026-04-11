@@ -1,5 +1,7 @@
 # plantuml-little
 
+[中文](README.zh.md) | English
+
 A lightweight Rust reimplementation of [PlantUML](https://plantuml.com/), targeting byte-exact SVG output parity with Java PlantUML **v1.2026.2**.
 
 ## What Is This
@@ -99,7 +101,7 @@ let svg = plantuml_little::convert(puml_source)?;
 
 ## Prerequisites
 
-- Rust 1.70+
+- Rust 1.82+
 - Graphviz (`apt install graphviz` / `brew install graphviz`)
 
 ## Non-Goals

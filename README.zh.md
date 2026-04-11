@@ -1,5 +1,7 @@
 # plantuml-little
 
+中文 | [English](README.md)
+
 [PlantUML](https://plantuml.com/) 的轻量级 Rust 重新实现，目标是与 Java PlantUML **v1.2026.2** 产生 **逐字节一致的 SVG 输出**。
 
 ## 这是什么
@@ -99,7 +101,7 @@ let svg = plantuml_little::convert(puml_source)?;
 
 ## 前置条件
 
-- Rust 1.70+
+- Rust 1.82+
 - Graphviz (`apt install graphviz` / `brew install graphviz`)
 
 ## 不在范围内
