@@ -29,18 +29,24 @@ name = "plantuml-little"
 path = "src/main.rs"
 
 [dependencies]
-clap = { version = "4", features = ["derive"] }
 thiserror = "1"
 log = "0.4"
 env_logger = "0.11"
 regex = "1"
 vizoxide = "1.0.5"
 zip = { version = "0.6.6", default-features = false, features = ["deflate"] }
-ttf-parser = "0.25"
-reqwest = { version = "0.12", default-features = false, features = ["blocking", "rustls-tls"] }
+ureq = "3"
+url = "2"
 flate2 = { version = "1", features = ["zlib"], default-features = false }
 serde_json = "1"
 base64 = "0.22"
+
+[profile.release]
+opt-level = "z"
+lto = true
+codegen-units = 1
+strip = true
+panic = "abort"
 
 # vizoxide 1.0.5 on crates.io has const/mut pointer cast errors on Rust 1.82+.
 # Upstream merged the fix (19h/vizoxide#5) but has not yet published 1.0.6.

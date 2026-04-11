@@ -16,8 +16,7 @@ use std::path::{Path, PathBuf};
 
 use crate::Result;
 use regex::Regex;
-use reqwest::blocking::Client;
-use reqwest::Url;
+use url::Url;
 
 use builtins::*;
 use expr::*;
@@ -1028,15 +1027,10 @@ impl Context {
             return Ok(path.clone());
         }
 
-        let client = Client::builder()
-            .build()
-            .map_err(|e| crate::Error::Render(format!("HTTP client init failed: {e}")))?;
-        let response = client
-            .get(url)
-            .send()
-            .and_then(reqwest::blocking::Response::error_for_status)
+        let response = ureq::get(url)
+            .call()
             .map_err(|e| crate::Error::Io(io::Error::other(format!("remote fetch failed: {e}"))))?;
-        let body = response.bytes().map_err(|e| {
+        let body = response.into_body().read_to_vec().map_err(|e| {
             crate::Error::Io(io::Error::other(format!("remote fetch body failed: {e}")))
         })?;
 

@@ -1,12 +1,8 @@
 use std::collections::HashMap;
-use std::sync::LazyLock;
 
+use crate::font_data::DEJAVU_SERIF;
 use crate::model::flow::{FlowDiagram, FlowDirection};
 use crate::{Error, Result};
-
-static DEJAVU_SERIF_DATA: &[u8] = include_bytes!("../../fonts/DejaVuSerif.ttf");
-static DEJAVU_SERIF: LazyLock<ttf_parser::Face<'static>> =
-    LazyLock::new(|| ttf_parser::Face::parse(DEJAVU_SERIF_DATA, 0).expect("DejaVuSerif.ttf"));
 
 const SINGLE_SIZE_X: f64 = 100.0;
 const SINGLE_SIZE_Y: f64 = 35.0;
@@ -282,31 +278,28 @@ fn serif_char_width(ch: char, size: f64) -> f64 {
     if ch == '\n' || ch == '\r' {
         return 0.0;
     }
-    let face = &*DEJAVU_SERIF;
-    let upem = face.units_per_em() as f64;
-    if let Some(gid) = face.glyph_index(ch) {
-        if let Some(adv) = face.glyph_hor_advance(gid) {
-            return adv as f64 / upem * size;
-        }
+    let face = &DEJAVU_SERIF;
+    let upem = face.units_per_em as f64;
+    if let Some(adv) = face.glyph_advance(ch as u32) {
+        return adv as f64 / upem * size;
     }
-    if let Some(gid) = face.glyph_index(' ') {
-        if let Some(adv) = face.glyph_hor_advance(gid) {
-            return adv as f64 / upem * size;
-        }
+    // Fallback: use space advance for unmapped characters
+    if let Some(sp_adv) = face.glyph_advance(' ' as u32) {
+        return sp_adv as f64 / upem * size;
     }
     size * 0.6
 }
 
 fn serif_ascent(size: f64) -> f64 {
-    let face = &*DEJAVU_SERIF;
-    face.ascender() as f64 / face.units_per_em() as f64 * size
+    let face = &DEJAVU_SERIF;
+    face.ascender as f64 / face.units_per_em as f64 * size
 }
 
 fn serif_line_height(size: f64) -> f64 {
-    let face = &*DEJAVU_SERIF;
-    let upem = face.units_per_em() as f64;
-    let asc = face.ascender() as f64;
-    let desc = face.descender().unsigned_abs() as f64;
+    let face = &DEJAVU_SERIF;
+    let upem = face.units_per_em as f64;
+    let asc = face.ascender as f64;
+    let desc = face.descender.unsigned_abs() as f64;
     (asc + desc) / upem * size
 }
 

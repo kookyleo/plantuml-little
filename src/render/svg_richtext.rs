@@ -665,9 +665,9 @@ fn do_fetch_image(url: &str) -> Option<ImageInfo> {
     use base64::Engine;
 
     if url.starts_with("http:") || url.starts_with("https:") {
-        match reqwest::blocking::get(url) {
+        match ureq::get(url).call() {
             Ok(resp) => {
-                if let Ok(bytes) = resp.bytes() {
+                if let Ok(bytes) = resp.into_body().read_to_vec() {
                     return decode_image_bytes(&bytes);
                 }
             }

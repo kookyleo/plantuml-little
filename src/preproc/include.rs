@@ -6,7 +6,7 @@ use std::hash::{Hash, Hasher};
 use std::io;
 use std::path::{Path, PathBuf};
 
-use reqwest::Url;
+use url::Url;
 use zip::ZipArchive;
 
 use super::IncludeMode;
@@ -207,7 +207,7 @@ pub(super) fn make_remote_temp_path(url: &str) -> PathBuf {
     let parsed = Url::parse(url).ok();
     let stem = parsed
         .as_ref()
-        .and_then(reqwest::Url::path_segments)
+        .and_then(url::Url::path_segments)
         .and_then(|mut segments| segments.next_back())
         .filter(|s| !s.is_empty())
         .unwrap_or("remote.puml");

@@ -1,33 +1,10 @@
-//! Font metrics computed at runtime from embedded DejaVu .ttf files.
+//! Font metrics computed from pre-extracted static DejaVu font data.
 //!
-//! Replaces the previous 47000-line static lookup table with runtime
-//! computation via `ttf-parser`.  Font metric values match Java PlantUML
-//! exactly (same font files, same math: `raw_units / units_per_em * size`).
+//! Uses [`crate::font_data`] lookup tables instead of runtime TTF parsing.
+//! Font metric values match Java PlantUML exactly (same font files, same math:
+//! `raw_units / units_per_em * size`).
 
-use std::sync::LazyLock;
-
-// ── Embedded font data ──────────────────────────────────────────────────
-
-static DEJAVU_SANS_DATA: &[u8] = include_bytes!("../fonts/DejaVuSans.ttf");
-static DEJAVU_SANS_BOLD_DATA: &[u8] = include_bytes!("../fonts/DejaVuSans-Bold.ttf");
-static DEJAVU_MONO_DATA: &[u8] = include_bytes!("../fonts/DejaVuSansMono.ttf");
-static DEJAVU_MONO_BOLD_DATA: &[u8] = include_bytes!("../fonts/DejaVuSansMono-Bold.ttf");
-
-// ── Parsed font faces (lazy, parsed once) ───────────────────────────────
-
-struct Fonts {
-    sans: ttf_parser::Face<'static>,
-    sans_bold: ttf_parser::Face<'static>,
-    mono: ttf_parser::Face<'static>,
-    mono_bold: ttf_parser::Face<'static>,
-}
-
-static FONTS: LazyLock<Fonts> = LazyLock::new(|| Fonts {
-    sans: ttf_parser::Face::parse(DEJAVU_SANS_DATA, 0).expect("DejaVuSans.ttf"),
-    sans_bold: ttf_parser::Face::parse(DEJAVU_SANS_BOLD_DATA, 0).expect("DejaVuSans-Bold.ttf"),
-    mono: ttf_parser::Face::parse(DEJAVU_MONO_DATA, 0).expect("DejaVuSansMono.ttf"),
-    mono_bold: ttf_parser::Face::parse(DEJAVU_MONO_BOLD_DATA, 0).expect("DejaVuSansMono-Bold.ttf"),
-});
+use crate::font_data::{FontMeta, DEJAVU_MONO, DEJAVU_MONO_BOLD, DEJAVU_SANS, DEJAVU_SANS_BOLD};
 
 // ── Font family resolution ──────────────────────────────────────────────
 
@@ -37,8 +14,7 @@ static FONTS: LazyLock<Fonts> = LazyLock::new(|| Fonts {
 /// fall back to Dialog (sans-serif) in Java AWT.
 /// For CSS `font-family` lists like "Courier New,monospace", we resolve based on
 /// the PRIMARY (first) name — Java AWT uses the first name for font lookup.
-fn resolve_face(family: &str, bold: bool) -> &'static ttf_parser::Face<'static> {
-    let fonts = &*FONTS;
+fn resolve_face(family: &str, bold: bool) -> &'static FontMeta {
     // Use the first name in a CSS comma-separated font-family list
     let primary = family.split(',').next().unwrap_or(family).trim();
     let p = primary.to_lowercase();
@@ -48,14 +24,14 @@ fn resolve_face(family: &str, bold: bool) -> &'static ttf_parser::Face<'static> 
     let is_mono = p == "monospaced" || p == "monospace" || p == "courier";
     if is_mono {
         if bold {
-            &fonts.mono_bold
+            &DEJAVU_MONO_BOLD
         } else {
-            &fonts.mono
+            &DEJAVU_MONO
         }
     } else if bold {
-        &fonts.sans_bold
+        &DEJAVU_SANS_BOLD
     } else {
-        &fonts.sans
+        &DEJAVU_SANS
     }
 }
 
@@ -70,17 +46,13 @@ pub fn char_width(ch: char, family: &str, size: f64, bold: bool, _italic: bool) 
         return 0.0;
     }
     let face = resolve_face(family, bold);
-    let upem = face.units_per_em() as f64;
-    if let Some(gid) = face.glyph_index(ch) {
-        if let Some(adv) = face.glyph_hor_advance(gid) {
-            return adv as f64 / upem * size;
-        }
+    let upem = face.units_per_em as f64;
+    if let Some(adv) = face.glyph_advance(ch as u32) {
+        return adv as f64 / upem * size;
     }
     // Fallback: use space advance for unmapped characters
-    if let Some(sp_gid) = face.glyph_index(' ') {
-        if let Some(sp_adv) = face.glyph_hor_advance(sp_gid) {
-            return sp_adv as f64 / upem * size;
-        }
+    if let Some(sp_adv) = face.glyph_advance(' ' as u32) {
+        return sp_adv as f64 / upem * size;
     }
     size * 0.6 // last-resort fallback
 }
@@ -97,9 +69,9 @@ pub fn text_width(text: &str, family: &str, size: f64, bold: bool, italic: bool)
 /// Matches Java's `LineMetrics.getHeight()`.
 pub fn line_height(family: &str, size: f64, _bold: bool, _italic: bool) -> f64 {
     let face = resolve_face(family, false); // vertical metrics are style-independent
-    let upem = face.units_per_em() as f64;
-    let asc = face.ascender() as f64; // positive (hhea.ascender)
-    let desc = face.descender().unsigned_abs() as f64; // make positive
+    let upem = face.units_per_em as f64;
+    let asc = face.ascender as f64; // positive (hhea.ascender)
+    let desc = face.descender.unsigned_abs() as f64; // make positive
     (asc + desc) / upem * size
 }
 
@@ -108,7 +80,7 @@ pub fn line_height(family: &str, size: f64, _bold: bool, _italic: bool) -> f64 {
 /// Matches Java's `LineMetrics.getAscent()`.
 pub fn ascent(family: &str, size: f64, _bold: bool, _italic: bool) -> f64 {
     let face = resolve_face(family, false);
-    face.ascender() as f64 / face.units_per_em() as f64 * size
+    face.ascender as f64 / face.units_per_em as f64 * size
 }
 
 /// Font descent (baseline to bottom of lowest glyph).
@@ -116,16 +88,15 @@ pub fn ascent(family: &str, size: f64, _bold: bool, _italic: bool) -> f64 {
 /// Matches Java's `LineMetrics.getDescent()` (positive value).
 pub fn descent(family: &str, size: f64, _bold: bool, _italic: bool) -> f64 {
     let face = resolve_face(family, false);
-    face.descender().unsigned_abs() as f64 / face.units_per_em() as f64 * size
+    face.descender.unsigned_abs() as f64 / face.units_per_em as f64 * size
 }
 
 /// OS/2 typographic ascent. Used for DOT cluster label dimensions which match
 /// Java's `StringBounder.calculateDimension()` text block height.
 pub fn typo_ascent(family: &str, size: f64, _bold: bool, _italic: bool) -> f64 {
     let face = resolve_face(family, false);
-    let upem = face.units_per_em() as f64;
-    // OS/2 sTypoAscender; fallback to hhea ascender if unavailable
-    let typo_asc = face.typographic_ascender().unwrap_or(face.ascender()) as f64;
+    let upem = face.units_per_em as f64;
+    let typo_asc = face.typo_ascender as f64;
     typo_asc / upem * size
 }
 

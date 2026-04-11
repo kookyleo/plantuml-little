@@ -6,6 +6,7 @@ pub mod abel;
 pub mod decoration;
 pub mod dot;
 pub mod error;
+pub mod font_data;
 pub mod font_metrics;
 pub mod klimt;
 pub mod layout;
