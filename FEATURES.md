@@ -1,36 +1,68 @@
 # plantuml-little Feature Support
 
-This document records the current feature coverage of the project, for user reference and maintenance tracking.
+Aligned with Java PlantUML **v1.2026.2** (`bb8550d`).
 
-## Diagram Types -- 17 types
+## Diagram Types — 29 fully implemented + 5 text/passthrough + 3 unsupported
 
-| Type | Start Tag | Layout Engine | Fixture Count |
-|------|-----------|---------------|---------------|
-| Class | `@startuml` | Graphviz | 14 |
-| Sequence | `@startuml` | Built-in engine | 31 |
-| Activity v3 | `@startuml` | Built-in engine | 8 |
+### Fully Implemented (byte-exact SVG parity with Java)
+
+| Type | Start Tag | Layout Engine | Ref Tests |
+|------|-----------|---------------|-----------|
+| Class | `@startuml` | Graphviz (Smetana) | 14 |
+| Sequence | `@startuml` | Built-in (Puma / Teoz) | 32 |
+| Activity v3 | `@startuml` | Built-in | 11 |
 | State | `@startuml` | Graphviz | 13 |
-| Component / Deployment | `@startuml` | Graphviz | 10 |
+| Component / Deployment | `@startuml` | Graphviz | 11 |
 | Use Case | `@startuml` | Graphviz | 3 |
-| Object | `@startuml` | Graphviz | (reuses Class) |
-| Timing | `@startuml` | Built-in engine | 2 |
-| ERD (Chen) | `@startchen` | Graphviz | 5 |
-| Gantt | `@startgantt` | Built-in engine | 1 |
-| JSON | `@startjson` | Built-in engine | 1 |
-| YAML | `@startyaml` | Built-in engine | 1 |
-| Mindmap | `@startmindmap` | Built-in engine | 1 |
-| WBS | `@startwbs` | Built-in engine | 5 |
-| DITAA | `@startditaa` | Built-in engine | 1 |
-| NWDiag | `@startnwdiag` | Built-in engine | 1 |
-| Salt / Wireframe | `@startsalt` | Built-in engine | 1 |
+| Object | `@startuml` | Graphviz | 4 |
+| Timing | `@startuml` | Built-in | 2 |
+| ERD (Chen) | `@startchen` | Graphviz | 6 |
+| Gantt | `@startgantt` | Built-in | 1 |
+| JSON | `@startjson` | Built-in | 1 |
+| YAML | `@startyaml` | Built-in | 1 |
+| Mindmap | `@startmindmap` | Built-in | 1 |
+| WBS | `@startwbs` | Built-in | 5 |
+| NWDiag | `@startnwdiag` | Built-in | 1 |
+| Salt / Wireframe | `@startsalt` | Built-in | 1 |
 | DOT (Graphviz) | `@startdot` | Subprocess pass-through | 1 |
+| EBNF | `@startebnf` | Built-in | 2 |
+| Regex | `@startregex` | Built-in | 3 |
+| BPM | `@startbpm` | Built-in | 4 |
+| Board | `@startboard` | Built-in | 1 |
+| Chronology | `@startchronology` | Built-in | 1 |
+| Chart | `@startchart` | Built-in | 2 |
+| Pie | `@startpie` | Built-in | 1 |
+| HCL | `@starthcl` | Built-in | 1 |
+| Flow | `@startflow` | Built-in | 2 |
+| Wire | `@startwire` | Built-in | 2 |
+| Archimate | `@startuml` | Graphviz | 2 |
+| Packet | `@startpacket` | Built-in | 1 |
+
+### Text / Passthrough Types
+
+| Type | Start Tag | Ref Tests | Notes |
+|------|-----------|-----------|-------|
+| Creole | `@startcreole` | 1 | Rich text markup rendering |
+| Def | `@startdef` | 1 | Plain text display |
+| Math | `@startmath` | 1 | Formula placeholder (Java requires external tools) |
+| LaTeX | `@startlatex` | 1 | Formula placeholder (Java requires external tools) |
+| Git | `@startgit` | 2 | Git log visualization |
+| Files | `@startfiles` | 2 | File tree display |
+
+### Intentionally Unsupported
+
+| Type | Start Tag | Reason |
+|------|-----------|--------|
+| DITAA | `@startditaa` | Java delegates to embedded third-party rasterizer (no SVG). Implementing ASCII-art → SVG from scratch is out of scope. |
+| JCCKIT | `@startjcckit` | Java AWT-only charting library with no SVG mode. No Rust equivalent. |
+| Project | `@startproject` | Java stable v1.2026.2 itself emits "not supported" error page for this type. |
 
 ## Preprocessor
 
 Full preprocessor pipeline that expands all directives before parsing.
 
 ### Variables & Assignment
-- `!$var = value` -- variable assignment (three types: Str / Int / Array)
+- `!$var = value` — variable assignment (three types: Str / Int / Array)
 - `?=` conditional assignment
 - `!local` local variables
 - `!undef` undefine
@@ -58,15 +90,15 @@ Full preprocessor pipeline that expands all directives before parsing.
 - Nested loops
 
 ### File Includes
-- `!include path` -- local relative path
-- `!include <stdlib/module>` -- built-in standard library
-- `!include http://...` / `!includeurl` -- remote URL
+- `!include path` — local relative path
+- `!include <stdlib/module>` — built-in standard library
+- `!include http://...` / `!includeurl` — remote URL
 - `!include_once` / `!include_many`
-- `!includesub file!PART` -- sub-section extraction
-- `!import archive.zip` -- ZIP/JAR archive import
+- `!includesub file!PART` — sub-section extraction
+- `!import archive.zip` — ZIP/JAR archive import
 
 ### Themes
-- `!theme NAME` -- built-in theme
+- `!theme NAME` — built-in theme
 - `!theme NAME from local/dir`
 - `!theme NAME from <subdir>`
 - `!theme NAME from https://...`
@@ -94,8 +126,9 @@ Full preprocessor pipeline that expands all directives before parsing.
 ### skinparam
 - 30+ properties: BackgroundColor, FontColor, FontSize, FontName, BorderColor, ArrowColor, RoundCorner, etc.
 - Element-level overrides: `skinparam classFontColor`, `skinparam sequenceArrowColor`, etc.
-- Color normalization: `#RGB` -> `#RRGGBB`, named colors, `transparent`
-- All 17 diagram types are wired in
+- Color normalization: `#RGB` → `#RRGGBB`, named colors, `transparent`
+- Gradient support: `#color1|color2`, `#color1/color2`
+- All diagram types are wired in
 
 ### Direction
 - `left to right direction` / `top to bottom direction`
@@ -121,25 +154,30 @@ Full preprocessor pipeline that expands all directives before parsing.
 - `~` escape character
 
 ### Block Elements
-- `* item` -- unordered list
-- `# item` -- ordered list
-- `|= H | H |` / `| v | v |` -- tables
-- `----` -- horizontal rule
+- `* item` — unordered list
+- `# item` — ordered list
+- `|= H | H |` / `| v | v |` — tables
+- `----` — horizontal rule
 
 ### Links
 - `[[url]]`
 - `[[url label]]`
 - `[[url{tooltip} label]]`
 
+### Images & Icons
+- `<img:path>` — embedded image reference
+- `<&icon>` — OpenIconic icons (223 built-in icons)
+- `<$sprite>` — custom SVG sprite reference
+
 ## SVG Sprite
 
-- `sprite name <svg>...</svg>` -- single-line / multi-line SVG definition
-- `sprite $name <svg>...</svg>` -- $ prefix is optional
-- `<$name>` -- reference sprite in text
+- `sprite name <svg>...</svg>` — single-line / multi-line SVG definition
+- `sprite $name <svg>...</svg>` — $ prefix is optional
+- `<$name>` — reference sprite in text
 - viewBox-aware scaling, inlined as `<g>` elements
 - Supports complex SVG features: gradients, transforms, text styles, embedded images
 
-## Sequence Diagram Extensions
+## Sequence Diagram Features
 
 ### Participant Shapes
 `participant`, `actor`, `boundary`, `control`, `entity`, `database`, `collections`, `queue`
@@ -148,12 +186,28 @@ Full preprocessor pipeline that expands all directives before parsing.
 `alt/else`, `loop`, `opt`, `par`, `break`, `critical`, `group`, `ref over`
 
 ### Other
-- `divider ==...==`
-- `delay ...`
+- Divider `==...==`
+- Delay `...`
 - `autonumber [start]`
 - Participant colors
+- Handwritten mode
 
-## State Diagram Extensions
+## Activity Diagram Features
+
+### Control Flow
+- If / else / elseif branching
+- While / repeat-while loops
+- Fork / join parallel
+- Goto / label jump
+- Break exit
+- Backward loops
+
+### Swimlanes
+- `|Swimlane|` syntax
+- Multiple swimlanes rendered side by side
+- Cross-swimlane L-shaped edge routing
+
+## State Diagram Features
 
 ### Pseudo-states
 - Fork / Join bars
@@ -162,13 +216,6 @@ Full preprocessor pipeline that expands all directives before parsing.
 
 ### Concurrent Regions
 - `--` separator
-
-## Activity Diagram Extensions
-
-### Swimlanes
-- `|Swimlane|` syntax
-- Multiple swimlanes rendered side by side
-- Cross-swimlane L-shaped edge routing
 
 ## Metadata
 
@@ -181,13 +228,17 @@ Full preprocessor pipeline that expands all directives before parsing.
 
 - Note rendering: dog-ear polygon + dashed connectors (all diagram types)
 - Hyperlinks / tooltips
-- Error handling: line number + column number positioning
+- Handwritten mode (`skinparam handwritten true`) with Java-matching jiggle RNG
+- Gradient fills (linear `|` / radial `/`)
+- Source-seeded SVG IDs (deterministic output)
+- Error handling: line/column tracking, error page generation
 - CJK / Unicode character width calculation
-- SVG output validation
+- Multi-block PUML rendering
+- Embedded subdiagram support
 
 ## Output Format
 
-- **SVG** -- the only output format
+- **SVG** — the only output format
 
 ## Out of Scope
 
@@ -203,7 +254,8 @@ Full preprocessor pipeline that expands all directives before parsing.
 
 | Category | Count |
 |----------|-------|
-| Unit Tests | 1,319 |
-| Integration Tests | 183 |
-| Test Fixtures | 296 |
-| **Total** | **1,502** |
+| Unit tests | 2,693 |
+| Integration tests | 185 |
+| Reference tests (byte-exact) | 337 |
+| Ignored (unsupported) | 3 |
+| **Total** | **3,215** |

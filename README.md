@@ -1,29 +1,89 @@
 # plantuml-little
 
-A lightweight Rust implementation of [PlantUML](https://plantuml.com/), focused on converting `.puml` files to SVG output.
+A lightweight Rust reimplementation of [PlantUML](https://plantuml.com/), targeting byte-exact SVG output parity with Java PlantUML **v1.2026.2**.
 
-## Goals
+## What Is This
 
-- **Input**: `.puml` files (PlantUML text)
-- **Output**: `.svg` files only
-- **Form**: Library (`lib`) + CLI binary
-- **Layout**: [Graphviz](https://graphviz.org/) via vizoxide (for Class / State / Component / ERD / UseCase) + built-in engine (for Sequence / Activity / Timing / Gantt / JSON / Mindmap / WBS / Salt / DITAA / NWDiag)
+plantuml-little takes `.puml` source text and produces `.svg` output — the same as Java PlantUML, but as a native Rust library + CLI with zero JVM dependency. The goal is **identical SVG output** for all supported diagram types, verified by 337 byte-exact reference tests against the upstream Java release.
 
-## Supported Diagram Types (17)
+## Alignment Status
 
-Class, Sequence, Activity v3, State, Component/Deployment, Use Case, Object,
-Timing, ERD (Chen), Gantt, JSON, YAML, Mindmap, WBS, DITAA, NWDiag, Salt/Wireframe,
-DOT (Graphviz pass-through)
+| | |
+|---|---|
+| **Upstream version** | PlantUML v1.2026.2 (`bb8550d`) |
+| **Reference tests** | 337 passed / 0 failed / 3 ignored |
+| **Unit tests** | 2,693 |
+| **Integration tests** | 185 |
+| **Total tests** | **3,215** |
+
+## Supported Diagram Types (29)
+
+All types below produce SVG output byte-exactly matching Java PlantUML v1.2026.2.
+
+| Type | Start Tag | Layout Engine |
+|------|-----------|---------------|
+| Class | `@startuml` | Graphviz (Smetana) |
+| Sequence | `@startuml` | Built-in (Puma / Teoz) |
+| Activity v3 | `@startuml` | Built-in |
+| State | `@startuml` | Graphviz |
+| Component / Deployment | `@startuml` | Graphviz |
+| Use Case | `@startuml` | Graphviz |
+| Object | `@startuml` | Graphviz |
+| Timing | `@startuml` | Built-in |
+| ERD (Chen) | `@startchen` | Graphviz |
+| Gantt | `@startgantt` | Built-in |
+| JSON | `@startjson` | Built-in |
+| YAML | `@startyaml` | Built-in |
+| Mindmap | `@startmindmap` | Built-in |
+| WBS | `@startwbs` | Built-in |
+| NWDiag | `@startnwdiag` | Built-in |
+| Salt / Wireframe | `@startsalt` | Built-in |
+| DOT | `@startdot` | Graphviz pass-through |
+| EBNF | `@startebnf` | Built-in |
+| Regex | `@startregex` | Built-in |
+| BPM | `@startbpm` | Built-in |
+| Board | `@startboard` | Built-in |
+| Chronology | `@startchronology` | Built-in |
+| Chart | `@startchart` | Built-in |
+| Pie | `@startpie` | Built-in |
+| HCL | `@starthcl` | Built-in |
+| Flow | `@startflow` | Built-in |
+| Wire | `@startwire` | Built-in |
+| Archimate | `@startuml` | Graphviz |
+| Packet | `@startpacket` | Built-in |
+
+### Additional Types (text / passthrough)
+
+| Type | Notes |
+|------|-------|
+| Creole | `@startcreole` — rich text markup rendering |
+| Def | `@startdef` — plain text display |
+| Math / LaTeX | `@startmath` / `@startlatex` — formula placeholder (Java requires external tools) |
+| Git | `@startgit` — git log visualization |
+| Files | `@startfiles` — file tree display |
+
+### Intentionally Unsupported
+
+| Type | Reason |
+|------|--------|
+| DITAA | Java delegates to a third-party rasterizer (no SVG mode). Implementing ASCII art → SVG from scratch is out of scope. |
+| JCCKIT | Java AWT charting library, renders to `Graphics2D` only. No Rust equivalent. |
+| Project (Gantt v2) | Java stable v1.2026.2 itself does not render this type. |
 
 ## Features
 
-- Full preprocessor: variables, functions, conditionals, loops, includes, themes, 35+ builtins
-- Skinparam style system with rose default theme
-- Creole rich text markup (bold / italic / links / lists / tables / colors / fonts)
-- SVG sprite inline embedding
-- Sequence combined fragments, state pseudo-states, activity swimlanes
-- CJK / Unicode text width support
-- Error reporting with line/column tracking
+- **Full preprocessor**: variables, functions, conditionals, loops, includes, themes, 35+ built-in functions
+- **Skinparam style system** with rose default theme
+- **Creole rich text**: bold / italic / underline / strike / colors / fonts / links / tables / lists
+- **SVG sprite embedding** with viewBox-aware scaling
+- **OpenIconic icons** (`<&icon>` syntax, 223 embedded icons)
+- **Handwritten mode** (`skinparam handwritten true`)
+- **Gradient fills** (linear / radial)
+- **Sequence features**: 8 participant shapes, 8+ combined fragments, dividers, autonumber
+- **Activity features**: swimlanes, goto/label, break, backward loops
+- **State features**: fork/join, choice, history, concurrent regions
+- **CJK / Unicode** character width support
+- **Error reporting** with line/column tracking
 
 See [FEATURES.md](FEATURES.md) for the complete support matrix.
 
@@ -45,13 +105,10 @@ let svg = plantuml_little::convert(puml_source)?;
 ## Non-Goals
 
 - GUI, web server, FTP, pipe mode
-- Output formats other than SVG
+- Output formats other than SVG (no PNG / PDF / EPS / ASCII)
 - PlantUML Server URL encoding/decoding
-- Security sandbox system
-
-## Test Coverage
-
-1,319 unit tests + 183 integration tests = **1,502 tests**, 296 fixture files, 0 warnings.
+- ELK layout engine
+- Security sandbox
 
 ## Acknowledgments
 
