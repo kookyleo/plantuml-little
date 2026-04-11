@@ -10,7 +10,9 @@
 
 # Build artifacts
 *.rlib
+*.class
 *.log
+fonts/
 
 # Test outputs
 actual.svg
