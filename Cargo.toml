@@ -16,14 +16,18 @@ exclude = [
     "continue.md",
     "*.log",
     "*.rlib",
+    "*.svg",
+    "*.patch",
     "tmp_debug/",
-    "tests/ext_fixtures/",
+    "tests/",
+    "stdlib/",
+    "fonts/",
+    "docs/",
     ".trace-skill/",
     ".claude/",
     "scripts/",
     "patch_java.py",
     "gen_font_data.py",
-    "fonts/",
 ]
 
 [[bin]]
