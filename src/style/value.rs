@@ -160,6 +160,9 @@ pub trait Value: std::fmt::Debug {
     fn priority(&self) -> i32 {
         0
     }
+    fn as_value_impl(&self) -> Option<&ValueImpl> {
+        None
+    }
 }
 
 // ── ValueNull ───────────────────────────────────────────────────────
@@ -236,7 +239,7 @@ impl ValueImpl {
     /// or combining light/dark halves if possible.
     pub fn merge_with(&self, other: &dyn Value) -> Box<dyn Value> {
         // If other is also a ValueImpl, use DarkString merging
-        if let Some(other_impl) = as_value_impl(other) {
+        if let Some(other_impl) = other.as_value_impl() {
             return Box::new(ValueImpl {
                 value: self.value.merge_with(&other_impl.value),
             });
@@ -339,6 +342,10 @@ impl Value for ValueImpl {
     fn priority(&self) -> i32 {
         self.value.priority()
     }
+
+    fn as_value_impl(&self) -> Option<&ValueImpl> {
+        Some(self)
+    }
 }
 
 impl std::fmt::Display for ValueImpl {
@@ -382,27 +389,7 @@ impl std::fmt::Display for ValueColor {
     }
 }
 
-// ── Helper: downcast ────────────────────────────────────────────────
-
-/// Try to downcast a `&dyn Value` to `&ValueImpl`.
-/// This is used for type-specific merge logic.
-fn as_value_impl(v: &dyn Value) -> Option<&ValueImpl> {
-    // We use the Debug output to detect type — a stopgap until we add
-    // Any-based downcasting. Since ValueImpl's Debug starts with
-    // "ValueImpl", this is reliable for internal use.
-    let dbg = format!("{:?}", v);
-    if dbg.starts_with("ValueImpl") {
-        // SAFETY: This is a best-effort cast. We rely on the fact that
-        // within this crate, only ValueImpl produces this debug prefix.
-        // A proper solution would use Any, but that requires 'static.
-        unsafe {
-            let ptr = v as *const dyn Value as *const ValueImpl;
-            Some(&*ptr)
-        }
-    } else {
-        None
-    }
-}
+// ── Helper: downcast (via trait method) ─────────────────────────────
 
 // ── Helper: HorizontalAlignment from string ─────────────────────────
 
