@@ -22,6 +22,8 @@ exclude = [
     ".claude/",
     "scripts/",
     "patch_java.py",
+    "gen_font_data.py",
+    "fonts/",
 ]
 
 [[bin]]
