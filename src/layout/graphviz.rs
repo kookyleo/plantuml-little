@@ -1437,8 +1437,12 @@ fn parse_svg_edge(g: &str, tx: f64, ty: f64) -> Option<EdgeLayout> {
     // Parse arrowhead <polygon> for arrow tip and full polygon points.
     // Skip non-arrowhead polygons:
     // - stroke="transparent": label background (Java SvekEdge label shield)
+    // - stroke="none": Graphviz-emitted label background shield (a filled
+    //   rectangle around the edge label — Graphviz writes these as
+    //   `fill="#RRGGBB" stroke="none"` polygons inside the edge <g>)
     // - fill="none": label TABLE cell/row borders from DOT HTML labels
-    // Arrowhead polygons always have a solid fill color (fill="#RRGGBB").
+    // Arrowhead polygons always have both a solid fill color AND a
+    // visible stroke.
     let path_end = g
         .find("<path")
         .and_then(|p| g[p..].find("/>").map(|e| p + e + 2));
@@ -1454,9 +1458,11 @@ fn parse_svg_edge(g: &str, tx: f64, ty: f64) -> Option<EdgeLayout> {
             let is_label_bg = polygon
                 .find("stroke=\"transparent\"")
                 .is_some_and(|s| s < tag_end);
+            // Skip Graphviz-emitted label shields (stroke="none")
+            let is_label_shield = polygon.find("stroke=\"none\"").is_some_and(|s| s < tag_end);
             // Skip label table border polygons with fill="none"
             let is_table_border = polygon.find("fill=\"none\"").is_some_and(|s| s < tag_end);
-            if !is_label_bg && !is_table_border {
+            if !is_label_bg && !is_label_shield && !is_table_border {
                 if let Some(pts_str) = parse_xml_attr_str(polygon, "points") {
                     let poly_pts = parse_polygon_points(pts_str, tx, ty);
                     let tip = if poly_pts.len() >= 2 {
