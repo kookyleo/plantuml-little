@@ -5,18 +5,42 @@
 # landed (PR #6: scripts/wasm-dot-wrapper.sh + graphviz-anywhere-web@0.1.7
 # + DejaVu Sans via fontconfig), Graphviz-version drift and font-metric
 # drift have been eliminated — so every fixture listed below now reflects
-# a real plantuml-little vs Java PlantUML implementation gap worth fixing:
+# a real plantuml-little vs Java PlantUML implementation gap worth fixing.
 #
-#   - state/scxml/state_choice/state_history: small (4–10px) width
-#     deltas in SMETANA state-machine layout.
-#   - component/deployment01: 9px width delta in component-layout cluster
-#     spacing.
-#   - flow/basic + flow/link_back: @startflow is a non-standard diagram
-#     with a plantuml-little-only implementation; needs spec alignment.
-#   - dev/newline_link_URL_tooltip + wbs/link_url_tooltip_01: Java stock
-#     can't parse these URL-tooltip inputs (falls back to a 800px error
-#     page) while plantuml-little renders them successfully; the refs
-#     are therefore the Java error fallbacks, not real layouts.
+# Remaining drift, all localised to SMETANA state-machine / component
+# cluster layout:
+#
+#   - state/scxml0003 + nonreg/scxml/SCXML0003: the `count_start` input
+#     pin (73 px label inside a composite) lands 9 px right of Java's
+#     position. Java's SvekNode.appendShape switches a
+#     RECTANGLE_PORT to an HTML-TABLE representation when the label
+#     width exceeds 40 px (see Java `appendLabelHtmlSpecialForPort`),
+#     which reserves horizontal gutter space around the pin.
+#     plantuml-little's `port_label_width` is forwarded correctly, but
+#     `max_label_width` — which the DOT-emission switch keys off of —
+#     is never populated for state pins, so every pin goes through the
+#     "basic" path. Propagating `max_label_width` for wide pins
+#     regresses overall counter-cluster sizing; a complete fix needs
+#     alignment on when the HTML switch fires AND how the cluster
+#     shell re-measures around it.
+#
+#   - state/state_history001: outer-layout `render_offset.0` comes out
+#     at 6.36 where Java produces 10, shifting all geometry -3.64 px.
+#     The divergence is in `SvekResult.minMax` (Java) vs `svek::solve`
+#     (Rust): Java's moveDelta argument is `6 - LF_minX`, but
+#     plantuml-little moves by `6 - polygon_minX` and then tries to
+#     reconstruct the "LF gutter" via a separate `render_offset`. For
+#     this specific fixture (composite state with `[H]` deep-history
+#     and a back-arrow whose bezier control point extends left of the
+#     start ellipse) the two formulas diverge. Aligning moveDelta with
+#     Java would close the gap but touches enough of the SMETANA
+#     pipeline that it's being tracked separately.
+#
+#   - component/deployment01: 9 px width drift with `DMZ` frame /
+#     `docker` stack on the right column. All x-coords are shifted
+#     uniformly -9 but SVG width is also -9, so an actual extra right
+#     margin is missing. Same moveDelta / render_offset asymmetry as
+#     the history case but in component-layout coordinates.
 #
 # This file is consumed by scripts/check_reference_failures.sh which
 # both .github/workflows/ci.yml and .github/workflows/release.yml invoke.
@@ -31,13 +55,6 @@
 # Keep the list sorted. One test name per line. '#' prefix for comments.
 
 reference_fixtures_component_deployment01_puml
-reference_fixtures_dev_newline_link_URL_tooltip_puml
-reference_fixtures_flow_basic_puml
-reference_fixtures_flow_link_back_puml
-reference_fixtures_nonreg_scxml_SCXML0001_puml
 reference_fixtures_nonreg_scxml_SCXML0003_puml
-reference_fixtures_state_scxml0001_puml
 reference_fixtures_state_scxml0003_puml
-reference_fixtures_state_state_choice001_puml
 reference_fixtures_state_state_history001_puml
-reference_fixtures_wbs_link_url_tooltip_01_puml
