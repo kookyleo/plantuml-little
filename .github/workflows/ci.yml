@@ -118,3 +118,32 @@ jobs:
           LD_LIBRARY_PATH: ${{ github.workspace }}/.graphviz-anywhere/lib
       - name: Binary size
         run: ls -lh target/release/plantuml-little
+
+  build-wasm:
+    name: Build @kookyleo/plantuml-little-web
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+      - uses: Swatinem/rust-cache@v2
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Install wasm-pack
+        uses: jetli/wasm-pack-action@v0.4.0
+        with:
+          version: "v0.13.1"
+      - name: Build wasm
+        working-directory: packages/web
+        run: |
+          wasm-pack build --target bundler --out-dir dist/wasm --out-name plantuml_little_web
+          rm -f dist/wasm/package.json dist/wasm/.gitignore dist/wasm/README.md
+      - name: Build TypeScript wrapper
+        working-directory: packages/web
+        run: |
+          npm install --no-audit --no-fund
+          npm run build:ts
+      - name: Wasm binary size
+        run: ls -lh packages/web/dist/wasm/plantuml_little_web_bg.wasm
