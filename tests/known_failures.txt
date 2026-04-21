@@ -7,19 +7,7 @@
 # drift have been eliminated — so every fixture listed below now reflects
 # a real plantuml-little vs Java PlantUML implementation gap worth fixing.
 #
-# Remaining drift (state/scxml0003 + nonreg/scxml/SCXML0003 are the
-# same fixture tested from two locations):
-#
-#   - state/scxml0003 + nonreg/scxml/SCXML0003: the `count_start` input
-#     pin (73 px label inside a composite) lands 9 px right of Java's
-#     position. Java's `ClusterDotString.printRanks` emits `{rank=source;
-#     count_start;}` and `{rank=sink; count_done; count_val[3:0];}`
-#     constraints around pin children of a RECTANGLE_PORT-hosting
-#     cluster. The Rust port emits a flat DOT graph for the counter
-#     cluster without these rank constraints, so Graphviz places the
-#     wide-label pin `count_start` at a different X than Java. Fix is
-#     plumbing rank=source/sink subgraph emission through svek's
-#     cluster DOT writer — non-trivial and scoped for a follow-up PR.
+# (none — the reference suite is currently 337 / 0 / 3.)
 #
 # This file is consumed by scripts/check_reference_failures.sh which
 # both .github/workflows/ci.yml and .github/workflows/release.yml invoke.
@@ -32,6 +20,3 @@
 #     over by adding it here.
 #
 # Keep the list sorted. One test name per line. '#' prefix for comments.
-
-reference_fixtures_nonreg_scxml_SCXML0003_puml
-reference_fixtures_state_scxml0003_puml

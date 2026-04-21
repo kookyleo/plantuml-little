@@ -49,9 +49,11 @@ awk '/^failures:$/ {flag=1; next} flag && /^    [a-zA-Z_0-9]+$/ {print $1} /^tes
     "${results}" | sort -u > "${actual}"
 
 # Strip comments + blank lines from baseline for the comparison.
+# `grep` exits 1 when nothing matches — that's a valid state (all fixtures
+# pass, baseline contains only comments). Guard with `|| true`.
 expected=$(mktemp)
 trap 'rm -f "${results}" "${actual}" "${expected}"' EXIT
-grep -vE '^\s*(#|$)' "${BASELINE}" | sort -u > "${expected}"
+{ grep -vE '^\s*(#|$)' "${BASELINE}" || true; } | sort -u > "${expected}"
 
 echo ""
 echo "=== Reference test failure check ==="
