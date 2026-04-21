@@ -501,7 +501,9 @@ fn render_dot_to_svg(dot_src: &str) -> Result<String, Error> {
     use std::sync::Mutex;
     static GV_LOCK: Mutex<()> = Mutex::new(());
 
-    let _guard = GV_LOCK.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+    let _guard = GV_LOCK
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
     let ctx = GraphvizContext::new()
         .map_err(|e| Error::Layout(format!("failed to create graphviz context: {e}")))?;
     ctx.render_to_string(dot_src, Engine::Dot, Format::Svg)
