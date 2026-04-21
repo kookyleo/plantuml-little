@@ -1064,11 +1064,22 @@ pub fn layout_component(
             } else {
                 None
             };
+            // Java draws node / artifact / cloud clusters as UPolygon; these
+            // feed LimitFinder.drawUPolygon → `HACK_X_FOR_POLYGON = 10`.
+            // Other symbols (component / frame / rectangle / storage / …)
+            // use URectangle. Propagate the shape so svek applies the
+            // matching LF extension during `moveDelta` computation.
+            let style = match g.kind {
+                crate::model::ComponentKind::Node
+                | crate::model::ComponentKind::Cloud
+                | crate::model::ComponentKind::Artifact => crate::svek::cluster::ClusterStyle::Node,
+                _ => crate::svek::cluster::ClusterStyle::Rectangle,
+            };
             LayoutClusterSpec {
                 id: sanitize_id(&g.id),
                 qualified_name: g.code.clone(),
                 title: Some(g.name.clone()),
-                style: crate::svek::cluster::ClusterStyle::Rectangle,
+                style,
                 label_width: Some(final_label_w),
                 label_height: Some(label_h.floor().max(0.0)),
                 node_ids,

@@ -214,8 +214,20 @@ pub fn render_component(
         Group(&'a crate::model::component::ComponentGroup),
         Note(usize), // index into layout.notes
     }
+    // Java PlantUML registers cluster-like container symbols (node, cloud,
+    // frame, etc.) as groups only, never as separate Entity objects. The
+    // Rust parser currently emits an Entity *and* a Group for the same id
+    // (e.g. `node "Web Server" as web` ⇒ entity `web` + group `web`), so
+    // filter out the shadow entities when an identical group exists — their
+    // phantom Ident.of() slots would otherwise push ent IDs past Java's
+    // values.
+    let group_ids: std::collections::HashSet<&str> =
+        cd.groups.iter().map(|g| g.id.as_str()).collect();
     let mut all_items: Vec<(usize, EntItem<'_>)> = Vec::new();
     for ent in &cd.entities {
+        if group_ids.contains(ent.id.as_str()) {
+            continue;
+        }
         all_items.push((ent.source_line.unwrap_or(usize::MAX), EntItem::Entity(ent)));
     }
     for group in &cd.groups {
