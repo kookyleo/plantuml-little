@@ -1,4 +1,4 @@
-<?plantuml 1.2026.2?><svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" contentStyleType="text/css" data-diagram-type="SEQUENCE" height="239px" preserveAspectRatio="none" style="width:845px;height:239px;background:#FFFFFF;" version="1.1" viewBox="0 0 845 239" width="845px" zoomAndPan="magnify"><defs><style type="text/css"><![CDATA[
+<?plantuml 1.2026.2?><svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" contentStyleType="text/css" data-diagram-type="SEQUENCE" height="240px" preserveAspectRatio="none" style="width:846px;height:240px;background:#FFFFFF;" version="1.1" viewBox="0 0 846 240" width="846px" zoomAndPan="magnify"><defs><style type="text/css"><![CDATA[
 svg[data-diagram-type=SEQUENCE] g.header.floating-header {
     opacity: 0.9;
     display: none;
