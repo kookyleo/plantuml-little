@@ -39,11 +39,14 @@ thiserror = "1"
 log = "0.4"
 env_logger = "0.11"
 regex = "1"
-# graphviz-anywhere 0.1.5 is the first release with HTML-label support
-# enabled on macOS/Linux (WITH_EXPAT=ON) and with the size_t overflow in
-# the C wrapper fixed. Anything older crashes on render on 64-bit targets
-# or produces wrong geometry for HTML-labeled diagrams.
-graphviz-anywhere = "0.1.5"
+# graphviz-anywhere 0.1.6 is the first release that:
+#   - fixes the size_t overflow in the C wrapper (0.1.4+) so the library
+#     doesn't crash on render on 64-bit targets,
+#   - enables WITH_EXPAT=ON on macOS/Linux (0.1.5+) so HTML labels render
+#     with correct geometry,
+#   - links the linux .so with g++ (0.1.6+) so libstdc++ vtables resolve
+#     at runtime on Ubuntu/Debian/etc.
+graphviz-anywhere = "0.1.6"
 zip = { version = "0.6.6", default-features = false, features = ["deflate"] }
 ureq = "3"
 url = "2"

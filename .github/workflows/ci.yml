@@ -10,7 +10,7 @@ env:
   # graphviz-anywhere ships its native libgraphviz_api via a GitHub release
   # per tag; consumers point GRAPHVIZ_ANYWHERE_DIR at the extracted tarball.
   # Bump when updating the graphviz-anywhere dep in Cargo.toml.
-  GRAPHVIZ_ANYWHERE_VERSION: v0.1.5
+  GRAPHVIZ_ANYWHERE_VERSION: v0.1.6
 
 jobs:
   fmt:
@@ -32,6 +32,8 @@ jobs:
         with:
           components: clippy
       - uses: Swatinem/rust-cache@v2
+      - name: Install runtime deps
+        run: sudo apt-get update && sudo apt-get install -y libstdc++6 libexpat1 zlib1g
       - name: Install graphviz-anywhere native lib
         uses: ./.github/actions/setup-graphviz-anywhere
       - run: cargo clippy --all-targets -- -D warnings
@@ -45,6 +47,8 @@ jobs:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
+      - name: Install runtime deps
+        run: sudo apt-get update && sudo apt-get install -y libstdc++6 libexpat1 zlib1g
       - name: Install graphviz-anywhere native lib
         uses: ./.github/actions/setup-graphviz-anywhere
       - run: cargo test --lib
@@ -59,6 +63,8 @@ jobs:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
+      - name: Install runtime deps
+        run: sudo apt-get update && sudo apt-get install -y libstdc++6 libexpat1 zlib1g
       - name: Install graphviz-anywhere native lib
         uses: ./.github/actions/setup-graphviz-anywhere
       - run: cargo test --test reference_tests -- --nocapture 2>&1 | tee ref_results.txt
@@ -80,6 +86,8 @@ jobs:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
+      - name: Install runtime deps
+        run: sudo apt-get update && sudo apt-get install -y libstdc++6 libexpat1 zlib1g
       - name: Install graphviz-anywhere native lib
         uses: ./.github/actions/setup-graphviz-anywhere
       - run: cargo test --test integration
@@ -95,6 +103,8 @@ jobs:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
+      - name: Install runtime deps
+        run: sudo apt-get update && sudo apt-get install -y libstdc++6 libexpat1 zlib1g
       - name: Install graphviz-anywhere native lib
         uses: ./.github/actions/setup-graphviz-anywhere
       - run: cargo build --release
