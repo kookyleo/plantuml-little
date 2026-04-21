@@ -963,6 +963,15 @@ impl DotStringFactory {
             // component diagrams).
             if let Some(ref dp) = edge.dot_path {
                 if let Some((px_min, py_min, px_max, py_max)) = dp.min_max() {
+                    log::trace!(
+                        "  LF edge {}->{} bezier min=({:.4},{:.4}) max=({:.4},{:.4})",
+                        edge.from_uid,
+                        edge.to_uid,
+                        px_min,
+                        py_min,
+                        px_max,
+                        py_max
+                    );
                     if px_min < lf_min_x {
                         lf_min_x = px_min;
                     }
@@ -974,6 +983,33 @@ impl DotStringFactory {
                     }
                     if py_max > lf_max_y {
                         lf_max_y = py_max;
+                    }
+                }
+            }
+            // Java LimitFinder.drawUPolygon: adds polygon min/max with
+            // HACK_X_FOR_POLYGON = 10 horizontal extension. SvekEdge.drawU
+            // draws a UPolygon for each non-None extremity (arrowhead).
+            // This can push LF bounds beyond the bezier/label extents — crucial
+            // for fixtures where arrow tips are the leftmost/rightmost elements.
+            if let Some(ref dp) = edge.dot_path {
+                if let Some((ex_min, ey_min, ex_max, ey_max)) =
+                    edge_extremity_polygon_bounds(edge, dp)
+                {
+                    log::trace!(
+                        "  LF edge {}->{} arrow-polygon min=({:.4},{:.4}) max=({:.4},{:.4}) (HACK_X applied)",
+                        edge.from_uid, edge.to_uid, ex_min, ey_min, ex_max, ey_max
+                    );
+                    if ex_min < lf_min_x {
+                        lf_min_x = ex_min;
+                    }
+                    if ey_min < lf_min_y {
+                        lf_min_y = ey_min;
+                    }
+                    if ex_max > lf_max_x {
+                        lf_max_x = ex_max;
+                    }
+                    if ey_max > lf_max_y {
+                        lf_max_y = ey_max;
                     }
                 }
             }
@@ -1421,6 +1457,18 @@ fn extend_lf_with_cluster(
                 cluster.y + cluster.height,
             ),
         };
+        log::trace!(
+            "  LF cluster id={} x={:.4} y={:.4} w={:.4} h={:.4} => L={:.4} T={:.4} R={:.4} B={:.4}",
+            cluster.id,
+            cluster.x,
+            cluster.y,
+            cluster.width,
+            cluster.height,
+            left,
+            top,
+            right,
+            bottom,
+        );
         if left < *min_x {
             *min_x = left;
         }
@@ -1436,6 +1484,105 @@ fn extend_lf_with_cluster(
     }
     for sub in &cluster.sub_clusters {
         extend_lf_with_cluster(sub, min_x, min_y, max_x, max_y);
+    }
+}
+
+/// Compute the AABB of an edge's extremity polygons (one per non-None decor)
+/// with Java's `HACK_X_FOR_POLYGON = 10` horizontal extension applied.
+///
+/// Java `LimitFinder.drawUPolygon` applies this hack to every UPolygon
+/// drawn through the graphics pipeline. SvekEdge.drawU emits a polygon
+/// (~9×8 oriented triangle) for each arrowhead decoration, so the
+/// `SvekResult.calculateDimension` MinMax includes these polygon
+/// contributions when computing `moveDelta`.
+///
+/// We approximate the polygon using the `ExtremityArrow`-style raw points
+/// `{(0,0), (-9,-4), (-5,0), (-9,4)}` rotated by the path tangent at the
+/// contact point and translated to the endpoint — this matches the
+/// majority of svek extremity shapes (arrow / half-arrow / triangle) well
+/// enough for LF computation. For extremities without an arrow (decor =
+/// None), we skip that end.
+fn edge_extremity_polygon_bounds(
+    edge: &edge::SvekEdge,
+    dot_path: &crate::klimt::shape::DotPath,
+) -> Option<(f64, f64, f64, f64)> {
+    if dot_path.beziers.is_empty() {
+        return None;
+    }
+    const HACK_X: f64 = 10.0;
+    // ExtremityArrow raw polygon relative to contact tip (0,0), angle 0.
+    // tip, back-left wing, notch, back-right wing.
+    const RAW: [(f64, f64); 4] = [(0.0, 0.0), (-9.0, -4.0), (-5.0, 0.0), (-9.0, 4.0)];
+
+    let mut min_x = f64::INFINITY;
+    let mut min_y = f64::INFINITY;
+    let mut max_x = f64::NEG_INFINITY;
+    let mut max_y = f64::NEG_INFINITY;
+
+    let mut fold_rotated = |tip_x: f64, tip_y: f64, angle: f64| {
+        let (sa, ca) = angle.sin_cos();
+        let (mut local_min_x, mut local_min_y) = (f64::INFINITY, f64::INFINITY);
+        let (mut local_max_x, mut local_max_y) = (f64::NEG_INFINITY, f64::NEG_INFINITY);
+        for &(rx, ry) in RAW.iter() {
+            let px = tip_x + rx * ca - ry * sa;
+            let py = tip_y + rx * sa + ry * ca;
+            if px < local_min_x {
+                local_min_x = px;
+            }
+            if py < local_min_y {
+                local_min_y = py;
+            }
+            if px > local_max_x {
+                local_max_x = px;
+            }
+            if py > local_max_y {
+                local_max_y = py;
+            }
+        }
+        // Java LimitFinder.drawUPolygon: addPoint(minX-10, minY), addPoint(maxX+10, maxY)
+        let polygon_min_x = local_min_x - HACK_X;
+        let polygon_max_x = local_max_x + HACK_X;
+        if polygon_min_x < min_x {
+            min_x = polygon_min_x;
+        }
+        if local_min_y < min_y {
+            min_y = local_min_y;
+        }
+        if polygon_max_x > max_x {
+            max_x = polygon_max_x;
+        }
+        if local_max_y > max_y {
+            max_y = local_max_y;
+        }
+    };
+
+    // Java SvekEdge.drawU emits a UPolygon at each non-None extremity.
+    // In Rust, most layouts leave `decor1`/`decor2` at their default
+    // (`None`) and draw the arrow at render time anyway — so the rendered
+    // SVG has an arrow tip regardless of the svek-level decor. To match
+    // Java's MinMax (which runs through the rendering pipeline), assume an
+    // arrow at the end (`A --> B` → arrow at B) unless the edge is
+    // invisible/opale. Class diagrams that explicitly set `decor1=None`
+    // would suppress the arrow in Java too; but Rust class/component
+    // layouts currently set decor=None for all edges despite rendering an
+    // arrow, so we use visibility as the gating signal.
+    if !edge.is_invis && !edge.opale {
+        // Most edges draw an arrowhead at the END (linkType.decor1 side).
+        let end = dot_path.end_point();
+        let angle = dot_path.end_angle();
+        fold_rotated(end.x, end.y, angle);
+        // Explicit tail decoration (rare — e.g. `<-->`, crowfoot).
+        if edge.decor2 != edge::LinkDecoration::None {
+            let start = dot_path.start_point();
+            let angle = dot_path.start_angle() + std::f64::consts::PI;
+            fold_rotated(start.x, start.y, angle);
+        }
+    }
+
+    if min_x.is_finite() {
+        Some((min_x, min_y, max_x, max_y))
+    } else {
+        None
     }
 }
 
