@@ -203,6 +203,7 @@ pub(super) fn normalize_import_entry_path(path: &str) -> String {
     path.replace('\\', "/")
 }
 
+#[cfg_attr(not(feature = "remote"), allow(dead_code))]
 pub(super) fn make_remote_temp_path(url: &str) -> PathBuf {
     let parsed = Url::parse(url).ok();
     let stem = parsed

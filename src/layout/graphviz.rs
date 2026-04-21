@@ -513,8 +513,11 @@ fn to_dot(graph: &LayoutGraph) -> String {
 /// in-process. The wasm backend has its own serialization inside
 /// `wasm_backend::render_dot_to_svg`.
 fn render_dot_to_svg(dot_src: &str) -> Result<String, Error> {
-    if crate::layout::wasm_backend::wasm_backend_selected() {
-        return crate::layout::wasm_backend::render_dot_to_svg(dot_src);
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        if crate::layout::wasm_backend::wasm_backend_selected() {
+            return crate::layout::wasm_backend::render_dot_to_svg(dot_src);
+        }
     }
     render_dot_to_svg_native(dot_src)
 }

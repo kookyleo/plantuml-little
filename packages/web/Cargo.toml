@@ -1,0 +1,34 @@
+[package]
+name = "plantuml-little-web"
+version = "1.2026.2-3"
+edition = "2021"
+rust-version = "1.82"
+license = "GPL-3.0-or-later OR LGPL-3.0-or-later OR Apache-2.0 OR EPL-2.0 OR MIT"
+authors = ["kookyleo <kookyleo@gmail.com>"]
+description = "wasm-bindgen wrapper for plantuml-little — run PlantUML → SVG in the browser"
+homepage = "https://github.com/kookyleo/plantuml-little"
+repository = "https://github.com/kookyleo/plantuml-little"
+keywords = ["plantuml", "puml", "svg", "wasm", "web"]
+categories = ["wasm", "graphics"]
+publish = false
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+# wasm-opt default args don't include --enable-bulk-memory, but rustc now
+# emits memory.copy / memory.fill instructions for wasm32 (since Rust
+# 1.82 raised the baseline feature set). Pass both feature flags through
+# to wasm-opt so optimisation doesn't reject the input.
+[package.metadata.wasm-pack.profile.release]
+wasm-opt = ["-O", "--enable-bulk-memory", "--enable-nontrapping-float-to-int"]
+
+[package.metadata.wasm-pack.profile.dev]
+wasm-opt = false
+
+[dependencies]
+# Depend on the root crate as a library with the CLI + ureq-backed remote
+# fetch features disabled — wasm32 has no stdio, no TCP, no filesystem in
+# the usual sense. graphviz-anywhere 0.1.7+ installs its own wasm JS
+# bridge automatically when compiled for wasm32.
+plantuml-little = { path = "../..", default-features = false }
+wasm-bindgen = "0.2"
