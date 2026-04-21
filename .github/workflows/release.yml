@@ -1,0 +1,55 @@
+name: Release
+
+# Tag-driven publish to crates.io.
+#
+# Push a `vX.Y.Z` tag to main to trigger. The Rust crate version in
+# Cargo.toml should already match (e.g. `1.2026.2-2` for tag `v1.2026.2-2`).
+#
+# The crate cannot verify-build in isolation because it needs the
+# graphviz-anywhere native lib on disk, so `cargo publish --no-verify` is
+# used — matches the pattern in kookyleo/graphviz-anywhere's own release
+# pipeline.
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+  # Must stay in sync with the version declared in Cargo.toml.
+  GRAPHVIZ_ANYWHERE_VERSION: v0.1.6
+
+jobs:
+  publish-crates-io:
+    name: Publish to crates.io
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Install runtime deps
+        run: sudo apt-get update && sudo apt-get install -y libstdc++6 libexpat1 zlib1g
+
+      - name: Install graphviz-anywhere native lib
+        uses: ./.github/actions/setup-graphviz-anywhere
+
+      - name: Verify tag matches Cargo.toml version
+        run: |
+          tag="${GITHUB_REF_NAME#v}"
+          crate_version=$(grep -m1 '^version =' Cargo.toml | sed -E 's/^version = "(.+)"/\1/')
+          if [ "$tag" != "$crate_version" ]; then
+            echo "::error::Tag v${tag} does not match Cargo.toml version ${crate_version}"
+            exit 1
+          fi
+          echo "Publishing plantuml-little ${crate_version}"
+
+      - name: Publish to crates.io
+        run: cargo publish --token "${{ secrets.CARGO_TOKEN }}" --no-verify
+        env:
+          GRAPHVIZ_ANYWHERE_DIR: ${{ github.workspace }}/.graphviz-anywhere
+          LD_LIBRARY_PATH: ${{ github.workspace }}/.graphviz-anywhere/lib
