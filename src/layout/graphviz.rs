@@ -1,7 +1,6 @@
 use crate::error::Error;
 use crate::render::svg::fmt_coord;
-use std::io::Write;
-use std::process::{Command, Stdio};
+use graphviz_anywhere::{Engine, Format, GraphvizContext};
 
 /// Input: a graph node (abstract description independent of diagram type)
 #[derive(Debug, Clone)]
@@ -487,11 +486,36 @@ fn to_dot(graph: &LayoutGraph) -> String {
     dot
 }
 
+/// Run Graphviz `dot` on a DOT source string, returning the SVG output.
+///
+/// Uses the in-process `graphviz-anywhere` crate (a safe wrapper around the
+/// same libgvc that the Graphviz CLI uses), so no `dot` subprocess / runtime
+/// dependency is required — callers get the same SVG the `dot -Tsvg` CLI
+/// would produce.
+///
+/// libgvc maintains global mutable state (plugin registry, error buffers,
+/// etc.) and is not thread-safe, so we serialize all Graphviz access through
+/// a process-wide mutex. Previously the `dot` subprocess provided isolation
+/// implicitly; this lock preserves the same guarantee in-process.
+fn render_dot_to_svg(dot_src: &str) -> Result<String, Error> {
+    use std::sync::Mutex;
+    static GV_LOCK: Mutex<()> = Mutex::new(());
+
+    let _guard = GV_LOCK
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
+    let ctx = GraphvizContext::new()
+        .map_err(|e| Error::Layout(format!("failed to create graphviz context: {e}")))?;
+    ctx.render_to_string(dot_src, Engine::Dot, Format::Svg)
+        .map_err(|e| Error::Layout(format!("graphviz render failed: {e}")))
+}
+
 /// Run Graphviz dot layout, returning node coordinates and edge paths.
 ///
-/// Strategy: serialize the graph to DOT format, run layout via `dot -Tsvg`
-/// subprocess, and parse the SVG output to obtain node coordinates and edge
-/// paths with full pt precision (no inches→pt rounding).
+/// Strategy: serialize the graph to DOT format, run layout via the
+/// `graphviz-anywhere` in-process library, and parse the SVG output to
+/// obtain node coordinates and edge paths with full pt precision
+/// (no inches→pt rounding).
 pub fn layout(graph: &LayoutGraph) -> Result<GraphLayout, Error> {
     log::debug!(
         "layout: {} nodes, {} edges",
@@ -502,32 +526,7 @@ pub fn layout(graph: &LayoutGraph) -> Result<GraphLayout, Error> {
     let dot_src = to_dot(graph);
     log::debug!("dot input:\n{dot_src}");
 
-    // invoke dot -Tsvg, pipe DOT via stdin, read SVG from stdout
-    let mut child = Command::new("dot")
-        .arg("-Tsvg")
-        .stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .spawn()
-        .map_err(|e| Error::Layout(format!("failed to spawn dot: {e} (is graphviz installed?)")))?;
-
-    child
-        .stdin
-        .take()
-        .unwrap()
-        .write_all(dot_src.as_bytes())
-        .map_err(|e| Error::Layout(format!("failed to write to dot stdin: {e}")))?;
-
-    let output = child
-        .wait_with_output()
-        .map_err(|e| Error::Layout(format!("dot process error: {e}")))?;
-
-    if !output.status.success() {
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        return Err(Error::Layout(format!("dot exited with error: {stderr}")));
-    }
-
-    let svg = String::from_utf8_lossy(&output.stdout);
+    let svg = render_dot_to_svg(&dot_src)?;
     log::debug!("dot svg output:\n{svg}");
 
     parse_svg_output(&svg, graph)
@@ -744,32 +743,8 @@ pub fn layout_with_svek(graph: &LayoutGraph) -> Result<GraphLayout, Error> {
     let dot = builder.build_dot();
     log::debug!("svek dot input:\n{dot}");
 
-    // Run Graphviz (same subprocess approach)
-    let mut child = std::process::Command::new("dot")
-        .arg("-Tsvg")
-        .stdin(std::process::Stdio::piped())
-        .stdout(std::process::Stdio::piped())
-        .stderr(std::process::Stdio::piped())
-        .spawn()
-        .map_err(|e| Error::Layout(format!("failed to spawn dot: {e}")))?;
-
-    child
-        .stdin
-        .take()
-        .unwrap()
-        .write_all(dot.as_bytes())
-        .map_err(|e| Error::Layout(format!("failed to write to dot stdin: {e}")))?;
-
-    let output = child
-        .wait_with_output()
-        .map_err(|e| Error::Layout(format!("dot process error: {e}")))?;
-
-    if !output.status.success() {
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        return Err(Error::Layout(format!("dot exited with error: {stderr}")));
-    }
-
-    let svg = String::from_utf8_lossy(&output.stdout);
+    // Run Graphviz in-process via graphviz-anywhere.
+    let svg = render_dot_to_svg(&dot)?;
     log::debug!("svek dot svg output:\n{svg}");
 
     // Parse edges directly from Graphviz SVG for arrowhead polygon data.

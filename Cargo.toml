@@ -1,6 +1,6 @@
 [package]
 name = "plantuml-little"
-version = "1.2026.2-1"
+version = "1.2026.2-2"
 edition = "2021"
 rust-version = "1.82"
 license = "GPL-3.0-or-later OR LGPL-3.0-or-later OR Apache-2.0 OR EPL-2.0 OR MIT"
@@ -39,7 +39,14 @@ thiserror = "1"
 log = "0.4"
 env_logger = "0.11"
 regex = "1"
-vizoxide = "1.0.5"
+# graphviz-anywhere 0.1.6 is the first release that:
+#   - fixes the size_t overflow in the C wrapper (0.1.4+) so the library
+#     doesn't crash on render on 64-bit targets,
+#   - enables WITH_EXPAT=ON on macOS/Linux (0.1.5+) so HTML labels render
+#     with correct geometry,
+#   - links the linux .so with g++ (0.1.6+) so libstdc++ vtables resolve
+#     at runtime on Ubuntu/Debian/etc.
+graphviz-anywhere = "0.1.6"
 zip = { version = "0.6.6", default-features = false, features = ["deflate"] }
 ureq = "3"
 url = "2"
@@ -53,9 +60,3 @@ lto = true
 codegen-units = 1
 strip = true
 panic = "abort"
-
-# vizoxide 1.0.5 on crates.io has const/mut pointer cast errors on Rust 1.82+.
-# Upstream merged the fix (19h/vizoxide#5) but has not yet published 1.0.6.
-# Remove this patch once vizoxide >= 1.0.6 is on crates.io.
-[patch.crates-io]
-vizoxide = { git = "https://github.com/kookyleo/vizoxide.git", rev = "13b7dcc" }

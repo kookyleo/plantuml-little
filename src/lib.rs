@@ -1,4 +1,10 @@
 #![allow(clippy::too_many_arguments)]
+// Lints added by rustc/clippy stable 1.95. These fire on idiomatic
+// pattern-in-match and `.into()` usage that the codebase relies on
+// heavily; rewriting 200+ call sites is out of scope for the
+// graphviz-anywhere swap.
+#![allow(clippy::collapsible_match)]
+#![allow(clippy::useless_conversion)]
 
 use std::path::Path;
 
