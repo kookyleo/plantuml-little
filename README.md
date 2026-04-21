@@ -13,7 +13,7 @@ plantuml-little takes `.puml` source text and produces `.svg` output — the sam
 | | |
 |---|---|
 | **Upstream version** | PlantUML v1.2026.2 (`bb8550d`) |
-| **Reference tests** | 326 passed / 11 pinned-baseline / 3 ignored (see `tests/known_failures.txt` for the gap analysis) |
+| **Reference tests** | 333 passed / 4 pinned-baseline / 3 ignored (see `tests/known_failures.txt` for the gap analysis) |
 | **Unit tests** | 2,693 |
 | **Integration tests** | 185 |
 | **Total tests** | **3,215** |
