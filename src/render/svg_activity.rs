@@ -509,14 +509,31 @@ fn render_old_style_node(
         _ => None,
     };
     if let (Some(class_name), Some(meta)) = (wrapper, meta) {
-        write!(
-            buf,
-            r#"<g class="{}" data-qualified-name="{}" id="{}">"#,
-            class_name,
-            xml_escape(&meta.qualified_name),
-            meta.uid,
-        )
-        .unwrap();
+        // Java emits `data-source-line` on the wrapper tag of `start_entity`
+        // and `end_entity`, but NOT on the neutral `entity` (diamond)
+        // wrapper. Match that behavior exactly.
+        let emit_source_line =
+            matches!(class_name, "start_entity" | "end_entity") && meta.source_line.is_some();
+        if emit_source_line {
+            write!(
+                buf,
+                r#"<g class="{}" data-qualified-name="{}" data-source-line="{}" id="{}">"#,
+                class_name,
+                xml_escape(&meta.qualified_name),
+                meta.source_line.unwrap(),
+                meta.uid,
+            )
+            .unwrap();
+        } else {
+            write!(
+                buf,
+                r#"<g class="{}" data-qualified-name="{}" id="{}">"#,
+                class_name,
+                xml_escape(&meta.qualified_name),
+                meta.uid,
+            )
+            .unwrap();
+        }
     }
 
     match node.kind {
@@ -635,8 +652,8 @@ fn render_old_style_edge(
     write!(buf, "<!--link {} to {}-->", meta.from_id, meta.to_id).unwrap();
     write!(
         buf,
-        r#"<g class="link" data-link-type="dependency" id="{}">"#,
-        meta.uid
+        r#"<g class="link" data-entity-1="{}" data-entity-2="{}" data-link-type="dependency" data-source-line="{}" id="{}">"#,
+        meta.from_uid, meta.to_uid, meta.source_line, meta.uid
     )
     .unwrap();
 

@@ -171,6 +171,11 @@ pub struct ActivityGraphvizNodeMeta {
     pub id: String,
     pub uid: String,
     pub qualified_name: String,
+    /// Source line number from the first link that references this node as
+    /// either endpoint. `None` if no such link exists (rare — only wholly
+    /// disconnected nodes). Mirrors Java PlantUML's `data-source-line` on
+    /// `start_entity` / `end_entity` wrappers.
+    pub source_line: Option<usize>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -178,6 +183,13 @@ pub struct ActivityGraphvizEdgeMeta {
     pub uid: String,
     pub from_id: String,
     pub to_id: String,
+    /// UID of the source node, used for the `data-entity-1` attribute.
+    pub from_uid: String,
+    /// UID of the target node, used for the `data-entity-2` attribute.
+    pub to_uid: String,
+    /// Source line number of the link in the original `.puml` source.
+    /// Mirrors Java PlantUML's `data-source-line` on `link` wrappers.
+    pub source_line: usize,
     pub raw_path_d: Option<String>,
     pub arrow_polygon_points: Option<Vec<(f64, f64)>>,
     pub label_xy: Option<(f64, f64)>,
@@ -3887,6 +3899,33 @@ fn layout_old_style_activity_graph(
         .iter()
         .map(|node| (node.id.as_str(), node))
         .collect();
+
+    // Precompute the first (smallest) source_line that references each node
+    // as either endpoint. Java PlantUML emits this as `data-source-line` on
+    // `start_entity` / `end_entity` wrappers.
+    let mut node_source_line: HashMap<String, usize> = HashMap::new();
+    for link in &old_graph.links {
+        for endpoint in [&link.from_id, &link.to_id] {
+            node_source_line
+                .entry(endpoint.clone())
+                .and_modify(|existing| {
+                    if link.source_line < *existing {
+                        *existing = link.source_line;
+                    }
+                })
+                .or_insert(link.source_line);
+        }
+    }
+
+    // Also precompute id -> uid for edges so the renderer can populate
+    // `data-entity-1` / `data-entity-2` (which require the uid, not the
+    // raw id like "start" / "end").
+    let node_uid_by_id: HashMap<String, String> = old_graph
+        .nodes
+        .iter()
+        .map(|n| (n.id.clone(), n.uid.clone()))
+        .collect();
+
     let mut activity_nodes = Vec::with_capacity(old_graph.nodes.len());
     let mut old_node_meta = Vec::with_capacity(old_graph.nodes.len());
     let mut node_layout_index = HashMap::new();
@@ -3916,6 +3955,7 @@ fn layout_old_style_activity_graph(
             id: node.id.clone(),
             uid: node.uid.clone(),
             qualified_name: node.qualified_name.clone(),
+            source_line: node_source_line.get(&node.id).copied(),
         }));
         node_layout_index.insert(node.id.clone(), idx);
     }
@@ -3956,10 +3996,18 @@ fn layout_old_style_activity_graph(
             points: shifted_points,
             kind: ActivityEdgeKindLayout::Normal,
         });
+        let from_uid = node_uid_by_id
+            .get(&link.from_id)
+            .cloned()
+            .unwrap_or_default();
+        let to_uid = node_uid_by_id.get(&link.to_id).cloned().unwrap_or_default();
         old_edge_meta.push(Some(ActivityGraphvizEdgeMeta {
             uid: link.uid.clone(),
             from_id: link.from_id.clone(),
             to_id: link.to_id.clone(),
+            from_uid,
+            to_uid,
+            source_line: link.source_line,
             raw_path_d: gv
                 .raw_path_d
                 .as_ref()

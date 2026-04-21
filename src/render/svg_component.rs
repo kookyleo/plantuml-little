@@ -949,6 +949,13 @@ fn render_sprite_image(sg: &mut SvgGraphic, svg_content: &str, x: f64, y: f64, w
 /// Java's `SpriteMonochrome.toUImage` uses the UGraphic back color when generating
 /// the sprite image, so transparent pixels have the entity's fill color in their RGB.
 /// This function re-generates the sprite PNG with the correct background.
+///
+/// When `target_dims` is `Some((w, h))` the raw sprite gray data is bilinearly
+/// resampled to produce a PNG of exactly those dimensions. Pass `None` to
+/// preserve the sprite's raw pixel dimensions. Java scales C4-style entity
+/// sprites this way so the embedded `<image>` tag width/height matches the
+/// actual PNG resolution.
+#[allow(clippy::too_many_arguments)]
 fn render_sprite_with_bg(
     sg: &mut SvgGraphic,
     sprite_name: &str,
@@ -960,9 +967,12 @@ fn render_sprite_with_bg(
     bg_r: u8,
     bg_g: u8,
     bg_b: u8,
+    target_dims: Option<(usize, usize)>,
 ) {
-    use crate::render::svg_richtext::get_sprite_data_uri_with_bg;
-    if let Some(data_uri) = get_sprite_data_uri_with_bg(sprite_name, bg_r, bg_g, bg_b) {
+    use crate::render::svg_richtext::get_sprite_data_uri_with_bg_scaled;
+    if let Some(data_uri) =
+        get_sprite_data_uri_with_bg_scaled(sprite_name, bg_r, bg_g, bg_b, target_dims)
+    {
         sg.push_raw(&format!(
             r#"<image height="{}" width="{}" x="{}" xlink:href="{}" y="{}"/>"#,
             h as u32,
@@ -1799,7 +1809,10 @@ fn render_c4_word_by_word(
                 let sprite_scale = FONT_SIZE / 13.0;
                 let sprite_layout_w = info.vb_width * sprite_scale;
                 let sprite_layout_h = info.vb_height * sprite_scale;
-                // The rendered image uses the actual pixel size (+4 border padding)
+                // The rendered image uses the actual pixel size (+4 border
+                // padding: Java scales the raw sprite into a slightly larger
+                // PNG — e.g. 48×48 raw → 52×52 rendered — so the PNG
+                // dimensions match the `<image>` tag).
                 let sprite_render_w = info.vb_width + 4.0;
                 let sprite_render_h = info.vb_height + 4.0;
                 // Center using layout width (Java centers based on calculateDimension)
@@ -1816,6 +1829,7 @@ fn render_c4_word_by_word(
                     bg_r,
                     bg_g,
                     bg_b,
+                    Some((sprite_render_w as usize, sprite_render_h as usize)),
                 );
                 // Advance cursor by the LAYOUT height (matches Java calculateDimension)
                 y_cursor += sprite_layout_h;
@@ -1965,6 +1979,7 @@ fn render_node_text(
                     bg_r,
                     bg_g,
                     bg_b,
+                    None,
                 );
                 Some(sprite_h)
             } else {
