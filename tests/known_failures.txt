@@ -1,0 +1,40 @@
+# tests/known_failures.txt
+#
+# Reference-test fixtures that currently diverge from the Java PlantUML
+# v1.2026.2 byte-exact baseline due to Graphviz version drift:
+# @kookyleo/graphviz-anywhere ships Graphviz 14.1.5 while the upstream
+# Java reference SVGs were snapshotted against an older Graphviz release,
+# producing sub-pixel geometry differences (e.g. height 521px vs 522px)
+# that propagate through layout-sensitive fixtures.
+#
+# This file is consumed by scripts/check_reference_failures.sh which
+# both .github/workflows/ci.yml and .github/workflows/release.yml invoke.
+# Both require the failing set to match this list EXACTLY — no silent
+# FAILED results, and no silently-healed regressions either.
+#
+# If you:
+#   - Fix a fixture: remove its line and commit.
+#   - Introduce a regression: FIRST fix the regression, DO NOT paper it
+#     over by adding it here.
+#
+# Keep the list sorted. One test name per line. '#' prefix for comments.
+
+reference_fixtures_class_hideshow002_puml
+reference_fixtures_component_deployment01_puml
+reference_fixtures_dev_jaws_jaws1_puml
+reference_fixtures_erd_chenmoviealias_puml
+reference_fixtures_erd_chenmovieextended_puml
+reference_fixtures_misc_a0004_puml
+reference_fixtures_nonreg_scxml_SCXML0001_puml
+reference_fixtures_nonreg_scxml_SCXML0003_puml
+reference_fixtures_nonreg_scxml_SCXML0004_puml
+reference_fixtures_nonreg_simple_A0004_puml
+reference_fixtures_nonreg_simple_ChenMovieAlias_puml
+reference_fixtures_nonreg_simple_ChenMovieExtended_puml
+reference_fixtures_nonreg_simple_HideShow002_puml
+reference_fixtures_preprocessor_jaws1_puml
+reference_fixtures_state_scxml0001_puml
+reference_fixtures_state_scxml0003_puml
+reference_fixtures_state_scxml0004_puml
+reference_fixtures_state_state_choice001_puml
+reference_fixtures_state_state_history001_puml

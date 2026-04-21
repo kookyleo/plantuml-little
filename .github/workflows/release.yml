@@ -1,0 +1,92 @@
+name: Release
+
+# Tag-driven publish to crates.io.
+#
+# Push a `vX.Y.Z` tag to main to trigger. The Rust crate version in
+# Cargo.toml must already match (e.g. `1.2026.2-2` for tag `v1.2026.2-2`).
+#
+# Publish is gated behind the full quality suite: fmt, clippy (-D warnings),
+# unit tests, integration tests, and reference tests against the
+# tests/known_failures.txt baseline. No silent "FAILED but accepted"
+# — if the gate trips, the tag publishes nothing.
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+  # Must stay in sync with the graphviz-anywhere version in Cargo.toml.
+  GRAPHVIZ_ANYWHERE_VERSION: v0.1.6
+
+jobs:
+  gate:
+    name: Quality gate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Install runtime deps
+        run: sudo apt-get update && sudo apt-get install -y libstdc++6 libexpat1 zlib1g
+
+      - name: Install graphviz-anywhere native lib
+        uses: ./.github/actions/setup-graphviz-anywhere
+
+      - name: Verify tag matches Cargo.toml version
+        run: |
+          tag="${GITHUB_REF_NAME#v}"
+          crate_version=$(grep -m1 '^version =' Cargo.toml | sed -E 's/^version = "(.+)"/\1/')
+          if [ "$tag" != "$crate_version" ]; then
+            echo "::error::Tag v${tag} does not match Cargo.toml version ${crate_version}"
+            exit 1
+          fi
+          echo "Publishing plantuml-little ${crate_version}"
+
+      - name: Format check
+        run: cargo fmt --check
+
+      - name: Clippy (deny warnings)
+        run: cargo clippy --all-targets -- -D warnings
+        env:
+          GRAPHVIZ_ANYWHERE_DIR: ${{ github.workspace }}/.graphviz-anywhere
+
+      - name: Unit tests
+        run: cargo test --lib
+        env:
+          GRAPHVIZ_ANYWHERE_DIR: ${{ github.workspace }}/.graphviz-anywhere
+          LD_LIBRARY_PATH: ${{ github.workspace }}/.graphviz-anywhere/lib
+
+      - name: Integration tests
+        run: cargo test --test integration
+        env:
+          GRAPHVIZ_ANYWHERE_DIR: ${{ github.workspace }}/.graphviz-anywhere
+          LD_LIBRARY_PATH: ${{ github.workspace }}/.graphviz-anywhere/lib
+
+      - name: Reference tests (baseline-gated)
+        run: ./scripts/check_reference_failures.sh
+        env:
+          GRAPHVIZ_ANYWHERE_DIR: ${{ github.workspace }}/.graphviz-anywhere
+          LD_LIBRARY_PATH: ${{ github.workspace }}/.graphviz-anywhere/lib
+
+  publish-crates-io:
+    name: Publish to crates.io
+    runs-on: ubuntu-latest
+    needs: gate
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Publish to crates.io
+        # --no-verify: matches kookyleo/graphviz-anywhere's pattern. The gate
+        # job already ran the full test suite against a real build; verify
+        # here would just redo the native lib setup.
+        run: cargo publish --token "${{ secrets.CARGO_TOKEN }}" --no-verify
