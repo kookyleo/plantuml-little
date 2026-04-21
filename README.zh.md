@@ -6,17 +6,31 @@
 
 ## 这是什么
 
-plantuml-little 读取 `.puml` 源文本，输出 `.svg` — 与 Java PlantUML 功能相同，但以原生 Rust 库 + CLI 形态运行，无需 JVM。所有支持的图表类型均通过 337 个逐字节对比的 reference test 验证与上游 Java 输出一致。
+plantuml-little 读取 `.puml` 源文本，输出 `.svg` — 与 Java PlantUML 功能相同，但以原生 Rust 库 + CLI 形态运行，无需 JVM。所有支持的图表类型均通过 reference test 与上游 Java 输出逐字节对比验证。
 
 ## 对齐状态
 
 | | |
 |---|---|
 | **上游版本** | PlantUML v1.2026.2 (`bb8550d`) |
-| **Reference 测试** | 337 通过 / 0 失败 / 3 忽略 |
+| **Reference 测试** | 326 通过 / 11 基线固定 / 3 忽略（详见 `tests/known_failures.txt`） |
 | **单元测试** | 2,693 |
 | **集成测试** | 185 |
 | **总计** | **3,215** |
+
+### 测试方法论
+
+Reference 测试对 `tests/fixtures/` 下每个 puml 用例的实际 SVG 输出与上游 Java 生成的 reference 做逐字节比对。为了让这种比对在不同宿主上依然一致，我们把两个会飘的维度都固定下来：
+
+- **共享的 wasm Graphviz**。Java reference 生成管线与 plantuml-little 的 Rust 布局都把 `dot` 调用走同一份 [`@kookyleo/graphviz-anywhere-web`](https://www.npmjs.com/package/@kookyleo/graphviz-anywhere-web)（Graphviz 14.1.5 + libexpat，编译到 wasm）。Java 侧通过 `scripts/wasm-dot-wrapper.sh` 这个 shim 设为 `GRAPHVIZ_DOT`；Rust 侧通过 `PLANTUML_LITTLE_TEST_BACKEND=wasm` 启用。Graphviz 输出因此在任何机器上都位一致。
+- **DejaVu Sans 字体**。plantuml-little 把 DejaVu Sans / DejaVu Sans Mono 的字宽指标烘焙进 `src/font_data.rs`。Reference SVG 通过 `regenerate-refs.yml`（手动触发）在 Ubuntu 上刷新——那里 Java 的 `sans-serif` 会经 fontconfig 解析到 DejaVu，从而让 `textLength` 与 Rust 侧完全对齐。
+
+Graphviz 有两种执行模式：
+
+- `native`（默认）：链接 [`graphviz-anywhere`](https://github.com/kookyleo/graphviz-anywhere) 的预编译 `libgraphviz_api`，速度快、无需 Node；日常 `cargo test --lib` / 开发调试推荐此模式。
+- `wasm`（通过 `PLANTUML_LITTLE_TEST_BACKEND=wasm` 开启）：启动与 Java reference 管线相同的 Node/wasm runner；CI 的 `test-reference` 任务采用这种模式以保证跨平台可重放。
+
+当前基线对应的完整环境快照见 `tests/reference/VERSION`（jar 版本、JDK、Graphviz、字体栈）。
 
 ## 支持的图表类型（29 种完整实现）
 
@@ -102,7 +116,9 @@ let svg = plantuml_little::convert(puml_source)?;
 ## 前置条件
 
 - Rust 1.82+
-- Graphviz (`apt install graphviz` / `brew install graphviz`)
+- [`graphviz-anywhere`](https://github.com/kookyleo/graphviz-anywhere) 预编译原生库（CI 自动拉取；本地将 `GRAPHVIZ_ANYWHERE_DIR` 指向解压后的 release tarball）
+- 启用 wasm 测试后端（`PLANTUML_LITTLE_TEST_BACKEND=wasm`）时：Node 22+，并执行 `cd tests/support && npm install`
+- 本地重新生成 reference SVG 时：JDK 21+、DejaVu Sans 字体（Linux 上 `apt install fonts-dejavu-core`）、以及一份 `plantuml-1.2026.2.jar`——或直接使用 `regenerate-refs.yml` 工作流在 `ubuntu-latest` 上一键搞定
 
 ## 不在范围内
 
