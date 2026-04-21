@@ -13,10 +13,24 @@ plantuml-little takes `.puml` source text and produces `.svg` output — the sam
 | | |
 |---|---|
 | **Upstream version** | PlantUML v1.2026.2 (`bb8550d`) |
-| **Reference tests** | 337 passed / 0 failed / 3 ignored |
+| **Reference tests** | 326 passed / 11 pinned-baseline / 3 ignored (see `tests/known_failures.txt` for the gap analysis) |
 | **Unit tests** | 2,693 |
 | **Integration tests** | 185 |
 | **Total tests** | **3,215** |
+
+### Test Methodology
+
+Reference tests compare the SVG plantuml-little emits against an upstream-generated reference for every fixture under `tests/fixtures/`. To keep that comparison truly byte-exact across platforms we pin two shared axes:
+
+- **Shared-wasm Graphviz.** Both the Java reference pipeline and plantuml-little's Rust layout code route `dot` calls through [`@kookyleo/graphviz-anywhere-web`](https://www.npmjs.com/package/@kookyleo/graphviz-anywhere-web) (Graphviz 14.1.5 + libexpat, compiled to wasm). The Java side uses the `scripts/wasm-dot-wrapper.sh` shim as `GRAPHVIZ_DOT`; the Rust side opts in via `PLANTUML_LITTLE_TEST_BACKEND=wasm`. Graphviz output is therefore bit-identical on every machine.
+- **DejaVu Sans fonts.** plantuml-little bakes DejaVu Sans / DejaVu Sans Mono text-width metrics into `src/font_data.rs`. Reference SVGs are regenerated on Ubuntu (via the manual `regenerate-refs.yml` workflow) where Java's `sans-serif` resolves to DejaVu through fontconfig, so text `textLength` values match the Rust side exactly.
+
+Two Graphviz execution modes are supported:
+
+- `native` (default): links against [`graphviz-anywhere`](https://github.com/kookyleo/graphviz-anywhere)'s prebuilt `libgraphviz_api` — fast, no Node required; recommended for `cargo test --lib` / day-to-day development.
+- `wasm` (opt-in via `PLANTUML_LITTLE_TEST_BACKEND=wasm`): spawns the same Node/wasm runner the Java reference pipeline uses; this is what CI runs for `test-reference` to guarantee cross-platform determinism.
+
+See `tests/reference/VERSION` for the exact jar / JDK / Graphviz / font-stack snapshot the current baseline was produced against.
 
 ## Supported Diagram Types (29)
 
@@ -102,7 +116,9 @@ let svg = plantuml_little::convert(puml_source)?;
 ## Prerequisites
 
 - Rust 1.82+
-- Graphviz (`apt install graphviz` / `brew install graphviz`)
+- [`graphviz-anywhere`](https://github.com/kookyleo/graphviz-anywhere) prebuilt native lib (fetched automatically in CI; locally point `GRAPHVIZ_ANYWHERE_DIR` at an extracted release tarball)
+- For the wasm test backend (`PLANTUML_LITTLE_TEST_BACKEND=wasm`): Node 22+ and `cd tests/support && npm install`
+- For regenerating reference SVGs locally: JDK 21+, DejaVu Sans fonts (`apt install fonts-dejavu-core` on Linux), and a `plantuml-1.2026.2.jar` — or use the `regenerate-refs.yml` workflow which sets all of that up on `ubuntu-latest`
 
 ## Non-Goals
 

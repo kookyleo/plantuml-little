@@ -8,10 +8,6 @@ fixtures/activity/activity_mono_multi_line_v2.puml	reference/activity/activity_m
 fixtures/activity/swimlane001.puml	reference/activity/swimlane001.svg
 fixtures/archimate/basic.puml	reference/archimate/basic.svg
 fixtures/archimate/layers.puml	reference/archimate/layers.svg
-fixtures/board/basic.puml	reference/board/basic.svg
-fixtures/chart/bar_basic.puml	reference/chart/bar_basic.svg
-fixtures/chart/single_series.puml	reference/chart/single_series.svg
-fixtures/chronology/basic.puml	reference/chronology/basic.svg
 fixtures/class/a0005.puml	reference/class/a0005.svg
 fixtures/class/class_funcparam_arrow_01.puml	reference/class/class_funcparam_arrow_01.svg
 fixtures/class/class_funcparam_arrow_02.puml	reference/class/class_funcparam_arrow_02.svg
@@ -80,8 +76,6 @@ fixtures/erd/weak001.puml	reference/erd/weak001.svg
 fixtures/files_diagram/basic.puml	reference/files_diagram/basic.svg
 fixtures/files_diagram/nested.puml	reference/files_diagram/nested.svg
 fixtures/gantt/a0003.puml	reference/gantt/a0003.svg
-fixtures/git/basic.puml	reference/git/basic.svg
-fixtures/git/branches.puml	reference/git/branches.svg
 fixtures/hcl/basic.puml	reference/hcl/basic.svg
 fixtures/json/json_escaped.puml	reference/json/json_escaped.svg
 fixtures/mindmap/jaws12.puml	reference/mindmap/jaws12.svg
@@ -231,7 +225,6 @@ fixtures/sequence/seq_alt001.puml	reference/sequence/seq_alt001.svg
 fixtures/sequence/seq_autonumber001.puml	reference/sequence/seq_autonumber001.svg
 fixtures/sequence/seq_break001.puml	reference/sequence/seq_break001.svg
 fixtures/sequence/seq_critical001.puml	reference/sequence/seq_critical001.svg
-fixtures/sequence/seq_divider001.puml	reference/sequence/seq_divider001.svg
 fixtures/sequence/seq_group001.puml	reference/sequence/seq_group001.svg
 fixtures/sequence/seq_loop001.puml	reference/sequence/seq_loop001.svg
 fixtures/sequence/seq_nested001.puml	reference/sequence/seq_nested001.svg

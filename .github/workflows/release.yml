@@ -34,11 +34,23 @@ jobs:
 
       - uses: Swatinem/rust-cache@v2
 
-      - name: Install runtime deps
-        run: sudo apt-get update && sudo apt-get install -y libstdc++6 libexpat1 zlib1g
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Install runtime deps + DejaVu fonts
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libstdc++6 libexpat1 zlib1g fonts-dejavu-core fontconfig
+          fc-cache -f
 
       - name: Install graphviz-anywhere native lib
         uses: ./.github/actions/setup-graphviz-anywhere
+
+      - name: Install tests/support npm deps (for wasm backend)
+        run: |
+          cd tests/support
+          npm install
 
       - name: Verify tag matches Cargo.toml version
         run: |
@@ -70,11 +82,12 @@ jobs:
           GRAPHVIZ_ANYWHERE_DIR: ${{ github.workspace }}/.graphviz-anywhere
           LD_LIBRARY_PATH: ${{ github.workspace }}/.graphviz-anywhere/lib
 
-      - name: Reference tests (baseline-gated)
+      - name: Reference tests (baseline-gated, wasm backend)
         run: ./scripts/check_reference_failures.sh
         env:
           GRAPHVIZ_ANYWHERE_DIR: ${{ github.workspace }}/.graphviz-anywhere
           LD_LIBRARY_PATH: ${{ github.workspace }}/.graphviz-anywhere/lib
+          PLANTUML_LITTLE_TEST_BACKEND: wasm
 
   publish-crates-io:
     name: Publish to crates.io

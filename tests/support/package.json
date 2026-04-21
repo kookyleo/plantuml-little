@@ -5,6 +5,6 @@
   "type": "module",
   "description": "Private helper package for the deterministic wasm Graphviz backend used by plantuml-little's reference tests. Not published.",
   "dependencies": {
-    "@kookyleo/graphviz-anywhere-web": "0.1.6"
+    "@kookyleo/graphviz-anywhere-web": "^0.1.7"
   }
 }

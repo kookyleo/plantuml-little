@@ -1,5 +1,7 @@
-plantuml_jar: /ext/plantuml/plantuml-official-stable-v1.2026.2/build/libs/plantuml-1.2026.2.jar
-plantuml_git: 25e2b6582c41787aef60aa52eb2fbf6e8406ae18
-java_version: openjdk version "17.0.18" 2026-01-20
-dot_version: dot - graphviz version 2.43.0 (0)
-generated_at: 2026-04-05T23:27:22Z
+plantuml_jar: plantuml-1.2026.2.jar (sha256 3cdce52133c424dea22425b947ae9d47f2167b0866dfcf99e714d4ea1689975c)
+java_version: openjdk version "21.0.10" 2026-01-20 LTS
+graphviz_backend: @kookyleo/graphviz-anywhere-web@0.1.7 (wasm, Graphviz 14.1.5 + libexpat)
+font_stack: DejaVu Sans via fontconfig (fonts-dejavu-core)
+regenerated_at: 2026-04-21T05:05:59Z
+wrapper: scripts/wasm-dot-wrapper.sh
+runner: ubuntu-latest (GitHub Actions; see .github/workflows/regenerate-refs.yml)
