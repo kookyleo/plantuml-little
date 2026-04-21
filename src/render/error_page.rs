@@ -20,7 +20,7 @@ const LINE_H: f64 = 16.2969;
 
 const RELEASE_UNSUPPORTED_TITLE: &str = "Diagram not supported by this release of PlantUML";
 const RELEASE_UNSUPPORTED_VERSION: &str =
-    "PlantUML version 1.2026.2 / bb8550d [2026-04-09 14:37:49 UTC]";
+    "PlantUML version 1.2026.2 / bb8550d [2026-02-27 17:45:29 UTC]";
 const RELEASE_UNSUPPORTED_LICENSE: &str = "License GPL";
 
 fn pseudo_error_pixel(source: &str) -> String {
