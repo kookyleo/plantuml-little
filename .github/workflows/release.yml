@@ -109,7 +109,21 @@ jobs:
         # --no-verify: matches kookyleo/graphviz-anywhere's pattern. The gate
         # job already ran the full test suite against a real build; verify
         # here would just redo the native lib setup.
-        run: cargo publish --token "${{ secrets.CARGO_TOKEN }}" --no-verify
+        #
+        # Idempotent: treat "already exists on crates.io" as a no-op success
+        # so re-pushing the same tag (e.g. to retry a sibling npm publish
+        # after a token fix) doesn't cascade a cosmetic failure.
+        run: |
+          set +e
+          out=$(cargo publish --token "${{ secrets.CARGO_TOKEN }}" --no-verify 2>&1)
+          rc=$?
+          echo "$out"
+          if [ $rc -eq 0 ]; then exit 0; fi
+          if echo "$out" | grep -qE "already (exists|uploaded)"; then
+            echo "::notice::crates.io already has this version — skipping publish."
+            exit 0
+          fi
+          exit "$rc"
 
   publish-npm-web:
     name: Publish @kookyleo/plantuml-little-web to npm
