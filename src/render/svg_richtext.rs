@@ -687,6 +687,7 @@ fn do_fetch_image(url: &str) -> Option<ImageInfo> {
     use base64::Engine;
 
     if url.starts_with("http:") || url.starts_with("https:") {
+        #[cfg(feature = "remote")]
         match ureq::get(url).call() {
             Ok(resp) => {
                 if let Ok(bytes) = resp.into_body().read_to_vec() {
@@ -696,6 +697,10 @@ fn do_fetch_image(url: &str) -> Option<ImageInfo> {
             Err(e) => {
                 log::warn!("Failed to fetch image {url}: {e}");
             }
+        }
+        #[cfg(not(feature = "remote"))]
+        {
+            log::warn!("Remote image fetch disabled (feature = \"remote\"): {url}");
         }
     }
 

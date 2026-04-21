@@ -1022,6 +1022,7 @@ impl Context {
         Ok(default_remote_theme_url(&theme_file))
     }
 
+    #[cfg(feature = "remote")]
     fn fetch_remote_url(&mut self, url: &str) -> Result<PathBuf> {
         if let Some(path) = self.remote_files.get(url) {
             return Ok(path.clone());
@@ -1041,6 +1042,13 @@ impl Context {
         fs::write(&out_path, &body)?;
         self.remote_files.insert(url.to_string(), out_path.clone());
         Ok(out_path)
+    }
+
+    #[cfg(not(feature = "remote"))]
+    fn fetch_remote_url(&mut self, url: &str) -> Result<PathBuf> {
+        Err(crate::Error::Io(io::Error::other(format!(
+            "remote fetch disabled (feature = \"remote\"): {url}"
+        ))))
     }
 
     // ── variable assignment ─────────────────────────────────────

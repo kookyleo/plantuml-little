@@ -1,3 +1,6 @@
+[workspace]
+members = [".", "packages/web"]
+
 [package]
 name = "plantuml-little"
 version = "1.2026.2-3"
@@ -26,6 +29,7 @@ exclude = [
     ".trace-skill/",
     ".claude/",
     "scripts/",
+    "packages/",
     "patch_java.py",
     "gen_font_data.py",
 ]
@@ -33,11 +37,22 @@ exclude = [
 [[bin]]
 name = "plantuml-little"
 path = "src/main.rs"
+# The CLI depends on std::process, env_logger, and on-disk file I/O, which
+# are not available on wasm32. Compile the library only on that target.
+required-features = ["cli"]
+
+[features]
+default = ["cli", "remote"]
+# CLI front-end (env_logger + main.rs). Disabled automatically on wasm32.
+cli = ["dep:env_logger"]
+# Remote-resource fetching via ureq (themes, images).
+# Disabled automatically on wasm32 where ureq cannot link.
+remote = ["dep:ureq"]
 
 [dependencies]
 thiserror = "1"
 log = "0.4"
-env_logger = "0.11"
+env_logger = { version = "0.11", optional = true }
 regex = "1"
 # graphviz-anywhere 0.1.6 is the first release that:
 #   - fixes the size_t overflow in the C wrapper (0.1.4+) so the library
@@ -48,9 +63,12 @@ regex = "1"
 #     at runtime on Ubuntu/Debian/etc.
 graphviz-anywhere = "0.1.6"
 zip = { version = "0.6.6", default-features = false, features = ["deflate"] }
-ureq = "3"
+ureq = { version = "3", optional = true }
 url = "2"
-flate2 = { version = "1", features = ["zlib"], default-features = false }
+# Use the pure-Rust miniz_oxide backend so the library links on wasm32
+# (the zlib C backend requires a cross-compiled libz which isn't available
+# on wasm32-unknown-unknown). Native builds get identical byte output.
+flate2 = { version = "1", features = ["rust_backend"], default-features = false }
 serde_json = "1"
 base64 = "0.22"
 
