@@ -27,6 +27,7 @@ pub mod sequence_teoz;
 pub mod state;
 pub mod timing;
 pub mod usecase;
+pub mod wasm_backend;
 pub mod wbs;
 pub mod wire;
 

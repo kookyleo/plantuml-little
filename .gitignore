@@ -35,3 +35,13 @@ patch_*.py
 gen_font_data.py
 scripts/failures.json
 scripts/__pycache__/
+
+# Native graphviz-anywhere prebuilt (downloaded by setup-graphviz-anywhere
+# action in CI, or by developers running tests locally). Byte-varies per
+# platform — never commit.
+.graphviz-anywhere/
+
+# Node modules for the wasm Graphviz backend (tests/support). The package
+# is pinned in tests/support/package.json + package-lock.json, so every
+# install produces the same node_modules — no reason to commit.
+tests/support/node_modules/
