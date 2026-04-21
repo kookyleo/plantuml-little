@@ -452,10 +452,12 @@ impl DotStringFactory {
                 sb.push_str(&format!("label={cluster_label};\n"));
             }
 
+            let mut any_normal_node_emitted = false;
             for uid in &cluster.node_uids {
                 if let Some(node) = self.bibliotekon.find_node(uid) {
                     if node.entity_position.is_normal() {
                         node.append_shape(sb);
+                        any_normal_node_emitted = true;
                     }
                 }
             }
@@ -463,11 +465,25 @@ impl DotStringFactory {
                 self.write_cluster(sb, sub);
             }
 
+            // Java ClusterDotString lines 178-185: when a cluster has boundary
+            // entities (inputPin/outputPin) and no port-typed entities, and no
+            // normal nodes were emitted (printCluster2 added == null — i.e. all
+            // the cluster's direct children are pins or subclusters), emit a
+            // shape=point "special" node inside clusterXee. This tiny invisible
+            // node anchors the cluster's interior and materially affects how
+            // Graphviz positions the direct pin children (e.g. count_start in
+            // state/scxml0003, which would otherwise land 9 px right of Java's
+            // output because the cluster interior has no mass to pull against).
             if has_port {
                 sb.push_str(&format!(
                     "{} [shape=rect,width=.01,height=.01,label={}];\n",
                     cluster_special_point_id(cluster),
                     cluster_label,
+                ));
+            } else if !any_normal_node_emitted && cluster.has_link_from_or_to_group {
+                sb.push_str(&format!(
+                    "{} [shape=point,width=.01,label=\"\"];\n",
+                    cluster_special_point_id(cluster),
                 ));
             }
 
