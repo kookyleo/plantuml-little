@@ -54,6 +54,5 @@
 #
 # Keep the list sorted. One test name per line. '#' prefix for comments.
 
-reference_fixtures_component_deployment01_puml
 reference_fixtures_nonreg_scxml_SCXML0003_puml
 reference_fixtures_state_scxml0003_puml

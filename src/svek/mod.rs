@@ -1443,11 +1443,21 @@ fn extend_lf_with_cluster(
     max_y: &mut f64,
 ) {
     if cluster.width > 0.0 && cluster.height > 0.0 {
+        const HACK_X: f64 = 10.0;
         let (left, top, right, bottom) = match cluster.style {
             cluster::ClusterStyle::Rectangle | cluster::ClusterStyle::RoundedRectangle => (
                 cluster.x - 1.0,
                 cluster.y - 1.0,
                 cluster.x + cluster.width - 1.0,
+                cluster.y + cluster.height - 1.0,
+            ),
+            // Java USymbolNode / USymbolArtifact / USymbolCloud render the
+            // cluster border as a UPolygon, so LimitFinder.drawUPolygon
+            // applies `HACK_X_FOR_POLYGON = 10` on min/max x.
+            cluster::ClusterStyle::Node | cluster::ClusterStyle::Cloud => (
+                cluster.x - HACK_X,
+                cluster.y - 1.0,
+                cluster.x + cluster.width + HACK_X,
                 cluster.y + cluster.height - 1.0,
             ),
             _ => (
