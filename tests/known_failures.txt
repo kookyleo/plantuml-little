@@ -7,40 +7,19 @@
 # drift have been eliminated — so every fixture listed below now reflects
 # a real plantuml-little vs Java PlantUML implementation gap worth fixing.
 #
-# Remaining drift, all localised to SMETANA state-machine / component
-# cluster layout:
+# Remaining drift (state/scxml0003 + nonreg/scxml/SCXML0003 are the
+# same fixture tested from two locations):
 #
 #   - state/scxml0003 + nonreg/scxml/SCXML0003: the `count_start` input
 #     pin (73 px label inside a composite) lands 9 px right of Java's
-#     position. Java's SvekNode.appendShape switches a
-#     RECTANGLE_PORT to an HTML-TABLE representation when the label
-#     width exceeds 40 px (see Java `appendLabelHtmlSpecialForPort`),
-#     which reserves horizontal gutter space around the pin.
-#     plantuml-little's `port_label_width` is forwarded correctly, but
-#     `max_label_width` — which the DOT-emission switch keys off of —
-#     is never populated for state pins, so every pin goes through the
-#     "basic" path. Propagating `max_label_width` for wide pins
-#     regresses overall counter-cluster sizing; a complete fix needs
-#     alignment on when the HTML switch fires AND how the cluster
-#     shell re-measures around it.
-#
-#   - state/state_history001: outer-layout `render_offset.0` comes out
-#     at 6.36 where Java produces 10, shifting all geometry -3.64 px.
-#     The divergence is in `SvekResult.minMax` (Java) vs `svek::solve`
-#     (Rust): Java's moveDelta argument is `6 - LF_minX`, but
-#     plantuml-little moves by `6 - polygon_minX` and then tries to
-#     reconstruct the "LF gutter" via a separate `render_offset`. For
-#     this specific fixture (composite state with `[H]` deep-history
-#     and a back-arrow whose bezier control point extends left of the
-#     start ellipse) the two formulas diverge. Aligning moveDelta with
-#     Java would close the gap but touches enough of the SMETANA
-#     pipeline that it's being tracked separately.
-#
-#   - component/deployment01: 9 px width drift with `DMZ` frame /
-#     `docker` stack on the right column. All x-coords are shifted
-#     uniformly -9 but SVG width is also -9, so an actual extra right
-#     margin is missing. Same moveDelta / render_offset asymmetry as
-#     the history case but in component-layout coordinates.
+#     position. Java's `ClusterDotString.printRanks` emits `{rank=source;
+#     count_start;}` and `{rank=sink; count_done; count_val[3:0];}`
+#     constraints around pin children of a RECTANGLE_PORT-hosting
+#     cluster. The Rust port emits a flat DOT graph for the counter
+#     cluster without these rank constraints, so Graphviz places the
+#     wide-label pin `count_start` at a different X than Java. Fix is
+#     plumbing rank=source/sink subgraph emission through svek's
+#     cluster DOT writer — non-trivial and scoped for a follow-up PR.
 #
 # This file is consumed by scripts/check_reference_failures.sh which
 # both .github/workflows/ci.yml and .github/workflows/release.yml invoke.
