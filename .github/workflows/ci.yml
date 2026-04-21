@@ -67,17 +67,11 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y libstdc++6 libexpat1 zlib1g
       - name: Install graphviz-anywhere native lib
         uses: ./.github/actions/setup-graphviz-anywhere
-      - run: cargo test --test reference_tests -- --nocapture 2>&1 | tee ref_results.txt
+      - name: Run reference tests with baseline check
+        run: ./scripts/check_reference_failures.sh
         env:
           GRAPHVIZ_ANYWHERE_DIR: ${{ github.workspace }}/.graphviz-anywhere
           LD_LIBRARY_PATH: ${{ github.workspace }}/.graphviz-anywhere/lib
-      - name: Report reference test result
-        run: |
-          tail -n 5 ref_results.txt
-          # Reference tests include a handful of known-diverging fixtures
-          # (SCXML, preprocessor jaws, etc.); we just need the test run to
-          # terminate with a valid summary line.
-          grep -E "test result: (ok|FAILED)\." ref_results.txt
 
   test-integration:
     name: Integration Tests
