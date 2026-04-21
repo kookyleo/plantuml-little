@@ -488,16 +488,38 @@ fn to_dot(graph: &LayoutGraph) -> String {
 
 /// Run Graphviz `dot` on a DOT source string, returning the SVG output.
 ///
-/// Uses the in-process `graphviz-anywhere` crate (a safe wrapper around the
-/// same libgvc that the Graphviz CLI uses), so no `dot` subprocess / runtime
-/// dependency is required — callers get the same SVG the `dot -Tsvg` CLI
-/// would produce.
+/// Two backends are available, picked at runtime:
+///
+/// 1. **Native** (default, used by the production `plantuml_little`
+///    library + CLI). Uses the in-process `graphviz-anywhere` crate
+///    (a safe wrapper around the same libgvc that the Graphviz CLI
+///    uses), so no `dot` subprocess / runtime dependency is required —
+///    callers get the same SVG the `dot -Tsvg` CLI would produce.
+///
+/// 2. **Wasm** (opt-in via `PLANTUML_LITTLE_TEST_BACKEND=wasm`). Spawns
+///    a long-lived Node.js subprocess that loads
+///    `@kookyleo/graphviz-anywhere-web`'s viz.wasm and streams
+///    DOT → SVG requests to it. The point is byte-identical SVG output
+///    on every developer machine and every CI runner — the same wasm
+///    binary ships to all platforms, so Graphviz's floating-point
+///    layout math produces the same bytes everywhere. Used by
+///    `scripts/check_reference_failures.sh` and the reference-test CI
+///    job to guarantee reproducibility.
 ///
 /// libgvc maintains global mutable state (plugin registry, error buffers,
-/// etc.) and is not thread-safe, so we serialize all Graphviz access through
-/// a process-wide mutex. Previously the `dot` subprocess provided isolation
-/// implicitly; this lock preserves the same guarantee in-process.
+/// etc.) and is not thread-safe, so we serialize all native Graphviz
+/// access through a process-wide mutex. Previously the `dot` subprocess
+/// provided isolation implicitly; this lock preserves the same guarantee
+/// in-process. The wasm backend has its own serialization inside
+/// `wasm_backend::render_dot_to_svg`.
 fn render_dot_to_svg(dot_src: &str) -> Result<String, Error> {
+    if crate::layout::wasm_backend::wasm_backend_selected() {
+        return crate::layout::wasm_backend::render_dot_to_svg(dot_src);
+    }
+    render_dot_to_svg_native(dot_src)
+}
+
+fn render_dot_to_svg_native(dot_src: &str) -> Result<String, Error> {
     use std::sync::Mutex;
     static GV_LOCK: Mutex<()> = Mutex::new(());
 
