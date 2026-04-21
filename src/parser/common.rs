@@ -1102,28 +1102,91 @@ pub fn sprite_gray_to_data_uri(
     bg_g: u8,
     bg_b: u8,
 ) -> Option<String> {
+    sprite_gray_to_data_uri_scaled(data, bg_r, bg_g, bg_b, data.width, data.height)
+}
+
+/// Encode a sprite as a PNG data URI, optionally scaling from the raw sprite
+/// dimensions (`data.width` × `data.height`) to `out_w` × `out_h`.
+///
+/// When `out_w == data.width && out_h == data.height` the encoding is
+/// pixel-for-pixel identical to the raw sprite. Otherwise the raw grayscale
+/// sprite is resampled with bilinear interpolation — matching Java PlantUML's
+/// `SpriteMonochrome.toUImage`, which draws the sprite with an AWT
+/// `AffineTransform` so that the encoded PNG dimensions match the `<image>`
+/// wrapper. Without this, C4-style entity sprites (48×48 raw, rendered at
+/// 52×52) ship with a 48×48 PNG inside a 52×52 `<image>` — the browser
+/// upscales at render time but byte parity with the Java reference is lost.
+pub fn sprite_gray_to_data_uri_scaled(
+    data: &SpriteGrayData,
+    bg_r: u8,
+    bg_g: u8,
+    bg_b: u8,
+    out_w: usize,
+    out_h: usize,
+) -> Option<String> {
+    if out_w == 0 || out_h == 0 {
+        return None;
+    }
     let max_level = (data.depth - 1) as f64;
-    let mut rgba = Vec::with_capacity(data.width * data.height * 4);
-    for &g in &data.gray {
-        let coef = g as f64 / max_level;
-        // Color: interpolate between background and black (foreground)
-        // coef=0 → background, coef=1 → foreground (black)
-        let r = ((1.0 - coef) * bg_r as f64) as u8;
-        let green = ((1.0 - coef) * bg_g as f64) as u8;
-        let b = ((1.0 - coef) * bg_b as f64) as u8;
-        // Alpha: fully opaque when coef > maxCoef/4, otherwise proportional
-        let alpha = if coef > data.max_coef / 4.0 {
-            255u8
-        } else {
-            (255.0 * (coef * 4.0 / data.max_coef)) as u8
+    let mut rgba = Vec::with_capacity(out_w * out_h * 4);
+    let sample_gray = |gx: f64, gy: f64| -> f64 {
+        // Bilinear resample into the raw gray grid. We use the AWT convention:
+        // source coordinates map 1:1 at the image edges, i.e.
+        // `src_x = dst_x * (src_w / dst_w)`. Out-of-range samples (when
+        // `out_w == src_w`) fall back to exact integer lookup.
+        let sx1 = gx.floor() as isize;
+        let sy1 = gy.floor() as isize;
+        let sx2 = sx1 + 1;
+        let sy2 = sy1 + 1;
+        let fx = gx - sx1 as f64;
+        let fy = gy - sy1 as f64;
+        let get = |x: isize, y: isize| -> f64 {
+            if x < 0 || y < 0 || x >= data.width as isize || y >= data.height as isize {
+                return 0.0;
+            }
+            data.gray[(y as usize) * data.width + (x as usize)] as f64
         };
-        rgba.push(r);
-        rgba.push(green);
-        rgba.push(b);
-        rgba.push(alpha);
+        let v00 = get(sx1, sy1);
+        let v10 = get(sx2, sy1);
+        let v01 = get(sx1, sy2);
+        let v11 = get(sx2, sy2);
+        (1.0 - fy) * ((1.0 - fx) * v00 + fx * v10) + fy * ((1.0 - fx) * v01 + fx * v11)
+    };
+
+    let scale_x = data.width as f64 / out_w as f64;
+    let scale_y = data.height as f64 / out_h as f64;
+    let same_size = out_w == data.width && out_h == data.height;
+
+    for oy in 0..out_h {
+        for ox in 0..out_w {
+            let g = if same_size {
+                data.gray[oy * data.width + ox] as f64
+            } else {
+                // Map output pixel center to the input image.
+                let gx = (ox as f64 + 0.5) * scale_x - 0.5;
+                let gy = (oy as f64 + 0.5) * scale_y - 0.5;
+                sample_gray(gx, gy)
+            };
+            let coef = g / max_level;
+            // Color: interpolate between background and black (foreground)
+            // coef=0 → background, coef=1 → foreground (black)
+            let r = ((1.0 - coef) * bg_r as f64) as u8;
+            let green = ((1.0 - coef) * bg_g as f64) as u8;
+            let b = ((1.0 - coef) * bg_b as f64) as u8;
+            // Alpha: fully opaque when coef > maxCoef/4, otherwise proportional
+            let alpha = if coef > data.max_coef / 4.0 {
+                255u8
+            } else {
+                (255.0 * (coef * 4.0 / data.max_coef)) as u8
+            };
+            rgba.push(r);
+            rgba.push(green);
+            rgba.push(b);
+            rgba.push(alpha);
+        }
     }
 
-    let png_data = encode_png_rgba(data.width, data.height, &rgba)?;
+    let png_data = encode_png_rgba(out_w, out_h, &rgba)?;
 
     use base64::Engine;
     let b64 = base64::engine::general_purpose::STANDARD.encode(&png_data);

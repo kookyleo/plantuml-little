@@ -181,16 +181,38 @@ pub fn get_sprite_svg(name: &str) -> Option<String> {
 /// If the sprite has raw gray data, re-generates the PNG with the given background.
 /// Otherwise falls back to extracting the data URI from the pre-generated SVG.
 pub fn get_sprite_data_uri_with_bg(name: &str, bg_r: u8, bg_g: u8, bg_b: u8) -> Option<String> {
-    // Try gray data first (hex-encoded monochrome sprites)
+    // Passing `None` preserves the sprite's raw dimensions.
+    get_sprite_data_uri_with_bg_scaled(name, bg_r, bg_g, bg_b, None)
+}
+
+/// Like [`get_sprite_data_uri_with_bg`], but optionally resamples the raw
+/// grayscale sprite to `(out_w, out_h)` using bilinear interpolation.
+///
+/// Java PlantUML's `SpriteMonochrome.toUImage` scales C4-style entity
+/// sprites from their raw 48×48 data into a slightly larger image (e.g.
+/// 52×52) so the encoded PNG dimensions match the enclosing `<image>` tag.
+/// Without this, the `<image>` tag reports 52×52 while the PNG is still
+/// 48×48 — browsers upscale at render time but byte-level parity with the
+/// Java reference is lost.
+pub fn get_sprite_data_uri_with_bg_scaled(
+    name: &str,
+    bg_r: u8,
+    bg_g: u8,
+    bg_b: u8,
+    out_dims: Option<(usize, usize)>,
+) -> Option<String> {
+    // Try gray data first (hex-encoded monochrome sprites).
     let from_gray = SPRITE_GRAY.with(|s| {
-        s.borrow()
-            .get(name)
-            .and_then(|data| crate::parser::common::sprite_gray_to_data_uri(data, bg_r, bg_g, bg_b))
+        s.borrow().get(name).and_then(|data| {
+            let (w, h) = out_dims.unwrap_or((data.width, data.height));
+            crate::parser::common::sprite_gray_to_data_uri_scaled(data, bg_r, bg_g, bg_b, w, h)
+        })
     });
     if from_gray.is_some() {
         return from_gray;
     }
-    // Fallback: extract data URI from pre-generated SVG
+    // Fallback: extract data URI from pre-generated SVG (the raw href is
+    // returned unchanged — we can't resample a pre-rendered raster here).
     get_sprite(name).and_then(|svg| {
         let href_start = svg.find("xlink:href=\"")? + "xlink:href=\"".len();
         let href_end = svg[href_start..].find('"')? + href_start;
