@@ -202,6 +202,8 @@ dependencies = [
 [[package]]
 name = "graphviz-anywhere"
 version = "0.1.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0c2da2725e2c58342583055e923a9cc65a791715f99c8a8f9273f013434240c3"
 dependencies = [
  "thiserror",
  "wasm-bindgen",
