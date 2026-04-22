@@ -28,7 +28,7 @@ wasm-opt = false
 [dependencies]
 # Depend on the root crate as a library with the CLI + ureq-backed remote
 # fetch features disabled — wasm32 has no stdio, no TCP, no filesystem in
-# the usual sense. graphviz-anywhere 0.1.7+ installs its own wasm JS
-# bridge automatically when compiled for wasm32.
+# the usual sense. graphviz-anywhere installs its own wasm JS bridge
+# automatically when compiled for wasm32.
 plantuml-little = { path = "../..", default-features = false }
 wasm-bindgen = "0.2"

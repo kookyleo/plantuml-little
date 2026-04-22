@@ -4,8 +4,9 @@
 //! which defaults to the native `graphviz-anywhere` crate. When the env
 //! var `PLANTUML_LITTLE_TEST_BACKEND=wasm` is set, `render_dot_to_svg`
 //! delegates here instead: we spawn a long-lived Node.js child process
-//! that loads `@kookyleo/graphviz-anywhere-web@0.1.6` (a wasm-compiled
-//! Graphviz) and stream DOT → SVG requests over stdin/stdout.
+//! that loads `@kookyleo/graphviz-anywhere-web` (a wasm-compiled
+//! Graphviz; version pinned in `tests/support/package.json`) and
+//! streams DOT → SVG requests over stdin/stdout.
 //!
 //! Why Node + wasm? The same viz.wasm bytes ship to every OS and every
 //! CI runner; V8's wasm runtime is spec-deterministic for Graphviz's

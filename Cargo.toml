@@ -54,13 +54,12 @@ thiserror = "1"
 log = "0.4"
 env_logger = { version = "0.11", optional = true }
 regex = "1"
-# graphviz-anywhere 0.1.6 is the first release that:
-#   - fixes the size_t overflow in the C wrapper (0.1.4+) so the library
-#     doesn't crash on render on 64-bit targets,
-#   - enables WITH_EXPAT=ON on macOS/Linux (0.1.5+) so HTML labels render
-#     with correct geometry,
-#   - links the linux .so with g++ (0.1.6+) so libstdc++ vtables resolve
-#     at runtime on Ubuntu/Debian/etc.
+# graphviz-anywhere — native Graphviz bindings for the non-wasm code
+# path. Requires a release that (a) fixes the size_t overflow in the C
+# wrapper on 64-bit targets, (b) builds with WITH_EXPAT=ON on
+# macOS/Linux so HTML labels render with correct geometry, and (c)
+# links the Linux .so with g++ so libstdc++ vtables resolve at runtime
+# on Ubuntu/Debian.
 graphviz-anywhere = "0.1.6"
 zip = { version = "0.6.6", default-features = false, features = ["deflate"] }
 ureq = { version = "3", optional = true }
