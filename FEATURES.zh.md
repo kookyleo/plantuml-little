@@ -24,7 +24,7 @@
 | WBS（工作分解） | `@startwbs` | 内置引擎 | 5 |
 | NWDiag（网络图） | `@startnwdiag` | 内置引擎 | 1 |
 | Salt / Wireframe（线框图） | `@startsalt` | 内置引擎 | 1 |
-| DOT (Graphviz) | `@startdot` | 子进程透传 | 1 |
+| DOT (Graphviz) | `@startdot` | Graphviz 透传（子进程） | 1 |
 | EBNF | `@startebnf` | 内置引擎 | 2 |
 | Regex（正则可视化） | `@startregex` | 内置引擎 | 3 |
 | BPM（业务流程） | `@startbpm` | 内置引擎 | 4 |

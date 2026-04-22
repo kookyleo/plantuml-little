@@ -24,7 +24,7 @@ Aligned with Java PlantUML **v1.2026.2** (`bb8550d`).
 | WBS | `@startwbs` | Built-in | 5 |
 | NWDiag | `@startnwdiag` | Built-in | 1 |
 | Salt / Wireframe | `@startsalt` | Built-in | 1 |
-| DOT (Graphviz) | `@startdot` | Subprocess pass-through | 1 |
+| DOT (Graphviz) | `@startdot` | Graphviz pass-through (subprocess) | 1 |
 | EBNF | `@startebnf` | Built-in | 2 |
 | Regex | `@startregex` | Built-in | 3 |
 | BPM | `@startbpm` | Built-in | 4 |
