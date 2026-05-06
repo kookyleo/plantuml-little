@@ -77,11 +77,31 @@ jobs:
             public static void main(String[] a) {
               BufferedImage img = new BufferedImage(1,1,BufferedImage.TYPE_INT_ARGB);
               Graphics2D g = img.createGraphics();
-              Font f = new Font("sans-serif", Font.BOLD, 14);
-              System.out.println("sans-serif resolves to: " + f.getFontName());
-              Rectangle2D r = f.getStringBounds("System in focus", g.getFontRenderContext());
-              System.out.printf("Width of 'System in focus' @14pt bold = %.4f%n", r.getWidth());
+              g.setRenderingHint(RenderingHints.KEY_FRACTIONALMETRICS, RenderingHints.VALUE_FRACTIONALMETRICS_ON);
+              FontRenderContext frc = g.getFontRenderContext();
+
+              Font fb = new Font("sans-serif", Font.BOLD, 14);
+              System.out.println("sans-serif BOLD resolves to: " + fb.getFontName());
+              Rectangle2D r = fb.getStringBounds("System in focus", frc);
+              System.out.printf("Width of 'System in focus' @14pt bold (frac) = %.4f%n", r.getWidth());
               // Expect DejaVu Sans Bold => 125.xxx. If Helvetica/Arial => 110.
+
+              Font fi = new Font("sans-serif", Font.ITALIC, 14);
+              System.out.println("sans-serif ITALIC resolves to: " + fi.getFontName());
+              Rectangle2D ri = fi.getStringBounds("«archimate-node»", frc);
+              System.out.printf("italic 'archimate-node' (frac) = %.4f%n", ri.getWidth());
+              // Expect DejaVu Sans => 128.2354. Anything else means font fallback.
+
+              Font fp = new Font("sans-serif", Font.PLAIN, 14);
+              Rectangle2D rp = fp.getStringBounds("«archimate-node»", frc);
+              System.out.printf("plain 'archimate-node' (frac)  = %.4f%n", rp.getWidth());
+
+              System.out.println("java.version: " + System.getProperty("java.version"));
+              System.out.println("java.vendor:  " + System.getProperty("java.vendor"));
+              System.out.println("java.home:    " + System.getProperty("java.home"));
+
+              for (String s : GraphicsEnvironment.getLocalGraphicsEnvironment().getAvailableFontFamilyNames())
+                if (s.toLowerCase().contains("dejavu")) System.out.println("  family: " + s);
             }
           }
           EOF
