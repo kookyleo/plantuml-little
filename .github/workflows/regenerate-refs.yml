@@ -9,6 +9,12 @@ name: Regenerate reference SVGs
 # wrapper (scripts/wasm-dot-wrapper.sh → @kookyleo/graphviz-anywhere-web)
 # so Graphviz output is byte-identical to what the Rust suite sees.
 #
+# Runner is pinned to ubuntu-24.04 (noble): on ubuntu-22.04 (jammy) the
+# fontconfig italic-fallback path adds ≈0.1503pt to every italic string
+# bound, which propagates into rect widths / x-coords and breaks
+# byte-exact comparison against plantuml-little (whose Rust metrics
+# match noble's Java FontMetrics output exactly).
+#
 # Output: uploaded as `plantuml-reference-svgs` artifact. Download,
 # extract into tests/reference/, commit.
 
@@ -23,7 +29,7 @@ on:
 jobs:
   regenerate:
     name: Regenerate reference SVGs (Linux + DejaVu)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
 
