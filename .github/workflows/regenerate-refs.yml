@@ -9,13 +9,12 @@ name: Regenerate reference SVGs
 # wrapper (scripts/wasm-dot-wrapper.sh → @kookyleo/graphviz-anywhere-web)
 # so Graphviz output is byte-identical to what the Rust suite sees.
 #
-# Runner is pinned to ubuntu-24.04 (noble) with apt-installed OpenJDK
-# 21 (not Temurin) and fonts-dejavu-extra forcibly removed: extra
-# ships DejaVuSans-Oblique.ttf and Java's `Dialog.italic` then picks
-# its real italic glyph metrics, adding ~+0.1503pt to every italic
-# string vs plain DejaVuSans.ttf. plantuml-little's Rust side embeds
-# only plain + bold and synthesizes italic, so we keep Java on the
-# same path for byte-exact comparison.
+# Runner is pinned to ubuntu-24.04 (noble) so the system fontconfig
+# stays stable across reruns. fonts-dejavu-extra is installed
+# alongside -core: it ships DejaVuSans-Oblique.ttf, which Java's
+# `Dialog.italic` resolves to. plantuml-little's Rust side embeds the
+# matching Oblique metric tables in src/font_data.rs (regenerated via
+# tools/gen_font_data.py), so italic strings compare byte-exact.
 #
 # Output: uploaded as `plantuml-reference-svgs` artifact. Download,
 # extract into tests/reference/, commit.
@@ -35,28 +34,21 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install DejaVu fonts + Ubuntu OpenJDK 21
-        # Use Ubuntu's apt-installed OpenJDK rather than actions/setup-java
-        # (Temurin); Temurin ships its own fontconfig.bfc that can drift
-        # from plantuml-little's metrics.
-        #
-        # Critically: REMOVE fonts-dejavu-extra (pre-installed on the
-        # ubuntu-24.04 runner image) before installing -core. The extra
-        # package ships DejaVuSans-Oblique.ttf, which Java's logical
-        # `Dialog.italic` then maps to — its italic glyphs produce a
-        # ~+0.1503pt offset vs plain DejaVuSans.ttf metrics. plantuml-
-        # little's Rust side embeds only DejaVuSans.ttf / Bold (no
-        # Oblique) and synthesizes italic, so dropping the extra package
-        # forces Java onto the same path and matches our metrics
-        # byte-exactly.
+      - name: Install DejaVu fonts (core + extra for Oblique italic)
+        # fonts-dejavu-extra ships DejaVuSans-Oblique.ttf so Java's
+        # `Dialog.italic` resolves to real italic glyph metrics that
+        # match the Oblique tables baked into src/font_data.rs.
         run: |
           sudo apt-get update
-          sudo apt-get remove -y fonts-dejavu-extra || true
-          sudo apt-get install -y fonts-dejavu-core fontconfig openjdk-21-jdk-headless
+          sudo apt-get install -y fonts-dejavu-core fonts-dejavu-extra fontconfig
           fc-cache -f
           fc-list | grep -i dejavu | head -10
-          echo "JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64" >> "$GITHUB_ENV"
-          echo "/usr/lib/jvm/java-21-openjdk-amd64/bin" >> "$GITHUB_PATH"
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
 
       - name: Set up Node 22
         uses: actions/setup-node@v4
@@ -99,7 +91,8 @@ jobs:
               System.out.println("sans-serif ITALIC resolves to: " + fi.getFontName());
               Rectangle2D ri = fi.getStringBounds("«archimate-node»", frc);
               System.out.printf("italic 'archimate-node' (frac) = %.4f%n", ri.getWidth());
-              // Expect DejaVu Sans => 128.2354. Anything else means font fallback.
+              // Expect DejaVu Sans Oblique => 128.3857. Plain (no Oblique
+              // installed) gives 128.2354 and would mismatch the Rust side.
 
               Font fp = new Font("sans-serif", Font.PLAIN, 14);
               Rectangle2D rp = fp.getStringBounds("«archimate-node»", frc);
