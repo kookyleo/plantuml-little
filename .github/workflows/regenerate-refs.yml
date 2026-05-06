@@ -9,13 +9,13 @@ name: Regenerate reference SVGs
 # wrapper (scripts/wasm-dot-wrapper.sh → @kookyleo/graphviz-anywhere-web)
 # so Graphviz output is byte-identical to what the Rust suite sees.
 #
-# Runner is pinned to ubuntu-24.04 (noble) and uses Ubuntu's apt-
-# installed OpenJDK 21 rather than Temurin (actions/setup-java).
-# Temurin ships its own fontconfig.bfc which maps `Dialog.italic` to
-# a font with slightly different metrics than system fontconfig,
-# producing a ~+0.1503pt offset on every italic string bound. That
-# offset propagates into rect widths / x-coords and breaks byte-exact
-# comparison against plantuml-little's Rust DejaVu metrics.
+# Runner is pinned to ubuntu-24.04 (noble) with apt-installed OpenJDK
+# 21 (not Temurin) and fonts-dejavu-extra forcibly removed: extra
+# ships DejaVuSans-Oblique.ttf and Java's `Dialog.italic` then picks
+# its real italic glyph metrics, adding ~+0.1503pt to every italic
+# string vs plain DejaVuSans.ttf. plantuml-little's Rust side embeds
+# only plain + bold and synthesizes italic, so we keep Java on the
+# same path for byte-exact comparison.
 #
 # Output: uploaded as `plantuml-reference-svgs` artifact. Download,
 # extract into tests/reference/, commit.
@@ -37,16 +37,24 @@ jobs:
 
       - name: Install DejaVu fonts + Ubuntu OpenJDK 21
         # Use Ubuntu's apt-installed OpenJDK rather than actions/setup-java
-        # (Temurin) — Temurin ships its own fontconfig.bfc that maps
-        # `Dialog.italic` differently from system fontconfig, producing a
-        # ~+0.1503pt offset on every italic string vs plantuml-little's
-        # Rust DejaVu metrics. Ubuntu OpenJDK reads the system fontconfig,
-        # which on noble matches plantuml-little exactly.
+        # (Temurin); Temurin ships its own fontconfig.bfc that can drift
+        # from plantuml-little's metrics.
+        #
+        # Critically: REMOVE fonts-dejavu-extra (pre-installed on the
+        # ubuntu-24.04 runner image) before installing -core. The extra
+        # package ships DejaVuSans-Oblique.ttf, which Java's logical
+        # `Dialog.italic` then maps to — its italic glyphs produce a
+        # ~+0.1503pt offset vs plain DejaVuSans.ttf metrics. plantuml-
+        # little's Rust side embeds only DejaVuSans.ttf / Bold (no
+        # Oblique) and synthesizes italic, so dropping the extra package
+        # forces Java onto the same path and matches our metrics
+        # byte-exactly.
         run: |
           sudo apt-get update
+          sudo apt-get remove -y fonts-dejavu-extra || true
           sudo apt-get install -y fonts-dejavu-core fontconfig openjdk-21-jdk-headless
           fc-cache -f
-          fc-list | grep -i dejavu | head -5
+          fc-list | grep -i dejavu | head -10
           echo "JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64" >> "$GITHUB_ENV"
           echo "/usr/lib/jvm/java-21-openjdk-amd64/bin" >> "$GITHUB_PATH"
 
