@@ -71,6 +71,7 @@ jobs:
         run: |
           cat > /tmp/FontProbe.java <<'EOF'
           import java.awt.*;
+          import java.awt.font.FontRenderContext;
           import java.awt.geom.Rectangle2D;
           import java.awt.image.BufferedImage;
           public class FontProbe {
