@@ -1,5 +1,14 @@
 # plantuml-little
 
+> **本仓库已不再是 plantuml-little 的开发地。**
+>
+> 项目已通过 `git subtree` 并入
+> [**Actrium/supramark**](https://github.com/Actrium/supramark)，现位于
+> [`crates/plantuml-little/`](https://github.com/Actrium/supramark/tree/main/crates/plantuml-little)。
+> 后续开发与 issue 都在那边处理。
+>
+> 此处历史保留供查阅。
+
 中文 | [English](README.md)
 
 [PlantUML](https://plantuml.com/) 的轻量级 Rust 重新实现，目标是与 Java PlantUML **v1.2026.2** 产生 **逐字节一致的 SVG 输出**。

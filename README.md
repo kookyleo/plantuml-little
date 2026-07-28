@@ -1,5 +1,15 @@
 # plantuml-little
 
+> **This repository is no longer the development home for plantuml-little.**
+>
+> The project has been merged into
+> [**Actrium/supramark**](https://github.com/Actrium/supramark) via `git subtree`
+> and now lives at
+> [`crates/plantuml-little/`](https://github.com/Actrium/supramark/tree/main/crates/plantuml-little).
+> Ongoing development and issues are handled there.
+>
+> The history here remains available for reference.
+
 [中文](README.zh.md) | English
 
 A lightweight Rust reimplementation of [PlantUML](https://plantuml.com/), targeting byte-exact SVG output parity with Java PlantUML **v1.2026.2**.
